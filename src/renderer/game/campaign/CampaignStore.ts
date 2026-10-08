@@ -1,7 +1,7 @@
 import { EventEmitter } from '../core/EventEmitter';
 import { CAMPAIGN_SCHEMA_VERSION, Campaign, LoadOptions, logWarning } from './Campaign';
 import { CampaignEnding, CampaignHistoryEntry, historyEntry, historyToJson, readHistory, sameEntry } from './CampaignHistory';
-import { describeValue, isReaderError, readFields, readObject } from './JsonReader';
+import { describeValue, isReaderError, readFields, readInteger, readObject } from './JsonReader';
 import { LocalSaveStorage, SaveStorage, isQuotaError, storageTrouble } from './SaveStorage';
 
 type Slot = 'a' | 'b';
@@ -162,20 +162,21 @@ interface Waiting {
  * to it, so a crash part way leaves the save before. `active` naming a slot
  * with text in it decides the save, and the other slot then holds only the
  * save before it. Otherwise (no `active`, an empty one, one naming an empty
- * slot, or anything else) the save is whichever slot holds a save this
- * build loads, and with none there's no save. A damaged save is copied to
- * the recovery key before anything writes over it or removes it: the save's
- * own slot when `active` moves off it or it's removed, and any slot no
- * `active` vouches for. The one exception is a delete the player asks for
- * when storage is too full for the copy.
+ * slot, or anything else) the save is the newest that loads, by the write
+ * count each save carries, and with none there's no save. A damaged save is
+ * copied to the recovery key before anything writes over it or removes it:
+ * the save's own slot when `active` moves off it or it's removed, and any
+ * slot no `active` vouches for. The one exception is a delete the player
+ * asks for when storage is too full for the copy.
  *
  * Every campaign instance the store loads or saves is tagged with the
  * lineage of the save it belongs to, and only the current lineage's
- * instances are saved. Ending the save's campaign, deleting the save, and
- * saving a new campaign each start a new one, so a screen still holding an
- * older instance can't write it back. The lineage lives in this store's
- * memory, so two tabs of one build can still overwrite each other's saves
- * until a single-writer lock lands (DDB-415).
+ * instances are saved. Loading the save, ending its campaign, deleting it,
+ * and saving a new campaign each start a new lineage, so the instance a
+ * load hands out is the only one that saves, and a screen still holding an
+ * older one can't write it back. The lineage lives in this store's memory,
+ * so two tabs of one build can still overwrite each other's saves until a
+ * single-writer lock lands (DDB-415).
  */
 export class CampaignStore extends EventEmitter {
 	private static sharedInstance: CampaignStore | null = null;
@@ -226,10 +227,12 @@ export class CampaignStore extends EventEmitter {
 	}
 
 	/**
-	 * The campaign in progress: what Continue opens. Null when there's none,
-	 * or when another version saved it (`saveStatus` says which). Rejects
-	 * with a `CampaignStoreError` when storage fails or the save is damaged;
-	 * a damaged save is copied to the recovery key and left where it was.
+	 * The campaign in progress: what Continue opens. It's the only instance
+	 * of the campaign that saves from then on; any loaded or saved before it
+	 * is retired. Null when there's none, or when another version saved it
+	 * (`saveStatus` says which). Rejects with a `CampaignStoreError` when
+	 * storage fails or the save is damaged; a damaged save is copied to the
+	 * recovery key and left where it was.
 	 */
 	public load({ onWarning = this.onWarning }: LoadOptions = {}): Promise<Campaign | null> {
 		return this.enqueue(async () => {
@@ -250,6 +253,8 @@ export class CampaignStore extends EventEmitter {
 				}
 				if (campaign === null) return null;
 				this.known.set(slot, text);
+				// The instance handed out now is the one that saves; any from before, a screen left running, is retired.
+				this.retire('the save was loaded again');
 				this.lineages.set(campaign, this.current);
 				return campaign;
 			} finally {
@@ -407,19 +412,22 @@ export class CampaignStore extends EventEmitter {
 		const pointer = await this.read(this.keys.active, action);
 		const texts = { a: await this.read(this.keys.slots.a, action), b: await this.read(this.keys.slots.b, action) };
 		if (isSlot(pointer) && texts[pointer] !== null) return { pointer, texts, save: pointer, named: true };
-		const save = SLOTS.find(slot => texts[slot] !== null && this.verdict(texts[slot] as string) === 'current') ?? null;
+		// With nothing naming the save, the newest that loads.
+		const loading = SLOTS.filter(slot => texts[slot] !== null && this.verdict(texts[slot] as string) === 'current');
+		const save = loading.reduce<Slot | null>((newest, slot) => newest === null || sequenceOf(texts[slot]) > sequenceOf(texts[newest]) ? slot : newest, null);
 		return { pointer, texts, save, named: false };
 	}
 
 	/** The snapshot into the slot that isn't the save's, then `active` switched to it. */
 	private async write({ campaign, snapshot }: { campaign: Campaign; snapshot: Snapshot }): Promise<void> {
 		this.refuseRetired(campaign);
-		const text = stamp({ version: this.version, campaign: snapshot.take() });
+		const body = snapshot.take();
 		const survey = await this.survey(SAVING);
 		const save = survey.save;
-		if (save !== null && survey.texts[save] === text) {
+		const text = stamp({ version: this.version, sequence: Math.max(sequenceOf(survey.texts.a), sequenceOf(survey.texts.b)) + 1, campaign: body });
+		if (save !== null && survey.texts[save] === stamp({ version: this.version, sequence: sequenceOf(survey.texts[save]), campaign: body })) {
 			// Nothing has changed since the save.
-			this.known.set(save, text);
+			this.known.set(save, survey.texts[save] as string);
 			if (survey.pointer !== save) await this.put(this.keys.active, save, SAVING);
 			this.adopt(campaign);
 			return;
@@ -534,7 +542,9 @@ export class CampaignStore extends EventEmitter {
 	private readSave(text: string, onWarning: (warning: string) => void): Campaign | null {
 		const save = JSON.parse(text);
 		if (readObject(save, 'Save').version !== this.version) return null;
-		return Campaign.fromJSON(readFields(save, 'Save', ['version', 'campaign']).campaign, { onWarning });
+		const fields = readFields(save, 'Save', ['version', 'sequence', 'campaign']);
+		readInteger(fields.sequence, 'Save.sequence', { min: 1 });
+		return Campaign.fromJSON(fields.campaign, { onWarning });
 	}
 
 	/** What a slot's text is to this build, remembered for the last few texts asked about. */
@@ -634,9 +644,18 @@ class Snapshot {
 	}
 }
 
-/** A save's text: the save format version, then the campaign. */
-function stamp({ version, campaign }: { version: number; campaign: string }): string {
-	return `{"version":${JSON.stringify(version)},"campaign":${campaign}}`;
+/**
+ * A save's text: the save format version, the save's place in the build's
+ * run of writes (one past the newest in either slot), then the campaign.
+ */
+function stamp({ version, sequence, campaign }: { version: number; sequence: number; campaign: string }): string {
+	return `{"version":${JSON.stringify(version)},"sequence":${sequence},"campaign":${campaign}}`;
+}
+
+/** Where a save falls in the build's run of writes, read off the front of the text the store wrote; 0 for anything else. */
+function sequenceOf(text: string | null): number {
+	const match = text === null ? null : /^\{"version":-?\d+,"sequence":(\d+),"campaign":/.exec(text);
+	return match ? Number(match[1]) : 0;
 }
 
 /** An error a save's damage throws, as against a bug in the code reading it. */

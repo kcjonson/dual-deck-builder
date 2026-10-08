@@ -23,9 +23,9 @@ export function storeOver(storage: SaveStorage, { onWarning = () => undefined, v
 	return new CampaignStore({ storage, namespace: NAMESPACE, version, onWarning });
 }
 
-/** Save text as the store writes it: the version, then the campaign's text. */
-export function saveText({ campaign, version = CAMPAIGN_SCHEMA_VERSION }: { campaign: string; version?: number }): string {
-	return `{"version":${version},"campaign":${campaign}}`;
+/** Save text as the store writes it: the version, the write count, then the campaign's text. */
+export function saveText({ campaign, version = CAMPAIGN_SCHEMA_VERSION, sequence = 1 }: { campaign: string; version?: number; sequence?: number }): string {
+	return `{"version":${version},"sequence":${sequence},"campaign":${campaign}}`;
 }
 
 /** The version 1 fixture as save text, its campaign changed first if asked. */

@@ -253,14 +253,21 @@ describe('CampaignStore', () => {
 	});
 
 	describe('saves per build and version', () => {
-		it('stamps each save and the history with the save format version', async () => {
+		it('stamps each save and the history with the save format version, and each save with its place in the run of writes', async () => {
 			const storage = new MemorySaveStorage();
 			const store = storeOver(storage);
-			await store.save(newCampaign());
+			const campaign = newCampaign();
+			await store.save(campaign);
+			campaign.set({ day: 2 });
+			await store.save(campaign);
 			await store.end({ campaign: newCampaign(2), ending: 'won' });
 
-			expect(JSON.parse(await storage.getItem(KEYS.slots.a) ?? '').version).toBe(CAMPAIGN_SCHEMA_VERSION);
-			expect(JSON.parse(await storage.getItem(KEYS.history) ?? '').version).toBe(CAMPAIGN_SCHEMA_VERSION);
+			const stamps = await Promise.all([KEYS.slots.a, KEYS.slots.b, KEYS.history].map(async key => JSON.parse(await storage.getItem(key) ?? '')));
+			expect(stamps.map(stamp => [stamp.version, stamp.sequence])).toEqual([
+				[CAMPAIGN_SCHEMA_VERSION, 1],
+				[CAMPAIGN_SCHEMA_VERSION, 2],
+				[CAMPAIGN_SCHEMA_VERSION, undefined]
+			]);
 		});
 
 		it('keeps each build\'s saves apart, though they share one origin\'s storage', async () => {
@@ -350,6 +357,16 @@ describe('CampaignStore', () => {
 
 		it('prefers the slot that loads when nothing names one', async () => {
 			const store = storeOver(new MemorySaveStorage({ items: { [KEYS.slots.a]: damagedText(), [KEYS.slots.b]: fixtureText() } }));
+
+			expect((await store.load())?.day).toBe(9);
+		});
+
+		it.each([
+			['a', 'b'],
+			['b', 'a']
+		] as const)('takes the newest of two saves that load when nothing names either, here in slot %s', async (newest, older) => {
+			const write = (day: number, sequence: number): string => saveText({ campaign: JSON.stringify({ ...campaignV1, day }), sequence });
+			const store = storeOver(new MemorySaveStorage({ items: { [KEYS.slots[newest]]: write(9, 6), [KEYS.slots[older]]: write(8, 5) } }));
 
 			expect((await store.load())?.day).toBe(9);
 		});
@@ -528,17 +545,34 @@ describe('CampaignStore', () => {
 			inScreen.set({ day: 5 });
 
 			expect(await store.checkpoint(inScreen)).toBe(false);
+			expect(await store.checkpoint(inMenu)).toBe(false);
 			expect((await store.load())?.seed).toBe(2);
 			expect((await store.history()).map(entry => [entry.seed, entry.ending])).toEqual([[1, 'abandoned']]);
-			const error = await failure(store.save(inScreen));
+			const error = await failure(store.save(inMenu));
 			expect([error.reason, error.message]).toEqual(['retired', "The campaign couldn't be saved: it has ended."]);
 		});
 
-		it('won\'t let any instance of a deleted campaign save it back', async () => {
+		it('won\'t let a screen left running roll the save back after a plain Continue', async () => {
+			const storage = new MemorySaveStorage();
+			const store = storeOver(storage);
+			const oldScreen = newCampaign();
+			oldScreen.set({ day: 3 });
+			await store.save(oldScreen);
+			const continued = await store.load() as Campaign;
+			continued.set({ day: 7 });
+			expect(await store.checkpoint(continued)).toBe(true);
+
+			oldScreen.set({ unrest: 2 });
+
+			expect(await store.checkpoint(oldScreen)).toBe(false);
+			expect((await failure(store.save(oldScreen))).message).toBe("The campaign couldn't be saved: the save was loaded again.");
+			expect((await storeOver(storage).load())?.day).toBe(7);
+		});
+
+		it('won\'t let the deleted campaign save itself back', async () => {
 			const store = storeOver(new MemorySaveStorage());
-			const campaign = newCampaign();
-			await store.save(campaign);
-			await store.load();
+			await store.save(newCampaign());
+			const campaign = await store.load() as Campaign;
 
 			await store.delete();
 
@@ -547,13 +581,15 @@ describe('CampaignStore', () => {
 			expect((await failure(store.save(campaign))).message).toBe("The campaign couldn't be saved: its save was deleted.");
 		});
 
-		it('removes the save when any instance of its campaign ends', async () => {
+		it('ends through the instance the last load handed out, refusing an older one and recording nothing for it', async () => {
 			const store = storeOver(new MemorySaveStorage());
 			const campaign = newCampaign();
 			await store.save(campaign);
-			await store.load();
+			const loaded = await store.load() as Campaign;
 
-			await store.end({ campaign, ending: 'disbanded' });
+			expect((await failure(store.end({ campaign, ending: 'disbanded' }))).reason).toBe('retired');
+			expect([await store.hasSave(), await store.history()]).toEqual([true, []]);
+			await store.end({ campaign: loaded, ending: 'disbanded' });
 
 			expect(await store.hasSave()).toBe(false);
 			expect(await store.history()).toHaveLength(1);
@@ -673,7 +709,8 @@ describe('CampaignStore', () => {
 
 			const error = await failure(store.end({ campaign: inScreen, ending: 'starved' }));
 
-			expect([error.reason, error.message]).toEqual(['retired', "The campaign couldn't be saved: it has ended."]);
+			expect([error.reason, error.message]).toEqual(['retired', "The campaign couldn't be saved: the save was loaded again."]);
+			expect((await failure(store.end({ campaign: inMenu, ending: 'starved' }))).message).toBe("The campaign couldn't be saved: it has ended.");
 			expect((await store.history()).map(entry => entry.ending)).toEqual(['abandoned']);
 			const deleted = newCampaign(3);
 			await store.save(deleted);
