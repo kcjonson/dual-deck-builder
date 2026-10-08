@@ -22,13 +22,13 @@ const campaign = foundCampaign({
 });
 ```
 
-- Everything is checked before anything is built, so a bad call throws and founds nothing: a seed that isn't a uint32, params made from another seed, fewer than two archetypes unlocked, or a start that doesn't read.
+- Everything is checked before anything is built, so a bad call throws and founds nothing: a seed that isn't a uint32, map params that don't read or were made from another seed, fewer than two archetypes unlocked, or a start that doesn't read.
 
 Reading `DriverLoader` inside founding was rejected. It would make founding async and tie it to the singleton's load state: an unloaded loader hands out no drivers, which would found a compound with nobody in it.
 
 ## Map params: rolled, or given and validated
 
-With no `mapParams`, founding calls `rollParams(seed)`, which draws them on the seed's `params` stream and validates them. Given a set (the Map Lab's), founding checks its seed is the campaign's, fills it out from its environment (`resolveMapParams`), and runs the parameter validator over it, and the campaign keeps what the validator returns. Generation validates before it runs (Area Map Generation, Validation and retries), so these are the params the map is made from. The validator is idempotent, so the Map Lab's validated set comes through untouched.
+With no `mapParams`, founding calls `rollParams(seed)`, which draws them on the seed's `params` stream and validates them. A given set (the Map Lab's) is read the way a map preset is (`readMapPreset`: an object of known parameters, numbers as numbers, stop tables as an object), filled out from its environment (`resolveMapParams`), and run through the parameter validator, and its seed, wrapped as the validator wraps it, must be the campaign's. Either way the result goes through the campaign's own params reader (`readMapParams`), so a bad value inside the stop tables fails with its path before anything is built, and the campaign holds the frozen params as they are. Generation validates before it runs (Area Map Generation, Validation and retries), so these are the params the map is made from. The validator is idempotent, so the Map Lab's validated set comes through untouched.
 
 Refusing a set the validator would change was considered. The Map Lab passes validated params, so a refusal would never fire for the caller it was meant for, and clamping founds on the params the Map Lab made its map from anyway.
 

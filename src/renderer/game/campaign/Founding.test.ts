@@ -1,6 +1,6 @@
 import { DriverLoader } from '../core/DriverLoader';
 import { RNG_VERSION, Rng } from '../core/Rng';
-import { resolveMapParams } from '../map/MapParams';
+import { MapParamSet, resolveMapParams } from '../map/MapParams';
 import { validateMapParams } from '../map/ParamValidator';
 import { rollParams } from '../map/RollParams';
 import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
@@ -98,6 +98,25 @@ describe('foundCampaign', () => {
 
 		it('refuses params made from another seed', () => {
 			expect(() => found({ mapParams: { ...rollParams(7) } })).toThrow("mapParams.seed must be the campaign's seed, 20261007, got 7");
+		});
+
+		it('takes a seed that wraps to the campaign\'s, comparing it as the validator wraps it', () => {
+			expect(found({ mapParams: { seed: SEED + 2 ** 32 } }).mapParams.seed).toBe(SEED);
+		});
+
+		it.each([
+			['that aren\'t an object', null, 'Invalid map preset: expected a JSON object'],
+			['with a parameter the map doesn\'t have', { seed: SEED, strongholdz: 99 }, 'Invalid map preset: unknown parameter "strongholdz"'],
+			['with a parameter in a string', { seed: SEED, radius: '1400' }, 'Invalid map preset: radius must be a number'],
+			['with stop tables in a list', { seed: SEED, stopTables: [] }, 'Invalid map preset: stopTables must be an object'],
+			['with null for stop tables', { seed: SEED, stopTables: null }, 'Invalid map preset: stopTables must be an object']
+		])('refuses params %s, as a map preset would be refused', (_label, mapParams, message) => {
+			expect(() => found({ mapParams: mapParams as unknown as MapParamSet })).toThrow(message);
+		});
+
+		it('names the path to a value in the stop tables that JSON can\'t hold', () => {
+			expect(() => found({ mapParams: { seed: SEED, stopTables: { highway: { raider_ambush: NaN } } } }))
+				.toThrow('mapParams.stopTables.highway.raider_ambush must be a finite number, got NaN');
 		});
 	});
 
