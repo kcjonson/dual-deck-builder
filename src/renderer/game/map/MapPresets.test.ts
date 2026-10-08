@@ -123,6 +123,19 @@ describe('preset JSON', () => {
 		);
 	});
 
+	it('lists the first 20 problems and counts the rest, however many there are', () => {
+		let message = '';
+		try {
+			readMapPreset({ seed: 1, stopTables: { trail: new Array(100_000) } });
+		} catch (error) {
+			message = (error as Error).message;
+		}
+		const problems = message.replace(/^Invalid map preset: /, '').split('; ');
+		expect(problems).toHaveLength(21);
+		expect(problems[19]).toMatch(/^stopTables\.trail\[19\] must be JSON/);
+		expect(problems[20]).toBe('and 99980 more');
+	});
+
 	it('shares no stop tables with what it read', () => {
 		const json = { seed: 1, stopTables: { trail: { wreck: 1 } } };
 		const set = readMapPreset(json);

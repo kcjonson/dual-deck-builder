@@ -1,6 +1,9 @@
-import { copyJson, describeValue } from '../core/Json';
+import { ProblemList, copyJson, describeValue } from '../core/Json';
 import defaultPreset from '../data/mapPresets/default.json';
 import { ENVIRONMENTS, Environment, MAP_PARAM_KEYS, MapParamSet, NUMBER_PARAMS, StopTables } from './MapParams';
+
+/** The most problems one error lists before it only counts the rest. */
+const LISTED_PROBLEMS = 20;
 
 /**
  * Parameter sets kept as JSON in `data/mapPresets/` (Area Map Generation,
@@ -29,14 +32,14 @@ export interface MapPreset {
  */
 export function readMapPreset(json: unknown): MapParamSet {
 	if (!isObject(json)) throw new Error(`Invalid map preset: expected a JSON object, got ${describeValue(json)}`);
-	const problems: string[] = [];
+	const problems = new ProblemList({ limit: LISTED_PROBLEMS });
 	for (const key of Object.keys(json)) {
-		if (!(MAP_PARAM_KEYS as readonly string[]).includes(key)) problems.push(`unknown parameter "${key}"`);
+		if (!(MAP_PARAM_KEYS as readonly string[]).includes(key)) problems.add(`unknown parameter "${key}"`);
 	}
-	if (json.seed === undefined) problems.push('seed is missing');
+	if (json.seed === undefined) problems.add('seed is missing');
 	else checkNumber(json.seed, 'seed', problems);
 	if (json.environment !== undefined && !ENVIRONMENTS.includes(json.environment as Environment)) {
-		problems.push(`environment must be one of ${ENVIRONMENTS.join(', ')}, got ${describeValue(json.environment)}`);
+		problems.add(`environment must be one of ${ENVIRONMENTS.join(', ')}, got ${describeValue(json.environment)}`);
 	}
 	for (const name of NUMBER_PARAMS) {
 		if (json[name] !== undefined) checkNumber(json[name], name, problems);
@@ -44,9 +47,9 @@ export function readMapPreset(json: unknown): MapParamSet {
 	let stopTables: StopTables | undefined;
 	if (json.stopTables !== undefined) {
 		if (isObject(json.stopTables)) stopTables = copyJson(json.stopTables, 'stopTables', problems) as StopTables;
-		else problems.push(`stopTables must be an object, got ${describeValue(json.stopTables)}`);
+		else problems.add(`stopTables must be an object, got ${describeValue(json.stopTables)}`);
 	}
-	if (problems.length > 0) throw new Error(`Invalid map preset: ${problems.join('; ')}`);
+	if (!problems.empty) throw new Error(`Invalid map preset: ${problems}`);
 	const set = ordered(json as MapParamSet);
 	if (stopTables !== undefined) set.stopTables = stopTables;
 	return set;
@@ -76,10 +79,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Pushes what's wrong with a preset's number, if anything: another type, or NaN or Infinity. */
-function checkNumber(value: unknown, name: string, problems: string[]): void {
-	if (typeof value !== 'number') problems.push(`${name} must be a number, got ${describeValue(value)}`);
-	else if (!Number.isFinite(value)) problems.push(`${name} must be a finite number, got ${describeValue(value)}`);
+/** Adds what's wrong with a preset's number, if anything: another type, or NaN or Infinity. */
+function checkNumber(value: unknown, name: string, problems: ProblemList): void {
+	if (typeof value !== 'number') problems.add(`${name} must be a number, got ${describeValue(value)}`);
+	else if (!Number.isFinite(value)) problems.add(`${name} must be a finite number, got ${describeValue(value)}`);
 }
 
 /** The set's keys in the order a preset file lists them, absent ones left out. */

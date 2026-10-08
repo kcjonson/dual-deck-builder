@@ -1,5 +1,5 @@
 import { runInNewContext } from 'vm';
-import { JsonObject, copyJson, describeValue } from './Json';
+import { JsonObject, ProblemList, copyJson, describeValue } from './Json';
 
 class Weights {
 	constructor(public wreck = 1) {}
@@ -61,15 +61,45 @@ describe('copyJson', () => {
 		expect(() => copyJson(cyclic, 'stopTables')).toThrow(new TypeError('stopTables.trail.back contains itself'));
 	});
 
+	it('throws on a getter that throws, naming its path', () => {
+		const trail = Object.defineProperty({}, 'wreck', { enumerable: true, get: () => { throw new Error('no weights yet'); } });
+		expect(() => copyJson({ trail }, 'stopTables')).toThrow(new TypeError('stopTables.trail.wreck can\'t be read: no weights yet'));
+	});
+
+	it('throws on nesting past 100 levels, naming where, rather than run out of stack', () => {
+		let deep: unknown = 1;
+		for (let level = 0; level < 5000; level += 1) deep = [deep];
+		expect(() => copyJson(deep, 'stopTables')).toThrow(`stopTables${'[0]'.repeat(100)} nests more than 100 levels deep`);
+		let fine: unknown = 1;
+		for (let level = 0; level < 100; level += 1) fine = [fine];
+		expect(copyJson(fine, 'stopTables')).toStrictEqual(fine);
+	});
+
 	it('lists every problem instead when given a list, and copies the rest', () => {
-		const problems: string[] = [];
+		const problems = new ProblemList({ limit: 10 });
 		const copy = copyJson({ wreck: NaN, hazard: [undefined], raider: { ambush: Infinity }, find: 2 }, 'stopTables', problems);
-		expect(problems).toEqual([
+		expect(String(problems)).toBe([
 			'stopTables.wreck must be a finite number, got NaN',
 			`stopTables.hazard[0] ${NOT_JSON}, got undefined`,
 			'stopTables.raider.ambush must be a finite number, got Infinity',
-		]);
+		].join('; '));
 		expect(copy).toMatchObject({ find: 2 });
+	});
+
+	it('lists the first problems up to the limit and counts the rest', () => {
+		const problems = new ProblemList({ limit: 2 });
+		copyJson({ trail: new Array(100_000) }, 'stopTables', problems);
+		expect(String(problems)).toBe(`stopTables.trail[0] ${NOT_JSON}, got undefined; stopTables.trail[1] ${NOT_JSON}, got undefined; and 99998 more`);
+	});
+});
+
+describe('ProblemList', () => {
+	it('is empty until a problem is added, then lists it', () => {
+		const problems = new ProblemList({ limit: 3 });
+		expect(problems.empty).toBe(true);
+		problems.add('seed is missing');
+		expect(problems.empty).toBe(false);
+		expect(String(problems)).toBe('seed is missing');
 	});
 });
 
