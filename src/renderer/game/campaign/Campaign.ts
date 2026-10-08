@@ -315,7 +315,9 @@ export class Campaign extends Model<CampaignData> {
 	 * Every copy the compound owns, by card type: the locker's and every
 	 * default deck's. Each copy is in exactly one of those places, so moves
 	 * never change this and scrapping takes from it. Run decks (DDB-315) are
-	 * places too, and join this sum when they land.
+	 * places too, and join this sum when they land. A record's listener can
+	 * see half a move (a copy in two places, or none), so read this, as the
+	 * Crew screen should, on the campaign's `change`, not a record's.
 	 */
 	public get cardsOwned(): CardCounts {
 		const owned: Record<string, number> = { ...this.locker };
@@ -334,27 +336,11 @@ export class Campaign extends Model<CampaignData> {
 	 * holds, or `from`'s under the fewest (`DECK_RULES`). Throws, as
 	 * `moveCards` does, on a move no rule covers: a malformed card type or
 	 * count, a place to itself, or a driver outside this campaign's pool.
+	 * A record's listener can see half a move, so the Crew screen asks again
+	 * on the campaign's `change`, not a record's.
 	 */
-	public getCardMoveBlocker({ cardType, from, to, count = 1 }: CardMove): CardBlocker | null {
-		readCardType(cardType, 'cardType');
-		readInteger(count, 'count', { min: 1 });
-		if (from === to) throw new RangeError(`Can't move ${cardType} from ${placeName(from)} to itself`);
-		const source = this.countsAt(from);
-		this.countsAt(to);
-		for (const place of [from, to]) {
-			if (place !== 'locker' && !isAtCompound(place)) return { reason: 'driver_away', place };
-		}
-		const held = cardCount(source, cardType);
-		if (held < count) return { reason: 'too_few', place: from, held };
-		if (to !== 'locker') {
-			const blocker = deckAddBlocker({ deck: to.defaultDeck, archetype: to.archetype, cardType, count });
-			if (blocker !== null) return { ...blocker, place: to };
-		}
-		if (from !== 'locker') {
-			const blocker = deckRemoveBlocker({ deck: from.defaultDeck, count });
-			if (blocker !== null) return { ...blocker, place: from };
-		}
-		return null;
+	public getCardMoveBlocker(move: CardMove): CardBlocker | null {
+		return this.checkMove(move).blocker;
 	}
 
 	/**
@@ -369,18 +355,16 @@ export class Campaign extends Model<CampaignData> {
 	 * `change`. While a move is being stored, the campaign refuses another
 	 * move and every `set`. Records aren't held, so a listener on `from` can
 	 * still change `to` before the copies land: they go on the deck `to` holds
-	 * then, or back on `from` if `to` has left the compound or can't hold
-	 * them, or into the locker if `from` can't either. The rules are checked
-	 * before anything is stored, so a listener that changes a deck with `set`
-	 * mid-move steps outside them, as any `set` of a deck does.
+	 * then, or back on `from` if `to` has left the compound or the rules no
+	 * longer let its deck take them, or into the locker if `from` can't take
+	 * them either. A listener's own `set` of a deck still steps outside the
+	 * rules, as any `set` of a deck does.
 	 */
 	public moveCards(move: CardMove): void {
 		if (storingMoves.has(this)) throw new Error("Can't move cards while another move is being stored");
 		const { cardType, from, to, count = 1 } = move;
-		const blocker = this.getCardMoveBlocker(move);
+		const { blocker, source, target } = this.checkMove(move);
 		if (blocker !== null) throw new CardRuleError({ message: blockerMessage({ blocker, verb: 'move', cardType, count }), blocker });
-		const source = this.countsAt(from);
-		const target = this.countsAt(to);
 		const taken = removeCards(source, cardType, count);
 		// These throw, storing nothing, when the far end, or the locker the copies fall back to, can't hold that many more.
 		const given = addCards(target, cardType, count);
@@ -470,6 +454,34 @@ export class Campaign extends Model<CampaignData> {
 		return JSON.stringify(save);
 	}
 
+	/**
+	 * A move checked against the rules, with the counts each end holds now,
+	 * which `moveCards` stores from. Every deck rule reads those counts and
+	 * `archetypeAt`, so a new kind of place only has to answer those two.
+	 */
+	private checkMove({ cardType, from, to, count = 1 }: CardMove): { blocker: CardBlocker | null; source: CardCounts; target: CardCounts } {
+		readCardType(cardType, 'cardType');
+		readInteger(count, 'count', { min: 1 });
+		if (from === to) throw new RangeError(`Can't move ${cardType} from ${placeName(from)} to itself`);
+		const source = this.countsAt(from);
+		const target = this.countsAt(to);
+		const refused = (blocker: CardBlocker) => ({ blocker, source, target });
+		for (const place of [from, to]) {
+			if (place !== 'locker' && !isAtCompound(place)) return refused({ reason: 'driver_away', place });
+		}
+		const held = cardCount(source, cardType);
+		if (held < count) return refused({ reason: 'too_few', place: from, held });
+		if (to !== 'locker') {
+			const blocker = deckAddBlocker({ deck: target, archetype: archetypeAt(to), cardType, count });
+			if (blocker !== null) return refused({ ...blocker, place: to });
+		}
+		if (from !== 'locker') {
+			const blocker = deckRemoveBlocker({ deck: source, count });
+			if (blocker !== null) return refused({ ...blocker, place: from });
+		}
+		return { blocker: null, source, target };
+	}
+
 	private countsAt(place: CardPlace): CardCounts {
 		if (place === 'locker') return this.locker;
 		if (!this.drivers.includes(place)) throw new RangeError(`${place.name} (${place.id}) isn't in this campaign's pool`);
@@ -507,15 +519,21 @@ function isAtCompound(place: CardPlace): boolean {
 	return place === 'locker' || (place.status !== 'dead' && place.status !== 'missing');
 }
 
+/** The archetype whose cards a deck at this place takes: its driver's. */
+function archetypeAt(place: Exclude<CardPlace, 'locker'>): DriverArchetype {
+	return place.archetype;
+}
+
 /**
  * Stores moved copies on the first of these decks whose driver is at the
- * compound and can hold them, and says where they went: the locker, when
- * none can. A listener can have sent a driver away, or filled their deck
- * past what a count holds, while the move was being stored.
+ * compound and can hold them, by the deck rules and by what a count holds,
+ * and says where they went: the locker, when none can. A listener can have
+ * sent a driver away, or filled their deck, while the move was being stored.
  */
 function landCopies({ decks, cardType, count }: { decks: readonly DriverRecord[]; cardType: string; count: number }): CardPlace {
 	for (const driver of decks) {
 		if (!isAtCompound(driver)) continue;
+		if (deckAddBlocker({ deck: driver.defaultDeck, archetype: archetypeAt(driver), cardType, count }) !== null) continue;
 		let deck: CardCounts;
 		try {
 			deck = addCards(driver.defaultDeck, cardType, count);

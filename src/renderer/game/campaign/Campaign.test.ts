@@ -5,6 +5,7 @@ import { createEscort } from '../mechanics/Escort';
 import { CAMPAIGN_SCHEMA_VERSION, Campaign, CampaignJson, CampaignOptions, NO_RESOURCES } from './Campaign';
 import { historyEntry, historyToJson } from './CampaignHistory';
 import { cardCount, totalCards } from './CardCounts';
+import { DECK_RULES } from './DeckRules';
 import { DriverRecord } from './DriverRecord';
 import campaignV1 from './__fixtures__/campaign-v1.json';
 import { stressCampaign } from './__fixtures__/stressCampaign';
@@ -309,11 +310,13 @@ describe('Campaign', () => {
 			const warrior = campaign.recruitDriver({ archetype: 'road_warrior' });
 			const mechanic = campaign.recruitDriver({ archetype: 'mechanic' });
 			const owned = cardsOwned(campaign);
+			const ramming = cardCount(warrior.defaultDeck, 'ramming_speed');
+			const count = warrior.deckSize - DECK_RULES.deckSize.min;
 
-			campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic, count: 4 });
+			campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic, count });
 
-			expect(cardCount(warrior.defaultDeck, 'ramming_speed')).toBe(1);
-			expect(cardCount(mechanic.defaultDeck, 'ramming_speed')).toBe(4);
+			expect(cardCount(warrior.defaultDeck, 'ramming_speed')).toBe(ramming - count);
+			expect(cardCount(mechanic.defaultDeck, 'ramming_speed')).toBe(count);
 			expect(cardsOwned(campaign)).toBe(owned);
 		});
 

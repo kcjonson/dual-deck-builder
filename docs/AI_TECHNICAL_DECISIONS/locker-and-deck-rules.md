@@ -25,7 +25,7 @@ So the limits are checked on each move, by the direction it goes: a deck can't t
 
 `cards.json` already marked archetype cards, with `driverRestriction` (Precision Shot is the Interceptor's), but nothing read the mark or validated it. Now `CardData.driverRestriction` is typed as an archetype or null, `CardLoader` rejects a card restricted to an archetype that doesn't exist, and the campaign reads the marks itself as `DeckRules` loads.
 
-The campaign checks eligibility synchronously, and `CardLoader` fetches `cards.json` asynchronously, so `DeckRules` imports the file and webpack bundles it (about 26 KB of JSON) beside the copy the loader fetches. Rejected: passing a card lookup into `Campaign`, which every constructor, `fromJSON`, and founding would then need, and a registry filled when `CardLoader` finishes, which a test or an early screen could read empty. A card type the file doesn't list (dropped since a save was made) can go in any deck.
+The campaign checks eligibility synchronously, and `CardLoader` fetches `cards.json` asynchronously, so `DeckRules` imports the file and webpack bundles it beside the copy the loader fetches: about 16.5 KB minified, 3.4 KB gzipped. It costs nothing until something outside `campaign/` imports `Campaign`, which nothing does yet. Rejected: passing a card lookup into `Campaign`, which every constructor, `fromJSON`, and founding would then need, and a registry filled when `CardLoader` finishes, which a test or an early screen could read empty. A card type the file doesn't list (dropped since a save was made) can go in any deck.
 
 ## Provisional calls
 
@@ -37,7 +37,8 @@ The campaign checks eligibility synchronously, and `CardLoader` fetches `cards.j
 ## Consequences
 
 - The Crew screen asks `getCardMoveBlocker` or `getScrapBlocker` for each action it offers, words the reason from the code, and calls `moveCards` or `scrapCards`, then `CampaignStore.checkpoint`.
-- Run decks are a new kind of `CardPlace`. `deckAddBlocker` and `deckRemoveBlocker` take any deck's counts and the driver's archetype, so they apply to a run deck as they are, and `cardsOwned` adds run decks to its sum.
+- Run decks are a new kind of `CardPlace`. The move check reads each end's counts through `countsAt` and the receiving archetype through `archetypeAt`, and `deckAddBlocker` and `deckRemoveBlocker` take any deck's counts, so a run deck only has to answer those two lookups; `cardsOwned` adds run decks to its sum.
 - Retuning `deck-rules.json` changes what moves are allowed and never makes a save unloadable.
-- A listener that changes a deck with `set` partway through a move steps outside the rules, as any `set` of a deck does.
+- Copies that land after a listener has run go to a deck only if the rules still let it take them, falling back to the giving deck and then the locker. A listener's own `set` of a deck still steps outside the rules, as any `set` does.
+- A record's listener can see half a move, so the Crew screen recomputes on the campaign's `change`, not a record's.
 - Nothing new is saved, so `CAMPAIGN_SCHEMA_VERSION` stays where it was.

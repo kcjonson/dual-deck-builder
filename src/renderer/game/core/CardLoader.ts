@@ -2,6 +2,11 @@ import { CARD_RARITIES, Card, CardData, TARGET_TYPES } from '../mechanics/Card';
 import { DRIVER_CONFIGS } from '../mechanics/Driver';
 import { ESCORT_CONFIGS } from '../mechanics/Escort';
 
+/** A string naming one of the record's own keys, so neither `toString` nor `['raider']` passes, as each would with `in`. */
+function isOwnKey(record: object, key: unknown): boolean {
+	return typeof key === 'string' && Object.prototype.hasOwnProperty.call(record, key);
+}
+
 /**
  * Loads and manages card data from JSON configuration
  * Designed for easy content updates and modding support
@@ -138,13 +143,13 @@ export class CardLoader {
 		}
 
 		const restriction = cardData.driverRestriction;
-		if (restriction != null && !(restriction in DRIVER_CONFIGS)) {
+		if (restriction != null && !isOwnKey(DRIVER_CONFIGS, restriction)) {
 			throw new Error(`Card ${cardData.type} is restricted to an unknown driver archetype: ${restriction}`);
 		}
 
 		// A signature card comes with its escort, never from the reward pool or shop
 		const signatureOf = cardData.signatureOf;
-		if (signatureOf && !(signatureOf in ESCORT_CONFIGS)) {
+		if (signatureOf && !isOwnKey(ESCORT_CONFIGS, signatureOf)) {
 			throw new Error(`Card ${cardData.type} is the signature of an unknown escort type: ${signatureOf}`);
 		}
 		if (Boolean(signatureOf) !== (cardData.rarity === 'signature')) {

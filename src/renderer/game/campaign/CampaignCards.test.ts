@@ -146,6 +146,38 @@ describe('Campaign cards under the deck rules', () => {
 			expect([warrior.deckSize, mechanic.deckSize]).toEqual([min, min + 1]);
 		});
 
+		it('send copies back when a listener fills the far deck to the most it holds partway through a move', () => {
+			const campaign = newCampaign();
+			const giver = campaign.recruitDriver({ archetype: 'road_warrior' });
+			const taker = campaign.recruitDriver({ archetype: 'mechanic' });
+			giver.set({ defaultDeck: deckOf(10) });
+			taker.set({ defaultDeck: deckOf(10) });
+			const heard = jest.fn();
+			campaign.on('change', heard);
+			giver.once('defaultDeck', () => taker.set({ defaultDeck: deckOf(max) }));
+
+			campaign.moveCards({ cardType: 'repair_kit', from: giver, to: taker, count: 2 });
+
+			expect([giver.defaultDeck, taker.defaultDeck, campaign.locker]).toEqual([deckOf(10), deckOf(max), {}]);
+			expect(heard).toHaveBeenCalledTimes(1);
+		});
+
+		it('send copies to the locker when neither deck can take them back by the time they land', () => {
+			const campaign = newCampaign();
+			const giver = campaign.recruitDriver({ archetype: 'road_warrior' });
+			const taker = campaign.recruitDriver({ archetype: 'mechanic' });
+			giver.set({ defaultDeck: deckOf(10) });
+			taker.set({ defaultDeck: deckOf(10) });
+			giver.once('defaultDeck', () => {
+				taker.set({ defaultDeck: deckOf(max) });
+				giver.set({ defaultDeck: deckOf(max - 1) });
+			});
+
+			campaign.moveCards({ cardType: 'repair_kit', from: giver, to: taker, count: 2 });
+
+			expect([giver.defaultDeck, taker.defaultDeck, campaign.locker]).toEqual([deckOf(max - 1), deckOf(max), { repair_kit: 2 }]);
+		});
+
 		it('let a deck outside the limits, as a set can leave it, move back toward them and no further away', () => {
 			const campaign = newCampaign({ locker: { headshot: 1 } });
 			const short = campaign.recruitDriver({ archetype: 'road_warrior' });
