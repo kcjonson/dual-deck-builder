@@ -37,10 +37,11 @@ describe('driverCardData', () => {
 		expect(totalCards(data.deck)).toBe(record.deckSize);
 	});
 
-	it('starts at full HP against an overridden maximum, and leaves the note out when there is none', () => {
+	it('starts at full HP against an overridden maximum, and leaves the note out when there is none, or it is empty', () => {
 		const data = driverCardData({ archetype: 'mechanic', maxHitpoints: 36 });
 		expect([data.hitpoints, data.maxHitpoints]).toEqual([36, 36]);
 		expect('note' in data).toBe(false);
+		expect('note' in driverCardData({ archetype: 'mechanic', note: '' })).toBe(false);
 	});
 
 	it('copies the config\'s skills rather than sharing them', () => {

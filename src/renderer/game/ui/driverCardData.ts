@@ -26,8 +26,8 @@ export interface DriverCardData {
 	/** The skills a hit check reads, and speed; the detail view's. */
 	readonly skills?: Readonly<DriverSkills>;
 	/**
-	 * Said in the specialty's place on the card, which the detail view still
-	 * shows: how a lost driver went ("KILLED DAY 9").
+	 * How a lost driver went ("KILLED DAY 9"): in the specialty's place on
+	 * the card, and in the detail view's foot. Empty is the same as none.
 	 */
 	readonly note?: string;
 }
@@ -41,7 +41,7 @@ export interface DriverCardDataOptions extends Partial<DriverCardData> {
  * the caller's own model says: a campaign record keeps its own name, HP,
  * hand limit, and deck, and takes the rest from its archetype. A fresh
  * driver of the archetype when nothing is overridden, as the gallery and
- * the tests use it.
+ * the tests use it. An empty note is no note.
  */
 export function driverCardData({ archetype, name, specialty, hitpoints, maxHitpoints, handLimit, deck, vehicle, skills, note }: DriverCardDataOptions): DriverCardData {
 	const config = DRIVER_CONFIGS[archetype];
@@ -55,6 +55,6 @@ export function driverCardData({ archetype, name, specialty, hitpoints, maxHitpo
 		deck: deck ?? startingDeckCounts(archetype),
 		vehicle: vehicle ?? config.metadata.vehicleName,
 		skills: skills ?? { ...config.skills },
-		...(note !== undefined ? { note } : {}),
+		...(note ? { note } : {}),
 	};
 }

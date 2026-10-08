@@ -267,7 +267,7 @@ export class DriverCard extends Component {
 	private showData(): void {
 		const data = this.model;
 		this.name.text = data.name;
-		this.specialty.text = data.note ?? data.specialty;
+		this.specialty.text = data.note || data.specialty;
 		this.hpFigures.text = `${data.hitpoints}/${data.maxHitpoints}`;
 		this.hand.text = `HAND ${data.handLimit}`;
 		this.deck.text = `DECK ${totalCards(data.deck)}`;

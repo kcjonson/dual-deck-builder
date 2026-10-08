@@ -137,6 +137,11 @@ describe('Driver card (Game Flow 7.0)', () => {
 		expect(specialty.style.textTransform).toBe('uppercase');
 	});
 
+	it('keeps the specialty when a note is empty, rather than blanking the line', () => {
+		const data: DriverCardData = { ...driverCardData({ archetype: 'raider' }), note: '' };
+		expect(part(mount(data), 'specialty').text).toBe('BERSERKER');
+	});
+
 	it('fills the HP bar in the driver HP hue by the share left, the same length on every card, and an empty bar not at all', () => {
 		const full = hpFills(frame(mount(driverCardData({ archetype: 'road_warrior' }))));
 		const hurt = hpFills(frame(mount(driverCardData({ archetype: 'interceptor', hitpoints: 22 }))));
