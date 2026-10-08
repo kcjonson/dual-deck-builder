@@ -1,13 +1,12 @@
-import type { Component } from '../../../engine/components/Component';
 import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
-import { Badge } from '../../../engine/ui/Badge';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { Select } from '../../../engine/ui/Select';
+import type { Card as GameCard } from '../../mechanics/Card';
 import { Driver } from '../../mechanics/Driver';
 import { isSameDriver, nextOpenDriverIndex } from '../../mechanics/DriverPair';
-import { Card as UICard, CardSize } from '../../ui/Card';
+import { Card as UICard, CardSize, MINI_GRID, miniGridHeight } from '../../ui/Card';
 import { CardLoader } from '../../core/CardLoader';
 import { FlowWrap } from '../../ui/FlowWrap';
 import { contains } from '../../../engine/services/OverlayService';
@@ -19,13 +18,20 @@ export interface DriverPanelOptions extends StackOptions {
 	side: DriverPanelSide;
 }
 
-/** Space between mini cards, across and down. */
-const DECK_CARD_SPACING = 10;
-/** Between a mini card and the quantity badge under it. */
-const QUANTITY_GAP = 4;
-/** The least the scrolling part shrinks to: a mini card's height, so it never closes up. */
-const BODY_MIN_HEIGHT = UICard.getDimensions(CardSize.MINI).height + 8;
-const PORTRAIT_MIN_HEIGHT = 40;
+/**
+ * Every deck takes two rows' height, the most an unlocked driver's starting
+ * deck needs from 1024 wide up, so the two panels lay out alike whichever
+ * pair is picked: a four-card deck beside a six-card one would otherwise
+ * leave one panel's portrait and name higher than the other's.
+ */
+const DECK_ROWS = 2;
+/** The least the scrolling part shrinks to: a mini card and its ink, so it never closes up. */
+const BODY_MIN_HEIGHT = UICard.getDimensions(CardSize.MINI).height + MINI_GRID.margin * 2;
+/**
+ * The portrait is a placeholder and gives way first, down to a sliver, so
+ * the decks' two rows fit at 1280x720 without scrolling.
+ */
+const PORTRAIT_MIN_HEIGHT = 8;
 
 /**
  * Driver selection panel for the Driver Selection Screen
@@ -191,7 +197,11 @@ export class DriverPanel extends Stack {
 		}));
 		this.deckGrid = new FlowWrap({
 			id: `${this.idPrefix}deck_cards`,
-			gap: DECK_CARD_SPACING,
+			// The cards' hexes and stacks draw past their boxes; the margin keeps
+			// that ink inside the scroller's clip
+			margin: MINI_GRID.margin,
+			gap: MINI_GRID.gap,
+			minSize: { height: miniGridHeight(DECK_ROWS) },
 			justify: 'center',
 			// R9.29: one Tab stop for the whole deck, the arrows walking its cards
 			focusGroup: { orientation: 'horizontal' },
@@ -374,13 +384,9 @@ export class DriverPanel extends Stack {
 		const availableCards = cardLoader.getAllCardsAsMap();
 		for (const cardConfig of driver.startingDeck.cards) {
 			const cardData = availableCards.get(cardConfig.type);
-			if (!cardData) continue;
-			this.deckGrid.addChild(this.createDeckEntry(new UICard({
-				x: 0,
-				y: 0,
-				data: cardData,
-				size: CardSize.MINI,
-			}), cardConfig.quantity));
+			// A card the data lacks, or an entry of none, shows nothing
+			if (!cardData || cardConfig.quantity < 1) continue;
+			this.deckGrid.addChild(this.createDeckCard(cardData, cardConfig.quantity));
 		}
 	}
 
@@ -392,23 +398,14 @@ export class DriverPanel extends Stack {
 	}
 
 	/**
-	 * A mini card, and under it a badge with its count when the deck holds
-	 * more than one. The badge sits below the card rather than on its corner,
-	 * where it covered the cost. Hovering or focusing the card opens the
-	 * detail view the hand shows (Game Flow Spec 1.2); it has no click, and
-	 * stays put rather than rising.
+	 * A mini card, stacked with its count when the deck holds more than one
+	 * copy (Game Flow 7.0). Hovering or focusing it opens the detail view
+	 * the hand shows (Game Flow Spec 1.2); it has no click.
 	 */
-	private createDeckEntry(card: UICard, quantity: number): Component {
-		card.liftable = false;
+	private createDeckCard(data: GameCard, copies: number): UICard {
+		const card = new UICard({ x: 0, y: 0, data, size: CardSize.MINI, copies });
 		card.focusable = true;
 		makeInspectable(card);
-		const entry = new Stack({
-			direction: 'vertical',
-			gap: QUANTITY_GAP,
-			crossAlign: 'center',
-		});
-		entry.addChild(card);
-		if (quantity > 1) entry.addChild(new Badge({ label: `x${quantity}` }));
-		return entry;
+		return card;
 	}
 }

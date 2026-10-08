@@ -226,7 +226,7 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		context.focus.pushScope(screen.root);
 		// A deck is one stop, landing on its first card
 		expect(context.focus.tabOrder[1]).toBe(findAll(left.deckPreview, UICard)[0]);
-		const stops = context.focus.tabOrder.map(component => (component instanceof UICard ? component.parent?.parent?.id : component.id));
+		const stops = context.focus.tabOrder.map(component => (component instanceof UICard ? component.parent?.id : component.id));
 		expect(stops).toEqual([
 			'driver_select_back_button',
 			'driver_panel_left_deck_cards',
@@ -342,17 +342,44 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		expect(preview.scrollPosition).toBeGreaterThan(0);
 	});
 
-	it('puts each quantity on a badge under its card, clear of the cost corner', async () => {
+	it('shows each card once, as a mini stacked to its quantity (Game Flow 7.0)', async () => {
 		const { left } = await mountScreen();
-		const driver = left.selectedDriver;
-		const multiples = driver?.startingDeck.cards.filter(card => card.quantity > 1) ?? [];
-		const badges = findAll(left.deckPreview, Badge);
-		expect(badges.map(badge => badge.labelText)).toEqual(multiples.map(card => `x${card.quantity}`));
-		for (const badge of badges) {
-			const card = badge.parent?.children[0];
-			if (!(card instanceof UICard)) throw new Error('a quantity badge sits with its card');
-			expect(badge.screenBounds.y).toBeGreaterThanOrEqual(card.screenBounds.y + card.height);
-		}
+		const deck = left.selectedDriver?.startingDeck.cards ?? [];
+		const cards = findAll(left.deckPreview, UICard);
+		expect(cards.map(card => [card.data.type, card.copies])).toEqual(deck.map(entry => [entry.type, entry.quantity]));
+		expect(cards.every(card => card.size === CardSize.MINI)).toBe(true);
+		expect(findAll(left.deckPreview, Badge)).toEqual([]);
+	});
+
+	it('leaves out a deck entry of no copies rather than failing the build', async () => {
+		const { left } = await mountScreen();
+		const driver = rosterDrivers[0].copy();
+		// First, so a throw on it would leave the whole deck unbuilt
+		driver.startingDeck.cards.unshift({ type: 'ram', quantity: 0 });
+		left.availableDrivers = [driver, ...rosterDrivers.slice(1)];
+		await flushPromises();
+		context.frame.layout();
+
+		expect(left.selectedDriver).toBe(driver);
+		const types = findAll(left.deckPreview, UICard).map(card => card.data.type);
+		expect(types).toEqual(driver.startingDeck.cards.filter(entry => entry.quantity > 0).map(entry => entry.type));
+		expect(types).not.toContain('ram');
+	});
+
+	// The default pair is a four-card deck beside a six-card one, which wraps
+	// to two rows where the four fits on one; both reserve two rows.
+	it.each([[1440, 882], [1280, 720], [1920, 1080]])('lays the two panels out alike at %ix%i, the names level and nothing scrolling', async (width, height) => {
+		viewportSize = { width, height };
+		const { screen, left, right } = await mountScreen();
+		screen.resize(width, height);
+		context.frame.layout();
+
+		expect(findAll(left.deckPreview, UICard).length).not.toBe(findAll(right.deckPreview, UICard).length);
+		const nameY = (panel: DriverPanel, side: string): number => findById(panel, `driver_panel_${side}_driver_name`)?.screenBounds.y ?? NaN;
+		expect(nameY(left, 'left')).toBeCloseTo(nameY(right, 'right'), 5);
+		expect(left.deckPreview.height).toBeCloseTo(right.deckPreview.height, 5);
+		expect(left.deckPreview.maxScroll).toBe(0);
+		expect(right.deckPreview.maxScroll).toBe(0);
 	});
 
 	it('builds one starting deck preview when selections overlap a card load', async () => {
