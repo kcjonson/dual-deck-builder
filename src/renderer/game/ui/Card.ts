@@ -30,6 +30,9 @@ import {
 	COST_DIGITS,
 	COST_DIGITS_UNPAYABLE,
 	DIM_BRIGHTNESS,
+	HOVER_OUTLINE,
+	SELECTED_OUTLINE,
+	focusRingDraw,
 	RARITY_GEMS,
 	artGradient,
 	cardArtIcon,
@@ -146,6 +149,11 @@ export function miniGridHeight(rows: number): number {
 	return rows > 0 ? rows * CARD_DIMENSIONS[CardSize.MINI].height + (rows - 1) * MINI_GRID.gap : 0;
 }
 
+/** The width `columns` columns of minis take in a grid spaced by `MINI_GRID`, its margin left out. */
+export function miniGridWidth(columns: number): number {
+	return columns > 0 ? columns * CARD_DIMENSIONS[CardSize.MINI].width + (columns - 1) * MINI_GRID.gap : 0;
+}
+
 /**
  * Where a mini's copies stand against the deck being built (Game Flow 7.0):
  * borrowed from the locker for this run (a dashed frame, "+1"), left at
@@ -179,8 +187,7 @@ export interface FanPose {
 	order: number;
 }
 
-const HOVER_OUTLINE: RGBA = [...tokens.color.accent];
-const SELECTED_OUTLINE: RGBA = [...tokens.color.accent_bright];
+/** A selected card's frame, in `SELECTED_OUTLINE`. */
 const SELECTED_BORDER = 3;
 
 const UNFANNED: FanPose = Object.freeze({ rotate: 0, drop: 0, order: 0 });
@@ -316,7 +323,7 @@ class MiniParts {
 	 * frame, the edges a step darker than an owner's frame or the dim line
 	 * on an unowned card, and the tag and the count dimmed with the card.
 	 */
-	recolour(frame: RGBA, owned: boolean, dimmed: boolean): void {
+	recolour({ frame, owned, dimmed }: { frame: RGBA; owned: boolean; dimmed: boolean }): void {
 		const tone = dimmed ? 'dimmed' : 'full';
 		const edge = owned ? scale(frame, MINI.stack.brightness) : CARD_DIM_FILLS[tone];
 		for (const draw of this.edges) {
@@ -470,15 +477,7 @@ export class Card extends Component {
 		};
 		this.frameBorder.width = this.borderWidth;
 		this.frameBorder.color = this.restingBorder;
-		const ringOffset = tokens.control.focus_ring_offset;
-		this.focusRingDraw = {
-			id: id !== undefined ? `${id}.focus_ring` : undefined,
-			rect: { x: -ringOffset, y: -ringOffset, width: dimensions.width + ringOffset * 2, height: dimensions.height + ringOffset * 2 },
-			radius: tokens.radius.radius_ui + ringOffset,
-			// A rect with no fill is white (R2.8's default); the ring is border only.
-			fill: [0, 0, 0, 0],
-			border: { color: tokens.color.accent, width: tokens.control.focus_ring_width, position: 'outside' },
-		};
+		this.focusRingDraw = focusRingDraw({ id, width: dimensions.width, height: dimensions.height });
 
 		const hex = this.hexBox;
 		const hexDraws = costHexDraws(hex.x, hex.y, hex.size);
@@ -559,7 +558,7 @@ export class Card extends Component {
 
 		if (mini) {
 			this.mini = new MiniParts(dimensions);
-			this.mini.recolour(this.restingBorder, this.driverNumber !== null, false);
+			this.mini.recolour({ frame: this.restingBorder, owned: this.driverNumber !== null, dimmed: false });
 		} else {
 			this.mini = null;
 
@@ -745,6 +744,8 @@ export class Card extends Component {
 		super.handleEvent(event);
 		switch (event.type) {
 			case 'activate':
+				// Taken only when something listens, so otherwise Enter and Space reach the screen's hotkeys
+				if (!this.onSelect) return;
 				event.consume();
 				this.activate();
 				return;
@@ -767,9 +768,28 @@ export class Card extends Component {
 	 */
 	protected onStateChange(): void {
 		this.updateLook();
-		const enabled = this.effectivelyEnabled;
-		// Keyboard focus lifts a card as the pointer does, so its ring clears its neighbours
-		this.liftTo(this.rises && (this.selected || ((this.hovered || this.focusVisible) && enabled)) ? 1 : 0);
+		this.liftTo(this.liftTarget);
+	}
+
+	/**
+	 * Up when selected, or hovered or keyboard-focused while it can be
+	 * played; keyboard focus lifts a card as the pointer does, so its ring
+	 * clears its neighbours.
+	 */
+	private get liftTarget(): number {
+		return this.rises && (this.selected || ((this.hovered || this.focusVisible) && this.effectivelyEnabled)) ? 1 : 0;
+	}
+
+	/**
+	 * Unmounting clears hover and focus without a callback (R9.21) and takes
+	 * the lift's tween with it, so a card that left hovered would come back
+	 * outlined and up. It settles its look, and its lift at once, for the
+	 * state it mounts in.
+	 */
+	protected onMount(): void {
+		this.updateLook();
+		const target = this.liftTarget;
+		if (this.liftAmount !== target) this.applyLift(target);
 	}
 
 	/** Dimmed while disabled or faded, then the frame for the card's state. */
@@ -834,7 +854,7 @@ export class Card extends Component {
 		this.hexFaceDraw.fill = dimmed ? COST_HEX_FILLS.dimmed : COST_HEX_FILLS.full;
 		this.gemDraw.fill = dimmed ? GEM_FILLS[this.model.rarity].dimmed : GEM_FILLS[this.model.rarity].full;
 		if (this.markDraw && this.driverNumber) this.markDraw.fill = dimmed ? DRIVER_MARK_FILLS[this.driverNumber].dimmed : DRIVER_MARK_FILLS[this.driverNumber].full;
-		this.mini?.recolour(this.restingBorder, this.driverNumber !== null, dimmed);
+		this.mini?.recolour({ frame: this.restingBorder, owned: this.driverNumber !== null, dimmed });
 		this.name.style = { ...this.name.style, color: tone(CARD_NAME) };
 		this.typeLabel.style = { ...this.typeLabel.style, color: tone(CARD_MUTED) };
 		if (this.rarityLabel) this.rarityLabel.style = { ...this.rarityLabel.style, color: tone(CARD_DIM) };
@@ -1102,7 +1122,7 @@ export class Card extends Component {
 		this.driverNumber = driverNumber;
 		this.placeMark();
 		this.artDraw.gradient = artGradient(driverNumber, this.dimmed ? DIM_BRIGHTNESS : 1);
-		this.mini?.recolour(this.restingBorder, driverNumber !== null, this.dimmed);
+		this.mini?.recolour({ frame: this.restingBorder, owned: driverNumber !== null, dimmed: this.dimmed });
 		this.applyBorder();
 		// The face's driver mark comes and goes as a draw of its own
 		this.invalidateInk();

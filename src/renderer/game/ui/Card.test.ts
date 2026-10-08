@@ -4,11 +4,11 @@
 import { Text } from '../../engine/components/Text';
 import { createMeasuringDrawApi } from '../../engine/text/testing';
 import { createTestContext } from '../../engine/components/testing';
-import { advance, pointer, send } from '../../engine/services/testing';
+import { advance, key, pointer, send } from '../../engine/services/testing';
 import type { MountContext } from '../../engine/components/MountContext';
 import { Card as GameCard, CardData } from '../mechanics/Card';
 import cardsFile from '../data/cards.json';
-import { CARD_LIFT, Card, CardSize, MINI_CARD_INK, MINI_GRID, MiniCardState, miniGridHeight } from './Card';
+import { CARD_LIFT, Card, CardSize, MINI_CARD_INK, MINI_GRID, MiniCardState, miniGridHeight, miniGridWidth } from './Card';
 import { KeywordText } from './KeywordText';
 import { Icon } from '../../engine/components/Icon';
 import type { Component } from '../../engine/components/Component';
@@ -195,6 +195,34 @@ describe('Card state', () => {
 		card.selected = false;
 		context.animator.settle();
 		expect(card.y).toBe(25);
+	});
+
+	it('comes back resting and down when mounted again after leaving hovered and up', () => {
+		const card = build(cardData[0], 1);
+		const resting = card.resolvedColors.border;
+		card.hovered = true;
+		context.animator.settle();
+		expect(card.lifted).toBe(true);
+		expect(card.resolvedColors.border).toEqual(tokens.color.accent);
+		// Unmounting clears hover without a callback (R9.21)
+		card.unmount();
+		card.mount(context);
+		context.frame.layout();
+		expect(card.hovered).toBe(false);
+		expect(card.lifted).toBe(false);
+		expect(card.layer).toBeNull();
+		expect(card.transform.translate).toEqual([0, 0]);
+		expect(card.resolvedColors.border).toEqual(resting);
+	});
+
+	it('comes back up when mounted again while it is selected, which unmounting keeps', () => {
+		const card = build(cardData[0], 1);
+		card.selected = true;
+		context.animator.settle();
+		card.unmount();
+		card.mount(context);
+		expect(card.lifted).toBe(true);
+		expect(card.transform.translate).toEqual([0, -CARD_LIFT]);
 	});
 
 	it('eases up on the animator rather than jumping', () => {
@@ -536,6 +564,17 @@ describe('Mini card (Game Flow 7.0)', () => {
 		}
 	});
 
+	it('comes back to its resting frame when mounted again after leaving hovered', () => {
+		const card = mini('ram', { driverNumber: 1 });
+		const border = (): RGBA | undefined => frame(card).find(isFrame)?.border?.color;
+		const resting = border();
+		card.hovered = true;
+		expect(border()).toEqual(tokens.color.accent);
+		card.unmount();
+		card.mount(context);
+		expect(border()).toEqual(resting);
+	});
+
 	it('stays put under the pointer, as a card in a grid does', () => {
 		const card = mini('ram');
 		expect(card.liftable).toBe(false);
@@ -575,6 +614,26 @@ describe('Mini card (Game Flow 7.0)', () => {
 		expect(own.map(([options]) => options.text).sort()).toEqual(['+5', 'x5']);
 		measured.mockRestore();
 		card.unmount();
+	});
+
+	it('lets Enter through to the screen\'s hotkeys when nothing listens for its selection, and takes it when something does', () => {
+		const screen = new Container({ id: 'screen', x: 0, y: 0, width: 400, height: 400 });
+		const card = new Card({ id: 'card', x: 20, y: 20, data: new GameCard({ ...cardData[0] }), size: CardSize.MINI });
+		card.focusable = true;
+		screen.addChild(card);
+		screen.mount(context);
+		context.frame.layout();
+		const heard: string[] = [];
+		screen.hotkeys.register('Enter', () => heard.push('screen'));
+		context.focus.pushScope(screen);
+		context.focus.focus(card, 'keyboard');
+		send(context, [key('Enter'), key('Enter', 'up')]);
+		expect(heard).toEqual(['screen']);
+		card.onSelect = () => heard.push('card');
+		send(context, [key('Enter'), key('Enter', 'up')]);
+		expect(heard).toEqual(['screen', 'card']);
+		context.focus.popScope(screen);
+		screen.unmount();
 	});
 
 	it('opens the detail view on hover, at once on keyboard focus, and on a touch hold, as every size does', () => {
@@ -728,6 +787,9 @@ describe('Mini card (Game Flow 7.0)', () => {
 		expect(miniGridHeight(1)).toBe(112);
 		expect(miniGridHeight(2)).toBe(112 * 2 + MINI_GRID.gap);
 		expect(miniGridHeight(0)).toBe(0);
+		expect(miniGridWidth(1)).toBe(80);
+		expect(miniGridWidth(4)).toBe(80 * 4 + MINI_GRID.gap * 3);
+		expect(miniGridWidth(0)).toBe(0);
 	});
 
 	it.each(['borrowed', 'home', 'locked', 'unavailable', null] as const)('lints clean for every card stacked and %s', (miniState) => {
