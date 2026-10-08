@@ -8,7 +8,7 @@ import type { AnyUiEvent } from '../../engine/input/events';
 import { resolveColor } from '../../engine/style/styleObject';
 import { totalCards } from '../campaign/CardCounts';
 import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_MUTED, CARD_NAME, CARD_RULES, HOVER_OUTLINE, SELECTED_OUTLINE, dimHex, focusRingDraw, outsideRingDraw } from './cardStyle';
-import type { DriverCardData } from './driverCardData';
+import { DriverCardData, sameDriverCardData } from './driverCardData';
 import {
 	HpBarDraws,
 	PortraitDraws,
@@ -250,12 +250,17 @@ export class DriverCard extends Component {
 
 	/**
 	 * Shows another driver, or the same one changed (HP after a fight, a
-	 * deck rebuilt), in place. A pinned detail view was built from the old
-	 * data when it opened, so it's pinned again, which builds it anew.
+	 * deck rebuilt), in place. A pinned detail view follows the data: it was
+	 * built from the old data when it opened, so it's pinned again, which
+	 * builds it anew, unless the new data shows the same. An open view that
+	 * isn't pinned (hover, focus, a touch hold) keeps the data it opened
+	 * with until it opens again (DDB-422).
 	 */
 	public set data(data: DriverCardData) {
 		if (data === this.model) return;
+		const same = sameDriverCardData(data, this.model);
 		this.model = data;
+		if (same) return;
 		this.showData();
 		const tooltips = this.context?.tooltips;
 		if (tooltips?.pinned === this) tooltips.pin(this, { fade: false });

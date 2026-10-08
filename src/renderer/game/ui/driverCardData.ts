@@ -58,3 +58,26 @@ export function driverCardData({ archetype, name, specialty, hitpoints, maxHitpo
 		...(note ? { note } : {}),
 	};
 }
+
+/**
+ * Whether two drivers' data show the same on the card and in its detail
+ * view, so a screen that maps its model afresh each time can hand a card
+ * equal data in a new object without the card doing anything about it.
+ */
+export function sameDriverCardData(a: DriverCardData, b: DriverCardData): boolean {
+	if (a === b) return true;
+	return a.name === b.name
+		&& a.specialty === b.specialty
+		&& a.hitpoints === b.hitpoints
+		&& a.maxHitpoints === b.maxHitpoints
+		&& a.handLimit === b.handLimit
+		&& a.vehicle === b.vehicle
+		&& (a.note || '') === (b.note || '')
+		&& sameNumbers(a.skills ?? {}, b.skills ?? {})
+		&& sameNumbers(a.deck, b.deck);
+}
+
+function sameNumbers(a: Readonly<Record<string, number>>, b: Readonly<Record<string, number>>): boolean {
+	const keys = Object.keys(a);
+	return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
+}

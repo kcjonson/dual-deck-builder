@@ -1,7 +1,7 @@
 import { startingDeckCounts, totalCards } from '../campaign/CardCounts';
 import { DriverRecord } from '../campaign/DriverRecord';
 import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
-import { driverCardData } from './driverCardData';
+import { DriverCardData, driverCardData, sameDriverCardData } from './driverCardData';
 
 describe('driverCardData', () => {
 	it('builds a fresh driver of an archetype from its config', () => {
@@ -55,5 +55,28 @@ describe('driverCardData', () => {
 			expect(deck).toEqual(new DriverRecord({ id: 'driver-1', archetype, name: archetype }).defaultDeck);
 			expect(Object.isFrozen(deck)).toBe(true);
 		}
+	});
+});
+
+describe('sameDriverCardData', () => {
+	it('matches data mapped afresh from the same driver, and nothing that would show differently', () => {
+		const mapped = (): DriverCardData => driverCardData({ archetype: 'interceptor', hitpoints: 12, deck: { headshot: 4, flag_down: 2 }, note: 'Found day 3' });
+		const data = mapped();
+		expect(sameDriverCardData(data, mapped())).toBe(true);
+		expect(sameDriverCardData(driverCardData({ archetype: 'mechanic' }), driverCardData({ archetype: 'mechanic', note: '' }))).toBe(true);
+		const changes: Partial<DriverCardData>[] = [
+			{ name: 'Interceptor 2' },
+			{ specialty: 'SCOUT' },
+			{ hitpoints: 11 },
+			{ maxHitpoints: 26 },
+			{ handLimit: 8 },
+			{ vehicle: 'Dune Buggy' },
+			{ note: 'Found day 4' },
+			{ skills: { ...DRIVER_CONFIGS.interceptor.skills, evade: DRIVER_CONFIGS.interceptor.skills.evade + 1 } },
+			{ deck: { headshot: 4, flag_down: 3 } },
+			{ deck: { headshot: 4 } },
+			{ deck: { headshot: 4, flag_down: 2, ram: 1 } },
+		];
+		for (const change of changes) expect([change, sameDriverCardData(data, { ...data, ...change })]).toEqual([change, false]);
 	});
 });

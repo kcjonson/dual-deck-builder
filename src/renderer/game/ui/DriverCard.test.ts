@@ -622,6 +622,19 @@ describe('Driver card detail view, through the inspect path', () => {
 		expect(view.deckCards.map((mini) => [mini.data.type, mini.copies])).toEqual([['ram', 12]]);
 	});
 
+	it('keeps the pinned view it has when new data shows the same, as a screen mapping its model afresh hands over', () => {
+		const { card, centre } = roster();
+		send(context, [pointer('down', centre.x, centre.y, { button: 2 }), pointer('up', centre.x, centre.y, { button: 2 })]);
+		const surface = context.tooltips.surface;
+		const again = driverCardData({ archetype: 'interceptor', hitpoints: 22 });
+		expect(again).not.toBe(card.data);
+		card.data = again;
+		context.frame.layout();
+		expect(card.data).toBe(again);
+		expect(context.tooltips.pinned?.id).toBe('card');
+		expect(context.tooltips.surface === surface).toBe(true);
+	});
+
 	it('leaves the tooltip alone when the data changes on a card whose view isn\'t pinned', () => {
 		const { card } = roster();
 		const other = new DriverCard({ id: 'other', x: 300, y: 20, data: driverCardData({ archetype: 'mechanic' }) });
@@ -631,8 +644,8 @@ describe('Driver card detail view, through the inspect path', () => {
 		context.tooltips.pin(other, { fade: false });
 		const surface = context.tooltips.surface;
 		card.data = driverCardData({ archetype: 'interceptor', hitpoints: 5 });
-		expect(context.tooltips.pinned).toBe(other);
-		expect(context.tooltips.surface).toBe(surface);
+		expect(context.tooltips.pinned?.id).toBe('other');
+		expect(context.tooltips.surface === surface).toBe(true);
 		context.tooltips.unpin();
 	});
 
