@@ -761,9 +761,28 @@ export class Card extends Component {
 	 */
 	protected onStateChange(): void {
 		this.updateLook();
-		const enabled = this.effectivelyEnabled;
-		// Keyboard focus lifts a card as the pointer does, so its ring clears its neighbours
-		this.liftTo(this.rises && (this.selected || ((this.hovered || this.focusVisible) && enabled)) ? 1 : 0);
+		this.liftTo(this.liftTarget);
+	}
+
+	/**
+	 * Up when selected, or hovered or keyboard-focused while it can be
+	 * played; keyboard focus lifts a card as the pointer does, so its ring
+	 * clears its neighbours.
+	 */
+	private get liftTarget(): number {
+		return this.rises && (this.selected || ((this.hovered || this.focusVisible) && this.effectivelyEnabled)) ? 1 : 0;
+	}
+
+	/**
+	 * Unmounting clears hover and focus without a callback (R9.21) and takes
+	 * the lift's tween with it, so a card that left hovered would come back
+	 * outlined and up. It settles its look, and its lift at once, for the
+	 * state it mounts in.
+	 */
+	protected onMount(): void {
+		this.updateLook();
+		const target = this.liftTarget;
+		if (this.liftAmount !== target) this.applyLift(target);
 	}
 
 	/** Dimmed while disabled or faded, then the frame for the card's state. */

@@ -242,6 +242,19 @@ describe('Driver card (Game Flow 7.0)', () => {
 		expect(card.resolvedColors.fill).toEqual(CARD_GROUND_FILLS.dimmed);
 	});
 
+	it('comes back to its resting outline when mounted again after leaving hovered', () => {
+		const card = mount(driverCardData({ archetype: 'road_warrior' }));
+		const outline = (): RGBA | undefined => frame(card).find((command) => command.kind === 'rect' && command.id === 'card')?.border?.color;
+		const resting = outline();
+		card.hovered = true;
+		expect(outline()).toEqual(tokens.color.accent);
+		// Unmounting clears hover without a callback (R9.21)
+		card.unmount();
+		card.mount(context);
+		expect(card.hovered).toBe(false);
+		expect(outline()).toEqual(resting);
+	});
+
 	it('rings a selected card clear of its frame, as the Crew wireframe does, a different shape from hover\'s outline', () => {
 		const card = mount(driverCardData({ archetype: 'road_warrior' }));
 		const ring = (): Recorded | undefined => frame(card).find((command) => command.id === 'card.selection_ring');

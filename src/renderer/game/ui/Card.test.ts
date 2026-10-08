@@ -197,6 +197,34 @@ describe('Card state', () => {
 		expect(card.y).toBe(25);
 	});
 
+	it('comes back resting and down when mounted again after leaving hovered and up', () => {
+		const card = build(cardData[0], 1);
+		const resting = card.resolvedColors.border;
+		card.hovered = true;
+		context.animator.settle();
+		expect(card.lifted).toBe(true);
+		expect(card.resolvedColors.border).toEqual(tokens.color.accent);
+		// Unmounting clears hover without a callback (R9.21)
+		card.unmount();
+		card.mount(context);
+		context.frame.layout();
+		expect(card.hovered).toBe(false);
+		expect(card.lifted).toBe(false);
+		expect(card.layer).toBeNull();
+		expect(card.transform.translate).toEqual([0, 0]);
+		expect(card.resolvedColors.border).toEqual(resting);
+	});
+
+	it('comes back up when mounted again while it is selected, which unmounting keeps', () => {
+		const card = build(cardData[0], 1);
+		card.selected = true;
+		context.animator.settle();
+		card.unmount();
+		card.mount(context);
+		expect(card.lifted).toBe(true);
+		expect(card.transform.translate).toEqual([0, -CARD_LIFT]);
+	});
+
 	it('eases up on the animator rather than jumping', () => {
 		const card = build(cardData[0], 1);
 		card.hovered = true;
@@ -534,6 +562,17 @@ describe('Mini card (Game Flow 7.0)', () => {
 				for (const y of ys) expect([miniState, y >= -MINI_CARD_INK && y <= 112 + MINI_CARD_INK]).toEqual([miniState, true]);
 			}
 		}
+	});
+
+	it('comes back to its resting frame when mounted again after leaving hovered', () => {
+		const card = mini('ram', { driverNumber: 1 });
+		const border = (): RGBA | undefined => frame(card).find(isFrame)?.border?.color;
+		const resting = border();
+		card.hovered = true;
+		expect(border()).toEqual(tokens.color.accent);
+		card.unmount();
+		card.mount(context);
+		expect(border()).toEqual(resting);
 	});
 
 	it('stays put under the pointer, as a card in a grid does', () => {

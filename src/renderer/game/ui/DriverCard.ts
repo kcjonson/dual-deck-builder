@@ -388,6 +388,15 @@ export class DriverCard extends Component {
 		this.updateLook();
 	}
 
+	/**
+	 * Unmounting clears hover and focus without a callback (R9.21), so a card
+	 * that left hovered or focused would come back outlined. It settles its
+	 * look for the state it mounts in.
+	 */
+	protected onMount(): void {
+		this.updateLook();
+	}
+
 	/** Faded while unavailable, lost, or disabled, then the frame and the selection ring for the card's state. */
 	private updateLook(): void {
 		this.dim(!this.effectivelyEnabled || this.faded);
