@@ -18,7 +18,7 @@ import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
 import cardsFile from '../data/cards.json';
 import { DRIVER_HP_COLOR, hexRgba } from '../screens/combat/combatStyle';
 import { MINI_GRID } from './Card';
-import { CARD_GROUND_FILLS } from './cardStyle';
+import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_MUTED_FILLS } from './cardStyle';
 import { DRIVER_CARD_INK, DRIVER_CARD_SIZE, DriverCard, DriverCardStatus } from './DriverCard';
 import { DriverInspectSurface, INSPECT_KEYS, inspectHotkey, inspectOnContextMenu, makeDriverInspectable } from './cardInspect';
 import { CardLookup } from './DriverDetailView';
@@ -202,15 +202,38 @@ describe('Driver card (Game Flow 7.0)', () => {
 		expect(only.x + only.width).toBeCloseTo(108);
 	});
 
+	it('draws its frame in a play card\'s dim line and its rivets in the muted one, darker when faded', () => {
+		const lines = (card: DriverCard): { outer?: RGBA; inner?: RGBA; rivets: (RGBA | null | undefined)[] } => {
+			const commands = frame(card);
+			const rects = commands.filter((command) => command.kind === 'rect' && command.rect?.x === command.rect?.y);
+			return {
+				outer: rects.find((command) => command.rect?.x === 0)?.border?.color,
+				inner: rects.find((command) => command.rect?.x === 4)?.border?.color,
+				rivets: commands.filter((command) => command.kind === 'circle' && command.radius === 1.5).map((command) => command.fill),
+			};
+		};
+		const ready = lines(mount(driverCardData({ archetype: 'road_warrior' })));
+		expect(ready.outer).toEqual(CARD_DIM_FILLS.full);
+		expect(ready.inner).toEqual(CARD_DIM_FILLS.full);
+		expect(ready.rivets).toEqual([CARD_MUTED_FILLS.full, CARD_MUTED_FILLS.full, CARD_MUTED_FILLS.full, CARD_MUTED_FILLS.full]);
+		const faded = lines(mount(driverCardData({ archetype: 'road_warrior' }), { unavailable: true }));
+		expect(faded.outer).toEqual(CARD_DIM_FILLS.dimmed);
+		expect(faded.inner).toEqual(CARD_DIM_FILLS.dimmed);
+		expect(faded.rivets[0]).toEqual(CARD_MUTED_FILLS.dimmed);
+	});
+
 	it('moves CUSTOM to the corner and back as the seat comes and goes', () => {
 		const card = mount(driverCardData({ archetype: 'interceptor' }), { status: 'seat1', customDeck: true });
+		expect(card.customDeck).toBe(true);
 		card.status = null;
+		expect(card.customDeck).toBe(true);
 		const [corner] = tagBoxes(frame(card));
 		expect(corner.x + corner.width).toBeCloseTo(108);
 		card.status = 'seat1';
 		const [seat, custom] = tagBoxes(frame(card));
 		expect(custom.x + custom.width).toBeCloseTo(seat.x - 3);
 		card.customDeck = false;
+		expect(card.customDeck).toBe(false);
 		expect(tagBoxes(frame(card))).toHaveLength(1);
 		expect(card.drawnText).toEqual(['SEAT 1']);
 	});

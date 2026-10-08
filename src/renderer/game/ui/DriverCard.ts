@@ -7,10 +7,9 @@ import type { RGBA, Rect } from '../../engine/draw/geometry';
 import type { AnyUiEvent } from '../../engine/input/events';
 import { resolveColor } from '../../engine/style/styleObject';
 import { totalCards } from '../campaign/CardCounts';
-import { CARD_GROUND_FILLS, CARD_MUTED, CARD_NAME, CARD_RULES, HOVER_OUTLINE, SELECTED_OUTLINE, dimHex, focusRingDraw, outsideRingDraw } from './cardStyle';
+import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_MUTED, CARD_NAME, CARD_RULES, HOVER_OUTLINE, SELECTED_OUTLINE, dimHex, focusRingDraw, outsideRingDraw } from './cardStyle';
 import type { DriverCardData } from './driverCardData';
 import {
-	FRAME_LINE_FILLS,
 	HpBarDraws,
 	PortraitDraws,
 	RIVETED_FRAME,
@@ -136,7 +135,6 @@ const FIGURE_TONES = textTones(CARD_RULES);
 export class DriverCard extends Component {
 	private model: DriverCardData;
 	private standing: DriverCardStatus | null = null;
-	private custom = false;
 	private unusable = false;
 	private dimmed = false;
 
@@ -297,12 +295,11 @@ export class DriverCard extends Component {
 	 * the corner (the seat's own card).
 	 */
 	public get customDeck(): boolean {
-		return this.custom;
+		return this.deckTag.text !== '';
 	}
 
 	public set customDeck(customDeck: boolean) {
-		if (customDeck === this.custom) return;
-		this.custom = customDeck;
+		if (customDeck === this.customDeck) return;
 		this.deckTag.text = customDeck ? CUSTOM_TAG : '';
 		this.placeTags();
 		this.invalidateInk();
@@ -416,7 +413,7 @@ export class DriverCard extends Component {
 	 */
 	private applyBorder(): void {
 		const border = this.frame.frame.border;
-		border.color = (this.hovered || this.focusVisible) && this.effectivelyEnabled ? HOVER_OUTLINE : FRAME_LINE_FILLS[this.dimmed ? 'dimmed' : 'full'];
+		border.color = (this.hovered || this.focusVisible) && this.effectivelyEnabled ? HOVER_OUTLINE : CARD_DIM_FILLS[this.dimmed ? 'dimmed' : 'full'];
 		border.width = RIVETED_FRAME.outer;
 	}
 

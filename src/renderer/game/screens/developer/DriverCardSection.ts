@@ -4,21 +4,15 @@ import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { tokens } from '../../../engine/theme/tokens';
 import { addCards, startingDeckCounts } from '../../campaign/CardCounts';
-import { Card as GameCard, CardData } from '../../mechanics/Card';
-import cardsFile from '../../data/cards.json';
 import { MINI_GRID } from '../../ui/Card';
 import { DRIVER_CARD_INK, DriverCard, DriverCardStatus } from '../../ui/DriverCard';
 import { CardLookup, DriverDetailView } from '../../ui/DriverDetailView';
 import { inspectOnContextMenu, makeDriverInspectable } from '../../ui/cardInspect';
 import { DriverCardData, driverCardData } from '../../ui/driverCardData';
+import { sampleCard } from './CardDetailSection';
 
-const cards = (cardsFile as unknown as { cards: CardData[] }).cards;
-
-/** The gallery's cards by type, as a screen's loaded cards would answer. */
-const galleryCards: CardLookup = (type) => {
-	const data = cards.find((entry) => entry.type === type);
-	return data ? new GameCard({ ...data }) : null;
-};
+/** The gallery's cards by type; a type it doesn't have is a typo here, so it throws rather than leaving a card out. */
+const galleryCards: CardLookup = sampleCard;
 
 /** A caption under each card, wrapping inside this. */
 const CAPTION_WIDTH = 112;

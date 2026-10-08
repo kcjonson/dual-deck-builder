@@ -3,13 +3,15 @@ import type { Border, BoxShadow, DrawCircleOptions, DrawRectOptions } from '../.
 import type { RGBA, Rect, Vec2 } from '../../engine/draw/geometry';
 import { resolveColor } from '../../engine/style/styleObject';
 import { DRIVER_HP_COLOR, hexRgba } from '../screens/combat/combatStyle';
-import { CARD_DIM, CARD_GROUND_FILLS, CARD_LINE, CARD_MUTED, CARD_NAME, DIM_BRIGHTNESS, ToneFills, artGradient, dimHex, scale, toneFills } from './cardStyle';
+import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_LINE, CARD_MUTED_FILLS, CARD_NAME, DIM_BRIGHTNESS, ToneFills, artGradient, dimHex, scale, toneFills } from './cardStyle';
 
 /**
  * The edge no play card has (Game Flow 7.0): a riveted double frame. A
  * heavier outer line, a gap of the card's ground, a thin inner line, and a
  * rivet in each corner inside it, on corners squarer than a play card's.
- * The driver card and its detail view both wear it.
+ * Both lines are a play card's dim line, and the rivets its muted one, a
+ * step brighter, like studs. The driver card and its detail view both
+ * wear it.
  */
 export const RIVETED_FRAME = {
 	outer: 2,
@@ -19,10 +21,6 @@ export const RIVETED_FRAME = {
 	/** Each rivet's centre, this far in from both edges of its corner. */
 	rivet: { inset: 8, radius: 1.5 },
 } as const;
-
-/** Both lines in the dim line, the rivets a step brighter, like studs. */
-export const FRAME_LINE_FILLS: ToneFills = toneFills(CARD_DIM);
-const RIVET_FILLS = toneFills(CARD_MUTED);
 
 /**
  * The HP bar: the driver HP hue on a track sunk below the card's ground,
@@ -58,16 +56,16 @@ export function rivetedFrameDraws({ id, width, height, shadow }: { id?: string; 
 			rect: { x: 0, y: 0, width: 0, height: 0 },
 			radius: RIVETED_FRAME.radius,
 			fill: CARD_GROUND_FILLS.full,
-			border: { color: FRAME_LINE_FILLS.full, width: RIVETED_FRAME.outer },
+			border: { color: CARD_DIM_FILLS.full, width: RIVETED_FRAME.outer },
 			shadow,
 		},
 		inner: {
 			rect: { x: 0, y: 0, width: 0, height: 0 },
 			// A rect with no fill is white (R2.8's default); the inner line is border only
 			fill: CLEAR,
-			border: { color: FRAME_LINE_FILLS.full, width: RIVETED_FRAME.inner },
+			border: { color: CARD_DIM_FILLS.full, width: RIVETED_FRAME.inner },
 		},
-		rivets: [0, 1, 2, 3].map(() => ({ center: { x: 0, y: 0 }, radius: RIVETED_FRAME.rivet.radius, fill: RIVET_FILLS.full })),
+		rivets: [0, 1, 2, 3].map(() => ({ center: { x: 0, y: 0 }, radius: RIVETED_FRAME.rivet.radius, fill: CARD_MUTED_FILLS.full })),
 	};
 	resizeRivetedFrame(draws, { width, height });
 	return draws;
@@ -95,8 +93,8 @@ export function resizeRivetedFrame(draws: RivetedFrameDraws, { width, height }: 
 /** The ground, the inner line, and the rivets in a card's tone; the outer line is its owner's to colour. */
 export function toneRivetedFrame(draws: RivetedFrameDraws, tone: Tone): void {
 	draws.frame.fill = CARD_GROUND_FILLS[tone];
-	draws.inner.border.color = FRAME_LINE_FILLS[tone];
-	for (const rivet of draws.rivets) rivet.fill = RIVET_FILLS[tone];
+	draws.inner.border.color = CARD_DIM_FILLS[tone];
+	for (const rivet of draws.rivets) rivet.fill = CARD_MUTED_FILLS[tone];
 }
 
 /** The frame and its rivets, under everything else its owner draws. */
