@@ -232,8 +232,14 @@ export class TooltipService implements InputObserver, FrameTicker {
 
 	// -- input observer -------------------------------------------------------
 
-	public hoverChange(target: Component | null): void {
+	/**
+	 * Content moving under a still pointer (a scroll that followed keyboard
+	 * focus) leaves a tooltip that focus opened on its owner; only the pointer
+	 * moving onto something else takes it.
+	 */
+	public hoverChange(target: Component | null, pointerMoved = true): void {
 		if (this.pinnedOwner) return;
+		if (!pointerMoved && this.triggerValue === 'focus') return;
 		const owner = ownerOf(target);
 		if (owner === this.ownerValue && this.stateValue !== 'idle' && this.stateValue !== 'hiding') return;
 		if (!owner) {

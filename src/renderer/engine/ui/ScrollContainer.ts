@@ -1,5 +1,6 @@
 import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
 import type { Sides } from '../components/componentGeometry';
+import { REVEAL_EPSILON, RevealRequest, ScrollBlock, revealDelta, revealInAncestors } from '../components/reveal';
 import type { Axis, Size } from '../components/layoutTypes';
 import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA, Rect, Vec2 } from '../draw/geometry';
@@ -16,10 +17,10 @@ import {
 import { tokens } from '../theme/tokens';
 import { SCROLLBAR_GUTTER, Scrollbar } from './Scrollbar';
 
-export type ScrollBlock = 'nearest' | 'center';
+export type { ScrollBlock } from '../components/reveal';
 
 export interface ScrollIntoViewOptions {
-	/** `nearest` (default) moves the least; `center` centres the component in the viewport. */
+	/** `nearest` (the default) or `center`, as R12.20 defines them. */
 	block?: ScrollBlock;
 }
 
@@ -70,9 +71,10 @@ interface ScrollBox {
  * Page Up and Page Down from anywhere inside, and the arrows, Home, and End
  * while it is itself focused. It is focusable by press and by code but not
  * a Tab stop (`tabIndex: -1`), so a press on its background lets the keys
- * reach it. Keyboard focus landing on a descendant scrolls it into view
- * (the focus manager calls `scrollIntoView`), and a scroll closes a popup
- * anchored inside it (R3.6a).
+ * reach it. Keyboard focus landing on a descendant scrolls its box and what
+ * it draws now into view (the focus manager's reveal walk calls
+ * `scrollRectIntoView`), and a scroll closes a popup anchored inside it
+ * (R3.6a).
  *
  * The scrollbar is this container's part. The content offset moves every
  * child, so the scrollbar is placed at the offset to stay put on screen.
@@ -165,6 +167,8 @@ export class ScrollContainer extends Component {
 	}
 
 	public scrollTo(offset: number): void {
+		// Here and in scrollToBottom, not in applyScroll, so a layout's re-clamp isn't taken for a scroll.
+		this.context?.focus.scrolled(this);
 		this.endRequested = false;
 		this.applyScroll(offset);
 	}
@@ -191,6 +195,7 @@ export class ScrollContainer extends Component {
 	 * line). Any other scroll in between cancels that.
 	 */
 	public scrollToBottom(): void {
+		this.context?.focus.scrolled(this);
 		this.applyScroll(Infinity);
 		this.endRequested = true;
 	}
@@ -201,30 +206,35 @@ export class ScrollContainer extends Component {
 	}
 
 	/**
-	 * R12.20: brings `descendant`'s box inside the clip. `nearest` moves the
-	 * least, its top edge winning when it is taller than the clip; `center`
-	 * centres it. Worked in this container's local space, where one unit of
-	 * scroll moves the content one unit, so a scaled ancestor changes nothing.
+	 * R12.20: brings `descendant`'s box and what it draws now (`revealInk`)
+	 * inside the clip, as far as the clips between them let it show. Only
+	 * this container scrolls; the focus manager's walk scrolls each scroller
+	 * above the component. A component this container doesn't hold is left
+	 * alone.
 	 */
 	public scrollIntoView(descendant: Component, { block = 'nearest' }: ScrollIntoViewOptions = {}): void {
 		if (descendant === this || descendant === this.scrollbar) return;
-		const corners = descendant.screenQuad.map((point) => this.screenToLocal(point));
-		if (corners.some((corner) => corner === null)) return;
-		const ys = corners.map((corner) => (corner as Vec2).y);
-		const top = Math.min(...ys);
-		const bottom = Math.max(...ys);
+		revealInAncestors(descendant, { block, scroller: this });
+	}
+
+	/**
+	 * R12.20, for a box and its ink in this container's content space, where
+	 * its children sit: scrolls by `revealDelta` along y, within the scroll
+	 * range, and not at all when that leaves the position where it is, so a
+	 * pending `scrollToBottom` survives a reveal that changes nothing. In
+	 * local units, so a scaled ancestor changes nothing.
+	 */
+	public scrollRectIntoView({ box, ink = box, block = 'nearest' }: RevealRequest): void {
 		const clip = this.clipRect;
-		let delta: number;
-		if (block === 'center') {
-			delta = (top + bottom) / 2 - (clip.y + clip.height / 2);
-		} else if (top < clip.y) {
-			delta = top - clip.y;
-		} else if (bottom > clip.y + clip.height) {
-			delta = Math.min(bottom - (clip.y + clip.height), top - clip.y);
-		} else {
-			delta = 0;
-		}
-		if (delta !== 0) this.scrollBy(delta);
+		const top = clip.y + this.scrollY;
+		const delta = revealDelta({
+			box: { start: box.y, end: box.y + box.height },
+			ink: { start: ink.y, end: ink.y + ink.height },
+			view: { start: top, end: top + clip.height },
+			block,
+		});
+		const target = Math.max(0, Math.min(this.maxScroll, this.scrollY + delta));
+		if (Math.abs(target - this.scrollY) >= REVEAL_EPSILON) this.scrollTo(target);
 	}
 
 	/** R9.32: vertical only; true while there is room to move in the wheel's direction. */
