@@ -1,8 +1,8 @@
 /**
  * The grid a stepped control's values sit on (R12.15, R12.36): Slider snaps
  * to it and NumberInput rounds to its decimals. Imports nothing, so code that
- * wants its numbers to read like a control's, such as the area map's rolled
- * parameters, can land on the same grid without the controls.
+ * wants its numbers to read like a control's can land on the same grid
+ * without the controls.
  */
 
 export interface StepRange {
@@ -18,15 +18,14 @@ export function snapToStep({ min, max, step }: StepRange, value: number): number
 	if (!Number.isFinite(value)) return min;
 	if (!(step > 0)) return clamp(value);
 	const snapped = min + Math.round((value - min) / step) * step;
-	// Strip the float noise the multiply leaves (0.1 * 3), at the step's own precision.
-	return clamp(Number(snapped.toFixed(decimalsOf(step) + 2)));
+	// Strip the float noise the multiply leaves (0.1 * 3), at the step's own precision; toFixed takes at most 100.
+	return clamp(Number(snapped.toFixed(Math.min(100, decimalsOf(step) + 2))));
 }
 
-/** Decimal places in `step`'s shortest form: 0.25 has two, 5 none, 1e-7 seven. */
+/** Decimal places in `step`'s shortest form, exponent and all: 0.25 has two, 5 none, 1e-7 seven, 1.5e-7 eight. */
 export function decimalsOf(step: number): number {
-	const text = String(step);
-	const exponent = /e-(\d+)$/.exec(text);
-	if (exponent) return Number(exponent[1]);
-	const point = text.indexOf('.');
-	return point === -1 ? 0 : text.length - point - 1;
+	const [mantissa, exponent = '0'] = String(step).split('e');
+	const point = mantissa.indexOf('.');
+	const fraction = point === -1 ? 0 : mantissa.length - point - 1;
+	return Math.max(0, fraction - Number(exponent));
 }

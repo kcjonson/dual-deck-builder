@@ -29,6 +29,15 @@ describe('snapToStep', () => {
 		expect(snapToStep(tenths, Number.POSITIVE_INFINITY)).toBe(0);
 		expect(snapToStep({ min: 5, max: 2, step: 1 }, 9)).toBe(5);
 	});
+
+	it('keeps every digit of a step written with an exponent', () => {
+		expect(snapToStep({ min: 0, max: 1, step: 1.125e-7 }, 1.2e-7)).toBe(1.125e-7);
+		expect(snapToStep({ min: 0, max: 1, step: 1.5e-7 }, 3.1e-7)).toBe(3e-7);
+	});
+
+	it('snaps on a step finer than toFixed can write', () => {
+		expect(snapToStep({ min: 0, max: 1, step: 1e-99 }, 0.5)).toBeCloseTo(0.5, 12);
+	});
 });
 
 describe('decimalsOf', () => {
@@ -40,6 +49,10 @@ describe('decimalsOf', () => {
 		[0.05, 2],
 		[0.01, 2],
 		[1e-7, 7],
+		[1.5e-7, 8],
+		[1.125e-7, 10],
+		[1e21, 0],
+		[1.5e21, 0],
 	])('gives %p %p decimal places', (step, places) => {
 		expect(decimalsOf(step)).toBe(places);
 	});
