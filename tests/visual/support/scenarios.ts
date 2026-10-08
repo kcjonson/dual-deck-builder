@@ -133,6 +133,10 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'card-detail-cap', lintShort: true },
 	// The mini card's states and stacks (DDB-311)
 	{ scene: 'card-minis', lintShort: true },
+	// The driver card's states and its detail view (DDB-312)
+	{ scene: 'driver-cards', lintShort: true },
+	{ scene: 'driver-detail', lintShort: true },
+	{ scene: 'driver-detail-pinned', lintShort: true },
 	{ scene: 'overlays' },
 	{ scene: 'dialog' },
 	{ scene: 'popover' },
