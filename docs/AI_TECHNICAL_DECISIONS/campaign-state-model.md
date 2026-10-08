@@ -69,7 +69,7 @@ Card types are checked for shape (lower snake case), not against `cards.json`, w
 - The campaign's JSON carries no version. `CampaignStore` stamps every save with the save format version, `CAMPAIGN_SCHEMA_VERSION`, and only hands `fromJSON` a save of this build's version; there are no migrations ([campaign-save-and-load.md](./campaign-save-and-load.md)).
 - Every object must have exactly its fields. Missing and unknown fields both throw, as map presets do, so a renamed field can't vanish quietly. Map params are the one exception (below).
 - Every array must hold a value at every index. JSON never makes a hole, but a `set` could pass one, and `map` and `forEach` would skip it unchecked.
-- Errors name where: `Campaign.drivers[1].status must be one of ready, injured, dead, missing, got "sleeping"`. A `ReaderTypeError` for the wrong kind of value, a `ReaderRangeError` for a value out of range: still a TypeError and a RangeError, but classes of their own, so a load can tell a damaged save from a bug in the code reading it.
+- Errors name where: `Campaign.drivers[1].status must be one of ready, injured, dead, missing, got "sleeping"`. A `ReaderTypeError` for the wrong kind of value, a `ReaderRangeError` for a value out of range: still a TypeError and a RangeError, but classes of their own, so a load can tell a damaged save from a bug in the code reading it, and log the bug (it still treats the save as damaged).
 - `campaign/__fixtures__/campaign-v1.json` is a campaign at the current format, which loads and writes back the same. When the format changes, the fixture changes with it and the version goes up.
 
 Loading leniently, as `GameSettings` does (defaults for what's missing, unknown keys ignored), was rejected for saves: a damaged campaign would load as a different campaign.
@@ -101,7 +101,7 @@ Each repair, and each value kept outside today's ranges, is a warning worded wit
 
 ## Map state is a stand-in
 
-Map state (DDB-275) is opaque JSON, copied and frozen, until the map defines it. `strongholdsTaken` holds ids as strings until the map defines its ids.
+Map state (DDB-275) is opaque JSON, copied and frozen, and nested at most 100 levels, until the map defines it. `strongholdsTaken` holds ids as strings until the map defines its ids.
 
 The log is `{ day, message }` lines, dated by `addLogEntry` with the current day, in day order, none after today. Plain text for now; campaign history may want structured entries later, which is a schema bump.
 

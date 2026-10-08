@@ -1,6 +1,6 @@
 # Saving and loading a campaign (DDB-49)
 
-Date: 2026-10-07, revised 2026-10-08 after review and for per-build saves (DDB-413). Code: `src/renderer/game/campaign/CampaignStore.ts`, `SaveStorage.ts`, `CampaignHistory.ts`, and `Campaign.toSaveText`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Terms), [Area Map Generation](../specs/Area%20Map%20Generation.md) (Saving), [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) (1.1). Builds on [campaign-state-model.md](./campaign-state-model.md), and follows the persistence pattern of [settings-store-and-screens.md](./settings-store-and-screens.md).
+Date: 2026-10-07, revised 2026-10-08 for per-build saves (DDB-413). Code: `src/renderer/game/campaign/CampaignStore.ts`, `SaveStorage.ts`, `CampaignHistory.ts`, and `Campaign.toSaveText`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Terms), [Area Map Generation](../specs/Area%20Map%20Generation.md) (Saving), [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) (1.1). Builds on [campaign-state-model.md](./campaign-state-model.md), and follows the persistence pattern of [settings-store-and-screens.md](./settings-store-and-screens.md).
 
 ## Context
 
@@ -24,11 +24,11 @@ Every call waits for the ones before it, so calls take effect in the order they'
 
 Every playtest build is served from one origin (main at /playtest/dual-deckbuilder/, each PR's at /playtest/dual-deckbuilder/<branch>/), and running main beside a PR build is the normal playtest setup. So each build keeps its own saves (DDB-413): every key carries the build's namespace, the directory the page was served from (`pageNamespace`). The desktop build's `file://` page is `desktop`, and a localhost dev server is `dev`. Settings stay shared across builds; nothing in them depends on the build.
 
-Every save and history list also carries the save format version, `CAMPAIGN_SCHEMA_VERSION`, bumped by hand whenever the text `toSaveText` writes, or a history entry, changes shape. Ordinary redeploys of a build keep its saves. There are no migrations: a save stamped with another version, older or newer, isn't loaded. `saveStatus` calls it outdated, `load` passes it by, and a new campaign or a delete replaces it without a copy. A history stamped with another version starts over on the next ending. So bumping the version invalidates every existing save of that build, which is the trade for not carrying migrations while the format moves this fast.
+Every save and history list also carries the save format version, `CAMPAIGN_SCHEMA_VERSION`, bumped by hand whenever the text `toSaveText` writes, or a history entry, changes shape. Ordinary redeploys of a build keep its saves. There are no migrations: a save stamped with another version, older or newer (an integer other than this build's), isn't loaded. `saveStatus` calls it outdated, `load` passes it by, and a new campaign or a delete replaces it without a copy. A stamp with no version, or one that isn't an integer, is damage, not another version. A history stamped with another version starts over on the next ending. So bumping the version invalidates every existing save of that build, which is the trade for not carrying migrations while the format moves this fast.
 
 Rejected:
 
-- Migrations, as the first version of this store had: each one is code to write and test for a format nobody keeps for long during playtesting, and a newer build's save was still unreadable to an older one.
+- Migrations: each one is code to write and test for a format nobody keeps for long during playtesting, and a newer build's save was still unreadable to an older one.
 - One shared save for every build on the origin, which is what put a newer build's save in front of an older build in the first place.
 
 ## When to save: checkpoints at the end of each step
@@ -79,19 +79,19 @@ The save lives in one of two slots, and `active` names which. A write goes into 
 
 Every call finds the save the same way. `active` naming a slot with text in it decides, whatever the text, and the other slot then holds only the save before it. Otherwise (no `active`, an empty one, one naming an empty slot, or anything else) the save is the newest that loads, by the write count each save carries (one past the newest in either slot), and with none there's no save. `saveStatus`, `load`, writes, and removals all agree on it, so Continue never shows for a save that isn't there, and a load never calls a missing save damaged.
 
-Removing the save goes other slot, then the save's, then `active`, so a crash part way leaves the save or nothing, never the save before it.
+Removing the save goes other slot, then the save's, then `active`, so a crash part way leaves the save or nothing, never the save before it. `active` goes whenever it's set, even when it names nothing.
 
 Rejected:
 
-- Writing one key in place. It leans on the storage writing a long value atomically, and a crash mid-write in one that doesn't loses the only save.
+- One key written in place. Under the whole-write contract a crash can't tear it either, and it's simpler; the two slots were kept for now because the save before sits beside the save, which a restore path (DDB-414) could fall back to. Collapsing to one key is DDB-435.
 - Writing a temporary key, then copying it over the save. Two full writes a save, and a crash between them leaves two candidates for the load to choose between.
 
 ## Failing safely
 
 A call that fails rejects with a `CampaignStoreError` (checkpoints hand theirs to listeners instead). Its `message` is a whole sentence for the player, its `reason` says which kind of failure it is, and `detail` and `cause` carry what went wrong underneath, such as the reader's path-named error:
 
-- `storage`: storage threw. A quota error reads "storage is full", a SecurityError "storage is blocked", anything else "storage failed". A failed write leaves the save before.
-- `damaged`: a save of this version isn't JSON, isn't a stamped save, or `Campaign.fromJSON` refuses it with a reader error. A bug in the code reading it (any other error) is thrown as itself, not taken for damage.
+- `storage`: storage threw. A quota error reads "storage is full", a SecurityError "storage is blocked", anything else "storage failed". A failed write leaves the save before where `active` names it. With no `active` naming a save (none yet, or after a delete), a write that fails after its slot is written can still be found by the newest-that-loads rule, so a save that rejected can turn up as the save.
+- `damaged`: a save of this version isn't JSON, isn't a stamped save, or `Campaign.fromJSON` refuses it. Anything that throws while reading a save of this version counts, a bug in the reading code included, so one bad save can't lock the player out of the menu: the slot never counts as a save that loads, it's copied before anything replaces it, and only `load` fails, logging a throw that isn't a reader error as an error. `saveStatus` reads only the stamp's version, never the campaign.
 - `unsavable`: the campaign can't be written, because `toSaveText` refused it (an escort out of range, which the convoy allows between checks); nothing is written. `end` with an ending that doesn't exist fails this way too, at once, before it queues.
 - `retired`: the campaign has ended, its save was deleted or loaded again, or a new campaign replaced it (below). `save` and `end` reject with it, recording nothing; a checkpoint of a retired campaign just resolves false without telling listeners, since a game over isn't a failed save.
 
@@ -101,7 +101,7 @@ Warnings (map param repairs, a history set aside or started over) are collected 
 
 ## Which campaign the save belongs to
 
-Every campaign instance the store loads or saves is tagged with the lineage of the save it belongs to, and only the current lineage's instances are saved. Loading the save, ending its campaign, deleting it, and saving a new campaign each start a new lineage, so the instance a load hands out is the only one that saves, and a run screen left running after a plain Continue, or holding a campaign the menu abandoned, deleted, or replaced, can't write it back. Ending or deleting retires the lineage only once the steps that can fail before anything is removed (reading storage, copying a damaged save, writing the history line) have passed, so a call that fails early leaves the campaign saving. If a removal fails part way, the store owes it: the next `saveStatus`, `load`, `delete`, or `end` of that campaign finishes it first, and a new campaign's save drops it. An instance the store never tagged that's passed to `end` goes into the history and is retired on its own, leaving the save alone.
+Every campaign instance the store loads or saves is tagged with the lineage of the save it belongs to, and only the current lineage's instances are saved. Loading the save, ending its campaign, deleting it, and saving a new campaign each start a new lineage, so the instance a load hands out is the only one that saves, and a run screen left running after a plain Continue, or holding a campaign the menu abandoned, deleted, or replaced, can't write it back. Ending or deleting retires the lineage only once the steps that can fail before anything is removed (reading storage, copying a damaged save, writing the history line) have passed, so a call that fails early leaves the campaign saving. If a removal fails part way, the store owes it: the next `saveStatus`, `load`, `delete`, or `end` of that campaign finishes it first, and a new campaign's save drops it. An end retried after its removal failed answers with the entry the first end recorded, however the retry ends it; an end after a delete whose removal failed finishes the removal, then is refused as `retired`, recording nothing. An instance the store never tagged that's passed to `end` goes into the history and is retired on its own, leaving the save alone.
 
 The lineage lives in each store's memory, so a second tab of one build has its own and can write a campaign the first tab ended or deleted. Two tabs of one build aren't supported until a single-writer lock lands (DDB-415).
 
@@ -109,7 +109,7 @@ The lineage lives in each store's memory, so a second tab of one build has its o
 
 `history` holds `{ version, campaigns }`, newest first, each entry `{ seed, day, strongholdsTaken, ending }`, about 70 characters. It's kept apart from the save: Continue never reads it, and the history list never reads a save. The seed is there because the spec shows it in campaign history; `day` is the day the campaign ended on, from which the menu tells days survived. The endings are `starved`, `rioted`, and `disbanded` for the compound's fall, `won`, and `abandoned` for a campaign given up for a new one. Unlocks earned (Game Flow 1.1) join with a version bump once unlocks exist. `end` records the campaign as it stood when it was called.
 
-An entry equal to the newest one isn't added again. That heals a crash between recording a campaign and removing its save only when the campaign is ended the same way again; ended another way (abandoned from New Campaign, say), it gets a second line. Entries carry no campaign identity, so two campaigns on one seed that end the same way on the same day, back to back, also read as one.
+An entry equal to the newest one isn't added again. A new session after a crash between recording a campaign and removing its save doesn't know the campaign ended, so that heals the crash only when the campaign is ended the same way again; ended another way (abandoned from New Campaign, say), it gets a second line. Entries carry no campaign identity, so two campaigns on one seed that end the same way on the same day, back to back, also read as one.
 
 A damaged history is copied to its own recovery key; `history()` fails as `damaged`, and the next `end` starts a new list. The history and the recovery copies are written in place, so they rely on a single write landing whole, as the storage contract says.
 
@@ -119,13 +119,13 @@ No `Rng` is saved. Campaign-time draws fork a stream per event from the seed and
 
 The seed is checked on load as an integer from 0 to 2^32 - 1 (`readSeed`, shared by the campaign, its map params, and the history), so a save whose seed is a string, null, or a number JSON reads as Infinity (`1e999`) fails as damaged. `new Rng({ seed })` throws on a seed that isn't a number but coerces NaN and Infinity to 0, which would quietly build seed 0's map.
 
-Loading rebuilds terrain and scenery from `root.fork('map', mapAttempt).fork(stage, stageAttempt)`, so the map state the generator defines (DDB-275) keeps the map attempt and the winning terrain and scenery attempts. The gameplay stages' attempts aren't needed, since their output is saved. Until the generator exists the map state is opaque JSON, and `MapState` names where they go.
+Loading rebuilds terrain and scenery from `root.fork('map', mapAttempt).fork(stage, stageAttempt)`, so the map state the generator defines (DDB-275) keeps the map attempt and the winning terrain and scenery attempts. The gameplay stages' attempts aren't needed, since their output is saved. Until the generator exists the map state is opaque JSON, nested at most 100 levels as the stop tables are (`MAX_JSON_DEPTH`), so a save nested deeper fails as damaged instead of overflowing the stack; `MapState` names where the attempts go.
 
 ## Consequences
 
 - Founding saves with `CampaignStore.shared.save(campaign)`; a failure there means the new campaign isn't saved, and the message says why.
 - The main menu reads `saveStatus()`: Continue on `'saved'`, a note that a campaign from another version can't be continued on `'outdated'`. It opens the save with `load()` and picks its words for a failure from `reason`. New Campaign over a save in progress calls `end({ ending: 'abandoned' })` to keep it in the history, or `delete()`; over an outdated save it can simply save the new campaign.
 - The run and compound screens call `checkpoint` at the end of each step, start the next step only after it or on a later frame, subscribe to `onSaveFailed` for a "couldn't save" notice, and call `end` when the last driver dies or the campaign is won.
-- Bumping `CAMPAIGN_SCHEMA_VERSION` invalidates every existing save of a build, and starts its history over.
+- Bumping `CAMPAIGN_SCHEMA_VERSION` invalidates every existing save of a build, and starts its history over. `Campaign.test.ts` pins the format to it (the fixture's key paths, and a history entry's and list's fields), so a change that moves the pin fails until the version goes up with it.
 - Saves of builds that are gone stay in the playtesters' local storage until they clear it, and count against the origin's quota.
 - The recovery keys hold one save and one history each.
