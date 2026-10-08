@@ -101,11 +101,11 @@ function salvageRig(): Vehicle {
 	return rig;
 }
 
-function startFight({ campaign, party, enemy, seed = SEED }: { campaign: Campaign; party: RunParty; enemy: Vehicle; seed?: number }): CampaignFight {
+function startFight({ campaign, party, enemy, seed = SEED }: { campaign: Campaign; party: RunParty; enemy: Vehicle | Vehicle[]; seed?: number }): CampaignFight {
 	return startCampaignFight({
 		campaign,
 		party,
-		enemyTeam: new Team({ type: TeamType.ENEMY, vehicles: [enemy] }),
+		enemyTeam: new Team({ type: TeamType.ENEMY, vehicles: Array.isArray(enemy) ? enemy : [enemy] }),
 		rng: new Rng({ seed }),
 		cards: CARDS,
 		enemyAI: null
@@ -374,10 +374,12 @@ describe('the combat bridge', () => {
 		it('loses a wrecked escort, and the one that took damage carries its structure on with its armor back', () => {
 			const { campaign, warrior, interceptor } = newCampaign();
 			const hauler = createEscort({ type: 'fuel_hauler' });
+			// Hurt in an earlier fight: one more jab wrecks it
+			hauler.set({ structure: 10 });
 			const truck = createEscort({ type: 'med_truck' });
 			[hauler, truck].forEach(escort => campaign.convoy.add(escort));
 			// A looter goes for the haulers: the Fuel Hauler first, then the Med Truck once it's gone
-			const scrapper = raider({ draws: [...cardsOf(5, wreck), ...cardsOf(5, jab)], adrenaline: 1, archetype: 'looter' });
+			const scrapper = raider({ draws: cardsOf(10, jab), adrenaline: 1, archetype: 'looter' });
 			const party: RunParty = { seats: [{ record: warrior }, { record: interceptor, runDeck: { precision_shot: 10 } }], escorts: [hauler, truck] };
 			const fight = startFight({ campaign, party, enemy: scrapper });
 
@@ -434,16 +436,20 @@ describe('the combat bridge', () => {
 			const outrider = createEscort({ type: 'outrider' });
 			const home = createEscort({ type: 'fuel_hauler' });
 			[outrider, home].forEach(escort => campaign.convoy.add(escort));
-			const scrapper = raider({ draws: [...cardsOf(5, wreck), ...cardsOf(5, snipe)], adrenaline: 2 });
+			const wrecker = raider({ draws: cardsOf(10, wreck), adrenaline: 2 });
+			const sniper = raider({ draws: cardsOf(10, snipe), adrenaline: 1 });
 			const fight = startFight({
 				campaign,
-				party: { seats: [{ record: warrior }, { record: interceptor }], escorts: [outrider] },
-				enemy: scrapper
+				party: { seats: [{ record: warrior }, { record: interceptor, runDeck: { covering_fire: 10 } }], escorts: [outrider] },
+				enemy: [wrecker, sniper]
 			});
 
-			// The wrecks crash the Road Warrior out and seat the Interceptor in the
-			// Outrider, then a snipe kills the Interceptor there: nobody is left in it
-			fightOut(fight);
+			// The wrecker crashes the Road Warrior out and seats the Interceptor in the
+			// Outrider, as in the pickup. The Interceptor takes the wrecker down from
+			// there, but the sniper kills them in that seat, and nobody is left in the fight.
+			fightOut(fight, turn => {
+				if (turn === 2) play({ fight, seat: 1, cardType: 'covering_fire', target: wrecker });
+			});
 			expect(fight.battle.isBattleWon()).toBe(false);
 			const result = writeBackFight({ campaign, fight });
 
