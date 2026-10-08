@@ -6,6 +6,10 @@ import { validateMapParams } from './ParamValidator';
 
 const PRESET_DIR = join(__dirname, '..', 'data', 'mapPresets');
 
+class Weights {
+	constructor(public wreck = 1) {}
+}
+
 describe('MAP_PRESETS', () => {
 	const presets = MAP_PRESETS.map((preset) => [preset.name, preset] as const);
 
@@ -29,6 +33,17 @@ describe('MAP_PRESETS', () => {
 	it.each(presets)('%s reads the same from its file as from the bundle', (name, preset) => {
 		const text = readFileSync(join(PRESET_DIR, `${name}.json`), 'utf8');
 		expect(parseMapPreset(text)).toEqual(preset.params);
+	});
+
+	it('is frozen through, so nothing can edit a shipped preset in place', () => {
+		const unfrozen: string[] = [];
+		const walk = (value: unknown, path: string): void => {
+			if (typeof value !== 'object' || value === null) return;
+			if (!Object.isFrozen(value)) unfrozen.push(path);
+			for (const [key, item] of Object.entries(value)) walk(item, `${path}.${key}`);
+		};
+		walk(MAP_PRESETS, 'MAP_PRESETS');
+		expect(unfrozen).toEqual([]);
 	});
 });
 
@@ -67,24 +82,84 @@ describe('preset JSON', () => {
 	});
 
 	it.each([
-		['an array', '[1, 2]', 'expected a JSON object'],
-		['no seed', '{"environment": "mixed"}', 'seed must be a number'],
-		['a seed that isn\'t a number', '{"seed": "2183746551"}', 'seed must be a number'],
-		['an unknown environment', '{"seed": 1, "environment": "tundra"}', 'environment must be one of highDesert, rustBelt'],
+		['an array', '[1, 2]', 'expected a JSON object, got [1,2]'],
+		['no seed', '{"environment": "mixed"}', 'seed is missing'],
+		['a seed that isn\'t a number', '{"seed": "2183746551"}', 'seed must be a number, got "2183746551"'],
+		['a seed past what a number holds', '{"seed": 1e999}', 'seed must be a finite number, got Infinity'],
+		['an unknown environment', '{"seed": 1, "environment": "tundra"}', 'environment must be one of highDesert, rustBelt, floodlands, badlands, mixed, got "tundra"'],
 		['a misspelt parameter', '{"seed": 1, "rivres": 4}', 'unknown parameter "rivres"'],
-		['a parameter that isn\'t a number', '{"seed": 1, "rivers": null}', 'rivers must be a number'],
-		['stop tables that aren\'t an object', '{"seed": 1, "stopTables": []}', 'stopTables must be an object'],
+		['a parameter that isn\'t a number', '{"seed": 1, "rivers": null}', 'rivers must be a number, got null'],
+		['a parameter past what a number holds', '{"seed": 1, "radius": -1e999}', 'radius must be a finite number, got -Infinity'],
+		['stop tables that aren\'t an object', '{"seed": 1, "stopTables": []}', 'stopTables must be an object, got []'],
+		['a stop weight past what a number holds', '{"seed": 1, "stopTables": {"trail": {"wreck": [1, 1e999]}}}', 'stopTables.trail.wreck[1] must be a finite number, got Infinity'],
 	])('rejects a preset with %s', (_case, text, message) => {
-		expect(() => parseMapPreset(text)).toThrow(message);
+		expect(() => parseMapPreset(text)).toThrow(`Invalid map preset: ${message}`);
 	});
 
-	it('names every problem at once', () => {
-		expect(() => readMapPreset({ seed: 'x', rivres: 4, lakes: '2' })).toThrow(
-			'Invalid map preset: unknown parameter "rivres"; seed must be a number; lakes must be a number',
+	it('rejects NaN and Infinity in a set read from code', () => {
+		expect(() => readMapPreset({ seed: 1, rivers: NaN, aridity: Infinity })).toThrow(
+			'Invalid map preset: aridity must be a finite number, got Infinity; rivers must be a finite number, got NaN',
 		);
 	});
 
-	it('throws on text that isn\'t JSON', () => {
+	it.each([
+		['a function', { trail: { wreck: () => 1 } }, 'stopTables.trail.wreck must be JSON (null, a boolean, a number, a string, an array, or a plain object), got function'],
+		['a Date', { trail: { since: new Date(0) } }, 'stopTables.trail.since must be JSON (null, a boolean, a number, a string, an array, or a plain object), got a Date'],
+		['a class instance', { trail: new Weights() }, 'stopTables.trail must be JSON (null, a boolean, a number, a string, an array, or a plain object), got a Weights'],
+	])('rejects stop tables holding %s, naming its path', (_case, stopTables, message) => {
+		expect(() => readMapPreset({ seed: 1, stopTables })).toThrow(`Invalid map preset: ${message}`);
+	});
+
+	it('rejects stop tables that contain themselves, naming where', () => {
+		const stopTables: Record<string, unknown> = { trail: { wreck: 1 } };
+		(stopTables.trail as Record<string, unknown>).back = stopTables;
+		expect(() => readMapPreset({ seed: 1, stopTables })).toThrow('Invalid map preset: stopTables.trail.back contains itself');
+	});
+
+	it('names every problem at once, each bad value in the stop tables included', () => {
+		expect(() => readMapPreset({ seed: 'x', rivres: 4, lakes: '2', stopTables: { trail: { wreck: NaN, hazard: Infinity } } })).toThrow(
+			'Invalid map preset: unknown parameter "rivres"; seed must be a number, got "x"; lakes must be a number, got "2"; '
+			+ 'stopTables.trail.wreck must be a finite number, got NaN; stopTables.trail.hazard must be a finite number, got Infinity',
+		);
+	});
+
+	it('lists the first 20 problems and counts the rest, however many there are', () => {
+		let message = '';
+		try {
+			readMapPreset({ seed: 1, stopTables: { trail: new Array(100_000) } });
+		} catch (error) {
+			message = (error as Error).message;
+		}
+		const problems = message.replace(/^Invalid map preset: /, '').split('; ');
+		expect(problems).toHaveLength(21);
+		expect(problems[19]).toMatch(/^stopTables\.trail\[19\] must be JSON/);
+		expect(problems[20]).toBe('and 99980 more');
+	});
+
+	it('shares no stop tables with what it read', () => {
+		const json = { seed: 1, stopTables: { trail: { wreck: 1 } } };
+		const set = readMapPreset(json);
+		json.stopTables.trail.wreck = 5;
+		expect(set.stopTables).toStrictEqual({ trail: { wreck: 1 } });
+	});
+
+	it('names text that isn\'t JSON as an invalid preset', () => {
 		expect(() => parseMapPreset('{"seed": 1,')).toThrow(SyntaxError);
+		expect(() => parseMapPreset('{"seed": 1,')).toThrow(/^Invalid map preset: /);
+	});
+
+	it('reads text that starts with a byte order mark', () => {
+		expect(parseMapPreset('\uFEFF{"seed": 12, "rivers": 3}')).toEqual({ seed: 12, rivers: 3 });
+	});
+
+	it.each([
+		['NaN as null', { seed: 1, rivers: NaN }, 'rivers must be a finite number, got NaN'],
+		['Infinity as null', { seed: 1, radius: Infinity }, 'radius must be a finite number, got Infinity'],
+		['a NaN seed as null', { seed: NaN }, 'seed must be a finite number, got NaN'],
+		['NaN in the stop tables as null', { seed: 1, stopTables: { trail: { wreck: NaN } } }, 'stopTables.trail.wreck must be a finite number, got NaN'],
+		['undefined in a stop table list as null', { seed: 1, stopTables: { trail: [1, undefined] } }, 'stopTables.trail[1] must be JSON'],
+		['a Date in the stop tables as a string', { seed: 1, stopTables: { trail: new Date(0) } }, 'stopTables.trail must be JSON'],
+	])('refuses to write %s', (_case, set, message) => {
+		expect(() => serializeMapPreset(set as unknown as MapParamSet)).toThrow(`Invalid map preset: ${message}`);
 	});
 });

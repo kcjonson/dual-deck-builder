@@ -1,5 +1,5 @@
 import { tokens } from '../theme/tokens';
-import { RESTING_FLAGS, StateFlags, glowShadow, layersInkExtent, over, resolveLook, shadowExtent } from './look';
+import { RESTING_FLAGS, StateFlags, glowShadow, layersInkExtent, lookInk, over, resolveLook, shadowExtent } from './look';
 import { autoTone, buttonLayers, CONTROL_SIZES, fieldLayers } from './variants';
 
 const { color } = tokens;
@@ -143,5 +143,32 @@ describe('ink extent (R8.8)', () => {
 
 	it('covers only the ring on a field, which never nudges or glows', () => {
 		expect(layersInkExtent(fieldLayers({}))).toBe(ring);
+	});
+});
+
+describe('resting ink (R12.20)', () => {
+	const ring = tokens.control.focus_ring_offset + tokens.control.focus_ring_width;
+	const shape = { x: 10, y: 20, width: 100, height: 30 };
+
+	it('gives the every-state extent, and what is drawn now with the pointer away: the ring while focus shows', () => {
+		const layers = buttonLayers('accent', {});
+		expect(lookInk(layers, flags({}), shape)).toEqual({ extent: layersInkExtent(layers), resting: shape });
+		// Hovered and pressed it glows and nudges, which a reveal leaves out
+		const ringed = { x: 10 - ring, y: 20 - ring, width: 100 + ring * 2, height: 30 + ring * 2 };
+		expect(lookInk(layers, flags({ focused: true, focusVisible: true, hovered: true, pressed: true }), shape).resting).toEqual(ringed);
+		expect(lookInk(layers, flags({ focused: true, focusVisible: true, enabled: false }), shape).resting).toEqual(shape);
+	});
+
+	it("puts the base's own shadow where it falls, the selected base's when selected", () => {
+		const shadow = { color: 'shadow', blur: 20, offset: { x: 4, y: 10 } } as const;
+		const raised = buttonLayers('default', { shadow });
+		// 1.5 blur round the shape, moved by the offset, which covers the ring
+		const cast = { x: 10 + 4 - 30, y: 20 + 10 - 30, width: 160, height: 90 };
+		expect(lookInk(raised, flags({ focused: true, focusVisible: true }), shape).resting).toEqual(cast);
+		// Only the selected base has a shadow here
+		const plain = buttonLayers('default', {});
+		const selectedOnly = { ...plain, selected: { ...plain.selected, shadow: raised.normal.shadow } };
+		expect(lookInk(selectedOnly, flags({ selected: true }), shape).resting).toEqual(cast);
+		expect(lookInk(selectedOnly, flags({}), shape).resting).toEqual(shape);
 	});
 });

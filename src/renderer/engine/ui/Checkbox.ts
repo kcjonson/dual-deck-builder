@@ -5,7 +5,7 @@ import { Text } from '../components/Text';
 import type { DrawApi } from '../draw/DrawApi';
 import type { Rect } from '../draw/geometry';
 import type { UiActionEvent, UiPointerEvent } from '../input/events';
-import { Look, LookLayers, glowShadow, layersInkExtent, resolveLook } from '../style/look';
+import { Look, LookInk, LookLayers, glowShadow, lookInk, resolveLook } from '../style/look';
 import { LookTransition } from '../style/LookTransition';
 import { CONTROL_SIZES, ControlSize, markLayers } from '../style/variants';
 import { tokens } from '../theme/tokens';
@@ -125,7 +125,17 @@ export abstract class Checkable extends Pressable {
 	}
 
 	public get inkExtent(): number {
-		return layersInkExtent(this.layers);
+		return this.inkFromLook.extent;
+	}
+
+	/** What the mark draws with the pointer away, never its hover glow; the walk adds its ring (R12.20). */
+	protected get restingInk(): Rect {
+		return this.inkFromLook.resting;
+	}
+
+	/** The mark's look, on the mark: its ring is the walk's, round the row, so the look's is left out. */
+	private get inkFromLook(): LookInk {
+		return lookInk(this.layers, { ...this.stateFlags, selected: this.markOn, focusVisible: false }, this.markRect);
 	}
 
 	public get resolvedColors(): ResolvedColors {
@@ -198,8 +208,13 @@ export abstract class Checkable extends Pressable {
 	}
 
 	public render(draw: DrawApi): void {
+		this.drawMark(draw, this.markRect, this.transition.look);
+	}
+
+	/** Where the mark is drawn: at the left, centred on the row's height. */
+	private get markRect(): Rect {
 		const { width, height } = this.markSize;
-		this.drawMark(draw, { x: 0, y: Math.round((this.height - height) / 2), width, height }, this.transition.look);
+		return { x: 0, y: Math.round((this.height - height) / 2), width, height };
 	}
 
 	/** The mark's box with the look's fill, border, and any hover glow. */

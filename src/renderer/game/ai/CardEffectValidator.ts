@@ -2,6 +2,13 @@ import { Card } from '../mechanics/Card';
 import { Driver } from '../mechanics/Driver';
 import { Vehicle } from '../mechanics/Vehicle';
 import { BoardProjection } from '../mechanics/BoardProjection';
+import { cardsKeptFromDraw } from './DrawEstimate';
+
+/**
+ * The effect types willCardHaveEffect's switch judges. Any other type it
+ * can't rule out.
+ */
+const JUDGED_EFFECT_TYPES = new Set(['heal', 'heal_driver', 'gain_armor', 'damage', 'draw_cards', 'gain_resource', 'apply_status', 'change_position']);
 
 /**
  * Common utility for validating if a card will have any beneficial effect
@@ -99,8 +106,12 @@ export class CardEffectValidator {
 					break;
 
 				case 'draw_cards':
-					// Drawing cards is always beneficial
-					return true;
+					// A draw that keeps nothing counts only if another effect can't be judged
+					if (cardsKeptFromDraw({ board, card, player: caster }) > 0 ||
+						card.effects.some(other => !JUDGED_EFFECT_TYPES.has(other.type))) {
+						return true;
+					}
+					break;
 
 				case 'gain_resource':
 					// Gaining resources is always beneficial

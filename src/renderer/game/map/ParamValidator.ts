@@ -1,4 +1,15 @@
-import { ENVIRONMENTS, MAP_PARAMETERS, MapParams, NUMBER_PARAMS, NumberParam, environmentDefaults } from './MapParams';
+import { copyJson } from '../core/Json';
+import {
+	ENVIRONMENTS,
+	MAP_PARAMETERS,
+	MapParamSet,
+	MapParams,
+	NUMBER_PARAMS,
+	NumberParam,
+	ParamSource,
+	environmentDefaults,
+	resolveMapParams,
+} from './MapParams';
 
 /** One value the validator changed, for the Map Lab's readout. */
 export interface ParamClamp {
@@ -22,10 +33,13 @@ export interface ValidatedMapParams {
  * environment with Mixed and a number that isn't one with the environment's
  * default; rounds whole-number parameters and clamps every value into its
  * tuning range; then clamps the combinations the generator can't honour.
- * Stop tables pass through for the stops stage to check.
+ * Stop tables are copied through as plain JSON for the stops stage to check
+ * their shape; anything in them JSON can't hold throws, naming its path
+ * (`copyJson`), since there's no value to clamp it to.
  */
 export function validateMapParams(params: MapParams): ValidatedMapParams {
 	const valid: MapParams = { ...params };
+	if (params.stopTables !== undefined) valid.stopTables = copyJson(params.stopTables, 'stopTables');
 	const clamps: ParamClamp[] = [];
 	const change = <Name extends ParamClamp['param']>(param: Name, to: MapParams[Name], reason: string) => {
 		clamps.push({ param, from: valid[param], to, reason });
@@ -37,12 +51,11 @@ export function validateMapParams(params: MapParams): ValidatedMapParams {
 
 	if (!ENVIRONMENTS.includes(valid.environment)) change('environment', MAP_PARAMETERS.environment.default, 'unknown environment');
 
-	const defaults = environmentDefaults(valid.environment);
 	for (const name of NUMBER_PARAMS) {
 		const { kind, tuning } = MAP_PARAMETERS[name];
 		const value = valid[name];
 		if (!Number.isFinite(value)) {
-			change(name, defaults[name], 'not a number');
+			change(name, environmentDefaults(valid.environment)[name], 'not a number');
 			continue;
 		}
 		const whole = kind === 'int' ? Math.round(value) : value;
@@ -54,7 +67,7 @@ export function validateMapParams(params: MapParams): ValidatedMapParams {
 	// Strongholds are placed one per sector, each needing two approaches from
 	// different branches (stage 5); two highways more than strongholds keeps a
 	// sector without them rare. Raise highways, and when even the most can't
-	// cover it, lower strongholds first.
+	// cover it, lower strongholds first (an open question in the spec).
 	const highwaysMax = MAP_PARAMETERS.highways.tuning.max;
 	if (valid.strongholds + 2 > highwaysMax) change('strongholds', highwaysMax - 2, 'highways max - 2');
 	if (valid.highways < valid.strongholds + 2) change('highways', valid.strongholds + 2, 'strongholds + 2');
@@ -67,9 +80,43 @@ export function validateMapParams(params: MapParams): ValidatedMapParams {
 	return { params: valid, clamps };
 }
 
-/** A clamp as the Map Lab's readout words it: "highways raised to 6 (strongholds + 2)". */
+/** Where a validated value came from: where it was set, or 'clamped' when the validator changed it. */
+export type ValidatedParamSource = ParamSource | 'clamped';
+
+export interface ValidatedParamSet extends ValidatedMapParams {
+	/** Per number parameter, for the values in `params`. */
+	readonly sources: Readonly<Record<NumberParam, ValidatedParamSource>>;
+}
+
+/**
+ * A parameter set resolved and validated in one call, as the Map Lab shows
+ * it: the params generation runs on, the clamps, and where each value came
+ * from. A value the validator changed is 'clamped' whoever set it, so a
+ * replaced override or a default a combination rule moved is never shown as
+ * the set's own.
+ *
+ * The set's environment must be one: resolving throws a RangeError on a name
+ * that isn't, where `validateMapParams` swaps it for Mixed. A set read with
+ * `readMapPreset` always has a known one.
+ */
+export function validateMapParamSet(set: MapParamSet): ValidatedParamSet {
+	const resolved = resolveMapParams(set);
+	const { params, clamps } = validateMapParams(resolved.params);
+	const sources: Record<NumberParam, ValidatedParamSource> = { ...resolved.sources };
+	for (const { param } of clamps) {
+		if (param !== 'seed' && param !== 'environment') sources[param] = 'clamped';
+	}
+	return { params, clamps, sources };
+}
+
+/**
+ * A clamp as the Map Lab's readout words it: "highways raised to 6
+ * (strongholds + 2)". A seed outside uint32 is "wrapped"; a value that
+ * wasn't a finite number, or wasn't a number at all, is "set".
+ */
 export function describeClamp({ param, from, to, reason }: ParamClamp): string {
-	const comparable = typeof from === 'number' && typeof to === 'number' && Number.isFinite(from);
-	const verb = comparable ? (to > from ? 'raised' : 'lowered') : 'set';
+	if (typeof from !== 'number' || typeof to !== 'number' || !Number.isFinite(from)) return `${param} set to ${to} (${reason})`;
+	const whole = Math.trunc(from);
+	const verb = param === 'seed' && (whole < 0 || whole >= 2 ** 32) ? 'wrapped' : to > from ? 'raised' : 'lowered';
 	return `${param} ${verb} to ${to} (${reason})`;
 }

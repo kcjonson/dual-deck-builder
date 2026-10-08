@@ -180,6 +180,35 @@ describe('renderTree (R3.11, R8.1)', () => {
 		expect(frame(styled).map((command) => command.id)).toEqual(['styled']);
 	});
 
+	it('adds the ring to what scrolling into view shows exactly when the walk draws it (R12.20)', () => {
+		class Ringed extends Rectangle {
+			public ownRing = false;
+
+			public get drawsOwnFocusRing(): boolean {
+				return this.ownRing;
+			}
+		}
+		const ringed = new Ringed({ id: 'ringed', width: 100, height: 40 });
+		const seen: string[] = [];
+		for (const visible of [false, true]) {
+			for (const enabled of [true, false]) {
+				for (const ownRing of [false, true]) {
+					ringed.setFocusState(true, visible);
+					ringed.enabled = enabled;
+					ringed.ownRing = ownRing;
+					const drawn = frame(ringed).some((command) => command.id === 'ringed.focus_ring');
+					expect(ringed.drawsWalkFocusRing).toBe(drawn);
+					// Its own ink is its box; only the ring reaches past it
+					const ink = ringed.revealInk;
+					const edges = ink && [ink.x, ink.y, ink.x + ink.width, ink.y + ink.height].map((edge) => edge + 0);
+					expect(edges).toEqual(drawn ? [-3, -3, 103, 43] : [0, 0, 100, 40]);
+					if (drawn) seen.push(`${visible} ${enabled} ${ownRing}`);
+				}
+			}
+		}
+		expect(seen).toEqual(['true true false']);
+	});
+
 	it('leaves every stack balanced', () => {
 		const root = new Container({ width: 100, height: 100, overflow: 'hidden', opacity: 0.5, transform: { translate: [3, 4] } });
 		const raised = new Container({ width: 50, height: 50, layer: 'raised', overflow: 'hidden' });
