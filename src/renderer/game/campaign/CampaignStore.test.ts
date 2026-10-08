@@ -273,6 +273,7 @@ describe('CampaignStore', () => {
 
 			expect(await store.hasSave()).toBe(false);
 			expect(await store.load()).toBeNull();
+			expect(await storage.getItem(KEYS.recovery)).toBeNull();
 			await store.save(newCampaign());
 			expect((await storeOver(storage).load())?.seed).toBe(SEED);
 		});
@@ -357,7 +358,8 @@ describe('CampaignStore', () => {
 				const fresh = storeOver(tabs.shared);
 				const loaded = await fresh.load();
 				expect(await fresh.hasSave()).toBe(loaded !== null);
-				expect(loaded?.seed ?? 2).toBe(2);
+				// Nothing, or the other tab's campaign; never the one tab A finished.
+				expect([null, 2]).toContain(loaded?.seed ?? null);
 				outcomes.add(loaded === null ? 'nothing' : 'the other tab\'s campaign');
 			}
 			expect([...outcomes].sort()).toEqual(['nothing', 'the other tab\'s campaign']);
