@@ -1,8 +1,6 @@
 import { ENVIRONMENTS, Environment, MAP_PARAMETERS, MapParams, NUMBER_PARAMS, StopTables, environmentDefaults } from '../map/MapParams';
 import { describeClamp, validateMapParams } from '../map/ParamValidator';
-import { describeValue, freezeJson, readFields, readInteger, readNumber, readObject, readOneOf } from './JsonReader';
-
-const UINT32_MAX = 0xffffffff;
+import { ReaderTypeError, describeValue, freezeJson, readFields, readNumber, readObject, readOneOf, readSeed } from './JsonReader';
 
 /** Every key a params object can hold. */
 const PARAM_KEYS: readonly string[] = ['seed', 'environment', ...NUMBER_PARAMS, 'stopTables'];
@@ -24,7 +22,7 @@ export function readMapParams(value: unknown, path: string): Readonly<MapParams>
 	if (typeof value === 'object' && value !== null && checkedParams.has(value)) return value as Readonly<MapParams>;
 	const fields = readFields(value, path, ['seed', 'environment', ...NUMBER_PARAMS], ['stopTables']);
 	const params = {
-		seed: readInteger(fields.seed, `${path}.seed`, { min: 0, max: UINT32_MAX }),
+		seed: readSeed(fields.seed, `${path}.seed`),
 		environment: readOneOf(fields.environment, `${path}.environment`, ENVIRONMENTS)
 	} as MapParams;
 	for (const name of NUMBER_PARAMS) params[name] = readNumber(fields[name], `${path}.${name}`);
@@ -36,7 +34,7 @@ export function readMapParams(value: unknown, path: string): Readonly<MapParams>
 
 export interface RepairedMapParams {
 	params: MapParams;
-	/** One line per repair, naming the parameter; empty when the saved params needed none. */
+	/** One line per parameter repaired or kept outside today's ranges; empty when the saved params needed none. */
 	warnings: string[];
 }
 
@@ -51,24 +49,25 @@ export interface RepairedMapParams {
  * unknown one is dropped.
  *
  * Values are kept as saved, even where today's validator would clamp them
- * for a new map, with a warning each. The map was made with those values,
- * and terrain and scenery are regenerated from them on load around the
- * saved roads, so a clamped radius or mountain coverage would draw ground
- * that no longer fits them.
+ * for a new map, with a warning that names the saved value, what a new map
+ * would take, and why. The map was made with those values, and terrain and
+ * scenery are regenerated from them on load around the saved roads, so a
+ * clamped radius or mountain coverage would draw ground that no longer fits
+ * them.
  */
 export function repairMapParams(value: unknown, path: string): RepairedMapParams {
 	const saved = readObject(value, path);
 	const has = (key: string): boolean => Object.prototype.hasOwnProperty.call(saved, key);
 	const warnings: string[] = [];
-	if (!has('seed')) throw new TypeError(`${path}.seed is missing`);
-	const params = { seed: readInteger(saved.seed, `${path}.seed`, { min: 0, max: UINT32_MAX }) } as MapParams;
+	if (!has('seed')) throw new ReaderTypeError(`${path}.seed is missing`);
+	const params = { seed: readSeed(saved.seed, `${path}.seed`) } as MapParams;
 
 	const fallback = MAP_PARAMETERS.environment.default;
 	if (!has('environment')) {
 		params.environment = fallback;
 		warnings.push(`${path}.environment was missing; took ${fallback}`);
 	} else if (typeof saved.environment !== 'string') {
-		throw new TypeError(`${path}.environment must be a string, got ${describeValue(saved.environment)}`);
+		throw new ReaderTypeError(`${path}.environment must be a string, got ${describeValue(saved.environment)}`);
 	} else if ((ENVIRONMENTS as readonly string[]).includes(saved.environment)) {
 		params.environment = saved.environment as Environment;
 	} else {
@@ -77,21 +76,26 @@ export function repairMapParams(value: unknown, path: string): RepairedMapParams
 	}
 
 	const defaults = environmentDefaults(params.environment);
+	for (const name of NUMBER_PARAMS) params[name] = has(name) ? readNumber(saved[name], `${path}.${name}`) : defaults[name];
+	if (has('stopTables')) params.stopTables = readStopTables(saved.stopTables, `${path}.stopTables`);
+
+	// One warning a parameter. A value can be clamped twice (into its range, then by a combination rule), so a
+	// warning lists every clamp the Map Lab would show, in order.
+	const validated = validateMapParams(params);
 	for (const name of NUMBER_PARAMS) {
-		if (has(name)) {
-			params[name] = readNumber(saved[name], `${path}.${name}`);
-		} else {
-			params[name] = defaults[name];
-			warnings.push(`${path}.${name} was missing; took ${defaults[name]}, the ${params.environment} default`);
+		const kept = params[name];
+		const clamped = validated.params[name] !== kept;
+		const clamps = validated.clamps.filter(clamp => clamp.param === name).map(describeClamp).join(', then ');
+		if (!has(name)) {
+			const note = clamped ? `, which a new map wouldn't keep: ${clamps}` : '';
+			warnings.push(`${path}.${name} was missing; took ${kept}, the ${params.environment} default${note}`);
+		} else if (clamped) {
+			warnings.push(`${path}.${clamps} for a new map; this one keeps the ${kept} it was made with`);
 		}
 	}
-	if (has('stopTables')) params.stopTables = readStopTables(saved.stopTables, `${path}.stopTables`);
+
 	for (const key of Object.keys(saved)) {
 		if (!PARAM_KEYS.includes(key)) warnings.push(`${path}.${key} isn't a map parameter; dropped it`);
-	}
-
-	for (const clamp of validateMapParams(params).clamps) {
-		warnings.push(`${path}.${describeClamp(clamp)} for a new map; this one keeps the ${clamp.from} it was made with`);
 	}
 	return { params, warnings };
 }

@@ -2,11 +2,12 @@ import { MapParams, resolveMapParams } from '../map/MapParams';
 import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
 import { createEscort } from '../mechanics/Escort';
-import { Campaign, CampaignJson, CampaignOptions, NO_RESOURCES } from './Campaign';
+import { CAMPAIGN_SCHEMA_VERSION, Campaign, CampaignJson, CampaignOptions, NO_RESOURCES } from './Campaign';
+import { historyEntry, historyToJson } from './CampaignHistory';
 import { cardCount, totalCards } from './CardCounts';
 import { DriverRecord } from './DriverRecord';
-import { CAMPAIGN_SCHEMA_VERSION, SaveMigration, migrateSave } from './SaveMigrations';
 import campaignV1 from './__fixtures__/campaign-v1.json';
+import { stressCampaign } from './__fixtures__/stressCampaign';
 
 const SEED = 20261006;
 
@@ -27,6 +28,43 @@ const reload = (campaign: Campaign): Campaign => Campaign.fromJSON(JSON.parse(JS
 const savedCampaign = (): CampaignJson => JSON.parse(JSON.stringify(campaignV1));
 
 const record = (id: string): DriverRecord => new DriverRecord({ id, archetype: 'mechanic', name: 'Mechanic 1' });
+
+/**
+ * Keys whose children are data rather than format: card counts keyed by
+ * card type, and map params, which a load repairs as the table moves on.
+ */
+const DATA_KEYS: Readonly<Record<string, string>> = { 'locker': '<card type>', 'drivers[].defaultDeck': '<card type>', 'mapParams': '<map parameter>' };
+
+/** Every key path in a JSON value, sorted, with array items as [] and data keys collapsed. */
+const keyPaths = (value: unknown): string[] => {
+	const paths = new Set<string>();
+	const walk = (node: unknown, path: string): void => {
+		if (path !== '') paths.add(path);
+		if (Array.isArray(node)) node.forEach(item => walk(item, `${path}[]`));
+		else if (typeof node === 'object' && node !== null) {
+			for (const [key, item] of Object.entries(node)) walk(item, path === '' ? key : `${path}.${DATA_KEYS[path] ?? key}`);
+		}
+	};
+	walk(value, '');
+	return [...paths].sort();
+};
+
+/** The version 1 save format, pinned: a change here is a change of format, which bumps `CAMPAIGN_SCHEMA_VERSION`. */
+const SAVE_FORMAT_V1 = {
+	campaign: [
+		'convoy', 'convoy[]', 'convoy[].armor', 'convoy[].baseSpeed', 'convoy[].escort', 'convoy[].escort.dividend', 'convoy[].escort.dividend.amount',
+		'convoy[].escort.dividend.kind', 'convoy[].escort.evade', 'convoy[].escort.gunnery', 'convoy[].escort.preferredSlot', 'convoy[].escort.preferredSlot.lane',
+		'convoy[].escort.preferredSlot.row', 'convoy[].escort.ramming', 'convoy[].escort.role', 'convoy[].escort.signatureCard', 'convoy[].escort.type',
+		'convoy[].maxArmor', 'convoy[].maxStructure', 'convoy[].mods', 'convoy[].mods[]', 'convoy[].mods[].kind', 'convoy[].mods[].name', 'convoy[].name',
+		'convoy[].structure', 'day', 'drivers', 'drivers[]', 'drivers[].archetype', 'drivers[].defaultDeck', 'drivers[].defaultDeck.<card type>',
+		'drivers[].handLimit', 'drivers[].hitpoints', 'drivers[].id', 'drivers[].injuredDays', 'drivers[].maxHitpoints', 'drivers[].name',
+		'drivers[].runsCompleted', 'drivers[].status', 'generatorVersion', 'locker', 'locker.<card type>', 'log', 'log[]', 'log[].day', 'log[].message', 'map',
+		'mapParams', 'mapParams.<map parameter>', 'nextDriverNumber', 'resources', 'resources.food', 'resources.fuel', 'resources.meds', 'resources.people',
+		'resources.scrap', 'resources.water', 'seed', 'strongholdsTaken', 'strongholdsTaken[]', 'unrest'
+	],
+	historyEntry: ['day', 'ending', 'seed', 'strongholdsTaken'],
+	history: ['campaigns', 'version']
+};
 
 /** Every copy the compound owns between runs: the locker and every default deck. */
 const cardsOwned = (campaign: Campaign): number =>
@@ -169,6 +207,17 @@ describe('Campaign', () => {
 			const campaign = newCampaign({ drivers: [record('driver-1')], nextDriverNumber: 7 });
 
 			expect(campaign.recruitDriver({ archetype: 'raider' }).id).toBe('driver-7');
+		});
+
+		it('takes a driver set into the pool only with an id the counter hasn\'t passed', () => {
+			const campaign = newCampaign({ drivers: [record('driver-1')], nextDriverNumber: 7 });
+			const pool = campaign.drivers;
+
+			expect(() => campaign.set({ drivers: [...pool, record('driver-3')], nextDriverNumber: 8 }))
+				.toThrow("Campaign.drivers[1].id must be driver-7 or later, an id the counter hasn't passed, got driver-3");
+			campaign.set({ drivers: [...pool, record('driver-7')], nextDriverNumber: 8 });
+
+			expect(campaign.drivers.map(driver => driver.id)).toEqual(['driver-1', 'driver-7']);
 		});
 
 		it('starts the counter past the highest id when built without one', () => {
@@ -354,14 +403,25 @@ describe('Campaign', () => {
 		});
 
 		it('store neither end when the far end can\'t take the copies', () => {
-			const campaign = newCampaign({ locker: { headshot: 2 } });
+			const campaign = newCampaign({ locker: { ramming_speed: Number.MAX_SAFE_INTEGER } });
 			const warrior = campaign.recruitDriver({ archetype: 'road_warrior' });
-			warrior.set({ defaultDeck: { headshot: Number.MAX_SAFE_INTEGER } });
+			const deck = warrior.defaultDeck;
 
-			expect(() => campaign.moveCards({ cardType: 'headshot', from: 'locker', to: warrior })).toThrow(RangeError);
+			expect(() => campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: 'locker' })).toThrow(RangeError);
 
-			expect(campaign.locker).toEqual({ headshot: 2 });
-			expect(warrior.defaultDeck).toEqual({ headshot: Number.MAX_SAFE_INTEGER });
+			expect(campaign.locker).toEqual({ ramming_speed: Number.MAX_SAFE_INTEGER });
+			expect(warrior.defaultDeck).toBe(deck);
+		});
+
+		it('store neither end of a move between decks when the locker, where the copies fall back to, couldn\'t take them', () => {
+			const campaign = newCampaign({ locker: { ramming_speed: Number.MAX_SAFE_INTEGER } });
+			const warrior = campaign.recruitDriver({ archetype: 'road_warrior' });
+			const mechanic = campaign.recruitDriver({ archetype: 'mechanic' });
+			const decks = [warrior.defaultDeck, mechanic.defaultDeck];
+
+			expect(() => campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic })).toThrow(RangeError);
+
+			expect([warrior.defaultDeck, mechanic.defaultDeck]).toEqual(decks);
 		});
 
 		describe('and what listeners hear', () => {
@@ -387,13 +447,17 @@ describe('Campaign', () => {
 				expect(heard).toEqual([owned]);
 			});
 
-			it('a listener can\'t start another move, or change the locker, while one is being stored', () => {
+			it('a listener can\'t start another move, or change the campaign at all, while one is being stored', () => {
 				const { campaign, warrior, mechanic, owned } = setUp();
 				const refused: string[] = [];
+				const heard = jest.fn();
+				campaign.on('change', heard);
 				warrior.on('defaultDeck', () => {
 					for (const attempt of [
 						() => campaign.moveCards({ cardType: 'headshot', from: 'locker', to: mechanic }),
-						() => campaign.set({ locker: {} })
+						() => campaign.set({ locker: {} }),
+						() => campaign.set({ day: 2 }),
+						() => campaign.addLogEntry({ message: 'Moved a headshot.' })
 					]) {
 						try {
 							attempt();
@@ -407,10 +471,69 @@ describe('Campaign', () => {
 
 				expect(refused).toEqual([
 					"Can't move cards while another move is being stored",
-					"Campaign.locker can't change while a card move is being stored"
+					"Campaign can't change while a card move is being stored",
+					"Campaign can't change while a card move is being stored",
+					"Campaign can't change while a card move is being stored"
 				]);
-				expect(campaign.locker).toEqual({ headshot: 1 });
+				expect([campaign.locker, campaign.day, campaign.log]).toEqual([{ headshot: 1 }, 1, []]);
 				expect(cardsOwned(campaign)).toBe(owned);
+				expect(heard).toHaveBeenCalledTimes(1);
+			});
+
+			it('the copies land on the deck the far end holds once the near end is stored', () => {
+				const { campaign, warrior, mechanic } = setUp();
+				const ramming = cardCount(warrior.defaultDeck, 'ramming_speed');
+				warrior.once('defaultDeck', () => mechanic.set({ defaultDeck: { headshot: 1 } }));
+
+				campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic });
+
+				expect(mechanic.defaultDeck).toEqual({ headshot: 1, ramming_speed: 1 });
+				expect(cardCount(warrior.defaultDeck, 'ramming_speed')).toBe(ramming - 1);
+			});
+
+			it.each([
+				['dies', { status: 'dead', hitpoints: 0, defaultDeck: {} }],
+				['goes missing', { status: 'missing' }]
+			] as const)('the copies go back when a listener on the near end sees to it the far end %s', (_label, fate) => {
+				const { campaign, warrior, mechanic } = setUp();
+				const deck = warrior.defaultDeck;
+				const heard = jest.fn();
+				campaign.on('change', heard);
+				warrior.once('defaultDeck', () => mechanic.set(fate));
+
+				campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic });
+
+				expect(warrior.defaultDeck).toEqual(deck);
+				expect(mechanic.status).toBe(fate.status);
+				expect(cardCount(mechanic.defaultDeck, 'ramming_speed')).toBe(0);
+				expect(heard).toHaveBeenCalledTimes(1);
+			});
+
+			it('the copies go to the locker when both ends have left by the time they land', () => {
+				const { campaign, warrior, mechanic, owned } = setUp();
+				warrior.once('defaultDeck', () => {
+					warrior.set({ status: 'missing' });
+					mechanic.set({ status: 'missing' });
+				});
+
+				campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic });
+
+				expect(campaign.locker).toEqual({ headshot: 2, ramming_speed: 1 });
+				expect(cardsOwned(campaign)).toBe(owned);
+			});
+
+			it('the copies go back when a listener fills the far deck past what a count holds', () => {
+				const { campaign, warrior, mechanic } = setUp();
+				const deck = warrior.defaultDeck;
+				const heard = jest.fn();
+				campaign.on('change', heard);
+				warrior.once('defaultDeck', () => mechanic.set({ defaultDeck: { ramming_speed: Number.MAX_SAFE_INTEGER } }));
+
+				campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic });
+
+				expect(warrior.defaultDeck).toEqual(deck);
+				expect(mechanic.defaultDeck).toEqual({ ramming_speed: Number.MAX_SAFE_INTEGER });
+				expect(heard).toHaveBeenCalledTimes(1);
 			});
 
 			it('a campaign listener can move cards once the move it heard is whole', () => {
@@ -521,6 +644,14 @@ describe('Campaign', () => {
 			['a field a campaign doesn\'t have', { weather: 'dust' }, 'Campaign has an unknown field "weather"']
 		])('rejects %s', (_label, changes, message) => {
 			expect(() => newCampaign().set(changes as unknown as Partial<CampaignOptions>)).toThrow(message);
+		});
+
+		it('rejects a list with a hole in it, which nothing would check', () => {
+			const strongholdsTaken: string[] = Array(3);
+			strongholdsTaken[0] = 'north';
+			strongholdsTaken[2] = 'south';
+
+			expect(() => newCampaign().set({ strongholdsTaken })).toThrow('Campaign.strongholdsTaken[1] is missing: the array has a hole there');
 		});
 
 		it('rejects map state that contains itself', () => {
@@ -664,17 +795,24 @@ describe('Campaign', () => {
 			expect(campaign.recruitDriver({ archetype: 'mechanic' }).id).toBe('driver-6');
 		});
 
-		it('keeps the fixture at the current schema version; on a bump, keep it loading through the migration', () => {
-			expect(campaignV1.schemaVersion).toBe(CAMPAIGN_SCHEMA_VERSION);
+		it('holds the save format to the version it\'s stamped with', () => {
+			const campaign = Campaign.fromJSON(campaignV1);
+			const format = {
+				campaign: keyPaths(campaignV1),
+				historyEntry: Object.keys(historyEntry({ campaign, ending: 'won' })).sort(),
+				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
+			};
+
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(1);
+			try {
+				expect(format).toEqual(SAVE_FORMAT_V1);
+			} catch (error) {
+				throw new Error(`format changed: bump CAMPAIGN_SCHEMA_VERSION and re-pin\n${(error as Error).message}`);
+			}
 		});
 
 		describe('a damaged save', () => {
 			it.each([
-				['no schema version', (save: CampaignJson) => { delete (save as Partial<CampaignJson>).schemaVersion; }, TypeError, 'Campaign.schemaVersion must be a number, got undefined'],
-				['schema version 0', (save: CampaignJson) => { save.schemaVersion = 0; }, RangeError, 'Campaign.schemaVersion must be an integer >= 1, got 0'],
-				['a fractional schema version', (save: CampaignJson) => { save.schemaVersion = 1.5; }, RangeError, 'Campaign.schemaVersion must be an integer >= 1, got 1.5'],
-				['a schema version in a string', (save: CampaignJson) => { (save as unknown as Record<string, unknown>).schemaVersion = '1'; }, TypeError, 'Campaign.schemaVersion must be a number, got "1"'],
-				['a newer schema version', (save: CampaignJson) => { save.schemaVersion = 2; }, RangeError, 'Campaign.schemaVersion is 2, newer than this build reads (1)'],
 				['a missing field', (save: CampaignJson) => { delete (save as Partial<CampaignJson>).day; }, TypeError, 'Campaign.day is missing'],
 				['an unknown field', (save: CampaignJson) => { (save as unknown as Record<string, unknown>).weather = 'dust'; }, TypeError, 'Campaign has an unknown field "weather"'],
 				['a seed past uint32', (save: CampaignJson) => { save.seed = 2 ** 32; }, RangeError, 'Campaign.seed must be an integer from 0 to 4294967295, got 4294967296'],
@@ -758,6 +896,25 @@ describe('Campaign', () => {
 				expect(warnings).toEqual(['Campaign.mapParams.radius lowered to 1600 (tuning range 600 to 1600) for a new map; this one keeps the 5000 it was made with']);
 			});
 
+			it('gives a value today\'s validator would clamp twice one warning, naming the saved value and both clamps', () => {
+				const { campaign, warnings } = loadDrifted(params => { params.highways = 2; });
+
+				expect(campaign.mapParams.highways).toBe(2);
+				expect(warnings).toEqual([
+					'Campaign.mapParams.highways raised to 3 (tuning range 3 to 9), then highways raised to 6 (strongholds + 2) for a new map; this one keeps the 2 it was made with'
+				]);
+			});
+
+			it('folds a clamp into the warning for a default it filled in, which no map was made with', () => {
+				const { campaign, warnings } = loadDrifted(params => {
+					params.strongholds = 6;
+					delete params.highways;
+				});
+
+				expect(campaign.mapParams.highways).toBe(6);
+				expect(warnings).toEqual(['Campaign.mapParams.highways was missing; took 6, the mixed default, which a new map wouldn\'t keep: highways raised to 8 (strongholds + 2)']);
+			});
+
 			it('takes Mixed for an environment that\'s missing or no longer exists', () => {
 				const unknown = loadDrifted(params => { params.environment = 'moon'; });
 				const missing = loadDrifted(params => { delete params.environment; });
@@ -804,40 +961,21 @@ describe('Campaign', () => {
 		});
 	});
 
-	describe('migrateSave', () => {
-		/** Steps that note each upgrade they make, in order. */
-		const steps: Record<number, SaveMigration> = {
-			1: save => ({ ...save, upgrades: [...(save.upgrades as string[]), '1 to 2'] }),
-			2: save => ({ ...save, upgrades: [...(save.upgrades as string[]), '2 to 3'] })
-		};
-
-		it('upgrades a save one version at a time, stamping each step\'s version', () => {
-			expect(migrateSave({ save: { schemaVersion: 1, upgrades: [] }, to: 3, migrations: steps }))
-				.toEqual({ schemaVersion: 3, upgrades: ['1 to 2', '2 to 3'] });
-		});
-
-		it('starts from the version the save is at', () => {
-			expect(migrateSave({ save: { schemaVersion: 2, upgrades: [] }, to: 3, migrations: steps }))
-				.toEqual({ schemaVersion: 3, upgrades: ['2 to 3'] });
-		});
-
-		it('leaves a save at the current version as it is', () => {
-			const save = { schemaVersion: CAMPAIGN_SCHEMA_VERSION, day: 4 };
-
-			expect(migrateSave({ save })).toBe(save);
-		});
-
-		it('refuses a save with a step missing on the way up', () => {
-			expect(() => migrateSave({ save: { schemaVersion: 1 }, to: 3, migrations: { 2: steps[2] } }))
-				.toThrow("Campaign.schemaVersion 1 can't be read: nothing upgrades a version 1 save");
-		});
-	});
-
 	it('is what JSON.stringify writes', () => {
 		const campaign = campaignInProgress();
 
 		expect(JSON.parse(JSON.stringify(campaign))).toEqual(campaign.toJSON());
 		expect(Object.keys(campaign.toJSON())).toEqual(Object.keys(campaignV1));
+	});
+
+	it.each([
+		['a campaign in progress', campaignInProgress],
+		['the version 1 fixture', () => Campaign.fromJSON(campaignV1)],
+		['a stress campaign', stressCampaign]
+	])('writes the same save text for %s without toJSON\'s copies', (_label, build) => {
+		const campaign = build();
+
+		expect(campaign.toSaveText()).toBe(JSON.stringify(campaign));
 	});
 
 	it.each([
@@ -849,6 +987,7 @@ describe('Campaign', () => {
 
 		expect(() => campaign.toJSON()).toThrow(message);
 		expect(() => JSON.stringify(campaign)).toThrow(message);
+		expect(() => campaign.toSaveText()).toThrow(message);
 	});
 
 	it('takes a convoy of its own', () => {

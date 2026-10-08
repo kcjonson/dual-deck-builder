@@ -6,10 +6,18 @@ import { DriverArchetype } from '../mechanics/Driver';
 import { CardCounts, NO_CARDS, addCards, cardCount, readCardCounts, readCardType, removeCards } from './CardCounts';
 import { EscortJson, convoyToJson, readConvoy } from './ConvoyJson';
 import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordJson, placeholderName, readDriverRecord } from './DriverRecord';
-import { copyJson, describeValue, readArray, readFields, readInteger, readObject, readOneOf, readText } from './JsonReader';
+import { ReaderRangeError, ReaderTypeError, describeValue, readArray, readFields, readInteger, readOneOf, readSeed, readText } from './JsonReader';
 import { readMapParams, repairMapParams } from './MapParamsJson';
 import { EMPTY_MAP, MapState, readMapState } from './MapState';
-import { CAMPAIGN_SCHEMA_VERSION, migrateSave } from './SaveMigrations';
+
+/**
+ * The save format's version, which `CampaignStore` stamps on every save and
+ * history list. Bump it by hand whenever the text `toSaveText` writes, or a
+ * history entry, changes shape. There are no migrations: a save stamped
+ * with another version isn't loaded, so a bump invalidates every existing
+ * save of that build.
+ */
+export const CAMPAIGN_SCHEMA_VERSION = 1;
 
 /** What the compound holds (Compound and Supply Runs, Resources): whole numbers, never below 0. */
 export interface Resources {
@@ -62,7 +70,6 @@ export type CampaignOptions = Pick<CampaignData, 'seed' | 'generatorVersion' | '
 
 /** A campaign as a save holds it: plain JSON, which `Campaign.fromJSON` reads back. */
 export interface CampaignJson {
-	schemaVersion: number;
 	seed: number;
 	generatorVersion: number;
 	day: number;
@@ -103,7 +110,6 @@ const FIELDS: readonly (keyof CampaignData)[] = [
 ];
 
 const JSON_FIELDS: readonly (keyof CampaignJson)[] = [
-	'schemaVersion',
 	'seed',
 	'generatorVersion',
 	'day',
@@ -125,7 +131,6 @@ const RESOURCE_NAMES: readonly (keyof Resources)[] = ['food', 'water', 'fuel', '
 const FIXED_FIELDS = ['seed', 'generatorVersion', 'mapParams'] as const;
 
 const DRIVER_ID = /^driver-([1-9][0-9]*)$/;
-const UINT32_MAX = 0xffffffff;
 
 /** Campaigns partway through storing a card move. Campaign instances are frozen, so this can't be a field. */
 const storingMoves = new WeakSet<object>();
@@ -149,9 +154,15 @@ export interface Campaign extends Readonly<CampaignData> {}
  * driver counter never goes back, and the pool only grows.
  *
  * The campaign's `change` event covers its own fields and finished card
- * moves. A driver record or the convoy changing on its own emits on that
- * model and not here, so save at checkpoints (the end of a day), or listen
- * to the records and the convoy as well.
+ * moves. Records, escorts, and the convoy emit on their own models and not
+ * here: a record's HP on the record, an escort's damage on its own Vehicle,
+ * escorts joining or leaving on the convoy. So save at checkpoints, with
+ * `CampaignStore.checkpoint` at the end of each step (a stop, arriving home,
+ * a compound action), not on change events. A record changes partway
+ * through a card move, before the locker is stored; a save asked for from a
+ * listener captures the campaign before the next frame, once the code that
+ * asked has run, so it's whole only when the step that set it off is
+ * synchronous.
  *
  * Nothing here draws randomness, and the seed comes from whoever founds the
  * campaign. Anything that needs a random draw later forks a fresh stream for
@@ -195,15 +206,16 @@ export class Campaign extends Model<CampaignData> {
 	}
 
 	/**
-	 * Reads a save, upgrading it from an older schema version first. Throws
-	 * on anything malformed, naming where: a damaged save never loads as a
-	 * different campaign. Map params are the exception, since the table is
-	 * still settling: drift is repaired (`repairMapParams`), and once the save
-	 * has loaded, each repair goes to `onWarning`.
+	 * Reads a save's campaign, which `CampaignStore` has already matched to
+	 * this build's save format version. Throws a reader error on anything
+	 * malformed, naming where: a damaged save never loads as a different
+	 * campaign. Map params are the exception, since the table is still
+	 * settling: drift is repaired (`repairMapParams`), and once the save has
+	 * loaded, each repair goes to `onWarning`.
 	 */
 	public static fromJSON(json: unknown, { onWarning = logWarning }: LoadOptions = {}): Campaign {
 		const path = 'Campaign';
-		const save = readFields(migrateSave({ save: readObject(json, path), path }), path, JSON_FIELDS);
+		const save = readFields(json, path, JSON_FIELDS);
 		const mapParams = repairMapParams(save.mapParams, `${path}.mapParams`);
 		const campaign = new Campaign(readCampaignData({
 			seed: save.seed,
@@ -228,11 +240,13 @@ export class Campaign extends Model<CampaignData> {
 	 * Changes fields together, checked as a whole. Throws without changing
 	 * anything if the campaign would be invalid, a field is unknown, the
 	 * seed, generator version, or map params would change, the driver counter
-	 * would go back (handing out an id again), or a driver would leave the
-	 * pool or change places in it. The locker can't change while a card move
-	 * is being stored.
+	 * would go back (handing out an id again), a driver would leave the pool
+	 * or change places in it, or a driver would join it with an id the counter
+	 * had already passed. Nothing changes while a card move is being stored,
+	 * so campaign listeners never hear half of one.
 	 */
 	public override set(changes: Partial<CampaignData>): void {
+		if (storingMoves.has(this)) throw new Error("Campaign can't change while a card move is being stored");
 		const current = this.getState();
 		for (const field of FIXED_FIELDS) {
 			if (current[field] !== undefined && field in changes && changes[field] !== current[field]) {
@@ -243,7 +257,6 @@ export class Campaign extends Model<CampaignData> {
 		if (counter.from !== undefined && counter.to !== undefined && counter.to < counter.from) {
 			throw new RangeError(`Campaign.nextDriverNumber can't go back, from ${counter.from} to ${counter.to}`);
 		}
-		if (storingMoves.has(this) && 'locker' in changes) throw new Error("Campaign.locker can't change while a card move is being stored");
 		const valid = readCampaignData({ ...current, ...changes }, 'Campaign', current);
 		super.set(Object.fromEntries(Object.keys(changes).map(key => [key, valid[key as keyof CampaignData]])));
 	}
@@ -277,8 +290,11 @@ export class Campaign extends Model<CampaignData> {
 	 *
 	 * Campaign listeners hear a move once it's whole: decks are stored before
 	 * the locker, and a move between two drivers ends with a campaign
-	 * `change`. While a move is being stored, nothing can start another or
-	 * change the locker.
+	 * `change`. While a move is being stored, the campaign refuses another
+	 * move and every `set`. Records aren't held, so a listener on `from` can
+	 * still change `to` before the copies land: they go on the deck `to` holds
+	 * then, or back on `from` if `to` has left the compound or can't hold
+	 * them, or into the locker if `from` can't either.
 	 */
 	public moveCards({ cardType, from, to, count = 1 }: { cardType: string; from: CardPlace; to: CardPlace; count?: number }): void {
 		if (storingMoves.has(this)) throw new Error("Can't move cards while another move is being stored");
@@ -289,18 +305,25 @@ export class Campaign extends Model<CampaignData> {
 		const target = this.countsAt(to);
 		const held = cardCount(source, cardType);
 		if (held < count) throw new RangeError(`Can't move ${count} ${cardType} from ${placeName(from)}, which holds ${held}`);
-		// Both ends before either is stored, so a move that fails part way stores nothing.
 		const taken = removeCards(source, cardType, count);
+		// These throw, storing nothing, when the far end, or the locker the copies fall back to, can't hold that many more.
 		const given = addCards(target, cardType, count);
+		if (from !== 'locker' && to !== 'locker') addCards(this.locker, cardType, count);
 		storingMoves.add(this);
+		let landing: CardPlace = to;
 		try {
-			if (from !== 'locker') from.set({ defaultDeck: taken });
-			if (to !== 'locker') to.set({ defaultDeck: given });
+			if (from !== 'locker') {
+				from.set({ defaultDeck: taken });
+				// Listeners on `from` have just run, and may have sent `to` away or changed its deck.
+				if (to !== 'locker') landing = landCopies({ decks: [to, from], cardType, count });
+			} else if (to !== 'locker') {
+				to.set({ defaultDeck: given });
+			}
 		} finally {
 			storingMoves.delete(this);
 		}
 		if (from === 'locker') this.set({ locker: taken });
-		else if (to === 'locker') this.set({ locker: given });
+		else if (landing === 'locker') this.set({ locker: addCards(this.locker, cardType, count) });
 		else this.emit('change', this.getState());
 	}
 
@@ -309,39 +332,48 @@ export class Campaign extends Model<CampaignData> {
 		this.set({ log: [...this.log, { day: this.day, message }] });
 	}
 
+	/** The save as plain JSON: what `toSaveText` writes, parsed back, so it's a copy of the caller's own. */
 	public toJSON(): CampaignJson {
+		return JSON.parse(this.toSaveText()) as CampaignJson;
+	}
+
+	/**
+	 * The save's text, which `JSON.stringify(campaign)` also writes. The
+	 * frozen values go to `JSON.stringify` as they are, uncopied, which keeps
+	 * a checkpoint cheap. Throws on a convoy that couldn't load back, since
+	 * the convoy changes outside the campaign's checks.
+	 */
+	public toSaveText(): string {
 		const convoy = convoyToJson(this.convoy);
-		// The convoy changes outside the campaign's checks, so a convoy that couldn't load back fails here, on write.
 		readConvoy(convoy, 'Campaign.convoy');
-		return {
-			schemaVersion: CAMPAIGN_SCHEMA_VERSION,
+		const save: Record<keyof CampaignJson, unknown> = {
 			seed: this.seed,
 			generatorVersion: this.generatorVersion,
 			day: this.day,
-			resources: { ...this.resources },
+			resources: this.resources,
 			unrest: this.unrest,
 			nextDriverNumber: this.nextDriverNumber,
-			drivers: this.drivers.map(driver => driver.toJSON()),
-			locker: { ...this.locker },
+			drivers: this.drivers,
+			locker: this.locker,
 			convoy,
-			strongholdsTaken: [...this.strongholdsTaken],
-			log: this.log.map(entry => ({ ...entry })),
-			mapParams: copyJson(this.mapParams),
-			map: copyJson(this.map)
+			strongholdsTaken: this.strongholdsTaken,
+			log: this.log,
+			mapParams: this.mapParams,
+			map: this.map
 		};
+		return JSON.stringify(save);
 	}
 
 	private countsAt(place: CardPlace): CardCounts {
 		if (place === 'locker') return this.locker;
 		if (!this.drivers.includes(place)) throw new RangeError(`${place.name} (${place.id}) isn't in this campaign's pool`);
-		if (place.status === 'dead' || place.status === 'missing') {
-			throw new RangeError(`${place.name} (${place.id}) is ${place.status}, so no cards move to or from their deck`);
-		}
+		if (!isAtCompound(place)) throw new RangeError(`${place.name} (${place.id}) is ${place.status}, so no cards move to or from their deck`);
 		return place.defaultDeck;
 	}
 }
 
-function logWarning(warning: string): void {
+/** Where load warnings go when nobody asks to hear them. */
+export function logWarning(warning: string): void {
 	console.warn(warning);
 }
 
@@ -349,22 +381,50 @@ function placeName(place: CardPlace): string {
 	return place === 'locker' ? 'the locker' : `${place.name}'s deck`;
 }
 
+/** The locker, or a driver who's here to hand cards to: not dead, and not missing. */
+function isAtCompound(place: CardPlace): boolean {
+	return place === 'locker' || (place.status !== 'dead' && place.status !== 'missing');
+}
+
+/**
+ * Stores moved copies on the first of these decks whose driver is at the
+ * compound and can hold them, and says where they went: the locker, when
+ * none can. A listener can have sent a driver away, or filled their deck
+ * past what a count holds, while the move was being stored.
+ */
+function landCopies({ decks, cardType, count }: { decks: readonly DriverRecord[]; cardType: string; count: number }): CardPlace {
+	for (const driver of decks) {
+		if (!isAtCompound(driver)) continue;
+		let deck: CardCounts;
+		try {
+			deck = addCards(driver.defaultDeck, cardType, count);
+		} catch (error) {
+			if (error instanceof RangeError) continue;
+			throw error;
+		}
+		driver.set({ defaultDeck: deck });
+		return driver;
+	}
+	return 'locker';
+}
+
 /**
  * The campaign's fields checked together. Drivers and the convoy are
  * models here; `fromJSON` reads a save's into models first. `previous` is
  * the state being changed, if any: what was checked when it was stored isn't
- * checked again, and the pool and log are held to only growing from it.
+ * checked again, the pool only grows from it, and a log that grows from it
+ * has just its new entries checked.
  */
 function readCampaignData(value: unknown, path: string, previous: Partial<CampaignData> = {}): CampaignData {
 	const fields = readFields(value, path, FIELDS);
-	const seed = readInteger(fields.seed, `${path}.seed`, { min: 0, max: UINT32_MAX });
+	const seed = readSeed(fields.seed, `${path}.seed`);
 	const mapParams = readMapParams(fields.mapParams, `${path}.mapParams`);
 	if (mapParams.seed !== seed) {
-		throw new RangeError(`${path}.mapParams.seed must be the campaign's seed, ${seed}, got ${describeValue(mapParams.seed)}`);
+		throw new ReaderRangeError(`${path}.mapParams.seed must be the campaign's seed, ${seed}, got ${describeValue(mapParams.seed)}`);
 	}
 	const day = readInteger(fields.day, `${path}.day`, { min: 1 });
 	const nextDriverNumber = readInteger(fields.nextDriverNumber, `${path}.nextDriverNumber`, { min: 1 });
-	if (!(fields.convoy instanceof Convoy)) throw new TypeError(`${path}.convoy must be a Convoy, got ${describeValue(fields.convoy)}`);
+	if (!(fields.convoy instanceof Convoy)) throw new ReaderTypeError(`${path}.convoy must be a Convoy, got ${describeValue(fields.convoy)}`);
 	return {
 		seed,
 		generatorVersion: readInteger(fields.generatorVersion, `${path}.generatorVersion`, { min: 1 }),
@@ -373,7 +433,7 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 		day,
 		resources: readResources(fields.resources, `${path}.resources`),
 		unrest: readInteger(fields.unrest, `${path}.unrest`, { min: 0 }),
-		drivers: readDrivers(fields.drivers, `${path}.drivers`, nextDriverNumber, previous.drivers),
+		drivers: readDrivers(fields.drivers, `${path}.drivers`, nextDriverNumber, previous),
 		nextDriverNumber,
 		locker: readCardCounts(fields.locker, `${path}.locker`),
 		convoy: fields.convoy,
@@ -385,27 +445,39 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 /**
  * The pool: driver records with distinct `driver-<n>` ids, each below the
  * next one to hand out. Against the pool held before, it only grows: the
- * same records in the same places, any new ones after them.
+ * same records in the same places, any new ones after them with ids at or
+ * past the counter as it stood, so none reuses an id it had passed.
  */
-function readDrivers(value: unknown, path: string, nextDriverNumber: number, previous?: readonly DriverRecord[]): readonly DriverRecord[] {
+function readDrivers(
+	value: unknown,
+	path: string,
+	nextDriverNumber: number,
+	previous: Partial<Pick<CampaignData, 'drivers' | 'nextDriverNumber'>>
+): readonly DriverRecord[] {
+	// A new campaign has no pool before it and a counter that starts at 1, so every driver is new and any id passes.
+	const { drivers: held, nextDriverNumber: counterBefore = 1 } = previous;
 	// Checked when it was stored, and the counter has only gone up since.
-	if (previous !== undefined && value === previous) return previous;
+	if (held !== undefined && value === held) return held;
 	const drivers = readArray(value, path);
-	previous?.forEach((driver, index) => {
+	held?.forEach((driver, index) => {
 		if (drivers[index] === driver) return;
-		throw new RangeError(index < drivers.length
+		throw new ReaderRangeError(index < drivers.length
 			? `${path}[${index}] must still be ${driver.id} (${driver.name}): drivers keep their places in the pool`
 			: `${path} is missing ${driver.id} (${driver.name}): drivers stay in the pool, the dead and missing too`);
 	});
+	const firstNew = held?.length ?? 0;
 	const ids = new Set<string>();
 	drivers.forEach((driver, index) => {
-		if (!(driver instanceof DriverRecord)) throw new TypeError(`${path}[${index}] must be a DriverRecord, got ${describeValue(driver)}`);
+		if (!(driver instanceof DriverRecord)) throw new ReaderTypeError(`${path}[${index}] must be a DriverRecord, got ${describeValue(driver)}`);
 		const number = driverNumber(driver.id);
-		if (number === null) throw new RangeError(`${path}[${index}].id must look like driver-1, got ${describeValue(driver.id)}`);
+		if (number === null) throw new ReaderRangeError(`${path}[${index}].id must look like driver-1, got ${describeValue(driver.id)}`);
 		if (number >= nextDriverNumber) {
-			throw new RangeError(`${path}[${index}].id must come before driver-${nextDriverNumber}, the next id to hand out, got ${driver.id}`);
+			throw new ReaderRangeError(`${path}[${index}].id must come before driver-${nextDriverNumber}, the next id to hand out, got ${driver.id}`);
 		}
-		if (ids.has(driver.id)) throw new RangeError(`${path}[${index}].id ${driver.id} belongs to an earlier driver`);
+		if (ids.has(driver.id)) throw new ReaderRangeError(`${path}[${index}].id ${driver.id} belongs to an earlier driver`);
+		if (index >= firstNew && number < counterBefore) {
+			throw new ReaderRangeError(`${path}[${index}].id must be driver-${counterBefore} or later, an id the counter hasn't passed, got ${driver.id}`);
+		}
 		ids.add(driver.id);
 	});
 	return Object.freeze([...drivers] as DriverRecord[]);
@@ -431,7 +503,7 @@ function readStrongholds(value: unknown, path: string): readonly string[] {
 	if (typeof value === 'object' && value !== null && checkedStrongholds.has(value)) return value as readonly string[];
 	const ids = readArray(value, path).map((id, index) => readText(id, `${path}[${index}]`));
 	ids.forEach((id, index) => {
-		if (ids.indexOf(id) !== index) throw new RangeError(`${path}[${index}] ${describeValue(id)} is already in the list`);
+		if (ids.indexOf(id) !== index) throw new ReaderRangeError(`${path}[${index}] ${describeValue(id)} is already in the list`);
 	});
 	const strongholds = Object.freeze(ids);
 	checkedStrongholds.add(strongholds);
@@ -464,7 +536,7 @@ function readLogEntries(entries: readonly unknown[], path: string, today: number
 		const at = `${path}[${start + offset}]`;
 		const fields = readFields(entry, at, ['day', 'message']);
 		const day = readInteger(fields.day, `${at}.day`, { min: 1, max: today, maxLabel: `today (${today})` });
-		if (day < previousDay) throw new RangeError(`${at}.day must not come before the entry above it (day ${previousDay}), got ${day}`);
+		if (day < previousDay) throw new ReaderRangeError(`${at}.day must not come before the entry above it (day ${previousDay}), got ${day}`);
 		previousDay = day;
 		return Object.freeze({ day, message: readText(fields.message, `${at}.message`) });
 	});
