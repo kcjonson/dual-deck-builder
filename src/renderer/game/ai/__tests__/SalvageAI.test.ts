@@ -2,36 +2,24 @@ import { SalvageAI, SalvageAIStrategy } from '../SalvageAI';
 import { AIDecision } from '../types';
 import { Battle } from '../../mechanics/Battle';
 import { BoardProjection } from '../../mechanics/BoardProjection';
-import { Card, CardData } from '../../mechanics/Card';
-import { Driver } from '../../mechanics/Driver';
+import { Card } from '../../mechanics/Card';
 import { Team, TeamType } from '../../mechanics/Team';
-import { Vehicle } from '../../mechanics/Vehicle';
-import { createDrawCard, createFillerCards, createTestDriver, createTestVehicle, withoutDraws } from './test-helpers';
-import cardsFile from '../../data/cards.json';
-
-const realCard = (type: string): Card => {
-	const data = (cardsFile as unknown as { cards: CardData[] }).cards.find(candidate => candidate.type === type);
-	if (!data) throw new Error(`No card ${type} in cards.json`);
-	return new Card({ ...data, upgraded: false });
-};
-
-const driverOf = (vehicle: Vehicle): Driver => {
-	if (!vehicle.driver) throw new Error(`${vehicle.name} has no driver`);
-	return vehicle.driver;
-};
-
-const play = (card: Card, driver: Driver): AIDecision => ({ type: 'playCard', card, driver });
+import {
+	createBlankCard,
+	createDrawCard,
+	createFillerCards,
+	createTestDriver,
+	createTestVehicle,
+	driverOf,
+	play,
+	realCard
+} from './test-helpers';
 
 /**
  * Reads the strategy's score for one play against the live board
  */
 class ScoringSalvageAI extends SalvageAI {
-	private readonly scorer: SalvageAIStrategy;
-
-	constructor(team: Team, battle: Battle) {
-		super(team, battle);
-		this.scorer = new SalvageAIStrategy(team);
-	}
+	private readonly scorer = new SalvageAIStrategy(this.team);
 
 	public score(action: AIDecision): number {
 		this.board = new BoardProjection({ battle: this.battle });
@@ -55,25 +43,41 @@ describe('SalvageAI', () => {
 		battle = new Battle({ playerTeam, enemyTeam });
 	});
 
-	describe('values a draw by the share of its cards that fit under the drawer\'s hand limit', () => {
-		// The flat value of a draw for a side holding more cards than the other
-		const WHOLE_DRAW = 80;
-
-		test('none of it at the limit, half a card under it, and all of it with room', () => {
+	describe('values a draw by the cards that fit under the drawer\'s hand limit', () => {
+		test('worth nothing at the limit, a draw of one a card under it, and twice that with room', () => {
 			const raider = driverOf(enemyTeam.vehicles[0]);
-			const nitro = realCard('nitro_boost');
-			const control = withoutDraws(nitro);
-			// Five cards, four once Nitro Boost has left the hand
-			raider.set({ hand: [nitro, control, ...createFillerCards({ count: 3 })] });
+			const [drawTwo, drawOne, blank] = [createDrawCard(2), createDrawCard(1), createBlankCard()];
+			// Five cards, four once a draw has left the hand
+			raider.set({ hand: [drawTwo, drawOne, blank, ...createFillerCards(2)] });
 			const ai = new ScoringSalvageAI(enemyTeam, battle);
-			const drawWorth = (handLimit: number): number => {
+			const worth = (card: Card, handLimit: number): number => {
 				raider.set({ handLimit });
-				return ai.score(play(nitro, raider)) - ai.score(play(control, raider));
+				return ai.score(play(card, raider)) - ai.score(play(blank, raider));
 			};
+			const oneCard = worth(drawOne, 7);
+			expect(oneCard).toBeGreaterThan(0);
 
-			expect(drawWorth(7)).toBeCloseTo(WHOLE_DRAW);
-			expect(drawWorth(5)).toBeCloseTo(WHOLE_DRAW / 2);
-			expect(drawWorth(4)).toBeCloseTo(0);
+			expect(worth(drawTwo, 4)).toBeCloseTo(0);
+			expect(worth(drawTwo, 5)).toBeCloseTo(oneCard);
+			expect(worth(drawTwo, 7)).toBeCloseTo(2 * oneCard);
+		});
+
+		test('values no more than two cards of a bigger draw', () => {
+			const raider = driverOf(enemyTeam.vehicles[0]);
+			const [drawThree, drawTwo] = [createDrawCard(3), createDrawCard(2)];
+			raider.set({ hand: [drawThree, drawTwo] });
+			const ai = new ScoringSalvageAI(enemyTeam, battle);
+
+			expect(ai.score(play(drawThree, raider))).toBeCloseTo(ai.score(play(drawTwo, raider)));
+		});
+
+		test('picks the draw that keeps more, not the one that burns less', async () => {
+			const raider = driverOf(enemyTeam.vehicles[0]);
+			const [drawOne, drawThree] = [createDrawCard(1), createDrawCard(3)];
+			// Four cards, three once either draw has left the hand: two under the limit
+			raider.set({ hand: [drawOne, drawThree, ...createFillerCards(2)], handLimit: 5 });
+
+			expect((await new SalvageAI(enemyTeam, battle).makeDecision())?.card).toBe(drawThree);
 		});
 
 		test('plays something useful over a draw it would burn', async () => {
@@ -83,7 +87,7 @@ describe('SalvageAI', () => {
 			const plating = realCard('armor_plating');
 			raiderVehicle.set({ armor: 0 });
 			// Four cards, three once the draw has left the hand
-			raider.set({ hand: [draw, plating, ...createFillerCards({ count: 2 })] });
+			raider.set({ hand: [draw, plating, ...createFillerCards(2)] });
 			const ai = new SalvageAI(enemyTeam, battle);
 
 			expect((await ai.makeDecision())?.card).toBe(draw);
@@ -94,18 +98,19 @@ describe('SalvageAI', () => {
 
 		test('counts a draw against its player\'s hand, not their partner\'s', () => {
 			const [driver, partner] = playerTeam.vehicles.map(driverOf);
-			const nitro = realCard('nitro_boost');
-			const control = withoutDraws(nitro);
-			driver.set({ hand: [nitro, control, ...createFillerCards({ count: 3 })] });
+			const [draw, blank] = [createDrawCard(2), createBlankCard()];
+			driver.set({ hand: [draw, blank, ...createFillerCards(3)] });
 			const ai = new ScoringSalvageAI(playerTeam, battle);
-			const drawWorth = (): number => ai.score(play(nitro, driver)) - ai.score(play(control, driver));
+			const worth = (): number => ai.score(play(draw, driver)) - ai.score(play(blank, driver));
+			const withRoom = worth();
+			expect(withRoom).toBeGreaterThan(0);
 
-			partner.set({ hand: createFillerCards({ count: 7 }) });
-			expect(drawWorth()).toBeCloseTo(WHOLE_DRAW);
+			partner.set({ hand: createFillerCards(7) });
+			expect(worth()).toBeCloseTo(withRoom);
 
 			partner.set({ hand: [] });
 			driver.set({ handLimit: 4 });
-			expect(drawWorth()).toBeCloseTo(0);
+			expect(worth()).toBeCloseTo(0);
 		});
 	});
 });
