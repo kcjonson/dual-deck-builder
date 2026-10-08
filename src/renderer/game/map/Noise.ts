@@ -9,7 +9,7 @@ import { Rng } from '../core/Rng';
  * ops, with no `Math` call, so a seed gives bit-identical values in every JS
  * engine and terrain thresholds can branch on them safely. The permutation
  * comes from `Rng.shuffle`, whose draw count is pinned, so a noise layer is
- * fixed by its stream alone: 255 draws.
+ * fixed by its stream alone: 255 draws, rarely more.
  */
 
 /** (sqrt(3) - 1) / 2, written out so no engine's square root is involved. */
@@ -65,7 +65,7 @@ const OCTAVE_OFFSETS_Y = [29.53, 71.29, 13.97, 97.11, 37.79, 5.37, 83.93, 29.11]
 export const MAX_OCTAVES = OCTAVE_OFFSETS_X.length;
 
 export interface SimplexNoiseOptions {
-	/** The layer's own stream; building the permutation takes 255 draws from it. */
+	/** The layer's own stream; building the permutation takes 255 draws from it, rarely more. */
 	rng: Rng;
 }
 
@@ -73,9 +73,10 @@ export interface SimplexNoiseOptions {
  * One layer of 2D simplex noise: Perlin's simplex grid with Gustavson's
  * corner kernels, (0.5 - r^2)^4 per corner, and twelve unit gradients
  * hashed through a seeded permutation of 0 to 255. Values lie in (-1, 1),
- * zero at every lattice point; features are about one lattice unit across,
- * and the pattern repeats every 256 units, which callers keep beyond the map
- * by scaling world units down.
+ * zero at every lattice point; features are about one lattice unit across.
+ * The pattern repeats every 256 cells of the skewed grid, about 209 units
+ * along -15 and 105 degrees, though never exactly along x or y, and callers
+ * keep that beyond the map by scaling world units down.
  */
 export class SimplexNoise {
 	/** The shuffled 0 to 255, twice over, so corner hashes never wrap. */
@@ -191,13 +192,15 @@ export class SimplexNoise {
 	 * derivatives by it after.
 	 *
 	 * A caller that only cares whether the result lands strictly between `low`
-	 * and `high` passes them, and the sum stops as soon as the octaves left
-	 * can't bring it there, each sample being under 1 in size: -Infinity when
-	 * it's sure to be `low` or under, +Infinity when it's sure to be `high` or
-	 * over, without derivatives either way. Otherwise the result is the full
-	 * sum, derivatives included, even if it lands outside after all. One loop
-	 * either way, so a threshold calibrated without bounds matches sampling
-	 * with them to the bit.
+	 * and `high` passes them. After each octave, the last one too, the sum
+	 * stops once the octaves left can't bring it there, each sample being
+	 * under 1 in size: -Infinity when it's `low` or under, +Infinity when it's
+	 * `high` or over, without derivatives either way. So a result past a bound
+	 * comes back as an infinity, never as itself, and one exactly on a bound
+	 * can go either way, since the checks compare the sum before it's divided
+	 * by the amplitudes' total. A result that comes back as itself is the full
+	 * sum, derivatives included, from the same loop as without bounds, so it's
+	 * the same to the bit.
 	 */
 	public fractal(x: number, y: number, octaves: number, gain: number, low = -Infinity, high = Infinity): number {
 		let total = 0;

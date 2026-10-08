@@ -90,12 +90,12 @@ describe('SimplexNoise', () => {
 
 		// The fractal sum's early out counts on every sample being under 1.
 		it('can\'t bring a sample to 1, whatever gradients a seed hands the corners', () => {
-			// Any unit gradients: the largest sum, midway along a long edge with
-			// both gradients pointing at the sample, is 2 / (81 sqrt 6).
-			expect(SIMPLEX_SCALE * 2 / (81 * Math.sqrt(6))).toBeLessThan(1);
-			// These twelve: the set holds every gradient's opposite, so each
-			// corner's best is the one nearest its offset, at |d| cos(the angle).
-			let largest = 0;
+			// A corner adds falloff^4 (g . d), so at most falloff^4 |d| with any
+			// unit gradient, and falloff^4 |d| cos(the angle to the nearest of
+			// these twelve), since the set holds every gradient's opposite. The
+			// largest sums over a fine grid of the cell, either way:
+			let anyGradients = 0;
+			let theseTwelve = 0;
 			const cells = 240;
 			for (let a = 0; a <= cells; a += 1) {
 				for (let b = 0; b <= cells; b += 1) {
@@ -105,18 +105,29 @@ describe('SimplexNoise', () => {
 					const x0 = skewedX - shift;
 					const y0 = skewedY - shift;
 					const stepX = x0 > y0 ? 1 : 0;
-					let total = 0;
+					let any = 0;
+					let twelve = 0;
 					[[x0, y0], [x0 - stepX + unskew, y0 - (1 - stepX) + unskew], [x0 - 1 + 2 * unskew, y0 - 1 + 2 * unskew]].forEach(([dx, dy]) => {
 						const falloff = 0.5 - dx * dx - dy * dy;
 						if (falloff <= 0) return;
-						const reach = Math.max(...SIMPLEX_GRADIENTS.map(([gx, gy]) => Math.abs(gx * dx + gy * dy)));
-						total += falloff ** 4 * reach;
+						const weight = falloff ** 4;
+						any += weight * Math.hypot(dx, dy);
+						twelve += weight * Math.max(...SIMPLEX_GRADIENTS.map(([gx, gy]) => Math.abs(gx * dx + gy * dy)));
 					});
-					largest = Math.max(largest, total * SIMPLEX_SCALE);
+					anyGradients = Math.max(anyGradients, any);
+					theseTwelve = Math.max(theseTwelve, twelve);
 				}
 			}
-			expect(largest).toBeGreaterThan(0.97);
-			expect(largest).toBeLessThan(0.98);
+			// Any unit gradients peak midway along a long edge, both pointing at
+			// the sample, at 2 / (81 sqrt 6), a point the grid lands on; the
+			// slack is for rounding.
+			const bound = 2 / (81 * Math.sqrt(6));
+			expect(anyGradients).toBeLessThanOrEqual(bound * (1 + 1e-12));
+			expect(anyGradients).toBeGreaterThan(bound * (1 - 1e-12));
+			expect(SIMPLEX_SCALE * bound).toBeLessThan(1);
+			// These twelve peak lower.
+			expect(theseTwelve * SIMPLEX_SCALE).toBeGreaterThan(0.97);
+			expect(theseTwelve * SIMPLEX_SCALE).toBeLessThan(0.98);
 		});
 	});
 
