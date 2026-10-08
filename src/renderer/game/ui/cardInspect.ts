@@ -64,28 +64,61 @@ export function inspectLayout({ cardCentreX, viewportWidth, scale, seat, hasKeyw
  * A tooltip surface holding an inspect view, scaled into viewport pixels.
  * The outer box is the scaled size, which the tooltip service places; the
  * view itself lays out in logical pixels inside a scaling frame.
+ *
+ * When the view is bigger than the room the service has for it, the
+ * service sizes the surface to that room (a constrained placement). The
+ * surface keeps to it from then on, shrinking the view to fit, rather than
+ * growing back past it at the next layout and off its resting edge.
  */
 export class InspectSurface<View extends Component & { arrange(): void }> extends Container {
 	public readonly view: View;
 	private readonly frame: Component;
 	private readonly scaleValue: number;
+	/** The scale the view is drawn at: `scaleValue`, less whatever fitting the room took. */
+	private drawnScale: number;
+	/** The room it was sized to from outside; null until then. */
+	private room: { width: number; height: number } | null = null;
+	/** Set while the surface sizes itself, so its own sizes aren't taken for a room. */
+	private sizingItself = false;
 
 	constructor({ id, view, scale }: { id: string; view: View; scale: number }) {
 		super({ id, width: view.width * scale, height: view.height * scale });
 		this.scaleValue = scale;
+		this.drawnScale = scale;
 		this.view = view;
 		this.frame = new Container({ width: view.width, height: view.height, transform: { scale, origin: [0, 0] } });
 		this.frame.addChild(view);
 		this.addChild(this.frame);
 	}
 
+	/** The scale the view is drawn at, below the one it was built for when it had to shrink into its room. */
+	public get viewScale(): number {
+		return this.drawnScale;
+	}
+
+	public setSize(width: number, height: number): this {
+		if (!this.sizingItself) this.room = { width, height };
+		return super.setSize(width, height);
+	}
+
 	protected layoutChildren(): void {
 		this.view.arrange();
 		const { width, height } = this.view;
+		const room = this.room;
+		const fit = room ? Math.min(1, room.width / (width * this.scaleValue), room.height / (height * this.scaleValue)) : 1;
+		const scale = this.scaleValue * fit;
+		if (scale !== this.drawnScale) {
+			this.drawnScale = scale;
+			this.frame.transform = { scale, origin: [0, 0] };
+		}
 		this.frame.setSize(width, height);
-		const scaledWidth = width * this.scaleValue;
-		const scaledHeight = height * this.scaleValue;
-		if (this.width !== scaledWidth || this.height !== scaledHeight) this.setSize(scaledWidth, scaledHeight);
+		const scaledWidth = width * scale;
+		const scaledHeight = height * scale;
+		if (this.width !== scaledWidth || this.height !== scaledHeight) {
+			this.sizingItself = true;
+			this.setSize(scaledWidth, scaledHeight);
+			this.sizingItself = false;
+		}
 	}
 }
 

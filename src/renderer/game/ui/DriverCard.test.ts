@@ -443,6 +443,47 @@ describe('Driver card detail view, through the inspect path', () => {
 		expect(context.tooltips.pinned).toBeNull();
 	});
 
+	/** A card at the bottom middle of a screen this size, its view shown as hover would show it. */
+	function shownOn(width: number, height: number, data: DriverCardData): { surface: DriverInspectSurface; viewport: { width: number; height: number } } {
+		const screen = createTestContext({ draw: createMeasuringDrawApi().api, viewport: { logical: { width, height } }, clock: new Clock() });
+		const root = new Container({ id: 'screen', x: 0, y: 0, width, height });
+		const card = new DriverCard({ id: 'card', x: width / 2 - 52, y: height - 200, data });
+		makeDriverInspectable(card, { cards: lookup });
+		root.addChild(card);
+		root.mount(screen);
+		screen.frame.layout();
+		screen.tooltips.show(card);
+		advance(screen, tokens.motion.dur_fast + 50);
+		return { surface: screen.tooltips.surface as DriverInspectSurface, viewport: { width, height } };
+	}
+
+	// A run deck at its largest: 20 cards and four escorts' signature cards, every one a different card
+	const RUN_DECK = Object.fromEntries(cardData.slice(0, 24).map((data) => [data.type, 1]));
+
+	it('fits a run deck of 24 kinds with a note on a 1024x600 screen at full size, resting on its bottom edge', () => {
+		const { surface } = shownOn(1024, 600, driverCardData({ archetype: 'road_warrior', name: 'Road Warrior 2', deck: RUN_DECK, note: 'Killed day 9' }));
+		expect(surface.view.deckGrid).toEqual({ columns: 8, rows: 3 });
+		expect(surface.viewScale).toBe(1);
+		const bounds = surface.screenBounds;
+		expect(bounds.height).toBeCloseTo(surface.view.height, 5);
+		// The service's room: from its 8 px gap at the top down to the resting edge, 10 px up
+		expect(bounds.y).toBeGreaterThanOrEqual(8);
+		expect(bounds.y + bounds.height).toBeCloseTo(600 - 10, 5);
+		expect(bounds.x).toBeGreaterThanOrEqual(8);
+		expect(bounds.x + bounds.width).toBeLessThanOrEqual(1024 - 8);
+	});
+
+	it('shrinks a view that still doesn\'t fit into the room it has, rather than running past its resting edge', () => {
+		const { surface } = shownOn(640, 400, driverCardData({ archetype: 'road_warrior', deck: RUN_DECK, note: 'Killed day 9' }));
+		expect(surface.viewScale).toBeLessThan(1);
+		const bounds = surface.screenBounds;
+		expect(bounds.height).toBeCloseTo(surface.view.height * surface.viewScale, 5);
+		expect(bounds.y).toBeGreaterThanOrEqual(8);
+		expect(bounds.y + bounds.height).toBeLessThanOrEqual(400 - 10 + 1e-6);
+		expect(bounds.x).toBeGreaterThanOrEqual(8);
+		expect(bounds.x + bounds.width).toBeLessThanOrEqual(640 - 8 + 1e-6);
+	});
+
 	it('keeps a pinned view on the card\'s data when the data changes under it', () => {
 		const { card, centre } = roster();
 		send(context, [pointer('down', centre.x, centre.y, { button: 2 }), pointer('up', centre.x, centre.y, { button: 2 })]);

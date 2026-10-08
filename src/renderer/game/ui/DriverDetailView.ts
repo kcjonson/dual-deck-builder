@@ -33,39 +33,45 @@ const MINI_SIZE = UICard.getDimensions(CardSize.MINI);
 
 /**
  * A driver's detail view, in its own pixels: the person at the top (the
- * portrait beside the name, specialty, vehicle, and a note), their stats
- * under them, then their deck as mini cards, in the riveted double frame
- * their card wears and the play card detail view's shadow.
+ * portrait beside the name, and their vehicle and specialty under it),
+ * their stats under them, then their deck as mini cards, and a foot with a
+ * note and how to pin it, in the riveted double frame their card wears and
+ * the play card detail view's shadow.
  */
 export const DRIVER_DETAIL = {
 	/** From the outer edge to the content: the frame and its rivets, then room. */
 	pad: 16,
 	portrait: 56,
 	/** Between the portrait and the column beside it, and between the view's sections. */
-	gap: 12,
+	gap: 10,
 	name: { size: 20, lineHeight: 22, lines: 2 },
-	/** The specialty and a note, in mono capitals, and the deck's heading. */
+	/** The vehicle and specialty on one line, as the Crew screen's header writes them. */
+	identity: { size: 13, height: 18 },
+	/** A note, the deck's heading, and the pin hint: mono capitals. */
 	label: { size: 11, height: 14, letterSpacing: 0.06 },
-	vehicle: { size: 13, height: 18 },
 	/** HP and the skills: mono figures, flowed in rows. */
 	stat: { size: 11, height: 14, gap: 14, rowGap: 4, letterSpacing: 0.04 },
 	bar: { height: 6, gap: 10 },
 	rule: 1,
-	/** Between the deck and the pin hint under it. */
-	foot: 6,
+	/** Between the deck and the foot, and between a note and the pin hint in it. */
+	foot: { gap: 6, between: 16 },
 	/** As few rows as seven columns allow, spread evenly, never fewer than four columns. */
 	columns: { min: 4, max: 7 },
+	/** The most rows the deck takes; past that the columns grow. */
+	rows: 3,
 } as const;
 
 /**
  * How the detail view lays out a deck of `kinds` kinds of card: as few rows
  * as seven columns allow, the kinds spread evenly across them, never fewer
- * than four columns, so the stats above have room. Up to 21 kinds, more
- * than a 20-card deck can hold, that's three rows at most.
+ * than four columns, so the stats above have room. A run deck can reach 24
+ * cards, its 20 and the signature cards of up to four escorts (Game Flow
+ * 1.2), so past 21 kinds the columns grow rather than take a fourth row,
+ * which a 600-tall screen couldn't hold: 24 kinds are three rows of eight.
  */
 export function driverDeckGrid(kinds: number): { columns: number; rows: number } {
 	const { min, max } = DRIVER_DETAIL.columns;
-	const rows = Math.ceil(kinds / max);
+	const rows = Math.min(DRIVER_DETAIL.rows, Math.ceil(kinds / max));
 	return { columns: rows > 0 ? Math.max(min, Math.ceil(kinds / rows)) : min, rows };
 }
 
@@ -101,10 +107,12 @@ export interface DriverDetailViewOptions {
 /**
  * A driver card's detail view (Game Flow 7.0): their full stats and their
  * deck. The person heads it: the portrait, the name on up to two lines,
- * the specialty, the vehicle, and a note when the card has one. Then HP as
- * figures and a bar, the hand limit, and their skills; then the deck as
- * mini cards stacked to their copies, spaced as every grid of minis is
- * (`MINI_GRID`), cheapest first; then how to pin the view.
+ * and the vehicle and specialty on one line under it. Then HP as figures
+ * and a bar, the hand limit, and their skills; then the deck as mini cards
+ * stacked to their copies, spaced as every grid of minis is (`MINI_GRID`),
+ * cheapest first; then a foot with the card's note, if it has one, and how
+ * to pin the view. Nothing optional adds a row, so a run deck's three rows
+ * fit a 600-tall screen.
  *
  * Its width is set by the deck, so its owner can place it before it has
  * laid out; its height comes from its measured text, as the play card's
@@ -114,11 +122,13 @@ export class DriverDetailView extends Component {
 	private readonly model: DriverCardData;
 	private readonly grid: { columns: number; rows: number };
 	private readonly name: Text;
-	/** The specialty, the vehicle, and a note, under the name. */
-	private readonly lines: Text[] = [];
+	/** The vehicle and specialty, under the name. */
+	private readonly identity: Text;
 	private readonly hp: Text;
 	private readonly stats: Text[] = [];
 	private readonly heading: Text;
+	/** How a lost driver went, at the left of the foot; null without a note. */
+	private readonly note: Text | null;
 	private readonly pin: Text;
 	private readonly minis: UICard[];
 	private readonly frame: RivetedFrameDraws;
@@ -156,22 +166,19 @@ export class DriverDetailView extends Component {
 			wrap: 'word',
 			textOverflow: 'ellipsis',
 		});
-		this.lines.push(this.label({ id: childId('specialty'), text: data.specialty, x: columnX, width: columnWidth }));
-		if (data.vehicle) {
-			this.lines.push(new Text({
-				id: childId('vehicle'),
-				text: data.vehicle,
-				x: columnX,
-				width: columnWidth,
-				height: DRIVER_DETAIL.vehicle.height,
-				style: { fontSize: DRIVER_DETAIL.vehicle.size, color: CARD_RULES },
-				lineHeight: DRIVER_DETAIL.vehicle.height / DRIVER_DETAIL.vehicle.size,
-				verticalAlign: 'middle',
-				wrap: 'none',
-				textOverflow: 'ellipsis',
-			}));
-		}
-		if (data.note) this.lines.push(this.label({ id: childId('note'), text: data.note, x: columnX, width: columnWidth }));
+		const specialty = data.specialty.toUpperCase();
+		this.identity = new Text({
+			id: childId('identity'),
+			text: data.vehicle ? `${data.vehicle} / ${specialty}` : specialty,
+			x: columnX,
+			width: columnWidth,
+			height: DRIVER_DETAIL.identity.height,
+			style: { fontSize: DRIVER_DETAIL.identity.size, color: CARD_MUTED },
+			lineHeight: DRIVER_DETAIL.identity.height / DRIVER_DETAIL.identity.size,
+			verticalAlign: 'middle',
+			wrap: 'none',
+			textOverflow: 'ellipsis',
+		});
 
 		this.hp = this.figures({ id: childId('hp'), text: `HP ${data.hitpoints}/${data.maxHitpoints}` });
 		this.stats.push(this.figures({ id: childId('hand_limit'), text: `HAND LIMIT ${data.handLimit}` }));
@@ -187,6 +194,8 @@ export class DriverDetailView extends Component {
 		}
 		const size = totalCards(data.deck);
 		this.heading = this.label({ id: childId('deck'), text: `DECK / ${size} ${size === 1 ? 'CARD' : 'CARDS'}`, x: pad });
+		// Its width is the room the pin hint leaves, set in layout
+		this.note = data.note ? this.label({ id: childId('note'), text: data.note, x: pad, width: columnWidth }) : null;
 		this.pin = this.label({ id: childId('pin'), text: pinHint(pinned), x: pad });
 		this.minis = entries.map(({ card, copies }) => {
 			const mini = new UICard({ id: childId(`card_${card.type}`), x: 0, y: 0, data: card, size: CardSize.MINI, copies });
@@ -195,10 +204,12 @@ export class DriverDetailView extends Component {
 			return mini;
 		});
 
-		for (const child of [this.name, ...this.lines, this.hp, ...this.stats, this.heading, ...this.minis, this.pin]) this.addChild(child);
+		for (const child of [this.name, this.identity, this.hp, ...this.stats, this.heading, ...this.minis]) this.addChild(child);
+		if (this.note) this.addChild(this.note);
+		this.addChild(this.pin);
 	}
 
-	/** Mono capitals, muted: the specialty, a note, the deck's heading, the pin hint. A fixed width cuts with an ellipsis; none hugs. */
+	/** Mono capitals, muted: a note, the deck's heading, the pin hint. A fixed width cuts with an ellipsis; none hugs. */
 	private label({ id, text, x, width }: { id: string; text: string; x: number; width?: number }): Text {
 		return new Text({
 			id,
@@ -254,15 +265,11 @@ export class DriverDetailView extends Component {
 		const { pad, portrait: portraitSize, gap, stat } = DRIVER_DETAIL;
 		const right = this.width - pad;
 
-		// The head: the name on one line or two, the lines under it, beside the portrait
+		// The head: the name on one line or two, the vehicle and specialty under it, beside the portrait
 		const nameLines = Math.min(DRIVER_DETAIL.name.lines, Math.max(1, this.name.measured?.lines ?? 1));
 		this.name.height = nameLines * DRIVER_DETAIL.name.lineHeight;
-		let lineY = pad + this.name.height + 2;
-		for (const line of this.lines) {
-			line.y = lineY;
-			lineY += line.height;
-		}
-		let y = Math.max(pad + portraitSize, lineY) + gap;
+		this.identity.y = pad + this.name.height + 2;
+		let y = Math.max(pad + portraitSize, this.identity.y + this.identity.height) + gap;
 
 		// HP as figures, its bar running to the right edge
 		this.hp.x = pad;
@@ -302,9 +309,14 @@ export class DriverDetailView extends Component {
 		});
 		if (rows > 0) y += MINI_GRID.margin * 2 + miniGridHeight(rows);
 
-		y += DRIVER_DETAIL.foot;
+		// The foot: the note at the left, cut short of the pin hint at the right
+		y += DRIVER_DETAIL.foot.gap;
 		this.pin.y = y;
 		this.pin.x = right - this.pin.width;
+		if (this.note) {
+			this.note.y = y;
+			this.note.width = Math.max(1, this.pin.x - DRIVER_DETAIL.foot.between - pad);
+		}
 		const height = y + DRIVER_DETAIL.label.height + pad;
 		resizeRivetedFrame(this.frame, { width: this.width, height });
 		if (this.height !== height) this.height = height;
