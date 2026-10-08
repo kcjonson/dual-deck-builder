@@ -56,7 +56,8 @@ export interface FoundingOptions {
  * from the unlocked archetypes and recruited through the campaign, each with
  * their archetype's starting deck, the start's stores and starter escorts,
  * an empty locker, and day 1 at dawn. The same options found the same
- * campaign, and nothing in it comes from `Math.random`.
+ * campaign: founding reads no randomness but the seed's own streams, and
+ * never calls `Math.random`.
  *
  * Throws, founding nothing, on a seed that isn't a uint32, map params that
  * don't read as a preset or come from another seed, a start that doesn't

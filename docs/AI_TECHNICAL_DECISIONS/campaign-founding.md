@@ -76,7 +76,7 @@ The log's first line is "Founded the compound.", on day 1, the start of the camp
 
 ## Math.random
 
-What founding draws (the params and the deal) comes from seeded streams, and a test spies on `Math.random` around the deal and asserts it isn't called. A whole founding is held to its output instead: the test mocks `Math.random` to two different values and checks the campaign comes out the same, the second pattern the lint rule's comment gives. So anything founding builds that reads `Math.random` can't reach the campaign, and the test doesn't depend on whether anything does.
+Founding reads no randomness at all but the seed's own streams. The params and the deal draw from forks of the seed, and building the campaign, its driver records, its convoy, and its escorts draws nothing. A test spies on `Math.random` around whole foundings, with params rolled and given and starter escorts aboard, and asserts it's never called; another does the same around the deal alone.
 
 ## Consequences
 

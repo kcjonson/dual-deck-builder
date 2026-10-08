@@ -51,23 +51,18 @@ describe('foundCampaign', () => {
 			expect(pools.size).toBeGreaterThan(1);
 		});
 
-		// Held to its output rather than to the calls: anything founding builds
-		// that reads Math.random never reaches the campaign.
-		it('takes nothing from Math.random: the campaign comes out the same whatever it returns', () => {
+		// Everything founding draws comes from the seed's streams, and building
+		// the campaign, its records, its convoy, and its escorts draws nothing.
+		it('never calls Math.random, with params rolled or given, starter escorts and all', () => {
 			const start: CampaignStart = { ...CAMPAIGN_START, escorts: ['med_truck', 'outrider'] };
 			const random = jest.spyOn(Math, 'random');
-			let low: string;
-			let high: string;
 			try {
-				random.mockReturnValue(0.1);
-				low = JSON.stringify(found({ start }));
-				random.mockReturnValue(0.9);
-				high = JSON.stringify(found({ start }));
+				found({ start });
+				found({ start, mapParams: { seed: SEED, environment: 'rustBelt', towns: 9 } });
+				expect(random).not.toHaveBeenCalled();
 			} finally {
 				random.mockRestore();
 			}
-
-			expect(high).toBe(low);
 		});
 
 		it.each([-1, 2 ** 32, 1.5, NaN])('rejects a seed of %p', (seed) => {
