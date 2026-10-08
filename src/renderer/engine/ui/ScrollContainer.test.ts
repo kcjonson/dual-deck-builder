@@ -819,9 +819,10 @@ describe('ScrollContainer scrollIntoView shows what a component draws (R12.20, D
 		expect(outer.scrollPosition).toBe(0);
 	});
 
-	it('ends the walk at a promoted layer, which no clip beneath it cuts', () => {
+	it('scrolls a promoted layer into view, since it still moves with the scroller beneath it', () => {
 		const scroll = new ScrollContainer({ x: 0, y: 0, width: 300, height: 100 });
 		const content = new Container({ width: 300, height: 2000 });
+		// Raised as a lifted card is
 		const raised = new Container({ y: 500, width: 300, height: 100, layer: 'raised' });
 		const item = new Inky({ y: 10, width: 100, height: 40, focusable: true });
 		raised.addChild(item);
@@ -831,7 +832,26 @@ describe('ScrollContainer scrollIntoView shows what a component draws (R12.20, D
 		context.frame.layout();
 		expect(raised.promoted).toBe(true);
 		context.focus.focus(item, 'keyboard');
-		expect(scroll.scrollPosition).toBe(0);
+		// Its box spans 510 to 550, and its ring 507 to 553
+		expect(scroll.scrollPosition).toBe(553 - 100);
+	});
+
+	it("doesn't cut a promoted layer by the clips beneath it, which it is drawn past", () => {
+		const scroll = new ScrollContainer({ x: 0, y: 0, width: 300, height: 100 });
+		const content = new Container({ width: 300, height: 2000 });
+		// A 50 px window that clips, 300 down the content, with a raised layer below its clip
+		const window = new Container({ y: 300, width: 300, height: 50, overflow: 'hidden' });
+		const raised = new Container({ y: 200, width: 300, height: 100, layer: 'raised' });
+		const item = new Inky({ y: 10, width: 100, height: 40, focusable: true });
+		raised.addChild(item);
+		window.addChild(raised);
+		content.addChild(window);
+		scroll.addChild(content);
+		root.addChild(scroll);
+		context.frame.layout();
+		context.focus.focus(item, 'keyboard');
+		// Out of the window's clip but not cut by it: 300 + 200 + 10 to 550, ring to 553
+		expect(scroll.scrollPosition).toBe(553 - 100);
 	});
 
 	it('ends the walk once a clip has cut the box away, since nothing further up can bring it back', () => {

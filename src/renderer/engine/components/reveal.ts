@@ -29,8 +29,9 @@ export interface RevealOptions {
  * offset, so every ancestor gets them in its content space, and each clip on
  * the way cuts them to what it lets through: an outer scroller never scrolls
  * for ink an inner clip hides, and once a clip has cut the box away nothing
- * further up can bring it back. A promoted layer ends the walk, since no clip
- * above it applies (R4.8).
+ * further up can bring it back. Past a promoted layer the walk goes on, since
+ * the layer still moves with every scroller above it, but the clips above no
+ * longer cut it: a promotion resets the clip (R4.8).
  */
 export function revealInAncestors(component: Component, { block = 'nearest', scroller }: RevealOptions = {}): void {
 	const box: ClipRect = { minX: 0, minY: 0, maxX: component.width, maxY: component.height };
@@ -41,7 +42,9 @@ export function revealInAncestors(component: Component, { block = 'nearest', scr
 		maxX: Math.max(drawn.x + drawn.width, box.maxX),
 		maxY: Math.max(drawn.y + drawn.height, box.maxY),
 	};
-	for (let node = component, parent = node.parent; parent && !node.promoted; node = parent, parent = parent.parent) {
+	let clipped = true;
+	for (let node = component, parent = node.parent; parent; node = parent, parent = parent.parent) {
+		if (node.promoted) clipped = false;
 		lift(node, box);
 		lift(node, ink);
 		if (!scroller || parent === scroller) parent.scrollRectIntoView({ box: rectOf(box), ink: rectOf(ink), block });
@@ -49,7 +52,7 @@ export function revealInAncestors(component: Component, { block = 'nearest', scr
 		const offset = parent.contentOffset;
 		shift(box, -offset.x, -offset.y);
 		shift(ink, -offset.x, -offset.y);
-		if (!parent.clipsChildren) continue;
+		if (!clipped || !parent.clipsChildren) continue;
 		const clip = parent.clipRect;
 		cut(box, clip);
 		if (box.minX > box.maxX || box.minY > box.maxY) return;
