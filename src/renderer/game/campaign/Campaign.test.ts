@@ -791,7 +791,7 @@ describe('Campaign', () => {
 
 			expect(campaign.toJSON()).toEqual(campaignV2);
 			expect(campaign.drivers.map(driver => driver.status)).toEqual(['ready', 'dead', 'injured', 'missing', 'ready']);
-			expect(campaign.convoy.escorts.map(escort => escort.escort?.type ?? null)).toEqual(['fuel_hauler', null]);
+			expect(campaign.convoy.escorts.map(escort => escort.escort?.type)).toEqual(['fuel_hauler', 'outrider']);
 			expect(campaign.recruitDriver({ archetype: 'mechanic' }).id).toBe('driver-6');
 		});
 

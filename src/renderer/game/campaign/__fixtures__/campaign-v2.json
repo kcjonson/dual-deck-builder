@@ -155,24 +155,24 @@
 			}
 		},
 		{
-			"name": "Lightning Bike",
+			"name": "Outrider",
 			"armor": 0,
 			"maxArmor": 0,
-			"structure": 22,
-			"maxStructure": 50,
+			"structure": 18,
+			"maxStructure": 25,
 			"baseSpeed": 5,
 			"mods": [],
 			"escort": {
-				"type": null,
+				"type": "outrider",
 				"role": "gun",
-				"gunnery": 4,
-				"evade": 3,
+				"gunnery": 6,
+				"evade": 6,
 				"ramming": 2,
 				"preferredSlot": {
 					"lane": "inside",
-					"row": "behind"
+					"row": "ahead"
 				},
-				"signatureCard": null,
+				"signatureCard": "run_ahead",
 				"dividend": null
 			}
 		}
@@ -187,7 +187,7 @@
 		},
 		{
 			"day": 3,
-			"message": "Interceptor 1 died on the run to the Saltflat Pumps. Their Lightning Bike limped home on its own."
+			"message": "Interceptor 1 died when the run to the Saltflat Pumps failed."
 		},
 		{
 			"day": 6,

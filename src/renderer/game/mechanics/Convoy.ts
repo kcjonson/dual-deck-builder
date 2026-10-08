@@ -49,6 +49,9 @@ export class Convoy extends Model<ConvoyData> {
 
 	constructor({ escorts = [] }: { escorts?: Vehicle[] } = {}) {
 		escorts.forEach(Convoy.assertConvoyEscort);
+		if (escorts.length > MAX_CONVOY_ESCORTS) {
+			throw new Error(`A convoy holds ${MAX_CONVOY_ESCORTS} escorts at most, not ${escorts.length}`);
+		}
 		super({ escorts: [...escorts] });
 	}
 

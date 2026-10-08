@@ -84,6 +84,8 @@ describe('Convoy', () => {
 			expect(convoy.isFull).toBe(true);
 			expect(() => convoy.add(createEscort({ type: 'outrider' })))
 				.toThrow(`The convoy holds ${MAX_CONVOY_ESCORTS} escorts; dismiss one first`);
+			expect(() => new Convoy({ escorts: [...joined, createEscort({ type: 'outrider' })] }))
+				.toThrow(`A convoy holds ${MAX_CONVOY_ESCORTS} escorts at most, not 5`);
 		});
 
 		test('takes only the convoy\'s own escorts', () => {
