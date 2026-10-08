@@ -103,7 +103,7 @@ An ambusher has no reserved formation slot and no outran vehicle. It counts as f
 ### Losing vehicles and drivers
 
 - Run lost - The fight goes on while at least one of your drivers is still in it, driving or riding as a passenger. When none are (every driver at 0 HP or crashed out), the supply run fails: a driver at 0 HP is dead, gone for good, and there's no rescue for a driver who crashed out alive, who is missing. Escorts never count toward defeat. Decided by Kevin, 2026-09-25: one driver has to survive to circle back down the road for the other. Since 2026-10-06 the campaign itself only ends when the compound's last driver dies ([Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md)).
-- No true death while the partner stands (Kevin, 2026-10-08). A driver at 0 HP is out of the fight, not dead. If the partner wins the fight, they revive them, and both go on with the run. Death is only ever the end of a failed run.
+- No true death while the partner stands (Kevin, 2026-10-08). A driver at 0 HP is out of the fight, not dead. If the partner wins the fight, they revive them, and both go on with the run; the HP a revived driver comes back with is provisional, in [combat-bridge.md](../AI_TECHNICAL_DECISIONS/combat-bridge.md). Death is only ever the end of a failed run.
 - Driver at 0 HP - If the vehicle has a passenger, the passenger becomes the driver. If not:
   - On the player's team, the vehicle becomes an escort, with default crew stats (gunnery 4, evade 3, ramming 2) and its own base speed. It brings no signature card, and it starts spent: a vehicle only converts mid-turn, and one that converts on the enemy turn is ready again at the start of yours with every other escort. From then on it's ordered like any escort, takes damage on structure only, and has a free passenger seat. It's still its driver's vehicle: after a won fight it goes back to them, damage and all, and it never joins the convoy.
   - A raider vehicle is out of the fight and leaves the road at the end of the turn, like a wreck. Its plan drops (see Enemy intents).
@@ -197,7 +197,7 @@ Persistence and dividends were decided 2026-09-26 (Kevin delegated the calls; re
 - After a fight, every living escort stays in the convoy.
 - Damage persists between fights: an escort starts the next fight with the structure it ended on. The garage repairs it. Everything else is the fight's: an escort starts the next fight in formation at full armor, with no statuses or Shield, ready. (Armor refilling is a build call, proposed in escorts.md for Kevin to confirm.)
 - A lost escort is gone for good, with its signature card. The convoy belongs to the compound and persists between supply runs.
-- Haulers pay a dividend after a won fight they survive (a tie or a loss pays nothing): the Fuel Hauler +1 fuel, the Med Truck 3 HP to every living driver in the run (up to their max HP, and including a driver who crashed out), the Salvage Rig (not one of the first four) +15 scrap. Each hauler pays its own, so two Med Trucks heal 6. Fuel and scrap go into the run's cargo, which reaches the compound only if the run gets home ([Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md), Resources).
+- Haulers pay a dividend after a won fight they survive (a tie or a loss pays nothing): the Fuel Hauler +1 fuel, the Med Truck 3 HP to every driver in the run still above 0 HP, crashed out or not (up to their max HP; a driver revived after the fight isn't healed, provisional in [combat-bridge.md](../AI_TECHNICAL_DECISIONS/combat-bridge.md)), the Salvage Rig (not one of the first four) +15 scrap. Each hauler pays its own, so two Med Trucks heal 6. Fuel and scrap go into the run's cargo, which reaches the compound only if the run gets home ([Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md), Resources).
 
 ### Passengers and unmanned vehicles
 
@@ -213,7 +213,7 @@ The minimal first version has four. The driven vehicles open at inside center an
 | Outrider | gun | 5 | inside ahead | Run Ahead |
 | Pilot Car | gun | 4 | outside ahead | Flag Down |
 | Fuel Hauler | hauler, +1 fuel after each fight | not set | outside center | Top Off |
-| Med Truck | hauler, every living driver heals 3 HP after each fight | not set | outside behind | Triage |
+| Med Truck | hauler, every driver still above 0 HP heals 3 HP after each won fight | not set | outside behind | Triage |
 
 The three new signature cards were decided 2026-09-26 (Kevin delegated the call; record in [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decisions 23 to 27, cards in Card System Design 4.5):
 

@@ -56,7 +56,7 @@ The compound screen is the game's home screen. It's an illustrated scene where t
 | Scrap | garage purchases, repairs, building upgrades | fights, finds, POIs |
 | People | settlers; their count sets upkeep and what the buildings can do | Find stops, events |
 
-Anything a run brings back (resources found, a fight's scrap, the haulers' fuel and scrap) is the run's cargo until it gets home, and a failed run loses it (Kevin, 2026-10-08).
+Anything a run brings back (resources found, a fight's scrap, the haulers' fuel and scrap, and loot) is the run's cargo until it gets home, and a failed run loses it (Kevin, 2026-10-08). Counting cards won as loot is provisional, in [combat-bridge.md](../AI_TECHNICAL_DECISIONS/combat-bridge.md).
 
 Scrap and fuel already exist in combat and the top bar; they now live at the compound and carry across runs.
 
@@ -134,7 +134,7 @@ Each seated driver takes a run deck that's a copy of their default deck. Load ou
 ### After the run
 
 - A driver who comes home has their run deck unwound: their default cards go back to their default deck, borrowed cards go back to the locker, and escort cards leave.
-- Cards won on the run (rewards, finds, a roadside garage) go to the locker. The debrief offers to add each one straight into a driver's default deck.
+- Cards won on the run (rewards, finds, a roadside garage) go to the locker, coming home with the cargo (provisionally; see Resources). The debrief offers to add each one straight into a driver's default deck.
 - A driver who dies when a run fails takes their whole run deck with them: their default cards and anything they borrowed. Borrowing a rare card for a dangerous run is a real risk.
 
 ## The area map
@@ -182,7 +182,7 @@ Routes to a POI arrive from different branches and share nothing past the home a
 - Stops resolve in order. Each opens its screen (combat, event, garage) and comes back to the route view, which shows progress and the next stop. A fight is built from the seated drivers and the escorts that came along, and what it did is carried back to them when it ends ([combat-bridge.md](../AI_TECHNICAL_DECISIONS/combat-bridge.md)).
 - No branching mid-route in the first version: the route is fixed at departure.
 - The area map is open between stops.
-- Cards won in fights go to the locker (Decks and the locker). A fight's scrap, the haulers' fuel and scrap, and resources found are cargo until you get home (Resources).
+- A fight's scrap, the haulers' fuel and scrap, resources found, and (provisionally) the cards a fight wins are cargo until you get home (Resources); cards go to the locker then (Decks and the locker).
 
 ### Return
 

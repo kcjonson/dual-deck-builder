@@ -54,7 +54,7 @@ Card types are checked for shape (lower snake case), not against `cards.json`, w
 
 ## Driver records
 
-`id`, `archetype`, `name`, `hitpoints` and `maxHitpoints` (the combat `Driver`'s names, since DDB-286 copies them across), `vehicle` (their signature vehicle's structure and armor, carried between fights; the maximums are the archetype's, and structure is at least 1, since a wreck limps on), `injuredDays`, `handLimit`, `defaultDeck`, `status` (ready, injured, dead, missing), and `runsCompleted`.
+`id`, `archetype`, `name`, `hitpoints` and `maxHitpoints` (the combat `Driver`'s names, since DDB-286 copies them across), `vehicle` (their signature vehicle's structure and armor, carried between fights; structure is at least 1, since a wreck limps on, and armor at least 0, with no maximum: a fight clamps both to the archetype's maximums as they stand, so a retune doesn't break a save), `injuredDays`, `handLimit`, `defaultDeck`, `status` (ready, injured, dead, missing), and `runsCompleted`.
 
 - HP runs from 0 to max, and max is at least 1. A driver is dead exactly when their HP is 0: the dead have none, the living some. The dead have no cards either.
 - `injuredDays` is above 0 exactly while injured. It's "fit in N days", which load out shows.
@@ -80,7 +80,7 @@ People may reach 0; whether that ends the campaign is open (Compound and Supply 
 
 ## The convoy saves each escort's stat block
 
-An escort saves its name, armor, structure, their maxima, base speed, mods, and crew profile, not a type to look up, so the stats it was hired with stay its own. Fight state (slot, flank, statuses, shield, spent, seats) isn't saved: the campaign saves between fights, and a loaded escort is off the road and ready. An escort needs at least 1 structure, since `Convoy.afterFight` never keeps a wreck.
+The convoy holds at most four escorts, each of a hired type. An escort saves its name, armor, structure, their maxima, base speed, mods, and crew profile as well as its type, so the stats it was hired with stay its own. Fight state (slot, flank, statuses, shield, spent, seats) isn't saved: the campaign saves between fights, and a loaded escort is off the road and ready. An escort needs at least 1 structure, since `Convoy.afterFight` never keeps a wreck.
 
 Drivers go the other way, archetype plus what varies, so retuning `DRIVER_CONFIGS` reaches campaigns in progress and retuning `ESCORT_CONFIGS` doesn't reach escorts already in a convoy.
 

@@ -35,12 +35,12 @@ Nobody is crashed out between fights. A won fight's write-back picks up anyone w
 `startCampaignFight({ campaign, party, enemyTeam, rng, cards, enemyAI })` returns a `CampaignFight`: the campaign, the started battle, each seat's combat driver, and each seat's own vehicle.
 
 - A seat's combat driver takes their record's name ("Road Warrior 2"), HP, max HP, hand limit, and deck, and everything else (skills, adrenaline, vehicle stats) from `DRIVER_CONFIGS`, since a record keeps only what varies. The deck is a fresh copy of every card in the default deck, built in card-type order, and `Battle.start` shuffles it on the seat's deck stream before the opening deal; the driver's `startingDeck` describes the same cards. A card type with no template throws: `createStartingDeck` warns and skips one, but a campaign's copy skipped at the start of a fight would be gone at its end.
-- Each driver drives their own signature vehicle at the structure and armor their record carries (`DriverRecord.vehicle`).
+- Each driver drives their own signature vehicle at the structure and armor their record carries (`DriverRecord.vehicle`), clamped to the archetype's maximums as they stand. The record checks only that structure is at least 1 and armor at least 0, so a retune that lowers a maximum leaves old saves loading, and the next write-back stores the clamped values.
 - The run's escorts take the road in the convoy's roster order, whatever order the party lists them in, since roster order settles preferred slots and Rally the Convoy.
 - The battle draws from `rng`, which the run controller forks as `run.fork('fight', i)` off a saved fight count (seeded-prng.md). The enemy team is the encounter's, and its AI defaults to aggressive, the combat screen's own.
 - A `CampaignFight` is a `PreparedCombat`, with the run's cargo for the top bar, so the combat screen mounts it the way it mounts the gallery's scenes: `ScreenManager.navigate('combatScreen', { prepare: async () => fight })`. The dev fight and Start Run still build their own fights through `DriversCombatMount`.
 
-It throws, building nothing, for a party that doesn't seat two drivers; two drivers of one archetype, named; a record from outside the pool, or one that isn't ready (load out never seats an injured driver, and a status only changes when a run fails or comes home); cargo that isn't whole numbers from 0; an escort that isn't the campaign's, or is still in a fight that wasn't written back; and a card that doesn't exist. `Team` refuses a fifth escort, and `Battle` refuses an encounter the road can't take. Battle plans the whole opening and checks it before moving anyone, so a refused encounter leaves the escorts off the road for the next try.
+It throws, building nothing, while the campaign's last fight hasn't been written back (the bridge keeps each campaign's open fight from its start to its write-back), and for a party that doesn't seat two drivers; two drivers of one archetype, named; a record from outside the pool, or one that isn't ready (load out never seats an injured driver, and a status only changes when a run fails or comes home); cargo that isn't whole numbers from 0; an escort that isn't the campaign's; and a card that doesn't exist. `Team` refuses a fifth escort, and `Battle` refuses an encounter the road can't take. Battle plans the whole opening and checks it before moving anyone, so a refused encounter leaves the escorts off the road for the next try.
 
 ## Writing a fight back
 
@@ -70,21 +70,22 @@ The campaign itself never changes, so it emits nothing. The step's checkpoint sa
 
 ### Partial writes
 
-A listener can't stop a write-back by throwing, since `EventEmitter.emit` catches and logs whatever a listener throws. A store can still throw part way when a listener changes a later record in between, say kills the second driver when the first one's record changes; that record's `set` then refuses the result. The fight is marked as written before anything is stored, so a write-back started from inside it is refused, and the mark comes off again when a store throws. Every step stores the same thing a second time, so once whatever changed the record is put right, writing the fight back again finishes the job.
+A listener can't stop a write-back by throwing, since `EventEmitter.emit` catches and logs whatever a listener throws. A store can still throw part way when a listener changes a later record in between, say kills the second driver when the first one's record changes; that record's `set` then refuses the result. The fight stops being the campaign's open fight before anything is stored, so a write-back started from inside it is refused, and it's open again when a store throws. Every step stores the same thing a second time, so once whatever changed the record is put right, writing the fight back again finishes the job.
 
 ### Refusals
 
 It refuses a fight that's still on, a tie, a fight it has already written back, and a result its records no longer fit (a record changed under the fight), storing nothing. A campaign fight has no turn limit, so it ends won or lost; a tie needs a turn limit set by hand, and nothing says what one would mean for a driver who crashed out.
 
-## Provisional calls (pending Kevin)
+## Provisional calls
 
-These unblock the build and aren't settled rules; the specs point here wherever they need one of the values. Each is a small change to flip:
+These unblock the build and aren't settled rules; the specs point here wherever they need one of them. Each is a small change to flip:
 
 - **A revived driver comes back at 1 HP** (`REVIVE_HP` in `CombatBridge.ts`). The Med Truck's heal doesn't reach them, because `endCombat` heals only drivers above 0 HP and revival happens after it.
 - **A wreck limps on at 1 structure** (`LIMP_STRUCTURE` in `CombatBridge.ts`).
 - **Driven vehicles carry their armor damage too, while escorts refill theirs every fight**, so a wreck comes back at 0 armor. Escorts' refill is `Battle.endCombat`'s, and covers only the convoy's own escorts.
 - **On a run, the combat top bar shows the cargo, not the stores.** It's set once, when the fight mounts, so a dividend shows from the next fight on.
-- **The fight log says a driver at 0 HP "is down"**, not "is dead" (`Battle.logDeaths`), since they're only dead if the run fails.
+- **The fight log says a player's driver at 0 HP "is down"**, not "is dead" (`Battle.logDeaths`), since they're only dead if the run fails. A raider's driver still "is dead": theirs is final.
+- **Cards won count as loot** under the cargo rule: they ride home as cargo, go to the locker when it's unloaded, and a failed run loses them. Carrying them is the run controller's and the rewards' (DDB-322, DDB-316); the bridge carries only fuel and scrap.
 
 ## Options considered
 
@@ -97,5 +98,6 @@ These unblock the build and aren't settled rules; the specs point here wherever 
 
 - The combat screen navigates to the battle result screen on every `battleEnded`, so it can't hand a campaign fight back to the run. The run controller (DDB-322) adds an end hook to `PreparedCombat`, and calls `writeBackFight` from it.
 - Escort signature cards aren't dealt into decks. A copy carries `broughtBy` so it can leave when its escort is lost, and card counts can't; that's for run decks (DDB-315) and escorts joining (DDB-153).
+- The run controller (DDB-322) holds the `RunParty` and saves it with the run, its cargo and the escorts that came along included, since a save between fights has to come back to the same run.
 - Coming home isn't a fight. Unloading the cargo, injuring a driver who comes home hurt, and counting `runsCompleted` are the return's, so the bridge never writes injured days.
 - The bridge adds nothing to the campaign log. What the log says about a death or a missing driver is the debrief's call.

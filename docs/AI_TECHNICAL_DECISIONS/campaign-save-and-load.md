@@ -26,8 +26,6 @@ Every playtest build is served from one origin (main at /playtest/dual-deckbuild
 
 Every save and history list also carries the save format version, `CAMPAIGN_SCHEMA_VERSION`, bumped by hand whenever the text `toSaveText` writes, or a history entry, changes shape. Ordinary redeploys of a build keep its saves. There are no migrations: a save stamped with another version, older or newer (an integer other than this build's), isn't loaded. `saveStatus` calls it outdated, `load` passes it by, and a new campaign or a delete replaces it without a copy. A stamp with no version, or one that isn't an integer, is damage, not another version. A history stamped with another version starts over on the next ending. So bumping the version invalidates every existing save of that build, which is the trade for not carrying migrations while the format moves this fast.
 
-The versions so far: 1, the first format; 2, each driver record's `vehicle`, the structure and armor their signature vehicle carries between fights (DDB-286, [combat-bridge.md](./combat-bridge.md)).
-
 Rejected:
 
 - Migrations: each one is code to write and test for a format nobody keeps for long during playtesting, and a newer build's save was still unreadable to an older one.
@@ -55,8 +53,8 @@ Measured, with the save as compact JSON:
 
 | | Characters |
 | --- | --- |
-| The version 2 fixture's campaign | 3,187 |
-| A stress campaign's save (`__fixtures__/stressCampaign.ts`) | 360,655 |
+| The version 2 fixture's campaign | 3,157 |
+| A stress campaign's save (`__fixtures__/stressCampaign.ts`) | 360,382 |
 | its 2,000 log lines | 222,351 |
 | its stand-in gameplay map, at the spec's sizes | 117,643 |
 | its 60 drivers, with decks drawn from every card in `cards.json` | 17,903 |
