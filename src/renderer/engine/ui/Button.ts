@@ -2,12 +2,12 @@ import type { ClickCallback, ComponentOptions, ResolvedColors } from '../compone
 import { Icon } from '../components/Icon';
 import { Text, TextStyleObject } from '../components/Text';
 import type { DrawApi } from '../draw/DrawApi';
-import type { RGBA } from '../draw/geometry';
+import type { RGBA, Rect } from '../draw/geometry';
 import type { IconName } from '../text/icons';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
 import { tokens } from '../theme/tokens';
-import { Look, LookLayers, glowShadow, layersInkExtent, resolveLook } from '../style/look';
+import { Look, LookLayers, glowShadow, layersInkExtent, resolveLook, restingInkExtent } from '../style/look';
 import { LookTransition } from '../style/LookTransition';
 import {
 	Sides,
@@ -227,6 +227,11 @@ export class Button extends Pressable {
 	/** R8.8: the ring, any glow a state can raise, the style's shadow, and the press nudge. */
 	public get inkExtent(): number {
 		return layersInkExtent(this.layers);
+	}
+
+	/** The ring while focus shows and the style's shadow, never the hover glow or the press nudge (R12.20). */
+	protected get restingInk(): Rect {
+		return this.boxGrownBy(restingInkExtent(this.layers, this.stateFlags));
 	}
 
 	/** The look drawn this frame, mid-transition included. */

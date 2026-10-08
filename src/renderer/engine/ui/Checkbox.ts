@@ -5,7 +5,7 @@ import { Text } from '../components/Text';
 import type { DrawApi } from '../draw/DrawApi';
 import type { Rect } from '../draw/geometry';
 import type { UiActionEvent, UiPointerEvent } from '../input/events';
-import { Look, LookLayers, glowShadow, layersInkExtent, resolveLook } from '../style/look';
+import { Look, LookLayers, glowShadow, layersInkExtent, resolveLook, restingInkExtent } from '../style/look';
 import { LookTransition } from '../style/LookTransition';
 import { CONTROL_SIZES, ControlSize, markLayers } from '../style/variants';
 import { tokens } from '../theme/tokens';
@@ -126,6 +126,11 @@ export abstract class Checkable extends Pressable {
 
 	public get inkExtent(): number {
 		return layersInkExtent(this.layers);
+	}
+
+	/** What the mark draws past the box with the pointer away, never its hover glow; the walk adds its ring (R12.20). */
+	protected get restingInk(): Rect {
+		return this.boxGrownBy(restingInkExtent(this.layers, { ...this.stateFlags, selected: this.markOn }));
 	}
 
 	public get resolvedColors(): ResolvedColors {

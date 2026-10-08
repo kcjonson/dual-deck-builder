@@ -1,5 +1,6 @@
 import { Component, ComponentOptions, PointerEvents, ResolvedColors } from '../components/Component';
 import type { Sides } from '../components/componentGeometry';
+import { RevealRequest, ScrollBlock, revealInAncestors } from '../components/reveal';
 import type { Axis, Size } from '../components/layoutTypes';
 import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA, Rect, Vec2 } from '../draw/geometry';
@@ -16,10 +17,10 @@ import {
 import { tokens } from '../theme/tokens';
 import { SCROLLBAR_GUTTER, Scrollbar } from './Scrollbar';
 
-export type ScrollBlock = 'nearest' | 'center';
+export type { ScrollBlock } from '../components/reveal';
 
 export interface ScrollIntoViewOptions {
-	/** `nearest` (default) moves the least; `center` centres what the component draws in the viewport. */
+	/** `nearest` (the default) or `center`, as R12.20 defines them. */
 	block?: ScrollBlock;
 }
 
@@ -32,12 +33,15 @@ export interface Span {
 export interface RevealDeltaOptions {
 	/** The component's content box. */
 	box: Span;
-	/** What it draws, which may reach past the box on either side (R8.8). */
+	/** What it draws now, which may reach past the box on either side. */
 	ink: Span;
 	/** What the scroller shows: its clip. */
 	view: Span;
 	block: ScrollBlock;
 }
+
+/** In logical pixels: closer than this, a reveal is where it should be, so rounding never moves a settled view. */
+const REVEAL_EPSILON = 1e-6;
 
 export interface ScrollContainerOptions extends Omit<ComponentOptions, 'style'> {
 	/** The scrollable height; absent, it is the content child's height after layout. */
@@ -86,9 +90,10 @@ interface ScrollBox {
  * Page Up and Page Down from anywhere inside, and the arrows, Home, and End
  * while it is itself focused. It is focusable by press and by code but not
  * a Tab stop (`tabIndex: -1`), so a press on its background lets the keys
- * reach it. Keyboard focus landing on a descendant scrolls what it draws
- * into view, its ring included (the focus manager calls `scrollIntoView`),
- * and a scroll closes a popup anchored inside it (R3.6a).
+ * reach it. Keyboard focus landing on a descendant scrolls its box and what
+ * it draws now into view (the focus manager's reveal walk calls
+ * `scrollRectIntoView`), and a scroll closes a popup anchored inside it
+ * (R3.6a).
  *
  * The scrollbar is this container's part. The content offset moves every
  * child, so the scrollbar is placed at the offset to stay put on screen.
@@ -217,34 +222,35 @@ export class ScrollContainer extends Component {
 	}
 
 	/**
-	 * R12.20: brings what `descendant` draws inside the clip, not only its
-	 * box: its `ownInkBound` (R8.8's ink, the walk's focus ring included), or
-	 * the box when that has no bound, so a focus ring, or anything else drawn
-	 * past the edges, is not left under the clip. `revealDelta` is the rule,
-	 * ink or a box taller than the clip included; the scroll range clamps
-	 * what it asks for, and asking again moves nothing.
-	 *
-	 * Worked in this container's local space, where one unit of scroll moves
-	 * the content one unit, so a scaled ancestor changes nothing, and a
-	 * rotated or scaled descendant counts at its transformed extent. A
-	 * component this container does not hold is left alone. Scrolling is
-	 * vertical, so ink reaching only sideways moves nothing.
+	 * R12.20: brings `descendant`'s box and what it draws now (`revealInk`)
+	 * inside the clip, as far as the clips between them let it show. Only
+	 * this container scrolls; the focus manager's walk scrolls each scroller
+	 * above the component. A component this container doesn't hold is left
+	 * alone.
 	 */
 	public scrollIntoView(descendant: Component, { block = 'nearest' }: ScrollIntoViewOptions = {}): void {
 		if (descendant === this || descendant === this.scrollbar) return;
-		if (!liftedSpan(descendant, this, 0, 0, descendant.width, descendant.height, REVEAL_BOX)) return;
-		const ink = descendant.ownInkBound;
-		if (ink) {
-			liftedSpan(descendant, this, ink.x, ink.y, ink.x + ink.width, ink.y + ink.height, REVEAL_INK);
-		} else {
-			REVEAL_INK.start = REVEAL_BOX.start;
-			REVEAL_INK.end = REVEAL_BOX.end;
-		}
+		revealInAncestors(descendant, { block, scroller: this });
+	}
+
+	/**
+	 * R12.20, for a box and its ink in this container's content space, where
+	 * its children sit: scrolls by `revealDelta` along y, within the scroll
+	 * range, and not at all when that leaves the position where it is, so a
+	 * pending `scrollToBottom` survives a reveal that changes nothing. In
+	 * local units, so a scaled ancestor changes nothing.
+	 */
+	public scrollRectIntoView({ box, ink = box, block = 'nearest' }: RevealRequest): void {
 		const clip = this.clipRect;
-		REVEAL_VIEW.start = clip.y;
-		REVEAL_VIEW.end = clip.y + clip.height;
-		const delta = revealDelta({ box: REVEAL_BOX, ink: REVEAL_INK, view: REVEAL_VIEW, block });
-		if (delta !== 0) this.scrollBy(delta);
+		const top = clip.y + this.scrollY;
+		const delta = revealDelta({
+			box: { start: box.y, end: box.y + box.height },
+			ink: { start: ink.y, end: ink.y + ink.height },
+			view: { start: top, end: top + clip.height },
+			block,
+		});
+		const target = Math.max(0, Math.min(this.maxScroll, this.scrollY + delta));
+		if (Math.abs(target - this.scrollY) >= REVEAL_EPSILON) this.scrollTo(target);
 	}
 
 	/** R9.32: vertical only; true while there is room to move in the wheel's direction. */
@@ -474,74 +480,38 @@ export class ScrollContainer extends Component {
 }
 
 /**
- * R12.20's `scrollIntoView` along the scroll axis: how far to scroll so a
- * component shows in the view, all three spans in the scroller's unscrolled
- * space, where scrolling by `d` moves the content by `-d`. Worded for y; on
- * x, above and below read as left and right. The ink counts as at least the
- * box.
- *
- * When the ink fits, all of it shows: `nearest` moves the least and
- * `center` centres it. When only the box fits, either block shows the box
- * whole and splits the room it leaves between the ink above and below it,
- * half each unless one side needs less, so a ring all round shows on both
- * sides before longer ink on one side takes the rest. When even the box is
- * taller than the view, `nearest` shows its top, under as much of the ink
- * above it as fits in half the view, and `center` centres the ink.
- *
- * The last two answers depend on where things are, not on which side the
- * component came from, so focus going back and forth over something too
- * tall to show never swings the view between two positions.
+ * R12.20's rule along one axis, worded here for y: how far to scroll so
+ * `view` shows `box` and `ink`, the ink counted as at least the box, all
+ * three in one space where scrolling by `d` moves the content by `-d`. Never
+ * a non-finite number, and 0, not a rounding error, when nothing needs to move.
  */
 export function revealDelta({ box, ink, view, block }: RevealDeltaOptions): number {
+	// The sum is non-finite when any term is, so one test catches a NaN or an infinity anywhere.
+	if (!Number.isFinite(box.start + box.end + ink.start + ink.end + view.start + view.end)) return 0;
 	const room = view.end - view.start;
+	const size = box.end - box.start;
 	const inkStart = Math.min(ink.start, box.start);
 	const inkEnd = Math.max(ink.end, box.end);
-	const centred = (inkStart + inkEnd - view.start - view.end) / 2;
-	if (inkEnd - inkStart <= room) {
-		if (block === 'center') return centred;
-		if (inkStart < view.start) return inkStart - view.start;
-		if (inkEnd > view.end) return inkEnd - view.end;
-		return 0;
-	}
-	const size = box.end - box.start;
-	const above = box.start - inkStart;
-	let lead: number;
-	if (size <= room) {
-		// Half the slack above the box; all the ink above when that is less,
-		// and more when the ink below needs less than its half
-		const slack = room - size;
-		lead = Math.min(above, Math.max(slack - (inkEnd - box.end), slack / 2));
+	const boxCentred = (box.start + box.end - view.start - view.end) / 2;
+	let delta: number;
+	if (inkEnd - inkStart <= room + REVEAL_EPSILON) {
+		// Every delta from `least` to `most` shows all of the ink: nearest
+		// stays put if it can, center starts from the box centred.
+		const least = inkEnd - view.end;
+		const most = inkStart - view.start;
+		delta = Math.min(Math.max(block === 'center' ? boxCentred : 0, least), most);
+	} else if (size <= room + REVEAL_EPSILON) {
+		// The box whole, with half the slack above it, or all of the ink
+		// above when that needs less, or more when the ink below does.
+		const slack = Math.max(room - size, 0);
+		const lead = Math.min(box.start - inkStart, Math.max(slack - (inkEnd - box.end), slack / 2));
+		delta = box.start - lead - view.start;
 	} else if (block === 'center') {
-		return centred;
+		delta = boxCentred;
 	} else {
-		lead = Math.min(above, room / 2);
+		// The top at the view's top, under the ink above it unless that would hide the top.
+		const above = box.start - inkStart;
+		delta = box.start - (above < room - REVEAL_EPSILON ? above : 0) - view.start;
 	}
-	return box.start - lead - view.start;
-}
-
-/** `scrollIntoView`'s spans, refilled on every call. */
-const REVEAL_BOX: Span = { start: 0, end: 0 };
-const REVEAL_INK: Span = { start: 0, end: 0 };
-const REVEAL_VIEW: Span = { start: 0, end: 0 };
-/** The corner `liftedSpan` carries up in place. */
-const CORNER: Vec2 = { x: 0, y: 0 };
-
-/**
- * The vertical extent in `scroller`'s unscrolled space of a box in
- * `descendant`'s content box, from all four corners, so a rotation or a
- * scale between them counts; false when `scroller` is not above it.
- */
-function liftedSpan(descendant: Component, scroller: Component, minX: number, minY: number, maxX: number, maxY: number, out: Span): boolean {
-	let start = Infinity;
-	let end = -Infinity;
-	for (let corner = 0; corner < 4; corner++) {
-		CORNER.x = corner === 1 || corner === 2 ? maxX : minX;
-		CORNER.y = corner < 2 ? minY : maxY;
-		if (!descendant.localToAncestorInto(CORNER, scroller, CORNER)) return false;
-		start = Math.min(start, CORNER.y);
-		end = Math.max(end, CORNER.y);
-	}
-	out.start = start;
-	out.end = end;
-	return true;
+	return Number.isFinite(delta) && Math.abs(delta) >= REVEAL_EPSILON ? delta : 0;
 }

@@ -1,6 +1,7 @@
 import type { Rect } from '../draw/geometry';
 import type { Clock } from '../animation/Clock';
 import type { Component } from '../components/Component';
+import { revealInAncestors } from '../components/reveal';
 import { UiFocusEvent } from './events';
 
 export type FocusDirection = 'up' | 'down' | 'left' | 'right';
@@ -29,6 +30,8 @@ export interface FocusManagerOptions {
 	clock: Clock;
 	/** The mounted roots in mount order: the active set while no scope is pushed. */
 	roots: () => readonly Component[];
+	/** Whether a layout is due, so geometry read now may be stale; never, when absent. */
+	layoutPending?: () => boolean;
 }
 
 interface Scope {
@@ -72,7 +75,10 @@ export type FocusChangeListener = (focused: Component | null, visible: boolean) 
 export class FocusManager {
 	private readonly clock: Clock;
 	private readonly roots: () => readonly Component[];
+	private readonly layoutPending: () => boolean;
 	private current: Component | null = null;
+	/** Revealed while a layout was due: revealed again once it has run. */
+	private revealAfterLayout: Component | null = null;
 	private visibleModality = false;
 	private readonly scopes: Scope[] = [];
 	/** Keyed by scope root, or null for the whole set of roots. */
@@ -83,9 +89,10 @@ export class FocusManager {
 	/** What the listeners last heard, so they hear each change once. */
 	private heard: { focused: Component | null; visible: boolean } = { focused: null, visible: false };
 
-	constructor({ clock, roots }: FocusManagerOptions) {
+	constructor({ clock, roots, layoutPending = () => false }: FocusManagerOptions) {
 		this.clock = clock;
 		this.roots = roots;
+		this.layoutPending = layoutPending;
 	}
 
 	/** The component keys go to, or null. */
@@ -376,17 +383,23 @@ export class FocusManager {
 	 * R9.28, at the end of every layout: focus on a component that can no
 	 * longer take it (hidden, disabled, no longer focusable) is cleared with
 	 * `blur`, and when a scope is active it moves to the scope's first
-	 * focusable, as does focus an unmount dropped silently.
+	 * focusable, as does focus an unmount dropped silently. A component
+	 * revealed while that layout was due is revealed again against the
+	 * geometry it produced (R12.20).
 	 */
 	public fixup(): void {
+		const pending = this.revealAfterLayout;
+		this.revealAfterLayout = null;
 		const current = this.current;
 		if (current && !current.canReceiveFocus()) {
 			this.setFocus(null, 'programmatic');
 			this.lostFocus = true;
 		}
-		if (!this.lostFocus) return;
-		this.lostFocus = false;
-		if (!this.current && this.activeScope) this.focusFirst(this.activeScope);
+		if (this.lostFocus) {
+			this.lostFocus = false;
+			if (!this.current && this.activeScope) this.focusFirst(this.activeScope);
+		}
+		if (pending && pending === this.current && pending.isMounted) revealInAncestors(pending);
 	}
 
 	/** Any mounted tree changed shape, or a focus property changed: the cached order is stale (R9.18). */
@@ -414,6 +427,7 @@ export class FocusManager {
 	/** The shell's teardown. */
 	public reset(): void {
 		this.current = null;
+		this.revealAfterLayout = null;
 		this.scopes.length = 0;
 		this.indexCache.clear();
 		this.lostFocus = false;
@@ -422,6 +436,16 @@ export class FocusManager {
 	}
 
 	// -- internals ------------------------------------------------------------
+
+	/**
+	 * Brings `component` into view in its scrolling ancestors (R12.20), and
+	 * again after the layout when one is due: a dialog moves focus into its
+	 * content before its first layout, when nothing in it has a size yet.
+	 */
+	private reveal(component: Component): void {
+		revealInAncestors(component);
+		this.revealAfterLayout = this.layoutPending() ? component : null;
+	}
 
 	/**
 	 * The one place focus changes: `blur` on the previous component, then
@@ -461,9 +485,6 @@ export class FocusManager {
 		}
 		if (next) {
 			next.setFocusState(true, visible);
-			// A press lands on something already in view; keyboard and code
-			// may not (R12.20).
-			if (reason !== 'pointer') revealInScrollers(next);
 			next.handleEvent(new UiFocusEvent({
 				type: 'focus',
 				timestamp: this.clock.now,
@@ -471,6 +492,10 @@ export class FocusManager {
 				relatedTarget: previous,
 				focusVisible: visible,
 			}));
+			// A press lands on something already in view; keyboard and code
+			// may not. After the focus event, so ink its handler adds shows
+			// too, and not at all when that handler moved focus on (R12.20).
+			if (reason !== 'pointer' && this.current === next) this.reveal(next);
 		}
 		// A focus handler that moved focus again has already notified.
 		if (this.current === next) this.notify();
@@ -628,11 +653,6 @@ export function directionalScore(from: Rect, to: Rect, direction: FocusDirection
 	const overlap = Math.max(0, Math.min(fromCrossStart + fromCrossSize, toCrossStart + toCrossSize) - Math.max(fromCrossStart, toCrossStart));
 
 	return along + 2 * across - overlap;
-}
-
-/** Each scrolling ancestor, innermost first, brings `component` into its clip. */
-function revealInScrollers(component: Component): void {
-	for (let node = component.parent; node; node = node.parent) node.scrollIntoView(component);
 }
 
 function isInclusiveAncestor(ancestor: Component, node: Component): boolean {

@@ -5,7 +5,7 @@ Status: decided 2026-09-28 with DDB-85's second PR (DDB-55 phase 5, Wave A). Rul
 ## What exists
 
 - `ui/Panel.ts` is R12.19's panel on the closed style set: `variant` (`panel`, `raised`, `inset`) from tokens, `title` and `kicker` in a header band with a hairline under it, `actions` laid out at the header's right end, `corners` (four L ticks straddling the border in the accent), `glow`, `compact`, `flush`, and a content slot that is a stack. It no longer scrolls.
-- `ui/ScrollContainer.ts` is R12.20: vertical scrolling of one content child, `scrollTo`, `scrollBy`, `scrollToTop`, `scrollToBottom`, `scrollIntoView(child, { block })` (which reveals the child's ink, not only its box: [scroll-into-view-ink.md](./scroll-into-view-ink.md)), `scrollHeight` (the spec's `contentHeight`), `onScroll`, `focusable` with `tabIndex: -1`, the wheel, and Page Up, Page Down, arrows, Home, and End.
+- `ui/ScrollContainer.ts` is R12.20: vertical scrolling of one content child, `scrollTo`, `scrollBy`, `scrollToTop`, `scrollToBottom`, `scrollIntoView(child, { block })` and `scrollRectIntoView` (which bring a child's box and what it draws now into view: [scroll-into-view-ink.md](./scroll-into-view-ink.md)), `scrollHeight` (the spec's `contentHeight`), `onScroll`, `focusable` with `tabIndex: -1`, the wheel, and Page Up, Page Down, arrows, Home, and End.
 - `ui/Scrollbar.ts` is R12.37: a track and thumb bound to `{ offset, extent, viewport }` on either axis, reporting the offset a drag or track press asks for through `onScroll`.
 - `Stack.flows(child)`: which children take part in the flow, so a subclass can place some itself.
 - `PopupService.scrolled(scroller)` and the `scroll` close reason (R3.6a, DDB-210). `Dispatcher.contentMoved()` for a scroll by code (R9.9).

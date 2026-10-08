@@ -175,6 +175,20 @@ export function layersInkExtent(layers: LookLayers): number {
 	return extent + Math.max(0, nudges);
 }
 
+/**
+ * How far a control drawn from these layers draws past its box in its
+ * current state with the pointer away: layer 6's ring outside the box while
+ * focus shows, and its base's own shadow. No glow and no nudge, which only
+ * hover, a press, or an open state bring; `layersInkExtent` bounds every
+ * state. What scrolling the control into view shows (R12.20).
+ */
+export function restingInkExtent(layers: LookLayers, flags: StateFlags): number {
+	const base = flags.selected ? layers.selected : layers.normal;
+	const { focus_ring_offset, focus_ring_width } = tokens.control;
+	const ring = flags.focusVisible && flags.enabled ? focus_ring_offset + focus_ring_width : 0;
+	return base.shadow ? Math.max(ring, shadowExtent(base.shadow)) : ring;
+}
+
 export function sameLook(a: Look, b: Look): boolean {
 	return sameColor(a.fill, b.fill)
 		&& sameColor(a.border, b.border)

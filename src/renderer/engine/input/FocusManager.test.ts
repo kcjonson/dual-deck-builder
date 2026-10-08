@@ -1,9 +1,10 @@
-import { Component, ComponentOptions } from '../components/Component';
+import { Component, ComponentOptions, FOCUS_RING_EXTENT } from '../components/Component';
 import { Container } from '../components/Container';
+import { Stack } from '../components/Stack';
 import { ScrollContainer } from '../ui/ScrollContainer';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
-import { tokens } from '../theme/tokens';
+import type { Rect } from '../draw/geometry';
 import type { PlatformInput } from './Dispatcher';
 import { AnyUiEvent, Modifiers, NO_MODIFIERS } from './events';
 import { directionalScore } from './FocusManager';
@@ -407,8 +408,8 @@ describe('focus groups (R9.29)', () => {
 });
 
 describe('scroll into view (R12.20)', () => {
-	/** The walk's ring, which a focusable's own ink bound includes (R11.12). */
-	const RING = tokens.control.focus_ring_offset + tokens.control.focus_ring_width;
+	/** The walk's ring, drawn past a focusable's box while its focus shows (R11.12). */
+	const RING = FOCUS_RING_EXTENT;
 
 	function scroller(): { panel: ScrollContainer; rows: Probe[] } {
 		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100, contentHeight: 280 });
@@ -444,10 +445,10 @@ describe('scroll into view (R12.20)', () => {
 		content.addChild(row);
 		panel.addChild(content);
 		panel.mount(context);
-		// The content box spans originY 120 to 160, though y is 50
+		// The content box spans originY 120 to 160, though y is 50; focus by code with no keys pressed shows no ring
 		expect(row.originY).toBe(120);
 		context.focus.focus(row);
-		expect(panel.scrollPosition).toBe(60 + RING);
+		expect(panel.scrollPosition).toBe(60);
 	});
 
 	it('scrolls for programmatic focus, but not for a press', () => {
@@ -457,6 +458,64 @@ describe('scroll into view (R12.20)', () => {
 		panel.scrollToTop();
 		context.focus.focusFromPointer(rows[3]);
 		expect(panel.scrollPosition).toBe(0);
+	});
+
+	it('gives focus back by code under the pointer modality with no ring to show, so a box in view stays put', () => {
+		const { panel, rows } = scroller();
+		context.focus.focusFromPointer(rows[1]);
+		const dialog = new Probe({ id: 'dialog', width: 100, height: 100 });
+		dialog.addChild(new Probe({ id: 'inside', width: 10, height: 10, focusable: true }));
+		dialog.mount(context);
+		context.focus.pushScope(dialog);
+		expect(focusedId()).toBe('inside');
+		context.focus.popScope(dialog);
+		// row1 sits on the clip's bottom edge, its box in view
+		expect(focusedId()).toBe('row1');
+		expect(rows[1].focusVisible).toBe(false);
+		expect(panel.scrollPosition).toBe(0);
+	});
+
+	it('reveals after the focus event, so ink its handler adds shows too', () => {
+		/** Draws a 20 px glow past its box once it has focus, as a vehicle offered as a target does. */
+		class Glowing extends Probe {
+			private glow = 0;
+
+			public handleEvent(event: AnyUiEvent): void {
+				if (event.type === 'focus') {
+					this.glow = 20;
+					this.invalidateInk();
+				}
+				super.handleEvent(event);
+			}
+
+			protected get cullInk(): Rect {
+				return { x: -this.glow, y: -this.glow, width: this.width + this.glow * 2, height: this.height + this.glow * 2 };
+			}
+		}
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100, contentHeight: 280 });
+		const content = new Container({ width: 200, height: 280 });
+		const target = new Glowing({ id: 'target', y: 60, width: 200, height: 40, focusable: true });
+		content.addChild(target);
+		panel.addChild(content);
+		panel.mount(context);
+		// Its box, 60 to 100, is in view; the glow it draws from the focus event reaches 120
+		context.focus.focus(target);
+		expect(panel.scrollPosition).toBe(20);
+	});
+
+	it('reveals again once a layout that was due when focus moved has placed things', () => {
+		// A stack places the rows, so before the first layout every row is at the top
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100 });
+		const list = new Stack({ id: 'list' });
+		const rows = [0, 1, 2, 3, 4].map((index) => new Probe({ id: `row${index}`, width: 200, height: 40, focusable: true }));
+		for (const row of rows) list.addChild(row);
+		panel.addChild(list);
+		panel.mount(context);
+		context.focus.focus(rows[4]);
+		expect(panel.scrollPosition).toBe(0);
+		context.frame.layout();
+		// row4 spans 160 to 200
+		expect(panel.scrollPosition).toBe(100);
 	});
 });
 

@@ -2,21 +2,23 @@
  * @jest-environment jsdom
  */
 import { Clock } from '../animation/Clock';
-import { Component, ComponentOptions } from '../components/Component';
+import { Component, ComponentOptions, FOCUS_RING_EXTENT } from '../components/Component';
 import type { Sides } from '../components/componentGeometry';
 import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { Rectangle } from '../components/Rectangle';
 import { renderTree } from '../components/renderTree';
 import { Stack } from '../components/Stack';
-import { createTestContext, injectNow } from '../components/testing';
+import { clipOnScreen, createTestContext, expectWithin, injectNow, inkOnScreen, rectOnScreen } from '../components/testing';
 import type { DrawCommand, RectCommand } from '../draw';
-import type { Rect } from '../draw/geometry';
+import type { ClipRect, Rect } from '../draw/geometry';
 import { NO_MODIFIERS } from '../input/events';
 import { PointerAdapter } from '../input/PointerAdapter';
 import type { PopupCloseReason } from '../services/PopupService';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../text/testing';
 import { tokens } from '../theme/tokens';
+import { Button } from './Button';
+import { ListRow } from './ListRow';
 import { TextInput } from './TextInput';
 import { SCROLLBAR_BREADTH, SCROLLBAR_GUTTER, Scrollbar } from './Scrollbar';
 import { ScrollBlock, ScrollContainer, ScrollContainerOptions, Span, revealDelta } from './ScrollContainer';
@@ -83,16 +85,19 @@ function rows(count: number, pitch = 40): { stack: Stack; items: Rectangle[] } {
 }
 
 /**
- * Draws `reach` past its box on each side, as a mini card's stack edges,
- * count pill, and state tag do: its cull ink, and so its `ownInkBound`, is
- * the box grown by that much.
+ * Draws `reach` past its box whatever its state, as a card's cost hex or a
+ * mini's stack edges, count, and tag do: that is its cull ink, and so what
+ * scrolling it into view shows. `unbounded` makes one that cannot bound its
+ * draws.
  */
 class Inky extends Component {
 	private readonly reach: Sides;
+	private readonly unbounded: boolean;
 
-	constructor({ reach = {}, ...options }: ComponentOptions & { reach?: Partial<Sides> }) {
+	constructor({ reach = {}, unbounded = false, ...options }: ComponentOptions & { reach?: Partial<Sides>; unbounded?: boolean }) {
 		super(options);
 		this.reach = { top: 0, right: 0, bottom: 0, left: 0, ...reach };
+		this.unbounded = unbounded;
 	}
 
 	/** R8.8: the furthest side. */
@@ -101,14 +106,12 @@ class Inky extends Component {
 		return Math.max(top, right, bottom, left);
 	}
 
-	protected get cullInk(): Rect {
+	protected get cullInk(): Rect | null {
+		if (this.unbounded) return null;
 		const { top, right, bottom, left } = this.reach;
 		return { x: -left, y: -top, width: this.width + left + right, height: this.height + top + bottom };
 	}
 }
-
-/** The walk's focus ring, past the box on every side. */
-const RING = tokens.control.focus_ring_offset + tokens.control.focus_ring_width;
 
 /**
  * `count` inky rows `height` tall and `pitch` apart, over content `count`
@@ -132,23 +135,9 @@ function inkyList({ count = 10, pitch = 60, height = 40, viewport = 100, reach =
 	return { scroll, items };
 }
 
-/** How far down the screen what `component` draws reaches, from its own ink bound. */
-function inkOnScreen(component: Component): Span {
-	const ink = component.ownInkBound ?? { x: 0, y: 0, width: component.width, height: component.height };
-	const start = component.localToScreen({ x: ink.x, y: ink.y }).y;
-	const end = component.localToScreen({ x: ink.x, y: ink.y + ink.height }).y;
-	return { start: Math.min(start, end), end: Math.max(start, end) };
-}
-
-/** A scroller's clip on screen, top to bottom. */
-function clipOnScreen(scroll: ScrollContainer): Span {
-	const start = scroll.localToScreen({ x: 0, y: scroll.clipRect.y }).y;
-	return { start, end: start + scroll.clipRect.height };
-}
-
-function expectWithin(inner: Span, outer: Span): void {
-	expect(inner.start).toBeGreaterThanOrEqual(outer.start - 1e-6);
-	expect(inner.end).toBeLessThanOrEqual(outer.end + 1e-6);
+/** A component's content box on screen. */
+function boxOnScreen(component: Component): ClipRect {
+	return rectOnScreen(component, { x: 0, y: 0, width: component.width, height: component.height });
 }
 
 describe('ScrollContainer bounds (worldsim suite)', () => {
@@ -600,27 +589,46 @@ describe('ScrollContainer scrollIntoView (R12.20)', () => {
 	});
 });
 
-describe('ScrollContainer scrollIntoView shows the ink, not only the box (R8.8, DDB-406)', () => {
-	it('shows what a component draws past its box, on the side it reaches', () => {
+describe('ScrollContainer scrollIntoView shows what a component draws (R12.20, DDB-406)', () => {
+	it('shows ink drawn past the box on the side it reaches, going down and going up', () => {
 		// A 12 px pill under each 40 px row, nothing above
 		const { scroll, items } = inkyList({ reach: { bottom: 12 } });
 		// Row 1's box, 60 to 100, is in view; its pill, to 112, is not
 		scroll.scrollIntoView(items[1]);
 		expect(scroll.scrollPosition).toBe(12);
-		expectWithin(inkOnScreen(items[1]), clipOnScreen(scroll));
+		expectWithin(inkOnScreen(items[1]), clipOnScreen(scroll), 'y');
 		scroll.scrollIntoView(items[3]);
 		expect(scroll.scrollPosition).toBe(3 * 60 + 40 + 12 - 100);
-		// Going up, nothing reaches above the box, so its top meets the clip's
+		// Nothing reaches above the box, so going up its top meets the clip's
 		scroll.scrollIntoView(items[1]);
 		expect(scroll.scrollPosition).toBe(60);
 	});
 
-	it("shows a keyboard-focused row's ring, which the walk draws past the box", () => {
+	it('shows ink drawn past both sides, its top meeting the clip going up', () => {
+		const { scroll, items } = inkyList({ reach: { top: 6, bottom: 6 } });
+		scroll.scrollTo(200);
+		scroll.scrollIntoView(items[2]);
+		expect(scroll.scrollPosition).toBe(2 * 60 - 6);
+	});
+
+	it("counts the walk's focus ring while the walk draws it, as one union with the ink", () => {
+		const bare = inkyList({ focusable: true });
+		// Row 1 sits on the clip's bottom edge, and keyboard focus draws the ring past it
+		context.focus.focus(bare.items[1], 'keyboard');
+		expect(bare.scroll.scrollPosition).toBe(FOCUS_RING_EXTENT);
+		root.removeChild(bare.scroll);
+		// 6 px of ink already holds the 3 px ring: 6, not 9
+		const inky = inkyList({ focusable: true, reach: { top: 6, bottom: 6 } });
+		context.focus.focus(inky.items[1], 'keyboard');
+		expect(inky.scroll.scrollPosition).toBe(6);
+	});
+
+	it('shows no ring under the pointer modality, where none is drawn', () => {
 		const { scroll, items } = inkyList({ focusable: true });
-		context.focus.focus(items[1], 'keyboard');
-		expect(items[1].focusVisible).toBe(true);
-		expect(scroll.scrollPosition).toBe(RING);
-		expectWithin(inkOnScreen(items[1]), clipOnScreen(scroll));
+		context.focus.focusFromPointer(items[0]);
+		context.focus.focus(items[1]);
+		expect(items[1].focusVisible).toBe(false);
+		expect(scroll.scrollPosition).toBe(0);
 	});
 
 	it('stays put for a component whose ink shows already', () => {
@@ -634,49 +642,62 @@ describe('ScrollContainer scrollIntoView shows the ink, not only the box (R8.8, 
 		expect(seen).toEqual([30]);
 	});
 
-	it("stops at the content's ends for ink that reaches past them", () => {
+	it("stops at the content's ends for ink past them, and a pending scrollToBottom keeps following", () => {
 		const { scroll, items } = inkyList({ reach: { top: 30, bottom: 30 } });
 		// The last row's ink ends at 610, past the content's 600
 		scroll.scrollIntoView(items[9]);
 		expect(scroll.scrollPosition).toBe(scroll.maxScroll);
-		scroll.scrollIntoView(items[9]);
-		expect(scroll.scrollPosition).toBe(scroll.maxScroll);
 		scroll.scrollIntoView(items[0]);
 		expect(scroll.scrollPosition).toBe(0);
-	});
-
-	it('keeps the box whole and centred when its ink is taller than the clip, wherever it comes from', () => {
-		// 80 px boxes with 20 px of ink above and below, 120 in all, in a 100 px clip
-		const { scroll, items } = inkyList({ pitch: 120, height: 80, reach: { top: 20, bottom: 20 } });
-		const settled = 2 * 120 - 10;
-		scroll.scrollIntoView(items[2]);
-		expect(scroll.scrollPosition).toBe(settled);
-		scroll.scrollIntoView(items[2]);
-		expect(scroll.scrollPosition).toBe(settled);
+		// At the end already, the reveal asks for nothing the range allows, so it doesn't cancel following the end
 		scroll.scrollToBottom();
-		scroll.scrollIntoView(items[2]);
-		expect(scroll.scrollPosition).toBe(settled);
-		scroll.scrollIntoView(items[2], { block: 'center' });
-		expect(scroll.scrollPosition).toBe(settled);
+		scroll.scrollIntoView(items[9]);
+		(scroll.content as Container).height = 660;
+		context.frame.layout();
+		expect(scroll.scrollPosition).toBe(660 - 100);
 	});
 
-	it('shows the top of a box taller than the clip, under the ink above it, wherever it comes from', () => {
-		const { scroll, items } = inkyList({ count: 4, pitch: 200, height: 150, reach: { top: 6, bottom: 6 } });
-		scroll.scrollIntoView(items[1]);
-		expect(scroll.scrollPosition).toBe(200 - 6);
-		scroll.scrollIntoView(items[1]);
-		expect(scroll.scrollPosition).toBe(200 - 6);
-		scroll.scrollToBottom();
-		scroll.scrollIntoView(items[1]);
-		expect(scroll.scrollPosition).toBe(200 - 6);
-		scroll.scrollIntoView(items[1], { block: 'center' });
-		expect(scroll.scrollPosition).toBe(200 + 75 - 50);
+	it('leaves the scroll alone for ink it cannot measure', () => {
+		const seen: number[] = [];
+		const { scroll, items } = inkyList({ reach: { bottom: Number.NaN } });
+		scroll.scrollTo(50);
+		scroll.onScroll = (offset) => seen.push(offset);
+		scroll.scrollIntoView(items[5]);
+		expect(scroll.scrollPosition).toBe(50);
+		expect(seen).toEqual([]);
 	});
 
-	it('moves nothing for ink that reaches only sideways', () => {
-		const { scroll, items } = inkyList({ reach: { left: 40, right: 40 } });
-		scroll.scrollIntoView(items[1]);
-		expect(scroll.scrollPosition).toBe(0);
+	it('reveals the box alone for a component that cannot bound its draws', () => {
+		const scroll = new ScrollContainer({ x: 0, y: 0, width: 200, height: 100 });
+		const content = new Container({ width: 200, height: 400 });
+		const blind = new Inky({ y: 70, width: 160, height: 40, unbounded: true, focusable: true });
+		content.addChild(blind);
+		scroll.addChild(content);
+		root.addChild(scroll);
+		context.frame.layout();
+		context.focus.focus(blind, 'keyboard');
+		expect(blind.revealInk).toBeNull();
+		expect(scroll.scrollPosition).toBe(10);
+	});
+
+	it('settles on fractional geometry: a box as tall as the clip shows whole, and a second reveal never moves', () => {
+		const seen: number[] = [];
+		const scroll = new ScrollContainer({ x: 0, y: 13.37, width: 200, height: 97.3 });
+		const content = new Container({ width: 200, height: 40 * 113.71 + 97.3 });
+		// Boxes exactly the clip's height, at fractional places, with ink either side that can't fit
+		const items = Array.from({ length: 40 }, (_unused, index) => new Inky({ y: index * 113.71 + 0.13, width: 160, height: 97.3, reach: { top: 9, bottom: 9 } }));
+		items.forEach((item) => content.addChild(item));
+		scroll.addChild(content);
+		root.addChild(scroll);
+		context.frame.layout();
+		scroll.onScroll = (offset) => seen.push(offset);
+		for (const item of [...items, ...[...items].reverse()]) {
+			scroll.scrollIntoView(item);
+			expectWithin(boxOnScreen(item), clipOnScreen(scroll), 'y');
+			const settled = seen.length;
+			scroll.scrollIntoView(item);
+			expect(seen.length).toBe(settled);
+		}
 	});
 
 	it('counts a turned component at its turned extent, and works in its own units under a scaled ancestor', () => {
@@ -726,13 +747,35 @@ describe('ScrollContainer scrollIntoView shows the ink, not only the box (R8.8, 
 		context.frame.layout();
 
 		context.focus.focus(cards[3], 'keyboard');
-		// Card 3 spans 180 to 220, and its ink, 6 px and the ring's 3, to 229
-		expect(inner.scrollPosition).toBe(229 - 100);
+		// Card 3 spans 180 to 220, and its ink, holding the ring, to 226
+		expect(inner.scrollPosition).toBe(226 - 100);
 		// So it reaches 150 + 100 = 250 down the outer's content
 		expect(outer.scrollPosition).toBe(250 - 200);
 		const ink = inkOnScreen(cards[3]);
-		expectWithin(ink, clipOnScreen(inner));
-		expectWithin(ink, clipOnScreen(outer));
+		expectWithin(ink, clipOnScreen(inner), 'y');
+		expectWithin(ink, clipOnScreen(outer), 'y');
+	});
+
+	it("doesn't scroll an outer scroller for ink an inner clip hides", () => {
+		const outer = new ScrollContainer({ id: 'outer', x: 0, y: 0, width: 300, height: 200 });
+		const column = new Stack({ id: 'column', crossAlign: 'stretch' });
+		column.addChild(new Rectangle({ height: 100, widthMode: 'fill' }));
+		// The inner scroller ends on the outer's clip bottom, and its content on the last card's box
+		const inner = new ScrollContainer({ id: 'inner', height: 100, widthMode: 'fill' });
+		const innerContent = new Container({ width: 200, height: 220 });
+		const cards = [0, 1, 2].map((index) => new Inky({ id: `card_${index}`, y: index * 90, width: 160, height: 40, reach: { bottom: 12 }, focusable: true }));
+		cards.forEach((card) => innerContent.addChild(card));
+		inner.addChild(innerContent);
+		column.addChild(inner);
+		column.addChild(new Rectangle({ height: 300, widthMode: 'fill' }));
+		outer.addChild(column);
+		root.addChild(outer);
+		context.frame.layout();
+
+		// Its pill can't come out from under the inner clip, so the outer has nothing to scroll for
+		context.focus.focus(cards[2]);
+		expect(inner.scrollPosition).toBe(inner.maxScroll);
+		expect(outer.scrollPosition).toBe(0);
 	});
 
 	it('walks a grid with the arrows: along a row in view nothing moves, a row up or down shows whole', () => {
@@ -748,8 +791,8 @@ describe('ScrollContainer scrollIntoView shows the ink, not only the box (R8.8, 
 		scroll.addChild(grid);
 		root.addChild(scroll);
 		context.frame.layout();
-		// Rows 60 apart, each cell's ink 9 px past its box above and below
-		const ink = 6 + RING;
+		// Rows 60 apart, each cell's ink 6 px past its box above and below, its ring inside that
+		const ink = 6;
 
 		context.focus.focus(cells[0][0], 'keyboard');
 		expect(scroll.scrollPosition).toBe(0);
@@ -772,6 +815,51 @@ describe('ScrollContainer scrollIntoView shows the ink, not only the box (R8.8, 
 		expect(context.focus.focused).toBe(cells[1][1]);
 		expect(scroll.scrollPosition).toBe(60 - ink);
 	});
+
+	it('walks a list on its row pitch: a row draws its ring inside its box', () => {
+		const scroll = new ScrollContainer({ x: 0, y: 0, width: 200, height: 120 });
+		const list = new Stack({ crossAlign: 'stretch' });
+		const items = Array.from({ length: 8 }, (_unused, index) => new ListRow({ id: `row_${index}`, label: `Row ${index}`, height: 40 }));
+		items.forEach((item) => list.addChild(item));
+		scroll.addChild(list);
+		root.addChild(scroll);
+		context.frame.layout();
+
+		context.focus.focus(items[0], 'keyboard');
+		const positions: number[] = [];
+		for (let index = 1; index < items.length; index++) {
+			key('ArrowDown');
+			expect(context.focus.focused).toBe(items[index]);
+			positions.push(scroll.scrollPosition);
+		}
+		for (let index = items.length - 2; index >= 0; index--) {
+			key('ArrowUp');
+			expect(context.focus.focused).toBe(items[index]);
+			positions.push(scroll.scrollPosition);
+		}
+		expect(positions).toEqual([0, 0, 40, 80, 120, 160, 200, 200, 200, 160, 120, 80, 40, 0]);
+	});
+
+	it("leaves a button that shows whole where it is, hovered or not: its ring counts, a glow it isn't drawing doesn't", () => {
+		const scroll = new ScrollContainer({ x: 0, y: 0, width: 300, height: 90 });
+		const content = new Container({ width: 300, height: 400 });
+		// An accent button glows when hovered, which its ink bound counts
+		const button = new Button({ label: 'Save', tone: 'accent', x: 20, y: 23, width: 100 });
+		content.addChild(button);
+		scroll.addChild(content);
+		root.addChild(scroll);
+		context.frame.layout();
+		expect(button.inkExtent).toBeGreaterThan(20);
+		expectWithin(inkOnScreen(button), clipOnScreen(scroll), 'y');
+
+		context.focus.focus(button, 'keyboard');
+		expect(scroll.scrollPosition).toBe(0);
+		inject('move,40,40');
+		expect(button.hovered).toBe(true);
+		context.focus.blur();
+		context.focus.focus(button, 'keyboard');
+		expect(scroll.scrollPosition).toBe(0);
+	});
 });
 
 describe('revealDelta, the rule along the scroll axis (R12.20)', () => {
@@ -786,53 +874,72 @@ describe('revealDelta, the rule along the scroll axis (R12.20)', () => {
 		return { start: span.start - delta, end: span.end - delta };
 	}
 
-	it('moves the least that shows all of the ink while it fits, and nothing while it shows', () => {
-		expect(reveal({ start: 20, end: 60 }, { start: 10, end: 70 })).toBe(0);
+	it('moves the least that shows all of the ink while it fits, and exactly nothing while it shows', () => {
+		expect(Object.is(reveal({ start: 20, end: 60 }, { start: 10, end: 70 }), 0)).toBe(true);
+		expect(Object.is(reveal({ start: 0, end: 100 }, { start: 0, end: 100 }), 0)).toBe(true);
 		expect(reveal({ start: 55, end: 95 }, { start: 52, end: 107 })).toBe(7);
 		expect(reveal({ start: -10, end: 30 }, { start: -13, end: 33 })).toBe(-13);
 		// Ink below only: going up, the box's top is what meets the view's
 		expect(reveal({ start: -10, end: 30 }, { start: -10, end: 45 })).toBe(-10);
-		// Ink never counts as less than the box
-		expect(reveal({ start: 50, end: 110 }, { start: 55, end: 105 })).toBe(10);
+		// Ink that sits inside the box counts as the box, at either end
+		expect(reveal({ start: -50, end: -10 }, { start: -40, end: -20 })).toBe(-50);
+		expect(reveal({ start: 70, end: 130 }, { start: 80, end: 120 })).toBe(30);
 	});
 
-	it('centres the ink with block center while it fits', () => {
-		const box = { start: 200, end: 240 };
-		const ink = { start: 200, end: 260 };
-		const delta = reveal(box, ink, 'center');
-		expect(moved(ink, delta)).toEqual({ start: 20, end: 80 });
+	it('centres the box with block center, then moves the least that keeps all of the ink in view', () => {
+		expect(moved({ start: 200, end: 240 }, reveal({ start: 200, end: 240 }, { start: 197, end: 243 }, 'center'))).toEqual({ start: 30, end: 70 });
+		// Centred, the box's 40 px pill would end at 110; it ends at the view's end instead
+		expect(moved({ start: 200, end: 240 }, reveal({ start: 200, end: 240 }, { start: 200, end: 280 }, 'center'))).toEqual({ start: 20, end: 60 });
 	});
 
 	it('keeps a box that fits whole under ink that does not, splitting the room half each, from either side', () => {
-		// An 80 px box with 20 px of ink above and below, under the view and then over it
 		const box = { start: 300, end: 380 };
 		const ink = { start: 280, end: 400 };
 		const over = moved(box, 600);
 		expect(moved(box, reveal(box, ink))).toEqual({ start: 10, end: 90 });
 		expect(moved(over, reveal(over, moved(ink, 600)))).toEqual({ start: 10, end: 90 });
-		// Settled, it stays, and center agrees
+		// Settled, it stays
 		expect(reveal({ start: 10, end: 90 }, { start: -10, end: 110 })).toBe(0);
-		expect(reveal(box, ink, 'center')).toBe(reveal(box, ink));
 	});
 
-	it('gives a side whose ink needs less than half the room all of it, and the rest to the other', () => {
-		// The 80 px box leaves 20 px: a ring's 3 px above takes 3, the pill's 30 below gets 17
+	it('gives a side whose ink needs less than half the room all of it, the rest to the other, with either block', () => {
+		// The box leaves 20 px: a ring's 3 px above takes 3, a pill's 30 below gets 17
 		const box = { start: 300, end: 380 };
-		expect(moved(box, reveal(box, { start: 297, end: 410 }))).toEqual({ start: 3, end: 83 });
+		const lopsided = { start: 297, end: 410 };
+		expect(moved(box, reveal(box, lopsided))).toEqual({ start: 3, end: 83 });
+		expect(moved(box, reveal(box, lopsided, 'center'))).toEqual({ start: 3, end: 83 });
 		// And the other way up
 		expect(moved(box, reveal(box, { start: 270, end: 383 }))).toEqual({ start: 17, end: 97 });
 	});
 
-	it('shows the top of a box taller than the view under the ink above it, and center centres the ink', () => {
+	it('puts the top of a box taller than the view at the top, under the ink above it while that leaves the top in view', () => {
 		const box = { start: 300, end: 450 };
-		const ink = { start: 294, end: 456 };
 		const over = moved(box, 600);
-		expect(moved(box, reveal(box, ink))).toEqual({ start: 6, end: 156 });
-		expect(moved(over, reveal(over, moved(ink, 600)))).toEqual({ start: 6, end: 156 });
-		expect(reveal({ start: 6, end: 156 }, { start: 0, end: 162 })).toBe(0);
-		expect(moved(ink, reveal(box, ink, 'center'))).toEqual({ start: -31, end: 131 });
-		// Ink above it taller than half the view gets half the view
-		expect(moved(box, reveal(box, { start: 220, end: 456 }))).toEqual({ start: 50, end: 200 });
+		expect(moved(box, reveal(box, { start: 291, end: 452 }))).toEqual({ start: 9, end: 159 });
+		expect(moved(over, reveal(over, { start: -309, end: -148 }))).toEqual({ start: 9, end: 159 });
+		expect(reveal({ start: 9, end: 159 }, { start: 0, end: 161 })).toBe(0);
+		// Ink above it as tall as the view would hide its top: the top goes to the top
+		expect(moved(box, reveal(box, { start: 200, end: 450 }))).toEqual({ start: 0, end: 150 });
+		// No ink, the old rule
+		expect(moved(box, reveal(box, box))).toEqual({ start: 0, end: 150 });
+	});
+
+	it('centres a box taller than the view with block center, whatever its ink', () => {
+		const box = { start: 300, end: 450 };
+		expect(moved(box, reveal(box, { start: 280, end: 452 }, 'center'))).toEqual({ start: -25, end: 125 });
+	});
+
+	it('counts a box as tall as the view as fitting, to a rounding error', () => {
+		const start = 0.1 + 0.2;
+		const box = { start, end: start + 100 + 1e-12 };
+		expect(moved(box, reveal(box, { start: start - 9, end: box.end + 9 })).start).toBeCloseTo(0, 9);
+		expect(reveal({ start: 1e-9, end: 100 + 1e-9 }, { start: 1e-9, end: 100 + 1e-9 })).toBe(0);
+	});
+
+	it('answers 0 rather than a non-finite number', () => {
+		expect(reveal({ start: 20, end: 60 }, { start: 10, end: Number.NaN })).toBe(0);
+		expect(reveal({ start: 20, end: Number.NaN }, { start: 10, end: 70 })).toBe(0);
+		expect(reveal({ start: 20, end: 60 }, { start: -Infinity, end: 70 })).toBe(0);
 	});
 });
 

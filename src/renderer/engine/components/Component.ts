@@ -28,6 +28,7 @@ import {
 	transformMatrix,
 } from './componentGeometry';
 import type { MountContext } from './MountContext';
+import type { RevealRequest } from './reveal';
 import {
 	AnchorInput,
 	Axis,
@@ -617,8 +618,13 @@ export abstract class Component {
 	 * screen matrix it is the snapshot's `inkBounds` (R13.22).
 	 */
 	public get inkRect(): Rect {
-		const extent = Math.max(0, this.inkExtent);
-		return { x: -extent, y: -extent, width: this.contentWidth + extent * 2, height: this.contentHeight + extent * 2 };
+		return this.boxGrownBy(this.inkExtent);
+	}
+
+	/** The content box grown by `extent` on every side (never shrunk), in local space. */
+	protected boxGrownBy(extent: number): Rect {
+		const grow = Math.max(0, extent);
+		return { x: -grow, y: -grow, width: this.contentWidth + grow * 2, height: this.contentHeight + grow * 2 };
 	}
 
 	/**
@@ -644,6 +650,38 @@ export abstract class Component {
 		if (own === null || !(this.ownFocusable || this.focusVisibleState)) return own;
 		const ring = FOCUS_RING_EXTENT;
 		return { x: own.x - ring, y: own.y - ring, width: own.width + ring * 2, height: own.height + ring * 2 };
+	}
+
+	/**
+	 * What this component draws past its box in its current state with the
+	 * pointer away, in local space, the walk's ring left out: `cullInk`
+	 * unless overridden, which is right for ink drawn whatever the state (a
+	 * border, a shadow, a marker hung past an edge). A component whose
+	 * `inkExtent` also covers what only hover, a press, or another state
+	 * draws (a look's glow and nudge, a ring it draws itself) answers what it
+	 * draws now instead. Null when it cannot bound its draws.
+	 */
+	protected get restingInk(): Rect | null {
+		return this.cullInk;
+	}
+
+	/**
+	 * What scrolling this component into view brings inside the clip
+	 * (R12.20): `restingInk` and, while the walk draws it, the walk's focus
+	 * ring, as one union in local space. `ownInkBound` bounds every state for
+	 * the cull and the ink audit; this is only what is drawn now, hover and
+	 * press aside. Null when the component cannot bound its draws, where the
+	 * box stands in.
+	 */
+	public get revealInk(): Rect | null {
+		const ink = this.restingInk;
+		if (ink === null || !this.focusVisibleState || !this.effectivelyEnabled || this.drawsOwnFocusRing) return ink;
+		const ring = FOCUS_RING_EXTENT;
+		const minX = Math.min(ink.x, -ring);
+		const minY = Math.min(ink.y, -ring);
+		const maxX = Math.max(ink.x + ink.width, this.contentWidth + ring);
+		const maxY = Math.max(ink.y + ink.height, this.contentHeight + ring);
+		return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 	}
 
 	/**
@@ -1934,14 +1972,13 @@ export abstract class Component {
 	}
 
 	/**
-	 * R12.20's `scrollIntoView` with `block: nearest`: a scroller moves the
-	 * least that brings what `descendant` draws inside its clip, its
-	 * `ownInkBound` rather than only its box (R8.8), so the ring is not cut.
-	 * The focus manager asks every ancestor of a component focused by
+	 * R12.20: a scroller brings a descendant's box, and the ink it draws
+	 * now, into its clip; both arrive in its content space. The reveal walk
+	 * (`revealInAncestors`) asks each ancestor of a component focused by
 	 * keyboard or code, inner first, so focus never lands out of sight. Only
 	 * scrollers act.
 	 */
-	public scrollIntoView(_descendant: Component): void {
+	public scrollRectIntoView(_request: RevealRequest): void {
 		// Not a scroller.
 	}
 
@@ -2253,7 +2290,7 @@ export abstract class Component {
 const ORIGIN: Vec2 = Object.freeze({ x: 0, y: 0 });
 
 /** How far the walk's fallback focus ring reaches past the content box (R11.12). */
-const FOCUS_RING_EXTENT = tokens.control.focus_ring_offset + tokens.control.focus_ring_width;
+export const FOCUS_RING_EXTENT = tokens.control.focus_ring_offset + tokens.control.focus_ring_width;
 
 function normalizeFocusGroup(value: boolean | Partial<FocusGroupConfig> | null): FocusGroupConfig | null {
 	if (!value) return null;

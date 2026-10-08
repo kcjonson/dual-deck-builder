@@ -1,46 +1,52 @@
 # Scrolling what a component draws into view
 
-Date: 2026-10-06. Task: DDB-406 (DDB-256). Spec: R8.8, R9.23, R11.12, R12.20. Builds on [panel-and-scroll-container.md](./panel-and-scroll-container.md), [focus-manager.md](./focus-manager.md), and the ink bounds of [subtree-ink-cull.md](./subtree-ink-cull.md).
+Date: 2026-10-07. Task: DDB-406 (DDB-256). Spec: R4.8, R8.8, R9.9, R9.23, R11.12, R12.20, R12.22. Builds on [panel-and-scroll-container.md](./panel-and-scroll-container.md), [focus-manager.md](./focus-manager.md), [subtree-ink-cull.md](./subtree-ink-cull.md), and [mini-card.md](./mini-card.md).
 
 ## Context
 
-The focus manager asks every scrolling ancestor of a component focused by keyboard or code to `scrollIntoView` it, and `ScrollContainer` brought the component's `screenQuad`, its content box, inside the clip. Whatever the component draws past its box was left wherever that put it, so a reveal that stopped at the box's edge cut the rest:
+The focus manager asked every ancestor of a component focused by keyboard or code to `scrollIntoView` it, and `ScrollContainer` brought the component's content box inside its clip, moving the least. Going down, that put the box's bottom on the clip's bottom and cut whatever the component draws below its box: the focus ring's bottom 3 px (on a card face in the pile dialog, and on driver selection's old 50x70 minis at 800x450), and a stacked mini's edges and count (DDB-311), up to 7 px. Going up, it put the box's top on the clip's top and cut what's drawn above: a card face's cost hex, 9 px, with the ring's top edge, or a mini's hex and state tag, 7 px. A margin round the content protects only scroll 0 and the end of the range; every position in between is the reveal's to get right.
 
-- The walk's focus ring is 3 px outside the box. At 800x450 driver selection's deck scroller sits at its minimum height, and every Tab or arrow into the deck stopped with the card's box on the clip's bottom edge and the ring's bottom under it.
-- A card face's cost hex hangs 7 px off its top-left corner, 12 px with its outline and the ring. The pile dialog cut that much off every card the arrows walked a row down or up to.
-- The 80x112 mini card (DDB-311) draws its stack edges, count pill, and state tag up to 7 px out. With it, the first Tab into driver selection's left deck at 1024x600 scrolled 43.8 px and left Ramming Speed's x5 pill and the ring's bottom half under the clip.
-
-A margin round the content protects it only at scroll 0 and at the end of the range, so the scrolls in between are the reveal's to get right.
+The first version of this change revealed `ownInkBound`, the bound the subtree cull and the ink audit use. That bound is a maximum over every state plus the walk's ring for any focusable, which is right for a cull and wrong for a reveal, since over-bounding moves the view: a list row that draws its ring inside its box revealed 3 px of ring it doesn't draw and drifted off the row pitch; a button counted its hover glow, about 30 px, and a Tab to a button already in full view re-centred it; focus given back by code after a mouse-driven dialog scrolled for a ring that wasn't drawn. Review also found a box exactly as tall as the clip misclassified by rounding, a settled reveal moving by an ulp on every call, NaN ink sending the scroller to its end, a reveal that changed nothing cancelling a pending `scrollToBottom`, and an outer scroller scrolling for ink an inner clip hides. This record is the rework.
 
 ## Decision
 
-**The reveal is the component's `ownInkBound`.** That is its cull ink (R8.8's `inkExtent` round the box, or a component's own `cullInk`) grown by the walk's ring while it can show one. It is the bound the development build checks each of the component's draws against, so a draw outside it fails the visual suite and throws in the unit tests. With no bound (an unmeasured `Text`, a draw fixture), the box stands in. The box and the ink are carried into the scroller's unscrolled space corner by corner with `localToAncestorInto`, so a rotated or scaled component counts at its transformed extent, a scaled ancestor of the scroller changes nothing, and no matrix is built or inverted. A component the scroller doesn't hold is left alone.
+What a reveal shows is what the component draws in its current state. `Component.revealInk` is the union of `restingInk` and, while the render walk draws it, the walk's focus ring (`focusVisible`, enabled, and not `drawsOwnFocusRing`, the walk's own test). `restingInk` is the one hook: protected, `cullInk` by default, which is right for ink a component draws in every state (a border, a shadow, a card's cost hex, a mini's stack edges, count, and tag). Controls whose `inkExtent` covers more than they draw now override it with what they draw with the pointer away:
 
-**The rule is `revealDelta`, per axis, in three cases.** With the box, the ink (never less than the box), and the clip as spans:
+- Button, Select, and TextInput answer `restingInkExtent` from their look layers: layer 6's ring outside the box while focus shows, and the base's own shadow. Never a glow or a press nudge.
+- Checkbox, Toggle, and Radio answer the same from the mark's layers; the walk adds the ring round the row.
+- A segment of a segmented control draws its ring inside its box and answers its box; its selected chip's glow is left out as a look's glow is.
+- List rows, tabs, and the tree view draw their ring inside and have no ink, so the default already answers their box.
 
-- The ink fits the clip: all of it shows. `nearest` moves the least, `center` centres it. A component whose ink shows already doesn't move.
-- The ink is taller than the clip but the box isn't: the box shows whole and the room it leaves is split between the ink above and below it, half each, unless one side needs less than half, which then gets all it needs and the other side the rest. A ring all round shows on both sides before a one-sided pill takes the room. Both blocks give this answer.
-- The box is taller than the clip: `nearest` shows its top, as before, now under the ink above it, which gets at most half the clip. `center` centres the ink.
+The union never adds one ring to another: a card's 7 or 9 px of static ink already holds the 3 px ring it draws itself. A component with no bound (an unmeasured `Text`, a draw fixture) reveals its box.
 
-The scroll range clamps every answer, so ink past either end of the content stops at it.
+The reveal is computed once and handed up the chain. `revealInAncestors` in `components/reveal.ts` carries the box and `revealInk` up a level at a time through each transform, origin, and content offset, asks each ancestor to `scrollRectIntoView` them in its content space, and cuts both to each clip it passes. An outer scroller never scrolls for ink an inner clip hides, and once a clip has cut the box away the walk stops, since nothing further up can bring it back. A promoted layer ends the walk, as no clip above it applies. `scrollRectIntoView` is a no-op on `Component` and the entry point on `ScrollContainer`, for anything that knows a rect in a scroller's content (a menu's rows, DDB-408); `ScrollContainer.scrollIntoView(descendant)` runs the same walk with that one container scrolling.
 
-**No direction, so no swing.** The last two cases depend only on where the component is, never on which side it came from, and the first is CSS's `nearest`, which a second call leaves alone. Focus going back and forth over a component too tall to show lands it in one place, and asking twice never moves twice.
+`revealDelta` is the rule along the scroll axis, and R12.20 states it:
 
-**Nested scrollers each reveal the component itself, inner first,** the focus manager's existing order. The outer reads the component where the inner's scroll has just put it.
+- While the ink fits the clip, `nearest` moves the least that shows all of it, and nothing at all when it shows already, compared rather than subtracted; `center` centres the box, then moves the least that keeps the ink in view, which is the old behaviour exactly when nothing extra is drawn.
+- When only the box fits, either block keeps the box whole and splits the room it leaves between the ink above and below, half each unless a side needs less, so a ring all round shows on both sides before a one-sided count takes the room.
+- When the box is taller than the clip, `nearest` puts its top at the clip's top, under the ink above it unless that ink would push the top out of view, and `center` centres the box.
 
-**The container scrolls vertically, so only the vertical span counts.** Ink reaching only sideways moves nothing. `revealDelta` doesn't know which axis it is on, so a horizontal scroller would apply it to x unchanged.
+The last two depend only on where the component is, never on which side it came from, so focus moving back and forth over something too tall never swings the view. Sizes and positions are compared to a millionth of a pixel, so rounding in fractional layouts neither misclassifies a box exactly as tall as the clip nor moves a settled view; a non-finite input answers 0. `ScrollContainer` clamps the target to its range and scrolls only when that changes the position, so a reveal against the end of the range doesn't cancel a pending `scrollToBottom`.
+
+The focus manager reveals after delivering the `focus` event, so ink a focus handler adds is revealed too (a vehicle offered as a target grows from its dashed outline to its target glow when focused), and not at all when the handler moved focus on. A component focused while a layout is due is revealed again once that layout has run, from the focus manager's after-layout fixup: a dialog moves focus into its content before its first layout, when nothing in the scroller has a size yet.
+
+A tooltip that keyboard focus opened stays on its owner when hover changes only because content moved under a still pointer (R9.9's re-derivation); the dispatcher now tells hover observers whether the pointer moved, and only the pointer moving onto another owner takes the tooltip over (R12.22). Without that, a reveal that slid a card under a resting pointer moved the pile dialog's detail view off the focused card.
 
 ## Options considered
 
-- **The box, as before.** Cuts every ring at the edge it stops on, which is the bug.
-- **`subtreeInk`, the whole subtree's bound.** It covers children drawing past the component, but it's null for any subtree holding a layer, and it isn't cut by the component's own clip, so a focused nested scroller's bound is its whole content. Children past their parent's box are the lint's to catch (R13.25.2); the parent's own draws are what hang off it.
-- **Only what the component draws right now.** A control's `inkExtent` is a maximum over every state (the hover glow, the press nudge) and `ownInkBound` adds the ring to it whether or not it shows, so the reveal can leave more room than this focus draws. Narrowing it needs a per-state bound no component offers, and a bound that can come out short is the one error the reveal can't have.
-- **For ink taller than the clip:** `nearest` on the ink, clamped to keep the box, moves the least but cuts the ring on the far side; showing the side focus moves toward needs the direction, and a version that reads it from where the ink sits swings back on the next call; centring the ink cuts a short side's ring when the ink is lopsided. Splitting the room keeps the box and shows both sides of a ring whenever there are 3 px a side to show it in.
-- **For a box taller than the clip:** CSS's `nearest`, the near edge, would show a card reached from below by its foot. Cards and text read from the top, so the top keeps winning.
+- The content box, as before: cuts what's drawn past it on the side the reveal stops at.
+- `ownInkBound`, the first version: over-bounds every component, as above.
+- `subtreeInk`: covers children drawing past the component, but is null under any layer and isn't cut by the component's own clip, so a focused nested scroller's bound is its whole content. Children past their parent's box are the lint's to catch (R13.25.2).
+- A new per-state bound on every component: most components' cull ink is already what they draw, or follows their state as a vehicle's does, so one protected hook with that default, overridden by the controls whose ink bound covers states they aren't in, is the smallest change that does it.
+- For ink taller than the clip: `nearest` on the ink, clamped to keep the box, cuts the far side's ring; following the direction focus moved needs the direction, and the obvious versions swing back on the next call; centring the ink cuts a short side's ring when the ink is lopsided.
+- For a box taller than the clip: CSS's near edge would show a card reached from below by its foot. Cards and text read from the top.
+- For the dialog: moving focus in only after the dialog's first layout fixes dialogs alone; the after-layout reveal covers anything that focuses before it has a size, a screen's first focus included.
 
 ## Consequences
 
-- Every keyboard or programmatic reveal leaves room for the ink: 3 px for the walk's ring, 12 for a card face, about 30 for a control whose look can glow on hover, whose `inkExtent` counts the 26 px glow though a focused control without the pointer draws only its ring. Where the ink doesn't fit, the box is centred instead, which reads as deliberate.
-- A programmatic focus under the pointer modality reveals the ring too, though it isn't drawn (`ownInkBound` grows any focusable by it).
-- Content whose ink reaches past the end of its scroll range still needs a margin or padding for that ink; the reveal can't scroll past the end. The pile dialog's last row (the discard pile) has its hex and ring under the clip at the end of the range, as before.
-- Scenes and goldens don't focus inside a scroller by keyboard, so no golden or lint result moves.
+- A card's static ink is its `inkExtent` on every side, so a face reveals 9 px below its box where it draws at most the ring's 3 px, and a mini without a stack reveals 7 px where it draws at most 3. A per-side `restingInk` on `Card` would tighten that.
+- What scrolls into view can still be cut where the range ends: content whose last row draws past the end of the content needs a margin or padding for it, as driver selection's grid has. The pile dialog's last row is one such case, and a scroller's clip reaches into its padding only by its direct children's ink, filed separately.
+- Only y is revealed. The pile dialog's first column draws its hex past the scroller's left edge, a layout gap (DDB-407, DDB-409).
+- `InputObserver.hoverChange` takes a second argument, `pointerMoved`.
+- No golden or lint result moves: no scene or screen in them focuses inside a scroller by keyboard, and a programmatic first focus that now reveals after its layout lands on content already in view.

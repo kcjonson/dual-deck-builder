@@ -6,7 +6,7 @@ import type { AnyUiEvent, Modifiers, UiKeyEvent, UiPointerEvent } from '../input
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
 import { tokens } from '../theme/tokens';
-import { Look, LookLayers, layersInkExtent, resolveLook } from '../style/look';
+import { Look, LookLayers, layersInkExtent, resolveLook, restingInkExtent } from '../style/look';
 import { LookTransition } from '../style/LookTransition';
 import {
 	Sides,
@@ -380,6 +380,11 @@ export class TextInput extends Component {
 	/** R8.8: the focus ring and the style's shadow; the text never leaves the box. */
 	public get inkExtent(): number {
 		return layersInkExtent(this.layers);
+	}
+
+	/** The ring while focus shows and the style's shadow; the run is clipped to the box (R12.20). */
+	protected get restingInk(): Rect {
+		return this.boxGrownBy(restingInkExtent(this.layers, this.stateFlags));
 	}
 
 	public get look(): Look {
