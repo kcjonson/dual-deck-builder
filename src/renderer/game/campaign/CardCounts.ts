@@ -1,5 +1,5 @@
 import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
-import { describeValue, readInteger, readObject } from './JsonReader';
+import { ReaderRangeError, ReaderTypeError, describeValue, readInteger, readObject } from './JsonReader';
 
 /**
  * Copies of each card, by card type (`ramming_speed`): a driver's default
@@ -16,8 +16,8 @@ export const NO_CARDS: CardCounts = Object.freeze({});
 const CARD_TYPE = /^[a-z][a-z0-9_]*$/;
 
 export function readCardType(value: unknown, path: string): string {
-	if (typeof value !== 'string') throw new TypeError(`${path} must be a card type, got ${describeValue(value)}`);
-	if (!CARD_TYPE.test(value)) throw new RangeError(`${path} must be a card type in lower snake case, got ${describeValue(value)}`);
+	if (typeof value !== 'string') throw new ReaderTypeError(`${path} must be a card type, got ${describeValue(value)}`);
+	if (!CARD_TYPE.test(value)) throw new ReaderRangeError(`${path} must be a card type in lower snake case, got ${describeValue(value)}`);
 	return value;
 }
 
@@ -31,7 +31,7 @@ export function readCardCounts(value: unknown, path: string): CardCounts {
 	const types = Object.keys(object);
 	const counts = new Map<string, number>();
 	for (const type of types) {
-		if (!CARD_TYPE.test(type)) throw new RangeError(`${path} has a key that isn't a card type: ${describeValue(type)}`);
+		if (!CARD_TYPE.test(type)) throw new ReaderRangeError(`${path} has a key that isn't a card type: ${describeValue(type)}`);
 		counts.set(type, readInteger(object[type], `${path}.${type}`, { min: 1 }));
 	}
 	const sorted = [...types].sort();
