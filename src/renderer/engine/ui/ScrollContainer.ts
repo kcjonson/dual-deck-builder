@@ -186,6 +186,8 @@ export class ScrollContainer extends Component {
 	}
 
 	public scrollTo(offset: number): void {
+		// Here and in scrollToBottom, not in applyScroll, so a layout's re-clamp isn't taken for a scroll.
+		this.context?.focus.scrolled(this);
 		this.endRequested = false;
 		this.applyScroll(offset);
 	}
@@ -212,6 +214,7 @@ export class ScrollContainer extends Component {
 	 * line). Any other scroll in between cancels that.
 	 */
 	public scrollToBottom(): void {
+		this.context?.focus.scrolled(this);
 		this.applyScroll(Infinity);
 		this.endRequested = true;
 	}

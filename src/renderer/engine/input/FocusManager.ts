@@ -77,7 +77,7 @@ export class FocusManager {
 	private readonly roots: () => readonly Component[];
 	private readonly layoutPending: () => boolean;
 	private current: Component | null = null;
-	/** Revealed while a layout was due: revealed again once it has run. */
+	/** Revealed while a layout was due: revealed again once it has run, unless focus or a scroller above it moves first. */
 	private revealAfterLayout: Component | null = null;
 	private visibleModality = false;
 	private readonly scopes: Scope[] = [];
@@ -402,6 +402,16 @@ export class FocusManager {
 		if (pending && pending === this.current && pending.isMounted) revealInAncestors(pending);
 	}
 
+	/**
+	 * `scroller` was scrolled by the player or by code, not by a layout's
+	 * re-clamp: a reveal still owed after the layout to a component inside it
+	 * is dropped, so the layout doesn't undo that scroll (R12.20).
+	 */
+	public scrolled(scroller: Component): void {
+		const pending = this.revealAfterLayout;
+		if (pending && pending !== scroller && isInclusiveAncestor(scroller, pending)) this.revealAfterLayout = null;
+	}
+
 	/** Any mounted tree changed shape, or a focus property changed: the cached order is stale (R9.18). */
 	public invalidateOrder(): void {
 		if (this.indexCache.size > 0) this.indexCache.clear();
@@ -441,6 +451,11 @@ export class FocusManager {
 	 * Brings `component` into view in its scrolling ancestors (R12.20), and
 	 * again after the layout when one is due: a dialog moves focus into its
 	 * content before its first layout, when nothing in it has a size yet.
+	 * Focus moving on, or a scroll of one of those ancestors, cancels the
+	 * second reveal. The frame empties its dirty set before it lays out, so
+	 * `layoutPending` reads false during a layout: focus set from
+	 * `layoutChildren` or `onLayout` is revealed once, against geometry that
+	 * may be only half placed.
 	 */
 	private reveal(component: Component): void {
 		revealInAncestors(component);
@@ -470,6 +485,7 @@ export class FocusManager {
 		}
 
 		this.current = next;
+		this.revealAfterLayout = null;
 		this.lostFocus = false;
 		if (previous && previous.isMounted) {
 			previous.setFocusState(false, false);
