@@ -5,17 +5,24 @@
  * temporary folder and runs them in a fresh child process, clear of Jest's
  * coverage and the TypeScript compiler's heap.
  *
- *   node scripts/road-growth.mjs bench [--seeds 3]
- *   node scripts/road-growth.mjs check [--maps 2000] [--from 0]
- *   node scripts/road-growth.mjs png --seed 7 [--environment badlands] [--radius 1000] [--size 1024] [--out roads.png] [--curviness 0.8 ...]
+ *   node scripts/road-growth.mjs bench [--seeds 3] [--repeat 5] [--radii 600,1000,1600]
+ *   node scripts/road-growth.mjs check [--maps 500] [--from 0]
+ *   node scripts/road-growth.mjs png --seed 7 [--environment badlands] [--radius 1000] [--size 1024] [--window x,y,half] [--out roads.png] [--curviness 0.8 ...]
  *
- * bench times stages 2 and 3 together at radius 600, 1000, and 1600, each
- * row the median and the slowest over the five environments and the seeds.
- * check grows maps with parameters sampled across their tuning ranges, as
- * the property tests do, and runs checkRoadNetwork on each. png draws one
- * map; any parameter can be set by name.
+ * For the V8 the desktop app runs, use Electron's bundled Node:
+ *
+ *   ELECTRON_RUN_AS_NODE=1 node_modules/electron/dist/electron scripts/road-growth.mjs bench
+ *
+ * bench times stages 2 and 3 together at each radius, each row the median
+ * and the slowest over the five environments and the seeds, each map's time
+ * the fastest of its runs, and hashes every network so two engines can be
+ * compared. check grows maps with parameters sampled across their tuning
+ * ranges, as the property tests do, and runs checkRoadNetwork on each. png
+ * draws one map, or a window of it; any parameter can be set by name. Any
+ * command takes --profile <folder> for a CPU profile of the run.
  */
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -105,10 +112,14 @@ function highwaysOut(network) {
 function bench() {
 	const seeds = Number(options.seeds ?? 3);
 	const repeat = Number(options.repeat ?? 5);
+	const radii = (options.radii ?? '600,1000,1600').split(',').map(Number);
 	for (const environment of ENVIRONMENTS) generate({ seed: 99, environment, radius: 1000 });
 	const runtime = process.versions.electron ? `Electron ${process.versions.electron}` : `Node ${process.version}`;
 	console.log(`${runtime}, V8 ${process.versions.v8}; ${ENVIRONMENTS.length} environments x ${seeds} seeds per radius, the fastest of ${repeat} runs each`);
-	for (const radius of [600, 1000, 1600]) {
+	// Every network's JSON, hashed: the same digest from two engines means they grew the same roads to the bit.
+	const digest = createHash('sha256');
+	const smoothing = { smoothed: 0, unsmoothed: 0 };
+	for (const radius of radii) {
 		const times = [];
 		const steps = [];
 		const stretches = [];
@@ -117,6 +128,9 @@ function bench() {
 		for (const environment of ENVIRONMENTS) {
 			for (let seed = 1; seed <= seeds; seed += 1) {
 				const { network, stats, milliseconds } = generate({ seed, environment, radius }, repeat);
+				digest.update(JSON.stringify(network));
+				smoothing.smoothed += stats.stretches.smoothed;
+				smoothing.unsmoothed += stats.stretches.unsmoothed;
 				times.push(milliseconds);
 				steps.push(stats.steps);
 				stretches.push(network.stretches.length);
@@ -128,6 +142,7 @@ function bench() {
 		const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
 		console.log(`radius ${radius}: median ${median(times).toFixed(1)} ms, slowest ${Math.max(...times).toFixed(1)} ms; median ${median(steps)} steps, ${median(stretches)} stretches, ${median(length).toFixed(0)} units of road; ${(100 * mean(out)).toFixed(0)}% of highways reach the rim`);
 	}
+	console.log(`${smoothing.unsmoothed} of ${smoothing.smoothed + smoothing.unsmoothed} stretches kept their steps; networks' digest ${digest.digest('hex').slice(0, 16)}`);
 }
 
 /** Parameter sets across the tuning ranges: each world or network number at an end of its range two times in five. */
@@ -199,10 +214,10 @@ async function png() {
 			if (x * x + y * y <= radius * radius) {
 				terrain.sample(x, y, sample);
 				const base = BIOME_COLOURS[sample.biome];
-				// Light from the north-west.
-				const shade = Math.max(0.55, Math.min(1.25, 1 + (sample.slopeY - sample.slopeX) * 60));
-				colour = base.map((channel) => Math.min(255, channel * shade));
-				if (sample.ruin > 0) colour = colour.map((channel) => channel * (1 - 0.25 * sample.ruin));
+				// Light from the north-west, in a few steps so the picture compresses.
+				const light = Math.max(0.55, Math.min(1.25, 1 + (sample.slopeY - sample.slopeX) * 60));
+				const shade = Math.round(light * 10) / 10 * (sample.ruin > 0.5 ? 0.85 : 1);
+				colour = base.map((channel) => Math.min(255, Math.round(channel * shade)));
 				if (sample.obstacle === 'cliff') colour = [90, 30, 30];
 				else if (sample.obstacle === 'crater') colour = [40, 40, 40];
 				else if (sample.obstacle === 'water') colour = [70, 110, 170];
@@ -249,7 +264,7 @@ async function png() {
 		else if (node.kind === 'classChange') dot(px, py, 4, [230, 160, 0]);
 	}
 	const out = options.out ?? `roads-${params.seed}.png`;
-	writeFileSync(out, PNG.sync.write(image));
+	writeFileSync(out, PNG.sync.write(image, { colorType: 2, deflateLevel: 9 }));
 	const byClass = lengths(network);
 	console.log(`${out}: ${JSON.stringify(set)}`);
 	console.log(`growth ${milliseconds.toFixed(1)} ms; ${network.roads.length} roads, ${network.stretches.length} stretches; units of road ${Object.entries(byClass).map(([name, value]) => `${name} ${value.toFixed(0)}`).join(', ')}; ${(100 * highwaysOut(network)).toFixed(0)}% of highways reach the rim`);
