@@ -20,16 +20,38 @@ const UNSKEW_TWICE = 2 * UNSKEW;
 
 /**
  * 81 * sqrt(6) / 2 is the reciprocal of the largest sum three corners can
- * reach with unit gradients, midway along a cell's long edge with both
- * gradients pointing at the sample. Just under it keeps samples inside (-1, 1).
+ * reach with any unit gradients, midway along a cell's long edge with both
+ * gradients pointing at the sample, so just under it keeps samples inside
+ * (-1, 1) whatever the gradients. With these twelve, the largest is 0.976.
  */
-const SCALE = 99.2;
+export const SIMPLEX_SCALE = 99.2;
 
-/** Sixteen unit gradients, 22.5 degrees apart. */
-const GRADIENTS_X = [1, 0.9238795325112867, 0.7071067811865476, 0.3826834323650898, 0, -0.3826834323650898, -0.7071067811865476, -0.9238795325112867,
-	-1, -0.9238795325112867, -0.7071067811865476, -0.3826834323650898, 0, 0.3826834323650898, 0.7071067811865476, 0.9238795325112867];
-const GRADIENTS_Y = [0, 0.3826834323650898, 0.7071067811865476, 0.9238795325112867, 1, 0.9238795325112867, 0.7071067811865476, 0.3826834323650898,
-	0, -0.3826834323650898, -0.7071067811865476, -0.9238795325112867, -1, -0.9238795325112867, -0.7071067811865476, -0.3826834323650898];
+/** sqrt(3) / 2, written out. */
+const ROOT_THREE_HALVES = 0.8660254037844386;
+
+/**
+ * Twelve unit gradients, 30 degrees apart, starting east. The simplex grid's
+ * edges run at 45, -15, and 105 degrees, so none of these is within 15
+ * degrees of square to an edge. A gradient square to an edge at both its
+ * ends would make a layer exactly zero along the whole edge, and a ridged
+ * layer would crease there in a straight line.
+ */
+export const SIMPLEX_GRADIENTS: readonly (readonly [number, number])[] = [
+	[1, 0], [ROOT_THREE_HALVES, 0.5], [0.5, ROOT_THREE_HALVES], [0, 1],
+	[-0.5, ROOT_THREE_HALVES], [-ROOT_THREE_HALVES, 0.5], [-1, 0], [-ROOT_THREE_HALVES, -0.5],
+	[-0.5, -ROOT_THREE_HALVES], [0, -1], [0.5, -ROOT_THREE_HALVES], [ROOT_THREE_HALVES, -0.5],
+];
+
+/**
+ * Which gradient a permutation value hashes to: its remainder by twelve for
+ * the first 252, so each comes up 21 times, and east, north, west, and south
+ * for the last four. Those four cancel out, and a quarter turn maps them onto
+ * themselves, so the gradients still average to nothing and spread as far
+ * along any line as along any other.
+ */
+function gradientOf(value: number): readonly [number, number] {
+	return SIMPLEX_GRADIENTS[value < 252 ? value % 12 : (value - 252) * 3];
+}
 
 /**
  * Where each octave of a fractal sum samples from, in lattice units, so
@@ -49,7 +71,7 @@ export interface SimplexNoiseOptions {
 
 /**
  * One layer of 2D simplex noise: Perlin's simplex grid with Gustavson's
- * corner kernels, (0.5 - r^2)^4 per corner, and sixteen unit gradients
+ * corner kernels, (0.5 - r^2)^4 per corner, and twelve unit gradients
  * hashed through a seeded permutation of 0 to 255. Values lie in (-1, 1),
  * zero at every lattice point; features are about one lattice unit across,
  * and the pattern repeats every 256 units, which callers keep beyond the map
@@ -68,9 +90,10 @@ export class SimplexNoise {
 		rng.shuffle(order);
 		for (let index = 0; index < 512; index += 1) {
 			const value = order[index & 255];
+			const gradient = gradientOf(value);
 			this.permutation[index] = value;
-			this.gradientX[index] = GRADIENTS_X[value & 15];
-			this.gradientY[index] = GRADIENTS_Y[value & 15];
+			this.gradientX[index] = gradient[0];
+			this.gradientY[index] = gradient[1];
 		}
 	}
 
@@ -154,9 +177,9 @@ export class SimplexNoise {
 			sumX += fourth * gx - bend * x2;
 			sumY += fourth * gy - bend * y2;
 		}
-		this.derivativeX = sumX * SCALE;
-		this.derivativeY = sumY * SCALE;
-		return sum * SCALE;
+		this.derivativeX = sumX * SIMPLEX_SCALE;
+		this.derivativeY = sumY * SIMPLEX_SCALE;
+		return sum * SIMPLEX_SCALE;
 	}
 
 	/**
