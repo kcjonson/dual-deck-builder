@@ -1,4 +1,5 @@
 import { Model } from '../core/Model';
+import type { DriverArchetype } from './Driver';
 import type { EscortType } from './Escort';
 
 /**
@@ -56,7 +57,8 @@ export interface CardData {
 	name: string;
 	summary: string; // Card face text: keywords in [brackets], {variables} filled like description
 	description: string; // Full rules text for the detail view
-	driverRestriction?: string | null;
+	/** The one archetype whose drivers can take this card, or null (or left out) for any driver */
+	driverRestriction?: DriverArchetype | null;
 	rarity: CardRarity;
 	cost: number;
 	targetType: TargetType;
