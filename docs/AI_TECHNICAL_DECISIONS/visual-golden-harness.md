@@ -121,6 +121,16 @@ hand is dealt in deck order. The seed matters for the states phase 0 does not ca
 already demonstrably matters: 72 of the combat screen's 355 lint rows differed run to run in the
 phase 0 lint baseline, all of them after a card was played.
 
+DDB-399 made the refactor phase 0 ruled out: the game now threads a seeded source of its own, and
+the init script still seeds it. Game code reads `Math.random` in one place, `freshSeed()`, which
+mints root seeds, a fight's among them when nothing passes the battle a stream. Every reshuffle and
+every random AI pick draws from a stream forked from the fight's root, so the patched
+`Math.random` reaches all of them through one read per fight rather than one per call, and
+`Model` ids are a counter that draws nothing ([seeded-prng.md](./seeded-prng.md)). That moves
+what each seeded number lands on, which could have moved any golden that reached a shuffle. None
+did: no capture reaches a reshuffle or a random AI, since the dev fight and the gallery's battles
+plan with the aggressive AI, and the enemy-turn capture stops at the first raider's action.
+
 ## Decision 4: a scene that cannot be honestly captured is listed, not omitted
 
 `primitive-shapes` overruns the renderer's dynamic vertex buffer, logs `bufferSubData: buffer
@@ -268,7 +278,7 @@ expressing.
 | Fixed viewport | `use.viewport` (chromium), `BrowserWindow.setContentSize` (electron), both 1440x882 | every screen and section lays out from a width |
 | Fixed device pixel ratio | `deviceScaleFactor: 1`, plus `--force-device-scale-factor=1` for Electron | `FontAtlas` glyph raster, `Renderer.resize` drawing buffer, `Layer` and `Panel` scissor rectangles |
 | Time freeze | `window.__app.pause()` | splash auto-navigate, `PlayerHandLayer`'s 300 ms discard timer |
-| Seeded random | mulberry32 over `Math.random` via `addInitScript` | deck order after a reshuffle; nothing in a mounted screen today |
+| Seeded random | mulberry32 over `Math.random` via `addInitScript`, read by `freshSeed()` for each fight's root stream | deck order after a reshuffle, a random AI's picks; nothing in a mounted screen today |
 | Wait for assets | `assetsReady` on `window.__app.status()`, false while CardLoader has a request outstanding | `cards.json` arriving mid-capture |
 | Wait for a settled layout | hooks present, `document.fonts.ready`, then the window, the canvas box, its backing store and the committed viewport all at 1440x882 and the tree unchanged for two counted frames (DDB-201) | a resize measured or committed after the screen built; layout still settling when the shutter opens |
 

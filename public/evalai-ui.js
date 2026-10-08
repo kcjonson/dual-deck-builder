@@ -196,7 +196,9 @@ function displayResults(results, duration) {
 	const summaryText = document.createElement('p');
 	summaryText.style.textAlign = 'center';
 	summaryText.style.marginTop = '20px';
-	summaryText.innerHTML = `Evaluation completed in ${duration} seconds`;
+	// Every result carries the run's seed; evaluateAllAI({ ..., seed }) replays the run
+	const seed = sortedResults[0]?.seed;
+	summaryText.innerHTML = `Evaluation completed in ${duration} seconds` + (seed === undefined ? '' : `, seed ${seed}`);
 	rankingsContainer.appendChild(summaryText);
 	
 	// Display head-to-head matchups

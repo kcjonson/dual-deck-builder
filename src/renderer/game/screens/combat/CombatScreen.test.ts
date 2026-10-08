@@ -9,6 +9,7 @@ import { DriverLoader } from '../../core/DriverLoader';
 import { Driver } from '../../mechanics/Driver';
 import { Deck } from '../../mechanics/Deck';
 import { Battle } from '../../mechanics/Battle';
+import { Rng } from '../../core/Rng';
 import { DOCK_HAND_CAP, DOCK_HEIGHT, LOG_DRAWER_WIDTH, TOP_BAR_HEIGHT } from './CombatLayout';
 import { SnapshotNode, SnapshotRect, treeSnapshot } from '../../../engine/debug/treeSnapshot';
 import { createTestContext, injectNow } from '../../../engine/components/testing';
@@ -117,7 +118,7 @@ function fight(drivers: Driver[]): void {
 		driver.takeDamage(7);
 		driver.spendAdrenaline(1);
 		driver.discardHand();
-		driver.drawCards(2);
+		driver.drawCards(2, new Rng({ seed: 1 }));
 	}
 }
 

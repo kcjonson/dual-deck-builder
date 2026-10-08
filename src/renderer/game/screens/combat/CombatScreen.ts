@@ -37,6 +37,7 @@ import type { RangeLabel } from '../../ui/RangeChip';
 import { Intent, IntentType, formatIntentValue } from '../../mechanics/Intent';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
+import type { Rng } from '../../core/Rng';
 import { BattleResultData } from '../battleResult/BattleResultScreen';
 import type { Component } from '../../../engine/components/Component';
 import type { UiPointerEvent } from '../../../engine/input/events';
@@ -76,6 +77,13 @@ export interface PreparedCombatMount {
 
 function isPreparedCombatMount(data: unknown): data is PreparedCombatMount {
 	return typeof data === 'object' && data !== null && typeof (data as PreparedCombatMount).prepare === 'function';
+}
+
+/** Mount data for a fight the screen builds around the player's two drivers, as Start Run sends. */
+export interface DriversCombatMount {
+	drivers: Driver[];
+	/** The fight's random stream (Battle), a fresh root when left out */
+	rng?: Rng;
 }
 
 /** One wave until the game has reinforcements (Combat Rules: "once there is one"). */
@@ -172,9 +180,10 @@ export class CombatScreen extends Screen {
 	}
 
 	/**
-	 * Initialize combat with driver teams and vehicles
+	 * Initialize combat with driver teams and vehicles, the fight drawing
+	 * from `rng` when one is given
 	 */
-	private async initializeCombat(drivers: Driver[], generation: number): Promise<void> {
+	private async initializeCombat({ drivers, rng, generation }: DriversCombatMount & { generation: number }): Promise<void> {
 		assertDriverPair(drivers);
 
 		try {
@@ -201,7 +210,7 @@ export class CombatScreen extends Screen {
 			// Create simple enemy team for testing
 			const enemyTeam = this.createTestEnemyTeam();
 
-			const battle = new Battle({ playerTeam, enemyTeam });
+			const battle = new Battle({ playerTeam, enemyTeam, rng });
 
 			// Enable AI for enemy team - using aggressive AI as default
 			// Other options: 'random', 'mcts', 'salvage', 'ramming'
@@ -1210,9 +1219,9 @@ export class CombatScreen extends Screen {
 				console.error('Failed to prepare combat:', error);
 			}
 		} else if (data && typeof data === 'object' && 'drivers' in data) {
-			const combatData = data as { drivers: Driver[] };
+			const { drivers, rng } = data as DriversCombatMount;
 			try {
-				await this.initializeCombat(combatData.drivers, generation);
+				await this.initializeCombat({ drivers, rng, generation });
 			} catch (error) {
 				console.error('Failed to initialize combat:', error);
 			}
@@ -1224,7 +1233,7 @@ export class CombatScreen extends Screen {
 				if (generation !== this.mountGeneration) return;
 				const drivers = driverLoader.getUnlockedDrivers();
 				if (drivers.length >= 2) {
-					await this.initializeCombat([drivers[0], drivers[1]], generation);
+					await this.initializeCombat({ drivers: [drivers[0], drivers[1]], generation });
 				} else {
 					console.error('Not enough drivers available for default combat');
 				}
