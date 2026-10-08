@@ -517,6 +517,61 @@ describe('scroll into view (R12.20)', () => {
 		// row4 spans 160 to 200
 		expect(panel.scrollPosition).toBe(100);
 	});
+
+	it("doesn't reveal what was focused before a layout once a press has moved focus elsewhere", () => {
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100 });
+		const list = new Stack({ id: 'list' });
+		const rows = [0, 1, 2, 3, 4, 5].map((index) => new Probe({ id: `row${index}`, width: 200, height: 40, focusable: true }));
+		for (const row of rows) list.addChild(row);
+		panel.addChild(list);
+		panel.mount(context);
+		context.focus.focus(rows[5], 'keyboard');
+		context.focus.focusFromPointer(rows[0]);
+		context.frame.layout();
+		expect(focusedId()).toBe('row0');
+		expect(panel.scrollPosition).toBe(0);
+	});
+
+	it("doesn't undo a scroll made after a reveal that had no layout due", () => {
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100 });
+		const content = new Container({ width: 200, height: 2000 });
+		const row = new Probe({ id: 'row', y: 500, width: 200, height: 40, focusable: true });
+		content.addChild(row);
+		panel.addChild(content);
+		panel.mount(context);
+		context.frame.layout();
+		context.focus.focus(row, 'keyboard');
+		expect(panel.scrollPosition).toBe(540 + RING - 100);
+		// The player wheels back to the top, then something lays out
+		panel.scrollTo(0);
+		content.height = 2001;
+		context.frame.layout();
+		expect(panel.scrollPosition).toBe(0);
+	});
+
+	it('reveals only where focus ends up when a focus handler moves it on', () => {
+		const seen: number[] = [];
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100, contentHeight: 2000 });
+		const content = new Container({ width: 200, height: 2000 });
+		const target = new Probe({ id: 'target', y: 300, width: 200, height: 40, focusable: true });
+		/** Hands focus straight on to the target, as a container handing it to a member does. */
+		class Forwarder extends Probe {
+			public handleEvent(event: AnyUiEvent): void {
+				super.handleEvent(event);
+				if (event.type === 'focus') context.focus.focus(target, 'keyboard');
+			}
+		}
+		const forwarder = new Forwarder({ id: 'forwarder', y: 1500, width: 200, height: 40, focusable: true });
+		content.addChild(forwarder);
+		content.addChild(target);
+		panel.addChild(content);
+		panel.mount(context);
+		panel.onScroll = (offset) => seen.push(offset);
+		context.focus.focus(forwarder, 'keyboard');
+		expect(focusedId()).toBe('target');
+		// Straight to the target and its ring, never by way of the forwarder at 1500
+		expect(seen).toEqual([340 + RING - 100]);
+	});
 });
 
 describe('directional focus (R9.26)', () => {

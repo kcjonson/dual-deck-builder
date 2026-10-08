@@ -238,6 +238,20 @@ describe('TooltipService (R12.22)', () => {
 		expect(context.tooltips.owner?.id).toBe('load');
 	});
 
+	it('moves a tooltip the pointer opened to what content moving under the still pointer brings', () => {
+		send(context, [pointer('move', 120, 110)]);
+		advance(context, DELAY + 16);
+		expect(context.tooltips.owner?.id).toBe('save');
+		expect(context.tooltips.trigger).toBe('hover');
+		// A wheel scroll slides load under the resting pointer
+		save.setPosition(500, 100);
+		load.setPosition(100, 100);
+		context.dispatcher.contentMoved();
+		context.dispatcher.dispatchPending();
+		expect(load.hovered).toBe(true);
+		expect(context.tooltips.owner?.id).toBe('load');
+	});
+
 	it('forgets a shown tooltip on a press elsewhere, so keyboard focus can show it again', () => {
 		save.focusable = true;
 		context.tooltips.show(save, { fade: false });

@@ -17,8 +17,13 @@ import { PointerAdapter } from '../input/PointerAdapter';
 import type { PopupCloseReason } from '../services/PopupService';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../text/testing';
 import { tokens } from '../theme/tokens';
+import { shadowExtent } from '../style/look';
+import { resolveShadow } from '../style/styleObject';
 import { Button } from './Button';
+import { Checkbox } from './Checkbox';
 import { ListRow } from './ListRow';
+import { SegmentedControl } from './SegmentedControl';
+import { Select } from './Select';
 import { TextInput } from './TextInput';
 import { SCROLLBAR_BREADTH, SCROLLBAR_GUTTER, Scrollbar } from './Scrollbar';
 import { ScrollBlock, ScrollContainer, ScrollContainerOptions, Span, revealDelta } from './ScrollContainer';
@@ -138,6 +143,18 @@ function inkyList({ count = 10, pitch = 60, height = 40, viewport = 100, reach =
 /** A component's content box on screen. */
 function boxOnScreen(component: Component): ClipRect {
 	return rectOnScreen(component, { x: 0, y: 0, width: component.width, height: component.height });
+}
+
+/** `control` at content y `y` in a 300 wide scroller `viewport` tall at the origin, over 2000 px of content. */
+function controlIn(control: Component, y: number, viewport = 100): ScrollContainer {
+	const scroll = new ScrollContainer({ id: 'scroll', x: 0, y: 0, width: 300, height: viewport });
+	const content = new Container({ id: 'content', width: 300, height: 2000 });
+	control.setPosition(10, y);
+	content.addChild(control);
+	scroll.addChild(content);
+	root.addChild(scroll);
+	context.frame.layout();
+	return scroll;
 }
 
 describe('ScrollContainer bounds (worldsim suite)', () => {
@@ -631,6 +648,30 @@ describe('ScrollContainer scrollIntoView shows what a component draws (R12.20, D
 		expect(scroll.scrollPosition).toBe(0);
 	});
 
+	it('counts no ring for a focused component since disabled, which the walk no longer draws', () => {
+		const { scroll, items } = inkyList({ focusable: true });
+		context.focus.focus(items[5], 'keyboard');
+		items[5].enabled = false;
+		expect(items[5].focusVisible).toBe(true);
+		scroll.scrollTo(0);
+		scroll.scrollIntoView(items[5]);
+		// Its box ends at 340, and nothing is drawn past it
+		expect(scroll.scrollPosition).toBe(5 * 60 + 40 - 100);
+	});
+
+	it("measures against its clip, inset by its padding: a ring scrolled in ends on the clip's edge", () => {
+		const scroll = new ScrollContainer({ x: 0, y: 0, width: 300, height: 100, style: { padding: 8 } });
+		const content = new Container({ width: 280, height: 2000 });
+		const item = new Inky({ y: 200, width: 100, height: 40, focusable: true });
+		content.addChild(item);
+		scroll.addChild(content);
+		root.addChild(scroll);
+		context.frame.layout();
+		expect(scroll.clipRect.y).toBeGreaterThan(0);
+		context.focus.focus(item, 'keyboard');
+		expect(inkOnScreen(item).maxY).toBeCloseTo(clipOnScreen(scroll).maxY, 9);
+	});
+
 	it('stays put for a component whose ink shows already', () => {
 		const seen: number[] = [];
 		const { scroll, items } = inkyList({ reach: { top: 6, bottom: 6 } });
@@ -778,6 +819,36 @@ describe('ScrollContainer scrollIntoView shows what a component draws (R12.20, D
 		expect(outer.scrollPosition).toBe(0);
 	});
 
+	it('ends the walk at a promoted layer, which no clip beneath it cuts', () => {
+		const scroll = new ScrollContainer({ x: 0, y: 0, width: 300, height: 100 });
+		const content = new Container({ width: 300, height: 2000 });
+		const raised = new Container({ y: 500, width: 300, height: 100, layer: 'raised' });
+		const item = new Inky({ y: 10, width: 100, height: 40, focusable: true });
+		raised.addChild(item);
+		content.addChild(raised);
+		scroll.addChild(content);
+		root.addChild(scroll);
+		context.frame.layout();
+		expect(raised.promoted).toBe(true);
+		context.focus.focus(item, 'keyboard');
+		expect(scroll.scrollPosition).toBe(0);
+	});
+
+	it('ends the walk once a clip has cut the box away, since nothing further up can bring it back', () => {
+		const scroll = new ScrollContainer({ x: 0, y: 0, width: 300, height: 100 });
+		const content = new Container({ width: 300, height: 2000 });
+		// A 50 px window that clips, 300 down the content, holding a child below its clip
+		const window = new Container({ y: 300, width: 300, height: 50, overflow: 'hidden' });
+		const hidden = new Inky({ y: 200, width: 100, height: 40, focusable: true });
+		window.addChild(hidden);
+		content.addChild(window);
+		scroll.addChild(content);
+		root.addChild(scroll);
+		context.frame.layout();
+		context.focus.focus(hidden, 'keyboard');
+		expect(scroll.scrollPosition).toBe(0);
+	});
+
 	it('walks a grid with the arrows: along a row in view nothing moves, a row up or down shows whole', () => {
 		const scroll = new ScrollContainer({ id: 'grid_scroll', x: 0, y: 0, width: 300, height: 100 });
 		const grid = new Stack({ id: 'grid', gap: 20 });
@@ -841,24 +912,77 @@ describe('ScrollContainer scrollIntoView shows what a component draws (R12.20, D
 	});
 
 	it("leaves a button that shows whole where it is, hovered or not: its ring counts, a glow it isn't drawing doesn't", () => {
-		const scroll = new ScrollContainer({ x: 0, y: 0, width: 300, height: 90 });
-		const content = new Container({ width: 300, height: 400 });
-		// An accent button glows when hovered, which its ink bound counts
-		const button = new Button({ label: 'Save', tone: 'accent', x: 20, y: 23, width: 100 });
-		content.addChild(button);
-		scroll.addChild(content);
-		root.addChild(scroll);
-		context.frame.layout();
+		// An accent button glows when hovered, which its ink bound counts; here a glow would have room to scroll
+		const button = new Button({ label: 'Save', tone: 'accent', width: 100 });
+		const scroll = controlIn(button, 223, 90);
+		scroll.scrollTo(200);
 		expect(button.inkExtent).toBeGreaterThan(20);
-		expectWithin(inkOnScreen(button), clipOnScreen(scroll), 'y');
 
 		context.focus.focus(button, 'keyboard');
-		expect(scroll.scrollPosition).toBe(0);
+		expect(scroll.scrollPosition).toBe(200);
 		inject('move,40,40');
 		expect(button.hovered).toBe(true);
 		context.focus.blur();
 		context.focus.focus(button, 'keyboard');
+		expect(scroll.scrollPosition).toBe(200);
+	});
+
+	const ringed: [string, () => Component][] = [
+		['Button', () => new Button({ label: 'Go', width: 100, height: 30 })],
+		['Select', () => new Select({ width: 160, height: 30, options: [{ value: 'a', label: 'A' }] })],
+		['TextInput', () => new TextInput({ width: 160, height: 30 })],
+	];
+
+	it.each(ringed)("scrolls in the ring a %s draws itself when keyboard focus lands on it at the clip's bottom", (_name, make) => {
+		const control = make();
+		// Box 70 to 100 in a 100 px clip
+		const scroll = controlIn(control, 70);
+		context.focus.focus(control, 'keyboard');
+		expect(control.drawsOwnFocusRing).toBe(true);
+		expect(scroll.scrollPosition).toBe(FOCUS_RING_EXTENT);
+	});
+
+	it.each(ringed)('shows no ring for a %s focused by code under the pointer modality, so its box on the edge stays put', (_name, make) => {
+		const control = make();
+		const scroll = controlIn(control, 70);
+		context.focus.focusFromPointer(control);
+		context.focus.blur();
+		context.focus.focus(control);
+		expect(control.focusVisible).toBe(false);
 		expect(scroll.scrollPosition).toBe(0);
+	});
+
+	it("scrolls in a raised button's shadow, which it draws in every state", () => {
+		const button = new Button({ label: 'Raised', width: 120, height: 30, style: { shadow: 'shadow_raised' } });
+		const shadow = shadowExtent(resolveShadow('shadow_raised'));
+		expect(shadow).toBeGreaterThan(FOCUS_RING_EXTENT);
+		// Box 60 to 90 in a 100 px clip
+		const scroll = controlIn(button, 60);
+		context.focus.focus(button, 'keyboard');
+		expect(scroll.scrollPosition).toBe(90 + shadow - 100);
+	});
+
+	it("scrolls in a checked checkbox's ring, which the walk draws round the row, and not the glow its mark raises on hover", () => {
+		const check = new Checkbox({ label: 'Check', width: 160, checked: true });
+		expect(check.inkExtent).toBeGreaterThan(FOCUS_RING_EXTENT);
+		// Its box's bottom on the clip's bottom
+		const scroll = controlIn(check, 100 - check.height);
+		context.focus.focus(check, 'keyboard');
+		expect(check.drawsOwnFocusRing).toBe(false);
+		expect(scroll.scrollPosition).toBe(FOCUS_RING_EXTENT);
+	});
+
+	it("leaves a selected segment on the clip's edge where it is: its ring is inside and its chip glow isn't counted", () => {
+		const segments = new SegmentedControl({ options: [{ label: 'One', value: 1 }, { label: 'Two', value: 2 }], selected: 1 });
+		const scroll = controlIn(segments, 600);
+		const chip = segments.children.find((child) => child.focusable) as Component;
+		expect(chip.selected).toBe(true);
+		expect(chip.inkExtent).toBeGreaterThan(0);
+		// Its box's bottom on the clip's bottom
+		scroll.scrollTo(scroll.scrollPosition + boxOnScreen(chip).maxY - clipOnScreen(scroll).maxY);
+		const resting = scroll.scrollPosition;
+		context.focus.focus(chip, 'keyboard');
+		expect(scroll.scrollPosition).toBe(resting);
 	});
 });
 
