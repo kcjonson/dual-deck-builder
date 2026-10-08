@@ -28,6 +28,17 @@ This replaces the single long run up a map to a region boss. The player runs a c
 
 ![The supply run loop](../design/supply-runs/loop.png)
 
+## Founding the compound
+
+A campaign is founded from a seed and the archetypes unlocked so far, and the same seed and unlocks found the same campaign. Decision record: [campaign-founding.md](../AI_TECHNICAL_DECISIONS/campaign-founding.md).
+
+- The map parameters roll from the seed, and the area map is generated from both (Area Map Generation). A campaign started from the Map Lab founds on the Map Lab's seed and parameters instead.
+- The starting pool is dealt from the unlocked archetypes (see The driver pool), each driver with their archetype's starting deck as their default deck.
+- The stores start with a week of food and water for the starting settlers, fuel for a few runs, a few meds, and some scrap. The locker and the convoy start empty; a starter escort is a tuning option.
+- It's day 1, at dawn. The clock only runs on the road, so while it's one run a day (open question 8), the compound between runs is always at the dawn of its day.
+
+The pool size, the stores, and any starter escorts are starting values, kept for tuning in `src/renderer/game/data/campaign-start.json`.
+
 ## The compound
 
 The compound screen is the game's home screen. It's an illustrated scene where the buildings are the menu, with the resources and day along the top and a needs panel beside it.
@@ -73,7 +84,7 @@ The compound can always send a scavenging party on foot: it costs a day and retu
 
 ## The driver pool
 
-- The campaign starts with a pool of four drivers, drawn from the unlocked archetypes with no duplicates.
+- The campaign starts with a pool of four drivers, dealt from the unlocked archetypes with no duplicates. With fewer than four unlocked, it starts with one of each; it needs at least two, since a run takes two.
 - A run takes two. The no-duplicate pair rule still holds for the pair; the pool itself can hold two of an archetype once finds add drivers.
 - Drivers persist across runs, and so do their decks (see Decks and the locker).
 - Driver HP carries between fights on a run, as it does now. A driver who comes home hurt is injured and heals over days in the infirmary.
@@ -265,7 +276,7 @@ Unchanged in spirit: the two players share the compound and decide runs together
 3. Deck limits: 8 to 20 cards, and whether the hand limit should differ by archetype from the start.
 4. Vehicles: a driver's signature vehicle is theirs; does a found vehicle become an escort only, or can it replace a destroyed driven vehicle?
 5. Mid-route branching at junctions: worth adding later, or never? (The road trees make it possible: a junction is a place a run could change its mind.)
-6. Starting pool size (4) and whether the player picks it or it's dealt.
+6. Starting pool size (4) and whether the player picks it or it's dealt. Until it's decided, the pool is dealt from the seed, and its size is a tuning value.
 7. Night rules (see Night).
 8. One run per day, or can two short runs fit in a day's light?
 9. Driver names: drivers now persist, and the pool can hold two of an archetype, so "THE ROAD WARRIOR" isn't enough to tell them apart. Give each driver a personal name, with the archetype as their title? Until that's decided, a driver goes by their archetype and a number counting every driver of that archetype the compound has had, the dead included: "Road Warrior 2".
