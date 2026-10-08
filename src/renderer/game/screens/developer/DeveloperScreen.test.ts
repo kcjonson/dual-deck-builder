@@ -100,6 +100,17 @@ describe('DeveloperScreen', () => {
 		expect(navigate).toHaveBeenLastCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
 	});
 
+	it('pins a focused card\'s detail view on I and lets it go on the next, as its foot says', () => {
+		const card = screen.root.findById('dev_driver_card_ready');
+		if (!card) throw new Error('the driver card section should be mounted');
+		context.focus.focus(card, 'keyboard');
+		context.frame.layout();
+		send(context, [key('i')]);
+		expect(context.tooltips.pinned).toBe(card);
+		send(context, [key('I')]);
+		expect(context.tooltips.pinned).toBeNull();
+	});
+
 	it('pages the section column with Page Down and Page Up', () => {
 		const scroller = screen.root.findById('dev_scroll') as ScrollContainer;
 		const pageBy = jest.spyOn(scroller, 'scrollByPages');
