@@ -107,12 +107,14 @@ export class Card extends Model<CardData> {
 	]);
 
 	/**
-	 * Create a new card from data configuration
+	 * Create a new card from data configuration. Built upgraded, it takes its
+	 * upgrade block's cost and effects, the same card upgrade() makes.
 	 */
 	constructor(data: Omit<CardData, 'upgraded'> & { upgraded?: boolean }) {
 		super({
 			...data,
 			effects: [...data.effects],
+			...(data.upgraded ? Card.upgradedFields(data.upgrades) : {}),
 			upgraded: data.upgraded || false
 		});
 	}
@@ -191,20 +193,26 @@ export class Card extends Model<CardData> {
 	 */
 	public upgrade(): Card {
 		if (!this.upgraded && this.upgrades) {
-			this.upgraded = true;
-			
-			// Apply configured upgrades
-			for (const [key, value] of Object.entries(this.upgrades)) {
-				if (key === 'cost' && typeof value === 'number') {
-					this.cost = value;
-				} else if (key === 'effects' && Array.isArray(value)) {
-					this.effects = [...value as CardEffect[]];
-				}
-				// Additional upgrade types can be easily added here
-			}
+			this.set({ ...Card.upgradedFields(this.upgrades), upgraded: true });
 		}
 
 		return this;
+	}
+
+	/**
+	 * What an upgrade block changes: the cost, the whole effects list, or both
+	 */
+	private static upgradedFields(upgrades: UpgradeData | undefined): Partial<CardData> {
+		const fields: Partial<CardData> = {};
+		for (const [key, value] of Object.entries(upgrades ?? {})) {
+			if (key === 'cost' && typeof value === 'number') {
+				fields.cost = value;
+			} else if (key === 'effects' && Array.isArray(value)) {
+				fields.effects = [...value as CardEffect[]];
+			}
+			// Additional upgrade types can be easily added here
+		}
+		return fields;
 	}
 
 	/**
