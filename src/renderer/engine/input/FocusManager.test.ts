@@ -674,6 +674,18 @@ describe('scroll into view (R12.20)', () => {
 		expect(inner.scrollPosition).toBe(20);
 	});
 
+	it('runs focus handlers before the reveal and focus change listeners after it, so only a listener reads where focus lands', () => {
+		const { panel, rows } = scroller();
+		const seen: string[] = [];
+		rows[4].onFocus = () => seen.push(`handler at ${panel.scrollPosition}`);
+		context.focus.onFocusChange((focused) => {
+			if (focused === rows[4]) seen.push(`listener at ${panel.scrollPosition}`);
+		});
+		context.focus.focus(rows[4]);
+		// row4 spans 240 to 280
+		expect(seen).toEqual(['handler at 0', 'listener at 180']);
+	});
+
 	it('reveals only where focus ends up when a focus handler moves it on', () => {
 		const seen: number[] = [];
 		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100, contentHeight: 2000 });
