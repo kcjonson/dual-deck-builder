@@ -4,6 +4,7 @@ import { Driver, DriverRole } from './Driver';
 import { RoadLane, RoadRow } from './Road';
 import { Team, TeamType } from './Team';
 import { Vehicle } from './Vehicle';
+import { Rng } from '../core/Rng';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
 
 // Total speed is baseSpeed plus the test driver's speed skill of 2. Drivers get enough
@@ -590,7 +591,7 @@ describe('Driver death', () => {
 
 		// Random-backed AIs take the first action offered, which is the first card's first target
 		beforeEach(() => {
-			jest.spyOn(Math, 'random').mockReturnValue(0);
+			jest.spyOn(Rng.prototype, 'pick').mockImplementation(<T>(items: readonly T[]): T => items[0]);
 		});
 
 		afterEach(() => {

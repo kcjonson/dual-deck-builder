@@ -1,8 +1,14 @@
 import { Driver, DriverArchetype, DriverRole, CardsBurnedEvent, DRIVER_CONFIGS } from '../Driver';
 import { Deck } from '../Deck';
 import { Card } from '../Card';
+import { Rng } from '../../core/Rng';
 
 describe('Hand limit', () => {
+	let rng: Rng;
+	beforeEach(() => {
+		rng = new Rng({ seed: 20261007 });
+	});
+
 	const createCard = (index: number): Card => new Card({
 		type: `card_${index}`,
 		name: `Test Card ${index}`,
@@ -61,7 +67,7 @@ describe('Hand limit', () => {
 		const burnSpy = jest.fn();
 		driver.on('cardsBurned', burnSpy);
 
-		const result = driver.drawCards(driver.handLimit);
+		const result = driver.drawCards(driver.handLimit, rng);
 
 		expect(driver.hand.length).toBe(7);
 		expect(result.drawn).toHaveLength(7);
@@ -71,11 +77,11 @@ describe('Hand limit', () => {
 
 	test('a turn draw into a hand of 5 keeps 2 and burns 3 to discard', () => {
 		const driver = newDriver();
-		driver.drawCards(5);
+		driver.drawCards(5, rng);
 		const burnSpy = jest.fn();
 		driver.on('cardsBurned', burnSpy);
 
-		const result = driver.drawCards(5);
+		const result = driver.drawCards(5, rng);
 
 		expect(driver.hand.length).toBe(7);
 		expect(result.drawn).toHaveLength(2);
@@ -91,7 +97,7 @@ describe('Hand limit', () => {
 	test.each([4, 9])('a driver with a limit of %i fills to it and burns the rest of a 10 card draw', (handLimit) => {
 		const driver = newDriver({ handLimit });
 
-		const result = driver.drawCards(10);
+		const result = driver.drawCards(10, rng);
 
 		expect(driver.hand.length).toBe(handLimit);
 		expect(result.drawn).toHaveLength(handLimit);
@@ -101,10 +107,10 @@ describe('Hand limit', () => {
 
 	test('a limit raised mid-fight lets the next draw past the old one', () => {
 		const driver = newDriver();
-		driver.drawCards(7);
+		driver.drawCards(7, rng);
 
 		driver.handLimit = 8;
-		const result = driver.drawCards(2);
+		const result = driver.drawCards(2, rng);
 
 		expect(driver.hand.length).toBe(8);
 		expect(result.drawn).toHaveLength(1);
@@ -113,13 +119,13 @@ describe('Hand limit', () => {
 
 	test('a limit lowered under the hand discards nothing, and every draw burns until the hand is under it', () => {
 		const driver = newDriver();
-		driver.drawCards(7);
+		driver.drawCards(7, rng);
 
 		driver.handLimit = 5;
 		expect(driver.hand.length).toBe(7);
 		expect(driver.discard).toHaveLength(0);
 
-		const result = driver.drawCards(2);
+		const result = driver.drawCards(2, rng);
 		expect(driver.hand.length).toBe(7);
 		expect(result.drawn).toHaveLength(0);
 		expect(result.burned).toHaveLength(2);

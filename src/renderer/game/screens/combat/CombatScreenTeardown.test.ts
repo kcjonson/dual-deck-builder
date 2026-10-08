@@ -5,9 +5,10 @@ import cardsFile from '../../data/cards.json';
 // ScreenManager first, as the game loads it: it and the screens import each
 // other, and loading a screen first leaves it undefined in the registry
 import { ScreenManager } from '../../core/ScreenManager';
-import { CombatScreen } from './CombatScreen';
+import { CombatScreen, DriversCombatMount } from './CombatScreen';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
+import { Rng } from '../../core/Rng';
 import { Battle } from '../../mechanics/Battle';
 import { Card as UICard } from '../../ui/Card';
 import type { Component } from '../../../engine/components/Component';
@@ -57,8 +58,9 @@ function cardsHitAt(spots: string[]): number {
 		.filter(component => component instanceof UICard).length;
 }
 
-async function openCombat(): Promise<CombatScreen> {
-	ScreenManager.navigate('combatScreen', undefined, { immediate: true });
+/** The dev fight, or a fight around these drivers when given them */
+async function openCombat(data?: DriversCombatMount): Promise<CombatScreen> {
+	ScreenManager.navigate('combatScreen', data, { immediate: true });
 	await settle();
 	const combat = ScreenManager.activeScreen;
 	if (!(combat instanceof CombatScreen)) throw new Error('combat should be the active screen');
@@ -159,17 +161,10 @@ describe('CombatScreen: the fight ending leaves no combat cards behind', () => {
 	});
 
 	it('after the enemy turn that loses the fight', async () => {
-		// Seeded, so the shuffles and the raider's plan are the same every run
-		let seed = 20260927;
-		const random = jest.spyOn(Math, 'random').mockImplementation(() => {
-			seed = (seed + 0x6d2b79f5) >>> 0;
-			let t = seed;
-			t = Math.imul(t ^ (t >>> 15), t | 1);
-			t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-			return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-		});
-		const combat = await openCombat();
-		random.mockRestore();
+		// The dev fight's drivers on a seeded stream, so the shuffles and the
+		// raider's plan are the same every run
+		const [first, second] = DriverLoader.getInstance().getUnlockedDrivers();
+		const combat = await openCombat({ drivers: [first, second], rng: new Rng({ seed: 20260927 }) });
 		const playerTeam = combat['playerTeam'];
 		const raider = combat['enemyTeam']?.vehicles[0];
 		if (!playerTeam || !raider?.driver) throw new Error('the dev fight should field both teams');

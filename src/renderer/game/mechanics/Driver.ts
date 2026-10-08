@@ -1,6 +1,7 @@
 import { Card } from './Card';
 import { Deck } from './Deck';
 import { Model } from '../core/Model';
+import type { Rng } from '../core/Rng';
 
 /**
  * Payload of the Driver 'cardsBurned' event, emitted once per draw that overflows the driver's hand limit
@@ -357,15 +358,16 @@ export class Driver extends Model<DriverData> {
 	/**
 	 * Draw cards from driver's deck into their hand. Cards drawn while the hand is at
 	 * the driver's hand limit go straight to discard and are announced with a
-	 * 'cardsBurned' event.
+	 * 'cardsBurned' event. A deck that runs dry takes the discard back,
+	 * shuffled with draws from `rng` (Deck.shuffle).
 	 */
-	public drawCards(count: number): DrawResult {
+	public drawCards(count: number, rng: Rng): DrawResult {
 		const result: DrawResult = { drawn: [], burned: [] };
 		if (!this.deck) return result;
 
 		for (let i = 0; i < count; i++) {
 			if (this.deck.size === 0 && this.discard.length > 0) {
-				this.reshuffleDiscardIntoDeck();
+				this.reshuffleDiscardIntoDeck(rng);
 			}
 
 			const card = this.deck.draw();
@@ -444,7 +446,7 @@ export class Driver extends Model<DriverData> {
 	/**
 	 * Reshuffle discard pile back into deck
 	 */
-	private reshuffleDiscardIntoDeck(): void {
+	private reshuffleDiscardIntoDeck(rng: Rng): void {
 		if (!this.deck) return;
 
 		const discardedCards = [...this.discard];
@@ -454,7 +456,7 @@ export class Driver extends Model<DriverData> {
 			this.deck.addCard(card);
 		}
 		
-		this.deck.shuffle();
+		this.deck.shuffle(rng);
 	}
 
 	/**

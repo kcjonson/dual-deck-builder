@@ -63,11 +63,12 @@ export interface DriverRecord extends Readonly<DriverRecordData> {}
  * (Compound and Supply Runs, The driver pool). A fight builds its combat
  * `Driver` from one (DDB-286).
  *
- * `id` shadows Model's per-instance id, which is random (DDB-99) and so is
- * never saved or used to find a driver. Properties are read-only: a change
- * goes through `set`, which checks the whole record and throws, changing
- * nothing, if the result would be invalid, so every record saves and loads
- * back. The id and the archetype never change.
+ * `id` shadows Model's per-instance id, a runtime count that depends on what
+ * the session built first, so it's never saved or used to find a driver.
+ * Properties are read-only: a change goes through `set`, which checks the
+ * whole record and throws, changing nothing, if the result would be invalid,
+ * so every record saves and loads back. The id and the archetype never
+ * change.
  */
 export class DriverRecord extends Model<DriverRecordData> {
 	static properties = new Set<keyof DriverRecordData>(FIELDS);
