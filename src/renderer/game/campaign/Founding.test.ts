@@ -12,6 +12,9 @@ import { FoundingOptions, dealStartingPool, foundCampaign } from './Founding';
 
 const SEED = 20261007;
 
+/** Four archetypes, written out, so a new one in DRIVER_CONFIGS moves none of these deals. */
+const ARCHETYPES: readonly DriverArchetype[] = ['road_warrior', 'interceptor', 'mechanic', 'raider'];
+
 /** Unlocked before any progression: every archetype but the Raider. */
 const UNLOCKED = DRIVER_ARCHETYPES.filter(archetype => DRIVER_CONFIGS[archetype].metadata.unlocked);
 
@@ -23,7 +26,7 @@ const SEEDS = Array.from({ length: 400 }, (_, index) => (index * 2654435761) >>>
 
 const found = (options: Partial<FoundingOptions> = {}): Campaign => foundCampaign({
 	seed: SEED,
-	unlockedArchetypes: DRIVER_ARCHETYPES,
+	unlockedArchetypes: ARCHETYPES,
 	...options
 });
 
@@ -40,7 +43,7 @@ describe('foundCampaign', () => {
 		});
 
 		it('founds a different campaign from a different seed: other map params, and another deal', () => {
-			const campaigns = SEEDS.slice(0, 8).map(seed => foundCampaign({ seed, unlockedArchetypes: DRIVER_ARCHETYPES }));
+			const campaigns = SEEDS.slice(0, 8).map(seed => foundCampaign({ seed, unlockedArchetypes: ARCHETYPES }));
 			const params = new Set(campaigns.map(campaign => JSON.stringify({ ...campaign.mapParams, seed: 0 })));
 			const pools = new Set(campaigns.map(campaign => archetypesOf(campaign).join()));
 
@@ -124,14 +127,14 @@ describe('foundCampaign', () => {
 		it('recruits the deal through the campaign: ids in the order dealt, each named as the first of their archetype', () => {
 			const campaign = found({ start: FOUR });
 
-			expect(archetypesOf(campaign)).toEqual(dealStartingPool({ seed: SEED, unlockedArchetypes: DRIVER_ARCHETYPES, size: 4 }));
+			expect(archetypesOf(campaign)).toEqual(dealStartingPool({ seed: SEED, unlockedArchetypes: ARCHETYPES, size: 4 }));
 			expect(campaign.drivers.map(driver => driver.id)).toEqual(['driver-1', 'driver-2', 'driver-3', 'driver-4']);
 			expect(campaign.drivers.map(driver => driver.name)).toEqual(campaign.drivers.map(({ archetype }) => placeholderName({ archetype, ordinal: 1 })));
 			expect(campaign.nextDriverNumber).toBe(5);
 		});
 
 		it('deals the pool size from the start', () => {
-			expect(found()).toHaveProperty('drivers.length', Math.min(CAMPAIGN_START.poolSize, DRIVER_ARCHETYPES.length));
+			expect(found()).toHaveProperty('drivers.length', Math.min(CAMPAIGN_START.poolSize, ARCHETYPES.length));
 			expect(found({ start: { ...CAMPAIGN_START, poolSize: 2 } }).drivers).toHaveLength(2);
 		});
 
@@ -238,7 +241,7 @@ describe('foundCampaign', () => {
 describe('dealStartingPool', () => {
 	const deal = (options: Partial<Parameters<typeof dealStartingPool>[0]> = {}): DriverArchetype[] => dealStartingPool({
 		seed: SEED,
-		unlockedArchetypes: DRIVER_ARCHETYPES,
+		unlockedArchetypes: ARCHETYPES,
 		size: 4,
 		...options
 	});
@@ -263,22 +266,26 @@ describe('dealStartingPool', () => {
 	});
 
 	it('deals each archetype into a smaller pool about as often as the others', () => {
+		const size = 2;
 		const dealt = new Map<DriverArchetype, number>();
 		for (const seed of SEEDS) {
-			for (const archetype of deal({ seed, size: 2 })) dealt.set(archetype, (dealt.get(archetype) ?? 0) + 1);
+			for (const archetype of deal({ seed, size })) dealt.set(archetype, (dealt.get(archetype) ?? 0) + 1);
 		}
 
-		// Half of 400 each, give or take three standard deviations.
-		for (const archetype of DRIVER_ARCHETYPES) {
-			expect(dealt.get(archetype)).toBeGreaterThan(170);
-			expect(dealt.get(archetype)).toBeLessThan(230);
+		// Each archetype's share of the seeds, give or take three standard deviations.
+		const share = size / ARCHETYPES.length;
+		const expected = SEEDS.length * share;
+		const spread = 3 * Math.sqrt(SEEDS.length * share * (1 - share));
+		for (const archetype of ARCHETYPES) {
+			expect(dealt.get(archetype)).toBeGreaterThan(expected - spread);
+			expect(dealt.get(archetype)).toBeLessThan(expected + spread);
 		}
 	});
 
 	it('shuffles the unlocked archetypes, sorted by id, on the pool fork of the seed\'s founding stream', () => {
 		for (const seed of SEEDS.slice(0, 50)) {
 			const stream = new Rng({ seed }).fork('founding').fork('pool');
-			expect(deal({ seed, size: 3 })).toEqual(stream.shuffle([...DRIVER_ARCHETYPES].sort()).slice(0, 3));
+			expect(deal({ seed, size: 3 })).toEqual(stream.shuffle([...ARCHETYPES].sort()).slice(0, 3));
 		}
 	});
 
@@ -287,8 +294,10 @@ describe('dealStartingPool', () => {
 	// DRIVER_CONFIGS, or adding a locked archetype, moves none.
 	it('deals the pinned pools for one seed', () => {
 		expect(RNG_VERSION).toBe(1);
-		expect(deal()).toEqual(['road_warrior', 'mechanic', 'interceptor', 'raider']);
-		expect(deal({ unlockedArchetypes: UNLOCKED })).toEqual(['mechanic', 'interceptor', 'road_warrior']);
+		expect(deal({ unlockedArchetypes: ['road_warrior', 'interceptor', 'mechanic', 'raider'] }))
+			.toEqual(['road_warrior', 'mechanic', 'interceptor', 'raider']);
+		expect(deal({ unlockedArchetypes: ['road_warrior', 'interceptor', 'mechanic'] }))
+			.toEqual(['mechanic', 'interceptor', 'road_warrior']);
 	});
 
 	it('never calls Math.random', () => {
