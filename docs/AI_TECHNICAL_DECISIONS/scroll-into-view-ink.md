@@ -10,7 +10,7 @@ What a reveal shows has to be what is drawn, and no more: a bound that over-coun
 
 ## Decision
 
-What a reveal shows is what the component draws in its current state. `Component.revealInk` is the union of `restingInk` and, while the render walk draws it, the walk's focus ring (`drawsWalkFocusRing`: `focusVisible`, enabled, and not `drawsOwnFocusRing`, the one test the walk reads too). `restingInk` is the one hook: protected, `cullInk` by default, which is right for ink a component draws in every state (a border, a shadow, a card's cost hex, a mini's stack edges, count, and tag). Controls whose `inkExtent` covers more than they draw override it with what they draw with the pointer away:
+What a reveal shows is what the component draws in its current state. `Component.revealInk` is the union of `restingInk` and, while the render walk draws it, the walk's focus ring (`drawsWalkFocusRing`: `focusVisible`, enabled, and not `drawsOwnFocusRing`, the one test the walk reads too). `restingInk` is the one hook: protected, `cullInk` by default, which is right for ink a component draws in every state (a border, a shadow, a card's cost hex, a mini's stack edges, count, and tag). Components whose cull bound covers more than they draw override it with what they draw with the pointer away:
 
 - Button, Select, and TextInput take `inkExtent` and `restingInk` both from `lookInk`, which reads their look layers: every state's ring, glow, shadow, and nudge for the first, and for the second layer 6's ring outside the box while focus shows and the base's own shadow where it falls (a raised button's reaches 27 px below its box and 15 above). Never a glow or a press nudge.
 - Checkbox, Toggle, and Radio take the same from the mark's layers, on the mark, less the look's ring: the walk draws theirs round the row.
@@ -29,7 +29,7 @@ The reveal is computed once and handed up the chain. `revealInAncestors` in `com
 
 - While the ink fits the clip, `nearest` moves the least that shows all of it, and nothing at all when it shows already, compared rather than subtracted; `center` centres the box, then moves the least that keeps the ink in view, which is the old behaviour exactly when nothing extra is drawn.
 - When only the box fits, either block keeps the box whole and splits the room it leaves between the ink above and below, half each unless a side needs less, so a ring all round shows on both sides before a one-sided count takes the room.
-- When the box is taller than the clip, `nearest` puts its top at the clip's top, under the ink above it unless that ink would push the top out of view, and `center` centres the box.
+- When the box is taller than the clip, `nearest` puts the box's top at the clip's top, or, when the ink above the box is shorter than the clip, that ink's top, and `center` centres the box.
 
 The last two depend only on where the component is, never on which side it came from, so focus moving back and forth over something too tall never swings the view. Sizes and positions are compared to a millionth of a pixel, so rounding in fractional layouts neither misclassifies a box exactly as tall as the clip nor moves a settled view; a non-finite input answers 0, and the walk takes ink with a non-finite edge for no bound, so the box still shows. `ScrollContainer` clamps the target to its range and scrolls only when that changes the position, so a reveal against the end of the range doesn't cancel a pending `scrollToBottom`.
 
@@ -49,8 +49,8 @@ A tooltip that keyboard focus opened stays on its owner when hover changes only 
 
 ## Consequences
 
-- A card's static ink is its `inkExtent` on every side, so a face reveals 9 px below its box where it draws at most the ring's 3 px, and a mini without a stack reveals 7 px where it draws at most 3. A per-side `restingInk` on `Card` would tighten that.
-- What scrolls into view can still be cut where the range ends: content whose last row draws past the end of the content needs a margin or padding for it, as driver selection's grid has. The pile dialog's last row is one such case, and a scroller's clip reaches into its padding only by its direct children's ink, filed separately.
+- A card's static ink is its `inkExtent` on every side, so a face reveals 9 px below its box where it draws at most the ring's 3 px, and a mini without a stack reveals 7 px where it draws at most 3. A per-side `restingInk` on `Card` would tighten that (DDB-412).
+- What scrolls into view can still be cut where the range ends: content whose last row draws past the end of the content needs a margin or padding for it, as driver selection's grid has. The pile dialog's last row is one such case, and a scroller's clip reaches into its padding only by its direct children's ink.
 - Only y is revealed. The pile dialog's first column draws its hex past the scroller's left edge, a layout gap (DDB-407, DDB-409).
 - `InputObserver.hoverChange` takes a second argument, `pointerMoved`.
 - `checkReveal` in `components/testing.ts` renders a component through the draw API and compares every draw with what it reveals. Each focusable in the catalog and the game is held to it (the two `revealInk.test.ts`), a card to its known over-bound, so a bound that drifts from the drawing fails there whatever the scroll tests cover.
