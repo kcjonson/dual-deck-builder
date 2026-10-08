@@ -1834,10 +1834,12 @@ export class Battle extends Model<BattleData> {
 	 * where they jump, not here.
 	 */
 	private logDeaths(vehicle: Vehicle, crew: Crew): void {
+		// A player's driver at 0 HP is down, not dead: their partner revives them if they win (Combat Rules,
+		// Losing vehicles and drivers). A raider's death is final.
+		const outcome = this.playerTeam.vehicles.includes(vehicle) ? 'is down' : 'is dead';
 		for (const occupant of crew.living) {
 			if (!occupant.isAlive()) {
-				// Down, not dead: a player's driver is revived if their partner wins (Combat Rules, Losing vehicles and drivers)
-				this.logAbout({ type: 'general', driver: occupant, say: (name) => `${name} is down`, metadata: { driver: occupant.metadata.name } });
+				this.logAbout({ type: 'general', driver: occupant, say: (name) => `${name} ${outcome}`, metadata: { driver: occupant.metadata.name } });
 			}
 		}
 		if (!vehicle.isAlive() || vehicle.driver === crew.driver) {

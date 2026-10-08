@@ -419,6 +419,8 @@ describe('Driver death', () => {
 
 			expect(buggy.isAlive()).toBe(true);
 			expect(buggy.driver).toBeNull();
+			// A raider's death is final; only the player's drivers are down
+			expect(messages()).toContain('Enemy1 Buggy Driver is dead');
 			expect(messages()).toContain('Buggy has nobody aboard and is out of the fight');
 			expect(battle.battleOver).toBe(false);
 
