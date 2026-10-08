@@ -112,6 +112,9 @@ function tones(hex: string): ToneFills {
 
 export const COST_HEX_FILLS = tones(COST_HEX);
 export const COST_HEX_EDGE_FILL: RGBA = hexRgba(COST_HEX_EDGE);
+export const CARD_GROUND_FILLS = tones(CARD_GROUND);
+export const CARD_MUTED_FILLS = tones(CARD_MUTED);
+export const CARD_DIM_FILLS = tones(CARD_DIM);
 export const GEM_FILLS: Readonly<Record<CardRarity, ToneFills>> = {
 	starter: tones(RARITY_GEMS.starter),
 	common: tones(RARITY_GEMS.common),
@@ -122,13 +125,18 @@ export const GEM_FILLS: Readonly<Record<CardRarity, ToneFills>> = {
 };
 export const DRIVER_MARK_FILLS: Readonly<Record<1 | 2, ToneFills>> = { 1: tones(DRIVER_COLORS[1]), 2: tones(DRIVER_COLORS[2]) };
 
+/** How far a cost hex `size` across draws its outline past its box, on every side. */
+export function costHexInk(size: number): number {
+	return size / 15;
+}
+
 /**
  * The cost hex's two draws, built once where the hex sits: the outline as a
  * slightly larger hex in the ground colour, and the bone hex inside it. An
  * owner recolours the face's `fill` in place.
  */
 export function costHexDraws(x: number, y: number, size: number): { edge: DrawPolygonOptions; face: DrawPolygonOptions } {
-	const edge = size / 15;
+	const edge = costHexInk(size);
 	return {
 		edge: { points: hexPoints(x - edge, y - edge, size + edge * 2), indices: HEX_INDICES, fill: COST_HEX_EDGE_FILL },
 		face: { points: hexPoints(x, y, size), indices: HEX_INDICES, fill: COST_HEX_FILLS.full },

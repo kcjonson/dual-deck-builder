@@ -16,7 +16,7 @@ The page is one vertical stack the viewport's size, holding a header row, the bo
 - Body: left panel, synergy column, right panel, `fill` with weights 35, 18, 35 (the old proportions). The synergy panel hugs its height and the column centres it.
 - Footer: the summary filling the space left of START RUN, right-aligned and wrapping, the button, and an empty fill the same weight on the right, so the button stays centred and an empty summary moves nothing. The spec puts the summary "next to" the button; side by side also gives the panels 34 px more height than stacking it above.
 
-Each `DriverPanel` is a column: the portrait (`fill`, minimum 40), name, vehicle, specialty, a scroll container, and the `Select`. The scroll container holds a column of the flavour text, "Starting Deck:", and the mini cards.
+Each `DriverPanel` is a column: the portrait (`fill`, minimum 8), name, vehicle, specialty, a scroll container, and the `Select`. The scroll container holds a column of the flavour text, "Starting Deck:", and the mini cards.
 
 The scroll container hugs its content. That needed an engine change: `ScrollContainer.measure` on a `hug` height returns the content's measured height plus padding, and `minContentSize('height')` is 0, so a column with room gives it exactly its content and a column without shrinks it (CSS flex-shrink) down to its `minSize`. That is CSS's `max-height` with `overflow: auto`. With the portrait as the only `fill` child, a tall window grows the portrait and a short one shrinks the portrait to its minimum and then the scroller to a card height, past which the flavour and deck scroll.
 
@@ -28,7 +28,7 @@ Options considered for the panel:
 
 The mini cards need rows, and wrap is out of the engine's scope (R10.4: "Wrap (multi-line flex) and grid are out of scope"). `game/ui/FlowWrap.ts` is a small container that takes part in stack layout like a wrapping text: a stack assigns its width, it measures its rows' height at that width, and each item keeps its own measured size. Two rows of the game use it, the deck preview and the synergy tags. It stays in game code until the engine adopts wrap, at which point it should be deleted for that.
 
-Each deck entry is a two-item stack, the card and, when the deck holds more than one, a `Badge` with `xN` under it. The badge is the catalog's (R12.26), clear of the cost corner.
+Each deck entry is one 80x112 mini card stacked to its quantity, the count on the stack itself ([mini-card.md](./mini-card.md), DDB-311). The grid is spaced by `MINI_GRID` and takes two rows' height whatever the deck holds: a six-card deck wraps to two rows below about 1650 wide while a four-card one fits in one, and two hugging decks of different heights would put one panel's portrait and name higher than the other's. Two rows is the most an unlocked driver's deck needs from 1024 wide up, so the panels match for any pair. The portrait gives way first, down to 8 px (it was 40 before the minis grew), so both decks' two rows still fit at 1280x720 without scrolling.
 
 The `Select` lists every unlocked driver with the partner's driver `enabled: false`, so a conflicting pick can't be made from the UI; `DriverPanel.selectDriver` still moves on to the next open driver if one arrives. The panels' public surface is `select`, `deckPreview`, and `selectDriver(archetype)`; `cycleDriver` is deleted.
 
@@ -42,7 +42,7 @@ The `Select` lists every unlocked driver with the partner's driver `enabled: fal
 
 ## Tests
 
-`DriverSelectionScreen.test.ts` drives the real screen on the measuring backend: options and disabling, a keyboard pick, Escape on an open Select, tab order, three resizes with the same children and selections, the scroller's room above the Select at 1024x600, 1280x720 and 1920x1080, scrolling at 1024x600, badges below their cards, and the card-load race. `FlowWrap.test.ts` covers wrapping, centring, reflow on a narrower column, an oversized item, growth, and hugging outside a stack. `ScrollContainer.test.ts` adds four hug-height cases.
+`DriverSelectionScreen.test.ts` drives the real screen on the measuring backend: options and disabling, a keyboard pick, Escape on an open Select, tab order, three resizes with the same children and selections, the scroller's room above the Select at 1024x600, 1280x720, and 1920x1080, scrolling at 1024x600, each card stacked to its quantity and an entry of none left out, both panels' names level with nothing scrolling at 1440x882, 1280x720, and 1920x1080, and the card-load race. `FlowWrap.test.ts` covers wrapping, centring, reflow on a narrower column, an oversized item, growth, and hugging outside a stack. `ScrollContainer.test.ts` adds four hug-height cases.
 
 ## Consequences
 

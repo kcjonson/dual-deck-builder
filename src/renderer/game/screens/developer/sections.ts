@@ -28,6 +28,7 @@ import { CombatFxSection } from './CombatFxSection';
 import { CombatLogSection } from './CombatLogSection';
 import { CombatRoadSection } from './CombatRoadSection';
 import { CardDetailCapSection, CardDetailPinnedSection, CardDetailSection, CardFacesSection } from './CardDetailSection';
+import { CardMinisSection } from './CardMinisSection';
 import { SliderTabsSection } from './SliderTabsSection';
 import { VehicleTokensSection } from './VehicleTokensSection';
 import { CombatTargetingSection } from './CombatTargetingSection';
@@ -209,6 +210,11 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'card-detail-cap',
 		build: (options) => new CardDetailCapSection(options),
+	},
+	// The mini card in every state, stacked and tagged (DDB-311)
+	{
+		name: 'card-minis',
+		build: (options) => new CardMinisSection(options),
 	},
 	// A card mid-drag over the road: ranges, outlines, ghost, hit check (DDB-138)
 	{
