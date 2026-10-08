@@ -16,9 +16,10 @@ export const DRIVER_ARCHETYPES = Object.keys(DRIVER_CONFIGS) as readonly DriverA
 
 /**
  * The damage a driver's signature vehicle carries from one fight to the
- * next. Its maximums are the archetype's (`DRIVER_CONFIGS[archetype].vehicleStats`).
- * Structure is at least 1, since a wreck limps into the next fight rather
- * than staying wrecked.
+ * next. Structure is at least 1, since a wreck limps into the next fight
+ * rather than staying wrecked. The maximums are the archetype's
+ * (`DRIVER_CONFIGS[archetype].vehicleStats`), applied when a fight builds
+ * the vehicle, so a record saved before a retune still loads.
  */
 export interface VehicleCondition {
 	structure: number;
@@ -163,18 +164,17 @@ function withFreshStart({ id, archetype, name, ...rest }: DriverRecordOptions): 
 /**
  * A record's fields checked: exactly these fields, each in range, a dead
  * driver at 0 HP with no cards and nobody else at 0, injured days only
- * while injured, and a vehicle inside its archetype's maximums.
+ * while injured, and a vehicle that isn't a wreck.
  */
 export function readDriverRecordData(value: unknown, path: string): DriverRecordData {
 	const fields = readFields(value, path, FIELDS);
-	const archetype = readOneOf(fields.archetype, `${path}.archetype`, DRIVER_ARCHETYPES);
 	const data: DriverRecordData = {
 		id: readText(fields.id, `${path}.id`),
-		archetype,
+		archetype: readOneOf(fields.archetype, `${path}.archetype`, DRIVER_ARCHETYPES),
 		name: readText(fields.name, `${path}.name`),
 		hitpoints: readInteger(fields.hitpoints, `${path}.hitpoints`, { min: 0 }),
 		maxHitpoints: readInteger(fields.maxHitpoints, `${path}.maxHitpoints`, { min: 1 }),
-		vehicle: readVehicleCondition(fields.vehicle, `${path}.vehicle`, archetype),
+		vehicle: readVehicleCondition(fields.vehicle, `${path}.vehicle`),
 		injuredDays: readInteger(fields.injuredDays, `${path}.injuredDays`, { min: 0 }),
 		handLimit: readInteger(fields.handLimit, `${path}.handLimit`, { min: 0 }),
 		defaultDeck: readCardCounts(fields.defaultDeck, `${path}.defaultDeck`),
@@ -203,13 +203,16 @@ export function readDriverRecord(value: unknown, path: string): DriverRecord {
 	return new DriverRecord(readDriverRecordData(value, path));
 }
 
-/** Structure from 1 and armor from 0, each up to the archetype's vehicle's, frozen. */
-function readVehicleCondition(value: unknown, path: string, archetype: DriverArchetype): Readonly<VehicleCondition> {
+/**
+ * Structure from 1 and armor from 0, frozen. No maximum: the archetype's can
+ * be retuned lower after a save, and a fight clamps to the current ones
+ * (CombatBridge), so an old save still loads.
+ */
+function readVehicleCondition(value: unknown, path: string): Readonly<VehicleCondition> {
 	const fields = readFields(value, path, ['structure', 'armor']);
-	const { maxStructure, armor: maxArmor } = DRIVER_CONFIGS[archetype].vehicleStats;
 	return Object.freeze({
-		structure: readInteger(fields.structure, `${path}.structure`, { min: 1, max: maxStructure }),
-		armor: readInteger(fields.armor, `${path}.armor`, { min: 0, max: maxArmor })
+		structure: readInteger(fields.structure, `${path}.structure`, { min: 1 }),
+		armor: readInteger(fields.armor, `${path}.armor`, { min: 0 })
 	});
 }
 

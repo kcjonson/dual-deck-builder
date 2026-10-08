@@ -102,25 +102,32 @@ export type FightWriteBack = WonFight | FailedRun;
 /** What became of a seated driver: still in the fight at its end, down, or crashed out, and what the outcome makes of that. */
 type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
 
-/** Fights written back, or being written back, so none is written twice. */
-const writtenBack = new WeakSet<Battle>();
+/**
+ * Each campaign's fight from its start until it's written back. One at a
+ * time, so a fight can't start beside one that hasn't been written back,
+ * and none is written back twice.
+ */
+const openFights = new WeakMap<Campaign, CampaignFight>();
 
 /**
  * Build a run's next fight and start it. Each seat's combat driver is their
  * record (name, HP, max HP, hand limit, deck) and their archetype (skills,
  * adrenaline), at the wheel of their signature vehicle with the damage the
- * record carries; the run's escorts follow in roster order. Each deck is
- * built from the default deck in card-type order, and Battle.start shuffles
- * it on the seat's deck stream before the opening deal. Everything random
- * draws from `rng`.
+ * record carries, clamped to the archetype's maximums as they stand now;
+ * the run's escorts follow in roster order. Each deck is built from the
+ * default deck in card-type order, and Battle.start shuffles it on the
+ * seat's deck stream before the opening deal. Everything random draws from
+ * `rng`.
  *
- * Throws, building nothing, unless the party seats two drivers of different
+ * Throws, building nothing, while the campaign's last fight hasn't been
+ * written back, and unless the party seats two drivers of different
  * archetypes from the campaign's pool who are ready to fight, its cargo
- * checks out, every escort is the campaign's and out of the last fight,
- * and every card in the decks has a template. The teams and the encounter
- * can refuse the road too (Team, Battle), and move nobody when they do.
+ * checks out, every escort is the campaign's, and every card in the decks
+ * has a template. The teams and the encounter can refuse the road too
+ * (Team, Battle), and move nobody when they do.
  */
 export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, enemyAI = 'aggressive' }: CampaignFightOptions): CampaignFight {
+	if (openFights.has(campaign)) throw new Error("This campaign's last fight hasn't been written back");
 	if (party.seats.length !== 2) throw new RangeError(`A fight seats two drivers, and this party has ${party.seats.length}`);
 	const [first, second] = party.seats;
 	party.seats.forEach(record => {
@@ -133,17 +140,18 @@ export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, ene
 	const cargo = readResources(party.cargo, 'RunParty.cargo');
 	party.escorts.forEach(escort => {
 		if (!campaign.convoy.escorts.includes(escort)) throw new RangeError(`${escort.name} isn't in the campaign's convoy`);
-		if (escort.slot || escort.passenger) throw new Error(`${escort.name} is still in a fight that wasn't written back`);
 	});
 	const escorts = campaign.convoy.escorts.filter(escort => party.escorts.includes(escort));
 
 	const drivers: [Driver, Driver] = [combatDriverOf({ record: first, cards }), combatDriverOf({ record: second, cards })];
-	const vehicles: [Vehicle, Vehicle] = [vehicleOf(first, drivers[0]), vehicleOf(second, drivers[1])];
+	const vehicles: [Vehicle, Vehicle] = [vehicleOf({ record: first, driver: drivers[0] }), vehicleOf({ record: second, driver: drivers[1] })];
 	const playerTeam = new Team({ type: TeamType.PLAYER, vehicles: [...vehicles, ...escorts] });
 	const battle = new Battle({ playerTeam, enemyTeam, rng });
 	battle.aiController.setEnemyAI(enemyAI);
 	battle.start();
-	return { campaign, battle, drivers, vehicles, scrap: cargo.scrap, fuel: cargo.fuel, party: { seats: party.seats, escorts, cargo } };
+	const fight: CampaignFight = { campaign, battle, drivers, vehicles, scrap: cargo.scrap, fuel: cargo.fuel, party: { seats: party.seats, escorts, cargo } };
+	openFights.set(campaign, fight);
+	return fight;
 }
 
 /**
@@ -176,7 +184,7 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
 	const afterFight = battle.afterFight;
 	if (!battle.isBattleOver() || !afterFight) throw new Error("The fight isn't over, so there's nothing to write back yet");
 	if (battle.isBattleTied()) throw new Error('The fight ended in a tie at its turn limit; a campaign fight has none, so it ends won or lost');
-	if (writtenBack.has(battle)) throw new Error('This fight has already been written back');
+	if (openFights.get(campaign) !== fight) throw new Error('This fight has already been written back');
 	const won = battle.isBattleWon();
 
 	const seats = party.seats.map((record, index) => {
@@ -186,16 +194,17 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
 		return { record, fate, changes };
 	});
 	const escortsLost = won ? afterFight.lost : party.escorts;
-	const cargo = won ? readResources(withDividends(party.cargo, afterFight.dividends), 'RunParty.cargo') : NO_RESOURCES;
+	const cargo = won ? readResources(withDividends({ cargo: party.cargo, dividends: afterFight.dividends }), 'RunParty.cargo') : NO_RESOURCES;
 
-	writtenBack.add(battle);
+	// Closed before storing, so a write-back started from a listener partway through is refused
+	openFights.delete(campaign);
 	try {
 		seats.forEach(({ record, changes }) => record.set(changes));
 		campaign.convoy.afterFight({ lost: escortsLost });
 		// endCombat leaves seats alone, and a driver left aboard would ride into the next fight as well as drive in it
 		party.escorts.forEach(escort => { escort.passenger = null; });
 	} catch (error) {
-		writtenBack.delete(battle);
+		openFights.set(campaign, fight);
 		throw error;
 	}
 
@@ -243,9 +252,18 @@ function combatDriverOf({ record, cards }: { record: DriverRecord; cards: Readon
 	});
 }
 
-/** A seat's signature vehicle, carrying the damage on the record. */
-function vehicleOf(record: DriverRecord, driver: Driver): Vehicle {
-	return createDrivenVehicle({ driver, structure: record.vehicle.structure, armor: record.vehicle.armor });
+/**
+ * A seat's signature vehicle, carrying the damage on the record, clamped to
+ * the archetype's maximums as they stand: a retune since the record was
+ * saved lowers them, and the next write-back stores the clamped values.
+ */
+function vehicleOf({ record, driver }: { record: DriverRecord; driver: Driver }): Vehicle {
+	const { maxStructure, armor: maxArmor } = driver.vehicleStats;
+	return createDrivenVehicle({
+		driver,
+		structure: Math.min(record.vehicle.structure, maxStructure),
+		armor: Math.min(record.vehicle.armor, maxArmor)
+	});
 }
 
 /** A driver still aboard is in the fight; one at 0 HP went down; one alive and not aboard crashed out of it. */
@@ -278,7 +296,7 @@ function conditionOf(vehicle: Vehicle): VehicleCondition {
 }
 
 /** The cargo with the haulers' fuel and scrap added. A heal lands on the drivers in the fight instead. */
-function withDividends(cargo: Readonly<Resources>, dividends: readonly DividendPayout[]): Resources {
+function withDividends({ cargo, dividends }: { cargo: Readonly<Resources>; dividends: readonly DividendPayout[] }): Resources {
 	const total = (kind: DividendPayout['kind']): number =>
 		dividends.filter(payout => payout.kind === kind).reduce((sum, payout) => sum + payout.amount, 0);
 	return { ...cargo, fuel: cargo.fuel + total('fuel'), scrap: cargo.scrap + total('scrap') };

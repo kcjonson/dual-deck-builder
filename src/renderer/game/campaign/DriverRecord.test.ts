@@ -62,9 +62,9 @@ describe('DriverRecord', () => {
 			['a blank name', { name: '  ' }, 'DriverRecord.name must not be blank'],
 			['a blank id', { id: '' }, 'DriverRecord.id must not be blank'],
 			['a deck count of 0', { defaultDeck: { repair_kit: 0 } }, 'DriverRecord.defaultDeck.repair_kit must be an integer >= 1, got 0'],
-			['a wrecked vehicle, which limps on instead', { vehicle: { structure: 0, armor: 0 } }, 'DriverRecord.vehicle.structure must be an integer from 1 to 80, got 0'],
-			['structure past the vehicle\'s', { vehicle: { structure: 81, armor: 10 } }, 'DriverRecord.vehicle.structure must be an integer from 1 to 80, got 81'],
-			['armor past the vehicle\'s', { vehicle: { structure: 80, armor: 11 } }, 'DriverRecord.vehicle.armor must be an integer from 0 to 10, got 11'],
+			['a wrecked vehicle, which limps on instead', { vehicle: { structure: 0, armor: 0 } }, 'DriverRecord.vehicle.structure must be an integer >= 1, got 0'],
+			['negative armor', { vehicle: { structure: 80, armor: -1 } }, 'DriverRecord.vehicle.armor must be an integer >= 0, got -1'],
+			['fractional structure', { vehicle: { structure: 40.5, armor: 0 } }, 'DriverRecord.vehicle.structure must be an integer >= 1, got 40.5'],
 			['a vehicle with something extra', { vehicle: { structure: 80, armor: 10, shield: 4 } }, 'DriverRecord.vehicle has an unknown field "shield"']
 		])('rejects %s', (_label, options, message) => {
 			expect(() => recruit(options as Partial<DriverRecordOptions>)).toThrow(message);
@@ -77,6 +77,10 @@ describe('DriverRecord', () => {
 
 		it('takes a hand limit of 0, the least a record can hold', () => {
 			expect(recruit({ handLimit: 0 }).handLimit).toBe(0);
+		});
+
+		it('takes a vehicle past its archetype\'s maximums, which a retune can leave behind, and leaves the clamp to the fight', () => {
+			expect(recruit({ vehicle: { structure: 95, armor: 12 } }).vehicle).toEqual({ structure: 95, armor: 12 });
 		});
 	});
 

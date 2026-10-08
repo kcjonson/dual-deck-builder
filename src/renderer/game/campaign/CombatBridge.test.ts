@@ -1,19 +1,20 @@
-import { createTestDriver } from '../ai/__tests__/test-helpers';
 import { Rng } from '../core/Rng';
 import cardsFile from '../data/cards.json';
 import { Card, CardData, CardEffect } from '../mechanics/Card';
 import { Deck } from '../mechanics/Deck';
-import { Driver, DriverArchetype, DriverRole } from '../mechanics/Driver';
+import { DRIVER_CONFIGS, Driver, DriverArchetype, DriverRole } from '../mechanics/Driver';
 import { EscortProfile, createEscort } from '../mechanics/Escort';
 import type { RaiderArchetype } from '../mechanics/RaiderArchetype';
 import { RoadLane, RoadRow } from '../mechanics/Road';
 import { Team, TeamType } from '../mechanics/Team';
 import { Vehicle, createDrivenVehicle } from '../mechanics/Vehicle';
 import { Campaign, NO_RESOURCES, Resources } from './Campaign';
+import { CampaignStore } from './CampaignStore';
 import { startingDeckCounts } from './CardCounts';
 import { CampaignFight, FightWriteBack, LIMP_STRUCTURE, REVIVE_HP, RunParty, WonFight, startCampaignFight, writeBackFight } from './CombatBridge';
 import { DriverRecord } from './DriverRecord';
 import { foundCampaign } from './Founding';
+import { MemorySaveStorage } from './SaveStorage';
 
 /**
  * DDB-286 and DDB-158: fights built from the campaign's records and
@@ -259,16 +260,27 @@ describe('the combat bridge', () => {
 					.toThrow('RunParty.cargo.fuel must be an integer >= 0, got -1');
 			});
 
-			it('an escort that isn\'t the campaign\'s, or still carries a driver from a fight never written back', () => {
+			it('an escort that isn\'t the campaign\'s', () => {
 				const { campaign, warrior, interceptor } = newCampaign();
-				const owned = createEscort({ type: 'outrider' });
-				campaign.convoy.add(owned);
-				owned.passenger = createTestDriver('Stowaway');
 
 				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor], [createEscort({ type: 'pilot_car' })]), enemy: idle() }))
 					.toThrow("Pilot Car isn't in the campaign's convoy");
-				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor], [owned]), enemy: idle() }))
-					.toThrow("Outrider is still in a fight that wasn't written back");
+			});
+
+			it('a fight while the campaign\'s last one hasn\'t been written back, ended or not', () => {
+				const { campaign, warrior, interceptor } = newCampaign();
+				shooter(interceptor);
+				const scrapper = raider({ deck: [], adrenaline: 1 });
+				const fight = startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: scrapper });
+
+				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() }))
+					.toThrow("This campaign's last fight hasn't been written back");
+				fightOut(fight, () => play({ fight, seat: 1, cardType: 'precision_shot', target: scrapper }));
+				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() }))
+					.toThrow("This campaign's last fight hasn't been written back");
+
+				writeBackFight({ fight });
+				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() })).not.toThrow();
 			});
 
 			it('a deck holding a card that doesn\'t exist', () => {
@@ -446,6 +458,36 @@ describe('the combat bridge', () => {
 			const next = startFight({ campaign, party: result.party, enemy: idle(), seed: SEED + 1 });
 			expect(next.battle.playerTeam.escorts).toEqual([truck]);
 			expect(truck.structure).toBe(19);
+		});
+	});
+
+	describe('a vehicle retuned since the save', () => {
+		it('loads, fights at the archetype\'s new maximums, and is written back clamped to them', async () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			shooter(interceptor);
+			const storage = new MemorySaveStorage();
+			await new CampaignStore({ storage, namespace: 'retune', onWarning: () => undefined }).save(campaign);
+			const stats = DRIVER_CONFIGS.road_warrior.vehicleStats;
+			const tuned = { maxStructure: stats.maxStructure, armor: stats.armor };
+			try {
+				// The Rig retuned down by 5 structure and 2 armor after the save
+				Object.assign(stats, { maxStructure: tuned.maxStructure - 5, armor: tuned.armor - 2 });
+				const loaded = await new CampaignStore({ storage, namespace: 'retune', onWarning: () => undefined }).load();
+				if (!loaded) throw new Error('the save should load');
+				const [rigDriver, bikeDriver] = [warrior, interceptor].map(record => loaded.drivers.find(driver => driver.id === record.id) as DriverRecord);
+				expect(rigDriver.vehicle).toEqual({ structure: 80, armor: 10 });
+
+				const scrapper = raider({ deck: [], adrenaline: 1 });
+				const fight = startFight({ campaign: loaded, party: partyOf([rigDriver, bikeDriver]), enemy: scrapper });
+				const [rig] = fight.vehicles;
+				expect([rig.structure, rig.maxStructure, rig.armor, rig.maxArmor]).toEqual([75, 75, 8, 8]);
+
+				fightOut(fight, () => play({ fight, seat: 1, cardType: 'precision_shot', target: scrapper }));
+				writeBackFight({ fight });
+				expect(rigDriver.vehicle).toEqual({ structure: 75, armor: 8 });
+			} finally {
+				Object.assign(stats, tuned);
+			}
 		});
 	});
 
