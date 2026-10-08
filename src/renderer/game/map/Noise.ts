@@ -168,23 +168,9 @@ export class SimplexNoise {
 	 * derivatives by it after.
 	 */
 	public fractal(x: number, y: number, octaves: number, gain: number): number {
-		let sum = 0;
-		let sumX = 0;
-		let sumY = 0;
-		let total = 0;
-		let amplitude = 1;
-		let scale = 1;
-		for (let octave = 0; octave < octaves; octave += 1) {
-			sum += amplitude * this.sample(x * scale + OCTAVE_OFFSETS_X[octave], y * scale + OCTAVE_OFFSETS_Y[octave]);
-			sumX += amplitude * scale * this.derivativeX;
-			sumY += amplitude * scale * this.derivativeY;
-			total += amplitude;
-			amplitude *= gain;
-			scale *= 2;
-		}
-		this.derivativeX = sumX / total;
-		this.derivativeY = sumY / total;
-		return sum / total;
+		// One loop for both, so a threshold calibrated on `fractal` matches
+		// `fractalWithin` at sampling time to the bit.
+		return this.fractalWithin(x, y, octaves, gain, -Infinity, Infinity);
 	}
 
 	/**
