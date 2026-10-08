@@ -204,11 +204,10 @@ export class PlayerHandLayer extends Stack {
 	}
 
 	private buildCardElement(card: Card): UICard {
-		// Model ids re-roll every load, so the id is a build count plus the
-		// card type. The count carries uniqueness on its own, since a type can
-		// repeat in a hand, and on the first deal it is the hand slot; the
-		// whole string still varies between runs because the shuffle decides
-		// which type lands where.
+		// Not the card's model id, which depends on everything the session
+		// built before it, so the id is a build count plus the card type. The
+		// count carries uniqueness on its own, since a type can repeat in a
+		// hand, and on the first deal it is the hand slot.
 		const cardElement = new UICard({
 			id: `hand_card_${this.builtElements++}_${card.type}`,
 			x: 0,
