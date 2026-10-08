@@ -76,7 +76,11 @@ export function foundCampaign({ seed, unlockedArchetypes, mapParams, start = CAM
 
 	// The area map generator's call goes here: it makes the gameplay map from
 	// the seed and `params` (Area Map Generation, Pipeline), and the campaign
-	// keeps that map and the generator's version. Until it exists, campaigns
+	// keeps that map and the generator's version. When generation gives up on
+	// a seed and takes the next (release builds), the params and the deal
+	// above came from this one, so founding starts over from the next seed:
+	// a loop round all three, or a typed give-up error the caller founds
+	// again on (campaign-founding.md). Until the generator exists, campaigns
 	// are founded on the model's stand-in.
 	const { map, generatorVersion } = MAP_STAND_IN;
 
