@@ -2,7 +2,9 @@
  * @jest-environment jsdom
  */
 import type { AnyUiEvent } from '../../engine/input/events';
-import { createTestContext } from '../../engine/components/testing';
+import { Container } from '../../engine/components/Container';
+import { clipOnScreen, createTestContext, expectWithin, inkOnScreen } from '../../engine/components/testing';
+import { ScrollContainer } from '../../engine/ui/ScrollContainer';
 import { pointer } from '../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../engine/text/testing';
 import { renderTree } from '../../engine/components/renderTree';
@@ -374,6 +376,31 @@ describe('Vehicle token while a card is aimed (DDB-138)', () => {
 		expect(solid.filter(isSolidOutline)).toHaveLength(1);
 		expect(solid.some(command => command.kind === 'shadow')).toBe(true);
 		expect(solid.filter(isDashes)).toEqual([]);
+	});
+
+	it('scrolls the target glow keyboard focus raises into view, not just the dashed outline it had (DDB-406)', () => {
+		const buggy = createDrivenVehicle({ driver: createTestDriver('Raider'), name: 'Buggy' });
+		const model = new CombatModel();
+		model.isTargeting = true;
+		model.targetableVehicleIds = [buggy.id];
+		const context = createTestContext();
+		const scroll = new ScrollContainer({ id: 'scroll', width: 300, height: 400 });
+		const content = new Container({ width: 300, height: 800 });
+		// Its box ends 2 px above the clip's bottom
+		const token = new Vehicle({ id: 'token', x: 40, y: 400 - TOKEN_HEIGHT - 2, vehicleData: buggy, side: 'raider', combatData: model, onClick: () => undefined });
+		content.addChild(token);
+		scroll.addChild(content);
+		scroll.mount(context);
+		context.frame.layout();
+		const dashed = inkOnScreen(token);
+
+		context.focus.focus(token, 'keyboard');
+		// Focusing it makes it the focused target, which draws the glow, from its focus handler
+		const glowing = inkOnScreen(token);
+		expect(glowing.maxY - glowing.minY).toBeGreaterThan(dashed.maxY - dashed.minY);
+		expect(scroll.scrollPosition).toBeGreaterThan(0);
+		expectWithin(glowing, clipOnScreen(scroll), 'y');
+		scroll.unmount();
 	});
 
 	it('dims a vehicle the card can\'t reach to the mock\'s 35%', () => {
