@@ -21,7 +21,7 @@ The alternatives: the plain Model pattern, writable properties checked only on l
 
 ## What a campaign's change event covers
 
-The campaign's `change` covers its own fields and finished card moves (below). A driver record or an escort changing on its own emits on that model and not on the campaign: a combat bridge setting a record's HP emits on the record, and an escort taking damage emits on its own `Vehicle`, not on the convoy, which emits only when escorts join or leave. So saving happens at checkpoints (each stop, arriving home, the end of a compound action), or subscribes to each record and each escort as well as the campaign. A record's change fires partway through a card move, before the locker is stored, so a save that a record or escort listener sets off waits for the next tick or a checkpoint; card moves arrive whole on the campaign's change.
+The campaign's `change` covers its own fields and finished card moves (below). Records, escorts, and the convoy emit on their own models and not on the campaign: a combat bridge setting a record's HP emits on the record, an escort taking damage on its own `Vehicle`, and escorts joining or leaving on the convoy. So saving happens at checkpoints, `CampaignStore.checkpoint` at the end of each step (a stop resolving, arriving home, a compound action), not on change events. A record's change fires partway through a card move, before the locker is stored; a save asked for from a listener is taken once the code that set it off has run, so it's whole for a synchronous step like a card move, but a step that awaits part way is captured as it stood at the await ([campaign-save-and-load.md](./campaign-save-and-load.md)).
 
 ## Driver ids come from a saved counter
 
@@ -37,10 +37,10 @@ Nothing in the model draws randomness, and the seed comes in from founding. When
 
 A move is stored so nothing sees half of it, or acts on half of it:
 
-- Both ends are worked out before either is stored, so a move that fails part way stores nothing.
+- Both ends are checked before either is stored, so a move the far end can't take (one that would push a count past what it can hold) stores nothing.
 - Decks are stored before the locker, so the campaign's `change` for a move to or from the locker comes once the move is whole. A move between two drivers ends with a campaign `change` of its own.
 - While the decks are being stored, the campaign refuses another `moveCards` and every `set`. A listener on a driver's deck that moved cards or changed the locker then would have its change overwritten by the rest of this one, destroying a copy, and any other change would tell campaign listeners about a campaign holding half a move. Once the campaign's `change` arrives, the move is done and a listener can change the campaign again.
-- Records aren't held while a move is stored, so a listener on the giving driver's deck can still change the receiving driver. The copies land on the deck the receiving driver holds once the giving one is stored, and if a listener has sent the receiving driver away (dead or missing) by then, they go back to the giving driver, or to the locker if the giving driver has gone too.
+- Records aren't held while a move is stored, so a listener on the giving driver's deck can still change the receiving driver. The copies land on the deck the receiving driver holds once the giving one is stored. If a listener has sent the receiving driver away (dead or missing) by then, or filled their deck past what a count holds, the copies go back to the giving driver, or to the locker if the giving driver can't take them either.
 
 `moveCards` refuses a dead or missing driver at either end. A driver killed on a run is gone with their cards (Compound and Supply Runs, The driver pool), so a dead record's deck is empty, and dying is one `set` of status, 0 HP, and an empty deck; a missing driver isn't at the compound to hand cards to or take them from. An injured driver is, healing in the infirmary, so their deck can still change.
 
@@ -89,7 +89,7 @@ The campaign holds the real `MapParams` (DDB-287), frozen, keys in the table's o
 
 Values today's validator would clamp are kept as saved, for every parameter, not just the geometry ones. The map was made with them, and terrain and scenery are regenerated on load from the params around the saved roads (Area Map Generation, Saving), so a clamped radius, metro size, or mountain coverage would draw ground that no longer fits the roads on it. The network and gameplay parameters were used to make a map that's already saved, or set how play goes in it (daylight hours), so keeping them keeps the campaign as it was. Only missing values and unknown keys are repaired, since there's nothing saved to keep.
 
-Each repair, and each value kept outside today's ranges, is a warning worded with its path: "Campaign.mapParams.radius was missing; took 1000, the mixed default", or "Campaign.mapParams.radius lowered to 1600 (tuning range 600 to 1600) for a new map; this one keeps the 5000 it was made with". A value the validator clamps twice (into its range, then by a combination rule) gets a warning per clamp, each quoting the saved value. `fromJSON(json, { onWarning })` hands them over once the campaign has loaded, so a save that fails reports only its error, and logs them with `console.warn` when it isn't given a callback. The repaired params are what the campaign saves from then on.
+Each repair, and each value kept outside today's ranges, is a warning worded with its path: "Campaign.mapParams.radius was missing; took 1000, the mixed default", or "Campaign.mapParams.radius lowered to 1600 (tuning range 600 to 1600) for a new map; this one keeps the 5000 it was made with". Each parameter gets one warning: a value the validator clamps twice (into its range, then by a combination rule) runs from the saved value to the validator's last word, both reasons joined, and a default filled in for a missing parameter says what a new map would take instead, with no claim that a map was made with it. `fromJSON(json, { onWarning })` hands them over once the campaign has loaded, so a save that fails reports only its error, and logs them with `console.warn` when it isn't given a callback. The repaired params are what the campaign saves from then on.
 
 `MapParams` became a `type` rather than an `interface`, a one-word change in the map module, so it fits `JsonObject` and copies like any other JSON. `JsonValue` and `JsonObject` live in `core/Json.ts`, and `StopTables` is a `JsonObject`, so the map and campaign modules share one JSON type.
 
@@ -101,7 +101,7 @@ The log is `{ day, message }` lines, dated by `addLogEntry` with the current day
 
 ## Consequences
 
-- Saving (DDB-49, [campaign-save-and-load.md](./campaign-save-and-load.md)) writes `JSON.stringify(campaign)` at checkpoints and loads with `Campaign.fromJSON(JSON.parse(text), { onWarning })`; anything thrown means the save can't be loaded (or, from `toJSON`, written), and warnings mean it loaded with its map params repaired.
+- Saving (DDB-49, [campaign-save-and-load.md](./campaign-save-and-load.md)) writes `campaign.toSaveText()`, the same text as `JSON.stringify(campaign)` without `toJSON`'s copies, at checkpoints, and loads with `Campaign.fromJSON(JSON.parse(text), { onWarning })`; anything thrown means the save can't be loaded (or, from `toSaveText` and `toJSON`, written), and warnings mean it loaded with its map params repaired.
 - Founding (DDB-284) builds `new Campaign({ seed, generatorVersion, mapParams, map, resources })` with params it has validated, and calls `recruitDriver` for each starting driver.
 - The combat bridge (DDB-286) builds combat drivers from records and writes HP, status, and injured days back in one `set`, with an empty deck for a driver who died.
 - Until saves ship, the format can change without a version bump if the fixture changes with it. After that, every change bumps the version and adds a migration.
