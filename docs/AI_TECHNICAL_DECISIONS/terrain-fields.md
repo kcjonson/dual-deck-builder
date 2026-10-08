@@ -97,7 +97,7 @@ Measured with a 4-connected flood fill over 2-unit cells from the metro, as the 
 | Badlands defaults | 97.8% | 98.3% | 99.1% | 0 of 600 |
 | Mixed defaults | 99.1% | 99.7% | 100% | 0 of 1,000 |
 | Rust Belt defaults | 99.3% | 99.9% | 100% | 0 of 1,600 |
-| Floodlands defaults | 99.5% | 100% | 100% | 0 of 1,000 |
+| Floodlands defaults | 99.6% | 100% | 100% | 0 of 1,000 |
 
 At the steepest corner with the largest radius and smallest metro, 40 seeds give 95.3% to 98.3% of the outer band, median 97.3%, with no town cut off in 200. Nothing guarantees a share outright: rough islands could close into a ring round the metro, or one can lie across the outer band and wall a stretch of it off against the rim, as on the sequence's sixth seed, the least in the table, where a quarter of the band is cut off. That's a tail: over 30,000 seeds at the steepest corner, about one map in 370 keeps under 85% of the band in reach and one in 2,000 under 80%, and the least kept 71.3%, though another run of 30,000 found one keeping about 66%. No town was cut off in any of them. A test holds the first two seeds of each of the first three sets above 80% on a 4-unit grid, with every town reached.
 

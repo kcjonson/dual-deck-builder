@@ -1,5 +1,6 @@
+import { shadowInk } from '../draw/bounds';
 import type { BoxShadow } from '../draw/commands';
-import type { RGBA } from '../draw/geometry';
+import type { RGBA, Rect } from '../draw/geometry';
 import { tokens } from '../theme/tokens';
 
 /**
@@ -173,6 +174,39 @@ export function layersInkExtent(layers: LookLayers): number {
 	}
 	const nudges = Math.max(layers.pressed.offsetY ?? 0, layers.hover.offsetY ?? 0, layers.active.offsetY ?? 0);
 	return extent + Math.max(0, nudges);
+}
+
+/** What a control drawn from look layers draws, for R8.8's cull and R12.20's reveal. */
+export interface LookInk {
+	/** `inkExtent`: the most any state draws past the shape, on any side (`layersInkExtent`). */
+	readonly extent: number;
+	/**
+	 * What it draws now with the pointer away, the shape included, in the
+	 * shape's space: layer 6's ring outside the shape while focus shows, and
+	 * the base's own shadow where it falls. No glow and no nudge, which only
+	 * hover, a press, or an open state bring. What scrolling the control into
+	 * view shows (R12.20).
+	 */
+	readonly resting: Rect;
+}
+
+/** Both of a control's ink bounds from its layers and flags, for the look drawn on `shape`. */
+export function lookInk(layers: LookLayers, flags: StateFlags, shape: Rect): LookInk {
+	const { focus_ring_offset, focus_ring_width } = tokens.control;
+	const ring = flags.focusVisible && flags.enabled ? focus_ring_offset + focus_ring_width : 0;
+	let minX = shape.x - ring;
+	let minY = shape.y - ring;
+	let maxX = shape.x + shape.width + ring;
+	let maxY = shape.y + shape.height + ring;
+	const shadow = (flags.selected ? layers.selected : layers.normal).shadow;
+	if (shadow) {
+		const cast = shadowInk(shape, shadow);
+		minX = Math.min(minX, cast.x);
+		minY = Math.min(minY, cast.y);
+		maxX = Math.max(maxX, cast.x + cast.width);
+		maxY = Math.max(maxY, cast.y + cast.height);
+	}
+	return { extent: layersInkExtent(layers), resting: { x: minX, y: minY, width: maxX - minX, height: maxY - minY } };
 }
 
 export function sameLook(a: Look, b: Look): boolean {
