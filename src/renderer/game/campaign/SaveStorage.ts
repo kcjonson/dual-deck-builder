@@ -1,10 +1,14 @@
+import type { SettingsStorage } from '../core/GameSettings';
+
 /**
  * Where campaign saves persist: text under string keys. Async, though local
  * storage isn't, so IndexedDB can stand in if a generated map ever outgrows
- * local storage. `CampaignStore` asks little of it: writes land in the order
- * they're made, and one that resolved stays written. A write cut off part
- * way, by a crash or a full disk, is never read as the save, since the store
- * switches to a new save only once it's written whole.
+ * local storage. `CampaignStore` needs writes to land in the order they're
+ * made and stay written once they resolve. A save cut off part way, by a
+ * crash or a full disk, is never read as the save, since the store switches
+ * to a new one only once it's written whole; the history and the recovery
+ * copies are written in place, so they also need a single write to land
+ * whole or not at all, as local storage's does.
  */
 export interface SaveStorage {
 	getItem(key: string): Promise<string | null>;
@@ -12,10 +16,8 @@ export interface SaveStorage {
 	removeItem(key: string): Promise<void>;
 }
 
-/** The slice of the Web Storage API that `LocalSaveStorage` uses. */
-export interface WebStorage {
-	getItem(key: string): string | null;
-	setItem(key: string, value: string): void;
+/** The slice of the Web Storage API that `LocalSaveStorage` uses: what `GameSettings` uses, and removing a key. */
+export interface WebStorage extends SettingsStorage {
 	removeItem(key: string): void;
 }
 
@@ -88,6 +90,17 @@ export class LocalSaveStorage implements SaveStorage {
 
 /** Whether a storage error is the quota running out, under the names browsers have given it. */
 export function isQuotaError(error: unknown): boolean {
-	const name = typeof error === 'object' && error !== null ? (error as { name?: unknown }).name : undefined;
+	const name = errorName(error);
 	return name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED';
+}
+
+/** What a storage error means for the player: storage is full, blocked (private browsing, site data turned off), or failed. */
+export function storageTrouble(error: unknown): string {
+	if (isQuotaError(error)) return 'storage is full';
+	return errorName(error) === 'SecurityError' ? 'storage is blocked' : 'storage failed';
+}
+
+/** Read by shape, since a DOMException from another realm (a test's, a frame's) isn't `instanceof Error` here. */
+function errorName(error: unknown): unknown {
+	return typeof error === 'object' && error !== null ? (error as { name?: unknown }).name : undefined;
 }
