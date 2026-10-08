@@ -1,4 +1,12 @@
+import { MAX_JSON_DEPTH, copyJson } from '../core/Json';
 import { ReaderRangeError, ReaderTypeError, describeValue, freezeJson, isReaderError, readArray, readFields, readInteger } from './JsonReader';
+
+/** Objects nested `levels` deep, the outermost counting as one. */
+const nested = (levels: number): unknown => {
+	let value: unknown = 1;
+	for (let level = 0; level < levels; level += 1) value = { a: value };
+	return value;
+};
 
 describe('JsonReader', () => {
 	describe('describeValue', () => {
@@ -47,6 +55,29 @@ describe('JsonReader', () => {
 		it('rejects a class instance, even one JSON could write', () => {
 			expect(() => freezeJson({ found: new Date(0) }, 'map')).toThrow('map.found must be JSON');
 			expect(() => freezeJson(new Map(), 'map')).toThrow(TypeError);
+		});
+
+		it('takes nesting as deep as copyJson does, and refuses one level more as a reader error', () => {
+			expect(() => freezeJson(nested(MAX_JSON_DEPTH), 'map')).not.toThrow();
+			expect(() => copyJson(nested(MAX_JSON_DEPTH), 'map')).not.toThrow();
+
+			expect(() => freezeJson(nested(MAX_JSON_DEPTH + 1), 'map')).toThrow(ReaderRangeError);
+			expect(() => freezeJson(nested(MAX_JSON_DEPTH + 1), 'map')).toThrow(`nests more than ${MAX_JSON_DEPTH} levels deep`);
+			expect(() => copyJson(nested(MAX_JSON_DEPTH + 1), 'map')).toThrow(`nests more than ${MAX_JSON_DEPTH} levels deep`);
+		});
+
+		it('refuses nesting far past the stack\'s depth as a reader error, not a stack overflow', () => {
+			const deep = JSON.parse(`${'{"a":'.repeat(20000)}1${'}'.repeat(20000)}`);
+
+			expect(() => freezeJson(deep, 'map')).toThrow(ReaderRangeError);
+		});
+
+		it('counts the levels of a value it already froze when it\'s nested again', () => {
+			const frozen = freezeJson(nested(MAX_JSON_DEPTH - 1), 'map');
+
+			expect(freezeJson([frozen], 'map')).toEqual([frozen]);
+			expect(() => freezeJson({ inner: [frozen] }, 'map')).toThrow(ReaderRangeError);
+			expect(() => freezeJson({ inner: [nested(MAX_JSON_DEPTH - 1)] }, 'map')).toThrow(ReaderRangeError);
 		});
 	});
 

@@ -7,7 +7,7 @@
  * saves always loads.
  */
 
-import type { JsonValue } from '../core/Json';
+import { MAX_JSON_DEPTH, type JsonValue } from '../core/Json';
 
 /**
  * A value of the wrong kind, as a reader reports it. A TypeError, so it
@@ -134,32 +134,55 @@ export function readNullable<T>(value: unknown, path: string, read: (value: unkn
 	return value === null ? null : read(value, path);
 }
 
-/** Arrays and objects `freezeJson` made: checked, and frozen all the way down, so they can't have changed since. */
-const frozenJson = new WeakSet<object>();
+/**
+ * Arrays and objects `freezeJson` made, checked and frozen all the way
+ * down, so they can't have changed since, with how many levels each nests.
+ */
+const frozenJson = new WeakMap<object, number>();
 
 /**
  * A deep copy of a JSON value, frozen all the way down. Throws on anything
- * JSON can't hold: undefined, NaN, a class instance, a cycle. A value this
- * already made comes back as it is, so checking it again is free.
+ * JSON can't hold: undefined, NaN, a class instance, a cycle, or nesting
+ * past `MAX_JSON_DEPTH` levels, the limit `copyJson` holds the map's stop
+ * tables to, so a value this takes never overflows the stack or fails a
+ * copy later. A value this already made comes back as it is, so checking it
+ * again is free.
  */
-export function freezeJson(value: unknown, path: string, ancestors: readonly object[] = []): JsonValue {
+export function freezeJson(value: unknown, path: string): JsonValue {
+	return freezeValue(value, path, []);
+}
+
+function freezeValue(value: unknown, path: string, ancestors: readonly object[]): JsonValue {
 	if (value === null || typeof value === 'boolean' || typeof value === 'string') return value;
 	if (typeof value === 'number') {
 		if (!Number.isFinite(value)) throw new ReaderRangeError(`${path} must be a finite number, got ${describeValue(value)}`);
 		return value;
 	}
-	if (typeof value === 'object' && frozenJson.has(value)) return value as JsonValue;
-	if (typeof value === 'object' && ancestors.includes(value)) throw new ReaderTypeError(`${path} contains itself`);
-	let frozen: object;
-	if (Array.isArray(value)) {
-		const inside = [...ancestors, value];
-		frozen = Object.freeze(Array.from(value, (item, index) => freezeJson(item, `${path}[${index}]`, inside)));
-	} else if (isPlainObject(value)) {
-		const inside = [...ancestors, value];
-		frozen = Object.freeze(Object.fromEntries(Object.entries(value).map(([key, item]) => [key, freezeJson(item, `${path}.${key}`, inside)])));
-	} else {
+	if (!Array.isArray(value) && !isPlainObject(value)) {
 		throw new ReaderTypeError(`${path} must be JSON (null, a boolean, a number, a string, an array, or a plain object), got ${describeValue(value)}`);
 	}
-	frozenJson.add(frozen);
+	const container: object = value;
+	const made = frozenJson.get(container);
+	if (made !== undefined) {
+		if (ancestors.length + made > MAX_JSON_DEPTH) throw tooDeep(path);
+		return container as JsonValue;
+	}
+	if (ancestors.includes(container)) throw new ReaderTypeError(`${path} contains itself`);
+	if (ancestors.length >= MAX_JSON_DEPTH) throw tooDeep(path);
+	const inside = [...ancestors, container];
+	let levels = 1;
+	const freezeItem = (item: unknown, itemPath: string): JsonValue => {
+		const frozen = freezeValue(item, itemPath, inside);
+		if (typeof frozen === 'object' && frozen !== null) levels = Math.max(levels, (frozenJson.get(frozen) ?? 0) + 1);
+		return frozen;
+	};
+	const frozen = Array.isArray(container)
+		? Object.freeze(Array.from(container, (item, index) => freezeItem(item, `${path}[${index}]`)))
+		: Object.freeze(Object.fromEntries(Object.entries(container).map(([key, item]) => [key, freezeItem(item, `${path}.${key}`)])));
+	frozenJson.set(frozen, levels);
 	return frozen as JsonValue;
+}
+
+function tooDeep(path: string): ReaderRangeError {
+	return new ReaderRangeError(`${path} nests more than ${MAX_JSON_DEPTH} levels deep`);
 }
