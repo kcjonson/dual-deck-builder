@@ -66,7 +66,7 @@ Everything is worked out and checked first: each record's next state goes throug
 1. The records, in seat order.
 2. The convoy (`Convoy.afterFight`), then the seats of every escort that came along, emptied. `endCombat` leaves seats as they are, and each driver drives their own vehicle into the next fight, so a driver left aboard would be in it twice.
 
-The campaign itself never changes, so it emits nothing. The step's checkpoint saves after the write-back, and has to: until a fight is written back its wrecked escorts are still in the convoy, and `Campaign.toJSON` refuses a convoy holding a wreck.
+The campaign itself never changes, so it emits nothing. The step's checkpoint saves after the write-back, and has to: until a fight is written back its wrecked escorts are still in the convoy, and `Campaign.toSaveText` refuses a convoy holding a wreck.
 
 ### Partial writes
 
