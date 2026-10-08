@@ -5,7 +5,7 @@ import { Driver } from '../mechanics/Driver';
 import { Team, TeamType } from '../mechanics/Team';
 import { Vehicle } from '../mechanics/Vehicle';
 import { cardsDrawn, cardsKeptFromDraw } from './DrawEstimate';
-import { createTestCard, createTestDriver, createTestVehicle } from './__tests__/test-helpers';
+import { createFillerCards, createTestCard, createTestDriver, createTestVehicle } from './__tests__/test-helpers';
 import cardsFile from '../data/cards.json';
 
 const cardData = (cardsFile as unknown as { cards: CardData[] }).cards;
@@ -21,13 +21,8 @@ const driverOf = (vehicle: Vehicle): Driver => {
 	return vehicle.driver;
 };
 
-const fillers = (count: number): Card[] => Array.from({ length: count }, (_, index) => createTestCard({
-	type: 'filler',
-	name: `Filler ${index + 1}`,
-	cost: 0,
-	targetType: 'enemy_single',
-	effects: [{ type: 'damage', value: 1 }]
-}));
+// Free, so a plan can play one
+const fillers = (count: number): Card[] => createFillerCards({ count, cost: 0 });
 
 describe('Draw estimates', () => {
 	let battle: Battle;

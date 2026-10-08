@@ -79,3 +79,39 @@ export function createTestCard(options: {
 		tags: ['test']
 	});
 }
+
+/**
+ * Cards that only take up room in a hand. At the default cost nobody can
+ * afford one, so no AI is offered it.
+ */
+export function createFillerCards({ count, cost = 99 }: { count: number; cost?: number }): Card[] {
+	return Array.from({ length: count }, (_, index) => createTestCard({
+		type: 'filler',
+		name: `Filler ${index + 1}`,
+		cost,
+		targetType: 'self',
+		effects: []
+	}));
+}
+
+/**
+ * A free card that only draws
+ */
+export function createDrawCard(draws: number): Card {
+	return createTestCard({
+		type: 'test_draw',
+		name: `Draw ${draws}`,
+		cost: 0,
+		targetType: 'self',
+		effects: [{ type: 'draw_cards', value: draws }]
+	});
+}
+
+/**
+ * The same card without its draws, to read what they add to a play's score
+ */
+export function withoutDraws(card: Card): Card {
+	const control = card.copy();
+	control.set({ type: `${card.type}_without_draws`, effects: card.effects.filter(effect => effect.type !== 'draw_cards') });
+	return control;
+}

@@ -1,8 +1,12 @@
-import { RammingAI } from '../RammingAI';
-import { createTestDriver, createTestVehicle } from './test-helpers';
+import { RammingAI, RammingStrategy } from '../RammingAI';
+import { AIDecision } from '../types';
+import { createDrawCard, createFillerCards, createTestDriver, createTestVehicle, withoutDraws } from './test-helpers';
 import { Card, CardData } from '../../mechanics/Card';
 import { Battle } from '../../mechanics/Battle';
+import { BoardProjection } from '../../mechanics/BoardProjection';
+import { Driver } from '../../mechanics/Driver';
 import { Team, TeamType } from '../../mechanics/Team';
+import { Vehicle } from '../../mechanics/Vehicle';
 import cardsFile from '../../data/cards.json';
 
 const realCard = (type: string): Card => {
@@ -10,6 +14,25 @@ const realCard = (type: string): Card => {
 	if (!data) throw new Error(`No card ${type} in cards.json`);
 	return new Card({ ...data, upgraded: false });
 };
+
+const driverOf = (vehicle: Vehicle): Driver => {
+	if (!vehicle.driver) throw new Error(`${vehicle.name} has no driver`);
+	return vehicle.driver;
+};
+
+const play = (card: Card, driver: Driver): AIDecision => ({ type: 'playCard', card, driver });
+
+/**
+ * Reads the strategy's score for one play against the live board
+ */
+class ScoringRammingAI extends RammingAI {
+	private readonly scorer = new RammingStrategy();
+
+	public score(action: AIDecision): number {
+		this.board = new BoardProjection({ battle: this.battle });
+		return this.scorer.scoreAction(action, this.evaluateGameState());
+	}
+}
 
 describe('RammingAI', () => {
 	let battle: Battle;
@@ -50,7 +73,7 @@ describe('RammingAI', () => {
 	describe('makeDecision', () => {
 		it('should prioritize ramming cards over other damage cards', async () => {
 			const enemyVehicle = battle.enemyTeam.vehicles[0];
-			const enemyDriver = enemyVehicle.driver!;
+			const enemyDriver = driverOf(enemyVehicle);
 
 			// A fast rammer: 5 + the test driver's 2 = 7, faster than the player's 5s.
 			// Ram damage grows with the speed difference, so the ram's bonus needs
@@ -100,7 +123,7 @@ describe('RammingAI', () => {
 
 		it('should prioritize speed boosts when below speed threshold', async () => {
 			const enemyVehicle = battle.enemyTeam.vehicles[0];
-			const enemyDriver = enemyVehicle.driver!;
+			const enemyDriver = driverOf(enemyVehicle);
 
 			// 1 + the test driver's 2 = 3, slower than both player vehicles (5)
 			enemyVehicle.baseSpeed = 1;
@@ -132,7 +155,7 @@ describe('RammingAI', () => {
 
 		it('should prioritize armor cards to protect during rams', async () => {
 			const enemyVehicle = battle.enemyTeam.vehicles[0];
-			const enemyDriver = enemyVehicle.driver!;
+			const enemyDriver = driverOf(enemyVehicle);
 
 			// Set low armor
 			enemyVehicle.armor = 0;
@@ -176,7 +199,7 @@ describe('RammingAI', () => {
 
 		it('should prioritize healing when at critical health', async () => {
 			const enemyVehicle = battle.enemyTeam.vehicles[0];
-			const enemyDriver = enemyVehicle.driver!;
+			const enemyDriver = driverOf(enemyVehicle);
 
 			// Set critical health
 			enemyVehicle.structure = 10;
@@ -221,7 +244,7 @@ describe('RammingAI', () => {
 
 		it('should value a flank while not flanking', async () => {
 			const enemyVehicle = battle.enemyTeam.vehicles[0];
-			const enemyDriver = enemyVehicle.driver!;
+			const enemyDriver = driverOf(enemyVehicle);
 
 			expect(enemyVehicle.isFlanking).toBe(false);
 			// 5 + the test driver's 2 = 7 outruns the player's 5s, so the Flank is legal
@@ -254,7 +277,7 @@ describe('RammingAI', () => {
 
 		it('should target low health enemies with rams for kill bonus', async () => {
 			const enemyVehicle = battle.enemyTeam.vehicles[0];
-			const enemyDriver = enemyVehicle.driver!;
+			const enemyDriver = driverOf(enemyVehicle);
 
 			// Set enemy vehicles with different health
 			const playerVehicle1 = battle.playerTeam.vehicles[0];
@@ -295,7 +318,7 @@ describe('RammingAI', () => {
 
 		it('should end turn when no good plays available', async () => {
 			const enemyVehicle = battle.enemyTeam.vehicles[0];
-			const enemyDriver = enemyVehicle.driver!;
+			const enemyDriver = driverOf(enemyVehicle);
 
 			// Give expensive card with no adrenaline
 			const expensiveCard = new Card({
@@ -322,7 +345,7 @@ describe('RammingAI', () => {
 
 		it('should not play healing cards when at full health', async () => {
 			const enemyVehicle = battle.enemyTeam.vehicles[0];
-			const enemyDriver = enemyVehicle.driver!;
+			const enemyDriver = driverOf(enemyVehicle);
 
 			// Ensure vehicle is at full health
 			enemyVehicle.structure = enemyVehicle.maxStructure;
@@ -367,7 +390,7 @@ describe('RammingAI', () => {
 
 		it('should not play armor cards when at full armor', async () => {
 			const enemyVehicle = battle.enemyTeam.vehicles[0];
-			const enemyDriver = enemyVehicle.driver!;
+			const enemyDriver = driverOf(enemyVehicle);
 
 			// Ensure vehicle is at full armor
 			enemyVehicle.armor = enemyVehicle.maxArmor;
@@ -407,6 +430,69 @@ describe('RammingAI', () => {
 
 			expect(decision?.type).toBe('playCard');
 			expect(decision?.card).toBe(attackCard); // Should prefer attack over useless armor
+		});
+	});
+
+	describe('values a draw by the cards that fit under the drawer\'s hand limit', () => {
+		test('worth nothing at the limit, one card a card under it, and both with room', () => {
+			const raider = driverOf(enemyTeam.vehicles[0]);
+			const nitro = realCard('nitro_boost');
+			const control = withoutDraws(nitro);
+			// Five cards, four once Nitro Boost has left the hand
+			raider.set({ hand: [nitro, control, ...createFillerCards({ count: 3 })], adrenaline: 5 });
+			const scorer = new ScoringRammingAI(enemyTeam, battle);
+			const drawWorth = (handLimit: number): number => {
+				raider.set({ handLimit });
+				return scorer.score(play(nitro, raider)) - scorer.score(play(control, raider));
+			};
+
+			const bothCards = drawWorth(7);
+			expect(bothCards).toBeGreaterThan(0);
+			expect(drawWorth(5)).toBeCloseTo(bothCards / 2);
+			expect(drawWorth(4)).toBe(0);
+		});
+
+		test('plays something useful over a draw it would burn', async () => {
+			const raider = driverOf(enemyTeam.vehicles[0]);
+			const draw = createDrawCard(2);
+			const shot = new Card({
+				type: 'gun_attack',
+				name: 'Gun Attack',
+				summary: 'Shoot an enemy',
+				description: 'Shoot an enemy',
+				cost: 1,
+				rarity: 'common',
+				targetType: 'enemy_single',
+				effects: [
+					{ type: 'damage', value: 3 }
+				],
+				tags: ['ranged', 'attack']
+			});
+			// Four cards, three once the draw has left the hand
+			raider.set({ hand: [draw, shot, ...createFillerCards({ count: 2 })], adrenaline: 5 });
+
+			expect((await ai.makeDecision())?.card).toBe(draw);
+
+			raider.set({ handLimit: 3 });
+			expect((await ai.makeDecision())?.card).toBe(shot);
+		});
+
+		test('counts a draw against its player\'s hand, not their partner\'s', () => {
+			const [driver, partner] = playerTeam.vehicles.map(driverOf);
+			const nitro = realCard('nitro_boost');
+			const control = withoutDraws(nitro);
+			driver.set({ hand: [nitro, control, ...createFillerCards({ count: 3 })], adrenaline: 5 });
+			const scorer = new ScoringRammingAI(playerTeam, battle);
+			const drawWorth = (): number => scorer.score(play(nitro, driver)) - scorer.score(play(control, driver));
+			const bothCards = drawWorth();
+			expect(bothCards).toBeGreaterThan(0);
+
+			partner.set({ hand: createFillerCards({ count: 7 }) });
+			expect(drawWorth()).toBeCloseTo(bothCards);
+
+			partner.set({ hand: [] });
+			driver.set({ handLimit: 4 });
+			expect(drawWorth()).toBe(0);
 		});
 	});
 });

@@ -8,7 +8,7 @@ import { Vehicle } from '../../mechanics/Vehicle';
 import { Card, CardData, CardEffect } from '../../mechanics/Card';
 import { createEscort } from '../../mechanics/Escort';
 import { RoadLane, RoadRow } from '../../mechanics/Road';
-import { createTestDriver, createTestVehicle, createTestCard } from './test-helpers';
+import { createDrawCard, createFillerCards, createTestDriver, createTestVehicle, createTestCard, withoutDraws } from './test-helpers';
 import cardsFile from '../../data/cards.json';
 
 const cardData = (type: string): CardData => {
@@ -42,7 +42,12 @@ const driverOf = (vehicle: Vehicle): Driver => {
  */
 class ScoringMCTSAI extends MCTSAI {
 	public score(action: AIDecision): number {
-		this.board = new BoardProjection({ battle: this.battle });
+		return this.scoreOn(new BoardProjection({ battle: this.battle }), action);
+	}
+
+	/** The score for a play against a plan's projected board */
+	public scoreOn(board: BoardProjection, action: AIDecision): number {
+		this.board = board;
 		return this.evaluateActionWithContext(action);
 	}
 
@@ -384,6 +389,82 @@ describe('MCTSAI', () => {
 
 		test('from a caster the boost would carry past the raider, the flank counts once', () => {
 			expect(runAheadGain(4)).toBeCloseTo(8 - FLAT_SCORE);
+		});
+	});
+
+	describe('values a draw by the cards that fit under the drawer\'s hand limit', () => {
+		// 2 a card kept, and the combo bonus a draw gets for keeping any
+		const keeping = (cards: number): number => (cards > 0 ? 2 * cards + 0.5 : 0);
+		const play = (card: Card, driver: Driver): AIDecision => ({ type: 'playCard', card, driver });
+
+		test('worth nothing at the limit, one card a card under it, and both with room', () => {
+			const ai = new ScoringMCTSAI({ team: enemyTeam, battle, iterations: 100 });
+			const nitro = realCard('nitro_boost');
+			const control = withoutDraws(nitro);
+			// Five cards, four once Nitro Boost has left the hand
+			enemyDriver1.set({ hand: [nitro, control, ...createFillerCards({ count: 3 })], adrenaline: 5 });
+			const drawWorth = (handLimit: number): number => {
+				enemyDriver1.set({ handLimit });
+				return ai.score(ai.legalPlay(nitro)) - ai.score(ai.legalPlay(control));
+			};
+
+			expect(drawWorth(7)).toBeCloseTo(keeping(2));
+			expect(drawWorth(5)).toBeCloseTo(keeping(1));
+			expect(drawWorth(4)).toBeCloseTo(keeping(0));
+		});
+
+		test('plays something useful over a draw it would burn', async () => {
+			const draw = createDrawCard(2);
+			const plating = realCard('armor_plating');
+			enemyTeam.vehicles[0].set({ armor: 0 });
+			// Four cards, three once the draw has left the hand
+			enemyDriver1.set({ hand: [draw, plating, ...createFillerCards({ count: 2 })], adrenaline: 5 });
+
+			expect((await mctsAI.makeDecision())?.card).toBe(draw);
+
+			enemyDriver1.set({ handLimit: 3 });
+			expect((await mctsAI.makeDecision())?.card).toBe(plating);
+		});
+
+		test('ends the turn rather than hold it for a draw that would burn', () => {
+			const ai = new ScoringMCTSAI({ team: enemyTeam, battle, iterations: 100 });
+			const endTurn: AIDecision = { type: 'endTurn' };
+			enemyDriver1.set({ hand: [createDrawCard(2), ...createFillerCards({ count: 3 })], adrenaline: 5 });
+			expect(ai.score(endTurn)).toBeLessThan(0);
+
+			enemyDriver1.set({ handLimit: 3 });
+			expect(ai.score(endTurn)).toBeGreaterThan(0);
+		});
+
+		test('counts a draw against its player\'s hand, not their partner\'s', () => {
+			const ai = new ScoringMCTSAI({ team: playerTeam, battle, iterations: 100 });
+			const partner = driverOf(playerTeam.vehicles[1]);
+			const nitro = realCard('nitro_boost');
+			const control = withoutDraws(nitro);
+			playerDriver1.set({ hand: [nitro, control, ...createFillerCards({ count: 3 })], adrenaline: 5 });
+			const drawWorth = (): number => ai.score(ai.legalPlay(nitro)) - ai.score(ai.legalPlay(control));
+
+			partner.set({ hand: createFillerCards({ count: 7 }) });
+			expect(drawWorth()).toBeCloseTo(keeping(2));
+
+			partner.set({ hand: [] });
+			playerDriver1.set({ handLimit: 4 });
+			expect(drawWorth()).toBeCloseTo(keeping(0));
+		});
+
+		test('counts the cards an earlier draw in its plan kept', () => {
+			const ai = new ScoringMCTSAI({ team: enemyTeam, battle, iterations: 100 });
+			const [first, second] = [realCard('nitro_boost'), realCard('nitro_boost')];
+			const control = withoutDraws(second);
+			enemyDriver1.set({ hand: [first, second, control, ...createFillerCards({ count: 2 })], adrenaline: 5, handLimit: 6 });
+			const drawWorth = (board: BoardProjection): number =>
+				ai.scoreOn(board, play(second, enemyDriver1)) - ai.scoreOn(board, play(control, enemyDriver1));
+			expect(drawWorth(new BoardProjection({ battle }))).toBeCloseTo(keeping(2));
+
+			// Four cards and the two the first draw kept: five once the second leaves, one under the limit
+			const plan = new BoardProjection({ battle });
+			plan.apply({ card: first, driver: enemyDriver1, target: null });
+			expect(drawWorth(plan)).toBeCloseTo(keeping(1));
 		});
 	});
 });
