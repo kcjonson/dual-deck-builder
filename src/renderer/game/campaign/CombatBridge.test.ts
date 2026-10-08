@@ -1,10 +1,9 @@
 import { createTestDriver } from '../ai/__tests__/test-helpers';
 import { Rng } from '../core/Rng';
 import cardsFile from '../data/cards.json';
-import { resolveMapParams } from '../map/MapParams';
 import { Card, CardData, CardEffect } from '../mechanics/Card';
 import { Deck } from '../mechanics/Deck';
-import { Driver, DriverRole } from '../mechanics/Driver';
+import { Driver, DriverArchetype, DriverRole } from '../mechanics/Driver';
 import { EscortProfile, createEscort } from '../mechanics/Escort';
 import type { RaiderArchetype } from '../mechanics/RaiderArchetype';
 import { Team, TeamType } from '../mechanics/Team';
@@ -13,6 +12,7 @@ import { Campaign } from './Campaign';
 import { CardCounts, startingDeckCounts } from './CardCounts';
 import { CampaignFight, FightWriteBack, RunParty, startCampaignFight, writeBackFight } from './CombatBridge';
 import { DriverRecord } from './DriverRecord';
+import { foundCampaign } from './Founding';
 
 /**
  * DDB-286 and DDB-158: fights built from the campaign's records and
@@ -75,18 +75,19 @@ function raider({ deck, adrenaline, archetype = null }: { deck: Card[]; adrenali
 	return buggy;
 }
 
-/** A compound with a Road Warrior and an Interceptor in its pool and a few days' stores. */
+/** A compound founded with only the Road Warrior and the Interceptor unlocked, so its pool is one of each. */
 function newCampaign(): { campaign: Campaign; warrior: DriverRecord; interceptor: DriverRecord } {
-	const campaign = new Campaign({
-		seed: SEED,
-		generatorVersion: 1,
-		mapParams: resolveMapParams({ seed: SEED, environment: 'mixed' }).params,
-		resources: { food: 20, water: 20, fuel: 6, meds: 2, scrap: 40, people: 12 }
-	});
-	const warrior = campaign.recruitDriver({ archetype: 'road_warrior' });
-	const interceptor = campaign.recruitDriver({ archetype: 'interceptor' });
-	return { campaign, warrior, interceptor };
+	const campaign = foundCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
+	const recordOf = (archetype: DriverArchetype): DriverRecord => {
+		const record = campaign.drivers.find(driver => driver.archetype === archetype);
+		if (!record) throw new Error(`founding should have dealt a ${archetype}`);
+		return record;
+	};
+	return { campaign, warrior: recordOf('road_warrior'), interceptor: recordOf('interceptor') };
 }
+
+/** How a record is named in the bridge's errors. */
+const named = (record: DriverRecord): string => `${record.name} (${record.id})`;
 
 /** Drivers tough enough to walk away from two wrecks. */
 const toughen = (...records: DriverRecord[]): void => records.forEach(record => record.set({ maxHitpoints: 200, hitpoints: 200 }));
@@ -186,6 +187,7 @@ describe('the combat bridge', () => {
 
 		it('fights on the stream it is given, with the compound\'s scrap and fuel on the top bar', () => {
 			const { campaign, warrior, interceptor } = newCampaign();
+			campaign.set({ resources: { ...campaign.resources, scrap: 40, fuel: 6 } });
 
 			const fight = startFight({
 				campaign,
@@ -249,7 +251,7 @@ describe('the combat bridge', () => {
 				interceptor.set(changes);
 
 				expect(() => startFight({ campaign, party: { seats: [{ record: warrior }, { record: interceptor }], escorts: [] }, enemy: enemy() }))
-					.toThrow(`Interceptor 1 (driver-2) is ${status}, so they can't fight`);
+					.toThrow(`${named(interceptor)} is ${status}, so they can't fight`);
 			});
 
 			it('an escort that isn\'t the campaign\'s, or still carries a driver from a fight never written back', () => {
@@ -272,7 +274,7 @@ describe('the combat bridge', () => {
 					campaign,
 					party: { seats: [{ record: warrior }, { record: interceptor, runDeck: { headshot: 2, lucky_charm: 1 } }], escorts: [] },
 					enemy: enemy()
-				})).toThrow("Interceptor 1 (driver-2)'s run deck holds lucky_charm, which isn't a card");
+				})).toThrow(`${named(interceptor)}'s run deck holds lucky_charm, which isn't a card`);
 			});
 
 			it('a fifth escort, which a fight can leave the run with until one is dismissed', () => {
@@ -355,6 +357,7 @@ describe('the combat bridge', () => {
 			interceptor.set({ hitpoints: 24 });
 			const escorts = [createEscort({ type: 'fuel_hauler' }), salvageRig(), createEscort({ type: 'med_truck' })];
 			escorts.forEach(escort => campaign.convoy.add(escort));
+			const stores = campaign.resources;
 			const scrapper = raider({ deck: [], adrenaline: 1 });
 			const fight = startFight({
 				campaign,
@@ -365,7 +368,7 @@ describe('the combat bridge', () => {
 			fightOut(fight, () => play({ fight, seat: 1, cardType: 'precision_shot', target: scrapper }));
 			writeBackFight({ campaign, fight });
 
-			expect(campaign.resources).toEqual({ food: 20, water: 20, fuel: 7, meds: 2, scrap: 55, people: 12 });
+			expect(campaign.resources).toEqual({ ...stores, fuel: stores.fuel + 1, scrap: stores.scrap + 15 });
 			// 3 each, up to their starting HP
 			expect([warrior.hitpoints, interceptor.hitpoints]).toEqual([33, 25]);
 			expect(campaign.convoy.escorts).toEqual(escorts);
@@ -378,6 +381,7 @@ describe('the combat bridge', () => {
 			hauler.set({ structure: 10 });
 			const truck = createEscort({ type: 'med_truck' });
 			[hauler, truck].forEach(escort => campaign.convoy.add(escort));
+			const { fuel } = campaign.resources;
 			// A looter goes for the haulers: the Fuel Hauler first, then the Med Truck once it's gone
 			const scrapper = raider({ deck: cardsOf(10, jab), adrenaline: 1, archetype: 'looter' });
 			const party: RunParty = { seats: [{ record: warrior }, { record: interceptor, runDeck: { precision_shot: 10 } }], escorts: [hauler, truck] };
@@ -394,7 +398,7 @@ describe('the combat bridge', () => {
 			// 20 past its 4 armor is 16 off its 35 structure
 			expect([truck.structure, truck.armor]).toEqual([19, 4]);
 			// A wrecked hauler pays nothing
-			expect(campaign.resources.fuel).toBe(6);
+			expect(campaign.resources.fuel).toBe(fuel);
 
 			const next = startFight({ campaign, party: partyAfter(result), enemy: raider({ deck: [], adrenaline: 1 }), seed: SEED + 1 });
 			expect(next.battle.playerTeam.escorts).toEqual([truck]);
@@ -436,6 +440,7 @@ describe('the combat bridge', () => {
 			const outrider = createEscort({ type: 'outrider' });
 			const home = createEscort({ type: 'fuel_hauler' });
 			[outrider, home].forEach(escort => campaign.convoy.add(escort));
+			const stores = campaign.resources;
 			const wrecker = raider({ deck: cardsOf(10, wreck), adrenaline: 2 });
 			const sniper = raider({ deck: cardsOf(10, snipe), adrenaline: 1 });
 			const fight = startFight({
@@ -458,7 +463,7 @@ describe('the combat bridge', () => {
 			expect([interceptor.status, interceptor.hitpoints, interceptor.defaultDeck]).toEqual(['dead', 0, {}]);
 			expect(outrider.isAlive()).toBe(true);
 			expect(campaign.convoy.escorts).toEqual([home]);
-			expect(campaign.resources).toEqual({ food: 20, water: 20, fuel: 6, meds: 2, scrap: 40, people: 12 });
+			expect(campaign.resources).toBe(stores);
 		});
 	});
 
@@ -510,6 +515,7 @@ describe('the combat bridge', () => {
 			const { campaign, warrior, interceptor } = newCampaign();
 			const hauler = createEscort({ type: 'fuel_hauler' });
 			campaign.convoy.add(hauler);
+			const { fuel } = campaign.resources;
 			const scrapper = raider({ deck: [], adrenaline: 1 });
 			const fight = startFight({
 				campaign,
@@ -520,7 +526,7 @@ describe('the combat bridge', () => {
 			writeBackFight({ campaign, fight });
 
 			expect(() => writeBackFight({ campaign, fight })).toThrow('This fight has already been written back');
-			expect(campaign.resources.fuel).toBe(7);
+			expect(campaign.resources.fuel).toBe(fuel + 1);
 		});
 	});
 });

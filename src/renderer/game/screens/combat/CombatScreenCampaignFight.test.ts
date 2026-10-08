@@ -7,14 +7,13 @@ import { CardLoader } from '../../core/CardLoader';
 import { Rng } from '../../core/Rng';
 import { createTestContext } from '../../../engine/components/testing';
 import { Text } from '../../../engine/components/Text';
-import { resolveMapParams } from '../../map/MapParams';
-import { createEscort } from '../../mechanics/Escort';
 import { Team, TeamType } from '../../mechanics/Team';
-import { Driver, DriverRole } from '../../mechanics/Driver';
+import { Driver, DriverArchetype, DriverRole } from '../../mechanics/Driver';
 import { Deck } from '../../mechanics/Deck';
 import { createDrivenVehicle } from '../../mechanics/Vehicle';
-import { Campaign } from '../../campaign/Campaign';
-import { startCampaignFight } from '../../campaign/CombatBridge';
+import { CAMPAIGN_START } from '../../campaign/CampaignStart';
+import { RunSeat, startCampaignFight } from '../../campaign/CombatBridge';
+import { foundCampaign } from '../../campaign/Founding';
 
 /**
  * DDB-286: a fight the combat bridge builds from the campaign is the
@@ -78,19 +77,20 @@ afterAll(() => {
 
 describe('CombatScreen: a campaign fight (DDB-286)', () => {
 	it('mounts through prepare, showing the records\' names, the run\'s escorts, and the compound\'s scrap and fuel', async () => {
-		const campaign = new Campaign({
+		const campaign = foundCampaign({
 			seed: SEED,
-			generatorVersion: 1,
-			mapParams: resolveMapParams({ seed: SEED, environment: 'mixed' }).params,
-			resources: { food: 20, water: 20, fuel: 9, meds: 2, scrap: 73, people: 12 }
+			unlockedArchetypes: ['road_warrior', 'interceptor'],
+			start: { ...CAMPAIGN_START, resources: { ...CAMPAIGN_START.resources, scrap: 73, fuel: 9 }, escorts: ['outrider'] }
 		});
-		const warrior = campaign.recruitDriver({ archetype: 'road_warrior' });
-		const interceptor = campaign.recruitDriver({ archetype: 'interceptor' });
-		const outrider = createEscort({ type: 'outrider' });
-		campaign.convoy.add(outrider);
+		const seat = (archetype: DriverArchetype): RunSeat => {
+			const record = campaign.drivers.find(driver => driver.archetype === archetype);
+			if (!record) throw new Error(`founding should have dealt a ${archetype}`);
+			return { record };
+		};
+		const [outrider] = campaign.convoy.escorts;
 		const fight = startCampaignFight({
 			campaign,
-			party: { seats: [{ record: warrior }, { record: interceptor }], escorts: [outrider] },
+			party: { seats: [seat('road_warrior'), seat('interceptor')], escorts: [outrider] },
 			enemyTeam: raiderTeam(),
 			rng: new Rng({ seed: SEED }),
 			cards: CardLoader.getInstance().getAllCardsAsMap()
