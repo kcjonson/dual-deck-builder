@@ -65,6 +65,12 @@ export interface DashOptions {
 	width: number;
 	dash: number;
 	gap: number;
+	/**
+	 * Left clear at each corner of a rounded frame, so no dash's square end
+	 * pokes past the curve: the dashes run along the straight sides only.
+	 * Zero, the default, dashes the top and bottom edges corner to corner.
+	 */
+	corner?: number;
 }
 
 /**
@@ -72,20 +78,22 @@ export interface DashOptions {
  * list written into `out` (cleared first): the top and bottom edges dashed
  * along x from the corners, the sides along y between them.
  */
-export function dashedOutlineTriangles(rect: Rect, { width, dash, gap }: DashOptions, out: Vec2[]): Vec2[] {
+export function dashedOutlineTriangles(rect: Rect, { width, dash, gap, corner = 0 }: DashOptions, out: Vec2[]): Vec2[] {
 	out.length = 0;
 	const right = rect.x + rect.width;
 	const bottom = rect.y + rect.height;
 	const quad = (x: number, y: number, w: number, h: number): void => {
 		out.push({ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y }, { x: x + w, y: y + h }, { x, y: y + h });
 	};
-	for (let x = rect.x; x < right; x += dash + gap) {
-		const length = Math.min(dash, right - x);
+	for (let x = rect.x + corner; x < right - corner; x += dash + gap) {
+		const length = Math.min(dash, right - corner - x);
 		quad(x, rect.y, length, width);
 		quad(x, bottom - width, length, width);
 	}
-	for (let y = rect.y + width + gap; y < bottom - width; y += dash + gap) {
-		const length = Math.min(dash, bottom - width - y);
+	const top = rect.y + Math.max(corner, width + gap);
+	const end = bottom - Math.max(corner, width);
+	for (let y = top; y < end; y += dash + gap) {
+		const length = Math.min(dash, end - y);
 		quad(rect.x, y, width, length);
 		quad(right - width, y, width, length);
 	}
