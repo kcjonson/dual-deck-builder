@@ -20,7 +20,7 @@ How stop cooldowns and POI refills plug in:
 
 - Hooks that change the campaign themselves. A hook failing after upkeep was stored leaves a half-ended day, and each hook's `set` is another `change`.
 - A registry the exploration epic registers into: global mutable state, and tests would have to reset it.
-- Pure map steps (chosen): `({ campaign, map }) => map`, given the campaign at dusk and the map so far. Stop state and POI stock are map state (Area Map Generation, What changes after generation), so the map is all they return. `DAY_END_HOOKS` is the default, the way `CAMPAIGN_START` is founding's, and holds two no-ops until the map keeps that state; tests pass their own.
+- Pure map steps (chosen): `({ campaign, map }) => map`, given the campaign's state at dusk and the map so far. The state is a frozen snapshot from `getState()` without its map, not the live `Campaign`, so a step can't `set` anything through it, and POI refills see the map stop cooldowns returned. Stop state and POI stock are map state (Area Map Generation, What changes after generation), so the map is all they return. `DAY_END_HOOKS` is the default, the way `CAMPAIGN_START` is founding's, and holds two no-ops until the map keeps that state; tests pass their own.
 
 ## Decision
 
@@ -32,13 +32,13 @@ How stop cooldowns and POI refills plug in:
 4. Stop cooldowns, then POI refills.
 5. The day turns, and a short day gets a log line dated the day it happened: "Ran short of 1 food and 2 water; 3 people lost."
 
-Everything is worked out before anything is stored, and the hooks' maps are checked with the save's reader, so a hook that throws or returns something a save can't hold changes nothing. Then the healed records are stored, and the campaign last, in one `set`, so its `change` comes once the day end is whole, as with a card move. Saving stays with the caller's checkpoint after the step.
+Everything is worked out and checked before anything is stored: the hooks' maps with the save's reader, and the next day and unrest with the integer reader the campaign's own check uses. So a hook that throws or returns something a save can't hold, or a day or unrest past a safe integer, changes nothing. Then the healed records are stored, and the campaign last, in one `set`, so its `change` comes once the day end is whole, as with a card move. The log is read after the records are stored, so a line a record's listener adds while a driver heals stays in. Saving stays with the caller's checkpoint after the step.
 
 It returns a frozen `DayEnd`: the day that ended, the upkeep, the shortfall, people lost, unrest gained, the drivers healed, and an `outcome`, `abandoned` whenever People is 0 at dawn and `continues` otherwise.
 
 `forecastNeeds` gives food and water each a stock, a daily upkeep, `days` (how many more day ends the stock covers in full, if People holds and nothing comes in), and `shortTonight`. `days` is 0 when tonight is already short and null when nobody's there to eat. People only changes on a short night, so the forecast is exact up to the first shortage: the first short night is the one after the smaller `days`, which the tests check against `endDay` itself.
 
-The rules are in `data/compound-rules.json`, a sibling of `campaign-start.json`: these hold for the whole campaign rather than starting it. Its reader is as strict as the start's, and DDB-303 and DDB-304 can add their values beside these.
+The rules are in `data/compound-rules.json`, a sibling of `campaign-start.json`: these hold for the whole campaign rather than starting it. Its reader is as strict as the start's, with ceilings far past any tuning (100 people a unit feeds, 100 people or unrest a unit short costs) so a slip in the file fails as it loads. DDB-303 and DDB-304 can add their values beside these.
 
 | Value | Start | Why |
 | --- | --- | --- |
@@ -48,7 +48,7 @@ The rules are in `data/compound-rules.json`, a sibling of `campaign-start.json`:
 
 Nothing here draws randomness. A later step that needs a draw forks a stream per day end from the seed and the day, `new Rng({ seed }).fork('day', day)`: the day is already a saved counter that never repeats, so it needs nothing new in the save. A hook rerolling a stop forks the stop's own stream from its saved roll count ([seeded-prng.md](./seeded-prng.md)).
 
-## Provisional calls (pending Kevin)
+## Provisional calls
 
 Each is a value or a line or two to change.
 

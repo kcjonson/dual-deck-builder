@@ -24,24 +24,35 @@ export interface CompoundRules {
 	};
 }
 
+/** Ceilings far past any tuning, so a slip in the file fails as it loads instead of overflowing a day's sums. */
+const MAX_PEOPLE_PER_UNIT = 100;
+const MAX_SHORTFALL_COST = 100;
+
+/** A frozen record holding a value for each resource the compound eats. */
+export function upkeepRecord<Value>(valueOf: (resource: UpkeepResource) => Value): Readonly<Record<UpkeepResource, Value>> {
+	return Object.freeze(Object.fromEntries(UPKEEP_RESOURCES.map(resource => [resource, valueOf(resource)])) as Record<UpkeepResource, Value>);
+}
+
 /**
- * Rules checked: exactly these fields, a whole number of people from 1 that
- * each unit feeds, and whole-number shortfall costs from 0. Errors name the
- * path, as a save's do. Comes back frozen.
+ * Rules checked: exactly these fields, a whole number of people from 1 to
+ * 100 that each unit feeds, and whole-number shortfall costs from 0 to 100.
+ * Errors name the path, as a save's do. Comes back frozen.
  */
 export function readCompoundRules(value: unknown, path: string): CompoundRules {
 	const fields = readFields(value, path, ['upkeep', 'shortfall']);
 	const upkeep = readFields(fields.upkeep, `${path}.upkeep`, ['peoplePerUnit']);
 	const perUnit = readFields(upkeep.peoplePerUnit, `${path}.upkeep.peoplePerUnit`, UPKEEP_RESOURCES);
-	const feeds = (resource: UpkeepResource): number => readInteger(perUnit[resource], `${path}.upkeep.peoplePerUnit.${resource}`, { min: 1 });
 	const shortfall = readFields(fields.shortfall, `${path}.shortfall`, ['peopleLostPerUnit', 'unrestPerUnit']);
+	const cost = (name: 'peopleLostPerUnit' | 'unrestPerUnit'): number =>
+		readInteger(shortfall[name], `${path}.shortfall.${name}`, { min: 0, max: MAX_SHORTFALL_COST });
 	return Object.freeze({
 		upkeep: Object.freeze({
-			peoplePerUnit: Object.freeze({ food: feeds('food'), water: feeds('water') })
+			peoplePerUnit: upkeepRecord(resource =>
+				readInteger(perUnit[resource], `${path}.upkeep.peoplePerUnit.${resource}`, { min: 1, max: MAX_PEOPLE_PER_UNIT }))
 		}),
 		shortfall: Object.freeze({
-			peopleLostPerUnit: readInteger(shortfall.peopleLostPerUnit, `${path}.shortfall.peopleLostPerUnit`, { min: 0 }),
-			unrestPerUnit: readInteger(shortfall.unrestPerUnit, `${path}.shortfall.unrestPerUnit`, { min: 0 })
+			peopleLostPerUnit: cost('peopleLostPerUnit'),
+			unrestPerUnit: cost('unrestPerUnit')
 		})
 	});
 }

@@ -1,5 +1,5 @@
-import { Campaign, CampaignLogEntry, Resources } from './Campaign';
-import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES, UpkeepResource, readCompoundRules } from './CompoundRules';
+import { Campaign, CampaignData, Resources } from './Campaign';
+import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES, UpkeepResource, readCompoundRules, upkeepRecord } from './CompoundRules';
 import { DriverRecord, DriverRecordData } from './DriverRecord';
 import { readInteger } from './JsonReader';
 import { MapState, readMapState } from './MapState';
@@ -7,12 +7,15 @@ import { MapState, readMapState } from './MapState';
 /** An amount of each resource the compound eats. */
 export type Upkeep = Readonly<Record<UpkeepResource, number>>;
 
+/** The campaign's state as it stood at dusk, frozen, without the map, which a step takes as it stands so far. */
+export type DuskState = Readonly<Omit<CampaignData, 'map'>>;
+
 /**
- * Something the area map does overnight, given the campaign as it stood at
- * dusk and the map so far: it returns the map for the next dawn. It changes
+ * Something the area map does overnight, given the campaign's state at dusk
+ * and the map so far: it returns the map for the next dawn. It changes
  * nothing itself, so a day end that fails part way changes nothing.
  */
-export type MapDayStep = (context: { readonly campaign: Campaign; readonly map: MapState }) => MapState;
+export type MapDayStep = (context: { readonly campaign: DuskState; readonly map: MapState }) => MapState;
 
 /** The area map's part in the end of a day, in the order the steps run. */
 export interface DayEndHooks {
@@ -88,37 +91,37 @@ export interface DayEndOptions {
  * 4. Stop cooldowns, then POI refills, on the map (`hooks`).
  * 5. The day turns, and a shortfall goes in the log, dated the day it happened.
  *
- * Everything is worked out before anything is stored, so a step that throws
- * (a hook, or the map it returns) changes nothing. Then the healed records
- * are stored, and the campaign last, in one `set`: its `change` comes once
- * the day end is whole. Nothing here draws randomness.
+ * Everything is worked out and checked before anything is stored, so a step
+ * that throws (a hook, the map it returns, a day or unrest past what a save
+ * holds) changes nothing. Then the healed records are stored, and the
+ * campaign last, in one `set`: its `change` comes once the day end is whole.
+ * Nothing here draws randomness.
  */
 export function endDay({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS }: DayEndOptions): DayEnd {
 	const checked = readCompoundRules(rules, 'CompoundRules');
-	const { day, resources, unrest } = campaign;
+	const { map: duskMap, ...state } = campaign.getState();
+	const dusk: DuskState = Object.freeze(state);
+	const { day, resources, unrest } = dusk;
 	const upkeep = dailyUpkeep({ people: resources.people, rules: checked });
-	const shortfall = upkeepOf(resource => Math.max(0, upkeep[resource] - resources[resource]));
+	const shortfall = upkeepRecord(resource => Math.max(0, upkeep[resource] - resources[resource]));
 	const unitsShort = UPKEEP_RESOURCES.reduce((total, resource) => total + shortfall[resource], 0);
 	const peopleLost = Math.min(resources.people, unitsShort * checked.shortfall.peopleLostPerUnit);
 	const unrestGained = unitsShort * checked.shortfall.unrestPerUnit;
-	const healing = campaign.drivers
+	const nextDay = readInteger(day + 1, 'Campaign.day', { min: 1 });
+	const nextUnrest = readInteger(unrest + unrestGained, 'Campaign.unrest', { min: 0 });
+	const healing = dusk.drivers
 		.filter(driver => driver.status === 'injured')
 		.map(driver => ({ driver, changes: healOvernight(driver) }));
-	const afterCooldowns = readMapState(hooks.stopCooldowns({ campaign, map: campaign.map }), 'DayEndHooks.stopCooldowns');
-	const map = readMapState(hooks.poiRefills({ campaign, map: afterCooldowns }), 'DayEndHooks.poiRefills');
+	const afterCooldowns = readMapState(hooks.stopCooldowns({ campaign: dusk, map: duskMap }), 'DayEndHooks.stopCooldowns');
+	const map = readMapState(hooks.poiRefills({ campaign: dusk, map: afterCooldowns }), 'DayEndHooks.poiRefills');
 	const people = resources.people - peopleLost;
-	const stores: Resources = {
-		...resources,
-		food: Math.max(0, resources.food - upkeep.food),
-		water: Math.max(0, resources.water - upkeep.water),
-		people
-	};
-	const log: readonly CampaignLogEntry[] = unitsShort > 0
-		? [...campaign.log, { day, message: shortfallMessage({ shortfall, peopleLost }) }]
-		: campaign.log;
+	const stores: Resources = { ...resources, people };
+	for (const resource of UPKEEP_RESOURCES) stores[resource] = Math.max(0, resources[resource] - upkeep[resource]);
 
 	healing.forEach(({ driver, changes }) => driver.set(changes));
-	campaign.set({ day: day + 1, resources: stores, unrest: unrest + unrestGained, map, log });
+	// Read after the records are stored, so a line a record's listener logged stays in.
+	const log = unitsShort > 0 ? [...campaign.log, { day, message: shortfallMessage({ shortfall, peopleLost }) }] : campaign.log;
+	campaign.set({ day: nextDay, resources: stores, unrest: nextUnrest, map, log });
 
 	return Object.freeze({
 		day,
@@ -139,7 +142,7 @@ export function endDay({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS
  */
 export function forecastNeeds({ resources, rules = COMPOUND_RULES }: { resources: Readonly<Resources>; rules?: CompoundRules }): NeedsForecast {
 	const upkeep = dailyUpkeep({ people: readInteger(resources.people, 'resources.people', { min: 0 }), rules: readCompoundRules(rules, 'CompoundRules') });
-	return upkeepOf(resource => {
+	return upkeepRecord(resource => {
 		const stock = readInteger(resources[resource], `resources.${resource}`, { min: 0 });
 		const perDay = upkeep[resource];
 		return Object.freeze({
@@ -153,11 +156,7 @@ export function forecastNeeds({ resources, rules = COMPOUND_RULES }: { resources
 
 /** A day's food and water: People over the people each unit feeds, rounded up. */
 function dailyUpkeep({ people, rules }: { people: number; rules: CompoundRules }): Upkeep {
-	return upkeepOf(resource => Math.ceil(people / rules.upkeep.peoplePerUnit[resource]));
-}
-
-function upkeepOf<Value>(valueOf: (resource: UpkeepResource) => Value): Readonly<Record<UpkeepResource, Value>> {
-	return Object.freeze({ food: valueOf('food'), water: valueOf('water') });
+	return upkeepRecord(resource => Math.ceil(people / rules.upkeep.peoplePerUnit[resource]));
 }
 
 /** A day closer to fit, and ready again at full HP once there. */

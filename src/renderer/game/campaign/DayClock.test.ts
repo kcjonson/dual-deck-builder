@@ -4,7 +4,7 @@ import { DriverArchetype } from '../mechanics/Driver';
 import { Campaign, Resources } from './Campaign';
 import { CAMPAIGN_START } from './CampaignStart';
 import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES } from './CompoundRules';
-import { DAY_END_HOOKS, DayEnd, DayEndHooks, MapDayStep, NeedsForecast, endDay, forecastNeeds } from './DayClock';
+import { DAY_END_HOOKS, DayEnd, DayEndHooks, DuskState, MapDayStep, NeedsForecast, endDay, forecastNeeds } from './DayClock';
 import { DriverRecord, DriverStatus } from './DriverRecord';
 import { foundCampaign } from './Founding';
 import { MapState } from './MapState';
@@ -272,20 +272,57 @@ describe('endDay', () => {
 			const before = savedText(campaign);
 			const rules: CompoundRules = { ...COMPOUND_RULES, upkeep: { peoplePerUnit: { food: 0, water: 4 } } };
 
-			expect(() => endDay({ campaign, rules })).toThrow('CompoundRules.upkeep.peoplePerUnit.food must be an integer >= 1, got 0');
+			expect(() => endDay({ campaign, rules })).toThrow('CompoundRules.upkeep.peoplePerUnit.food must be an integer from 1 to 100, got 0');
 			expect(savedText(campaign)).toBe(before);
+		});
+
+		it.each([
+			['unrest a shortfall would push past what a save holds', (campaign: Campaign) => campaign.set({ unrest: Number.MAX_SAFE_INTEGER }), {},
+				/^Campaign\.unrest must be an integer >= 0, got 900719925474099\d$/],
+			['a day past what a save holds', (campaign: Campaign) => campaign.set({ day: Number.MAX_SAFE_INTEGER }), {},
+				'Campaign.day must be an integer >= 1, got 9007199254740992'],
+			['rules whose unrest per unit would overflow it', () => undefined, { unrestPerUnit: 2 ** 52 },
+				'CompoundRules.shortfall.unrestPerUnit must be an integer from 0 to 100, got 4503599627370496']
+		])('refuses %s before anyone heals or the day turns', (_label, setUp, shortfall, message) => {
+			const campaign = newCampaign({ food: 0 });
+			const driver = campaign.recruitDriver({ archetype: 'road_warrior' });
+			injure(driver, 1);
+			setUp(campaign);
+			const before = savedText(campaign);
+
+			expect(() => endDay({ campaign, rules: rulesWith(shortfall) })).toThrow(message);
+			expect(savedText(campaign)).toBe(before);
+			expect(driver.status).toBe('injured');
+		});
+
+		it('keeps a line a driver\'s listener logs as they heal, ahead of the shortfall', () => {
+			const campaign = newCampaign({ food: 0 });
+			const driver = campaign.recruitDriver({ archetype: 'road_warrior' });
+			injure(driver, 1);
+			driver.on('change', () => {
+				if (driver.status === 'ready') campaign.addLogEntry({ message: `${driver.name} is fit again.` });
+			});
+
+			endDay({ campaign });
+
+			expect(campaign.log).toEqual([
+				{ day: 1, message: 'Road Warrior 1 is fit again.' },
+				{ day: 1, message: 'Ran short of 3 food; 3 people lost.' }
+			]);
 		});
 	});
 
 	describe('stop cooldowns and POI refills', () => {
-		it('runs stop cooldowns, then POI refills, each once, on the campaign at dusk and the map so far, and keeps the map the last returns', () => {
+		it('runs stop cooldowns, then POI refills, each once, on the campaign\'s state at dusk and the map so far, and keeps the map the last returns', () => {
 			const campaign = newCampaign();
 			campaign.set({ map: { stops: { 's-1': { clearedOn: 1 } }, pois: {} } });
 			const driver = campaign.recruitDriver({ archetype: 'mechanic' });
 			injure(driver, 1);
 			const calls: { step: string; map: MapState; day: number; food: number; status: DriverStatus }[] = [];
+			const states: DuskState[] = [];
 			const step = (name: string, next: MapState): MapDayStep => ({ campaign: atDusk, map }) => {
 				calls.push({ step: name, map, day: atDusk.day, food: atDusk.resources.food, status: driver.status });
+				states.push(atDusk);
 				return next;
 			};
 			const cooled = { stops: { 's-1': { clearedOn: 1, rolls: 1 } }, pois: {} };
@@ -301,6 +338,11 @@ describe('endDay', () => {
 			]);
 			expect(campaign.map).toEqual(refilled);
 			expect(Object.isFrozen(campaign.map)).toBe(true);
+			// A frozen snapshot, not the live campaign: a step can't set anything through it, or read the map anywhere but `map`.
+			expect(states[0]).toBe(states[1]);
+			expect(states[0]).not.toBeInstanceOf(Campaign);
+			expect(Object.isFrozen(states[0])).toBe(true);
+			expect('map' in states[0]).toBe(false);
 		});
 
 		it('keeps the map as it is with the shipped hooks', () => {
