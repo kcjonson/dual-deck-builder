@@ -19,6 +19,15 @@ export interface DrawResult {
 }
 
 /**
+ * How many of a draw's cards stay in the hand. A draw fills it up to the
+ * driver's hand limit and the rest go straight to discard, so a hand at or
+ * over its limit keeps none. The one rule for drawCards and the AIs' estimate.
+ */
+export function cardsKept({ count, handSize, handLimit }: { count: number; handSize: number; handLimit: number }): number {
+	return Math.max(0, Math.min(count, handLimit - handSize));
+}
+
+/**
  * Driver archetype defining playstyle and starting deck
  */
 export type DriverArchetype = 'road_warrior' | 'interceptor' | 'mechanic' | 'raider';
@@ -365,6 +374,7 @@ export class Driver extends Model<DriverData> {
 		const result: DrawResult = { drawn: [], burned: [] };
 		if (!this.deck) return result;
 
+		const kept = cardsKept({ count, handSize: this.hand.length, handLimit: this.handLimit });
 		for (let i = 0; i < count; i++) {
 			if (this.deck.size === 0 && this.discard.length > 0) {
 				this.reshuffleDiscardIntoDeck(rng);
@@ -373,7 +383,7 @@ export class Driver extends Model<DriverData> {
 			const card = this.deck.draw();
 			if (!card) break;
 
-			if (this.hand.length < this.handLimit) {
+			if (i < kept) {
 				this.addToHand(card);
 				result.drawn.push(card);
 			} else {
