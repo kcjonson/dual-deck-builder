@@ -52,7 +52,7 @@ The cheap rules go first: outward, the junction angle on a parent's first step a
 | Crowding by kin | 2 | how far into the band past the gap the clearance rule needs |
 | Noise | 0.15 | one draw a candidate |
 
-Then, best first, clearance against the spatial hash, and passability: craters exactly, as circles, and `impassable` every half unit, under the width of the terrain's thinnest cliff slivers. The first candidate to pass is the step. Leaving these two for last, and checking them lazily, means a step usually pays for one candidate's worth, since the best usually passes.
+Then, best first, clearance against the spatial hash, and passability: craters exactly, as circles, and `impassable` every half unit. The spacing is the rule's tolerance, not a guarantee: between two samples a step can clip a cliff's corner, or cross a sliver narrower than half a unit, and the terrain's thinnest run under one (terrain-fields.md). Where steps clipped a corner in review, they went 0.16 units in at the median and 0.44 at most. The first candidate to pass is the step. Leaving these two for last, and checking them lazily, means a step usually pays for one candidate's worth, since the best usually passes.
 
 A candidate that would leave the disc is cut short at the rim, a hair inside so rounding can't put it outside, and the road ends there as an exit. A road ends as a dead end when nothing survives, and when it reaches its class's longest: 800 units for a back road, 400 for a trail, counted from where it took the class. Highways have no limit.
 
@@ -101,12 +101,12 @@ Chaikin, two passes, stretch by stretch with the nodes held still. Each end segm
 
 ## The water seam
 
-Water is impassable through `impassable` like the rest, once the water stage (DDB-289) adds it with `withWater`, and growth samples every half unit everywhere, not just in rough cells, so a thin river can't slip between samples. The bridge rule, a river crossed square-on, needs rivers told from lakes and a river's direction, which `WaterLayer` doesn't give yet. `isPassable` is where it goes in: samples on a river the step crosses within some angle of square stop counting, and the crossing is recorded as a bridge. The network has no bridges until then.
+Water is impassable through `impassable` like the rest, once the water stage (DDB-289) adds it with `withWater`, and growth samples every half unit everywhere, not just in rough cells, so only water narrower than that could slip between samples, and a step can clip a bank by as much. The bridge rule, a river crossed square-on, needs rivers told from lakes and a river's direction, which `WaterLayer` doesn't give yet. `isPassable` is where it goes in: samples on a river the step crosses within some angle of square stop counting, and the crossing is recorded as a bridge. The network has no bridges until then.
 
 ## Tests
 
 - A test per step rule: outward, either side of 65 degrees and measured end to end; passable, a crater grazed between samples and a sliver a little wider than the spacing; clearance, a stranger at the clearance, kin at the taper, touching at a junction at 25 and 15 degrees, highways at the compound; the disc; the candidate turns; scoring by cost and by drift; noise; exits; dead ends; the roomier side; branch classes; degradation and its threshold; class lengths; branch angles; smoothing; plain data; water; and the queue's order.
-- Property tests over parameter sets sampled across the world and network tuning ranges, corners first: `checkRoadNetwork` finds nothing (passable, outward, disc, crossings, clearance, junction angles, and the trees), every bend is within its class's turn limit, every branch leaves 20 to 55 degrees from its parent's way in, every parent chain reaches a highway root without a loop, the highways are the departures, and growing again gives the same network while the next seed gives another. CI grows 24 maps, `ROAD_PROPERTY_MAPS` sets more, and `scripts/road-growth.mjs check` runs the checks alone outside Jest: none failed in 1,000 maps.
+- Property tests over parameter sets sampled across the world and network tuning ranges and `strongholds`, which sets the fewest highways the validator allows, corners first (at 2 strongholds, so they reach 4 highways): `checkRoadNetwork` finds nothing (passable, outward, disc, crossings, clearance, junction angles, and the trees), every bend is within its class's turn limit, every branch leaves 20 to 55 degrees from its parent's way in, every parent chain reaches a highway root without a loop, the highways are the departures, and growing again gives the same network while the next seed gives another. CI grows 24 maps, `ROAD_PROPERTY_MAPS` sets more, and `scripts/road-growth.mjs check` runs the checks alone outside Jest: none failed in 1,000 maps.
 - `checkRoadNetwork` has tests of its own: a valid network passes, and each kind of break is found.
 
 ## Performance
@@ -127,7 +127,8 @@ About 15 us a step, most of it terrain: two `travelCost` samples a candidate, ab
 
 - Stage 5's approaches can grow by `StepRules` with outward relaxed to "no closer than where it attached", a heading toward the POI, and clearance waived at the POI. Registering an approach as a branch of the road it attaches to gives it the junction taper at its attach point.
 - The map validator can run `checkRoadNetwork` as it is for guarantees 2, 3, and 8.
-- About one highway in five ends in rough country short of the rim. Strongholds need roads near the outer band in every sector; if stage 5 comes up short there, the stage retry (Validation and retries) or a longer wall lookahead are the levers.
+- About one highway in five ends in rough country short of the rim. Strongholds need roads near the outer band in every sector, and rerunning stage 5 can't help there, since it never moves a road. The levers are rerunning growth when stage 5 fails, or growth itself seeing to outer-band coverage in every sector (both noted on DDB-291).
+- The network is bigger saved than the spec's budget. As full-precision JSON it's 150 to 330 KB at radius 800 to 1200, and 70 to 150 KB with coordinates rounded to 0.01, against the spec's tens of KB for the whole gameplay map (Saving). How the save encodes it is settled in DDB-436.
 - `GrowthStats` (steps, rejections by rule, how roads ended, branches tried and grown, degradations, smoothing) is for the Map Lab's readout and for tuning.
 - No new parameter was needed. If the Map Lab wants one, the room cap is the candidate: how far apart branches settle, which is density at a given branchiness.
 - A change to any value here moves every map, so it ships with a generator version bump (DDB-296).

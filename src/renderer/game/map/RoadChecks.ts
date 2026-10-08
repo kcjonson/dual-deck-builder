@@ -56,7 +56,7 @@ export interface RoadCheckOptions {
  *   tapers as growth's does and they touch only at the junction; segments of
  *   one road touch only where they join.
  * - junctionAngle: a branch leaves its junction at least 20 degrees from its
- *   parent either way.
+ *   parent's way in, carried on through the junction, and from its way on.
  */
 export function checkRoadNetwork({ network, terrain, clearance, limit = 20 }: RoadCheckOptions): RoadViolation[] {
 	const violations: RoadViolation[] = [];
@@ -308,7 +308,13 @@ function meetAtAngle(x: number, y: number, a: Segment, b: Segment): boolean {
 	return cosine((aStarts ? a.x1 : a.x0) - x, (aStarts ? a.y1 : a.y0) - y, (bStarts ? b.x1 : b.x0) - x, (bStarts ? b.y1 : b.y0) - y) <= JUNCTION_COS;
 }
 
-/** Guarantee 8: at every junction, each branch leaves at least 20 degrees from its parent, coming in and going on. */
+/**
+ * Guarantee 8: at every junction, each branch leaves at least 20 degrees
+ * from the direction its parent came in on, carried on through the junction,
+ * and from the direction the parent goes on in, where it does. A parent can
+ * end at its junction, blocked right after branching, and then its way in is
+ * the only parent direction there is.
+ */
 function checkJunctions({ nodes, stretches }: RoadNetwork, report: Report): void {
 	const into: (RoadStretch | undefined)[] = [];
 	const from: RoadStretch[][] = nodes.map(() => []);
@@ -322,14 +328,15 @@ function checkJunctions({ nodes, stretches }: RoadNetwork, report: Report): void
 		if (inward === undefined) return;
 		const leaving = from[id];
 		const onward = leaving.find((stretch) => stretch.road === inward.road);
-		const back = inward.points;
-		const backX = back[back.length - 4] - node.x;
-		const backY = back[back.length - 3] - node.y;
+		const inPoints = inward.points;
+		// The way in, pointing on through the junction.
+		const inX = node.x - inPoints[inPoints.length - 4];
+		const inY = node.y - inPoints[inPoints.length - 3];
 		leaving.filter((stretch) => stretch.road !== inward.road).forEach((branch) => {
 			const branchX = branch.points[2] - node.x;
 			const branchY = branch.points[3] - node.y;
-			const sides: [string, number, number][] = [['coming in', backX, backY]];
-			if (onward !== undefined) sides.push(['going on', onward.points[2] - node.x, onward.points[3] - node.y]);
+			const sides: [string, number, number][] = [['way in', inX, inY]];
+			if (onward !== undefined) sides.push(['way on', onward.points[2] - node.x, onward.points[3] - node.y]);
 			sides.forEach(([side, x, y]) => {
 				if (cosine(branchX, branchY, x, y) > JUNCTION_COS) report('junctionAngle', `road ${branch.road} leaves node ${id} within 20 degrees of its parent ${side}`);
 			});

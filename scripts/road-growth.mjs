@@ -145,13 +145,17 @@ function bench() {
 	console.log(`${smoothing.unsmoothed} of ${smoothing.smoothed + smoothing.unsmoothed} stretches kept their steps; networks' digest ${digest.digest('hex').slice(0, 16)}`);
 }
 
-/** Parameter sets across the tuning ranges: each world or network number at an end of its range two times in five. */
+/**
+ * Parameter sets across the tuning ranges: each world or network number, and
+ * strongholds, which set the fewest highways the validator allows, at an end
+ * of its range two times in five.
+ */
 function sampledSet(index) {
 	const rng = new Rng({ seed: 7919 }).fork('road-sweep', index);
 	const set = { seed: rng.next(), environment: rng.pick(ENVIRONMENTS) };
 	for (const name of NUMBER_PARAMS) {
 		const { group, kind, tuning } = MAP_PARAMETERS[name];
-		if (group !== 'world' && group !== 'network') continue;
+		if (group !== 'world' && group !== 'network' && name !== 'strongholds') continue;
 		const draw = rng.float();
 		const value = draw < 0.2 ? tuning.min : draw < 0.4 ? tuning.max : tuning.min + (tuning.max - tuning.min) * rng.float();
 		set[name] = kind === 'int' ? Math.round(value) : value;

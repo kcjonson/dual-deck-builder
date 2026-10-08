@@ -73,22 +73,25 @@ export function departure(bearing: number, metroRadius: number, drift: number[] 
  * Parameter sets across the tuning ranges: the corners that push hardest on
  * growth first (dense and sparse, tight and loose, straight and winding, on
  * the smallest and largest maps), then random sets where each world or
- * network number is at an end of its range two times in five.
+ * network number, and `strongholds`, is at an end of its range two times in
+ * five. The validator keeps `highways` at `strongholds` plus 2, so the
+ * corners hold strongholds at 2 to reach the fewest highways a map can have,
+ * 4; left at the default of 4, every map would grow 6 or more.
  */
 export function sampledRoadParamSets(count: number): MapParamSet[] {
 	const corners: MapParamSet[] = [
-		{ seed: 1, radius: 600, highways: 9, highwaySeparation: 20, branchiness: 1, curviness: 1, roadClearance: 60, metroSize: 0.08, ruggedness: 1, mountainCoverage: 1, aridity: 0, hotspots: 6 },
-		{ seed: 2, radius: 1600, highways: 9, highwaySeparation: 40, branchiness: 1, curviness: 0, roadClearance: 10, trailShare: 1, metroSize: 0.25 },
-		{ seed: 3, radius: 600, highways: 3, highwaySeparation: 60, branchiness: 0, curviness: 0, roadClearance: 10, trailShare: 0 },
-		{ seed: 4, radius: 1600, highways: 5, highwaySeparation: 20, branchiness: 0.5, curviness: 1, roadClearance: 60, environment: 'badlands', hotspots: 6 },
-		{ seed: 5, radius: 1000, highways: 9, highwaySeparation: 40, branchiness: 1, curviness: 0.5, roadClearance: 24, metroSize: 0.08, mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1 },
+		{ seed: 1, radius: 600, strongholds: 2, highways: 9, highwaySeparation: 20, branchiness: 1, curviness: 1, roadClearance: 60, metroSize: 0.08, ruggedness: 1, mountainCoverage: 1, aridity: 0, hotspots: 6 },
+		{ seed: 2, radius: 1600, strongholds: 2, highways: 9, highwaySeparation: 40, branchiness: 1, curviness: 0, roadClearance: 10, trailShare: 1, metroSize: 0.25 },
+		{ seed: 3, radius: 600, strongholds: 2, highways: 4, highwaySeparation: 60, branchiness: 0, curviness: 0, roadClearance: 10, trailShare: 0 },
+		{ seed: 4, radius: 1600, strongholds: 2, highways: 4, highwaySeparation: 20, branchiness: 0.5, curviness: 1, roadClearance: 60, environment: 'badlands', hotspots: 6 },
+		{ seed: 5, radius: 1000, strongholds: 2, highways: 9, highwaySeparation: 40, branchiness: 1, curviness: 0.5, roadClearance: 24, metroSize: 0.08, mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1 },
 	];
 	const rng = new Rng({ seed: 2026 });
 	const random = Array.from({ length: Math.max(0, count - corners.length) }, (): MapParamSet => {
 		const set: MapParamSet = { seed: rng.next(), environment: rng.pick(ENVIRONMENTS) };
 		for (const name of NUMBER_PARAMS) {
 			const { group, kind, tuning } = MAP_PARAMETERS[name];
-			if (group !== 'world' && group !== 'network') continue;
+			if (group !== 'world' && group !== 'network' && name !== 'strongholds') continue;
 			const draw = rng.float();
 			const value = draw < 0.2 ? tuning.min : draw < 0.4 ? tuning.max : tuning.min + (tuning.max - tuning.min) * rng.float();
 			set[name] = kind === 'int' ? Math.round(value) : value;

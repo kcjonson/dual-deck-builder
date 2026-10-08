@@ -88,6 +88,32 @@ describe('checkRoadNetwork', () => {
 		expect(rules(network)).toContain('junctionAngle');
 	});
 
+	it('measures a branch from its parent\'s way in when the parent ends at the junction', () => {
+		// The highway, blocked right after branching, ends at its junction: the branch is the only stretch out.
+		const endingAt = (degrees: number): RoadNetwork => {
+			const off = { x: Math.sin(degrees * Math.PI / 180) * 100, y: Math.cos(degrees * Math.PI / 180) * 100 };
+			return {
+				nodes: [
+					{ kind: 'compound', x: 0, y: 0 },
+					{ kind: 'metroEdge', x: 0, y: 100 },
+					{ kind: 'junction', x: 0, y: 300 },
+					{ kind: 'end', x: 2 * off.x, y: 300 + 2 * off.y },
+				],
+				roads: [
+					{ roadClass: 'highway', parent: -1, from: 0, stretches: [0, 1] },
+					{ roadClass: 'backRoad', parent: 0, from: 2, stretches: [2] },
+				],
+				stretches: [
+					{ road: 0, roadClass: 'highway', from: 0, to: 1, parent: -1, points: [0, 0, 0, 100] },
+					{ road: 0, roadClass: 'highway', from: 1, to: 2, parent: 0, points: [0, 100, 0, 200, 0, 300] },
+					{ road: 1, roadClass: 'backRoad', from: 2, to: 3, parent: 1, points: [0, 300, off.x, 300 + off.y, 2 * off.x, 300 + 2 * off.y] },
+				],
+			};
+		};
+		expect(rules(endingAt(10))).toEqual(['junctionAngle']);
+		expect(rules(endingAt(40))).toEqual([]);
+	});
+
 	it('finds broken trees: a parent link that loops, a stretch off its node, a trail that branches', () => {
 		const looped = valid();
 		looped.stretches[1] = { ...looped.stretches[1], parent: 2 };

@@ -49,7 +49,12 @@ export const BRANCH_ANGLE = { min: 20, max: 55 } as const;
 export const JUNCTION_COS = 0.9396926207859084;
 /** Headings a step proposes, evenly across its turn limit either way. Odd, so one goes straight on. */
 export const CANDIDATE_HEADINGS = 5;
-/** World units between impassability samples along a step: under the unit the terrain's thinnest cliff slivers need. */
+/**
+ * World units between impassability samples along a step, and the passable
+ * rule's tolerance: between two samples a step can clip a cliff's corner, or
+ * cross anything narrower than this. The terrain's thinnest slivers run
+ * under a unit.
+ */
 export const PASSABLE_SPACING = 0.5;
 /** World units between the knots a road's preferred heading drifts through. */
 export const DRIFT_SPACING = 200;

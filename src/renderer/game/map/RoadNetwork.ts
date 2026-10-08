@@ -19,7 +19,10 @@ export const ROAD_CLASS_LABELS: { readonly [Name in RoadClass]: string } = {
 /**
  * - `compound`: the root at the origin, node 0, where every highway out of the metro starts.
  * - `metroEdge`: where a highway's city street meets the metro's edge and growth took over.
- * - `junction`: where a branch leaves its parent road.
+ *   A highway blocked as it leaves the metro ends here, on this node rather than an `end`.
+ * - `junction`: where a branch leaves its parent road. A parent blocked right after
+ *   branching ends here too, so the junction has the branch as its one stretch out and
+ *   no `end` node follows.
  * - `classChange`: where a back road degrades to a trail.
  * - `end`: a dead end, where a road was blocked or reached its class's longest.
  * - `exit`: where a road leaves the area at the disc's rim.
