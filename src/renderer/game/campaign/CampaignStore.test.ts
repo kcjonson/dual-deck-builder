@@ -20,6 +20,13 @@ const SAVE_BUDGET = 800000;
 
 const stampedHistory = (entries: CampaignHistoryEntry[], version = CAMPAIGN_SCHEMA_VERSION): string => JSON.stringify(historyToJson({ version, entries }));
 
+/** Objects nested `levels` deep. */
+const nested = (levels: number): unknown => {
+	let value: unknown = 1;
+	for (let level = 0; level < levels; level += 1) value = { a: value };
+	return value;
+};
+
 afterEach(() => jest.restoreAllMocks());
 
 describe('CampaignStore', () => {
@@ -448,12 +455,47 @@ describe('CampaignStore', () => {
 			expect(await storage.getItem(KEYS.recovery)).toBe(text);
 		});
 
-		it('takes a bug in the code reading a save for a bug, not damage', async () => {
-			const storage = storageWith(fixtureText());
-			jest.spyOn(Campaign, 'fromJSON').mockImplementation(() => { throw new TypeError("Cannot read properties of undefined (reading 'day')"); });
+		it.each([
+			['{}', '{}'],
+			['a campaign with no stamp', JSON.stringify(campaignV1)],
+			['a null version', saveText({ campaign: JSON.stringify(campaignV1) }).replace(/^\{"version":\d+/, '{"version":null')],
+			['a version in a string', saveText({ campaign: JSON.stringify(campaignV1) }).replace(/^\{"version":(\d+)/, '{"version":"$1"')],
+			['a version that isn\'t an integer', saveText({ campaign: JSON.stringify(campaignV1) }).replace(/^\{"version":(\d+)/, '{"version":$1.5')]
+		])('reads %s as damaged rather than another version\'s, and keeps it', async (_label, text) => {
+			const storage = storageWith(text);
+			const store = storeOver(storage);
 
-			await expect(storeOver(storage).load()).rejects.toThrow("Cannot read properties of undefined (reading 'day')");
-			expect(await storage.getItem(KEYS.recovery)).toBeNull();
+			expect(await store.saveStatus()).toBe('saved');
+			expect((await failure(store.load())).reason).toBe('damaged');
+			await storage.removeItem(KEYS.recovery);
+			await storeOver(storage).save(newCampaign(7));
+
+			expect(await storage.getItem(KEYS.recovery)).toBe(text);
+		});
+
+		it.each([
+			['a bug in the code reading it', fixtureText(), true],
+			['stop tables nested past the limit', fixtureText(campaign => { (campaign.mapParams as Record<string, unknown>).stopTables = nested(150); }), false],
+			['a map nested far past the stack\'s depth', fixtureText().replace('"map":{}', `"map":${'{"a":'.repeat(20000)}1${'}'.repeat(20000)}`), false]
+		])('takes anything thrown while reading a save of this version as damage, here %s, so it never locks the player out', async (_label, text, bug) => {
+			if (bug) jest.spyOn(Campaign, 'fromJSON').mockImplementation(() => { throw new TypeError("Cannot read properties of undefined (reading 'day')"); });
+			const logged = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+			const storage = storageWith(text);
+
+			expect(await storeOver(storage).saveStatus()).toBe('saved');
+			const error = await failure(storeOver(storage).load());
+			expect(error.reason).toBe('damaged');
+			expect(logged).toHaveBeenCalledTimes(bug ? 1 : 0);
+			await storage.removeItem(KEYS.recovery);
+			await storeOver(storage).delete();
+			expect(await storage.getItem(KEYS.recovery)).toBe(text);
+
+			// With nothing naming it, it isn't the save, and a new campaign keeps it before writing over it.
+			const unnamed = new MemorySaveStorage({ items: { [KEYS.slots.a]: text } });
+			const store = storeOver(unnamed);
+			expect(await store.saveStatus()).toBe('none');
+			await store.save(newCampaign(7));
+			expect(await unnamed.getItem(KEYS.recovery)).toBe(text);
 		});
 
 		it.each([
@@ -485,6 +527,24 @@ describe('CampaignStore', () => {
 
 			expect(await storage.getItem(KEYS.recovery)).toBe(damaged);
 			expect(storage.keys).toEqual([KEYS.recovery]);
+		});
+
+		it('is kept before an unchanged save names the other slot in `active`, which makes it only the save before', async () => {
+			const damaged = damagedText();
+			const storage = new MemorySaveStorage();
+			const campaign = newCampaign();
+			await storeOver(storage).save(campaign);
+			await storage.removeItem(KEYS.active);
+			await storage.setItem(KEYS.slots.b, damaged);
+			const store = storeOver(storage);
+			const loaded = await store.load() as Campaign;
+
+			await store.save(loaded);
+			loaded.set({ day: 2 });
+			await store.save(loaded);
+
+			expect(await storage.getItem(KEYS.recovery)).toBe(damaged);
+			expect((await storeOver(storage).load())?.day).toBe(2);
 		});
 
 		it('is the one kept when both slots are damaged, since the other held only the save before it', async () => {
@@ -670,6 +730,38 @@ describe('CampaignStore', () => {
 			expect(await store.history()).toHaveLength(1);
 		});
 
+		it('answers an end retried another way with the entry the first end recorded', async () => {
+			const storage = new FaultyStorage();
+			const store = storeOver(storage);
+			const campaign = newCampaign();
+			await store.save(campaign);
+			storage.fault = { method: 'removeItem', key: KEYS.slots.a, times: 1 };
+			await failure(store.end({ campaign, ending: 'starved' }));
+
+			const retried = await store.end({ campaign, ending: 'won' });
+
+			expect(retried.ending).toBe('starved');
+			expect((await store.history()).map(entry => entry.ending)).toEqual(['starved']);
+			expect(await store.hasSave()).toBe(false);
+		});
+
+		it('finishes a delete\'s removal when its campaign is ended, then refuses the end, recording nothing', async () => {
+			const storage = new FaultyStorage();
+			const store = storeOver(storage);
+			const campaign = newCampaign();
+			await store.save(campaign);
+			campaign.set({ day: 2 });
+			await store.save(campaign);
+			storage.fault = { method: 'removeItem', key: KEYS.slots.b, times: 1 };
+			expect((await failure(store.delete())).reason).toBe('storage');
+
+			const error = await failure(store.end({ campaign, ending: 'starved' }));
+
+			expect([error.reason, error.message]).toEqual(['retired', "The campaign couldn't be ended: its save was deleted."]);
+			expect(await store.history()).toEqual([]);
+			expect(storage.keys).toEqual([]);
+		});
+
 		it.each([
 			['hasSave', (store: CampaignStore): Promise<unknown> => store.hasSave()],
 			['load', (store: CampaignStore): Promise<unknown> => store.load()],
@@ -709,8 +801,8 @@ describe('CampaignStore', () => {
 
 			const error = await failure(store.end({ campaign: inScreen, ending: 'starved' }));
 
-			expect([error.reason, error.message]).toEqual(['retired', "The campaign couldn't be saved: the save was loaded again."]);
-			expect((await failure(store.end({ campaign: inMenu, ending: 'starved' }))).message).toBe("The campaign couldn't be saved: it has ended.");
+			expect([error.reason, error.message]).toEqual(['retired', "The campaign couldn't be ended: the save was loaded again."]);
+			expect((await failure(store.end({ campaign: inMenu, ending: 'starved' }))).message).toBe("The campaign couldn't be ended: it has ended.");
 			expect((await store.history()).map(entry => entry.ending)).toEqual(['abandoned']);
 			const deleted = newCampaign(3);
 			await store.save(deleted);
@@ -1068,6 +1160,18 @@ describe('CampaignStore', () => {
 			await storeOver(storage).delete();
 
 			expect(storage.writes).toEqual([]);
+		});
+
+		it.each([
+			['a slot with nothing in it', 'b'],
+			['no slot at all', 'x'],
+			['nothing', '']
+		])('drops an `active` left naming %s', async (_label, pointer) => {
+			const storage = new MemorySaveStorage({ items: { [KEYS.active]: pointer } });
+
+			await storeOver(storage).delete();
+
+			expect(storage.keys).toEqual([]);
 		});
 	});
 

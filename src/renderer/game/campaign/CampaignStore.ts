@@ -1,7 +1,7 @@
 import { EventEmitter } from '../core/EventEmitter';
 import { CAMPAIGN_SCHEMA_VERSION, Campaign, LoadOptions, logWarning } from './Campaign';
 import { CampaignEnding, CampaignHistoryEntry, historyEntry, historyToJson, readHistory, sameEntry } from './CampaignHistory';
-import { describeValue, isReaderError, readFields, readInteger, readObject } from './JsonReader';
+import { ReaderTypeError, describeValue, isReaderError, readFields, readInteger, readObject } from './JsonReader';
 import { LocalSaveStorage, SaveStorage, isQuotaError, storageTrouble } from './SaveStorage';
 
 type Slot = 'a' | 'b';
@@ -128,6 +128,8 @@ interface Survey {
  */
 interface Lineage {
 	retired?: string;
+	/** The history entry the end that retired it recorded. */
+	ended?: CampaignHistoryEntry;
 }
 
 /** A checkpoint waiting its turn, which later checkpoints of its campaign join. */
@@ -145,10 +147,13 @@ interface Waiting {
  *
  * Saves are per build. Every key carries the build's namespace, and every
  * save and history list carries the save format version
- * (`CAMPAIGN_SCHEMA_VERSION`). A save stamped with another version isn't
- * loaded: `saveStatus` calls it outdated, `load` passes it by, and a new
- * campaign or a delete replaces it without a copy. A history stamped with
- * another version starts over. There are no migrations.
+ * (`CAMPAIGN_SCHEMA_VERSION`). A save stamped with another version, an
+ * integer other than this one, isn't loaded: `saveStatus` calls it
+ * outdated, `load` passes it by, and a new campaign or a delete replaces it
+ * without a copy. A history stamped with another version starts over. There
+ * are no migrations. Anything else that can't be read is damaged, whatever
+ * threw while reading it, a bug included, so one bad save can't lock the
+ * player out: only `load` fails on it.
  *
  * Screens call `checkpoint` at the end of each step that changes the
  * campaign: a stop, arriving home, a compound action. A save or checkpoint
@@ -217,7 +222,7 @@ export class CampaignStore extends EventEmitter {
 			await this.settleOwed(LOADING);
 			const survey = await this.survey(LOADING);
 			if (survey.save === null) return 'none';
-			return this.verdict(survey.texts[survey.save] as string) === 'outdated' ? 'outdated' : 'saved';
+			return this.isOutdated(survey.texts[survey.save] as string) ? 'outdated' : 'saved';
 		});
 	}
 
@@ -232,7 +237,8 @@ export class CampaignStore extends EventEmitter {
 	 * is retired. Null when there's none, or when another version saved it
 	 * (`saveStatus` says which). Rejects with a `CampaignStoreError` when
 	 * storage fails or the save is damaged; a damaged save is copied to the
-	 * recovery key and left where it was.
+	 * recovery key and left where it was. A throw that isn't a reader's is
+	 * taken as damage too, and logged as an error, since it's likely a bug.
 	 */
 	public load({ onWarning = this.onWarning }: LoadOptions = {}): Promise<Campaign | null> {
 		return this.enqueue(async () => {
@@ -247,7 +253,8 @@ export class CampaignStore extends EventEmitter {
 				try {
 					campaign = this.readSave(text, warning => { warnings.push(warning); });
 				} catch (error) {
-					if (!isDamage(error)) throw error;
+					// Anything that throws on a save of this version is damage, so one bad save can't lock the player out.
+					if (!isDamage(error)) console.error('CampaignStore: reading the save threw something other than a reader error; kept it as damaged', error);
 					await this.keepAside({ slot, text, action: LOADING }).catch(logKeepAsideFailure);
 					throw new CampaignStoreError({ reason: 'damaged', message: DAMAGED.campaign, cause: error });
 				}
@@ -358,19 +365,22 @@ export class CampaignStore extends EventEmitter {
 			try {
 				const lineage = this.lineages.get(campaign);
 				if (lineage !== undefined && lineage === this.owed) {
+					// Its save's removal failed part way: finish it, and answer with what the end that retired it recorded.
 					await this.settleOwed(ENDING);
-					return entry;
+					if (lineage.ended !== undefined) return lineage.ended;
 				}
-				this.refuseRetired(campaign);
-				if (lineage !== this.current) {
+				this.refuseRetired(campaign, ENDING);
+				if (lineage === undefined) {
 					await this.record({ entry, warnings });
-					this.lineages.set(campaign, { retired: 'it has ended' });
+					this.lineages.set(campaign, { retired: 'it has ended', ended: entry });
 					return entry;
 				}
 				const survey = await this.survey(ENDING);
 				for (const slot of this.slotsToKeep(survey)) await this.protect({ slot, text: survey.texts[slot], action: ENDING });
 				await this.record({ entry, warnings });
-				this.owed = this.retire('it has ended');
+				const ended = this.retire('it has ended');
+				ended.ended = entry;
+				this.owed = ended;
 				await this.remove({ survey, action: ENDING });
 				this.owed = null;
 				return entry;
@@ -420,14 +430,16 @@ export class CampaignStore extends EventEmitter {
 
 	/** The snapshot into the slot that isn't the save's, then `active` switched to it. */
 	private async write({ campaign, snapshot }: { campaign: Campaign; snapshot: Snapshot }): Promise<void> {
-		this.refuseRetired(campaign);
+		this.refuseRetired(campaign, SAVING);
 		const body = snapshot.take();
 		const survey = await this.survey(SAVING);
 		const save = survey.save;
 		const text = stamp({ version: this.version, sequence: Math.max(sequenceOf(survey.texts.a), sequenceOf(survey.texts.b)) + 1, campaign: body });
 		if (save !== null && survey.texts[save] === stamp({ version: this.version, sequence: sequenceOf(survey.texts[save]), campaign: body })) {
-			// Nothing has changed since the save.
+			// Nothing has changed since the save. Naming it in `active` makes the other slot the save before, which
+			// nothing protects again, so that slot is kept first when nothing vouched for it.
 			this.known.set(save, survey.texts[save] as string);
+			if (!survey.named) await this.protect({ slot: otherSlot(save), text: survey.texts[otherSlot(save)], action: SAVING });
 			if (survey.pointer !== save) await this.put(this.keys.active, save, SAVING);
 			this.adopt(campaign);
 			return;
@@ -443,10 +455,10 @@ export class CampaignStore extends EventEmitter {
 		this.adopt(campaign);
 	}
 
-	private refuseRetired(campaign: Campaign): void {
+	private refuseRetired(campaign: Campaign, action: string): void {
 		const why = this.lineages.get(campaign)?.retired;
 		if (why === undefined) return;
-		throw new CampaignStoreError({ reason: 'retired', message: `${SAVING}: ${why}.`, cause: new Error(`The store doesn't save a campaign once ${why}`) });
+		throw new CampaignStoreError({ reason: 'retired', message: `${action}: ${why}.`, cause: new Error(`The store doesn't save or end a campaign once ${why}`) });
 	}
 
 	/** Makes a just-written campaign the save's. One the store hadn't tagged is a new campaign, which starts a lineage. */
@@ -483,7 +495,7 @@ export class CampaignStore extends EventEmitter {
 			await this.drop(this.keys.slots[slot], action);
 			this.known.delete(slot);
 		}
-		if (survey.pointer !== null && survey.save !== null) await this.drop(this.keys.active, action);
+		if (survey.pointer !== null) await this.drop(this.keys.active, action);
 	}
 
 	/** Finishes removing the save of a lineage that ended while its removal failed part way. */
@@ -535,27 +547,45 @@ export class CampaignStore extends EventEmitter {
 	}
 
 	/**
-	 * A save's campaign: null when another version stamped it. The version is
-	 * checked first, so only a save of this version has to be well formed;
-	 * a damaged one throws a SyntaxError or a reader error.
+	 * A save's campaign: null when another version stamped it, an integer
+	 * other than this one. The version is checked first, so only a save of
+	 * this version has to be well formed. Anything else, a stamp with no
+	 * version or one that isn't an integer included, is damaged, and throws a
+	 * SyntaxError or a reader error (or, from a bug, anything at all).
 	 */
 	private readSave(text: string, onWarning: (warning: string) => void): Campaign | null {
-		const save = JSON.parse(text);
-		if (readObject(save, 'Save').version !== this.version) return null;
+		const save = readObject(JSON.parse(text), 'Save');
+		if (isOtherVersion(save.version, this.version)) return null;
 		const fields = readFields(save, 'Save', ['version', 'sequence', 'campaign']);
+		if (fields.version !== this.version) throw new ReaderTypeError(`Save.version must be an integer, got ${describeValue(fields.version)}`);
 		readInteger(fields.sequence, 'Save.sequence', { min: 1 });
 		return Campaign.fromJSON(fields.campaign, { onWarning });
 	}
 
-	/** What a slot's text is to this build, remembered for the last few texts asked about. */
+	/** Whether another version stamped a save, read off its stamp alone, so the menu never reads a campaign it won't open. */
+	private isOutdated(text: string): boolean {
+		let save: unknown;
+		try {
+			save = JSON.parse(text);
+		} catch {
+			return false;
+		}
+		return typeof save === 'object' && save !== null && isOtherVersion((save as { version?: unknown }).version, this.version);
+	}
+
+	/**
+	 * What a slot's text is to this build, remembered for the last few texts
+	 * asked about. Anything that throws is damage, a bug in the reading code
+	 * included, so a bad slot is kept before it's replaced and never counts as
+	 * a save that loads; only `load` reports what threw.
+	 */
 	private verdict(text: string): Verdict {
 		const remembered = this.verdicts.get(text);
 		if (remembered !== undefined) return remembered;
 		let verdict: Verdict;
 		try {
 			verdict = this.readSave(text, () => undefined) === null ? 'outdated' : 'current';
-		} catch (error) {
-			if (!isDamage(error)) throw error;
+		} catch {
 			verdict = 'damaged';
 		}
 		this.verdicts.set(text, verdict);
@@ -656,6 +686,11 @@ function stamp({ version, sequence, campaign }: { version: number; sequence: num
 function sequenceOf(text: string | null): number {
 	const match = text === null ? null : /^\{"version":-?\d+,"sequence":(\d+),"campaign":/.exec(text);
 	return match ? Number(match[1]) : 0;
+}
+
+/** Whether a save's version is another version's: an integer other than this build's. Anything else in its place is damage. */
+function isOtherVersion(version: unknown, current: number): boolean {
+	return Number.isInteger(version) && version !== current;
 }
 
 /** An error a save's damage throws, as against a bug in the code reading it. */
