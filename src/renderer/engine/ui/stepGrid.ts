@@ -5,6 +5,9 @@
  * without the controls.
  */
 
+/** The most decimal places `toFixed` writes. */
+export const MAX_DECIMALS = 100;
+
 export interface StepRange {
 	readonly min: number;
 	readonly max: number;
@@ -18,8 +21,8 @@ export function snapToStep({ min, max, step }: StepRange, value: number): number
 	if (!Number.isFinite(value)) return min;
 	if (!(step > 0)) return clamp(value);
 	const snapped = min + Math.round((value - min) / step) * step;
-	// Strip the float noise the multiply leaves (0.1 * 3), at the step's own precision; toFixed takes at most 100.
-	return clamp(Number(snapped.toFixed(Math.min(100, decimalsOf(step) + 2))));
+	// Strip the float noise the multiply leaves (0.1 * 3), at the step's own precision.
+	return clamp(Number(snapped.toFixed(Math.min(MAX_DECIMALS, decimalsOf(step) + 2))));
 }
 
 /** Decimal places in `step`'s shortest form, exponent and all: 0.25 has two, 5 none, 1e-7 seven, 1.5e-7 eight. */

@@ -4,7 +4,7 @@ import type { DrawApi } from '../draw/DrawApi';
 import type { AnyUiEvent, UiPointerEvent } from '../input/events';
 import { CONTROL_SIZES, ControlSize } from '../style/variants';
 import { tokens } from '../theme/tokens';
-import { decimalsOf } from './stepGrid';
+import { MAX_DECIMALS, decimalsOf } from './stepGrid';
 import { TextInput, TextInputOptions } from './TextInput';
 
 export interface NumberInputOptions extends Omit<ComponentOptions, 'style'> {
@@ -13,7 +13,7 @@ export interface NumberInputOptions extends Omit<ComponentOptions, 'style'> {
 	max?: number;
 	/** What an arrow, a stepper press, or a wheel notch adds; positive. */
 	step?: number;
-	/** Decimal places kept and shown; defaults to the step's. */
+	/** Decimal places kept and shown, at most 100; defaults to the step's. */
 	precision?: number;
 	placeholder?: string;
 	disabled?: boolean;
@@ -175,7 +175,7 @@ export class NumberInput extends Component {
 		this.lower = min;
 		this.upper = max;
 		this.increment = step;
-		this.places = precision ?? decimalsOf(step);
+		this.places = Math.min(MAX_DECIMALS, precision ?? decimalsOf(step));
 		this.onChange = onChange;
 		this.current = this.normalise(value);
 
@@ -243,7 +243,7 @@ export class NumberInput extends Component {
 	}
 
 	public set precision(precision: number) {
-		this.places = precision;
+		this.places = Math.min(MAX_DECIMALS, precision);
 		this.value = this.current;
 	}
 
