@@ -203,7 +203,6 @@ export class MCTSAI extends AIPlayer {
 			if (!ourVehicle) return -10;
 			
 			const actor = this.actorOf({ card, target: action.target, ourVehicle });
-			// A draw is worth the cards that fit under the drawer's hand limit; the rest burn
 			const keptCards = cardsKeptFromDraw({ board: this.board, card, player: driver });
 			let score = this.evaluateMovement(card, actor) + this.CARD_DRAW_WEIGHT * keptCards;
 			
@@ -260,21 +259,28 @@ export class MCTSAI extends AIPlayer {
 			const driver = vehicle.driver;
 			
 			for (const card of this.board.handOf(driver)) {
-				if (this.board.adrenalineOf(driver) >= card.cost) {
-					// More comprehensive check for valuable cards. A draw counts
-					// only while a card it draws would fit in the hand.
-					if (selfSpeedBonus(card) > 0 || cardsKeptFromDraw({ board: this.board, card, player: driver }) > 0 || card.effects.some(e =>
-						e.type === 'damage' && (e.value || 0) >= 3 || // Lowered threshold
-						e.type === 'heal' && (e.value || 0) >= 3 ||
-						e.type === 'change_position' ||
-						e.type === 'gain_resource' && e.resource === 'adrenaline'
-					)) {
-						count++;
-					}
+				if (this.board.adrenalineOf(driver) >= card.cost && this.isValuablePlay({ card, driver })) {
+					count++;
 				}
 			}
 		}
 		return count;
+	}
+
+	/**
+	 * Whether a card in hand is worth holding the turn open for: a real hit
+	 * or heal, a move, adrenaline, a speed boost, or a draw that keeps a card
+	 */
+	private isValuablePlay({ card, driver }: { card: Card; driver: Driver }): boolean {
+		const valuableEffect = card.effects.some(e =>
+			e.type === 'damage' && (e.value || 0) >= 3 || // Lowered threshold
+			e.type === 'heal' && (e.value || 0) >= 3 ||
+			e.type === 'change_position' ||
+			e.type === 'gain_resource' && e.resource === 'adrenaline'
+		);
+		if (valuableEffect) return true;
+		if (selfSpeedBonus(card) > 0) return true;
+		return cardsKeptFromDraw({ board: this.board, card, player: driver }) > 0;
 	}
 	
 	/**

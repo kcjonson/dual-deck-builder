@@ -214,8 +214,7 @@ export class RammingStrategy implements AIStrategy {
 			score += cardEffects.adrenalineGain * 30;
 		}
 
-		// Card draw is valuable, especially with leftover adrenaline. Only the
-		// cards that fit under the drawer's hand limit count; the rest burn.
+		// Card draw is valuable, especially with leftover adrenaline
 		const keptCards = cardsKeptFromDraw({ board: gameState.board, card, player: driver });
 		if (keptCards > 0) {
 			// Base value for card draw
