@@ -324,9 +324,11 @@ describe('generateTerrain', () => {
 			// Small enough that curvature moves the one-sided slopes apart by
 			// far less than a crease does, large enough to stay clear of rounding.
 			const step = 1e-6;
-			// Round coordinates on purpose: many fall on the ridge layer's lattice
-			// edges, so gradients that could leave a layer zero along an edge show
-			// up here as creases past the budget below.
+			// Round coordinates on purpose: many fall on lattice edges of the
+			// ridge layers, so gradients that could leave a layer zero along an
+			// edge would put some of them on creases (the sixteen-direction set
+			// put 2.8% to 6.3% there). Otherwise a crease needs a zero line within
+			// a step of a point, which these grids miss, so none may be creased.
 			const points = gridInside(terrain.radius, 20);
 			let creased = 0;
 			points.forEach(([x, y]) => {
@@ -336,8 +338,8 @@ describe('generateTerrain', () => {
 				const north = terrain.elevation(x, y + step);
 				const south = terrain.elevation(x, y - step);
 				// Ridge and gully noise creases where it crosses zero. Within a step
-				// of a crease the one-sided slopes disagree, and only there is a
-				// point skipped; everywhere else the gradient has to match.
+				// of a crease the one-sided slopes disagree, so a creased point is
+				// counted rather than checked; everywhere else the gradient has to match.
 				if (Math.abs(east - 2 * here + west) / step > 1e-7 || Math.abs(north - 2 * here + south) / step > 1e-7) {
 					creased += 1;
 					return;
@@ -347,7 +349,7 @@ describe('generateTerrain', () => {
 				expect(Math.abs(slope.y - (north - south) / (2 * step))).toBeLessThan(1e-7);
 				expect(terrain.grade(x, y)).toBeCloseTo(Math.hypot(slope.x, slope.y) * RELIEF, 9);
 			});
-			expect(creased / points.length).toBeLessThan(0.03);
+			expect(creased).toBe(0);
 		});
 
 		it('fills ruins: the metro and every town at 1, open country at 0', () => {
