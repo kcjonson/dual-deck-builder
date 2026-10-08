@@ -343,12 +343,12 @@ describe('generateTerrain', () => {
 
 				const inCrater = terrain.hotspots.some((hotspot) => Math.hypot(x - hotspot.x, y - hotspot.y) < hotspot.craterRadius);
 				if (inCrater) expect(obstacle).toBe('crater');
-				else expect(obstacle).toBe(sample.grade >= CLIFF_GRADE ? 'cliff' : null);
+				else expect(obstacle).toBe(sample.grade >= CLIFF_GRADE && terrain.rough(x, y) ? 'cliff' : null);
 				if (obstacle === null) {
 					passable += 1;
-					expect(cost).toBeGreaterThanOrEqual(BIOME_COSTS[sample.biome]);
-					expect(cost).toBeLessThan(BIOME_COSTS[sample.biome] + SLOPE_COST);
 					expect(Number.isFinite(cost)).toBe(true);
+					expect(cost).toBeGreaterThanOrEqual(BIOME_COSTS[sample.biome]);
+					if (sample.grade < CLIFF_GRADE) expect(cost).toBeLessThan(BIOME_COSTS[sample.biome] + SLOPE_COST);
 				} else {
 					expect(cost).toBe(Infinity);
 				}
@@ -356,19 +356,67 @@ describe('generateTerrain', () => {
 			expect(passable).toBeGreaterThan(0);
 		});
 
-		it('leaves the land between cliffs connected, so the start reaches the edge', () => {
-			// A flood fill over a fine grid, from the metro outward through
-			// passable cells. Cliffs gather in rough islands, so even the most
-			// rugged, mountainous maps keep most of the edge in reach.
-			const sets: MapParamSet[] = [
-				{ seed: 61, mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, radius: 600 },
-				{ seed: 62, mountainCoverage: 0, ruggedness: 1, aridity: 0, contamination: 1, radius: 600 },
-				{ seed: 63, environment: 'badlands', radius: 600 },
-			];
-			sets.forEach((set) => {
-				const terrain = terrainFor(set);
-				expect(reachableEdgeShare(terrain, 6)).toBeGreaterThan(0.6);
+		it.each([
+			['the most rugged corner', { mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, radius: 600 }],
+			['the most rugged corner with the smallest metro', { mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, radius: 600, metroSize: 0.08 }],
+			['the Badlands', { environment: 'badlands', radius: 600 }],
+		] as const)('stands cliffs only in rough country, away from the metro, at its share of the land, in %s', (_name, set) => {
+			const ruggedness = paramsFor({ seed: 1, ...set }).ruggedness;
+			sampledSeeds(2).forEach((seed) => {
+				const terrain = terrainFor({ seed, ...set });
+				let outer = 0;
+				let rough = 0;
+				gridInside(terrain.radius, 48).forEach(([x, y]) => {
+					if (terrain.obstacle(x, y) === 'cliff') expect(terrain.rough(x, y)).toBe(true);
+					const distance = Math.hypot(x, y);
+					if (distance <= terrain.metro.radius) expect(terrain.rough(x, y)).toBe(false);
+					if (distance >= 0.5 * terrain.radius) {
+						outer += 1;
+						if (terrain.rough(x, y)) rough += 1;
+					}
+				});
+				const share = 0.1 + 0.25 * ruggedness;
+				expect(rough / outer).toBeGreaterThan(share - 0.08);
+				expect(rough / outer).toBeLessThan(share + 0.08);
 			});
+		});
+
+		// The seeds are the first of a fixed sequence, not picked. Over the first
+		// 200 of it at a 2-unit grid, each set kept at least REACH_BAR of the edge
+		// in reach (the decision record has the figures); this grid is coarser.
+		it.each([
+			['the most rugged corner', { mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, radius: 600 }],
+			['the most rugged corner with the smallest metro', { mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, radius: 600, metroSize: 0.08 }],
+			['the Badlands', { environment: 'badlands', radius: 600 }],
+		] as const)('keeps the start in reach of most of the edge, and of every town, in %s', (_name, set) => {
+			sampledSeeds(2).forEach((seed) => {
+				const terrain = terrainFor({ seed, ...set });
+				const { edgeShare, townsReached } = reachFromMetro(terrain, 4);
+				expect(edgeShare).toBeGreaterThan(REACH_BAR);
+				expect(townsReached).toBe(terrain.towns.length);
+			});
+		});
+
+		// A faint canyon used to keep its full wall grade by narrowing, leaving
+		// hairline cliffs a road could slip between samples. Now a cliff is a
+		// band: only its tapered tips are thin, a few points in a hundred.
+		it.each([
+			['aridity 0.6', { seed: 21, aridity: 0.6 }],
+			['the Rust Belt', { seed: 21, environment: 'rustBelt' }],
+			['the High Desert', { seed: 21, environment: 'highDesert' }],
+			['a dry, rugged map', { seed: 22, aridity: 0.35, ruggedness: 1 }],
+		] as const)('makes cliffs bands across the slope, not hairlines, in %s', (_name, set) => {
+			const terrain = terrainFor(set);
+			const sample = createTerrainSample();
+			const widths: number[] = [];
+			gridInside(terrain.radius, 150).forEach(([x, y]) => {
+				terrain.sample(x, y, sample);
+				if (sample.obstacle === 'cliff') widths.push(bandWidth(terrain, x, y, sample.slopeX, sample.slopeY));
+			});
+			expect(widths.length).toBeGreaterThan(50);
+			widths.sort((a, b) => a - b);
+			expect(widths.filter((width) => width < 2).length / widths.length).toBeLessThan(0.08);
+			expect(widths[Math.floor(widths.length / 2)]).toBeGreaterThan(6);
 		});
 	});
 
@@ -417,8 +465,20 @@ describe('generateTerrain', () => {
 	});
 });
 
-/** The share of the outer band (0.85 to 0.95 of the radius) a flood fill from the metro reaches, over cells `cell` world units across. */
-function reachableEdgeShare(terrain: Terrain, cell: number): number {
+/** The first `count` seeds of a fixed sequence, the same one the record's reach figures sample. */
+function sampledSeeds(count: number): number[] {
+	return Array.from({ length: count }, (_, index) => (1 + index * 2654435761) >>> 0);
+}
+
+/** The least share of the edge's passable ground the start keeps in reach, by the record's figures, less some room. */
+const REACH_BAR = 0.8;
+
+/**
+ * A flood fill from the metro over cells `cell` world units across, through
+ * cells whose centres are passable: the share of the outer band (0.85 to 0.95
+ * of the radius) it reaches, and how many towns it reaches.
+ */
+function reachFromMetro(terrain: Terrain, cell: number): { edgeShare: number; townsReached: number } {
 	const radius = terrain.radius;
 	const cells = Math.ceil(2 * radius / cell);
 	const centre = (index: number) => (index + 0.5) * cell - radius;
@@ -440,11 +500,10 @@ function reachableEdgeShare(terrain: Terrain, cell: number): number {
 	}
 	while (queue.length > 0) {
 		const index = queue.pop() as number;
-		const row = Math.floor(index / cells);
 		const column = index % cells;
-		const neighbours = [column > 0 ? index - 1 : -1, column < cells - 1 ? index + 1 : -1, row > 0 ? index - cells : -1, row < cells - 1 ? index + cells : -1];
+		const neighbours = [column > 0 ? index - 1 : -1, column < cells - 1 ? index + 1 : -1, index - cells, index + cells];
 		neighbours.forEach((next) => {
-			if (next >= 0 && open[next] && !reached[next]) {
+			if (next >= 0 && next < open.length && open[next] && !reached[next]) {
 				reached[next] = 1;
 				queue.push(next);
 			}
@@ -461,7 +520,36 @@ function reachableEdgeShare(terrain: Terrain, cell: number): number {
 			if (reached[index]) inReach += 1;
 		}
 	}
-	return inReach / band;
+	const townsReached = terrain.towns.filter((town) => reached[Math.floor((town.y + radius) / cell) * cells + Math.floor((town.x + radius) / cell)] === 1).length;
+	return { edgeShare: inReach / band, townsReached };
+}
+
+/**
+ * The width of the cliff band through (x, y) across the slope there: out
+ * along the gradient each way in half-unit steps until the ground stops
+ * being a cliff, then halving in on where it stops.
+ */
+function bandWidth(terrain: Terrain, x: number, y: number, slopeX: number, slopeY: number): number {
+	const length = Math.hypot(slopeX, slopeY);
+	const ux = slopeX / length;
+	const uy = slopeY / length;
+	const isCliff = (along: number) => terrain.obstacle(x + ux * along, y + uy * along) === 'cliff';
+	let width = 0;
+	[1, -1].forEach((sign) => {
+		let inside = 0;
+		let outside = 0.5;
+		while (outside < 80 && isCliff(sign * outside)) {
+			inside = outside;
+			outside += 0.5;
+		}
+		while (outside - inside > 0.05) {
+			const middle = (inside + outside) / 2;
+			if (isCliff(sign * middle)) inside = middle;
+			else outside = middle;
+		}
+		width += (inside + outside) / 2;
+	});
+	return width;
 }
 
 interface PinnedSummary {
@@ -492,14 +580,14 @@ const PINNED: PinnedSummary[] = [
 			[775.6379151251167, -363.70398136787117, 19.911374516785145, 118.08024964814892, 0.7573065051692538],
 		],
 		towns: [
-			[-414.9533724337624, 617.5034453461337, 39.62356013478711],
-			[279.62531964148275, -27.987863499993363, 40.757709920872],
-			[-472.671698111333, -669.9074067197233, 47.16122606943827],
-			[-508.81133128625544, 172.72673589050456, 58.25537400436588],
-			[387.0513622974527, -607.6183419453516, 50.31969892967027],
+			[-611.2336075244629, 279.9944087798049, 39.62356013478711],
+			[-120.26897811008307, -432.5959208257931, 48.38355683488772],
+			[-289.09780815886785, 524.6385119636552, 59.338289894512855],
+			[52.61618782852272, 359.3206799057808, 49.80767031549477],
+			[553.9936126772009, 294.7048120849578, 37.879844749113545],
 		],
 		samples: [
-			[0.3951623725614803, 0.2217962381028284, 1, -0.0026482913844981743, 0.0002061678651047142, 'desert', null, 1.7262767900921137],
+			[0.3781474532459609, 0.2303036977605881, 1, -0.0020251851673929204, 0.00019854127988038373, 'desert', null, 1.529503568138026],
 			[0.41488593931910456, 0.8045358325705595, 0, 0.00036053671737964576, 0.0013290712279915773, 'mire', null, 2.3280081511216406],
 			[0.4663712264928344, 0.6277333371680247, 1, -0.0008188733174374935, -0.0007475054946420045, 'scrub', null, 1.0829789632808475],
 			[0.34731348496928877, 0.4732709194777859, 0.12096915847483337, 1.1980568425975721e-05, -0.00016670543586277083, 'scrub', null, 1.0018855609547055],
@@ -529,11 +617,11 @@ const PINNED: PinnedSummary[] = [
 			[-9.06471898779273, 813.8863891828805, 19.487174225971103, 97.81371605482627, 0.9220535308704711],
 		],
 		towns: [
-			[-495.22462457377895, -309.01592110727455, 56.78458511014469],
-			[397.224268556609, 426.55673584174383, 54.886939095449634],
-			[-152.35511755384226, -314.9663543737758, 55.059278385015205],
-			[661.3509324990713, -184.1273891154932, 54.78068350057583],
-			[-152.03981468843614, 226.66277868027737, 41.48335190315265],
+			[459.9788129354077, 396.3323274838254, 56.78458511014469],
+			[-559.3787934424686, -152.46890115319226, 54.428250047494664],
+			[458.56976040771656, 669.3510589411406, 44.55636677099392],
+			[613.6421711531988, 40.06047834697802, 46.299235935439356],
+			[-718.5837959341221, 71.97374671339715, 41.35158671415411],
 		],
 		samples: [
 			[0.541298197591693, 1, 1, 0.0011655276052387178, 0.00019065532867785484, 'scrub', null, 1.0941492735725564],
