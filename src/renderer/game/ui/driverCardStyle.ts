@@ -1,9 +1,9 @@
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { Border, BoxShadow, DrawCircleOptions, DrawRectOptions } from '../../engine/draw/commands';
-import type { RGBA, Rect, Vec2 } from '../../engine/draw/geometry';
-import { resolveColor } from '../../engine/style/styleObject';
+import type { Rect, Vec2 } from '../../engine/draw/geometry';
+import { CLEAR } from '../../engine/ui/surfaces';
 import { DRIVER_HP_COLOR, hexRgba } from '../screens/combat/combatStyle';
-import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_LINE, CARD_MUTED_FILLS, CARD_NAME, DIM_BRIGHTNESS, ToneFills, artGradient, dimHex, scale, toneFills } from './cardStyle';
+import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_LINE, CARD_MUTED_FILLS, CARD_NAME, DIM_BRIGHTNESS, ToneFills, artGradient, dimHex, toneFills } from './cardStyle';
 
 /**
  * The edge no play card has (Game Flow 7.0): a riveted double frame. A
@@ -29,15 +29,12 @@ export const RIVETED_FRAME = {
  */
 const HP_FILLS: ToneFills = toneFills(DRIVER_HP_COLOR);
 const HP_TRACK_FILLS: ToneFills = toneFills('#0e0f10');
-const HP_TRACK_LINE = resolveColor(CARD_LINE);
-const HP_TRACK_LINE_FILLS: ToneFills = { full: HP_TRACK_LINE, dimmed: scale(HP_TRACK_LINE, DIM_BRIGHTNESS) };
+const HP_TRACK_LINE_FILLS: ToneFills = toneFills(CARD_LINE);
 
 /** The portrait's ground is a play card's unowned art strip, and its head and shoulders take the art glyph's bone, fainter since they're solid. */
 const PORTRAIT_GROUND = { full: artGradient(null), dimmed: artGradient(null, DIM_BRIGHTNESS) } as const;
 const SILHOUETTE_ALPHA = 0.2;
 const SILHOUETTE_FILLS: ToneFills = { full: hexRgba(CARD_NAME, SILHOUETTE_ALPHA), dimmed: hexRgba(dimHex(CARD_NAME), SILHOUETTE_ALPHA) };
-
-const CLEAR: RGBA = [0, 0, 0, 0];
 
 type Tone = 'full' | 'dimmed';
 
@@ -181,12 +178,8 @@ export function toneHpBar(draws: HpBarDraws, tone: Tone): void {
 	draws.fill.fill = HP_FILLS[tone];
 }
 
-/** Whether the bar draws its fill, which an empty one leaves out. */
-export function hpBarFilled(draws: HpBarDraws): boolean {
-	return draws.fill.rect.width > 0;
-}
-
+/** The track, and the fill over it unless the bar is empty. */
 export function drawHpBar(draw: DrawApi, draws: HpBarDraws): void {
 	draw.drawRect(draws.track);
-	if (hpBarFilled(draws)) draw.drawRect(draws.fill);
+	if (draws.fill.rect.width > 0) draw.drawRect(draws.fill);
 }

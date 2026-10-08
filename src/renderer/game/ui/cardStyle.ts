@@ -1,6 +1,7 @@
 import type { DrawPolygonOptions, DrawRectOptions } from '../../engine/draw/commands';
 import type { RGBA, Vec2 } from '../../engine/draw/geometry';
 import { triangulatePolygon } from '../../engine/draw';
+import { ColorValue, resolveColor } from '../../engine/style/styleObject';
 import type { IconName } from '../../engine/text/icons';
 import { tokens } from '../../engine/theme/tokens';
 import type { Card as GameCard, CardRarity } from '../mechanics/Card';
@@ -106,10 +107,16 @@ export interface ToneFills {
 	dimmed: RGBA;
 }
 
-/** A `#rrggbb` colour at full strength and darkened as a dimmed card's own draws take it. */
-export function toneFills(hex: string): ToneFills {
-	const full = hexRgba(hex);
+/** A colour at full strength and darkened as a dimmed card's own draws take it. */
+export function toneFills(color: ColorValue): ToneFills {
+	// A copy, since a token resolves to the theme's own array
+	const full: RGBA = [...resolveColor(color)];
 	return { full, dimmed: scale(full, DIM_BRIGHTNESS) };
+}
+
+/** A `#rrggbb` text colour at full strength and as a faded card's words take it (the mock's `.cant`). */
+export function textTones(hex: string): ToneFills {
+	return { full: resolveColor(hex), dimmed: resolveColor(dimHex(hex)) };
 }
 
 export const COST_HEX_FILLS = toneFills(COST_HEX);

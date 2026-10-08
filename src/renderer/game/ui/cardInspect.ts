@@ -311,9 +311,7 @@ export function inspectHotkey(context: MountContext): boolean {
 		tooltips.unpin();
 		return true;
 	}
-	const shown = tooltips.owner;
-	const focused = context.focus.focused;
-	const owner = shown && hasDetailView(shown) ? shown : focused && hasDetailView(focused) ? focused : null;
+	const owner = [tooltips.owner, context.focus.focused].find(hasDetailView);
 	if (!owner) return false;
 	tooltips.pin(owner);
 	return true;

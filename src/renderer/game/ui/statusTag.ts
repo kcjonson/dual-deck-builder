@@ -1,12 +1,11 @@
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
 import type { RGBA, Rect } from '../../engine/draw/geometry';
-import { resolveColor } from '../../engine/style/styleObject';
-import { CARD_GROUND_FILLS, CARD_MUTED_FILLS, CARD_NAME, dimHex } from './cardStyle';
+import { CARD_GROUND_FILLS, CARD_MUTED_FILLS, CARD_NAME, textTones } from './cardStyle';
 
 /** Mono capitals in a box of the card's ground with a muted outline. */
 const TAG = { height: 13, size: 9, padding: 4, letterSpacing: 0.06, radius: 2 } as const;
-const TAG_TEXT = { full: resolveColor(CARD_NAME), dimmed: resolveColor(dimHex(CARD_NAME)) } as const;
+const TAG_TEXT = textTones(CARD_NAME);
 
 /** How tall a status tag is, so an owner can say how far one reaches past its edge. */
 export const STATUS_TAG_HEIGHT = TAG.height;

@@ -198,7 +198,7 @@ export class DriverDetailView extends Component {
 		const size = entries.reduce((total, { copies }) => total + copies, 0);
 		this.heading = this.mono({ id: childId('deck'), text: `DECK / ${size} ${size === 1 ? 'CARD' : 'CARDS'}`, kind: 'label', x: pad });
 		// Its width is the room the pin hint leaves, set in layout
-		this.note = data.note ? this.mono({ id: childId('note'), text: data.note, kind: 'label', x: pad, width: columnWidth }) : null;
+		this.note = data.note ? this.mono({ id: childId('note'), text: data.note, kind: 'label', x: pad, ellipsis: true }) : null;
 		this.pin = this.mono({ id: childId('pin'), text: pinHint(pinned), kind: 'label' });
 		this.minis = entries.map(({ card, copies }) => {
 			const mini = new UICard({ id: childId(`card_${card.type}`), x: 0, y: 0, data: card, size: CardSize.MINI, copies });
@@ -214,15 +214,15 @@ export class DriverDetailView extends Component {
 
 	/**
 	 * One row of mono: a label's muted capitals, or a stat's brighter
-	 * figures. A fixed width cuts it with an ellipsis; without one it hugs.
+	 * figures, hugging its words. With `ellipsis` it's cut short once
+	 * layout gives it a width.
 	 */
-	private mono({ id, text, kind, x = 0, width }: { id: string; text: string; kind: 'label' | 'figures'; x?: number; width?: number }): Text {
+	private mono({ id, text, kind, x = 0, ellipsis = false }: { id: string; text: string; kind: 'label' | 'figures'; x?: number; ellipsis?: boolean }): Text {
 		const label = kind === 'label';
 		return new Text({
 			id,
 			text,
 			x,
-			width,
 			height: DRIVER_DETAIL.mono.height,
 			style: {
 				fontRole: 'mono',
@@ -234,7 +234,7 @@ export class DriverDetailView extends Component {
 			lineHeight: DRIVER_DETAIL.mono.height / DRIVER_DETAIL.mono.size,
 			verticalAlign: 'middle',
 			wrap: 'none',
-			textOverflow: width !== undefined ? 'ellipsis' : undefined,
+			textOverflow: ellipsis ? 'ellipsis' : undefined,
 		});
 	}
 

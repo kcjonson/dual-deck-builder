@@ -5,14 +5,12 @@ import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { DrawRectOptions } from '../../engine/draw/commands';
 import type { RGBA, Rect } from '../../engine/draw/geometry';
 import type { AnyUiEvent } from '../../engine/input/events';
-import { resolveColor } from '../../engine/style/styleObject';
 import { totalCards } from '../campaign/CardCounts';
-import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_MUTED, CARD_NAME, CARD_RULES, HOVER_OUTLINE, SELECTED_OUTLINE, dimHex, focusRingDraw, outsideRingDraw } from './cardStyle';
+import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_MUTED, CARD_NAME, CARD_RULES, HOVER_OUTLINE, SELECTED_OUTLINE, focusRingDraw, outsideRingDraw, textTones } from './cardStyle';
 import { DriverCardData, sameDriverCardData } from './driverCardData';
 import {
 	HpBarDraws,
 	PortraitDraws,
-	RIVETED_FRAME,
 	RivetedFrameDraws,
 	drawHpBar,
 	drawPortrait,
@@ -104,11 +102,6 @@ const HP_BAR: Readonly<Rect> = Object.freeze({
  * `MINI_GRID` clear each other's tags and rings, as minis do.
  */
 export const DRIVER_CARD_INK = Math.max(-FACE.tag.y, FACE.tag.right - DRIVER_CARD_SIZE.width, FACE.selection.offset + FACE.selection.width);
-
-/** A text colour at full strength and as a faded card's words take it (the mock's `.cant`). */
-function textTones(hex: string): { full: RGBA; dimmed: RGBA } {
-	return { full: resolveColor(hex), dimmed: resolveColor(dimHex(hex)) };
-}
 
 const NAME_TONES = textTones(CARD_NAME);
 const MUTED_TONES = textTones(CARD_MUTED);
@@ -419,7 +412,6 @@ export class DriverCard extends Component {
 	private applyBorder(): void {
 		const border = this.frame.frame.border;
 		border.color = (this.hovered || this.focusVisible) && this.effectivelyEnabled ? HOVER_OUTLINE : CARD_DIM_FILLS[this.dimmed ? 'dimmed' : 'full'];
-		border.width = RIVETED_FRAME.outer;
 	}
 
 	/**
