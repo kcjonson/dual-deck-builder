@@ -1,12 +1,11 @@
-import { Component, PointerEvents } from '../../engine/components/Component';
-import type { Cursor, ResolvedColors } from '../../engine/components/Component';
+import type { ResolvedColors } from '../../engine/components/Component';
 import { Text } from '../../engine/components/Text';
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { DrawRectOptions } from '../../engine/draw/commands';
 import type { RGBA, Rect } from '../../engine/draw/geometry';
-import type { AnyUiEvent } from '../../engine/input/events';
 import { totalCards } from '../campaign/CardCounts';
-import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_MUTED, CARD_NAME, CARD_RULES, HOVER_OUTLINE, SELECTED_OUTLINE, focusRingDraw, outsideRingDraw, textTones } from './cardStyle';
+import { CardBase } from './CardBase';
+import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_MUTED, CARD_NAME, CARD_RULES, HOVER_OUTLINE, SELECTED_OUTLINE, outsideRingDraw, textTones } from './cardStyle';
 import { DriverCardData, sameDriverCardData } from './driverCardData';
 import {
 	HpBarDraws,
@@ -125,7 +124,7 @@ const FIGURE_TONES = textTones(CARD_RULES);
  * ring, and tags are the card's own draws, built once and recoloured or
  * moved in place; its words are parts.
  */
-export class DriverCard extends Component {
+export class DriverCard extends CardBase<DriverCardData> {
 	private model: DriverCardData;
 	private standing: DriverCardStatus | null = null;
 	private unusable = false;
@@ -140,15 +139,11 @@ export class DriverCard extends Component {
 	private readonly frame: RivetedFrameDraws;
 	private readonly portrait: PortraitDraws;
 	private readonly hpBar: HpBarDraws = hpBarDraws();
-	private readonly focusRingDraw: DrawRectOptions;
 	private readonly selectionRingDraw: DrawRectOptions;
 	/** Whether the selection ring was drawn at the last state change, so a change in what the card draws forgets its group count. */
 	private ringed = false;
 	private readonly statusTag = new StatusTagDraw({ right: FACE.tag.right, y: FACE.tag.y });
 	private readonly deckTag = new StatusTagDraw({ right: FACE.tag.right, y: FACE.tag.y });
-
-	/** A click or `activate` on the card, with the data it shows (R8.25). */
-	public onSelect: ((data: DriverCardData) => void) | null = null;
 
 	constructor({ id, x = 0, y = 0, data, status = null, customDeck = false, unavailable = false }: {
 		id?: string;
@@ -170,7 +165,6 @@ export class DriverCard extends Component {
 		this.frame = rivetedFrameDraws({ id, width, height });
 		const { x: left, width: contentWidth } = FACE.content;
 		this.portrait = portraitDraws({ x: left, y: FACE.portrait.y, width: contentWidth, height: FACE.portrait.height });
-		this.focusRingDraw = focusRingDraw({ id, width, height });
 		this.selectionRingDraw = outsideRingDraw({
 			id: id !== undefined ? `${id}.selection_ring` : undefined,
 			width,
@@ -231,11 +225,6 @@ export class DriverCard extends Component {
 		});
 	}
 
-	/** Parts derive their ids from the card's own, as a play card's do. */
-	private childId(suffix: string): string | undefined {
-		return this.id === null ? undefined : `${this.id}_${suffix}`;
-	}
-
 	/** The driver it shows. */
 	public get data(): DriverCardData {
 		return this.model;
@@ -243,11 +232,8 @@ export class DriverCard extends Component {
 
 	/**
 	 * Shows another driver, or the same one changed (HP after a fight, a
-	 * deck rebuilt), in place. A pinned detail view follows the data: it was
-	 * built from the old data when it opened, so it's pinned again, which
-	 * builds it anew, unless the new data shows the same. An open view that
-	 * isn't pinned (hover, focus, a touch hold) keeps the data it opened
-	 * with until it opens again (DDB-422).
+	 * deck rebuilt), in place. A pinned detail view follows the data unless
+	 * the new data shows the same (`refreshPinnedView`).
 	 */
 	public set data(data: DriverCardData) {
 		if (data === this.model) return;
@@ -255,8 +241,7 @@ export class DriverCard extends Component {
 		this.model = data;
 		if (same) return;
 		this.showData();
-		const tooltips = this.context?.tooltips;
-		if (tooltips?.pinned === this) tooltips.pin(this, { fade: false });
+		this.refreshPinnedView();
 	}
 
 	/** The words and the HP bar for the data; texts measure only what changed. */
@@ -340,61 +325,13 @@ export class DriverCard extends Component {
 		this.placeTags();
 	}
 
-	/** R8.29: one target; its words and frame are internals. */
-	protected get defaultPointerEvents(): PointerEvents {
-		return 'unit';
-	}
-
-	/** A card someone listens to is clickable. */
-	protected get defaultCursor(): Cursor | null {
-		return this.onSelect ? 'pointer' : null;
-	}
-
-	public get handlesPointer(): boolean {
-		return true;
-	}
-
-	/** The walk's fallback ring, drawn by the card so its tags sit on top of it. */
-	public get drawsOwnFocusRing(): boolean {
-		return true;
-	}
-
 	/** The tags, which reach past the top and right edges. */
 	public get inkExtent(): number {
 		return DRIVER_CARD_INK;
 	}
 
-	/** A click, or `activate` (Enter or Space) on a focused card, selects it (R9.27, R9.31). */
-	public handleEvent(event: AnyUiEvent): void {
-		super.handleEvent(event);
-		switch (event.type) {
-			case 'activate':
-				// Taken only when something listens, so otherwise Enter and Space reach the screen's hotkeys
-				if (!this.onSelect) return;
-				event.consume();
-				this.onSelect(this.model);
-				return;
-			case 'click':
-				this.onSelect?.(this.model);
-				return;
-		}
-	}
-
-	protected onStateChange(): void {
-		this.updateLook();
-	}
-
-	/**
-	 * Unmounting clears hover and focus without a callback (R9.21), so a card
-	 * that left hovered or focused would come back outlined. It settles its
-	 * look for the state it mounts in.
-	 */
-	protected onMount(): void {
-		this.updateLook();
-	}
-
 	/** Faded while unavailable, lost, or disabled, then the frame and the selection ring for the card's state. */
-	private updateLook(): void {
+	protected updateLook(): void {
 		this.dim(!this.effectivelyEnabled || this.faded);
 		this.applyBorder();
 		if (this.selected !== this.ringed) {
@@ -445,7 +382,7 @@ export class DriverCard extends Component {
 		drawPortrait(draw, this.portrait);
 		drawHpBar(draw, this.hpBar);
 		if (this.selected) draw.drawRect(this.selectionRingDraw);
-		if (this.focusVisible && this.effectivelyEnabled) draw.drawRect(this.focusRingDraw);
+		this.drawFocusRing(draw);
 		this.statusTag.render(draw);
 		this.deckTag.render(draw);
 	}
