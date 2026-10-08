@@ -150,7 +150,7 @@ describe('validateMapParams', () => {
 		const result = validateMapParams(input);
 		stopTables.trail.hazard = 7;
 		expect(input.radius).toBe(5000);
-		expect(result.params.stopTables).toEqual({ trail: { hazard: 2 } });
+		expect(result.params.stopTables).toStrictEqual({ trail: { hazard: 2 } });
 	});
 });
 

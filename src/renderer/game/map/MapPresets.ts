@@ -1,5 +1,6 @@
+import { copyJson, describeValue } from '../core/Json';
 import defaultPreset from '../data/mapPresets/default.json';
-import { ENVIRONMENTS, Environment, MapParamSet, NUMBER_PARAMS } from './MapParams';
+import { ENVIRONMENTS, Environment, MAP_PARAM_KEYS, MapParamSet, NUMBER_PARAMS, StopTables } from './MapParams';
 
 /**
  * Parameter sets kept as JSON in `data/mapPresets/` (Area Map Generation,
@@ -13,15 +14,13 @@ export interface MapPreset {
 	readonly params: Readonly<MapParamSet>;
 }
 
-/** Every key a preset can hold, in the order its file lists them. */
-const PRESET_KEYS: readonly (keyof MapParamSet)[] = ['seed', 'environment', ...NUMBER_PARAMS, 'stopTables'];
-
 /**
  * A preset from its parsed JSON, sharing nothing with it. Throws on anything
- * that isn't a parameter set, unknown keys included, so a misspelt parameter
- * can't be silently dropped, and on a number JSON can't write back, such as
- * the Infinity that `1e999` parses to. Values outside their ranges are kept:
- * the validator clamps and reports them.
+ * that isn't a parameter set, naming every problem at once: unknown keys
+ * included, so a misspelt parameter can't be silently dropped, and anything
+ * JSON can't write back the same, such as the Infinity that `1e999` parses
+ * to or a Date in the stop tables. Values outside their ranges are kept: the
+ * validator clamps and reports them.
  *
  * Presets are written by hand or by the Map Lab, so an unknown key is a
  * mistake to fix. Campaign saves don't load through here: their params are
@@ -29,27 +28,27 @@ const PRESET_KEYS: readonly (keyof MapParamSet)[] = ['seed', 'environment', ...N
  * warning, since the table will lose parameters while it settles.
  */
 export function readMapPreset(json: unknown): MapParamSet {
-	if (!isObject(json)) throw new Error('Invalid map preset: expected a JSON object');
+	if (!isObject(json)) throw new Error(`Invalid map preset: expected a JSON object, got ${describeValue(json)}`);
 	const problems: string[] = [];
 	for (const key of Object.keys(json)) {
-		if (!(PRESET_KEYS as readonly string[]).includes(key)) problems.push(`unknown parameter "${key}"`);
+		if (!(MAP_PARAM_KEYS as readonly string[]).includes(key)) problems.push(`unknown parameter "${key}"`);
 	}
-	if (!isFiniteNumber(json.seed)) problems.push('seed must be a finite number');
+	if (json.seed === undefined) problems.push('seed is missing');
+	else checkNumber(json.seed, 'seed', problems);
 	if (json.environment !== undefined && !ENVIRONMENTS.includes(json.environment as Environment)) {
-		problems.push(`environment must be one of ${ENVIRONMENTS.join(', ')}`);
+		problems.push(`environment must be one of ${ENVIRONMENTS.join(', ')}, got ${describeValue(json.environment)}`);
 	}
 	for (const name of NUMBER_PARAMS) {
-		if (json[name] !== undefined && !isFiniteNumber(json[name])) problems.push(`${name} must be a finite number`);
+		if (json[name] !== undefined) checkNumber(json[name], name, problems);
 	}
-	if (json.stopTables !== undefined && !isObject(json.stopTables)) {
-		problems.push('stopTables must be an object');
-	} else {
-		const nonFinite = nonFinitePath(json.stopTables, 'stopTables');
-		if (nonFinite !== null) problems.push(`${nonFinite} must be a finite number`);
+	let stopTables: StopTables | undefined;
+	if (json.stopTables !== undefined) {
+		if (isObject(json.stopTables)) stopTables = copyJson(json.stopTables, 'stopTables', problems) as StopTables;
+		else problems.push(`stopTables must be an object, got ${describeValue(json.stopTables)}`);
 	}
 	if (problems.length > 0) throw new Error(`Invalid map preset: ${problems.join('; ')}`);
 	const set = ordered(json as MapParamSet);
-	if (set.stopTables !== undefined) set.stopTables = structuredClone(set.stopTables);
+	if (stopTables !== undefined) set.stopTables = stopTables;
 	return set;
 }
 
@@ -77,25 +76,16 @@ function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isFiniteNumber(value: unknown): value is number {
-	return typeof value === 'number' && Number.isFinite(value);
-}
-
-/** Where in `value` the first number JSON can't hold (NaN or Infinity) is, or null when there's none. */
-function nonFinitePath(value: unknown, path: string): string | null {
-	if (typeof value === 'number') return Number.isFinite(value) ? null : path;
-	if (typeof value !== 'object' || value === null) return null;
-	for (const [key, item] of Object.entries(value)) {
-		const found = nonFinitePath(item, Array.isArray(value) ? `${path}[${key}]` : `${path}.${key}`);
-		if (found !== null) return found;
-	}
-	return null;
+/** Pushes what's wrong with a preset's number, if anything: another type, or NaN or Infinity. */
+function checkNumber(value: unknown, name: string, problems: string[]): void {
+	if (typeof value !== 'number') problems.push(`${name} must be a number, got ${describeValue(value)}`);
+	else if (!Number.isFinite(value)) problems.push(`${name} must be a finite number, got ${describeValue(value)}`);
 }
 
 /** The set's keys in the order a preset file lists them, absent ones left out. */
 function ordered(set: MapParamSet): MapParamSet {
 	const copy: Record<string, unknown> = {};
-	for (const key of PRESET_KEYS) {
+	for (const key of MAP_PARAM_KEYS) {
 		if (set[key] !== undefined) copy[key] = set[key];
 	}
 	return copy as MapParamSet;
@@ -110,7 +100,12 @@ function freezeDeep<Value>(value: Value): Value {
 	return value;
 }
 
-/** The presets in the repo, frozen through. A file added there is listed here too; a test holds the two together. */
+/**
+ * The presets in the repo, frozen through. A file added there is listed here
+ * too; a test holds the two together. `readMapPreset(preset.params)` gives an
+ * editable copy: a preset's params assign to a `MapParamSet`, but writing to
+ * them throws.
+ */
 export const MAP_PRESETS: readonly MapPreset[] = freezeDeep([
 	{ name: 'default', params: readMapPreset(defaultPreset) },
 ]);

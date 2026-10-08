@@ -180,7 +180,7 @@ describe('resolveMapParams', () => {
 		const stopTables = { highway: { raiders: 3, checkpoint: 2 } };
 		const { params } = resolveMapParams({ seed: 1, stopTables });
 		stopTables.highway.raiders = 9;
-		expect(params.stopTables).toEqual({ highway: { raiders: 3, checkpoint: 2 } });
+		expect(params.stopTables).toStrictEqual({ highway: { raiders: 3, checkpoint: 2 } });
 		expect(Object.keys(resolveMapParams({ seed: 1 }).params)).not.toContain('stopTables');
 	});
 

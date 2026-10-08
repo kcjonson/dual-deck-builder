@@ -105,7 +105,7 @@ describe('foundCampaign', () => {
 		it.each([
 			['that aren\'t an object', null, 'Invalid map preset: expected a JSON object'],
 			['with a parameter the map doesn\'t have', { seed: SEED, strongholdz: 99 }, 'Invalid map preset: unknown parameter "strongholdz"'],
-			['with a parameter in a string', { seed: SEED, radius: '1400' }, 'Invalid map preset: radius must be a number'],
+			['with a parameter in a string', { seed: SEED, radius: '1400' }, 'Invalid map preset: radius must be a number, got "1400"'],
 			['with stop tables in a list', { seed: SEED, stopTables: [] }, 'Invalid map preset: stopTables must be an object'],
 			['with null for stop tables', { seed: SEED, stopTables: null }, 'Invalid map preset: stopTables must be an object']
 		])('refuses params %s, as a map preset would be refused', (_label, mapParams, message) => {
@@ -114,7 +114,7 @@ describe('foundCampaign', () => {
 
 		it('names the path to a value in the stop tables that JSON can\'t hold', () => {
 			expect(() => found({ mapParams: { seed: SEED, stopTables: { highway: { raider_ambush: NaN } } } }))
-				.toThrow('mapParams.stopTables.highway.raider_ambush must be a finite number, got NaN');
+				.toThrow('Invalid map preset: stopTables.highway.raider_ambush must be a finite number, got NaN');
 		});
 	});
 

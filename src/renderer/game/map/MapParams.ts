@@ -5,7 +5,7 @@
  * validator, `rollParams`, and the Map Lab's controls are all built from.
  */
 
-import type { JsonObject } from '../core/Json';
+import { copyJson, type JsonObject } from '../core/Json';
 
 /**
  * Stop type weights per road class, biome, tier, and territory, in place of
@@ -280,6 +280,8 @@ export const MAP_PARAMETERS: { readonly environment: EnumParamSpec<Environment> 
 /** Every parameter with a row, in table order. */
 export const PARAM_NAMES = Object.keys(MAP_PARAMETERS) as readonly ParamName[];
 export const NUMBER_PARAMS: readonly NumberParam[] = PARAM_NAMES.filter((name): name is NumberParam => name !== 'environment');
+/** Every key a `MapParams` can hold, in the order presets and saves write them: seed, environment, the table, stop tables. */
+export const MAP_PARAM_KEYS: readonly (keyof MapParams)[] = ['seed', ...PARAM_NAMES, 'stopTables'];
 
 /**
  * What each environment sets over the table's defaults: world, drivable
@@ -366,6 +368,6 @@ export function resolveMapParams(set: MapParamSet): ResolvedMapParams {
 		}
 	}
 	const params: MapParams = { seed: set.seed, environment, ...values };
-	if (set.stopTables !== undefined) params.stopTables = structuredClone(set.stopTables);
+	if (set.stopTables !== undefined) params.stopTables = copyJson(set.stopTables, 'stopTables');
 	return { params, sources };
 }

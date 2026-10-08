@@ -1,3 +1,4 @@
+import { copyJson } from '../core/Json';
 import {
 	ENVIRONMENTS,
 	MAP_PARAMETERS,
@@ -36,7 +37,7 @@ export interface ValidatedMapParams {
  */
 export function validateMapParams(params: MapParams): ValidatedMapParams {
 	const valid: MapParams = { ...params };
-	if (params.stopTables !== undefined) valid.stopTables = structuredClone(params.stopTables);
+	if (params.stopTables !== undefined) valid.stopTables = copyJson(params.stopTables, 'stopTables');
 	const clamps: ParamClamp[] = [];
 	const change = <Name extends ParamClamp['param']>(param: Name, to: MapParams[Name], reason: string) => {
 		clamps.push({ param, from: valid[param], to, reason });
