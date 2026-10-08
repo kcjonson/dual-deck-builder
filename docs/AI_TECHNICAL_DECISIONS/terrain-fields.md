@@ -15,7 +15,7 @@ The stage takes validated `MapParams` and its own stream, the pipeline's `terrai
 
 A sample takes about 21 ns on V8, derivatives included.
 
-The gradients are picked against the grid. Its edges run at 45, -15, and 105 degrees, and where the gradients at both ends of an edge are square to it, a single-octave layer is exactly zero along the whole edge, so a ridged layer (ridges, range lines) creases there in a short straight line. Sixteen gradients 22.5 degrees apart, the first set tried, hold the two square to the long diagonals and leave about one long diagonal in 64 zero: 140 of the 24,576 edges a test walks over eight seeds. Twelve, 30 degrees apart from east, come no nearer than 15 degrees to square with any edge, and the test finds no edge zero. The permutation's values hash to them by remainder for the first 252 and to east, north, west, and south for the last four, so the set still averages to nothing and spreads as far along any line as along another. The scale, 99.2, is just under 81 * sqrt(6) / 2, the reciprocal of the largest sum three corners can reach with any unit gradients, so samples stay inside (-1, 1) whatever the set, and the early-out relies on that bound. A test computes that largest sum over a fine grid of the cell, and these twelve's, 0.976 once scaled.
+The gradients are picked against the grid. Its edges run at 45, -15, and 105 degrees, and where the gradients at both ends of an edge are square to it, a single-octave layer is exactly zero along the whole edge, so a ridged layer (ridges, range lines) creases there in a short straight line. Sixteen gradients 22.5 degrees apart, the first set tried, hold the two square to the long diagonals and leave about one long diagonal in 64 zero: 140 of the 24,576 edges a test walks over eight seeds. Twelve, 30 degrees apart from east, come no nearer than 15 degrees to square with any edge, and the test finds no edge zero. The permutation's values hash to them by remainder for the first 252 and to east, north, west, and south for the last four, so the set still averages to nothing and spreads as far along any line as along another. The scale, 99.2, is just under 81 * sqrt(6) / 2, the reciprocal of the largest sum three corners can reach with any unit gradients, so samples stay inside (-1, 1) whatever the set, and the early-out relies on that bound. A test works both out over a fine grid of the cell: that largest sum, and the twelve's own, 0.976 once scaled.
 
 Any set still leaves one short straight crease at every lattice vertex, which is the kernel's doing, not the set's: a layer is zero at every vertex, and near one its own kernel outweighs the rest, so the zero line through it runs straight to within a thousandth of a lattice unit for about 0.4 units (up to 0.47), and a ridged layer creases along it. It's cosmetic.
 
@@ -74,7 +74,7 @@ Elevation carries its exact gradient, worked through every term alongside it: th
 - Obstacles, in precedence: a crater, water (from the water stage), a cliff: grade 1 or steeper in rough country. Steep ground outside rough country isn't a cliff, only costly.
 - Travel cost per world unit: the biome's base cost plus 3 x (grade / 1)^2, so 1 on flat scrub and Infinity on impassable ground; steep ground outside rough country costs more than 3 on top. Base costs: scrub 1, desert 1.25, canyons 1.5, badlands 1.8, mire 2.2, mountains 2.5. Growth tunes these.
 - The cliff test compares squared gradients, so no branch depends on a square root. `grade` takes one, for display.
-- Canyon walls are bands, not hairlines. A first version scaled a canyon's width with its strength as well as its depth, so its wall grade never fell however faint it got: a middling map was laced with cliffs a twentieth of a unit wide and under half a unit high, which growth sampling every few units would hit or miss by chance. A canyon's width now depends on ruggedness alone, so a faint canyon is shallow and gentle rather than narrow, and its walls hold one grade over their middle 60%, so a wall steep enough to be a cliff is one across most of its width. Measured across the slope at every cliff point on a 150-cell grid, on the seeds the tests use, cliffs' bands have medians of 7.9 to 10.1 units, and 1.4% to 4.2% of cliff ground sits in bands under 2 units, the tapered tips every cliff has; other seeds spread wider (seeds 50 to 57 on the same four settings give medians of 7.3 to 11.6 units and up to 5.2% under 2 units, and seed 729569308 at aridity 0.6, which gave 6.4% with the sixteen gradients, gives 3% with a median of 8.7). The first version put 13% there at aridity 0.6 and 39% in the Rust Belt, and a test holds the line between. Mountain crests and badlands gullies still leave thin slivers, as they did before the canyon fix: over those 37 maps, up to 1.6% of cliff ground is in bands under a unit wide, in runs mostly under 10 units long, though some pass 30 (seed 21 at aridity 0.6 has one near (-290, 950)).
+- Canyon walls are bands, not hairlines. A first version scaled a canyon's width with its strength as well as its depth, so its wall grade never fell however faint it got: a middling map was laced with cliffs a twentieth of a unit wide and under half a unit high, which growth sampling every few units would hit or miss by chance. A canyon's width now depends on ruggedness alone, so a faint canyon is shallow and gentle rather than narrow, and its walls hold one grade over their middle 60%, so a wall steep enough to be a cliff is one across most of its width. Measured across the slope at every cliff point on a 150-cell grid, on the seeds the tests use, cliffs' bands have medians of 7.9 to 10.1 units, and 1.4% to 4.2% of cliff ground sits in bands under 2 units, the tapered tips every cliff has; other seeds spread wider (seeds 50 to 57 on the same four settings give medians of 7.3 to 11.6 units and up to 5.2% under 2 units, and seed 729569308 at aridity 0.6 gives 3% with a median of 8.7). The first version put 13% there at aridity 0.6 and 39% in the Rust Belt, and a test holds the line between. Mountain crests and badlands gullies still leave thin slivers, as they did before the canyon fix: over those 37 maps, up to 1.6% of cliff ground is in bands under a unit wide, in runs mostly under 10 units long, though some pass 30 (seed 21 at aridity 0.6 has one near (-290, 950)).
 
 ## Keeping the land connected
 
@@ -99,7 +99,7 @@ Measured with a 4-connected flood fill over 2-unit cells from the metro, as the 
 | Rust Belt defaults | 99.3% | 99.9% | 100% | 0 of 1,600 |
 | Floodlands defaults | 99.5% | 100% | 100% | 0 of 1,000 |
 
-At the steepest corner with the largest radius and smallest metro, 40 seeds give 95.3% to 98.3% of the outer band, median 97.3%, with no town cut off in 200. Nothing guarantees a share outright: rough islands could close into a ring round the metro, or one can lie across the outer band and wall a stretch of it off against the rim, as on the sequence's sixth seed, the least in the table, where a quarter of the band is cut off. That's a tail. Across the table's 1,640 maps it's the only seed under 87%, and over 1,000 seeds at the steepest corner the only one under 85%, while the rest of the spread matches the sixteen gradients' over the same seeds (1st percentile 89.1% against 88.6%, 5th 92.5% against 92.5%, median 96.7% against 96.6%), whose least was 83.0%. A test holds the first two seeds of each of the first three sets above 80% on a 4-unit grid, with every town reached.
+At the steepest corner with the largest radius and smallest metro, 40 seeds give 95.3% to 98.3% of the outer band, median 97.3%, with no town cut off in 200. Nothing guarantees a share outright: rough islands could close into a ring round the metro, or one can lie across the outer band and wall a stretch of it off against the rim, as on the sequence's sixth seed, the least in the table, where a quarter of the band is cut off. That's a tail: over 30,000 seeds at the steepest corner, about one map in 370 keeps under 85% of the band in reach and one in 2,000 under 80%, and the least kept 71.3%, though another run of 30,000 found one keeping about 66%. No town was cut off in any of them. A test holds the first two seeds of each of the first three sets above 80% on a 4-unit grid, with every town reached.
 
 ## The water seam
 
@@ -111,19 +111,17 @@ The stage forks its stream by feature: `plains`, `ranges`, `rangeBreaks`, `ridge
 
 ## Performance
 
-Measured with `scripts/terrain-bench.mjs` on a Ryzen 9 5950X: a 256 x 256 grid over the disc's bounding square, median over the five environments and three seeds each.
+Measured with `scripts/terrain-bench.mjs` on a quiet Ryzen 9 5950X: a 256 x 256 grid over the disc's bounding square, the median over the five environments and three seeds each, and the median of three runs.
 
 | Query | Node 24 (V8 13.6) | Electron 25 (V8 11.4) |
 | --- | --- | --- |
-| build (`generateTerrain`) | about 2.3 ms | about 2.3 ms |
-| `sample`, every field | 620 ns (41 ms a grid) | 641 ns (42 ms a grid) |
-| `elevation` | 411 ns | 423 ns |
-| `slope` | 415 ns | 426 ns |
-| `biome` | 551 ns | 571 ns |
-| `impassable` | about 105 ns | about 110 ns |
-| `travelCost` | 576 ns | 589 ns |
-
-These are from a quiet run before `impassable` learned to check the rough lattice first and before the reach grid was kept. Those two changes were measured in one process against the version before them, alternating, while the machine was busy: `impassable` took a quarter of the time (0.24 to 0.27 of it, with the same answer everywhere but where the relief radius now keeps rough cells out), the other queries came out within noise, and builds 2% longer at radius 600, 7% at 1000, and 16% at 1600, for the grid that's now kept. The table scales those two rows by that. The twelve gradients were measured the same way against the sixteen: builds within 5% at every radius, `elevation` and `impassable` within 2% on the quieter runs, and `sample` and `travelCost` up to 8% and 14% quicker; the sampling code is the same, so that's the maps, which all differ.
+| build (`generateTerrain`) | 2.36 ms | 2.34 ms |
+| `sample`, every field | 626 ns (41 ms a grid) | 651 ns (43 ms a grid) |
+| `elevation` | 396 ns | 409 ns |
+| `slope` | 397 ns | 412 ns |
+| `biome` | 543 ns | 586 ns |
+| `impassable` | 94 ns | 98 ns |
+| `travelCost` | 583 ns | 605 ns |
 
 A grid of every field at 256 is about 41 ms here, a fifth of generation's budget, and perhaps half again on a mid-range laptop. No gameplay stage samples like that: growth's cost lookups, a few per candidate step, should come to tens of thousands, around 20 ms at these rates. Sampling allocates nothing, though `SimplexNoise.sample` is past V8's 460-byte inlining limit, so each octave is a call that boxes its doubles; the scavenges that leaves cost about 5% of sampling time. A smaller kernel, or octave loops with the kernel written in, is the lever if a consumer needs more.
 
