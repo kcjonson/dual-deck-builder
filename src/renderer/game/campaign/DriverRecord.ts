@@ -26,7 +26,7 @@ export interface DriverRecordData {
 	injuredDays: number;
 	/** How far a fight's draws fill their hand. */
 	handLimit: number;
-	/** The cards they own between runs. */
+	/** The cards they own between runs. Empty once they're dead: a driver killed on a run takes their cards with them. */
 	defaultDeck: CardCounts;
 	status: DriverStatus;
 	runsCompleted: number;
@@ -87,9 +87,10 @@ export class DriverRecord extends Model<DriverRecordData> {
 	}
 
 	/**
-	 * Changes fields together, checked as a whole: dying sets status and
-	 * hitpoints in one call. Throws without changing anything if the record
-	 * would be invalid, a field is unknown, or the id or archetype would change.
+	 * Changes fields together, checked as a whole: dying sets status, 0
+	 * hitpoints, and an empty deck in one call. Throws without changing
+	 * anything if the record would be invalid, a field is unknown, or the id
+	 * or archetype would change.
 	 */
 	public override set(changes: Partial<DriverRecordData>): void {
 		const current = this.getState();
@@ -143,7 +144,8 @@ function withFreshStart({ id, archetype, name, ...rest }: DriverRecordOptions): 
 
 /**
  * A record's fields checked: exactly these fields, each in range, a dead
- * driver at 0 HP and nobody else at 0, and injured days only while injured.
+ * driver at 0 HP with no cards and nobody else at 0, and injured days only
+ * while injured.
  */
 export function readDriverRecordData(value: unknown, path: string): DriverRecordData {
 	const fields = readFields(value, path, FIELDS);
@@ -164,6 +166,9 @@ export function readDriverRecordData(value: unknown, path: string): DriverRecord
 		throw new RangeError(data.status === 'dead'
 			? `${path}.hitpoints must be 0 for a dead driver, got ${data.hitpoints}`
 			: `${path}.status must be dead at 0 hitpoints, got ${describeValue(data.status)}`);
+	}
+	if (data.status === 'dead' && totalCards(data.defaultDeck) > 0) {
+		throw new RangeError(`${path}.defaultDeck must be empty for a dead driver, whose cards went with them, got ${describeValue(data.defaultDeck)}`);
 	}
 	if ((data.status === 'injured') !== (data.injuredDays > 0)) {
 		throw new RangeError(data.status === 'injured'

@@ -89,14 +89,18 @@ describe('Campaign', () => {
 		});
 
 		it.each([
-			['params the validator would clamp', { radius: 5000 }, 'Campaign.mapParams must be valid as they are, but the validator would change them: radius lowered to 1600 (tuning range 600 to 1600)'],
-			['a fractional highway count', { highways: 6.5 }, 'Campaign.mapParams must be valid as they are, but the validator would change them: highways raised to 7 (whole number)'],
 			['an unknown environment', { environment: 'moon' }, 'Campaign.mapParams.environment must be one of highDesert, rustBelt, floodlands, badlands, mixed, got "moon"'],
 			['a parameter in a string', { radius: '1000' }, 'Campaign.mapParams.radius must be a number, got "1000"'],
 			['a parameter the map doesn\'t have', { weather: 0.5 }, 'Campaign.mapParams has an unknown field "weather"'],
 			['stop tables that aren\'t an object', { stopTables: [] }, 'Campaign.mapParams.stopTables must be an object, got []']
 		])('rejects map params with %s', (_label, change, message) => {
 			expect(() => newCampaign({ mapParams: { ...mapParamsFor(SEED), ...change } as unknown as MapParams })).toThrow(message);
+		});
+
+		it('leaves ranges to the validator, which founding runs before it makes a map', () => {
+			const campaign = newCampaign({ mapParams: { ...mapParamsFor(SEED), radius: 5000, highways: 6.5 } });
+
+			expect([campaign.mapParams.radius, campaign.mapParams.highways]).toEqual([5000, 6.5]);
 		});
 
 		it.each(['radius', 'seed'] as const)('rejects map params with no %s', (param) => {
@@ -144,7 +148,7 @@ describe('Campaign', () => {
 
 		it('counts the dead in an ordinal, so no two drivers share a name', () => {
 			const campaign = newCampaign();
-			campaign.recruitDriver({ archetype: 'mechanic' }).set({ status: 'dead', hitpoints: 0 });
+			campaign.recruitDriver({ archetype: 'mechanic' }).set({ status: 'dead', hitpoints: 0, defaultDeck: {} });
 
 			expect(campaign.recruitDriver({ archetype: 'mechanic' }).name).toBe('Mechanic 2');
 		});
@@ -171,17 +175,33 @@ describe('Campaign', () => {
 			expect(newCampaign({ drivers: [record('driver-4'), record('driver-2')] }).nextDriverNumber).toBe(5);
 		});
 
-		it('never turns the counter back, even with the pool emptied, so an id can\'t come round again', () => {
+		it('never turns the counter back, so an id can\'t come round again', () => {
 			const campaign = newCampaign();
 			campaign.recruitDriver({ archetype: 'road_warrior' });
 			campaign.recruitDriver({ archetype: 'interceptor' });
 
 			expect(() => campaign.set({ nextDriverNumber: 2 })).toThrow("Campaign.nextDriverNumber can't go back, from 3 to 2");
-			expect(() => campaign.set({ drivers: [], nextDriverNumber: 1 })).toThrow("Campaign.nextDriverNumber can't go back, from 3 to 1");
-			campaign.set({ drivers: [] });
 			campaign.set({ nextDriverNumber: 5 });
 
 			expect(campaign.recruitDriver({ archetype: 'mechanic' }).id).toBe('driver-5');
+		});
+
+		it('keeps every driver it has had, in their places, and only adds after them', () => {
+			const campaign = newCampaign();
+			const warrior = campaign.recruitDriver({ archetype: 'road_warrior' });
+			const interceptor = campaign.recruitDriver({ archetype: 'interceptor' });
+			const pool = campaign.drivers;
+
+			expect(() => campaign.set({ drivers: [] })).toThrow('Campaign.drivers is missing driver-1 (Road Warrior 1): drivers stay in the pool, the dead and missing too');
+			expect(() => campaign.set({ drivers: [warrior] })).toThrow('Campaign.drivers is missing driver-2 (Interceptor 1)');
+			expect(() => campaign.set({ drivers: [interceptor, warrior] }))
+				.toThrow('Campaign.drivers[0] must still be driver-1 (Road Warrior 1): drivers keep their places in the pool');
+			expect(() => campaign.set({ drivers: [record('driver-1'), interceptor] })).toThrow('Campaign.drivers[0] must still be driver-1 (Road Warrior 1)');
+			expect(() => campaign.set({ drivers: [...pool, record('driver-1')], nextDriverNumber: 4 }))
+				.toThrow('Campaign.drivers[2].id driver-1 belongs to an earlier driver');
+			campaign.set({ drivers: [...pool, record('driver-3')], nextDriverNumber: 4 });
+
+			expect(campaign.drivers.map(driver => driver.id)).toEqual(['driver-1', 'driver-2', 'driver-3']);
 		});
 
 		it('checks the archetype before naming a recruit, and takes nobody', () => {
@@ -292,7 +312,7 @@ describe('Campaign', () => {
 		});
 
 		describe.each([
-			['dead', { status: 'dead', hitpoints: 0 }],
+			['dead', { status: 'dead', hitpoints: 0, defaultDeck: {} }],
 			['missing', { status: 'missing', hitpoints: 12 }]
 		] as const)('with a %s driver', (status, fate) => {
 			/** The locker, a driver still at the compound, and one who's gone, with the move that would touch them. */
@@ -344,6 +364,72 @@ describe('Campaign', () => {
 			expect(warrior.defaultDeck).toEqual({ headshot: Number.MAX_SAFE_INTEGER });
 		});
 
+		describe('and what listeners hear', () => {
+			/** A campaign with copies in the locker and two drivers, and every copy it owns. */
+			function setUp(): { campaign: Campaign; warrior: DriverRecord; mechanic: DriverRecord; owned: number } {
+				const campaign = newCampaign({ locker: { headshot: 2 } });
+				const warrior = campaign.recruitDriver({ archetype: 'road_warrior' });
+				const mechanic = campaign.recruitDriver({ archetype: 'mechanic' });
+				return { campaign, warrior, mechanic, owned: cardsOwned(campaign) };
+			}
+
+			it.each([
+				['from the locker to a deck', (warrior: DriverRecord) => ({ from: 'locker' as const, to: warrior, cardType: 'headshot' })],
+				['from a deck to the locker', (warrior: DriverRecord) => ({ from: warrior, to: 'locker' as const, cardType: 'ramming_speed' })],
+				['from one deck to another', (warrior: DriverRecord, mechanic: DriverRecord) => ({ from: warrior, to: mechanic, cardType: 'ramming_speed' })]
+			])('a campaign listener hears a move %s once, when it\'s whole', (_label, move) => {
+				const { campaign, warrior, mechanic, owned } = setUp();
+				const heard: number[] = [];
+				campaign.on('change', () => heard.push(cardsOwned(campaign)));
+
+				campaign.moveCards(move(warrior, mechanic));
+
+				expect(heard).toEqual([owned]);
+			});
+
+			it('a listener can\'t start another move, or change the locker, while one is being stored', () => {
+				const { campaign, warrior, mechanic, owned } = setUp();
+				const refused: string[] = [];
+				warrior.on('defaultDeck', () => {
+					for (const attempt of [
+						() => campaign.moveCards({ cardType: 'headshot', from: 'locker', to: mechanic }),
+						() => campaign.set({ locker: {} })
+					]) {
+						try {
+							attempt();
+						} catch (error) {
+							refused.push((error as Error).message);
+						}
+					}
+				});
+
+				campaign.moveCards({ cardType: 'headshot', from: 'locker', to: warrior });
+
+				expect(refused).toEqual([
+					"Can't move cards while another move is being stored",
+					"Campaign.locker can't change while a card move is being stored"
+				]);
+				expect(campaign.locker).toEqual({ headshot: 1 });
+				expect(cardsOwned(campaign)).toBe(owned);
+			});
+
+			it('a campaign listener can move cards once the move it heard is whole', () => {
+				const { campaign, warrior, mechanic, owned } = setUp();
+				let followed = false;
+				campaign.on('change', () => {
+					if (followed) return;
+					followed = true;
+					campaign.moveCards({ cardType: 'headshot', from: warrior, to: mechanic });
+				});
+
+				campaign.moveCards({ cardType: 'headshot', from: 'locker', to: warrior });
+
+				expect([campaign.locker, cardCount(warrior.defaultDeck, 'headshot'), cardCount(mechanic.defaultDeck, 'headshot')])
+					.toEqual([{ headshot: 1 }, 0, 1]);
+				expect(cardsOwned(campaign)).toBe(owned);
+			});
+		});
+
 		it.each([
 			['a count of 0', { count: 0 }, 'count must be an integer >= 1, got 0'],
 			['half a copy', { count: 0.5 }, 'count must be an integer >= 1, got 0.5'],
@@ -367,6 +453,39 @@ describe('Campaign', () => {
 				{ day: 1, message: 'Founded the compound.' },
 				{ day: 4, message: 'Took the north stronghold.' }
 			]);
+		});
+
+		it('adds to the entries it holds rather than rebuilding them', () => {
+			const campaign = newCampaign();
+			campaign.addLogEntry({ message: 'Founded the compound.' });
+			const [founded] = campaign.log;
+
+			campaign.set({ day: 2 });
+			campaign.addLogEntry({ message: 'Took the north stronghold.' });
+
+			expect(campaign.log[0]).toBe(founded);
+			expect(campaign.log).toHaveLength(2);
+		});
+
+		it('checks an added entry against the newest one before it and today', () => {
+			const campaign = newCampaign({ day: 5 });
+			campaign.addLogEntry({ message: 'Took the north stronghold.' });
+
+			expect(() => campaign.set({ log: [...campaign.log, { day: 3, message: 'Earlier.' }] }))
+				.toThrow('Campaign.log[1].day must not come before the entry above it (day 5), got 3');
+			expect(() => campaign.set({ log: [...campaign.log, { day: 6, message: 'Tomorrow.' }] }))
+				.toThrow('Campaign.log[1].day must be an integer from 1 to today (5), got 6');
+		});
+
+		it('checks a log that changes what came before in full', () => {
+			const campaign = newCampaign({ day: 5 });
+			campaign.addLogEntry({ message: 'Took the north stronghold.' });
+
+			campaign.set({ log: [{ day: 2, message: 'Founded the compound.' }, { day: 5, message: 'Took the north stronghold.' }] });
+
+			expect(() => campaign.set({ log: [{ day: 4, message: 'Later.' }, { day: 3, message: 'Earlier.' }] }))
+				.toThrow('Campaign.log[1].day must not come before the entry above it (day 4), got 3');
+			expect(campaign.log.map(entry => entry.day)).toEqual([2, 5]);
 		});
 	});
 
@@ -426,17 +545,26 @@ describe('Campaign', () => {
 			expect(() => campaign.set({ day: 5 })).toThrow('Campaign.log[0].day must be an integer from 1 to today (5), got 6');
 		});
 
-		it('treats the map and params it already holds as unchanged', () => {
+		it('treats what it already holds as unchanged, and keeps it as it is', () => {
 			const campaign = campaignInProgress();
-			const { map, mapParams } = campaign;
+			const held = {
+				map: campaign.map,
+				mapParams: campaign.mapParams,
+				resources: campaign.resources,
+				drivers: campaign.drivers,
+				locker: campaign.locker,
+				strongholdsTaken: campaign.strongholdsTaken,
+				log: campaign.log
+			};
 			const changes = jest.fn();
 			campaign.on('change', changes);
 
-			campaign.set({ map, mapParams });
+			campaign.set(held);
+			campaign.set({ ...held, unrest: 7 });
 
-			expect(campaign.map).toBe(map);
-			expect(campaign.mapParams).toBe(mapParams);
-			expect(changes).not.toHaveBeenCalled();
+			expect(changes).toHaveBeenCalledTimes(1);
+			expect(changes).toHaveBeenCalledWith(expect.objectContaining({ unrest: 7 }));
+			expect(Object.entries(held).filter(([field, value]) => campaign[field as keyof typeof held] !== value)).toEqual([]);
 		});
 
 		it('keeps the seed, generator version, and map params from founding', () => {
@@ -564,7 +692,9 @@ describe('Campaign', () => {
 				['a locker count of 0', (save: CampaignJson) => { save.locker.headshot = 0; }, RangeError, 'Campaign.locker.headshot must be an integer >= 1, got 0'],
 				['an escort with an unknown role', (save: CampaignJson) => { (save.convoy[0].escort as { role: string }).role = 'scout'; }, RangeError, 'Campaign.convoy[0].escort.role must be one of gun, hauler, got "scout"'],
 				['a log entry from the future', (save: CampaignJson) => { save.log[3].day = 99; }, RangeError, 'Campaign.log[3].day must be an integer from 1 to today (9), got 99'],
-				['negative water', (save: CampaignJson) => { save.resources.water = -3; }, RangeError, 'Campaign.resources.water must be an integer >= 0, got -3']
+				['negative water', (save: CampaignJson) => { save.resources.water = -3; }, RangeError, 'Campaign.resources.water must be an integer >= 0, got -3'],
+				['a dead driver who kept their cards', (save: CampaignJson) => { save.drivers[1].defaultDeck = { headshot: 1 }; }, RangeError, 'Campaign.drivers[1].defaultDeck must be empty for a dead driver, whose cards went with them, got {"headshot":1}'],
+				['a wrecked escort', (save: CampaignJson) => { save.convoy[0].structure = 0; }, RangeError, 'Campaign.convoy[0].structure must be an integer from 1 to maxStructure (40), got 0']
 			])('fails loudly on %s', (_label, damage, errorType, message) => {
 				const save = savedCampaign();
 				damage(save);
@@ -621,11 +751,11 @@ describe('Campaign', () => {
 				expect(warnings).toEqual(['Campaign.mapParams.weather isn\'t a map parameter; dropped it']);
 			});
 
-			it('clamps a value the table\'s range no longer reaches', () => {
+			it('keeps a value today\'s ranges would clamp, since its map was made with it, and says so', () => {
 				const { campaign, warnings } = loadDrifted(params => { params.radius = 5000; });
 
-				expect(campaign.mapParams.radius).toBe(1600);
-				expect(warnings).toEqual(['Campaign.mapParams: radius lowered to 1600 (tuning range 600 to 1600)']);
+				expect(campaign.mapParams.radius).toBe(5000);
+				expect(warnings).toEqual(['Campaign.mapParams.radius lowered to 1600 (tuning range 600 to 1600) for a new map; this one keeps the 5000 it was made with']);
 			});
 
 			it('takes Mixed for an environment that\'s missing or no longer exists', () => {
@@ -644,19 +774,29 @@ describe('Campaign', () => {
 					params.highways = 12;
 				});
 
-				expect(campaign.toJSON().mapParams).toEqual({ ...campaignV1.mapParams, radius: 1000, highways: 9 });
+				expect(campaign.toJSON().mapParams).toEqual({ ...campaignV1.mapParams, radius: 1000, highways: 12 });
 				expect(reload(campaign).toJSON()).toEqual(campaign.toJSON());
+			});
+
+			it('reports nothing from a save that then fails to load', () => {
+				const onWarning = jest.fn();
+				const save = savedCampaign();
+				delete (save.mapParams as Partial<MapParams>).radius;
+				(save.drivers[0] as { status: string }).status = 'sleeping';
+
+				expect(() => Campaign.fromJSON(save, { onWarning })).toThrow('Campaign.drivers[0].status must be one of ready, injured, dead, missing, got "sleeping"');
+				expect(onWarning).not.toHaveBeenCalled();
 			});
 
 			it('logs the repairs when nobody asks to hear them', () => {
 				const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 				const save = savedCampaign();
-				save.mapParams.radius = 5000;
+				delete (save.mapParams as Partial<MapParams>).radius;
 
 				try {
 					Campaign.fromJSON(save);
 
-					expect(warn).toHaveBeenCalledWith('Campaign.mapParams: radius lowered to 1600 (tuning range 600 to 1600)');
+					expect(warn).toHaveBeenCalledWith('Campaign.mapParams.radius was missing; took 1000, the mixed default');
 				} finally {
 					warn.mockRestore();
 				}
@@ -698,6 +838,17 @@ describe('Campaign', () => {
 
 		expect(JSON.parse(JSON.stringify(campaign))).toEqual(campaign.toJSON());
 		expect(Object.keys(campaign.toJSON())).toEqual(Object.keys(campaignV1));
+	});
+
+	it.each([
+		['structure past its max', 41, 'Campaign.convoy[0].structure must be an integer from 1 to maxStructure (40), got 41'],
+		['no structure left', 0, 'Campaign.convoy[0].structure must be an integer from 1 to maxStructure (40), got 0']
+	])('won\'t write a save with an escort at %s, which it couldn\'t load back', (_label, structure, message) => {
+		const campaign = campaignInProgress();
+		campaign.convoy.escorts[0].set({ structure });
+
+		expect(() => campaign.toJSON()).toThrow(message);
+		expect(() => JSON.stringify(campaign)).toThrow(message);
 	});
 
 	it('takes a convoy of its own', () => {

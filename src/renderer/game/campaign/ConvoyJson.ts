@@ -70,7 +70,11 @@ export function readConvoy(value: unknown, path: string): Convoy {
 	return new Convoy({ escorts: readArray(value, path).map((escort, index) => readEscort(escort, `${path}[${index}]`)) });
 }
 
-/** An escort off the road: armor and structure as saved, nobody aboard, no statuses, ready to act. */
+/**
+ * An escort off the road: armor and structure as saved, nobody aboard, no
+ * statuses, ready to act. Structure is at least 1, since a wreck leaves the
+ * convoy after the fight that wrecked it (Convoy.afterFight).
+ */
 export function readEscort(value: unknown, path: string): Vehicle {
 	const fields = readFields(value, path, ESCORT_FIELDS);
 	const maxArmor = readInteger(fields.maxArmor, `${path}.maxArmor`, { min: 0 });
@@ -79,7 +83,7 @@ export function readEscort(value: unknown, path: string): Vehicle {
 		name: readText(fields.name, `${path}.name`),
 		armor: readInteger(fields.armor, `${path}.armor`, { min: 0, max: maxArmor, maxLabel: `maxArmor (${maxArmor})` }),
 		maxArmor,
-		structure: readInteger(fields.structure, `${path}.structure`, { min: 0, max: maxStructure, maxLabel: `maxStructure (${maxStructure})` }),
+		structure: readInteger(fields.structure, `${path}.structure`, { min: 1, max: maxStructure, maxLabel: `maxStructure (${maxStructure})` }),
 		maxStructure,
 		baseSpeed: readInteger(fields.baseSpeed, `${path}.baseSpeed`, { min: 0 }),
 		slot: null,

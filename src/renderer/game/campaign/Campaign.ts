@@ -37,7 +37,7 @@ export interface CampaignData {
 	seed: number;
 	/** The area map generator that made the map, which a save keeps rather than regenerating. */
 	generatorVersion: number;
-	/** The map's parameters as resolved at founding, valid as they are. */
+	/** The parameters the map was made with, as resolved and validated at founding. */
 	mapParams: Readonly<MapParams>;
 	/** The gameplay map and what's changed on it since. */
 	map: MapState;
@@ -79,7 +79,10 @@ export interface CampaignJson {
 }
 
 export interface LoadOptions {
-	/** Hears each repair a save needed to load (map params that drifted). Logs them by default. */
+	/**
+	 * Hears each repair a save's map params needed, after the save has
+	 * loaded; a save that fails to load reports none. Logs them by default.
+	 */
 	onWarning?: (warning: string) => void;
 }
 
@@ -124,6 +127,12 @@ const FIXED_FIELDS = ['seed', 'generatorVersion', 'mapParams'] as const;
 const DRIVER_ID = /^driver-([1-9][0-9]*)$/;
 const UINT32_MAX = 0xffffffff;
 
+/** Campaigns partway through storing a card move. Campaign instances are frozen, so this can't be a field. */
+const storingMoves = new WeakSet<object>();
+/** Resources and stronghold lists the readers made: checked and frozen, so they can't have changed since. */
+const checkedResources = new WeakSet<object>();
+const checkedStrongholds = new WeakSet<object>();
+
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface Campaign extends Readonly<CampaignData> {}
 
@@ -136,7 +145,13 @@ export interface Campaign extends Readonly<CampaignData> {}
  * Properties are read-only. A change goes through `set`, which checks the
  * whole campaign and throws, changing nothing, if the result would be
  * invalid, so whatever `toJSON` writes, `fromJSON` reads back. The seed,
- * generator version, and map params never change after founding.
+ * generator version, and map params never change after founding, the
+ * driver counter never goes back, and the pool only grows.
+ *
+ * The campaign's `change` event covers its own fields and finished card
+ * moves. A driver record or the convoy changing on its own emits on that
+ * model and not here, so save at checkpoints (the end of a day), or listen
+ * to the records and the convoy as well.
  *
  * Nothing here draws randomness, and the seed comes from whoever founds the
  * campaign. Anything that needs a random draw later forks a fresh stream for
@@ -183,16 +198,17 @@ export class Campaign extends Model<CampaignData> {
 	 * Reads a save, upgrading it from an older schema version first. Throws
 	 * on anything malformed, naming where: a damaged save never loads as a
 	 * different campaign. Map params are the exception, since the table is
-	 * still settling: ones that drifted are repaired (`repairMapParams`) and
-	 * each repair goes to `onWarning`.
+	 * still settling: drift is repaired (`repairMapParams`), and once the save
+	 * has loaded, each repair goes to `onWarning`.
 	 */
 	public static fromJSON(json: unknown, { onWarning = logWarning }: LoadOptions = {}): Campaign {
 		const path = 'Campaign';
 		const save = readFields(migrateSave({ save: readObject(json, path), path }), path, JSON_FIELDS);
-		return new Campaign(readCampaignData({
+		const mapParams = repairMapParams(save.mapParams, `${path}.mapParams`);
+		const campaign = new Campaign(readCampaignData({
 			seed: save.seed,
 			generatorVersion: save.generatorVersion,
-			mapParams: repairMapParams(save.mapParams, `${path}.mapParams`, onWarning),
+			mapParams: mapParams.params,
 			map: save.map,
 			day: save.day,
 			resources: save.resources,
@@ -204,13 +220,17 @@ export class Campaign extends Model<CampaignData> {
 			strongholdsTaken: save.strongholdsTaken,
 			log: save.log
 		}, path));
+		mapParams.warnings.forEach(warning => onWarning(warning));
+		return campaign;
 	}
 
 	/**
 	 * Changes fields together, checked as a whole. Throws without changing
 	 * anything if the campaign would be invalid, a field is unknown, the
-	 * seed, generator version, or map params would change, or the driver
-	 * counter would go back, which would hand out an id again.
+	 * seed, generator version, or map params would change, the driver counter
+	 * would go back (handing out an id again), or a driver would leave the
+	 * pool or change places in it. The locker can't change while a card move
+	 * is being stored.
 	 */
 	public override set(changes: Partial<CampaignData>): void {
 		const current = this.getState();
@@ -223,7 +243,8 @@ export class Campaign extends Model<CampaignData> {
 		if (counter.from !== undefined && counter.to !== undefined && counter.to < counter.from) {
 			throw new RangeError(`Campaign.nextDriverNumber can't go back, from ${counter.from} to ${counter.to}`);
 		}
-		const valid = readCampaignData({ ...current, ...changes }, 'Campaign');
+		if (storingMoves.has(this) && 'locker' in changes) throw new Error("Campaign.locker can't change while a card move is being stored");
+		const valid = readCampaignData({ ...current, ...changes }, 'Campaign', current);
 		super.set(Object.fromEntries(Object.keys(changes).map(key => [key, valid[key as keyof CampaignData]])));
 	}
 
@@ -250,11 +271,17 @@ export class Campaign extends Model<CampaignData> {
 	 * drivers at the compound, all in this campaign. A move never makes or
 	 * loses a copy, so each copy stays in exactly one place. Throws, moving
 	 * nothing, when `from` holds fewer than `count`, or either end is a dead
-	 * driver (gone, with their deck) or a missing one (not here to hand cards
-	 * to or take them from). Deck rules (size limits, who can take what) are
-	 * the Crew screen's (DDB-310), not checked here.
+	 * driver (gone, with their cards) or a missing one (not here to hand
+	 * cards to or take them from). Deck rules (size limits, who can take
+	 * what) are the Crew screen's (DDB-310), not checked here.
+	 *
+	 * Campaign listeners hear a move once it's whole: decks are stored before
+	 * the locker, and a move between two drivers ends with a campaign
+	 * `change`. While a move is being stored, nothing can start another or
+	 * change the locker.
 	 */
 	public moveCards({ cardType, from, to, count = 1 }: { cardType: string; from: CardPlace; to: CardPlace; count?: number }): void {
+		if (storingMoves.has(this)) throw new Error("Can't move cards while another move is being stored");
 		readCardType(cardType, 'cardType');
 		readInteger(count, 'count', { min: 1 });
 		if (from === to) throw new RangeError(`Can't move ${cardType} from ${placeName(from)} to itself`);
@@ -265,8 +292,16 @@ export class Campaign extends Model<CampaignData> {
 		// Both ends before either is stored, so a move that fails part way stores nothing.
 		const taken = removeCards(source, cardType, count);
 		const given = addCards(target, cardType, count);
-		this.store(from, taken);
-		this.store(to, given);
+		storingMoves.add(this);
+		try {
+			if (from !== 'locker') from.set({ defaultDeck: taken });
+			if (to !== 'locker') to.set({ defaultDeck: given });
+		} finally {
+			storingMoves.delete(this);
+		}
+		if (from === 'locker') this.set({ locker: taken });
+		else if (to === 'locker') this.set({ locker: given });
+		else this.emit('change', this.getState());
 	}
 
 	/** Adds a line to the log, dated today. */
@@ -275,6 +310,9 @@ export class Campaign extends Model<CampaignData> {
 	}
 
 	public toJSON(): CampaignJson {
+		const convoy = convoyToJson(this.convoy);
+		// The convoy changes outside the campaign's checks, so a convoy that couldn't load back fails here, on write.
+		readConvoy(convoy, 'Campaign.convoy');
 		return {
 			schemaVersion: CAMPAIGN_SCHEMA_VERSION,
 			seed: this.seed,
@@ -285,7 +323,7 @@ export class Campaign extends Model<CampaignData> {
 			nextDriverNumber: this.nextDriverNumber,
 			drivers: this.drivers.map(driver => driver.toJSON()),
 			locker: { ...this.locker },
-			convoy: convoyToJson(this.convoy),
+			convoy,
 			strongholdsTaken: [...this.strongholdsTaken],
 			log: this.log.map(entry => ({ ...entry })),
 			mapParams: copyJson(this.mapParams),
@@ -301,11 +339,6 @@ export class Campaign extends Model<CampaignData> {
 		}
 		return place.defaultDeck;
 	}
-
-	private store(place: CardPlace, counts: CardCounts): void {
-		if (place === 'locker') this.set({ locker: counts });
-		else place.set({ defaultDeck: counts });
-	}
 }
 
 function logWarning(warning: string): void {
@@ -318,9 +351,11 @@ function placeName(place: CardPlace): string {
 
 /**
  * The campaign's fields checked together. Drivers and the convoy are
- * models here; `fromJSON` reads a save's into models first.
+ * models here; `fromJSON` reads a save's into models first. `previous` is
+ * the state being changed, if any: what was checked when it was stored isn't
+ * checked again, and the pool and log are held to only growing from it.
  */
-function readCampaignData(value: unknown, path: string): CampaignData {
+function readCampaignData(value: unknown, path: string, previous: Partial<CampaignData> = {}): CampaignData {
 	const fields = readFields(value, path, FIELDS);
 	const seed = readInteger(fields.seed, `${path}.seed`, { min: 0, max: UINT32_MAX });
 	const mapParams = readMapParams(fields.mapParams, `${path}.mapParams`);
@@ -338,18 +373,30 @@ function readCampaignData(value: unknown, path: string): CampaignData {
 		day,
 		resources: readResources(fields.resources, `${path}.resources`),
 		unrest: readInteger(fields.unrest, `${path}.unrest`, { min: 0 }),
-		drivers: readDrivers(fields.drivers, `${path}.drivers`, nextDriverNumber),
+		drivers: readDrivers(fields.drivers, `${path}.drivers`, nextDriverNumber, previous.drivers),
 		nextDriverNumber,
 		locker: readCardCounts(fields.locker, `${path}.locker`),
 		convoy: fields.convoy,
 		strongholdsTaken: readStrongholds(fields.strongholdsTaken, `${path}.strongholdsTaken`),
-		log: readLog(fields.log, `${path}.log`, day)
+		log: readLog(fields.log, `${path}.log`, day, previous.log)
 	};
 }
 
-/** The pool: driver records with distinct `driver-<n>` ids, each below the next one to hand out. */
-function readDrivers(value: unknown, path: string, nextDriverNumber: number): readonly DriverRecord[] {
+/**
+ * The pool: driver records with distinct `driver-<n>` ids, each below the
+ * next one to hand out. Against the pool held before, it only grows: the
+ * same records in the same places, any new ones after them.
+ */
+function readDrivers(value: unknown, path: string, nextDriverNumber: number, previous?: readonly DriverRecord[]): readonly DriverRecord[] {
+	// Checked when it was stored, and the counter has only gone up since.
+	if (previous !== undefined && value === previous) return previous;
 	const drivers = readArray(value, path);
+	previous?.forEach((driver, index) => {
+		if (drivers[index] === driver) return;
+		throw new RangeError(index < drivers.length
+			? `${path}[${index}] must still be ${driver.id} (${driver.name}): drivers keep their places in the pool`
+			: `${path} is missing ${driver.id} (${driver.name}): drivers stay in the pool, the dead and missing too`);
+	});
 	const ids = new Set<string>();
 	drivers.forEach((driver, index) => {
 		if (!(driver instanceof DriverRecord)) throw new TypeError(`${path}[${index}] must be a DriverRecord, got ${describeValue(driver)}`);
@@ -365,9 +412,10 @@ function readDrivers(value: unknown, path: string, nextDriverNumber: number): re
 }
 
 function readResources(value: unknown, path: string): Readonly<Resources> {
+	if (typeof value === 'object' && value !== null && checkedResources.has(value)) return value as Readonly<Resources>;
 	const fields = readFields(value, path, RESOURCE_NAMES);
 	const amount = (name: keyof Resources): number => readInteger(fields[name], `${path}.${name}`, { min: 0 });
-	return Object.freeze({
+	const resources = Object.freeze({
 		food: amount('food'),
 		water: amount('water'),
 		fuel: amount('fuel'),
@@ -375,26 +423,51 @@ function readResources(value: unknown, path: string): Readonly<Resources> {
 		scrap: amount('scrap'),
 		people: amount('people')
 	});
+	checkedResources.add(resources);
+	return resources;
 }
 
 function readStrongholds(value: unknown, path: string): readonly string[] {
+	if (typeof value === 'object' && value !== null && checkedStrongholds.has(value)) return value as readonly string[];
 	const ids = readArray(value, path).map((id, index) => readText(id, `${path}[${index}]`));
 	ids.forEach((id, index) => {
 		if (ids.indexOf(id) !== index) throw new RangeError(`${path}[${index}] ${describeValue(id)} is already in the list`);
 	});
-	return Object.freeze(ids);
+	const strongholds = Object.freeze(ids);
+	checkedStrongholds.add(strongholds);
+	return strongholds;
 }
 
-/** Log entries dated from day 1 to today, in order. */
-function readLog(value: unknown, path: string, today: number): readonly Readonly<CampaignLogEntry>[] {
-	let previousDay = 1;
-	return Object.freeze(readArray(value, path).map((entry, index) => {
-		const fields = readFields(entry, `${path}[${index}]`, ['day', 'message']);
-		const day = readInteger(fields.day, `${path}[${index}].day`, { min: 1, max: today, maxLabel: `today (${today})` });
-		if (day < previousDay) throw new RangeError(`${path}[${index}].day must not come before the entry above it (day ${previousDay}), got ${day}`);
+/**
+ * Log entries dated from day 1 to today, in order. A log that only adds to
+ * the one held before checks just the new entries, and the newest old one
+ * against today, since the rest were checked when they were added.
+ */
+function readLog(value: unknown, path: string, today: number, previous?: readonly Readonly<CampaignLogEntry>[]): readonly Readonly<CampaignLogEntry>[] {
+	if (previous !== undefined) {
+		const entries = value === previous ? previous : readArray(value, path);
+		if (entries === previous || (entries.length >= previous.length && previous.every((entry, index) => entries[index] === entry))) {
+			const newest = previous.length - 1;
+			if (newest >= 0) readInteger(previous[newest].day, `${path}[${newest}].day`, { min: 1, max: today, maxLabel: `today (${today})` });
+			if (entries.length === previous.length) return previous;
+			const added = readLogEntries(entries.slice(previous.length), path, today, previous.length, previous[newest]?.day ?? 1);
+			return Object.freeze([...previous, ...added]);
+		}
+	}
+	return Object.freeze(readLogEntries(readArray(value, path), path, today, 0, 1));
+}
+
+/** Entries checked in order from `start`, none before `after`'s day or after today. */
+function readLogEntries(entries: readonly unknown[], path: string, today: number, start: number, after: number): Readonly<CampaignLogEntry>[] {
+	let previousDay = after;
+	return entries.map((entry, offset) => {
+		const at = `${path}[${start + offset}]`;
+		const fields = readFields(entry, at, ['day', 'message']);
+		const day = readInteger(fields.day, `${at}.day`, { min: 1, max: today, maxLabel: `today (${today})` });
+		if (day < previousDay) throw new RangeError(`${at}.day must not come before the entry above it (day ${previousDay}), got ${day}`);
 		previousDay = day;
-		return Object.freeze({ day, message: readText(fields.message, `${path}[${index}].message`) });
-	}));
+		return Object.freeze({ day, message: readText(fields.message, `${at}.message`) });
+	});
 }
 
 function driverNumber(id: string): number | null {

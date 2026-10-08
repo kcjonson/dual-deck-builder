@@ -50,6 +50,7 @@ describe('DriverRecord', () => {
 			['fractional HP', { hitpoints: 12.5 }, 'DriverRecord.hitpoints must be an integer >= 0, got 12.5'],
 			['a max HP of 0', { maxHitpoints: 0, hitpoints: 0, status: 'dead' }, 'DriverRecord.maxHitpoints must be an integer >= 1, got 0'],
 			['a dead driver with HP left', { status: 'dead' }, 'DriverRecord.hitpoints must be 0 for a dead driver, got 40'],
+			['a dead driver who kept their cards', { status: 'dead', hitpoints: 0, defaultDeck: { headshot: 2 } }, 'DriverRecord.defaultDeck must be empty for a dead driver, whose cards went with them, got {"headshot":2}'],
 			['0 HP on a living driver', { hitpoints: 0 }, 'DriverRecord.status must be dead at 0 hitpoints, got "ready"'],
 			['an injury with no days to heal', { status: 'injured', hitpoints: 20 }, 'DriverRecord.injuredDays must be 1 or more for an injured driver, got 0'],
 			['days to heal on a ready driver', { injuredDays: 2 }, 'DriverRecord.injuredDays must be 0 for a driver who is ready, got 2'],
@@ -87,15 +88,17 @@ describe('DriverRecord', () => {
 			expect(changes).toHaveBeenCalledTimes(1);
 		});
 
-		it('checks the result as a whole, and changes nothing when it fails', () => {
+		it('checks the result as a whole, and changes nothing when it fails: dying is one call', () => {
 			const record = recruit();
 			const changes = jest.fn();
 			record.on('change', changes);
 
 			expect(() => record.set({ status: 'dead' })).toThrow('DriverRecord.hitpoints must be 0 for a dead driver, got 40');
-			record.set({ status: 'dead', hitpoints: 0 });
+			expect(() => record.set({ status: 'dead', hitpoints: 0 }))
+				.toThrow('DriverRecord.defaultDeck must be empty for a dead driver, whose cards went with them, got {"armor_plating":3,');
+			record.set({ status: 'dead', hitpoints: 0, defaultDeck: {} });
 
-			expect([record.status, record.hitpoints]).toEqual(['dead', 0]);
+			expect([record.status, record.hitpoints, record.deckSize]).toEqual(['dead', 0, 0]);
 			expect(changes).toHaveBeenCalledTimes(1);
 		});
 

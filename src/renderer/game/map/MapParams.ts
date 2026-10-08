@@ -5,14 +5,14 @@
  * validator, `rollParams`, and the Map Lab's controls are all built from.
  */
 
-import type { JsonValue } from '../core/Json';
+import type { JsonObject } from '../core/Json';
 
 /**
  * Stop type weights per road class, biome, tier, and territory, in place of
  * the shipped tables. Absent means the shipped tables. The stops stage owns
  * the shape; here it only has to be JSON, since params are saved.
  */
-export type StopTables = { [key: string]: JsonValue };
+export type StopTables = JsonObject;
 
 export const ENVIRONMENTS = ['highDesert', 'rustBelt', 'floodlands', 'badlands', 'mixed'] as const;
 export type Environment = (typeof ENVIRONMENTS)[number];

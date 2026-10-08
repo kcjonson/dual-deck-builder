@@ -96,7 +96,8 @@ describe('the convoy in a save', () => {
 
 	it.each([
 		['armor over max', (json: EscortJson) => { json.armor = 6; }, 'convoy[0].armor must be an integer from 0 to maxArmor (5), got 6'],
-		['structure over max', (json: EscortJson) => { json.structure = 41; }, 'convoy[0].structure must be an integer from 0 to maxStructure (40), got 41'],
+		['structure over max', (json: EscortJson) => { json.structure = 41; }, 'convoy[0].structure must be an integer from 1 to maxStructure (40), got 41'],
+		['no structure left, a wreck the convoy never keeps', (json: EscortJson) => { json.structure = 0; }, 'convoy[0].structure must be an integer from 1 to maxStructure (40), got 0'],
 		['no max structure', (json: EscortJson) => { json.maxStructure = 0; }, 'convoy[0].maxStructure must be an integer >= 1, got 0'],
 		['an unknown type', (json: EscortJson) => { (json.escort as { type: string }).type = 'tank'; }, 'convoy[0].escort.type must be one of outrider, pilot_car, fuel_hauler, med_truck, got "tank"'],
 		['an unknown role', (json: EscortJson) => { (json.escort as { role: string }).role = 'scout'; }, 'convoy[0].escort.role must be one of gun, hauler, got "scout"'],
