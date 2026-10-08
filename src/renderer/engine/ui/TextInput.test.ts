@@ -546,6 +546,14 @@ describe('NumberInput (R12.36)', () => {
 		expect(changes).toEqual([]);
 	});
 
+	it('keeps at most the 100 places toFixed writes, from a step or a precision', () => {
+		const { input } = stepper({ value: 0, min: 0, max: 1, step: 1e-101 });
+		expect(input.precision).toBe(100);
+		input.precision = 120;
+		expect(input.precision).toBe(100);
+		expect(input.input.value).toBe((0).toFixed(100));
+	});
+
 	it('steps on Up and Down while focused, clamping, and fires only on a change', () => {
 		const { input, changes } = stepper({ value: 9, min: 0, max: 10 });
 		inject(`click,${FIELD_X + 10},${MIDDLE_Y}`);

@@ -1,48 +1,74 @@
+import { snapToStep } from '../../engine/ui/stepGrid';
 import { Rng } from '../core/Rng';
-import { MAP_PARAMETERS, MapParams, NUMBER_PARAMS, NumberParam, NumberParamSpec, environmentDefaults } from './MapParams';
-import { validateMapParams } from './ParamValidator';
+import { MAP_PARAMETERS, MapParams, NUMBER_PARAMS, NumberParam, NumberParamSpec, ParamRange, environmentDefaults } from './MapParams';
+import { ValidatedMapParams, validateMapParams } from './ParamValidator';
 
 /**
  * The finished game's parameters for a seed (Area Map Generation,
- * Randomising for the finished game), drawn on the seed's `params` stream
- * with each parameter on its own fork of it, named by its key. A parameter's
- * roll depends on the seed, its name, its table row, and the environment,
+ * Randomising for the finished game): the environment an even pick from its
+ * campaign values, then each number drawn around that environment's value,
+ * validated so generation can run on them with the same seed.
+ *
+ * Each parameter draws on its own fork of the seed's `params` stream, named
+ * by its key, the environment included. A parameter's draw depends on the
+ * seed, its key, its campaign range and step, and the value it centres on,
  * never on the other rows or their order, so adding, removing, reordering,
- * or retuning a parameter moves no other parameter's roll. The environment
- * is an even pick from its campaign values, and each number rolls around
- * that environment's default. Validated before they're returned, so
- * generation can run on them with the same seed.
+ * or retuning a parameter moves no other parameter's draw. What comes back
+ * is less independent than the draws:
+ *
+ * - The validator raises `highways` to `strongholds` + 2, in about one roll
+ *   in five, so retuning strongholds moves highways.
+ * - Every number centres on the environment's value, so retuning an
+ *   environment's value, or a table default it inherits, moves that
+ *   parameter's rolls on that environment.
+ * - The environment pick indexes `ENVIRONMENTS`, so adding, removing, or
+ *   reordering an environment changes which one a seed picks, and with it
+ *   every number.
  */
 export function rollParams(seed: number): MapParams {
+	return rollParamsWithClamps(seed).params;
+}
+
+/**
+ * `rollParams` with what the validator changed, for the Map Lab's "Roll
+ * campaign params" preview to list.
+ */
+export function rollParamsWithClamps(seed: number): ValidatedMapParams {
 	const root = new Rng({ seed });
 	const stream = root.fork('params');
 	const environment = stream.fork('environment').pick(MAP_PARAMETERS.environment.campaign);
 	const defaults = environmentDefaults(environment);
 	const values = {} as Record<NumberParam, number>;
 	for (const name of NUMBER_PARAMS) values[name] = rollAround(stream.fork(name), MAP_PARAMETERS[name], defaults[name]);
-	return validateMapParams({ seed: root.seed, environment, ...values }).params;
+	return validateMapParams({ seed: root.seed, environment, ...values });
+}
+
+/** Where a parameter's roll can land. */
+export interface RollBounds extends ParamRange {
+	/** The value the roll centres on, held inside the campaign range. Half the draws fall either side of it. */
+	readonly centre: number;
+}
+
+/** A roll around `value` (the environment's): half the campaign range either side of it, cut to the campaign range. */
+export function rollBounds({ campaign }: NumberParamSpec, value: number): RollBounds {
+	const centre = Math.min(campaign.max, Math.max(campaign.min, value));
+	const reach = (campaign.max - campaign.min) / 2;
+	return { min: Math.max(campaign.min, centre - reach), centre, max: Math.min(campaign.max, centre + reach) };
 }
 
 /**
- * A triangular draw inside the campaign range that peaks at `centre` and
- * reaches at most half the range either side of it, snapped to the step.
- * Two uniforms make the triangle in plain arithmetic, which every engine
- * computes the same.
+ * A draw split at its centre: half the draws fall below it and half above,
+ * whatever room each side has. Each half is a triangle, likeliest at the
+ * centre and thinning to nothing at its bound, so a side with little room
+ * packs its half close to the centre, and a centre on an end of the campaign
+ * range puts half the draws exactly on that end. u1 + u2 - 1 is a triangle
+ * on (-1, 1) peaking at 0, and each sign is stretched to its own side, in
+ * plain arithmetic, the same in every engine. Snapped to the step, so a roll
+ * reads like a slider value.
  */
-function rollAround(stream: Rng, { campaign, step }: NumberParamSpec, centre: number): number {
-	const mode = Math.min(campaign.max, Math.max(campaign.min, centre));
-	const reach = (campaign.max - campaign.min) / 2;
-	const low = Math.max(campaign.min, mode - reach);
-	const high = Math.min(campaign.max, mode + reach);
+function rollAround(stream: Rng, spec: NumberParamSpec, value: number): number {
+	const { min, centre, max } = rollBounds(spec, value);
 	const offset = stream.float() + stream.float() - 1;
-	const value = offset < 0 ? mode + offset * (mode - low) : mode + offset * (high - mode);
-	return Math.min(campaign.max, Math.max(campaign.min, snap(value, step)));
-}
-
-/** The nearest multiple of `step`, read back at the step's decimals so seven steps of 0.05 is 0.35, not 0.35000000000000003. */
-function snap(value: number, step: number): number {
-	const text = String(step);
-	const point = text.indexOf('.');
-	const decimals = point === -1 ? 0 : text.length - point - 1;
-	return Number((Math.round(value / step) * step).toFixed(decimals));
+	const drawn = offset < 0 ? centre + offset * (centre - min) : centre + offset * (max - centre);
+	return snapToStep({ ...spec.campaign, step: spec.step }, drawn);
 }

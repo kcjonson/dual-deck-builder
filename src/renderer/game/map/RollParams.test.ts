@@ -1,9 +1,9 @@
 import { Rng } from '../core/Rng';
 import { ENVIRONMENTS, MAP_PARAMETERS, MapParams, NUMBER_PARAMS, NumberParam, environmentDefaults } from './MapParams';
-import { validateMapParams } from './ParamValidator';
-import { rollParams } from './RollParams';
+import { ParamClamp } from './ParamValidator';
+import { rollBounds, rollParams, rollParamsWithClamps } from './RollParams';
+import { onGrid } from './testing';
 
-const onGrid = (value: number, step: number) => Math.abs(value / step - Math.round(value / step)) < 1e-9;
 const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
 
 /** `rollParams` loaded fresh over a table whose number parameters are `names`, in that order. */
@@ -24,23 +24,31 @@ const SEEDS = Array.from({ length: 1000 }, (_, index) => (index * 2654435761) >>
 
 describe('rollParams', () => {
 	let rolls: MapParams[];
+	let clamps: (readonly ParamClamp[])[];
 	const rollsOf = (environment: string) => rolls.filter((params) => params.environment === environment);
 
 	beforeAll(() => {
-		rolls = SEEDS.map((seed) => rollParams(seed));
+		const rolled = SEEDS.map((seed) => rollParamsWithClamps(seed));
+		rolls = rolled.map(({ params }) => params);
+		clamps = rolled.map((roll) => roll.clamps);
 	});
 
-	it('rolls the same params for the same seed', () => {
-		SEEDS.forEach((seed, index) => expect(rollParams(seed)).toEqual(rolls[index]));
+	it('rolls the same params for the same seed, with or without the clamps', () => {
+		SEEDS.slice(0, 20).forEach((seed, index) => expect(rollParams(seed)).toEqual(rolls[index]));
 	});
 
 	// What a seed rolls is part of what the seed means, so it's pinned like the
-	// PRNG's goldens. Retuning a campaign range, or Floodlands' values, can move
-	// that parameter's value here on purpose: update it in the same change.
+	// PRNG's goldens, and retuning can move it on purpose: update it in the same
+	// change. A parameter's campaign range or step, Floodlands' value for it, or
+	// a table default Floodlands inherits (towns, say) moves that parameter;
+	// strongholds moves highways too; a change to how snapToStep rounds can move
+	// any value; and a change to the list of environments can move all of it.
+	// Retuning a default terrain reads (mountain coverage, say) moves
+	// Terrain.test's pinned samples as well, so re-pin those in the same change.
 	it('rolls the pinned params for the default preset\'s seed', () => {
 		expect(rollParams(2183746551)).toEqual({
 			seed: 2183746551, environment: 'floodlands',
-			radius: 950, aridity: 0.9, mountainCoverage: 0.1, ruggedness: 0.15, rivers: 3, riverMeander: 0.7, lakes: 5,
+			radius: 950, aridity: 0.9, mountainCoverage: 0.15, ruggedness: 0.15, rivers: 2, riverMeander: 0.7, lakes: 4,
 			contamination: 0.35, hotspots: 5, metroSize: 0.17, towns: 5,
 			highways: 6, highwaySeparation: 33, curviness: 0.45, branchiness: 0.5, trailShare: 0.4, roadClearance: 22,
 			strongholds: 4, poiDensity: 0.9, routesTarget: 3, startingReveal: 1, stopDensity: 0.9, dangerCurve: 1.1,
@@ -60,11 +68,14 @@ describe('rollParams', () => {
 		});
 	});
 
-	// Each parameter rolls on its own fork, named by its key, so a roll never
+	// Each parameter draws on its own fork, named by its key, so a draw never
 	// depends on the table's shape: the Map Lab can add, drop, reorder, and
-	// retune parameters without moving any other parameter's roll.
-	describe('rolls each parameter independently of the others', () => {
-		const sample = SEEDS.slice(0, 100);
+	// retune parameters without moving any other parameter's draw. What
+	// rollParams returns has three couplings, which these leave out: the
+	// validator raises highways to strongholds + 2, every number centres on the
+	// environment's value, and the environment pick indexes ENVIRONMENTS.
+	describe('draws each parameter independently of the others', () => {
+		const sample = SEEDS.slice(0, 10);
 
 		it('rolls the same params whatever order the table lists them in', () => {
 			const reordered = rollParamsOver([...NUMBER_PARAMS].reverse());
@@ -108,7 +119,7 @@ describe('rollParams', () => {
 		expect(distinct.size).toBeGreaterThan(rolls.length * 0.99);
 	});
 
-	it('lands every value inside its campaign range and on its step grid, already valid', () => {
+	it('lands every value inside its campaign range and on its step grid', () => {
 		const failures: string[] = [];
 		for (const params of rolls) {
 			if (!MAP_PARAMETERS.environment.campaign.includes(params.environment)) failures.push(`${params.seed}: environment ${params.environment}`);
@@ -117,9 +128,33 @@ describe('rollParams', () => {
 				const value = params[name];
 				if (value < campaign.min || value > campaign.max || !onGrid(value, step)) failures.push(`${params.seed}: ${name} ${value}`);
 			}
-			if (validateMapParams(params).clamps.length > 0) failures.push(`${params.seed}: clamped`);
 		}
 		expect(failures).toEqual([]);
+	});
+
+	it('lands every value within its bounds round the environment\'s, give or take the snap to its step', () => {
+		const failures: string[] = [];
+		for (const params of rolls) {
+			const centres = environmentDefaults(params.environment);
+			for (const name of NUMBER_PARAMS) {
+				const spec = MAP_PARAMETERS[name];
+				const { min, max } = rollBounds(spec, centres[name]);
+				const slack = spec.step / 2 + 1e-9;
+				if (params[name] < min - slack || params[name] > max + slack) failures.push(`${params.seed}: ${name} ${params[name]} outside ${min} to ${max}`);
+			}
+		}
+		expect(failures).toEqual([]);
+	});
+
+	it('reports the validator\'s only change to a roll, highways raised to strongholds + 2, in about one roll in five', () => {
+		const others = clamps.flat().filter(({ param, reason }) => param !== 'highways' || reason !== 'strongholds + 2');
+		expect(others).toEqual([]);
+		clamps.forEach((list, index) => {
+			for (const { to } of list) expect(to).toBe(rolls[index].strongholds + 2);
+		});
+		const share = clamps.filter((list) => list.length > 0).length / clamps.length;
+		expect(share).toBeGreaterThan(0.15);
+		expect(share).toBeLessThan(0.25);
 	});
 
 	it('writes values as the Map Lab shows them, with no float noise', () => {
@@ -172,5 +207,21 @@ describe('rollParams', () => {
 		} finally {
 			random.mockRestore();
 		}
+	});
+});
+
+describe('rollBounds', () => {
+	it('reaches half the campaign range either side of the value', () => {
+		expect(rollBounds(MAP_PARAMETERS.radius, 1000)).toEqual({ min: 800, centre: 1000, max: 1200 });
+		expect(rollBounds(MAP_PARAMETERS.hotspots, 3)).toEqual({ min: 1, centre: 3, max: 5 });
+	});
+
+	it('stops at the campaign range, leaving a value near an end less room on that side', () => {
+		expect(rollBounds(MAP_PARAMETERS.brokenHighways, 3)).toEqual({ min: 1.5, centre: 3, max: 4 });
+		expect(rollBounds(MAP_PARAMETERS.lakes, 0)).toEqual({ min: 0, centre: 0, max: 3 });
+	});
+
+	it('holds a value outside the campaign range at its end', () => {
+		expect(rollBounds(MAP_PARAMETERS.towns, 12)).toEqual({ min: 5.5, centre: 9, max: 9 });
 	});
 });

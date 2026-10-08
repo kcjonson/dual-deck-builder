@@ -5,13 +5,10 @@ import type { AnyUiEvent, UiKeyEvent, UiPointerEvent } from '../input/events';
 import { glowShadow, shadowExtent } from '../style/look';
 import { CONTROL_SIZES, ControlSize } from '../style/variants';
 import { tokens } from '../theme/tokens';
+import { StepRange, snapToStep } from './stepGrid';
 
-export interface SliderRange {
-	min: number;
-	max: number;
-	/** 0 for continuous. */
-	step: number;
-	logScale: boolean;
+export interface SliderRange extends StepRange {
+	readonly logScale: boolean;
 }
 
 /** Logarithmic only with positive bounds; anything else falls back to linear (R12.15). */
@@ -40,25 +37,6 @@ export function valueToPosition(range: SliderRange, value: number): number {
 	if (isLogarithmic(range)) t = value <= 0 ? 0 : Math.log(value / min) / Math.log(max / min);
 	else t = (value - min) / (max - min);
 	return Math.min(Math.max(t, 0), 1);
-}
-
-/** Clamped to the range, then to the nearest step from `min` when `step` is positive. */
-export function snapToStep(range: SliderRange, value: number): number {
-	const { min, max, step } = range;
-	const clamp = (v: number): number => Math.min(Math.max(v, min), Math.max(min, max));
-	if (!Number.isFinite(value)) return min;
-	if (!(step > 0)) return clamp(value);
-	const snapped = min + Math.round((value - min) / step) * step;
-	// Strip the float noise the multiply leaves (0.1 * 3), at the step's own precision.
-	return clamp(Number(snapped.toFixed(decimalsOf(step) + 2)));
-}
-
-function decimalsOf(step: number): number {
-	const text = String(step);
-	const exponent = /e-(\d+)$/.exec(text);
-	if (exponent) return Number(exponent[1]);
-	const point = text.indexOf('.');
-	return point === -1 ? 0 : text.length - point - 1;
 }
 
 export interface SliderOptions extends Omit<ComponentOptions, 'style'> {
