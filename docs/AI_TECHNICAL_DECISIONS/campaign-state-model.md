@@ -39,7 +39,17 @@ Nothing in the model draws randomness, and the seed comes in from founding. When
 
 ## Default decks and the locker are card-type counts
 
-`CardCounts` is a frozen `{ cardType: count }` object with positive counts only and keys sorted, so equal counts write identical JSON. Copies have no identity, so "every copy is in exactly one place" is a property of the operations: `Campaign.moveCards` takes copies from one place and adds them to another after checking the source holds enough, and it's how copies travel between the locker and default decks. It enforces no deck rules. Size limits (8 to 20) and archetype-only cards are the Crew screen's (DDB-310, DDB-317), and run decks are DDB-315.
+`CardCounts` is a frozen `{ cardType: count }` object with positive counts only and keys sorted, so equal counts write identical JSON. Copies have no identity, so "every copy is in exactly one place" is a property of the operations: `Campaign.moveCards` takes copies from one place and adds them to another, and it's how copies travel between the locker and default decks; `scrapCards` takes them out of the locker for scrap, the one way a copy leaves on purpose. `cardsOwned` sums every place a copy can be, which no move changes. Run decks (DDB-315) will be places of their own, and join that sum.
+
+`moveCards` keeps the deck rules (Compound and Supply Runs, The rules; [locker-and-deck-rules.md](./locker-and-deck-rules.md)). `getCardMoveBlocker` says why the rules refuse a move, as a typed `CardBlocker` naming the end that refuses, and `moveCards` runs the same check and throws a `CardRuleError` carrying that blocker, so the Crew screen's disabled action and the move can't disagree. In the order they're checked:
+
+- `driver_away`: a driver at either end is dead or missing.
+- `too_few`: the giving end holds fewer copies than the move takes.
+- `other_archetype`: the card is marked for another archetype than the receiving driver's (`driverRestriction` in `cards.json`).
+- `deck_full`: the receiving deck would hold more than the most a deck takes.
+- `deck_at_minimum`: the giving deck would hold fewer than the fewest.
+
+The limits live in `data/deck-rules.json` and are checked on each move, not on the record. A deck outside them (set directly, loaded from a save, or left there when the limits are retuned) still loads and can move back toward them, and a dead driver's empty deck stays valid. A move no rule covers (a malformed card type or count, a driver from another campaign, a place to itself) throws a plain error from both the check and the move. `scrapCards` scraps locker copies only, at `scrapPerCard` each, in one `set`, and `getScrapBlocker` refuses (`too_few`) when the locker holds fewer than asked. None of this is saved, so the save format didn't change.
 
 A move is stored so nothing sees half of it, or acts on half of it:
 
@@ -48,9 +58,9 @@ A move is stored so nothing sees half of it, or acts on half of it:
 - While the decks are being stored, the campaign refuses another `moveCards` and every `set`. A listener on a driver's deck that moved cards or changed the locker then would have its change overwritten by the rest of this one, destroying a copy, and any other change would tell campaign listeners about a campaign holding half a move. Once the campaign's `change` arrives, the move is done and a listener can change the campaign again.
 - Records aren't held while a move is stored, so a listener on the giving driver's deck can still change the receiving driver. The copies land on the deck the receiving driver holds once the giving one is stored. If a listener has sent the receiving driver away (dead or missing) by then, or filled their deck past what a count holds, the copies go back to the giving driver, or to the locker if the giving driver can't take them either.
 
-`moveCards` refuses a dead or missing driver at either end. A driver killed on a run is gone with their cards (Compound and Supply Runs, The driver pool), so a dead record's deck is empty, and dying is one `set` of status, 0 HP, and an empty deck; a missing driver isn't at the compound to hand cards to or take them from. An injured driver is, healing in the infirmary, so their deck can still change.
+`moveCards` refuses a dead or missing driver at either end (`driver_away`). A driver killed on a run is gone with their cards (Compound and Supply Runs, The driver pool), so a dead record's deck is empty, and dying is one `set` of status, 0 HP, and an empty deck; a missing driver isn't at the compound to hand cards to or take them from. An injured driver is, healing in the infirmary, so their deck can still change.
 
-Card types are checked for shape (lower snake case), not against `cards.json`, which loads asynchronously. Nothing upgrades a card yet; when something does, an upgraded copy needs a key of its own (or a richer count) and a schema bump.
+Card types are checked for shape (lower snake case), not against `cards.json`, so a save holding a card the file has since dropped still loads, and the eligibility check takes a card the file doesn't list as anyone's. Nothing upgrades a card yet; when something does, an upgraded copy needs a key of its own (or a richer count) and a schema bump.
 
 ## Driver records
 

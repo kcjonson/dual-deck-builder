@@ -76,6 +76,18 @@ describe('CardLoader', () => {
 		await expect(loader.loadCards()).rejects.toThrow('Card test_card commands an escort, so it must be tagged order');
 	});
 
+	it('accepts a card restricted to one driver archetype, or to none', async () => {
+		respondWith({ cards: [{ ...baseCard, driverRestriction: 'raider' }, { ...baseCard, type: 'open_card', driverRestriction: null }] });
+		await loader.loadCards();
+		expect(loader.createCard('test_card')?.driverRestriction).toBe('raider');
+		expect(loader.createCard('open_card')?.driverRestriction).toBeNull();
+	});
+
+	it('rejects a card restricted to an archetype that doesn\'t exist', async () => {
+		respondWith({ cards: [{ ...baseCard, driverRestriction: 'mutant' }] });
+		await expect(loader.loadCards()).rejects.toThrow('Card test_card is restricted to an unknown driver archetype: mutant');
+	});
+
 	it('rejects a signature card for an unknown escort type', async () => {
 		respondWith({ cards: [{ ...baseCard, tags: ['order'], rarity: 'signature', signatureOf: 'war_rig' }] });
 		await expect(loader.loadCards()).rejects.toThrow('Card test_card is the signature of an unknown escort type: war_rig');

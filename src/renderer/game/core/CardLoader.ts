@@ -1,4 +1,5 @@
 import { CARD_RARITIES, Card, CardData, TARGET_TYPES } from '../mechanics/Card';
+import { DRIVER_CONFIGS } from '../mechanics/Driver';
 import { ESCORT_CONFIGS } from '../mechanics/Escort';
 
 /**
@@ -134,6 +135,11 @@ export class CardLoader {
 		}
 		if (!isOrder && (cardData.targetType === 'escort' || cardData.signatureOf || cardData.spendsEscort)) {
 			throw new Error(`Card ${cardData.type} commands an escort, so it must be tagged order`);
+		}
+
+		const restriction = cardData.driverRestriction;
+		if (restriction != null && !(restriction in DRIVER_CONFIGS)) {
+			throw new Error(`Card ${cardData.type} is restricted to an unknown driver archetype: ${restriction}`);
 		}
 
 		// A signature card comes with its escort, never from the reward pool or shop

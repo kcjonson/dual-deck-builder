@@ -310,10 +310,10 @@ describe('Campaign', () => {
 			const mechanic = campaign.recruitDriver({ archetype: 'mechanic' });
 			const owned = cardsOwned(campaign);
 
-			campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic, count: 5 });
+			campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic, count: 4 });
 
-			expect(cardCount(warrior.defaultDeck, 'ramming_speed')).toBe(0);
-			expect(cardCount(mechanic.defaultDeck, 'ramming_speed')).toBe(5);
+			expect(cardCount(warrior.defaultDeck, 'ramming_speed')).toBe(1);
+			expect(cardCount(mechanic.defaultDeck, 'ramming_speed')).toBe(4);
 			expect(cardsOwned(campaign)).toBe(owned);
 		});
 
