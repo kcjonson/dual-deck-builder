@@ -59,7 +59,7 @@ What falls out:
 
 **Root seeds are minted by `freshSeed()`.** It mints a seed for campaign founding, the Map Lab's new-seed button, and a fight given no stream, as `(Math.random() * 2^32) >>> 0`. It's the one place root seeds are minted, and the one `Math.random` read lint allows in game code. It reads `Math.random` on every call rather than caching it, so the screenshot harness's seeded `Math.random` reaches every stream derived from a root, a fight's reshuffles and AI picks included.
 
-**Nothing else in game code reads an unseeded source.** Lint bans `Math.random` and the crypto random calls across `src/renderer/game`, tests included, and `freshSeed` carries the one disable. Code the ban can't see, randomness reached through an import, takes an `Rng` instead. `Model` ids, which were random strings, are a count of the models built in the session (`Card_42`): they're runtime identity, never saved (the campaign's records carry their own ids), and they differ between loads, so nothing keys on them across one.
+**Nothing else in game code reads an unseeded source.** Lint bans `Math.random` and the crypto random calls across `src/renderer/game`, tests included, and `freshSeed` carries the one disable. Code the ban can't see, randomness reached through an import, takes an `Rng` instead. `Model` ids, which were random strings, are a count of the models built in the session (`Card_42`): they're runtime identity, never saved (the campaign's records carry their own ids). A load that builds the same models in the same order gets the same ids, but an id depends on everything the session built before it, so nothing uses one as a stable key.
 
 **How generation and the campaign use it.**
 

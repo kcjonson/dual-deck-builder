@@ -318,7 +318,7 @@ export class RoadView extends Component {
 		return this.id === null ? undefined : `${this.id}_${suffix}`;
 	}
 
-	/** Stable ids from the slot a vehicle arrives in: vehicle ids number every model built this session, so they differ per load, and slots are unique. */
+	/** Stable ids from the slot a vehicle arrives in: a vehicle's model id depends on everything the session built before it, and slots are unique. */
 	private createToken(vehicle: VehicleData, side: Side, slot: RoadSlot): RoadToken {
 		const view = new VehicleUI({
 			id: `${side}_vehicle_${slot.lane}_${slot.row}`,
