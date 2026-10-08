@@ -13,38 +13,18 @@ import { layoutLint } from '../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../engine/debug/treeSnapshot';
 import { tokens } from '../../engine/theme/tokens';
 import type { RGBA, Rect } from '../../engine/draw/geometry';
-import { Card as GameCard, CardData } from '../mechanics/Card';
 import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
-import cardsFile from '../data/cards.json';
 import { DRIVER_HP_COLOR, hexRgba } from '../screens/combat/combatStyle';
 import { MINI_GRID } from './Card';
 import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_MUTED_FILLS } from './cardStyle';
 import { DRIVER_CARD_INK, DRIVER_CARD_SIZE, DriverCard, DriverCardStatus } from './DriverCard';
 import { DriverInspectSurface, INSPECT_KEYS, inspectHotkey, inspectOnContextMenu, makeDriverInspectable } from './cardInspect';
-import { CardLookup } from './DriverDetailView';
 import { DriverCardData, driverCardData } from './driverCardData';
-
-const cardData = (cardsFile as unknown as { cards: CardData[] }).cards;
-const lookup: CardLookup = (type) => {
-	const data = cardData.find((entry) => entry.type === type);
-	return data ? new GameCard({ ...data }) : null;
-};
+import { RecordedDraw as Recorded, cardData, lookup, part, recordFrame } from './testing';
 
 const ARCHETYPES = Object.keys(DRIVER_CONFIGS) as DriverArchetype[];
 const STATUSES: readonly (DriverCardStatus | null)[] = [null, 'injured', 'lost', 'new', 'seat1', 'seat2'];
 const HP_FULL = hexRgba(DRIVER_HP_COLOR);
-
-interface Recorded {
-	kind: string;
-	id?: string | null;
-	text?: string;
-	rect?: Rect;
-	box?: Rect | null;
-	center?: { x: number; y: number };
-	radius?: number | readonly number[] | null;
-	border?: { color: RGBA; width: number } | null;
-	fill?: RGBA | null;
-}
 
 let measuring: ReturnType<typeof createMeasuringDrawApi>;
 let context: MountContext;
@@ -62,21 +42,8 @@ function mount(data: DriverCardData, options: { status?: DriverCardStatus | null
 	return card;
 }
 
-function part(card: DriverCard, suffix: string): Text {
-	const found = card.children.find((child) => child.id === `card_${suffix}`);
-	if (!(found instanceof Text)) throw new Error(`no ${suffix}`);
-	return found;
-}
-
 /** One frame of the card's drawing. */
-function frame(card: DriverCard): Recorded[] {
-	const { api, backend } = measuring;
-	context.frame.layout();
-	api.beginFrame({ viewport: { width: 400, height: 400 } });
-	renderTree(card, api);
-	api.endFrame();
-	return [...backend.commands] as unknown as Recorded[];
-}
+const frame = (card: DriverCard): Recorded[] => recordFrame({ root: card, context, measuring });
 
 const texts = (commands: Recorded[]): string[] => commands.flatMap((command) => (command.kind === 'text' && command.text ? [command.text] : []));
 const tagBoxes = (commands: Recorded[]): Rect[] => commands.flatMap((command) => (command.kind === 'rect' && command.rect && command.rect.y < 0 && command.rect.height === 13 ? [command.rect] : []));

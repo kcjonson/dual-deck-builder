@@ -7,7 +7,6 @@ import { createTestContext } from '../../engine/components/testing';
 import { advance, key, pointer, send } from '../../engine/services/testing';
 import type { MountContext } from '../../engine/components/MountContext';
 import { Card as GameCard, CardData } from '../mechanics/Card';
-import cardsFile from '../data/cards.json';
 import { CARD_LIFT, Card, CardSize, MINI_CARD_INK, MINI_GRID, MiniCardState, miniGridHeight, miniGridWidth } from './Card';
 import { KeywordText } from './KeywordText';
 import { Icon } from '../../engine/components/Icon';
@@ -15,24 +14,16 @@ import type { Component } from '../../engine/components/Component';
 import { DRIVER_COLORS, hexRgba } from '../screens/combat/combatStyle';
 import { layoutLint } from '../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../engine/debug/treeSnapshot';
-import { renderTree } from '../../engine/components/renderTree';
 import { Clock } from '../../engine/animation/Clock';
 import { tokens } from '../../engine/theme/tokens';
 import type { RGBA, Rect } from '../../engine/draw/geometry';
 import { CARD_DIM_FILLS, GEM_FILLS, scale } from './cardStyle';
 import { CardInspectSurface, inspectOnContextMenu, makeInspectable } from './cardInspect';
 import { Container } from '../../engine/components/Container';
+import { RecordedDraw as Recorded, cardData, part, recordFrame } from './testing';
 
 // Lays out every card face at both sizes; the 5 s default fails under a loaded machine.
 jest.setTimeout(30_000);
-
-const cardData = (cardsFile as unknown as { cards: CardData[] }).cards;
-
-function part(card: Card, suffix: string): Text {
-	const found = card.children.find((child) => child.id === `card_${suffix}`);
-	if (!(found instanceof Text)) throw new Error(`no ${suffix}`);
-	return found;
-}
 
 let context: MountContext;
 
@@ -335,17 +326,6 @@ describe('Card layout lint (DDB-91)', () => {
 });
 
 describe('Mini card (Game Flow 7.0)', () => {
-	interface Recorded {
-		kind: string;
-		id?: string | null;
-		text?: string;
-		rect?: Rect;
-		box?: Rect | null;
-		points?: readonly { x: number; y: number }[];
-		border?: { color: RGBA; width: number } | null;
-		fill?: RGBA | null;
-	}
-
 	let measuring: ReturnType<typeof createMeasuringDrawApi>;
 
 	beforeAll(() => {
@@ -362,14 +342,7 @@ describe('Mini card (Game Flow 7.0)', () => {
 	}
 
 	/** One frame of the card's drawing, as it stands on the shared context. */
-	function frame(card: Card): Recorded[] {
-		const { api, backend } = measuring;
-		context.frame.layout();
-		api.beginFrame({ viewport: { width: 200, height: 200 } });
-		renderTree(card, api);
-		api.endFrame();
-		return [...backend.commands] as unknown as Recorded[];
-	}
+	const frame = (card: Card): Recorded[] => recordFrame({ root: card, context, measuring, viewport: { width: 200, height: 200 } });
 
 	const isTag = (text: string): boolean => text === 'HOME' || text === 'LOCKED' || text.startsWith('+');
 
