@@ -15,6 +15,7 @@ What a reveal shows is what the component draws in its current state. `Component
 - Button, Select, and TextInput answer `restingInkExtent` from their look layers: layer 6's ring outside the box while focus shows, and the base's own shadow. Never a glow or a press nudge.
 - Checkbox, Toggle, and Radio answer the same from the mark's layers; the walk adds the ring round the row.
 - A segment of a segmented control draws its ring inside its box and answers its box; its selected chip's glow is left out as a look's glow is.
+- A slider answers its box too: its thumb stays inside it, the thumb's glow is left out the same way, and the walk adds the ring.
 - List rows, tabs, and the tree view draw their ring inside and have no ink, so the default already answers their box.
 
 The union never adds one ring to another: a card's 7 or 9 px of static ink already holds the 3 px ring it draws itself. A component with no bound (an unmeasured `Text`, a draw fixture) reveals its box.

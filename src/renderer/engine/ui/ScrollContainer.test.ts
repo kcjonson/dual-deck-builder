@@ -26,6 +26,7 @@ import { SegmentedControl } from './SegmentedControl';
 import { Select } from './Select';
 import { TextInput } from './TextInput';
 import { SCROLLBAR_BREADTH, SCROLLBAR_GUTTER, Scrollbar } from './Scrollbar';
+import { Slider } from './Slider';
 import { ScrollBlock, ScrollContainer, ScrollContainerOptions, Span, revealDelta } from './ScrollContainer';
 
 /**
@@ -1003,6 +1004,21 @@ describe('ScrollContainer scrollIntoView shows what a component draws (R12.20, D
 		const resting = scroll.scrollPosition;
 		context.focus.focus(chip, 'keyboard');
 		expect(scroll.scrollPosition).toBe(resting);
+	});
+
+	it("leaves a slider 4 px above the clip's bottom where it is: the walk's ring fits and its thumb's glow isn't counted", () => {
+		const slider = new Slider({ size: 'md' });
+		expect(slider.inkExtent).toBeGreaterThan(4);
+		const scroll = controlIn(slider, 100 - 4 - slider.height);
+		context.focus.focus(slider, 'keyboard');
+		expect(slider.drawsOwnFocusRing).toBe(false);
+		expect(scroll.scrollPosition).toBe(0);
+		// 2 px above it, the ring's last pixel scrolls in
+		context.focus.blur();
+		slider.setPosition(10, 100 - 2 - slider.height);
+		context.frame.layout();
+		context.focus.focus(slider, 'keyboard');
+		expect(scroll.scrollPosition).toBe(FOCUS_RING_EXTENT - 2);
 	});
 });
 
