@@ -204,4 +204,26 @@ describe('Deck Reshuffling', () => {
 		expect(deal(1)).toEqual(deal(1));
 		expect(deal(1)).not.toEqual(deal(2));
 	});
+
+	test('shuffles a copy, so listeners hear it and an earlier read keeps its order', () => {
+		const deck = new Deck('test', 'Test Deck', testCards);
+		const before = deck.cards;
+		const snapshot = deck.getState().cards;
+		const order = before.map(c => c.name);
+		const cardsChanged = jest.fn();
+		const changed = jest.fn();
+		deck.on('cards', cardsChanged);
+		deck.on('change', changed);
+
+		// Rng.shuffle works in place; shuffling the deck's own array would move
+		// the earlier reads and leave the setter nothing new to announce
+		deck.shuffle(new Rng({ seed: 1 }));
+
+		expect(cardsChanged).toHaveBeenCalledTimes(1);
+		expect(changed).toHaveBeenCalledTimes(1);
+		expect(deck.cards).not.toBe(before);
+		expect(deck.cards.map(c => c.name)).not.toEqual(order);
+		expect(before.map(c => c.name)).toEqual(order);
+		expect(snapshot.map(c => c.name)).toEqual(order);
+	});
 });
