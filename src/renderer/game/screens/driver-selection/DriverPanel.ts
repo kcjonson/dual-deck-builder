@@ -20,9 +20,11 @@ export interface DriverPanelOptions extends StackOptions {
 
 /**
  * Every deck takes two rows' height, the most an unlocked driver's starting
- * deck needs from 1024 wide up, so the two panels lay out alike whichever
- * pair is picked: a four-card deck beside a six-card one would otherwise
- * leave one panel's portrait and name higher than the other's.
+ * deck needs from 1024 wide up, so both decks take the same height for any
+ * pair: a four-card deck beside a six-card one would otherwise put one
+ * panel's portrait and name a row higher than the other's. The flavour text
+ * can still run a line longer for one driver and move that panel's name;
+ * load out (DDB-320) replaces this screen.
  */
 const DECK_ROWS = 2;
 /** The least the scrolling part shrinks to: a mini card and its ink, so it never closes up. */

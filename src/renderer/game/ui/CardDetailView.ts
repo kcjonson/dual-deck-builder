@@ -63,8 +63,13 @@ export const KEYWORD_PANEL = {
 /** Inside the border and padding, as the mock's border-box lays it out. */
 const INSET = { top: DETAIL.border + DETAIL.pad.top, side: DETAIL.border + DETAIL.pad.side, bottom: DETAIL.border + DETAIL.pad.bottom };
 const INNER_WIDTH = DETAIL.width - INSET.side * 2;
-/** The mock's `0 16px 40px rgba(0,0,0,0.8)`, lifting the view off the road. */
-const DETAIL_SHADOW: BoxShadow = { offset: { x: 0, y: 16 }, blur: 40, color: [0, 0, 0, 0.8] };
+/** The mock's `0 16px 40px rgba(0,0,0,0.8)`, lifting the view off the road; a driver's detail view takes it too. */
+export const DETAIL_SHADOW: BoxShadow = { offset: { x: 0, y: 16 }, blur: 40, color: [0, 0, 0, 0.8] };
+
+/** What a detail view's foot says about pinning: how to, or that it is. */
+export function pinHint(pinned: boolean): string {
+	return pinned ? 'PINNED' : 'RMB / I: PIN';
+}
 
 export interface CardDetailViewOptions {
 	id?: string;
@@ -175,7 +180,7 @@ export class CardDetailView extends Component {
 		});
 		this.pinLabel = new Text({
 			id: childId('pin'),
-			text: pinned ? 'PINNED' : 'RMB / I: PIN',
+			text: pinHint(pinned),
 			height: DETAIL.foot.height,
 			style: { fontRole: 'mono', fontSize: DETAIL.foot.size, color: CARD_MUTED, letterSpacing: 0.06 },
 			lineHeight: DETAIL.foot.height / DETAIL.foot.size,
@@ -392,6 +397,11 @@ export class CardInspectView extends Component {
 	/** The detail view's left edge within this view, which the inspector centres on the card. */
 	public get detailX(): number {
 		return this.detail.x;
+	}
+
+	/** The detail view's middle within this view, which a surface shrunk into its room keeps over the card. */
+	public get overCardX(): number {
+		return this.detail.x + DETAIL.width / 2;
 	}
 
 	protected layoutChildren(): void {

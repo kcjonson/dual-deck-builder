@@ -14,7 +14,7 @@ import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { DriverLoader } from '../../core/DriverLoader';
 import { Driver } from '../../mechanics/Driver';
 import { isSameDriver } from '../../mechanics/DriverPair';
-import { Card as UICard, CardSize } from '../../ui/Card';
+import { Card as UICard, CardSize, miniGridHeight } from '../../ui/Card';
 import { CardInspectSurface } from '../../ui/cardInspect';
 import { advance, pointer, send } from '../../../engine/services/testing';
 import { tokens } from '../../../engine/theme/tokens';
@@ -380,6 +380,30 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		expect(left.deckPreview.height).toBeCloseTo(right.deckPreview.height, 5);
 		expect(left.deckPreview.maxScroll).toBe(0);
 		expect(right.deckPreview.maxScroll).toBe(0);
+	});
+
+	// Both panels reserve two rows of minis, the most an unlocked driver's
+	// deck needs from 1024 wide up. A deck with a seventh kind of card would
+	// need a third row there and put its panel's name out of line again.
+	it('fits every unlocked driver\'s deck in the two rows its panel reserves at 1024x768', async () => {
+		viewportSize = { width: 1024, height: 768 };
+		const { screen, left, right } = await mountScreen();
+		screen.resize(1024, 768);
+		context.frame.layout();
+
+		for (const driver of rosterDrivers) {
+			// The right panel's driver can't be picked on the left, so it's read where it is
+			const onRight = right.selectedDriver !== null && isSameDriver(right.selectedDriver, driver);
+			const panel = onRight ? right : left;
+			if (!onRight) left.selectDriver(driver.archetype);
+			await flushPromises();
+			context.frame.layout();
+
+			expect(panel.selectedDriver?.archetype).toBe(driver.archetype);
+			expect(findAll(panel.deckPreview, UICard)).toHaveLength(driver.startingDeck.cards.length);
+			const grid = findById(panel, `driver_panel_${onRight ? 'right' : 'left'}_deck_cards`);
+			expect([driver.archetype, grid?.height]).toEqual([driver.archetype, miniGridHeight(2)]);
+		}
 	});
 
 	it('builds one starting deck preview when selections overlap a card load', async () => {

@@ -1,7 +1,9 @@
-import type { DrawPolygonOptions } from '../../engine/draw/commands';
+import type { DrawPolygonOptions, DrawRectOptions } from '../../engine/draw/commands';
 import type { RGBA, Vec2 } from '../../engine/draw/geometry';
 import { triangulatePolygon } from '../../engine/draw';
+import { ColorValue, resolveColor } from '../../engine/style/styleObject';
 import type { IconName } from '../../engine/text/icons';
+import { tokens } from '../../engine/theme/tokens';
 import type { Card as GameCard, CardRarity } from '../mechanics/Card';
 import { DRIVER_COLORS, hexRgba } from '../screens/combat/combatStyle';
 
@@ -105,25 +107,74 @@ export interface ToneFills {
 	dimmed: RGBA;
 }
 
-function tones(hex: string): ToneFills {
-	const full = hexRgba(hex);
+/** A colour at full strength and darkened as a dimmed card's own draws take it. */
+export function toneFills(color: ColorValue): ToneFills {
+	// A copy, since a token resolves to the theme's own array
+	const full: RGBA = [...resolveColor(color)];
 	return { full, dimmed: scale(full, DIM_BRIGHTNESS) };
 }
 
-export const COST_HEX_FILLS = tones(COST_HEX);
+/** A `#rrggbb` text colour at full strength and as a faded card's words take it (the mock's `.cant`). */
+export function textTones(hex: string): ToneFills {
+	return { full: resolveColor(hex), dimmed: resolveColor(dimHex(hex)) };
+}
+
+export const COST_HEX_FILLS = toneFills(COST_HEX);
 export const COST_HEX_EDGE_FILL: RGBA = hexRgba(COST_HEX_EDGE);
-export const CARD_GROUND_FILLS = tones(CARD_GROUND);
-export const CARD_MUTED_FILLS = tones(CARD_MUTED);
-export const CARD_DIM_FILLS = tones(CARD_DIM);
+export const CARD_GROUND_FILLS = toneFills(CARD_GROUND);
+export const CARD_MUTED_FILLS = toneFills(CARD_MUTED);
+export const CARD_DIM_FILLS = toneFills(CARD_DIM);
 export const GEM_FILLS: Readonly<Record<CardRarity, ToneFills>> = {
-	starter: tones(RARITY_GEMS.starter),
-	common: tones(RARITY_GEMS.common),
-	uncommon: tones(RARITY_GEMS.uncommon),
-	rare: tones(RARITY_GEMS.rare),
-	legendary: tones(RARITY_GEMS.legendary),
-	signature: tones(RARITY_GEMS.signature),
+	starter: toneFills(RARITY_GEMS.starter),
+	common: toneFills(RARITY_GEMS.common),
+	uncommon: toneFills(RARITY_GEMS.uncommon),
+	rare: toneFills(RARITY_GEMS.rare),
+	legendary: toneFills(RARITY_GEMS.legendary),
+	signature: toneFills(RARITY_GEMS.signature),
 };
-export const DRIVER_MARK_FILLS: Readonly<Record<1 | 2, ToneFills>> = { 1: tones(DRIVER_COLORS[1]), 2: tones(DRIVER_COLORS[2]) };
+export const DRIVER_MARK_FILLS: Readonly<Record<1 | 2, ToneFills>> = { 1: toneFills(DRIVER_COLORS[1]), 2: toneFills(DRIVER_COLORS[2]) };
+
+/** Hover and keyboard focus outline a card in the interaction yellow (Battle Screen Design, section 7). */
+export const HOVER_OUTLINE: RGBA = [...tokens.color.accent];
+/** A selected card's yellow: a play card's frame, a driver card's ring. */
+export const SELECTED_OUTLINE: RGBA = [...tokens.color.accent_bright];
+
+/**
+ * A ring outside a `width` by `height` box, `offset` clear of its edge and
+ * `thickness` wide, in `color`, built once for its owner to draw.
+ */
+export function outsideRingDraw({ id, width, height, offset, thickness, color }: {
+	id?: string;
+	width: number;
+	height: number;
+	offset: number;
+	thickness: number;
+	color: RGBA;
+}): DrawRectOptions {
+	return {
+		id,
+		rect: { x: -offset, y: -offset, width: width + offset * 2, height: height + offset * 2 },
+		radius: tokens.radius.radius_ui + offset,
+		// A rect with no fill is white (R2.8's default); a ring is border only.
+		fill: [0, 0, 0, 0],
+		border: { color, width: thickness, position: 'outside' },
+	};
+}
+
+/**
+ * The render walk's fallback focus ring (R11.12's sixth layer, the same
+ * tokens), for a card that draws its own so its hex and tags sit on top.
+ */
+export function focusRingDraw({ id, width, height }: { id?: string; width: number; height: number }): DrawRectOptions {
+	return outsideRingDraw({
+		id: id !== undefined ? `${id}.focus_ring` : undefined,
+		width,
+		height,
+		offset: tokens.control.focus_ring_offset,
+		thickness: tokens.control.focus_ring_width,
+		color: tokens.color.accent,
+	});
+}
 
 /** How far a cost hex `size` across draws its outline past its box, on every side. */
 export function costHexInk(size: number): number {
