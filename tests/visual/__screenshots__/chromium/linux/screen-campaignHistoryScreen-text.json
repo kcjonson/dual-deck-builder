@@ -1,0 +1,5 @@
+[
+{"path":"campaignHistoryScreen/history_title","text":"Campaign History","rect":[562.93,326.37,314.13,62.4]},
+{"path":"campaignHistoryScreen/history_panel/history_scroll/history_list/history_empty","text":"No campaign has ended yet. One is listed here when its compound falls, it is won, or a new campaign replaces it.","rect":[436,428.77,568,40.85]},
+{"path":"campaignHistoryScreen/history_back_button/Text[0]","text":"Back","rect":[659,509.63,149,46]}
+]
