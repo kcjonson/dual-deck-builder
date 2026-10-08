@@ -38,7 +38,7 @@ describe('campaign-start.json', () => {
 	it.each([
 		['an unknown field', (json: StartJson) => { json.weather = 'clear'; }, 'CampaignStart has an unknown field "weather"'],
 		['no pool size', (json: StartJson) => { delete json.poolSize; }, 'CampaignStart.poolSize is missing'],
-		['a pool of none', (json: StartJson) => { json.poolSize = 0; }, 'CampaignStart.poolSize must be an integer >= 1, got 0'],
+		['a pool of one, which could never send out a run', (json: StartJson) => { json.poolSize = 1; }, 'CampaignStart.poolSize must be an integer >= 2, got 1'],
 		['a pool size in a string', (json: StartJson) => { json.poolSize = '4'; }, 'CampaignStart.poolSize must be a number, got "4"'],
 		['no stores', (json: StartJson) => { delete json.resources; }, 'CampaignStart.resources is missing'],
 		['a store missing', (json: StartJson) => { delete stores(json).meds; }, 'CampaignStart.resources.meds is missing'],

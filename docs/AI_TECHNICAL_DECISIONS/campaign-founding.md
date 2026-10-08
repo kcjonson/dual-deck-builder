@@ -22,7 +22,7 @@ const campaign = foundCampaign({
 });
 ```
 
-- Everything is checked before anything is built, so a bad call throws and founds nothing: a seed that isn't a uint32, params made from another seed, nothing unlocked, or a start that doesn't read.
+- Everything is checked before anything is built, so a bad call throws and founds nothing: a seed that isn't a uint32, params made from another seed, fewer than two archetypes unlocked, or a start that doesn't read.
 
 Reading `DriverLoader` inside founding was rejected. It would make founding async and tie it to the singleton's load state: an unloaded loader hands out no drivers, which would found a compound with nobody in it.
 
@@ -45,14 +45,14 @@ The spec deals four drivers from the unlocked archetypes, no two alike. Founding
 - `dealStartingPool({ seed, unlockedArchetypes, size })` drops repeats, sorts the unlocked archetypes by id, shuffles them on `new Rng({ seed }).fork('founding').fork('pool')`, and takes the first `size`. Sorting first means neither the order they're passed in nor the order of `DRIVER_CONFIGS` moves a seed's deal; unlocking an archetype moves every seed's.
 - The dealt order is the order they join, so `driver-1` is the first one dealt.
 - Fewer unlocked archetypes than the pool size deals all of them, one each. Only three are unlocked today (the Raider waits on "Complete a run with any driver"), so every new campaign starts with a Road Warrior, an Interceptor, and a Mechanic, in an order the seed deals.
-- Nothing unlocked throws: a compound with nobody in it has already fallen.
+- Fewer than two different archetypes unlocked throws. A run takes two drivers, no two alike (`PLAYER_DRIVEN_VEHICLES`), and the pool only grows on runs, through Find: driver stops, so a compound founded with one driver could never leave. `dealStartingPool` on its own stays a plain deal, which takes one archetype and refuses only none.
 - Each archetype is recruited with `Campaign.recruitDriver`, so the ids, the names ("Road Warrior 1"), max HP, the hand limit, and the archetype's starting deck as the default deck all come from the model.
 
 Founding draws on a stream of its own, `root.fork('founding')`, forked again per purpose, so it never shares draws with the map's `params` and `map` streams, and a later founding draw (rolled driver names, say) takes another fork without moving the deal. Founding happens once a campaign, so its fork takes no counter, unlike `recruit` for a Find: driver.
 
 ## Starting values in a data file
 
-`data/campaign-start.json` holds what the compound starts with. `readCampaignStart` checks it as `CampaignStart.ts` loads, so a bad edit fails straight away, the way the map presets load. The reader is as strict as a save's: exactly its fields, a pool of at least 1, every store a whole number from 0, escorts of the four hired types and no more than four of them. Every value is a starting point for tuning:
+`data/campaign-start.json` holds what the compound starts with. `readCampaignStart` checks it as `CampaignStart.ts` loads, so a bad edit fails straight away, the way the map presets load. The reader is as strict as a save's: exactly its fields, a pool of at least two, the drivers a run takes, every store a whole number from 0, escorts of the four hired types and no more than four of them. Every value is a starting point for tuning:
 
 | Value | Start | Why |
 | --- | --- | --- |

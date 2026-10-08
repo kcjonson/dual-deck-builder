@@ -84,7 +84,7 @@ The compound can always send a scavenging party on foot: it costs a day and retu
 
 ## The driver pool
 
-- The campaign starts with a pool of four drivers, dealt from the unlocked archetypes with no duplicates. With fewer than four unlocked, it starts with one of each.
+- The campaign starts with a pool of four drivers, dealt from the unlocked archetypes with no duplicates. With fewer than four unlocked, it starts with one of each; it needs at least two, since a run takes two.
 - A run takes two. The no-duplicate pair rule still holds for the pair; the pool itself can hold two of an archetype once finds add drivers.
 - Drivers persist across runs, and so do their decks (see Decks and the locker).
 - Driver HP carries between fights on a run, as it does now. A driver who comes home hurt is injured and heals over days in the infirmary.

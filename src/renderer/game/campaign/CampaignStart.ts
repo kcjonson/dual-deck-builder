@@ -1,6 +1,6 @@
 import campaignStartFile from '../data/campaign-start.json';
 import { ESCORT_CONFIGS, EscortType } from '../mechanics/Escort';
-import { MAX_CONVOY_ESCORTS } from '../mechanics/Team';
+import { MAX_CONVOY_ESCORTS, PLAYER_DRIVEN_VEHICLES } from '../mechanics/Team';
 import { NO_RESOURCES, Resources } from './Campaign';
 import { readArray, readFields, readInteger, readOneOf } from './JsonReader';
 
@@ -10,7 +10,10 @@ import { readArray, readFields, readInteger, readOneOf } from './JsonReader';
  * change. Every value is a starting point for tuning.
  */
 export interface CampaignStart {
-	/** Drivers dealt into the starting pool, each a different archetype. Fewer are dealt when fewer archetypes are unlocked. */
+	/**
+	 * Drivers dealt into the starting pool, each a different archetype, and at
+	 * least the two a run takes. Fewer are dealt when fewer archetypes are unlocked.
+	 */
 	poolSize: number;
 	/** The compound's stores on day 1. */
 	resources: Readonly<Resources>;
@@ -23,10 +26,10 @@ const RESOURCE_NAMES = Object.keys(NO_RESOURCES) as readonly (keyof Resources)[]
 const ESCORT_TYPES = Object.keys(ESCORT_CONFIGS) as readonly EscortType[];
 
 /**
- * Starting values checked: exactly these fields, a pool of at least one,
- * every store a whole number from 0, and escorts of types the garage hires,
- * no more than the convoy holds. Errors name the path, as a save's do. Comes
- * back frozen.
+ * Starting values checked: exactly these fields, a pool big enough for a
+ * run, every store a whole number from 0, and escorts of types the garage
+ * hires, no more than the convoy holds. Errors name the path, as a save's
+ * do. Comes back frozen.
  */
 export function readCampaignStart(value: unknown, path: string): CampaignStart {
 	const fields = readFields(value, path, FIELDS);
@@ -38,7 +41,7 @@ export function readCampaignStart(value: unknown, path: string): CampaignStart {
 		throw new RangeError(`${path}.escorts must hold at most ${MAX_CONVOY_ESCORTS}, as many as the convoy takes, got ${escorts.length}`);
 	}
 	return Object.freeze({
-		poolSize: readInteger(fields.poolSize, `${path}.poolSize`, { min: 1 }),
+		poolSize: readInteger(fields.poolSize, `${path}.poolSize`, { min: PLAYER_DRIVEN_VEHICLES }),
 		resources: Object.freeze(resources),
 		escorts: Object.freeze(escorts.map((type, index) => readOneOf(type, `${path}.escorts[${index}]`, ESCORT_TYPES)))
 	});

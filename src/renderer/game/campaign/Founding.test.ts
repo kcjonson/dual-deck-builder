@@ -146,8 +146,18 @@ describe('foundCampaign', () => {
 			}
 		});
 
-		it('refuses to found a compound with nothing unlocked', () => {
-			expect(() => found({ unlockedArchetypes: [] })).toThrow("unlockedArchetypes is empty, so there's nobody to found a compound with");
+		it('founds with two archetypes unlocked, enough for a run', () => {
+			expect(archetypesOf(found({ unlockedArchetypes: ['raider', 'mechanic'], start: FOUR })).sort()).toEqual(['mechanic', 'raider']);
+		});
+
+		it.each([
+			['nothing', [], 0],
+			['one archetype', ['mechanic'], 1],
+			['one archetype twice', ['mechanic', 'mechanic'], 1]
+		] as const)('refuses to found a compound with %s unlocked, which could never send out a run', (_label, unlockedArchetypes, count) => {
+			expect(() => found({ unlockedArchetypes })).toThrow(
+				`unlockedArchetypes must hold at least 2 different archetypes, since a run takes 2 drivers and no two alike, got ${count}`
+			);
 		});
 	});
 
@@ -190,7 +200,7 @@ describe('foundCampaign', () => {
 		});
 
 		it('checks the start it\'s given', () => {
-			expect(() => found({ start: { ...CAMPAIGN_START, poolSize: 0 } })).toThrow('CampaignStart.poolSize must be an integer >= 1, got 0');
+			expect(() => found({ start: { ...CAMPAIGN_START, poolSize: 1 } })).toThrow('CampaignStart.poolSize must be an integer >= 2, got 1');
 			expect(() => found({ start: { ...CAMPAIGN_START, resources: { ...CAMPAIGN_START.resources, fuel: -2 } } }))
 				.toThrow('CampaignStart.resources.fuel must be an integer >= 0, got -2');
 		});
@@ -270,6 +280,10 @@ describe('dealStartingPool', () => {
 		} finally {
 			random.mockRestore();
 		}
+	});
+
+	it('refuses to deal from nothing', () => {
+		expect(() => deal({ unlockedArchetypes: [] })).toThrow("unlockedArchetypes is empty, so there's nothing to deal");
 	});
 
 	it('rejects an archetype that doesn\'t exist', () => {

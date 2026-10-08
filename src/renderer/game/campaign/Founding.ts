@@ -5,6 +5,7 @@ import { rollParams } from '../map/RollParams';
 import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
 import { createEscort } from '../mechanics/Escort';
+import { PLAYER_DRIVEN_VEHICLES } from '../mechanics/Team';
 import { Campaign } from './Campaign';
 import { CAMPAIGN_START, CampaignStart, readCampaignStart } from './CampaignStart';
 import { DRIVER_ARCHETYPES } from './DriverRecord';
@@ -53,13 +54,19 @@ export interface FoundingOptions {
  * campaign, and nothing in it comes from `Math.random`.
  *
  * Throws, founding nothing, on a seed that isn't a uint32, params made from
- * another seed, nothing unlocked, or a start that doesn't check out.
+ * another seed, a start that doesn't check out, or fewer than two
+ * archetypes unlocked: a run takes two drivers, no two alike, and the pool
+ * only grows on runs, so a compound founded with one could never leave.
  */
 export function foundCampaign({ seed, unlockedArchetypes, mapParams, start = CAMPAIGN_START }: FoundingOptions): Campaign {
 	readSeed(seed);
 	const startingValues = readCampaignStart(start, 'CampaignStart');
 	const params = foundingParams({ seed, set: mapParams });
-	const pool = dealStartingPool({ seed, unlockedArchetypes, size: startingValues.poolSize });
+	const unlocked = readUnlocked(unlockedArchetypes);
+	if (unlocked.length < PLAYER_DRIVEN_VEHICLES) {
+		throw new RangeError(`unlockedArchetypes must hold at least ${PLAYER_DRIVEN_VEHICLES} different archetypes, since a run takes ${PLAYER_DRIVEN_VEHICLES} drivers and no two alike, got ${unlocked.length}`);
+	}
+	const pool = deal({ seed, unlocked, size: startingValues.poolSize });
 
 	// The area map generator's call goes here: it makes the gameplay map from
 	// the seed and `params` (Area Map Generation, Pipeline), and the campaign
@@ -89,7 +96,8 @@ export function foundCampaign({ seed, unlockedArchetypes, mapParams, start = CAM
  * unlocked archetypes on the `pool` fork of the seed's `founding` stream and
  * takes the first `size`. It starts from them sorted by id, so neither the
  * order they're passed in, a repeat, nor the order of `DRIVER_CONFIGS`
- * changes a seed's deal. Throws when nothing is unlocked.
+ * changes a seed's deal. A plain deal: it takes a single archetype, and
+ * throws only when nothing is unlocked. Founding asks for two.
  */
 export function dealStartingPool({ seed, unlockedArchetypes, size }: {
 	seed: number;
@@ -97,13 +105,21 @@ export function dealStartingPool({ seed, unlockedArchetypes, size }: {
 	size: number;
 }): DriverArchetype[] {
 	readSeed(seed);
-	readArray(unlockedArchetypes, 'unlockedArchetypes').forEach((archetype, index) => {
-		readOneOf(archetype, `unlockedArchetypes[${index}]`, DRIVER_ARCHETYPES);
-	});
+	const unlocked = readUnlocked(unlockedArchetypes);
 	readInteger(size, 'size', { min: 1 });
-	const unlocked = [...new Set(unlockedArchetypes)].sort();
-	if (unlocked.length === 0) throw new RangeError("unlockedArchetypes is empty, so there's nobody to found a compound with");
-	return new Rng({ seed }).fork('founding').fork('pool').shuffle(unlocked).slice(0, size);
+	if (unlocked.length === 0) throw new RangeError("unlockedArchetypes is empty, so there's nothing to deal");
+	return deal({ seed, unlocked, size });
+}
+
+/** The unlocked archetypes checked, without repeats, and sorted by id: what the deal starts from. */
+function readUnlocked(value: readonly DriverArchetype[]): DriverArchetype[] {
+	const archetypes = readArray(value, 'unlockedArchetypes')
+		.map((archetype, index) => readOneOf(archetype, `unlockedArchetypes[${index}]`, DRIVER_ARCHETYPES));
+	return [...new Set(archetypes)].sort();
+}
+
+function deal({ seed, unlocked, size }: { seed: number; unlocked: readonly DriverArchetype[]; size: number }): DriverArchetype[] {
+	return new Rng({ seed }).fork('founding').fork('pool').shuffle([...unlocked]).slice(0, size);
 }
 
 /** Rolled from the seed, or the set given, filled out and validated: what generation runs on. */
