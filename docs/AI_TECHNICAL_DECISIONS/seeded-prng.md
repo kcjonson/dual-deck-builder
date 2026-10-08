@@ -61,6 +61,7 @@ What falls out:
 
 - One root per campaign, `new Rng({ seed: campaignSeed })`.
 - The parameters roll from `root.fork('params')`.
+- Founding draws from `root.fork('founding')`, forked again per purpose: the starting pool deals from `root.fork('founding').fork('pool')` ([campaign-founding.md](./campaign-founding.md)). Founding happens once a campaign, so it takes no counter.
 - Each stage draws from `root.fork('map', mapAttempt).fork(stage, stageAttempt)`, and forks again from that for any sub-stream rather than sharing one. A whole-map restart moves to the next map attempt, so it never replays streams that already failed. Neither attempt cap (8 a stage, 32 a map) is hashed into any stream, so changing one moves only the seeds that reach it; those seeds do make different maps, and a cap change needs a generator version bump.
 - A stop's contents roll from ``root.fork(`stop:${id}`, rollCount)``.
 - Campaign-time draws fork a fresh stream per event from a persisted counter, `root.fork('recruit', n)` or `run.fork('fight', i)`. A long-lived stream never crosses a save: a stream rebuilt from its seed replays from draw 0, so a campaign drawing driver ids from one stream would issue duplicate ids after a load. No stream is saved mid-sequence, and `Rng` has no way to save one.
