@@ -10,10 +10,10 @@ import cardsFile from '../data/cards.json';
 
 const cardData = (cardsFile as unknown as { cards: CardData[] }).cards;
 
-const realCard = (type: string): Card => {
+const realCard = (type: string, upgraded = false): Card => {
 	const data = cardData.find(candidate => candidate.type === type);
 	if (!data) throw new Error(`No card ${type} in cards.json`);
-	return new Card({ ...data, upgraded: false });
+	return new Card({ ...data, upgraded });
 };
 
 const card = (name: string, targetType: TargetType, effects: CardEffect[]): Card => new Card({
@@ -196,6 +196,22 @@ describe('Effect targets', () => {
 
 			expect(driverOf(buggy).hitpoints).toBe(97);
 			expect([rig, bike, truck].map(vehicle => driverOf(vehicle).hitpoints)).toEqual([100, 100, 100]);
+		});
+	});
+
+	describe('Nitro Boost', () => {
+		test.each([
+			['upgraded by upgrade()', (): Card => realCard('nitro_boost').upgrade()],
+			['built upgraded', (): Card => realCard('nitro_boost', true)]
+		])('%s, it draws the 3 cards its text says', (_label, upgradedNitro) => {
+			const nitro = upgradedNitro();
+			giveHand(rig, [nitro]);
+			driverOf(rig).deck?.addCards([slipstream(), slipstream(), slipstream(), slipstream()]);
+
+			expect(battle.playCard({ driver: driverOf(rig), cardIndex: 0 })).toBe(true);
+
+			expect(nitro.displaySummary).toContain('Draw 3.');
+			expect(driverOf(rig).hand).toHaveLength(3);
 		});
 	});
 
