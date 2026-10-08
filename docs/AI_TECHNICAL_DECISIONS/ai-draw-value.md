@@ -34,6 +34,6 @@ What hand the draw counts against:
 
 - An AI still plays a draw card for its other effects when the draw burns. Nitro Boost's speed keeps it worth playing at the limit.
 - A raider values a draw by the room in its hand, though its mid-turn draws go unplayed ([enemy-intent-planning.md](./enemy-intent-planning.md), smaller calls). Whether raiders should value draws at all is DDB-421's question.
-- A plan's later draw is estimated without the cards its earlier draws kept, so a raider that plans two draws can count room the first one filled. With today's cards it can't: a raider holds five, with two Nitro Boosts at most, under a limit of 7.
+- A plan's later draw is estimated without the cards its earlier draws kept, so a raider that plans two draws can count room the first one filled. With today's cards it can't: a raider holds five, with two Nitro Boosts at most, drawing 2 each, under a limit of 7, and no raider holds an upgraded card. Two upgraded Nitro Boosts (3 each) would: the second keeps 1 where the estimate counts 3.
 - The deck isn't counted. A draw keeps at most what's left to draw: the deck, then the discard reshuffled, which by then holds the played card unless it exhausts, so a draw card can draw itself back. The AIs value a draw by the room in the hand alone.
-- An upgraded Nitro Boost's text says it draws 3, but the card has no upgrade data, so it draws 2 and the AIs count 2.
+
