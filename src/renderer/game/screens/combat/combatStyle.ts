@@ -18,6 +18,12 @@ export const DRIVER_COLORS: Readonly<Record<DriverSeat, string>> = {
 	2: '#3cc3c9',
 };
 
+/**
+ * A driver's HP, the mock's pink-red: their bar on the road and on their
+ * driver card, since you lose when drivers die.
+ */
+export const DRIVER_HP_COLOR = '#e7727a';
+
 /** A `#rrggbb` colour as RGBA floats, at `alpha`. */
 export function hexRgba(hex: string, alpha = 1): Rgba {
 	const value = parseInt(hex.slice(1), 16);
