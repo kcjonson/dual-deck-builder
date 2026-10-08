@@ -7,8 +7,9 @@ import type { RGBA, Rect } from '../../engine/draw/geometry';
 import type { AnyUiEvent } from '../../engine/input/events';
 import { resolveColor } from '../../engine/style/styleObject';
 import { tokens } from '../../engine/theme/tokens';
+import { totalCards } from '../campaign/CardCounts';
 import { CARD_GROUND_FILLS, CARD_MUTED, CARD_NAME, CARD_RULES, dimHex } from './cardStyle';
-import { DriverCardData, driverDeckSize } from './driverCardData';
+import type { DriverCardData } from './driverCardData';
 import {
 	FRAME_LINE_FILLS,
 	HpBarDraws,
@@ -258,7 +259,7 @@ export class DriverCard extends Component {
 		this.specialty.text = data.note ?? data.specialty;
 		this.hpFigures.text = `${data.hitpoints}/${data.maxHitpoints}`;
 		this.hand.text = `HAND ${data.handLimit}`;
-		this.deck.text = `DECK ${driverDeckSize(data.deck)}`;
+		this.deck.text = `DECK ${totalCards(data.deck)}`;
 		const filled = hpBarFilled(this.hpBar);
 		placeHpBar(this.hpBar, HP_BAR, hpFraction(data));
 		// An empty bar leaves its fill out, so the draws change with it

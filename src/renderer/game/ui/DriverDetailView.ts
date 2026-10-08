@@ -5,11 +5,12 @@ import type { DrawRectOptions } from '../../engine/draw/commands';
 import type { Rect } from '../../engine/draw/geometry';
 import { resolveColor } from '../../engine/style/styleObject';
 import { shadowExtent } from '../../engine/style/look';
+import { CardCounts, totalCards } from '../campaign/CardCounts';
 import type { Card as GameCard } from '../mechanics/Card';
 import { Card as UICard, CardSize, MINI_GRID, miniGridHeight } from './Card';
 import { DETAIL_SHADOW, pinHint } from './CardDetailView';
 import { CARD_LINE_FAINT, CARD_MUTED, CARD_NAME, CARD_RULES } from './cardStyle';
-import { DriverCardData, DriverDeck, driverDeckSize } from './driverCardData';
+import type { DriverCardData } from './driverCardData';
 import {
 	HpBarDraws,
 	PortraitDraws,
@@ -77,7 +78,7 @@ function gridWidth(columns: number): number {
  * The deck's cards the lookup knows, cheapest first and then by name, the
  * order the Crew screen and load out show a deck in.
  */
-function deckEntries(deck: DriverDeck, cards: CardLookup): { card: GameCard; copies: number }[] {
+function deckEntries(deck: CardCounts, cards: CardLookup): { card: GameCard; copies: number }[] {
 	const entries: { card: GameCard; copies: number }[] = [];
 	for (const [type, copies] of Object.entries(deck)) {
 		if (copies < 1) continue;
@@ -184,7 +185,7 @@ export class DriverDetailView extends Component {
 				this.figures({ id: childId('speed'), text: `SPEED +${skills.speed}` }),
 			);
 		}
-		const size = driverDeckSize(data.deck);
+		const size = totalCards(data.deck);
 		this.heading = this.label({ id: childId('deck'), text: `DECK / ${size} ${size === 1 ? 'CARD' : 'CARDS'}`, x: pad });
 		this.pin = this.label({ id: childId('pin'), text: pinHint(pinned), x: pad });
 		this.minis = entries.map(({ card, copies }) => {

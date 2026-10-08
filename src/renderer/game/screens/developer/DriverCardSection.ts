@@ -3,13 +3,14 @@ import type { DeveloperSectionOptions } from './DeveloperSectionPanel';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { tokens } from '../../../engine/theme/tokens';
+import { addCards, startingDeckCounts } from '../../campaign/CardCounts';
 import { Card as GameCard, CardData } from '../../mechanics/Card';
 import cardsFile from '../../data/cards.json';
 import { MINI_GRID } from '../../ui/Card';
 import { DRIVER_CARD_INK, DriverCard, DriverCardStatus } from '../../ui/DriverCard';
 import { CardLookup, DriverDetailView } from '../../ui/DriverDetailView';
 import { inspectOnContextMenu, makeDriverInspectable } from '../../ui/cardInspect';
-import { DriverCardData, driverCardData, startingDriverDeck } from '../../ui/driverCardData';
+import { DriverCardData, driverCardData } from '../../ui/driverCardData';
 
 const cards = (cardsFile as unknown as { cards: CardData[] }).cards;
 
@@ -40,7 +41,7 @@ const BOARD: readonly DriverCase[] = [
 ];
 
 /** A seated Interceptor whose run deck borrowed a Medical Kit from the locker. */
-const CUSTOMIZED = driverCardData({ archetype: 'interceptor', hitpoints: 22, deck: { ...startingDriverDeck('interceptor'), medical_kit: 1 } });
+const CUSTOMIZED = driverCardData({ archetype: 'interceptor', hitpoints: 22, deck: addCards(startingDeckCounts('interceptor'), 'medical_kit') });
 
 /** The other tags, as the Crew roster, load out, and the debrief use them. */
 const TAGS: readonly DriverCase[] = [

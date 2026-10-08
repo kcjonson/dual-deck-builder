@@ -1,6 +1,7 @@
+import { startingDeckCounts, totalCards } from '../campaign/CardCounts';
 import { DriverRecord } from '../campaign/DriverRecord';
-import { DRIVER_CONFIGS } from '../mechanics/Driver';
-import { driverCardData, driverDeckSize, startingDriverDeck } from './driverCardData';
+import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
+import { driverCardData } from './driverCardData';
 
 describe('driverCardData', () => {
 	it('builds a fresh driver of an archetype from its config', () => {
@@ -33,7 +34,7 @@ describe('driverCardData', () => {
 		});
 		expect(data).toMatchObject({ name: 'Mechanic 2', specialty: 'SUPPORT SPECIALIST', hitpoints: 12, maxHitpoints: 30, handLimit: 7, vehicle: 'Mobile Workshop' });
 		expect(data.deck).toBe(record.defaultDeck);
-		expect(driverDeckSize(data.deck)).toBe(record.deckSize);
+		expect(totalCards(data.deck)).toBe(record.deckSize);
 	});
 
 	it('starts at full HP against an overridden maximum, and leaves the note out when there is none', () => {
@@ -46,15 +47,12 @@ describe('driverCardData', () => {
 		expect(driverCardData({ archetype: 'raider' }).skills).not.toBe(DRIVER_CONFIGS.raider.skills);
 	});
 
-	it('counts a deck\'s cards', () => {
-		expect(driverDeckSize({})).toBe(0);
-		expect(driverDeckSize(startingDriverDeck('interceptor'))).toBe(11);
-		expect(driverDeckSize({ ram: 2, headshot: 3 })).toBe(5);
-	});
-
-	it('turns a starting deck into counts by type, frozen', () => {
-		const deck = startingDriverDeck('mechanic');
-		expect(deck).toEqual({ emp_blast: 1, repair_kit: 3, nitro_boost: 2, armor_plating: 2 });
-		expect(Object.isFrozen(deck)).toBe(true);
+	it('gives a fresh driver the campaign\'s own starting deck, the counts a new record gets', () => {
+		for (const archetype of Object.keys(DRIVER_CONFIGS) as DriverArchetype[]) {
+			const deck = driverCardData({ archetype }).deck;
+			expect(deck).toEqual(startingDeckCounts(archetype));
+			expect(deck).toEqual(new DriverRecord({ id: 'driver-1', archetype, name: archetype }).defaultDeck);
+			expect(Object.isFrozen(deck)).toBe(true);
+		}
 	});
 });

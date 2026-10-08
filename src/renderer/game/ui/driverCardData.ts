@@ -1,11 +1,5 @@
+import { CardCounts, startingDeckCounts } from '../campaign/CardCounts';
 import { DRIVER_CONFIGS, DriverArchetype, DriverSkills } from '../mechanics/Driver';
-
-/**
- * Copies of each card in a deck, by card type (`ramming_speed`): the shape
- * the campaign keeps a driver's default deck in, so a record's deck passes
- * straight through.
- */
-export type DriverDeck = Readonly<Record<string, number>>;
 
 /**
  * What a driver card shows (Game Flow 7.0), as plain data. Each screen maps
@@ -21,8 +15,12 @@ export interface DriverCardData {
 	readonly hitpoints: number;
 	readonly maxHitpoints: number;
 	readonly handLimit: number;
-	/** The card counts it for its DECK figure; the detail view lays it out as minis. */
-	readonly deck: DriverDeck;
+	/**
+	 * Copies of each card by type, the campaign's own counts, so a record's
+	 * deck passes straight through. The card counts it for its DECK figure;
+	 * the detail view lays it out as minis.
+	 */
+	readonly deck: CardCounts;
 	/** What they drive; the detail view's. */
 	readonly vehicle?: string;
 	/** The skills a hit check reads, and speed; the detail view's. */
@@ -32,22 +30,6 @@ export interface DriverCardData {
 	 * shows: how a lost driver went ("KILLED DAY 9").
 	 */
 	readonly note?: string;
-}
-
-/** How many cards a deck holds, its DECK figure. */
-export function driverDeckSize(deck: DriverDeck): number {
-	let total = 0;
-	for (const copies of Object.values(deck)) total += copies;
-	return total;
-}
-
-/** An archetype's starting deck as counts by card type. */
-export function startingDriverDeck(archetype: DriverArchetype): DriverDeck {
-	const counts: Record<string, number> = {};
-	for (const { type, quantity } of DRIVER_CONFIGS[archetype].startingDeck.cards) {
-		if (quantity > 0) counts[type] = (counts[type] ?? 0) + quantity;
-	}
-	return Object.freeze(counts);
 }
 
 export interface DriverCardDataOptions extends Partial<DriverCardData> {
@@ -70,7 +52,7 @@ export function driverCardData({ archetype, name, specialty, hitpoints, maxHitpo
 		hitpoints: hitpoints ?? max,
 		maxHitpoints: max,
 		handLimit: handLimit ?? config.handLimit,
-		deck: deck ?? startingDriverDeck(archetype),
+		deck: deck ?? startingDeckCounts(archetype),
 		vehicle: vehicle ?? config.metadata.vehicleName,
 		skills: skills ?? { ...config.skills },
 		...(note !== undefined ? { note } : {}),
