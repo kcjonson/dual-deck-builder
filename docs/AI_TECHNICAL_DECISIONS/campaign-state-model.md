@@ -27,7 +27,7 @@ The campaign's `change` covers its own fields and finished card moves (below). A
 
 The ticket asked for ids drawn from the campaign RNG. A stream rebuilt from its seed after a load replays from its first draw, so the first driver recruited after a load would draw the same id as the first founding driver. Instead the campaign saves `nextDriverNumber` and hands out `driver-1`, `driver-2`, and on, from `recruitDriver` only, which checks the archetype before it names anyone. It's deterministic, readable in a save, and never repeats: `set` refuses to turn the counter back.
 
-The pool only grows. Against the pool held before, a `set` must keep the same records in the same places and add any new ones after them, so a driver can't be dropped or swapped for a hand-built record reusing a retired id, and two drivers can't end up with one placeholder name. A record's `id` shadows Model's per-instance id, which is random (DDB-99) and is never saved.
+The pool only grows. Against the pool held before, a `set` must keep the same records in the same places and add any new ones after them, so a driver can't be dropped or swapped for a hand-built record reusing a retired id, and two drivers can't end up with one placeholder name. A record's `id` shadows Model's per-instance id, which is never saved: it's a runtime count that depends on what the session built first.
 
 Nothing in the model draws randomness, and the seed comes in from founding. When something later needs a draw (an archetype for a Find: driver, say), it forks a fresh stream for that one event from the seed and a saved counter, `new Rng({ seed }).fork('recruit', n)`, never a stream kept across a save.
 

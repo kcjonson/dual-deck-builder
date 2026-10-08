@@ -1,7 +1,32 @@
 const platformTimers = ['setTimeout', 'setInterval', 'requestAnimationFrame', 'clearTimeout', 'clearInterval', 'cancelAnimationFrame'];
 const timeMessage = 'UI code takes time from context.clock and context.animator (R8.17, R8.28).';
-const randomMessage = 'Map and campaign code takes randomness from a seeded Rng stream, rng.fork(name) (src/renderer/game/core/Rng.ts), so a seed replays exactly.';
+const randomMessage = 'Game code takes randomness from a seeded Rng stream, rng.fork(name) (src/renderer/game/core/Rng.ts), so a seed replays exactly.';
 const cryptoRandom = ['getRandomValues', 'randomUUID', 'randomInt', 'randomBytes', 'randomFill', 'randomFillSync'];
+
+const timerProperties = [
+	...['window', 'globalThis', 'self'].flatMap((object) => platformTimers.map((property) => ({
+		object,
+		property,
+		message: timeMessage,
+	}))),
+	{ object: 'Date', property: 'now', message: timeMessage },
+	{ object: 'performance', property: 'now', message: timeMessage },
+	{ object: 'window', property: 'performance', message: timeMessage },
+];
+const randomProperties = [
+	{ object: 'Math', property: 'random', message: randomMessage },
+	// No object, so crypto, window.crypto, self.crypto, and a default
+	// import of Node's crypto all match.
+	...cryptoRandom.map((property) => ({ property, message: randomMessage })),
+];
+// The game folders under the timer ban. The random ban covers them too, so
+// they carry both property lists in the last override below.
+const timedGameCode = [
+	'src/renderer/game/*.ts',
+	'src/renderer/game/core/**/*.ts',
+	'src/renderer/game/screens/**/*.ts',
+	'src/renderer/game/ui/**/*.ts',
+];
 
 module.exports = {
 	root: true,
@@ -29,6 +54,7 @@ module.exports = {
 			// (FrameLoop's rAF, FrameTimer and GpuTimer's clocks), engine/debug
 			// (perf capture, hitch observer), the entry points, and game
 			// mechanics, whose log timestamps are data rather than timing.
+			// A game folder joins through timedGameCode, never this list.
 			files: [
 				'src/renderer/engine/animation/**/*.ts',
 				'src/renderer/engine/components/**/*.ts',
@@ -38,62 +64,47 @@ module.exports = {
 				'src/renderer/engine/text/**/*.ts',
 				'src/renderer/engine/theme/**/*.ts',
 				'src/renderer/engine/ui/**/*.ts',
-				'src/renderer/game/*.ts',
-				'src/renderer/game/core/**/*.ts',
-				'src/renderer/game/screens/**/*.ts',
-				'src/renderer/game/ui/**/*.ts',
+				...timedGameCode,
 				'src/gallery/**/*.ts',
 			],
 			excludedFiles: ['**/*.test.ts'],
 			rules: {
 				'no-restricted-globals': ['error', ...platformTimers.map((name) => ({ name, message: timeMessage }))],
-				'no-restricted-properties': ['error',
-					...['window', 'globalThis', 'self'].flatMap((object) => platformTimers.map((property) => ({
-						object,
-						property,
-						message: timeMessage,
-					}))),
-					{ object: 'Date', property: 'now', message: timeMessage },
-					{ object: 'performance', property: 'now', message: timeMessage },
-					{ object: 'window', property: 'performance', message: timeMessage },
-				],
+				'no-restricted-properties': ['error', ...timerProperties],
 			},
 		},
 		{
-			// Area Map Generation, Seeds and determinism: maps and campaigns
-			// replay exactly from their seed, so code here reads no unseeded
-			// source. Tests are covered too, unlike the timer block, because a
-			// seed sweep drawn from Math.random or Node's crypto makes a CI
-			// failure impossible to replay. jest.spyOn(Math, 'random') isn't a
-			// member access, so a test can still prove the generator never
-			// calls it; keep that spy around the call under test only, or mock
-			// its return values and check the output doesn't move, since
-			// source-map-support can call a spied Math.random while Jest
-			// formats a stack trace.
+			// Seeds and determinism (Area Map Generation, seeded-prng.md): a
+			// map, a campaign, or a fight replays exactly from its seed, so
+			// game code reads no unseeded source. Tests are covered too,
+			// unlike the timer block, because a seed sweep drawn from
+			// Math.random or Node's crypto makes a CI failure impossible to
+			// replay. jest.spyOn(Math, 'random') isn't a member access, so a
+			// test can still prove the game never calls it; keep that spy
+			// around the call under test only, or mock its return values and
+			// check the output doesn't move, since source-map-support can call
+			// a spied Math.random while Jest formats a stack trace.
 			//
-			// Left out on purpose: a new campaign's root seed comes from
-			// freshSeed() in core/Rng.ts and is passed in, and this rule can't
-			// see randomness reached through an import (core/Model ids,
-			// Deck.shuffle).
-			//
-			// Options replace rather than merge across overrides, so widening
-			// this into the timer block's folders needs one entry carrying both
-			// lists there.
-			files: [
-				'src/renderer/game/campaign/**/*.ts',
-				'src/renderer/game/map/**/*.ts',
-			],
+			// The one sanctioned read is freshSeed() in core/Rng.ts, which
+			// mints root seeds and carries its own disable. This rule can't see
+			// randomness reached through an import; that code takes an Rng.
+			files: ['src/renderer/game/**/*.ts'],
 			rules: {
-				'no-restricted-properties': ['error',
-					{ object: 'Math', property: 'random', message: randomMessage },
-					// No object, so crypto, window.crypto, self.crypto, and a default
-					// import of Node's crypto all match.
-					...cryptoRandom.map((property) => ({ property, message: randomMessage })),
-				],
+				'no-restricted-properties': ['error', ...randomProperties],
 				// A named import is a bare call the property rule never sees.
 				'no-restricted-imports': ['error', {
 					paths: ['crypto', 'node:crypto'].map((name) => ({ name, importNames: cryptoRandom, message: randomMessage })),
 				}],
+			},
+		},
+		{
+			// Options replace rather than merge across overrides, so the
+			// random block above drops the timer list wherever both reach;
+			// this entry puts both lists back for those folders.
+			files: timedGameCode,
+			excludedFiles: ['**/*.test.ts'],
+			rules: {
+				'no-restricted-properties': ['error', ...timerProperties, ...randomProperties],
 			},
 		},
 	],
