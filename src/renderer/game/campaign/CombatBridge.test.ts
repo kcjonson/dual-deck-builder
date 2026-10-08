@@ -48,11 +48,12 @@ const snipe = (): Card => raiderCard('Snipe', { type: 'damage', value: 500, targ
 const cardsOf = (count: number, card: () => Card): Card[] => Array.from({ length: count }, card);
 
 /**
- * A raider any hit finishes, playing `draws` in order, `adrenaline` cards a
- * turn. With no AI, it plays its first card at its first legal target: the
- * Rig, unless its archetype prefers another.
+ * A raider any hit finishes, playing `adrenaline` cards a turn. With no AI,
+ * it plays its first card at its first legal target: the Rig, unless its
+ * archetype prefers another. Every deck here holds one kind of card, so no
+ * fight depends on the order a deck deals in.
  */
-function raider({ draws, adrenaline, archetype = null }: { draws: Card[]; adrenaline: number; archetype?: RaiderArchetype | null }): Vehicle {
+function raider({ deck, adrenaline, archetype = null }: { deck: Card[]; adrenaline: number; archetype?: RaiderArchetype | null }): Vehicle {
 	const driver = new Driver({
 		archetype: 'raider',
 		metadata: { name: 'Scrapper', vehicleName: 'Scrap Buggy', specialty: 'TEST RAIDER', flavorText: 'Built to lose.', unlocked: true },
@@ -67,8 +68,7 @@ function raider({ draws, adrenaline, archetype = null }: { draws: Card[]; adrena
 		role: DriverRole.ACTIVE,
 		hand: [],
 		discard: [],
-		// A deck draws from its end
-		deck: new Deck('scrapper', "Scrapper's deck", [...draws].reverse())
+		deck: new Deck('scrapper', "Scrapper's deck", deck)
 	});
 	const buggy = createDrivenVehicle({ driver });
 	buggy.raiderArchetype = archetype;
@@ -161,7 +161,7 @@ describe('the combat bridge', () => {
 			const fight = startFight({
 				campaign,
 				party: { seats: [{ record: warrior }, { record: interceptor, runDeck }], escorts: [] },
-				enemy: raider({ draws: [], adrenaline: 1 })
+				enemy: raider({ deck: [], adrenaline: 1 })
 			});
 			const [rigDriver, bikeDriver] = fight.drivers;
 
@@ -190,7 +190,7 @@ describe('the combat bridge', () => {
 			const fight = startFight({
 				campaign,
 				party: { seats: [{ record: warrior }, { record: interceptor }], escorts: [] },
-				enemy: raider({ draws: [], adrenaline: 1 }),
+				enemy: raider({ deck: [], adrenaline: 1 }),
 				seed: 7
 			});
 
@@ -207,7 +207,7 @@ describe('the combat bridge', () => {
 			const fight = startFight({
 				campaign,
 				party: { seats: [{ record: warrior }, { record: interceptor }], escorts: [hauler, outrider] },
-				enemy: raider({ draws: [], adrenaline: 1 })
+				enemy: raider({ deck: [], adrenaline: 1 })
 			});
 
 			expect(fight.battle.playerTeam.escorts).toEqual([outrider, hauler]);
@@ -215,7 +215,7 @@ describe('the combat bridge', () => {
 		});
 
 		describe('refuses', () => {
-			const enemy = (): Vehicle => raider({ draws: [], adrenaline: 1 });
+			const enemy = (): Vehicle => raider({ deck: [], adrenaline: 1 });
 
 			it('a party without two drivers', () => {
 				const { campaign, warrior } = newCampaign();
@@ -293,7 +293,7 @@ describe('the combat bridge', () => {
 			const { campaign, warrior, interceptor } = newCampaign();
 			warrior.set({ hitpoints: 31 });
 			const party: RunParty = { seats: [{ record: warrior }, { record: interceptor, runDeck: { precision_shot: 10 } }], escorts: [] };
-			const scrapper = raider({ draws: cardsOf(10, jab), adrenaline: 1 });
+			const scrapper = raider({ deck: cardsOf(10, jab), adrenaline: 1 });
 			const fight = startFight({ campaign, party, enemy: scrapper });
 
 			// The raider jabs the Rig on its turn, and the Interceptor finishes it on the next
@@ -307,7 +307,7 @@ describe('the combat bridge', () => {
 			expect([warrior.hitpoints, warrior.status]).toEqual([26, 'ready']);
 			expect([interceptor.hitpoints, interceptor.status]).toEqual([25, 'ready']);
 
-			const next = startFight({ campaign, party: partyAfter(result), enemy: raider({ draws: [], adrenaline: 1 }), seed: SEED + 1 });
+			const next = startFight({ campaign, party: partyAfter(result), enemy: raider({ deck: [], adrenaline: 1 }), seed: SEED + 1 });
 			expect(next.drivers.map(driver => driver.hitpoints)).toEqual([26, 25]);
 			expect(cardsHeld(next.drivers[1])).toEqual({ precision_shot: 10 });
 		});
@@ -318,7 +318,7 @@ describe('the combat bridge', () => {
 			const outrider = createEscort({ type: 'outrider' });
 			campaign.convoy.add(outrider);
 			const party: RunParty = { seats: [{ record: warrior }, { record: interceptor, runDeck: { covering_fire: 10 } }], escorts: [outrider] };
-			const scrapper = raider({ draws: cardsOf(10, wreck), adrenaline: 2 });
+			const scrapper = raider({ deck: cardsOf(10, wreck), adrenaline: 2 });
 			const fight = startFight({ campaign, party, enemy: scrapper });
 			const [rigDriver, bikeDriver] = fight.drivers;
 
@@ -342,7 +342,7 @@ describe('the combat bridge', () => {
 			expect(campaign.convoy.escorts).toEqual([outrider]);
 			expect(outrider.passenger).toBeNull();
 
-			const next = startFight({ campaign, party: partyAfter(result), enemy: raider({ draws: [], adrenaline: 1 }), seed: SEED + 1 });
+			const next = startFight({ campaign, party: partyAfter(result), enemy: raider({ deck: [], adrenaline: 1 }), seed: SEED + 1 });
 			expect(next.drivers.map(driver => driver.metadata.name)).toEqual(['Road Warrior 1', 'Interceptor 1']);
 			expect(next.battle.playerTeam.drivenVehicles.map(vehicle => vehicle.driver)).toEqual(next.drivers);
 			expect(next.drivers.map(driver => driver.hitpoints)).toEqual([35, 115]);
@@ -355,7 +355,7 @@ describe('the combat bridge', () => {
 			interceptor.set({ hitpoints: 24 });
 			const escorts = [createEscort({ type: 'fuel_hauler' }), salvageRig(), createEscort({ type: 'med_truck' })];
 			escorts.forEach(escort => campaign.convoy.add(escort));
-			const scrapper = raider({ draws: [], adrenaline: 1 });
+			const scrapper = raider({ deck: [], adrenaline: 1 });
 			const fight = startFight({
 				campaign,
 				party: { seats: [{ record: warrior }, { record: interceptor, runDeck: { precision_shot: 10 } }], escorts },
@@ -379,7 +379,7 @@ describe('the combat bridge', () => {
 			const truck = createEscort({ type: 'med_truck' });
 			[hauler, truck].forEach(escort => campaign.convoy.add(escort));
 			// A looter goes for the haulers: the Fuel Hauler first, then the Med Truck once it's gone
-			const scrapper = raider({ draws: cardsOf(10, jab), adrenaline: 1, archetype: 'looter' });
+			const scrapper = raider({ deck: cardsOf(10, jab), adrenaline: 1, archetype: 'looter' });
 			const party: RunParty = { seats: [{ record: warrior }, { record: interceptor, runDeck: { precision_shot: 10 } }], escorts: [hauler, truck] };
 			const fight = startFight({ campaign, party, enemy: scrapper });
 
@@ -396,7 +396,7 @@ describe('the combat bridge', () => {
 			// A wrecked hauler pays nothing
 			expect(campaign.resources.fuel).toBe(6);
 
-			const next = startFight({ campaign, party: partyAfter(result), enemy: raider({ draws: [], adrenaline: 1 }), seed: SEED + 1 });
+			const next = startFight({ campaign, party: partyAfter(result), enemy: raider({ deck: [], adrenaline: 1 }), seed: SEED + 1 });
 			expect(next.battle.playerTeam.escorts).toEqual([truck]);
 			expect(truck.structure).toBe(19);
 		});
@@ -405,7 +405,7 @@ describe('the combat bridge', () => {
 			const { campaign, warrior, interceptor } = newCampaign();
 			const outrider = createEscort({ type: 'outrider' });
 			campaign.convoy.add(outrider);
-			const scrapper = raider({ draws: cardsOf(10, snipe), adrenaline: 1 });
+			const scrapper = raider({ deck: cardsOf(10, snipe), adrenaline: 1 });
 			const fight = startFight({
 				campaign,
 				party: { seats: [{ record: warrior }, { record: interceptor, runDeck: { precision_shot: 10 } }], escorts: [outrider] },
@@ -424,7 +424,7 @@ describe('the combat bridge', () => {
 			expect(campaign.convoy.escorts).toEqual([outrider, rig]);
 			expect(rig.isEscort).toBe(true);
 			expect(partyAfter(result)).toEqual({ seats: [{ record: interceptor, runDeck: { precision_shot: 10 } }], escorts: [outrider, rig] });
-			expect(() => startFight({ campaign, party: partyAfter(result), enemy: raider({ draws: [], adrenaline: 1 }) }))
+			expect(() => startFight({ campaign, party: partyAfter(result), enemy: raider({ deck: [], adrenaline: 1 }) }))
 				.toThrow('A fight seats two drivers, and this party has 1');
 		});
 	});
@@ -436,8 +436,8 @@ describe('the combat bridge', () => {
 			const outrider = createEscort({ type: 'outrider' });
 			const home = createEscort({ type: 'fuel_hauler' });
 			[outrider, home].forEach(escort => campaign.convoy.add(escort));
-			const wrecker = raider({ draws: cardsOf(10, wreck), adrenaline: 2 });
-			const sniper = raider({ draws: cardsOf(10, snipe), adrenaline: 1 });
+			const wrecker = raider({ deck: cardsOf(10, wreck), adrenaline: 2 });
+			const sniper = raider({ deck: cardsOf(10, snipe), adrenaline: 1 });
 			const fight = startFight({
 				campaign,
 				party: { seats: [{ record: warrior }, { record: interceptor, runDeck: { covering_fire: 10 } }], escorts: [outrider] },
@@ -469,7 +469,7 @@ describe('the combat bridge', () => {
 			interceptor.set({ hitpoints: 20 });
 			const escorts = [createEscort({ type: 'fuel_hauler' }), createEscort({ type: 'med_truck' })];
 			escorts.forEach(escort => campaign.convoy.add(escort));
-			const scrapper = raider({ draws: [], adrenaline: 1 });
+			const scrapper = raider({ deck: [], adrenaline: 1 });
 			const fight = startFight({
 				campaign,
 				party: { seats: [{ record: warrior }, { record: interceptor, runDeck: { precision_shot: 10 } }], escorts },
@@ -489,7 +489,7 @@ describe('the combat bridge', () => {
 
 		it('refuses a fight that is still on, and stores nothing', () => {
 			const { campaign, warrior, interceptor } = newCampaign();
-			const fight = startFight({ campaign, party: { seats: [{ record: warrior }, { record: interceptor }], escorts: [] }, enemy: raider({ draws: [], adrenaline: 1 }) });
+			const fight = startFight({ campaign, party: { seats: [{ record: warrior }, { record: interceptor }], escorts: [] }, enemy: raider({ deck: [], adrenaline: 1 }) });
 
 			expect(() => writeBackFight({ campaign, fight })).toThrow("The fight isn't over, so there's nothing to write back yet");
 			expect(warrior.hitpoints).toBe(40);
@@ -497,7 +497,7 @@ describe('the combat bridge', () => {
 
 		it('refuses a tie, since a campaign fight has no turn limit', () => {
 			const { campaign, warrior, interceptor } = newCampaign();
-			const fight = startFight({ campaign, party: { seats: [{ record: warrior }, { record: interceptor }], escorts: [] }, enemy: raider({ draws: [], adrenaline: 1 }) });
+			const fight = startFight({ campaign, party: { seats: [{ record: warrior }, { record: interceptor }], escorts: [] }, enemy: raider({ deck: [], adrenaline: 1 }) });
 			fight.battle.maxTurns = 1;
 
 			fightOut(fight);
@@ -510,7 +510,7 @@ describe('the combat bridge', () => {
 			const { campaign, warrior, interceptor } = newCampaign();
 			const hauler = createEscort({ type: 'fuel_hauler' });
 			campaign.convoy.add(hauler);
-			const scrapper = raider({ draws: [], adrenaline: 1 });
+			const scrapper = raider({ deck: [], adrenaline: 1 });
 			const fight = startFight({
 				campaign,
 				party: { seats: [{ record: warrior }, { record: interceptor, runDeck: { precision_shot: 10 } }], escorts: [hauler] },
