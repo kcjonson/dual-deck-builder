@@ -171,6 +171,17 @@ describe('Campaign', () => {
 			expect(campaign.recruitDriver({ archetype: 'raider' }).id).toBe('driver-7');
 		});
 
+		it('takes a driver set into the pool only with an id the counter hasn\'t passed', () => {
+			const campaign = newCampaign({ drivers: [record('driver-1')], nextDriverNumber: 7 });
+			const pool = campaign.drivers;
+
+			expect(() => campaign.set({ drivers: [...pool, record('driver-3')], nextDriverNumber: 8 }))
+				.toThrow("Campaign.drivers[1].id must be driver-7 or later, an id the counter hasn't passed, got driver-3");
+			campaign.set({ drivers: [...pool, record('driver-7')], nextDriverNumber: 8 });
+
+			expect(campaign.drivers.map(driver => driver.id)).toEqual(['driver-1', 'driver-7']);
+		});
+
 		it('starts the counter past the highest id when built without one', () => {
 			expect(newCampaign({ drivers: [record('driver-4'), record('driver-2')] }).nextDriverNumber).toBe(5);
 		});
@@ -387,13 +398,17 @@ describe('Campaign', () => {
 				expect(heard).toEqual([owned]);
 			});
 
-			it('a listener can\'t start another move, or change the locker, while one is being stored', () => {
+			it('a listener can\'t start another move, or change the campaign at all, while one is being stored', () => {
 				const { campaign, warrior, mechanic, owned } = setUp();
 				const refused: string[] = [];
+				const heard = jest.fn();
+				campaign.on('change', heard);
 				warrior.on('defaultDeck', () => {
 					for (const attempt of [
 						() => campaign.moveCards({ cardType: 'headshot', from: 'locker', to: mechanic }),
-						() => campaign.set({ locker: {} })
+						() => campaign.set({ locker: {} }),
+						() => campaign.set({ day: 2 }),
+						() => campaign.addLogEntry({ message: 'Moved a headshot.' })
 					]) {
 						try {
 							attempt();
@@ -407,9 +422,54 @@ describe('Campaign', () => {
 
 				expect(refused).toEqual([
 					"Can't move cards while another move is being stored",
-					"Campaign.locker can't change while a card move is being stored"
+					"Campaign can't change while a card move is being stored",
+					"Campaign can't change while a card move is being stored",
+					"Campaign can't change while a card move is being stored"
 				]);
-				expect(campaign.locker).toEqual({ headshot: 1 });
+				expect([campaign.locker, campaign.day, campaign.log]).toEqual([{ headshot: 1 }, 1, []]);
+				expect(cardsOwned(campaign)).toBe(owned);
+				expect(heard).toHaveBeenCalledTimes(1);
+			});
+
+			it('the copies land on the deck the far end holds once the near end is stored', () => {
+				const { campaign, warrior, mechanic } = setUp();
+				const ramming = cardCount(warrior.defaultDeck, 'ramming_speed');
+				warrior.once('defaultDeck', () => mechanic.set({ defaultDeck: { headshot: 1 } }));
+
+				campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic });
+
+				expect(mechanic.defaultDeck).toEqual({ headshot: 1, ramming_speed: 1 });
+				expect(cardCount(warrior.defaultDeck, 'ramming_speed')).toBe(ramming - 1);
+			});
+
+			it.each([
+				['dies', { status: 'dead', hitpoints: 0, defaultDeck: {} }],
+				['goes missing', { status: 'missing' }]
+			] as const)('the copies go back when a listener on the near end sees to it the far end %s', (_label, fate) => {
+				const { campaign, warrior, mechanic } = setUp();
+				const deck = warrior.defaultDeck;
+				const heard = jest.fn();
+				campaign.on('change', heard);
+				warrior.once('defaultDeck', () => mechanic.set(fate));
+
+				campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic });
+
+				expect(warrior.defaultDeck).toEqual(deck);
+				expect(mechanic.status).toBe(fate.status);
+				expect(cardCount(mechanic.defaultDeck, 'ramming_speed')).toBe(0);
+				expect(heard).toHaveBeenCalledTimes(1);
+			});
+
+			it('the copies go to the locker when both ends have left by the time they land', () => {
+				const { campaign, warrior, mechanic, owned } = setUp();
+				warrior.once('defaultDeck', () => {
+					warrior.set({ status: 'missing' });
+					mechanic.set({ status: 'missing' });
+				});
+
+				campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic });
+
+				expect(campaign.locker).toEqual({ headshot: 2, ramming_speed: 1 });
 				expect(cardsOwned(campaign)).toBe(owned);
 			});
 
@@ -521,6 +581,14 @@ describe('Campaign', () => {
 			['a field a campaign doesn\'t have', { weather: 'dust' }, 'Campaign has an unknown field "weather"']
 		])('rejects %s', (_label, changes, message) => {
 			expect(() => newCampaign().set(changes as unknown as Partial<CampaignOptions>)).toThrow(message);
+		});
+
+		it('rejects a list with a hole in it, which nothing would check', () => {
+			const strongholdsTaken: string[] = Array(3);
+			strongholdsTaken[0] = 'north';
+			strongholdsTaken[2] = 'south';
+
+			expect(() => newCampaign().set({ strongholdsTaken })).toThrow('Campaign.strongholdsTaken[1] is missing: the array has a hole there');
 		});
 
 		it('rejects map state that contains itself', () => {
@@ -756,6 +824,16 @@ describe('Campaign', () => {
 
 				expect(campaign.mapParams.radius).toBe(5000);
 				expect(warnings).toEqual(['Campaign.mapParams.radius lowered to 1600 (tuning range 600 to 1600) for a new map; this one keeps the 5000 it was made with']);
+			});
+
+			it('quotes the saved value in each warning when today\'s validator would clamp it twice', () => {
+				const { campaign, warnings } = loadDrifted(params => { params.highways = 2; });
+
+				expect(campaign.mapParams.highways).toBe(2);
+				expect(warnings).toEqual([
+					'Campaign.mapParams.highways raised to 3 (tuning range 3 to 9) for a new map; this one keeps the 2 it was made with',
+					'Campaign.mapParams.highways raised to 6 (strongholds + 2) for a new map; this one keeps the 2 it was made with'
+				]);
 			});
 
 			it('takes Mixed for an environment that\'s missing or no longer exists', () => {

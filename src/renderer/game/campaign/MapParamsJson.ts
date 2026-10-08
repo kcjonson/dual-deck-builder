@@ -90,8 +90,9 @@ export function repairMapParams(value: unknown, path: string): RepairedMapParams
 		if (!PARAM_KEYS.includes(key)) warnings.push(`${path}.${key} isn't a map parameter; dropped it`);
 	}
 
+	// A clamp's `from` is the value before that clamp, which a second clamp on one value has already moved.
 	for (const clamp of validateMapParams(params).clamps) {
-		warnings.push(`${path}.${describeClamp(clamp)} for a new map; this one keeps the ${clamp.from} it was made with`);
+		warnings.push(`${path}.${describeClamp(clamp)} for a new map; this one keeps the ${params[clamp.param]} it was made with`);
 	}
 	return { params, warnings };
 }

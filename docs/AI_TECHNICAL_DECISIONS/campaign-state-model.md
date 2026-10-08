@@ -21,13 +21,13 @@ The alternatives: the plain Model pattern, writable properties checked only on l
 
 ## What a campaign's change event covers
 
-The campaign's `change` covers its own fields and finished card moves (below). A driver record or the convoy changing on its own emits on that model and not on the campaign: a combat bridge setting a record's HP, or an escort taking damage, never reaches campaign listeners. Saving should happen at checkpoints, the end of a day being the natural one, or subscribe to the records and the convoy as well as the campaign.
+The campaign's `change` covers its own fields and finished card moves (below). A driver record or an escort changing on its own emits on that model and not on the campaign: a combat bridge setting a record's HP emits on the record, and an escort taking damage emits on its own `Vehicle`, not on the convoy, which emits only when escorts join or leave. So saving happens at checkpoints (each stop, arriving home, the end of a compound action), or subscribes to each record and each escort as well as the campaign. A record's change fires partway through a card move, before the locker is stored, so a save that a record or escort listener sets off waits for the next tick or a checkpoint; card moves arrive whole on the campaign's change.
 
 ## Driver ids come from a saved counter
 
 The ticket asked for ids drawn from the campaign RNG. A stream rebuilt from its seed after a load replays from its first draw, so the first driver recruited after a load would draw the same id as the first founding driver. Instead the campaign saves `nextDriverNumber` and hands out `driver-1`, `driver-2`, and on, from `recruitDriver` only, which checks the archetype before it names anyone. It's deterministic, readable in a save, and never repeats: `set` refuses to turn the counter back.
 
-The pool only grows. Against the pool held before, a `set` must keep the same records in the same places and add any new ones after them, so a driver can't be dropped or swapped for a hand-built record reusing a retired id, and two drivers can't end up with one placeholder name. A record's `id` shadows Model's per-instance id, which is random (DDB-99) and is never saved.
+The pool only grows. Against the pool held before, a `set` must keep the same records in the same places and add any new ones after them, with ids at or past the counter as it stood before the `set`, so a driver can't be dropped or swapped for a hand-built record, and nobody joins with an id the counter has passed. Names aren't checked: only `recruitDriver` never reuses a placeholder name, and a record appended with `set` can repeat one. A record's `id` shadows Model's per-instance id, which is random (DDB-99) and is never saved.
 
 Nothing in the model draws randomness, and the seed comes in from founding. When something later needs a draw (an archetype for a Find: driver, say), it forks a fresh stream for that one event from the seed and a saved counter, `new Rng({ seed }).fork('recruit', n)`, never a stream kept across a save.
 
@@ -39,7 +39,8 @@ A move is stored so nothing sees half of it, or acts on half of it:
 
 - Both ends are worked out before either is stored, so a move that fails part way stores nothing.
 - Decks are stored before the locker, so the campaign's `change` for a move to or from the locker comes once the move is whole. A move between two drivers ends with a campaign `change` of its own.
-- While the decks are being stored, the campaign refuses another `moveCards` and any change to the locker. A listener on a driver's deck that moved cards then would have its move overwritten by the rest of this one, destroying a copy; once the campaign's `change` arrives, the move is done and a listener can start another.
+- While the decks are being stored, the campaign refuses another `moveCards` and every `set`. A listener on a driver's deck that moved cards or changed the locker then would have its change overwritten by the rest of this one, destroying a copy, and any other change would tell campaign listeners about a campaign holding half a move. Once the campaign's `change` arrives, the move is done and a listener can change the campaign again.
+- Records aren't held while a move is stored, so a listener on the giving driver's deck can still change the receiving driver. The copies land on the deck the receiving driver holds once the giving one is stored, and if a listener has sent the receiving driver away (dead or missing) by then, they go back to the giving driver, or to the locker if the giving driver has gone too.
 
 `moveCards` refuses a dead or missing driver at either end. A driver killed on a run is gone with their cards (Compound and Supply Runs, The driver pool), so a dead record's deck is empty, and dying is one `set` of status, 0 HP, and an empty deck; a missing driver isn't at the compound to hand cards to or take them from. An injured driver is, healing in the infirmary, so their deck can still change.
 
@@ -61,6 +62,7 @@ Card types are checked for shape (lower snake case), not against `cards.json`, w
 
 - `schemaVersion` is read first. It's an integer from 1; a version newer than the build is refused, and an older one goes through `migrateSave`, one step per version from `CAMPAIGN_MIGRATIONS` (empty while 1 is the only version), each step's result stamped with the version it reached.
 - Every object must have exactly its fields. Missing and unknown fields both throw, as map presets do, so a renamed field can't vanish quietly. Map params are the one exception (below).
+- Every array must hold a value at every index. JSON never makes a hole, but a `set` could pass one, and `map` and `forEach` would skip it unchecked.
 - Errors name where: `Campaign.drivers[1].status must be one of ready, injured, dead, missing, got "sleeping"`. TypeError for the wrong kind of value, RangeError for a value out of range.
 - `campaign/__fixtures__/campaign-v1.json` is a version 1 save, which loads and writes back the same. When the version goes up it stays, loading through the migration.
 
@@ -87,7 +89,7 @@ The campaign holds the real `MapParams` (DDB-287), frozen, keys in the table's o
 
 Values today's validator would clamp are kept as saved, for every parameter, not just the geometry ones. The map was made with them, and terrain and scenery are regenerated on load from the params around the saved roads (Area Map Generation, Saving), so a clamped radius, metro size, or mountain coverage would draw ground that no longer fits the roads on it. The network and gameplay parameters were used to make a map that's already saved, or set how play goes in it (daylight hours), so keeping them keeps the campaign as it was. Only missing values and unknown keys are repaired, since there's nothing saved to keep.
 
-Each repair, and each value kept outside today's ranges, is a warning worded with its path: "Campaign.mapParams.radius was missing; took 1000, the mixed default", or "Campaign.mapParams.radius lowered to 1600 (tuning range 600 to 1600) for a new map; this one keeps the 5000 it was made with". `fromJSON(json, { onWarning })` hands them over once the campaign has loaded, so a save that fails reports only its error, and logs them with `console.warn` when it isn't given a callback. The repaired params are what the campaign saves from then on.
+Each repair, and each value kept outside today's ranges, is a warning worded with its path: "Campaign.mapParams.radius was missing; took 1000, the mixed default", or "Campaign.mapParams.radius lowered to 1600 (tuning range 600 to 1600) for a new map; this one keeps the 5000 it was made with". A value the validator clamps twice (into its range, then by a combination rule) gets a warning per clamp, each quoting the saved value. `fromJSON(json, { onWarning })` hands them over once the campaign has loaded, so a save that fails reports only its error, and logs them with `console.warn` when it isn't given a callback. The repaired params are what the campaign saves from then on.
 
 `MapParams` became a `type` rather than an `interface`, a one-word change in the map module, so it fits `JsonObject` and copies like any other JSON. `JsonValue` and `JsonObject` live in `core/Json.ts`, and `StopTables` is a `JsonObject`, so the map and campaign modules share one JSON type.
 

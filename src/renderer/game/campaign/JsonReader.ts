@@ -63,8 +63,12 @@ export function readNumber(value: unknown, path: string): number {
 	return value;
 }
 
+/** An array with a value at every index, as JSON.parse always makes: `map` and `forEach` skip a hole, so nothing would check it. */
 export function readArray(value: unknown, path: string): readonly unknown[] {
 	if (!Array.isArray(value)) throw new TypeError(`${path} must be an array, got ${describeValue(value)}`);
+	for (let index = 0; index < value.length; index += 1) {
+		if (!(index in value)) throw new TypeError(`${path}[${index}] is missing: the array has a hole there`);
+	}
 	return value;
 }
 

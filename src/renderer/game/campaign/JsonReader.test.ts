@@ -1,4 +1,4 @@
-import { copyJson, describeValue, freezeJson, readFields } from './JsonReader';
+import { copyJson, describeValue, freezeJson, readArray, readFields } from './JsonReader';
 
 describe('JsonReader', () => {
 	describe('describeValue', () => {
@@ -57,6 +57,15 @@ describe('JsonReader', () => {
 		copy.roads[0].id = 'r2';
 
 		expect(frozen).toEqual({ roads: [{ id: 'r1' }] });
+	});
+
+	it('readArray refuses an array with a hole, which map and forEach would skip over', () => {
+		const holes: unknown[] = Array(2);
+		holes[1] = 'north';
+
+		expect(() => readArray(holes, 'list')).toThrow(TypeError);
+		expect(() => readArray(holes, 'list')).toThrow('list[0] is missing: the array has a hole there');
+		expect(readArray([undefined, null], 'list')).toEqual([undefined, null]);
 	});
 
 	it('readFields refuses a field it doesn\'t know, and one that\'s missing', () => {

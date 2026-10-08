@@ -149,9 +149,14 @@ export interface Campaign extends Readonly<CampaignData> {}
  * driver counter never goes back, and the pool only grows.
  *
  * The campaign's `change` event covers its own fields and finished card
- * moves. A driver record or the convoy changing on its own emits on that
- * model and not here, so save at checkpoints (the end of a day), or listen
- * to the records and the convoy as well.
+ * moves. A driver record or an escort changing on its own emits on that
+ * model and not here: a record's HP on the record, an escort's damage on its
+ * own Vehicle (the convoy emits only when escorts join or leave). So save at
+ * checkpoints (each stop, arriving home, the end of a compound action), or
+ * subscribe to each record and each escort as well as the campaign. A
+ * record changes partway through a card move, before the locker is stored,
+ * so a save a record or escort change sets off waits for the next tick or a
+ * checkpoint; card moves arrive whole on the campaign's change.
  *
  * Nothing here draws randomness, and the seed comes from whoever founds the
  * campaign. Anything that needs a random draw later forks a fresh stream for
@@ -228,11 +233,13 @@ export class Campaign extends Model<CampaignData> {
 	 * Changes fields together, checked as a whole. Throws without changing
 	 * anything if the campaign would be invalid, a field is unknown, the
 	 * seed, generator version, or map params would change, the driver counter
-	 * would go back (handing out an id again), or a driver would leave the
-	 * pool or change places in it. The locker can't change while a card move
-	 * is being stored.
+	 * would go back (handing out an id again), a driver would leave the pool
+	 * or change places in it, or a driver would join it with an id the counter
+	 * had already passed. Nothing changes while a card move is being stored,
+	 * so campaign listeners never hear half of one.
 	 */
 	public override set(changes: Partial<CampaignData>): void {
+		if (storingMoves.has(this)) throw new Error("Campaign can't change while a card move is being stored");
 		const current = this.getState();
 		for (const field of FIXED_FIELDS) {
 			if (current[field] !== undefined && field in changes && changes[field] !== current[field]) {
@@ -243,7 +250,6 @@ export class Campaign extends Model<CampaignData> {
 		if (counter.from !== undefined && counter.to !== undefined && counter.to < counter.from) {
 			throw new RangeError(`Campaign.nextDriverNumber can't go back, from ${counter.from} to ${counter.to}`);
 		}
-		if (storingMoves.has(this) && 'locker' in changes) throw new Error("Campaign.locker can't change while a card move is being stored");
 		const valid = readCampaignData({ ...current, ...changes }, 'Campaign', current);
 		super.set(Object.fromEntries(Object.keys(changes).map(key => [key, valid[key as keyof CampaignData]])));
 	}
@@ -277,8 +283,11 @@ export class Campaign extends Model<CampaignData> {
 	 *
 	 * Campaign listeners hear a move once it's whole: decks are stored before
 	 * the locker, and a move between two drivers ends with a campaign
-	 * `change`. While a move is being stored, nothing can start another or
-	 * change the locker.
+	 * `change`. While a move is being stored, the campaign refuses another
+	 * move and every `set`. Records aren't held, so a listener on `from` can
+	 * still change `to`: the copies land on the deck `to` holds once `from` is
+	 * stored, or go back to `from` if `to` has left the compound by then, or
+	 * to the locker if `from` has too.
 	 */
 	public moveCards({ cardType, from, to, count = 1 }: { cardType: string; from: CardPlace; to: CardPlace; count?: number }): void {
 		if (storingMoves.has(this)) throw new Error("Can't move cards while another move is being stored");
@@ -291,16 +300,21 @@ export class Campaign extends Model<CampaignData> {
 		if (held < count) throw new RangeError(`Can't move ${count} ${cardType} from ${placeName(from)}, which holds ${held}`);
 		// Both ends before either is stored, so a move that fails part way stores nothing.
 		const taken = removeCards(source, cardType, count);
-		const given = addCards(target, cardType, count);
+		addCards(target, cardType, count);
 		storingMoves.add(this);
+		let landing: CardPlace = to;
 		try {
-			if (from !== 'locker') from.set({ defaultDeck: taken });
-			if (to !== 'locker') to.set({ defaultDeck: given });
+			if (from !== 'locker') {
+				from.set({ defaultDeck: taken });
+				// Listeners on `from` have just run, and may have changed `to` or sent it away.
+				landing = [to, from].find(isAtCompound) ?? 'locker';
+			}
+			if (landing !== 'locker') landing.set({ defaultDeck: addCards(landing.defaultDeck, cardType, count) });
 		} finally {
 			storingMoves.delete(this);
 		}
 		if (from === 'locker') this.set({ locker: taken });
-		else if (to === 'locker') this.set({ locker: given });
+		else if (landing === 'locker') this.set({ locker: addCards(this.locker, cardType, count) });
 		else this.emit('change', this.getState());
 	}
 
@@ -334,9 +348,7 @@ export class Campaign extends Model<CampaignData> {
 	private countsAt(place: CardPlace): CardCounts {
 		if (place === 'locker') return this.locker;
 		if (!this.drivers.includes(place)) throw new RangeError(`${place.name} (${place.id}) isn't in this campaign's pool`);
-		if (place.status === 'dead' || place.status === 'missing') {
-			throw new RangeError(`${place.name} (${place.id}) is ${place.status}, so no cards move to or from their deck`);
-		}
+		if (!isAtCompound(place)) throw new RangeError(`${place.name} (${place.id}) is ${place.status}, so no cards move to or from their deck`);
 		return place.defaultDeck;
 	}
 }
@@ -349,11 +361,17 @@ function placeName(place: CardPlace): string {
 	return place === 'locker' ? 'the locker' : `${place.name}'s deck`;
 }
 
+/** The locker, or a driver who's here to hand cards to: not dead, and not missing. */
+function isAtCompound(place: CardPlace): boolean {
+	return place === 'locker' || (place.status !== 'dead' && place.status !== 'missing');
+}
+
 /**
  * The campaign's fields checked together. Drivers and the convoy are
  * models here; `fromJSON` reads a save's into models first. `previous` is
  * the state being changed, if any: what was checked when it was stored isn't
- * checked again, and the pool and log are held to only growing from it.
+ * checked again, the pool only grows from it, and a log that grows from it
+ * has just its new entries checked.
  */
 function readCampaignData(value: unknown, path: string, previous: Partial<CampaignData> = {}): CampaignData {
 	const fields = readFields(value, path, FIELDS);
@@ -373,7 +391,7 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 		day,
 		resources: readResources(fields.resources, `${path}.resources`),
 		unrest: readInteger(fields.unrest, `${path}.unrest`, { min: 0 }),
-		drivers: readDrivers(fields.drivers, `${path}.drivers`, nextDriverNumber, previous.drivers),
+		drivers: readDrivers(fields.drivers, `${path}.drivers`, nextDriverNumber, previous),
 		nextDriverNumber,
 		locker: readCardCounts(fields.locker, `${path}.locker`),
 		convoy: fields.convoy,
@@ -385,18 +403,26 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 /**
  * The pool: driver records with distinct `driver-<n>` ids, each below the
  * next one to hand out. Against the pool held before, it only grows: the
- * same records in the same places, any new ones after them.
+ * same records in the same places, any new ones after them with ids at or
+ * past the counter as it stood, so none reuses an id it had passed.
  */
-function readDrivers(value: unknown, path: string, nextDriverNumber: number, previous?: readonly DriverRecord[]): readonly DriverRecord[] {
+function readDrivers(
+	value: unknown,
+	path: string,
+	nextDriverNumber: number,
+	previous: Partial<Pick<CampaignData, 'drivers' | 'nextDriverNumber'>>
+): readonly DriverRecord[] {
+	const held = previous.drivers;
 	// Checked when it was stored, and the counter has only gone up since.
-	if (previous !== undefined && value === previous) return previous;
+	if (held !== undefined && value === held) return held;
 	const drivers = readArray(value, path);
-	previous?.forEach((driver, index) => {
+	held?.forEach((driver, index) => {
 		if (drivers[index] === driver) return;
 		throw new RangeError(index < drivers.length
 			? `${path}[${index}] must still be ${driver.id} (${driver.name}): drivers keep their places in the pool`
 			: `${path} is missing ${driver.id} (${driver.name}): drivers stay in the pool, the dead and missing too`);
 	});
+	const firstNew = held?.length ?? drivers.length;
 	const ids = new Set<string>();
 	drivers.forEach((driver, index) => {
 		if (!(driver instanceof DriverRecord)) throw new TypeError(`${path}[${index}] must be a DriverRecord, got ${describeValue(driver)}`);
@@ -406,6 +432,9 @@ function readDrivers(value: unknown, path: string, nextDriverNumber: number, pre
 			throw new RangeError(`${path}[${index}].id must come before driver-${nextDriverNumber}, the next id to hand out, got ${driver.id}`);
 		}
 		if (ids.has(driver.id)) throw new RangeError(`${path}[${index}].id ${driver.id} belongs to an earlier driver`);
+		if (index >= firstNew && previous.nextDriverNumber !== undefined && number < previous.nextDriverNumber) {
+			throw new RangeError(`${path}[${index}].id must be driver-${previous.nextDriverNumber} or later, an id the counter hasn't passed, got ${driver.id}`);
+		}
 		ids.add(driver.id);
 	});
 	return Object.freeze([...drivers] as DriverRecord[]);
