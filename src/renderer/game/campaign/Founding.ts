@@ -89,7 +89,7 @@ export function foundCampaign({ seed, unlockedArchetypes, mapParams, start = CAM
 		generatorVersion,
 		mapParams: params,
 		map,
-		// The clock only runs on the road, so at one run a day the compound is always at the dawn of its day.
+		// The clock only runs on the road, and it's one run a day, so the compound is always at the dawn of its day.
 		day: 1,
 		resources: startingValues.resources,
 		convoy: new Convoy({ escorts: startingValues.escorts.map(type => createEscort({ type })) })

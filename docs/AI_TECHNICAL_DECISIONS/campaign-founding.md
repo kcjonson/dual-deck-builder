@@ -83,5 +83,5 @@ What founding draws (the params and the deal) comes from seeded streams, and a t
 - The main menu's New Campaign (DDB-283) saves what `foundCampaign` returns. Founding stays pure: it builds a campaign and saves nothing.
 - The Map Lab (DDB-299) calls `foundCampaign({ seed: params.seed, unlockedArchetypes, mapParams: params })` with its validated params.
 - The generator's call replaces `MAP_STAND_IN` where `foundCampaign` marks it, along with the give-up path above: a loop round the params, the deal, and generation, or a typed error the caller founds again on.
-- If the player picks the pool (DDB-391), the pick replaces `dealStartingPool` in `foundCampaign`, or the deal becomes the suggestion it starts from. `poolSize` holds the size either way.
+- If the player picks the pool (DDB-391), the pick replaces the deal in `foundCampaign`, or the deal becomes the suggestion it starts from. `poolSize` holds the size either way.
 - A pinned test holds what one seed deals, so changing the deal (the stream, the sort, the shuffle) shows up there, and moves every seed's pool.
