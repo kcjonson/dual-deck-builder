@@ -25,7 +25,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const script = fileURLToPath(import.meta.url);
-const SOURCES = ['core/Rng', 'map/MapParams', 'map/ParamValidator', 'map/Noise', 'map/Biome', 'map/TerrainSites', 'map/Terrain'];
+const SOURCES = ['core/Json', 'core/Rng', 'map/MapParams', 'map/ParamValidator', 'map/Noise', 'map/Biome', 'map/TerrainSites', 'map/Terrain'];
 
 if (process.argv[2] !== '--built') {
 	const { default: ts } = await import('typescript');

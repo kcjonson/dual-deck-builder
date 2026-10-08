@@ -1,8 +1,10 @@
-import { Component, ComponentOptions } from '../components/Component';
+import { Component, ComponentOptions, FOCUS_RING_EXTENT } from '../components/Component';
 import { Container } from '../components/Container';
+import { Stack } from '../components/Stack';
 import { ScrollContainer } from '../ui/ScrollContainer';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
+import type { Rect } from '../draw/geometry';
 import type { PlatformInput } from './Dispatcher';
 import { AnyUiEvent, Modifiers, NO_MODIFIERS } from './events';
 import { directionalScore } from './FocusManager';
@@ -406,6 +408,9 @@ describe('focus groups (R9.29)', () => {
 });
 
 describe('scroll into view (R12.20)', () => {
+	/** The walk's ring, drawn past a focusable's box while its focus shows (R11.12). */
+	const RING = FOCUS_RING_EXTENT;
+
 	function scroller(): { panel: ScrollContainer; rows: Probe[] } {
 		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100, contentHeight: 280 });
 		const content = new Container({ width: 200, height: 280 });
@@ -416,16 +421,19 @@ describe('scroll into view (R12.20)', () => {
 		return { panel, rows };
 	}
 
-	it('scrolls the least that shows a component focused by keyboard, both ways', () => {
+	it('scrolls the least that shows a component focused by keyboard, its ring included, both ways', () => {
 		const { panel } = scroller();
-		key('Tab');
 		key('Tab');
 		expect(panel.scrollPosition).toBe(0);
 		key('Tab');
+		// row1 spans 60 to 100, on the clip's edge, and its ring reaches past it
+		expect(panel.scrollPosition).toBe(RING);
+		key('Tab');
 		// row2 spans 120 to 160; the clip is 100 tall
 		expect(focusedId()).toBe('row2');
-		expect(panel.scrollPosition).toBe(60);
+		expect(panel.scrollPosition).toBe(60 + RING);
 		key('Tab', { shift: true });
+		expect(panel.scrollPosition).toBe(60 - RING);
 		key('Tab', { shift: true });
 		expect(panel.scrollPosition).toBe(0);
 	});
@@ -437,7 +445,7 @@ describe('scroll into view (R12.20)', () => {
 		content.addChild(row);
 		panel.addChild(content);
 		panel.mount(context);
-		// The content box spans originY 120 to 160, though y is 50
+		// The content box spans originY 120 to 160, though y is 50; focus by code with no keys pressed shows no ring
 		expect(row.originY).toBe(120);
 		context.focus.focus(row);
 		expect(panel.scrollPosition).toBe(60);
@@ -450,6 +458,256 @@ describe('scroll into view (R12.20)', () => {
 		panel.scrollToTop();
 		context.focus.focusFromPointer(rows[3]);
 		expect(panel.scrollPosition).toBe(0);
+	});
+
+	it('gives focus back by code under the pointer modality with no ring to show, so a box in view stays put', () => {
+		const { panel, rows } = scroller();
+		context.focus.focusFromPointer(rows[1]);
+		const dialog = new Probe({ id: 'dialog', width: 100, height: 100 });
+		dialog.addChild(new Probe({ id: 'inside', width: 10, height: 10, focusable: true }));
+		dialog.mount(context);
+		context.focus.pushScope(dialog);
+		expect(focusedId()).toBe('inside');
+		context.focus.popScope(dialog);
+		// row1 sits on the clip's bottom edge, its box in view
+		expect(focusedId()).toBe('row1');
+		expect(rows[1].focusVisible).toBe(false);
+		expect(panel.scrollPosition).toBe(0);
+	});
+
+	it('reveals after the focus event, so ink its handler adds shows too', () => {
+		/** Draws a 20 px glow past its box once it has focus, as a vehicle offered as a target does. */
+		class Glowing extends Probe {
+			private glow = 0;
+
+			public handleEvent(event: AnyUiEvent): void {
+				if (event.type === 'focus') {
+					this.glow = 20;
+					this.invalidateInk();
+				}
+				super.handleEvent(event);
+			}
+
+			protected get cullInk(): Rect {
+				return { x: -this.glow, y: -this.glow, width: this.width + this.glow * 2, height: this.height + this.glow * 2 };
+			}
+		}
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100, contentHeight: 280 });
+		const content = new Container({ width: 200, height: 280 });
+		const target = new Glowing({ id: 'target', y: 60, width: 200, height: 40, focusable: true });
+		content.addChild(target);
+		panel.addChild(content);
+		panel.mount(context);
+		// Its box, 60 to 100, is in view; the glow it draws from the focus event reaches 120
+		context.focus.focus(target);
+		expect(panel.scrollPosition).toBe(20);
+	});
+
+	it('reveals again once a layout that was due when focus moved has placed things', () => {
+		// A stack places the rows, so before the first layout every row is at the top
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100 });
+		const list = new Stack({ id: 'list' });
+		const rows = [0, 1, 2, 3, 4].map((index) => new Probe({ id: `row${index}`, width: 200, height: 40, focusable: true }));
+		for (const row of rows) list.addChild(row);
+		panel.addChild(list);
+		panel.mount(context);
+		context.focus.focus(rows[4]);
+		expect(panel.scrollPosition).toBe(0);
+		context.frame.layout();
+		// row4 spans 160 to 200
+		expect(panel.scrollPosition).toBe(100);
+	});
+
+	it("doesn't reveal what was focused before a layout once a press has moved focus elsewhere", () => {
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100 });
+		const list = new Stack({ id: 'list' });
+		const rows = [0, 1, 2, 3, 4, 5].map((index) => new Probe({ id: `row${index}`, width: 200, height: 40, focusable: true }));
+		for (const row of rows) list.addChild(row);
+		panel.addChild(list);
+		panel.mount(context);
+		context.focus.focus(rows[5], 'keyboard');
+		context.focus.focusFromPointer(rows[0]);
+		context.frame.layout();
+		expect(focusedId()).toBe('row0');
+		expect(panel.scrollPosition).toBe(0);
+	});
+
+	it("doesn't undo a scroll made after a reveal that had no layout due", () => {
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100 });
+		const content = new Container({ width: 200, height: 2000 });
+		const row = new Probe({ id: 'row', y: 500, width: 200, height: 40, focusable: true });
+		content.addChild(row);
+		panel.addChild(content);
+		panel.mount(context);
+		context.frame.layout();
+		context.focus.focus(row, 'keyboard');
+		expect(panel.scrollPosition).toBe(540 + RING - 100);
+		// The player wheels back to the top, then something lays out
+		panel.scrollTo(0);
+		content.height = 2001;
+		context.frame.layout();
+		expect(panel.scrollPosition).toBe(0);
+	});
+
+	describe('with a layout due when focus moves', () => {
+		/** Rows 40 tall every 60 px, laid out, then something unrelated due to lay out again. */
+		function laidOut(): { panel: ScrollContainer; content: Container; rows: Probe[] } {
+			const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100 });
+			const content = new Container({ width: 200, height: 2000 });
+			const rows = [0, 1, 2, 3, 4, 5, 6, 7].map((index) => new Probe({ id: `row${index}`, y: index * 60, width: 200, height: 40, focusable: true }));
+			for (const row of rows) content.addChild(row);
+			panel.addChild(content);
+			panel.mount(context);
+			context.frame.layout();
+			content.invalidateLayout();
+			expect(context.frame.layoutPending).toBe(true);
+			return { panel, content, rows };
+		}
+
+		/** Input that arrives in one frame: one batch, with no layout between its parts. */
+		function batch(...inputs: PlatformInput[]): void {
+			for (const input of inputs) context.dispatcher.enqueue(input);
+			context.dispatcher.dispatchPending();
+		}
+
+		function stroke(name: string): PlatformInput[] {
+			return [
+				{ kind: 'key', phase: 'down', key: name, repeat: false, modifiers: NO_MODIFIERS },
+				{ kind: 'key', phase: 'up', key: name, repeat: false, modifiers: NO_MODIFIERS },
+			];
+		}
+
+		function wheel(deltaY: number): PlatformInput {
+			return { kind: 'wheel', x: 100, y: 50, deltaX: 0, deltaY, deltaMode: 0, modifiers: NO_MODIFIERS };
+		}
+
+		it.each([
+			['a scroll', (panel: ScrollContainer) => panel.scrollToTop(), 0],
+			['a scroll to the bottom', (panel: ScrollContainer) => panel.scrollToBottom(), 2000 - 100],
+		])("doesn't undo %s made after the reveal", (_name, scroll, expected) => {
+			const { panel, rows } = laidOut();
+			context.focus.focus(rows[6], 'keyboard');
+			// row6 spans 360 to 400, its ring to 403
+			expect(panel.scrollPosition).toBe(400 + RING - 100);
+			scroll(panel);
+			context.frame.layout();
+			expect(panel.scrollPosition).toBe(expected);
+		});
+
+		it('keeps a Page Up that comes in the same frame as the Tab before it', () => {
+			const { panel, rows } = laidOut();
+			context.focus.focus(rows[5]);
+			batch(...stroke('Tab'), ...stroke('PageUp'));
+			expect(focusedId()).toBe('row6');
+			// Tab shows row6 and its ring at 303; Page Up goes back the clip less one scroll step
+			expect(panel.scrollPosition).toBe(400 + RING - 100 - (100 - 40));
+			context.frame.layout();
+			expect(panel.scrollPosition).toBe(400 + RING - 100 - (100 - 40));
+		});
+
+		it('keeps a wheel that comes in the same frame as the Tab before it', () => {
+			const { panel, content, rows } = laidOut();
+			context.focus.focus(rows[5]);
+			// A wheel already turning has the panel latched, so the next one runs no hit test and no layout
+			batch(wheel(10));
+			expect(context.frame.layoutPending).toBe(false);
+			content.invalidateLayout();
+			batch(...stroke('Tab'), wheel(-50));
+			expect(focusedId()).toBe('row6');
+			expect(panel.scrollPosition).toBe(400 + RING - 100 - 50);
+			context.frame.layout();
+			expect(panel.scrollPosition).toBe(400 + RING - 100 - 50);
+		});
+	});
+
+	it("doesn't reveal after a layout what code focused before it, once a press has moved focus away and back", () => {
+		// A stack places the rows, so before the first layout every row is at the top
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100 });
+		const list = new Stack({ id: 'list' });
+		const rows = [0, 1, 2, 3, 4, 5].map((index) => new Probe({ id: `row${index}`, width: 200, height: 40, focusable: true }));
+		for (const row of rows) list.addChild(row);
+		panel.addChild(list);
+		panel.mount(context);
+		context.focus.focus(rows[5]);
+		context.focus.focusFromPointer(rows[0]);
+		context.focus.focusFromPointer(rows[5]);
+		context.frame.layout();
+		// The last focus came from a press, which never scrolls
+		expect(focusedId()).toBe('row5');
+		expect(panel.scrollPosition).toBe(0);
+	});
+
+	it('reveals after the layout all the same when a scroller the component is not in scrolls first', () => {
+		const root = new Container({ id: 'root', width: 400, height: 100 });
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100 });
+		const list = new Stack({ id: 'list' });
+		const rows = [0, 1, 2, 3, 4].map((index) => new Probe({ id: `row${index}`, width: 200, height: 40, focusable: true }));
+		for (const row of rows) list.addChild(row);
+		panel.addChild(list);
+		const beside = new ScrollContainer({ id: 'beside', x: 200, width: 200, height: 100, contentHeight: 1000 });
+		beside.addChild(new Container({ width: 200, height: 1000 }));
+		root.addChild(panel);
+		root.addChild(beside);
+		root.mount(context);
+		context.focus.focus(rows[4]);
+		beside.scrollTo(50);
+		context.frame.layout();
+		// row4 spans 160 to 200
+		expect(panel.scrollPosition).toBe(100);
+		expect(beside.scrollPosition).toBe(50);
+	});
+
+	it('reveals a focused scroller after the layout all the same when it scrolls its own content first', () => {
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100 });
+		const list = new Stack({ id: 'list' });
+		for (const index of [0, 1, 2, 3]) list.addChild(new Probe({ id: `row${index}`, width: 200, height: 40 }));
+		const inner = new ScrollContainer({ id: 'inner', width: 200, height: 40, contentHeight: 400 });
+		inner.addChild(new Container({ width: 200, height: 400 }));
+		list.addChild(inner);
+		panel.addChild(list);
+		panel.mount(context);
+		context.focus.focus(inner);
+		inner.scrollTo(20);
+		context.frame.layout();
+		// The inner panel spans 160 to 200; its own scroll doesn't move it in the outer one
+		expect(panel.scrollPosition).toBe(100);
+		expect(inner.scrollPosition).toBe(20);
+	});
+
+	it('runs focus handlers before the reveal and focus change listeners after it, so only a listener reads where focus lands', () => {
+		const { panel, rows } = scroller();
+		const seen: string[] = [];
+		rows[4].onFocus = () => seen.push(`handler at ${panel.scrollPosition}`);
+		context.focus.onFocusChange((focused) => {
+			if (focused === rows[4]) seen.push(`listener at ${panel.scrollPosition}`);
+		});
+		context.focus.focus(rows[4]);
+		// row4 spans 240 to 280
+		expect(seen).toEqual(['handler at 0', 'listener at 180']);
+	});
+
+	it('reveals only where focus ends up when a focus handler moves it on', () => {
+		const seen: number[] = [];
+		const panel = new ScrollContainer({ id: 'panel', width: 200, height: 100, contentHeight: 2000 });
+		const content = new Container({ width: 200, height: 2000 });
+		const target = new Probe({ id: 'target', y: 300, width: 200, height: 40, focusable: true });
+		/** Hands focus straight on to the target, as a container handing it to a member does. */
+		class Forwarder extends Probe {
+			public handleEvent(event: AnyUiEvent): void {
+				super.handleEvent(event);
+				if (event.type === 'focus') context.focus.focus(target, 'keyboard');
+			}
+		}
+		const forwarder = new Forwarder({ id: 'forwarder', y: 1500, width: 200, height: 40, focusable: true });
+		content.addChild(forwarder);
+		content.addChild(target);
+		panel.addChild(content);
+		panel.mount(context);
+		panel.onScroll = (offset) => seen.push(offset);
+		context.focus.focus(forwarder, 'keyboard');
+		expect(focusedId()).toBe('target');
+		// Straight to the target and its ring, never by way of the forwarder at 1500
+		expect(seen).toEqual([340 + RING - 100]);
 	});
 });
 
