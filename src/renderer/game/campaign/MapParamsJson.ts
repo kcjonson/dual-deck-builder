@@ -1,6 +1,6 @@
-import { ENVIRONMENTS, Environment, MAP_PARAMETERS, MapParams, NUMBER_PARAMS, NumberParam, StopTables, environmentDefaults } from '../map/MapParams';
-import { validateMapParams } from '../map/ParamValidator';
-import { describeValue, freezeJson, readFields, readNumber, readObject, readOneOf, readSeed } from './JsonReader';
+import { ENVIRONMENTS, Environment, MAP_PARAMETERS, MapParams, NUMBER_PARAMS, StopTables, environmentDefaults } from '../map/MapParams';
+import { describeClamp, validateMapParams } from '../map/ParamValidator';
+import { ReaderTypeError, describeValue, freezeJson, readFields, readNumber, readObject, readOneOf, readSeed } from './JsonReader';
 
 /** Every key a params object can hold. */
 const PARAM_KEYS: readonly string[] = ['seed', 'environment', ...NUMBER_PARAMS, 'stopTables'];
@@ -59,7 +59,7 @@ export function repairMapParams(value: unknown, path: string): RepairedMapParams
 	const saved = readObject(value, path);
 	const has = (key: string): boolean => Object.prototype.hasOwnProperty.call(saved, key);
 	const warnings: string[] = [];
-	if (!has('seed')) throw new TypeError(`${path}.seed is missing`);
+	if (!has('seed')) throw new ReaderTypeError(`${path}.seed is missing`);
 	const params = { seed: readSeed(saved.seed, `${path}.seed`) } as MapParams;
 
 	const fallback = MAP_PARAMETERS.environment.default;
@@ -67,7 +67,7 @@ export function repairMapParams(value: unknown, path: string): RepairedMapParams
 		params.environment = fallback;
 		warnings.push(`${path}.environment was missing; took ${fallback}`);
 	} else if (typeof saved.environment !== 'string') {
-		throw new TypeError(`${path}.environment must be a string, got ${describeValue(saved.environment)}`);
+		throw new ReaderTypeError(`${path}.environment must be a string, got ${describeValue(saved.environment)}`);
 	} else if ((ENVIRONMENTS as readonly string[]).includes(saved.environment)) {
 		params.environment = saved.environment as Environment;
 	} else {
@@ -76,31 +76,21 @@ export function repairMapParams(value: unknown, path: string): RepairedMapParams
 	}
 
 	const defaults = environmentDefaults(params.environment);
-	const filled = new Set<NumberParam>();
-	for (const name of NUMBER_PARAMS) {
-		if (has(name)) {
-			params[name] = readNumber(saved[name], `${path}.${name}`);
-		} else {
-			params[name] = defaults[name];
-			filled.add(name);
-		}
-	}
+	for (const name of NUMBER_PARAMS) params[name] = has(name) ? readNumber(saved[name], `${path}.${name}`) : defaults[name];
 	if (has('stopTables')) params.stopTables = readStopTables(saved.stopTables, `${path}.stopTables`);
 
-	// A value can be clamped twice, into its range and then by a combination rule, so the warning runs from the
-	// value kept to the validator's last word on it, with every reason.
+	// One warning a parameter. A value can be clamped twice (into its range, then by a combination rule), so a
+	// warning lists every clamp the Map Lab would show, in order.
 	const validated = validateMapParams(params);
-	const reasons = new Map<string, string[]>();
-	for (const clamp of validated.clamps) reasons.set(clamp.param, [...(reasons.get(clamp.param) ?? []), clamp.reason]);
 	for (const name of NUMBER_PARAMS) {
 		const kept = params[name];
-		const forNewMap = validated.params[name];
-		const why = reasons.get(name)?.join(', then ');
-		if (filled.has(name)) {
-			const note = why && forNewMap !== kept ? `, though a new map would take ${forNewMap} (${why})` : '';
+		const clamped = validated.params[name] !== kept;
+		const clamps = validated.clamps.filter(clamp => clamp.param === name).map(describeClamp).join(', then ');
+		if (!has(name)) {
+			const note = clamped ? `, which a new map wouldn't keep: ${clamps}` : '';
 			warnings.push(`${path}.${name} was missing; took ${kept}, the ${params.environment} default${note}`);
-		} else if (why && forNewMap !== kept) {
-			warnings.push(`${path}.${name} ${forNewMap > kept ? 'raised' : 'lowered'} to ${forNewMap} (${why}) for a new map; this one keeps the ${kept} it was made with`);
+		} else if (clamped) {
+			warnings.push(`${path}.${clamps} for a new map; this one keeps the ${kept} it was made with`);
 		}
 	}
 

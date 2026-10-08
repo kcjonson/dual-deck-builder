@@ -6,7 +6,7 @@ import { DriverArchetype } from '../mechanics/Driver';
 import { CardCounts, NO_CARDS, addCards, cardCount, readCardCounts, readCardType, removeCards } from './CardCounts';
 import { EscortJson, convoyToJson, readConvoy } from './ConvoyJson';
 import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordJson, placeholderName, readDriverRecord } from './DriverRecord';
-import { copyJson, describeValue, readArray, readFields, readInteger, readObject, readOneOf, readSeed, readText } from './JsonReader';
+import { ReaderRangeError, ReaderTypeError, describeValue, readArray, readFields, readInteger, readObject, readOneOf, readSeed, readText } from './JsonReader';
 import { readMapParams, repairMapParams } from './MapParamsJson';
 import { EMPTY_MAP, MapState, readMapState } from './MapState';
 import { CAMPAIGN_SCHEMA_VERSION, migrateSave } from './SaveMigrations';
@@ -299,8 +299,9 @@ export class Campaign extends Model<CampaignData> {
 		const held = cardCount(source, cardType);
 		if (held < count) throw new RangeError(`Can't move ${count} ${cardType} from ${placeName(from)}, which holds ${held}`);
 		const taken = removeCards(source, cardType, count);
-		// Throws, storing nothing, when the far end can't hold that many more.
+		// These throw, storing nothing, when the far end, or the locker the copies fall back to, can't hold that many more.
 		const given = addCards(target, cardType, count);
+		if (from !== 'locker' && to !== 'locker') addCards(this.locker, cardType, count);
 		storingMoves.add(this);
 		let landing: CardPlace = to;
 		try {
@@ -324,33 +325,16 @@ export class Campaign extends Model<CampaignData> {
 		this.set({ log: [...this.log, { day: this.day, message }] });
 	}
 
+	/** The save as plain JSON: what `toSaveText` writes, parsed back, so it's a copy of the caller's own. */
 	public toJSON(): CampaignJson {
-		const convoy = convoyToJson(this.convoy);
-		// The convoy changes outside the campaign's checks, so a convoy that couldn't load back fails here, on write.
-		readConvoy(convoy, 'Campaign.convoy');
-		return {
-			schemaVersion: CAMPAIGN_SCHEMA_VERSION,
-			seed: this.seed,
-			generatorVersion: this.generatorVersion,
-			day: this.day,
-			resources: { ...this.resources },
-			unrest: this.unrest,
-			nextDriverNumber: this.nextDriverNumber,
-			drivers: this.drivers.map(driver => driver.toJSON()),
-			locker: { ...this.locker },
-			convoy,
-			strongholdsTaken: [...this.strongholdsTaken],
-			log: this.log.map(entry => ({ ...entry })),
-			mapParams: copyJson(this.mapParams),
-			map: copyJson(this.map)
-		};
+		return JSON.parse(this.toSaveText()) as CampaignJson;
 	}
 
 	/**
-	 * The save's text, the same text `JSON.stringify(campaign)` writes, made
-	 * without the copies `toJSON` hands its callers: the frozen values go to
-	 * `JSON.stringify` as they are, which keeps a checkpoint cheap. Throws
-	 * where `toJSON` does.
+	 * The save's text, which `JSON.stringify(campaign)` also writes. The
+	 * frozen values go to `JSON.stringify` as they are, uncopied, which keeps
+	 * a checkpoint cheap. Throws on a convoy that couldn't load back, since
+	 * the convoy changes outside the campaign's checks.
 	 */
 	public toSaveText(): string {
 		const convoy = convoyToJson(this.convoy);
@@ -430,11 +414,11 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 	const seed = readSeed(fields.seed, `${path}.seed`);
 	const mapParams = readMapParams(fields.mapParams, `${path}.mapParams`);
 	if (mapParams.seed !== seed) {
-		throw new RangeError(`${path}.mapParams.seed must be the campaign's seed, ${seed}, got ${describeValue(mapParams.seed)}`);
+		throw new ReaderRangeError(`${path}.mapParams.seed must be the campaign's seed, ${seed}, got ${describeValue(mapParams.seed)}`);
 	}
 	const day = readInteger(fields.day, `${path}.day`, { min: 1 });
 	const nextDriverNumber = readInteger(fields.nextDriverNumber, `${path}.nextDriverNumber`, { min: 1 });
-	if (!(fields.convoy instanceof Convoy)) throw new TypeError(`${path}.convoy must be a Convoy, got ${describeValue(fields.convoy)}`);
+	if (!(fields.convoy instanceof Convoy)) throw new ReaderTypeError(`${path}.convoy must be a Convoy, got ${describeValue(fields.convoy)}`);
 	return {
 		seed,
 		generatorVersion: readInteger(fields.generatorVersion, `${path}.generatorVersion`, { min: 1 }),
@@ -471,22 +455,22 @@ function readDrivers(
 	const drivers = readArray(value, path);
 	held?.forEach((driver, index) => {
 		if (drivers[index] === driver) return;
-		throw new RangeError(index < drivers.length
+		throw new ReaderRangeError(index < drivers.length
 			? `${path}[${index}] must still be ${driver.id} (${driver.name}): drivers keep their places in the pool`
 			: `${path} is missing ${driver.id} (${driver.name}): drivers stay in the pool, the dead and missing too`);
 	});
 	const firstNew = held?.length ?? 0;
 	const ids = new Set<string>();
 	drivers.forEach((driver, index) => {
-		if (!(driver instanceof DriverRecord)) throw new TypeError(`${path}[${index}] must be a DriverRecord, got ${describeValue(driver)}`);
+		if (!(driver instanceof DriverRecord)) throw new ReaderTypeError(`${path}[${index}] must be a DriverRecord, got ${describeValue(driver)}`);
 		const number = driverNumber(driver.id);
-		if (number === null) throw new RangeError(`${path}[${index}].id must look like driver-1, got ${describeValue(driver.id)}`);
+		if (number === null) throw new ReaderRangeError(`${path}[${index}].id must look like driver-1, got ${describeValue(driver.id)}`);
 		if (number >= nextDriverNumber) {
-			throw new RangeError(`${path}[${index}].id must come before driver-${nextDriverNumber}, the next id to hand out, got ${driver.id}`);
+			throw new ReaderRangeError(`${path}[${index}].id must come before driver-${nextDriverNumber}, the next id to hand out, got ${driver.id}`);
 		}
-		if (ids.has(driver.id)) throw new RangeError(`${path}[${index}].id ${driver.id} belongs to an earlier driver`);
+		if (ids.has(driver.id)) throw new ReaderRangeError(`${path}[${index}].id ${driver.id} belongs to an earlier driver`);
 		if (index >= firstNew && number < counterBefore) {
-			throw new RangeError(`${path}[${index}].id must be driver-${counterBefore} or later, an id the counter hasn't passed, got ${driver.id}`);
+			throw new ReaderRangeError(`${path}[${index}].id must be driver-${counterBefore} or later, an id the counter hasn't passed, got ${driver.id}`);
 		}
 		ids.add(driver.id);
 	});
@@ -513,7 +497,7 @@ function readStrongholds(value: unknown, path: string): readonly string[] {
 	if (typeof value === 'object' && value !== null && checkedStrongholds.has(value)) return value as readonly string[];
 	const ids = readArray(value, path).map((id, index) => readText(id, `${path}[${index}]`));
 	ids.forEach((id, index) => {
-		if (ids.indexOf(id) !== index) throw new RangeError(`${path}[${index}] ${describeValue(id)} is already in the list`);
+		if (ids.indexOf(id) !== index) throw new ReaderRangeError(`${path}[${index}] ${describeValue(id)} is already in the list`);
 	});
 	const strongholds = Object.freeze(ids);
 	checkedStrongholds.add(strongholds);
@@ -546,7 +530,7 @@ function readLogEntries(entries: readonly unknown[], path: string, today: number
 		const at = `${path}[${start + offset}]`;
 		const fields = readFields(entry, at, ['day', 'message']);
 		const day = readInteger(fields.day, `${at}.day`, { min: 1, max: today, maxLabel: `today (${today})` });
-		if (day < previousDay) throw new RangeError(`${at}.day must not come before the entry above it (day ${previousDay}), got ${day}`);
+		if (day < previousDay) throw new ReaderRangeError(`${at}.day must not come before the entry above it (day ${previousDay}), got ${day}`);
 		previousDay = day;
 		return Object.freeze({ day, message: readText(fields.message, `${at}.message`) });
 	});

@@ -1,4 +1,4 @@
-import { copyJson, describeValue, freezeJson, readArray, readFields } from './JsonReader';
+import { ReaderRangeError, ReaderTypeError, describeValue, freezeJson, isReaderError, readArray, readFields, readInteger } from './JsonReader';
 
 describe('JsonReader', () => {
 	describe('describeValue', () => {
@@ -50,19 +50,11 @@ describe('JsonReader', () => {
 		});
 	});
 
-	it('copyJson hands out a copy that can change without touching the original', () => {
-		const frozen = freezeJson({ roads: [{ id: 'r1' }] }, 'map');
-		const copy = copyJson(frozen) as { roads: { id: string }[] };
-
-		copy.roads[0].id = 'r2';
-
-		expect(frozen).toEqual({ roads: [{ id: 'r1' }] });
-	});
-
 	it('readArray refuses an array with a hole, which map and forEach would skip over', () => {
 		const holes: unknown[] = Array(2);
 		holes[1] = 'north';
 
+		expect(() => readArray(holes, 'list')).toThrow(ReaderTypeError);
 		expect(() => readArray(holes, 'list')).toThrow(TypeError);
 		expect(() => readArray(holes, 'list')).toThrow('list[0] is missing: the array has a hole there');
 		expect(readArray([undefined, null], 'list')).toEqual([undefined, null]);
@@ -71,5 +63,23 @@ describe('JsonReader', () => {
 	it('readFields refuses a field it doesn\'t know, and one that\'s missing', () => {
 		expect(() => readFields({ a: 1 }, 'thing', ['a', 'b'])).toThrow('thing.b is missing');
 		expect(() => readFields({ a: 1, c: 2 }, 'thing', ['a', 'b'])).toThrow('thing has an unknown field "c"');
+	});
+
+	it('throws errors of its own, still TypeErrors and RangeErrors, so a bad value can be told from a bug', () => {
+		const caught = (read: () => unknown): unknown => {
+			try {
+				read();
+			} catch (error) {
+				return error;
+			}
+			return null;
+		};
+		const wrongKind = caught(() => readInteger('7', 'count', { min: 0 }));
+		const outOfRange = caught(() => readInteger(-1, 'count', { min: 0 }));
+		const bug = caught(() => (null as unknown as { day: number }).day);
+
+		expect([wrongKind instanceof ReaderTypeError, wrongKind instanceof TypeError]).toEqual([true, true]);
+		expect([outOfRange instanceof ReaderRangeError, outOfRange instanceof RangeError]).toEqual([true, true]);
+		expect([isReaderError(wrongKind), isReaderError(outOfRange), isReaderError(bug)]).toEqual([true, true, false]);
 	});
 });

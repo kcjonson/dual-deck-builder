@@ -376,6 +376,17 @@ describe('Campaign', () => {
 			expect(warrior.defaultDeck).toBe(deck);
 		});
 
+		it('store neither end of a move between decks when the locker, where the copies fall back to, couldn\'t take them', () => {
+			const campaign = newCampaign({ locker: { ramming_speed: Number.MAX_SAFE_INTEGER } });
+			const warrior = campaign.recruitDriver({ archetype: 'road_warrior' });
+			const mechanic = campaign.recruitDriver({ archetype: 'mechanic' });
+			const decks = [warrior.defaultDeck, mechanic.defaultDeck];
+
+			expect(() => campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic })).toThrow(RangeError);
+
+			expect([warrior.defaultDeck, mechanic.defaultDeck]).toEqual(decks);
+		});
+
 		describe('and what listeners hear', () => {
 			/** A campaign with copies in the locker and two drivers, and every copy it owns. */
 			function setUp(): { campaign: Campaign; warrior: DriverRecord; mechanic: DriverRecord; owned: number } {
@@ -841,12 +852,12 @@ describe('Campaign', () => {
 				expect(warnings).toEqual(['Campaign.mapParams.radius lowered to 1600 (tuning range 600 to 1600) for a new map; this one keeps the 5000 it was made with']);
 			});
 
-			it('gives a value today\'s validator would clamp twice one warning, from the saved value to the last word, with both reasons', () => {
+			it('gives a value today\'s validator would clamp twice one warning, naming the saved value and both clamps', () => {
 				const { campaign, warnings } = loadDrifted(params => { params.highways = 2; });
 
 				expect(campaign.mapParams.highways).toBe(2);
 				expect(warnings).toEqual([
-					'Campaign.mapParams.highways raised to 6 (tuning range 3 to 9, then strongholds + 2) for a new map; this one keeps the 2 it was made with'
+					'Campaign.mapParams.highways raised to 3 (tuning range 3 to 9), then highways raised to 6 (strongholds + 2) for a new map; this one keeps the 2 it was made with'
 				]);
 			});
 
@@ -857,7 +868,7 @@ describe('Campaign', () => {
 				});
 
 				expect(campaign.mapParams.highways).toBe(6);
-				expect(warnings).toEqual(['Campaign.mapParams.highways was missing; took 6, the mixed default, though a new map would take 8 (strongholds + 2)']);
+				expect(warnings).toEqual(['Campaign.mapParams.highways was missing; took 6, the mixed default, which a new map wouldn\'t keep: highways raised to 8 (strongholds + 2)']);
 			});
 
 			it('takes Mixed for an environment that\'s missing or no longer exists', () => {
