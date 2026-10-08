@@ -17,6 +17,7 @@ What a reveal shows is what the component draws in its current state. `Component
 - A segment of a segmented control draws its ring inside its box and answers its box; its selected chip's glow is left out as a look's glow is.
 - A slider answers its box too: its thumb stays inside it, the thumb's glow is left out the same way, and the walk adds the ring.
 - List rows, tabs, and the tree view draw their ring inside and have no ink, so the default already answers their box.
+- A vehicle answers its box and, round its plate, its dashed outline or its target's glow, and the acting glow, each where it falls. Its `cullInk` grows the whole box by the widest of them, up to 30 px past what it draws.
 
 The union never adds one ring to another: a card's 7 or 9 px of static ink already holds the 3 px ring it draws itself. A component with no bound (an unmeasured `Text`, a draw fixture) reveals its box.
 
@@ -39,7 +40,7 @@ A tooltip that keyboard focus opened stays on its owner when hover changes only 
 - The content box, as before: cuts what's drawn past it on the side the reveal stops at.
 - `ownInkBound`, the cull and audit bound: a cull can over-bound, but a reveal that does moves the view for ink nothing draws, a row's ring inside its box, a button's hover glow, a ring under the pointer modality.
 - `subtreeInk`: covers children drawing past the component, but is null under any layer and isn't cut by the component's own clip, so a focused nested scroller's bound is its whole content. Children past their parent's box are the lint's to catch (R13.25.2).
-- A new per-state bound on every component: most components' cull ink is already what they draw, or follows their state as a vehicle's does, so one protected hook with that default, overridden by the controls whose ink bound covers states they aren't in, is the smallest change that does it.
+- A new per-state bound on every component: most components' cull ink is already what they draw, so one protected hook with that default, overridden where the cull bound covers states a component isn't in or room it doesn't draw in, is the smallest change that does it.
 - For ink taller than the clip: `nearest` on the ink, clamped to keep the box, cuts the far side's ring; following the direction focus moved needs the direction, and the obvious versions swing back on the next call; centring the ink cuts a short side's ring when the ink is lopsided.
 - For a box taller than the clip: CSS's near edge would show a card reached from below by its foot. Cards and text read from the top.
 - For the dialog: moving focus in only after the dialog's first layout fixes dialogs alone; the after-layout reveal covers anything that focuses before it has a size, a screen's first focus included.
@@ -50,5 +51,6 @@ A tooltip that keyboard focus opened stays on its owner when hover changes only 
 - What scrolls into view can still be cut where the range ends: content whose last row draws past the end of the content needs a margin or padding for it, as driver selection's grid has. The pile dialog's last row is one such case, and a scroller's clip reaches into its padding only by its direct children's ink, filed separately.
 - Only y is revealed. The pile dialog's first column draws its hex past the scroller's left edge, a layout gap (DDB-407, DDB-409).
 - `InputObserver.hoverChange` takes a second argument, `pointerMoved`.
+- `checkReveal` in `components/testing.ts` renders a component through the draw API and compares every draw with what it reveals. Each focusable in the catalog and the game is held to it (the two `revealInk.test.ts`), a card to its known over-bound, so a bound that drifts from the drawing fails there whatever the scroll tests cover.
 - A reveal aims at the logical clip, and the draw API snaps the clip it pushes to device pixels, so at a fractional position up to a fraction of a pixel of what was revealed can sit outside it: 0.13 px at driver selection's deck preview, which doesn't show.
 - No golden or lint result moves: no scene or screen in them focuses inside a scroller by keyboard, and a programmatic first focus revealed again after its layout lands on content already in view.
