@@ -7,6 +7,7 @@ import { Driver } from '../mechanics/Driver';
 import { Card, CardEffect } from '../mechanics/Card';
 import { laneKind } from '../mechanics/Road';
 import { DamageKind, damageToFinish, effectDamageKind } from './DamageEstimate';
+import { cardsKeptFromDraw } from './DrawEstimate';
 import { EffectRecipient, effectRecipientOf } from '../mechanics/EffectTargets';
 import { cardFlanks, selfSpeedBonus } from '../mechanics/BoardProjection';
 
@@ -202,7 +203,9 @@ export class MCTSAI extends AIPlayer {
 			if (!ourVehicle) return -10;
 			
 			const actor = this.actorOf({ card, target: action.target, ourVehicle });
-			let score = this.evaluateMovement(card, actor);
+			// A draw is worth the cards that fit under the drawer's hand limit; the rest burn
+			const keptCards = cardsKeptFromDraw({ board: this.board, card, player: driver });
+			let score = this.evaluateMovement(card, actor) + this.CARD_DRAW_WEIGHT * keptCards;
 			
 			// Evaluate card effects with context
 			if (card.effects) {
@@ -222,7 +225,7 @@ export class MCTSAI extends AIPlayer {
 			}
 			
 			// Consider card synergies and combos
-			score += this.evaluateCardSynergy(card, driver, ourVehicle);
+			score += this.evaluateCardSynergy({ card, driver, keptCards });
 			
 			// Resource efficiency - reduced penalty for aggressive play
 			const costPenalty = card.cost * 0.1; // Reduced penalty
@@ -258,12 +261,12 @@ export class MCTSAI extends AIPlayer {
 			
 			for (const card of this.board.handOf(driver)) {
 				if (this.board.adrenalineOf(driver) >= card.cost) {
-					// More comprehensive check for valuable cards
-					if (selfSpeedBonus(card) > 0 || card.effects.some(e =>
+					// More comprehensive check for valuable cards. A draw counts
+					// only while a card it draws would fit in the hand.
+					if (selfSpeedBonus(card) > 0 || cardsKeptFromDraw({ board: this.board, card, player: driver }) > 0 || card.effects.some(e =>
 						e.type === 'damage' && (e.value || 0) >= 3 || // Lowered threshold
 						e.type === 'heal' && (e.value || 0) >= 3 ||
 						e.type === 'change_position' ||
-						e.type === 'draw_cards' ||
 						e.type === 'gain_resource' && e.resource === 'adrenaline'
 					)) {
 						count++;
@@ -305,7 +308,8 @@ export class MCTSAI extends AIPlayer {
 
 	/**
 	 * Evaluate effect with full context. The card's flank and its own speed
-	 * are scored once for the whole card in evaluateMovement.
+	 * are scored once for the whole card in evaluateMovement, and its draws
+	 * once in evaluateActionWithContext.
 	 */
 	private evaluateEffectWithContext({
 		effect,
@@ -328,11 +332,10 @@ export class MCTSAI extends AIPlayer {
 				return this.evaluateHealWithContext(effect.value || 0, target, ourVehicle);
 			case 'gain_armor':
 				return this.evaluateArmorWithContext(effect.value || 0, onActor ? actor ?? undefined : target);
-			case 'draw_cards':
-				return this.CARD_DRAW_WEIGHT * (effect.value || 1);
 			case 'gain_resource':
 				return effect.resource === 'adrenaline' ? this.ADRENALINE_WEIGHT * (effect.value || 1) : 0;
 			case 'change_position':
+			case 'draw_cards':
 				return 0;
 			case 'apply_status':
 				return this.evaluateStatus({ effect, onActor, target });
@@ -517,9 +520,10 @@ export class MCTSAI extends AIPlayer {
 	}
 	
 	/**
-	 * Evaluate card synergies
+	 * Evaluate card synergies. `keptCards` is how many cards the play's draw
+	 * keeps.
 	 */
-	private evaluateCardSynergy(card: Card, driver: Driver, _vehicle: Vehicle): number {
+	private evaluateCardSynergy({ card, driver, keptCards }: { card: Card; driver: Driver; keptCards: number }): number {
 		let synergyScore = 0;
 		
 		// Check for card type synergies
@@ -536,8 +540,8 @@ export class MCTSAI extends AIPlayer {
 			}
 		}
 		
-		// Bonus for combo potential
-		if (card.effects.some(e => e.type === 'draw_cards')) {
+		// Bonus for combo potential, from cards a draw keeps
+		if (keptCards > 0) {
 			synergyScore += 0.5; // Card draw enables more combos
 		}
 		

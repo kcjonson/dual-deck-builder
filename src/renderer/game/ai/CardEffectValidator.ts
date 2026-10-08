@@ -2,6 +2,7 @@ import { Card } from '../mechanics/Card';
 import { Driver } from '../mechanics/Driver';
 import { Vehicle } from '../mechanics/Vehicle';
 import { BoardProjection } from '../mechanics/BoardProjection';
+import { cardsKeptFromDraw } from './DrawEstimate';
 
 /**
  * Common utility for validating if a card will have any beneficial effect
@@ -99,8 +100,11 @@ export class CardEffectValidator {
 					break;
 
 				case 'draw_cards':
-					// Drawing cards is always beneficial
-					return true;
+					// A draw helps only while the hand has room; past the limit it burns
+					if (cardsKeptFromDraw({ board, card, player: caster }) > 0) {
+						return true;
+					}
+					break;
 
 				case 'gain_resource':
 					// Gaining resources is always beneficial
