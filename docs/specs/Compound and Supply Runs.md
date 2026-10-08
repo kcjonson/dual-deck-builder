@@ -166,10 +166,10 @@ Routes to a POI arrive from different branches and share nothing past the home a
 
 ## The drive
 
-- Stops resolve in order. Each opens its screen (combat, event, garage) and comes back to the route view, which shows progress and the next stop.
+- Stops resolve in order. Each opens its screen (combat, event, garage) and comes back to the route view, which shows progress and the next stop. A fight is built from the seated drivers' records and run decks and the escorts that came along, and what it did is written back to them when it ends ([combat-bridge.md](../AI_TECHNICAL_DECISIONS/combat-bridge.md)).
 - No branching mid-route in the first version: the route is fixed at departure.
 - The area map is open between stops.
-- Rewards from fights (cards, scrap) apply as they do now. Resources found are cargo until you get home.
+- Rewards from fights (cards, scrap) apply as they do now. So do haulers' dividends (Combat Rules, Owning escorts): their fuel and scrap go straight into the compound's stores, so a failed run never takes back what an earlier fight paid. Resources found are cargo until you get home.
 
 ### Return
 
@@ -263,9 +263,10 @@ Unchanged in spirit: the two players share the compound and decide runs together
 1. Victory: does the campaign end when every stronghold has fallen, or does taking them reveal a final boss? Proposal: every stronghold, so the end is player-paced.
 2. Can shortages alone end the campaign (say, People reaches 0), or only the last driver's death?
 3. Deck limits: 8 to 20 cards, and whether the hand limit should differ by archetype from the start.
-4. Vehicles: a driver's signature vehicle is theirs; does a found vehicle become an escort only, or can it replace a destroyed driven vehicle?
+4. Vehicles: a driver's signature vehicle is theirs; does a found vehicle become an escort only, or can it replace a destroyed driven vehicle? Until it's decided, a driver's vehicle is back, whole, for every fight, a wrecked one included; only escorts carry damage from one fight to the next.
 5. Mid-route branching at junctions: worth adding later, or never? (The road trees make it possible: a junction is a place a run could change its mind.)
 6. Starting pool size (4) and whether the player picks it or it's dealt.
 7. Night rules (see Night).
 8. One run per day, or can two short runs fit in a day's light?
 9. Driver names: drivers now persist, and the pool can hold two of an archetype, so "THE ROAD WARRIOR" isn't enough to tell them apart. Give each driver a personal name, with the archetype as their title? Until that's decided, a driver goes by their archetype and a number counting every driver of that archetype the compound has had, the dead included: "Road Warrior 2".
+10. A won fight can leave a run with one driver, the other dead. Does the survivor drive the rest of the route alone, or does losing a driver turn the run for home? A player team fields exactly two driven vehicles (Combat Rules, Team), and the dock has a half for each. Until it's decided, a run down to one driver can't start another fight.
