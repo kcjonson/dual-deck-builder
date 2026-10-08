@@ -7,7 +7,8 @@ import { resolveColor } from '../../engine/style/styleObject';
 import { shadowExtent } from '../../engine/style/look';
 import type { CardCounts } from '../campaign/CardCounts';
 import type { Card as GameCard } from '../mechanics/Card';
-import { Card as UICard, CardSize, MINI_GRID, miniGridHeight } from './Card';
+import { Card as UICard, CardSize, MINI_GRID, miniGridHeight, miniGridWidth } from './Card';
+import { FlowWrap } from './FlowWrap';
 import { DETAIL_SHADOW, pinHint } from './CardDetailView';
 import { CARD_LINE_FAINT, CARD_MUTED, CARD_NAME, CARD_RULES } from './cardStyle';
 import type { DriverCardData } from './driverCardData';
@@ -47,10 +48,13 @@ export const DRIVER_DETAIL = {
 	name: { size: 20, lineHeight: 22, lines: 2 },
 	/** The vehicle and specialty on one line, as the Crew screen's header writes them. */
 	identity: { size: 13, height: 18 },
-	/** A note, the deck's heading, and the pin hint: mono capitals. */
-	label: { size: 11, height: 14, letterSpacing: 0.06 },
-	/** HP and the skills: mono figures, flowed in rows. */
-	stat: { size: 11, height: 14, gap: 14, rowGap: 4, letterSpacing: 0.04 },
+	/**
+	 * One row of mono: a label's muted capitals (a note, the deck's heading,
+	 * the pin hint), tracked wider than a stat's brighter figures.
+	 */
+	mono: { size: 11, height: 14, labelSpacing: 0.06, figureSpacing: 0.04 },
+	/** The hand limit and the skills, flowed in rows. */
+	stats: { gap: 14, rowGap: 4 },
 	bar: { height: 6, gap: 10 },
 	rule: 1,
 	/** Between the deck and the foot, and between a note and the pin hint in it. */
@@ -75,14 +79,10 @@ export function driverDeckGrid(kinds: number): { columns: number; rows: number }
 	return { columns: rows > 0 ? Math.max(min, Math.ceil(kinds / rows)) : min, rows };
 }
 
-/** The width of `columns` minis spaced by `MINI_GRID`, its margin included. */
-function gridWidth(columns: number): number {
-	return columns * MINI_SIZE.width + (columns - 1) * MINI_GRID.gap + MINI_GRID.margin * 2;
-}
-
 /**
  * The deck's cards the lookup knows, cheapest first and then by name, the
- * order the Crew screen and load out show a deck in.
+ * order the Crew screen and load out show a deck in, names compared as a
+ * pile's are (`drawPileOrder`).
  */
 function deckEntries(deck: CardCounts, cards: CardLookup): { card: GameCard; copies: number }[] {
 	const entries: { card: GameCard; copies: number }[] = [];
@@ -91,8 +91,7 @@ function deckEntries(deck: CardCounts, cards: CardLookup): { card: GameCard; cop
 		const card = cards(type);
 		if (card) entries.push({ card, copies });
 	}
-	const byName = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
-	return entries.sort((a, b) => a.card.cost - b.card.cost || byName(a.card.displayName, b.card.displayName));
+	return entries.sort((a, b) => a.card.cost - b.card.cost || a.card.displayName.localeCompare(b.card.displayName));
 }
 
 export interface DriverDetailViewOptions {
@@ -125,7 +124,8 @@ export class DriverDetailView extends Component {
 	/** The vehicle and specialty, under the name. */
 	private readonly identity: Text;
 	private readonly hp: Text;
-	private readonly stats: Text[] = [];
+	/** The hand limit and the skills, flowed in rows across the view. */
+	private readonly stats: FlowWrap;
 	private readonly heading: Text;
 	/** How a lost driver went, at the left of the foot; null without a note. */
 	private readonly note: Text | null;
@@ -140,7 +140,7 @@ export class DriverDetailView extends Component {
 		const entries = deckEntries(data.deck, cards);
 		const grid = driverDeckGrid(entries.length);
 		const { pad, portrait: portraitSize, gap } = DRIVER_DETAIL;
-		const width = pad * 2 + gridWidth(grid.columns);
+		const width = pad * 2 + MINI_GRID.margin * 2 + miniGridWidth(grid.columns);
 		super({ id, width, height: pad * 2 });
 		this.componentType = 'DriverDetailView';
 		this.model = data;
@@ -180,24 +180,26 @@ export class DriverDetailView extends Component {
 			textOverflow: 'ellipsis',
 		});
 
-		this.hp = this.figures({ id: childId('hp'), text: `HP ${data.hitpoints}/${data.maxHitpoints}` });
-		this.stats.push(this.figures({ id: childId('hand_limit'), text: `HAND LIMIT ${data.handLimit}` }));
+		this.hp = this.mono({ id: childId('hp'), text: `HP ${data.hitpoints}/${data.maxHitpoints}`, kind: 'figures', x: pad });
+		this.stats = new FlowWrap({ id: childId('stats'), x: pad, width: width - pad * 2, gap: DRIVER_DETAIL.stats.gap, rowGap: DRIVER_DETAIL.stats.rowGap });
+		const stats: [string, string][] = [['hand_limit', `HAND LIMIT ${data.handLimit}`]];
 		const skills = data.skills;
 		if (skills) {
-			this.stats.push(
-				this.figures({ id: childId('ramming'), text: `RAMMING ${skills.ramming}` }),
-				this.figures({ id: childId('gunnery'), text: `GUNNERY ${skills.gunnery}` }),
-				this.figures({ id: childId('evade'), text: `EVADE ${skills.evade}` }),
+			stats.push(
+				['ramming', `RAMMING ${skills.ramming}`],
+				['gunnery', `GUNNERY ${skills.gunnery}`],
+				['evade', `EVADE ${skills.evade}`],
 				// A driver's speed adds to whatever vehicle they drive (Combat Rules)
-				this.figures({ id: childId('speed'), text: `SPEED +${skills.speed}` }),
+				['speed', `SPEED +${skills.speed}`],
 			);
 		}
+		for (const [suffix, text] of stats) this.stats.addChild(this.mono({ id: childId(suffix), text, kind: 'figures' }));
 		// What it shows, so a type the lookup doesn't know leaves the count and the minis agreeing
 		const size = entries.reduce((total, { copies }) => total + copies, 0);
-		this.heading = this.label({ id: childId('deck'), text: `DECK / ${size} ${size === 1 ? 'CARD' : 'CARDS'}`, x: pad });
+		this.heading = this.mono({ id: childId('deck'), text: `DECK / ${size} ${size === 1 ? 'CARD' : 'CARDS'}`, kind: 'label', x: pad });
 		// Its width is the room the pin hint leaves, set in layout
-		this.note = data.note ? this.label({ id: childId('note'), text: data.note, x: pad, width: columnWidth }) : null;
-		this.pin = this.label({ id: childId('pin'), text: pinHint(pinned), x: pad });
+		this.note = data.note ? this.mono({ id: childId('note'), text: data.note, kind: 'label', x: pad, width: columnWidth }) : null;
+		this.pin = this.mono({ id: childId('pin'), text: pinHint(pinned), kind: 'label' });
 		this.minis = entries.map(({ card, copies }) => {
 			const mini = new UICard({ id: childId(`card_${card.type}`), x: 0, y: 0, data: card, size: CardSize.MINI, copies });
 			// A view to read, not a deck to work: its cards take no pointer of their own
@@ -205,37 +207,34 @@ export class DriverDetailView extends Component {
 			return mini;
 		});
 
-		for (const child of [this.name, this.identity, this.hp, ...this.stats, this.heading, ...this.minis]) this.addChild(child);
+		for (const child of [this.name, this.identity, this.hp, this.stats, this.heading, ...this.minis]) this.addChild(child);
 		if (this.note) this.addChild(this.note);
 		this.addChild(this.pin);
 	}
 
-	/** Mono capitals, muted: a note, the deck's heading, the pin hint. A fixed width cuts with an ellipsis; none hugs. */
-	private label({ id, text, x, width }: { id: string; text: string; x: number; width?: number }): Text {
+	/**
+	 * One row of mono: a label's muted capitals, or a stat's brighter
+	 * figures. A fixed width cuts it with an ellipsis; without one it hugs.
+	 */
+	private mono({ id, text, kind, x = 0, width }: { id: string; text: string; kind: 'label' | 'figures'; x?: number; width?: number }): Text {
+		const label = kind === 'label';
 		return new Text({
 			id,
 			text,
 			x,
 			width,
-			height: DRIVER_DETAIL.label.height,
-			style: { fontRole: 'mono', fontSize: DRIVER_DETAIL.label.size, color: CARD_MUTED, letterSpacing: DRIVER_DETAIL.label.letterSpacing, textTransform: 'uppercase' },
-			lineHeight: DRIVER_DETAIL.label.height / DRIVER_DETAIL.label.size,
+			height: DRIVER_DETAIL.mono.height,
+			style: {
+				fontRole: 'mono',
+				fontSize: DRIVER_DETAIL.mono.size,
+				color: label ? CARD_MUTED : CARD_RULES,
+				letterSpacing: label ? DRIVER_DETAIL.mono.labelSpacing : DRIVER_DETAIL.mono.figureSpacing,
+				textTransform: label ? 'uppercase' : 'none',
+			},
+			lineHeight: DRIVER_DETAIL.mono.height / DRIVER_DETAIL.mono.size,
 			verticalAlign: 'middle',
 			wrap: 'none',
 			textOverflow: width !== undefined ? 'ellipsis' : undefined,
-		});
-	}
-
-	/** A stat, mono figures hugging their text. */
-	private figures({ id, text }: { id: string; text: string }): Text {
-		return new Text({
-			id,
-			text,
-			height: DRIVER_DETAIL.stat.height,
-			style: { fontRole: 'mono', fontSize: DRIVER_DETAIL.stat.size, color: CARD_RULES, letterSpacing: DRIVER_DETAIL.stat.letterSpacing },
-			lineHeight: DRIVER_DETAIL.stat.height / DRIVER_DETAIL.stat.size,
-			verticalAlign: 'middle',
-			wrap: 'none',
 		});
 	}
 
@@ -263,7 +262,7 @@ export class DriverDetailView extends Component {
 	 * height that needs, moving the draws built with the view in place.
 	 */
 	public arrange(): void {
-		const { pad, portrait: portraitSize, gap, stat } = DRIVER_DETAIL;
+		const { pad, portrait: portraitSize, gap, mono } = DRIVER_DETAIL;
 		const right = this.width - pad;
 
 		// The head: the name on one line or two, the vehicle and specialty under it, beside the portrait
@@ -273,34 +272,24 @@ export class DriverDetailView extends Component {
 		let y = Math.max(pad + portraitSize, this.identity.y + this.identity.height) + gap;
 
 		// HP as figures, its bar running to the right edge
-		this.hp.x = pad;
 		this.hp.y = y;
 		const barX = pad + this.hp.width + DRIVER_DETAIL.bar.gap;
 		placeHpBar(
 			this.hpBar,
-			{ x: barX, y: y + (stat.height - DRIVER_DETAIL.bar.height) / 2, width: Math.max(0, right - barX), height: DRIVER_DETAIL.bar.height },
+			{ x: barX, y: y + (mono.height - DRIVER_DETAIL.bar.height) / 2, width: Math.max(0, right - barX), height: DRIVER_DETAIL.bar.height },
 			hpFraction(this.model),
 		);
-		y += stat.height + stat.rowGap;
+		y += mono.height + DRIVER_DETAIL.stats.rowGap;
 
-		// The hand limit and the skills, left to right, wrapping at the edge
-		let x = pad;
-		for (const figure of this.stats) {
-			if (x > pad && x + figure.width > right) {
-				x = pad;
-				y += stat.height + stat.rowGap;
-			}
-			figure.x = x;
-			figure.y = y;
-			x += figure.width + stat.gap;
-		}
-		y += stat.height + gap;
+		// The hand limit and the skills, wrapping at the right edge
+		this.stats.y = y;
+		y += this.stats.measure(this.stats.width, Infinity).height + gap;
 
 		// A rule between the person and their deck
 		this.ruleDraw.rect.y = y;
 		y += DRIVER_DETAIL.rule + gap;
 		this.heading.y = y;
-		y += DRIVER_DETAIL.label.height;
+		y += mono.height;
 
 		// The minis, inside the grid's margin so their hexes and stacks stay in the view
 		const { columns, rows } = this.grid;
@@ -318,7 +307,7 @@ export class DriverDetailView extends Component {
 			this.note.y = y;
 			this.note.width = Math.max(1, this.pin.x - DRIVER_DETAIL.foot.between - pad);
 		}
-		const height = y + DRIVER_DETAIL.label.height + pad;
+		const height = y + mono.height + pad;
 		resizeRivetedFrame(this.frame, { width: this.width, height });
 		if (this.height !== height) this.height = height;
 	}

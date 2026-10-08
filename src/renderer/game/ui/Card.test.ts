@@ -8,7 +8,7 @@ import { advance, key, pointer, send } from '../../engine/services/testing';
 import type { MountContext } from '../../engine/components/MountContext';
 import { Card as GameCard, CardData } from '../mechanics/Card';
 import cardsFile from '../data/cards.json';
-import { CARD_LIFT, Card, CardSize, MINI_CARD_INK, MINI_GRID, MiniCardState, miniGridHeight } from './Card';
+import { CARD_LIFT, Card, CardSize, MINI_CARD_INK, MINI_GRID, MiniCardState, miniGridHeight, miniGridWidth } from './Card';
 import { KeywordText } from './KeywordText';
 import { Icon } from '../../engine/components/Icon';
 import type { Component } from '../../engine/components/Component';
@@ -787,6 +787,9 @@ describe('Mini card (Game Flow 7.0)', () => {
 		expect(miniGridHeight(1)).toBe(112);
 		expect(miniGridHeight(2)).toBe(112 * 2 + MINI_GRID.gap);
 		expect(miniGridHeight(0)).toBe(0);
+		expect(miniGridWidth(1)).toBe(80);
+		expect(miniGridWidth(4)).toBe(80 * 4 + MINI_GRID.gap * 3);
+		expect(miniGridWidth(0)).toBe(0);
 	});
 
 	it.each(['borrowed', 'home', 'locked', 'unavailable', null] as const)('lints clean for every card stacked and %s', (miniState) => {

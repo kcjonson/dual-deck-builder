@@ -1,6 +1,7 @@
 /**
  * @jest-environment jsdom
  */
+import type { Component } from '../../engine/components/Component';
 import { Text } from '../../engine/components/Text';
 import { createMeasuringDrawApi } from '../../engine/text/testing';
 import { createTestContext } from '../../engine/components/testing';
@@ -10,6 +11,7 @@ import { treeSnapshot } from '../../engine/debug/treeSnapshot';
 import { Card as GameCard, CardData } from '../mechanics/Card';
 import cardsFile from '../data/cards.json';
 import { MINI_GRID } from './Card';
+import { drawPileOrder } from './CardPileView';
 import { DRIVER_DETAIL, DriverDetailView, CardLookup, driverDeckGrid } from './DriverDetailView';
 import { DriverCardData, driverCardData } from './driverCardData';
 
@@ -32,14 +34,22 @@ function view(data: DriverCardData, options: { pinned?: boolean; cards?: CardLoo
 	return detail;
 }
 
-function words(detail: DriverDetailView): string[] {
-	return detail.children.filter((child): child is Text => child instanceof Text).map((child) => child.text);
+/** Every word in the view, its stats' too, which flow in a row of their own. */
+function words(detail: Component): string[] {
+	return detail.children.flatMap((child) => (child instanceof Text ? [child.text] : words(child)));
 }
 
 function part(detail: DriverDetailView, suffix: string): Text {
-	const found = detail.children.find((child) => child.id === `detail_${suffix}`);
+	const found = detail.findById(`detail_${suffix}`);
 	if (!(found instanceof Text)) throw new Error(`no ${suffix}`);
 	return found;
+}
+
+/** Where a part sits in the view, wherever it's nested. */
+function placed(detail: DriverDetailView, suffix: string): { x: number; y: number; width: number } {
+	const bounds = part(detail, suffix).screenBounds;
+	const origin = detail.screenBounds;
+	return { x: bounds.x - origin.x, y: bounds.y - origin.y, width: bounds.width };
 }
 
 describe('Driver detail view (Game Flow 7.0)', () => {
@@ -153,12 +163,24 @@ describe('Driver detail view (Game Flow 7.0)', () => {
 		const detail = view(driverCardData({ archetype: 'interceptor', deck: {}, handLimit: 12, skills: { ramming: 10, gunnery: 10, evade: 10, speed: 5 } }));
 		const right = detail.width - DRIVER_DETAIL.pad;
 		for (const suffix of ['hand_limit', 'ramming', 'gunnery', 'evade', 'speed']) {
-			const stat = part(detail, suffix);
+			const stat = placed(detail, suffix);
 			expect(stat.x + stat.width).toBeLessThanOrEqual(right + 1e-6);
 		}
-		// Two-digit skills in the narrowest view take a second row
-		expect(part(detail, 'speed').x).toBe(DRIVER_DETAIL.pad);
-		expect(part(detail, 'speed').y).toBeGreaterThan(part(detail, 'hand_limit').y);
+		// Two-digit skills in the narrowest view take a second row, and the rule comes down with it
+		expect(placed(detail, 'speed').x).toBe(DRIVER_DETAIL.pad);
+		expect(placed(detail, 'speed').y).toBeGreaterThan(placed(detail, 'hand_limit').y);
+		const oneRow = view(driverCardData({ archetype: 'interceptor', deck: {} }));
+		expect(placed(detail, 'deck').y - placed(oneRow, 'deck').y).toBe(DRIVER_DETAIL.mono.height + DRIVER_DETAIL.stats.rowGap);
+	});
+
+	it('breaks a tie in cost by name as a pile orders names, not by character code', () => {
+		const named = (type: string, name: string): GameCard => new GameCard({ ...(cardData.find((entry) => entry.type === type) as CardData), name });
+		// All cost 1: by character code "Gamma" would come before "beta"
+		const renamed: Record<string, GameCard> = { repair_kit: named('repair_kit', 'beta'), nitro_boost: named('nitro_boost', 'Gamma'), armor_plating: named('armor_plating', 'alpha') };
+		const detail = view(driverCardData({ archetype: 'mechanic', deck: { repair_kit: 1, nitro_boost: 1, armor_plating: 1 } }), { cards: (type) => renamed[type] ?? null });
+		const names = detail.deckCards.map((card) => card.data.name);
+		expect(names).toEqual(['alpha', 'beta', 'Gamma']);
+		expect(names).toEqual(drawPileOrder(Object.values(renamed)).map((card) => card.name));
 	});
 
 	// The room a 1024x600 screen has for the view: 600, less the 10 px it rests

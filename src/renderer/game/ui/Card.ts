@@ -149,6 +149,11 @@ export function miniGridHeight(rows: number): number {
 	return rows > 0 ? rows * CARD_DIMENSIONS[CardSize.MINI].height + (rows - 1) * MINI_GRID.gap : 0;
 }
 
+/** The width `columns` columns of minis take in a grid spaced by `MINI_GRID`, its margin left out. */
+export function miniGridWidth(columns: number): number {
+	return columns > 0 ? columns * CARD_DIMENSIONS[CardSize.MINI].width + (columns - 1) * MINI_GRID.gap : 0;
+}
+
 /**
  * Where a mini's copies stand against the deck being built (Game Flow 7.0):
  * borrowed from the locker for this run (a dashed frame, "+1"), left at
