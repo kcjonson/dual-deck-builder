@@ -14,6 +14,17 @@ export type DriverStatus = (typeof DRIVER_STATUSES)[number];
 
 export const DRIVER_ARCHETYPES = Object.keys(DRIVER_CONFIGS) as readonly DriverArchetype[];
 
+/**
+ * The damage a driver's signature vehicle carries from one fight to the
+ * next. Its maximums are the archetype's (`DRIVER_CONFIGS[archetype].vehicleStats`).
+ * Structure is at least 1, since a wreck limps into the next fight rather
+ * than staying wrecked.
+ */
+export interface VehicleCondition {
+	structure: number;
+	armor: number;
+}
+
 export interface DriverRecordData {
 	/** Stable for the whole campaign. The campaign hands them out in order: `driver-1`, `driver-2`. */
 	id: string;
@@ -22,6 +33,8 @@ export interface DriverRecordData {
 	name: string;
 	hitpoints: number;
 	maxHitpoints: number;
+	/** Their signature vehicle's structure and armor, carried between fights until it's repaired. */
+	vehicle: Readonly<VehicleCondition>;
 	/** Days until an injured driver is fit; 0 at every other status. */
 	injuredDays: number;
 	/** How far a fight's draws fill their hand. */
@@ -33,7 +46,8 @@ export interface DriverRecordData {
 }
 
 /** A driver record as a save holds it. */
-export interface DriverRecordJson extends Omit<DriverRecordData, 'defaultDeck'> {
+export interface DriverRecordJson extends Omit<DriverRecordData, 'vehicle' | 'defaultDeck'> {
+	vehicle: VehicleCondition;
 	defaultDeck: Record<string, number>;
 }
 
@@ -46,6 +60,7 @@ const FIELDS: readonly (keyof DriverRecordData)[] = [
 	'name',
 	'hitpoints',
 	'maxHitpoints',
+	'vehicle',
 	'injuredDays',
 	'handLimit',
 	'defaultDeck',
@@ -111,6 +126,7 @@ export class DriverRecord extends Model<DriverRecordData> {
 			name: this.name,
 			hitpoints: this.hitpoints,
 			maxHitpoints: this.maxHitpoints,
+			vehicle: { ...this.vehicle },
 			injuredDays: this.injuredDays,
 			handLimit: this.handLimit,
 			defaultDeck: { ...this.defaultDeck },
@@ -122,8 +138,8 @@ export class DriverRecord extends Model<DriverRecordData> {
 
 /**
  * Whatever the options leave out is a new driver's, from their archetype's
- * config: max HP, all of it, the hand limit, and the starting deck; ready,
- * with no runs.
+ * config: max HP, all of it, an undamaged vehicle, the hand limit, and the
+ * starting deck; ready, with no runs.
  */
 function withFreshStart({ id, archetype, name, ...rest }: DriverRecordOptions): DriverRecordData {
 	readOneOf(archetype, 'DriverRecord.archetype', DRIVER_ARCHETYPES);
@@ -135,6 +151,7 @@ function withFreshStart({ id, archetype, name, ...rest }: DriverRecordOptions): 
 		name,
 		hitpoints: rest.hitpoints ?? maxHitpoints,
 		maxHitpoints,
+		vehicle: rest.vehicle ?? { structure: config.vehicleStats.maxStructure, armor: config.vehicleStats.armor },
 		injuredDays: rest.injuredDays ?? 0,
 		handLimit: rest.handLimit ?? config.handLimit,
 		defaultDeck: rest.defaultDeck ?? startingDeckCounts(archetype),
@@ -145,17 +162,19 @@ function withFreshStart({ id, archetype, name, ...rest }: DriverRecordOptions): 
 
 /**
  * A record's fields checked: exactly these fields, each in range, a dead
- * driver at 0 HP with no cards and nobody else at 0, and injured days only
- * while injured.
+ * driver at 0 HP with no cards and nobody else at 0, injured days only
+ * while injured, and a vehicle inside its archetype's maximums.
  */
 export function readDriverRecordData(value: unknown, path: string): DriverRecordData {
 	const fields = readFields(value, path, FIELDS);
+	const archetype = readOneOf(fields.archetype, `${path}.archetype`, DRIVER_ARCHETYPES);
 	const data: DriverRecordData = {
 		id: readText(fields.id, `${path}.id`),
-		archetype: readOneOf(fields.archetype, `${path}.archetype`, DRIVER_ARCHETYPES),
+		archetype,
 		name: readText(fields.name, `${path}.name`),
 		hitpoints: readInteger(fields.hitpoints, `${path}.hitpoints`, { min: 0 }),
 		maxHitpoints: readInteger(fields.maxHitpoints, `${path}.maxHitpoints`, { min: 1 }),
+		vehicle: readVehicleCondition(fields.vehicle, `${path}.vehicle`, archetype),
 		injuredDays: readInteger(fields.injuredDays, `${path}.injuredDays`, { min: 0 }),
 		handLimit: readInteger(fields.handLimit, `${path}.handLimit`, { min: 0 }),
 		defaultDeck: readCardCounts(fields.defaultDeck, `${path}.defaultDeck`),
@@ -182,6 +201,16 @@ export function readDriverRecordData(value: unknown, path: string): DriverRecord
 /** A record read from a save, with errors naming where in the save it was. */
 export function readDriverRecord(value: unknown, path: string): DriverRecord {
 	return new DriverRecord(readDriverRecordData(value, path));
+}
+
+/** Structure from 1 and armor from 0, each up to the archetype's vehicle's, frozen. */
+function readVehicleCondition(value: unknown, path: string, archetype: DriverArchetype): Readonly<VehicleCondition> {
+	const fields = readFields(value, path, ['structure', 'armor']);
+	const { maxStructure, armor: maxArmor } = DRIVER_CONFIGS[archetype].vehicleStats;
+	return Object.freeze({
+		structure: readInteger(fields.structure, `${path}.structure`, { min: 1, max: maxStructure }),
+		armor: readInteger(fields.armor, `${path}.armor`, { min: 0, max: maxArmor })
+	});
 }
 
 /** "Road Warrior 2": the archetype's title and an ordinal, until drivers get names (DDB-318). */

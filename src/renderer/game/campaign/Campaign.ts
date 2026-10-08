@@ -411,7 +411,7 @@ function readDrivers(value: unknown, path: string, nextDriverNumber: number, pre
 	return Object.freeze([...drivers] as DriverRecord[]);
 }
 
-function readResources(value: unknown, path: string): Readonly<Resources> {
+export function readResources(value: unknown, path: string): Readonly<Resources> {
 	if (typeof value === 'object' && value !== null && checkedResources.has(value)) return value as Readonly<Resources>;
 	const fields = readFields(value, path, RESOURCE_NAMES);
 	const amount = (name: keyof Resources): number => readInteger(fields[name], `${path}.${name}`, { min: 0 });

@@ -20,6 +20,10 @@
 			"name": "Road Warrior 1",
 			"hitpoints": 40,
 			"maxHitpoints": 40,
+			"vehicle": {
+				"structure": 72,
+				"armor": 4
+			},
 			"injuredDays": 0,
 			"handLimit": 7,
 			"defaultDeck": {
@@ -38,6 +42,10 @@
 			"name": "Interceptor 1",
 			"hitpoints": 0,
 			"maxHitpoints": 25,
+			"vehicle": {
+				"structure": 50,
+				"armor": 0
+			},
 			"injuredDays": 0,
 			"handLimit": 7,
 			"defaultDeck": {},
@@ -50,6 +58,10 @@
 			"name": "Mechanic 1",
 			"hitpoints": 18,
 			"maxHitpoints": 30,
+			"vehicle": {
+				"structure": 41,
+				"armor": 0
+			},
 			"injuredDays": 2,
 			"handLimit": 7,
 			"defaultDeck": {
@@ -67,6 +79,10 @@
 			"name": "Road Warrior 2",
 			"hitpoints": 31,
 			"maxHitpoints": 40,
+			"vehicle": {
+				"structure": 1,
+				"armor": 0
+			},
 			"injuredDays": 0,
 			"handLimit": 7,
 			"defaultDeck": {
@@ -84,6 +100,10 @@
 			"name": "Interceptor 2",
 			"hitpoints": 25,
 			"maxHitpoints": 25,
+			"vehicle": {
+				"structure": 50,
+				"armor": 0
+			},
 			"injuredDays": 0,
 			"handLimit": 7,
 			"defaultDeck": {
