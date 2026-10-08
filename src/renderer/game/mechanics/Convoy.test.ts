@@ -232,7 +232,7 @@ describe('Convoy', () => {
 			expect(rig.flank).toBeNull();
 			expect(rig.shield).toBe(0);
 			expect(rig.statusEffects).toEqual([]);
-			// Driven vehicles' armor between fights is run-state work (DDB-166)
+			// Only escorts' armor refills; a campaign fight builds its driven vehicles fresh (combat-bridge.md)
 			expect(rig.armor).toBe(2);
 			const next = new Battle({
 				playerTeam: first.playerTeam,

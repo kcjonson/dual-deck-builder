@@ -58,7 +58,9 @@ function isHandCardDrag(data: unknown): data is HandCardDrag {
 /**
  * A fight handed to the screen ready to show: its battle already started,
  * the player's drivers in seat order, and what the top bar and log read.
- * The gallery's battle scenes (DDB-141) arrive this way, mid-fight.
+ * The gallery's battle scenes (DDB-141) arrive this way, mid-fight, and so
+ * does a supply run's fight, which the combat bridge builds from the
+ * campaign (`startCampaignFight`, DDB-286).
  */
 export interface PreparedCombat {
 	battle: Battle;
