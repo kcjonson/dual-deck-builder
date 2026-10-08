@@ -1,10 +1,14 @@
 import { resolveMapParams } from '../../map/MapParams';
-import { Campaign } from '../Campaign';
-import { CAMPAIGN_KEYS, CampaignStore, CampaignStoreError } from '../CampaignStore';
+import { CAMPAIGN_SCHEMA_VERSION, Campaign } from '../Campaign';
+import { CampaignStore, CampaignStoreError, campaignKeys } from '../CampaignStore';
 import { MemorySaveStorage, SaveStorage } from '../SaveStorage';
 import campaignV1 from './campaign-v1.json';
 
 export const SEED = 20261006;
+
+/** The namespace the store tests save under, and its keys. */
+export const NAMESPACE = 'test';
+export const KEYS = campaignKeys(NAMESPACE);
 
 /** A small campaign, founded on `seed` with two drivers and two headshots in the locker. */
 export function newCampaign(seed = SEED): Campaign {
@@ -14,16 +18,31 @@ export function newCampaign(seed = SEED): Campaign {
 	return campaign;
 }
 
-/** A store over the storage, whose warnings go to `onWarning`, or nowhere. */
-export function storeOver(storage: SaveStorage, onWarning: (warning: string) => void = () => undefined): CampaignStore {
-	return new CampaignStore({ storage, onWarning });
+/** A store over the storage in the test namespace, whose warnings go to `onWarning`, or nowhere. */
+export function storeOver(storage: SaveStorage, { onWarning = () => undefined, version }: { onWarning?: (warning: string) => void; version?: number } = {}): CampaignStore {
+	return new CampaignStore({ storage, namespace: NAMESPACE, version, onWarning });
 }
 
-/** The version 1 fixture as save text, changed first if asked. */
-export function fixtureText(change: (save: Record<string, unknown>) => void = () => undefined): string {
-	const save = JSON.parse(JSON.stringify(campaignV1));
-	change(save);
-	return JSON.stringify(save);
+/** Save text as the store writes it: the version, then the campaign's text. */
+export function saveText({ campaign, version = CAMPAIGN_SCHEMA_VERSION }: { campaign: string; version?: number }): string {
+	return `{"version":${version},"campaign":${campaign}}`;
+}
+
+/** The version 1 fixture as save text, its campaign changed first if asked. */
+export function fixtureText(change: (campaign: Record<string, unknown>) => void = () => undefined): string {
+	const campaign = JSON.parse(JSON.stringify(campaignV1));
+	change(campaign);
+	return saveText({ campaign: JSON.stringify(campaign) });
+}
+
+/** A save of this version that won't load: a driver in a state that doesn't exist. */
+export function damagedText(): string {
+	return fixtureText(campaign => { (campaign.drivers as { status: string }[])[1].status = 'sleeping'; });
+}
+
+/** The fixture saved by the next version of the save format. */
+export function outdatedText(): string {
+	return saveText({ campaign: JSON.stringify(campaignV1), version: CAMPAIGN_SCHEMA_VERSION + 1 });
 }
 
 /** The store error a call rejected with. */
@@ -46,10 +65,10 @@ export const settle = (): Promise<void> => new Promise(resolve => setImmediate(r
 
 type Method = 'getItem' | 'setItem' | 'removeItem';
 
-/** Memory storage that fails the call a test names, as a blocked or full local storage, or a crash part way through, would. */
+/** Memory storage that fails the calls a test names, as a blocked or full local storage, or a crash part way through, would. */
 export class FaultyStorage extends MemorySaveStorage {
-	/** The call to fail; a torn write stores the first half of its value before failing, as a write cut off by a crash might. */
-	public fault: { method: Method; key?: string; error?: unknown; torn?: boolean } | null = null;
+	/** The call to fail, every time or only the next `times`. */
+	public fault: { method: Method; key?: string; error?: unknown; times?: number } | null = null;
 	/** Every key written or removed, in order, removals marked. */
 	public readonly writes: string[] = [];
 
@@ -60,7 +79,6 @@ export class FaultyStorage extends MemorySaveStorage {
 
 	public override async setItem(key: string, value: string): Promise<void> {
 		this.writes.push(key);
-		if (this.matches('setItem', key) && this.fault?.torn) await super.setItem(key, value.slice(0, Math.floor(value.length / 2)));
 		this.check('setItem', key);
 		await super.setItem(key, value);
 	}
@@ -71,18 +89,17 @@ export class FaultyStorage extends MemorySaveStorage {
 		await super.removeItem(key);
 	}
 
-	private matches(method: Method, key: string): boolean {
-		return this.fault !== null && this.fault.method === method && (this.fault.key === undefined || this.fault.key === key);
-	}
-
 	private check(method: Method, key: string): void {
-		if (this.matches(method, key)) throw this.fault?.error ?? new Error(`${method} ${key} failed`);
+		const fault = this.fault;
+		if (fault === null || fault.method !== method || (fault.key !== undefined && fault.key !== key)) return;
+		if (fault.times !== undefined && --fault.times <= 0) this.fault = null;
+		throw fault.error ?? new Error(`${method} ${key} failed`);
 	}
 }
 
 /** Storage holding a save in slot a, as a session before this one left it, and anything else a test adds. */
-export function storageWith(saveText: string, extra: Record<string, string> = {}): FaultyStorage {
-	return new FaultyStorage({ items: { [CAMPAIGN_KEYS.slots.a]: saveText, [CAMPAIGN_KEYS.active]: 'a', ...extra } });
+export function storageWith(text: string, extra: Record<string, string> = {}): FaultyStorage {
+	return new FaultyStorage({ items: { [KEYS.slots.a]: text, [KEYS.active]: 'a', ...extra } });
 }
 
 /** Memory storage whose calls wait while it's held, as a slow storage's would, so a test can act while a write is in flight. */
@@ -126,14 +143,25 @@ export class HeldStorage extends MemorySaveStorage {
 	}
 }
 
-/** Two tabs' storage over one shared map, each call held until `step` lets it through, as two tabs on one origin interleave. */
+type Tab = 'A' | 'B';
+
+/**
+ * Two tabs' storage over one shared map, each call held until `step` lets it
+ * through, as two tabs on one origin interleave. When both tabs have a call
+ * waiting, `choose` picks which goes first.
+ */
 export class TwoTabs {
 	public readonly shared = new MemorySaveStorage();
-	private readonly waiting = new Map<'A' | 'B', () => void>();
+	private readonly waiting: Record<Tab, (() => void)[]> = { A: [], B: [] };
+	private readonly choose: () => Tab;
 
-	public tab(name: 'A' | 'B'): SaveStorage {
+	constructor({ choose = () => 'A' }: { choose?: () => Tab } = {}) {
+		this.choose = choose;
+	}
+
+	public tab(name: Tab): SaveStorage {
 		const held = async <T>(call: () => Promise<T>): Promise<T> => {
-			await new Promise<void>(resume => this.waiting.set(name, resume));
+			await new Promise<void>(resume => this.waiting[name].push(resume));
 			return call();
 		};
 		return {
@@ -143,14 +171,13 @@ export class TwoTabs {
 		};
 	}
 
-	/** Lets one waiting call through, the named tab's when it has one; false when neither tab is waiting. */
-	public async step(prefer: 'A' | 'B'): Promise<boolean> {
+	/** Lets one waiting call through; false when neither tab is waiting. */
+	public async step(): Promise<boolean> {
 		await settle();
-		const name = this.waiting.has(prefer) ? prefer : prefer === 'A' ? 'B' : 'A';
-		const resume = this.waiting.get(name);
-		if (!resume) return false;
-		this.waiting.delete(name);
-		resume();
+		const ready = (['A', 'B'] as const).filter(name => this.waiting[name].length > 0);
+		if (ready.length === 0) return false;
+		const name = ready.length === 2 ? this.choose() : ready[0];
+		this.waiting[name].shift()?.();
 		await settle();
 		return true;
 	}
@@ -158,6 +185,30 @@ export class TwoTabs {
 	/** Lets every call through until both tabs are done. */
 	public async drain(): Promise<void> {
 		let stepped = true;
-		while (stepped) stepped = await this.step('A');
+		while (stepped) stepped = await this.step();
+	}
+}
+
+/**
+ * Runs a race once for every order two tabs' storage calls can take, and
+ * says how many orders there were. Each run replays the choices of the run
+ * before up to its last 'A', and takes 'B' there instead: a depth-first walk
+ * that branches only where both tabs have a call waiting.
+ */
+export async function everyInterleaving(race: (tabs: TwoTabs) => Promise<void>): Promise<number> {
+	const path: Tab[] = [];
+	let runs = 0;
+	for (;;) {
+		let depth = 0;
+		await race(new TwoTabs({
+			choose: () => {
+				if (depth === path.length) path.push('A');
+				return path[depth++];
+			}
+		}));
+		runs += 1;
+		while (path.length > 0 && path[path.length - 1] === 'B') path.pop();
+		if (path.length === 0) return runs;
+		path[path.length - 1] = 'B';
 	}
 }

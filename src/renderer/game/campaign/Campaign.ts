@@ -6,10 +6,18 @@ import { DriverArchetype } from '../mechanics/Driver';
 import { CardCounts, NO_CARDS, addCards, cardCount, readCardCounts, readCardType, removeCards } from './CardCounts';
 import { EscortJson, convoyToJson, readConvoy } from './ConvoyJson';
 import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordJson, placeholderName, readDriverRecord } from './DriverRecord';
-import { ReaderRangeError, ReaderTypeError, describeValue, readArray, readFields, readInteger, readObject, readOneOf, readSeed, readText } from './JsonReader';
+import { ReaderRangeError, ReaderTypeError, describeValue, readArray, readFields, readInteger, readOneOf, readSeed, readText } from './JsonReader';
 import { readMapParams, repairMapParams } from './MapParamsJson';
 import { EMPTY_MAP, MapState, readMapState } from './MapState';
-import { CAMPAIGN_SCHEMA_VERSION, migrateSave } from './SaveMigrations';
+
+/**
+ * The save format's version, which `CampaignStore` stamps on every save and
+ * history list. Bump it by hand whenever the text `toSaveText` writes, or a
+ * history entry, changes shape. There are no migrations: a save stamped
+ * with another version isn't loaded, so a bump invalidates every existing
+ * save of that build.
+ */
+export const CAMPAIGN_SCHEMA_VERSION = 1;
 
 /** What the compound holds (Compound and Supply Runs, Resources): whole numbers, never below 0. */
 export interface Resources {
@@ -62,7 +70,6 @@ export type CampaignOptions = Pick<CampaignData, 'seed' | 'generatorVersion' | '
 
 /** A campaign as a save holds it: plain JSON, which `Campaign.fromJSON` reads back. */
 export interface CampaignJson {
-	schemaVersion: number;
 	seed: number;
 	generatorVersion: number;
 	day: number;
@@ -103,7 +110,6 @@ const FIELDS: readonly (keyof CampaignData)[] = [
 ];
 
 const JSON_FIELDS: readonly (keyof CampaignJson)[] = [
-	'schemaVersion',
 	'seed',
 	'generatorVersion',
 	'day',
@@ -200,15 +206,16 @@ export class Campaign extends Model<CampaignData> {
 	}
 
 	/**
-	 * Reads a save, upgrading it from an older schema version first. Throws
-	 * on anything malformed, naming where: a damaged save never loads as a
-	 * different campaign. Map params are the exception, since the table is
-	 * still settling: drift is repaired (`repairMapParams`), and once the save
-	 * has loaded, each repair goes to `onWarning`.
+	 * Reads a save's campaign, which `CampaignStore` has already matched to
+	 * this build's save format version. Throws a reader error on anything
+	 * malformed, naming where: a damaged save never loads as a different
+	 * campaign. Map params are the exception, since the table is still
+	 * settling: drift is repaired (`repairMapParams`), and once the save has
+	 * loaded, each repair goes to `onWarning`.
 	 */
 	public static fromJSON(json: unknown, { onWarning = logWarning }: LoadOptions = {}): Campaign {
 		const path = 'Campaign';
-		const save = readFields(migrateSave({ save: readObject(json, path), path }), path, JSON_FIELDS);
+		const save = readFields(json, path, JSON_FIELDS);
 		const mapParams = repairMapParams(save.mapParams, `${path}.mapParams`);
 		const campaign = new Campaign(readCampaignData({
 			seed: save.seed,
@@ -340,7 +347,6 @@ export class Campaign extends Model<CampaignData> {
 		const convoy = convoyToJson(this.convoy);
 		readConvoy(convoy, 'Campaign.convoy');
 		const save: Record<keyof CampaignJson, unknown> = {
-			schemaVersion: CAMPAIGN_SCHEMA_VERSION,
 			seed: this.seed,
 			generatorVersion: this.generatorVersion,
 			day: this.day,

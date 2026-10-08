@@ -5,7 +5,6 @@ import { createEscort } from '../mechanics/Escort';
 import { Campaign, CampaignJson, CampaignOptions, NO_RESOURCES } from './Campaign';
 import { cardCount, totalCards } from './CardCounts';
 import { DriverRecord } from './DriverRecord';
-import { CAMPAIGN_SCHEMA_VERSION, NewerSaveError, SaveMigration, migrateSave } from './SaveMigrations';
 import campaignV1 from './__fixtures__/campaign-v1.json';
 import { stressCampaign } from './__fixtures__/stressCampaign';
 
@@ -758,17 +757,8 @@ describe('Campaign', () => {
 			expect(campaign.recruitDriver({ archetype: 'mechanic' }).id).toBe('driver-6');
 		});
 
-		it('keeps the fixture at the current schema version; on a bump, keep it loading through the migration', () => {
-			expect(campaignV1.schemaVersion).toBe(CAMPAIGN_SCHEMA_VERSION);
-		});
-
 		describe('a damaged save', () => {
 			it.each([
-				['no schema version', (save: CampaignJson) => { delete (save as Partial<CampaignJson>).schemaVersion; }, TypeError, 'Campaign.schemaVersion must be a number, got undefined'],
-				['schema version 0', (save: CampaignJson) => { save.schemaVersion = 0; }, RangeError, 'Campaign.schemaVersion must be an integer >= 1, got 0'],
-				['a fractional schema version', (save: CampaignJson) => { save.schemaVersion = 1.5; }, RangeError, 'Campaign.schemaVersion must be an integer >= 1, got 1.5'],
-				['a schema version in a string', (save: CampaignJson) => { (save as unknown as Record<string, unknown>).schemaVersion = '1'; }, TypeError, 'Campaign.schemaVersion must be a number, got "1"'],
-				['a newer schema version', (save: CampaignJson) => { save.schemaVersion = 2; }, RangeError, 'Campaign.schemaVersion is 2, newer than this build reads (1)'],
 				['a missing field', (save: CampaignJson) => { delete (save as Partial<CampaignJson>).day; }, TypeError, 'Campaign.day is missing'],
 				['an unknown field', (save: CampaignJson) => { (save as unknown as Record<string, unknown>).weather = 'dust'; }, TypeError, 'Campaign has an unknown field "weather"'],
 				['a seed past uint32', (save: CampaignJson) => { save.seed = 2 ** 32; }, RangeError, 'Campaign.seed must be an integer from 0 to 4294967295, got 4294967296'],
@@ -914,48 +904,6 @@ describe('Campaign', () => {
 					warn.mockRestore();
 				}
 			});
-		});
-	});
-
-	describe('migrateSave', () => {
-		/** Steps that note each upgrade they make, in order. */
-		const steps: Record<number, SaveMigration> = {
-			1: save => ({ ...save, upgrades: [...(save.upgrades as string[]), '1 to 2'] }),
-			2: save => ({ ...save, upgrades: [...(save.upgrades as string[]), '2 to 3'] })
-		};
-
-		it('upgrades a save one version at a time, stamping each step\'s version', () => {
-			expect(migrateSave({ save: { schemaVersion: 1, upgrades: [] }, to: 3, migrations: steps }))
-				.toEqual({ schemaVersion: 3, upgrades: ['1 to 2', '2 to 3'] });
-		});
-
-		it('starts from the version the save is at', () => {
-			expect(migrateSave({ save: { schemaVersion: 2, upgrades: [] }, to: 3, migrations: steps }))
-				.toEqual({ schemaVersion: 3, upgrades: ['2 to 3'] });
-		});
-
-		it('leaves a save at the current version as it is', () => {
-			const save = { schemaVersion: CAMPAIGN_SCHEMA_VERSION, day: 4 };
-
-			expect(migrateSave({ save })).toBe(save);
-		});
-
-		it('refuses a save with a step missing on the way up', () => {
-			expect(() => migrateSave({ save: { schemaVersion: 1 }, to: 3, migrations: { 2: steps[2] } }))
-				.toThrow("Campaign.schemaVersion 1 can't be read: nothing upgrades a version 1 save");
-		});
-
-		it('refuses a newer build\'s save with an error of its own, which keeps both versions', () => {
-			let refused: unknown;
-			try {
-				migrateSave({ save: { schemaVersion: 4 }, to: 3, migrations: steps });
-			} catch (error) {
-				refused = error;
-			}
-
-			expect(refused).toBeInstanceOf(NewerSaveError);
-			expect(refused).toBeInstanceOf(RangeError);
-			expect(refused).toMatchObject({ version: 4, readable: 3, message: 'Campaign.schemaVersion is 4, newer than this build reads (3)' });
 		});
 	});
 

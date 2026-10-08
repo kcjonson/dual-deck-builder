@@ -3,12 +3,9 @@ import type { SettingsStorage } from '../core/GameSettings';
 /**
  * Where campaign saves persist: text under string keys. Async, though local
  * storage isn't, so IndexedDB can stand in if a generated map ever outgrows
- * local storage. `CampaignStore` needs writes to land in the order they're
- * made and stay written once they resolve. A save cut off part way, by a
- * crash or a full disk, is never read as the save, since the store switches
- * to a new one only once it's written whole; the history and the recovery
- * copies are written in place, so they also need a single write to land
- * whole or not at all, as local storage's does.
+ * local storage. `CampaignStore` needs every write to land whole or not at
+ * all, `active` included, in the order made, and to stay written once it
+ * resolves: local storage's writes do, and so do IndexedDB's transactions.
  */
 export interface SaveStorage {
 	getItem(key: string): Promise<string | null>;
@@ -84,7 +81,10 @@ export class LocalSaveStorage implements SaveStorage {
 	private get local(): WebStorage {
 		if (this.storage) return this.storage;
 		if (typeof window === 'undefined') throw new Error('There is no local storage outside a browser window');
-		return window.localStorage;
+		// Some browsers with site data turned off hand back null rather than throwing.
+		const local: WebStorage | null = window.localStorage;
+		if (!local) throw new DOMException('Local storage is turned off', 'SecurityError');
+		return local;
 	}
 }
 

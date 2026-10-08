@@ -1,6 +1,5 @@
 import type { Campaign } from './Campaign';
 import { readArray, readFields, readInteger, readObject, readOneOf, readSeed } from './JsonReader';
-import { SaveMigration, migrateSave } from './SaveMigrations';
 
 /**
  * How a campaign ended. The compound falls when its last driver dies, and
@@ -23,21 +22,15 @@ export interface CampaignHistoryEntry {
 	ending: CampaignEnding;
 }
 
-/** The history as stored, newest campaign first. */
+/** The history as stored, newest campaign first, stamped with the save format version that wrote it. */
 export interface CampaignHistoryJson {
-	schemaVersion: number;
+	version: number;
 	campaigns: CampaignHistoryEntry[];
 }
 
-/** The history's schema version. Bump it whenever its JSON changes shape, and add the step that upgrades the version before. */
-export const HISTORY_SCHEMA_VERSION = 1;
-
-/** The steps, keyed by the version each one upgrades from. Empty while 1 is the only version. */
-export const HISTORY_MIGRATIONS: Readonly<Record<number, SaveMigration>> = {};
-
 const ENTRY_FIELDS: readonly (keyof CampaignHistoryEntry)[] = ['seed', 'day', 'strongholdsTaken', 'ending'];
 
-/** A campaign's line in the history, as it stands now. */
+/** A campaign's line in the history, as it stands now. Throws a reader error on an ending that doesn't exist. */
 export function historyEntry({ campaign, ending }: { campaign: Campaign; ending: CampaignEnding }): CampaignHistoryEntry {
 	return {
 		seed: campaign.seed,
@@ -56,19 +49,20 @@ export function sameEntry(first: CampaignHistoryEntry, second: CampaignHistoryEn
 	return ENTRY_FIELDS.every(field => first[field] === second[field]);
 }
 
-export function historyToJson(entries: readonly CampaignHistoryEntry[]): CampaignHistoryJson {
-	return { schemaVersion: HISTORY_SCHEMA_VERSION, campaigns: entries.map(entry => ({ ...entry })) };
+export function historyToJson({ version, entries }: { version: number; entries: readonly CampaignHistoryEntry[] }): CampaignHistoryJson {
+	return { version, campaigns: entries.map(entry => ({ ...entry })) };
 }
 
 /**
- * Reads a stored history, upgrading it from an older schema version first.
- * Throws on anything malformed, naming where, and a `NewerSaveError` for a
- * history a newer build wrote.
+ * A stored history's entries, or null when another version of the save
+ * format stamped it, which this build doesn't read. The version is checked
+ * first, so only a history of this version has to be well formed; anything
+ * malformed then throws a reader error, naming where.
  */
-export function readHistory(value: unknown): CampaignHistoryEntry[] {
+export function readHistory(value: unknown, { version }: { version: number }): CampaignHistoryEntry[] | null {
 	const path = 'CampaignHistory';
-	const upgraded = migrateSave({ save: readObject(value, path), path, to: HISTORY_SCHEMA_VERSION, migrations: HISTORY_MIGRATIONS });
-	const record = readFields(upgraded, path, ['schemaVersion', 'campaigns']);
+	if (readObject(value, path).version !== version) return null;
+	const record = readFields(value, path, ['version', 'campaigns']);
 	return readArray(record.campaigns, `${path}.campaigns`).map((entry, index) => readEntry(entry, `${path}.campaigns[${index}]`));
 }
 
