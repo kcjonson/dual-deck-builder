@@ -155,6 +155,7 @@ describe('generateTerrain', () => {
 				expect(sample.contamination).toBe(0);
 				expect(sample.ruin).toBe(1);
 				expect(terrain.impassable(x, y)).toBe(false);
+				expect(terrain.reachable(x, y)).toBe(true);
 			});
 			terrain.hotspots.forEach((hotspot) => {
 				expect(Math.hypot(hotspot.x, hotspot.y) - hotspot.craterRadius).toBeGreaterThan(metro.radius);
@@ -172,6 +173,7 @@ describe('generateTerrain', () => {
 				expect(fromCentre + town.radius).toBeLessThanOrEqual(terrain.radius);
 				expect(fromCentre - town.radius).toBeGreaterThan(terrain.metro.radius);
 				expect(terrain.impassable(town.x, town.y)).toBe(false);
+				expect(terrain.reachable(town.x, town.y)).toBe(true);
 				expect(terrain.ruin(town.x, town.y)).toBe(1);
 				terrain.hotspots.forEach((hotspot) => {
 					expect(Math.hypot(town.x - hotspot.x, town.y - hotspot.y)).toBeGreaterThanOrEqual(hotspot.craterRadius + town.radius + TOWN_CRATER_GAP);
@@ -179,6 +181,25 @@ describe('generateTerrain', () => {
 				terrain.towns.slice(index + 1).forEach((other) => {
 					expect(Math.hypot(town.x - other.x, town.y - other.y)).toBeGreaterThanOrEqual(TOWN_SPACING * terrain.radius);
 				});
+			});
+		});
+	});
+
+	describe('towns at the edge of the tuning range', () => {
+		// Where most of the ring is rough or cut off, and placed towns crowd
+		// the rest, candidates from the reachable cells still find every town
+		// room, with the shuffled walk over those cells as the last resort.
+		const corner: MapParamSet = { seed: 0, mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, hotspots: 6, towns: 12, metroSize: 0.25, radius: 600 };
+		it.each([
+			['the most crowded corner', corner, 20],
+			['the most crowded corner with no hotspots', { ...corner, hotspots: 0 }, 6],
+			['the most crowded corner with a mid-sized metro', { ...corner, metroSize: 0.15 }, 6],
+			['the most crowded corner at the largest radius', { ...corner, radius: 1600 }, 6],
+		] as const)('places every town asked for, each where a road from the metro reaches, at %s', (_name, set, seeds) => {
+			sampledSeeds(seeds).forEach((seed) => {
+				const terrain = terrainFor({ ...set, seed });
+				expect(terrain.towns).toHaveLength(12);
+				terrain.towns.forEach((town) => expect(terrain.reachable(town.x, town.y)).toBe(true));
 			});
 		});
 	});
@@ -293,21 +314,39 @@ describe('generateTerrain', () => {
 			expect(middling).toBeLessThan(wet);
 		});
 
-		it('gives slope as elevation\'s exact gradient, and grade as its size against RELIEF', () => {
-			const terrain = terrainFor({ seed: 53, environment: 'badlands' });
+		it.each([
+			['the Badlands', { seed: 53, environment: 'badlands' }],
+			['the High Desert', { seed: 53, environment: 'highDesert' }],
+			['the most rugged corner', { seed: 53, mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1 }],
+		] as const)('gives slope as elevation\'s exact gradient, and grade as its size against RELIEF, in %s', (_name, set) => {
+			const terrain = terrainFor(set);
 			const slope = { x: 0, y: 0 };
-			const step = 1e-5;
-			gridInside(terrain.radius, 20).forEach(([x, y]) => {
+			// Small enough that curvature moves the one-sided slopes apart by
+			// far less than a crease does, large enough to stay clear of rounding.
+			const step = 1e-6;
+			// Off the round numbers, which can sit on noise lattice edges that
+			// creased layers crease along.
+			const points = gridInside(terrain.radius, 20).map(([x, y]): [number, number] => [x + 0.371, y + 0.193]);
+			let creased = 0;
+			points.forEach(([x, y]) => {
+				const here = terrain.elevation(x, y);
+				const east = terrain.elevation(x + step, y);
+				const west = terrain.elevation(x - step, y);
+				const north = terrain.elevation(x, y + step);
+				const south = terrain.elevation(x, y - step);
+				// Ridge and gully noise creases where it crosses zero. Within a step
+				// of a crease the one-sided slopes disagree, and only there is a
+				// point skipped; everywhere else the gradient has to match.
+				if (Math.abs(east - 2 * here + west) / step > 1e-7 || Math.abs(north - 2 * here + south) / step > 1e-7) {
+					creased += 1;
+					return;
+				}
 				terrain.slope(x, y, slope);
-				const east = (terrain.elevation(x + step, y) - terrain.elevation(x - step, y)) / (2 * step);
-				const north = (terrain.elevation(x, y + step) - terrain.elevation(x, y - step)) / (2 * step);
-				// Ridges and gullies crease where their noise crosses zero, so a few
-				// points sit within a step of a kink; the rest match to rounding.
-				if (Math.hypot(east - slope.x, north - slope.y) > 1e-6) return;
-				expect(slope.x).toBeCloseTo(east, 7);
-				expect(slope.y).toBeCloseTo(north, 7);
+				expect(Math.abs(slope.x - (east - west) / (2 * step))).toBeLessThan(1e-7);
+				expect(Math.abs(slope.y - (north - south) / (2 * step))).toBeLessThan(1e-7);
 				expect(terrain.grade(x, y)).toBeCloseTo(Math.hypot(slope.x, slope.y) * RELIEF, 9);
 			});
+			expect(creased / points.length).toBeLessThan(0.03);
 		});
 
 		it('fills ruins: the metro and every town at 1, open country at 0', () => {
@@ -360,7 +399,7 @@ describe('generateTerrain', () => {
 			['the most rugged corner', { mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, radius: 600 }],
 			['the most rugged corner with the smallest metro', { mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, radius: 600, metroSize: 0.08 }],
 			['the Badlands', { environment: 'badlands', radius: 600 }],
-		] as const)('stands cliffs only in rough country, away from the metro, at its share of the land, in %s', (_name, set) => {
+		] as const)('stands cliffs only in rough country, past the relief radius, at its share of the land, in %s', (_name, set) => {
 			const ruggedness = paramsFor({ seed: 1, ...set }).ruggedness;
 			sampledSeeds(2).forEach((seed) => {
 				const terrain = terrainFor({ seed, ...set });
@@ -369,7 +408,7 @@ describe('generateTerrain', () => {
 				gridInside(terrain.radius, 48).forEach(([x, y]) => {
 					if (terrain.obstacle(x, y) === 'cliff') expect(terrain.rough(x, y)).toBe(true);
 					const distance = Math.hypot(x, y);
-					if (distance <= terrain.metro.radius) expect(terrain.rough(x, y)).toBe(false);
+					if (distance < terrain.reliefRadius) expect(terrain.rough(x, y)).toBe(false);
 					if (distance >= 0.5 * terrain.radius) {
 						outer += 1;
 						if (terrain.rough(x, y)) rough += 1;
@@ -580,11 +619,11 @@ const PINNED: PinnedSummary[] = [
 			[775.6379151251167, -363.70398136787117, 19.911374516785145, 118.08024964814892, 0.7573065051692538],
 		],
 		towns: [
-			[-611.2336075244629, 279.9944087798049, 39.62356013478711],
-			[-120.26897811008307, -432.5959208257931, 48.38355683488772],
-			[-289.09780815886785, 524.6385119636552, 59.338289894512855],
-			[52.61618782852272, 359.3206799057808, 49.80767031549477],
-			[553.9936126772009, 294.7048120849578, 37.879844749113545],
+			[359.5294505916536, 429.01980352401733, 39.62356013478711],
+			[110.09538120776415, -850.7511452436447, 41.610575064551085],
+			[-25.24062293022871, -619.757976192981, 55.770877944887616],
+			[-358.5851962864399, 510.3349857740104, 41.57863473810721],
+			[584.2701118215919, 235.5790091753006, 58.13928025541827],
 		],
 		samples: [
 			[0.3781474532459609, 0.2303036977605881, 1, -0.0020251851673929204, 0.00019854127988038373, 'desert', null, 1.529503568138026],
@@ -599,9 +638,9 @@ const PINNED: PinnedSummary[] = [
 			[-309.1087798587978, 472.3018466960639, 17.39494163170457, 95.3333925641394, 0.919366131129209],
 		],
 		towns: [
-			[-654.4192683515221, -105.30485623859103, 53.2332229387248],
-			[-97.99919166681258, 539.5888131719765, 40.3330118895974],
-			[197.00505187686355, -596.9186338043954, 58.69715590495616],
+			[283.74734381586313, -476.86325178667903, 53.2332229387248],
+			[613.0285809412599, -458.0228108614683, 58.98640851024538],
+			[-823.2107034400105, 112.83916261419654, 39.5274862262886],
 		],
 		samples: [
 			[0.5141717391861589, 0.06387422840466858, 1, -0.0038625277755178896, 0.006825035169531719, 'badlands', 'cliff', Infinity],
@@ -617,11 +656,11 @@ const PINNED: PinnedSummary[] = [
 			[-9.06471898779273, 813.8863891828805, 19.487174225971103, 97.81371605482627, 0.9220535308704711],
 		],
 		towns: [
-			[459.9788129354077, 396.3323274838254, 56.78458511014469],
-			[-559.3787934424686, -152.46890115319226, 54.428250047494664],
-			[458.56976040771656, 669.3510589411406, 44.55636677099392],
-			[613.6421711531988, 40.06047834697802, 46.299235935439356],
-			[-718.5837959341221, 71.97374671339715, 41.35158671415411],
+			[132.3640455789864, -300.23979998007417, 56.78458511014469],
+			[532.9672589823604, -583.2130536809564, 54.428250047494664],
+			[-353.4425165094435, 557.017860814929, 39.36567953671329],
+			[334.2572344429791, 730.8326057977974, 54.78068350057583],
+			[314.91199431940913, 239.98486683890224, 46.75767065025866],
 		],
 		samples: [
 			[0.541298197591693, 1, 1, 0.0011655276052387178, 0.00019065532867785484, 'scrub', null, 1.0941492735725564],

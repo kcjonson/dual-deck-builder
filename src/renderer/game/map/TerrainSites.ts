@@ -4,13 +4,12 @@ import { Rng } from '../core/Rng';
  * The terrain's point features (Area Map Generation, Pipeline, 1. Terrain):
  * hotspots, the blast sites and spills that leave craters and contamination,
  * and towns, the smaller ruins out past the metro. Both are dart-thrown, a
- * Poisson-disc sample: candidates drawn uniformly over a ring of the disc,
- * each kept only if it's far enough from those kept before it.
- *
- * Candidates are drawn in the disc's bounding square and redrawn until they
- * land in the ring, so placement is plain arithmetic, with no square root or
- * trig to differ between engines. Each feature draws on its own stream, so
- * the order other features draw in never moves it.
+ * Poisson-disc sample: candidates drawn uniformly, each kept only if it's far
+ * enough from those kept before it. Hotspots draw over a ring of the disc,
+ * in its bounding square and redrawn until inside, and towns over the cells a
+ * road from the metro reaches. Placement is plain arithmetic, with no square
+ * root or trig to differ between engines. Each feature draws on its own
+ * stream, so the order other features draw in never moves it.
  */
 
 /** A blast site or spill: an impassable crater in a plume of contamination. */
@@ -103,43 +102,65 @@ export interface TownPlacement {
 	ring: Ring;
 	/** Craters keep towns `TOWN_CRATER_GAP` clear of them. */
 	hotspots: readonly Hotspot[];
-	/** Whether a town may stand at (x, y); `strict` is the first half of its candidates, which also asks for good ground. */
+	/** Centres of the square cells, `cellSize` across, that towns stand in: every point of one is ground a town may have. */
+	cells: readonly { readonly x: number; readonly y: number }[];
+	cellSize: number;
+	/** Whether a candidate at (x, y) suits a town; `strict` is the first half of them, which ask for good ground. */
 	suits(x: number, y: number, strict: boolean): boolean;
 }
 
 /**
  * Up to `count` towns, centres `TOWN_SPACING` of the radius apart, inside the
- * ring and clear of craters. A town draws its size, then candidates: for the
- * first half of `PLACEMENT_ATTEMPTS` the ground has to suit it strictly, then
- * only loosely, and a town that finds no room is left out.
+ * ring, clear of craters, and in the cells given. A town draws its size, then
+ * up to `PLACEMENT_ATTEMPTS` candidates, each a cell picked evenly and a
+ * point picked evenly inside it, that have to suit it, strictly for the
+ * first half. If none does, it walks the cells in an order shuffled from the
+ * stream (once, the first time any town needs it), and takes the first
+ * centre with room, suited or not. So a town is left out only when no cell
+ * centre in the ring has room for it.
  */
-export function placeTowns({ rng, count, radius, metroRadius, ring, hotspots, suits }: TownPlacement): Ruin[] {
+export function placeTowns({ rng, count, radius, metroRadius, ring, hotspots, cells, cellSize, suits }: TownPlacement): Ruin[] {
 	const spacing = TOWN_SPACING * radius;
 	const spacingSquared = spacing * spacing;
 	const towns: Ruin[] = [];
-	for (let index = 0; index < count; index += 1) {
+	let walk: number[] | null = null;
+	for (let index = 0; index < count && cells.length > 0; index += 1) {
 		const townRadius = Math.max(TOWN_RADIUS.floor, metroRadius * between(rng, TOWN_RADIUS));
-		const townRing = { inner: ring.inner + townRadius, outer: ring.outer - townRadius };
-		let attempt = 0;
-		const point = throwDart(rng, townRing, (x, y) => {
-			const strict = attempt < PLACEMENT_ATTEMPTS / 2;
-			attempt += 1;
-			return towns.every((other) => distanceSquared(x, y, other) >= spacingSquared)
-				&& hotspots.every((hotspot) => {
-					const clearance = hotspot.craterRadius + townRadius + TOWN_CRATER_GAP;
-					return distanceSquared(x, y, hotspot) >= clearance * clearance;
-				})
-				&& suits(x, y, strict);
-		});
+		const inner = ring.inner + townRadius;
+		const outer = ring.outer - townRadius;
+		const hasRoom = (x: number, y: number) => {
+			const fromCentre = x * x + y * y;
+			if (fromCentre < inner * inner || fromCentre > outer * outer) return false;
+			for (const other of towns) {
+				if (distanceSquared(x, y, other) < spacingSquared) return false;
+			}
+			for (const hotspot of hotspots) {
+				const clearance = hotspot.craterRadius + townRadius + TOWN_CRATER_GAP;
+				if (distanceSquared(x, y, hotspot) < clearance * clearance) return false;
+			}
+			return true;
+		};
+		let point: { x: number; y: number } | null = null;
+		for (let attempt = 0; attempt < PLACEMENT_ATTEMPTS && point === null; attempt += 1) {
+			const cell = cells[rng.int(0, cells.length - 1)];
+			const x = cell.x + (rng.float() - 0.5) * cellSize;
+			const y = cell.y + (rng.float() - 0.5) * cellSize;
+			if (hasRoom(x, y) && suits(x, y, attempt < PLACEMENT_ATTEMPTS / 2)) point = { x, y };
+		}
+		if (point === null) {
+			if (walk === null) walk = rng.shuffle(cells.map((_, cell) => cell));
+			const found = walk.find((cell) => hasRoom(cells[cell].x, cells[cell].y));
+			if (found !== undefined) point = { x: cells[found].x, y: cells[found].y };
+		}
 		if (point) towns.push({ x: point.x, y: point.y, radius: townRadius });
 	}
 	return towns;
 }
 
 /**
- * The first of `PLACEMENT_ATTEMPTS` candidates in the ring that `fits`, or
- * null. Each candidate is drawn in the bounding square, two draws, until it
- * lands in the ring; an empty ring has no candidates.
+ * The first of `PLACEMENT_ATTEMPTS` hotspot candidates in the ring that
+ * `fits`, or null. Each candidate is drawn in the bounding square, two
+ * draws, until it lands in the ring; an empty ring has no candidates.
  */
 function throwDart(rng: Rng, { inner, outer }: Ring, fits: (x: number, y: number) => boolean): { x: number; y: number } | null {
 	if (!(outer > 0 && inner < outer)) return null;

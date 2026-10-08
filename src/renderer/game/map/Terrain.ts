@@ -259,6 +259,8 @@ export class TerrainFields {
 	private readonly contaminationFloor: number;
 	/** Rough country by lattice cell, row by row from (-radius, -radius): 1 where a cliff can stand. */
 	private readonly roughCells: Uint8Array;
+	/** The cells a road from the metro reaches over ground no cliff or crater stands on: 1 where reached. */
+	private readonly reachedCells: Uint8Array;
 	private readonly cellColumns: number;
 
 	private readonly wetness: number;
@@ -289,6 +291,9 @@ export class TerrainFields {
 	private ridgeY = 0;
 	private ruggedX = 0;
 	private ruggedY = 0;
+	/** `ruggedScale` at the point `land` is on, worked out once per call however many terms ask. */
+	private ruggedValue = 0;
+	private ruggedReady = false;
 
 	constructor({ params, rng }: TerrainOptions) {
 		const { radius } = params;
@@ -346,18 +351,20 @@ export class TerrainFields {
 
 		this.cellColumns = Math.ceil(2 * radius / ROUGHNESS.cell);
 		this.roughCells = this.markRoughCells();
+		this.reachedCells = this.reachFromMetro();
 
-		const reached = params.towns > 0 ? this.reachFromMetro() : null;
+		const townRing = { inner: this.blendRadius, outer: 0.9 * radius };
 		this.towns = placeTowns({
 			rng: rng.fork('towns'),
 			count: params.towns,
 			radius,
 			metroRadius,
-			ring: { inner: this.blendRadius, outer: 0.9 * radius },
+			ring: townRing,
 			hotspots: this.hotspots,
-			// A town stands where a road from the metro can reach it, and prefers open country.
+			cells: this.reachedCellsIn(townRing),
+			cellSize: ROUGHNESS.cell,
+			// Every point of a reached cell is ground a road can get to; towns prefer open country.
 			suits: (x, y, strict) => {
-				if (reached === null || reached[this.cellAt(x, y)] !== 1) return false;
 				if (!strict) return true;
 				this.land(x, y);
 				return this.scratch.mountains < 0.25 && this.scratch.canyons <= 0;
@@ -434,10 +441,17 @@ export class TerrainFields {
 		return cell >= 0 && this.roughCells[cell] === 1;
 	}
 
-	/** True on a cliff: grade `CLIFF_GRADE` or more, in rough country. */
+	/** True where a road from the metro can surely reach: a lattice cell the flood fill got to. */
+	public reachable(x: number, y: number): boolean {
+		const cell = this.cellAt(x, y);
+		return cell >= 0 && this.reachedCells[cell] === 1;
+	}
+
+	/** True on a cliff: grade `CLIFF_GRADE` or more, in rough country. Outside it, no elevation is read. */
 	public cliff(x: number, y: number): boolean {
+		if (!this.rough(x, y)) return false;
 		this.land(x, y);
-		return this.slopeSquared() >= CLIFF_SLOPE_SQUARED && this.rough(x, y);
+		return this.slopeSquared() >= CLIFF_SLOPE_SQUARED;
 	}
 
 	/** Rise over run at (x, y). */
@@ -459,10 +473,10 @@ export class TerrainFields {
 		if (this.crater(x, y)) return Infinity;
 		this.land(x, y);
 		const slopeSquared = this.slopeSquared();
-		if (slopeSquared >= CLIFF_SLOPE_SQUARED && this.rough(x, y)) return Infinity;
+		if (this.cliffAt(x, y, slopeSquared)) return Infinity;
 		this.landMoisture(x, y);
 		this.scratch.contamination = this.contamination(x, y);
-		return BIOME_COSTS[classifyBiome(this.scratch)] + SLOPE_COST * (slopeSquared / CLIFF_SLOPE_SQUARED);
+		return slopeCost(classifyBiome(this.scratch), slopeSquared);
 	}
 
 	/** Everything at (x, y) into `out`, water aside: its obstacle is a crater, a cliff, or none. Returns `out`. */
@@ -481,9 +495,9 @@ export class TerrainFields {
 		const slopeSquared = this.slopeSquared();
 		out.grade = Math.sqrt(slopeSquared) * RELIEF;
 		if (this.crater(x, y)) out.obstacle = 'crater';
-		else if (slopeSquared >= CLIFF_SLOPE_SQUARED && this.rough(x, y)) out.obstacle = 'cliff';
+		else if (this.cliffAt(x, y, slopeSquared)) out.obstacle = 'cliff';
 		else out.obstacle = null;
-		out.cost = out.obstacle === null ? BIOME_COSTS[out.biome] + SLOPE_COST * (slopeSquared / CLIFF_SLOPE_SQUARED) : Infinity;
+		out.cost = out.obstacle === null ? slopeCost(out.biome, slopeSquared) : Infinity;
 		return out;
 	}
 
@@ -491,6 +505,11 @@ export class TerrainFields {
 	private slopeSquared(): number {
 		const scratch = this.scratch;
 		return scratch.slopeX * scratch.slopeX + scratch.slopeY * scratch.slopeY;
+	}
+
+	/** Whether ground at (x, y) with this squared slope is a cliff: steep enough, in rough country. */
+	private cliffAt(x: number, y: number, slopeSquared: number): boolean {
+		return slopeSquared >= CLIFF_SLOPE_SQUARED && this.rough(x, y);
 	}
 
 	/**
@@ -501,6 +520,7 @@ export class TerrainFields {
 	 * is worked alongside it, from the noise layers' own derivatives.
 	 */
 	private land(x: number, y: number): number {
+		this.ruggedReady = false;
 		const distanceSquared = x * x + y * y;
 		// The start and relief weights and their gradients, as functions of
 		// distance squared, whose gradient is (2x, 2y): no square root taken.
@@ -719,17 +739,21 @@ export class TerrainFields {
 
 	/**
 	 * How much of their full height mountains, canyons, and badlands stand to
-	 * at (x, y), its gradient left in `ruggedX` and `ruggedY`: `ROUGHNESS.floor`
-	 * of it outside rough country, climbing to all of it inside.
+	 * at (x, y), the point `land` is on, its gradient left in `ruggedX` and
+	 * `ruggedY`: `ROUGHNESS.floor` of it outside rough country, climbing to all
+	 * of it inside. Worked out once per `land` call.
 	 */
 	private ruggedScale(x: number, y: number): number {
+		if (this.ruggedReady) return this.ruggedValue;
+		this.ruggedReady = true;
 		const noise = this.roughNoise;
 		const along = (noise.fractalWithin(x * ROUGHNESS_FREQUENCY, y * ROUGHNESS_FREQUENCY, ROUGHNESS.octaves, ROUGHNESS.gain, this.roughFloor, Infinity) - this.roughFloor) * ROUGHNESS.sharpness;
 		const rough = smooth01(along);
 		const rate = (1 - ROUGHNESS.floor) * smoothSlope(along) * ROUGHNESS.sharpness * ROUGHNESS_FREQUENCY;
 		this.ruggedX = rough > 0 && rough < 1 ? rate * noise.derivativeX : 0;
 		this.ruggedY = rough > 0 && rough < 1 ? rate * noise.derivativeY : 0;
-		return ROUGHNESS.floor + (1 - ROUGHNESS.floor) * rough;
+		this.ruggedValue = ROUGHNESS.floor + (1 - ROUGHNESS.floor) * rough;
+		return this.ruggedValue;
 	}
 
 	/** The lattice cell holding (x, y), or -1 off the lattice, which covers the disc's bounding square. */
@@ -743,20 +767,24 @@ export class TerrainFields {
 
 	/**
 	 * Rough country by cell: a cell is rough when roughness noise at its
-	 * centre is above the calibrated floor and the centre is past the relief
-	 * radius, so the metro's surroundings never hold a cliff.
+	 * centre is above the calibrated floor and the whole cell lies past the
+	 * relief radius, so no cliff stands inside it.
 	 */
 	private markRoughCells(): Uint8Array {
 		const columns = this.cellColumns;
 		const cells = new Uint8Array(columns * columns);
 		const noise = this.roughNoise;
 		const floor = this.roughFloor;
+		const half = ROUGHNESS.cell / 2;
 		if (floor === Infinity) return cells;
 		for (let row = 0; row < columns; row += 1) {
 			const y = (row + 0.5) * ROUGHNESS.cell - this.radius;
+			const nearY = Math.max(0, Math.abs(y) - half);
 			for (let column = 0; column < columns; column += 1) {
 				const x = (column + 0.5) * ROUGHNESS.cell - this.radius;
-				if (x * x + y * y < this.reliefSquared) continue;
+				// The cell's nearest point to the compound.
+				const nearX = Math.max(0, Math.abs(x) - half);
+				if (nearX * nearX + nearY * nearY < this.reliefSquared) continue;
 				// Early out either way: only which side of the floor matters.
 				const value = noise.fractalWithin(x * ROUGHNESS_FREQUENCY, y * ROUGHNESS_FREQUENCY, ROUGHNESS.octaves, ROUGHNESS.gain, floor, floor);
 				if (value > floor) cells[row * columns + column] = 1;
@@ -773,8 +801,10 @@ export class TerrainFields {
 	 */
 	private reachFromMetro(): Uint8Array {
 		const columns = this.cellColumns;
-		const half = ROUGHNESS.cell / 2;
-		const corner = half * Math.SQRT2;
+		const corner = ROUGHNESS.cell / 2 * Math.SQRT2;
+		// Cells wholly inside the disc have their centres this close to the compound.
+		const inside = this.radius - corner;
+		const hotspots = this.hotspots;
 		const open = new Uint8Array(columns * columns);
 		for (let row = 0; row < columns; row += 1) {
 			const y = (row + 0.5) * ROUGHNESS.cell - this.radius;
@@ -782,14 +812,14 @@ export class TerrainFields {
 				const index = row * columns + column;
 				if (this.roughCells[index] === 1) continue;
 				const x = (column + 0.5) * ROUGHNESS.cell - this.radius;
-				const inside = this.radius - corner;
 				if (inside <= 0 || x * x + y * y > inside * inside) continue;
-				const touchesCrater = this.hotspots.some((hotspot) => {
-					const reach = hotspot.craterRadius + corner;
-					const dx = x - hotspot.x;
-					const dy = y - hotspot.y;
-					return dx * dx + dy * dy < reach * reach;
-				});
+				let touchesCrater = false;
+				for (let hotspot = 0; hotspot < hotspots.length && !touchesCrater; hotspot += 1) {
+					const reach = hotspots[hotspot].craterRadius + corner;
+					const dx = x - hotspots[hotspot].x;
+					const dy = y - hotspots[hotspot].y;
+					touchesCrater = dx * dx + dy * dy < reach * reach;
+				}
 				if (!touchesCrater) open[index] = 1;
 			}
 		}
@@ -813,6 +843,22 @@ export class TerrainFields {
 			if (index + columns < open.length) visit(index + columns);
 		}
 		return reached;
+	}
+
+	/** The centres of the reached cells whose centres lie in the ring, in lattice order. */
+	private reachedCellsIn({ inner, outer }: { inner: number; outer: number }): { x: number; y: number }[] {
+		const columns = this.cellColumns;
+		const centres: { x: number; y: number }[] = [];
+		for (let row = 0; row < columns; row += 1) {
+			const y = (row + 0.5) * ROUGHNESS.cell - this.radius;
+			for (let column = 0; column < columns; column += 1) {
+				if (this.reachedCells[row * columns + column] !== 1) continue;
+				const x = (column + 0.5) * ROUGHNESS.cell - this.radius;
+				const distanceSquared = x * x + y * y;
+				if (distanceSquared >= inner * inner && distanceSquared <= outer * outer) centres.push({ x, y });
+			}
+		}
+		return centres;
 	}
 
 	/**
@@ -950,9 +996,23 @@ export class Terrain {
 		return this.land.metro;
 	}
 
-	/** Ruined towns out past the metro, `towns` of them. */
+	/**
+	 * Ruined towns out past the metro: up to `towns` of them, each where a road
+	 * from the metro can reach it. A town is left out only when no reachable
+	 * cell in the ring has room for it.
+	 */
 	public get towns(): readonly Ruin[] {
 		return this.land.towns;
+	}
+
+	/** World units: out to this the fields blend from scrub's to their own. */
+	public get blendRadius(): number {
+		return this.land.blendRadius;
+	}
+
+	/** World units: out to this mountains, canyons, and badlands rise to full, and no cliff stands inside it. */
+	public get reliefRadius(): number {
+		return this.land.reliefRadius;
 	}
 
 	/** Blast sites and spills, `hotspots` of them. */
@@ -1015,6 +1075,17 @@ export class Terrain {
 		return this.land.rough(x, y);
 	}
 
+	/**
+	 * True where a road from the metro can surely reach: a cell of the 16-unit
+	 * lattice that a flood fill from the metro gets to through cells that
+	 * aren't rough, lie wholly inside the disc, and keep clear of craters, so
+	 * no cliff or crater stands between (water aside). Rough cells read false,
+	 * though roads may still find a way through one.
+	 */
+	public reachable(x: number, y: number): boolean {
+		return this.land.reachable(x, y);
+	}
+
 	/** Why (x, y) is impassable, or null: a crater, water, then a cliff. */
 	public obstacle(x: number, y: number): Obstacle | null {
 		if (this.land.crater(x, y)) return 'crater';
@@ -1047,6 +1118,11 @@ export class Terrain {
 		}
 		return out;
 	}
+}
+
+/** Travel cost per world unit on passable ground: the biome's base cost plus the slope term. */
+function slopeCost(biome: Biome, slopeSquared: number): number {
+	return BIOME_COSTS[biome] + SLOPE_COST * (slopeSquared / CLIFF_SLOPE_SQUARED);
 }
 
 function ruinWeight(x: number, y: number, ruin: Ruin): number {
