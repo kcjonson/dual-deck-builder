@@ -88,6 +88,19 @@ describe('foundCampaign', () => {
 			expect([campaign.mapParams.aridity, campaign.mapParams.towns]).toEqual([0.15, 7]);
 		});
 
+		it('founds on a set with stop tables, holding a frozen copy that saves and loads back the same', () => {
+			const stopTables = { highway: { raider_ambush: 2 } };
+			const campaign = found({ mapParams: { seed: SEED, stopTables } });
+			stopTables.highway.raider_ambush = 9;
+
+			expect(campaign.mapParams.stopTables).toStrictEqual({ highway: { raider_ambush: 2 } });
+			expect(Object.isFrozen(campaign.mapParams.stopTables)).toBe(true);
+			const onWarning = jest.fn();
+			const loaded = Campaign.fromJSON(JSON.parse(JSON.stringify(campaign)), { onWarning });
+			expect(loaded.mapParams.stopTables).toStrictEqual({ highway: { raider_ambush: 2 } });
+			expect(onWarning).not.toHaveBeenCalled();
+		});
+
 		it('validates them first, so the campaign holds the params generation runs on', () => {
 			const { mapParams } = found({ mapParams: { seed: SEED, strongholds: 8, highways: 3, radius: 5000 } });
 
