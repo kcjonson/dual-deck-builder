@@ -1,5 +1,8 @@
 import { EventEmitter } from './EventEmitter';
 
+/** Models built this session, numbering each one's id. */
+let modelCount = 0;
+
 /**
  * Base Model class with automatic property getters/setters and change events
  * Based on flux-like patterns with immutable state emission
@@ -14,8 +17,8 @@ export abstract class Model<T> extends EventEmitter {
 	constructor(initialData?: Partial<T>) {
 		super();
 		
-		// Generate unique internal ID
-		this.__id = `${this.constructor.name}_${Math.random().toString(36).substr(2, 9)}`;
+		// A count rather than a random string (DDB-99), so building models draws nothing
+		this.__id = `${this.constructor.name}_${++modelCount}`;
 		
 		// Get properties from the constructor
 		const properties = (this.constructor as typeof Model).properties;
@@ -107,7 +110,9 @@ export abstract class Model<T> extends EventEmitter {
 	}
 	
 	/**
-	 * Get the internal ID (read-only)
+	 * Runtime identity: the class name and a count of the Models built this
+	 * session (`Card_42`). Unique until the page reloads, so it's never saved;
+	 * the campaign's records carry their own ids.
 	 */
 	get id(): string {
 		return this.__id;
