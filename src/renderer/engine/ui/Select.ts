@@ -1,9 +1,10 @@
 import { Component, ComponentOptions, Cursor, PointerEvents, ResolvedColors } from '../components/Component';
 import { drawIcon } from '../components/Icon';
 import type { DrawApi } from '../draw/DrawApi';
+import type { Rect } from '../draw/geometry';
 import type { AnyUiEvent, UiKeyEvent } from '../input/events';
 import type { PopupHandle } from '../services/PopupService';
-import { Look, LookLayers, layersInkExtent, resolveLook } from '../style/look';
+import { Look, LookInk, LookLayers, lookInk, resolveLook } from '../style/look';
 import { LookTransition } from '../style/LookTransition';
 import { CONTROL_SIZES, ControlSize, fieldLayers } from '../style/variants';
 import { tokens } from '../theme/tokens';
@@ -162,8 +163,18 @@ export class Select extends Component {
 		return true;
 	}
 
+	/** R8.8: the ring, the style's shadow, and any glow its style gives a state. */
 	public get inkExtent(): number {
-		return layersInkExtent(this.layers);
+		return this.inkFromLook.extent;
+	}
+
+	/** The ring while focus shows and the style's shadow where it falls, never a glow (R12.20). */
+	protected get restingInk(): Rect {
+		return this.inkFromLook.resting;
+	}
+
+	private get inkFromLook(): LookInk {
+		return lookInk(this.layers, this.stateFlags, this.boxGrownBy(0));
 	}
 
 	public get resolvedColors(): ResolvedColors {
