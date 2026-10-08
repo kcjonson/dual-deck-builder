@@ -11,15 +11,17 @@ import { Team, TeamType } from '../../mechanics/Team';
 import { Driver, DriverArchetype, DriverRole } from '../../mechanics/Driver';
 import { Deck } from '../../mechanics/Deck';
 import { createDrivenVehicle } from '../../mechanics/Vehicle';
+import { NO_RESOURCES } from '../../campaign/Campaign';
 import { CAMPAIGN_START } from '../../campaign/CampaignStart';
-import { RunSeat, startCampaignFight } from '../../campaign/CombatBridge';
+import { startCampaignFight } from '../../campaign/CombatBridge';
+import { DriverRecord } from '../../campaign/DriverRecord';
 import { foundCampaign } from '../../campaign/Founding';
 
 /**
  * DDB-286: a fight the combat bridge builds from the campaign is the
  * screen's PreparedCombat, so it mounts through `prepare` like the gallery's
- * scenes, with the records' names on the dock and the compound's stores on
- * the top bar.
+ * scenes, with the records' names on the dock and the run's cargo on the top
+ * bar.
  */
 
 jest.mock('../../core/ScreenManager', () => ({
@@ -76,21 +78,21 @@ afterAll(() => {
 });
 
 describe('CombatScreen: a campaign fight (DDB-286)', () => {
-	it('mounts through prepare, showing the records\' names, the run\'s escorts, and the compound\'s scrap and fuel', async () => {
+	it('mounts through prepare, showing the records\' names, the run\'s escorts, and the run\'s cargo rather than the stores', async () => {
 		const campaign = foundCampaign({
 			seed: SEED,
 			unlockedArchetypes: ['road_warrior', 'interceptor'],
-			start: { ...CAMPAIGN_START, resources: { ...CAMPAIGN_START.resources, scrap: 73, fuel: 9 }, escorts: ['outrider'] }
+			start: { ...CAMPAIGN_START, resources: { ...CAMPAIGN_START.resources, scrap: 150, fuel: 10 }, escorts: ['outrider'] }
 		});
-		const seat = (archetype: DriverArchetype): RunSeat => {
+		const seat = (archetype: DriverArchetype): DriverRecord => {
 			const record = campaign.drivers.find(driver => driver.archetype === archetype);
 			if (!record) throw new Error(`founding should have dealt a ${archetype}`);
-			return { record };
+			return record;
 		};
 		const [outrider] = campaign.convoy.escorts;
 		const fight = startCampaignFight({
 			campaign,
-			party: { seats: [seat('road_warrior'), seat('interceptor')], escorts: [outrider] },
+			party: { seats: [seat('road_warrior'), seat('interceptor')], escorts: [outrider], cargo: { ...NO_RESOURCES, scrap: 73, fuel: 9 } },
 			enemyTeam: raiderTeam(),
 			rng: new Rng({ seed: SEED }),
 			cards: CardLoader.getInstance().getAllCardsAsMap()
@@ -111,6 +113,7 @@ describe('CombatScreen: a campaign fight (DDB-286)', () => {
 		const topBar = texts(combat['topBar']);
 		expect(topBar).toContain('73');
 		expect(topBar).toContain('9');
+		expect(topBar).not.toContain('150');
 		combat.unmount();
 	});
 });
