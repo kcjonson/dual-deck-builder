@@ -675,7 +675,7 @@ export abstract class Component {
 	 */
 	public get revealInk(): Rect | null {
 		const ink = this.restingInk;
-		if (ink === null || !this.focusVisibleState || !this.effectivelyEnabled || this.drawsOwnFocusRing) return ink;
+		if (ink === null || !this.drawsWalkFocusRing) return ink;
 		const ring = FOCUS_RING_EXTENT;
 		const minX = Math.min(ink.x, -ring);
 		const minY = Math.min(ink.y, -ring);
@@ -2102,6 +2102,16 @@ export abstract class Component {
 	 */
 	public get drawsOwnFocusRing(): boolean {
 		return false;
+	}
+
+	/**
+	 * Whether the render walk draws its token focus ring round this component
+	 * now (R11.12): focus showing, enabled, and no ring of its own. The walk
+	 * and `revealInk` both read it, so a reveal counts the ring exactly when
+	 * it is drawn.
+	 */
+	public get drawsWalkFocusRing(): boolean {
+		return this.focusVisibleState && this.effectivelyEnabled && !this.drawsOwnFocusRing;
 	}
 
 	/**

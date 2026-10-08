@@ -10,7 +10,7 @@ What a reveal shows has to be what is drawn, and no more: a bound that over-coun
 
 ## Decision
 
-What a reveal shows is what the component draws in its current state. `Component.revealInk` is the union of `restingInk` and, while the render walk draws it, the walk's focus ring (`focusVisible`, enabled, and not `drawsOwnFocusRing`, the walk's own test). `restingInk` is the one hook: protected, `cullInk` by default, which is right for ink a component draws in every state (a border, a shadow, a card's cost hex, a mini's stack edges, count, and tag). Controls whose `inkExtent` covers more than they draw override it with what they draw with the pointer away:
+What a reveal shows is what the component draws in its current state. `Component.revealInk` is the union of `restingInk` and, while the render walk draws it, the walk's focus ring (`drawsWalkFocusRing`: `focusVisible`, enabled, and not `drawsOwnFocusRing`, the one test the walk reads too). `restingInk` is the one hook: protected, `cullInk` by default, which is right for ink a component draws in every state (a border, a shadow, a card's cost hex, a mini's stack edges, count, and tag). Controls whose `inkExtent` covers more than they draw override it with what they draw with the pointer away:
 
 - Button, Select, and TextInput answer `restingInkExtent` from their look layers: layer 6's ring outside the box while focus shows, and the base's own shadow. Never a glow or a press nudge.
 - Checkbox, Toggle, and Radio answer the same from the mark's layers; the walk adds the ring round the row.
