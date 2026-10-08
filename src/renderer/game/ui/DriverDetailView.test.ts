@@ -99,9 +99,10 @@ describe('Driver detail view (Game Flow 7.0)', () => {
 		expect(words(view(driverCardData({ archetype: 'mechanic', deck: { emp_blast: 1 } })))).toContain('DECK / 1 CARD');
 	});
 
-	it('leaves out a card type the lookup doesn\'t know, and an entry of no copies', () => {
+	it('leaves out a card type the lookup doesn\'t know, and an entry of no copies, and counts only what it shows', () => {
 		const detail = view(driverCardData({ archetype: 'mechanic', deck: { repair_kit: 2, mystery_card: 1, ram: 0 } }));
 		expect(detail.deckCards.map((card) => card.data.type)).toEqual(['repair_kit']);
+		expect(part(detail, 'deck').text).toBe('DECK / 2 CARDS');
 	});
 
 	it.each([

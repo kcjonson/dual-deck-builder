@@ -5,7 +5,7 @@ import type { DrawRectOptions } from '../../engine/draw/commands';
 import type { Rect } from '../../engine/draw/geometry';
 import { resolveColor } from '../../engine/style/styleObject';
 import { shadowExtent } from '../../engine/style/look';
-import { CardCounts, totalCards } from '../campaign/CardCounts';
+import type { CardCounts } from '../campaign/CardCounts';
 import type { Card as GameCard } from '../mechanics/Card';
 import { Card as UICard, CardSize, MINI_GRID, miniGridHeight } from './Card';
 import { DETAIL_SHADOW, pinHint } from './CardDetailView';
@@ -192,7 +192,8 @@ export class DriverDetailView extends Component {
 				this.figures({ id: childId('speed'), text: `SPEED +${skills.speed}` }),
 			);
 		}
-		const size = totalCards(data.deck);
+		// What it shows, so a type the lookup doesn't know leaves the count and the minis agreeing
+		const size = entries.reduce((total, { copies }) => total + copies, 0);
 		this.heading = this.label({ id: childId('deck'), text: `DECK / ${size} ${size === 1 ? 'CARD' : 'CARDS'}`, x: pad });
 		// Its width is the room the pin hint leaves, set in layout
 		this.note = data.note ? this.label({ id: childId('note'), text: data.note, x: pad, width: columnWidth }) : null;
