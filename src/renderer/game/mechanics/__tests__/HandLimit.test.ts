@@ -1,4 +1,4 @@
-import { Driver, DriverArchetype, DriverRole, CardsBurnedEvent, DRIVER_CONFIGS } from '../Driver';
+import { Driver, DriverArchetype, DriverRole, CardsBurnedEvent, DRIVER_CONFIGS, cardsKept } from '../Driver';
 import { Deck } from '../Deck';
 import { Card } from '../Card';
 import { Rng } from '../../core/Rng';
@@ -133,5 +133,12 @@ describe('Hand limit', () => {
 
 	test('a copy keeps the driver\'s own limit', () => {
 		expect(newDriver({ handLimit: 9 }).copy().handLimit).toBe(9);
+	});
+
+	test('cardsKept is how many a draw keeps: up to the limit, and none at or over it', () => {
+		expect(cardsKept({ count: 3, handSize: 0, handLimit: 7 })).toBe(3);
+		expect(cardsKept({ count: 3, handSize: 5, handLimit: 7 })).toBe(2);
+		expect(cardsKept({ count: 3, handSize: 7, handLimit: 7 })).toBe(0);
+		expect(cardsKept({ count: 3, handSize: 9, handLimit: 7 })).toBe(0);
 	});
 });
