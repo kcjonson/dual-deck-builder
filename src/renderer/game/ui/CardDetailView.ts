@@ -399,6 +399,11 @@ export class CardInspectView extends Component {
 		return this.detail.x;
 	}
 
+	/** The detail view's middle within this view, which a surface shrunk into its room keeps over the card. */
+	public get overCardX(): number {
+		return this.detail.x + DETAIL.width / 2;
+	}
+
 	protected layoutChildren(): void {
 		this.arrange();
 	}

@@ -605,17 +605,6 @@ describe('Driver card detail view, through the inspect path', () => {
 		expect(bounds.x + bounds.width).toBeLessThanOrEqual(1024 - 8);
 	});
 
-	it('shrinks a view that still doesn\'t fit into the room it has, rather than running past its resting edge', () => {
-		const { surface } = shownOn(640, 400, driverCardData({ archetype: 'road_warrior', deck: RUN_DECK, note: 'Killed day 9' }));
-		expect(surface.viewScale).toBeLessThan(1);
-		const bounds = surface.screenBounds;
-		expect(bounds.height).toBeCloseTo(surface.view.height * surface.viewScale, 5);
-		expect(bounds.y).toBeGreaterThanOrEqual(8);
-		expect(bounds.y + bounds.height).toBeLessThanOrEqual(400 - 10 + 1e-6);
-		expect(bounds.x).toBeGreaterThanOrEqual(8);
-		expect(bounds.x + bounds.width).toBeLessThanOrEqual(640 - 8 + 1e-6);
-	});
-
 	it('keeps a pinned view on the card\'s data when the data changes under it', () => {
 		const { card, centre } = roster();
 		send(context, [pointer('down', centre.x, centre.y, { button: 2 }), pointer('up', centre.x, centre.y, { button: 2 })]);

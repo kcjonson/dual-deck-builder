@@ -66,25 +66,30 @@ export function inspectLayout({ cardCentreX, viewportWidth, scale, seat, hasKeyw
  * view itself lays out in logical pixels inside a scaling frame.
  *
  * When the view is bigger than the room the service has for it, the
- * service sizes the surface to that room (a constrained placement). The
- * surface keeps to it from then on, shrinking the view to fit, rather than
- * growing back past it at the next layout and off its resting edge.
+ * service places the surface at its full size, then sizes it to that room
+ * (a constrained placement) and clips it. The surface takes that box as
+ * its room: it shrinks the view to fit, rests it on the room's bottom edge
+ * with its `overCardX` (its middle unless the view says otherwise) over
+ * the card and inside the room, and shows the view's shadow past the box
+ * again, since the view itself now fits. The fit has no floor: below the
+ * 1024x600 the screens are held to, a big view gets small.
  */
-export class InspectSurface<View extends Component & { arrange(): void }> extends Container {
+export class InspectSurface<View extends Component & { readonly overCardX?: number }> extends Container {
 	public readonly view: View;
 	private readonly frame: Component;
 	private readonly scaleValue: number;
+	/** The middle of the card it inspects across the screen, in viewport pixels; null centres a shrunk view in its room. */
+	private readonly cardCentreX: number | null;
 	/** The scale the view is drawn at: `scaleValue`, less whatever fitting the room took. */
 	private drawnScale: number;
-	/** The room it was sized to from outside; null until then. */
-	private room: { width: number; height: number } | null = null;
-	/** Set while the surface sizes itself, so its own sizes aren't taken for a room. */
-	private sizingItself = false;
+	/** The box the service placed and sized it to when the view didn't fit; null while it fits. */
+	private room: Rect | null = null;
 
-	constructor({ id, view, scale }: { id: string; view: View; scale: number }) {
+	constructor({ id, view, scale, cardCentreX = null }: { id: string; view: View; scale: number; cardCentreX?: number | null }) {
 		super({ id, width: view.width * scale, height: view.height * scale });
 		this.scaleValue = scale;
 		this.drawnScale = scale;
+		this.cardCentreX = cardCentreX;
 		this.view = view;
 		this.frame = new Container({ width: view.width, height: view.height, transform: { scale, origin: [0, 0] } });
 		this.frame.addChild(view);
@@ -96,13 +101,19 @@ export class InspectSurface<View extends Component & { arrange(): void }> extend
 		return this.drawnScale;
 	}
 
+	/**
+	 * Only the tooltip service sizes the surface from outside, and only when
+	 * the view doesn't fit where it has just placed it, so the box is the
+	 * room. The surface's own sizes go through `resizeInLayout`.
+	 */
 	public setSize(width: number, height: number): this {
-		if (!this.sizingItself) this.room = { width, height };
+		this.room = { x: this.x, y: this.y, width, height };
 		return super.setSize(width, height);
 	}
 
 	protected layoutChildren(): void {
-		this.view.arrange();
+		// Laid out here for the size the surface takes; the walk below then skips it unless that dirtied it
+		this.view.layoutSubtree();
 		const { width, height } = this.view;
 		const room = this.room;
 		const fit = room ? Math.min(1, room.width / (width * this.scaleValue), room.height / (height * this.scaleValue)) : 1;
@@ -114,32 +125,37 @@ export class InspectSurface<View extends Component & { arrange(): void }> extend
 		this.frame.setSize(width, height);
 		const scaledWidth = width * scale;
 		const scaledHeight = height * scale;
-		if (this.width !== scaledWidth || this.height !== scaledHeight) {
-			this.sizingItself = true;
-			this.setSize(scaledWidth, scaledHeight);
-			this.sizingItself = false;
-		}
+		this.resizeInLayout(scaledWidth, scaledHeight);
+		if (!room) return;
+		const wanted = this.cardCentreX === null
+			? room.x + (room.width - scaledWidth) / 2
+			: this.cardCentreX - (this.view.overCardX ?? width / 2) * scale;
+		this.x = Math.max(room.x, Math.min(wanted, room.x + room.width - scaledWidth));
+		this.y = room.y + room.height - scaledHeight;
+		// The service clips a constrained surface; the view fits inside it now, so only its shadow would be cut
+		this.overflow = 'visible';
 	}
 }
 
 /** A play card's detail view and keyword boxes, as the inspector shows them. */
 export class CardInspectSurface extends InspectSurface<CardInspectView> {
-	constructor({ card, driver, pinned, keywordSide, scale }: {
+	constructor({ card, driver, pinned, keywordSide, scale, cardCentreX }: {
 		card: GameCard;
 		driver: 1 | 2 | null;
 		pinned: boolean;
 		keywordSide: KeywordSide;
 		scale: number;
+		cardCentreX?: number | null;
 	}) {
-		super({ id: 'card_detail', view: new CardInspectView({ id: 'card_detail_inspect', card, driver, pinned, keywordSide }), scale });
+		super({ id: 'card_detail', view: new CardInspectView({ id: 'card_detail_inspect', card, driver, pinned, keywordSide }), scale, cardCentreX });
 		this.componentType = 'CardInspectSurface';
 	}
 }
 
 /** A driver card's detail view, as the inspector shows it. */
 export class DriverInspectSurface extends InspectSurface<DriverDetailView> {
-	constructor({ data, cards, pinned, scale }: { data: DriverCardData; cards: CardLookup; pinned: boolean; scale: number }) {
-		super({ id: 'driver_detail', view: new DriverDetailView({ id: 'driver_detail_view', data, cards, pinned }), scale });
+	constructor({ data, cards, pinned, scale, cardCentreX }: { data: DriverCardData; cards: CardLookup; pinned: boolean; scale: number; cardCentreX?: number | null }) {
+		super({ id: 'driver_detail', view: new DriverDetailView({ id: 'driver_detail_view', data, cards, pinned }), scale, cardCentreX });
 		this.componentType = 'DriverInspectSurface';
 	}
 }
@@ -208,9 +224,10 @@ export function makeInspectable(card: UICard, { scale, driver = () => card.drive
 	makeDetailInspectable(card, ({ viewport, bounds, scale: factor, pinned }) => {
 		const seat = driver();
 		const hasKeywords = inspectViewWidth(card.data) > DETAIL.width;
-		const placed = inspectLayout({ cardCentreX: bounds.x + bounds.width / 2, viewportWidth: viewport.width, scale: factor, seat, hasKeywords });
+		const cardCentreX = bounds.x + bounds.width / 2;
+		const placed = inspectLayout({ cardCentreX, viewportWidth: viewport.width, scale: factor, seat, hasKeywords });
 		return {
-			surface: new CardInspectSurface({ card: card.data, driver: seat, pinned, keywordSide: placed.side, scale: factor }),
+			surface: new CardInspectSurface({ card: card.data, driver: seat, pinned, keywordSide: placed.side, scale: factor, cardCentreX }),
 			x: placed.viewX,
 		};
 	}, { scale });
@@ -233,8 +250,9 @@ export interface DriverInspectableOptions {
  */
 export function makeDriverInspectable(card: DriverCard, { cards }: DriverInspectableOptions): void {
 	makeDetailInspectable(card, ({ viewport, bounds, scale, pinned }) => {
-		const surface = new DriverInspectSurface({ data: card.data, cards, pinned, scale });
-		return { surface, x: centredOver({ cardCentreX: bounds.x + bounds.width / 2, width: surface.width, viewportWidth: viewport.width, margin: SIDE_MARGIN * scale }) };
+		const cardCentreX = bounds.x + bounds.width / 2;
+		const surface = new DriverInspectSurface({ data: card.data, cards, pinned, scale, cardCentreX });
+		return { surface, x: centredOver({ cardCentreX, width: surface.width, viewportWidth: viewport.width, margin: SIDE_MARGIN * scale }) };
 	});
 }
 
