@@ -132,12 +132,14 @@ did: no capture reaches a reshuffle or a random AI, since the dev fight and the 
 plan with the aggressive AI, and the enemy-turn capture stops at the first raider's action.
 
 DDB-411 shuffles every deck before the opening deal, from its seat's stream, and that shuffle does
-reach a pixel. Every capture of a started fight now shows hands dealt from a shuffled deck: the
-combat screen's player hands and raider plans, and in the gallery's battles (whose player hands the
-scene sets after the deal) the raiders' plans, made from their opening hands. All of it hangs off
-the fight's root seed, so those goldens hold only while the harness's seed, and the number of
-`Math.random` reads before each fight's `freshSeed()`, stay where they are. A change to either
-moves them, and the answer is a re-mint, not a tolerance.
+reach a pixel: every started fight's opening hands come from the fight's root seed. The combat
+screen's goldens moved with it wherever the hands show, the plain capture and the log in both
+projects and the end-turn preview. The enemy-turn capture didn't, since the hands are discarded by
+then and the raider's first action came out the same, and neither did the gallery's typical battle,
+whose player hands the scene sets after the deal; the raiders there, as in the dev fight, hold
+their whole five-card decks whatever the order and planned the same. Those goldens hold only while
+the harness's seed, and the number of `Math.random` reads before each fight's `freshSeed()`, stay
+where they are. A change to either moves them, and the answer is a re-mint, not a tolerance.
 
 ## Decision 4: a scene that cannot be honestly captured is listed, not omitted
 
@@ -286,7 +288,7 @@ expressing.
 | Fixed viewport | `use.viewport` (chromium), `BrowserWindow.setContentSize` (electron), both 1440x882 | every screen and section lays out from a width |
 | Fixed device pixel ratio | `deviceScaleFactor: 1`, plus `--force-device-scale-factor=1` for Electron | `FontAtlas` glyph raster, `Renderer.resize` drawing buffer, `Layer` and `Panel` scissor rectangles |
 | Time freeze | `window.__app.pause()` | splash auto-navigate, `PlayerHandLayer`'s 300 ms discard timer |
-| Seeded random | mulberry32 over `Math.random` via `addInitScript`, read by `freshSeed()` for each fight's root stream | every opening hand (and so every raider plan made from one), deck order after a reshuffle, a random AI's picks |
+| Seeded random | mulberry32 over `Math.random` via `addInitScript`, read by `freshSeed()` for each fight's root stream | every opening hand, deck order after a reshuffle, a random AI's picks |
 | Wait for assets | `assetsReady` on `window.__app.status()`, false while CardLoader has a request outstanding | `cards.json` arriving mid-capture |
 | Wait for a settled layout | hooks present, `document.fonts.ready`, then the window, the canvas box, its backing store and the committed viewport all at 1440x882 and the tree unchanged for two counted frames (DDB-201) | a resize measured or committed after the screen built; layout still settling when the shutter opens |
 

@@ -236,6 +236,7 @@ describe('a seeded fight', () => {
 
 			const first = await deckHistories(SEED);
 
+			// Reshuffles past the four opening shuffles, so there were some to replay
 			expect(shuffle.mock.calls.length).toBeGreaterThan(4);
 			expect(await deckHistories(SEED)).toEqual(first);
 		});

@@ -120,8 +120,8 @@ export interface DevSurface {
  *
  * What it changes: every started fight's opening hands. The opening deal
  * shuffles each deck on a stream forked from the fight's root (DDB-411), so
- * the combat screen's hands, and the raider plans made from them, come from
- * this seed, and an unseeded run would deal differently on every capture.
+ * the combat screen's hands come from this seed, and an unseeded run would
+ * deal differently on every capture.
  * Phase 0 installed it before anything consumed it: the only shuffle then was
  * a reshuffle no capture reaches, and the combat golden was byte-identical
  * under a different seed and with the seeding removed.
