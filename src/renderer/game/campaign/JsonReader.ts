@@ -95,6 +95,17 @@ export function readInteger(value: unknown, path: string, { min, max, maxLabel }
 	return value;
 }
 
+const UINT32_MAX = 0xffffffff;
+
+/**
+ * A seed: an integer from 0 to 2^32 - 1. NaN, Infinity, and anything that
+ * isn't a number fail here, where `new Rng({ seed })` would coerce NaN and
+ * Infinity to 0 and quietly build seed 0's map.
+ */
+export function readSeed(value: unknown, path: string): number {
+	return readInteger(value, path, { min: 0, max: UINT32_MAX });
+}
+
 export function readOneOf<Option extends string>(value: unknown, path: string, options: readonly Option[]): Option {
 	if (typeof value !== 'string') throw new TypeError(`${path} must be a string, got ${describeValue(value)}`);
 	if (!(options as readonly string[]).includes(value)) {

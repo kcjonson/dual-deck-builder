@@ -6,7 +6,7 @@ import { DriverArchetype } from '../mechanics/Driver';
 import { CardCounts, NO_CARDS, addCards, cardCount, readCardCounts, readCardType, removeCards } from './CardCounts';
 import { EscortJson, convoyToJson, readConvoy } from './ConvoyJson';
 import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordJson, placeholderName, readDriverRecord } from './DriverRecord';
-import { copyJson, describeValue, readArray, readFields, readInteger, readObject, readOneOf, readText } from './JsonReader';
+import { copyJson, describeValue, readArray, readFields, readInteger, readObject, readOneOf, readSeed, readText } from './JsonReader';
 import { readMapParams, repairMapParams } from './MapParamsJson';
 import { EMPTY_MAP, MapState, readMapState } from './MapState';
 import { CAMPAIGN_SCHEMA_VERSION, migrateSave } from './SaveMigrations';
@@ -125,7 +125,6 @@ const RESOURCE_NAMES: readonly (keyof Resources)[] = ['food', 'water', 'fuel', '
 const FIXED_FIELDS = ['seed', 'generatorVersion', 'mapParams'] as const;
 
 const DRIVER_ID = /^driver-([1-9][0-9]*)$/;
-const UINT32_MAX = 0xffffffff;
 
 /** Campaigns partway through storing a card move. Campaign instances are frozen, so this can't be a field. */
 const storingMoves = new WeakSet<object>();
@@ -149,15 +148,15 @@ export interface Campaign extends Readonly<CampaignData> {}
  * driver counter never goes back, and the pool only grows.
  *
  * The campaign's `change` event covers its own fields and finished card
- * moves. A driver record or an escort changing on its own emits on that
- * model and not here: a record's HP on the record, an escort's damage on its
- * own Vehicle (the convoy emits only when escorts join or leave). So save at
- * checkpoints, `CampaignStore.checkpoint` after each stop, arriving home, or
- * a compound action, or subscribe to each record and each escort as well as
- * the campaign. A record changes partway through a card move, before the
- * locker is stored, so a save a record or escort change sets off waits for
- * the next tick or a checkpoint (every `CampaignStore` call waits a tick);
- * card moves arrive whole on the campaign's change.
+ * moves. Records, escorts, and the convoy emit on their own models and not
+ * here: a record's HP on the record, an escort's damage on its own Vehicle,
+ * escorts joining or leaving on the convoy. So save at checkpoints, with
+ * `CampaignStore.checkpoint` at the end of each step (a stop, arriving home,
+ * a compound action), not on change events. A record changes partway
+ * through a card move, before the locker is stored; a save asked for from a
+ * listener captures the campaign before the next frame, once the code that
+ * asked has run, so it's whole only when the step that set it off is
+ * synchronous.
  *
  * Nothing here draws randomness, and the seed comes from whoever founds the
  * campaign. Anything that needs a random draw later forks a fresh stream for
@@ -286,9 +285,9 @@ export class Campaign extends Model<CampaignData> {
 	 * the locker, and a move between two drivers ends with a campaign
 	 * `change`. While a move is being stored, the campaign refuses another
 	 * move and every `set`. Records aren't held, so a listener on `from` can
-	 * still change `to`: the copies land on the deck `to` holds once `from` is
-	 * stored, or go back to `from` if `to` has left the compound by then, or
-	 * to the locker if `from` has too.
+	 * still change `to` before the copies land: they go on the deck `to` holds
+	 * then, or back on `from` if `to` has left the compound or can't hold
+	 * them, or into the locker if `from` can't either.
 	 */
 	public moveCards({ cardType, from, to, count = 1 }: { cardType: string; from: CardPlace; to: CardPlace; count?: number }): void {
 		if (storingMoves.has(this)) throw new Error("Can't move cards while another move is being stored");
@@ -299,18 +298,19 @@ export class Campaign extends Model<CampaignData> {
 		const target = this.countsAt(to);
 		const held = cardCount(source, cardType);
 		if (held < count) throw new RangeError(`Can't move ${count} ${cardType} from ${placeName(from)}, which holds ${held}`);
-		// Both ends before either is stored, so a move that fails part way stores nothing.
 		const taken = removeCards(source, cardType, count);
-		addCards(target, cardType, count);
+		// Throws, storing nothing, when the far end can't hold that many more.
+		const given = addCards(target, cardType, count);
 		storingMoves.add(this);
 		let landing: CardPlace = to;
 		try {
 			if (from !== 'locker') {
 				from.set({ defaultDeck: taken });
-				// Listeners on `from` have just run, and may have changed `to` or sent it away.
-				landing = [to, from].find(isAtCompound) ?? 'locker';
+				// Listeners on `from` have just run, and may have sent `to` away or changed its deck.
+				if (to !== 'locker') landing = landCopies({ decks: [to, from], cardType, count });
+			} else if (to !== 'locker') {
+				to.set({ defaultDeck: given });
 			}
-			if (landing !== 'locker') landing.set({ defaultDeck: addCards(landing.defaultDeck, cardType, count) });
 		} finally {
 			storingMoves.delete(this);
 		}
@@ -346,6 +346,34 @@ export class Campaign extends Model<CampaignData> {
 		};
 	}
 
+	/**
+	 * The save's text, the same text `JSON.stringify(campaign)` writes, made
+	 * without the copies `toJSON` hands its callers: the frozen values go to
+	 * `JSON.stringify` as they are, which keeps a checkpoint cheap. Throws
+	 * where `toJSON` does.
+	 */
+	public toSaveText(): string {
+		const convoy = convoyToJson(this.convoy);
+		readConvoy(convoy, 'Campaign.convoy');
+		const save: Record<keyof CampaignJson, unknown> = {
+			schemaVersion: CAMPAIGN_SCHEMA_VERSION,
+			seed: this.seed,
+			generatorVersion: this.generatorVersion,
+			day: this.day,
+			resources: this.resources,
+			unrest: this.unrest,
+			nextDriverNumber: this.nextDriverNumber,
+			drivers: this.drivers,
+			locker: this.locker,
+			convoy,
+			strongholdsTaken: this.strongholdsTaken,
+			log: this.log,
+			mapParams: this.mapParams,
+			map: this.map
+		};
+		return JSON.stringify(save);
+	}
+
 	private countsAt(place: CardPlace): CardCounts {
 		if (place === 'locker') return this.locker;
 		if (!this.drivers.includes(place)) throw new RangeError(`${place.name} (${place.id}) isn't in this campaign's pool`);
@@ -354,7 +382,8 @@ export class Campaign extends Model<CampaignData> {
 	}
 }
 
-function logWarning(warning: string): void {
+/** Where load warnings go when nobody asks to hear them. */
+export function logWarning(warning: string): void {
 	console.warn(warning);
 }
 
@@ -368,6 +397,28 @@ function isAtCompound(place: CardPlace): boolean {
 }
 
 /**
+ * Stores moved copies on the first of these decks whose driver is at the
+ * compound and can hold them, and says where they went: the locker, when
+ * none can. A listener can have sent a driver away, or filled their deck
+ * past what a count holds, while the move was being stored.
+ */
+function landCopies({ decks, cardType, count }: { decks: readonly DriverRecord[]; cardType: string; count: number }): CardPlace {
+	for (const driver of decks) {
+		if (!isAtCompound(driver)) continue;
+		let deck: CardCounts;
+		try {
+			deck = addCards(driver.defaultDeck, cardType, count);
+		} catch (error) {
+			if (error instanceof RangeError) continue;
+			throw error;
+		}
+		driver.set({ defaultDeck: deck });
+		return driver;
+	}
+	return 'locker';
+}
+
+/**
  * The campaign's fields checked together. Drivers and the convoy are
  * models here; `fromJSON` reads a save's into models first. `previous` is
  * the state being changed, if any: what was checked when it was stored isn't
@@ -376,7 +427,7 @@ function isAtCompound(place: CardPlace): boolean {
  */
 function readCampaignData(value: unknown, path: string, previous: Partial<CampaignData> = {}): CampaignData {
 	const fields = readFields(value, path, FIELDS);
-	const seed = readInteger(fields.seed, `${path}.seed`, { min: 0, max: UINT32_MAX });
+	const seed = readSeed(fields.seed, `${path}.seed`);
 	const mapParams = readMapParams(fields.mapParams, `${path}.mapParams`);
 	if (mapParams.seed !== seed) {
 		throw new RangeError(`${path}.mapParams.seed must be the campaign's seed, ${seed}, got ${describeValue(mapParams.seed)}`);
@@ -413,7 +464,8 @@ function readDrivers(
 	nextDriverNumber: number,
 	previous: Partial<Pick<CampaignData, 'drivers' | 'nextDriverNumber'>>
 ): readonly DriverRecord[] {
-	const held = previous.drivers;
+	// A new campaign has no pool before it and a counter that starts at 1, so every driver is new and any id passes.
+	const { drivers: held, nextDriverNumber: counterBefore = 1 } = previous;
 	// Checked when it was stored, and the counter has only gone up since.
 	if (held !== undefined && value === held) return held;
 	const drivers = readArray(value, path);
@@ -423,7 +475,7 @@ function readDrivers(
 			? `${path}[${index}] must still be ${driver.id} (${driver.name}): drivers keep their places in the pool`
 			: `${path} is missing ${driver.id} (${driver.name}): drivers stay in the pool, the dead and missing too`);
 	});
-	const firstNew = held?.length ?? drivers.length;
+	const firstNew = held?.length ?? 0;
 	const ids = new Set<string>();
 	drivers.forEach((driver, index) => {
 		if (!(driver instanceof DriverRecord)) throw new TypeError(`${path}[${index}] must be a DriverRecord, got ${describeValue(driver)}`);
@@ -433,8 +485,8 @@ function readDrivers(
 			throw new RangeError(`${path}[${index}].id must come before driver-${nextDriverNumber}, the next id to hand out, got ${driver.id}`);
 		}
 		if (ids.has(driver.id)) throw new RangeError(`${path}[${index}].id ${driver.id} belongs to an earlier driver`);
-		if (index >= firstNew && previous.nextDriverNumber !== undefined && number < previous.nextDriverNumber) {
-			throw new RangeError(`${path}[${index}].id must be driver-${previous.nextDriverNumber} or later, an id the counter hasn't passed, got ${driver.id}`);
+		if (index >= firstNew && number < counterBefore) {
+			throw new RangeError(`${path}[${index}].id must be driver-${counterBefore} or later, an id the counter hasn't passed, got ${driver.id}`);
 		}
 		ids.add(driver.id);
 	});

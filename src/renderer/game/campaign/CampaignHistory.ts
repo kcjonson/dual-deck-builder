@@ -1,5 +1,5 @@
 import type { Campaign } from './Campaign';
-import { readArray, readFields, readInteger, readObject, readOneOf } from './JsonReader';
+import { readArray, readFields, readInteger, readObject, readOneOf, readSeed } from './JsonReader';
 import { SaveMigration, migrateSave } from './SaveMigrations';
 
 /**
@@ -36,7 +36,6 @@ export const HISTORY_SCHEMA_VERSION = 1;
 export const HISTORY_MIGRATIONS: Readonly<Record<number, SaveMigration>> = {};
 
 const ENTRY_FIELDS: readonly (keyof CampaignHistoryEntry)[] = ['seed', 'day', 'strongholdsTaken', 'ending'];
-const UINT32_MAX = 0xffffffff;
 
 /** A campaign's line in the history, as it stands now. */
 export function historyEntry({ campaign, ending }: { campaign: Campaign; ending: CampaignEnding }): CampaignHistoryEntry {
@@ -48,7 +47,11 @@ export function historyEntry({ campaign, ending }: { campaign: Campaign; ending:
 	};
 }
 
-/** Whether two entries say the same thing, as a campaign ended twice would. */
+/**
+ * Whether two entries say the same thing, as a campaign ended twice the
+ * same way would. Entries carry no campaign identity, so two campaigns on
+ * one seed that end the same way on the same day read as one too.
+ */
 export function sameEntry(first: CampaignHistoryEntry, second: CampaignHistoryEntry): boolean {
 	return ENTRY_FIELDS.every(field => first[field] === second[field]);
 }
@@ -72,7 +75,7 @@ export function readHistory(value: unknown): CampaignHistoryEntry[] {
 function readEntry(value: unknown, path: string): CampaignHistoryEntry {
 	const fields = readFields(value, path, ENTRY_FIELDS);
 	return {
-		seed: readInteger(fields.seed, `${path}.seed`, { min: 0, max: UINT32_MAX }),
+		seed: readSeed(fields.seed, `${path}.seed`),
 		day: readInteger(fields.day, `${path}.day`, { min: 1 }),
 		strongholdsTaken: readInteger(fields.strongholdsTaken, `${path}.strongholdsTaken`, { min: 0 }),
 		ending: readOneOf(fields.ending, `${path}.ending`, CAMPAIGN_ENDINGS)

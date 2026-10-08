@@ -7,6 +7,7 @@ import { cardCount, totalCards } from './CardCounts';
 import { DriverRecord } from './DriverRecord';
 import { CAMPAIGN_SCHEMA_VERSION, NewerSaveError, SaveMigration, migrateSave } from './SaveMigrations';
 import campaignV1 from './__fixtures__/campaign-v1.json';
+import { stressCampaign } from './__fixtures__/stressCampaign';
 
 const SEED = 20261006;
 
@@ -365,14 +366,14 @@ describe('Campaign', () => {
 		});
 
 		it('store neither end when the far end can\'t take the copies', () => {
-			const campaign = newCampaign({ locker: { headshot: 2 } });
+			const campaign = newCampaign({ locker: { ramming_speed: Number.MAX_SAFE_INTEGER } });
 			const warrior = campaign.recruitDriver({ archetype: 'road_warrior' });
-			warrior.set({ defaultDeck: { headshot: Number.MAX_SAFE_INTEGER } });
+			const deck = warrior.defaultDeck;
 
-			expect(() => campaign.moveCards({ cardType: 'headshot', from: 'locker', to: warrior })).toThrow(RangeError);
+			expect(() => campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: 'locker' })).toThrow(RangeError);
 
-			expect(campaign.locker).toEqual({ headshot: 2 });
-			expect(warrior.defaultDeck).toEqual({ headshot: Number.MAX_SAFE_INTEGER });
+			expect(campaign.locker).toEqual({ ramming_speed: Number.MAX_SAFE_INTEGER });
+			expect(warrior.defaultDeck).toBe(deck);
 		});
 
 		describe('and what listeners hear', () => {
@@ -471,6 +472,20 @@ describe('Campaign', () => {
 
 				expect(campaign.locker).toEqual({ headshot: 2, ramming_speed: 1 });
 				expect(cardsOwned(campaign)).toBe(owned);
+			});
+
+			it('the copies go back when a listener fills the far deck past what a count holds', () => {
+				const { campaign, warrior, mechanic } = setUp();
+				const deck = warrior.defaultDeck;
+				const heard = jest.fn();
+				campaign.on('change', heard);
+				warrior.once('defaultDeck', () => mechanic.set({ defaultDeck: { ramming_speed: Number.MAX_SAFE_INTEGER } }));
+
+				campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic });
+
+				expect(warrior.defaultDeck).toEqual(deck);
+				expect(mechanic.defaultDeck).toEqual({ ramming_speed: Number.MAX_SAFE_INTEGER });
+				expect(heard).toHaveBeenCalledTimes(1);
 			});
 
 			it('a campaign listener can move cards once the move it heard is whole', () => {
@@ -826,14 +841,23 @@ describe('Campaign', () => {
 				expect(warnings).toEqual(['Campaign.mapParams.radius lowered to 1600 (tuning range 600 to 1600) for a new map; this one keeps the 5000 it was made with']);
 			});
 
-			it('quotes the saved value in each warning when today\'s validator would clamp it twice', () => {
+			it('gives a value today\'s validator would clamp twice one warning, from the saved value to the last word, with both reasons', () => {
 				const { campaign, warnings } = loadDrifted(params => { params.highways = 2; });
 
 				expect(campaign.mapParams.highways).toBe(2);
 				expect(warnings).toEqual([
-					'Campaign.mapParams.highways raised to 3 (tuning range 3 to 9) for a new map; this one keeps the 2 it was made with',
-					'Campaign.mapParams.highways raised to 6 (strongholds + 2) for a new map; this one keeps the 2 it was made with'
+					'Campaign.mapParams.highways raised to 6 (tuning range 3 to 9, then strongholds + 2) for a new map; this one keeps the 2 it was made with'
 				]);
+			});
+
+			it('folds a clamp into the warning for a default it filled in, which no map was made with', () => {
+				const { campaign, warnings } = loadDrifted(params => {
+					params.strongholds = 6;
+					delete params.highways;
+				});
+
+				expect(campaign.mapParams.highways).toBe(6);
+				expect(warnings).toEqual(['Campaign.mapParams.highways was missing; took 6, the mixed default, though a new map would take 8 (strongholds + 2)']);
 			});
 
 			it('takes Mixed for an environment that\'s missing or no longer exists', () => {
@@ -932,6 +956,16 @@ describe('Campaign', () => {
 	});
 
 	it.each([
+		['a campaign in progress', campaignInProgress],
+		['the version 1 fixture', () => Campaign.fromJSON(campaignV1)],
+		['a stress campaign', stressCampaign]
+	])('writes the same save text for %s without toJSON\'s copies', (_label, build) => {
+		const campaign = build();
+
+		expect(campaign.toSaveText()).toBe(JSON.stringify(campaign));
+	});
+
+	it.each([
 		['structure past its max', 41, 'Campaign.convoy[0].structure must be an integer from 1 to maxStructure (40), got 41'],
 		['no structure left', 0, 'Campaign.convoy[0].structure must be an integer from 1 to maxStructure (40), got 0']
 	])('won\'t write a save with an escort at %s, which it couldn\'t load back', (_label, structure, message) => {
@@ -940,6 +974,7 @@ describe('Campaign', () => {
 
 		expect(() => campaign.toJSON()).toThrow(message);
 		expect(() => JSON.stringify(campaign)).toThrow(message);
+		expect(() => campaign.toSaveText()).toThrow(message);
 	});
 
 	it('takes a convoy of its own', () => {

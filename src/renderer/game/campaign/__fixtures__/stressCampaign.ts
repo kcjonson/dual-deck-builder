@@ -1,16 +1,13 @@
 import type { JsonObject } from '../../core/Json';
 import { Rng } from '../../core/Rng';
+import cardsFile from '../../data/cards.json';
 import { resolveMapParams } from '../../map/MapParams';
 import { Convoy } from '../../mechanics/Convoy';
 import { createEscort } from '../../mechanics/Escort';
 import { Campaign } from '../Campaign';
 import { DRIVER_ARCHETYPES } from '../DriverRecord';
 
-const CARD_TYPES = [
-	'armor_plating', 'berserker', 'caltrops', 'close_ranks', 'coordinated_attack', 'covering_fire', 'draw_fire', 'emp_blast',
-	'far_shoot', 'flag_down', 'flanking_maneuver', 'headshot', 'medical_kit', 'nitro_boost', 'oil_slick', 'point_blank',
-	'precision_shot', 'rally_the_convoy', 'ramming_run', 'ramming_speed', 'repair_kit', 'run_ahead', 'top_off', 'triage', 'witness_me'
-];
+const CARD_TYPES = cardsFile.cards.map(card => card.type);
 
 /** The spec's expected sizes (Area Map Generation, Performance): a few hundred stretches, about 40 POIs, about 300 stops. */
 const ROADS = 300;
@@ -57,7 +54,8 @@ export function stressCampaign(): Campaign {
 }
 
 function stressMap(rng: Rng): JsonObject {
-	const coordinate = (): number => Math.round(rng.float() * 20000 - 10000) / 10;
+	// `|| 0` turns -0 into 0, which JSON writes the same way, so a reload compares equal.
+	const coordinate = (): number => Math.round(rng.float() * 20000 - 10000) / 10 || 0;
 	const roads = Array.from({ length: ROADS }, (_, index) => ({
 		id: `road-${index}`,
 		class: rng.pick(['highway', 'backRoad', 'trail']),
