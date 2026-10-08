@@ -108,9 +108,11 @@ const writtenBack = new WeakSet<Battle>();
 /**
  * Build a run's next fight and start it. Each seat's combat driver is their
  * record (name, HP, max HP, hand limit, deck) and their archetype (skills,
- * adrenaline), dealing from their default deck in card-type order, at the
- * wheel of their signature vehicle with the damage the record carries; the
- * run's escorts follow in roster order. Everything random draws from `rng`.
+ * adrenaline), at the wheel of their signature vehicle with the damage the
+ * record carries; the run's escorts follow in roster order. Each deck is
+ * built from the default deck in card-type order, and Battle.start shuffles
+ * it on the seat's deck stream before the opening deal. Everything random
+ * draws from `rng`.
  *
  * Throws, building nothing, unless the party seats two drivers of different
  * archetypes from the campaign's pool who are ready to fight, its cargo
