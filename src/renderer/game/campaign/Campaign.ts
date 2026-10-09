@@ -3,13 +3,16 @@ import { Model } from '../core/Model';
 import { MapParams } from '../map/MapParams';
 import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
-import { CardCounts, NO_CARDS, addCards, cardCount, readCardCounts, readCardType, removeCards } from './CardCounts';
+import type { Vehicle } from '../mechanics/Vehicle';
+import { CardCounts, NO_CARDS, addCards, addCounts, cardCount, readCardCounts, readCardType, removeCards, totalCards } from './CardCounts';
 import { ConvoyJson, convoyToJson, readConvoy } from './ConvoyJson';
 import { DECK_RULES, DeckBlocker, deckAddBlocker, deckRemoveBlocker } from './DeckRules';
-import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordJson, placeholderName, readDriverRecord } from './DriverRecord';
+import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordJson, describeDriver, placeholderName, readDriverRecord } from './DriverRecord';
 import { ReaderRangeError, ReaderTypeError, describeValue, readArray, readFields, readInteger, readOneOf, readSeed, readText } from './JsonReader';
 import { readMapParams, repairMapParams } from './MapParamsJson';
 import { EMPTY_MAP, MapState, readMapState } from './MapState';
+import { EscortCard, RunDeck, RunDeckJson, readRunDeckJson } from './RunDeck';
+import { SeatBlocker, getSeatBlocker } from './Seating';
 
 /**
  * The save format's version, which `CampaignStore` stamps on every save and
@@ -18,7 +21,7 @@ import { EMPTY_MAP, MapState, readMapState } from './MapState';
  * with another version isn't loaded, so a bump invalidates every existing
  * save of that build.
  */
-export const CAMPAIGN_SCHEMA_VERSION = 3;
+export const CAMPAIGN_SCHEMA_VERSION = 4;
 
 /** What the compound holds (Compound and Supply Runs, Resources): whole numbers, never below 0. */
 export interface Resources {
@@ -38,8 +41,12 @@ export interface CampaignLogEntry {
 	message: string;
 }
 
-/** Where a card copy sits between runs: the compound's locker or a driver's default deck. */
-export type CardPlace = 'locker' | DriverRecord;
+/**
+ * Where a card copy sits: the compound's locker, a driver's default deck,
+ * or, while a run is out, a seated driver's run deck. A run deck stands for
+ * its driver's, whichever snapshot of it is passed.
+ */
+export type CardPlace = 'locker' | DriverRecord | RunDeck;
 
 /** Copies of a card going from one place to another. */
 export interface CardMove {
@@ -51,15 +58,22 @@ export interface CardMove {
 }
 
 /**
- * Why the rules refuse a card move or a scrap, which the Crew screen shows
- * on the action it disables. `place` is the end that refuses: a driver
- * who's away (dead or missing, their status says which), a place holding
- * too few copies, or a deck whose rules say no (`DeckBlocker`).
+ * Why the rules refuse a card move or a scrap, which the Crew screen and
+ * Customize show on the action they disable. `place` is the end that
+ * refuses: a driver who's away (dead or missing, their status says which),
+ * a driver out on a run, whose default deck is in their run deck until it's
+ * unwound, a place holding too few copies, the locker holding too few
+ * because the other seated driver borrowed the rest (`by`), a run deck
+ * whose copies of the card are escort cards locked there (`broughtBy`, the
+ * first of them), or a deck whose rules say no (`DeckBlocker`).
  */
 export type CardBlocker =
 	| { reason: 'driver_away'; place: DriverRecord }
+	| { reason: 'on_run'; place: DriverRecord }
 	| { reason: 'too_few'; place: CardPlace; held: number }
-	| (DeckBlocker & { place: DriverRecord });
+	| { reason: 'already_borrowed'; place: 'locker'; held: number; by: RunDeck }
+	| { reason: 'card_locked'; place: RunDeck; broughtBy: string }
+	| (DeckBlocker & { place: DriverRecord | RunDeck });
 
 /** A card move or scrap the rules refuse, carrying the blocker its check gives. */
 export class CardRuleError extends RangeError {
@@ -93,6 +107,8 @@ export interface CampaignData {
 	locker: CardCounts;
 	/** The campaign's for good, since it hands out the escorts' ids. */
 	convoy: Convoy;
+	/** While a run is out, each seated driver's run deck, Driver 1's first; empty at home. */
+	runDecks: readonly RunDeck[];
 	/** Ids of the strongholds taken, in the order they fell. */
 	strongholdsTaken: readonly string[];
 	log: readonly Readonly<CampaignLogEntry>[];
@@ -112,6 +128,7 @@ export interface CampaignJson {
 	drivers: DriverRecordJson[];
 	locker: Record<string, number>;
 	convoy: ConvoyJson;
+	runDecks: RunDeckJson[];
 	strongholdsTaken: string[];
 	log: CampaignLogEntry[];
 	mapParams: MapParams;
@@ -138,6 +155,7 @@ const FIELDS: readonly (keyof CampaignData)[] = [
 	'nextDriverNumber',
 	'locker',
 	'convoy',
+	'runDecks',
 	'strongholdsTaken',
 	'log'
 ];
@@ -152,6 +170,7 @@ const JSON_FIELDS: readonly (keyof CampaignJson)[] = [
 	'drivers',
 	'locker',
 	'convoy',
+	'runDecks',
 	'strongholdsTaken',
 	'log',
 	'mapParams',
@@ -180,8 +199,8 @@ export interface Campaign extends Readonly<CampaignData> {}
 /**
  * One campaign, from founding the compound to its fall (Compound and Supply
  * Runs): the seed and map it was founded on, the day, the compound's stores
- * and unrest, the driver pool, the locker, the convoy, the strongholds
- * taken, and a log of what happened.
+ * and unrest, the driver pool, the locker, the convoy, the run decks while a
+ * run is out, the strongholds taken, and a log of what happened.
  *
  * Properties are read-only. A change goes through `set`, which checks the
  * whole campaign and throws, changing nothing, if the result would be
@@ -191,13 +210,14 @@ export interface Campaign extends Readonly<CampaignData> {}
  * escorts carry ids from saved counters (`driver-<n>`, `escort-<n>`), which
  * is what anything a save holds refers to them by.
  *
- * The campaign's `change` event covers its own fields and finished card
- * moves. Records, escorts, and the convoy emit on their own models and not
- * here: a record's HP on the record, an escort's damage on its own Vehicle,
- * escorts joining or leaving on the convoy. So save at checkpoints, with
- * `CampaignStore.checkpoint` at the end of each step (a stop, arriving home,
- * a compound action), not on change events. A record changes partway
- * through a card move, before the locker is stored; a save asked for from a
+ * The campaign's `change` event covers its own fields, run decks included,
+ * and finished card moves. Records, escorts, and the convoy emit on their
+ * own models and not here: a record's HP on the record, an escort's damage
+ * on its own Vehicle, escorts joining or leaving on the convoy. So save at
+ * checkpoints, with `CampaignStore.checkpoint` at the end of each step (a
+ * stop, arriving home, a compound action), not on change events. A record
+ * changes partway through a card move, before the locker is stored, and
+ * partway through starting or unwinding run decks; a save asked for from a
  * listener captures the campaign before the next frame, once the code that
  * asked has run, so it's whole only when the step that set it off is
  * synchronous.
@@ -223,6 +243,7 @@ export class Campaign extends Model<CampaignData> {
 		nextDriverNumber,
 		locker = NO_CARDS,
 		convoy = new Convoy(),
+		runDecks = [],
 		strongholdsTaken = [],
 		log = []
 	}: CampaignOptions) {
@@ -238,6 +259,7 @@ export class Campaign extends Model<CampaignData> {
 			nextDriverNumber: nextDriverNumber ?? firstFreeDriverNumber(drivers),
 			locker,
 			convoy,
+			runDecks,
 			strongholdsTaken,
 			log
 		});
@@ -255,6 +277,7 @@ export class Campaign extends Model<CampaignData> {
 		const path = 'Campaign';
 		const save = readFields(json, path, JSON_FIELDS);
 		const mapParams = repairMapParams(save.mapParams, `${path}.mapParams`);
+		const drivers = readArray(save.drivers, `${path}.drivers`).map((driver, index) => readDriverRecord(driver, `${path}.drivers[${index}]`));
 		const campaign = new Campaign(readCampaignData({
 			seed: save.seed,
 			generatorVersion: save.generatorVersion,
@@ -263,10 +286,11 @@ export class Campaign extends Model<CampaignData> {
 			day: save.day,
 			resources: save.resources,
 			unrest: save.unrest,
-			drivers: readArray(save.drivers, `${path}.drivers`).map((driver, index) => readDriverRecord(driver, `${path}.drivers[${index}]`)),
+			drivers,
 			nextDriverNumber: save.nextDriverNumber,
 			locker: save.locker,
 			convoy: readConvoy(save.convoy, `${path}.convoy`),
+			runDecks: readArray(save.runDecks, `${path}.runDecks`).map((deck, index) => readRunDeckJson(deck, `${path}.runDecks[${index}]`, drivers)),
 			strongholdsTaken: save.strongholdsTaken,
 			log: save.log
 		}, path));
@@ -319,32 +343,51 @@ export class Campaign extends Model<CampaignData> {
 	}
 
 	/**
-	 * Every copy the compound owns, by card type: the locker's and every
-	 * default deck's. Each copy is in exactly one of those places, so moves
-	 * never change this and scrapping takes from it. Run decks (DDB-315) are
-	 * places too, and join this sum when they land. A record's listener can
-	 * see half a move (a copy in two places, or none), so read this, as the
-	 * Crew screen should, on the campaign's `change`, not a record's.
+	 * Every copy the compound owns, by card type: the locker's, every default
+	 * deck's, and every run deck's, going, left at home, or borrowed (escort
+	 * cards are their escorts', not the compound's). Each copy is in exactly
+	 * one of those places, so moves never change this, and nor do starting
+	 * run decks or unwinding them; scrapping takes from it, and so does a
+	 * driver who dies with their run deck. A record's listener can see half a
+	 * move (a copy in two places, or none), so read this, as the Crew screen
+	 * should, on the campaign's `change`, not a record's.
 	 */
 	public get cardsOwned(): CardCounts {
 		const owned: Record<string, number> = { ...this.locker };
-		for (const driver of this.drivers) {
-			for (const [cardType, count] of Object.entries(driver.defaultDeck)) owned[cardType] = cardCount(owned, cardType) + count;
+		const places = [
+			...this.drivers.map(driver => driver.defaultDeck),
+			...this.runDecks.flatMap(deck => [deck.own, deck.leftHome, deck.borrowed])
+		];
+		for (const counts of places) {
+			for (const [cardType, count] of Object.entries(counts)) owned[cardType] = cardCount(owned, cardType) + count;
 		}
 		return readCardCounts(owned, 'cardsOwned');
 	}
 
+	/** A seated driver's run deck while a run is out, or null. */
+	public runDeckOf(driver: DriverRecord): RunDeck | null {
+		return this.runDecks.find(deck => deck.driver === driver) ?? null;
+	}
+
 	/**
-	 * Why the rules refuse this move, or null if `moveCards` would make it,
-	 * checked in this order: a driver at either end is away (dead, gone with
-	 * their cards, or missing, not here to hand cards to or take them from),
-	 * `from` holds fewer than `count`, the card is marked for another
-	 * archetype than `to`'s driver, `to`'s deck would go past the most it
-	 * holds, or `from`'s under the fewest (`DECK_RULES`). Throws, as
-	 * `moveCards` does, on a move no rule covers: a malformed card type or
-	 * count, a place to itself, or a driver outside this campaign's pool.
-	 * A record's listener can see half a move, so the Crew screen asks again
-	 * on the campaign's `change`, not a record's.
+	 * Why the rules refuse this move, or null if `moveCards` would make it.
+	 * Between the locker and default decks, in this order: a driver at
+	 * either end is away (dead, gone with their cards, or missing, not here
+	 * to hand cards to or take them from) or out on a run (`on_run`), `from`
+	 * holds fewer than `count`, the card is marked for another archetype than
+	 * `to`'s driver, `to`'s deck would go past the most it holds, or `from`'s
+	 * under the fewest (`DECK_RULES`). Between the locker and a run deck, the
+	 * same order: its driver is away; the locker holds too few for it
+	 * (`already_borrowed` when the other run deck borrowed what's missing),
+	 * or the run deck does (`card_locked` when its copies are escort cards);
+	 * then the deck rules on the run deck's own and borrowed copies, which is
+	 * what the limits count.
+	 *
+	 * Throws, as `moveCards` does, on a move no rule covers: a malformed card
+	 * type or count, a place to itself, a driver outside this campaign's
+	 * pool, a run deck it doesn't have, or a run deck and anywhere but the
+	 * locker. A record's listener can see half a move, so the Crew screen
+	 * asks again on the campaign's `change`, not a record's.
 	 */
 	public getCardMoveBlocker(move: CardMove): CardBlocker | null {
 		return this.checkMove(move).blocker;
@@ -353,9 +396,14 @@ export class Campaign extends Model<CampaignData> {
 	/**
 	 * Moves copies of a card between the locker and the default decks of
 	 * drivers at the compound, all in this campaign: the Crew screen's add
-	 * and remove, and a move between two decks. A move never makes or loses
-	 * a copy, so each copy stays in exactly one place. Throws a
-	 * `CardRuleError`, moving nothing, when `getCardMoveBlocker` refuses it.
+	 * and remove, and a move between two decks. Or between the locker and a
+	 * run deck, Customize's borrow and leave at home, in one `set`: copies
+	 * going into a run deck are the driver's own left at home first, then
+	 * the locker's, borrowed; copies coming out go back to the locker if
+	 * they were borrowed, first, and stay at home if they're the driver's
+	 * own. A move never makes or loses a copy, so each copy stays in exactly
+	 * one place. Throws a `CardRuleError`, moving nothing, when
+	 * `getCardMoveBlocker` refuses it.
 	 *
 	 * Campaign listeners hear a move once it's whole: decks are stored before
 	 * the locker, and a move between two drivers ends with a campaign
@@ -369,9 +417,17 @@ export class Campaign extends Model<CampaignData> {
 	 */
 	public moveCards(move: CardMove): void {
 		if (storingMoves.has(this)) throw new Error("Can't move cards while another move is being stored");
-		const { cardType, from, to, count = 1 } = move;
-		const { blocker, source, target } = this.checkMove(move);
-		if (blocker !== null) throw new CardRuleError({ message: blockerMessage({ blocker, verb: 'move', cardType, count }), blocker });
+		const { cardType, count = 1 } = move;
+		const plan = this.checkMove(move);
+		if (plan.blocker !== null) {
+			const verb = move.to instanceof RunDeck ? 'take' : 'move';
+			throw new CardRuleError({ message: blockerMessage({ blocker: plan.blocker, verb, cardType, count }), blocker: plan.blocker });
+		}
+		if (plan.kind === 'run_deck') {
+			this.set({ runDecks: plan.runDecks, locker: plan.locker });
+			return;
+		}
+		const { from, to, source, target } = plan;
 		const taken = removeCards(source, cardType, count);
 		// These throw, storing nothing, when the far end, or the locker the copies fall back to, can't hold that many more.
 		const given = addCards(target, cardType, count);
@@ -429,6 +485,179 @@ export class Campaign extends Model<CampaignData> {
 		this.set({ log: [...this.log, { day: this.day, message }] });
 	}
 
+	/**
+	 * Load out (Compound and Supply Runs, At load out): each seated driver
+	 * takes a run deck that's their whole default deck, all of it going, and
+	 * each escort that came along brings its signature card into Driver 1's,
+	 * the first seat's. The default decks are emptied into the run decks, so
+	 * every copy stays in one place, until `unwindRunDecks` gives them back.
+	 *
+	 * The records are stored first, in seat order, then the campaign, so
+	 * campaign listeners hear it whole. A record's listener sees the copies in
+	 * neither place, and while the records are stored the campaign refuses
+	 * every change. If a listener leaves the run decks unstorable (dismisses
+	 * an escort whose card they hold, say), the copies go back to the default
+	 * decks and the error is thrown on.
+	 *
+	 * Throws, starting nothing, while a run's decks are out, unless load
+	 * out's seat check (`getSeatBlocker`) seats the two drivers together,
+	 * asked of each seat alone and then of the pair, and for an escort that
+	 * isn't in the convoy or is listed twice.
+	 */
+	public startRunDecks({ seats, escorts = [] }: { seats: readonly DriverRecord[]; escorts?: readonly Vehicle[] }): readonly RunDeck[] {
+		if (storingMoves.has(this)) throw new Error("Can't start run decks while a card move is being stored");
+		if (this.runDecks.length > 0) throw new Error('A run is already out; unwind its run decks before starting new ones');
+		if (seats.length !== 2) throw new RangeError(`A run seats two drivers, not ${seats.length}`);
+		const [first, second] = seats;
+		for (const { driver, partner } of [{ driver: first, partner: null }, { driver: second, partner: null }, { driver: first, partner: second }]) {
+			const blocker = getSeatBlocker({ campaign: this, driver, partner });
+			if (blocker !== null) throw new RangeError(seatRefusal({ driver, blocker }));
+		}
+		const escortCards = this.escortCardsOf(escorts);
+		const runDecks: RunDeck[] = [];
+		try {
+			storingMoves.add(this);
+			try {
+				seats.forEach((driver, seat) => {
+					// Read as each one empties, since a listener on the first driver's record can change the second's deck
+					const deck = new RunDeck({ driver, own: driver.defaultDeck, escortCards: seat === 0 ? escortCards : [] });
+					driver.set({ defaultDeck: NO_CARDS });
+					runDecks.push(deck);
+				});
+			} finally {
+				storingMoves.delete(this);
+			}
+			this.set({ runDecks });
+		} catch (error) {
+			runDecks.forEach(({ driver, own }) => driver.set({ defaultDeck: addCounts(driver.defaultDeck, own) }));
+			throw error;
+		}
+		return this.runDecks;
+	}
+
+	/**
+	 * Customize's "Reset to default": the run deck goes back to its driver's
+	 * whole default deck, everything left at home going after all and
+	 * everything borrowed back in the locker, in one `set`. Escort cards stay
+	 * where they are. Throws a `CardRuleError` (`driver_away`) for a driver
+	 * who's dead or missing, since folding what they left at home into what
+	 * went would lose it when their run deck is unwound, and a plain error
+	 * for a driver with no run deck here.
+	 */
+	public resetRunDeck({ runDeck }: { runDeck: RunDeck }): void {
+		const deck = this.currentRunDeck(runDeck);
+		if (!isAtCompound(deck.driver)) {
+			const blocker: CardBlocker = { reason: 'driver_away', place: deck.driver };
+			throw new CardRuleError({ message: `${describeDriver(deck.driver)} is ${deck.driver.status}, so their run deck can't be reset`, blocker });
+		}
+		this.set({
+			runDecks: this.withRunDeck(deck.with({ own: deck.defaultDeck, leftHome: NO_CARDS, borrowed: NO_CARDS })),
+			locker: addCounts(this.locker, deck.borrowed)
+		});
+	}
+
+	/**
+	 * Why an escort card can't go to `to`, or null if `moveEscortCard` would
+	 * move it: anywhere but a run deck, it's locked in the one holding it
+	 * (`card_locked`), and a driver who's away (dead or missing) at either
+	 * end can't give or take it. Throws with no run out, for a card no run
+	 * deck holds, for a run deck that holds it already, and for a place
+	 * outside this campaign.
+	 */
+	public getEscortCardMoveBlocker({ broughtBy, to }: { broughtBy: string; to: CardPlace }): CardBlocker | null {
+		return this.checkEscortCardMove({ broughtBy, to }).blocker;
+	}
+
+	/**
+	 * Gives an escort card to the other seated driver, as load out's "give it
+	 * to Driver 2" does, in one `set`. Escort cards sit outside the deck
+	 * limits, so no deck rule refuses one. Throws a `CardRuleError`, moving
+	 * nothing, when `getEscortCardMoveBlocker` refuses it.
+	 */
+	public moveEscortCard({ broughtBy, to }: { broughtBy: string; to: CardPlace }): void {
+		const plan = this.checkEscortCardMove({ broughtBy, to });
+		if (plan.blocker !== null) {
+			throw new CardRuleError({ message: blockerMessage({ blocker: plan.blocker, verb: 'move', cardType: plan.card.cardType, count: 1 }), blocker: plan.blocker });
+		}
+		const { holder, card, target } = plan;
+		this.set({
+			runDecks: this.runDecks.map(deck => {
+				if (deck.driver === holder.driver) return deck.with({ escortCards: deck.escortCards.filter(held => held.broughtBy !== broughtBy) });
+				if (deck.driver === target.driver) return deck.with({ escortCards: [...deck.escortCards, card] });
+				return deck;
+			})
+		});
+	}
+
+	/**
+	 * Escorts joining the run, as load out picking one more does: each
+	 * brings its signature card into Driver 1's run deck, in one `set`; one
+	 * with none brings nothing. Throws, adding nothing, with no run out, for
+	 * an escort that isn't in the convoy or is listed twice, and for one
+	 * whose card is in a run deck already.
+	 */
+	public addEscortCards({ escorts }: { escorts: readonly Vehicle[] }): void {
+		const [first] = this.requireRunDecks();
+		const cards = this.escortCardsOf(escorts);
+		cards.forEach(card => {
+			const holder = this.holderOf(card.broughtBy);
+			if (holder !== null) throw new RangeError(`The ${card.cardType} ${card.broughtBy} brought is in ${placeName(holder)} already`);
+		});
+		if (cards.length > 0) this.set({ runDecks: this.withRunDeck(first.with({ escortCards: [...first.escortCards, ...cards] })) });
+	}
+
+	/**
+	 * Escorts leaving the run, lost in a fight, dismissed, or left at home
+	 * after all: the cards they brought leave whichever run deck holds them,
+	 * in one `set`. Changes nothing, and says nothing, when no run deck holds
+	 * a card one of them brought.
+	 */
+	public removeEscortCards({ escorts }: { escorts: readonly Vehicle[] }): void {
+		const leaving = new Set(escorts.map(escort => escort.convoyId));
+		const brought = (card: EscortCard): boolean => leaving.has(card.broughtBy);
+		if (!this.runDecks.some(deck => deck.escortCards.some(brought))) return;
+		this.set({ runDecks: this.runDecks.map(deck => deck.with({ escortCards: deck.escortCards.filter(card => !brought(card)) })) });
+	}
+
+	/**
+	 * After the run, or a load out given up (Compound and Supply Runs, After
+	 * the run): each run deck is unwound, and the run's decks are gone. A
+	 * driver who isn't dead, home or missing, gets their default deck back,
+	 * the copies that went and the ones left at home, and what they borrowed
+	 * goes back to the locker. A dead driver took the copies that went and
+	 * the ones they borrowed with them, and the ones they left at home go to
+	 * the locker. Escort cards leave. Returns the run decks lost with their
+	 * drivers.
+	 *
+	 * The records are stored first, in seat order, then the campaign: a
+	 * record's listener sees copies in two places, and while the records are
+	 * stored the campaign refuses every change. A driver a listener kills
+	 * before their run deck is reached is unwound as dead. Throws with no run
+	 * out.
+	 */
+	public unwindRunDecks(): { lost: readonly RunDeck[] } {
+		if (storingMoves.has(this)) throw new Error("Can't unwind run decks while a card move is being stored");
+		const decks = this.requireRunDecks();
+		const lost: RunDeck[] = [];
+		let locker = this.locker;
+		storingMoves.add(this);
+		try {
+			for (const deck of decks) {
+				if (deck.driver.status === 'dead') {
+					lost.push(deck);
+					locker = addCounts(locker, deck.leftHome);
+				} else {
+					locker = addCounts(locker, deck.borrowed);
+					deck.driver.set({ defaultDeck: addCounts(deck.driver.defaultDeck, deck.defaultDeck) });
+				}
+			}
+		} finally {
+			storingMoves.delete(this);
+		}
+		this.set({ runDecks: [], locker });
+		return { lost: Object.freeze(lost) };
+	}
+
 	/** The save as plain JSON: what `toSaveText` writes, parsed back, so it's a copy of the caller's own. */
 	public toJSON(): CampaignJson {
 		return JSON.parse(this.toSaveText()) as CampaignJson;
@@ -437,12 +666,15 @@ export class Campaign extends Model<CampaignData> {
 	/**
 	 * The save's text, which `JSON.stringify(campaign)` also writes. The
 	 * frozen values go to `JSON.stringify` as they are, uncopied, which keeps
-	 * a checkpoint cheap. Throws on a convoy that couldn't load back, since
-	 * the convoy changes outside the campaign's checks.
+	 * a checkpoint cheap. Throws on a convoy that couldn't load back, on a run
+	 * deck holding the card of an escort no longer in it, and on a seated
+	 * driver whose default deck holds cards, since the convoy and the records
+	 * change outside the campaign's checks.
 	 */
 	public toSaveText(): string {
 		const convoy = convoyToJson(this.convoy);
 		readConvoy(convoy, 'Campaign.convoy');
+		readRunDeckTies({ decks: this.runDecks, convoy: this.convoy, path: 'Campaign.runDecks' });
 		const save: Record<keyof CampaignJson, unknown> = {
 			seed: this.seed,
 			generatorVersion: this.generatorVersion,
@@ -453,6 +685,7 @@ export class Campaign extends Model<CampaignData> {
 			drivers: this.drivers,
 			locker: this.locker,
 			convoy,
+			runDecks: this.runDecks,
 			strongholdsTaken: this.strongholdsTaken,
 			log: this.log,
 			mapParams: this.mapParams,
@@ -462,46 +695,192 @@ export class Campaign extends Model<CampaignData> {
 	}
 
 	/**
-	 * A move checked against the rules, with the counts each end holds now,
-	 * which `moveCards` stores from. Every deck rule reads those counts and
-	 * `archetypeAt`, so a new kind of place only has to answer those two.
+	 * A move checked against the rules, with what `moveCards` stores: the
+	 * counts each end holds now, for a move between the locker and default
+	 * decks, or the run decks and locker after it. Every deck rule reads a
+	 * deck's counts and its driver's archetype.
 	 */
-	private checkMove({ cardType, from, to, count = 1 }: CardMove): { blocker: CardBlocker | null; source: CardCounts; target: CardCounts } {
+	private checkMove({ cardType, from, to, count = 1 }: CardMove): MovePlan {
 		readCardType(cardType, 'cardType');
 		readInteger(count, 'count', { min: 1 });
+		if (from instanceof RunDeck || to instanceof RunDeck) return this.checkRunDeckMove({ cardType, from, to, count });
 		if (from === to) throw new RangeError(`Can't move ${cardType} from ${placeName(from)} to itself`);
 		const source = this.countsAt(from);
 		const target = this.countsAt(to);
-		const refused = (blocker: CardBlocker) => ({ blocker, source, target });
 		for (const place of [from, to]) {
-			if (place !== 'locker' && !isAtCompound(place)) return refused({ reason: 'driver_away', place });
+			if (place !== 'locker' && !isAtCompound(place)) return { blocker: { reason: 'driver_away', place } };
+		}
+		for (const place of [from, to]) {
+			if (place !== 'locker' && this.runDeckOf(place) !== null) return { blocker: { reason: 'on_run', place } };
 		}
 		const held = cardCount(source, cardType);
-		if (held < count) return refused({ reason: 'too_few', place: from, held });
+		if (held < count) return { blocker: { reason: 'too_few', place: from, held } };
 		if (to !== 'locker') {
-			const blocker = deckAddBlocker({ deck: target, archetype: archetypeAt(to), cardType, count });
-			if (blocker !== null) return refused({ ...blocker, place: to });
+			const blocker = deckAddBlocker({ deck: target, archetype: to.archetype, cardType, count });
+			if (blocker !== null) return { blocker: { ...blocker, place: to } };
 		}
 		if (from !== 'locker') {
 			const blocker = deckRemoveBlocker({ deck: source, count });
-			if (blocker !== null) return refused({ ...blocker, place: from });
+			if (blocker !== null) return { blocker: { ...blocker, place: from } };
 		}
-		return { blocker: null, source, target };
+		return { blocker: null, kind: 'decks', from, to, source, target };
 	}
 
-	private countsAt(place: CardPlace): CardCounts {
+	/**
+	 * A move between the locker and a run deck. Going in, the driver's own
+	 * copies left at home go first, then the locker's, borrowed; coming out,
+	 * borrowed copies go back to the locker first, then the driver's own stay
+	 * home. Escort cards never move this way.
+	 */
+	private checkRunDeckMove({ cardType, from, to, count }: Required<CardMove>): MovePlan {
+		const going = to instanceof RunDeck;
+		const end = (going ? to : from) as RunDeck;
+		const other = going ? from : to;
+		if (other !== 'locker') {
+			if (other instanceof RunDeck && other.driver === end.driver) throw new RangeError(`Can't move ${cardType} from ${placeName(from)} to itself`);
+			throw new RangeError(`Cards move between a run deck and the locker, not from ${placeName(from)} to ${placeName(to)}; escort cards move with moveEscortCard`);
+		}
+		const deck = this.currentRunDeck(end);
+		if (!isAtCompound(deck.driver)) return { blocker: { reason: 'driver_away', place: deck.driver } };
+		if (going) {
+			const fromHome = Math.min(count, cardCount(deck.leftHome, cardType));
+			const fromLocker = count - fromHome;
+			const inLocker = cardCount(this.locker, cardType);
+			if (inLocker < fromLocker) {
+				const held = fromHome + inLocker;
+				const by = this.runDecks.find(partner => partner !== deck && inLocker + cardCount(partner.borrowed, cardType) >= fromLocker);
+				return { blocker: by ? { reason: 'already_borrowed', place: 'locker', held, by } : { reason: 'too_few', place: 'locker', held } };
+			}
+			const blocker = deckAddBlocker({ deck: deck.cards, archetype: deck.driver.archetype, cardType, count });
+			if (blocker !== null) return { blocker: { ...blocker, place: deck } };
+			return {
+				blocker: null,
+				kind: 'run_deck',
+				runDecks: this.withRunDeck(deck.with({
+					own: shiftCards(deck.own, cardType, fromHome),
+					leftHome: shiftCards(deck.leftHome, cardType, -fromHome),
+					borrowed: shiftCards(deck.borrowed, cardType, fromLocker)
+				})),
+				locker: shiftCards(this.locker, cardType, -fromLocker)
+			};
+		}
+		const held = cardCount(deck.cards, cardType);
+		if (held < count) {
+			const locked = deck.escortCards.find(card => card.cardType === cardType);
+			return { blocker: locked ? { reason: 'card_locked', place: deck, broughtBy: locked.broughtBy } : { reason: 'too_few', place: deck, held } };
+		}
+		const blocker = deckRemoveBlocker({ deck: deck.cards, count });
+		if (blocker !== null) return { blocker: { ...blocker, place: deck } };
+		const toLocker = Math.min(count, cardCount(deck.borrowed, cardType));
+		const toHome = count - toLocker;
+		return {
+			blocker: null,
+			kind: 'run_deck',
+			runDecks: this.withRunDeck(deck.with({
+				borrowed: shiftCards(deck.borrowed, cardType, -toLocker),
+				own: shiftCards(deck.own, cardType, -toHome),
+				leftHome: shiftCards(deck.leftHome, cardType, toHome)
+			})),
+			locker: shiftCards(this.locker, cardType, toLocker)
+		};
+	}
+
+	/** An escort card's move checked, with the run decks at each end. */
+	private checkEscortCardMove({ broughtBy, to }: { broughtBy: string; to: CardPlace }): EscortCardPlan {
+		this.requireRunDecks();
+		const holder = this.holderOf(broughtBy);
+		if (holder === null) throw new RangeError(`No run deck holds a card ${describeValue(broughtBy)} brought`);
+		const card = holder.escortCards.find(held => held.broughtBy === broughtBy) as EscortCard;
+		if (!(to instanceof RunDeck)) {
+			this.countsAt(to);
+			return { blocker: { reason: 'card_locked', place: holder, broughtBy }, card };
+		}
+		const target = this.currentRunDeck(to);
+		if (target === holder) throw new RangeError(`${placeName(holder)} holds the ${card.cardType} ${broughtBy} brought already`);
+		for (const driver of [holder.driver, target.driver]) {
+			if (!isAtCompound(driver)) return { blocker: { reason: 'driver_away', place: driver }, card };
+		}
+		return { blocker: null, holder, card, target };
+	}
+
+	/** The signature cards these escorts bring, each from the convoy and listed once; an escort with none brings nothing. */
+	private escortCardsOf(escorts: readonly Vehicle[]): EscortCard[] {
+		return escorts.flatMap((escort, index) => {
+			if (!this.convoy.escorts.includes(escort)) throw new RangeError(`${escort.name} isn't in the campaign's convoy`);
+			if (escorts.indexOf(escort) !== index) throw new RangeError(`${escort.name} (${escort.convoyId}) is listed twice`);
+			const cardType = escort.escort?.signatureCard ?? null;
+			return cardType === null ? [] : [{ cardType, broughtBy: escort.convoyId as string }];
+		});
+	}
+
+	/** The run deck holding the card an escort brought, or null. */
+	private holderOf(broughtBy: string): RunDeck | null {
+		return this.runDecks.find(deck => deck.escortCards.some(card => card.broughtBy === broughtBy)) ?? null;
+	}
+
+	/** The campaign's run deck for the driver this one is, as it is now. */
+	private currentRunDeck(place: RunDeck): RunDeck {
+		const deck = this.runDeckOf(place.driver);
+		if (deck === null) throw new RangeError(`${describeDriver(place.driver)} has no run deck in this campaign`);
+		return deck;
+	}
+
+	/** The run decks with this one in its driver's place. */
+	private withRunDeck(next: RunDeck): readonly RunDeck[] {
+		return this.runDecks.map(deck => (deck.driver === next.driver ? next : deck));
+	}
+
+	private requireRunDecks(): readonly RunDeck[] {
+		if (this.runDecks.length === 0) throw new Error('No run is out, so there are no run decks');
+		return this.runDecks;
+	}
+
+	private countsAt(place: 'locker' | DriverRecord): CardCounts {
 		if (place === 'locker') return this.locker;
-		if (!this.drivers.includes(place)) throw new RangeError(`${place.name} (${place.id}) isn't in this campaign's pool`);
+		if (!this.drivers.includes(place)) throw new RangeError(`${describeDriver(place)} isn't in this campaign's pool`);
 		return place.defaultDeck;
 	}
 }
 
-/** What a refused move or scrap throws, worded for the log and the console; the Crew screen words its own from the blocker. */
-function blockerMessage({ blocker, verb, cardType, count }: { blocker: CardBlocker; verb: 'move' | 'scrap'; cardType: string; count: number }): string {
+/**
+ * A checked move: refused, or what `moveCards` stores, the counts at each
+ * end of a move between the locker and default decks, or the run decks and
+ * locker after a move to or from a run deck.
+ */
+type MovePlan =
+	| { blocker: CardBlocker }
+	| { blocker: null; kind: 'decks'; from: 'locker' | DriverRecord; to: 'locker' | DriverRecord; source: CardCounts; target: CardCounts }
+	| { blocker: null; kind: 'run_deck'; runDecks: readonly RunDeck[]; locker: CardCounts };
+
+type EscortCardPlan =
+	| { blocker: CardBlocker; card: EscortCard }
+	| { blocker: null; holder: RunDeck; card: EscortCard; target: RunDeck };
+
+/** These counts with `delta` more copies of a card, or fewer when it's negative. */
+function shiftCards(counts: CardCounts, cardType: string, delta: number): CardCounts {
+	if (delta === 0) return counts;
+	return delta > 0 ? addCards(counts, cardType, delta) : removeCards(counts, cardType, -delta);
+}
+
+/**
+ * What a refused move or scrap throws, worded for the log and the console;
+ * the Crew screen words its own from the blocker. `take` is a move into a
+ * run deck, whose copies available count the driver's own left at home as
+ * well as the locker's.
+ */
+function blockerMessage({ blocker, verb, cardType, count }: { blocker: CardBlocker; verb: 'move' | 'take' | 'scrap'; cardType: string; count: number }): string {
+	const available = (held: number): string => `${held} available, from the locker and the driver's own left at home`;
 	switch (blocker.reason) {
 		case 'driver_away':
-			return `${blocker.place.name} (${blocker.place.id}) is ${blocker.place.status}, so no cards move to or from their deck`;
+			return `${describeDriver(blocker.place)} is ${blocker.place.status}, so no cards move to or from their deck`;
+		case 'on_run':
+			return `${describeDriver(blocker.place)} is out on a run, so their default deck is in their run deck until it's unwound`;
+		case 'already_borrowed':
+			return `Can't take ${count} ${cardType} into a run deck, with ${available(blocker.held)}: ${describeDriver(blocker.by.driver)} has borrowed the rest`;
+		case 'card_locked':
+			return `The ${cardType} ${blocker.broughtBy} brought is locked in ${placeName(blocker.place)}`;
 		case 'too_few':
+			if (verb === 'take') return `Can't take ${count} ${cardType} into a run deck, with ${available(blocker.held)}`;
 			return `Can't ${verb} ${count} ${cardType} from ${placeName(blocker.place)}, which holds ${blocker.held}`;
 		case 'other_archetype':
 			return `${cardType} is for ${blocker.archetype} drivers only, so it can't go in ${placeName(blocker.place)}`;
@@ -517,18 +896,26 @@ export function logWarning(warning: string): void {
 	console.warn(warning);
 }
 
+/** Why load out won't seat a driver, from its own check. */
+function seatRefusal({ driver, blocker }: { driver: DriverRecord; blocker: SeatBlocker }): string {
+	switch (blocker.reason) {
+		case 'already_seated':
+			return `${describeDriver(driver)} can't take both seats`;
+		case 'same_archetype':
+			return `${describeDriver(driver)} and ${describeDriver(blocker.partner)} are both ${blocker.archetype}; a run seats two different archetypes`;
+		default:
+			return `${describeDriver(driver)} is ${driver.status}, so they can't go on a run`;
+	}
+}
+
 function placeName(place: CardPlace): string {
-	return place === 'locker' ? 'the locker' : `${place.name}'s deck`;
+	if (place === 'locker') return 'the locker';
+	return place instanceof RunDeck ? `${place.driver.name}'s run deck` : `${place.name}'s deck`;
 }
 
 /** The locker, or a driver who's here to hand cards to: not dead, and not missing. */
-export function isAtCompound(place: CardPlace): boolean {
+export function isAtCompound(place: 'locker' | DriverRecord): boolean {
 	return place === 'locker' || (place.status !== 'dead' && place.status !== 'missing');
-}
-
-/** The archetype whose cards a deck at this place takes: its driver's. */
-function archetypeAt(place: Exclude<CardPlace, 'locker'>): DriverArchetype {
-	return place.archetype;
 }
 
 /**
@@ -540,7 +927,7 @@ function archetypeAt(place: Exclude<CardPlace, 'locker'>): DriverArchetype {
 function landCopies({ decks, cardType, count }: { decks: readonly DriverRecord[]; cardType: string; count: number }): CardPlace {
 	for (const driver of decks) {
 		if (!isAtCompound(driver)) continue;
-		if (deckAddBlocker({ deck: driver.defaultDeck, archetype: archetypeAt(driver), cardType, count }) !== null) continue;
+		if (deckAddBlocker({ deck: driver.defaultDeck, archetype: driver.archetype, cardType, count }) !== null) continue;
 		let deck: CardCounts;
 		try {
 			deck = addCards(driver.defaultDeck, cardType, count);
@@ -571,6 +958,7 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 	const day = readInteger(fields.day, `${path}.day`, { min: 1 });
 	const nextDriverNumber = readInteger(fields.nextDriverNumber, `${path}.nextDriverNumber`, { min: 1 });
 	if (!(fields.convoy instanceof Convoy)) throw new ReaderTypeError(`${path}.convoy must be a Convoy, got ${describeValue(fields.convoy)}`);
+	const drivers = readDrivers(fields.drivers, `${path}.drivers`, nextDriverNumber, previous);
 	return {
 		seed,
 		generatorVersion: readInteger(fields.generatorVersion, `${path}.generatorVersion`, { min: 1 }),
@@ -579,13 +967,69 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 		day,
 		resources: readResources(fields.resources, `${path}.resources`),
 		unrest: readInteger(fields.unrest, `${path}.unrest`, { min: 0 }),
-		drivers: readDrivers(fields.drivers, `${path}.drivers`, nextDriverNumber, previous),
+		drivers,
 		nextDriverNumber,
 		locker: readCardCounts(fields.locker, `${path}.locker`),
 		convoy: fields.convoy,
+		runDecks: readRunDecks(fields.runDecks, `${path}.runDecks`, { drivers, convoy: fields.convoy, held: previous.runDecks }),
 		strongholdsTaken: readStrongholds(fields.strongholdsTaken, `${path}.strongholdsTaken`),
 		log: readLog(fields.log, `${path}.log`, day, previous.log)
 	};
+}
+
+/**
+ * The run decks: none at home, or one for each of two seated drivers from
+ * the pool, whose default decks are empty while they're out, with escort
+ * cards the convoy's escorts brought. Run decks held before were checked
+ * when they were stored, and their drivers stay in the pool; records and
+ * the convoy change outside the campaign's checks, so `toSaveText` checks
+ * those ties again.
+ */
+function readRunDecks(
+	value: unknown,
+	path: string,
+	{ drivers, convoy, held }: { drivers: readonly DriverRecord[]; convoy: Convoy; held?: readonly RunDeck[] }
+): readonly RunDeck[] {
+	if (held !== undefined && value === held) return held;
+	const decks = readArray(value, path).map((deck, index) => {
+		if (!(deck instanceof RunDeck)) throw new ReaderTypeError(`${path}[${index}] must be a RunDeck, got ${describeValue(deck)}`);
+		if (!drivers.includes(deck.driver)) throw new ReaderRangeError(`${path}[${index}].driver ${deck.driver.id} isn't in the pool`);
+		return deck;
+	});
+	if (decks.length !== 0 && decks.length !== 2) {
+		throw new ReaderRangeError(`${path} holds ${decks.length} run decks: a run out has one for each of its two seats, and none are kept at home`);
+	}
+	if (decks.length === 2 && decks[0].driver === decks[1].driver) {
+		throw new ReaderRangeError(`${path}[1].driver ${decks[1].driver.id} has the run deck before it; each seat is a different driver`);
+	}
+	readRunDeckTies({ decks, convoy, path });
+	return Object.freeze(decks);
+}
+
+/**
+ * What run decks rely on that changes outside the campaign's checks: each
+ * seated driver's default deck, empty while it's in their run deck, and
+ * each escort card's escort, still in the convoy, the card its signature
+ * card, and held by one run deck only.
+ */
+function readRunDeckTies({ decks, convoy, path }: { decks: readonly RunDeck[]; convoy: Convoy; path: string }): void {
+	decks.forEach(({ driver }, index) => {
+		if (totalCards(driver.defaultDeck) > 0) {
+			throw new ReaderRangeError(`${path}[${index}].driver ${driver.id} holds cards in their default deck, ${describeValue(driver.defaultDeck)}, which is in their run deck while a run is out`);
+		}
+	});
+	const seen = new Set<string>();
+	decks.forEach((deck, index) => deck.escortCards.forEach((card, cardIndex) => {
+		const at = `${path}[${index}].escortCards[${cardIndex}]`;
+		const escort = convoy.escorts.find(owned => owned.convoyId === card.broughtBy);
+		if (escort === undefined) throw new ReaderRangeError(`${at}.broughtBy ${card.broughtBy} isn't an escort in the convoy`);
+		const signature = escort.escort?.signatureCard ?? null;
+		if (card.cardType !== signature) {
+			throw new ReaderRangeError(`${at}.cardType must be ${describeValue(signature)}, the card ${escort.name} (${card.broughtBy}) brings, got ${describeValue(card.cardType)}`);
+		}
+		if (seen.has(card.broughtBy)) throw new ReaderRangeError(`${at}.broughtBy ${card.broughtBy} brought a card into the run deck before it; an escort brings one`);
+		seen.add(card.broughtBy);
+	}));
 }
 
 /**
