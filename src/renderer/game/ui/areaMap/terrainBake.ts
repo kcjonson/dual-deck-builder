@@ -96,7 +96,7 @@ class TerrainBaker {
 	private readonly slopes: SlopeLattice;
 	private readonly outerSquared: number;
 	private readonly innerSquared: number;
-	private readonly land = { elevation: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0 };
+	private readonly land = { lowland: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0 };
 
 	constructor({ terrain, size, step }: { terrain: BakeTerrain; size: number; step: number }) {
 		this.terrain = terrain;
@@ -190,7 +190,7 @@ class TerrainBaker {
 	/** The biome, as an index into `BIOMES`, at (fx, fy) in the lattice cell whose top-left node's fields start at `at`. */
 	private classify(at: number, below: number, fx: number, fy: number): number {
 		const { fields, land } = this;
-		land.elevation = bilinear(fields[at], fields[at + FIELDS], fields[below], fields[below + FIELDS], fx, fy);
+		land.lowland = bilinear(fields[at], fields[at + FIELDS], fields[below], fields[below + FIELDS], fx, fy);
 		land.moisture = bilinear(fields[at + 1], fields[at + FIELDS + 1], fields[below + 1], fields[below + FIELDS + 1], fx, fy);
 		land.contamination = bilinear(fields[at + 2], fields[at + FIELDS + 2], fields[below + 2], fields[below + FIELDS + 2], fx, fy);
 		land.mountains = bilinear(fields[at + 3], fields[at + FIELDS + 3], fields[below + 3], fields[below + FIELDS + 3], fx, fy);
@@ -209,7 +209,7 @@ function latticeNodes(size: number, step: number): number {
 const FIELDS = 7;
 
 /**
- * Per node, at every `step`th texel centre: elevation, moisture,
+ * Per node, at every `step`th texel centre: low ground, moisture,
  * contamination, mountains, canyons, badlands, and the shade (hill shading
  * from the slope, darkened in ruins). Nodes far enough past the rim that no
  * texel inside the disc reads them are skipped; the fields are defined past
@@ -233,7 +233,7 @@ function fieldLattice(terrain: BakeTerrain, size: number, step: number): { field
 			terrain.sample(worldX, worldY, sample);
 			const light = Math.max(HILL_SHADE.min, Math.min(HILL_SHADE.max, 1 + (sample.slopeY - sample.slopeX) * HILL_SHADE.gain));
 			const at = (row * nodes + column) * FIELDS;
-			values[at] = sample.elevation;
+			values[at] = sample.lowland;
 			values[at + 1] = sample.moisture;
 			values[at + 2] = sample.contamination;
 			values[at + 3] = sample.mountains;

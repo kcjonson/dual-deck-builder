@@ -1,7 +1,7 @@
 import { BIOMES, BIOME_COSTS, BIOME_LABELS, BIOME_THRESHOLDS, BiomeFields, classifyBiome } from './Biome';
 
 /** Middling ground: scrub, with nothing pushing it toward any other biome. */
-const scrub: BiomeFields = { elevation: 0.5, moisture: 0.45, contamination: 0, mountains: 0, canyons: 0, badlands: 0 };
+const scrub: BiomeFields = { lowland: 0, moisture: 0.45, contamination: 0, mountains: 0, canyons: 0, badlands: 0 };
 const fields = (values: Partial<BiomeFields>): BiomeFields => ({ ...scrub, ...values });
 
 describe('classifyBiome', () => {
@@ -22,11 +22,11 @@ describe('classifyBiome', () => {
 	});
 
 	it('reads mire from wet, low ground, with contamination counting toward wet', () => {
-		const low = thresholds.mireElevation - 0.01;
-		expect(classifyBiome(fields({ elevation: low, moisture: thresholds.mireWetness }))).toBe('mire');
-		expect(classifyBiome(fields({ elevation: low, moisture: thresholds.mireWetness - 0.01 }))).toBe('scrub');
-		expect(classifyBiome(fields({ elevation: low, moisture: thresholds.mireWetness - 0.2, contamination: 0.2 / thresholds.mireContamination }))).toBe('mire');
-		expect(classifyBiome(fields({ elevation: thresholds.mireElevation, moisture: 1 }))).toBe('scrub');
+		const low = thresholds.mireLowland;
+		expect(classifyBiome(fields({ lowland: low, moisture: thresholds.mireWetness }))).toBe('mire');
+		expect(classifyBiome(fields({ lowland: low, moisture: thresholds.mireWetness - 0.01 }))).toBe('scrub');
+		expect(classifyBiome(fields({ lowland: low, moisture: thresholds.mireWetness - 0.2, contamination: 0.2 / thresholds.mireContamination }))).toBe('mire');
+		expect(classifyBiome(fields({ lowland: thresholds.mireLowland - 1e-9, moisture: 1 }))).toBe('scrub');
 	});
 
 	it('reads badlands from broken ground that isn\'t wet', () => {
@@ -41,7 +41,7 @@ describe('classifyBiome', () => {
 	});
 
 	it('takes the first match: mountains, canyons, mire, badlands, desert', () => {
-		const everything = fields({ mountains: 1, canyons: 1, badlands: 1, elevation: 0, moisture: 1, contamination: 1 });
+		const everything = fields({ mountains: 1, canyons: 1, badlands: 1, lowland: 1, moisture: 1, contamination: 1 });
 		expect(classifyBiome(everything)).toBe('mountains');
 		expect(classifyBiome({ ...everything, mountains: 0 })).toBe('canyons');
 		expect(classifyBiome({ ...everything, mountains: 0, canyons: 0 })).toBe('mire');

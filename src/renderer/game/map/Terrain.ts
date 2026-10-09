@@ -1,7 +1,8 @@
 import { Rng } from '../core/Rng';
 import { BIOME_COSTS, Biome, BiomeFields, classifyBiome } from './Biome';
-import { LandSurface, generateLand, moistureLevel, startRadii } from './Land';
-import { GridSampler, cellCentre } from './LandGrid';
+import { LandSurface, RELIEF, generateLand, moistureLevel, startRadii } from './Land';
+import { GridSampler, cellCentre, landGridFor } from './LandGrid';
+import { clamp01, lerp, quantileAbove, smooth01 } from './MapMath';
 import { MapParams } from './MapParams';
 import { SimplexNoise } from './Noise';
 import { Hotspot, MAX_CRATER_RADIUS, Ruin, placeHotspots, placeTowns } from './TerrainSites';
@@ -43,6 +44,7 @@ export interface WaterLayer {
 /** Everything about one point; `Terrain.sample` fills one in, so a caller can reuse it. */
 export interface TerrainSample extends BiomeFields {
 	elevation: number;
+	lowland: number;
 	moisture: number;
 	contamination: number;
 	mountains: number;
@@ -64,7 +66,7 @@ export interface TerrainSample extends BiomeFields {
 
 export function createTerrainSample(): TerrainSample {
 	return {
-		elevation: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0,
+		elevation: 0, lowland: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0,
 		slopeX: 0, slopeY: 0, grade: 0, ruin: 0, biome: 'scrub', obstacle: null, cost: 0,
 	};
 }
@@ -78,11 +80,20 @@ export interface TerrainOptions {
 
 /** Stage 1: the terrain for validated params, from the `terrain` stream. */
 export function generateTerrain({ params, rng }: TerrainOptions): Terrain {
-	return new Terrain({ fields: new TerrainFields({ params, rng, surface: generateLand({ params, rng }) }) });
+	return terrainFromSurface({ params, rng, surface: generateLand({ params, rng }) });
 }
 
-/** Vertical scale for slopes: elevation 1 stands this many world units high. */
-export const RELIEF = 150;
+/**
+ * The terrain over land already grown for these params and this stream, by
+ * `generateLand` here or in a worker: everything but the erosion, which is
+ * most of the time. The surface has to be the land those params grow, on
+ * their grid; the rest of the terrain is rebuilt from the stream.
+ */
+export function terrainFromSurface({ params, rng, surface }: TerrainFieldsOptions): Terrain {
+	return new Terrain({ fields: new TerrainFields({ params, rng, surface }) });
+}
+
+export { RELIEF };
 /** Rise over run at which ground in rough country is a cliff, impassable. */
 export const CLIFF_GRADE = 1;
 /** Travel cost added at the cliff grade, rising with the square of the grade. */
@@ -94,11 +105,18 @@ const MOISTURE = {
 	wavelength: 650, octaves: 2, gain: 0.5,
 	/** How far moisture strays from the map's level. */
 	spread: 0.55,
-	/** Moisture gained per unit of elevation below `level`, lost above it. */
+	/** Moisture gained per unit of elevation below the map's lowland level, lost above it. */
 	lowland: 0.5,
-	/** About the plains' elevation on most maps. */
-	level: 0.06,
 };
+/**
+ * Low ground, a stand-in until the water stage reads wet lowland off its
+ * rivers: the map's lowland level is the elevation `share` of the land
+ * outside the ranges, past the relief radius and inside the disc, lies
+ * under, and `lowland` goes from 1 to 0 over `ramp` of elevation across it.
+ * Measured on each map's own land, so the share of low ground doesn't
+ * follow how tall the land stands.
+ */
+const LOWLAND = { share: 0.55, ramp: 0.02 };
 /**
  * Rough country: the only ground where a cliff can stand. Ruggedness sets
  * its share of the land past the metro's surroundings, kept well under half
@@ -142,9 +160,10 @@ const ROUGHNESS_FREQUENCY = 1 / ROUGHNESS.wavelength;
 /** A slope's squared gradient at the cliff grade. */
 const CLIFF_SLOPE_SQUARED = (CLIFF_GRADE / RELIEF) * (CLIFF_GRADE / RELIEF);
 
-/** What `land` leaves behind for the callers that need more than elevation. */
+/** What `land`, `landFeatures`, and `landMoisture` leave behind for the callers that need more than elevation. */
 interface LandFields {
 	elevation: number;
+	lowland: number;
 	moisture: number;
 	contamination: number;
 	mountains: number;
@@ -155,7 +174,7 @@ interface LandFields {
 }
 
 export interface TerrainFieldsOptions extends TerrainOptions {
-	/** The eroded land these fields read. */
+	/** The eroded land these fields read: `generateLand`'s for the same params, never written. */
 	surface: LandSurface;
 }
 
@@ -198,6 +217,8 @@ export class TerrainFields {
 	private readonly cellColumns: number;
 
 	private readonly wetness: number;
+	/** The elevation `LOWLAND.share` of the land outside the ranges lies under. */
+	private readonly lowlandLevel: number;
 	private readonly startSquared: number;
 	private readonly blendSquared: number;
 	private readonly reliefSquared: number;
@@ -205,11 +226,21 @@ export class TerrainFields {
 	private readonly hotspotData: Float64Array;
 
 	private readonly scratch: LandFields = {
-		elevation: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0, slopeX: 0, slopeY: 0,
+		elevation: 0, lowland: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0, slopeX: 0, slopeY: 0,
 	};
 
 	constructor({ params, rng, surface }: TerrainFieldsOptions) {
 		const { radius } = params;
+		const expected = landGridFor(radius);
+		const { grid } = surface;
+		if (grid.size !== expected.size || grid.cellSize !== expected.cellSize || grid.halfExtent !== expected.halfExtent) {
+			throw new RangeError(`TerrainFields: the surface's grid (${grid.size} cells over ${grid.halfExtent}) isn't radius ${radius}'s (${expected.size} over ${expected.halfExtent})`);
+		}
+		const cells = grid.size * grid.size;
+		const { drainage } = surface;
+		[surface.elevation, surface.mountains, drainage.receivers, drainage.levels, drainage.area, drainage.order].forEach((values) => {
+			if (values.length !== cells) throw new RangeError(`TerrainFields: a surface array holds ${values.length} values, not the grid's ${cells}`);
+		});
 		const { metroRadius, blendRadius, reliefRadius } = startRadii(params);
 		this.radius = radius;
 		this.surface = surface;
@@ -221,12 +252,12 @@ export class TerrainFields {
 		this.reliefSquared = reliefRadius * reliefRadius;
 		this.wetness = moistureLevel(params.aridity);
 
-		const { grid } = surface;
 		this.elevationGrid = new GridSampler({ grid, values: surface.elevation });
 		this.mountainGrid = new GridSampler({ grid, values: surface.mountains });
+		this.lowlandLevel = quantileAbove(outsideRanges({ surface, radius, reliefRadius, values: surface.elevation }), 1 - LOWLAND.share);
 		const canyonShare = CANYONS.share * smooth01((1 - this.wetness - CANYONS.dryness) / CANYONS.drynessRange);
 		const badlandsShare = BADLANDS.share * params.ruggedness * (0.3 + 0.7 * params.contamination);
-		const clear = featureRoom({ surface, metroRadius, reliefRadius });
+		const clear = canyonShare > 0 || badlandsShare > 0 ? featureRoom({ surface, metroRadius, reliefRadius }) : null;
 		this.canyonGrid = new GridSampler({ grid, values: canyonField({ surface, radius, reliefRadius, share: canyonShare, clear }) });
 		this.badlandsGrid = new GridSampler({ grid, values: badlandsField({ surface, radius, reliefRadius, share: badlandsShare, clear }) });
 
@@ -267,6 +298,11 @@ export class TerrainFields {
 			// Every point of a reached cell is ground a road can get to; towns prefer open country.
 			suits: (x, y, strict) => !strict || (this.mountainGrid.bilinear(x, y) < 0.25 && this.canyonGrid.bilinear(x, y) < 0.25),
 		});
+	}
+
+	/** The elevation the map's low ground lies under, for the Map Lab and tests. */
+	public get lowland(): number {
+		return this.lowlandLevel;
 	}
 
 	public elevation(x: number, y: number): number {
@@ -317,6 +353,7 @@ export class TerrainFields {
 	public biome(x: number, y: number): Biome {
 		this.land(x, y);
 		this.landMoisture(x, y);
+		this.landFeatures(x, y);
 		this.scratch.contamination = this.contamination(x, y);
 		return classifyBiome(this.scratch);
 	}
@@ -372,6 +409,7 @@ export class TerrainFields {
 		const slopeSquared = this.slopeSquared();
 		if (this.cliffAt(x, y, slopeSquared)) return Infinity;
 		this.landMoisture(x, y);
+		this.landFeatures(x, y);
 		this.scratch.contamination = this.contamination(x, y);
 		return slopeCost(classifyBiome(this.scratch), slopeSquared);
 	}
@@ -381,6 +419,8 @@ export class TerrainFields {
 		const scratch = this.scratch;
 		out.elevation = this.land(x, y);
 		out.moisture = this.landMoisture(x, y);
+		this.landFeatures(x, y);
+		out.lowland = scratch.lowland;
 		out.mountains = scratch.mountains;
 		out.canyons = scratch.canyons;
 		out.badlands = scratch.badlands;
@@ -410,10 +450,9 @@ export class TerrainFields {
 	}
 
 	/**
-	 * Elevation at (x, y), with its gradient and the other land fields left
-	 * in `scratch` (moisture and contamination aren't touched): the eroded
-	 * grid, bicubic, plus fine relief as strong as the point is range
-	 * country, held to 0 to 1.
+	 * Elevation at (x, y), with its gradient and the range mask left in
+	 * `scratch`: the eroded grid, bicubic, plus fine relief as strong as the
+	 * point is range country, held to 0 to 1.
 	 */
 	private land(x: number, y: number): number {
 		const elevationGrid = this.elevationGrid;
@@ -441,8 +480,6 @@ export class TerrainFields {
 		const scratch = this.scratch;
 		scratch.elevation = elevation;
 		scratch.mountains = clamp01(mountains);
-		scratch.canyons = this.canyonGrid.bilinear(x, y);
-		scratch.badlands = this.badlandsGrid.bilinear(x, y);
 		scratch.slopeX = slopeX;
 		scratch.slopeY = slopeY;
 		return elevation;
@@ -450,15 +487,23 @@ export class TerrainFields {
 
 	/**
 	 * Moisture at (x, y), the point `land` was last called with, left in
-	 * `scratch` too: the map's level, its own noise, wetter in low country and
-	 * drier high up, and scrub's in the metro.
+	 * `scratch` too: the map's level, its own noise, wetter below the map's
+	 * lowland level and drier above it, and scrub's in the metro.
 	 */
 	private landMoisture(x: number, y: number): number {
 		const scratch = this.scratch;
 		const noise = this.moistureNoise.fractal(x * MOISTURE_FREQUENCY, y * MOISTURE_FREQUENCY, MOISTURE.octaves, MOISTURE.gain);
-		const moisture = clamp01(this.wetness + MOISTURE.spread * noise + MOISTURE.lowland * (MOISTURE.level - scratch.elevation));
+		const moisture = clamp01(this.wetness + MOISTURE.spread * noise + MOISTURE.lowland * (this.lowlandLevel - scratch.elevation));
 		scratch.moisture = moisture + (START_MOISTURE - moisture) * this.startWeight(x * x + y * y);
 		return scratch.moisture;
+	}
+
+	/** Canyons, badlands, and low ground at (x, y), the point `land` was last called with, into `scratch`. */
+	private landFeatures(x: number, y: number): void {
+		const scratch = this.scratch;
+		scratch.canyons = this.canyonGrid.bilinear(x, y);
+		scratch.badlands = this.badlandsGrid.bilinear(x, y);
+		scratch.lowland = smooth01((this.lowlandLevel - scratch.elevation) / LOWLAND.ramp + 0.5);
 	}
 
 	/** The lattice cell holding (x, y), or -1 off the lattice, which covers the disc's bounding square. */
@@ -593,9 +638,7 @@ export class TerrainFields {
 				if (distanceSquared >= innerSquared && distanceSquared <= radiusSquared) samples.push(noise(x, y));
 			}
 		}
-		samples.sort((a, b) => a - b);
-		const index = Math.min(samples.length - 1, Math.max(0, Math.round((1 - share) * samples.length)));
-		return samples[index];
+		return quantileAbove(samples, share);
 	}
 }
 
@@ -765,8 +808,8 @@ interface FeatureOptions {
 	radius: number;
 	reliefRadius: number;
 	share: number;
-	/** Per cell, 1 where canyons and badlands have room, 0 where they have none: see `featureRoom`. */
-	clear: Float64Array;
+	/** Per cell, 1 where canyons and badlands have room, 0 where they have none (see `featureRoom`); null when neither has a share. */
+	clear: Float64Array | null;
 }
 
 /**
@@ -780,7 +823,7 @@ interface FeatureOptions {
 function canyonField({ surface, radius, reliefRadius, share, clear }: FeatureOptions): Float32Array {
 	const { grid, elevation } = surface;
 	const size = grid.size;
-	if (share <= 0) return new Float32Array(size * size);
+	if (share <= 0 || clear === null) return new Float32Array(size * size);
 	const reach = CANYONS.reach;
 	const cut = new Float64Array(size * size);
 	const steps = [reach, reach * size, reach * (size + 1), reach * (size - 1)];
@@ -797,7 +840,7 @@ function canyonField({ surface, radius, reliefRadius, share, clear }: FeatureOpt
 			cut[cell] = deepest * clear[cell];
 		}
 	}
-	return calibratedField({ surface, radius, reliefRadius, share, clear, values: cut });
+	return calibratedField({ surface, radius, reliefRadius, share, values: cut });
 }
 
 /**
@@ -809,7 +852,7 @@ function canyonField({ surface, radius, reliefRadius, share, clear }: FeatureOpt
 function badlandsField({ surface, radius, reliefRadius, share, clear }: FeatureOptions): Float32Array {
 	const { grid, elevation } = surface;
 	const size = grid.size;
-	if (share <= 0) return new Float32Array(size * size);
+	if (share <= 0 || clear === null) return new Float32Array(size * size);
 	const curvature = new Float64Array(size * size);
 	for (let row = 1; row < size - 1; row += 1) {
 		for (let column = 1; column < size - 1; column += 1) {
@@ -820,7 +863,7 @@ function badlandsField({ surface, radius, reliefRadius, share, clear }: FeatureO
 	}
 	const broken = blur(curvature, size, BADLANDS.blur);
 	for (let cell = 0; cell < broken.length; cell += 1) broken[cell] *= clear[cell];
-	return calibratedField({ surface, radius, reliefRadius, share, clear, values: broken });
+	return calibratedField({ surface, radius, reliefRadius, share, values: broken });
 }
 
 /**
@@ -868,31 +911,41 @@ function featureRoom({ surface, metroRadius, reliefRadius }: { surface: LandSurf
 }
 
 /**
- * 0 to 1 per cell, 0.5 where `values` passes the quantile that `share` of
+ * Per cell, 0 to 1: 0.5 where `values` passes the quantile that `share` of
  * the land outside the ranges, past the relief radius and inside the disc,
  * lies above, ramping over a quarter of it either way.
  */
-function calibratedField({ surface, radius, reliefRadius, share, values }: FeatureOptions & { values: Float64Array }): Float32Array {
-	const { grid, mountains } = surface;
+function calibratedField({ surface, radius, reliefRadius, share, values }: Omit<FeatureOptions, 'clear'> & { values: Float64Array }): Float32Array {
 	const field = new Float32Array(values.length);
-	const samples: number[] = [];
+	const threshold = quantileAbove(outsideRanges({ surface, radius, reliefRadius, values }), share);
+	if (!(threshold > 0) || threshold === Infinity) return field;
+	for (let cell = 0; cell < field.length; cell += 1) field[cell] = smooth01((values[cell] / threshold - 1) * FEATURE_SHARPNESS + 0.5);
+	return field;
+}
+
+/**
+ * `values` at the cells outside the ranges, past `reliefRadius` and inside
+ * the disc: the land the stand-ins' shares are of. Where the ranges cover
+ * all of it, the cells past `reliefRadius`, ranges and all.
+ */
+function outsideRanges({ surface, radius, reliefRadius, values }: { surface: LandSurface; radius: number; reliefRadius: number; values: ArrayLike<number> }): number[] {
+	const { grid, mountains } = surface;
 	const innerSquared = reliefRadius * reliefRadius;
 	const outerSquared = radius * radius;
+	const outside: number[] = [];
+	const all: number[] = [];
 	for (let row = 0; row < grid.size; row += 1) {
 		const y = cellCentre(grid, row);
 		for (let column = 0; column < grid.size; column += 1) {
 			const x = cellCentre(grid, column);
-			const cell = row * grid.size + column;
 			const distanceSquared = x * x + y * y;
-			if (distanceSquared >= innerSquared && distanceSquared <= outerSquared && mountains[cell] < 0.5) samples.push(values[cell]);
+			if (distanceSquared < innerSquared || distanceSquared > outerSquared) continue;
+			const cell = row * grid.size + column;
+			all.push(values[cell]);
+			if (mountains[cell] < 0.5) outside.push(values[cell]);
 		}
 	}
-	if (samples.length === 0) return field;
-	samples.sort((a, b) => a - b);
-	const threshold = samples[Math.min(samples.length - 1, Math.max(0, Math.round((1 - share) * samples.length)))];
-	if (!(threshold > 0)) return field;
-	for (let cell = 0; cell < field.length; cell += 1) field[cell] = smooth01((values[cell] / threshold - 1) * FEATURE_SHARPNESS + 0.5);
-	return field;
+	return outside.length > 0 ? outside : all;
 }
 
 /** A box blur `reach` cells each way along rows, then columns, held at the edges. */
@@ -935,19 +988,4 @@ function ruinWeight(x: number, y: number, ruin: Ruin): number {
 	if (ratio <= 1) return 1;
 	if (ratio >= 4) return 0;
 	return (4 - ratio) / 3;
-}
-
-function lerp({ min, max }: { min: number; max: number }, amount: number): number {
-	return min + (max - min) * amount;
-}
-
-function clamp01(value: number): number {
-	return value < 0 ? 0 : value > 1 ? 1 : value;
-}
-
-/** Smoothstep of a value already scaled to [0, 1], clamped outside it. */
-function smooth01(value: number): number {
-	if (value <= 0) return 0;
-	if (value >= 1) return 1;
-	return value * value * (3 - 2 * value);
 }

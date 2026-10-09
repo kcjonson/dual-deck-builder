@@ -41,11 +41,11 @@ export function cellCentre(grid: LandGrid, index: number): number {
 	return -grid.halfExtent + (index + 0.5) * grid.cellSize;
 }
 
-/** The cell holding (x, y), or -1 off the grid. */
+/** The cell holding (x, y), or -1 off the grid or for a coordinate that isn't a number. */
 export function cellAt(grid: LandGrid, x: number, y: number): number {
 	const column = floor((x + grid.halfExtent) / grid.cellSize);
 	const row = floor((y + grid.halfExtent) / grid.cellSize);
-	if (column < 0 || row < 0 || column >= grid.size || row >= grid.size) return -1;
+	if (!(column >= 0 && row >= 0 && column < grid.size && row < grid.size)) return -1;
 	return row * grid.size + column;
 }
 
@@ -53,10 +53,13 @@ export function cellAt(grid: LandGrid, x: number, y: number): number {
  * Reads a per-cell field at any point. `bicubic` is Catmull-Rom through the
  * cell centres, smooth in value and slope, so hill shading and slopes show no
  * facets; it leaves its exact gradient in `gradientX` and `gradientY`, per
- * world unit. `bilinear` is for fields nothing differentiates. Past the
- * outermost centres a field holds its edge value, so its gradient there
- * points along the edge only. Sampling is adds, multiplies, and compares,
- * and allocates nothing.
+ * world unit. Catmull-Rom needs a centre either side of the two it runs
+ * between, so it covers the square out to the second centre from each edge
+ * and holds the value there past it, its gradient across the edge 0 and
+ * along it the edge's. `bilinear`, for fields nothing differentiates, runs
+ * out to the outermost centres and holds the edge value past them. A
+ * coordinate that isn't a number reads as the low edge. Sampling is adds,
+ * multiplies, and compares, and allocates nothing.
  */
 export class GridSampler {
 	/** The gradient the last `bicubic` call left, per world unit east... */
@@ -86,21 +89,21 @@ export class GridSampler {
 		// The cell whose centre is at or before the point, kept a cell in from
 		// each edge so all four rows and columns exist.
 		let column = floor(fx);
-		if (column < 1) column = 1;
+		if (!(column >= 1)) column = 1;
 		else if (column > size - 3) column = size - 3;
 		let row = floor(fy);
-		if (row < 1) row = 1;
+		if (!(row >= 1)) row = 1;
 		else if (row > size - 3) row = size - 3;
 		let tx = fx - column;
 		let ty = fy - row;
 		let rateX = 1 / this.cellSize;
 		let rateY = rateX;
-		if (tx < 0 || tx > 1) {
-			tx = tx < 0 ? 0 : 1;
+		if (!(tx >= 0 && tx <= 1)) {
+			tx = tx > 1 ? 1 : 0;
 			rateX = 0;
 		}
-		if (ty < 0 || ty > 1) {
-			ty = ty < 0 ? 0 : 1;
+		if (!(ty >= 0 && ty <= 1)) {
+			ty = ty > 1 ? 1 : 0;
 			rateY = 0;
 		}
 
@@ -166,15 +169,15 @@ export class GridSampler {
 		const fx = (x + this.halfExtent) / this.cellSize - 0.5;
 		const fy = (y + this.halfExtent) / this.cellSize - 0.5;
 		let column = floor(fx);
-		if (column < 0) column = 0;
+		if (!(column >= 0)) column = 0;
 		else if (column > size - 2) column = size - 2;
 		let row = floor(fy);
-		if (row < 0) row = 0;
+		if (!(row >= 0)) row = 0;
 		else if (row > size - 2) row = size - 2;
 		let tx = fx - column;
 		let ty = fy - row;
-		tx = tx < 0 ? 0 : tx > 1 ? 1 : tx;
-		ty = ty < 0 ? 0 : ty > 1 ? 1 : ty;
+		tx = tx > 1 ? 1 : tx >= 0 ? tx : 0;
+		ty = ty > 1 ? 1 : ty >= 0 ? ty : 0;
 		const at = row * size + column;
 		const south = values[at] + (values[at + 1] - values[at]) * tx;
 		const north = values[at + size] + (values[at + size + 1] - values[at + size]) * tx;

@@ -31,7 +31,7 @@ import { fileURLToPath } from 'node:url';
 const script = fileURLToPath(import.meta.url);
 const SOURCES = [
 	'core/Json', 'core/Rng', 'map/MapParams', 'map/ParamValidator', 'map/Noise', 'map/Biome', 'map/TerrainSites', 'map/Geometry',
-	'map/LandGrid', 'map/Drainage', 'map/Erosion', 'map/Uplift', 'map/Land', 'map/Terrain',
+	'map/LandGrid', 'map/MapMath', 'map/Drainage', 'map/Erosion', 'map/Uplift', 'map/Land', 'map/Terrain',
 ];
 
 if (process.argv[2] !== '--built') {

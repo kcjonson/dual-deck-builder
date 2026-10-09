@@ -1,6 +1,7 @@
 import { Rng } from '../core/Rng';
 import { Vector, unitVector } from './Geometry';
 import { LandGrid, cellCentre } from './LandGrid';
+import { lerp, quantileAbove, smooth01 } from './MapMath';
 import { SimplexNoise } from './Noise';
 
 /**
@@ -118,27 +119,4 @@ export function buildUplift({ grid, radius, metroRadius, reliefRadius, mountainC
 		}
 	}
 	return { uplift, mountains, grain };
-}
-
-/**
- * The value `share` of `values` lies at or above: +Infinity for a share of 0
- * or less, so none does, and -Infinity for 1 or more.
- */
-export function quantileAbove(values: readonly number[], share: number): number {
-	if (share <= 0 || values.length === 0) return Infinity;
-	if (share >= 1) return -Infinity;
-	const sorted = Float64Array.from(values).sort();
-	const index = Math.min(sorted.length - 1, Math.max(0, Math.round((1 - share) * sorted.length)));
-	return sorted[index];
-}
-
-function lerp({ min, max }: { min: number; max: number }, amount: number): number {
-	return min + (max - min) * amount;
-}
-
-/** Smoothstep of a value already scaled to [0, 1], clamped outside it. */
-function smooth01(value: number): number {
-	if (value <= 0) return 0;
-	if (value >= 1) return 1;
-	return value * value * (3 - 2 * value);
 }

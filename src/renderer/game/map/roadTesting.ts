@@ -57,7 +57,7 @@ export interface FakeTerrainOptions {
 
 /** A terrain made of functions, for steering growth with ground no seed would draw. */
 export function fakeTerrain({ radius = 1000, metroRadius = 150, hotspots = [], cost, wall, rough }: FakeTerrainOptions = {}): GrowthTerrain {
-	const impassable = (x: number, y: number) => hotspots.some((hotspot) => (x - hotspot.x) ** 2 + (y - hotspot.y) ** 2 < hotspot.craterRadius ** 2)
+	const impassable = (x: number, y: number) => hotspots.some((hotspot) => (x - hotspot.x) * (x - hotspot.x) + (y - hotspot.y) * (y - hotspot.y) < hotspot.craterRadius * hotspot.craterRadius)
 		|| (wall?.(x, y) ?? false);
 	return {
 		radius,
@@ -72,6 +72,8 @@ export function fakeTerrain({ radius = 1000, metroRadius = 150, hotspots = [], c
 /** One highway leaving a metro of `metroRadius` at `bearing`, its drift knots as given (degrees) and level after. */
 export function departure(bearing: number, metroRadius: number, drift: number[] = [0]): HighwayDeparture {
 	const radians = bearing * Math.PI / 180;
+	// A test's own departures, placed by hand; nothing generated reads this.
+	// eslint-disable-next-line no-restricted-properties
 	return { bearing, x: metroRadius * Math.cos(radians), y: metroRadius * Math.sin(radians), drift };
 }
 
@@ -136,5 +138,7 @@ export function roadLines(network: RoadNetwork): RoadLine[] {
 /** Degrees between two directions. */
 export function degreesBetween(ax: number, ay: number, bx: number, by: number): number {
 	const cos = (ax * bx + ay * by) / Math.sqrt((ax * ax + ay * ay) * (bx * bx + by * by));
+	// Measures what growth made for a test to check; generation never reads it.
+	// eslint-disable-next-line no-restricted-properties
 	return Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
 }

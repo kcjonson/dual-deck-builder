@@ -1,8 +1,9 @@
 import { Rng } from '../core/Rng';
-import { Drainage, routeDrainage } from './Drainage';
+import { Drainage, DrainageRouter, routeDrainage } from './Drainage';
 import { downsample, erode, upsample } from './Erosion';
 import { unitVector } from './Geometry';
 import { LandGrid, cellAt, cellCentre, coarseGrid, landGridFor } from './LandGrid';
+import { lerp, smooth01 } from './MapMath';
 import { MapParams } from './MapParams';
 import { SimplexNoise } from './Noise';
 import { buildUplift } from './Uplift';
@@ -79,7 +80,7 @@ export const EROSION = {
 	coarseIterations: 40,
 	fineIterations: 10,
 	/** Hillslope diffusion at ruggedness 0 and 1: rugged ranges keep sharper slopes. */
-	diffusion: { min: 0.024, max: 0.004 },
+	diffusion: { min: 0.05, max: 0.025 },
 } as const;
 /** The surface erosion starts from: a little of the uplift, so ranges start as ridges, and low noise. */
 const INITIAL = { lift: 0.05, relief: 0.02, wavelength: 120, octaves: 3, gain: 0.5 };
@@ -97,8 +98,12 @@ const BASIN_DISTANCE = 0.55;
  * ends; how far elevation is pulled toward them at full dryness.
  */
 export const TERRACES = { below: 0.4, full: 0.1, steps: 7, riserStart: 0.55, riserEnd: 0.92, strength: 0.8 } as const;
-/** The share of its relief the metro keeps when it's flattened. */
+/** Vertical scale for slopes: elevation 1 stands this many world units high. */
+export const RELIEF = 100;
+/** The most of its relief the metro keeps when it's flattened... */
 export const METRO_RELIEF = 0.15;
+/** ...and less where that would leave a grade steeper than this, measured cell to cell. */
+export const METRO_GRADE = 0.1;
 
 // Read once, at load: under Jest's vm context each global read costs about 0.15 us (seeded-prng.md).
 const sqrt = Math.sqrt;
@@ -111,6 +116,11 @@ export interface LandOptions {
 	rng: Rng;
 }
 
+/**
+ * The land for validated params, from the `terrain` stream. What it returns
+ * is frozen and its arrays are never written again, by contract: the stages
+ * after read them, and they may be sent across a worker boundary.
+ */
 export function generateLand({ params, rng }: LandOptions): LandSurface {
 	const grid = landGridFor(params.radius);
 	const { metroRadius, blendRadius, reliefRadius } = startRadii(params);
@@ -124,16 +134,19 @@ export function generateLand({ params, rng }: LandOptions): LandSurface {
 		rng,
 	});
 	const { outlets, closedBasin } = placeOutlets({ grid, count: params.rivers, radius: params.radius, rng: rng.fork('outlets') });
-	const elevation = erodeCoarseToFine({ grid, uplift, outlets, ruggedness: params.ruggedness, rng });
+	const { height: elevation, router } = erodeCoarseToFine({ grid, uplift, outlets, ruggedness: params.ruggedness, rng });
 	const scaleSquared = HEIGHT_SCALE * HEIGHT_SCALE;
 	for (let cell = 0; cell < elevation.length; cell += 1) {
 		const height = elevation[cell];
 		elevation[cell] = height / sqrt(height * height + scaleSquared);
 	}
 	terrace({ elevation, wetness: moistureLevel(params.aridity) });
-	flattenMetro({ grid, elevation, metroRadius, blendRadius });
-	const drainage = routeDrainage({ size: grid.size, elevation, outlets });
-	return { grid, elevation, mountains, drainage, closedBasin };
+	// Where water leaves the metro, the level it flattens toward.
+	router.route(elevation, outlets);
+	flattenMetro({ grid, elevation, levels: router.levels, metroRadius, blendRadius });
+	const drainage = routeDrainage({ size: grid.size, elevation, outlets, router });
+	fillMetroWater({ grid, elevation, levels: drainage.levels, blendRadius });
+	return Object.freeze({ grid: Object.freeze(grid), elevation, mountains, drainage: Object.freeze(drainage), closedBasin });
 }
 
 /**
@@ -172,19 +185,18 @@ function perimeterCell(size: number, along: number): number {
 /**
  * Erodes the uplift from a low starting surface: `EROSION.coarseIterations`
  * on a grid half the size, then `EROSION.fineIterations` at full size from
- * that land, upsampled. Returns the eroded height per cell.
+ * that land, upsampled. Diffusion acts per cell, so on cells twice as wide
+ * the coarse pass takes a quarter of it, to smooth as much per world unit.
+ * Returns the eroded height per cell, and the full-size router, for the
+ * final routing to reuse.
  */
-function erodeCoarseToFine({ grid, uplift, outlets, ruggedness, rng }: { grid: LandGrid; uplift: Float64Array; outlets: Int32Array; ruggedness: number; rng: Rng }): Float64Array {
+function erodeCoarseToFine({ grid, uplift, outlets, ruggedness, rng }: { grid: LandGrid; uplift: Float64Array; outlets: Int32Array; ruggedness: number; rng: Rng }): { height: Float64Array; router: DrainageRouter } {
 	const size = grid.size;
 	const coarse = coarseGrid(grid);
 	const half = coarse.size;
 	const coarseUplift = downsample(uplift, size);
 	const coarseOutlets = coarseCells(outlets, size);
-	const constants = {
-		timeStep: EROSION.timeStep,
-		erodibility: EROSION.erodibility,
-		diffusion: EROSION.diffusion.min + (EROSION.diffusion.max - EROSION.diffusion.min) * ruggedness,
-	};
+	const diffusion = lerp(EROSION.diffusion, ruggedness);
 
 	const noise = new SimplexNoise({ rng: rng.fork('initial') });
 	const coarseHeight = new Float64Array(half * half);
@@ -199,14 +211,20 @@ function erodeCoarseToFine({ grid, uplift, outlets, ruggedness, rng }: { grid: L
 		}
 	}
 	for (let index = 0; index < coarseOutlets.length; index += 1) coarseHeight[coarseOutlets[index]] = 0;
-	erode({ size: half, elevation: coarseHeight, uplift: coarseRate, outlets: coarseOutlets, iterations: EROSION.coarseIterations, ...constants });
+	erode({
+		size: half, elevation: coarseHeight, uplift: coarseRate, outlets: coarseOutlets, iterations: EROSION.coarseIterations,
+		timeStep: EROSION.timeStep, erodibility: EROSION.erodibility, diffusion: diffusion / 4,
+	});
 
 	const height = upsample(coarseHeight, half);
 	const rate = new Float64Array(size * size);
 	for (let cell = 0; cell < rate.length; cell += 1) rate[cell] = EROSION.upliftRate * uplift[cell];
 	for (let index = 0; index < outlets.length; index += 1) height[outlets[index]] = 0;
-	erode({ size, elevation: height, uplift: rate, outlets, iterations: EROSION.fineIterations, ...constants });
-	return height;
+	const router = erode({
+		size, elevation: height, uplift: rate, outlets, iterations: EROSION.fineIterations,
+		timeStep: EROSION.timeStep, erodibility: EROSION.erodibility, diffusion,
+	});
+	return { height, router };
 }
 
 /** The coarse cells holding the given cells of a grid twice the size, in order, each once. */
@@ -228,8 +246,9 @@ function coarseCells(cells: Int32Array, size: number): Int32Array {
  * riser, and elevation moves that way by the map's dryness. Nothing changes
  * at a moisture level of `TERRACES.below` or more. The pull is the same
  * everywhere on a map and never all the way, so a higher cell stays higher:
- * terracing reorders no heights, and the land drains the same way after it
- * as before.
+ * terracing reorders no heights, so it leaves no pits and water stands where
+ * it stood, though squeezing some drops more than others can change which
+ * way down is steepest on a bench.
  */
 export function terrace({ elevation, wetness }: { elevation: Float64Array; wetness: number }): void {
 	const dryness = smooth01((TERRACES.below - wetness) / (TERRACES.below - TERRACES.full));
@@ -247,48 +266,97 @@ export function terrace({ elevation, wetness }: { elevation: Float64Array; wetne
 }
 
 /**
- * Flattens the metro: inside it elevation keeps `METRO_RELIEF` of its
- * height above or below the metro's mean, easing back to the land's own at
- * the blend radius. Little lifts the land round the metro, but a river
- * crossing it still cuts a valley, and ranges close round it can leave it a
- * basin with steep sides. Inside the metro the change is the same for every
- * cell, so a river crossing it runs the way it did, only shallower.
+ * Flattens the metro, only ever lowering land, toward the lowest water level
+ * in it, where its water leaves: inside the metro each cell keeps as much of
+ * its height above that floor as holds the steepest grade there to
+ * `METRO_GRADE`, and never more than `METRO_RELIEF` of it, easing back to
+ * the land's own height at the blend radius. Little lifts the land round the
+ * metro, but rivers crossing it still cut valleys, and ranges close round it
+ * can leave it a basin with steep sides. Raising nothing means flattening
+ * never dams a river, and flattening toward where water leaves rather than
+ * the bottom of a pit means it doesn't sink the metro into a basin. Inside
+ * the metro the change is the same for every cell, so drainage across it
+ * runs the same way, but pits below the floor stay, and the blend ring
+ * lowers its inner edge further than its outer, which can leave pits there:
+ * `fillMetroWater` fills them.
  */
-export function flattenMetro({ grid, elevation, metroRadius, blendRadius }: { grid: LandGrid; elevation: Float64Array; metroRadius: number; blendRadius: number }): void {
+export function flattenMetro({ grid, elevation, levels, metroRadius, blendRadius }: { grid: LandGrid; elevation: Float64Array; levels: ArrayLike<number>; metroRadius: number; blendRadius: number }): void {
 	const size = grid.size;
 	const metroSquared = metroRadius * metroRadius;
 	const blendSquared = blendRadius * blendRadius;
-	let sum = 0;
-	let count = 0;
-	for (let row = 0; row < size; row += 1) {
+	const toGrade = RELIEF / (2 * grid.cellSize);
+	let floorLevel = Infinity;
+	let steepest = 0;
+	for (let row = 1; row < size - 1; row += 1) {
 		const y = cellCentre(grid, row);
-		for (let column = 0; column < size; column += 1) {
+		for (let column = 1; column < size - 1; column += 1) {
 			const x = cellCentre(grid, column);
-			if (x * x + y * y <= metroSquared) {
-				sum += elevation[row * size + column];
-				count += 1;
-			}
+			if (x * x + y * y > metroSquared) continue;
+			const cell = row * size + column;
+			if (levels[cell] < floorLevel) floorLevel = levels[cell];
+			const slopeX = (elevation[cell + 1] - elevation[cell - 1]) * toGrade;
+			const slopeY = (elevation[cell + size] - elevation[cell - size]) * toGrade;
+			const grade = sqrt(slopeX * slopeX + slopeY * slopeY);
+			if (grade > steepest) steepest = grade;
 		}
 	}
-	if (count === 0) return;
-	const level = sum / count;
-	const pull = 1 - METRO_RELIEF;
+	if (floorLevel === Infinity) return;
+	const keep = steepest * METRO_RELIEF > METRO_GRADE ? METRO_GRADE / steepest : METRO_RELIEF;
+	const pull = 1 - keep;
 	for (let row = 0; row < size; row += 1) {
 		const y = cellCentre(grid, row);
 		for (let column = 0; column < size; column += 1) {
 			const x = cellCentre(grid, column);
 			const distanceSquared = x * x + y * y;
 			if (distanceSquared >= blendSquared) continue;
-			const weight = distanceSquared <= metroSquared ? 1 : smooth01((blendSquared - distanceSquared) / (blendSquared - metroSquared));
 			const cell = row * size + column;
-			elevation[cell] += (level - elevation[cell]) * pull * weight;
+			const above = elevation[cell] - floorLevel;
+			if (!(above > 0)) continue;
+			const weight = distanceSquared <= metroSquared ? 1 : smooth01((blendSquared - distanceSquared) / (blendSquared - metroSquared));
+			elevation[cell] -= above * pull * weight;
 		}
 	}
 }
 
-/** Smoothstep of a value already scaled to [0, 1], clamped outside it. */
-function smooth01(value: number): number {
-	if (value <= 0) return 0;
-	if (value >= 1) return 1;
-	return value * value * (3 - 2 * value);
+/**
+ * Raises standing water round the metro to dry land: every cell where water
+ * stands inside the blend radius, and every cell of the same water reached
+ * through its neighbours, goes up to its water level. A basin the ranges
+ * close round the metro, or a pit the flattening left in the blend ring,
+ * becomes flat land at the level it would fill to, all of it, so no step
+ * stands where the blend radius cuts across it. Each level is above its
+ * receiver's, so the routing stands as it was.
+ */
+export function fillMetroWater({ grid, elevation, levels, blendRadius }: { grid: LandGrid; elevation: Float64Array; levels: ArrayLike<number>; blendRadius: number }): void {
+	const size = grid.size;
+	const blendSquared = blendRadius * blendRadius;
+	const queue: number[] = [];
+	for (let row = 0; row < size; row += 1) {
+		const y = cellCentre(grid, row);
+		for (let column = 0; column < size; column += 1) {
+			const x = cellCentre(grid, column);
+			const cell = row * size + column;
+			if (x * x + y * y < blendSquared && levels[cell] > elevation[cell]) {
+				elevation[cell] = levels[cell];
+				queue.push(cell);
+			}
+		}
+	}
+	while (queue.length > 0) {
+		const cell = queue.pop() as number;
+		const row = (cell / size) | 0;
+		const column = cell - row * size;
+		for (let rowStep = -1; rowStep <= 1; rowStep += 1) {
+			for (let columnStep = -1; columnStep <= 1; columnStep += 1) {
+				const nextRow = row + rowStep;
+				const nextColumn = column + columnStep;
+				if (nextRow < 0 || nextColumn < 0 || nextRow >= size || nextColumn >= size) continue;
+				const next = nextRow * size + nextColumn;
+				if (levels[next] > elevation[next]) {
+					elevation[next] = levels[next];
+					queue.push(next);
+				}
+			}
+		}
+	}
 }

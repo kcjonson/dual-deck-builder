@@ -3,7 +3,8 @@ import { BIOMES, BIOME_COSTS, Biome } from './Biome';
 import { cellCentre, landGridFor } from './LandGrid';
 import { MapParamSet, MapParams, resolveMapParams } from './MapParams';
 import { validateMapParams } from './ParamValidator';
-import { CLIFF_GRADE, RELIEF, SLOPE_COST, Terrain, TerrainSample, WaterLayer, createTerrainSample, generateTerrain } from './Terrain';
+import { generateLand } from './Land';
+import { CLIFF_GRADE, RELIEF, SLOPE_COST, Terrain, TerrainSample, WaterLayer, createTerrainSample, generateTerrain, terrainFromSurface } from './Terrain';
 import { TOWN_CRATER_GAP, TOWN_SPACING } from './TerrainSites';
 
 /** The terrain stream as the pipeline forks it: `root.fork('map', mapAttempt).fork('terrain', stageAttempt)`. */
@@ -365,6 +366,40 @@ describe('generateTerrain', () => {
 			expect(creased).toBe(0);
 		});
 
+		it('builds the same terrain over land grown elsewhere, and refuses land grown for another map', () => {
+			const set = { seed: 63, radius: 800 };
+			const params = paramsFor(set);
+			const surface = generateLand({ params, rng: terrainStream(params.seed) });
+			const rebuilt = terrainFromSurface({ params, rng: terrainStream(params.seed), surface });
+			const built = terrainFor(set);
+			const a = createTerrainSample();
+			const b = createTerrainSample();
+			gridInside(params.radius, 10).forEach(([x, y]) => expect(rebuilt.sample(x, y, b)).toEqual(built.sample(x, y, a)));
+			expect(rebuilt.towns).toEqual(built.towns);
+			expect(() => terrainFromSurface({ params: paramsFor({ ...set, radius: 900 }), rng: terrainStream(params.seed), surface })).toThrow(RangeError);
+			const short = { ...surface, mountains: new Float64Array(10) };
+			expect(() => terrainFromSurface({ params, rng: terrainStream(params.seed), surface: short })).toThrow(RangeError);
+		});
+
+		it('hands out its land frozen, its arrays the stages\' to read and never write', () => {
+			const { surface } = terrainFor({ seed: 61, radius: 800 });
+			expect(Object.isFrozen(surface)).toBe(true);
+			expect(Object.isFrozen(surface.grid)).toBe(true);
+			expect(Object.isFrozen(surface.drainage)).toBe(true);
+		});
+
+		it('keeps low, wet ground the same share of a map however rugged it is', () => {
+			const mireShare = (ruggedness: number) => {
+				const terrain = terrainFor({ seed: 11, environment: 'floodlands', radius: 800, ruggedness });
+				const points = gridInside(terrain.radius, 40);
+				return points.filter(([x, y]) => terrain.biome(x, y) === 'mire').length / points.length;
+			};
+			const gentle = mireShare(0.15);
+			const rugged = mireShare(0.85);
+			expect(gentle).toBeGreaterThan(0.2);
+			expect(Math.abs(gentle - rugged)).toBeLessThan(0.05);
+		});
+
 		it('reads the eroded land: elevation at a cell centre clear of the ranges is the grid\'s, and the grid and its drainage are there for the water stage', () => {
 			const terrain = terrainFor({ seed: 61, radius: 800 });
 			const { grid, elevation, mountains, drainage } = terrain.surface;
@@ -474,7 +509,7 @@ describe('generateTerrain', () => {
 		// through between samples: only its tapered tips are thin.
 		it.each([
 			['aridity 0.6', { seed: 21, aridity: 0.6 }],
-			['the Rust Belt', { seed: 21, environment: 'rustBelt' }],
+			['the Badlands', { seed: 21, environment: 'badlands' }],
 			['the High Desert', { seed: 21, environment: 'highDesert' }],
 			['a dry, rugged map', { seed: 22, aridity: 0.35, ruggedness: 1 }],
 		] as const)('makes cliffs bands across the slope, not hairlines, in %s', (_name, set) => {
@@ -663,10 +698,10 @@ const PINNED: PinnedSummary[] = [
 			[-521.0830130055547, -475.9570165351033, 58.13928025541827],
 		],
 		samples: [
-			[0.5572741841622871, 0.5953113270958688, 0, -0.008015850571287751, 0.003542740520870676, 'mountains', null, 7.684328777611739],
-			[0.04605232516774133, 0.406714164905049, 1, 0.0001340635431904047, 0.00012919725776780892, 'scrub', null, 1.0023398851393555],
-			[0.016747542359665968, 0.829099322277242, 0.9048120042699062, 0.000004292548624687647, -0.00019662286205274497, 'mire', null, 2.202610830870247],
-			[0.06625969393505104, 0.619337669108953, 0, -0.0005759950779263779, 0.0006703273110962747, 'scrub', null, 1.052724859781296],
+			[0.538998224276135, 0.5997013527942647, 0, -0.006977997719128252, 0.003503712585958265, 'mountains', null, 4.329053621594843],
+			[0.0393764274759362, 0.4053041595062714, 1, 0.00017848472102936, 0.00008694236229541667, 'scrub', null, 1.0011824731000731],
+			[0.015044944984509144, 0.8252026667201403, 0.9048120042699062, -0.00002065279119463914, -0.00015042328272223116, 'mire', null, 2.200691611053072],
+			[0.07009501868459986, 0.6126720524894984, 0, -0.0005370097704476285, 0.0005224739318085673, 'scrub', null, 1.0168407550892715],
 		],
 	},
 	{
@@ -680,10 +715,10 @@ const PINNED: PinnedSummary[] = [
 			[-224.6831512749195, -583.4892020709813, 40.76793423446361],
 		],
 		samples: [
-			[0.0812958992950942, 0, 0.9883711656152957, 0.0017504143648735331, -0.0006227996095579609, 'badlands', null, 2.0329985116634286],
-			[0.5797981579776617, 0, 0, -0.004163197433355256, -0.0003298365361916739, 'mountains', null, 3.6772678381549326],
-			[0.017752838447991078, 0, 1, 0.00008199627963891133, 0.00008497797084543353, 'canyons', null, 1.500941263564745],
-			[0.4407784521174084, 0, 0, -0.0004354333041321495, -0.0001824576710030665, 'mountains', null, 2.515045275073733],
+			[0.0232687563795571, 0.004756744063311934, 0.9883711656152957, 0.0008310533250935231, 0.000255203423628155, 'canyons', null, 1.5226733524974159],
+			[0.5784774280172258, 0, 0, -0.0014903187052089707, 0.0007221456521211325, 'mountains', null, 2.582276325579196],
+			[0.012662426595949978, 0, 1, -0.000032475474725478346, 0.000013072758510598506, 'canyons', null, 1.5000367666042116],
+			[0.3290901236208384, 0, 0, 0.0097252301966407, -0.008183460703685247, 'mountains', 'cliff', Infinity],
 		],
 	},
 	{
@@ -700,10 +735,10 @@ const PINNED: PinnedSummary[] = [
 			[-512.5123083740473, -196.28148622438312, 54.370626888703555],
 		],
 		samples: [
-			[0.025840421569453154, 1, 0.007502314534302878, -0.0003679548306863741, 0.00013271366264403848, 'mire', null, 2.210327747973254],
-			[0.040654360076144945, 0.9279170933937976, 0, -0.0003241120268566452, -0.00020286621035139757, 'mire', null, 2.209868723104744],
-			[0.19130802187245668, 0.9648773606158222, 0.1737213188223352, 0.0119822240846704, -0.003108888694367982, 'mountains', null, 12.84362459772265],
-			[0.0446690491229096, 0.8325547343536027, 0, 0.00002625996469308971, -0.000010252405661277664, 'mire', null, 2.200053642085808],
+			[0.025327316494020983, 1, 0.007502314534302878, 0.00005611358727836297, 0.0002911524606080273, 'mire', null, 2.202637554699861],
+			[0.03769169458824089, 0.9183383750850114, 0, -0.0005056219950456032, -0.0001974093725955641, 'mire', null, 2.2088387218678744],
+			[0.15879628391204983, 0.9700731785432873, 0.1737213188223352, 0.009263156518615062, -0.002387928046190513, 'mountains', null, 5.245248071264319],
+			[0.0378412142773962, 0.8249086007236212, 0, 0.00006514133223657272, -0.00008620753896227685, 'mire', null, 2.200350253988185],
 		],
 	},
 ];

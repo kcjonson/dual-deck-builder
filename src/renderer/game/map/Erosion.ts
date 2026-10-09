@@ -11,11 +11,15 @@ import { DrainageRouter } from './Drainage';
  *   h = (h + dt U + F h_receiver) / (1 + F),  F = dt K sqrt(area) / distance
  *
  * with area in cells and distance in cells (1, or the square root of 2 to a
- * diagonal neighbour). Measuring both in cells makes the steady state the
- * same land at any cell size, since m / n = 0.5 balances the square root of
- * an area against a length. Outlets hold their height. Every step is an add,
- * multiply, divide, compare, or square root, which ECMAScript rounds
- * exactly, so the land erodes to the same bits in every engine.
+ * diagonal neighbour). Measuring both in cells makes stream power's steady
+ * state the same land at any cell size, since m / n = 0.5 balances the
+ * square root of an area against a length. Diffusion doesn't scale that
+ * way: it's a share of the Laplacian per cell, so on cells twice as wide the
+ * same share smooths four times as much per world unit, and a caller
+ * eroding a coarser grid passes a quarter of it. Outlets hold their height.
+ * Every step is an add, multiply, divide, compare, or square root, which
+ * ECMAScript rounds exactly, so the land erodes to the same bits in every
+ * engine.
  *
  * The numbers are docs/AI_TECHNICAL_DECISIONS/terrain-erosion.md's.
  */
@@ -60,17 +64,9 @@ export function erode({ size, elevation, uplift, outlets, iterations, timeStep, 
 	const area = routing.area;
 
 	for (let iteration = 0; iteration < iterations; iteration += 1) {
-		routing.route(elevation, outlets);
-		routing.accumulate();
-		for (let index = 0; index < cells; index += 1) {
-			const cell = order[index];
-			const receiver = receivers[cell];
-			if (receiver < 0) continue;
-			const step = cell - receiver;
-			const rate = step === 1 || step === -1 || step === size || step === -size ? straight : diagonal;
-			const flow = rate * sqrt(area[cell]);
-			elevation[cell] = (elevation[cell] + lift[cell] + flow * elevation[receiver]) / (1 + flow);
-		}
+		// Diffusion first, so each iteration ends on stream power: smoothing
+		// a channel's banks into it would leave pits along it for the next
+		// iteration, and after the last there's no next.
 		if (diffusion > 0) {
 			for (let row = 1; row < size - 1; row += 1) {
 				for (let column = 1; column < size - 1; column += 1) {
@@ -81,6 +77,17 @@ export function erode({ size, elevation, uplift, outlets, iterations, timeStep, 
 			for (let cell = 0; cell < cells; cell += 1) {
 				if (isOutlet[cell] === 0) elevation[cell] += diffusion * laplacian[cell];
 			}
+		}
+		routing.route(elevation, outlets);
+		routing.accumulate();
+		for (let index = 0; index < cells; index += 1) {
+			const cell = order[index];
+			const receiver = receivers[cell];
+			if (receiver < 0) continue;
+			const step = cell - receiver;
+			const rate = step === 1 || step === -1 || step === size || step === -size ? straight : diagonal;
+			const flow = rate * sqrt(area[cell]);
+			elevation[cell] = (elevation[cell] + lift[cell] + flow * elevation[receiver]) / (1 + flow);
 		}
 	}
 	return routing;

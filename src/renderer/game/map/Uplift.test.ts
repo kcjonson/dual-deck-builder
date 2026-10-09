@@ -1,7 +1,7 @@
 import { Rng } from '../core/Rng';
 import { startRadii } from './Land';
 import { GridSampler, LandGrid, cellCentre, landGridFor } from './LandGrid';
-import { UpliftField, buildUplift, quantileAbove } from './Uplift';
+import { UpliftField, buildUplift } from './Uplift';
 
 const RADIUS = 600;
 const GRID = landGridFor(RADIUS);
@@ -106,16 +106,5 @@ describe('buildUplift', () => {
 		expect(Array.from(again.uplift)).toEqual(Array.from(first.uplift));
 		expect(again.grain).toEqual(first.grain);
 		expect(Array.from(other.uplift)).not.toEqual(Array.from(first.uplift));
-	});
-});
-
-describe('quantileAbove', () => {
-	it('is the value the share of values lies at or above, infinite at the ends', () => {
-		const values = [5, 1, 4, 2, 3, 0, 9, 8, 7, 6];
-		expect(quantileAbove(values, 0.3)).toBe(7);
-		expect(values.filter((value) => value >= quantileAbove(values, 0.3))).toHaveLength(3);
-		expect(quantileAbove(values, 0)).toBe(Infinity);
-		expect(quantileAbove(values, 1)).toBe(-Infinity);
-		expect(quantileAbove([], 0.5)).toBe(Infinity);
 	});
 });

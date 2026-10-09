@@ -2,7 +2,7 @@
 
 Date: 2026-10-07. Code: `src/renderer/game/map/` (`Noise.ts`, `Terrain.ts`, `Biome.ts`, `TerrainSites.ts`), timed by `scripts/terrain-bench.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 1. Terrain. Follows [seeded-prng.md](./seeded-prng.md) and [map-params.md](./map-params.md).
 
-The land's relief, the plains, ranges, ridges, canyons, and badlands layers this record built elevation from, was replaced on 2026-10-09 by uplift and erosion: [terrain-erosion.md](./terrain-erosion.md). What's here still holds for the noise, moisture, contamination, the biome thresholds, the start's blends, hotspots, towns, rough country, cliffs, cost, and the water seam, as noted where the eroded land changed them.
+The land's relief, the plains, ranges, ridges, canyons, and badlands layers this record built elevation from, gave way to uplift and erosion: [terrain-erosion.md](./terrain-erosion.md). What's here still holds for the noise, moisture, contamination, the biome thresholds, the start's blends, hotspots, towns, rough country, cliffs, cost, and the water seam, as noted where the eroded land changed them.
 
 ## Context
 
@@ -30,7 +30,7 @@ Feature sizes are world units, not shares of the radius, so a bigger map has mor
 | Layer | Noise | Shaped by |
 | --- | --- | --- |
 | Roughness | 2 octaves, 360 units: rough country is where it's above its calibrated floor, decided per cell of a 16-unit lattice | `ruggedness`: rough country is 10% to 35% of the land past the relief radius |
-| Moisture | 2 octaves, 650 units, spread 0.55 around the map's level, plus 0.5 per unit of elevation below 0.06, about the plains' on the eroded land, minus above | `aridity` |
+| Moisture | 2 octaves, 650 units, spread 0.55 around the map's level, plus 0.5 per unit of elevation below the map's lowland level, minus above | `aridity` |
 | Contamination | 2 octaves, 450 units; hotspot plumes combine over it as 1 - (1 - c)(1 - p) | `contamination`, the toxic share; `hotspots` |
 
 Each threshold behind a share (rough country's floor, toxic ground, and on the eroded land the range mask, canyons, and badlands) is a quantile of its layer over a lattice of the disc, taken past the radius where the feature fades in, so `contamination` 0.3 means that share of the country beyond the metro's surroundings on every map, whatever the noise drew. Shares of 0 and 1 are infinite thresholds: none and all.
@@ -45,7 +45,7 @@ Thresholds on the fields, first match wins:
 | --- | --- |
 | Mountains | the range mask is 0.5 or more: range country, ridges and valleys alike |
 | Canyons | the canyon field is 0.5 or more: deep in a valley cut into dry land |
-| Toxic mire | elevation under 0.05 (0.42 on the field model's scale), and moisture plus 0.25 x contamination is 0.75 or more |
+| Toxic mire | low ground, under the map's lowland level (terrain-erosion.md), and moisture plus 0.25 x contamination is 0.75 or more |
 | Badlands | the badlands field is 0.5 or more and moisture under 0.6 |
 | Barren desert | moisture under 0.3 |
 | Scrub | the middling rest |
@@ -67,7 +67,7 @@ Both are Poisson-disc samples: candidates drawn uniformly, each kept only if it'
 
 Elevation carries its exact gradient: the eroded grid's bicubic gradient, plus range country's fine relief through the chain rule (terrain-erosion.md). Forward differences took two more elevation samples per slope, which made cost and the full sample three times as dear as elevation. A test holds the gradient to central differences on a round-numbered grid over three maps, where one-sided slopes that disagree would mark a crease, and allows none.
 
-- Grade is the gradient's size times `RELIEF`, 150: rise over run with elevation 1 standing 150 world units high.
+- Grade is the gradient's size times `RELIEF`: rise over run, with elevation 1 standing `RELIEF` world units high (terrain-erosion.md has its value).
 - Obstacles, in precedence: a crater, water (from the water stage), a cliff: grade 1 or steeper in rough country. Steep ground outside rough country isn't a cliff, only costly.
 - Travel cost per world unit: the biome's base cost plus 3 x (grade / 1)^2, so 1 on flat scrub and Infinity on impassable ground; steep ground outside rough country costs more than 3 on top. Base costs: scrub 1, desert 1.25, canyons 1.5, badlands 1.8, mire 2.2, mountains 2.5. Growth tunes these.
 - The cliff test compares squared gradients, so no branch depends on a square root. `grade` takes one, for display.
@@ -82,7 +82,7 @@ Cliffs stand only in rough country, with no exceptions:
 - Rough country is where the roughness layer is above a floor calibrated to 10% to 35% of the land past the relief radius, by `ruggedness`. Well under half, an excursion set of a smooth layer breaks into islands, and the land around them connects across the map.
 - It's decided per cell of a 16-unit lattice, from the layer at the cell's centre, and a cell counts only if all of it lies past the relief radius. Then a flood fill from the metro over the cells that aren't rough, wholly inside the disc and clear of craters, is exact: every cell it reaches joins the metro through ground no cliff can stand on. Towns are placed only in reached cells, and `surelyReachable(x, y)` reads the fill. It's sufficient only: false means not proven, not a pocket. It reads false on all rough ground, where roads can often still find a way, on open ground rough cells ring off, and in cells at the rim or touching a crater, and it ignores water. On the field model it was false for 15% to 33% of the ground a 2-unit flood fill over `impassable` reaches, most of that rough. So the Map Lab's reach readout is a fine flood fill over `impassable`, not this.
 
-Nothing guarantees how much of the edge the start reaches: rough islands could close into a ring round the metro, or one can lie across the outer band and wall a stretch of it off against the rim. terrain-erosion.md measures it on the eroded land, where 20 seeds at the steepest corner keep at least 95% of the outer band's passable ground in reach. A test holds the first two seeds of each of three sets above 80% on a 4-unit grid, with every town reached.
+Nothing guarantees how much of the edge the start reaches: rough islands could close into a ring round the metro, or one can lie across the outer band and wall a stretch of it off against the rim. terrain-erosion.md measures it on the eroded land. A test holds the first two seeds of each of three sets above 80% on a 4-unit grid, with every town reached.
 
 ## The water seam
 

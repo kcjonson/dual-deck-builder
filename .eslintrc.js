@@ -19,6 +19,9 @@ const randomProperties = [
 	// import of Node's crypto all match.
 	...cryptoRandom.map((property) => ({ property, message: randomMessage })),
 ];
+const approximatedMessage = 'Map generation regrows on load in any engine, so it uses only exactly rounded arithmetic: adds, multiplies, divides, square roots, and floors (terrain-erosion.md, Determinism).';
+const approximatedMath = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'exp', 'expm1', 'log', 'log1p', 'log2', 'log10', 'pow', 'hypot', 'cbrt', 'sinh', 'cosh', 'tanh']
+	.map((property) => ({ object: 'Math', property, message: approximatedMessage }));
 // The game folders under the timer ban. The random ban covers them too, so
 // they carry both property lists in the last override below.
 const timedGameCode = [
@@ -105,6 +108,25 @@ module.exports = {
 			excludedFiles: ['**/*.test.ts'],
 			rules: {
 				'no-restricted-properties': ['error', ...timerProperties, ...randomProperties],
+			},
+		},
+		{
+			// Seeds and determinism (Area Map Generation): the map regrows its
+			// land on load, so everything generation computes has to come out
+			// to the same bits in every engine. ECMAScript rounds adds,
+			// multiplies, divides, and square roots exactly, but leaves these
+			// functions, and the ** operator, to each engine's approximation
+			// (terrain-erosion.md, Determinism). Tests check generation against
+			// them freely, so they're left out. The random list rides along,
+			// since options replace rather than merge.
+			files: ['src/renderer/game/map/**/*.ts'],
+			excludedFiles: ['**/*.test.ts'],
+			rules: {
+				'no-restricted-properties': ['error', ...randomProperties, ...approximatedMath],
+				'no-restricted-syntax': ['error',
+					{ selector: "BinaryExpression[operator='**']", message: approximatedMessage },
+					{ selector: "AssignmentExpression[operator='**=']", message: approximatedMessage },
+				],
 			},
 		},
 	],

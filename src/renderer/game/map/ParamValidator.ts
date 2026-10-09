@@ -115,9 +115,12 @@ export function validateMapParamSet(set: MapParamSet): ValidatedParamSet {
  * (strongholds + 2)". A seed outside uint32 is "wrapped"; a value that
  * wasn't a finite number, or wasn't a number at all, is "set".
  */
+/** How many values a uint32 holds. */
+const UINT32_RANGE = 4294967296;
+
 export function describeClamp({ param, from, to, reason }: ParamClamp): string {
 	if (typeof from !== 'number' || typeof to !== 'number' || !Number.isFinite(from)) return `${param} set to ${to} (${reason})`;
 	const whole = Math.trunc(from);
-	const verb = param === 'seed' && (whole < 0 || whole >= 2 ** 32) ? 'wrapped' : to > from ? 'raised' : 'lowered';
+	const verb = param === 'seed' && (whole < 0 || whole >= UINT32_RANGE) ? 'wrapped' : to > from ? 'raised' : 'lowered';
 	return `${param} ${verb} to ${to} (${reason})`;
 }

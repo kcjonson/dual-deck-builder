@@ -1,5 +1,5 @@
 import { Rng } from '../core/Rng';
-import { Drainage, DrainageRouter, FLOOD_RISE, routeDrainage } from './Drainage';
+import { Drainage, DrainageRouter, FLOOD_RISE, accumulateArea, routeDrainage } from './Drainage';
 
 /** Heights for a square grid from a function of column and row, row 0 the southern edge. */
 function heights(size: number, height: (column: number, row: number) => number): Float64Array {
@@ -28,7 +28,34 @@ function outletOf(drainage: Drainage, cell: number): number {
 	return -1;
 }
 
-/** Checks every drainage keeps: receivers are neighbours, levels fall to them, the order is downstream first, and every cell reaches an outlet. */
+/**
+ * The neighbour a cell falls to fastest per unit of distance on the levels,
+ * ties to the lower index: what the routing has to pick.
+ */
+function steepestBelow({ size, levels }: Drainage, cell: number): number {
+	const row = Math.floor(cell / size);
+	const column = cell - row * size;
+	let best = -1;
+	let steepest = 0;
+	for (let rowStep = -1; rowStep <= 1; rowStep += 1) {
+		for (let columnStep = -1; columnStep <= 1; columnStep += 1) {
+			const nextRow = row + rowStep;
+			const nextColumn = column + columnStep;
+			if ((rowStep === 0 && columnStep === 0) || nextRow < 0 || nextColumn < 0 || nextRow >= size || nextColumn >= size) continue;
+			const next = nextRow * size + nextColumn;
+			const drop = levels[cell] - levels[next];
+			if (!(drop > 0)) continue;
+			const fall = rowStep !== 0 && columnStep !== 0 ? drop * Math.SQRT1_2 : drop;
+			if (fall > steepest || (fall === steepest && next < best)) {
+				steepest = fall;
+				best = next;
+			}
+		}
+	}
+	return best;
+}
+
+/** Checks every drainage keeps: receivers are the steepest neighbour below, levels fall to them, the order is downstream first, and every cell reaches an outlet. */
 function expectDrainageShape(drainage: Drainage, elevation: Float64Array): void {
 	const { size, receivers, levels, order, outlets } = drainage;
 	const cells = size * size;
@@ -46,7 +73,8 @@ function expectDrainageShape(drainage: Drainage, elevation: Float64Array): void 
 			continue;
 		}
 		expect(neighbours(size, cell, receiver)).toBe(true);
-		expect(levels[cell]).toBeGreaterThanOrEqual(levels[receiver] + FLOOD_RISE);
+		expect(levels[cell]).toBeGreaterThan(levels[receiver]);
+		expect(receiver).toBe(steepestBelow(drainage, cell));
 		expect(place[cell]).toBeGreaterThan(place[receiver]);
 		expect(outlets).toContain(outletOf(drainage, cell));
 	}
@@ -138,6 +166,33 @@ describe('routeDrainage', () => {
 		});
 	});
 
+	it.each([
+		['10 degrees north of east drains east', 10, 1],
+		['35 degrees north of east drains north-east', 35, 1 + 12],
+		['80 degrees north of east drains north', 80, 12],
+		['55 degrees north of west drains north-west', 125, 12 - 1],
+	] as const)('runs straight down a slope, not to whichever neighbour the flood reached first: a plane falling %s', (_name, degrees, step) => {
+		// Heights falling toward (cos, sin) of the angle, the outlets along the low edges.
+		const size = 12;
+		const radians = degrees * Math.PI / 180;
+		const fallX = Math.cos(radians);
+		const fallY = Math.sin(radians);
+		const elevation = heights(size, (column, row) => 100 - fallX * column - fallY * row);
+		const outlets: number[] = [];
+		for (let index = 0; index < size; index += 1) {
+			outlets.push((size - 1) * size + index);
+			if (index < size - 1) outlets.push(index * size + (fallX > 0 ? size - 1 : 0));
+		}
+		const drainage = routeDrainage({ size, elevation, outlets });
+		expectDrainageShape(drainage, elevation);
+		for (let row = 1; row < size - 2; row += 1) {
+			for (let column = 2; column < size - 2; column += 1) {
+				const cell = row * size + column;
+				expect(drainage.receivers[cell] - cell).toBe(step);
+			}
+		}
+	});
+
 	it('refuses no outlets, an outlet listed twice or off the grid, and heights that do not fill it', () => {
 		const flat = new Float64Array(9);
 		expect(() => routeDrainage({ size: 3, elevation: flat, outlets: [] })).toThrow(RangeError);
@@ -145,6 +200,22 @@ describe('routeDrainage', () => {
 		expect(() => routeDrainage({ size: 3, elevation: flat, outlets: [9] })).toThrow(RangeError);
 		expect(() => routeDrainage({ size: 3, elevation: new Float64Array(8), outlets: [0] })).toThrow(RangeError);
 		expect(() => routeDrainage({ size: 3, elevation: flat, outlets: [0], rain: new Float64Array(4) })).toThrow(RangeError);
+		expect(() => routeDrainage({ size: 3, elevation: flat, outlets: [0], router: new DrainageRouter({ size: 4 }) })).toThrow(RangeError);
+	});
+});
+
+describe('accumulateArea', () => {
+	it('weighs a routing already made by rain, into a new array, leaving the drainage alone', () => {
+		const rng = new Rng({ seed: 17 });
+		const elevation = heights(9, () => rng.float());
+		const drainage = routeDrainage({ size: 9, elevation, outlets: [0, 80] });
+		const before = Array.from(drainage.area);
+		const rain = heights(9, (column, row) => 0.5 + 0.1 * (column + row));
+		const area = accumulateArea({ drainage, rain });
+		expect(Array.from(drainage.area)).toEqual(before);
+		expect(Array.from(area)).toEqual(Array.from(routeDrainage({ size: 9, elevation, outlets: [0, 80], rain }).area));
+		expect(Array.from(accumulateArea({ drainage }))).toEqual(before);
+		expect(() => accumulateArea({ drainage, rain: new Float64Array(5) })).toThrow(RangeError);
 	});
 });
 

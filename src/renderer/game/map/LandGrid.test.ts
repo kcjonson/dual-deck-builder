@@ -110,6 +110,20 @@ describe('GridSampler', () => {
 		expect(sampler.bilinear(-1000, -1000)).toBe(sampler.bilinear(cellCentre(grid, 0), cellCentre(grid, 0)));
 	});
 
+	it('reads a coordinate that isn\'t a number as the low edge, never as NaN', () => {
+		const values = valuesOf(grid, (x, y) => 2 + x / 100 + y / 50);
+		const sampler = new GridSampler({ grid, values });
+		const edgeX = sampler.bicubic(-1000, 7);
+		expect(sampler.bicubic(NaN, 7)).toBe(edgeX);
+		expect(sampler.gradientX).toBe(0);
+		expect(Number.isFinite(sampler.gradientY)).toBe(true);
+		expect(Number.isFinite(sampler.bicubic(NaN, NaN))).toBe(true);
+		expect(sampler.bilinear(NaN, 3)).toBe(sampler.bilinear(-1000, 3));
+		expect(Number.isFinite(sampler.bilinear(NaN, NaN))).toBe(true);
+		expect(cellAt(grid, NaN, 0)).toBe(-1);
+		expect(cellAt(grid, 0, NaN)).toBe(-1);
+	});
+
 	it('refuses values that do not fill the grid, and grids too small to sample bicubic', () => {
 		expect(() => new GridSampler({ grid, values: new Float64Array(10) })).toThrow(RangeError);
 		expect(() => new GridSampler({ grid: gridOf(3), values: new Float64Array(9) })).toThrow(RangeError);

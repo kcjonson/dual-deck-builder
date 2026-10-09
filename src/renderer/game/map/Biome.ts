@@ -19,7 +19,13 @@ export const BIOME_LABELS: { readonly [Name in Biome]: string } = {
 
 /** The fields a biome is read from, each 0 to 1 (see `Terrain`). */
 export interface BiomeFields {
-	readonly elevation: number;
+	/**
+	 * Low ground: 1 well below the map's lowland level, 0.5 at it, 0 well above,
+	 * measured for each map's own land, so how much of it is low doesn't follow
+	 * how tall the land stands. A stand-in until the water stage (DDB-289)
+	 * decides mire from its rivers and lakes.
+	 */
+	readonly lowland: number;
 	readonly moisture: number;
 	readonly contamination: number;
 	/** Mountain ranges: 1 in range country, its ridges and valleys alike. */
@@ -43,8 +49,8 @@ export const BIOME_THRESHOLDS = {
 	mireWetness: 0.75,
 	/** ...counting contamination at this weight... */
 	mireContamination: 0.25,
-	/** ...on ground lower than this: the plains on most maps run about 0.03 to 0.1. */
-	mireElevation: 0.05,
+	/** ...on ground at least this low: below the map's lowland level. */
+	mireLowland: 0.5,
 	/** Badlands at or above this is badlands... */
 	badlands: 0.5,
 	/** ...unless it's wetter than this. */
@@ -61,7 +67,7 @@ export function classifyBiome(fields: BiomeFields): Biome {
 	const thresholds = BIOME_THRESHOLDS;
 	if (fields.mountains >= thresholds.mountains) return 'mountains';
 	if (fields.canyons >= thresholds.canyons) return 'canyons';
-	if (fields.elevation < thresholds.mireElevation
+	if (fields.lowland >= thresholds.mireLowland
 		&& fields.moisture + thresholds.mireContamination * fields.contamination >= thresholds.mireWetness) return 'mire';
 	if (fields.badlands >= thresholds.badlands && fields.moisture < thresholds.badlandsMoisture) return 'badlands';
 	if (fields.moisture < thresholds.desertMoisture) return 'desert';
