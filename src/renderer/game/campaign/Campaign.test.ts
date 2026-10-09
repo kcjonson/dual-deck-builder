@@ -8,7 +8,7 @@ import { historyEntry, historyToJson } from './CampaignHistory';
 import { cardCount, totalCards } from './CardCounts';
 import { DECK_RULES } from './DeckRules';
 import { DriverRecord } from './DriverRecord';
-import campaignV3 from './__fixtures__/campaign-v3.json';
+import { CAMPAIGN_FIXTURE } from './__fixtures__/storeFixtures';
 import { stressCampaign } from './__fixtures__/stressCampaign';
 
 const SEED = 20261006;
@@ -26,8 +26,8 @@ const newCampaign = (options: Partial<CampaignOptions> = {}): Campaign => new Ca
 /** A save and a load: through JSON text and back. */
 const reload = (campaign: Campaign): Campaign => Campaign.fromJSON(JSON.parse(JSON.stringify(campaign)));
 
-/** The version 3 fixture as a fresh object to damage. */
-const savedCampaign = (): CampaignJson => JSON.parse(JSON.stringify(campaignV3));
+/** The fixture as a fresh object to damage. */
+const savedCampaign = (): CampaignJson => JSON.parse(JSON.stringify(CAMPAIGN_FIXTURE));
 
 const record = (id: string): DriverRecord => new DriverRecord({ id, archetype: 'mechanic', name: 'Mechanic 1' });
 
@@ -51,8 +51,8 @@ const keyPaths = (value: unknown): string[] => {
 	return [...paths].sort();
 };
 
-/** The version 3 save format, pinned: a change here is a change of format, which bumps `CAMPAIGN_SCHEMA_VERSION`. */
-const SAVE_FORMAT_V3 = {
+/** The save format at the version the test below pins: a change here is a change of format, which bumps `CAMPAIGN_SCHEMA_VERSION`. */
+const SAVE_FORMAT = {
 	campaign: [
 		'convoy', 'convoy.escorts', 'convoy.escorts[]', 'convoy.escorts[].armor', 'convoy.escorts[].baseSpeed', 'convoy.escorts[].escort',
 		'convoy.escorts[].escort.dividend', 'convoy.escorts[].escort.dividend.amount', 'convoy.escorts[].escort.dividend.kind', 'convoy.escorts[].escort.evade',
@@ -812,10 +812,10 @@ describe('Campaign', () => {
 			expect(JSON.stringify(second)).toBe(JSON.stringify(first));
 		});
 
-		it('reads the version 3 fixture and writes it back the same', () => {
-			const campaign = Campaign.fromJSON(campaignV3);
+		it('reads the fixture and writes it back the same', () => {
+			const campaign = Campaign.fromJSON(CAMPAIGN_FIXTURE);
 
-			expect(campaign.toJSON()).toEqual(campaignV3);
+			expect(campaign.toJSON()).toEqual(CAMPAIGN_FIXTURE);
 			expect(campaign.drivers.map(driver => driver.status)).toEqual(['ready', 'dead', 'injured', 'missing', 'ready']);
 			expect(campaign.convoy.escorts.map(escort => [escort.escort?.type, escort.convoyId])).toEqual([['fuel_hauler', 'escort-1'], ['outrider', 'escort-3']]);
 			expect(campaign.recruitDriver({ archetype: 'mechanic' }).id).toBe('driver-6');
@@ -825,16 +825,16 @@ describe('Campaign', () => {
 		});
 
 		it('holds the save format to the version it\'s stamped with', () => {
-			const campaign = Campaign.fromJSON(campaignV3);
+			const campaign = Campaign.fromJSON(CAMPAIGN_FIXTURE);
 			const format = {
-				campaign: keyPaths(campaignV3),
+				campaign: keyPaths(CAMPAIGN_FIXTURE),
 				historyEntry: Object.keys(historyEntry({ campaign, ending: 'won' })).sort(),
 				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
 			};
 
 			expect(CAMPAIGN_SCHEMA_VERSION).toBe(3);
 			try {
-				expect(format).toEqual(SAVE_FORMAT_V3);
+				expect(format).toEqual(SAVE_FORMAT);
 			} catch (error) {
 				throw new Error(`format changed: bump CAMPAIGN_SCHEMA_VERSION and re-pin\n${(error as Error).message}`);
 			}
@@ -877,7 +877,7 @@ describe('Campaign', () => {
 
 			it('fails loudly on a save that isn\'t an object', () => {
 				expect(() => Campaign.fromJSON(null)).toThrow('Campaign must be an object, got null');
-				expect(() => Campaign.fromJSON(JSON.stringify(campaignV3))).toThrow(/^Campaign must be an object, got "\{/);
+				expect(() => Campaign.fromJSON(JSON.stringify(CAMPAIGN_FIXTURE))).toThrow(/^Campaign must be an object, got "\{/);
 			});
 		});
 
@@ -894,7 +894,7 @@ describe('Campaign', () => {
 			it('loads a save with nothing to repair without a word', () => {
 				const onWarning = jest.fn();
 
-				Campaign.fromJSON(campaignV3, { onWarning });
+				Campaign.fromJSON(CAMPAIGN_FIXTURE, { onWarning });
 
 				expect(onWarning).not.toHaveBeenCalled();
 			});
@@ -921,6 +921,37 @@ describe('Campaign', () => {
 
 				expect('weather' in campaign.mapParams).toBe(false);
 				expect(warnings).toEqual(['Campaign.mapParams.weather isn\'t a map parameter; dropped it']);
+			});
+
+			it('repairs a Rust Belt map\'s params from the table before the realistic map: new ones from Rust Belt, old ones dropped', () => {
+				const { campaign, warnings } = loadDrifted(params => {
+					for (const key of Object.keys(params)) delete params[key];
+					Object.assign(params, {
+						seed: SEED, environment: 'rustBelt',
+						radius: 1000, aridity: 0.55, mountainCoverage: 0.15, ruggedness: 0.35, rivers: 3, riverMeander: 0.5, lakes: 2,
+						contamination: 0.45, hotspots: 4, metroSize: 0.18, towns: 8,
+						highways: 6, highwaySeparation: 35, curviness: 0.5, branchiness: 0.6, trailShare: 0.35, roadClearance: 24,
+						strongholds: 4, poiDensity: 1, routesTarget: 3, startingReveal: 1, stopDensity: 1, dangerCurve: 1, driverFinds: 2,
+						daylightHours: 14, travelPace: 1,
+						sceneryDensity: 0.6, streetGrids: 0.85, countyRoads: 0.65, brokenHighways: 3, railLines: 2, farmTracks: 0.4
+					});
+				});
+
+				expect(campaign.mapParams).toEqual(resolveMapParams({ seed: SEED, environment: 'rustBelt' }).params);
+				expect(warnings).toEqual([
+					'Campaign.mapParams.riverDensity was missing; took 0.5, the rustBelt default',
+					'Campaign.mapParams.villages was missing; took 26, the rustBelt default',
+					'Campaign.mapParams.roadDensity was missing; took 0.6, the rustBelt default',
+					'Campaign.mapParams.loops was missing; took 0.6, the rustBelt default',
+					'Campaign.mapParams.routeSplit was missing; took 0.5, the rustBelt default',
+					'Campaign.mapParams.dressing was missing; took 0.6, the rustBelt default',
+					'Campaign.mapParams.branchiness isn\'t a map parameter; dropped it',
+					'Campaign.mapParams.roadClearance isn\'t a map parameter; dropped it',
+					'Campaign.mapParams.sceneryDensity isn\'t a map parameter; dropped it',
+					'Campaign.mapParams.countyRoads isn\'t a map parameter; dropped it',
+					'Campaign.mapParams.farmTracks isn\'t a map parameter; dropped it'
+				]);
+				expect(Object.keys(reload(campaign).toJSON().mapParams)).toEqual(Object.keys(CAMPAIGN_FIXTURE.mapParams));
 			});
 
 			it('keeps a value today\'s ranges would clamp, since its map was made with it, and says so', () => {
@@ -965,7 +996,7 @@ describe('Campaign', () => {
 					params.highways = 12;
 				});
 
-				expect(campaign.toJSON().mapParams).toEqual({ ...campaignV3.mapParams, radius: 1000, highways: 12 });
+				expect(campaign.toJSON().mapParams).toEqual({ ...CAMPAIGN_FIXTURE.mapParams, radius: 1000, highways: 12 });
 				expect(reload(campaign).toJSON()).toEqual(campaign.toJSON());
 			});
 
@@ -999,12 +1030,12 @@ describe('Campaign', () => {
 		const campaign = campaignInProgress();
 
 		expect(JSON.parse(JSON.stringify(campaign))).toEqual(campaign.toJSON());
-		expect(Object.keys(campaign.toJSON())).toEqual(Object.keys(campaignV3));
+		expect(Object.keys(campaign.toJSON())).toEqual(Object.keys(CAMPAIGN_FIXTURE));
 	});
 
 	it.each([
 		['a campaign in progress', campaignInProgress],
-		['the version 3 fixture', () => Campaign.fromJSON(campaignV3)],
+		['the fixture', () => Campaign.fromJSON(CAMPAIGN_FIXTURE)],
 		['a stress campaign', stressCampaign]
 	])('writes the same save text for %s without toJSON\'s copies', (_label, build) => {
 		const campaign = build();

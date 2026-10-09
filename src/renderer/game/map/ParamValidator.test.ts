@@ -23,13 +23,42 @@ describe('validateMapParams', () => {
 	});
 
 	it('rounds whole-number parameters and leaves fractional ones be', () => {
-		const result = validateMapParams(params({ rivers: 2.4, lakes: 2.5, aridity: 0.333, highways: 12.6 }));
-		expect(result.params).toMatchObject({ rivers: 2, lakes: 3, aridity: 0.333, highways: 9 });
+		const result = validateMapParams(params({ rivers: 2.4, lakes: 2.5, aridity: 0.333, villages: 40.6, highways: 12.6, loops: 0.333 }));
+		expect(result.params).toMatchObject({ rivers: 2, lakes: 3, aridity: 0.333, villages: 40, highways: 9, loops: 0.333 });
 		expect(result.clamps).toEqual([
 			{ param: 'rivers', from: 2.4, to: 2, reason: 'whole number' },
 			{ param: 'lakes', from: 2.5, to: 3, reason: 'whole number' },
+			{ param: 'villages', from: 40.6, to: 40, reason: 'tuning range 0 to 40' },
 			{ param: 'highways', from: 12.6, to: 9, reason: 'tuning range 3 to 9' },
 		]);
+	});
+
+	it('clamps the realistic map\'s new parameters into their tuning ranges', () => {
+		const result = validateMapParams(params({ riverDensity: 1.2, villages: -3, roadDensity: -0.1, loops: 2, routeSplit: 0.1 }));
+		expect(result.params).toMatchObject({ riverDensity: 1, villages: 0, roadDensity: 0, loops: 1, routeSplit: 0.3 });
+		expect(result.clamps.map(describeClamp)).toEqual([
+			'riverDensity lowered to 1 (tuning range 0 to 1)',
+			'villages raised to 0 (tuning range 0 to 40)',
+			'roadDensity raised to 0 (tuning range 0 to 1)',
+			'loops lowered to 1 (tuning range 0 to 1)',
+			'routeSplit raised to 0.3 (tuning range 0.3 to 0.7)',
+		]);
+	});
+
+	// Only strongholds, highways, and separation constrain each other. Rivers 0
+	// is a closed basin, which still has streams and can hold reservoirs.
+	it('takes every corner of the water, settlement, road, and route parameters\' ranges together', () => {
+		const names = ['rivers', 'riverDensity', 'lakes', 'towns', 'villages', 'roadDensity', 'loops', 'brokenHighways', 'routeSplit'] as const;
+		const failures: string[] = [];
+		for (let corner = 0; corner < 2 ** names.length; corner += 1) {
+			const values: Partial<MapParams> = {};
+			names.forEach((name, bit) => {
+				const { tuning } = MAP_PARAMETERS[name];
+				values[name] = corner & (1 << bit) ? tuning.max : tuning.min;
+			});
+			if (validateMapParams(params(values)).clamps.length > 0) failures.push(JSON.stringify(values));
+		}
+		expect(failures).toEqual([]);
 	});
 
 	it('puts the environment\'s default in place of a value that isn\'t a number', () => {
@@ -87,7 +116,7 @@ describe('validateMapParams', () => {
 			[9, 60, 40],
 			[8, 50, 45],
 			[7, 60, 51],
-		])('fits %p highways round the metro by lowering separation %p to %p', (highways, highwaySeparation, to) => {
+		])('fits %p highway exits round the rim by lowering separation %p to %p', (highways, highwaySeparation, to) => {
 			const result = validateMapParams(params({ highways, highwaySeparation }));
 			expect(result.params.highwaySeparation).toBe(to);
 			expect(result.clamps).toEqual([{ param: 'highwaySeparation', from: highwaySeparation, to, reason: '360 / highways' }]);

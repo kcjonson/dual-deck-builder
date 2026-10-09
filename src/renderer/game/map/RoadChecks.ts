@@ -30,7 +30,7 @@ export interface RoadViolation {
 export interface RoadCheckOptions {
 	network: RoadNetwork;
 	terrain: Pick<Terrain, 'radius' | 'hotspots' | 'impassable'>;
-	/** `roadClearance`. */
+	/** What growth kept: its `clearance`. */
 	clearance: number;
 	/** Stops after this many violations. */
 	limit?: number;
