@@ -95,7 +95,7 @@ describe('CombatScreen: a campaign fight (DDB-286)', () => {
 		campaign.startRunDecks({ seats, escorts: [outrider] });
 		const fight = startCampaignFight({
 			campaign,
-			party: { seats, escorts: [outrider], cargo: { ...NO_RESOURCES, scrap: 73, fuel: 9 }, cargoCards: NO_CARDS },
+			party: { seats, escorts: [outrider], cargo: { ...NO_RESOURCES, scrap: 73, fuel: 9 }, cargoCards: NO_CARDS, run: campaign.currentRun ?? 'none' },
 			enemyTeam: raiderTeam(),
 			rng: new Rng({ seed: SEED }),
 			cards: CardLoader.getInstance().getAllCardsAsMap()

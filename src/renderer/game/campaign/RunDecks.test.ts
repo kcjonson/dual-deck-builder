@@ -115,6 +115,21 @@ describe('Run decks (DDB-315)', () => {
 			expect(campaign.cardsOwned).toEqual(owned);
 		});
 
+		it('hand the run the next id, which the campaign saves and never hands out again (DDB-316)', async () => {
+			const { campaign, warrior, interceptor } = crew();
+			expect([campaign.currentRun, campaign.nextRunNumber]).toEqual([null, 1]);
+
+			campaign.startRunDecks({ seats: [warrior, interceptor] });
+			expect([campaign.currentRun, campaign.nextRunNumber]).toEqual(['run-1', 2]);
+			campaign.unwindRunDecks();
+			expect(campaign.currentRun).toBeNull();
+			campaign.startRunDecks({ seats: [interceptor, warrior] });
+
+			expect(campaign.currentRun).toBe('run-2');
+			expect((await throughStore(campaign)).currentRun).toBe('run-2');
+			expect(() => campaign.set({ nextRunNumber: 2 })).toThrow("Campaign.nextRunNumber can't go back, from 3 to 2");
+		});
+
 		it('bring the signature card of each escort that came along into Driver 1\'s run deck, locked there, outside the limits, and not the compound\'s', () => {
 			const { campaign, warrior, interceptor, hauler, truck, pilotCar } = crew();
 			const owned = campaign.cardsOwned;

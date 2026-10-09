@@ -53,7 +53,7 @@ Measured, with the save as compact JSON:
 
 | | Characters |
 | --- | --- |
-| The version 4 fixture's campaign, with a run out | 3,491 |
+| The version 5 fixture's campaign, with a run out | 3,509 |
 | A stress campaign's save (`__fixtures__/stressCampaign.ts`) | 360,495 |
 | its 2,000 log lines | 222,351 |
 | its stand-in gameplay map, at the spec's sizes | 117,644 |
