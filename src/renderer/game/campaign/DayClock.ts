@@ -1,6 +1,6 @@
 import { readInteger } from '../core/JsonReader';
 import { Campaign, CampaignData, Resources } from './Campaign';
-import { CampaignEnd, fallMessage, fallOf, refuseOver } from './CampaignEnd';
+import { CampaignEnd, fallOf, refuseOver, stepLog } from './CampaignEnd';
 import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES, UpkeepResource, readCompoundRules, upkeepRecord } from './CompoundRules';
 import { DriverRecord } from './DriverRecord';
 import { healingChanges } from './Infirmary';
@@ -132,9 +132,7 @@ export function endDay({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS
 
 	healing.forEach(({ driver, changes }) => driver.set(changes));
 	// Read after the records are stored, so a line a record's listener logged stays in.
-	const lines = [unitsShort > 0 ? shortfallMessage({ shortfall, peopleLost }) : null, end === null ? null : fallMessage(end)]
-		.filter((line): line is string => line !== null);
-	const log = lines.length === 0 ? campaign.log : [...campaign.log, ...lines.map(message => ({ day, message }))];
+	const log = stepLog({ log: campaign.log, day, lines: [unitsShort > 0 ? shortfallMessage({ shortfall, peopleLost }) : null], end });
 	campaign.set({ day: nextDay, resources: stores, unrest: nextUnrest, map, log, end });
 
 	return Object.freeze({

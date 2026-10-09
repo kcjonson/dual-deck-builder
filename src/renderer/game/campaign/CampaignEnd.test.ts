@@ -13,9 +13,10 @@ import { COMPOUND_RULES, CompoundRules } from './CompoundRules';
 import { endDay } from './DayClock';
 import { DriverRecord } from './DriverRecord';
 import { foundCampaign } from './Founding';
-import { injureOnArrival, treatDriver } from './Infirmary';
+import { getTreatmentBlocker, injureOnArrival, treatDriver } from './Infirmary';
 import { setOpenFight } from './OpenFights';
 import { RunDeck } from './RunDeck';
+import { getSeatBlocker } from './Seating';
 import { MemorySaveStorage } from './SaveStorage';
 import { CAMPAIGN_FIXTURE, FaultyStorage, KEYS, failure, saveText, storageWith, storeOver } from './__fixtures__/storeFixtures';
 
@@ -95,6 +96,7 @@ const savedCampaign = (): CampaignJson => JSON.parse(JSON.stringify(CAMPAIGN_FIX
 function fallenFixture(): CampaignJson {
 	const save = savedCampaign();
 	save.runDecks = [];
+	save.foundOnRun = [];
 	save.drivers[0] = { ...save.drivers[0], status: 'dead', hitpoints: 0 };
 	save.drivers[2] = { ...save.drivers[2], status: 'missing', injuredDays: 0 };
 	save.drivers[4] = { ...save.drivers[4], status: 'missing', defaultDeck: startingDeckCounts('interceptor') };
@@ -128,8 +130,19 @@ describe('how a compound falls', () => {
 		expect(fallOf({ resources: { ...STORES, food: 3 }, unrest: 4, rules })).toBe('starved');
 		expect(fallOf({ resources: { ...STORES, food: 4 }, unrest: 4, rules })).toBe('rioted');
 		expect(fallOf({ resources: { ...STORES, food: 4 }, unrest: 3, rules })).toBe('disbanded');
-		expect(() => fallOf({ resources: STORES, unrest: 0, rules: rulesWith({ riotAtUnrest: 0 }) }))
+	});
+
+	it('checks the rules it\'s given before the step stores anything', () => {
+		const campaign = newCampaign();
+		const seats = ARCHETYPES.slice(0, 2).map(archetype => campaign.recruitDriver({ archetype })) as [DriverRecord, DriverRecord];
+		const party = setOff({ campaign, seats });
+		const before = JSON.stringify(campaign);
+
+		expect(() => campaign.loseRun({ result: failed({ party }), rules: rulesWith({ riotAtUnrest: 0 }) }))
 			.toThrow('CompoundRules.fall.riotAtUnrest must be an integer from 1 to 1000, got 0');
+		// The bad rules refused it before the run decks were unwound
+		expect(campaign.runDecks).toHaveLength(2);
+		expect(JSON.stringify(campaign.toJSON().runDecks)).toBe(JSON.stringify(JSON.parse(before).runDecks));
 	});
 });
 
@@ -250,74 +263,149 @@ describe('death is permanent', () => {
 	});
 });
 
-describe('a missing driver coming back', () => {
-	/** The Road Warrior dead and the Interceptor missing at 13 of 25 HP, their vehicle as the crash left it, with the Mechanic and the Raider at home. */
-	function lostOne(): { campaign: Campaign; warrior: DriverRecord; interceptor: DriverRecord; mechanic: DriverRecord; raider: DriverRecord } {
-		const campaign = newCampaign({ locker: { headshot: 1 } });
-		const [warrior, interceptor, mechanic, raider] = ARCHETYPES.map(archetype => campaign.recruitDriver({ archetype }));
-		const party = setOff({ campaign, seats: [warrior, interceptor] });
-		interceptor.set({ hitpoints: 13, vehicle: { structure: 20, armor: 2 } });
-		campaign.loseRun({ result: failed({ party, missing: [interceptor] }) });
-		return { campaign, warrior, interceptor, mechanic, raider };
+describe('a missing driver found on a run', () => {
+	interface OnTheRoad {
+		campaign: Campaign;
+		warrior: DriverRecord;
+		interceptor: DriverRecord;
+		mechanic: DriverRecord;
+		raider: DriverRecord;
+		party: RunParty;
 	}
 
-	it('comes back injured for the HP they\'re missing, with their deck as they left it and their vehicle at 1 structure', () => {
-		const { campaign, interceptor } = lostOne();
+	/**
+	 * The Road Warrior dead and the Interceptor missing at 13 of 25 HP, their
+	 * vehicle as the crash left it, from an earlier run; the Mechanic and the
+	 * Raider out on the next one.
+	 */
+	function onTheRoad(): OnTheRoad {
+		const campaign = newCampaign({ locker: { headshot: 1 } });
+		const [warrior, interceptor, mechanic, raider] = ARCHETYPES.map(archetype => campaign.recruitDriver({ archetype }));
+		const lost = setOff({ campaign, seats: [warrior, interceptor] });
+		interceptor.set({ hitpoints: 13, vehicle: { structure: 20, armor: 2 } });
+		campaign.loseRun({ result: failed({ party: lost, missing: [interceptor] }) });
+		const party = setOff({ campaign, seats: [mechanic, raider] });
+		return { campaign, warrior, interceptor, mechanic, raider, party };
+	}
+
+	it('rides home with the run, still missing on the road, and comes home injured for the HP they\'re missing, their deck as they left it, their vehicle at 1 structure', () => {
+		const { campaign, interceptor, party } = onTheRoad();
 		const heard = jest.fn();
 		campaign.on('change', heard);
+
+		campaign.findMissingDriver({ driver: interceptor });
+
+		expect(campaign.foundOnRun).toEqual([interceptor]);
+		expect(heard).toHaveBeenCalledTimes(1);
+		// Nobody seats them or changes their deck until they're home
+		expect(interceptor.status).toBe('missing');
 		expect(campaign.getCardMoveBlocker({ cardType: 'headshot', from: 'locker', to: interceptor })).toEqual({ reason: 'driver_away', place: interceptor });
 
-		campaign.returnMissingDriver({ driver: interceptor });
+		const unloaded = campaign.unloadRun({ party });
 
+		expect(unloaded.found).toEqual([interceptor]);
+		expect(campaign.foundOnRun).toEqual([]);
 		// 12 HP down at 10 HP a day
 		expect([interceptor.status, interceptor.injuredDays, interceptor.hitpoints]).toEqual(['injured', 2, 13]);
 		expect(interceptor.vehicle).toEqual({ structure: RETURN_STRUCTURE, armor: 2 });
 		expect(interceptor.defaultDeck).toEqual(startingDeckCounts('interceptor'));
-		expect(heard).toHaveBeenCalledTimes(1);
 		expect(campaign.getCardMoveBlocker({ cardType: 'headshot', from: 'locker', to: interceptor })).toBeNull();
 		endDay({ campaign });
 		endDay({ campaign });
 		expect([interceptor.status, interceptor.hitpoints]).toEqual(['ready', 25]);
 	});
 
-	it('comes back ready at full HP when they weren\'t hurt, on a run that\'s out, as a Find: driver stop on the road finds them', () => {
-		const { campaign, interceptor, mechanic, raider } = lostOne();
+	it('comes home ready at full HP when they weren\'t hurt', () => {
+		const { campaign, interceptor, party } = onTheRoad();
 		interceptor.set({ hitpoints: 25 });
-		setOff({ campaign, seats: [mechanic, raider] });
+		campaign.findMissingDriver({ driver: interceptor });
 
-		campaign.returnMissingDriver({ driver: interceptor });
+		campaign.unloadRun({ party });
 
 		expect([interceptor.status, interceptor.injuredDays, interceptor.vehicle.structure]).toEqual(['ready', 0, 1]);
 	});
 
-	it('refuses anyone who isn\'t missing, the dead most of all, and anyone outside the pool, changing nothing', () => {
-		const { campaign, warrior, mechanic } = lostOne();
-		const stranger = new DriverRecord({ id: 'driver-9', archetype: 'mechanic', name: 'Mechanic 9', status: 'missing' });
-		const before = JSON.stringify(campaign);
+	it('stays missing when the run that found them fails, and can\'t keep the campaign standing', () => {
+		const { campaign, interceptor, raider, party } = onTheRoad();
+		campaign.findMissingDriver({ driver: interceptor });
 
-		expect(() => campaign.returnMissingDriver({ driver: warrior })).toThrow('Road Warrior 1 (driver-1) is dead, not missing, so they can\'t come back');
-		expect(() => campaign.returnMissingDriver({ driver: mechanic })).toThrow('Mechanic 1 (driver-3) is ready, not missing, so they can\'t come back');
-		expect(() => campaign.returnMissingDriver({ driver: stranger })).toThrow('Mechanic 9 (driver-9) isn\'t in this campaign\'s pool');
-		expect(JSON.stringify(campaign)).toBe(before);
+		campaign.loseRun({ result: failed({ party, missing: [raider] }) });
+
+		expect([interceptor.status, interceptor.vehicle.structure]).toEqual(['missing', 20]);
+		expect(campaign.foundOnRun).toEqual([]);
+		expect(campaign.end).toEqual({ ending: 'disbanded', cause: 'last_driver' });
 	});
 
-	it('refuses a driver whose failed run hasn\'t been settled, with their run deck still out', () => {
-		const { campaign, mechanic, raider } = lostOne();
-		setOff({ campaign, seats: [mechanic, raider] });
+	it('stays missing when the load out is given up', () => {
+		const { campaign, interceptor } = onTheRoad();
+		campaign.findMissingDriver({ driver: interceptor });
+
+		campaign.unwindRunDecks();
+
+		expect([interceptor.status, campaign.foundOnRun]).toEqual(['missing', []]);
+	});
+
+	it('keeps who was found through a save between stops, and brings them home from the campaign it loads', () => {
+		const { campaign, interceptor } = onTheRoad();
+		campaign.findMissingDriver({ driver: interceptor });
+
+		const loaded = Campaign.fromJSON(JSON.parse(campaign.toSaveText()));
+
+		expect(loaded.toJSON()).toEqual(campaign.toJSON());
+		expect(campaign.toJSON().foundOnRun).toEqual([interceptor.id]);
+		const seats = loaded.runDecks.map(deck => deck.driver) as [DriverRecord, DriverRecord];
+		loaded.unloadRun({ party: { seats, escorts: [], cargo: NO_RESOURCES, cargoCards: NO_CARDS, run: loaded.currentRun as string } });
+		expect(loaded.drivers[1].status).toBe('injured');
+	});
+
+	it('refuses anyone who isn\'t missing (the dead most of all), anyone found already or outside the pool, and any find with no run out, changing nothing', () => {
+		const { campaign, warrior, interceptor, mechanic, party } = onTheRoad();
+		const stranger = new DriverRecord({ id: 'driver-9', archetype: 'mechanic', name: 'Mechanic 9', status: 'missing' });
+		campaign.findMissingDriver({ driver: interceptor });
+		const before = JSON.stringify(campaign);
+
+		expect(() => campaign.findMissingDriver({ driver: warrior })).toThrow('Road Warrior 1 (driver-1) is dead, not missing, so there\'s nobody to find');
+		expect(() => campaign.findMissingDriver({ driver: mechanic })).toThrow('Mechanic 1 (driver-3) is ready, not missing, so there\'s nobody to find');
+		expect(() => campaign.findMissingDriver({ driver: interceptor })).toThrow('Interceptor 1 (driver-2) has been found on this run already');
+		expect(() => campaign.findMissingDriver({ driver: stranger })).toThrow('Mechanic 9 (driver-9) isn\'t in this campaign\'s pool');
+		expect(JSON.stringify(campaign)).toBe(before);
+		campaign.unloadRun({ party });
+		expect(() => campaign.findMissingDriver({ driver: interceptor })).toThrow('No run is out, so nobody is on the road to find them');
+	});
+
+	it('refuses a seat whose own failed run hasn\'t been settled, with their run deck still out', () => {
+		const { campaign, raider } = onTheRoad();
 		// As the bridge leaves a seat who crashed out of a lost fight, before the run is lost
 		raider.set({ status: 'missing' });
 
-		expect(() => campaign.returnMissingDriver({ driver: raider }))
+		expect(() => campaign.findMissingDriver({ driver: raider }))
 			.toThrow("Raider 1 (driver-4)'s run deck is still out; the failed run is settled (loseRun) before they can be found");
-		expect(raider.status).toBe('missing');
+		expect(campaign.foundOnRun).toEqual([]);
+	});
+
+	it.each([
+		['found with no run out', (save: CampaignJson) => { save.runDecks = []; },
+			'Campaign.foundOnRun holds 1 found with no run out; they come home with the run, or stay missing'],
+		['found who isn\'t missing', (save: CampaignJson) => { save.drivers[3] = { ...save.drivers[3], status: 'ready' }; },
+			'Campaign.foundOnRun[0] driver-4 must be missing until the run brings them home, got "ready"'],
+		['found who isn\'t in the pool', (save: CampaignJson) => { save.foundOnRun = ['driver-9']; },
+			'Campaign.foundOnRun[0] "driver-9" isn\'t a driver in the pool'],
+		['found twice', (save: CampaignJson) => { save.foundOnRun = ['driver-4', 'driver-4']; },
+			'Campaign.foundOnRun[1] driver-4 is listed twice'],
+		['found in a seat', (save: CampaignJson) => { save.foundOnRun = ['driver-1']; },
+			'Campaign.foundOnRun[0] driver-1 is seated on the run']
+	])('won\'t load a driver %s', (_label, damage, message) => {
+		const save = savedCampaign();
+		damage(save);
+
+		expect(() => Campaign.fromJSON(save)).toThrow(message);
 	});
 
 	it('can\'t save a campaign already lost, since nobody was left to find them', () => {
 		const { campaign, interceptor } = fallen();
 
-		expect(interceptor.status).toBe('missing');
-		expect(() => campaign.returnMissingDriver({ driver: interceptor }))
-			.toThrow("Can't bring a missing driver back: the campaign is over, since the compound disbanded");
+		expect(() => campaign.findMissingDriver({ driver: interceptor }))
+			.toThrow("Can't find a missing driver: the campaign is over, since the compound disbanded");
 		expect(interceptor.status).toBe('missing');
 	});
 });
@@ -340,7 +428,7 @@ describe('a campaign that\'s over', () => {
 		['lose a run', ({ campaign, party }: Fallen) => campaign.loseRun({
 			result: { outcome: 'run_failed', party: null, dead: [party.seats[0]], missing: [party.seats[1]], escortsLost: [], cargoLost: NO_RESOURCES, cargoCardsLost: NO_CARDS, run: party.run }
 		})],
-		['bring a missing driver back', ({ campaign, interceptor }: Fallen) => campaign.returnMissingDriver({ driver: interceptor })],
+		['find a missing driver', ({ campaign, interceptor }: Fallen) => campaign.findMissingDriver({ driver: interceptor })],
 		['end the day', ({ campaign }: Fallen) => endDay({ campaign })],
 		['injure drivers coming home', ({ campaign }: Fallen) => injureOnArrival({ campaign, drivers: [] })],
 		['treat a driver', ({ campaign, interceptor }: Fallen) => treatDriver({ campaign, driver: interceptor })],
@@ -350,7 +438,11 @@ describe('a campaign that\'s over', () => {
 			const fight = { campaign, battle, drivers: [], vehicles: [], scrap: 0, fuel: 0, party } as unknown as CampaignFight;
 			setOpenFight({ campaign, fight });
 			return writeBackFight({ fight });
-		}]
+		}],
+		// Its records and convoy are models of their own, and the end closed them
+		['change a driver', ({ interceptor }: Fallen) => interceptor.set({ hitpoints: 5 })],
+		['change the convoy', ({ campaign, hauler }: Fallen) => campaign.convoy.dismiss({ escort: hauler, drivers: [] })],
+		['add an escort to the convoy', ({ campaign }: Fallen) => campaign.convoy.add(createEscort({ type: 'outrider' }))]
 	])('refuses to %s, changing nothing', (action, change) => {
 		const lost = fallen();
 		const before = JSON.stringify(lost.campaign);
@@ -378,6 +470,41 @@ describe('a campaign that\'s over', () => {
 		expect(Object.isFrozen(loaded.end)).toBe(true);
 		expect(() => loaded.addLogEntry({ message: 'Anyone?' })).toThrow(CampaignOverError);
 		expect(() => endDay({ campaign: loaded })).toThrow(CampaignOverError);
+		expect(() => loaded.drivers[1].set({ hitpoints: 5 })).toThrow("Can't change a driver: the campaign is over, since the compound disbanded");
+		expect(() => loaded.convoy.add(createEscort({ type: 'outrider' }))).toThrow(CampaignOverError);
+	});
+
+	it('closes its records and convoy before anyone hears the end, so a listener can\'t change them after it', () => {
+		const campaign = newCampaign();
+		const seats = ARCHETYPES.slice(0, 2).map(archetype => campaign.recruitDriver({ archetype })) as [DriverRecord, DriverRecord];
+		const party = setOff({ campaign, seats });
+		const refusals: unknown[] = [];
+		campaign.on('change', () => {
+			try {
+				seats[1].set({ name: 'Somebody Else' });
+			} catch (error) {
+				refusals.push(error);
+			}
+		});
+
+		campaign.loseRun({ result: failed({ party, missing: [seats[1]] }) });
+
+		expect(refusals).toHaveLength(1);
+		expect(refusals[0]).toBeInstanceOf(CampaignOverError);
+		expect(seats[1].name).toBe('Interceptor 1');
+	});
+
+	it('says so on every check a screen asks, as the action it checks refuses', () => {
+		const { campaign, warrior, interceptor } = fallen();
+		const over = { reason: 'campaign_over', end: { ending: 'disbanded', cause: 'last_driver' } };
+
+		expect(campaign.getCardMoveBlocker({ cardType: 'headshot', from: 'locker', to: interceptor })).toEqual(over);
+		expect(campaign.getScrapBlocker({ cardType: 'headshot' })).toEqual(over);
+		expect(campaign.getAddToLockerBlocker({ cardType: 'headshot' })).toEqual(over);
+		expect(campaign.getEscortCardMoveBlocker({ broughtBy: 'escort-1', to: 'locker' })).toEqual(over);
+		expect(getTreatmentBlocker({ campaign, driver: interceptor })).toEqual(over);
+		expect(getSeatBlocker({ campaign, driver: warrior })).toEqual(over);
+		expect(getSeatBlocker({ campaign, driver: warrior, partner: interceptor })).toEqual(over);
 	});
 
 	it('loads the fixture lost, home from its run with nobody left', () => {
@@ -580,18 +707,22 @@ describe('a seeded walk to the fall', () => {
 			if (pair !== null && rng.int(0, 3) > 0) {
 				const party = setOff({ campaign, seats: pair });
 				runs += 1;
+				// A Find: driver on the road now and then, who comes home only if the run does
+				const missing = campaign.drivers.filter(driver => driver.status === 'missing' && campaign.runDeckOf(driver) === null);
+				if (missing.length > 0 && rng.int(0, 2) === 0) campaign.findMissingDriver({ driver: rng.pick(missing) });
+				const onTheRoad = campaign.foundOnRun;
 				if (rng.int(0, 99) < failChance) {
 					campaign.loseRun({ result: failed({ party, missing: pair.filter(() => rng.int(0, 1) === 0) }) });
+					expect(onTheRoad.filter(driver => driver.status !== 'missing')).toEqual([]);
 				} else {
-					const missing = campaign.drivers.filter(driver => driver.status === 'missing');
-					if (missing.length > 0 && rng.int(0, 2) === 0) {
-						campaign.returnMissingDriver({ driver: rng.pick(missing) });
-						found += 1;
-					}
 					pair.forEach(seat => { if (rng.int(0, 2) === 0) seat.set({ hitpoints: rng.int(1, seat.maxHitpoints) }); });
-					campaign.unloadRun({ party: { ...party, cargo: { ...NO_RESOURCES, food: rng.int(0, haul), water: rng.int(0, haul) } } });
+					const unloaded = campaign.unloadRun({ party: { ...party, cargo: { ...NO_RESOURCES, food: rng.int(0, haul), water: rng.int(0, haul) } } });
+					expect(unloaded.found).toEqual(onTheRoad);
+					expect(onTheRoad.filter(driver => !isAtCompound(driver))).toEqual([]);
+					found += unloaded.found.length;
 					injureOnArrival({ campaign, drivers: pair });
 				}
+				expect(campaign.foundOnRun).toEqual([]);
 			}
 			if (!campaign.isOver) endDay({ campaign });
 

@@ -9,9 +9,9 @@ import { DRIVER_CONFIGS, Driver, DriverRole } from '../mechanics/Driver';
 import { Team, TeamType } from '../mechanics/Team';
 import { Vehicle, createDrivenVehicle } from '../mechanics/Vehicle';
 import { Campaign, NO_RESOURCES, Resources, readResources } from './Campaign';
-import { refuseOver } from './CampaignEnd';
+import { CampaignOverError, refuseOver } from './CampaignEnd';
 import { CardCounts, NO_CARDS, addCards, readCardCounts } from './CardCounts';
-import { DriverRecord, DriverRecordData, VehicleCondition, describeDriver, readDriverRecordData } from './DriverRecord';
+import { DriverRecord, DriverRecordData, VehicleCondition, describeDriver, readDriverRecordData, refuseRevival } from './DriverRecord';
 import { isStoringWriteBack, openFightOf, setOpenFight, setStoringWriteBack } from './OpenFights';
 import { RunDeck } from './RunDeck';
 import { SeatBlocker, getSeatBlocker } from './Seating';
@@ -133,13 +133,13 @@ type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
  * and Battle.start shuffles it on the seat's deck stream before the opening
  * deal. Everything random draws from `rng`.
  *
- * Throws, building nothing, once the campaign is over, while the campaign's
- * last fight hasn't been written back or is being written back (from a
- * listener partway through it), while the campaign is storing records (a
- * listener partway through a card move, or a run starting or ending), and
- * unless the party seats two drivers load out's own check
- * (`getSeatBlocker`) seats together: each from the campaign's pool and
- * ready, checked in seat order, then two different drivers of different
+ * Throws, building nothing, while the campaign's last fight hasn't been
+ * written back or is being written back (from a listener partway through
+ * it), while the campaign is storing records (a listener partway through a
+ * card move, or a run starting or ending), and unless the party seats two
+ * drivers load out's own check (`getSeatBlocker`) seats together, a
+ * `CampaignOverError` once the campaign is over: each from the campaign's
+ * pool and ready, checked in seat order, then two different drivers of different
  * archetypes. So does a party whose cargo doesn't check out, an escort that
  * isn't the campaign's, a seat with no run deck or one holding the card of
  * an escort that isn't in the party, an escort in the party whose card
@@ -149,7 +149,6 @@ type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
  * they do.
  */
 export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, enemyAI = 'aggressive' }: CampaignFightOptions): CampaignFight {
-	refuseOver({ campaign, action: 'start a fight' });
 	if (isStoringWriteBack(campaign)) throw new Error("This campaign's last fight is still being written back");
 	if (openFightOf(campaign) !== null) throw new Error("This campaign's last fight hasn't been written back");
 	if (campaign.isStoring) throw new Error("This campaign is partway through storing its records, so a fight can't start on them");
@@ -159,6 +158,7 @@ export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, ene
 	const checks = [{ driver: first, partner: null }, { driver: second, partner: null }, { driver: first, partner: second }];
 	for (const { driver, partner } of checks) {
 		const blocker = getSeatBlocker({ campaign, driver, partner });
+		if (blocker?.reason === 'campaign_over') throw new CampaignOverError({ end: blocker.end, action: 'start a fight' });
 		if (blocker !== null) throw new RangeError(seatRefusal({ record: driver, blocker }));
 	}
 	const cargo = readResources(party.cargo, 'RunParty.cargo');
@@ -241,6 +241,8 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
 	const seats = party.seats.map((record, index) => {
 		const fate = fateOf({ battle, driver: drivers[index], won });
 		const changes = recordChanges({ fate, driver: drivers[index], vehicle: vehicles[index] });
+		// As the record's own set checks it, so a death stored under the fight refuses the result before anything is stored
+		refuseRevival({ driver: record, changes });
 		readDriverRecordData({ ...record.getState(), ...changes }, describeDriver(record));
 		return { record, fate, changes };
 	});

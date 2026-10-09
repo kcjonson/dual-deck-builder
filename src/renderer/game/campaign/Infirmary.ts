@@ -1,6 +1,6 @@
 import { readInteger } from '../core/JsonReader';
 import type { Campaign } from './Campaign';
-import { refuseOver } from './CampaignEnd';
+import { CampaignEnd, CampaignOverError, refuseOver } from './CampaignEnd';
 import { hasOpenFight } from './OpenFights';
 import { COMPOUND_RULES, CompoundRules, readCompoundRules } from './CompoundRules';
 import type { DriverRecord, DriverRecordData, DriverStatus } from './DriverRecord';
@@ -24,11 +24,13 @@ export interface Injury {
 
 /**
  * Why the infirmary won't treat a driver, which its screen shows on the
- * action it disables: they aren't injured (their status says what they
- * are), they'll be fit in fewer days than were asked for, or the stores
- * hold fewer meds than it takes.
+ * action it disables: the campaign is over (its `end` says how), they
+ * aren't injured (their status says what they are), they'll be fit in
+ * fewer days than were asked for, or the stores hold fewer meds than it
+ * takes.
  */
 export type TreatmentBlocker =
+	| { reason: 'campaign_over'; end: Readonly<CampaignEnd> }
 	| { reason: 'not_injured'; status: Exclude<DriverStatus, 'injured'> }
 	| { reason: 'too_many_days'; injuredDays: number }
 	| { reason: 'too_few_meds'; needed: number; held: number };
@@ -130,8 +132,8 @@ export function treatmentCost({ days, rules = COMPOUND_RULES }: { days: number; 
 
 /**
  * Why the infirmary won't take `days` off this driver's injury, or null if
- * `treatDriver` would, in this order: they aren't injured, they'll be fit in
- * fewer days than that, or the stores hold fewer meds than it costs. Throws,
+ * `treatDriver` would, in this order: the campaign is over, they aren't
+ * injured, they'll be fit in fewer days than that, or the stores hold fewer meds than it costs. Throws,
  * as `treatDriver` does, on a driver outside the campaign's pool or `days`
  * that isn't a whole number from 1.
  */
@@ -147,11 +149,11 @@ export function getTreatmentBlocker({ campaign, driver, days = 1, rules = COMPOU
  * record is stored first and the campaign last, so the campaign's `change`
  * comes once the treatment is whole. Throws a `TreatmentRuleError`,
  * changing nothing, when `getTreatmentBlocker` refuses, and a
- * `CampaignOverError` once the campaign is over.
+ * `CampaignOverError` when it refuses because the campaign is over.
  */
 export function treatDriver({ campaign, driver, days = 1, rules = COMPOUND_RULES }: TreatmentOptions): number {
-	refuseOver({ campaign, action: 'treat a driver' });
 	const { blocker, cost } = checkTreatment({ campaign, driver, days, rules });
+	if (blocker?.reason === 'campaign_over') throw new CampaignOverError({ end: blocker.end, action: 'treat a driver' });
 	if (blocker !== null) throw new TreatmentRuleError({ message: treatmentMessage({ blocker, driver, days }), blocker });
 	driver.set(healingChanges({ driver, days }));
 	campaign.set({ resources: { ...campaign.resources, meds: campaign.resources.meds - cost } });
@@ -163,6 +165,7 @@ function checkTreatment({ campaign, driver, days, rules }: Required<TreatmentOpt
 	checkInPool({ campaign, driver });
 	const cost = treatmentCost({ days, rules });
 	const refused = (blocker: TreatmentBlocker) => ({ blocker, cost });
+	if (campaign.end !== null) return refused({ reason: 'campaign_over', end: campaign.end });
 	if (driver.status !== 'injured') return refused({ reason: 'not_injured', status: driver.status });
 	if (days > driver.injuredDays) return refused({ reason: 'too_many_days', injuredDays: driver.injuredDays });
 	const held = campaign.resources.meds;
@@ -173,6 +176,8 @@ function checkTreatment({ campaign, driver, days, rules }: Required<TreatmentOpt
 /** What a refused treatment throws, worded for the console; the infirmary screen words its own from the blocker. */
 function treatmentMessage({ blocker, driver, days }: { blocker: TreatmentBlocker; driver: DriverRecord; days: number }): string {
 	switch (blocker.reason) {
+		case 'campaign_over':
+			return `The campaign is over, since the compound ${blocker.end.ending}, so nobody is treated`;
 		case 'not_injured':
 			return `${describeDriver(driver)} is ${blocker.status}, not injured, so there's nothing to treat`;
 		case 'too_many_days':

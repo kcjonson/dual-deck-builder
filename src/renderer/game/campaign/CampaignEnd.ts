@@ -1,7 +1,7 @@
 import { ReaderRangeError, readFields, readInteger, readNullable, readOneOf } from '../core/JsonReader';
-import type { Campaign, Resources } from './Campaign';
+import type { Campaign, CampaignLogEntry, Resources } from './Campaign';
 import { COMPOUND_FALLS, CompoundFall } from './CampaignHistory';
-import { COMPOUND_RULES, CompoundRules, readCompoundRules } from './CompoundRules';
+import { COMPOUND_RULES, CompoundRules } from './CompoundRules';
 
 /**
  * The campaign's end (DDB-305): how a lost campaign's compound falls, the
@@ -69,7 +69,7 @@ export class CampaignOverError extends Error {
 
 /** Throws a `CampaignOverError` once the campaign is over, before `action` changes anything. */
 export function refuseOver({ campaign, action }: { campaign: Campaign; action: string }): void {
-	if (campaign.end !== null) throw new CampaignOverError({ end: campaign.end, action });
+	if (campaign.isOver) throw new CampaignOverError({ end: campaign.end as Readonly<CampaignEnd>, action });
 }
 
 /**
@@ -77,16 +77,17 @@ export function refuseOver({ campaign, action }: { campaign: Campaign; action: s
  * the end, in this order: it starves with food at or below
  * `fall.starveAtFood`, riots over what's left at unrest at or above
  * `fall.riotAtUnrest`, and otherwise disbands. Hunger comes first, since an
- * empty larder is a fact and unrest is a mood.
+ * empty larder is a fact and unrest is a mood. `rules` as
+ * `readCompoundRules` checked them, which the steps that end a campaign do
+ * before they store anything.
  */
 export function fallOf({ resources, unrest, rules = COMPOUND_RULES }: {
 	resources: Readonly<Resources>;
 	unrest: number;
 	rules?: CompoundRules;
 }): CompoundFall {
-	const { fall } = readCompoundRules(rules, 'CompoundRules');
-	if (resources.food <= fall.starveAtFood) return 'starved';
-	if (unrest >= fall.riotAtUnrest) return 'rioted';
+	if (resources.food <= rules.fall.starveAtFood) return 'starved';
+	if (unrest >= rules.fall.riotAtUnrest) return 'rioted';
 	return 'disbanded';
 }
 
@@ -95,6 +96,21 @@ export function fallMessage(end: CampaignEnd): string {
 	const left = end.cause === 'last_driver' ? 'No drivers are left' : 'No people are left';
 	const fell = end.ending === 'rioted' ? 'rioted over what was left' : end.ending;
 	return `${left}, and the compound ${fell}.`;
+}
+
+/**
+ * The log after a step that can lose the campaign: its own lines, those
+ * that aren't null, then the fall's line when it lost it, all dated `day`.
+ * The same log when there's nothing to add.
+ */
+export function stepLog({ log, day, lines, end }: {
+	log: readonly Readonly<CampaignLogEntry>[];
+	day: number;
+	lines: readonly (string | null)[];
+	end: Readonly<CampaignEnd> | null;
+}): readonly Readonly<CampaignLogEntry>[] {
+	const added = [...lines, end === null ? null : fallMessage(end)].filter((line): line is string => line !== null);
+	return added.length === 0 ? log : [...log, ...added.map(message => ({ day, message }))];
 }
 
 /** An end, or null while the campaign stands, frozen. */

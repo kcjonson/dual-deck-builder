@@ -637,6 +637,27 @@ describe('the combat bridge', () => {
 			expect(result.outcome).toBe('run_failed');
 			expect([warrior.status, interceptor.status]).toEqual(['missing', 'dead']);
 		});
+
+		it('refuses, storing nothing, a result that would bring back a driver whose record died under the fight (DDB-305)', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			toughen(warrior, interceptor);
+			interceptor.set({ hitpoints: 190, defaultDeck: { covering_fire: 10 } });
+			const outrider = createEscort({ type: 'outrider' });
+			campaign.convoy.add(outrider);
+			const wrecker = raider({ deck: cardsOf(10, wreck), adrenaline: 2 });
+			const sniper = raider({ deck: cardsOf(10, snipe), adrenaline: 1 });
+			const fight = startFight({ campaign, party: loadOut({ campaign, seats: [warrior, interceptor], escorts: [outrider] }), enemy: [wrecker, sniper] });
+			fightOut(fight, turn => {
+				if (turn === 2) play({ fight, seat: 1, cardType: 'covering_fire', target: wrecker });
+			});
+			// The Road Warrior crashed out alive, so the result has them missing, but their record died in the meantime
+			warrior.set({ status: 'dead', hitpoints: 0, defaultDeck: {} });
+			const interceptorBefore = interceptor.toJSON();
+
+			expect(() => writeBackFight({ fight })).toThrow(`${named(warrior)} is dead, and death is permanent, so they can't be "missing"`);
+			expect(interceptor.toJSON()).toEqual(interceptorBefore);
+			expect(campaign.convoy.escorts).toContain(outrider);
+		});
 	});
 
 	describe('a vehicle retuned since the save', () => {
@@ -805,7 +826,7 @@ describe('the combat bridge', () => {
 
 			const unloaded = campaign.unloadRun({ party });
 
-			expect(unloaded).toEqual({ resources: { ...NO_RESOURCES, scrap: 30 }, cards: { headshot: 2, repair_kit: 1 } });
+			expect(unloaded).toEqual({ resources: { ...NO_RESOURCES, scrap: 30 }, cards: { headshot: 2, repair_kit: 1 }, found: [] });
 			expect(campaign.resources).toEqual({ ...stores, scrap: stores.scrap + 30 });
 			expect(campaign.locker).toEqual({ headshot: 2, repair_kit: 1 });
 			expect(campaign.cardsOwned).toEqual(addCards(addCards(owned, 'headshot', 2), 'repair_kit'));

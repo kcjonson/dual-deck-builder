@@ -1,3 +1,4 @@
+import { closeModels } from '../core/ClosedModels';
 import { describeValue, type JsonObject } from '../core/Json';
 import { ReaderRangeError, ReaderTypeError, readArray, readFields, readInteger, readOneOf, readSeed, readText } from '../core/JsonReader';
 import { Model } from '../core/Model';
@@ -5,13 +6,13 @@ import { MapParams } from '../map/MapParams';
 import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
 import type { Vehicle } from '../mechanics/Vehicle';
-import { CampaignEnd, CampaignOverError, CampaignTally, NO_TALLY, checkTallyGrows, fallMessage, fallOf, readCampaignEnd, readTally, refuseOver } from './CampaignEnd';
+import { CampaignEnd, CampaignOverError, CampaignTally, NO_TALLY, checkTallyGrows, fallOf, readCampaignEnd, readTally, refuseOver, stepLog } from './CampaignEnd';
 import { CardCounts, NO_CARDS, addCards, addCounts, cardCount, readCardCounts, readCardType, removeCards, totalCards } from './CardCounts';
 import type { FailedRun, RunParty } from './CombatBridge';
 import { COMPOUND_RULES, CompoundRules, readCompoundRules } from './CompoundRules';
 import { ConvoyJson, convoyToJson, readConvoy } from './ConvoyJson';
 import { DECK_RULES, DeckBlocker, cardName, deckAddBlocker, deckRemoveBlocker, readNewCards } from './DeckRules';
-import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordJson, describeDriver, placeholderName, readDriverRecord } from './DriverRecord';
+import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordData, DriverRecordJson, describeDriver, placeholderName, readDriverRecord, readDriverRecordData } from './DriverRecord';
 import { injuryDays } from './Infirmary';
 import { readMapParams, repairMapParams } from './MapParamsJson';
 import { EMPTY_MAP, MapState, readMapState } from './MapState';
@@ -28,7 +29,7 @@ import { SeatBlocker, getSeatBlocker } from './Seating';
  */
 export const CAMPAIGN_SCHEMA_VERSION = 6;
 
-/** Structure a missing driver's vehicle comes back with when they're found. A tuning value. */
+/** Structure a missing driver's vehicle comes home with once they're found. A tuning value. */
 export const RETURN_STRUCTURE = 1;
 
 /** What the compound holds (Compound and Supply Runs, Resources): whole numbers, never below 0. */
@@ -56,10 +57,15 @@ export interface LockerDeposit {
 	price?: number;
 }
 
-/** What a run that got home unloaded: the cargo's resources, now in the stores, and the cards won, now in the locker. */
+/**
+ * What a run that got home unloaded: the cargo's resources, now in the
+ * stores, the cards won, now in the locker, and the missing drivers it
+ * found, now back in the pool.
+ */
 export interface UnloadedCargo {
 	readonly resources: Readonly<Resources>;
 	readonly cards: CardCounts;
+	readonly found: readonly DriverRecord[];
 }
 
 /**
@@ -88,9 +94,11 @@ export interface CardMove {
  * (`by`), a run deck whose copies of the card are escort cards locked there
  * (`broughtBy`, the first of them), or a deck whose rules say no
  * (`DeckBlocker`). A purchase the stores can't pay for has no place: the
- * stores hold less scrap than it costs.
+ * stores hold less scrap than it costs, and nor does anything once the
+ * campaign is over (`campaign_over`), which its `end` says how.
  */
 export type CardBlocker =
+	| { reason: 'campaign_over'; end: Readonly<CampaignEnd> }
 	| { reason: 'driver_away'; place: DriverRecord }
 	| { reason: 'on_run'; place: DriverRecord }
 	| { reason: 'too_few'; place: CardPlace; held: number }
@@ -139,6 +147,12 @@ export interface CampaignData {
 	nextRunNumber: number;
 	/** While a run is out, each seated driver's run deck, Driver 1's first; empty at home. */
 	runDecks: readonly RunDeck[];
+	/**
+	 * Missing drivers found on the run out, riding home with it: they're back
+	 * in the pool when it gets home (`unloadRun`), and stay missing if it
+	 * fails (`loseRun`). Empty at home.
+	 */
+	foundOnRun: readonly DriverRecord[];
 	/** Ids of the strongholds taken, in the order they fell. */
 	strongholdsTaken: readonly string[];
 	log: readonly Readonly<CampaignLogEntry>[];
@@ -164,6 +178,8 @@ export interface CampaignJson {
 	convoy: ConvoyJson;
 	nextRunNumber: number;
 	runDecks: RunDeckJson[];
+	/** Their driver ids. */
+	foundOnRun: string[];
 	strongholdsTaken: string[];
 	log: CampaignLogEntry[];
 	tally: CampaignTally;
@@ -194,6 +210,7 @@ const FIELDS: readonly (keyof CampaignData)[] = [
 	'convoy',
 	'nextRunNumber',
 	'runDecks',
+	'foundOnRun',
 	'strongholdsTaken',
 	'log',
 	'tally',
@@ -212,6 +229,7 @@ const JSON_FIELDS: readonly (keyof CampaignJson)[] = [
 	'convoy',
 	'nextRunNumber',
 	'runDecks',
+	'foundOnRun',
 	'strongholdsTaken',
 	'log',
 	'tally',
@@ -254,13 +272,14 @@ export interface Campaign extends Readonly<CampaignData> {}
  * generator version, map params, and convoy never change after founding,
  * the driver and run counters and the tally never go back, and the pool
  * only grows. Once the campaign is over (`end`), nothing changes it: `set`
- * and every method that would change it throw a `CampaignOverError`.
+ * and every method that would change it throw a `CampaignOverError`, and so
+ * do its driver records and its convoy, which the end closes.
  * Drivers, escorts, and runs carry ids from saved counters (`driver-<n>`,
  * `escort-<n>`, `run-<n>`), which is what anything a save holds refers to
  * them by.
  *
  * The campaign's `change` event covers its own fields, run decks included,
- * finished card moves, and a missing driver coming back. Records, escorts,
+ * and finished card moves. Records, escorts,
  * and the convoy emit on their own models and not here: a record's HP on
  * the record, an escort's damage on its own Vehicle, escorts joining or
  * leaving on the convoy. So save at
@@ -295,6 +314,7 @@ export class Campaign extends Model<CampaignData> {
 		convoy = new Convoy(),
 		nextRunNumber,
 		runDecks = [],
+		foundOnRun = [],
 		strongholdsTaken = [],
 		log = [],
 		tally = NO_TALLY,
@@ -314,6 +334,7 @@ export class Campaign extends Model<CampaignData> {
 			convoy,
 			nextRunNumber: nextRunNumber ?? (runDecks.length > 0 ? 2 : 1),
 			runDecks,
+			foundOnRun,
 			strongholdsTaken,
 			log,
 			tally,
@@ -348,6 +369,7 @@ export class Campaign extends Model<CampaignData> {
 			convoy: readConvoy(save.convoy, `${path}.convoy`),
 			nextRunNumber: save.nextRunNumber,
 			runDecks: readArray(save.runDecks, `${path}.runDecks`).map((deck, index) => readRunDeckJson(deck, `${path}.runDecks[${index}]`, drivers)),
+			foundOnRun: readArray(save.foundOnRun, `${path}.foundOnRun`).map((id, index) => readPoolDriver(id, `${path}.foundOnRun[${index}]`, drivers)),
 			strongholdsTaken: save.strongholdsTaken,
 			log: save.log,
 			tally: save.tally,
@@ -366,7 +388,8 @@ export class Campaign extends Model<CampaignData> {
 	 * would leave the pool or change places in it, or a driver would join it
 	 * with an id the counter had already passed. Nothing changes while a card
 	 * move is being stored, so campaign listeners never hear half of one, and
-	 * nothing changes once the campaign is over (`CampaignOverError`).
+	 * nothing changes once the campaign is over (`CampaignOverError`). The
+	 * `set` that ends it, or builds it ended, closes its records and convoy.
 	 */
 	public override set(changes: Partial<CampaignData>): void {
 		const current = this.getState();
@@ -383,6 +406,11 @@ export class Campaign extends Model<CampaignData> {
 			if (from !== undefined && to !== undefined && to < from) throw new RangeError(`Campaign.${field} can't go back, from ${from} to ${to}`);
 		}
 		const valid = readCampaignData({ ...current, ...changes }, 'Campaign', current);
+		const end = valid.end;
+		if (end !== null) {
+			// Before the change is heard, so a listener can't change a record or the convoy after the end
+			closeModels({ models: [...valid.drivers, valid.convoy], refusal: action => new CampaignOverError({ end, action }) });
+		}
 		super.set(Object.fromEntries(Object.keys(changes).map(key => [key, valid[key as keyof CampaignData]])));
 	}
 
@@ -407,7 +435,8 @@ export class Campaign extends Model<CampaignData> {
 
 	/** Whether the campaign is over (`end`), lost and closed to every change. */
 	public get isOver(): boolean {
-		return this.end !== null;
+		// Undefined only while the constructor sets the first state
+		return Boolean(this.end);
 	}
 
 	/**
@@ -459,7 +488,8 @@ export class Campaign extends Model<CampaignData> {
 
 	/**
 	 * Why the rules refuse this move, or null if `moveCards` would make it.
-	 * Between the locker and default decks, in this order: a driver at
+	 * First, the campaign is over (`campaign_over`). Then, between the locker
+	 * and default decks, in this order: a driver at
 	 * either end is away (dead, gone with their cards, or missing, not here
 	 * to hand cards to or take them from) or out on a run (`on_run`), `from`
 	 * holds fewer than `count`, the card is marked for another archetype than
@@ -491,7 +521,8 @@ export class Campaign extends Model<CampaignData> {
 	 * they were borrowed, first, and stay at home if they're the driver's
 	 * own. A move never makes or loses a copy, so each copy stays in exactly
 	 * one place. Throws a `CardRuleError`, moving nothing, when
-	 * `getCardMoveBlocker` refuses it.
+	 * `getCardMoveBlocker` refuses it, and a `CampaignOverError` when it
+	 * refuses because the campaign is over.
 	 *
 	 * Campaign listeners hear a move once it's whole: decks are stored before
 	 * the locker, and a move between two drivers ends with a campaign
@@ -504,13 +535,12 @@ export class Campaign extends Model<CampaignData> {
 	 * rules, as any `set` of a deck does.
 	 */
 	public moveCards(move: CardMove): void {
-		refuseOver({ campaign: this, action: 'move cards' });
 		if (storingMoves.has(this)) throw new Error("Can't move cards while another move is being stored");
 		const { cardType, count = 1 } = move;
 		const plan = this.checkMove(move);
 		if (plan.blocker !== null) {
 			const verb = move.to instanceof RunDeck ? 'take' : 'move';
-			throw new CardRuleError({ message: blockerMessage({ blocker: plan.blocker, verb, cardType, count }), blocker: plan.blocker });
+			throw cardRefusal({ blocker: plan.blocker, action: 'move cards', message: () => blockerMessage({ blocker: plan.blocker as CardBlocker, verb, cardType, count }) });
 		}
 		if (plan.kind === 'run_deck') {
 			this.set({ runDecks: plan.runDecks, locker: plan.locker });
@@ -541,12 +571,13 @@ export class Campaign extends Model<CampaignData> {
 
 	/**
 	 * Why the rules refuse to scrap `count` copies of a card from the locker,
-	 * or null if `scrapCards` would: the locker holds fewer. Throws on a
-	 * malformed card type or count.
+	 * or null if `scrapCards` would: the campaign is over (`campaign_over`),
+	 * or the locker holds fewer. Throws on a malformed card type or count.
 	 */
 	public getScrapBlocker({ cardType, count = 1 }: { cardType: string; count?: number }): CardBlocker | null {
 		readCardType(cardType, 'cardType');
 		readInteger(count, 'count', { min: 1 });
+		if (this.end !== null) return { reason: 'campaign_over', end: this.end };
 		const held = cardCount(this.locker, cardType);
 		return held < count ? { reason: 'too_few', place: 'locker', held } : null;
 	}
@@ -556,12 +587,12 @@ export class Campaign extends Model<CampaignData> {
 	 * scrap each, in one `set`, and returns the scrap it made. Only locker
 	 * copies are scrapped: a card in a deck goes back to the locker first.
 	 * Throws a `CardRuleError`, changing nothing, when `getScrapBlocker`
-	 * refuses, and as `set` does while a card move is being stored.
+	 * refuses (a `CampaignOverError` once the campaign is over), and as `set`
+	 * does while a card move is being stored.
 	 */
 	public scrapCards({ cardType, count = 1 }: { cardType: string; count?: number }): number {
-		refuseOver({ campaign: this, action: 'scrap cards' });
 		const blocker = this.getScrapBlocker({ cardType, count });
-		if (blocker !== null) throw new CardRuleError({ message: blockerMessage({ blocker, verb: 'scrap', cardType, count }), blocker });
+		if (blocker !== null) throw cardRefusal({ blocker, action: 'scrap cards', message: () => blockerMessage({ blocker, verb: 'scrap', cardType, count }) });
 		const scrap = count * DECK_RULES.scrapPerCard;
 		this.set({
 			locker: removeCards(this.locker, cardType, count),
@@ -572,8 +603,8 @@ export class Campaign extends Model<CampaignData> {
 
 	/**
 	 * Why the stores can't pay for these copies, or null if `addToLocker`
-	 * would add them: they hold less scrap than the price
-	 * (`too_little_scrap`). Throws, as `addToLocker` does, for a card
+	 * would add them: the campaign is over (`campaign_over`), or they hold
+	 * less scrap than the price (`too_little_scrap`). Throws, as `addToLocker` does, for a card
 	 * cards.json doesn't list or an escort's signature card
 	 * (`readNewCards`), and a malformed card type, count, or price.
 	 */
@@ -586,14 +617,18 @@ export class Campaign extends Model<CampaignData> {
 	 * the stores, in one `set`: what the garage sells at the compound, since
 	 * cards bought at home go to the locker (Compound and Supply Runs,
 	 * Buildings). Throws a `CardRuleError`, changing nothing, when
-	 * `getAddToLockerBlocker` refuses, a plain error on what it throws on,
-	 * and as `set` does while a card move is being stored.
+	 * `getAddToLockerBlocker` refuses (a `CampaignOverError` once the
+	 * campaign is over), a plain error on what it throws on, and as `set`
+	 * does while a card move is being stored.
 	 */
 	public addToLocker(deposit: LockerDeposit): void {
-		refuseOver({ campaign: this, action: 'add cards to the locker' });
 		const { cards, price, blocker } = this.checkDeposit(deposit);
 		if (blocker !== null) {
-			throw new CardRuleError({ message: blockerMessage({ blocker, verb: 'buy', cardType: deposit.cardType, count: deposit.count ?? 1 }), blocker });
+			throw cardRefusal({
+				blocker,
+				action: 'add cards to the locker',
+				message: () => blockerMessage({ blocker, verb: 'buy', cardType: deposit.cardType, count: deposit.count ?? 1 })
+			});
 		}
 		this.set({ locker: addCounts(this.locker, cards), resources: { ...this.resources, scrap: this.resources.scrap - price } });
 	}
@@ -623,17 +658,18 @@ export class Campaign extends Model<CampaignData> {
 	 *
 	 * Throws, starting nothing, while a run's decks are out, unless load
 	 * out's seat check (`getSeatBlocker`) seats the two drivers together,
-	 * asked of each seat alone and then of the pair, and for an escort that
-	 * isn't in the convoy or is listed twice.
+	 * asked of each seat alone and then of the pair (a `CampaignOverError`
+	 * once the campaign is over), and for an escort that isn't in the convoy
+	 * or is listed twice.
 	 */
 	public startRunDecks({ seats, escorts = [] }: { seats: readonly DriverRecord[]; escorts?: readonly Vehicle[] }): readonly RunDeck[] {
-		refuseOver({ campaign: this, action: 'start run decks' });
 		if (storingMoves.has(this)) throw new Error("Can't start run decks while a card move is being stored");
 		if (this.runDecks.length > 0) throw new Error('A run is already out; unwind its run decks before starting new ones');
 		if (seats.length !== 2) throw new RangeError(`A run seats two drivers, not ${seats.length}`);
 		const [first, second] = seats;
 		for (const { driver, partner } of [{ driver: first, partner: null }, { driver: second, partner: null }, { driver: first, partner: second }]) {
 			const blocker = getSeatBlocker({ campaign: this, driver, partner });
+			if (blocker?.reason === 'campaign_over') throw new CampaignOverError({ end: blocker.end, action: 'start run decks' });
 			if (blocker !== null) throw new RangeError(seatRefusal({ driver, blocker }));
 		}
 		const escortCards = this.escortCardsOf(escorts);
@@ -682,7 +718,7 @@ export class Campaign extends Model<CampaignData> {
 
 	/**
 	 * Why an escort card can't go to `to`, or null if `moveEscortCard` would
-	 * move it: anywhere but a run deck, it's locked in the one holding it
+	 * move it: the campaign is over (`campaign_over`); anywhere but a run deck, it's locked in the one holding it
 	 * (`card_locked`), and a driver who's away (dead or missing) at either
 	 * end can't give or take it. Throws with no run out, for a card no run
 	 * deck holds, for a run deck that holds it already, and for a place
@@ -696,13 +732,14 @@ export class Campaign extends Model<CampaignData> {
 	 * Gives an escort card to the other seated driver, as load out's "give it
 	 * to Driver 2" does, in one `set`. Escort cards sit outside the deck
 	 * limits, so no deck rule refuses one. Throws a `CardRuleError`, moving
-	 * nothing, when `getEscortCardMoveBlocker` refuses it.
+	 * nothing, when `getEscortCardMoveBlocker` refuses it (a
+	 * `CampaignOverError` once the campaign is over).
 	 */
 	public moveEscortCard({ broughtBy, to }: { broughtBy: string; to: CardPlace }): void {
-		refuseOver({ campaign: this, action: 'move an escort card' });
 		const plan = this.checkEscortCardMove({ broughtBy, to });
 		if (plan.blocker !== null) {
-			throw new CardRuleError({ message: blockerMessage({ blocker: plan.blocker, verb: 'move', cardType: plan.card.cardType, count: 1 }), blocker: plan.blocker });
+			const { blocker, card } = plan;
+			throw cardRefusal({ blocker, action: 'move an escort card', message: () => blockerMessage({ blocker, verb: 'move', cardType: card?.cardType ?? '', count: 1 }) });
 		}
 		const { holder, card, target } = plan;
 		this.set({
@@ -753,8 +790,9 @@ export class Campaign extends Model<CampaignData> {
 	 * the ones left at home, and what they borrowed goes back to the locker.
 	 * A dead driver took the copies that went and the ones they borrowed with
 	 * them, and the ones they left at home go to the locker. Escort cards
-	 * leave. Returns the run decks lost with their drivers. A run that set
-	 * off ends with `unloadRun` or `loseRun`, which unwind it the same way.
+	 * leave, and anyone found on the road (`foundOnRun`) stays missing.
+	 * Returns the run decks lost with their drivers. A run that set off ends
+	 * with `unloadRun` or `loseRun`, which unwind it the same way.
 	 *
 	 * The records are stored first, in seat order, then the campaign: a
 	 * record's listener sees copies in two places, and while the records are
@@ -766,7 +804,7 @@ export class Campaign extends Model<CampaignData> {
 	public unwindRunDecks(): { lost: readonly RunDeck[] } {
 		const decks = this.endingRun({ action: 'unwind run decks' });
 		const { locker, lost } = this.unwindRecords({ decks });
-		this.set({ runDecks: [], locker });
+		this.set({ runDecks: [], foundOnRun: [], locker });
 		return { lost };
 	}
 
@@ -776,12 +814,18 @@ export class Campaign extends Model<CampaignData> {
 	 * cargo is unloaded, the resources into the stores and the cards won into
 	 * the locker, where the debrief offers each one to a default deck
 	 * (`getDebrief`). Every copy is then in exactly one place, and
-	 * `cardsOwned` has grown by the cards won. The tally counts a run home.
-	 * Returns what was unloaded.
+	 * `cardsOwned` has grown by the cards won. Each missing driver found on
+	 * the road (`foundOnRun`) is home and back in the pool: injured for the
+	 * HP they're missing, as a seat coming home hurt is (`injuryDays`, by
+	 * `rules`), or ready at full HP, with their default deck as their run deck
+	 * left it and their vehicle at RETURN_STRUCTURE, its armor as the crash
+	 * left it. The tally counts a run home. Returns what was unloaded, and
+	 * who was found.
 	 *
 	 * Everything is checked first, the stores and the locker it all comes to
-	 * included. Then the records are stored, in seat order, and the campaign
-	 * last in one `set` of its run decks, locker, and stores, so its `change`
+	 * included. Then the records are stored, the seats in seat order and the
+	 * found after them, and the campaign last in one `set` of its run decks,
+	 * the found, locker, stores, and tally, so its `change`
 	 * comes once the run is home; save at the step's checkpoint after it. The
 	 * run's decks go in that set, so a second unload of this run finds no run
 	 * out, whatever party it's handed, and a party left over from an earlier
@@ -796,8 +840,9 @@ export class Campaign extends Model<CampaignData> {
 	 * won are checked for shape only, as the locker's are, so a card
 	 * cards.json has dropped since it was won still comes home.
 	 */
-	public unloadRun({ party }: { party: RunParty }): UnloadedCargo {
+	public unloadRun({ party, rules = COMPOUND_RULES }: { party: RunParty; rules?: CompoundRules }): UnloadedCargo {
 		const decks = this.endingRun({ action: 'unload a run' });
+		const checked = readCompoundRules(rules, 'CompoundRules');
 		this.checkRunId({ run: party.run, holder: 'This party set off on' });
 		const seated = decks.map(deck => deck.driver);
 		if (party.seats.length !== seated.length || !seated.every(driver => party.seats.includes(driver))) {
@@ -810,9 +855,17 @@ export class Campaign extends Model<CampaignData> {
 		const cards = readCardCounts(party.cargoCards, 'RunParty.cargoCards');
 		const stores = Object.fromEntries(RESOURCE_NAMES.map(name => [name, this.resources[name] + cargo[name]]));
 		const resources = readResources(stores, 'Campaign.resources');
+		const found = this.foundOnRun;
+		const homecomings = found.map(driver => ({ driver, changes: homecoming({ driver, rules: checked }) }));
 		const { locker } = this.unwindRecords({ decks, cardsWon: cards });
-		this.set({ runDecks: [], locker, resources, tally: { ...this.tally, runsHome: this.tally.runsHome + 1 } });
-		return Object.freeze({ resources: cargo, cards });
+		storingMoves.add(this);
+		try {
+			homecomings.forEach(({ driver, changes }) => driver.set(changes));
+		} finally {
+			storingMoves.delete(this);
+		}
+		this.set({ runDecks: [], foundOnRun: [], locker, resources, tally: { ...this.tally, runsHome: this.tally.runsHome + 1 } });
+		return Object.freeze({ resources: cargo, cards, found });
 	}
 
 	/**
@@ -820,8 +873,9 @@ export class Campaign extends Model<CampaignData> {
 	 * decks are unwound as `unwindRunDecks` unwinds them, the dead losing what
 	 * went with them, and its cargo is lost, the cards won with it, so none of
 	 * it reaches the stores or the locker. The log says what was lost, dated
-	 * today, unless the run carried nothing. The tally counts a failed run.
-	 * Returns the run decks lost with their drivers.
+	 * today, unless the run carried nothing. Anyone found on the road
+	 * (`foundOnRun`) is lost with it, and stays missing. The tally counts a
+	 * failed run. Returns the run decks lost with their drivers.
 	 *
 	 * When nobody is left at the compound after it, every driver in the pool
 	 * dead or missing, the campaign is lost (`end`, cause `last_driver`): a
@@ -830,8 +884,8 @@ export class Campaign extends Model<CampaignData> {
 	 * by `rules`, the log says how, and the day stops there.
 	 *
 	 * Stored as `unloadRun` stores a run: the records first, in seat order,
-	 * then the campaign in one `set` of its run decks, locker, log, tally,
-	 * and end. Throws, changing nothing, while a card move is being stored or
+	 * then the campaign in one `set` of its run decks, the found, locker,
+	 * log, tally, and end. Throws, changing nothing, while a card move is being stored or
 	 * a fight is open or being written back, with no run out, for a result
 	 * from another run (`currentRun`) or whose dead and missing aren't the run
 	 * decks' drivers, and unless every one of them is dead or missing, as a
@@ -858,11 +912,11 @@ export class Campaign extends Model<CampaignData> {
 		const end: CampaignEnd | null = this.drivers.some(isAtCompound)
 			? null
 			: { ending: fallOf({ resources: this.resources, unrest: this.unrest, rules: checked }), cause: 'last_driver' };
-		const lines = [message, end === null ? null : fallMessage(end)].filter((line): line is string => line !== null);
 		this.set({
 			runDecks: [],
+			foundOnRun: [],
 			locker,
-			log: lines.length === 0 ? this.log : [...this.log, ...lines.map(line => ({ day: this.day, message: line }))],
+			log: stepLog({ log: this.log, day: this.day, lines: [message], end }),
 			tally: { ...this.tally, runsFailed: this.tally.runsFailed + 1 },
 			end
 		});
@@ -870,28 +924,27 @@ export class Campaign extends Model<CampaignData> {
 	}
 
 	/**
-	 * A missing driver turns up again, as a Find: driver stop finds them
-	 * (Compound and Supply Runs, Stops), and is back in the pool: injured for
-	 * the HP they're missing as if they'd come home from a run
-	 * (`injuryDays`), or ready at full HP, with their default deck as their
-	 * run deck left it and their vehicle at RETURN_STRUCTURE, its armor as
-	 * the crash left it. The record is stored, then the campaign emits its
-	 * `change`.
+	 * A missing driver turns up on the road, as a Find: driver stop finds
+	 * them (Compound and Supply Runs, Stops), and rides home with the run out,
+	 * in one `set` (`foundOnRun`). They're back in the pool when it gets home
+	 * (`unloadRun`), and stay missing if it fails (`loseRun`); until then
+	 * they're still missing, so nobody seats them or changes their deck.
 	 *
 	 * Throws, changing nothing, once the campaign is over, while a card move
-	 * is being stored, for a driver outside the pool, for one who isn't
-	 * missing (the dead stay dead), and for one whose failed run hasn't been
-	 * settled yet (`loseRun`), so their run deck is still out.
+	 * is being stored, with no run out to find them on, for a driver outside
+	 * the pool, one who isn't missing (the dead stay dead), one found on this
+	 * run already, and one whose own failed run hasn't been settled yet
+	 * (`loseRun`), with their run deck still out.
 	 */
-	public returnMissingDriver({ driver, rules = COMPOUND_RULES }: { driver: DriverRecord; rules?: CompoundRules }): void {
-		refuseOver({ campaign: this, action: 'bring a missing driver back' });
-		if (storingMoves.has(this)) throw new Error("A missing driver can't come back while a card move is being stored");
+	public findMissingDriver({ driver }: { driver: DriverRecord }): void {
+		refuseOver({ campaign: this, action: 'find a missing driver' });
+		if (storingMoves.has(this)) throw new Error("A missing driver can't be found while a card move is being stored");
+		if (this.runDecks.length === 0) throw new Error('No run is out, so nobody is on the road to find them');
 		this.countsAt(driver);
-		if (driver.status !== 'missing') throw new RangeError(`${describeDriver(driver)} is ${driver.status}, not missing, so they can't come back`);
+		if (driver.status !== 'missing') throw new RangeError(`${describeDriver(driver)} is ${driver.status}, not missing, so there's nobody to find`);
+		if (this.foundOnRun.includes(driver)) throw new RangeError(`${describeDriver(driver)} has been found on this run already`);
 		if (this.runDeckOf(driver) !== null) throw new RangeError(`${describeDriver(driver)}'s run deck is still out; the failed run is settled (loseRun) before they can be found`);
-		const days = injuryDays({ hitpoints: driver.hitpoints, maxHitpoints: driver.maxHitpoints, rules });
-		driver.set({ status: days > 0 ? 'injured' : 'ready', injuredDays: days, vehicle: { structure: RETURN_STRUCTURE, armor: driver.vehicle.armor } });
-		this.emit('change', this.getState());
+		this.set({ foundOnRun: [...this.foundOnRun, driver] });
 	}
 
 	/** The save as plain JSON: what `toSaveText` writes, parsed back, so it's a copy of the caller's own. */
@@ -903,14 +956,16 @@ export class Campaign extends Model<CampaignData> {
 	 * The save's text, which `JSON.stringify(campaign)` also writes. The
 	 * frozen values go to `JSON.stringify` as they are, uncopied, which keeps
 	 * a checkpoint cheap. Throws on a convoy that couldn't load back, on a run
-	 * deck holding the card of an escort no longer in it, and on a seated
-	 * driver whose default deck holds cards, since the convoy and the records
-	 * change outside the campaign's checks.
+	 * deck holding the card of an escort no longer in it, on a seated driver
+	 * whose default deck holds cards, and on a driver found on the road who
+	 * isn't missing any more, since the convoy and the records change outside
+	 * the campaign's checks.
 	 */
 	public toSaveText(): string {
 		const convoy = convoyToJson(this.convoy);
 		readConvoy(convoy, 'Campaign.convoy');
 		readRunDeckTies({ decks: this.runDecks, convoy: this.convoy, path: 'Campaign.runDecks' });
+		readFoundTies({ found: this.foundOnRun, path: 'Campaign.foundOnRun' });
 		const save: Record<keyof CampaignJson, unknown> = {
 			seed: this.seed,
 			generatorVersion: this.generatorVersion,
@@ -923,6 +978,7 @@ export class Campaign extends Model<CampaignData> {
 			convoy,
 			nextRunNumber: this.nextRunNumber,
 			runDecks: this.runDecks,
+			foundOnRun: this.foundOnRun.map(driver => driver.id),
 			strongholdsTaken: this.strongholdsTaken,
 			log: this.log,
 			tally: this.tally,
@@ -942,6 +998,7 @@ export class Campaign extends Model<CampaignData> {
 	private checkMove({ cardType, from, to, count = 1 }: CardMove): MovePlan {
 		readCardType(cardType, 'cardType');
 		readInteger(count, 'count', { min: 1 });
+		if (this.end !== null) return { blocker: { reason: 'campaign_over', end: this.end } };
 		if (from instanceof RunDeck || to instanceof RunDeck) return this.checkRunDeckMove({ cardType, from, to, count });
 		if (from === to) throw new RangeError(`Can't move ${cardType} from ${placeName(from)} to itself`);
 		const source = this.countsAt(from);
@@ -1026,6 +1083,7 @@ export class Campaign extends Model<CampaignData> {
 
 	/** An escort card's move checked, with the run decks at each end. */
 	private checkEscortCardMove({ broughtBy, to }: { broughtBy: string; to: CardPlace }): EscortCardPlan {
+		if (this.end !== null) return { blocker: { reason: 'campaign_over', end: this.end }, card: null };
 		this.requireRunDecks();
 		const holder = this.holderOf(broughtBy);
 		if (holder === null) throw new RangeError(`No run deck holds a card ${describeValue(broughtBy)} brought`);
@@ -1080,6 +1138,7 @@ export class Campaign extends Model<CampaignData> {
 		readInteger(count, 'count', { min: 1 });
 		readInteger(price, 'price', { min: 0 });
 		const cards = readNewCards({ [cardType]: count }, 'cards');
+		if (this.end !== null) return { cards, price, blocker: { reason: 'campaign_over', end: this.end } };
 		const held = this.resources.scrap;
 		return { cards, price, blocker: held < price ? { reason: 'too_little_scrap', needed: price, held } : null };
 	}
@@ -1148,7 +1207,7 @@ type MovePlan =
 	| { blocker: null; kind: 'run_deck'; runDecks: readonly RunDeck[]; locker: CardCounts };
 
 type EscortCardPlan =
-	| { blocker: CardBlocker; card: EscortCard }
+	| { blocker: CardBlocker; card: EscortCard | null }
 	| { blocker: null; holder: RunDeck; card: EscortCard; target: RunDeck };
 
 /** These counts with `delta` more copies of a card, or fewer when it's negative. */
@@ -1166,6 +1225,8 @@ function shiftCards(counts: CardCounts, cardType: string, delta: number): CardCo
 function blockerMessage({ blocker, verb, cardType, count }: { blocker: CardBlocker; verb: 'move' | 'take' | 'scrap' | 'buy'; cardType: string; count: number }): string {
 	const available = (held: number): string => `${held} available, from the locker and the driver's own left at home`;
 	switch (blocker.reason) {
+		case 'campaign_over':
+			return `The campaign is over, since the compound ${blocker.end.ending}, so no cards ${verb === 'take' ? 'move' : verb}`;
 		case 'driver_away':
 			return `${describeDriver(blocker.place)} is ${blocker.place.status}, so no cards move to or from their deck`;
 		case 'on_run':
@@ -1186,6 +1247,33 @@ function blockerMessage({ blocker, verb, cardType, count }: { blocker: CardBlock
 		case 'too_little_scrap':
 			return `Buying ${count} ${cardType} costs ${blocker.needed} scrap, and the stores hold ${blocker.held}`;
 	}
+}
+
+/**
+ * What a refused card action throws: a `CampaignOverError`, with its clearer
+ * message, once the campaign is over, or a `CardRuleError` carrying the
+ * blocker its check gave.
+ */
+function cardRefusal({ blocker, action, message }: { blocker: CardBlocker; action: string; message: () => string }): Error {
+	if (blocker.reason === 'campaign_over') return new CampaignOverError({ end: blocker.end, action });
+	return new CardRuleError({ message: message(), blocker });
+}
+
+/**
+ * A found driver home from the run that found them: injured for the HP
+ * they're missing (`injuryDays`), or ready at full HP, and their vehicle at
+ * RETURN_STRUCTURE, its armor as the crash left it. Checked as the record
+ * would check it, so a run's arrival stores nothing it can't.
+ */
+function homecoming({ driver, rules }: { driver: DriverRecord; rules: CompoundRules }): Partial<DriverRecordData> {
+	const injuredDays = injuryDays({ hitpoints: driver.hitpoints, maxHitpoints: driver.maxHitpoints, rules });
+	const changes: Partial<DriverRecordData> = {
+		status: injuredDays > 0 ? 'injured' : 'ready',
+		injuredDays,
+		vehicle: { structure: RETURN_STRUCTURE, armor: driver.vehicle.armor }
+	};
+	readDriverRecordData({ ...driver.getState(), ...changes }, describeDriver(driver));
+	return changes;
 }
 
 /** Where load warnings go when nobody asks to hear them. */
@@ -1287,6 +1375,7 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 	if (!(fields.convoy instanceof Convoy)) throw new ReaderTypeError(`${path}.convoy must be a Convoy, got ${describeValue(fields.convoy)}`);
 	const drivers = readDrivers(fields.drivers, `${path}.drivers`, nextDriverNumber, previous);
 	const runDecks = readRunDecks(fields.runDecks, `${path}.runDecks`, { drivers, convoy: fields.convoy, held: previous.runDecks });
+	const foundOnRun = readFound(fields.foundOnRun, `${path}.foundOnRun`, { drivers, runDecks, held: previous.foundOnRun });
 	// A run out has its id handed out already, so the counter has passed it
 	const nextRunNumber = readInteger(fields.nextRunNumber, `${path}.nextRunNumber`, { min: runDecks.length > 0 ? 2 : 1 });
 	const resources = readResources(fields.resources, `${path}.resources`);
@@ -1314,11 +1403,54 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 		convoy: fields.convoy,
 		nextRunNumber,
 		runDecks,
+		foundOnRun,
 		strongholdsTaken: readStrongholds(fields.strongholdsTaken, `${path}.strongholdsTaken`),
 		log: readLog(fields.log, `${path}.log`, day, previous.log),
 		tally,
 		end
 	};
+}
+
+/**
+ * Drivers found on the run out: none at home, and while a run is out,
+ * drivers from the pool, each listed once, missing, and not seated (a seat
+ * whose run failed is settled first). Found drivers held before were checked
+ * when they were stored; their records change outside the campaign's
+ * checks, so `toSaveText` checks they're still missing.
+ */
+function readFound(
+	value: unknown,
+	path: string,
+	{ drivers, runDecks, held }: { drivers: readonly DriverRecord[]; runDecks: readonly RunDeck[]; held?: readonly DriverRecord[] }
+): readonly DriverRecord[] {
+	if (held !== undefined && value === held) return held;
+	const found = Array.from(readArray(value, path), (driver, index) => {
+		if (!(driver instanceof DriverRecord)) throw new ReaderTypeError(`${path}[${index}] must be a DriverRecord, got ${describeValue(driver)}`);
+		if (!drivers.includes(driver)) throw new ReaderRangeError(`${path}[${index}] ${driver.id} isn't in the pool`);
+		return driver;
+	});
+	if (found.length > 0 && runDecks.length === 0) throw new ReaderRangeError(`${path} holds ${found.length} found with no run out; they come home with the run, or stay missing`);
+	found.forEach((driver, index) => {
+		if (found.indexOf(driver) !== index) throw new ReaderRangeError(`${path}[${index}] ${driver.id} is listed twice`);
+		if (runDecks.some(deck => deck.driver === driver)) throw new ReaderRangeError(`${path}[${index}] ${driver.id} is seated on the run`);
+	});
+	readFoundTies({ found, path });
+	return Object.freeze(found);
+}
+
+/** Each found driver still missing, which records changing outside the campaign could undo. */
+function readFoundTies({ found, path }: { found: readonly DriverRecord[]; path: string }): void {
+	found.forEach((driver, index) => {
+		if (driver.status !== 'missing') throw new ReaderRangeError(`${path}[${index}] ${driver.id} must be missing until the run brings them home, got ${describeValue(driver.status)}`);
+	});
+}
+
+/** A driver from the pool, by the id a save refers to them by. */
+function readPoolDriver(value: unknown, path: string, drivers: readonly DriverRecord[]): DriverRecord {
+	const id = readText(value, path);
+	const driver = drivers.find(record => record.id === id);
+	if (driver === undefined) throw new ReaderRangeError(`${path} ${describeValue(id)} isn't a driver in the pool`);
+	return driver;
 }
 
 /** Refuses an end with a run still out, or a cause the campaign doesn't show. */
