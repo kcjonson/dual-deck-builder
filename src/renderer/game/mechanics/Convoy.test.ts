@@ -42,8 +42,10 @@ const driverOf = (vehicle: Vehicle): Driver => {
 const signatureCopy = (escort: Vehicle): Card => {
 	const data = cardData.find(candidate => candidate.type === escort.escort?.signatureCard);
 	if (!data) throw new Error(`No signature card for ${escort.name}`);
-	return new Card({ ...data, broughtBy: escort.id });
+	return new Card({ ...data, broughtBy: escort.convoyId });
 };
+
+const idsOf = (escorts: readonly Vehicle[]): (string | null)[] => escorts.map(escort => escort.convoyId);
 
 /**
  * A driven vehicle whose driver dies with no passenger becomes an escort,
@@ -88,12 +90,125 @@ describe('Convoy', () => {
 				.toThrow(`A convoy holds ${MAX_CONVOY_ESCORTS} escorts at most, not 5`);
 		});
 
-		test('takes only the convoy\'s own escorts', () => {
+		test('takes only the convoy\'s own escorts, each of a hired type', () => {
 			const convoy = new Convoy();
+			const battle = createBattle([rig, bike]);
+			convertToEscort(battle, bike);
 
 			expect(() => convoy.add(rig)).toThrow('Rig is not an escort');
 			expect(() => convoy.add(createEscort({ type: 'outrider', setPiece: true })))
 				.toThrow('Outrider is a set-piece ally, not the convoy\'s');
+			expect(() => convoy.add(bike)).toThrow('Bike isn\'t of a hired type: a vehicle carrying on unmanned is its driver\'s, not the convoy\'s');
+			expect(() => new Convoy({ escorts: [bike] })).toThrow('Bike isn\'t of a hired type');
+			expect(convoy.escorts).toEqual([]);
+		});
+
+		test('gives each escort the next id as it joins, and it keeps it', () => {
+			const convoy = new Convoy({ escorts: [createEscort({ type: 'med_truck' }), createEscort({ type: 'outrider' })] });
+			const hauler = createEscort({ type: 'fuel_hauler' });
+			expect(hauler.convoyId).toBeNull();
+
+			convoy.add(hauler);
+
+			expect(idsOf(convoy.escorts)).toEqual(['escort-1', 'escort-2', 'escort-3']);
+			expect(convoy.nextEscortNumber).toBe(4);
+			const [truck] = convoy.escorts;
+			truck.takeDamage(10);
+			truck.leaveRoad();
+			expect(truck.convoyId).toBe('escort-1');
+		});
+
+		test('never hands an id out again, once its escort is dismissed or lost', () => {
+			const convoy = new Convoy();
+			const [first, second, third] = (['outrider', 'pilot_car', 'med_truck'] as const).map(type => createEscort({ type }));
+			[first, second, third].forEach(escort => convoy.add(escort));
+
+			convoy.dismiss({ escort: third, drivers: [] });
+			convoy.afterFight({ lost: [second] });
+			const next = createEscort({ type: 'pilot_car' });
+			convoy.add(next);
+
+			expect(idsOf(convoy.escorts)).toEqual(['escort-1', 'escort-4']);
+			expect(() => convoy.set({ nextEscortNumber: 3 })).toThrow('Convoy.nextEscortNumber can\'t go back, from 5 to 3');
+			expect(convoy.nextEscortNumber).toBe(5);
+			// Let go is let go: an escort joins once, so its id can't turn up beside a newer one's
+			expect(() => convoy.add(third)).toThrow('Med Truck (escort-3) has joined a convoy before, and an escort joins only once');
+		});
+
+		test('built from escorts that already have ids, keeps them, and refuses ids its counter has passed or that repeat', () => {
+			const joined = new Convoy({ escorts: [createEscort({ type: 'outrider' }), createEscort({ type: 'pilot_car' })] }).escorts;
+			const fresh = createEscort({ type: 'med_truck' });
+
+			const loaded = new Convoy({ escorts: [joined[1], fresh], nextEscortNumber: 7 });
+
+			expect(idsOf(loaded.escorts)).toEqual(['escort-2', 'escort-7']);
+			expect(loaded.nextEscortNumber).toBe(8);
+			expect(new Convoy({ escorts: [joined[1]] }).nextEscortNumber).toBe(3);
+			expect(() => new Convoy({ escorts: joined, nextEscortNumber: 2 }))
+				.toThrow('Pilot Car\'s id must come before escort-2, the next id to hand out, got escort-2');
+			expect(() => new Convoy({ escorts: [joined[0], joined[0]] })).toThrow('Outrider is in the convoy twice');
+		});
+
+		test('lets an escort in only through add: set and the roster only take escorts out, in the order they joined', () => {
+			const convoy = new Convoy({ escorts: (['outrider', 'pilot_car', 'med_truck'] as const).map(type => createEscort({ type })) });
+			const [outrider, pilotCar, truck] = convoy.escorts;
+			const stranger = createEscort({ type: 'fuel_hauler' });
+
+			expect(() => convoy.set({ escorts: [...convoy.escorts, stranger] })).toThrow('Fuel Hauler isn\'t in the convoy, and an escort joins through add');
+			expect(() => convoy.set({ escorts: [pilotCar, outrider] })).toThrow('Outrider would change places in the roster or be listed twice; escorts keep the order they joined in');
+			expect(() => convoy.set({ escorts: [outrider, outrider] })).toThrow('Outrider would change places in the roster or be listed twice');
+			expect(() => (convoy.escorts as Vehicle[]).push(stranger)).toThrow(TypeError);
+			expect([convoy.escorts, stranger.convoyId, convoy.nextEscortNumber]).toEqual([[outrider, pilotCar, truck], null, 4]);
+
+			convoy.set({ escorts: [outrider, truck] });
+			expect(convoy.escorts).toEqual([outrider, truck]);
+		});
+
+		test.each([0, 5.5, NaN])('won\'t set its counter to %p, which is no next number', (nextEscortNumber) => {
+			const convoy = new Convoy({ escorts: [createEscort({ type: 'outrider' })] });
+
+			expect(() => convoy.set({ nextEscortNumber })).toThrow(`Convoy.nextEscortNumber must be an integer >= 1, got ${nextEscortNumber}`);
+			expect(convoy.nextEscortNumber).toBe(2);
+		});
+
+		test('refuses an add from a listener on the escort that\'s joining, so it can\'t take the same id or overfill the convoy', () => {
+			const convoy = new Convoy({ escorts: (['outrider', 'pilot_car', 'med_truck'] as const).map(type => createEscort({ type })) });
+			const fourth = createEscort({ type: 'fuel_hauler' });
+			const fifth = createEscort({ type: 'outrider' });
+			const refusals: string[] = [];
+			const tryTo = (change: () => void): void => {
+				try {
+					change();
+				} catch (error) {
+					refusals.push((error as Error).message);
+				}
+			};
+			fourth.once('change', () => {
+				tryTo(() => convoy.add(fifth));
+				tryTo(() => convoy.dismiss({ escort: convoy.escorts[0], drivers: [] }));
+			});
+
+			convoy.add(fourth);
+
+			expect(refusals).toEqual([
+				'Can\'t add Outrider while another escort is joining the convoy',
+				'The convoy can\'t change while an escort is joining it'
+			]);
+			expect(idsOf(convoy.escorts)).toEqual(['escort-1', 'escort-2', 'escort-3', 'escort-4']);
+			expect([fifth.convoyId, convoy.nextEscortNumber]).toEqual([null, 5]);
+		});
+
+		test('lets a listener on the convoy add once the escort that joined is whole', () => {
+			const convoy = new Convoy();
+			const [first, second] = (['outrider', 'pilot_car'] as const).map(type => createEscort({ type }));
+			const heard: (string | null)[][] = [];
+			convoy.on('change', () => heard.push(idsOf(convoy.escorts)));
+			convoy.once('change', () => convoy.add(second));
+
+			convoy.add(first);
+
+			expect(idsOf(convoy.escorts)).toEqual(['escort-1', 'escort-2']);
+			expect(heard).toContainEqual(['escort-1']);
 		});
 
 		test('dismissing an escort takes the copy it brought out of whichever deck holds it', () => {
@@ -116,6 +231,24 @@ describe('Convoy', () => {
 	});
 
 	describe('a lost escort', () => {
+		test('that never joined a convoy, in a fight outside a campaign, takes nothing out of the decks', () => {
+			const truck = createEscort({ type: 'med_truck' });
+			const battle = createBattle([rig, bike, truck]);
+			const driver = driverOf(rig);
+			// What a copy dealt for an escort with no id would carry: a broughtBy of null, like no escort's
+			driver.deck?.addCard(signatureCopy(truck));
+			const cards = [...(driver.deck?.cards ?? [])];
+
+			truck.destroy();
+			const result = battle.endCombat();
+
+			expect(truck.convoyId).toBeNull();
+			expect(result.lost).toEqual([truck]);
+			expect(driver.deck?.cards).toEqual(cards);
+			expect(driver.removeCardsBroughtBy(null)).toEqual([]);
+			expect(battle.getMessages().map(message => message.message)).toContain('Med Truck is lost for the run');
+		});
+
 		test('is gone for the run, and its copy leaves deck, hand, discard, and exhausted when the fight ends', async () => {
 			const truck = createEscort({ type: 'med_truck' });
 			const convoy = new Convoy({ escorts: [truck] });

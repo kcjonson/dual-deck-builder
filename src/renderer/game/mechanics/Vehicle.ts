@@ -186,6 +186,15 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
+	 * The id the convoy gave this escort, `escort-<n>`, which saves and
+	 * `Card.broughtBy` use; never `id`, the Model's per-session count. Null
+	 * for anything that hasn't joined a convoy.
+	 */
+	public get convoyId(): string | null {
+		return this.escort?.id ?? null;
+	}
+
+	/**
 	 * An escort that can still carry out an order this turn
 	 */
 	public get isReady(): boolean {

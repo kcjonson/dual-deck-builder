@@ -28,7 +28,9 @@ export const LIMP_STRUCTURE = 1;
  * fights: the seated drivers' records in seat order, Driver 1 first, the
  * convoy's escorts that came along (load out can leave some at home), and
  * the cargo picked up so far, which reaches the compound's stores only if
- * the run gets home.
+ * the run gets home. A save between fights refers to the seats and escorts
+ * by their campaign ids (`driver-<n>`, `escort-<n>`), which a load finds
+ * again in the pool and the convoy.
  */
 export interface RunParty {
 	readonly seats: readonly DriverRecord[];
@@ -108,6 +110,12 @@ type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
  * and none is written back twice.
  */
 const openFights = new WeakMap<Campaign, CampaignFight>();
+/**
+ * Campaigns partway through storing a write-back. The fight stops being
+ * open before anything is stored, so this is what keeps a listener from
+ * starting the next fight on records and a convoy that are half written.
+ */
+const storingWriteBacks = new WeakSet<Campaign>();
 
 /**
  * Build a run's next fight and start it. Each seat's combat driver is their
@@ -120,13 +128,15 @@ const openFights = new WeakMap<Campaign, CampaignFight>();
  * `rng`.
  *
  * Throws, building nothing, while the campaign's last fight hasn't been
- * written back, and unless the party seats two drivers of different
+ * written back or is being written back (from a listener partway through
+ * it), and unless the party seats two drivers of different
  * archetypes from the campaign's pool who are ready to fight, its cargo
  * checks out, every escort is the campaign's, and every card in the decks
  * has a template. The teams and the encounter can refuse the road too
  * (Team, Battle), and move nobody when they do.
  */
 export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, enemyAI = 'aggressive' }: CampaignFightOptions): CampaignFight {
+	if (storingWriteBacks.has(campaign)) throw new Error("This campaign's last fight is still being written back");
 	if (openFights.has(campaign)) throw new Error("This campaign's last fight hasn't been written back");
 	if (party.seats.length !== 2) throw new RangeError(`A fight seats two drivers, and this party has ${party.seats.length}`);
 	const [first, second] = party.seats;
@@ -198,6 +208,7 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
 
 	// Closed before storing, so a write-back started from a listener partway through is refused
 	openFights.delete(campaign);
+	storingWriteBacks.add(campaign);
 	try {
 		seats.forEach(({ record, changes }) => record.set(changes));
 		campaign.convoy.afterFight({ lost: escortsLost });
@@ -206,6 +217,8 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
 	} catch (error) {
 		openFights.set(campaign, fight);
 		throw error;
+	} finally {
+		storingWriteBacks.delete(campaign);
 	}
 
 	const recordsFated = (fate: Fate): DriverRecord[] => seats.filter(seat => seat.fate === fate).map(({ record }) => record);
