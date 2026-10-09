@@ -142,7 +142,7 @@ The map is presented as a worn, hand-drawn chart spread across a rusted metal su
 
 ![Area map wireframe](../design/supply-runs/area-map.png)
 
-**Visual Presentation:** The compound sits at the centre in the ruins of a metro area, with highways leaving it in every direction, bending with the land and branching into back roads and trails. The background shows the terrain - destroyed highways, ruined towns, toxic swamps, badlands - and fog covers everything not yet explored. Strongholds hide in the fog at the edges.
+**Visual Presentation:** The map reads like a page of a printed road atlas (Area Map Generation, Rendering). The compound sits at the centre in the ruins of a metro area, in a region of mountain ranges, river valleys, lakes, and ruined towns, joined by highways, back roads, and trails that follow the land. Collapsed highway spans, craters, and contamination mark the wasteland, and fog covers everything not yet explored. Strongholds hide in the fog at the edges.
 
 **What it shows:** every known POI with its yields, tier, and state (unvisited, looted, depleted); roads by what you know of them (charted solid, rumored solid with unknown stops, uncharted dashed into the fog); strongholds found; explored percentage. Selecting a POI shows its details and "Plan a run here".
 
@@ -150,7 +150,7 @@ The map is presented as a worn, hand-drawn chart spread across a rusted metal su
 
 ### 3.4 The Run Route
 
-A zoomed view between the compound and the chosen POI, showing its 2 or 3 routes. Picking a route card highlights it on the map and lists its stops in order, as far as they're known, with fuel, hours, the time you'd be home against dark, and risk. A route that would run past dark is flagged before you leave. The routes arrive from different branches of the road network and share nothing past the home area. "Load out the crew" goes to driver selection.
+A zoomed view between the compound and the chosen POI, showing its 2 or 3 routes. Picking a route card highlights it on the map and lists its stops in order, as far as they're known, with fuel, hours, the time you'd be home against dark, and risk. A route that would run past dark is flagged before you leave. The routes arrive by different roads, split before halfway, and share nothing after (Area Map Generation, Routes). "Load out the crew" goes to driver selection.
 
 ![Run route wireframe](../design/supply-runs/run-route.png)
 
