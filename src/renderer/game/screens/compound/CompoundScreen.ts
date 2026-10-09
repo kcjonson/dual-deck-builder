@@ -34,7 +34,6 @@ const BACK_WIDTH = 136;
 const AREA_MAP_WIDTH = 96;
 const FALLEN_BUTTON_WIDTH = 160;
 
-const AREA_MAP_REASON = 'Not built yet.';
 const PLAN_REASON = "Load out and the run route aren't built yet.";
 const NO_RUMORS = 'Radio: no new rumors';
 
@@ -58,8 +57,9 @@ export interface CompoundScreenOptions {
  * Nothing behind the buildings, the Area map, or Plan a supply run exists
  * yet, so each is disabled with its reason as a line of text, as the main
  * menu's Continue is: a disabled control takes no focus or hover (R9.5),
- * and a tooltip needs one of them (R12.22). Rest is live: it ends the day
- * (`endDay`) and checkpoints the campaign.
+ * and a tooltip needs one of them (R12.22). The Area map's reason is the
+ * Map room's, on its tile, which leaves the top bar room for the stores.
+ * Rest is live: it ends the day (`endDay`) and checkpoints the campaign.
  *
  * Focus starts on Back to menu, not Rest, so a stray Enter can't spend a
  * day. The buildings and the two actions are focus groups (R9.29), and
@@ -72,12 +72,14 @@ export class CompoundScreen extends Screen {
 	private readonly store: CampaignStore;
 	private campaign: Campaign | null = null;
 	private dayLabel: Text | null = null;
+	private stores: Stack | null = null;
 	private readonly resources = new Map<keyof Resources, Text>();
 	private needs: Stack | null = null;
 	private needsScroll: ScrollContainer | null = null;
 	private restButton: Button | null = null;
 	private restLine: Text | null = null;
 	private report: Text | null = null;
+	private saveError: Text | null = null;
 	private fallen: Dialog | null = null;
 	private unsubscribe: (() => void) | null = null;
 	private resting = false;
@@ -138,7 +140,7 @@ export class CompoundScreen extends Screen {
 		hotkeys.register('Escape', () => this.back());
 		hotkeys.register('PageDown', () => this.needsScroll?.scrollByPages(1));
 		hotkeys.register('PageUp', () => this.needsScroll?.scrollByPages(-1));
-		this.unsubscribe = this.store.onSaveFailed((error) => this.showReport({ text: error.message, color: 'status_crit' }));
+		this.unsubscribe = this.store.onSaveFailed((error) => this.showLine({ line: this.saveError, text: error.message, color: 'status_crit' }));
 		this.context.focus.focus(back);
 
 		const handed = (data as Partial<CompoundScreenData> | undefined)?.campaign;
@@ -157,12 +159,14 @@ export class CompoundScreen extends Screen {
 		this.stack.clearChildren();
 		this.campaign = null;
 		this.dayLabel = null;
+		this.stores = null;
 		this.resources.clear();
 		this.needs = null;
 		this.needsScroll = null;
 		this.restButton = null;
 		this.restLine = null;
 		this.report = null;
+		this.saveError = null;
 		this.resting = false;
 	}
 
@@ -174,7 +178,7 @@ export class CompoundScreen extends Screen {
 			height: TOP_BAR_HEIGHT,
 			padding: { left: space.space_4, right: space.space_4 },
 			crossAlign: 'center',
-			gap: space.space_6,
+			gap: space.space_4,
 			style: { backgroundColor: 'bg_panel' },
 		});
 		bar.addChild(back);
@@ -186,27 +190,21 @@ export class CompoundScreen extends Screen {
 			style: { fontRole: 'display', fontSize: 'fs_xl', color: 'text_bright', textTransform: 'uppercase', letterSpacing: 'ls_wide' },
 			wrap: 'none',
 		}));
-		this.dayLabel = new Text({ id: 'compound_day', style: { fontRole: 'mono', fontSize: 'fs_sm', color: 'text_dim' }, wrap: 'none' });
+		// The day and the stores show once there's a campaign.
+		this.dayLabel = new Text({ id: 'compound_day', visible: false, style: { fontRole: 'mono', fontSize: 'fs_sm', color: 'text_dim' }, wrap: 'none' });
 		heading.addChild(this.dayLabel);
 		bar.addChild(heading);
 
-		const areaMap = new Stack({ id: 'compound_area_map', direction: 'horizontal', crossAlign: 'center', gap: space.space_2 });
-		areaMap.addChild(new Button({ label: 'Area map', id: 'compound_area_map_button', size: 'sm', width: AREA_MAP_WIDTH, disabled: true }));
-		areaMap.addChild(new Text({
-			text: AREA_MAP_REASON,
-			id: 'compound_area_map_reason',
-			style: { fontSize: 'fs_sm', color: 'text_dim' },
-			wrap: 'none',
-		}));
-		bar.addChild(areaMap);
+		bar.addChild(new Button({ label: 'Area map', id: 'compound_area_map_button', size: 'sm', width: AREA_MAP_WIDTH, disabled: true }));
 
-		const stores = new Stack({
+		this.stores = new Stack({
 			id: 'compound_resources',
 			direction: 'horizontal',
 			widthMode: 'fill',
 			distribution: 'end',
 			crossAlign: 'center',
 			gap: space.space_1_5,
+			visible: false,
 		});
 		for (const resource of RESOURCE_ORDER) {
 			const chip = new Stack({
@@ -216,10 +214,10 @@ export class CompoundScreen extends Screen {
 			});
 			const amount = new Text({ style: { fontRole: 'mono', fontSize: 'fs_sm', color: 'text' }, wrap: 'none' });
 			chip.addChild(amount);
-			stores.addChild(chip);
+			this.stores.addChild(chip);
 			this.resources.set(resource, amount);
 		}
-		bar.addChild(stores);
+		bar.addChild(this.stores);
 		return bar;
 	}
 
@@ -227,7 +225,8 @@ export class CompoundScreen extends Screen {
 		const side = new Stack({ id: 'compound_side', width: SIDE_WIDTH, heightMode: 'fill', crossAlign: 'stretch', gap: space.space_4 });
 
 		const panel = new Panel({ id: 'compound_needs_panel', title: 'Needs', compact: true, heightMode: 'fill', crossAlign: 'stretch' });
-		this.needs = new Stack({ id: 'compound_needs', crossAlign: 'stretch', gap: space.space_1_5 });
+		// Empty, and hidden, until there's a campaign to read.
+		this.needs = new Stack({ id: 'compound_needs', crossAlign: 'stretch', gap: space.space_1_5, visible: false });
 		this.needsScroll = new ScrollContainer({ id: 'compound_needs_scroll', widthMode: 'fill', heightMode: 'fill' });
 		this.needsScroll.addChild(this.needs);
 		panel.addChild(this.needsScroll);
@@ -244,10 +243,13 @@ export class CompoundScreen extends Screen {
 		actions.addChild(this.restButton);
 		this.restLine = caption({ id: 'compound_rest_line', text: 'Looking for the saved campaign.' });
 		actions.addChild(this.restLine);
-		// What the last night did, or why it couldn't be saved; hidden until a rest.
+		// What the last night did, and why it couldn't be saved; each hidden until there's something to say.
 		this.report = caption({ id: 'compound_report', text: '' });
 		this.report.visible = false;
 		actions.addChild(this.report);
+		this.saveError = caption({ id: 'compound_save_error', text: '' });
+		this.saveError.visible = false;
+		actions.addChild(this.saveError);
 		actions.addChild(new Button({
 			label: 'Plan a supply run',
 			id: 'compound_plan_button',
@@ -283,7 +285,11 @@ export class CompoundScreen extends Screen {
 	private show(campaign: Campaign): void {
 		this.campaign = campaign;
 		if (this.restButton) this.restButton.enabled = true;
+		if (this.dayLabel) this.dayLabel.visible = true;
+		if (this.stores) this.stores.visible = true;
 		this.refresh();
+		// A save made the night the last people left has fallen already.
+		if (campaign.resources.people === 0) this.compoundFell();
 	}
 
 	/** Everything that reads the campaign, again. */
@@ -302,6 +308,7 @@ export class CompoundScreen extends Screen {
 		const needs = this.needs;
 		if (!needs) return;
 		needs.clearChildren();
+		needs.visible = true;
 		const lines: NeedLine[] = [
 			...forecastLines(forecast),
 			...campaign.drivers.filter((driver) => driver.status === 'injured').map((driver) => ({ text: injuredLine(driver), urgent: false })),
@@ -313,35 +320,39 @@ export class CompoundScreen extends Screen {
 	/**
 	 * Ends the day, then checkpoints. A second press while the checkpoint is
 	 * on its way does nothing, so the next step starts after it, as the store
-	 * asks. A save that fails says so under Rest (`onSaveFailed`).
+	 * asks. A save that fails says so under Rest (`onSaveFailed`), and a fall
+	 * whose save failed shows no notice: the save still holds the day before,
+	 * and Rest tries again.
 	 */
 	private async rest(): Promise<void> {
 		const campaign = this.campaign;
 		if (!campaign || this.resting || this.fallen) return;
 		this.resting = true;
 		const visit = this.visit;
+		if (this.saveError) this.saveError.visible = false;
 		let dayEnd: DayEnd;
 		try {
 			dayEnd = endDay({ campaign });
 		} catch (error) {
 			console.error('CompoundScreen: ending the day failed', error);
-			this.showReport({ text: "The day couldn't end.", color: 'status_crit' });
+			this.showLine({ line: this.report, text: "The day couldn't end.", color: 'status_crit' });
 			this.resting = false;
 			return;
 		}
 		this.refresh();
-		this.showReport({ text: dayEndReport(dayEnd), color: 'text_dim' });
-		await this.store.checkpoint(campaign);
+		const report = dayEndReport(dayEnd);
+		this.showLine({ line: this.report, text: report.text, color: report.urgent ? 'status_warn' : 'text_dim' });
+		const saved = await this.store.checkpoint(campaign);
 		if (visit !== this.visit) return;
 		this.resting = false;
-		if (dayEnd.outcome === 'abandoned') this.compoundFell(dayEnd);
+		if (saved && dayEnd.outcome === 'abandoned') this.compoundFell();
 	}
 
-	private showReport({ text, color }: { text: string; color: ColorToken }): void {
-		if (!this.report) return;
-		this.report.text = text;
-		this.report.color = color;
-		this.report.visible = true;
+	private showLine({ line, text, color }: { line: Text | null; text: string; color: ColorToken }): void {
+		if (!line) return;
+		line.text = text;
+		line.color = color;
+		line.visible = true;
 	}
 
 	/**
@@ -349,10 +360,11 @@ export class CompoundScreen extends Screen {
 	 * for the defeat screen (DDB-305), which replaces this method; it doesn't
 	 * end the campaign in the store. Whatever closes it goes to the menu.
 	 */
-	private compoundFell(dayEnd: DayEnd): void {
+	private compoundFell(): void {
+		if (this.fallen || !this.campaign) return;
 		const dialog: Dialog = new Dialog({
 			id: 'compound_fallen_dialog',
-			kicker: `Day ${dayEnd.day}`,
+			kicker: `Day ${this.campaign.day}`,
 			title: 'The compound has fallen',
 			size: 'sm',
 			content: new Text({
@@ -380,13 +392,15 @@ export class CompoundScreen extends Screen {
 
 /**
  * The buildings as the menu: rows of three tiles that share the room, where
- * the illustrated scene will go. One focus group, moved through with the
- * arrows in both axes.
+ * the illustrated scene will go. One focus group whose Left and Right move
+ * through the buildings in reading order; Up and Down go unconsumed to
+ * directional focus (R9.24, R9.26), so they move between the rows.
  */
 function createBuildings(): FocusGroup {
 	const grid = new FocusGroup({
 		id: 'compound_buildings',
-		orientation: 'both',
+		orientation: 'horizontal',
+		direction: 'vertical',
 		widthMode: 'fill',
 		heightMode: 'fill',
 		crossAlign: 'stretch',
@@ -407,23 +421,40 @@ function createBuildings(): FocusGroup {
 }
 
 /**
- * A building: what it's for and why it's disabled, over its button at the
- * tile's foot, so the buttons line up whatever the text above them wraps to.
- * The art goes in the room above.
+ * A building: its name at the top, as the wireframe has it, and at the foot
+ * what it's for and why it's disabled over its button, so the buttons line up
+ * whatever the text above them wraps to. The art goes in the room between.
  */
-function buildingTile({ id, name, description, reason }: Building): Stack {
+function buildingTile({ id, name, description, reason, action }: Building): Stack {
 	const tile = new Stack({
 		id: `compound_building_${id}`,
 		widthMode: 'fill',
-		distribution: 'end',
+		distribution: 'spaceBetween',
 		crossAlign: 'stretch',
 		padding: space.space_3,
-		gap: space.space_1_5,
+		gap: space.space_3,
 		style: { backgroundColor: 'bg_panel', borderColor: 'line_edge', borderWidth: 'bw', borderRadius: 'r_sm' },
 	});
-	tile.addChild(caption({ id: `compound_building_${id}_description`, text: description, color: 'text' }));
-	if (reason !== null) tile.addChild(caption({ id: `compound_building_${id}_reason`, text: reason }));
-	tile.addChild(new Button({ label: name, id: `compound_building_${id}_button`, block: true, disabled: reason !== null, margin: { top: space.space_1_5 } }));
+	tile.addChild(new Text({
+		text: name,
+		id: `compound_building_${id}_name`,
+		widthMode: 'fill',
+		style: { fontRole: 'display', fontSize: 'fs_lg', color: 'text_bright', textTransform: 'uppercase', letterSpacing: 'ls_wide' },
+		wrap: 'none',
+		textOverflow: 'ellipsis',
+	}));
+	const foot = new Stack({ id: `compound_building_${id}_foot`, crossAlign: 'stretch', gap: space.space_1_5 });
+	foot.addChild(caption({ id: `compound_building_${id}_description`, text: description, color: 'text' }));
+	if (reason !== null) foot.addChild(caption({ id: `compound_building_${id}_reason`, text: reason }));
+	foot.addChild(new Button({
+		label: name,
+		id: `compound_building_${id}_button`,
+		block: true,
+		disabled: reason !== null,
+		onClick: action,
+		margin: { top: space.space_1_5 },
+	}));
+	tile.addChild(foot);
 	return tile;
 }
 

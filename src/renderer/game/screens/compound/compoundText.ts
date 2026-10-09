@@ -1,18 +1,21 @@
 import type { Resources } from '../../campaign/Campaign';
 import { UPKEEP_RESOURCES } from '../../campaign/CompoundRules';
+import { shortfallMessage } from '../../campaign/DayClock';
 import type { DayEnd, NeedForecast, NeedsForecast } from '../../campaign/DayClock';
 import type { DriverRecord } from '../../campaign/DriverRecord';
 import { countOf } from '../main-menu/campaignText';
 
 export type BuildingId = 'bunkhouse' | 'radio_mast' | 'infirmary' | 'garage' | 'map_room' | 'stores';
 
-/** A building on the compound screen: what it's for, and why it can't be entered yet. */
+/** A building on the compound screen: what it's for, and what its button does or why it can't. */
 export interface Building {
 	id: BuildingId;
 	name: string;
 	description: string;
 	/** Why it's disabled; null once the screen behind it exists. */
 	reason: string | null;
+	/** What its button does once it's enabled. */
+	action?: () => void;
 }
 
 /**
@@ -40,9 +43,29 @@ const RESOURCE_NAMES: Readonly<Record<keyof Resources, string>> = {
 	people: 'People',
 };
 
-/** "Food 14". */
+/** Thousands, millions, and on, for amounts past four digits. */
+const AMOUNT_SUFFIXES = ['k', 'M', 'B', 'T', 'Q'];
+
+/**
+ * An amount in at most four characters, so the top bar's chips fit at
+ * 1024 px whatever the stores hold: whole below 10,000, then rounded down
+ * to thousands, millions, and on ("12k", "999k", "1M"), so a chip never
+ * shows more than there is.
+ */
+export function amountText(amount: number): string {
+	if (amount < 10_000) return String(amount);
+	let scaled = amount / 1000;
+	let suffix = 0;
+	while (scaled >= 1000 && suffix < AMOUNT_SUFFIXES.length - 1) {
+		scaled /= 1000;
+		suffix += 1;
+	}
+	return `${Math.floor(scaled)}${AMOUNT_SUFFIXES[suffix]}`;
+}
+
+/** "Food 14", "Scrap 12k". */
 export function resourceText({ resource, amount }: { resource: keyof Resources; amount: number }): string {
-	return `${RESOURCE_NAMES[resource]} ${amount}`;
+	return `${RESOURCE_NAMES[resource]} ${amountText(amount)}`;
 }
 
 /** The compound between runs is always at dawn (Compound and Supply Runs, Founding the compound). */
@@ -50,16 +73,20 @@ export function dayText(day: number): string {
 	return `Day ${day} / dawn`;
 }
 
-/** One line of the needs panel, and whether it's urgent. */
+/** A line of text the screen shows, and whether it's bad news. */
 export interface NeedLine {
 	text: string;
 	urgent: boolean;
 }
 
-/** "Food runs out in 6 days", or tonight's shortfall; null when nobody's there to eat it. */
+/**
+ * "Food runs out in 6 days", tonight's shortfall, or none left at all; null
+ * when nobody's there to eat it.
+ */
 export function forecastLine({ resource, forecast }: { resource: keyof Resources; forecast: NeedForecast }): NeedLine | null {
 	if (forecast.days === null) return null;
 	const name = RESOURCE_NAMES[resource];
+	if (forecast.stock === 0) return { text: `No ${resource}: ${forecast.shortTonight} short tonight`, urgent: true };
 	if (forecast.shortTonight > 0) return { text: `${name} runs out tonight, ${forecast.shortTonight} short`, urgent: true };
 	return { text: `${name} runs out in ${countOf(forecast.days, 'day')}`, urgent: false };
 }
@@ -87,16 +114,16 @@ function listText(items: readonly string[]): string {
 	return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
 }
 
-/** What the night did, under Rest once it's over. */
-export function dayEndReport(dayEnd: DayEnd): string {
+/**
+ * What the night did, under Rest once it's over: the day that ended, the
+ * shortfall as the log words it, and who is fit again. Urgent when the
+ * stores fell short.
+ */
+export function dayEndReport(dayEnd: DayEnd): NeedLine {
 	const parts = [`Day ${dayEnd.day} ended.`];
-	const short = UPKEEP_RESOURCES.filter((resource) => dayEnd.shortfall[resource] > 0)
-		.map((resource) => `${dayEnd.shortfall[resource]} ${resource}`);
-	if (short.length > 0) {
-		const lost = dayEnd.peopleLost === 1 ? '1 person' : `${dayEnd.peopleLost} people`;
-		parts.push(dayEnd.peopleLost > 0 ? `Short of ${listText(short)}; ${lost} lost.` : `Short of ${listText(short)}.`);
-	}
+	const urgent = UPKEEP_RESOURCES.some((resource) => dayEnd.shortfall[resource] > 0);
+	if (urgent) parts.push(shortfallMessage(dayEnd));
 	const healed = dayEnd.healed.map((driver) => driver.name);
 	if (healed.length > 0) parts.push(`${listText(healed)} ${healed.length === 1 ? 'is' : 'are'} fit again.`);
-	return parts.join(' ');
+	return { text: parts.join(' '), urgent };
 }
