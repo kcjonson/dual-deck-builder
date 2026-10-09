@@ -168,6 +168,7 @@
 			}
 		]
 	},
+	"nextRunNumber": 4,
 	"runDecks": [
 		{
 			"driver": "driver-1",

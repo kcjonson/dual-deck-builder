@@ -1,6 +1,6 @@
 import { readInteger } from '../core/JsonReader';
 import type { Campaign } from './Campaign';
-import { hasOpenFight } from './CombatBridge';
+import { hasOpenFight } from './OpenFights';
 import { COMPOUND_RULES, CompoundRules, readCompoundRules } from './CompoundRules';
 import type { DriverRecord, DriverRecordData, DriverStatus } from './DriverRecord';
 import { describeDriver } from './DriverRecord';
