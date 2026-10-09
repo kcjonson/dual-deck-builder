@@ -1,8 +1,12 @@
 [
-{"path":"mainMenuScreen/main_menu_title","text":"Dual Deckbuilder","rect":[511.56,226.8,416.88,86.4]},
-{"path":"mainMenuScreen/main_menu_buttons/main_menu_start_button/Text[0]","text":"Start Game","rect":[582,361.2,276,46]},
-{"path":"mainMenuScreen/main_menu_buttons/main_menu_settings_button/Text[0]","text":"Settings","rect":[582,423.2,276,46]},
-{"path":"mainMenuScreen/main_menu_buttons/main_menu_credits_button/Text[0]","text":"Credits","rect":[582,485.2,276,46]},
-{"path":"mainMenuScreen/main_menu_buttons/main_menu_card_showcase_button/Text[0]","text":"Card Showcase","rect":[582,547.2,276,46]},
-{"path":"mainMenuScreen/main_menu_buttons/main_menu_developer_button/Text[0]","text":"Developer Tools","rect":[582,609.2,276,46]}
+{"path":"mainMenuScreen/main_menu_title","text":"Dual Deckbuilder","rect":[511.56,176.63,416.88,86.4]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_campaign/main_menu_new_campaign_button/Text[0]","text":"New Campaign","rect":[572,295.03,296,46]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_campaign/main_menu_continue/main_menu_continue_button/Text[0]","text":"Continue","rect":[572,353.03,296,46]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_campaign/main_menu_continue/main_menu_continue_line","text":"No campaign in progress.","rect":[560,405.03,320,16.34]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_campaign/main_menu_history_button/Text[0]","text":"Campaign History","rect":[572,433.37,296,46]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_more/main_menu_skirmish_button/Text[0]","text":"Skirmish","rect":[572,503.37,296,34]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_more/main_menu_settings_button/Text[0]","text":"Settings","rect":[572,545.37,296,34]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_more/main_menu_credits_button/Text[0]","text":"Credits","rect":[572,587.37,296,34]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_more/main_menu_card_showcase_button/Text[0]","text":"Card Showcase","rect":[572,629.37,296,34]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_more/main_menu_developer_button/Text[0]","text":"Developer Tools","rect":[572,671.37,296,34]}
 ]

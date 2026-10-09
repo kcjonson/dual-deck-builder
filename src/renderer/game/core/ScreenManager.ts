@@ -9,6 +9,8 @@ import { CombatScreen } from '../screens/combat/CombatScreen';
 import { BattleResultScreen } from '../screens/battleResult/BattleResultScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
 import { CreditsScreen } from '../screens/credits/CreditsScreen';
+import { CampaignHistoryScreen } from '../screens/campaign-history/CampaignHistoryScreen';
+import { CompoundPlaceholderScreen } from '../screens/compound/CompoundPlaceholderScreen';
 import { ScreenTransition } from '../../engine/ui/ScreenTransition';
 
 /**
@@ -23,7 +25,9 @@ export type ScreenName =
 	| 'combatScreen'
 	| 'battleResultScreen'
 	| 'settingsScreen'
-	| 'creditsScreen';
+	| 'creditsScreen'
+	| 'campaignHistoryScreen'
+	| 'compoundScreen';
 
 /**
  * Screen constructor type
@@ -54,6 +58,9 @@ function buildScreenConstructors(): Map<ScreenName, ScreenConstructor> {
 		['battleResultScreen', BattleResultScreen],
 		['settingsScreen', SettingsScreen],
 		['creditsScreen', CreditsScreen],
+		['campaignHistoryScreen', CampaignHistoryScreen],
+		// A placeholder until the compound screen is built, under the name it will take.
+		['compoundScreen', CompoundPlaceholderScreen],
 	);
 	return new Map(entries);
 }

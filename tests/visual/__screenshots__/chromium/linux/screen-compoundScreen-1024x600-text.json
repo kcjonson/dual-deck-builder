@@ -1,0 +1,7 @@
+[
+{"path":"compoundScreen/compound_title","text":"The Compound","rect":[378.78,147.92,266.45,62.4]},
+{"path":"compoundScreen/compound_panel/compound_summary","text":"Day 9 - 3 drivers - 1 stronghold taken","rect":[288,258.32,448,24.51]},
+{"path":"compoundScreen/compound_panel/compound_stores","text":"Food 14  Water 11  Fuel 6  Meds 2  Scrap 35  People 18","rect":[288,294.83,448,15.84]},
+{"path":"compoundScreen/compound_panel/compound_note","text":"The compound screen isn't built yet. The campaign is saved, and Continue on the main menu comes back to it.","rect":[288,322.67,448,35.41]},
+{"path":"compoundScreen/compound_back_button/Text[0]","text":"Back to menu","rect":[441,406.08,169,46]}
+]

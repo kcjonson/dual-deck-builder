@@ -259,6 +259,27 @@ describe('scopes (R9.20)', () => {
 		expect(focusedId()).toBe('b');
 	});
 
+	it('names the pending restore, which a later request outside the scope replaces', () => {
+		const { root, items } = row(['a', 'b']);
+		const dialog = new Container({ id: 'dialog', x: 0, y: 100, width: 400, height: 200 });
+		dialog.addChild(new Probe({ id: 'ok', width: 50, height: 20, focusable: true }));
+		root.addChild(dialog);
+		expect(context.focus.pendingFocus).toBeNull();
+		context.focus.focus(items[0]);
+		context.focus.pushScope(dialog);
+		expect(context.focus.pendingFocus).toBe(items[0]);
+
+		context.focus.focus(items[1]);
+		expect(context.focus.pendingFocus).toBe(items[1]);
+		// What it named can't take focus any more, so the code that disabled it hands the request on.
+		items[1].enabled = false;
+		context.focus.focus(items[0]);
+		expect(context.focus.pendingFocus).toBe(items[0]);
+		context.focus.popScope(dialog);
+		expect(focusedId()).toBe('a');
+		expect(context.focus.pendingFocus).toBeNull();
+	});
+
 	it('pops itself when its root unmounts', () => {
 		const { root, items } = row(['a']);
 		const dialog = new Group({ id: 'dialog', x: 0, y: 100, width: 400, height: 200 });
