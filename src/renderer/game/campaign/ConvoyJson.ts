@@ -92,7 +92,7 @@ export function readConvoy(value: unknown, path: string): Convoy {
 		throw new ReaderRangeError(`${path}.escorts holds ${listed.length} escorts, and a convoy holds ${MAX_CONVOY_ESCORTS} at most`);
 	}
 	const ids = new Set<string>();
-	const escorts = listed.map((json, index) => {
+	const escorts = Array.from(listed, (json, index) => {
 		const at = `${path}.escorts[${index}]`;
 		const { escort, id, number } = readEscortWithId(json, at);
 		if (number >= nextEscortNumber) {
@@ -131,7 +131,7 @@ function readEscortWithId(value: unknown, path: string): { escort: Vehicle; id: 
 		passenger: null,
 		statusEffects: [],
 		spent: false,
-		mods: readArray(fields.mods, `${path}.mods`).map((mod, index) => readMod(mod, `${path}.mods[${index}]`)),
+		mods: Array.from(readArray(fields.mods, `${path}.mods`), (mod, index) => readMod(mod, `${path}.mods[${index}]`)),
 		escort: { id, ...readProfile(fields.escort, `${path}.escort`), setPiece: false }
 	});
 	return { escort, id, number };

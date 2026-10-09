@@ -1,9 +1,7 @@
-import { describeValue } from '../core/Json';
-import { readArray, readInteger, readOneOf, readSeed } from '../core/JsonReader';
+import { readArray, readOneOf, readSeed } from '../core/JsonReader';
 import { Rng } from '../core/Rng';
-import { MapParamSet, MapParams, resolveMapParams } from '../map/MapParams';
-import { readMapPreset } from '../map/MapPresets';
-import { validateMapParams } from '../map/ParamValidator';
+import { MapParamSet, MapParams } from '../map/MapParams';
+import { validateMapParamSet } from '../map/ParamValidator';
 import { rollParams } from '../map/RollParams';
 import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
@@ -12,7 +10,7 @@ import { PLAYER_DRIVEN_VEHICLES } from '../mechanics/Team';
 import { Campaign } from './Campaign';
 import { CAMPAIGN_START, CampaignStart, readCampaignStart } from './CampaignStart';
 import { DRIVER_ARCHETYPES } from './DriverRecord';
-import { readMapParams } from './MapParamsJson';
+import { readMapParamSet, readMapParams } from './MapParamsJson';
 import { EMPTY_MAP } from './MapState';
 
 /**
@@ -37,12 +35,11 @@ export interface FoundingOptions {
 	unlockedArchetypes: readonly DriverArchetype[];
 	/**
 	 * Map parameters to found on instead of rolling them from the seed: the
-	 * Map Lab's current set, say. What a map preset may hold and nothing else
-	 * (`readMapPreset`): a seed, an environment, numbers for the parameters,
-	 * and stop tables as an object. They're filled out from the environment
-	 * and run through the validator, which clamps what's out of range, and
-	 * the campaign keeps the result. Their seed, wrapped to uint32 as the
-	 * validator wraps it, must be `seed`.
+	 * Map Lab's current set, say. A plain object holding `seed` and any of an
+	 * environment, numbers for the parameters, and stop tables as an object
+	 * of JSON, and nothing else (`readMapParamSet`). They're filled out from
+	 * the environment and run through the validator, which clamps what's out
+	 * of range, and the campaign keeps the result.
 	 */
 	mapParams?: MapParamSet;
 	/** What the compound starts with: the shipped `data/campaign-start.json` when left out. */
@@ -59,10 +56,10 @@ export interface FoundingOptions {
  * never calls `Math.random`.
  *
  * Throws, founding nothing, on a seed that isn't a uint32, map params that
- * don't read as a preset or come from another seed, a start that doesn't
- * check out, or fewer than two archetypes unlocked: a run takes two
- * drivers, no two alike, and the pool only grows on runs, so a compound
- * founded with one could never leave.
+ * don't read or hold another seed, a start that doesn't check out, or fewer
+ * than two archetypes unlocked: a run takes two drivers, no two alike, and
+ * the pool only grows on runs, so a compound founded with one could never
+ * leave.
  */
 export function foundCampaign({ seed, unlockedArchetypes, mapParams, start = CAMPAIGN_START }: FoundingOptions): Campaign {
 	readSeed(seed, 'seed');
@@ -98,28 +95,6 @@ export function foundCampaign({ seed, unlockedArchetypes, mapParams, start = CAM
 	return campaign;
 }
 
-/**
- * The starting pool's archetypes, in the order they join: `size` different
- * ones dealt from those unlocked, or all of them when fewer are unlocked
- * (Compound and Supply Runs, The driver pool). The deal shuffles the
- * unlocked archetypes on the `pool` fork of the seed's `founding` stream and
- * takes the first `size`. It starts from them sorted by id, so neither the
- * order they're passed in, a repeat, nor the order of `DRIVER_CONFIGS`
- * changes a seed's deal. A plain deal: it takes a single archetype, and
- * throws only when nothing is unlocked. Founding asks for two.
- */
-export function dealStartingPool({ seed, unlockedArchetypes, size }: {
-	seed: number;
-	unlockedArchetypes: readonly DriverArchetype[];
-	size: number;
-}): DriverArchetype[] {
-	readSeed(seed, 'seed');
-	const unlocked = readUnlocked(unlockedArchetypes);
-	readInteger(size, 'size', { min: 1 });
-	if (unlocked.length === 0) throw new RangeError("unlockedArchetypes is empty, so there's nothing to deal");
-	return deal({ seed, unlocked, size });
-}
-
 /** The unlocked archetypes checked, without repeats, and sorted by id: what the deal starts from. */
 function readUnlocked(value: readonly DriverArchetype[]): DriverArchetype[] {
 	const archetypes = readArray(value, 'unlockedArchetypes')
@@ -127,19 +102,29 @@ function readUnlocked(value: readonly DriverArchetype[]): DriverArchetype[] {
 	return [...new Set(archetypes)].sort();
 }
 
+/**
+ * The starting pool's archetypes, in the order they join: `size` different
+ * ones dealt from those unlocked, or all of them when fewer are unlocked
+ * (Compound and Supply Runs, The driver pool). The deal shuffles the
+ * unlocked archetypes on the `pool` fork of the seed's `founding` stream and
+ * takes the first `size`. They come in sorted by id (`readUnlocked`), so
+ * neither the order they're passed in, a repeat, nor the order of
+ * `DRIVER_CONFIGS` changes a seed's deal.
+ */
 function deal({ seed, unlocked, size }: { seed: number; unlocked: readonly DriverArchetype[]; size: number }): DriverArchetype[] {
 	return new Rng({ seed }).fork('founding').fork('pool').shuffle([...unlocked]).slice(0, size);
 }
 
 /**
- * Rolled from the seed, or the set given, read as a preset, filled out, and
- * validated: what generation runs on. Reading the set as a preset fails a
- * bad value in the stop tables with its path before anything is built, and
- * reading the result once more as the campaign does freezes it, so the
- * campaign holds it as it is.
+ * Rolled from the seed, or the set given, read, filled out, and validated:
+ * what generation runs on. Reading the set first fails a bad value with its
+ * path before anything is built, and its seed is compared as given, before
+ * the validator could wrap it. Reading the result as the campaign does
+ * freezes it, so the campaign holds it as it is.
  */
 function foundingParams({ seed, set }: { seed: number; set?: MapParamSet }): Readonly<MapParams> {
-	const params = set === undefined ? rollParams(seed) : validateMapParams(resolveMapParams(readMapPreset(set)).params).params;
-	if (params.seed !== seed) throw new RangeError(`mapParams.seed must be the campaign's seed, ${seed}, got ${describeValue(params.seed)}`);
-	return readMapParams(params, 'mapParams');
+	if (set === undefined) return readMapParams(rollParams(seed), 'mapParams');
+	const given = readMapParamSet(set, 'mapParams');
+	if (given.seed !== seed) throw new RangeError(`mapParams.seed must be the campaign's seed, ${seed}, got ${given.seed}`);
+	return readMapParams(validateMapParamSet(given).params, 'mapParams');
 }

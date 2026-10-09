@@ -63,10 +63,7 @@ export function copyJson(value: unknown, path: string, problems?: ProblemList): 
 export function describeValue(value: unknown): string {
 	if (value === undefined || typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') return typeof value;
 	if (typeof value === 'number') return String(value);
-	if (typeof value === 'object' && value !== null && !Array.isArray(value) && !isPlainObject(value)) {
-		const name: unknown = Object.getPrototypeOf(value)?.constructor?.name;
-		return typeof name === 'string' && name !== '' ? `${/^[AEIOU]/.test(name) ? 'an' : 'a'} ${name}` : 'an object';
-	}
+	if (typeof value === 'object' && value !== null && !Array.isArray(value) && !isPlainObject(value)) return describeInstance(value);
 	let text: string;
 	try {
 		// A toJSON can return undefined, which stringifies to nothing.
@@ -76,6 +73,20 @@ export function describeValue(value: unknown): string {
 		text = Object.prototype.toString.call(value);
 	}
 	return text.length > 60 ? `${text.slice(0, 57)}...` : text;
+}
+
+/**
+ * An object that isn't plain, by its class: "a Date". Only a constructor the
+ * prototype holds as its own value names one, so an object made on another
+ * (`Object.create({ radius: 5000 })`) isn't called "an Object", and a
+ * constructor getter is never run.
+ */
+function describeInstance(value: object): string {
+	const prototype: object | null = Object.getPrototypeOf(value);
+	const constructor = prototype === null ? undefined : Object.getOwnPropertyDescriptor(prototype, 'constructor');
+	if (constructor === undefined) return 'an object made on another';
+	const name: unknown = typeof constructor.value === 'function' ? constructor.value.name : undefined;
+	return typeof name === 'string' && name !== '' ? `${/^[AEIOU]/.test(name) ? 'an' : 'a'} ${name}` : 'an object';
 }
 
 /** Throws or lists a problem; the error is only built to be thrown. */
@@ -109,13 +120,17 @@ function copyValue(value: unknown, path: string, ancestors: readonly object[], r
 }
 
 /**
- * An object whose prototype is null or has a null prototype of its own: a
- * plain object from any realm (its `Object.prototype` has none), or one made
- * with no prototype. A rare object built otherwise to the same shape, such as
- * an instance of a class extending null, passes too, and copies like one.
+ * An object with no prototype, or whose prototype has none of its own and no
+ * keys: a plain object from any realm (its `Object.prototype` has neither),
+ * or one made with no prototype. A rare object built otherwise to the same
+ * shape, such as an instance of a class extending null, passes too, and
+ * copies like one. Anything with a class's prototype fails, a Date or
+ * another realm's Map included, and so does an object made on another
+ * (`Object.create({ radius: 5000 })`), even one with no prototype itself,
+ * since it would inherit the other's values.
  */
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
 	if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-	const prototype: unknown = Object.getPrototypeOf(value);
-	return prototype === null || Object.getPrototypeOf(prototype) === null;
+	const prototype: object | null = Object.getPrototypeOf(value);
+	return prototype === null || (Object.getPrototypeOf(prototype) === null && Object.keys(prototype).length === 0);
 }
