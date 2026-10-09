@@ -8,8 +8,9 @@ import { DRIVER_CONFIGS, Driver, DriverRole } from '../mechanics/Driver';
 import { Team, TeamType } from '../mechanics/Team';
 import { Vehicle, createDrivenVehicle } from '../mechanics/Vehicle';
 import { Campaign, NO_RESOURCES, Resources, readResources } from './Campaign';
-import { NO_CARDS } from './CardCounts';
+import { CardCounts, NO_CARDS, addCards, readCardCounts } from './CardCounts';
 import { DriverRecord, DriverRecordData, VehicleCondition, readDriverRecordData } from './DriverRecord';
+import { RunDeck } from './RunDeck';
 
 /**
  * The combat bridge (DDB-286): a supply run's fights built from the
@@ -27,15 +28,18 @@ export const LIMP_STRUCTURE = 1;
  * Who's out on a supply run, as the run controller holds it between
  * fights: the seated drivers' records in seat order, Driver 1 first, the
  * convoy's escorts that came along (load out can leave some at home), and
- * the cargo picked up so far, which reaches the compound's stores only if
- * the run gets home. A save between fights refers to the seats and escorts
- * by their campaign ids (`driver-<n>`, `escort-<n>`), which a load finds
- * again in the pool and the convoy.
+ * the cargo picked up so far, resources and cards won, which reaches the
+ * compound only if the run gets home. Their decks are the campaign's run
+ * decks (`Campaign.runDecks`). A save between fights refers to the seats
+ * and escorts by their campaign ids (`driver-<n>`, `escort-<n>`), which a
+ * load finds again in the pool and the convoy.
  */
 export interface RunParty {
 	readonly seats: readonly DriverRecord[];
 	readonly escorts: readonly Vehicle[];
 	readonly cargo: Readonly<Resources>;
+	/** Cards won on the run (rewards, finds, a roadside garage): loot, so cargo, bound for the locker. */
+	readonly cargoCards: CardCounts;
 }
 
 /**
@@ -97,6 +101,8 @@ export interface FailedRun {
 	readonly escortsLost: readonly Vehicle[];
 	/** The cargo the run was bringing home */
 	readonly cargoLost: Readonly<Resources>;
+	/** The cards it had won */
+	readonly cargoCardsLost: CardCounts;
 }
 
 export type FightWriteBack = WonFight | FailedRun;
@@ -119,20 +125,22 @@ const storingWriteBacks = new WeakSet<Campaign>();
 
 /**
  * Build a run's next fight and start it. Each seat's combat driver is their
- * record (name, HP, max HP, hand limit, deck) and their archetype (skills,
+ * record (name, HP, max HP, hand limit) and their archetype (skills,
  * adrenaline), at the wheel of their signature vehicle with the damage the
  * record carries, clamped to the archetype's maximums as they stand now;
- * the run's escorts follow in roster order. Each deck is built from the
- * default deck in card-type order, and Battle.start shuffles it on the
- * seat's deck stream before the opening deal. Everything random draws from
- * `rng`.
+ * the run's escorts follow in roster order. Each deck is the seat's run
+ * deck: their own and borrowed copies in card-type order, then the escort
+ * cards, each copy carrying the `broughtBy` of the escort that brought it,
+ * and Battle.start shuffles it on the seat's deck stream before the opening
+ * deal. Everything random draws from `rng`.
  *
  * Throws, building nothing, while the campaign's last fight hasn't been
  * written back or is being written back (from a listener partway through
  * it), and unless the party seats two drivers of different
  * archetypes from the campaign's pool who are ready to fight, its cargo
- * checks out, every escort is the campaign's, and every card in the decks
- * has a template. The teams and the encounter can refuse the road too
+ * checks out, every escort is the campaign's, each seat has a run deck
+ * whose escort cards came with escorts in the party, and every card in the
+ * decks has a template. The teams and the encounter can refuse the road too
  * (Team, Battle), and move nobody when they do.
  */
 export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, enemyAI = 'aggressive' }: CampaignFightOptions): CampaignFight {
@@ -152,14 +160,27 @@ export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, ene
 		if (!campaign.convoy.escorts.includes(escort)) throw new RangeError(`${escort.name} isn't in the campaign's convoy`);
 	});
 	const escorts = campaign.convoy.escorts.filter(escort => party.escorts.includes(escort));
+	const cargoCards = readCardCounts(party.cargoCards, 'RunParty.cargoCards');
+	const [firstDeck, secondDeck] = party.seats.map(record => seatRunDeck({ campaign, record, escorts }));
 
-	const drivers: [Driver, Driver] = [combatDriverOf({ record: first, cards }), combatDriverOf({ record: second, cards })];
+	const drivers: [Driver, Driver] = [
+		combatDriverOf({ record: first, runDeck: firstDeck, cards }),
+		combatDriverOf({ record: second, runDeck: secondDeck, cards })
+	];
 	const vehicles: [Vehicle, Vehicle] = [vehicleOf({ record: first, driver: drivers[0] }), vehicleOf({ record: second, driver: drivers[1] })];
 	const playerTeam = new Team({ type: TeamType.PLAYER, vehicles: [...vehicles, ...escorts] });
 	const battle = new Battle({ playerTeam, enemyTeam, rng });
 	battle.aiController.setEnemyAI(enemyAI);
 	battle.start();
-	const fight: CampaignFight = { campaign, battle, drivers, vehicles, scrap: cargo.scrap, fuel: cargo.fuel, party: { seats: party.seats, escorts, cargo } };
+	const fight: CampaignFight = {
+		campaign,
+		battle,
+		drivers,
+		vehicles,
+		scrap: cargo.scrap,
+		fuel: cargo.fuel,
+		party: { seats: party.seats, escorts, cargo, cargoCards }
+	};
 	openFights.set(campaign, fight);
 	return fight;
 }
@@ -172,16 +193,19 @@ export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, ene
  * wreck limps on at LIMP_STRUCTURE. Wrecked escorts leave the convoy and
  * the rest keep their structure. The haulers' fuel and scrap go into the
  * party's cargo; the Med Truck's heal is already in the drivers' HP. A
- * lost fight fails the run: the drivers who went down are dead, with their
- * cards, the ones who crashed out are missing, and the cargo and every
- * escort that came along are lost.
+ * lost fight fails the run: the drivers who went down are dead, the ones
+ * who crashed out are missing, and the cargo, cards won included, and every
+ * escort that came along are lost. The cards a lost escort brought leave
+ * the run decks; the rest of a run deck, the dead's included, waits for
+ * `Campaign.unwindRunDecks`, which the run controller calls when the run
+ * ends.
  *
  * Everything is worked out and checked before anything is stored, then
- * stored in one order: the records in seat order, then the convoy and its
- * seats. The compound's stores are the run controller's, when the run
- * gets home. Save at the step's checkpoint, after this: until a fight is
- * written back its wrecked escorts are still in the convoy, and a campaign
- * holding a wreck can't be saved.
+ * stored in one order: the records in seat order, the run decks, then the
+ * convoy and its seats. The compound's stores are the run controller's,
+ * when the run gets home. Save at the step's checkpoint, after this: until
+ * a fight is written back its wrecked escorts are still in the convoy, and
+ * a campaign holding a wreck can't be saved.
  *
  * Throws, storing nothing, for a fight that isn't over, ended in a tie (a
  * campaign fight has no turn limit), or is written back already, and for a
@@ -211,6 +235,7 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
 	storingWriteBacks.add(campaign);
 	try {
 		seats.forEach(({ record, changes }) => record.set(changes));
+		campaign.removeEscortCards({ escorts: escortsLost });
 		campaign.convoy.afterFight({ lost: escortsLost });
 		// endCombat leaves seats alone, and a driver left aboard would ride into the next fight as well as drive in it
 		party.escorts.forEach(escort => { escort.passenger = null; });
@@ -223,11 +248,19 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
 
 	const recordsFated = (fate: Fate): DriverRecord[] => seats.filter(seat => seat.fate === fate).map(({ record }) => record);
 	if (!won) {
-		return { outcome: 'run_failed', party: null, dead: recordsFated('dead'), missing: recordsFated('missing'), escortsLost, cargoLost: party.cargo };
+		return {
+			outcome: 'run_failed',
+			party: null,
+			dead: recordsFated('dead'),
+			missing: recordsFated('missing'),
+			escortsLost,
+			cargoLost: party.cargo,
+			cargoCardsLost: party.cargoCards
+		};
 	}
 	return {
 		outcome: 'won',
-		party: { seats: party.seats, escorts: party.escorts.filter(escort => !escortsLost.includes(escort)), cargo },
+		party: { seats: party.seats, escorts: party.escorts.filter(escort => !escortsLost.includes(escort)), cargo, cargoCards: party.cargoCards },
 		revived: recordsFated('revived'),
 		pickedUp: recordsFated('picked_up'),
 		escortsLost
@@ -235,20 +268,48 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
 }
 
 /**
+ * A seat's run deck, whose escort cards must have come with escorts in the
+ * fight: a card can't be dealt for an escort that stayed home.
+ */
+function seatRunDeck({ campaign, record, escorts }: { campaign: Campaign; record: DriverRecord; escorts: readonly Vehicle[] }): RunDeck {
+	const runDeck = campaign.runDeckOf(record);
+	if (runDeck === null) throw new RangeError(`${describeRecord(record)} has no run deck; load out starts them (Campaign.startRunDecks)`);
+	runDeck.escortCards.forEach(({ cardType, broughtBy }) => {
+		if (!escorts.some(escort => escort.convoyId === broughtBy)) {
+			throw new RangeError(`${describeRecord(record)}'s run deck holds the ${cardType} ${broughtBy} brought, and that escort isn't in the party`);
+		}
+	});
+	return runDeck;
+}
+
+/**
  * A seat's driver as a fight deals them: the record's name, HP, and hand
  * limit, the archetype's skills, vehicle, and adrenaline, and a fresh copy
- * of every card in their default deck, which is also the starting deck
- * they're dealt.
+ * of every card in their run deck, each escort card's carrying the escort
+ * that brought it, which is also the starting deck they're dealt.
  */
-function combatDriverOf({ record, cards }: { record: DriverRecord; cards: ReadonlyMap<string, Card> }): Driver {
+function combatDriverOf({ record, runDeck, cards }: { record: DriverRecord; runDeck: RunDeck; cards: ReadonlyMap<string, Card> }): Driver {
 	const config = DRIVER_CONFIGS[record.archetype];
-	const deck = Object.entries(record.defaultDeck);
+	const copyOf = (cardType: string): Card => {
+		const template = cards.get(cardType);
+		if (!template) throw new RangeError(`${describeRecord(record)}'s run deck holds ${cardType}, which isn't a card`);
+		return template.copy();
+	};
+	const dealt = runDeck.escortCards.reduce((counts, { cardType }) => addCards(counts, cardType), runDeck.cards);
+	const deck = [
+		...Object.entries(runDeck.cards).flatMap(([cardType, count]) => Array.from({ length: count }, () => copyOf(cardType))),
+		...runDeck.escortCards.map(({ cardType, broughtBy }) => {
+			const copy = copyOf(cardType);
+			copy.set({ broughtBy });
+			return copy;
+		})
+	];
 	return new Driver({
 		archetype: record.archetype,
 		metadata: { ...config.metadata, name: record.name },
 		skills: { ...config.skills },
 		vehicleStats: { ...config.vehicleStats },
-		startingDeck: { cards: deck.map(([type, quantity]) => ({ type, quantity })) },
+		startingDeck: { cards: Object.entries(dealt).map(([type, quantity]) => ({ type, quantity })) },
 		hitpoints: record.hitpoints,
 		maxHitpoints: record.maxHitpoints,
 		adrenaline: config.maxAdrenaline,
@@ -257,11 +318,7 @@ function combatDriverOf({ record, cards }: { record: DriverRecord; cards: Readon
 		role: DriverRole.ACTIVE,
 		hand: [],
 		discard: [],
-		deck: new Deck(`${record.id}_deck`, `${record.name}'s deck`, deck.flatMap(([cardType, count]) => {
-			const template = cards.get(cardType);
-			if (!template) throw new RangeError(`${describeRecord(record)}'s deck holds ${cardType}, which isn't a card`);
-			return Array.from({ length: count }, () => template.copy());
-		}))
+		deck: new Deck(`${record.id}_deck`, `${record.name}'s deck`, deck)
 	});
 }
 
@@ -288,7 +345,8 @@ function fateOf({ battle, driver, won }: { battle: Battle; driver: Driver; won: 
 
 /**
  * Each seat's record after the fight, in one set. Dying is status, 0 HP,
- * and an empty deck: the dead take their cards with them.
+ * and an empty default deck, which a run's is already, being in the run
+ * deck: unwinding it settles which cards went with them.
  */
 function recordChanges({ fate, driver, vehicle }: { fate: Fate; driver: Driver; vehicle: Vehicle }): Partial<DriverRecordData> {
 	switch (fate) {
