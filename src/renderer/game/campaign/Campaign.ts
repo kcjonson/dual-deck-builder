@@ -1,5 +1,5 @@
-import type { JsonObject } from '../core/Json';
-import { ReaderRangeError, ReaderTypeError, describeValue, readArray, readFields, readInteger, readOneOf, readSeed, readText } from '../core/JsonReader';
+import { describeValue, type JsonObject } from '../core/Json';
+import { ReaderRangeError, ReaderTypeError, readArray, readFields, readInteger, readOneOf, readSeed, readText } from '../core/JsonReader';
 import { Model } from '../core/Model';
 import { MapParams } from '../map/MapParams';
 import { Convoy } from '../mechanics/Convoy';

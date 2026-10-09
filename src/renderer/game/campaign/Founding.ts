@@ -1,4 +1,5 @@
-import { describeValue, readArray, readInteger, readOneOf, readSeed } from '../core/JsonReader';
+import { describeValue } from '../core/Json';
+import { readArray, readInteger, readOneOf, readSeed } from '../core/JsonReader';
 import { Rng } from '../core/Rng';
 import { MapParamSet, MapParams, resolveMapParams } from '../map/MapParams';
 import { readMapPreset } from '../map/MapPresets';

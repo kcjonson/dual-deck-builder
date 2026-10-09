@@ -1,14 +1,12 @@
 /**
- * Strict readers for JSON: campaign state, and the data files the game
- * reads. Each takes a value that may have come from a parsed save or file
- * (so `unknown`) and the path it sits at, and returns it typed or throws an
- * error naming that path: a `ReaderTypeError` when it's the wrong kind of
- * value, a `ReaderRangeError` when it's the right kind out of range. The
- * campaign's models run the same readers on every change, so state that
- * saves always loads.
+ * Strict readers for JSON values from outside the code, such as a parsed
+ * save or a data file. Each takes a value (so `unknown`) and the path it
+ * sits at, and returns it typed or throws an error naming that path: a
+ * `ReaderTypeError` when it's the wrong kind of value, a `ReaderRangeError`
+ * when it's the right kind out of range.
  */
 
-import { MAX_JSON_DEPTH, type JsonValue } from './Json';
+import { MAX_JSON_DEPTH, describeValue, type JsonValue } from './Json';
 
 /**
  * A value of the wrong kind, as a reader reports it. A TypeError, so it
@@ -23,22 +21,6 @@ export class ReaderRangeError extends RangeError {}
 /** Whether a reader threw this over a value, rather than code failing on its own. */
 export function isReaderError(error: unknown): boolean {
 	return error instanceof ReaderTypeError || error instanceof ReaderRangeError;
-}
-
-/** A value as an error message shows it: as JSON, cut short. */
-export function describeValue(value: unknown): string {
-	if (value === undefined || typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') {
-		return typeof value;
-	}
-	if (typeof value === 'number' && !Number.isFinite(value)) return String(value);
-	let text: string;
-	try {
-		// A toJSON can return undefined, which stringifies to nothing.
-		text = JSON.stringify(value) ?? String(value);
-	} catch {
-		text = Object.prototype.toString.call(value);
-	}
-	return text.length > 60 ? `${text.slice(0, 57)}...` : text;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

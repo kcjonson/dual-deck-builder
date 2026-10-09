@@ -1,5 +1,6 @@
 import { EventEmitter } from '../core/EventEmitter';
-import { ReaderTypeError, describeValue, isReaderError, readFields, readInteger, readObject } from '../core/JsonReader';
+import { describeValue } from '../core/Json';
+import { ReaderTypeError, isReaderError, readFields, readInteger, readObject } from '../core/JsonReader';
 import { CAMPAIGN_SCHEMA_VERSION, Campaign, LoadOptions, logWarning } from './Campaign';
 import { CampaignEnding, CampaignHistoryEntry, historyEntry, historyToJson, readHistory, sameEntry } from './CampaignHistory';
 import { LocalSaveStorage, SaveStorage, isQuotaError, storageTrouble } from './SaveStorage';
