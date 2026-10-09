@@ -110,14 +110,14 @@ export function validateMapParamSet(set: MapParamSet): ValidatedParamSet {
 	return { params, clamps, sources };
 }
 
+/** How many values a uint32 holds. */
+const UINT32_RANGE = 4294967296;
+
 /**
  * A clamp as the Map Lab's readout words it: "highways raised to 6
  * (strongholds + 2)". A seed outside uint32 is "wrapped"; a value that
  * wasn't a finite number, or wasn't a number at all, is "set".
  */
-/** How many values a uint32 holds. */
-const UINT32_RANGE = 4294967296;
-
 export function describeClamp({ param, from, to, reason }: ParamClamp): string {
 	if (typeof from !== 'number' || typeof to !== 'number' || !Number.isFinite(from)) return `${param} set to ${to} (${reason})`;
 	const whole = Math.trunc(from);

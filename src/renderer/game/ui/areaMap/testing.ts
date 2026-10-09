@@ -39,7 +39,7 @@ export interface FlatTerrainOptions {
 	slope?: number;
 }
 
-/** Flat scrub with whatever craters and rough ground a test asks for; it counts the samples taken. */
+/** Flat scrub with whatever craters and rough ground a test asks for, sloping only where it's rough; it counts the samples and slopes taken. */
 export function flatTerrain({ radius = 600, craters = [], rough = () => false, slope = 0 }: FlatTerrainOptions = {}): BakeTerrain & { samples: number; slopes: number } {
 	const terrain = {
 		radius,
@@ -55,9 +55,9 @@ export function flatTerrain({ radius = 600, craters = [], rough = () => false, s
 			out.ruin = 0;
 			return out;
 		},
-		slope: <Out extends { x: number; y: number }>(_x: number, _y: number, out: Out): Out => {
+		slope: <Out extends { x: number; y: number }>(x: number, y: number, out: Out): Out => {
 			terrain.slopes += 1;
-			out.x = slope;
+			out.x = rough(x, y) ? slope : 0;
 			out.y = 0;
 			return out;
 		},

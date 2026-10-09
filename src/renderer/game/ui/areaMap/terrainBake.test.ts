@@ -2,7 +2,7 @@ import { Rng } from '../../core/Rng';
 import { MapParamSet, resolveMapParams } from '../../map/MapParams';
 import { validateMapParams } from '../../map/ParamValidator';
 import { CLIFF_GRADE, RELIEF, Terrain, generateTerrain } from '../../map/Terrain';
-import { BIOME_COLOURS, OBSTACLE_COLOURS } from './areaMapStyle';
+import { BIOME_COLOURS, HILL_SHADE, OBSTACLE_COLOURS } from './areaMapStyle';
 import { MAX_BAKE_SIZE, MIN_BAKE_SIZE, TEXEL_WORLD_UNITS, bakeTerrain, terrainBakeSize } from './terrainBake';
 import { flatTerrain } from './testing';
 
@@ -65,17 +65,28 @@ describe('bakeTerrain', () => {
 		expect(texelAt(texels, size, 600, 300, 0)).toEqual([...OBSTACLE_COLOURS.cliff, 255]);
 		expect(texelAt(texels, size, 600, -300, 0)).toEqual([...BIOME_COLOURS.scrub, 255]);
 
+		// Short of the cliff grade it's scrub, hill-shaded: the slope falls to the east, away from the light.
 		const gentle = flatTerrain({ radius: 600, rough: (x) => x > 0, slope: CLIFF_SLOPE * 0.7 });
-		expect(texelAt(bakeTerrain({ terrain: gentle, size }), size, 600, 300, 0)).toEqual([...BIOME_COLOURS.scrub, 255]);
+		const light = Math.fround(Math.max(HILL_SHADE.min, Math.min(HILL_SHADE.max, 1 - CLIFF_SLOPE * 0.7 * HILL_SHADE.gain)));
+		expect(light).toBeLessThan(1);
+		const shaded = BIOME_COLOURS.scrub.map((channel) => Math.trunc(Math.min(255, channel * light) + 0.5));
+		expect(texelAt(bakeTerrain({ terrain: gentle, size }), size, 600, 300, 0)).toEqual([...shaded, 255]);
 	});
 
-	it('reads no slope away from rough country, and the land on a lattice coarser than the texels', () => {
-		const terrain = flatTerrain({ radius: 600 });
-		bakeTerrain({ terrain, size: 256, colourStep: 4 });
-		expect(terrain.slopes).toBe(0);
-		// 65 nodes a side at most, fewer past the rim
-		expect(terrain.samples).toBeLessThanOrEqual(66 * 66);
-		expect(terrain.samples).toBeGreaterThan(64 * 64 * 0.7);
+	it('reads the land on lattices coarser than the texels: fields every colourStep, hill shade about every half land cell, and cliffs\' slope only in rough country', () => {
+		// Texels 2.5 units across, so shade every 2, about half a 9.4-unit land cell.
+		const terrain = flatTerrain({ radius: 1000 });
+		bakeTerrain({ terrain, size: 800, colourStep: 8 });
+		// 101 nodes a side at most, fewer past the rim
+		expect(terrain.samples).toBeLessThanOrEqual(102 * 102);
+		expect(terrain.samples).toBeGreaterThan(100 * 100 * 0.7);
+		// 401 a side at most for the shade
+		expect(terrain.slopes).toBeLessThanOrEqual(402 * 402);
+		expect(terrain.slopes).toBeGreaterThan(400 * 400 * 0.7);
+		// Rough everywhere, cliffs read the slope too, every two texels.
+		const rough = flatTerrain({ radius: 1000, rough: () => true });
+		bakeTerrain({ terrain: rough, size: 800, colourStep: 8 });
+		expect(rough.slopes).toBeGreaterThan(1.7 * terrain.slopes);
 	});
 
 	it('bakes the same bytes for the same terrain', () => {

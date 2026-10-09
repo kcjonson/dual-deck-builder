@@ -1,6 +1,7 @@
 import type { Rng } from '../core/Rng';
 import { Vector, chaikin, pointSegmentDistanceSquared, segmentDistanceSquared, unitVector } from './Geometry';
 import type { HighwayDeparture } from './Highways';
+import { clamp01 } from './MapMath';
 import type { MapParams, ParamRange } from './MapParams';
 import { ROAD_CLASSES, Road, RoadClass, RoadNetwork, RoadNode, RoadNodeKind, RoadStretch } from './RoadNetwork';
 import { SegmentIndex } from './SegmentIndex';
@@ -1099,6 +1100,3 @@ export class TipQueue {
 	}
 }
 
-function clamp01(value: number): number {
-	return value < 0 ? 0 : value > 1 ? 1 : value;
-}

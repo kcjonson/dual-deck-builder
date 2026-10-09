@@ -1,6 +1,6 @@
 import { Rng } from '../core/Rng';
 import { Drainage } from './Drainage';
-import { LandSurface, METRO_GRADE, RELIEF, TERRACES, generateLand, moistureLevel, placeOutlets, startRadii } from './Land';
+import { LandSurface, METRO_GRADE, METRO_RELIEF, RELIEF, TERRACES, generateLand, moistureLevel, placeOutlets, startRadii, terraceHeight, terracePull, terraceSlope } from './Land';
 import { LandGrid, cellCentre, landGridFor } from './LandGrid';
 import { MapParamSet, resolveMapParams } from './MapParams';
 import { validateMapParams } from './ParamValidator';
@@ -40,6 +40,18 @@ function cellsWithin(grid: LandGrid, radius: number): number[] {
 		}
 	}
 	return cells;
+}
+
+/** For each cell, the first cell its drainage reaches at `radius` or more from the compound, or its outlet if none, found downstream first. */
+function exitsPast(land: LandSurface, radius: number): Int32Array {
+	const { grid, drainage } = land;
+	const exits = new Int32Array(drainage.receivers.length);
+	drainage.order.forEach((cell) => {
+		const receiver = drainage.receivers[cell];
+		const outside = Math.hypot(cellCentre(grid, cell % grid.size), cellCentre(grid, Math.floor(cell / grid.size))) >= radius;
+		exits[cell] = outside || receiver < 0 ? cell : exits[receiver];
+	});
+	return exits;
 }
 
 /** The outlet each cell drains to, found downstream first through `order`. */
@@ -178,6 +190,14 @@ describe('generateLand', () => {
 			const { grid, elevation, drainage } = land;
 			const metro = cellsWithin(grid, metroRadius);
 			const size = grid.size;
+			// The metro keeps METRO_RELIEF of its height above where its water
+			// leaves at most, and no cell stood higher than the land's peak.
+			let peak = 0;
+			elevation.forEach((height) => {
+				if (height > peak) peak = height;
+			});
+			const heights = metro.map((cell) => elevation[cell]);
+			expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(METRO_RELIEF * peak);
 			metro.forEach((cell) => {
 				const slopeX = (elevation[cell + 1] - elevation[cell - 1]) / (2 * grid.cellSize);
 				const slopeY = (elevation[cell + size] - elevation[cell - size]) / (2 * grid.cellSize);
@@ -188,7 +208,7 @@ describe('generateLand', () => {
 			cellsWithin(grid, blendRadius).forEach((cell) => expect(drainage.levels[cell]).toBe(elevation[cell]));
 		});
 
-		it('never raises a river crossing it: the flattened metro drains the way the land under it did', () => {
+		it('keeps every way water left the metro open, so a river crossing it still crosses it', () => {
 			// A metro a river crosses, on a map whose flattening lowers it a long way.
 			const land = landFor(METRO_CORNERS[0]);
 			const { metroRadius } = startRadii(paramsFor(METRO_CORNERS[0]));
@@ -196,48 +216,61 @@ describe('generateLand', () => {
 			const leaving = [...metro].filter((cell) => !metro.has(land.drainage.receivers[cell]));
 			expect(leaving.length).toBeGreaterThan(0);
 			expect(Math.max(...[...metro].map((cell) => land.drainage.area[cell]))).toBeGreaterThan(metro.size);
+
+			// The land under this metro drains it two ways, north-east and
+			// south-east, past the blend ring. Flattening keeps the ring's inner
+			// edge lower than its outer, which dammed the north-east way until
+			// the old ways out were lowered through the ring with it.
+			const twoWays = { seed: 2, environment: 'rustBelt', radius: 1000 } as const;
+			const twoWayLand = landFor(twoWays);
+			const radii = startRadii(paramsFor(twoWays));
+			const exits = exitsPast(twoWayLand, radii.blendRadius);
+			const counts = new Map<number, number>();
+			const twoWayMetro = cellsWithin(twoWayLand.grid, radii.metroRadius);
+			twoWayMetro.forEach((cell) => counts.set(exits[cell], (counts.get(exits[cell]) ?? 0) + 1));
+			const large = [...counts.values()].filter((count) => count >= 0.05 * twoWayMetro.length);
+			expect(large.length).toBeGreaterThanOrEqual(2);
 		});
 	});
 
 	describe('terraces', () => {
-		const dryMap = { seed: 23, environment: 'highDesert', radius: 600 } as const;
-
-		it('leave the land alone at an aridity of 0.4 and up', () => {
+		it('pull nothing at an aridity of 0.4 and up, and all they pull at 0.1 and under', () => {
 			expect(moistureLevel(TERRACES.below)).toBe(0.4);
-			const reference = Array.from(landFor({ ...dryMap, aridity: 0.8 }).elevation);
-			[0.4, 0.55].forEach((aridity) => expect(Array.from(landFor({ ...dryMap, aridity }).elevation)).toEqual(reference));
+			[0.4, 0.55, 1].forEach((aridity) => expect(terracePull(moistureLevel(aridity))).toBe(0));
+			[0, 0.1].forEach((aridity) => expect(terracePull(moistureLevel(aridity))).toBe(TERRACES.strength));
+			expect(terracePull(moistureLevel(0.25))).toBeGreaterThan(0);
+			expect(terracePull(moistureLevel(0.25))).toBeLessThan(TERRACES.strength);
 		});
 
-		it('pull a dry map toward benches, and make no pits', () => {
-			const wet = landFor({ ...dryMap, aridity: 0.8 });
-			const dry = landFor({ ...dryMap, aridity: 0.15 });
-			const { metroRadius, blendRadius } = startRadii(paramsFor(dryMap));
-			const outside = cellsWithin(wet.grid, 2 * wet.grid.halfExtent).filter((cell) => {
-				const x = cellCentre(wet.grid, cell % wet.grid.size);
-				const y = cellCentre(wet.grid, Math.floor(cell / wet.grid.size));
-				return Math.hypot(x, y) > blendRadius + wet.grid.cellSize;
-			});
-			let moved = 0;
-			let pitted = 0;
-			outside.forEach((cell) => {
-				moved += Math.abs(dry.elevation[cell] - wet.elevation[cell]);
-				const dryStands = dry.drainage.levels[cell] > dry.elevation[cell];
-				const wetStands = wet.drainage.levels[cell] > wet.elevation[cell];
-				if (dryStands !== wetStands) pitted += 1;
-			});
-			expect(moved / outside.length).toBeGreaterThan(0.002);
-			// Terracing is the same pull everywhere, so a higher cell stays higher
-			// and water stands where it stood; only heights squeezed within the
-			// flood's FLOOD_RISE of each other can differ. The steepest way down
-			// can change on a bench, which squeezes some drops more than others.
-			expect(pitted / outside.length).toBeLessThan(0.001);
-			expect(metroRadius).toBeLessThan(blendRadius);
+		it('keep heights in order, so land drains the same way terraced or not, and gather them onto benches', () => {
+			const pull = TERRACES.strength;
+			const step = 1e-4;
+			let floors = 0;
+			let terracedFloors = 0;
+			let previous = -Infinity;
+			for (let height = 0; height <= 1; height += step) {
+				const terraced = terraceHeight(height, pull);
+				expect(terraced).toBeGreaterThan(previous);
+				previous = terraced;
+				// The slope a terraced sample is scaled by is this function's derivative.
+				const difference = (terraceHeight(height + 1e-7, pull) - terraceHeight(height - 1e-7, pull)) / 2e-7;
+				expect(Math.abs(terraceSlope(height, pull) - difference)).toBeLessThan(1e-5);
+				if (height * TERRACES.steps % 1 < 0.25) floors += 1;
+				if (terraced * TERRACES.steps % 1 < 0.25) terracedFloors += 1;
+				expect(terraceHeight(height, 0)).toBe(height);
+			}
 			// On a bench, most of a step's height sits within a short way of its floor.
-			const benchFloors = (land: LandSurface) => outside.filter((cell) => {
-				const within = land.elevation[cell] * TERRACES.steps % 1;
-				return within < 0.25;
-			}).length / outside.length;
-			expect(benchFloors(dry)).toBeGreaterThan(benchFloors(wet) + 0.1);
+			expect(terracedFloors).toBeGreaterThan(floors * 1.4);
+		});
+
+		it('leave the land grid alone, which is the same at any aridity: Terrain terraces what it samples', () => {
+			const dryMap = { seed: 23, environment: 'highDesert', radius: 600 } as const;
+			const wet = landFor({ ...dryMap, aridity: 0.8 });
+			[0.05, 0.25].forEach((aridity) => {
+				const dry = landFor({ ...dryMap, aridity });
+				expect(Array.from(dry.elevation)).toEqual(Array.from(wet.elevation));
+				expect(Array.from(dry.drainage.receivers)).toEqual(Array.from(wet.drainage.receivers));
+			});
 		});
 	});
 
@@ -282,6 +315,6 @@ describe('generateLand', () => {
 
 // Computed in a separate Node process from the Jest run that checks them.
 const PINNED = {
-	mixed: { elevation: 3037325947, receivers: 2828938243, samples: [0.047842042086173125, 0.03163131726515936, 0.10045555445444558] },
-	basin: { elevation: 4163922678, receivers: 2332746621, outlets: [7295] },
+	mixed: { elevation: 3720184255, receivers: 1777173059, samples: [0.047842042086173125, 0.03163131726515936, 0.10045555445444558] },
+	basin: { elevation: 3301805954, receivers: 1575174816, outlets: [7295] },
 };

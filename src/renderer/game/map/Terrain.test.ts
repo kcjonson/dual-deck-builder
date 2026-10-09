@@ -3,7 +3,7 @@ import { BIOMES, BIOME_COSTS, Biome } from './Biome';
 import { cellCentre, landGridFor } from './LandGrid';
 import { MapParamSet, MapParams, resolveMapParams } from './MapParams';
 import { validateMapParams } from './ParamValidator';
-import { generateLand } from './Land';
+import { generateLand, moistureLevel, terraceHeight, terracePull } from './Land';
 import { CLIFF_GRADE, RELIEF, SLOPE_COST, Terrain, TerrainSample, WaterLayer, createTerrainSample, generateTerrain, terrainFromSurface } from './Terrain';
 import { TOWN_CRATER_GAP, TOWN_SPACING } from './TerrainSites';
 
@@ -338,14 +338,17 @@ describe('generateTerrain', () => {
 		] as const)('gives slope as elevation\'s exact gradient, and grade as its size against RELIEF, in %s', (_name, set) => {
 			const terrain = terrainFor(set);
 			const slope = { x: 0, y: 0 };
-			// Small enough that curvature moves the one-sided slopes apart by
-			// far less than a crease does, large enough to stay clear of rounding.
+			// Large enough to stay clear of rounding. A crease shows as a jump in
+			// slope, (east - 2 here + west) / step, that stays as the step
+			// shrinks; curvature shows as curvature times the step, here under
+			// 1e-7 even where a dry map's terrace risers bend hardest.
 			const step = 1e-6;
-			// The eroded grid is sampled bicubic, smooth in value and slope, and
-			// range country's fine relief is plain fractal noise, so the land has
-			// no crease anywhere but where it's held to 0 or 1, which these grids
-			// miss: a point within a step of a crease is counted rather than
-			// checked, and none may be.
+			const crease = 1e-6;
+			// The eroded grid is sampled bicubic, smooth in value and slope,
+			// terraces are smoothsteps of it, and range country's fine relief
+			// is plain fractal noise, so the land has no crease anywhere but
+			// where it's held to 0 or 1, which these grids miss: a point within
+			// a step of a crease is counted rather than checked, and none may be.
 			const points = gridInside(terrain.radius, 20);
 			let creased = 0;
 			points.forEach(([x, y]) => {
@@ -354,7 +357,7 @@ describe('generateTerrain', () => {
 				const west = terrain.elevation(x - step, y);
 				const north = terrain.elevation(x, y + step);
 				const south = terrain.elevation(x, y - step);
-				if (Math.abs(east - 2 * here + west) / step > 1e-7 || Math.abs(north - 2 * here + south) / step > 1e-7) {
+				if (Math.abs(east - 2 * here + west) / step > crease || Math.abs(north - 2 * here + south) / step > crease) {
 					creased += 1;
 					return;
 				}
@@ -379,6 +382,30 @@ describe('generateTerrain', () => {
 			expect(() => terrainFromSurface({ params: paramsFor({ ...set, radius: 900 }), rng: terrainStream(params.seed), surface })).toThrow(RangeError);
 			const short = { ...surface, mountains: new Float64Array(10) };
 			expect(() => terrainFromSurface({ params, rng: terrainStream(params.seed), surface: short })).toThrow(RangeError);
+			const otherDrainage = { ...surface, drainage: { ...surface.drainage, size: surface.grid.size + 2 } };
+			expect(() => terrainFromSurface({ params, rng: terrainStream(params.seed), surface: otherDrainage })).toThrow(RangeError);
+		});
+
+		it('terraces a dry map as it samples it, the same pull everywhere past the blend ring and none in the metro', () => {
+			// No ranges, so no fine relief goes on after the terraces.
+			const set = { seed: 23, environment: 'highDesert', radius: 600, mountainCoverage: 0 } as const;
+			const dry = terrainFor({ ...set, aridity: 0.05 });
+			const wet = terrainFor({ ...set, aridity: 0.8 });
+			const pull = terracePull(moistureLevel(0.05));
+			expect(pull).toBeGreaterThan(0);
+			let terraced = 0;
+			let moved = 0;
+			gridInside(dry.radius, 60).forEach(([x, y]) => {
+				const ground = wet.elevation(x, y);
+				const distance = Math.hypot(x, y);
+				if (distance < dry.metro.radius) expect(dry.elevation(x, y)).toBe(ground);
+				if (distance <= dry.blendRadius || ground <= 0 || ground >= 1) return;
+				expect(dry.elevation(x, y)).toBe(terraceHeight(ground, pull));
+				terraced += 1;
+				if (dry.elevation(x, y) !== ground) moved += 1;
+			});
+			expect(terraced).toBeGreaterThan(1000);
+			expect(moved / terraced).toBeGreaterThan(0.9);
 		});
 
 		it('hands out its land frozen, its arrays the stages\' to read and never write', () => {
@@ -506,7 +533,9 @@ describe('generateTerrain', () => {
 
 		// A cliff is steep ground in rough country, and eroded slopes are steep
 		// across cells nine units wide, so a cliff is a band a road can't slip
-		// through between samples: only its tapered tips are thin.
+		// through between samples, every half unit: only its tapered tips are
+		// thin. On a dry map a cliff is mostly a terrace's riser, which is
+		// narrower than the slope it steepens, about five units at the median.
 		it.each([
 			['aridity 0.6', { seed: 21, aridity: 0.6 }],
 			['the Badlands', { seed: 21, environment: 'badlands' }],
@@ -523,7 +552,7 @@ describe('generateTerrain', () => {
 			expect(widths.length).toBeGreaterThan(50);
 			widths.sort((a, b) => a - b);
 			expect(widths.filter((width) => width < 2).length / widths.length).toBeLessThan(0.08);
-			expect(widths[Math.floor(widths.length / 2)]).toBeGreaterThan(6);
+			expect(widths[Math.floor(widths.length / 2)]).toBeGreaterThan(4);
 		});
 	});
 
@@ -715,10 +744,10 @@ const PINNED: PinnedSummary[] = [
 			[-224.6831512749195, -583.4892020709813, 40.76793423446361],
 		],
 		samples: [
-			[0.0232687563795571, 0.004756744063311934, 0.9883711656152957, 0.0008310533250935231, 0.000255203423628155, 'canyons', null, 1.5226733524974159],
-			[0.5784774280172258, 0, 0, -0.0014903187052089707, 0.0007221456521211325, 'mountains', null, 2.582276325579196],
-			[0.012662426595949978, 0, 1, -0.000032475474725478346, 0.000013072758510598506, 'canyons', null, 1.5000367666042116],
-			[0.3290901236208384, 0, 0, 0.0097252301966407, -0.008183460703685247, 'mountains', 'cliff', Infinity],
+			[0.022961597028416457, 0.004910323738882255, 0.9883711656152957, 0.0009374453546605137, 0.00017812403994521737, 'badlands', null, 1.8273159589974295],
+			[0.5794511254436154, 0, 0, -0.001156033402486766, 0.0007041404126588923, 'mountains', null, 2.554966808452137],
+			[0.012662426595949974, 0, 1, -0.00003247547472547858, 0.00001307275851059814, 'canyons', null, 1.5000367666042116],
+			[0.31761764040198703, 0, 0, 0.01616521524969314, -0.01234285772264014, 'mountains', 'cliff', Infinity],
 		],
 	},
 	{

@@ -3,7 +3,7 @@ import { Drainage, DrainageRouter, routeDrainage } from './Drainage';
 import { downsample, erode, upsample } from './Erosion';
 import { unitVector } from './Geometry';
 import { LandGrid, cellAt, cellCentre, coarseGrid, landGridFor } from './LandGrid';
-import { lerp, smooth01 } from './MapMath';
+import { lerp, smooth01, smoothSlope } from './MapMath';
 import { MapParams } from './MapParams';
 import { SimplexNoise } from './Noise';
 import { buildUplift } from './Uplift';
@@ -20,14 +20,16 @@ import { buildUplift } from './Uplift';
  *   leaves, so the region's water gathers into that many main rivers. With
  *   none, it all drains to one sink inside the disc: a closed basin.
  * - Erosion runs coarse first, on a grid half the size, then finishes at
- *   full size from that land, for about a third of the time a full-size run
- *   takes (terrain-erosion.md has the measurements).
+ *   full size from that land, in under half the time a full-size run takes
+ *   (terrain-erosion.md has the measurements).
  * - Elevation is the eroded height over a fixed scale, easing toward 1 on
  *   the highest peaks, so a gentle map stays low and a rugged one stands tall.
- * - Dry maps weather into tablelands: below an `aridity` of 0.4 the
- *   elevation is pulled toward terraces, flat benches with steep risers.
  * - The metro is flattened, so the compound sits on flat ground.
  * - The drainage of the finished land is kept for the water stage.
+ *
+ * Dry maps weather into tablelands, but not here: `Terrain` pulls the
+ * elevation it samples toward terraces (`terraceHeight`), since a grid
+ * terraced cell by cell draws its risers along the cells.
  *
  * Everything is adds, multiplies, divides, compares, square roots, and
  * floors, which ECMAScript gives exactly, so a seed's land is the same to
@@ -98,6 +100,7 @@ const BASIN_DISTANCE = 0.55;
  * ends; how far elevation is pulled toward them at full dryness.
  */
 export const TERRACES = { below: 0.4, full: 0.1, steps: 7, riserStart: 0.55, riserEnd: 0.92, strength: 0.8 } as const;
+const RISER = TERRACES.riserEnd - TERRACES.riserStart;
 /** Vertical scale for slopes: elevation 1 stands this many world units high. */
 export const RELIEF = 100;
 /** The most of its relief the metro keeps when it's flattened... */
@@ -140,10 +143,9 @@ export function generateLand({ params, rng }: LandOptions): LandSurface {
 		const height = elevation[cell];
 		elevation[cell] = height / sqrt(height * height + scaleSquared);
 	}
-	terrace({ elevation, wetness: moistureLevel(params.aridity) });
-	// Where water leaves the metro, the level it flattens toward.
+	// Where water leaves the metro, the level it flattens toward, and the ways it leaves.
 	router.route(elevation, outlets);
-	flattenMetro({ grid, elevation, levels: router.levels, metroRadius, blendRadius });
+	flattenMetro({ grid, elevation, routing: router, metroRadius, blendRadius });
 	const drainage = routeDrainage({ size: grid.size, elevation, outlets, router });
 	fillMetroWater({ grid, elevation, levels: drainage.levels, blendRadius });
 	return freezeSurface({ grid, elevation, mountains, drainage, closedBasin });
@@ -250,29 +252,40 @@ function coarseCells(cells: Int32Array, size: number): Int32Array {
 }
 
 /**
- * Pulls elevation toward terraces on dry maps: each of `TERRACES.steps`
- * benches a unit is flat for most of its height, then rises in a steep
- * riser, and elevation moves that way by the map's dryness. Nothing changes
- * at a moisture level of `TERRACES.below` or more. The pull is the same
- * everywhere on a map and never all the way, so a higher cell stays higher:
- * terracing reorders no heights, so it leaves no pits and water stands where
- * it stood, though squeezing some drops more than others can change which
- * way down is steepest on a bench.
+ * How hard a map's elevation is pulled toward terraces: `TERRACES.strength`
+ * at a moisture level of `TERRACES.full` and under, easing to none at
+ * `TERRACES.below`.
  */
-export function terrace({ elevation, wetness }: { elevation: Float64Array; wetness: number }): void {
-	const dryness = smooth01((TERRACES.below - wetness) / (TERRACES.below - TERRACES.full));
-	if (dryness <= 0) return;
-	const steps = TERRACES.steps;
-	const riser = TERRACES.riserEnd - TERRACES.riserStart;
-	const pull = dryness * TERRACES.strength;
-	for (let cell = 0; cell < elevation.length; cell += 1) {
-		const height = elevation[cell];
-		const scaled = height * steps;
-		const bench = floor(scaled);
-		const terraced = (bench + smooth01((scaled - bench - TERRACES.riserStart) / riser)) / steps;
-		elevation[cell] = height + (terraced - height) * pull;
-	}
+export function terracePull(wetness: number): number {
+	return TERRACES.strength * smooth01((TERRACES.below - wetness) / (TERRACES.below - TERRACES.full));
 }
+
+/**
+ * Elevation pulled toward terraces by `pull`: each of `TERRACES.steps`
+ * benches a unit is flat for most of its height, then rises in a steep
+ * riser. Never all the way, so it's monotone, a higher point staying
+ * higher, and land drains the same way terraced or not.
+ */
+export function terraceHeight(height: number, pull: number): number {
+	return height + terraceLift(height) * pull;
+}
+
+/** How far a full pull would move `height`: to its terrace, less the height itself. */
+export function terraceLift(height: number): number {
+	const scaled = height * TERRACES.steps;
+	const bench = floor(scaled);
+	return (bench + smooth01((scaled - bench - TERRACES.riserStart) / RISER)) / TERRACES.steps - height;
+}
+
+/** `terraceHeight`'s derivative in `height`: what a slope is multiplied by where it's terraced. */
+export function terraceSlope(height: number, pull: number): number {
+	const scaled = height * TERRACES.steps;
+	const bench = floor(scaled);
+	return 1 + (smoothSlope((scaled - bench - TERRACES.riserStart) / RISER) / RISER - 1) * pull;
+}
+
+/** The routing `flattenMetro` reads: the land's before flattening. */
+export type MetroRouting = Pick<Drainage, 'receivers' | 'levels' | 'order'>;
 
 /**
  * Flattens the metro, only ever lowering land, toward the lowest water level
@@ -281,19 +294,22 @@ export function terrace({ elevation, wetness }: { elevation: Float64Array; wetne
  * `METRO_GRADE`, and never more than `METRO_RELIEF` of it, easing back to
  * the land's own height at the blend radius. Little lifts the land round the
  * metro, but rivers crossing it still cut valleys, and ranges close round it
- * can leave it a basin with steep sides. Raising nothing means flattening
- * never dams a river, and flattening toward where water leaves rather than
- * the bottom of a pit means it doesn't sink the metro into a basin. Inside
- * the metro the change is the same for every cell, so drainage across it
- * runs the same way, but pits below the floor stay, and the blend ring
- * lowers its inner edge further than its outer, which can leave pits there:
- * `fillMetroWater` fills them.
+ * can leave it a basin with steep sides. Flattening toward where water
+ * leaves rather than the bottom of a pit means it doesn't sink the metro
+ * into a basin. Inside the metro every cell above the floor keeps the same
+ * share of its height above it, so heights keep their order and water runs
+ * across the metro as it did. The blend ring keeps less of its inner edge
+ * than its outer, which would dam the ways water leaves, so then, upstream
+ * first, each cell's old receiver that was below it comes down to the cell's
+ * new height at most: every way out stays open, and nothing is raised. Pits
+ * below the floor stay, for `fillMetroWater`.
  */
-export function flattenMetro({ grid, elevation, levels, metroRadius, blendRadius }: { grid: LandGrid; elevation: Float64Array; levels: ArrayLike<number>; metroRadius: number; blendRadius: number }): void {
+export function flattenMetro({ grid, elevation, routing, metroRadius, blendRadius }: { grid: LandGrid; elevation: Float64Array; routing: MetroRouting; metroRadius: number; blendRadius: number }): void {
 	const size = grid.size;
 	const metroSquared = metroRadius * metroRadius;
 	const blendSquared = blendRadius * blendRadius;
 	const toGrade = RELIEF / (2 * grid.cellSize);
+	const { receivers, levels, order } = routing;
 	let floorLevel = Infinity;
 	let steepest = 0;
 	for (let row = 1; row < size - 1; row += 1) {
@@ -310,6 +326,7 @@ export function flattenMetro({ grid, elevation, levels, metroRadius, blendRadius
 		}
 	}
 	if (floorLevel === Infinity) return;
+	const before = Float64Array.from(elevation);
 	const keep = steepest * METRO_RELIEF > METRO_GRADE ? METRO_GRADE / steepest : METRO_RELIEF;
 	const pull = 1 - keep;
 	for (let row = 0; row < size; row += 1) {
@@ -324,6 +341,11 @@ export function flattenMetro({ grid, elevation, levels, metroRadius, blendRadius
 			const weight = distanceSquared <= metroSquared ? 1 : smooth01((blendSquared - distanceSquared) / (blendSquared - metroSquared));
 			elevation[cell] -= above * pull * weight;
 		}
+	}
+	for (let index = order.length - 1; index >= 0; index -= 1) {
+		const cell = order[index];
+		const receiver = receivers[cell];
+		if (receiver >= 0 && before[receiver] < before[cell] && elevation[receiver] > elevation[cell]) elevation[receiver] = elevation[cell];
 	}
 }
 

@@ -201,6 +201,9 @@ describe('routeDrainage', () => {
 		expect(() => routeDrainage({ size: 3, elevation: new Float64Array(8), outlets: [0] })).toThrow(RangeError);
 		expect(() => routeDrainage({ size: 3, elevation: flat, outlets: [0], rain: new Float64Array(4) })).toThrow(RangeError);
 		expect(() => routeDrainage({ size: 3, elevation: flat, outlets: [0], router: new DrainageRouter({ size: 4 }) })).toThrow(RangeError);
+		// An outlet's height that isn't a number leaves every level unknown and no cell anywhere to drain: a mistake to report, not a drainage to return.
+		const broken = Float64Array.from([NaN, 1, 2, 1, 2, 3, 2, 3, 4]);
+		expect(() => routeDrainage({ size: 3, elevation: broken, outlets: [0] })).toThrow(/isn't a number/);
 	});
 });
 
@@ -215,7 +218,7 @@ describe('accumulateArea', () => {
 		expect(Array.from(drainage.area)).toEqual(before);
 		expect(Array.from(area)).toEqual(Array.from(routeDrainage({ size: 9, elevation, outlets: [0, 80], rain }).area));
 		expect(Array.from(accumulateArea({ drainage }))).toEqual(before);
-		expect(() => accumulateArea({ drainage, rain: new Float64Array(5) })).toThrow(RangeError);
+		expect(() => accumulateArea({ drainage, rain: new Float64Array(5) })).toThrow(/^accumulateArea: /);
 	});
 });
 

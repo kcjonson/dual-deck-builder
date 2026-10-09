@@ -20,7 +20,7 @@ const randomProperties = [
 	...cryptoRandom.map((property) => ({ property, message: randomMessage })),
 ];
 const approximatedMessage = 'Map generation regrows on load in any engine, so it uses only exactly rounded arithmetic: adds, multiplies, divides, square roots, and floors (terrain-erosion.md, Determinism).';
-const approximatedMath = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'exp', 'expm1', 'log', 'log1p', 'log2', 'log10', 'pow', 'hypot', 'cbrt', 'sinh', 'cosh', 'tanh']
+const approximatedMath = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'atan2', 'exp', 'expm1', 'log', 'log1p', 'log2', 'log10', 'pow', 'hypot', 'cbrt', 'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh']
 	.map((property) => ({ object: 'Math', property, message: approximatedMessage }));
 // The game folders under the timer ban. The random ban covers them too, so
 // they carry both property lists in the last override below.

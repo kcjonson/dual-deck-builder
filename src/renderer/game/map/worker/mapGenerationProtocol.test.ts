@@ -76,13 +76,15 @@ describe('the generation worker\'s transfer format', () => {
 	});
 
 	it('decodes to the map it encoded, the terrain rebuilt over the land it was sent without eroding it again', () => {
+		// A map of its own to send, since sending detaches its land; the same as the shared one, from the same seed.
+		const own = generateAreaMap({ params });
 		const erode = jest.spyOn(land, 'generateLand');
-		const decoded = decodeAreaMap(sent(map));
+		const decoded = decodeAreaMap(sent(own));
 		expect(erode).not.toHaveBeenCalled();
 		// Transferred, not copied: the encoded terrain's land is detached.
-		expect(map.products.terrain.surface.elevation).toHaveLength(0);
+		expect(own.products.terrain.surface.elevation).toHaveLength(0);
 		const { products, ...rest } = decoded;
-		const { products: original, ...expected } = map;
+		const { products: original, ...expected } = own;
 		expect(rest).toEqual(expected);
 		expect(products.highways).toEqual(original.highways);
 		expect(products.growth).toEqual(original.growth);

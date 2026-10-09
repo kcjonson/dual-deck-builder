@@ -160,15 +160,18 @@ export class DrainageRouter {
 					this.push(next, nextLevel);
 				}
 			}
-			// An outlet drains nowhere; any other cell has at least the neighbour that reached it below it.
-			receivers[cell] = state[cell] === QUEUED_OUTLET ? -1 : receiver;
+			// An outlet drains nowhere; any other cell has at least the neighbour
+			// that reached it below it, unless a height wasn't a number.
+			if (state[cell] === QUEUED_OUTLET) receiver = -1;
+			else if (receiver < 0) throw new RangeError(`DrainageRouter: cell ${cell} has no neighbour below it, so its elevation, ${elevation[cell]}, or a neighbour's isn't a number`);
+			receivers[cell] = receiver;
 			state[cell] = LEFT;
 		}
 	}
 
 	/** Fills `area` from the last routing: each cell's rain (1 when none is given) plus everything upstream of it. */
 	public accumulate(rain?: ArrayLike<number>): void {
-		accumulateInto({ area: this.area, receivers: this.receivers, order: this.order, rain });
+		accumulateInto({ area: this.area, receivers: this.receivers, order: this.order, rain, caller: 'DrainageRouter.accumulate' });
 	}
 
 	private push(cell: number, key: number): void {
@@ -217,9 +220,9 @@ export class DrainageRouter {
 }
 
 /** Each cell's rain (1 when none is given) plus everything upstream of it, into `area`, walking `order` upstream first. */
-function accumulateInto({ area, receivers, order, rain }: { area: Float64Array; receivers: ArrayLike<number>; order: ArrayLike<number>; rain?: ArrayLike<number> }): void {
+function accumulateInto({ area, receivers, order, rain, caller }: { area: Float64Array; receivers: ArrayLike<number>; order: ArrayLike<number>; rain?: ArrayLike<number>; caller: string }): void {
 	const cells = area.length;
-	if (rain !== undefined && rain.length !== cells) throw new RangeError(`accumulateArea: expected ${cells} rain values, got ${rain.length}`);
+	if (rain !== undefined && rain.length !== cells) throw new RangeError(`${caller}: expected ${cells} rain values, got ${rain.length}`);
 	if (rain === undefined) area.fill(1);
 	else for (let cell = 0; cell < cells; cell += 1) area[cell] = rain[cell];
 	for (let index = cells - 1; index >= 0; index -= 1) {
@@ -236,7 +239,7 @@ function accumulateInto({ area, receivers, order, rain }: { area: Float64Array; 
  */
 export function accumulateArea({ drainage, rain }: { drainage: Pick<Drainage, 'receivers' | 'order'>; rain?: ArrayLike<number> }): Float64Array {
 	const area = new Float64Array(drainage.receivers.length);
-	accumulateInto({ area, receivers: drainage.receivers, order: drainage.order, rain });
+	accumulateInto({ area, receivers: drainage.receivers, order: drainage.order, rain, caller: 'accumulateArea' });
 	return area;
 }
 

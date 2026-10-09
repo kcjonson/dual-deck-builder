@@ -1,8 +1,8 @@
 import { Rng } from '../core/Rng';
 import { BIOME_COSTS, Biome, BiomeFields, classifyBiome } from './Biome';
-import { LandSurface, RELIEF, generateLand, moistureLevel, startRadii } from './Land';
+import { LandSurface, RELIEF, generateLand, moistureLevel, startRadii, terraceHeight, terraceLift, terracePull, terraceSlope } from './Land';
 import { GridSampler, cellCentre, landGridFor } from './LandGrid';
-import { clamp01, lerp, quantileAbove, smooth01 } from './MapMath';
+import { clamp01, lerp, quantileAbove, smooth01, smoothSlope } from './MapMath';
 import { MapParams } from './MapParams';
 import { SimplexNoise } from './Noise';
 import { Hotspot, MAX_CRATER_RADIUS, Ruin, placeHotspots, placeTowns } from './TerrainSites';
@@ -217,6 +217,8 @@ export class TerrainFields {
 	private readonly cellColumns: number;
 
 	private readonly wetness: number;
+	/** How hard dry land is pulled toward terraces past the blend radius: `terracePull` of the map's wetness. */
+	private readonly terracing: number;
 	/** The elevation `LOWLAND.share` of the land outside the ranges lies under. */
 	private readonly lowlandLevel: number;
 	private readonly startSquared: number;
@@ -238,6 +240,7 @@ export class TerrainFields {
 		}
 		const cells = grid.size * grid.size;
 		const { drainage } = surface;
+		if (drainage.size !== grid.size) throw new RangeError(`TerrainFields: the surface's drainage is for a grid of ${drainage.size}, not ${grid.size}`);
 		[surface.elevation, surface.mountains, drainage.receivers, drainage.levels, drainage.area, drainage.order].forEach((values) => {
 			if (values.length !== cells) throw new RangeError(`TerrainFields: a surface array holds ${values.length} values, not the grid's ${cells}`);
 		});
@@ -251,10 +254,13 @@ export class TerrainFields {
 		this.blendSquared = blendRadius * blendRadius;
 		this.reliefSquared = reliefRadius * reliefRadius;
 		this.wetness = moistureLevel(params.aridity);
+		this.terracing = terracePull(this.wetness);
 
 		this.elevationGrid = new GridSampler({ grid, values: surface.elevation });
 		this.mountainGrid = new GridSampler({ grid, values: surface.mountains });
-		this.lowlandLevel = quantileAbove(outsideRanges({ surface, radius, reliefRadius, values: surface.elevation }), 1 - LOWLAND.share);
+		// Measured on the grid, then terraced as the samples it's compared with are; terracing keeps heights in order.
+		const lowland = quantileAbove(outsideRanges({ surface, radius, reliefRadius, values: surface.elevation }), 1 - LOWLAND.share);
+		this.lowlandLevel = this.terracing > 0 ? terraceHeight(lowland, this.terracing) : lowland;
 		const canyonShare = CANYONS.share * smooth01((1 - this.wetness - CANYONS.dryness) / CANYONS.drynessRange);
 		const badlandsShare = BADLANDS.share * params.ruggedness * (0.3 + 0.7 * params.contamination);
 		const clear = canyonShare > 0 || badlandsShare > 0 ? featureRoom({ surface, metroRadius, reliefRadius }) : null;
@@ -298,11 +304,6 @@ export class TerrainFields {
 			// Every point of a reached cell is ground a road can get to; towns prefer open country.
 			suits: (x, y, strict) => !strict || (this.mountainGrid.bilinear(x, y) < 0.25 && this.canyonGrid.bilinear(x, y) < 0.25),
 		});
-	}
-
-	/** The elevation the map's low ground lies under, for the Map Lab and tests. */
-	public get lowland(): number {
-		return this.lowlandLevel;
 	}
 
 	public elevation(x: number, y: number): number {
@@ -451,8 +452,11 @@ export class TerrainFields {
 
 	/**
 	 * Elevation at (x, y), with its gradient and the range mask left in
-	 * `scratch`: the eroded grid, bicubic, plus fine relief as strong as the
-	 * point is range country, held to 0 to 1.
+	 * `scratch`: the eroded grid, bicubic, terraced on a dry map, plus fine
+	 * relief as strong as the point is range country, held to 0 to 1.
+	 * Terraced here rather than on the grid, so a riser follows the land's
+	 * contours instead of its cells. The pull fades out over the blend ring,
+	 * since the metro is flat ground, not a bench.
 	 */
 	private land(x: number, y: number): number {
 		const elevationGrid = this.elevationGrid;
@@ -460,6 +464,25 @@ export class TerrainFields {
 		let elevation = elevationGrid.bicubic(x, y);
 		let slopeX = elevationGrid.gradientX;
 		let slopeY = elevationGrid.gradientY;
+		const distanceSquared = x * x + y * y;
+		if (this.terracing > 0 && distanceSquared > this.startSquared) {
+			let pull = this.terracing;
+			let pullX = 0;
+			let pullY = 0;
+			if (distanceSquared < this.blendSquared) {
+				const span = this.blendSquared - this.startSquared;
+				const ramp = (this.blendSquared - distanceSquared) / span;
+				pull *= 1 - smooth01(ramp);
+				const change = 2 * this.terracing * smoothSlope(ramp) / span;
+				pullX = change * x;
+				pullY = change * y;
+			}
+			const lift = terraceLift(elevation);
+			const scale = terraceSlope(elevation, pull);
+			slopeX = slopeX * scale + lift * pullX;
+			slopeY = slopeY * scale + lift * pullY;
+			elevation += lift * pull;
+		}
 		const mountains = mountainGrid.bicubic(x, y);
 		// Bicubic mountains overshoot a little past a range's edge, which only
 		// flips the detail's sign there; leaving it out instead would crease the

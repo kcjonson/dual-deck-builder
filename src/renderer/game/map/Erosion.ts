@@ -3,10 +3,10 @@ import { DrainageRouter } from './Drainage';
 /**
  * Fluvial erosion on the land grid (Area Map Generation, Pipeline, 1.
  * Terrain): stream-power erosion solved implicitly, Braun and Willett's
- * method (2013), with m = 0.5 and n = 1, then a little hillslope diffusion.
- * Each iteration routes drainage by priority flood from the outlets,
- * accumulates drainage area, and updates every cell downstream first, so
- * its receiver's new height is known:
+ * method (2013), with m = 0.5 and n = 1, after a little hillslope
+ * diffusion. Each iteration smooths hillslopes, routes drainage by priority
+ * flood from the outlets, accumulates drainage area, and updates every cell
+ * downstream first, so its receiver's new height is known:
  *
  *   h = (h + dt U + F h_receiver) / (1 + F),  F = dt K sqrt(area) / distance
  *
