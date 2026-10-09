@@ -78,7 +78,7 @@ The rest of 6.3 isn't in the campaign. The last fight's damage and turns are the
 
 Kevin's calls applied as decided: a loss is the last driver's death or People reaching 0 (DDB-432, entry 2), and a missing driver who returns comes back with their vehicle at 1 structure (entry 15). These are mine, and each is a line or a value to change:
 
-- The missing count as lost: the campaign is over when nobody is left at the compound, every driver dead or missing, not only once the last one dies. A single driver left at the compound keeps it going, though no run can seat one alone; People running out ends it then.
+- The missing count as lost: the campaign is over when nobody is left at the compound, every driver dead or missing, not only once the last one dies. A single driver left at the compound keeps it going, since a lone driver can still go out: a run with one driver at home goes solo, one driven vehicle and the escorts, and a pool at home that shares one archetype may send a same-archetype pair (DDB-432, entry 35; the solo fight is DDB-166).
 - People reaching 0 ends the campaign only with no run out. A night at 0 People with a run out waits for the run, and the first night after it's home ends it.
 - The night that empties the compound doesn't turn the day: the compound fell on the day that ended.
 - It starves at 0 food, riots at 10 unrest, and otherwise disbands, hunger before unrest, and water isn't counted.
