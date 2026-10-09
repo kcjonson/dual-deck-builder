@@ -48,7 +48,7 @@ describe('escortCardData', () => {
 		const hauler = escortCardData({ type: 'med_truck' });
 		expect(hauler.dividend).toEqual(ESCORT_CONFIGS.med_truck.dividend);
 		expect(hauler.dividend).not.toBe(ESCORT_CONFIGS.med_truck.dividend);
-		expect(escortCardData({ type: 'med_truck', signatureCard: null, dividend: null })).toMatchObject({ signatureCard: null, dividend: null });
+		expect(escortCardData({ type: 'med_truck', signatureCard: 'top_off', dividend: null })).toMatchObject({ signatureCard: 'top_off', dividend: null });
 	});
 
 	it('maps a convoy escort as it stands between fights, its armor full and its structure what the fight left', () => {
@@ -60,23 +60,10 @@ describe('escortCardData', () => {
 		}
 	});
 
-	it('maps a driven vehicle carrying on unmanned: its own name, structure, and speed, the default crew, no type and no card', () => {
+	it('refuses a driven vehicle carrying on unmanned, which the convoy never holds', () => {
 		const rig = emptyRig();
 		convertToEscort(rig);
-		expect(escortCardDataOf(rig)).toEqual({
-			name: 'Apocalypse Rig',
-			type: null,
-			role: 'gun',
-			structure: 80,
-			maxStructure: 80,
-			armor: 10,
-			speed: 1,
-			gunnery: 4,
-			evade: 3,
-			ramming: 2,
-			signatureCard: null,
-			dividend: null,
-		});
+		expect(() => escortCardDataOf(rig)).toThrow('Apocalypse Rig isn\'t a hired escort with a signature card');
 	});
 
 	it('refuses a vehicle that isn\'t an escort', () => {
@@ -100,7 +87,7 @@ describe('sameEscortCardData', () => {
 			{ gunnery: 9 },
 			{ evade: 9 },
 			{ ramming: 9 },
-			{ signatureCard: null },
+			{ signatureCard: 'top_off' },
 			{ dividend: null },
 			{ dividend: { kind: 'heal' as const, amount: 4 } },
 			{ role: 'gun' as const },
@@ -108,6 +95,6 @@ describe('sameEscortCardData', () => {
 		for (const change of changes) {
 			expect([change, sameEscortCardData(base, { ...base, ...change })]).toEqual([change, false]);
 		}
-		expect(sameEscortCardData(base, { ...base, type: null })).toBe(false);
+		expect(sameEscortCardData(base, { ...base, type: 'fuel_hauler' })).toBe(false);
 	});
 });

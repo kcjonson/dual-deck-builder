@@ -17,11 +17,9 @@ import type { DevSurface } from '../support/harness';
  * and R13.29's lint gate at both gate sizes, as `gallery.spec.ts` and
  * `lint.spec.ts` hold every other card scene (`lintShort`).
  *
- * Their own list for now, rather than lines in `support/scenarios.ts`, which
- * another branch has open; folding them into `SCENE_SCENARIOS` later moves
- * nothing, since the golden and text record names are the same either way
- * (`goldenName`). Chromium only until then: the electron project reads that
- * list, so these scenes get its goldens when they join it.
+ * Their own list rather than lines in `support/scenarios.ts`: the golden
+ * and text record names come from `goldenName` either way, so the scenes
+ * can join `SCENE_SCENARIOS` without moving a baseline.
  */
 const ESCORT_SCENES = ['escort-cards', 'escort-detail', 'escort-detail-pinned'] as const;
 

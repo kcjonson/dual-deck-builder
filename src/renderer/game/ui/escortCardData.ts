@@ -5,13 +5,14 @@ import type { Vehicle } from '../mechanics/Vehicle';
  * What an escort card shows (Game Flow 7.0), as plain data. Each screen
  * maps its own model onto it: load out and the garage's convoy strip an
  * escort in the convoy (`escortCardDataOf`), an event's offer a type it
- * would hire (`escortCardData`). The card depends on neither.
+ * would hire (`escortCardData`). The card depends on neither. Every escort
+ * in the convoy is a hired type with its signature card, as the convoy's
+ * reader holds it to.
  */
 export interface EscortCardData {
-	/** As the convoy names it ("Fuel Hauler"); a driven vehicle carrying on unmanned keeps its own ("Apocalypse Rig"). */
+	/** As the convoy names it ("Fuel Hauler"). */
 	readonly name: string;
-	/** The hired type; null for a driven vehicle carrying on unmanned. */
-	readonly type: EscortType | null;
+	readonly type: EscortType;
 	/** A gun escort, or a hauler, which looters go for. */
 	readonly role: EscortRole;
 	/** What's left of it: damage carries over between fights, and the garage repairs it. */
@@ -25,8 +26,8 @@ export interface EscortCardData {
 	readonly gunnery: number;
 	readonly evade: number;
 	readonly ramming: number;
-	/** The type of the signature card it brings into a driver's deck; null when it brings none. */
-	readonly signatureCard: string | null;
+	/** The type of the signature card it brings into a driver's deck. */
+	readonly signatureCard: string;
 	/** What it pays after each won fight it survives; null for none. */
 	readonly dividend: EscortDividend | null;
 }
@@ -56,7 +57,7 @@ export function escortCardData({ type, ...overrides }: EscortCardDataOptions): E
 		gunnery: overrides.gunnery ?? config.gunnery,
 		evade: overrides.evade ?? config.evade,
 		ramming: overrides.ramming ?? config.ramming,
-		signatureCard: overrides.signatureCard !== undefined ? overrides.signatureCard : config.signatureCard,
+		signatureCard: overrides.signatureCard ?? config.signatureCard,
 		dividend: dividend ? { ...dividend } : null,
 	};
 }
@@ -64,14 +65,18 @@ export function escortCardData({ type, ...overrides }: EscortCardDataOptions): E
 /**
  * An escort card's data from an escort in the convoy (`Convoy.escorts`),
  * as it stands between fights: its structure, its full armor, and its own
- * speed, whether it was hired or is a driven vehicle carrying on unmanned.
+ * speed. Only a hired escort has a card, as only a hired type is read into
+ * the convoy (`readConvoy`): a vehicle with no type, or no signature card,
+ * is refused.
  */
 export function escortCardDataOf(vehicle: Vehicle): EscortCardData {
 	const profile = vehicle.escort;
 	if (!profile) throw new Error(`${vehicle.name} isn't an escort`);
+	const { type, signatureCard } = profile;
+	if (type === null || signatureCard === null) throw new Error(`${vehicle.name} isn't a hired escort with a signature card`);
 	return {
 		name: vehicle.name,
-		type: profile.type,
+		type,
 		role: profile.role,
 		structure: vehicle.structure,
 		maxStructure: vehicle.maxStructure,
@@ -80,7 +85,7 @@ export function escortCardDataOf(vehicle: Vehicle): EscortCardData {
 		gunnery: profile.gunnery,
 		evade: profile.evade,
 		ramming: profile.ramming,
-		signatureCard: profile.signatureCard,
+		signatureCard,
 		dividend: profile.dividend ? { ...profile.dividend } : null,
 	};
 }

@@ -22,7 +22,7 @@ import {
 } from './escortCardStyle';
 import { StatBarDraws, barFraction, drawStatBar, placeStatBar, statBarDraws, toneStatBar } from './statBar';
 import { STATUS_TAG_HEIGHT, StatusTagDraw } from './statusTag';
-import { spriteKindOf } from './vehicleSprites';
+import { spriteKindForEscort } from './vehicleSprites';
 
 /**
  * An escort card's size (Game Flow 7.0): a mini card's, so it lines up with
@@ -42,9 +42,9 @@ const FACE = {
 	content: { x: 6, width: 68 },
 	art: { y: ESCORT_FRAME.border + HAZARD_HEADER.height + 4, height: 33, radius: 3, inset: { x: 10, y: 5 } },
 	name: { y: 51, size: 13, lineHeight: 1.05, lines: 2 },
-	/** How tall the structure row and the signature row are. */
-	row: 10,
-	/** Five mono figures at 9 px are 27 px, which every escort's structure fits ("80/80" is an Apocalypse Rig's, carrying on unmanned). */
+	/** How tall the structure row and the signature row are; odd, as a driver card's, so the bar sits on a whole pixel. */
+	row: 11,
+	/** Five mono figures at 9 px are 27 px, which every escort's structure fits: the widest, a Fuel Hauler's, is 40/40. */
 	structure: { y: 81, bar: 5, figures: 28, gap: 4 },
 	signature: { y: 93 },
 	mono: { size: 9 },
@@ -94,6 +94,8 @@ const FIGURE_TONES = textTones(CARD_RULES);
 export class EscortCard extends CardBase<EscortCardData> {
 	private model: EscortCardData;
 	private readonly lookup: CardLookup;
+	/** The signature card type the face last looked up, so new data looks it up only when it changes. */
+	private shownCard: string | null = null;
 	private dimmed = false;
 
 	private readonly name: Text;
@@ -110,7 +112,7 @@ export class EscortCard extends CardBase<EscortCardData> {
 		x?: number;
 		y?: number;
 		data: EscortCardData;
-		/** Where its signature card's type is looked up: the screen's loaded cards. A type it doesn't know shows no card. */
+		/** Where its signature card's type is looked up: the screen's loaded cards. A type it doesn't know shows no name. */
 		cards: CardLookup;
 		/** Left at home for this run: faded, with a STAYING tag. */
 		staying?: boolean;
@@ -190,13 +192,16 @@ export class EscortCard extends CardBase<EscortCardData> {
 		const data = this.model;
 		this.name.text = data.name;
 		this.structureFigures.text = `${data.structure}/${data.maxStructure}`;
-		const card = data.signatureCard ? this.lookup(data.signatureCard) : null;
-		this.signature.text = card ? `+ ${card.displayName}` : '';
+		if (data.signatureCard !== this.shownCard) {
+			this.shownCard = data.signatureCard;
+			const card = this.lookup(data.signatureCard);
+			this.signature.text = card ? `+ ${card.displayName}` : '';
+		}
 		// An emptied bar leaves its fill out, but only structure can empty it, and
 		// new figures invalidate layout, which forgets the walked group count
 		placeStatBar(this.structureBar, STRUCTURE_BAR, barFraction(data.structure, data.maxStructure));
 		const before = this.art.sprite.kind;
-		shapeVehicleArt(this.art, spriteKindOf({ name: data.name, maxStructure: data.maxStructure, escort: true }));
+		shapeVehicleArt(this.art, spriteKindForEscort(data.name));
 		// A different vehicle draws a different number of shapes
 		if (before !== null && before !== this.art.sprite.kind) this.invalidateInk();
 	}

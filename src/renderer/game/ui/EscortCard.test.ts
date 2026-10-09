@@ -12,16 +12,14 @@ import { layoutLint } from '../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../engine/debug/treeSnapshot';
 import { tokens } from '../../engine/theme/tokens';
 import type { RGBA, Rect } from '../../engine/draw/geometry';
-import { DRIVER_CONFIGS } from '../mechanics/Driver';
-import { ESCORT_CONFIGS, EscortType, convertToEscort } from '../mechanics/Escort';
-import { Vehicle } from '../mechanics/Vehicle';
+import { ESCORT_CONFIGS, EscortType } from '../mechanics/Escort';
 import { STRUCTURE_COLOR, hexRgba } from '../screens/combat/combatStyle';
 import { MINI_CARD_INK, MINI_GRID } from './Card';
 import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_MUTED_FILLS } from './cardStyle';
 import { CardLookup } from './DriverDetailView';
 import { ESCORT_CARD_INK, ESCORT_CARD_SIZE, EscortCard } from './EscortCard';
 import { EscortInspectSurface, INSPECT_KEYS, inspectHotkey, inspectOnContextMenu, makeEscortInspectable } from './cardInspect';
-import { EscortCardData, escortCardData, escortCardDataOf } from './escortCardData';
+import { EscortCardData, escortCardData } from './escortCardData';
 import { RecordedDraw, lookup, part, recordFrame } from './testing';
 
 const TYPES = Object.keys(ESCORT_CONFIGS) as EscortType[];
@@ -34,27 +32,6 @@ beforeEach(() => {
 	measuring = createMeasuringDrawApi();
 	context = createTestContext({ draw: measuring.api, clock: new Clock() });
 });
-
-/** A driven vehicle carrying on unmanned, `name` and all, as the convoy keeps it. */
-function unmanned(name: string = DRIVER_CONFIGS.road_warrior.metadata.vehicleName, structure = 31): EscortCardData {
-	const { vehicleStats } = DRIVER_CONFIGS.road_warrior;
-	const vehicle = new Vehicle({
-		name,
-		armor: vehicleStats.armor,
-		maxArmor: vehicleStats.armor,
-		structure,
-		maxStructure: vehicleStats.maxStructure,
-		baseSpeed: vehicleStats.speed,
-		slot: null,
-		flank: null,
-		velocity: 0,
-		driver: null,
-		passenger: null,
-		statusEffects: [],
-	});
-	convertToEscort(vehicle);
-	return escortCardDataOf(vehicle);
-}
 
 /** Mounted and laid out, so its words and tag have measured through the context (R1.6). */
 function mount(data: EscortCardData, { staying = false, cards = lookup }: { staying?: boolean; cards?: CardLookup } = {}): EscortCard {
@@ -91,13 +68,26 @@ describe('Escort card (Game Flow 7.0)', () => {
 		expect(names).toEqual(['+ Run Ahead', '+ Flag Down', '+ Top Off', '+ Triage']);
 	});
 
-	it('shows no card for a vehicle carrying on unmanned, or a card the lookup doesn\'t know', () => {
-		expect(part(mount(unmanned()), 'signature').text).toBe('');
+	it('leaves the signature line empty for a card the lookup doesn\'t know', () => {
 		expect(part(mount(escortCardData({ type: 'med_truck' }), { cards: () => null }), 'signature').text).toBe('');
 	});
 
-	it('fits every type\'s words and figures whole, and an unmanned vehicle\'s two-digit structure', () => {
-		const cases = [...TYPES.map((type) => escortCardData({ type })), escortCardData({ type: 'outrider', structure: 9 }), unmanned()];
+	it('looks its signature card up again only when new data names another', () => {
+		const looked: string[] = [];
+		const counting: CardLookup = (type) => {
+			looked.push(type);
+			return lookup(type);
+		};
+		const card = mount(escortCardData({ type: 'med_truck', structure: 20 }), { cards: counting });
+		card.data = escortCardData({ type: 'med_truck', structure: 12 });
+		expect(looked).toEqual(['triage']);
+		card.data = escortCardData({ type: 'fuel_hauler' });
+		expect(looked).toEqual(['triage', 'top_off']);
+		expect(part(card, 'signature').text).toBe('+ Top Off');
+	});
+
+	it('fits every type\'s words and figures whole, hurt or not', () => {
+		const cases = [...TYPES.map((type) => escortCardData({ type })), escortCardData({ type: 'outrider', structure: 9 })];
 		for (const data of cases) {
 			const card = mount(data);
 			for (const suffix of ['name', 'structure', 'signature']) {
@@ -108,7 +98,7 @@ describe('Escort card (Game Flow 7.0)', () => {
 	});
 
 	it('wraps a long name to a second line and keeps the bar and the card under it level either way', () => {
-		const rig = mount(unmanned());
+		const rig = mount(escortCardData({ type: 'fuel_hauler', name: 'Long Haul Fuel Rig' }));
 		const hauler = mount(escortCardData({ type: 'fuel_hauler' }));
 		expect(part(rig, 'name').measured?.lines).toBe(2);
 		expect(part(hauler, 'name').measured?.lines).toBe(1);
@@ -120,7 +110,7 @@ describe('Escort card (Game Flow 7.0)', () => {
 	});
 
 	it('cuts a name too long for two lines with an ellipsis', () => {
-		expect(part(mount(unmanned('The Last Rig That Hauled the Whole Convoy Home')), 'name').overflowOutcome).toBe('ellipsis');
+		expect(part(mount(escortCardData({ type: 'fuel_hauler', name: 'The Last Rig That Hauled the Whole Convoy Home' })), 'name').overflowOutcome).toBe('ellipsis');
 	});
 
 	it('fills the structure bar in the road\'s structure green by the share left, the same length on every card, and an empty bar not at all', () => {
@@ -130,7 +120,6 @@ describe('Escort card (Game Flow 7.0)', () => {
 		expect(hurt[0].x).toBe(full[0].x);
 		expect(hurt[0].width).toBeCloseTo(full[0].width * (7 / 35), 5);
 		expect(structureFills(frame(mount(escortCardData({ type: 'outrider', structure: 0 }))))).toEqual([]);
-		expect(structureFills(frame(mount(unmanned())))[0].width).toBeCloseTo(full[0].width * (31 / 80), 5);
 	});
 
 	it('draws a hazard-stripe header inside its line, the stripes clear of the rounded corners', () => {
@@ -403,8 +392,8 @@ describe('Escort card (Game Flow 7.0)', () => {
 		expect(card.walkedGroupCount).toBe(full - 1);
 	});
 
-	it('lints clean for every type, staying or not, and an unmanned vehicle', () => {
-		for (const data of [...TYPES.map((type) => escortCardData({ type, structure: 1 })), unmanned()]) {
+	it('lints clean for every type, staying or not', () => {
+		for (const data of TYPES.map((type) => escortCardData({ type, structure: 1 }))) {
 			for (const staying of [false, true]) {
 				const card = mount(data, { staying });
 				const result = layoutLint(treeSnapshot([card], { width: 80, height: 112 }));

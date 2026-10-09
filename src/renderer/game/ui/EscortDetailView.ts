@@ -26,7 +26,7 @@ import {
 } from './escortCardStyle';
 import { FlowWrap } from './FlowWrap';
 import { StatBarDraws, barFraction, drawStatBar, placeStatBar, statBarDraws } from './statBar';
-import { spriteKindOf } from './vehicleSprites';
+import { spriteKindForEscort } from './vehicleSprites';
 
 const FACE_SIZE = UICard.getDimensions(CardSize.NORMAL);
 
@@ -60,9 +60,8 @@ function dividendText({ kind, amount }: EscortDividend): string {
 	}
 }
 
-/** What kind of escort it is: a hauler or a gun escort, or a driven vehicle carrying on unmanned, which is always a gun. */
-function roleText({ type, role }: Pick<EscortCardData, 'type' | 'role'>): string {
-	if (type === null) return 'UNMANNED';
+/** What kind of escort it is: a hauler, which looters go for, or a gun escort. */
+function roleText(role: EscortCardData['role']): string {
 	return role === 'hauler' ? 'HAULER' : 'GUN ESCORT';
 }
 
@@ -81,10 +80,10 @@ export interface EscortDetailViewOptions {
  * lines, and its role; then its structure as figures and a bar, its armor,
  * speed, and crew skills flowed in rows, and a hauler's dividend. Beside it,
  * past a rule, the signature card it brings, as a face (Battle Screen
- * Design, section 5) a reader can take in whole; an escort that brings none
- * says so in its profile instead and the view is the profile alone.
+ * Design, section 5) a reader can take in whole. A card the lookup doesn't
+ * know is left out, and the view is the profile alone.
  *
- * Its width is set by whether it has a card, so its owner can place it
+ * Its width is set by whether it shows a card, so its owner can place it
  * before it has laid out; its height comes from its measured text, as the
  * driver detail view's does.
  */
@@ -96,8 +95,6 @@ export class EscortDetailView extends Component {
 	/** Armor, speed, and the crew skills, flowed in rows across the profile. */
 	private readonly stats: FlowWrap;
 	private readonly dividend: Text | null;
-	/** Says it brings no card, in place of one; null when it brings one. */
-	private readonly noCard: Text | null;
 	private readonly heading: Text | null;
 	private readonly face: UICard | null;
 	private readonly pin: Text;
@@ -108,7 +105,7 @@ export class EscortDetailView extends Component {
 
 	constructor({ id = 'escort_detail_view', data, cards, pinned = false }: EscortDetailViewOptions) {
 		const childId = (suffix: string): string => `${id}_${suffix}`;
-		const card = data.signatureCard ? cards(data.signatureCard) : null;
+		const card = cards(data.signatureCard);
 		const face = card ? new UICard({ id: childId('signature'), x: 0, y: 0, data: card }) : null;
 		const { pad, top, art, profile, rule } = ESCORT_DETAIL;
 		// The face's cost hex hangs off its corner, so the card sits that far in from the rule and the heading
@@ -120,7 +117,7 @@ export class EscortDetailView extends Component {
 
 		this.frame = escortFrameDraws({ id, width, height: top + pad, shadow: DETAIL_SHADOW });
 		this.art = vehicleArtDraws({ x: pad, y: top, width: art.width, height: art.height, inset: art.inset, radius: art.radius });
-		shapeVehicleArt(this.art, spriteKindOf({ name: data.name, maxStructure: data.maxStructure, escort: true }));
+		shapeVehicleArt(this.art, spriteKindForEscort(data.name));
 
 		const columnX = pad + art.width + DRIVER_DETAIL.gap;
 		const columnWidth = pad + profile - columnX;
@@ -139,7 +136,7 @@ export class EscortDetailView extends Component {
 		});
 		this.role = new Text({
 			id: childId('role'),
-			text: roleText(data),
+			text: roleText(data.role),
 			x: columnX,
 			width: columnWidth,
 			height: DRIVER_DETAIL.identity.height,
@@ -162,12 +159,11 @@ export class EscortDetailView extends Component {
 		];
 		for (const [suffix, text] of stats) this.stats.addChild(detailMono({ id: childId(suffix), text, kind: 'figures' }));
 		this.dividend = data.dividend ? detailMono({ id: childId('dividend'), text: dividendText(data.dividend), kind: 'figures', x: pad }) : null;
-		this.noCard = face ? null : detailMono({ id: childId('no_card'), text: 'BRINGS NO CARD', kind: 'label', x: pad });
 
 		this.face = face;
 		if (face) {
 			const cardX = pad + profile + rule.gap * 2 + rule.width;
-			this.heading = detailMono({ id: childId('signature_heading'), text: 'SIGNATURE CARD', kind: 'label', x: cardX });
+			this.heading = detailMono({ id: childId('card_heading'), text: 'SIGNATURE CARD', kind: 'label', x: cardX });
 			face.x = cardX + faceInk;
 			// A view to read: its card takes no pointer of its own
 			face.pointerEvents = 'none';
@@ -178,7 +174,7 @@ export class EscortDetailView extends Component {
 		}
 		this.pin = detailMono({ id: childId('pin'), text: pinHint(pinned), kind: 'label' });
 
-		for (const child of [this.name, this.role, this.structure, this.stats, this.dividend, this.noCard, this.heading, this.face, this.pin]) {
+		for (const child of [this.name, this.role, this.structure, this.stats, this.dividend, this.heading, this.face, this.pin]) {
 			if (child) this.addChild(child);
 		}
 	}
@@ -188,7 +184,7 @@ export class EscortDetailView extends Component {
 		return this.model;
 	}
 
-	/** The signature card's face; null when it brings none. */
+	/** The signature card's face; null when the lookup didn't know it. */
 	public get signatureCard(): UICard | null {
 		return this.face;
 	}
@@ -221,13 +217,12 @@ export class EscortDetailView extends Component {
 		);
 		y += mono.height + DRIVER_DETAIL.stats.rowGap;
 
-		// Armor, speed, and the skills, wrapping at the profile's edge; then what it pays, or that it brings no card
+		// Armor, speed, and the skills, wrapping at the profile's edge; then what a hauler pays
 		this.stats.y = y;
 		y += this.stats.measure(this.stats.width, Infinity).height;
-		for (const line of [this.dividend, this.noCard]) {
-			if (!line) continue;
+		if (this.dividend) {
 			y += DRIVER_DETAIL.stats.rowGap;
-			line.y = y;
+			this.dividend.y = y;
 			y += mono.height;
 		}
 

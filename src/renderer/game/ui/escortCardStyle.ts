@@ -1,10 +1,11 @@
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { Border, BoxShadow, DrawPolygonOptions, DrawRectOptions } from '../../engine/draw/commands';
-import type { RGBA, Rect } from '../../engine/draw/geometry';
+import type { RGBA, Rect, Vec2 } from '../../engine/draw/geometry';
 import { CLEAR } from '../../engine/ui/surfaces';
 import { STRUCTURE_COLOR } from '../screens/combat/combatStyle';
 import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_MUTED_FILLS, ToneFills, toneFills } from './cardStyle';
 import { PLACEHOLDER_GROUND, SILHOUETTE_FILLS } from './driverCardStyle';
+import { TRACK_FILLS } from './statBar';
 import { hatchPolygonTriangles, roundedRectPolygon } from './stripes';
 import { SpriteKind, VehicleSprite } from './vehicleSprites';
 
@@ -26,8 +27,20 @@ export const ESCORT_FRAME = { radius: 5, border: 2 } as const;
  * amber and teal, the interaction yellow, the keyword yellow).
  */
 export const HAZARD_HEADER = { height: 10, period: 10, stripe: 5 } as const;
-const HAZARD_GROUND_FILLS: ToneFills = toneFills('#0e0f10');
+const HAZARD_GROUND_FILLS: ToneFills = TRACK_FILLS;
 const HAZARD_STRIPE_FILLS: ToneFills = CARD_MUTED_FILLS;
+
+/** The header's stripes by frame width, built the first time a frame that wide is and shared by every one after. */
+const stripesByWidth = new Map<number, Vec2[]>();
+
+function headerStripes(band: Rect, inner: number): Vec2[] {
+	let stripes = stripesByWidth.get(band.width);
+	if (!stripes) {
+		stripes = hatchPolygonTriangles(roundedRectPolygon(band, [inner, inner, 0, 0]), HAZARD_HEADER);
+		stripesByWidth.set(band.width, stripes);
+	}
+	return stripes;
+}
 
 /** An escort's structure, the road's structure green (`statBar`). */
 export const STRUCTURE_FILLS: ToneFills = toneFills(STRUCTURE_COLOR);
@@ -54,7 +67,7 @@ export function escortFrameDraws({ id, width, height, shadow }: { id?: string; w
 		// A rect with no fill is white (R2.8's default); the outline is border only
 		outline: { rect: { x: 0, y: 0, width, height }, radius, fill: CLEAR, border: { color: CARD_DIM_FILLS.full, width: border } },
 		band: { rect: band, radius: [inner, inner, 0, 0], fill: HAZARD_GROUND_FILLS.full },
-		stripes: { points: hatchPolygonTriangles(roundedRectPolygon(band, [inner, inner, 0, 0]), HAZARD_HEADER), fill: HAZARD_STRIPE_FILLS.full },
+		stripes: { points: headerStripes(band, inner), fill: HAZARD_STRIPE_FILLS.full },
 	};
 }
 

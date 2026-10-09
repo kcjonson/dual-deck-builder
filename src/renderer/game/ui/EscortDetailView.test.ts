@@ -35,9 +35,6 @@ function words(detail: Component): string[] {
 	return detail.children.flatMap((child) => (child instanceof Text ? [child.text] : child.id === 'detail_signature' ? [] : words(child)));
 }
 
-/** An escort that was a driven vehicle, carrying on unmanned. */
-const UNMANNED: EscortCardData = { ...escortCardData({ type: 'pilot_car' }), name: 'Apocalypse Rig', type: null, role: 'gun', signatureCard: null, dividend: null };
-
 describe('Escort detail view (Game Flow 7.0)', () => {
 	it('shows its profile: name, role, structure, armor, speed, and crew skills, and what a hauler pays', () => {
 		const detail = view(escortCardData({ type: 'fuel_hauler', structure: 18 }));
@@ -67,7 +64,7 @@ describe('Escort detail view (Game Flow 7.0)', () => {
 		const detail = view(escortCardData({ type: 'med_truck' }));
 		const face = detail.signatureCard;
 		if (!face) throw new Error('no card');
-		const heading = part(detail, 'signature_heading');
+		const heading = part(detail, 'card_heading');
 		const ink = face.inkExtent;
 		expect(face.x - ink).toBeGreaterThanOrEqual(heading.x);
 		expect(face.y - ink).toBeGreaterThanOrEqual(heading.y + heading.height);
@@ -76,20 +73,17 @@ describe('Escort detail view (Game Flow 7.0)', () => {
 		expect(part(detail, 'pin').y).toBeGreaterThan(face.y + face.height);
 	});
 
-	it('says an escort that brings no card does, and is the profile alone', () => {
-		const detail = view(UNMANNED);
+	it('leaves the card out when the lookup doesn\'t know it, the profile alone, without saying it brings none', () => {
+		const detail = view(escortCardData({ type: 'pilot_car' }), { cards: () => null });
 		expect(detail.signatureCard).toBeNull();
-		expect(words(detail)).toEqual(expect.arrayContaining(['Apocalypse Rig', 'UNMANNED', 'BRINGS NO CARD']));
-		expect(words(detail)).not.toContain('SIGNATURE CARD');
+		expect(words(detail)).toEqual(['Pilot Car', 'GUN ESCORT', 'STRUCTURE 30/30', 'ARMOR 3', 'SPEED 4', 'GUNNERY 5', 'EVADE 4', 'RAMMING 4', 'RMB / I: PIN']);
 		expect(detail.width).toBe(ESCORT_DETAIL.pad * 2 + ESCORT_DETAIL.profile);
 		expect(view(escortCardData({ type: 'pilot_car' })).width).toBeGreaterThan(detail.width);
-		// A card the lookup doesn't know is left out the same way
-		expect(view(escortCardData({ type: 'pilot_car' }), { cards: () => null }).signatureCard).toBeNull();
 	});
 
 	it('knows its width before it lays out, so the inspector can place it', () => {
-		for (const data of [escortCardData({ type: 'outrider' }), UNMANNED]) {
-			const detail = new EscortDetailView({ data, cards: lookup });
+		for (const cards of [lookup, () => null]) {
+			const detail = new EscortDetailView({ data: escortCardData({ type: 'outrider' }), cards });
 			const width = detail.width;
 			detail.mount(context);
 			context.frame.layout();
@@ -113,14 +107,14 @@ describe('Escort detail view (Game Flow 7.0)', () => {
 	});
 
 	it('is short enough for a 1024x600 screen\'s room whatever it shows', () => {
-		for (const data of [...TYPES.map((type) => escortCardData({ type })), UNMANNED]) {
+		for (const data of TYPES.map((type) => escortCardData({ type }))) {
 			// 600, less the 10 it rests above the bottom edge and the tooltip service's 8 at the top
 			expect([data.name, view(data).height <= 582]).toEqual([data.name, true]);
 		}
 	});
 
-	it('cuts nothing and lints clean for every type, and an unmanned vehicle', () => {
-		for (const data of [...TYPES.map((type) => escortCardData({ type, structure: 1 })), UNMANNED]) {
+	it('cuts nothing and lints clean for every type', () => {
+		for (const data of TYPES.map((type) => escortCardData({ type, structure: 1 }))) {
 			const detail = view(data);
 			const result = layoutLint(treeSnapshot([detail], { width: detail.width, height: detail.height }));
 			expect({ name: data.name, violations: result.violations }).toEqual({ name: data.name, violations: [] });

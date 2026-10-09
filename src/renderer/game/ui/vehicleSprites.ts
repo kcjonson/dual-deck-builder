@@ -59,11 +59,15 @@ const SHAPES: Readonly<Record<SpriteKind, readonly Shape[]>> = {
 const TRUCK_STRUCTURE = 70;
 const BIKE_NAME = /bike|cycle|moto/i;
 
-/** The rear view a vehicle shows: a road token's, and an escort card's art, which passes any truthy `escort`. */
-export function spriteKindOf(vehicle: Pick<VehicleData, 'name' | 'maxStructure'> & { escort?: unknown }): SpriteKind {
+export function spriteKindOf(vehicle: Pick<VehicleData, 'name' | 'maxStructure' | 'escort'>): SpriteKind {
 	if (BIKE_NAME.test(vehicle.name)) return 'bike';
 	if (vehicle.escort || vehicle.maxStructure >= TRUCK_STRUCTURE) return 'truck';
 	return 'car';
+}
+
+/** The rear view an escort shows, as `spriteKindOf` picks it for any escort: a bike by its name, else a truck. */
+export function spriteKindForEscort(name: string): SpriteKind {
+	return BIKE_NAME.test(name) ? 'bike' : 'truck';
 }
 
 type Part =

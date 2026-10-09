@@ -9,7 +9,8 @@ import { CARD_LINE, ToneFills, toneFills } from './cardStyle';
  * outlined in the card line so an empty bar (a lost driver's) still shows
  * its length.
  */
-const TRACK_FILLS: ToneFills = toneFills('#0e0f10');
+/** The sunk black a bar's track is, which the escort card's header stripes sit on too. */
+export const TRACK_FILLS: ToneFills = toneFills('#0e0f10');
 const TRACK_LINE_FILLS: ToneFills = toneFills(CARD_LINE);
 
 /** A bar's draws: the track, and the fill over it from the left, in its stat's hue. */

@@ -333,7 +333,7 @@ The driver card is a little bigger than a play card's mini size because it's a p
 - A lost driver's card is always faded, and how they went ("KILLED DAY 9") takes the specialty's place. Any driver who can't be picked where they're shown is faded too, with the reason on the control under the card, as for minis: an injured driver at load out, but not on the Crew screen, where their deck can still be worked on.
 - The name gets two lines' room whether it needs them or not, so cards in a row keep their specialty, HP bar, and foot level.
 - A driver's detail view: the portrait, name, vehicle, and specialty; HP, hand limit, and skills; then the deck as mini cards, cheapest first, in at most three rows, which holds a 24-card run deck on a 1024x600 screen; then a foot with the note and how to pin it. It opens and pins as a play card's does ([driver-card.md](../AI_TECHNICAL_DECISIONS/driver-card.md)).
-- An escort left at home for a run is faded with a STAYING tag, and still opens its detail view, so it can be brought back. A driven vehicle carrying on unmanned is an escort card too, with no card to bring.
+- An escort left at home for a run is faded with a STAYING tag, and still opens its detail view, so it can be brought back.
 - An escort's detail view: its profile (art, name, role, structure, armor, speed, crew skills, and a hauler's dividend) beside the signature card it brings, as a full card face, and a foot with how to pin it. It opens and pins as a play card's does ([escort-card.md](../AI_TECHNICAL_DECISIONS/escort-card.md)).
 
 ### 7.1 Information Hierarchy in Action
