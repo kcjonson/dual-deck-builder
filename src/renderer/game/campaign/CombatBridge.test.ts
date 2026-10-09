@@ -1,0 +1,637 @@
+import { Rng } from '../core/Rng';
+import cardsFile from '../data/cards.json';
+import { Card, CardData, CardEffect } from '../mechanics/Card';
+import { Deck } from '../mechanics/Deck';
+import { DRIVER_CONFIGS, Driver, DriverArchetype, DriverRole } from '../mechanics/Driver';
+import { EscortProfile, createEscort } from '../mechanics/Escort';
+import type { RaiderArchetype } from '../mechanics/RaiderArchetype';
+import { RoadLane, RoadRow } from '../mechanics/Road';
+import { Team, TeamType } from '../mechanics/Team';
+import { Vehicle, createDrivenVehicle } from '../mechanics/Vehicle';
+import { Campaign, NO_RESOURCES, Resources } from './Campaign';
+import { CampaignStore } from './CampaignStore';
+import { startingDeckCounts } from './CardCounts';
+import { CampaignFight, FightWriteBack, LIMP_STRUCTURE, REVIVE_HP, RunParty, WonFight, startCampaignFight, writeBackFight } from './CombatBridge';
+import { DriverRecord } from './DriverRecord';
+import { foundCampaign } from './Founding';
+import { MemorySaveStorage } from './SaveStorage';
+
+/**
+ * DDB-286 and DDB-158: fights built from the campaign's records and
+ * convoy, played to the end on a seeded stream, and written back.
+ */
+
+const SEED = 20261008;
+
+const CARDS: ReadonlyMap<string, Card> = new Map(
+	(cardsFile as unknown as { cards: CardData[] }).cards.map(data => [data.type, new Card(data)])
+);
+
+/** A raider's card that always lands where its AI aims it. */
+const raiderCard = (name: string, effect: CardEffect): Card => new Card({
+	type: name.toLowerCase(),
+	name,
+	summary: name,
+	description: name,
+	rarity: 'common',
+	cost: 1,
+	targetType: 'enemy_single',
+	effects: [{ ...effect, always_hits: true }],
+	tags: ['attack']
+});
+
+/** 20 damage: through a Rig's 10 armor, 5 to structure and 5 to the driver. */
+const jab = (): Card => raiderCard('Jab', { type: 'damage', value: 20, target: 'target' });
+/** Wrecks a Rig or a Bike outright, and whoever's aboard takes the half that went to structure. */
+const wreck = (): Card => raiderCard('Wreck', { type: 'damage', value: 170, target: 'target' });
+/** Takes the driver it hits down, or the passenger riding in an escort. */
+const snipe = (): Card => raiderCard('Snipe', { type: 'damage', value: 500, target: 'driver' });
+
+const cardsOf = (count: number, card: () => Card): Card[] => Array.from({ length: count }, card);
+
+/**
+ * A raider any hit finishes, playing `adrenaline` cards a turn. With no AI,
+ * it plays its first card at its first legal target: the Rig, unless its
+ * archetype prefers another. Every deck here holds one kind of card, so no
+ * fight depends on the order a deck deals in.
+ */
+function raider({ deck, adrenaline, archetype = null }: { deck: Card[]; adrenaline: number; archetype?: RaiderArchetype | null }): Vehicle {
+	const driver = new Driver({
+		archetype: 'raider',
+		metadata: { name: 'Scrapper', vehicleName: 'Scrap Buggy', specialty: 'TEST RAIDER', flavorText: 'Built to lose.', unlocked: true },
+		skills: { ramming: 0, gunnery: 0, evade: 0, speed: 1 },
+		vehicleStats: { maxStructure: 1, weight: 1, armor: 0, speed: 1, gunnery: 0, evade: 0 },
+		startingDeck: { cards: [] },
+		hitpoints: 1,
+		maxHitpoints: 1,
+		adrenaline,
+		maxAdrenaline: adrenaline,
+		handLimit: 7,
+		role: DriverRole.ACTIVE,
+		hand: [],
+		discard: [],
+		deck: new Deck('scrapper', "Scrapper's deck", deck)
+	});
+	const buggy = createDrivenVehicle({ driver });
+	buggy.raiderArchetype = archetype;
+	return buggy;
+}
+
+/** A compound founded with only the Road Warrior and the Interceptor unlocked, so its pool is one of each. */
+function newCampaign(): { campaign: Campaign; warrior: DriverRecord; interceptor: DriverRecord } {
+	const campaign = foundCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
+	const recordOf = (archetype: DriverArchetype): DriverRecord => {
+		const record = campaign.drivers.find(driver => driver.archetype === archetype);
+		if (!record) throw new Error(`founding should have dealt a ${archetype}`);
+		return record;
+	};
+	return { campaign, warrior: recordOf('road_warrior'), interceptor: recordOf('interceptor') };
+}
+
+/** How a record is named in the bridge's errors. */
+const named = (record: DriverRecord): string => `${record.name} (${record.id})`;
+
+/** A run party: these drivers and escorts, carrying `cargo`, nothing when left out. */
+const partyOf = (seats: DriverRecord[], escorts: Vehicle[] = [], cargo: Readonly<Resources> = NO_RESOURCES): RunParty => ({ seats, escorts, cargo });
+
+/** Drivers tough enough to walk away from two wrecks. */
+const toughen = (...records: DriverRecord[]): void => records.forEach(record => record.set({ maxHitpoints: 200, hitpoints: 200 }));
+
+/** Precision Shots finish any raider here, so a deck of them wins the fight on the turn they're played. */
+const shooter = (record: DriverRecord): void => record.set({ defaultDeck: { precision_shot: 10 } });
+
+/** A hauler paying the spec's Salvage Rig dividend of +15 scrap, under its name. */
+function salvageRig(): Vehicle {
+	const rig = createEscort({ type: 'fuel_hauler' });
+	rig.set({
+		name: 'Salvage Rig',
+		escort: { ...(rig.escort as EscortProfile), type: null, signatureCard: null, dividend: { kind: 'scrap', amount: 15 } }
+	});
+	return rig;
+}
+
+function startFight({ campaign, party, enemy, seed = SEED }: { campaign: Campaign; party: RunParty; enemy: Vehicle | Vehicle[]; seed?: number }): CampaignFight {
+	return startCampaignFight({
+		campaign,
+		party,
+		enemyTeam: new Team({ type: TeamType.ENEMY, vehicles: Array.isArray(enemy) ? enemy : [enemy] }),
+		rng: new Rng({ seed }),
+		cards: CARDS,
+		enemyAI: null
+	});
+}
+
+/** A raider with nothing to play, for a fight that only has to start. */
+const idle = (): Vehicle => raider({ deck: [], adrenaline: 1 });
+
+/** Plays each player turn with `plays`, from turn 1, then ends it, until the fight is over. */
+function fightOut(fight: CampaignFight, plays: (turn: number) => void = () => undefined): void {
+	const { battle } = fight;
+	for (let turn = 1; turn <= 10 && !battle.isBattleOver(); turn++) {
+		plays(turn);
+		battle.endPlayerTurn();
+	}
+	expect(battle.isBattleOver()).toBe(true);
+}
+
+/** A seat's driver plays the first card of a type in their hand. */
+function play({ fight, seat, cardType, target }: { fight: CampaignFight; seat: 0 | 1; cardType: string; target?: Vehicle }): void {
+	const driver = fight.drivers[seat];
+	const cardIndex = driver.hand.findIndex(card => card.type === cardType);
+	expect(cardIndex).toBeGreaterThanOrEqual(0);
+	expect(fight.battle.playCard({ driver, cardIndex, targetVehicle: target })).toBe(true);
+}
+
+/** Every card a combat driver holds, wherever it is. */
+function cardsHeld(driver: Driver): Record<string, number> {
+	const counts: Record<string, number> = {};
+	for (const card of [...(driver.deck?.cards ?? []), ...driver.hand, ...driver.discard]) counts[card.type] = (counts[card.type] ?? 0) + 1;
+	return counts;
+}
+
+function won(result: FightWriteBack): WonFight {
+	if (result.outcome !== 'won') throw new Error('the run should go on');
+	return result;
+}
+
+describe('the combat bridge', () => {
+	beforeEach(() => {
+		// Drivers log every draw
+		jest.spyOn(console, 'log').mockImplementation(() => undefined);
+	});
+
+	afterEach(() => {
+		jest.restoreAllMocks();
+	});
+
+	describe('a fight built from the run party', () => {
+		it('seats each record as a combat driver, with their name, HP, hand limit, and deck, at the wheel of their vehicle as damaged as it was', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			warrior.set({ hitpoints: 31, handLimit: 3, vehicle: { structure: 52, armor: 3 } });
+
+			const fight = startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() });
+			const [rigDriver, bikeDriver] = fight.drivers;
+			const [rig, bike] = fight.vehicles;
+
+			expect(fight.drivers.map(driver => driver.metadata.name)).toEqual(['Road Warrior 1', 'Interceptor 1']);
+			expect([rigDriver.hitpoints, rigDriver.maxHitpoints]).toEqual([31, 40]);
+			expect([bikeDriver.hitpoints, bikeDriver.maxHitpoints]).toEqual([25, 25]);
+			expect(fight.battle.playerTeam.drivenVehicles).toEqual([rig, bike]);
+			expect([rig.driver, bike.driver]).toEqual(fight.drivers);
+			expect([rig.name, rig.structure, rig.maxStructure, rig.armor, rig.maxArmor]).toEqual(['Apocalypse Rig', 52, 80, 3, 10]);
+			expect([bike.name, bike.structure, bike.armor]).toEqual(['Lightning Bike', 50, 0]);
+
+			// The record's hand limit: the opening five fill three and burn two
+			expect(rigDriver.handLimit).toBe(3);
+			expect(rigDriver.hand).toHaveLength(3);
+			expect(rigDriver.discard).toHaveLength(2);
+			expect(bikeDriver.handLimit).toBe(7);
+			expect(bikeDriver.hand).toHaveLength(5);
+
+			expect(cardsHeld(rigDriver)).toEqual(warrior.defaultDeck);
+			expect(cardsHeld(bikeDriver)).toEqual(interceptor.defaultDeck);
+			expect(rigDriver.startingDeck.cards).toEqual(Object.entries(warrior.defaultDeck).map(([type, quantity]) => ({ type, quantity })));
+		});
+
+		it('fights on the stream it is given, with the run\'s cargo on the top bar rather than the stores', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			const cargo = { ...NO_RESOURCES, scrap: 12, fuel: 3 };
+
+			const fight = startFight({ campaign, party: partyOf([warrior, interceptor], [], cargo), enemy: idle(), seed: 7 });
+
+			expect(fight.battle.seed).toBe(new Rng({ seed: 7 }).seed);
+			expect(fight.battle.turn).toBe(1);
+			expect([fight.scrap, fight.fuel]).toEqual([12, 3]);
+			expect(fight.campaign).toBe(campaign);
+		});
+
+		it('fields the escorts that came along in roster order, and none left at home', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			const [outrider, pilotCar, hauler] = (['outrider', 'pilot_car', 'fuel_hauler'] as const).map(type => createEscort({ type }));
+			[outrider, pilotCar, hauler].forEach(escort => campaign.convoy.add(escort));
+
+			const fight = startFight({ campaign, party: partyOf([warrior, interceptor], [hauler, outrider]), enemy: idle() });
+
+			expect(fight.battle.playerTeam.escorts).toEqual([outrider, hauler]);
+			expect(fight.party.escorts).toEqual([outrider, hauler]);
+			expect(pilotCar.slot).toBeNull();
+		});
+
+		describe('refuses', () => {
+			it('a party without two drivers', () => {
+				const { campaign, warrior } = newCampaign();
+
+				expect(() => startFight({ campaign, party: partyOf([warrior]), enemy: idle() }))
+					.toThrow('A fight seats two drivers, and this party has 1');
+			});
+
+			it('two drivers of one archetype, naming them', () => {
+				const { campaign, warrior } = newCampaign();
+				const second = campaign.recruitDriver({ archetype: 'road_warrior' });
+
+				expect(() => startFight({ campaign, party: partyOf([warrior, second]), enemy: idle() }))
+					.toThrow(`${named(warrior)} and ${named(second)} are both road_warrior; a fight seats two different archetypes`);
+			});
+
+			it('a driver from outside the pool', () => {
+				const { campaign, warrior } = newCampaign();
+				const stranger = new DriverRecord({ id: 'driver-9', archetype: 'mechanic', name: 'Mechanic 1' });
+
+				expect(() => startFight({ campaign, party: partyOf([warrior, stranger]), enemy: idle() }))
+					.toThrow("Mechanic 1 (driver-9) isn't in this campaign's pool");
+			});
+
+			it.each([
+				['dead', { status: 'dead', hitpoints: 0, defaultDeck: {} }],
+				['missing', { status: 'missing' }],
+				['injured', { status: 'injured', injuredDays: 2 }]
+			] as const)('a driver who is %s', (status, changes) => {
+				const { campaign, warrior, interceptor } = newCampaign();
+				interceptor.set(changes);
+
+				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() }))
+					.toThrow(`${named(interceptor)} is ${status}, so they can't fight`);
+			});
+
+			it('cargo that isn\'t whole numbers from 0', () => {
+				const { campaign, warrior, interceptor } = newCampaign();
+
+				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor], [], { ...NO_RESOURCES, fuel: -1 }), enemy: idle() }))
+					.toThrow('RunParty.cargo.fuel must be an integer >= 0, got -1');
+			});
+
+			it('an escort that isn\'t the campaign\'s', () => {
+				const { campaign, warrior, interceptor } = newCampaign();
+
+				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor], [createEscort({ type: 'pilot_car' })]), enemy: idle() }))
+					.toThrow("Pilot Car isn't in the campaign's convoy");
+			});
+
+			it('a fight while the campaign\'s last one hasn\'t been written back, ended or not', () => {
+				const { campaign, warrior, interceptor } = newCampaign();
+				shooter(interceptor);
+				const scrapper = raider({ deck: [], adrenaline: 1 });
+				const fight = startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: scrapper });
+
+				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() }))
+					.toThrow("This campaign's last fight hasn't been written back");
+				fightOut(fight, () => play({ fight, seat: 1, cardType: 'precision_shot', target: scrapper }));
+				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() }))
+					.toThrow("This campaign's last fight hasn't been written back");
+
+				writeBackFight({ fight });
+				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() })).not.toThrow();
+			});
+
+			it('a deck holding a card that doesn\'t exist', () => {
+				const { campaign, warrior, interceptor } = newCampaign();
+				interceptor.set({ defaultDeck: { headshot: 2, lucky_charm: 1 } });
+
+				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() }))
+					.toThrow(`${named(interceptor)}'s deck holds lucky_charm, which isn't a card`);
+			});
+
+			it('an encounter the road won\'t take, moving nobody, so the escorts are free for the next fight', () => {
+				const { campaign, warrior, interceptor } = newCampaign();
+				const hauler = createEscort({ type: 'fuel_hauler' });
+				campaign.convoy.add(hauler);
+				const ambusher = idle();
+				ambusher.slot = { lane: RoadLane.PLAYER_SHOULDER, row: RoadRow.AHEAD };
+				const party = partyOf([warrior, interceptor], [hauler]);
+
+				expect(() => startFight({ campaign, party, enemy: ambusher })).toThrow("can't ambush in the ahead row");
+
+				expect(hauler.slot).toBeNull();
+				expect(startFight({ campaign, party, enemy: idle() }).battle.playerTeam.escorts).toEqual([hauler]);
+			});
+		});
+	});
+
+	describe('a won fight, written back', () => {
+		it('carries each driver\'s HP and their vehicle\'s damage into the record and on into the next fight', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			warrior.set({ hitpoints: 31 });
+			shooter(interceptor);
+			const party = partyOf([warrior, interceptor]);
+			const scrapper = raider({ deck: cardsOf(10, jab), adrenaline: 1 });
+			const fight = startFight({ campaign, party, enemy: scrapper });
+
+			// The raider jabs the Rig on its turn, and the Interceptor finishes it on the next
+			fightOut(fight, turn => {
+				if (turn === 2) play({ fight, seat: 1, cardType: 'precision_shot', target: scrapper });
+			});
+			const result = writeBackFight({ fight });
+
+			expect(result).toEqual({ outcome: 'won', party, revived: [], pickedUp: [], escortsLost: [] });
+			expect([warrior.hitpoints, warrior.status, warrior.vehicle]).toEqual([26, 'ready', { structure: 75, armor: 0 }]);
+			expect([interceptor.hitpoints, interceptor.vehicle]).toEqual([25, { structure: 50, armor: 0 }]);
+
+			const next = startFight({ campaign, party: won(result).party, enemy: idle(), seed: SEED + 1 });
+			const [rig] = next.vehicles;
+			expect(next.drivers.map(driver => driver.hitpoints)).toEqual([26, 25]);
+			expect([rig.structure, rig.armor]).toEqual([75, 0]);
+		});
+
+		it('picks up a driver who crashed out, so both drivers are in the next fight, their wrecks limping on (DDB-158)', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			toughen(warrior, interceptor);
+			interceptor.set({ defaultDeck: { covering_fire: 10 } });
+			const outrider = createEscort({ type: 'outrider' });
+			campaign.convoy.add(outrider);
+			const party = partyOf([warrior, interceptor], [outrider]);
+			const scrapper = raider({ deck: cardsOf(10, wreck), adrenaline: 2 });
+			const fight = startFight({ campaign, party, enemy: scrapper });
+			const [rigDriver, bikeDriver] = fight.drivers;
+
+			fightOut(fight, turn => {
+				if (turn !== 2) return;
+				// The raider wrecked the Rig, then the Bike its driver had jumped into. The
+				// Interceptor took the Outrider's seat, and the Road Warrior had nowhere left.
+				expect(outrider.passenger).toBe(bikeDriver);
+				expect(rigDriver.isAlive()).toBe(true);
+				expect(fight.battle.playerTeam.isAboard(rigDriver)).toBe(false);
+				// The Interceptor wins it from the passenger seat, with an order the Outrider carries out
+				play({ fight, seat: 1, cardType: 'covering_fire', target: scrapper });
+			});
+			expect(fight.battle.isBattleWon()).toBe(true);
+			const result = writeBackFight({ fight });
+
+			expect(result).toEqual({ outcome: 'won', party, revived: [], pickedUp: [warrior], escortsLost: [] });
+			// 80 from the Rig's wreck and 85 from the Bike's, which the Interceptor took too
+			expect([warrior.hitpoints, warrior.status]).toEqual([35, 'ready']);
+			expect(interceptor.hitpoints).toBe(115);
+			expect([warrior.vehicle, interceptor.vehicle]).toEqual([{ structure: LIMP_STRUCTURE, armor: 0 }, { structure: LIMP_STRUCTURE, armor: 0 }]);
+			expect(campaign.convoy.escorts).toEqual([outrider]);
+			expect(outrider.passenger).toBeNull();
+
+			const next = startFight({ campaign, party: won(result).party, enemy: idle(), seed: SEED + 1 });
+			expect(next.drivers.map(driver => driver.metadata.name)).toEqual(['Road Warrior 1', 'Interceptor 1']);
+			expect(next.battle.playerTeam.drivenVehicles.map(vehicle => vehicle.driver)).toEqual(next.drivers);
+			expect(next.drivers.map(driver => driver.hitpoints)).toEqual([35, 115]);
+			expect(next.vehicles.map(vehicle => [vehicle.structure, vehicle.armor])).toEqual([[LIMP_STRUCTURE, 0], [LIMP_STRUCTURE, 0]]);
+			expect(next.battle.playerTeam.escorts).toEqual([outrider]);
+		});
+
+		it('revives a driver who went down, past the Med Truck\'s heal, and gives them back the vehicle that carried on without them', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			shooter(interceptor);
+			interceptor.set({ hitpoints: 20 });
+			const truck = createEscort({ type: 'med_truck' });
+			campaign.convoy.add(truck);
+			const party = partyOf([warrior, interceptor], [truck]);
+			const scrapper = raider({ deck: cardsOf(10, snipe), adrenaline: 1 });
+			const fight = startFight({ campaign, party, enemy: scrapper });
+			const [rig] = fight.vehicles;
+
+			fightOut(fight, turn => {
+				if (turn !== 2) return;
+				// The snipe took the Road Warrior down, and the Rig carried on as an escort
+				expect(fight.drivers[0].hitpoints).toBe(0);
+				expect(rig.isEscort).toBe(true);
+				play({ fight, seat: 1, cardType: 'precision_shot', target: scrapper });
+			});
+			const result = writeBackFight({ fight });
+
+			expect(result).toEqual({ outcome: 'won', party, revived: [warrior], pickedUp: [], escortsLost: [] });
+			expect([warrior.status, warrior.hitpoints, warrior.vehicle]).toEqual(['ready', REVIVE_HP, { structure: 80, armor: 10 }]);
+			expect(warrior.defaultDeck).toEqual(startingDeckCounts('road_warrior'));
+			// The heal only reached the driver still standing
+			expect(interceptor.hitpoints).toBe(23);
+			expect(campaign.convoy.escorts).toEqual([truck]);
+
+			const next = startFight({ campaign, party: won(result).party, enemy: idle(), seed: SEED + 1 });
+			const [nextRig] = next.vehicles;
+			expect(next.drivers[0].hitpoints).toBe(REVIVE_HP);
+			expect([nextRig.isEscort, nextRig.driver]).toEqual([false, next.drivers[0]]);
+			expect(next.battle.playerTeam.escorts).toEqual([truck]);
+		});
+
+		it('loads the haulers\' fuel and scrap into the cargo, not the stores, and heals the records up to their max HP', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			warrior.set({ hitpoints: 30 });
+			interceptor.set({ hitpoints: 24 });
+			shooter(interceptor);
+			const escorts = [createEscort({ type: 'fuel_hauler' }), salvageRig(), createEscort({ type: 'med_truck' })];
+			escorts.forEach(escort => campaign.convoy.add(escort));
+			const stores = campaign.resources;
+			const scrapper = raider({ deck: [], adrenaline: 1 });
+			const fight = startFight({ campaign, party: partyOf([warrior, interceptor], escorts, { ...NO_RESOURCES, fuel: 2 }), enemy: scrapper });
+
+			fightOut(fight, () => play({ fight, seat: 1, cardType: 'precision_shot', target: scrapper }));
+			const result = won(writeBackFight({ fight }));
+
+			expect(result.party.cargo).toEqual({ ...NO_RESOURCES, fuel: 3, scrap: 15 });
+			expect(campaign.resources).toBe(stores);
+			// 3 each, up to their max HP
+			expect([warrior.hitpoints, interceptor.hitpoints]).toEqual([33, 25]);
+			expect(campaign.convoy.escorts).toEqual(escorts);
+			// The top bar shows what the run carries from the next fight on
+			const next = startFight({ campaign, party: result.party, enemy: idle(), seed: SEED + 1 });
+			expect([next.fuel, next.scrap]).toEqual([3, 15]);
+		});
+
+		it('loses a wrecked escort, and the one that took damage carries its structure on with its armor back', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			shooter(interceptor);
+			const hauler = createEscort({ type: 'fuel_hauler' });
+			// Hurt in an earlier fight: one more jab wrecks it
+			hauler.set({ structure: 10 });
+			const truck = createEscort({ type: 'med_truck' });
+			[hauler, truck].forEach(escort => campaign.convoy.add(escort));
+			// A looter goes for the haulers: the Fuel Hauler first, then the Med Truck once it's gone
+			const scrapper = raider({ deck: cardsOf(10, jab), adrenaline: 1, archetype: 'looter' });
+			const fight = startFight({ campaign, party: partyOf([warrior, interceptor], [hauler, truck]), enemy: scrapper });
+
+			fightOut(fight, turn => {
+				if (turn === 3) play({ fight, seat: 1, cardType: 'precision_shot', target: scrapper });
+			});
+			const result = won(writeBackFight({ fight }));
+
+			expect(result.escortsLost).toEqual([hauler]);
+			expect(result.party.escorts).toEqual([truck]);
+			expect(campaign.convoy.escorts).toEqual([truck]);
+			// 20 past its 4 armor is 16 off its 35 structure
+			expect([truck.structure, truck.armor]).toEqual([19, 4]);
+			// A wrecked hauler pays nothing
+			expect(result.party.cargo).toEqual(NO_RESOURCES);
+
+			const next = startFight({ campaign, party: result.party, enemy: idle(), seed: SEED + 1 });
+			expect(next.battle.playerTeam.escorts).toEqual([truck]);
+			expect(truck.structure).toBe(19);
+		});
+	});
+
+	describe('a vehicle retuned since the save', () => {
+		it('loads, fights at the archetype\'s new maximums, and is written back clamped to them', async () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			shooter(interceptor);
+			const storage = new MemorySaveStorage();
+			await new CampaignStore({ storage, namespace: 'retune', onWarning: () => undefined }).save(campaign);
+			const stats = DRIVER_CONFIGS.road_warrior.vehicleStats;
+			const tuned = { maxStructure: stats.maxStructure, armor: stats.armor };
+			try {
+				// The Rig retuned down by 5 structure and 2 armor after the save
+				Object.assign(stats, { maxStructure: tuned.maxStructure - 5, armor: tuned.armor - 2 });
+				const loaded = await new CampaignStore({ storage, namespace: 'retune', onWarning: () => undefined }).load();
+				if (!loaded) throw new Error('the save should load');
+				const [rigDriver, bikeDriver] = [warrior, interceptor].map(record => loaded.drivers.find(driver => driver.id === record.id) as DriverRecord);
+				expect(rigDriver.vehicle).toEqual({ structure: 80, armor: 10 });
+
+				const scrapper = raider({ deck: [], adrenaline: 1 });
+				const fight = startFight({ campaign: loaded, party: partyOf([rigDriver, bikeDriver]), enemy: scrapper });
+				const [rig] = fight.vehicles;
+				expect([rig.structure, rig.maxStructure, rig.armor, rig.maxArmor]).toEqual([75, 75, 8, 8]);
+
+				fightOut(fight, () => play({ fight, seat: 1, cardType: 'precision_shot', target: scrapper }));
+				writeBackFight({ fight });
+				expect(rigDriver.vehicle).toEqual({ structure: 75, armor: 8 });
+			} finally {
+				Object.assign(stats, tuned);
+			}
+		});
+	});
+
+	describe('a fight that fails the run, written back', () => {
+		it('kills the driver who went down, leaves the one who crashed out missing, and loses the cargo and every escort that came along', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			toughen(warrior, interceptor);
+			interceptor.set({ defaultDeck: { covering_fire: 10 } });
+			const outrider = createEscort({ type: 'outrider' });
+			const home = createEscort({ type: 'fuel_hauler' });
+			[outrider, home].forEach(escort => campaign.convoy.add(escort));
+			const stores = campaign.resources;
+			const cargo = { ...NO_RESOURCES, fuel: 2, scrap: 30 };
+			const wrecker = raider({ deck: cardsOf(10, wreck), adrenaline: 2 });
+			const sniper = raider({ deck: cardsOf(10, snipe), adrenaline: 1 });
+			const fight = startFight({ campaign, party: partyOf([warrior, interceptor], [outrider], cargo), enemy: [wrecker, sniper] });
+
+			// The wrecker crashes the Road Warrior out and seats the Interceptor in the
+			// Outrider, as in the pickup. The Interceptor takes the wrecker down from
+			// there, but the sniper takes them down in that seat, and nobody is left in the fight.
+			fightOut(fight, turn => {
+				if (turn === 2) play({ fight, seat: 1, cardType: 'covering_fire', target: wrecker });
+			});
+			expect(fight.battle.isBattleWon()).toBe(false);
+			const result = writeBackFight({ fight });
+
+			expect(result).toEqual({ outcome: 'run_failed', party: null, dead: [interceptor], missing: [warrior], escortsLost: [outrider], cargoLost: cargo });
+			expect([warrior.status, warrior.hitpoints, warrior.vehicle]).toEqual(['missing', 35, { structure: LIMP_STRUCTURE, armor: 0 }]);
+			expect(warrior.defaultDeck).toEqual(startingDeckCounts('road_warrior'));
+			expect([interceptor.status, interceptor.hitpoints, interceptor.defaultDeck]).toEqual(['dead', 0, {}]);
+			expect(outrider.isAlive()).toBe(true);
+			expect(campaign.convoy.escorts).toEqual([home]);
+			expect(campaign.resources).toBe(stores);
+		});
+	});
+
+	describe('the write-back', () => {
+		/** A won fight with a Fuel Hauler wrecked in it, so its write-back has something to drop from the convoy. */
+		function wonWithAWreck(): { campaign: Campaign; warrior: DriverRecord; interceptor: DriverRecord; hauler: Vehicle; fight: CampaignFight } {
+			const { campaign, warrior, interceptor } = newCampaign();
+			shooter(interceptor);
+			const hauler = createEscort({ type: 'fuel_hauler' });
+			hauler.set({ structure: 10 });
+			campaign.convoy.add(hauler);
+			const scrapper = raider({ deck: cardsOf(10, jab), adrenaline: 1, archetype: 'looter' });
+			const fight = startFight({ campaign, party: partyOf([warrior, interceptor], [hauler]), enemy: scrapper });
+			fightOut(fight, turn => {
+				if (turn === 2) play({ fight, seat: 1, cardType: 'precision_shot', target: scrapper });
+			});
+			expect(hauler.isAlive()).toBe(false);
+			return { campaign, warrior, interceptor, hauler, fight };
+		}
+
+		it('stores the records in seat order, then the convoy, and never changes the campaign itself', () => {
+			const { campaign, warrior, interceptor, fight } = wonWithAWreck();
+			const stored: string[] = [];
+			warrior.on('change', () => stored.push('Road Warrior 1'));
+			interceptor.on('change', () => stored.push('Interceptor 1'));
+			campaign.convoy.on('change', () => stored.push('convoy'));
+			campaign.on('change', () => stored.push('campaign'));
+
+			writeBackFight({ fight });
+
+			expect(stored).toEqual(['Road Warrior 1', 'Interceptor 1', 'convoy']);
+		});
+
+		it('leaves a wreck in the convoy until the fight is written back, so the step\'s checkpoint saves after it', () => {
+			const { campaign, hauler, fight } = wonWithAWreck();
+
+			expect(campaign.convoy.escorts).toContain(hauler);
+			expect(() => JSON.stringify(campaign)).toThrow('Campaign.convoy[0].structure must be an integer from 1 to maxStructure (40), got 0');
+			writeBackFight({ fight });
+			expect(() => JSON.stringify(campaign)).not.toThrow();
+		});
+
+		it('refuses a fight that is still on, and stores nothing', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			const fight = startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() });
+
+			expect(() => writeBackFight({ fight })).toThrow("The fight isn't over, so there's nothing to write back yet");
+			expect(warrior.hitpoints).toBe(40);
+		});
+
+		it('refuses a tie, since a campaign fight has no turn limit', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			const fight = startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() });
+			fight.battle.maxTurns = 1;
+
+			fightOut(fight);
+
+			expect(fight.battle.isBattleTied()).toBe(true);
+			expect(() => writeBackFight({ fight })).toThrow('The fight ended in a tie at its turn limit; a campaign fight has none, so it ends won or lost');
+		});
+
+		it('refuses to write a fight back twice, from inside its own write-back too', () => {
+			const { warrior, fight } = wonWithAWreck();
+			let nested = '';
+			warrior.once('change', () => {
+				try {
+					writeBackFight({ fight });
+					nested = 'written';
+				} catch (error) {
+					nested = (error as Error).message;
+				}
+			});
+
+			writeBackFight({ fight });
+
+			expect(nested).toBe('This fight has already been written back');
+			expect(() => writeBackFight({ fight })).toThrow('This fight has already been written back');
+		});
+
+		it('refuses, storing nothing, a result its records no longer fit', () => {
+			const { campaign, warrior, interceptor, hauler, fight } = wonWithAWreck();
+			// Changed under the fight: the Road Warrior's 40 HP no longer fits
+			warrior.set({ maxHitpoints: 30, hitpoints: 30 });
+			const interceptorBefore = interceptor.toJSON();
+
+			expect(() => writeBackFight({ fight })).toThrow(`${named(warrior)}.hitpoints must be an integer from 0 to maxHitpoints (30), got 40`);
+			expect(interceptor.toJSON()).toEqual(interceptorBefore);
+			expect(campaign.convoy.escorts).toContain(hauler);
+
+			warrior.set({ maxHitpoints: 40 });
+			writeBackFight({ fight });
+			expect(campaign.convoy.escorts).toEqual([]);
+		});
+
+		it('can write a fight back again when a store throws part way, and finishes the job', () => {
+			const { campaign, warrior, interceptor, hauler, fight } = wonWithAWreck();
+			// A listener on the first record sends the second away before its turn comes
+			warrior.once('change', () => interceptor.set({ status: 'dead', hitpoints: 0, defaultDeck: {} }));
+
+			expect(() => writeBackFight({ fight })).toThrow('DriverRecord.hitpoints must be 0 for a dead driver, got 25');
+			// The Road Warrior's record was stored, setting the listener off, and nothing after the throw was
+			expect(interceptor.status).toBe('dead');
+			expect(campaign.convoy.escorts).toContain(hauler);
+
+			interceptor.set({ status: 'ready', hitpoints: 25, defaultDeck: { precision_shot: 10 } });
+			const result = writeBackFight({ fight });
+
+			expect(result.outcome).toBe('won');
+			expect(campaign.convoy.escorts).toEqual([]);
+			expect(interceptor.hitpoints).toBe(25);
+			expect(() => JSON.stringify(campaign)).not.toThrow();
+		});
+	});
+});
