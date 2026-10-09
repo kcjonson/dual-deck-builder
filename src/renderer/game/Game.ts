@@ -252,6 +252,10 @@ export class Game {
 				viewport: () => ({ ...this.viewport.logical, ratio: this.viewport.state.ratio }),
 			});
 			installPerfHooks({ snapshot: this.perfSnapshot, gpuTimer: this.gpuTimer });
+			// window.__map, which generates an area map in its worker and logs the timings.
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const { installMapGenerationHook } = require('./map/worker/mapGenerationHook') as typeof import('./map/worker/mapGenerationHook');
+			installMapGenerationHook();
 		}
 
 		this.isInitialized = true;

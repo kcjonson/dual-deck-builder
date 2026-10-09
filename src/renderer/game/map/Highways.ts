@@ -34,7 +34,7 @@ export interface HighwayOptions {
 	terrain: { readonly radius: number; readonly metro: Ruin };
 	/** Validated, so the separation fits the count. */
 	params: MapParams;
-	/** The stage's stream, root.fork('map', mapAttempt).fork('highways', stageAttempt). */
+	/** The stage's stream, nested in terrain's: root.fork('map', m).fork('terrain', t).fork('highways', stageAttempt). */
 	rng: Rng;
 }
 

@@ -4,8 +4,8 @@ import { MapParamSet, MapParams, resolveMapParams } from './MapParams';
 import { validateMapParams } from './ParamValidator';
 import { DRIFT_SPACING, OUTWARD_SHARE, ROAD_CLASS_RULES, driftAt, driftKnots } from './RoadGrowth';
 
-/** The highways stream as the pipeline forks it. */
-const highwayStream = (seed: number, stageAttempt = 0) => new Rng({ seed }).fork('map', 0).fork('highways', stageAttempt);
+/** The highways stream as the pipeline nests it, under terrain's first attempt. */
+const highwayStream = (seed: number, stageAttempt = 0) => new Rng({ seed }).fork('map', 0).fork('terrain', 0).fork('highways', stageAttempt);
 
 const paramsFor = (set: MapParamSet): MapParams => validateMapParams(resolveMapParams(set).params).params;
 
