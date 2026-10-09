@@ -74,14 +74,13 @@ export function foundCampaign({ seed, unlockedArchetypes, mapParams, start = CAM
 	}
 	const pool = deal({ seed, unlocked, size: startingValues.poolSize });
 
-	// The area map generator's call goes here: it makes the gameplay map from
-	// the seed and `params` (Area Map Generation, Pipeline), and the campaign
-	// keeps that map and the generator's version. When generation gives up on
-	// a seed and takes the next (release builds), the params and the deal
-	// above came from this one, so founding starts over from the next seed:
-	// a loop round all three, or a typed give-up error the caller founds
-	// again on (campaign-founding.md). Until the generator exists, campaigns
-	// are founded on the model's stand-in.
+	// The area map generator's map goes here: made from the seed and `params`
+	// in its worker by the async caller, which then hands it in, and kept
+	// with the generator's version. When generation gives up on a seed
+	// (`MapPipelineError`, `exhausted: 'map'`), release builds start over
+	// from the next seed, params and deal included, since both came from
+	// this one (map-pipeline-worker.md, The founding contract). Until the
+	// generator is hooked up, campaigns are founded on the model's stand-in.
 	const { map, generatorVersion } = MAP_STAND_IN;
 
 	const campaign = new Campaign({

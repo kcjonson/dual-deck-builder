@@ -13,13 +13,17 @@
  *
  *   ELECTRON_RUN_AS_NODE=1 node_modules/electron/dist/electron scripts/road-growth.mjs bench
  *
- * bench times stages 2 and 3 together at each radius, each row the median
- * and the slowest over the five environments and the seeds, each map's time
- * the fastest of its runs, and hashes every network so two engines can be
- * compared. check grows maps with parameters sampled across their tuning
- * ranges, as the property tests do, and runs checkRoadNetwork on each. png
- * draws one map, or a window of it; any parameter can be set by name. Any
- * command takes --profile <folder> for a CPU profile of the run.
+ * Every command runs the area map's stages through the pipeline runner
+ * (map/AreaMapPipeline.ts), on its nested streams, with growth checked by
+ * checkRoadNetwork as the game runs it. bench times the highways and growth
+ * runs together at each radius, each row the median and the slowest over the
+ * five environments and the seeds, each map's time the fastest of its runs,
+ * and hashes every network so two engines can be compared. check generates
+ * maps with parameters sampled across their tuning ranges, as the property
+ * tests do, and reports every map whose growth failed its checks on a first
+ * attempt, the spec's health metric. png draws one map, or a window of it;
+ * any parameter can be set by name. Any command takes --profile <folder> for
+ * a CPU profile of the run.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -33,6 +37,7 @@ const script = fileURLToPath(import.meta.url);
 const SOURCES = [
 	'core/Json', 'core/Rng', 'map/MapParams', 'map/ParamValidator', 'map/Noise', 'map/Biome', 'map/TerrainSites', 'map/Terrain',
 	'map/Geometry', 'map/SegmentIndex', 'map/RoadNetwork', 'map/RoadGrowth', 'map/Highways', 'map/RoadChecks',
+	'map/MapPipeline', 'map/AreaMapPipeline',
 ];
 
 if (process.argv[2] !== '--built') {
@@ -62,35 +67,38 @@ const load = createRequire(join(build, 'index.js'));
 const { Rng } = load('./core/Rng.js');
 const { MAP_PARAMETERS, NUMBER_PARAMS, resolveMapParams } = load('./map/MapParams.js');
 const { validateMapParams } = load('./map/ParamValidator.js');
-const { createTerrainSample, generateTerrain } = load('./map/Terrain.js');
-const { planHighways } = load('./map/Highways.js');
-const { GROWTH_RANGES, GROWTH_TUNING, growRoads } = load('./map/RoadGrowth.js');
+const { createTerrainSample } = load('./map/Terrain.js');
+const { GROWTH_RANGES, GROWTH_TUNING } = load('./map/RoadGrowth.js');
 const { checkRoadNetwork } = load('./map/RoadChecks.js');
+const { areaMapPipeline } = load('./map/AreaMapPipeline.js');
+const { MapPipelineError } = load('./map/MapPipeline.js');
 
 const ENVIRONMENTS = ['mixed', 'highDesert', 'rustBelt', 'floodlands', 'badlands'];
 const now = () => Number(process.hrtime.bigint()) / 1e6;
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 
 /**
- * Stages 1 to 3 on the pipeline's streams, the growth stages timed: run
- * `repeat` times and the fastest kept, since other work on the machine only
- * ever adds time. The set can carry growth's own `branchiness` and
- * `clearance` beside the map parameters.
+ * The area map's stages through the pipeline runner, `repeat` times, keeping
+ * the fastest highways and growth runs, since other work on the machine only
+ * ever adds time, and the fastest growth checks. Debug, as the tests run.
+ * A map that runs out of attempts throws a MapPipelineError. The set can carry
+ * growth's own `branchiness` and `clearance` beside the map parameters.
  */
 function generate(set, repeat = 1) {
 	const { branchiness, clearance = GROWTH_TUNING.clearance, ...mapSet } = set;
 	const { params } = validateMapParams(resolveMapParams(mapSet).params);
-	const map = new Rng({ seed: params.seed }).fork('map', 0);
-	const terrain = generateTerrain({ params, rng: map.fork('terrain', 0) });
+	const pipeline = areaMapPipeline({ growth: { branchiness, clearance } });
 	let fastest = Infinity;
-	let grown = null;
+	let checks = Infinity;
+	let result = null;
 	for (let run = 0; run < repeat; run += 1) {
-		const start = now();
-		const highways = planHighways({ terrain, params, rng: map.fork('highways', 0) });
-		grown = growRoads({ terrain, params, highways, rng: map.fork('growth', 0), branchiness, clearance });
-		fastest = Math.min(fastest, now() - start);
+		result = pipeline.run({ seed: params.seed, input: params, debug: true, now });
+		const { highways, growth } = result.timings;
+		fastest = Math.min(fastest, highways.milliseconds + growth.milliseconds);
+		checks = Math.min(checks, growth.checkMilliseconds);
 	}
-	return { params, clearance, terrain, network: grown.network, stats: grown.stats, milliseconds: fastest };
+	const { terrain, growth } = result.products;
+	return { params, clearance, terrain, network: growth.network, stats: growth.stats, failures: result.failures, milliseconds: fastest, checkMilliseconds: checks };
 }
 
 function lengths(network) {
@@ -123,14 +131,16 @@ function bench() {
 	const smoothing = { smoothed: 0, unsmoothed: 0 };
 	for (const radius of radii) {
 		const times = [];
+		const checks = [];
 		const steps = [];
 		const stretches = [];
 		const length = [];
 		const out = [];
 		for (const environment of ENVIRONMENTS) {
 			for (let seed = 1; seed <= seeds; seed += 1) {
-				const { network, stats, milliseconds } = generate({ seed, environment, radius }, repeat);
+				const { network, stats, milliseconds, checkMilliseconds } = generate({ seed, environment, radius }, repeat);
 				digest.update(JSON.stringify(network));
+				checks.push(checkMilliseconds);
 				smoothing.smoothed += stats.stretches.smoothed;
 				smoothing.unsmoothed += stats.stretches.unsmoothed;
 				times.push(milliseconds);
@@ -142,7 +152,7 @@ function bench() {
 			}
 		}
 		const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
-		console.log(`radius ${radius}: median ${median(times).toFixed(1)} ms, slowest ${Math.max(...times).toFixed(1)} ms; median ${median(steps)} steps, ${median(stretches)} stretches, ${median(length).toFixed(0)} units of road; ${(100 * mean(out)).toFixed(0)}% of highways reach the rim`);
+		console.log(`radius ${radius}: median ${median(times).toFixed(1)} ms, slowest ${Math.max(...times).toFixed(1)} ms, growth's checks median ${median(checks).toFixed(1)} ms; median ${median(steps)} steps, ${median(stretches)} stretches, ${median(length).toFixed(0)} units of road; ${(100 * mean(out)).toFixed(0)}% of highways reach the rim`);
 	}
 	console.log(`${smoothing.unsmoothed} of ${smoothing.smoothed + smoothing.unsmoothed} stretches kept their steps; networks' digest ${digest.digest('hex').slice(0, 16)}`);
 }
@@ -179,21 +189,31 @@ function check() {
 	let slowest = { milliseconds: 0, index: -1, steps: 0 };
 	for (let index = from; index < from + maps; index += 1) {
 		const set = sampledSet(index);
-		const { clearance, terrain, network, stats, milliseconds } = generate(set);
+		let map;
+		try {
+			map = generate(set);
+		} catch (error) {
+			if (!(error instanceof MapPipelineError)) throw error;
+			failed += 1;
+			console.log(`map ${index} ${JSON.stringify(set)}\n  ${error.message}`);
+			continue;
+		}
+		const { stats, failures, milliseconds, checkMilliseconds } = map;
 		times.push(milliseconds);
+		checks.push(checkMilliseconds);
 		if (milliseconds > slowest.milliseconds) slowest = { milliseconds, index, steps: stats.steps };
-		const checkStart = now();
-		const violations = checkRoadNetwork({ network, terrain, clearance });
-		checks.push(now() - checkStart);
-		if (violations.length > 0) {
+		if (failures.length > 0) {
 			failed += 1;
 			console.log(`map ${index} ${JSON.stringify(set)}`);
-			for (const { rule, detail } of violations.slice(0, 5)) console.log(`  ${rule}: ${detail}`);
+			for (const { stage, attempt, mapAttempt, problems } of failures.slice(0, 3)) {
+				console.log(`  ${stage} attempt ${attempt}, map attempt ${mapAttempt}:`);
+				for (const problem of problems.slice(0, 5)) console.log(`    ${problem}`);
+			}
 		}
 		if ((index - from + 1) % 100 === 0) console.log(`${index - from + 1} maps, ${failed} failing, ${((now() - started) / 1000).toFixed(0)} s`);
 	}
-	console.log(`${maps} maps from ${from}: ${failed} failing; growth median ${median(times).toFixed(1)} ms, slowest ${slowest.milliseconds.toFixed(1)} ms (map ${slowest.index}, ${slowest.steps} steps: ${JSON.stringify(sampledSet(slowest.index))})`);
-	console.log(`checkRoadNetwork median ${median(checks).toFixed(1)} ms, slowest ${Math.max(...checks).toFixed(1)} ms`);
+	console.log(`${maps} maps from ${from}: ${failed} failing a first attempt; highways and growth median ${median(times).toFixed(1)} ms, slowest ${slowest.milliseconds.toFixed(1)} ms (map ${slowest.index}, ${slowest.steps} steps: ${JSON.stringify(sampledSet(slowest.index))})`);
+	console.log(`growth's checks median ${median(checks).toFixed(1)} ms, slowest ${Math.max(...checks).toFixed(1)} ms`);
 	process.exitCode = failed > 0 ? 1 : 0;
 }
 
