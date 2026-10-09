@@ -2,7 +2,7 @@ import { Rng } from '../core/Rng';
 import { HighwayDeparture, planHighways } from './Highways';
 import { MAP_PARAMETERS, MapParamSet, MapParams, NUMBER_PARAMS, ENVIRONMENTS, resolveMapParams } from './MapParams';
 import { validateMapParams } from './ParamValidator';
-import { GrowthStats, GrowthTerrain, growRoads } from './RoadGrowth';
+import { GROWTH_TUNING, GrowthStats, GrowthTerrain, GrowthTuning, growRoads } from './RoadGrowth';
 import { RoadClass, RoadNetwork } from './RoadNetwork';
 import { Terrain, WaterLayer, generateTerrain } from './Terrain';
 import type { Hotspot } from './TerrainSites';
@@ -20,8 +20,13 @@ export function paramsFor(set: MapParamSet): MapParams {
 	return validateMapParams(resolveMapParams(set).params).params;
 }
 
+/** A parameter set with growth's own knobs beside it. */
+export type GrowthSet = MapParamSet & GrowthTuning;
+
 export interface GrownMap {
 	readonly params: MapParams;
+	/** The clearance growth kept, for the network checks. */
+	readonly clearance: number;
 	readonly terrain: Terrain;
 	readonly highways: HighwayDeparture[];
 	readonly network: RoadNetwork;
@@ -29,13 +34,14 @@ export interface GrownMap {
 }
 
 /** Stages 1 to 3 on the pipeline's streams, with water added when given. */
-export function growMap(set: MapParamSet, { growthAttempt = 0, water }: { growthAttempt?: number; water?: WaterLayer } = {}): GrownMap {
-	const params = paramsFor(set);
+export function growMap(set: GrowthSet, { growthAttempt = 0, water }: { growthAttempt?: number; water?: WaterLayer } = {}): GrownMap {
+	const { branchiness, clearance = GROWTH_TUNING.clearance, ...mapSet } = set;
+	const params = paramsFor(mapSet);
 	const land = generateTerrain({ params, rng: pipelineStream(params.seed, 'terrain') });
 	const terrain = water ? land.withWater(water) : land;
 	const highways = planHighways({ terrain, params, rng: pipelineStream(params.seed, 'highways') });
-	const { network, stats } = growRoads({ terrain, params, highways, rng: pipelineStream(params.seed, 'growth', growthAttempt) });
-	return { params, terrain, highways, network, stats };
+	const { network, stats } = growRoads({ terrain, params, highways, rng: pipelineStream(params.seed, 'growth', growthAttempt), branchiness, clearance });
+	return { params, clearance, terrain, highways, network, stats };
 }
 
 export interface FakeTerrainOptions {
@@ -69,33 +75,44 @@ export function departure(bearing: number, metroRadius: number, drift: number[] 
 	return { bearing, x: metroRadius * Math.cos(radians), y: metroRadius * Math.sin(radians), drift };
 }
 
+/** The ranges growth's own knobs had as map parameters. */
+const GROWTH_RANGES = {
+	branchiness: { kind: 'float', tuning: { min: 0, max: 1 } },
+	clearance: { kind: 'int', tuning: { min: 10, max: 60 } },
+} as const;
+
 /**
  * Parameter sets across the tuning ranges: the corners that push hardest on
  * growth first (dense and sparse, tight and loose, straight and winding, on
  * the smallest and largest maps), then random sets where each world or
- * network number, and `strongholds`, is at an end of its range two times in
- * five. The validator keeps `highways` at `strongholds` plus 2, so the
- * corners hold strongholds at 2 to reach the fewest highways a map can have,
- * 4; left at the default of 4, every map would grow 6 or more.
+ * network number, `strongholds`, and growth's own knobs are at an end of
+ * their range two times in five. The validator keeps `highways` at
+ * `strongholds` plus 2, so the corners hold strongholds at 2 to reach the
+ * fewest highways a map can have, 4; left at the default of 4, every map
+ * would grow 6 or more.
  */
-export function sampledRoadParamSets(count: number): MapParamSet[] {
-	const corners: MapParamSet[] = [
-		{ seed: 1, radius: 600, strongholds: 2, highways: 9, highwaySeparation: 20, branchiness: 1, curviness: 1, roadClearance: 60, metroSize: 0.08, ruggedness: 1, mountainCoverage: 1, aridity: 0, hotspots: 6 },
-		{ seed: 2, radius: 1600, strongholds: 2, highways: 9, highwaySeparation: 40, branchiness: 1, curviness: 0, roadClearance: 10, trailShare: 1, metroSize: 0.25 },
-		{ seed: 3, radius: 600, strongholds: 2, highways: 4, highwaySeparation: 60, branchiness: 0, curviness: 0, roadClearance: 10, trailShare: 0 },
-		{ seed: 4, radius: 1600, strongholds: 2, highways: 4, highwaySeparation: 20, branchiness: 0.5, curviness: 1, roadClearance: 60, environment: 'badlands', hotspots: 6 },
-		{ seed: 5, radius: 1000, strongholds: 2, highways: 9, highwaySeparation: 40, branchiness: 1, curviness: 0.5, roadClearance: 24, metroSize: 0.08, mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1 },
+export function sampledRoadParamSets(count: number): GrowthSet[] {
+	const corners: GrowthSet[] = [
+		{ seed: 1, radius: 600, strongholds: 2, highways: 9, highwaySeparation: 20, branchiness: 1, curviness: 1, clearance: 60, metroSize: 0.08, ruggedness: 1, mountainCoverage: 1, aridity: 0, hotspots: 6 },
+		{ seed: 2, radius: 1600, strongholds: 2, highways: 9, highwaySeparation: 40, branchiness: 1, curviness: 0, clearance: 10, trailShare: 1, metroSize: 0.25 },
+		{ seed: 3, radius: 600, strongholds: 2, highways: 4, highwaySeparation: 60, branchiness: 0, curviness: 0, clearance: 10, trailShare: 0 },
+		{ seed: 4, radius: 1600, strongholds: 2, highways: 4, highwaySeparation: 20, branchiness: 0.5, curviness: 1, clearance: 60, environment: 'badlands', hotspots: 6 },
+		{ seed: 5, radius: 1000, strongholds: 2, highways: 9, highwaySeparation: 40, branchiness: 1, curviness: 0.5, clearance: 24, metroSize: 0.08, mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1 },
 	];
 	const rng = new Rng({ seed: 2026 });
-	const random = Array.from({ length: Math.max(0, count - corners.length) }, (): MapParamSet => {
-		const set: MapParamSet = { seed: rng.next(), environment: rng.pick(ENVIRONMENTS) };
+	const draw = ({ kind, tuning }: { kind: 'int' | 'float'; tuning: { min: number; max: number } }): number => {
+		const end = rng.float();
+		const value = end < 0.2 ? tuning.min : end < 0.4 ? tuning.max : tuning.min + (tuning.max - tuning.min) * rng.float();
+		return kind === 'int' ? Math.round(value) : value;
+	};
+	const random = Array.from({ length: Math.max(0, count - corners.length) }, (): GrowthSet => {
+		const set: GrowthSet = { seed: rng.next(), environment: rng.pick(ENVIRONMENTS) };
 		for (const name of NUMBER_PARAMS) {
-			const { group, kind, tuning } = MAP_PARAMETERS[name];
-			if (group !== 'world' && group !== 'network' && name !== 'strongholds') continue;
-			const draw = rng.float();
-			const value = draw < 0.2 ? tuning.min : draw < 0.4 ? tuning.max : tuning.min + (tuning.max - tuning.min) * rng.float();
-			set[name] = kind === 'int' ? Math.round(value) : value;
+			const spec = MAP_PARAMETERS[name];
+			if (spec.group === 'world' || spec.group === 'network' || name === 'strongholds') set[name] = draw(spec);
 		}
+		set.branchiness = draw(GROWTH_RANGES.branchiness);
+		set.clearance = draw(GROWTH_RANGES.clearance);
 		return set;
 	});
 	return [...corners.slice(0, count), ...random];

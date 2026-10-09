@@ -64,16 +64,17 @@ export function validateMapParams(params: MapParams): ValidatedMapParams {
 		else if (whole !== value) change(name, clamped, 'whole number');
 	}
 
-	// Strongholds are placed one per sector, each needing two approaches from
-	// different branches (stage 5); two highways more than strongholds keeps a
-	// sector without them rare. Raise highways, and when even the most can't
-	// cover it, lower strongholds first (an open question in the spec).
+	// A stronghold sits in its sector's outer band where two branches of the
+	// route tree meet (stage 7), and highways lead the branches, each taking a
+	// wide slice of the map; two highways more than strongholds keeps a sector
+	// with no seam between branches rare. Raise highways, and when even the
+	// most can't cover it, lower strongholds first (an open question in the spec).
 	const highwaysMax = MAP_PARAMETERS.highways.tuning.max;
 	if (valid.strongholds + 2 > highwaysMax) change('strongholds', highwaysMax - 2, 'highways max - 2');
 	if (valid.highways < valid.strongholds + 2) change('highways', valid.strongholds + 2, 'strongholds + 2');
 
-	// n departures at least s degrees from their neighbours only fit round the
-	// metro while n * s is 360 or less.
+	// n exits at least s degrees from their neighbours only fit round the rim
+	// while n * s is 360 or less.
 	const separationMax = Math.floor(360 / valid.highways);
 	if (valid.highwaySeparation > separationMax) change('highwaySeparation', separationMax, '360 / highways');
 

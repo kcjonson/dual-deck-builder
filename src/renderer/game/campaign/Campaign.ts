@@ -18,7 +18,7 @@ import { EMPTY_MAP, MapState, readMapState } from './MapState';
  * with another version isn't loaded, so a bump invalidates every existing
  * save of that build.
  */
-export const CAMPAIGN_SCHEMA_VERSION = 2;
+export const CAMPAIGN_SCHEMA_VERSION = 3;
 
 /** What the compound holds (Compound and Supply Runs, Resources): whole numbers, never below 0. */
 export interface Resources {

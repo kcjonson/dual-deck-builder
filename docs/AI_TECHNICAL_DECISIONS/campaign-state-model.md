@@ -80,7 +80,7 @@ Card types are checked for shape (lower snake case), not against `cards.json`, s
 - Every object must have exactly its fields. Missing and unknown fields both throw, as map presets do, so a renamed field can't vanish quietly. Map params are the one exception (below).
 - Every array must hold a value at every index. JSON never makes a hole, but a `set` could pass one, and `map` and `forEach` would skip it unchecked.
 - Errors name where: `Campaign.drivers[1].status must be one of ready, injured, dead, missing, got "sleeping"`. A `ReaderTypeError` for the wrong kind of value, a `ReaderRangeError` for a value out of range: still a TypeError and a RangeError, but classes of their own, so a load can tell a damaged save from a bug in the code reading it, and log the bug (it still treats the save as damaged).
-- `campaign/__fixtures__/campaign-v2.json` is a campaign at the current format, which loads and writes back the same. When the format changes, the fixture changes with it and the version goes up.
+- `campaign/__fixtures__/campaign-v3.json` is a campaign at the current format, which loads and writes back the same, and tests take it through `storeFixtures.ts` as `CAMPAIGN_FIXTURE`. When the format changes, the fixture changes with it and the version goes up.
 
 Loading leniently, as `GameSettings` does (defaults for what's missing, unknown keys ignored), was rejected for saves: a damaged campaign would load as a different campaign.
 

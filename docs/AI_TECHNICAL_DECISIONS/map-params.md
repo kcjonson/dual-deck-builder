@@ -1,6 +1,6 @@
 # Map parameters in code (DDB-287)
 
-Date: 2026-10-06, revised 2026-10-07 in DDB-404. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Map parameters. Follows [compound-and-area-map.md](./compound-and-area-map.md), decision 5.
+Date: 2026-10-06, revised 2026-10-07 in DDB-404 and 2026-10-09 for the realistic map's table (DDB-440). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Map parameters. Follows [compound-and-area-map.md](./compound-and-area-map.md), decision 5, and [realistic-map.md](./realistic-map.md), which changed the table.
 
 ## Context
 
@@ -14,7 +14,7 @@ The seed and `stopTables` have no row. The seed is neither tuned by a slider nor
 
 ## Environments set defaults, overrides are explicit
 
-`ENVIRONMENT_PRESETS` holds what each environment sets over the table's defaults: world, drivable network, and scenery parameters, never gameplay ones, so picking a region changes the land and not the balance. Mixed sets nothing, which makes the table's defaults Mixed's.
+`ENVIRONMENT_PRESETS` holds what each environment sets over the table's defaults: world, road network, and dressing parameters, never gameplay ones, so picking a region changes the land and not the balance. Mixed sets nothing, which makes the table's defaults Mixed's.
 
 Every environment's value sits at least a step inside its campaign range. Half an environment's rolls land on each side of its value whatever room that side has (see below), so a value on an end of the range puts half or more of them exactly on the end: with the first values, 88% of Rust Belt maps had 3 broken highways and 72% of Badlands maps had 5 hotspots. A test lists the values allowed on an end, and High Desert's 0 lakes is the only one, since most High Desert maps having no lakes is the point (about two in three). Where a step in would land on the table's default and erase the difference, the campaign range grows a step instead: Rust Belt keeps its 3 broken highways, and their range runs 1 to 4. That tilts the four environments that keep the default of 2 toward 3, with 22% of their rolls on 3 against 12.5% on 1 and none on 4, which is the cost of keeping Rust Belt off the end.
 
@@ -42,7 +42,7 @@ Storing every value instead would reproduce a map through any later tuning of th
 
 Stop tables aren't clamped: the validator copies them as plain JSON, and anything in them JSON can't hold (NaN, a Date, a cycle) throws, naming its path, since there's no value to put in its place.
 
-Two combinations are clamped. `highways` is raised to `strongholds` plus 2, as the spec says. And `highwaySeparation` is lowered to 360 / `highways`: nine departures can't each sit 60 degrees from the next, and the tuning ranges allow both.
+Two combinations are clamped. `highways` is raised to `strongholds` plus 2, as the spec says: a stronghold sits where two branches of the route tree meet in its sector's outer band, highways lead the branches, and two more highways than sectors keeps a sector with no seam between branches rare. And `highwaySeparation` is lowered to 360 / `highways`: nine exits can't each sit 60 degrees from the next round the rim, and the tuning ranges allow both. Nothing else in the realistic map's table constrains another parameter. `rivers` 0 is a closed basin, which still has streams by `riverDensity` and can hold reservoirs, and broken highways are only taken where every place stays reachable, which is the roads stage's check, not the validator's.
 
 The first rule leaves two things open (Area Map Generation, open questions). The tuning ranges allow 8 strongholds against at most 9 highways, so the validator lowers `strongholds` to 7 first when that's the only way, a stand-in that keeps a value the slider offers out of reach. And with `strongholds` at least 2, `highways` 3 never survives validation, a notch on its slider that does nothing. Narrowing the tuning ranges would settle both; until that's decided the stand-in stays.
 
@@ -52,7 +52,7 @@ The first rule leaves two things open (Area Map Generation, open questions). The
 
 A triangle across the whole campaign range, peaking at the environment's value, was simpler but gave a High Desert a long tail into wet ground: about one roll in seven above 0.5 aridity. Uniform draws ignored the environment altogether. The cost of bounded reach is a constraint on the table, which a test checks: every campaign end has to be within reach of some environment's value, so a range no environment moves sits evenly round its default.
 
-Every parameter draws on its own fork of the seed's `params` stream, `new Rng({ seed }).fork('params').fork(name)` with the parameter's key, the environment included. One stream drawn in table order was the first draft, but then adding, removing, or reordering a parameter while the Map Lab settles the table, or a player option that pins one parameter and skips its draw, would shift every later parameter's roll for every seed. A fork costs a short hash and 15 warm-up draws, nothing at 33 parameters.
+Every parameter draws on its own fork of the seed's `params` stream, `new Rng({ seed }).fork('params').fork(name)` with the parameter's key, the environment included. One stream drawn in table order was the first draft, but then adding, removing, or reordering a parameter while the Map Lab settles the table, or a player option that pins one parameter and skips its draw, would shift every later parameter's roll for every seed. A fork costs a short hash and 15 warm-up draws, nothing at 34 parameters. The realistic map's table bore that out: every parameter it kept rolls what it did before, and only the new ones and the renamed `dressing`, which draws on a fork of its new name, roll anything new.
 
 That independence holds for each parameter's draw, not for what `rollParams` returns, which is coupled three ways:
 
@@ -62,9 +62,23 @@ That independence holds for each parameter's draw, not for what `rollParams` ret
 
 Tests pin the draws: the table reversed, or with a parameter dropped, or with one parameter's campaign range changed, rolls every other parameter the same, and one seed's roll is pinned outright. `rollParamsWithClamps` is `rollParams` with the validator's clamps, for the Map Lab's "Roll campaign params" preview to list.
 
+## The realistic map's table
+
+[realistic-map.md](./realistic-map.md) kept the machinery and changed the rows. Four parameters mean something new with the same ranges: `rivers` counts outlets on the land grid's edge (0 a closed basin), `ruggedness` sets how hard ranges lift and how little they're smoothed, `curviness` weights grade in a road's path cost, and `highwaySeparation` spaces exits at the rim. Five are new: `riverDensity`, `villages`, `roadDensity`, `loops`, and `routeSplit`. `brokenHighways` moved from the scenery group to the road network, since collapsed spans now take roads out of the network. `branchiness`, `roadClearance`, `countyRoads`, and `farmTracks` went, along with the outward growth and the scenery county roads they tuned. The scenery group is dressing, and `sceneryDensity` is `dressing`. Values, environments included, are the spec's.
+
+Choices the spec left to the code:
+
+- Labels. `rivers` reads "Main rivers", beside "River density", and `dressing` reads "Amount" under the Dressing heading. New fractions step by 0.05 like the others; `villages` by 1.
+- `routeSplit`'s campaign range is the one value 0.5, a balance knob like `routesTarget`, so every roll takes it.
+- No new combination rule (above).
+
+Code that the later stages replace still reads the table. Terrain reads nothing whose values moved (`ruggedness` keeps its range, default, and every environment's value), so `Terrain.test`'s pinned samples hold. `planHighways` reads `highwaySeparation` as degrees between departures from the metro, which is near enough to exits at the rim until settlements place exits. Road growth read `branchiness` and `roadClearance`; it now takes them as options of its own (`GrowthTuning`), defaulting to the old table's 0.5 and 24, so its tests and `scripts/road-growth.mjs` can still sweep them, and they go with growth when road links replace it.
+
+Saves keep resolved params, so the table change is a save format change: `CAMPAIGN_SCHEMA_VERSION` went to 3 and the fixture with it. There are no migrations, so a version 2 save isn't loaded at all, and nothing carries `sceneryDensity` over to `dressing`. A save that does reach `repairMapParams` with the old table's keys loses them with a warning each and takes the new parameters from its environment, which a test holds.
+
 ## Consequences
 
 - The Map Lab builds its parameter panel from `MAP_PARAMETERS` and `PARAM_GROUPS`, takes params, sources, and clamps from `validateMapParamSet`, words clamps with `describeClamp`, and previews a roll with `rollParamsWithClamps`.
-- Every value in the table is a starting value. Tests hold the invariants (defaults and campaign ranges inside tuning ranges, values on the step grid, environment values a step inside their campaign ranges and off the gameplay group, shipped presets valid with no clamps), so tuning can't produce a table the validator or `rollParams` can't honour.
-- Retuning can move the pinned roll for the default preset's seed (a Floodlands map), so a tuning change updates that test in the same commit. A parameter's campaign range or step, Floodlands' value for it, or a table default Floodlands inherits (towns, say) moves that parameter's value; retuning strongholds can move highways too; a change to how `snapToStep` rounds can move any value; and changing the list of environments can move all of it. Retuning a default the terrain stage reads (radius, metro size, aridity, mountain coverage, ruggedness, contamination, hotspots, or towns, the table's or an environment's) moves `Terrain.test`'s pinned samples too, so the same change re-pins them.
+- Every value in the table is a starting value. Tests hold the invariants (defaults and campaign ranges inside tuning ranges, values on the step grid, environment values a step inside their campaign ranges and off the gameplay group, shipped presets valid with no clamps), so tuning can't produce a table the validator or `rollParams` can't honour. Tests also hold the table and the environments to copies of the spec's tables, so a retune changes the spec, the code, and that test together.
+- Retuning can move the pinned roll for the default preset's seed (a Floodlands map), so a tuning change updates that test in the same commit. A parameter's campaign range or step, Floodlands' value for it, or a table default Floodlands inherits (towns, say) moves that parameter's value; renaming a parameter moves its value; retuning strongholds can move highways too; a change to how `snapToStep` rounds can move any value; and changing the list of environments can move all of it. Retuning a default the terrain stage reads (radius, metro size, aridity, mountain coverage, ruggedness, contamination, hotspots, or towns, the table's or an environment's) moves `Terrain.test`'s pinned samples too, so the same change re-pins them.
 - `stopTables` stays loosely typed until the stops stage defines it.

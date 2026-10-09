@@ -64,7 +64,7 @@ const { MAP_PARAMETERS, NUMBER_PARAMS, resolveMapParams } = load('./map/MapParam
 const { validateMapParams } = load('./map/ParamValidator.js');
 const { createTerrainSample, generateTerrain } = load('./map/Terrain.js');
 const { planHighways } = load('./map/Highways.js');
-const { growRoads } = load('./map/RoadGrowth.js');
+const { GROWTH_TUNING, growRoads } = load('./map/RoadGrowth.js');
 const { checkRoadNetwork } = load('./map/RoadChecks.js');
 
 const ENVIRONMENTS = ['mixed', 'highDesert', 'rustBelt', 'floodlands', 'badlands'];
@@ -74,10 +74,12 @@ const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.l
 /**
  * Stages 1 to 3 on the pipeline's streams, the growth stages timed: run
  * `repeat` times and the fastest kept, since other work on the machine only
- * ever adds time.
+ * ever adds time. The set can carry growth's own `branchiness` and
+ * `clearance` beside the map parameters.
  */
 function generate(set, repeat = 1) {
-	const { params } = validateMapParams(resolveMapParams(set).params);
+	const { branchiness, clearance = GROWTH_TUNING.clearance, ...mapSet } = set;
+	const { params } = validateMapParams(resolveMapParams(mapSet).params);
 	const map = new Rng({ seed: params.seed }).fork('map', 0);
 	const terrain = generateTerrain({ params, rng: map.fork('terrain', 0) });
 	let fastest = Infinity;
@@ -85,10 +87,10 @@ function generate(set, repeat = 1) {
 	for (let run = 0; run < repeat; run += 1) {
 		const start = now();
 		const highways = planHighways({ terrain, params, rng: map.fork('highways', 0) });
-		grown = growRoads({ terrain, params, highways, rng: map.fork('growth', 0) });
+		grown = growRoads({ terrain, params, highways, rng: map.fork('growth', 0), branchiness, clearance });
 		fastest = Math.min(fastest, now() - start);
 	}
-	return { params, terrain, network: grown.network, stats: grown.stats, milliseconds: fastest };
+	return { params, clearance, terrain, network: grown.network, stats: grown.stats, milliseconds: fastest };
 }
 
 function lengths(network) {
@@ -146,20 +148,24 @@ function bench() {
 }
 
 /**
- * Parameter sets across the tuning ranges: each world or network number, and
- * strongholds, which set the fewest highways the validator allows, at an end
- * of its range two times in five.
+ * Parameter sets across the tuning ranges: each world or network number,
+ * strongholds, which set the fewest highways the validator allows, and
+ * growth's own knobs, at an end of its range two times in five.
  */
 function sampledSet(index) {
 	const rng = new Rng({ seed: 7919 }).fork('road-sweep', index);
 	const set = { seed: rng.next(), environment: rng.pick(ENVIRONMENTS) };
+	const draw = ({ kind, tuning }) => {
+		const end = rng.float();
+		const value = end < 0.2 ? tuning.min : end < 0.4 ? tuning.max : tuning.min + (tuning.max - tuning.min) * rng.float();
+		return kind === 'int' ? Math.round(value) : value;
+	};
 	for (const name of NUMBER_PARAMS) {
-		const { group, kind, tuning } = MAP_PARAMETERS[name];
-		if (group !== 'world' && group !== 'network' && name !== 'strongholds') continue;
-		const draw = rng.float();
-		const value = draw < 0.2 ? tuning.min : draw < 0.4 ? tuning.max : tuning.min + (tuning.max - tuning.min) * rng.float();
-		set[name] = kind === 'int' ? Math.round(value) : value;
+		const spec = MAP_PARAMETERS[name];
+		if (spec.group === 'world' || spec.group === 'network' || name === 'strongholds') set[name] = draw(spec);
 	}
+	set.branchiness = draw({ kind: 'float', tuning: { min: 0, max: 1 } });
+	set.clearance = draw({ kind: 'int', tuning: { min: 10, max: 60 } });
 	return set;
 }
 
@@ -173,11 +179,11 @@ function check() {
 	let slowest = { milliseconds: 0, index: -1, steps: 0 };
 	for (let index = from; index < from + maps; index += 1) {
 		const set = sampledSet(index);
-		const { params, terrain, network, stats, milliseconds } = generate(set);
+		const { clearance, terrain, network, stats, milliseconds } = generate(set);
 		times.push(milliseconds);
 		if (milliseconds > slowest.milliseconds) slowest = { milliseconds, index, steps: stats.steps };
 		const checkStart = now();
-		const violations = checkRoadNetwork({ network, terrain, clearance: params.roadClearance });
+		const violations = checkRoadNetwork({ network, terrain, clearance });
 		checks.push(now() - checkStart);
 		if (violations.length > 0) {
 			failed += 1;
@@ -203,7 +209,7 @@ async function png() {
 		if (['seed', 'size', 'out', 'window', 'profile'].includes(key)) continue;
 		set[key] = key === 'environment' ? value : Number(value);
 	}
-	const { params, terrain, network, stats, milliseconds } = generate(set);
+	const { params, clearance, terrain, network, stats, milliseconds } = generate(set);
 	const size = Number(options.size ?? 1024);
 	const radius = terrain.radius;
 	// --window x,y,half draws the square of world space around (x, y) instead of the whole disc.
@@ -273,7 +279,7 @@ async function png() {
 	console.log(`${out}: ${JSON.stringify(set)}`);
 	console.log(`growth ${milliseconds.toFixed(1)} ms; ${network.roads.length} roads, ${network.stretches.length} stretches; units of road ${Object.entries(byClass).map(([name, value]) => `${name} ${value.toFixed(0)}`).join(', ')}; ${(100 * highwaysOut(network)).toFixed(0)}% of highways reach the rim`);
 	console.log(JSON.stringify(stats));
-	const violations = checkRoadNetwork({ network, terrain, clearance: params.roadClearance });
+	const violations = checkRoadNetwork({ network, terrain, clearance });
 	console.log(violations.length === 0 ? 'checks pass' : violations.map(({ rule, detail }) => `${rule}: ${detail}`).join('\n'));
 }
 
