@@ -22,10 +22,11 @@ describe('compound-rules.json', () => {
 		expect(read(shipped())).toEqual(COMPOUND_RULES);
 	});
 
-	it('feeds 4 people with each unit of food and water, and a unit short costs a person and a point of unrest', () => {
+	it('feeds 4 people with each unit of food and water, a unit short costs a person and a point of unrest, and an infirmary day is 10 HP or a med', () => {
 		expect(COMPOUND_RULES).toEqual({
 			upkeep: { peoplePerUnit: { food: 4, water: 4 } },
-			shortfall: { peopleLostPerUnit: 1, unrestPerUnit: 1 }
+			shortfall: { peopleLostPerUnit: 1, unrestPerUnit: 1 },
+			infirmary: { hitpointsPerDay: 10, medsPerDay: 1 }
 		});
 	});
 
@@ -34,6 +35,7 @@ describe('compound-rules.json', () => {
 		expect(Object.isFrozen(COMPOUND_RULES.upkeep)).toBe(true);
 		expect(Object.isFrozen(COMPOUND_RULES.upkeep.peoplePerUnit)).toBe(true);
 		expect(Object.isFrozen(COMPOUND_RULES.shortfall)).toBe(true);
+		expect(Object.isFrozen(COMPOUND_RULES.infirmary)).toBe(true);
 	});
 
 	it('takes shortfalls that cost nothing', () => {
@@ -60,7 +62,20 @@ describe('compound-rules.json', () => {
 		['unrest past any tuning, which would overflow a day end', (json: RulesJson) => { json.shortfall.unrestPerUnit = 2 ** 52; },
 			'CompoundRules.shortfall.unrestPerUnit must be an integer from 0 to 100, got 4503599627370496'],
 		['unrest in a string', (json: RulesJson) => { json.shortfall.unrestPerUnit = '1'; },
-			'CompoundRules.shortfall.unrestPerUnit must be a number, got "1"']
+			'CompoundRules.shortfall.unrestPerUnit must be a number, got "1"'],
+		['no infirmary', (json: RulesJson) => { delete json.infirmary; }, 'CompoundRules.infirmary is missing'],
+		['an infirmary rule nothing reads', (json: RulesJson) => { json.infirmary.bedsPerLevel = 2; },
+			'CompoundRules.infirmary has an unknown field "bedsPerLevel"'],
+		['an infirmary day worth no HP, which would injure forever', (json: RulesJson) => { json.infirmary.hitpointsPerDay = 0; },
+			'CompoundRules.infirmary.hitpointsPerDay must be an integer from 1 to 100, got 0'],
+		['an infirmary day worth part of an HP', (json: RulesJson) => { json.infirmary.hitpointsPerDay = 7.5; },
+			'CompoundRules.infirmary.hitpointsPerDay must be an integer from 1 to 100, got 7.5'],
+		['an infirmary day worth more HP than any tuning', (json: RulesJson) => { json.infirmary.hitpointsPerDay = 101; },
+			'CompoundRules.infirmary.hitpointsPerDay must be an integer from 1 to 100, got 101'],
+		['free meds', (json: RulesJson) => { json.infirmary.medsPerDay = 0; },
+			'CompoundRules.infirmary.medsPerDay must be an integer from 1 to 100, got 0'],
+		['meds per day past any tuning', (json: RulesJson) => { json.infirmary.medsPerDay = 1000; },
+			'CompoundRules.infirmary.medsPerDay must be an integer from 1 to 100, got 1000']
 	])('rejects %s', (_label, change, message) => {
 		expect(() => read(damaged(change))).toThrow(message);
 	});
