@@ -1,6 +1,7 @@
 import { Convoy } from '../mechanics/Convoy';
 import { ESCORT_CONFIGS, EscortDividend, EscortProfile, EscortRole, EscortType } from '../mechanics/Escort';
 import { ROW_ORDER } from '../mechanics/Road';
+import { MAX_CONVOY_ESCORTS } from '../mechanics/Team';
 import { Vehicle, VehicleMod } from '../mechanics/Vehicle';
 import { readCardType } from './CardCounts';
 import { readArray, readFields, readInteger, readNullable, readOneOf, readText } from './JsonReader';
@@ -11,9 +12,9 @@ import { readArray, readFields, readInteger, readNullable, readOneOf, readText }
  * flank, statuses, shield, spent, seats) is left out, since the campaign
  * saves between runs; a loaded escort is off the road and ready.
  *
- * Escorts keep their whole stat block rather than a type to look up,
- * unlike drivers: a driven vehicle that carried on unmanned has no type,
- * and its stats and preferred slot came from the fight it converted in.
+ * Every escort in the convoy is a hired type, up to four of them. Escorts
+ * keep their whole stat block as well as the type, unlike drivers, so the
+ * stats an escort was hired with stay its own when its type is retuned.
  */
 export interface EscortJson {
 	name: string;
@@ -67,7 +68,9 @@ export function escortToJson(vehicle: Vehicle): EscortJson {
 }
 
 export function readConvoy(value: unknown, path: string): Convoy {
-	return new Convoy({ escorts: readArray(value, path).map((escort, index) => readEscort(escort, `${path}[${index}]`)) });
+	const escorts = readArray(value, path);
+	if (escorts.length > MAX_CONVOY_ESCORTS) throw new RangeError(`${path} holds ${escorts.length} escorts, and a convoy holds ${MAX_CONVOY_ESCORTS} at most`);
+	return new Convoy({ escorts: escorts.map((escort, index) => readEscort(escort, `${path}[${index}]`)) });
 }
 
 /**
@@ -102,7 +105,7 @@ function readProfile(value: unknown, path: string): EscortProfileJson {
 	const fields = readFields(value, path, PROFILE_FIELDS);
 	const slot = readFields(fields.preferredSlot, `${path}.preferredSlot`, ['lane', 'row']);
 	return {
-		type: readNullable(fields.type, `${path}.type`, (type, typePath) => readOneOf(type, typePath, ESCORT_TYPES)),
+		type: readOneOf(fields.type, `${path}.type`, ESCORT_TYPES),
 		role: readOneOf(fields.role, `${path}.role`, ESCORT_ROLES),
 		gunnery: readInteger(fields.gunnery, `${path}.gunnery`, { min: 0 }),
 		evade: readInteger(fields.evade, `${path}.evade`, { min: 0 }),

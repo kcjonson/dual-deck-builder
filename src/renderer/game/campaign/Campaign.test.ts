@@ -7,7 +7,7 @@ import { historyEntry, historyToJson } from './CampaignHistory';
 import { cardCount, totalCards } from './CardCounts';
 import { DECK_RULES } from './DeckRules';
 import { DriverRecord } from './DriverRecord';
-import campaignV1 from './__fixtures__/campaign-v1.json';
+import campaignV2 from './__fixtures__/campaign-v2.json';
 import { stressCampaign } from './__fixtures__/stressCampaign';
 
 const SEED = 20261006;
@@ -25,8 +25,8 @@ const newCampaign = (options: Partial<CampaignOptions> = {}): Campaign => new Ca
 /** A save and a load: through JSON text and back. */
 const reload = (campaign: Campaign): Campaign => Campaign.fromJSON(JSON.parse(JSON.stringify(campaign)));
 
-/** The version 1 fixture as a fresh object to damage. */
-const savedCampaign = (): CampaignJson => JSON.parse(JSON.stringify(campaignV1));
+/** The version 2 fixture as a fresh object to damage. */
+const savedCampaign = (): CampaignJson => JSON.parse(JSON.stringify(campaignV2));
 
 const record = (id: string): DriverRecord => new DriverRecord({ id, archetype: 'mechanic', name: 'Mechanic 1' });
 
@@ -50,8 +50,8 @@ const keyPaths = (value: unknown): string[] => {
 	return [...paths].sort();
 };
 
-/** The version 1 save format, pinned: a change here is a change of format, which bumps `CAMPAIGN_SCHEMA_VERSION`. */
-const SAVE_FORMAT_V1 = {
+/** The version 2 save format, pinned: a change here is a change of format, which bumps `CAMPAIGN_SCHEMA_VERSION`. */
+const SAVE_FORMAT_V2 = {
 	campaign: [
 		'convoy', 'convoy[]', 'convoy[].armor', 'convoy[].baseSpeed', 'convoy[].escort', 'convoy[].escort.dividend', 'convoy[].escort.dividend.amount',
 		'convoy[].escort.dividend.kind', 'convoy[].escort.evade', 'convoy[].escort.gunnery', 'convoy[].escort.preferredSlot', 'convoy[].escort.preferredSlot.lane',
@@ -59,7 +59,7 @@ const SAVE_FORMAT_V1 = {
 		'convoy[].maxArmor', 'convoy[].maxStructure', 'convoy[].mods', 'convoy[].mods[]', 'convoy[].mods[].kind', 'convoy[].mods[].name', 'convoy[].name',
 		'convoy[].structure', 'day', 'drivers', 'drivers[]', 'drivers[].archetype', 'drivers[].defaultDeck', 'drivers[].defaultDeck.<card type>',
 		'drivers[].handLimit', 'drivers[].hitpoints', 'drivers[].id', 'drivers[].injuredDays', 'drivers[].maxHitpoints', 'drivers[].name',
-		'drivers[].runsCompleted', 'drivers[].status', 'generatorVersion', 'locker', 'locker.<card type>', 'log', 'log[]', 'log[].day', 'log[].message', 'map',
+		'drivers[].runsCompleted', 'drivers[].status', 'drivers[].vehicle', 'drivers[].vehicle.armor', 'drivers[].vehicle.structure', 'generatorVersion', 'locker', 'locker.<card type>', 'log', 'log[]', 'log[].day', 'log[].message', 'map',
 		'mapParams', 'mapParams.<map parameter>', 'nextDriverNumber', 'resources', 'resources.food', 'resources.fuel', 'resources.meds', 'resources.people',
 		'resources.scrap', 'resources.water', 'seed', 'strongholdsTaken', 'strongholdsTaken[]', 'unrest'
 	],
@@ -789,26 +789,26 @@ describe('Campaign', () => {
 			expect(JSON.stringify(second)).toBe(JSON.stringify(first));
 		});
 
-		it('reads the version 1 fixture and writes it back the same', () => {
-			const campaign = Campaign.fromJSON(campaignV1);
+		it('reads the version 2 fixture and writes it back the same', () => {
+			const campaign = Campaign.fromJSON(campaignV2);
 
-			expect(campaign.toJSON()).toEqual(campaignV1);
+			expect(campaign.toJSON()).toEqual(campaignV2);
 			expect(campaign.drivers.map(driver => driver.status)).toEqual(['ready', 'dead', 'injured', 'missing', 'ready']);
-			expect(campaign.convoy.escorts.map(escort => escort.escort?.type ?? null)).toEqual(['fuel_hauler', null]);
+			expect(campaign.convoy.escorts.map(escort => escort.escort?.type)).toEqual(['fuel_hauler', 'outrider']);
 			expect(campaign.recruitDriver({ archetype: 'mechanic' }).id).toBe('driver-6');
 		});
 
 		it('holds the save format to the version it\'s stamped with', () => {
-			const campaign = Campaign.fromJSON(campaignV1);
+			const campaign = Campaign.fromJSON(campaignV2);
 			const format = {
-				campaign: keyPaths(campaignV1),
+				campaign: keyPaths(campaignV2),
 				historyEntry: Object.keys(historyEntry({ campaign, ending: 'won' })).sort(),
 				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
 			};
 
-			expect(CAMPAIGN_SCHEMA_VERSION).toBe(1);
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(2);
 			try {
-				expect(format).toEqual(SAVE_FORMAT_V1);
+				expect(format).toEqual(SAVE_FORMAT_V2);
 			} catch (error) {
 				throw new Error(`format changed: bump CAMPAIGN_SCHEMA_VERSION and re-pin\n${(error as Error).message}`);
 			}
@@ -846,7 +846,7 @@ describe('Campaign', () => {
 
 			it('fails loudly on a save that isn\'t an object', () => {
 				expect(() => Campaign.fromJSON(null)).toThrow('Campaign must be an object, got null');
-				expect(() => Campaign.fromJSON(JSON.stringify(campaignV1))).toThrow(/^Campaign must be an object, got "\{/);
+				expect(() => Campaign.fromJSON(JSON.stringify(campaignV2))).toThrow(/^Campaign must be an object, got "\{/);
 			});
 		});
 
@@ -863,7 +863,7 @@ describe('Campaign', () => {
 			it('loads a save with nothing to repair without a word', () => {
 				const onWarning = jest.fn();
 
-				Campaign.fromJSON(campaignV1, { onWarning });
+				Campaign.fromJSON(campaignV2, { onWarning });
 
 				expect(onWarning).not.toHaveBeenCalled();
 			});
@@ -934,7 +934,7 @@ describe('Campaign', () => {
 					params.highways = 12;
 				});
 
-				expect(campaign.toJSON().mapParams).toEqual({ ...campaignV1.mapParams, radius: 1000, highways: 12 });
+				expect(campaign.toJSON().mapParams).toEqual({ ...campaignV2.mapParams, radius: 1000, highways: 12 });
 				expect(reload(campaign).toJSON()).toEqual(campaign.toJSON());
 			});
 
@@ -968,12 +968,12 @@ describe('Campaign', () => {
 		const campaign = campaignInProgress();
 
 		expect(JSON.parse(JSON.stringify(campaign))).toEqual(campaign.toJSON());
-		expect(Object.keys(campaign.toJSON())).toEqual(Object.keys(campaignV1));
+		expect(Object.keys(campaign.toJSON())).toEqual(Object.keys(campaignV2));
 	});
 
 	it.each([
 		['a campaign in progress', campaignInProgress],
-		['the version 1 fixture', () => Campaign.fromJSON(campaignV1)],
+		['the version 2 fixture', () => Campaign.fromJSON(campaignV2)],
 		['a stress campaign', stressCampaign]
 	])('writes the same save text for %s without toJSON\'s copies', (_label, build) => {
 		const campaign = build();

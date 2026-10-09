@@ -3,7 +3,7 @@ import { CampaignEnding, CampaignHistoryEntry, historyToJson } from './CampaignH
 import { CampaignStore, CampaignStoreError, campaignKeys, pageNamespace } from './CampaignStore';
 import { cardCount } from './CardCounts';
 import { LocalSaveStorage, MemorySaveStorage, WebStorage } from './SaveStorage';
-import campaignV1 from './__fixtures__/campaign-v1.json';
+import campaignV2 from './__fixtures__/campaign-v2.json';
 import { stressCampaign } from './__fixtures__/stressCampaign';
 import {
 	FaultyStorage, HeldStorage, KEYS, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
@@ -53,10 +53,10 @@ describe('CampaignStore', () => {
 			expect(loaded?.toJSON()).toEqual(campaign.toJSON());
 		});
 
-		it('continues the version 1 fixture', async () => {
+		it('continues the version 2 fixture', async () => {
 			const loaded = await storeOver(storageWith(fixtureText())).load();
 
-			expect(loaded?.toJSON()).toEqual(campaignV1);
+			expect(loaded?.toJSON()).toEqual(campaignV2);
 		});
 
 		it('takes turns between two slots, switching `active` only once the new save is in', async () => {
@@ -108,7 +108,7 @@ describe('CampaignStore', () => {
 
 		it('writes nothing for a campaign a save couldn\'t load back', async () => {
 			const storage = new FaultyStorage();
-			const campaign = Campaign.fromJSON(campaignV1);
+			const campaign = Campaign.fromJSON(campaignV2);
 			campaign.convoy.escorts[0].set({ structure: 41 });
 
 			const error = await failure(storeOver(storage).save(campaign));
@@ -291,7 +291,7 @@ describe('CampaignStore', () => {
 
 		it('doesn\'t load a save from another version of the save format, older or newer, and leaves it be', async () => {
 			for (const version of [CAMPAIGN_SCHEMA_VERSION - 1, CAMPAIGN_SCHEMA_VERSION + 1]) {
-				const text = saveText({ campaign: JSON.stringify(campaignV1), version });
+				const text = saveText({ campaign: JSON.stringify(campaignV2), version });
 				const storage = storageWith(text);
 				const store = storeOver(storage);
 
@@ -372,7 +372,7 @@ describe('CampaignStore', () => {
 			['a', 'b'],
 			['b', 'a']
 		] as const)('takes the newest of two saves that load when nothing names either, here in slot %s', async (newest, older) => {
-			const write = (day: number, sequence: number): string => saveText({ campaign: JSON.stringify({ ...campaignV1, day }), sequence });
+			const write = (day: number, sequence: number): string => saveText({ campaign: JSON.stringify({ ...campaignV2, day }), sequence });
 			const store = storeOver(new MemorySaveStorage({ items: { [KEYS.slots[newest]]: write(9, 6), [KEYS.slots[older]]: write(8, 5) } }));
 
 			expect((await store.load())?.day).toBe(9);
@@ -457,10 +457,10 @@ describe('CampaignStore', () => {
 
 		it.each([
 			['{}', '{}'],
-			['a campaign with no stamp', JSON.stringify(campaignV1)],
-			['a null version', saveText({ campaign: JSON.stringify(campaignV1) }).replace(/^\{"version":\d+/, '{"version":null')],
-			['a version in a string', saveText({ campaign: JSON.stringify(campaignV1) }).replace(/^\{"version":(\d+)/, '{"version":"$1"')],
-			['a version that isn\'t an integer', saveText({ campaign: JSON.stringify(campaignV1) }).replace(/^\{"version":(\d+)/, '{"version":$1.5')]
+			['a campaign with no stamp', JSON.stringify(campaignV2)],
+			['a null version', saveText({ campaign: JSON.stringify(campaignV2) }).replace(/^\{"version":\d+/, '{"version":null')],
+			['a version in a string', saveText({ campaign: JSON.stringify(campaignV2) }).replace(/^\{"version":(\d+)/, '{"version":"$1"')],
+			['a version that isn\'t an integer', saveText({ campaign: JSON.stringify(campaignV2) }).replace(/^\{"version":(\d+)/, '{"version":$1.5')]
 		])('reads %s as damaged rather than another version\'s, and keeps it', async (_label, text) => {
 			const storage = storageWith(text);
 			const store = storeOver(storage);
@@ -1112,7 +1112,7 @@ describe('CampaignStore', () => {
 	describe('the history', () => {
 		it.each([
 			['isn\'t JSON', '{"version":1,'],
-			['has a seed JSON reads as Infinity', '{"version":1,"campaigns":[{"seed":1e999,"day":3,"strongholdsTaken":0,"ending":"won"}]}'],
+			['has a seed JSON reads as Infinity', `{"version":${CAMPAIGN_SCHEMA_VERSION},"campaigns":[{"seed":1e999,"day":3,"strongholdsTaken":0,"ending":"won"}]}`],
 			['has an ending that doesn\'t exist', stampedHistory([{ seed: 1, day: 3, strongholdsTaken: 0, ending: 'exploded' as CampaignHistoryEntry['ending'] }])]
 		])('fails as damaged when it %s, and keeps it', async (_label, text) => {
 			const storage = storageWith(fixtureText(), { [KEYS.history]: text });
