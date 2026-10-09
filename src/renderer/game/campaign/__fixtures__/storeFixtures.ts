@@ -2,7 +2,7 @@ import { resolveMapParams } from '../../map/MapParams';
 import { CAMPAIGN_SCHEMA_VERSION, Campaign } from '../Campaign';
 import { CampaignStore, CampaignStoreError, campaignKeys } from '../CampaignStore';
 import { MemorySaveStorage, SaveStorage } from '../SaveStorage';
-import campaignV1 from './campaign-v1.json';
+import campaignV2 from './campaign-v2.json';
 
 export const SEED = 20261006;
 
@@ -28,9 +28,9 @@ export function saveText({ campaign, version = CAMPAIGN_SCHEMA_VERSION, sequence
 	return `{"version":${version},"sequence":${sequence},"campaign":${campaign}}`;
 }
 
-/** The version 1 fixture as save text, its campaign changed first if asked. */
+/** The version 2 fixture as save text, its campaign changed first if asked. */
 export function fixtureText(change: (campaign: Record<string, unknown>) => void = () => undefined): string {
-	const campaign = JSON.parse(JSON.stringify(campaignV1));
+	const campaign = JSON.parse(JSON.stringify(campaignV2));
 	change(campaign);
 	return saveText({ campaign: JSON.stringify(campaign) });
 }
@@ -42,7 +42,7 @@ export function damagedText(): string {
 
 /** The fixture saved by the next version of the save format. */
 export function outdatedText(): string {
-	return saveText({ campaign: JSON.stringify(campaignV1), version: CAMPAIGN_SCHEMA_VERSION + 1 });
+	return saveText({ campaign: JSON.stringify(campaignV2), version: CAMPAIGN_SCHEMA_VERSION + 1 });
 }
 
 /** The store error a call rejected with. */

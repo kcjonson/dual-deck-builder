@@ -12,8 +12,8 @@ export type EscortType = 'outrider' | 'pilot_car' | 'fuel_hauler' | 'med_truck';
 export type EscortRole = 'gun' | 'hauler';
 
 /**
- * What a hauler pays after every fight it survives: fuel or scrap for the
- * run, or HP for every living driver in the run, up to their starting HP
+ * What a hauler pays after every won fight it survives: fuel or scrap for
+ * the run's cargo, or HP for every living driver in the run, up to their max HP
  */
 export interface EscortDividend {
 	kind: 'fuel' | 'scrap' | 'heal';

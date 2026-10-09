@@ -54,23 +54,17 @@ describe('the convoy in a save', () => {
 			.toEqual([escort.armor, escort.maxArmor, escort.structure, escort.maxStructure, escort.baseSpeed]);
 	});
 
-	it('keeps a driven vehicle that carried on unmanned, which has no type to look its stats up by', () => {
+	it('refuses an escort with no type: a driven vehicle that carried on unmanned is its driver\'s, never the convoy\'s', () => {
 		const convoy = new Convoy({ escorts: [unmannedBike()] });
 
-		const [bike] = readConvoy(throughText(convoy), 'convoy').escorts;
+		expect(() => readConvoy(throughText(convoy), 'convoy')).toThrow('convoy[0].escort.type must be a string, got null');
+	});
 
-		expect(bike.escort).toEqual({
-			type: null,
-			role: 'gun',
-			gunnery: 4,
-			evade: 3,
-			ramming: 2,
-			preferredSlot: { lane: 'inside', row: RoadRow.BEHIND },
-			signatureCard: null,
-			dividend: null,
-			setPiece: false
-		});
-		expect([bike.name, bike.structure, bike.maxStructure, bike.baseSpeed]).toEqual(['Lightning Bike', 22, 50, 5]);
+	it('refuses more escorts than a convoy holds', () => {
+		const five = (['outrider', 'pilot_car', 'fuel_hauler', 'med_truck'] as const).map(type => escortToJson(createEscort({ type })));
+		five.push(escortToJson(createEscort({ type: 'outrider' })));
+
+		expect(() => readConvoy(five, 'convoy')).toThrow('convoy holds 5 escorts, and a convoy holds 4 at most');
 	});
 
 	it('leaves a fight\'s state behind: a loaded escort is off the road, empty, and ready', () => {

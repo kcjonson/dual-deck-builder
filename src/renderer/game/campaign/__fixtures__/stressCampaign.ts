@@ -17,7 +17,7 @@ const STOPS = 300;
 
 /**
  * A long campaign, larger in every list than play should reach: day 400,
- * 60 drivers with full decks, every card type in the locker, five escorts,
+ * 60 drivers with full decks, every card type in the locker, a full convoy of four,
  * eight strongholds, 2,000 log lines, and a stand-in gameplay map at the
  * spec's sizes (polylines to a tenth of a world unit, POIs with approaches,
  * stops with their state, 64 by 64 land fog). It measures how big a save
@@ -34,7 +34,7 @@ export function stressCampaign(): Campaign {
 		resources: { food: 1240, water: 980, fuel: 312, meds: 87, scrap: 4310, people: 260 },
 		unrest: 12,
 		locker: Object.fromEntries(CARD_TYPES.map(type => [type, rng.int(1, 9)])),
-		convoy: new Convoy({ escorts: (['outrider', 'pilot_car', 'fuel_hauler', 'outrider', 'fuel_hauler'] as const).map(type => createEscort({ type })) })
+		convoy: new Convoy({ escorts: (['outrider', 'pilot_car', 'fuel_hauler', 'med_truck'] as const).map(type => createEscort({ type })) })
 	});
 	for (let index = 0; index < 60; index += 1) {
 		const driver = campaign.recruitDriver({ archetype: DRIVER_ARCHETYPES[index % DRIVER_ARCHETYPES.length] });
