@@ -54,12 +54,13 @@ export interface CompoundScreenOptions {
  * needs panel (food and water forecasts, injured drivers, rumors) over Rest
  * and Plan a supply run.
  *
- * Nothing behind the buildings, the Area map, or Plan a supply run exists
- * yet, so each is disabled with its reason as a line of text, as the main
- * menu's Continue is: a disabled control takes no focus or hover (R9.5),
- * and a tooltip needs one of them (R12.22). The Area map's reason is the
- * Map room's, on its tile, which leaves the top bar room for the stores.
- * Rest is live: it ends the day (`endDay`) and checkpoints the campaign.
+ * The bunkhouse opens the Crew screen with the campaign. Nothing behind the
+ * other buildings, the Area map, or Plan a supply run exists yet, so each
+ * is disabled with its reason as a line of text, as the main menu's
+ * Continue is: a disabled control takes no focus or hover (R9.5), and a
+ * tooltip needs one of them (R12.22). The Area map's reason is the Map
+ * room's, on its tile, which leaves the top bar room for the stores. Rest
+ * is live: it ends the day (`endDay`) and checkpoints the campaign.
  *
  * Focus starts on Back to menu, not Rest, so a stray Enter can't spend a
  * day. The buildings and the two actions are focus groups (R9.29), and
@@ -81,6 +82,8 @@ export class CompoundScreen extends Screen {
 	private report: Text | null = null;
 	private saveError: Text | null = null;
 	private fallen: Dialog | null = null;
+	/** The buttons of buildings whose screens exist, enabled once there's a campaign to open them with. */
+	private readonly liveBuildings: Button[] = [];
 	private unsubscribe: (() => void) | null = null;
 	private resting = false;
 	/** Counts mounts and unmounts, so an answer that arrives after the screen has gone changes nothing. */
@@ -132,7 +135,7 @@ export class CompoundScreen extends Screen {
 			padding: space.space_4,
 			gap: space.space_4,
 		});
-		body.addChild(createBuildings());
+		body.addChild(createBuildings({ open: (building) => this.open(building), live: this.liveBuildings }));
 		body.addChild(this.createSide());
 		this.stack.addChild(body);
 
@@ -167,6 +170,7 @@ export class CompoundScreen extends Screen {
 		this.restLine = null;
 		this.report = null;
 		this.saveError = null;
+		this.liveBuildings.length = 0;
 		this.resting = false;
 	}
 
@@ -285,6 +289,7 @@ export class CompoundScreen extends Screen {
 	private show(campaign: Campaign): void {
 		this.campaign = campaign;
 		if (this.restButton) this.restButton.enabled = true;
+		for (const button of this.liveBuildings) button.enabled = true;
 		if (this.dayLabel) this.dayLabel.visible = true;
 		if (this.stores) this.stores.visible = true;
 		this.refresh();
@@ -388,6 +393,11 @@ export class CompoundScreen extends Screen {
 		dialog.show(this.context);
 	}
 
+	/** A building's screen, handed the campaign; Back from it lands on the building's button. */
+	private open(building: Building): void {
+		if (this.campaign && building.action && !this.fallen) building.action({ campaign: this.campaign });
+	}
+
 	/** To the menu, focus back on the button that opened this screen. */
 	private back(): void {
 		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
@@ -398,9 +408,11 @@ export class CompoundScreen extends Screen {
  * The buildings as the menu: rows of three tiles that share the room, where
  * the illustrated scene will go. One focus group whose Left and Right move
  * through the buildings in reading order; Up and Down go unconsumed to
- * directional focus (R9.24, R9.26), so they move between the rows.
+ * directional focus (R9.24, R9.26), so they move between the rows. A
+ * building whose screen exists has its button added to `live`, disabled
+ * until there's a campaign to open it with.
  */
-function createBuildings(): FocusGroup {
+function createBuildings({ open, live }: { open: (building: Building) => void; live: Button[] }): FocusGroup {
 	const grid = new FocusGroup({
 		id: 'compound_buildings',
 		orientation: 'horizontal',
@@ -418,7 +430,7 @@ function createBuildings(): FocusGroup {
 			crossAlign: 'stretch',
 			gap: space.space_3,
 		});
-		BUILDINGS.slice(start, start + BUILDINGS_PER_ROW).forEach((building) => row.addChild(buildingTile(building)));
+		BUILDINGS.slice(start, start + BUILDINGS_PER_ROW).forEach((building) => row.addChild(buildingTile({ building, open, live })));
 		grid.addChild(row);
 	}
 	return grid;
@@ -429,7 +441,8 @@ function createBuildings(): FocusGroup {
  * what it's for and why it's disabled over its button, so the buttons line up
  * whatever the text above them wraps to. The art goes in the room between.
  */
-function buildingTile({ id, name, description, reason, action }: Building): Stack {
+function buildingTile({ building, open, live }: { building: Building; open: (building: Building) => void; live: Button[] }): Stack {
+	const { id, name, description, reason } = building;
 	const tile = new Stack({
 		id: `compound_building_${id}`,
 		widthMode: 'fill',
@@ -450,14 +463,16 @@ function buildingTile({ id, name, description, reason, action }: Building): Stac
 	const foot = new Stack({ id: `compound_building_${id}_foot`, crossAlign: 'stretch', gap: space.space_1_5 });
 	foot.addChild(caption({ id: `compound_building_${id}_description`, text: description, color: 'text' }));
 	if (reason !== null) foot.addChild(caption({ id: `compound_building_${id}_reason`, text: reason }));
-	foot.addChild(new Button({
+	const button = new Button({
 		label: name,
 		id: `compound_building_${id}_button`,
 		block: true,
-		disabled: reason !== null,
-		onClick: action,
+		disabled: true,
+		onClick: () => open(building),
 		margin: { top: space.space_1_5 },
-	}));
+	});
+	if (reason === null && building.action) live.push(button);
+	foot.addChild(button);
 	tile.addChild(foot);
 	return tile;
 }
