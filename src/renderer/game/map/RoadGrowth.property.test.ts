@@ -22,7 +22,9 @@ describe('growth across the tuning ranges', () => {
 
 		// Passable, outward, inside the disc, no crossings, clearance, junction
 		// angles, and the trees: every stretch's parent chain ends at a highway's
-		// city street from the compound, without a loop.
+		// city street from the compound, without a loop. Growth's own check is
+		// the same, and growMap throws when it needed a retry, so this is the
+		// first attempt's network.
 		expect(checkRoadNetwork({ network, terrain, clearance, limit: 5 })).toEqual([]);
 
 		expectHighwaysFromDepartures(map);

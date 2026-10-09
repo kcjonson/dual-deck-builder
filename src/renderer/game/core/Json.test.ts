@@ -1,5 +1,5 @@
 import { runInNewContext } from 'vm';
-import { JsonObject, ProblemList, copyJson, describeValue } from './Json';
+import { JsonObject, ProblemList, copyJson, describeValue, isPlainObject } from './Json';
 
 class Weights {
 	constructor(public wreck = 1) {}
@@ -93,6 +93,31 @@ describe('copyJson', () => {
 	});
 });
 
+describe('isPlainObject', () => {
+	it.each([
+		['an object literal', { wreck: 1 }],
+		['another realm\'s object', runInNewContext('({ wreck: 1 })')],
+		['an object with no prototype', Object.create(null)],
+		['an object made on an empty one with no prototype', Object.create(Object.create(null) as object)],
+	])('takes %s', (_case, value) => {
+		expect(isPlainObject(value)).toBe(true);
+	});
+
+	it.each([
+		['null', null],
+		['a list', [1]],
+		['another realm\'s list', runInNewContext('[1]')],
+		['a Date', new Date(0)],
+		['a class instance', new Weights()],
+		['another realm\'s class instance', runInNewContext('new Map()')],
+		['an object made on another, whose values it would inherit', Object.create({ wreck: 1 })],
+		['an object made on one with no prototype but values of its own', Object.create(Object.assign(Object.create(null) as object, { wreck: 1 }))],
+		['a string', 'x'],
+	])('refuses %s', (_case, value) => {
+		expect(isPlainObject(value)).toBe(false);
+	});
+});
+
 describe('ProblemList', () => {
 	it('is empty until a problem is added, then lists it', () => {
 		const problems = new ProblemList({ limit: 3 });
@@ -115,9 +140,17 @@ describe('describeValue', () => {
 		['an object', { wreck: 1 }, '{"wreck":1}'],
 		['a Date', new Date(0), 'a Date'],
 		['an Error', new Error('x'), 'an Error'],
+		['an object made on another', Object.create({ radius: 5000 }), 'an object made on another'],
+		['an anonymous class\'s instance', new (class {})(), 'an object'],
 		['a long string, cut short', 'x'.repeat(80), `"${'x'.repeat(56)}...`],
 	])('shows %s as %p', (_case, value, shown) => {
 		expect(describeValue(value)).toBe(shown);
+	});
+
+	it('never runs a constructor getter on the prototype', () => {
+		const prototype = Object.defineProperty({}, 'constructor', { get: () => { throw new Error('ctor'); } });
+
+		expect(describeValue(Object.create(prototype))).toBe('an object');
 	});
 
 	it('still says something about a value JSON can\'t write', () => {

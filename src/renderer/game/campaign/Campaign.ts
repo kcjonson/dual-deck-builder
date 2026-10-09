@@ -1230,7 +1230,7 @@ function readRunDecks(
 	{ drivers, convoy, held }: { drivers: readonly DriverRecord[]; convoy: Convoy; held?: readonly RunDeck[] }
 ): readonly RunDeck[] {
 	if (held !== undefined && value === held) return held;
-	const decks = readArray(value, path).map((deck, index) => {
+	const decks = Array.from(readArray(value, path), (deck, index) => {
 		if (!(deck instanceof RunDeck)) throw new ReaderTypeError(`${path}[${index}] must be a RunDeck, got ${describeValue(deck)}`);
 		if (!drivers.includes(deck.driver)) throw new ReaderRangeError(`${path}[${index}].driver ${deck.driver.id} isn't in the pool`);
 		return deck;
@@ -1330,7 +1330,7 @@ export function readResources(value: unknown, path: string): Readonly<Resources>
 
 function readStrongholds(value: unknown, path: string): readonly string[] {
 	if (typeof value === 'object' && value !== null && checkedStrongholds.has(value)) return value as readonly string[];
-	const ids = readArray(value, path).map((id, index) => readText(id, `${path}[${index}]`));
+	const ids = Array.from(readArray(value, path), (id, index) => readText(id, `${path}[${index}]`));
 	ids.forEach((id, index) => {
 		if (ids.indexOf(id) !== index) throw new ReaderRangeError(`${path}[${index}] ${describeValue(id)} is already in the list`);
 	});
@@ -1361,7 +1361,7 @@ function readLog(value: unknown, path: string, today: number, previous?: readonl
 /** Entries checked in order from `start`, none before `after`'s day or after today. */
 function readLogEntries(entries: readonly unknown[], path: string, today: number, start: number, after: number): Readonly<CampaignLogEntry>[] {
 	let previousDay = after;
-	return entries.map((entry, offset) => {
+	return Array.from(entries, (entry, offset) => {
 		const at = `${path}[${start + offset}]`;
 		const fields = readFields(entry, at, ['day', 'message']);
 		const day = readInteger(fields.day, `${at}.day`, { min: 1, max: today, maxLabel: `today (${today})` });
