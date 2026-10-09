@@ -212,7 +212,7 @@ The minimal first version has four. The driven vehicles open at inside center an
 |---|---|---|---|---|
 | Outrider | gun | 5 | inside ahead | Run Ahead |
 | Pilot Car | gun | 4 | outside ahead | Flag Down |
-| Fuel Hauler | hauler, +1 fuel after each fight | not set | outside center | Top Off |
+| Fuel Hauler | hauler, +1 fuel to the run's cargo after each won fight | not set | outside center | Top Off |
 | Med Truck | hauler, every driver still above 0 HP heals 3 HP after each won fight | not set | outside behind | Triage |
 
 The three new signature cards were decided 2026-09-26 (Kevin delegated the call; record in [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decisions 23 to 27, cards in Card System Design 4.5):
