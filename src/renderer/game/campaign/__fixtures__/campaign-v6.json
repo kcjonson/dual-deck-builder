@@ -234,6 +234,12 @@
 			"message": "Road Warrior 2 went missing on the run to Mile 40."
 		}
 	],
+	"tally": {
+		"runsHome": 1,
+		"runsFailed": 1,
+		"fightsWon": 3
+	},
+	"end": null,
 	"mapParams": {
 		"seed": 20261006,
 		"environment": "mixed",

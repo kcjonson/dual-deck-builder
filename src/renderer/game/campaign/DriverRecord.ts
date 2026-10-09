@@ -107,8 +107,9 @@ export class DriverRecord extends Model<DriverRecordData> {
 	/**
 	 * Changes fields together, checked as a whole: dying sets status, 0
 	 * hitpoints, and an empty deck in one call. Throws without changing
-	 * anything if the record would be invalid, a field is unknown, or the id
-	 * or archetype would change.
+	 * anything if the record would be invalid, a field is unknown, the id or
+	 * archetype would change, or a dead driver would be anything but dead:
+	 * death is permanent.
 	 */
 	public override set(changes: Partial<DriverRecordData>): void {
 		const current = this.getState();
@@ -116,6 +117,9 @@ export class DriverRecord extends Model<DriverRecordData> {
 			if (current[field] !== undefined && field in changes && changes[field] !== current[field]) {
 				throw new RangeError(`DriverRecord.${field} can't change, from ${describeValue(current[field])} to ${describeValue(changes[field])}`);
 			}
+		}
+		if (current.status === 'dead' && changes.status !== undefined && changes.status !== 'dead') {
+			throw new RangeError(`${describeDriver(this)} is dead, and death is permanent, so they can't be ${describeValue(changes.status)}`);
 		}
 		const valid = readDriverRecordData({ ...current, ...changes }, 'DriverRecord');
 		super.set(Object.fromEntries(Object.keys(changes).map(key => [key, valid[key as keyof DriverRecordData]])));

@@ -9,6 +9,7 @@ import { DRIVER_CONFIGS, Driver, DriverRole } from '../mechanics/Driver';
 import { Team, TeamType } from '../mechanics/Team';
 import { Vehicle, createDrivenVehicle } from '../mechanics/Vehicle';
 import { Campaign, NO_RESOURCES, Resources, readResources } from './Campaign';
+import { refuseOver } from './CampaignEnd';
 import { CardCounts, NO_CARDS, addCards, readCardCounts } from './CardCounts';
 import { DriverRecord, DriverRecordData, VehicleCondition, describeDriver, readDriverRecordData } from './DriverRecord';
 import { isStoringWriteBack, openFightOf, setOpenFight, setStoringWriteBack } from './OpenFights';
@@ -132,11 +133,11 @@ type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
  * and Battle.start shuffles it on the seat's deck stream before the opening
  * deal. Everything random draws from `rng`.
  *
- * Throws, building nothing, while the campaign's last fight hasn't been
- * written back or is being written back (from a listener partway through
- * it), while the campaign is storing records (a listener partway through a
- * card move, or a run starting or ending), and unless the party seats two
- * drivers load out's own check
+ * Throws, building nothing, once the campaign is over, while the campaign's
+ * last fight hasn't been written back or is being written back (from a
+ * listener partway through it), while the campaign is storing records (a
+ * listener partway through a card move, or a run starting or ending), and
+ * unless the party seats two drivers load out's own check
  * (`getSeatBlocker`) seats together: each from the campaign's pool and
  * ready, checked in seat order, then two different drivers of different
  * archetypes. So does a party whose cargo doesn't check out, an escort that
@@ -148,6 +149,7 @@ type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
  * they do.
  */
 export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, enemyAI = 'aggressive' }: CampaignFightOptions): CampaignFight {
+	refuseOver({ campaign, action: 'start a fight' });
 	if (isStoringWriteBack(campaign)) throw new Error("This campaign's last fight is still being written back");
 	if (openFightOf(campaign) !== null) throw new Error("This campaign's last fight hasn't been written back");
 	if (campaign.isStoring) throw new Error("This campaign is partway through storing its records, so a fight can't start on them");
@@ -212,18 +214,20 @@ export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, ene
  * fails.
  *
  * Everything is worked out and checked before anything is stored, then
- * stored in one order: the records in seat order, the run decks, then the
- * convoy and its seats. The compound's stores and locker are left alone:
+ * stored in one order: the records in seat order, the run decks, the convoy
+ * and its seats, then, after a win, the campaign's tally of fights won. The
+ * compound's stores and locker are left alone:
  * they change when the run ends (`Campaign.unloadRun` or
  * `Campaign.loseRun`). Save at the step's checkpoint, after this: until a
  * fight is written back its wrecked escorts are still in the convoy, and a
  * campaign holding a wreck can't be saved.
  *
  * Throws, storing nothing, for a fight that isn't over, ended in a tie (a
- * campaign fight has no turn limit), or is written back already, and for a
- * result its records no longer fit. When storing throws part way (a
- * listener changed a record in between), the fight can be written back
- * again: every step stores the same thing a second time.
+ * campaign fight has no turn limit), or is written back already, once the
+ * campaign is over, and for a result its records no longer fit. When
+ * storing throws part way (a listener changed a record in between), the
+ * fight can be written back again: every step stores the same thing a
+ * second time, and the fight won is counted once, by the last step.
  */
 export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteBack {
 	const { campaign, battle, drivers, vehicles, party } = fight;
@@ -231,6 +235,7 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
 	if (!battle.isBattleOver() || !afterFight) throw new Error("The fight isn't over, so there's nothing to write back yet");
 	if (battle.isBattleTied()) throw new Error('The fight ended in a tie at its turn limit; a campaign fight has none, so it ends won or lost');
 	if (openFightOf(campaign) !== fight) throw new Error('This fight has already been written back');
+	refuseOver({ campaign, action: 'write a fight back' });
 	const won = battle.isBattleWon();
 
 	const seats = party.seats.map((record, index) => {
@@ -251,6 +256,8 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
 		campaign.convoy.afterFight({ lost: escortsLost });
 		// endCombat leaves seats alone, and a driver left aboard would ride into the next fight as well as drive in it
 		party.escorts.forEach(escort => { escort.passenger = null; });
+		// Last, so a store that throws before it leaves the fight uncounted for the second try
+		if (won) campaign.set({ tally: { ...campaign.tally, fightsWon: campaign.tally.fightsWon + 1 } });
 	} catch (error) {
 		setOpenFight({ campaign, fight });
 		throw error;

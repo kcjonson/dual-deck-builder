@@ -72,12 +72,13 @@ Everything is worked out and checked first: each record's next state goes throug
 1. The records, in seat order.
 2. The run decks, without the cards the lost escorts brought (`Campaign.removeEscortCards`), before the convoy lets those escorts go, so the campaign never holds a card from an escort that isn't in the convoy.
 3. The convoy (`Convoy.afterFight`), then the seats of every escort that came along, emptied. `endCombat` leaves seats as they are, and each driver drives their own vehicle into the next fight, so a driver left aboard would be in it twice.
+4. After a win, the campaign's tally of fights won, which the defeat screen counts ([campaign-end.md](./campaign-end.md)).
 
-The campaign changes only when a lost escort's card leaves a run deck, and emits a `change` then. The step's checkpoint saves after the write-back, and has to: until a fight is written back its wrecked escorts are still in the convoy, and `Campaign.toSaveText` refuses a convoy holding a wreck.
+The campaign changes when a lost escort's card leaves a run deck and when a won fight is counted, and emits a `change` for each. The step's checkpoint saves after the write-back, and has to: until a fight is written back its wrecked escorts are still in the convoy, and `Campaign.toSaveText` refuses a convoy holding a wreck.
 
 ### Partial writes
 
-A listener can't stop a write-back by throwing, since `EventEmitter.emit` catches and logs whatever a listener throws. A store can still throw part way when a listener changes a later record in between, say kills the second driver when the first one's record changes; that record's `set` then refuses the result. The fight stops being the campaign's open fight before anything is stored, so a write-back started from inside it is refused, and it's open again when a store throws. Every step stores the same thing a second time, so once whatever changed the record is put right, writing the fight back again finishes the job.
+A listener can't stop a write-back by throwing, since `EventEmitter.emit` catches and logs whatever a listener throws. A store can still throw part way when a listener changes a later record in between, say kills the second driver when the first one's record changes; that record's `set` then refuses the result. The fight stops being the campaign's open fight before anything is stored, so a write-back started from inside it is refused, and it's open again when a store throws. Every step stores the same thing a second time, and the fight won is counted by the last step, so once whatever changed the record is put right, writing the fight back again finishes the job and counts the fight once.
 
 Closing the fight first would let a listener start the next one partway through, on one record written back and the other not, with the wreck still in the convoy. So the bridge also keeps a set of the campaigns storing a write-back, as `Campaign.moveCards` keeps the ones storing a move, and `startCampaignFight` refuses a campaign in it. When a store throws, the fight is open again, so the next fight waits for the write-back to finish either way.
 

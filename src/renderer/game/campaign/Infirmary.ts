@@ -1,5 +1,6 @@
 import { readInteger } from '../core/JsonReader';
 import type { Campaign } from './Campaign';
+import { refuseOver } from './CampaignEnd';
 import { hasOpenFight } from './OpenFights';
 import { COMPOUND_RULES, CompoundRules, readCompoundRules } from './CompoundRules';
 import type { DriverRecord, DriverRecordData, DriverStatus } from './DriverRecord';
@@ -80,10 +81,10 @@ export function injuryDays({ hitpoints, maxHitpoints, rules = COMPOUND_RULES }: 
  *
  * Returns who's injured, in the order given, frozen. The campaign itself
  * doesn't change, so only the injured drivers' records emit. Throws,
- * changing nothing, while the campaign's fight is open or being written
- * back (the write-back has to fit the records as the fight left them, and
- * a listener partway through it sees them half stored), and for a driver
- * outside the campaign's pool, one listed twice, or one who isn't ready: a
+ * changing nothing, once the campaign is over, while the campaign's fight
+ * is open or being written back (the write-back has to fit the records as
+ * the fight left them, and a listener partway through it sees them half
+ * stored), and for a driver outside the campaign's pool, one listed twice, or one who isn't ready: a
  * run leaves with ready drivers, and only a failed run, which never gets
  * home, changes a seat's status on the road.
  */
@@ -92,6 +93,7 @@ export function injureOnArrival({ campaign, drivers, rules = COMPOUND_RULES }: {
 	drivers: readonly DriverRecord[];
 	rules?: CompoundRules;
 }): readonly Injury[] {
+	refuseOver({ campaign, action: 'injure drivers coming home' });
 	if (hasOpenFight(campaign)) throw new Error("This campaign's last fight hasn't been written back, so nobody has come home from it yet");
 	const checked = readCompoundRules(rules, 'CompoundRules');
 	drivers.forEach((driver, index) => {
@@ -144,9 +146,11 @@ export function getTreatmentBlocker({ campaign, driver, days = 1, rules = COMPOU
  * away, as one the night heals is at dawn, so they can go out today. The
  * record is stored first and the campaign last, so the campaign's `change`
  * comes once the treatment is whole. Throws a `TreatmentRuleError`,
- * changing nothing, when `getTreatmentBlocker` refuses.
+ * changing nothing, when `getTreatmentBlocker` refuses, and a
+ * `CampaignOverError` once the campaign is over.
  */
 export function treatDriver({ campaign, driver, days = 1, rules = COMPOUND_RULES }: TreatmentOptions): number {
+	refuseOver({ campaign, action: 'treat a driver' });
 	const { blocker, cost } = checkTreatment({ campaign, driver, days, rules });
 	if (blocker !== null) throw new TreatmentRuleError({ message: treatmentMessage({ blocker, driver, days }), blocker });
 	driver.set(healingChanges({ driver, days }));

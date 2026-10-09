@@ -70,13 +70,15 @@ const SAVE_FORMAT = {
 		'convoy.escorts[].mods[].name', 'convoy.escorts[].name', 'convoy.escorts[].structure', 'convoy.nextEscortNumber',
 		'day', 'drivers', 'drivers[]', 'drivers[].archetype', 'drivers[].defaultDeck', 'drivers[].defaultDeck.<card type>',
 		'drivers[].handLimit', 'drivers[].hitpoints', 'drivers[].id', 'drivers[].injuredDays', 'drivers[].maxHitpoints', 'drivers[].name',
-		'drivers[].runsCompleted', 'drivers[].status', 'drivers[].vehicle', 'drivers[].vehicle.armor', 'drivers[].vehicle.structure', 'generatorVersion', 'locker', 'locker.<card type>', 'log', 'log[]', 'log[].day', 'log[].message', 'map',
+		'drivers[].runsCompleted', 'drivers[].status', 'drivers[].vehicle', 'drivers[].vehicle.armor', 'drivers[].vehicle.structure', 'end', 'generatorVersion', 'locker', 'locker.<card type>', 'log', 'log[]', 'log[].day', 'log[].message', 'map',
 		'mapParams', 'mapParams.<map parameter>', 'nextDriverNumber', 'nextRunNumber', 'resources', 'resources.food', 'resources.fuel', 'resources.meds', 'resources.people',
 		'resources.scrap', 'resources.water', 'runDecks', 'runDecks[]', 'runDecks[].borrowed', 'runDecks[].borrowed.<card type>', 'runDecks[].driver',
 		'runDecks[].escortCards', 'runDecks[].escortCards[]', 'runDecks[].escortCards[].broughtBy', 'runDecks[].escortCards[].cardType',
 		'runDecks[].leftHome', 'runDecks[].leftHome.<card type>', 'runDecks[].own', 'runDecks[].own.<card type>',
-		'seed', 'strongholdsTaken', 'strongholdsTaken[]', 'unrest'
+		'seed', 'strongholdsTaken', 'strongholdsTaken[]', 'tally', 'tally.fightsWon', 'tally.runsFailed', 'tally.runsHome', 'unrest'
 	],
+	/** The fixture's campaign stands, so its end is null; a campaign that's over writes these. */
+	end: ['cause', 'ending'],
 	historyEntry: ['day', 'ending', 'seed', 'strongholdsTaken'],
 	history: ['campaigns', 'version']
 };
@@ -852,13 +854,21 @@ describe('Campaign', () => {
 
 		it('holds the save format to the version it\'s stamped with', () => {
 			const campaign = Campaign.fromJSON(CAMPAIGN_FIXTURE);
+			// The fixture home from its run, with nobody left: People gone, so the compound fell
+			const ended = Campaign.fromJSON({
+				...savedCampaign(),
+				runDecks: [],
+				resources: { ...CAMPAIGN_FIXTURE.resources, people: 0 },
+				end: { ending: 'disbanded', cause: 'no_people' }
+			});
 			const format = {
 				campaign: keyPaths(CAMPAIGN_FIXTURE),
+				end: keyPaths(ended.toJSON().end),
 				historyEntry: Object.keys(historyEntry({ campaign, ending: 'won' })).sort(),
 				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
 			};
 
-			expect(CAMPAIGN_SCHEMA_VERSION).toBe(5);
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(6);
 			try {
 				expect(format).toEqual(SAVE_FORMAT);
 			} catch (error) {

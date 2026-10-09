@@ -159,7 +159,7 @@ describe('endDay', () => {
 	});
 
 	describe('People reaching 0', () => {
-		it('says the compound is abandoned on the day the last of its people go', () => {
+		it('says the compound is abandoned on the day the last of its people go, and the campaign ends on that day (DDB-305)', () => {
 			const campaign = newCampaign({ people: 3, food: 0, water: 0 });
 
 			const first = endDay({ campaign });
@@ -167,17 +167,28 @@ describe('endDay', () => {
 
 			expect(first).toMatchObject({ peopleLost: 2, outcome: 'continues' });
 			expect(campaign.resources.people).toBe(0);
-			expect(second).toMatchObject({ peopleLost: 1, outcome: 'abandoned' });
+			expect(second).toMatchObject({ day: 2, peopleLost: 1, outcome: 'abandoned' });
+			// With no food left it starved, on the day that ended, which doesn't turn
+			expect(campaign.end).toEqual({ ending: 'starved', cause: 'no_people' });
+			expect(campaign.day).toBe(2);
+			expect(campaign.log).toEqual([
+				{ day: 1, message: 'Ran short of 1 food and 1 water; 2 people lost.' },
+				{ day: 2, message: 'Ran short of 1 food and 1 water; 1 person lost.' },
+				{ day: 2, message: 'No people are left, and the compound starved.' }
+			]);
 		});
 
-		it('leaves ending the campaign to the caller: an empty compound eats nothing, and the day still turns', () => {
+		it('ends the campaign at a compound already empty: it eats nothing, and the day doesn\'t turn (DDB-305)', () => {
 			const campaign = newCampaign({ people: 0, food: 5, water: 0 });
 
 			const result = endDay({ campaign });
 
-			expect(result).toMatchObject({ upkeep: { food: 0, water: 0 }, shortfall: { food: 0, water: 0 }, peopleLost: 0, outcome: 'abandoned' });
+			expect(result).toMatchObject({ day: 1, upkeep: { food: 0, water: 0 }, shortfall: { food: 0, water: 0 }, peopleLost: 0, outcome: 'abandoned' });
 			expect(campaign.resources.food).toBe(5);
-			expect(campaign.day).toBe(2);
+			expect(campaign.day).toBe(1);
+			expect(campaign.end).toEqual({ ending: 'disbanded', cause: 'no_people' });
+			expect(campaign.log).toEqual([{ day: 1, message: 'No people are left, and the compound disbanded.' }]);
+			expect(() => endDay({ campaign })).toThrow("Can't end the day: the campaign is over, since the compound disbanded");
 		});
 
 		it('says the compound continues while anyone is left', () => {
@@ -435,7 +446,8 @@ describe('forecastNeeds', () => {
 			if (days !== null) forecastNight[resource] = days + 1;
 		}
 
-		for (let night = 1; night <= 40; night++) {
+		// Until the compound falls, which ends the campaign
+		for (let night = 1; night <= 40 && !campaign.isOver; night++) {
 			const result = endDay({ campaign });
 			for (const resource of UPKEEP_RESOURCES) {
 				if (result.shortfall[resource] > 0) firstShort[resource] = Math.min(firstShort[resource], night);
@@ -463,8 +475,9 @@ describe('forecastNeeds', () => {
 const accountOf = (result: DayEnd) => ({ ...result, healed: result.healed.map(driver => driver.id) });
 
 /**
- * A founded campaign through `days` day ends, with runs scripted on `script`:
- * cargo some days, a settler find now and then, drivers coming home hurt.
+ * A founded campaign through `days` day ends, or until the compound falls,
+ * with runs scripted on `script`: cargo some days, a settler find now and
+ * then, drivers coming home hurt.
  */
 function playDays({ seed, script, days, check }: {
 	seed: number;
@@ -480,8 +493,8 @@ function playDays({ seed, script, days, check }: {
 		campaign.set({
 			resources: {
 				...stores,
-				food: stores.food + (cargo ? script.int(0, 8) : 0),
-				water: stores.water + (cargo ? script.int(0, 8) : 0),
+				food: stores.food + (cargo ? script.int(0, 14) : 0),
+				water: stores.water + (cargo ? script.int(0, 14) : 0),
 				people: stores.people + (script.int(0, 9) === 0 ? script.int(1, 3) : 0)
 			}
 		});
@@ -491,6 +504,7 @@ function playDays({ seed, script, days, check }: {
 		const result = endDay({ campaign });
 		check?.(campaign, snapshot, result);
 		results.push(result);
+		if (campaign.isOver) break;
 	}
 	return { campaign, results };
 }
@@ -546,7 +560,8 @@ describe('the day clock over a campaign', () => {
 				expect(result.unrestGained).toBe(unitsShort);
 				expect(after.unrest).toBe(before.unrest + unitsShort);
 				expect(after.log.length).toBe(before.logLength + (unitsShort > 0 ? 1 : 0));
-				expect(result.outcome).toBe(after.resources.people === 0 ? 'abandoned' : 'continues');
+				expect(result.outcome).toBe('continues');
+				expect(after.end).toBeNull();
 				before.drivers.forEach((was, index) => {
 					const driver = after.drivers[index];
 					const expected = was.status !== 'injured' ? conditionOf(was)
@@ -560,6 +575,7 @@ describe('the day clock over a campaign', () => {
 			}
 		});
 
+		// Cargo enough to keep the compound standing, so every night is one the day clock turns (CampaignEnd.test.ts walks one to its fall)
 		expect(campaign.day).toBe(151);
 		// The script has to have gone hungry and healed someone to have tested either.
 		expect(shortNights).toBeGreaterThan(5);

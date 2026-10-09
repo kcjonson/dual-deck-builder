@@ -22,11 +22,12 @@ describe('compound-rules.json', () => {
 		expect(read(shipped())).toEqual(COMPOUND_RULES);
 	});
 
-	it('feeds 4 people with each unit of food and water, a unit short costs a person and a point of unrest, and an infirmary day is 10 HP or a med', () => {
+	it('feeds 4 people with each unit of food and water, a unit short costs a person and a point of unrest, an infirmary day is 10 HP or a med, and a lost compound starves with no food or riots at 10 unrest', () => {
 		expect(COMPOUND_RULES).toEqual({
 			upkeep: { peoplePerUnit: { food: 4, water: 4 } },
 			shortfall: { peopleLostPerUnit: 1, unrestPerUnit: 1 },
-			infirmary: { hitpointsPerDay: 10, medsPerDay: 1 }
+			infirmary: { hitpointsPerDay: 10, medsPerDay: 1 },
+			fall: { starveAtFood: 0, riotAtUnrest: 10 }
 		});
 	});
 
@@ -36,6 +37,7 @@ describe('compound-rules.json', () => {
 		expect(Object.isFrozen(COMPOUND_RULES.upkeep.peoplePerUnit)).toBe(true);
 		expect(Object.isFrozen(COMPOUND_RULES.shortfall)).toBe(true);
 		expect(Object.isFrozen(COMPOUND_RULES.infirmary)).toBe(true);
+		expect(Object.isFrozen(COMPOUND_RULES.fall)).toBe(true);
 	});
 
 	it('takes shortfalls that cost nothing', () => {
@@ -75,7 +77,16 @@ describe('compound-rules.json', () => {
 		['free meds', (json: RulesJson) => { json.infirmary.medsPerDay = 0; },
 			'CompoundRules.infirmary.medsPerDay must be an integer from 1 to 100, got 0'],
 		['meds per day past any tuning', (json: RulesJson) => { json.infirmary.medsPerDay = 1000; },
-			'CompoundRules.infirmary.medsPerDay must be an integer from 1 to 100, got 1000']
+			'CompoundRules.infirmary.medsPerDay must be an integer from 1 to 100, got 1000'],
+		['no fall', (json: RulesJson) => { delete json.fall; }, 'CompoundRules.fall is missing'],
+		['a fall that never starves', (json: RulesJson) => { json.fall.starveAtFood = -1; },
+			'CompoundRules.fall.starveAtFood must be an integer from 0 to 1000, got -1'],
+		['a fall that riots at no unrest at all', (json: RulesJson) => { json.fall.riotAtUnrest = 0; },
+			'CompoundRules.fall.riotAtUnrest must be an integer from 1 to 1000, got 0'],
+		['a riot threshold past any tuning', (json: RulesJson) => { json.fall.riotAtUnrest = 1001; },
+			'CompoundRules.fall.riotAtUnrest must be an integer from 1 to 1000, got 1001'],
+		['a fall rule nothing reads', (json: RulesJson) => { json.fall.disbandAtPeople = 0; },
+			'CompoundRules.fall has an unknown field "disbandAtPeople"']
 	])('rejects %s', (_label, change, message) => {
 		expect(() => read(damaged(change))).toThrow(message);
 	});

@@ -12,5 +12,9 @@
 	"infirmary": {
 		"hitpointsPerDay": 10,
 		"medsPerDay": 1
+	},
+	"fall": {
+		"starveAtFood": 0,
+		"riotAtUnrest": 10
 	}
 }
