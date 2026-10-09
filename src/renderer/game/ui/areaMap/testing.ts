@@ -47,7 +47,7 @@ export function flatTerrain({ radius = 600, craters = [], rough = () => false, s
 		water: null,
 		samples: 0,
 		slopes: 0,
-		sample: (x: number, y: number, out = createTerrainSample()) => {
+		sample: (_x: number, _y: number, out = createTerrainSample()) => {
 			terrain.samples += 1;
 			out.biome = 'scrub';
 			out.slopeX = 0;

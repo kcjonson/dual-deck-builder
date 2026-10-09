@@ -70,14 +70,17 @@ describe('MapCamera', () => {
 		expect(camera.zoom).toBe(MAX_ZOOM);
 	});
 
-	it('keeps the centre inside the disc\'s bounding square, so the map never leaves the view', () => {
+	it('keeps the centre on the disc, so the map never leaves the view', () => {
 		const camera = new MapCamera({ radius: 600, width: 800, height: 600 });
 		camera.zoom = 2;
-		// Dragged far left and down: the camera heads east and north
+		// Dragged far left and down: the camera heads east and north, to the rim
 		camera.panBy(-1e6, 1e6);
-		expect(camera.center).toEqual({ x: 600, y: 600 });
-		camera.center = { x: -5000, y: 7 };
-		expect(camera.center).toEqual({ x: -600, y: 7 });
+		expect(Math.hypot(camera.center.x, camera.center.y)).toBeCloseTo(600, 9);
+		expect(camera.center.x).toBeCloseTo(camera.center.y, 9);
+		camera.center = { x: -5000, y: 0 };
+		expect(camera.center).toEqual({ x: -600, y: 0 });
+		camera.center = { x: 300, y: -400 };
+		expect(camera.center).toEqual({ x: 300, y: -400 });
 	});
 
 	it('refits a fitted rect on every resize, and keeps a moved camera where it was', () => {
@@ -98,13 +101,40 @@ describe('MapCamera', () => {
 		expect(camera.zoom).toBe(zoom);
 	});
 
-	it('fits a new map whole when the radius changes', () => {
+	it('fits a new map whole when the radius changes, and keeps its view of one the same size', () => {
 		const camera = new MapCamera({ radius: 600, width: 800, height: 800 });
 		camera.zoomAt(3, 100, 100);
+		const view = { center: camera.center, zoom: camera.zoom };
+		camera.radius = 600;
+		expect({ center: camera.center, zoom: camera.zoom }).toEqual(view);
+		expect(camera.isFitted).toBe(false);
+
 		camera.radius = 1600;
 		expect(camera.isFitted).toBe(true);
 		expect(camera.center).toEqual({ x: 0, y: 0 });
 		expect(camera.worldToScreen(1600, 0).x).toBeCloseTo(800 - 800 * FIT_MARGIN, 9);
+	});
+
+	it('goes back to the last rect fitted, not the whole disc', () => {
+		const camera = new MapCamera({ radius: 1000, width: 800, height: 800 });
+		camera.fit({ x: -200, y: -100, width: 400, height: 200 });
+		const framed = { center: camera.center, zoom: camera.zoom };
+		camera.panBy(120, -80);
+		camera.zoomAt(0.5, 10, 10);
+		camera.restoreFit();
+		expect({ center: camera.center, zoom: camera.zoom }).toEqual(framed);
+		expect(camera.isFitted).toBe(true);
+	});
+
+	it('leaves the zoom alone while the view has no area, so a hidden view comes back as it was', () => {
+		const camera = new MapCamera({ radius: 600, width: 800, height: 800 });
+		camera.zoom = 1.5;
+		camera.center = { x: 100, y: 50 };
+		camera.resize(0, 0);
+		expect(camera.zoom).toBe(1.5);
+		camera.resize(800, 800);
+		expect(camera.zoom).toBe(1.5);
+		expect(camera.center).toEqual({ x: 100, y: 50 });
 	});
 
 	it('reports the world rect it shows', () => {

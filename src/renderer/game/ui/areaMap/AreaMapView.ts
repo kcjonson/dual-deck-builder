@@ -17,6 +17,7 @@ import {
 	SELECTED_ROAD,
 	UNCHARTED_STUB,
 	BIOME_COLOURS,
+	FOG,
 	roadWidthScale,
 } from './areaMapStyle';
 import { bakeFog } from './fogBake';
@@ -52,8 +53,12 @@ import { bakeTerrain, terrainBakeSize } from './terrainBake';
  *
  * Input (chapter 9): a drag pans, the wheel zooms about the pointer (R9.32:
  * the view takes the wheel while it can still zoom that way), a click
- * selects the marker or road under it, and with focus the arrows pan and
- * `+` and `-` zoom.
+ * selects the marker or road under it, and with focus the arrows pan, `+`
+ * and `-` zoom, and `0` goes back to the last fit.
+ *
+ * A selection outlives changes to the markers, the knowledge, and the
+ * layers: it's drawn whenever what it names is drawn. Only a new map clears
+ * it, since its stretch ids name other roads there.
  */
 
 export interface AreaMapViewOptions extends ComponentOptions {
@@ -78,6 +83,9 @@ const TERRAIN_LABEL = 'area map terrain';
 const FOG_LABEL = 'area map fog';
 /** An uncharted stub's last dash keeps this much of its class's alpha. */
 const STUB_FADE_FLOOR = 0.15;
+/** Stub dashes are rebuilt at zoom steps this fine (8 a doubling), so a wheel zoom doesn't rebuild them every frame. */
+const DASH_ZOOM_STEPS = 8;
+const FOG_WASH: RGBA = [FOG.color[0] / 255, FOG.color[1] / 255, FOG.color[2] / 255, FOG.alpha];
 
 /** Each class's colour on a rumored road: opaque, so its joints don't darken. */
 const RUMORED_COLOURS = Object.fromEntries(
@@ -123,6 +131,13 @@ export class AreaMapView extends Component {
 	private fogTexture: Baked | null = null;
 
 	private press: Press | null = null;
+	/**
+	 * The press that just ended was a pan, so the click the dispatcher
+	 * synthesises from it selects nothing: the dispatcher withholds a click
+	 * only after a drag-service drag (its departure from R9.31, in
+	 * input-dispatcher.md), and this pan is the view's own.
+	 */
+	private swallowClick = false;
 	/** Uncharted stubs' dashes at `dashZoom`; a zoom changes their world length, a pan doesn't. */
 	private readonly dashCache = new Map<number, StubDash[]>();
 	private dashZoom = 0;
@@ -138,7 +153,7 @@ export class AreaMapView extends Component {
 		this.fogLayer = fog;
 		if (layers) this.layerToggles = { ...ALL_LAYERS, ...layers };
 		this.selectCallback = onSelect;
-		this.setMap(map);
+		this.rebuildGeometry(map);
 		this.currentSelection = selection;
 	}
 
@@ -148,9 +163,13 @@ export class AreaMapView extends Component {
 		return this.mapData;
 	}
 
-	/** A new map: rebuilt, rebaked if mounted, the camera fitted to its disc, and the selection cleared. */
+	/**
+	 * A new map: rebuilt, rebaked if mounted, and the selection cleared. The
+	 * camera fits a map of another radius whole and keeps its view of one the
+	 * same size, so a regenerated map stays where it was looked at.
+	 */
 	public set map(map: AreaMapData | null) {
-		this.setMap(map);
+		this.rebuildGeometry(map);
 		this.currentSelection = null;
 		this.bakeTerrainTexture();
 	}
@@ -161,8 +180,6 @@ export class AreaMapView extends Component {
 
 	public set markers(markers: readonly MapMarker[]) {
 		this.markerList = markers;
-		const selected = this.currentSelection;
-		if (selected?.kind === 'marker' && !markers.some((marker) => marker.id === selected.id)) this.currentSelection = null;
 	}
 
 	/** Absent, every road is charted. */
@@ -188,8 +205,9 @@ export class AreaMapView extends Component {
 		return this.layerToggles;
 	}
 
+	/** Merged over the current toggles: `{ fog: false }` turns the fog off and leaves the rest. */
 	public set layers(layers: Partial<AreaMapLayerToggles>) {
-		this.layerToggles = { ...ALL_LAYERS, ...layers };
+		this.layerToggles = { ...this.layerToggles, ...layers };
 	}
 
 	public get selection(): AreaMapSelection | null {
@@ -215,7 +233,7 @@ export class AreaMapView extends Component {
 		return this.mapCamera;
 	}
 
-	private setMap(map: AreaMapData | null): void {
+	private rebuildGeometry(map: AreaMapData | null): void {
 		this.mapData = map;
 		this.dashCache.clear();
 		if (!map) {
@@ -225,7 +243,7 @@ export class AreaMapView extends Component {
 			return;
 		}
 		const network = map.network;
-		this.geometry = new RoadGeometry(network);
+		this.geometry = new RoadGeometry({ network });
 		const order = [...ROAD_CLASSES].reverse();
 		this.drawOrder = order.flatMap((roadClass) => network.stretches.flatMap((stretch, id) => (stretch.roadClass === roadClass ? [id] : [])));
 		const prefix = this.id ?? 'area_map';
@@ -235,11 +253,16 @@ export class AreaMapView extends Component {
 
 	// -- resources (R2.17, R5.30) -------------------------------------------
 
-	/** Textures are made on mount, never in the constructor (R8.14); mount runs outside any frame. */
+	/**
+	 * Textures are made on mount, never in the constructor (R8.14); mount
+	 * runs outside any frame. The fog first: the upload queue takes the
+	 * oldest request first (R5.32), and land showing through a fog not yet
+	 * uploaded would be land the player hasn't seen.
+	 */
 	protected onMount(context: MountContext): void {
 		super.onMount(context);
-		this.bakeTerrainTexture();
 		this.bakeFogTexture();
+		this.bakeTerrainTexture();
 	}
 
 	protected onUnmount(): void {
@@ -248,6 +271,7 @@ export class AreaMapView extends Component {
 		this.terrainTexture = null;
 		this.fogTexture = null;
 		this.press = null;
+		this.swallowClick = false;
 		super.onUnmount();
 	}
 
@@ -324,6 +348,7 @@ export class AreaMapView extends Component {
 			if (layers.terrain) this.drawTerrain(draw);
 			if (layers.fog) this.drawFog(draw);
 			if (layers.roads) this.drawRoads(draw, this.geometry);
+			if (layers.junctions) this.drawJunctions(draw, this.geometry);
 			draw.popTransform();
 			this.drawCompound(draw);
 			if (layers.markers) this.drawMarkers(draw);
@@ -348,8 +373,15 @@ export class AreaMapView extends Component {
 	}
 
 	private drawFog(draw: DrawApi): void {
+		if (!this.fogLayer) return;
 		const baked = this.fogTexture;
-		if (baked && draw.isTextureResident(baked.texture)) this.drawMapImage(draw, baked, 'fog');
+		if (baked && draw.isTextureResident(baked.texture)) {
+			this.drawMapImage(draw, baked, 'fog');
+		} else {
+			// R12.5's placeholder until the upload lands: all of it fogged, so
+			// nothing shows that the fog would hide.
+			draw.drawCircle({ id: this.part('fog'), center: { x: 0, y: 0 }, radius: this.mapCamera.radius, fill: FOG_WASH });
+		}
 	}
 
 	/**
@@ -403,49 +435,61 @@ export class AreaMapView extends Component {
 			const bounds = geometry.stretches[id].bounds;
 			if (bounds.maxX < visible.minX - reach || bounds.minX > visible.maxX + reach
 				|| bounds.maxY < visible.minY - reach || bounds.minY > visible.maxY + reach) {
-				skipped += 1;
+				// A stub would have asked for a group a dash.
+				skipped += drawn === 'uncharted' ? this.stubDashes(id).length : 1;
 				continue;
 			}
 			const roadClass = network.stretches[id].roadClass;
 			const width = ROAD_STYLES[roadClass].width * pixel;
 			if (drawn === 'uncharted') {
-				this.drawStub(draw, id, roadClass, width);
+				for (const dash of this.stubDashes(id)) draw.drawPolyline({ id: this.stretchIds[id], points: dash.points, color: dash.color, width });
 				continue;
 			}
 			const color = drawn === 'rumored' ? RUMORED_COLOURS[roadClass] : ROAD_STYLES[roadClass].color;
 			draw.drawPolyline({ id: this.stretchIds[id], points: geometry.polyline(id, level), color, width, cap: 'round' });
 		}
 
-		if (this.layerToggles.junctions) {
-			const radius = JUNCTION.radius * pixel;
-			for (const junction of geometry.junctions) {
-				const inbound = drawnKnowledge(network, knowledge, junction.inbound);
-				if (inbound === null || inbound === 'uncharted') continue;
-				const at = junction.at;
-				if (at.x < visible.minX - radius || at.x > visible.maxX + radius || at.y < visible.minY - radius || at.y > visible.maxY + radius) {
-					skipped += 1;
-					continue;
-				}
-				draw.drawCircle({ center: at, radius, fill: JUNCTION.color });
-			}
-		}
 		// R4.2a: what the view skipped itself still counts as asked for and culled.
+		if (skipped > 0) draw.cullGroups(skipped);
+	}
+
+	/** A dot at each junction whose inbound road is drawn solid, whether or not the roads layer is on. */
+	private drawJunctions(draw: DrawApi, geometry: RoadGeometry): void {
+		const map = this.mapData;
+		if (!map) return;
+		const knowledge = this.knowledgeLayer ?? ALL_CHARTED;
+		const zoom = this.mapCamera.zoom;
+		const radius = (JUNCTION.radius * roadWidthScale(zoom)) / zoom;
+		const visible = this.visibleMap();
+		let skipped = 0;
+		for (const junction of geometry.junctions) {
+			const inbound = drawnKnowledge(map.network, knowledge, junction.inbound);
+			if (inbound === null || inbound === 'uncharted') continue;
+			const at = junction.at;
+			if (at.x < visible.minX - radius || at.x > visible.maxX + radius || at.y < visible.minY - radius || at.y > visible.maxY + radius) {
+				skipped += 1;
+				continue;
+			}
+			draw.drawCircle({ center: at, radius, fill: JUNCTION.color });
+		}
 		if (skipped > 0) draw.cullGroups(skipped);
 	}
 
 	/**
 	 * An uncharted stretch's dashed stub, fading out along its first
 	 * `UNCHARTED_STUB.length` world units: dashes a constant length on
-	 * screen, so built again when the zoom changes and kept while it doesn't.
+	 * screen, near enough, so built again when the zoom moves a step and kept
+	 * while it doesn't.
 	 */
-	private drawStub(draw: DrawApi, id: number, roadClass: RoadClass, width: number): void {
-		const zoom = this.mapCamera.zoom;
+	private stubDashes(id: number): readonly StubDash[] {
+		const zoom = 2 ** (Math.round(Math.log2(this.mapCamera.zoom) * DASH_ZOOM_STEPS) / DASH_ZOOM_STEPS);
 		if (zoom !== this.dashZoom) {
 			this.dashCache.clear();
 			this.dashZoom = zoom;
 		}
 		let dashes = this.dashCache.get(id);
 		if (!dashes) {
+			const roadClass = this.mapData?.network.stretches[id].roadClass ?? 'trail';
 			const color = ROAD_STYLES[roadClass].color;
 			const points = this.geometry?.stretches[id].points ?? [];
 			dashes = dashesAlong(points, UNCHARTED_STUB.length, UNCHARTED_STUB.dash / zoom, UNCHARTED_STUB.gap / zoom).map((dash) => ({
@@ -454,7 +498,7 @@ export class AreaMapView extends Component {
 			}));
 			this.dashCache.set(id, dashes);
 		}
-		for (const dash of dashes) draw.drawPolyline({ id: this.stretchIds[id], points: dash.points, color: dash.color, width });
+		return dashes;
 	}
 
 	private drawCompound(draw: DrawApi): void {
@@ -581,19 +625,21 @@ export class AreaMapView extends Component {
 			const mapX = world.x;
 			const mapY = -world.y;
 			const zoom = camera.zoom;
+			const scale = roadWidthScale(zoom);
 			const network = map.network;
 			const knowledge = this.knowledgeLayer ?? ALL_CHARTED;
 			let nearest = -1;
 			let nearestDistance = Infinity;
-			for (let id = 0; id < geometry.stretches.length; id++) {
+			// In drawing order, a tie going to the later: the road drawn on top.
+			for (const id of this.drawOrder) {
 				const stretch = geometry.stretches[id];
-				const reach = (ROAD_PICK_DISTANCE + ROAD_STYLES[network.stretches[id].roadClass].width * roadWidthScale(zoom) / 2) / zoom;
+				const reach = (ROAD_PICK_DISTANCE + (ROAD_STYLES[network.stretches[id].roadClass].width * scale) / 2) / zoom;
 				const { bounds } = stretch;
 				if (mapX < bounds.minX - reach || mapX > bounds.maxX + reach || mapY < bounds.minY - reach || mapY > bounds.maxY + reach) continue;
 				const drawn = drawnKnowledge(network, knowledge, id);
 				if (drawn === null) continue;
 				const distance = distanceToPolyline(stretch.points, mapX, mapY, drawn === 'uncharted' ? UNCHARTED_STUB.length : Infinity);
-				if (distance <= reach && distance < nearestDistance) {
+				if (distance <= reach && distance <= nearestDistance) {
 					nearest = id;
 					nearestDistance = distance;
 				}
@@ -624,7 +670,10 @@ export class AreaMapView extends Component {
 			case 'pointerup':
 			case 'pointercancel':
 			case 'lostpointercapture':
-				if (this.press?.pointerId === event.pointerId) this.press = null;
+				if (this.press?.pointerId === event.pointerId) {
+					this.swallowClick = this.press.dragging;
+					this.press = null;
+				}
 				return;
 			case 'click':
 				this.clicked(event);
@@ -639,6 +688,7 @@ export class AreaMapView extends Component {
 	}
 
 	private pointerDown(event: UiPointerEvent): void {
+		this.swallowClick = false;
 		if (event.button !== 0 || !this.mapData) return;
 		const local = event.local;
 		if (!local) return;
@@ -672,11 +722,20 @@ export class AreaMapView extends Component {
 		press.lastY = local.y;
 	}
 
-	/** The dispatcher sends no click after a drag past the threshold (R9.31), so a pan never selects. */
+	/**
+	 * Selects what's under a click. The click that ends a pan selects
+	 * nothing (`swallowClick`), and nor does one released outside the box,
+	 * where what the pick would find is clipped away.
+	 */
 	private clicked(event: UiPointerEvent): void {
 		const local = event.local;
 		if (!local || !this.mapData) return;
 		event.consume();
+		if (this.swallowClick) {
+			this.swallowClick = false;
+			return;
+		}
+		if (!this.containsPoint(local.x, local.y)) return;
 		const picked = this.pick(local);
 		if (sameSelection(picked, this.currentSelection)) return;
 		this.currentSelection = picked;
@@ -718,7 +777,7 @@ export class AreaMapView extends Component {
 				camera.zoomAt(1 / KEY_ZOOM_FACTOR, this.width / 2, this.height / 2);
 				return true;
 			case '0':
-				camera.fit(camera.discRect);
+				camera.restoreFit();
 				return true;
 		}
 		return false;

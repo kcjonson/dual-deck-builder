@@ -76,7 +76,7 @@ export function bakeTerrain({ terrain, size, colourStep }: TerrainBakeOptions): 
 	if (!Number.isInteger(size) || size < 1) throw new Error(`bakeTerrain: size must be a positive integer, got ${size}`);
 	const step = colourStep ?? Math.max(1, Math.round(COLOUR_WORLD_UNITS / ((terrain.radius * 2) / size)));
 	if (!Number.isInteger(step) || step < 1) throw new Error(`bakeTerrain: colourStep must be a positive integer, got ${step}`);
-	const baker = new TerrainBaker(terrain, size, step);
+	const baker = new TerrainBaker({ terrain, size, step });
 	// A row at a time, each its own call, so the engine optimises the row
 	// whole rather than entering it mid-loop and leaving at every row's end.
 	for (let row = 0; row < size; row++) baker.row(row);
@@ -98,7 +98,7 @@ class TerrainBaker {
 	private readonly innerSquared: number;
 	private readonly land = { elevation: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0 };
 
-	constructor(terrain: BakeTerrain, size: number, step: number) {
+	constructor({ terrain, size, step }: { terrain: BakeTerrain; size: number; step: number }) {
 		this.terrain = terrain;
 		this.size = size;
 		this.radius = terrain.radius;
@@ -108,7 +108,7 @@ class TerrainBaker {
 		const { fields, biomes } = fieldLattice(terrain, size, step);
 		this.fields = fields;
 		this.biomes = biomes;
-		this.slopes = new SlopeLattice(terrain, size);
+		this.slopes = new SlopeLattice({ terrain, size });
 		this.texels = new Uint8Array(size * size * 4);
 		const radius = this.radius;
 		const texel = this.texel;
@@ -259,7 +259,7 @@ class SlopeLattice {
 	private readonly values: Float32Array;
 	private readonly slope = { x: 0, y: 0 };
 
-	constructor(terrain: BakeTerrain, size: number) {
+	constructor({ terrain, size }: { terrain: BakeTerrain; size: number }) {
 		this.terrain = terrain;
 		this.radius = terrain.radius;
 		this.texel = (terrain.radius * 2) / size;

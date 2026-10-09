@@ -11,17 +11,21 @@ import type { LandFogLayer } from './layers';
  * land is smoothed rather than drawn cell by cell: the grid is blurred once
  * ([1 2 1] each way), so the edge rounds the cells' corners instead of
  * following their sides, then each texel reads the four cell centres around
- * it, bilinear. The edge leans toward the hidden side: land is clear at half
- * revealed and fogged only well below it, so no revealed cell is drawn
- * fogged. Past the disc's rim there's no land to hide and the texels are
- * clear.
+ * it, bilinear. The edge leans toward the hidden side, clear at half
+ * revealed and fully fogged only well below it, so revealed ground two or
+ * more cells across is clear; a lone revealed cell blurs to a quarter and
+ * stays mostly fogged. Past the disc's rim there's no land to hide and the
+ * texels are clear.
  */
 
 export interface FogBakeOptions {
 	fog: LandFogLayer;
-	/** Texels per cell; the texture is `cells * texelsPerCell` square. */
+	/** Texels per cell; the texture is `cells * texelsPerCell` square, no more than `MAX_FOG_SIZE`. */
 	texelsPerCell?: number;
 }
+
+/** The fog texture's largest side, whatever the grid: past it a finer grid gets fewer texels a cell. */
+export const MAX_FOG_SIZE = 1024;
 
 export interface FogBake {
 	readonly size: number;
@@ -31,7 +35,9 @@ export interface FogBake {
 export function bakeFog({ fog, texelsPerCell = FOG.texelsPerCell }: FogBakeOptions): FogBake {
 	const cells = fog.cells;
 	if (!Number.isInteger(cells) || cells < 1) throw new Error(`bakeFog: cells must be a positive integer, got ${cells}`);
-	const size = cells * texelsPerCell;
+	if (cells > MAX_FOG_SIZE) throw new Error(`bakeFog: at most ${MAX_FOG_SIZE} cells a side, got ${cells}`);
+	const perCell = Math.max(1, Math.min(Math.floor(texelsPerCell), Math.floor(MAX_FOG_SIZE / cells)));
+	const size = cells * perCell;
 	const grid = new Float32Array(cells * cells);
 	// Rows from the north, as the texture runs; the fog's row 0 is south.
 	for (let row = 0; row < cells; row++) {
@@ -47,7 +53,7 @@ export function bakeFog({ fog, texelsPerCell = FOG.texelsPerCell }: FogBakeOptio
 	const innerSquared = (half - 1) * (half - 1);
 	const [red, green, blue] = FOG.color;
 	for (let row = 0; row < size; row++) {
-		const cellY = (row + 0.5) / texelsPerCell - 0.5;
+		const cellY = (row + 0.5) / perCell - 0.5;
 		const top = clampIndex(Math.floor(cellY), cells);
 		const bottom = clampIndex(Math.floor(cellY) + 1, cells);
 		const fy = clamp01(cellY - Math.floor(cellY));
@@ -59,7 +65,7 @@ export function bakeFog({ fog, texelsPerCell = FOG.texelsPerCell }: FogBakeOptio
 			const disc = distanceSquared <= innerSquared ? 1 : clamp01(half - Math.sqrt(distanceSquared) + 0.5);
 			if (disc <= 0) continue;
 
-			const cellX = (column + 0.5) / texelsPerCell - 0.5;
+			const cellX = (column + 0.5) / perCell - 0.5;
 			const left = clampIndex(Math.floor(cellX), cells);
 			const right = clampIndex(Math.floor(cellX) + 1, cells);
 			const fx = clamp01(cellX - Math.floor(cellX));
@@ -82,7 +88,11 @@ export function bakeFog({ fog, texelsPerCell = FOG.texelsPerCell }: FogBakeOptio
 
 /** Blurred revealed share at or below which land is fully fogged... */
 const FOGGED_BELOW = 0.12;
-/** ...and at or above which it's clear: a lone revealed cell blurs to a quarter, an edge cell to three quarters. */
+/**
+ * ...and at or above which it's clear. A cell in a revealed run two cells
+ * across blurs to 0.56, and one on a straight edge of a wide region to 0.75,
+ * both clear; a lone revealed cell blurs to 0.25.
+ */
 const CLEAR_ABOVE = 0.5;
 
 /** The grid blurred by [1 2 1] / 4 along rows, then columns, its edges clamped. */

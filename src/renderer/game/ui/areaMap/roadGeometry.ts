@@ -1,10 +1,11 @@
 import type { Vec2 } from '../../../engine/draw';
+import { pointSegmentDistanceSquared } from '../../map/Geometry';
 import type { RoadNetwork } from '../../map/RoadNetwork';
 
 /**
  * The drivable network's geometry as the view draws it, built once per map:
  * each stretch's polyline in map space (world y flipped, see `MapCamera`)
- * with its bounds and length, coarser copies of it for zoomed-out frames,
+ * with its bounds, coarser copies of it for zoomed-out frames,
  * and the junctions. Plus the arithmetic the view needs per frame or per
  * press: which detail level a zoom wants, dashes along a stub, and how near
  * a point is to a polyline.
@@ -22,12 +23,9 @@ export interface StretchGeometry {
 	/** Map space, from the stretch's inner end outward. */
 	readonly points: readonly Vec2[];
 	readonly bounds: MapBounds;
-	/** World units along the polyline. */
-	readonly length: number;
 }
 
 export interface JunctionGeometry {
-	readonly node: number;
 	/** Map space. */
 	readonly at: Vec2;
 	/** The stretch that leads into it from the compound's side. */
@@ -49,16 +47,16 @@ export class RoadGeometry {
 	/** Per level, per stretch: the simplified polyline, filled the first time a frame asks. */
 	private readonly levels: (Vec2[] | undefined)[][];
 
-	constructor(network: RoadNetwork) {
+	constructor({ network }: { network: RoadNetwork }) {
 		this.stretches = network.stretches.map((stretch) => {
 			const points = toMapSpace(stretch.points);
-			return { points, bounds: boundsOf(points), length: lengthOf(points) };
+			return { points, bounds: boundsOf(points) };
 		});
 		const inbound = new Map<number, number>();
 		network.stretches.forEach((stretch, id) => inbound.set(stretch.to, id));
 		this.junctions = network.nodes.flatMap((node, id) => {
 			const into = inbound.get(id);
-			return node.kind === 'junction' && into !== undefined ? [{ node: id, at: { x: node.x, y: 0 - node.y }, inbound: into }] : [];
+			return node.kind === 'junction' && into !== undefined ? [{ at: { x: node.x, y: 0 - node.y }, inbound: into }] : [];
 		});
 		this.levels = Array.from({ length: DETAIL_LEVELS }, () => new Array<Vec2[] | undefined>(this.stretches.length));
 	}
@@ -134,7 +132,8 @@ export function simplifyPolyline(points: readonly Vec2[], tolerance: number): Ve
 		let farthest = -1;
 		let farthestSquared = toleranceSquared;
 		for (let index = first + 1; index < last; index++) {
-			const squared = segmentDistanceSquared(points[index], points[first], points[last]);
+			const point = points[index];
+			const squared = pointSegmentDistanceSquared(point.x, point.y, points[first].x, points[first].y, points[last].x, points[last].y);
 			if (squared > farthestSquared) {
 				farthestSquared = squared;
 				farthest = index;
@@ -175,12 +174,16 @@ export interface Dash {
 /**
  * Dashes along the first `length` world units of `points`: `dash` units
  * drawn, `gap` units skipped, from the start. A dash that turns a corner
- * keeps the corner.
+ * keeps the corner. The phase is carried as what's left of the current dash
+ * or gap rather than read back from the distance, so float error can't end
+ * a dash early.
  */
 export function dashesAlong(points: readonly Vec2[], length: number, dash: number, gap: number): Dash[] {
 	if (!(dash > 0) || !(length > 0) || points.length < 2) return [];
-	const period = dash + Math.max(0, gap);
+	const space = Math.max(0, gap);
 	const dashes: Dash[] = [];
+	let drawing = true;
+	let left = dash;
 	let current: Vec2[] | null = null;
 	let currentStart = 0;
 	let travelled = 0;
@@ -189,31 +192,30 @@ export function dashesAlong(points: readonly Vec2[], length: number, dash: numbe
 		const to = points[index];
 		const segment = Math.hypot(to.x - from.x, to.y - from.y);
 		if (segment <= 0) continue;
-		const end = Math.min(travelled + segment, length);
-		const at = (along: number): Vec2 => {
-			const t = (along - travelled) / segment;
-			return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
-		};
-		let position = travelled;
+		const end = Math.min(segment, length - travelled);
+		const at = (along: number): Vec2 => ({ x: from.x + (to.x - from.x) * (along / segment), y: from.y + (to.y - from.y) * (along / segment) });
+		let position = 0;
 		while (position < end) {
-			const phase = position % period;
-			const drawing = phase < dash;
-			const next = Math.min(end, position + (drawing ? dash - phase : period - phase));
-			if (next <= position) break;
+			const step = Math.min(left, end - position);
 			if (drawing) {
 				if (current === null) {
 					current = [at(position)];
-					currentStart = position;
+					currentStart = travelled + position;
 				}
 				// A dash still open at the segment's end carries on round the corner.
-				current.push(at(next));
-			} else if (current !== null) {
+				current.push(at(position + step));
+			}
+			position += step;
+			left -= step;
+			if (left > 0) continue;
+			if (current !== null) {
 				dashes.push({ points: current, along: currentStart / length });
 				current = null;
 			}
-			position = next;
+			drawing = !drawing || space === 0;
+			left = drawing ? dash : space;
 		}
-		travelled += segment;
+		travelled += end;
 	}
 	if (current !== null) dashes.push({ points: current, along: currentStart / length });
 	return dashes;
@@ -226,7 +228,6 @@ export function dashesAlong(points: readonly Vec2[], length: number, dash: numbe
 export function distanceToPolyline(points: readonly Vec2[], x: number, y: number, within = Infinity): number {
 	let best = Infinity;
 	let travelled = 0;
-	const point = { x, y };
 	for (let index = 1; index < points.length && travelled < within; index++) {
 		const from = points[index - 1];
 		let to = points[index];
@@ -235,20 +236,9 @@ export function distanceToPolyline(points: readonly Vec2[], x: number, y: number
 			const t = (within - travelled) / segment;
 			to = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
 		}
-		const squared = segmentDistanceSquared(point, from, to);
+		const squared = pointSegmentDistanceSquared(x, y, from.x, from.y, to.x, to.y);
 		if (squared < best) best = squared;
 		travelled += segment;
 	}
 	return Math.sqrt(best);
-}
-
-function segmentDistanceSquared(point: Vec2, from: Vec2, to: Vec2): number {
-	const dx = to.x - from.x;
-	const dy = to.y - from.y;
-	const lengthSquared = dx * dx + dy * dy;
-	let t = lengthSquared > 0 ? ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared : 0;
-	t = t < 0 ? 0 : t > 1 ? 1 : t;
-	const px = from.x + dx * t - point.x;
-	const py = from.y + dy * t - point.y;
-	return px * px + py * py;
 }

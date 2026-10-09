@@ -12,9 +12,11 @@ import type { Mat2D, Rect, Vec2 } from '../../../engine/draw';
  * pixels, origin top-left.
  *
  * `zoom` is screen pixels per world unit and `center` the world point at the
- * middle of the view. The camera keeps the centre inside the disc's bounding
- * square, so the map can't be panned off the view, and the zoom between
- * `minZoom` (a little short of the whole disc in view) and `maxZoom`.
+ * middle of the view. The camera keeps the centre on the disc, so the map
+ * can't be panned off the view, and the zoom between `minZoom` (a little
+ * short of the whole disc in view) and `maxZoom`. While the view has no
+ * area (hidden, or not laid out yet) neither is clamped, so a view hidden
+ * and shown again comes back as it was.
  */
 
 export interface MapCameraOptions {
@@ -41,13 +43,16 @@ export class MapCamera {
 	private scale = 1;
 	/** The world rect last fitted, refitted on a resize until the camera is moved by hand. */
 	private fitted: Rect | null;
+	/** The rect `fit` was last given, whether or not the camera has moved since: what `restoreFit` returns to. */
+	private lastFit: Rect;
 
 	constructor({ radius, width = 0, height = 0 }: MapCameraOptions) {
 		if (!(radius > 0)) throw new Error(`MapCamera: radius must be positive, got ${radius}`);
 		this.mapRadius = radius;
 		this.viewWidth = width;
 		this.viewHeight = height;
-		this.fitted = this.discRect;
+		this.lastFit = this.discRect;
+		this.fitted = this.lastFit;
 		this.refit();
 	}
 
@@ -55,9 +60,17 @@ export class MapCamera {
 		return this.mapRadius;
 	}
 
-	/** A new map: the camera fits its whole disc. */
+	/**
+	 * The map's radius. A different radius is a different disc, so the camera
+	 * fits it whole; the same radius (the Map Lab regenerating a map) keeps
+	 * the view where it was, refitted only if it was fitted.
+	 */
 	public set radius(radius: number) {
 		if (!(radius > 0)) throw new Error(`MapCamera: radius must be positive, got ${radius}`);
+		if (radius === this.mapRadius) {
+			this.refit();
+			return;
+		}
 		this.mapRadius = radius;
 		this.fit(this.discRect);
 	}
@@ -130,8 +143,14 @@ export class MapCamera {
 
 	/** Shows world `rect` whole, centred, with `FIT_MARGIN` round it, and refits it on every resize until moved. */
 	public fit(rect: Rect): void {
-		this.fitted = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+		this.lastFit = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+		this.fitted = this.lastFit;
 		this.refit();
+	}
+
+	/** Back to the rect last fitted: the whole disc, or what the host framed. */
+	public restoreFit(): void {
+		this.fit(this.lastFit);
 	}
 
 	public worldToScreen(x: number, y: number, out: Vec2 = { x: 0, y: 0 }): Vec2 {
@@ -182,7 +201,12 @@ export class MapCamera {
 		return { x: this.centerX - width / 2, y: this.centerY - height / 2, width, height };
 	}
 
+	private get hasArea(): boolean {
+		return this.viewWidth > 0 && this.viewHeight > 0;
+	}
+
 	private refit(): void {
+		if (!this.hasArea) return;
 		const rect = this.fitted;
 		if (rect === null) {
 			this.scale = this.clampZoom(this.scale);
@@ -206,12 +230,16 @@ export class MapCamera {
 
 	private clampZoom(value: number): number {
 		if (!Number.isFinite(value) || value <= 0) return this.scale;
-		return Math.max(this.minZoom, Math.min(MAX_ZOOM, value));
+		const closest = Math.min(MAX_ZOOM, value);
+		return this.hasArea ? Math.max(this.minZoom, closest) : closest;
 	}
 
 	private clampCenter(): void {
 		const radius = this.mapRadius;
-		this.centerX = Math.max(-radius, Math.min(radius, this.centerX));
-		this.centerY = Math.max(-radius, Math.min(radius, this.centerY));
+		const squared = this.centerX * this.centerX + this.centerY * this.centerY;
+		if (squared <= radius * radius) return;
+		const scale = radius / Math.sqrt(squared);
+		this.centerX *= scale;
+		this.centerY *= scale;
 	}
 }

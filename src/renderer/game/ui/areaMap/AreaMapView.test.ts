@@ -3,10 +3,10 @@ import type { MountContext } from '../../../engine/components/MountContext';
 import { renderTree } from '../../../engine/components/renderTree';
 import { Stack } from '../../../engine/components/Stack';
 import { createTestContext } from '../../../engine/components/testing';
-import { DrawApi, DrawCommand, ImageCommand, PolylineCommand, RecordingBackend } from '../../../engine/draw';
+import { CircleCommand, DrawApi, DrawCommand, ImageCommand, PolylineCommand, RecordingBackend } from '../../../engine/draw';
 import { NO_MODIFIERS } from '../../../engine/input/events';
 import { click, key, pointer, send } from '../../../engine/services/testing';
-import { ROAD_STYLES, RUMORED_FADE, RUMORED_TOWARD, roadWidthScale } from './areaMapStyle';
+import { FOG, ROAD_STYLES, RUMORED_FADE, RUMORED_TOWARD, roadWidthScale } from './areaMapStyle';
 import { AreaMapView, AreaMapViewOptions, WHEEL_ZOOM_RATE } from './AreaMapView';
 import type { AreaMapSelection, LandFogLayer, MapMarker, RoadKnowledge } from './layers';
 import { FIT_MARGIN } from './MapCamera';
@@ -208,7 +208,7 @@ describe('AreaMapView pan, zoom, and selection', () => {
 		view.layers = { markers: false, roads: false };
 		expect(view.pick(yard)).toBeNull();
 
-		view.layers = {};
+		view.layers = { markers: true, roads: true };
 		view.markers = [];
 		const states: RoadKnowledge[] = ['charted', 'uncharted', 'uncharted', 'uncharted'];
 		view.knowledge = { knowledgeOf: (stretch) => states[stretch] };
@@ -234,13 +234,83 @@ describe('AreaMapView pan, zoom, and selection', () => {
 		expect(view.camera.isFitted).toBe(true);
 	});
 
-	it('keeps a programmatic selection without firing, and drops a marker selection when the marker goes', () => {
+	it('keeps a selection through marker, knowledge, and layer changes, and clears it for a new map, firing nothing', () => {
 		const onSelect = jest.fn();
 		const { view } = mountView({ markers: [{ id: 'a', kind: 'poi', x: 0, y: 0 }], onSelect });
 		view.selection = { kind: 'marker', id: 'a' };
-		expect(onSelect).not.toHaveBeenCalled();
 		view.markers = [];
+		view.knowledge = { knowledgeOf: () => 'uncharted' };
+		view.layers = { markers: false, roads: false };
+		expect(view.selection).toEqual({ kind: 'marker', id: 'a' });
+		view.map = { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK };
 		expect(view.selection).toBeNull();
+		expect(onSelect).not.toHaveBeenCalled();
+	});
+
+	describe('a pan selects nothing', () => {
+		/** A drag from world (x, y) by (dx, dy) on the page, past the drag threshold. */
+		function pan(mounted: Mounted, x: number, y: number, dx: number, dy: number): void {
+			const from = onPage(mounted.view, x, y);
+			send(mounted.context, [
+				pointer('down', from.x, from.y),
+				pointer('move', from.x + dx / 3, from.y + dy / 3),
+				pointer('move', from.x + dx, from.y + dy),
+				pointer('up', from.x + dx, from.y + dy),
+			]);
+		}
+
+		it('that starts on a road', () => {
+			const onSelect = jest.fn();
+			const mounted = mountView({ onSelect });
+			mounted.view.camera.zoom = 1;
+			mounted.view.camera.center = { x: 0, y: 200 };
+			const before = mounted.view.camera.center;
+			pan(mounted, 0, 150, 90, 40);
+			expect(mounted.view.camera.center).not.toEqual(before);
+			expect(mounted.view.selection).toBeNull();
+			expect(onSelect).not.toHaveBeenCalled();
+		});
+
+		it('that starts on a marker, or ends on one', () => {
+			const onSelect = jest.fn();
+			const mounted = mountView({ markers: [{ id: 'silos', kind: 'poi', x: 200, y: 400 }], onSelect });
+			pan(mounted, 200, 400, -70, 70);
+			const silos = mounted.view.camera.worldToScreen(200, 400);
+			const offMarker = mounted.view.camera.screenToWorld(silos.x - 80, silos.y);
+			pan(mounted, offMarker.x, offMarker.y, 80, 0);
+			expect(mounted.view.selection).toBeNull();
+			expect(onSelect).not.toHaveBeenCalled();
+		});
+
+		it('made while something is selected, over empty ground', () => {
+			const onSelect = jest.fn();
+			const mounted = mountView({ onSelect, selection: { kind: 'stretch', stretch: 1 } });
+			pan(mounted, -300, -200, 60, 50);
+			expect(mounted.view.selection).toEqual({ kind: 'stretch', stretch: 1 });
+			expect(onSelect).not.toHaveBeenCalled();
+		});
+
+		it('and the next click still selects', () => {
+			const onSelect = jest.fn();
+			const mounted = mountView({ onSelect });
+			pan(mounted, -300, -200, 60, 50);
+			const highway = onPage(mounted.view, 2, 420);
+			click(mounted.context, highway.x, highway.y);
+			expect(onSelect).toHaveBeenCalledWith({ kind: 'stretch', stretch: 2 });
+		});
+	});
+
+	it('gives a tie to the road drawn on top', () => {
+		const { view } = mountView();
+		// The junction, where stretches 1, 2 (highway) and 3 (back road) meet
+		expect(view.pick(view.camera.worldToScreen(0, 300))).toEqual({ kind: 'stretch', stretch: 2 });
+	});
+
+	it('merges a layer change over the current toggles', () => {
+		const { view } = mountView();
+		view.layers = { fog: false };
+		view.layers = { markers: false };
+		expect(view.layers).toMatchObject({ fog: false, markers: false, roads: true, terrain: true, junctions: true });
 	});
 });
 
@@ -283,6 +353,36 @@ describe('AreaMapView baking', () => {
 		expect(view.camera.radius).toBe(400);
 		view.unmount();
 		expect(destroy).toHaveBeenCalledTimes(3);
+	});
+
+	it('keeps its pan and zoom when a map of the same radius replaces the one shown', () => {
+		const { view } = mountView();
+		view.camera.zoom = 2;
+		view.camera.center = { x: 120, y: -40 };
+		view.map = { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK };
+		expect(view.camera.zoom).toBe(2);
+		expect(view.camera.center).toEqual({ x: 120, y: -40 });
+	});
+
+	it('bakes the fog before the terrain on mount, and covers the disc in fog until the fog is resident', () => {
+		const backend = new RecordingBackend();
+		const context = createTestContext({ draw: new DrawApi({ backend, development: false }) });
+		const create = jest.spyOn(context.draw, 'createTexture');
+		const root = new Container({ width: 800, height: 800 });
+		const view = new AreaMapView({ id: 'map', width: WIDTH, height: HEIGHT, map: { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK }, fog: { cells: 8, isRevealed: () => false } });
+		root.addChild(view);
+		root.mount(context);
+		expect(create.mock.calls.map(([options]) => options.label)).toEqual(['area map fog', 'area map terrain']);
+
+		jest.spyOn(context.draw, 'isTextureResident').mockReturnValue(false);
+		context.draw.beginFrame({ viewport: { width: 800, height: 800 } });
+		renderTree(root, context.draw);
+		context.draw.endFrame();
+		const fog = backend.commands.find((command): command is CircleCommand => command.kind === 'circle' && command.id === 'map.fog');
+		expect(fog?.radius).toBe(RADIUS);
+		expect(fog?.fill).toEqual([FOG.color[0] / 255, FOG.color[1] / 255, FOG.color[2] / 255, FOG.alpha]);
+		const ids = backend.commands.map((command) => command.id);
+		expect(ids.indexOf('map.terrain')).toBeLessThan(ids.indexOf('map.fog'));
 	});
 
 	it('bakes the fog when it is set, and draws it over the terrain', () => {
@@ -342,12 +442,17 @@ describe('AreaMapView with its optional layers absent', () => {
 		expect(view.markers).toEqual([]);
 	});
 
-	it('draws the junction where its inbound road is drawn', () => {
-		const { frame } = mountView();
+	it('draws the junction where its inbound road is drawn, with the roads layer off too', () => {
+		const { view, frame } = mountView();
 		frame();
 		const circles = frame().filter((command) => command.kind === 'circle');
 		expect(circles).toHaveLength(1);
 		expect(circles[0]).toMatchObject({ center: { x: 0, y: -300 } });
+
+		view.layers = { roads: false };
+		expect(frame().filter((command) => command.kind === 'circle')).toHaveLength(1);
+		view.layers = { roads: true, junctions: false };
+		expect(frame().filter((command) => command.kind === 'circle')).toHaveLength(0);
 	});
 
 	it('draws nothing but its ground without a map', () => {

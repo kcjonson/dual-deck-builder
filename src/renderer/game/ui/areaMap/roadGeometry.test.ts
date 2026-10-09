@@ -14,16 +14,16 @@ import {
 import { SMALL_NETWORK } from './testing';
 
 describe('road geometry', () => {
-	it('keeps each stretch in map space, world y flipped, with its bounds and length', () => {
-		const geometry = new RoadGeometry(SMALL_NETWORK);
+	it('keeps each stretch in map space, world y flipped, with its bounds', () => {
+		const geometry = new RoadGeometry({ network: SMALL_NETWORK });
 		expect(geometry.stretches[1].points).toEqual([{ x: 0, y: -100 }, { x: 0, y: -200 }, { x: 0, y: -300 }]);
 		expect(geometry.stretches[3].bounds).toEqual({ minX: 0, minY: -400, maxX: 200, maxY: -300 });
-		expect(geometry.stretches[2].length).toBe(200);
+		expect(lengthOf(geometry.stretches[2].points)).toBe(200);
 	});
 
 	it('finds the junctions and the stretch leading into each', () => {
-		const geometry = new RoadGeometry(SMALL_NETWORK);
-		expect(geometry.junctions).toEqual([{ node: 2, at: { x: 0, y: -300 }, inbound: 1 }]);
+		const geometry = new RoadGeometry({ network: SMALL_NETWORK });
+		expect(geometry.junctions).toEqual([{ at: { x: 0, y: -300 }, inbound: 1 }]);
 	});
 
 	it('picks the coarsest detail level that stays under the pixel tolerance', () => {
@@ -51,7 +51,7 @@ describe('road geometry', () => {
 	});
 
 	it('caches each detail level once per stretch', () => {
-		const geometry = new RoadGeometry(SMALL_NETWORK);
+		const geometry = new RoadGeometry({ network: SMALL_NETWORK });
 		expect(geometry.polyline(1, -1)).toBe(geometry.stretches[1].points);
 		const coarse = geometry.polyline(1, 2);
 		expect(coarse).toEqual([{ x: 0, y: -100 }, { x: 0, y: -300 }]);
@@ -70,6 +70,25 @@ describe('road geometry', () => {
 		expect(corner[1].points).toEqual([{ x: 7, y: 0 }, { x: 10, y: 0 }, { x: 10, y: -3 }]);
 		expect(dashesAlong(points, 0, 4, 2)).toEqual([]);
 		expect(dashesAlong(points, 10, 0, 2)).toEqual([]);
+	});
+
+	it('keeps every dash its full length, however the dash and gap divide the segments', () => {
+		// A gentle curve of uneven segments, as smoothing leaves them
+		const flat: number[] = [];
+		for (let index = 0, x = 0; index < 40; index++, x += 1.3 + (index % 3) * 0.45) flat.push(x, Math.sin(x / 9) * 6);
+		const points = toMapSpace(flat);
+		const length = lengthOf(points) - 0.01;
+		for (const [dash, gap] of [[0.7, 0.3], [2.35, 1.15], [1 / 3, 1 / 7], [4.2, 0], [6.1, 2.9]]) {
+			const dashes = dashesAlong(points, length, dash, gap);
+			const period = dash + gap;
+			expect(dashes.length).toBe(Math.ceil(length / period - 1e-9));
+			dashes.forEach((piece, index) => {
+				expect(piece.along * length).toBeCloseTo(index * period, 6);
+				// Every dash but the last is whole; the last may be cut by the length
+				if (index < dashes.length - 1) expect(lengthOf(piece.points)).toBeCloseTo(dash, 6);
+				else expect(lengthOf(piece.points)).toBeLessThanOrEqual(dash + 1e-6);
+			});
+		}
 	});
 
 	it('measures the distance to a polyline, within a length along it', () => {

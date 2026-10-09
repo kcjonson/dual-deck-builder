@@ -1,5 +1,5 @@
 import { FOG } from './areaMapStyle';
-import { bakeFog } from './fogBake';
+import { MAX_FOG_SIZE, bakeFog } from './fogBake';
 import type { LandFogLayer } from './layers';
 import { revealedBounds } from './layers';
 
@@ -35,12 +35,27 @@ describe('bakeFog', () => {
 		expect(alphaAt(texels, size, 32, 12)).toBeGreaterThan(0);
 	});
 
-	it('never draws a revealed cell fully fogged, a lone one included', () => {
-		const fog: LandFogLayer = { cells: 16, isRevealed: (column, row) => column === 8 && row === 8 };
-		const { size, texels } = bakeFog({ fog, texelsPerCell: 4 });
-		// The cell's centre in texels, rows from the north
-		const centre = alphaAt(texels, size, 8 * 4 + 2, (15 - 8) * 4 + 2);
-		expect(centre).toBeLessThan(Math.round(255 * FOG.alpha));
+	it('clears revealed ground two cells across, and leaves a lone revealed cell mostly fogged', () => {
+		const wash = Math.round(255 * FOG.alpha);
+		// Cell (column, row)'s centre in texels at 4 a cell, rows from the north
+		const centreOf = (texels: Uint8Array, size: number, column: number, row: number): number => alphaAt(texels, size, column * 4 + 2, (15 - row) * 4 + 2);
+
+		const lone = bakeFog({ fog: { cells: 16, isRevealed: (column, row) => column === 8 && row === 8 }, texelsPerCell: 4 });
+		const loneAlpha = centreOf(lone.texels, lone.size, 8, 8);
+		expect(loneAlpha).toBeLessThan(wash);
+		expect(loneAlpha).toBeGreaterThan(wash / 2);
+
+		const pair = bakeFog({ fog: { cells: 16, isRevealed: (column, row) => (column === 8 || column === 9) && row >= 4 && row <= 11 }, texelsPerCell: 4 });
+		for (let row = 5; row <= 10; row++) {
+			expect(centreOf(pair.texels, pair.size, 8, row)).toBe(0);
+			expect(centreOf(pair.texels, pair.size, 9, row)).toBe(0);
+		}
+	});
+
+	it('holds the texture to MAX_FOG_SIZE whatever the grid', () => {
+		expect(bakeFog({ fog: { cells: 64, isRevealed: () => false } }).size).toBe(64 * FOG.texelsPerCell);
+		expect(bakeFog({ fog: { cells: 300, isRevealed: () => false } }).size).toBeLessThanOrEqual(MAX_FOG_SIZE);
+		expect(bakeFog({ fog: { cells: 300, isRevealed: () => false } }).size).toBe(300 * 3);
 	});
 
 	it('rejects a fog with no cells', () => {
