@@ -119,7 +119,7 @@ Rules for these screens are in [Compound and Supply Runs](./Compound%20and%20Sup
 
 ### 3.1 The Compound
 
-The home screen. An illustrated scene of the compound where the buildings are the menu (garage, infirmary, stores, bunkhouse, radio mast, map room), resources and the day along the top, and a needs panel beside it: shortage forecasts, injured drivers, new rumors. The main action is "Plan a supply run", which opens the area map.
+The home screen. An illustrated scene of the compound where the buildings are the menu (garage, infirmary, stores, bunkhouse, radio mast, map room), resources and the day along the top, and a needs panel beside it: shortage forecasts ("Food runs out in 6 days"), injured drivers with the days until they're fit, new rumors. The main action is "Plan a supply run", which opens the area map. Back to menu, or Escape, returns to the main menu.
 
 ![Compound hub wireframe](../design/supply-runs/compound.png)
 

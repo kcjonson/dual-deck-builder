@@ -1,7 +1,7 @@
 /**
  * Campaign saves for the screen scenarios: local storage items a capture
  * writes before it navigates, so the main menu, Campaign History, and the
- * compound placeholder render from a save the way a player's page would.
+ * compound screen render from a save the way a player's page would.
  *
  * Built from the campaign store's own test fixtures, so they follow the
  * fixture and the save format version wherever those move, and nothing here
