@@ -212,8 +212,12 @@ export const RESOURCE_NAMES: readonly (keyof Resources)[] = ['food', 'water', 'f
  */
 const FIXED_FIELDS = ['seed', 'generatorVersion', 'mapParams', 'convoy'] as const;
 
-/** Counters that hand out ids, which never go back, so no id is handed out twice. */
-const COUNTERS = ['nextDriverNumber', 'nextRunNumber'] as const;
+/**
+ * Counters that never go back: the two that hand out ids, so no id is
+ * handed out twice, and the day, which names each day's draws (a scavenging
+ * party's `fork('scavenge', day)`), so no day's roll comes round again.
+ */
+const COUNTERS = ['day', 'nextDriverNumber', 'nextRunNumber'] as const;
 
 const DRIVER_ID = /^driver-([1-9][0-9]*)$/;
 
@@ -236,7 +240,8 @@ export interface Campaign extends Readonly<CampaignData> {}
  * whole campaign and throws, changing nothing, if the result would be
  * invalid, so whatever `toJSON` writes, `fromJSON` reads back. The seed,
  * generator version, map params, and convoy never change after founding,
- * the driver and run counters never go back, and the pool only grows.
+ * the day and the driver and run counters never go back, and the pool
+ * only grows.
  * Drivers, escorts, and runs carry ids from saved counters (`driver-<n>`,
  * `escort-<n>`, `run-<n>`), which is what anything a save holds refers to
  * them by.
@@ -336,8 +341,9 @@ export class Campaign extends Model<CampaignData> {
 	 * Changes fields together, checked as a whole. Throws without changing
 	 * anything if the campaign would be invalid, a field is unknown, the
 	 * seed, generator version, or map params would change, another convoy
-	 * would replace the campaign's (starting its escort ids over), the
-	 * driver or run counter would go back (handing out an id again), a driver
+	 * would replace the campaign's (starting its escort ids over), the day
+	 * would go back (rolling a day's draws again), the driver or run counter
+	 * would go back (handing out an id again), a driver
 	 * would leave the pool or change places in it, or a driver would join it
 	 * with an id the counter had already passed. Nothing changes while a card
 	 * move is being stored, so campaign listeners never hear half of one.
@@ -350,11 +356,11 @@ export class Campaign extends Model<CampaignData> {
 				throw new RangeError(`Campaign.${field} is fixed at founding`);
 			}
 		}
-		for (const field of COUNTERS) {
-			const [from, to] = [current[field], changes[field]];
-			if (from !== undefined && to !== undefined && to < from) throw new RangeError(`Campaign.${field} can't go back, from ${from} to ${to}`);
-		}
 		const valid = readCampaignData({ ...current, ...changes }, 'Campaign', current);
+		for (const field of COUNTERS) {
+			const [from, to] = [current[field], valid[field]];
+			if (from !== undefined && field in changes && to < from) throw new RangeError(`Campaign.${field} can't go back, from ${from} to ${to}`);
+		}
 		super.set(Object.fromEntries(Object.keys(changes).map(key => [key, valid[key as keyof CampaignData]])));
 	}
 

@@ -33,7 +33,7 @@ How stop cooldowns and POI refills plug in:
 4. Stop cooldowns, then POI refills.
 5. The day turns, and a short day gets a log line dated the day it happened: "Ran short of 1 food and 2 water; 3 people lost."
 
-Everything is worked out and checked before anything is stored: the hooks' maps with the save's reader, the stores with the haul in with the save's resource reader, and the next day and unrest with the integer reader the campaign's own check uses. So a hook that throws or returns something a save can't hold, or a haul, day, or unrest past a safe integer, changes nothing. Then the healed records are stored, and the campaign last, in one `set` that carries the haul too, so its `change` comes once the day end is whole, as with a card move. The log is read after the records are stored, so a line a record's listener adds while a driver heals stays in. Saving stays with the caller's checkpoint after the step.
+`endDay` refuses while the campaign is storing a card move or a run's records (`Campaign.isStoring`): a record's listener calling it then would see the healed records stored and the campaign's `set` refused. Everything is worked out and checked before anything is stored: the hooks' maps with the save's reader, the stores with the haul in with the save's resource reader, and the next day and unrest with the integer reader the campaign's own check uses. So a hook that throws or returns something a save can't hold, or a haul, day, or unrest past a safe integer, changes nothing. Then the healed records are stored, and the campaign last, in one `set` that carries the haul too, so its `change` comes once the day end is whole, as with a card move. The log is read after the records are stored, so a line a record's listener adds while a driver heals stays in. Saving stays with the caller's checkpoint after the step.
 
 It returns a frozen `DayEnd`: the day that ended, the upkeep, the shortfall, people lost, unrest gained, the drivers healed, and an `outcome`, `abandoned` whenever People is 0 at dawn and `continues` otherwise.
 
@@ -47,7 +47,7 @@ The rules are in `data/compound-rules.json`, a sibling of `campaign-start.json`:
 | `shortfall.peopleLostPerUnit` | 1 | a provisional call, below |
 | `shortfall.unrestPerUnit` | 1 | a provisional call, below |
 
-Nothing here draws randomness. A later step that needs a draw forks a stream per day end from the seed and the day, `new Rng({ seed }).fork('day', day)`: the day is already a saved counter that never repeats, so it needs nothing new in the save. A hook rerolling a stop forks the stop's own stream from its saved roll count ([seeded-prng.md](./seeded-prng.md)).
+Nothing here draws randomness. A later step that needs a draw forks a stream per day end from the seed and the day, `new Rng({ seed }).fork('day', day)`: the day is already a saved counter that `Campaign.set` never turns back, so it needs nothing new in the save. A hook rerolling a stop forks the stop's own stream from its saved roll count ([seeded-prng.md](./seeded-prng.md)).
 
 ## Provisional calls
 

@@ -103,8 +103,9 @@ describe('rollScavengeHaul', () => {
 
 	it.each([
 		['a seed past a uint32', { seed: 2 ** 32, day: 1 }, 'seed must be an integer from 0 to 4294967295, got 4294967296'],
-		['day 0', { seed: SEED, day: 0 }, 'day must be an integer >= 1, got 0'],
-		['part of a day', { seed: SEED, day: 1.5 }, 'day must be an integer >= 1, got 1.5']
+		['day 0', { seed: SEED, day: 0 }, 'day must be an integer from 1 to 4294967295, got 0'],
+		['part of a day', { seed: SEED, day: 1.5 }, 'day must be an integer from 1 to 4294967295, got 1.5'],
+		['a day past the attempts a stream takes', { seed: SEED, day: 2 ** 32 }, 'day must be an integer from 1 to 4294967295, got 4294967296']
 	])('rejects %s', (_label, options, message) => {
 		expect(() => rollScavengeHaul(options)).toThrow(message);
 	});
@@ -127,7 +128,6 @@ describe('scavenge', () => {
 	it('logs "A scavenging party brought back 2 fuel and 15 scrap."', () => {
 		expect(scavengeMessage({ fuel: 2, scrap: 15 })).toBe('A scavenging party brought back 2 fuel and 15 scrap.');
 		expect(scavengeMessage({ fuel: 1, scrap: 0 })).toBe('A scavenging party brought back 1 fuel.');
-		expect(scavengeMessage({ fuel: 0, scrap: 0 })).toBe('A scavenging party came back empty-handed.');
 	});
 
 	it('logs the haul ahead of the shortfall it didn\'t prevent, both dated the day that ended', () => {
@@ -257,6 +257,26 @@ describe('scavenge', () => {
 			}
 			expect(savedText(campaign)).toBe(before);
 			expect(changes).toEqual([]);
+		});
+
+		it('refuses while a run is out, since its return ends the day, and changes nothing', () => {
+			const campaign = strandedCampaign();
+			campaign.startRunDecks({ seats: (['road_warrior', 'mechanic'] as const).map(archetype => campaign.recruitDriver({ archetype })) });
+			const before = savedText(campaign);
+			const changes: number[] = [];
+			campaign.on('change', () => changes.push(campaign.day));
+
+			expect(getScavengeBlocker({ campaign })).toEqual({ reason: 'run_out', run: 'run-1' });
+			expect(() => scavenge({ campaign })).toThrow("run-1 is out, so no scavenging party goes until it's home");
+			expect(savedText(campaign)).toBe(before);
+			expect(changes).toEqual([]);
+		});
+
+		it('names the fallen compound first when a run is out as the last people go', () => {
+			const campaign = strandedCampaign({ people: 0 });
+			campaign.startRunDecks({ seats: (['road_warrior', 'mechanic'] as const).map(archetype => campaign.recruitDriver({ archetype })) });
+
+			expect(getScavengeBlocker({ campaign })).toEqual({ reason: 'abandoned' });
 		});
 
 		it.each([

@@ -102,6 +102,9 @@ export interface DayEndOptions {
  * 4. Stop cooldowns, then POI refills, on the map (`hooks`).
  * 5. The day turns, and a shortfall goes in the log, dated the day it happened.
  *
+ * It refuses while the campaign is storing a card move or a run's records,
+ * as a record's listener partway through one would see it: the healed
+ * records would be stored and the campaign's `set` refused, half a night.
  * Everything is worked out and checked before anything is stored, so a step
  * that throws (a hook, the map it returns, a haul, day, or unrest past what
  * a save holds) changes nothing. Then the healed records are stored, and the
@@ -109,6 +112,7 @@ export interface DayEndOptions {
  * `change` comes once the day end is whole. Nothing here draws randomness.
  */
 export function endDay({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS, haul }: DayEndOptions): DayEnd {
+	if (campaign.isStoring) throw new Error("The day can't end while a card move is being stored");
 	const checked = readCompoundRules(rules, 'CompoundRules');
 	const { map: duskMap, ...state } = campaign.getState();
 	const haulMessage = haul === undefined ? null : readText(haul.message, 'haul.message');
@@ -179,9 +183,7 @@ export function forecastNeeds({ resources, rules = COMPOUND_RULES }: { resources
 function withHaul({ resources, haul }: { resources: Readonly<Resources>; haul: Readonly<Partial<Resources>> }): Readonly<Resources> {
 	const added = readFields(haul, 'haul.resources', [], RESOURCE_NAMES);
 	const sums: Resources = { ...resources };
-	for (const name of RESOURCE_NAMES) {
-		if (name in added) sums[name] += readInteger(added[name], `haul.resources.${name}`, { min: 0 });
-	}
+	for (const name of Object.keys(added) as (keyof Resources)[]) sums[name] += readInteger(added[name], `haul.resources.${name}`, { min: 0 });
 	return readResources(sums, 'Campaign.resources');
 }
 

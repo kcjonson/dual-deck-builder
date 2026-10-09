@@ -295,6 +295,31 @@ describe('endDay', () => {
 			expect(driver.status).toBe('injured');
 		});
 
+		it('refuses partway through a card move, before anyone heals, so a record\'s listener can\'t end half a night', () => {
+			const campaign = newCampaign();
+			const mover = campaign.recruitDriver({ archetype: 'road_warrior' });
+			const patient = campaign.recruitDriver({ archetype: 'mechanic' });
+			injure(patient, 1);
+			const [cardType] = Object.keys(mover.defaultDeck);
+			const held = mover.defaultDeck[cardType];
+			campaign.set({ locker: { [cardType]: 1 } });
+			const refusals: string[] = [];
+			mover.on('change', () => {
+				try {
+					endDay({ campaign });
+				} catch (error) {
+					refusals.push((error as Error).message);
+				}
+			});
+
+			campaign.moveCards({ cardType, from: 'locker', to: mover });
+
+			expect(refusals).toEqual(["The day can't end while a card move is being stored"]);
+			expect(campaign.day).toBe(1);
+			expect(patient).toMatchObject({ status: 'injured', injuredDays: 1 });
+			expect(mover.defaultDeck[cardType]).toBe(held + 1);
+		});
+
 		it('keeps a line a driver\'s listener logs as they heal, ahead of the shortfall', () => {
 			const campaign = newCampaign({ food: 0 });
 			const driver = campaign.recruitDriver({ archetype: 'road_warrior' });

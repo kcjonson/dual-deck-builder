@@ -22,15 +22,21 @@ When it lands against upkeep:
 Who has to be there:
 
 - A ready driver. The spec sends the party on foot, which reads as settlers, and an injured pool would have to wait out the infirmary before it could get fuel.
-- At least one person (chosen). People 0 is the fallen compound, so this is available in every state where the compound still stands, which is what the guarantee needs.
+- At least one person (chosen). People 0 is the fallen compound, so this is available in every state where the compound still stands, which is what the guarantee needs. The last driver's death ends the campaign too (Compound and Supply Runs, The driver pool); that check is DDB-305's, with the rest of the campaign's end, so the party doesn't repeat it.
 
-The stream is `new Rng({ seed }).fork('scavenge', day)`, off the campaign's root. A party ends its day, so there's one a day, and the day is a saved counter that never repeats: every party has a stream of its own and the save keeps nothing new. Fuel draws first, then scrap, one `int` each, and a golden pins the first six days of one seed at `RNG_VERSION` 1. day-clock.md plans `fork('day', day)` for night steps that draw; the party's roll is the day's action, not a night step, so it has its own name and moves none of those.
+While a run is out:
+
+- Refused in `endDay`. Holing up at a POI (Night) would end a day with a run out, so the day end can't refuse one.
+- Refused in the blocker (chosen). The run's return ends its day, so a party that day would end it twice. Rest gets the same check with the compound screen's buttons.
+
+The stream is `new Rng({ seed }).fork('scavenge', day)`, off the campaign's root. A party ends its day, so there's one a day, and the day is a saved counter that `Campaign.set` never turns back, like the driver and run counters: every party has a stream of its own and the save keeps nothing new. A day past 2^32 - 1, the most `fork` takes as an attempt, is refused before anything rolls. Fuel draws first, then scrap, one `int` each, and a golden pins the first six days of one seed at `RNG_VERSION` 1. day-clock.md plans `fork('day', day)` for night steps that draw; the party's roll is the day's action, not a night step, so it has its own name and moves none of those.
 
 ## Decision
 
 - `scavenge({ campaign, rules?, hooks? })` checks `getScavengeBlocker`, rolls the haul from the day's stream, and calls `endDay` with it and the line "A scavenging party brought back 2 fuel and 15 scrap." It returns the haul and the `DayEnd`, frozen. Saving is the caller's checkpoint after it, as with Rest.
-- `getScavengeBlocker` refuses only People 0, as `{ reason: 'abandoned' }`, and `scavenge` throws it as a `ScavengeRuleError`, changing nothing.
+- `getScavengeBlocker` refuses People 0 as `{ reason: 'abandoned' }`, and then a run out as `{ reason: 'run_out', run }`, naming `campaign.currentRun`. `scavenge` throws either as a `ScavengeRuleError`, changing nothing.
 - `rollScavengeHaul({ seed, day, rules? })` is pure, so the screen or a test can ask what a day would bring.
+- `endDay` refuses while the campaign is storing (`Campaign.isStoring`), as it is partway through a card move or a run's start or end. A record's listener calling it then would have the healed records stored and the campaign's `set` refused: half a night, for Rest as well as a party.
 - `endDay`'s `haul` adds to the stores at dusk. Each amount has to be a whole number from 0, for a resource the campaign keeps, and no sum can pass a safe integer; all of that is checked before anyone heals. Its log line is dated the day that ended, ahead of any shortfall line, since the party was home before the compound ate.
 
 | Value | Start | Why |
@@ -42,7 +48,7 @@ The reader holds fuel's min at 1 or more, so every party brings fuel and the fil
 
 ## The guarantee
 
-- A party can go whenever People is above 0. Nothing about drivers, stores, meds, or unrest refuses it.
+- A party can go whenever People is above 0 and no run is out. Nothing about drivers, stores, meds, or unrest refuses it. A run out isn't stuck: its return, or its failure, ends that day. The last driver's death is DDB-305's check (above).
 - Every party brings at least 1 fuel, and a night eats only food and water, so a compound fed for d days has at least d more fuel after d parties.
 - It can't save a starving compound. With no food or water People shrinks every night, and the compound can fall before it has a run's fuel; that's the campaign lost, not stuck.
 - Route costs aren't set, so the tests take 5 fuel, half the founding stores, as a run's. A founded compound with no fuel and no scrap gets there inside the week its food lasts. A sweep of 300 seeds and stranded states (1 to 200 people, stores from empty to a month's, any day and unrest, drivers ready, injured, dead, or missing) finds a party available every day People is above 0, adding its fuel and scrap and nothing else; every compound fed for the days it needs reaches that fuel with nobody lost, and every one that fell is refused.
@@ -55,11 +61,12 @@ Each is a value or a line or two to change.
 - Settlers go, not drivers: the party needs People 1 or more and nothing else. Injured, dead, or missing drivers don't stop it.
 - The haul is 1 to 2 fuel and 5 to 15 scrap, flat: it doesn't scale with People, the day, or unrest.
 - A party carries no risk. Nobody is lost or hurt, and it never comes home empty; the spec rules out a fight and says nothing of other risks.
-- The only refusal is People 0. A run being out isn't checked, any more than Rest checks it: both are compound steps between runs.
+- A party is refused only at People 0 and while a run is out, the blocker's check rather than `endDay`'s. Rest gets the run-out check with the compound screen's buttons.
 - The log line names what came back, and leaves out scrap tuned to 0: "A scavenging party brought back 1 fuel."
 
 ## Consequences
 
 - The compound screen's Scavenge sits beside Rest with the same end-then-checkpoint shape ([compound-screen.md](./compound-screen.md)).
+- With no cost and no risk, a day scavenging is never worse than a day of rest: it eats the same, heals the same, and brings fuel and scrap. Rest becomes a button nobody has a reason to press until scavenging costs or risks something, or resting gains something of its own.
 - When routes have fuel costs, the tests' stand-in becomes the cheapest tier-1 route's, and the fuel range gets tuned against it.
 - The save format doesn't change: the haul goes into stores the campaign already keeps, and the stream is named by the day.
