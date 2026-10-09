@@ -161,7 +161,7 @@ function dailyUpkeep({ people, rules }: { people: number; rules: CompoundRules }
 }
 
 /** "Ran short of 2 food and 1 water; 3 people lost." */
-function shortfallMessage({ shortfall, peopleLost }: { shortfall: Upkeep; peopleLost: number }): string {
+export function shortfallMessage({ shortfall, peopleLost }: { shortfall: Upkeep; peopleLost: number }): string {
 	const short = UPKEEP_RESOURCES.filter(resource => shortfall[resource] > 0).map(resource => `${shortfall[resource]} ${resource}`).join(' and ');
 	if (peopleLost === 0) return `Ran short of ${short}.`;
 	return `Ran short of ${short}; ${peopleLost} ${peopleLost === 1 ? 'person' : 'people'} lost.`;
