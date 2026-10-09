@@ -151,6 +151,25 @@ describe('Run decks (DDB-315)', () => {
 			expect(campaign.unrest).toBe(0);
 		});
 
+		it('give the default decks back, and throw on, when a listener leaves the run decks unstorable partway through', () => {
+			const { campaign, warrior, interceptor, hauler } = crew();
+			const owned = campaign.cardsOwned;
+			// The listener runs again as the copies go back, and its second dismissal throws, which the emitter logs
+			const logged = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+			warrior.on('change', () => campaign.convoy.dismiss({ escort: hauler, drivers: [] }));
+
+			try {
+				expect(() => campaign.startRunDecks({ seats: [warrior, interceptor], escorts: [hauler] }))
+					.toThrow("Campaign.runDecks[0].escortCards[0].broughtBy escort-1 isn't an escort in the convoy");
+			} finally {
+				logged.mockRestore();
+			}
+
+			expect(campaign.runDecks).toEqual([]);
+			expect([warrior.defaultDeck, interceptor.defaultDeck]).toEqual([startingDeckCounts('road_warrior'), startingDeckCounts('interceptor')]);
+			expect(campaign.cardsOwned).toEqual(owned);
+		});
+
 		it('take the second deck as it is when it empties, so a listener\'s change to it partway through goes with it', () => {
 			const { campaign, warrior, interceptor } = crew();
 			warrior.once('defaultDeck', () => interceptor.set({ defaultDeck: { headshot: 9 } }));
@@ -176,6 +195,8 @@ describe('Run decks (DDB-315)', () => {
 				interceptor.set({ status: 'injured', injuredDays: 2 });
 				return { seats: [warrior, interceptor] };
 			}, "Interceptor 1 (driver-2) is injured, so they can't go on a run"],
+			['two drivers of one archetype', ({ campaign, warrior }: Crew) => ({ seats: [warrior, campaign.recruitDriver({ archetype: 'road_warrior' })] }),
+				'Road Warrior 1 (driver-1) and Road Warrior 2 (driver-4) are both road_warrior; a run seats two different archetypes'],
 			['an escort that isn\'t in the convoy', ({ warrior, interceptor }: Crew) => ({ seats: [warrior, interceptor], escorts: [createEscort({ type: 'outrider' })] }), "Outrider isn't in the campaign's convoy"],
 			['an escort listed twice', ({ warrior, interceptor, hauler }: Crew) => ({ seats: [warrior, interceptor], escorts: [hauler, hauler] }), 'Fuel Hauler (escort-1) is listed twice']
 		] as [string, (seated: Crew) => StartOptions, string][])('refuse to start %s, changing nothing', (_label, setUp, message) => {
@@ -224,11 +245,11 @@ describe('Run decks (DDB-315)', () => {
 			expect(runDeckOf(campaign, warrior).deckSize).toBe(10);
 			expect(campaign.locker).toEqual({ nitro_boost: 1 });
 			// The Interceptor can borrow the locker's one, never the two the Road Warrior left at home
-			expectRefused({
-				campaign,
-				move: { cardType: 'nitro_boost', from: 'locker', to: runDeckOf(campaign, interceptor), count: 2 },
-				blocker: { reason: 'too_few', place: 'locker', held: 1 }
-			});
+			const tooMany: CardMove = { cardType: 'nitro_boost', from: 'locker', to: runDeckOf(campaign, interceptor), count: 2 };
+			expectRefused({ campaign, move: tooMany, blocker: { reason: 'too_few', place: 'locker', held: 1 } });
+			expect(() => campaign.moveCards(tooMany)).toThrow("Can't take 2 nitro_boost into a run deck, with 1 available, from the locker and the driver's own left at home");
+			// The Road Warrior has three: their own two at home, and the locker's
+			expect(campaign.getCardMoveBlocker({ ...tooMany, to: runDeckOf(campaign, warrior), count: 4 })).toEqual({ reason: 'too_few', place: 'locker', held: 3 });
 
 			campaign.moveCards({ cardType: 'nitro_boost', from: 'locker', to: runDeckOf(campaign, warrior), count: 3 });
 
@@ -275,7 +296,8 @@ describe('Run decks (DDB-315)', () => {
 			const borrow: CardMove = { cardType: 'headshot', from: 'locker', to: runDeckOf(campaign, warrior) };
 
 			expectRefused({ campaign, move: borrow, blocker: { reason: 'already_borrowed', place: 'locker', held: 0, by: runDeckOf(campaign, interceptor) } });
-			expect(() => campaign.moveCards(borrow)).toThrow("Can't move 1 headshot from the locker, which has 0 free: Interceptor 1 (driver-2) has borrowed the rest");
+			expect(() => campaign.moveCards(borrow))
+				.toThrow("Can't take 1 headshot into a run deck, with 0 available, from the locker and the driver's own left at home: Interceptor 1 (driver-2) has borrowed the rest");
 			expectRefused({
 				campaign,
 				move: { cardType: 'emp_blast', from: 'locker', to: runDeckOf(campaign, warrior) },
@@ -311,6 +333,24 @@ describe('Run decks (DDB-315)', () => {
 			expect(() => campaign.moveCards({ cardType: 'headshot', from: 'locker', to: warrior }))
 				.toThrow("Road Warrior 1 (driver-1) is out on a run, so their default deck is in their run deck until it's unwound");
 			expect(campaign.getCardMoveBlocker({ cardType: 'headshot', from: 'locker', to: mechanic })).toBeNull();
+		});
+
+		it('won\'t save, or store a run deck change, while a set has put cards in a seated driver\'s default deck', () => {
+			const { campaign, warrior } = onARun();
+			warrior.set({ defaultDeck: { headshot: 1 } });
+			const message = 'Campaign.runDecks[0].driver driver-1 holds cards in their default deck, {"headshot":1}, which is in their run deck while a run is out';
+
+			expect(() => campaign.toSaveText()).toThrow(message);
+			expect(() => campaign.moveCards({ cardType: 'headshot', from: 'locker', to: runDeckOf(campaign, warrior) })).toThrow(message);
+			warrior.set({ defaultDeck: {} });
+			expect(() => campaign.toSaveText()).not.toThrow();
+		});
+
+		it('never hold a card both left at home and borrowed, which no move makes', () => {
+			const { warrior } = crew();
+
+			expect(() => new RunDeck({ driver: warrior, leftHome: { headshot: 1 }, borrowed: { headshot: 2 } }))
+				.toThrow("RunDeck.borrowed.headshot can't be borrowed while 1 of the driver's own are left at home, which come back first");
 		});
 
 		it('refuse a run deck whose driver is away, as after a fight that failed the run', () => {
@@ -503,6 +543,24 @@ describe('Run decks (DDB-315)', () => {
 			expect(campaign.locker).toEqual({ headshot: 2, precision_shot: 1, repair_kit: 1 });
 			expect(campaign.cardsOwned).toEqual(addCounts(addCounts(campaign.locker, startingDeckCounts('road_warrior')), startingDeckCounts('mechanic')));
 			expect(totalCards(owned) - totalCards(campaign.cardsOwned)).toBe(theirs.deckSize);
+		});
+
+		it.each(['dead', 'missing'] as const)('won\'t reset the run deck of a driver who\'s %s, which would lose what they left at home when it\'s unwound', (status) => {
+			const { campaign, warrior } = onARun();
+			campaign.moveCards({ cardType: 'nitro_boost', from: runDeckOf(campaign, warrior), to: 'locker', count: 2 });
+			campaign.moveCards({ cardType: 'medical_kit', from: 'locker', to: runDeckOf(campaign, warrior) });
+			// As the combat bridge writes a failed run
+			warrior.set(status === 'dead' ? { status, hitpoints: 0, defaultDeck: {} } : { status });
+			const before = campaign.toSaveText();
+
+			const error = refusal(() => campaign.resetRunDeck({ runDeck: runDeckOf(campaign, warrior) }));
+
+			expect(error.blocker).toEqual({ reason: 'driver_away', place: warrior });
+			expect(error.message).toBe(`Road Warrior 1 (driver-1) is ${status}, so their run deck can't be reset`);
+			expect(campaign.toSaveText()).toBe(before);
+			campaign.unwindRunDecks();
+			// The Nitro Boosts left at home are safe either way; the Medical Kit went with the dead and came back with the missing
+			expect(campaign.locker).toEqual(status === 'dead' ? { headshot: 2, nitro_boost: 2, precision_shot: 1 } : { headshot: 2, medical_kit: 1, precision_shot: 1 });
 		});
 
 		it('unwinds a missing driver\'s run deck as if they\'d come home', () => {

@@ -9,7 +9,7 @@ import { Team, TeamType } from '../mechanics/Team';
 import { Vehicle, createDrivenVehicle } from '../mechanics/Vehicle';
 import { Campaign, NO_RESOURCES, Resources, readResources } from './Campaign';
 import { CardCounts, NO_CARDS, addCards, readCardCounts } from './CardCounts';
-import { DriverRecord, DriverRecordData, VehicleCondition, readDriverRecordData } from './DriverRecord';
+import { DriverRecord, DriverRecordData, VehicleCondition, describeDriver, readDriverRecordData } from './DriverRecord';
 import { RunDeck } from './RunDeck';
 import { SeatBlocker, getSeatBlocker } from './Seating';
 
@@ -152,8 +152,8 @@ export function hasOpenFight(campaign: Campaign): boolean {
  * ready, checked in seat order, then two different drivers of different
  * archetypes. So does a party whose cargo doesn't check out, an escort that
  * isn't the campaign's, a seat with no run deck or one holding the card of
- * an escort that isn't in the party, or a card in the decks with no
- * template. The teams and the encounter can refuse the road too (Team,
+ * an escort that isn't in the party, an escort in the party whose card
+ * neither run deck holds, or a card in the decks with no template. The teams and the encounter can refuse the road too (Team,
  * Battle), and move nobody when they do.
  */
 export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, enemyAI = 'aggressive' }: CampaignFightOptions): CampaignFight {
@@ -174,6 +174,11 @@ export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, ene
 	const escorts = campaign.convoy.escorts.filter(escort => party.escorts.includes(escort));
 	const cargoCards = readCardCounts(party.cargoCards, 'RunParty.cargoCards');
 	const [firstDeck, secondDeck] = party.seats.map(record => seatRunDeck({ campaign, record, escorts }));
+	escorts.forEach(escort => {
+		const cardType = escort.escort?.signatureCard ?? null;
+		if (cardType === null || [firstDeck, secondDeck].some(deck => deck.escortCards.some(card => card.broughtBy === escort.convoyId))) return;
+		throw new RangeError(`${escort.name} (${escort.convoyId}) came along, and neither run deck holds the ${cardType} it brings`);
+	});
 
 	const drivers: [Driver, Driver] = [
 		combatDriverOf({ record: first, runDeck: firstDeck, cards }),
@@ -236,7 +241,7 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
 	const seats = party.seats.map((record, index) => {
 		const fate = fateOf({ battle, driver: drivers[index], won });
 		const changes = recordChanges({ fate, driver: drivers[index], vehicle: vehicles[index] });
-		readDriverRecordData({ ...record.getState(), ...changes }, describeRecord(record));
+		readDriverRecordData({ ...record.getState(), ...changes }, describeDriver(record));
 		return { record, fate, changes };
 	});
 	const escortsLost = won ? afterFight.lost : party.escorts;
@@ -285,10 +290,10 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
  */
 function seatRunDeck({ campaign, record, escorts }: { campaign: Campaign; record: DriverRecord; escorts: readonly Vehicle[] }): RunDeck {
 	const runDeck = campaign.runDeckOf(record);
-	if (runDeck === null) throw new RangeError(`${describeRecord(record)} has no run deck; load out starts them (Campaign.startRunDecks)`);
+	if (runDeck === null) throw new RangeError(`${describeDriver(record)} has no run deck; load out starts them (Campaign.startRunDecks)`);
 	runDeck.escortCards.forEach(({ cardType, broughtBy }) => {
 		if (!escorts.some(escort => escort.convoyId === broughtBy)) {
-			throw new RangeError(`${describeRecord(record)}'s run deck holds the ${cardType} ${broughtBy} brought, and that escort isn't in the party`);
+			throw new RangeError(`${describeDriver(record)}'s run deck holds the ${cardType} ${broughtBy} brought, and that escort isn't in the party`);
 		}
 	});
 	return runDeck;
@@ -304,7 +309,7 @@ function combatDriverOf({ record, runDeck, cards }: { record: DriverRecord; runD
 	const config = DRIVER_CONFIGS[record.archetype];
 	const copyOf = (cardType: string): Card => {
 		const template = cards.get(cardType);
-		if (!template) throw new RangeError(`${describeRecord(record)}'s run deck holds ${cardType}, which isn't a card`);
+		if (!template) throw new RangeError(`${describeDriver(record)}'s run deck holds ${cardType}, which isn't a card`);
 		return template.copy();
 	};
 	const dealt = runDeck.escortCards.reduce((counts, { cardType }) => addCards(counts, cardType), runDeck.cards);
@@ -389,14 +394,10 @@ function withDividends({ cargo, dividends }: { cargo: Readonly<Resources>; divid
 function seatRefusal({ record, blocker }: { record: DriverRecord; blocker: SeatBlocker }): string {
 	switch (blocker.reason) {
 		case 'already_seated':
-			return `${describeRecord(record)} is in both seats; a fight seats two different drivers`;
+			return `${describeDriver(record)} is in both seats; a fight seats two different drivers`;
 		case 'same_archetype':
-			return `${describeRecord(record)} and ${describeRecord(blocker.partner)} are both ${blocker.archetype}; a fight seats two different archetypes`;
+			return `${describeDriver(record)} and ${describeDriver(blocker.partner)} are both ${blocker.archetype}; a fight seats two different archetypes`;
 		default:
-			return `${describeRecord(record)} is ${record.status}, so they can't fight`;
+			return `${describeDriver(record)} is ${record.status}, so they can't fight`;
 	}
-}
-
-function describeRecord(record: DriverRecord): string {
-	return `${record.name} (${record.id})`;
 }

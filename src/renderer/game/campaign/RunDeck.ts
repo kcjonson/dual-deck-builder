@@ -1,5 +1,5 @@
 import { escortNumber } from '../mechanics/Convoy';
-import { CardCounts, NO_CARDS, addCounts, readCardCounts, readCardType, totalCards } from './CardCounts';
+import { CardCounts, NO_CARDS, addCounts, cardCount, readCardCounts, readCardType, totalCards } from './CardCounts';
 import { DriverRecord } from './DriverRecord';
 import { ReaderRangeError, ReaderTypeError, describeValue, readArray, readFields, readText } from './JsonReader';
 
@@ -124,13 +124,24 @@ export function readRunDeckJson(value: unknown, path: string, drivers: readonly 
 	return new RunDeck(data);
 }
 
+/**
+ * A run deck's fields checked. No card is both left at home and borrowed:
+ * the driver's own come back before anything's borrowed, and borrowed
+ * copies go back before their own stay home, so no move makes one.
+ */
 function readRunDeckData(value: Record<keyof RunDeckData, unknown>, path: string): RunDeckData {
 	if (!(value.driver instanceof DriverRecord)) throw new ReaderTypeError(`${path}.driver must be a DriverRecord, got ${describeValue(value.driver)}`);
+	const leftHome = readCardCounts(value.leftHome, `${path}.leftHome`);
+	const borrowed = readCardCounts(value.borrowed, `${path}.borrowed`);
+	for (const cardType of Object.keys(borrowed)) {
+		const home = cardCount(leftHome, cardType);
+		if (home > 0) throw new ReaderRangeError(`${path}.borrowed.${cardType} can't be borrowed while ${home} of the driver's own are left at home, which come back first`);
+	}
 	return {
 		driver: value.driver,
 		own: readCardCounts(value.own, `${path}.own`),
-		leftHome: readCardCounts(value.leftHome, `${path}.leftHome`),
-		borrowed: readCardCounts(value.borrowed, `${path}.borrowed`),
+		leftHome,
+		borrowed,
 		escortCards: readEscortCards(value.escortCards, `${path}.escortCards`)
 	};
 }

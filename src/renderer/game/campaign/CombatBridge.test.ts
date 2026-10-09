@@ -367,6 +367,18 @@ describe('the combat bridge', () => {
 					.toThrow(`${named(warrior)}'s run deck holds the top_off escort-1 brought, and that escort isn't in the party`);
 			});
 
+			it('an escort in the party whose card neither run deck holds, since its order couldn\'t be dealt', () => {
+				const { campaign, warrior, interceptor } = newCampaign();
+				const hauler = createEscort({ type: 'fuel_hauler' });
+				campaign.convoy.add(hauler);
+				loadOut({ campaign, seats: [warrior, interceptor] });
+
+				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor], [hauler]), enemy: idle() }))
+					.toThrow('Fuel Hauler (escort-1) came along, and neither run deck holds the top_off it brings');
+				campaign.addEscortCards({ escorts: [hauler] });
+				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor], [hauler]), enemy: idle() })).not.toThrow();
+			});
+
 			it('a fight while the campaign\'s last one hasn\'t been written back, ended or not', () => {
 				const { campaign, warrior, interceptor } = newCampaign();
 				shooter(interceptor);

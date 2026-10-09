@@ -10,6 +10,10 @@ A campaign fight dealt each driver their record's default deck, and the bridge's
 
 `startRunDecks({ seats, escorts })` empties each seated driver's default deck into their run deck. While a run is out, a run deck holds the driver's whole default deck split two ways, `own` (going) and `leftHome` (staying), beside `borrowed` (locker copies going) and `escortCards`. `unwindRunDecks` puts `own` and `leftHome` back in the default deck and `borrowed` back in the locker.
 
+It seats the drivers by load out's own check, `getSeatBlocker` ([injuries.md](./injuries.md)), asked of each seat alone and then of the pair, so it refuses what load out refuses and words it the same way. The records are emptied before the campaign stores the run decks. If a record's listener leaves the run decks unstorable in between (dismissing an escort whose card one would hold, say), the copies go back to the default decks before the error is thrown on, so nothing is lost.
+
+While its driver is out, a seated driver's record holds no cards. The campaign checks it on every change to the run decks, on load, and in `toSaveText`, since records change outside its checks: cards a `set` put on the record would come back on top of the run deck at unwinding, past limits nobody checked.
+
 Moving the copies, rather than marking which of them go, keeps "every copy in exactly one place" a plain sum: `cardsOwned` is the locker, every default deck, and every run deck's `own`, `leftHome`, and `borrowed`, and no move, start, or unwind changes it. It also leaves the bridge's death write alone. A dead record holds no cards, so the bridge writes status, 0 HP, and an empty default deck in one `set`; with the default deck in the run deck, that `set` empties nothing, and unwinding decides what went with the driver.
 
 Rejected:
@@ -25,7 +29,7 @@ Rejected:
 - Into a run deck: the driver's own copies left at home come back first, then the locker's, borrowed.
 - Out of a run deck: borrowed copies go back to the locker first, then the driver's own stay home.
 
-So a run deck never holds a copy of a card left at home and another of it borrowed, which is what the wireframe's +1 and HOME tags assume. Either order loses the compound the same number of copies if the driver dies; returning borrowed copies first frees them for the other driver. A move between a run deck and anything but the locker throws, since no rule covers it: a driver's own cards don't go to the other seat, and a borrowed copy gets there by going back and being borrowed.
+So a run deck never holds a copy of a card left at home and another of it borrowed, which is what the wireframe's +1 and HOME tags assume, and the run deck's reader refuses one that does. Either order loses the compound the same number of copies if the driver dies; returning borrowed copies first frees them for the other driver. A move between a run deck and anything but the locker throws, since no rule covers it: a driver's own cards don't go to the other seat, and a borrowed copy gets there by going back and being borrowed.
 
 The check keeps `checkMove`'s order, and the deck rules are the same `deckAddBlocker` and `deckRemoveBlocker`, run on the run deck's own and borrowed copies (`RunDeck.cards`) and its driver's archetype. Three reasons are new:
 
@@ -33,11 +37,15 @@ The check keeps `checkMove`'s order, and the deck rules are the same `deckAddBlo
 - `card_locked`: what a run deck holds of the card are escort cards (`broughtBy`, the first of them), so nothing takes one out.
 - `on_run`: a Crew screen move on a seated driver's default deck. It's in their run deck until it's unwound, and a card added to the record now would come back on top of the run deck, past the limits nobody checked.
 
+Moves into a run deck say what's short as copies available, since `held` counts the driver's own left at home as well as the locker's.
+
+`resetRunDeck` puts everything left at home back in `own` and everything borrowed back in the locker. It refuses a driver who's dead or missing (`driver_away`, as a `CardRuleError`): after a failed run, folding what a dead driver left at home into what went would lose it when the run deck is unwound.
+
 ## Escort cards
 
 An escort card is `{ cardType, broughtBy }`, the escort's signature card and its `escort-<n>`. Starting the run decks puts one in Driver 1's for each escort that came along. `moveEscortCard` gives one to the other seat and back, `addEscortCards` and `removeEscortCards` follow escorts joining and leaving (load out picking one, a garage dismissing one, a fight losing one), and unwinding drops them all. They sit outside the limits (`deckSize` doesn't count them), aren't the compound's (`cardsOwned` doesn't either), and are locked: anywhere but a run deck is `card_locked`.
 
-The campaign checks each against the convoy: brought by an escort still in it, as that escort's signature card, and held by one run deck. The convoy changes outside the campaign's checks, so `toSaveText` checks again, as it re-reads the convoy; a garage that dismisses an escort and forgets `removeEscortCards` gets a save that refuses with the path, not one that won't load.
+The campaign checks each against the convoy: brought by an escort still in it, as that escort's signature card, and held by one run deck. The convoy changes outside the campaign's checks, so `toSaveText` checks again, as it re-reads the convoy. So `Convoy.dismiss` mid-run needs `removeEscortCards` beside it. Without it the save refuses with the path, rather than writing one that won't load, and so does every change to the run decks after it (a borrow, a move, a reset), since each one checks them against the convoy again, until `removeEscortCards` takes the card out.
 
 ## After the run
 
@@ -45,7 +53,7 @@ The campaign checks each against the convoy: brought by an escort still in it, a
 
 ## The bridge deals from the run deck
 
-`startCampaignFight` deals each seat their run deck: own and borrowed copies in card-type order, then a copy of each escort card with its `broughtBy` set, so a lost escort's copy leaves the fight's decks as before (`Driver.removeCardsBroughtBy`). It refuses a seat with no run deck, and a run deck holding a card brought by an escort that isn't in the party, since that escort isn't on the road to carry the order out. Every other guarantee stands.
+`startCampaignFight` deals each seat their run deck: own and borrowed copies in card-type order, then a copy of each escort card with its `broughtBy` set, so a lost escort's copy leaves the fight's decks as before (`Driver.removeCardsBroughtBy`). It refuses a seat with no run deck, a run deck holding a card brought by an escort that isn't in the party, since that escort isn't on the road to carry the order out, and an escort in the party whose card neither run deck holds, since its order would never be dealt. Every other guarantee stands.
 
 `writeBackFight` takes the cards of the escorts it loses out of the run decks, after the records and before the convoy, so the campaign never holds a card from an escort the convoy has let go. When a lost escort brought one, the campaign emits a `change`, where before the write-back never changed the campaign. The bridge doesn't unwind: the run controller does, when the run ends.
 
@@ -55,18 +63,17 @@ Kevin's rule (a) counts loot as cargo (combat-bridge.md, Kevin's rules), and car
 
 ## Saves
 
-The campaign saves `runDecks`, each as its driver's id, `own`, `leftHome`, `borrowed`, and `escortCards`, which bumped `CAMPAIGN_SCHEMA_VERSION` from 3 to 4. The format fixture is now `campaign-v4.json`, a campaign with a run out, so the run deck format is pinned with the rest. A load refuses a run deck for a driver who isn't in the pool, one run deck or more than two, two for one driver, and an escort card whose escort isn't in the convoy, isn't that escort's signature card, or is in both run decks.
+The campaign saves `runDecks`, each as its driver's id, `own`, `leftHome`, `borrowed`, and `escortCards`, which bumped `CAMPAIGN_SCHEMA_VERSION` from 3 to 4. The format fixture is now `campaign-v4.json`, a campaign with a run out, so the run deck format is pinned with the rest. A load refuses a run deck for a driver who isn't in the pool, one run deck or more than two, two for one driver, a seated driver whose default deck holds cards, a card both left at home and borrowed, and an escort card whose escort isn't in the convoy, isn't that escort's signature card, or is in both run decks. The bump also starts Campaign History over, since the history list is stamped with the same version ([campaign-save-and-load.md](./campaign-save-and-load.md)).
 
 ## Provisional calls
 
-These are the simplest options where the spec leaves the rule open, each a small change to flip:
+These are the simplest options where the spec leaves the rule open. Each is a small change to flip, but the first:
 
-- Cards left at home wait on the run deck for their driver, not in the locker for the other seat to borrow.
+- Cards left at home wait on the run deck for their driver, not in the locker for the other seat to borrow. Putting them in the locker isn't a small flip: the run deck would need a claim on locker copies, and unwinding a rule for when the other seat borrowed one and lost it.
 - Into a run deck, the driver's own cards left at home come back before anything is borrowed; out of one, borrowed cards go back before the driver's own stay home.
 - Only escort cards move between run decks.
 - A missing driver's run deck unwinds as if they'd come home: their cards to their default deck, what they borrowed to the locker. Only a death loses a run deck, the one loss the spec names.
 - "Reset to default" leaves escort cards where they are.
-- `startRunDecks` takes two different ready drivers and doesn't check the archetype pair, which is load out's seat check and the bridge's.
 - The campaign doesn't know when a run has left, so run decks can change while it's out. Customizing is load out's, and the bridge reads run decks as each fight starts.
 - Cards won are cargo (above).
 
@@ -77,4 +84,4 @@ These are the simplest options where the spec leaves the rule open, each a small
 - The run controller (DDB-322) saves the party by ids with its `cargoCards`, and calls `unwindRunDecks` when the run ends, after the last write-back.
 - An escort joining mid-run (DDB-153) brings its card in with `addEscortCards`, and a garage dismissing one takes it out with `removeEscortCards` beside `Convoy.dismiss`.
 - The Crew screen gets `on_run` for a seated driver while a run is out.
-- Every version 3 save stops loading, as every format change does.
+- Every version 3 save stops loading, as every format change does, and Campaign History starts over.
