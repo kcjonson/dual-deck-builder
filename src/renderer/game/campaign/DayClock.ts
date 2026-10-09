@@ -1,6 +1,7 @@
 import { Campaign, CampaignData, Resources } from './Campaign';
 import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES, UpkeepResource, readCompoundRules, upkeepRecord } from './CompoundRules';
-import { DriverRecord, DriverRecordData } from './DriverRecord';
+import { DriverRecord } from './DriverRecord';
+import { healingChanges } from './Infirmary';
 import { readInteger } from './JsonReader';
 import { MapState, readMapState } from './MapState';
 
@@ -87,7 +88,7 @@ export interface DayEndOptions {
  * 1. Upkeep: the compound eats food and water for the People there at dusk.
  * 2. Shortfalls: whatever the stores couldn't cover costs people and raises unrest.
  * 3. Healing: each injured driver is a day closer to fit, and one who gets
- *    there is ready again at full HP.
+ *    there is ready again at full HP, as meds would leave them (Infirmary).
  * 4. Stop cooldowns, then POI refills, on the map (`hooks`).
  * 5. The day turns, and a shortfall goes in the log, dated the day it happened.
  *
@@ -111,7 +112,7 @@ export function endDay({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS
 	const nextUnrest = readInteger(unrest + unrestGained, 'Campaign.unrest', { min: 0 });
 	const healing = dusk.drivers
 		.filter(driver => driver.status === 'injured')
-		.map(driver => ({ driver, changes: healOvernight(driver) }));
+		.map(driver => ({ driver, changes: healingChanges({ driver, days: 1 }) }));
 	const afterCooldowns = readMapState(hooks.stopCooldowns({ campaign: dusk, map: duskMap }), 'DayEndHooks.stopCooldowns');
 	const map = readMapState(hooks.poiRefills({ campaign: dusk, map: afterCooldowns }), 'DayEndHooks.poiRefills');
 	const people = resources.people - peopleLost;
@@ -157,12 +158,6 @@ export function forecastNeeds({ resources, rules = COMPOUND_RULES }: { resources
 /** A day's food and water: People over the people each unit feeds, rounded up. */
 function dailyUpkeep({ people, rules }: { people: number; rules: CompoundRules }): Upkeep {
 	return upkeepRecord(resource => Math.ceil(people / rules.upkeep.peoplePerUnit[resource]));
-}
-
-/** A day closer to fit, and ready again at full HP once there. */
-function healOvernight(driver: DriverRecord): Partial<DriverRecordData> {
-	const injuredDays = driver.injuredDays - 1;
-	return injuredDays > 0 ? { injuredDays } : { injuredDays, status: 'ready', hitpoints: driver.maxHitpoints };
 }
 
 /** "Ran short of 2 food and 1 water; 3 people lost." */

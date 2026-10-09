@@ -12,9 +12,12 @@ import { Campaign, NO_RESOURCES, Resources } from './Campaign';
 import { CampaignStore } from './CampaignStore';
 import { startingDeckCounts } from './CardCounts';
 import { CampaignFight, FightWriteBack, LIMP_STRUCTURE, REVIVE_HP, RunParty, WonFight, startCampaignFight, writeBackFight } from './CombatBridge';
+import { endDay } from './DayClock';
 import { DriverRecord } from './DriverRecord';
 import { foundCampaign } from './Founding';
+import { injureOnArrival, treatDriver } from './Infirmary';
 import { MemorySaveStorage } from './SaveStorage';
+import { getSeatBlocker } from './Seating';
 
 /**
  * DDB-286 and DDB-158: fights built from the campaign's records and
@@ -260,6 +263,31 @@ describe('the combat bridge', () => {
 					.toThrow(`${named(interceptor)} is ${status}, so they can't fight`);
 			});
 
+			it('a seat\'s own reason before the pairing\'s: an injured driver of the other seat\'s archetype is injured', () => {
+				const { campaign, warrior } = newCampaign();
+				const second = campaign.recruitDriver({ archetype: 'road_warrior' });
+				second.set({ status: 'injured', injuredDays: 2, hitpoints: 20 });
+
+				expect(() => startFight({ campaign, party: partyOf([warrior, second]), enemy: idle() }))
+					.toThrow(`${named(second)} is injured, so they can't fight`);
+			});
+
+			it('the seats in order: an injured driver in the first before a stranger in the second', () => {
+				const { campaign, warrior } = newCampaign();
+				warrior.set({ status: 'injured', injuredDays: 1, hitpoints: 30 });
+				const stranger = new DriverRecord({ id: 'driver-9', archetype: 'mechanic', name: 'Mechanic 1' });
+
+				expect(() => startFight({ campaign, party: partyOf([warrior, stranger]), enemy: idle() }))
+					.toThrow(`${named(warrior)} is injured, so they can't fight`);
+			});
+
+			it('one driver in both seats', () => {
+				const { campaign, warrior } = newCampaign();
+
+				expect(() => startFight({ campaign, party: partyOf([warrior, warrior]), enemy: idle() }))
+					.toThrow(`${named(warrior)} is in both seats; a fight seats two different drivers`);
+			});
+
 			it('cargo that isn\'t whole numbers from 0', () => {
 				const { campaign, warrior, interceptor } = newCampaign();
 
@@ -468,6 +496,62 @@ describe('the combat bridge', () => {
 		});
 	});
 
+	describe('coming home hurt (DDB-304)', () => {
+		it('injures each driver by the HP written back, keeps the hurt one out of the next fight until fit, and sends them out at full HP', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			shooter(interceptor);
+			interceptor.set({ hitpoints: 20 });
+			const truck = createEscort({ type: 'med_truck' });
+			campaign.convoy.add(truck);
+			const scrapper = raider({ deck: cardsOf(10, snipe), adrenaline: 1 });
+			const fight = startFight({ campaign, party: partyOf([warrior, interceptor], [truck]), enemy: scrapper });
+			fightOut(fight, turn => {
+				if (turn === 2) play({ fight, seat: 1, cardType: 'precision_shot', target: scrapper });
+			});
+			const { party } = won(writeBackFight({ fight }));
+
+			// Revived at REVIVE_HP, and 23 of 25 after the Med Truck's heal
+			const injuries = injureOnArrival({ campaign, drivers: party.seats });
+			expect(injuries.map(({ driver, missingHitpoints, injuredDays }) => [driver, missingHitpoints, injuredDays])).toEqual([[warrior, 39, 4], [interceptor, 2, 1]]);
+			endDay({ campaign });
+			expect([interceptor.status, interceptor.hitpoints]).toEqual(['ready', 25]);
+			expect([warrior.status, warrior.injuredDays, warrior.hitpoints]).toEqual(['injured', 3, REVIVE_HP]);
+
+			expect(getSeatBlocker({ campaign, driver: warrior, partner: interceptor })).toEqual({ reason: 'injured', injuredDays: 3 });
+			expect(() => startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() })).toThrow(`${named(warrior)} is injured, so they can't fight`);
+
+			// The founding stores' 3 meds buy the rest
+			treatDriver({ campaign, driver: warrior, days: 3 });
+			const next = startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle(), seed: SEED + 1 });
+			expect(next.drivers.map(driver => driver.hitpoints)).toEqual([40, 25]);
+		});
+
+		it('refuses an arrival while a fight is open, changing nothing, so the fight still writes back', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			toughen(warrior, interceptor);
+			// Hurt from an earlier fight, so an arrival would injure them
+			interceptor.set({ hitpoints: 190, defaultDeck: { covering_fire: 10 } });
+			const outrider = createEscort({ type: 'outrider' });
+			campaign.convoy.add(outrider);
+			const wrecker = raider({ deck: cardsOf(10, wreck), adrenaline: 2 });
+			const sniper = raider({ deck: cardsOf(10, snipe), adrenaline: 1 });
+			const fight = startFight({ campaign, party: partyOf([warrior, interceptor], [outrider]), enemy: [wrecker, sniper] });
+			const before = [warrior.toJSON(), interceptor.toJSON()];
+
+			expect(() => injureOnArrival({ campaign, drivers: [warrior, interceptor] }))
+				.toThrow("This campaign's last fight hasn't been written back, so nobody has come home from it yet");
+			expect([warrior.toJSON(), interceptor.toJSON()]).toEqual(before);
+
+			// The run fails, as in the failed run below, and the write-back still fits the records
+			fightOut(fight, turn => {
+				if (turn === 2) play({ fight, seat: 1, cardType: 'covering_fire', target: wrecker });
+			});
+			const result = writeBackFight({ fight });
+			expect(result.outcome).toBe('run_failed');
+			expect([warrior.status, interceptor.status]).toEqual(['missing', 'dead']);
+		});
+	});
+
 	describe('a vehicle retuned since the save', () => {
 		it('loads, fights at the archetype\'s new maximums, and is written back clamped to them', async () => {
 			const { campaign, warrior, interceptor } = newCampaign();
@@ -630,6 +714,27 @@ describe('the combat bridge', () => {
 			]);
 			expect(campaign.convoy.escorts).not.toContain(hauler);
 			expect(() => startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() })).not.toThrow();
+		});
+
+		it('refuses an arrival started from inside a write-back, which would injure by HP not yet stored (DDB-304)', () => {
+			const { campaign, warrior, interceptor, fight } = wonWithAWreck();
+			// Down 5 on the record until the write-back stores the 25 the fight left them with
+			interceptor.set({ hitpoints: 20 });
+			let arrival = '';
+			warrior.once('change', () => {
+				try {
+					injureOnArrival({ campaign, drivers: [warrior, interceptor] });
+					arrival = 'home';
+				} catch (error) {
+					arrival = (error as Error).message;
+				}
+			});
+
+			writeBackFight({ fight });
+
+			expect(arrival).toBe("This campaign's last fight hasn't been written back, so nobody has come home from it yet");
+			expect([interceptor.status, interceptor.injuredDays, interceptor.hitpoints]).toEqual(['ready', 0, 25]);
+			expect(injureOnArrival({ campaign, drivers: [warrior, interceptor] })).toEqual([]);
 		});
 
 		it('lets the next fight start only once a write-back that threw part way is finished', () => {
