@@ -123,60 +123,65 @@
 		"medical_kit": 1,
 		"ramming_speed": 1
 	},
-	"convoy": [
-		{
-			"name": "Fuel Hauler",
-			"armor": 5,
-			"maxArmor": 5,
-			"structure": 31,
-			"maxStructure": 40,
-			"baseSpeed": 2,
-			"mods": [
-				{
-					"name": "Reinforced Tank",
-					"kind": "defense"
+	"convoy": {
+		"nextEscortNumber": 4,
+		"escorts": [
+			{
+				"id": "escort-1",
+				"name": "Fuel Hauler",
+				"armor": 5,
+				"maxArmor": 5,
+				"structure": 31,
+				"maxStructure": 40,
+				"baseSpeed": 2,
+				"mods": [
+					{
+						"name": "Reinforced Tank",
+						"kind": "defense"
+					}
+				],
+				"escort": {
+					"type": "fuel_hauler",
+					"role": "hauler",
+					"gunnery": 1,
+					"evade": 1,
+					"ramming": 3,
+					"preferredSlot": {
+						"lane": "outside",
+						"row": "center"
+					},
+					"signatureCard": "top_off",
+					"dividend": {
+						"kind": "fuel",
+						"amount": 1
+					}
 				}
-			],
-			"escort": {
-				"type": "fuel_hauler",
-				"role": "hauler",
-				"gunnery": 1,
-				"evade": 1,
-				"ramming": 3,
-				"preferredSlot": {
-					"lane": "outside",
-					"row": "center"
-				},
-				"signatureCard": "top_off",
-				"dividend": {
-					"kind": "fuel",
-					"amount": 1
+			},
+			{
+				"id": "escort-3",
+				"name": "Outrider",
+				"armor": 0,
+				"maxArmor": 0,
+				"structure": 18,
+				"maxStructure": 25,
+				"baseSpeed": 5,
+				"mods": [],
+				"escort": {
+					"type": "outrider",
+					"role": "gun",
+					"gunnery": 6,
+					"evade": 6,
+					"ramming": 2,
+					"preferredSlot": {
+						"lane": "inside",
+						"row": "ahead"
+					},
+					"signatureCard": "run_ahead",
+					"dividend": null
 				}
 			}
-		},
-		{
-			"name": "Outrider",
-			"armor": 0,
-			"maxArmor": 0,
-			"structure": 18,
-			"maxStructure": 25,
-			"baseSpeed": 5,
-			"mods": [],
-			"escort": {
-				"type": "outrider",
-				"role": "gun",
-				"gunnery": 6,
-				"evade": 6,
-				"ramming": 2,
-				"preferredSlot": {
-					"lane": "inside",
-					"row": "ahead"
-				},
-				"signatureCard": "run_ahead",
-				"dividend": null
-			}
-		}
-	],
+		]
+	},
 	"strongholdsTaken": [
 		"stronghold-3"
 	],

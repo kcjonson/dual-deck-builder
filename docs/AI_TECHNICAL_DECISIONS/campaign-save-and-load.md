@@ -53,8 +53,8 @@ Measured, with the save as compact JSON:
 
 | | Characters |
 | --- | --- |
-| The version 3 fixture's campaign | 3,159 |
-| A stress campaign's save (`__fixtures__/stressCampaign.ts`) | 360,383 |
+| The version 4 fixture's campaign | 3,224 |
+| A stress campaign's save (`__fixtures__/stressCampaign.ts`) | 360,480 |
 | its 2,000 log lines | 222,351 |
 | its stand-in gameplay map, at the spec's sizes | 117,643 |
 | its 60 drivers, with decks drawn from every card in `cards.json` | 17,903 |

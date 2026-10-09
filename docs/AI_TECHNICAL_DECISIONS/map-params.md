@@ -74,7 +74,7 @@ Choices the spec left to the code:
 
 Code that the later stages replace still reads the table. Terrain reads nothing whose values moved (`ruggedness` keeps its range, default, and every environment's value), so `Terrain.test`'s pinned samples hold. `planHighways` reads `highwaySeparation` as degrees between departures from the metro, which is near enough to exits at the rim until settlements place exits. Road growth read `branchiness` and `roadClearance`; it now takes them as options of its own (`GrowthTuning`), defaulting to the old table's 0.5 and 24, so its tests and `scripts/road-growth.mjs` can still sweep them, and they go with growth when road links replace it.
 
-Saves keep resolved params, so the table change is a save format change: `CAMPAIGN_SCHEMA_VERSION` went to 3 and the fixture with it. There are no migrations, so a version 2 save isn't loaded at all, and nothing carries `sceneryDensity` over to `dressing`. A save that does reach `repairMapParams` with the old table's keys loses them with a warning each and takes the new parameters from its environment, which a test holds.
+Saves keep resolved params, so the table change is a save format change: `CAMPAIGN_SCHEMA_VERSION` went to 4 and the fixture with it. There are no migrations, so an older save isn't loaded at all, and nothing carries `sceneryDensity` over to `dressing`. A save that does reach `repairMapParams` with the old table's keys loses them with a warning each and takes the new parameters from its environment, which a test holds.
 
 ## Consequences
 

@@ -52,7 +52,7 @@ describe('CampaignStore', () => {
 			expect(loaded?.toJSON()).toEqual(campaign.toJSON());
 		});
 
-		it('continues the version 2 fixture', async () => {
+		it('continues the version 3 fixture', async () => {
 			const loaded = await storeOver(storageWith(fixtureText())).load();
 
 			expect(loaded?.toJSON()).toEqual(CAMPAIGN_FIXTURE);
@@ -113,7 +113,7 @@ describe('CampaignStore', () => {
 			const error = await failure(storeOver(storage).save(campaign));
 
 			expect([error.reason, error.message]).toEqual(['unsavable', "The campaign couldn't be saved: it holds something a save couldn't load back."]);
-			expect(error.detail).toBe('Campaign.convoy[0].structure must be an integer from 1 to maxStructure (40), got 41');
+			expect(error.detail).toBe('Campaign.convoy.escorts[0].structure must be an integer from 1 to maxStructure (40), got 41');
 			expect(storage.writes).toEqual([]);
 		});
 

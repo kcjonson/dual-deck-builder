@@ -3,6 +3,7 @@ import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
 import { createEscort } from '../mechanics/Escort';
 import { CAMPAIGN_SCHEMA_VERSION, Campaign, CampaignJson, CampaignOptions, NO_RESOURCES } from './Campaign';
+import type { EscortJson } from './ConvoyJson';
 import { historyEntry, historyToJson } from './CampaignHistory';
 import { cardCount, totalCards } from './CardCounts';
 import { DECK_RULES } from './DeckRules';
@@ -53,11 +54,13 @@ const keyPaths = (value: unknown): string[] => {
 /** The save format at the version the test below pins: a change here is a change of format, which bumps `CAMPAIGN_SCHEMA_VERSION`. */
 const SAVE_FORMAT = {
 	campaign: [
-		'convoy', 'convoy[]', 'convoy[].armor', 'convoy[].baseSpeed', 'convoy[].escort', 'convoy[].escort.dividend', 'convoy[].escort.dividend.amount',
-		'convoy[].escort.dividend.kind', 'convoy[].escort.evade', 'convoy[].escort.gunnery', 'convoy[].escort.preferredSlot', 'convoy[].escort.preferredSlot.lane',
-		'convoy[].escort.preferredSlot.row', 'convoy[].escort.ramming', 'convoy[].escort.role', 'convoy[].escort.signatureCard', 'convoy[].escort.type',
-		'convoy[].maxArmor', 'convoy[].maxStructure', 'convoy[].mods', 'convoy[].mods[]', 'convoy[].mods[].kind', 'convoy[].mods[].name', 'convoy[].name',
-		'convoy[].structure', 'day', 'drivers', 'drivers[]', 'drivers[].archetype', 'drivers[].defaultDeck', 'drivers[].defaultDeck.<card type>',
+		'convoy', 'convoy.escorts', 'convoy.escorts[]', 'convoy.escorts[].armor', 'convoy.escorts[].baseSpeed', 'convoy.escorts[].escort',
+		'convoy.escorts[].escort.dividend', 'convoy.escorts[].escort.dividend.amount', 'convoy.escorts[].escort.dividend.kind', 'convoy.escorts[].escort.evade',
+		'convoy.escorts[].escort.gunnery', 'convoy.escorts[].escort.preferredSlot', 'convoy.escorts[].escort.preferredSlot.lane', 'convoy.escorts[].escort.preferredSlot.row',
+		'convoy.escorts[].escort.ramming', 'convoy.escorts[].escort.role', 'convoy.escorts[].escort.signatureCard', 'convoy.escorts[].escort.type', 'convoy.escorts[].id',
+		'convoy.escorts[].maxArmor', 'convoy.escorts[].maxStructure', 'convoy.escorts[].mods', 'convoy.escorts[].mods[]', 'convoy.escorts[].mods[].kind',
+		'convoy.escorts[].mods[].name', 'convoy.escorts[].name', 'convoy.escorts[].structure', 'convoy.nextEscortNumber',
+		'day', 'drivers', 'drivers[]', 'drivers[].archetype', 'drivers[].defaultDeck', 'drivers[].defaultDeck.<card type>',
 		'drivers[].handLimit', 'drivers[].hitpoints', 'drivers[].id', 'drivers[].injuredDays', 'drivers[].maxHitpoints', 'drivers[].name',
 		'drivers[].runsCompleted', 'drivers[].status', 'drivers[].vehicle', 'drivers[].vehicle.armor', 'drivers[].vehicle.structure', 'generatorVersion', 'locker', 'locker.<card type>', 'log', 'log[]', 'log[].day', 'log[].message', 'map',
 		'mapParams', 'mapParams.<map parameter>', 'nextDriverNumber', 'resources', 'resources.food', 'resources.fuel', 'resources.meds', 'resources.people',
@@ -640,7 +643,6 @@ describe('Campaign', () => {
 			['log entries out of order', { day: 5, log: [{ day: 4, message: 'Later.' }, { day: 3, message: 'Earlier.' }] }, 'Campaign.log[1].day must not come before the entry above it (day 4), got 3'],
 			['a blank log message', { log: [{ day: 1, message: '' }] }, 'Campaign.log[0].message must not be blank'],
 			['a locker count of 0', { locker: { headshot: 0 } }, 'Campaign.locker.headshot must be an integer >= 1, got 0'],
-			['a convoy that isn\'t a Convoy', { convoy: { escorts: [] } }, 'Campaign.convoy must be a Convoy, got {"escorts":[]}'],
 			['map state JSON can\'t hold', { map: { found: new Date(0) } }, 'Campaign.map.found must be JSON'],
 			['map state with no number', { map: { fog: [1, NaN] } }, 'Campaign.map.fog[1] must be a finite number, got NaN'],
 			['map state with a hole in it', { map: { fog: undefined } }, 'Campaign.map.fog must be JSON'],
@@ -710,6 +712,14 @@ describe('Campaign', () => {
 			campaign.set({ seed: SEED, generatorVersion: 1, mapParams: campaign.mapParams });
 		});
 
+		it('keeps its convoy for good, since a new one would start the escort ids over', () => {
+			const campaign = campaignInProgress();
+
+			expect(() => campaign.set({ convoy: new Convoy() })).toThrow('Campaign.convoy is fixed at founding');
+			campaign.set({ convoy: campaign.convoy });
+			expect(() => newCampaign({ convoy: { escorts: [] } as unknown as Convoy })).toThrow('Campaign.convoy must be a Convoy, got {"escorts":[]}');
+		});
+
 		it('holds every value frozen, so nothing changes without a check', () => {
 			const campaign = campaignInProgress();
 
@@ -757,6 +767,19 @@ describe('Campaign', () => {
 			expect(loaded.map).toEqual({ fog: [0, 7, 255], roads: [{ id: 'r1', knowledge: 'charted', stops: null }] });
 		});
 
+		it('keeps each escort\'s id and the counter they come from, so a load hands out none of them again', () => {
+			const campaign = campaignInProgress();
+			campaign.convoy.add(createEscort({ type: 'outrider' }));
+			campaign.convoy.afterFight({ lost: [campaign.convoy.escorts[0]] });
+
+			const loaded = reload(campaign);
+			loaded.convoy.add(createEscort({ type: 'med_truck' }));
+
+			expect(campaign.convoy.escorts.map(escort => escort.convoyId)).toEqual(['escort-2']);
+			expect(loaded.convoy.escorts.map(escort => escort.convoyId)).toEqual(['escort-2', 'escort-3']);
+			expect(reload(loaded).convoy.escorts.map(escort => escort.convoyId)).toEqual(['escort-2', 'escort-3']);
+		});
+
 		it('loads a campaign of its own: changing it leaves the original alone', () => {
 			const campaign = campaignInProgress();
 			const loaded = reload(campaign);
@@ -776,7 +799,7 @@ describe('Campaign', () => {
 			expect(JSON.parse(JSON.stringify(json))).toEqual(json);
 			json.locker.headshot = 99;
 			json.drivers[0].defaultDeck.headshot = 99;
-			json.convoy[0].mods[0].name = 'Spikes';
+			json.convoy.escorts[0].mods[0].name = 'Spikes';
 			(json.map.roads as { id: string }[])[0].id = 'r9';
 
 			expect(JSON.stringify(campaign)).toBe(before);
@@ -794,8 +817,11 @@ describe('Campaign', () => {
 
 			expect(campaign.toJSON()).toEqual(CAMPAIGN_FIXTURE);
 			expect(campaign.drivers.map(driver => driver.status)).toEqual(['ready', 'dead', 'injured', 'missing', 'ready']);
-			expect(campaign.convoy.escorts.map(escort => escort.escort?.type)).toEqual(['fuel_hauler', 'outrider']);
+			expect(campaign.convoy.escorts.map(escort => [escort.escort?.type, escort.convoyId])).toEqual([['fuel_hauler', 'escort-1'], ['outrider', 'escort-3']]);
 			expect(campaign.recruitDriver({ archetype: 'mechanic' }).id).toBe('driver-6');
+			const hired = createEscort({ type: 'pilot_car' });
+			campaign.convoy.add(hired);
+			expect(hired.convoyId).toBe('escort-4');
 		});
 
 		it('holds the save format to the version it\'s stamped with', () => {
@@ -806,7 +832,7 @@ describe('Campaign', () => {
 				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
 			};
 
-			expect(CAMPAIGN_SCHEMA_VERSION).toBe(3);
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(4);
 			try {
 				expect(format).toEqual(SAVE_FORMAT);
 			} catch (error) {
@@ -831,11 +857,16 @@ describe('Campaign', () => {
 				['two drivers with one id', (save: CampaignJson) => { save.drivers[1].id = 'driver-1'; }, RangeError, 'Campaign.drivers[1].id driver-1 belongs to an earlier driver'],
 				['a counter that would hand out an id again', (save: CampaignJson) => { save.nextDriverNumber = 5; }, RangeError, 'Campaign.drivers[4].id must come before driver-5, the next id to hand out, got driver-5'],
 				['a locker count of 0', (save: CampaignJson) => { save.locker.headshot = 0; }, RangeError, 'Campaign.locker.headshot must be an integer >= 1, got 0'],
-				['an escort with an unknown role', (save: CampaignJson) => { (save.convoy[0].escort as { role: string }).role = 'scout'; }, RangeError, 'Campaign.convoy[0].escort.role must be one of gun, hauler, got "scout"'],
+				['an escort with an unknown role', (save: CampaignJson) => { (save.convoy.escorts[0].escort as { role: string }).role = 'scout'; }, RangeError, 'Campaign.convoy.escorts[0].escort.role must be one of gun, hauler, got "scout"'],
+				['an escort with no id', (save: CampaignJson) => { delete (save.convoy.escorts[0] as Partial<EscortJson>).id; }, TypeError, 'Campaign.convoy.escorts[0].id is missing'],
+				['an escort named by a session\'s model id', (save: CampaignJson) => { save.convoy.escorts[0].id = 'Vehicle_12'; }, RangeError, 'Campaign.convoy.escorts[0].id must look like escort-1, got "Vehicle_12"'],
+				['two escorts with one id', (save: CampaignJson) => { save.convoy.escorts[1].id = 'escort-1'; }, RangeError, 'Campaign.convoy.escorts[1].id escort-1 belongs to an earlier escort'],
+				['an escort counter that would hand out an id again', (save: CampaignJson) => { save.convoy.nextEscortNumber = 3; }, RangeError, 'Campaign.convoy.escorts[1].id must come before escort-3, the next id to hand out, got escort-3'],
+				['more escorts than a convoy holds', (save: CampaignJson) => { save.convoy.escorts.push(...save.convoy.escorts, save.convoy.escorts[0]); }, RangeError, 'Campaign.convoy.escorts holds 5 escorts, and a convoy holds 4 at most'],
 				['a log entry from the future', (save: CampaignJson) => { save.log[3].day = 99; }, RangeError, 'Campaign.log[3].day must be an integer from 1 to today (9), got 99'],
 				['negative water', (save: CampaignJson) => { save.resources.water = -3; }, RangeError, 'Campaign.resources.water must be an integer >= 0, got -3'],
 				['a dead driver who kept their cards', (save: CampaignJson) => { save.drivers[1].defaultDeck = { headshot: 1 }; }, RangeError, 'Campaign.drivers[1].defaultDeck must be empty for a dead driver, whose cards went with them, got {"headshot":1}'],
-				['a wrecked escort', (save: CampaignJson) => { save.convoy[0].structure = 0; }, RangeError, 'Campaign.convoy[0].structure must be an integer from 1 to maxStructure (40), got 0']
+				['a wrecked escort', (save: CampaignJson) => { save.convoy.escorts[0].structure = 0; }, RangeError, 'Campaign.convoy.escorts[0].structure must be an integer from 1 to maxStructure (40), got 0']
 			])('fails loudly on %s', (_label, damage, errorType, message) => {
 				const save = savedCampaign();
 				damage(save);
@@ -1013,8 +1044,8 @@ describe('Campaign', () => {
 	});
 
 	it.each([
-		['structure past its max', 41, 'Campaign.convoy[0].structure must be an integer from 1 to maxStructure (40), got 41'],
-		['no structure left', 0, 'Campaign.convoy[0].structure must be an integer from 1 to maxStructure (40), got 0']
+		['structure past its max', 41, 'Campaign.convoy.escorts[0].structure must be an integer from 1 to maxStructure (40), got 41'],
+		['no structure left', 0, 'Campaign.convoy.escorts[0].structure must be an integer from 1 to maxStructure (40), got 0']
 	])('won\'t write a save with an escort at %s, which it couldn\'t load back', (_label, structure, message) => {
 		const campaign = campaignInProgress();
 		campaign.convoy.escorts[0].set({ structure });

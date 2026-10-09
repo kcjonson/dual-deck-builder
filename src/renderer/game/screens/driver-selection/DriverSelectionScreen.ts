@@ -355,7 +355,7 @@ export class DriverSelectionScreen extends Screen {
 		this.back();
 	}
 
-	/** To the menu, focus back on Start Game, which opened this screen. */
+	/** To the menu, focus back on Skirmish, which opened this screen. */
 	private back(): void {
 		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 	}

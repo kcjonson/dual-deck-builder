@@ -103,7 +103,8 @@ export class BattleResultScreen extends Screen {
 		this.stack.clearChildren();
 	}
 
+	/** To the menu, focus back on Skirmish, which started the fight, so an Enter there doesn't found a campaign. */
 	private continue(): void {
-		ScreenManager.navigate('mainMenuScreen');
+		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 	}
 }

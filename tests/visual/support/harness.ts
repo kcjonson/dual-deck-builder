@@ -4,6 +4,7 @@ import { expect } from '@playwright/test';
 import { BASE_URL, FIXED_VIEWPORT, GOLDEN_CLUSTER, VISUAL_THRESHOLD } from '../../../playwright.config';
 import type { Viewport } from '../../../playwright.config';
 import type { LintResult } from '../../../src/renderer/engine/debug/layoutLint';
+import { CAMPAIGN_KEY_PREFIX } from './campaignSaves';
 import { compareClusters, diffImage } from './diffClusters';
 import type { DiffReport } from './diffClusters';
 
@@ -307,6 +308,13 @@ export interface OpenScreenOptions {
 	 * size); this is what the settle and the root check hold it to.
 	 */
 	viewport?: Viewport;
+	/**
+	 * Campaign saves to put in local storage before the navigate, as
+	 * `campaignSaves.ts` writes them. Every capture starts from these and no
+	 * others: the store's keys are cleared first, since an Electron profile
+	 * keeps local storage from one launch to the next.
+	 */
+	storage?: Record<string, string>;
 }
 
 /**
@@ -319,11 +327,19 @@ export interface OpenScreenOptions {
  * false for an unknown name and a golden of the splash screen filed under
  * another screen's name is worse than a failure.
  */
-export async function openScreen(page: Page, screen: string, { data, viewport = FIXED_VIEWPORT }: OpenScreenOptions = {}): Promise<void> {
+export async function openScreen(page: Page, screen: string, { data, viewport = FIXED_VIEWPORT, storage = {} }: OpenScreenOptions = {}): Promise<void> {
 	// Absolute, not baseURL-relative: an Electron page has no browser context
 	// and therefore no baseURL, and both projects have to reach the same server.
 	await page.goto(`${BASE_URL}/`, { waitUntil: 'domcontentloaded' });
 	await freezeApplication(page);
+
+	// Before the navigate, since a screen reads the store as it mounts.
+	await page.evaluate(([prefix, items]: [string, Record<string, string>]) => {
+		const stale = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+			.filter((key): key is string => key !== null && key.startsWith(prefix));
+		for (const key of stale) localStorage.removeItem(key);
+		for (const [key, value] of Object.entries(items)) localStorage.setItem(key, value);
+	}, [CAMPAIGN_KEY_PREFIX, storage] as [string, Record<string, string>]);
 
 	const navigated = await page.evaluate(
 		([name, payload]: [string, unknown]) => (window as unknown as DevSurface).__app.navigate(name, payload),
