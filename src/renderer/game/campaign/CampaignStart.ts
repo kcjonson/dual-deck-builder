@@ -2,7 +2,7 @@ import { readArray, readFields, readInteger, readOneOf } from '../core/JsonReade
 import campaignStartFile from '../data/campaign-start.json';
 import { ESCORT_CONFIGS, EscortType } from '../mechanics/Escort';
 import { MAX_CONVOY_ESCORTS, PLAYER_DRIVEN_VEHICLES } from '../mechanics/Team';
-import { NO_RESOURCES, Resources } from './Campaign';
+import { RESOURCE_NAMES, Resources } from './Campaign';
 
 /**
  * What a new campaign starts with (Compound and Supply Runs, Founding the
@@ -22,7 +22,6 @@ export interface CampaignStart {
 }
 
 const FIELDS: readonly (keyof CampaignStart)[] = ['poolSize', 'resources', 'escorts'];
-const RESOURCE_NAMES = Object.keys(NO_RESOURCES) as readonly (keyof Resources)[];
 const ESCORT_TYPES = Object.keys(ESCORT_CONFIGS) as readonly EscortType[];
 
 /**

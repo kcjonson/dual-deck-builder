@@ -1,5 +1,5 @@
-import { readInteger } from '../core/JsonReader';
-import { Campaign, CampaignData, Resources } from './Campaign';
+import { readFields, readInteger, readText } from '../core/JsonReader';
+import { Campaign, CampaignData, RESOURCE_NAMES, Resources, readResources } from './Campaign';
 import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES, UpkeepResource, readCompoundRules, upkeepRecord } from './CompoundRules';
 import { DriverRecord } from './DriverRecord';
 import { healingChanges } from './Infirmary';
@@ -8,7 +8,7 @@ import { MapState, readMapState } from './MapState';
 /** An amount of each resource the compound eats. */
 export type Upkeep = Readonly<Record<UpkeepResource, number>>;
 
-/** The campaign's state as it stood at dusk, frozen, without the map, which a step takes as it stands so far. */
+/** The campaign's state as it stood at dusk, any haul in, frozen, without the map, which a step takes as it stands so far. */
 export type DuskState = Readonly<Omit<CampaignData, 'map'>>;
 
 /**
@@ -71,20 +71,30 @@ export interface NeedForecast {
 
 export type NeedsForecast = Readonly<Record<UpkeepResource, NeedForecast>>;
 
+/** Stores that come home at dusk, before the compound eats, and the log line that says what they were. */
+export interface DayHaul {
+	readonly resources: Readonly<Partial<Resources>>;
+	readonly message: string;
+}
+
 export interface DayEndOptions {
 	campaign: Campaign;
 	/** The shipped `data/compound-rules.json` when left out. */
 	rules?: CompoundRules;
 	/** The shipped `DAY_END_HOOKS` when left out. */
 	hooks?: DayEndHooks;
+	/** What comes in at dusk, a scavenging party's haul, stored in the day end's own `set`. Nothing when left out. */
+	haul?: DayHaul;
 }
 
 /**
  * Ends the campaign's day (Compound and Supply Runs, Hours on the road, days
  * at home). A run getting home ends it, and so does a day spent at the
- * compound without one, so the compound between runs is always at dawn. In
- * order:
+ * compound without one, or out scavenging, so the compound between runs is
+ * always at dawn. In order:
  *
+ * 0. The haul, if there is one, comes into the stores at dusk, and the log
+ *    says what it was.
  * 1. Upkeep: the compound eats food and water for the People there at dusk.
  * 2. Shortfalls: whatever the stores couldn't cover costs people and raises unrest.
  * 3. Healing: each injured driver is a day closer to fit, and one who gets
@@ -92,16 +102,22 @@ export interface DayEndOptions {
  * 4. Stop cooldowns, then POI refills, on the map (`hooks`).
  * 5. The day turns, and a shortfall goes in the log, dated the day it happened.
  *
+ * It refuses while the campaign is storing a card move or a run's records,
+ * as a record's listener partway through one would see it: the healed
+ * records would be stored and the campaign's `set` refused, half a night.
  * Everything is worked out and checked before anything is stored, so a step
- * that throws (a hook, the map it returns, a day or unrest past what a save
- * holds) changes nothing. Then the healed records are stored, and the
- * campaign last, in one `set`: its `change` comes once the day end is whole.
- * Nothing here draws randomness.
+ * that throws (a hook, the map it returns, a haul, day, or unrest past what
+ * a save holds) changes nothing. Then the healed records are stored, and the
+ * campaign last, in one `set` that takes the haul with the rest: its
+ * `change` comes once the day end is whole. Nothing here draws randomness.
  */
-export function endDay({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS }: DayEndOptions): DayEnd {
+export function endDay({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS, haul }: DayEndOptions): DayEnd {
+	if (campaign.isStoring) throw new Error("The day can't end while a card move is being stored");
 	const checked = readCompoundRules(rules, 'CompoundRules');
 	const { map: duskMap, ...state } = campaign.getState();
-	const dusk: DuskState = Object.freeze(state);
+	const haulMessage = haul === undefined ? null : readText(haul.message, 'haul.message');
+	const hauled = haul === undefined ? state.resources : withHaul({ resources: state.resources, haul: haul.resources });
+	const dusk: DuskState = Object.freeze({ ...state, resources: hauled });
 	const { day, resources, unrest } = dusk;
 	const upkeep = dailyUpkeep({ people: resources.people, rules: checked });
 	const shortfall = upkeepRecord(resource => Math.max(0, upkeep[resource] - resources[resource]));
@@ -119,9 +135,14 @@ export function endDay({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS
 	const stores: Resources = { ...resources, people };
 	for (const resource of UPKEEP_RESOURCES) stores[resource] = Math.max(0, resources[resource] - upkeep[resource]);
 
+	const lines = [
+		...(haulMessage === null ? [] : [{ day, message: haulMessage }]),
+		...(unitsShort > 0 ? [{ day, message: shortfallMessage({ shortfall, peopleLost }) }] : [])
+	];
+
 	healing.forEach(({ driver, changes }) => driver.set(changes));
 	// Read after the records are stored, so a line a record's listener logged stays in.
-	const log = unitsShort > 0 ? [...campaign.log, { day, message: shortfallMessage({ shortfall, peopleLost }) }] : campaign.log;
+	const log = lines.length > 0 ? [...campaign.log, ...lines] : campaign.log;
 	campaign.set({ day: nextDay, resources: stores, unrest: nextUnrest, map, log });
 
 	return Object.freeze({
@@ -153,6 +174,17 @@ export function forecastNeeds({ resources, rules = COMPOUND_RULES }: { resources
 			shortTonight: Math.max(0, perDay - stock)
 		});
 	});
+}
+
+/**
+ * The stores with a haul added, checked as a save checks them: only the
+ * campaign's resources, whole numbers from 0, and no sum past a safe integer.
+ */
+function withHaul({ resources, haul }: { resources: Readonly<Resources>; haul: Readonly<Partial<Resources>> }): Readonly<Resources> {
+	const added = readFields(haul, 'haul.resources', [], RESOURCE_NAMES);
+	const sums: Resources = { ...resources };
+	for (const name of Object.keys(added) as (keyof Resources)[]) sums[name] += readInteger(added[name], `haul.resources.${name}`, { min: 0 });
+	return readResources(sums, 'Campaign.resources');
 }
 
 /** A day's food and water: People over the people each unit feeds, rounded up. */
