@@ -1,6 +1,18 @@
 import { runInNewContext } from 'vm';
 import { MAX_JSON_DEPTH, copyJson } from './Json';
-import { ReaderRangeError, ReaderTypeError, freezeJson, isReaderError, readArray, readFields, readInteger, readObject } from './JsonReader';
+import {
+	ReaderRangeError,
+	ReaderTypeError,
+	freezeJson,
+	isReaderError,
+	readArray,
+	readFields,
+	readInteger,
+	readNumber,
+	readObject,
+	readSeed,
+	readValueAt
+} from './JsonReader';
 
 class Weights {
 	public wreck = 1;
@@ -58,6 +70,18 @@ describe('JsonReader', () => {
 			expect(() => freezeJson({ found: runInNewContext('new Map()') }, 'map')).toThrow('map.found must be JSON');
 		});
 
+		it('names the path to a value whose getter throws, in an object or a list', () => {
+			const fail = (): never => {
+				throw new Error('boom');
+			};
+			const stops = Object.defineProperty({}, 'wreck', { enumerable: true, get: fail });
+			const roads = Object.defineProperty([1, 2], 1, { get: fail });
+
+			expect(() => freezeJson({ stops }, 'map')).toThrow(ReaderTypeError);
+			expect(() => freezeJson({ stops }, 'map')).toThrow('map.stops.wreck can\'t be read: boom');
+			expect(() => freezeJson({ roads }, 'map')).toThrow('map.roads[1] can\'t be read: boom');
+		});
+
 		it('takes nesting as deep as copyJson does, and refuses one level more as a reader error', () => {
 			expect(() => freezeJson(nested(MAX_JSON_DEPTH), 'map')).not.toThrow();
 			expect(() => copyJson(nested(MAX_JSON_DEPTH), 'map')).not.toThrow();
@@ -97,14 +121,27 @@ describe('JsonReader', () => {
 		expect(() => readFields({ a: 1, c: 2 }, 'thing', ['a', 'b'])).toThrow('thing has an unknown field "c"');
 	});
 
-	it('readFields refuses a field the object only inherits, required or optional', () => {
+	it('readFields refuses an object that would inherit values, even from one with no prototype', () => {
 		const bare = Object.assign(Object.create(null) as object, { a: 1, b: 2 });
 		const onBare = Object.assign(Object.create(bare) as object, { c: 3 });
 
-		expect(() => readFields(onBare, 'thing', ['a', 'c'])).toThrow(ReaderTypeError);
-		expect(() => readFields(onBare, 'thing', ['a', 'c'])).toThrow('thing.a is inherited, not its own');
-		expect(() => readFields(onBare, 'thing', ['c'], ['b'])).toThrow('thing.b is inherited, not its own');
-		expect(readFields(onBare, 'thing', ['c'], ['d'])).toBe(onBare);
+		expect(() => readFields(onBare, 'thing', ['c'], ['a', 'b'])).toThrow(ReaderTypeError);
+		expect(() => readFields(onBare, 'thing', ['c'], ['a', 'b'])).toThrow('thing must be a plain object, got an object made on another');
+		expect(readFields(Object.assign(Object.create(Object.create(null) as object) as object, { c: 3 }), 'thing', ['c'])).toEqual({ c: 3 });
+	});
+
+	it('readValueAt reads a value once, and names its path when the getter throws', () => {
+		const thing = { a: 1, get b(): number { throw new Error('boom'); } };
+
+		expect(readValueAt(thing, 'a', 'thing.a')).toBe(1);
+		expect(() => readValueAt(thing, 'b', 'thing.b')).toThrow(ReaderTypeError);
+		expect(() => readValueAt(thing, 'b', 'thing.b')).toThrow('thing.b can\'t be read: boom');
+	});
+
+	it('reads -0 as 0, which is what JSON writes it as', () => {
+		expect(Object.is(readNumber(-0, 'n'), 0)).toBe(true);
+		expect(Object.is(readInteger(-0, 'n', { min: 0 }), 0)).toBe(true);
+		expect(Object.is(readSeed(-0, 'seed'), 0)).toBe(true);
 	});
 
 	it('readObject and readFields take another realm\'s plain object', () => {
@@ -118,7 +155,7 @@ describe('JsonReader', () => {
 	it.each([
 		['a class instance', new Weights(), 'thing must be a plain object, got a Weights'],
 		['another realm\'s class instance', runInNewContext('new Map()'), 'thing must be a plain object, got a Map'],
-		['an object made on another', Object.create({ a: 1 }), 'thing must be a plain object, got an Object'],
+		['an object made on another', Object.create({ a: 1 }), 'thing must be a plain object, got an object made on another'],
 		['an array', [], 'thing must be an object, got []'],
 		['null', null, 'thing must be an object, got null'],
 	])('readObject refuses %s', (_case, value, message) => {

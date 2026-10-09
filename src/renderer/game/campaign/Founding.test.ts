@@ -1,5 +1,6 @@
 import { runInNewContext } from 'vm';
 import { DriverLoader } from '../core/DriverLoader';
+import { ReaderTypeError } from '../core/JsonReader';
 import { RNG_VERSION, Rng } from '../core/Rng';
 import { MapParamSet, resolveMapParams } from '../map/MapParams';
 import { validateMapParams } from '../map/ParamValidator';
@@ -151,7 +152,8 @@ describe('foundCampaign', () => {
 			['with a parameter that isn\'t finite', { seed: SEED, aridity: Infinity }, 'mapParams.aridity must be a finite number, got Infinity'],
 			['with an environment that isn\'t one', { seed: SEED, environment: 'tundra' }, 'mapParams.environment must be one of highDesert, rustBelt, floodlands, badlands, mixed, got "tundra"'],
 			['with stop tables in a list', { seed: SEED, stopTables: [] }, 'mapParams.stopTables must be an object, got []'],
-			['with null for stop tables', { seed: SEED, stopTables: null }, 'mapParams.stopTables must be an object, got null']
+			['with null for stop tables', { seed: SEED, stopTables: null }, 'mapParams.stopTables must be an object, got null'],
+			['with NaN for stop tables', { seed: SEED, stopTables: NaN }, 'mapParams.stopTables must be an object, got NaN']
 		])('refuses params %s, naming the path and the value', (_label, mapParams, message) => {
 			expect(() => found({ mapParams: mapParams as unknown as MapParamSet })).toThrow(message);
 		});
@@ -164,14 +166,41 @@ describe('foundCampaign', () => {
 		it('refuses params made on another object, whose values they\'d inherit', () => {
 			const onAnother = Object.assign(Object.create({ radius: 5000 }) as object, { seed: SEED });
 
-			expect(() => found({ mapParams: onAnother as MapParamSet })).toThrow('mapParams must be a plain object, got an Object');
+			expect(() => found({ mapParams: onAnother as MapParamSet })).toThrow('mapParams must be a plain object, got an object made on another');
 		});
 
-		it('refuses a value inherited from a prototype that passes for a plain object\'s', () => {
+		it('refuses params made on an object with no prototype, whose values they\'d inherit just the same', () => {
 			const bare = Object.assign(Object.create(null) as object, { radius: 5000 });
 			const onBare = Object.assign(Object.create(bare) as object, { seed: SEED });
 
-			expect(() => found({ mapParams: onBare as MapParamSet })).toThrow('mapParams.radius is inherited, not its own');
+			expect(() => found({ mapParams: onBare as MapParamSet })).toThrow('mapParams must be a plain object, got an object made on another');
+		});
+
+		it.each([
+			['a parameter', (fail: () => never) => ({ seed: SEED, get radius(): number { return fail(); } }), 'mapParams.radius'],
+			['the stop tables', (fail: () => never) => ({ seed: SEED, get stopTables(): object { return fail(); } }), 'mapParams.stopTables'],
+			['a value in the stop tables', (fail: () => never) => ({ seed: SEED, stopTables: { get highway(): object { return fail(); } } }), 'mapParams.stopTables.highway']
+		])('names the path to %s whose getter throws', (_label, make, at) => {
+			const mapParams = make(() => {
+				throw new Error('boom');
+			}) as unknown as MapParamSet;
+
+			expect(() => found({ mapParams })).toThrow(ReaderTypeError);
+			expect(() => found({ mapParams })).toThrow(`${at} can't be read: boom`);
+		});
+
+		it('reads each parameter once, so a getter can\'t answer one way when checked and another when kept', () => {
+			let reads = 0;
+			const mapParams = {
+				seed: SEED,
+				get towns(): number {
+					reads += 1;
+					return reads === 1 ? 9 : NaN;
+				}
+			};
+
+			expect(found({ mapParams }).mapParams.towns).toBe(9);
+			expect(reads).toBe(1);
 		});
 
 		it('refuses a class instance, getters and all', () => {
@@ -349,13 +378,16 @@ describe('foundCampaign', () => {
 
 	// The presets read their JSON as they load, so loading them would carry the file into every bundle founding is in.
 	it('loads without the map presets', () => {
-		jest.isolateModules(() => {
-			jest.doMock('../map/MapPresets', () => {
-				throw new Error('founding loaded the map presets');
+		try {
+			jest.isolateModules(() => {
+				jest.doMock('../map/MapPresets', () => {
+					throw new Error('founding loaded the map presets');
+				});
+				expect(() => jest.requireActual('./Founding')).not.toThrow();
 			});
-			expect(() => jest.requireActual('./Founding')).not.toThrow();
-		});
-		jest.dontMock('../map/MapPresets');
+		} finally {
+			jest.dontMock('../map/MapPresets');
+		}
 	});
 
 	it('saves, and loads back the same with nothing to repair', () => {

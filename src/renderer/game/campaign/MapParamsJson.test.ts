@@ -1,6 +1,7 @@
 import { ReaderRangeError, ReaderTypeError } from '../core/JsonReader';
 import { MAP_PARAM_KEYS, MapParamSet } from '../map/MapParams';
-import { readMapParamSet } from './MapParamsJson';
+import { rollParams } from '../map/RollParams';
+import { readMapParamSet, readMapParams } from './MapParamsJson';
 
 describe('readMapParamSet', () => {
 	it('keeps what the set holds in the order presets and saves write it, dropping keys left undefined', () => {
@@ -26,5 +27,16 @@ describe('readMapParamSet', () => {
 	it('throws reader errors, so a value can be told from a bug', () => {
 		expect(() => readMapParamSet({ seed: 7, rivers: '2' } as unknown as MapParamSet, 'mapParams')).toThrow(ReaderTypeError);
 		expect(() => readMapParamSet({ seed: -7 }, 'mapParams')).toThrow(ReaderRangeError);
+	});
+});
+
+describe('readMapParams', () => {
+	it('needs every parameter, and refuses one left undefined as a value rather than dropping it', () => {
+		const withoutTowns: Record<string, unknown> = { ...rollParams(7) };
+		delete withoutTowns.towns;
+
+		expect(() => readMapParams(withoutTowns, 'mapParams')).toThrow('mapParams.towns is missing');
+		expect(() => readMapParams({ ...rollParams(7), environment: undefined }, 'mapParams')).toThrow('mapParams.environment must be a string, got undefined');
+		expect(() => readMapParams({ ...rollParams(7), towns: undefined }, 'mapParams')).toThrow('mapParams.towns must be a number, got undefined');
 	});
 });

@@ -1,5 +1,5 @@
 import { describeValue } from '../core/Json';
-import { ReaderTypeError, freezeJson, readFields, readNumber, readObject, readOneOf, readSeed } from '../core/JsonReader';
+import { ReaderTypeError, freezeJson, readFields, readNumber, readObject, readOneOf, readSeed, readValueAt } from '../core/JsonReader';
 import {
 	ENVIRONMENTS,
 	Environment,
@@ -13,8 +13,21 @@ import {
 } from '../map/MapParams';
 import { describeClamp, validateMapParams } from '../map/ParamValidator';
 
-/** The keys a parameter set may leave out: all but the seed. */
-const SET_OPTIONAL_KEYS = MAP_PARAM_KEYS.filter((key): key is Exclude<keyof MapParams, 'seed'> => key !== 'seed');
+type ParamKey = keyof MapParams;
+
+interface ParamFields {
+	readonly required: readonly ParamKey[];
+	readonly optional: readonly ParamKey[];
+}
+
+function paramFields(required: readonly ParamKey[]): ParamFields {
+	return { required, optional: MAP_PARAM_KEYS.filter(key => !required.includes(key)) };
+}
+
+/** A parameter set needs only its seed. */
+const SET_FIELDS = paramFields(['seed']);
+/** Params whole need every parameter; stop tables are absent when they're the shipped ones. */
+const PARAMS_FIELDS = paramFields(MAP_PARAM_KEYS.filter(key => key !== 'stopTables'));
 
 /** Params `readMapParams` made: checked, frozen, and in order, so they can't have changed since. */
 const checkedParams = new WeakSet<object>();
@@ -31,14 +44,7 @@ const checkedParams = new WeakSet<object>();
  */
 export function readMapParams(value: unknown, path: string): Readonly<MapParams> {
 	if (typeof value === 'object' && value !== null && checkedParams.has(value)) return value as Readonly<MapParams>;
-	const fields = readFields(value, path, ['seed', 'environment', ...NUMBER_PARAMS], ['stopTables']);
-	const params = {
-		seed: readSeed(fields.seed, `${path}.seed`),
-		environment: readOneOf(fields.environment, `${path}.environment`, ENVIRONMENTS)
-	} as MapParams;
-	for (const name of NUMBER_PARAMS) params[name] = readNumber(fields[name], `${path}.${name}`);
-	if (fields.stopTables !== undefined) params.stopTables = readStopTables(fields.stopTables, `${path}.stopTables`);
-	const frozen = Object.freeze(params);
+	const frozen = Object.freeze(readParams(value, path, PARAMS_FIELDS) as MapParams);
 	checkedParams.add(frozen);
 	return frozen;
 }
@@ -53,13 +59,31 @@ export function readMapParams(value: unknown, path: string): Readonly<MapParams>
  * copy of its stop tables.
  */
 export function readMapParamSet(value: unknown, path: string): MapParamSet {
-	const fields = readFields(value, path, ['seed'], SET_OPTIONAL_KEYS);
-	const set: MapParamSet = { seed: readSeed(fields.seed, `${path}.seed`) };
-	if (fields.environment !== undefined) set.environment = readOneOf(fields.environment, `${path}.environment`, ENVIRONMENTS);
+	return readParams(value, path, SET_FIELDS);
+}
+
+/**
+ * Params with the required fields present, read in table order, each read
+ * once (`readValueAt`), so a getter can neither throw past its path nor
+ * answer differently the second time. A required field that's undefined is
+ * refused as a value; an optional one is left out.
+ */
+function readParams(value: unknown, path: string, { required, optional }: ParamFields): MapParamSet {
+	const fields = readFields(value, path, required, optional);
+	const read = <Value>(key: ParamKey, reader: (field: unknown, at: string) => Value): Value | undefined => {
+		const at = `${path}.${key}`;
+		const field = readValueAt(fields, key, at);
+		return field === undefined && !required.includes(key) ? undefined : reader(field, at);
+	};
+	const set: MapParamSet = { seed: readSeed(readValueAt(fields, 'seed', `${path}.seed`), `${path}.seed`) };
+	const environment = read('environment', (field, at) => readOneOf(field, at, ENVIRONMENTS));
+	if (environment !== undefined) set.environment = environment;
 	for (const name of NUMBER_PARAMS) {
-		if (fields[name] !== undefined) set[name] = readNumber(fields[name], `${path}.${name}`);
+		const number = read(name, readNumber);
+		if (number !== undefined) set[name] = number;
 	}
-	if (fields.stopTables !== undefined) set.stopTables = readStopTables(fields.stopTables, `${path}.stopTables`);
+	const stopTables = read('stopTables', readStopTables);
+	if (stopTables !== undefined) set.stopTables = stopTables;
 	return set;
 }
 
@@ -89,26 +113,28 @@ export interface RepairedMapParams {
 export function repairMapParams(value: unknown, path: string): RepairedMapParams {
 	const saved = readObject(value, path);
 	const has = (key: string): boolean => Object.prototype.hasOwnProperty.call(saved, key);
+	const at = (key: string): unknown => readValueAt(saved, key, `${path}.${key}`);
 	const warnings: string[] = [];
 	if (!has('seed')) throw new ReaderTypeError(`${path}.seed is missing`);
-	const params = { seed: readSeed(saved.seed, `${path}.seed`) } as MapParams;
+	const params = { seed: readSeed(at('seed'), `${path}.seed`) } as MapParams;
 
 	const fallback = MAP_PARAMETERS.environment.default;
+	const environment = has('environment') ? at('environment') : undefined;
 	if (!has('environment')) {
 		params.environment = fallback;
 		warnings.push(`${path}.environment was missing; took ${fallback}`);
-	} else if (typeof saved.environment !== 'string') {
-		throw new ReaderTypeError(`${path}.environment must be a string, got ${describeValue(saved.environment)}`);
-	} else if ((ENVIRONMENTS as readonly string[]).includes(saved.environment)) {
-		params.environment = saved.environment as Environment;
+	} else if (typeof environment !== 'string') {
+		throw new ReaderTypeError(`${path}.environment must be a string, got ${describeValue(environment)}`);
+	} else if ((ENVIRONMENTS as readonly string[]).includes(environment)) {
+		params.environment = environment as Environment;
 	} else {
 		params.environment = fallback;
-		warnings.push(`${path}.environment ${describeValue(saved.environment)} isn't an environment; took ${fallback}`);
+		warnings.push(`${path}.environment ${describeValue(environment)} isn't an environment; took ${fallback}`);
 	}
 
 	const defaults = environmentDefaults(params.environment);
-	for (const name of NUMBER_PARAMS) params[name] = has(name) ? readNumber(saved[name], `${path}.${name}`) : defaults[name];
-	if (has('stopTables')) params.stopTables = readStopTables(saved.stopTables, `${path}.stopTables`);
+	for (const name of NUMBER_PARAMS) params[name] = has(name) ? readNumber(at(name), `${path}.${name}`) : defaults[name];
+	if (has('stopTables')) params.stopTables = readStopTables(at('stopTables'), `${path}.stopTables`);
 
 	// One warning a parameter. A value can be clamped twice (into its range, then by a combination rule), so a
 	// warning lists every clamp the Map Lab would show, in order.
@@ -131,6 +157,7 @@ export function repairMapParams(value: unknown, path: string): RepairedMapParams
 	return { params, warnings };
 }
 
+/** An object first, so a NaN or a list for the tables says so, rather than what JSON makes of it. */
 function readStopTables(value: unknown, path: string): StopTables {
-	return readObject(freezeJson(value, path), path) as StopTables;
+	return freezeJson(readObject(value, path), path) as StopTables;
 }

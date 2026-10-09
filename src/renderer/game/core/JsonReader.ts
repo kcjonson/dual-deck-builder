@@ -31,10 +31,8 @@ export function readObject(value: unknown, path: string): Record<string, unknown
 }
 
 /**
- * A plain object with exactly these fields, all its own: none missing, none
- * extra, and none inherited, so reading a field never reaches past the
- * object. Optional fields may be left out, and read as undefined when they
- * are.
+ * A plain object with exactly these fields: none missing, none extra.
+ * Optional fields may be left out, and read as undefined when they are.
  */
 export function readFields<Field extends string, Optional extends string = never>(
 	value: unknown,
@@ -47,22 +45,38 @@ export function readFields<Field extends string, Optional extends string = never
 	for (const key of Object.keys(object)) {
 		if (!known.includes(key)) throw new ReaderTypeError(`${path} has an unknown field "${key}"`);
 	}
-	for (const field of known) {
-		if (Object.prototype.hasOwnProperty.call(object, field)) continue;
-		if (field in object) throw new ReaderTypeError(`${path}.${field} is inherited, not its own`);
-		if ((fields as readonly string[]).includes(field)) throw new ReaderTypeError(`${path}.${field} is missing`);
+	for (const field of fields) {
+		if (!Object.prototype.hasOwnProperty.call(object, field)) throw new ReaderTypeError(`${path}.${field} is missing`);
 	}
 	return object as Record<Field | Optional, unknown>;
 }
 
-/** Any finite number. */
+/**
+ * The value at `key`, read once. A getter that throws (code can hand a
+ * reader one; JSON.parse never makes one) becomes a reader error naming
+ * `path`, the value's own path.
+ */
+export function readValueAt(container: object, key: string | number, path: string): unknown {
+	try {
+		return (container as Record<string | number, unknown>)[key];
+	} catch (error) {
+		throw new ReaderTypeError(`${path} can't be read: ${error instanceof Error ? error.message : String(error)}`);
+	}
+}
+
+/** Any finite number, with -0 as 0, which is what JSON writes it as. */
 export function readNumber(value: unknown, path: string): number {
 	if (typeof value !== 'number') throw new ReaderTypeError(`${path} must be a number, got ${describeValue(value)}`);
 	if (!Number.isFinite(value)) throw new ReaderRangeError(`${path} must be a finite number, got ${describeValue(value)}`);
-	return value;
+	return value + 0;
 }
 
-/** An array with a value at every index, as JSON.parse always makes: `map` and `forEach` skip a hole, so nothing would check it. */
+/**
+ * An array with a value at every index, as JSON.parse always makes: `map`
+ * and `forEach` skip a hole, so nothing would check it. It comes back as it
+ * is, so a reader that keeps what it reads builds it with `Array.from`:
+ * another realm's array's own `map` builds that realm's arrays.
+ */
 export function readArray(value: unknown, path: string): readonly unknown[] {
 	if (!Array.isArray(value)) throw new ReaderTypeError(`${path} must be an array, got ${describeValue(value)}`);
 	for (let index = 0; index < value.length; index += 1) {
@@ -85,13 +99,14 @@ export interface IntegerRange {
 	maxLabel?: string;
 }
 
+/** An integer in range, with -0 as 0, which is what JSON writes it as. */
 export function readInteger(value: unknown, path: string, { min, max, maxLabel }: IntegerRange): number {
 	if (typeof value !== 'number') throw new ReaderTypeError(`${path} must be a number, got ${describeValue(value)}`);
 	if (!Number.isSafeInteger(value) || value < min || (max !== undefined && value > max)) {
 		const range = max === undefined ? `>= ${min}` : `from ${min} to ${maxLabel ?? max}`;
 		throw new ReaderRangeError(`${path} must be an integer ${range}, got ${describeValue(value)}`);
 	}
-	return value;
+	return value + 0;
 }
 
 const UINT32_MAX = 0xffffffff;
@@ -126,11 +141,11 @@ const frozenJson = new WeakMap<object, number>();
 /**
  * A deep copy of a JSON value, frozen all the way down and built from this
  * realm's arrays and objects, whatever realm the value's came from. Throws on
- * anything JSON can't hold: undefined, NaN, a class instance, a cycle, or
- * nesting past `MAX_JSON_DEPTH` levels, the limit `copyJson` holds the map's
- * stop tables to, so a value this takes never overflows the stack or fails a
- * copy later. A value this already made comes back as it is, so checking it
- * again is free.
+ * anything JSON can't hold: undefined, NaN, a class instance, a cycle, a
+ * getter that throws, or nesting past `MAX_JSON_DEPTH` levels, the limit
+ * `copyJson` holds the map's stop tables to, so a value this takes never
+ * overflows the stack or fails a copy later. A value this already made comes
+ * back as it is, so checking it again is free.
  */
 export function freezeJson(value: unknown, path: string): JsonValue {
 	return freezeValue(value, path, []);
@@ -155,14 +170,14 @@ function freezeValue(value: unknown, path: string, ancestors: readonly object[])
 	if (ancestors.length >= MAX_JSON_DEPTH) throw tooDeep(path);
 	const inside = [...ancestors, container];
 	let levels = 1;
-	const freezeItem = (item: unknown, itemPath: string): JsonValue => {
-		const frozen = freezeValue(item, itemPath, inside);
+	const freezeAt = (key: string | number, itemPath: string): JsonValue => {
+		const frozen = freezeValue(readValueAt(container, key, itemPath), itemPath, inside);
 		if (typeof frozen === 'object' && frozen !== null) levels = Math.max(levels, (frozenJson.get(frozen) ?? 0) + 1);
 		return frozen;
 	};
 	const frozen = Array.isArray(container)
-		? Object.freeze(Array.from(container, (item, index) => freezeItem(item, `${path}[${index}]`)))
-		: Object.freeze(Object.fromEntries(Object.entries(container).map(([key, item]) => [key, freezeItem(item, `${path}.${key}`)])));
+		? Object.freeze(Array.from({ length: container.length }, (_, index) => freezeAt(index, `${path}[${index}]`)))
+		: Object.freeze(Object.fromEntries(Object.keys(container).map(key => [key, freezeAt(key, `${path}.${key}`)])));
 	frozenJson.set(frozen, levels);
 	return frozen as JsonValue;
 }
