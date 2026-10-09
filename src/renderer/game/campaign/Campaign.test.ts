@@ -687,6 +687,15 @@ describe('Campaign', () => {
 			expect(campaign.day).toBe(3);
 		});
 
+		it('won\'t turn the day back, since it names each day\'s draws, though it takes the same day again', () => {
+			const campaign = newCampaign({ day: 6 });
+
+			expect(() => campaign.set({ day: 5 })).toThrow("Campaign.day can't go back, from 6 to 5");
+			campaign.set({ day: 6, unrest: 1 });
+
+			expect([campaign.day, campaign.unrest]).toEqual([6, 1]);
+		});
+
 		it('won\'t turn the clock back before a logged day', () => {
 			const campaign = newCampaign({ day: 6 });
 			campaign.addLogEntry({ message: 'Took the north stronghold.' });

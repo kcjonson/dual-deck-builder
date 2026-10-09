@@ -16,6 +16,7 @@ import { foundCampaign } from './Founding';
 import { getTreatmentBlocker, injureOnArrival, treatDriver } from './Infirmary';
 import { setOpenFight } from './OpenFights';
 import { RunDeck } from './RunDeck';
+import { getScavengeBlocker, scavenge } from './Scavenging';
 import { getSeatBlocker } from './Seating';
 import { MemorySaveStorage } from './SaveStorage';
 import { CAMPAIGN_FIXTURE, FaultyStorage, KEYS, failure, saveText, storageWith, storeOver } from './__fixtures__/storeFixtures';
@@ -233,6 +234,36 @@ describe('People reaching 0', () => {
 		expect(campaign.log[campaign.log.length - 1]).toEqual({ day: 4, message: `No people are left, and the compound ${ending === 'rioted' ? 'rioted over what was left' : ending}.` });
 	});
 
+	it('falls by the stores with the day\'s haul in, and logs the haul, the shortfall, and the fall, all dated the day that ended', () => {
+		const campaign = newCampaign({ resources: { ...STORES, food: 0, water: 0, people: 1 }, day: 6 });
+
+		endDay({ campaign, haul: { resources: { food: 3 }, message: 'Settlers came back with 3 food.' } });
+
+		// Without the haul there'd be no food, and it would have starved
+		expect(campaign.end).toEqual({ ending: 'disbanded', cause: 'no_people' });
+		expect(campaign.resources.food).toBe(2);
+		expect(campaign.log).toEqual([
+			{ day: 6, message: 'Settlers came back with 3 food.' },
+			{ day: 6, message: 'Ran short of 1 water; 1 person lost.' },
+			{ day: 6, message: 'No people are left, and the compound disbanded.' }
+		]);
+	});
+
+	it('ends the campaign the night a scavenging party\'s compound runs out of people', () => {
+		const campaign = newCampaign({ resources: { ...STORES, food: 0, water: 0, people: 1 }, unrest: 9 });
+
+		const { haul, dayEnd } = scavenge({ campaign });
+
+		expect(dayEnd.outcome).toBe('abandoned');
+		expect(campaign.end).toEqual({ ending: 'starved', cause: 'no_people' });
+		expect(campaign.resources.fuel).toBe(STORES.fuel + haul.fuel);
+		expect(campaign.log.map(entry => entry.message)).toEqual([
+			`A scavenging party brought back ${haul.fuel} fuel and ${haul.scrap} scrap.`,
+			'Ran short of 1 food and 1 water; 1 person lost.',
+			'No people are left, and the compound starved.'
+		]);
+	});
+
 	it('waits for a run that\'s out to come home before it ends the campaign', () => {
 		const campaign = newCampaign({ resources: { ...STORES, people: 0 } });
 		const seats = ARCHETYPES.slice(0, 2).map(archetype => campaign.recruitDriver({ archetype })) as [DriverRecord, DriverRecord];
@@ -439,6 +470,7 @@ describe('a campaign that\'s over', () => {
 			setOpenFight({ campaign, fight });
 			return writeBackFight({ fight });
 		}],
+		['send a scavenging party', ({ campaign }: Fallen) => scavenge({ campaign })],
 		// Its records and convoy are models of their own, and the end closed them
 		['change a driver', ({ interceptor }: Fallen) => interceptor.set({ hitpoints: 5 })],
 		['change the convoy', ({ campaign, hauler }: Fallen) => campaign.convoy.dismiss({ escort: hauler, drivers: [] })],
@@ -505,6 +537,9 @@ describe('a campaign that\'s over', () => {
 		expect(getTreatmentBlocker({ campaign, driver: interceptor })).toEqual(over);
 		expect(getSeatBlocker({ campaign, driver: warrior })).toEqual(over);
 		expect(getSeatBlocker({ campaign, driver: warrior, partner: interceptor })).toEqual(over);
+		// Lost with its last driver, the compound still has People, and the check names the end first
+		expect(campaign.resources.people).toBeGreaterThan(0);
+		expect(getScavengeBlocker({ campaign })).toEqual(over);
 	});
 
 	it('loads the fixture lost, home from its run with nobody left', () => {

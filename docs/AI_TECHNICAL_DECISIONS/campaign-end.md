@@ -1,6 +1,6 @@
 # The campaign's end: death, missing drivers, and the compound falling (DDB-305)
 
-Date: 2026-10-09. Code: `src/renderer/game/campaign/CampaignEnd.ts`, with the end itself in `Campaign.ts` (`end`, `tally`, `foundOnRun`, `loseRun`, `unloadRun`, `findMissingDriver`), `DayClock.ts` (`endDay`), `DriverRecord.ts`, `Seating.ts`, `Infirmary.ts`, `CampaignStore.ts` (`checkpoint`, `save`, `end`), and `core/ClosedModels.ts`, and the thresholds in `src/renderer/game/data/compound-rules.json`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (The driver pool, A failed run, Stops) and [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 6.3. Builds on [combat-bridge.md](./combat-bridge.md), [run-decks.md](./run-decks.md), [day-clock.md](./day-clock.md), [injuries.md](./injuries.md), and [campaign-save-and-load.md](./campaign-save-and-load.md).
+Date: 2026-10-09. Code: `src/renderer/game/campaign/CampaignEnd.ts`, with the end itself in `Campaign.ts` (`end`, `tally`, `foundOnRun`, `loseRun`, `unloadRun`, `findMissingDriver`), `DayClock.ts` (`endDay`), `DriverRecord.ts`, `Seating.ts`, `Infirmary.ts`, `Scavenging.ts`, `CampaignStore.ts` (`checkpoint`, `save`, `end`), and `core/ClosedModels.ts`, and the thresholds in `src/renderer/game/data/compound-rules.json`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (The driver pool, A failed run, Stops) and [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 6.3. Builds on [combat-bridge.md](./combat-bridge.md), [run-decks.md](./run-decks.md), [day-clock.md](./day-clock.md), [injuries.md](./injuries.md), and [campaign-save-and-load.md](./campaign-save-and-load.md).
 
 ## Context
 
@@ -38,7 +38,7 @@ The day stops on the day the compound fell. `loseRun` never turns the day, and t
 
 ## How it fell
 
-`fallOf` reads the stores and unrest after the step (after the night's eating, for a day end), in this order:
+`fallOf` reads the stores and unrest after the step (for a day end, with the day's haul in and the night eaten), in this order:
 
 1. Starved: food at or below `fall.starveAtFood`, 0.
 2. Rioted: unrest at or above `fall.riotAtUnrest`, 10.
@@ -48,11 +48,11 @@ Hunger comes first because an empty larder is a fact and unrest is a mood; a sta
 
 ## The end is one checked set, and final
 
-`Campaign.end` is `{ ending, cause }`, or null while the campaign stands. It's stored in the same `set` as the rest of the step (run decks, locker, the tally, the stores), with one log line built by `stepLog`: "No drivers are left, and the compound starved." The campaign's own reader checks it, as it checks everything: a fall and a cause that exist, no run out, and a cause the state shows (no People, or a pool with nobody at the compound).
+`Campaign.end` is `{ ending, cause }`, or null while the campaign stands. It's stored in the same `set` as the rest of the step (run decks, locker, the tally, the stores), with one log line built by `stepLog` after the step's own lines (a day end's haul and shortfall), all dated the day it fell: "No drivers are left, and the compound starved." The campaign's own reader checks it, as it checks everything: a fall and a cause that exist, no run out, and a cause the state shows (no People, or a pool with nobody at the compound).
 
 Once it's set, nothing changes the campaign:
 
-- The checks the screens ask before an action say why: `getCardMoveBlocker`, `getScrapBlocker`, `getAddToLockerBlocker`, `getEscortCardMoveBlocker`, `getTreatmentBlocker`, and `getSeatBlocker` all give `campaign_over`, carrying the end, ahead of any other reason, so a disabled action and its reason agree with the action. The action itself then throws a `CampaignOverError`, carrying the end, rather than a rule error, for the clearer message.
+- The checks the screens ask before an action say why: `getCardMoveBlocker`, `getScrapBlocker`, `getAddToLockerBlocker`, `getEscortCardMoveBlocker`, `getTreatmentBlocker`, `getSeatBlocker`, and `getScavengeBlocker` all give `campaign_over`, carrying the end, ahead of any other reason, so a disabled action and its reason agree with the action. The action itself then throws a `CampaignOverError`, carrying the end, rather than a rule error, for the clearer message.
 - Every other method that would change the campaign, its records, or its run decks refuses the same way before it changes anything: `set`, `recruitDriver`, `addLogEntry`, `resetRunDeck`, `addEscortCards`, `removeEscortCards`, `unwindRunDecks`, `unloadRun`, `loseRun`, and `findMissingDriver`, and outside the class `endDay`, `injureOnArrival`, and `writeBackFight`.
 - The driver records and the convoy are models of their own, so the `set` that ends the campaign closes them too, before anyone hears the change (`core/ClosedModels.ts`, a weak map from model to the error that closed it). `DriverRecord.set`, `Convoy.set`, and `Convoy.add` then throw the same `CampaignOverError`. A campaign loaded ended closes them as it's built. The escorts' own vehicles stay open: nothing changes them outside a fight, and a fight can't start.
 
