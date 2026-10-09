@@ -2,6 +2,7 @@ import type { Panel } from '../renderer/engine/ui/Panel';
 import type { DeveloperSectionOptions } from '../renderer/game/screens/developer/sections';
 import type { Screen } from '../renderer/game/core/Screen';
 import { developerSections } from '../renderer/game/screens/developer/sections';
+import { AreaMapScene } from './scenes/AreaMapScene';
 import { CardPileScene } from './scenes/CardPileScene';
 import { DialogScene } from './scenes/DialogScene';
 import { EscortCardScene } from './scenes/EscortCardScene';
@@ -77,6 +78,9 @@ export const galleryOnlyScenes: readonly GalleryScene[] = [
 	{ name: 'card-pile-draw', factory: (options) => new CardPileScene({ ...options, mode: 'draw' }) },
 	{ name: 'card-pile-discard', factory: (options) => new CardPileScene({ ...options, mode: 'discard' }) },
 	{ name: 'card-reward', factory: (options) => new CardPileScene({ ...options, mode: 'reward' }) },
+	// The area map view over a generated map, then with stand-in knowledge, fog, and markers (DDB-298)
+	{ name: 'area-map', factory: (options) => new AreaMapScene({ ...options, mode: 'whole' }) },
+	{ name: 'area-map-fog', factory: (options) => new AreaMapScene({ ...options, mode: 'fog' }) },
 	// The battle screen whole, at the mock's six fit scenarios (DDB-141)
 	...BATTLE_FIT_SCENARIOS.map((scenario): ScreenScene => ({
 		name: `battle-${scenario}`,
