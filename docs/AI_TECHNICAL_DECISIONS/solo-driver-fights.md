@@ -56,7 +56,7 @@ The gallery's `battle-solo` scene is that fight: the Interceptor alone with an O
 
 These unblock the build and aren't settled rules. They aren't in the specs, which still say a player team starts with exactly two driven vehicles until Kevin approves the call above. Each is a small change to flip.
 
-1. **Coordinated Attack stays playable for a lone driver, and deals its base damage.** Its bonus needs a partner who attacked this turn, which a lone driver never has, but the card still hits for its printed damage, so it isn't dead in the hand. The `partner_attacked` condition has no handler in `Battle` at all, so a pair's Coordinated Attack also deals only its base damage today.
+1. **Coordinated Attack stays playable for a lone driver, and deals its base damage.** Its bonus needs a partner who attacked this turn, which a lone driver never has, but the card still hits for its printed damage, so it isn't dead in the hand. The `partner_attacked` condition has no handler in `Battle` at all (DDB-121, conditional effects are never applied), so a pair's Coordinated Attack also deals only its base damage today; the handler has to read false for a lone driver.
 2. **A card whose only target is the partner would be unplayable without one, with the reason shown**, rather than fizzling. No card is like that yet, so nothing enforces it; the first one adds the check to `Battle.getCardBlocker`.
 3. **A `both_drivers` card lands on the lone driver's own vehicle**, as it lands on the caster's for a pair. No card uses the target type.
 4. **A lone driver whose vehicle is wrecked rides on in the nearest escort with a free seat**, and with none crashes out, which loses the fight and leaves them missing.
@@ -70,4 +70,4 @@ These unblock the build and aren't settled rules. They aren't in the specs, whic
 - Load out (DDB-320) can seat one driver as soon as it lets `startRunDecks` take one seat; the bridge, the run decks, and the save already take a run of one. The run controller (DDB-322) hands the bridge a party of one.
 - Founding still needs two archetypes unlocked, and the campaign's starting pool still deals four; neither is about a run of one.
 - A future card that reads the partner needs its lone-driver behaviour decided with it, against call 2.
-- Coordinated Attack's bonus not landing for a pair is a bug of its own, outside this work.
+- Coordinated Attack's bonus not landing for a pair is DDB-121's bug, outside this work.
