@@ -110,6 +110,7 @@ describe('describeValue', () => {
 		['NaN', NaN, 'NaN'],
 		['null', null, 'null'],
 		['undefined', undefined, 'undefined'],
+		['a function', () => 1, 'function'],
 		['a list', [1, 2], '[1,2]'],
 		['an object', { wreck: 1 }, '{"wreck":1}'],
 		['a Date', new Date(0), 'a Date'],
@@ -117,5 +118,12 @@ describe('describeValue', () => {
 		['a long string, cut short', 'x'.repeat(80), `"${'x'.repeat(56)}...`],
 	])('shows %s as %p', (_case, value, shown) => {
 		expect(describeValue(value)).toBe(shown);
+	});
+
+	it('still says something about a value JSON can\'t write', () => {
+		const loop: Record<string, unknown> = {};
+		loop.self = loop;
+
+		expect(describeValue(loop)).toBe('[object Object]');
 	});
 });
