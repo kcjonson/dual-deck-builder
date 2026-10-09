@@ -70,7 +70,7 @@ const SAVE_FORMAT = {
 		'day', 'drivers', 'drivers[]', 'drivers[].archetype', 'drivers[].defaultDeck', 'drivers[].defaultDeck.<card type>',
 		'drivers[].handLimit', 'drivers[].hitpoints', 'drivers[].id', 'drivers[].injuredDays', 'drivers[].maxHitpoints', 'drivers[].name',
 		'drivers[].runsCompleted', 'drivers[].status', 'drivers[].vehicle', 'drivers[].vehicle.armor', 'drivers[].vehicle.structure', 'generatorVersion', 'locker', 'locker.<card type>', 'log', 'log[]', 'log[].day', 'log[].message', 'map',
-		'mapParams', 'mapParams.<map parameter>', 'nextDriverNumber', 'resources', 'resources.food', 'resources.fuel', 'resources.meds', 'resources.people',
+		'mapParams', 'mapParams.<map parameter>', 'nextDriverNumber', 'nextRunNumber', 'resources', 'resources.food', 'resources.fuel', 'resources.meds', 'resources.people',
 		'resources.scrap', 'resources.water', 'runDecks', 'runDecks[]', 'runDecks[].borrowed', 'runDecks[].borrowed.<card type>', 'runDecks[].driver',
 		'runDecks[].escortCards', 'runDecks[].escortCards[]', 'runDecks[].escortCards[].broughtBy', 'runDecks[].escortCards[].cardType',
 		'runDecks[].leftHome', 'runDecks[].leftHome.<card type>', 'runDecks[].own', 'runDecks[].own.<card type>',
@@ -847,7 +847,7 @@ describe('Campaign', () => {
 				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
 			};
 
-			expect(CAMPAIGN_SCHEMA_VERSION).toBe(4);
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(5);
 			try {
 				expect(format).toEqual(SAVE_FORMAT);
 			} catch (error) {
@@ -885,6 +885,8 @@ describe('Campaign', () => {
 				['a run deck for a driver who isn\'t in the pool', (save: CampaignJson) => { save.runDecks[1].driver = 'driver-9'; }, RangeError, 'Campaign.runDecks[1].driver "driver-9" isn\'t a driver in the pool'],
 				['one run deck', (save: CampaignJson) => { save.runDecks.pop(); }, RangeError, 'Campaign.runDecks holds 1 run decks: a run out has one for each of its two seats, and none are kept at home'],
 				['two run decks for one driver', (save: CampaignJson) => { save.runDecks[1].driver = 'driver-1'; }, RangeError, 'Campaign.runDecks[1].driver driver-1 has the run deck before it; each seat is a different driver'],
+				['a run out with no run handed out', (save: CampaignJson) => { save.nextRunNumber = 1; }, RangeError, 'Campaign.nextRunNumber must be an integer >= 2, got 1'],
+				['no run counter', (save: CampaignJson) => { delete (save as Partial<CampaignJson>).nextRunNumber; }, TypeError, 'Campaign.nextRunNumber is missing'],
 				['a borrowed count of 0', (save: CampaignJson) => { save.runDecks[0].borrowed.medical_kit = 0; }, RangeError, 'Campaign.runDecks[0].borrowed.medical_kit must be an integer >= 1, got 0'],
 				['a seated driver whose default deck holds cards', (save: CampaignJson) => { save.drivers[4].defaultDeck = { headshot: 1 }; }, RangeError,
 					'Campaign.runDecks[1].driver driver-5 holds cards in their default deck, {"headshot":1}, which is in their run deck while a run is out'],

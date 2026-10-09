@@ -56,6 +56,8 @@ export function cardBlockerReason(blocker: CardBlocker): string {
 			return `${blocker.by.driver.name} has it`;
 		case 'card_locked':
 			return 'Locked escort card';
+		case 'too_little_scrap':
+			return `Needs ${blocker.needed} scrap`;
 		case 'other_archetype':
 			return `${archetypeTitle(blocker.archetype)} only`;
 		case 'deck_full':

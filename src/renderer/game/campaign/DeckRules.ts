@@ -1,8 +1,8 @@
-import { ReaderRangeError, readArray, readFields, readInteger, readNullable, readObject, readOneOf } from '../core/JsonReader';
+import { ReaderRangeError, readArray, readFields, readInteger, readNullable, readObject, readOneOf, readText } from '../core/JsonReader';
 import cardsFile from '../data/cards.json';
 import deckRulesFile from '../data/deck-rules.json';
 import type { DriverArchetype } from '../mechanics/Driver';
-import { CardCounts, readCardType, totalCards } from './CardCounts';
+import { CardCounts, readCardCounts, readCardType, totalCards } from './CardCounts';
 import { DRIVER_ARCHETYPES } from './DriverRecord';
 
 /**
@@ -43,26 +43,38 @@ export function readDeckRules(value: unknown, path: string): DeckRules {
 	});
 }
 
+/** What the campaign reads of each card in a cards file. */
+export interface CatalogueCard {
+	/** What the log calls it */
+	readonly name: string;
+	/** The archetype its `driverRestriction` marks it for, or null for a card any driver can take */
+	readonly archetype: DriverArchetype | null;
+	/** The escort type whose signature order it is, or null. One comes with its escort and is never the compound's (Card System Design 1.3). */
+	readonly signatureOf: string | null;
+}
+
 /**
- * The archetype each card in a cards file is marked for, by card type. A
- * card's `driverRestriction` names one archetype, or is null or left out
- * for a card any driver can take, which the map leaves out.
+ * Each card in a cards file, by card type: its name, the archetype it's
+ * marked for, and the escort it's the signature of. A `driverRestriction`
+ * or `signatureOf` left out is null. Checks only what the campaign reads;
+ * `CardLoader` checks the rest of a card when it loads the file.
  */
-export function readCardArchetypes(value: unknown, path: string): ReadonlyMap<string, DriverArchetype> {
+export function readCardCatalogue(value: unknown, path: string): ReadonlyMap<string, CatalogueCard> {
 	const cards = readArray(readObject(value, path).cards, `${path}.cards`);
-	const archetypes = new Map<string, DriverArchetype>();
-	const types = new Set<string>();
+	const catalogue = new Map<string, CatalogueCard>();
 	cards.forEach((card, index) => {
 		const at = `${path}.cards[${index}]`;
 		const fields = readObject(card, at);
 		const type = readCardType(fields.type, `${at}.type`);
-		if (types.has(type)) throw new ReaderRangeError(`${at}.type ${type} belongs to an earlier card`);
-		types.add(type);
-		const archetype = readNullable(fields.driverRestriction ?? null, `${at}.driverRestriction`, (restriction, restrictionPath) =>
-			readOneOf(restriction, restrictionPath, DRIVER_ARCHETYPES));
-		if (archetype !== null) archetypes.set(type, archetype);
+		if (catalogue.has(type)) throw new ReaderRangeError(`${at}.type ${type} belongs to an earlier card`);
+		catalogue.set(type, Object.freeze({
+			name: readText(fields.name, `${at}.name`),
+			archetype: readNullable(fields.driverRestriction ?? null, `${at}.driverRestriction`, (restriction, restrictionPath) =>
+				readOneOf(restriction, restrictionPath, DRIVER_ARCHETYPES)),
+			signatureOf: readNullable(fields.signatureOf ?? null, `${at}.signatureOf`, readText)
+		}));
 	});
-	return archetypes;
+	return catalogue;
 }
 
 /** The shipped rules, read as this module loads, so a bad edit to the file fails straight away. */
@@ -70,13 +82,39 @@ export const DECK_RULES: DeckRules = readDeckRules(deckRulesFile, 'DeckRules');
 
 /**
  * Read from the bundled cards.json as this module loads, since the campaign
- * checks eligibility synchronously and `CardLoader` loads asynchronously.
+ * checks eligibility and new copies synchronously, and `CardLoader` loads
+ * asynchronously.
  */
-const CARD_ARCHETYPES = readCardArchetypes(cardsFile, 'cards.json');
+const CARD_CATALOGUE = readCardCatalogue(cardsFile, 'cards.json');
 
 /** The archetype a card is marked for, or null for a card any driver can take, a type cards.json doesn't list included. */
 export function cardArchetype(cardType: string): DriverArchetype | null {
-	return CARD_ARCHETYPES.get(cardType) ?? null;
+	return CARD_CATALOGUE.get(cardType)?.archetype ?? null;
+}
+
+/** What the log calls a card: its name in cards.json, or its card type for one the file no longer lists. */
+export function cardName(cardType: string): string {
+	return CARD_CATALOGUE.get(cardType)?.name ?? cardType;
+}
+
+/**
+ * New copies for the compound (cards won on a run, or bought in the garage)
+ * checked: card counts, every card one cards.json lists, and none an
+ * escort's signature card, which comes with its escort and never goes in the
+ * locker or a default deck. Throws a RangeError naming the card otherwise.
+ * Copies the compound already holds are checked for shape only, so a save
+ * holding a card the file has since dropped still loads and plays.
+ */
+export function readNewCards(value: unknown, path: string): CardCounts {
+	const counts = readCardCounts(value, path);
+	for (const cardType of Object.keys(counts)) {
+		const card = CARD_CATALOGUE.get(cardType);
+		if (card === undefined) throw new RangeError(`${path}.${cardType} isn't a card in cards.json`);
+		if (card.signatureOf !== null) {
+			throw new RangeError(`${path}.${cardType} is the signature card of the ${card.signatureOf} escort, which comes with it and is never the compound's`);
+		}
+	}
+	return counts;
 }
 
 /**
