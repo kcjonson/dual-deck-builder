@@ -1,6 +1,7 @@
+import { describeValue } from '../core/Json';
+import { ReaderTypeError, freezeJson, readFields, readNumber, readObject, readOneOf, readSeed } from '../core/JsonReader';
 import { ENVIRONMENTS, Environment, MAP_PARAMETERS, MapParams, NUMBER_PARAMS, StopTables, environmentDefaults } from '../map/MapParams';
 import { describeClamp, validateMapParams } from '../map/ParamValidator';
-import { ReaderTypeError, describeValue, freezeJson, readFields, readNumber, readObject, readOneOf, readSeed } from './JsonReader';
 
 /** Every key a params object can hold. */
 const PARAM_KEYS: readonly string[] = ['seed', 'environment', ...NUMBER_PARAMS, 'stopTables'];

@@ -1,7 +1,8 @@
+import { describeValue } from '../core/Json';
+import { ReaderRangeError, readFields, readInteger, readOneOf, readText } from '../core/JsonReader';
 import { Model } from '../core/Model';
 import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
 import { CardCounts, readCardCounts, startingDeckCounts, totalCards } from './CardCounts';
-import { ReaderRangeError, describeValue, readFields, readInteger, readOneOf, readText } from './JsonReader';
 
 export const DRIVER_STATUSES = ['ready', 'injured', 'dead', 'missing'] as const;
 
@@ -214,6 +215,11 @@ function readVehicleCondition(value: unknown, path: string): Readonly<VehicleCon
 		structure: readInteger(fields.structure, `${path}.structure`, { min: 1 }),
 		armor: readInteger(fields.armor, `${path}.armor`, { min: 0 })
 	});
+}
+
+/** A driver as errors name them: "Road Warrior 2 (driver-4)". */
+export function describeDriver(driver: DriverRecord): string {
+	return `${driver.name} (${driver.id})`;
 }
 
 /** "Road Warrior 2": the archetype's title and an ordinal, until drivers get names (DDB-318). */

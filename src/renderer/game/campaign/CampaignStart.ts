@@ -1,8 +1,8 @@
+import { readArray, readFields, readInteger, readOneOf } from '../core/JsonReader';
 import campaignStartFile from '../data/campaign-start.json';
 import { ESCORT_CONFIGS, EscortType } from '../mechanics/Escort';
 import { MAX_CONVOY_ESCORTS, PLAYER_DRIVEN_VEHICLES } from '../mechanics/Team';
 import { NO_RESOURCES, Resources } from './Campaign';
-import { readArray, readFields, readInteger, readOneOf } from './JsonReader';
 
 /**
  * What a new campaign starts with (Compound and Supply Runs, Founding the

@@ -1,5 +1,6 @@
+import { describeValue } from '../core/Json';
+import { ReaderRangeError, ReaderTypeError, readInteger, readObject } from '../core/JsonReader';
 import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
-import { ReaderRangeError, ReaderTypeError, describeValue, readInteger, readObject } from './JsonReader';
 
 /**
  * Copies of each card, by card type (`ramming_speed`): a driver's default
@@ -64,6 +65,14 @@ export function removeCards(counts: CardCounts, cardType: string, count = 1): Ca
 	if (held === count) delete rest[cardType];
 	else rest[cardType] = held - count;
 	return readCardCounts(rest, 'counts');
+}
+
+/** Both sets of counts together. */
+export function addCounts(counts: CardCounts, more: CardCounts): CardCounts {
+	if (totalCards(more) === 0) return counts;
+	const sum: Record<string, number> = { ...counts };
+	for (const [cardType, count] of Object.entries(more)) sum[cardType] = cardCount(counts, cardType) + count;
+	return readCardCounts(sum, 'counts');
 }
 
 /** An archetype's starting deck, from DRIVER_CONFIGS, as counts. */

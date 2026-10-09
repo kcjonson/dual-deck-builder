@@ -1,5 +1,5 @@
+import { readFields, readInteger } from '../core/JsonReader';
 import compoundRulesFile from '../data/compound-rules.json';
-import { readFields, readInteger } from './JsonReader';
 
 /** What the compound eats every day. */
 export const UPKEEP_RESOURCES = ['food', 'water'] as const;

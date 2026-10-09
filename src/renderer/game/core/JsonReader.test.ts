@@ -1,5 +1,5 @@
-import { MAX_JSON_DEPTH, copyJson } from '../core/Json';
-import { ReaderRangeError, ReaderTypeError, describeValue, freezeJson, isReaderError, readArray, readFields, readInteger } from './JsonReader';
+import { MAX_JSON_DEPTH, copyJson } from './Json';
+import { ReaderRangeError, ReaderTypeError, freezeJson, isReaderError, readArray, readFields, readInteger } from './JsonReader';
 
 /** Objects nested `levels` deep, the outermost counting as one. */
 const nested = (levels: number): unknown => {
@@ -9,32 +9,6 @@ const nested = (levels: number): unknown => {
 };
 
 describe('JsonReader', () => {
-	describe('describeValue', () => {
-		it.each([
-			['a string', 'sleeping', '"sleeping"'],
-			['undefined', undefined, 'undefined'],
-			['NaN', NaN, 'NaN'],
-			['a function', () => 1, 'function'],
-			['an object', { escorts: [] }, '{"escorts":[]}']
-		])('shows %s as an error message would', (_label, value, shown) => {
-			expect(describeValue(value)).toBe(shown);
-		});
-
-		it('cuts a long value short', () => {
-			const shown = describeValue('x'.repeat(100));
-
-			expect(shown).toHaveLength(60);
-			expect(shown.endsWith('...')).toBe(true);
-		});
-
-		it('still says something about a value JSON can\'t write', () => {
-			const loop: Record<string, unknown> = {};
-			loop.self = loop;
-
-			expect(describeValue(loop)).toBe('[object Object]');
-		});
-	});
-
 	describe('freezeJson', () => {
 		it('copies a value and freezes it all the way down', () => {
 			const value = { roads: [{ id: 'r1', stops: [1, 2] }], seed: 7 };
