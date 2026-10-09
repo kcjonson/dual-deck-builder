@@ -111,8 +111,9 @@ export abstract class Model<T> extends EventEmitter {
 	
 	/**
 	 * Runtime identity: the class name and a count of the Models built this
-	 * session (`Card_42`). Unique until the page reloads, so it's never saved;
-	 * the campaign's records carry their own ids.
+	 * session (`Card_42`). Unique until the page reloads, so it's never saved
+	 * or referred to by anything a save holds; driver records and convoy
+	 * escorts carry their own ids.
 	 */
 	get id(): string {
 		return this.__id;

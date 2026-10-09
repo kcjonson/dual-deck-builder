@@ -1,6 +1,6 @@
 # Combat bridge: fights from the campaign, results written back (DDB-286, DDB-158)
 
-Date: 2026-10-08. Code: `src/renderer/game/campaign/CombatBridge.ts`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Resources, The driver pool, The drive, A failed run) and [Combat Rules](../specs/Combat%20Rules.md) (Losing vehicles and drivers, Owning escorts). Builds on [campaign-state-model.md](./campaign-state-model.md), [escorts.md](./escorts.md) (decisions 21 and 32), [per-driver-hand-limit.md](./per-driver-hand-limit.md), and [seeded-prng.md](./seeded-prng.md).
+Date: 2026-10-08, revised the same day for escort ids and write-backs in progress (DDB-403). Code: `src/renderer/game/campaign/CombatBridge.ts`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Resources, The driver pool, The drive, A failed run) and [Combat Rules](../specs/Combat%20Rules.md) (Losing vehicles and drivers, Owning escorts). Builds on [campaign-state-model.md](./campaign-state-model.md), [escorts.md](./escorts.md) (decisions 21 and 32), [per-driver-hand-limit.md](./per-driver-hand-limit.md), and [seeded-prng.md](./seeded-prng.md).
 
 ## Context
 
@@ -26,6 +26,8 @@ The run controller (DDB-322) is what calls the bridge, so the bridge is two func
 - `escorts`: the convoy's escorts that came along. Load out picks up to four and the rest stay home (Game Flow 1.2), and a failed run loses the ones that went.
 - `cargo`: what the run has picked up, in the stores' six resources, checked with the campaign's own reader (`readResources`). It starts empty and reaches the stores only when the run controller unloads it at home.
 
+The party holds models, which the bridge checks by identity against the campaign's pool and convoy. A save between fights holds it by id instead: each seat's `driver-<n>` and each escort's `escort-<n>`, which stay the same through every fight and every load, and which a load finds again in the pool and the convoy ([campaign-state-model.md](./campaign-state-model.md), Escort ids come from the convoy's saved counter).
+
 A fight deals each driver's default deck. Run decks aren't part of the party: a run deck needs to know which cards are the driver's own and which were borrowed from the locker, or a death on a failed run destroys cards left at home and leaves borrowed ones in the locker. DDB-315 designs run decks.
 
 Nobody is crashed out between fights. A won fight's write-back picks up anyone who crashed out of it, and a lost one ends the run, so the party never has to say who's crashed out; the write-back's result names who was picked up, revived, killed, or lost.
@@ -40,7 +42,7 @@ Nobody is crashed out between fights. A won fight's write-back picks up anyone w
 - The battle draws from `rng`, which the run controller forks as `run.fork('fight', i)` off a saved fight count (seeded-prng.md). The enemy team is the encounter's, and its AI defaults to aggressive, the combat screen's own.
 - A `CampaignFight` is a `PreparedCombat`, with the run's cargo for the top bar, so the combat screen mounts it the way it mounts the gallery's scenes: `ScreenManager.navigate('combatScreen', { prepare: async () => fight })`. The dev fight and Start Run still build their own fights through `DriversCombatMount`.
 
-It throws, building nothing, while the campaign's last fight hasn't been written back (the bridge keeps each campaign's open fight from its start to its write-back), and for a party that doesn't seat two drivers; a record from outside the pool, or one that isn't ready (load out never seats an injured driver, and on the road only a failed run changes a status), seat by seat; then one driver in both seats, or two drivers of one archetype, named; cargo that isn't whole numbers from 0; an escort that isn't the campaign's; and a card that doesn't exist. `Team` refuses a fifth escort, and `Battle` refuses an encounter the road can't take. Battle plans the whole opening and checks it before moving anyone, so a refused encounter leaves the escorts off the road for the next try. The seat refusals are load out's own check, `getSeatBlocker`, asked of each seat alone before the pair, so a seat's own reason wins over the pairing's ([injuries.md](./injuries.md)). `hasOpenFight` says whether a fight is open, so nobody comes home in the middle of one.
+It throws, building nothing, while the campaign's last fight hasn't been written back (the bridge keeps each campaign's open fight from its start to its write-back) or is partway through being written back (Partial writes, below), and for a party that doesn't seat two drivers; a record from outside the pool, or one that isn't ready (load out never seats an injured driver, and on the road only a failed run changes a status), seat by seat; then one driver in both seats, or two drivers of one archetype, named; cargo that isn't whole numbers from 0; an escort that isn't the campaign's; and a card that doesn't exist. `Team` refuses a fifth escort, and `Battle` refuses an encounter the road can't take. Battle plans the whole opening and checks it before moving anyone, so a refused encounter leaves the escorts off the road for the next try. The seat refusals are load out's own check, `getSeatBlocker`, asked of each seat alone before the pair, so a seat's own reason wins over the pairing's ([injuries.md](./injuries.md)). `hasOpenFight` says whether a fight is open, so nobody comes home in the middle of one.
 
 ## Writing a fight back
 
@@ -72,6 +74,8 @@ The campaign itself never changes, so it emits nothing. The step's checkpoint sa
 
 A listener can't stop a write-back by throwing, since `EventEmitter.emit` catches and logs whatever a listener throws. A store can still throw part way when a listener changes a later record in between, say kills the second driver when the first one's record changes; that record's `set` then refuses the result. The fight stops being the campaign's open fight before anything is stored, so a write-back started from inside it is refused, and it's open again when a store throws. Every step stores the same thing a second time, so once whatever changed the record is put right, writing the fight back again finishes the job.
 
+Closing the fight first would let a listener start the next one partway through, on one record written back and the other not, with the wreck still in the convoy. So the bridge also keeps a set of the campaigns storing a write-back, as `Campaign.moveCards` keeps the ones storing a move, and `startCampaignFight` refuses a campaign in it. When a store throws, the fight is open again, so the next fight waits for the write-back to finish either way.
+
 ### Refusals
 
 It refuses a fight that's still on, a tie, a fight it has already written back, and a result its records no longer fit (a record changed under the fight), storing nothing. A campaign fight has no turn limit, so it ends won or lost; a tie needs a turn limit set by hand, and nothing says what one would mean for a driver who crashed out.
@@ -97,7 +101,7 @@ These unblock the build and aren't settled rules; the specs point here wherever 
 ## Consequences
 
 - The combat screen navigates to the battle result screen on every `battleEnded`, so it can't hand a campaign fight back to the run. The run controller (DDB-322) adds an end hook to `PreparedCombat`, and calls `writeBackFight` from it.
-- Escort signature cards aren't dealt into decks. A copy carries `broughtBy` so it can leave when its escort is lost, and card counts can't; that's for run decks (DDB-315) and escorts joining (DDB-153).
-- The run controller (DDB-322) holds the `RunParty` and saves it with the run, its cargo and the escorts that came along included, since a save between fights has to come back to the same run.
+- Escort signature cards aren't dealt into decks. A copy carries `broughtBy`, its escort's `escort-<n>`, so it can leave when its escort is lost, and card counts can't; that's for run decks (DDB-315) and escorts joining (DDB-153). The id outlives a load, so a run deck saved between fights can keep a locked copy as its card type and `broughtBy`, and the loaded escort still takes it out when it's lost.
+- The run controller (DDB-322) holds the `RunParty` and saves it with the run, as ids (The run party), its cargo and the escorts that came along included, since a save between fights has to come back to the same run.
 - Coming home isn't a fight. Unloading the cargo, injuring a driver who comes home hurt, and counting `runsCompleted` are the return's, so the bridge never writes injured days.
 - The bridge adds nothing to the campaign log. What the log says about a death or a missing driver is the debrief's call.

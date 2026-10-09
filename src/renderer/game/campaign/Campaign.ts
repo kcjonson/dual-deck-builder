@@ -4,7 +4,7 @@ import { MapParams } from '../map/MapParams';
 import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
 import { CardCounts, NO_CARDS, addCards, cardCount, readCardCounts, readCardType, removeCards } from './CardCounts';
-import { EscortJson, convoyToJson, readConvoy } from './ConvoyJson';
+import { ConvoyJson, convoyToJson, readConvoy } from './ConvoyJson';
 import { DECK_RULES, DeckBlocker, deckAddBlocker, deckRemoveBlocker } from './DeckRules';
 import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordJson, placeholderName, readDriverRecord } from './DriverRecord';
 import { ReaderRangeError, ReaderTypeError, describeValue, readArray, readFields, readInteger, readOneOf, readSeed, readText } from './JsonReader';
@@ -18,7 +18,7 @@ import { EMPTY_MAP, MapState, readMapState } from './MapState';
  * with another version isn't loaded, so a bump invalidates every existing
  * save of that build.
  */
-export const CAMPAIGN_SCHEMA_VERSION = 2;
+export const CAMPAIGN_SCHEMA_VERSION = 3;
 
 /** What the compound holds (Compound and Supply Runs, Resources): whole numbers, never below 0. */
 export interface Resources {
@@ -87,10 +87,11 @@ export interface CampaignData {
 	unrest: number;
 	/** Every driver the compound has had, in the order they joined, the dead and missing included. */
 	drivers: readonly DriverRecord[];
-	/** The number in the next driver's id, `driver-<n>`. Saved, so no id is handed out twice. */
+	/** The number in the next driver's id, `driver-<n>`. Saved, so no id is handed out twice. The convoy keeps its own for escorts. */
 	nextDriverNumber: number;
 	/** The compound's spare cards. */
 	locker: CardCounts;
+	/** The campaign's for good, since it hands out the escorts' ids. */
 	convoy: Convoy;
 	/** Ids of the strongholds taken, in the order they fell. */
 	strongholdsTaken: readonly string[];
@@ -110,7 +111,7 @@ export interface CampaignJson {
 	nextDriverNumber: number;
 	drivers: DriverRecordJson[];
 	locker: Record<string, number>;
-	convoy: EscortJson[];
+	convoy: ConvoyJson;
 	strongholdsTaken: string[];
 	log: CampaignLogEntry[];
 	mapParams: MapParams;
@@ -159,8 +160,11 @@ const JSON_FIELDS: readonly (keyof CampaignJson)[] = [
 
 const RESOURCE_NAMES: readonly (keyof Resources)[] = ['food', 'water', 'fuel', 'meds', 'scrap', 'people'];
 
-/** What the map was made from, set at founding. */
-const FIXED_FIELDS = ['seed', 'generatorVersion', 'mapParams'] as const;
+/**
+ * What the map was made from, set at founding, and the convoy, whose
+ * counter a replacement would start over, handing escort ids out again.
+ */
+const FIXED_FIELDS = ['seed', 'generatorVersion', 'mapParams', 'convoy'] as const;
 
 const DRIVER_ID = /^driver-([1-9][0-9]*)$/;
 
@@ -182,8 +186,10 @@ export interface Campaign extends Readonly<CampaignData> {}
  * Properties are read-only. A change goes through `set`, which checks the
  * whole campaign and throws, changing nothing, if the result would be
  * invalid, so whatever `toJSON` writes, `fromJSON` reads back. The seed,
- * generator version, and map params never change after founding, the
- * driver counter never goes back, and the pool only grows.
+ * generator version, map params, and convoy never change after founding,
+ * the driver counter never goes back, and the pool only grows. Drivers and
+ * escorts carry ids from saved counters (`driver-<n>`, `escort-<n>`), which
+ * is what anything a save holds refers to them by.
  *
  * The campaign's `change` event covers its own fields and finished card
  * moves. Records, escorts, and the convoy emit on their own models and not
@@ -271,11 +277,12 @@ export class Campaign extends Model<CampaignData> {
 	/**
 	 * Changes fields together, checked as a whole. Throws without changing
 	 * anything if the campaign would be invalid, a field is unknown, the
-	 * seed, generator version, or map params would change, the driver counter
-	 * would go back (handing out an id again), a driver would leave the pool
-	 * or change places in it, or a driver would join it with an id the counter
-	 * had already passed. Nothing changes while a card move is being stored,
-	 * so campaign listeners never hear half of one.
+	 * seed, generator version, or map params would change, another convoy
+	 * would replace the campaign's (starting its escort ids over), the
+	 * driver counter would go back (handing out an id again), a driver would
+	 * leave the pool or change places in it, or a driver would join it with
+	 * an id the counter had already passed. Nothing changes while a card move
+	 * is being stored, so campaign listeners never hear half of one.
 	 */
 	public override set(changes: Partial<CampaignData>): void {
 		if (storingMoves.has(this)) throw new Error("Campaign can't change while a card move is being stored");
@@ -515,7 +522,7 @@ function placeName(place: CardPlace): string {
 }
 
 /** The locker, or a driver who's here to hand cards to: not dead, and not missing. */
-function isAtCompound(place: CardPlace): boolean {
+export function isAtCompound(place: CardPlace): boolean {
 	return place === 'locker' || (place.status !== 'dead' && place.status !== 'missing');
 }
 

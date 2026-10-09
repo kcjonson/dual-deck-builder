@@ -11,8 +11,9 @@ This replaces the single long run up a map to a region boss. The player runs a c
 - Supply run (a run): one trip out from the compound to a point of interest. Runs are one way out; the trip home is down the road just cleared.
 - Area map: the whole known region around the compound. Open at any time outside a fight or an event.
 - Point of interest (POI): a destination on the area map with something worth taking. A run always targets one.
-- Roads: the highways out of the ruined metro the compound sits in, branching outward into back roads and trails. They form trees reaching away from the compound, not a web; see Area Map Generation.
-- Route: the road path from the compound to a POI. Each POI offers 2 or 3 routes, arriving from different branches; past the home area they share nothing.
+- Roads: a real road network across the region: highways out of the ruined metro the compound sits in, back roads joining the towns and crossroads, and trails into rough country, with loops the way real roads have them. See Area Map Generation.
+- Route tree: from every place on the roads there's one way home. Routes follow ways home, so they branch outward from the compound like a tree and never rejoin until a POI.
+- Route: the road path from the compound to a POI. Each POI offers 2 or 3 routes, arriving by different roads; they split before halfway and share nothing after.
 - Stop: something waiting on a road (a fight, an event, a find, a hazard). A run resolves its route's stops in order.
 - Stronghold: a POI whose objective is a boss fight, the seat of a faction.
 
@@ -145,10 +146,10 @@ Open at any time outside a fight or an event: from the compound's top bar, the m
 
 It shows:
 
-- The compound, at the centre, in the ruins of a metro area, with highways leaving it in every direction and branching as they go.
+- The region drawn like a page of a road atlas: the compound at the centre in the ruins of a metro, ranges, rivers, lakes, towns, and the roads between them (Area Map Generation, Rendering).
 - Every known POI, with what it yields, its tier, and its state (unvisited, looted, depleted).
-- Drivable roads, drawn by what you know of them: charted roads solid, rumored roads solid with "?" stops, uncharted roads as dashed lines fading into fog.
-- Scenery: town streets, county roads, rail lines, and broken pre-war highways that make the region look real. They're drawn lighter and can't be driven or selected; only the drivable network carries runs.
+- Roads by class, and on the legs routes use, what you know of them: charted legs with their stops, rumored legs with "?" stops, uncharted legs as dashed stubs fading into fog. Roads no route uses are plain roads on the map; runs never use them.
+- Dressing: street grids, rail lines, labels, and contamination, which make the region look real and carry no gameplay.
 - Fog over everything not yet uncovered.
 - Strongholds you've found. Others are hidden in the fog in every direction.
 - Explored percentage and strongholds found.
@@ -173,7 +174,7 @@ A zoomed view of the area map between the compound and the chosen POI, with its 
 - Stops in order, as far as known.
 - Fuel cost, hours (out, at the objective, home), the time you'd be back against dark, and risk.
 
-Routes to a POI arrive from different branches and share nothing past the home area, so picking one is a real choice between different stops. POIs are dead ends: no road continues from one objective to another. Fuel is paid at departure, so a route can't strand the convoy part way. An uncharted route's fuel and hours are estimates, settled on arrival; hazards can cost more on the way.
+Routes to a POI split before halfway and share nothing after, so picking one is a real choice between different stops. No route passes through a POI, and every road into one is one of its routes. Fuel is paid at departure, so a route can't strand the convoy part way. An uncharted route's fuel and hours are estimates, settled on arrival; hazards can cost more on the way.
 
 "Load out the crew" goes to load out with this route attached.
 
@@ -243,7 +244,7 @@ Find is the compound's growth. Its five kinds:
 
 ## Fog of war
 
-Every road is in one of three states, and what you see depends on it.
+Every leg of road a route uses is in one of three states, and what you see depends on it.
 
 ![Fog of war: charted, rumored, uncharted](../design/supply-runs/fog-of-war.png)
 
@@ -253,7 +254,7 @@ Every road is in one of three states, and what you see depends on it.
 
 Charting is permanent, but stops aren't: a cleared road is safe for that run's return, and its stops come back over the following days (starting value: a re-roll after 5 days), with the road still charted so you see what's there.
 
-Fog over land lifts around every road you drive and every POI you reach (see Area Map Generation, Fog). Ways to see further: drive it; the radio mast; a scout escort that shows two stops ahead instead of one; event tips.
+Fog over land lifts around every road you drive and every POI you reach (see Area Map Generation, Knowledge and fog). Ways to see further: drive it; the radio mast; a scout escort that shows two stops ahead instead of one; event tips.
 
 ## Strongholds and bosses
 
@@ -277,7 +278,7 @@ Unchanged in spirit: the two players share the compound and decide runs together
 2. Can shortages alone end the campaign (say, People reaches 0), or only the last driver's death?
 3. Deck limits: 8 to 20 cards, and whether the hand limit should differ by archetype from the start.
 4. Vehicles: a driver's signature vehicle is theirs; does a found vehicle become an escort only, or can a driver take it in place of their own? Until it's decided, a driver keeps their own: it carries its damage until it's repaired, and a wreck limps into the next fight (Combat Rules, Losing vehicles and drivers). The structure and armor it limps on with are provisional, in [combat-bridge.md](../AI_TECHNICAL_DECISIONS/combat-bridge.md).
-5. Mid-route branching at junctions: worth adding later, or never? (The road trees make it possible: a junction is a place a run could change its mind.)
+5. Mid-route branching at junctions: worth adding later, or never? (The route tree makes it possible: a place where routes split is a place a run could change its mind.)
 6. Starting pool size (4) and whether the player picks it or it's dealt. Until it's decided, the pool is dealt from the seed, and its size is a tuning value.
 7. Night rules (see Night).
 8. One run per day, or can two short runs fit in a day's light?

@@ -1,0 +1,12 @@
+[
+{"path":"mainMenuScreen/main_menu_title","text":"Dual Deckbuilder","rect":[511.56,168.46,416.88,86.4]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_campaign/main_menu_new_campaign_button/Text[0]","text":"New Campaign","rect":[572,286.86,296,46]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_campaign/main_menu_continue/main_menu_continue_button/Text[0]","text":"Continue","rect":[572,344.86,296,46]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_campaign/main_menu_continue/main_menu_continue_line","text":"The saved campaign is damaged and can't be loaded. It's been kept.","rect":[560,396.86,320,32.68]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_campaign/main_menu_history_button/Text[0]","text":"Campaign History","rect":[572,441.54,296,46]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_more/main_menu_skirmish_button/Text[0]","text":"Skirmish","rect":[572,511.54,296,34]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_more/main_menu_settings_button/Text[0]","text":"Settings","rect":[572,553.54,296,34]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_more/main_menu_credits_button/Text[0]","text":"Credits","rect":[572,595.54,296,34]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_more/main_menu_card_showcase_button/Text[0]","text":"Card Showcase","rect":[572,637.54,296,34]},
+{"path":"mainMenuScreen/main_menu_buttons/main_menu_more/main_menu_developer_button/Text[0]","text":"Developer Tools","rect":[572,679.54,296,34]}
+]

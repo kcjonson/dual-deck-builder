@@ -117,7 +117,7 @@ test.describe('electron shell', () => {
 			const log = captureConsole(page);
 			if (scenario.viewport) await sizeWindow(scenario.viewport);
 			await prepare(page);
-			await openScreen(page, scenario.screen, { data: scenario.data, viewport: scenario.viewport });
+			await openScreen(page, scenario.screen, { data: scenario.data, viewport: scenario.viewport, storage: scenario.storage });
 
 			await expectGolden(page, testInfo, 'screen', scenario.name);
 
