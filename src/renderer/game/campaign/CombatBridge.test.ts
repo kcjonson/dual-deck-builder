@@ -12,9 +12,12 @@ import { Campaign, NO_RESOURCES, Resources } from './Campaign';
 import { CampaignStore } from './CampaignStore';
 import { startingDeckCounts } from './CardCounts';
 import { CampaignFight, FightWriteBack, LIMP_STRUCTURE, REVIVE_HP, RunParty, WonFight, startCampaignFight, writeBackFight } from './CombatBridge';
+import { endDay } from './DayClock';
 import { DriverRecord } from './DriverRecord';
 import { foundCampaign } from './Founding';
+import { injureOnArrival, treatDriver } from './Infirmary';
 import { MemorySaveStorage } from './SaveStorage';
+import { getSeatBlocker } from './Seating';
 
 /**
  * DDB-286 and DDB-158: fights built from the campaign's records and
@@ -458,6 +461,37 @@ describe('the combat bridge', () => {
 			const next = startFight({ campaign, party: result.party, enemy: idle(), seed: SEED + 1 });
 			expect(next.battle.playerTeam.escorts).toEqual([truck]);
 			expect(truck.structure).toBe(19);
+		});
+	});
+
+	describe('coming home hurt (DDB-304)', () => {
+		it('injures each driver by the HP written back, keeps the hurt one out of the next fight until fit, and sends them out at full HP', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			shooter(interceptor);
+			interceptor.set({ hitpoints: 20 });
+			const truck = createEscort({ type: 'med_truck' });
+			campaign.convoy.add(truck);
+			const scrapper = raider({ deck: cardsOf(10, snipe), adrenaline: 1 });
+			const fight = startFight({ campaign, party: partyOf([warrior, interceptor], [truck]), enemy: scrapper });
+			fightOut(fight, turn => {
+				if (turn === 2) play({ fight, seat: 1, cardType: 'precision_shot', target: scrapper });
+			});
+			const { party } = won(writeBackFight({ fight }));
+
+			// Revived at REVIVE_HP, and 23 of 25 after the Med Truck's heal
+			const injuries = injureOnArrival({ campaign, drivers: party.seats });
+			expect(injuries.map(({ driver, missingHitpoints, injuredDays }) => [driver, missingHitpoints, injuredDays])).toEqual([[warrior, 39, 4], [interceptor, 2, 1]]);
+			endDay({ campaign });
+			expect([interceptor.status, interceptor.hitpoints]).toEqual(['ready', 25]);
+			expect([warrior.status, warrior.injuredDays, warrior.hitpoints]).toEqual(['injured', 3, REVIVE_HP]);
+
+			expect(getSeatBlocker({ campaign, driver: warrior, partner: interceptor })).toEqual({ reason: 'injured', injuredDays: 3 });
+			expect(() => startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() })).toThrow(`${named(warrior)} is injured, so they can't fight`);
+
+			// The founding stores' 3 meds buy the rest
+			treatDriver({ campaign, driver: warrior, days: 3 });
+			const next = startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle(), seed: SEED + 1 });
+			expect(next.drivers.map(driver => driver.hitpoints)).toEqual([40, 25]);
 		});
 	});
 

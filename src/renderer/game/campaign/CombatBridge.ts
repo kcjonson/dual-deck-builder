@@ -10,6 +10,7 @@ import { Vehicle, createDrivenVehicle } from '../mechanics/Vehicle';
 import { Campaign, NO_RESOURCES, Resources, readResources } from './Campaign';
 import { NO_CARDS } from './CardCounts';
 import { DriverRecord, DriverRecordData, VehicleCondition, readDriverRecordData } from './DriverRecord';
+import { SeatBlocker, getSeatBlocker } from './Seating';
 
 /**
  * The combat bridge (DDB-286): a supply run's fights built from the
@@ -120,23 +121,20 @@ const openFights = new WeakMap<Campaign, CampaignFight>();
  * `rng`.
  *
  * Throws, building nothing, while the campaign's last fight hasn't been
- * written back, and unless the party seats two drivers of different
- * archetypes from the campaign's pool who are ready to fight, its cargo
- * checks out, every escort is the campaign's, and every card in the decks
- * has a template. The teams and the encounter can refuse the road too
+ * written back, and unless the party seats two drivers load out's own check
+ * (`getSeatBlocker`) seats together (from the campaign's pool, ready, and of
+ * different archetypes), its cargo checks out, every escort is the
+ * campaign's, and every card in the decks has a template. The teams and the encounter can refuse the road too
  * (Team, Battle), and move nobody when they do.
  */
 export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, enemyAI = 'aggressive' }: CampaignFightOptions): CampaignFight {
 	if (openFights.has(campaign)) throw new Error("This campaign's last fight hasn't been written back");
 	if (party.seats.length !== 2) throw new RangeError(`A fight seats two drivers, and this party has ${party.seats.length}`);
 	const [first, second] = party.seats;
-	party.seats.forEach(record => {
-		if (!campaign.drivers.includes(record)) throw new RangeError(`${describeRecord(record)} isn't in this campaign's pool`);
-		if (record.status !== 'ready') throw new RangeError(`${describeRecord(record)} is ${record.status}, so they can't fight`);
+	party.seats.forEach((record, index) => {
+		const blocker = getSeatBlocker({ campaign, driver: record, partner: party.seats[1 - index] });
+		if (blocker !== null) throw new RangeError(seatRefusal({ record, blocker }));
 	});
-	if (first.archetype === second.archetype) {
-		throw new RangeError(`${describeRecord(first)} and ${describeRecord(second)} are both ${first.archetype}; a fight seats two different archetypes`);
-	}
 	const cargo = readResources(party.cargo, 'RunParty.cargo');
 	party.escorts.forEach(escort => {
 		if (!campaign.convoy.escorts.includes(escort)) throw new RangeError(`${escort.name} isn't in the campaign's convoy`);
@@ -300,6 +298,14 @@ function withDividends({ cargo, dividends }: { cargo: Readonly<Resources>; divid
 	const total = (kind: DividendPayout['kind']): number =>
 		dividends.filter(payout => payout.kind === kind).reduce((sum, payout) => sum + payout.amount, 0);
 	return { ...cargo, fuel: cargo.fuel + total('fuel'), scrap: cargo.scrap + total('scrap') };
+}
+
+/** Why a fight won't seat a driver, from load out's own check. */
+function seatRefusal({ record, blocker }: { record: DriverRecord; blocker: SeatBlocker }): string {
+	if (blocker.reason === 'same_archetype') {
+		return `${describeRecord(record)} and ${describeRecord(blocker.partner)} are both ${blocker.archetype}; a fight seats two different archetypes`;
+	}
+	return `${describeRecord(record)} is ${record.status}, so they can't fight`;
 }
 
 function describeRecord(record: DriverRecord): string {
