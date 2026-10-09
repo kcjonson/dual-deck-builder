@@ -5,14 +5,15 @@ import {
 	StepRules, TipQueue, candidateTurns, growRoads, isOutward, isPassable, turnScale,
 } from './RoadGrowth';
 import { ROAD_CLASSES, RoadNetwork } from './RoadNetwork';
-import { departure, fakeTerrain, growMap, paramsFor, pipelineStream, roadLines } from './roadTesting';
+import { GrowthSet, departure, fakeTerrain, growMap, paramsFor, pipelineStream, roadLines } from './roadTesting';
 
 const FLAT = fakeTerrain();
 
 /** Growth on a fake terrain from the given departures, on seed `seed`'s growth stream. */
-function growOn(terrain: ReturnType<typeof fakeTerrain>, departures: ReturnType<typeof departure>[], set: Parameters<typeof paramsFor>[0], growthSeed = set.seed) {
-	const params = paramsFor({ radius: terrain.radius, ...set });
-	return growRoads({ terrain, params, highways: departures, rng: pipelineStream(growthSeed, 'growth') });
+function growOn(terrain: ReturnType<typeof fakeTerrain>, departures: ReturnType<typeof departure>[], set: GrowthSet, growthSeed = set.seed) {
+	const { branchiness, clearance, ...mapSet } = set;
+	const params = paramsFor({ radius: terrain.radius, ...mapSet });
+	return growRoads({ terrain, params, highways: departures, rng: pipelineStream(growthSeed, 'growth'), branchiness, clearance });
 }
 
 /** Every point of every stretch on `road`. */
@@ -77,7 +78,7 @@ describe('the step rules', () => {
 			return rules;
 		}
 
-		it('keeps roadClearance from a road it doesn\'t meet', () => {
+		it('keeps the clearance from a road it doesn\'t meet', () => {
 			const rules = rulesWithRoads();
 			rules.index.add(100, 400, 100, 420, 1);
 			expect(rules.blocker(2, 123.9, 400, 140, 420)).toBe('stranger');
@@ -284,9 +285,9 @@ describe('growth', () => {
 	});
 
 	it('smooths most stretches into curves that keep the rules, nodes held still', () => {
-		const { network, stats, terrain, params } = growMap({ seed: 22 });
+		const { network, stats, terrain, clearance } = growMap({ seed: 22 });
 		expect(stats.stretches.smoothed).toBeGreaterThan(4 * stats.stretches.unsmoothed);
-		expect(checkRoadNetwork({ network, terrain, clearance: params.roadClearance })).toEqual([]);
+		expect(checkRoadNetwork({ network, terrain, clearance })).toEqual([]);
 		// Two passes of Chaikin turn a stretch of n steps' n + 1 points into 4n - 2, the ends among them.
 		const long = network.stretches.filter((stretch) => stretch.points.length > 4);
 		const curved = long.filter((stretch) => {
@@ -318,8 +319,8 @@ describe('growth', () => {
 
 	it('keeps off water: steps never cross the water layer', () => {
 		const lake = { isWater: (x: number, y: number) => Math.hypot(x - 300, y - 200) < 140 };
-		const { network, terrain, params } = growMap({ seed: 24, branchiness: 1 }, { water: lake });
-		expect(checkRoadNetwork({ network, terrain, clearance: params.roadClearance })).toEqual([]);
+		const { network, terrain, clearance } = growMap({ seed: 24, branchiness: 1 }, { water: lake });
+		expect(checkRoadNetwork({ network, terrain, clearance })).toEqual([]);
 		network.stretches.forEach(({ points }) => {
 			for (let point = 0; point < points.length; point += 2) expect(lake.isWater(points[point], points[point + 1])).toBe(false);
 		});

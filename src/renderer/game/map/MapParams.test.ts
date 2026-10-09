@@ -8,16 +8,117 @@ import {
 	NumberParam,
 	PARAM_GROUPS,
 	PARAM_NAMES,
+	ParamGroup,
 	environmentDefaults,
 	resolveMapParams,
 } from './MapParams';
 import { rollBounds } from './RollParams';
 import { inside, onGrid } from './testing';
 
+/** A row of the spec's tables: tuning min and max, default, campaign min and max. */
+type SpecRow = readonly [number, number, number, number, number];
+
+/**
+ * Area Map Generation's Map parameters tables, row for row in their order.
+ * Retuning changes the spec, the table, and this together.
+ */
+const SPEC_TABLES: { readonly [Group in ParamGroup]: Readonly<Partial<Record<NumberParam, SpecRow>>> } = {
+	world: {
+		radius: [600, 1600, 1000, 800, 1200],
+		aridity: [0, 1, 0.5, 0.1, 0.9],
+		mountainCoverage: [0, 1, 0.25, 0.05, 0.45],
+		ruggedness: [0, 1, 0.5, 0.15, 0.85],
+		rivers: [0, 6, 2, 0, 5],
+		riverDensity: [0, 1, 0.5, 0.3, 0.7],
+		riverMeander: [0, 1, 0.5, 0.2, 0.8],
+		lakes: [0, 8, 2, 0, 6],
+		contamination: [0, 1, 0.3, 0.1, 0.7],
+		hotspots: [0, 6, 3, 1, 5],
+		metroSize: [0.08, 0.25, 0.15, 0.12, 0.2],
+		towns: [0, 12, 5, 2, 9],
+		villages: [0, 40, 20, 12, 28],
+	},
+	network: {
+		highways: [3, 9, 6, 5, 7],
+		highwaySeparation: [20, 60, 35, 25, 45],
+		roadDensity: [0, 1, 0.5, 0.35, 0.65],
+		loops: [0, 1, 0.5, 0.3, 0.7],
+		curviness: [0, 1, 0.5, 0.25, 0.75],
+		trailShare: [0, 1, 0.5, 0.25, 0.75],
+		brokenHighways: [0, 4, 2, 1, 4],
+	},
+	gameplay: {
+		strongholds: [2, 8, 4, 3, 5],
+		poiDensity: [0.5, 2, 1, 0.8, 1.2],
+		routesTarget: [2, 3, 3, 3, 3],
+		routeSplit: [0.3, 0.7, 0.5, 0.5, 0.5],
+		startingReveal: [1, 2, 1, 1, 1],
+		stopDensity: [0.5, 2, 1, 0.8, 1.2],
+		dangerCurve: [0.5, 2, 1, 0.9, 1.1],
+		driverFinds: [1, 4, 2, 2, 2],
+		daylightHours: [10, 16, 14, 13, 15],
+		travelPace: [0.5, 2, 1, 0.9, 1.1],
+	},
+	dressing: {
+		dressing: [0, 1, 0.6, 0.4, 0.8],
+		streetGrids: [0, 1, 0.7, 0.5, 0.9],
+		railLines: [0, 4, 1, 0, 3],
+	},
+};
+
+/** Area Map Generation's Environments table: what each environment sets, blanks left out. */
+const SPEC_ENVIRONMENTS: { readonly [Name in Environment]: Readonly<Partial<Record<NumberParam, number>>> } = {
+	highDesert: {
+		aridity: 0.15, mountainCoverage: 0.35, ruggedness: 0.65, rivers: 1, riverDensity: 0.35, riverMeander: 0.3, lakes: 0,
+		contamination: 0.2, hotspots: 2, towns: 3, villages: 14, roadDensity: 0.4, loops: 0.4, curviness: 0.4,
+	},
+	rustBelt: {
+		aridity: 0.55, mountainCoverage: 0.15, ruggedness: 0.35, rivers: 3, contamination: 0.45, hotspots: 4, metroSize: 0.18,
+		towns: 8, villages: 26, roadDensity: 0.6, loops: 0.6, trailShare: 0.35, brokenHighways: 3, streetGrids: 0.85, railLines: 2,
+	},
+	floodlands: {
+		aridity: 0.85, mountainCoverage: 0.1, ruggedness: 0.25, rivers: 4, riverDensity: 0.65, riverMeander: 0.75, lakes: 5,
+		contamination: 0.4, curviness: 0.6,
+	},
+	badlands: {
+		aridity: 0.3, mountainCoverage: 0.35, ruggedness: 0.8, rivers: 1, riverDensity: 0.4, lakes: 1, contamination: 0.6, hotspots: 4,
+		towns: 3, villages: 14, roadDensity: 0.4, loops: 0.4, curviness: 0.65, trailShare: 0.7,
+	},
+	mixed: {},
+};
+
 describe('MAP_PARAMETERS', () => {
 	it('lists the number parameters in table order, after the environment', () => {
 		expect(PARAM_NAMES[0]).toBe('environment');
 		expect(NUMBER_PARAMS).toEqual(PARAM_NAMES.slice(1));
+	});
+
+	it('has the spec\'s groups and parameters, in its order', () => {
+		expect(PARAM_GROUPS.map(({ label }) => label)).toEqual(['World', 'Road network', 'Gameplay', 'Dressing']);
+		expect(MAP_PARAMETERS.environment.group).toBe('world');
+		const rows = PARAM_GROUPS.flatMap(({ group }) => Object.keys(SPEC_TABLES[group]).map((name) => [group, name]));
+		expect(NUMBER_PARAMS.map((name) => [MAP_PARAMETERS[name].group, name])).toEqual(rows);
+	});
+
+	it.each(PARAM_GROUPS.flatMap(({ group }) => Object.entries(SPEC_TABLES[group]) as [NumberParam, SpecRow][]))(
+		'%s has the spec\'s tuning range, default, and campaign range',
+		(name, [tuningMin, tuningMax, fallback, campaignMin, campaignMax]) => {
+			const { tuning, campaign, default: tableDefault } = MAP_PARAMETERS[name];
+			expect([tuning.min, tuning.max, tableDefault, campaign.min, campaign.max]).toEqual([tuningMin, tuningMax, fallback, campaignMin, campaignMax]);
+		},
+	);
+
+	it('has none of the parameters the realistic map dropped or renamed', () => {
+		const gone = ['branchiness', 'roadClearance', 'countyRoads', 'farmTracks', 'sceneryDensity'];
+		expect(PARAM_NAMES.filter((name) => gone.includes(name))).toEqual([]);
+	});
+
+	it('takes whole numbers for counts, degrees, radius, and tiers, and fractions for the rest', () => {
+		const counts = NUMBER_PARAMS.filter((name) => MAP_PARAMETERS[name].kind === 'int');
+		expect(counts).toEqual([
+			'radius', 'rivers', 'lakes', 'hotspots', 'towns', 'villages', 'highways', 'highwaySeparation', 'brokenHighways',
+			'strongholds', 'routesTarget', 'startingReveal', 'driverFinds', 'railLines',
+		]);
 	});
 
 	it.each(NUMBER_PARAMS)('%s keeps its default and campaign range inside its tuning range', (name) => {
@@ -70,6 +171,10 @@ describe('ENVIRONMENT_PRESETS', () => {
 		for (const name of NUMBER_PARAMS) expect(environmentDefaults('mixed')[name]).toBe(MAP_PARAMETERS[name].default);
 	});
 
+	it('sets what the spec\'s Environments table does, and nothing else', () => {
+		expect(ENVIRONMENT_PRESETS).toEqual(SPEC_ENVIRONMENTS);
+	});
+
 	it.each(entries)('%s sets %s to %p: no gameplay, inside the campaign range, on the grid, not the default', (_environment, name, value) => {
 		expect(NUMBER_PARAMS).toContain(name);
 		const { group, kind, step, campaign, default: fallback } = MAP_PARAMETERS[name];
@@ -119,10 +224,10 @@ describe('ENVIRONMENT_PRESETS', () => {
 			expect(desert.rivers + desert.lakes).toBeLessThan(mixed.rivers + mixed.lakes);
 		});
 
-		it('Floodlands is the wettest, with the most rivers and lakes', () => {
+		it('Floodlands is the wettest, with the most rivers, streams, and lakes', () => {
 			const others = ENVIRONMENTS.filter((environment) => environment !== 'floodlands').map(environmentDefaults);
 			const floodlands = environmentDefaults('floodlands');
-			for (const name of ['aridity', 'rivers', 'lakes'] as const) {
+			for (const name of ['aridity', 'rivers', 'riverDensity', 'lakes'] as const) {
 				expect(Math.max(...others.map((values) => values[name]))).toBeLessThan(floodlands[name]);
 			}
 		});
@@ -135,11 +240,21 @@ describe('ENVIRONMENT_PRESETS', () => {
 			}
 		});
 
-		it('Rust Belt is the most built up', () => {
+		it('Rust Belt is the most built up, with the densest, loopiest roads', () => {
 			const others = ENVIRONMENTS.filter((environment) => environment !== 'rustBelt').map(environmentDefaults);
 			const rustBelt = environmentDefaults('rustBelt');
-			for (const name of ['towns', 'streetGrids', 'railLines'] as const) {
+			for (const name of ['towns', 'villages', 'roadDensity', 'loops', 'streetGrids', 'railLines'] as const) {
 				expect(Math.max(...others.map((values) => values[name]))).toBeLessThan(rustBelt[name]);
+			}
+		});
+
+		it('High Desert and Badlands are the emptiest, with the sparsest roads', () => {
+			const others = (['rustBelt', 'floodlands', 'mixed'] as const).map(environmentDefaults);
+			for (const environment of ['highDesert', 'badlands'] as const) {
+				const values = environmentDefaults(environment);
+				for (const name of ['towns', 'villages', 'roadDensity', 'loops'] as const) {
+					expect(values[name]).toBeLessThan(Math.min(...others.map((other) => other[name])));
+				}
 			}
 		});
 	});

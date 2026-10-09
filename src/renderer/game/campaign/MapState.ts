@@ -8,7 +8,7 @@ import { freezeJson, readObject } from './JsonReader';
  *
  * Once the generator makes maps, this also holds the map attempt and the
  * winning attempt of each stage that's rebuilt on load (terrain and
- * scenery), since a load redraws those layers from
+ * dressing), since a load redraws those layers from
  * `root.fork('map', mapAttempt).fork(stage, stageAttempt)`. The gameplay
  * stages' attempts aren't needed: their output is saved.
  */
