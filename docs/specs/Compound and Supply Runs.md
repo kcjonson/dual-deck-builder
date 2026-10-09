@@ -90,7 +90,7 @@ The compound can always send a scavenging party on foot: it costs a day and retu
 - The campaign starts with a pool of four drivers, dealt from the unlocked archetypes with no duplicates. With fewer than four unlocked, it starts with one of each; it needs at least two, since a run takes two.
 - A run takes two. The no-duplicate pair rule still holds for the pair; the pool itself can hold two of an archetype once finds add drivers.
 - Drivers persist across runs, and so do their decks (see Decks and the locker).
-- Driver HP carries between fights on a run, as it does now, and so does the damage on each driver's vehicle (Combat Rules, Losing vehicles and drivers). A driver who comes home hurt is injured and heals over days in the infirmary.
+- Driver HP carries between fights on a run, as it does now, and so does the damage on each driver's vehicle (Combat Rules, Losing vehicles and drivers). A driver who comes home hurt is injured and heals over days in the infirmary. How many days, and what a med buys, are provisional, in [injuries.md](../AI_TECHNICAL_DECISIONS/injuries.md).
 - Death is permanent, and it only comes with a failed run. A driver who goes to 0 HP in a fight their partner wins is revived and goes on with the run (Kevin, 2026-10-08). A driver killed when a run fails is gone, with their deck.
 - The only way to grow the pool is a Find: driver stop (or an event outcome that does the same).
 - When the last driver in the pool dies, the campaign ends. The compound falls: it starves, riots over what's left, or disbands, chosen by its state at the end (no food: starves; high unrest: riots; otherwise disbands). That's the defeat screen.
