@@ -39,11 +39,12 @@ import type { FitDocument, FitNode } from '../support/battleFit';
  * the hover's view without waiting out the tooltip delay.
  *
  * Goldens are the typical scene's planning state at the fixed viewport and
- * at 21:9, where the road's art bleeds past the 1600 column; everything else
- * is assertions only, to keep the suite cheap.
+ * at 21:9, where the road's art bleeds past the 1600 column, and the solo
+ * scene's (one driver, the dock's second seat empty: DDB-166) at both gate
+ * sizes; everything else is assertions only, to keep the suite cheap.
  */
 
-const SCENARIOS = ['typical', 'opening', 'convoy', 'fullroad', 'passenger', 'bighands'] as const;
+const SCENARIOS = ['typical', 'opening', 'convoy', 'fullroad', 'passenger', 'bighands', 'solo'] as const;
 type Scenario = typeof SCENARIOS[number];
 
 /**
@@ -65,8 +66,11 @@ const VIEWPORTS: readonly Viewport[] = [
 const STATES = ['planning', 'inspect-left', 'inspect-right', 'targeting', 'end-turn-preview'] as const;
 type State = typeof STATES[number];
 
-/** The typical scene's goldens: planning, before any input, at these sizes. */
-const GOLDEN_VIEWPORTS: readonly Viewport[] = [FIXED_VIEWPORT, { width: 2560, height: 1080 }];
+/** The scenes with goldens: planning, before any input, at these sizes, the first of which the scene opens at. */
+const GOLDEN_VIEWPORTS: Readonly<Partial<Record<Scenario, readonly Viewport[]>>> = {
+	typical: [FIXED_VIEWPORT, { width: 2560, height: 1080 }],
+	solo: [FIXED_VIEWPORT, SHORT_VIEWPORT],
+};
 
 /** Headshot reaches two, as the mock's targeting state drags it. */
 const HEADSHOT_REACH = 2;
@@ -173,9 +177,11 @@ interface Targets {
 function targetsOf(document: FitDocument, viewport: Viewport): Targets {
 	const handCards = (hand: string): FitNode[] => nodes(document, (node, parents) => node.type === 'Card' && parents.includes(hand))
 		.sort((a, b) => a.screenBounds.x - b.screenBounds.x);
-	const left = handCards('driver1_hand')[0];
-	const right = handCards('driver2_hand').at(-1);
-	const headshot = handCards('driver2_hand').find((card) => card.id?.endsWith('_headshot'));
+	// Both hands side by side, driver 1's first; one hand when the second seat is empty
+	const hands = [...handCards('driver1_hand'), ...handCards('driver2_hand')];
+	const left = hands[0];
+	const right = hands.at(-1);
+	const headshot = [...handCards('driver2_hand'), ...handCards('driver1_hand')].find((card) => card.id?.endsWith('_headshot'));
 	// Fanned cards overlap to the right, so each shows its left strip; the last is whole
 	const strip = (card: FitNode | undefined): string | null => card
 		? point(card.screenBounds.x + Math.min(24, card.screenBounds.w / 4), card.screenBounds.y + card.screenBounds.h * 0.6)
@@ -277,7 +283,7 @@ function measure(document: FitDocument, key: string): CaseResult {
 }
 
 /** Tokens on the road in each scenario: 18 is every slot. */
-const TOKENS: Record<Scenario, number> = { typical: 5, opening: 3, convoy: 11, fullroad: 18, passenger: 5, bighands: 11 };
+const TOKENS: Record<Scenario, number> = { typical: 5, opening: 3, convoy: 11, fullroad: 18, passenger: 5, bighands: 11, solo: 7 };
 
 /**
  * What makes each scenario the case it is, checked on screen: a fixture that
@@ -311,6 +317,13 @@ function worstCase(scenario: Scenario, document: FitDocument): string[] {
 			// The stamp draws its word itself, so it's found by its node
 			check(nodes(document, (node) => node.type === 'WreckStamp' && (node.id ?? '').startsWith('player_')).length === 1 && shown('PASSENGER'), 'the Rig wrecked and the Road Warrior a passenger');
 			break;
+		case 'solo': {
+			const seat = (id: string): number => nodes(document, (node) => node.id === id).length;
+			check(seat('driver1_tab') === 1 && hand(1).length > 0, 'the Interceptor\'s tab and hand in seat 1');
+			check(seat('driver2_tab') === 0 && hand(2).length === 0 && seat('driver2_empty_seat') === 1, 'the second seat empty, with no tab or hand');
+			check(tokens.filter((token) => token.id?.startsWith('player_')).length === 4, 'one driven vehicle and three escorts');
+			break;
+		}
 		default:
 			check(hand(1).length === DOCK_HAND_CAP && hand(2).length === DOCK_HAND_CAP, `${DOCK_HAND_CAP} + ${DOCK_HAND_CAP} cards, not ${hand(1).length} + ${hand(2).length}`);
 			check(hand(1)[0]?.id?.endsWith('_tag_team_takedown') ?? false, 'Tag Team Takedown leftmost in driver 1\'s hand');
@@ -364,9 +377,9 @@ async function runSize(page: Page, scenario: Scenario, viewport: Viewport): Prom
 	return results;
 }
 
-/** The typical scene at rest, at each golden size, before any input has reached it. */
+/** A scene at rest, at each of its golden sizes, before any input has reached it. */
 async function captureGoldens(page: Page, testInfo: TestInfo, scenario: Scenario): Promise<void> {
-	for (const viewport of GOLDEN_VIEWPORTS) {
+	for (const viewport of GOLDEN_VIEWPORTS[scenario] ?? []) {
 		await page.setViewportSize(viewport);
 		await settle(page, viewport);
 		const name = viewport === FIXED_VIEWPORT ? `battle-${scenario}` : `battle-${scenario}-${size(viewport)}`;
@@ -381,7 +394,7 @@ test.describe('battle screen fit', () => {
 			// Six sizes, five states each, on software GL
 			test.setTimeout(300_000);
 			const log = captureConsole(page);
-			const first = scenario === 'typical' ? GOLDEN_VIEWPORTS[0] : VIEWPORTS[0];
+			const first = GOLDEN_VIEWPORTS[scenario]?.[0] ?? VIEWPORTS[0];
 			await page.setViewportSize(first);
 			await prepare(page);
 			await openScene(page, `battle-${scenario}`, first);
@@ -404,7 +417,7 @@ test.describe('battle screen fit', () => {
 			for (let tries = 0; tries < 40 && await bannerUp(); tries++) await drive(page, [], 5);
 			expect(await bannerUp(), 'the opening banner should leave').toBe(false);
 
-			if (scenario === 'typical') await captureGoldens(page, testInfo, scenario);
+			await captureGoldens(page, testInfo, scenario);
 
 			const results: CaseResult[] = [];
 			for (const viewport of VIEWPORTS) results.push(...await runSize(page, scenario, viewport));

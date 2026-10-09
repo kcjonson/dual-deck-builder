@@ -278,11 +278,14 @@ describe('the combat bridge', () => {
 		});
 
 		describe('refuses', () => {
-			it('a party without two drivers', () => {
-				const { campaign, warrior } = newCampaign();
+			it('a party with no driver, or more than two', () => {
+				const { campaign, warrior, interceptor } = newCampaign();
+				const mechanic = campaign.recruitDriver({ archetype: 'mechanic' });
 
-				expect(() => startFight({ campaign, party: partyOf([warrior]), enemy: idle() }))
-					.toThrow('A fight seats two drivers, and this party has 1');
+				expect(() => startFight({ campaign, party: partyOf([]), enemy: idle() }))
+					.toThrow('A fight seats one or two drivers, and this party has 0');
+				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor, mechanic]), enemy: idle() }))
+					.toThrow('A fight seats one or two drivers, and this party has 3');
 			});
 
 			it('two drivers of one archetype, naming them', () => {
@@ -369,14 +372,14 @@ describe('the combat bridge', () => {
 					.toThrow(`${named(warrior)}'s run deck holds the top_off escort-1 brought, and that escort isn't in the party`);
 			});
 
-			it('an escort in the party whose card neither run deck holds, since its order couldn\'t be dealt', () => {
+			it('an escort in the party whose card no run deck holds, since its order couldn\'t be dealt', () => {
 				const { campaign, warrior, interceptor } = newCampaign();
 				const hauler = createEscort({ type: 'fuel_hauler' });
 				campaign.convoy.add(hauler);
 				loadOut({ campaign, seats: [warrior, interceptor] });
 
 				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor], [hauler]), enemy: idle() }))
-					.toThrow('Fuel Hauler (escort-1) came along, and neither run deck holds the top_off it brings');
+					.toThrow('Fuel Hauler (escort-1) came along, and no run deck holds the top_off it brings');
 				campaign.addEscortCards({ escorts: [hauler] });
 				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor], [hauler]), enemy: idle() })).not.toThrow();
 			});

@@ -137,7 +137,12 @@ export abstract class AIPlayer {
 			case 'ally':
 				potentialTargets = this.team.vehicles.filter(v => !v.isOutOfFight);
 				break;
-			
+
+			case 'escort':
+				// A buff order (Draw Fire, Close Ranks) lands on one of the team's own escorts
+				potentialTargets = this.team.escorts.filter(v => !v.isOutOfFight);
+				break;
+
 			case 'self':
 				// Self-targeting cards don't need an explicit target
 				// The battle system will handle this automatically
@@ -167,8 +172,8 @@ export abstract class AIPlayer {
 	}
 
 	protected cardRequiresTarget(card: Card): boolean {
-		// Only enemy_single, ally and any cards require explicit targets
+		// Only enemy_single, ally, escort and any cards require explicit targets
 		// self, both_drivers, and enemy_all are handled automatically by the battle system
-		return ['enemy_single', 'ally', 'any'].includes(card.targetType || '');
+		return ['enemy_single', 'ally', 'escort', 'any'].includes(card.targetType || '');
 	}
 }

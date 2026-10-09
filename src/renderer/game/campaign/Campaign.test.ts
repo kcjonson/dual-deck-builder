@@ -894,7 +894,7 @@ describe('Campaign', () => {
 				['a dead driver who kept their cards', (save: CampaignJson) => { save.drivers[1].defaultDeck = { headshot: 1 }; }, RangeError, 'Campaign.drivers[1].defaultDeck must be empty for a dead driver, whose cards went with them, got {"headshot":1}'],
 				['a wrecked escort', (save: CampaignJson) => { save.convoy.escorts[0].structure = 0; }, RangeError, 'Campaign.convoy.escorts[0].structure must be an integer from 1 to maxStructure (40), got 0'],
 				['a run deck for a driver who isn\'t in the pool', (save: CampaignJson) => { save.runDecks[1].driver = 'driver-9'; }, RangeError, 'Campaign.runDecks[1].driver "driver-9" isn\'t a driver in the pool'],
-				['one run deck', (save: CampaignJson) => { save.runDecks.pop(); }, RangeError, 'Campaign.runDecks holds 1 run decks: a run out has one for each of its two seats, and none are kept at home'],
+				['three run decks', (save: CampaignJson) => { save.runDecks.push(save.runDecks[1]); }, RangeError, 'Campaign.runDecks holds 3 run decks: a run out has one for each of its seats, two at most, and none are kept at home'],
 				['two run decks for one driver', (save: CampaignJson) => { save.runDecks[1].driver = 'driver-1'; }, RangeError, 'Campaign.runDecks[1].driver driver-1 has the run deck before it; each seat is a different driver'],
 				['a run out with no run handed out', (save: CampaignJson) => { save.nextRunNumber = 1; }, RangeError, 'Campaign.nextRunNumber must be an integer >= 2, got 1'],
 				['no run counter', (save: CampaignJson) => { delete (save as Partial<CampaignJson>).nextRunNumber; }, TypeError, 'Campaign.nextRunNumber is missing'],

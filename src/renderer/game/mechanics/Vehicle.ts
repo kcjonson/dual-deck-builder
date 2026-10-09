@@ -186,6 +186,15 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
+	 * A driver's vehicle carrying on as an escort after its driver died with
+	 * nobody to take the wheel (convertToEscort): an escort of no hired type,
+	 * still its driver's and never the convoy's
+	 */
+	public get carriesOnUnmanned(): boolean {
+		return this.escort?.type === null;
+	}
+
+	/**
 	 * The id the convoy gave this escort, `escort-<n>`, which saves and
 	 * `Card.broughtBy` use; never `id`, the Model's per-session count. Null
 	 * for anything that hasn't joined a convoy.

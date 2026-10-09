@@ -18,9 +18,12 @@ import type { WaveStatus } from '../../renderer/game/screens/combat/TopBarLayer'
  * builds teams, starts a `Battle` the way the screen does, then sets the
  * board to the mock's picture: hands, adrenaline, piles, mods, statuses,
  * flankers, a wreck. Raider plans are the AI's own from the decks given
- * here, so the pills show what the game would show for that board.
+ * here, so the pills show what the game would show for that board. A
+ * seventh, `solo`, isn't the mock's: a run down to its last driver, who
+ * fights alone with the escorts and leaves the dock's second seat empty
+ * (DDB-166).
  */
-export const BATTLE_FIT_SCENARIOS = ['typical', 'opening', 'convoy', 'fullroad', 'passenger', 'bighands'] as const;
+export const BATTLE_FIT_SCENARIOS = ['typical', 'opening', 'convoy', 'fullroad', 'passenger', 'bighands', 'solo'] as const;
 export type BattleFitScenario = typeof BATTLE_FIT_SCENARIOS[number];
 
 const at = (lane: RoadLane, row: RoadRow): RoadSlot => ({ lane, row });
@@ -76,8 +79,10 @@ interface ScenarioSpec {
 	scrap: number;
 	fuel: number;
 	log: string[];
-	seats: [SeatSpec, SeatSpec];
-	rig: DrivenSpec;
+	/** Seat order: the Rig's driver, then the Bike's; one seat when the Interceptor fights alone. */
+	seats: [SeatSpec, SeatSpec] | [SeatSpec];
+	/** Null when the Road Warrior isn't in the fight, and the Interceptor takes seat 1. */
+	rig: DrivenSpec | null;
 	bike: DrivenSpec;
 	escorts: EscortSpec[];
 	raiders: RaiderSpec[];
@@ -140,7 +145,10 @@ function nineRaiders(): RaiderSpec[] {
 
 const LONG_TICKER = 'Scrapyard Juggernaut rammed Apocalypse Rig for 24 (18 blocked by Armor, 3 to Structure, 3 to The Road Warrior)';
 
-function typical(): ScenarioSpec {
+/** Both drivers in the fight, as all the mock's scenarios have them. */
+type PairSpec = ScenarioSpec & { seats: [SeatSpec, SeatSpec]; rig: DrivenSpec };
+
+function typical(): PairSpec {
 	return {
 		turn: 3,
 		wave: { number: 1, total: 2, incoming: 2 },
@@ -238,6 +246,22 @@ const SCENARIOS: Record<BattleFitScenario, () => ScenarioSpec> = {
 			raiders: road.raiders.slice(0, 7),
 		};
 	},
+	// The Road Warrior lost on an earlier run: the Interceptor drives alone in
+	// seat 1, opening inside center, with three escorts in their preferred slots
+	solo: () => ({
+		...typical(),
+		turn: 2,
+		wave: { number: 1, total: 1, incoming: 0 },
+		log: ['Dust Crawler fired on Fuel Hauler for 2 (2 blocked by Armor)'],
+		seats: [{ adrenaline: 5, draw: 9, discard: 3, hand: ['headshot', 'covering_fire', 'coordinated_attack', 'nitro_boost', 'far_shoot'], mods: [MODS.nitrous] }],
+		rig: null,
+		bike: { slot: at(P_IN, CENTER), structure: [38, 50], armor: 0, hp: [21, 25] },
+		escorts: [
+			{ type: 'outrider', name: 'Outrider', slot: at(P_IN, AHEAD) },
+			{ type: 'fuel_hauler', name: 'Fuel Hauler', slot: at(P_OUT, CENTER) },
+			{ type: 'med_truck', name: 'Med Truck', slot: at(P_OUT, BEHIND), structure: [29, 35] },
+		],
+	}),
 };
 
 function playerDriver(archetype: DriverArchetype, name?: string): Driver {
@@ -324,15 +348,16 @@ export async function prepareBattleFit(scenario: BattleFitScenario): Promise<Pre
 	const templates = cardLoader.getAllCardsAsMap();
 	const spec = SCENARIOS[scenario]();
 
-	const drivers: [Driver, Driver] = [
-		playerDriver('road_warrior', spec.seats[0].name),
-		playerDriver('interceptor', spec.seats[1].name),
-	];
+	// Seat order: the Rig's driver first when they're in the fight
+	const rigDriver = spec.rig ? playerDriver('road_warrior', spec.seats[0].name) : null;
+	const bikeDriver = playerDriver('interceptor', spec.seats[spec.seats.length - 1].name);
+	const drivers = rigDriver ? [rigDriver, bikeDriver] : [bikeDriver];
 	for (const driver of drivers) driver.createStartingDeck(templates);
 
-	const rig = createDrivenVehicle({ driver: drivers[0], name: spec.rig.name });
-	const bike = createDrivenVehicle({ driver: drivers[1], name: spec.bike.name });
-	rig.slot = spec.rig.slot;
+	const rig = rigDriver && spec.rig ? createDrivenVehicle({ driver: rigDriver, name: spec.rig.name }) : null;
+	const bike = createDrivenVehicle({ driver: bikeDriver, name: spec.bike.name });
+	const driven = rig ? [rig, bike] : [bike];
+	if (rig && spec.rig) rig.slot = spec.rig.slot;
 	const escorts = spec.escorts.map(({ type, name, slot, structure, setPiece }) => {
 		const escort = createEscort({ type, setPiece });
 		escort.set({ name, slot });
@@ -343,7 +368,7 @@ export async function prepareBattleFit(scenario: BattleFitScenario): Promise<Pre
 	// A flanker starts in formation: the first slot nobody else claims, or
 	// the last claimed one, whose escort waits until the flanker has left it
 	const flanking = spec.bike.outran !== undefined;
-	const claimed = [rig, ...escorts].map((vehicle) => vehicle.slot as RoadSlot);
+	const claimed = [...driven.filter((vehicle) => vehicle !== bike), ...escorts].map((vehicle) => vehicle.slot as RoadSlot);
 	let borrowed: Vehicle | null = null;
 	if (flanking) {
 		const free = openingSlots(TeamType.PLAYER).find((slot) => !claimed.some((taken) => sameSlot(taken, slot)));
@@ -358,7 +383,7 @@ export async function prepareBattleFit(scenario: BattleFitScenario): Promise<Pre
 	}
 
 	const raiders = spec.raiders.map((raider) => raiderVehicle(raider, templates));
-	const playerTeam = new Team({ type: TeamType.PLAYER, vehicles: [rig, bike, ...escorts.filter((escort) => escort !== borrowed)] });
+	const playerTeam = new Team({ type: TeamType.PLAYER, vehicles: [...driven, ...escorts.filter((escort) => escort !== borrowed)] });
 	const enemyTeam = new Team({ type: TeamType.ENEMY, vehicles: raiders });
 	const battle = new Battle({ playerTeam, enemyTeam });
 	battle.aiController.setEnemyAI('aggressive');
@@ -372,7 +397,7 @@ export async function prepareBattleFit(scenario: BattleFitScenario): Promise<Pre
 	battle.start();
 	battle.turn = spec.turn;
 
-	applyVehicleSpec(rig, spec.rig);
+	if (rig && spec.rig) applyVehicleSpec(rig, spec.rig);
 	applyVehicleSpec(bike, spec.bike);
 	spec.seats.forEach((seat, index) => {
 		const driver = drivers[index];
@@ -382,13 +407,12 @@ export async function prepareBattleFit(scenario: BattleFitScenario): Promise<Pre
 			discard: pile(driver, seat.discard, templates),
 			deck: new Deck(`${driver.archetype}_fit_draw`, 'Draw pile', pile(driver, seat.draw, templates)),
 		});
+		driven[index].mods = seat.mods;
 	});
-	rig.mods = spec.seats[0].mods;
-	bike.mods = spec.seats[1].mods;
 
-	if (spec.wreckRig) {
-		const [hitpoints] = spec.rig.hp ?? [drivers[0].hitpoints];
-		drivers[0].hitpoints = hitpoints;
+	if (spec.wreckRig && rig && rigDriver) {
+		const [hitpoints] = spec.rig?.hp ?? [rigDriver.hitpoints];
+		rigDriver.hitpoints = hitpoints;
 		playerTeam.handleVehicleDestruction(rig);
 	}
 

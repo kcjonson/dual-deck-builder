@@ -7,7 +7,10 @@ import { RoadSlot, nearestTo } from './Road';
 
 export { TeamType };
 
-/** A player team's driven vehicles, one per driver */
+/**
+ * A player team's seats: two driven vehicles at most, one per driver. A run
+ * down to one driver goes out with one (solo-driver-fights.md), never none.
+ */
 export const PLAYER_DRIVEN_VEHICLES = 2;
 
 /** Escorts from the convoy a player team can field; an encounter's set-piece allies don't count */
@@ -38,8 +41,11 @@ export interface WreckEscape {
 
 /**
  * Team class representing a side in battle
- * Player teams start with exactly 2 driven vehicles plus up to 4 convoy
+ * Player teams start with one or two driven vehicles plus up to 4 convoy
  * escorts, listed in roster order, plus any set-piece allies; enemy teams can have variable amounts.
+ * A driver's vehicle that carried on unmanned in an earlier fight can start
+ * another as an escort: it's still its driver's, so it counts toward the
+ * two drivers' vehicles, not the convoy's four.
  * Wrecks leave the list when Battle clears them off the road.
  * Drivers manage their own hands/cards individually
  */
@@ -69,9 +75,11 @@ export class Team extends Model<TeamData> {
 		super(initialData);
 
 		if (initialData.type === TeamType.PLAYER) {
-			if (this.drivenVehicles.length !== PLAYER_DRIVEN_VEHICLES) {
-				throw new Error(`Player teams must have exactly ${PLAYER_DRIVEN_VEHICLES} driven vehicles, not ${this.drivenVehicles.length}`);
+			const driven = this.drivenVehicles.length;
+			if (driven < 1 || driven > PLAYER_DRIVEN_VEHICLES) {
+				throw new Error(`Player teams must have 1 or ${PLAYER_DRIVEN_VEHICLES} driven vehicles, not ${driven}`);
 			}
+			this.assertDriversVehicleRoom(0);
 			this.assertEscortRoom(0);
 		}
 	}
@@ -95,18 +103,35 @@ export class Team extends Model<TeamData> {
 	}
 
 	/**
-	 * Counts toward the escort cap: the convoy's own escorts, wherever they
-	 * are on the road. A set-piece ally belongs to its encounter, so it never
-	 * counts, whether or not its slot has been set yet.
+	 * The convoy's own escorts, wherever they are on the road: what counts
+	 * toward the escort cap. A set-piece ally belongs to its encounter, so it
+	 * never counts, whether or not its slot has been set yet, and a driver's
+	 * vehicle carrying on unmanned is still its driver's.
 	 */
+	public get convoyEscorts(): Vehicle[] {
+		return this.vehicles.filter(Team.countsTowardEscortCap);
+	}
+
 	private static countsTowardEscortCap(vehicle: Vehicle): boolean {
-		return vehicle.isEscort && !vehicle.escort?.setPiece;
+		return vehicle.isEscort && !vehicle.escort?.setPiece && !vehicle.carriesOnUnmanned;
+	}
+
+	/** A driver's vehicle: driven, or carrying on unmanned since its driver died */
+	private static isDriversVehicle(vehicle: Vehicle): boolean {
+		return !vehicle.isEscort || vehicle.carriesOnUnmanned;
 	}
 
 	private assertEscortRoom(adding: number): void {
-		const convoyEscorts = this.vehicles.filter(Team.countsTowardEscortCap).length + adding;
+		const convoyEscorts = this.convoyEscorts.length + adding;
 		if (convoyEscorts > MAX_CONVOY_ESCORTS) {
 			throw new Error(`Player teams can field ${MAX_CONVOY_ESCORTS} convoy escorts, not ${convoyEscorts}`);
+		}
+	}
+
+	private assertDriversVehicleRoom(adding: number): void {
+		const driversVehicles = this.vehicles.filter(Team.isDriversVehicle).length + adding;
+		if (driversVehicles > PLAYER_DRIVEN_VEHICLES) {
+			throw new Error(`Player teams can field ${PLAYER_DRIVEN_VEHICLES} drivers' vehicles, driven or carrying on unmanned, not ${driversVehicles}`);
 		}
 	}
 
@@ -166,6 +191,9 @@ export class Team extends Model<TeamData> {
 		if (this.type === TeamType.PLAYER) {
 			if (!vehicle.isEscort && this.drivenVehicles.length >= PLAYER_DRIVEN_VEHICLES) {
 				throw new Error(`Player teams cannot have more than ${PLAYER_DRIVEN_VEHICLES} driven vehicles`);
+			}
+			if (Team.isDriversVehicle(vehicle)) {
+				this.assertDriversVehicleRoom(1);
 			}
 			if (Team.countsTowardEscortCap(vehicle)) {
 				this.assertEscortRoom(1);
@@ -285,8 +313,8 @@ export class Team extends Model<TeamData> {
 	 * Seat a driver whose vehicle was wrecked as a passenger, and return
 	 * where, or null if there's no free seat. On the player's team that's
 	 * the partner's driven vehicle first, then the escort nearest the wreck,
-	 * ties broken as for attack orders. A raider takes any free seat on its
-	 * team.
+	 * ties broken as for attack orders; a driver with no partner goes
+	 * straight to the escorts. A raider takes any free seat on its team.
 	 */
 	public handleDriverEscape({ driver, from }: { driver: Driver; from: RoadSlot | null }): Vehicle | null {
 		const open = this.vehicles.filter(vehicle => vehicle.canAddPassenger());

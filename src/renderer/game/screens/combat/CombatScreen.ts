@@ -21,11 +21,11 @@ import { CombatFxLayer } from './CombatFxLayer';
 import { Rgba } from './combatStyle';
 import { openPileDialog } from '../../ui/CardPileView';
 import { INSPECT_KEYS, inspectHotkey } from '../../ui/cardInspect';
-import { buildPlayerHandView } from './PlayerHandView';
+import { DriverSeat, buildPlayerHandView } from './PlayerHandView';
 import { TargetMark, seatMark } from '../../ui/targetMarks';
 import { statusLabel } from '../../ui/IntentPill';
 import { Driver, DriverRole } from '../../mechanics/Driver';
-import { assertDriverPair } from '../../mechanics/DriverPair';
+import { assertDriverPair, assertDriverSeats } from '../../mechanics/DriverPair';
 import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
 import { Vehicle, createDrivenVehicle } from '../../mechanics/Vehicle';
 import { RoadLane, RoadRow } from '../../mechanics/Road';
@@ -60,11 +60,12 @@ function isHandCardDrag(data: unknown): data is HandCardDrag {
  * the player's drivers in seat order, and what the top bar and log read.
  * The gallery's battle scenes (DDB-141) arrive this way, mid-fight, and so
  * does a supply run's fight, which the combat bridge builds from the
- * campaign (`startCampaignFight`, DDB-286).
+ * campaign (`startCampaignFight`, DDB-286). A run down to its last driver
+ * seats one, and the dock's second half is an empty seat.
  */
 export interface PreparedCombat {
 	battle: Battle;
-	drivers: [Driver, Driver];
+	drivers: readonly Driver[];
 	wave?: WaveStatus;
 	scrap?: number;
 	fuel?: number;
@@ -227,9 +228,10 @@ export class CombatScreen extends Screen {
 
 	/** Show a started battle: subscribe to it, announce the turn, log the matchup, and draw it. */
 	private beginCombat({ battle, drivers, wave = SINGLE_WAVE, scrap, fuel, log = [] }: PreparedCombat): void {
-		// A prepared fight is held to the same pair rule as the default one
-		assertDriverPair(drivers);
+		// One seat, or two held to the same pair rule as the default fight
+		assertDriverSeats(drivers);
 		this.playerDrivers = [...drivers];
+		this.handLayer.driverCount = drivers.length as DriverSeat;
 		this.battle = battle;
 		this.playerTeam = battle.playerTeam;
 		this.enemyTeam = battle.enemyTeam;
@@ -241,9 +243,9 @@ export class CombatScreen extends Screen {
 		this.turnBanner.announce(battle.isPlayerTurn ? 'player' : 'enemy');
 
 		// The log opens on the matchup
-		const [driver1, driver2] = drivers;
+		const seated = drivers.map(driver => driver.metadata.name).join(' and ');
 		const raiders = battle.enemyTeam.vehicles.map(vehicle => vehicle.name).join(', ');
-		this.combatLog.addEntry({ message: `${driver1.metadata.name} and ${driver2.metadata.name} vs ${raiders}`, turn: battle.turn });
+		this.combatLog.addEntry({ message: `${seated} vs ${raiders}`, turn: battle.turn });
 		for (const message of log) this.combatLog.addEntry({ message, turn: battle.turn });
 
 		this.updateUIFromBattle();

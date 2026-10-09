@@ -6,7 +6,7 @@ import { Card } from '../mechanics/Card';
 import type { DividendPayout } from '../mechanics/Convoy';
 import { Deck } from '../mechanics/Deck';
 import { DRIVER_CONFIGS, Driver, DriverRole } from '../mechanics/Driver';
-import { Team, TeamType } from '../mechanics/Team';
+import { PLAYER_DRIVEN_VEHICLES, Team, TeamType } from '../mechanics/Team';
 import { Vehicle, createDrivenVehicle } from '../mechanics/Vehicle';
 import { Campaign, NO_RESOURCES, Resources, readResources } from './Campaign';
 import { CardCounts, NO_CARDS, addCards, readCardCounts } from './CardCounts';
@@ -29,7 +29,8 @@ export const LIMP_STRUCTURE = 1;
 
 /**
  * Who's out on a supply run, as the run controller holds it between
- * fights: the seated drivers' records in seat order, Driver 1 first, the
+ * fights: the seated drivers' records in seat order, Driver 1 first, one
+ * or two of them (a run down to one driver seats one), the
  * convoy's escorts that came along (load out can leave some at home), and
  * the cargo picked up so far, resources and cards won, which reaches the
  * compound only if the run gets home. Their decks are the campaign's run
@@ -60,13 +61,13 @@ export interface CampaignFight {
 	readonly campaign: Campaign;
 	readonly battle: Battle;
 	/** Each seat's combat driver, in seat order */
-	readonly drivers: [Driver, Driver];
+	readonly drivers: readonly Driver[];
 	/**
 	 * Each seat's own vehicle, in seat order. By the end of the fight it can
 	 * be a wreck that has left the team, an escort with nobody at the wheel,
 	 * or driven by the partner; its damage is still its driver's.
 	 */
-	readonly vehicles: [Vehicle, Vehicle];
+	readonly vehicles: readonly Vehicle[];
 	readonly scrap: number;
 	readonly fuel: number;
 	/** The party it was built from, its escorts in roster order and its cargo checked */
@@ -86,7 +87,7 @@ export interface CampaignFightOptions {
 	enemyAI?: AIType | null;
 }
 
-/** A won fight: the run goes on, with both drivers. */
+/** A won fight: the run goes on, with every driver it seated. */
 export interface WonFight {
 	readonly outcome: 'won';
 	/** Who goes on to the run's next stop, with the cargo the haulers added */
@@ -135,26 +136,32 @@ type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
  * Throws, building nothing, while the campaign's last fight hasn't been
  * written back or is being written back (from a listener partway through
  * it), while the campaign is storing records (a listener partway through a
- * card move, or a run starting or ending), and unless the party seats two
- * drivers load out's own check
- * (`getSeatBlocker`) seats together: each from the campaign's pool and
- * ready, checked in seat order, then two different drivers of different
- * archetypes. So does a party whose cargo doesn't check out, an escort that
- * isn't the campaign's, a seat with no run deck or one holding the card of
- * an escort that isn't in the party, an escort in the party whose card
- * neither run deck holds, a party that set off on another run than the one
- * out, or a card in the decks with no template. The teams and the
- * encounter can refuse the road too (Team, Battle), and move nobody when
- * they do.
+ * card move, or a run starting or ending), and unless the party seats one
+ * or two drivers load out's own check (`getSeatBlocker`) seats: each from
+ * the campaign's pool and ready, checked in seat order, then two different
+ * drivers of different archetypes when there are two. One seat is a run
+ * down to its last driver, who fights alone with the escorts
+ * (solo-driver-fights.md). So does a party whose cargo doesn't check out,
+ * an escort that isn't the campaign's, a seat with no run deck or one
+ * holding the card of an escort that isn't in the party, an escort in the
+ * party whose card no run deck holds, a party that set off on another run
+ * than the one out, or a card in the decks with no template. The teams and
+ * the encounter can refuse the road too (Team, Battle), and move nobody
+ * when they do.
  */
 export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, enemyAI = 'aggressive' }: CampaignFightOptions): CampaignFight {
 	if (isStoringWriteBack(campaign)) throw new Error("This campaign's last fight is still being written back");
 	if (openFightOf(campaign) !== null) throw new Error("This campaign's last fight hasn't been written back");
 	if (campaign.isStoring) throw new Error("This campaign is partway through storing its records, so a fight can't start on them");
-	if (party.seats.length !== 2) throw new RangeError(`A fight seats two drivers, and this party has ${party.seats.length}`);
-	const [first, second] = party.seats;
+	if (party.seats.length < 1 || party.seats.length > PLAYER_DRIVEN_VEHICLES) {
+		throw new RangeError(`A fight seats one or two drivers, and this party has ${party.seats.length}`);
+	}
+	const [first, second = null] = party.seats;
 	// Each seat on its own before the pair, so a seat's own reason wins over the pairing's
-	const checks = [{ driver: first, partner: null }, { driver: second, partner: null }, { driver: first, partner: second }];
+	const checks = [
+		...party.seats.map(driver => ({ driver, partner: null })),
+		...(second ? [{ driver: first, partner: second }] : [])
+	];
 	for (const { driver, partner } of checks) {
 		const blocker = getSeatBlocker({ campaign, driver, partner });
 		if (blocker !== null) throw new RangeError(seatRefusal({ record: driver, blocker }));
@@ -165,19 +172,16 @@ export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, ene
 	});
 	const escorts = campaign.convoy.escorts.filter(escort => party.escorts.includes(escort));
 	const cargoCards = readCardCounts(party.cargoCards, 'RunParty.cargoCards');
-	const [firstDeck, secondDeck] = party.seats.map(record => seatRunDeck({ campaign, record, escorts }));
+	const runDecks = party.seats.map(record => seatRunDeck({ campaign, record, escorts }));
 	escorts.forEach(escort => {
 		const cardType = escort.escort?.signatureCard ?? null;
-		if (cardType === null || [firstDeck, secondDeck].some(deck => deck.escortCards.some(card => card.broughtBy === escort.convoyId))) return;
-		throw new RangeError(`${escort.name} (${escort.convoyId}) came along, and neither run deck holds the ${cardType} it brings`);
+		if (cardType === null || runDecks.some(deck => deck.escortCards.some(card => card.broughtBy === escort.convoyId))) return;
+		throw new RangeError(`${escort.name} (${escort.convoyId}) came along, and no run deck holds the ${cardType} it brings`);
 	});
 	if (party.run !== campaign.currentRun) throw new RangeError(`This party set off on ${describeValue(party.run)}, and the run out is ${campaign.currentRun}`);
 
-	const drivers: [Driver, Driver] = [
-		combatDriverOf({ record: first, runDeck: firstDeck, cards }),
-		combatDriverOf({ record: second, runDeck: secondDeck, cards })
-	];
-	const vehicles: [Vehicle, Vehicle] = [vehicleOf({ record: first, driver: drivers[0] }), vehicleOf({ record: second, driver: drivers[1] })];
+	const drivers = party.seats.map((record, seat) => combatDriverOf({ record, runDeck: runDecks[seat], cards }));
+	const vehicles = party.seats.map((record, seat) => vehicleOf({ record, driver: drivers[seat] }));
 	const playerTeam = new Team({ type: TeamType.PLAYER, vehicles: [...vehicles, ...escorts] });
 	const battle = new Battle({ playerTeam, enemyTeam, rng });
 	battle.aiController.setEnemyAI(enemyAI);
@@ -197,9 +201,9 @@ export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, ene
 
 /**
  * Write a finished fight back to its campaign and say where the run
- * stands. After a win both drivers go on: one still in the fight carries
- * their HP, one who crashed out is picked up, and one who went down is
- * revived at REVIVE_HP. Each driver's vehicle carries its damage, and a
+ * stands. After a win every seated driver goes on: one still in the fight
+ * carries their HP, one who crashed out is picked up, and one who went down
+ * is revived at REVIVE_HP. Each driver's vehicle carries its damage, and a
  * wreck limps on at LIMP_STRUCTURE. Wrecked escorts leave the convoy and
  * the rest keep their structure. The haulers' fuel and scrap go into the
  * party's cargo; the Med Truck's heal is already in the drivers' HP. A

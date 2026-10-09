@@ -263,7 +263,7 @@ export class Battle extends Model<BattleData> {
 			[TeamType.PLAYER, playerTeam.getAllDrivers()],
 			[TeamType.ENEMY, enemyTeam.getAllDrivers()]
 		]));
-		Battle.convoyEscorts.set(this, playerTeam.escorts.filter(escort => !escort.escort?.setPiece));
+		Battle.convoyEscorts.set(this, playerTeam.convoyEscorts);
 		Battle.fightRngs.set(this, rng);
 		Battle.deckRngs.set(this, new Map());
 
