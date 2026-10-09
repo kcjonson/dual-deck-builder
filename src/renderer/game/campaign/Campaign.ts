@@ -177,7 +177,7 @@ const JSON_FIELDS: readonly (keyof CampaignJson)[] = [
 	'map'
 ];
 
-const RESOURCE_NAMES: readonly (keyof Resources)[] = ['food', 'water', 'fuel', 'meds', 'scrap', 'people'];
+export const RESOURCE_NAMES: readonly (keyof Resources)[] = ['food', 'water', 'fuel', 'meds', 'scrap', 'people'];
 
 /**
  * What the map was made from, set at founding, and the convoy, whose

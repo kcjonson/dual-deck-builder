@@ -6,9 +6,20 @@ export const UPKEEP_RESOURCES = ['food', 'water'] as const;
 
 export type UpkeepResource = (typeof UPKEEP_RESOURCES)[number];
 
+/** What a scavenging party brings back. */
+export const SCAVENGED_RESOURCES = ['fuel', 'scrap'] as const;
+
+export type ScavengedResource = (typeof SCAVENGED_RESOURCES)[number];
+
+/** Whole numbers from `min` to `max`, both included. */
+export interface AmountRange {
+	readonly min: number;
+	readonly max: number;
+}
+
 /**
  * The compound's standing rules (Compound and Supply Runs, Hours on the
- * road, days at home; Buildings, the infirmary), kept in
+ * road, days at home; Buildings, the infirmary; Never stuck), kept in
  * `data/compound-rules.json` so they tune without a code change. Every value
  * is a starting point for tuning.
  */
@@ -32,6 +43,8 @@ export interface CompoundRules {
 		/** Meds that take a day off an injury. */
 		readonly medsPerDay: number;
 	};
+	/** What a scavenging party on foot brings back, each amount rolled from its range. */
+	readonly scavenging: Readonly<Record<ScavengedResource, AmountRange>>;
 }
 
 /** Ceilings far past any tuning, so a slip in the file fails as it loads instead of overflowing a day's sums. */
@@ -40,6 +53,13 @@ const MAX_SHORTFALL_COST = 100;
 const MAX_HITPOINTS_PER_DAY = 100;
 const MAX_MEDS_PER_DAY = 100;
 
+/**
+ * What a party's haul can be tuned to. Fuel never goes below 1, so every
+ * day spent scavenging brings a run closer and the file can't be tuned into
+ * a soft-lock.
+ */
+const SCAVENGING_LIMITS: Readonly<Record<ScavengedResource, AmountRange>> = { fuel: { min: 1, max: 100 }, scrap: { min: 0, max: 1000 } };
+
 /** A frozen record holding a value for each resource the compound eats. */
 export function upkeepRecord<Value>(valueOf: (resource: UpkeepResource) => Value): Readonly<Record<UpkeepResource, Value>> {
 	return Object.freeze(Object.fromEntries(UPKEEP_RESOURCES.map(resource => [resource, valueOf(resource)])) as Record<UpkeepResource, Value>);
@@ -47,18 +67,21 @@ export function upkeepRecord<Value>(valueOf: (resource: UpkeepResource) => Value
 
 /**
  * Rules checked: exactly these fields, a whole number of people from 1 to
- * 100 that each unit feeds, whole-number shortfall costs from 0 to 100, and
- * an infirmary day worth 1 to 100 HP and costing 1 to 100 meds. Errors name
- * the path, as a save's do. Comes back frozen.
+ * 100 that each unit feeds, whole-number shortfall costs from 0 to 100, an
+ * infirmary day worth 1 to 100 HP and costing 1 to 100 meds, and a
+ * scavenging haul of 1 to 100 fuel and 0 to 1,000 scrap, each range's min
+ * no more than its max. Errors name the path, as a save's do. Comes back
+ * frozen.
  */
 export function readCompoundRules(value: unknown, path: string): CompoundRules {
-	const fields = readFields(value, path, ['upkeep', 'shortfall', 'infirmary']);
+	const fields = readFields(value, path, ['upkeep', 'shortfall', 'infirmary', 'scavenging']);
 	const upkeep = readFields(fields.upkeep, `${path}.upkeep`, ['peoplePerUnit']);
 	const perUnit = readFields(upkeep.peoplePerUnit, `${path}.upkeep.peoplePerUnit`, UPKEEP_RESOURCES);
 	const shortfall = readFields(fields.shortfall, `${path}.shortfall`, ['peopleLostPerUnit', 'unrestPerUnit']);
 	const cost = (name: 'peopleLostPerUnit' | 'unrestPerUnit'): number =>
 		readInteger(shortfall[name], `${path}.shortfall.${name}`, { min: 0, max: MAX_SHORTFALL_COST });
 	const infirmary = readFields(fields.infirmary, `${path}.infirmary`, ['hitpointsPerDay', 'medsPerDay']);
+	const scavenging = readFields(fields.scavenging, `${path}.scavenging`, SCAVENGED_RESOURCES);
 	return Object.freeze({
 		upkeep: Object.freeze({
 			peoplePerUnit: upkeepRecord(resource =>
@@ -71,8 +94,20 @@ export function readCompoundRules(value: unknown, path: string): CompoundRules {
 		infirmary: Object.freeze({
 			hitpointsPerDay: readInteger(infirmary.hitpointsPerDay, `${path}.infirmary.hitpointsPerDay`, { min: 1, max: MAX_HITPOINTS_PER_DAY }),
 			medsPerDay: readInteger(infirmary.medsPerDay, `${path}.infirmary.medsPerDay`, { min: 1, max: MAX_MEDS_PER_DAY })
+		}),
+		scavenging: Object.freeze({
+			fuel: readRange(scavenging.fuel, `${path}.scavenging.fuel`, SCAVENGING_LIMITS.fuel),
+			scrap: readRange(scavenging.scrap, `${path}.scavenging.scrap`, SCAVENGING_LIMITS.scrap)
 		})
 	});
+}
+
+/** A range inside `limits`, its min no more than its max, frozen. */
+function readRange(value: unknown, path: string, limits: AmountRange): AmountRange {
+	const range = readFields(value, path, ['min', 'max']);
+	const min = readInteger(range.min, `${path}.min`, limits);
+	const max = readInteger(range.max, `${path}.max`, { min, max: limits.max });
+	return Object.freeze({ min, max });
 }
 
 /** The shipped rules, read as this module loads, so a bad edit to the file fails straight away. */

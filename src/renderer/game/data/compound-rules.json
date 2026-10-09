@@ -12,5 +12,15 @@
 	"infirmary": {
 		"hitpointsPerDay": 10,
 		"medsPerDay": 1
+	},
+	"scavenging": {
+		"fuel": {
+			"min": 1,
+			"max": 2
+		},
+		"scrap": {
+			"min": 5,
+			"max": 15
+		}
 	}
 }
