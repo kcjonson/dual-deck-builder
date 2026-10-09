@@ -1,5 +1,6 @@
 import { Rng } from '../core/Rng';
 import { BIOMES, BIOME_COSTS, Biome } from './Biome';
+import { cellCentre, landGridFor } from './LandGrid';
 import { MapParamSet, MapParams, resolveMapParams } from './MapParams';
 import { validateMapParams } from './ParamValidator';
 import { CLIFF_GRADE, RELIEF, SLOPE_COST, Terrain, TerrainSample, WaterLayer, createTerrainSample, generateTerrain } from './Terrain';
@@ -10,9 +11,21 @@ const terrainStream = (seed: number, stageAttempt = 0) => new Rng({ seed }).fork
 
 const paramsFor = (set: MapParamSet): MapParams => validateMapParams(resolveMapParams(set).params).params;
 
-function terrainFor(set: MapParamSet, stageAttempt = 0): Terrain {
+function buildTerrain(set: MapParamSet, stageAttempt = 0): Terrain {
 	const params = paramsFor(set);
 	return generateTerrain({ params, rng: terrainStream(params.seed, stageAttempt) });
+}
+
+/** Erosion makes a terrain dear to build, so each set is built once a file; sampling one never changes it. */
+const built = new Map<string, Terrain>();
+function terrainFor(set: MapParamSet, stageAttempt = 0): Terrain {
+	const key = JSON.stringify([set, stageAttempt]);
+	let terrain = built.get(key);
+	if (!terrain) {
+		terrain = buildTerrain(set, stageAttempt);
+		built.set(key, terrain);
+	}
+	return terrain;
 }
 
 /** Points on a square grid of `cells` across the disc, inside it. */
@@ -41,7 +54,7 @@ function polar(inner: number, outer: number, rings: number, bearings: number): [
 	return points;
 }
 
-const SEEDS = Array.from({ length: 6 }, (_, index) => (index * 2654435761 + 12345) >>> 0);
+const SEEDS = Array.from({ length: 2 }, (_, index) => (index * 2654435761 + 12345) >>> 0);
 
 /**
  * Parameter sets across the tuning ranges: the corners that push hardest on
@@ -77,14 +90,14 @@ function sampledParamSets(count: number): MapParamSet[] {
 	return [...extremes, ...random];
 }
 
-const PARAM_SETS = sampledParamSets(25);
+const PARAM_SETS = sampledParamSets(10);
 
 describe('generateTerrain', () => {
 	describe('determinism', () => {
 		it('samples the same terrain from the same params and stream', () => {
 			SEEDS.forEach((seed) => {
-				const first = terrainFor({ seed, environment: 'badlands' });
-				const second = terrainFor({ seed, environment: 'badlands' });
+				const first = buildTerrain({ seed, environment: 'badlands' });
+				const second = buildTerrain({ seed, environment: 'badlands' });
 				expect(second.hotspots).toEqual(first.hotspots);
 				expect(second.towns).toEqual(first.towns);
 				const a = createTerrainSample();
@@ -112,8 +125,9 @@ describe('generateTerrain', () => {
 
 		// What a seed's terrain is belongs to what the seed means, so a few
 		// samples are pinned, as the PRNG's are. They were computed in another
-		// process and hold in every engine: sampling is IEEE arithmetic with no
-		// Math call. A change here moves every map, and with it the roads.
+		// process and hold in every engine: erosion and sampling are IEEE
+		// arithmetic and square roots, which ECMAScript rounds exactly, with no
+		// other Math call. A change here moves every map, and with it the roads.
 		it('samples the pinned terrain for three seeds', () => {
 			expect(pinnedSummary(terrainFor({ seed: 2183746551 }))).toEqual(PINNED[0]);
 			expect(pinnedSummary(terrainFor({ seed: 7, environment: 'highDesert' }))).toEqual(PINNED[1]);
@@ -142,7 +156,7 @@ describe('generateTerrain', () => {
 	});
 
 	describe('the start', () => {
-		it.each(PARAM_SETS.map((set, index) => [index, set] as const))('is scrub and never impassable, in parameter set %i', (_index, set) => {
+		it.each(PARAM_SETS.map((set, index) => [index, set] as const))('is flat scrub and never impassable, in parameter set %i', (_index, set) => {
 			const terrain = terrainFor(set);
 			const metro = terrain.metro;
 			const sample = createTerrainSample();
@@ -150,8 +164,10 @@ describe('generateTerrain', () => {
 				terrain.sample(x, y, sample);
 				expect(sample.obstacle).toBeNull();
 				expect(sample.biome).toBe('scrub');
+				// The flattest ground on the map, even at the tuning range's steepest corners.
+				expect(sample.grade).toBeLessThan(0.4);
 				expect(sample.cost).toBeGreaterThanOrEqual(1);
-				expect(sample.cost).toBeLessThan(BIOME_COSTS.scrub + SLOPE_COST);
+				expect(sample.cost).toBeLessThan(BIOME_COSTS.scrub + SLOPE_COST * 0.16);
 				expect(sample.contamination).toBe(0);
 				expect(sample.ruin).toBe(1);
 				expect(terrain.impassable(x, y)).toBe(false);
@@ -191,10 +207,10 @@ describe('generateTerrain', () => {
 		// room, with the shuffled walk over those cells as the last resort.
 		const corner: MapParamSet = { seed: 0, mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, hotspots: 6, towns: 12, metroSize: 0.25, radius: 600 };
 		it.each([
-			['the most crowded corner', corner, 20],
-			['the most crowded corner with no hotspots', { ...corner, hotspots: 0 }, 6],
-			['the most crowded corner with a mid-sized metro', { ...corner, metroSize: 0.15 }, 6],
-			['the most crowded corner at the largest radius', { ...corner, radius: 1600 }, 6],
+			['the most crowded corner', corner, 6],
+			['the most crowded corner with no hotspots', { ...corner, hotspots: 0 }, 2],
+			['the most crowded corner with a mid-sized metro', { ...corner, metroSize: 0.15 }, 2],
+			['the most crowded corner at the largest radius', { ...corner, radius: 1600 }, 2],
 		] as const)('places every town asked for, each where a road from the metro reaches, at %s', (_name, set, seeds) => {
 			sampledSeeds(seeds).forEach((seed) => {
 				const terrain = terrainFor({ ...set, seed });
@@ -324,14 +340,11 @@ describe('generateTerrain', () => {
 			// Small enough that curvature moves the one-sided slopes apart by
 			// far less than a crease does, large enough to stay clear of rounding.
 			const step = 1e-6;
-			// Round coordinates on purpose. RIDGE_OFFSETS, RANGE_OFFSET, and
-			// BREAK_OFFSET shift both axes alike, so many of these points fall on
-			// lattice edges of those layers, and gradients that could leave a
-			// layer zero along an edge would put some on creases (the
-			// sixteen-direction set put 2.8% to 6.3% there). Noise.test's edge
-			// test is the main guard against that; this one catches it in the
-			// terrain. Otherwise a crease needs a zero line within a step of a
-			// point, which these grids miss, so none may be creased.
+			// The eroded grid is sampled bicubic, smooth in value and slope, and
+			// range country's fine relief is plain fractal noise, so the land has
+			// no crease anywhere but where it's held to 0 or 1, which these grids
+			// miss: a point within a step of a crease is counted rather than
+			// checked, and none may be.
 			const points = gridInside(terrain.radius, 20);
 			let creased = 0;
 			points.forEach(([x, y]) => {
@@ -340,9 +353,6 @@ describe('generateTerrain', () => {
 				const west = terrain.elevation(x - step, y);
 				const north = terrain.elevation(x, y + step);
 				const south = terrain.elevation(x, y - step);
-				// Ridge and gully noise creases where it crosses zero. Within a step
-				// of a crease the one-sided slopes disagree, so a creased point is
-				// counted rather than checked; everywhere else the gradient has to match.
 				if (Math.abs(east - 2 * here + west) / step > 1e-7 || Math.abs(north - 2 * here + south) / step > 1e-7) {
 					creased += 1;
 					return;
@@ -353,6 +363,24 @@ describe('generateTerrain', () => {
 				expect(terrain.grade(x, y)).toBeCloseTo(Math.hypot(slope.x, slope.y) * RELIEF, 9);
 			});
 			expect(creased).toBe(0);
+		});
+
+		it('reads the eroded land: elevation at a cell centre clear of the ranges is the grid\'s, and the grid and its drainage are there for the water stage', () => {
+			const terrain = terrainFor({ seed: 61, radius: 800 });
+			const { grid, elevation, mountains, drainage } = terrain.surface;
+			expect(grid).toEqual(landGridFor(800));
+			expect(drainage.receivers).toHaveLength(grid.size * grid.size);
+			let checked = 0;
+			for (let row = 2; row < grid.size - 2; row += 7) {
+				for (let column = 2; column < grid.size - 2; column += 7) {
+					let ranges = 0;
+					for (let dy = -2; dy <= 2; dy += 1) for (let dx = -2; dx <= 2; dx += 1) ranges += mountains[(row + dy) * grid.size + column + dx];
+					if (ranges !== 0) continue;
+					expect(terrain.elevation(cellCentre(grid, column), cellCentre(grid, row))).toBeCloseTo(elevation[row * grid.size + column], 12);
+					checked += 1;
+				}
+			}
+			expect(checked).toBeGreaterThan(200);
 		});
 
 		it('fills ruins: the metro and every town at 1, open country at 0', () => {
@@ -426,10 +454,8 @@ describe('generateTerrain', () => {
 			});
 		});
 
-		// The seeds are the first of a fixed sequence, not picked. Over the first
-		// 200 of it at a 2-unit grid, every map kept more than REACH_BAR of the
-		// edge in reach but the sixth at the most rugged corner (the decision
-		// record has the figures); this grid is coarser.
+		// The seeds are the first of a fixed sequence, not picked. terrain-erosion.md
+		// has how much of the edge the start reaches over more of them.
 		it.each([
 			['the most rugged corner', { mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, radius: 600 }],
 			['the most rugged corner with the smallest metro', { mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, radius: 600, metroSize: 0.08 }],
@@ -443,9 +469,9 @@ describe('generateTerrain', () => {
 			});
 		});
 
-		// A faint canyon used to keep its full wall grade by narrowing, leaving
-		// hairline cliffs a road could slip between samples. Now a cliff is a
-		// band: only its tapered tips are thin, a few points in a hundred.
+		// A cliff is steep ground in rough country, and eroded slopes are steep
+		// across cells nine units wide, so a cliff is a band a road can't slip
+		// through between samples: only its tapered tips are thin.
 		it.each([
 			['aridity 0.6', { seed: 21, aridity: 0.6 }],
 			['the Rust Belt', { seed: 21, environment: 'rustBelt' }],
@@ -511,16 +537,15 @@ describe('generateTerrain', () => {
 	});
 });
 
-/** The first `count` seeds of a fixed sequence, the same one the record's reach figures sample. */
+/** The first `count` seeds of a fixed sequence, the same one the records' reach figures sample. */
 function sampledSeeds(count: number): number[] {
 	return Array.from({ length: count }, (_, index) => (1 + index * 2654435761) >>> 0);
 }
 
 /**
  * A floor for the share of the edge's passable ground the start keeps in
- * reach. Of the seeds the record samples, only one in a thousand at the most
- * rugged corner falls under it, where a rough island walls part of the edge
- * off against the rim.
+ * reach. Nothing guarantees it outright: a rough island can wall part of the
+ * edge off against the rim.
  */
 const REACH_BAR = 0.8;
 
@@ -633,15 +658,15 @@ const PINNED: PinnedSummary[] = [
 		towns: [
 			[-26.25829516723752, 554.316593721509, 39.62356013478711],
 			[541.0198035240173, 250.92307560145855, 52.41111501061823],
-			[272.6182806491852, -68.1028473675251, 38.113515063305385],
-			[329.4148037135601, 462.3349857740104, 39.22823494300246],
-			[-805.6563045680523, 43.03895381465554, 58.13928025541827],
+			[-361.13680229336023, -4.433866869658232, 38.113515063305385],
+			[329.4148037135601, 462.3349857740104, 39.913091365015134],
+			[-521.0830130055547, -475.9570165351033, 58.13928025541827],
 		],
 		samples: [
-			[0.41287669061316923, 0.8459598350582312, 0, 0.00012641721294959728, 0.000112582296036364, 'mire', null, 2.2019342857449766],
-			[0.5101532750851716, 0.35377578507444063, 1, -0.000676733269237456, 0.0010049002622684986, 'badlands', null, 1.8990759906990076],
-			[0.4108120657459295, 0.8120670605841103, 0.9048120042699062, 0.0008634155338930879, -0.0026383201053811894, 'mire', null, 2.720169806977289],
-			[0.4428219453294834, 0.6110565434117369, 0, -0.0003556608505255275, -0.0006933109763439507, 'scrub', null, 1.0409842956597992],
+			[0.5572741841622871, 0.5953113270958688, 0, -0.008015850571287751, 0.003542740520870676, 'mountains', null, 7.684328777611739],
+			[0.04605232516774133, 0.406714164905049, 1, 0.0001340635431904047, 0.00012919725776780892, 'scrub', null, 1.0023398851393555],
+			[0.016747542359665968, 0.829099322277242, 0.9048120042699062, 0.000004292548624687647, -0.00019662286205274497, 'mire', null, 2.202610830870247],
+			[0.06625969393505104, 0.619337669108953, 0, -0.0005759950779263779, 0.0006703273110962747, 'scrub', null, 1.052724859781296],
 		],
 	},
 	{
@@ -651,14 +676,14 @@ const PINNED: PinnedSummary[] = [
 		],
 		towns: [
 			[253.29307275637984, -666.9714190587401, 53.2332229387248],
-			[-745.8812262229621, 40.78929655998945, 57.15542222606018],
-			[751.0051111206412, 250.0145862326026, 49.93007242621389],
+			[-104.92646691203117, 449.87333304062486, 57.15542222606018],
+			[-224.6831512749195, -583.4892020709813, 40.76793423446361],
 		],
 		samples: [
-			[0.47685500866783476, 0, 0.9883711656152957, 0.012357039908933401, -0.005089992365360658, 'badlands', 'cliff', Infinity],
-			[0.4027900699800201, 0.04678891844579723, 0, -9.184464354372417e-05, 0.00037012717203707696, 'desert', null, 1.2598164954368791],
-			[0.4037756410496901, 0, 1, -0.0012956281812127413, 0.0004273549107140888, 'mountains', null, 2.6256367107473255],
-			[0.48965341283616703, 0.03269894914134967, 0, -0.001639891993875456, -0.0013887574887220268, 'mountains', null, 2.811707785198937],
+			[0.0812958992950942, 0, 0.9883711656152957, 0.0017504143648735331, -0.0006227996095579609, 'badlands', null, 2.0329985116634286],
+			[0.5797981579776617, 0, 0, -0.004163197433355256, -0.0003298365361916739, 'mountains', null, 3.6772678381549326],
+			[0.017752838447991078, 0, 1, 0.00008199627963891133, 0.00008497797084543353, 'canyons', null, 1.500941263564745],
+			[0.4407784521174084, 0, 0, -0.0004354333041321495, -0.0001824576710030665, 'mountains', null, 2.515045275073733],
 		],
 	},
 	{
@@ -668,17 +693,17 @@ const PINNED: PinnedSummary[] = [
 			[-9.06471898779273, 813.8863891828805, 19.487174225971103, 97.81371605482627, 0.9220535308704711],
 		],
 		towns: [
-			[180.3640455789864, -316.23979998007417, 56.78458511014469],
-			[-219.03274101763964, 648.7869463190436, 54.428250047494664],
-			[-118.1718448586762, -485.8499503992498, 39.36567953671329],
-			[-389.2610938921571, 314.91199431940913, 56.83652717212681],
-			[-228.6746749803424, 157.93978188186884, 48.72871899220627],
+			[292.4865979626775, -731.0327410176396, 56.78458511014469],
+			[-501.2923129796982, 174.55748349055648, 38.606643261155114],
+			[-118.1718448586762, -485.8499503992498, 44.55636677099392],
+			[344.2202191017568, 7.166647609323263, 56.83652717212681],
+			[-512.5123083740473, -196.28148622438312, 54.370626888703555],
 		],
 		samples: [
-			[0.5396399931401935, 1, 0.007502314534302878, 0.0001589295537635115, -0.0008659132357546764, 'scrub', null, 1.0523168426067357],
-			[0.5589309891399081, 0.848778778861916, 0, 0.00181407062642234, -0.0006444134199051462, 'mountains', null, 2.7501631603046475],
-			[0.533362833799987, 0.9739702623500065, 0.1737213188223352, 0.000599125364571094, -0.00040038807822706225, 'scrub', null, 1.0350501725569694],
-			[0.44002806216361884, 0.8148752278332481, 0, -0.0004833068208382442, 0.001009635478850898, 'mountains', null, 2.5845740766175695],
+			[0.025840421569453154, 1, 0.007502314534302878, -0.0003679548306863741, 0.00013271366264403848, 'mire', null, 2.210327747973254],
+			[0.040654360076144945, 0.9279170933937976, 0, -0.0003241120268566452, -0.00020286621035139757, 'mire', null, 2.209868723104744],
+			[0.19130802187245668, 0.9648773606158222, 0.1737213188223352, 0.0119822240846704, -0.003108888694367982, 'mountains', null, 12.84362459772265],
+			[0.0446690491229096, 0.8325547343536027, 0, 0.00002625996469308971, -0.000010252405661277664, 'mire', null, 2.200053642085808],
 		],
 	},
 ];

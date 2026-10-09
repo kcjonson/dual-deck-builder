@@ -24,7 +24,8 @@ import { fileURLToPath } from 'node:url';
 const script = fileURLToPath(import.meta.url);
 const SOURCES = [
 	'game/core/Json', 'game/core/Rng', 'game/map/MapParams', 'game/map/ParamValidator', 'game/map/Noise', 'game/map/Biome',
-	'game/map/TerrainSites', 'game/map/Terrain', 'engine/theme/tokens', 'game/ui/areaMap/areaMapStyle', 'game/ui/areaMap/terrainBake',
+	'game/map/TerrainSites', 'game/map/Geometry', 'game/map/LandGrid', 'game/map/Drainage', 'game/map/Erosion', 'game/map/Uplift',
+	'game/map/Land', 'game/map/Terrain', 'engine/theme/tokens', 'game/ui/areaMap/areaMapStyle', 'game/ui/areaMap/terrainBake',
 	'game/ui/areaMap/fogBake',
 ];
 

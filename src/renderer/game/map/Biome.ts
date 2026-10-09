@@ -24,9 +24,9 @@ export interface BiomeFields {
 	readonly contamination: number;
 	/** Mountain ranges: 1 in range country, its ridges and valleys alike. */
 	readonly mountains: number;
-	/** Canyons: 1 on a canyon floor, 0 past its rim. */
+	/** Canyons: 1 deep in a valley cut into the land, 0 out of one. */
 	readonly canyons: number;
-	/** Badlands: 1 in a patch of broken, gullied ground. */
+	/** Badlands: 1 on broken, gullied ground. */
 	readonly badlands: number;
 }
 
@@ -37,14 +37,14 @@ export interface BiomeFields {
 export const BIOME_THRESHOLDS = {
 	/** Mountains at or above this is mountains. */
 	mountains: 0.5,
-	/** Canyons at or above this is canyons: the floor and the lower walls. */
+	/** Canyons at or above this is canyons. */
 	canyons: 0.5,
 	/** Mire is wet ground, moisture plus a share of contamination at or above this... */
 	mireWetness: 0.75,
 	/** ...counting contamination at this weight... */
 	mireContamination: 0.25,
-	/** ...on ground lower than this. */
-	mireElevation: 0.42,
+	/** ...on ground lower than this: the plains on most maps run about 0.03 to 0.1. */
+	mireElevation: 0.05,
 	/** Badlands at or above this is badlands... */
 	badlands: 0.5,
 	/** ...unless it's wetter than this. */
