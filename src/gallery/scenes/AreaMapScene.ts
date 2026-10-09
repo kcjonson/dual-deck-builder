@@ -5,7 +5,7 @@ import { DeveloperSectionPanel } from '../../renderer/game/screens/developer/Dev
 import { AreaMapView } from '../../renderer/game/ui/areaMap/AreaMapView';
 import { AreaMapData, revealedBounds } from '../../renderer/game/ui/areaMap/layers';
 import type { SceneFactoryOptions } from '../registry';
-import { fixtureFog, fixtureKnowledge, fixtureMarkers, generateAreaMap } from './areaMapFixtures';
+import { fixtureAreaMap, fixtureFog, fixtureKnowledge, fixtureMarkers } from './areaMapFixtures';
 
 export type AreaMapSceneMode = 'whole' | 'fog';
 
@@ -48,13 +48,13 @@ function wholeMap(): AreaMapView {
 		id: 'area_map_whole',
 		widthMode: 'fill',
 		height: VIEW_HEIGHT,
-		map: generateAreaMap({ seed: 7, environment: 'mixed', radius: 1600 }),
+		map: fixtureAreaMap({ seed: 7, environment: 'mixed', radius: 1600 }),
 	});
 }
 
 function fogMap(): AreaMapView {
 	const radius = 1000;
-	const map: AreaMapData = generateAreaMap({ seed: 3, environment: 'mixed', radius });
+	const map: AreaMapData = fixtureAreaMap({ seed: 3, environment: 'mixed', radius });
 	const reach = 430;
 	const knowledge = fixtureKnowledge(map.network, { reach, rumored: 2 });
 	const fog = fixtureFog(map.network, knowledge, { radius, reach: reach * 0.8, sight: 100 });
