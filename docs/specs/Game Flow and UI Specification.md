@@ -150,7 +150,7 @@ The map is presented as a worn, hand-drawn chart spread across a rusted metal su
 
 ### 3.4 The Run Route
 
-A zoomed view between the compound and the chosen POI, showing its 2 or 3 routes. Picking a route card highlights it on the map and lists its stops in order, as far as they're known, with fuel, hours, the time you'd be home against dark, and risk. A route that would run past dark is flagged before you leave. The routes arrive from different branches of the road network and share nothing past the home area. "Load out the crew" goes to driver selection.
+A zoomed view between the compound and the chosen POI, showing its 2 or 3 routes. Picking a route card highlights it on the map and lists its stops in order, as far as they're known, with fuel, hours, the time you'd be home against dark, and risk. A route that would run past dark is flagged before you leave. The routes arrive by different roads, split before halfway, and share nothing after (Area Map Generation, Routes). "Load out the crew" goes to driver selection.
 
 ![Run route wireframe](../design/supply-runs/run-route.png)
 
