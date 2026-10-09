@@ -3,6 +3,7 @@
  */
 import { Clock } from '../../../engine/animation/Clock';
 import { createTestContext } from '../../../engine/components/testing';
+import type { Component } from '../../../engine/components/Component';
 import type { MountContext } from '../../../engine/components/MountContext';
 import type { Text } from '../../../engine/components/Text';
 import type { Button } from '../../../engine/ui/Button';
@@ -62,6 +63,20 @@ describe('CompoundScreen', () => {
 
 	function fallen(): boolean {
 		return context.overlays.roots.some((root) => root.findById('compound_fallen_dialog'));
+	}
+
+	/** The kicker over the notice's title: the first panel kicker in the overlays. */
+	function noticeKicker(): string | null {
+		const walk = (component: Component): string | null => {
+			const kicker = (component as { kicker?: unknown }).kicker;
+			if (typeof kicker === 'string') return kicker;
+			for (const child of component.children) {
+				const found = walk(child);
+				if (found !== null) return found;
+			}
+			return null;
+		};
+		return context.overlays.roots.map(walk).find((kicker) => kicker !== null) ?? null;
 	}
 
 	/** Lets the store's calls run: a few macrotask turns. */
@@ -251,11 +266,19 @@ describe('CompoundScreen', () => {
 			expect(fallen()).toBe(false);
 			expect(text('compound_save_error')).toBe("The campaign couldn't be saved: storage is full.");
 			expect((await storeOver(storage).load())?.resources.people).toBe(1);
+			// Retrying while storage still fails ends no day either.
+			await rest();
+			expect(screen.shown?.day).toBe(10);
 			storage.fault = null;
 			await rest();
 			advance(context, OPEN_MS);
 			expect(fallen()).toBe(true);
-			expect((await storeOver(storage).load())?.resources.people).toBe(0);
+			expect(noticeKicker()).toBe('Day 10 / dawn');
+			const saved = await storeOver(storage).load();
+			expect(saved?.resources.people).toBe(0);
+			// The save is the fall's dawn, not a day after it, and the injured driver healed one night only.
+			expect(saved?.day).toBe(10);
+			expect(saved?.drivers[2]).toMatchObject({ status: 'injured', injuredDays: 1 });
 		});
 
 		it('goes to the menu on Escape, with no hotkey beneath the notice firing twice', async () => {

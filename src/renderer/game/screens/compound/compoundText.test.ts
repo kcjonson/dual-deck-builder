@@ -67,6 +67,8 @@ describe('compoundText', () => {
 		expect(restCaption({ day: 9, forecast: forecastNeeds({ resources: { ...NO_RESOURCES, food: 14, water: 11, people: 18 } }) }))
 			.toBe('Ends day 9. The compound eats 5 food and 5 water.');
 		expect(restCaption({ day: 3, forecast: forecastNeeds({ resources: NO_RESOURCES }) })).toBe('Ends day 3.');
+		expect(restCaption({ day: 3, forecast: forecastNeeds({ resources: { ...NO_RESOURCES, people: 100_000 } }) }))
+			.toBe('Ends day 3. The compound eats 25k food and 25k water.');
 	});
 
 	it('reports the night: the day that ended, any shortfall as the log words it, and who is fit again', () => {

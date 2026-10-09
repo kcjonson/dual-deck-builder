@@ -322,7 +322,7 @@ export class CompoundScreen extends Screen {
 	 * on its way does nothing, so the next step starts after it, as the store
 	 * asks. A save that fails says so under Rest (`onSaveFailed`), and a fall
 	 * whose save failed shows no notice: the save still holds the day before,
-	 * and Rest tries again.
+	 * and Rest tries the save again without ending another day.
 	 */
 	private async rest(): Promise<void> {
 		const campaign = this.campaign;
@@ -330,22 +330,26 @@ export class CompoundScreen extends Screen {
 		this.resting = true;
 		const visit = this.visit;
 		if (this.saveError) this.saveError.visible = false;
-		let dayEnd: DayEnd;
-		try {
-			dayEnd = endDay({ campaign });
-		} catch (error) {
-			console.error('CompoundScreen: ending the day failed', error);
-			this.showLine({ line: this.report, text: "The day couldn't end.", color: 'status_crit' });
-			this.resting = false;
-			return;
+		let fell = campaign.resources.people === 0;
+		if (!fell) {
+			let dayEnd: DayEnd;
+			try {
+				dayEnd = endDay({ campaign });
+			} catch (error) {
+				console.error('CompoundScreen: ending the day failed', error);
+				this.showLine({ line: this.report, text: "The day couldn't end.", color: 'status_crit' });
+				this.resting = false;
+				return;
+			}
+			this.refresh();
+			const report = dayEndReport(dayEnd);
+			this.showLine({ line: this.report, text: report.text, color: report.urgent ? 'status_warn' : 'text_dim' });
+			fell = dayEnd.outcome === 'abandoned';
 		}
-		this.refresh();
-		const report = dayEndReport(dayEnd);
-		this.showLine({ line: this.report, text: report.text, color: report.urgent ? 'status_warn' : 'text_dim' });
 		const saved = await this.store.checkpoint(campaign);
 		if (visit !== this.visit) return;
 		this.resting = false;
-		if (saved && dayEnd.outcome === 'abandoned') this.compoundFell();
+		if (saved && fell) this.compoundFell();
 	}
 
 	private showLine({ line, text, color }: { line: Text | null; text: string; color: ColorToken }): void {
@@ -364,7 +368,7 @@ export class CompoundScreen extends Screen {
 		if (this.fallen || !this.campaign) return;
 		const dialog: Dialog = new Dialog({
 			id: 'compound_fallen_dialog',
-			kicker: `Day ${this.campaign.day}`,
+			kicker: dayText(this.campaign.day),
 			title: 'The compound has fallen',
 			size: 'sm',
 			content: new Text({

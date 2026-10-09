@@ -30,7 +30,7 @@ Boxed lines, as the wireframe draws them: a forecast for food and for water from
 
 ### The fallen compound
 
-When `endDay` reports `abandoned` (People reached 0) and the day has been saved, a small modal notice opens (R12.21): "The compound has fallen", one Back to menu button, and whatever closes it (the button, Escape) goes to the menu. A save at 0 People opens it as the screen shows the campaign. If the save fails that night, there's no notice: the save still holds the day before, the failure shows under Rest, and Rest tries again. It's one method, `compoundFell`, so the defeat screen (DDB-305) replaces its body with a navigate. It doesn't end the campaign in the store; that's DDB-305's, with the ending the spec picks by the compound's state.
+When `endDay` reports `abandoned` (People reached 0) and the day has been saved, a small modal notice opens (R12.21): "The compound has fallen", one Back to menu button, and whatever closes it (the button, Escape) goes to the menu. A save at 0 People opens it as the screen shows the campaign. If the save fails that night, there's no notice: the save still holds the day before, the failure shows under Rest, and Rest tries the save again without ending another day. The notice's kicker is the empty compound's dawn, "Day 10 / dawn" after the report's "Day 9 ended." It's one method, `compoundFell`, so the defeat screen (DDB-305) replaces its body with a navigate. It doesn't end the campaign in the store; that's DDB-305's, with the ending the spec picks by the compound's state.
 
 ### Focus and keys
 

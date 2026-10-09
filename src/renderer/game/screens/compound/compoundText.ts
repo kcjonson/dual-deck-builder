@@ -104,7 +104,7 @@ export function injuredLine(driver: DriverRecord): string {
 /** Rest's line: what ending the day costs. */
 export function restCaption({ day, forecast }: { day: number; forecast: NeedsForecast }): string {
 	const eats = UPKEEP_RESOURCES.filter((resource) => forecast[resource].perDay > 0)
-		.map((resource) => `${forecast[resource].perDay} ${resource}`);
+		.map((resource) => `${amountText(forecast[resource].perDay)} ${resource}`);
 	return eats.length > 0 ? `Ends day ${day}. The compound eats ${eats.join(' and ')}.` : `Ends day ${day}.`;
 }
 
