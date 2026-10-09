@@ -1,6 +1,6 @@
 # Campaign state model and its save format (DDB-282)
 
-Date: 2026-10-06, revised 2026-10-08 for escort ids (DDB-403). Code: `src/renderer/game/campaign/`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Terms, Resources, The driver pool, Decks and the locker), [Area Map Generation](../specs/Area%20Map%20Generation.md) (Saving). Follows [compound-and-area-map.md](./compound-and-area-map.md), decisions 1, 3, and 7, and uses [seeded-prng.md](./seeded-prng.md).
+Date: 2026-10-06, revised 2026-10-08 for escort ids (DDB-403). Code: `src/renderer/game/campaign/`, with the strict readers in `src/renderer/game/core/JsonReader.ts`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Terms, Resources, The driver pool, Decks and the locker), [Area Map Generation](../specs/Area%20Map%20Generation.md) (Saving). Follows [compound-and-area-map.md](./compound-and-area-map.md), decisions 1, 3, and 7, and uses [seeded-prng.md](./seeded-prng.md).
 
 ## Context
 

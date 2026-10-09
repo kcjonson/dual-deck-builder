@@ -1,9 +1,9 @@
+import { ReaderRangeError, readArray, readFields, readInteger, readNullable, readObject, readOneOf } from '../core/JsonReader';
 import cardsFile from '../data/cards.json';
 import deckRulesFile from '../data/deck-rules.json';
 import type { DriverArchetype } from '../mechanics/Driver';
 import { CardCounts, readCardType, totalCards } from './CardCounts';
 import { DRIVER_ARCHETYPES } from './DriverRecord';
-import { ReaderRangeError, readArray, readFields, readInteger, readNullable, readObject, readOneOf } from './JsonReader';
 
 /**
  * The rules every deck keeps (Compound and Supply Runs, Decks and the

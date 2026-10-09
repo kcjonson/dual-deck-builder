@@ -1,13 +1,14 @@
 /**
- * Readers for campaign state. Each takes a value that may have come from a
- * parsed save (so `unknown`) and the path it sits at, and returns it typed
- * or throws an error naming that path: a `ReaderTypeError` when it's the
- * wrong kind of value, a `ReaderRangeError` when it's the right kind out of
- * range. The models run the same readers on every change, so state that
+ * Strict readers for JSON: campaign state, and the data files the game
+ * reads. Each takes a value that may have come from a parsed save or file
+ * (so `unknown`) and the path it sits at, and returns it typed or throws an
+ * error naming that path: a `ReaderTypeError` when it's the wrong kind of
+ * value, a `ReaderRangeError` when it's the right kind out of range. The
+ * campaign's models run the same readers on every change, so state that
  * saves always loads.
  */
 
-import { MAX_JSON_DEPTH, type JsonValue } from '../core/Json';
+import { MAX_JSON_DEPTH, type JsonValue } from './Json';
 
 /**
  * A value of the wrong kind, as a reader reports it. A TypeError, so it

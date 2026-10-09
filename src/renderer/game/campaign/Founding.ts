@@ -1,3 +1,4 @@
+import { describeValue, readArray, readInteger, readOneOf, readSeed } from '../core/JsonReader';
 import { Rng } from '../core/Rng';
 import { MapParamSet, MapParams, resolveMapParams } from '../map/MapParams';
 import { readMapPreset } from '../map/MapPresets';
@@ -10,11 +11,8 @@ import { PLAYER_DRIVEN_VEHICLES } from '../mechanics/Team';
 import { Campaign } from './Campaign';
 import { CAMPAIGN_START, CampaignStart, readCampaignStart } from './CampaignStart';
 import { DRIVER_ARCHETYPES } from './DriverRecord';
-import { describeValue, readArray, readInteger, readOneOf } from './JsonReader';
 import { readMapParams } from './MapParamsJson';
 import { EMPTY_MAP } from './MapState';
-
-const UINT32_MAX = 0xffffffff;
 
 /**
  * What campaigns are founded on until the area map generator exists: the
@@ -66,7 +64,7 @@ export interface FoundingOptions {
  * founded with one could never leave.
  */
 export function foundCampaign({ seed, unlockedArchetypes, mapParams, start = CAMPAIGN_START }: FoundingOptions): Campaign {
-	readSeed(seed);
+	readSeed(seed, 'seed');
 	const startingValues = readCampaignStart(start, 'CampaignStart');
 	const params = foundingParams({ seed, set: mapParams });
 	const unlocked = readUnlocked(unlockedArchetypes);
@@ -115,7 +113,7 @@ export function dealStartingPool({ seed, unlockedArchetypes, size }: {
 	unlockedArchetypes: readonly DriverArchetype[];
 	size: number;
 }): DriverArchetype[] {
-	readSeed(seed);
+	readSeed(seed, 'seed');
 	const unlocked = readUnlocked(unlockedArchetypes);
 	readInteger(size, 'size', { min: 1 });
 	if (unlocked.length === 0) throw new RangeError("unlockedArchetypes is empty, so there's nothing to deal");
@@ -144,8 +142,4 @@ function foundingParams({ seed, set }: { seed: number; set?: MapParamSet }): Rea
 	const params = set === undefined ? rollParams(seed) : validateMapParams(resolveMapParams(readMapPreset(set)).params).params;
 	if (params.seed !== seed) throw new RangeError(`mapParams.seed must be the campaign's seed, ${seed}, got ${describeValue(params.seed)}`);
 	return readMapParams(params, 'mapParams');
-}
-
-function readSeed(seed: number): void {
-	readInteger(seed, 'seed', { min: 0, max: UINT32_MAX });
 }

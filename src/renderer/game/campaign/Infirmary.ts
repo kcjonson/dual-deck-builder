@@ -1,8 +1,8 @@
+import { readInteger } from '../core/JsonReader';
 import type { Campaign } from './Campaign';
 import { hasOpenFight } from './CombatBridge';
 import { COMPOUND_RULES, CompoundRules, readCompoundRules } from './CompoundRules';
 import type { DriverRecord, DriverRecordData, DriverStatus } from './DriverRecord';
-import { readInteger } from './JsonReader';
 
 /**
  * The infirmary (DDB-304): a driver who comes home hurt is injured for days

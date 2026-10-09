@@ -1,8 +1,8 @@
+import { readInteger } from '../core/JsonReader';
 import { Campaign, CampaignData, Resources } from './Campaign';
 import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES, UpkeepResource, readCompoundRules, upkeepRecord } from './CompoundRules';
 import { DriverRecord } from './DriverRecord';
 import { healingChanges } from './Infirmary';
-import { readInteger } from './JsonReader';
 import { MapState, readMapState } from './MapState';
 
 /** An amount of each resource the compound eats. */

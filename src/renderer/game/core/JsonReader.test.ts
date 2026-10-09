@@ -1,4 +1,4 @@
-import { MAX_JSON_DEPTH, copyJson } from '../core/Json';
+import { MAX_JSON_DEPTH, copyJson } from './Json';
 import { ReaderRangeError, ReaderTypeError, describeValue, freezeJson, isReaderError, readArray, readFields, readInteger } from './JsonReader';
 
 /** Objects nested `levels` deep, the outermost counting as one. */
