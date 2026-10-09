@@ -1,5 +1,6 @@
 import { Battle } from './Battle';
 import { Card, CardData } from './Card';
+import { Convoy } from './Convoy';
 import { Driver, DriverRole } from './Driver';
 import { EscortType, createEscort } from './Escort';
 import { RoadLane, RoadRow, RoadSlot, compareTieOrder, nearestTo } from './Road';
@@ -127,11 +128,12 @@ describe('Order cards', () => {
 			}
 		});
 
-		test('a copy remembers the escort that brought it', () => {
+		test('a copy remembers the escort that brought it, by the id it has in the convoy', () => {
 			const outrider = createEscort({ type: 'outrider' });
-			const card = new Card({ ...cardData.find(data => data.type === 'run_ahead') as CardData, broughtBy: outrider.id });
+			new Convoy().add(outrider);
+			const card = new Card({ ...cardData.find(data => data.type === 'run_ahead') as CardData, broughtBy: outrider.escort?.id });
 
-			expect(card.copy().broughtBy).toBe(outrider.id);
+			expect(card.copy().broughtBy).toBe('escort-1');
 		});
 	});
 

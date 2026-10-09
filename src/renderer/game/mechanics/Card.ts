@@ -72,7 +72,11 @@ export interface CardData {
 	signatureOf?: EscortType | null;
 	/** An order card that leaves the escort it commands spent */
 	spendsEscort?: boolean;
-	/** Id of the escort that brought this copy into the deck, for a signature card */
+	/**
+	 * For a signature card, the id of the escort that brought this copy into
+	 * the deck: its convoy id (`escort-<n>`, EscortProfile.id), which a save
+	 * keeps, never its Model id
+	 */
 	broughtBy?: string | null;
 }
 

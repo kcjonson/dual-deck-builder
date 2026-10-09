@@ -2288,7 +2288,7 @@ export class Battle extends Model<BattleData> {
 		const convoyEscorts = Battle.convoyEscorts.get(this) ?? [];
 		const lost = convoyEscorts.filter(escort => !escort.isAlive());
 		for (const escort of lost) {
-			const removed = playerDrivers.flatMap(driver => driver.removeCardsBroughtBy(escort.id));
+			const removed = playerDrivers.flatMap(driver => driver.removeCardsBroughtBy(escort.escort?.id ?? null));
 			const copies = removed.length > 0 ? `, and ${removed.map(card => card.name).join(', ')} leaves the deck` : '';
 			this.log('general', `${escort.name} is lost for the run${copies}`, { vehicle: escort.name });
 		}

@@ -26,6 +26,13 @@ export interface EscortDividend {
  * vehicle, as they do for a driven one.
  */
 export interface EscortProfile {
+	/**
+	 * The convoy's id for it, `escort-<n>`, handed out when it joins and kept
+	 * for the whole campaign: what a save and `Card.broughtBy` name it by.
+	 * Null until it joins, and for an escort that's never the convoy's (a set
+	 * piece, a vehicle carrying on unmanned).
+	 */
+	id: string | null;
 	/** Null for a driven vehicle carrying on unmanned: not a hired type */
 	type: EscortType | null;
 	role: EscortRole;
@@ -44,7 +51,7 @@ export interface EscortProfile {
 /**
  * Everything needed to build an escort of one type
  */
-export interface EscortConfig extends Omit<EscortProfile, 'setPiece' | 'type' | 'signatureCard'> {
+export interface EscortConfig extends Omit<EscortProfile, 'id' | 'setPiece' | 'type' | 'signatureCard'> {
 	type: EscortType;
 	signatureCard: string;
 	name: string;
@@ -115,7 +122,8 @@ export const ESCORT_CONFIGS: Record<EscortType, EscortConfig> = {
 };
 
 /**
- * A fresh escort of a type at full armor and structure, not yet on the road
+ * A fresh escort of a type at full armor and structure, not yet on the road,
+ * with no id until it joins a convoy
  */
 export function createEscort({ type, setPiece = false }: { type: EscortType; setPiece?: boolean }): Vehicle {
 	const { name, armor, structure, baseSpeed, preferredSlot, dividend, ...crew } = ESCORT_CONFIGS[type];
@@ -134,6 +142,7 @@ export function createEscort({ type, setPiece = false }: { type: EscortType; set
 		statusEffects: [],
 		spent: false,
 		escort: {
+			id: null,
 			...crew,
 			preferredSlot: { ...preferredSlot },
 			dividend: dividend ? { ...dividend } : null,
@@ -166,6 +175,7 @@ export function convertToEscort(vehicle: Vehicle): void {
 	vehicle.set({
 		spent: true,
 		escort: {
+			id: null,
 			type: null,
 			role: 'gun',
 			...UNMANNED_CREW,
