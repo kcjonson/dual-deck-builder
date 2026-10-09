@@ -1,5 +1,6 @@
+import { describeValue } from '../core/Json';
+import { ReaderRangeError, ReaderTypeError, readInteger, readObject } from '../core/JsonReader';
 import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
-import { ReaderRangeError, ReaderTypeError, describeValue, readInteger, readObject } from './JsonReader';
 
 /**
  * Copies of each card, by card type (`ramming_speed`): a driver's default

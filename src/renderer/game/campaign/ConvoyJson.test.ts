@@ -1,10 +1,10 @@
 import { createTestDriver } from '../ai/__tests__/test-helpers';
+import { ReaderRangeError } from '../core/JsonReader';
 import { Convoy } from '../mechanics/Convoy';
 import { ESCORT_CONFIGS, EscortType, createEscort } from '../mechanics/Escort';
 import { RoadLane, RoadRow } from '../mechanics/Road';
 import { Vehicle } from '../mechanics/Vehicle';
 import { ConvoyJson, EscortJson, convoyToJson, escortToJson, readConvoy } from './ConvoyJson';
-import { ReaderRangeError } from './JsonReader';
 
 /** The convoy's JSON through JSON text and back, as a save does it. */
 const throughText = (convoy: Convoy): unknown => JSON.parse(JSON.stringify(convoyToJson(convoy)));

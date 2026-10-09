@@ -1,5 +1,5 @@
+import { readArray, readFields, readInteger, readObject, readOneOf, readSeed } from '../core/JsonReader';
 import type { Campaign } from './Campaign';
-import { readArray, readFields, readInteger, readObject, readOneOf, readSeed } from './JsonReader';
 
 /**
  * How a campaign ended. The compound falls when its last driver dies, and
