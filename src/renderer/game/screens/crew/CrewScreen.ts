@@ -32,6 +32,7 @@ const TOP_BAR_HEIGHT = 64;
 /** A button doesn't hug its label, so Back has a width that fits its. */
 const BACK_WIDTH = 168;
 const CARDS_FAILED = "The cards couldn't be loaded.";
+const LOOKING = 'Looking for the saved campaign.';
 /** Two driver cards abreast, spaced as minis are, beside the scroller's gutter, inside a flush panel. */
 export const ROSTER_WIDTH = DRIVER_CARD_SIZE.width * 2 + MINI_GRID.gap + MINI_GRID.margin * 2 + SCROLLBAR_GUTTER + DECK_BUILDER.flushEdge * 2;
 
@@ -87,11 +88,15 @@ export class CrewScreen extends Screen {
 	/** The cards once they've loaded, and none before, for the grids and the detail views. */
 	private readonly cards: CardLookup = (type) => this.lookup?.(type) ?? null;
 	private sources: { deck: CardSource; pool: CardSource } | null = null;
+	/** Why there's no campaign, once loading the save has said. */
+	private trouble: string | null = null;
+	private cardsState: 'loading' | 'ready' | 'failed' = 'loading';
 	private chosen: DriverRecord | null = null;
 	private builder: DeckBuilder | null = null;
 	private rosterPanel: Panel | null = null;
 	private rosterPool: FlowWrap | null = null;
 	private rosterLost: FlowWrap | null = null;
+	private rosterGroup: FocusGroup | null = null;
 	private lostCaption: Text | null = null;
 	private header: Stack | null = null;
 	private driverName: Text | null = null;
@@ -173,8 +178,8 @@ export class CrewScreen extends Screen {
 			poolKicker: 'Spare cards, shared by every driver',
 			poolNote: lockerNote(null),
 			cards: this.cards,
-			emptyDeck: 'Looking for the saved campaign.',
-			emptyPool: 'The locker is empty.',
+			emptyDeck: LOOKING,
+			emptyPool: LOOKING,
 		});
 		this.stack.addChild(this.builder);
 
@@ -198,11 +203,14 @@ export class CrewScreen extends Screen {
 		this.campaign = null;
 		this.lookup = null;
 		this.sources = null;
+		this.trouble = null;
+		this.cardsState = 'loading';
 		this.chosen = null;
 		this.builder = null;
 		this.rosterPanel = null;
 		this.rosterPool = null;
 		this.rosterLost = null;
+		this.rosterGroup = null;
 		this.lostCaption = null;
 		this.header = null;
 		this.driverName = null;
@@ -253,9 +261,9 @@ export class CrewScreen extends Screen {
 	private createRoster(): Panel {
 		const panel = new Panel({ id: 'crew_roster_panel', title: rosterTitle(null), flush: true, width: ROSTER_WIDTH, heightMode: 'fill', crossAlign: 'stretch' });
 		const scroll = new ScrollContainer({ id: 'crew_roster_scroll', widthMode: 'fill', heightMode: 'fill' });
-		const group = new FocusGroup({ id: 'crew_roster', orientation: 'horizontal', direction: 'vertical', crossAlign: 'stretch' });
-		const pool = new FlowWrap({ id: 'crew_roster_pool', margin: MINI_GRID.margin, gap: MINI_GRID.gap });
-		const lost = new FlowWrap({ id: 'crew_roster_lost', margin: MINI_GRID.margin, gap: MINI_GRID.gap });
+		const group = new FocusGroup({ id: 'crew_roster', orientation: 'horizontal', direction: 'vertical', crossAlign: 'stretch', visible: false });
+		const pool = new FlowWrap({ id: 'crew_roster_pool', margin: MINI_GRID.margin, gap: MINI_GRID.gap, visible: false });
+		const lost = new FlowWrap({ id: 'crew_roster_lost', margin: MINI_GRID.margin, gap: MINI_GRID.gap, visible: false });
 		this.lostCaption = new Text({
 			id: 'crew_roster_lost_caption',
 			text: 'Lost on runs',
@@ -269,6 +277,7 @@ export class CrewScreen extends Screen {
 		group.addChild(this.lostCaption);
 		group.addChild(lost);
 		scroll.addChild(group);
+		this.rosterGroup = group;
 		panel.addChild(scroll);
 		inspectOnContextMenu(group);
 		this.rosterPanel = panel;
@@ -325,29 +334,36 @@ export class CrewScreen extends Screen {
 		return foot;
 	}
 
-	/** The campaign, handed over or loaded as Continue would, and the cards, both started at once. */
+	/**
+	 * The cards, and the campaign: handed over, and shown at once, or loaded
+	 * as Continue would. Both start now, the cards first so the screen
+	 * capture's asset gate sees them in flight; the roster and the header
+	 * show as soon as there's a campaign, and the deck and locker fill in
+	 * once the cards are there.
+	 */
 	private async load(handed: Campaign | null): Promise<void> {
 		const visit = this.visit;
-		const [found, cards] = await Promise.all([
-			handed ? Promise.resolve({ campaign: handed, trouble: null }) : this.loadSave(),
-			this.loadCards().then(
-				(lookup) => lookup,
-				(error: unknown) => {
-					console.error('CrewScreen: loading the cards failed', error);
-					return null;
-				},
-			),
-		]);
-		const builder = this.builder;
-		if (visit !== this.visit || !builder) return;
-		this.lookup = cards;
-		if (!found.campaign) {
-			builder.emptyDeck = found.trouble ?? 'No campaign in progress.';
-			return;
+		const cards = this.loadCards().then(
+			(lookup) => lookup,
+			(error: unknown) => {
+				console.error('CrewScreen: loading the cards failed', error);
+				return null;
+			},
+		);
+		if (handed) {
+			this.show(handed);
+		} else {
+			const found = await this.loadSave();
+			if (visit !== this.visit) return;
+			if (found.campaign) this.show(found.campaign);
+			else this.trouble = found.trouble;
 		}
-		this.show(found.campaign);
-		// The roster still shows, and Back still hands the campaign back.
-		if (!cards) builder.emptyDeck = builder.emptyPool = CARDS_FAILED;
+		const lookup = await cards;
+		if (visit !== this.visit) return;
+		this.lookup = lookup;
+		this.cardsState = lookup ? 'ready' : 'failed';
+		this.sayEmpty();
+		this.refresh();
 	}
 
 	private async loadSave(): Promise<{ campaign: Campaign | null; trouble: string | null }> {
@@ -365,9 +381,30 @@ export class CrewScreen extends Screen {
 		this.chosen = campaign.drivers.find((driver) => isAtCompound(driver)) ?? null;
 		const options = { campaign, selected: () => this.chosen, changed: () => this.checkpoint() };
 		this.sources = { deck: crewDeckSource(options), pool: crewLockerSource(options) };
-		if (this.builder) this.builder.emptyDeck = this.chosen ? 'No cards in this deck.' : 'Nobody is at the compound.';
 		this.unsubscribe.push(campaign.on('change', () => this.refresh()));
 		this.refresh();
+	}
+
+	/**
+	 * What the deck and the locker say while they're empty, by what the
+	 * screen knows so far, and whether the cost curve shows: only under a
+	 * chosen driver's deck once the cards are there.
+	 */
+	private sayEmpty(): void {
+		const builder = this.builder;
+		if (!builder) return;
+		let deck: string;
+		let pool: string;
+		if (!this.campaign) deck = pool = this.trouble ?? LOOKING;
+		else if (this.cardsState === 'loading') deck = pool = 'Loading the cards.';
+		else if (this.cardsState === 'failed') deck = pool = CARDS_FAILED;
+		else {
+			deck = this.chosen ? 'No cards in this deck.' : 'Nobody is at the compound.';
+			pool = 'The locker is empty.';
+		}
+		builder.emptyDeck = deck;
+		builder.emptyPool = pool;
+		builder.footVisible = this.campaign !== null && this.chosen !== null && this.cardsState === 'ready';
 	}
 
 	/** Builds this driver's default deck now. */
@@ -383,6 +420,7 @@ export class CrewScreen extends Screen {
 		if (!campaign) return;
 		this.refreshRoster(campaign);
 		this.refreshHeader(campaign);
+		this.sayEmpty();
 		if (this.builder) {
 			this.builder.poolNote = lockerNote(campaign.resources.scrap);
 			this.builder.refresh();
@@ -398,9 +436,17 @@ export class CrewScreen extends Screen {
 			create: (driver: DriverRecord) => this.driverCard(campaign, driver),
 			update: (card: DriverCard, driver: DriverRecord) => this.showDriver({ card, campaign, driver }),
 		};
-		this.rosterPool?.reconcileChildren(here, options);
-		this.rosterLost?.reconcileChildren(lost, options);
+		// An empty row is hidden rather than drawn as a box with no height.
+		if (this.rosterPool) {
+			this.rosterPool.reconcileChildren(here, options);
+			this.rosterPool.visible = here.length > 0;
+		}
+		if (this.rosterLost) {
+			this.rosterLost.reconcileChildren(lost, options);
+			this.rosterLost.visible = lost.length > 0;
+		}
 		if (this.lostCaption) this.lostCaption.visible = lost.length > 0;
+		if (this.rosterGroup) this.rosterGroup.visible = campaign.drivers.length > 0;
 	}
 
 	/** A driver's roster card: those at the compound pick whose deck is built; the lost are there to read. */

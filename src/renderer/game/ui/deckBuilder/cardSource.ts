@@ -1,5 +1,3 @@
-import type { CardBlocker } from '../../campaign/Campaign';
-import { archetypeTitle } from '../../campaign/DriverRecord';
 import type { Card as GameCard } from '../../mechanics/Card';
 import type { MiniCardState } from '../Card';
 
@@ -13,19 +11,38 @@ export interface CardControl {
 	label: string;
 	/** A quiet control, drawn without a box at rest (R12.7's ghost): Scrap beside Add. */
 	ghost?: boolean;
-	/** Why it's disabled, shown under the entry's controls; null while it's live. */
+	/**
+	 * It destroys something, so it takes two presses: the first arms it,
+	 * reading "Confirm" as a warning in the same place, and the second on
+	 * the same card runs it. Scrap.
+	 */
+	destructive?: boolean;
+	/** Why it's disabled, shown under the entry's controls; null while it's live, unless `disabled` says otherwise. */
 	reason: string | null;
+	/** Disabled with no line of its own under the card, beside a control whose reason says it all. */
+	disabled?: boolean;
 	/** What pressing it does. The screen refreshes from the change it makes. */
 	run: () => void;
 }
 
 /** A card's copies in one place, shown as a mini card stacked to its count, with the controls under it. */
 export interface CardEntry {
+	/**
+	 * Tells entries apart, in ids and when a grid reconciles; the card type
+	 * when left out. Customize shows a card's own copies and its borrowed ones
+	 * as two stacks of one card type, so it gives each a key of its own.
+	 */
+	key?: string;
 	cardType: string;
 	copies: number;
 	/** The mini's state against the deck being built (Game Flow 7.0); none when left out. */
 	state?: MiniCardState | null;
 	controls: readonly CardControl[];
+}
+
+/** An entry's key: its own, or its card type. */
+export function entryKey(entry: CardEntry): string {
+	return entry.key ?? entry.cardType;
 }
 
 /**
@@ -36,35 +53,6 @@ export interface CardEntry {
  */
 export interface CardSource {
 	entries(): readonly CardEntry[];
-}
-
-/**
- * Why a card can't move, as a few words under the control it disables,
- * worded from the rules' own reason codes (`getCardMoveBlocker`,
- * `getScrapBlocker`) rather than their console messages, which name the
- * driver and the card in full. Each fits on one line under a mini.
- */
-export function cardBlockerReason(blocker: CardBlocker): string {
-	switch (blocker.reason) {
-		case 'driver_away':
-			return blocker.place.status === 'dead' ? 'Killed on a run' : 'Missing on a run';
-		case 'on_run':
-			return 'Out on a run';
-		case 'too_few':
-			return 'None left';
-		case 'already_borrowed':
-			return `${blocker.by.driver.name} has it`;
-		case 'card_locked':
-			return 'Locked escort card';
-		case 'too_little_scrap':
-			return `Needs ${blocker.needed} scrap`;
-		case 'other_archetype':
-			return `${archetypeTitle(blocker.archetype)} only`;
-		case 'deck_full':
-			return 'Deck full';
-		case 'deck_at_minimum':
-			return 'Deck at minimum';
-	}
 }
 
 /** The kinds the locker filters by. */

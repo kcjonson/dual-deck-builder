@@ -6,14 +6,18 @@ import { createTestContext } from '../../../engine/components/testing';
 import type { MountContext } from '../../../engine/components/MountContext';
 import type { Text } from '../../../engine/components/Text';
 import type { Button } from '../../../engine/ui/Button';
-import { click, key, send } from '../../../engine/services/testing';
+import { advance, click, key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
 import { tokens } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Campaign } from '../../campaign/Campaign';
+import type { CardBlocker } from '../../campaign/Campaign';
+import { cardBlockerReason } from '../../campaign/cardBlockerText';
 import type { CampaignStore } from '../../campaign/CampaignStore';
+import { DRIVER_ARCHETYPES, DriverRecord } from '../../campaign/DriverRecord';
+import type { RunDeck } from '../../campaign/RunDeck';
 import { MemorySaveStorage } from '../../campaign/SaveStorage';
 import {
 	FaultyStorage,
@@ -22,6 +26,7 @@ import {
 	damagedText,
 	fixtureText,
 	fullLockerCampaign,
+	newCampaign,
 	quotaError,
 	saveText,
 	storageWith,
@@ -30,10 +35,11 @@ import {
 import { Card as GameCard } from '../../mechanics/Card';
 import { CardSize } from '../../ui/Card';
 import type { DriverCard } from '../../ui/DriverCard';
-import type { CardLookup } from '../../ui/DriverDetailView';
+import { CardLookup, deckOrder } from '../../ui/DriverDetailView';
 import { cardData, lookup } from '../../ui/testing';
 import { CARD_ENTRY } from '../../ui/deckBuilder/CardEntryGrid';
 import type { CardEntryGrid } from '../../ui/deckBuilder/CardEntryGrid';
+import { NO_DRIVER } from './crewSources';
 import { CrewScreen, ROSTER_WIDTH } from './CrewScreen';
 
 jest.mock('../../core/ScreenManager', () => ({
@@ -195,7 +201,9 @@ describe('CrewScreen', () => {
 			expect(campaign.locker.covering_fire).toBe(1);
 		});
 
-		it('scraps a locker copy for 5 scrap, and saves it', async () => {
+		it('scraps a locker copy for 5 scrap on a second press, and saves it', async () => {
+			press(control('pool', 'headshot', 'scrap'));
+			expect(entries('pool')).toContainEqual(['headshot', 2]);
 			press(control('pool', 'headshot', 'scrap'));
 			expect(entries('pool')).toContainEqual(['headshot', 1]);
 			expect(text('crew_pool_note')).toContain('the compound has 40.');
@@ -313,6 +321,48 @@ describe('CrewScreen', () => {
 			expect(grid('pool').entryFor('ram')?.card.miniState).toBeNull();
 		});
 
+		it('arms Scrap on the first press, reading Confirm as a warning, and disarms it on blur, on leaving, after 3 s, or on another change', () => {
+			const scrap = control('pool', 'headshot', 'scrap');
+			const entry = grid('pool').entryFor('headshot');
+			press(scrap);
+			expect([scrap.label, scrap.tone, entry?.armedControl]).toEqual(['Confirm', 'warn', 'scrap']);
+			context.focus.focus(control('pool', 'headshot', 'add'));
+			expect([scrap.label, scrap.tone, entry?.armedControl]).toEqual(['Scrap', 'default', null]);
+
+			press(scrap);
+			scrap.onPointerLeave?.({} as never);
+			expect(entry?.armedControl).toBeNull();
+
+			press(scrap);
+			advance(context, CARD_ENTRY.armedMs - 100);
+			expect(entry?.armedControl).toBe('scrap');
+			advance(context, 200);
+			expect(entry?.armedControl).toBeNull();
+
+			press(scrap);
+			const campaign = screen.shown as Campaign;
+			campaign.moveCards({ cardType: 'emp_blast', from: 'locker', to: campaign.drivers[0] });
+			expect(context.focus.focused).toBe(scrap);
+			expect(entry?.armedControl).toBeNull();
+			press(scrap);
+			expect(entry?.armedControl).toBe('scrap');
+			expect(entries('pool')).toContainEqual(['headshot', 2]);
+		});
+
+		it('scraps only the card pressed twice by keyboard: focus goes to the next card itself when a scrapped card goes', () => {
+			const order = entries('pool').map(([cardType]) => cardType);
+			const next = order[order.indexOf('medical_kit') + 1];
+			press(control('pool', 'medical_kit', 'scrap'));
+			send(context, [key('Enter')]);
+			context.frame.layout();
+			expect(grid('pool').entryFor('medical_kit')).toBeNull();
+			expect(context.focus.focused?.id).toBe(`crew_pool_grid_${next}_card`);
+			const copies = grid('pool').entryFor(next)?.card.copies;
+			send(context, [key('Enter'), key('Enter')]);
+			expect(grid('pool').entryFor(next)?.card.copies).toBe(copies);
+			expect(screen.shown?.resources.scrap).toBe(40);
+		});
+
 		it('goes back to the compound with the campaign, focus restored on the Bunkhouse, on Back or Escape', () => {
 			const campaign = screen.shown;
 			find<Button>('crew_back_button').onClick?.({} as never);
@@ -363,13 +413,20 @@ describe('CrewScreen', () => {
 		expect(text('crew_pool_empty')).toBe("The cards couldn't be loaded.");
 	});
 
-	it('shows the campaign it is handed without reading the save', async () => {
+	it('shows the campaign it is handed at once, without reading the save, and Back hands it back before the cards are in', async () => {
 		const campaign = atHomeCampaign();
 		store = storeOver(new MemorySaveStorage());
-		screen = new CrewScreen({ store, cards: async () => lookup });
+		let release: (cards: CardLookup) => void = () => undefined;
+		screen = new CrewScreen({ store, cards: () => new Promise((resolve) => { release = resolve; }) });
 		screen.mount(context, { campaign });
-		await screen.campaignLoaded;
 		expect(screen.shown).toBe(campaign);
+		expect(screen.selected?.id).toBe('driver-1');
+		expect([text('crew_deck_empty'), text('crew_pool_empty')]).toEqual(['Loading the cards.', 'Loading the cards.']);
+		find<Button>('crew_back_button').onClick?.({} as never);
+		expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign }, { restoreFocus: true });
+		release(lookup);
+		await screen.campaignLoaded;
+		expect(entries('deck')).toHaveLength(5);
 	});
 
 	it('says why there is no deck when there is no save, or it is damaged', async () => {
@@ -459,21 +516,178 @@ describe('CrewScreen', () => {
 			expect(down).toEqual([`crew_pool_grid_${second}_add`, `crew_pool_grid_${fourth}_card`]);
 		});
 
-		it('fits every reason on one line under its card', async () => {
+		it('goes from a card down to its first live control and back up, in the deck and the locker (R9.26)', async () => {
+			await openMeasured({ width: 1440, height: 882 });
+			const [locker] = grid('pool').views;
+			context.focus.focus(locker.card);
+			send(context, [key('ArrowDown')]);
+			expect(context.focus.focused).toBe(locker.control('add'));
+			context.focus.focus(locker.control('scrap'));
+			send(context, [key('ArrowUp')]);
+			expect(context.focus.focused).toBe(locker.card);
+			const [deck] = grid('deck').views;
+			context.focus.focus(deck.card);
+			send(context, [key('ArrowDown')]);
+			expect(context.focus.focused).toBe(deck.control('remove'));
+			send(context, [key('ArrowUp')]);
+			expect(context.focus.focused).toBe(deck.card);
+		});
+
+		it('goes from a card down to Scrap when Add is disabled', async () => {
+			await openMeasured({ width: 1440, height: 882 }, { text: saveText({ campaign: fullLockerCampaign().toSaveText() }) });
+			const [locker] = grid('pool').views;
+			expect(locker.control('add')?.enabled).toBe(false);
+			context.focus.focus(locker.card);
+			send(context, [key('ArrowDown')]);
+			expect(context.focus.focused).toBe(locker.control('scrap'));
+		});
+
+		it('scraps only the card under two clicks: the card that slides in under the pointer is only armed by a third', async () => {
+			await openMeasured({ width: 1440, height: 882 });
+			const centre = (button: Button): { x: number; y: number } => {
+				const { x, y, width, height } = button.screenBounds;
+				return { x: x + width / 2, y: y + height / 2 };
+			};
+			const order = entries('pool').map(([cardType]) => cardType);
+			const next = order[order.indexOf('medical_kit') + 1];
+			const at = centre(control('pool', 'medical_kit', 'scrap'));
+			click(context, at.x, at.y);
+			context.frame.layout();
+			expect(grid('pool').entryFor('medical_kit')?.armedControl).toBe('scrap');
+			click(context, at.x, at.y);
+			context.frame.layout();
+			expect(grid('pool').entryFor('medical_kit')).toBeNull();
+			expect(centre(control('pool', next, 'scrap'))).toEqual(at);
+			const copies = grid('pool').entryFor(next)?.card.copies;
+			click(context, at.x, at.y);
+			context.frame.layout();
+			expect(grid('pool').entryFor(next)?.armedControl).toBe('scrap');
+			expect(grid('pool').entryFor(next)?.card.copies).toBe(copies);
+			expect(screen.shown?.resources.scrap).toBe(40);
+		});
+
+		it('hands focus to the filter when the locker empties under it, and from an emptied deck to the locker', async () => {
+			await openMeasured({ width: 1440, height: 882 }, {
+				text: atHomeText((campaign) => {
+					campaign.set({ locker: { ...campaign.locker, armor_plating: 1 } });
+				}),
+			});
+			const builder = screen.deckBuilder;
+			if (!builder) throw new Error('no deck builder');
+			builder.filter = 'defense';
+			context.frame.layout();
+			expect(entries('pool')).toEqual([['armor_plating', 1]]);
+			press(control('pool', 'armor_plating', 'add'));
+			expect(grid('pool').visible).toBe(false);
+			const focused = context.focus.focused;
+			expect([focused?.parent?.id, (focused as { value?: unknown } | null)?.value]).toEqual(['crew_pool_filter', 'defense']);
+
+			// A deck can't empty past its minimum through Remove, so the fallback is asked of the grid directly.
+			builder.filter = 'all';
+			const campaign = screen.shown as Campaign;
+			context.focus.focus(grid('deck').views[0].card);
+			campaign.drivers[0].set({ defaultDeck: {} });
+			builder.refresh();
+			expect(context.focus.focused).toBe(grid('pool').views[0].card);
+		});
+
+		it('fits every reason the rules can give on one line under its card', async () => {
 			await openMeasured({ width: 1024, height: 600 });
-			const reasons = ['Deck full', 'Deck at minimum', 'Out on a run', 'Killed on a run', 'Missing on a run', 'None left', 'Road Warrior only', 'Interceptor only', 'Mechanic only', 'Raider only'];
-			const line = grid('pool').views[0];
+			const driver = new DriverRecord({ id: 'driver-9', archetype: 'road_warrior', name: 'Road Warrior 9' });
+			const runDeck = { driver } as unknown as RunDeck;
+			const blockers: Record<CardBlocker['reason'], CardBlocker[]> = {
+				driver_away: (['dead', 'missing'] as const).map((status) => ({ reason: 'driver_away', place: new DriverRecord({ id: 'driver-8', archetype: 'raider', name: 'Raider 8', status, hitpoints: status === 'dead' ? 0 : 10, defaultDeck: {} }) })),
+				on_run: [{ reason: 'on_run', place: driver }],
+				too_few: [{ reason: 'too_few', place: 'locker', held: 0 }],
+				already_borrowed: [{ reason: 'already_borrowed', place: 'locker', held: 0, by: runDeck }],
+				card_locked: [{ reason: 'card_locked', place: runDeck, broughtBy: 'escort-12' }],
+				too_little_scrap: [{ reason: 'too_little_scrap', needed: 9999, held: 0 }],
+				other_archetype: DRIVER_ARCHETYPES.map((archetype) => ({ reason: 'other_archetype', archetype, place: driver })),
+				deck_full: [{ reason: 'deck_full', max: 20, place: driver }],
+				deck_at_minimum: [{ reason: 'deck_at_minimum', min: 8, place: driver }],
+			};
+			const reasons = [...Object.values(blockers).flat().map(cardBlockerReason), NO_DRIVER];
 			for (const words of reasons) {
 				const measured = context.draw.measureText({ text: words, font: 'body', size: CARD_ENTRY.reason.size });
-				expect([words, measured.width <= line.width]).toEqual([words, true]);
+				expect([words, measured.width <= CARD_ENTRY.width]).toEqual([words, true]);
 			}
+			const confirm = context.draw.measureText({ text: CARD_ENTRY.confirm, font: 'display', size: tokens.control.control_fs_sm });
+			const scrap = grid('pool').views[0].control('scrap') as Button;
+			expect(confirm.width).toBeLessThanOrEqual(scrap.width - CARD_ENTRY.controls.inset * 2);
+		});
+	});
+
+	describe('on a first visit, and with nothing to show', () => {
+		const sizes = [{ width: 1440, height: 882 }, { width: 1024, height: 600 }];
+
+		/** A campaign as New Campaign founds it: two drivers, both home, and an empty locker. */
+		function founded(): Campaign {
+			const campaign = newCampaign();
+			campaign.set({ locker: {} });
+			return campaign;
+		}
+
+		/** The campaign at home as save text, its save changed first: a pool only grows, so fewer drivers is a save's. */
+		function saveWith(change: (json: { drivers: { status: string }[] }) => void): string {
+			const json = JSON.parse(atHomeCampaign().toSaveText());
+			change(json);
+			return saveText({ campaign: JSON.stringify(json) });
+		}
+
+		function lintAt(size: { width: number; height: number }): unknown[] {
+			context.frame.layout();
+			return layoutLint(treeSnapshot([screen.root], size)).violations;
+		}
+
+		it.each(sizes)('lays out a new campaign with no lint at $width x $height', async (size) => {
+			await openMeasured(size, { text: saveText({ campaign: founded().toSaveText() }) });
+			expect(entries('pool')).toEqual([]);
+			expect(text('crew_pool_empty')).toBe('The locker is empty.');
+			expect(find<{ visible: boolean }>('crew_roster_lost').visible).toBe(false);
+			expect(lintAt(size)).toEqual([]);
+		});
+
+		it.each(sizes)('lays out a single driver with no lint at $width x $height', async (size) => {
+			await openMeasured(size, { text: saveWith((json) => { json.drivers = json.drivers.slice(0, 1); }) });
+			expect(find<{ children: readonly unknown[] }>('crew_roster_pool').children).toHaveLength(1);
+			expect(lintAt(size)).toEqual([]);
+		});
+
+		it.each(sizes)('lays out with nobody at the compound with no lint at $width x $height', async (size) => {
+			await openMeasured(size, { text: saveWith((json) => { json.drivers = json.drivers.filter((driver) => driver.status === 'dead' || driver.status === 'missing'); }) });
+			expect(screen.selected).toBeNull();
+			expect(text('crew_deck_empty')).toBe('Nobody is at the compound.');
+			expect(reason('pool', 'headshot')).toBe(NO_DRIVER);
+			expect(find<{ visible: boolean }>('crew_roster_pool').visible).toBe(false);
+			expect(lintAt(size)).toEqual([]);
+		});
+
+		it.each(sizes)('lays out with no save with no lint at $width x $height', async (size) => {
+			viewport.logical = size;
+			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
+			screen = new CrewScreen({ store: storeOver(new MemorySaveStorage()), cards: async () => lookup });
+			screen.mount(context);
+			await screen.campaignLoaded;
+			expect([text('crew_deck_empty'), text('crew_pool_empty')]).toEqual(['No campaign in progress.', 'No campaign in progress.']);
+			expect(find<{ visible: boolean }>('crew_deck_foot').visible).toBe(false);
+			expect(lintAt(size)).toEqual([]);
+		});
+
+		it.each(sizes)("lays out with the cards failing to load with no lint at $width x $height", async (size) => {
+			const quiet = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+			viewport.logical = size;
+			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
+			screen = new CrewScreen({ store: storeOver(storageWith(atHomeText())), cards: () => Promise.reject(new Error('offline')) });
+			screen.mount(context);
+			await screen.campaignLoaded;
+			quiet.mockRestore();
+			expect(find<{ visible: boolean }>('crew_deck_foot').visible).toBe(false);
+			expect(lintAt(size)).toEqual([]);
 		});
 	});
 });
 
 /** Cheapest first, then by name, as the screen orders cards. */
 function order(a: string, b: string): number {
-	const first = lookup(a) as GameCard;
-	const second = lookup(b) as GameCard;
-	return first.cost - second.cost || first.displayName.localeCompare(second.displayName);
+	return deckOrder(lookup(a) as GameCard, lookup(b) as GameCard);
 }

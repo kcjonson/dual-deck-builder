@@ -23,10 +23,10 @@ describe('compoundText', () => {
 		expect(BUILDINGS.map((building) => building.name)).toEqual(['Bunkhouse', 'Radio mast', 'Infirmary', 'Garage', 'Map room', 'Stores']);
 		const [bunkhouse, ...rest] = BUILDINGS;
 		expect(bunkhouse.reason).toBeNull();
-		expect(bunkhouse.action).toEqual(expect.any(Function));
+		expect(bunkhouse.screen).toBe('crewScreen');
 		for (const building of rest) {
 			expect(building.reason).toMatch(/\.$/);
-			expect(building.action).toBeUndefined();
+			expect(building.screen).toBeUndefined();
 		}
 	});
 

@@ -5,11 +5,10 @@ import { Panel } from '../../../engine/ui/Panel';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { SegmentedControl } from '../../../engine/ui/SegmentedControl';
 import { tokens } from '../../../engine/theme/tokens';
-import type { Card as GameCard } from '../../mechanics/Card';
 import { inspectOnContextMenu } from '../cardInspect';
 import { CardLookup, deckOrder } from '../DriverDetailView';
-import { CardEntryGrid } from './CardEntryGrid';
-import { CARD_FILTERS, CardEntry, CardFilter, CardSource, passesFilter } from './cardSource';
+import { CardEntryGrid, CardEntryItem } from './CardEntryGrid';
+import { CARD_FILTERS, CardEntry, CardFilter, CardSource, entryKey, passesFilter } from './cardSource';
 
 const { space, fontSize } = tokens;
 
@@ -42,8 +41,8 @@ export interface DeckBuilderOptions extends Omit<StackOptions, 'id' | 'direction
 	poolTitle: string;
 	/** The small line over the pool's title. */
 	poolKicker: string;
-	/** The line under the pool: what lands there, and what scrapping pays. */
-	poolNote: string;
+	/** The line under the pool, if any: what lands there, and what scrapping pays. */
+	poolNote?: string;
 	/** Where card types are looked up; a type it doesn't know is left out. */
 	cards: CardLookup;
 	/** Said in place of an empty deck. */
@@ -81,9 +80,13 @@ export class DeckBuilder extends Stack {
 	private readonly deckEmpty: Text;
 	private readonly poolEmpty: Text;
 	private readonly note: Text;
+	private readonly noteSection: Stack;
+	private readonly foot: Stack | null;
 	private emptyDeckText: string;
 	private emptyPoolText: string;
 	private filterValue: CardFilter = 'all';
+	/** The pool holds cards, and the filter shows none of them. */
+	private filteredOut = false;
 
 	constructor({
 		id,
@@ -95,7 +98,7 @@ export class DeckBuilder extends Stack {
 		pool,
 		poolTitle,
 		poolKicker,
-		poolNote,
+		poolNote = '',
 		cards,
 		emptyDeck,
 		emptyPool,
@@ -108,8 +111,12 @@ export class DeckBuilder extends Stack {
 		this.emptyDeckText = emptyDeck;
 		this.emptyPoolText = emptyPool;
 
-		this.deckGrid = new CardEntryGrid({ id: `${id}_deck_grid`, cards });
-		this.poolGrid = new CardEntryGrid({ id: `${id}_pool_grid`, cards });
+		// A grid that empties under focus hands it on: the locker to its filter, the deck to the locker or the filter.
+		this.poolGrid = new CardEntryGrid({ id: `${id}_pool_grid`, fallback: () => this.selectedSegment() });
+		this.deckGrid = new CardEntryGrid({ id: `${id}_deck_grid`, fallback: () => this.poolGrid.views[0]?.card ?? this.selectedSegment() });
+		// Hidden until they hold something, so an empty grid is never a box with no height.
+		this.poolGrid.visible = false;
+		this.deckGrid.visible = false;
 		this.deckEmpty = caption({ id: `${id}_deck_empty`, text: emptyDeck });
 		this.poolEmpty = caption({ id: `${id}_pool_empty`, text: emptyPool });
 		this.deckScroll = gridScroller({ id: `${id}_deck_scroll`, grid: this.deckGrid, empty: this.deckEmpty });
@@ -133,7 +140,8 @@ export class DeckBuilder extends Stack {
 			})],
 		}));
 		deckPanel.addChild(this.deckScroll);
-		if (deckFoot) deckPanel.addChild(insetSection({ id: `${id}_deck_foot`, edge: 'bottom', children: [deckFoot] }));
+		this.foot = deckFoot ? insetSection({ id: `${id}_deck_foot`, edge: 'bottom', children: [deckFoot] }) : null;
+		if (this.foot) deckPanel.addChild(this.foot);
 		this.addChild(deckPanel);
 
 		const poolPanel = new Panel({
@@ -158,7 +166,9 @@ export class DeckBuilder extends Stack {
 		poolPanel.addChild(insetSection({ id: `${id}_pool_head`, edge: 'top', children: [this.filterControl] }));
 		poolPanel.addChild(this.poolScroll);
 		this.note = caption({ id: `${id}_pool_note`, text: poolNote });
-		poolPanel.addChild(insetSection({ id: `${id}_pool_foot`, edge: 'bottom', children: [this.note] }));
+		this.noteSection = insetSection({ id: `${id}_pool_foot`, edge: 'bottom', children: [this.note] });
+		this.noteSection.visible = poolNote !== '';
+		poolPanel.addChild(this.noteSection);
 		this.addChild(poolPanel);
 	}
 
@@ -181,6 +191,16 @@ export class DeckBuilder extends Stack {
 
 	public set poolNote(text: string) {
 		this.note.text = text;
+		this.noteSection.visible = text !== '';
+	}
+
+	/** Whether the deck's foot shows; a screen hides it when there's nothing true to put there. */
+	public get footVisible(): boolean {
+		return this.foot?.visible ?? false;
+	}
+
+	public set footVisible(visible: boolean) {
+		if (this.foot) this.foot.visible = visible;
 	}
 
 	/** What an empty deck says: why there's nothing to build, when there's no driver or no campaign. */
@@ -200,7 +220,7 @@ export class DeckBuilder extends Stack {
 
 	public set emptyPool(text: string) {
 		this.emptyPoolText = text;
-		this.showPool();
+		this.sayPoolEmpty();
 	}
 
 	/** Reads both sources again and shows what they hold. */
@@ -209,28 +229,48 @@ export class DeckBuilder extends Stack {
 		this.showPool();
 	}
 
+	/** A grid with nothing in it is hidden rather than drawn as an empty box, and what it says shows instead. */
 	private showDeck(): void {
-		this.deckGrid.show(this.ordered(this.deck.entries()).map(({ entry }) => entry));
-		this.deckEmpty.visible = this.deckGrid.views.length === 0;
+		this.deckGrid.show(this.ordered(this.deck.entries()));
+		const empty = this.deckGrid.views.length === 0;
+		this.deckGrid.visible = !empty;
+		this.deckEmpty.visible = empty;
 	}
 
 	private showPool(): void {
 		const all = this.ordered(this.pool.entries());
 		const shown = all.filter(({ card }) => passesFilter(card, this.filterValue));
-		this.poolGrid.show(shown.map(({ entry }) => entry));
-		this.poolEmpty.visible = this.poolGrid.views.length === 0;
-		const label = CARD_FILTERS.find((option) => option.value === this.filterValue)?.label ?? '';
-		this.poolEmpty.text = all.length > 0 && shown.length === 0 ? `No ${label.toLowerCase()} cards here.` : this.emptyPoolText;
+		this.poolGrid.show(shown);
+		const empty = this.poolGrid.views.length === 0;
+		this.poolGrid.visible = !empty;
+		this.poolEmpty.visible = empty;
+		this.filteredOut = all.length > 0 && shown.length === 0;
+		this.sayPoolEmpty();
 	}
 
-	/** The entries whose cards the lookup knows, with their cards, cheapest first and then by name (`deckOrder`). */
-	private ordered(entries: readonly CardEntry[]): { entry: CardEntry; card: GameCard }[] {
+	/** An empty pool says the filter left nothing, or what the screen says when there's nothing at all. */
+	private sayPoolEmpty(): void {
+		const label = CARD_FILTERS.find((option) => option.value === this.filterValue)?.label ?? '';
+		this.poolEmpty.text = this.filteredOut ? `No ${label.toLowerCase()} cards here.` : this.emptyPoolText;
+	}
+
+	/**
+	 * The entries whose cards the lookup knows, with their cards, cheapest
+	 * first and then by name (`deckOrder`), and two stacks of one card by key.
+	 */
+	private ordered(entries: readonly CardEntry[]): CardEntryItem[] {
 		return entries
 			.flatMap((entry) => {
 				const card = this.cards(entry.cardType);
 				return card ? [{ entry, card }] : [];
 			})
-			.sort((a, b) => deckOrder(a.card, b.card));
+			.sort((a, b) => deckOrder(a.card, b.card) || entryKey(a.entry).localeCompare(entryKey(b.entry)));
+	}
+
+	/** The filter's selected segment, where focus goes when the locker empties under it. */
+	private selectedSegment(): Component | null {
+		const control = this.filterControl;
+		return control.items.find((segment) => segment.value === control.value) ?? null;
 	}
 }
 

@@ -122,7 +122,7 @@ describe('CompoundScreen', () => {
 				expect(text(`compound_building_${building.id}_reason`)).toBe(building.reason);
 			}
 			expect(find<Button>('compound_building_bunkhouse_button').enabled).toBe(true);
-			expect(screen.root.findById('compound_building_bunkhouse_reason')).toBeNull();
+			expect(find<Text>('compound_building_bunkhouse_reason').visible).toBe(false);
 			// The Map room's tile carries the Area map's reason.
 			expect(find<Button>('compound_area_map_button').enabled).toBe(false);
 			expect(text('compound_building_map_room_reason')).toBe("The area map isn't built yet.");
@@ -155,6 +155,15 @@ describe('CompoundScreen', () => {
 		it('opens the Crew screen from the Bunkhouse, handing it the campaign', () => {
 			context.focus.focus(find('compound_building_bunkhouse_button'));
 			send(context, [key('Enter')]);
+			expect(navigate).toHaveBeenLastCalledWith('crewScreen', { campaign: screen.shown });
+		});
+
+		it('keeps the Bunkhouse shut while a Rest is being saved', async () => {
+			find<Button>('compound_rest_button').onClick?.({} as never);
+			find<Button>('compound_building_bunkhouse_button').onClick?.({} as never);
+			expect(navigate).not.toHaveBeenCalled();
+			await flush();
+			find<Button>('compound_building_bunkhouse_button').onClick?.({} as never);
 			expect(navigate).toHaveBeenLastCalledWith('crewScreen', { campaign: screen.shown });
 		});
 
@@ -327,6 +336,8 @@ describe('CompoundScreen', () => {
 			await screen.campaignLoaded;
 			expect(find<Button>('compound_rest_button').enabled).toBe(false);
 			expect(find<Button>('compound_building_bunkhouse_button').enabled).toBe(false);
+			expect(find<Text>('compound_building_bunkhouse_reason').visible).toBe(true);
+			expect(text('compound_building_bunkhouse_reason')).toBe('Opens with a campaign in progress.');
 			expect(text('compound_rest_line')).toBe('No campaign in progress.');
 			expect(find<{ visible: boolean }>('compound_resources').visible).toBe(false);
 			expect(find<{ visible: boolean }>('compound_day').visible).toBe(false);

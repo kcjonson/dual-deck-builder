@@ -1,6 +1,7 @@
 import { isAtCompound } from '../../campaign/Campaign';
 import type { Campaign } from '../../campaign/Campaign';
-import { CardCounts, addCounts, totalCards } from '../../campaign/CardCounts';
+import { awayText } from '../../campaign/cardBlockerText';
+import { CardCounts, totalCards } from '../../campaign/CardCounts';
 import { DECK_RULES } from '../../campaign/DeckRules';
 import type { DriverRecord } from '../../campaign/DriverRecord';
 import type { DriverCardStatus } from '../../ui/DriverCard';
@@ -8,12 +9,11 @@ import { countOf } from '../main-menu/campaignText';
 
 /**
  * A driver's default deck as the Crew screen shows it: the record's, or,
- * while they're out on a run, their run deck's own cards, going and left at
- * home, which is where the default deck is until the run deck is unwound.
+ * while they're out on a run, the default deck their run deck holds until
+ * it's unwound.
  */
 export function defaultDeckOf({ campaign, driver }: { campaign: Campaign; driver: DriverRecord }): CardCounts {
-	const runDeck = campaign.runDeckOf(driver);
-	return runDeck ? addCounts(runDeck.own, runDeck.leftHome) : driver.defaultDeck;
+	return campaign.runDeckOf(driver)?.defaultDeck ?? driver.defaultDeck;
 }
 
 /** The tag on a driver's roster card: injured, lost (dead or missing), or the seat of a run they're out on. */
@@ -31,16 +31,12 @@ export function rosterStatus({ campaign, driver }: { campaign: Campaign; driver:
  * no day for it, so it says how and not when.
  */
 export function lostNote(driver: DriverRecord): string {
-	if (driver.status === 'dead') return 'Killed on a run';
-	if (driver.status === 'missing') return 'Missing on a run';
-	return '';
+	return isAtCompound(driver) ? '' : awayText(driver.status);
 }
 
-/** Where the selected driver stands, the last of the header's chips. */
+/** Where the chosen driver stands, the last of the header's chips; only a driver at the compound is chosen. */
 export function standingText({ campaign, driver }: { campaign: Campaign; driver: DriverRecord }): string {
 	if (driver.status === 'injured') return `Injured, fit in ${countOf(driver.injuredDays, 'day')}`;
-	if (driver.status === 'dead') return 'Killed on a run';
-	if (driver.status === 'missing') return 'Missing on a run';
 	return campaign.runDeckOf(driver) ? 'Out on a run' : 'Ready';
 }
 

@@ -1,5 +1,5 @@
-import { ScreenManager } from '../../core/ScreenManager';
-import type { Campaign, Resources } from '../../campaign/Campaign';
+import type { ScreenName } from '../../core/ScreenManager';
+import type { Resources } from '../../campaign/Campaign';
 import { UPKEEP_RESOURCES } from '../../campaign/CompoundRules';
 import { shortfallMessage } from '../../campaign/DayClock';
 import type { DayEnd, NeedForecast, NeedsForecast } from '../../campaign/DayClock';
@@ -15,8 +15,8 @@ export interface Building {
 	description: string;
 	/** Why it's disabled; null once the screen behind it exists. */
 	reason: string | null;
-	/** What its button does once it's enabled, given the campaign on show. */
-	action?: (opening: { campaign: Campaign }) => void;
+	/** The screen its button opens, handed the campaign on show, once that screen exists. */
+	screen?: ScreenName;
 }
 
 /**
@@ -30,7 +30,7 @@ export const BUILDINGS: readonly Building[] = [
 		name: 'Bunkhouse',
 		description: 'Drivers, settlers, and the Crew screen, where default decks are built.',
 		reason: null,
-		action: ({ campaign }) => ScreenManager.navigate('crewScreen', { campaign }),
+		screen: 'crewScreen',
 	},
 	{ id: 'radio_mast', name: 'Radio mast', description: 'Rumors: new POIs, and roads into the fog.', reason: "The radio mast isn't built yet." },
 	{ id: 'infirmary', name: 'Infirmary', description: 'Injured drivers heal over days; meds speed it up.', reason: "The infirmary isn't built yet." },

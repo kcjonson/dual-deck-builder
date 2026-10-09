@@ -1,6 +1,9 @@
 import type { Campaign } from '../../campaign/Campaign';
+import { cardBlockerReason } from '../../campaign/cardBlockerText';
+import { NO_CARDS } from '../../campaign/CardCounts';
+import { deckAddBlocker } from '../../campaign/DeckRules';
 import type { DriverRecord } from '../../campaign/DriverRecord';
-import { CardEntry, CardSource, cardBlockerReason } from '../../ui/deckBuilder/cardSource';
+import type { CardEntry, CardSource } from '../../ui/deckBuilder/cardSource';
 import { defaultDeckOf } from './crewText';
 
 /** What Add says with no driver chosen, which happens only with nobody at the compound. */
@@ -49,10 +52,10 @@ export function crewDeckSource({ campaign, selected, changed }: CrewSourceOption
  * The compound's locker against the selected driver's deck: each card with
  * Add, disabled with the rules' reason when the deck is full, the card is
  * for another archetype, or the driver is out on a run, and Scrap, which
- * destroys a copy for `DECK_RULES.scrapPerCard` scrap (`scrapCards`). A
- * card for another archetype is faded, since it can never go in this
- * deck; a full deck fades nothing, since every card would fit once one
- * comes out.
+ * destroys a copy for `DECK_RULES.scrapPerCard` scrap (`scrapCards`) on its
+ * second press. A card for another archetype is faded, since it can never
+ * go in this deck, whatever else would refuse it first; a full deck fades
+ * nothing, since every card would fit once one comes out.
  */
 export function crewLockerSource({ campaign, selected, changed }: CrewSourceOptions): CardSource {
 	return {
@@ -61,10 +64,11 @@ export function crewLockerSource({ campaign, selected, changed }: CrewSourceOpti
 			return Object.entries(campaign.locker).map(([cardType, copies]) => {
 				const addBlocker = driver ? campaign.getCardMoveBlocker({ cardType, from: 'locker', to: driver }) : null;
 				const scrapBlocker = campaign.getScrapBlocker({ cardType });
+				const otherArchetype = driver !== null && deckAddBlocker({ deck: NO_CARDS, archetype: driver.archetype, cardType, count: 1 })?.reason === 'other_archetype';
 				return {
 					cardType,
 					copies,
-					state: addBlocker?.reason === 'other_archetype' ? 'unavailable' : null,
+					state: otherArchetype ? 'unavailable' : null,
 					controls: [
 						{
 							key: 'add',
@@ -80,6 +84,7 @@ export function crewLockerSource({ campaign, selected, changed }: CrewSourceOpti
 							key: 'scrap',
 							label: 'Scrap',
 							ghost: true,
+							destructive: true,
 							reason: scrapBlocker ? cardBlockerReason(scrapBlocker) : null,
 							run: () => {
 								campaign.scrapCards({ cardType });
