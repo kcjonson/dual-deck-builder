@@ -1,20 +1,17 @@
 import { Rng } from '../core/Rng';
-import { HighwayDeparture, planHighways } from './Highways';
+import { AreaMapProducts, HIGHWAYS_STAGE, TERRAIN_STAGE, growthStage } from './AreaMapPipeline';
+import type { HighwayDeparture } from './Highways';
 import { MAP_PARAMETERS, MapParamSet, MapParams, NUMBER_PARAMS, ENVIRONMENTS, resolveMapParams } from './MapParams';
+import { AcceptHook, MapPipeline, MapStage, PipelineResult } from './MapPipeline';
 import { validateMapParams } from './ParamValidator';
-import { GROWTH_RANGES, GROWTH_TUNING, GrowthStats, GrowthTerrain, GrowthTuning, growRoads } from './RoadGrowth';
+import { GROWTH_RANGES, GROWTH_TUNING, GrowthStats, GrowthTerrain, GrowthTuning } from './RoadGrowth';
 import { RoadClass, RoadNetwork } from './RoadNetwork';
-import { Terrain, WaterLayer, generateTerrain } from './Terrain';
+import type { Terrain, WaterLayer } from './Terrain';
 import type { Hotspot } from './TerrainSites';
 
 /**
  * Fixtures for the road growth tests. Nothing in the game imports this file.
  */
-
-/** A stage's stream as the pipeline forks it: root.fork('map', 0).fork(stage, attempt). */
-export function pipelineStream(seed: number, stage: string, attempt = 0): Rng {
-	return new Rng({ seed }).fork('map', 0).fork(stage, attempt);
-}
 
 export function paramsFor(set: MapParamSet): MapParams {
 	return validateMapParams(resolveMapParams(set).params).params;
@@ -28,20 +25,31 @@ export interface GrownMap {
 	/** The clearance growth kept, for the network checks. */
 	readonly clearance: number;
 	readonly terrain: Terrain;
-	readonly highways: HighwayDeparture[];
+	readonly highways: readonly HighwayDeparture[];
 	readonly network: RoadNetwork;
 	readonly stats: GrowthStats;
+	/** Each stage's winning attempt, and the map attempt they won in. */
+	readonly attempts: PipelineResult<AreaMapProducts>['attempts'];
+	readonly mapAttempt: number;
 }
 
-/** Stages 1 to 3 on the pipeline's streams, with water added when given. */
-export function growMap(set: GrowthSet, { growthAttempt = 0, water }: { growthAttempt?: number; water?: WaterLayer } = {}): GrownMap {
+/**
+ * The area map's stages through the pipeline runner, with water laid over
+ * the terrain when given and the accept hook passed through.
+ */
+export function growMap(set: GrowthSet, { water, accept }: { water?: WaterLayer; accept?: AcceptHook<AreaMapProducts> } = {}): GrownMap {
 	const { branchiness, clearance = GROWTH_TUNING.clearance, ...mapSet } = set;
 	const params = paramsFor(mapSet);
-	const land = generateTerrain({ params, rng: pipelineStream(params.seed, 'terrain') });
-	const terrain = water ? land.withWater(water) : land;
-	const highways = planHighways({ terrain, params, rng: pipelineStream(params.seed, 'highways') });
-	const { network, stats } = growRoads({ terrain, params, highways, rng: pipelineStream(params.seed, 'growth', growthAttempt), branchiness, clearance });
-	return { params, clearance, terrain, highways, network, stats };
+	const land: MapStage<MapParams, Record<never, never>, 'terrain', Terrain> = water
+		? { name: 'terrain', run: (context) => TERRAIN_STAGE.run(context).withWater(water) }
+		: TERRAIN_STAGE;
+	const { products, attempts, mapAttempt } = new MapPipeline<MapParams>()
+		.stage(land)
+		.stage(HIGHWAYS_STAGE)
+		.stage(growthStage({ branchiness, clearance }))
+		.run({ seed: params.seed, input: params, accept });
+	const { terrain, highways, growth } = products;
+	return { params, clearance, terrain, highways, network: growth.network, stats: growth.stats, attempts, mapAttempt };
 }
 
 export interface FakeTerrainOptions {

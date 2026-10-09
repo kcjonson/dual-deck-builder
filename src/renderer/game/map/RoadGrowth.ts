@@ -199,7 +199,7 @@ export interface GrowthOptions extends GrowthTuning {
 	params: MapParams;
 	/** Stage 2's departures, from `planHighways`. */
 	highways: readonly HighwayDeparture[];
-	/** The stage's stream, root.fork('map', mapAttempt).fork('growth', stageAttempt). Each road forks its own from it. */
+	/** The stage's stream, nested in the highways' winning stream: ....fork('highways', h).fork('growth', stageAttempt). Each road forks its own from it. */
 	rng: Rng;
 }
 

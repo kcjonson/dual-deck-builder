@@ -1,0 +1,165 @@
+import { generateAreaMap } from '../AreaMapPipeline';
+import { MapPipelineError, StageAttempt, StageFailure } from '../MapPipeline';
+import { paramsFor } from '../roadTesting';
+import { MapGeneration, MapGenerationCancelled } from './MapGeneration';
+import * as protocol from './mapGenerationProtocol';
+import { describeGeneration, summarizeGeneration } from './mapGenerationHook';
+
+const params = paramsFor({ seed: 9, environment: 'highDesert', radius: 700 });
+const expected = generateAreaMap({ params });
+
+/** Stands in for a dedicated worker: records what the client does, and lets a test reply. */
+class FakeWorker {
+	public onmessage: ((event: { data: protocol.WorkerReply }) => void) | null = null;
+	public onerror: ((event: { message: string; preventDefault(): void }) => void) | null = null;
+	public onmessageerror: (() => void) | null = null;
+	public readonly posted: unknown[] = [];
+	public terminated = 0;
+
+	public postMessage(message: unknown): void {
+		this.posted.push(message);
+	}
+
+	public terminate(): void {
+		this.terminated += 1;
+	}
+
+	public reply(data: protocol.WorkerReply): void {
+		this.onmessage?.({ data });
+	}
+}
+
+/** Where the generation ends up, without a rejection going unhandled while a test looks elsewhere. */
+function outcome(generation: MapGeneration): Promise<unknown> {
+	return generation.result.then((map) => map, (error: unknown) => error);
+}
+
+describe('MapGeneration', () => {
+	afterEach(() => {
+		jest.restoreAllMocks();
+	});
+
+	describe('with no Worker, as under Jest', () => {
+		it('generates in-process, a task after it\'s made, through the worker\'s transfer format', async () => {
+			expect(typeof Worker).toBe('undefined');
+			const progress: StageAttempt[] = [];
+			const spawn = jest.fn(() => null);
+			const generation = new MapGeneration({ params, onProgress: (attempt) => progress.push(attempt), spawn });
+			expect(progress).toEqual([]);
+			expect(generation.inWorker).toBe(false);
+			const map = await generation.result;
+			expect(spawn).not.toHaveBeenCalled();
+			expect(generation.settled).toBe(true);
+			expect(map.inWorker).toBe(false);
+			expect(map.products.growth).toEqual(expected.products.growth);
+			expect(map.products.highways).toEqual(expected.products.highways);
+			expect(map.streams).toEqual(expected.streams);
+			expect(map.attempts).toEqual({ terrain: 0, highways: 0, growth: 0 });
+			expect(progress.map(({ stage, attempt }) => `${stage} ${attempt}`)).toEqual(['terrain 0', 'highways 0', 'growth 0']);
+			expect(map.wallMilliseconds).toBeGreaterThanOrEqual(map.decodeMilliseconds);
+		});
+
+		it('never starts once cancelled, and rejects with MapGenerationCancelled', async () => {
+			const transfer = jest.spyOn(protocol, 'generateTransfer');
+			const generation = new MapGeneration({ params });
+			generation.cancel();
+			generation.cancel();
+			expect(await outcome(generation)).toBeInstanceOf(MapGenerationCancelled);
+			// The task it would have run has gone.
+			await new Promise((resolve) => setTimeout(resolve, 5));
+			expect(transfer).not.toHaveBeenCalled();
+		});
+
+		it('rejects with what the pipeline threw', async () => {
+			const failure: StageFailure = { stage: 'growth', index: 2, count: 3, attempt: 7, mapAttempt: 31, seed: 9, problems: ['disc'] };
+			jest.spyOn(protocol, 'generateTransfer').mockImplementation(() => {
+				throw new MapPipelineError({ message: 'ran out', failure });
+			});
+			const error = await outcome(new MapGeneration({ params }));
+			expect(error).toBeInstanceOf(MapPipelineError);
+			expect((error as MapPipelineError).failure).toBe(failure);
+		});
+	});
+
+	describe('in a worker', () => {
+		const globals = globalThis as unknown as { Worker?: unknown };
+		beforeEach(() => {
+			globals.Worker = FakeWorker;
+		});
+		afterEach(() => {
+			delete globals.Worker;
+		});
+
+		function start(onProgress?: (attempt: StageAttempt) => void) {
+			const worker = new FakeWorker();
+			const generation = new MapGeneration({ params, onProgress, spawn: () => worker as unknown as Worker });
+			return { worker, generation };
+		}
+
+		it('posts the params, passes progress on, decodes the map, and ends the worker', async () => {
+			const progress: StageAttempt[] = [];
+			const { worker, generation } = start((attempt) => progress.push(attempt));
+			expect(generation.inWorker).toBe(true);
+			expect(worker.posted).toEqual([{ params }]);
+			const attempt: StageAttempt = { stage: 'terrain', index: 0, count: 3, attempt: 0, mapAttempt: 0, seed: 9 };
+			worker.reply({ type: 'progress', progress: attempt });
+			expect(progress).toEqual([attempt]);
+			worker.reply({ type: 'done', map: structuredClone(protocol.encodeAreaMap(expected).map) });
+			const map = await generation.result;
+			expect(map.inWorker).toBe(true);
+			expect(map.products.growth).toEqual(expected.products.growth);
+			expect(worker.terminated).toBe(1);
+			// Anything after the end is ignored.
+			worker.reply({ type: 'progress', progress: attempt });
+			expect(progress).toHaveLength(1);
+		});
+
+		it('rejects with the worker\'s error, a MapPipelineError when the pipeline gave up', async () => {
+			const failure: StageFailure = { stage: 'highways', index: 1, count: 3, attempt: 7, mapAttempt: 31, seed: 9, problems: ['none'] };
+			const { worker, generation } = start();
+			worker.reply({ type: 'failed', message: 'ran out', stack: 'at the worker', failure });
+			const error = await outcome(generation);
+			expect(error).toBeInstanceOf(MapPipelineError);
+			expect((error as MapPipelineError).failure).toEqual(failure);
+			expect((error as Error).stack).toBe('at the worker');
+			expect(worker.terminated).toBe(1);
+		});
+
+		it('rejects when the worker itself fails, as a script that never loaded does', async () => {
+			const { worker, generation } = start();
+			const preventDefault = jest.fn();
+			worker.onerror?.({ message: '', preventDefault });
+			expect(preventDefault).toHaveBeenCalled();
+			expect(String(await outcome(generation))).toMatch(/the worker failed: its script did not load/);
+			expect(worker.terminated).toBe(1);
+		});
+
+		it('terminates the worker on cancel and ignores what it sends after', async () => {
+			const { worker, generation } = start();
+			generation.cancel();
+			expect(worker.terminated).toBe(1);
+			worker.reply({ type: 'done', map: protocol.encodeAreaMap(expected).map });
+			expect(await outcome(generation)).toBeInstanceOf(MapGenerationCancelled);
+			generation.cancel();
+			expect(worker.terminated).toBe(1);
+		});
+
+		it('generates in-process when the platform refuses a worker', async () => {
+			const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+			const generation = new MapGeneration({ params, spawn: () => { throw new Error('SecurityError'); } });
+			expect(generation.inWorker).toBe(false);
+			const map = await generation.result;
+			expect(map.products.growth).toEqual(expected.products.growth);
+			expect(warn).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	it('sums a generation up in one line for the dev hook', async () => {
+		const summary = summarizeGeneration(await new MapGeneration({ params }).result);
+		expect(summary).toMatchObject({ seed: 9, environment: 'highDesert', radius: 700, inWorker: false, attempts: { terrain: 0, highways: 0, growth: 0 }, mapAttempt: 0 });
+		expect(summary.nodes).toBe(expected.products.growth.network.nodes.length);
+		const line = describeGeneration(summary);
+		expect(line).toMatch(/^Map generation, seed 9 highDesert radius 700, in-process: [\d.]+ ms wall, pipeline [\d.]+ ms \(terrain [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), highways/);
+		expect(line).toMatch(/growth [\d.]+ \+ [\d.]+ checks \(attempt 0\); map attempt 0\), decode [\d.]+ ms; \d+ nodes, \d+ stretches$/);
+	});
+});

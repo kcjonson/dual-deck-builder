@@ -22,8 +22,12 @@ describe('growth across the tuning ranges', () => {
 
 		// Passable, outward, inside the disc, no crossings, clearance, junction
 		// angles, and the trees: every stretch's parent chain ends at a highway's
-		// city street from the compound, without a loop.
+		// city street from the compound, without a loop. Growth's own check is
+		// the same, and the runner would retry a network that failed it, so the
+		// first attempt has to be the one that won.
 		expect(checkRoadNetwork({ network, terrain, clearance, limit: 5 })).toEqual([]);
+		expect(map.attempts.growth).toBe(0);
+		expect(map.mapAttempt).toBe(0);
 
 		expectHighwaysFromDepartures(map);
 		expectTurnsWithinLimits(map);
