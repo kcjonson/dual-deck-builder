@@ -140,7 +140,7 @@ Each value sits at least a step inside its campaign range. Half an environment's
 - Generation uses a seeded PRNG, sfc32, in which every stream is rebuilt from a uint32 seed; the algorithm, the stream hash, and how many draws each call takes are in [seeded-prng.md](../AI_TECHNICAL_DECISIONS/seeded-prng.md). `Math.random` is never called during generation.
 - Each stage draws from its own named stream: `terrain`, `water`, `hazards`, `places`, `roads`, `pois`, `stops`, `dressing`, `names`. A stage's stream forks from its upstream stage's winning stream, with the stage's attempt: the roads stage of map attempt 2 that runs after terrain attempt 0, water attempt 1, and hazards and places attempt 0 draws from `root.fork('map', 2).fork('terrain', 0).fork('water', 1).fork('hazards', 0).fork('places', 0).fork('roads', a)`. Every stage is a link in the chain, the ones that take no draws included. A retry of a stage never replays a stream that already failed, attempt numbers are counted per stage and never collide across stages, and a rerun upstream gives every stage after it fresh streams. The route tree and the tiers take no draws. The parameters roll from a `params` stream derived from the seed alone, and founding the campaign deals its starting pool from a `founding` stream of its own (Compound and Supply Runs, Founding the compound). Changing the stop tables never moves a road, and nothing in the dressing stage can reach the roads or the route tree. A parameter change only moves what depends on it, though terrain changes move the roads that follow the terrain.
 - Game code, map and campaign included and tests too, never reads an unseeded source: lint rejects direct `Math.random` and crypto random calls (Web Crypto's and Node's) everywhere but `freshSeed()`, which mints root seeds, and anything reached through an import takes an `Rng`.
-- Terrain, erosion, and drainage use only adds, multiplies, divides, compares, and square roots, which ECMAScript rounds exactly, so a seed's land is the same in every engine. Least-cost paths and the route tree break ties by index. Where something branches on a value that came from `Math.sin`, `exp`, or friends, which aren't bit-identical across engines, a cheap exact alternative is used instead (road-growth.md's trig-free unit vectors are one).
+- Terrain, erosion, and drainage use only adds, multiplies, divides, compares, square roots, and floors, which ECMAScript gives exactly, so a seed's land is the same in every engine. Least-cost paths and the route tree break ties by index. Where something branches on a value that came from `Math.sin`, `exp`, or friends, which aren't bit-identical across engines, a cheap exact alternative is used instead (road-growth.md's trig-free unit vectors are one).
 
 ## World space
 
@@ -150,7 +150,7 @@ Each value sits at least a step inside its campaign range. Half an environment's
 
 ## Pipeline
 
-Eleven stages, in order. Each takes the earlier stages' output and its own stream. Stages 1 to 10 make the gameplay map; stage 11 dresses it. The numbers in this section are the prototype's starting values for the Map Lab to settle, each a provisional call in [realistic-map.md](../AI_TECHNICAL_DECISIONS/realistic-map.md), and the prototype's renders are there too.
+Eleven stages, in order. Each takes the earlier stages' output and its own stream. Stages 1 to 10 make the gameplay map; stage 11 dresses it. The numbers in this section are the prototype's starting values for the Map Lab to settle, each a provisional call in [realistic-map.md](../AI_TECHNICAL_DECISIONS/realistic-map.md), and the prototype's renders are there too. Where a stage is built, its record lists the values it settled on as provisional calls of its own, as [terrain-erosion.md](../AI_TECHNICAL_DECISIONS/terrain-erosion.md) does for the terrain.
 
 ### 1. Terrain: uplift and erosion
 
@@ -160,7 +160,7 @@ Mountains are where the land is pushed up, and valleys are what rivers cut into 
 - Erosion: stream-power erosion solved implicitly (Braun and Willett's method), about 50 iterations. Each iteration routes drainage by priority flood from the outlets, accumulates drainage area, and lowers every cell toward its downstream neighbour by a rate that grows with the square root of the area above it, then smooths hillslopes a little. Rivers cut valleys back into the uplift, ranges break into ridges and spurs, and the result is a drainage network that runs downhill everywhere by construction.
 - Outlets: `rivers` points on the grid's edge where the drainage leaves, so the region's water gathers into that many main rivers. With 0, it drains to an interior basin instead (a dry lake, for deserts).
 - Dry maps weather into tablelands: below an `aridity` of about 0.4 the eroded elevation is pulled toward terraces, flat benches with steep risers, so High Desert reads as mesas and escarpments rather than green ridges.
-- Elevation for everything after is the eroded grid, sampled bicubic, plus a little fine noise in rough country for the picture.
+- Elevation for everything after is the eroded grid, sampled bicubic, plus a little fine noise in range country for the picture.
 
 ### 2. Water
 

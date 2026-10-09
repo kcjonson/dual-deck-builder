@@ -70,7 +70,7 @@ Options:
 2. JSON. One string, but 160 to 290 KB of digits written and parsed at radius 1000.
 3. Plain data with the bulk packed into transferred typed arrays (chosen). Every stretch's points go end to end in one `Float64Array`, with a `Uint32Array` of where each stretch starts, and both buffers transfer rather than copy. Float64, so every coordinate arrives exactly as generated and junctions still match. Nodes, roads, the stretches' other fields, the highways, growth's stats, and the run's attempts, streams, timings, and failures are small and go by structured clone.
 
-The analytic terrain isn't sent: the client runs the terrain stage itself on the winning terrain stream, about 2 ms, which costs less than any encoding of it would, and the whole decode, unpacking included, takes 3 ms median on the main thread. Running the stage, rather than the function behind it, keeps the decode on whatever the stage does. A gridded terrain (Map 4's erosion) sends its grids as typed arrays in the same transfer list instead. Errors cross as plain data too, a `MapPipelineError` with its failure and what was exhausted.
+The terrain crosses as its eroded land, `terrain.surface`: its seven typed arrays (elevation, the range mask, and the drainage's receivers, levels, area, order, and outlets) go in the same transfer list as the network's, and the client rebuilds the rest of the terrain over them with `terrainFromSurface` on the winning terrain stream. The analytic terrain this pipeline started with was cheaper to rerun than to send, about 2 ms; running the stage again now would mean eroding the land again, 230 ms at radius 1000 in Node, where the decode takes 11 ms median and 28 ms at radius 1600 (terrain-erosion.md, Crossing the worker boundary). Transferring detaches the arrays from the worker's own terrain, so it encodes after its last stage, then is terminated. A terrain with water is refused, since a water layer is functions; the water stage sends its own arrays. Errors cross as plain data too, a `MapPipelineError` with its failure and what was exhausted.
 
 The in-process fallback runs the same `generateTransfer` the worker does and decodes the same way, so a map is identical whichever path made it, and the Jest tests of the fallback cover the format the worker sends.
 
@@ -95,7 +95,7 @@ Development builds have `window.__map.generate(set?, { inProcess? })`, installed
 
 ## Timings
 
-Radius 1000, five environments by three seeds, on the development desktop (Windows 11), every map winning every stage on its first attempt. Builds in production mode with dev tools on, so the hook exists and the code is what ships. Wall is from asking to having the decoded map on the main thread.
+Radius 1000, five environments by three seeds, on the development desktop (Windows 11), every map winning every stage on its first attempt. Builds in production mode with dev tools on, so the hook exists and the code is what ships. Wall is from asking to having the decoded map on the main thread. Measured on the analytic terrain, before Map 4. Erosion adds about 230 ms to the terrain stage in Node, and the decode, rebuilding the terrain over the land sent, takes 11 ms there (terrain-erosion.md).
 
 | | Chromium 153 (web build, served over http) | Electron 25.9 (Chromium 114, renderer from `file://`) |
 | --- | --- | --- |

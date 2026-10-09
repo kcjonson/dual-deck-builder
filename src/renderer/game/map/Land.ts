@@ -146,7 +146,16 @@ export function generateLand({ params, rng }: LandOptions): LandSurface {
 	flattenMetro({ grid, elevation, levels: router.levels, metroRadius, blendRadius });
 	const drainage = routeDrainage({ size: grid.size, elevation, outlets, router });
 	fillMetroWater({ grid, elevation, levels: drainage.levels, blendRadius });
-	return Object.freeze({ grid: Object.freeze(grid), elevation, mountains, drainage: Object.freeze(drainage), closedBasin });
+	return freezeSurface({ grid, elevation, mountains, drainage, closedBasin });
+}
+
+/**
+ * The surface frozen, its arrays shared, not copied: what `generateLand`
+ * returns, and what a surface sent across a worker boundary is rebuilt as.
+ * Typed arrays can't be frozen, so they stay read-only by contract alone.
+ */
+export function freezeSurface({ grid, drainage, ...surface }: LandSurface): LandSurface {
+	return Object.freeze({ ...surface, grid: Object.freeze({ ...grid }), drainage: Object.freeze({ ...drainage }) });
 }
 
 /**

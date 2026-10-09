@@ -1,24 +1,34 @@
 import { AreaMapGeneration, generateAreaMap } from '../AreaMapPipeline';
+import * as land from '../Land';
 import { MapPipelineError, StageFailure } from '../MapPipeline';
-import { Terrain, createTerrainSample } from '../Terrain';
+import { Terrain, TerrainSample, createTerrainSample } from '../Terrain';
 import { paramsFor } from '../roadTesting';
 import { AreaMapTransfer, decodeAreaMap, encodeAreaMap, errorFromReply, failureReply, packRoadNetwork, unpackRoadNetwork } from './mapGenerationProtocol';
 
-/** Every field of a terrain sample, and travel cost, on a 16 by 16 lattice over the land square round the disc. */
-function expectSameLand(actual: Terrain, expected: Terrain): void {
-	const got = createTerrainSample();
-	const want = createTerrainSample();
-	const reach = 1.2 * expected.radius;
+/**
+ * Every field of a terrain sample, and travel cost, on a 16 by 16 lattice
+ * over the land square round the disc: taken before a terrain is sent,
+ * since sending detaches its land's arrays.
+ */
+function landLattice(terrain: Terrain): { sample: TerrainSample; cost: number }[] {
+	const reach = 1.2 * terrain.radius;
+	const lattice: { sample: TerrainSample; cost: number }[] = [];
 	for (let row = 0; row < 16; row += 1) {
 		for (let column = 0; column < 16; column += 1) {
 			const x = -reach + (2 * reach * (column + 0.5)) / 16;
 			const y = -reach + (2 * reach * (row + 0.5)) / 16;
-			actual.sample(x, y, got);
-			expected.sample(x, y, want);
-			expect(got).toEqual(want);
-			expect(Object.is(actual.travelCost(x, y), expected.travelCost(x, y))).toBe(true);
+			lattice.push({ sample: terrain.sample(x, y, createTerrainSample()), cost: terrain.travelCost(x, y) });
 		}
 	}
+	return lattice;
+}
+
+/** Typed arrays as plain ones, all the way down, so a structured clone, built in Node's outer realm, compares to this realm's. */
+function plain(value: unknown): unknown {
+	if (ArrayBuffer.isView(value)) return Array.from(value as unknown as ArrayLike<number>);
+	if (Array.isArray(value)) return value.map(plain);
+	if (value !== null && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, plain(entry)]));
+	return value;
 }
 
 /** The transfer as the worker's postMessage hands it over: cloned, its buffers moved. */
@@ -30,7 +40,12 @@ function sent(map: AreaMapGeneration): AreaMapTransfer {
 describe('the generation worker\'s transfer format', () => {
 	const params = paramsFor({ seed: 5, environment: 'floodlands', radius: 700 });
 	const map = generateAreaMap({ params });
+	const mapLand = landLattice(map.products.terrain);
 	const { network } = map.products.growth;
+
+	afterEach(() => {
+		jest.restoreAllMocks();
+	});
 
 	it('packs every stretch\'s points into one Float64Array and back, exactly', () => {
 		const packed = packRoadNetwork(network);
@@ -42,29 +57,38 @@ describe('the generation worker\'s transfer format', () => {
 		unpacked.stretches.forEach(({ points }, id) => points.forEach((value, index) => expect(Object.is(value, network.stretches[id].points[index])).toBe(true)));
 	});
 
-	it('is plain data a structured clone keeps, with the bulk in the buffers it transfers', () => {
+	it('is plain data a structured clone keeps, with the bulk in the buffers it transfers: the network\'s and the land\'s', () => {
 		const { map: transfer, buffers } = encodeAreaMap(map);
-		expect(buffers).toHaveLength(2);
-		expect(buffers[0]).toBe(transfer.network.points.buffer);
-		expect(buffers[1]).toBe(transfer.network.offsets.buffer);
-		// Jest's structuredClone builds in Node's outer realm, whose typed arrays toEqual won't match to this realm's.
-		const { network: clonedNetwork, ...cloned } = structuredClone(transfer);
-		const { network: sentNetwork, ...rest } = transfer;
-		expect(cloned).toEqual(rest);
-		expect({ ...clonedNetwork, points: Array.from(clonedNetwork.points), offsets: Array.from(clonedNetwork.offsets) })
-			.toEqual({ ...sentNetwork, points: Array.from(sentNetwork.points), offsets: Array.from(sentNetwork.offsets) });
+		const { surface } = map.products.terrain;
+		const { drainage } = surface;
+		const bulk = [transfer.network.points, transfer.network.offsets, surface.elevation, surface.mountains, drainage.receivers, drainage.levels, drainage.area, drainage.order, drainage.outlets];
+		expect(buffers).toHaveLength(bulk.length);
+		bulk.forEach(({ buffer }, index) => expect(buffers[index]).toBe(buffer));
+		expect(transfer.surface).toBe(surface);
+		expect(plain(structuredClone(transfer))).toEqual(plain(transfer));
 		expect(transfer).not.toHaveProperty('products');
 		expect(transfer.params).toEqual(params);
 	});
 
-	it('decodes to the map it encoded, the terrain rebuilt by the terrain stage on its winning stream', () => {
+	it('refuses a terrain with water, which is functions a structured clone can\'t carry', () => {
+		const wet = { ...map, products: { ...map.products, terrain: map.products.terrain.withWater({ isWater: () => false }) } };
+		expect(() => encodeAreaMap(wet)).toThrow(/water/);
+	});
+
+	it('decodes to the map it encoded, the terrain rebuilt over the land it was sent without eroding it again', () => {
+		const erode = jest.spyOn(land, 'generateLand');
 		const decoded = decodeAreaMap(sent(map));
+		expect(erode).not.toHaveBeenCalled();
+		// Transferred, not copied: the encoded terrain's land is detached.
+		expect(map.products.terrain.surface.elevation).toHaveLength(0);
 		const { products, ...rest } = decoded;
 		const { products: original, ...expected } = map;
 		expect(rest).toEqual(expected);
 		expect(products.highways).toEqual(original.highways);
 		expect(products.growth).toEqual(original.growth);
-		expectSameLand(products.terrain, original.terrain);
+		expect(landLattice(products.terrain)).toEqual(mapLand);
+		expect(Object.isFrozen(products.terrain.surface)).toBe(true);
+		expect(Object.isFrozen(products.terrain.surface.drainage)).toBe(true);
 	});
 
 	it('decodes the streams that won, after retries and a map restart', () => {
@@ -82,9 +106,10 @@ describe('the generation worker\'s transfer format', () => {
 		});
 		expect(retried.mapAttempt).toBe(1);
 		expect(retried.attempts).toEqual({ terrain: 0, highways: 0, growth: 2 });
+		const retriedLand = landLattice(retried.products.terrain);
 		const decoded = decodeAreaMap(sent(retried));
 		expect(decoded.products.growth).toEqual(retried.products.growth);
-		expectSameLand(decoded.products.terrain, retried.products.terrain);
+		expect(landLattice(decoded.products.terrain)).toEqual(retriedLand);
 		// Map attempt 1's terrain, not the first map attempt's.
 		expect(decoded.streams.terrain).not.toBe(map.streams.terrain);
 	});

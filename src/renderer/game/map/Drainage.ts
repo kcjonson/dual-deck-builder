@@ -21,8 +21,9 @@
  * Ties break by cell index, so the routing never depends on how the queue
  * is built.
  *
- * Everything is adds, divides, compares, and integer ops on typed arrays, so
- * a grid routes the same in every engine. The result is plain data.
+ * Everything is adds, multiplies, divides, compares, and integer ops on
+ * typed arrays, so a grid routes the same in every engine. The result is
+ * plain data.
  */
 
 /** A grid's drainage: plain typed arrays, indexed by cell (`row * size + column`). */
