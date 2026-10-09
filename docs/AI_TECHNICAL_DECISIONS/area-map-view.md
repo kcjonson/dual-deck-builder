@@ -93,5 +93,5 @@ One GPU draw a frame: the terrain and fog textures take two of the dynamic units
 ## Consequences
 
 - The Map Lab and the area map screen host the view and set its inputs; neither draws a map of its own.
-- The gallery scenes are golden-tested from `tests/visual/web/areaMap.spec.ts`, chromium only, rather than from `support/scenarios.ts`, which other branches have had open. Folding them into `SCENE_SCENARIOS` keeps the goldens' names and adds the electron project's.
+- The gallery scenes are in `SCENE_SCENARIOS` (`tests/visual/support/scenarios.ts`), so the gallery and lint specs hold their goldens, text records, and lint gate, and the electron project captures them too. They had a chromium-only spec of their own until DDB-301 folded them in.
 - The bake's resolution and lattices are starting values. `TEXEL_WORLD_UNITS`, `MAX_BAKE_SIZE`, and `COLOUR_WORLD_UNITS` trade the picture against the bake's time; the bench reports both.

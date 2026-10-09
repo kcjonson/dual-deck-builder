@@ -49,7 +49,7 @@ Each is the simplest option where the spec leaves a choice open, and a line or t
 
 ## Harness
 
-`compoundScreen`'s goldens are re-minted at both sizes, still opened with no campaign so the screen loads the in-progress save. The escort card's three gallery scenes joined `SCENE_SCENARIOS` with `lintShort`, so the gallery and lint specs hold them and the electron project gets goldens for them, and their own spec (`escortCards.spec.ts`) is gone. The area map's scenes stay where they are until its PR (#176) lands.
+`compoundScreen`'s goldens are re-minted at both sizes, still opened with no campaign so the screen loads the in-progress save. The gallery-only scenes with specs of their own joined `SCENE_SCENARIOS`, so the gallery and lint specs hold them and the electron project gets goldens for them: the escort card's three with `lintShort`, as before, and the area map's two at the fixed size, as before. `escortCards.spec.ts` and `areaMap.spec.ts` are gone.
 
 ## Consequences
 

@@ -157,6 +157,9 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'escort-cards', lintShort: true },
 	{ scene: 'escort-detail', lintShort: true },
 	{ scene: 'escort-detail-pinned', lintShort: true },
+	// The area map view, the whole map and under fog (DDB-298)
+	{ scene: 'area-map' },
+	{ scene: 'area-map-fog' },
 	{ scene: 'overlays' },
 	{ scene: 'dialog' },
 	{ scene: 'popover' },
