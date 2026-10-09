@@ -217,6 +217,11 @@ function readVehicleCondition(value: unknown, path: string): Readonly<VehicleCon
 	});
 }
 
+/** A driver as errors name them: "Road Warrior 2 (driver-4)". */
+export function describeDriver(driver: DriverRecord): string {
+	return `${driver.name} (${driver.id})`;
+}
+
 /** "Road Warrior 2": the archetype's title and an ordinal, until drivers get names (DDB-318). */
 export function placeholderName({ archetype, ordinal }: { archetype: DriverArchetype; ordinal: number }): string {
 	const title = DRIVER_CONFIGS[archetype].metadata.name

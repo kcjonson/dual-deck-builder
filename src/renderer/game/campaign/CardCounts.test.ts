@@ -1,5 +1,5 @@
 import { DRIVER_CONFIGS } from '../mechanics/Driver';
-import { NO_CARDS, addCards, cardCount, readCardCounts, removeCards, startingDeckCounts, totalCards } from './CardCounts';
+import { NO_CARDS, addCards, addCounts, cardCount, readCardCounts, removeCards, startingDeckCounts, totalCards } from './CardCounts';
 import { DRIVER_ARCHETYPES } from './DriverRecord';
 
 describe('card counts', () => {
@@ -24,6 +24,17 @@ describe('card counts', () => {
 		expect(cardCount(added, 'headshot')).toBe(2);
 		expect(cardCount(removed, 'repair_kit')).toBe(cardCount(deck, 'repair_kit') - 1);
 		expect(totalCards(removed)).toBe(totalCards(deck) + 1);
+	});
+
+	it('add two sets of counts together, sorted and frozen, handing back the first when the second is empty', () => {
+		const deck = startingDeckCounts('mechanic');
+
+		const together = addCounts(deck, { repair_kit: 2, headshot: 1 });
+
+		expect(together).toEqual({ ...deck, headshot: 1, repair_kit: cardCount(deck, 'repair_kit') + 2 });
+		expect(Object.keys(together)).toEqual([...Object.keys(together)].sort());
+		expect(Object.isFrozen(together)).toBe(true);
+		expect(addCounts(deck, NO_CARDS)).toBe(deck);
 	});
 
 	it('drop a card type with its last copy, so no count is ever 0', () => {

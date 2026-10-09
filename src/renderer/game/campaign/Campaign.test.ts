@@ -35,7 +35,14 @@ const record = (id: string): DriverRecord => new DriverRecord({ id, archetype: '
  * Keys whose children are data rather than format: card counts keyed by
  * card type, and map params, which a load repairs as the table moves on.
  */
-const DATA_KEYS: Readonly<Record<string, string>> = { 'locker': '<card type>', 'drivers[].defaultDeck': '<card type>', 'mapParams': '<map parameter>' };
+const DATA_KEYS: Readonly<Record<string, string>> = {
+	'locker': '<card type>',
+	'drivers[].defaultDeck': '<card type>',
+	'runDecks[].own': '<card type>',
+	'runDecks[].leftHome': '<card type>',
+	'runDecks[].borrowed': '<card type>',
+	'mapParams': '<map parameter>'
+};
 
 /** Every key path in a JSON value, sorted, with array items as [] and data keys collapsed. */
 const keyPaths = (value: unknown): string[] => {
@@ -64,7 +71,10 @@ const SAVE_FORMAT = {
 		'drivers[].handLimit', 'drivers[].hitpoints', 'drivers[].id', 'drivers[].injuredDays', 'drivers[].maxHitpoints', 'drivers[].name',
 		'drivers[].runsCompleted', 'drivers[].status', 'drivers[].vehicle', 'drivers[].vehicle.armor', 'drivers[].vehicle.structure', 'generatorVersion', 'locker', 'locker.<card type>', 'log', 'log[]', 'log[].day', 'log[].message', 'map',
 		'mapParams', 'mapParams.<map parameter>', 'nextDriverNumber', 'resources', 'resources.food', 'resources.fuel', 'resources.meds', 'resources.people',
-		'resources.scrap', 'resources.water', 'seed', 'strongholdsTaken', 'strongholdsTaken[]', 'unrest'
+		'resources.scrap', 'resources.water', 'runDecks', 'runDecks[]', 'runDecks[].borrowed', 'runDecks[].borrowed.<card type>', 'runDecks[].driver',
+		'runDecks[].escortCards', 'runDecks[].escortCards[]', 'runDecks[].escortCards[].broughtBy', 'runDecks[].escortCards[].cardType',
+		'runDecks[].leftHome', 'runDecks[].leftHome.<card type>', 'runDecks[].own', 'runDecks[].own.<card type>',
+		'seed', 'strongholdsTaken', 'strongholdsTaken[]', 'unrest'
 	],
 	historyEntry: ['day', 'ending', 'seed', 'strongholdsTaken'],
 	history: ['campaigns', 'version']
@@ -818,6 +828,11 @@ describe('Campaign', () => {
 			expect(campaign.toJSON()).toEqual(CAMPAIGN_FIXTURE);
 			expect(campaign.drivers.map(driver => driver.status)).toEqual(['ready', 'dead', 'injured', 'missing', 'ready']);
 			expect(campaign.convoy.escorts.map(escort => [escort.escort?.type, escort.convoyId])).toEqual([['fuel_hauler', 'escort-1'], ['outrider', 'escort-3']]);
+			// A run out, with Road Warrior 1 and Interceptor 2 seated
+			const [first, second] = campaign.runDecks;
+			expect([first.driver, second.driver]).toEqual([campaign.drivers[0], campaign.drivers[4]]);
+			expect([first.deckSize, first.escortCards]).toEqual([11, [{ cardType: 'top_off', broughtBy: 'escort-1' }]]);
+			expect(second.borrowed).toEqual({ headshot: 1 });
 			expect(campaign.recruitDriver({ archetype: 'mechanic' }).id).toBe('driver-6');
 			const hired = createEscort({ type: 'pilot_car' });
 			campaign.convoy.add(hired);
@@ -832,7 +847,7 @@ describe('Campaign', () => {
 				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
 			};
 
-			expect(CAMPAIGN_SCHEMA_VERSION).toBe(3);
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(4);
 			try {
 				expect(format).toEqual(SAVE_FORMAT);
 			} catch (error) {
@@ -866,7 +881,19 @@ describe('Campaign', () => {
 				['a log entry from the future', (save: CampaignJson) => { save.log[3].day = 99; }, RangeError, 'Campaign.log[3].day must be an integer from 1 to today (9), got 99'],
 				['negative water', (save: CampaignJson) => { save.resources.water = -3; }, RangeError, 'Campaign.resources.water must be an integer >= 0, got -3'],
 				['a dead driver who kept their cards', (save: CampaignJson) => { save.drivers[1].defaultDeck = { headshot: 1 }; }, RangeError, 'Campaign.drivers[1].defaultDeck must be empty for a dead driver, whose cards went with them, got {"headshot":1}'],
-				['a wrecked escort', (save: CampaignJson) => { save.convoy.escorts[0].structure = 0; }, RangeError, 'Campaign.convoy.escorts[0].structure must be an integer from 1 to maxStructure (40), got 0']
+				['a wrecked escort', (save: CampaignJson) => { save.convoy.escorts[0].structure = 0; }, RangeError, 'Campaign.convoy.escorts[0].structure must be an integer from 1 to maxStructure (40), got 0'],
+				['a run deck for a driver who isn\'t in the pool', (save: CampaignJson) => { save.runDecks[1].driver = 'driver-9'; }, RangeError, 'Campaign.runDecks[1].driver "driver-9" isn\'t a driver in the pool'],
+				['one run deck', (save: CampaignJson) => { save.runDecks.pop(); }, RangeError, 'Campaign.runDecks holds 1 run decks: a run out has one for each of its two seats, and none are kept at home'],
+				['two run decks for one driver', (save: CampaignJson) => { save.runDecks[1].driver = 'driver-1'; }, RangeError, 'Campaign.runDecks[1].driver driver-1 has the run deck before it; each seat is a different driver'],
+				['a borrowed count of 0', (save: CampaignJson) => { save.runDecks[0].borrowed.medical_kit = 0; }, RangeError, 'Campaign.runDecks[0].borrowed.medical_kit must be an integer >= 1, got 0'],
+				['a seated driver whose default deck holds cards', (save: CampaignJson) => { save.drivers[4].defaultDeck = { headshot: 1 }; }, RangeError,
+					'Campaign.runDecks[1].driver driver-5 holds cards in their default deck, {"headshot":1}, which is in their run deck while a run is out'],
+				['a card both left at home and borrowed', (save: CampaignJson) => { save.runDecks[0].leftHome.medical_kit = 1; }, RangeError,
+					"Campaign.runDecks[0].borrowed.medical_kit can't be borrowed while 1 of the driver's own are left at home, which come back first"],
+				['an escort card named by a session\'s model id', (save: CampaignJson) => { save.runDecks[0].escortCards[0].broughtBy = 'Vehicle_12'; }, RangeError, 'Campaign.runDecks[0].escortCards[0].broughtBy must look like escort-1, got "Vehicle_12"'],
+				['an escort card from an escort the convoy lost', (save: CampaignJson) => { save.runDecks[0].escortCards[0].broughtBy = 'escort-2'; }, RangeError, 'Campaign.runDecks[0].escortCards[0].broughtBy escort-2 isn\'t an escort in the convoy'],
+				['an escort card that isn\'t its escort\'s', (save: CampaignJson) => { save.runDecks[0].escortCards[0].cardType = 'triage'; }, RangeError, 'Campaign.runDecks[0].escortCards[0].cardType must be "top_off", the card Fuel Hauler (escort-1) brings, got "triage"'],
+				['one escort\'s card in both run decks', (save: CampaignJson) => { save.runDecks[1].escortCards[0] = { ...save.runDecks[0].escortCards[0] }; }, RangeError, 'Campaign.runDecks[1].escortCards[0].broughtBy escort-1 brought a card into the run deck before it; an escort brings one']
 			])('fails loudly on %s', (_label, damage, errorType, message) => {
 				const save = savedCampaign();
 				damage(save);

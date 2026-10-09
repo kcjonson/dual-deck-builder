@@ -3,6 +3,7 @@ import type { Campaign } from './Campaign';
 import { hasOpenFight } from './CombatBridge';
 import { COMPOUND_RULES, CompoundRules, readCompoundRules } from './CompoundRules';
 import type { DriverRecord, DriverRecordData, DriverStatus } from './DriverRecord';
+import { describeDriver } from './DriverRecord';
 
 /**
  * The infirmary (DDB-304): a driver who comes home hurt is injured for days
@@ -183,8 +184,4 @@ function daysText(days: number): string {
 
 function checkInPool({ campaign, driver }: { campaign: Campaign; driver: DriverRecord }): void {
 	if (!campaign.drivers.includes(driver)) throw new RangeError(`${describeDriver(driver)} isn't in this campaign's pool`);
-}
-
-function describeDriver(driver: DriverRecord): string {
-	return `${driver.name} (${driver.id})`;
 }

@@ -67,6 +67,14 @@ export function removeCards(counts: CardCounts, cardType: string, count = 1): Ca
 	return readCardCounts(rest, 'counts');
 }
 
+/** Both sets of counts together. */
+export function addCounts(counts: CardCounts, more: CardCounts): CardCounts {
+	if (totalCards(more) === 0) return counts;
+	const sum: Record<string, number> = { ...counts };
+	for (const [cardType, count] of Object.entries(more)) sum[cardType] = cardCount(counts, cardType) + count;
+	return readCardCounts(sum, 'counts');
+}
+
 /** An archetype's starting deck, from DRIVER_CONFIGS, as counts. */
 export function startingDeckCounts(archetype: DriverArchetype): CardCounts {
 	return DRIVER_CONFIGS[archetype].startingDeck.cards.reduce(

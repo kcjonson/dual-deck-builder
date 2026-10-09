@@ -1,9 +1,11 @@
 import { Rng } from '../core/Rng';
 import { resolveMapParams } from '../map/MapParams';
+import { createEscort } from '../mechanics/Escort';
 import { Campaign, CampaignOptions, CardBlocker, CardMove, CardPlace, CardRuleError } from './Campaign';
 import { CardCounts, NO_CARDS, addCards, cardCount, totalCards } from './CardCounts';
 import { DECK_RULES, cardArchetype } from './DeckRules';
 import { DriverRecord } from './DriverRecord';
+import { RunDeck } from './RunDeck';
 import { MemorySaveStorage } from './SaveStorage';
 import { storeOver } from './__fixtures__/storeFixtures';
 
@@ -25,9 +27,14 @@ const deckOf = (size: number): CardCounts => ({ repair_kit: size });
 const together = (first: CardCounts, second: CardCounts): CardCounts =>
 	Object.entries(second).reduce((counts, [cardType, count]) => addCards(counts, cardType, count), first);
 
-/** Every copy in the locker and every default deck, summed here rather than by the campaign. */
-const ownedByHand = (campaign: Campaign): CardCounts =>
-	campaign.drivers.reduce((counts, driver) => together(counts, driver.defaultDeck), campaign.locker);
+/**
+ * Every copy in the locker, every default deck, and every run deck (going,
+ * left at home, or borrowed), summed here rather than by the campaign.
+ */
+const ownedByHand = (campaign: Campaign): CardCounts => [
+	...campaign.drivers.map(driver => driver.defaultDeck),
+	...campaign.runDecks.flatMap(deck => [deck.own, deck.leftHome, deck.borrowed])
+].reduce(together, campaign.locker);
 
 /** The error an action throws, which must be a rules refusal. */
 function refusal(action: () => void): CardRuleError {
@@ -437,6 +444,133 @@ describe('Campaign cards under the deck rules', () => {
 
 			expect(loaded.toJSON()).toEqual(campaign.toJSON());
 			expect(loaded.cardsOwned).toEqual(campaign.cardsOwned);
+		});
+
+		/** Whether a run deck keeps the rules: inside the limits, counting its own and borrowed copies, and only cards its driver can take. */
+		const runDeckKeepsTheRules = (deck: RunDeck): boolean =>
+			deck.deckSize >= min && deck.deckSize <= max &&
+			Object.keys(deck.cards).every(cardType => [null, deck.driver.archetype].includes(cardArchetype(cardType)));
+
+		/**
+		 * The crew with a run out (DDB-315): the first Road Warrior and the first
+		 * Interceptor seated, the Fuel Hauler's and the Outrider's cards in the
+		 * Road Warrior's run deck, and the Pilot Car left at home.
+		 */
+		function crewOnARun(): Campaign {
+			const campaign = crew();
+			const escorts = (['fuel_hauler', 'outrider', 'pilot_car'] as const).map(type => createEscort({ type }));
+			escorts.forEach(escort => campaign.convoy.add(escort));
+			const [warrior, interceptor] = campaign.drivers;
+			campaign.startRunDecks({ seats: [warrior, interceptor], escorts: escorts.slice(0, 2) });
+			return campaign;
+		}
+
+		it.each([1, 2, 3, 4, 5])('with a run out, across a seeded run of borrowing, leaving home, escort cards, resets, Crew moves, and scraps, through the store and an unwind (seed %i)', async (seed) => {
+			const rng = new Rng({ seed }).fork('run-deck-moves');
+			const campaign = crewOnARun();
+			// Snapshots of the run decks, which go stale at the first move and still stand for their drivers'
+			const runDecks = [...campaign.runDecks];
+			const records = [...campaign.drivers];
+			const seated = runDecks.map(deck => deck.driver);
+			const here = records.filter(driver => driver.status !== 'dead' && driver.status !== 'missing' && !seated.includes(driver));
+			const escortIds = ['escort-1', 'escort-2'];
+			const start = ownedByHand(campaign);
+			const outcomes = new Set<string>();
+			let scrapped = NO_CARDS;
+
+			expect(campaign.runDecks.every(runDeckKeepsTheRules)).toBe(true);
+			for (let step = 0; step < 800; step += 1) {
+				const roll = rng.int(0, 39);
+				if (roll < 1) {
+					const cardType = rng.pick([...Object.keys(campaign.locker), 'emp_blast']);
+					const count = rng.int(1, 2);
+					const blocker = campaign.getScrapBlocker({ cardType, count });
+					if (blocker === null) {
+						campaign.scrapCards({ cardType, count });
+						scrapped = addCards(scrapped, cardType, count);
+					} else {
+						expectRefused({ campaign, action: () => campaign.scrapCards({ cardType, count }), blocker });
+					}
+					outcomes.add(`scrap: ${blocker?.reason ?? 'done'}`);
+				} else if (roll < 6) {
+					const broughtBy = rng.pick(escortIds);
+					const to = rng.pick<CardPlace>(['locker', ...runDecks, rng.pick(records)]);
+					if (campaign.runDecks.find(deck => deck.escortCards.some(card => card.broughtBy === broughtBy))?.driver === (to instanceof RunDeck ? to.driver : null)) {
+						expect(() => campaign.getEscortCardMoveBlocker({ broughtBy, to })).toThrow('already');
+						continue;
+					}
+					const blocker = campaign.getEscortCardMoveBlocker({ broughtBy, to });
+					if (blocker === null) campaign.moveEscortCard({ broughtBy, to });
+					else expectRefused({ campaign, action: () => campaign.moveEscortCard({ broughtBy, to }), blocker });
+					outcomes.add(`escort: ${blocker?.reason ?? 'done'}`);
+				} else if (roll === 6 && rng.int(0, 3) === 0) {
+					campaign.resetRunDeck({ runDeck: rng.pick(runDecks) });
+					outcomes.add('reset: done');
+				} else {
+					// Most moves borrow into a run deck or send cards home from one, borrowing more, so the locker runs dry and decks fill
+					const kind = rng.pick(['borrow', 'borrow', 'send_home', 'any', 'any'] as const);
+					const [deck, partner] = rng.int(0, 1) === 0 ? runDecks : [...runDecks].reverse();
+					const current = campaign.runDeckOf(deck.driver) as RunDeck;
+					let from: CardPlace;
+					let to: CardPlace;
+					let held: string[];
+					if (kind === 'borrow') {
+						[from, to] = ['locker', deck];
+						// What the partner borrowed too, which the locker may have run out of
+						held = [...Object.keys(campaign.locker), ...Object.keys(current.leftHome), ...Object.keys((campaign.runDeckOf(partner.driver) as RunDeck).borrowed)];
+					} else if (kind === 'send_home') {
+						[from, to] = [deck, 'locker'];
+						held = [...Object.keys(current.cards), ...current.escortCards.map(card => card.cardType)];
+					} else {
+						from = rng.pick<CardPlace>(['locker', ...records]);
+						to = rng.pick<CardPlace>(from === 'locker' ? records : ['locker', ...records.filter(driver => driver !== from)]);
+						held = Object.keys(from === 'locker' ? campaign.locker : from.defaultDeck);
+					}
+					// Mostly a card `from` holds, so moves land often enough to walk decks to their limits.
+					const cardType = held.length > 0 && rng.int(0, 3) > 0 ? rng.pick(held) : rng.pick(CARD_TYPES);
+					const move: CardMove = { cardType, from, to, count: rng.int(1, 3) };
+					const blocker = campaign.getCardMoveBlocker(move);
+					if (blocker === null) campaign.moveCards(move);
+					else expectRefused({ campaign, action: () => campaign.moveCards(move), blocker });
+					outcomes.add(`move: ${blocker?.reason ?? 'done'}`);
+				}
+
+				expect(together(ownedByHand(campaign), scrapped)).toEqual(start);
+				expect(here.filter(driver => !keepsTheRules(driver))).toEqual([]);
+				expect(seated.map(driver => driver.defaultDeck)).toEqual([{}, {}]);
+				expect(campaign.runDecks.filter(deck => !runDeckKeepsTheRules(deck))).toEqual([]);
+				expect(campaign.runDecks.flatMap(deck => deck.escortCards.map(card => card.broughtBy)).sort()).toEqual(escortIds);
+			}
+
+			expect([...outcomes].sort()).toEqual([
+				'escort: card_locked', 'escort: done',
+				'move: already_borrowed', 'move: card_locked', 'move: deck_at_minimum', 'move: deck_full', 'move: done', 'move: driver_away',
+				'move: on_run', 'move: other_archetype', 'move: too_few',
+				'reset: done',
+				'scrap: done', 'scrap: too_few'
+			]);
+			expect(campaign.cardsOwned).toEqual(ownedByHand(campaign));
+
+			// Saved mid-run and loaded back, then unwound the same way as the campaign it came from
+			const loaded = await throughStore(campaign);
+			expect(loaded.toJSON()).toEqual(campaign.toJSON());
+			expect(loaded.cardsOwned).toEqual(campaign.cardsOwned);
+
+			// On odd seeds the run fails and the Interceptor dies, taking what went with them
+			const dies = seed % 2 === 1;
+			const interceptorDeck = campaign.runDeckOf(seated[1]) as RunDeck;
+			const lost = dies ? interceptorDeck.cards : NO_CARDS;
+			const defaultDecks = campaign.runDecks.map(deck => deck.defaultDeck);
+			for (const after of [campaign, loaded]) {
+				if (dies) after.drivers[1].set({ status: 'dead', hitpoints: 0, defaultDeck: {} });
+				after.unwindRunDecks();
+			}
+
+			expect(loaded.toJSON()).toEqual(campaign.toJSON());
+			expect(campaign.runDecks).toEqual([]);
+			expect(together(together(ownedByHand(campaign), scrapped), lost)).toEqual(start);
+			expect(seated[0].defaultDeck).toEqual(defaultDecks[0]);
+			expect(seated[1].defaultDeck).toEqual(dies ? {} : defaultDecks[1]);
 		});
 	});
 

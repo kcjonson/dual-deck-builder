@@ -25,13 +25,7 @@
 			},
 			"injuredDays": 0,
 			"handLimit": 7,
-			"defaultDeck": {
-				"armor_plating": 3,
-				"covering_fire": 1,
-				"nitro_boost": 2,
-				"ramming_speed": 4,
-				"repair_kit": 2
-			},
+			"defaultDeck": {},
 			"status": "ready",
 			"runsCompleted": 4
 		},
@@ -105,22 +99,14 @@
 			},
 			"injuredDays": 0,
 			"handLimit": 7,
-			"defaultDeck": {
-				"armor_plating": 1,
-				"flanking_maneuver": 2,
-				"headshot": 2,
-				"nitro_boost": 2,
-				"precision_shot": 3,
-				"repair_kit": 1
-			},
+			"defaultDeck": {},
 			"status": "ready",
 			"runsCompleted": 0
 		}
 	],
 	"locker": {
 		"emp_blast": 1,
-		"headshot": 2,
-		"medical_kit": 1,
+		"headshot": 1,
 		"ramming_speed": 1
 	},
 	"convoy": {
@@ -182,6 +168,50 @@
 			}
 		]
 	},
+	"runDecks": [
+		{
+			"driver": "driver-1",
+			"own": {
+				"armor_plating": 3,
+				"covering_fire": 1,
+				"ramming_speed": 4,
+				"repair_kit": 2
+			},
+			"leftHome": {
+				"nitro_boost": 2
+			},
+			"borrowed": {
+				"medical_kit": 1
+			},
+			"escortCards": [
+				{
+					"cardType": "top_off",
+					"broughtBy": "escort-1"
+				}
+			]
+		},
+		{
+			"driver": "driver-5",
+			"own": {
+				"armor_plating": 1,
+				"flanking_maneuver": 2,
+				"headshot": 2,
+				"nitro_boost": 2,
+				"precision_shot": 3,
+				"repair_kit": 1
+			},
+			"leftHome": {},
+			"borrowed": {
+				"headshot": 1
+			},
+			"escortCards": [
+				{
+					"cardType": "run_ahead",
+					"broughtBy": "escort-3"
+				}
+			]
+		}
+	],
 	"strongholdsTaken": [
 		"stronghold-3"
 	],
