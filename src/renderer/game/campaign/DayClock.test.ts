@@ -4,7 +4,7 @@ import { DriverArchetype } from '../mechanics/Driver';
 import { Campaign, Resources } from './Campaign';
 import { CAMPAIGN_START } from './CampaignStart';
 import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES } from './CompoundRules';
-import { DAY_END_HOOKS, DayEnd, DayEndHooks, DuskState, MapDayStep, NeedsForecast, endDay, forecastNeeds } from './DayClock';
+import { DAY_END_HOOKS, DayEnd, DayEndHooks, DayHaul, DuskState, MapDayStep, NeedsForecast, endDay, forecastNeeds } from './DayClock';
 import { DriverRecord, DriverStatus } from './DriverRecord';
 import { foundCampaign } from './Founding';
 import { MapState } from './MapState';
@@ -295,6 +295,31 @@ describe('endDay', () => {
 			expect(driver.status).toBe('injured');
 		});
 
+		it('refuses partway through a card move, before anyone heals, so a record\'s listener can\'t end half a night', () => {
+			const campaign = newCampaign();
+			const mover = campaign.recruitDriver({ archetype: 'road_warrior' });
+			const patient = campaign.recruitDriver({ archetype: 'mechanic' });
+			injure(patient, 1);
+			const [cardType] = Object.keys(mover.defaultDeck);
+			const held = mover.defaultDeck[cardType];
+			campaign.set({ locker: { [cardType]: 1 } });
+			const refusals: string[] = [];
+			mover.on('change', () => {
+				try {
+					endDay({ campaign });
+				} catch (error) {
+					refusals.push((error as Error).message);
+				}
+			});
+
+			campaign.moveCards({ cardType, from: 'locker', to: mover });
+
+			expect(refusals).toEqual(["The day can't end while a card move is being stored"]);
+			expect(campaign.day).toBe(1);
+			expect(patient).toMatchObject({ status: 'injured', injuredDays: 1 });
+			expect(mover.defaultDeck[cardType]).toBe(held + 1);
+		});
+
 		it('keeps a line a driver\'s listener logs as they heal, ahead of the shortfall', () => {
 			const campaign = newCampaign({ food: 0 });
 			const driver = campaign.recruitDriver({ archetype: 'road_warrior' });
@@ -309,6 +334,78 @@ describe('endDay', () => {
 				{ day: 1, message: 'Road Warrior 1 is fit again.' },
 				{ day: 1, message: 'Ran short of 3 food; 3 people lost.' }
 			]);
+		});
+	});
+
+	describe('a haul at dusk', () => {
+		const haul = (resources: Partial<Resources>, message = 'A haul came in.'): DayHaul => ({ resources, message });
+
+		it('comes into the stores before the compound eats, so food it brings feeds that night', () => {
+			const campaign = newCampaign({ food: 0, water: 1, fuel: 0 });
+
+			const result = endDay({ campaign, haul: haul({ food: 3, water: 2, fuel: 2, scrap: 15 }) });
+
+			expect(result.shortfall).toEqual({ food: 0, water: 0 });
+			expect(campaign.resources).toEqual({ ...STORES, food: 0, water: 0, fuel: 2, scrap: STORES.scrap + 15 });
+		});
+
+		it('logs its line dated the day that ended, ahead of the shortfall that followed it', () => {
+			const campaign = newCampaign({ food: 0 });
+			campaign.set({ day: 4 });
+
+			endDay({ campaign, haul: haul({ fuel: 1 }, 'A scavenging party brought back 1 fuel.') });
+
+			expect(campaign.log).toEqual([
+				{ day: 4, message: 'A scavenging party brought back 1 fuel.' },
+				{ day: 4, message: 'Ran short of 3 food; 3 people lost.' }
+			]);
+		});
+
+		it('is in the state at dusk the map\'s steps see', () => {
+			const campaign = newCampaign({ fuel: 0 });
+			const seen: number[] = [];
+			const hooks: DayEndHooks = { ...DAY_END_HOOKS, poiRefills: ({ campaign: atDusk, map }) => { seen.push(atDusk.resources.fuel); return map; } };
+
+			endDay({ campaign, hooks, haul: haul({ fuel: 2 }) });
+
+			expect(seen).toEqual([2]);
+		});
+
+		it('is stored in the day end\'s one set: the campaign\'s single change already holds the haul and the new day', () => {
+			const campaign = newCampaign({ fuel: 0 });
+			const seen: { day: number; fuel: number; log: number }[] = [];
+			campaign.on('change', () => seen.push({ day: campaign.day, fuel: campaign.resources.fuel, log: campaign.log.length }));
+
+			endDay({ campaign, haul: haul({ fuel: 2 }) });
+
+			expect(seen).toEqual([{ day: 2, fuel: 2, log: 1 }]);
+		});
+
+		it.each([
+			['a resource the campaign doesn\'t keep', haul({ ammo: 3 } as Partial<Resources>), 'haul.resources has an unknown field "ammo"'],
+			['an amount taken away', haul({ scrap: -5 }), 'haul.resources.scrap must be an integer >= 0, got -5'],
+			['part of a unit', haul({ fuel: 0.5 }), 'haul.resources.fuel must be an integer >= 0, got 0.5'],
+			['an amount in a string', haul({ fuel: '2' as unknown as number }), 'haul.resources.fuel must be a number, got "2"'],
+			['stores pushed past what a save holds', haul({ fuel: Number.MAX_SAFE_INTEGER }), /^Campaign\.resources\.fuel must be an integer >= 0, got 9007199254740\d+$/],
+			['a blank log line', haul({ fuel: 1 }, ' '), 'haul.message must not be blank']
+		])('refuses %s before anyone heals or the day turns', (_label, refused, message) => {
+			const campaign = newCampaign({ fuel: 1 });
+			const driver = campaign.recruitDriver({ archetype: 'road_warrior' });
+			injure(driver, 1);
+			const before = savedText(campaign);
+
+			expect(() => endDay({ campaign, haul: refused })).toThrow(message);
+			expect(savedText(campaign)).toBe(before);
+			expect(driver.status).toBe('injured');
+		});
+
+		it('doesn\'t land when a hook throws', () => {
+			const campaign = newCampaign({ fuel: 0 });
+			const before = savedText(campaign);
+			const hooks: DayEndHooks = { ...DAY_END_HOOKS, stopCooldowns: () => { throw new Error('no stop table'); } };
+
+			expect(() => endDay({ campaign, hooks, haul: haul({ fuel: 2 }) })).toThrow('no stop table');
+			expect(savedText(campaign)).toBe(before);
 		});
 	});
 

@@ -17,16 +17,19 @@ const damaged = (change: (json: RulesJson) => void): RulesJson => {
 
 const perUnit = (json: RulesJson): Record<string, unknown> => json.upkeep.peoplePerUnit as Record<string, unknown>;
 
+const scavenged = (json: RulesJson, resource: string): Record<string, unknown> => json.scavenging[resource] as Record<string, unknown>;
+
 describe('compound-rules.json', () => {
 	it('reads as the compound\'s rules, which the day end uses when given none', () => {
 		expect(read(shipped())).toEqual(COMPOUND_RULES);
 	});
 
-	it('feeds 4 people with each unit of food and water, a unit short costs a person and a point of unrest, and an infirmary day is 10 HP or a med', () => {
+	it('feeds 4 people with each unit of food and water, a unit short costs a person and a point of unrest, an infirmary day is 10 HP or a med, and a scavenging party brings back 1 to 2 fuel and 5 to 15 scrap', () => {
 		expect(COMPOUND_RULES).toEqual({
 			upkeep: { peoplePerUnit: { food: 4, water: 4 } },
 			shortfall: { peopleLostPerUnit: 1, unrestPerUnit: 1 },
-			infirmary: { hitpointsPerDay: 10, medsPerDay: 1 }
+			infirmary: { hitpointsPerDay: 10, medsPerDay: 1 },
+			scavenging: { fuel: { min: 1, max: 2 }, scrap: { min: 5, max: 15 } }
 		});
 	});
 
@@ -36,6 +39,15 @@ describe('compound-rules.json', () => {
 		expect(Object.isFrozen(COMPOUND_RULES.upkeep.peoplePerUnit)).toBe(true);
 		expect(Object.isFrozen(COMPOUND_RULES.shortfall)).toBe(true);
 		expect(Object.isFrozen(COMPOUND_RULES.infirmary)).toBe(true);
+		expect(Object.isFrozen(COMPOUND_RULES.scavenging)).toBe(true);
+		expect(Object.isFrozen(COMPOUND_RULES.scavenging.fuel)).toBe(true);
+		expect(Object.isFrozen(COMPOUND_RULES.scavenging.scrap)).toBe(true);
+	});
+
+	it('takes a scavenging haul pinned to one amount, and one with no scrap', () => {
+		const pinned = read(damaged(json => { json.scavenging = { fuel: { min: 3, max: 3 }, scrap: { min: 0, max: 0 } }; }));
+
+		expect(pinned.scavenging).toEqual({ fuel: { min: 3, max: 3 }, scrap: { min: 0, max: 0 } });
 	});
 
 	it('takes shortfalls that cost nothing', () => {
@@ -75,7 +87,21 @@ describe('compound-rules.json', () => {
 		['free meds', (json: RulesJson) => { json.infirmary.medsPerDay = 0; },
 			'CompoundRules.infirmary.medsPerDay must be an integer from 1 to 100, got 0'],
 		['meds per day past any tuning', (json: RulesJson) => { json.infirmary.medsPerDay = 1000; },
-			'CompoundRules.infirmary.medsPerDay must be an integer from 1 to 100, got 1000']
+			'CompoundRules.infirmary.medsPerDay must be an integer from 1 to 100, got 1000'],
+		['no scavenging', (json: RulesJson) => { delete json.scavenging; }, 'CompoundRules.scavenging is missing'],
+		['a party that brings back food', (json: RulesJson) => { json.scavenging.food = { min: 1, max: 2 }; },
+			'CompoundRules.scavenging has an unknown field "food"'],
+		['a party that can come back with no fuel, which could leave a compound stuck', (json: RulesJson) => { scavenged(json, 'fuel').min = 0; },
+			'CompoundRules.scavenging.fuel.min must be an integer from 1 to 100, got 0'],
+		['a fuel range that runs backwards', (json: RulesJson) => { json.scavenging.fuel = { min: 3, max: 2 }; },
+			'CompoundRules.scavenging.fuel.max must be an integer from 3 to 100, got 2'],
+		['more fuel than any tuning', (json: RulesJson) => { scavenged(json, 'fuel').max = 101; },
+			'CompoundRules.scavenging.fuel.max must be an integer from 1 to 100, got 101'],
+		['scrap a party takes away', (json: RulesJson) => { scavenged(json, 'scrap').min = -5; },
+			'CompoundRules.scavenging.scrap.min must be an integer from 0 to 1000, got -5'],
+		['part of a scrap', (json: RulesJson) => { scavenged(json, 'scrap').max = 7.5; },
+			'CompoundRules.scavenging.scrap.max must be an integer from 5 to 1000, got 7.5'],
+		['a range with no max', (json: RulesJson) => { delete scavenged(json, 'scrap').max; }, 'CompoundRules.scavenging.scrap.max is missing']
 	])('rejects %s', (_label, change, message) => {
 		expect(() => read(damaged(change))).toThrow(message);
 	});
