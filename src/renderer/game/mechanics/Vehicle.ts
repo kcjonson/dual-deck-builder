@@ -186,6 +186,15 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
+	 * The id the convoy gave this escort, `escort-<n>`, which saves and
+	 * `Card.broughtBy` use; never `id`, the Model's per-session count. Null
+	 * for anything that hasn't joined a convoy.
+	 */
+	public get convoyId(): string | null {
+		return this.escort?.id ?? null;
+	}
+
+	/**
 	 * An escort that can still carry out an order this turn
 	 */
 	public get isReady(): boolean {
@@ -494,18 +503,24 @@ export class Vehicle extends Model<VehicleData> {
 }
 
 /**
- * A driver's signature vehicle at full armor and structure, with the driver
- * at the wheel, not yet on the road. `driver.vehicleStats` is the
- * vehicle's own stat block, so its speed is the base speed; the driver's
- * speed skill adds to it through `Vehicle.speed`.
+ * A driver's signature vehicle with the driver at the wheel, not yet on the
+ * road: at full armor and structure, or at the `structure` and `armor` it
+ * carries from an earlier fight. `driver.vehicleStats` is the vehicle's own
+ * stat block, so its speed is the base speed; the driver's speed skill adds
+ * to it through `Vehicle.speed`.
  */
-export function createDrivenVehicle({ driver, name = driver.metadata.vehicleName }: { driver: Driver; name?: string }): Vehicle {
-	const { armor, maxStructure, speed } = driver.vehicleStats;
+export function createDrivenVehicle({ driver, name = driver.metadata.vehicleName, structure, armor }: {
+	driver: Driver;
+	name?: string;
+	structure?: number;
+	armor?: number;
+}): Vehicle {
+	const { armor: maxArmor, maxStructure, speed } = driver.vehicleStats;
 	return new Vehicle({
 		name,
-		armor,
-		maxArmor: armor,
-		structure: maxStructure,
+		armor: armor ?? maxArmor,
+		maxArmor,
+		structure: structure ?? maxStructure,
 		maxStructure,
 		baseSpeed: speed,
 		slot: null,

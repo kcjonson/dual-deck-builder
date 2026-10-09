@@ -334,6 +334,18 @@ describe('Battle on the road grid', () => {
 			)).toThrow("Ambusher can't ambush in the ahead row; no player vehicle is in it");
 		});
 
+		test('a refused opening moves nobody, so a vehicle can open the next fight', () => {
+			const buggy = createVehicle('Buggy', 3);
+			const ambusher = createVehicle('Ambusher', 3, slot(RoadLane.PLAYER_SHOULDER, RoadRow.AHEAD));
+
+			expect(() => createBattle([rig, bike], [buggy, ambusher])).toThrow("can't ambush in the ahead row");
+
+			expect([rig, bike, buggy].map(vehicle => vehicle.slot)).toEqual([null, null, null]);
+			expect(ambusher.flank).toBeNull();
+			createBattle([rig, bike], [buggy]);
+			expect(rig.slot).toEqual(slot(RoadLane.PLAYER_INSIDE, RoadRow.CENTER));
+		});
+
 		test('the row check sees where the formation lands, given or filled', () => {
 			const ahead = createVehicle('Rig', 1, slot(RoadLane.PLAYER_OUTSIDE, RoadRow.AHEAD));
 			const ambusher = createVehicle('Ambusher', 3, slot(RoadLane.PLAYER_SHOULDER, RoadRow.AHEAD));

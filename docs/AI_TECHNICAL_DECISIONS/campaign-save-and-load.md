@@ -53,11 +53,11 @@ Measured, with the save as compact JSON:
 
 | | Characters |
 | --- | --- |
-| The version 1 fixture's campaign | 3,003 |
-| A stress campaign's save (`__fixtures__/stressCampaign.ts`) | 358,458 |
+| The version 3 fixture's campaign | 3,222 |
+| A stress campaign's save (`__fixtures__/stressCampaign.ts`) | 360,479 |
 | its 2,000 log lines | 222,351 |
 | its stand-in gameplay map, at the spec's sizes | 117,643 |
-| its 60 drivers, with decks drawn from every card in `cards.json` | 15,668 |
+| its 60 drivers, with decks drawn from every card in `cards.json` | 17,903 |
 | A history entry | about 70 |
 
 The stand-in map has 300 stretches of 12 points at a tenth of a world unit (78 KB), 300 stops with their state (27 KB), 40 POIs with approaches (10 KB), and 64 by 64 land fog (1.4 KB). A real campaign's log is far shorter, so the map is most of a real save, and the stand-in puts it nearer 120 KB than the spec's tens of KB; how many points a stretch keeps decides most of that.

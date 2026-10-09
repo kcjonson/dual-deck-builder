@@ -1,6 +1,6 @@
 # Campaign state model and its save format (DDB-282)
 
-Date: 2026-10-06. Code: `src/renderer/game/campaign/`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Terms, Resources, The driver pool, Decks and the locker), [Area Map Generation](../specs/Area%20Map%20Generation.md) (Saving). Follows [compound-and-area-map.md](./compound-and-area-map.md), decisions 1, 3, and 7, and uses [seeded-prng.md](./seeded-prng.md).
+Date: 2026-10-06, revised 2026-10-08 for escort ids (DDB-403). Code: `src/renderer/game/campaign/`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Terms, Resources, The driver pool, Decks and the locker), [Area Map Generation](../specs/Area%20Map%20Generation.md) (Saving). Follows [compound-and-area-map.md](./compound-and-area-map.md), decisions 1, 3, and 7, and uses [seeded-prng.md](./seeded-prng.md).
 
 ## Context
 
@@ -64,7 +64,7 @@ Card types are checked for shape (lower snake case), not against `cards.json`, s
 
 ## Driver records
 
-`id`, `archetype`, `name`, `hitpoints` and `maxHitpoints` (the combat `Driver`'s names, since DDB-286 copies them across), `injuredDays`, `handLimit`, `defaultDeck`, `status` (ready, injured, dead, missing), and `runsCompleted`.
+`id`, `archetype`, `name`, `hitpoints` and `maxHitpoints` (the combat `Driver`'s names, since DDB-286 copies them across), `vehicle` (their signature vehicle's structure and armor, carried between fights; structure is at least 1, since a wreck limps on, and armor at least 0, with no maximum: a fight clamps both to the archetype's maximums as they stand, so a retune doesn't break a save), `injuredDays`, `handLimit`, `defaultDeck`, `status` (ready, injured, dead, missing), and `runsCompleted`.
 
 - HP runs from 0 to max, and max is at least 1. A driver is dead exactly when their HP is 0: the dead have none, the living some. The dead have no cards either.
 - `injuredDays` is above 0 exactly while injured. It's "fit in N days", which load out shows.
@@ -80,7 +80,7 @@ Card types are checked for shape (lower snake case), not against `cards.json`, s
 - Every object must have exactly its fields. Missing and unknown fields both throw, as map presets do, so a renamed field can't vanish quietly. Map params are the one exception (below).
 - Every array must hold a value at every index. JSON never makes a hole, but a `set` could pass one, and `map` and `forEach` would skip it unchecked.
 - Errors name where: `Campaign.drivers[1].status must be one of ready, injured, dead, missing, got "sleeping"`. A `ReaderTypeError` for the wrong kind of value, a `ReaderRangeError` for a value out of range: still a TypeError and a RangeError, but classes of their own, so a load can tell a damaged save from a bug in the code reading it, and log the bug (it still treats the save as damaged).
-- `campaign/__fixtures__/campaign-v1.json` is a campaign at the current format, which loads and writes back the same. When the format changes, the fixture changes with it and the version goes up.
+- `campaign/__fixtures__/campaign-v3.json` is a campaign at the current format, which loads and writes back the same. When the format changes, the fixture changes with it and the version goes up.
 
 Loading leniently, as `GameSettings` does (defaults for what's missing, unknown keys ignored), was rejected for saves: a damaged campaign would load as a different campaign.
 
@@ -90,11 +90,27 @@ People may reach 0; whether that ends the campaign is open (Compound and Supply 
 
 ## The convoy saves each escort's stat block
 
-An escort saves its name, armor, structure, their maxima, base speed, mods, and crew profile, not a type to look up, because a driven vehicle that carried on unmanned has no type and its stats came from the fight it converted in. Fight state (slot, flank, statuses, shield, spent, seats) isn't saved: the campaign saves between runs, and a loaded escort is off the road and ready. A convoy over its cap after a fight saves as it is. An escort needs at least 1 structure, since `Convoy.afterFight` never keeps a wreck.
+The convoy holds at most four escorts, each of a hired type: `Convoy` refuses a set piece and a vehicle carrying on unmanned (type null), which are never the convoy's. An escort saves its id (below), name, armor, structure, their maxima, base speed, mods, and crew profile as well as its type, so the stats it was hired with stay its own. Fight state (slot, flank, statuses, shield, spent, seats) isn't saved: the campaign saves between fights, and a loaded escort is off the road and ready. An escort needs at least 1 structure, since `Convoy.afterFight` never keeps a wreck.
 
 Drivers go the other way, archetype plus what varies, so retuning `DRIVER_CONFIGS` reaches campaigns in progress and retuning `ESCORT_CONFIGS` doesn't reach escorts already in a convoy.
 
-The convoy and its escorts change outside the campaign's checks (fights, the garage), so `toJSON` reads the convoy it's about to write back in, and throws there: an escort at 41 structure out of 40 fails on write, with its path, instead of writing a save that won't load.
+The convoy and its escorts change outside the campaign's checks (fights, the garage), so `toJSON` reads the convoy it's about to write back in, and throws there: an escort at 41 structure out of 40 fails on write, with its path, instead of writing a save that won't load. A reader error is a `ReaderRangeError` or `ReaderTypeError` here as everywhere else in the save, too many escorts included, so a load logs a damaged convoy as damage and not as a bug.
+
+## Escort ids come from the convoy's saved counter
+
+The run controller (DDB-322) saves after every step, so a save taken between fights has to say which escorts came along, and which escort brought each locked signature copy in a run deck (DDB-315). Escorts had nothing a save could hold: a Model id counts the models a session has built, so the same escort loads under a different one, and `Card.broughtBy` pointed at it.
+
+An escort's id is `escort-<n>`, on its profile (`EscortProfile.id`), handed out when it joins the convoy from `Convoy.nextEscortNumber`, the way the campaign hands out `driver-<n>` from `nextDriverNumber`. The counter is the convoy's rather than the campaign's because escorts join through the convoy, outside the campaign's `set`, and keeping the escorts and their counter in one model leaves no way in that skips the count.
+
+- `add` is the only way in. It gives the escort the next id, then appends it and moves the counter in one `set`. The roster is read-only, and `Convoy.set` only takes escorts out, keeping the order they joined in (`dismiss` and `afterFight` go through it), so nothing joins without an id or skips the count. While the escort is getting its id, its listeners can't change the convoy, another `add` included, which would hand out the same number; the convoy's own listeners hear the escort once it's in.
+- A convoy built from escorts with no id gives them the next ids in roster order, which is how founding builds one; escorts that already have ids (a loaded convoy's) keep them, and the counter defaults to one past the highest.
+- No id is handed out twice. The counter only goes up, since `Convoy.set` refuses to turn it back. A lost or dismissed escort's id isn't reused, and an escort joins a convoy only once, so one let go can't come back beside a newer escort holding its old number. The campaign keeps its convoy for good (`set` refuses another), since a new convoy would start the count over.
+- An escort keeps its id through every fight: `endCombat` clears what belongs to the fight and never the profile. Set pieces and vehicles carrying on unmanned have none.
+- `Card.broughtBy` is the id, read as `Vehicle.convoyId` rather than `Vehicle.id`, which is the Model's count. `Driver.removeCardsBroughtBy` matches on it when an escort is lost or dismissed, and an escort with no id brought nothing.
+
+The save's `convoy` is `{ nextEscortNumber, escorts }`, each escort's `id` beside its name rather than in its profile. The reader refuses an id that isn't `escort-<n>`, one an earlier escort holds, and one at or past the counter, so a loaded convoy can't hand out an id it already has.
+
+Everything a save cross-references, it refers to by these ids: drivers by `driver-<n>`, escorts by `escort-<n>`, and stops and strongholds by the map's own. A run party saves as its seats' and escorts' ids ([combat-bridge.md](./combat-bridge.md)), and a run deck's signature copy as its card type and `broughtBy`; writing both is the run controller's and the run decks'. Card copies have no identity of their own, which is why decks and the locker are counts. Model ids are never saved, and nothing a save holds names one.
 
 ## Map params: complete in the model, repaired on load
 
@@ -119,6 +135,6 @@ The log is `{ day, message }` lines, dated by `addLogEntry` with the current day
 
 - Saving (DDB-49, [campaign-save-and-load.md](./campaign-save-and-load.md)) writes `campaign.toSaveText()` at checkpoints, stamped with the save format version, and loads with `Campaign.fromJSON(json, { onWarning })`; a reader error means the save can't be loaded (or, from `toSaveText`, written), and warnings mean it loaded with its map params repaired.
 - Founding (DDB-284) builds `new Campaign({ seed, generatorVersion, mapParams, map, resources })` with params it has validated, and calls `recruitDriver` for each starting driver.
-- The combat bridge (DDB-286) builds combat drivers from records and writes HP, status, and injured days back in one `set`, with an empty deck for a driver who died.
+- The combat bridge (DDB-286, [combat-bridge.md](./combat-bridge.md)) builds combat drivers from records and writes each back after every fight in one `set`: their HP and their vehicle's structure and armor. Status only changes when a fight fails the run: dead (0 HP and an empty deck) or missing. Injured days are set when a run comes home.
 - Every change to the format bumps `CAMPAIGN_SCHEMA_VERSION`, which invalidates every existing save of a build, since there are no migrations; the fixture changes with it.
 - A checked `set` can still replace a whole deck or the locker, which makes or destroys copies; `moveCards` is the path that conserves them.

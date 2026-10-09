@@ -1,10 +1,8 @@
-import { Component, PointerEvents } from '../../engine/components/Component';
 import { Icon } from '../../engine/components/Icon';
 import { Text } from '../../engine/components/Text';
-import type { Cursor, ResolvedColors } from '../../engine/components/Component';
+import type { ResolvedColors } from '../../engine/components/Component';
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { DrawPolygonOptions, DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
-import type { AnyUiEvent } from '../../engine/input/events';
 import { resolveColor } from '../../engine/style/styleObject';
 import type { TweenHandle } from '../../engine/animation/Animator';
 import { tokens } from '../../engine/theme/tokens';
@@ -17,6 +15,7 @@ import { MARK_OUTLINES, seatMark } from './targetMarks';
 import { KeywordText } from './KeywordText';
 import { dashedOutlineTriangles } from './stripes';
 import { STATUS_TAG_HEIGHT, StatusTagDraw } from './statusTag';
+import { CardBase } from './CardBase';
 import {
 	CARD_DIM,
 	CARD_DIM_FILLS,
@@ -32,7 +31,6 @@ import {
 	DIM_BRIGHTNESS,
 	HOVER_OUTLINE,
 	SELECTED_OUTLINE,
-	focusRingDraw,
 	RARITY_GEMS,
 	artGradient,
 	cardArtIcon,
@@ -395,7 +393,7 @@ class MiniParts {
  * disabled) comes from the framework's flags. Driver colour is the frame;
  * rarity is the gem.
  */
-export class Card extends Component {
+export class Card extends CardBase<GameCard> {
 	private model: GameCard;
 	private cardSize: CardSize;
 	private driverNumber: 1 | 2 | null;
@@ -421,8 +419,6 @@ export class Card extends Component {
 	private readonly hexFaceDraw: DrawPolygonOptions;
 	private readonly gemDraw: DrawPolygonOptions;
 	private markDraw: DrawPolygonOptions | null = null;
-	/** The walk's focus ring, drawn by the card so its hex, tag, and count sit on top of it. */
-	private readonly focusRingDraw: DrawRectOptions;
 	/** A mini's stack, tag, and dashes; null on a face. */
 	private readonly mini: MiniParts | null;
 
@@ -440,10 +436,6 @@ export class Card extends Component {
 		scale: 1,
 		origin: BOTTOM_CENTRE,
 	};
-
-	// Event callbacks
-	/** A click or `activate` on the card, with the card it shows (R8.25). */
-	public onSelect: ((card: GameCard) => void) | null = null;
 
 	constructor({ id, x, y, data, size = CardSize.NORMAL, driverNumber, copies = 1, miniState = null }: {
 		id?: string;
@@ -477,7 +469,6 @@ export class Card extends Component {
 		};
 		this.frameBorder.width = this.borderWidth;
 		this.frameBorder.color = this.restingBorder;
-		this.focusRingDraw = focusRingDraw({ id, width: dimensions.width, height: dimensions.height });
 
 		const hex = this.hexBox;
 		const hexDraws = costHexDraws(hex.x, hex.y, hex.size);
@@ -622,15 +613,6 @@ export class Card extends Component {
 		this.placeParts();
 	}
 
-	/**
-	 * Composite internals derive their ids from the card's own, so a caller
-	 * names the card once and the lint can still address `<card>_title`.
-	 * Unnamed cards leave their children unnamed too.
-	 */
-	private childId(suffix: string): string | undefined {
-		return this.id === null ? undefined : `${this.id}_${suffix}`;
-	}
-
 	/** The cost hex's box, hanging off the top-left corner at either size. */
 	private get hexBox(): { x: number; y: number; size: number; digits: number } {
 		return this.cardSize === CardSize.MINI ? MINI.hex : FACE.hex;
@@ -710,56 +692,6 @@ export class Card extends Component {
 		return this.cardSize === CardSize.MINI ? MINI_CARD_INK : -FACE.hex.x + Math.ceil(costHexInk(FACE.hex.size));
 	}
 
-	/** R8.29: a card is one target; its text and frame are internals. */
-	protected get defaultPointerEvents(): PointerEvents {
-		return 'unit';
-	}
-
-	/** A card someone listens to is clickable; a disabled one shows the default cursor. */
-	protected get defaultCursor(): Cursor | null {
-		return this.onSelect ? 'pointer' : null;
-	}
-
-	/** A card acts on press and click in handleEvent, with or without a caller callback. */
-	public get handlesPointer(): boolean {
-		return true;
-	}
-
-	/**
-	 * The ring is the walk's fallback ring (R11.12's sixth layer, the same
-	 * tokens), drawn by the card in `render` so the cost hex, a mini's tag,
-	 * and its count sit on top of it rather than cut through by it.
-	 */
-	public get drawsOwnFocusRing(): boolean {
-		return true;
-	}
-
-	/**
-	 * A click is the dispatcher's, synthesised when press and release both
-	 * land on this card (R9.31). A disabled card receives none of these
-	 * (R9.5). A focused card treats `activate` (Enter or Space) as a click
-	 * (R9.27); a card is focusable only where a screen opts in.
-	 */
-	public handleEvent(event: AnyUiEvent): void {
-		super.handleEvent(event);
-		switch (event.type) {
-			case 'activate':
-				// Taken only when something listens, so otherwise Enter and Space reach the screen's hotkeys
-				if (!this.onSelect) return;
-				event.consume();
-				this.activate();
-				return;
-			case 'click':
-				this.activate();
-				return;
-		}
-	}
-
-	/** A click, as the select callback. */
-	private activate(): void {
-		this.onSelect?.(this.model);
-	}
-
 	/**
 	 * Hover, focus, selection, and enabled state, the last inherited (R8.3):
 	 * a selected card, or a hovered or keyboard-focused one that can be
@@ -767,7 +699,7 @@ export class Card extends Component {
 	 * yellow (section 7); a disabled card dims.
 	 */
 	protected onStateChange(): void {
-		this.updateLook();
+		super.onStateChange();
 		this.liftTo(this.liftTarget);
 	}
 
@@ -781,19 +713,18 @@ export class Card extends Component {
 	}
 
 	/**
-	 * Unmounting clears hover and focus without a callback (R9.21) and takes
-	 * the lift's tween with it, so a card that left hovered would come back
-	 * outlined and up. It settles its look, and its lift at once, for the
-	 * state it mounts in.
+	 * Unmounting takes the lift's tween with it too (R9.21), so a card that
+	 * left hovered would also come back up; it settles its lift at once,
+	 * after its look.
 	 */
 	protected onMount(): void {
-		this.updateLook();
+		super.onMount();
 		const target = this.liftTarget;
 		if (this.liftAmount !== target) this.applyLift(target);
 	}
 
 	/** Dimmed while disabled or faded, then the frame for the card's state. */
-	private updateLook(): void {
+	protected updateLook(): void {
 		this.dim(!this.effectivelyEnabled || this.faded);
 		this.applyBorder();
 	}
@@ -943,7 +874,7 @@ export class Card extends Component {
 		if (this.chipDraw) draw.drawRect(this.chipDraw);
 		if (this.markDraw) draw.drawPolygon(this.markDraw);
 		draw.drawPolygon(this.gemDraw);
-		if (this.focusVisible && this.effectivelyEnabled) draw.drawRect(this.focusRingDraw);
+		this.drawFocusRing(draw);
 		draw.drawPolygon(this.hexEdgeDraw);
 		draw.drawPolygon(this.hexFaceDraw);
 		draw.drawText(this.digitsDraw);

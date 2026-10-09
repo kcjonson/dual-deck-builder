@@ -26,6 +26,8 @@ Consequences: "run" now means one supply run and "campaign" the whole save; Comb
 
 ## Decision 2: the road network is trees grown outward from the metro
 
+Superseded 2026-10-08 by [realistic-map.md](./realistic-map.md): the roads are a real network with loops, and the tree is the route layer chosen over it.
+
 The roads are highways leaving the metro at irregular angles, bending with the terrain, and branching into back roads and trails, grown step by step with an outward-only rule and a clearance check. POIs are dead ends where two or three approach roads from different branches meet.
 
 Options considered:
@@ -47,6 +49,8 @@ Consequences:
 The save holds the generated gameplay map (drivable roads, POIs, stops, tiers, territories) plus the resolved parameters and the mutable state (fog, road knowledge, stop state, POI stock), not just the seed. Generator changes can't alter a campaign in progress, and floating-point differences between JS engines don't matter for loading. Terrain and scenery are only pictures once the gameplay map exists, so they're regenerated on load.
 
 ## Decision 4: drivable roads and scenery are separate layers
+
+Superseded 2026-10-08 by [realistic-map.md](./realistic-map.md): every road is real, roads no route uses are ordinary roads, and what's left of scenery (street grids, rail, labels) is dressing.
 
 Kevin, 2026-10-06: a region with only the drivable trees looks empty. The map has a drivable network, which carries every gameplay rule, and a scenery layer of street grids, county roads, rail lines, and broken pre-war highways that carries none.
 

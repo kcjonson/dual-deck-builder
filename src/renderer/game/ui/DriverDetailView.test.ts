@@ -9,17 +9,11 @@ import type { MountContext } from '../../engine/components/MountContext';
 import { layoutLint } from '../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../engine/debug/treeSnapshot';
 import { Card as GameCard, CardData } from '../mechanics/Card';
-import cardsFile from '../data/cards.json';
 import { MINI_GRID } from './Card';
 import { drawPileOrder } from './CardPileView';
 import { DRIVER_DETAIL, DriverDetailView, CardLookup, driverDeckGrid } from './DriverDetailView';
 import { DriverCardData, driverCardData } from './driverCardData';
-
-const cardData = (cardsFile as unknown as { cards: CardData[] }).cards;
-const lookup: CardLookup = (type) => {
-	const data = cardData.find((entry) => entry.type === type);
-	return data ? new GameCard({ ...data }) : null;
-};
+import { cardData, lookup, part } from './testing';
 
 let context: MountContext;
 
@@ -37,12 +31,6 @@ function view(data: DriverCardData, options: { pinned?: boolean; cards?: CardLoo
 /** Every word in the view, its stats' too, which flow in a row of their own. */
 function words(detail: Component): string[] {
 	return detail.children.flatMap((child) => (child instanceof Text ? [child.text] : words(child)));
-}
-
-function part(detail: DriverDetailView, suffix: string): Text {
-	const found = detail.findById(`detail_${suffix}`);
-	if (!(found instanceof Text)) throw new Error(`no ${suffix}`);
-	return found;
 }
 
 /** Where a part sits in the view, wherever it's nested. */

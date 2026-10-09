@@ -281,12 +281,28 @@ export class Battle extends Model<BattleData> {
 	 * behind. Escorts go after the driven vehicles, in roster order, each to
 	 * its type's preferred slot, or the next free one in opening order if
 	 * that's taken. A slot on the other team's shoulder makes the vehicle an
-	 * ambusher, checked once the formations are down since it needs an
-	 * opposing vehicle in its row.
+	 * ambusher. The whole opening is planned and checked before anyone moves,
+	 * so an encounter it refuses leaves every vehicle as it came: a convoy's
+	 * escorts stay off the road for the next fight.
 	 */
 	private placeOpeningFormation(): void {
+		const { slots, ambushers } = this.planOpeningFormation();
+		for (const [vehicle, slot] of slots) {
+			vehicle.set({ slot, flank: ambushers.includes(vehicle) ? { reservedSlot: null, outran: null } : null });
+		}
+	}
+
+	/**
+	 * Where every vehicle opens, and which open as ambushers, moving nobody.
+	 * Throws on a shoulder over capacity, a preset slot outside the team's
+	 * own formation and the other team's shoulder, two vehicles in one slot,
+	 * a full formation, or an ambusher getAmbushBlocker refuses, judged on the
+	 * planned road, since it needs an opposing vehicle in its row.
+	 */
+	private planOpeningFormation(): { slots: Map<Vehicle, RoadSlot>; ambushers: Vehicle[] } {
 		const teams = [this.playerTeam, this.enemyTeam];
-		const placed: Vehicle[] = [];
+		const slots = new Map<Vehicle, RoadSlot>();
+		const isTaken = (slot: RoadSlot): boolean => [...slots.values()].some(planned => sameSlot(planned, slot));
 		const ambushers: { vehicle: Vehicle; teamType: TeamType; slot: RoadSlot }[] = [];
 
 		for (const team of teams) {
@@ -304,18 +320,17 @@ export class Battle extends Model<BattleData> {
 				if (!ambush && !isFormationLane(team.type, slot.lane)) {
 					throw new Error(`${vehicle.name} must start in its own formation, not ${describeSlot(slot)}`);
 				}
-				if (placed.some(other => sameSlot(other.slot, slot))) {
+				if (isTaken(slot)) {
 					throw new Error(`Two vehicles start in ${describeSlot(slot)}`);
 				}
-				vehicle.flank = null;
-				placed.push(vehicle);
+				slots.set(vehicle, slot);
 				if (ambush) ambushers.push({ vehicle, teamType: team.type, slot });
 			}
 		}
 
 		for (const team of teams) {
-			const freeSlots = openingSlots(team.type).filter(slot => !placed.some(v => sameSlot(v.slot, slot)));
-			const unplaced = team.vehicles.filter(vehicle => !vehicle.slot);
+			const freeSlots = openingSlots(team.type).filter(slot => !isTaken(slot));
+			const unplaced = team.vehicles.filter(vehicle => !slots.has(vehicle));
 			const inPlacementOrder = [
 				...unplaced.filter(vehicle => !vehicle.isEscort),
 				...unplaced.filter(vehicle => vehicle.isEscort)
@@ -327,18 +342,18 @@ export class Battle extends Model<BattleData> {
 				if (!slot) {
 					throw new Error(`No formation slot left for ${vehicle.name}; a formation holds six`);
 				}
-				vehicle.set({ slot, flank: null });
-				placed.push(vehicle);
+				slots.set(vehicle, slot);
 			}
 		}
 
 		for (const ambusher of ambushers) {
-			const blocker = this.getAmbushBlocker(ambusher);
+			// Flanks are all cleared at the opening, so no slot is reserved yet
+			const blocker = this.ambushBlocker({ ...ambusher, slotOf: vehicle => slots.get(vehicle) ?? null, reservedSlotOf: () => null });
 			if (blocker) {
 				throw new Error(blocker);
 			}
-			ambusher.vehicle.flank = { reservedSlot: null, outran: null };
 		}
+		return { slots, ambushers: ambushers.map(({ vehicle }) => vehicle) };
 	}
 
 	/**
@@ -363,6 +378,23 @@ export class Battle extends Model<BattleData> {
 	 * goes by the team passed in.
 	 */
 	public getAmbushBlocker({ vehicle, teamType, slot }: { vehicle: Vehicle; teamType: TeamType; slot: RoadSlot }): string | null {
+		return this.ambushBlocker({
+			vehicle,
+			teamType,
+			slot,
+			slotOf: other => other.slot,
+			reservedSlotOf: other => other.flank?.reservedSlot ?? null
+		});
+	}
+
+	/** getAmbushBlocker on a road read through `slotOf` and `reservedSlotOf`: the road as it is, or as the opening plans it. */
+	private ambushBlocker({ vehicle, teamType, slot, slotOf, reservedSlotOf }: {
+		vehicle: Vehicle;
+		teamType: TeamType;
+		slot: RoadSlot;
+		slotOf: (vehicle: Vehicle) => RoadSlot | null;
+		reservedSlotOf: (vehicle: Vehicle) => RoadSlot | null;
+	}): string | null {
 		const currentTeam = this.getTeamForVehicle(vehicle);
 		if (currentTeam && currentTeam.type !== teamType) {
 			return `${vehicle.name} is on the ${currentTeam.type} team, not the ${teamType} team`;
@@ -376,12 +408,12 @@ export class Battle extends Model<BattleData> {
 			return `${vehicle.name} can only ambush from the ${describeLane(flankLane(teamType))}, not ${describeSlot(slot)}`;
 		}
 		const taken = this.getAllVehicles().some(other => other !== vehicle &&
-			(sameSlot(other.slot, slot) || sameSlot(other.flank?.reservedSlot ?? null, slot)));
+			(sameSlot(slotOf(other), slot) || sameSlot(reservedSlotOf(other), slot)));
 		if (taken) {
 			return `${describeSlot(slot)} is taken`;
 		}
 		const opposingTeam = teamType === TeamType.PLAYER ? this.enemyTeam : this.playerTeam;
-		const hasOpponentInRow = opposingTeam.vehicles.some(other => !other.isOutOfFight && other.slot?.row === slot.row);
+		const hasOpponentInRow = opposingTeam.vehicles.some(other => !other.isOutOfFight && slotOf(other)?.row === slot.row);
 		if (!hasOpponentInRow) {
 			return `${vehicle.name} can't ambush in the ${slot.row} row; no ${opposingTeam.type} vehicle is in it`;
 		}
@@ -1802,9 +1834,12 @@ export class Battle extends Model<BattleData> {
 	 * where they jump, not here.
 	 */
 	private logDeaths(vehicle: Vehicle, crew: Crew): void {
+		// A player's driver at 0 HP is down, not dead: their partner revives them if they win (Combat Rules,
+		// Losing vehicles and drivers). A raider's death is final.
+		const outcome = this.playerTeam.vehicles.includes(vehicle) ? 'is down' : 'is dead';
 		for (const occupant of crew.living) {
 			if (!occupant.isAlive()) {
-				this.logAbout({ type: 'general', driver: occupant, say: (name) => `${name} is dead`, metadata: { driver: occupant.metadata.name } });
+				this.logAbout({ type: 'general', driver: occupant, say: (name) => `${name} ${outcome}`, metadata: { driver: occupant.metadata.name } });
 			}
 		}
 		if (!vehicle.isAlive() || vehicle.driver === crew.driver) {
@@ -2230,11 +2265,13 @@ export class Battle extends Model<BattleData> {
 	 * End the fight. Every driver who fought gets their exhausted cards back.
 	 * Each convoy escort wrecked this fight is gone for the run, and the
 	 * signature copy it brought leaves the decks now. Every living player
-	 * vehicle leaves the road (Vehicle.leaveRoad), and a living convoy
-	 * escort's armor refills, so it carries only its structure into the next
-	 * fight. After a won fight the haulers among them pay out. The Med
-	 * Truck's heal lands here, on every living driver who fought, crashed
-	 * out or not; fuel and scrap go in the result for the run. Runs once: a
+	 * vehicle leaves the road (Vehicle.leaveRoad). The convoy's escorts still
+	 * running refill their armor, so they carry only their structure into the
+	 * next fight; a driven vehicle keeps its damage, and one that carried on
+	 * unmanned is still its driver's, not the convoy's. After a won fight the
+	 * haulers among the convoy's escorts pay out. The Med Truck's heal lands
+	 * here, on every driver who fought and is still alive, crashed out or
+	 * not; fuel and scrap go in the result for the run's cargo. Runs once: a
 	 * second call returns the same result.
 	 */
 	public endCombat(): AfterFight {
@@ -2248,15 +2285,16 @@ export class Battle extends Model<BattleData> {
 		}
 		const playerDrivers = seats?.get(TeamType.PLAYER) ?? [];
 
-		const lost = (Battle.convoyEscorts.get(this) ?? []).filter(escort => !escort.isAlive());
+		const convoyEscorts = Battle.convoyEscorts.get(this) ?? [];
+		const lost = convoyEscorts.filter(escort => !escort.isAlive());
 		for (const escort of lost) {
-			const removed = playerDrivers.flatMap(driver => driver.removeCardsBroughtBy(escort.id));
+			const removed = playerDrivers.flatMap(driver => driver.removeCardsBroughtBy(escort.convoyId));
 			const copies = removed.length > 0 ? `, and ${removed.map(card => card.name).join(', ')} leaves the deck` : '';
 			this.log('general', `${escort.name} is lost for the run${copies}`, { vehicle: escort.name });
 		}
 
 		this.playerTeam.getAliveVehicles().forEach(vehicle => vehicle.leaveRoad());
-		const escorts = this.playerTeam.escorts.filter(escort => escort.isAlive() && !escort.escort?.setPiece);
+		const escorts = convoyEscorts.filter(escort => escort.isAlive());
 		escorts.forEach(escort => { escort.armor = escort.maxArmor; });
 
 		const dividends: DividendPayout[] = !this.battleWon ? [] : escorts.flatMap(escort => {

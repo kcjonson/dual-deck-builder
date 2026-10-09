@@ -138,6 +138,17 @@ export class FocusManager {
 		return this.scopes.length > 0 ? this.scopes[this.scopes.length - 1].root : null;
 	}
 
+	/**
+	 * Where focus goes when the active scope pops (R9.20): what had focus when
+	 * it was pushed, or the last request from outside it since, such as a
+	 * screen mounting under a transition. Null with no scope pushed. Code that
+	 * disables what it names should `focus` a replacement, which takes its
+	 * place.
+	 */
+	public get pendingFocus(): Component | null {
+		return this.scopes.length > 0 ? this.scopes[this.scopes.length - 1].restore : null;
+	}
+
 	// -- moving focus (R9.22) -------------------------------------------------
 
 	/**

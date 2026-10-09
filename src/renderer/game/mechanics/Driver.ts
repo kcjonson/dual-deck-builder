@@ -419,9 +419,11 @@ export class Driver extends Model<DriverData> {
 
 	/**
 	 * Take every card an escort brought out of this driver's cards, wherever
-	 * it is: deck, hand, discard, or exhausted. Returns what was removed.
+	 * it is: deck, hand, discard, or exhausted. Returns what was removed. An
+	 * escort with no id never joined the convoy, so it brought nothing.
 	 */
-	public removeCardsBroughtBy(escortId: string): Card[] {
+	public removeCardsBroughtBy(escortId: string | null): Card[] {
+		if (escortId === null) return [];
 		const brought = (card: Card): boolean => card.broughtBy === escortId;
 		const removed = [
 			...(this.deck?.cards ?? []),

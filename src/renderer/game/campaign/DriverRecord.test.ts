@@ -13,11 +13,14 @@ const recruit = (options: Partial<DriverRecordOptions> = {}): DriverRecord => ne
 const throughText = (record: DriverRecord): unknown => JSON.parse(JSON.stringify(record));
 
 describe('DriverRecord', () => {
-	it.each(DRIVER_ARCHETYPES)('starts a new %s at full HP with their archetype\'s hand limit and starting deck, ready', (archetype) => {
+	it.each(DRIVER_ARCHETYPES)('starts a new %s at full HP in an undamaged vehicle, with their archetype\'s hand limit and starting deck, ready', (archetype) => {
 		const record = recruit({ archetype });
+		const { maxStructure, armor } = DRIVER_CONFIGS[archetype].vehicleStats;
 
 		expect(record.hitpoints).toBe(DRIVER_CONFIGS[archetype].maxHitpoints);
 		expect(record.maxHitpoints).toBe(DRIVER_CONFIGS[archetype].maxHitpoints);
+		expect(record.vehicle).toEqual({ structure: maxStructure, armor });
+		expect(Object.isFrozen(record.vehicle)).toBe(true);
 		expect(record.handLimit).toBe(DRIVER_CONFIGS[archetype].handLimit);
 		expect(record.defaultDeck).toEqual(startingDeckCounts(archetype));
 		expect(record.status).toBe('ready');
@@ -58,7 +61,11 @@ describe('DriverRecord', () => {
 			['an unknown status', { status: 'resting' }, 'DriverRecord.status must be one of ready, injured, dead, missing, got "resting"'],
 			['a blank name', { name: '  ' }, 'DriverRecord.name must not be blank'],
 			['a blank id', { id: '' }, 'DriverRecord.id must not be blank'],
-			['a deck count of 0', { defaultDeck: { repair_kit: 0 } }, 'DriverRecord.defaultDeck.repair_kit must be an integer >= 1, got 0']
+			['a deck count of 0', { defaultDeck: { repair_kit: 0 } }, 'DriverRecord.defaultDeck.repair_kit must be an integer >= 1, got 0'],
+			['a wrecked vehicle, which limps on instead', { vehicle: { structure: 0, armor: 0 } }, 'DriverRecord.vehicle.structure must be an integer >= 1, got 0'],
+			['negative armor', { vehicle: { structure: 80, armor: -1 } }, 'DriverRecord.vehicle.armor must be an integer >= 0, got -1'],
+			['fractional structure', { vehicle: { structure: 40.5, armor: 0 } }, 'DriverRecord.vehicle.structure must be an integer >= 1, got 40.5'],
+			['a vehicle with something extra', { vehicle: { structure: 80, armor: 10, shield: 4 } }, 'DriverRecord.vehicle has an unknown field "shield"']
 		])('rejects %s', (_label, options, message) => {
 			expect(() => recruit(options as Partial<DriverRecordOptions>)).toThrow(message);
 		});
@@ -70,6 +77,10 @@ describe('DriverRecord', () => {
 
 		it('takes a hand limit of 0, the least a record can hold', () => {
 			expect(recruit({ handLimit: 0 }).handLimit).toBe(0);
+		});
+
+		it('takes a vehicle past its archetype\'s maximums, which a retune can leave behind, and leaves the clamp to the fight', () => {
+			expect(recruit({ vehicle: { structure: 95, armor: 12 } }).vehicle).toEqual({ structure: 95, armor: 12 });
 		});
 	});
 
@@ -136,12 +147,12 @@ describe('DriverRecord', () => {
 	describe('JSON', () => {
 		it('writes exactly the record\'s fields, and nothing of the model\'s', () => {
 			expect(Object.keys(recruit().toJSON())).toEqual([
-				'id', 'archetype', 'name', 'hitpoints', 'maxHitpoints', 'injuredDays', 'handLimit', 'defaultDeck', 'status', 'runsCompleted'
+				'id', 'archetype', 'name', 'hitpoints', 'maxHitpoints', 'vehicle', 'injuredDays', 'handLimit', 'defaultDeck', 'status', 'runsCompleted'
 			]);
 		});
 
 		it('reads back what it wrote, through JSON text', () => {
-			const record = recruit({ hitpoints: 9, status: 'injured', injuredDays: 4, runsCompleted: 6, handLimit: 8 });
+			const record = recruit({ hitpoints: 9, status: 'injured', injuredDays: 4, runsCompleted: 6, handLimit: 8, vehicle: { structure: 33, armor: 2 } });
 			record.set({ defaultDeck: { headshot: 1, ramming_speed: 3 } });
 
 			const loaded = DriverRecord.fromJSON(throughText(record));
@@ -149,6 +160,7 @@ describe('DriverRecord', () => {
 			expect(loaded).not.toBe(record);
 			expect(loaded.toJSON()).toEqual(record.toJSON());
 			expect(cardCount(loaded.defaultDeck, 'ramming_speed')).toBe(3);
+			expect(loaded.vehicle).toEqual({ structure: 33, armor: 2 });
 		});
 
 		it('hands out a copy, so editing the JSON leaves the record alone', () => {
