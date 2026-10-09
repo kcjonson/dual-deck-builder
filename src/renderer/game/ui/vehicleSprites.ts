@@ -65,6 +65,11 @@ export function spriteKindOf(vehicle: Pick<VehicleData, 'name' | 'maxStructure' 
 	return 'car';
 }
 
+/** The rear view an escort shows, as `spriteKindOf` picks it for any escort: a bike by its name, else a truck. */
+export function spriteKindForEscort(name: string): SpriteKind {
+	return BIKE_NAME.test(name) ? 'bike' : 'truck';
+}
+
 type Part =
 	| { kind: 'rect'; paint: Paint; options: DrawRectOptions }
 	| { kind: 'polygon'; paint: Paint; options: DrawPolygonOptions }

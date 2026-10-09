@@ -3,7 +3,8 @@ import type { Border, BoxShadow, DrawCircleOptions, DrawRectOptions } from '../.
 import type { Rect, Vec2 } from '../../engine/draw/geometry';
 import { CLEAR } from '../../engine/ui/surfaces';
 import { DRIVER_HP_COLOR, hexRgba } from '../screens/combat/combatStyle';
-import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_LINE, CARD_MUTED_FILLS, CARD_NAME, DIM_BRIGHTNESS, ToneFills, artGradient, dimHex, toneFills } from './cardStyle';
+import { CARD_DIM_FILLS, CARD_GROUND_FILLS, CARD_MUTED_FILLS, CARD_NAME, DIM_BRIGHTNESS, ToneFills, artGradient, dimHex, toneFills } from './cardStyle';
+import { barFraction } from './statBar';
 
 /**
  * The edge no play card has (Game Flow 7.0): a riveted double frame. A
@@ -22,21 +23,19 @@ export const RIVETED_FRAME = {
 	rivet: { inset: 8, radius: 1.5 },
 } as const;
 
+/** The HP bar's hue (`statBar`), the road's driver HP. */
+export const DRIVER_HP_FILLS: ToneFills = toneFills(DRIVER_HP_COLOR);
+
 /**
- * The HP bar: the driver HP hue on a track sunk below the card's ground,
- * outlined in the card line so an empty bar (a lost driver's) still shows
- * its length.
+ * A placeholder picture's ground, a play card's unowned art strip, and the
+ * figure on it in the art glyph's bone, fainter since it's solid: the
+ * driver card's head and shoulders, the escort card's vehicle.
  */
-const HP_FILLS: ToneFills = toneFills(DRIVER_HP_COLOR);
-const HP_TRACK_FILLS: ToneFills = toneFills('#0e0f10');
-const HP_TRACK_LINE_FILLS: ToneFills = toneFills(CARD_LINE);
-
-/** The portrait's ground is a play card's unowned art strip, and its head and shoulders take the art glyph's bone, fainter since they're solid. */
-const PORTRAIT_GROUND = { full: artGradient(null), dimmed: artGradient(null, DIM_BRIGHTNESS) } as const;
+export const PLACEHOLDER_GROUND = { full: artGradient(null), dimmed: artGradient(null, DIM_BRIGHTNESS) } as const;
 const SILHOUETTE_ALPHA = 0.2;
-const SILHOUETTE_FILLS: ToneFills = { full: hexRgba(CARD_NAME, SILHOUETTE_ALPHA), dimmed: hexRgba(dimHex(CARD_NAME), SILHOUETTE_ALPHA) };
+export const SILHOUETTE_FILLS: ToneFills = { full: hexRgba(CARD_NAME, SILHOUETTE_ALPHA), dimmed: hexRgba(dimHex(CARD_NAME), SILHOUETTE_ALPHA) };
 
-type Tone = 'full' | 'dimmed';
+type Tone = keyof ToneFills;
 
 /** The frame's draws, built once and moved or recoloured in place. */
 export interface RivetedFrameDraws {
@@ -119,7 +118,7 @@ export function portraitDraws({ x, y, width, height }: Rect): PortraitDraws {
 	const shouldersTop = y + height * 0.6;
 	const shouldersRadius = height * 0.27;
 	return {
-		ground: { rect: { x, y, width, height }, radius: RIVETED_FRAME.radius, gradient: PORTRAIT_GROUND.full },
+		ground: { rect: { x, y, width, height }, radius: RIVETED_FRAME.radius, gradient: PLACEHOLDER_GROUND.full },
 		head: { center: { x: centre, y: y + height * 0.4 }, radius: height / 6, fill: SILHOUETTE_FILLS.full },
 		shoulders: {
 			rect: { x: centre - shouldersWidth / 2, y: shouldersTop, width: shouldersWidth, height: y + height - shouldersTop },
@@ -130,7 +129,7 @@ export function portraitDraws({ x, y, width, height }: Rect): PortraitDraws {
 }
 
 export function tonePortrait(draws: PortraitDraws, tone: Tone): void {
-	draws.ground.gradient = PORTRAIT_GROUND[tone];
+	draws.ground.gradient = PLACEHOLDER_GROUND[tone];
 	draws.head.fill = SILHOUETTE_FILLS[tone];
 	draws.shoulders.fill = SILHOUETTE_FILLS[tone];
 }
@@ -143,43 +142,5 @@ export function drawPortrait(draw: DrawApi, draws: PortraitDraws): void {
 
 /** How full an HP bar is: 0 to 1, and 0 for a driver with no maximum. */
 export function hpFraction({ hitpoints, maxHitpoints }: { hitpoints: number; maxHitpoints: number }): number {
-	return maxHitpoints > 0 ? Math.min(1, Math.max(0, hitpoints / maxHitpoints)) : 0;
-}
-
-/** An HP bar's draws: the track, and the fill over it from the left. */
-export interface HpBarDraws {
-	readonly track: DrawRectOptions & { rect: Rect; border: Border };
-	readonly fill: DrawRectOptions & { rect: Rect };
-}
-
-export function hpBarDraws(): HpBarDraws {
-	return {
-		track: { rect: { x: 0, y: 0, width: 0, height: 0 }, radius: 1, fill: HP_TRACK_FILLS.full, border: { color: HP_TRACK_LINE_FILLS.full, width: 1 } },
-		fill: { rect: { x: 0, y: 0, width: 0, height: 0 }, radius: 1, fill: HP_FILLS.full },
-	};
-}
-
-/** Puts the bar in the `rect` box, `fraction` of it filled, in place. */
-export function placeHpBar(draws: HpBarDraws, { x, y, width, height }: Rect, fraction: number): void {
-	const { track, fill } = draws;
-	track.rect.x = x;
-	track.rect.y = y;
-	track.rect.width = width;
-	track.rect.height = height;
-	fill.rect.x = x;
-	fill.rect.y = y;
-	fill.rect.width = width * fraction;
-	fill.rect.height = height;
-}
-
-export function toneHpBar(draws: HpBarDraws, tone: Tone): void {
-	draws.track.fill = HP_TRACK_FILLS[tone];
-	draws.track.border.color = HP_TRACK_LINE_FILLS[tone];
-	draws.fill.fill = HP_FILLS[tone];
-}
-
-/** The track, and the fill over it unless the bar is empty. */
-export function drawHpBar(draw: DrawApi, draws: HpBarDraws): void {
-	draw.drawRect(draws.track);
-	if (draws.fill.rect.width > 0) draw.drawRect(draws.fill);
+	return barFraction(hitpoints, maxHitpoints);
 }
