@@ -119,12 +119,13 @@ const openFights = new WeakMap<Campaign, CampaignFight>();
 const storingWriteBacks = new WeakSet<Campaign>();
 
 /**
- * Whether the campaign has a fight started and not yet written back. Nobody
- * comes home while one is open (`injureOnArrival`), since the write-back has
- * to fit the records as the fight left them.
+ * Whether the campaign has a fight started and not yet written back, or
+ * being written back. Nobody comes home while one is open
+ * (`injureOnArrival`), since the write-back has to fit the records as the
+ * fight left them, and a listener partway through it sees them half stored.
  */
 export function hasOpenFight(campaign: Campaign): boolean {
-	return openFights.has(campaign);
+	return openFights.has(campaign) || storingWriteBacks.has(campaign);
 }
 
 /**

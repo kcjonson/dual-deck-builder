@@ -716,6 +716,27 @@ describe('the combat bridge', () => {
 			expect(() => startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() })).not.toThrow();
 		});
 
+		it('refuses an arrival started from inside a write-back, which would injure by HP not yet stored (DDB-304)', () => {
+			const { campaign, warrior, interceptor, fight } = wonWithAWreck();
+			// Down 5 on the record until the write-back stores the 25 the fight left them with
+			interceptor.set({ hitpoints: 20 });
+			let arrival = '';
+			warrior.once('change', () => {
+				try {
+					injureOnArrival({ campaign, drivers: [warrior, interceptor] });
+					arrival = 'home';
+				} catch (error) {
+					arrival = (error as Error).message;
+				}
+			});
+
+			writeBackFight({ fight });
+
+			expect(arrival).toBe("This campaign's last fight hasn't been written back, so nobody has come home from it yet");
+			expect([interceptor.status, interceptor.injuredDays, interceptor.hitpoints]).toEqual(['ready', 0, 25]);
+			expect(injureOnArrival({ campaign, drivers: [warrior, interceptor] })).toEqual([]);
+		});
+
 		it('lets the next fight start only once a write-back that threw part way is finished', () => {
 			const { campaign, warrior, interceptor, fight } = wonWithAWreck();
 			warrior.once('change', () => interceptor.set({ status: 'dead', hitpoints: 0, defaultDeck: {} }));

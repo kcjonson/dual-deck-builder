@@ -79,11 +79,12 @@ export function injuryDays({ hitpoints, maxHitpoints, rules = COMPOUND_RULES }: 
  *
  * Returns who's injured, in the order given, frozen. The campaign itself
  * doesn't change, so only the injured drivers' records emit. Throws,
- * changing nothing, while the campaign's fight is open (its write-back has
- * to fit the records as the fight left them), and for a driver outside the
- * campaign's pool, one listed twice, or one who isn't ready: a run leaves
- * with ready drivers, and only a failed run, which never gets home, changes
- * a seat's status on the road.
+ * changing nothing, while the campaign's fight is open or being written
+ * back (the write-back has to fit the records as the fight left them, and
+ * a listener partway through it sees them half stored), and for a driver
+ * outside the campaign's pool, one listed twice, or one who isn't ready: a
+ * run leaves with ready drivers, and only a failed run, which never gets
+ * home, changes a seat's status on the road.
  */
 export function injureOnArrival({ campaign, drivers, rules = COMPOUND_RULES }: {
 	campaign: Campaign;
