@@ -1,10 +1,10 @@
 # The main menu's campaign entries (DDB-283)
 
-Date: 2026-10-08. Code: `src/renderer/game/screens/main-menu/MainMenuScreen.ts` and `campaignText.ts`, `screens/campaign-history/CampaignHistoryScreen.ts`, `screens/compound/CompoundPlaceholderScreen.ts`, and the harness's `tests/visual/support/campaignSaves.ts`. Spec: [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 1.1. Builds on [campaign-save-and-load.md](./campaign-save-and-load.md) and [campaign-founding.md](./campaign-founding.md), whose APIs it uses as built.
+Date: 2026-10-08. Code: `src/renderer/game/screens/main-menu/MainMenuScreen.ts` and `campaignText.ts`, `screens/campaign-history/CampaignHistoryScreen.ts`, `screens/compound/CompoundScreen.ts`, and the harness's `tests/visual/support/campaignSaves.ts`. Spec: [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 1.1. Builds on [campaign-save-and-load.md](./campaign-save-and-load.md) and [campaign-founding.md](./campaign-founding.md), whose APIs it uses as built.
 
 ## Context
 
-The menu's first button opened driver selection for a one-off fight. A campaign now founds, saves, and loads, so the menu needs New Campaign, Continue with the save's state, and Campaign History, and has to cope with a save it can't open: one from another save format version, a damaged one, or storage that's blocked or full. The compound screen doesn't exist yet, so whatever New Campaign and Continue open is a stand-in.
+The menu's first button opened driver selection for a one-off fight. A campaign now founds, saves, and loads, so the menu needs New Campaign, Continue with the save's state, and Campaign History, and has to cope with a save it can't open: one from another save format version, a damaged one, or storage that's blocked or full.
 
 ## Reading the save on mount
 
@@ -32,16 +32,11 @@ Founding runs before either, after `DriverLoader` has loaded, on `freshSeed()`, 
 
 Its own screen, laid out like credits: the title, one panel, Back. Each past campaign is a row of text (how it ended, days, strongholds, seed), not a ListRow: nothing in the list does anything, and R12.8's rows are pressable. The list sits in a scroll container that hugs a short history and scrolls a long one, so Back stays on screen at 1024x600; the page keys scroll it while Back has focus. A damaged history shows the store's message in place of the list.
 
-## The compound placeholder
-
-Registered as `compoundScreen`, the name the compound screen will take, with the data contract `{ campaign }`, so replacing it touches neither the menu nor the registry entry. It shows the summary and the stores, and Back to menu. Opened with no campaign, as a capture or the dev navigate hook does, it loads the save itself, which is what Continue would have handed it.
-
 ## Goldens over saved campaigns
 
 Screen scenarios take a `storage` map, which `openScreen` writes to local storage after the page loads and before the navigate. It clears every campaign key first, since the Electron project's profile keeps local storage from one launch to the next and a capture must not see the last one's saves. The saves (in progress, outdated, damaged, and a history with every ending) are built in `campaignSaves.ts` from the fixture through the store's own test helpers (`fixtureText`, `outdatedText`) and keys (`campaignKeys`), so they follow the fixture and `CAMPAIGN_SCHEMA_VERSION` when either moves and nothing in the harness names them; `campaignSaves.test.ts` loads each through the real store.
 
 ## Consequences
 
-- The compound screen replaces `CompoundPlaceholderScreen.ts` and its goldens, keeping the registry name and `{ campaign }`.
 - Bumping `CAMPAIGN_SCHEMA_VERSION` or renaming the fixture moves the harness's saves with it; only a change to what the fixture holds (its day, drivers, or strongholds) moves a golden.
 - "Unlocks earned" joins the history rows with the history schema bump that adds it.

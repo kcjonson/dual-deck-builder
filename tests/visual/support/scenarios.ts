@@ -71,8 +71,8 @@ interface ScreenCase {
  *
  * The screens that read the campaign store mount over the saves a case puts
  * in local storage first, the way a player's page holds them, and every other
- * case over none. The compound placeholder is opened with no campaign handed
- * over, so it loads the save as Continue would (DDB-283).
+ * case over none. The compound screen is opened with no campaign handed over,
+ * so it loads the save as Continue would (DDB-283, DDB-301).
  */
 const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'splashScreen' },
@@ -153,6 +153,13 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'driver-cards', lintShort: true },
 	{ scene: 'driver-detail', lintShort: true },
 	{ scene: 'driver-detail-pinned', lintShort: true },
+	// The escort card's states and its detail view (DDB-313)
+	{ scene: 'escort-cards', lintShort: true },
+	{ scene: 'escort-detail', lintShort: true },
+	{ scene: 'escort-detail-pinned', lintShort: true },
+	// The area map view, the whole map and under fog (DDB-298)
+	{ scene: 'area-map' },
+	{ scene: 'area-map-fog' },
 	{ scene: 'overlays' },
 	{ scene: 'dialog' },
 	{ scene: 'popover' },
