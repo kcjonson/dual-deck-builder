@@ -569,11 +569,11 @@ describe('Campaign cards under the deck rules', () => {
 			const defaultDecks = campaign.runDecks.map(deck => deck.defaultDeck);
 			for (const after of [campaign, loaded]) {
 				const [warrior, interceptor] = after.runDecks.map(deck => deck.driver);
-				const party = addCardsWon({ party: { seats: [warrior, interceptor], escorts: [], cargo: NO_RESOURCES, cargoCards: NO_CARDS }, cardsWon });
+				const party = addCardsWon({ party: { seats: [warrior, interceptor], escorts: [], cargo: NO_RESOURCES, cargoCards: NO_CARDS, run: after.currentRun ?? 'none' }, cardsWon });
 				if (fails) {
 					warrior.set({ status: 'missing' });
 					interceptor.set({ status: 'dead', hitpoints: 0, defaultDeck: {} });
-					const result: FailedRun = { outcome: 'run_failed', party: null, dead: [interceptor], missing: [warrior], escortsLost: [], cargoLost: party.cargo, cargoCardsLost: party.cargoCards };
+					const result: FailedRun = { outcome: 'run_failed', party: null, dead: [interceptor], missing: [warrior], escortsLost: [], cargoLost: party.cargo, cargoCardsLost: party.cargoCards, run: party.run };
 					after.loseRun({ result });
 				} else {
 					after.unloadRun({ party });

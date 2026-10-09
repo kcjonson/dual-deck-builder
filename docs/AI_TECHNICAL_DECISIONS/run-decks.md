@@ -63,7 +63,7 @@ Kevin's rule (a) counts loot as cargo (combat-bridge.md, Kevin's rules), and car
 
 ## Saves
 
-The campaign saves `runDecks`, each as its driver's id, `own`, `leftHome`, `borrowed`, and `escortCards`, which bumped `CAMPAIGN_SCHEMA_VERSION` from 3 to 4. The format fixture is now `campaign-v4.json`, a campaign with a run out, so the run deck format is pinned with the rest. A load refuses a run deck for a driver who isn't in the pool, one run deck or more than two, two for one driver, a seated driver whose default deck holds cards, a card both left at home and borrowed, and an escort card whose escort isn't in the convoy, isn't that escort's signature card, or is in both run decks. The bump also starts Campaign History over, since the history list is stamped with the same version ([campaign-save-and-load.md](./campaign-save-and-load.md)).
+The campaign saves `runDecks`, each as its driver's id, `own`, `leftHome`, `borrowed`, and `escortCards`, which bumped `CAMPAIGN_SCHEMA_VERSION` from 3 to 4. The format fixture, `campaign-v5.json` since run ids ([cards-won.md](./cards-won.md)), is a campaign with a run out, so the run deck format is pinned with the rest. A load refuses a run deck for a driver who isn't in the pool, one run deck or more than two, two for one driver, a seated driver whose default deck holds cards, a card both left at home and borrowed, and an escort card whose escort isn't in the convoy, isn't that escort's signature card, or is in both run decks. The bump also starts Campaign History over, since the history list is stamped with the same version ([campaign-save-and-load.md](./campaign-save-and-load.md)).
 
 ## Provisional calls
 

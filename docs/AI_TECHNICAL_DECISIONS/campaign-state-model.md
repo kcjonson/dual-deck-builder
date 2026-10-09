@@ -80,7 +80,7 @@ Card types are checked for shape (lower snake case), not against `cards.json`, s
 - Every object must have exactly its fields. Missing and unknown fields both throw, as map presets do, so a renamed field can't vanish quietly. Map params are the one exception (below).
 - Every array must hold a value at every index. JSON never makes a hole, but a `set` could pass one, and `map` and `forEach` would skip it unchecked.
 - Errors name where: `Campaign.drivers[1].status must be one of ready, injured, dead, missing, got "sleeping"`. A `ReaderTypeError` for the wrong kind of value, a `ReaderRangeError` for a value out of range: still a TypeError and a RangeError, but classes of their own, so a load can tell a damaged save from a bug in the code reading it, and log the bug (it still treats the save as damaged).
-- `campaign/__fixtures__/campaign-v4.json` is a campaign at the current format, with a run out, which loads and writes back the same, and tests take it through `storeFixtures.ts` as `CAMPAIGN_FIXTURE`. When the format changes, the fixture changes with it and the version goes up.
+- `campaign/__fixtures__/campaign-v5.json` is a campaign at the current format, with a run out, which loads and writes back the same, and tests take it through `storeFixtures.ts` as `CAMPAIGN_FIXTURE`. When the format changes, the fixture changes with it and the version goes up.
 
 Loading leniently, as `GameSettings` does (defaults for what's missing, unknown keys ignored), was rejected for saves: a damaged campaign would load as a different campaign.
 
@@ -110,7 +110,7 @@ An escort's id is `escort-<n>`, on its profile (`EscortProfile.id`), handed out 
 
 The save's `convoy` is `{ nextEscortNumber, escorts }`, each escort's `id` beside its name rather than in its profile. The reader refuses an id that isn't `escort-<n>`, one an earlier escort holds, and one at or past the counter, so a loaded convoy can't hand out an id it already has.
 
-Everything a save cross-references, it refers to by these ids: drivers by `driver-<n>`, escorts by `escort-<n>`, and stops and strongholds by the map's own. A run party saves as its seats' and escorts' ids ([combat-bridge.md](./combat-bridge.md)), and a run deck's escort card as its card type and `broughtBy`, and the run deck itself by its driver's id; the run controller writes the party, and the campaign its run decks. Card copies have no identity of their own, which is why decks and the locker are counts. Model ids are never saved, and nothing a save holds names one.
+Everything a save cross-references, it refers to by these ids: drivers by `driver-<n>`, escorts by `escort-<n>`, runs by `run-<n>` (from the campaign's `nextRunNumber`, [cards-won.md](./cards-won.md)), and stops and strongholds by the map's own. A run party saves as its seats' and escorts' ids and its run's ([combat-bridge.md](./combat-bridge.md)), and a run deck's escort card as its card type and `broughtBy`, and the run deck itself by its driver's id; the run controller writes the party, and the campaign its run decks. Card copies have no identity of their own, which is why decks and the locker are counts. Model ids are never saved, and nothing a save holds names one.
 
 ## Map params: complete in the model, repaired on load
 

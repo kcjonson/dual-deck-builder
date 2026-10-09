@@ -99,13 +99,14 @@ const named = (record: DriverRecord): string => `${record.name} (${record.id})`;
 /** The ids escorts have in the convoy, which a save names them by. */
 const idsOf = (escorts: readonly Vehicle[]): (string | null)[] => escorts.map(escort => escort.convoyId);
 
-/** A run party: these drivers and escorts, carrying `cargo` and no cards won, nothing when left out. */
-const partyOf = (seats: DriverRecord[], escorts: Vehicle[] = [], cargo: Readonly<Resources> = NO_RESOURCES): RunParty => ({ seats, escorts, cargo, cargoCards: NO_CARDS });
+/** A run party: these drivers and escorts, carrying `cargo` and no cards won, nothing when left out, on a campaign's first run unless it says otherwise. */
+const partyOf = (seats: DriverRecord[], escorts: Vehicle[] = [], cargo: Readonly<Resources> = NO_RESOURCES, run = 'run-1'): RunParty =>
+	({ seats, escorts, cargo, cargoCards: NO_CARDS, run });
 
-/** Load out: run decks for these drivers, with these escorts' cards, and the party that sets off with them. */
+/** Load out: run decks for these drivers, with these escorts' cards, and the party that sets off with them on the run they start. */
 function loadOut({ campaign, seats, escorts = [], cargo }: { campaign: Campaign; seats: DriverRecord[]; escorts?: Vehicle[]; cargo?: Readonly<Resources> }): RunParty {
 	campaign.startRunDecks({ seats, escorts });
-	return partyOf(seats, escorts, cargo);
+	return partyOf(seats, escorts, cargo, campaign.currentRun ?? 'none');
 }
 
 /** A seat's run deck, which every fight on a run deals from. */
@@ -725,7 +726,8 @@ describe('the combat bridge', () => {
 				missing: [warrior],
 				escortsLost: [outrider],
 				cargoLost: party.cargo,
-				cargoCardsLost: { headshot: 1 }
+				cargoCardsLost: { headshot: 1 },
+				run: 'run-1'
 			});
 			expect([warrior.status, warrior.hitpoints, warrior.vehicle]).toEqual(['missing', 35, { structure: LIMP_STRUCTURE, armor: 0 }]);
 			expect([interceptor.status, interceptor.hitpoints, interceptor.defaultDeck]).toEqual(['dead', 0, {}]);
@@ -818,7 +820,7 @@ describe('the combat bridge', () => {
 			const party = { ...loadOut({ campaign, seats: [warrior, interceptor] }), cargoCards: { headshot: 1 } };
 			const scrapper = idle();
 			const fight = startFight({ campaign, party, enemy: scrapper });
-			const lost: FailedRun = { outcome: 'run_failed', party: null, dead: [], missing: [], escortsLost: [], cargoLost: NO_RESOURCES, cargoCardsLost: NO_CARDS };
+			const lost: FailedRun = { outcome: 'run_failed', party: null, dead: [], missing: [], escortsLost: [], cargoLost: NO_RESOURCES, cargoCardsLost: NO_CARDS, run: party.run };
 			const settle = {
 				'unload a run': () => campaign.unloadRun({ party }),
 				'lose a run': () => campaign.loseRun({ result: lost }),
@@ -841,8 +843,28 @@ describe('the combat bridge', () => {
 			const result = won(writeBackFight({ fight }));
 			expect(refused).toEqual(["Can't unload a run while the campaign's last fight hasn't been written back"]);
 
+			// And the next fight can't start on records the unload has half stored
+			interceptor.once('change', () => {
+				try {
+					startFight({ campaign, party: result.party, enemy: idle(), seed: SEED + 1 });
+				} catch (error) {
+					refused.push((error as Error).message);
+				}
+			});
 			campaign.unloadRun({ party: result.party });
+			expect(refused[1]).toBe("This campaign is partway through storing its records, so a fight can't start on them");
 			expect(campaign.locker).toEqual({ headshot: 1 });
+		});
+
+		it('won\'t start a fight for a party left over from an earlier run with the same seats', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			shooter(interceptor);
+			const first = loadOut({ campaign, seats: [warrior, interceptor] });
+			campaign.unloadRun({ party: first });
+			const next = loadOut({ campaign, seats: [warrior, interceptor] });
+
+			expect(() => startFight({ campaign, party: first, enemy: idle() })).toThrow('This party set off on "run-1", and the run out is run-2');
+			expect(() => startFight({ campaign, party: next, enemy: idle() })).not.toThrow();
 		});
 	});
 
@@ -1042,8 +1064,9 @@ describe('the combat bridge', () => {
 				seats: party.seats.map(record => record.id),
 				escorts: idsOf(party.escorts),
 				cargo: party.cargo,
-				cargoCards: party.cargoCards
-			})) as { campaign: unknown; seats: string[]; escorts: string[]; cargo: Resources; cargoCards: CardCounts };
+				cargoCards: party.cargoCards,
+				run: party.run
+			})) as { campaign: unknown; seats: string[]; escorts: string[]; cargo: Resources; cargoCards: CardCounts; run: string };
 			const loaded = Campaign.fromJSON(save.campaign);
 			const find = <T>(items: readonly T[], match: (item: T) => boolean): T => {
 				const found = items.find(match);
@@ -1056,7 +1079,8 @@ describe('the combat bridge', () => {
 					seats: save.seats.map(id => find(loaded.drivers, record => record.id === id)),
 					escorts: save.escorts.map(id => find(loaded.convoy.escorts, escort => escort.convoyId === id)),
 					cargo: save.cargo,
-					cargoCards: save.cargoCards
+					cargoCards: save.cargoCards,
+					run: save.run
 				}
 			};
 		}

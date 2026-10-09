@@ -1,7 +1,7 @@
 import { resolveMapParams } from '../map/MapParams';
 import { createEscort } from '../mechanics/Escort';
 import { Vehicle } from '../mechanics/Vehicle';
-import { Campaign, CampaignOptions, NO_RESOURCES, Resources } from './Campaign';
+import { Campaign, CampaignOptions, CardRuleError, NO_RESOURCES, Resources } from './Campaign';
 import { CardCounts, NO_CARDS, addCounts, removeCards, startingDeckCounts, totalCards } from './CardCounts';
 import { addCardsWon, getDebrief } from './CardsWon';
 import { FailedRun, RunParty } from './CombatBridge';
@@ -83,8 +83,15 @@ function onARun(): Crew & { party: RunParty } {
 	campaign.startRunDecks({ seats: [warrior, interceptor], escorts: [hauler] });
 	campaign.moveCards({ cardType: 'nitro_boost', from: runDeckOf(campaign, warrior), to: 'locker', count: 2 });
 	campaign.moveCards({ cardType: 'medical_kit', from: 'locker', to: runDeckOf(campaign, interceptor) });
-	const party = addCardsWon({ party: { seats: [warrior, interceptor], escorts: [hauler], cargo: CARGO, cargoCards: NO_CARDS }, cardsWon: CARDS_WON });
+	const party = addCardsWon({ party: setOff({ campaign, seats: [warrior, interceptor], escorts: [hauler], cargo: CARGO }), cardsWon: CARDS_WON });
 	return { ...seated, party };
+}
+
+/** The party that sets off on the run out, as the run controller builds it once load out has started the run decks. */
+function setOff({ campaign, seats, escorts = [], cargo = NO_RESOURCES }: { campaign: Campaign; seats: DriverRecord[]; escorts?: Vehicle[]; cargo?: Resources }): RunParty {
+	const run = campaign.currentRun;
+	if (run === null) throw new Error('a run should be out');
+	return { seats, escorts, cargo, cargoCards: NO_CARDS, run };
 }
 
 /** A seated driver's run deck as it is now. */
@@ -111,7 +118,8 @@ function failed({ campaign, warrior, interceptor, party }: Crew & { party: RunPa
 		missing: [warrior],
 		escortsLost: [...campaign.convoy.escorts],
 		cargoLost: party.cargo,
-		cargoCardsLost: party.cargoCards
+		cargoCardsLost: party.cargoCards,
+		run: party.run
 	};
 }
 
@@ -136,16 +144,17 @@ describe('Cards won (DDB-316)', () => {
 	describe('on the road', () => {
 		it('ride in the party\'s cargo, each reward, find, or roadside sale added to the last, leaving the party given as it was', () => {
 			const { campaign, warrior, interceptor, hauler } = crew();
-			const setOff: RunParty = { seats: [warrior, interceptor], escorts: [hauler], cargo: CARGO, cargoCards: NO_CARDS };
+			campaign.startRunDecks({ seats: [warrior, interceptor], escorts: [hauler] });
+			const party = setOff({ campaign, seats: [warrior, interceptor], escorts: [hauler], cargo: CARGO });
 			const before = campaign.toSaveText();
 
-			const rewarded = addCardsWon({ party: setOff, cardsWon: { headshot: 1 } });
+			const rewarded = addCardsWon({ party, cardsWon: { headshot: 1 } });
 			const found = addCardsWon({ party: rewarded, cardsWon: { headshot: 1, repair_kit: 2 } });
 
 			expect(found.cargoCards).toEqual({ headshot: 2, repair_kit: 2 });
 			expect(Object.isFrozen(found.cargoCards)).toBe(true);
-			expect([found.seats, found.escorts, found.cargo]).toEqual([setOff.seats, setOff.escorts, setOff.cargo]);
-			expect([setOff.cargoCards, rewarded.cargoCards]).toEqual([{}, { headshot: 1 }]);
+			expect([found.seats, found.escorts, found.cargo, found.run]).toEqual([party.seats, party.escorts, party.cargo, 'run-1']);
+			expect([party.cargoCards, rewarded.cargoCards]).toEqual([{}, { headshot: 1 }]);
 			// Cargo isn't the compound's until it's home
 			expect(campaign.toSaveText()).toBe(before);
 		});
@@ -157,7 +166,7 @@ describe('Cards won (DDB-316)', () => {
 			['a card by its name', { Headshot: 1 }, 'cardsWon has a key that isn\'t a card type: "Headshot"']
 		])('refuse %s, adding nothing', (_label, cardsWon, message) => {
 			const { warrior, interceptor } = crew();
-			const party: RunParty = { seats: [warrior, interceptor], escorts: [], cargo: NO_RESOURCES, cargoCards: { headshot: 1 } };
+			const party: RunParty = { seats: [warrior, interceptor], escorts: [], cargo: NO_RESOURCES, cargoCards: { headshot: 1 }, run: 'run-1' };
 
 			expect(() => addCardsWon({ party, cardsWon })).toThrow(message);
 			expect(party.cargoCards).toEqual({ headshot: 1 });
@@ -181,14 +190,45 @@ describe('Cards won (DDB-316)', () => {
 			campaign.moveCards({ cardType: 'headshot', from: 'locker', to: warrior });
 		});
 
+		it('are paid for in scrap from the stores in the same change, and refused, changing nothing, when the stores hold too little', () => {
+			const { campaign } = crew();
+			const heard = jest.fn();
+			campaign.on('change', heard);
+
+			expect(campaign.getAddToLockerBlocker({ cardType: 'headshot', count: 2, price: STORES.scrap })).toBeNull();
+			campaign.addToLocker({ cardType: 'headshot', count: 2, price: 30 });
+
+			expect([campaign.locker, campaign.resources]).toEqual([{ emp_blast: 1, headshot: 2, medical_kit: 1 }, { ...STORES, scrap: 10 }]);
+			expect(heard).toHaveBeenCalledTimes(1);
+			const blocker = campaign.getAddToLockerBlocker({ cardType: 'headshot', price: 11 });
+			expect(blocker).toEqual({ reason: 'too_little_scrap', needed: 11, held: 10 });
+			const before = campaign.toSaveText();
+			const error = (() => {
+				try {
+					campaign.addToLocker({ cardType: 'headshot', price: 11 });
+				} catch (thrown) {
+					return thrown;
+				}
+				throw new Error('expected the stores to refuse it');
+			})();
+			expect(error).toBeInstanceOf(CardRuleError);
+			expect([(error as CardRuleError).blocker, (error as Error).message]).toEqual([blocker, 'Buying 1 headshot costs 11 scrap, and the stores hold 10']);
+			expect(campaign.toSaveText()).toBe(before);
+			campaign.addToLocker({ cardType: 'headshot', price: 10 });
+			expect(campaign.resources.scrap).toBe(0);
+		});
+
 		it.each([
 			['a card cards.json doesn\'t list', { cardType: 'no_such_card' }, "cards.no_such_card isn't a card in cards.json"],
 			['an escort\'s signature card', { cardType: 'top_off' }, "cards.top_off is the signature card of the fuel_hauler escort, which comes with it and is never the compound's"],
 			['no copies', { cardType: 'headshot', count: 0 }, 'count must be an integer >= 1, got 0'],
-			['a card by its name', { cardType: 'Headshot' }, 'cardType must be a card type in lower snake case, got "Headshot"']
-		])('refuse %s, changing nothing', (_label, deposit, message) => {
+			['a card by its name', { cardType: 'Headshot' }, 'cardType must be a card type in lower snake case, got "Headshot"'],
+			['a price below 0', { cardType: 'headshot', price: -5 }, 'price must be an integer >= 0, got -5'],
+			['part of a scrap', { cardType: 'headshot', price: 2.5 }, 'price must be an integer >= 0, got 2.5']
+		])('refuse %s, from the check too, changing nothing', (_label, deposit, message) => {
 			const { campaign } = crew();
 
+			expect(() => campaign.getAddToLockerBlocker(deposit)).toThrow(message);
 			expectRefused({ campaign, action: () => campaign.addToLocker(deposit), message });
 		});
 
@@ -261,7 +301,7 @@ describe('Cards won (DDB-316)', () => {
 			expect(loaded?.cardsOwned).toEqual(campaign.cardsOwned);
 		});
 
-		it('unloads once: a second unload, from the same party, a copy of it, or a party rebuilt from a save, finds no run out', async () => {
+		it('unloads once: a second unload of the run, from the same party, a copy of it, or a party rebuilt from a save, finds no run out', async () => {
 			const { campaign, party } = onARun();
 			campaign.unloadRun({ party });
 			const loaded = await throughStore(campaign);
@@ -273,16 +313,64 @@ describe('Cards won (DDB-316)', () => {
 			expect(campaign.resources).toEqual({ ...STORES, fuel: 8, scrap: 70, people: 9 });
 		});
 
-		it('refuses a party whose seats aren\'t the run\'s, in its seat order', () => {
+		it('refuses a party whose seats aren\'t the run\'s, and takes them in either order', () => {
 			const { campaign, warrior, interceptor, mechanic, party } = onARun();
 
-			for (const seats of [[interceptor, warrior], [warrior, mechanic], [warrior]]) {
+			for (const seats of [[warrior, mechanic], [warrior], [warrior, warrior]]) {
 				expectRefused({
 					campaign,
 					action: () => campaign.unloadRun({ party: { ...party, seats } }),
 					message: `This party seats ${seats.map(seat => `${seat.name} (${seat.id})`).join(' and ')}, and the run out seats Road Warrior 1 (driver-1) and Interceptor 1 (driver-2)`
 				});
 			}
+			campaign.unloadRun({ party: { ...party, seats: [interceptor, warrior] } });
+			expect(campaign.runDecks).toEqual([]);
+		});
+
+		it('refuses a party left over from an earlier run with the same seats, while the next one is out', () => {
+			const { campaign, warrior, interceptor, party } = onARun();
+			campaign.unloadRun({ party });
+			campaign.startRunDecks({ seats: [warrior, interceptor] });
+			const next = setOff({ campaign, seats: [warrior, interceptor] });
+
+			expect([party.run, next.run, campaign.currentRun]).toEqual(['run-1', 'run-2', 'run-2']);
+			expectRefused({ campaign, action: () => campaign.unloadRun({ party }), message: 'This party set off on "run-1", and the run out is run-2' });
+			warrior.set({ status: 'missing' });
+			interceptor.set({ status: 'dead', hitpoints: 0, defaultDeck: {} });
+			const stale: FailedRun = { outcome: 'run_failed', party: null, dead: [interceptor], missing: [warrior], escortsLost: [], cargoLost: party.cargo, cargoCardsLost: party.cargoCards, run: party.run };
+			expectRefused({ campaign, action: () => campaign.loseRun({ result: stale }), message: 'This failed run is "run-1", and the run out is run-2' });
+
+			campaign.loseRun({ result: { ...stale, cargoLost: NO_RESOURCES, cargoCardsLost: NO_CARDS, run: next.run } });
+			expect(campaign.locker).toEqual({ emp_blast: 1, headshot: 1, medical_kit: 1, precision_shot: 1, repair_kit: 2 });
+		});
+
+		it('refuses cards won that the locker can\'t count, before any record is stored, so the run can still come home', () => {
+			const { campaign, warrior, interceptor, party } = onARun();
+			campaign.addToLocker({ cardType: 'headshot' });
+			const heard = jest.fn();
+			[warrior, interceptor, campaign].forEach(model => model.on('change', heard));
+
+			expectRefused({
+				campaign,
+				action: () => campaign.unloadRun({ party: { ...party, cargoCards: { headshot: Number.MAX_SAFE_INTEGER } } }),
+				message: `Campaign.locker.headshot must be an integer >= 1, got ${Number.MAX_SAFE_INTEGER + 1}`
+			});
+			expect(heard).not.toHaveBeenCalled();
+			expect([warrior.defaultDeck, campaign.runDecks.length]).toEqual([{}, 2]);
+
+			campaign.unloadRun({ party });
+			expect(warrior.defaultDeck).toEqual(startingDeckCounts('road_warrior'));
+			expect(campaign.cardsOwned).toEqual(ownedByHand(campaign));
+		});
+
+		it('refuses cargo the stores can\'t count, changing nothing', () => {
+			const { campaign, party } = onARun();
+
+			expectRefused({
+				campaign,
+				action: () => campaign.unloadRun({ party: { ...party, cargo: { ...party.cargo, food: Number.MAX_SAFE_INTEGER } } }),
+				message: `Campaign.resources.food must be an integer >= 0, got ${Number.MAX_SAFE_INTEGER + STORES.food}`
+			});
 		});
 
 		it.each(['dead', 'missing'] as const)('refuses a party with a seat who\'s %s, since only a failed run leaves one, and nothing reaches the stores or the locker', (status) => {
@@ -356,7 +444,9 @@ describe('Cards won (DDB-316)', () => {
 			['nothing', NO_RESOURCES, NO_CARDS, null],
 			['one thing', { ...NO_RESOURCES, scrap: 15 }, NO_CARDS, 'Cargo lost with the run: 15 scrap.'],
 			['two things', NO_RESOURCES, { headshot: 2, repair_kit: 1 }, 'Cargo lost with the run: Headshot x2 and Repair Kit.'],
-			['settlers', { ...NO_RESOURCES, people: 3 }, NO_CARDS, 'Cargo lost with the run: 3 people.']
+			['settlers', { ...NO_RESOURCES, people: 3 }, NO_CARDS, 'Cargo lost with the run: 3 people.'],
+			['one med', { ...NO_RESOURCES, meds: 1 }, NO_CARDS, 'Cargo lost with the run: 1 med.'],
+			['a card cards.json has dropped', { ...NO_RESOURCES, meds: 2 }, { retired_card: 1 }, 'Cargo lost with the run: 2 meds and retired_card.']
 		])('words a run that carried %s', (_label, cargo, cards, message) => {
 			const seated = onARun();
 			const { campaign } = seated;
@@ -381,6 +471,7 @@ describe('Cards won (DDB-316)', () => {
 				message: 'This failed run lost Interceptor 1 (driver-2) and Mechanic 1 (driver-3), and the run out seats Road Warrior 1 (driver-1) and Interceptor 1 (driver-2)'
 			});
 			expectRefused({ campaign, action: () => campaign.loseRun({ result: { ...result, dead: [] } }), message: 'This failed run lost Road Warrior 1 (driver-1)' });
+			expectRefused({ campaign, action: () => campaign.loseRun({ result: { ...result, missing: [interceptor] } }), message: 'This failed run lost Interceptor 1 (driver-2) and Interceptor 1 (driver-2)' });
 
 			campaign.loseRun({ result });
 			expectRefused({ campaign, action: () => campaign.loseRun({ result }), message: 'No run is out, so there are no run decks' });

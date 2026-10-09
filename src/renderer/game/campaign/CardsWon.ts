@@ -37,6 +37,11 @@ export interface DebriefCard {
  * (`Campaign.unloadRun`), and are lost if the run fails. Returns a new
  * party, leaving the one given as it was.
  *
+ * Add to the newest party: a fight's reward goes on the `WonFight.party`
+ * that `writeBackFight` returns, after the write-back. The write-back
+ * builds the next party from the one the fight started with, so a card
+ * added to any party held from before it is dropped without a word.
+ *
  * Throws, adding nothing, for a card cards.json doesn't list, an escort's
  * signature card, which comes with its escort and never as loot, and
  * counts or a party's cargo cards that aren't card counts.
@@ -44,7 +49,7 @@ export interface DebriefCard {
 export function addCardsWon({ party, cardsWon }: { party: RunParty; cardsWon: CardCounts }): RunParty {
 	const won = readNewCards(cardsWon, 'cardsWon');
 	const cargoCards = addCounts(readCardCounts(party.cargoCards, 'RunParty.cargoCards'), won);
-	return { seats: party.seats, escorts: party.escorts, cargo: party.cargo, cargoCards };
+	return { seats: party.seats, escorts: party.escorts, cargo: party.cargo, cargoCards, run: party.run };
 }
 
 /**
