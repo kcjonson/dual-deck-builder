@@ -63,7 +63,7 @@ Each is a value or a line or two to change.
 
 ## Consequences
 
-- The compound screen's Rest calls `endDay` then checkpoints, and its needs panel reads `forecastNeeds`. The scavenging party hands its haul to `endDay`, which stores it in the day end's own `set`. The run controller's arrival can hand over the cargo the same way, so a run's haul feeds that night and lands with the day end or not at all, then checkpoints.
+- The compound screen's Rest calls `endDay` then checkpoints, and its needs panel reads `forecastNeeds`. The scavenging party hands its haul to `endDay`, which stores it in the day end's own `set`. A run's arrival unloads its cargo with `unloadRun` first ([cards-won.md](./cards-won.md)), so a run's haul feeds that night, then calls `endDay` and checkpoints.
 - DDB-305 acts on `abandoned`. The last driver's death is its own check, since nobody dies at the end of a day.
 - The exploration epic replaces the no-ops in `DAY_END_HOOKS`. The stop cooldown (5 days) and POI refill (20 days) are its values to keep with the map's.
 - The save format doesn't change: a day end writes only fields the campaign already has.

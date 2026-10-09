@@ -12,7 +12,7 @@ Where the haul goes in:
 
 - A `set` adding the haul, then `endDay`. Two sets and two `change`s, and a day end that throws after the haul landed (a hook, a day past a safe integer) leaves the fuel in the stores and the day unturned: a free haul that the next press repeats.
 - `endDay`, then a `set` adding the haul. The same gap the other way round.
-- A `haul` option on `endDay` (chosen): `{ resources, message }`, checked with everything else before anything is stored, and stored with its log line in the day end's one `set`. A run's cargo can come in the same way.
+- A `haul` option on `endDay` (chosen): `{ resources, message }`, checked with everything else before anything is stored, and stored with its log line in the day end's one `set`. A run's cargo doesn't come in this way: `unloadRun` unwinds the run decks with it, so it's a step of its own before `endDay` ([cards-won.md](./cards-won.md)).
 
 When it lands against upkeep:
 
