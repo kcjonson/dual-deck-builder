@@ -102,10 +102,11 @@ The run controller (DDB-322) saves after every step, so a save taken between fig
 
 An escort's id is `escort-<n>`, on its profile (`EscortProfile.id`), handed out when it joins the convoy from `Convoy.nextEscortNumber`, the way the campaign hands out `driver-<n>` from `nextDriverNumber`. The counter is the convoy's rather than the campaign's because escorts join through the convoy, outside the campaign's `set`, and keeping the escorts and their counter in one model leaves no way in that skips the count.
 
-- `add` gives the escort the next id and moves the counter in the same `set`. A convoy built from escorts with no id gives them the next ids in roster order, which is how founding builds one; escorts that already have ids (a loaded convoy's) keep them, and the counter defaults to one past the highest.
+- `add` is the only way in. It gives the escort the next id, then appends it and moves the counter in one `set`. The roster is read-only, and `Convoy.set` only takes escorts out, keeping the order they joined in (`dismiss` and `afterFight` go through it), so nothing joins without an id or skips the count. While the escort is getting its id, its listeners can't change the convoy, another `add` included, which would hand out the same number; the convoy's own listeners hear the escort once it's in.
+- A convoy built from escorts with no id gives them the next ids in roster order, which is how founding builds one; escorts that already have ids (a loaded convoy's) keep them, and the counter defaults to one past the highest.
 - No id is handed out twice. The counter only goes up, since `Convoy.set` refuses to turn it back. A lost or dismissed escort's id isn't reused, and an escort joins a convoy only once, so one let go can't come back beside a newer escort holding its old number. The campaign keeps its convoy for good (`set` refuses another), since a new convoy would start the count over.
 - An escort keeps its id through every fight: `endCombat` clears what belongs to the fight and never the profile. Set pieces and vehicles carrying on unmanned have none.
-- `Card.broughtBy` is the id. `Driver.removeCardsBroughtBy` matches on it when an escort is lost or dismissed, and an escort with no id brought nothing.
+- `Card.broughtBy` is the id, read as `Vehicle.convoyId` rather than `Vehicle.id`, which is the Model's count. `Driver.removeCardsBroughtBy` matches on it when an escort is lost or dismissed, and an escort with no id brought nothing.
 
 The save's `convoy` is `{ nextEscortNumber, escorts }`, each escort's `id` beside its name rather than in its profile. The reader refuses an id that isn't `escort-<n>`, one an earlier escort holds, and one at or past the counter, so a loaded convoy can't hand out an id it already has.
 

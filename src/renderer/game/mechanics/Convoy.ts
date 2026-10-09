@@ -32,7 +32,7 @@ export interface AfterFight {
 }
 
 export interface ConvoyData {
-	escorts: Vehicle[];
+	escorts: readonly Vehicle[];
 	/** The number in the next escort's id, `escort-<n>`. Saved, so no id is handed out twice. */
 	nextEscortNumber: number;
 }
@@ -45,8 +45,11 @@ export function escortNumber(id: string): number | null {
 	return match ? Number(match[1]) : null;
 }
 
-/** The counter is read-only from outside: only joining moves it. */
-export interface Convoy extends Omit<ConvoyData, 'nextEscortNumber'>, Readonly<Pick<ConvoyData, 'nextEscortNumber'>> {}
+/** Convoys partway through giving a joining escort its id. Model instances are frozen, so this can't be a field. */
+const joining = new WeakSet<Convoy>();
+
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface Convoy extends Readonly<ConvoyData> {}
 
 /**
  * The escorts you own, in roster order (first acquired first), between
@@ -56,6 +59,7 @@ export interface Convoy extends Omit<ConvoyData, 'nextEscortNumber'>, Readonly<P
  * An escort gets its id, `escort-<n>`, when it joins, from a counter the
  * convoy saves and never turns back, so no two escorts a campaign ever
  * owns share one. It keeps the id for good, and joins a convoy only once.
+ * `add` is the only way in: `set` only takes escorts out, in roster order.
  */
 export class Convoy extends Model<ConvoyData> {
 	static properties = new Set<keyof ConvoyData>([
@@ -69,7 +73,7 @@ export class Convoy extends Model<ConvoyData> {
 	 * that haven't joined a convoy join this one, in roster order, as `add`
 	 * would have them.
 	 */
-	constructor({ escorts = [], nextEscortNumber }: { escorts?: Vehicle[]; nextEscortNumber?: number } = {}) {
+	constructor({ escorts = [], nextEscortNumber }: { escorts?: readonly Vehicle[]; nextEscortNumber?: number } = {}) {
 		escorts.forEach(Convoy.assertConvoyEscort);
 		if (escorts.length > MAX_CONVOY_ESCORTS) {
 			throw new Error(`A convoy holds ${MAX_CONVOY_ESCORTS} escorts at most, not ${escorts.length}`);
@@ -78,9 +82,9 @@ export class Convoy extends Model<ConvoyData> {
 		assertEscortIds({ escorts, nextEscortNumber: counter });
 		let next = counter;
 		escorts.forEach(escort => {
-			if (idOf(escort) === null) giveId({ escort, id: `escort-${next++}` });
+			if (escort.convoyId === null) giveId({ escort, id: `escort-${next++}` });
 		});
-		super({ escorts: [...escorts], nextEscortNumber: next });
+		super({ escorts: Object.freeze([...escorts]), nextEscortNumber: next });
 	}
 
 	private static assertConvoyEscort(vehicle: Vehicle): void {
@@ -96,16 +100,25 @@ export class Convoy extends Model<ConvoyData> {
 	}
 
 	/**
-	 * Changes fields as Model.set does, but throws, changing nothing, if the
-	 * counter would go back and hand out an id again.
+	 * Changes fields as Model.set does, but throws, changing nothing, if an
+	 * escort would join (`add` is the way in, with an id), escorts would
+	 * change places or be listed twice, or the counter would go back and hand
+	 * out an id again or stop being a whole number from 1. Nothing changes
+	 * while an escort is being given its id.
 	 */
 	public override set(changes: Partial<ConvoyData>): void {
-		const before = this.nextEscortNumber;
-		const after = changes.nextEscortNumber;
-		if (before !== undefined && after !== undefined && after < before) {
-			throw new RangeError(`Convoy.nextEscortNumber can't go back, from ${before} to ${after}`);
+		// Model's constructor sets the first state, which the convoy's constructor has checked
+		const constructing = this.escorts === undefined;
+		if (joining.has(this)) throw new Error("The convoy can't change while an escort is joining it");
+		const counter = changes.nextEscortNumber;
+		if (counter !== undefined) {
+			assertCounter(counter);
+			if (!constructing && counter < this.nextEscortNumber) {
+				throw new RangeError(`Convoy.nextEscortNumber can't go back, from ${this.nextEscortNumber} to ${counter}`);
+			}
 		}
-		super.set(changes);
+		if (changes.escorts !== undefined && !constructing) assertOnlyLeaving({ before: this.escorts, after: changes.escorts });
+		super.set(changes.escorts === undefined ? changes : { ...changes, escorts: Object.freeze([...changes.escorts]) });
 	}
 
 	/**
@@ -116,22 +129,32 @@ export class Convoy extends Model<ConvoyData> {
 	}
 
 	/**
-	 * A newly acquired escort joins the end of the roster, with the next id
+	 * A newly acquired escort joins the end of the roster, with the next id.
+	 * The escort's listeners hear the id before it's in the convoy, so the
+	 * convoy refuses every change, another add included, until it's in;
+	 * the convoy's own listeners hear it once it's whole.
 	 */
 	public add(escort: Vehicle): void {
+		if (joining.has(this)) throw new Error(`Can't add ${escort.name} while another escort is joining the convoy`);
 		Convoy.assertConvoyEscort(escort);
 		if (this.escorts.includes(escort)) {
 			throw new Error(`${escort.name} is already in the convoy`);
 		}
-		const held = idOf(escort);
+		const held = escort.convoyId;
 		if (held !== null) {
 			throw new Error(`${escort.name} (${held}) has joined a convoy before, and an escort joins only once`);
 		}
 		if (this.isFull) {
 			throw new Error(`The convoy holds ${MAX_CONVOY_ESCORTS} escorts; dismiss one first`);
 		}
-		giveId({ escort, id: `escort-${this.nextEscortNumber}` });
-		this.set({ escorts: [...this.escorts, escort], nextEscortNumber: this.nextEscortNumber + 1 });
+		const number = this.nextEscortNumber;
+		joining.add(this);
+		try {
+			giveId({ escort, id: `escort-${number}` });
+		} finally {
+			joining.delete(this);
+		}
+		super.set({ escorts: Object.freeze([...this.escorts, escort]), nextEscortNumber: number + 1 });
 	}
 
 	/**
@@ -142,8 +165,8 @@ export class Convoy extends Model<ConvoyData> {
 		if (!this.escorts.includes(escort)) {
 			throw new Error(`${escort.name} is not in the convoy`);
 		}
-		this.escorts = this.escorts.filter(owned => owned !== escort);
-		drivers.forEach(driver => driver.removeCardsBroughtBy(idOf(escort)));
+		this.set({ escorts: this.escorts.filter(owned => owned !== escort) });
+		drivers.forEach(driver => driver.removeCardsBroughtBy(escort.convoyId));
 	}
 
 	/**
@@ -151,27 +174,41 @@ export class Convoy extends Model<ConvoyData> {
 	 * with a run that failed. Nothing joins after a fight.
 	 */
 	public afterFight({ lost }: { lost: readonly Vehicle[] }): void {
-		this.escorts = this.escorts.filter(owned => !lost.includes(owned));
+		this.set({ escorts: this.escorts.filter(owned => !lost.includes(owned)) });
 	}
-}
-
-function idOf(escort: Vehicle): string | null {
-	return escort.escort?.id ?? null;
 }
 
 function giveId({ escort, id }: { escort: Vehicle; id: string }): void {
 	escort.set({ escort: { ...(escort.escort as EscortProfile), id } });
 }
 
-/** Ids already given out are well formed, each held once, and below the counter; no escort is listed twice. */
-function assertEscortIds({ escorts, nextEscortNumber }: { escorts: readonly Vehicle[]; nextEscortNumber: number }): void {
+function assertCounter(nextEscortNumber: number): void {
 	if (!Number.isInteger(nextEscortNumber) || nextEscortNumber < 1) {
 		throw new RangeError(`Convoy.nextEscortNumber must be an integer >= 1, got ${nextEscortNumber}`);
 	}
+}
+
+/** A change to the roster only takes escorts out, keeping the rest in the order they joined. */
+function assertOnlyLeaving({ before, after }: { before: readonly Vehicle[]; after: readonly Vehicle[] }): void {
+	let from = 0;
+	for (const escort of after) {
+		const at = before.indexOf(escort, from);
+		if (at === -1) {
+			throw new Error(before.includes(escort)
+				? `${escort.name} would change places in the roster or be listed twice; escorts keep the order they joined in`
+				: `${escort.name} isn't in the convoy, and an escort joins through add`);
+		}
+		from = at + 1;
+	}
+}
+
+/** Ids already given out are well formed, each held once, and below the counter; no escort is listed twice. */
+function assertEscortIds({ escorts, nextEscortNumber }: { escorts: readonly Vehicle[]; nextEscortNumber: number }): void {
+	assertCounter(nextEscortNumber);
 	const ids = new Set<string>();
 	escorts.forEach((escort, index) => {
 		if (escorts.indexOf(escort) !== index) throw new Error(`${escort.name} is in the convoy twice`);
-		const id = idOf(escort);
+		const id = escort.convoyId;
 		if (id === null) return;
 		const number = escortNumber(id);
 		if (number === null) throw new RangeError(`${escort.name}'s id must look like escort-1, got ${JSON.stringify(id)}`);
@@ -185,5 +222,5 @@ function assertEscortIds({ escorts, nextEscortNumber }: { escorts: readonly Vehi
 
 /** One past the highest `escort-<n>` among these, for a convoy built without a counter. */
 function firstFreeEscortNumber(escorts: readonly Vehicle[]): number {
-	return escorts.reduce((highest, escort) => Math.max(highest, escortNumber(idOf(escort) ?? '') ?? 0), 0) + 1;
+	return escorts.reduce((highest, escort) => Math.max(highest, escortNumber(escort.convoyId ?? '') ?? 0), 0) + 1;
 }

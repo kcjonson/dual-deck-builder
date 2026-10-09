@@ -28,9 +28,9 @@ export interface EscortDividend {
 export interface EscortProfile {
 	/**
 	 * The convoy's id for it, `escort-<n>`, handed out when it joins and kept
-	 * for the whole campaign: what a save and `Card.broughtBy` name it by.
-	 * Null until it joins, and for an escort that's never the convoy's (a set
-	 * piece, a vehicle carrying on unmanned).
+	 * for the whole campaign: what a save and `Card.broughtBy` name it by
+	 * (read it as `Vehicle.convoyId`). Null until it joins, and for an escort
+	 * that's never the convoy's (a set piece, a vehicle carrying on unmanned).
 	 */
 	id: string | null;
 	/** Null for a driven vehicle carrying on unmanned: not a hired type */

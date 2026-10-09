@@ -109,10 +109,6 @@ export function readConvoy(value: unknown, path: string): Convoy {
  * aboard, no statuses, ready to act. Structure is at least 1, since a wreck
  * leaves the convoy after the fight that wrecked it (Convoy.afterFight).
  */
-export function readEscort(value: unknown, path: string): Vehicle {
-	return readEscortWithId(value, path).escort;
-}
-
 function readEscortWithId(value: unknown, path: string): { escort: Vehicle; id: string; number: number } {
 	const fields = readFields(value, path, ESCORT_FIELDS);
 	const id = readText(fields.id, `${path}.id`);

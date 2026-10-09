@@ -775,9 +775,9 @@ describe('Campaign', () => {
 			const loaded = reload(campaign);
 			loaded.convoy.add(createEscort({ type: 'med_truck' }));
 
-			expect(campaign.convoy.escorts.map(escort => escort.escort?.id)).toEqual(['escort-2']);
-			expect(loaded.convoy.escorts.map(escort => escort.escort?.id)).toEqual(['escort-2', 'escort-3']);
-			expect(reload(loaded).convoy.escorts.map(escort => escort.escort?.id)).toEqual(['escort-2', 'escort-3']);
+			expect(campaign.convoy.escorts.map(escort => escort.convoyId)).toEqual(['escort-2']);
+			expect(loaded.convoy.escorts.map(escort => escort.convoyId)).toEqual(['escort-2', 'escort-3']);
+			expect(reload(loaded).convoy.escorts.map(escort => escort.convoyId)).toEqual(['escort-2', 'escort-3']);
 		});
 
 		it('loads a campaign of its own: changing it leaves the original alone', () => {
@@ -817,11 +817,11 @@ describe('Campaign', () => {
 
 			expect(campaign.toJSON()).toEqual(campaignV3);
 			expect(campaign.drivers.map(driver => driver.status)).toEqual(['ready', 'dead', 'injured', 'missing', 'ready']);
-			expect(campaign.convoy.escorts.map(escort => [escort.escort?.type, escort.escort?.id])).toEqual([['fuel_hauler', 'escort-1'], ['outrider', 'escort-3']]);
+			expect(campaign.convoy.escorts.map(escort => [escort.escort?.type, escort.convoyId])).toEqual([['fuel_hauler', 'escort-1'], ['outrider', 'escort-3']]);
 			expect(campaign.recruitDriver({ archetype: 'mechanic' }).id).toBe('driver-6');
 			const hired = createEscort({ type: 'pilot_car' });
 			campaign.convoy.add(hired);
-			expect(hired.escort?.id).toBe('escort-4');
+			expect(hired.convoyId).toBe('escort-4');
 		});
 
 		it('holds the save format to the version it\'s stamped with', () => {

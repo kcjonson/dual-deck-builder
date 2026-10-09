@@ -3,7 +3,7 @@ import { Convoy } from '../mechanics/Convoy';
 import { ESCORT_CONFIGS, EscortType, createEscort } from '../mechanics/Escort';
 import { RoadLane, RoadRow } from '../mechanics/Road';
 import { Vehicle } from '../mechanics/Vehicle';
-import { ConvoyJson, EscortJson, convoyToJson, escortToJson, readConvoy, readEscort } from './ConvoyJson';
+import { ConvoyJson, EscortJson, convoyToJson, escortToJson, readConvoy } from './ConvoyJson';
 import { ReaderRangeError } from './JsonReader';
 
 /** The convoy's JSON through JSON text and back, as a save does it. */
@@ -21,7 +21,7 @@ describe('the convoy in a save', () => {
 
 		const loaded = readConvoy(throughText(convoy), 'convoy');
 
-		expect(loaded.escorts.map(escort => [escort.name, escort.escort?.id])).toEqual([['Fuel Hauler', 'escort-1'], ['Outrider', 'escort-2']]);
+		expect(loaded.escorts.map(escort => [escort.name, escort.convoyId])).toEqual([['Fuel Hauler', 'escort-1'], ['Outrider', 'escort-2']]);
 		expect(loaded.nextEscortNumber).toBe(3);
 		expect(loaded.escorts[0].structure).toBe(31);
 		expect(loaded.escorts[0].mods).toEqual([{ name: 'Reinforced Tank', kind: 'defense' }]);
@@ -30,9 +30,9 @@ describe('the convoy in a save', () => {
 
 	it.each(Object.keys(ESCORT_CONFIGS) as EscortType[])('reads back the %s stat block createEscort makes', (type) => {
 		const escort = createEscort({ type });
-		new Convoy().add(escort);
+		const convoy = new Convoy({ escorts: [escort] });
 
-		const loaded = readEscort(JSON.parse(JSON.stringify(escortToJson(escort))), 'escort');
+		const [loaded] = readConvoy(throughText(convoy), 'convoy').escorts;
 
 		expect(loaded.escort).toEqual(escort.escort);
 		expect([loaded.armor, loaded.maxArmor, loaded.structure, loaded.maxStructure, loaded.baseSpeed])
@@ -69,7 +69,7 @@ describe('the convoy in a save', () => {
 
 	it('leaves a fight\'s state behind: a loaded escort is off the road, empty, and ready', () => {
 		const truck = createEscort({ type: 'med_truck' });
-		new Convoy().add(truck);
+		const convoy = new Convoy({ escorts: [truck] });
 		truck.set({
 			slot: { lane: RoadLane.PLAYER_OUTSIDE, row: RoadRow.BEHIND },
 			statusEffects: [{ name: 'oil_slick', duration: 2 }],
@@ -78,7 +78,7 @@ describe('the convoy in a save', () => {
 		});
 		truck.addPassenger(createTestDriver('Passenger'));
 
-		const loaded = readEscort(JSON.parse(JSON.stringify(escortToJson(truck))), 'escort');
+		const [loaded] = readConvoy(throughText(convoy), 'convoy').escorts;
 
 		expect(loaded.slot).toBeNull();
 		expect(loaded.flank).toBeNull();

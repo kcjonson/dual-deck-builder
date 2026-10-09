@@ -131,7 +131,7 @@ describe('Order cards', () => {
 		test('a copy remembers the escort that brought it, by the id it has in the convoy', () => {
 			const outrider = createEscort({ type: 'outrider' });
 			new Convoy().add(outrider);
-			const card = new Card({ ...cardData.find(data => data.type === 'run_ahead') as CardData, broughtBy: outrider.escort?.id });
+			const card = new Card({ ...cardData.find(data => data.type === 'run_ahead') as CardData, broughtBy: outrider.convoyId });
 
 			expect(card.copy().broughtBy).toBe('escort-1');
 		});

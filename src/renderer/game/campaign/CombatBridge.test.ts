@@ -92,7 +92,7 @@ function newCampaign(): { campaign: Campaign; warrior: DriverRecord; interceptor
 const named = (record: DriverRecord): string => `${record.name} (${record.id})`;
 
 /** The ids escorts have in the convoy, which a save names them by. */
-const idsOf = (escorts: readonly Vehicle[]): (string | null | undefined)[] => escorts.map(escort => escort.escort?.id);
+const idsOf = (escorts: readonly Vehicle[]): (string | null)[] => escorts.map(escort => escort.convoyId);
 
 /** A run party: these drivers and escorts, carrying `cargo`, nothing when left out. */
 const partyOf = (seats: DriverRecord[], escorts: Vehicle[] = [], cargo: Readonly<Resources> = NO_RESOURCES): RunParty => ({ seats, escorts, cargo });
@@ -714,7 +714,7 @@ describe('the combat bridge', () => {
 				campaign: loaded,
 				party: partyOf(
 					save.seats.map(id => find(loaded.drivers, record => record.id === id)),
-					save.escorts.map(id => find(loaded.convoy.escorts, escort => escort.escort?.id === id)),
+					save.escorts.map(id => find(loaded.convoy.escorts, escort => escort.convoyId === id)),
 					save.cargo
 				),
 				runDeck: save.runDeck.map(({ cardType, broughtBy }) => {
@@ -747,7 +747,7 @@ describe('the combat bridge', () => {
 			expect(idsOf(next.battle.playerTeam.escorts)).toEqual(['escort-2']);
 			const hired = createEscort({ type: 'fuel_hauler' });
 			loaded.campaign.convoy.add(hired);
-			expect(hired.escort?.id).toBe('escort-3');
+			expect(hired.convoyId).toBe('escort-3');
 		});
 
 		it('finds the escort a signature copy was brought by after a load, and takes the copy out when that escort is lost', () => {
@@ -758,13 +758,13 @@ describe('the combat bridge', () => {
 			campaign.convoy.add(hauler);
 			// A run deck (DDB-315) keeps the Top Off the hauler brought, locked to it
 			const brought = (CARDS.get('top_off') as Card).copy();
-			brought.set({ broughtBy: hauler.escort?.id ?? null });
+			brought.set({ broughtBy: hauler.convoyId });
 
 			const loaded = saveAndLoad({ campaign, party: partyOf([warrior, interceptor], [hauler]), runDeck: [brought] });
 			const [copy] = loaded.runDeck;
 			const [loadedHauler] = loaded.party.escorts;
 			expect(copy.broughtBy).toBe('escort-1');
-			expect([loadedHauler.escort?.id, loadedHauler.structure]).toEqual(['escort-1', 10]);
+			expect([loadedHauler.convoyId, loadedHauler.structure]).toEqual(['escort-1', 10]);
 
 			const fight = fightLosingTheHauler({
 				campaign: loaded.campaign,
