@@ -12,7 +12,7 @@ All of it fits in fields a save already has (status, `injuredDays`, HP, the stor
 
 `injureOnArrival({ campaign, drivers })` takes the seats of a run that got home, as the bridge left them. A driver below max HP is injured for `injuryDays`: the HP they're missing over `infirmary.hitpointsPerDay`, rounded up. Their HP stays where they came home with it. It returns the injuries (driver, HP missing, days) frozen; the injured records emit, the campaign doesn't.
 
-It refuses, changing nothing, a driver outside the pool, one listed twice, or one who isn't ready. A run leaves with ready drivers, and only a failed run changes a seat's status, and a failed run never gets home, so a dead driver here is the caller's bug. `injuryDays` throws at 0 HP for the same reason: the dead aren't injured.
+It refuses, changing nothing, while the campaign's fight is open (`hasOpenFight`, from the bridge), since that fight's write-back has to fit the records as the fight left them. It refuses a driver outside the pool, one listed twice, or one who isn't ready, too. A run leaves with ready drivers, on the road only a failed run changes a seat's status, and a failed run never gets home, so a dead driver here is the caller's bug. `injuryDays` throws at 0 HP for the same reason: the dead aren't injured.
 
 The run controller calls it after unloading the cargo and before `endDay`, so the night home is the first day in the infirmary. That keeps `injuredDays` meaning one thing everywhere, day ends until fit, which load out shows as "fit in N days".
 
@@ -34,7 +34,14 @@ Rejected: meds put on a driver for the night, doubling that night's healing. Tha
 
 ## Seating
 
-`getSeatBlocker({ campaign, driver, partner })` says why load out won't seat a driver beside whoever holds the other seat: `driver_away` (dead or missing), `injured` (with `injuredDays`, for "Injured, fit in 2 days"), or `same_archetype` (naming the partner, for "Same archetype as a seated driver"), in that order. `startCampaignFight` now refuses its seats through the same check, with the messages it had. It's in `Seating.ts` rather than the infirmary, since two of its three reasons aren't injuries.
+`getSeatBlocker({ campaign, driver, partner })` says why load out won't seat a driver beside whoever holds the other seat, in this order:
+
+- `injured`, with `injuredDays`, for "Injured, fit in 2 days";
+- `driver_away`, for any status but ready (dead and missing today), so a status added later isn't seatable until someone says it is;
+- `already_seated`, when the partner is the driver, so the driver in seat 1 isn't faded as their own partner;
+- `same_archetype`, naming the partner, for "Same archetype as a seated driver".
+
+`startCampaignFight` refuses its seats through the same check, asking it of each seat alone in seat order and then of the pair, so a seat's own reason wins over the pairing's, the order the bridge's refusals have always had. It's in `Seating.ts` rather than the infirmary, since most of its reasons aren't injuries.
 
 ## Rules
 
@@ -58,7 +65,7 @@ Each is a value or a line or two to change, and none is in the spec.
 - HP stays where a driver came home with it until they're fit, then fills, as the day clock already had it. HP rising 10 a night would show the same days on a filling bar; one line in `healingChanges`.
 - A med takes a day off. Meds can be spent at any time, on as many days as there are, so a driver can be bought fit and seated the same day. The founding stores hold 3.
 - Treating more days than are left is refused, not clamped to what's left.
-- Only the injured are treated. A ready driver below max HP isn't in the infirmary, and arrival no longer leaves one.
+- Only the injured are treated. A ready driver below max HP isn't in the infirmary, and arrival never leaves one.
 - Coming home writes nothing in the log; that's the debrief's call, as for the bridge.
 
 ## Consequences
@@ -67,4 +74,4 @@ Each is a value or a line or two to change, and none is in the spec.
 - The infirmary (DDB-301) lists the injured with their `injuredDays`, prices days with `treatmentCost`, disables with `getTreatmentBlocker`, and calls `treatDriver` then `CampaignStore.checkpoint`, recomputing on the campaign's `change`.
 - Load out (DDB-320) asks `getSeatBlocker` of each driver in the pool, with the other seat's driver as `partner`, and words the reason itself.
 - Infirmary upgrades (DDB-309) can tune `hitpointsPerDay` or `medsPerDay` by building level, or take more than one day off a night in `endDay`.
-- The save format doesn't change, so `CAMPAIGN_SCHEMA_VERSION` stays at 2.
+- No save format change: everything here lives in fields a save already holds.

@@ -111,6 +111,15 @@ type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
 const openFights = new WeakMap<Campaign, CampaignFight>();
 
 /**
+ * Whether the campaign has a fight started and not yet written back. Nobody
+ * comes home while one is open (`injureOnArrival`), since the write-back has
+ * to fit the records as the fight left them.
+ */
+export function hasOpenFight(campaign: Campaign): boolean {
+	return openFights.has(campaign);
+}
+
+/**
  * Build a run's next fight and start it. Each seat's combat driver is their
  * record (name, HP, max HP, hand limit, deck) and their archetype (skills,
  * adrenaline), at the wheel of their signature vehicle with the damage the
@@ -122,19 +131,23 @@ const openFights = new WeakMap<Campaign, CampaignFight>();
  *
  * Throws, building nothing, while the campaign's last fight hasn't been
  * written back, and unless the party seats two drivers load out's own check
- * (`getSeatBlocker`) seats together (from the campaign's pool, ready, and of
- * different archetypes), its cargo checks out, every escort is the
- * campaign's, and every card in the decks has a template. The teams and the encounter can refuse the road too
- * (Team, Battle), and move nobody when they do.
+ * (`getSeatBlocker`) seats together: each from the campaign's pool and
+ * ready, checked in seat order, then two different drivers of different
+ * archetypes. So does a party whose cargo doesn't check out, an escort that
+ * isn't the campaign's, or a card in the decks with no template. The teams
+ * and the encounter can refuse the road too (Team, Battle), and move nobody
+ * when they do.
  */
 export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, enemyAI = 'aggressive' }: CampaignFightOptions): CampaignFight {
 	if (openFights.has(campaign)) throw new Error("This campaign's last fight hasn't been written back");
 	if (party.seats.length !== 2) throw new RangeError(`A fight seats two drivers, and this party has ${party.seats.length}`);
 	const [first, second] = party.seats;
-	party.seats.forEach((record, index) => {
-		const blocker = getSeatBlocker({ campaign, driver: record, partner: party.seats[1 - index] });
-		if (blocker !== null) throw new RangeError(seatRefusal({ record, blocker }));
-	});
+	// Each seat on its own before the pair, so a seat's own reason wins over the pairing's
+	const checks = [{ driver: first, partner: null }, { driver: second, partner: null }, { driver: first, partner: second }];
+	for (const { driver, partner } of checks) {
+		const blocker = getSeatBlocker({ campaign, driver, partner });
+		if (blocker !== null) throw new RangeError(seatRefusal({ record: driver, blocker }));
+	}
 	const cargo = readResources(party.cargo, 'RunParty.cargo');
 	party.escorts.forEach(escort => {
 		if (!campaign.convoy.escorts.includes(escort)) throw new RangeError(`${escort.name} isn't in the campaign's convoy`);
@@ -302,10 +315,14 @@ function withDividends({ cargo, dividends }: { cargo: Readonly<Resources>; divid
 
 /** Why a fight won't seat a driver, from load out's own check. */
 function seatRefusal({ record, blocker }: { record: DriverRecord; blocker: SeatBlocker }): string {
-	if (blocker.reason === 'same_archetype') {
-		return `${describeRecord(record)} and ${describeRecord(blocker.partner)} are both ${blocker.archetype}; a fight seats two different archetypes`;
+	switch (blocker.reason) {
+		case 'already_seated':
+			return `${describeRecord(record)} is in both seats; a fight seats two different drivers`;
+		case 'same_archetype':
+			return `${describeRecord(record)} and ${describeRecord(blocker.partner)} are both ${blocker.archetype}; a fight seats two different archetypes`;
+		default:
+			return `${describeRecord(record)} is ${record.status}, so they can't fight`;
 	}
-	return `${describeRecord(record)} is ${record.status}, so they can't fight`;
 }
 
 function describeRecord(record: DriverRecord): string {

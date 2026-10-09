@@ -387,61 +387,6 @@ describe('treating a driver with meds', () => {
 	});
 });
 
-describe('getSeatBlocker', () => {
-	it('seats a ready driver, alone or beside another archetype', () => {
-		const { campaign, warrior, interceptor } = newCompound();
-
-		expect(getSeatBlocker({ campaign, driver: warrior })).toBeNull();
-		expect(getSeatBlocker({ campaign, driver: warrior, partner: interceptor })).toBeNull();
-		expect(getSeatBlocker({ campaign, driver: interceptor, partner: warrior })).toBeNull();
-	});
-
-	it('refuses an injured driver, with the days until they\'re fit for load out\'s "Injured, fit in 2 days"', () => {
-		const { campaign, warrior, interceptor } = newCompound();
-		comeHome({ campaign, seats: [[warrior, 22]] });
-
-		expect(getSeatBlocker({ campaign, driver: warrior })).toEqual({ reason: 'injured', injuredDays: 2 });
-		expect(getSeatBlocker({ campaign, driver: warrior, partner: interceptor })).toEqual({ reason: 'injured', injuredDays: 2 });
-		endDay({ campaign });
-		expect(getSeatBlocker({ campaign, driver: warrior })).toEqual({ reason: 'injured', injuredDays: 1 });
-		endDay({ campaign });
-		expect(getSeatBlocker({ campaign, driver: warrior })).toBeNull();
-	});
-
-	it.each([
-		['dead', { status: 'dead', hitpoints: 0, defaultDeck: {} }],
-		['missing', { status: 'missing' }]
-	] as const)('refuses a %s driver as away', (status, changes) => {
-		const { campaign, mechanic } = newCompound();
-		mechanic.set(changes);
-
-		expect(getSeatBlocker({ campaign, driver: mechanic })).toEqual({ reason: 'driver_away', status });
-	});
-
-	it('refuses the archetype the other seat already holds, naming who holds it', () => {
-		const { campaign, warrior } = newCompound();
-		const second = campaign.recruitDriver({ archetype: 'road_warrior' });
-
-		expect(getSeatBlocker({ campaign, driver: second, partner: warrior })).toEqual({ reason: 'same_archetype', archetype: 'road_warrior', partner: warrior });
-	});
-
-	it('says injured before same archetype, since that\'s the reason that lasts', () => {
-		const { campaign, warrior } = newCompound();
-		const second = campaign.recruitDriver({ archetype: 'road_warrior' });
-		comeHome({ campaign, seats: [[second, 39]] });
-
-		expect(getSeatBlocker({ campaign, driver: second, partner: warrior })).toEqual({ reason: 'injured', injuredDays: 1 });
-	});
-
-	it('throws on a driver or partner from outside the pool', () => {
-		const { campaign, warrior } = newCompound();
-		const stranger = new DriverRecord({ id: 'driver-9', archetype: 'mechanic', name: 'Mechanic 1' });
-
-		expect(() => getSeatBlocker({ campaign, driver: stranger })).toThrow("Mechanic 1 (driver-9) isn't in this campaign's pool");
-		expect(() => getSeatBlocker({ campaign, driver: warrior, partner: stranger })).toThrow("Mechanic 1 (driver-9) isn't in this campaign's pool");
-	});
-});
-
 describe('saves', () => {
 	it('keep an injured driver\'s HP and days, and a loaded campaign heals and treats as the original does', async () => {
 		const { campaign, warrior, interceptor } = newCompound();

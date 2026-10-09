@@ -1,4 +1,5 @@
 import type { Campaign } from './Campaign';
+import { hasOpenFight } from './CombatBridge';
 import { COMPOUND_RULES, CompoundRules, readCompoundRules } from './CompoundRules';
 import type { DriverRecord, DriverRecordData, DriverStatus } from './DriverRecord';
 import { readInteger } from './JsonReader';
@@ -78,15 +79,18 @@ export function injuryDays({ hitpoints, maxHitpoints, rules = COMPOUND_RULES }: 
  *
  * Returns who's injured, in the order given, frozen. The campaign itself
  * doesn't change, so only the injured drivers' records emit. Throws,
- * changing nothing, for a driver outside the campaign's pool, one listed
- * twice, or one who isn't ready: a run leaves with ready drivers, and only
- * a failed run, which never gets home, changes a seat's status.
+ * changing nothing, while the campaign's fight is open (its write-back has
+ * to fit the records as the fight left them), and for a driver outside the
+ * campaign's pool, one listed twice, or one who isn't ready: a run leaves
+ * with ready drivers, and only a failed run, which never gets home, changes
+ * a seat's status on the road.
  */
 export function injureOnArrival({ campaign, drivers, rules = COMPOUND_RULES }: {
 	campaign: Campaign;
 	drivers: readonly DriverRecord[];
 	rules?: CompoundRules;
 }): readonly Injury[] {
+	if (hasOpenFight(campaign)) throw new Error("This campaign's last fight hasn't been written back, so nobody has come home from it yet");
 	const checked = readCompoundRules(rules, 'CompoundRules');
 	drivers.forEach((driver, index) => {
 		checkInPool({ campaign, driver });
@@ -128,12 +132,7 @@ export function treatmentCost({ days, rules = COMPOUND_RULES }: { days: number; 
  * that isn't a whole number from 1.
  */
 export function getTreatmentBlocker({ campaign, driver, days = 1, rules = COMPOUND_RULES }: TreatmentOptions): TreatmentBlocker | null {
-	checkInPool({ campaign, driver });
-	const needed = treatmentCost({ days, rules });
-	if (driver.status !== 'injured') return { reason: 'not_injured', status: driver.status };
-	if (days > driver.injuredDays) return { reason: 'too_many_days', injuredDays: driver.injuredDays };
-	const held = campaign.resources.meds;
-	return held < needed ? { reason: 'too_few_meds', needed, held } : null;
+	return checkTreatment({ campaign, driver, days, rules }).blocker;
 }
 
 /**
@@ -146,12 +145,23 @@ export function getTreatmentBlocker({ campaign, driver, days = 1, rules = COMPOU
  * changing nothing, when `getTreatmentBlocker` refuses.
  */
 export function treatDriver({ campaign, driver, days = 1, rules = COMPOUND_RULES }: TreatmentOptions): number {
-	const blocker = getTreatmentBlocker({ campaign, driver, days, rules });
+	const { blocker, cost } = checkTreatment({ campaign, driver, days, rules });
 	if (blocker !== null) throw new TreatmentRuleError({ message: treatmentMessage({ blocker, driver, days }), blocker });
-	const spent = treatmentCost({ days, rules });
 	driver.set(healingChanges({ driver, days }));
-	campaign.set({ resources: { ...campaign.resources, meds: campaign.resources.meds - spent } });
-	return spent;
+	campaign.set({ resources: { ...campaign.resources, meds: campaign.resources.meds - cost } });
+	return cost;
+}
+
+/** A treatment checked against the rules, with the meds it costs, which `treatDriver` spends. */
+function checkTreatment({ campaign, driver, days, rules }: Required<TreatmentOptions>): { blocker: TreatmentBlocker | null; cost: number } {
+	checkInPool({ campaign, driver });
+	const cost = treatmentCost({ days, rules });
+	const refused = (blocker: TreatmentBlocker) => ({ blocker, cost });
+	if (driver.status !== 'injured') return refused({ reason: 'not_injured', status: driver.status });
+	if (days > driver.injuredDays) return refused({ reason: 'too_many_days', injuredDays: driver.injuredDays });
+	const held = campaign.resources.meds;
+	if (held < cost) return refused({ reason: 'too_few_meds', needed: cost, held });
+	return { blocker: null, cost };
 }
 
 /** What a refused treatment throws, worded for the console; the infirmary screen words its own from the blocker. */
