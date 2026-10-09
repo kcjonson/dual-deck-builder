@@ -24,6 +24,9 @@ export const DRIVER_COLORS: Readonly<Record<DriverSeat, string>> = {
  */
 export const DRIVER_HP_COLOR = '#e7727a';
 
+/** A vehicle's structure, the mock's green: its bar on the road and on an escort card. */
+export const STRUCTURE_COLOR = '#8fbf5c';
+
 /** A `#rrggbb` colour as RGBA floats, at `alpha`. */
 export function hexRgba(hex: string, alpha = 1): Rgba {
 	const value = parseInt(hex.slice(1), 16);

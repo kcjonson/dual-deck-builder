@@ -19,23 +19,67 @@ export interface HatchOptions {
  * one period apart, each clipped to the rect and fanned into triangles, as
  * one bare triangle list.
  */
-export function hatchTriangles(rect: Rect, { period, stripe }: HatchOptions): Vec2[] {
-	const corners: Vec2[] = [
+export function hatchTriangles(rect: Rect, options: HatchOptions): Vec2[] {
+	return hatchPolygonTriangles([
 		{ x: rect.x, y: rect.y },
 		{ x: rect.x + rect.width, y: rect.y },
 		{ x: rect.x + rect.width, y: rect.y + rect.height },
 		{ x: rect.x, y: rect.y + rect.height },
-	];
-	const start = rect.x + rect.y;
-	const end = rect.x + rect.width + rect.y + rect.height;
+	], options);
+}
+
+/**
+ * The same hatch over any convex polygon, its points in order, so a band
+ * can follow a rounded corner (`roundedRectPolygon`). The first stripe
+ * starts a gap in from the polygon's lowest `x + y`, as the rect's does.
+ */
+export function hatchPolygonTriangles(polygon: readonly Vec2[], { period, stripe }: HatchOptions): Vec2[] {
+	let start = Infinity;
+	let end = -Infinity;
+	for (const point of polygon) {
+		start = Math.min(start, point.x + point.y);
+		end = Math.max(end, point.x + point.y);
+	}
 	const triangles: Vec2[] = [];
 	for (let low = start + period - stripe; low < end; low += period) {
-		const band = clipBand(corners, low, low + stripe);
+		const band = clipBand(polygon, low, low + stripe);
 		for (let index = 1; index + 1 < band.length; index++) {
 			triangles.push(band[0], band[index], band[index + 1]);
 		}
 	}
 	return triangles;
+}
+
+/** Points along each rounded corner's quarter circle; at a card's few pixels of radius, four segments can't be told from the curve. */
+const CORNER_SEGMENTS = 4;
+
+/**
+ * A rect with rounded corners as a convex polygon, clockwise from its top
+ * left: `radii` top-left, top-right, bottom-right, bottom-left, as a
+ * rect draw's radius takes them; a square corner is one point.
+ */
+export function roundedRectPolygon(rect: Rect, radii: readonly [number, number, number, number]): Vec2[] {
+	const right = rect.x + rect.width;
+	const bottom = rect.y + rect.height;
+	const corners: readonly [number, number, number, number][] = [
+		// Each corner's centre and the angle its quarter starts at, in screen space (y down)
+		[rect.x + radii[0], rect.y + radii[0], Math.PI, radii[0]],
+		[right - radii[1], rect.y + radii[1], Math.PI * 1.5, radii[1]],
+		[right - radii[2], bottom - radii[2], 0, radii[2]],
+		[rect.x + radii[3], bottom - radii[3], Math.PI * 0.5, radii[3]],
+	];
+	const points: Vec2[] = [];
+	for (const [cx, cy, from, radius] of corners) {
+		if (radius <= 0) {
+			points.push({ x: cx, y: cy });
+			continue;
+		}
+		for (let step = 0; step <= CORNER_SEGMENTS; step++) {
+			const angle = from + (step / CORNER_SEGMENTS) * (Math.PI / 2);
+			points.push({ x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius });
+		}
+	}
+	return points;
 }
 
 /** A convex polygon cut to `low <= x + y <= high`. */

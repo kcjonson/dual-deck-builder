@@ -10,6 +10,7 @@
  */
 import { SHORT_VIEWPORT } from '../../../playwright.config';
 import type { Viewport } from '../../../playwright.config';
+import { DAMAGED, ENDED, IN_PROGRESS, OUTDATED } from './campaignSaves';
 
 export interface ScreenScenario {
 	/** The golden's name: the screen's, plus a variant and a window size where they are not the defaults. */
@@ -17,6 +18,8 @@ export interface ScreenScenario {
 	screen: string;
 	/** What `navigate` hands the screen's onMount, as the game would pass it. */
 	data?: unknown;
+	/** Campaign saves in local storage when the screen mounts (`campaignSaves.ts`); none when left out. */
+	storage?: Record<string, string>;
 	/** The window, when it is not `FIXED_VIEWPORT`. */
 	viewport?: Viewport;
 	/** A golden this project cannot honestly own yet, and why. */
@@ -40,6 +43,7 @@ interface ScreenCase {
 	screen: string;
 	variant?: string;
 	data?: unknown;
+	storage?: Record<string, string>;
 }
 
 /**
@@ -64,10 +68,19 @@ interface ScreenCase {
  * first tick is outside what they cover. And the developer and card showcase
  * screens capture the viewport, not the content they scroll: the gallery
  * scenes below are where each developer section is covered whole.
+ *
+ * The screens that read the campaign store mount over the saves a case puts
+ * in local storage first, the way a player's page holds them, and every other
+ * case over none. The compound placeholder is opened with no campaign handed
+ * over, so it loads the save as Continue would (DDB-283).
  */
 const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'splashScreen' },
 	{ screen: 'mainMenuScreen' },
+	// Continue with the save's state, and the two saves it can't continue (DDB-283)
+	{ screen: 'mainMenuScreen', variant: 'continue', storage: IN_PROGRESS },
+	{ screen: 'mainMenuScreen', variant: 'outdated', storage: OUTDATED },
+	{ screen: 'mainMenuScreen', variant: 'damaged', storage: DAMAGED },
 	{ screen: 'settingsScreen' },
 	{ screen: 'creditsScreen' },
 	{ screen: 'developerScreen' },
@@ -78,6 +91,9 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'combatScreen', variant: 'log', data: { openLog: true } },
 	{ screen: 'battleResultScreen', variant: 'victory', data: { victory: true } },
 	{ screen: 'battleResultScreen', variant: 'defeat', data: { victory: false } },
+	{ screen: 'campaignHistoryScreen' },
+	{ screen: 'campaignHistoryScreen', variant: 'ended', storage: ENDED },
+	{ screen: 'compoundScreen', storage: IN_PROGRESS },
 ];
 
 function caseName({ screen, variant }: ScreenCase): string {

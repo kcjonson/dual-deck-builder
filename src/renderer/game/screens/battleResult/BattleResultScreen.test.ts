@@ -47,11 +47,11 @@ describe('BattleResultScreen', () => {
 		expect((screen.root.findById('result_title') as Text).text).toBe('DEFEAT!');
 	});
 
-	it.each(['Enter', 'Escape'])('focuses Continue on mount, and %p goes back to the menu', (name) => {
+	it.each(['Enter', 'Escape'])('focuses Continue on mount, and %p goes back to the menu, focus back on what opened the fight', (name) => {
 		screen.mount(context, result(true));
 		expect(context.focus.focused?.id).toBe('result_continue_button');
 		send(context, [key(name)]);
-		expect(navigate).toHaveBeenCalledWith('mainMenuScreen');
+		expect(navigate).toHaveBeenCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
 	});
 
 	it('logs and builds nothing without result data', () => {

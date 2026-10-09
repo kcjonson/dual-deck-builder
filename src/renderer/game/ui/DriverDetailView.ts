@@ -12,16 +12,14 @@ import { FlowWrap } from './FlowWrap';
 import { DETAIL_SHADOW, pinHint } from './CardDetailView';
 import { CARD_LINE_FAINT, CARD_MUTED, CARD_NAME, CARD_RULES } from './cardStyle';
 import type { DriverCardData } from './driverCardData';
+import { StatBarDraws, drawStatBar, placeStatBar, statBarDraws } from './statBar';
 import {
-	HpBarDraws,
+	DRIVER_HP_FILLS,
 	PortraitDraws,
 	RivetedFrameDraws,
-	drawHpBar,
 	drawPortrait,
 	drawRivetedFrame,
-	hpBarDraws,
 	hpFraction,
-	placeHpBar,
 	portraitDraws,
 	resizeRivetedFrame,
 	rivetedFrameDraws,
@@ -94,6 +92,32 @@ function deckEntries(deck: CardCounts, cards: CardLookup): { card: GameCard; cop
 	return entries.sort((a, b) => a.card.cost - b.card.cost || a.card.displayName.localeCompare(b.card.displayName));
 }
 
+/**
+ * One row of a detail view's mono: a label's muted capitals, or a stat's
+ * brighter figures, hugging its words. With `ellipsis` it's cut short once
+ * layout gives it a width. The escort detail view's rows are the same.
+ */
+export function detailMono({ id, text, kind, x = 0, ellipsis = false }: { id: string; text: string; kind: 'label' | 'figures'; x?: number; ellipsis?: boolean }): Text {
+	const label = kind === 'label';
+	return new Text({
+		id,
+		text,
+		x,
+		height: DRIVER_DETAIL.mono.height,
+		style: {
+			fontRole: 'mono',
+			fontSize: DRIVER_DETAIL.mono.size,
+			color: label ? CARD_MUTED : CARD_RULES,
+			letterSpacing: label ? DRIVER_DETAIL.mono.labelSpacing : DRIVER_DETAIL.mono.figureSpacing,
+			textTransform: label ? 'uppercase' : 'none',
+		},
+		lineHeight: DRIVER_DETAIL.mono.height / DRIVER_DETAIL.mono.size,
+		verticalAlign: 'middle',
+		wrap: 'none',
+		textOverflow: ellipsis ? 'ellipsis' : undefined,
+	});
+}
+
 export interface DriverDetailViewOptions {
 	id?: string;
 	data: DriverCardData;
@@ -133,7 +157,7 @@ export class DriverDetailView extends Component {
 	private readonly minis: UICard[];
 	private readonly frame: RivetedFrameDraws;
 	private readonly portrait: PortraitDraws;
-	private readonly hpBar: HpBarDraws = hpBarDraws();
+	private readonly hpBar: StatBarDraws = statBarDraws(DRIVER_HP_FILLS);
 	private readonly ruleDraw: DrawRectOptions & { rect: Rect };
 
 	constructor({ id = 'driver_detail_view', data, cards, pinned = false }: DriverDetailViewOptions) {
@@ -180,7 +204,7 @@ export class DriverDetailView extends Component {
 			textOverflow: 'ellipsis',
 		});
 
-		this.hp = this.mono({ id: childId('hp'), text: `HP ${data.hitpoints}/${data.maxHitpoints}`, kind: 'figures', x: pad });
+		this.hp = detailMono({ id: childId('hp'), text: `HP ${data.hitpoints}/${data.maxHitpoints}`, kind: 'figures', x: pad });
 		this.stats = new FlowWrap({ id: childId('stats'), x: pad, width: width - pad * 2, gap: DRIVER_DETAIL.stats.gap, rowGap: DRIVER_DETAIL.stats.rowGap });
 		const stats: [string, string][] = [['hand_limit', `HAND LIMIT ${data.handLimit}`]];
 		const skills = data.skills;
@@ -193,13 +217,13 @@ export class DriverDetailView extends Component {
 				['speed', `SPEED +${skills.speed}`],
 			);
 		}
-		for (const [suffix, text] of stats) this.stats.addChild(this.mono({ id: childId(suffix), text, kind: 'figures' }));
+		for (const [suffix, text] of stats) this.stats.addChild(detailMono({ id: childId(suffix), text, kind: 'figures' }));
 		// What it shows, so a type the lookup doesn't know leaves the count and the minis agreeing
 		const size = entries.reduce((total, { copies }) => total + copies, 0);
-		this.heading = this.mono({ id: childId('deck'), text: `DECK / ${size} ${size === 1 ? 'CARD' : 'CARDS'}`, kind: 'label', x: pad });
+		this.heading = detailMono({ id: childId('deck'), text: `DECK / ${size} ${size === 1 ? 'CARD' : 'CARDS'}`, kind: 'label', x: pad });
 		// Its width is the room the pin hint leaves, set in layout
-		this.note = data.note ? this.mono({ id: childId('note'), text: data.note, kind: 'label', x: pad, ellipsis: true }) : null;
-		this.pin = this.mono({ id: childId('pin'), text: pinHint(pinned), kind: 'label' });
+		this.note = data.note ? detailMono({ id: childId('note'), text: data.note, kind: 'label', x: pad, ellipsis: true }) : null;
+		this.pin = detailMono({ id: childId('pin'), text: pinHint(pinned), kind: 'label' });
 		this.minis = entries.map(({ card, copies }) => {
 			const mini = new UICard({ id: childId(`card_${card.type}`), x: 0, y: 0, data: card, size: CardSize.MINI, copies });
 			// A view to read, not a deck to work: its cards take no pointer of their own
@@ -210,32 +234,6 @@ export class DriverDetailView extends Component {
 		for (const child of [this.name, this.identity, this.hp, this.stats, this.heading, ...this.minis]) this.addChild(child);
 		if (this.note) this.addChild(this.note);
 		this.addChild(this.pin);
-	}
-
-	/**
-	 * One row of mono: a label's muted capitals, or a stat's brighter
-	 * figures, hugging its words. With `ellipsis` it's cut short once
-	 * layout gives it a width.
-	 */
-	private mono({ id, text, kind, x = 0, ellipsis = false }: { id: string; text: string; kind: 'label' | 'figures'; x?: number; ellipsis?: boolean }): Text {
-		const label = kind === 'label';
-		return new Text({
-			id,
-			text,
-			x,
-			height: DRIVER_DETAIL.mono.height,
-			style: {
-				fontRole: 'mono',
-				fontSize: DRIVER_DETAIL.mono.size,
-				color: label ? CARD_MUTED : CARD_RULES,
-				letterSpacing: label ? DRIVER_DETAIL.mono.labelSpacing : DRIVER_DETAIL.mono.figureSpacing,
-				textTransform: label ? 'uppercase' : 'none',
-			},
-			lineHeight: DRIVER_DETAIL.mono.height / DRIVER_DETAIL.mono.size,
-			verticalAlign: 'middle',
-			wrap: 'none',
-			textOverflow: ellipsis ? 'ellipsis' : undefined,
-		});
 	}
 
 	/** The driver it shows. */
@@ -274,7 +272,7 @@ export class DriverDetailView extends Component {
 		// HP as figures, its bar running to the right edge
 		this.hp.y = y;
 		const barX = pad + this.hp.width + DRIVER_DETAIL.bar.gap;
-		placeHpBar(
+		placeStatBar(
 			this.hpBar,
 			{ x: barX, y: y + (mono.height - DRIVER_DETAIL.bar.height) / 2, width: Math.max(0, right - barX), height: DRIVER_DETAIL.bar.height },
 			hpFraction(this.model),
@@ -320,7 +318,7 @@ export class DriverDetailView extends Component {
 	public render(draw: DrawApi): void {
 		drawRivetedFrame(draw, this.frame);
 		drawPortrait(draw, this.portrait);
-		drawHpBar(draw, this.hpBar);
+		drawStatBar(draw, this.hpBar);
 		draw.drawRect(this.ruleDraw);
 	}
 }

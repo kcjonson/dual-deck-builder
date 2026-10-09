@@ -10,6 +10,9 @@ import { CardInspectView, DETAIL, KEYWORD_PANEL, KeywordSide, inspectViewWidth }
 import type { DriverCard } from './DriverCard';
 import { CardLookup, DriverDetailView } from './DriverDetailView';
 import type { DriverCardData } from './driverCardData';
+import type { EscortCard } from './EscortCard';
+import type { EscortCardData } from './escortCardData';
+import { EscortDetailView } from './EscortDetailView';
 
 /** The detail view rests this far above the screen's bottom edge, and keeps this far from its sides. */
 const SCREEN_MARGIN = 10;
@@ -160,6 +163,14 @@ export class DriverInspectSurface extends InspectSurface<DriverDetailView> {
 	}
 }
 
+/** An escort card's detail view, as the inspector shows it. */
+export class EscortInspectSurface extends InspectSurface<EscortDetailView> {
+	constructor({ data, cards, pinned, scale, cardCentreX }: { data: EscortCardData; cards: CardLookup; pinned: boolean; scale: number; cardCentreX?: number | null }) {
+		super({ id: 'escort_detail', view: new EscortDetailView({ id: 'escort_detail_view', data, cards, pinned }), scale, cardCentreX });
+		this.componentType = 'EscortInspectSurface';
+	}
+}
+
 /**
  * Where an inspect view rests: on the screen's bottom edge, `SCREEN_MARGIN`
  * up, less the gap the tooltip service leaves between an owner anchor and
@@ -243,17 +254,35 @@ export interface DriverInspectableOptions {
 }
 
 /**
+ * A detail view built by `build` each time it opens, centred over its
+ * owner and clamped inside the screen: a driver card's and an escort
+ * card's, which are as wide as they'll be before they lay out.
+ */
+function makeCentredInspectable(owner: Component, build: (opening: InspectOpening & { cardCentreX: number }) => Component): void {
+	makeDetailInspectable(owner, (opening) => {
+		const cardCentreX = opening.bounds.x + opening.bounds.width / 2;
+		const surface = build({ ...opening, cardCentreX });
+		return { surface, x: centredOver({ cardCentreX, width: surface.width, viewportWidth: opening.viewport.width, margin: SIDE_MARGIN * opening.scale }) };
+	});
+}
+
+/**
  * A driver card's detail view (Game Flow 7.0: their full stats and their
  * deck), on the play card's path, centred over the card. The view is built
  * from the card's data each time it opens, and the card pins it again when
  * its data changes while it's pinned.
  */
 export function makeDriverInspectable(card: DriverCard, { cards }: DriverInspectableOptions): void {
-	makeDetailInspectable(card, ({ viewport, bounds, scale, pinned }) => {
-		const cardCentreX = bounds.x + bounds.width / 2;
-		const surface = new DriverInspectSurface({ data: card.data, cards, pinned, scale, cardCentreX });
-		return { surface, x: centredOver({ cardCentreX, width: surface.width, viewportWidth: viewport.width, margin: SIDE_MARGIN * scale }) };
-	});
+	makeCentredInspectable(card, ({ scale, pinned, cardCentreX }) => new DriverInspectSurface({ data: card.data, cards, pinned, scale, cardCentreX }));
+}
+
+/**
+ * An escort card's detail view (Game Flow 7.0: its profile and its
+ * signature card), on the same path as a driver card's, built from the
+ * card's data and its card lookup each time it opens.
+ */
+export function makeEscortInspectable(card: EscortCard): void {
+	makeCentredInspectable(card, ({ scale, pinned, cardCentreX }) => new EscortInspectSurface({ data: card.data, cards: card.cards, pinned, scale, cardCentreX }));
 }
 
 /** Pins `owner`'s detail view open, or lets it go when it already is. */
