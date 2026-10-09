@@ -6,11 +6,13 @@ import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
 import type { Vehicle } from '../mechanics/Vehicle';
 import { CardCounts, NO_CARDS, addCards, addCounts, cardCount, readCardCounts, readCardType, removeCards, totalCards } from './CardCounts';
+import type { FailedRun, RunParty } from './CombatBridge';
 import { ConvoyJson, convoyToJson, readConvoy } from './ConvoyJson';
-import { DECK_RULES, DeckBlocker, deckAddBlocker, deckRemoveBlocker } from './DeckRules';
+import { DECK_RULES, DeckBlocker, cardName, deckAddBlocker, deckRemoveBlocker, readNewCards } from './DeckRules';
 import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordJson, describeDriver, placeholderName, readDriverRecord } from './DriverRecord';
 import { readMapParams, repairMapParams } from './MapParamsJson';
 import { EMPTY_MAP, MapState, readMapState } from './MapState';
+import { hasOpenFight } from './OpenFights';
 import { EscortCard, RunDeck, RunDeckJson, readRunDeckJson } from './RunDeck';
 import { SeatBlocker, getSeatBlocker } from './Seating';
 
@@ -39,6 +41,12 @@ export const NO_RESOURCES: Readonly<Resources> = Object.freeze({ food: 0, water:
 export interface CampaignLogEntry {
 	day: number;
 	message: string;
+}
+
+/** What a run that got home unloaded: the cargo's resources, now in the stores, and the cards won, now in the locker. */
+export interface UnloadedCargo {
+	readonly resources: Readonly<Resources>;
+	readonly cards: CardCounts;
 }
 
 /**
@@ -348,9 +356,11 @@ export class Campaign extends Model<CampaignData> {
 	 * cards are their escorts', not the compound's). Each copy is in exactly
 	 * one of those places, so moves never change this, and nor do starting
 	 * run decks or unwinding them; scrapping takes from it, and so does a
-	 * driver who dies with their run deck. A record's listener can see half a
-	 * move (a copy in two places, or none), so read this, as the Crew screen
-	 * should, on the campaign's `change`, not a record's.
+	 * driver who dies with their run deck, while cards won coming home
+	 * (`unloadRun`) and cards bought at home (`addToLocker`) add to it, in
+	 * the locker. A record's listener can see half a move (a copy in two
+	 * places, or none), so read this, as the Crew screen should, on the
+	 * campaign's `change`, not a record's.
 	 */
 	public get cardsOwned(): CardCounts {
 		const owned: Record<string, number> = { ...this.locker };
@@ -480,6 +490,20 @@ export class Campaign extends Model<CampaignData> {
 		return scrap;
 	}
 
+	/**
+	 * New copies of a card into the locker, in one `set`: what the garage
+	 * sells at the compound, since cards bought at home go to the locker
+	 * (Compound and Supply Runs, Buildings). Paying for them is the garage's.
+	 * Throws, adding nothing, for a card cards.json doesn't list or an
+	 * escort's signature card (`readNewCards`), a malformed card type or
+	 * count, and as `set` does while a card move is being stored.
+	 */
+	public addToLocker({ cardType, count = 1 }: { cardType: string; count?: number }): void {
+		readCardType(cardType, 'cardType');
+		readInteger(count, 'count', { min: 1 });
+		this.set({ locker: addCounts(this.locker, readNewCards({ [cardType]: count }, 'cards')) });
+	}
+
 	/** Adds a line to the log, dated today. */
 	public addLogEntry({ message }: { message: string }): void {
 		this.set({ log: [...this.log, { day: this.day, message }] });
@@ -490,7 +514,9 @@ export class Campaign extends Model<CampaignData> {
 	 * takes a run deck that's their whole default deck, all of it going, and
 	 * each escort that came along brings its signature card into Driver 1's,
 	 * the first seat's. The default decks are emptied into the run decks, so
-	 * every copy stays in one place, until `unwindRunDecks` gives them back.
+	 * every copy stays in one place, until the run ends (`unloadRun`,
+	 * `loseRun`) or the load out is given up (`unwindRunDecks`), which gives
+	 * them back.
 	 *
 	 * The records are stored first, in seat order, then the campaign, so
 	 * campaign listeners hear it whole. A record's listener sees the copies in
@@ -620,42 +646,101 @@ export class Campaign extends Model<CampaignData> {
 	}
 
 	/**
-	 * After the run, or a load out given up (Compound and Supply Runs, After
-	 * the run): each run deck is unwound, and the run's decks are gone. A
-	 * driver who isn't dead, home or missing, gets their default deck back,
-	 * the copies that went and the ones left at home, and what they borrowed
-	 * goes back to the locker. A dead driver took the copies that went and
-	 * the ones they borrowed with them, and the ones they left at home go to
-	 * the locker. Escort cards leave. Returns the run decks lost with their
-	 * drivers.
+	 * A load out given up (Compound and Supply Runs, After the run): each run
+	 * deck is unwound, and the run's decks are gone. A driver who isn't dead,
+	 * home or missing, gets their default deck back, the copies that went and
+	 * the ones left at home, and what they borrowed goes back to the locker.
+	 * A dead driver took the copies that went and the ones they borrowed with
+	 * them, and the ones they left at home go to the locker. Escort cards
+	 * leave. Returns the run decks lost with their drivers. A run that set
+	 * off ends with `unloadRun` or `loseRun`, which unwind it the same way.
 	 *
 	 * The records are stored first, in seat order, then the campaign: a
 	 * record's listener sees copies in two places, and while the records are
 	 * stored the campaign refuses every change. A driver a listener kills
 	 * before their run deck is reached is unwound as dead. Throws with no run
-	 * out.
+	 * out, and while a fight is open or being written back, since its
+	 * write-back has to find the run decks as the fight left them.
 	 */
 	public unwindRunDecks(): { lost: readonly RunDeck[] } {
-		if (storingMoves.has(this)) throw new Error("Can't unwind run decks while a card move is being stored");
-		const decks = this.requireRunDecks();
-		const lost: RunDeck[] = [];
-		let locker = this.locker;
-		storingMoves.add(this);
-		try {
-			for (const deck of decks) {
-				if (deck.driver.status === 'dead') {
-					lost.push(deck);
-					locker = addCounts(locker, deck.leftHome);
-				} else {
-					locker = addCounts(locker, deck.borrowed);
-					deck.driver.set({ defaultDeck: addCounts(deck.driver.defaultDeck, deck.defaultDeck) });
-				}
-			}
-		} finally {
-			storingMoves.delete(this);
-		}
+		const decks = this.endingRun({ action: 'unwind run decks' });
+		const { locker, lost } = this.unwindRecords(decks);
 		this.set({ runDecks: [], locker });
-		return { lost: Object.freeze(lost) };
+		return { lost };
+	}
+
+	/**
+	 * A run that got home (Compound and Supply Runs, Return; After the run):
+	 * its run decks are unwound as `unwindRunDecks` unwinds them, then its
+	 * cargo is unloaded, the resources into the stores and the cards won into
+	 * the locker, where the debrief offers each one to a default deck
+	 * (`getDebrief`). Every copy is then in exactly one place, and
+	 * `cardsOwned` has grown by the cards won. Returns what was unloaded.
+	 *
+	 * Everything is checked first. Then the records are stored, in seat
+	 * order, and the campaign last in one `set` of its run decks, locker,
+	 * and stores, so its `change` comes once the run is home; save at the
+	 * step's checkpoint after it. The run's decks go in that set, so a second
+	 * unload of the run, from this party or any copy of it, finds no run out.
+	 *
+	 * Throws, changing nothing, while a card move is being stored or a fight
+	 * is open or being written back, with no run out, for a party whose seats
+	 * aren't the run decks' drivers in seat order, for a seat who's dead or
+	 * missing (only a failed run leaves one, and a failed run loses its
+	 * cargo: `loseRun`), and for cargo that doesn't check out. Cards won are
+	 * checked for shape only, as the locker's are, so a card cards.json has
+	 * dropped since it was won still comes home.
+	 */
+	public unloadRun({ party }: { party: RunParty }): UnloadedCargo {
+		const decks = this.endingRun({ action: 'unload a run' });
+		const seated = decks.map(deck => deck.driver);
+		if (party.seats.length !== seated.length || party.seats.some((seat, index) => seat !== seated[index])) {
+			throw new RangeError(`This party seats ${driverList(party.seats)}, and the run out seats ${driverList(seated)}`);
+		}
+		party.seats.forEach(seat => {
+			if (!isAtCompound(seat)) throw new RangeError(`${describeDriver(seat)} is ${seat.status}, so this run didn't come home, and its cargo is lost`);
+		});
+		const cargo = readResources(party.cargo, 'RunParty.cargo');
+		const cards = readCardCounts(party.cargoCards, 'RunParty.cargoCards');
+		const stores = Object.fromEntries(RESOURCE_NAMES.map(name => [name, this.resources[name] + cargo[name]]));
+		const resources = readResources(stores, 'Campaign.resources');
+		const { locker } = this.unwindRecords(decks);
+		this.set({ runDecks: [], locker: addCounts(locker, cards), resources });
+		return Object.freeze({ resources: cargo, cards });
+	}
+
+	/**
+	 * A run that failed (Compound and Supply Runs, A failed run): its run
+	 * decks are unwound as `unwindRunDecks` unwinds them, the dead losing what
+	 * went with them, and its cargo is lost, the cards won with it, so none of
+	 * it reaches the stores or the locker. The log says what was lost, dated
+	 * today, unless the run carried nothing. Returns the run decks lost with
+	 * their drivers.
+	 *
+	 * Stored as `unloadRun` stores a run: the records first, in seat order,
+	 * then the campaign in one `set` of its run decks, locker, and log.
+	 * Throws, changing nothing, while a card move is being stored or a fight
+	 * is open or being written back, with no run out, for a result whose dead
+	 * and missing aren't the run decks' drivers, and unless every one of them
+	 * is dead or missing, as a failed run leaves them.
+	 */
+	public loseRun({ result }: { result: FailedRun }): { lost: readonly RunDeck[] } {
+		const decks = this.endingRun({ action: 'lose a run' });
+		const seated = decks.map(deck => deck.driver);
+		const fallen = [...result.dead, ...result.missing];
+		if (fallen.length !== seated.length || !seated.every(driver => fallen.includes(driver))) {
+			throw new RangeError(`This failed run lost ${driverList(fallen)}, and the run out seats ${driverList(seated)}`);
+		}
+		seated.forEach(driver => {
+			if (isAtCompound(driver)) throw new RangeError(`${describeDriver(driver)} is ${driver.status}, so this run hasn't failed`);
+		});
+		const message = cargoLostMessage({
+			cargo: readResources(result.cargoLost, 'FailedRun.cargoLost'),
+			cards: readCardCounts(result.cargoCardsLost, 'FailedRun.cargoCardsLost')
+		});
+		const { locker, lost } = this.unwindRecords(decks);
+		this.set({ runDecks: [], locker, log: message === null ? this.log : [...this.log, { day: this.day, message }] });
+		return { lost };
 	}
 
 	/** The save as plain JSON: what `toSaveText` writes, parsed back, so it's a copy of the caller's own. */
@@ -835,6 +920,41 @@ export class Campaign extends Model<CampaignData> {
 		return this.runDecks;
 	}
 
+	/** The run decks of a run that's ending, refusing while a card move is stored, a fight is open, or no run is out. */
+	private endingRun({ action }: { action: string }): readonly RunDeck[] {
+		if (storingMoves.has(this)) throw new Error(`Can't ${action} while a card move is being stored`);
+		if (hasOpenFight(this)) throw new Error(`Can't ${action} while the campaign's last fight hasn't been written back`);
+		return this.requireRunDecks();
+	}
+
+	/**
+	 * Gives each run deck's driver their default deck back, in seat order,
+	 * unless they're dead, and works out the locker after it: what the living
+	 * borrowed, and what the dead left at home. Each driver's status is read
+	 * as their deck's turn comes. The campaign refuses every change while the
+	 * records are stored; the caller stores the locker, and empties the run
+	 * decks, in one `set`.
+	 */
+	private unwindRecords(decks: readonly RunDeck[]): { locker: CardCounts; lost: readonly RunDeck[] } {
+		const lost: RunDeck[] = [];
+		let locker = this.locker;
+		storingMoves.add(this);
+		try {
+			for (const deck of decks) {
+				if (deck.driver.status === 'dead') {
+					lost.push(deck);
+					locker = addCounts(locker, deck.leftHome);
+				} else {
+					locker = addCounts(locker, deck.borrowed);
+					deck.driver.set({ defaultDeck: addCounts(deck.driver.defaultDeck, deck.defaultDeck) });
+				}
+			}
+		} finally {
+			storingMoves.delete(this);
+		}
+		return { locker, lost: Object.freeze(lost) };
+	}
+
 	private countsAt(place: 'locker' | DriverRecord): CardCounts {
 		if (place === 'locker') return this.locker;
 		if (!this.drivers.includes(place)) throw new RangeError(`${describeDriver(place)} isn't in this campaign's pool`);
@@ -911,6 +1031,22 @@ function seatRefusal({ driver, blocker }: { driver: DriverRecord; blocker: SeatB
 function placeName(place: CardPlace): string {
 	if (place === 'locker') return 'the locker';
 	return place instanceof RunDeck ? `${place.driver.name}'s run deck` : `${place.name}'s deck`;
+}
+
+/** "Road Warrior 1 (driver-1) and Interceptor 1 (driver-2)", or "nobody". */
+function driverList(drivers: readonly DriverRecord[]): string {
+	return drivers.length === 0 ? 'nobody' : drivers.map(describeDriver).join(' and ');
+}
+
+/** "Cargo lost with the run: 2 fuel, 30 scrap, and Repair Kit x2.", or null when the run carried nothing. */
+function cargoLostMessage({ cargo, cards }: { cargo: Readonly<Resources>; cards: CardCounts }): string | null {
+	const items = [
+		...RESOURCE_NAMES.filter(name => cargo[name] > 0).map(name => `${cargo[name]} ${name === 'people' && cargo[name] === 1 ? 'person' : name}`),
+		...Object.entries(cards).map(([cardType, count]) => (count === 1 ? cardName(cardType) : `${cardName(cardType)} x${count}`))
+	];
+	if (items.length === 0) return null;
+	const listed = items.length < 3 ? items.join(' and ') : `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
+	return `Cargo lost with the run: ${listed}.`;
 }
 
 /** The locker, or a driver who's here to hand cards to: not dead, and not missing. */

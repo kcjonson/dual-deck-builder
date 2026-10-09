@@ -12,7 +12,7 @@ All of it fits in fields a save already has (status, `injuredDays`, HP, the stor
 
 `injureOnArrival({ campaign, drivers })` takes the seats of a run that got home, as the bridge left them. A driver below max HP is injured for `injuryDays`: the HP they're missing over `infirmary.hitpointsPerDay`, rounded up. Their HP stays where they came home with it. It returns the injuries (driver, HP missing, days) frozen; the injured records emit, the campaign doesn't.
 
-It refuses, changing nothing, while the campaign's fight is open or partway through its write-back (`hasOpenFight`, from the bridge), since the write-back has to fit the records as the fight left them. It refuses a driver outside the pool, one listed twice, or one who isn't ready, too. A run leaves with ready drivers, on the road only a failed run changes a seat's status, and a failed run never gets home, so a dead driver here is the caller's bug. `injuryDays` throws at 0 HP for the same reason: the dead aren't injured.
+It refuses, changing nothing, while the campaign's fight is open or partway through its write-back (`hasOpenFight`, which the bridge keeps in `OpenFights.ts`), since the write-back has to fit the records as the fight left them. It refuses a driver outside the pool, one listed twice, or one who isn't ready, too. A run leaves with ready drivers, on the road only a failed run changes a seat's status, and a failed run never gets home, so a dead driver here is the caller's bug. `injuryDays` throws at 0 HP for the same reason: the dead aren't injured.
 
 The run controller calls it after unloading the cargo and before `endDay`, so the night home is the first day in the infirmary. That keeps `injuredDays` meaning one thing everywhere, day ends until fit, which load out shows as "fit in N days".
 
@@ -70,7 +70,7 @@ Each is a value or a line or two to change, and none is in the spec.
 
 ## Consequences
 
-- The run controller's arrival (DDB-322): unload the cargo, `injureOnArrival({ campaign, drivers: party.seats })`, count `runsCompleted`, `endDay`, then checkpoint. A failed run has no arrival.
+- The run controller's arrival (DDB-322): unload the run (`Campaign.unloadRun`, which unwinds its run decks too, [cards-won.md](./cards-won.md)), `injureOnArrival({ campaign, drivers: party.seats })`, count `runsCompleted`, `endDay`, then checkpoint. A failed run has no arrival.
 - The infirmary (DDB-301) lists the injured with their `injuredDays`, prices days with `treatmentCost`, disables with `getTreatmentBlocker`, and calls `treatDriver` then `CampaignStore.checkpoint`, recomputing on the campaign's `change`.
 - Load out (DDB-320) asks `getSeatBlocker` of each driver in the pool, with the other seat's driver as `partner`, and words the reason itself.
 - Infirmary upgrades (DDB-309) can tune `hitpointsPerDay` or `medsPerDay` by building level, or take more than one day off a night in `endDay`.

@@ -10,6 +10,7 @@ import { Vehicle, createDrivenVehicle } from '../mechanics/Vehicle';
 import { Campaign, NO_RESOURCES, Resources, readResources } from './Campaign';
 import { CardCounts, NO_CARDS, addCards, readCardCounts } from './CardCounts';
 import { DriverRecord, DriverRecordData, VehicleCondition, describeDriver, readDriverRecordData } from './DriverRecord';
+import { openFights, storingWriteBacks } from './OpenFights';
 import { RunDeck } from './RunDeck';
 import { SeatBlocker, getSeatBlocker } from './Seating';
 
@@ -39,7 +40,7 @@ export interface RunParty {
 	readonly seats: readonly DriverRecord[];
 	readonly escorts: readonly Vehicle[];
 	readonly cargo: Readonly<Resources>;
-	/** Cards won on the run (rewards, finds, a roadside garage): loot, so cargo, bound for the locker. */
+	/** Cards won on the run (rewards, finds, a roadside garage, added with `addCardsWon`): loot, so cargo, bound for the locker. */
 	readonly cargoCards: CardCounts;
 }
 
@@ -110,29 +111,6 @@ export type FightWriteBack = WonFight | FailedRun;
 
 /** What became of a seated driver: still in the fight at its end, down, or crashed out, and what the outcome makes of that. */
 type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
-
-/**
- * Each campaign's fight from its start until it's written back. One at a
- * time, so a fight can't start beside one that hasn't been written back,
- * and none is written back twice.
- */
-const openFights = new WeakMap<Campaign, CampaignFight>();
-/**
- * Campaigns partway through storing a write-back. The fight stops being
- * open before anything is stored, so this is what keeps a listener from
- * starting the next fight on records and a convoy that are half written.
- */
-const storingWriteBacks = new WeakSet<Campaign>();
-
-/**
- * Whether the campaign has a fight started and not yet written back, or
- * being written back. Nobody comes home while one is open
- * (`injureOnArrival`), since the write-back has to fit the records as the
- * fight left them, and a listener partway through it sees them half stored.
- */
-export function hasOpenFight(campaign: Campaign): boolean {
-	return openFights.has(campaign) || storingWriteBacks.has(campaign);
-}
 
 /**
  * Build a run's next fight and start it. Each seat's combat driver is their
@@ -214,15 +192,16 @@ export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, ene
  * who crashed out are missing, and the cargo, cards won included, and every
  * escort that came along are lost. The cards a lost escort brought leave
  * the run decks; the rest of a run deck, the dead's included, waits for
- * `Campaign.unwindRunDecks`, which the run controller calls when the run
- * ends.
+ * the run to end, which the run controller settles with
+ * `Campaign.unloadRun` when it gets home or `Campaign.loseRun` when it
+ * fails.
  *
  * Everything is worked out and checked before anything is stored, then
  * stored in one order: the records in seat order, the run decks, then the
- * convoy and its seats. The compound's stores are the run controller's,
- * when the run gets home. Save at the step's checkpoint, after this: until
- * a fight is written back its wrecked escorts are still in the convoy, and
- * a campaign holding a wreck can't be saved.
+ * convoy and its seats. The compound's stores and locker change only when
+ * the run gets home (`Campaign.unloadRun`). Save at the step's checkpoint,
+ * after this: until a fight is written back its wrecked escorts are still
+ * in the convoy, and a campaign holding a wreck can't be saved.
  *
  * Throws, storing nothing, for a fight that isn't over, ended in a tie (a
  * campaign fight has no turn limit), or is written back already, and for a

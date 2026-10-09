@@ -1,8 +1,10 @@
 import { Rng } from '../core/Rng';
 import { resolveMapParams } from '../map/MapParams';
 import { createEscort } from '../mechanics/Escort';
-import { Campaign, CampaignOptions, CardBlocker, CardMove, CardPlace, CardRuleError } from './Campaign';
-import { CardCounts, NO_CARDS, addCards, cardCount, totalCards } from './CardCounts';
+import { Campaign, CampaignOptions, CardBlocker, CardMove, CardPlace, CardRuleError, NO_RESOURCES } from './Campaign';
+import { CardCounts, NO_CARDS, addCards, cardCount, removeCards, totalCards } from './CardCounts';
+import { addCardsWon, getDebrief } from './CardsWon';
+import type { FailedRun } from './CombatBridge';
 import { DECK_RULES, cardArchetype } from './DeckRules';
 import { DriverRecord } from './DriverRecord';
 import { RunDeck } from './RunDeck';
@@ -465,7 +467,7 @@ describe('Campaign cards under the deck rules', () => {
 			return campaign;
 		}
 
-		it.each([1, 2, 3, 4, 5])('with a run out, across a seeded run of borrowing, leaving home, escort cards, resets, Crew moves, and scraps, through the store and an unwind (seed %i)', async (seed) => {
+		it.each([1, 2, 3, 4, 5])('with a run out, across a seeded run of borrowing, leaving home, escort cards, resets, Crew moves, and scraps, through the store, the run coming home or failing with its cards won, and the debrief (seed %i)', async (seed) => {
 			const rng = new Rng({ seed }).fork('run-deck-moves');
 			const campaign = crewOnARun();
 			// Snapshots of the run decks, which go stale at the first move and still stand for their drivers'
@@ -556,21 +558,56 @@ describe('Campaign cards under the deck rules', () => {
 			expect(loaded.toJSON()).toEqual(campaign.toJSON());
 			expect(loaded.cardsOwned).toEqual(campaign.cardsOwned);
 
-			// On odd seeds the run fails and the Interceptor dies, taking what went with them
-			const dies = seed % 2 === 1;
+			// Cards won on the road (DDB-316): any driver's, the Interceptor's own, and ones a full deck can't take
+			const cardsWon = Array.from({ length: rng.int(1, 5) }, () => rng.pick(['headshot', 'precision_shot', 'medical_kit', 'repair_kit']))
+				.reduce((won, cardType) => addCards(won, cardType), NO_CARDS);
+			// On odd seeds the run fails: the Road Warrior is missing and the Interceptor dead, taking what went with them, and the cargo is lost
+			const fails = seed % 2 === 1;
 			const interceptorDeck = campaign.runDeckOf(seated[1]) as RunDeck;
-			const lost = dies ? interceptorDeck.cards : NO_CARDS;
+			const lost = fails ? interceptorDeck.cards : NO_CARDS;
+			const won = fails ? NO_CARDS : cardsWon;
 			const defaultDecks = campaign.runDecks.map(deck => deck.defaultDeck);
 			for (const after of [campaign, loaded]) {
-				if (dies) after.drivers[1].set({ status: 'dead', hitpoints: 0, defaultDeck: {} });
-				after.unwindRunDecks();
+				const [warrior, interceptor] = after.runDecks.map(deck => deck.driver);
+				const party = addCardsWon({ party: { seats: [warrior, interceptor], escorts: [], cargo: NO_RESOURCES, cargoCards: NO_CARDS }, cardsWon });
+				if (fails) {
+					warrior.set({ status: 'missing' });
+					interceptor.set({ status: 'dead', hitpoints: 0, defaultDeck: {} });
+					const result: FailedRun = { outcome: 'run_failed', party: null, dead: [interceptor], missing: [warrior], escortsLost: [], cargoLost: party.cargo, cargoCardsLost: party.cargoCards };
+					after.loseRun({ result });
+				} else {
+					after.unloadRun({ party });
+				}
 			}
 
 			expect(loaded.toJSON()).toEqual(campaign.toJSON());
 			expect(campaign.runDecks).toEqual([]);
-			expect(together(together(ownedByHand(campaign), scrapped), lost)).toEqual(start);
+			expect(together(together(ownedByHand(campaign), scrapped), lost)).toEqual(together(start, won));
+			expect(campaign.cardsOwned).toEqual(ownedByHand(campaign));
 			expect(seated[0].defaultDeck).toEqual(defaultDecks[0]);
-			expect(seated[1].defaultDeck).toEqual(dies ? {} : defaultDecks[1]);
+			expect(seated[1].defaultDeck).toEqual(fails ? {} : defaultDecks[1]);
+
+			// The debrief offers each card won round the pool, and a driver takes one wherever the rules let the move through
+			const home = records.filter(driver => driver.status !== 'dead' && driver.status !== 'missing');
+			const debriefed = new Set<string>();
+			let offered = won;
+			for (let step = 0; step < 40 && totalCards(offered) > 0; step += 1) {
+				const card = rng.pick(getDebrief({ campaign, cardsWon: offered }));
+				const { driver, blocker } = rng.pick(card.takers);
+				const move: CardMove = { cardType: card.cardType, from: 'locker', to: driver };
+				if (blocker === null) {
+					campaign.moveCards(move);
+					offered = removeCards(offered, card.cardType);
+				} else {
+					expectRefused({ campaign, action: () => campaign.moveCards(move), blocker });
+				}
+				debriefed.add(blocker?.reason ?? 'taken');
+
+				expect(together(together(ownedByHand(campaign), scrapped), lost)).toEqual(together(start, won));
+				expect(home.filter(driver => !keepsTheRules(driver))).toEqual([]);
+			}
+			// A run that got home placed cards won; a failed one had none to offer
+			expect(debriefed.has('taken')).toBe(!fails);
 		});
 	});
 

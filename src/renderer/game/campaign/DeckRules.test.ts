@@ -1,7 +1,7 @@
 import cardsFile from '../data/cards.json';
 import deckRulesFile from '../data/deck-rules.json';
 import { CardCounts, startingDeckCounts, totalCards } from './CardCounts';
-import { DECK_RULES, cardArchetype, deckAddBlocker, deckRemoveBlocker, readCardArchetypes, readDeckRules } from './DeckRules';
+import { DECK_RULES, cardArchetype, cardName, deckAddBlocker, deckRemoveBlocker, readCardCatalogue, readDeckRules, readNewCards } from './DeckRules';
 import { DRIVER_ARCHETYPES } from './DriverRecord';
 
 type RulesJson = Record<string, unknown>;
@@ -20,8 +20,8 @@ const { min, max } = DECK_RULES.deckSize;
 /** A deck of `size` repair kits, a card anyone can take. */
 const deckOf = (size: number): CardCounts => (size === 0 ? {} : { repair_kit: size });
 
-/** A cards file holding these cards, each with only the fields the reader looks at. */
-const cardsWith = (...cards: Record<string, unknown>[]) => ({ cards });
+/** A cards file holding these cards, each with only the fields the reader looks at, named Scrap Shot unless it says otherwise. */
+const cardsWith = (...cards: Record<string, unknown>[]) => ({ cards: cards.map(card => ({ name: 'Scrap Shot', ...card })) });
 
 describe('deck-rules.json', () => {
 	it('reads as the deck rules every campaign keeps, frozen', () => {
@@ -48,20 +48,27 @@ describe('deck-rules.json', () => {
 	});
 });
 
-describe('card eligibility', () => {
-	it('reads each card cards.json marks for an archetype, and only those', () => {
-		const marked = cardsFile.cards.filter(card => 'driverRestriction' in card && card.driverRestriction !== null);
+describe('the card catalogue', () => {
+	it('reads every card in cards.json with its name, the archetype it\'s marked for, and the escort it\'s the signature of', () => {
+		const catalogue = readCardCatalogue(cardsFile, 'cards.json');
+		const marked = (field: 'driverRestriction' | 'signatureOf') => cardsFile.cards
+			.filter(card => field in card && (card as Record<string, unknown>)[field] !== null)
+			.map(card => [card.type, (card as Record<string, unknown>)[field]]);
 
-		expect([...readCardArchetypes(cardsFile, 'cards.json')]).toEqual(marked.map(card => [card.type, (card as { driverRestriction: string }).driverRestriction]));
+		expect([...catalogue.keys()]).toEqual(cardsFile.cards.map(card => card.type));
+		expect([...catalogue].filter(([, card]) => card.archetype !== null).map(([type, card]) => [type, card.archetype])).toEqual(marked('driverRestriction'));
+		expect([...catalogue].filter(([, card]) => card.signatureOf !== null).map(([type, card]) => [type, card.signatureOf])).toEqual(marked('signatureOf'));
+		expect(catalogue.get('repair_kit')).toEqual({ name: 'Repair Kit', archetype: null, signatureOf: null });
 		expect(cardArchetype('precision_shot')).toBe('interceptor');
+		expect([cardName('repair_kit'), cardName('no_such_card')]).toEqual(['Repair Kit', 'no_such_card']);
 	});
 
-	it.each([
-		['marked for nobody', 'berserker'],
-		['with no mark at all', 'headshot'],
-		['that cards.json doesn\'t list', 'no_such_card']
-	])('lets any driver take a card %s', (_label, cardType) => {
-		expect(cardArchetype(cardType)).toBeNull();
+	it('takes new copies of any card the compound can own, and no escort\'s signature card or card cards.json doesn\'t list', () => {
+		expect(readNewCards({ precision_shot: 1, repair_kit: 2 }, 'cardsWon')).toEqual({ precision_shot: 1, repair_kit: 2 });
+		expect(() => readNewCards({ repair_kit: 1, no_such_card: 1 }, 'cardsWon')).toThrow("cardsWon.no_such_card isn't a card in cards.json");
+		expect(() => readNewCards({ top_off: 1 }, 'cardsWon'))
+			.toThrow("cardsWon.top_off is the signature card of the fuel_hauler escort, which comes with it and is never the compound's");
+		expect(() => readNewCards({ repair_kit: 0 }, 'cardsWon')).toThrow('cardsWon.repair_kit must be an integer >= 1, got 0');
 	});
 
 	it.each([
@@ -70,9 +77,21 @@ describe('card eligibility', () => {
 		['a mark that isn\'t a string', cardsWith({ type: 'scrap_shot', driverRestriction: ['raider'] }), 'cards.cards[0].driverRestriction must be a string, got ["raider"]'],
 		['two cards of one type', cardsWith({ type: 'scrap_shot' }, { type: 'scrap_shot', driverRestriction: 'raider' }), 'cards.cards[1].type scrap_shot belongs to an earlier card'],
 		['a card type in title case', cardsWith({ type: 'Scrap Shot' }), 'cards.cards[0].type must be a card type in lower snake case, got "Scrap Shot"'],
+		['a card with no name', cardsWith({ type: 'scrap_shot', name: undefined }), 'cards.cards[0].name must be a string, got undefined'],
+		['a signature of no escort', cardsWith({ type: 'scrap_shot', signatureOf: 7 }), 'cards.cards[0].signatureOf must be a string, got 7'],
 		['no list of cards', {}, 'cards.cards must be an array, got undefined']
 	])('rejects a cards file with %s', (_label, file, message) => {
-		expect(() => readCardArchetypes(file, 'cards')).toThrow(message);
+		expect(() => readCardCatalogue(file, 'cards')).toThrow(message);
+	});
+});
+
+describe('card eligibility', () => {
+	it.each([
+		['marked for nobody', 'berserker'],
+		['with no mark at all', 'headshot'],
+		['that cards.json doesn\'t list', 'no_such_card']
+	])('lets any driver take a card %s', (_label, cardType) => {
+		expect(cardArchetype(cardType)).toBeNull();
 	});
 });
 

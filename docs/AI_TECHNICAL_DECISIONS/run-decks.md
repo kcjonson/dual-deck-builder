@@ -49,7 +49,7 @@ The campaign checks each against the convoy: brought by an escort still in it, a
 
 ## After the run
 
-`unwindRunDecks` is the same call for a run that comes home, one that fails, and a load out given up. A driver who isn't dead gets `own` and `leftHome` back in their default deck, and what they borrowed goes back to the locker. A dead driver took `own` and `borrowed` with them, and what they left at home goes to the locker. It returns the run decks lost, for the debrief. The records are stored first, in seat order, then the campaign, and each driver's status is read as their deck's turn comes, so one a listener kills partway through is unwound as dead.
+A run deck unwinds the same way however the run ends: `unloadRun` for a run that comes home, `loseRun` for one that fails (both in [cards-won.md](./cards-won.md), since each settles the cargo too), and `unwindRunDecks` for a load out given up. A driver who isn't dead gets `own` and `leftHome` back in their default deck, and what they borrowed goes back to the locker. A dead driver took `own` and `borrowed` with them, and what they left at home goes to the locker. `unwindRunDecks` and `loseRun` return the run decks lost, for the debrief. The records are stored first, in seat order, then the campaign, and each driver's status is read as their deck's turn comes, so one a listener kills partway through is unwound as dead. None of the three runs while a fight is open or being written back (`hasOpenFight`), since the write-back has to find the run decks as the fight left them.
 
 ## The bridge deals from the run deck
 
@@ -59,7 +59,7 @@ The campaign checks each against the convoy: brought by an escort still in it, a
 
 ## Cards won are cargo
 
-Kevin's rule (a) counts loot as cargo (combat-bridge.md, Kevin's rules), and cards won as loot is the provisional call on DDB-432. `RunParty.cargoCards` holds them, the bridge carries them to the next party after a win and reports them as `cargoCardsLost` when a run fails, and they never touch a run deck or an unwind. Rewards (DDB-316) add to it, and the run controller (DDB-322) unloads it into the locker on getting home, where the debrief offers each card to a default deck.
+Kevin's rule (a) counts loot as cargo (combat-bridge.md, Kevin's rules), and cards won as loot is the provisional call on DDB-432. `RunParty.cargoCards` holds them, the bridge carries them to the next party after a win and reports them as `cargoCardsLost` when a run fails, and they never go in a run deck. `addCardsWon` adds to it, and `unloadRun` unloads it into the locker after unwinding the run decks, where the debrief (`getDebrief`) offers each card to a default deck ([cards-won.md](./cards-won.md)).
 
 ## Saves
 
@@ -81,7 +81,7 @@ These are the simplest options where the spec leaves the rule open. Each is a sm
 
 - Load out (DDB-320) starts the run decks once both seats are filled, and unwinds them if the run is given up or a seat changes. It brings escorts' cards in and out with `addEscortCards` and `removeEscortCards`, gives one to Driver 2 with `moveEscortCard`, and a seat swap is a `set` of `runDecks` in the new order. A run deck is customized (the CUSTOM tag) when it has anything left at home or borrowed.
 - Customize (DDB-321) is `moveCards` and `getCardMoveBlocker` with a run deck at one end: HOME tags from `leftHome`, +1 tags from `borrowed`, and the locker as `campaign.locker`, which already lacks what the other seat borrowed. "Reset to default" is `resetRunDeck`.
-- The run controller (DDB-322) saves the party by ids with its `cargoCards`, and calls `unwindRunDecks` when the run ends, after the last write-back.
+- The run controller (DDB-322) saves the party by ids with its `cargoCards`, and settles the run after the last write-back with `unloadRun` or `loseRun`, which unwind the run decks.
 - An escort joining mid-run (DDB-153) brings its card in with `addEscortCards`, and a garage dismissing one takes it out with `removeEscortCards` beside `Convoy.dismiss`.
 - The Crew screen gets `on_run` for a seated driver while a run is out.
 - Every version 3 save stops loading, as every format change does, and Campaign History starts over.

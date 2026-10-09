@@ -10,7 +10,8 @@ import { Team, TeamType } from '../mechanics/Team';
 import { Vehicle, createDrivenVehicle } from '../mechanics/Vehicle';
 import { Campaign, NO_RESOURCES, Resources } from './Campaign';
 import { CampaignStore } from './CampaignStore';
-import { CardCounts, NO_CARDS, addCards, startingDeckCounts } from './CardCounts';
+import { CardCounts, NO_CARDS, addCards, startingDeckCounts, totalCards } from './CardCounts';
+import { addCardsWon, getDebrief } from './CardsWon';
 import { CampaignFight, FailedRun, FightWriteBack, LIMP_STRUCTURE, REVIVE_HP, RunParty, WonFight, startCampaignFight, writeBackFight } from './CombatBridge';
 import { endDay } from './DayClock';
 import { DriverRecord } from './DriverRecord';
@@ -596,7 +597,7 @@ describe('the combat bridge', () => {
 			// Revived at REVIVE_HP, and 23 of 25 after the Med Truck's heal
 			const injuries = injureOnArrival({ campaign, drivers: party.seats });
 			expect(injuries.map(({ driver, missingHitpoints, injuredDays }) => [driver, missingHitpoints, injuredDays])).toEqual([[warrior, 39, 4], [interceptor, 2, 1]]);
-			campaign.unwindRunDecks();
+			campaign.unloadRun({ party });
 			endDay({ campaign });
 			expect([interceptor.status, interceptor.hitpoints]).toEqual(['ready', 25]);
 			expect([warrior.status, warrior.injuredDays, warrior.hitpoints]).toEqual(['injured', 3, REVIVE_HP]);
@@ -752,6 +753,96 @@ describe('the combat bridge', () => {
 			const { covering_fire: lost, ...kept } = owned;
 			expect(lost).toBe(11);
 			expect(campaign.cardsOwned).toEqual(kept);
+		});
+
+		it('loses the cards won with the cargo: none reach the locker when the run is settled, and the log says what was lost (DDB-316)', () => {
+			const { campaign, warrior, interceptor, party, stores, result } = failedRun();
+			const owned = campaign.cardsOwned;
+			const lostWithTheDead = runDeckOf(campaign, interceptor);
+
+			// The party the run set off with can't bring its cargo home
+			expect(() => campaign.unloadRun({ party })).toThrow(`${named(warrior)} is missing, so this run didn't come home, and its cargo is lost`);
+			expect(campaign.loseRun({ result })).toEqual({ lost: [lostWithTheDead] });
+
+			expect(campaign.runDecks).toEqual([]);
+			expect(campaign.resources).toEqual(stores);
+			// The unwinding's locker, as above, with no Headshot in it
+			expect(campaign.locker).toEqual({ emp_blast: 1, medical_kit: 1 });
+			expect(totalCards(owned) - totalCards(campaign.cardsOwned)).toBe(lostWithTheDead.deckSize);
+			expect(campaign.log[campaign.log.length - 1]).toEqual({ day: campaign.day, message: 'Cargo lost with the run: 2 fuel, 30 scrap, and Headshot.' });
+			expect(() => campaign.unloadRun({ party })).toThrow('No run is out, so there are no run decks');
+		});
+	});
+
+	describe('cards won, brought home (DDB-316)', () => {
+		it('rides a reward through the next fight as cargo, never dealt, then home puts it in the locker beside the haulers\' scrap, and the debrief offers it', async () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			shooter(interceptor);
+			const rig = salvageRig();
+			campaign.convoy.add(rig);
+			const stores = campaign.resources;
+			const owned = campaign.cardsOwned;
+			let party = loadOut({ campaign, seats: [warrior, interceptor], escorts: [rig] });
+
+			const rewards: CardCounts[] = [{ headshot: 1 }, { headshot: 1, repair_kit: 1 }];
+			for (const [index, reward] of rewards.entries()) {
+				const scrapper = idle();
+				const fight = startFight({ campaign, party, enemy: scrapper, seed: SEED + index });
+				expect(fight.drivers.map(driver => cardsHeld(driver).headshot)).toEqual([undefined, undefined]);
+				fightOut(fight, () => play({ fight, seat: 1, cardType: 'precision_shot', target: scrapper }));
+				// The reward screen's pick, after the write-back
+				party = addCardsWon({ party: won(writeBackFight({ fight })).party, cardsWon: reward });
+			}
+			expect([party.cargo, party.cargoCards]).toEqual([{ ...NO_RESOURCES, scrap: 30 }, { headshot: 2, repair_kit: 1 }]);
+
+			const unloaded = campaign.unloadRun({ party });
+
+			expect(unloaded).toEqual({ resources: { ...NO_RESOURCES, scrap: 30 }, cards: { headshot: 2, repair_kit: 1 } });
+			expect(campaign.resources).toEqual({ ...stores, scrap: stores.scrap + 30 });
+			expect(campaign.locker).toEqual({ headshot: 2, repair_kit: 1 });
+			expect(campaign.cardsOwned).toEqual(addCards(addCards(owned, 'headshot', 2), 'repair_kit'));
+			expect(getDebrief({ campaign, cardsWon: unloaded.cards }).map(({ cardType, takers }) => [cardType, takers.map(({ blocker }) => blocker)]))
+				.toEqual([['headshot', [null, null]], ['repair_kit', [null, null]]]);
+
+			campaign.moveCards({ cardType: 'headshot', from: 'locker', to: warrior });
+			endDay({ campaign });
+			const storage = new MemorySaveStorage();
+			await new CampaignStore({ storage, namespace: 'home', onWarning: () => undefined }).save(campaign);
+			const loaded = await new CampaignStore({ storage, namespace: 'home', onWarning: () => undefined }).load();
+			expect(loaded?.toJSON()).toEqual(campaign.toJSON());
+		});
+
+		it('won\'t settle a run while its fight is open or being written back, so a run that fails in it can\'t have brought its cargo home', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			shooter(interceptor);
+			const party = { ...loadOut({ campaign, seats: [warrior, interceptor] }), cargoCards: { headshot: 1 } };
+			const scrapper = idle();
+			const fight = startFight({ campaign, party, enemy: scrapper });
+			const lost: FailedRun = { outcome: 'run_failed', party: null, dead: [], missing: [], escortsLost: [], cargoLost: NO_RESOURCES, cargoCardsLost: NO_CARDS };
+			const settle = {
+				'unload a run': () => campaign.unloadRun({ party }),
+				'lose a run': () => campaign.loseRun({ result: lost }),
+				'unwind run decks': () => campaign.unwindRunDecks()
+			};
+			const before = campaign.toSaveText();
+
+			for (const [action, end] of Object.entries(settle)) expect(end).toThrow(`Can't ${action} while the campaign's last fight hasn't been written back`);
+			expect(campaign.toSaveText()).toBe(before);
+
+			fightOut(fight, () => play({ fight, seat: 1, cardType: 'precision_shot', target: scrapper }));
+			const refused: string[] = [];
+			warrior.once('change', () => {
+				try {
+					campaign.unloadRun({ party });
+				} catch (error) {
+					refused.push((error as Error).message);
+				}
+			});
+			const result = won(writeBackFight({ fight }));
+			expect(refused).toEqual(["Can't unload a run while the campaign's last fight hasn't been written back"]);
+
+			campaign.unloadRun({ party: result.party });
+			expect(campaign.locker).toEqual({ headshot: 1 });
 		});
 	});
 
