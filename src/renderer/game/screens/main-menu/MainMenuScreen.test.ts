@@ -13,7 +13,8 @@ import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
 import { tokens } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
-import type { CampaignStore } from '../../campaign/CampaignStore';
+import { CampaignStoreError } from '../../campaign/CampaignStore';
+import type { CampaignStore, SaveStatus } from '../../campaign/CampaignStore';
 import { MemorySaveStorage } from '../../campaign/SaveStorage';
 import {
 	FaultyStorage,
@@ -21,6 +22,7 @@ import {
 	damagedText,
 	fixtureText,
 	outdatedText,
+	quotaError,
 	securityError,
 	storageWith,
 	HeldStorage,
@@ -159,6 +161,24 @@ describe('MainMenuScreen', () => {
 			expect(navigate).toHaveBeenLastCalledWith('campaignHistoryScreen');
 			clickOn('main_menu_skirmish_button');
 			expect(navigate).toHaveBeenLastCalledWith('driverSelectionScreen');
+		});
+
+		it('shows the check running again after a start that failed to save, until the store answers', async () => {
+			jest.spyOn(store, 'save').mockRejectedValue(new CampaignStoreError({
+				reason: 'storage',
+				message: "The campaign couldn't be saved: storage is full.",
+				cause: quotaError(),
+			}));
+			let answer: (status: SaveStatus) => void = () => undefined;
+			jest.spyOn(store, 'saveStatus').mockImplementation(() => new Promise<SaveStatus>((resolve) => { answer = resolve; }));
+			send(context, [key('Enter')]);
+			await flush();
+			expect(navigate).not.toHaveBeenCalled();
+			expect(find<Text>('main_menu_notice').text).toBe("The campaign couldn't be saved: storage is full.");
+			expect(continueLine()).toBe('Looking for a saved campaign.');
+			answer('none');
+			await screen.saveChecked;
+			expect(continueLine()).toBe('No campaign in progress.');
 		});
 
 		it('is one Tab stop', () => {

@@ -314,10 +314,12 @@ export class MainMenuScreen extends Screen {
 		this.saveState = save;
 		const continueButton = this.continueButton;
 		if (continueButton) {
-			const wasFocused = this.context.focus.focused === continueButton;
+			const { focus } = this.context;
+			// Focused, or waiting to be once a transition's scope pops (Back restored it during the fade).
+			const holdsFocus = focus.focused === continueButton || focus.pendingFocus === continueButton;
 			continueButton.enabled = save.kind === 'saved' || save.kind === 'checking';
-			// A disabled control can't hold focus (R9.5); the column's first action takes it, not the frame's fallback.
-			if (wasFocused && !continueButton.enabled && this.newCampaignButton) this.context.focus.focus(this.newCampaignButton);
+			// A disabled control can't hold focus (R9.5); the column's first action takes it, or the request, in its place.
+			if (holdsFocus && !continueButton.enabled && this.newCampaignButton) focus.focus(this.newCampaignButton);
 		}
 		if (this.continueLine) {
 			const { text, color } = continueCaption(save);

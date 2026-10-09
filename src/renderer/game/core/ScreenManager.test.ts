@@ -42,11 +42,15 @@ async function openMenu(): Promise<void> {
 	context.frame.layout();
 }
 
+function clearCampaignKeys(): void {
+	for (const stored of Object.keys(localStorage)) {
+		if (stored.startsWith('dual-deckbuilder.campaign[')) localStorage.removeItem(stored);
+	}
+}
+
 beforeEach(async () => {
 	context.animator.reducedMotion = false;
-	for (const key of Object.keys(localStorage)) {
-		if (key.startsWith('dual-deckbuilder.campaign[')) localStorage.removeItem(key);
-	}
+	clearCampaignKeys();
 	await openMenu();
 });
 
@@ -185,6 +189,30 @@ describe('ScreenManager.navigate', () => {
 		await (ScreenManager.activeScreen as MainMenuScreen).saveChecked;
 		context.frame.layout();
 		expect(context.focus.focused?.id).toBe(opener);
+	});
+
+	it('hands the restore to New Campaign when the save is gone by the time the menu checks, mid-fade', async () => {
+		localStorage.setItem(KEYS.slots.a, fixtureText());
+		localStorage.setItem(KEYS.active, 'a');
+		await openMenu();
+		advance(context, FADE_MS * 2);
+		send(context, [key('ArrowDown'), key('Enter')]);
+		advance(context, FADE_MS * 2);
+		expect(ScreenManager.getCurrentScreenName()).toBe('compoundScreen');
+
+		clearCampaignKeys();
+		send(context, [key('Escape')]);
+		// Through the fade out and the swap: the menu has mounted under the fade in, Continue restored as pending.
+		advance(context, FADE_MS);
+		expect(ScreenManager.getCurrentScreenName()).toBe('mainMenuScreen');
+		expect(ScreenManager.transitioning).toBe(true);
+		expect(context.focus.pendingFocus?.id).toBe('main_menu_continue_button');
+
+		await (ScreenManager.activeScreen as MainMenuScreen).saveChecked;
+		expect(context.focus.pendingFocus?.id).toBe('main_menu_new_campaign_button');
+		advance(context, FADE_MS * 2);
+		expect(ScreenManager.transitioning).toBe(false);
+		expect(context.focus.focused?.id).toBe('main_menu_new_campaign_button');
 	});
 
 	it('returns focus without a ring after a pointer round trip (R9.23)', () => {

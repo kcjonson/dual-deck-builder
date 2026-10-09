@@ -38,10 +38,10 @@ Registered as `compoundScreen`, the name the compound screen will take, with the
 
 ## Goldens over saved campaigns
 
-Screen scenarios take a `storage` map, which `openScreen` writes to local storage after the page loads and before the navigate. It clears every campaign key first, since the Electron project's profile keeps local storage from one launch to the next and a capture must not see the last one's saves. The saves (in progress, outdated, damaged, and a history with every ending) are written in `campaignSaves.ts` as the store writes them, from the version 1 fixture, without importing the store into the Playwright process; `campaignSaves.test.ts` loads each through the real store, so a renamed key or a save format bump fails there by name rather than as a changed golden.
+Screen scenarios take a `storage` map, which `openScreen` writes to local storage after the page loads and before the navigate. It clears every campaign key first, since the Electron project's profile keeps local storage from one launch to the next and a capture must not see the last one's saves. The saves (in progress, outdated, damaged, and a history with every ending) are built in `campaignSaves.ts` from the fixture through the store's own test helpers (`fixtureText`, `outdatedText`) and keys (`campaignKeys`), so they follow the fixture and `CAMPAIGN_SCHEMA_VERSION` when either moves and nothing in the harness names them; `campaignSaves.test.ts` loads each through the real store.
 
 ## Consequences
 
 - The compound screen replaces `CompoundPlaceholderScreen.ts` and its goldens, keeping the registry name and `{ campaign }`.
-- Bumping `CAMPAIGN_SCHEMA_VERSION` fails `campaignSaves.test.ts` until the harness's saves move with it.
+- Bumping `CAMPAIGN_SCHEMA_VERSION` or renaming the fixture moves the harness's saves with it; only a change to what the fixture holds (its day, drivers, or strongholds) moves a golden.
 - "Unlocks earned" joins the history rows with the history schema bump that adds it.

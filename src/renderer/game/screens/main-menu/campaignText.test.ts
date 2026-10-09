@@ -1,11 +1,10 @@
 import { Campaign } from '../../campaign/Campaign';
-import campaignV1 from '../../campaign/__fixtures__/campaign-v1.json';
-import { newCampaign } from '../../campaign/__fixtures__/storeFixtures';
+import { fixtureText, newCampaign } from '../../campaign/__fixtures__/storeFixtures';
 import { campaignSummary, countOf, driversAtCompound, historyColumns } from './campaignText';
 
 describe('campaignText', () => {
 	it("summarises a campaign as Continue shows it, leaving out the dead and the missing", () => {
-		const campaign = Campaign.fromJSON(campaignV1, { onWarning: () => undefined });
+		const campaign = Campaign.fromJSON(JSON.parse(fixtureText()).campaign, { onWarning: () => undefined });
 		expect(campaign.drivers).toHaveLength(5);
 		expect(driversAtCompound(campaign)).toBe(3);
 		expect(campaignSummary(campaign)).toBe('Day 9 - 3 drivers - 1 stronghold taken');
