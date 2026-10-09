@@ -1,4 +1,5 @@
 import type { Component } from '../../../engine/components/Component';
+import type { AnyUiEvent } from '../../../engine/input/events';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
@@ -29,6 +30,8 @@ export const CARD_ENTRY = {
 	reason: { top: space.space_1, size: fontSize.fs_xs, line: 14 },
 	/** How long an armed destructive control waits for its second press. */
 	armedMs: 3000,
+	/** A second press sooner than this after arming is a double-click's, not a confirmation, and is ignored. */
+	confirmAfterMs: 300,
 	/** What an armed destructive control says. */
 	confirm: 'Confirm',
 } as const;
@@ -50,10 +53,13 @@ type FocusSpot = { index: number; key: string; destructive: boolean };
  * hover and so can't carry a tooltip (R9.5, R12.22).
  *
  * A destructive control (Scrap) takes two presses on the same card. The
- * first arms it: it reads "Confirm" in the warning tone, in the same place.
- * It disarms when focus or the pointer leaves it, after `armedMs`, or when
- * the entry is shown again for any change, so a card that slides under the
- * pointer or into focus after a scrap is only ever armed by the next press.
+ * first arms it: it reads "Confirm" in R12.7's danger tone, in the same
+ * place. A second press within `confirmAfterMs` is a double-click's and is
+ * ignored. It disarms when focus or the pointer leaves it, after
+ * `armedMs`, on Escape (the `cancel` action, which it consumes: R9.15,
+ * R9.27), or when the entry is shown again for any change, so a card that
+ * slides under the pointer or into focus after a scrap is only ever armed
+ * by the next press.
  */
 export class CardEntryView extends Stack {
 	public readonly card: UICard;
@@ -64,6 +70,8 @@ export class CardEntryView extends Stack {
 	/** The destructive control waiting for its second press, by key, and how long it waits yet. */
 	private armed: string | null = null;
 	private armedLeft = 0;
+	/** The frame clock's time when it was armed. */
+	private armedAt = 0;
 
 	constructor({ id, data, entry }: { id: string; data: GameCard; entry: CardEntry }) {
 		super({ id, width: CARD_ENTRY.width, crossAlign: 'stretch' });
@@ -167,15 +175,26 @@ export class CardEntryView extends Stack {
 		else this.requestUpdate();
 	}
 
+	/** Escape takes an armed control back to what it was, and goes no further. */
+	public handleEvent(event: AnyUiEvent): void {
+		super.handleEvent(event);
+		if (event.type !== 'cancel' || event.consumed || this.armed === null) return;
+		event.consume();
+		this.disarm();
+	}
+
 	/** Runs a control, or arms a destructive one first. */
 	private press(control: CardControl): void {
+		const now = this.context?.clock.now ?? 0;
 		if (!control.destructive || this.armed === control.key) {
+			if (control.destructive && now - this.armedAt < CARD_ENTRY.confirmAfterMs) return;
 			this.disarm();
 			control.run();
 			return;
 		}
 		this.disarm();
 		this.armed = control.key;
+		this.armedAt = now;
 		this.armedLeft = CARD_ENTRY.armedMs;
 		this.lookFor(control);
 		this.requestUpdate();
@@ -195,7 +214,7 @@ export class CardEntryView extends Stack {
 		if (!button) return;
 		const armed = this.armed === control.key;
 		button.label = armed ? CARD_ENTRY.confirm : control.label;
-		button.tone = armed ? 'warn' : 'default';
+		button.tone = armed ? 'crit' : 'default';
 		button.ghost = !armed && (control.ghost ?? false);
 	}
 

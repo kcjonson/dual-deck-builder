@@ -91,6 +91,8 @@ export class CrewScreen extends Screen {
 	/** Why there's no campaign, once loading the save has said. */
 	private trouble: string | null = null;
 	private cardsState: 'loading' | 'ready' | 'failed' = 'loading';
+	/** Roster cards whose detail view opens, once the cards have loaded. */
+	private inspectable = new WeakSet<DriverCard>();
 	private chosen: DriverRecord | null = null;
 	private builder: DeckBuilder | null = null;
 	private rosterPanel: Panel | null = null;
@@ -205,6 +207,7 @@ export class CrewScreen extends Screen {
 		this.sources = null;
 		this.trouble = null;
 		this.cardsState = 'loading';
+		this.inspectable = new WeakSet();
 		this.chosen = null;
 		this.builder = null;
 		this.rosterPanel = null;
@@ -355,8 +358,12 @@ export class CrewScreen extends Screen {
 		} else {
 			const found = await this.loadSave();
 			if (visit !== this.visit) return;
-			if (found.campaign) this.show(found.campaign);
-			else this.trouble = found.trouble;
+			if (found.campaign) {
+				this.show(found.campaign);
+			} else {
+				this.trouble = found.trouble;
+				this.sayEmpty();
+			}
 		}
 		const lookup = await cards;
 		if (visit !== this.visit) return;
@@ -453,7 +460,6 @@ export class CrewScreen extends Screen {
 	private driverCard(campaign: Campaign, driver: DriverRecord): DriverCard {
 		const card = new DriverCard({ id: `crew_driver_card_${driver.id}`, data: driverCardData({ archetype: driver.archetype }) });
 		card.focusable = true;
-		makeDriverInspectable(card, { cards: this.cards });
 		if (isAtCompound(driver)) card.onSelect = () => this.select(driver);
 		this.showDriver({ card, campaign, driver });
 		return card;
@@ -471,6 +477,11 @@ export class CrewScreen extends Screen {
 		});
 		card.status = rosterStatus({ campaign, driver });
 		card.selected = driver === this.chosen;
+		// Its detail view lays the deck out as minis, so it opens once the cards are there to draw them.
+		if (this.lookup && !this.inspectable.has(card)) {
+			makeDriverInspectable(card, { cards: this.cards });
+			this.inspectable.add(card);
+		}
 	}
 
 	private refreshHeader(campaign: Campaign): void {

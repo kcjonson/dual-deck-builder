@@ -204,6 +204,7 @@ describe('CrewScreen', () => {
 		it('scraps a locker copy for 5 scrap on a second press, and saves it', async () => {
 			press(control('pool', 'headshot', 'scrap'));
 			expect(entries('pool')).toContainEqual(['headshot', 2]);
+			advance(context, CARD_ENTRY.confirmAfterMs);
 			press(control('pool', 'headshot', 'scrap'));
 			expect(entries('pool')).toContainEqual(['headshot', 1]);
 			expect(text('crew_pool_note')).toContain('the compound has 40.');
@@ -321,11 +322,11 @@ describe('CrewScreen', () => {
 			expect(grid('pool').entryFor('ram')?.card.miniState).toBeNull();
 		});
 
-		it('arms Scrap on the first press, reading Confirm as a warning, and disarms it on blur, on leaving, after 3 s, or on another change', () => {
+		it('arms Scrap on the first press, reading Confirm in the danger tone, and disarms it on blur, on leaving, after 3 s, on a filter change, or on another change', () => {
 			const scrap = control('pool', 'headshot', 'scrap');
 			const entry = grid('pool').entryFor('headshot');
 			press(scrap);
-			expect([scrap.label, scrap.tone, entry?.armedControl]).toEqual(['Confirm', 'warn', 'scrap']);
+			expect([scrap.label, scrap.tone, entry?.armedControl]).toEqual(['Confirm', 'crit', 'scrap']);
 			context.focus.focus(control('pool', 'headshot', 'add'));
 			expect([scrap.label, scrap.tone, entry?.armedControl]).toEqual(['Scrap', 'default', null]);
 
@@ -340,6 +341,13 @@ describe('CrewScreen', () => {
 			expect(entry?.armedControl).toBeNull();
 
 			press(scrap);
+			const builder = screen.deckBuilder;
+			if (!builder) throw new Error('no deck builder');
+			builder.filter = 'attack';
+			expect(entry?.armedControl).toBeNull();
+			builder.filter = 'all';
+
+			press(scrap);
 			const campaign = screen.shown as Campaign;
 			campaign.moveCards({ cardType: 'emp_blast', from: 'locker', to: campaign.drivers[0] });
 			expect(context.focus.focused).toBe(scrap);
@@ -349,10 +357,33 @@ describe('CrewScreen', () => {
 			expect(entries('pool')).toContainEqual(['headshot', 2]);
 		});
 
+		it('ignores a confirm that comes as fast as a double-click, and takes one after it', () => {
+			const scrap = control('pool', 'headshot', 'scrap');
+			press(scrap);
+			send(context, [key('Enter')]);
+			expect(entries('pool')).toContainEqual(['headshot', 2]);
+			expect(grid('pool').entryFor('headshot')?.armedControl).toBe('scrap');
+			advance(context, CARD_ENTRY.confirmAfterMs);
+			send(context, [key('Enter')]);
+			expect(entries('pool')).toContainEqual(['headshot', 1]);
+		});
+
+		it('takes Escape on an armed Scrap to disarm it, and stays on the screen; the next Escape is Back', () => {
+			const scrap = control('pool', 'headshot', 'scrap');
+			press(scrap);
+			send(context, [key('Escape')]);
+			expect(grid('pool').entryFor('headshot')?.armedControl).toBeNull();
+			expect(scrap.label).toBe('Scrap');
+			expect(navigate).not.toHaveBeenCalled();
+			send(context, [key('Escape')]);
+			expect(navigate).toHaveBeenCalledTimes(1);
+		});
+
 		it('scraps only the card pressed twice by keyboard: focus goes to the next card itself when a scrapped card goes', () => {
 			const order = entries('pool').map(([cardType]) => cardType);
 			const next = order[order.indexOf('medical_kit') + 1];
 			press(control('pool', 'medical_kit', 'scrap'));
+			advance(context, CARD_ENTRY.confirmAfterMs);
 			send(context, [key('Enter')]);
 			context.frame.layout();
 			expect(grid('pool').entryFor('medical_kit')).toBeNull();
@@ -408,6 +439,7 @@ describe('CrewScreen', () => {
 		await screen.campaignLoaded;
 		quiet.mockRestore();
 		expect(rosterCard('driver-1').selected).toBe(true);
+		expect(rosterCard('driver-1').tooltip).toBeNull();
 		expect(entries('deck')).toEqual([]);
 		expect(text('crew_deck_empty')).toBe("The cards couldn't be loaded.");
 		expect(text('crew_pool_empty')).toBe("The cards couldn't be loaded.");
@@ -421,12 +453,15 @@ describe('CrewScreen', () => {
 		screen.mount(context, { campaign });
 		expect(screen.shown).toBe(campaign);
 		expect(screen.selected?.id).toBe('driver-1');
+		// A roster card's detail view lays its deck out as minis, so it opens once the cards are in.
+		expect(rosterCard('driver-1').tooltip).toBeNull();
 		expect([text('crew_deck_empty'), text('crew_pool_empty')]).toEqual(['Loading the cards.', 'Loading the cards.']);
 		find<Button>('crew_back_button').onClick?.({} as never);
 		expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign }, { restoreFocus: true });
 		release(lookup);
 		await screen.campaignLoaded;
 		expect(entries('deck')).toHaveLength(5);
+		expect(rosterCard('driver-1').tooltip).not.toBeNull();
 	});
 
 	it('says why there is no deck when there is no save, or it is damaged', async () => {
@@ -554,6 +589,11 @@ describe('CrewScreen', () => {
 			click(context, at.x, at.y);
 			context.frame.layout();
 			expect(grid('pool').entryFor('medical_kit')?.armedControl).toBe('scrap');
+			// A click as fast as a double-click's second doesn't confirm.
+			click(context, at.x, at.y);
+			context.frame.layout();
+			expect(grid('pool').entryFor('medical_kit')?.armedControl).toBe('scrap');
+			advance(context, CARD_ENTRY.confirmAfterMs);
 			click(context, at.x, at.y);
 			context.frame.layout();
 			expect(grid('pool').entryFor('medical_kit')).toBeNull();

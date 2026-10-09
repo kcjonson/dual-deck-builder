@@ -1,7 +1,6 @@
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { tokens } from '../../../engine/theme/tokens';
-import type { CardCounts } from '../../campaign/CardCounts';
 import type { CardLookup } from '../DriverDetailView';
 
 const { space, fontSize } = tokens;
@@ -25,8 +24,8 @@ export const COST_CURVE = {
 /** The curve's height: a count, the tallest bar, and a cost. */
 export const COST_CURVE_HEIGHT = COST_CURVE.label.line * 2 + COST_CURVE.bar.max + COST_CURVE.rowGap * 2;
 
-/** Copies at each cost, 0 to `COST_CURVE.costs - 1` and up, of the cards the lookup knows. */
-export function costCounts(deck: CardCounts, cards: CardLookup): number[] {
+/** Copies at each cost, 0 to `COST_CURVE.costs - 1` and up, of the cards the lookup knows, from copies by card type. */
+export function costCounts(deck: Readonly<Record<string, number>>, cards: CardLookup): number[] {
 	const counts = new Array<number>(COST_CURVE.costs).fill(0);
 	for (const [type, copies] of Object.entries(deck)) {
 		const card = cards(type);
