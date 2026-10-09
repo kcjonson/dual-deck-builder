@@ -8,6 +8,8 @@ import type { Text } from '../../../engine/components/Text';
 import type { Dialog } from '../../../engine/ui/Dialog';
 import { advance, click, key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
+import { layoutLint } from '../../../engine/debug/layoutLint';
+import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
 import { tokens } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
@@ -21,6 +23,7 @@ import {
 	outdatedText,
 	securityError,
 	storageWith,
+	HeldStorage,
 	storeOver,
 } from '../../campaign/__fixtures__/storeFixtures';
 import { MainMenuScreen } from './MainMenuScreen';
@@ -208,11 +211,11 @@ describe('MainMenuScreen', () => {
 			expect(await store.history()).toEqual([]);
 		});
 
-		it('records it in the history as abandoned when confirmed, then saves the new one', async () => {
+		it('records it in the history as abandoned when confirmed with the pointer, then saves the new one', async () => {
 			send(context, [key('Enter')]);
 			await flush();
 			advance(context, OPEN_MS);
-			confirmReplace();
+			clickOn('main_menu_replace_confirm');
 			advance(context, CLOSE_MS);
 			await flush();
 			const campaign = openedCampaign();
@@ -220,9 +223,70 @@ describe('MainMenuScreen', () => {
 			expect((await store.load())?.seed).toBe(campaign.seed);
 			expect(campaign.day).toBe(1);
 		});
+
+		it.each([
+			{ width: 1440, height: 882 },
+			{ width: 1024, height: 600 },
+		])('lays the open dialog out with no lint at $width x $height, measured in the real faces', async (size) => {
+			viewport.logical = size;
+			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
+			screen.unmount();
+			await open(storageWith(fixtureText()));
+			send(context, [key('Enter')]);
+			await flush();
+			advance(context, OPEN_MS);
+			const cancel = find<{ width: number }>('main_menu_replace_cancel');
+			const confirm = find<{ width: number }>('main_menu_replace_confirm');
+			expect(cancel.width).toBeGreaterThan(0);
+			expect(confirm.width).toBeGreaterThan(0);
+			const lint = layoutLint(treeSnapshot([screen.root, ...context.overlays.roots], size));
+			expect(lint.violations).toEqual([]);
+		});
+	});
+
+	describe('while the save check is running', () => {
+		it('keeps Continue enabled, so Back can land on it, and moves focus to New Campaign if it turns out disabled', async () => {
+			const held = new HeldStorage();
+			held.hold();
+			storage = held;
+			store = storeOver(held);
+			screen = new MainMenuScreen({ store });
+			screen.mount(context);
+			context.frame.layout();
+			expect(screen.save.kind).toBe('checking');
+			expect(continueEnabled()).toBe(true);
+			send(context, [key('ArrowDown')]);
+			expect(context.focus.focused?.id).toBe('main_menu_continue_button');
+			// Nothing to continue yet: Enter on it does nothing.
+			send(context, [key('Enter')]);
+			expect(navigate).not.toHaveBeenCalled();
+
+			held.release();
+			await screen.saveChecked;
+			expect(continueEnabled()).toBe(false);
+			expect(context.focus.focused?.id).toBe('main_menu_new_campaign_button');
+		});
 	});
 
 	describe('with a save it cannot continue', () => {
+		it('reads again when storage failed, and still asks before abandoning a campaign the failure hid', async () => {
+			const flaky = storageWith(fixtureText());
+			flaky.fault = { method: 'getItem', error: securityError(), times: 1 };
+			await open(flaky);
+			expect(continueLine()).toBe("The saved campaign couldn't be read: storage is blocked.");
+
+			send(context, [key('Enter')]);
+			await flush();
+			expect(dialog()?.title).toBe('Abandon this campaign?');
+			expect(continueLine()).toBe('Day 9 - 3 drivers - 1 stronghold taken');
+			advance(context, OPEN_MS);
+			clickOn('main_menu_replace_confirm');
+			advance(context, CLOSE_MS);
+			await flush();
+			expect(openedCampaign().day).toBe(1);
+			expect(await store.history()).toEqual([{ seed: 20261006, day: 9, strongholdsTaken: 1, ending: 'abandoned' }]);
+		});
+
 		it("says an outdated save can't be continued, and replaces it after asking, with nothing in the history", async () => {
 			await open(storageWith(outdatedText()));
 			expect(continueEnabled()).toBe(false);

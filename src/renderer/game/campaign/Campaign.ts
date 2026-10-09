@@ -515,7 +515,7 @@ function placeName(place: CardPlace): string {
 }
 
 /** The locker, or a driver who's here to hand cards to: not dead, and not missing. */
-function isAtCompound(place: CardPlace): boolean {
+export function isAtCompound(place: CardPlace): boolean {
 	return place === 'locker' || (place.status !== 'dead' && place.status !== 'missing');
 }
 

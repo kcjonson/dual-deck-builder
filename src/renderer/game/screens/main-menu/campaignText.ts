@@ -1,3 +1,4 @@
+import { isAtCompound } from '../../campaign/Campaign';
 import type { Campaign } from '../../campaign/Campaign';
 import type { CampaignEnding, CampaignHistoryEntry } from '../../campaign/CampaignHistory';
 
@@ -17,7 +18,7 @@ export function countOf(count: number, noun: string): string {
 
 /** The pool at the compound now: the ready and the injured. The dead and the missing stay in the record but aren't there. */
 export function driversAtCompound(campaign: Campaign): number {
-	return campaign.drivers.filter((driver) => driver.status === 'ready' || driver.status === 'injured').length;
+	return campaign.drivers.filter((driver) => isAtCompound(driver)).length;
 }
 
 export function strongholdsText(count: number): string {

@@ -42,6 +42,7 @@ describe('CompoundPlaceholderScreen', () => {
 		screen.mount(context, { campaign });
 		expect(text('compound_summary')).toBe('Day 1 - 2 drivers - 0 strongholds taken');
 		expect(text('compound_stores')).toBe('Food 0  Water 0  Fuel 0  Meds 0  Scrap 0  People 0');
+		expect(screen.root.findById('compound_note')?.visible).toBe(true);
 		expect(context.focus.focused?.id).toBe('compound_back_button');
 		send(context, [key('Escape')]);
 		expect(navigate).toHaveBeenCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
@@ -62,6 +63,7 @@ describe('CompoundPlaceholderScreen', () => {
 		screen.mount(context);
 		await settled();
 		expect(text('compound_summary')).toBe('No campaign in progress.');
+		expect(screen.root.findById('compound_note')?.visible).toBe(false);
 		screen.unmount();
 
 		screen = new CompoundPlaceholderScreen({ store: storeOver(storageWith(damagedText())) });

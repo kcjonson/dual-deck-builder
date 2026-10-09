@@ -35,6 +35,8 @@ export class CompoundPlaceholderScreen extends Screen {
 	private readonly store: CampaignStore;
 	private summary: Text | null = null;
 	private stores: Text | null = null;
+	/** Says the campaign is saved, so it shows only once there is one. */
+	private note: Text | null = null;
 	private visit = 0;
 
 	constructor({ store = CampaignStore.shared }: CompoundPlaceholderScreenOptions = {}) {
@@ -66,12 +68,14 @@ export class CompoundPlaceholderScreen extends Screen {
 		panel.addChild(this.summary);
 		this.stores = new Text({ id: 'compound_stores', widthMode: 'fill', style: { fontRole: 'mono', fontSize: 'fs_sm', color: 'text_dim' } });
 		panel.addChild(this.stores);
-		panel.addChild(new Text({
+		this.note = new Text({
 			text: "The compound screen isn't built yet. The campaign is saved, and Continue on the main menu comes back to it.",
 			id: 'compound_note',
+			visible: false,
 			widthMode: 'fill',
 			style: { fontSize: 'fs_base', color: 'text_dim' },
-		}));
+		});
+		panel.addChild(this.note);
 		this.stack.addChild(panel);
 
 		const back = new Button({
@@ -97,6 +101,7 @@ export class CompoundPlaceholderScreen extends Screen {
 		this.stack.clearChildren();
 		this.summary = null;
 		this.stores = null;
+		this.note = null;
 	}
 
 	private async loadSave(): Promise<void> {
@@ -116,6 +121,7 @@ export class CompoundPlaceholderScreen extends Screen {
 
 	private show(campaign: Campaign): void {
 		if (this.summary) this.summary.text = campaignSummary(campaign);
+		if (this.note) this.note.visible = true;
 		const { food, water, fuel, meds, scrap, people } = campaign.resources;
 		if (this.stores) this.stores.text = `Food ${food}  Water ${water}  Fuel ${fuel}  Meds ${meds}  Scrap ${scrap}  People ${people}`;
 	}

@@ -15,6 +15,8 @@ import { formatBuildLabel } from './buildLabel';
 import { campaignSummary } from './campaignText';
 
 const MENU_WIDTH = 320;
+const REPLACE_CANCEL_WIDTH = 120;
+const REPLACE_CONFIRM_WIDTH = 180;
 
 interface ElectronWindow extends Window {
 	electron?: {
@@ -211,12 +213,13 @@ export class MainMenuScreen extends Screen {
 		campaign.addChild(this.notice);
 
 		const resume = new Stack({ id: 'main_menu_continue', crossAlign: 'stretch', gap: tokens.space.space_1_5 });
+		// Enabled until the save check says otherwise, so Back from the screen
+		// Continue opened can restore focus to it while the check is running.
 		this.continueButton = new Button({
 			label: 'Continue',
 			id: 'main_menu_continue_button',
 			size: 'lg',
 			block: true,
-			disabled: true,
 			onClick: () => this.continueCampaign(),
 		});
 		resume.addChild(this.continueButton);
@@ -309,7 +312,13 @@ export class MainMenuScreen extends Screen {
 
 	private showSave(save: MenuSave): void {
 		this.saveState = save;
-		if (this.continueButton) this.continueButton.enabled = save.kind === 'saved';
+		const continueButton = this.continueButton;
+		if (continueButton) {
+			const wasFocused = this.context.focus.focused === continueButton;
+			continueButton.enabled = save.kind === 'saved' || save.kind === 'checking';
+			// A disabled control can't hold focus (R9.5); the column's first action takes it, not the frame's fallback.
+			if (wasFocused && !continueButton.enabled && this.newCampaignButton) this.context.focus.focus(this.newCampaignButton);
+		}
 		if (this.continueLine) {
 			const { text, color } = continueCaption(save);
 			this.continueLine.text = text;
@@ -328,11 +337,20 @@ export class MainMenuScreen extends Screen {
 		ScreenManager.navigate('compoundScreen', { campaign: this.saveState.campaign });
 	}
 
-	/** Founds a campaign, after asking when it would replace a save. Waits for the save check if it's still running. */
+	/**
+	 * Founds a campaign, after asking when it would replace a save. Waits for
+	 * the save check if it's still running, and reads the save again when
+	 * storage failed the last time, so a failure that has passed can't let a
+	 * campaign in progress be replaced without asking or reaching the history.
+	 */
 	private async newCampaign(): Promise<void> {
 		if (this.starting || this.dialog) return;
 		const visit = this.visit;
 		await this.saveRead;
+		if (this.saveState.kind === 'unreadable' && this.saveState.reason === 'storage' && visit === this.visit) {
+			this.showSave({ kind: 'checking' });
+			await this.readSave();
+		}
 		if (visit !== this.visit || this.starting || this.dialog) return;
 		const replacing = this.saveState;
 		const warning = replaceWarning(replacing);
@@ -344,14 +362,17 @@ export class MainMenuScreen extends Screen {
 	}
 
 	private confirmReplace({ title, body, confirm, onConfirm }: { title: string; body: string; confirm: string; onConfirm: () => void }): void {
+		// Fixed widths: a footer button doesn't size to its label, and both fit the small dialog's body.
 		const cancel = new Button({
 			label: 'Cancel',
 			id: 'main_menu_replace_cancel',
+			width: REPLACE_CANCEL_WIDTH,
 			onClick: () => dialog.close(),
 		});
 		const accept = new Button({
 			label: confirm,
 			id: 'main_menu_replace_confirm',
+			width: REPLACE_CONFIRM_WIDTH,
 			tone: 'crit',
 			onClick: () => {
 				dialog.close();
@@ -406,6 +427,7 @@ export class MainMenuScreen extends Screen {
 			if (!(error instanceof CampaignStoreError)) console.error('MainMenuScreen: starting a campaign failed', error);
 			if (visit !== this.visit) return;
 			this.showNotice(error instanceof CampaignStoreError ? error.message : "The new campaign couldn't be started.");
+			this.showSave({ kind: 'checking' });
 			void this.readSave();
 		} finally {
 			if (visit === this.visit) this.starting = false;

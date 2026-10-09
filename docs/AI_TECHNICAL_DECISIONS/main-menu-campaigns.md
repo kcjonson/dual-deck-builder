@@ -14,7 +14,7 @@ Considered: loading on Continue alone. It doesn't give the line, and a summary s
 
 "Drivers" counts the pool at the compound, ready and injured. The dead and the missing stay in the campaign's record, but a player reading "3 drivers" means who they can send.
 
-The store answers in microtasks over local storage, so the first frame already shows the answer. Until it does, Continue is disabled with "Looking for a saved campaign.", and a New Campaign press waits for the answer before deciding whether to ask.
+The store answers in microtasks over local storage, so the first frame already shows the answer. Until it does, the line reads "Looking for a saved campaign." and Continue stays enabled but does nothing, because the screen manager restores focus as the menu mounts (Back from the compound screen lands on Continue), and a disabled button can't take it. If the answer disables Continue while it has focus, focus moves to New Campaign. A New Campaign press waits for the answer before deciding whether to ask.
 
 ## Continue says why it's disabled, in text
 
@@ -22,7 +22,7 @@ With nothing to continue, Continue stays in the column, disabled, and the line u
 
 ## New Campaign over a save
 
-It asks first, in a modal dialog (R12.21) with Cancel focused, so a stray Enter keeps the campaign; Escape and Cancel close it, and focus goes back to New Campaign (R9.20). The question depends on the save: abandoning a campaign in progress, replacing an outdated save (no copy, since it isn't damaged), or replacing a damaged one (the store copies it to the recovery key first). With no save, or when storage failed and the menu can't tell, it doesn't ask.
+It asks first, in a modal dialog (R12.21) with Cancel focused, so a stray Enter keeps the campaign; Escape and Cancel close it, and focus goes back to New Campaign (R9.20). The question depends on the save: abandoning a campaign in progress, replacing an outdated save (no copy, since it isn't damaged), or replacing a damaged one (the store copies it to the recovery key first). With no save it doesn't ask. When the last read failed on storage, New Campaign reads again first, so a failure that has passed can't let a campaign in progress be replaced without asking or reaching the history; if storage still fails, the menu can't tell and doesn't ask, and the save will most likely fail too. The dialog's two buttons have fixed widths (120 and 180, inside the small dialog's 328 px body), since a footer button doesn't size to its label.
 
 A campaign in progress goes into the history as `abandoned` through `end`, not `delete`. The history type already had the ending, and a campaign the player gave up is part of their record. The end comes before the new campaign's save, since saving a new campaign retires the old lineage and `end` would then refuse it. A storage failure between the two leaves the old campaign in the history and no save; the menu says why, reads the save again, and New Campaign can be tried again.
 

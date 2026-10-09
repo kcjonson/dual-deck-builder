@@ -11,6 +11,8 @@ import { advance, click, key, send } from '../../engine/services/testing';
 import { tokens } from '../../engine/theme/tokens';
 import type { BattleResultData } from '../screens/battleResult/BattleResultScreen';
 import { MainMenuScreen } from '../screens/main-menu/MainMenuScreen';
+import { campaignKeys, pageNamespace } from '../campaign/CampaignStore';
+import { fixtureText } from '../campaign/__fixtures__/storeFixtures';
 
 /** R8.22 and R12.38 through the game's scene manager. */
 
@@ -29,10 +31,23 @@ afterAll(() => {
 	jest.restoreAllMocks();
 });
 
-beforeEach(() => {
-	context.animator.reducedMotion = false;
+/** The page's campaign keys, which the menu's shared store reads through jsdom's local storage. */
+const KEYS = campaignKeys(pageNamespace(location));
+
+/** Opens the menu at once and waits for its save check, which decides whether Continue takes focus. */
+async function openMenu(): Promise<void> {
 	ScreenManager.navigate('mainMenuScreen', undefined, { immediate: true });
 	context.frame.layout();
+	await (ScreenManager.activeScreen as MainMenuScreen).saveChecked;
+	context.frame.layout();
+}
+
+beforeEach(async () => {
+	context.animator.reducedMotion = false;
+	for (const key of Object.keys(localStorage)) {
+		if (key.startsWith('dual-deckbuilder.campaign[')) localStorage.removeItem(key);
+	}
+	await openMenu();
 });
 
 function focusOn(id: string): void {
@@ -149,7 +164,14 @@ describe('ScreenManager.navigate', () => {
 		['credits', 4, 'Enter', 'main_menu_credits_button'],
 		['card showcase', 5, 'Escape', 'main_menu_card_showcase_button'],
 		['developer tools', 6, 'Enter', 'main_menu_developer_button'],
-	])('returns focus to the button that opened %s, with the ring a keyboard round trip shows', (_screen, down, leave, opener) => {
+		// Continue is enabled while the remounted menu checks the save, so focus can land back on it.
+		['compound', 1, 'Escape', 'main_menu_continue_button', true],
+	])('returns focus to the button that opened %s, with the ring a keyboard round trip shows', async (_screen, down, leave, opener, saved = false) => {
+		if (saved) {
+			localStorage.setItem(KEYS.slots.a, fixtureText());
+			localStorage.setItem(KEYS.active, 'a');
+			await openMenu();
+		}
 		advance(context, FADE_MS * 2);
 		send(context, Array.from({ length: down }, () => key('ArrowDown')));
 		expect(context.focus.focused?.id).toBe(opener);
@@ -160,6 +182,9 @@ describe('ScreenManager.navigate', () => {
 		expect(ScreenManager.getCurrentScreenName()).toBe('mainMenuScreen');
 		expect(context.focus.focused?.id).toBe(opener);
 		expect(context.focus.focusVisible).toBe(true);
+		await (ScreenManager.activeScreen as MainMenuScreen).saveChecked;
+		context.frame.layout();
+		expect(context.focus.focused?.id).toBe(opener);
 	});
 
 	it('returns focus without a ring after a pointer round trip (R9.23)', () => {
