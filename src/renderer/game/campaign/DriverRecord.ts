@@ -1,7 +1,8 @@
+import { describeValue } from '../core/Json';
+import { ReaderRangeError, readFields, readInteger, readOneOf, readText } from '../core/JsonReader';
 import { Model } from '../core/Model';
 import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
 import { CardCounts, readCardCounts, startingDeckCounts, totalCards } from './CardCounts';
-import { ReaderRangeError, describeValue, readFields, readInteger, readOneOf, readText } from './JsonReader';
 
 export const DRIVER_STATUSES = ['ready', 'injured', 'dead', 'missing'] as const;
 

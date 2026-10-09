@@ -1,8 +1,8 @@
+import { readInteger } from '../core/JsonReader';
 import { Campaign, CampaignData, Resources } from './Campaign';
 import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES, UpkeepResource, readCompoundRules, upkeepRecord } from './CompoundRules';
 import { DriverRecord } from './DriverRecord';
 import { healingChanges } from './Infirmary';
-import { readInteger } from './JsonReader';
 import { MapState, readMapState } from './MapState';
 
 /** An amount of each resource the compound eats. */
@@ -161,7 +161,7 @@ function dailyUpkeep({ people, rules }: { people: number; rules: CompoundRules }
 }
 
 /** "Ran short of 2 food and 1 water; 3 people lost." */
-function shortfallMessage({ shortfall, peopleLost }: { shortfall: Upkeep; peopleLost: number }): string {
+export function shortfallMessage({ shortfall, peopleLost }: { shortfall: Upkeep; peopleLost: number }): string {
 	const short = UPKEEP_RESOURCES.filter(resource => shortfall[resource] > 0).map(resource => `${shortfall[resource]} ${resource}`).join(' and ');
 	if (peopleLost === 0) return `Ran short of ${short}.`;
 	return `Ran short of ${short}; ${peopleLost} ${peopleLost === 1 ? 'person' : 'people'} lost.`;

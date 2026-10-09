@@ -1,5 +1,5 @@
 import type { JsonObject } from '../core/Json';
-import { freezeJson, readObject } from './JsonReader';
+import { freezeJson, readObject } from '../core/JsonReader';
 
 /**
  * Stand-in for the area map's saved state until its types exist (DDB-275):
