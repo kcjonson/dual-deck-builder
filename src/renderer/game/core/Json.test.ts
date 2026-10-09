@@ -1,5 +1,5 @@
 import { runInNewContext } from 'vm';
-import { JsonObject, ProblemList, copyJson, describeValue } from './Json';
+import { JsonObject, ProblemList, copyJson, describeValue, isPlainObject } from './Json';
 
 class Weights {
 	constructor(public wreck = 1) {}
@@ -90,6 +90,29 @@ describe('copyJson', () => {
 		const problems = new ProblemList({ limit: 2 });
 		copyJson({ trail: new Array(100_000) }, 'stopTables', problems);
 		expect(String(problems)).toBe(`stopTables.trail[0] ${NOT_JSON}, got undefined; stopTables.trail[1] ${NOT_JSON}, got undefined; and 99998 more`);
+	});
+});
+
+describe('isPlainObject', () => {
+	it.each([
+		['an object literal', { wreck: 1 }],
+		['another realm\'s object', runInNewContext('({ wreck: 1 })')],
+		['an object with no prototype', Object.create(null)],
+	])('takes %s', (_case, value) => {
+		expect(isPlainObject(value)).toBe(true);
+	});
+
+	it.each([
+		['null', null],
+		['a list', [1]],
+		['another realm\'s list', runInNewContext('[1]')],
+		['a Date', new Date(0)],
+		['a class instance', new Weights()],
+		['another realm\'s class instance', runInNewContext('new Map()')],
+		['an object made on another, whose values it would inherit', Object.create({ wreck: 1 })],
+		['a string', 'x'],
+	])('refuses %s', (_case, value) => {
+		expect(isPlainObject(value)).toBe(false);
 	});
 });
 

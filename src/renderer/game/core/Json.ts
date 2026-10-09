@@ -113,8 +113,11 @@ function copyValue(value: unknown, path: string, ancestors: readonly object[], r
  * plain object from any realm (its `Object.prototype` has none), or one made
  * with no prototype. A rare object built otherwise to the same shape, such as
  * an instance of a class extending null, passes too, and copies like one.
+ * Anything with a class's prototype fails, a Date or another realm's Map
+ * included, and so does an object made on an ordinary one
+ * (`Object.create({ radius: 5000 })`), whose values it would inherit.
  */
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+export function isPlainObject(value: unknown): value is Record<string, unknown> {
 	if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
 	const prototype: unknown = Object.getPrototypeOf(value);
 	return prototype === null || Object.getPrototypeOf(prototype) === null;

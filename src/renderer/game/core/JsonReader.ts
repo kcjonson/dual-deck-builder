@@ -6,7 +6,7 @@
  * when it's the right kind out of range.
  */
 
-import { MAX_JSON_DEPTH, describeValue, type JsonValue } from './Json';
+import { MAX_JSON_DEPTH, describeValue, isPlainObject, type JsonValue } from './Json';
 
 /**
  * A value of the wrong kind, as a reader reports it. A TypeError, so it
@@ -23,20 +23,18 @@ export function isReaderError(error: unknown): boolean {
 	return error instanceof ReaderTypeError || error instanceof ReaderRangeError;
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-	if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-	const prototype = Object.getPrototypeOf(value);
-	return prototype === Object.prototype || prototype === null;
-}
-
+/** A plain object (`isPlainObject`), another realm's included; never a class instance or an array. */
 export function readObject(value: unknown, path: string): Record<string, unknown> {
-	if (!isPlainObject(value)) throw new ReaderTypeError(`${path} must be an object, got ${describeValue(value)}`);
-	return value;
+	if (isPlainObject(value)) return value;
+	const object = typeof value === 'object' && value !== null && !Array.isArray(value);
+	throw new ReaderTypeError(`${path} must be ${object ? 'a plain object' : 'an object'}, got ${describeValue(value)}`);
 }
 
 /**
- * A plain object with exactly these fields: none missing, none extra.
- * Optional fields may be left out, and read as undefined when they are.
+ * A plain object with exactly these fields, all its own: none missing, none
+ * extra, and none inherited, so reading a field never reaches past the
+ * object. Optional fields may be left out, and read as undefined when they
+ * are.
  */
 export function readFields<Field extends string, Optional extends string = never>(
 	value: unknown,
@@ -49,8 +47,10 @@ export function readFields<Field extends string, Optional extends string = never
 	for (const key of Object.keys(object)) {
 		if (!known.includes(key)) throw new ReaderTypeError(`${path} has an unknown field "${key}"`);
 	}
-	for (const field of fields) {
-		if (!Object.prototype.hasOwnProperty.call(object, field)) throw new ReaderTypeError(`${path}.${field} is missing`);
+	for (const field of known) {
+		if (Object.prototype.hasOwnProperty.call(object, field)) continue;
+		if (field in object) throw new ReaderTypeError(`${path}.${field} is inherited, not its own`);
+		if ((fields as readonly string[]).includes(field)) throw new ReaderTypeError(`${path}.${field} is missing`);
 	}
 	return object as Record<Field | Optional, unknown>;
 }
@@ -124,10 +124,11 @@ export function readNullable<T>(value: unknown, path: string, read: (value: unkn
 const frozenJson = new WeakMap<object, number>();
 
 /**
- * A deep copy of a JSON value, frozen all the way down. Throws on anything
- * JSON can't hold: undefined, NaN, a class instance, a cycle, or nesting
- * past `MAX_JSON_DEPTH` levels, the limit `copyJson` holds the map's stop
- * tables to, so a value this takes never overflows the stack or fails a
+ * A deep copy of a JSON value, frozen all the way down and built from this
+ * realm's arrays and objects, whatever realm the value's came from. Throws on
+ * anything JSON can't hold: undefined, NaN, a class instance, a cycle, or
+ * nesting past `MAX_JSON_DEPTH` levels, the limit `copyJson` holds the map's
+ * stop tables to, so a value this takes never overflows the stack or fails a
  * copy later. A value this already made comes back as it is, so checking it
  * again is free.
  */

@@ -1,10 +1,20 @@
 import { describeValue } from '../core/Json';
 import { ReaderTypeError, freezeJson, readFields, readNumber, readObject, readOneOf, readSeed } from '../core/JsonReader';
-import { ENVIRONMENTS, Environment, MAP_PARAMETERS, MapParams, NUMBER_PARAMS, StopTables, environmentDefaults } from '../map/MapParams';
+import {
+	ENVIRONMENTS,
+	Environment,
+	MAP_PARAMETERS,
+	MAP_PARAM_KEYS,
+	MapParamSet,
+	MapParams,
+	NUMBER_PARAMS,
+	StopTables,
+	environmentDefaults
+} from '../map/MapParams';
 import { describeClamp, validateMapParams } from '../map/ParamValidator';
 
-/** Every key a params object can hold. */
-const PARAM_KEYS: readonly string[] = ['seed', 'environment', ...NUMBER_PARAMS, 'stopTables'];
+/** The keys a parameter set may leave out: all but the seed. */
+const SET_OPTIONAL_KEYS = MAP_PARAM_KEYS.filter((key): key is Exclude<keyof MapParams, 'seed'> => key !== 'seed');
 
 /** Params `readMapParams` made: checked, frozen, and in order, so they can't have changed since. */
 const checkedParams = new WeakSet<object>();
@@ -31,6 +41,26 @@ export function readMapParams(value: unknown, path: string): Readonly<MapParams>
 	const frozen = Object.freeze(params);
 	checkedParams.add(frozen);
 	return frozen;
+}
+
+/**
+ * A parameter set given in code, such as the Map Lab's, read as strictly as
+ * a save: a plain object holding a uint32 seed and any of a known
+ * environment, finite numbers for the parameters, and stop tables as an
+ * object of JSON, each its own, and nothing else. Values outside their
+ * ranges are kept for the validator to clamp. The set comes back with its
+ * keys in `MAP_PARAM_KEYS` order, any left undefined dropped, and a frozen
+ * copy of its stop tables.
+ */
+export function readMapParamSet(value: unknown, path: string): MapParamSet {
+	const fields = readFields(value, path, ['seed'], SET_OPTIONAL_KEYS);
+	const set: MapParamSet = { seed: readSeed(fields.seed, `${path}.seed`) };
+	if (fields.environment !== undefined) set.environment = readOneOf(fields.environment, `${path}.environment`, ENVIRONMENTS);
+	for (const name of NUMBER_PARAMS) {
+		if (fields[name] !== undefined) set[name] = readNumber(fields[name], `${path}.${name}`);
+	}
+	if (fields.stopTables !== undefined) set.stopTables = readStopTables(fields.stopTables, `${path}.stopTables`);
+	return set;
 }
 
 export interface RepairedMapParams {
@@ -96,7 +126,7 @@ export function repairMapParams(value: unknown, path: string): RepairedMapParams
 	}
 
 	for (const key of Object.keys(saved)) {
-		if (!PARAM_KEYS.includes(key)) warnings.push(`${path}.${key} isn't a map parameter; dropped it`);
+		if (!(MAP_PARAM_KEYS as readonly string[]).includes(key)) warnings.push(`${path}.${key} isn't a map parameter; dropped it`);
 	}
 	return { params, warnings };
 }

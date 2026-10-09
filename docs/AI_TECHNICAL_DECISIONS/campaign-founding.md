@@ -28,7 +28,13 @@ Reading `DriverLoader` inside founding was rejected. It would make founding asyn
 
 ## Map params: rolled, or given and validated
 
-With no `mapParams`, founding calls `rollParams(seed)`, which draws them on the seed's `params` stream and validates them. A given set (the Map Lab's) is read the way a map preset is (`readMapPreset`: an object of known parameters, finite numbers as numbers, stop tables as an object of plain JSON), filled out from its environment (`resolveMapParams`), and run through the parameter validator, and its seed, wrapped as the validator wraps it, must be the campaign's. The preset reader fails a bad value inside the stop tables with its path before anything is built. Either way the result goes through the campaign's own params reader (`readMapParams`), which freezes it, and the campaign holds the frozen params as they are. Generation validates before it runs (Area Map Generation, Validation and retries), so these are the params the map is made from. The validator is idempotent, so the Map Lab's validated set comes through untouched.
+With no `mapParams`, founding calls `rollParams(seed)`, which draws them on the seed's `params` stream and validates them. A given set (the Map Lab's) is read with the campaign's strict readers (`readMapParamSet` in `MapParamsJson.ts`): a plain object holding a uint32 seed and any of a known environment, finite numbers for the parameters, and stop tables as an object of JSON, each its own field, and nothing else. Every error names the path from `mapParams` and the value found, `mapParams.radius must be a number, got "1400"` or `mapParams.stopTables.highway.raider_ambush must be a finite number, got NaN`, before anything is built. Another realm's plain object reads like this realm's, and its stop tables are copied into this one. A class instance, or an object made on another whose values it would inherit, is refused, so the params founded on are only ever the set's own.
+
+The set's seed must be the campaign's, compared as given. One that isn't a uint32 is refused rather than wrapped: the validator wraps NaN, Infinity, and 0.9 to 0, and 2^32 + 7 to 7, so a set that only matched once wrapped would found on a seed nobody passed, and the error for one that didn't would name the wrapped value instead of the one given.
+
+The set is then filled out from its environment and validated (`validateMapParamSet`). Either way the result goes through the campaign's own params reader (`readMapParams`), which freezes it, and the campaign holds the frozen params as they are. Generation validates before it runs (Area Map Generation, Validation and retries), so these are the params the map is made from. The validator is idempotent, so the Map Lab's validated set comes through untouched.
+
+The map preset reader (`readMapPreset`) takes the same fields but is built for parsed preset files: its errors name no `mapParams.` path, it doesn't look for class instances or inherited values, and its module reads `data/mapPresets/default.json` as it loads, so importing it would carry the shipped presets into every bundle founding is in and fail founding on a bad preset edit. Founding doesn't load the presets, which a test holds.
 
 Refusing a set the validator would change was considered. The Map Lab passes validated params, so a refusal would never fire for the caller it was meant for, and clamping founds on the params the Map Lab made its map from anyway.
 
@@ -42,10 +48,10 @@ Founding's order already suits the generator: the cheap checks first, then the m
 
 The spec deals four drivers from the unlocked archetypes, no two alike. Founding builds to that text, with the size in the data file so open question 6 can go either way.
 
-- `dealStartingPool({ seed, unlockedArchetypes, size })` drops repeats, sorts the unlocked archetypes by id, shuffles them on `new Rng({ seed }).fork('founding').fork('pool')`, and takes the first `size`. Sorting first means neither the order they're passed in nor the order of `DRIVER_CONFIGS` moves a seed's deal; unlocking an archetype moves every seed's.
+- The deal drops repeats, sorts the unlocked archetypes by id, shuffles them on `new Rng({ seed }).fork('founding').fork('pool')`, and takes the first `size`. Sorting first means neither the order they're passed in nor the order of `DRIVER_CONFIGS` moves a seed's deal; unlocking an archetype moves every seed's. It's a step inside `foundCampaign`, not exported, since nothing else deals a pool.
 - The dealt order is the order they join, so `driver-1` is the first one dealt.
 - Fewer unlocked archetypes than the pool size deals all of them, one each. Only three are unlocked today (the Raider waits on "Complete a run with any driver"), so every new campaign starts with a Road Warrior, an Interceptor, and a Mechanic, in an order the seed deals.
-- Fewer than two different archetypes unlocked throws. A run takes two drivers, no two alike (`PLAYER_DRIVEN_VEHICLES`), and the pool only grows on runs, through Find: driver stops, so a compound founded with one driver could never leave. `dealStartingPool` on its own stays a plain deal, which takes one archetype and refuses only none.
+- Fewer than two different archetypes unlocked throws. A run takes two drivers, no two alike (`PLAYER_DRIVEN_VEHICLES`), and the pool only grows on runs, through Find: driver stops, so a compound founded with one driver could never leave.
 - Each archetype is recruited with `Campaign.recruitDriver`, so the ids, the names ("Road Warrior 1"), max HP, the hand limit, and the archetype's starting deck as the default deck all come from the model.
 
 Founding draws on a stream of its own, `root.fork('founding')`, forked again per purpose, so it never shares draws with the map's `params` and `map` streams, and a later founding draw (rolled driver names, say) takes another fork without moving the deal. Founding happens once a campaign, so its fork takes no counter, unlike `recruit` for a Find: driver.
@@ -76,12 +82,12 @@ The log's first line is "Founded the compound.", on day 1, the start of the camp
 
 ## Math.random
 
-Founding reads no randomness at all but the seed's own streams. The params and the deal draw from forks of the seed, and building the campaign, its driver records, its convoy, and its escorts draws nothing. A test spies on `Math.random` around whole foundings, with params rolled and given and starter escorts aboard, and asserts it's never called; another does the same around the deal alone.
+Founding reads no randomness at all but the seed's own streams. The params and the deal draw from forks of the seed, and building the campaign, its driver records, its convoy, and its escorts draws nothing. A test spies on `Math.random` around whole foundings, with params rolled and given and starter escorts aboard, and asserts it's never called.
 
 ## Consequences
 
 - The main menu's New Campaign (DDB-283) saves what `foundCampaign` returns. Founding stays pure: it builds a campaign and saves nothing.
 - The Map Lab (DDB-299) calls `foundCampaign({ seed: params.seed, unlockedArchetypes, mapParams: params })` with its validated params.
 - The generator's call replaces `MAP_STAND_IN` where `foundCampaign` marks it, along with the give-up path above: a loop round the params, the deal, and generation, or a typed error the caller founds again on.
-- If the player picks the pool (DDB-391), the pick replaces the deal in `foundCampaign`, or the deal becomes the suggestion it starts from. `poolSize` holds the size either way.
+- If the player picks the pool (DDB-391), the pick replaces the deal in `foundCampaign`, or the deal becomes the suggestion it starts from, exported for the pick screen to show. `poolSize` holds the size either way.
 - A pinned test holds what one seed deals, so changing the deal (the stream, the sort, the shuffle) shows up there, and moves every seed's pool.
