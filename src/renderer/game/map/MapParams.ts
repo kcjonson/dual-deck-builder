@@ -32,9 +32,9 @@ export const ENVIRONMENTS: readonly Environment[] = ENVIRONMENT_OPTIONS.map(({ v
 /** The groups in the Map Lab's order, with their headings. */
 export const PARAM_GROUPS = [
 	{ group: 'world', label: 'World' },
-	{ group: 'network', label: 'Drivable network' },
+	{ group: 'network', label: 'Road network' },
 	{ group: 'gameplay', label: 'Gameplay' },
-	{ group: 'scenery', label: 'Scenery' },
+	{ group: 'dressing', label: 'Dressing' },
 ] as const;
 export type ParamGroup = (typeof PARAM_GROUPS)[number]['group'];
 
@@ -51,8 +51,12 @@ export type MapParams = {
 	radius: number;
 	aridity: number;
 	mountainCoverage: number;
+	/** How hard ranges lift and how little their slopes are smoothed. */
 	ruggedness: number;
+	/** Outlets on the land grid's edge, the only places drainage leaves: the main rivers. 0 is a closed basin. */
 	rivers: number;
+	/** How much of the drainage shows as streams: sets the drainage area a river starts at. */
+	riverDensity: number;
 	riverMeander: number;
 	lakes: number;
 	contamination: number;
@@ -60,19 +64,27 @@ export type MapParams = {
 	/** The metro ruins' radius as a share of `radius`. */
 	metroSize: number;
 	towns: number;
+	/** Smaller named places the roads join, spaced closer than towns. */
+	villages: number;
 
 	highways: number;
-	/** Degrees between neighbouring departures. */
+	/** Degrees between neighbouring highway exits at the rim. */
 	highwaySeparation: number;
+	/** How close the crossroads sit that county roads join: 140 world units apart at 0, 70 at 1. */
+	roadDensity: number;
+	/** How readily a road joins places the roads already connect: the detour factor is 1.9 at 0, 1.1 at 1. */
+	loops: number;
+	/** How heavily a road's path cost weighs grade, so how far roads wind to keep it gentle: ruler-straight to switchbacks. */
 	curviness: number;
-	branchiness: number;
 	trailShare: number;
-	/** World units. */
-	roadClearance: number;
+	/** Highway spans that collapsed: drawn with their gap, and out of the network where every place stays reachable. */
+	brokenHighways: number;
 
 	strongholds: number;
 	poiDensity: number;
 	routesTarget: number;
+	/** Share of the shorter route's hours two routes to a POI may still share. */
+	routeSplit: number;
 	/** Tiers. */
 	startingReveal: number;
 	stopDensity: number;
@@ -82,12 +94,10 @@ export type MapParams = {
 	travelPace: number;
 	stopTables?: StopTables;
 
-	sceneryDensity: number;
+	/** Master scale for the rest of the dressing. */
+	dressing: number;
 	streetGrids: number;
-	countyRoads: number;
-	brokenHighways: number;
 	railLines: number;
-	farmTracks: number;
 };
 
 /** The parameters with a row in the table: everything but the seed and stop tables. */
@@ -133,12 +143,13 @@ export interface EnumParamSpec<Value extends string> {
 export type ParamSpec = NumberParamSpec | EnumParamSpec<Environment>;
 
 /**
- * Every parameter, in the Map Lab's order. Tuning ranges and defaults are
- * the spec's starting values, and campaign ranges are starting values too.
- * A roll centres on the environment's value and reaches at most half the
- * campaign range either side (`rollBounds`), so each campaign range holds
- * every environment's value and has each end within that reach of one of
- * them: a range no environment moves sits evenly round its default.
+ * Every parameter, in the Map Lab's order. Ranges and defaults are the
+ * spec's starting values for the Map Lab to settle; the ones the realistic
+ * map added or changed are provisional calls (realistic-map.md). A roll
+ * centres on the environment's value and reaches at most half the campaign
+ * range either side (`rollBounds`), so each campaign range holds every
+ * environment's value and has each end within that reach of one of them: a
+ * range no environment moves sits evenly round its default.
  */
 export const MAP_PARAMETERS: { readonly environment: EnumParamSpec<Environment> } & { readonly [Name in NumberParam]: NumberParamSpec } = {
 	environment: {
@@ -164,8 +175,12 @@ export const MAP_PARAMETERS: { readonly environment: EnumParamSpec<Environment> 
 		tuning: { min: 0, max: 1 }, step: 0.05, default: 0.5, campaign: { min: 0.15, max: 0.85 },
 	},
 	rivers: {
-		group: 'world', kind: 'int', label: 'Rivers',
+		group: 'world', kind: 'int', label: 'Main rivers',
 		tuning: { min: 0, max: 6 }, step: 1, default: 2, campaign: { min: 0, max: 5 },
+	},
+	riverDensity: {
+		group: 'world', kind: 'float', label: 'River density',
+		tuning: { min: 0, max: 1 }, step: 0.05, default: 0.5, campaign: { min: 0.3, max: 0.7 },
 	},
 	riverMeander: {
 		group: 'world', kind: 'float', label: 'River meander',
@@ -191,6 +206,10 @@ export const MAP_PARAMETERS: { readonly environment: EnumParamSpec<Environment> 
 		group: 'world', kind: 'int', label: 'Towns',
 		tuning: { min: 0, max: 12 }, step: 1, default: 5, campaign: { min: 2, max: 9 },
 	},
+	villages: {
+		group: 'world', kind: 'int', label: 'Villages',
+		tuning: { min: 0, max: 40 }, step: 1, default: 20, campaign: { min: 12, max: 28 },
+	},
 	highways: {
 		group: 'network', kind: 'int', label: 'Highways',
 		tuning: { min: 3, max: 9 }, step: 1, default: 6, campaign: { min: 5, max: 7 },
@@ -199,21 +218,25 @@ export const MAP_PARAMETERS: { readonly environment: EnumParamSpec<Environment> 
 		group: 'network', kind: 'int', label: 'Highway separation',
 		tuning: { min: 20, max: 60 }, step: 1, default: 35, campaign: { min: 25, max: 45 },
 	},
+	roadDensity: {
+		group: 'network', kind: 'float', label: 'Road density',
+		tuning: { min: 0, max: 1 }, step: 0.05, default: 0.5, campaign: { min: 0.35, max: 0.65 },
+	},
+	loops: {
+		group: 'network', kind: 'float', label: 'Loops',
+		tuning: { min: 0, max: 1 }, step: 0.05, default: 0.5, campaign: { min: 0.3, max: 0.7 },
+	},
 	curviness: {
 		group: 'network', kind: 'float', label: 'Curviness',
 		tuning: { min: 0, max: 1 }, step: 0.05, default: 0.5, campaign: { min: 0.25, max: 0.75 },
-	},
-	branchiness: {
-		group: 'network', kind: 'float', label: 'Branchiness',
-		tuning: { min: 0, max: 1 }, step: 0.05, default: 0.5, campaign: { min: 0.3, max: 0.7 },
 	},
 	trailShare: {
 		group: 'network', kind: 'float', label: 'Trail share',
 		tuning: { min: 0, max: 1 }, step: 0.05, default: 0.5, campaign: { min: 0.25, max: 0.75 },
 	},
-	roadClearance: {
-		group: 'network', kind: 'int', label: 'Road clearance',
-		tuning: { min: 10, max: 60 }, step: 1, default: 24, campaign: { min: 20, max: 28 },
+	brokenHighways: {
+		group: 'network', kind: 'int', label: 'Broken highways',
+		tuning: { min: 0, max: 4 }, step: 1, default: 2, campaign: { min: 1, max: 4 },
 	},
 	strongholds: {
 		group: 'gameplay', kind: 'int', label: 'Strongholds',
@@ -226,6 +249,10 @@ export const MAP_PARAMETERS: { readonly environment: EnumParamSpec<Environment> 
 	routesTarget: {
 		group: 'gameplay', kind: 'int', label: 'Routes per POI',
 		tuning: { min: 2, max: 3 }, step: 1, default: 3, campaign: { min: 3, max: 3 },
+	},
+	routeSplit: {
+		group: 'gameplay', kind: 'float', label: 'Route split',
+		tuning: { min: 0.3, max: 0.7 }, step: 0.05, default: 0.5, campaign: { min: 0.5, max: 0.5 },
 	},
 	startingReveal: {
 		group: 'gameplay', kind: 'int', label: 'Starting reveal',
@@ -251,29 +278,17 @@ export const MAP_PARAMETERS: { readonly environment: EnumParamSpec<Environment> 
 		group: 'gameplay', kind: 'float', label: 'Travel pace',
 		tuning: { min: 0.5, max: 2 }, step: 0.1, default: 1, campaign: { min: 0.9, max: 1.1 },
 	},
-	sceneryDensity: {
-		group: 'scenery', kind: 'float', label: 'Density',
+	dressing: {
+		group: 'dressing', kind: 'float', label: 'Amount',
 		tuning: { min: 0, max: 1 }, step: 0.05, default: 0.6, campaign: { min: 0.4, max: 0.8 },
 	},
 	streetGrids: {
-		group: 'scenery', kind: 'float', label: 'Street grids',
+		group: 'dressing', kind: 'float', label: 'Street grids',
 		tuning: { min: 0, max: 1 }, step: 0.05, default: 0.7, campaign: { min: 0.5, max: 0.9 },
 	},
-	countyRoads: {
-		group: 'scenery', kind: 'float', label: 'County roads',
-		tuning: { min: 0, max: 1 }, step: 0.05, default: 0.5, campaign: { min: 0.2, max: 0.7 },
-	},
-	brokenHighways: {
-		group: 'scenery', kind: 'int', label: 'Broken highways',
-		tuning: { min: 0, max: 4 }, step: 1, default: 2, campaign: { min: 1, max: 4 },
-	},
 	railLines: {
-		group: 'scenery', kind: 'int', label: 'Rail lines',
+		group: 'dressing', kind: 'int', label: 'Rail lines',
 		tuning: { min: 0, max: 4 }, step: 1, default: 1, campaign: { min: 0, max: 3 },
-	},
-	farmTracks: {
-		group: 'scenery', kind: 'float', label: 'Farm tracks',
-		tuning: { min: 0, max: 1 }, step: 0.05, default: 0.4, campaign: { min: 0.1, max: 0.6 },
 	},
 };
 
@@ -284,12 +299,10 @@ export const NUMBER_PARAMS: readonly NumberParam[] = PARAM_NAMES.filter((name): 
 export const MAP_PARAM_KEYS: readonly (keyof MapParams)[] = ['seed', ...PARAM_NAMES, 'stopTables'];
 
 /**
- * What each environment sets over the table's defaults: world, drivable
- * network, and scenery parameters, never gameplay ones, so the land changes
- * and the rules don't. Mixed sets nothing. Starting values for the Map Lab
- * to tune, read from the spec's descriptions: aridity runs from dry desert
- * (0) to wet ground and mire (1), the Floodlands are wet with rivers and
- * lakes, the Badlands rough and contaminated.
+ * What each environment sets over the table's defaults: world, road network,
+ * and dressing parameters, never gameplay ones, so the land changes and the
+ * rules don't. Mixed sets nothing. The spec's starting values for the Map
+ * Lab to tune.
  *
  * Each value sits at least a step inside its campaign range. Half an
  * environment's rolls land either side of its value however little room
@@ -298,26 +311,26 @@ export const MAP_PARAM_KEYS: readonly (keyof MapParams)[] = ['seed', ...PARAM_NA
  * end, on purpose: most High Desert maps have no lakes.
  */
 export const ENVIRONMENT_PRESETS: { readonly [Name in Environment]: Readonly<Partial<Record<NumberParam, number>>> } = {
-	// Dry tableland cut by canyons: long straight roads, few towns or farms.
+	// Dry tableland of benches and escarpments, cut by a few deep valleys: long straight roads, few towns.
 	highDesert: {
-		aridity: 0.15, mountainCoverage: 0.35, ruggedness: 0.65, rivers: 1, riverMeander: 0.3, lakes: 0,
-		contamination: 0.2, hotspots: 2, towns: 3, curviness: 0.4, branchiness: 0.4, countyRoads: 0.3, farmTracks: 0.15,
+		aridity: 0.15, mountainCoverage: 0.35, ruggedness: 0.65, rivers: 1, riverDensity: 0.35, riverMeander: 0.3, lakes: 0,
+		contamination: 0.2, hotspots: 2, towns: 3, villages: 14, roadDensity: 0.4, loops: 0.4, curviness: 0.4,
 	},
-	// Old industry in rolling river country: dense ruins, spills, rail, and paved roads.
+	// Old industry in rolling river country: dense towns, spills, rail, and paved roads.
 	rustBelt: {
 		aridity: 0.55, mountainCoverage: 0.15, ruggedness: 0.35, rivers: 3, contamination: 0.45, hotspots: 4,
-		metroSize: 0.18, towns: 8, branchiness: 0.6, trailShare: 0.35, streetGrids: 0.85, countyRoads: 0.65,
-		brokenHighways: 3, railLines: 2,
+		metroSize: 0.18, towns: 8, villages: 26, roadDensity: 0.6, loops: 0.6, trailShare: 0.35, brokenHighways: 3,
+		streetGrids: 0.85, railLines: 2,
 	},
-	// Low, wet, and flat: looping rivers, standing water, mire, and roads that wind around it.
+	// Low, wet, and flat: looping rivers, reservoirs, and mire.
 	floodlands: {
-		aridity: 0.85, mountainCoverage: 0.1, ruggedness: 0.25, rivers: 4, riverMeander: 0.75, lakes: 5,
-		contamination: 0.4, curviness: 0.6, farmTracks: 0.5,
+		aridity: 0.85, mountainCoverage: 0.1, ruggedness: 0.25, rivers: 4, riverDensity: 0.65, riverMeander: 0.75, lakes: 5,
+		contamination: 0.4, curviness: 0.6,
 	},
-	// Broken, toxic ground: sharp relief, blast sites, and roads that give out to trails.
+	// Broken, toxic ground where roads give out to trails.
 	badlands: {
-		aridity: 0.3, mountainCoverage: 0.35, ruggedness: 0.8, rivers: 1, lakes: 1, contamination: 0.6, hotspots: 4,
-		towns: 3, curviness: 0.65, trailShare: 0.7, countyRoads: 0.25, farmTracks: 0.15,
+		aridity: 0.3, mountainCoverage: 0.35, ruggedness: 0.8, rivers: 1, riverDensity: 0.4, lakes: 1, contamination: 0.6,
+		hotspots: 4, towns: 3, villages: 14, roadDensity: 0.4, loops: 0.4, curviness: 0.65, trailShare: 0.7,
 	},
 	mixed: {},
 };

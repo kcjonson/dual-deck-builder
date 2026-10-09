@@ -51,7 +51,7 @@ export interface RepairedMapParams {
  * Values are kept as saved, even where today's validator would clamp them
  * for a new map, with a warning that names the saved value, what a new map
  * would take, and why. The map was made with those values, and terrain and
- * scenery are regenerated from them on load around the saved roads, so a
+ * dressing are regenerated from them on load around the saved roads, so a
  * clamped radius or mountain coverage would draw ground that no longer fits
  * them.
  */

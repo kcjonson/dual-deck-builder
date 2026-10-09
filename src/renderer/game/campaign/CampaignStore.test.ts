@@ -3,10 +3,9 @@ import { CampaignEnding, CampaignHistoryEntry, historyToJson } from './CampaignH
 import { CampaignStore, CampaignStoreError, campaignKeys, pageNamespace } from './CampaignStore';
 import { cardCount } from './CardCounts';
 import { LocalSaveStorage, MemorySaveStorage, WebStorage } from './SaveStorage';
-import campaignV3 from './__fixtures__/campaign-v3.json';
 import { stressCampaign } from './__fixtures__/stressCampaign';
 import {
-	FaultyStorage, HeldStorage, KEYS, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
+	CAMPAIGN_FIXTURE, FaultyStorage, HeldStorage, KEYS, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
 	saveText, securityError, settle, storageWith, storeOver
 } from './__fixtures__/storeFixtures';
 
@@ -53,10 +52,10 @@ describe('CampaignStore', () => {
 			expect(loaded?.toJSON()).toEqual(campaign.toJSON());
 		});
 
-		it('continues the version 3 fixture', async () => {
+		it('continues the fixture', async () => {
 			const loaded = await storeOver(storageWith(fixtureText())).load();
 
-			expect(loaded?.toJSON()).toEqual(campaignV3);
+			expect(loaded?.toJSON()).toEqual(CAMPAIGN_FIXTURE);
 		});
 
 		it('takes turns between two slots, switching `active` only once the new save is in', async () => {
@@ -108,7 +107,7 @@ describe('CampaignStore', () => {
 
 		it('writes nothing for a campaign a save couldn\'t load back', async () => {
 			const storage = new FaultyStorage();
-			const campaign = Campaign.fromJSON(campaignV3);
+			const campaign = Campaign.fromJSON(CAMPAIGN_FIXTURE);
 			campaign.convoy.escorts[0].set({ structure: 41 });
 
 			const error = await failure(storeOver(storage).save(campaign));
@@ -291,7 +290,7 @@ describe('CampaignStore', () => {
 
 		it('doesn\'t load a save from another version of the save format, older or newer, and leaves it be', async () => {
 			for (const version of [CAMPAIGN_SCHEMA_VERSION - 1, CAMPAIGN_SCHEMA_VERSION + 1]) {
-				const text = saveText({ campaign: JSON.stringify(campaignV3), version });
+				const text = saveText({ campaign: JSON.stringify(CAMPAIGN_FIXTURE), version });
 				const storage = storageWith(text);
 				const store = storeOver(storage);
 
@@ -372,7 +371,7 @@ describe('CampaignStore', () => {
 			['a', 'b'],
 			['b', 'a']
 		] as const)('takes the newest of two saves that load when nothing names either, here in slot %s', async (newest, older) => {
-			const write = (day: number, sequence: number): string => saveText({ campaign: JSON.stringify({ ...campaignV3, day }), sequence });
+			const write = (day: number, sequence: number): string => saveText({ campaign: JSON.stringify({ ...CAMPAIGN_FIXTURE, day }), sequence });
 			const store = storeOver(new MemorySaveStorage({ items: { [KEYS.slots[newest]]: write(9, 6), [KEYS.slots[older]]: write(8, 5) } }));
 
 			expect((await store.load())?.day).toBe(9);
@@ -457,10 +456,10 @@ describe('CampaignStore', () => {
 
 		it.each([
 			['{}', '{}'],
-			['a campaign with no stamp', JSON.stringify(campaignV3)],
-			['a null version', saveText({ campaign: JSON.stringify(campaignV3) }).replace(/^\{"version":\d+/, '{"version":null')],
-			['a version in a string', saveText({ campaign: JSON.stringify(campaignV3) }).replace(/^\{"version":(\d+)/, '{"version":"$1"')],
-			['a version that isn\'t an integer', saveText({ campaign: JSON.stringify(campaignV3) }).replace(/^\{"version":(\d+)/, '{"version":$1.5')]
+			['a campaign with no stamp', JSON.stringify(CAMPAIGN_FIXTURE)],
+			['a null version', saveText({ campaign: JSON.stringify(CAMPAIGN_FIXTURE) }).replace(/^\{"version":\d+/, '{"version":null')],
+			['a version in a string', saveText({ campaign: JSON.stringify(CAMPAIGN_FIXTURE) }).replace(/^\{"version":(\d+)/, '{"version":"$1"')],
+			['a version that isn\'t an integer', saveText({ campaign: JSON.stringify(CAMPAIGN_FIXTURE) }).replace(/^\{"version":(\d+)/, '{"version":$1.5')]
 		])('reads %s as damaged rather than another version\'s, and keeps it', async (_label, text) => {
 			const storage = storageWith(text);
 			const store = storeOver(storage);

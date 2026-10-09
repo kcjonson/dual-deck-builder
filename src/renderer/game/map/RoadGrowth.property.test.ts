@@ -18,12 +18,12 @@ const SETS = sampledRoadParamSets(MAPS);
 describe('growth across the tuning ranges', () => {
 	it.each(SETS.map((set, index) => [index, set] as const))('keeps every rule in map %i', (index, set) => {
 		const map = growMap(set);
-		const { network, terrain, params } = map;
+		const { network, terrain, clearance } = map;
 
 		// Passable, outward, inside the disc, no crossings, clearance, junction
 		// angles, and the trees: every stretch's parent chain ends at a highway's
 		// city street from the compound, without a loop.
-		expect(checkRoadNetwork({ network, terrain, clearance: params.roadClearance, limit: 5 })).toEqual([]);
+		expect(checkRoadNetwork({ network, terrain, clearance, limit: 5 })).toEqual([]);
 
 		expectHighwaysFromDepartures(map);
 		expectTurnsWithinLimits(map);

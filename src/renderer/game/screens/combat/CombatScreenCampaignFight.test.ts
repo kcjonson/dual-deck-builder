@@ -13,6 +13,7 @@ import { Deck } from '../../mechanics/Deck';
 import { createDrivenVehicle } from '../../mechanics/Vehicle';
 import { NO_RESOURCES } from '../../campaign/Campaign';
 import { CAMPAIGN_START } from '../../campaign/CampaignStart';
+import { NO_CARDS } from '../../campaign/CardCounts';
 import { startCampaignFight } from '../../campaign/CombatBridge';
 import { DriverRecord } from '../../campaign/DriverRecord';
 import { foundCampaign } from '../../campaign/Founding';
@@ -90,9 +91,11 @@ describe('CombatScreen: a campaign fight (DDB-286)', () => {
 			return record;
 		};
 		const [outrider] = campaign.convoy.escorts;
+		const seats = [seat('road_warrior'), seat('interceptor')];
+		campaign.startRunDecks({ seats, escorts: [outrider] });
 		const fight = startCampaignFight({
 			campaign,
-			party: { seats: [seat('road_warrior'), seat('interceptor')], escorts: [outrider], cargo: { ...NO_RESOURCES, scrap: 73, fuel: 9 } },
+			party: { seats, escorts: [outrider], cargo: { ...NO_RESOURCES, scrap: 73, fuel: 9 }, cargoCards: NO_CARDS },
 			enemyTeam: raiderTeam(),
 			rng: new Rng({ seed: SEED }),
 			cards: CardLoader.getInstance().getAllCardsAsMap()

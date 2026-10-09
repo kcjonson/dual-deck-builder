@@ -1,7 +1,7 @@
 import type { Rng } from '../core/Rng';
 import { Vector, chaikin, pointSegmentDistanceSquared, segmentDistanceSquared, unitVector } from './Geometry';
 import type { HighwayDeparture } from './Highways';
-import type { MapParams } from './MapParams';
+import type { MapParams, ParamRange } from './MapParams';
 import { ROAD_CLASSES, Road, RoadClass, RoadNetwork, RoadNode, RoadNodeKind, RoadStretch } from './RoadNetwork';
 import { SegmentIndex } from './SegmentIndex';
 import type { Terrain } from './Terrain';
@@ -37,7 +37,7 @@ export const STEP_LENGTH = 20;
 export const OUTWARD_SHARE = 0.42261826174069944;
 /**
  * Near a junction two roads share, the gap they keep grows from nothing at
- * the junction by this much per unit away from it, up to `roadClearance`.
+ * the junction by this much per unit away from it, up to the clearance.
  * It's sin(14.5 degrees), under sin(20), so a branch leaving at the least
  * angle, and highways leaving the metro the least separation apart, clear it
  * with room to bend.
@@ -172,7 +172,28 @@ const DEGRADE = {
 /** What growth reads from the terrain; `Terrain` has it all, and tests can stand in a smaller one. */
 export type GrowthTerrain = Pick<Terrain, 'radius' | 'metro' | 'hotspots' | 'impassable' | 'travelCost' | 'rough'>;
 
-export interface GrowthOptions {
+/**
+ * Growth's own knobs, which were map parameters (`branchiness` and
+ * `roadClearance`) until the realistic map's table dropped them: road links
+ * replace growth, and neither means anything there.
+ */
+export interface GrowthTuning {
+	/** 0 to 1: scales every class's branch chance (`BRANCHING.scale`). */
+	branchiness?: number;
+	/** World units a road keeps from roads it doesn't meet. */
+	clearance?: number;
+}
+
+/** The old table's defaults. */
+export const GROWTH_TUNING: Readonly<Required<GrowthTuning>> = { branchiness: 0.5, clearance: 24 };
+
+/** The old table's tuning ranges, for tests and sweeps to sample. */
+export const GROWTH_RANGES: { readonly [Name in keyof GrowthTuning]-?: { readonly kind: 'int' | 'float'; readonly tuning: ParamRange } } = {
+	branchiness: { kind: 'float', tuning: { min: 0, max: 1 } },
+	clearance: { kind: 'int', tuning: { min: 10, max: 60 } },
+};
+
+export interface GrowthOptions extends GrowthTuning {
 	terrain: GrowthTerrain;
 	/** Validated. */
 	params: MapParams;
@@ -270,7 +291,7 @@ export class StepRules {
 	}
 
 	/**
-	 * The clearance rule: no point of the segment within `roadClearance` of
+	 * The clearance rule: no point of the segment within the clearance of
 	 * another road's, except near a junction the two share, where the gap
 	 * needed tapers to nothing at the junction (`junctionGap`) and they may
 	 * touch only there, at 20 degrees or more. A road's own segments never
@@ -554,16 +575,16 @@ class RoadGrower {
 	private readonly order = new Int32Array(CANDIDATE_HEADINGS);
 	private readonly direction: Vector = { x: 0, y: 0 };
 
-	constructor({ terrain, params, highways, rng }: GrowthOptions) {
+	constructor({ terrain, params, highways, rng, branchiness = GROWTH_TUNING.branchiness, clearance = GROWTH_TUNING.clearance }: GrowthOptions) {
 		this.terrain = terrain;
 		this.params = params;
 		this.highways = highways;
 		this.rng = rng;
 		this.radius = terrain.radius;
-		this.clearance = params.roadClearance;
-		this.rules = new StepRules({ terrain, clearance: params.roadClearance });
+		this.clearance = clearance;
+		this.rules = new StepRules({ terrain, clearance });
 		this.index = this.rules.index;
-		this.branchScale = BRANCHING.scale.min + (BRANCHING.scale.max - BRANCHING.scale.min) * params.branchiness;
+		this.branchScale = BRANCHING.scale.min + (BRANCHING.scale.max - BRANCHING.scale.min) * branchiness;
 		this.degradeCost = DEGRADE.cost.min + (DEGRADE.cost.max - DEGRADE.cost.min) * params.trailShare;
 		const turns = {} as { [Name in RoadClass]: Float64Array };
 		for (const roadClass of ROAD_CLASSES) {

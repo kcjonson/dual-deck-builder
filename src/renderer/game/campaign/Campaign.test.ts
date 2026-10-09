@@ -8,7 +8,7 @@ import { historyEntry, historyToJson } from './CampaignHistory';
 import { cardCount, totalCards } from './CardCounts';
 import { DECK_RULES } from './DeckRules';
 import { DriverRecord } from './DriverRecord';
-import campaignV3 from './__fixtures__/campaign-v3.json';
+import { CAMPAIGN_FIXTURE } from './__fixtures__/storeFixtures';
 import { stressCampaign } from './__fixtures__/stressCampaign';
 
 const SEED = 20261006;
@@ -26,8 +26,8 @@ const newCampaign = (options: Partial<CampaignOptions> = {}): Campaign => new Ca
 /** A save and a load: through JSON text and back. */
 const reload = (campaign: Campaign): Campaign => Campaign.fromJSON(JSON.parse(JSON.stringify(campaign)));
 
-/** The version 3 fixture as a fresh object to damage. */
-const savedCampaign = (): CampaignJson => JSON.parse(JSON.stringify(campaignV3));
+/** The fixture as a fresh object to damage. */
+const savedCampaign = (): CampaignJson => JSON.parse(JSON.stringify(CAMPAIGN_FIXTURE));
 
 const record = (id: string): DriverRecord => new DriverRecord({ id, archetype: 'mechanic', name: 'Mechanic 1' });
 
@@ -35,7 +35,14 @@ const record = (id: string): DriverRecord => new DriverRecord({ id, archetype: '
  * Keys whose children are data rather than format: card counts keyed by
  * card type, and map params, which a load repairs as the table moves on.
  */
-const DATA_KEYS: Readonly<Record<string, string>> = { 'locker': '<card type>', 'drivers[].defaultDeck': '<card type>', 'mapParams': '<map parameter>' };
+const DATA_KEYS: Readonly<Record<string, string>> = {
+	'locker': '<card type>',
+	'drivers[].defaultDeck': '<card type>',
+	'runDecks[].own': '<card type>',
+	'runDecks[].leftHome': '<card type>',
+	'runDecks[].borrowed': '<card type>',
+	'mapParams': '<map parameter>'
+};
 
 /** Every key path in a JSON value, sorted, with array items as [] and data keys collapsed. */
 const keyPaths = (value: unknown): string[] => {
@@ -51,8 +58,8 @@ const keyPaths = (value: unknown): string[] => {
 	return [...paths].sort();
 };
 
-/** The version 3 save format, pinned: a change here is a change of format, which bumps `CAMPAIGN_SCHEMA_VERSION`. */
-const SAVE_FORMAT_V3 = {
+/** The save format at the version the test below pins: a change here is a change of format, which bumps `CAMPAIGN_SCHEMA_VERSION`. */
+const SAVE_FORMAT = {
 	campaign: [
 		'convoy', 'convoy.escorts', 'convoy.escorts[]', 'convoy.escorts[].armor', 'convoy.escorts[].baseSpeed', 'convoy.escorts[].escort',
 		'convoy.escorts[].escort.dividend', 'convoy.escorts[].escort.dividend.amount', 'convoy.escorts[].escort.dividend.kind', 'convoy.escorts[].escort.evade',
@@ -64,7 +71,10 @@ const SAVE_FORMAT_V3 = {
 		'drivers[].handLimit', 'drivers[].hitpoints', 'drivers[].id', 'drivers[].injuredDays', 'drivers[].maxHitpoints', 'drivers[].name',
 		'drivers[].runsCompleted', 'drivers[].status', 'drivers[].vehicle', 'drivers[].vehicle.armor', 'drivers[].vehicle.structure', 'generatorVersion', 'locker', 'locker.<card type>', 'log', 'log[]', 'log[].day', 'log[].message', 'map',
 		'mapParams', 'mapParams.<map parameter>', 'nextDriverNumber', 'resources', 'resources.food', 'resources.fuel', 'resources.meds', 'resources.people',
-		'resources.scrap', 'resources.water', 'seed', 'strongholdsTaken', 'strongholdsTaken[]', 'unrest'
+		'resources.scrap', 'resources.water', 'runDecks', 'runDecks[]', 'runDecks[].borrowed', 'runDecks[].borrowed.<card type>', 'runDecks[].driver',
+		'runDecks[].escortCards', 'runDecks[].escortCards[]', 'runDecks[].escortCards[].broughtBy', 'runDecks[].escortCards[].cardType',
+		'runDecks[].leftHome', 'runDecks[].leftHome.<card type>', 'runDecks[].own', 'runDecks[].own.<card type>',
+		'seed', 'strongholdsTaken', 'strongholdsTaken[]', 'unrest'
 	],
 	historyEntry: ['day', 'ending', 'seed', 'strongholdsTaken'],
 	history: ['campaigns', 'version']
@@ -812,12 +822,17 @@ describe('Campaign', () => {
 			expect(JSON.stringify(second)).toBe(JSON.stringify(first));
 		});
 
-		it('reads the version 3 fixture and writes it back the same', () => {
-			const campaign = Campaign.fromJSON(campaignV3);
+		it('reads the fixture and writes it back the same', () => {
+			const campaign = Campaign.fromJSON(CAMPAIGN_FIXTURE);
 
-			expect(campaign.toJSON()).toEqual(campaignV3);
+			expect(campaign.toJSON()).toEqual(CAMPAIGN_FIXTURE);
 			expect(campaign.drivers.map(driver => driver.status)).toEqual(['ready', 'dead', 'injured', 'missing', 'ready']);
 			expect(campaign.convoy.escorts.map(escort => [escort.escort?.type, escort.convoyId])).toEqual([['fuel_hauler', 'escort-1'], ['outrider', 'escort-3']]);
+			// A run out, with Road Warrior 1 and Interceptor 2 seated
+			const [first, second] = campaign.runDecks;
+			expect([first.driver, second.driver]).toEqual([campaign.drivers[0], campaign.drivers[4]]);
+			expect([first.deckSize, first.escortCards]).toEqual([11, [{ cardType: 'top_off', broughtBy: 'escort-1' }]]);
+			expect(second.borrowed).toEqual({ headshot: 1 });
 			expect(campaign.recruitDriver({ archetype: 'mechanic' }).id).toBe('driver-6');
 			const hired = createEscort({ type: 'pilot_car' });
 			campaign.convoy.add(hired);
@@ -825,16 +840,16 @@ describe('Campaign', () => {
 		});
 
 		it('holds the save format to the version it\'s stamped with', () => {
-			const campaign = Campaign.fromJSON(campaignV3);
+			const campaign = Campaign.fromJSON(CAMPAIGN_FIXTURE);
 			const format = {
-				campaign: keyPaths(campaignV3),
+				campaign: keyPaths(CAMPAIGN_FIXTURE),
 				historyEntry: Object.keys(historyEntry({ campaign, ending: 'won' })).sort(),
 				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
 			};
 
-			expect(CAMPAIGN_SCHEMA_VERSION).toBe(3);
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(4);
 			try {
-				expect(format).toEqual(SAVE_FORMAT_V3);
+				expect(format).toEqual(SAVE_FORMAT);
 			} catch (error) {
 				throw new Error(`format changed: bump CAMPAIGN_SCHEMA_VERSION and re-pin\n${(error as Error).message}`);
 			}
@@ -866,7 +881,19 @@ describe('Campaign', () => {
 				['a log entry from the future', (save: CampaignJson) => { save.log[3].day = 99; }, RangeError, 'Campaign.log[3].day must be an integer from 1 to today (9), got 99'],
 				['negative water', (save: CampaignJson) => { save.resources.water = -3; }, RangeError, 'Campaign.resources.water must be an integer >= 0, got -3'],
 				['a dead driver who kept their cards', (save: CampaignJson) => { save.drivers[1].defaultDeck = { headshot: 1 }; }, RangeError, 'Campaign.drivers[1].defaultDeck must be empty for a dead driver, whose cards went with them, got {"headshot":1}'],
-				['a wrecked escort', (save: CampaignJson) => { save.convoy.escorts[0].structure = 0; }, RangeError, 'Campaign.convoy.escorts[0].structure must be an integer from 1 to maxStructure (40), got 0']
+				['a wrecked escort', (save: CampaignJson) => { save.convoy.escorts[0].structure = 0; }, RangeError, 'Campaign.convoy.escorts[0].structure must be an integer from 1 to maxStructure (40), got 0'],
+				['a run deck for a driver who isn\'t in the pool', (save: CampaignJson) => { save.runDecks[1].driver = 'driver-9'; }, RangeError, 'Campaign.runDecks[1].driver "driver-9" isn\'t a driver in the pool'],
+				['one run deck', (save: CampaignJson) => { save.runDecks.pop(); }, RangeError, 'Campaign.runDecks holds 1 run decks: a run out has one for each of its two seats, and none are kept at home'],
+				['two run decks for one driver', (save: CampaignJson) => { save.runDecks[1].driver = 'driver-1'; }, RangeError, 'Campaign.runDecks[1].driver driver-1 has the run deck before it; each seat is a different driver'],
+				['a borrowed count of 0', (save: CampaignJson) => { save.runDecks[0].borrowed.medical_kit = 0; }, RangeError, 'Campaign.runDecks[0].borrowed.medical_kit must be an integer >= 1, got 0'],
+				['a seated driver whose default deck holds cards', (save: CampaignJson) => { save.drivers[4].defaultDeck = { headshot: 1 }; }, RangeError,
+					'Campaign.runDecks[1].driver driver-5 holds cards in their default deck, {"headshot":1}, which is in their run deck while a run is out'],
+				['a card both left at home and borrowed', (save: CampaignJson) => { save.runDecks[0].leftHome.medical_kit = 1; }, RangeError,
+					"Campaign.runDecks[0].borrowed.medical_kit can't be borrowed while 1 of the driver's own are left at home, which come back first"],
+				['an escort card named by a session\'s model id', (save: CampaignJson) => { save.runDecks[0].escortCards[0].broughtBy = 'Vehicle_12'; }, RangeError, 'Campaign.runDecks[0].escortCards[0].broughtBy must look like escort-1, got "Vehicle_12"'],
+				['an escort card from an escort the convoy lost', (save: CampaignJson) => { save.runDecks[0].escortCards[0].broughtBy = 'escort-2'; }, RangeError, 'Campaign.runDecks[0].escortCards[0].broughtBy escort-2 isn\'t an escort in the convoy'],
+				['an escort card that isn\'t its escort\'s', (save: CampaignJson) => { save.runDecks[0].escortCards[0].cardType = 'triage'; }, RangeError, 'Campaign.runDecks[0].escortCards[0].cardType must be "top_off", the card Fuel Hauler (escort-1) brings, got "triage"'],
+				['one escort\'s card in both run decks', (save: CampaignJson) => { save.runDecks[1].escortCards[0] = { ...save.runDecks[0].escortCards[0] }; }, RangeError, 'Campaign.runDecks[1].escortCards[0].broughtBy escort-1 brought a card into the run deck before it; an escort brings one']
 			])('fails loudly on %s', (_label, damage, errorType, message) => {
 				const save = savedCampaign();
 				damage(save);
@@ -877,7 +904,7 @@ describe('Campaign', () => {
 
 			it('fails loudly on a save that isn\'t an object', () => {
 				expect(() => Campaign.fromJSON(null)).toThrow('Campaign must be an object, got null');
-				expect(() => Campaign.fromJSON(JSON.stringify(campaignV3))).toThrow(/^Campaign must be an object, got "\{/);
+				expect(() => Campaign.fromJSON(JSON.stringify(CAMPAIGN_FIXTURE))).toThrow(/^Campaign must be an object, got "\{/);
 			});
 		});
 
@@ -894,7 +921,7 @@ describe('Campaign', () => {
 			it('loads a save with nothing to repair without a word', () => {
 				const onWarning = jest.fn();
 
-				Campaign.fromJSON(campaignV3, { onWarning });
+				Campaign.fromJSON(CAMPAIGN_FIXTURE, { onWarning });
 
 				expect(onWarning).not.toHaveBeenCalled();
 			});
@@ -921,6 +948,37 @@ describe('Campaign', () => {
 
 				expect('weather' in campaign.mapParams).toBe(false);
 				expect(warnings).toEqual(['Campaign.mapParams.weather isn\'t a map parameter; dropped it']);
+			});
+
+			it('repairs a Rust Belt map\'s params from the table before the realistic map: new ones from Rust Belt, old ones dropped', () => {
+				const { campaign, warnings } = loadDrifted(params => {
+					for (const key of Object.keys(params)) delete params[key];
+					Object.assign(params, {
+						seed: SEED, environment: 'rustBelt',
+						radius: 1000, aridity: 0.55, mountainCoverage: 0.15, ruggedness: 0.35, rivers: 3, riverMeander: 0.5, lakes: 2,
+						contamination: 0.45, hotspots: 4, metroSize: 0.18, towns: 8,
+						highways: 6, highwaySeparation: 35, curviness: 0.5, branchiness: 0.6, trailShare: 0.35, roadClearance: 24,
+						strongholds: 4, poiDensity: 1, routesTarget: 3, startingReveal: 1, stopDensity: 1, dangerCurve: 1, driverFinds: 2,
+						daylightHours: 14, travelPace: 1,
+						sceneryDensity: 0.6, streetGrids: 0.85, countyRoads: 0.65, brokenHighways: 3, railLines: 2, farmTracks: 0.4
+					});
+				});
+
+				expect(campaign.mapParams).toEqual(resolveMapParams({ seed: SEED, environment: 'rustBelt' }).params);
+				expect(warnings).toEqual([
+					'Campaign.mapParams.riverDensity was missing; took 0.5, the rustBelt default',
+					'Campaign.mapParams.villages was missing; took 26, the rustBelt default',
+					'Campaign.mapParams.roadDensity was missing; took 0.6, the rustBelt default',
+					'Campaign.mapParams.loops was missing; took 0.6, the rustBelt default',
+					'Campaign.mapParams.routeSplit was missing; took 0.5, the rustBelt default',
+					'Campaign.mapParams.dressing was missing; took 0.6, the rustBelt default',
+					'Campaign.mapParams.branchiness isn\'t a map parameter; dropped it',
+					'Campaign.mapParams.roadClearance isn\'t a map parameter; dropped it',
+					'Campaign.mapParams.sceneryDensity isn\'t a map parameter; dropped it',
+					'Campaign.mapParams.countyRoads isn\'t a map parameter; dropped it',
+					'Campaign.mapParams.farmTracks isn\'t a map parameter; dropped it'
+				]);
+				expect(Object.keys(reload(campaign).toJSON().mapParams)).toEqual(Object.keys(CAMPAIGN_FIXTURE.mapParams));
 			});
 
 			it('keeps a value today\'s ranges would clamp, since its map was made with it, and says so', () => {
@@ -965,7 +1023,7 @@ describe('Campaign', () => {
 					params.highways = 12;
 				});
 
-				expect(campaign.toJSON().mapParams).toEqual({ ...campaignV3.mapParams, radius: 1000, highways: 12 });
+				expect(campaign.toJSON().mapParams).toEqual({ ...CAMPAIGN_FIXTURE.mapParams, radius: 1000, highways: 12 });
 				expect(reload(campaign).toJSON()).toEqual(campaign.toJSON());
 			});
 
@@ -999,12 +1057,12 @@ describe('Campaign', () => {
 		const campaign = campaignInProgress();
 
 		expect(JSON.parse(JSON.stringify(campaign))).toEqual(campaign.toJSON());
-		expect(Object.keys(campaign.toJSON())).toEqual(Object.keys(campaignV3));
+		expect(Object.keys(campaign.toJSON())).toEqual(Object.keys(CAMPAIGN_FIXTURE));
 	});
 
 	it.each([
 		['a campaign in progress', campaignInProgress],
-		['the version 3 fixture', () => Campaign.fromJSON(campaignV3)],
+		['the fixture', () => Campaign.fromJSON(CAMPAIGN_FIXTURE)],
 		['a stress campaign', stressCampaign]
 	])('writes the same save text for %s without toJSON\'s copies', (_label, build) => {
 		const campaign = build();

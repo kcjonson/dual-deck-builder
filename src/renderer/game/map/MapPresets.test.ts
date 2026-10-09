@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { MapParamSet, NUMBER_PARAMS, resolveMapParams } from './MapParams';
+import { ENVIRONMENTS, ENVIRONMENT_PRESETS, MapParamSet, NUMBER_PARAMS, NumberParam, resolveMapParams } from './MapParams';
 import { MAP_PRESETS, parseMapPreset, readMapPreset, serializeMapPreset } from './MapPresets';
 import { validateMapParams } from './ParamValidator';
 
@@ -49,10 +49,19 @@ describe('MAP_PRESETS', () => {
 
 describe('preset JSON', () => {
 	it('round-trips a sparse set, leaving out what it doesn\'t set', () => {
-		const set: MapParamSet = { seed: 9, environment: 'floodlands', rivers: 4, roadClearance: 30, stopTables: { trail: { hazard: 2 } } };
+		const set: MapParamSet = { seed: 9, environment: 'floodlands', rivers: 4, loops: 0.3, routeSplit: 0.4, stopTables: { trail: { hazard: 2 } } };
 		const text = serializeMapPreset(set);
 		expect(parseMapPreset(text)).toEqual(set);
-		expect(Object.keys(JSON.parse(text))).toEqual(['seed', 'environment', 'rivers', 'roadClearance', 'stopTables']);
+		expect(Object.keys(JSON.parse(text))).toEqual(['seed', 'environment', 'rivers', 'loops', 'routeSplit', 'stopTables']);
+	});
+
+	it.each(ENVIRONMENTS)('round-trips every value the %s environment sets, each staying an override', (environment) => {
+		const set: MapParamSet = { seed: 4, environment, ...ENVIRONMENT_PRESETS[environment] };
+		const read = parseMapPreset(serializeMapPreset(set));
+		expect(read).toEqual(set);
+		const { params, sources } = resolveMapParams(read);
+		expect(params).toEqual(resolveMapParams({ seed: 4, environment }).params);
+		expect(Object.keys(ENVIRONMENT_PRESETS[environment]).filter((name) => sources[name as NumberParam] !== 'override')).toEqual([]);
 	});
 
 	it('round-trips complete params, every value an override', () => {
@@ -64,8 +73,8 @@ describe('preset JSON', () => {
 	});
 
 	it('writes the seed and environment first, then the table\'s order, tab-indented', () => {
-		const text = serializeMapPreset({ farmTracks: 0.2, radius: 900, environment: 'rustBelt', seed: 5 });
-		expect(text).toBe('{\n\t"seed": 5,\n\t"environment": "rustBelt",\n\t"radius": 900,\n\t"farmTracks": 0.2\n}\n');
+		const text = serializeMapPreset({ dressing: 0.2, villages: 30, radius: 900, environment: 'rustBelt', seed: 5 });
+		expect(text).toBe('{\n\t"seed": 5,\n\t"environment": "rustBelt",\n\t"radius": 900,\n\t"villages": 30,\n\t"dressing": 0.2\n}\n');
 	});
 
 	it('leaves the environment out when the set does, which resolves to Mixed', () => {
@@ -88,6 +97,8 @@ describe('preset JSON', () => {
 		['a seed past what a number holds', '{"seed": 1e999}', 'seed must be a finite number, got Infinity'],
 		['an unknown environment', '{"seed": 1, "environment": "tundra"}', 'environment must be one of highDesert, rustBelt, floodlands, badlands, mixed, got "tundra"'],
 		['a misspelt parameter', '{"seed": 1, "rivres": 4}', 'unknown parameter "rivres"'],
+		['a parameter the table dropped', '{"seed": 1, "branchiness": 0.5}', 'unknown parameter "branchiness"'],
+		['a parameter by its old name', '{"seed": 1, "sceneryDensity": 0.6}', 'unknown parameter "sceneryDensity"'],
 		['a parameter that isn\'t a number', '{"seed": 1, "rivers": null}', 'rivers must be a number, got null'],
 		['a parameter past what a number holds', '{"seed": 1, "radius": -1e999}', 'radius must be a finite number, got -Infinity'],
 		['stop tables that aren\'t an object', '{"seed": 1, "stopTables": []}', 'stopTables must be an object, got []'],

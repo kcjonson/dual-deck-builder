@@ -4,7 +4,7 @@ Date: 2026-10-08. Code: `src/renderer/game/campaign/DeckRules.ts` and `Campaign.
 
 ## Context
 
-`Campaign.moveCards` already moved copies between the locker and default decks without making or losing any, but it left the deck rules to the Crew screen: decks between 8 and 20 cards, and a card marked for an archetype only going to that archetype. Scrapping a locker card didn't exist. The Crew screen (DDB-314) has to show why an action is disabled, and run decks (DDB-315) will need the same rules, so they belong under the screen, not in it.
+`Campaign.moveCards` already moved copies between the locker and default decks without making or losing any, but it left the deck rules to the Crew screen: decks between 8 and 20 cards, and a card marked for an archetype only going to that archetype. Scrapping a locker card didn't exist. The Crew screen (DDB-314) has to show why an action is disabled, and run decks (DDB-315) need the same rules, so they belong under the screen, not in it.
 
 ## The rules live in `moveCards`
 
@@ -19,7 +19,7 @@ So the limits are checked on each move, by the direction it goes: a deck can't t
 
 ## A typed reason, and an error that carries it
 
-`getCardMoveBlocker` and `getScrapBlocker` return a `CardBlocker` or null: a reason code (`driver_away`, `too_few`, `other_archetype`, `deck_full`, `deck_at_minimum`), the place that refuses, and the number behind it (the limit, the archetype, the copies held). The screen words its own message from that; tests assert on codes, not prose. `moveCards` and `scrapCards` throw a `CardRuleError` carrying the same blocker. It extends `RangeError`, which is what these refusals threw before. A call no rule covers (a malformed count, a driver from another campaign) is a bug, not a disabled button, so it still throws from the check as well as the action.
+`getCardMoveBlocker` and `getScrapBlocker` return a `CardBlocker` or null: a reason code (`driver_away`, `too_few`, `other_archetype`, `deck_full`, `deck_at_minimum`, and with run decks `on_run`, `already_borrowed`, and `card_locked`, in [run-decks.md](./run-decks.md)), the place that refuses, and the number behind it (the limit, the archetype, the copies held). The screen words its own message from that; tests assert on codes, not prose. `moveCards` and `scrapCards` throw a `CardRuleError` carrying the same blocker. It extends `RangeError`, which is what these refusals threw before. A call no rule covers (a malformed count, a driver from another campaign) is a bug, not a disabled button, so it still throws from the check as well as the action.
 
 ## Eligibility reads the bundled cards.json
 
@@ -37,7 +37,7 @@ The campaign checks eligibility synchronously, and `CardLoader` fetches `cards.j
 ## Consequences
 
 - The Crew screen asks `getCardMoveBlocker` or `getScrapBlocker` for each action it offers, words the reason from the code, and calls `moveCards` or `scrapCards`, then `CampaignStore.checkpoint`.
-- Run decks are a new kind of `CardPlace`. The move check reads each end's counts through `countsAt` and the receiving archetype through `archetypeAt`, and `deckAddBlocker` and `deckRemoveBlocker` take any deck's counts, so a run deck only has to answer those two lookups; `cardsOwned` adds run decks to its sum.
+- Run decks (DDB-315) are a `CardPlace`. `deckAddBlocker` and `deckRemoveBlocker` take any deck's counts, so a move between the locker and a run deck runs the same rules on the run deck's own and borrowed copies, its escort cards outside them, and a seated driver's default deck takes no Crew screen moves until it's unwound (`on_run`). `cardsOwned` adds every run deck to its sum ([run-decks.md](./run-decks.md)).
 - Retuning `deck-rules.json` changes what moves are allowed and never makes a save unloadable.
 - Copies that land after a listener has run go to a deck only if the rules still let it take them, falling back to the giving deck and then the locker. A listener's own `set` of a deck still steps outside the rules, as any `set` does.
 - A record's listener can see half a move, so the Crew screen recomputes on the campaign's `change`, not a record's.

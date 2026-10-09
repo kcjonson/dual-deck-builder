@@ -45,15 +45,16 @@ describe('rollParams', () => {
 	// any value; and a change to the list of environments can move all of it.
 	// Retuning a default terrain reads (mountain coverage, say) moves
 	// Terrain.test's pinned samples as well, so re-pin those in the same change.
+	// A renamed parameter draws on a fork of its new name, so it moves too.
 	it('rolls the pinned params for the default preset\'s seed', () => {
 		expect(rollParams(2183746551)).toEqual({
 			seed: 2183746551, environment: 'floodlands',
-			radius: 950, aridity: 0.9, mountainCoverage: 0.15, ruggedness: 0.15, rivers: 2, riverMeander: 0.7, lakes: 4,
-			contamination: 0.35, hotspots: 5, metroSize: 0.17, towns: 5,
-			highways: 6, highwaySeparation: 33, curviness: 0.45, branchiness: 0.5, trailShare: 0.4, roadClearance: 22,
-			strongholds: 4, poiDensity: 0.9, routesTarget: 3, startingReveal: 1, stopDensity: 0.9, dangerCurve: 1.1,
+			radius: 950, aridity: 0.9, mountainCoverage: 0.15, ruggedness: 0.15, rivers: 2, riverDensity: 0.55, riverMeander: 0.7,
+			lakes: 4, contamination: 0.35, hotspots: 5, metroSize: 0.17, towns: 5, villages: 17,
+			highways: 6, highwaySeparation: 33, roadDensity: 0.65, loops: 0.45, curviness: 0.45, trailShare: 0.4, brokenHighways: 2,
+			strongholds: 4, poiDensity: 0.9, routesTarget: 3, routeSplit: 0.5, startingReveal: 1, stopDensity: 0.9, dangerCurve: 1.1,
 			driverFinds: 2, daylightHours: 14, travelPace: 1,
-			sceneryDensity: 0.6, streetGrids: 0.8, countyRoads: 0.55, brokenHighways: 2, railLines: 1, farmTracks: 0.55,
+			dressing: 0.55, streetGrids: 0.8, railLines: 1,
 		});
 	});
 
@@ -82,7 +83,7 @@ describe('rollParams', () => {
 			sample.forEach((seed, index) => expect(reordered(seed)).toEqual(rolls[index]));
 		});
 
-		it.each(['radius', 'aridity', 'roadClearance', 'farmTracks'] as const)('rolls every other parameter the same without %s', (removed) => {
+		it.each(['radius', 'aridity', 'villages', 'dressing'] as const)('rolls every other parameter the same without %s', (removed) => {
 			const without = rollParamsOver(NUMBER_PARAMS.filter((name) => name !== removed));
 			sample.forEach((seed, index) => {
 				const expected: Partial<MapParams> = { ...rolls[index] };
@@ -197,6 +198,15 @@ describe('rollParams', () => {
 		expect(aridity('mixed')).toBeLessThan(aridity('floodlands'));
 		const ruggedness = (environment: string) => mean(rollsOf(environment).map((params) => params.ruggedness));
 		expect(ruggedness('badlands')).toBeGreaterThan(ruggedness('mixed'));
+		for (const name of ['villages', 'roadDensity', 'loops'] as const) {
+			const average = (environment: string) => mean(rollsOf(environment).map((params) => params[name]));
+			expect(average('highDesert')).toBeLessThan(average('mixed'));
+			expect(average('mixed')).toBeLessThan(average('rustBelt'));
+		}
+	});
+
+	it('rolls routeSplit at the spec\'s half every time, a balance knob with one campaign value', () => {
+		expect(new Set(rolls.map(({ routeSplit }) => routeSplit))).toEqual(new Set([0.5]));
 	});
 
 	it('never calls Math.random', () => {
