@@ -149,7 +149,7 @@ function readRunDeckData(value: Record<keyof RunDeckData, unknown>, path: string
 
 /** Escort cards with `escort-<n>` ids, one per escort, frozen in id order so equal decks write the same JSON. */
 function readEscortCards(value: unknown, path: string): readonly EscortCard[] {
-	const cards = readArray(value, path).map((card, index) => {
+	const cards = Array.from(readArray(value, path), (card, index) => {
 		const at = `${path}[${index}]`;
 		const fields = readFields(card, at, ['cardType', 'broughtBy']);
 		const broughtBy = readText(fields.broughtBy, `${at}.broughtBy`);

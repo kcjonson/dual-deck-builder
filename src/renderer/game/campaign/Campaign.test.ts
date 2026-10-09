@@ -1,3 +1,4 @@
+import { runInNewContext } from 'vm';
 import { MapParams, resolveMapParams } from '../map/MapParams';
 import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
@@ -837,6 +838,16 @@ describe('Campaign', () => {
 			const hired = createEscort({ type: 'pilot_car' });
 			campaign.convoy.add(hired);
 			expect(hired.convoyId).toBe('escort-4');
+		});
+
+		it('builds what it keeps from a save parsed in another realm in this one', () => {
+			const foreign: unknown = runInNewContext('JSON.parse(text)', { text: JSON.stringify(CAMPAIGN_FIXTURE) });
+			const campaign = Campaign.fromJSON(foreign);
+			const [first] = campaign.runDecks;
+			const arrays = [campaign.log, campaign.strongholdsTaken, campaign.runDecks, first.escortCards, campaign.convoy.escorts[0].mods];
+
+			expect(arrays.map(array => Object.getPrototypeOf(array) === Array.prototype)).toEqual([true, true, true, true, true]);
+			expect(campaign.toJSON()).toEqual(CAMPAIGN_FIXTURE);
 		});
 
 		it('holds the save format to the version it\'s stamped with', () => {

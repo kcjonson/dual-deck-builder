@@ -1,4 +1,6 @@
+import { runInNewContext } from 'vm';
 import { DriverLoader } from '../core/DriverLoader';
+import { ReaderTypeError } from '../core/JsonReader';
 import { RNG_VERSION, Rng } from '../core/Rng';
 import { MapParamSet, resolveMapParams } from '../map/MapParams';
 import { validateMapParams } from '../map/ParamValidator';
@@ -8,7 +10,7 @@ import { Campaign } from './Campaign';
 import { CAMPAIGN_START, CampaignStart } from './CampaignStart';
 import { startingDeckCounts } from './CardCounts';
 import { DRIVER_ARCHETYPES, placeholderName } from './DriverRecord';
-import { FoundingOptions, dealStartingPool, foundCampaign } from './Founding';
+import { FoundingOptions, foundCampaign } from './Founding';
 
 const SEED = 20261007;
 
@@ -31,6 +33,20 @@ const found = (options: Partial<FoundingOptions> = {}): Campaign => foundCampaig
 });
 
 const archetypesOf = (campaign: Campaign): DriverArchetype[] => campaign.drivers.map(driver => driver.archetype);
+
+/** The pool a founding deals, in the order they join: four from `ARCHETYPES` unless the options say otherwise. */
+const dealt = (options: Partial<FoundingOptions> = {}): DriverArchetype[] => archetypesOf(found({ start: FOUR, ...options }));
+
+const ofSize = (poolSize: number): CampaignStart => ({ ...CAMPAIGN_START, poolSize });
+
+/** Map Lab params the way a class would hold them: own fields, and a getter on the prototype. */
+class LabParams {
+	public seed = SEED;
+
+	public get radius(): number {
+		return 5000;
+	}
+}
 
 describe('foundCampaign', () => {
 	describe('from a seed', () => {
@@ -111,23 +127,93 @@ describe('foundCampaign', () => {
 			expect(() => found({ mapParams: { ...rollParams(7) } })).toThrow("mapParams.seed must be the campaign's seed, 20261007, got 7");
 		});
 
-		it('takes a seed that wraps to the campaign\'s, comparing it as the validator wraps it', () => {
-			expect(found({ mapParams: { seed: SEED + 2 ** 32 } }).mapParams.seed).toBe(SEED);
+		// The validator would wrap each of these to 0, or to a seed that isn't the one given.
+		it.each([
+			[NaN, 'must be an integer from 0 to 4294967295, got NaN'],
+			[Infinity, 'must be an integer from 0 to 4294967295, got Infinity'],
+			[0.9, 'must be an integer from 0 to 4294967295, got 0.9'],
+			[2 ** 32, 'must be an integer from 0 to 4294967295, got 4294967296'],
+			[-1, 'must be an integer from 0 to 4294967295, got -1'],
+			['0', 'must be a number, got "0"']
+		])('refuses a seed of %p in them, naming the value given, however the validator would wrap it', (mapSeed, message) => {
+			expect(() => found({ seed: 0, mapParams: { seed: mapSeed as number } })).toThrow(`mapParams.seed ${message}`);
+		});
+
+		it('refuses a seed that only wraps to the campaign\'s', () => {
+			expect(() => found({ mapParams: { seed: SEED + 2 ** 32 } })).toThrow(`mapParams.seed must be an integer from 0 to 4294967295, got ${SEED + 2 ** 32}`);
 		});
 
 		it.each([
-			['that aren\'t an object', null, 'Invalid map preset: expected a JSON object'],
-			['with a parameter the map doesn\'t have', { seed: SEED, strongholdz: 99 }, 'Invalid map preset: unknown parameter "strongholdz"'],
-			['with a parameter in a string', { seed: SEED, radius: '1400' }, 'Invalid map preset: radius must be a number, got "1400"'],
-			['with stop tables in a list', { seed: SEED, stopTables: [] }, 'Invalid map preset: stopTables must be an object'],
-			['with null for stop tables', { seed: SEED, stopTables: null }, 'Invalid map preset: stopTables must be an object']
-		])('refuses params %s, as a map preset would be refused', (_label, mapParams, message) => {
+			['that aren\'t an object', null, 'mapParams must be an object, got null'],
+			['in a list', [SEED], 'mapParams must be an object, got [20261007]'],
+			['without a seed', { environment: 'rustBelt' }, 'mapParams.seed is missing'],
+			['with a parameter the map doesn\'t have', { seed: SEED, strongholdz: 99 }, 'mapParams has an unknown field "strongholdz"'],
+			['with a parameter in a string', { seed: SEED, radius: '1400' }, 'mapParams.radius must be a number, got "1400"'],
+			['with a parameter that isn\'t finite', { seed: SEED, aridity: Infinity }, 'mapParams.aridity must be a finite number, got Infinity'],
+			['with an environment that isn\'t one', { seed: SEED, environment: 'tundra' }, 'mapParams.environment must be one of highDesert, rustBelt, floodlands, badlands, mixed, got "tundra"'],
+			['with stop tables in a list', { seed: SEED, stopTables: [] }, 'mapParams.stopTables must be an object, got []'],
+			['with null for stop tables', { seed: SEED, stopTables: null }, 'mapParams.stopTables must be an object, got null'],
+			['with NaN for stop tables', { seed: SEED, stopTables: NaN }, 'mapParams.stopTables must be an object, got NaN']
+		])('refuses params %s, naming the path and the value', (_label, mapParams, message) => {
 			expect(() => found({ mapParams: mapParams as unknown as MapParamSet })).toThrow(message);
 		});
 
 		it('names the path to a value in the stop tables that JSON can\'t hold', () => {
 			expect(() => found({ mapParams: { seed: SEED, stopTables: { highway: { raider_ambush: NaN } } } }))
-				.toThrow('Invalid map preset: stopTables.highway.raider_ambush must be a finite number, got NaN');
+				.toThrow('mapParams.stopTables.highway.raider_ambush must be a finite number, got NaN');
+		});
+
+		it('refuses params made on another object, whose values they\'d inherit', () => {
+			const onAnother = Object.assign(Object.create({ radius: 5000 }) as object, { seed: SEED });
+
+			expect(() => found({ mapParams: onAnother as MapParamSet })).toThrow('mapParams must be a plain object, got an object made on another');
+		});
+
+		it('refuses params made on an object with no prototype, whose values they\'d inherit just the same', () => {
+			const bare = Object.assign(Object.create(null) as object, { radius: 5000 });
+			const onBare = Object.assign(Object.create(bare) as object, { seed: SEED });
+
+			expect(() => found({ mapParams: onBare as MapParamSet })).toThrow('mapParams must be a plain object, got an object made on another');
+		});
+
+		it.each([
+			['a parameter', (fail: () => never) => ({ seed: SEED, get radius(): number { return fail(); } }), 'mapParams.radius'],
+			['the stop tables', (fail: () => never) => ({ seed: SEED, get stopTables(): object { return fail(); } }), 'mapParams.stopTables'],
+			['a value in the stop tables', (fail: () => never) => ({ seed: SEED, stopTables: { get highway(): object { return fail(); } } }), 'mapParams.stopTables.highway']
+		])('names the path to %s whose getter throws', (_label, make, at) => {
+			const mapParams = make(() => {
+				throw new Error('boom');
+			}) as unknown as MapParamSet;
+
+			expect(() => found({ mapParams })).toThrow(ReaderTypeError);
+			expect(() => found({ mapParams })).toThrow(`${at} can't be read: boom`);
+		});
+
+		it('reads each parameter once, so a getter can\'t answer one way when checked and another when kept', () => {
+			let reads = 0;
+			const mapParams = {
+				seed: SEED,
+				get towns(): number {
+					reads += 1;
+					return reads === 1 ? 9 : NaN;
+				}
+			};
+
+			expect(found({ mapParams }).mapParams.towns).toBe(9);
+			expect(reads).toBe(1);
+		});
+
+		it('refuses a class instance, getters and all', () => {
+			expect(() => found({ mapParams: new LabParams() })).toThrow('mapParams must be a plain object, got a LabParams');
+		});
+
+		it('founds on another realm\'s plain object, holding stop tables built in this one', () => {
+			const foreign = runInNewContext(`({ seed: ${SEED}, environment: 'rustBelt', stopTables: { highway: { raider_ambush: 2 } } })`) as MapParamSet;
+			const { mapParams } = found({ mapParams: foreign });
+
+			expect(mapParams.environment).toBe('rustBelt');
+			expect(Object.getPrototypeOf(mapParams.stopTables)).toBe(Object.prototype);
+			expect(mapParams.stopTables).toStrictEqual({ highway: { raider_ambush: 2 } });
 		});
 	});
 
@@ -135,7 +221,7 @@ describe('foundCampaign', () => {
 		it('recruits the deal through the campaign: ids in the order dealt, each named as the first of their archetype', () => {
 			const campaign = found({ start: FOUR });
 
-			expect(archetypesOf(campaign)).toEqual(dealStartingPool({ seed: SEED, unlockedArchetypes: ARCHETYPES, size: 4 }));
+			expect(archetypesOf(campaign)).toEqual(new Rng({ seed: SEED }).fork('founding').fork('pool').shuffle([...ARCHETYPES].sort()));
 			expect(campaign.drivers.map(driver => driver.id)).toEqual(['driver-1', 'driver-2', 'driver-3', 'driver-4']);
 			expect(campaign.drivers.map(driver => driver.name)).toEqual(campaign.drivers.map(({ archetype }) => placeholderName({ archetype, ordinal: 1 })));
 			expect(campaign.nextDriverNumber).toBe(5);
@@ -178,6 +264,60 @@ describe('foundCampaign', () => {
 
 		it('founds with two archetypes unlocked, enough for a run', () => {
 			expect(archetypesOf(found({ unlockedArchetypes: ['raider', 'mechanic'], start: FOUR })).sort()).toEqual(['mechanic', 'raider']);
+		});
+
+		it.each([2, 3, 4])('deals %i different archetypes for a pool of that size', (size) => {
+			const pool = dealt({ start: ofSize(size) });
+
+			expect(pool).toHaveLength(size);
+			expect(new Set(pool).size).toBe(size);
+		});
+
+		it('deals the same whatever order the unlocked archetypes come in, repeats and all', () => {
+			const pool = dealt({ unlockedArchetypes: UNLOCKED, start: ofSize(2) });
+
+			expect(dealt({ unlockedArchetypes: [...UNLOCKED].reverse(), start: ofSize(2) })).toEqual(pool);
+			expect(dealt({ unlockedArchetypes: [...UNLOCKED, ...UNLOCKED], start: ofSize(2) })).toEqual(pool);
+		});
+
+		it('deals each archetype into a smaller pool about as often as the others', () => {
+			const size = 2;
+			const counts = new Map<DriverArchetype, number>();
+			for (const seed of SEEDS) {
+				for (const archetype of dealt({ seed, start: ofSize(size) })) counts.set(archetype, (counts.get(archetype) ?? 0) + 1);
+			}
+
+			// Each archetype's share of the seeds, give or take three standard deviations.
+			const share = size / ARCHETYPES.length;
+			const expected = SEEDS.length * share;
+			const spread = 3 * Math.sqrt(SEEDS.length * share * (1 - share));
+			for (const archetype of ARCHETYPES) {
+				expect(counts.get(archetype)).toBeGreaterThan(expected - spread);
+				expect(counts.get(archetype)).toBeLessThan(expected + spread);
+			}
+		});
+
+		it('shuffles the unlocked archetypes, sorted by id, on the pool fork of the seed\'s founding stream', () => {
+			for (const seed of SEEDS.slice(0, 50)) {
+				const stream = new Rng({ seed }).fork('founding').fork('pool');
+				expect(dealt({ seed, start: ofSize(3) })).toEqual(stream.shuffle([...ARCHETYPES].sort()).slice(0, 3));
+			}
+		});
+
+		// What a seed deals is part of what the seed means, pinned like the PRNG's
+		// goldens. Unlocking an archetype moves every seed's deal; reordering
+		// DRIVER_CONFIGS, or adding a locked archetype, moves none.
+		it('deals the pinned pools for one seed', () => {
+			expect(RNG_VERSION).toBe(1);
+			expect(dealt({ unlockedArchetypes: ['road_warrior', 'interceptor', 'mechanic', 'raider'] }))
+				.toEqual(['road_warrior', 'mechanic', 'interceptor', 'raider']);
+			expect(dealt({ unlockedArchetypes: ['road_warrior', 'interceptor', 'mechanic'] }))
+				.toEqual(['mechanic', 'interceptor', 'road_warrior']);
+		});
+
+		it('rejects an archetype that doesn\'t exist', () => {
+			expect(() => found({ unlockedArchetypes: ['road_warrior', 'mutant' as DriverArchetype] }))
+				.toThrow('unlockedArchetypes[1] must be one of road_warrior, interceptor, mechanic, raider, got "mutant"');
 		});
 
 		it.each([
@@ -236,6 +376,20 @@ describe('foundCampaign', () => {
 		});
 	});
 
+	// The presets read their JSON as they load, so loading them would carry the file into every bundle founding is in.
+	it('loads without the map presets', () => {
+		try {
+			jest.isolateModules(() => {
+				jest.doMock('../map/MapPresets', () => {
+					throw new Error('founding loaded the map presets');
+				});
+				expect(() => jest.requireActual('./Founding')).not.toThrow();
+			});
+		} finally {
+			jest.dontMock('../map/MapPresets');
+		}
+	});
+
 	it('saves, and loads back the same with nothing to repair', () => {
 		const campaign = found({ start: { ...CAMPAIGN_START, escorts: ['pilot_car', 'med_truck'] } });
 		const onWarning = jest.fn();
@@ -243,91 +397,5 @@ describe('foundCampaign', () => {
 
 		expect(JSON.stringify(loaded)).toBe(JSON.stringify(campaign));
 		expect(onWarning).not.toHaveBeenCalled();
-	});
-});
-
-describe('dealStartingPool', () => {
-	const deal = (options: Partial<Parameters<typeof dealStartingPool>[0]> = {}): DriverArchetype[] => dealStartingPool({
-		seed: SEED,
-		unlockedArchetypes: ARCHETYPES,
-		size: 4,
-		...options
-	});
-
-	it.each([1, 2, 3, 4])('deals %i different archetypes', (size) => {
-		const pool = deal({ size });
-
-		expect(pool).toHaveLength(size);
-		expect(new Set(pool).size).toBe(size);
-	});
-
-	it('deals only what\'s unlocked, and all of it when that\'s fewer than the size', () => {
-		expect([...deal({ unlockedArchetypes: ['raider', 'mechanic'] })].sort()).toEqual(['mechanic', 'raider']);
-		expect(deal({ unlockedArchetypes: ['interceptor'] })).toEqual(['interceptor']);
-	});
-
-	it('deals the same whatever order the unlocked archetypes come in, repeats and all', () => {
-		const pool = deal({ unlockedArchetypes: UNLOCKED, size: 2 });
-
-		expect(deal({ unlockedArchetypes: [...UNLOCKED].reverse(), size: 2 })).toEqual(pool);
-		expect(deal({ unlockedArchetypes: [...UNLOCKED, ...UNLOCKED], size: 2 })).toEqual(pool);
-	});
-
-	it('deals each archetype into a smaller pool about as often as the others', () => {
-		const size = 2;
-		const dealt = new Map<DriverArchetype, number>();
-		for (const seed of SEEDS) {
-			for (const archetype of deal({ seed, size })) dealt.set(archetype, (dealt.get(archetype) ?? 0) + 1);
-		}
-
-		// Each archetype's share of the seeds, give or take three standard deviations.
-		const share = size / ARCHETYPES.length;
-		const expected = SEEDS.length * share;
-		const spread = 3 * Math.sqrt(SEEDS.length * share * (1 - share));
-		for (const archetype of ARCHETYPES) {
-			expect(dealt.get(archetype)).toBeGreaterThan(expected - spread);
-			expect(dealt.get(archetype)).toBeLessThan(expected + spread);
-		}
-	});
-
-	it('shuffles the unlocked archetypes, sorted by id, on the pool fork of the seed\'s founding stream', () => {
-		for (const seed of SEEDS.slice(0, 50)) {
-			const stream = new Rng({ seed }).fork('founding').fork('pool');
-			expect(deal({ seed, size: 3 })).toEqual(stream.shuffle([...ARCHETYPES].sort()).slice(0, 3));
-		}
-	});
-
-	// What a seed deals is part of what the seed means, pinned like the PRNG's
-	// goldens. Unlocking an archetype moves every seed's deal; reordering
-	// DRIVER_CONFIGS, or adding a locked archetype, moves none.
-	it('deals the pinned pools for one seed', () => {
-		expect(RNG_VERSION).toBe(1);
-		expect(deal({ unlockedArchetypes: ['road_warrior', 'interceptor', 'mechanic', 'raider'] }))
-			.toEqual(['road_warrior', 'mechanic', 'interceptor', 'raider']);
-		expect(deal({ unlockedArchetypes: ['road_warrior', 'interceptor', 'mechanic'] }))
-			.toEqual(['mechanic', 'interceptor', 'road_warrior']);
-	});
-
-	it('never calls Math.random', () => {
-		const random = jest.spyOn(Math, 'random');
-		try {
-			deal();
-			expect(random).not.toHaveBeenCalled();
-		} finally {
-			random.mockRestore();
-		}
-	});
-
-	it('refuses to deal from nothing', () => {
-		expect(() => deal({ unlockedArchetypes: [] })).toThrow("unlockedArchetypes is empty, so there's nothing to deal");
-	});
-
-	it('rejects an archetype that doesn\'t exist', () => {
-		expect(() => deal({ unlockedArchetypes: ['road_warrior', 'mutant' as DriverArchetype] }))
-			.toThrow('unlockedArchetypes[1] must be one of road_warrior, interceptor, mechanic, raider, got "mutant"');
-	});
-
-	it.each([0, 1.5])('rejects a size of %p', (size) => {
-		expect(() => deal({ size })).toThrow(`size must be an integer >= 1, got ${size}`);
 	});
 });
