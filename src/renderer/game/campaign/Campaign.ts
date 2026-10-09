@@ -18,7 +18,7 @@ import { EMPTY_MAP, MapState, readMapState } from './MapState';
  * with another version isn't loaded, so a bump invalidates every existing
  * save of that build.
  */
-export const CAMPAIGN_SCHEMA_VERSION = 1;
+export const CAMPAIGN_SCHEMA_VERSION = 2;
 
 /** What the compound holds (Compound and Supply Runs, Resources): whole numbers, never below 0. */
 export interface Resources {
@@ -622,7 +622,7 @@ function readDrivers(
 	return Object.freeze([...drivers] as DriverRecord[]);
 }
 
-function readResources(value: unknown, path: string): Readonly<Resources> {
+export function readResources(value: unknown, path: string): Readonly<Resources> {
 	if (typeof value === 'object' && value !== null && checkedResources.has(value)) return value as Readonly<Resources>;
 	const fields = readFields(value, path, RESOURCE_NAMES);
 	const amount = (name: keyof Resources): number => readInteger(fields[name], `${path}.${name}`, { min: 0 });

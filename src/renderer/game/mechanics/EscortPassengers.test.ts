@@ -467,7 +467,7 @@ describe('Passengers and unmanned vehicles (DDB-152)', () => {
 			expect(battle.battleWon).toBe(false);
 		});
 
-		test('after a won fight it is in AfterFight.escorts, last, and the convoy appends it', () => {
+		test('after a won fight it has left the road, but it is still its driver\'s: not in AfterFight.escorts, and not the convoy\'s', () => {
 			const outrider = escortAt('outrider');
 			const convoy = new Convoy({ escorts: [outrider] });
 			battle = createBattle([rig, bike, ...convoy.escorts], [buggy, sniper]);
@@ -483,15 +483,14 @@ describe('Passengers and unmanned vehicles (DDB-152)', () => {
 			expect(battle.battleWon).toBe(true);
 			const result = battle.afterFight;
 			if (!result) throw new Error('The fight should have ended');
-			expect(result.escorts).toEqual([outrider, bike]);
+			expect(result.escorts).toEqual([outrider]);
 			expect(result.lost).toEqual([]);
 			expect(bike.slot).toBeNull();
 			expect(bike.spent).toBe(false);
 
 			convoy.afterFight(result);
 
-			expect(convoy.escorts).toEqual([outrider, bike]);
-			expect(convoy.isOverCap).toBe(false);
+			expect(convoy.escorts).toEqual([outrider]);
 		});
 	});
 });
