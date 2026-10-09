@@ -142,7 +142,7 @@ The map is presented as a worn, hand-drawn chart spread across a rusted metal su
 
 ![Area map wireframe](../design/supply-runs/area-map.png)
 
-**Visual Presentation:** The compound sits at the centre in the ruins of a metro area, with highways leaving it in every direction, bending with the land and branching into back roads and trails. The background shows the terrain - destroyed highways, ruined towns, toxic swamps, badlands - and fog covers everything not yet explored. Strongholds hide in the fog at the edges.
+**Visual Presentation:** The map reads like a page of a printed road atlas (Area Map Generation, Rendering). The compound sits at the centre in the ruins of a metro area, in a region of mountain ranges, river valleys, lakes, and ruined towns, joined by highways, back roads, and trails that follow the land. Collapsed highway spans, craters, and contamination mark the wasteland, and fog covers everything not yet explored. Strongholds hide in the fog at the edges.
 
 **What it shows:** every known POI with its yields, tier, and state (unvisited, looted, depleted); roads by what you know of them (charted solid, rumored solid with unknown stops, uncharted dashed into the fog); strongholds found; explored percentage. Selecting a POI shows its details and "Plan a run here".
 
@@ -150,7 +150,7 @@ The map is presented as a worn, hand-drawn chart spread across a rusted metal su
 
 ### 3.4 The Run Route
 
-A zoomed view between the compound and the chosen POI, showing its 2 or 3 routes. Picking a route card highlights it on the map and lists its stops in order, as far as they're known, with fuel, hours, the time you'd be home against dark, and risk. A route that would run past dark is flagged before you leave. The routes arrive from different branches of the road network and share nothing past the home area. "Load out the crew" goes to driver selection.
+A zoomed view between the compound and the chosen POI, showing its 2 or 3 routes. Picking a route card highlights it on the map and lists its stops in order, as far as they're known, with fuel, hours, the time you'd be home against dark, and risk. A route that would run past dark is flagged before you leave. The routes arrive by different roads, split before halfway, and share nothing after (Area Map Generation, Routes). "Load out the crew" goes to driver selection.
 
 ![Run route wireframe](../design/supply-runs/run-route.png)
 
@@ -333,6 +333,8 @@ The driver card is a little bigger than a play card's mini size because it's a p
 - A lost driver's card is always faded, and how they went ("KILLED DAY 9") takes the specialty's place. Any driver who can't be picked where they're shown is faded too, with the reason on the control under the card, as for minis: an injured driver at load out, but not on the Crew screen, where their deck can still be worked on.
 - The name gets two lines' room whether it needs them or not, so cards in a row keep their specialty, HP bar, and foot level.
 - A driver's detail view: the portrait, name, vehicle, and specialty; HP, hand limit, and skills; then the deck as mini cards, cheapest first, in at most three rows, which holds a 24-card run deck on a 1024x600 screen; then a foot with the note and how to pin it. It opens and pins as a play card's does ([driver-card.md](../AI_TECHNICAL_DECISIONS/driver-card.md)).
+- An escort left at home for a run is faded with a STAYING tag, and still opens its detail view, so it can be brought back.
+- An escort's detail view: its profile (art, name, role, structure, armor, speed, crew skills, and a hauler's dividend) beside the signature card it brings, as a full card face, and a foot with how to pin it. It opens and pins as a play card's does ([escort-card.md](../AI_TECHNICAL_DECISIONS/escort-card.md)).
 
 ### 7.1 Information Hierarchy in Action
 

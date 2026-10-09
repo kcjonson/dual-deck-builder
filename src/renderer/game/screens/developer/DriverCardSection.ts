@@ -1,10 +1,7 @@
 import { CatalogSection } from './CatalogSection';
 import type { DeveloperSectionOptions } from './DeveloperSectionPanel';
-import { Stack } from '../../../engine/components/Stack';
-import { Text } from '../../../engine/components/Text';
-import { tokens } from '../../../engine/theme/tokens';
+import type { Stack } from '../../../engine/components/Stack';
 import { addCards, startingDeckCounts } from '../../campaign/CardCounts';
-import { MINI_GRID } from '../../ui/Card';
 import { DRIVER_CARD_INK, DriverCard, DriverCardStatus } from '../../ui/DriverCard';
 import { CardLookup, DriverDetailView } from '../../ui/DriverDetailView';
 import { inspectOnContextMenu, makeDriverInspectable } from '../../ui/cardInspect';
@@ -67,8 +64,7 @@ export class DriverCardsSection extends CatalogSection {
 
 	/** Captioned cards side by side, spaced as a grid of minis is, which clears their tags. */
 	private row(id: string, cases: readonly DriverCase[]): Stack {
-		const row = new Stack({ id, direction: 'horizontal', gap: MINI_GRID.gap, margin: MINI_GRID.margin, focusGroup: { orientation: 'horizontal' } });
-		for (const entry of cases) {
+		const cells = cases.map((entry) => {
 			const card = new DriverCard({
 				id: `dev_driver_card_${entry.id}`,
 				data: entry.data,
@@ -79,17 +75,9 @@ export class DriverCardsSection extends CatalogSection {
 			card.focusable = true;
 			card.selected = entry.selected ?? false;
 			makeDriverInspectable(card, { cards: galleryCards });
-			const cell = new Stack({ gap: DRIVER_CARD_INK + tokens.space.space_2 });
-			cell.addChild(card);
-			cell.addChild(new Text({
-				text: entry.caption,
-				width: CAPTION_WIDTH,
-				style: { fontSize: tokens.fontSize.fs_sm, color: 'text_dim' },
-				wrap: 'word',
-			}));
-			row.addChild(cell);
-		}
-		return row;
+			return { item: card, caption: entry.caption };
+		});
+		return this.captionedRow({ id, cells, ink: DRIVER_CARD_INK, captionWidth: CAPTION_WIDTH });
 	}
 }
 
