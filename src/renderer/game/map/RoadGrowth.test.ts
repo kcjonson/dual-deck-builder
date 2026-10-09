@@ -1,19 +1,20 @@
 import { Rng } from '../core/Rng';
+import * as roadChecks from './RoadChecks';
 import { checkRoadNetwork } from './RoadChecks';
 import {
 	BRANCH_ANGLE, CANDIDATE_HEADINGS, JUNCTION_TAPER, OUTWARD_SHARE, PASSABLE_SPACING, ROAD_CLASS_RULES, STEP_LENGTH,
 	StepRules, TipQueue, candidateTurns, growRoads, isOutward, isPassable, turnScale,
 } from './RoadGrowth';
 import { ROAD_CLASSES, RoadNetwork } from './RoadNetwork';
-import { GrowthSet, departure, fakeTerrain, growMap, paramsFor, pipelineStream, roadLines } from './roadTesting';
+import { GrowthSet, departure, fakeTerrain, growMap, paramsFor, roadLines } from './roadTesting';
 
 const FLAT = fakeTerrain();
 
-/** Growth on a fake terrain from the given departures, on seed `seed`'s growth stream. */
+/** Growth on a fake terrain from the given departures, on a `growth` stream forked from `growthSeed`. */
 function growOn(terrain: ReturnType<typeof fakeTerrain>, departures: ReturnType<typeof departure>[], set: GrowthSet, growthSeed = set.seed) {
 	const { branchiness, clearance, ...mapSet } = set;
 	const params = paramsFor({ radius: terrain.radius, ...mapSet });
-	return growRoads({ terrain, params, highways: departures, rng: pipelineStream(growthSeed, 'growth'), branchiness, clearance });
+	return growRoads({ terrain, params, highways: departures, rng: new Rng({ seed: growthSeed }).fork('growth'), branchiness, clearance });
 }
 
 /** Every point of every stretch on `road`. */
@@ -302,13 +303,29 @@ describe('growth', () => {
 		const first = growMap(set).network;
 		expect(growMap(set).network).toEqual(first);
 		expect(growMap({ ...set, seed: 26 }).network).not.toEqual(first);
-		expect(growMap(set, { growthAttempt: 1 }).network).not.toEqual(first);
+		// Growth's attempt 1, by rejecting its attempt 0 once.
+		let rejections = 0;
+		const retried = growMap(set, { accept: (_map, { stage }) => (stage === 'growth' && rejections++ === 0 ? ['rejected once'] : []) });
+		expect(retried.attempts.growth).toBe(1);
+		expect(retried.network).not.toEqual(first);
 		let fresh: typeof growMap | null = null;
 		jest.isolateModules(() => {
 			fresh = (jest.requireActual('./roadTesting') as typeof import('./roadTesting')).growMap;
 		});
 		if (!fresh) throw new Error('roadTesting did not load');
 		expect((fresh as typeof growMap)(set).network).toEqual(first);
+	});
+
+	it('refuses, in growMap, a network the runner had to retry, so a check the first attempt failed stays in sight', () => {
+		const check = jest.spyOn(roadChecks, 'checkRoadNetwork').mockReturnValueOnce([{ rule: 'crossing', detail: 'stretches 3 and 9 cross' }]);
+		try {
+			expect(() => growMap({ seed: 25 })).toThrow(/needed a retry.*growth attempt 0, map attempt 0: crossing: stretches 3 and 9 cross/);
+			// Steering the retries through the accept hook says the caller expects them.
+			check.mockReturnValueOnce([{ rule: 'crossing', detail: 'again' }]);
+			expect(growMap({ seed: 25 }, { accept: () => [] }).attempts.growth).toBe(1);
+		} finally {
+			check.mockRestore();
+		}
 	});
 
 	it('returns plain data: JSON round trips it, numbers and all', () => {

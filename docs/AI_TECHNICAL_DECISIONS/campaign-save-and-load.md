@@ -53,7 +53,7 @@ Measured, with the save as compact JSON:
 
 | | Characters |
 | --- | --- |
-| The version 4 fixture's campaign, with a run out | 3,491 |
+| The version 5 fixture's campaign, with a run out | 3,509 |
 | A stress campaign's save (`__fixtures__/stressCampaign.ts`) | 360,495 |
 | its 2,000 log lines | 222,351 |
 | its stand-in gameplay map, at the spec's sizes | 117,644 |
@@ -119,7 +119,7 @@ No `Rng` is saved. Campaign-time draws fork a stream per event from the seed and
 
 The seed is checked on load as an integer from 0 to 2^32 - 1 (`readSeed` in `core/JsonReader.ts`, shared by founding, the campaign, its map params, and the history), so a save whose seed is a string, null, or a number JSON reads as Infinity (`1e999`) fails as damaged. `new Rng({ seed })` throws on a seed that isn't a number but coerces NaN and Infinity to 0, which would quietly build seed 0's map.
 
-Loading rebuilds terrain and dressing from `root.fork('map', mapAttempt).fork(stage, stageAttempt)`, so the map state the generator defines (DDB-275) keeps the map attempt and the winning terrain and dressing attempts. The gameplay stages' attempts aren't needed, since their output is saved. Until the generator exists the map state is opaque JSON, nested at most 100 levels as the stop tables are (`MAX_JSON_DEPTH`), so a save nested deeper fails as damaged instead of overflowing the stack; `MapState` names where the attempts go.
+Loading rebuilds terrain and dressing from their streams, which nest: each stage's stream forks from the winning stream of the stage before it ([map-pipeline-worker.md](./map-pipeline-worker.md)), so the map state the generator defines (DDB-275) keeps the map attempt and every stage's winning attempt, since the dressing's stream hangs from all of them. Until the generator exists the map state is opaque JSON, nested at most 100 levels as the stop tables are (`MAX_JSON_DEPTH`), so a save nested deeper fails as damaged instead of overflowing the stack; `MapState` names where the attempts go.
 
 ## Consequences
 

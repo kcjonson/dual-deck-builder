@@ -1,10 +1,7 @@
-import { Rng } from '../../renderer/game/core/Rng';
-import { planHighways } from '../../renderer/game/map/Highways';
+import { generateAreaMap } from '../../renderer/game/map/AreaMapPipeline';
 import { MapParamSet, resolveMapParams } from '../../renderer/game/map/MapParams';
 import { validateMapParams } from '../../renderer/game/map/ParamValidator';
-import { growRoads } from '../../renderer/game/map/RoadGrowth';
 import type { RoadNetwork } from '../../renderer/game/map/RoadNetwork';
-import { generateTerrain } from '../../renderer/game/map/Terrain';
 import type {
 	AreaMapData,
 	LandFogLayer,
@@ -22,14 +19,11 @@ import type {
  * game code.
  */
 
-/** Stages 1 to 3 on the pipeline's streams: the terrain and the drivable network. */
-export function generateAreaMap(set: MapParamSet): AreaMapData {
+/** The area map's stages as they stand, through the pipeline runner: the terrain and the drivable network. */
+export function fixtureAreaMap(set: MapParamSet): AreaMapData {
 	const { params } = validateMapParams(resolveMapParams(set).params);
-	const map = new Rng({ seed: params.seed }).fork('map', 0);
-	const terrain = generateTerrain({ params, rng: map.fork('terrain', 0) });
-	const highways = planHighways({ terrain, params, rng: map.fork('highways', 0) });
-	const { network } = growRoads({ terrain, params, highways, rng: map.fork('growth', 0) });
-	return { terrain, network };
+	const { terrain, growth } = generateAreaMap({ params }).products;
+	return { terrain, network: growth.network };
 }
 
 /**

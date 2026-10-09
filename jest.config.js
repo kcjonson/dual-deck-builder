@@ -18,6 +18,7 @@ module.exports = {
 		'^@/(.*)$': '<rootDir>/src/$1',
 		'\\.(glsl|vs|fs|vert|frag)$': '<rootDir>/src/__mocks__/glslMock.js',
 		'\\.(png|ttf)$': '<rootDir>/src/__mocks__/assetMock.js',
+		'/spawnMapWorker$': '<rootDir>/src/__mocks__/spawnMapWorkerMock.js',
 	},
 	collectCoverage: true,
 	coverageDirectory: 'coverage',
