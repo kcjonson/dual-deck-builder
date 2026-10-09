@@ -6,11 +6,12 @@ import { validateMapParams } from '../ParamValidator';
 import { MapGeneration, MapGenerationResult } from './MapGeneration';
 
 /**
- * Development-only `window.__map`, for seeing generation run off the frame
- * until founding starts it: from the console, or a script driving
- * the page, `await __map.generate({ seed: 7 })` makes the map in a worker and
- * logs where the time went. Installed from Game's `__DEV_TOOLS__` branch, so
- * a production bundle carries neither it nor the client it starts.
+ * Development-only `window.__map`, which makes area maps off the frame from
+ * the console or a script driving the page. `await __map.generate({ seed: 7 })`
+ * makes the map in a worker and logs where the time went; `__map.start(set)`
+ * hands back the generation itself, to watch or cancel. Installed from Game's
+ * `__DEV_TOOLS__` branch, so a production bundle carries neither it nor the
+ * client it starts.
  */
 
 export interface MapGenerationSummary {
@@ -38,6 +39,8 @@ export interface MapGenerationApi {
 	 * thread for comparison with `inProcess`; its timings are logged and resolved.
 	 */
 	generate(set?: Partial<MapParamSet>, options?: { inProcess?: boolean }): Promise<MapGenerationSummary>;
+	/** The same generation, handed back unawaited, so the console can watch its progress or cancel it. */
+	start(set?: Partial<MapParamSet>, options?: { inProcess?: boolean }): MapGeneration;
 }
 
 interface MapHookWindow extends Window {
@@ -47,11 +50,18 @@ interface MapHookWindow extends Window {
 export function installMapGenerationHook(): void {
 	if (!__DEV_TOOLS__) return;
 	if (typeof window === 'undefined') return;
+	const start = (set: Partial<MapParamSet> = {}, { inProcess = false } = {}): MapGeneration => {
+		const { params } = validateMapParams(resolveMapParams({ ...set, seed: set.seed ?? freshSeed() }).params);
+		return new MapGeneration({
+			params,
+			spawn: inProcess ? () => null : undefined,
+			onProgress: ({ stage, attempt, mapAttempt }) => console.debug(`Map generation: ${stage} attempt ${attempt}, map attempt ${mapAttempt}`),
+		});
+	};
 	(window as MapHookWindow).__map = {
-		generate: async (set = {}, { inProcess = false } = {}) => {
-			const { params } = validateMapParams(resolveMapParams({ ...set, seed: set.seed ?? freshSeed() }).params);
-			const generation = new MapGeneration({ params, spawn: inProcess ? () => null : undefined });
-			const summary = summarizeGeneration(await generation.result);
+		start,
+		generate: async (set, options) => {
+			const summary = summarizeGeneration(await start(set, options).result);
 			console.log(describeGeneration(summary));
 			return summary;
 		},

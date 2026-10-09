@@ -1,20 +1,20 @@
 # The map pipeline runner and its worker (DDB-446)
 
-Date: 2026-10-09. Code: `src/renderer/game/map/MapPipeline.ts` (the runner), `AreaMapPipeline.ts` (today's stages), and `map/worker/` (the worker, its client, the transfer format, and the dev hook). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, Validation and retries, Performance, and Saving. Follows [realistic-map.md](./realistic-map.md), decision 5, and builds on [seeded-prng.md](./seeded-prng.md) and [map-params.md](./map-params.md).
+Date: 2026-10-09. Code: `src/renderer/game/map/MapPipeline.ts` (the runner), `AreaMapPipeline.ts` (the stages), and `map/worker/` (the worker, its client, the transfer format, and the dev hook). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, Validation and retries, Performance, and Saving. Follows [realistic-map.md](./realistic-map.md), decision 5, and builds on [seeded-prng.md](./seeded-prng.md), [map-params.md](./map-params.md), and [campaign-founding.md](./campaign-founding.md).
 
 ## Context
 
 The spec runs generation as a pipeline: each stage on a stream forked from its upstream's winning stream with its own name and attempt, each with its own checks and an optional `accept(map, stage)` hook after them, 8 attempts a stage and then a whole-map restart up to 32, stops and dressing retrying only themselves, and debug and release builds parting ways past each cap. It runs once, at founding, in a Web Worker in the web build and the Electron renderer alike.
 
-None of that existed. Three places chained terrain, highways, and growth by hand on flat streams, `root.fork('map', 0).fork(stage, attempt)`, with no checks and no retries: `roadTesting.growMap`, `scripts/road-growth.mjs`, and the gallery's area map fixture. A retry there was a caller asking for `growthAttempt: 1`.
+Before the runner, three places chained terrain, highways, and growth by hand on flat streams, `root.fork('map', 0).fork(stage, attempt)`, with no checks and no retries: `roadTesting.growMap`, `scripts/road-growth.mjs`, and the gallery's area map fixture.
 
 What the worker had to fit:
 
 - tsconfig compiles to CommonJS, and TypeScript rejects `import.meta` under it.
 - Jest runs in Node, where there's no `Worker`.
-- The Electron renderer is sandboxed with context isolation, and a packaged build loads it from `file://`.
+- The Electron renderer is sandboxed with context isolation, and a packaged build loads it from `file://` inside an asar archive.
 - webpack splits every chunk (`splitChunks: 'all'`), and neither build sets a Content-Security-Policy.
-- Terrain's insides change with uplift and erosion (Map 4), so the pipeline calls terrain only through `generateTerrain`.
+- Terrain's insides change with uplift and erosion (Map 4), so the pipeline reaches terrain only through its stage.
 
 ## The runner
 
@@ -28,22 +28,27 @@ new MapPipeline<MapParams>()
 	.run({ seed, input: params, accept, onProgress });
 ```
 
-A stage has a name, `run({ input, products, rng })`, an optional `check(product, { input, products })`, and an optional `localRetry` flag. Checks and the accept hook return problems as a list of strings, and an empty list passes. A stage that throws has a bug, not a failure, so the exception goes straight out.
+A stage has a name, `run({ input, products, rng })`, an optional `check(product, { input, products })`, and three optional settings: `attempts`, `escalate`, and `localRetry`. Checks and the accept hook return problems as a list of strings, and an empty list passes. A stage that throws has a bug, not a failure, so the exception goes straight out. Each stage is handed a record of its upstream's products of its own, which later stages never write to.
 
-- Streams nest. A map attempt's stream is `root.fork('map', m)`, the first stage's is that forked with its name and attempt, and every later stage's is its upstream's winning stream forked the same way. `fork` reads only its parent's seed, so how many draws a stage made never moves its children, and a failed attempt leaves nothing behind. Attempts count from 0 per stage in each map attempt, so they can't collide, and a rerun upstream gives everything below it fresh streams because they hang from a different parent.
-- A failing stage reruns on the products its upstream already made; nothing upstream recomputes. After 8 failures the map restarts on its next attempt, up to 32. The accept hook runs after a stage's own checks pass, sees the map so far with the stage's output in it, and its rejection counts as the stage failing.
-- A local-retry stage reruns alone and never restarts the map. Past its 8, a debug build throws and a release build warns and keeps its best attempt, the one with the fewest problems, the earliest on a tie. Later stages nest in the kept attempt's stream, and the result's `keptFailing` names the stage.
-- Past the map cap a debug build throws a `MapPipelineError` naming the last failure. A release build warns and starts over on the next seed, `seed + 1` wrapped to uint32, keeping the params, and gives up after 4 seeds, throwing in release too, so a set of params no seed can satisfy ends rather than spinning.
+- Streams nest. A map attempt's stream is `root.fork('map', m)`, the first stage's is that forked with its name and attempt, and every later stage's is its upstream's winning stream forked the same way. `fork` reads only its parent's seed, so how many draws a stage made never moves its children, and a failed attempt leaves nothing behind. A stage counts its attempts from 0 whenever its upstream changes, so numbers can't collide, and a rerun upstream gives everything below it fresh streams because they hang from a different parent.
+- A failing stage reruns on the products its upstream already made; nothing upstream recomputes. A stage gets 8 attempts unless it sets `attempts`: a stage that takes no draws (the route tree, the tiers) sets 1, since its every attempt would be the same. The accept hook runs after a stage's own checks pass, sees the map so far with the stage's output in it, and its rejection counts as the stage failing.
+- A stage out of attempts restarts the map on its next attempt, up to 32, unless it names a stage to `escalate` to. Then that upstream stage reruns on its next attempt, the stages between it and the escalating one rerun after it on fresh streams, and the escalating stage counts from 0 again. That's the spec's POIs that can't seat their strongholds rerunning the roads. Escalating spends the upstream stage's attempts; once they're gone its own `escalate` applies, and past the last one the map restarts. A stage can only escalate to one upstream of it, which the builder's types check, and neither to nor from a local-retry stage, which the builder refuses.
+- A local-retry stage reruns alone and never restarts the map. Past its cap a debug build throws and a release build warns and keeps its best attempt, the one with the fewest problems, the earliest on a tie. Later stages nest in the kept attempt's stream, and the result's `keptFailing` names the stage. Because problems are counted to rank attempts, a local-retry stage's checks report every problem, never stopping at a limit.
+- Past the map cap the run throws a `MapPipelineError` with `exhausted: 'map'` and the last failure, in every build. The runner never changes seed. Params roll from the seed, and the pool is dealt from it, so a map on another seed needs both done again, which is founding's to do (below).
 - Debug is `__DEV_TOOLS__`, the DefinePlugin constant every other dev-only path reads, unless the caller passes `debug`. Node scripts pass it, since nothing defines the constant there.
-- The result holds the products, the seed the map came from, the map attempt, each stage's winning attempt and winning stream (as its seed), per-stage timings (runs, milliseconds in runs, and milliseconds in checks and the hook), every failed attempt with its problems, and the whole run's milliseconds. Progress is reported as each attempt starts, with the stage, its index and the count, the attempt, the map attempt, and the seed.
+- The result holds the products, the map attempt, each stage's winning attempt and winning stream (as its seed), per-stage timings (runs, milliseconds in runs, and milliseconds in checks and the hook), every failed attempt with its problems, and the whole run's milliseconds. Progress is reported as each attempt starts, with the stage, its index and the count, the attempt, the map attempt, and the seed. The accept hook and progress see stage names typed as the pipeline's own.
 
-A stage list typed loosely, every stage seeing `Partial<Products>`, was simpler but put a non-null assertion on every upstream read. The builder costs one generic type and catches a stage placed before what it reads.
+A stage list typed loosely, every stage seeing `Partial<Products>`, was simpler but put a non-null assertion on every upstream read. The builder costs one generic type and catches a stage placed before what it reads, or escalating to one after it.
 
-## Today's stages
+An escalation could instead have been a failure a stage returns naming the stage to rerun. Declaring it on the stage keeps the rerun target out of every check's code, and lets the builder refuse targets that can't work.
 
-Terrain, then the highways and growth, as stand-ins until settlements and road links (Map 7 and 8) replace them, named for the streams they always drew on. Growth's check is `checkRoadNetwork`, the network checks the map validator will run, worded `rule: detail`.
+## The stages
 
-Terrain is the first stage, so its stream is the `root.fork('map', 0).fork('terrain', 0)` it always had, and the terrain goldens hold. The highways now draw under terrain's winning stream and growth under the highways', so every seed grows different roads: the area map goldens moved, and the tests that pinned the old streams now pin the nested ones. `roadTesting.growMap`, `scripts/road-growth.mjs`, and the gallery fixture (now `fixtureAreaMap`) all run the runner. `growMap` composes its own pipeline when a test lays water over the terrain, and asks for growth's second attempt by rejecting its first through the accept hook. The property test now also asserts growth won on its first attempt, since a network failing the checks would otherwise be retried out of sight, and `road-growth.mjs check` reports every first-attempt failure, the spec's health metric.
+Terrain, then the highways and growth, stand-ins for settlements and road links (Map 7 and 8), named for the streams they always drew on. Growth's check is `checkRoadNetwork`, the network checks the map validator will run, worded `rule: detail`. `areaMapPipeline` takes growth's knobs and, for tests, a terrain stage to use in place of `TERRAIN_STAGE`.
+
+Terrain is the first stage, so its stream is `root.fork('map', m).fork('terrain', t)`, and the highways and growth nest under it. `roadTesting.growMap`, `scripts/road-growth.mjs`, and the gallery's `fixtureAreaMap` all run the runner.
+
+Retries can hide a regression from a test: a network that breaks a road rule is retried, and the test sees the attempt that passed. So `growMap` throws unless every stage won its first attempt on the first map attempt, naming what failed, and only a caller that passes `accept`, steering the retries itself, gets whatever won. `road-growth.mjs check` reports every first-attempt failure, the spec's health metric.
 
 ## The worker
 
@@ -55,7 +60,7 @@ Options:
 2. One long-lived worker, kept for every generation. Its code stays compiled, so after the first a generation costs about what it does on a warm thread. But it holds memory between generations, and cancelling one means terminating the worker or checking for a cancel inside the stages.
 3. A worker per generation, terminated when the map comes back (chosen). Cancelling is `terminate()`, the memory goes with it, and nothing carries over between generations. The cost is starting a worker and running cold code every time: in Electron the pipeline takes 93 ms in a fresh worker against 38 ms in a warm one.
 
-Founding generates once a campaign, so the cold cost is paid once either way, and terminate-as-cancel keeps the founding screen simple. The Map Lab, which regenerates on every change, is where a long-lived worker would pay; the worker entry already answers any number of requests, so that's a client-side change when the Map Lab moves off the main thread.
+Founding generates once a campaign, so the cold cost is paid once either way, and terminate-as-cancel keeps the founding screen simple. The Map Lab, which regenerates on every change, is where a long-lived worker would pay; the worker entry answers any number of requests, so that's a client-side change.
 
 ### The transfer format
 
@@ -65,7 +70,7 @@ Options:
 2. JSON. One string, but 160 to 290 KB of digits written and parsed at radius 1000.
 3. Plain data with the bulk packed into transferred typed arrays (chosen). Every stretch's points go end to end in one `Float64Array`, with a `Uint32Array` of where each stretch starts, and both buffers transfer rather than copy. Float64, so every coordinate arrives exactly as generated and junctions still match. Nodes, roads, the stretches' other fields, the highways, growth's stats, and the run's attempts, streams, timings, and failures are small and go by structured clone.
 
-The terrain isn't sent at all. Today's terrain is analytic fields built in about 2 ms, so the client rebuilds it from the terrain stage's winning stream, which costs less than any encoding of it would; the whole decode, unpacking included, takes 3 ms median on the main thread. A gridded terrain (Map 4's erosion) changes that one function: its grids go as typed arrays in the same transfer list, and the client wraps them instead of regenerating. Errors cross as plain data too, a `MapPipelineError` with its failure intact.
+The analytic terrain isn't sent: the client runs the terrain stage itself on the winning terrain stream, about 2 ms, which costs less than any encoding of it would, and the whole decode, unpacking included, takes 3 ms median on the main thread. Running the stage, rather than the function behind it, keeps the decode on whatever the stage does. A gridded terrain (Map 4's erosion) sends its grids as typed arrays in the same transfer list instead. Errors cross as plain data too, a `MapPipelineError` with its failure and what was exhausted.
 
 The in-process fallback runs the same `generateTransfer` the worker does and decodes the same way, so a map is identical whichever path made it, and the Jest tests of the fallback cover the format the worker sends.
 
@@ -78,15 +83,15 @@ Options:
 3. worker-loader, built for webpack 4 and superseded by option 1.
 4. A Blob URL from an inlined bundle. It needs a second build to inline and `blob:` in any future CSP.
 
-The cost of option 1 is the `import.meta` that CommonJS can't type. TypeScript still emits it untouched, so one `@ts-expect-error` in `spawnMapWorker.ts` covers it, and webpack resolves it at build time; the directive turns into an error of its own if the project ever moves to ES modules. Jest runs the CommonJS as it is, so `jest.config.js` maps that module to a stub that spawns nothing, beside the asset and shader stubs, and the client runs in-process there. Nothing else in the client knows about webpack.
+The cost of option 1 is the `import.meta` that CommonJS can't type. TypeScript still emits it untouched, so one `@ts-expect-error` on the `new URL(...)` argument in `spawnMapWorker.ts` covers it, leaving the Worker's options type-checked, and webpack resolves it at build time; the directive turns into an error of its own if the project moves to ES modules. Jest runs the CommonJS as it is, so `jest.config.js` maps that module to a stub that spawns nothing, beside the asset and shader stubs, and the client runs in-process there. Nothing else in the client knows about webpack.
 
-Neither build sets a Content-Security-Policy (no meta tag in `public/`, no header handler in `electron/main.ts`), so nothing restricts workers. A CSP added later needs `worker-src 'self'`, and the packaged `file://` renderer should be rechecked under it. The web dev server's cross-origin isolation is satisfied as is: the worker's scripts come from the same server, with the same headers.
+Neither build sets a Content-Security-Policy (no meta tag in `public/`, no header handler in `electron/main.ts`), so nothing restricts workers. A CSP needs `worker-src 'self'`. The web dev server's cross-origin isolation is satisfied as is: the worker's scripts come from the same server, with the same headers.
 
-The client starts a worker wherever `Worker` exists, and generates in-process, after a warning, if the platform refuses one. It reports progress, resolves with the decoded map and its wall and decode times, and `cancel()` terminates the worker and rejects with `MapGenerationCancelled`, the way an aborted fetch rejects.
+The client starts a worker wherever `Worker` exists. It generates in-process instead, after a warning, if the platform refuses one or the worker fails before its first reply, which is how a chunk that didn't load shows up; a failure after a reply rejects. It reports progress, resolves with the decoded map and its wall and decode times, and `cancel()` terminates the worker and rejects with `MapGenerationCancelled`, the way an aborted fetch rejects, without leaving an unhandled rejection when nothing awaits it.
 
 ### Showing it
 
-Development builds have `window.__map.generate(set?, { inProcess? })`, installed from Game's `__DEV_TOOLS__` branch beside the other debug hooks. It makes the map in a worker (or on the page's thread, for comparison), logs one line of where the time went, and resolves with the same numbers for a script to read. With no map section on the Developer screen, a hook leaves `sections.ts` untouched. Production bundles carry neither the hook nor the worker until founding imports the client.
+Development builds have `window.__map.generate(set?, { inProcess? })`, installed from Game's `__DEV_TOOLS__` branch beside the other debug hooks. It makes the map in a worker (or on the page's thread, for comparison), logs one line of where the time went, and resolves with the same numbers for a script to read; `__map.start(set?)` hands back the `MapGeneration` itself, to watch or cancel. With no map section on the Developer screen, a hook leaves `sections.ts` untouched. Production bundles carry neither the hook nor the worker until founding imports the client.
 
 ## Timings
 
@@ -102,33 +107,36 @@ Radius 1000, five environments by three seeds, on the development desktop (Windo
 | In-process on the page's thread, wall (pipeline) | 64 ms (37) | 38 ms (35) |
 | One long-lived worker, first then median | 198 ms, then 66 | 103 ms, then 39 |
 
-Electron against the development dev server, the build the screenshot harness runs, took 126 ms median wall with a 100 ms pipeline. Plain Node 24 runs the same stages in 2 ms of terrain, 17 to 29 ms of highways and growth, and 5 to 10 ms of checks: the gap to the worker's numbers is cold code, which every fresh worker starts with. All of it is far inside the spec's budget of a second for the grid stages; Map 4's erosion will take most of that budget, and its share of cold-code overhead will be smaller.
+Electron against the development dev server, the build the screenshot harness runs, took 126 ms median wall with a 100 ms pipeline. Plain Node 24 runs the same stages in 2 ms of terrain, 17 to 29 ms of highways and growth, and 5 to 10 ms of checks: the gap to the worker's numbers is cold code, which every fresh worker starts with. All of it is far inside the spec's budget of a second for the grid stages; Map 4's erosion takes most of that budget, and its share of cold-code overhead is smaller.
 
 ## What a save needs from it
 
-Because streams nest, a stage's stream depends on every winning attempt above it, not on the map attempt alone. The land is rebuilt on load from terrain's stream, which needs the map attempt and terrain's attempt, and dressing, the last stage, from a stream nested under every stage before it. So the map attempt by itself can't rebuild the dressing. The result carries each stage's winning attempt and winning stream seed, and the save (Map 18) keeps the map attempt and every stage's winning attempt, a dozen small integers, or the stream seeds of the stages rebuilt on load. The spec's Saving section and realistic-map.md now say so.
+Because streams nest, a stage's stream depends on every winning attempt above it, not on the map attempt alone. The land is rebuilt on load from terrain's stream, which needs the map attempt and terrain's attempt, and dressing, the last stage, from a stream nested under every stage before it. So the save (Map 18) keeps the map attempt and every stage's winning attempt, a dozen small integers, which the result carries; a load rebuilds any stage's stream from them. The spec's Saving section says the same.
 
-## Where founding picks it up
+## The founding contract
 
-Not built here: founding keeps its stand-in map until the save encoding exists. `foundCampaign` is synchronous and marks the generator's slot where it reads `MAP_STAND_IN`; its only caller, `MainMenuScreen.startCampaign`, is already async. So the hookup is in two halves:
+Founding starts generation and takes the next seed past the map cap; the runner does neither. `foundCampaign` is synchronous and holds the generator's slot where it reads `MAP_STAND_IN`, and its caller, `MainMenuScreen.startCampaign`, is async, so the generation goes between them:
 
-- `MainMenuScreen.startCampaign`, behind the founding screen, resolves the founding params (`foundingParams` in Founding.ts, exported or split out), starts `new MapGeneration({ params, onProgress })`, shows progress, awaits `result`, and cancels it if the player leaves.
-- `foundCampaign` takes the generated map in place of `MAP_STAND_IN` and keeps what the save needs: the map, the map attempt, and the stage attempts. When the result's seed isn't the one founding started from (release builds past the map cap), founding redoes the deal from the result's seed, the give-up path campaign-founding.md describes.
+- Behind the founding screen, `startCampaign` resolves the founding params and the deal for the seed, starts `new MapGeneration({ params, onProgress })`, shows progress, awaits `result`, and cancels it if the player leaves.
+- On a `MapPipelineError` with `exhausted: 'map'`, a release build logs and starts over from `seed + 1` (wrapped to uint32): params rolled from that seed, the pool dealt from it, and the map generated from it, up to 4 seeds, then the error stands. A debug build rethrows at once. Params given rather than rolled (the Map Lab's) never move seed, since they're tied to the seed they were made on, and the Map Lab is a debug tool.
+- `foundCampaign` takes the generated map in place of `MAP_STAND_IN` and keeps what the save needs: the map, the map attempt, and the stage attempts, on the seed the campaign records, so its history reproduces it.
+- The founding hookup smoke-tests a packaged build, as `scripts/smoke-electron-package.mjs` does for the fonts: the worker chunk loading from inside the asar is the one path no development run covers.
 
 ## Provisional calls
 
-Calls the spec left open, made the simplest way consistent with it, for Kevin to approve or adjust:
+Calls the spec left open, made the simplest way consistent with it:
 
-1. A release build past the map cap takes `seed + 1`, wrapped to uint32, and keeps the params; after 4 seeds it throws in release too.
+1. Founding tries 4 seeds past the map cap, the one it was given and the three after it, before the error stands.
 2. A local-retry stage that runs out keeps the attempt with the fewest problems, the earliest on a tie.
 3. Growth's own check is `checkRoadNetwork`, so a network breaking a road rule is retried on growth's next stream rather than handed on.
 4. A worker per generation, terminated when the map comes back; `cancel()` terminates it.
 5. The stand-in stages are named `highways` and `growth`, the streams they always drew on, until the spec's `places` and `roads` stages replace them.
+6. Escalating spends the upstream stage's own attempts, so a stage escalated to eight times is out, and its own escalation or a map restart follows; the escalating stage starts its count again under each new upstream.
 
 ## Consequences
 
-- Every stage the realistic map adds is a `.stage()` call with its checks; retries, streams, progress, timings, and the debug and release paths come with it.
+- Every stage the realistic map adds is a `.stage()` call with its checks, attempts, and escalation; retries, streams, progress, timings, and the debug and release paths come with it.
 - The accept hook is where the map validator (DDB-296) plugs in, stage by stage.
-- Seeds grow different roads from before this change; the area map goldens were re-minted with it.
-- A fresh worker runs cold code, roughly doubling the pipeline against a warm thread today. Fine for founding; the Map Lab wants a long-lived worker when it moves off the main thread.
+- A seed's roads come from the nested highways and growth streams, which the area map goldens show.
+- A fresh worker runs cold code, roughly doubling the pipeline against a warm thread today. Fine for founding; the Map Lab wants a long-lived worker.
 - A future CSP has to allow `worker-src 'self'`, and the `@ts-expect-error` in `spawnMapWorker.ts` goes when tsconfig moves to ES modules.

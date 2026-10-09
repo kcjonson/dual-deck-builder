@@ -1,8 +1,8 @@
 import { Rng } from '../core/Rng';
-import { AreaMapProducts, HIGHWAYS_STAGE, TERRAIN_STAGE, growthStage } from './AreaMapPipeline';
+import { AreaMapProducts, TERRAIN_STAGE, areaMapPipeline } from './AreaMapPipeline';
 import type { HighwayDeparture } from './Highways';
 import { MAP_PARAMETERS, MapParamSet, MapParams, NUMBER_PARAMS, ENVIRONMENTS, resolveMapParams } from './MapParams';
-import { AcceptHook, MapPipeline, MapStage, PipelineResult } from './MapPipeline';
+import { AcceptHook, MapStage, PipelineResult } from './MapPipeline';
 import { validateMapParams } from './ParamValidator';
 import { GROWTH_RANGES, GROWTH_TUNING, GrowthStats, GrowthTerrain, GrowthTuning } from './RoadGrowth';
 import { RoadClass, RoadNetwork } from './RoadNetwork';
@@ -35,21 +35,25 @@ export interface GrownMap {
 
 /**
  * The area map's stages through the pipeline runner, with water laid over
- * the terrain when given and the accept hook passed through.
+ * the terrain when given. The runner retries a stage that fails its checks,
+ * which would retry a growth regression out of a test's sight, so this
+ * throws unless every stage won its first attempt on the first map attempt.
+ * A caller that passes `accept` is steering the retries itself, and gets
+ * whatever won.
  */
 export function growMap(set: GrowthSet, { water, accept }: { water?: WaterLayer; accept?: AcceptHook<AreaMapProducts> } = {}): GrownMap {
 	const { branchiness, clearance = GROWTH_TUNING.clearance, ...mapSet } = set;
 	const params = paramsFor(mapSet);
-	const land: MapStage<MapParams, Record<never, never>, 'terrain', Terrain> = water
+	const terrain: MapStage<MapParams, Record<never, never>, 'terrain', Terrain> | undefined = water
 		? { name: 'terrain', run: (context) => TERRAIN_STAGE.run(context).withWater(water) }
-		: TERRAIN_STAGE;
-	const { products, attempts, mapAttempt } = new MapPipeline<MapParams>()
-		.stage(land)
-		.stage(HIGHWAYS_STAGE)
-		.stage(growthStage({ branchiness, clearance }))
+		: undefined;
+	const { products, attempts, mapAttempt, failures } = areaMapPipeline({ growth: { branchiness, clearance }, terrain })
 		.run({ seed: params.seed, input: params, accept });
-	const { terrain, highways, growth } = products;
-	return { params, clearance, terrain, highways, network: growth.network, stats: growth.stats, attempts, mapAttempt };
+	if (!accept && failures.length > 0) {
+		const shown = failures.slice(0, 3).map(({ stage, attempt, mapAttempt: map, problems }) => `${stage} attempt ${attempt}, map attempt ${map}: ${problems.slice(0, 3).join('; ')}`);
+		throw new Error(`growMap: seed ${params.seed} needed a retry, which hides what failed: ${shown.join(' | ')}`);
+	}
+	return { params, clearance, terrain: products.terrain, highways: products.highways, network: products.growth.network, stats: products.growth.stats, attempts, mapAttempt };
 }
 
 export interface FakeTerrainOptions {

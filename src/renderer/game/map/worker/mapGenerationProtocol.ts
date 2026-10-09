@@ -1,11 +1,10 @@
 import { Rng } from '../../core/Rng';
-import { AreaMapGeneration, generateAreaMap } from '../AreaMapPipeline';
+import { AreaMapGeneration, AreaMapStageName, TERRAIN_STAGE, generateAreaMap } from '../AreaMapPipeline';
 import type { HighwayDeparture } from '../Highways';
 import type { MapParams } from '../MapParams';
 import { MapPipelineError, StageAttempt, StageFailure } from '../MapPipeline';
 import type { GrowthStats } from '../RoadGrowth';
 import type { Road, RoadNetwork, RoadNode, RoadStretch } from '../RoadNetwork';
-import { generateTerrain } from '../Terrain';
 
 /**
  * What crosses between the generation worker and its client, and how a map
@@ -21,9 +20,15 @@ export interface GenerateRequest {
 }
 
 export type WorkerReply =
-	| { readonly type: 'progress'; readonly progress: StageAttempt }
+	| { readonly type: 'progress'; readonly progress: StageAttempt<AreaMapStageName> }
 	| { readonly type: 'done'; readonly map: AreaMapTransfer }
-	| { readonly type: 'failed'; readonly message: string; readonly stack: string | null; readonly failure: StageFailure | null };
+	| {
+		readonly type: 'failed';
+		readonly message: string;
+		readonly stack: string | null;
+		/** A MapPipelineError's details, so the client throws one again. */
+		readonly pipeline: { readonly failure: StageFailure; readonly exhausted: MapPipelineError['exhausted'] } | null;
+	};
 
 /** A stretch without its points, which travel packed. */
 export type PackedStretch = Omit<RoadStretch, 'points'>;
@@ -84,27 +89,27 @@ export function encodeAreaMap({ products, ...map }: AreaMapGeneration): { map: A
 	};
 }
 
-/** The map back, its terrain rebuilt from the terrain stage's winning stream. */
+/** The map back, its terrain rebuilt by the terrain stage itself on its winning stream. */
 export function decodeAreaMap({ highways, growthStats, network, ...map }: AreaMapTransfer): AreaMapGeneration {
-	const terrain = generateTerrain({ params: map.params, rng: new Rng({ seed: map.streams.terrain }) });
+	const terrain = TERRAIN_STAGE.run({ input: map.params, products: {}, rng: new Rng({ seed: map.streams.terrain }) });
 	return { ...map, products: { terrain, highways, growth: { network: unpackRoadNetwork(network), stats: growthStats } } };
 }
 
 /** One request's generation, packed for the reply. */
-export function generateTransfer({ params, onProgress }: GenerateRequest & { onProgress?: (progress: StageAttempt) => void }): { map: AreaMapTransfer; buffers: ArrayBuffer[] } {
+export function generateTransfer({ params, onProgress }: GenerateRequest & { onProgress?: (progress: StageAttempt<AreaMapStageName>) => void }): { map: AreaMapTransfer; buffers: ArrayBuffer[] } {
 	return encodeAreaMap(generateAreaMap({ params, onProgress }));
 }
 
 /** A thrown error as a reply, keeping a pipeline failure's details. */
 export function failureReply(error: unknown): WorkerReply {
-	const failure = error instanceof MapPipelineError ? error.failure : null;
-	if (error instanceof Error) return { type: 'failed', message: error.message, stack: error.stack ?? null, failure };
-	return { type: 'failed', message: String(error), stack: null, failure };
+	const pipeline = error instanceof MapPipelineError ? { failure: error.failure, exhausted: error.exhausted } : null;
+	if (error instanceof Error) return { type: 'failed', message: error.message, stack: error.stack ?? null, pipeline };
+	return { type: 'failed', message: String(error), stack: null, pipeline };
 }
 
 /** A failed reply as an error again on the client's side: a MapPipelineError when the pipeline gave up. */
-export function errorFromReply({ message, stack, failure }: Extract<WorkerReply, { type: 'failed' }>): Error {
-	const error = failure ? new MapPipelineError({ message, failure }) : new Error(message);
+export function errorFromReply({ message, stack, pipeline }: Extract<WorkerReply, { type: 'failed' }>): Error {
+	const error = pipeline ? new MapPipelineError({ message, ...pipeline }) : new Error(message);
 	if (stack) error.stack = stack;
 	return error;
 }

@@ -45,30 +45,40 @@ export function growthStage(tuning: GrowthTuning = {}): MapStage<MapParams, Pick
 	};
 }
 
-export function areaMapPipeline({ growth }: { growth?: GrowthTuning } = {}): MapPipeline<MapParams, AreaMapProducts> {
+export interface AreaMapPipelineOptions {
+	/** Growth's own knobs. */
+	readonly growth?: GrowthTuning;
+	/** In place of `TERRAIN_STAGE`: a test's terrain with water laid over it, say. */
+	readonly terrain?: MapStage<MapParams, NoProducts, 'terrain', Terrain>;
+}
+
+export function areaMapPipeline({ growth, terrain = TERRAIN_STAGE }: AreaMapPipelineOptions = {}): MapPipeline<MapParams, AreaMapProducts> {
 	return new MapPipeline<MapParams>()
-		.stage(TERRAIN_STAGE)
+		.stage(terrain)
 		.stage(HIGHWAYS_STAGE)
 		.stage(growthStage(growth));
 }
 
 export interface AreaMapGeneration extends PipelineResult<AreaMapProducts> {
-	/** The params the map was generated on, with the seed it came from. */
+	/** The params the map was generated on, its seed among them. */
 	readonly params: MapParams;
 }
 
 export interface AreaMapOptions {
-	/** Resolved and validated. Generation starts from `params.seed`. */
+	/** Resolved and validated. Every stream forks from `params.seed`. */
 	readonly params: MapParams;
 	readonly growth?: GrowthTuning;
 	readonly accept?: AcceptHook<AreaMapProducts>;
-	readonly onProgress?: (stage: StageAttempt) => void;
+	readonly onProgress?: (stage: StageAttempt<AreaMapStageName>) => void;
 	/** `__DEV_TOOLS__` when left out. */
 	readonly debug?: boolean;
 }
 
-/** The area map as far as the stages go today, in-process. The generation worker runs this. */
+/**
+ * The area map as far as the stages go today, in-process. The generation
+ * worker runs this. Throws a MapPipelineError when every map attempt on the
+ * seed fails; founding answers that with the next seed (map-pipeline-worker.md).
+ */
 export function generateAreaMap({ params, growth, accept, onProgress, debug }: AreaMapOptions): AreaMapGeneration {
-	const result = areaMapPipeline({ growth }).run({ seed: params.seed, input: params, accept, onProgress, debug });
-	return { ...result, params: result.seed === params.seed ? params : { ...params, seed: result.seed } };
+	return { ...areaMapPipeline({ growth }).run({ seed: params.seed, input: params, accept, onProgress, debug }), params };
 }

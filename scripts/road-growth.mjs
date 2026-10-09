@@ -71,6 +71,7 @@ const { createTerrainSample } = load('./map/Terrain.js');
 const { GROWTH_RANGES, GROWTH_TUNING } = load('./map/RoadGrowth.js');
 const { checkRoadNetwork } = load('./map/RoadChecks.js');
 const { areaMapPipeline } = load('./map/AreaMapPipeline.js');
+const { MapPipelineError } = load('./map/MapPipeline.js');
 
 const ENVIRONMENTS = ['mixed', 'highDesert', 'rustBelt', 'floodlands', 'badlands'];
 const now = () => Number(process.hrtime.bigint()) / 1e6;
@@ -79,8 +80,8 @@ const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.l
 /**
  * The area map's stages through the pipeline runner, `repeat` times, keeping
  * the fastest highways and growth runs, since other work on the machine only
- * ever adds time, and the fastest growth checks. Debug, so a map that runs
- * out of attempts throws rather than taking the next seed. The set can carry
+ * ever adds time, and the fastest growth checks. Debug, as the tests run.
+ * A map that runs out of attempts throws a MapPipelineError. The set can carry
  * growth's own `branchiness` and `clearance` beside the map parameters.
  */
 function generate(set, repeat = 1) {
@@ -192,6 +193,7 @@ function check() {
 		try {
 			map = generate(set);
 		} catch (error) {
+			if (!(error instanceof MapPipelineError)) throw error;
 			failed += 1;
 			console.log(`map ${index} ${JSON.stringify(set)}\n  ${error.message}`);
 			continue;

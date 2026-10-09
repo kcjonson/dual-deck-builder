@@ -1,4 +1,4 @@
-import type { AreaMapGeneration } from '../AreaMapPipeline';
+import type { AreaMapGeneration, AreaMapStageName } from '../AreaMapPipeline';
 import type { MapParams } from '../MapParams';
 import type { StageAttempt } from '../MapPipeline';
 import { AreaMapTransfer, WorkerReply, decodeAreaMap, errorFromReply, generateTransfer } from './mapGenerationProtocol';
@@ -7,9 +7,10 @@ import { spawnMapWorker } from './spawnMapWorker';
 /**
  * One area map generation, off the frame: a worker of its own, which ends
  * when the map comes back or the generation is cancelled. Where there's no
- * Worker (Jest, or a spawn that gives none) it runs in-process instead, a
- * task after construction, through the same transfer format, so the result
- * is the same either way.
+ * Worker (Jest, or a spawn that gives none), or the worker fails before it
+ * replies (a chunk that didn't load), it runs in-process instead, a task
+ * later, through the same transfer format, so the result is the same either
+ * way.
  *
  *   const generation = new MapGeneration({ params, onProgress });
  *   const map = await generation.result;
@@ -28,7 +29,7 @@ export interface MapGenerationOptions {
 	/** Resolved and validated. Generation starts from `params.seed`. */
 	readonly params: MapParams;
 	/** Told as each stage attempt starts. */
-	readonly onProgress?: (progress: StageAttempt) => void;
+	readonly onProgress?: (progress: StageAttempt<AreaMapStageName>) => void;
 	/** Starts the worker, or gives null to run in-process. `spawnMapWorker` when left out; never called where there's no Worker. */
 	readonly spawn?: () => Worker | null;
 	/** Milliseconds, for the timings: performance.now when left out. */
@@ -48,10 +49,12 @@ export class MapGeneration {
 	public readonly result: Promise<MapGenerationResult>;
 
 	private readonly params: MapParams;
-	private readonly onProgress: ((progress: StageAttempt) => void) | undefined;
+	private readonly onProgress: ((progress: StageAttempt<AreaMapStageName>) => void) | undefined;
 	private readonly now: () => number;
 	private readonly started: number;
-	private readonly worker: Worker | null;
+	private worker: Worker | null;
+	/** Whether the worker has said anything, after which a failure is the generation's, not the worker's start. */
+	private replied = false;
 	private pending: ReturnType<typeof setTimeout> | null = null;
 	private finished = false;
 	private resolveResult: (result: MapGenerationResult) => void = () => undefined;
@@ -68,7 +71,7 @@ export class MapGeneration {
 		});
 		this.worker = typeof Worker === 'undefined' ? null : startWorker(spawn);
 		if (this.worker) this.runInWorker(this.worker);
-		else this.pending = setTimeout(() => this.runInProcess(), 0);
+		else this.runInProcessLater();
 	}
 
 	public get inWorker(): boolean {
@@ -84,22 +87,38 @@ export class MapGeneration {
 	public cancel(): void {
 		if (this.finished) return;
 		this.finish();
+		// A caller that cancels has stopped listening, so the rejection mustn't surface as unhandled; one that awaits still gets it.
+		this.result.catch(() => undefined);
 		this.rejectResult(new MapGenerationCancelled());
 	}
 
 	private runInWorker(worker: Worker): void {
 		worker.onmessage = ({ data }: MessageEvent<WorkerReply>) => {
-			if (this.finished) return;
+			if (this.finished || worker !== this.worker) return;
+			this.replied = true;
 			if (data.type === 'progress') this.onProgress?.(data.progress);
 			else if (data.type === 'done') this.complete(data.map);
 			else this.fail(errorFromReply(data));
 		};
 		worker.onerror = (event: ErrorEvent) => {
 			event.preventDefault();
-			this.fail(new Error(`MapGeneration: the worker failed: ${event.message || 'its script did not load'}`));
+			if (this.finished || worker !== this.worker) return;
+			const reason = event.message || 'its script did not load';
+			if (this.replied) {
+				this.fail(new Error(`MapGeneration: the worker failed: ${reason}`));
+				return;
+			}
+			console.warn(`MapGeneration: the worker failed before it replied (${reason}), generating in-process`);
+			worker.terminate();
+			this.worker = null;
+			this.runInProcessLater();
 		};
 		worker.onmessageerror = () => this.fail(new Error('MapGeneration: a reply from the worker could not be read'));
 		worker.postMessage({ params: this.params });
+	}
+
+	private runInProcessLater(): void {
+		this.pending = setTimeout(() => this.runInProcess(), 0);
 	}
 
 	private runInProcess(): void {

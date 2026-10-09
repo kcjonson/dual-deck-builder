@@ -10,6 +10,9 @@
  * spawns nothing, and the client runs in-process there.
  */
 export function spawnMapWorker(): Worker | null {
-	// @ts-expect-error TS1343: import.meta under module commonjs, which webpack resolves at build time
-	return new Worker(new URL('./mapWorker.ts', import.meta.url), { name: 'map-generation' });
+	return new Worker(
+		// @ts-expect-error TS1343: import.meta under module commonjs, which webpack resolves at build time
+		new URL('./mapWorker.ts', import.meta.url),
+		{ name: 'map-generation' },
+	);
 }
