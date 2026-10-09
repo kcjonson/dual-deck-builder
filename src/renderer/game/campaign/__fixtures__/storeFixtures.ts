@@ -2,9 +2,16 @@ import { resolveMapParams } from '../../map/MapParams';
 import { CAMPAIGN_SCHEMA_VERSION, Campaign } from '../Campaign';
 import { CampaignStore, CampaignStoreError, campaignKeys } from '../CampaignStore';
 import { MemorySaveStorage, SaveStorage } from '../SaveStorage';
-import campaignV3 from './campaign-v3.json';
+import campaignFixture from './campaign-v3.json';
 
 export const SEED = 20261006;
+
+/**
+ * A campaign at the current save format (`CAMPAIGN_SCHEMA_VERSION`), which
+ * loads and writes back the same. Tests take it from here, so a format bump
+ * renames the file in one place.
+ */
+export const CAMPAIGN_FIXTURE = campaignFixture;
 
 /** The namespace the store tests save under, and its keys. */
 export const NAMESPACE = 'test';
@@ -28,9 +35,9 @@ export function saveText({ campaign, version = CAMPAIGN_SCHEMA_VERSION, sequence
 	return `{"version":${version},"sequence":${sequence},"campaign":${campaign}}`;
 }
 
-/** The version 3 fixture as save text, its campaign changed first if asked. */
+/** The fixture as save text, its campaign changed first if asked. */
 export function fixtureText(change: (campaign: Record<string, unknown>) => void = () => undefined): string {
-	const campaign = JSON.parse(JSON.stringify(campaignV3));
+	const campaign = JSON.parse(JSON.stringify(CAMPAIGN_FIXTURE));
 	change(campaign);
 	return saveText({ campaign: JSON.stringify(campaign) });
 }
@@ -42,7 +49,7 @@ export function damagedText(): string {
 
 /** The fixture saved by the next version of the save format. */
 export function outdatedText(): string {
-	return saveText({ campaign: JSON.stringify(campaignV3), version: CAMPAIGN_SCHEMA_VERSION + 1 });
+	return saveText({ campaign: JSON.stringify(CAMPAIGN_FIXTURE), version: CAMPAIGN_SCHEMA_VERSION + 1 });
 }
 
 /** The store error a call rejected with. */

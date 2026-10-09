@@ -82,5 +82,5 @@ function stressMap(rng: Rng): JsonObject {
 		rolls: rng.int(0, 9)
 	}));
 	const fog = Array.from({ length: 128 }, () => rng.next());
-	return { attempts: { map: 0, terrain: 0, scenery: 1 }, roads, pois, stops, fog };
+	return { attempts: { map: 0, terrain: 0, dressing: 1 }, roads, pois, stops, fog };
 }
