@@ -832,7 +832,7 @@ describe('Campaign', () => {
 				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
 			};
 
-			expect(CAMPAIGN_SCHEMA_VERSION).toBe(4);
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(3);
 			try {
 				expect(format).toEqual(SAVE_FORMAT);
 			} catch (error) {

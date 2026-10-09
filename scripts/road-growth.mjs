@@ -64,7 +64,7 @@ const { MAP_PARAMETERS, NUMBER_PARAMS, resolveMapParams } = load('./map/MapParam
 const { validateMapParams } = load('./map/ParamValidator.js');
 const { createTerrainSample, generateTerrain } = load('./map/Terrain.js');
 const { planHighways } = load('./map/Highways.js');
-const { GROWTH_TUNING, growRoads } = load('./map/RoadGrowth.js');
+const { GROWTH_RANGES, GROWTH_TUNING, growRoads } = load('./map/RoadGrowth.js');
 const { checkRoadNetwork } = load('./map/RoadChecks.js');
 
 const ENVIRONMENTS = ['mixed', 'highDesert', 'rustBelt', 'floodlands', 'badlands'];
@@ -164,8 +164,8 @@ function sampledSet(index) {
 		const spec = MAP_PARAMETERS[name];
 		if (spec.group === 'world' || spec.group === 'network' || name === 'strongholds') set[name] = draw(spec);
 	}
-	set.branchiness = draw({ kind: 'float', tuning: { min: 0, max: 1 } });
-	set.clearance = draw({ kind: 'int', tuning: { min: 10, max: 60 } });
+	set.branchiness = draw(GROWTH_RANGES.branchiness);
+	set.clearance = draw(GROWTH_RANGES.clearance);
 	return set;
 }
 

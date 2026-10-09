@@ -2,7 +2,7 @@ import { Rng } from '../core/Rng';
 import { HighwayDeparture, planHighways } from './Highways';
 import { MAP_PARAMETERS, MapParamSet, MapParams, NUMBER_PARAMS, ENVIRONMENTS, resolveMapParams } from './MapParams';
 import { validateMapParams } from './ParamValidator';
-import { GROWTH_TUNING, GrowthStats, GrowthTerrain, GrowthTuning, growRoads } from './RoadGrowth';
+import { GROWTH_RANGES, GROWTH_TUNING, GrowthStats, GrowthTerrain, GrowthTuning, growRoads } from './RoadGrowth';
 import { RoadClass, RoadNetwork } from './RoadNetwork';
 import { Terrain, WaterLayer, generateTerrain } from './Terrain';
 import type { Hotspot } from './TerrainSites';
@@ -74,12 +74,6 @@ export function departure(bearing: number, metroRadius: number, drift: number[] 
 	const radians = bearing * Math.PI / 180;
 	return { bearing, x: metroRadius * Math.cos(radians), y: metroRadius * Math.sin(radians), drift };
 }
-
-/** The ranges growth's own knobs had as map parameters. */
-const GROWTH_RANGES = {
-	branchiness: { kind: 'float', tuning: { min: 0, max: 1 } },
-	clearance: { kind: 'int', tuning: { min: 10, max: 60 } },
-} as const;
 
 /**
  * Parameter sets across the tuning ranges: the corners that push hardest on

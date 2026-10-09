@@ -2,7 +2,7 @@ import { resolveMapParams } from '../../map/MapParams';
 import { CAMPAIGN_SCHEMA_VERSION, Campaign } from '../Campaign';
 import { CampaignStore, CampaignStoreError, campaignKeys } from '../CampaignStore';
 import { MemorySaveStorage, SaveStorage } from '../SaveStorage';
-import campaignFixture from './campaign-v4.json';
+import campaignFixture from './campaign-v3.json';
 
 export const SEED = 20261006;
 

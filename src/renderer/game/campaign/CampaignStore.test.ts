@@ -52,7 +52,7 @@ describe('CampaignStore', () => {
 			expect(loaded?.toJSON()).toEqual(campaign.toJSON());
 		});
 
-		it('continues the version 3 fixture', async () => {
+		it('continues the fixture', async () => {
 			const loaded = await storeOver(storageWith(fixtureText())).load();
 
 			expect(loaded?.toJSON()).toEqual(CAMPAIGN_FIXTURE);

@@ -64,18 +64,20 @@ export type MapParams = {
 	/** The metro ruins' radius as a share of `radius`. */
 	metroSize: number;
 	towns: number;
+	/** Smaller named places the roads join, spaced closer than towns. */
 	villages: number;
 
 	highways: number;
 	/** Degrees between neighbouring highway exits at the rim. */
 	highwaySeparation: number;
-	/** How close the crossroads sit that county roads join. */
+	/** How close the crossroads sit that county roads join: 140 world units apart at 0, 70 at 1. */
 	roadDensity: number;
-	/** How readily a road joins places the roads already connect: sets the detour factor. */
+	/** How readily a road joins places the roads already connect: the detour factor is 1.9 at 0, 1.1 at 1. */
 	loops: number;
 	/** How heavily a road's path cost weighs grade, so how far roads wind to keep it gentle: ruler-straight to switchbacks. */
 	curviness: number;
 	trailShare: number;
+	/** Highway spans that collapsed: drawn with their gap, and out of the network where every place stays reachable. */
 	brokenHighways: number;
 
 	strongholds: number;

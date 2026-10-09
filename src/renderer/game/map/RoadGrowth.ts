@@ -1,7 +1,7 @@
 import type { Rng } from '../core/Rng';
 import { Vector, chaikin, pointSegmentDistanceSquared, segmentDistanceSquared, unitVector } from './Geometry';
 import type { HighwayDeparture } from './Highways';
-import type { MapParams } from './MapParams';
+import type { MapParams, ParamRange } from './MapParams';
 import { ROAD_CLASSES, Road, RoadClass, RoadNetwork, RoadNode, RoadNodeKind, RoadStretch } from './RoadNetwork';
 import { SegmentIndex } from './SegmentIndex';
 import type { Terrain } from './Terrain';
@@ -186,6 +186,12 @@ export interface GrowthTuning {
 
 /** The old table's defaults. */
 export const GROWTH_TUNING: Readonly<Required<GrowthTuning>> = { branchiness: 0.5, clearance: 24 };
+
+/** The old table's tuning ranges, for tests and sweeps to sample. */
+export const GROWTH_RANGES: { readonly [Name in keyof GrowthTuning]-?: { readonly kind: 'int' | 'float'; readonly tuning: ParamRange } } = {
+	branchiness: { kind: 'float', tuning: { min: 0, max: 1 } },
+	clearance: { kind: 'int', tuning: { min: 10, max: 60 } },
+};
 
 export interface GrowthOptions extends GrowthTuning {
 	terrain: GrowthTerrain;

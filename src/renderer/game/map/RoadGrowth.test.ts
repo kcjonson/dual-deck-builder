@@ -78,7 +78,7 @@ describe('the step rules', () => {
 			return rules;
 		}
 
-		it('keeps roadClearance from a road it doesn\'t meet', () => {
+		it('keeps the clearance from a road it doesn\'t meet', () => {
 			const rules = rulesWithRoads();
 			rules.index.add(100, 400, 100, 420, 1);
 			expect(rules.blocker(2, 123.9, 400, 140, 420)).toBe('stranger');
