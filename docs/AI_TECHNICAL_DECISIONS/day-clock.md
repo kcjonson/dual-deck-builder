@@ -57,7 +57,7 @@ Each is a value or a line or two to change.
 - A shortfall costs 1 person and 1 unrest per unit short, counting food and water separately and adding them. Short 1 food and 2 water costs 3 people and 3 unrest. Counting the larger of the two instead (the same people go hungry and thirsty) is one line.
 - Upkeep counts People at dusk, before the night's losses, and the compound eats what's there before counting what's short.
 - Unrest only rises. Nothing in the spec lowers it, so nothing here does; cooling on a fed day would be one rule value and one line.
-- Healing takes a day off `injuredDays` per day end, and a driver who reaches 0 is ready at full HP. A ready driver below max HP isn't touched: only the injured are in the infirmary. Meds (DDB-304) speed this step up.
+- Healing takes a day off `injuredDays` per day end, and a driver who reaches 0 is ready at full HP. A ready driver below max HP isn't touched: only the injured are in the infirmary. Meds (DDB-304) take days off through the same step ([injuries.md](./injuries.md)).
 - A short day writes one log line, dated the day that ended. A fed day, a rest, and healing write none.
 
 ## Consequences

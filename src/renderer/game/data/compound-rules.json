@@ -8,5 +8,9 @@
 	"shortfall": {
 		"peopleLostPerUnit": 1,
 		"unrestPerUnit": 1
+	},
+	"infirmary": {
+		"hitpointsPerDay": 10,
+		"medsPerDay": 1
 	}
 }
