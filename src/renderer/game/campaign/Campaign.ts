@@ -5,6 +5,7 @@ import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
 import { CardCounts, NO_CARDS, addCards, cardCount, readCardCounts, readCardType, removeCards } from './CardCounts';
 import { EscortJson, convoyToJson, readConvoy } from './ConvoyJson';
+import { DECK_RULES, DeckBlocker, deckAddBlocker, deckRemoveBlocker } from './DeckRules';
 import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordJson, placeholderName, readDriverRecord } from './DriverRecord';
 import { ReaderRangeError, ReaderTypeError, describeValue, readArray, readFields, readInteger, readOneOf, readSeed, readText } from './JsonReader';
 import { readMapParams, repairMapParams } from './MapParamsJson';
@@ -39,6 +40,37 @@ export interface CampaignLogEntry {
 
 /** Where a card copy sits between runs: the compound's locker or a driver's default deck. */
 export type CardPlace = 'locker' | DriverRecord;
+
+/** Copies of a card going from one place to another. */
+export interface CardMove {
+	cardType: string;
+	from: CardPlace;
+	to: CardPlace;
+	/** 1 when left out. */
+	count?: number;
+}
+
+/**
+ * Why the rules refuse a card move or a scrap, which the Crew screen shows
+ * on the action it disables. `place` is the end that refuses: a driver
+ * who's away (dead or missing, their status says which), a place holding
+ * too few copies, or a deck whose rules say no (`DeckBlocker`).
+ */
+export type CardBlocker =
+	| { reason: 'driver_away'; place: DriverRecord }
+	| { reason: 'too_few'; place: CardPlace; held: number }
+	| (DeckBlocker & { place: DriverRecord });
+
+/** A card move or scrap the rules refuse, carrying the blocker its check gives. */
+export class CardRuleError extends RangeError {
+	public readonly blocker: CardBlocker;
+
+	constructor({ message, blocker }: { message: string; blocker: CardBlocker }) {
+		super(message);
+		this.name = 'CardRuleError';
+		this.blocker = blocker;
+	}
+}
 
 export interface CampaignData {
 	/** uint32. The map's seed, and the root every campaign stream forks from. */
@@ -280,31 +312,59 @@ export class Campaign extends Model<CampaignData> {
 	}
 
 	/**
+	 * Every copy the compound owns, by card type: the locker's and every
+	 * default deck's. Each copy is in exactly one of those places, so moves
+	 * never change this and scrapping takes from it. Run decks (DDB-315) are
+	 * places too, and join this sum when they land. A record's listener can
+	 * see half a move (a copy in two places, or none), so read this, as the
+	 * Crew screen should, on the campaign's `change`, not a record's.
+	 */
+	public get cardsOwned(): CardCounts {
+		const owned: Record<string, number> = { ...this.locker };
+		for (const driver of this.drivers) {
+			for (const [cardType, count] of Object.entries(driver.defaultDeck)) owned[cardType] = cardCount(owned, cardType) + count;
+		}
+		return readCardCounts(owned, 'cardsOwned');
+	}
+
+	/**
+	 * Why the rules refuse this move, or null if `moveCards` would make it,
+	 * checked in this order: a driver at either end is away (dead, gone with
+	 * their cards, or missing, not here to hand cards to or take them from),
+	 * `from` holds fewer than `count`, the card is marked for another
+	 * archetype than `to`'s driver, `to`'s deck would go past the most it
+	 * holds, or `from`'s under the fewest (`DECK_RULES`). Throws, as
+	 * `moveCards` does, on a move no rule covers: a malformed card type or
+	 * count, a place to itself, or a driver outside this campaign's pool.
+	 * A record's listener can see half a move, so the Crew screen asks again
+	 * on the campaign's `change`, not a record's.
+	 */
+	public getCardMoveBlocker(move: CardMove): CardBlocker | null {
+		return this.checkMove(move).blocker;
+	}
+
+	/**
 	 * Moves copies of a card between the locker and the default decks of
-	 * drivers at the compound, all in this campaign. A move never makes or
-	 * loses a copy, so each copy stays in exactly one place. Throws, moving
-	 * nothing, when `from` holds fewer than `count`, or either end is a dead
-	 * driver (gone, with their cards) or a missing one (not here to hand
-	 * cards to or take them from). Deck rules (size limits, who can take
-	 * what) are the Crew screen's (DDB-310), not checked here.
+	 * drivers at the compound, all in this campaign: the Crew screen's add
+	 * and remove, and a move between two decks. A move never makes or loses
+	 * a copy, so each copy stays in exactly one place. Throws a
+	 * `CardRuleError`, moving nothing, when `getCardMoveBlocker` refuses it.
 	 *
 	 * Campaign listeners hear a move once it's whole: decks are stored before
 	 * the locker, and a move between two drivers ends with a campaign
 	 * `change`. While a move is being stored, the campaign refuses another
 	 * move and every `set`. Records aren't held, so a listener on `from` can
 	 * still change `to` before the copies land: they go on the deck `to` holds
-	 * then, or back on `from` if `to` has left the compound or can't hold
-	 * them, or into the locker if `from` can't either.
+	 * then, or back on `from` if `to` has left the compound or the rules no
+	 * longer let its deck take them, or into the locker if `from` can't take
+	 * them either. A listener's own `set` of a deck still steps outside the
+	 * rules, as any `set` of a deck does.
 	 */
-	public moveCards({ cardType, from, to, count = 1 }: { cardType: string; from: CardPlace; to: CardPlace; count?: number }): void {
+	public moveCards(move: CardMove): void {
 		if (storingMoves.has(this)) throw new Error("Can't move cards while another move is being stored");
-		readCardType(cardType, 'cardType');
-		readInteger(count, 'count', { min: 1 });
-		if (from === to) throw new RangeError(`Can't move ${cardType} from ${placeName(from)} to itself`);
-		const source = this.countsAt(from);
-		const target = this.countsAt(to);
-		const held = cardCount(source, cardType);
-		if (held < count) throw new RangeError(`Can't move ${count} ${cardType} from ${placeName(from)}, which holds ${held}`);
+		const { cardType, from, to, count = 1 } = move;
+		const { blocker, source, target } = this.checkMove(move);
+		if (blocker !== null) throw new CardRuleError({ message: blockerMessage({ blocker, verb: 'move', cardType, count }), blocker });
 		const taken = removeCards(source, cardType, count);
 		// These throw, storing nothing, when the far end, or the locker the copies fall back to, can't hold that many more.
 		const given = addCards(target, cardType, count);
@@ -325,6 +385,36 @@ export class Campaign extends Model<CampaignData> {
 		if (from === 'locker') this.set({ locker: taken });
 		else if (landing === 'locker') this.set({ locker: addCards(this.locker, cardType, count) });
 		else this.emit('change', this.getState());
+	}
+
+	/**
+	 * Why the rules refuse to scrap `count` copies of a card from the locker,
+	 * or null if `scrapCards` would: the locker holds fewer. Throws on a
+	 * malformed card type or count.
+	 */
+	public getScrapBlocker({ cardType, count = 1 }: { cardType: string; count?: number }): CardBlocker | null {
+		readCardType(cardType, 'cardType');
+		readInteger(count, 'count', { min: 1 });
+		const held = cardCount(this.locker, cardType);
+		return held < count ? { reason: 'too_few', place: 'locker', held } : null;
+	}
+
+	/**
+	 * Scraps copies of a card from the locker for `DECK_RULES.scrapPerCard`
+	 * scrap each, in one `set`, and returns the scrap it made. Only locker
+	 * copies are scrapped: a card in a deck goes back to the locker first.
+	 * Throws a `CardRuleError`, changing nothing, when `getScrapBlocker`
+	 * refuses, and as `set` does while a card move is being stored.
+	 */
+	public scrapCards({ cardType, count = 1 }: { cardType: string; count?: number }): number {
+		const blocker = this.getScrapBlocker({ cardType, count });
+		if (blocker !== null) throw new CardRuleError({ message: blockerMessage({ blocker, verb: 'scrap', cardType, count }), blocker });
+		const scrap = count * DECK_RULES.scrapPerCard;
+		this.set({
+			locker: removeCards(this.locker, cardType, count),
+			resources: { ...this.resources, scrap: this.resources.scrap + scrap }
+		});
+		return scrap;
 	}
 
 	/** Adds a line to the log, dated today. */
@@ -364,11 +454,54 @@ export class Campaign extends Model<CampaignData> {
 		return JSON.stringify(save);
 	}
 
+	/**
+	 * A move checked against the rules, with the counts each end holds now,
+	 * which `moveCards` stores from. Every deck rule reads those counts and
+	 * `archetypeAt`, so a new kind of place only has to answer those two.
+	 */
+	private checkMove({ cardType, from, to, count = 1 }: CardMove): { blocker: CardBlocker | null; source: CardCounts; target: CardCounts } {
+		readCardType(cardType, 'cardType');
+		readInteger(count, 'count', { min: 1 });
+		if (from === to) throw new RangeError(`Can't move ${cardType} from ${placeName(from)} to itself`);
+		const source = this.countsAt(from);
+		const target = this.countsAt(to);
+		const refused = (blocker: CardBlocker) => ({ blocker, source, target });
+		for (const place of [from, to]) {
+			if (place !== 'locker' && !isAtCompound(place)) return refused({ reason: 'driver_away', place });
+		}
+		const held = cardCount(source, cardType);
+		if (held < count) return refused({ reason: 'too_few', place: from, held });
+		if (to !== 'locker') {
+			const blocker = deckAddBlocker({ deck: target, archetype: archetypeAt(to), cardType, count });
+			if (blocker !== null) return refused({ ...blocker, place: to });
+		}
+		if (from !== 'locker') {
+			const blocker = deckRemoveBlocker({ deck: source, count });
+			if (blocker !== null) return refused({ ...blocker, place: from });
+		}
+		return { blocker: null, source, target };
+	}
+
 	private countsAt(place: CardPlace): CardCounts {
 		if (place === 'locker') return this.locker;
 		if (!this.drivers.includes(place)) throw new RangeError(`${place.name} (${place.id}) isn't in this campaign's pool`);
-		if (!isAtCompound(place)) throw new RangeError(`${place.name} (${place.id}) is ${place.status}, so no cards move to or from their deck`);
 		return place.defaultDeck;
+	}
+}
+
+/** What a refused move or scrap throws, worded for the log and the console; the Crew screen words its own from the blocker. */
+function blockerMessage({ blocker, verb, cardType, count }: { blocker: CardBlocker; verb: 'move' | 'scrap'; cardType: string; count: number }): string {
+	switch (blocker.reason) {
+		case 'driver_away':
+			return `${blocker.place.name} (${blocker.place.id}) is ${blocker.place.status}, so no cards move to or from their deck`;
+		case 'too_few':
+			return `Can't ${verb} ${count} ${cardType} from ${placeName(blocker.place)}, which holds ${blocker.held}`;
+		case 'other_archetype':
+			return `${cardType} is for ${blocker.archetype} drivers only, so it can't go in ${placeName(blocker.place)}`;
+		case 'deck_full':
+			return `Can't add ${count} ${cardType} to ${placeName(blocker.place)}, which holds ${blocker.place.deckSize} of at most ${blocker.max}`;
+		case 'deck_at_minimum':
+			return `Can't take ${count} ${cardType} from ${placeName(blocker.place)}, which holds ${blocker.place.deckSize} of at least ${blocker.min}`;
 	}
 }
 
@@ -386,15 +519,21 @@ function isAtCompound(place: CardPlace): boolean {
 	return place === 'locker' || (place.status !== 'dead' && place.status !== 'missing');
 }
 
+/** The archetype whose cards a deck at this place takes: its driver's. */
+function archetypeAt(place: Exclude<CardPlace, 'locker'>): DriverArchetype {
+	return place.archetype;
+}
+
 /**
  * Stores moved copies on the first of these decks whose driver is at the
- * compound and can hold them, and says where they went: the locker, when
- * none can. A listener can have sent a driver away, or filled their deck
- * past what a count holds, while the move was being stored.
+ * compound and can hold them, by the deck rules and by what a count holds,
+ * and says where they went: the locker, when none can. A listener can have
+ * sent a driver away, or filled their deck, while the move was being stored.
  */
 function landCopies({ decks, cardType, count }: { decks: readonly DriverRecord[]; cardType: string; count: number }): CardPlace {
 	for (const driver of decks) {
 		if (!isAtCompound(driver)) continue;
+		if (deckAddBlocker({ deck: driver.defaultDeck, archetype: archetypeAt(driver), cardType, count }) !== null) continue;
 		let deck: CardCounts;
 		try {
 			deck = addCards(driver.defaultDeck, cardType, count);
