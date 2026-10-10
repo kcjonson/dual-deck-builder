@@ -52,9 +52,10 @@ export interface AreaMapScreenOptions {
  *
  * A POI is chosen by a click on its marker (the view picks in world space
  * through its camera) or from the list, which is the keyboard's way to the
- * POIs: Back, the map, the list, then Plan a run here, in that order. Picking
- * on the map scrolls the list to it; picking in the list brings it into view
- * on the map. A click anywhere else on the map clears the choice.
+ * POIs: Tab goes Back, the list, Plan a run here, then the map, and the
+ * arrows choose as they move through the list. Picking on the map scrolls
+ * the list to it; picking in the list brings it into view on the map. A
+ * click anywhere else on the map clears the choice.
  *
  * The map is the campaign's own (`getAreaMap`), made again on Continue, so
  * the screen says how far that's got while it waits, and drops the answer
@@ -89,6 +90,7 @@ export class AreaMapScreen extends Screen {
 	private visit = 0;
 	/** Stops waiting for the map once the screen has gone. */
 	private waiting: AbortController | null = null;
+	private stopHearingFocus: (() => void) | null = null;
 	private loaded: Promise<void> = Promise.resolve();
 
 	constructor({ store = CampaignStore.shared, maps = PlanningMaps.shared }: AreaMapScreenOptions = {}) {
@@ -135,6 +137,8 @@ export class AreaMapScreen extends Screen {
 		this.stack.addChild(this.createSide(back));
 
 		this.rootLayer.hotkeys.register('Escape', () => this.back());
+		// Focus moving onto a destination's row chooses it, so the arrows choose as they move.
+		this.stopHearingFocus = this.context.focus.onFocusChange((focused) => this.focusedRow(focused));
 		this.context.focus.focus(back);
 
 		const handed = data as Partial<AreaMapScreenData> | undefined;
@@ -146,6 +150,8 @@ export class AreaMapScreen extends Screen {
 		this.visit += 1;
 		this.waiting?.abort();
 		this.waiting = null;
+		this.stopHearingFocus?.();
+		this.stopHearingFocus = null;
 		this.rootLayer.hotkeys.unregister('Escape');
 		this.stack.clearChildren();
 		this.campaign = null;
@@ -324,6 +330,12 @@ export class AreaMapScreen extends Screen {
 			this.choose(handed, { from: 'return' });
 			if (this.planButton?.enabled) this.context.focus.focus(this.planButton);
 		}
+	}
+
+	/** Focus on a destination's row chooses its POI, unless it's chosen already. */
+	private focusedRow(focused: unknown): void {
+		const poi = this.pois.find(({ poi: index }) => this.rows.get(index) === focused);
+		if (poi && poi !== this.chosen) this.choose(poi, { from: 'list' });
 	}
 
 	/** A click on the map: a POI's marker chooses it; anywhere else clears the choice, roads included. */

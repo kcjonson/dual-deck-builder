@@ -154,8 +154,12 @@ describe('AreaMapScreen (DDB-43)', () => {
 		const shown = view();
 		shown.camera.zoom = shown.camera.maxZoom;
 		shown.camera.center = { x: -second.x, y: -second.y };
-		send(context, [key('ArrowDown'), key('Enter')]);
+		// Focus on a row chooses it, and the arrows choose as they move
+		expect(screen.selected).toBe(first);
+		expect(text('area_map_selected_name')).toBe(first.name);
+		send(context, [key('ArrowDown')]);
 		expect(screen.selected).toBe(second);
+		expect(find<ListRow>(`area_map_poi_${second.poi}`).selected).toBe(true);
 		const world = shown.camera.visibleWorld;
 		expect(second.x).toBeGreaterThanOrEqual(world.x);
 		expect(second.x).toBeLessThanOrEqual(world.x + world.width);
