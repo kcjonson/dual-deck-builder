@@ -5,8 +5,8 @@ import { MapParamSet, MapParams, resolveMapParams } from './MapParams';
 import { validateMapParams } from './ParamValidator';
 import { generateLand, moistureLevel, terraceHeight, terracePull } from './Land';
 import type { RiverCrossing } from './Rivers';
+import { Hazards, generateHazards } from './Hazards';
 import { MOVE_COST, RELIEF, Terrain, TerrainSample, WaterLayer, createTerrainSample, generateTerrain, terrainFromSurface } from './Terrain';
-import { TOWN_CRATER_GAP, TOWN_SPACING } from './TerrainSites';
 import { generateWater } from './Water';
 
 /** The terrain stream as the pipeline forks it: `root.fork('map', mapAttempt).fork('terrain', stageAttempt)`. */
@@ -42,6 +42,12 @@ function wetTerrainFor(set: MapParamSet): Terrain {
 		wet.set(key, terrain);
 	}
 	return terrain;
+}
+
+/** The land with its water and the hazards stage's craters and plumes over it, as the places and roads read it. */
+function hazardTerrainFor(set: MapParamSet): Terrain {
+	const params = paramsFor(set);
+	return generateHazards({ params, terrain: wetTerrainFor(set), rng: terrainStream(params.seed).fork('water', 0).fork('hazards', 0) }).terrain;
 }
 
 /** Points on a square grid of `cells` across the disc, inside it. */
@@ -140,8 +146,6 @@ describe('generateTerrain', () => {
 			SEEDS.forEach((seed) => {
 				const first = buildTerrain({ seed, environment: 'badlands' });
 				const second = buildTerrain({ seed, environment: 'badlands' });
-				expect(second.hotspots).toEqual(first.hotspots);
-				expect(second.towns).toEqual(first.towns);
 				const a = createTerrainSample();
 				const b = createTerrainSample();
 				gridInside(first.radius, 12).forEach(([x, y]) => expect(second.sample(x, y, b)).toEqual(first.sample(x, y, a)));
@@ -183,24 +187,23 @@ describe('generateTerrain', () => {
 			expect(points.filter(([x, y]) => first.elevation(x, y) !== retried.elevation(x, y)).length).toBeGreaterThan(points.length / 2);
 		});
 
-		it('keeps each feature on its own stream, so towns and hotspots never move the land', () => {
+		it('reads neither towns nor hotspots, which later stages place, so the land is the same whatever they ask for', () => {
 			const base = terrainFor({ seed: 31 });
-			const moreTowns = terrainFor({ seed: 31, towns: 11 });
+			const moreTowns = terrainFor({ seed: 31, towns: 11, villages: 40 });
 			const moreHotspots = terrainFor({ seed: 31, hotspots: 6 });
+			const a = createTerrainSample();
+			const b = createTerrainSample();
 			gridInside(base.radius, 10).forEach(([x, y]) => {
-				expect(moreTowns.elevation(x, y)).toBe(base.elevation(x, y));
-				expect(moreTowns.contamination(x, y)).toBe(base.contamination(x, y));
-				expect(moreTowns.rough(x, y)).toBe(base.rough(x, y));
-				expect(moreHotspots.elevation(x, y)).toBe(base.elevation(x, y));
-				expect(moreHotspots.rough(x, y)).toBe(base.rough(x, y));
+				expect(moreTowns.sample(x, y, a)).toEqual(base.sample(x, y, b));
+				expect(moreHotspots.sample(x, y, a)).toEqual(base.sample(x, y, b));
 			});
-			expect(moreHotspots.hotspots.slice(0, base.hotspots.length)).toEqual(base.hotspots);
+			expect(moreHotspots.hotspots).toEqual([]);
 		});
 	});
 
 	describe('the start', () => {
 		it.each(PARAM_SETS.map((set, index) => [index, set] as const))('is flat scrub, never impassable, and its rivers bridged, in parameter set %i', (_index, set) => {
-			const terrain = wetTerrainFor(set);
+			const terrain = hazardTerrainFor(set);
 			const metro = terrain.metro;
 			const sample = createTerrainSample();
 			[[0, 0] as [number, number], ...polar(0.05 * metro.radius, 0.999 * metro.radius, 8, 24)].forEach(([x, y]) => {
@@ -210,9 +213,7 @@ describe('generateTerrain', () => {
 				// The flattest ground on the map, even at the tuning range's steepest corners.
 				expect(sample.grade).toBeLessThan(0.4);
 				expect(sample.contamination).toBe(0);
-				expect(sample.ruin).toBe(1);
 				expect(terrain.impassable(x, y)).toBe(false);
-				expect(terrain.surelyReachable(x, y)).toBe(true);
 				// A city street's cost is its length, give or take the metro's gentle grades, rivers and all.
 				const cost = terrain.moveCost(x, y, 0.95 * x, 0.95 * y, 'highway');
 				expect(cost).toBeGreaterThanOrEqual(0.05 * Math.hypot(x, y) - 1e-9);
@@ -220,62 +221,6 @@ describe('generateTerrain', () => {
 			});
 			terrain.hotspots.forEach((hotspot) => {
 				expect(Math.hypot(hotspot.x, hotspot.y) - hotspot.craterRadius).toBeGreaterThan(metro.radius);
-			});
-		});
-	});
-
-	describe('towns', () => {
-		it.each(PARAM_SETS.map((set, index) => [index, set] as const))('are spaced, inside the disc, outside the metro, and surely reachable, in parameter set %i', (_index, set) => {
-			const terrain = terrainFor(set);
-			const params = paramsFor(set);
-			expect(terrain.towns).toHaveLength(params.towns);
-			terrain.towns.forEach((town, index) => {
-				const fromCentre = Math.hypot(town.x, town.y);
-				expect(fromCentre + town.radius).toBeLessThanOrEqual(terrain.radius);
-				expect(fromCentre - town.radius).toBeGreaterThan(terrain.metro.radius);
-				expect(terrain.impassable(town.x, town.y)).toBe(false);
-				expect(terrain.surelyReachable(town.x, town.y)).toBe(true);
-				expect(terrain.ruin(town.x, town.y)).toBe(1);
-				terrain.hotspots.forEach((hotspot) => {
-					expect(Math.hypot(town.x - hotspot.x, town.y - hotspot.y)).toBeGreaterThanOrEqual(hotspot.craterRadius + town.radius + TOWN_CRATER_GAP);
-				});
-				terrain.towns.slice(index + 1).forEach((other) => {
-					expect(Math.hypot(town.x - other.x, town.y - other.y)).toBeGreaterThanOrEqual(TOWN_SPACING * terrain.radius);
-				});
-			});
-		});
-	});
-
-	describe('towns at the edge of the tuning range', () => {
-		// Where most of the ring is rough or cut off, and placed towns crowd
-		// the rest, candidates from the reached squares still find every town
-		// room, with the shuffled walk over them as the last resort.
-		const corner: MapParamSet = { seed: 0, mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, hotspots: 6, towns: 12, metroSize: 0.25, radius: 600 };
-		it.each([
-			['the most crowded corner', corner, 6],
-			['the most crowded corner with no hotspots', { ...corner, hotspots: 0 }, 2],
-			['the most crowded corner with a mid-sized metro', { ...corner, metroSize: 0.15 }, 2],
-			['the most crowded corner at the largest radius', { ...corner, radius: 1600 }, 2],
-		] as const)('places every town asked for, each where a road from the metro reaches, at %s', (_name, set, seeds) => {
-			sampledSeeds(seeds).forEach((seed) => {
-				const terrain = terrainFor({ ...set, seed });
-				expect(terrain.towns).toHaveLength(12);
-				terrain.towns.forEach((town) => expect(terrain.surelyReachable(town.x, town.y)).toBe(true));
-			});
-		});
-	});
-
-	describe('hotspots', () => {
-		it('places every one asked for, each an impassable crater in a plume of contamination', () => {
-			PARAM_SETS.forEach((set) => {
-				const terrain = terrainFor(set);
-				expect(terrain.hotspots).toHaveLength(paramsFor(set).hotspots);
-				terrain.hotspots.forEach((hotspot) => {
-					expect(terrain.obstacle(hotspot.x, hotspot.y)).toBe('crater');
-					expect(terrain.moveCost(hotspot.x + hotspot.craterRadius * 2, hotspot.y, hotspot.x, hotspot.y, 'trail')).toBe(Infinity);
-					expect(terrain.contamination(hotspot.x, hotspot.y)).toBeGreaterThanOrEqual(hotspot.strength);
-					expect(terrain.obstacle(hotspot.x + hotspot.craterRadius * 1.01, hotspot.y)).not.toBe('crater');
-				});
 			});
 		});
 	});
@@ -339,11 +284,11 @@ describe('generateTerrain', () => {
 	describe('fields', () => {
 		it('keeps every field in its range', () => {
 			PARAM_SETS.slice(0, 6).forEach((set) => {
-				const terrain = wetTerrainFor(set);
+				const terrain = hazardTerrainFor(set);
 				const sample = createTerrainSample();
 				gridInside(terrain.radius, 14).forEach(([x, y]) => {
 					terrain.sample(x, y, sample);
-					[sample.elevation, sample.moisture, sample.contamination, sample.mountains, sample.canyons, sample.badlands, sample.lowland, sample.ruin].forEach((value) => {
+					[sample.elevation, sample.moisture, sample.contamination, sample.mountains, sample.canyons, sample.badlands, sample.lowland].forEach((value) => {
 						expect(value).toBeGreaterThanOrEqual(0);
 						expect(value).toBeLessThanOrEqual(1);
 					});
@@ -362,15 +307,18 @@ describe('generateTerrain', () => {
 			});
 		});
 
-		it('makes the share of the country contamination asks for toxic, and hotspots add to it', () => {
+		it('makes the share of the country contamination asks for toxic, and the hazards\' plumes add to it', () => {
 			[0.1, 0.5, 0.9].forEach((level) => {
-				const clean = terrainFor({ seed: 43, contamination: level, hotspots: 0 });
+				const clean = terrainFor({ seed: 43, contamination: level, hotspots: 6 });
 				const outer = gridInside(clean.radius, 48).filter(([x, y]) => Math.hypot(x, y) >= 0.5 * clean.radius);
 				const share = outer.filter(([x, y]) => clean.contamination(x, y) >= 0.5).length / outer.length;
 				expect(share).toBeGreaterThan(level - 0.08);
 				expect(share).toBeLessThan(level + 0.08);
-				const spilled = terrainFor({ seed: 43, contamination: level, hotspots: 6 });
+				const hotspots = [{ x: 0.6 * clean.radius, y: 0, craterRadius: 20, plumeRadius: 140, strength: 0.9 }];
+				const spilled = new Hazards({ terrain: clean, hotspots }).terrain;
 				outer.forEach(([x, y]) => expect(spilled.contamination(x, y)).toBeGreaterThanOrEqual(clean.contamination(x, y)));
+				expect(spilled.contamination(hotspots[0].x, 0)).toBeGreaterThanOrEqual(0.9);
+				expect(spilled.contamination(hotspots[0].x + 150, 0)).toBe(clean.contamination(hotspots[0].x + 150, 0));
 			});
 		});
 
@@ -421,7 +369,7 @@ describe('generateTerrain', () => {
 			const a = createTerrainSample();
 			const b = createTerrainSample();
 			gridInside(params.radius, 10).forEach(([x, y]) => expect(rebuilt.sample(x, y, b)).toEqual(original.sample(x, y, a)));
-			expect(rebuilt.towns).toEqual(original.towns);
+			expect(rebuilt.openSquares).toEqual(original.openSquares);
 			expect(() => terrainFromSurface({ params: paramsFor({ ...set, radius: 900 }), rng: terrainStream(params.seed), surface })).toThrow(RangeError);
 			const short = { ...surface, mountains: new Float64Array(10) };
 			expect(() => terrainFromSurface({ params, rng: terrainStream(params.seed), surface: short })).toThrow(RangeError);
@@ -476,18 +424,42 @@ describe('generateTerrain', () => {
 			expect(checked).toBeGreaterThan(200);
 		});
 
-		it('fills ruins: the metro and every town at 1, open country at 0', () => {
-			const terrain = terrainFor({ seed: 59, towns: 8 });
-			expect(terrain.ruin(0, 0)).toBe(1);
-			terrain.towns.forEach((town) => expect(terrain.ruin(town.x + town.radius * 0.9, town.y)).toBe(1));
-			const far = gridInside(terrain.radius, 30).filter(([x, y]) => [terrain.metro, ...terrain.towns].every((ruin) => Math.hypot(x - ruin.x, y - ruin.y) >= 2 * ruin.radius));
-			far.forEach(([x, y]) => expect(terrain.ruin(x, y)).toBe(0));
+		it('marks open squares: no cliff anywhere in one, none past the rim, all of the metro, and rough country that stops short of cliff', () => {
+			const terrain = terrainFor({ seed: 2, environment: 'badlands', radius: 800 });
+			const { grid } = terrain.surface;
+			const squares = grid.size - 1;
+			let open = 0;
+			let rough = 0;
+			let cliffs = 0;
+			for (let row = 0; row < squares; row += 1) {
+				for (let column = 0; column < squares; column += 1) {
+					const left = cellCentre(grid, column);
+					const bottom = cellCentre(grid, row);
+					const corners = [[left, bottom], [left + grid.cellSize, bottom], [left, bottom + grid.cellSize], [left + grid.cellSize, bottom + grid.cellSize]];
+					const middle = [left + grid.cellSize / 2, bottom + grid.cellSize / 2];
+					if (terrain.openSquares[row * squares + column] === 1) {
+						open += 1;
+						corners.forEach(([x, y]) => expect(terrain.contains(x, y)).toBe(true));
+						if (terrain.rough(middle[0], middle[1])) rough += 1;
+						for (let u = 0; u <= 4; u += 1) {
+							for (let v = 0; v <= 4; v += 1) {
+								if (terrain.obstacle(left + grid.cellSize * u / 4, bottom + grid.cellSize * v / 4) === 'cliff') cliffs += 1;
+							}
+						}
+					} else if (Math.hypot(middle[0], middle[1]) < terrain.metro.radius) {
+						throw new Error(`square ${row}, ${column} in the metro isn't open`);
+					}
+				}
+			}
+			expect(cliffs).toBe(0);
+			expect(rough).toBeGreaterThan(100);
+			expect(open).toBeGreaterThan(squares * squares / 3);
 		});
 	});
 
 	describe('impassability', () => {
-		it.each(PARAM_SETS.slice(0, 6).map((set, index) => [index, set] as const))('agrees with itself and with sample, water and all, in parameter set %i', (_index, set) => {
-			const terrain = wetTerrainFor(set);
+		it.each(PARAM_SETS.slice(0, 6).map((set, index) => [index, set] as const))('agrees with itself and with sample, water and craters and all, in parameter set %i', (_index, set) => {
+			const terrain = hazardTerrainFor(set);
 			const sample = createTerrainSample();
 			const slope = { x: 0, y: 0 };
 			let passable = 0;
@@ -501,7 +473,6 @@ describe('generateTerrain', () => {
 				expect(sample.contamination).toBe(terrain.contamination(x, y));
 				expect(sample.biome).toBe(terrain.biome(x, y));
 				expect(sample.grade).toBe(terrain.grade(x, y));
-				expect(sample.ruin).toBe(terrain.ruin(x, y));
 				terrain.slope(x, y, slope);
 				expect([sample.slopeX, sample.slopeY]).toEqual([slope.x, slope.y]);
 
@@ -591,12 +562,9 @@ describe('generateTerrain', () => {
 			['the most rugged corner', { mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, radius: 600 }],
 			['the most rugged corner with the smallest metro', { mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1, radius: 600, metroSize: 0.08 }],
 			['the Badlands', { environment: 'badlands', radius: 600 }],
-		] as const)('keeps the start in reach of most of the edge, and of every town, in %s', (_name, set) => {
+		] as const)('keeps the start in reach of most of the edge, in %s', (_name, set) => {
 			sampledSeeds(2).forEach((seed) => {
-				const terrain = terrainFor({ seed, ...set });
-				const { edgeShare, townsReached } = reachFromMetro(terrain, 4);
-				expect(edgeShare).toBeGreaterThan(REACH_BAR);
-				expect(townsReached).toBe(terrain.towns.length);
+				expect(edgeInReach(terrainFor({ seed, ...set }), 4)).toBeGreaterThan(REACH_BAR);
 			});
 		});
 
@@ -751,7 +719,7 @@ describe('generateTerrain', () => {
 			expect(dry.water).toBeNull();
 			expect(flooded.water).toBe(river);
 			expect(flooded.radius).toBe(dry.radius);
-			expect(flooded.towns).toBe(dry.towns);
+			expect(flooded.openSquares).toBe(dry.openSquares);
 			const sample = createTerrainSample();
 			gridInside(dry.radius, 30).forEach(([x, y]) => {
 				expect(flooded.elevation(x, y)).toBe(dry.elevation(x, y));
@@ -767,13 +735,22 @@ describe('generateTerrain', () => {
 			});
 		});
 
-		it('calls a crater a crater even under water', () => {
-			const terrain = terrainFor({ seed: 71, hotspots: 3 });
-			const [hotspot] = terrain.hotspots;
-			const flooded = terrain.withWater(straightRiver({ at: hotspot.x, width: 8 }));
-			expect(flooded.obstacle(hotspot.x, hotspot.y)).toBe('crater');
-			expect(flooded.sample(hotspot.x, hotspot.y, createTerrainSample()).obstacle).toBe('crater');
-			expect(flooded.obstacle(hotspot.x, hotspot.y + 1.5 * hotspot.craterRadius)).toBe('river');
+		it('calls a crater a crater even under water, whichever is laid first', () => {
+			const terrain = terrainFor({ seed: 71 });
+			const [x, y] = openGround(terrain);
+			const hotspot = { x, y, craterRadius: 18, plumeRadius: 100, strength: 0.8 };
+			const river = straightRiver({ at: x, width: 8 });
+			const hazardsThenWater = new Hazards({ terrain, hotspots: [hotspot] }).terrain.withWater(river);
+			const waterThenHazards = new Hazards({ terrain: terrain.withWater(river), hotspots: [hotspot] }).terrain;
+			[hazardsThenWater, waterThenHazards].forEach((both) => {
+				expect(both.hotspots).toEqual([hotspot]);
+				expect(both.water).toBe(river);
+				expect(both.obstacle(x, y)).toBe('crater');
+				expect(both.sample(x, y, createTerrainSample()).obstacle).toBe('crater');
+				expect(both.obstacle(x, y + 1.5 * hotspot.craterRadius)).toBe('river');
+				expect(both.moveCost(x + 2 * hotspot.craterRadius, y, x + 0.5 * hotspot.craterRadius, y, 'trail')).toBe(Infinity);
+			});
+			expect(terrain.obstacle(x, y)).toBeNull();
 		});
 	});
 
@@ -815,9 +792,9 @@ const REACH_BAR = 0.8;
 /**
  * A flood fill from the metro over cells `cell` world units across, through
  * cells whose centres are passable: the share of the outer band (0.85 to 0.95
- * of the radius) it reaches, and how many towns it reaches.
+ * of the radius) it reaches.
  */
-function reachFromMetro(terrain: Terrain, cell: number): { edgeShare: number; townsReached: number } {
+function edgeInReach(terrain: Terrain, cell: number): number {
 	const radius = terrain.radius;
 	const cells = Math.ceil(2 * radius / cell);
 	const centre = (index: number) => (index + 0.5) * cell - radius;
@@ -859,8 +836,7 @@ function reachFromMetro(terrain: Terrain, cell: number): { edgeShare: number; to
 			if (reached[index]) inReach += 1;
 		}
 	}
-	const townsReached = terrain.towns.filter((town) => reached[Math.floor((town.y + radius) / cell) * cells + Math.floor((town.x + radius) / cell)] === 1).length;
-	return { edgeShare: inReach / band, townsReached };
+	return inReach / band;
 }
 
 /**
@@ -892,18 +868,14 @@ function bandWidth(terrain: Terrain, x: number, y: number, slopeX: number, slope
 }
 
 interface PinnedSummary {
-	readonly hotspots: number[][];
-	readonly towns: number[][];
 	readonly samples: (number | string | null)[][];
 }
 
-/** A terrain boiled down to its features and a few full samples and move costs, for pinning. */
+/** A terrain boiled down to a few full samples and move costs, for pinning. */
 function pinnedSummary(terrain: Terrain): PinnedSummary {
 	const sample: TerrainSample = createTerrainSample();
 	const radius = terrain.radius;
 	return {
-		hotspots: terrain.hotspots.map(({ x, y, craterRadius, plumeRadius, strength }) => [x, y, craterRadius, plumeRadius, strength]),
-		towns: terrain.towns.map(({ x, y, radius: townRadius }) => [x, y, townRadius]),
 		samples: [[0.31, -0.42], [-0.66, 0.12], [0.05, 0.77], [-0.5, -0.6]].map(([u, v]) => {
 			const [x, y] = [u * radius, v * radius];
 			terrain.sample(x, y, sample);
@@ -915,35 +887,14 @@ function pinnedSummary(terrain: Terrain): PinnedSummary {
 // Computed in a separate Node process from the Jest run that checks them.
 const PINNED: PinnedSummary[] = [
 	{
-		hotspots: [
-			[-155.7171681895852, -414.5513628143817, 24.26668080687523, 170.86543934150302, 0.8493960338528268],
-			[-414.8554620333016, -590.279695764184, 23.863188373856246, 154.68097336537593, 0.8004536544322036],
-			[188.42025054618716, -745.715896692127, 15.94434080272913, 125.80556620963016, 0.9871678818599321],
-		],
-		towns: [
-			[406.48928017544677, 709.1698791336967, 39.62356013478711],
-			[-667.3712088726461, 287.6502396102296, 52.41111501061823],
-			[-305.35359509376576, 738.0270311310596, 38.113515063305385],
-			[-293.02901212940924, -725.8424021070823, 39.913091365015134],
-			[655.2744057269592, -249.21279989357572, 41.05123392830137],
-		],
 		samples: [
 			[0.538998224276135, 0, -0.006977997719128252, 0.003503712585958265, 0, 'mountains', null, 50.61506486231678],
-			[0.0393764274759362, 1, 0.00017848472102936, 0.00008694236229541667, 0.7607886298000822, 'badlands', null, 6.7845413367438026],
+			[0.0393764274759362, 1, 0.00017848472102936, 0.00008694236229541667, 0.837860114574433, 'badlands', null, 6.7845413367438026],
 			[0.015044944984509144, 0.9048120042699062, -0.00002065279119463914, -0.00015042328272223116, 0, 'scrub', null, 6.735024534406379],
-			[0.07009501868459986, 0.3844758566438204, -0.0005370097704476285, 0.0005224739318085673, 0.7984423736731223, 'badlands', null, 7.073308722762145],
+			[0.07009501868459986, 0, -0.0005370097704476285, 0.0005224739318085673, 0, 'scrub', null, 7.073308722762145],
 		],
 	},
 	{
-		hotspots: [
-			[-131.59815045073628, 367.80124506913126, 23.61863434035331, 169.07154500679528, 0.9486516110482626],
-			[218.5876642819494, -313.31552378833294, 18.807663640007377, 111.65041416741391, 0.8845852081431076],
-		],
-		towns: [
-			[72.5082092671073, -748.1620615937572, 53.2332229387248],
-			[-297.05356585473055, -652.7477407391416, 58.98640851024538],
-			[365.09064051278983, -475.1827879612392, 39.5274862262886],
-		],
 		samples: [
 			[0.022961597028416457, 0.9883711656152957, 0.0009374453546605137, 0.00017812403994521737, 1, 'badlands', null, 7.55389896293573],
 			[0.5794511254436154, 0, -0.001156033402486766, 0.0007041404126588923, 0, 'mountains', null, 7.715971101577169],
@@ -952,18 +903,6 @@ const PINNED: PinnedSummary[] = [
 		],
 	},
 	{
-		hotspots: [
-			[-305.9511128347367, 71.11416114494205, 22.387592181563377, 126.64268024208069, 0.8775745225138962],
-			[138.76231354661286, -563.0688441451639, 22.67363932915032, 158.74347548217509, 0.9132970167556778],
-			[-696.7757070902735, 535.4589053895324, 19.487174225971103, 97.81371605482627, 0.9220535308704711],
-		],
-		towns: [
-			[312.26775253671804, 259.7470078384504, 56.78458511014469],
-			[-457.1717578008247, 546.1159375197894, 44.62717556976713],
-			[322.4177847223473, -469.77115169356694, 55.059278385015205],
-			[-45.63742146565346, -436.02866669316427, 41.48335190315265],
-			[-52.8806136782805, 272.0949640672188, 40.0708431674866],
-		],
 		samples: [
 			[0.025327316494020983, 0.007502314534302878, 0.00005611358727836297, 0.0002911524606080273, 0, 'scrub', null, 6.72468345489326],
 			[0.03769169458824089, 0, -0.0005056219950456032, -0.0001974093725955641, 0, 'scrub', null, 6.902209044010158],

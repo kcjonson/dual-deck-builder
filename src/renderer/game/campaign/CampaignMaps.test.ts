@@ -318,7 +318,7 @@ describe('CampaignMaps', () => {
 	it('pins the pipeline\'s stages to the generator version', () => {
 		const pinned = { generatorVersion: AREA_MAP_GENERATOR_VERSION, stages: areaMapPipeline().stageNames };
 		try {
-			expect(pinned).toEqual({ generatorVersion: 2, stages: ['terrain', 'water', 'highways', 'growth', 'routeTree', 'pois'] });
+			expect(pinned).toEqual({ generatorVersion: 3, stages: ['terrain', 'water', 'hazards', 'places', 'growth', 'routeTree', 'pois'] });
 		} catch (error) {
 			throw new Error(`the pipeline's stages changed: bump AREA_MAP_GENERATOR_VERSION (map/GeneratorVersion.ts), so the store reads older saves as outdated, and re-pin\n${(error as Error).message}`);
 		}

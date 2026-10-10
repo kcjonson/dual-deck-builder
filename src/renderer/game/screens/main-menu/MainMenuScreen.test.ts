@@ -205,8 +205,8 @@ describe('MainMenuScreen', () => {
 			expect(notice.visible).toBe(true);
 			expect(notice.text).toBe('Founding the compound.');
 			const options = held.options as Parameters<StartGeneration>[0];
-			options.onProgress?.({ stage: 'highways', index: 2, count: 4, attempt: 0, mapAttempt: 0, seed: options.params.seed });
-			expect(notice.text).toBe('Making the area map: highways (3 of 4)');
+			options.onProgress?.({ stage: 'places', index: 3, count: 7, attempt: 0, mapAttempt: 0, seed: options.params.seed });
+			expect(notice.text).toBe('Making the area map: places (4 of 7)');
 			// New Campaign again does nothing while one is being founded.
 			send(context, [key('Enter')]);
 			held.finish();

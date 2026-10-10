@@ -1,68 +1,37 @@
 import { Rng } from '../core/Rng';
-import { departureBearings, planHighways } from './Highways';
+import { highwayDepartures } from './Highways';
 import { MapParamSet, MapParams, resolveMapParams } from './MapParams';
 import { validateMapParams } from './ParamValidator';
+import type { Exit } from './Places';
 import { DRIFT_SPACING, OUTWARD_SHARE, ROAD_CLASS_RULES, driftAt, driftKnots } from './RoadGrowth';
-
-/** The highways stream as the pipeline nests it, under terrain's first attempt. */
-const highwayStream = (seed: number, stageAttempt = 0) => new Rng({ seed }).fork('map', 0).fork('terrain', 0).fork('highways', stageAttempt);
 
 const paramsFor = (set: MapParamSet): MapParams => validateMapParams(resolveMapParams(set).params).params;
 
-function plan(set: MapParamSet, stageAttempt = 0) {
+/** Exits at the rim on these bearings, highways unless listed in `backRoads`. */
+function exitsAt(radius: number, bearings: number[], backRoads: number[] = []): Exit[] {
+	return [...bearings, ...backRoads].map((bearing, index) => ({
+		id: index + 1,
+		kind: 'exit',
+		bearing,
+		highway: index < bearings.length,
+		x: radius * Math.cos(bearing * Math.PI / 180),
+		y: radius * Math.sin(bearing * Math.PI / 180),
+	}));
+}
+
+function plan(set: MapParamSet, exits?: Exit[], seed = 1) {
 	const params = paramsFor(set);
 	const terrain = { radius: params.radius, metro: { x: 0, y: 0, radius: params.metroSize * params.radius } };
-	return { params, terrain, highways: planHighways({ terrain, params, rng: highwayStream(params.seed, stageAttempt) }) };
+	const bearings = Array.from({ length: params.highways }, (_, index) => (index * 360) / params.highways + 7);
+	return { params, terrain, highways: highwayDepartures({ terrain, params, exits: exits ?? exitsAt(params.radius, bearings), rng: new Rng({ seed }) }) };
 }
 
-/** The gaps between neighbouring bearings, counterclockwise round the circle. */
-function gaps(bearings: readonly number[]): number[] {
-	const sorted = [...bearings].sort((a, b) => a - b);
-	return sorted.map((bearing, index) => (index + 1 < sorted.length ? sorted[index + 1] : sorted[0] + 360) - bearing);
-}
-
-describe('departureBearings', () => {
-	it('keeps every pair of neighbours at least the separation apart, across counts and separations', () => {
-		for (let count = 3; count <= 9; count += 1) {
-			const most = Math.floor(360 / count);
-			[20, 35, Math.min(60, most), most].forEach((separation) => {
-				for (let seed = 0; seed < 40; seed += 1) {
-					const bearings = departureBearings({ count, separation, rng: new Rng({ seed }) });
-					expect(bearings).toHaveLength(count);
-					bearings.forEach((bearing) => {
-						expect(bearing).toBeGreaterThanOrEqual(0);
-						expect(bearing).toBeLessThan(360);
-					});
-					gaps(bearings).forEach((gap) => expect(gap).toBeGreaterThan(separation - 1e-9));
-				}
-			});
-		}
-	});
-
-	it('jitters each bearing by up to a third of the gap, so neighbours sit irregularly', () => {
-		let uneven = 0;
-		for (let seed = 0; seed < 50; seed += 1) {
-			const bearings = departureBearings({ count: 6, separation: 35, rng: new Rng({ seed }) });
-			// In departure order, each sits within a third of the gap of even spacing from the first.
-			bearings.forEach((bearing, index) => {
-				const offset = ((bearing - bearings[0] - index * 60) % 360 + 540) % 360 - 180;
-				expect(Math.abs(offset)).toBeLessThanOrEqual(2 * 20 + 1e-9);
-			});
-			if (gaps(bearings).some((gap) => Math.abs(gap - 60) > 5)) uneven += 1;
-		}
-		expect(uneven).toBeGreaterThan(40);
-	});
-
-	it('spaces them evenly when the separation leaves no room to jitter', () => {
-		const bearings = departureBearings({ count: 6, separation: 60, rng: new Rng({ seed: 3 }) });
-		gaps(bearings).forEach((gap) => expect(gap).toBeCloseTo(60, 9));
-	});
-});
-
-describe('planHighways', () => {
-	it('starts each highway on the metro\'s edge at its bearing', () => {
-		const { terrain, highways, params } = plan({ seed: 5 });
-		expect(highways).toHaveLength(params.highways);
+describe('highwayDepartures', () => {
+	it('starts a highway on the metro\'s edge at each highway exit\'s bearing, and none toward a back road\'s', () => {
+		const params = paramsFor({ seed: 5 });
+		const exits = exitsAt(params.radius, [10, 100, 200, 290], [55, 150]);
+		const { terrain, highways } = plan({ seed: 5 }, exits);
+		expect(highways.map(({ bearing }) => bearing)).toEqual([10, 100, 200, 290]);
 		highways.forEach(({ bearing, x, y }) => {
 			expect(Math.hypot(x, y)).toBeCloseTo(terrain.metro.radius, 9);
 			expect(x).toBeCloseTo(terrain.metro.radius * Math.cos(bearing * Math.PI / 180), 9);
@@ -84,10 +53,9 @@ describe('planHighways', () => {
 		});
 	});
 
-	it('plans the same highways from the same stream, and others from another seed or stage attempt', () => {
+	it('drifts the same from the same stream, and otherwise from another', () => {
 		expect(plan({ seed: 21 }).highways).toEqual(plan({ seed: 21 }).highways);
-		expect(plan({ seed: 22 }).highways).not.toEqual(plan({ seed: 21 }).highways);
-		expect(plan({ seed: 21 }, 1).highways).not.toEqual(plan({ seed: 21 }).highways);
+		expect(plan({ seed: 21 }, undefined, 2).highways).not.toEqual(plan({ seed: 21 }).highways);
 	});
 
 	it('draws each highway\'s drift on its own fork, so one more highway never moves another\'s drift', () => {

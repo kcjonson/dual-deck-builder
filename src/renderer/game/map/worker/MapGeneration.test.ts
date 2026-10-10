@@ -61,12 +61,12 @@ describe('MapGeneration', () => {
 			expect(map.inWorker).toBe(false);
 			expect(map.params).toBe(params);
 			expect(map.products.growth).toEqual(expected.products.growth);
-			expect(map.products.highways).toEqual(expected.products.highways);
+			expect(map.products.places).toEqual(expected.products.places);
 			expect(map.streams).toEqual(expected.streams);
 			expect(map.products.routeTree).toEqual(expected.products.routeTree);
 			expect(map.products.pois).toEqual(expected.products.pois);
-			expect(map.attempts).toEqual({ terrain: 0, water: 0, highways: 0, growth: 0, routeTree: 0, pois: 0 });
-			expect(progress.map(({ stage, attempt }) => `${stage} ${attempt}`)).toEqual(['terrain 0', 'water 0', 'highways 0', 'growth 0', 'routeTree 0', 'pois 0']);
+			expect(map.attempts).toEqual({ terrain: 0, water: 0, hazards: 0, places: 0, growth: 0, routeTree: 0, pois: 0 });
+			expect(progress.map(({ stage, attempt }) => `${stage} ${attempt}`)).toEqual(['terrain 0', 'water 0', 'hazards 0', 'places 0', 'growth 0', 'routeTree 0', 'pois 0']);
 			expect(map.wallMilliseconds).toBeGreaterThanOrEqual(map.decodeMilliseconds);
 		});
 
@@ -144,7 +144,7 @@ describe('MapGeneration', () => {
 		});
 
 		it('rejects with the worker\'s error, a MapPipelineError when the pipeline gave up', async () => {
-			const failure: StageFailure = { stage: 'highways', index: 1, count: 6, attempt: 7, mapAttempt: 31, seed: 9, problems: ['none'] };
+			const failure: StageFailure = { stage: 'places', index: 3, count: 7, attempt: 7, mapAttempt: 31, seed: 9, problems: ['none'] };
 			const { worker, generation } = start();
 			worker.reply({ type: 'failed', message: 'ran out', stack: 'at the worker', pipeline: { failure, exhausted: 'map' } });
 			const error = await outcome(generation);
@@ -201,12 +201,12 @@ describe('MapGeneration', () => {
 
 	it('sums a generation up in one line for the dev hook', async () => {
 		const summary = summarizeGeneration(await new MapGeneration({ params }).result);
-		expect(summary).toMatchObject({ seed: 9, environment: 'highDesert', radius: 700, inWorker: false, attempts: { terrain: 0, water: 0, highways: 0, growth: 0, routeTree: 0, pois: 0 }, mapAttempt: 0 });
+		expect(summary).toMatchObject({ seed: 9, environment: 'highDesert', radius: 700, inWorker: false, attempts: { terrain: 0, water: 0, hazards: 0, places: 0, growth: 0, routeTree: 0, pois: 0 }, mapAttempt: 0 });
 		expect(summary.nodes).toBe(expected.products.growth.network.nodes.length);
 		expect(summary.meetingPoints).toBe(expected.products.routeTree.meetingPoints.length);
 		expect(summary.pois).toBe(expected.products.pois.pois.length);
 		const line = describeGeneration(summary);
-		expect(line).toMatch(/^Map generation, seed 9 highDesert radius 700, in-process: [\d.]+ ms wall, pipeline [\d.]+ ms \(terrain [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), water [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), highways/);
+		expect(line).toMatch(/^Map generation, seed 9 highDesert radius 700, in-process: [\d.]+ ms wall, pipeline [\d.]+ ms \(terrain [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), water [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), hazards [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), places/);
 		expect(line).toMatch(/growth [\d.]+ \+ [\d.]+ checks \(attempt 0\), routeTree [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), pois [\d.]+( \+ [\d.]+ checks)? \(attempt 0\); map attempt 0\), decode [\d.]+ ms; /);
 		expect(line).toMatch(/; \d+ nodes, \d+ stretches, \d+ meeting points, \d+ POIs \(\d+ strongholds\)$/);
 	});

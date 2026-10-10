@@ -543,6 +543,43 @@ export class RiverIndex {
 	}
 
 	/**
+	 * True within `reach` of a river's water: within half the river's width
+	 * there plus `reach` of its centreline. Exact: the water nearest the point
+	 * lies in a bucket within `reach` of it, and its segment is filed there.
+	 */
+	public near(x: number, y: number, reach: number): boolean {
+		this.stamp += 1;
+		const stamp = this.stamp;
+		const { points, widths, ids, stamps } = this;
+		const first = this.cellOf(x - reach);
+		const last = this.cellOf(x + reach);
+		const bottom = this.cellOf(y - reach);
+		const top = this.cellOf(y + reach);
+		for (let row = bottom; row <= top; row += 1) {
+			for (let column = first; column <= last; column += 1) {
+				const at = row * this.columns + column;
+				for (let entry = this.starts[at]; entry < this.starts[at + 1]; entry += 1) {
+					const point = ids[entry];
+					if (stamps[point] === stamp) continue;
+					stamps[point] = stamp;
+					const ax = points[2 * point];
+					const ay = points[2 * point + 1];
+					const dx = points[2 * point + 2] - ax;
+					const dy = points[2 * point + 3] - ay;
+					const lengthSquared = dx * dx + dy * dy;
+					let t = lengthSquared > 0 ? ((x - ax) * dx + (y - ay) * dy) / lengthSquared : 0;
+					t = t < 0 ? 0 : t > 1 ? 1 : t;
+					const ox = ax + dx * t - x;
+					const oy = ay + dy * t - y;
+					const within = 0.5 * (widths[point] + (widths[point + 1] - widths[point]) * t) + reach;
+					if (ox * ox + oy * oy < within * within) return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * How many river centrelines the move from (x0, y0) to (x1, y1) crosses;
 	 * `crossing(index)` reads each until the next call. A move that only
 	 * touches a centreline, or runs along one, crosses nothing.

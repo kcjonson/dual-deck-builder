@@ -1,3 +1,4 @@
+import type { Places } from '../../map/Places';
 import type { RiverLines } from '../../map/Rivers';
 import type { RoadNetwork } from '../../map/RoadNetwork';
 import type { BakeTerrain } from './terrainBake';
@@ -14,12 +15,14 @@ import type { BakeTerrain } from './terrainBake';
  * north, as generation lays them.
  */
 
-/** The generated map: terrain to bake, its lakes with it, and the rivers and drivable network to draw. */
+/** The generated map: terrain to bake, its lakes with it, and the rivers, drivable network, and places to draw. */
 export interface AreaMapData {
 	readonly terrain: BakeTerrain;
 	readonly network: RoadNetwork;
 	/** The water stage's rivers, drawn live under the roads, width by size. */
 	readonly rivers: RiverLines;
+	/** The places stage's: towns and villages named, crossroads, and exits, and the ruins baked under them. None when absent. */
+	readonly places?: Places | null;
 }
 
 /**
@@ -85,6 +88,8 @@ export interface AreaMapLayerToggles {
 	readonly water: boolean;
 	readonly roads: boolean;
 	readonly junctions: boolean;
+	/** Towns, villages, crossroads, and exits; a place under the fog isn't drawn. */
+	readonly places: boolean;
 	readonly markers: boolean;
 	readonly fog: boolean;
 }
@@ -94,6 +99,7 @@ export const ALL_LAYERS: AreaMapLayerToggles = Object.freeze({
 	water: true,
 	roads: true,
 	junctions: true,
+	places: true,
 	markers: true,
 	fog: true,
 });

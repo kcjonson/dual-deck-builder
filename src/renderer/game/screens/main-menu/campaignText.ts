@@ -50,13 +50,14 @@ export function campaignSummary(campaign: Campaign): string {
 export const MAP_STAGE_LABELS: Readonly<Record<AreaMapStageName, string>> = {
 	terrain: 'terrain',
 	water: 'water',
-	highways: 'highways',
+	hazards: 'hazards',
+	places: 'places',
 	growth: 'roads',
 	routeTree: 'route tree',
 	pois: 'POIs',
 };
 
-/** A map generation's progress, for a line under whatever waits on it: "Making the area map: POIs (6 of 6)". */
+/** A map generation's progress, for a line under whatever waits on it: "Making the area map: POIs (7 of 7)". */
 export function mapProgressText({ stage, index, count }: Pick<StageAttempt<AreaMapStageName>, 'stage' | 'index' | 'count'>): string {
 	return `Making the area map: ${MAP_STAGE_LABELS[stage]} (${index + 1} of ${count})`;
 }
