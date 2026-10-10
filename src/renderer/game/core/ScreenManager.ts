@@ -252,7 +252,10 @@ export class ScreenManager {
 	}
 	
 	/**
-	 * The mounted screen instance, for the dev tree snapshot.
+	 * The mounted screen instance, or null before the first navigate. The dev
+	 * tree snapshot reads it, and so does a screen during play to check it's
+	 * the one the game is showing: CombatScreen goes on to the result screen
+	 * only then, not when the gallery mounts it with no manager.
 	 */
 	static get activeScreen(): Screen | null {
 		return this.currentScreen;

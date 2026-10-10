@@ -1,5 +1,5 @@
 import { Driver, DriverArchetype, DriverRole, DRIVER_CONFIGS } from './Driver';
-import { assertDriverPair, isSameDriver, nextOpenDriverIndex } from './DriverPair';
+import { assertDriverPair, assertDriverSeats, isSameDriver, nextOpenDriverIndex } from './DriverPair';
 
 function driverFor(archetype: DriverArchetype): Driver {
 	const config = DRIVER_CONFIGS[archetype];
@@ -55,6 +55,22 @@ describe('DriverPair (Combat Rules: one driver per slot)', () => {
 		it('rejects anything but two drivers', () => {
 			expect(() => assertDriverPair([warrior])).toThrow(/exactly 2/);
 			expect(() => assertDriverPair([warrior, interceptor, mechanic])).toThrow(/exactly 2/);
+		});
+	});
+
+	describe('assertDriverSeats', () => {
+		it('accepts one driver, a run down to its last (DDB-166), or two different ones', () => {
+			expect(() => assertDriverSeats([interceptor])).not.toThrow();
+			expect(() => assertDriverSeats([warrior, interceptor])).not.toThrow();
+		});
+
+		it('holds two seats to the pair rule', () => {
+			expect(() => assertDriverSeats([warrior, warrior.copy()])).toThrow(/same driver/);
+		});
+
+		it('rejects no driver, or more than two', () => {
+			expect(() => assertDriverSeats([])).toThrow('Combat seats one or two drivers, not 0');
+			expect(() => assertDriverSeats([warrior, interceptor, mechanic])).toThrow('Combat seats one or two drivers, not 3');
 		});
 	});
 

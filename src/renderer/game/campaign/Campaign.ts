@@ -5,6 +5,7 @@ import { Model } from '../core/Model';
 import { MapParams } from '../map/MapParams';
 import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
+import { PLAYER_DRIVEN_VEHICLES } from '../mechanics/Team';
 import type { Vehicle } from '../mechanics/Vehicle';
 import { CampaignEnd, CampaignOverError, CampaignTally, NO_TALLY, checkTallyGrows, fallOf, readCampaignEnd, readTally, refuseOver, refuseOverBlocker, stepLog } from './CampaignEnd';
 import { CardCounts, NO_CARDS, addCards, addCounts, cardCount, readCardCounts, readCardType, removeCards, totalCards } from './CardCounts';
@@ -1315,7 +1316,7 @@ function sumCounts(all: readonly CardCounts[], path: string): CardCounts {
 }
 
 /** "Road Warrior 1 (driver-1) and Interceptor 1 (driver-2)", or "nobody". */
-function driverList(drivers: readonly DriverRecord[]): string {
+export function driverList(drivers: readonly DriverRecord[]): string {
 	return drivers.length === 0 ? 'nobody' : drivers.map(describeDriver).join(' and ');
 }
 
@@ -1481,12 +1482,13 @@ function readEndHolds({ end, drivers, people, runDecks, path }: {
 }
 
 /**
- * The run decks: none at home, or one for each of two seated drivers from
- * the pool, whose default decks are empty while they're out, with escort
- * cards the convoy's escorts brought. Run decks held before were checked
- * when they were stored, and their drivers stay in the pool; records and
- * the convoy change outside the campaign's checks, so `toSaveText` checks
- * those ties again.
+ * The run decks: none at home, or one for each seated driver from the
+ * pool, two at most (a run down to one driver seats one), whose default
+ * decks are empty while they're out, with escort cards the convoy's
+ * escorts brought. Run decks held before were checked when they were
+ * stored, and their drivers stay in the pool; records and the convoy
+ * change outside the campaign's checks, so `toSaveText` checks those ties
+ * again.
  */
 function readRunDecks(
 	value: unknown,
@@ -1499,8 +1501,8 @@ function readRunDecks(
 		if (!drivers.includes(deck.driver)) throw new ReaderRangeError(`${path}[${index}].driver ${deck.driver.id} isn't in the pool`);
 		return deck;
 	});
-	if (decks.length !== 0 && decks.length !== 2) {
-		throw new ReaderRangeError(`${path} holds ${decks.length} run decks: a run out has one for each of its two seats, and none are kept at home`);
+	if (decks.length > PLAYER_DRIVEN_VEHICLES) {
+		throw new ReaderRangeError(`${path} holds ${decks.length} run decks: a run out has one for each of its seats, two at most, and none are kept at home`);
 	}
 	if (decks.length === 2 && decks[0].driver === decks[1].driver) {
 		throw new ReaderRangeError(`${path}[1].driver ${decks[1].driver.id} has the run deck before it; each seat is a different driver`);
