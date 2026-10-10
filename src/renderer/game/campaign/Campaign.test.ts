@@ -42,6 +42,7 @@ const DATA_KEYS: Readonly<Record<string, string>> = {
 	'runDecks[].own': '<card type>',
 	'runDecks[].leftHome': '<card type>',
 	'runDecks[].borrowed': '<card type>',
+	'supplyRun.cargoCards': '<card type>',
 	'mapParams': '<map parameter>'
 };
 
@@ -75,7 +76,16 @@ const SAVE_FORMAT = {
 		'resources.scrap', 'resources.water', 'runDecks', 'runDecks[]', 'runDecks[].borrowed', 'runDecks[].borrowed.<card type>', 'runDecks[].driver',
 		'runDecks[].escortCards', 'runDecks[].escortCards[]', 'runDecks[].escortCards[].broughtBy', 'runDecks[].escortCards[].cardType',
 		'runDecks[].leftHome', 'runDecks[].leftHome.<card type>', 'runDecks[].own', 'runDecks[].own.<card type>',
-		'seed', 'strongholdsTaken', 'strongholdsTaken[]', 'tally', 'tally.fightsWon', 'tally.runsFailed', 'tally.runsHome', 'unrest'
+		'seed', 'strongholdsTaken', 'strongholdsTaken[]', 'supplyRun', 'supplyRun.cargo', 'supplyRun.cargo.food', 'supplyRun.cargo.fuel',
+		'supplyRun.cargo.meds', 'supplyRun.cargo.people', 'supplyRun.cargo.scrap', 'supplyRun.cargo.water', 'supplyRun.cargoCards',
+		'supplyRun.cargoCards.<card type>', 'supplyRun.escorts', 'supplyRun.escorts[]', 'supplyRun.phase', 'supplyRun.route',
+		'supplyRun.route.destination', 'supplyRun.route.destination.id', 'supplyRun.route.destination.name', 'supplyRun.route.destination.tier',
+		'supplyRun.route.fuel', 'supplyRun.route.hours', 'supplyRun.route.hours.home', 'supplyRun.route.hours.objective', 'supplyRun.route.hours.out',
+		'supplyRun.route.id', 'supplyRun.route.legs', 'supplyRun.route.legs[]', 'supplyRun.route.legs[].hours', 'supplyRun.route.legs[].id',
+		'supplyRun.route.legs[].length', 'supplyRun.route.legs[].roadClass', 'supplyRun.route.legs[].stops', 'supplyRun.route.legs[].stops[]',
+		'supplyRun.route.legs[].stops[].at', 'supplyRun.route.legs[].stops[].id', 'supplyRun.route.legs[].stops[].kind',
+		'supplyRun.route.legs[].stops[].skulls', 'supplyRun.route.name', 'supplyRun.route.risk', 'supplyRun.stop',
+		'tally', 'tally.fightsWon', 'tally.runsFailed', 'tally.runsHome', 'unrest'
 	],
 	/** The fixture's campaign stands, so its end is null; a campaign that's over writes these. */
 	end: ['cause', 'ending'],
@@ -869,6 +879,7 @@ describe('Campaign', () => {
 				...savedCampaign(),
 				runDecks: [],
 				foundOnRun: [],
+				supplyRun: null,
 				resources: { ...CAMPAIGN_FIXTURE.resources, people: 0 },
 				end: { ending: 'disbanded', cause: 'no_people' }
 			});
@@ -879,7 +890,7 @@ describe('Campaign', () => {
 				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
 			};
 
-			expect(CAMPAIGN_SCHEMA_VERSION).toBe(6);
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(7);
 			try {
 				expect(format).toEqual(SAVE_FORMAT);
 			} catch (error) {
