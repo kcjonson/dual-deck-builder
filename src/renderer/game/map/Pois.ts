@@ -335,7 +335,8 @@ class PoiPlacer {
 		const jitterStream = this.rng.fork('factions');
 		const jitter = names.map(() => jitterStream.float() * fitJitter);
 		const taken = new Uint8Array(names.length);
-		const fits = new Map<number, Float64Array>();
+		// Every site is in one sector, so each one's land is sampled once, into the one scratch array.
+		const land = new Float64Array(BIOMES.length + 2);
 		for (let sector = 0; sector < count; sector += 1) {
 			let best = -1;
 			let bestFit = -Infinity;
@@ -344,12 +345,7 @@ class PoiPlacer {
 				const x = this.siteX[candidate];
 				const y = this.siteY[candidate];
 				if (sectors.sectorOf(x, y) !== sector || !this.free(candidate, true)) continue;
-				let land = fits.get(candidate);
-				if (land === undefined) {
-					land = this.landAround(x, y);
-					fits.set(candidate, land);
-				}
-				const { fit, faction } = this.bestFaction(land, jitter, taken);
+				const { fit, faction } = this.bestFaction(this.landAround(x, y, land), jitter, taken);
 				if (fit > bestFit || (fit === bestFit && this.siteScore[candidate] > this.siteScore[best])) {
 					best = candidate;
 					bestFit = fit;
@@ -366,9 +362,9 @@ class PoiPlacer {
 		return rotation;
 	}
 
-	/** Biome counts and ruin around a site: the site and `FIT_DIRECTIONS` points `fitRadius` from it, those inside the disc. The last two entries are the ruin sum and the samples. */
-	private landAround(x: number, y: number): Float64Array {
-		const land = new Float64Array(BIOMES.length + 2);
+	/** Biome counts and ruin around a site, into `land`: the site and `FIT_DIRECTIONS` points `fitRadius` from it, those inside the disc. The last two entries are the ruin sum and the samples. */
+	private landAround(x: number, y: number, land: Float64Array): Float64Array {
+		land.fill(0);
 		const reach = this.tuning.strongholds.fitRadius;
 		for (let index = -1; index < FIT_DIRECTIONS; index += 1) {
 			if (index >= 0) unitVector(index * 360 / FIT_DIRECTIONS, this.direction);
