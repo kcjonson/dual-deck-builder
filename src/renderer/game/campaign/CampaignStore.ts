@@ -80,6 +80,15 @@ export class CampaignStoreError extends Error {
 
 export type SaveFailedListener = (error: CampaignStoreError) => void;
 
+/**
+ * How a checkpoint went: the campaign is saved; its end is in the history
+ * (a campaign that's over is ended, not saved, by this checkpoint or a call
+ * before it); it failed, and `onSaveFailed` heard why; or the store has
+ * moved on from this instance (the save was loaded again, deleted, or
+ * replaced), so nothing was saved, and nobody is told.
+ */
+export type CheckpointResult = 'saved' | 'ended' | 'failed' | 'retired';
+
 export interface CampaignStoreOptions {
 	storage: SaveStorage;
 	/** The build whose saves these are. The page's (`pageNamespace`) when left out. */
@@ -138,7 +147,7 @@ interface Waiting {
 	readonly campaign: Campaign;
 	/** Replaced by a checkpoint that joins after it was taken, so the write holds the latest step. */
 	snapshot: Snapshot;
-	readonly saved: Promise<boolean>;
+	readonly result: Promise<CheckpointResult>;
 }
 
 /**
@@ -286,38 +295,41 @@ export class CampaignStore extends EventEmitter {
 	 */
 	public save(campaign: Campaign): Promise<void> {
 		const snapshot = new Snapshot({ campaign });
-		return this.enqueue(() => this.write({ campaign, snapshot }));
+		return this.enqueue(async () => {
+			await this.write({ campaign, snapshot });
+		});
 	}
 
 	/**
 	 * Saves the campaign at the end of a step, for screens to call after
 	 * each one. Checkpoints of one campaign share a write while it waits its
 	 * turn, and the write holds the latest of their steps; any other call in
-	 * between ends the sharing. Never rejects: resolves true once saved, or
-	 * false. A failure goes to `onSaveFailed` listeners (logged when none
-	 * listen), except for a retired campaign, which the game has moved on from.
-	 * A campaign that's over is ended instead, as `end` ends it, so the
-	 * checkpoint after the step that lost it writes its history line, once:
-	 * it resolves true when the end is recorded and the save removed, and
-	 * every checkpoint of it after that resolves false.
+	 * between ends the sharing. Never rejects: resolves to how it went
+	 * (`CheckpointResult`). A failure goes to `onSaveFailed` listeners
+	 * (logged when none listen); a retired campaign, which the game has moved
+	 * on from, tells nobody. A campaign that's over is ended instead, as `end`
+	 * ends it, so the checkpoint after the step that lost it writes its
+	 * history line, once: it resolves 'ended' when the end is recorded and
+	 * the save removed, and so does every checkpoint of it after that, which
+	 * records nothing more.
 	 */
-	public checkpoint(campaign: Campaign): Promise<boolean> {
+	public checkpoint(campaign: Campaign): Promise<CheckpointResult> {
 		const joining = this.waiting;
 		if (joining !== null && joining.campaign === campaign) {
 			// Its snapshot has been taken, so this step came after it.
 			if (joining.snapshot.taken) joining.snapshot = new Snapshot({ campaign });
-			return joining.saved;
+			return joining.result;
 		}
 		const waiting: Waiting = {
 			campaign,
 			snapshot: new Snapshot({ campaign }),
-			saved: this.enqueue(() => {
+			result: this.enqueue(() => {
 				if (this.waiting === waiting) this.waiting = null;
 				return this.write({ campaign, snapshot: waiting.snapshot });
-			}).then(() => true, (error: unknown) => this.checkpointFailed(error))
+			}).catch((error: unknown) => this.checkpointFailed({ campaign, error }))
 		};
 		this.waiting = waiting;
-		return waiting.saved;
+		return waiting.result;
 	}
 
 	/** Hears every checkpoint that failed to save. Returns the function that removes the listener. */
@@ -452,10 +464,10 @@ export class CampaignStore extends EventEmitter {
 	 * switched to it; or, for a campaign that's over, its end. A campaign
 	 * that's over can't change, so it's read as it is when its turn comes.
 	 */
-	private async write({ campaign, snapshot }: { campaign: Campaign; snapshot: Snapshot }): Promise<void> {
+	private async write({ campaign, snapshot }: { campaign: Campaign; snapshot: Snapshot }): Promise<'saved' | 'ended'> {
 		if (campaign.isOver) {
 			await this.close({ campaign, entry: historyEntry({ campaign }) });
-			return;
+			return 'ended';
 		}
 		this.refuseRetired(campaign, SAVING);
 		const body = snapshot.take();
@@ -469,7 +481,7 @@ export class CampaignStore extends EventEmitter {
 			if (!survey.named) await this.protect({ slot: otherSlot(save), text: survey.texts[otherSlot(save)], action: SAVING });
 			if (survey.pointer !== save) await this.put(this.keys.active, save, SAVING);
 			this.adopt(campaign);
-			return;
+			return 'saved';
 		}
 		const next: Slot = save === null ? 'a' : otherSlot(save);
 		// The save's own slot stops being the save once `active` moves off it; with no `active` naming the save,
@@ -480,6 +492,7 @@ export class CampaignStore extends EventEmitter {
 		this.known.set(next, text);
 		await this.put(this.keys.active, next, SAVING);
 		this.adopt(campaign);
+		return 'saved';
 	}
 
 	private refuseRetired(campaign: Campaign, action: string): void {
@@ -646,19 +659,24 @@ export class CampaignStore extends EventEmitter {
 		}
 	}
 
-	/** Tells listeners why a checkpoint failed, or logs it with none listening. Never throws, so a checkpoint never rejects. */
-	private checkpointFailed(error: unknown): false {
+	/**
+	 * A checkpoint that didn't save: a retired campaign's, told to nobody,
+	 * ended when its lineage's end is in the history; or a failure, told to
+	 * listeners, or logged with none listening. Never throws, so a checkpoint
+	 * never rejects.
+	 */
+	private checkpointFailed({ campaign, error }: { campaign: Campaign; error: unknown }): CheckpointResult {
 		try {
 			const failure = error instanceof CampaignStoreError
 				? error
 				: new CampaignStoreError({ reason: 'unsavable', message: `${SAVING}.`, cause: error });
-			if (failure.reason === 'retired') return false;
+			if (failure.reason === 'retired') return this.lineages.get(campaign)?.ended === undefined ? 'retired' : 'ended';
 			if (this.listenerCount('saveFailed') === 0) console.warn(`CampaignStore: ${failure.message}`, failure.detail);
 			this.emit('saveFailed', failure);
 		} catch (unexpected) {
 			console.error('CampaignStore: could not report a failed checkpoint', unexpected);
 		}
-		return false;
+		return 'failed';
 	}
 }
 

@@ -21,8 +21,10 @@ import {
 	KEYS,
 	damagedText,
 	fixtureText,
+	lostCampaign,
 	outdatedText,
 	quotaError,
+	saveText,
 	securityError,
 	storageWith,
 	HeldStorage,
@@ -140,7 +142,7 @@ describe('MainMenuScreen', () => {
 			expect(campaign.drivers.length).toBeGreaterThanOrEqual(2);
 			expect(await store.saveStatus()).toBe('saved');
 			// The instance handed on is the one the store saves.
-			expect(await store.checkpoint(campaign)).toBe(true);
+			expect(await store.checkpoint(campaign)).toBe('saved');
 			expect((await store.load())?.seed).toBe(campaign.seed);
 			expect(await store.history()).toEqual([]);
 		});
@@ -202,7 +204,7 @@ describe('MainMenuScreen', () => {
 			const campaign = openedCampaign();
 			const loaded = screen.save;
 			expect(loaded.kind === 'saved' && loaded.campaign).toBe(campaign);
-			expect(await store.checkpoint(campaign)).toBe(true);
+			expect(await store.checkpoint(campaign)).toBe('saved');
 		});
 
 		it('asks before abandoning it, and Cancel or Escape keeps it, focus back on New Campaign', async () => {
@@ -262,6 +264,21 @@ describe('MainMenuScreen', () => {
 			const lint = layoutLint(treeSnapshot([screen.root, ...context.overlays.roots], size));
 			expect(lint.violations).toEqual([]);
 		});
+	});
+
+	it('says under Continue the day a save already over fell on, and that replacing it puts it in the history as it fell', async () => {
+		await open(storageWith(saveText({ campaign: lostCampaign({ ending: 'rioted', cause: 'last_driver' }).toSaveText() })));
+		expect(continueEnabled()).toBe(true);
+		expect(continueLine()).toBe('Fell on day 9');
+
+		send(context, [key('Enter')]);
+		await flush();
+		expect(find<Text>('main_menu_replace_body').text).toBe('Fell on day 9. A new campaign replaces it, and it goes into Campaign History as it fell.');
+		advance(context, OPEN_MS);
+		clickOn('main_menu_replace_confirm');
+		advance(context, CLOSE_MS);
+		await flush();
+		expect(await store.history()).toEqual([{ seed: 20261006, day: 9, strongholdsTaken: 1, ending: 'rioted' }]);
 	});
 
 	describe('while the save check is running', () => {

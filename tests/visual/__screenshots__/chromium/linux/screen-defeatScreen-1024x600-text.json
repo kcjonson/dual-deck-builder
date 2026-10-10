@@ -1,0 +1,21 @@
+[
+{"path":"defeatScreen/defeat_content/defeat_day","text":"Fell on day 9","rect":[465.2,63.58,93.6,15.84]},
+{"path":"defeatScreen/defeat_content/defeat_title","text":"The compound rioted","rect":[271.27,91.42,481.47,62.4]},
+{"path":"defeatScreen/defeat_content/defeat_story","text":"No drivers were left at the compound to send out. Unrest boiled over, and the last of them fought over what was left.","rect":[232,165.82,560,40.85]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_last_day/Text[0]","text":"The last day","rect":[56,224.68,376,21]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_last_day/defeat_last_day_0","text":"No drivers are left, and the compound rioted over what was left.","rect":[52,259.68,384,40.85]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_record/Text[0]","text":"Campaign record","rect":[472,224.68,496,21]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_record/defeat_record_days/defeat_record_days_label","text":"Days held","rect":[468,259.68,170,20.43]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_record/defeat_record_days/defeat_record_days_value","text":"9 days","rect":[654,259.99,318,19.8]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_record/defeat_record_runs/defeat_record_runs_label","text":"Supply runs","rect":[468,293.11,170,20.43]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_record/defeat_record_runs/defeat_record_runs_value","text":"1 home, 2 failed","rect":[654,293.42,318,19.8]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_record/defeat_record_fights/defeat_record_fights_label","text":"Fights","rect":[468,326.53,170,20.43]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_record/defeat_record_fights/defeat_record_fights_value","text":"3 won, 2 lost","rect":[654,326.85,318,19.8]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_record/defeat_record_drivers/defeat_record_drivers_label","text":"Drivers lost","rect":[468,359.96,170,20.43]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_record/defeat_record_drivers/defeat_record_drivers_value","text":"2 killed, 3 missing","rect":[654,360.27,318,19.8]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_record/defeat_record_strongholds/defeat_record_strongholds_label","text":"Strongholds taken","rect":[468,393.39,170,20.43]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_record/defeat_record_strongholds/defeat_record_strongholds_value","text":"1","rect":[654,393.7,318,19.8]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_record/defeat_record_stores/defeat_record_stores_label","text":"At the end","rect":[468,436.4,170,20.43]},
+{"path":"defeatScreen/defeat_content/defeat_panels/defeat_record/defeat_record_stores/defeat_record_stores_value","text":"18 people, 14 food, 11 water, unrest 12","rect":[654,426.82,318,39.6]},
+{"path":"defeatScreen/defeat_back_button/Text[0]","text":"Back to menu","rect":[451,490.42,149,46]}
+]

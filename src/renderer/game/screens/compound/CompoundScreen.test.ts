@@ -3,7 +3,6 @@
  */
 import { Clock } from '../../../engine/animation/Clock';
 import { createTestContext } from '../../../engine/components/testing';
-import type { Component } from '../../../engine/components/Component';
 import type { MountContext } from '../../../engine/components/MountContext';
 import type { Text } from '../../../engine/components/Text';
 import type { Button } from '../../../engine/ui/Button';
@@ -28,8 +27,6 @@ jest.mock('../../core/ScreenManager', () => ({
 }));
 
 const navigate = ScreenManager.navigate as jest.Mock;
-const OPEN_MS = tokens.motion.dur + 32;
-const CLOSE_MS = tokens.motion.dur_fast + 32;
 const TO_MENU = ['mainMenuScreen', undefined, { restoreFocus: true }];
 /** Past the window in which a press right after a day ended counts as the same click (the screen's 300 ms). */
 const NEXT_PRESS_MS = 320;
@@ -90,22 +87,9 @@ describe('CompoundScreen', () => {
 		return find<{ children: readonly { id: string | null }[] }>('compound_needs').children.map((row) => text(`${row.id}_text`));
 	}
 
-	function fallen(): boolean {
-		return context.overlays.roots.some((root) => root.findById('compound_fallen_dialog'));
-	}
-
-	/** The kicker over the notice's title: the first panel kicker in the overlays. */
-	function noticeKicker(): string | null {
-		const walk = (component: Component): string | null => {
-			const kicker = (component as { kicker?: unknown }).kicker;
-			if (typeof kicker === 'string') return kicker;
-			for (const child of component.children) {
-				const found = walk(child);
-				if (found !== null) return found;
-			}
-			return null;
-		};
-		return context.overlays.roots.map(walk).find((kicker) => kicker !== null) ?? null;
+	/** How often the screen has gone to the defeat screen, handed the campaign on show. */
+	function defeats(): number {
+		return navigate.mock.calls.filter(([name, data]) => name === 'defeatScreen' && (data as { campaign?: unknown }).campaign === screen.shown).length;
 	}
 
 	/** Lets the store's calls run: a few macrotask turns. */
@@ -398,31 +382,30 @@ describe('CompoundScreen', () => {
 	describe('when the last people leave', () => {
 		beforeEach(() => openText(homeText({ people: 1, food: 0, water: 0 })));
 
-		it('ends the campaign, whose checkpoint writes its line and removes the save, then says the compound has fallen, and its button goes to the menu (DDB-305)', async () => {
-			expect(fallen()).toBe(false);
+		it('ends the campaign, whose checkpoint writes its line and removes the save, then goes to the defeat screen with it (DDB-305)', async () => {
 			await rest();
-			advance(context, OPEN_MS);
 			expect(screen.shown?.end).toEqual({ ending: 'starved', cause: 'no_people' });
-			expect(fallen()).toBe(true);
-			expect(text('compound_fallen_body')).toBe('Nobody is left at the compound. The campaign is lost.');
 			// The day stops on the day the compound fell
-			expect(noticeKicker()).toBe('Day 9 / dawn');
+			expect(text('compound_day')).toBe('Day 9 / dawn');
 			expect(await storeOver(storage).load()).toBeNull();
 			expect(await storeOver(storage).history()).toEqual([{ seed: CAMPAIGN_FIXTURE.seed, day: 9, strongholdsTaken: 1, ending: 'starved' }]);
 			expect(storage.keys).toEqual([KEYS.history]);
-			expect(context.focus.focused?.id).toBe('compound_fallen_back');
-			expect(navigate).not.toHaveBeenCalled();
-			send(context, [key('Enter')]);
-			advance(context, CLOSE_MS);
 			expect(navigate).toHaveBeenCalledTimes(1);
-			expect(navigate).toHaveBeenLastCalledWith(...TO_MENU);
+			expect(navigate).toHaveBeenLastCalledWith('defeatScreen', { campaign: screen.shown });
 		});
 
-		it('holds the notice back while the end is unsaved, showing why, and opens it once a Rest ends it, without another night', async () => {
+		it('goes to the defeat screen once, whatever is pressed after the fall', async () => {
+			await rest();
+			await rest();
+			find<Button>('compound_building_bunkhouse_button').onClick?.({} as never);
+			expect(navigate).toHaveBeenCalledTimes(1);
+			expect(defeats()).toBe(1);
+		});
+
+		it('stays while the end is unsaved, showing why, and goes to the defeat screen once a Rest ends it, without another night', async () => {
 			storage.fault = { method: 'setItem', error: quotaError() };
 			await rest();
-			advance(context, OPEN_MS);
-			expect(fallen()).toBe(false);
+			expect(defeats()).toBe(0);
 			expect(text('compound_save_error')).toBe("The campaign couldn't be ended: storage is full.");
 			// The save still holds the day before, and the history has nothing yet
 			expect((await storeOver(storage).load())?.resources.people).toBe(1);
@@ -432,33 +415,29 @@ describe('CompoundScreen', () => {
 			expect(screen.shown?.day).toBe(9);
 			storage.fault = null;
 			await rest();
-			advance(context, OPEN_MS);
-			expect(fallen()).toBe(true);
-			expect(noticeKicker()).toBe('Day 9 / dawn');
+			expect(defeats()).toBe(1);
 			expect(await storeOver(storage).load()).toBeNull();
 			expect(await storeOver(storage).history()).toHaveLength(1);
 			// The injured driver healed one night only.
 			expect(screen.shown?.drivers[2]).toMatchObject({ status: 'injured', injuredDays: 1 });
 		});
 
-		it('ends the campaign from a scavenged day the same way, the haul in the report and the log, then says the compound has fallen', async () => {
+		it('ends the campaign from a scavenged day the same way, the haul in the report and the log, then goes to the defeat screen', async () => {
 			const haul = haulOn(9);
 			await scavenge();
-			advance(context, OPEN_MS);
 			expect(screen.shown?.end).toEqual({ ending: 'starved', cause: 'no_people' });
 			expect(screen.shown?.resources.fuel).toBe(6 + haul.fuel);
 			expect(screen.shown?.log.map((entry) => entry.message)).toContain(scavengeMessage(haul));
 			expect(text('compound_report')).toBe(`${scavengeMessage(haul)} Day 9 ended. Ran short of 1 food and 1 water; 1 person lost.`);
-			expect(fallen()).toBe(true);
+			expect(defeats()).toBe(1);
 			expect(await storeOver(storage).load()).toBeNull();
 			expect(await storeOver(storage).history()).toEqual([{ seed: CAMPAIGN_FIXTURE.seed, day: 9, strongholdsTaken: 1, ending: 'starved' }]);
 		});
 
-		it('holds the notice back when a scavenged fall can\'t be saved, disables Scavenge as over, and lets Rest save the end without another night', async () => {
+		it('stays when a scavenged fall can\'t be saved, disables Scavenge as over, and lets Rest save the end without another night', async () => {
 			storage.fault = { method: 'setItem', error: quotaError() };
 			await scavenge();
-			advance(context, OPEN_MS);
-			expect(fallen()).toBe(false);
+			expect(defeats()).toBe(0);
 			expect(text('compound_save_error')).toBe("The campaign couldn't be ended: storage is full.");
 			expect(find<Button>('compound_scavenge_button').enabled).toBe(false);
 			expect(text('compound_scavenge_line')).toBe('The campaign is over, so no party goes out.');
@@ -471,38 +450,95 @@ describe('CompoundScreen', () => {
 			expect(await storeOver(storage).history()).toEqual([]);
 			storage.fault = null;
 			await rest();
-			advance(context, OPEN_MS);
-			expect(fallen()).toBe(true);
+			expect(defeats()).toBe(1);
 			expect(screen.shown?.day).toBe(9);
 			expect(screen.shown?.resources.fuel).toBe(6 + haulOn(9).fuel);
 			expect(await storeOver(storage).history()).toHaveLength(1);
 		});
 
-		it('goes to the menu on Escape, with no hotkey beneath the notice firing twice', async () => {
+		it('goes to the defeat screen with a lost campaign whose end an earlier checkpoint saved, recording nothing more', async () => {
 			await rest();
-			advance(context, OPEN_MS);
+			const lost = screen.shown as Campaign;
+			screen.unmount();
+			navigate.mockClear();
+
+			// Handed back the campaign whose end is already in the history, as a screen left open could hand it
+			screen = new CompoundScreen({ store });
+			screen.mount(context, { campaign: lost });
+			await flush();
+
+			expect(defeats()).toBe(1);
+			expect(find<Text>('compound_save_error').visible).toBe(false);
+			expect(await storeOver(storage).history()).toHaveLength(1);
+		});
+
+		it('strands a lost campaign the store has moved on from: no defeat screen, nothing more saved, and only Back to menu left', async () => {
+			// Loading the save again moves the store on from the instance on show, which ends nothing in the history
+			await store.load();
+			await rest();
+			expect(screen.shown?.isOver).toBe(true);
+			expect(defeats()).toBe(0);
+			expectStranded();
+			// The save still holds the day before the fall, for Back to menu to pick up
+			expect((await storeOver(storage).load())?.resources.people).toBe(1);
+			expect(await storeOver(storage).history()).toEqual([]);
 			send(context, [key('Escape')]);
-			advance(context, CLOSE_MS);
-			expect(navigate).toHaveBeenCalledTimes(1);
 			expect(navigate).toHaveBeenLastCalledWith(...TO_MENU);
+			expect(navigate).toHaveBeenCalledTimes(1);
 		});
 	});
 
-	it('ends a save that holds a campaign already over, as another tab or a hand-made save could leave one, then says the compound has fallen', async () => {
+	/** Over the buttons, that nothing more is saved here; Rest, Scavenge, and the Bunkhouse off, each saying why; focus on Back. */
+	function expectStranded(): void {
+		expect(text('compound_save_error')).toBe("This campaign isn't the save any more, so nothing more is saved here. Back to menu to pick up the save.");
+		expect(find<{ color: unknown }>('compound_save_error').color).toEqual(tokens.color.status_warn);
+		expect(find<Button>('compound_rest_button').enabled).toBe(false);
+		expect(find<Button>('compound_scavenge_button').enabled).toBe(false);
+		expect(text('compound_rest_line')).toBe('Nothing more is saved here, so no day ends.');
+		expect(text('compound_scavenge_line')).toBe('');
+		expect(find<Button>('compound_building_bunkhouse_button').enabled).toBe(false);
+		expect(text('compound_building_bunkhouse_reason')).toBe('Shut, since nothing more is saved here.');
+		expect(find<Text>('compound_building_bunkhouse_reason').visible).toBe(true);
+		expect(context.focus.focused?.id).toBe('compound_back_button');
+	}
+
+	it('strands a standing campaign the store has moved on from, its day ended but nothing more saved, and Back still goes to the menu', async () => {
+		await open();
+		await store.load();
+		await rest();
+		expect(screen.shown?.day).toBe(10);
+		expectStranded();
+		// Even pressed past their disabled state, nothing starts
+		advance(context, NEXT_PRESS_MS);
+		for (const id of ['compound_rest_button', 'compound_scavenge_button', 'compound_building_bunkhouse_button']) find<Button>(id).onClick?.({} as never);
+		await flush();
+		expect(screen.shown?.day).toBe(10);
+		expect(navigate).not.toHaveBeenCalled();
+		send(context, [key('Escape')]);
+		expect(navigate).toHaveBeenLastCalledWith(...TO_MENU);
+	});
+
+	it('strands a standing campaign that was ended elsewhere, as abandoned', async () => {
+		await open();
+		await store.end({ campaign: screen.shown as Campaign, ending: 'abandoned' });
+		await rest();
+		expect(defeats()).toBe(0);
+		expectStranded();
+	});
+
+	it('ends a save that holds a campaign already over, as another tab or a hand-made save could leave one, then goes to the defeat screen', async () => {
 		await openText(homeText({ people: 0 }, { ending: 'disbanded', cause: 'no_people' }));
 		await flush();
-		advance(context, OPEN_MS);
-		expect(fallen()).toBe(true);
 		expect(await storeOver(storage).load()).toBeNull();
 		expect(await storeOver(storage).history()).toEqual([{ seed: CAMPAIGN_FIXTURE.seed, day: 9, strongholdsTaken: 1, ending: 'disbanded' }]);
-		expect(navigate).not.toHaveBeenCalled();
+		expect(navigate).toHaveBeenCalledTimes(1);
+		expect(defeats()).toBe(1);
 	});
 
 	it('retries the end of a save already over with Rest when its checkpoint failed as the screen opened, ending no day', async () => {
 		await openText(homeText({ people: 0 }, { ending: 'disbanded', cause: 'no_people' }), { fault: { method: 'setItem', error: quotaError() } });
 		await flush();
-		advance(context, OPEN_MS);
-		expect(fallen()).toBe(false);
+		expect(defeats()).toBe(0);
 		expect(text('compound_save_error')).toBe("The campaign couldn't be ended: storage is full.");
 		expect(text('compound_rest_line')).toBe('The compound has fallen. Rest saves its end again.');
 		expect(find<Button>('compound_scavenge_button').enabled).toBe(false);
@@ -511,9 +547,8 @@ describe('CompoundScreen', () => {
 		storage.fault = null;
 
 		await rest();
-		advance(context, OPEN_MS);
 
-		expect(fallen()).toBe(true);
+		expect(defeats()).toBe(1);
 		expect(screen.shown?.day).toBe(9);
 		expect(await storeOver(storage).load()).toBeNull();
 		expect(await storeOver(storage).history()).toEqual([{ seed: CAMPAIGN_FIXTURE.seed, day: 9, strongholdsTaken: 1, ending: 'disbanded' }]);
@@ -522,8 +557,7 @@ describe('CompoundScreen', () => {
 	it('says nothing has fallen while a run is out at 0 People, since the end waits for the run to come home, and sends nobody out', async () => {
 		await openRunOut((campaign) => { campaign.resources.people = 0; });
 		await flush();
-		advance(context, OPEN_MS);
-		expect(fallen()).toBe(false);
+		expect(defeats()).toBe(0);
 		expect(screen.shown?.isOver).toBe(false);
 		expect(find<Button>('compound_scavenge_button').enabled).toBe(false);
 		expect(text('compound_scavenge_line')).toBe('Nobody is left to send out.');
@@ -539,7 +573,7 @@ describe('CompoundScreen', () => {
 			screen.mount(context, { campaign });
 			expect(screen.shown).toBe(campaign);
 			expect(text('compound_day')).toBe('Day 1 / dawn');
-			expect(fallen()).toBe(false);
+			expect(navigate).not.toHaveBeenCalled();
 		});
 
 		it('says why Rest is disabled when there is no save, or it is damaged', async () => {
@@ -645,18 +679,15 @@ describe('CompoundScreen', () => {
 		expect(layoutLint(treeSnapshot([screen.root], viewport.logical)).violations).toEqual([]);
 	});
 
-	it.each([
-		{ width: 1440, height: 882 },
-		{ width: 1024, height: 600 },
-	])('lays the fallen notice out with no lint at $width x $height', async (size) => {
+	it.each([{ width: 1024, height: 600 }, { width: 1440, height: 882 }])('lays out with no lint at $width x $height once stranded', async (size) => {
 		viewport.logical = size;
 		context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
-		await openText(homeText({ people: 1, food: 0 }));
+		await open();
+		await store.load();
 		await rest();
-		advance(context, OPEN_MS);
-		expect(fallen()).toBe(true);
-		const lint = layoutLint(treeSnapshot([screen.root, ...context.overlays.roots], size));
-		expect(lint.violations).toEqual([]);
+		context.frame.layout();
+		expectStranded();
+		expect(layoutLint(treeSnapshot([screen.root], viewport.logical)).violations).toEqual([]);
 	});
 
 	describe('pressed with the pointer, laid out in the real faces', () => {

@@ -25,8 +25,14 @@ export function strongholdsText(count: number): string {
 	return `${countOf(count, 'stronghold')} taken`;
 }
 
-/** Continue's line (Game Flow 1.1): "Day 12 - 3 drivers - 1 stronghold taken". */
+/** The day a lost campaign fell on, which is the days it held out: over the defeat screen's title, and Continue's line. */
+export function fellOnText(day: number): string {
+	return `Fell on day ${day}`;
+}
+
+/** Continue's line (Game Flow 1.1): "Day 12 - 3 drivers - 1 stronghold taken", or "Fell on day 12" for a campaign that's over. */
 export function campaignSummary(campaign: Campaign): string {
+	if (campaign.isOver) return fellOnText(campaign.day);
 	return [
 		`Day ${campaign.day}`,
 		countOf(driversAtCompound(campaign), 'driver'),
