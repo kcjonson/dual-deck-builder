@@ -86,7 +86,7 @@ The hotspots and the places are small and go by structured clone beside the land
 
 `AreaMapData` takes the places, optional, and the view draws them on a `places` layer between the roads and the compound, a constant size on screen: towns a dark dot with a white ring and their name, villages a smaller one named once the zoom passes 0.6 pixels a world unit (a 1000-radius map fitted to the screen is about 0.34), crossroads a small grey dot, and exits a dark ring. A place under the fog isn't drawn. The bake shades the ruins it's given, the metro's, towns', and villages', as it shaded the terrain's metro and towns, darker out to twice their radius. Map 19 restyles all of it.
 
-The gallery's area map scenes re-baseline: hotspots and lakes moved, towns moved to the rivers, and places are drawn.
+The gallery's area map scenes re-baseline: hotspots and lakes moved, towns moved to the rivers, and places are drawn. The fog scene's stand-in knowledge reaches 520 units rather than 430, since the roads growing toward the exits left only one dead end in the old reach for its four POIs.
 
 ## Determinism
 
