@@ -1,9 +1,9 @@
 import { meshMap, randomMesh } from '../map/meshTesting';
-import { POI_TUNING, STRONGHOLD_TYPE } from '../map/PoiData';
+import { POI_TUNING } from '../map/PoiData';
 import { ROAD_CLASSES } from '../map/RoadNetwork';
 import { describeMap } from '../map/RouteDescriptors';
 import { isFight } from '../map/StopData';
-import { offersForDay, routeOffers } from './MapRoutes';
+import { destinationId, routeId, routeOffers } from './MapRoutes';
 import { RunRoute, readRunRoute } from './SupplyRoutes';
 
 const maps = Array.from({ length: 3 }, (_, index) => meshMap(randomMesh({ seed: 900 + index, spacing: 85 + index }), { seed: index }));
@@ -64,7 +64,9 @@ describe('routeOffers', () => {
 		routeOffers(map).forEach((route, index) => {
 			const descriptor = described[index];
 			expect(route.id).toBe(`route-${descriptor.poi}-${descriptor.route}`);
+			expect(route.id).toBe(routeId(descriptor.poi, descriptor.route));
 			expect(route.destination).toMatchObject({ id: `poi-${descriptor.poi}`, tier: pois.pois[descriptor.poi].tier });
+			expect(route.destination.id).toBe(destinationId(descriptor.poi));
 			const { type } = pois.pois[descriptor.poi];
 			const yields: Partial<Record<string, number>> = POI_TUNING.types[type]?.yields ?? {};
 			expect(route.destination.yield).toEqual({ food: yields.food ?? 0, water: yields.water ?? 0, fuel: yields.fuel ?? 0, scrap: yields.scrap ?? 0 });
@@ -93,50 +95,5 @@ describe('routeOffers', () => {
 	it('gives nothing on a map with no POIs', () => {
 		const empty = { ...maps[0], products: { pois: { ...maps[0].products.pois, pois: [], legs: [], strongholds: [] }, stops: { ...maps[0].products.stops, stops: [], legs: [] } } };
 		expect(routeOffers(empty)).toEqual([]);
-	});
-});
-
-describe('offersForDay', () => {
-	const map = maps[2];
-	const routes = routeOffers(map);
-	const destinations = (offered: readonly RunRoute[]) => [...new Set(offered.map(({ destination }) => destination.id))];
-
-	it('offers a tier 1 destination and up to two from tiers 2 and 3, each with every route it has', () => {
-		for (let day = 1; day <= 10; day += 1) {
-			const offered = offersForDay({ map, seed: 42, day });
-			const ids = destinations(offered);
-			expect(ids.length).toBeGreaterThanOrEqual(1);
-			expect(ids.length).toBeLessThanOrEqual(3);
-			expect(offered[0].destination.tier).toBe(1);
-			for (const id of ids) {
-				expect(offered.filter((route) => route.destination.id === id)).toEqual(routes.filter((route) => route.destination.id === id));
-				const tier = offered.find((route) => route.destination.id === id)?.destination.tier ?? 0;
-				expect(tier).toBeLessThanOrEqual(3);
-			}
-		}
-	});
-
-	it('offers only destinations a run can reach and leave by dark, by the unrounded hours, and never a stronghold', () => {
-		const strongholds = new Set(map.products.pois.strongholds.map(({ poi }) => `poi-${poi}`));
-		const short = { ...map, params: { ...map.params, daylightHours: 9 } };
-		const described = describeMap(short);
-		const seen = new Set<string>();
-		for (let day = 1; day <= 20; day += 1) {
-			for (const id of destinations(offersForDay({ map: short, seed: 7, day }))) {
-				seen.add(id);
-				expect(strongholds.has(id)).toBe(false);
-				expect(described[Number(id.slice('poi-'.length))].some(({ spare }) => spare >= 0)).toBe(true);
-			}
-		}
-		// Some destinations the full day would offer are past dark in a short one.
-		const fullDay = new Set(Array.from({ length: 20 }, (_, day) => destinations(offersForDay({ map, seed: 7, day: day + 1 }))).flat());
-		expect([...fullDay].some((id) => !seen.has(id))).toBe(true);
-		expect(map.products.pois.pois.some(({ type }) => type === STRONGHOLD_TYPE)).toBe(true);
-	});
-
-	it('offers the same for a day however often it\'s asked, and other days differ', () => {
-		expect(offersForDay({ map, seed: 42, day: 3 })).toEqual(offersForDay({ map, seed: 42, day: 3 }));
-		const days = new Set(Array.from({ length: 10 }, (_, day) => destinations(offersForDay({ map, seed: 42, day: day + 1 })).join()));
-		expect(days.size).toBeGreaterThan(1);
 	});
 });

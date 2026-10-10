@@ -7,6 +7,7 @@ import { renderTree } from '../engine/components/renderTree';
 import { ScreenManager } from './core/ScreenManager';
 import type { MountContext } from '../engine/components/MountContext';
 import { CardLoader } from './core/CardLoader';
+import { CampaignMaps } from './campaign/CampaignMaps';
 import type { Container } from '../engine/components/Container';
 import type { DeviceInfo } from '../engine/rendering/deviceInfo';
 import type { ReducedMotion } from '../engine/rendering/reducedMotion';
@@ -33,7 +34,7 @@ export interface GameStatus {
 	viewport: { width: number; height: number };
 	/**
 	 * False while a data fetch the mounted screen started is still outstanding
-	 * (R14.5). The screenshot harness gates on this because the drawn tree
+	 * (R14.5), or the campaign's area map is being made (`CampaignMaps.making`). The screenshot harness gates on this because the drawn tree
 	 * cannot answer the question: a screen whose `cards.json` request has not
 	 * resolved holds exactly as still as one whose request finished, so a
 	 * "two frames agree" check accepts the pre-data frame as readily as the
@@ -231,7 +232,7 @@ export class Game {
 					renders: this.renders,
 					inputPaused: this.context.dispatcher.paused,
 					viewport: this.viewport.logical,
-					assetsReady: !CardLoader.getInstance().loading,
+					assetsReady: !CardLoader.getInstance().loading && !CampaignMaps.shared.making,
 				}),
 			});
 			installDebugHooks({

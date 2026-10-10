@@ -54,7 +54,9 @@ searched for the marker, because `git revert` of a mint is titled
 replaced. `scripts/check-baseline-provenance.test.ts` runs the script in scratch repositories
 against the cases: a mint, a hand edit, a hand edit a later mint overwrote (passes, the bytes
 are the mint's), a revert of a mint, the subject typed by hand, a merge of `main` bringing its
-own baselines (passes), a merge that edits a baseline, and a deletion.
+own baselines (passes), a merge that edits a baseline, and a deletion (passes: a deleted baseline
+brings no pixels to vouch for, the mint never removes a file, so deleting by hand is how a retired
+screen's goldens go, and a screen or scene that still needs one fails the Screenshots job without it).
 
 What the three layers are actually worth, in order and stated without inflation. The `.gitignore`
 layer is the strong one: it is not a rule about behaviour but a fact about paths, and a Windows or

@@ -135,6 +135,42 @@ export const MARKER = {
 	pickRadius: 14,
 } as const;
 
+/** A POI's badge, its tier on the area map screen, centred in its disc. */
+export const BADGE = {
+	font: 'body',
+	size: 10,
+} as const;
+
+/** A POI with no route home by dark: a ring outside its disc, the colour of the night. Screen pixels. */
+export const NIGHT_RING = {
+	color: [38 / 255, 46 / 255, 92 / 255, 1] as RGBA,
+	width: 2.5,
+	/** Between the disc's edge and the ring's inner edge. */
+	gap: 1.5,
+} as const;
+
+/**
+ * A POI's routes on the run route screen, as bands under the roads (Area
+ * Map Generation, Rendering): the picked one wide in a strong colour
+ * nothing else on the map uses, the others a little narrower in a pale tint
+ * of it, so they read on dark ground and under highways alike. Opaque, as
+ * a translucent polyline darkens where its segments overlap at the joints.
+ * Screen pixels, scaled with the roads (`roadWidthScale`).
+ */
+export const ROUTE_BAND = {
+	picked: { color: [214 / 255, 58 / 255, 134 / 255, 1] as RGBA, width: 12 },
+	other: { color: [244 / 255, 196 / 255, 222 / 255, 1] as RGBA, width: 10 },
+} as const;
+
+/** A stop on the picked route: a fight as a diamond in ink, anything else as a square on paper. Screen pixels. */
+export const ROUTE_STOP = {
+	/** Half a side, or the diamond's half diagonal. */
+	half: 4.5,
+	ink: [20 / 255, 20 / 255, 20 / 255, 1] as RGBA,
+	paper: [1, 1, 1, 1] as RGBA,
+	border: 1.5,
+} as const;
+
 export const LABEL = {
 	font: 'body',
 	size: tokens.fontSize.fs_sm,

@@ -37,7 +37,7 @@ export const BUILDINGS: readonly Building[] = [
 	{ id: 'radio_mast', name: 'Radio mast', description: 'Rumors: new POIs, and roads into the fog.', reason: "The radio mast isn't built yet." },
 	{ id: 'infirmary', name: 'Infirmary', description: 'Injured drivers heal over days; meds speed it up.', reason: "The infirmary isn't built yet." },
 	{ id: 'garage', name: 'Garage', description: 'Cards, mods, and escort repair and hire.', reason: "The garage isn't open at home yet." },
-	{ id: 'map_room', name: 'Map room', description: 'The area map, to plan a supply run.', reason: "The area map isn't built yet." },
+	{ id: 'map_room', name: 'Map room', description: 'The area map, to plan a supply run.', reason: 'For now Plan a supply run opens the area map.' },
 	{ id: 'stores', name: 'Stores', description: 'The resource ledger and its forecast.', reason: "The stores ledger isn't built yet." },
 ];
 

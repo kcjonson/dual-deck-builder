@@ -18,7 +18,7 @@ Considered: a pressable tile drawing its name and text itself, closer to the wir
 
 ### Disabled with the reason on screen
 
-A building with nothing behind it and the Area map are disabled, each with a line of text saying why, as Continue on the main menu is. Plan a supply run opens the route pick ([mvp-supply-run.md](./mvp-supply-run.md)), and its line says how many routes today offers, or, disabled, why (`getPlanBlocker`). A disabled control takes no focus and shows no hover (R9.5), and a tooltip needs one or the other (R12.22), so the reason can't be a tooltip. The Area map and the Map room open the same thing, so the Map room's line is the reason for both. A building whose screen exists has a null reason and the `screen` its button opens, handed the campaign on show; until there's a campaign it's disabled too, with a line saying it opens with a campaign in progress, and it doesn't open while a day end is being saved. The bunkhouse is the first, opening the Crew screen ([crew-screen.md](./crew-screen.md)).
+A building with nothing behind it and the Area map are disabled, each with a line of text saying why, as Continue on the main menu is. Plan a supply run opens the area map ([area-map-route-pick.md](./area-map-route-pick.md)), and its line says how many destinations the map has, or, disabled, why (`getPlanBlocker`), or, while the campaign's map is being made again, how far it's got. A disabled control takes no focus and shows no hover (R9.5), and a tooltip needs one or the other (R12.22), so the reason can't be a tooltip. The Area map and the Map room open the same thing, so the Map room's line is the reason for both. A building whose screen exists has a null reason and the `screen` its button opens, handed the campaign on show; until there's a campaign it's disabled too, with a line saying it opens with a campaign in progress, and it doesn't open while a day end is being saved. The bunkhouse is the first, opening the Crew screen ([crew-screen.md](./crew-screen.md)).
 
 ### Rest and Scavenge
 
@@ -66,6 +66,6 @@ Each is the simplest option where the spec leaves a choice open, and a line or t
 
 ## Consequences
 
-- Each building screen that lands gives its `BUILDINGS` entry a `screen` and drops its reason; the Area map button follows the area map, and Plan a supply run moves from the MVP route pick to it. With a building live, focus could start on the buildings instead of Back.
+- Each building screen that lands gives its `BUILDINGS` entry a `screen` and drops its reason; the Area map button and the Map room open the area map once looking at it on its own is in; Plan a supply run already opens it. With a building live, focus could start on the buildings instead of Back.
 - The needs panel takes rumors when the radio mast has them (DDB-337). The infirmary's meds line ("out of meds, a driver can't heal") comes with the infirmary screen, from `getTreatmentBlocker`'s `too_few_meds` ([injuries.md](./injuries.md)).
 - While scavenging costs and risks nothing, it's never worse than a day of rest ([scavenging-party.md](./scavenging-party.md)), so Rest is a button with no reason to be pressed until one of them changes.

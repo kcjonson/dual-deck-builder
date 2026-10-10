@@ -14,7 +14,8 @@ import { CompoundScreen } from '../screens/compound/CompoundScreen';
 import { CrewScreen } from '../screens/crew/CrewScreen';
 import { CustomizeScreen } from '../screens/customize/CustomizeScreen';
 import { DefeatScreen } from '../screens/defeat/DefeatScreen';
-import { RoutePickScreen } from '../screens/route-pick/RoutePickScreen';
+import { AreaMapScreen } from '../screens/area-map/AreaMapScreen';
+import { RunRouteScreen } from '../screens/run-route/RunRouteScreen';
 import { RunScreen } from '../screens/run/RunScreen';
 import { ScreenTransition } from '../../engine/ui/ScreenTransition';
 
@@ -36,7 +37,8 @@ export type ScreenName =
 	| 'crewScreen'
 	| 'customizeScreen'
 	| 'defeatScreen'
-	| 'routePickScreen'
+	| 'areaMapScreen'
+	| 'runRouteScreen'
 	| 'runScreen';
 
 /**
@@ -73,7 +75,8 @@ function buildScreenConstructors(): Map<ScreenName, ScreenConstructor> {
 		['crewScreen', CrewScreen],
 		['customizeScreen', CustomizeScreen],
 		['defeatScreen', DefeatScreen],
-		['routePickScreen', RoutePickScreen],
+		['areaMapScreen', AreaMapScreen],
+		['runRouteScreen', RunRouteScreen],
 		['runScreen', RunScreen],
 	);
 	return new Map(entries);

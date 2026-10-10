@@ -134,9 +134,19 @@ describe('check-baseline-provenance', () => {
 		expect(check().status).toBe(1);
 	});
 
-	it('fails a deleted baseline', () => {
+	it('passes a deleted baseline, which brings no pixels, as a retired screen\'s goldens go', () => {
 		git(['rm', '-q', GOLDEN]);
 		git(['commit', '-q', '-m', 'Drop the golden']);
-		expect(check().status).toBe(1);
+		expect(check()).toMatchObject({ status: 0 });
+	});
+
+	it('still fails a hand-edited baseline beside a deleted one', () => {
+		git(['rm', '-q', GOLDEN]);
+		git(['commit', '-q', '-m', 'Drop the golden']);
+		commit(OTHER, 'local pixels', 'Add a golden by hand');
+		const result = check();
+		expect(result.status).toBe(1);
+		expect(result.output).toContain(OTHER);
+		expect(result.output).not.toContain(`${GOLDEN}:`);
 	});
 });

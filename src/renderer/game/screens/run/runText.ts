@@ -4,7 +4,7 @@ import { Arrival, DepartBlocker, PlanBlocker, StopFightResult, cargoText, listTe
 import { dayEndReport, injuredLine } from '../compound/compoundText';
 import { countOf } from '../main-menu/campaignText';
 
-/** What the route pick, the run screen, and the compound's Plan button say about a supply run (DDB-454). */
+/** What the run route screen, the run screen, and the compound's Plan button say about a supply run (DDB-454). */
 
 export function skullsText(skulls: Skulls): string {
 	return countOf(skulls, 'skull');
@@ -13,16 +13,6 @@ export function skullsText(skulls: Skulls): string {
 /** "Raider ambush, 2 skulls", "Quiet stretch". */
 export function stopTitle(stop: RouteStop): string {
 	return stop.kind === 'fight' ? `Raider ambush, ${skullsText(stop.skulls)}` : 'Quiet stretch';
-}
-
-/** "3 fuel, 4.8 h out, 2.3 h home". */
-export function routeCost(route: RunRoute): string {
-	return `${route.fuel} fuel, ${route.hours.out} h out, ${route.hours.home} h home`;
-}
-
-/** "Risk: 2 skulls". */
-export function riskText(route: RunRoute): string {
-	return `Risk: ${skullsText(route.risk)}`;
 }
 
 /** "4 food, 3 water, 2 fuel, and 12 scrap", or "nothing". */
@@ -42,11 +32,11 @@ export function planRefusal(blocker: PlanBlocker): string {
 		case 'no_routes':
 			return 'No routes are known yet.';
 		case 'too_little_fuel':
-			return `Today's cheapest route takes ${blocker.needed} fuel, and the stores hold ${blocker.held}.`;
+			return `The cheapest route on the area map takes ${blocker.needed} fuel, and the stores hold ${blocker.held}.`;
 	}
 }
 
-/** The route pick's line under a route it can't take. */
+/** The run route screen's line under a route it can't take. */
 export function departRefusal(blocker: DepartBlocker): string {
 	switch (blocker.reason) {
 		case 'campaign_over':

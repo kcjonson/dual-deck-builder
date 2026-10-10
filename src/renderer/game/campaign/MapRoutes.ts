@@ -1,5 +1,4 @@
-import { Rng } from '../core/Rng';
-import { POI_TUNING, PoiTuning, STRONGHOLD_TYPE } from '../map/PoiData';
+import { POI_TUNING, PoiTuning } from '../map/PoiData';
 import type { RoadClass } from '../map/RoadNetwork';
 import { DescribeOptions, RouteDescriptor, RouteMap, describeMap, poiNames } from '../map/RouteDescriptors';
 import { ROAD_CLASSES } from '../map/RoadNetwork';
@@ -9,14 +8,25 @@ import type { Skulls } from './Encounters';
 import { RouteDestination, RouteLeg, RouteStop, RunRoute, YIELD_RESOURCES, YieldResource } from './SupplyRoutes';
 
 /**
- * The area map's routes in the run loop's route model (DDB-454's
- * `routesOnOffer`): every route to every POI, with its legs, their stops,
- * and its descriptor's fuel, hours, and risk. Fights stay fights with their
- * skulls; every other stop is a quiet stretch until the run has screens for
- * events, finds, garages, and hazards. A destination yields what its POI
- * type does, meds aside until a run can carry them. The decision record is
- * docs/AI_TECHNICAL_DECISIONS/stops-and-routes.md.
+ * The area map's routes in the run loop's route model (SupplyRoutes.ts):
+ * every route to every POI, with its legs, their stops, and its
+ * descriptor's fuel, hours, and risk. Fights stay fights with their skulls;
+ * every other stop is a quiet stretch until the run has screens for events,
+ * finds, garages, and hazards. A destination yields what its POI type does,
+ * meds aside until a run can carry them. `routesOnOffer` (SupplyRun.ts)
+ * reads them. The decision records are
+ * docs/AI_TECHNICAL_DECISIONS/stops-and-routes.md and area-map-route-pick.md.
  */
+
+/** A POI's destination id in the route model, `poi-<poi>`. */
+export function destinationId(poi: number): string {
+	return `poi-${poi}`;
+}
+
+/** The id of a POI's route, its place among the POI's routes, quickest first: `route-<poi>-<route>`. */
+export function routeId(poi: number, route: number): string {
+	return `route-${poi}-${route}`;
+}
 
 /**
  * Every route on the map as the run takes it, POI by POI, each POI's
@@ -47,7 +57,7 @@ function offersByPoi(map: RouteMap, described: readonly (readonly RouteDescripto
 		// A stronghold yields by its own rules, none of which exist yet.
 		const yields = types[type]?.yields ?? {};
 		const destination: RouteDestination = Object.freeze({
-			id: `poi-${poi}`,
+			id: destinationId(poi),
 			name: names[poi],
 			tier,
 			yield: Object.freeze(Object.fromEntries(YIELD_RESOURCES.map((resource) => [resource, yields[resource] ?? 0])) as Record<YieldResource, number>),
@@ -75,7 +85,7 @@ function runRoute({ descriptor, destination, map }: { descriptor: RouteDescripto
 		});
 	});
 	return Object.freeze({
-		id: `route-${descriptor.poi}-${descriptor.route}`,
+		id: routeId(descriptor.poi, descriptor.route),
 		name: descriptor.name,
 		destination,
 		legs: Object.freeze(legs),
@@ -83,33 +93,6 @@ function runRoute({ descriptor, destination, map }: { descriptor: RouteDescripto
 		hours: Object.freeze({ out: tenths(descriptor.hours.out), objective: tenths(descriptor.hours.objective), home: tenths(descriptor.hours.home) }),
 		risk: (descriptor.risk < 1 ? 1 : descriptor.risk) as Skulls,
 	});
-}
-
-/** Destinations a day offers at most, and the tiers its others come from (a tier 1 one is always among them). */
-const DAY_DESTINATIONS = 3;
-const DAY_TIERS = [2, 3];
-
-/**
- * A day's offer from the map's routes, until the area map screen picks
- * POIs (DDB-43): a tier 1 destination and up to two from tiers 2 and 3,
- * drawn from `fork('routes', day)` off the campaign's seed, each with every
- * route it has. Only destinations a run can reach and leave by dark, on at
- * least one route, are offered, since a run has no night yet: that's read
- * from the descriptors' unrounded hours, never the run's tenths. Strongholds
- * never are. Throws on a seed or day `Rng.fork` won't take.
- */
-export function offersForDay({ map, seed, day, ...options }: OfferOptions & { map: RouteMap; seed: number; day: number }): readonly RunRoute[] {
-	const rng = new Rng({ seed }).fork('routes', day);
-	const described = describeMap(map, options);
-	const offers = offersByPoi(map, described, options);
-	const { pois } = map.products;
-	const open = offers.filter((offered, poi) => offered.length > 0 && pois.pois[poi].type !== STRONGHOLD_TYPE && pois.pois[poi].tier <= 3 && described[poi].some(({ spare }) => spare >= 0));
-	const first = open.filter((offered) => offered[0].destination.tier === 1);
-	const rest = open.filter((offered) => DAY_TIERS.includes(offered[0].destination.tier));
-	const picked: RunRoute[][] = [];
-	if (first.length > 0) picked.push(first[rng.int(0, first.length - 1)]);
-	const others = rng.shuffle([...rest]).slice(0, DAY_DESTINATIONS - picked.length);
-	return Object.freeze([...picked, ...others].flat());
 }
 
 function dominantClass({ classLengths }: LegProfile): RoadClass {

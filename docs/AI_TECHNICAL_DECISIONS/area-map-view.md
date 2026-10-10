@@ -71,7 +71,8 @@ It's a plain pale wash, not the wireframe's hatching. Hatching baked into the ma
 
 All optional, each a small interface in `layers.ts`, set as a property:
 
-- `markers: MapMarker[]`: id, kind (`poi` or `stronghold`), world position, label, and a POI's state (`unvisited`, `looted`, `depleted`). DDB-291 and the screens map their POIs onto these.
+- `markers: MapMarker[]`: id, kind (`poi` or `stronghold`), world position, label, and a POI's state (`unvisited`, `looted`, `depleted`), a badge drawn in its disc (the area map screen's tier), a night ring for one no route gets home from by dark, and a label priority. Labels are placed before anything is drawn, in priority order, the selected marker's first: each on its marker's right or else its left, and left out when neither side is clear of Home's label, the picked route's stops, another marker, or a label already placed, until the zoom makes room (the selected one takes its right then). The places' names come after, on the dot's right or else its left, and are left out where both would cover a marker or a marker's label; `drawnText` lists those the last frame placed. DDB-291 and the screens map their POIs onto these (area-map-route-pick.md).
+- `routes: MapRoute[]`: a POI's routes as world-space polylines from the compound out, drawn as opaque bands under the roads, the picked one wide and strong with its stops drawn over the labels (a fight a diamond, anything else a square), the others a little narrower in a pale tint of it. The run route screen sets them.
 - `knowledge: RoadKnowledgeLayer`: `knowledgeOf(stretch)` returns `charted`, `rumored`, or `uncharted`. Absent, every road is charted.
 - `fog: LandFogLayer`: `cells` and `isRevealed(column, row)`, column 0 west and row 0 south. Absent, nothing is fogged. Set it again after it changes; it's rebaked on every set.
 - `layers`: which of terrain, roads, junctions, markers, and fog draw, for the Map Lab's toggles.

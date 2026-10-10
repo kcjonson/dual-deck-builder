@@ -71,10 +71,13 @@ interface ScreenCase {
  *
  * The screens that read the campaign store mount over the saves a case puts
  * in local storage first, the way a player's page holds them, and every other
- * case over none. The compound, Crew, Customize, route pick, and run screens
- * are opened with no campaign handed over, so each loads the save as
- * Continue would, and Customize shows the first seat's run deck (DDB-283,
- * DDB-301, DDB-314, DDB-321, DDB-454).
+ * case over none. The compound, Crew, Customize, area map, run route, and
+ * run screens are opened with no campaign handed over, so each loads the
+ * save as Continue would, Customize shows the first seat's run deck, and
+ * the run route screen the nearest destination (DDB-283, DDB-301, DDB-314,
+ * DDB-321, DDB-454, DDB-43, DDB-319). The compound, the area map, and the
+ * run route screen make the save's map again in the worker as they would
+ * on Continue, and the capture waits for it (`assetsReady`).
  */
 const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'splashScreen' },
@@ -106,9 +109,10 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'customizeScreen', variant: 'full', storage: FULL_RUN },
 	// A save already lost, which the defeat screen shows as the compound hands it one (DDB-305)
 	{ screen: 'defeatScreen', storage: LOST },
-	// Today's destinations and their routes from the compound between runs, then the run on the road:
-	// the fixture's at its last fight's reward, and a step earlier with the fight ahead (DDB-454)
-	{ screen: 'routePickScreen', storage: AT_HOME },
+	// The area map from the compound between runs, and the nearest destination's routes (DDB-43, DDB-319);
+	// then the run on the road: the fixture's at its last fight's reward, and a step earlier with the fight ahead (DDB-454)
+	{ screen: 'areaMapScreen', storage: AT_HOME },
+	{ screen: 'runRouteScreen', storage: AT_HOME },
 	{ screen: 'runScreen', storage: IN_PROGRESS },
 	{ screen: 'runScreen', variant: 'road', storage: ON_THE_ROAD },
 ];

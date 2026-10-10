@@ -1,17 +1,17 @@
 import { describeValue } from '../core/Json';
 import { ReaderRangeError, readArray, readFields, readInteger, readNumber, readObject, readOneOf, readText } from '../core/JsonReader';
-import { Rng } from '../core/Rng';
 import { ROAD_CLASSES, RoadClass } from '../map/RoadNetwork';
 import type { Skulls } from './Encounters';
 
 /**
- * Routes for the MVP supply run (DDB-454), in the shape the area map will
- * hand them over: a POI (Map 10), its routes, each an ordered list of legs
- * of the route tree (Map 9) carrying their stops (Map 12), and each route's
+ * The supply run's route model (DDB-454), the area map's routes as a run
+ * takes them: a POI (Map 10), its routes, each an ordered list of legs of
+ * the route tree (Map 9) carrying their stops (Map 12), and each route's
  * descriptor, its fuel, hours, and risk (Map 14). Area Map Generation, The
- * route tree, POIs, Stops, and Routes. `supplyRoutes` stands in for the map
- * until it exists, and `routesOnOffer` (SupplyRun.ts) is the one caller to
- * swap. Decision record: docs/AI_TECHNICAL_DECISIONS/mvp-supply-run.md.
+ * route tree, POIs, Stops, and Routes. `routeOffers` (MapRoutes.ts) builds
+ * them from a generated map, and `routesOnOffer` (SupplyRun.ts) offers them.
+ * Decision records: docs/AI_TECHNICAL_DECISIONS/mvp-supply-run.md and
+ * area-map-route-pick.md.
  */
 
 /** What a stop is, fixed when the map is made. Only these two so far; events, finds, garages, and hazards come later. */
@@ -51,7 +51,7 @@ export interface RouteDestination {
 	readonly name: string;
 	/** 1 to 5, from its quickest route's hours. */
 	readonly tier: number;
-	/** Loaded into the run's cargo when it gets there, standing in for the POI's yield table (Map 10). */
+	/** Loaded into the run's cargo when it gets there: its POI type's yield (Map 10). */
 	readonly yield: RouteYield;
 }
 
@@ -62,10 +62,10 @@ export interface RouteHours {
 	readonly home: number;
 }
 
-/** One route to a POI with its descriptor, as the route pick offers it and a run carries it. */
+/** One route to a POI with its descriptor, as the run route screen offers it and a run carries it. */
 export interface RunRoute {
 	readonly id: string;
-	/** From its dominant class: "Route 9 highway", "Back roads", "Through the hills". */
+	/** From its own road's dominant class or biome: "Route 9 highway", "Back roads", "Through the mire". */
 	readonly name: string;
 	readonly destination: RouteDestination;
 	/** From the compound out, at least one, sharing their first legs with the POI's other routes until they split. */
@@ -81,128 +81,6 @@ export interface RunRoute {
 export function routeStops(route: RunRoute): readonly RouteStop[] {
 	return route.legs.flatMap(leg => leg.stops);
 }
-
-const POI_NAMES = [
-	'Cinder Flats Pharmacy',
-	'Old Mill Salvage Yard',
-	'Route 9 Fuel Depot',
-	'Dry Lake Water Plant',
-	'Kessel Ridge Farms',
-	'Ashgrove Mall',
-	'Red Mesa Silos',
-	"Saint Jude's Hospital",
-	'Copper Wash Junkyard',
-	'Halfway Truck Stop',
-];
-
-/** Route names by dominant class, a highway's numbered instead. */
-const ROUTE_NAMES: Readonly<Record<Exclude<RoadClass, 'highway'>, readonly string[]>> = {
-	backRoad: ['Back roads', 'Old county road', 'Farm roads'],
-	trail: ['Through the hills', 'Canyon trail', 'Dry wash trail'],
-};
-
-/**
- * What a destination yields, each amount drawn from its tier's range:
- * about a day's food and water for the founding compound at tier 1, more
- * further out. Provisional, until POI types bring their yield tables.
- */
-const TIER_YIELDS: Readonly<Record<Skulls, Readonly<Record<YieldResource, readonly [number, number]>>>> = {
-	1: { food: [3, 5], water: [3, 5], fuel: [1, 3], scrap: [5, 15] },
-	2: { food: [5, 8], water: [5, 8], fuel: [2, 4], scrap: [10, 25] },
-	3: { food: [7, 11], water: [7, 11], fuel: [3, 6], scrap: [20, 40] },
-};
-
-/** Units an hour by class, realistic-map.md's provisional speeds. */
-const CLASS_SPEEDS: Readonly<Record<RoadClass, number>> = { highway: 260, backRoad: 160, trail: 90 };
-
-/** Hours a stop takes (Compound and Supply Runs, Racing the dark): a fight's starting value, and a quiet stretch's guess. */
-const STOP_HOURS: Readonly<Record<StopKind, number>> = { fight: 1, quiet: 0.5 };
-const OBJECTIVE_HOURS = 1;
-/** Road a unit of fuel covers, out and back. */
-const UNITS_PER_FUEL = 150;
-/** At most this many stops a route, so a run fits an MVP sitting; at most two fights in a row and a non-fight in any three (Stops). */
-const MAX_ROUTE_STOPS = 3;
-
-/**
- * Today's destinations and their routes: two or three POIs, a tier 1 one
- * always among them so every day has a run a battered crew can risk, each
- * with two routes that leave the compound on one leg and split after it,
- * as the route tree's do before halfway. A POI's tier, 1 to 3, sets its
- * routes' fights: one or two on each route, the last one at the tier's
- * skulls and none worse, and three stops hold a quiet one. A POI's yield
- * comes from its tier's ranges (`TIER_YIELDS`). Drawn from
- * `fork('routes', day)` off the campaign's seed, each POI's yield from its
- * own `fork('yield', n)` of that, so a day offers the same routes however
- * often it's asked, and the day never comes round again. Throws on a seed
- * or day `Rng.fork` won't take.
- */
-export function supplyRoutes({ seed, day }: { seed: number; day: number }): readonly RunRoute[] {
-	const rng = new Rng({ seed }).fork('routes', day);
-	const count = rng.int(2, 3);
-	const names = rng.shuffle([...POI_NAMES]);
-	const tiers: Skulls[] = [1, ...rng.shuffle([2, 3] as Skulls[]).slice(0, count - 1).sort((a, b) => a - b)];
-	return Object.freeze(tiers.flatMap((tier, index) => {
-		const yields = rng.fork('yield', index + 1);
-		const ranges = TIER_YIELDS[tier];
-		const destination: RouteDestination = Object.freeze({
-			id: `poi-${day}-${index + 1}`,
-			name: names[index],
-			tier,
-			yield: Object.freeze(Object.fromEntries(YIELD_RESOURCES.map(resource => [resource, yields.int(...ranges[resource])])) as Record<YieldResource, number>),
-		});
-		const prefix = `${day}-${index + 1}`;
-		const trunk = mockLeg({ rng, id: `leg-${prefix}-1`, roadClass: 'highway', stops: [] });
-		const classes = rng.shuffle([...ROAD_CLASSES]).slice(0, 2);
-		return classes.map((roadClass, route) => mockRoute({ rng, id: `route-${prefix}-${route + 1}`, prefix: `${prefix}-${route + 2}`, destination, trunk, roadClass }));
-	}));
-}
-
-/** A route: the trunk, then a leg or two of its own, and stops placed from the far end in, so its last stop is its hardest fight. */
-function mockRoute({ rng, id, prefix, destination, trunk, roadClass }: {
-	rng: Rng;
-	id: string;
-	prefix: string;
-	destination: RouteDestination;
-	trunk: RouteLeg;
-	roadClass: RoadClass;
-}): RunRoute {
-	const risk = destination.tier as Skulls;
-	const fights = risk === 1 ? 1 : rng.int(1, 2);
-	const kinds: StopKind[] = Array.from({ length: fights }, () => 'fight');
-	if (fights + 1 <= MAX_ROUTE_STOPS && rng.int(0, 1) === 1) kinds.splice(rng.int(0, kinds.length - 1), 0, 'quiet');
-	const lastFight = kinds.lastIndexOf('fight');
-	const specs = kinds.map((kind, index) => ({ kind, skulls: kind === 'fight' && index !== lastFight ? (rng.int(1, risk) as Skulls) : risk }));
-	const perLeg = specs.length > 1 && rng.int(0, 1) === 1 ? [specs.slice(0, 1), specs.slice(1)] : [specs];
-	const legs = perLeg.map((stops, leg) => mockLeg({ rng, id: `leg-${prefix}-${leg + 1}`, roadClass, stops }));
-	const allLegs = [trunk, ...legs];
-	const length = allLegs.reduce((total, leg) => total + leg.length, 0);
-	const drive = allLegs.reduce((total, leg) => total + leg.hours, 0);
-	const stopHours = kinds.reduce((total, kind) => total + STOP_HOURS[kind], 0);
-	const name = roadClass === 'highway' ? `Route ${rng.int(2, 99)} highway` : rng.pick(ROUTE_NAMES[roadClass]);
-	return Object.freeze({
-		id,
-		name,
-		destination,
-		legs: Object.freeze(allLegs),
-		fuel: Math.max(1, Math.ceil(length / UNITS_PER_FUEL)),
-		hours: Object.freeze({ out: tenths(drive + stopHours), objective: OBJECTIVE_HOURS, home: tenths(drive) }),
-		risk,
-	});
-}
-
-/** A leg of `roadClass` with these stops spread along it, clear of both ends. */
-function mockLeg({ rng, id, roadClass, stops }: { rng: Rng; id: string; roadClass: RoadClass; stops: readonly { kind: StopKind; skulls: Skulls }[] }): RouteLeg {
-	const length = rng.int(80, 220);
-	const placed = stops.map(({ kind, skulls }, index) => {
-		const at = hundredths((index + 0.5 + (rng.float() - 0.5) * 0.6) / stops.length * 0.7 + 0.15);
-		const stopId = `${id}-stop-${index + 1}`;
-		return Object.freeze(kind === 'fight' ? { id: stopId, kind, at, skulls } : { id: stopId, kind, at });
-	});
-	return Object.freeze({ id, roadClass, length, hours: tenths(length / CLASS_SPEEDS[roadClass]), stops: Object.freeze(placed) });
-}
-
-const tenths = (hours: number): number => Math.round(hours * 10) / 10;
-const hundredths = (fraction: number): number => Math.round(fraction * 100) / 100;
 
 /** A route as a save holds it, read back frozen. */
 export function readRunRoute(value: unknown, path: string): RunRoute {

@@ -1,5 +1,6 @@
 import type { AIType } from '../ai/AIController';
 import { Rng } from '../core/Rng';
+import type { RouteMap } from '../map/RouteDescriptors';
 import type { Card } from '../mechanics/Card';
 import { MAX_CONVOY_ESCORTS, Team } from '../mechanics/Team';
 import type { Vehicle } from '../mechanics/Vehicle';
@@ -16,16 +17,17 @@ import { Injury, injureOnArrival } from './Infirmary';
 import type { RunDeck } from './RunDeck';
 import { rollRewardCards } from './RunRewards';
 import { getCrewRule, getSeatBlocker } from './Seating';
-import { RouteStop, RouteYield, RunRoute, YIELD_RESOURCES, routeStops, supplyRoutes } from './SupplyRoutes';
+import { destinationId, routeOffers } from './MapRoutes';
+import { RouteStop, RouteYield, RunRoute, YIELD_RESOURCES, routeStops } from './SupplyRoutes';
 import type { SupplyRun } from './SupplyRunState';
 
 /**
- * The MVP supply run (DDB-454): depart on a route, take its stops in order,
- * a fight through the combat bridge with a card reward after each win, load
- * the destination's yield, and come home, or lose the run. A stand-in for
- * the full run controller (DDB-322), which keeps this state machine and
- * swaps the mock routes (`routesOnOffer`) for the area map. Decision record:
- * docs/AI_TECHNICAL_DECISIONS/mvp-supply-run.md.
+ * The MVP supply run (DDB-454): depart on a route the area map offers
+ * (`routesOnOffer`), take its stops in order, a fight through the combat
+ * bridge with a card reward after each win, load the destination's yield,
+ * and come home, or lose the run. A stand-in for the full run controller
+ * (DDB-322), which keeps this state machine. Decision records:
+ * docs/AI_TECHNICAL_DECISIONS/mvp-supply-run.md and area-map-route-pick.md.
  *
  * The run's state is the campaign's `supplyRun`, saved with it. Every step
  * here changes the campaign and nothing else, and the caller checkpoints at
@@ -35,8 +37,8 @@ import type { SupplyRun } from './SupplyRunState';
 /**
  * Why the compound can't plan a run, which its Plan a supply run button
  * shows: the campaign is over, a run is out (on the road, or a load out
- * under way), nobody at the compound can go (`getCrewRule`), no route is on
- * offer, or the stores hold less fuel than today's cheapest route costs.
+ * under way), nobody at the compound can go (`getCrewRule`), the map offers
+ * no route, or the stores hold less fuel than its cheapest route costs.
  */
 export type PlanBlocker =
 	| { reason: 'campaign_over'; end: Readonly<CampaignEnd> }
@@ -45,7 +47,7 @@ export type PlanBlocker =
 	| { reason: 'no_routes' }
 	| { reason: 'too_little_fuel'; needed: number; held: number };
 
-/** Why a route can't be taken now, which the route pick shows on it. */
+/** Why a route can't be taken now, which the run route screen shows on it. */
 export type DepartBlocker =
 	| { reason: 'campaign_over'; end: Readonly<CampaignEnd> }
 	| { reason: 'run_out'; run: string }
@@ -83,12 +85,25 @@ export interface Arrival {
 	readonly dayEnd: DayEnd;
 }
 
+/** Each map's offer, worked out once: the compound asks on every refresh. */
+const offers = new WeakMap<RouteMap, readonly RunRoute[]>();
+
 /**
- * The routes on offer today. The one place the run's routes come from, so
- * the area map and its route descriptors (DDB-322) replace the mock here.
+ * The routes a run can set off on: every route the area map has
+ * (`routeOffers`), POI by POI, each POI's quickest first, but a
+ * stronghold's, which waits for assaults. Every POI is known until fog
+ * (DDB-294), and none is gated by the day. The one place the run's routes
+ * come from, and every caller passes the campaign's own map
+ * (`getAreaMap`), so what the screens show is what `departRun` checks.
  */
-export function routesOnOffer({ campaign }: { campaign: Campaign }): readonly RunRoute[] {
-	return supplyRoutes({ seed: campaign.seed, day: campaign.day });
+export function routesOnOffer({ map }: { map: RouteMap }): readonly RunRoute[] {
+	let offered = offers.get(map);
+	if (!offered) {
+		const strongholds = new Set(map.products.pois.strongholds.map(({ poi }) => destinationId(poi)));
+		offered = Object.freeze(routeOffers(map).filter(route => !strongholds.has(route.destination.id)));
+		offers.set(map, offered);
+	}
+	return offered;
 }
 
 /**
@@ -123,12 +138,12 @@ export function quickLoadOut({ campaign }: { campaign: Campaign }): { seats: rea
 	return { seats, escorts };
 }
 
-export function getPlanBlocker({ campaign }: { campaign: Campaign }): PlanBlocker | null {
+export function getPlanBlocker({ campaign, map }: { campaign: Campaign; map: RouteMap }): PlanBlocker | null {
 	if (campaign.end !== null) return { reason: 'campaign_over', end: campaign.end };
 	const run = campaign.currentRun;
 	if (run !== null) return { reason: 'run_out', run };
 	if (seatableCrew({ campaign }) === null) return { reason: 'no_crew' };
-	const routes = routesOnOffer({ campaign });
+	const routes = routesOnOffer({ map });
 	if (routes.length === 0) return { reason: 'no_routes' };
 	const needed = Math.min(...routes.map(route => route.fuel));
 	const held = campaign.resources.fuel;
@@ -150,14 +165,14 @@ export function getDepartBlocker({ campaign, route }: { campaign: Campaign; rout
 }
 
 /**
- * The run sets off on a route on offer today, with the run decks load out
- * started and the escorts it brought: the fuel is paid, and the run is on
- * the road at its first stop with no cargo, in one `set`. One run a day
- * holds because every run's end ends the day (`arriveHome`,
+ * The run sets off on a route the campaign's map offers, with the run decks
+ * load out started and the escorts it brought: the fuel is paid, and the
+ * run is on the road at its first stop with no cargo, in one `set`. One run
+ * a day holds because every run's end ends the day (`arriveHome`,
  * `finishStopFight`), and nothing departs while a run is out.
  *
- * The route is today's own by its id, so what's checked is what's paid.
- * Throws, changing nothing, for a route not on offer today, a
+ * The route is the map's own by its id, so what's checked is what's paid.
+ * Throws, changing nothing, for a route the map doesn't offer, a
  * `DepartRuleError` when `getDepartBlocker` refuses (a `CampaignOverError`
  * once the campaign is over), and a plain error with no run decks started
  * and for escorts that aren't the ones whose cards load out dealt into the
@@ -165,9 +180,9 @@ export function getDepartBlocker({ campaign, route }: { campaign: Campaign; rout
  * every escort card's escort among them, and every one with a signature
  * card holding it in a run deck.
  */
-export function departRun({ campaign, route, escorts }: { campaign: Campaign; route: RunRoute; escorts: readonly Vehicle[] }): SupplyRun {
-	const offered = routesOnOffer({ campaign }).find(offer => offer.id === route.id);
-	if (!offered) throw new RangeError(`${route.id} isn't on offer on day ${campaign.day}`);
+export function departRun({ campaign, map, route, escorts }: { campaign: Campaign; map: RouteMap; route: RunRoute; escorts: readonly Vehicle[] }): SupplyRun {
+	const offered = routesOnOffer({ map }).find(offer => offer.id === route.id);
+	if (!offered) throw new RangeError(`${route.id} isn't a route the area map offers`);
 	const blocker = getDepartBlocker({ campaign, route: offered });
 	refuseOverBlocker({ blocker, action: 'set off on a run' });
 	if (blocker !== null) throw new DepartRuleError({ message: departRefusal(blocker), blocker });

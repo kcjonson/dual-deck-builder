@@ -1,0 +1,19 @@
+[
+{"path":"runRouteScreen/run_route_view","text":"Blackdale | Sand Gap | Harlanboro | Highfield | Foxwood | Iron Hollow | Crowfield | Dustville | Lyle Junction | Brightville | Pineburg | Masonfield | Graniteford | Home | 1 | General store, south-east","rect":[0,0,1080,882]},
+{"path":"runRouteScreen/run_route_side/run_route_head/run_route_back_button/Text[0]","text":"Back","rect":[1127,21.06,53,26]},
+{"path":"runRouteScreen/run_route_side/run_route_head/run_route_heading/run_route_kicker","text":"Run route to","rect":[1204,16,220,14.52]},
+{"path":"runRouteScreen/run_route_side/run_route_head/run_route_heading/run_route_name","text":"General store, south-east","rect":[1204,30.52,220,21.6]},
+{"path":"runRouteScreen/run_route_side/run_route_day","text":"Day 9 / dawn 06:00 / dark 20:00 / fuel 6","rect":[1096,64.12,328,14.52]},
+{"path":"runRouteScreen/run_route_side/run_route_kind","text":"General store, tier 1. Yields 6 food and 4 water.","rect":[1096,90.64,328,16.34]},
+{"path":"runRouteScreen/run_route_side/run_route_scroll/run_route_body/run_route_routes_kicker","text":"Routes","rect":[1096,118.98,328,14.52]},
+{"path":"runRouteScreen/run_route_side/run_route_scroll/run_route_body/run_route_cards/run_route_card_0/Text[0]","text":"Back roads","rect":[1108,149.5,304,18.2]},
+{"path":"runRouteScreen/run_route_side/run_route_scroll/run_route_body/run_route_cards/run_route_card_0/Text[1]","text":"charted / 1 stop / 2.2 h out / fuel 2 / risk 0 of 3","rect":[1108,169.7,304,30.8]},
+{"path":"runRouteScreen/run_route_side/run_route_scroll/run_route_body/run_route_cards/run_route_card_1/Text[0]","text":"Route 5 highway","rect":[1108,222.5,304,18.2]},
+{"path":"runRouteScreen/run_route_side/run_route_scroll/run_route_body/run_route_cards/run_route_card_1/Text[1]","text":"charted / 3 stops / 4.8 h out / fuel 3 / risk 1 of 3","rect":[1108,242.7,304,30.8]},
+{"path":"runRouteScreen/run_route_side/run_route_scroll/run_route_body/run_route_stops_kicker","text":"Stops in order","rect":[1096,289.5,328,14.52]},
+{"path":"runRouteScreen/run_route_side/run_route_scroll/run_route_body/run_route_stops/run_route_stop_0/run_route_stop_0_tag/run_route_stop_0_tag_text","text":"DISTRESS","rect":[1115.6,314.02,52.8,14.52]},
+{"path":"runRouteScreen/run_route_side/run_route_scroll/run_route_body/run_route_stops/run_route_stop_0/run_route_stop_0_text","text":"Distress signal","rect":[1196,313.11,228,16.34]},
+{"path":"runRouteScreen/run_route_side/run_route_scroll/run_route_body/run_route_quiet_note","text":"Only fights stop the convoy for now; the rest pass as quiet stretches.","rect":[1096,338.54,328,32.68]},
+{"path":"runRouteScreen/run_route_side/run_route_home_by","text":"Home by 11:21, 8.7 h before dark.","rect":[1096,793.6,328,14.4]},
+{"path":"runRouteScreen/run_route_side/run_route_load_out_button/Text[0]","text":"Load out the crew","rect":[1108,820,304,46]}
+]

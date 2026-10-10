@@ -27,8 +27,11 @@ BOT='github-actions[bot] <github-actions[bot]@users.noreply.github.com>'
 MINT_SUBJECT='Update screenshot baselines [visual-baseline]'
 
 # Two dots for the log, three for the diff: the diff wants the merge base, the
-# log wants the commits this branch adds on top of it.
-changed=$(git diff --name-only "$BASE...HEAD" -- "$BASELINES")
+# log wants the commits this branch adds on top of it. A deleted baseline is
+# left out: it brings no pixels to vouch for, and a screen or scene that still
+# needs it fails the Screenshots job for want of it. Deleting is how a retired
+# screen's goldens go, since the mint never removes a file.
+changed=$(git diff --name-only --diff-filter=d "$BASE...HEAD" -- "$BASELINES")
 if [ -z "$changed" ]; then
 	echo "No baseline files touched."
 	exit 0

@@ -117,6 +117,11 @@ export class CampaignMaps {
 		});
 	}
 
+	/** Whether a map is being made now, which the screenshot harness waits out (`GameStatus.assetsReady`). */
+	public get making(): boolean {
+		return (this.kept?.generation ?? null) !== null;
+	}
+
 	/** Drops the kept map, cancelling it if it's being made. */
 	public forget(): void {
 		const kept = this.kept;

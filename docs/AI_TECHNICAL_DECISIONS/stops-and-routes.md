@@ -1,6 +1,6 @@
 # Stops on legs, route descriptors, and the run loop's routes (DDB-293, DDB-295)
 
-Date: 2026-10-10. Code: `src/renderer/game/map/Stops.ts` (the stage, `rollStop`), `StopData.ts` with `data/stops.json`, `data/stopTables.json`, and `data/routes.json`, `StopChecks.ts`, `RouteDescriptors.ts`, the stage in `AreaMapPipeline.ts`, and `campaign/MapRoutes.ts` (`routeOffers`, `offersForDay`). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), guarantee 10, stages 8 and 9, Routes, Seeds and determinism, Validation and retries; [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md), the run route screen, the drive, Racing the dark, and Stops. Follows [route-tree-and-pois.md](./route-tree-and-pois.md), whose legs and `routesTo` this reads, and runs on [map-pipeline-worker.md](./map-pipeline-worker.md)'s runner.
+Date: 2026-10-10. Code: `src/renderer/game/map/Stops.ts` (the stage, `rollStop`), `StopData.ts` with `data/stops.json`, `data/stopTables.json`, and `data/routes.json`, `StopChecks.ts`, `RouteDescriptors.ts`, the stage in `AreaMapPipeline.ts`, and `campaign/MapRoutes.ts` (`routeOffers`). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), guarantee 10, stages 8 and 9, Routes, Seeds and determinism, Validation and retries; [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md), the run route screen, the drive, Racing the dark, and Stops. Follows [route-tree-and-pois.md](./route-tree-and-pois.md), whose legs and `routesTo` this reads, and runs on [map-pipeline-worker.md](./map-pipeline-worker.md)'s runner.
 
 ## Context
 
@@ -70,11 +70,9 @@ A POI whose quickest route runs past dark with no stops at all can't be mended b
 
 ## The run loop's routes
 
-`routeOffers(map)` gives every route on the map in the run loop's route model (`RunRoute`, with its `RouteDestination`, `RouteLeg`, and `RouteStop`), POI by POI. Ids come from the map's own (`poi-3`, `route-3-1`, `leg-12`, `stop-40`), so a map gives the same routes however often it's asked, which `departRun`'s check that a route is on offer needs. A run carries every stop on its legs, whatever the route card knows. Fights are fights with their skulls, and every other stop is a quiet stretch (DDB-432's call 70) until the run has screens for events, finds, garages, and hazards. Hours are rounded to tenths and lengths to whole units, as the mock's are. Risk is the route card's, with 1 for a route with no fight, since the model's risk runs 1 to 3. A destination yields what its POI's type does (`data/pois.json`), in place of #201's tier ranges; meds aren't among the run's yields yet, so they're left out, and a stronghold yields nothing until it has rules of its own.
+`routeOffers(map)` gives every route on the map in the run loop's route model (`RunRoute`, with its `RouteDestination`, `RouteLeg`, and `RouteStop`), POI by POI. Ids come from the map's own (`poi-3`, `route-3-1`, `leg-12`, `stop-40`), so a map gives the same routes however often it's asked, which `departRun`'s check that a route is on offer needs. A run carries every stop on its legs, whatever the route card knows. Fights are fights with their skulls, and every other stop is a quiet stretch (DDB-432's call 70) until the run has screens for events, finds, garages, and hazards. Hours are rounded to tenths and lengths to whole units, as the run shows them. Risk is the route card's, with 1 for a route with no fight, since the model's risk runs 1 to 3. A destination yields what its POI's type does (`data/pois.json`), in place of #201's tier ranges; meds aren't among the run's yields yet, so they're left out, and a stronghold yields nothing until it has rules of its own.
 
-`offersForDay` stands in for the area map screen (DDB-43), which picks a POI: it keeps the run loop's contract of two or three destinations a day with a tier 1 one among them, drawn from `fork('routes', day)` off the campaign's seed, each with every route it has. Only destinations with a route home by dark are offered, since a run has no night yet (call 5), read from the descriptors' unrounded hours rather than the run's tenths, which can round a run a minute past dark back inside it; and never a stronghold.
-
-`getAreaMap(campaign)` is asynchronous and the run loop's `routesOnOffer` isn't, so the route pick loads the map first and passes it in, with the mock kept for a campaign without one, in tests and dev.
+The area map screen (DDB-43) picks the POI, and the run loop's `routesOnOffer({ map })` offers every route `routeOffers` gives on the campaign's map but a stronghold's ([area-map-route-pick.md](./area-map-route-pick.md)). `offersForDay`, which stood in for the screen with a day's two or three destinations, went with it.
 
 ## Measured
 
@@ -98,13 +96,13 @@ Calls the spec left open, made the simplest way consistent with it, for Kevin to
 12. Fuel is a unit per 150 units of road, out and back, at least one; an unknown stop counts three quarters of an hour; a run leaves at 06:00.
 13. Risk is the worst known fight; the run's is at least 1.
 14. Every stop that isn't a fight runs as a quiet stretch.
-15. A day offers a tier 1 destination and up to two from tiers 2 and 3, only those with a route home by dark, never a stronghold.
+15. A day offered a tier 1 destination and up to two from tiers 2 and 3; the area map replaced the day's offer (area-map-route-pick.md, call 89).
 16. A POI's name is its type and its bearing from the compound until the names stream.
 17. A destination yields its POI type's food, water, fuel, and scrap; meds wait for the run to carry them, and a stronghold yields nothing yet.
 
 ## Consequences
 
-- The run loop's `routesOnOffer` reads `offersForDay` over the campaign's map in place of its mock; the state machine doesn't change.
+- The run loop's `routesOnOffer` reads `routeOffers` over the campaign's map in place of its mock; the state machine doesn't change.
 - Stage 8 (DDB-292) replaces two stand-ins: the leg tier, where its tiers in hours become the stops' tiers, and the territory, which the tables already key on.
 - The map validator (DDB-296) runs `checkStopLayer`; the Map Lab (DDB-299) can show stops by type and the readout's stops by type from the layer.
 - Knowledge (DDB-294) passes its leg states to `describeRoutes`; the descriptors already show rumored and uncharted legs.

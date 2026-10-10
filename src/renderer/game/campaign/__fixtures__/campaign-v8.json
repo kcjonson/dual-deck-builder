@@ -368,7 +368,7 @@
 		"map": 0,
 		"stages": {
 			"terrain": 0,
-			"water": 1,
+			"water": 0,
 			"hazards": 0,
 			"places": 0,
 			"roads": 0,
