@@ -21,6 +21,11 @@ import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, plannedPois, poiMark
 const { space } = tokens;
 const SIDE_WIDTH = 340;
 const BACK_WIDTH = 96;
+/** A detail line's height, one line of caption, so the details never change height and the list above them never moves. */
+const LINE_HEIGHT = tokens.fontSize.fs_sm * tokens.lineHeight.lh;
+/** Plan's reason holds two lines, the most any takes. */
+const REASON_LINES = 2;
+const NOTHING_CHOSEN = 'No destination chosen';
 
 /** What opens the area map: the campaign, and the POI to select, coming back from its run route. */
 export interface AreaMapScreenData {
@@ -210,26 +215,29 @@ export class AreaMapScreen extends Screen {
 		return side;
 	}
 
-	/** The chosen POI: hidden until there is one. */
+	/**
+	 * The chosen POI, every line a fixed height, so choosing one, or a
+	 * stronghold with its reason, never moves the list above it.
+	 */
 	private createDetails(): Stack {
-		const details = new Stack({ id: 'area_map_details', crossAlign: 'stretch', gap: space.space_1, visible: false });
+		const details = new Stack({ id: 'area_map_details', crossAlign: 'stretch', gap: space.space_1 });
 		details.addChild(kicker({ id: 'area_map_selected_kicker', text: 'Selected' }));
 		this.nameLine = new Text({
 			id: 'area_map_selected_name',
-			text: '',
+			text: NOTHING_CHOSEN,
 			widthMode: 'fill',
 			style: { fontRole: 'display', fontSize: 'fs_lg', color: 'text_bright' },
 			wrap: 'none',
 			textOverflow: 'ellipsis',
 		});
 		details.addChild(this.nameLine);
-		this.kindLine = caption({ id: 'area_map_selected_kind', text: '', color: 'text' });
+		this.kindLine = detailLine({ id: 'area_map_selected_kind', color: 'text' });
 		details.addChild(this.kindLine);
-		this.yieldLine = caption({ id: 'area_map_selected_yield', text: '', color: 'text' });
+		this.yieldLine = detailLine({ id: 'area_map_selected_yield', color: 'text' });
 		details.addChild(this.yieldLine);
-		this.routesLine = caption({ id: 'area_map_selected_routes', text: '' });
+		this.routesLine = detailLine({ id: 'area_map_selected_routes' });
 		details.addChild(this.routesLine);
-		this.darkLine = caption({ id: 'area_map_selected_dark', text: '' });
+		this.darkLine = detailLine({ id: 'area_map_selected_dark' });
 		details.addChild(this.darkLine);
 		this.planButton = new Button({
 			label: 'Plan a run here',
@@ -241,8 +249,7 @@ export class AreaMapScreen extends Screen {
 			onClick: () => this.plan(),
 		});
 		details.addChild(this.planButton);
-		this.planReason = caption({ id: 'area_map_plan_reason', text: '', color: 'status_warn' });
-		this.planReason.visible = false;
+		this.planReason = detailLine({ id: 'area_map_plan_reason', color: 'status_warn', lines: REASON_LINES });
 		details.addChild(this.planReason);
 		this.details = details;
 		return details;
@@ -342,7 +349,8 @@ export class AreaMapScreen extends Screen {
 		const view = this.view;
 		if (view) {
 			view.selection = { kind: 'marker', id: poi.id };
-			if (from !== 'map' && !inView(view, poi)) view.camera.center = { x: poi.x, y: poi.y };
+			// A view with no area yet is fitted to the whole disc when it gets one, which shows every POI.
+			if (from !== 'map' && view.width > 0 && view.height > 0 && !inView(view, poi)) view.camera.center = { x: poi.x, y: poi.y };
 		}
 		const row = this.rows.get(poi.poi);
 		if (row && this.list) {
@@ -361,8 +369,12 @@ export class AreaMapScreen extends Screen {
 	private refreshDetails(): void {
 		const poi = this.chosen;
 		const { campaign, map } = this;
-		if (this.details) this.details.visible = poi !== null;
-		if (!poi || !campaign || !map) return;
+		if (!poi || !campaign || !map) {
+			if (this.nameLine) this.nameLine.text = NOTHING_CHOSEN;
+			for (const line of [this.kindLine, this.yieldLine, this.routesLine, this.darkLine, this.planReason]) if (line) line.text = '';
+			if (this.planButton) this.planButton.enabled = false;
+			return;
+		}
 		const destination = routesOnOffer({ map }).find((route) => route.destination.id === poi.id)?.destination ?? null;
 		if (this.nameLine) this.nameLine.text = poi.name;
 		if (this.kindLine) this.kindLine.text = poiKindText(poi);
@@ -374,10 +386,7 @@ export class AreaMapScreen extends Screen {
 		}
 		const reason = this.planBlocked(poi);
 		if (this.planButton) this.planButton.enabled = reason === null;
-		if (this.planReason) {
-			this.planReason.text = reason ?? '';
-			this.planReason.visible = reason !== null;
-		}
+		if (this.planReason) this.planReason.text = reason ?? '';
 	}
 
 	/** Why Plan a run here is off for this POI, or null. */
@@ -424,6 +433,20 @@ function inView(view: AreaMapView, { x, y }: { x: number; y: number }): boolean 
 
 function caption({ id, text, color = 'text_dim' }: { id: string; text: string; color?: ColorToken }): Text {
 	return new Text({ text, id, widthMode: 'fill', style: { fontSize: 'fs_sm', color } });
+}
+
+/** A detail line held at `lines` lines of caption, a longer one ending in an ellipsis. */
+function detailLine({ id, color = 'text_dim', lines = 1 }: { id: string; color?: ColorToken; lines?: number }): Text {
+	return new Text({
+		text: '',
+		id,
+		widthMode: 'fill',
+		height: LINE_HEIGHT * lines,
+		lineHeight: tokens.lineHeight.lh,
+		wrap: lines === 1 ? 'none' : undefined,
+		textOverflow: 'ellipsis',
+		style: { fontSize: 'fs_sm', color },
+	});
 }
 
 function kicker({ id, text }: { id: string; text: string }): Text {

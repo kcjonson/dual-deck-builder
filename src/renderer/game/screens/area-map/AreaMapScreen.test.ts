@@ -97,7 +97,8 @@ describe('AreaMapScreen (DDB-43)', () => {
 		expect(strongholds).toBeGreaterThan(0);
 		expect(text('area_map_status')).toBe(`${POIS.length - strongholds} destinations and ${strongholds} strongholds. Pick one on the map or in the list.`);
 		expect(text('area_map_day')).toBe('Day 9 / Fuel 6');
-		expect(find<{ visible: boolean }>('area_map_details').visible).toBe(false);
+		expect(text('area_map_selected_name')).toBe('No destination chosen');
+		expect(find<Button>('area_map_plan_button').enabled).toBe(false);
 	});
 
 	it('marks the POIs no route gets home from by dark, on the map and in the list', async () => {
@@ -118,14 +119,13 @@ describe('AreaMapScreen (DDB-43)', () => {
 		expect(screen.selected).toBe(poi);
 		expect(view().selection).toEqual({ kind: 'marker', id: poi.id });
 		expect(find<ListRow>(`area_map_poi_${poi.poi}`).selected).toBe(true);
-		expect(find<{ visible: boolean }>('area_map_details').visible).toBe(true);
 		expect(text('area_map_selected_name')).toBe(poi.name);
 		expect(text('area_map_selected_kind')).toBe(poiKindText(poi));
 		expect(text('area_map_selected_yield')).toMatch(/^Yields .+\.$/);
 		expect(text('area_map_selected_routes')).toBe(routesText(poi));
 		expect(text('area_map_selected_dark')).toBe(darkText(poi));
 		expect(find<Button>('area_map_plan_button').enabled).toBe(true);
-		expect(find<Text>('area_map_plan_reason').visible).toBe(false);
+		expect(text('area_map_plan_reason')).toBe('');
 
 		find<Button>('area_map_plan_button').onClick?.({} as never);
 		expect(navigate).toHaveBeenLastCalledWith('runRouteScreen', { campaign: screen.shown, poi: poi.poi });
@@ -141,7 +141,8 @@ describe('AreaMapScreen (DDB-43)', () => {
 		expect(screen.selected).toBeNull();
 		expect(view().selection).toBeNull();
 		expect(find<ListRow>(`area_map_poi_${poi.poi}`).selected).toBe(false);
-		expect(find<{ visible: boolean }>('area_map_details').visible).toBe(false);
+		expect(text('area_map_selected_name')).toBe('No destination chosen');
+		expect(find<Button>('area_map_plan_button').enabled).toBe(false);
 	});
 
 	it('chooses from the list by keyboard, Back, the list, Plan, then the map in the focus order, and brings the POI into view', async () => {
@@ -168,9 +169,13 @@ describe('AreaMapScreen (DDB-43)', () => {
 
 	it('shows a stronghold, with Plan a run here off until assaults exist', async () => {
 		await open();
+		const listHeight = find<{ height: number }>('area_map_destinations_scroll').height;
 		const stronghold = firstWhere(({ stronghold: held }) => held);
 		clickMarker(stronghold);
 		expect(screen.selected).toBe(stronghold);
+		// The reason fits the room kept for it: the list above doesn't move
+		context.frame.layout();
+		expect(find<{ height: number }>('area_map_destinations_scroll').height).toBe(listHeight);
 		expect(text('area_map_selected_kind')).toBe(`Stronghold, tier ${stronghold.tier}`);
 		expect(find<Button>('area_map_plan_button').enabled).toBe(false);
 		expect(text('area_map_plan_reason')).toBe(STRONGHOLD_NOT_YET);
@@ -231,6 +236,9 @@ describe('AreaMapScreen (DDB-43)', () => {
 		screen.mount(context, { campaign, poi: poi.poi });
 		expect(screen.selected).toBe(poi);
 		expect(context.focus.focused?.id).toBe('area_map_plan_button');
+		// Fitted to the whole disc once laid out, not centred on the POI before it had a size
+		context.frame.layout();
+		expect(view().camera.isFitted).toBe(true);
 		expect(planning.asked()).toBe(1);
 	});
 
