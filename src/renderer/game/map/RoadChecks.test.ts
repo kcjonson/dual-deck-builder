@@ -1,11 +1,13 @@
-import { RoadGround, RoadRule, checkRoadNetwork, impassableAlong, polylineBridges, polylineLength, roadClashes } from './RoadChecks';
+import { polylineLength } from './Geometry';
+import { RoadGround, RoadRule, checkRoadNetwork, impassableAlong, polylineBridges, roadClashes } from './RoadChecks';
 import type { RoadNetwork, RoadNode, RoadStretch } from './RoadNetwork';
 import { fakeGround } from './roadTesting';
 import type { Obstacle } from './Terrain';
 
-/** A stretch along `points`, with its length worked out. */
+/** A stretch along `points`, with its length worked out, and highway 0's number on a highway. */
 function stretch(from: number, to: number, points: number[], roadClass: RoadStretch['roadClass'] = 'backRoad'): RoadStretch {
-	return { roadClass, from, to, length: polylineLength(points), points, bridges: [], street: false };
+	const plain: RoadStretch = { roadClass, from, to, length: polylineLength(points), points, bridges: [], street: false };
+	return roadClass === 'highway' ? { ...plain, highway: 0 } : plain;
 }
 
 /**
@@ -57,6 +59,13 @@ describe('checkRoadNetwork', () => {
 		const bridges = valid();
 		bridges.stretches[1] = { ...bridges.stretches[1], bridges: [{ start: 100, end: 110 }, { start: 50, end: 60 }] };
 		expect(rules(bridges)).toEqual(['structure']);
+		// A highway carries its number, and nothing else does.
+		const unnumbered = valid();
+		unnumbered.stretches[0] = { ...unnumbered.stretches[0], highway: undefined };
+		expect(rules(unnumbered)).toEqual(['structure']);
+		const numbered = valid();
+		numbered.stretches[1] = { ...numbered.stretches[1], highway: 2 };
+		expect(rules(numbered)).toEqual(['structure']);
 	});
 
 	it('finds a point outside the disc', () => {
@@ -115,6 +124,7 @@ describe('bridges along a polyline', () => {
 		radius: 1000,
 		metro: { x: 0, y: 0, radius: 10 },
 		obstacle: (x: number): Obstacle | null => (Math.abs(x - 100) < 2 ? 'river' : null),
+		waterAt: (x: number) => (Math.abs(x - 100) < 2 ? 'river' : null),
 		bridgeSpans: (x0, _y0, x1, _y1, spans) => {
 			if ((x0 - 100) * (x1 - 100) >= 0) return 0;
 			const length = Math.abs(x1 - x0);
@@ -136,6 +146,35 @@ describe('bridges along a polyline', () => {
 		// A segment at a time, the deck would stop at the point, and the water past it would be impassable.
 		expect(impassableAlong(river, points, [{ start: 47, end: 51 }])).toBeGreaterThan(51);
 		expect(impassableAlong(river, points, [])).toBeGreaterThan(48);
+	});
+
+	it('let a road cross the metro\'s rivers, which obstacle passes, but not run along one, bar on Home\'s own cells', () => {
+		// A metro 150 across, a river along x = 100 through it and one along x = 0 through Home.
+		const metroRivers: RoadGround = {
+			...river,
+			metro: { x: 0, y: 0, radius: 150 },
+			obstacle: (): Obstacle | null => null,
+			waterAt: (x: number) => (Math.abs(x - 100) < 2 || Math.abs(x) < 2 ? 'river' : null),
+			bridgeSpans: (x0, _y0, x1, _y1, spans) => {
+				let count = 0;
+				for (const at of [0, 100]) {
+					if ((x0 - at) * (x1 - at) >= 0) continue;
+					const length = Math.abs(x1 - x0);
+					const along = (at - x0) / (x1 - x0);
+					spans[2 * count] = along - 3 / length;
+					spans[2 * count + 1] = along + 3 / length;
+					count += 1;
+				}
+				return count;
+			},
+		};
+		const along = [100.5, 10, 100.5, 120];
+		expect(impassableAlong(metroRivers, along, polylineBridges(metroRivers, along))).toBeGreaterThanOrEqual(0);
+		const across = [50, 60, 150, 60];
+		expect(impassableAlong(metroRivers, across, polylineBridges(metroRivers, across))).toBe(-1);
+		// Home's cells are 9.375 each way at radius 1000: out of the compound along its river, then off it.
+		expect(impassableAlong(metroRivers, [0, 0, 0, 9], [])).toBe(-1);
+		expect(impassableAlong(metroRivers, [0, 0, 0, 30], [])).toBeGreaterThan(9);
 	});
 
 	it('are checked against the stretch\'s own', () => {

@@ -47,6 +47,8 @@ export class RoadGeometry {
 	public readonly junctions: readonly JunctionGeometry[];
 	/** Per level, per stretch: the simplified polyline, filled the first time a frame asks. */
 	private readonly levels: (Vec2[] | undefined)[][];
+	/** Per stretch, its polyline from `to` back to `from`, filled the first time a stub needs it. */
+	private readonly reversed: (Vec2[] | undefined)[];
 
 	constructor({ network }: { network: RoadNetwork }) {
 		this.stretches = network.stretches.map((stretch) => {
@@ -56,6 +58,19 @@ export class RoadGeometry {
 		const meeting = stretchesAt(network);
 		this.junctions = network.nodes.flatMap((node, id) => (node.kind === 'junction' && meeting[id].length > 0 ? [{ at: { x: node.x, y: 0 - node.y }, stretches: meeting[id] }] : []));
 		this.levels = Array.from({ length: DETAIL_LEVELS }, () => new Array<Vec2[] | undefined>(this.stretches.length));
+		this.reversed = new Array<Vec2[] | undefined>(this.stretches.length);
+	}
+
+	/** Stretch `id`'s whole polyline run from `end`, for a stub leaving known road there. */
+	public fromEnd(id: number, end: 'from' | 'to'): readonly Vec2[] {
+		const points = this.stretches[id].points;
+		if (end === 'from') return points;
+		let back = this.reversed[id];
+		if (back === undefined) {
+			back = points.slice().reverse();
+			this.reversed[id] = back;
+		}
+		return back;
 	}
 
 	/** Stretch `id`'s polyline at `level`, or whole at -1. */

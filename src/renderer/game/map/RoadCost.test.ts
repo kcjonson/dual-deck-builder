@@ -1,5 +1,5 @@
 import { EdgeCostField, MOVES, MOVE_X, MOVE_Y, NEIGHBOURS, OPPOSITE, moveBetween } from './RoadCost';
-import { impassableAlong, polylineBridges } from './RoadChecks';
+import { atHome, impassableAlong, polylineBridges } from './RoadChecks';
 import { ROAD_CLASSES } from './RoadNetwork';
 import { landFor } from './roadTesting';
 
@@ -45,8 +45,9 @@ describe('EdgeCostField', () => {
 					} else if (Number.isFinite(reference)) {
 						const { next } = move(cell, direction);
 						if (field.open[next] === 0) {
-							// moveCost knows nothing of the rim, which the field keeps every road inside.
-							expect(x1 * x1 + y1 * y1).toBeGreaterThan((terrain.radius - 1) * (terrain.radius - 1));
+							// moveCost knows nothing of the rim, which the field keeps every road inside, nor of the metro's rivers, which a road crosses but never stands in.
+							const metroRiver = x1 * x1 + y1 * y1 <= (terrain.metro.radius + 1) ** 2 && terrain.waterAt(x1, y1) === 'river';
+							expect(metroRiver || x1 * x1 + y1 * y1 > (terrain.radius - 1) * (terrain.radius - 1)).toBe(true);
 							return;
 						}
 						const points = [x0, y0, x1, y1];
@@ -71,7 +72,9 @@ describe('EdgeCostField', () => {
 				const { next, x0, y0, x1, y1 } = move(cell, direction);
 				const middle = (cell + next) / 2;
 				expect(field.open[middle]).toBe(0);
-				expect(terrain.obstacle(field.x(middle), field.y(middle))).toBe('river');
+				// In a river, the metro's included, where obstacle passes the water.
+				expect(terrain.waterAt(field.x(middle), field.y(middle))).toBe('river');
+				expect(['river', null]).toContain(terrain.obstacle(field.x(middle), field.y(middle)));
 				expect(field.bridged(edge)).toBe(true);
 				expect(Math.abs(cost - terrain.moveCost(x0, y0, x1, y1, 'backRoad'))).toBeLessThanOrEqual(1e-12 * cost);
 				leaps += 1;
@@ -109,5 +112,41 @@ describe('EdgeCostField', () => {
 			}
 		}
 		expect(steep).toBeGreaterThan(0);
+	});
+
+	it('crosses the metro\'s rivers, free, but never stands in one or runs along it, bar Home\'s own cells', () => {
+		const metro = terrain.metro.radius;
+		const spans: number[] = [];
+		let wetCells = 0;
+		let crossings = 0;
+		for (let cell = 0; cell < cells; cell += 1) {
+			const x = field.x(cell);
+			const y = field.y(cell);
+			if (x * x + y * y > metro * metro) continue;
+			const home = atHome(x, y, field.grid.cellSize);
+			if (terrain.waterAt(x, y) === 'river' && !home) {
+				wetCells += 1;
+				expect(field.open[cell]).toBe(0);
+			}
+			if (field.open[cell] === 0) continue;
+			for (let direction = 0; direction < MOVES; direction += 1) {
+				const edge = field.edge(cell, direction);
+				if (!Number.isFinite(field.cost(edge, 1))) continue;
+				const { x0, y0, x1, y1 } = move(cell, direction);
+				const count = terrain.bridgeSpans(x0, y0, x1, y1, spans);
+				if (count > 0) crossings += 1;
+				for (let sample = 1; sample < 40; sample += 1) {
+					const along = sample / 40;
+					const sx = x0 + (x1 - x0) * along;
+					const sy = y0 + (y1 - y0) * along;
+					if (terrain.waterAt(sx, sy) !== 'river' || atHome(sx, sy, field.grid.cellSize)) continue;
+					let decked = false;
+					for (let span = 0; span < count; span += 1) decked ||= along >= spans[2 * span] && along <= spans[2 * span + 1];
+					expect(decked).toBe(true);
+				}
+			}
+		}
+		expect(wetCells).toBeGreaterThan(0);
+		expect(crossings).toBeGreaterThan(0);
 	});
 });

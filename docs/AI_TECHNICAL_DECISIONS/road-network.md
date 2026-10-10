@@ -20,7 +20,9 @@ Two maps at radius 1000, drawn by `scripts/road-network.mjs png` with the stand-
 
 A move runs between two land cell centres: the eight to a neighbour, and four bridges two cells straight on (below). Each keeps the parts of its cost no class changes: its length, the grade along it, the slope across at its middle, its bridges' length factors summed, and whether it's blocked. A class weights them as `moveCost` does, so the two agree on every move the field leaves open, to 1e-12 (the test checks a fifth of a map's cells, every move, every class).
 
-The field is stricter in two ways. A cell centre has to be open, inside the disc by half a unit and on passable ground, at both ends of a move; `moveCost` reads only the end. And a move through a square between cell centres where anything impassable could stand is sampled every half unit, blocked where a sample is impassable bar river water under one of its bridges. A square's flags say what could stand there and so what to sample for: a cliff only where a corner is rough country (bilinear can't pass its corners), a lake only where a corner's depth is past -0.001, a river where its water and a unit more reach, a crater likewise, and anything beside a cell that isn't open. Asking only after what could be there, in `obstacle`'s own terms (`Terrain.cliff` is new for it), took about a quarter off the stage's time.
+The field is stricter in two ways. A cell centre has to be open, inside the disc by half a unit and on passable ground, at both ends of a move; `moveCost` reads only the end. And a move through a square between cell centres where anything impassable could stand is sampled every half unit, blocked where a sample is impassable bar river water under one of its bridges. A square's flags say what could stand there and so what to sample for: a cliff only where a corner is rough country (bilinear can't pass its corners), a lake only where a corner's depth is past -0.001, a river where its water and a unit more reach, a crater likewise, and anything beside a cell that isn't open. Asking only after what could be there, in `obstacle`'s own terms (`Terrain.cliff` is new for it), took about a quarter off the stage's time; a square only a lake could reach reads the lake's depth alone, without the river query.
+
+The metro's rivers cost nothing to cross, and `obstacle` passes them, since its streets bridge them wherever they meet. That let the first cut drive down them: rivers lie on the flattest valley floor, so 16 of QA's 30 maps had a metro road more than 15 units in river water, 14 of them a highway, the worst 64 units down the river out of Home. Now a metro river can be crossed but not driven along. No road passes through a cell whose centre is in one, and every sample in its water has to be under one of the move's bridge spans, which `bridgeSpans` gives in the metro at any length, and free. Home's own four cells are spared, since the compound can stand in a river and its roads have to leave it. The network checks hold the same rule.
 
 A move is worked out the first time a search asks, and kept: about 140,000 of a radius 1000 map's 393,000 are. Every part is adds, multiplies, divides, square roots, and compares, so the order searches fill it in changes nothing, which a test checks.
 
@@ -54,9 +56,10 @@ The road moves become nodes and stretches:
 - Node 0 is the compound at the origin, standing on the four cells round it. Each cell keeps at most one move into them, its best class, so each of the compound's roads leaves once, along a ray to a cell 1.6 to 2.1 cells out. No two rays from the origin overlap.
 - Every other node stands on a cell centre: a place's (each place stands on its own cell or the nearest open neighbour), a junction (three or more moves), a dead end, the last cell inside the metro on a road leaving it, and a class change. So no two nodes are closer than a cell, and no merging is needed. A diagonal closing a triangle with two orthogonal road moves is dropped first, handing its class on.
 - Each road between two nodes is walked once. A loop back to its own node is split at its middle.
-- A stretch's line is its cells, held still at its nodes and at both ends of every bridge move. Between holds, two passes of a quarter, half, quarter average take out steps back and forth between two rows (which simplifying keeps), then Douglas-Peucker at 0.6 of a cell, then two passes of Chaikin. One that would be impassable, sampled every half unit with its bridges over the whole line, or that would clash with another, falls back to the line simplified and smoothed without the averaging, then to its cells, which the field proved. Almost every stretch stays smoothed: on Mixed seed 7 at radius 1000, all but ten of 567.
+- A stretch's line is its cells, held still at its nodes and at both ends of every bridge move. Between holds, two passes of a quarter, half, quarter average take out steps back and forth between two rows (which simplifying keeps), then Douglas-Peucker at 0.6 of a cell, then two passes of Chaikin.
+- Each run between holds settles on its own. A smoothed run that would be impassable, sampled every half unit with its bridges, is held at the cell nearest where it clips, and both halves are smoothed again, down to single moves if need be; so a road along a river bank stays smooth past the bend that touches the water, where the first cut dropped its whole stretch to cells and drew 45-degree stair steps (0 to 13 a map). A run that clashes with another falls back: to the line smoothed without the averaging, then simplified without smoothing, then its cells, which the field proved. A run out of the compound has a last level through the centre of the cell it leaves by, since the line from the origin to the next cell is no move the field proved.
 - Stretches over 140 units are cut into even pieces at roadside nodes, on a point within a unit of the share or a point put on the segment there, moved off any bridge to the nearer end of its deck.
-- A stretch keeps its class, length, polyline, bridges (each deck as distances along its line, merged where two crossings share one), and whether it's a city street, wholly inside the metro, charted from the start. A stretch no longer has `parent`, and the network no longer has `roads`: the route tree holds parents, and named roads for labels are the dressing's.
+- A stretch keeps its class, length, polyline, bridges (each deck as distances along its line, merged where two crossings share one), and whether it's a city street, wholly inside the metro, charted from the start. A highway stretch carries its highway's number, its exit's order among the highway exits from 0, for the shields and the route names; where highways merge into a trunk, the trunk is the first one laid's. A stretch no longer has `parent`, and the network no longer has `roads`: the route tree holds parents, and named roads for labels are the dressing's.
 
 ## Broken highways
 
@@ -78,12 +81,14 @@ Until the places stage (Map 6, DDB-442) lands, `standInPlaces` gives the roads t
 
 | Radius | Roads, ms median (slowest) | Terrain | Water | Nodes | Stretches | Road, units | Loops (least) | Bridges | POIs placed | Three-route POIs | Retries |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1000 | 279 (355) | 345 | 44 | 458 | 610 | 43,408 | 163 (120) | 63 | 450 of 450, 60 strongholds | 52 | 0 of 15 |
-| 1200 | 416 (458) | 533 | 60 | 635 | 855 | 61,450 | 221 (177) | 93 | 450 of 450, 60 strongholds | 54 | 0 of 15 |
+| 1000 | 201 (270) | 149 | 30 | 459 | 607 | 43,509 | 164 (120) | 62 | 450 of 450, 60 strongholds | 55 | 0 of 15 |
+| 1200 | 277 (301) | 211 | 36 | 634 | 852 | 61,457 | 221 (177) | 94 | 450 of 450, 60 strongholds | 57 | 0 of 15 |
 
-The roads' time at radius 1000, profiled over six maps: A* about 50 ms, the field's moves about 90 (their samples, the grade, the slope, and river crossings), the graph about 40, the network checks 10, the stand-in places about 20. The prototype's roads took 140 to 210 ms; the spec's grid stages budget a second on a mid-range laptop, and terrain, water, and roads come to about 670 ms here at radius 1000 and a second at 1200. The levers, should a laptop need them, are in the follow-ups: the obstacle samples and the per-class cost.
+The roads' time at radius 1000, profiled over six maps: A* about 50 ms, the field's moves about 90 (their samples, the grade, the slope, and river crossings), the graph about 40, the network checks 10, the stand-in places about 20. The prototype's roads took 140 to 210 ms; the spec's grid stages budget a second on a mid-range laptop, and terrain, water, and roads come to about 380 ms here at radius 1000 and 520 at 1200, with the linear-time drainage router in.
 
-`check --maps 30`, parameters sampled across their tuning ranges: every stage's first attempt passed on 27 or more of 28, none broke a road rule, and two maps gave up, both radius 600 to 644 with `poiDensity` near 2, five to seven strongholds, and `roadDensity` 0: they need 64 or 65 loops and their stand-in places close 30 to 35. That corner of the tuning ranges can't hold the POIs it asks for, whatever the roads do (a follow-up).
+QA's 30 maps (five environments by seeds 3, 7, and 11 at radius 900 and 1200): no road has any river water off its bridges' decks and Home's cells, where the first cut had 3 maps past 15 units off its decks and 16 past 15 counting the decks it laid down rivers. Runs left as cells three moves or more come to 27 over the 30 maps, 0 to 3 a map; the first cut left 125 whole stretches as cells, 1 to 10 a map. The levers, should a laptop need them, are the obstacle samples and the per-class cost.
+
+`check --maps 30`, parameters sampled across their tuning ranges: every stage's first attempt passed on 27 or more of 28, none broke a road rule, and two maps gave up, both radius 600 to 644 with `poiDensity` near 2, five to seven strongholds, and `roadDensity` 0: they need 64 or 65 loops and their stand-in places close 30 to 35. That corner of the tuning ranges can't hold the POIs it asks for, whatever the roads do.
 
 ## Determinism
 
@@ -92,7 +97,8 @@ The tests pin two maps' networks as hashes of every node and stretch point, comp
 ## Consequences
 
 - `RoadNetwork` is `{ nodes, stretches, broken, passes }`; a node has an optional `place`, and a stretch `length`, `bridges`, and `street`, without `road` or `parent`. The worker packs stretches' points as before and sends broken spans and passes by structured clone.
-- The area map view draws an uncharted stretch as a stub when a charted or rumored stretch ends on the node it starts from, and a junction dot where any stretch there is drawn solid, since there are no parents to ask. Knowledge per leg is DDB-294's.
+- The area map view draws an uncharted stretch as a stub from whichever end a charted or rumored stretch ends on, or the compound, and a junction dot where any stretch there is drawn solid, since there are no parents to ask. Knowledge per leg is DDB-294's.
+- `polylineLength` and `pointAlong` live in `Geometry.ts`, for the roads, the route tree, and the POIs alike.
 - The POI stage is strict (route-tree-and-pois.md), and the gallery's area map scenes move with every road.
 - A change to any number here moves every map, so it goes with a generator version bump.
 
@@ -110,8 +116,10 @@ Calls the spec and realistic-map.md left to the build, made the simplest way con
 8. A back road becomes a trail along a run through rough country 150 units long at `trailShare` 0 to 15 at 1.
 9. Spurs: chance 0.55 a village, the highest open cell 60 to 140 units off at 16 bearings, 0.12 of elevation up, at most 200 units of trail.
 10. Passes: a path's highest cell in the ranges (mask 0.5), 0.05 above both ends, 30 units apart.
-11. Geometry: two quarter-half-quarter passes, Douglas-Peucker at 0.6 of a cell, two Chaikin passes, falling back to unaveraged, then cells.
+11. Geometry: two quarter-half-quarter passes, Douglas-Peucker at 0.6 of a cell, two Chaikin passes; a run that clips something held at the cell nearest and both halves smoothed again; a run that clashes falling back to unaveraged, then simplified, then cells.
 12. Stretches cut at 140 units; clearance 2 units, tapering by a quarter toward a shared node; stretches meet at nodes 20 degrees apart or more.
-13. The compound stands on its four cells, with one move into them from each cell.
+13. The compound stands on its four cells, with one move into them from each cell, and its roads leave it through any river on them.
 14. Broken highways: stretches 70 units or longer with their middle past 0.35 of the radius.
 15. The roads stage fails below `poiDensity` times 30 plus `strongholds` loops, rounded up.
+16. The metro's rivers are crossed, free and on a bridge of any length, never driven along: no road through a cell centre in one, and no sample in one off a bridge's deck.
+17. A highway stretch's number is its exit's order among the highway exits; a trunk takes the first laid's.

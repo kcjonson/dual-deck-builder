@@ -2,6 +2,7 @@ import { RELIEF } from './Land';
 import { LandGrid, cellCentre } from './LandGrid';
 import { lerp } from './MapMath';
 import type { RiverLines } from './Rivers';
+import { atHome } from './RoadChecks';
 import { ROAD_CLASSES, RoadClass } from './RoadNetwork';
 import { MOVE_COST, METRO_BRIDGES, Terrain } from './Terrain';
 
@@ -23,7 +24,11 @@ import { MOVE_COST, METRO_BRIDGES, Terrain } from './Terrain';
  * stricter: a move through a square where anything impassable could stand
  * (rough country, a lake's shore, a river, a crater) is sampled every half
  * unit, and is blocked where a sample is impassable, bar river water under
- * one of its bridges. `moveCost` reads only a move's end and middle.
+ * one of its bridges. `moveCost` reads only a move's end and middle. And
+ * the metro's rivers, which cost nothing to cross and which `obstacle`
+ * passes, can be crossed but not driven along: their water has to be under
+ * a bridge too, and no road passes through a cell whose centre is in one,
+ * bar Home's own four cells round the origin, which can stand in a river.
  *
  * A move is worked out the first time a search asks for it, so moves no
  * search reaches cost nothing. Every part is adds, multiplies, divides,
@@ -71,7 +76,7 @@ const LAKE = 2;
 const RIVER = 4;
 const CRATER = 8;
 const ANYTHING = 16;
-/** The move crosses a river outside the metro, on a bridge. */
+/** The move crosses a river on a bridge, in the metro or out. */
 const BRIDGED = 1;
 /** Too steep for a highway or back road. */
 const STEEP = 2;
@@ -156,7 +161,7 @@ export class EdgeCostField {
 				if (x * x + y * y >= reachSquared) continue;
 				const cell = row * size + column;
 				this.elevation[cell] = terrain.elevation(x, y);
-				if (terrain.obstacle(x, y) === null) this.open[cell] = 1;
+				if (terrain.obstacle(x, y) === null && !this.metroRiver(x, y)) this.open[cell] = 1;
 			}
 		}
 		this.hazards = hazardSquares({ terrain, rivers, open: this.open });
@@ -203,7 +208,7 @@ export class EdgeCostField {
 		return this.lengths[edge];
 	}
 
-	/** True where the move crosses a river outside the metro, on a bridge. */
+	/** True where the move crosses a river on a bridge, in the metro or out. */
 	public bridged(edge: number): boolean {
 		if (this.bridgeUnits[edge] !== this.bridgeUnits[edge]) this.work(edge);
 		return (this.flags[edge] & BRIDGED) !== 0;
@@ -269,14 +274,19 @@ export class EdgeCostField {
 			const { along, width, sine } = (water as NonNullable<Terrain['water']>).riverCrossing(index);
 			const cx = x0 + dx * along;
 			const cy = y0 + dy * along;
+			flags |= BRIDGED;
+			// The metro's bridges are free and any length.
 			if (cx * cx + cy * cy <= this.bridgedSquared) continue;
 			if (!(width <= MOVE_COST.longestBridge * sine)) return this.block(edge);
 			units += 1 + width / sine / MOVE_COST.bridgeSpan;
-			flags |= BRIDGED;
 		}
-		const middle = terrain.obstacle(x0 + 0.5 * dx, y0 + 0.5 * dy);
+		const mx = x0 + 0.5 * dx;
+		const my = y0 + 0.5 * dy;
+		const middle = terrain.obstacle(mx, my);
 		if (middle !== null && !(middle === 'river' && units > 0)) return this.block(edge);
-		if (leap && middle !== 'river') return this.block(edge);
+		const wet = middle === 'river' || (middle === null && this.metroRiver(mx, my));
+		if (wet && (flags & BRIDGED) === 0) return this.block(edge);
+		if (leap && !wet) return this.block(edge);
 		const hazards = leap ? ANYTHING : this.hazardsOf(from, direction);
 		if (hazards !== 0 && !this.clear(x0, y0, x1, y1, length, hazards)) return this.block(edge);
 		const climb = this.elevation[to] - this.elevation[from];
@@ -288,6 +298,11 @@ export class EdgeCostField {
 		this.flags[edge] = flags;
 		this.bridgeUnits[edge] = units;
 		return units;
+	}
+
+	/** True in a river inside the metro, where `obstacle` lets it pass, outside Home's own cells. */
+	private metroRiver(x: number, y: number): boolean {
+		return x * x + y * y <= this.bridgedSquared && !atHome(x, y, this.grid.cellSize) && this.terrain.waterAt(x, y) === 'river';
 	}
 
 	private block(edge: number): number {
@@ -317,8 +332,10 @@ export class EdgeCostField {
 
 	/**
 	 * True when no sample along the move, every half unit, is impassable, bar
-	 * river water under one of its bridges. Each sample asks only after what
-	 * could stand in the move's squares (`hazards`), in `obstacle`'s terms.
+	 * river water under one of its bridges, the metro's rivers included, and
+	 * Home's own cells. Each sample asks only after what could stand in the
+	 * move's squares (`hazards`), in `obstacle`'s terms: the lake's depth
+	 * only where a lake could be, the rivers only where one could be.
 	 */
 	private clear(x0: number, y0: number, x1: number, y1: number, length: number, hazards: number): boolean {
 		const terrain = this.terrain;
@@ -327,8 +344,11 @@ export class EdgeCostField {
 		const samples = floor(length / SAMPLE_SPACING) + 1;
 		const anything = (hazards & ANYTHING) !== 0;
 		const craters = (hazards & CRATER) !== 0 ? terrain.hotspots : [];
-		const wet = (hazards & (LAKE | RIVER)) !== 0;
+		const lakes = (hazards & LAKE) !== 0;
+		const rivers = (hazards & RIVER) !== 0;
 		const rough = (hazards & ROUGH) !== 0;
+		const water = terrain.water;
+		const home = this.grid.cellSize;
 		for (let sample = 1; sample < samples; sample += 1) {
 			const along = sample / samples;
 			const x = x0 + (x1 - x0) * along;
@@ -336,8 +356,11 @@ export class EdgeCostField {
 			let river = false;
 			if (anything) {
 				const obstacle = terrain.obstacle(x, y);
-				if (obstacle === null) continue;
-				if (obstacle !== 'river') return false;
+				if (obstacle === null) {
+					if (!(x * x + y * y <= this.bridgedSquared && terrain.waterAt(x, y) === 'river')) continue;
+				} else if (obstacle !== 'river') {
+					return false;
+				}
 				river = true;
 			} else {
 				for (const crater of craters) {
@@ -345,14 +368,16 @@ export class EdgeCostField {
 					const cy = y - crater.y;
 					if (cx * cx + cy * cy < crater.craterRadius * crater.craterRadius) return false;
 				}
-				if (wet) {
+				if (rivers) {
 					const kind = terrain.waterAt(x, y);
 					if (kind === 'lake') return false;
-					river = kind === 'river' && x * x + y * y > this.bridgedSquared;
+					river = kind === 'river';
+				} else if (lakes && water !== null && water.lakeDepth(x, y) > 0) {
+					return false;
 				}
 				if (!river && rough && terrain.cliff(x, y)) return false;
 			}
-			if (!river) continue;
+			if (!river || atHome(x, y, home)) continue;
 			let bridged = false;
 			for (let span = 0; span < bridges && !bridged; span += 1) bridged = along >= spans[2 * span] && along <= spans[2 * span + 1];
 			if (!bridged) return false;

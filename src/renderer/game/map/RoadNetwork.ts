@@ -56,6 +56,12 @@ export interface RoadStretch {
 	readonly bridges: readonly RoadBridge[];
 	/** A city street: wholly inside the metro, charted from the start. */
 	readonly street: boolean;
+	/**
+	 * A highway stretch's highway, which the shields number: its exit's order
+	 * among the highway exits in the places list, from 0. Where highways merge
+	 * into a trunk, the trunk is the first one laid's. Absent on any other class.
+	 */
+	readonly highway?: number;
 }
 
 /** The highest point of a road over a range, which the dressing can label. */

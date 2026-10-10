@@ -1,6 +1,6 @@
-import { chaikin } from './Geometry';
+import { chaikin, pointAlong, polylineLength } from './Geometry';
 import { simplify } from './Rivers';
-import { impassableAlong, polylineBridges, polylineLength, roadClashes, RoadGround } from './RoadChecks';
+import { impassableAlong, polylineBridges, roadClashes, RoadGround } from './RoadChecks';
 import { EdgeCostField, MOVES, MOVE_X, MOVE_Y, NEIGHBOURS, OPPOSITE, moveBetween } from './RoadCost';
 import type { RoadCells } from './RoadLinks';
 import { ROAD_CLASSES, RoadNode, RoadNodeKind, RoadStretch } from './RoadNetwork';
@@ -17,9 +17,16 @@ import { ROAD_CLASSES, RoadNode, RoadNodeKind, RoadStretch } from './RoadNetwork
  * on a cell centre, so no two junctions are closer than a cell; the compound
  * stands at the origin, where its four cells meet.
  *
- * A smoothed stretch has to stay passable and keep clear of every other;
- * one that doesn't falls back to its line smoothed without the relaxing,
- * then to its cells, which the edge cost field already proved.
+ * A smoothed stretch has to stay passable and keep clear of every other,
+ * which each run between holds settles on its own. A smoothed run that
+ * clips something is held at the cell nearest where it does, and its two
+ * halves smoothed again, so only the cells by the trouble stay cells and a
+ * road along a bank stays smooth past it. A run that clashes with another
+ * falls back: to its line smoothed without the relaxing, then simplified
+ * without smoothing, then its cells, which the edge cost field already
+ * proved. A run out of the compound has one more, through the centre of the
+ * cell it leaves by, since the line from the origin to the next cell isn't
+ * one the field proved.
  */
 
 export const ROAD_GRAPH = {
@@ -34,10 +41,15 @@ export const ROAD_GRAPH = {
 } as const;
 
 export interface RoadGraphStats {
-	/** Stretches as smoothed, simplified only, and left as cells, after the checks. */
+	/** Runs between holds left at each level, best first: smoothed, smoothed without the relaxing, simplified, and as cells, the last counting the compound's fallback too. */
 	smoothed: number;
+	unaveraged: number;
 	simplified: number;
 	cells: number;
+	/** Runs left as cells three moves long or more: a stair step on the map. */
+	stairs: number;
+	/** Holds put where a smoothed run clipped something. */
+	splits: number;
 	/** Diagonal moves dropped for closing a triangle with two road moves. */
 	triangles: number;
 }
@@ -56,9 +68,10 @@ export interface RoadGraphOptions {
 /**
  * Leaves each cell at most one road move into the compound's four cells,
  * its best class, ties to the first direction, so each of the compound's
- * roads leaves it once.
+ * roads leaves it once. The move kept takes a highway's number from any it
+ * replaced.
  */
-function oneWayIn({ classes, compound, placeAt, field }: { classes: Int8Array; compound: readonly number[]; placeAt: Int32Array; field: EdgeCostField }): void {
+function oneWayIn({ classes, highways, compound, placeAt, field }: { classes: Int8Array; highways: Int16Array; compound: readonly number[]; placeAt: Int32Array; field: EdgeCostField }): void {
 	const { offsets } = field;
 	const done = new Set<number>();
 	for (const inner of compound) {
@@ -73,17 +86,14 @@ function oneWayIn({ classes, compound, placeAt, field }: { classes: Int8Array; c
 			}
 			if (ins.length < 2) continue;
 			const rank = ins.reduce((best, edge) => (classes[edge] < best ? classes[edge] : best), classes[ins[0]]);
+			const highway = ins.find((edge) => highways[edge] >= 0);
 			ins.forEach((edge, index) => {
 				classes[edge] = index === 0 ? rank : -1;
 			});
+			if (highways[ins[0]] < 0 && highway !== undefined) highways[ins[0]] = highways[highway];
 		}
 	}
 }
-
-/** Detail levels a stretch's geometry falls back through. */
-const SMOOTHED = 2;
-const SIMPLIFIED = 1;
-const CELLS = 0;
 
 // Globals read once, at load: under Jest's vm context each read costs about 0.15 us (seeded-prng.md).
 const floor = Math.floor;
@@ -92,8 +102,17 @@ interface Trace {
 	readonly from: number;
 	readonly to: number;
 	readonly rank: number;
+	/** A highway's number, -1 on any other class. */
+	readonly highway: number;
 	/** Its cells, end to end. */
 	readonly cells: number[];
+}
+
+/** A trace's run between two holds, by the index of each among its cells, with its line at each detail level, best first, each from the one hold to the other. */
+interface Run {
+	readonly first: number;
+	readonly last: number;
+	readonly levels: readonly number[][];
 }
 
 /** Builds the network's nodes and stretches from the road links' moves (Map 8). */
@@ -101,9 +120,10 @@ export function buildRoadGraph({ cells, terrain }: RoadGraphOptions): RoadGraph 
 	const { field, placeAt, places } = cells;
 	const size = field.size;
 	const classes = cells.classes.slice();
-	const stats: RoadGraphStats = { smoothed: 0, simplified: 0, cells: 0, triangles: dropTriangles(classes, field) };
+	const highways = cells.highways.slice();
+	const stats: RoadGraphStats = { smoothed: 0, unaveraged: 0, simplified: 0, cells: 0, stairs: 0, splits: 0, triangles: dropTriangles(classes, highways, field) };
 	const compound = compoundCells(placeAt, size);
-	oneWayIn({ classes, compound, placeAt, field });
+	oneWayIn({ classes, highways, compound, placeAt, field });
 	const metro = terrain.metro.radius;
 	const metroSquared = metro * metro;
 	const insideMetro = (cell: number) => {
@@ -133,7 +153,7 @@ export function buildRoadGraph({ cells, terrain }: RoadGraphOptions): RoadGraph 
 	const kindOf = (cell: number): RoadNodeKind | null => {
 		const place = placeAt[cell];
 		if (place === 0) return 'compound';
-		if (place > 0) return places[place].kind === 'compound' ? 'junction' : places[place].kind;
+		if (place > 0) return places[place].kind;
 		const around = neighbours(cell);
 		if (around.length === 0) return null;
 		if (around.length >= 3) return 'junction';
@@ -183,7 +203,10 @@ export function buildRoadGraph({ cells, terrain }: RoadGraphOptions): RoadGraph 
 				trace.push(at);
 			}
 			if (nodeAt[at] < 0) continue;
-			traces.push({ from: nodeAt[start], to: nodeAt[at], rank: classes[first], cells: trace });
+			const rank = classes[first];
+			let highway = -1;
+			for (let move = 0; rank === 0 && highway < 0 && move + 1 < trace.length; move += 1) highway = highways[field.edge(trace[move], directionOf(trace[move], trace[move + 1], size))];
+			traces.push({ from: nodeAt[start], to: nodeAt[at], rank, highway, cells: trace });
 		}
 	}
 
@@ -199,51 +222,93 @@ export function buildRoadGraph({ cells, terrain }: RoadGraphOptions): RoadGraph 
 		const node = nodes.length;
 		nodes.push({ kind: 'roadside', x: field.x(cell), y: field.y(cell) });
 		nodeAt[cell] = node;
-		split.push({ from: trace.from, to: node, rank: trace.rank, cells: trace.cells.slice(0, middle + 1) });
-		split.push({ from: node, to: trace.to, rank: trace.rank, cells: trace.cells.slice(middle) });
+		split.push({ ...trace, to: node, cells: trace.cells.slice(0, middle + 1) });
+		split.push({ ...trace, from: node, cells: trace.cells.slice(middle) });
 	}
 
-	const lines = split.map((trace) => traceLines(trace, nodes, field, size));
-	const levels = new Int8Array(lines.length).fill(SMOOTHED);
-	const bridgesOf = lines.map((line) => line.map((points) => polylineBridges(terrain, points)));
-	// Down a level until passable; the cells always are, since the field sampled every move that could cross anything.
-	const settle = (id: number) => {
-		while (levels[id] > CELLS && impassableAlong(terrain, lines[id][levels[id]], bridgesOf[id][levels[id]]) >= 0) levels[id] -= 1;
+	const raws = split.map((trace) => traceCells(trace, nodes, field));
+	const runs = split.map((trace, id) => holdsOf(trace, field, size).map((hold, index, held) => (index + 1 < held.length ? makeRun(trace, raws[id], hold, held[index + 1], field) : null))
+		.filter((run): run is Run => run !== null));
+	const levels = runs.map((list) => list.map(() => 0));
+	const lineOf = (id: number) => assemble(runs[id], levels[id]);
+	const at = { x: 0, y: 0 };
+	/**
+	 * A run settled: smoothed if that's passable; where a smoothed run clips
+	 * something, held at the cell nearest the trouble and both halves settled
+	 * again; and otherwise down a level until passable. The cells always are,
+	 * since the field sampled every move that could cross anything.
+	 */
+	const settle = (id: number, index: number) => {
+		for (;;) {
+			const run = runs[id][index];
+			const level = levels[id][index];
+			const points = run.levels[level];
+			const clipped = impassableAlong(terrain, points, polylineBridges(terrain, points));
+			if (clipped < 0) return;
+			if (level === 0 && run.last - run.first >= 2) {
+				pointAlong(points, clipped, at);
+				const raw = raws[id];
+				let hold = run.first + 1;
+				let nearest = Infinity;
+				for (let cell = run.first + 1; cell < run.last; cell += 1) {
+					const dx = raw[2 * cell] - at.x;
+					const dy = raw[2 * cell + 1] - at.y;
+					if (dx * dx + dy * dy < nearest) {
+						nearest = dx * dx + dy * dy;
+						hold = cell;
+					}
+				}
+				runs[id].splice(index, 1, makeRun(split[id], raw, run.first, hold, field), makeRun(split[id], raw, hold, run.last, field));
+				levels[id].splice(index, 1, 0, 0);
+				stats.splits += 1;
+				settle(id, index + 1);
+				continue;
+			}
+			if (level >= run.levels.length - 1) return;
+			levels[id][index] += 1;
+		}
 	};
-	lines.forEach((_line, id) => settle(id));
+	runs.forEach((list, id) => {
+		for (let index = list.length - 1; index >= 0; index -= 1) settle(id, index);
+	});
 	for (let changed = true; changed;) {
 		changed = false;
-		const clashes = roadClashes({ nodes, stretches: split.map((trace, id) => ({ from: trace.from, to: trace.to, points: lines[id][levels[id]] })) });
-		const clashing = new Set<number>();
-		for (const { a, b } of clashes) {
-			clashing.add(a);
-			clashing.add(b);
+		const lines = split.map((_trace, id) => lineOf(id));
+		const clashes = roadClashes({ nodes, stretches: split.map((trace, id) => ({ from: trace.from, to: trace.to, points: lines[id] })) }, { bySegment: true });
+		const degrade = new Set<string>();
+		for (const { a, b, segmentA, segmentB } of clashes) {
+			degrade.add(`${a} ${runAt(runs[a], levels[a], segmentA)}`);
+			degrade.add(`${b} ${runAt(runs[b], levels[b], segmentB)}`);
 		}
-		for (const id of clashing) {
-			if (levels[id] === CELLS) continue;
-			levels[id] -= 1;
-			settle(id);
+		for (const key of degrade) {
+			const [id, index] = key.split(' ').map(Number);
+			if (levels[id][index] >= runs[id][index].levels.length - 1) continue;
+			levels[id][index] += 1;
+			settle(id, index);
 			changed = true;
 		}
 	}
-	levels.forEach((level) => {
-		if (level === SMOOTHED) stats.smoothed += 1;
-		else if (level === SIMPLIFIED) stats.simplified += 1;
+	runs.forEach((list, id) => list.forEach((run, index) => {
+		const level = levels[id][index];
+		if (level === 0) stats.smoothed += 1;
+		else if (level === 1) stats.unaveraged += 1;
+		else if (level === 2) stats.simplified += 1;
 		else stats.cells += 1;
-	});
+		if (level >= 3 && run.last - run.first >= 3) stats.stairs += 1;
+	}));
 
 	const stretches: RoadStretch[] = [];
 	split.forEach((trace, id) => {
-		const points = lines[id][levels[id]];
+		const points = lineOf(id);
 		const roadClass = ROAD_CLASSES[trace.rank];
-		for (const piece of splitLong(points, bridgesOf[id][levels[id]])) {
+		for (const piece of splitLong(points, polylineBridges(terrain, points))) {
 			const from = piece.first ? trace.from : nodes.length - 1;
 			let to = trace.to;
 			if (!piece.last) {
 				to = nodes.length;
 				nodes.push({ kind: 'roadside', x: piece.points[piece.points.length - 2], y: piece.points[piece.points.length - 1] });
 			}
-			stretches.push(stretchOf({ from, to, roadClass, points: piece.points, terrain, metroSquared }));
+			stretches.push(stretchOf({ from, to, roadClass, highway: trace.highway, points: piece.points, terrain, metroSquared }));
 		}
 	});
 	return { nodes, stretches, stats };
@@ -263,11 +328,12 @@ function directionOf(cell: number, next: number, size: number): number {
 
 /**
  * Drops each diagonal road move that closes a triangle with two orthogonal
- * road moves round its square, handing its class on to them, so two roads
- * meeting at a corner share a cell rather than make a loop a cell across.
- * Returns how many it dropped.
+ * road moves round its square, handing its class on to them, and its
+ * highway's number where they have none, so two roads meeting at a corner
+ * share a cell rather than make a loop a cell across. Returns how many it
+ * dropped.
  */
-function dropTriangles(classes: Int8Array, field: EdgeCostField): number {
+function dropTriangles(classes: Int8Array, highways: Int16Array, field: EdgeCostField): number {
 	const { offsets, size } = field;
 	let dropped = 0;
 	for (let cell = 0; cell < size * size; cell += 1) {
@@ -286,6 +352,7 @@ function dropTriangles(classes: Int8Array, field: EdgeCostField): number {
 			classes[diagonal] = -1;
 			round.forEach((edge) => {
 				if (rank < classes[edge]) classes[edge] = rank;
+				if (highways[edge] < 0) highways[edge] = highways[diagonal];
 			});
 			dropped += 1;
 		}
@@ -293,14 +360,8 @@ function dropTriangles(classes: Int8Array, field: EdgeCostField): number {
 	return dropped;
 }
 
-/**
- * A trace's polyline at each detail level, cells, simplified, and smoothed,
- * from its first node to its last. The compound's cell gives way to the
- * origin. Nodes and both ends of every bridge are held still: each run
- * between holds is simplified and smoothed on its own, and a bridge's move
- * stays straight.
- */
-function traceLines(trace: Trace, nodes: readonly RoadNode[], field: RoadCells['field'], size: number): number[][] {
+/** A trace's cells as a flat line, its first and last at its nodes, the compound's cell giving way to the origin. */
+function traceCells(trace: Trace, nodes: readonly RoadNode[], field: RoadCells['field']): number[] {
 	const { cells } = trace;
 	const raw: number[] = [];
 	cells.forEach((cell, index) => {
@@ -308,6 +369,12 @@ function traceLines(trace: Trace, nodes: readonly RoadNode[], field: RoadCells['
 		else if (index === cells.length - 1) raw.push(nodes[trace.to].x, nodes[trace.to].y);
 		else raw.push(field.x(cell), field.y(cell));
 	});
+	return raw;
+}
+
+/** Where a trace is held, by index among its cells: its ends and both ends of every bridge, which so stays straight. */
+function holdsOf(trace: Trace, field: RoadCells['field'], size: number): number[] {
+	const { cells } = trace;
 	const holds = new Set<number>([0, cells.length - 1]);
 	for (let move = 0; move + 1 < cells.length; move += 1) {
 		if (field.bridged(field.edge(cells[move], directionOf(cells[move], cells[move + 1], size)))) {
@@ -315,22 +382,51 @@ function traceLines(trace: Trace, nodes: readonly RoadNode[], field: RoadCells['
 			holds.add(move + 1);
 		}
 	}
-	const held = [...holds].sort((a, b) => a - b);
+	return [...holds].sort((a, b) => a - b);
+}
+
+/**
+ * A run of a trace's cells from one hold to the next at every detail level:
+ * relaxed, simplified, and smoothed; simplified and smoothed; simplified;
+ * and its cells. A run out of the compound gets a last level through the
+ * centre of the cell it leaves by.
+ */
+function makeRun(trace: Trace, raw: readonly number[], first: number, last: number, field: RoadCells['field']): Run {
 	const tolerance = ROAD_GRAPH.simplify * field.grid.cellSize;
-	const simplified: number[] = [raw[0], raw[1]];
-	const smoothed: number[] = [raw[0], raw[1]];
-	for (let hold = 0; hold + 1 < held.length; hold += 1) {
-		const run = raw.slice(2 * held[hold], 2 * held[hold + 1] + 2);
-		let simple = simplify(run, tolerance);
-		for (let pass = 0; pass < ROAD_GRAPH.smoothing; pass += 1) simple = chaikin(simple);
-		let smooth = run;
-		for (let pass = 0; pass < ROAD_GRAPH.relaxing; pass += 1) smooth = relaxed(smooth);
-		smooth = simplify(smooth, tolerance);
-		for (let pass = 0; pass < ROAD_GRAPH.smoothing; pass += 1) smooth = chaikin(smooth);
-		for (let point = 2; point < simple.length; point += 1) simplified.push(simple[point]);
-		for (let point = 2; point < smooth.length; point += 1) smoothed.push(smooth[point]);
+	const smooth = (line: number[]) => {
+		let out = line;
+		for (let pass = 0; pass < ROAD_GRAPH.smoothing; pass += 1) out = chaikin(out);
+		return out;
+	};
+	const run = raw.slice(2 * first, 2 * last + 2);
+	let relaxedRun = run;
+	for (let pass = 0; pass < ROAD_GRAPH.relaxing; pass += 1) relaxedRun = relaxed(relaxedRun);
+	const simple = simplify(run, tolerance);
+	const levels = [smooth(simplify(relaxedRun, tolerance)), smooth(simple), simple, run];
+	const { cells } = trace;
+	if (first === 0 && trace.from === 0) levels.push([run[0], run[1], field.x(cells[0]), field.y(cells[0]), ...run.slice(2)]);
+	else if (last === cells.length - 1 && trace.to === 0) levels.push([...run.slice(0, run.length - 2), field.x(cells[last]), field.y(cells[last]), run[run.length - 2], run[run.length - 1]]);
+	return { first, last, levels };
+}
+
+/** A trace's line from its runs at their levels, each joint once. */
+function assemble(runs: readonly Run[], levels: readonly number[]): number[] {
+	const line: number[] = [];
+	runs.forEach(({ levels: lines }, run) => {
+		const points = lines[levels[run]];
+		for (let point = run === 0 ? 0 : 2; point < points.length; point += 1) line.push(points[point]);
+	});
+	return line;
+}
+
+/** The run a segment of a trace's assembled line belongs to, by the segment's index along the line. */
+function runAt(runs: readonly Run[], levels: readonly number[], segment: number): number {
+	let passed = 0;
+	for (let run = 0; run < runs.length; run += 1) {
+		passed += runs[run].levels[levels[run]].length / 2 - 1;
+		if (segment < passed) return run;
 	}
-	return [raw, simplified, smoothed];
+	return runs.length - 1;
 }
 
 /**
@@ -410,10 +506,11 @@ function splitLong(points: readonly number[], bridges: readonly { start: number;
 	return pieces;
 }
 
-function stretchOf({ from, to, roadClass, points, terrain, metroSquared }: {
-	from: number; to: number; roadClass: RoadStretch['roadClass']; points: number[]; terrain: RoadGround; metroSquared: number;
+function stretchOf({ from, to, roadClass, highway, points, terrain, metroSquared }: {
+	from: number; to: number; roadClass: RoadStretch['roadClass']; highway: number; points: number[]; terrain: RoadGround; metroSquared: number;
 }): RoadStretch {
 	let street = true;
 	for (let point = 0; point < points.length && street; point += 2) street = points[point] * points[point] + points[point + 1] * points[point + 1] <= metroSquared;
-	return { roadClass, from, to, length: polylineLength(points), points, bridges: polylineBridges(terrain, points), street };
+	const stretch: RoadStretch = { roadClass, from, to, length: polylineLength(points), points, bridges: polylineBridges(terrain, points), street };
+	return roadClass === 'highway' && highway >= 0 ? { ...stretch, highway } : stretch;
 }

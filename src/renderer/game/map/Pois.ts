@@ -1,10 +1,10 @@
 import type { Rng } from '../core/Rng';
 import { BIOMES } from './Biome';
-import { Vector, unitVector } from './Geometry';
+import { pointAlong, unitVector, Vector } from './Geometry';
 import type { MapParams } from './MapParams';
 import { FACTIONS, Factions, POI_TUNING, PoiResource, PoiTuning, STRONGHOLD_TYPE, SiteCondition } from './PoiData';
 import type { RoadNetwork } from './RoadNetwork';
-import { Arrival, Leg, MeetingPoint, RouteTree, buildLegs, pointAlong } from './RouteTree';
+import { Arrival, Leg, MeetingPoint, RouteTree, buildLegs } from './RouteTree';
 import { SegmentIndex } from './SegmentIndex';
 import type { Terrain } from './Terrain';
 

@@ -32,9 +32,10 @@ export type RoadKnowledge = (typeof ROAD_KNOWLEDGE)[number];
 
 /**
  * Per-stretch knowledge, by stretch id. An uncharted stretch is drawn only
- * where it leaves known road (it starts at the compound, or at a node a
- * charted or rumored stretch ends on); one deeper in the fog isn't drawn at
- * all, so the three states are enough to say what's hidden.
+ * where it leaves known road (either end is the compound, or a node a
+ * charted or rumored stretch ends on), as a stub from that end; one deeper
+ * in the fog isn't drawn at all, so the three states are enough to say
+ * what's hidden.
  */
 export interface RoadKnowledgeLayer {
 	knowledgeOf(stretch: number): RoadKnowledge;
@@ -105,15 +106,25 @@ export const ALL_CHARTED: RoadKnowledgeLayer = Object.freeze({
 
 /**
  * Whether stretch `id` is drawn under `knowledge`, and how: as itself, or as
- * a stub of an uncharted stretch leaving known road from its `from` end;
- * null when it's hidden.
+ * a stub of an uncharted stretch leaving known road; null when it's hidden.
  */
 export function drawnKnowledge(network: RoadNetwork, knowledge: RoadKnowledgeLayer, id: number): RoadKnowledge | null {
 	const own = knowledge.knowledgeOf(id);
 	if (own !== 'uncharted') return own;
-	const { from } = network.stretches[id];
-	if (from === 0) return own;
-	return stretchesAt(network)[from].some((other) => other !== id && knowledge.knowledgeOf(other) !== 'uncharted') ? own : null;
+	return stubEnd(network, knowledge, id) === null ? null : own;
+}
+
+/**
+ * The end an uncharted stretch's stub leaves known road from: `from` or
+ * `to`, whichever is the compound or a node where a charted or rumored
+ * stretch ends, `from` when both are; null when neither is.
+ */
+export function stubEnd(network: RoadNetwork, knowledge: RoadKnowledgeLayer, id: number): 'from' | 'to' | null {
+	const { from, to } = network.stretches[id];
+	const meeting = stretchesAt(network);
+	const known = (node: number) => node === 0 || meeting[node].some((other) => other !== id && knowledge.knowledgeOf(other) !== 'uncharted');
+	if (known(from)) return 'from';
+	return known(to) ? 'to' : null;
 }
 
 const incidence = new WeakMap<RoadNetwork, readonly (readonly number[])[]>();

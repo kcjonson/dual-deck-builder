@@ -1,6 +1,7 @@
-import { pointSegmentDistanceSquared, segmentDistanceSquared, segmentsMeet } from './Geometry';
+import { pointAlong, pointSegmentDistanceSquared, polylineLength, segmentDistanceSquared, segmentsMeet } from './Geometry';
+import { landGridFor } from './LandGrid';
 import { ROAD_CLASSES, RoadBridge, RoadNetwork, RoadStretch } from './RoadNetwork';
-import type { Terrain } from './Terrain';
+import { METRO_BRIDGES, Terrain } from './Terrain';
 
 // Globals read once, at load: under Jest's vm context each read costs about 0.15 us (seeded-prng.md).
 const sqrt = Math.sqrt;
@@ -37,7 +38,16 @@ export const NODE_COS = 0.9396926207859084;
 export const PASSABLE_SPACING = 0.5;
 
 /** What the checks read of the land. */
-export type RoadGround = Pick<Terrain, 'radius' | 'metro' | 'obstacle' | 'bridgeSpans'>;
+export type RoadGround = Pick<Terrain, 'radius' | 'metro' | 'obstacle' | 'bridgeSpans' | 'waterAt'>;
+
+/**
+ * Whether (x, y) is on Home's own four land cells round the origin, `cell`
+ * world units each way: the compound can stand in a river, so roads leave it
+ * through its water.
+ */
+export function atHome(x: number, y: number, cell: number): boolean {
+	return x <= cell && x >= -cell && y <= cell && y >= -cell;
+}
 
 export interface RoadCheckOptions {
 	network: RoadNetwork;
@@ -51,10 +61,13 @@ export interface RoadCheckOptions {
  *
  * - structure: node 0 is the compound at the origin; each stretch runs
  *   between two different nodes, from the one to the other, with its class,
- *   its length, and its bridges in order along it.
+ *   its length, its bridges in order along it, and a highway's number on a
+ *   highway and on nothing else.
  * - disc: every point is inside the disc.
  * - passable: no sample every half unit along a polyline is impassable, bar
- *   river water under one of the stretch's bridges.
+ *   river water under one of the stretch's bridges. The metro's rivers,
+ *   which `obstacle` passes, count too: a road crosses them, never runs
+ *   along them, bar on Home's own cells.
  * - bridges: a stretch's bridges are where its polyline crosses rivers, each
  *   crossing outside the metro no longer than the longest bridge, since a
  *   longer one has no deck and leaves its water impassable. Crossings close
@@ -96,6 +109,8 @@ function checkStructure({ nodes, stretches, broken }: RoadNetwork, report: Repor
 			return;
 		}
 		if (!ROAD_CLASSES.includes(stretch.roadClass)) report('structure', `${id} has class ${stretch.roadClass}`);
+		const numbered = stretch.highway !== undefined && Number.isInteger(stretch.highway) && stretch.highway >= 0;
+		if (stretch.roadClass === 'highway' ? !numbered : stretch.highway !== undefined) report('structure', `${id}, a ${stretch.roadClass}, has highway number ${stretch.highway}`);
 		if (points.length < 4 || points.length % 2 !== 0 || points.some((value) => !Number.isFinite(value))) {
 			report('structure', `${id} has ${points.length} coordinates`);
 			return;
@@ -150,17 +165,6 @@ function checkReach({ nodes, stretches }: RoadNetwork, report: Report): void {
 	});
 }
 
-/** World units along a flat polyline. */
-export function polylineLength(points: readonly number[]): number {
-	let length = 0;
-	for (let point = 0; point + 3 < points.length; point += 2) {
-		const dx = points[point + 2] - points[point];
-		const dy = points[point + 3] - points[point + 1];
-		length += sqrt(dx * dx + dy * dy);
-	}
-	return length;
-}
-
 const spans: number[] = [];
 
 /**
@@ -198,9 +202,14 @@ export function polylineBridges(terrain: Pick<RoadGround, 'bridgeSpans'>, points
 /**
  * The first point along a polyline, as world units from its start, where a
  * sample every half unit lands on impassable ground, bar river water under
- * one of `bridges`; -1 where none does. Every segment's ends are sampled.
+ * one of `bridges`; -1 where none does. River water in the metro counts,
+ * though `obstacle` passes it, bar on Home's own cells. Every segment's
+ * ends are sampled.
  */
-export function impassableAlong(terrain: Pick<RoadGround, 'obstacle'>, points: readonly number[], bridges: readonly RoadBridge[]): number {
+export function impassableAlong(terrain: Pick<RoadGround, 'radius' | 'metro' | 'obstacle' | 'waterAt'>, points: readonly number[], bridges: readonly RoadBridge[]): number {
+	const bridged = terrain.metro.radius + METRO_BRIDGES;
+	const bridgedSquared = bridged * bridged;
+	const home = landGridFor(terrain.radius).cellSize;
 	let along = 0;
 	for (let point = 0; point + 3 < points.length; point += 2) {
 		const x0 = points[point];
@@ -211,10 +220,16 @@ export function impassableAlong(terrain: Pick<RoadGround, 'obstacle'>, points: r
 		const samples = floor(length / PASSABLE_SPACING) + 1;
 		for (let sample = point === 0 ? 0 : 1; sample <= samples; sample += 1) {
 			const share = sample / samples;
-			const obstacle = terrain.obstacle(x0 + dx * share, y0 + dy * share);
-			if (obstacle === null) continue;
+			const x = x0 + dx * share;
+			const y = y0 + dy * share;
+			const obstacle = terrain.obstacle(x, y);
+			if (obstacle === null) {
+				if (!(x * x + y * y <= bridgedSquared && terrain.waterAt(x, y) === 'river')) continue;
+			} else if (obstacle !== 'river') {
+				return along + length * share;
+			}
 			const at = along + length * share;
-			if (obstacle === 'river' && bridges.some(({ start, end }) => at >= start && at <= end)) continue;
+			if (atHome(x, y, home) || bridges.some(({ start, end }) => at >= start && at <= end)) continue;
 			return at;
 		}
 		along += length;
@@ -223,24 +238,8 @@ export function impassableAlong(terrain: Pick<RoadGround, 'obstacle'>, points: r
 }
 
 function describePoint(points: readonly number[], along: number): string {
-	const { x, y } = pointAlong(points, along);
+	const { x, y } = pointAlong(points, along, { x: 0, y: 0 });
 	return `(${x.toFixed(2)}, ${y.toFixed(2)})`;
-}
-
-/** The point `along` world units along a flat polyline from its start, held to its ends. */
-export function pointAlong(points: readonly number[], along: number): { x: number; y: number } {
-	let walked = 0;
-	for (let point = 0; point + 3 < points.length; point += 2) {
-		const dx = points[point + 2] - points[point];
-		const dy = points[point + 3] - points[point + 1];
-		const length = sqrt(dx * dx + dy * dy);
-		if (walked + length >= along) {
-			const share = length > 0 && along > walked ? (along - walked) / length : 0;
-			return { x: points[point] + dx * share, y: points[point + 1] + dy * share };
-		}
-		walked += length;
-	}
-	return { x: points[points.length - 2], y: points[points.length - 1] };
 }
 
 interface Segment {
@@ -260,8 +259,11 @@ interface Segment {
 /** A pair of stretches the planarity sweep found breaking a rule. */
 export interface RoadClash {
 	readonly rule: 'crossing' | 'clearance';
+	/** The two stretches, and the segment of each, by its index along the stretch. */
 	readonly a: number;
 	readonly b: number;
+	readonly segmentA: number;
+	readonly segmentB: number;
 	readonly detail: string;
 }
 
@@ -274,9 +276,14 @@ function checkPairs(network: RoadNetwork, report: Report): void {
  * grid buckets, against the rules: segments of one stretch touch only where
  * they join; two stretches meet only at a node both end on, leaving it 20
  * degrees apart or more, and otherwise keep the clearance, tapering to
- * nothing toward a node they share.
+ * nothing toward a node they share. Each pair of stretches is reported once
+ * for each rule it breaks, or with `bySegment`, once for each pair of
+ * segments.
  */
-export function roadClashes({ nodes, stretches }: { nodes: RoadNetwork['nodes']; stretches: readonly Pick<RoadStretch, 'from' | 'to' | 'points'>[] }): RoadClash[] {
+export function roadClashes(
+	{ nodes, stretches }: { nodes: RoadNetwork['nodes']; stretches: readonly Pick<RoadStretch, 'from' | 'to' | 'points'>[] },
+	{ bySegment = false }: { bySegment?: boolean } = {},
+): RoadClash[] {
 	const clearance = ROAD_CLEARANCE;
 	const segments: Segment[] = [];
 	stretches.forEach(({ points }, stretch) => {
@@ -326,9 +333,10 @@ export function roadClashes({ nodes, stretches }: { nodes: RoadNetwork['nodes'];
 				const second = filed[entry];
 				if (second <= first || seen[second] === first) continue;
 				seen[second] = first;
-				const clash = checkPair(nodes, stretches, a, segments[second]);
-				if (clash === null) continue;
-				const key = `${clash.a} ${clash.b} ${clash.rule}`;
+				const found = checkPair(nodes, stretches, a, segments[second]);
+				if (found === null) continue;
+				const clash = { ...found, segmentA: a.index, segmentB: segments[second].index };
+				const key = bySegment ? `${clash.a} ${clash.segmentA} ${clash.b} ${clash.segmentB}` : `${clash.a} ${clash.b} ${clash.rule}`;
 				if (reported.has(key)) continue;
 				reported.add(key);
 				clashes.push(clash);
@@ -339,7 +347,7 @@ export function roadClashes({ nodes, stretches }: { nodes: RoadNetwork['nodes'];
 }
 
 /** One pair of segments against the rules, or null where they keep them. */
-function checkPair(nodes: RoadNetwork['nodes'], stretches: readonly Pick<RoadStretch, 'from' | 'to' | 'points'>[], a: Segment, b: Segment): RoadClash | null {
+function checkPair(nodes: RoadNetwork['nodes'], stretches: readonly Pick<RoadStretch, 'from' | 'to' | 'points'>[], a: Segment, b: Segment): Omit<RoadClash, 'segmentA' | 'segmentB'> | null {
 	const clearance = ROAD_CLEARANCE;
 	if (b.minY > a.maxY + clearance || a.minY > b.maxY + clearance || b.minX > a.maxX + clearance || a.minX > b.maxX + clearance) return null;
 	const distanceSquared = segmentDistanceSquared(a.x0, a.y0, a.x1, a.y1, b.x0, b.y0, b.x1, b.y1);

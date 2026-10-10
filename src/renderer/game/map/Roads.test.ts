@@ -6,7 +6,7 @@ import { ROAD_CLASSES, RoadNetwork, classRank, loopCount } from './RoadNetwork';
 import { generateRoads, loopsNeeded, roadsProblems, standInPlaces } from './Roads';
 import { createTerrainSample } from './Terrain';
 import { MapParamSet } from './MapParams';
-import { landFor, roadMap, sampledRoadParamSets } from './roadTesting';
+import { landFor, riverOffDecks, roadMap, sampledRoadParamSets } from './roadTesting';
 
 /** FNV-1a over a typed array's bytes, read as little-endian words: a pin that any one bit moves. */
 function hashOf(values: Float64Array): number {
@@ -28,8 +28,8 @@ function networkHash({ nodes, stretches }: RoadNetwork): number {
 }
 
 const PINNED: [MapParamSet, { nodes: number; stretches: number; hash: number }][] = [
-	[{ seed: 7, radius: 800 }, { nodes: 328, stretches: 438, hash: 782260726 }],
-	[{ seed: 17, environment: 'badlands', radius: 800 }, { nodes: 294, stretches: 372, hash: 27410876 }],
+	[{ seed: 7, radius: 800 }, { nodes: 329, stretches: 439, hash: 2213561524 }],
+	[{ seed: 17, environment: 'badlands', radius: 800 }, { nodes: 294, stretches: 372, hash: 3725655979 }],
 ];
 
 const SET: MapParamSet = { seed: 3, radius: 800 };
@@ -198,11 +198,35 @@ describe('the road graph', () => {
 });
 
 describe('the roads stage', () => {
+	it('crosses the metro\'s rivers rather than driving down them: Rust Belt 11 at radius 1200 ran its north highway 23 units down one', () => {
+		const { network, terrain } = roadMap({ seed: 11, environment: 'rustBelt', radius: 1200 });
+		expect(riverOffDecks(network, terrain)).toBe(0);
+		// It still bridges them, free, where it crosses.
+		const metro = terrain.metro.radius;
+		expect(network.stretches.some(({ bridges, points }) => bridges.length > 0 && points[0] ** 2 + points[1] ** 2 < metro * metro)).toBe(true);
+	});
+
+	it('numbers each highway stretch by its exit\'s order among the highway exits, and nothing else', () => {
+		const exits = places.filter(({ kind, highway }) => kind === 'exit' && highway).length;
+		const numbers = new Set<number>();
+		graph.stretches.forEach(({ roadClass, highway }) => {
+			if (roadClass !== 'highway') {
+				expect(highway).toBeUndefined();
+				return;
+			}
+			expect(Number.isInteger(highway)).toBe(true);
+			numbers.add(highway as number);
+		});
+		expect([...numbers].every((number) => number >= 0 && number < exits)).toBe(true);
+		expect(numbers.size).toBe(exits);
+	});
+
 	const count = Number(process.env.ROAD_PROPERTY_MAPS ?? 6);
 
 	it.each(sampledRoadParamSets(count).map((set, index) => [index, set] as const))('keeps every road guarantee on sampled map %i', (_index, set) => {
 		const { network, roads, terrain, params } = roadMap(set);
 		expect(checkRoadNetwork({ network, terrain })).toEqual([]);
+		expect(riverOffDecks(network, terrain)).toBe(0);
 		expect(roads.stats.links.unreached).toEqual([]);
 		expect(loopCount(network)).toBeGreaterThanOrEqual(loopsNeeded(params));
 		expect(network.broken.length).toBeLessThanOrEqual(params.brokenHighways);

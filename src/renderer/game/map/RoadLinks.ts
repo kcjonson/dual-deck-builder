@@ -99,6 +99,8 @@ export interface RoadCells {
 	readonly places: readonly RoadPlace[];
 	/** Per move, the best class of the roads along it as a rank (0 highway, 1 back road, 2 trail), -1 where there's none. */
 	readonly classes: Int8Array;
+	/** Per move, the highway laid along it first, counted in the order the highway exits come in the places list from 0; -1 for none. */
+	readonly highways: Int16Array;
 	/** Per place, the cell it stands on, -1 for one with nowhere to stand; the compound's is the first of its four. */
 	readonly placeCells: Int32Array;
 	/** Per cell, the place standing on it, -1 for none. The compound stands on the four cells round the origin. */
@@ -125,7 +127,6 @@ export interface RoadLinkOptions {
 const HIGHWAY = 0;
 const BACK_ROAD = 1;
 const TRAIL = 2;
-
 
 // Globals read once, at load: under Jest's vm context each read costs about 0.15 us (seeded-prng.md).
 const sqrt = Math.sqrt;
@@ -159,6 +160,7 @@ class RoadBuilder {
 	private readonly trailRun: number;
 
 	private readonly classes: Int8Array;
+	private readonly highways: Int16Array;
 	/** Per cell, a bit for each move a road leaves it by. */
 	private readonly roadMask: Uint16Array;
 	/** Per cell, 1 where a road bridges over it east to west, 2 north to south. */
@@ -204,6 +206,7 @@ class RoadBuilder {
 		this.trailRun = ROAD_LINKS.trailRun.none + (ROAD_LINKS.trailRun.all - ROAD_LINKS.trailRun.none) * trailShare;
 		const cells = size * size;
 		this.classes = new Int8Array(field.edges).fill(-1);
+		this.highways = new Int16Array(field.edges).fill(-1);
 		this.roadMask = new Uint16Array(cells);
 		this.leaps = new Uint8Array(cells);
 		this.near = new Uint8Array(cells);
@@ -232,6 +235,7 @@ class RoadBuilder {
 			field: this.field,
 			places: this.places,
 			classes: this.classes,
+			highways: this.highways,
 			placeCells: this.placeCells,
 			placeAt: this.placeAt,
 			spurEnds: this.spurEnds,
@@ -279,15 +283,20 @@ class RoadBuilder {
 	 * From each highway exit to the compound, through the best town within
 	 * `highwayTown.degrees` of its bearing: the first such town in the list,
 	 * which comes best ground first. Existing highway is cheaper to a highway,
-	 * so the later ones merge into the earlier near the city.
+	 * so the later ones merge into the earlier near the city. Each move keeps
+	 * the first highway laid along it, by its exit's order among the highway
+	 * exits.
 	 */
 	private layHighways(): void {
 		const { places, terrain } = this;
 		const { degrees, inner, outer } = ROAD_LINKS.highwayTown;
 		const within = unitVector(degrees, { x: 0, y: 0 }).x;
 		const radius = terrain.radius;
+		let highway = -1;
 		places.forEach((exit, id) => {
-			if (exit.kind !== 'exit' || exit.highway !== true || this.ends[id] === null) return;
+			if (exit.kind !== 'exit' || exit.highway !== true) return;
+			highway += 1;
+			if (this.ends[id] === null) return;
 			const exitDistance = sqrt(exit.x * exit.x + exit.y * exit.y);
 			const town = places.findIndex((place, townId) => {
 				if (place.kind !== 'town' || this.ends[townId] === null) return false;
@@ -296,8 +305,8 @@ class RoadBuilder {
 				return (place.x * exit.x + place.y * exit.y) / (distance * exitDistance) >= within;
 			});
 			const legs: [number, number][] = town >= 0 ? [[id, town], [town, 0]] : [[id, 0]];
-			let laid = legs.every(([from, to]) => this.link(from, to, HIGHWAY));
-			if (!laid && town >= 0) laid = this.link(id, 0, HIGHWAY);
+			let laid = legs.every(([from, to]) => this.link(from, to, HIGHWAY, highway));
+			if (!laid && town >= 0) laid = this.link(id, 0, HIGHWAY, highway);
 			if (laid) this.stats.highways += 1;
 		});
 	}
@@ -395,11 +404,11 @@ class RoadBuilder {
 	}
 
 	/** Lays a link between two places, if a path exists, and joins them; false when none does. */
-	private link(a: number, b: number, rank: number): boolean {
+	private link(a: number, b: number, rank: number, highway = -1): boolean {
 		if (this.ends[a] === null || this.ends[b] === null) return false;
 		const path = this.search(a, b, rank, ROAD_LINKS.bound) ?? this.search(a, b, rank, ROAD_LINKS.bound * ROAD_LINKS.widen);
 		if (path === null) return false;
-		this.lay(path, rank);
+		this.lay(path, rank, highway);
 		this.unite(a, b);
 		return true;
 	}
@@ -628,11 +637,11 @@ class RoadBuilder {
 	/**
 	 * Lays a path as road of class `rank`. A back road gives out to a trail
 	 * along a run through rough country `trailRun` long or more. Each move keeps
-	 * the best class laid along it, and the highest cell of a road over a range
-	 * is a pass.
+	 * the best class laid along it, and the first highway, and the highest
+	 * cell of a road over a range is a pass.
 	 */
-	private lay(path: readonly number[], rank: number): void {
-		const { field, classes, roadMask } = this;
+	private lay(path: readonly number[], rank: number, highway = -1): void {
+		const { field, classes, highways, roadMask } = this;
 		const moves = path.length - 1;
 		const ranks = new Int8Array(moves).fill(rank);
 		if (rank === BACK_ROAD) this.trailRuns(path, ranks);
@@ -642,6 +651,7 @@ class RoadBuilder {
 			const direction = this.directionOf(cell, next);
 			const edge = field.edge(cell, direction);
 			if (classes[edge] < 0 || ranks[move] < classes[edge]) classes[edge] = ranks[move];
+			if (highway >= 0 && highways[edge] < 0) highways[edge] = highway;
 			roadMask[cell] |= 1 << direction;
 			roadMask[next] |= 1 << OPPOSITE[direction];
 			if (direction >= NEIGHBOURS) this.leaps[(cell + next) / 2] |= (direction & 1) === 0 ? 1 : 2;

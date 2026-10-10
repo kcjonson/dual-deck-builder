@@ -64,6 +64,35 @@ export function landFor(set: MapParamSet): { params: MapParams; terrain: Terrain
 	return { params, terrain: water.terrain, water, rng: waterStream.fork('roads', 0) };
 }
 
+/**
+ * World units of road in river water off its bridges' decks and Home's own
+ * cells, sampled every half unit along every stretch, the metro's rivers
+ * included: none, when roads cross rivers rather than run along them.
+ */
+export function riverOffDecks(network: RoadNetwork, terrain: Terrain): number {
+	const home = terrain.surface.grid.cellSize;
+	let wet = 0;
+	for (const { points, bridges } of network.stretches) {
+		let along = 0;
+		for (let point = 0; point + 3 < points.length; point += 2) {
+			const dx = points[point + 2] - points[point];
+			const dy = points[point + 3] - points[point + 1];
+			const length = Math.sqrt(dx * dx + dy * dy);
+			const samples = Math.max(1, Math.ceil(length / 0.5));
+			for (let sample = 1; sample <= samples; sample += 1) {
+				const x = points[point] + dx * sample / samples;
+				const y = points[point + 1] + dy * sample / samples;
+				const at = along + length * sample / samples;
+				if (Math.abs(x) <= home && Math.abs(y) <= home) continue;
+				if (terrain.waterAt(x, y) !== 'river' || bridges.some(({ start, end }) => at >= start && at <= end)) continue;
+				wet += length / samples;
+			}
+			along += length;
+		}
+	}
+	return wet;
+}
+
 export interface FakeGroundOptions {
 	radius?: number;
 	metroRadius?: number;
@@ -77,6 +106,7 @@ export function fakeGround({ radius = 1000, metroRadius = 150, wall }: FakeGroun
 		radius,
 		metro: { x: 0, y: 0, radius: metroRadius },
 		obstacle: (x: number, y: number): Obstacle | null => (wall?.(x, y) ? 'cliff' : null),
+		waterAt: () => null,
 		bridgeSpans: () => 0,
 	};
 }

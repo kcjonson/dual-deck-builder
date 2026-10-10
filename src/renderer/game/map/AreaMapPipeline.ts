@@ -79,8 +79,8 @@ export interface PoisStageOptions {
 	/**
 	 * Hold the layer to every guarantee it keeps: a sector without a
 	 * stronghold, or a first ring that doesn't yield food, water, and fuel,
-	 * fails the stage, and past its attempts it escalates to the roads. The
-	 * game's pipeline runs strict; off, the layer reports what it missed in
+	 * fails the stage, and past its attempts it escalates to the roads. On
+	 * unless told otherwise; off, the layer reports what it missed in
 	 * `failures` and the map goes on without it.
 	 */
 	readonly strict?: boolean;
@@ -93,7 +93,7 @@ interface PoisUpstream extends RoadsProduct {
 }
 
 /** Stage 7, strongholds and POIs on the route tree's meeting points, checked by the checks the map validator will run. */
-export function poisStage({ strict = false }: PoisStageOptions = {}): MapStage<MapParams, PoisUpstream, 'pois', PoiLayer> {
+export function poisStage({ strict = true }: PoisStageOptions = {}): MapStage<MapParams, PoisUpstream, 'pois', PoiLayer> {
 	return {
 		name: 'pois',
 		escalate: strict ? 'roads' : undefined,
@@ -112,7 +112,7 @@ export interface AreaMapPipelineOptions {
 	readonly pois?: PoisStageOptions;
 }
 
-export function areaMapPipeline({ pois = { strict: true } }: AreaMapPipelineOptions = {}): MapPipeline<MapParams, AreaMapProducts> {
+export function areaMapPipeline({ pois = {} }: AreaMapPipelineOptions = {}): MapPipeline<MapParams, AreaMapProducts> {
 	return new MapPipeline<MapParams>()
 		.stage(TERRAIN_STAGE)
 		.stage(WATER_STAGE)
