@@ -25,8 +25,8 @@
 {"path":"compoundScreen/compound_body/compound_buildings/compound_building_row_1/compound_building_garage/compound_building_garage_foot/compound_building_garage_reason","text":"The garage isn't open at home yet.","rect":[28,493.32,186.67,32.68]},
 {"path":"compoundScreen/compound_body/compound_buildings/compound_building_row_1/compound_building_garage/compound_building_garage_foot/compound_building_garage_button/Text[0]","text":"Garage","rect":[40,538,162.67,34]},
 {"path":"compoundScreen/compound_body/compound_buildings/compound_building_row_1/compound_building_map_room/compound_building_map_room_name","text":"Map room","rect":[250.67,350.5,186.67,21.6]},
-{"path":"compoundScreen/compound_body/compound_buildings/compound_building_row_1/compound_building_map_room/compound_building_map_room_foot/compound_building_map_room_description","text":"The area map, to plan a supply run.","rect":[250.67,470.97,186.67,32.68]},
-{"path":"compoundScreen/compound_body/compound_buildings/compound_building_row_1/compound_building_map_room/compound_building_map_room_foot/compound_building_map_room_reason","text":"The area map isn't built yet.","rect":[250.67,509.66,186.67,16.34]},
+{"path":"compoundScreen/compound_body/compound_buildings/compound_building_row_1/compound_building_map_room/compound_building_map_room_foot/compound_building_map_room_description","text":"The area map, to plan a supply run.","rect":[250.67,454.63,186.67,32.68]},
+{"path":"compoundScreen/compound_body/compound_buildings/compound_building_row_1/compound_building_map_room/compound_building_map_room_foot/compound_building_map_room_reason","text":"For now Plan a supply run opens the area map.","rect":[250.67,493.32,186.67,32.68]},
 {"path":"compoundScreen/compound_body/compound_buildings/compound_building_row_1/compound_building_map_room/compound_building_map_room_foot/compound_building_map_room_button/Text[0]","text":"Map room","rect":[262.67,538,162.67,34]},
 {"path":"compoundScreen/compound_body/compound_buildings/compound_building_row_1/compound_building_stores/compound_building_stores_name","text":"Stores","rect":[473.33,350.5,186.67,21.6]},
 {"path":"compoundScreen/compound_body/compound_buildings/compound_building_row_1/compound_building_stores/compound_building_stores_foot/compound_building_stores_description","text":"The resource ledger and its forecast.","rect":[473.33,470.97,186.67,32.68]},
@@ -42,5 +42,5 @@
 {"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_rest_line","text":"Ends day 9. The compound eats 5 food and 5 water.","rect":[688,424.46,320,33.6]},
 {"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_scavenge_line","text":"Scavenging ends it too, with 2 fuel and 12 scrap.","rect":[688,464.06,320,33.6]},
 {"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_plan_button/Text[0]","text":"Plan a supply run","rect":[700,515.66,296,46]},
-{"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_plan_reason","text":"6 routes on offer today.","rect":[688,567.66,320,16.34]}
+{"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_plan_reason","text":"30 destinations on the area map.","rect":[688,567.66,320,16.34]}
 ]
