@@ -17,6 +17,7 @@ import { MemorySaveStorage } from '../../campaign/SaveStorage';
 import { routeStops } from '../../campaign/SupplyRoutes';
 import { routesOnOffer } from '../../campaign/SupplyRun';
 import { FaultyStorage, atHomeText, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
+import { NOT_THE_SAVE } from '../compound/compoundText';
 import { RoutePickScreen } from './RoutePickScreen';
 
 jest.mock('../../core/ScreenManager', () => ({
@@ -90,7 +91,7 @@ describe('RoutePickScreen', () => {
 
 		expect(campaign.supplyRun?.route).toEqual(route);
 		expect(campaign.resources.fuel).toBe(6 - route.fuel);
-		expect(navigate).toHaveBeenLastCalledWith('runScreen', { campaign });
+		expect(navigate).toHaveBeenLastCalledWith('runScreen', { campaign, saved: expect.any(Promise) });
 		const saved = await storeOver(storage).load();
 		expect([saved?.supplyRun?.route.id, saved?.supplyRun?.stop, saved?.resources.fuel]).toEqual([route.id, 0, 6 - route.fuel]);
 	});
@@ -105,8 +106,27 @@ describe('RoutePickScreen', () => {
 		}
 	});
 
+	it('says what each destination yields', async () => {
+		await open();
+		for (const { destination } of routesOnOffer({ campaign: screen.shown as Campaign })) {
+			const { food, water, fuel, scrap } = destination.yield;
+			expect(text(`route_pick_${destination.id}_yield`)).toBe(`Yields ${food} food, ${water} water, ${fuel} fuel, and ${scrap} scrap`);
+		}
+	});
+
+	it('stays put, saying nothing more is saved, when the store has moved on from this campaign', async () => {
+		await open();
+		const campaign = screen.shown as Campaign;
+		await store.load();
+		const [route] = routesOnOffer({ campaign });
+		find<Button>(`route_pick_${route.id}_take`).onClick?.({} as never);
+		await flush();
+		expect(text('route_pick_status')).toBe(NOT_THE_SAVE);
+		expect(navigate).not.toHaveBeenCalled();
+	});
+
 	it('says why when nobody can go, and leaves the campaign as it was, saving nothing', async () => {
-		await open((campaign) => campaign.drivers[0].set({ status: 'injured', injuredDays: 1, hitpoints: 30 }));
+		await open((campaign) => [campaign.drivers[0], campaign.drivers[4]].forEach((driver) => driver.set({ status: 'injured', injuredDays: 1, hitpoints: 20 })));
 		const campaign = screen.shown as Campaign;
 		const [route] = routesOnOffer({ campaign });
 		const before = campaign.toSaveText();
@@ -114,7 +134,7 @@ describe('RoutePickScreen', () => {
 		find<Button>(`route_pick_${route.id}_take`).onClick?.({} as never);
 		await flush();
 
-		expect(text('route_pick_status')).toBe('No two drivers at the compound can go out together');
+		expect(text('route_pick_status')).toBe('Nobody at the compound can go out on a run');
 		expect(campaign.toSaveText()).toBe(before);
 		expect(navigate).not.toHaveBeenCalled();
 		jest.restoreAllMocks();

@@ -21,7 +21,8 @@ import { CardPileView } from '../../ui/CardPileView';
 import { cardData } from '../../ui/testing';
 import { CAMPAIGN_FIXTURE, FaultyStorage, fixtureText, saveText, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
 import type { PreparedCombatMount } from '../combat/CombatScreen';
-import { RunScreen, RunScreenData, stopFightMount } from './RunScreen';
+import { NOT_THE_SAVE } from '../compound/compoundText';
+import { RunScreen, RunScreenData, STEP_NOT_SAVED, stopFightMount } from './RunScreen';
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -31,12 +32,18 @@ const navigate = ScreenManager.navigate as jest.Mock;
 
 const CARDS: ReadonlyMap<string, GameCard> = new Map(cardData.map((data) => [data.type, new GameCard({ ...data })]));
 
-/** The fixture's run, its reward picked, then driving on to `stop` with nothing else changed, as save text. */
+/**
+ * The fixture's run driving to `stop`, as save text: its last fight still
+ * ahead at 2, or past it at 3, at the destination with its yield loaded, as
+ * taking the reward would leave it.
+ */
 function drivingText(stop: number): string {
 	return fixtureText((campaign) => {
-		const run = campaign.supplyRun as { stop: number; phase: string };
+		const run = campaign.supplyRun as { stop: number; phase: string; cargo: Record<string, number>; route: { destination: { yield: Record<string, number> } } };
 		run.stop = stop;
 		run.phase = 'driving';
+		if (stop < 3) return;
+		for (const [resource, amount] of Object.entries(run.route.destination.yield)) run.cargo[resource] += amount;
 	});
 }
 
@@ -118,7 +125,11 @@ describe('RunScreen', () => {
 			for (let turn = 0; turn < 4; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
 
 			expect(screen.campaignShown?.supplyRun?.cargoCards[picked]).toBeGreaterThanOrEqual(1);
-			expect(text('run_action_title')).toBe('The road home is clear');
+			// The last stop behind it, the run reaches its destination and loads its yield
+			expect(text('run_action_title')).toBe('Red Mesa Silos reached');
+			expect(text('run_action_line')).toBe('Loaded 6 food, 5 water, 3 fuel, and 15 scrap. The road home is clear, and getting home unloads the cargo and ends the day.');
+			expect(text('run_report')).toBe('The card is in the cargo. Reached Red Mesa Silos.');
+			expect(screen.campaignShown?.supplyRun?.cargo).toEqual({ food: 6, water: 5, fuel: 5, meds: 0, scrap: 15, people: 0 });
 			expect(text('run_stop_home_state')).toBe('Next');
 			const load = await saved();
 			expect([load?.supplyRun?.stop, load?.supplyRun?.phase]).toEqual([3, 'driving']);
@@ -135,7 +146,7 @@ describe('RunScreen', () => {
 
 		it('drops a step\'s report once the next step is taken', async () => {
 			await press('run_skip_button');
-			expect([text('run_report'), find<Text>('run_report').visible]).toEqual(['Left the cards.', true]);
+			expect([text('run_report'), find<Text>('run_report').visible]).toEqual(['Left the cards. Reached Red Mesa Silos.', true]);
 			await press('run_home_button');
 			expect(find<Text>('run_report').visible).toBe(false);
 		});
@@ -168,14 +179,15 @@ describe('RunScreen', () => {
 			expect(typeof prepared.onEnded).toBe('function');
 		});
 
-		it('comes home with Head home: unloads, ends the day, says so in a line, and saves', async () => {
+		it('comes home with Head home: unloads the yield and the cards, ends the day, says so in a line, logs it, and saves', async () => {
 			await open(drivingText(3));
 			await press('run_home_button');
 			expect(text('run_action_title')).toBe('Home');
-			expect(text('run_summary')).toBe('Home from Red Mesa Silos. Unloaded 2 fuel and Caltrops. Day 9 ended.');
+			expect(text('run_summary')).toBe('Home from Red Mesa Silos. Unloaded 6 food, 5 water, 5 fuel, 15 scrap, and Caltrops. Road Warrior 2 is back with the run. Day 9 ended. Road Warrior 2 is fit again.');
 			expect([text('run_stop_home_state'), text('run_subtitle')]).toEqual(['Reached', 'Day 10 / home / Back roads']);
 			const load = await saved();
-			expect([load?.day, load?.supplyRun, load?.locker.caltrops]).toEqual([10, null, 1]);
+			expect([load?.day, load?.supplyRun, load?.locker.caltrops, load?.resources.scrap]).toEqual([10, null, 1, 35 + 15]);
+			expect(load?.log.map((entry) => entry.message)).toContain('Home from Red Mesa Silos with 6 food, 5 water, 5 fuel, 15 scrap, and Caltrops.');
 			await press('run_compound_button');
 			expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign: screen.campaignShown });
 		});
@@ -190,14 +202,14 @@ describe('RunScreen', () => {
 			fightOut(fight, { shoot: false });
 			const result = finishStopFight({ campaign, fight }) as Extract<StopFightResult, { outcome: 'run_failed' }>;
 			const done: Promise<CheckpointResult> = Promise.resolve('saved');
-			return { campaign, failed: { result, route, stop: 2, saved: done } };
+			return { campaign, failed: { result, route, stop: 2 }, saved: done };
 		}
 
 		it('says what the run lost and where, and goes back to the compound', async () => {
 			const data = await failedData();
 			await open(saveText({ campaign: data.campaign.toSaveText() }), data);
 			expect(text('run_action_title')).toBe('The run failed');
-			expect(text('run_summary')).toMatch(/^The run failed\. Road Warrior 1 is (dead|missing) and Interceptor 2 is (dead|missing)\. Lost with it: 2 fuel and Caltrops\./);
+			expect(text('run_summary')).toMatch(/^Road Warrior 1 is (dead|missing) and Interceptor 2 is (dead|missing)\. Lost with it: 2 fuel and Caltrops\. .*Day 9 ended\./);
 			expect(routeStops(data.failed?.route as RunRoute).map((_stop, index) => text(`run_stop_${index}_state`))).toEqual(['Cleared', 'Cleared', 'Lost']);
 			expect(text('run_subtitle')).toBe('Day 10 / failed / Back roads');
 			await press('run_compound_button');
@@ -216,10 +228,89 @@ describe('RunScreen', () => {
 
 			const result = prepared.onEnded?.({ won: true });
 
-			expect(result).toEqual({ victory: true, next: { screen: 'runScreen', data: { campaign } } });
+			expect(result?.next).toEqual({ screen: 'runScreen', data: { campaign, saved: expect.any(Promise) } });
+			expect(result?.victory).toBe(true);
+			expect(await (result?.next?.data as RunScreenData).saved).toBe('saved');
 			expect(campaign.supplyRun?.phase).toBe('reward');
-			for (let turn = 0; turn < 4; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
 			expect((await storeOver(storage).load())?.supplyRun?.phase).toBe('reward');
+		});
+
+		it('offers the combat menu\'s abandon, saying who flees', async () => {
+			storage = storageWith(drivingText(2));
+			store = storeOver(storage);
+			const campaign = await store.load() as Campaign;
+			const fight = startStopFight({ campaign, cards: CARDS });
+			const prepared = await stopFightMount({ campaign, fight, store }).prepare();
+			expect(prepared.abandonWarning).toBe("Road Warrior 1 and Interceptor 2 flee and go missing, the run's cargo and the escorts that came along are lost, and the day ends.");
+		});
+
+		it('warns that abandoning ends the campaign when the run\'s drivers are the last the compound has', async () => {
+			storage = storageWith(drivingText(2));
+			store = storeOver(storage);
+			const campaign = await store.load() as Campaign;
+			campaign.drivers.filter((driver) => !campaign.runDecks.some((deck) => deck.driver === driver) && driver.status !== 'dead').forEach((driver) => driver.set({ status: 'missing', injuredDays: 0 }));
+			const fight = startStopFight({ campaign, cards: CARDS });
+			const prepared = await stopFightMount({ campaign, fight, store }).prepare();
+			expect(prepared.abandonWarning).toBe("Road Warrior 1 and Interceptor 2 flee and go missing, and the run's cargo and the escorts that came along are lost. Nobody is left to drive, so the campaign ends.");
+		});
+	});
+
+	describe('a campaign the run lost', () => {
+		it('goes to the defeat screen, not the menu, on Back to menu and Escape, once the end is saved', async () => {
+			const lost = Campaign.fromJSON(JSON.parse(drivingText(2)).campaign);
+			// Only the run's two drivers were left at the compound
+			lost.drivers.filter((driver) => !lost.runDecks.some((deck) => deck.driver === driver) && driver.status !== 'dead').forEach((driver) => driver.set({ status: 'missing', injuredDays: 0 }));
+			const route = lost.supplyRun?.route as RunRoute;
+			const fight = startStopFight({ campaign: lost, cards: CARDS, raiders: snipers, enemyAI: null });
+			fightOut(fight, { shoot: false });
+			const result = finishStopFight({ campaign: lost, fight }) as Extract<StopFightResult, { outcome: 'run_failed' }>;
+			expect(lost.isOver).toBe(true);
+			storage = storageWith(drivingText(2));
+			store = storeOver(storage);
+			const saving = store.checkpoint(lost);
+			screen = new RunScreen({ store, cards: async () => CARDS });
+			screen.mount(context, { campaign: lost, failed: { result, route, stop: 2 }, saved: saving });
+			await screen.campaignLoaded;
+
+			send(context, [key('Escape')]);
+			for (let turn = 0; turn < 4; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(navigate).toHaveBeenLastCalledWith('defeatScreen', { campaign: lost });
+			expect(navigate).not.toHaveBeenCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
+		});
+	});
+
+	describe('the save of the step that opened it', () => {
+		it('says it failed, which the screen couldn\'t hear for itself', async () => {
+			await open(fixtureText(), { campaign: Campaign.fromJSON(CAMPAIGN_FIXTURE), saved: Promise.resolve('failed') });
+			expect([text('run_save_error'), find<Text>('run_save_error').visible]).toEqual([STEP_NOT_SAVED, true]);
+		});
+
+		it('strands the screen when the store has moved on', async () => {
+			await open(fixtureText(), { campaign: Campaign.fromJSON(CAMPAIGN_FIXTURE), saved: Promise.resolve('retired') });
+			expect(find<Button>('run_skip_button').enabled).toBe(false);
+			expect(text('run_save_error')).toBe(NOT_THE_SAVE);
+		});
+	});
+
+	describe('with the cards not loaded', () => {
+		it('keeps the reward waiting, saved, and loads the cards again on asking', async () => {
+			let calls = 0;
+			storage = storageWith(fixtureText());
+			store = storeOver(storage);
+			screen = new RunScreen({ store, cards: async () => {
+				calls += 1;
+				if (calls === 1) throw new Error('offline');
+				return CARDS;
+			} });
+			jest.spyOn(console, 'error').mockImplementation(() => undefined);
+			screen.mount(context);
+			await screen.campaignLoaded;
+			expect(text('run_action_line')).toBe("The cards couldn't be loaded, so the reward waits for them.");
+			expect(find<{ children: readonly unknown[] }>('run_action').children.some((child) => (child as { id?: string }).id === 'run_skip_button')).toBe(false);
+
+			await press('run_cards_button');
+			expect(find<CardPileView>('run_reward').cards).toHaveLength(3);
+			expect(screen.campaignShown?.supplyRun?.phase).toBe('reward');
 		});
 	});
 

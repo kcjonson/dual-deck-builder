@@ -223,7 +223,13 @@
 			"destination": {
 				"id": "poi-9-2",
 				"name": "Red Mesa Silos",
-				"tier": 2
+				"tier": 2,
+				"yield": {
+					"food": 6,
+					"water": 5,
+					"fuel": 3,
+					"scrap": 15
+				}
 			},
 			"legs": [
 				{

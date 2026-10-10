@@ -82,6 +82,11 @@ afterAll(() => {
 });
 
 describe('CombatScreen: a campaign fight (DDB-286)', () => {
+	afterEach(() => {
+		// The tests that need the screen active set it on the mock
+		delete (ScreenManager as unknown as { activeScreen?: unknown }).activeScreen;
+	});
+
 	it('mounts through prepare, showing the records\' names, the run\'s escorts, and the run\'s cargo rather than the stores', async () => {
 		const campaign = foundCampaign({
 			seed: SEED,
@@ -146,6 +151,62 @@ describe('CombatScreen: a campaign fight (DDB-286)', () => {
 
 		expect(onEnded).toHaveBeenCalledWith({ won: true });
 		expect(ScreenManager.navigate).toHaveBeenLastCalledWith('battleResultScreen', result);
+		combat.unmount();
+	});
+
+	it('offers "Abandon the run" from the menu when the fight can be given up, behind a confirm that keeps fighting first (DDB-454)', async () => {
+		const campaign = foundCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
+		const seats = [...campaign.drivers];
+		campaign.startRunDecks({ seats });
+		const fight = startCampaignFight({
+			campaign,
+			party: { seats, escorts: [], cargo: NO_RESOURCES, cargoCards: NO_CARDS, run: campaign.currentRun ?? 'none' },
+			enemyTeam: raiderTeam(),
+			rng: new Rng({ seed: SEED }),
+			cards: CardLoader.getInstance().getAllCardsAsMap()
+		});
+		const result: BattleResultData = { victory: false };
+		const onEnded = jest.fn(() => result);
+		const context = createTestContext();
+		const combat = new CombatScreen();
+		combat.mount(context, { prepare: async () => ({ ...fight, onEnded, abandonWarning: 'Both flee.' }) } as PreparedCombatMount);
+		await flushPromises();
+		(ScreenManager as unknown as { activeScreen: unknown }).activeScreen = combat;
+		const find = (id: string): unknown => context.overlays.roots.map(root => root.findById(id)).find(Boolean);
+		const menu = combat['topBar'].menu;
+		expect(menu.enabled).toBe(true);
+
+		menu.onClick?.({} as never);
+		expect((find('combat_abandon_body') as Text).text).toBe('Both flee.');
+		(find('combat_abandon_cancel') as { onClick: () => void }).onClick();
+		expect(fight.battle.isBattleOver()).toBe(false);
+		expect(onEnded).not.toHaveBeenCalled();
+
+		menu.onClick?.({} as never);
+		(find('combat_abandon_confirm') as { onClick: () => void }).onClick();
+
+		expect(fight.battle.isBattleOver()).toBe(true);
+		expect(fight.battle.isBattleWon()).toBe(false);
+		expect(onEnded).toHaveBeenCalledWith({ won: false });
+		expect(ScreenManager.navigate).toHaveBeenLastCalledWith('battleResultScreen', { ...result, subtitle: 'The crew abandoned the fight.' });
+		combat.unmount();
+	});
+
+	it('keeps the menu off for a fight that can\'t be given up', async () => {
+		const combat = new CombatScreen();
+		const campaign = foundCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
+		const seats = [...campaign.drivers];
+		campaign.startRunDecks({ seats });
+		const fight = startCampaignFight({
+			campaign,
+			party: { seats, escorts: [], cargo: NO_RESOURCES, cargoCards: NO_CARDS, run: campaign.currentRun ?? 'none' },
+			enemyTeam: raiderTeam(),
+			rng: new Rng({ seed: SEED }),
+			cards: CardLoader.getInstance().getAllCardsAsMap()
+		});
+		combat.mount(createTestContext(), { prepare: async () => fight } as PreparedCombatMount);
+		await flushPromises();
+		expect(combat['topBar'].menu.enabled).toBe(false);
 		combat.unmount();
 	});
 });

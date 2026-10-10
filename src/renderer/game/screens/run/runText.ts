@@ -1,18 +1,10 @@
-import { RESOURCE_NAMES, Resources, resourceAmount } from '../../campaign/Campaign';
-import type { CardCounts } from '../../campaign/CardCounts';
-import { cardName } from '../../campaign/DeckRules';
 import type { Skulls } from '../../campaign/Encounters';
-import type { RouteStop, RunRoute } from '../../campaign/SupplyRoutes';
-import type { Arrival, DepartBlocker, PlanBlocker, StopFightResult } from '../../campaign/SupplyRun';
+import type { RouteStop, RouteYield, RunRoute } from '../../campaign/SupplyRoutes';
+import { Arrival, DepartBlocker, PlanBlocker, StopFightResult, cargoText, listText, yieldResources } from '../../campaign/SupplyRun';
+import { dayEndReport, injuredLine } from '../compound/compoundText';
 import { countOf } from '../main-menu/campaignText';
 
 /** What the route pick, the run screen, and the compound's Plan button say about a supply run (DDB-454). */
-
-/** "A", "A and B", "A, B, and C". */
-export function listText(items: readonly string[]): string {
-	if (items.length <= 2) return items.join(' and ');
-	return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`;
-}
 
 export function skullsText(skulls: Skulls): string {
 	return countOf(skulls, 'skull');
@@ -33,6 +25,11 @@ export function riskText(route: RunRoute): string {
 	return `Risk: ${skullsText(route.risk)}`;
 }
 
+/** "4 food, 3 water, 2 fuel, and 12 scrap", or "nothing". */
+export function yieldText(yields: RouteYield): string {
+	return cargoText({ cargo: yieldResources(yields) }) ?? 'nothing';
+}
+
 /** The compound's line under Plan a supply run when it's off. */
 export function planRefusal(blocker: PlanBlocker): string {
 	switch (blocker.reason) {
@@ -41,7 +38,9 @@ export function planRefusal(blocker: PlanBlocker): string {
 		case 'run_out':
 			return 'A run is out. Continue from the menu drives it on.';
 		case 'no_crew':
-			return 'No two drivers at the compound can go out together.';
+			return 'Nobody at the compound is fit to go out.';
+		case 'no_routes':
+			return 'No routes are known yet.';
 		case 'too_little_fuel':
 			return `Today's cheapest route takes ${blocker.needed} fuel, and the stores hold ${blocker.held}.`;
 	}
@@ -59,38 +58,34 @@ export function departRefusal(blocker: DepartBlocker): string {
 	}
 }
 
-/** "2 fuel, 15 scrap, and Headshot", or null for nothing at all. */
-export function cargoText({ cargo, cards }: { cargo: Readonly<Resources>; cards: CardCounts }): string | null {
-	const items = [
-		...RESOURCE_NAMES.filter(name => cargo[name] > 0).map(name => resourceAmount({ resource: name, amount: cargo[name] })),
-		...Object.entries(cards).map(([type, count]) => (count === 1 ? cardName(type) : `${cardName(type)} x${count}`)),
-	];
-	return items.length > 0 ? listText(items) : null;
-}
-
 /**
  * The one line the run screen shows on getting home: what was unloaded,
- * who's hurt, and the day that ended.
+ * who's still injured after the night, and the night itself (its shortfall
+ * and who's fit again, `dayEndReport`).
  */
 export function arrivalSummary({ arrival, route }: { arrival: Arrival; route: RunRoute }): string {
 	const unloaded = cargoText({ cargo: arrival.cargo.resources, cards: arrival.cargo.cards });
 	const parts = [`Home from ${route.destination.name}.`, unloaded ? `Unloaded ${unloaded}.` : 'Nothing to unload.'];
-	for (const { driver, injuredDays } of arrival.injuries) parts.push(`${driver.name} is injured, fit in ${countOf(injuredDays, 'day')}.`);
-	parts.push(`Day ${arrival.dayEnd.day} ended.`);
+	const found = arrival.cargo.found.map(driver => driver.name);
+	if (found.length > 0) parts.push(`${listText(found)} ${found.length === 1 ? 'is' : 'are'} back with the run.`);
+	for (const { driver } of arrival.injuries) {
+		if (driver.status === 'injured') parts.push(`${injuredLine(driver)}.`);
+	}
+	parts.push(dayEndReport(arrival.dayEnd).text);
 	return parts.join(' ');
 }
 
-/** The one line the run screen shows for a failed run: who's lost, what's lost, and the day that ended. */
+/** The one line the run screen shows for a failed run, under its heading: who's lost, what's lost, and the night after. */
 export function failureSummary(result: Extract<StopFightResult, { outcome: 'run_failed' }>): string {
 	const { dead, missing, cargoLost, cargoCardsLost, escortsLost } = result.fight;
 	const fates = [
 		...dead.map(driver => `${driver.name} is dead`),
 		...missing.map(driver => `${driver.name} is missing`),
 	];
-	const parts = [`The run failed. ${listText(fates)}.`];
+	const parts = [`${listText(fates)}.`];
 	const lost = cargoText({ cargo: cargoLost, cards: cargoCardsLost });
 	if (lost) parts.push(`Lost with it: ${lost}.`);
 	if (escortsLost.length > 0) parts.push(`${listText(escortsLost.map(escort => escort.name))} ${escortsLost.length === 1 ? 'is' : 'are'} gone.`);
-	parts.push(result.dayEnd ? `Day ${result.dayEnd.day} ended.` : 'Nobody is left at the compound.');
+	parts.push(result.dayEnd ? dayEndReport(result.dayEnd).text : 'Nobody is left at the compound.');
 	return parts.join(' ');
 }

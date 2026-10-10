@@ -1,13 +1,13 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import { CardLoader } from '../../core/CardLoader';
-import type { Campaign } from '../../campaign/Campaign';
+import { Campaign, isAtCompound } from '../../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
 import type { CheckpointResult } from '../../campaign/CampaignStore';
 import type { CampaignFight } from '../../campaign/CombatBridge';
 import { RunRoute, routeStops } from '../../campaign/SupplyRoutes';
 import {
-	Arrival, StopFightResult, arriveHome, currentStop, finishStopFight, passQuietStop, rewardOffer, startStopFight, takeReward,
+	Arrival, StopFightResult, arriveHome, atDestination, cargoText, currentStop, finishStopFight, listText, passQuietStop, rewardOffer, startStopFight, takeReward,
 } from '../../campaign/SupplyRun';
 import type { SupplyRun } from '../../campaign/SupplyRunState';
 import type { Card } from '../../mechanics/Card';
@@ -21,7 +21,7 @@ import { ColorToken, tokens } from '../../../engine/theme/tokens';
 import { CardPileView } from '../../ui/CardPileView';
 import type { PreparedCombatMount } from '../combat/CombatScreen';
 import { NOT_THE_SAVE } from '../compound/compoundText';
-import { arrivalSummary, cargoText, failureSummary, skullsText, stopTitle } from './runText';
+import { arrivalSummary, failureSummary, skullsText, stopTitle, yieldText } from './runText';
 
 const { space } = tokens;
 const TOP_BAR_HEIGHT = 64;
@@ -33,12 +33,17 @@ type FailedStopFight = Extract<StopFightResult, { outcome: 'run_failed' }>;
 /**
  * What opens the run screen: the campaign with its run on the road, from the
  * route pick or Continue, or a run its last fight failed, handed back by the
- * battle result with the route it was on and the checkpoint that saved it.
+ * battle result with the route and stop it failed at, and the checkpoint of
+ * the step that brought it here, if one is still landing.
  */
 export interface RunScreenData {
 	campaign: Campaign;
-	failed?: { result: FailedStopFight; route: RunRoute; stop: number; saved: Promise<CheckpointResult> };
+	failed?: { result: FailedStopFight; route: RunRoute; stop: number };
+	saved?: Promise<CheckpointResult>;
 }
+
+/** On the run screen when the step that opened it couldn't be saved. */
+export const STEP_NOT_SAVED = "The last step couldn't be saved. The next one tries again.";
 
 export interface RunScreenOptions {
 	/** Where each step is saved, and the campaign loaded from when none is handed over. Default: the game's shared store. */
@@ -57,7 +62,7 @@ async function loaderCards(): Promise<ReadonlyMap<string, Card>> {
 type Shown =
 	| { kind: 'road'; run: SupplyRun }
 	| { kind: 'home'; route: RunRoute; arrival: Arrival }
-	| { kind: 'failed'; route: RunRoute; stop: number; result: FailedStopFight; saved: Promise<CheckpointResult> }
+	| { kind: 'failed'; route: RunRoute; stop: number; result: FailedStopFight }
 	| { kind: 'none' };
 
 /**
@@ -92,6 +97,8 @@ export class RunScreen extends Screen {
 	private busy = false;
 	/** The store has moved on from this instance, so nothing done here would be saved. */
 	private stranded = false;
+	/** The last checkpoint, the opener's or a step's, which the defeat screen waits on. */
+	private lastSave: Promise<CheckpointResult> | null = null;
 	private unsubscribe: (() => void) | null = null;
 	private visit = 0;
 	private loaded: Promise<void> = Promise.resolve();
@@ -191,6 +198,7 @@ export class RunScreen extends Screen {
 		this.backButton = null;
 		this.busy = false;
 		this.stranded = false;
+		this.lastSave = null;
 	}
 
 	private createTopBar(back: Button): Stack {
@@ -248,6 +256,22 @@ export class RunScreen extends Screen {
 		if (failed) this.shown = { kind: 'failed', ...failed };
 		else this.shown = campaign.supplyRun ? { kind: 'road', run: campaign.supplyRun } : { kind: 'none' };
 		this.refresh();
+		const saved = given?.saved;
+		if (saved) {
+			this.lastSave = saved;
+			const result = await saved;
+			if (visit === this.visit) this.afterOpenerSave({ campaign, result });
+		}
+	}
+
+	/**
+	 * The opener's checkpoint, which landed before this screen could hear
+	 * why a save failed: says so, and strands the screen once the store has
+	 * moved on from this instance.
+	 */
+	private afterOpenerSave({ campaign, result }: { campaign: Campaign; result: CheckpointResult }): void {
+		if (result === 'failed') this.showLine({ line: this.saveError, text: STEP_NOT_SAVED, color: 'status_crit' });
+		else if (result === 'retired' || (result === 'ended' && !campaign.isOver)) this.strand();
 	}
 
 	/** Everything that reads the run, again, and focus on its next step. */
@@ -326,8 +350,9 @@ export class RunScreen extends Screen {
 		if (run.phase === 'reward') return this.buildReward({ action });
 		const stop = currentStop(run);
 		if (stop === null) {
-			action.addChild(heading({ id: 'run_action_title', text: 'The road home is clear' }));
-			action.addChild(caption({ id: 'run_action_line', text: 'Getting home unloads the cargo and ends the day.' }));
+			const { name, yield: yields } = run.route.destination;
+			action.addChild(heading({ id: 'run_action_title', text: `${name} reached` }));
+			action.addChild(caption({ id: 'run_action_line', text: `Loaded ${yieldText(yields)}. The road home is clear, and getting home unloads the cargo and ends the day.` }));
 			return this.addButton({ action, id: 'run_home_button', label: 'Head home', onClick: () => { void this.headHome(); } });
 		}
 		action.addChild(heading({ id: 'run_action_title', text: `Next: ${stopTitle(stop)}` }));
@@ -338,15 +363,19 @@ export class RunScreen extends Screen {
 		return this.addButton({ action, id: 'run_drive_button', label: 'Drive on', onClick: () => { void this.driveOn(); } });
 	}
 
-	/** A won fight's cards, picked by clicking one, or skipped. */
+	/**
+	 * A won fight's cards, picked by clicking one, or skipped. With no cards
+	 * loaded the reward waits, saved, rather than being lost: the cards can
+	 * be loaded again here, or by Continue.
+	 */
 	private buildReward({ action }: { action: Stack }): Button | null {
 		const campaign = this.campaign;
 		if (!campaign) return null;
 		const cards = this.cards;
 		if (!cards) {
 			action.addChild(heading({ id: 'run_action_title', text: 'Fight won' }));
-			action.addChild(caption({ id: 'run_action_line', text: "The cards couldn't be loaded, so the reward is skipped." }));
-			return this.addButton({ action, id: 'run_skip_button', label: 'Drive on', onClick: () => { void this.pick(null); } });
+			action.addChild(caption({ id: 'run_action_line', text: "The cards couldn't be loaded, so the reward waits for them." }));
+			return this.addButton({ action, id: 'run_cards_button', label: 'Load the cards again', onClick: () => { void this.reloadCards(); } });
 		}
 		const offer = rewardOffer({ campaign }).flatMap((type) => {
 			const template = cards.get(type);
@@ -401,6 +430,24 @@ export class RunScreen extends Screen {
 		await this.step(() => takeReward({ campaign, cardType }), cardType === null ? 'Left the cards.' : 'The card is in the cargo.');
 	}
 
+	/** The cards loaded again after a failure, then the run shown with them. */
+	private async reloadCards(): Promise<void> {
+		if (this.busy) return;
+		this.busy = true;
+		const visit = this.visit;
+		let cards: ReadonlyMap<string, Card> | null = null;
+		try {
+			cards = await this.loadCards();
+		} catch (error) {
+			console.error('RunScreen: loading the cards failed', error);
+		}
+		if (visit !== this.visit) return;
+		this.busy = false;
+		this.cards = cards;
+		this.refresh();
+		if (!cards) this.showLine({ line: this.report, text: "The cards still couldn't be loaded.", color: 'status_crit' });
+	}
+
 	private async headHome(): Promise<void> {
 		const campaign = this.campaign;
 		if (!campaign || this.shown.kind !== 'road' || this.busy || this.stranded) return;
@@ -435,12 +482,18 @@ export class RunScreen extends Screen {
 			this.busy = false;
 			return;
 		}
+		const before = this.shown.kind === 'road' ? this.shown.run : null;
 		if (this.shown.kind === 'road') this.shown = campaign.supplyRun ? { kind: 'road', run: campaign.supplyRun } : { kind: 'none' };
 		this.refresh();
 		// The last step's report goes with it
-		if (report !== null) this.showLine({ line: this.report, text: report, color: 'text_dim' });
+		const after = this.shown.kind === 'road' ? this.shown.run : null;
+		const reached = before !== null && after !== null && !atDestination(before) && atDestination(after);
+		const said = reached && after ? `${report ?? ''} Reached ${after.route.destination.name}.`.trim() : report;
+		if (said !== null) this.showLine({ line: this.report, text: said, color: 'text_dim' });
 		else if (this.report) this.report.visible = false;
-		const result = await this.store.checkpoint(campaign);
+		const saving = this.store.checkpoint(campaign);
+		this.lastSave = saving;
+		const result = await saving;
 		if (visit !== this.visit) return;
 		this.busy = false;
 		if (result === 'retired' || (result === 'ended' && !campaign.isOver)) this.strand();
@@ -460,7 +513,7 @@ export class RunScreen extends Screen {
 		this.busy = true;
 		const visit = this.visit;
 		// The step that lost it saved it, which ends it in the store; a save that failed is tried again
-		let result = this.shown.kind === 'failed' ? await this.shown.saved : 'failed';
+		let result: CheckpointResult = this.lastSave ? await this.lastSave : 'failed';
 		if (result !== 'ended') result = await this.store.checkpoint(campaign);
 		if (visit !== this.visit) return;
 		this.busy = false;
@@ -472,8 +525,13 @@ export class RunScreen extends Screen {
 		ScreenManager.navigate('compoundScreen', { campaign: this.campaign });
 	}
 
+	/** To the menu, or, once the campaign is lost, to the defeat screen, which nothing skips. */
 	private toMenu(): void {
 		if (this.busy) return;
+		if (this.campaign?.isOver) {
+			void this.toDefeat();
+			return;
+		}
 		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 	}
 
@@ -489,7 +547,8 @@ export class RunScreen extends Screen {
  * A stop's fight as the combat screen mounts it, with its end hook: the
  * fight is written back and the step saved as it ends, whatever screen is
  * up, then the battle result's Continue comes back to the run screen, with
- * the failed run's report if it failed.
+ * the failed run's report if it failed, and the checkpoint. The combat
+ * menu can abandon the run, which ends the fight lost (`abandonWarning`).
  */
 export function stopFightMount({ campaign, fight, store }: { campaign: Campaign; fight: CampaignFight; store: CampaignStore }): PreparedCombatMount {
 	const run = campaign.supplyRun;
@@ -498,6 +557,7 @@ export function stopFightMount({ campaign, fight, store }: { campaign: Campaign;
 			battle: fight.battle,
 			scrap: fight.scrap,
 			fuel: fight.fuel,
+			abandonWarning: abandonWarning({ campaign, fight }),
 			onEnded: ({ won }) => {
 				let result: StopFightResult;
 				try {
@@ -507,12 +567,23 @@ export function stopFightMount({ campaign, fight, store }: { campaign: Campaign;
 					return { victory: won, next: { screen: 'runScreen', data: { campaign } } };
 				}
 				const saved = store.checkpoint(campaign);
-				if (result.outcome === 'won' || run === null) return { victory: won, next: { screen: 'runScreen', data: { campaign } } };
-				const data: RunScreenData = { campaign, failed: { result, route: run.route, stop: run.stop, saved } };
+				if (result.outcome === 'won' || run === null) return { victory: won, next: { screen: 'runScreen', data: { campaign, saved } } };
+				const data: RunScreenData = { campaign, failed: { result, route: run.route, stop: run.stop }, saved };
 				return { victory: false, next: { screen: 'runScreen', data } };
 			},
 		}),
 	};
+}
+
+/** What abandoning a run's fight costs, as the combat menu's confirm says it. */
+/** Who flees and what's lost; and, when they're the last drivers the compound has, that the campaign ends with them. */
+function abandonWarning({ campaign, fight }: { campaign: Campaign; fight: CampaignFight }): string {
+	const seats = fight.party.seats;
+	const names = seats.map(seat => seat.name);
+	const flee = names.length === 1 ? 'flees and goes' : 'flee and go';
+	const last = !campaign.drivers.some(driver => !seats.includes(driver) && isAtCompound(driver));
+	if (last) return `${listText(names)} ${flee} missing, and the run's cargo and the escorts that came along are lost. Nobody is left to drive, so the campaign ends.`;
+	return `${listText(names)} ${flee} missing, the run's cargo and the escorts that came along are lost, and the day ends.`;
 }
 
 function heading({ id, text }: { id: string; text: string }): Text {

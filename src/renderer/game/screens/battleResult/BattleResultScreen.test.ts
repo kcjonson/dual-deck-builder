@@ -45,6 +45,13 @@ describe('BattleResultScreen', () => {
 	it('says defeat on a loss', () => {
 		screen.mount(context, result(false));
 		expect((screen.root.findById('result_title') as Text).text).toBe('DEFEAT!');
+		expect((screen.root.findById('result_subtitle') as Text).text).toBe('Your vehicles have been destroyed!');
+	});
+
+	it('shows the line the fight sent in place of the stock one, so a fight given up says so (DDB-454)', () => {
+		screen.mount(context, { victory: false, subtitle: 'The crew abandoned the fight.' });
+		expect((screen.root.findById('result_title') as Text).text).toBe('DEFEAT!');
+		expect((screen.root.findById('result_subtitle') as Text).text).toBe('The crew abandoned the fight.');
 	});
 
 	it.each(['Enter', 'Escape'])('focuses Continue on mount, and %p goes back to the menu, focus back on what opened the fight', (name) => {

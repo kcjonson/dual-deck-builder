@@ -15,6 +15,8 @@ import { tokens } from '../../../engine/theme/tokens';
  */
 export interface BattleResultData {
 	victory: boolean;
+	/** The line under the outcome, when the stock one is wrong: a fight given up wasn't lost to wrecks. */
+	subtitle?: string;
 	/** Where Continue goes, with what: a supply run's fight goes back to its run. The menu when left out. */
 	next?: { screen: ScreenName; data?: unknown };
 }
@@ -77,7 +79,7 @@ export class BattleResultScreen extends Screen {
 			wrap: 'none',
 		}));
 		panel.addChild(new Text({
-			text: victory ? 'All enemies have been defeated!' : 'Your vehicles have been destroyed!',
+			text: data.subtitle ?? (victory ? 'All enemies have been defeated!' : 'Your vehicles have been destroyed!'),
 			id: 'result_subtitle',
 			style: {
 				fontSize: 'fs_lg',

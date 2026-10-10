@@ -375,8 +375,8 @@ describe('CompoundScreen', () => {
 		it.each([
 			['a run out', () => openRunOut(), 'A run is out. Continue from the menu drives it on.'],
 			['too little fuel for any route', () => open({ fuel: 0 }), /^Today's cheapest route takes \d fuel, and the stores hold 0\.$/],
-			['nobody to send', () => openText(homeText({}, null, (campaign) => campaign.drivers[0].set({ status: 'injured', injuredDays: 1, hitpoints: 30 }))),
-				'No two drivers at the compound can go out together.'],
+			['nobody to send', () => openText(homeText({}, null, (campaign) => [campaign.drivers[0], campaign.drivers[4]].forEach((driver) => driver.set({ status: 'injured', injuredDays: 1, hitpoints: 20 })))),
+				'Nobody at the compound is fit to go out.'],
 		])('is off with its reason with %s, and does nothing', async (_name, mount, reason) => {
 			await mount();
 			expect(find<Button>('compound_plan_button').enabled).toBe(false);

@@ -12,7 +12,8 @@ import { FocusGroup } from '../../../engine/ui/FocusGroup';
 import { Panel } from '../../../engine/ui/Panel';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { ColorToken, tokens } from '../../../engine/theme/tokens';
-import { departRefusal, riskText, routeCost, stopTitle } from '../run/runText';
+import { departRefusal, riskText, routeCost, stopTitle, yieldText } from '../run/runText';
+import { NOT_THE_SAVE } from '../compound/compoundText';
 
 const { space } = tokens;
 const TOP_BAR_HEIGHT = 64;
@@ -167,6 +168,7 @@ export class RoutePickScreen extends Screen {
 		if (!destinations) return;
 		destinations.clearChildren();
 		const routes = routesOnOffer({ campaign });
+		if (routes.length === 0) this.say({ text: 'No routes are known yet.', color: 'status_warn' });
 		const byDestination = new Map<string, { destination: RouteDestination; routes: RunRoute[] }>();
 		for (const route of routes) {
 			const entry = byDestination.get(route.destination.id) ?? { destination: route.destination, routes: [] };
@@ -183,6 +185,7 @@ export class RoutePickScreen extends Screen {
 				crossAlign: 'stretch',
 				gap: space.space_2,
 			});
+			column.addChild(caption({ id: `route_pick_${destination.id}_yield`, text: `Yields ${yieldText(destination.yield)}`, color: 'text' }));
 			offered.forEach((route) => column.addChild(this.routeCard({ campaign, route })));
 			destinations.addChild(column);
 		}
@@ -216,9 +219,11 @@ export class RoutePickScreen extends Screen {
 	}
 
 	/**
-	 * Load out, depart, and save, then the run screen. A load out that can't
-	 * seat a pair, or a departure that's refused, says why here, giving up
-	 * any run decks it started, and nothing is saved.
+	 * Load out, depart, and save, then the run screen, handed the save's
+	 * result so it can say a save failed. A load out that can't seat anyone,
+	 * or a departure that's refused, says why here, giving up any run decks
+	 * it started, and nothing is saved. A save the store has moved on from
+	 * stays here, saying nothing more is saved.
 	 */
 	private async take(route: RunRoute): Promise<void> {
 		const campaign = this.campaign;
@@ -239,9 +244,13 @@ export class RoutePickScreen extends Screen {
 			this.departing = false;
 			return;
 		}
-		await this.store.checkpoint(campaign);
+		const result = await this.store.checkpoint(campaign);
 		if (visit !== this.visit) return;
-		ScreenManager.navigate('runScreen', { campaign });
+		if (result === 'retired') {
+			this.say({ text: NOT_THE_SAVE, color: 'status_warn' });
+			return;
+		}
+		ScreenManager.navigate('runScreen', { campaign, saved: Promise.resolve(result) });
 	}
 
 	private say({ text, color }: { text: string; color: ColorToken }): void {

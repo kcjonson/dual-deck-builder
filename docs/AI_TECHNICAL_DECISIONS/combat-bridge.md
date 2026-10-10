@@ -52,7 +52,7 @@ It throws, building nothing, while the campaign's last fight hasn't been written
 
 | Driver | Won | Lost, so the run fails |
 | --- | --- | --- |
-| Still in the fight | HP and vehicle written back | can't happen: a lost fight has nobody in it |
+| Still in the fight | HP and vehicle written back | missing: only a fight given up (`Battle.forfeit`, [mvp-supply-run.md](./mvp-supply-run.md)) is lost with a driver in it, and they fled |
 | At 0 HP | revived: REVIVE_HP, run deck untouched, vehicle written back | dead: status dead, 0 HP, and an empty default deck, in one `set` |
 | Crashed out | picked up: HP and vehicle written back | missing: status missing, HP and vehicle written back |
 

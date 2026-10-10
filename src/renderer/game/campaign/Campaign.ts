@@ -19,7 +19,7 @@ import { readMapParams, repairMapParams } from './MapParamsJson';
 import { EMPTY_MAP, MapState, readMapState } from './MapState';
 import { hasOpenFight } from './OpenFights';
 import { EscortCard, RunDeck, RunDeckJson, readRunDeckJson } from './RunDeck';
-import { SeatBlocker, getSeatBlocker } from './Seating';
+import { SeatBlocker, getCrewRule, getSeatBlocker } from './Seating';
 import { SupplyRun, SupplyRunJson, readSupplyRun, readSupplyRunJson, readSupplyRunTies, supplyRunToJson } from './SupplyRunState';
 
 /**
@@ -716,17 +716,20 @@ export class Campaign extends Model<CampaignData> {
 	 * decks and the error is thrown on.
 	 *
 	 * Throws, starting nothing, while a run's decks are out, unless load
-	 * out's seat check (`getSeatBlocker`) seats the two drivers together,
+	 * out's seat check (`getSeatBlocker`) seats the drivers together,
 	 * asked of each seat alone and then of the pair (a `CampaignOverError`
 	 * once the campaign is over), and for an escort that isn't in the convoy
-	 * or is listed twice.
+	 * or is listed twice. A run seats two, or one when only one driver is
+	 * ready at the compound (`getCrewRule`'s `solo`).
 	 */
 	public startRunDecks({ seats, escorts = [] }: { seats: readonly DriverRecord[]; escorts?: readonly Vehicle[] }): readonly RunDeck[] {
 		if (storingMoves.has(this)) throw new Error("Can't start run decks while a card move is being stored");
 		if (this.runDecks.length > 0) throw new Error('A run is already out; unwind its run decks before starting new ones');
-		if (seats.length !== 2) throw new RangeError(`A run seats two drivers, not ${seats.length}`);
-		const [first, second] = seats;
-		for (const { driver, partner } of [{ driver: first, partner: null }, { driver: second, partner: null }, { driver: first, partner: second }]) {
+		const solo = seats.length === 1 && getCrewRule({ campaign: this }) === 'solo';
+		if (seats.length !== 2 && !solo) throw new RangeError(`A run seats two drivers, not ${seats.length}`);
+		const [first, second = null] = seats;
+		const checks = [{ driver: first, partner: null }, ...(second ? [{ driver: second, partner: null }, { driver: first, partner: second }] : [])];
+		for (const { driver, partner } of checks) {
 			const blocker = getSeatBlocker({ campaign: this, driver, partner });
 			refuseOverBlocker({ blocker, action: 'start run decks' });
 			if (blocker !== null) throw new RangeError(seatRefusal({ driver, blocker }));

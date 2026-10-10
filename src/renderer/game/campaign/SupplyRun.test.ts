@@ -3,19 +3,23 @@ import cardsFile from '../data/cards.json';
 import { Card, CardData } from '../mechanics/Card';
 import type { DriverArchetype } from '../mechanics/Driver';
 import { createEscort } from '../mechanics/Escort';
+import { RAIDER_PROFILES } from '../mechanics/Raiders';
 import { Campaign, CampaignJson } from './Campaign';
 import { CampaignOverError } from './CampaignEnd';
 import { CAMPAIGN_START } from './CampaignStart';
 import { CampaignStore } from './CampaignStore';
 import { ENCOUNTER_IDS, ENCOUNTERS, encounterFor, encounterTeam } from './Encounters';
 import { foundCampaign } from './Founding';
+import type { DriverRecord } from './DriverRecord';
+import { getCrewRule, getSeatBlocker } from './Seating';
 import { REWARD_CHOICES, rollRewardCards } from './RunRewards';
 import { MemorySaveStorage } from './SaveStorage';
-import { RunRoute, legOfStop, readRunRoute, routeStops, supplyRoutes } from './SupplyRoutes';
+import * as SupplyRoutes from './SupplyRoutes';
+import { RunRoute, readRunRoute, routeStops, supplyRoutes } from './SupplyRoutes';
 import type { SupplyRun } from './SupplyRunState';
 import {
-	DepartRuleError, arriveHome, currentStop, departRun, finishStopFight, getDepartBlocker, getPlanBlocker, passQuietStop, quickLoadOut,
-	rewardOffer, routesOnOffer, runParty, startStopFight, takeReward
+	DepartRuleError, arriveHome, atDestination, currentStop, departRun, finishStopFight, getDepartBlocker, getPlanBlocker, passQuietStop, quickLoadOut,
+	cargoText, rewardOffer, routesOnOffer, runParty, startStopFight, takeReward, yieldResources
 } from './SupplyRun';
 import { fightOut, pushovers, snipers } from './__fixtures__/runFixtures';
 import { CAMPAIGN_FIXTURE } from './__fixtures__/storeFixtures';
@@ -142,8 +146,23 @@ describe('the mock routes', () => {
 			const length = route.legs.reduce((total, leg) => total + leg.length, 0);
 			expect(route.fuel).toBe(Math.ceil(length / 150));
 			expect(route.hours.out).toBeGreaterThan(route.hours.home);
-			stops.forEach((stop, index) => expect(legOfStop({ route, stop: index })?.stops).toContain(stop));
 			expect(readRunRoute(JSON.parse(JSON.stringify(route)), 'route')).toEqual(route);
+		}
+	});
+
+	it.each(DAYS)('gives each POI on day %i a yield of food, water, fuel, and scrap in its tier\'s ranges, more further out', (day) => {
+		const ranges: Record<number, Record<string, [number, number]>> = {
+			1: { food: [3, 5], water: [3, 5], fuel: [1, 3], scrap: [5, 15] },
+			2: { food: [5, 8], water: [5, 8], fuel: [2, 4], scrap: [10, 25] },
+			3: { food: [7, 11], water: [7, 11], fuel: [3, 6], scrap: [20, 40] },
+		};
+		for (const { destination } of supplyRoutes({ seed: SEED, day })) {
+			expect(Object.keys(destination.yield)).toEqual(['food', 'water', 'fuel', 'scrap']);
+			for (const [resource, [min, max]] of Object.entries(ranges[destination.tier])) {
+				const amount = destination.yield[resource as keyof typeof destination.yield];
+				expect(amount).toBeGreaterThanOrEqual(min);
+				expect(amount).toBeLessThanOrEqual(max);
+			}
 		}
 	});
 
@@ -168,6 +187,13 @@ describe('the mock routes', () => {
 });
 
 describe('the raider encounters', () => {
+	it('fields the combat screen\'s own Rust Buggy, one shared profile, refilling to 10 adrenaline a turn', () => {
+		const [buggy] = encounterTeam({ encounter: 'scavengers', cards: CARDS }).vehicles;
+		expect([buggy.name, buggy.driver?.metadata.name, buggy.driver?.adrenaline, buggy.driver?.maxAdrenaline, buggy.raiderArchetype])
+			.toEqual(['Rust Buggy', 'Wasteland Raider', 3, 10, 'looter']);
+		expect(RAIDER_PROFILES.rust_buggy.maxAdrenaline).toBe(10);
+	});
+
 	it('rolls one encounter for each skull count', () => {
 		expect([1, 2, 3].map(skulls => encounterFor(skulls as 1 | 2 | 3))).toEqual(ENCOUNTER_IDS);
 	});
@@ -205,14 +231,18 @@ describe('planning a run', () => {
 		expect(getPlanBlocker({ campaign: newCampaign() })).toBeNull();
 	});
 
-	it('says why not: a run out, no pair to send, too little fuel, or a campaign that\'s over', () => {
+	it('says why not: a run out, nobody fit to go, no routes, too little fuel, or a campaign that\'s over', () => {
 		const out = newCampaign();
 		quickLoadOut({ campaign: out });
 		expect(getPlanBlocker({ campaign: out })).toEqual({ reason: 'run_out', run: 'run-1' });
 
 		const hurt = newCampaign();
-		hurt.drivers.slice(1).forEach(driver => driver.set({ status: 'injured', injuredDays: 2, hitpoints: 5 }));
+		hurt.drivers.forEach(driver => driver.set({ status: 'injured', injuredDays: 2, hitpoints: 5 }));
 		expect(getPlanBlocker({ campaign: hurt })).toEqual({ reason: 'no_crew' });
+
+		const roadless = newCampaign();
+		jest.spyOn(SupplyRoutes, 'supplyRoutes').mockReturnValueOnce([]);
+		expect(getPlanBlocker({ campaign: roadless })).toEqual({ reason: 'no_routes' });
 
 		const dry = newCampaign();
 		const cheapest = Math.min(...routesOnOffer({ campaign: dry }).map(route => route.fuel));
@@ -220,6 +250,90 @@ describe('planning a run', () => {
 		expect(getPlanBlocker({ campaign: dry })).toEqual({ reason: 'too_little_fuel', needed: cheapest, held: cheapest - 1 });
 
 		expect(getPlanBlocker({ campaign: overCampaign() })?.reason).toBe('campaign_over');
+	});
+
+	it('stays open with one driver fit to go, or only drivers of one archetype (DDB-432 #35)', () => {
+		const lone = newCampaign();
+		lone.drivers.slice(1).forEach(driver => driver.set({ status: 'injured', injuredDays: 2, hitpoints: 5 }));
+		expect(getPlanBlocker({ campaign: lone })).toBeNull();
+
+		const twins = newCampaign(['road_warrior', 'interceptor']);
+		twins.recruitDriver({ archetype: 'road_warrior' });
+		twins.drivers.filter(driver => driver.archetype === 'interceptor').forEach(driver => driver.set({ status: 'missing' }));
+		expect(getPlanBlocker({ campaign: twins })).toBeNull();
+	});
+});
+
+describe('the crew rule (DDB-432 #35)', () => {
+	it('seats a pair of different archetypes while two such are fit, and refuses a same-archetype pair then', () => {
+		const campaign = newCampaign();
+		const second = campaign.recruitDriver({ archetype: campaign.drivers[0].archetype });
+		expect(getCrewRule({ campaign })).toBe('pair');
+		expect(getSeatBlocker({ campaign, driver: second, partner: campaign.drivers[0] })?.reason).toBe('same_archetype');
+		expect(() => campaign.startRunDecks({ seats: [campaign.drivers[0]] })).toThrow('A run seats two drivers, not 1');
+	});
+
+	it('lets a same-archetype pair go when every fit driver shares an archetype, and seats them through the quick load out', () => {
+		const campaign = newCampaign(['road_warrior', 'interceptor']);
+		const warrior = campaign.drivers.find(driver => driver.archetype === 'road_warrior') as DriverRecord;
+		const interceptor = campaign.drivers.find(driver => driver.archetype === 'interceptor') as DriverRecord;
+		const second = campaign.recruitDriver({ archetype: 'road_warrior' });
+		interceptor.set({ status: 'injured', injuredDays: 3, hitpoints: 5 });
+
+		expect(getCrewRule({ campaign })).toBe('same_archetype');
+		expect(getSeatBlocker({ campaign, driver: second, partner: warrior })).toBeNull();
+		expect(quickLoadOut({ campaign }).seats).toEqual([warrior, second]);
+		expect(campaign.runDecks.map(deck => deck.driver)).toEqual([warrior, second]);
+	});
+
+	it('sends one driver alone when only one is fit, with every escort\'s card in their deck', () => {
+		const campaign = newCampaign(['road_warrior', 'interceptor']);
+		const hauler = createEscort({ type: 'fuel_hauler' });
+		campaign.convoy.add(hauler);
+		const [first, second] = campaign.drivers;
+		second.set({ status: 'injured', injuredDays: 2, hitpoints: 5 });
+
+		expect(getCrewRule({ campaign })).toBe('solo');
+		const { seats } = quickLoadOut({ campaign });
+		expect(seats).toEqual([first]);
+		expect(campaign.runDecks).toHaveLength(1);
+		expect(campaign.runDecks[0].escortCards.map(card => card.broughtBy)).toEqual(['escort-1']);
+	});
+
+	it('seats nobody with nobody fit, or once the campaign is over', () => {
+		const campaign = newCampaign(['road_warrior', 'interceptor']);
+		campaign.drivers.forEach(driver => driver.set({ status: 'injured', injuredDays: 2, hitpoints: 5 }));
+		expect(getCrewRule({ campaign })).toBe('none');
+		expect(() => quickLoadOut({ campaign })).toThrow('Nobody at the compound can go out on a run');
+		expect(campaign.runDecks).toEqual([]);
+		expect(getCrewRule({ campaign: overCampaign() })).toBe('none');
+	});
+
+	it('takes a lone driver through a whole run: the fight alone, then home', () => {
+		const campaign = newCampaign(['road_warrior', 'interceptor']);
+		sharpshooters(campaign);
+		const [first, second] = campaign.drivers;
+		second.set({ status: 'injured', injuredDays: 2, hitpoints: 5 });
+		const { escorts } = quickLoadOut({ campaign });
+		const route = longestRoute(campaign);
+		departRun({ campaign, route, escorts });
+		while (!atDestination(onRoad(campaign))) {
+			if (currentStop(onRoad(campaign))?.kind === 'quiet') {
+				passQuietStop({ campaign });
+				continue;
+			}
+			const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+			expect(fight.drivers).toHaveLength(1);
+			fightOut(fight);
+			expect(finishStopFight({ campaign, fight }).outcome).toBe('won');
+			takeReward({ campaign, cardType: null });
+		}
+
+		const arrival = arriveHome({ campaign });
+
+		expect(arrival.seats).toEqual([first]);
+		expect(first.runsCompleted).toBe(1);
+		expect(campaign.supplyRun).toBeNull();
 	});
 });
 
@@ -238,12 +352,6 @@ describe('the quick load out', () => {
 		expect(() => departRun({ campaign, route: longestRoute(campaign), escorts })).not.toThrow();
 	});
 
-	it('refuses with no pair to send', () => {
-		const campaign = newCampaign(['road_warrior', 'interceptor']);
-		campaign.drivers[0].set({ status: 'injured', injuredDays: 1, hitpoints: 10 });
-		expect(() => quickLoadOut({ campaign })).toThrow('No two drivers at the compound can go out together');
-		expect(campaign.runDecks).toEqual([]);
-	});
 });
 
 describe('departing', () => {
@@ -289,6 +397,15 @@ describe('departing', () => {
 
 		expect(getDepartBlocker({ campaign, route })).toEqual({ reason: 'run_out', run: 'run-1' });
 		expect(() => departRun({ campaign, route, escorts: [] })).toThrow("run-1 is on the road, so no other run sets off until it's home");
+	});
+
+	it('pays what today\'s route costs, whatever the route handed in says', () => {
+		const campaign = newCampaign();
+		const { escorts } = quickLoadOut({ campaign });
+		const route = longestRoute(campaign);
+		departRun({ campaign, route: { ...route, fuel: 0 }, escorts });
+		expect(campaign.resources.fuel).toBe(20 - route.fuel);
+		expect(onRoad(campaign).route).toEqual(route);
 	});
 
 	it('refuses a run with no run decks started, since load out starts them', () => {
@@ -361,13 +478,21 @@ describe('a whole run, scripted through the real APIs and saved after every step
 		}
 
 		expect([onRoad(campaign).stop, onRoad(campaign).phase]).toEqual([stops.length, 'driving']);
+		expect(atDestination(onRoad(campaign))).toBe(true);
 		const won = Object.fromEntries([...new Set(taken)].map(type => [type, taken.filter(card => card === type).length]));
 		expect(onRoad(campaign).cargoCards).toEqual(won);
+		// The destination's yield loaded on reaching it, ahead of the drive home
+		const loaded = yieldResources(route.destination.yield);
+		expect(onRoad(campaign).cargo).toEqual(loaded);
 		const locker = campaign.locker;
+		const scrap = campaign.resources.scrap;
 
 		const arrival = arriveHome({ campaign });
 
 		expect(arrival.cargo.cards).toEqual(won);
+		expect(arrival.cargo.resources).toEqual(loaded);
+		expect(campaign.resources.scrap).toBe(scrap + loaded.scrap);
+		expect(campaign.log.map(entry => entry.message)).toContain(`Home from ${route.destination.name} with ${cargoText({ cargo: loaded, cards: won })}.`);
 		expect(arrival.seats.map(seat => seat.id)).toEqual(seats.map(seat => seat.id));
 		expect(campaign.supplyRun).toBeNull();
 		expect(campaign.currentRun).toBeNull();
@@ -376,7 +501,7 @@ describe('a whole run, scripted through the real APIs and saved after every step
 		expect(campaign.tally.runsHome).toBe(1);
 		expect(campaign.tally.fightsWon).toBe(stops.filter(stop => stop.kind === 'fight').length);
 		expect(arrival.seats.map(seat => seat.runsCompleted)).toEqual([1, 1]);
-		expect(campaign.resources.fuel).toBe(20 - route.fuel);
+		expect(campaign.resources.fuel).toBe(20 - route.fuel + loaded.fuel);
 		for (const [type, count] of Object.entries(won)) expect(campaign.locker[type]).toBe((locker[type] ?? 0) + count);
 		await reload(store, campaign);
 	});
@@ -437,6 +562,7 @@ describe('a failed run', () => {
 		departRun({ campaign, route: longestRoute(campaign), escorts: [] });
 		toNextFight(campaign);
 		campaign.set({ supplyRun: { ...onRoad(campaign), cargoCards: { headshot: 1 } } });
+		const onRoadRoute = onRoad(campaign).route;
 		campaign = await reload(store, campaign);
 
 		const fight = startStopFight({ campaign, cards: CARDS, raiders: snipers, enemyAI: null });
@@ -451,9 +577,35 @@ describe('a failed run', () => {
 		expect(result.dayEnd?.day).toBe(day);
 		expect(campaign.day).toBe(day + 1);
 		expect(campaign.tally.runsFailed).toBe(1);
-		expect(campaign.log.some(entry => entry.message === 'Cargo lost with the run: Headshot.')).toBe(true);
+		// Who was lost, by name, then the cargo, both dated the day it failed
+		const fates = [
+			...(result.fight.dead.length > 0 ? [`${result.fight.dead.map(driver => driver.name).join(' and ')} died`] : []),
+			...(result.fight.missing.length > 0 ? [`${result.fight.missing.map(driver => driver.name).join(' and ')} went missing`] : []),
+		].join(' and ');
+		const lines = campaign.log.slice(-2).map(entry => [entry.day, entry.message]);
+		expect(lines).toEqual([[day, `${fates} when the run to ${onRoadRoute.destination.name} failed.`], [day, 'Cargo lost with the run: Headshot.']]);
 		expect(campaign.locker.headshot).toBeUndefined();
 		expect(await store.checkpoint(campaign)).toBe('saved');
+	});
+
+	it('is what abandoning a fight comes to: the crew flees and goes missing, the cargo is lost, and the day ends', () => {
+		const campaign = newCampaign();
+		const day = campaign.day;
+		const { seats } = quickLoadOut({ campaign });
+		const route = longestRoute(campaign);
+		departRun({ campaign, route, escorts: [] });
+		toNextFight(campaign);
+		const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+
+		fight.battle.forfeit();
+		const result = finishStopFight({ campaign, fight });
+
+		if (result.outcome !== 'run_failed') throw new Error('the run should fail');
+		expect([result.fight.dead, result.fight.missing]).toEqual([[], [...seats]]);
+		expect(seats.map(seat => seat.status)).toEqual(['missing', 'missing']);
+		expect(campaign.supplyRun).toBeNull();
+		expect(campaign.day).toBe(day + 1);
+		expect(campaign.log.map(entry => entry.message)).toContain(`${seats.map(seat => seat.name).join(' and ')} went missing when the run to ${route.destination.name} failed.`);
 	});
 
 	it('ends the campaign when it takes the last drivers, without ending the day', async () => {

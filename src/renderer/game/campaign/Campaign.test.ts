@@ -80,6 +80,8 @@ const SAVE_FORMAT = {
 		'supplyRun.cargo.meds', 'supplyRun.cargo.people', 'supplyRun.cargo.scrap', 'supplyRun.cargo.water', 'supplyRun.cargoCards',
 		'supplyRun.cargoCards.<card type>', 'supplyRun.escorts', 'supplyRun.escorts[]', 'supplyRun.phase', 'supplyRun.route',
 		'supplyRun.route.destination', 'supplyRun.route.destination.id', 'supplyRun.route.destination.name', 'supplyRun.route.destination.tier',
+		'supplyRun.route.destination.yield', 'supplyRun.route.destination.yield.food', 'supplyRun.route.destination.yield.fuel',
+		'supplyRun.route.destination.yield.scrap', 'supplyRun.route.destination.yield.water',
 		'supplyRun.route.fuel', 'supplyRun.route.hours', 'supplyRun.route.hours.home', 'supplyRun.route.hours.objective', 'supplyRun.route.hours.out',
 		'supplyRun.route.id', 'supplyRun.route.legs', 'supplyRun.route.legs[]', 'supplyRun.route.legs[].hours', 'supplyRun.route.legs[].id',
 		'supplyRun.route.legs[].length', 'supplyRun.route.legs[].roadClass', 'supplyRun.route.legs[].stops', 'supplyRun.route.legs[].stops[]',
