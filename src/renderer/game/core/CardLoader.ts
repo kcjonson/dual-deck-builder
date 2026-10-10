@@ -249,3 +249,15 @@ export class CardLoader {
 		return this.cardsData.size;
 	}
 }
+
+/**
+ * The game's cards by type from the card loader, loaded the first time
+ * anything asks, as the deck-building screens look them up; null for a type
+ * it doesn't have.
+ */
+export async function loadedCardLookup(): Promise<(type: string) => Card | null> {
+	const loader = CardLoader.getInstance();
+	if (!loader.isLoaded()) await loader.loadCards();
+	const cards = loader.getAllCardsAsMap();
+	return (type) => cards.get(type) ?? null;
+}

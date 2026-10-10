@@ -28,6 +28,10 @@ export function cardBlockerReason(blocker: CardBlocker): string {
 			return 'Other seat has it';
 		case 'card_locked':
 			return "Escort's card";
+		case 'own_at_home':
+			return 'Yours at home';
+		case 'borrowed_first':
+			return 'Borrowed go first';
 		case 'too_little_scrap':
 			return `Needs ${blocker.needed} scrap`;
 		case 'other_archetype':
