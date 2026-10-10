@@ -1,4 +1,5 @@
 import { Rng } from '../core/Rng';
+import { POI_TUNING, PoiTuning } from '../map/PoiData';
 import type { RoadClass } from '../map/RoadNetwork';
 import { DescribeOptions, RouteDescriptor, RouteMap, describeMap, poiNames } from '../map/RouteDescriptors';
 import { ROAD_CLASSES } from '../map/RoadNetwork';
@@ -10,7 +11,8 @@ import type { LegProfile } from '../map/Stops';
  * `routesOnOffer`): every route to every POI, with its legs, their stops,
  * and its descriptor's fuel, hours, and risk. Fights stay fights with their
  * skulls; every other stop is a quiet stretch until the run has screens for
- * events, finds, garages, and hazards. The decision record is
+ * events, finds, garages, and hazards. A destination yields what its POI
+ * type does, meds aside until a run can carry them. The decision record is
  * docs/AI_TECHNICAL_DECISIONS/stops-and-routes.md.
  *
  * The route model below matches SupplyRoutes.ts on DDB-454's branch field
@@ -34,11 +36,17 @@ export interface RouteLeg {
 	readonly stops: readonly RouteStop[];
 }
 
+/** What a destination yields to a run that reaches it. */
+export const YIELD_RESOURCES = ['food', 'water', 'fuel', 'scrap'] as const;
+export type YieldResource = (typeof YIELD_RESOURCES)[number];
+export type RouteYield = Readonly<Record<YieldResource, number>>;
+
 export interface RouteDestination {
 	readonly id: string;
 	readonly name: string;
 	/** 1 to 5. */
 	readonly tier: number;
+	readonly yield: RouteYield;
 }
 
 export interface RunRouteHours {
@@ -68,11 +76,20 @@ export interface RunRoute {
  * tenths and lengths to whole units, as the run shows them. Risk is the
  * route card's, its worst known fight, and 1, the objective's, with none.
  */
-export function routeOffers(map: RouteMap, options: DescribeOptions = {}): readonly RunRoute[] {
+export function routeOffers(map: RouteMap, options: DescribeOptions & { poiTuning?: PoiTuning } = {}): readonly RunRoute[] {
 	const { pois } = map.products;
+	const { types } = options.poiTuning ?? POI_TUNING;
 	const names = poiNames(pois);
 	return Object.freeze(describeMap(map, options).flatMap((routes, poi) => {
-		const destination: RouteDestination = Object.freeze({ id: `poi-${poi}`, name: names[poi], tier: pois.pois[poi].tier });
+		const { tier, type } = pois.pois[poi];
+		// A stronghold yields by its own rules, none of which exist yet.
+		const yields = types[type]?.yields ?? {};
+		const destination: RouteDestination = Object.freeze({
+			id: `poi-${poi}`,
+			name: names[poi],
+			tier,
+			yield: Object.freeze(Object.fromEntries(YIELD_RESOURCES.map((resource) => [resource, yields[resource] ?? 0])) as Record<YieldResource, number>),
+		});
 		return routes.map((descriptor) => runRoute({ descriptor, destination, map }));
 	}));
 }

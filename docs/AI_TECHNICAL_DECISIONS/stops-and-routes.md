@@ -70,7 +70,7 @@ A POI whose quickest route runs past dark with no stops at all can't be mended b
 
 ## The run loop's routes
 
-`routeOffers(map)` gives every route on the map in the run loop's route model (`RunRoute`, with its `RouteDestination`, `RouteLeg`, and `RouteStop`), POI by POI. Ids come from the map's own (`poi-3`, `route-3-1`, `leg-12`, `stop-40`), so a map gives the same routes however often it's asked, which `departRun`'s check that a route is on offer needs. A run carries every stop on its legs, whatever the route card knows. Fights are fights with their skulls, and every other stop is a quiet stretch (DDB-432's call 70) until the run has screens for events, finds, garages, and hazards. Hours are rounded to tenths and lengths to whole units, as the mock's are. Risk is the route card's, with 1 for a route with no fight, since the model's risk runs 1 to 3.
+`routeOffers(map)` gives every route on the map in the run loop's route model (`RunRoute`, with its `RouteDestination`, `RouteLeg`, and `RouteStop`), POI by POI. Ids come from the map's own (`poi-3`, `route-3-1`, `leg-12`, `stop-40`), so a map gives the same routes however often it's asked, which `departRun`'s check that a route is on offer needs. A run carries every stop on its legs, whatever the route card knows. Fights are fights with their skulls, and every other stop is a quiet stretch (DDB-432's call 70) until the run has screens for events, finds, garages, and hazards. Hours are rounded to tenths and lengths to whole units, as the mock's are. Risk is the route card's, with 1 for a route with no fight, since the model's risk runs 1 to 3. A destination yields what its POI's type does (`data/pois.json`), in place of #201's tier ranges; meds aren't among the run's yields yet, so they're left out, and a stronghold yields nothing until it has rules of its own.
 
 `offersForDay` stands in for the area map screen (DDB-43), which picks a POI: it keeps the run loop's contract of two or three destinations a day with a tier 1 one among them, drawn from `fork('routes', day)` off the campaign's seed, each with every route it has. Only destinations with a route home by dark are offered, since a run has no night yet (call 5), and never a stronghold.
 
@@ -104,6 +104,7 @@ Calls the spec left open, made the simplest way consistent with it, for Kevin to
 14. Every stop that isn't a fight runs as a quiet stretch.
 15. A day offers a tier 1 destination and up to two from tiers 2 and 3, only those with a route home by dark, never a stronghold.
 16. A POI's name is its type and its bearing from the compound until the names stream.
+17. A destination yields its POI type's food, water, fuel, and scrap; meds wait for the run to carry them, and a stronghold yields nothing yet.
 
 ## Consequences
 

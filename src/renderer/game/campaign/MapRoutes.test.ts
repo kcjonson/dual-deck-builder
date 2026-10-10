@@ -1,5 +1,5 @@
 import { meshMap, randomMesh } from '../map/meshTesting';
-import { STRONGHOLD_TYPE } from '../map/PoiData';
+import { POI_TUNING, STRONGHOLD_TYPE } from '../map/PoiData';
 import { ROAD_CLASSES } from '../map/RoadNetwork';
 import { describeMap } from '../map/RouteDescriptors';
 import { isFight } from '../map/StopData';
@@ -10,7 +10,9 @@ const maps = Array.from({ length: 3 }, (_, index) => meshMap(randomMesh({ seed: 
 /** The run loop's route model, field for field, as its save reader holds it: exact fields, and every value in range. */
 function expectRunRoute(route: RunRoute): void {
 	expect(Object.keys(route).sort()).toEqual(['destination', 'fuel', 'hours', 'id', 'legs', 'name', 'risk']);
-	expect(Object.keys(route.destination).sort()).toEqual(['id', 'name', 'tier']);
+	expect(Object.keys(route.destination).sort()).toEqual(['id', 'name', 'tier', 'yield']);
+	expect(Object.keys(route.destination.yield).sort()).toEqual(['food', 'fuel', 'scrap', 'water']);
+	for (const amount of Object.values(route.destination.yield)) expect(Number.isInteger(amount) && amount >= 0).toBe(true);
 	expect(Object.keys(route.hours).sort()).toEqual(['home', 'objective', 'out']);
 	expect(route.name.trim()).not.toBe('');
 	expect(route.destination.name.trim()).not.toBe('');
@@ -60,6 +62,9 @@ describe('routeOffers', () => {
 			const descriptor = described[index];
 			expect(route.id).toBe(`route-${descriptor.poi}-${descriptor.route}`);
 			expect(route.destination).toMatchObject({ id: `poi-${descriptor.poi}`, tier: pois.pois[descriptor.poi].tier });
+			const { type } = pois.pois[descriptor.poi];
+			const yields: Partial<Record<string, number>> = POI_TUNING.types[type]?.yields ?? {};
+			expect(route.destination.yield).toEqual({ food: yields.food ?? 0, water: yields.water ?? 0, fuel: yields.fuel ?? 0, scrap: yields.scrap ?? 0 });
 			expect(route).toMatchObject({ name: descriptor.name, fuel: descriptor.fuel, risk: Math.max(1, descriptor.risk) });
 			expect(route.hours.out).toBeCloseTo(descriptor.hours.out, 1);
 			expect(route.hours.home).toBeCloseTo(descriptor.hours.home, 1);
