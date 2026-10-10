@@ -56,6 +56,8 @@ How they're cut:
 - Type by location: the first placement rule in `pois.json` whose conditions hold, one of its types picked by a draw on the `types` fork, one draw per POI whether it's used or not. The rules are #177's, extended with schools, general stores, clinics, truck stops, quarries, and mines.
 - Then the first ring is typed to cover food, water, and fuel, quickest POI first: a POI keeps its location's type if that yields something still needed, or else takes the type yielding the most of what's still needed, preferring one whose placement rule holds there. A resource still missing after the first ring is a failure.
 
+The stage reads the land through `water.terrain`, the land with its water, as every stage after the water does, and only through `PoiGround`: radius, metro, biome, ruin, elevation, and moisture.
+
 Every draw comes from a fork of the stage's stream named for its use (`sectors`, `factions`, `sites`, `types`), so adding draws to one never moves another.
 
 ## Checks
@@ -87,7 +89,7 @@ Each is a follow-up:
 
 - Tiers: a POI's tier is its ring plus one, a stronghold's 5, until tiers in hours (DDB-292). Guarantee 6's "outside the starting reveal by at least one tier" isn't checked.
 - The starting reveal and fog aren't modelled (DDB-294). The first ring stands in for the starting reveal in the food, water, and fuel cover.
-- Typing by place and water: towns and villages show only as ruin, water plants come from low or wet ground, and nothing types a dam. Places (Map 6) and water (Map 5) make the spec's list possible.
+- Typing by place and water: towns and villages show only as ruin, water plants come from low or wet ground (the land with its water, so wet beside rivers), and nothing types a dam. Places (Map 6), and the water stage's rivers and reservoirs, make the spec's list possible.
 - Saves keep nothing of it; the map regenerates on load, since it's deterministic (DDB-436).
 
 ## Consequences
