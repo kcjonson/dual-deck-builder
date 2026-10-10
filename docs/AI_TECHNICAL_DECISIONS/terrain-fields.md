@@ -66,9 +66,8 @@ Both are Poisson-disc samples: candidates drawn uniformly, each kept only if it'
 Elevation carries its exact gradient: the eroded grid's bicubic gradient, plus range country's fine relief through the chain rule (terrain-erosion.md). Forward differences took two more elevation samples per slope, which made cost and the full sample three times as dear as elevation. A test holds the gradient to central differences on a round-numbered grid over three maps, where one-sided slopes that disagree would mark a crease, and allows none.
 
 - Grade is the gradient's size times `RELIEF`: rise over run, with elevation 1 standing `RELIEF` world units high (terrain-erosion.md has its value).
-- Obstacles, in precedence: a crater, a lake or river (from the water stage), a cliff: grade 1 or steeper in rough country. Steep ground outside rough country isn't a cliff, only costly.
+- Obstacles, in precedence: a crater, a lake or river (from the water stage), a cliff: the steepest of the rough country by the land grid's averaged grade (water-and-biomes.md). Steep ground outside rough country isn't a cliff, only costly.
 - What travel costs is a move's, not a point's: water-and-biomes.md, The cost of a move.
-- The cliff test compares squared gradients, so no branch depends on a square root. `grade` takes one, for display.
 - Cliffs are bands, not hairlines, which growth sampling every few units would hit or miss by chance. The field model's canyons once laced a middling map with cliffs a twentieth of a unit wide; eroded slopes are steep across cells nine units wide, and a test holds the share of cliff ground in bands under 2 units under 8%, and the median band over 6 units, on four maps.
 
 ## Keeping the land connected
@@ -92,4 +91,4 @@ The stage forks its stream by feature: for the land `hills`, `ranges`, `rangeWar
 - Every number here is a starting value for the Map Lab (DDB-299), which should show biome shares, rough country, and the share of the edge a fine flood fill over `impassable` reaches, alongside its timings.
 - Saves keep the gameplay map, so terrain only matters for loading as a picture; because sampling is arithmetic, a shared seed draws the same terrain in any engine as well.
 - The renderer (DDB-298) can shade from `sample`'s slope without sampling neighbours, and should draw cliffs from `obstacle` so roads never seem to cross one.
-- `surelyReachable(x, y)` proves ground reachable but never proves it cut off, so growth shouldn't steer away from where it reads false; its own search over `impassable` is what finds the pockets. Cliffs stand only where `rough(x, y)`, a bilinear lookup on the land grid, and there they taper at their tips and steep crests can leave slivers under a unit wide, so a step should be sampled at a unit or less in rough country; outside it no cliff stands, and `impassable` checks rough country before it reads any elevation.
+- `surelyReachable(x, y)` proves ground reachable but never proves it cut off, so growth shouldn't steer away from where it reads false; its own search over `impassable` is what finds the pockets. Cliffs stand only where `rough(x, y)`, a bilinear lookup on the land grid, and there they taper at their tips, so a step should be sampled at a unit or less in rough country; outside it no cliff stands, and a cliff reads no elevation, only two bilinear lookups.

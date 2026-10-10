@@ -45,8 +45,9 @@ export interface Lake {
  * main stems; in a valley at least `valley` world units deep across the
  * river; `spacing` of the radius apart, inside `outer` of it. Each floods
  * between `cells` land cells, to a target drawn between them, `depth` world
- * units deep at the dam. Candidates are tried in a shuffled order, up to
- * `tries` floods' worth.
+ * units deep at the dam, behind a wall `wall` cells each side of the dam
+ * cell. Candidates are tried in a shuffled order, up to `tries` floods'
+ * worth.
  */
 export const RESERVOIR = {
 	area: { min: 3, max: 80 },
@@ -55,12 +56,13 @@ export const RESERVOIR = {
 	outer: 0.88,
 	cells: { min: 30, max: 220 },
 	depth: { min: 0.5, max: 30 },
+	wall: 3,
 	tries: 120,
 } as const;
 
 /**
  * Natural lakes: pits in the eroded land, cells whose water level stands
- * more than `wet` above them, joined through their neighbours, that hold at
+ * more than `wet` above them, joined side by side, that hold at
  * least `cells` cells, stand `depth` world units deep somewhere, and lie in
  * country whose moisture before the rivers averages `moisture` or more.
  */
@@ -69,9 +71,11 @@ export const NATURAL_LAKE = { wet: 0.01, depth: 0.25, cells: 4, moisture: 0.55 }
 /** The depth field just past a shore, as elevation: the shore sits that far short of the dry cell's centre. */
 const SHORE = 0.002;
 
-/** Column and row steps to the eight neighbours. */
+/** Column and row steps to the eight neighbours, and to the four side by side. */
 const STEP_COLUMNS = [1, 1, 0, -1, -1, -1, 0, 1];
 const STEP_ROWS = [0, 1, 1, 1, 0, -1, -1, -1];
+const SIDE_COLUMNS = [1, 0, -1, 0];
+const SIDE_ROWS = [0, 1, 0, -1];
 
 // Read once, at load: under Jest's vm context each global read costs about 0.15 us (seeded-prng.md).
 const sqrt = Math.sqrt;
@@ -127,7 +131,7 @@ export function naturalLakes({ grid, elevation, levels, moisture, relief, blocke
 			const depth = levels[cell] - elevation[cell];
 			if (depth > deepest) deepest = depth;
 			wetness += moisture[cell];
-			forEachNeighbour(size, cell, (next) => {
+			forEachSide(size, cell, (next) => {
 				if (seen[next] === 0 && levels[next] - elevation[next] > wet) {
 					seen[next] = 1;
 					members.push(next);
@@ -165,16 +169,17 @@ export interface ReservoirOptions {
 /**
  * Up to `count` reservoirs. Each candidate dam is a river cell in a valley;
  * its lake is every cell upstream of it, through the routing, lower than
- * the water level and reached through cells lower than it, so the water
- * floods up the valley and its side branches and never spills over a ridge
- * or downstream. The level is the highest that keeps the lake within its
- * drawn size and clear of blocked cells and other lakes, found by halving.
+ * the water level and joined to the dam side by side through cells lower
+ * than it, so the water floods up the valley and its side branches. The
+ * level is the highest that keeps the lake within its drawn size, clear of
+ * blocked cells and other lakes, and below the lowest saddle round it, so
+ * no land beside the lake but the dam's outflow lies under its level and
+ * the water never spills over a ridge or downstream. Found by halving.
  */
 export function placeReservoirs(options: ReservoirOptions): void {
 	const { grid, elevation, receivers, area, threshold, count, radius, inner, relief, blocked, rng, into } = options;
 	if (count <= 0) return;
 	const size = grid.size;
-	const cells = size * size;
 	const donors = donorLists(receivers);
 	const candidates: number[] = [];
 	const innerSquared = inner * inner;
@@ -196,7 +201,7 @@ export function placeReservoirs(options: ReservoirOptions): void {
 	if (candidates.length === 0) return;
 	rng.shuffle(candidates);
 	const spacing = RESERVOIR.spacing * radius;
-	const flood = new Flood({ cells, elevation, donors, blocked, lakeOf: into.lakeOf });
+	const flood = new Flood({ size, elevation, receivers, donors, blocked, lakeOf: into.lakeOf });
 	const dams: { x: number; y: number }[] = [];
 	let tries = 0;
 	for (let index = 0; index < candidates.length && dams.length < count && tries < RESERVOIR.tries; index += 1) {
@@ -209,7 +214,7 @@ export function placeReservoirs(options: ReservoirOptions): void {
 		const target = Math.round(RESERVOIR.cells.min + (RESERVOIR.cells.max - RESERVOIR.cells.min) * rng.float());
 		const level = flood.highestLevel(dam, elevation[dam] + RESERVOIR.depth.max / relief, target);
 		if (level - elevation[dam] < RESERVOIR.depth.min / relief) continue;
-		const members = flood.cellsAt(dam, level);
+		const members = flood.cellsAt(level);
 		if (members === null || members.length < RESERVOIR.cells.min) continue;
 		const receiver = receivers[dam];
 		const receiverRow = (receiver / size) | 0;
@@ -312,66 +317,175 @@ function donorLists(receivers: Int32Array): { starts: Int32Array; donors: Int32A
 	return { starts, donors };
 }
 
-/** Floods upstream of a dam, reusing its buffers. */
+/**
+ * Floods a dam's valley, reusing its buffers. The dam is a wall across the
+ * river through the dam cell, `RESERVOIR.wall` cells each side of it, square
+ * to the outflow: water on its line or above it stays, and the ground below
+ * it stays dry. The lake at a level is the cells of the dam's catchment
+ * lower than it, joined to the dam side by side, or corner to corner where
+ * the four cells round the corner average under the level, so the drawn
+ * shore joins them too. It's too big when a cell joined to it that way is
+ * lower than the level, outside it, and not held back by the wall, since
+ * the water would run over the saddle there, or when one of its cells
+ * drains to the dam other than through it.
+ */
 class Flood {
+	private readonly size: number;
 	private readonly elevation: Float64Array;
+	private readonly receivers: Int32Array;
 	private readonly starts: Int32Array;
 	private readonly donors: Int32Array;
 	private readonly blocked: Uint8Array;
 	private readonly lakeOf: Int32Array;
 	private readonly stack: Int32Array;
+	/** The dam whose catchment, below the highest level tried, a cell is in, plus one. */
+	private readonly catchment: Int32Array;
+	/** The count a cell was last flooded by. */
+	private readonly flooded: Int32Array;
+	private round = 0;
 	private readonly found: number[] = [];
+	/** The dam the buffers are for: its cell, column, and row, the step to its outflow, and how far its wall reaches along its line. */
+	private dam = -1;
+	private damColumn = 0;
+	private damRow = 0;
+	private towardColumn = 0;
+	private towardRow = 0;
+	private span = 0;
 
-	constructor({ cells, elevation, donors, blocked, lakeOf }: { cells: number; elevation: Float64Array; donors: { starts: Int32Array; donors: Int32Array }; blocked: Uint8Array; lakeOf: Int32Array }) {
+	constructor({ size, elevation, receivers, donors, blocked, lakeOf }: {
+		size: number; elevation: Float64Array; receivers: Int32Array; donors: { starts: Int32Array; donors: Int32Array }; blocked: Uint8Array; lakeOf: Int32Array;
+	}) {
+		const cells = size * size;
+		this.size = size;
 		this.elevation = elevation;
+		this.receivers = receivers;
 		this.starts = donors.starts;
 		this.donors = donors.donors;
 		this.blocked = blocked;
 		this.lakeOf = lakeOf;
 		this.stack = new Int32Array(cells);
+		this.catchment = new Int32Array(cells);
+		this.flooded = new Int32Array(cells);
 	}
 
 	/**
 	 * The highest level, up to `top`, whose lake stays at `target` cells or
-	 * fewer and clear of blocked cells and other lakes, to within a
-	 * hundred-thousandth of elevation, by halving: a higher level only ever
-	 * floods more. The dam's own height when even the least water is too much.
+	 * fewer, clear of blocked cells and other lakes, and below every saddle
+	 * round it, to within a hundred-thousandth of elevation, by halving. The
+	 * dam's own height when even the least water is too much.
 	 */
 	public highestLevel(dam: number, top: number, target: number): number {
+		this.takeDam(dam, top);
 		let low = this.elevation[dam];
 		let high = top;
-		if (this.count(dam, high, target) >= 0) return high;
+		if (this.count(high, target) >= 0) return high;
 		for (let step = 0; step < 24 && high - low > 1e-5; step += 1) {
 			const middle = 0.5 * (low + high);
-			if (this.count(dam, middle, target) >= 0) low = middle;
+			if (this.count(middle, target) >= 0) low = middle;
 			else high = middle;
 		}
 		return low;
 	}
 
-	/** The lake's cells at `level`, dam first, or null when it reaches a blocked cell or another lake. */
-	public cellsAt(dam: number, level: number): number[] | null {
-		return this.count(dam, level, Infinity) >= 0 ? this.found.slice() : null;
+	/** The lake's cells at `level`, dam first, or null when it's too big; for the dam `highestLevel` last took. */
+	public cellsAt(level: number): number[] | null {
+		return this.count(level, Infinity) >= 0 ? this.found.slice() : null;
 	}
 
-	/** How many cells the lake at `level` covers, or -1 when that's more than `limit` or it reaches a blocked cell or another lake. */
-	private count(dam: number, level: number, limit: number): number {
-		const { elevation, starts, donors, blocked, lakeOf, stack, found } = this;
+	/** Sets the buffers up for `dam`: its wall, and every cell that drains to it through cells lower than `top`. */
+	private takeDam(dam: number, top: number): void {
+		const { size, elevation, receivers, starts, donors, stack, catchment } = this;
+		this.dam = dam;
+		this.damRow = (dam / size) | 0;
+		this.damColumn = dam - this.damRow * size;
+		const outflow = receivers[dam];
+		const outflowRow = (outflow / size) | 0;
+		this.towardColumn = outflow - outflowRow * size - this.damColumn;
+		this.towardRow = outflowRow - this.damRow;
+		// Along a diagonal wall the cells step two apart across.
+		this.span = this.towardColumn !== 0 && this.towardRow !== 0 ? 2 * RESERVOIR.wall : RESERVOIR.wall;
+		const mark = dam + 1;
+		let depth = 0;
+		stack[depth++] = dam;
+		catchment[dam] = mark;
+		while (depth > 0) {
+			const cell = stack[--depth];
+			for (let at = starts[cell]; at < starts[cell + 1]; at += 1) {
+				const donor = donors[at];
+				if (elevation[donor] < top && catchment[donor] !== mark) {
+					catchment[donor] = mark;
+					stack[depth++] = donor;
+				}
+			}
+		}
+	}
+
+	/** Steps downstream of the wall's line, less than 0 upstream of it. */
+	private ahead(column: number, row: number): number {
+		return (column - this.damColumn) * this.towardColumn + (row - this.damRow) * this.towardRow;
+	}
+
+	/** Whether the cell lies within the wall's reach along its line, either side of it. */
+	private alongWall(column: number, row: number): boolean {
+		const across = (row - this.damRow) * this.towardColumn - (column - this.damColumn) * this.towardRow;
+		return (across < 0 ? -across : across) <= this.span;
+	}
+
+	/** How many cells the lake at `level` covers, or -1 when that's more than `limit` or it's too big otherwise. */
+	private count(level: number, limit: number): number {
+		const { size, elevation, receivers, blocked, lakeOf, stack, catchment, flooded, found, dam } = this;
 		found.length = 0;
 		if (!(elevation[dam] < level)) return 0;
-		let top = 0;
-		stack[top++] = dam;
-		while (top > 0) {
-			const cell = stack[--top];
+		this.round += 1;
+		const round = this.round;
+		const mark = dam + 1;
+		let depth = 0;
+		stack[depth++] = dam;
+		flooded[dam] = round;
+		while (depth > 0) {
+			const cell = stack[--depth];
 			if (blocked[cell] === 1 || lakeOf[cell] >= 0) return -1;
 			found.push(cell);
 			if (found.length > limit) return -1;
-			for (let at = starts[cell]; at < starts[cell + 1]; at += 1) {
-				const donor = donors[at];
-				if (elevation[donor] < level) stack[top++] = donor;
+			const row = (cell / size) | 0;
+			const column = cell - row * size;
+			for (let step = 0; step < 8; step += 1) {
+				const nextColumn = column + STEP_COLUMNS[step];
+				const nextRow = row + STEP_ROWS[step];
+				if (nextColumn < 0 || nextRow < 0 || nextColumn >= size || nextRow >= size) continue;
+				const next = nextRow * size + nextColumn;
+				if (flooded[next] === round || catchment[next] !== mark || !(elevation[next] < level)) continue;
+				if (!this.joined(column, row, nextColumn, nextRow, level)) continue;
+				if (this.ahead(nextColumn, nextRow) > 0 && this.alongWall(nextColumn, nextRow)) continue;
+				flooded[next] = round;
+				stack[depth++] = next;
+			}
+		}
+		for (const cell of found) {
+			if (cell !== dam && flooded[receivers[cell]] !== round) return -1;
+			const row = (cell / size) | 0;
+			const column = cell - row * size;
+			// From the wall's line or above it, within its reach, the wall holds back what's on its line or below it; round its end it doesn't.
+			const behindWall = this.ahead(column, row) <= 0 && this.alongWall(column, row);
+			for (let step = 0; step < 8; step += 1) {
+				const nextColumn = column + STEP_COLUMNS[step];
+				const nextRow = row + STEP_ROWS[step];
+				if (nextColumn < 0 || nextRow < 0 || nextColumn >= size || nextRow >= size) continue;
+				const next = nextRow * size + nextColumn;
+				if (flooded[next] === round || !(elevation[next] < level) || !this.joined(column, row, nextColumn, nextRow, level)) continue;
+				if (behindWall && this.ahead(nextColumn, nextRow) >= 0 && this.alongWall(nextColumn, nextRow)) continue;
+				return -1;
 			}
 		}
 		return found.length;
+	}
+
+	/** Whether water at `level` runs between neighbouring cells: always side by side, and corner to corner where the corner is under it. */
+	private joined(column: number, row: number, nextColumn: number, nextRow: number, level: number): boolean {
+		if (column === nextColumn || row === nextRow) return true;
+		const { size, elevation } = this;
+		const corner = elevation[row * size + column] + elevation[nextRow * size + nextColumn] + elevation[row * size + nextColumn] + elevation[nextRow * size + column];
+		return 0.25 * corner < level - SHORE;
 	}
 }
 
@@ -382,6 +496,18 @@ function forEachNeighbour(size: number, cell: number, visit: (next: number) => v
 	for (let step = 0; step < 8; step += 1) {
 		const nextColumn = column + STEP_COLUMNS[step];
 		const nextRow = row + STEP_ROWS[step];
+		if (nextColumn < 0 || nextRow < 0 || nextColumn >= size || nextRow >= size) continue;
+		visit(nextRow * size + nextColumn);
+	}
+}
+
+/** Calls `visit` with each of the four neighbours side by side with `cell`. */
+function forEachSide(size: number, cell: number, visit: (next: number) => void): void {
+	const row = (cell / size) | 0;
+	const column = cell - row * size;
+	for (let side = 0; side < 4; side += 1) {
+		const nextColumn = column + SIDE_COLUMNS[side];
+		const nextRow = row + SIDE_ROWS[side];
 		if (nextColumn < 0 || nextRow < 0 || nextColumn >= size || nextRow >= size) continue;
 		visit(nextRow * size + nextColumn);
 	}

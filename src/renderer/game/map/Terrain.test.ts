@@ -5,7 +5,7 @@ import { MapParamSet, MapParams, resolveMapParams } from './MapParams';
 import { validateMapParams } from './ParamValidator';
 import { generateLand, moistureLevel, terraceHeight, terracePull } from './Land';
 import type { RiverCrossing } from './Rivers';
-import { CLIFF_GRADE, MOVE_COST, RELIEF, Terrain, TerrainSample, WaterLayer, createTerrainSample, generateTerrain, terrainFromSurface } from './Terrain';
+import { MOVE_COST, RELIEF, Terrain, TerrainSample, WaterLayer, createTerrainSample, generateTerrain, terrainFromSurface } from './Terrain';
 import { TOWN_CRATER_GAP, TOWN_SPACING } from './TerrainSites';
 import { generateWater } from './Water';
 
@@ -510,7 +510,10 @@ describe('generateTerrain', () => {
 				const bridged = water === 'river' && Math.hypot(x, y) <= terrain.metro.radius + 1;
 				if (inCrater) expect(obstacle).toBe('crater');
 				else if (water !== null && !bridged) expect(obstacle).toBe(water);
-				else expect(obstacle).toBe(sample.grade >= CLIFF_GRADE && terrain.rough(x, y) ? 'cliff' : null);
+				else {
+					expect([null, 'cliff']).toContain(obstacle);
+					expect(obstacle === 'cliff').toBe(terrain.rough(x, y) && terrain.cliffDepth(x, y) >= 0);
+				}
 				if (obstacle === null) passable += 1;
 			});
 			expect(passable).toBeGreaterThan(0);
@@ -526,10 +529,17 @@ describe('generateTerrain', () => {
 				const terrain = terrainFor({ seed, ...set });
 				let outer = 0;
 				let rough = 0;
+				let past = 0;
+				let cliffs = 0;
 				gridInside(terrain.radius, 48).forEach(([x, y]) => {
-					if (terrain.obstacle(x, y) === 'cliff') expect(terrain.rough(x, y)).toBe(true);
+					const cliff = terrain.obstacle(x, y) === 'cliff';
+					if (cliff) expect(terrain.rough(x, y)).toBe(true);
 					const distance = Math.hypot(x, y);
 					if (distance < terrain.reliefRadius) expect(terrain.rough(x, y)).toBe(false);
+					else {
+						past += 1;
+						if (cliff) cliffs += 1;
+					}
 					if (distance >= 0.5 * terrain.radius) {
 						outer += 1;
 						if (terrain.rough(x, y)) rough += 1;
@@ -538,7 +548,30 @@ describe('generateTerrain', () => {
 				const share = 0.1 + 0.25 * ruggedness;
 				expect(rough / outer).toBeGreaterThan(share - 0.08);
 				expect(rough / outer).toBeLessThan(share + 0.08);
+				// Cliffs aim at 5% times ruggedness squared of the land past the relief radius, as main's grade rule gave.
+				const cliffShare = 0.05 * ruggedness * ruggedness;
+				expect(cliffs / past).toBeGreaterThan(0.4 * cliffShare);
+				expect(cliffs / past).toBeLessThan(1.4 * cliffShare);
 			});
+		});
+
+		it('stands no cliffs on a map with no ruggedness', () => {
+			const terrain = terrainFor({ seed: 3, radius: 600, ruggedness: 0, mountainCoverage: 1 });
+			gridInside(terrain.radius, 60).forEach(([x, y]) => expect(terrain.obstacle(x, y)).not.toBe('cliff'));
+		});
+
+		// Eroded land is a run of gullies, each side steep at a point, so a cliff by a point's grade drew a stripe per gully side.
+		it('makes the steepest country cliff, not every steep point: an escarpment, not its gullies', () => {
+			const terrain = terrainFor({ seed: 5, radius: 800, mountainCoverage: 1, ruggedness: 1, aridity: 0 });
+			let steep = 0;
+			let steepCliffs = 0;
+			gridInside(terrain.radius, 160).forEach(([x, y]) => {
+				if (terrain.grade(x, y) < 1) return;
+				steep += 1;
+				if (terrain.obstacle(x, y) === 'cliff') steepCliffs += 1;
+			});
+			expect(steep).toBeGreaterThan(500);
+			expect(steepCliffs / steep).toBeLessThan(0.5);
 		});
 
 		it('makes rough country the steep ground: rough points are steeper than the rest by far', () => {
@@ -567,11 +600,10 @@ describe('generateTerrain', () => {
 			});
 		});
 
-		// A cliff is steep ground in rough country, and eroded slopes are steep
-		// across cells nine units wide, so a cliff is a band a road can't slip
-		// through between samples, every half unit: only its tapered tips are
-		// thin. On a dry map a cliff is mostly a terrace's riser, which is
-		// narrower than the slope it steepens, about five units at the median.
+		// A cliff is the steepest of the rough country by the land grid's
+		// averaged grade, read bilinear off cells nine units wide, so it's a
+		// band a road can't slip through between samples, every half unit:
+		// only its tapered tips are thin.
 		it.each([
 			['aridity 0.6', { seed: 21, aridity: 0.6 }],
 			['the Badlands', { seed: 21, environment: 'badlands' }],
@@ -691,11 +723,14 @@ describe('generateTerrain', () => {
 			const plain = land();
 			const [x, y] = openGround(plain);
 			const terrain = plain.withWater(straightRiver({ at: x, width: 4 }));
-			// From 10 short of the river to 10 past it: the water runs from 0.4 to 0.6 of the way.
-			expect(terrain.onBridge(x - 10, y, x + 10, y, 0.5)).toBe(true);
-			expect(terrain.onBridge(x - 10, y, x + 10, y, 0.37)).toBe(true);
-			expect(terrain.onBridge(x - 10, y, x + 10, y, 0.3)).toBe(false);
-			expect(terrain.onBridge(x - 10, y, x - 30, y, 0.5)).toBe(false);
+			const spans: number[] = [];
+			// From 10 short of the river to 10 past it: the water runs from 0.4 to 0.6 of the way, and the bridge a twentieth past that.
+			expect(terrain.bridgeSpans(x - 10, y, x + 10, y, spans)).toBe(1);
+			expect(spans[0]).toBeCloseTo(0.35, 12);
+			expect(spans[1]).toBeCloseTo(0.65, 12);
+			expect(terrain.bridgeSpans(x - 10, y, x - 30, y, spans)).toBe(0);
+			// Too long a bridge isn't one: crossed at a sine of 0.1, 4 across would run 40.
+			expect(terrain.bridgeSpans(x - 1, y - 10, x + 1, y + 10, spans)).toBe(0);
 			expect(terrain.obstacle(x, y)).toBe('river');
 		});
 
@@ -913,7 +948,7 @@ const PINNED: PinnedSummary[] = [
 			[0.022961597028416457, 0.9883711656152957, 0.0009374453546605137, 0.00017812403994521737, 1, 'badlands', null, 7.55389896293573],
 			[0.5794511254436154, 0, -0.001156033402486766, 0.0007041404126588923, 0, 'mountains', null, 7.715971101577169],
 			[0.012662426595949974, 1, -0.00003247547472547858, 0.00001307275851059814, 0.8333333333333428, 'badlands', null, 6.7163189870984885],
-			[0.31761764040198703, 0, 0.01616521524969314, -0.01234285772264014, 0, 'mountains', 'cliff', Infinity],
+			[0.31761764040198703, 0, 0.01616521524969314, -0.01234285772264014, 0, 'mountains', null, Infinity],
 		],
 	},
 	{

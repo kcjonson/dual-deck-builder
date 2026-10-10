@@ -5,6 +5,7 @@ import { clamp01 } from './MapMath';
 import type { MapParams, ParamRange } from './MapParams';
 import { ROAD_CLASSES, Road, RoadClass, RoadNetwork, RoadNode, RoadNodeKind, RoadStretch } from './RoadNetwork';
 import { SegmentIndex } from './SegmentIndex';
+import { MOVE_COST } from './Terrain';
 import type { Terrain } from './Terrain';
 
 /**
@@ -34,6 +35,13 @@ const INFINITY = Infinity;
 
 /** World units a step covers: the spec's s. */
 export const STEP_LENGTH = 20;
+/**
+ * A step that would end in a river stretches on to the far bank instead, by
+ * up to `MOVE_COST.longestBridge` world units more, looked for every
+ * `spacing`: a road meeting a river a step short of it would otherwise find
+ * every heading ending in the water and stop there.
+ */
+const BRIDGE_STRETCH = { most: MOVE_COST.longestBridge, spacing: 2 } as const;
 /** cos(65 degrees): a step gains at least this share of its length in distance from the compound. */
 export const OUTWARD_SHARE = 0.42261826174069944;
 /**
@@ -121,7 +129,7 @@ const SCORE = {
 	wall: 8,
 	/** Weight of impassable ground within a class's `wallReach`, by how little of the reach is clear... */
 	wallAhead: 6,
-	/** ...looked for every this many world units, through `impassable`, which is cheap outside rough country. */
+	/** ...looked for every this many world units, through `obstacle`, rivers aside. */
 	wallSpacing: 4,
 	/** Rough country ahead is read off the terrain's lattice at this many points along the heading... */
 	roughSamples: 10,
@@ -164,14 +172,18 @@ const BRANCHING = {
 };
 
 const DEGRADE = {
-	/** A back road becomes a trail once its running cost per world unit over the land, bridges aside, passes this, from trailShare 0 to 1... */
+	/**
+	 * A back road becomes a trail once its running cost per world unit over
+	 * the land, bridges aside, passes this, from trailShare 0 to 1: at
+	 * trailShare and curviness 0.5, a sustained grade of about 0.38...
+	 */
 	cost: { min: 3.2, max: 1.7 },
 	/** ...a running mean that weights each step's cost this much. */
 	weight: 0.5,
 };
 
 /** What growth reads from the terrain; `Terrain` has it all, and tests can stand in a smaller one. */
-export type GrowthTerrain = Pick<Terrain, 'radius' | 'metro' | 'hotspots' | 'impassable' | 'obstacle' | 'onBridge' | 'moveCost' | 'rough'>;
+export type GrowthTerrain = Pick<Terrain, 'radius' | 'metro' | 'hotspots' | 'obstacle' | 'bridgeSpans' | 'moveCost' | 'rough'>;
 
 /**
  * Growth's own knobs, which were map parameters (`branchiness` and
@@ -409,12 +421,12 @@ export function isOutward(x0: number, y0: number, x1: number, y1: number): boole
 /**
  * The passable rule over a terrain; see `StepRules.passable`. A step can
  * cross a river at a bridge (Area Map Generation, Roads, Bridges): the
- * samples that land on river water count only where the step crosses that
- * river no more than 45 degrees off square, within the river's width of the
- * crossing (`Terrain.onBridge`). Lakes, craters, and cliffs never let a step
+ * samples that land on river water count only on the step's bridges
+ * (`Terrain.bridgeSpans`), where the bridge it would take is no longer than
+ * `MOVE_COST.longestBridge`. Lakes, craters, and cliffs never let a step
  * through.
  */
-export function isPassable(terrain: Pick<Terrain, 'hotspots' | 'obstacle' | 'onBridge'>, x0: number, y0: number, x1: number, y1: number): boolean {
+export function isPassable(terrain: Pick<Terrain, 'hotspots' | 'obstacle' | 'bridgeSpans'>, x0: number, y0: number, x1: number, y1: number): boolean {
 	const hotspots = terrain.hotspots;
 	for (let index = 0; index < hotspots.length; index += 1) {
 		const { x, y, craterRadius } = hotspots[index];
@@ -423,14 +435,23 @@ export function isPassable(terrain: Pick<Terrain, 'hotspots' | 'obstacle' | 'onB
 	const dx = x1 - x0;
 	const dy = y1 - y0;
 	const samples = ceil(sqrt(dx * dx + dy * dy) / PASSABLE_SPACING);
+	// The step's bridges, found at its first sample on a river and kept for the rest.
+	let bridges = -1;
 	for (let sample = 1; sample <= samples; sample += 1) {
 		const along = sample / samples;
 		const obstacle = terrain.obstacle(x0 + dx * along, y0 + dy * along);
 		if (obstacle === null) continue;
-		if (obstacle !== 'river' || !terrain.onBridge(x0, y0, x1, y1, along)) return false;
+		if (obstacle !== 'river') return false;
+		if (bridges < 0) bridges = terrain.bridgeSpans(x0, y0, x1, y1, BRIDGE_SPANS);
+		let bridged = false;
+		for (let bridge = 0; bridge < bridges && !bridged; bridge += 1) bridged = along >= BRIDGE_SPANS[2 * bridge] && along <= BRIDGE_SPANS[2 * bridge + 1];
+		if (!bridged) return false;
 	}
 	return true;
 }
+
+/** `isPassable`'s bridges, reused. */
+const BRIDGE_SPANS: number[] = [];
 
 /**
  * The gap two segments of roads that meet at (jx, jy) must keep: the
@@ -527,7 +548,7 @@ interface GrowingRoad {
 	classLength: number;
 	/** Steps since it started or last branched. */
 	sinceJunction: number;
-	/** The running mean of its steps' travel cost. */
+	/** The running mean of its steps' cost per world unit over the land, bridges aside. */
 	runningCost: number;
 	/** After it branches, its next step keeps 20 degrees from the branch, which leaves along this. */
 	avoiding: boolean;
@@ -566,12 +587,13 @@ class RoadGrower {
 	};
 
 	/**
-	 * Each candidate's end, heading, the land's share of its cost per world
-	 * unit (bridges aside, which a back road crossing a river doesn't
+	 * Each candidate's end, length, heading, the land's share of its cost per
+	 * world unit (bridges aside, which a back road crossing a river doesn't
 	 * degrade for), score, and whether it leaves the area, by candidate.
 	 */
 	private readonly endX = new Float64Array(CANDIDATE_HEADINGS);
 	private readonly endY = new Float64Array(CANDIDATE_HEADINGS);
+	private readonly lengths = new Float64Array(CANDIDATE_HEADINGS);
 	private readonly headingX = new Float64Array(CANDIDATE_HEADINGS);
 	private readonly headingY = new Float64Array(CANDIDATE_HEADINGS);
 	private readonly landCost = new Float64Array(CANDIDATE_HEADINGS);
@@ -703,7 +725,8 @@ class RoadGrower {
 	 * and sorts the rest into `order`, best first. Every candidate draws its
 	 * noise, survivor or not, so a step always takes the same draws. Returns
 	 * how many survive. A candidate that would leave the disc is cut short at
-	 * the rim, where its road leaves the area.
+	 * the rim, where its road leaves the area, and one that would end in a
+	 * river stretches on to the far bank (`BRIDGE_STRETCH`).
 	 */
 	private propose(road: GrowingRoad, x: number, y: number): number {
 		const rules = ROAD_CLASS_RULES[road.roadClass];
@@ -716,7 +739,7 @@ class RoadGrower {
 		unitVector(driftAt(road.drift, road.length), this.direction);
 		const preferredX = road.baseX * this.direction.x - road.baseY * this.direction.y;
 		const preferredY = road.baseX * this.direction.y + road.baseY * this.direction.x;
-		this.rules.gather(road.id, x, y, STEP_LENGTH + this.clearance * (1 + CROWD_BAND));
+		this.rules.gather(road.id, x, y, STEP_LENGTH + BRIDGE_STRETCH.most + this.clearance * (1 + CROWD_BAND));
 		let survivors = 0;
 		for (let candidate = 0; candidate < CANDIDATE_HEADINGS; candidate += 1) {
 			const noise = road.rng.float();
@@ -736,6 +759,17 @@ class RoadGrower {
 				toX = x + length * dx;
 				toY = y + length * dy;
 				exit = 1;
+			} else if (terrain.obstacle(toX, toY) === 'river') {
+				for (let extra = BRIDGE_STRETCH.spacing; extra <= BRIDGE_STRETCH.most; extra += BRIDGE_STRETCH.spacing) {
+					const farX = x + (STEP_LENGTH + extra) * dx;
+					const farY = y + (STEP_LENGTH + extra) * dy;
+					if (farX * farX + farY * farY > radiusSquared) break;
+					if (terrain.obstacle(farX, farY) === 'river') continue;
+					toX = farX;
+					toY = farY;
+					length = STEP_LENGTH + extra;
+					break;
+				}
 			}
 			if (!isOutward(x, y, toX, toY)) {
 				this.stats.rejected.outward += 1;
@@ -760,6 +794,7 @@ class RoadGrower {
 			if (rules.wallReach > 0 && exit === 0) score += SCORE.wallAhead * (1 - this.clearAhead(toX, toY, dx, dy, rules.wallReach));
 			this.endX[candidate] = toX;
 			this.endY[candidate] = toY;
+			this.lengths[candidate] = length;
 			this.headingX[candidate] = dx;
 			this.headingY[candidate] = dy;
 			this.scores[candidate] = score;
@@ -777,8 +812,10 @@ class RoadGrower {
 	}
 
 	/**
-	 * What the way on from a candidate's end to (x, y) costs a world unit, as
-	 * a move: `SCORE.wall` where that's impassable, and flat off the map.
+	 * What the land on the way from a candidate's end to (x, y) costs a world
+	 * unit, as a move, bridges aside: the step that crosses pays for its
+	 * bridge, and a river ahead shouldn't score worse than a wall.
+	 * `SCORE.wall` where that's impassable, and flat off the map.
 	 */
 	private lookahead(roadClass: RoadClass, fromX: number, fromY: number, x: number, y: number): number {
 		if (!this.rules.inside(x, y)) return 1;
@@ -786,8 +823,8 @@ class RoadGrower {
 		const dy = y - fromY;
 		const length = sqrt(dx * dx + dy * dy);
 		if (!(length > 0)) return 1;
-		const cost = this.terrain.moveCost(fromX, fromY, x, y, roadClass);
-		return cost === INFINITY ? SCORE.wall : cost / length;
+		const cost = this.terrain.moveCost(fromX, fromY, x, y, roadClass, this.costParts);
+		return cost === INFINITY ? SCORE.wall : (cost - this.costParts.bridge) / length;
 	}
 
 	/**
@@ -849,7 +886,7 @@ class RoadGrower {
 		const norm = sqrt(dx * dx + dy * dy);
 		road.headingX = dx / norm;
 		road.headingY = dy / norm;
-		const length = this.exits[candidate] === 1 ? sqrt((toX - x) * (toX - x) + (toY - y) * (toY - y)) : STEP_LENGTH;
+		const length = this.lengths[candidate];
 		road.length += length;
 		road.classLength += length;
 		road.sinceJunction += 1;

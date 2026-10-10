@@ -1,7 +1,7 @@
 import { Rng } from '../../core/Rng';
 import { MapParamSet, resolveMapParams } from '../../map/MapParams';
 import { validateMapParams } from '../../map/ParamValidator';
-import { CLIFF_GRADE, RELIEF, Terrain, generateTerrain } from '../../map/Terrain';
+import { Terrain, generateTerrain } from '../../map/Terrain';
 import { generateWater } from '../../map/Water';
 import { HILL_SHADE, LAND_COLOURS, OBSTACLE_COLOURS, landColour } from './areaMapStyle';
 import { MAX_BAKE_SIZE, MIN_BAKE_SIZE, TEXEL_WORLD_UNITS, bakeTerrain, terrainBakeSize } from './terrainBake';
@@ -15,7 +15,6 @@ function texelAt(texels: Uint8Array, size: number, radius: number, x: number, y:
 	return [texels[at], texels[at + 1], texels[at + 2], texels[at + 3]];
 }
 
-const CLIFF_SLOPE = CLIFF_GRADE / RELIEF;
 /** Middling ground, what `flatTerrain` is unless a test says otherwise, as a texel. */
 const MIDDLING = [...LAND_COLOURS.middling, 255];
 
@@ -101,35 +100,50 @@ describe('bakeTerrain', () => {
 		expect(texelAt(texels, size, 600, 100 + 60, 50)).toEqual(MIDDLING);
 	});
 
-	it('draws cliffs only in rough country, where the slope reaches the cliff grade', () => {
-		const size = 120;
-		const steep = flatTerrain({ radius: 600, rough: (x) => x > 0, slope: CLIFF_SLOPE * 1.2 });
-		const texels = bakeTerrain({ terrain: steep, size });
-		expect(texelAt(texels, size, 600, 300, 0)).toEqual([...OBSTACLE_COLOURS.cliff, 255]);
-		expect(texelAt(texels, size, 600, -300, 0)).toEqual(MIDDLING);
-
-		// Short of the cliff grade it's the land, hill-shaded: the slope falls to the east, away from the light.
-		const gentle = flatTerrain({ radius: 600, rough: (x) => x > 0, slope: CLIFF_SLOPE * 0.7 });
-		const light = Math.fround(Math.max(HILL_SHADE.min, Math.min(HILL_SHADE.max, 1 - CLIFF_SLOPE * 0.7 * HILL_SHADE.gain)));
+	it('draws cliffs where the land is into one, anti-aliased at the edge, and hill-shades the rest', () => {
+		const size = 240;
+		const radius = 600;
+		const slope = 0.004;
+		// Into a cliff east of x = 2.5, a texel's centre, a tenth of the way more every 10 units.
+		const texels = bakeTerrain({ terrain: flatTerrain({ radius, cliffDepth: (x) => (x - 2.5) / 100, slope }), size });
+		expect(texelAt(texels, size, radius, 300, 0)).toEqual([...OBSTACLE_COLOURS.cliff, 255]);
+		// West of it, the land, hill-shaded: the slope falls to the east, away from the light.
+		const light = Math.fround(Math.max(HILL_SHADE.min, Math.min(HILL_SHADE.max, 1 - slope * HILL_SHADE.gain)));
 		expect(light).toBeLessThan(1);
 		const shaded = LAND_COLOURS.middling.map((channel) => Math.trunc(Math.min(255, channel * light) + 0.5));
-		expect(texelAt(bakeTerrain({ terrain: gentle, size }), size, 600, 300, 0)).toEqual([...shaded, 255]);
+		expect(texelAt(texels, size, radius, -300, 0)).toEqual([...shaded, 255]);
+		// The texel the edge runs through is half each.
+		const edge = texelAt(texels, size, radius, 2.5, 0);
+		expect(edge[0]).toBeLessThan(shaded[0]);
+		expect(edge[0]).toBeGreaterThan(OBSTACLE_COLOURS.cliff[0]);
 	});
 
-	it('reads the land on lattices coarser than the texels: colour every colourStep, hill shade about every half land cell, and cliffs\' slope only in rough country', () => {
+	it('closes a gap a node or so wide in a band of cliff, so an escarpment draws as one', () => {
+		const size = 240;
+		const radius = 600;
+		// A band east of x = 0, broken by a gap 12 units across along y = 0: a cliff sample every 10.
+		const terrain = flatTerrain({ radius, cliffDepth: (x, y) => (x > 0 && Math.abs(y) > 6 ? 1 : -1) });
+		const texels = bakeTerrain({ terrain, size });
+		expect(texelAt(texels, size, radius, 300, 0)).toEqual([...OBSTACLE_COLOURS.cliff, 255]);
+		expect(texelAt(texels, size, radius, 300, 100)).toEqual([...OBSTACLE_COLOURS.cliff, 255]);
+		expect(texelAt(texels, size, radius, -300, 0)).toEqual(MIDDLING);
+		// A gap wider than the closing stays open.
+		const wide = flatTerrain({ radius, cliffDepth: (x, y) => (x > 0 && Math.abs(y) > 40 ? 1 : -1) });
+		expect(texelAt(bakeTerrain({ terrain: wide, size }), size, radius, 300, 0)).toEqual(MIDDLING);
+	});
+
+	it('reads the land on lattices coarser than the texels: colour every colourStep, hill shade about every half land cell, and cliffs every two texels', () => {
 		// Texels 2.5 units across, so shade every 2, about half a 9.4-unit land cell.
 		const terrain = flatTerrain({ radius: 1000 });
 		bakeTerrain({ terrain, size: 800, colourStep: 8 });
 		// 101 nodes a side at most, fewer past the rim
 		expect(terrain.samples).toBeLessThanOrEqual(102 * 102);
 		expect(terrain.samples).toBeGreaterThan(100 * 100 * 0.7);
-		// 401 a side at most for the shade
+		// 401 a side at most for the shade and the cliffs
 		expect(terrain.slopes).toBeLessThanOrEqual(402 * 402);
 		expect(terrain.slopes).toBeGreaterThan(400 * 400 * 0.7);
-		// Rough everywhere, cliffs read the slope too, every two texels.
-		const rough = flatTerrain({ radius: 1000, rough: () => true });
-		bakeTerrain({ terrain: rough, size: 800, colourStep: 8 });
-		expect(rough.slopes).toBeGreaterThan(1.7 * terrain.slopes);
+		expect(terrain.depths).toBeLessThanOrEqual(402 * 402);
+		expect(terrain.depths).toBeGreaterThan(400 * 400 * 0.7);
 	});
 
 	it('bakes the same bytes for the same terrain', () => {

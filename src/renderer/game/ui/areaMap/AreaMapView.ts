@@ -249,7 +249,7 @@ export class AreaMapView extends Component {
 		}
 		const network = map.network;
 		this.geometry = new RoadGeometry({ network });
-		this.rivers = map.rivers ? new RiverGeometry({ rivers: map.rivers, radius: map.terrain.radius }) : null;
+		this.rivers = new RiverGeometry({ rivers: map.rivers, radius: map.terrain.radius });
 		const order = [...ROAD_CLASSES].reverse();
 		this.drawOrder = order.flatMap((roadClass) => network.stretches.flatMap((stretch, id) => (stretch.roadClass === roadClass ? [id] : [])));
 		const prefix = this.id ?? 'area_map';

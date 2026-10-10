@@ -78,8 +78,7 @@ export function fakeTerrain({ radius = 1000, metroRadius = 150, hotspots = [], c
 		metro: { x: 0, y: 0, radius: metroRadius },
 		hotspots,
 		obstacle,
-		impassable: (x, y) => obstacle(x, y) !== null,
-		onBridge: () => false,
+		bridgeSpans: () => 0,
 		moveCost: (x0, y0, x1, y1, _roadClass, parts) => {
 			if (parts) parts.bridge = 0;
 			if (obstacle(x1, y1) !== null || obstacle((x0 + x1) / 2, (y0 + y1) / 2) !== null) return Infinity;

@@ -7,10 +7,11 @@ import { SimplexNoise } from './Noise';
  * Rivers (Area Map Generation, Pipeline, 2. Water): the cells whose drainage
  * area passes the stream threshold, traced from their sources down to a
  * confluence, a lake, or where the drainage leaves, then drawn as smoothed
- * polylines that wander on flat ground, each point with its width. The
- * polylines are what the map draws, what a save keeps, and where the water
- * is: a point is in a river within half its width of the centreline, so the
- * picture and play can't disagree.
+ * polylines that wander, most on flat ground, each point with its width.
+ * The polylines are what the map draws, what a save keeps, and where the
+ * water is: a point is in a river within half its width of the centreline,
+ * so the picture and play agree, short of the view rounding widths to a few
+ * steps.
  *
  * Everything is adds, multiplies, divides, compares, and square roots, so a
  * seed's rivers are the same to the bit in every engine. Starting values
@@ -72,22 +73,29 @@ export const RIVER_WIDTH = { min: 1.2, gain: 0.75, max: 9, rise: 40 } as const;
 
 /**
  * Turning a chain of cells into a line: a Douglas-Peucker pass at `simplify`
- * cells, which takes out the eight-direction staircase, then `smoothing`
- * passes of Chaikin's corner cutting.
+ * cells, which takes out the eight-direction staircase, down to `steep` of
+ * it where the land's grade passes `steepGrade`, so a river in a steep
+ * valley keeps to its floor rather than cutting over a spur; `smoothing`
+ * passes of Chaikin's corner cutting; then points every `spacing` cells, so
+ * the meander has somewhere to bend a long straight run.
  */
-const SHAPE = { simplify: 0.6, smoothing: 3 } as const;
+const SHAPE = { simplify: 0.6, steep: 0.35, steepGrade: 0.15, smoothing: 3, spacing: 0.5 } as const;
 
 /**
- * Meander: a sideways offset of up to `amplitude` cells at `riverMeander` 1,
- * from noise along the river `wavelength` world units long, full on ground
- * flatter than grade `flat` and none past `steep`, tapering to nothing over
- * `taper` world units at each end so confluences and lakes stay joined.
+ * Meander: a sideways offset from noise along the river `wavelength` world
+ * units long: `least` cells at any grade and any `riverMeander`, so no
+ * river runs ruler-straight, plus up to `amplitude` cells at `riverMeander`
+ * 1, full on ground flatter than grade `flat` and none past `steep`. It
+ * tapers to nothing over `taper` world units at each end so confluences and
+ * lakes stay joined, and never moves a point further than `bend` of the
+ * line's radius of curvature there, so a bend can't fold over itself.
  */
-const MEANDER = { amplitude: 1.4, wavelength: 90, flat: 0.015, steep: 0.06, taper: 30 } as const;
+const MEANDER = { least: 0.4, amplitude: 1.4, wavelength: 90, flat: 0.015, steep: 0.06, taper: 30, bend: 0.6 } as const;
 
 // Read once, at load: under Jest's vm context each global read costs about 0.15 us (seeded-prng.md).
 const sqrt = Math.sqrt;
 const floor = Math.floor;
+const ceil = Math.ceil;
 
 /** The stream threshold for a map's `riverDensity`. */
 export function riverThreshold(riverDensity: number): number {
@@ -162,6 +170,11 @@ export function traceRivers({ receivers, area, threshold, lakeOf, closedBasin }:
 			}
 			cell = receiver;
 		}
+		// An outlet with no river flowing into it is a single cell, not a river: nothing joins it, since any river donor would carry on through it.
+		if (chain.length < 2) {
+			chainOf[head] = -1;
+			continue;
+		}
 		chains.push({ cells: chain, start: donor >= 0 ? 'lake' : 'source', end, into });
 	}
 	for (const chain of chains) {
@@ -186,28 +199,41 @@ export interface PolylineOptions {
 }
 
 /**
- * Each chain as a line: its cell centres simplified, smoothed, and given a
- * meander, with a width per point by the drainage area there. A tributary
- * is drawn after the river it joins and ends on that river's line, the
- * nearest point to their meeting cell, so every confluence touches.
+ * Each chain as a line: its cell centres simplified, less on steep ground,
+ * smoothed, resampled every half cell, and given a meander, with a width per
+ * point by the drainage area there. A tributary is drawn after the river it
+ * joins and ends on that river's line, the nearest point to their meeting
+ * cell, so every confluence touches.
  */
 export function riverPolylines({ grid, chains, area, threshold, elevation, meander, noise, relief }: PolylineOptions): RiverLines {
 	const lines: number[][] = new Array(chains.length);
 	const widths: number[][] = new Array(chains.length);
 	const sampler = new GridSampler({ grid, values: elevation });
+	const tolerance = SHAPE.simplify * grid.cellSize;
 	for (const id of drawingOrder(chains)) {
 		const chain = chains[id];
 		const raw: number[] = [];
+		const tolerances: number[] = [];
 		for (const cell of chain.cells) {
 			const row = (cell / grid.size) | 0;
-			raw.push(cellCentre(grid, cell - row * grid.size), cellCentre(grid, row));
+			const x = cellCentre(grid, cell - row * grid.size);
+			const y = cellCentre(grid, row);
+			raw.push(x, y);
+			sampler.bicubic(x, y);
+			const grade = sqrt(sampler.gradientX * sampler.gradientX + sampler.gradientY * sampler.gradientY) * relief;
+			tolerances.push(tolerance * (1 - (1 - SHAPE.steep) * smooth01(grade / SHAPE.steepGrade)));
 		}
-		let line = simplify(raw, SHAPE.simplify * grid.cellSize);
+		let line = simplify(raw, tolerances);
 		for (let pass = 0; pass < SHAPE.smoothing; pass += 1) line = chaikin(line);
-		if (meander > 0) line = meandered({ line, amount: meander * MEANDER.amplitude * grid.cellSize, noise, offset: 13.7 * id, sampler, relief });
+		line = resampled(line, SHAPE.spacing * grid.cellSize);
+		line = meandered({
+			line, least: MEANDER.least * grid.cellSize, amount: meander * MEANDER.amplitude * grid.cellSize, noise, offset: 13.7 * id, sampler, relief,
+		});
 		if (chain.end === 'confluence') snapEnd(line, lines[chain.into]);
 		lines[id] = line;
-		widths[id] = widthsAlong({ line, raw, cells: chain.cells, area, threshold, confluence: chain.end === 'confluence', source: chain.start === 'source' });
+		widths[id] = widthsAlong({
+			line, raw, cells: chain.cells, area, threshold, joined: chain.end === 'confluence' || chain.end === 'lake', source: chain.start === 'source',
+		});
 	}
 	const offsets = new Uint32Array(chains.length + 1);
 	lines.forEach((line, id) => {
@@ -247,16 +273,16 @@ function drawingOrder(chains: readonly RiverChain[]): number[] {
 
 /**
  * Douglas-Peucker on a flat polyline, keeping its ends: every point whose
- * removal would move the line more than `tolerance` stays.
+ * removal would move the line more than its tolerance stays. The tolerance
+ * is one for every point, or one per point.
  */
-export function simplify(points: readonly number[], tolerance: number): number[] {
+export function simplify(points: readonly number[], tolerance: number | readonly number[]): number[] {
 	const count = points.length / 2;
 	if (count < 3) return points.slice();
 	const keep = new Uint8Array(count);
 	keep[0] = 1;
 	keep[count - 1] = 1;
 	const stack = [0, count - 1];
-	const toleranceSquared = tolerance * tolerance;
 	while (stack.length > 0) {
 		const last = stack.pop() as number;
 		const first = stack.pop() as number;
@@ -266,13 +292,14 @@ export function simplify(points: readonly number[], tolerance: number): number[]
 		const dy = points[2 * last + 1] - ay;
 		const lengthSquared = dx * dx + dy * dy;
 		let farthest = -1;
-		let most = toleranceSquared * lengthSquared;
+		// Each point's squared distance from the chord over its squared tolerance, times the chord's squared length.
+		let most = lengthSquared > 0 ? lengthSquared : 1;
 		for (let index = first + 1; index < last; index += 1) {
 			const px = points[2 * index] - ax;
 			const py = points[2 * index + 1] - ay;
-			// The squared distance from the chord, times the chord's squared length, so no division is needed to compare.
+			const allowed = typeof tolerance === 'number' ? tolerance : tolerance[index];
 			const cross = dx * py - dy * px;
-			const away = lengthSquared > 0 ? cross * cross : (px * px + py * py) * toleranceSquared;
+			const away = (lengthSquared > 0 ? cross * cross : px * px + py * py) / (allowed * allowed);
 			if (away > most) {
 				most = away;
 				farthest = index;
@@ -291,12 +318,33 @@ export function simplify(points: readonly number[], tolerance: number): number[]
 }
 
 /**
- * The line moved sideways by noise along its length, by up to `amount` world
- * units where the land is flat, tapering to nothing at both ends. Each
- * river reads its own row of the noise, `offset` across.
+ * The line with a point every `spacing` world units or a little less along
+ * it, its own points among them where it bends, its ends kept.
  */
-function meandered({ line, amount, noise, offset, sampler, relief }: {
-	line: number[]; amount: number; noise: SimplexNoise; offset: number; sampler: GridSampler; relief: number;
+export function resampled(line: readonly number[], spacing: number): number[] {
+	const count = line.length / 2;
+	if (count < 2) return line.slice();
+	const out: number[] = [line[0], line[1]];
+	for (let index = 1; index < count; index += 1) {
+		const ax = line[2 * index - 2];
+		const ay = line[2 * index - 1];
+		const dx = line[2 * index] - ax;
+		const dy = line[2 * index + 1] - ay;
+		const steps = ceil(sqrt(dx * dx + dy * dy) / spacing);
+		for (let step = 1; step < steps; step += 1) out.push(ax + dx * (step / steps), ay + dy * (step / steps));
+		out.push(line[2 * index], line[2 * index + 1]);
+	}
+	return out;
+}
+
+/**
+ * The line moved sideways by noise along its length: by up to `least` world
+ * units anywhere, plus up to `amount` where the land is flat, tapering to
+ * nothing at both ends and held within `MEANDER.bend` of the line's radius
+ * of curvature. Each river reads its own row of the noise, `offset` across.
+ */
+function meandered({ line, least, amount, noise, offset, sampler, relief }: {
+	line: number[]; least: number; amount: number; noise: SimplexNoise; offset: number; sampler: GridSampler; relief: number;
 }): number[] {
 	const count = line.length / 2;
 	if (count < 3) return line;
@@ -310,15 +358,31 @@ function meandered({ line, amount, noise, offset, sampler, relief }: {
 		if (taper <= 0) continue;
 		const x = line[2 * index];
 		const y = line[2 * index + 1];
-		sampler.bicubic(x, y);
-		const grade = sqrt(sampler.gradientX * sampler.gradientX + sampler.gradientY * sampler.gradientY) * relief;
-		const flat = 1 - smooth01((grade - MEANDER.flat) / span);
-		if (flat <= 0) continue;
-		const tx = line[2 * index + 2] - line[2 * index - 2];
-		const ty = line[2 * index + 3] - line[2 * index - 1];
+		let reach = least;
+		if (amount > 0) {
+			sampler.bicubic(x, y);
+			const grade = sqrt(sampler.gradientX * sampler.gradientX + sampler.gradientY * sampler.gradientY) * relief;
+			reach += amount * (1 - smooth01((grade - MEANDER.flat) / span));
+		}
+		// The two segments either side: their turn sets how far the point can move before the bend folds.
+		const inX = x - line[2 * index - 2];
+		const inY = y - line[2 * index - 1];
+		const outX = line[2 * index + 2] - x;
+		const outY = line[2 * index + 3] - y;
+		const inLength = sqrt(inX * inX + inY * inY);
+		const outLength = sqrt(outX * outX + outY * outY);
+		if (!(inLength > 0 && outLength > 0)) continue;
+		const turn = inX * outY - inY * outX;
+		const sine = (turn < 0 ? -turn : turn) / (inLength * outLength);
+		const radius = sine > 0 ? 0.5 * (inLength + outLength) / sine : Infinity;
+		const cap = MEANDER.bend * radius;
+		let shift = reach * taper * noise.fractal(along[index] / MEANDER.wavelength, offset, 2, 0.5);
+		if (shift > cap) shift = cap;
+		else if (shift < -cap) shift = -cap;
+		const tx = inX / inLength + outX / outLength;
+		const ty = inY / inLength + outY / outLength;
 		const norm = sqrt(tx * tx + ty * ty);
 		if (!(norm > 0)) continue;
-		const shift = amount * taper * flat * noise.fractal(along[index] / MEANDER.wavelength, offset, 2, 0.5);
 		out[2 * index] = x - (ty / norm) * shift;
 		out[2 * index + 1] = y + (tx / norm) * shift;
 	}
@@ -356,15 +420,15 @@ function snapEnd(line: number[], target: readonly number[] | undefined): void {
 
 /**
  * A width per point of the line, from the drainage area of the chain's cell
- * the same share of the way along, measured by length along each. A
- * tributary's last cell is the river it joins, so it takes its own last
- * cell's area there instead.
+ * the same share of the way along, measured by length along each. A river
+ * that joins another or a lake ends on a cell of that, so it takes its own
+ * last cell's area there instead.
  */
-function widthsAlong({ line, raw, cells, area, threshold, confluence, source }: {
-	line: readonly number[]; raw: readonly number[]; cells: readonly number[]; area: Float64Array; threshold: number; confluence: boolean; source: boolean;
+function widthsAlong({ line, raw, cells, area, threshold, joined, source }: {
+	line: readonly number[]; raw: readonly number[]; cells: readonly number[]; area: Float64Array; threshold: number; joined: boolean; source: boolean;
 }): number[] {
 	const count = line.length / 2;
-	const last = confluence && cells.length > 1 ? cells.length - 2 : cells.length - 1;
+	const last = joined && cells.length > 1 ? cells.length - 2 : cells.length - 1;
 	const lineAlong = lengthsAlong(line);
 	const rawAlong = lengthsAlong(raw);
 	const lineLength = lineAlong[count - 1];

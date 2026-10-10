@@ -22,7 +22,7 @@ export const BIOME_LABELS: { readonly [Name in Biome]: string } = {
 
 /** The fields a biome is read from, each 0 to 1 (see `Terrain`). */
 export interface BiomeFields {
-	/** Low ground: 1 barely above the river or lake the ground drains to, 0.5 a few world units up, 0 well above it. */
+	/** Low ground: 1 on the river or lake the ground drains to, 0.5 at the map's lowland level above it, 0 well above it. */
 	readonly lowland: number;
 	readonly moisture: number;
 	readonly contamination: number;
@@ -47,7 +47,7 @@ export const BIOME_THRESHOLDS = {
 	mireWetness: 0.75,
 	/** ...counting contamination at this weight... */
 	mireContamination: 0.25,
-	/** ...on ground at least this low: below the map's lowland level. */
+	/** ...on ground at least this low: under the map's lowland level above the water it drains to. */
 	mireLowland: 0.5,
 	/** Badlands at or above this is badlands... */
 	badlands: 0.5,

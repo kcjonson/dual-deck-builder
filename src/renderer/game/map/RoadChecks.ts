@@ -29,7 +29,7 @@ export interface RoadViolation {
 
 export interface RoadCheckOptions {
 	network: RoadNetwork;
-	terrain: Pick<Terrain, 'radius' | 'hotspots' | 'obstacle' | 'onBridge'>;
+	terrain: Pick<Terrain, 'radius' | 'hotspots' | 'obstacle' | 'bridgeSpans'>;
 	/** What growth kept: its `clearance`. */
 	clearance: number;
 	/** Stops after this many violations. */

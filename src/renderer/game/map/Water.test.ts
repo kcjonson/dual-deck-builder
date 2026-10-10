@@ -47,6 +47,35 @@ const SETS: [string, MapParamSet][] = [
 	['the driest, most rugged corner', { seed: 23, radius: 800, aridity: 0, riverDensity: 0, ruggedness: 1, mountainCoverage: 1 }],
 ];
 
+/**
+ * The longest run of drawn river inside the disc that keeps within a degree
+ * of the heading it started on, world units: what reads as ruler-straight.
+ */
+function longestStraight(lines: RiverLines, radius: number): number {
+	let longest = 0;
+	for (let river = 0; river + 1 < lines.offsets.length; river += 1) {
+		let run = 0;
+		let heading: number | null = null;
+		for (let point = lines.offsets[river]; point + 1 < lines.offsets[river + 1]; point += 1) {
+			const [ax, ay] = [lines.points[2 * point], lines.points[2 * point + 1]];
+			const dx = lines.points[2 * point + 2] - ax;
+			const dy = lines.points[2 * point + 3] - ay;
+			const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+			if (Math.hypot(ax, ay) > radius) {
+				heading = null;
+				continue;
+			}
+			if (heading !== null && Math.abs(((angle - heading + 540) % 360) - 180) < 1) run += Math.hypot(dx, dy);
+			else {
+				run = Math.hypot(dx, dy);
+				heading = angle;
+			}
+			longest = Math.max(longest, run);
+		}
+	}
+	return longest;
+}
+
 function riverLine(lines: RiverLines, river: number): number[] {
 	return Array.from(lines.points.subarray(2 * lines.offsets[river], 2 * lines.offsets[river + 1]));
 }
@@ -65,6 +94,44 @@ function distanceTo(line: readonly number[], px: number, py: number): number {
 
 function centreOf(grid: LandGrid, cell: number): [number, number] {
 	return [cellCentre(grid, cell % grid.size), cellCentre(grid, Math.floor(cell / grid.size))];
+}
+
+/**
+ * The land joined to lake `id`, outside it, and under its level, that its
+ * dam's wall doesn't hold back: where its water would run over a saddle.
+ * Cells are joined side by side, or corner to corner where the four round
+ * the corner average under the level. The wall runs `RESERVOIR.wall` cells
+ * each side of the dam, square to its outflow, and holds what's on its line
+ * or below it from the lake cells on its line or above it.
+ */
+function spills(surface: WaterSurface, elevation: Float64Array, id: number, dam: number): number[] {
+	const size = surface.grid.size;
+	const level = surface.lakes[id].level;
+	const below = surface.receivers[dam];
+	const [towardColumn, towardRow] = [(below % size) - (dam % size), Math.floor(below / size) - Math.floor(dam / size)];
+	const span = towardColumn !== 0 && towardRow !== 0 ? 2 * RESERVOIR.wall : RESERVOIR.wall;
+	const place = (cell: number) => {
+		const dx = (cell % size) - (dam % size);
+		const dy = Math.floor(cell / size) - Math.floor(dam / size);
+		return { ahead: dx * towardColumn + dy * towardRow, across: Math.abs(dy * towardColumn - dx * towardRow) };
+	};
+	const out: number[] = [];
+	lakeCells(surface, id).forEach((cell) => {
+		const from = place(cell);
+		const behind = cell === dam || (from.ahead <= 0 && from.across <= span);
+		for (let dy = -1; dy <= 1; dy += 1) {
+			for (let dx = -1; dx <= 1; dx += 1) {
+				const next = cell + dy * size + dx;
+				if (next === cell || surface.lakeOf[next] === id || !(elevation[next] < level)) continue;
+				const corner = (elevation[cell] + elevation[next] + elevation[cell + dx] + elevation[cell + dy * size]) / 4;
+				if (dx !== 0 && dy !== 0 && !(corner < level - 0.002)) continue;
+				const to = place(next);
+				if (behind && to.ahead >= 0 && to.across <= span) continue;
+				out.push(next);
+			}
+		}
+	});
+	return out;
 }
 
 /** Cells under lake `id`, or under any lake when it's left out. */
@@ -165,7 +232,14 @@ describe('generateWater', () => {
 					expect(cellAt(grid, x, y)).toBe(land.surface.drainage.outlets[0]);
 				}
 				if (river.start === 'lake') expect(water.lakeDepth(line[0], line[1])).toBeGreaterThan(0);
+				// A river ends on a lake's cell, but is as big as its own last cell, short of whatever else flows into the lake there.
+				if (river.end === 'lake') expect(river.area).toBeLessThan(surface.area[cellAt(grid, x, y)]);
 			});
+		});
+
+		it.each(SETS)('draws no river ruler-straight: nothing inside the disc runs five cells at one heading, in %s', (_name, set) => {
+			const water = waterFor(set);
+			expect(longestStraight(water.lines, paramsFor(set).radius)).toBeLessThan(5 * water.surface.grid.cellSize);
 		});
 
 		it.each(SETS)('widens rivers by their drainage, creeks to broad rivers, in %s', (_name, set) => {
@@ -238,6 +312,8 @@ describe('generateWater', () => {
 				});
 				// Below the dam the river runs on, dry, and every lake cell is under water, a cell of land from any other lake.
 				expect(surface.lakeDepth[surface.receivers[dam]]).toBeLessThan(0);
+				// No land beside it stands under its level, but behind its dam's wall or across a corner too high for the water.
+				expect(spills(surface, land.surface.elevation, id, dam)).toEqual([]);
 				cells.forEach((cell) => {
 					expect(surface.lakeDepth[cell]).toBeGreaterThan(0);
 					const size = grid.size;
@@ -342,6 +418,28 @@ describe('generateWater', () => {
 			expect(mean(lowBeside)).toBeGreaterThan(mean(lowAll));
 		});
 
+		it('keeps low, wet ground the same share of a map however rugged it is', () => {
+			const mireShare = (ruggedness: number) => {
+				const { terrain } = waterFor({ seed: 11, environment: 'floodlands', radius: 800, ruggedness });
+				let inside = 0;
+				let mire = 0;
+				for (let row = 0; row < 40; row += 1) {
+					for (let column = 0; column < 40; column += 1) {
+						const x = ((column + 0.5) / 40 * 2 - 1) * terrain.radius;
+						const y = ((row + 0.5) / 40 * 2 - 1) * terrain.radius;
+						if (!terrain.contains(x, y)) continue;
+						inside += 1;
+						if (terrain.biome(x, y) === 'mire') mire += 1;
+					}
+				}
+				return mire / inside;
+			};
+			const gentle = mireShare(0.15);
+			const rugged = mireShare(0.85);
+			expect(gentle).toBeGreaterThan(0.2);
+			expect(Math.abs(gentle - rugged)).toBeLessThan(0.05);
+		});
+
 		it('runs wetter as aridity rises, following the spec\'s 0 dry to 1 wet', () => {
 			const meanMoisture = (aridity: number) => {
 				const { surface } = waterFor({ seed: 47, radius: 800, aridity });
@@ -405,6 +503,6 @@ interface PinnedWater {
 }
 
 const PINNED: PinnedWater[] = [
-	{ set: { seed: 7, radius: 800 }, moisture: 2290296385, lakeDepth: 1644368829, points: 3277945661, rivers: 28, lakes: ['reservoir 166', 'reservoir 33'] },
-	{ set: { seed: 17, environment: 'floodlands', radius: 800, rivers: 0 }, moisture: 4283430836, lakeDepth: 1256971727, points: 2864465443, rivers: 43, lakes: ['reservoir 58', 'reservoir 65', 'reservoir 127', 'reservoir 33', 'reservoir 59'] },
+	{ set: { seed: 7, radius: 800 }, moisture: 170918580, lakeDepth: 121594240, points: 2984396213, rivers: 28, lakes: ['reservoir 166', 'reservoir 94'] },
+	{ set: { seed: 17, environment: 'floodlands', radius: 800, rivers: 0 }, moisture: 3769450932, lakeDepth: 561159859, points: 4152388316, rivers: 43, lakes: ['reservoir 33', 'reservoir 87', 'reservoir 42', 'reservoir 177', 'reservoir 134'] },
 ];

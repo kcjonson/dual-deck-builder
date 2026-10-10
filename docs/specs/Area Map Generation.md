@@ -164,18 +164,18 @@ Mountains are where the land is pushed up, and valleys are what rivers cut into 
 
 ### 2. Water
 
-- Drainage: a final priority flood over the finished elevation, with noise of under a hundredth of grade added so flat ground doesn't drain in ruler-straight lines, and rain weighted by moisture and heavier in the ranges, gives every cell its downstream neighbour and drainage area.
+- Drainage: a final priority flood over the finished elevation, with rain weighted by moisture and heavier in the ranges, gives every cell its downstream neighbour and drainage area.
 - Rivers: cells whose drainage area passes a threshold set by `riverDensity`, traced from their sources down to a confluence, a lake, or the edge (or a closed basin's sink), then smoothed and given a meander on flat ground by `riverMeander`. Width grows with drainage area, so a river reads as a creek near its source and a broad river near its outlet. The smoothed lines with their widths are the rivers: where they're drawn, saved, and impassable.
-- Lakes: `lakes` reservoirs, each held behind a dam on a river in a valley and filled up to a level, which floods the valley and its side branches into a lake of real shape; and natural lakes in the land's pits where the country is wet, which eroded land keeps few of. `lakes` 0 is a map with no standing water. Lakes and the river channel are impassable except where a road crosses at a bridge; the metro's streets bridge its rivers anywhere.
+- Lakes: `lakes` reservoirs, each held behind a dam on a river in a valley and filled up to a level, which floods the valley and its side branches into a lake of real shape; a few natural lakes where the land holds water (Floodlands). Lakes and the river channel are impassable except where a road crosses at a bridge.
 - Moisture: from `aridity`, a broad noise layer, wetness spreading from the rivers, and drier with height.
 
 ### 3. Biomes, hazards, and cost
 
 - Biomes come from the fields: mountains (range country), canyons (deep valleys on dry maps), toxic mire (wet, low, and contaminated), badlands, barren desert (dry), and scrub for the middling rest. The game reads them as categories (stop tables, POI types, faction fit). The picture never draws them as flat patches: colour is a continuous blend of elevation, moisture, and contamination, so country shades from one kind to the next.
-- Hotspots (`hotspots`): blast sites and spills, spread out past the metro and off the rivers, each an impassable crater in a plume of contamination.
-- Cliffs: ground too steep for any road, only in rough country, the steepest land by `ruggedness`, broken into stretches so the steep belts have gaps.
+- Hotspots (`hotspots`): blast sites and spills, spread out past the metro, each an impassable crater in a plume of contamination.
+- Cliffs: ground too steep for any road, only in rough country.
 - Impassable: water (bar bridges), craters, cliffs. No road or POI goes on it.
-- Travel cost for a road between neighbouring cells: the distance, times one plus a grade term (the climb along the move, squared, weighted by class and by `curviness`) and a side-slope term, plus a bridge cost to cross a river, growing with the bridge's length, the river's width over how square-on the road crosses it. Cost along a move rather than of a cell is what makes roads follow contours and valley floors. The biome adds nothing.
+- Travel cost for a road between neighbouring cells: the distance, times one plus a grade term (the climb along the move, squared, weighted by class and by `curviness`) and a side-slope term, plus a bridge cost to cross a river, growing with the river's size. Cost along a move rather than of a cell is what makes roads follow contours and valley floors.
 
 ### 4. Settlements
 

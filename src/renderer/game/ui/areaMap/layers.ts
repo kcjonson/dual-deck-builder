@@ -18,8 +18,8 @@ import type { BakeTerrain } from './terrainBake';
 export interface AreaMapData {
 	readonly terrain: BakeTerrain;
 	readonly network: RoadNetwork;
-	/** The water stage's rivers, drawn live under the roads, width by size; none when absent. */
-	readonly rivers?: RiverLines | null;
+	/** The water stage's rivers, drawn live under the roads, width by size. */
+	readonly rivers: RiverLines;
 }
 
 /**

@@ -3,11 +3,12 @@ import { routeDrainage } from './Drainage';
 import { RELIEF, moistureLevel, startRadii } from './Land';
 import { GridSampler, LandGrid, cellCentre, landGridFor } from './LandGrid';
 import { Lake, LakeCells, emptyLakeCells, lakeDepthField, naturalLakes, placeReservoirs, valleyDepth } from './Lakes';
-import { clamp01, positiveQuantile, smooth01 } from './MapMath';
+import { clamp01, positiveQuantile, quantileAbove, smooth01 } from './MapMath';
 import type { MapParams } from './MapParams';
 import { SimplexNoise } from './Noise';
 import { RiverCrossing, RiverIndex, RiverInfo, RiverLines, riverPolylines, riverThreshold, traceRivers } from './Rivers';
 import { TOWN_CRATER_GAP } from './TerrainSites';
+import { featureRoom, landValues } from './Terrain';
 import type { Terrain, WaterKind, WaterLayer } from './Terrain';
 
 /**
@@ -84,8 +85,14 @@ export const FLATS = { amplitude: 0.0015, wavelength: 80 } as const;
  * `moisture` of it.
  */
 const WETNESS = { creek: 0.5, gain: 0.1, reach: 120, height: 12, moisture: 0.35 } as const;
-/** Low ground: within `height` world units above the river or lake a cell drains to, half at half of it. */
-const LOWLAND = { height: 3 } as const;
+/**
+ * Low ground: 1 on the river or lake a cell drains to, 0.5 at the map's
+ * lowland level above it, 0 at twice that. The level is the height above
+ * its water `share` of the land outside the ranges lies under, past the
+ * relief radius and inside the disc, so a rugged map has as much low ground
+ * as a gentle one; never under `least` world units.
+ */
+const LOWLAND = { share: 0.45, least: 1 } as const;
 /**
  * Canyons: river valleys at least `reach` cells deep across, spreading
  * `width` world units out from the river and up to the valley's rim,
@@ -139,18 +146,22 @@ export function generateWater({ params, terrain, rng }: WaterOptions): Water {
 	const lines = riverPolylines({
 		grid, chains, area, threshold, elevation, meander: params.riverMeander, noise: new SimplexNoise({ rng: rng.fork('meander') }), relief: RELIEF,
 	});
+	// A river that joins another or a lake ends on a cell of that, so its size is its last cell before it.
 	const rivers: RiverInfo[] = chains.map(({ cells: path, start, end, into }) => ({
-		start, end, into, area: area[path[end === 'confluence' && path.length > 1 ? path.length - 2 : path.length - 1]],
+		start, end, into, area: area[path[(end === 'confluence' || end === 'lake') && path.length > 1 ? path.length - 2 : path.length - 1]],
 	}));
 
 	const near = nearestWater({ grid, elevation, receivers, order, area, threshold, lakes });
+	const { reliefRadius } = startRadii(params);
+	const lowLevel = quantileAbove(landValues({ surface: land, radius: params.radius, reliefRadius, values: near.above, ranges: false }), 1 - LOWLAND.share);
+	const twiceLow = 2 * (lowLevel > LOWLAND.least ? lowLevel : LOWLAND.least);
 	const moisture = new Float32Array(cells);
 	const lowland = new Float32Array(cells);
 	for (let cell = 0; cell < cells; cell += 1) {
 		const above = near.above[cell];
 		const wetness = near.strength[cell] * (1 - smooth01(near.along[cell] / WETNESS.reach)) * (1 - smooth01(above / WETNESS.height));
 		moisture[cell] = clamp01(before[cell] + WETNESS.moisture * wetness);
-		lowland[cell] = 1 - smooth01(above / LOWLAND.height);
+		lowland[cell] = 1 - smooth01(above / twiceLow);
 	}
 	const canyons = canyonField({ params, terrain, elevation, near, lakes, area, threshold });
 
@@ -388,14 +399,16 @@ function nearestWater({ grid, elevation, receivers, order, area, threshold, lake
  * the valley's rim, share it. Calibrated like the other features: 0.5 where
  * the cut passes the quantile `share` of the land outside the ranges lies
  * above, past the relief radius and inside the disc, ramping over a quarter
- * of it either way. None in the metro, easing in to the relief radius, and
- * none at all on a map wetter than the canyons' dryness.
+ * of it either way. Only where badlands would have room (`featureRoom`): none
+ * in the metro, easing in to the relief radius, and none at the foot of the
+ * ranges, whose flanks cut as deep. None at all on a map wetter than the
+ * canyons' dryness.
  */
 function canyonField({ params, terrain, elevation, near, lakes, area, threshold }: {
 	params: MapParams; terrain: Terrain; elevation: Float64Array; near: NearestWater; lakes: LakeCells; area: Float64Array; threshold: number;
 }): Float32Array {
-	const { grid, mountains } = terrain.surface;
-	const size = grid.size;
+	const surface = terrain.surface;
+	const size = surface.grid.size;
 	const cells = size * size;
 	const field = new Float32Array(cells);
 	const dryness = 1 - moistureLevel(params.aridity);
@@ -406,27 +419,13 @@ function canyonField({ params, terrain, elevation, near, lakes, area, threshold 
 		if (area[cell] >= threshold && lakes.lakeOf[cell] < 0) cut[cell] = valleyDepth(elevation, size, cell, CANYONS.reach);
 	}
 	const { metroRadius, reliefRadius } = startRadii(params);
-	const metroSquared = metroRadius * metroRadius;
-	const reliefSquared = reliefRadius * reliefRadius;
-	const radiusSquared = params.radius * params.radius;
+	const room = featureRoom({ surface, metroRadius, reliefRadius });
 	const values = new Float64Array(cells);
-	const sample: number[] = [];
-	for (let row = 0; row < size; row += 1) {
-		const y = cellCentre(grid, row);
-		for (let column = 0; column < size; column += 1) {
-			const x = cellCentre(grid, column);
-			const cell = row * size + column;
-			const river = near.cell[cell];
-			const depth = cut[river];
-			if (depth > 0 && near.along[cell] <= CANYONS.width && near.above[cell] < depth * RELIEF) {
-				const distanceSquared = x * x + y * y;
-				values[cell] = depth * (distanceSquared >= reliefSquared ? 1 : smooth01((distanceSquared - metroSquared) / (reliefSquared - metroSquared)));
-			}
-			const distanceSquared = x * x + y * y;
-			if (distanceSquared >= reliefSquared && distanceSquared <= radiusSquared && mountains[cell] < 0.5) sample.push(values[cell]);
-		}
+	for (let cell = 0; cell < cells; cell += 1) {
+		const depth = cut[near.cell[cell]];
+		if (depth > 0 && room[cell] > 0 && near.along[cell] <= CANYONS.width && near.above[cell] < depth * RELIEF) values[cell] = depth * room[cell];
 	}
-	const level = positiveQuantile(sample, share);
+	const level = positiveQuantile(landValues({ surface, radius: params.radius, reliefRadius, values, ranges: false }), share);
 	if (level === Infinity) return field;
 	for (let cell = 0; cell < cells; cell += 1) field[cell] = smooth01((values[cell] / level - 1) * 2 + 0.5);
 	return field;

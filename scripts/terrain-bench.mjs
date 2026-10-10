@@ -20,9 +20,11 @@
  * builds of seeds 1 to `runs`; erosion is the land's time less the uplift's
  * and the final drainage's, each timed on its own. The water table gives
  * the water stage's time the same way, with the terrain's fields over the
- * land and the water's rebuild over its surface, the two the client pays
- * when a map crosses the worker boundary. Each query row is the median,
- * over environments and seeds, of one grid's time, then that per sample.
+ * land as the worker builds them and as the client rebuilds them with the
+ * badlands it's sent, and the water's rebuild over its surface, what the
+ * client pays when a map crosses the worker boundary. Each query row is the
+ * median, over environments and seeds, of one grid's time, then that per
+ * sample.
  */
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -120,9 +122,11 @@ for (const radius of options.radii.split(',').map(Number)) {
 }
 
 /**
- * The water stage over each map's land: generateWater, and the client's
- * side of the worker boundary, the terrain's fields rebuilt over the land
- * (terrainFromSurface) and the water over its surface (waterFromSurface).
+ * The water stage over each map's land: generateWater; the terrain's fields
+ * over the land as the worker builds them (terrainFromSurface); and the
+ * client's side of the worker boundary, the fields rebuilt over the land
+ * with the badlands it was sent, and the water over its surface
+ * (waterFromSurface).
  */
 function timeWater(params) {
 	const rng = terrainStream(params.seed);
@@ -131,20 +135,23 @@ function timeWater(params) {
 	const terrain = terrainFromSurface({ params, rng, surface: land });
 	const fields = now() - start;
 	start = now();
+	terrainFromSurface({ params, rng, surface: land, badlands: terrain.badlandsCells });
+	const sent = now() - start;
+	start = now();
 	const water = generateWater({ params, terrain, rng: rng.fork('water', 0) });
 	const total = now() - start;
 	start = now();
 	waterFromSurface({ terrain, surface: water.surface });
 	const rebuild = now() - start;
-	return { total, fields, rebuild, rivers: water.rivers.length, lakes: water.lakes.length };
+	return { total, fields, sent, rebuild, rivers: water.rivers.length, lakes: water.lakes.length };
 }
 
 for (const environment of ENVIRONMENTS) timeWater(paramsFor(99, environment, 1000));
 
-console.log(`\nthe water stage, median of ${options.runs} seeds per radius and environment (ms); the terrain's fields and the water's rebuild over what crosses the worker boundary`);
-console.log(['radius', ...ENVIRONMENTS, 'fields', 'rebuild', 'rivers', 'lakes'].map((cell) => cell.padStart(11)).join(''));
+console.log(`\nthe water stage, median of ${options.runs} seeds per radius and environment (ms); the terrain's fields as the worker builds them and as the client does with the badlands sent, the water's rebuild, and the rivers and lakes made`);
+console.log(['radius', ...ENVIRONMENTS, 'fields', 'sent', 'rebuild', 'rivers', 'lakes'].map((cell) => cell.padStart(11)).join(''));
 for (const radius of options.radii.split(',').map(Number)) {
-	const parts = { fields: [], rebuild: [], rivers: [], lakes: [] };
+	const parts = { fields: [], sent: [], rebuild: [], rivers: [], lakes: [] };
 	const totals = ENVIRONMENTS.map((environment) => {
 		const times = [];
 		for (let seed = 1; seed <= options.runs; seed += 1) {
@@ -154,7 +161,7 @@ for (const radius of options.radii.split(',').map(Number)) {
 		}
 		return median(times);
 	});
-	console.log([radius, ...totals.map((time) => time.toFixed(0)), ...['fields', 'rebuild'].map((part) => median(parts[part]).toFixed(1)), ...['rivers', 'lakes'].map((part) => median(parts[part]))]
+	console.log([radius, ...totals.map((time) => time.toFixed(0)), ...['fields', 'sent', 'rebuild'].map((part) => median(parts[part]).toFixed(1)), ...['rivers', 'lakes'].map((part) => median(parts[part]))]
 		.map((cell) => String(cell).padStart(11)).join(''));
 }
 

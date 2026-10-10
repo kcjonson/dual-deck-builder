@@ -2,7 +2,7 @@ import { Rng } from '../core/Rng';
 import { routeDrainage } from './Drainage';
 import { LandGrid, cellCentre } from './LandGrid';
 import { SimplexNoise } from './Noise';
-import { RIVER_THRESHOLD, RIVER_WIDTH, RiverIndex, RiverLines, riverPolylines, riverThreshold, riverWidth, simplify, traceRivers } from './Rivers';
+import { RIVER_THRESHOLD, RIVER_WIDTH, RiverIndex, RiverLines, resampled, riverPolylines, riverThreshold, riverWidth, simplify, traceRivers } from './Rivers';
 
 /** A small grid: 32 cells of 10 units. */
 const GRID: LandGrid = { size: 32, cellSize: 10, halfExtent: 160 };
@@ -28,6 +28,28 @@ function valley(): { elevation: Float64Array; outlet: number } {
 
 function riverOf(lines: RiverLines, river: number): number[] {
 	return Array.from(lines.points.subarray(2 * lines.offsets[river], 2 * lines.offsets[river + 1]));
+}
+
+/** The longest run of a river's segments that keep within a degree of the heading the run started on, world units. */
+export function longestStraight(lines: RiverLines): number {
+	let longest = 0;
+	for (let river = 0; river + 1 < lines.offsets.length; river += 1) {
+		let run = 0;
+		let heading: number | null = null;
+		for (let point = lines.offsets[river]; point + 1 < lines.offsets[river + 1]; point += 1) {
+			const dx = lines.points[2 * point + 2] - lines.points[2 * point];
+			const dy = lines.points[2 * point + 3] - lines.points[2 * point + 1];
+			const length = Math.hypot(dx, dy);
+			const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+			if (heading !== null && Math.abs(((angle - heading + 540) % 360) - 180) < 1) run += length;
+			else {
+				run = length;
+				heading = angle;
+			}
+			longest = Math.max(longest, run);
+		}
+	}
+	return longest;
 }
 
 describe('riverThreshold and riverWidth', () => {
@@ -146,7 +168,7 @@ describe('riverPolylines', () => {
 		});
 	});
 
-	it('meanders with riverMeander on flat ground, and runs straight without it', () => {
+	it('meanders more with riverMeander on flat ground, and a little without it, never ruler-straight', () => {
 		const straight = riverPolylines({ grid: GRID, chains, area: drainage.area, threshold: 12, elevation: new Float64Array(SIZE * SIZE), meander: 0, noise, relief: 100 });
 		const wandering = riverPolylines({ grid: GRID, chains, area: drainage.area, threshold: 12, elevation: new Float64Array(SIZE * SIZE), meander: 1, noise, relief: 100 });
 		const length = (packed: RiverLines) => {
@@ -159,6 +181,8 @@ describe('riverPolylines', () => {
 			return total;
 		};
 		expect(length(wandering)).toBeGreaterThan(1.01 * length(straight));
+		// Even at riverMeander 0 nothing runs five cells at one heading.
+		expect(longestStraight(straight)).toBeLessThan(5 * GRID.cellSize);
 	});
 });
 
@@ -168,6 +192,22 @@ describe('simplify', () => {
 		expect(simplify([0, 0, 1, 0, 2, 0, 2, 1, 2, 2], 0.1)).toEqual([0, 0, 2, 0, 2, 2]);
 		expect(simplify([0, 0, 1, 0.05, 2, 0], 0.1)).toEqual([0, 0, 2, 0]);
 		expect(simplify([0, 0, 5, 5], 1)).toEqual([0, 0, 5, 5]);
+	});
+
+	it('takes a tolerance per point, keeping a point its own tolerance won\'t let go', () => {
+		expect(simplify([0, 0, 1, 0.2, 2, 0], [1, 0.1, 1])).toEqual([0, 0, 1, 0.2, 2, 0]);
+		expect(simplify([0, 0, 1, 0.2, 2, 0], [0, 0.3, 0])).toEqual([0, 0, 2, 0]);
+	});
+});
+
+describe('resampled', () => {
+	it('puts a point every spacing or a little less, keeping the line\'s own points and ends', () => {
+		const line = resampled([0, 0, 10, 0, 10, 3], 4);
+		expect(line.slice(0, 2)).toEqual([0, 0]);
+		expect(line.slice(-2)).toEqual([10, 3]);
+		[0, 0, 10 / 3, 0, 20 / 3, 0, 10, 0, 10, 3].forEach((value, index) => expect(line[index]).toBeCloseTo(value, 12));
+		expect(line).toHaveLength(10);
+		for (let index = 0; index + 3 < line.length; index += 2) expect(Math.hypot(line[index + 2] - line[index], line[index + 3] - line[index + 1])).toBeLessThanOrEqual(4);
 	});
 });
 

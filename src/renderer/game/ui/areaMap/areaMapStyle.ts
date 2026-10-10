@@ -25,7 +25,7 @@ export const LAND_COLOURS = {
 	middling: [200, 194, 152] as Rgb8,
 	wet: [150, 172, 128] as Rgb8,
 	high: { colour: [160, 146, 128] as Rgb8, from: 0.2, to: 0.6 },
-	toxic: { colour: [176, 112, 80] as Rgb8, weight: 0.45 },
+	toxic: { colour: [176, 112, 80] as Rgb8, weight: 0.2 },
 } as const;
 
 /** The land's colour for its fields, 0 to 255 each, into `out`. Returns `out`. */

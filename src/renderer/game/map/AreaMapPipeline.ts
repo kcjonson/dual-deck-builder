@@ -58,13 +58,11 @@ export function growthStage(tuning: GrowthTuning = {}): MapStage<MapParams, Pick
 export interface AreaMapPipelineOptions {
 	/** Growth's own knobs. */
 	readonly growth?: GrowthTuning;
-	/** In place of `TERRAIN_STAGE`, for a test. */
-	readonly terrain?: MapStage<MapParams, NoProducts, 'terrain', Terrain>;
 }
 
-export function areaMapPipeline({ growth, terrain = TERRAIN_STAGE }: AreaMapPipelineOptions = {}): MapPipeline<MapParams, AreaMapProducts> {
+export function areaMapPipeline({ growth }: AreaMapPipelineOptions = {}): MapPipeline<MapParams, AreaMapProducts> {
 	return new MapPipeline<MapParams>()
-		.stage(terrain)
+		.stage(TERRAIN_STAGE)
 		.stage(WATER_STAGE)
 		.stage(HIGHWAYS_STAGE)
 		.stage(growthStage(growth));

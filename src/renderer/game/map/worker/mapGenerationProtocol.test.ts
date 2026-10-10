@@ -73,12 +73,13 @@ describe('the generation worker\'s transfer format', () => {
 		const wet = map.products.water.surface;
 		const bulk = [
 			transfer.network.points, transfer.network.offsets,
-			surface.elevation, surface.mountains, routing.receivers, routing.levels, routing.area, routing.order, routing.outlets,
+			surface.elevation, surface.mountains, routing.receivers, routing.levels, routing.area, routing.order, routing.outlets, map.products.terrain.badlandsCells,
 			wet.receivers, wet.area, wet.moisture, wet.lowland, wet.canyons, wet.lakeDepth, wet.lakeOf, wet.lines.points, wet.lines.widths, wet.lines.offsets,
 		];
 		expect(buffers).toHaveLength(bulk.length);
 		bulk.forEach(({ buffer }, index) => expect(buffers[index]).toBe(buffer));
 		expect(transfer.surface).toBe(surface);
+		expect(transfer.badlands).toBe(map.products.terrain.badlandsCells);
 		expect(transfer.water).toBe(wet);
 		expect(wet.lakes.length).toBeGreaterThan(0);
 		expect(plain(structuredClone(transfer))).toEqual(plain(transfer));

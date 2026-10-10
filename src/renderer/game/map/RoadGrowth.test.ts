@@ -340,6 +340,7 @@ describe('growth', () => {
 		expect(checkRoadNetwork({ network, terrain, clearance })).toEqual([]);
 		const metro = terrain.metro.radius + 1;
 		let bridges = 0;
+		const spans: number[] = [];
 		network.stretches.forEach(({ points }) => {
 			for (let point = 0; point + 3 < points.length; point += 2) {
 				const [x0, y0, x1, y1] = [points[point], points[point + 1], points[point + 2], points[point + 3]];
@@ -352,7 +353,8 @@ describe('growth', () => {
 					const kind = terrain.waterAt(x, y);
 					expect(kind).not.toBe('lake');
 					if (kind === 'river' && Math.hypot(x, y) > metro) {
-						expect(terrain.onBridge(x0, y0, x1, y1, along)).toBe(true);
+						const count = terrain.bridgeSpans(x0, y0, x1, y1, spans);
+						expect(Array.from({ length: count }, (_, bridge) => along >= spans[2 * bridge] && along <= spans[2 * bridge + 1])).toContain(true);
 						bridged = true;
 					}
 				}

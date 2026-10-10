@@ -101,15 +101,14 @@ export function generateTerrain({ params, rng }: TerrainOptions): Terrain {
  * The terrain over land already grown for these params and this stream, by
  * `generateLand` here or in a worker: everything but the erosion, which is
  * most of the time. The surface has to be the land those params grow, on
- * their grid; the rest of the terrain is rebuilt from the stream.
+ * their grid; the rest of the terrain is rebuilt from the stream, bar the
+ * badlands when they're passed too.
  */
-export function terrainFromSurface({ params, rng, surface }: TerrainFieldsOptions): Terrain {
-	return new Terrain({ fields: new TerrainFields({ params, rng, surface }) });
+export function terrainFromSurface({ params, rng, surface, badlands }: TerrainFieldsOptions): Terrain {
+	return new Terrain({ fields: new TerrainFields({ params, rng, surface, badlands }) });
 }
 
 export { RELIEF };
-/** Rise over run at which ground in rough country is a cliff, impassable. */
-export const CLIFF_GRADE = 1;
 
 /**
  * What a road pays to move over the land (Area Map Generation, 3. Biomes,
@@ -128,7 +127,7 @@ export const MOVE_COST = {
 	/** The grade weight's scale, from curviness 0, roads that barely mind a climb, to 1, roads that wind to keep it gentle. */
 	curviness: { min: 0.2, max: 1.8 },
 	maxGrade: { highway: 1.1, backRoad: 1.1, trail: Infinity },
-	/** World units of flat road a bridge costs, by class, for a bridge `bridgeSpan` long; more for a longer one. */
+	/** World units of flat road a bridge costs, by class, and as much again for each `bridgeSpan` world units it runs. */
 	bridge: { highway: 130, backRoad: 210, trail: 280 },
 	bridgeSpan: 8,
 	/** World units: the longest a bridge can be, the river's width over the sine of the angle it's crossed at. */
@@ -151,6 +150,16 @@ const DETAIL = { wavelength: 60, octaves: 3, gain: 0.5, amplitude: 0.006 };
  * all under the threshold is exact: no cliff stands in any of them.
  */
 const ROUGHNESS = { blur: 1, share: { min: 0.1, max: 0.35 }, breaks: 0.7, wavelength: 300, octaves: 2 };
+/**
+ * Cliffs: the steepest of the rough country, by the same averaged grade read
+ * bilinear off the land grid, so an escarpment is one band, not a stripe per
+ * gully the way the grade at a point would draw it. `share` times ruggedness
+ * squared of the land past the relief radius, as main's grade rule gave (0
+ * at ruggedness 0, about 1% at 0.5, 5% at 1), and none where the averaged
+ * grade is under `least`, so a gentle map's quota doesn't put cliffs on mild
+ * slopes.
+ */
+const CLIFFS = { share: 0.05, least: 0.5 };
 /**
  * Badlands: the most broken ground away from the ranges, the averaged
  * grade weighted toward the toxic, `share` times ruggedness of the land
@@ -184,8 +193,6 @@ const CALIBRATION_SPACING = 0.05;
 
 const DETAIL_FREQUENCY = 1 / DETAIL.wavelength;
 const CONTAMINATION_FREQUENCY = 1 / CONTAMINATION.wavelength;
-/** A slope's squared gradient at the cliff grade. */
-const CLIFF_SLOPE_SQUARED = (CLIFF_GRADE / RELIEF) * (CLIFF_GRADE / RELIEF);
 
 // Read once, at load: under Jest's vm context each global read costs about 0.15 us (seeded-prng.md).
 const sqrt = Math.sqrt;
@@ -202,6 +209,13 @@ interface LandFields {
 export interface TerrainFieldsOptions extends TerrainOptions {
 	/** The eroded land these fields read: `generateLand`'s for the same params, never written. */
 	surface: LandSurface;
+	/**
+	 * The badlands per land cell, when a worker has already worked them out
+	 * for the same params, stream, and land (`Terrain.badlandsCells`), so
+	 * they aren't again: a sample of contamination per cell is most of what
+	 * rebuilding the terrain costs.
+	 */
+	badlands?: Float32Array;
 }
 
 /**
@@ -220,12 +234,16 @@ export class TerrainFields {
 	public readonly blendRadius: number;
 	/** Out to this the ranges rise to full, and no cliff stands inside it. */
 	public readonly reliefRadius: number;
+	/** Badlands per land cell, 0 to 1, read bilinear; never written. */
+	public readonly badlandsCells: Float32Array;
 	/** How wet the map runs on average: `aridity`'s level. */
 	public readonly wetness: number;
 
 	private readonly elevationGrid: GridSampler;
 	private readonly mountainGrid: GridSampler;
 	private readonly roughGrid: GridSampler;
+	/** The averaged grade cliffs are read off. */
+	private readonly steepGrid: GridSampler;
 	private readonly badlandsGrid: GridSampler;
 	private readonly detailNoise: SimplexNoise;
 	private readonly contaminationNoise: SimplexNoise;
@@ -236,6 +254,8 @@ export class TerrainFields {
 	private readonly contaminationFloor: number;
 	/** Rough country is where the averaged grade, read bilinear, is this or more: the share `ruggedness` asks for. */
 	private readonly roughThreshold: number;
+	/** In rough country, a cliff is where the averaged grade, read bilinear, is this or more: `CLIFFS`. */
+	private readonly cliffThreshold: number;
 	/** Per square between cell centres, row by row from the square whose lower-left corner is cell 0's centre: 1 where a road from the metro surely reaches. */
 	private readonly reachedSquares: Uint8Array;
 	/** The grade weight's scale by `curviness`. */
@@ -253,7 +273,7 @@ export class TerrainFields {
 	private readonly scratch: LandFields = { elevation: 0, mountains: 0, slopeX: 0, slopeY: 0 };
 	private readonly biomeFields = { lowland: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0 };
 
-	constructor({ params, rng, surface }: TerrainFieldsOptions) {
+	constructor({ params, rng, surface, badlands }: TerrainFieldsOptions) {
 		const { radius } = params;
 		const expected = landGridFor(radius);
 		const { grid } = surface;
@@ -305,9 +325,16 @@ export class TerrainFields {
 		// Ground with no grade at all is never rough, which only a map flatter than any erosion makes would need.
 		this.roughThreshold = roughThreshold > 0 ? roughThreshold : Infinity;
 		this.reachedSquares = this.reachFromMetro(roughness);
+		this.steepGrid = new GridSampler({ grid, values: steepness });
+		const roughSteepness = new Float64Array(cells);
+		for (let cell = 0; cell < cells; cell += 1) if (roughness[cell] >= this.roughThreshold) roughSteepness[cell] = steepness[cell];
+		const cliffThreshold = positiveQuantile(landValues({ surface, radius, reliefRadius, values: roughSteepness, ranges: true }), CLIFFS.share * params.ruggedness * params.ruggedness);
+		this.cliffThreshold = cliffThreshold > CLIFFS.least ? cliffThreshold : CLIFFS.least;
 
+		if (badlands !== undefined && badlands.length !== cells) throw new RangeError(`TerrainFields: the badlands hold ${badlands.length} values, not the grid's ${cells}`);
 		const badlandsShare = BADLANDS.share * params.ruggedness * (0.3 + 0.7 * params.contamination);
-		this.badlandsGrid = new GridSampler({ grid, values: this.badlandsField({ steepness, share: badlandsShare, metroRadius }) });
+		this.badlandsCells = badlands ?? this.badlandsField({ steepness, share: badlandsShare, metroRadius });
+		this.badlandsGrid = new GridSampler({ grid, values: this.badlandsCells });
 
 		const townRing = { inner: blendRadius, outer: 0.9 * radius };
 		this.towns = placeTowns({
@@ -404,11 +431,20 @@ export class TerrainFields {
 		return square >= 0 && this.reachedSquares[square] === 1;
 	}
 
-	/** True on a cliff: grade `CLIFF_GRADE` or more, in rough country. Outside it, no elevation is read. */
+	/** True on a cliff: in rough country, where the averaged grade passes the cliff threshold. */
 	public cliff(x: number, y: number): boolean {
-		if (!this.rough(x, y)) return false;
-		this.land(x, y);
-		return this.slopeSquared() >= CLIFF_SLOPE_SQUARED;
+		return this.rough(x, y) && this.steepGrid.bilinear(x, y) >= this.cliffThreshold;
+	}
+
+	/**
+	 * How far into a cliff (x, y) lies, for drawing its edge: the lesser of
+	 * the roughness and the averaged grade over their thresholds, less 1. 0
+	 * or more on a cliff, give or take a rounding at the edge; less off one.
+	 */
+	public cliffDepth(x: number, y: number): number {
+		const rough = this.roughGrid.bilinear(x, y) / this.roughThreshold - 1;
+		const steep = this.steepGrid.bilinear(x, y) / this.cliffThreshold - 1;
+		return rough < steep ? rough : steep;
 	}
 
 	/** Rise over run at (x, y). */
@@ -446,8 +482,7 @@ export class TerrainFields {
 		out.mountains = scratch.mountains;
 		out.slopeX = scratch.slopeX;
 		out.slopeY = scratch.slopeY;
-		const slopeSquared = this.slopeSquared();
-		out.grade = sqrt(slopeSquared) * RELIEF;
+		out.grade = sqrt(this.slopeSquared()) * RELIEF;
 		out.moisture = this.moisture(x, y, water);
 		out.contamination = this.contamination(x, y);
 		out.badlands = this.badlandsGrid.bilinear(x, y);
@@ -461,7 +496,7 @@ export class TerrainFields {
 		}
 		const kind = water === null ? null : water.waterAt(x, y);
 		if (kind === 'lake' || (kind === 'river' && x * x + y * y > this.bridgedSquared)) out.obstacle = kind;
-		else out.obstacle = slopeSquared >= CLIFF_SLOPE_SQUARED && this.rough(x, y) ? 'cliff' : null;
+		else out.obstacle = this.cliff(x, y) ? 'cliff' : null;
 		return out;
 	}
 
@@ -479,8 +514,9 @@ export class TerrainFields {
 		if (parts) parts.bridge = 0;
 		const dx = x1 - x0;
 		const dy = y1 - y0;
+		if (dx === 0 && dy === 0) return 0;
 		const length = sqrt(dx * dx + dy * dy);
-		if (!(length > 0)) return 0;
+		if (!(length > 0 && length < Infinity)) return Infinity;
 		if (this.obstacle(x1, y1, water) !== null) return Infinity;
 		let bridge = 0;
 		const crossings = water === null ? 0 : water.riverCrossings(x0, y0, x1, y1);
@@ -504,25 +540,31 @@ export class TerrainFields {
 	}
 
 	/**
-	 * True when the point `along` (0 to 1) of the move from (x0, y0) to
-	 * (x1, y1) is on a bridge: over a river the move crosses with a bridge no
-	 * longer than `MOVE_COST.longestBridge`, within the bridge's span of
-	 * where it crosses, and `MOVE_COST.bridgeSlack` either side.
+	 * The stretches of the move from (x0, y0) to (x1, y1) on a bridge, into
+	 * `spans` as pairs of `along` (0 to 1), from then to: one for each river
+	 * the move crosses with a bridge no longer than `MOVE_COST.longestBridge`,
+	 * or any bridge in the metro, reaching the bridge's span either side of
+	 * where it crosses and `MOVE_COST.bridgeSlack` past that. Returns how many.
 	 */
-	public onBridge(x0: number, y0: number, x1: number, y1: number, along: number, water: WaterLayer | null): boolean {
-		if (water === null) return false;
+	public bridgeSpans(x0: number, y0: number, x1: number, y1: number, water: WaterLayer | null, spans: number[]): number {
+		if (water === null) return 0;
 		const dx = x1 - x0;
 		const dy = y1 - y0;
 		const length = sqrt(dx * dx + dy * dy);
+		if (!(length > 0)) return 0;
 		const crossings = water.riverCrossings(x0, y0, x1, y1);
+		let count = 0;
 		for (let index = 0; index < crossings; index += 1) {
-			const crossing = water.riverCrossing(index);
-			if (!(crossing.width <= MOVE_COST.longestBridge * crossing.sine)) continue;
-			const away = (along - crossing.along) * length;
-			const reach = 0.5 * crossing.width / crossing.sine + MOVE_COST.bridgeSlack;
-			if (away <= reach && away >= -reach) return true;
+			const { along, width, sine } = water.riverCrossing(index);
+			const cx = x0 + dx * along;
+			const cy = y0 + dy * along;
+			if (cx * cx + cy * cy > this.bridgedSquared && !(width <= MOVE_COST.longestBridge * sine)) continue;
+			const reach = (0.5 * width / sine + MOVE_COST.bridgeSlack) / length;
+			spans[2 * count] = along - reach;
+			spans[2 * count + 1] = along + reach;
+			count += 1;
 		}
-		return false;
+		return count;
 	}
 
 	/** The squared gradient the last `land` call left. */
@@ -799,6 +841,11 @@ export class Terrain {
 		return this.land.hotspots;
 	}
 
+	/** Badlands per land cell, 0 to 1, as `badlands` reads them bilinear: what a worker sends so the client needn't work them out again. */
+	public get badlandsCells(): Float32Array {
+		return this.land.badlandsCells;
+	}
+
 	/** The same land with water in its fields, what's impassable, and what a move costs. */
 	public withWater(water: WaterLayer): Terrain {
 		return new Terrain({ fields: this.land, water });
@@ -839,7 +886,7 @@ export class Terrain {
 		return this.land.biome(x, y, this.water);
 	}
 
-	/** Rise over run at (x, y); `CLIFF_GRADE` and up is a cliff in rough country. */
+	/** Rise over run at (x, y). */
 	public grade(x: number, y: number): number {
 		return this.land.grade(x, y);
 	}
@@ -852,6 +899,15 @@ export class Terrain {
 	 */
 	public rough(x: number, y: number): boolean {
 		return this.land.rough(x, y);
+	}
+
+	/**
+	 * How far into a cliff (x, y) lies, for drawing its edge: 0 or more on a
+	 * cliff, less off one. Cliffs are the steepest of the rough country by
+	 * the land grid's averaged grade, so a band, never a point's grade.
+	 */
+	public cliffDepth(x: number, y: number): number {
+		return this.land.cliffDepth(x, y);
 	}
 
 	/**
@@ -900,12 +956,12 @@ export class Terrain {
 	}
 
 	/**
-	 * True when the point `along` (0 to 1) of the move from (x0, y0) to
-	 * (x1, y1) is on a bridge over a river the move crosses: the river water
-	 * a road can drive over.
+	 * The stretches of the move from (x0, y0) to (x1, y1) on a bridge over a
+	 * river it crosses, into `spans` as pairs of `along` (0 to 1), from then
+	 * to: the river water a road can drive over. Returns how many.
 	 */
-	public onBridge(x0: number, y0: number, x1: number, y1: number, along: number): boolean {
-		return this.land.onBridge(x0, y0, x1, y1, along, this.water);
+	public bridgeSpans(x0: number, y0: number, x1: number, y1: number, spans: number[]): number {
+		return this.land.bridgeSpans(x0, y0, x1, y1, this.water, spans);
 	}
 
 	/** Everything at (x, y) into `out`, sharing the work between fields. Returns `out`. */
@@ -983,7 +1039,7 @@ function roughnessField({ surface, reliefRadius, noise }: { surface: LandSurface
  * ground; and, like the ranges, none in the metro, rising to full at the
  * relief radius.
  */
-function featureRoom({ surface, metroRadius, reliefRadius }: { surface: LandSurface; metroRadius: number; reliefRadius: number }): Float64Array {
+export function featureRoom({ surface, metroRadius, reliefRadius }: { surface: LandSurface; metroRadius: number; reliefRadius: number }): Float64Array {
 	const { grid, mountains } = surface;
 	const size = grid.size;
 	const metroSquared = metroRadius * metroRadius;
