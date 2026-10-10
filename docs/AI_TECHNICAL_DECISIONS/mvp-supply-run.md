@@ -69,7 +69,7 @@ None of these is in a spec.
 - A failed run ends the day too, unless it ends the campaign, so the compound between runs is always at dawn, and one run a day holds without a counter.
 - A fight under way isn't saved: quitting mid-fight resumes at the stop before it, and the fight replays from the same seed, raiders, shuffle, and opening hands alike.
 - The reward is one card of three, or none: rarities at Card System Design's drop rates, no card offered twice, never a signature card, order cards only while the convoy has an escort, and the same three after a reload.
-- Each destination yields food, water, fuel, and scrap from its tier's ranges, loaded into the cargo on reaching it, before the drive home, so a failed run would lose it. Tier 1 covers about a day's upkeep for the founding compound.
+- Each destination yields food, water, fuel, and scrap, loaded into the cargo on reaching it, before the drive home, so a failed run would lose it. The mock drew them from its tier's ranges; the area map's routes yield their POI type's (stops-and-routes.md, call 17), which superseded the ranges.
 - Abandoning a fight fails the run: the crew flees and goes missing, as a driver who crashes out with nobody to pick them up does, and the cargo and the escorts that came along are lost. It's behind a confirm on the combat menu.
 - The crew rule reads "at home" in DDB-432 #35 as ready: an injured driver doesn't count toward a pair until fit, so two ready drivers of one archetype go together, and a lone ready driver goes solo, while a third heals.
 - The quick load out seats the crew the rule allows, in pool order, on their default decks, and takes every escort, their cards to Driver 1.
@@ -77,7 +77,7 @@ None of these is in a spec.
 - The log says "Home from X with Y." on arrival, and names who died and who went missing when a run fails.
 - A load out left before its run set off is given up on Continue, its run decks unwound and saved, and the compound opens.
 - A quiet stretch is a stop where nothing happens, standing in for the stops that aren't fights.
-- Every day offers a tier 1 POI.
+- Every day offered a tier 1 POI; the area map superseded the day's offer: any known POI can be picked (area-map-route-pick.md, call 89).
 - The encounters: one Rust Buggy at one skull, two at two, and a Rust Buggy with a Spike Buggy at three.
 - Plan a supply run is off when nobody at the compound can go or no route is on offer, as well as on a run out or too little fuel.
 
