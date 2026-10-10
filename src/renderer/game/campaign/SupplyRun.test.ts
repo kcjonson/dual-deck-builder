@@ -152,11 +152,32 @@ describe('the routes on offer (DDB-479)', () => {
 });
 
 describe('the raider encounters', () => {
-	it('fields the combat screen\'s own Rust Buggy, one shared profile, refilling to 10 adrenaline a turn', () => {
+	it('fields the combat screen\'s own Rust Buggy, one shared profile, refilling to 5 adrenaline a turn against a pair', () => {
 		const [buggy] = encounterTeam({ encounter: 'scavengers', cards: CARDS }).vehicles;
 		expect([buggy.name, buggy.driver?.metadata.name, buggy.driver?.adrenaline, buggy.driver?.maxAdrenaline, buggy.raiderArchetype])
-			.toEqual(['Rust Buggy', 'Wasteland Raider', 3, 10, 'looter']);
-		expect(RAIDER_PROFILES.rust_buggy.maxAdrenaline).toBe(10);
+			.toEqual(['Rust Buggy', 'Wasteland Raider', 5, 5, 'looter']);
+		expect(RAIDER_PROFILES.rust_buggy.maxAdrenaline).toBe(5);
+	});
+
+	it('sizes the stop\'s raiders up against the seats as they\'ll open the fight', () => {
+		const campaign = newCampaign();
+		const { seats } = quickLoadOut({ campaign });
+		const firstFightIsLone = (route: RunRoute): boolean => {
+			const fight = routeStops(route).find(stop => stop.kind === 'fight');
+			return fight?.kind === 'fight' && ENCOUNTERS[encounterFor(fight.skulls)].raiders.length === 1;
+		};
+		const [route] = routesOnOffer({ map: MAP }).filter(firstFightIsLone).sort((a, b) => a.fuel - b.fuel);
+		if (!route) throw new Error('the map should offer a route whose first fight is a lone raider');
+		departRun({ campaign, map: MAP, route, escorts: [] });
+		toNextFight(campaign);
+		// Driver 1 limps in, so Driver 2's vehicle carries the most structure
+		seats[0].set({ vehicle: { ...seats[0].vehicle, structure: 1 } });
+
+		const fight = startStopFight({ campaign, cards: CARDS });
+
+		const raiders = fight.battle.enemyTeam.vehicles;
+		expect(raiders).toHaveLength(1);
+		expect(raiders[0].slot?.row).toBe(fight.vehicles[1].slot?.row);
 	});
 
 	it('rolls one encounter for each skull count', () => {
