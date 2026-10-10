@@ -37,10 +37,10 @@
 {"path":"compoundScreen/compound_body/compound_side/compound_needs_panel/compound_needs_scroll/compound_needs/compound_need_1/compound_need_1_text","text":"Water runs out in 2 days","rect":[708,169.7,280,17.7]},
 {"path":"compoundScreen/compound_body/compound_side/compound_needs_panel/compound_needs_scroll/compound_needs/compound_need_2/compound_need_2_text","text":"Mechanic 1 is injured, fit in 2 days","rect":[708,209.41,280,17.7]},
 {"path":"compoundScreen/compound_body/compound_side/compound_needs_panel/compound_needs_scroll/compound_needs/compound_rumors/compound_rumors_text","text":"Radio: no new rumors","rect":[708,249.11,280,17.7]},
-{"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_day_actions/compound_rest_button/Text[0]","text":"Rest a day","rect":[700,418.97,133,34]},
-{"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_day_actions/compound_scavenge_button/Text[0]","text":"Scavenge","rect":[863,418.97,133,34]},
-{"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_rest_line","text":"A run is out, and its return ends the day.","rect":[688,458.97,320,16.34]},
-{"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_scavenge_line","text":"A run is out, so no party goes until it's home.","rect":[688,481.32,320,16.34]},
+{"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_day_actions/compound_rest_button/Text[0]","text":"Rest a day","rect":[700,402.63,133,34]},
+{"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_day_actions/compound_scavenge_button/Text[0]","text":"Scavenge","rect":[863,402.63,133,34]},
+{"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_rest_line","text":"Ends day 9. The compound eats 5 food and 5 water.","rect":[688,442.63,320,16.34]},
+{"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_scavenge_line","text":"Scavenging ends it too, and brings back 2 fuel and 12 scrap.","rect":[688,464.97,320,32.68]},
 {"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_plan_button/Text[0]","text":"Plan a supply run","rect":[700,515.66,296,46]},
 {"path":"compoundScreen/compound_body/compound_side/compound_actions/compound_plan_reason","text":"Load out and the run route aren't built yet.","rect":[688,567.66,320,16.34]}
 ]
