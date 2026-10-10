@@ -1,6 +1,9 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Stack } from '../../../engine/components/Stack';
+import { Text } from '../../../engine/components/Text';
+import { Button } from '../../../engine/ui/Button';
+import { Dialog } from '../../../engine/ui/Dialog';
 import { RoadView, EnemyIntent } from './RoadView';
 import { PlayerHandLayer } from './PlayerHandLayer';
 import { LOG_KEY, TopBarLayer, WaveStatus } from './TopBarLayer';
@@ -30,6 +33,7 @@ import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
 import { Vehicle, createDrivenVehicle } from '../../mechanics/Vehicle';
 import { RoadLane, RoadRow } from '../../mechanics/Road';
 import { Team, TeamType } from '../../mechanics/Team';
+import { raiderVehicle } from '../../mechanics/Raiders';
 import { Battle, BattleState, BattleMessage, EnemyTurnStep, HitEvent } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { AimPreview, previewAim } from '../../mechanics/AimPreview';
@@ -71,6 +75,19 @@ export interface PreparedCombat {
 	fuel?: number;
 	/** Log lines after the matchup, oldest first; the last is the top bar's ticker. */
 	log?: readonly string[];
+	/**
+	 * What the fight's end hands the battle result screen, worked out when
+	 * the battle ends: a supply run's fight writes itself back here and
+	 * sends Continue back to the run. Left out, the result is the outcome
+	 * alone, and Continue goes to the menu.
+	 */
+	onEnded?: (event: { won: boolean }) => BattleResultData;
+	/**
+	 * A fight that can be given up: what giving it up costs, which the
+	 * menu's confirm says. The menu then offers "Abandon the run", which
+	 * ends the fight lost (`Battle.forfeit`). Left out, the menu stays off.
+	 */
+	abandonWarning?: string;
 }
 
 /** Mount data that prepares its own fight, awaited before the screen shows it. */
@@ -91,6 +108,9 @@ export interface DriversCombatMount {
 
 /** One wave until the game has reinforcements (Combat Rules: "once there is one"). */
 const SINGLE_WAVE: WaveStatus = { number: 1, total: 1, incoming: 0 };
+
+/** The battle result's line for a fight the crew gave up from the menu. */
+const ABANDONED_SUBTITLE = 'The crew abandoned the fight.';
 
 /**
  * The top bar's LOG key in either case, and F6, the log's key before the
@@ -142,6 +162,12 @@ export class CombatScreen extends Screen {
 	private fuel = 5;
 	private scrap = 150;
 	private wave: WaveStatus = SINGLE_WAVE;
+	/** The prepared fight's end hook, if it brought one. */
+	private onEnded: PreparedCombat['onEnded'] = undefined;
+	/** The menu's abandon confirm while it's open. */
+	private abandonDialog: Dialog | null = null;
+	/** The crew gave the fight up from the menu, so the result says so. */
+	private abandoned = false;
 	
 	// The player's drivers in seat order (Driver 1, Driver 2), fixed for the
 	// fight so a driver keeps their seat after riding on as a passenger
@@ -227,7 +253,7 @@ export class CombatScreen extends Screen {
 	}
 
 	/** Show a started battle: subscribe to it, announce the turn, log the matchup, and draw it. */
-	private beginCombat({ battle, wave = SINGLE_WAVE, scrap, fuel, log = [] }: PreparedCombat): void {
+	private beginCombat({ battle, wave = SINGLE_WAVE, scrap, fuel, log = [], onEnded, abandonWarning }: PreparedCombat): void {
 		// One seat, or two held to the same pair rule as the default fight
 		const drivers = battle.playerSeats;
 		assertDriverSeats(drivers);
@@ -237,6 +263,8 @@ export class CombatScreen extends Screen {
 		this.playerTeam = battle.playerTeam;
 		this.enemyTeam = battle.enemyTeam;
 		this.wave = wave;
+		this.onEnded = onEnded;
+		if (abandonWarning !== undefined) this.offerAbandon(abandonWarning);
 		if (scrap !== undefined) this.scrap = scrap;
 		if (fuel !== undefined) this.fuel = fuel;
 
@@ -250,6 +278,50 @@ export class CombatScreen extends Screen {
 		for (const message of log) this.combatLog.addEntry({ message, turn: battle.turn });
 
 		this.updateUIFromBattle();
+	}
+
+	/** Turns the menu on, for a fight that can be given up: it opens the confirm. */
+	private offerAbandon(warning: string): void {
+		const menu = this.topBar.menu;
+		menu.enabled = true;
+		menu.tooltip = 'Menu';
+		menu.onClick = () => this.confirmAbandon(warning);
+	}
+
+	/**
+	 * The menu's one action, behind a confirm: "Abandon the run" ends the
+	 * fight lost, and the fight's end hook settles it as a failed run.
+	 * "Keep fighting" has focus, so a stray Enter keeps the run.
+	 */
+	private confirmAbandon(warning: string): void {
+		const battle = this.battle;
+		if (!battle || battle.isBattleOver() || this.abandonDialog) return;
+		const keep = new Button({ label: 'Keep fighting', id: 'combat_abandon_cancel', width: 150, onClick: () => dialog.close() });
+		const abandon = new Button({
+			label: 'Abandon the run',
+			id: 'combat_abandon_confirm',
+			tone: 'crit',
+			width: 170,
+			onClick: () => {
+				dialog.close();
+				this.abandoned = true;
+				battle.forfeit();
+			},
+		});
+		const dialog: Dialog = new Dialog({
+			id: 'combat_abandon_dialog',
+			title: 'Abandon the run?',
+			kicker: 'Menu',
+			size: 'sm',
+			content: new Text({ text: warning, id: 'combat_abandon_body', widthMode: 'fill', style: { fontSize: 'fs_base', color: 'text' } }),
+			footer: [keep, abandon],
+			initialFocus: keep,
+			onClose: () => {
+				if (this.abandonDialog === dialog) this.abandonDialog = null;
+			},
+		});
+		this.abandonDialog = dialog;
+		dialog.show(this.context);
 	}
 
 	/**
@@ -282,13 +354,14 @@ export class CombatScreen extends Screen {
 
 		this.unsubscribers.push(
 			this.battle.on('battleEnded', (event: { won: boolean }) => {
-				// The battle logs its own end; navigate to battle result screen.
-				// Only the game's own screen does: the gallery mounts this one
-				// with no screen manager, and its fight just stays at its end
-				if (this.battle && ScreenManager.activeScreen === this) {
-					const resultData: BattleResultData = { victory: event.won };
-					ScreenManager.navigate('battleResultScreen', resultData);
-				}
+				// The battle logs its own end. A fight that brought an end hook
+				// settles itself here, then the result screen follows. Only the
+				// game's own screen navigates: the gallery mounts this one with
+				// no screen manager, and its fight just stays at its end
+				if (!this.battle) return;
+				const settled: BattleResultData = this.onEnded?.(event) ?? { victory: event.won };
+				const resultData = this.abandoned ? { ...settled, subtitle: ABANDONED_SUBTITLE } : settled;
+				if (ScreenManager.activeScreen === this) ScreenManager.navigate('battleResultScreen', resultData);
 			})
 		);
 
@@ -386,64 +459,13 @@ export class CombatScreen extends Screen {
 	}
 
 	/**
-	 * Create a test enemy team
+	 * The skirmish's raiders: one Rust Buggy, the profile a supply run's
+	 * encounters field too, inside center.
 	 */
 	private createTestEnemyTeam(): Team {
-		// Create enemy drivers with basic configs
-		const enemyDriver1 = new Driver({
-			archetype: 'mechanic', // Using mechanic archetype for enemy
-			metadata: {
-				name: 'Wasteland Raider',
-				vehicleName: 'Rust Buggy',
-				specialty: 'AGGRESSIVE',
-				flavorText: 'A dangerous raider',
-				unlocked: true
-			},
-			skills: {
-				ramming: 5,
-				gunnery: 6,
-				evade: 4,
-				speed: 2
-			},
-			vehicleStats: {
-				maxStructure: 30,
-				weight: 2,
-				armor: 5,
-				speed: 3,
-				gunnery: 6,
-				evade: 4
-			},
-			startingDeck: {
-				cards: [
-					{ type: 'ramming_speed', quantity: 2 },
-					{ type: 'precision_shot', quantity: 3 }
-				]
-			},
-			hitpoints: 30,
-			maxHitpoints: 30,
-			adrenaline: 3,
-			maxAdrenaline: 10,
-			// Not the Mechanic's: per-archetype limits mustn't change a raider's draws
-			handLimit: 7,
-			role: DriverRole.ACTIVE,
-			hand: [],
-			discard: [],
-			deck: null
-		});
-
-		// Create starting deck for enemy
-		const cardLoader = CardLoader.getInstance();
-		enemyDriver1.createStartingDeck(cardLoader.getAllCardsAsMap());
-
-		const enemyVehicle1 = createDrivenVehicle({ driver: enemyDriver1 });
-		enemyVehicle1.slot = { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER };
-		// A scavenger's buggy: it goes for your haulers (escorts.md decision 30)
-		enemyVehicle1.raiderArchetype = 'looter';
-
-		return new Team({
-			type: TeamType.ENEMY,
-			vehicles: [enemyVehicle1]
-		});
+		const buggy = raiderVehicle({ raider: 'rust_buggy', cards: CardLoader.getInstance().getAllCardsAsMap() });
+		buggy.slot = { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER };
+		return new Team({ type: TeamType.ENEMY, vehicles: [buggy] });
 	}
 
 	/**
@@ -1256,6 +1278,10 @@ export class CombatScreen extends Screen {
 	protected onUnmount(): void {
 		// A load still in flight for this mount stops when it lands
 		this.mountGeneration++;
+		this.abandonDialog?.close();
+		this.abandonDialog = null;
+		this.abandoned = false;
+		this.onEnded = undefined;
 
 		this.dragUnsubscribe?.();
 		this.dragUnsubscribe = null;

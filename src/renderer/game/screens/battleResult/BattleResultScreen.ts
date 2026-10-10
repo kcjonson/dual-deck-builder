@@ -1,5 +1,6 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
+import type { ScreenName } from '../../core/ScreenManager';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
@@ -7,12 +8,17 @@ import { Panel } from '../../../engine/ui/Panel';
 import { tokens } from '../../../engine/theme/tokens';
 
 /**
- * What the battle result screen shows: the outcome. Plain data, so the dev
- * navigate hook can pass exactly what the combat screen does. Statistics
- * (salvage, levels, turns) join it when the screen shows them.
+ * What the battle result screen shows: the outcome, and where Continue goes.
+ * The outcome alone is plain data, so the dev navigate hook can pass
+ * exactly what the combat screen does for a skirmish. Statistics (salvage,
+ * levels, turns) join it when the screen shows them.
  */
 export interface BattleResultData {
 	victory: boolean;
+	/** The line under the outcome, when the stock one is wrong: a fight given up wasn't lost to wrecks. */
+	subtitle?: string;
+	/** Where Continue goes, with what: a supply run's fight goes back to its run. The menu when left out. */
+	next?: { screen: ScreenName; data?: unknown };
 }
 
 const PANEL_WIDTH = 600;
@@ -28,6 +34,7 @@ function isBattleResultData(data: unknown): data is BattleResultData {
  */
 export class BattleResultScreen extends Screen {
 	private readonly stack: Stack;
+	private next: BattleResultData['next'] = undefined;
 
 	constructor() {
 		const root = new Stack({
@@ -48,6 +55,7 @@ export class BattleResultScreen extends Screen {
 			return;
 		}
 		const { victory } = data;
+		this.next = data.next;
 
 		const panel = new Panel({
 			id: 'result_panel',
@@ -71,7 +79,7 @@ export class BattleResultScreen extends Screen {
 			wrap: 'none',
 		}));
 		panel.addChild(new Text({
-			text: victory ? 'All enemies have been defeated!' : 'Your vehicles have been destroyed!',
+			text: data.subtitle ?? (victory ? 'All enemies have been defeated!' : 'Your vehicles have been destroyed!'),
 			id: 'result_subtitle',
 			style: {
 				fontSize: 'fs_lg',
@@ -88,7 +96,6 @@ export class BattleResultScreen extends Screen {
 			size: 'lg',
 			width: 200,
 			margin: { top: tokens.space.space_8 },
-			// TODO: Navigate to reward screen or map for victory, or retry options for defeat
 			onClick: () => this.continue(),
 		});
 		panel.addChild(continueButton);
@@ -101,10 +108,16 @@ export class BattleResultScreen extends Screen {
 	protected onUnmount(): void {
 		this.rootLayer.hotkeys.unregister('Escape');
 		this.stack.clearChildren();
+		this.next = undefined;
 	}
 
-	/** To the menu, focus back on Skirmish, which started the fight, so an Enter there doesn't found a campaign. */
+	/**
+	 * Where the fight said to go next, or to the menu, focus back on
+	 * Skirmish, which started the fight, so an Enter there doesn't found a
+	 * campaign.
+	 */
 	private continue(): void {
-		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
+		if (this.next) ScreenManager.navigate(this.next.screen, this.next.data);
+		else ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 	}
 }

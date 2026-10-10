@@ -369,10 +369,15 @@ function vehicleOf({ record, driver }: { record: DriverRecord; driver: Driver })
 	});
 }
 
-/** A driver still aboard is in the fight; one at 0 HP went down; one alive and not aboard crashed out of it. */
+/**
+ * A driver still aboard is in the fight; one at 0 HP went down; one alive
+ * and not aboard crashed out of it. A lost fight with a driver still aboard
+ * was abandoned (`Battle.forfeit`): they fled, so they're missing, as one
+ * who crashed out with nobody to pick them up is.
+ */
 function fateOf({ battle, driver, won }: { battle: Battle; driver: Driver; won: boolean }): Fate {
 	if (!driver.isAlive()) return won ? 'revived' : 'dead';
-	if (battle.playerTeam.isAboard(driver)) return 'aboard';
+	if (battle.playerTeam.isAboard(driver)) return won ? 'aboard' : 'missing';
 	return won ? 'picked_up' : 'missing';
 }
 

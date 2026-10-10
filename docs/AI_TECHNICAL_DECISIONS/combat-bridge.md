@@ -52,7 +52,7 @@ It throws, building nothing, while the campaign's last fight hasn't been written
 
 | Driver | Won | Lost, so the run fails |
 | --- | --- | --- |
-| Still in the fight | HP and vehicle written back | can't happen: a lost fight has nobody in it |
+| Still in the fight | HP and vehicle written back | missing: only a fight given up (`Battle.forfeit`, [mvp-supply-run.md](./mvp-supply-run.md)) is lost with a driver in it, and they fled |
 | At 0 HP | revived: REVIVE_HP, run deck untouched, vehicle written back | dead: status dead, 0 HP, and an empty default deck, in one `set` |
 | Crashed out | picked up: HP and vehicle written back | missing: status missing, HP and vehicle written back |
 
@@ -106,7 +106,7 @@ These unblock the build and aren't settled rules; the specs point here wherever 
 
 ## Consequences
 
-- The combat screen navigates to the battle result screen on every `battleEnded`, so it can't hand a campaign fight back to the run. The run controller (DDB-322) adds an end hook to `PreparedCombat`, and calls `writeBackFight` from it.
+- The combat screen navigated to the battle result screen on every `battleEnded`, so it couldn't hand a campaign fight back to the run. `PreparedCombat.onEnded` is that end hook now, and the MVP supply run calls `writeBackFight` from it ([mvp-supply-run.md](./mvp-supply-run.md)).
 - Escort signature cards are dealt from the run decks, each copy carrying `broughtBy`, its escort's `escort-<n>`, so it leaves the fight's decks when its escort is lost, and the write-back takes the run deck's card out too. The id outlives a load, so a run deck saved between fights keeps the card as its type and `broughtBy`, and the loaded escort still takes it out when it's lost. An escort joining mid-run (DDB-153) brings its card in with `Campaign.addEscortCards`.
 - The run controller (DDB-322) holds the `RunParty` and saves it with the run, as ids (The run party), its cargo, cards won, and the escorts that came along included, since a save between fights has to come back to the same run. It settles the run when it ends, after the last write-back: `Campaign.unloadRun` when it gets home, which unwinds the run decks and unloads the cargo, and `Campaign.loseRun` when it fails, which unwinds them and loses it ([cards-won.md](./cards-won.md)).
 - Coming home isn't a fight. Unloading the cargo, injuring a driver who comes home hurt, and counting `runsCompleted` are the return's, so the bridge never writes injured days.

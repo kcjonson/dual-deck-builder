@@ -5,6 +5,7 @@ import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore'
 import type { CheckpointResult } from '../../campaign/CampaignStore';
 import { endDay, forecastNeeds } from '../../campaign/DayClock';
 import { getScavengeBlocker, rollScavengeHaul, scavenge as sendScavengingParty } from '../../campaign/Scavenging';
+import { getPlanBlocker, routesOnOffer } from '../../campaign/SupplyRun';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
@@ -32,6 +33,7 @@ import {
 	scavengeRefusal,
 	scavengeReport,
 } from './compoundText';
+import { planRefusal } from '../run/runText';
 
 const { space } = tokens;
 const TOP_BAR_HEIGHT = 64;
@@ -41,7 +43,6 @@ const BUILDINGS_PER_ROW = 3;
 const BACK_WIDTH = 136;
 const AREA_MAP_WIDTH = 96;
 
-const PLAN_REASON = "Load out and the run route aren't built yet.";
 const NO_RUMORS = 'Radio: no new rumors';
 const NO_CAMPAIGN = 'Opens with a campaign in progress.';
 /**
@@ -74,20 +75,22 @@ export interface CompoundScreenOptions {
  * needs panel (food and water forecasts, injured drivers, rumors) over Rest
  * and Scavenge, side by side, and Plan a supply run.
  *
- * The bunkhouse opens the Crew screen with the campaign. Nothing behind the
- * other buildings, the Area map, or Plan a supply run exists yet, so each
- * is disabled with its reason as a line of text, as the main menu's
- * Continue is: a disabled control takes no focus or hover (R9.5), and a
- * tooltip needs one of them (R12.22). The Area map's reason is the Map
- * room's, on its tile, which leaves the top bar room for the stores. Rest
- * and Scavenge are live: each ends the day (`endDay`, `scavenge`) and
- * checkpoints the campaign, and each is disabled with its reason while a
- * run is out, Scavenge also once the campaign is over.
+ * The bunkhouse opens the Crew screen with the campaign, and Plan a supply
+ * run opens the route pick, disabled with its reason (`getPlanBlocker`)
+ * while a run is out, nobody can go, or there's too little fuel. Nothing
+ * behind the other buildings or the Area map exists yet, so each is
+ * disabled with its reason as a line of text, as the main menu's Continue
+ * is: a disabled control takes no focus or hover (R9.5), and a tooltip
+ * needs one of them (R12.22). The Area map's reason is the Map room's, on
+ * its tile, which leaves the top bar room for the stores. Rest and Scavenge
+ * are live: each ends the day (`endDay`, `scavenge`) and checkpoints the
+ * campaign, and each is disabled with its reason while a run is out,
+ * Scavenge also once the campaign is over.
  *
  * A day that loses the campaign goes to the defeat screen once its end is
  * saved (`DefeatScreen`), handed the campaign. A checkpoint that finds the
  * store has moved on from this instance strands the screen: it says nothing
- * more is saved here, and Rest, Scavenge, and the buildings turn off.
+ * more is saved here, and Rest, Scavenge, Plan, and the buildings turn off.
  *
  * Focus starts on Back to menu, not Rest or Scavenge, so a stray Enter
  * can't spend a day. The buildings are a focus group (R9.29), and so are
@@ -108,6 +111,8 @@ export class CompoundScreen extends Screen {
 	private restLine: Text | null = null;
 	private scavengeButton: Button | null = null;
 	private scavengeLine: Text | null = null;
+	private planButton: Button | null = null;
+	private planLine: Text | null = null;
 	private report: Text | null = null;
 	private saveError: Text | null = null;
 	private backButton: Button | null = null;
@@ -209,6 +214,8 @@ export class CompoundScreen extends Screen {
 		this.restLine = null;
 		this.scavengeButton = null;
 		this.scavengeLine = null;
+		this.planButton = null;
+		this.planLine = null;
 		this.report = null;
 		this.saveError = null;
 		this.liveBuildings.length = 0;
@@ -311,7 +318,7 @@ export class CompoundScreen extends Screen {
 		// Empty until there's a campaign whose day it can preview.
 		this.scavengeLine = dayLine({ id: 'compound_scavenge_line', text: '' });
 		actions.addChild(this.scavengeLine);
-		actions.addChild(new Button({
+		this.planButton = new Button({
 			label: 'Plan a supply run',
 			id: 'compound_plan_button',
 			tone: 'accent',
@@ -319,8 +326,11 @@ export class CompoundScreen extends Screen {
 			block: true,
 			disabled: true,
 			margin: { top: space.space_3 },
-		}));
-		actions.addChild(caption({ id: 'compound_plan_reason', text: PLAN_REASON }));
+			onClick: () => this.plan(),
+		});
+		actions.addChild(this.planButton);
+		this.planLine = caption({ id: 'compound_plan_reason', text: NO_CAMPAIGN });
+		actions.addChild(this.planLine);
 		side.addChild(actions);
 		return side;
 	}
@@ -392,7 +402,7 @@ export class CompoundScreen extends Screen {
 		if (this.halted !== null) return;
 		this.halted = 'stranded';
 		const focused = this.context.focus.focused;
-		const turnedOff = [this.restButton, this.scavengeButton, ...this.liveBuildings.map(({ button }) => button)];
+		const turnedOff = [this.restButton, this.scavengeButton, this.planButton, ...this.liveBuildings.map(({ button }) => button)];
 		for (const { button, waiting } of this.liveBuildings) {
 			button.enabled = false;
 			waiting.text = STRANDED_BUILDING;
@@ -427,6 +437,12 @@ export class CompoundScreen extends Screen {
 			// Rest's line says why both are off.
 			if (stranded) this.scavengeLine.text = '';
 			else this.scavengeLine.text = blocker === null ? scavengeCaption(rollScavengeHaul({ seed: campaign.seed, day })) : scavengeRefusal(blocker);
+		}
+		const plan = getPlanBlocker({ campaign });
+		if (this.planButton) this.planButton.enabled = plan === null && !stranded;
+		if (this.planLine) {
+			if (stranded) this.planLine.text = STRANDED_BUILDING;
+			else this.planLine.text = plan === null ? `${routesOnOffer({ campaign }).length} routes on offer today.` : planRefusal(plan);
 		}
 		const needs = this.needs;
 		if (!needs) return;
@@ -522,6 +538,13 @@ export class CompoundScreen extends Screen {
 	private open(building: Building): void {
 		if (!this.campaign || !building.screen || this.passingDay || this.halted !== null) return;
 		ScreenManager.navigate(building.screen, { campaign: this.campaign });
+	}
+
+	/** The route pick, handed the campaign; not while a day end is being saved, as a building waits. */
+	private plan(): void {
+		const campaign = this.campaign;
+		if (!campaign || this.passingDay || this.halted !== null || getPlanBlocker({ campaign }) !== null) return;
+		ScreenManager.navigate('routePickScreen', { campaign });
 	}
 
 	/** To the menu, focus back on the button that opened this screen. */

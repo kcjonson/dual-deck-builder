@@ -708,6 +708,7 @@ function fallenText(): string {
 		const drivers = json.drivers as Record<string, unknown>[];
 		json.runDecks = [];
 		json.foundOnRun = [];
+		json.supplyRun = null;
 		drivers[0] = { ...drivers[0], status: 'dead', hitpoints: 0 };
 		drivers[2] = { ...drivers[2], status: 'missing', injuredDays: 0 };
 		drivers[4] = { ...drivers[4], status: 'missing', defaultDeck: startingDeckCounts('interceptor') };

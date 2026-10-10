@@ -194,7 +194,7 @@ describe('ScreenManager.navigate', () => {
 	});
 
 	it('hands the restore to New Campaign when the save is gone by the time the menu checks, mid-fade', async () => {
-		localStorage.setItem(KEYS.slots.a, fixtureText());
+		localStorage.setItem(KEYS.slots.a, atHomeText());
 		localStorage.setItem(KEYS.active, 'a');
 		await openMenu();
 		advance(context, FADE_MS * 2);

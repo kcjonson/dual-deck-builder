@@ -21,6 +21,7 @@ import { MemorySaveStorage } from '../../campaign/SaveStorage';
 import {
 	FaultyStorage,
 	KEYS,
+	atHomeText,
 	damagedText,
 	fixtureText,
 	lostCampaign,
@@ -136,10 +137,10 @@ describe('MainMenuScreen', () => {
 		send(context, [key('Enter')]);
 	}
 
-	/** The compoundScreen navigation's campaign, failing when there was none. */
-	function openedCampaign(): Campaign {
-		const call = navigate.mock.calls.find(([name]) => name === 'compoundScreen');
-		if (!call) throw new Error('the compound screen should have been opened');
+	/** The campaign a navigation to `screen` handed over, failing when there was none. */
+	function openedCampaign(screen = 'compoundScreen'): Campaign {
+		const call = navigate.mock.calls.find(([name]) => name === screen);
+		if (!call) throw new Error(`${screen} should have been opened`);
 		return (call[1] as { campaign: Campaign }).campaign;
 	}
 
@@ -325,6 +326,23 @@ describe('MainMenuScreen', () => {
 		});
 	});
 
+	describe('continuing a campaign with no run on the road (DDB-454)', () => {
+		it('opens the compound for a campaign at home', async () => {
+			await open(storageWith(atHomeText()));
+			send(context, [key('ArrowDown'), key('Enter')]);
+			expect(openedCampaign().currentRun).toBeNull();
+		});
+
+		it('gives up a load out left before its run set off, and saves that, then opens the compound', async () => {
+			await open(storageWith(fixtureText(campaign => { campaign.supplyRun = null; })));
+			send(context, [key('ArrowDown'), key('Enter')]);
+			const campaign = openedCampaign();
+			expect(campaign.currentRun).toBeNull();
+			await flush();
+			expect((await store.load())?.runDecks).toEqual([]);
+		});
+	});
+
 	describe('with a campaign in progress', () => {
 		beforeEach(() => open(storageWith(fixtureText())));
 
@@ -333,13 +351,15 @@ describe('MainMenuScreen', () => {
 			expect(continueLine()).toBe('Day 9 - 3 drivers - 1 stronghold taken');
 		});
 
-		it('continues the loaded campaign from the keys, which the store then saves', async () => {
+		it("continues the loaded campaign from the keys on the road, at the run's saved step, which the store then saves (DDB-454)", async () => {
 			send(context, [key('ArrowDown')]);
 			expect(context.focus.focused?.id).toBe('main_menu_continue_button');
 			send(context, [key('Enter')]);
-			const campaign = openedCampaign();
+			const campaign = openedCampaign('runScreen');
 			const loaded = screen.save;
 			expect(loaded.kind === 'saved' && loaded.campaign).toBe(campaign);
+			expect(campaign.supplyRun?.phase).toBe('reward');
+			expect(navigate.mock.calls.some(([name]) => name === 'compoundScreen')).toBe(false);
 			expect(await store.checkpoint(campaign)).toBe('saved');
 		});
 
@@ -393,7 +413,8 @@ describe('MainMenuScreen', () => {
 
 		it('starts making the campaign\'s map again as it continues, from the attempts the save kept', () => {
 			clickOn('main_menu_continue_button');
-			const campaign = openedCampaign();
+			// The fixture's run is on the road, so Continue opens the run screen.
+			const campaign = openedCampaign('runScreen');
 			expect(regenerations).toEqual([{ params: campaign.mapParams, replay: { mapAttempt: campaign.mapAttempts?.map, attempts: campaign.mapAttempts?.stages } }]);
 		});
 

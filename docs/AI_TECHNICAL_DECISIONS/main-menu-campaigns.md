@@ -26,7 +26,7 @@ It asks first, in a modal dialog (R12.21) with Cancel focused, so a stray Enter 
 
 A campaign in progress goes into the history as `abandoned` through `end`, not `delete`. The history type already had the ending, and a campaign the player gave up is part of their record. The end comes before the new campaign's save, since saving a new campaign retires the old lineage and `end` would then refuse it. A storage failure between the two leaves the old campaign in the history and no save; the menu says why, reads the save again, and New Campaign can be tried again.
 
-Founding runs before either, after `DriverLoader` has loaded, on `freshSeed()`, as campaign-founding.md describes. A failure anywhere stays on the menu with the reason under New Campaign.
+Founding runs before either, after `DriverLoader` has loaded, on `freshSeed()`, generating the area map as campaign-founding.md describes, with its progress in the notice line between the title and New Campaign. Continue is disabled meanwhile, and leaving through any other button cancels it. A failure anywhere stays on the menu with the reason in that line.
 
 ## Campaign History
 
