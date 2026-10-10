@@ -4,8 +4,8 @@ import { DrainageRouter } from './Drainage';
  * Fluvial erosion on the land grid (Area Map Generation, Pipeline, 1.
  * Terrain): stream-power erosion solved implicitly, Braun and Willett's
  * method (2013), with m = 0.5 and n = 1, after a little hillslope
- * diffusion. Each iteration smooths hillslopes, routes drainage by priority
- * flood from the outlets, accumulates drainage area, and updates every cell
+ * diffusion. Each iteration smooths hillslopes, routes drainage to the
+ * outlets (Drainage.ts), accumulates drainage area, and updates every cell
  * downstream first, so its receiver's new height is known:
  *
  *   h = (h + dt U + F h_receiver) / (1 + F),  F = dt K sqrt(area) / distance
@@ -55,9 +55,15 @@ export function erode({ size, elevation, uplift, outlets, iterations, timeStep, 
 	for (let cell = 0; cell < cells; cell += 1) lift[cell] = timeStep * uplift[cell];
 	const isOutlet = new Uint8Array(cells);
 	for (let index = 0; index < outlets.length; index += 1) isOutlet[outlets[index]] = 1;
-	const laplacian = new Float64Array(cells);
+	// The rows either side of the one being smoothed, as they stood before it.
+	let previousRow = new Float64Array(size);
+	let currentRow = new Float64Array(size);
 	const straight = timeStep * erodibility;
 	const diagonal = straight / Math.SQRT2;
+	// dt K per unit of distance, by the step from a cell to its receiver, offset by size + 1.
+	const rates = new Float64Array(2 * size + 3);
+	for (const step of [-size - 1, -size + 1, size - 1, size + 1]) rates[step + size + 1] = diagonal;
+	for (const step of [-size, -1, 1, size]) rates[step + size + 1] = straight;
 	const sqrt = Math.sqrt;
 	const receivers = routing.receivers;
 	const order = routing.order;
@@ -66,27 +72,35 @@ export function erode({ size, elevation, uplift, outlets, iterations, timeStep, 
 	for (let iteration = 0; iteration < iterations; iteration += 1) {
 		// Diffusion first, so each iteration ends on stream power: smoothing
 		// a channel's banks into it would leave pits along it for the next
-		// iteration, and after the last there's no next.
-		if (diffusion > 0) {
+		// iteration, and after the last there's no next. The edge has no
+		// Laplacian and keeps its heights as they are, where adding it a
+		// Laplacian of 0 would turn a -0 into a 0; the land never holds a -0,
+		// so the two are the same bits.
+		if (diffusion > 0 && size > 2) {
+			previousRow.set(elevation.subarray(0, size));
 			for (let row = 1; row < size - 1; row += 1) {
+				const base = row * size;
+				currentRow.set(elevation.subarray(base, base + size));
 				for (let column = 1; column < size - 1; column += 1) {
-					const cell = row * size + column;
-					laplacian[cell] = elevation[cell - 1] + elevation[cell + 1] + elevation[cell - size] + elevation[cell + size] - 4 * elevation[cell];
+					const cell = base + column;
+					if (isOutlet[cell] === 1) continue;
+					const height = currentRow[column];
+					const laplacian = currentRow[column - 1] + currentRow[column + 1] + previousRow[column] + elevation[cell + size] - 4 * height;
+					elevation[cell] = height + diffusion * laplacian;
 				}
-			}
-			for (let cell = 0; cell < cells; cell += 1) {
-				if (isOutlet[cell] === 0) elevation[cell] += diffusion * laplacian[cell];
+				const swap = previousRow;
+				previousRow = currentRow;
+				currentRow = swap;
 			}
 		}
 		routing.route(elevation, outlets);
 		routing.accumulate();
+		const offset = size + 1;
 		for (let index = 0; index < cells; index += 1) {
 			const cell = order[index];
 			const receiver = receivers[cell];
 			if (receiver < 0) continue;
-			const step = cell - receiver;
-			const rate = step === 1 || step === -1 || step === size || step === -size ? straight : diagonal;
-			const flow = rate * sqrt(area[cell]);
+			const flow = rates[cell - receiver + offset] * sqrt(area[cell]);
 			elevation[cell] = (elevation[cell] + lift[cell] + flow * elevation[receiver]) / (1 + flow);
 		}
 	}
