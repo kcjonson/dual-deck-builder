@@ -853,7 +853,7 @@ export class AreaMapView extends Component {
 			const width = this.labelWidth(draw, label);
 			const clear = (candidate: LabelBox): boolean => width === 0 || (!overlapsAny(candidate, boxes) && !this.overlapsMarker(candidate, marker));
 			const box = this.besideBox({ x, y, radius, width, clear })
-				?? (marker.id === selectedId ? this.besideBox({ x, y, radius, width, clear: () => true }) : null);
+				?? (marker.id === selectedId ? this.besideBox({ x, y, radius, width, clear: () => true, anyway: true }) : null);
 			if (!box) continue;
 			boxes.push(box);
 			placed.push(label);
@@ -864,16 +864,18 @@ export class AreaMapView extends Component {
 
 	/**
 	 * A label's box beside a point: on its right, or its left where the
-	 * right runs past the view's edge or isn't `clear`; null when neither
-	 * side is clear. `width` is the text's, without the padding.
+	 * right would run past either edge of the view or isn't `clear`; null
+	 * when neither side fits and is clear, or, `anyway`, the right. `width`
+	 * is the text's, without the padding.
 	 */
-	private besideBox({ x, y, radius, width, clear }: { x: number; y: number; radius: number; width: number; clear: (box: LabelBox) => boolean }): LabelBox | null {
+	private besideBox({ x, y, radius, width, clear, anyway = false }: { x: number; y: number; radius: number; width: number; clear: (box: LabelBox) => boolean; anyway?: boolean }): LabelBox | null {
 		const boxWidth = width + LABEL.padX * 2;
 		const right = { x: x + radius + LABEL.gap, y: y - LABEL.height / 2, width: boxWidth, height: LABEL.height };
-		if (right.x + right.width <= this.width && clear(right)) return right;
+		const fits = (box: LabelBox) => box.x >= 0 && box.x + box.width <= this.width;
+		if (fits(right) && clear(right)) return right;
 		const left = { ...right, x: x - radius - LABEL.gap - boxWidth };
-		if (clear(left)) return left;
-		return null;
+		if (fits(left) && clear(left)) return left;
+		return anyway ? right : null;
 	}
 
 	/** The labels `planLabels` placed, over the markers. */
