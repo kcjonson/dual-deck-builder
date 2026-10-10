@@ -297,8 +297,22 @@ export class CompoundScreen extends Screen {
 		if (this.dayLabel) this.dayLabel.visible = true;
 		if (this.stores) this.stores.visible = true;
 		this.refresh();
-		// A save made the night the last people left has fallen already.
-		if (campaign.resources.people === 0) this.compoundFell();
+		// A save holding a campaign already over (another tab's, or a hand-made one) is ended in the store first.
+		if (campaign.isOver) void this.settleFall(campaign);
+	}
+
+	/**
+	 * A lost campaign's checkpoint, which ends it in the store (its history
+	 * line in, its save removed), then the notice. A checkpoint that fails
+	 * shows its reason under Rest, and Rest tries it again.
+	 */
+	private async settleFall(campaign: Campaign): Promise<void> {
+		const visit = this.visit;
+		this.resting = true;
+		const saved = await this.store.checkpoint(campaign);
+		if (visit !== this.visit) return;
+		this.resting = false;
+		if (saved) this.compoundFell();
 	}
 
 	/** Everything that reads the campaign, again. */
@@ -329,9 +343,12 @@ export class CompoundScreen extends Screen {
 	/**
 	 * Ends the day, then checkpoints. A second press while the checkpoint is
 	 * on its way does nothing, so the next step starts after it, as the store
-	 * asks. A save that fails says so under Rest (`onSaveFailed`), and a fall
-	 * whose save failed shows no notice: the save still holds the day before,
-	 * and Rest tries the save again without ending another day.
+	 * asks. A night that empties the compound ends the campaign, and its
+	 * checkpoint ends it in the store, writing the history line and removing
+	 * the save, before the notice opens. A save that fails says so under Rest
+	 * (`onSaveFailed`), and a fall whose checkpoint failed shows no notice:
+	 * the save still holds the day before, and Rest tries the checkpoint
+	 * again without ending another day.
 	 */
 	private async rest(): Promise<void> {
 		const campaign = this.campaign;
@@ -339,8 +356,7 @@ export class CompoundScreen extends Screen {
 		this.resting = true;
 		const visit = this.visit;
 		if (this.saveError) this.saveError.visible = false;
-		let fell = campaign.resources.people === 0;
-		if (!fell) {
+		if (!campaign.isOver) {
 			let dayEnd: DayEnd;
 			try {
 				dayEnd = endDay({ campaign });
@@ -353,12 +369,11 @@ export class CompoundScreen extends Screen {
 			this.refresh();
 			const report = dayEndReport(dayEnd);
 			this.showLine({ line: this.report, text: report.text, color: report.urgent ? 'status_warn' : 'text_dim' });
-			fell = dayEnd.outcome === 'abandoned';
 		}
 		const saved = await this.store.checkpoint(campaign);
 		if (visit !== this.visit) return;
 		this.resting = false;
-		if (saved && fell) this.compoundFell();
+		if (saved && campaign.isOver) this.compoundFell();
 	}
 
 	private showLine({ line, text, color }: { line: Text | null; text: string; color: ColorToken }): void {
@@ -370,8 +385,9 @@ export class CompoundScreen extends Screen {
 
 	/**
 	 * Nobody is left at the compound, and the campaign is lost. A stand-in
-	 * for the defeat screen (DDB-305), which replaces this method; it doesn't
-	 * end the campaign in the store. Whatever closes it goes to the menu.
+	 * for the defeat screen (DDB-305), which replaces this method; the
+	 * checkpoint before it has ended the campaign in the store. Whatever
+	 * closes it goes to the menu.
 	 */
 	private compoundFell(): void {
 		if (this.fallen || !this.campaign) return;

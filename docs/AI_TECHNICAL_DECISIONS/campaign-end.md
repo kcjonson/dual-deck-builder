@@ -104,9 +104,9 @@ Made here, each a line or a value to change:
 
 ## Consequences
 
-- The defeat screen replaces the compound screen's fallen notice, and reads `campaign.end` and `campaignStats`. `DayEnd.outcome` can go once the compound screen reads `campaign.isOver` instead.
+- The compound screen decides the fall from `campaign.isOver`, after the checkpoint that ends it in the store, so nothing in the game reads `DayEnd.outcome` any more, and it can go. The defeat screen replaces the screen's fallen notice, and reads `campaign.end` and `campaignStats`.
 - The run controller (DDB-322) calls `loseRun`, then `endDay` unless the campaign is over, then checkpoints, which ends a lost campaign in the store. Its debrief names who `unloadRun` brought home in `found`.
 - The Find: driver stop (DDB-279) calls `findMissingDriver` for a missing driver it turns up.
-- The Crew screen's reason text and any other screen that words a blocker take `campaign_over`.
+- The screens word `campaign_over` as "Campaign over" under a card (`cardBlockerReason`); any later screen that words a blocker takes it too.
 - Anything later that drops People (an event) has to end the campaign in its own `set` too, as `endDay` does.
 - Winning (DDB-307) adds `won` to the end, with a cause of its own, and a save bump.
