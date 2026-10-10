@@ -18,6 +18,7 @@ import type { CampaignStore } from '../../campaign/CampaignStore';
 import { MemorySaveStorage } from '../../campaign/SaveStorage';
 import { rollScavengeHaul, scavengeMessage } from '../../campaign/Scavenging';
 import { routesOnOffer } from '../../campaign/SupplyRun';
+import { TestMaps, meshPlanningMap, testMaps } from '../area-map/testing';
 import {
 	CAMPAIGN_FIXTURE, FaultyStorage, KEYS, damagedText, fixtureText, newCampaign, quotaError, saveText, storageWith, storeOver
 } from '../../campaign/__fixtures__/storeFixtures';
@@ -33,6 +34,9 @@ const TO_MENU = ['mainMenuScreen', undefined, { restoreFocus: true }];
 /** Past the window in which a press right after a day ended counts as the same click (the screen's 300 ms). */
 const NEXT_PRESS_MS = 320;
 
+/** The campaign's area map in these tests, made once: a mesh with POIs and routes. */
+const MAP = meshPlanningMap();
+
 type Fixture = Record<string, unknown> & { resources: Record<string, number>; drivers: { status: string; injuredDays: number }[] };
 
 describe('CompoundScreen', () => {
@@ -41,6 +45,8 @@ describe('CompoundScreen', () => {
 	let screen: CompoundScreen;
 	let store: CampaignStore;
 	let storage: FaultyStorage;
+	/** The campaign's area map, which Plan a supply run reads: a mesh with routes, handed over a task later. */
+	let planning: TestMaps;
 
 	/** Mounts the screen over the fixture home from its run, its stores changed if asked, and waits for it to load. */
 	async function open(resources: Partial<Resources> = {}): Promise<void> {
@@ -57,7 +63,7 @@ describe('CompoundScreen', () => {
 		storage = storageWith(text);
 		storage.fault = fault;
 		store = storeOver(storage);
-		screen = new CompoundScreen({ store });
+		screen = new CompoundScreen({ store, maps: planning.maps });
 		screen.mount(context);
 		await screen.campaignLoaded;
 		context.frame.layout();
@@ -140,6 +146,7 @@ describe('CompoundScreen', () => {
 		navigate.mockClear();
 		viewport.logical = { width: 1440, height: 882 };
 		context = createTestContext({ viewport, clock: new Clock() });
+		planning = testMaps(MAP);
 	});
 
 	afterEach(() => {
@@ -170,7 +177,7 @@ describe('CompoundScreen', () => {
 			expect(find<Text>('compound_building_bunkhouse_reason').visible).toBe(false);
 			// The Map room's tile carries the Area map's reason.
 			expect(find<Button>('compound_area_map_button').enabled).toBe(false);
-			expect(text('compound_building_map_room_reason')).toBe("The area map isn't built yet.");
+			expect(text('compound_building_map_room_reason')).toBe('For now Plan a supply run opens the area map.');
 			expect(find<Button>('compound_rest_button').enabled).toBe(true);
 			expect(find<Button>('compound_scavenge_button').enabled).toBe(true);
 		});
@@ -362,19 +369,53 @@ describe('CompoundScreen', () => {
 		expect([saved?.day, saved?.resources.fuel]).toEqual([11, 6 + first.fuel + second.fuel]);
 	});
 
-	describe('Plan a supply run (DDB-454)', () => {
-		it('opens the route pick with the campaign, saying how many routes today offers', async () => {
+	describe('Plan a supply run (DDB-454, DDB-43)', () => {
+		it('opens the area map with the campaign, saying how many destinations it has', async () => {
 			await open();
 			const campaign = screen.shown as Campaign;
+			const destinations = new Set(routesOnOffer({ map: MAP }).map((route) => route.destination.id)).size;
 			expect(find<Button>('compound_plan_button').enabled).toBe(true);
-			expect(text('compound_plan_reason')).toBe(`${routesOnOffer({ campaign }).length} routes on offer today.`);
+			expect(text('compound_plan_reason')).toBe(`${destinations} destinations on the area map.`);
 			find<Button>('compound_plan_button').onClick?.({} as never);
-			expect(navigate).toHaveBeenLastCalledWith('routePickScreen', { campaign });
+			expect(navigate).toHaveBeenLastCalledWith('areaMapScreen', { campaign });
+		});
+
+		it('waits for the campaign\'s map with Plan off, saying how far it\'s got, and asks once', async () => {
+			planning = testMaps(MAP, { held: true });
+			storage = storageWith(homeText({}));
+			store = storeOver(storage);
+			screen = new CompoundScreen({ store, maps: planning.maps });
+			screen.mount(context);
+			await flush();
+			expect(find<Button>('compound_plan_button').enabled).toBe(false);
+			expect(text('compound_plan_reason')).toBe('Making the area map: roads (3 of 6)');
+			find<Button>('compound_plan_button').onClick?.({} as never);
+			expect(navigate).not.toHaveBeenCalledWith('areaMapScreen', expect.anything());
+
+			await planning.finish();
+			expect(find<Button>('compound_plan_button').enabled).toBe(true);
+			expect(planning.asked()).toBe(1);
+
+			// Back again with the same campaign, the map is there at once
+			const campaign = screen.shown as Campaign;
+			screen.unmount();
+			screen = new CompoundScreen({ store, maps: planning.maps });
+			screen.mount(context, { campaign });
+			expect(find<Button>('compound_plan_button').enabled).toBe(true);
+			expect(planning.asked()).toBe(1);
+		});
+
+		it('says so, with Plan off, when the map couldn\'t be made', async () => {
+			jest.spyOn(console, 'error').mockImplementation(() => undefined);
+			planning = testMaps(MAP, { error: new Error('no attempts') });
+			await open();
+			expect(find<Button>('compound_plan_button').enabled).toBe(false);
+			expect(text('compound_plan_reason')).toBe("The area map couldn't be made, so no run can be planned.");
 		});
 
 		it.each([
 			['a run out', () => openRunOut(), 'A run is out. Continue from the menu drives it on.'],
-			['too little fuel for any route', () => open({ fuel: 0 }), /^Today's cheapest route takes \d fuel, and the stores hold 0\.$/],
+			['too little fuel for any route', () => open({ fuel: 0 }), /^The cheapest route on the area map takes \d fuel, and the stores hold 0\.$/],
 			['nobody to send', () => openText(homeText({}, null, (campaign) => [campaign.drivers[0], campaign.drivers[4]].forEach((driver) => driver.set({ status: 'injured', injuredDays: 1, hitpoints: 20 })))),
 				'Nobody at the compound is fit to go out.'],
 		])('is off with its reason with %s, and does nothing', async (_name, mount, reason) => {
@@ -382,7 +423,7 @@ describe('CompoundScreen', () => {
 			expect(find<Button>('compound_plan_button').enabled).toBe(false);
 			expect(text('compound_plan_reason')).toMatch(reason);
 			find<Button>('compound_plan_button').onClick?.({} as never);
-			expect(navigate).not.toHaveBeenCalledWith('routePickScreen', expect.anything());
+			expect(navigate).not.toHaveBeenCalledWith('areaMapScreen', expect.anything());
 		});
 	});
 
@@ -488,7 +529,7 @@ describe('CompoundScreen', () => {
 			navigate.mockClear();
 
 			// Handed back the campaign whose end is already in the history, as a screen left open could hand it
-			screen = new CompoundScreen({ store });
+			screen = new CompoundScreen({ store, maps: planning.maps });
 			screen.mount(context, { campaign: lost });
 			await flush();
 
@@ -594,7 +635,7 @@ describe('CompoundScreen', () => {
 			store = storeOver(new MemorySaveStorage());
 			const campaign = newCampaign();
 			campaign.set({ resources: { ...campaign.resources, people: 12, food: 21, water: 21 } });
-			screen = new CompoundScreen({ store });
+			screen = new CompoundScreen({ store, maps: planning.maps });
 			screen.mount(context, { campaign });
 			expect(screen.shown).toBe(campaign);
 			expect(text('compound_day')).toBe('Day 1 / dawn');
@@ -603,7 +644,7 @@ describe('CompoundScreen', () => {
 
 		it('says why Rest is disabled when there is no save, or it is damaged', async () => {
 			store = storeOver(new MemorySaveStorage());
-			screen = new CompoundScreen({ store });
+			screen = new CompoundScreen({ store, maps: planning.maps });
 			screen.mount(context);
 			await screen.campaignLoaded;
 			expect(find<Button>('compound_rest_button').enabled).toBe(false);
@@ -618,7 +659,7 @@ describe('CompoundScreen', () => {
 			screen.unmount();
 
 			store = storeOver(storageWith(damagedText()));
-			screen = new CompoundScreen({ store });
+			screen = new CompoundScreen({ store, maps: planning.maps });
 			screen.mount(context);
 			await screen.campaignLoaded;
 			expect(text('compound_rest_line')).toBe("The saved campaign is damaged and can't be loaded. It's been kept.");
@@ -697,7 +738,7 @@ describe('CompoundScreen', () => {
 	it('lays out with no lint at 1024x600 with no campaign to show', async () => {
 		viewport.logical = { width: 1024, height: 600 };
 		context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
-		screen = new CompoundScreen({ store: storeOver(new MemorySaveStorage()) });
+		screen = new CompoundScreen({ store: storeOver(new MemorySaveStorage()), maps: planning.maps });
 		screen.mount(context);
 		await screen.campaignLoaded;
 		context.frame.layout();

@@ -32,7 +32,7 @@ type FailedStopFight = Extract<StopFightResult, { outcome: 'run_failed' }>;
 
 /**
  * What opens the run screen: the campaign with its run on the road, from the
- * route pick or Continue, or a run its last fight failed, handed back by the
+ * run route screen or Continue, or a run its last fight failed, handed back by the
  * battle result with the route and stop it failed at, and the checkpoint of
  * the step that brought it here, if one is still landing.
  */

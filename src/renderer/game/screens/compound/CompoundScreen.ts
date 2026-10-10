@@ -6,6 +6,8 @@ import type { CheckpointResult } from '../../campaign/CampaignStore';
 import { endDay, forecastNeeds } from '../../campaign/DayClock';
 import { getScavengeBlocker, rollScavengeHaul, scavenge as sendScavengingParty } from '../../campaign/Scavenging';
 import { getPlanBlocker, routesOnOffer } from '../../campaign/SupplyRun';
+import { PlanningMap, PlanningMaps } from '../area-map/planningMap';
+import { mapProgressText } from '../main-menu/campaignText';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
@@ -66,6 +68,8 @@ export interface CompoundScreenData {
 export interface CompoundScreenOptions {
 	/** Where the campaign is saved, and loaded from when none is handed over. Default: the game's shared store. */
 	store?: CampaignStore;
+	/** Where the campaign's area map comes from, for Plan a supply run. Default: the session's (`PlanningMaps.shared`). */
+	maps?: PlanningMaps;
 }
 
 /**
@@ -76,8 +80,10 @@ export interface CompoundScreenOptions {
  * and Scavenge, side by side, and Plan a supply run.
  *
  * The bunkhouse opens the Crew screen with the campaign, and Plan a supply
- * run opens the route pick, disabled with its reason (`getPlanBlocker`)
- * while a run is out, nobody can go, or there's too little fuel. Nothing
+ * run opens the area map, disabled with its reason (`getPlanBlocker`)
+ * while a run is out, nobody can go, or there's too little fuel for the
+ * map's cheapest route. Those read the campaign's map, made again on
+ * Continue, so Plan waits for it, saying how far it's got. Nothing
  * behind the other buildings or the Area map exists yet, so each is
  * disabled with its reason as a line of text, as the main menu's Continue
  * is: a disabled control takes no focus or hover (R9.5), and a tooltip
@@ -101,7 +107,12 @@ export interface CompoundScreenOptions {
 export class CompoundScreen extends Screen {
 	private readonly stack: Stack;
 	private readonly store: CampaignStore;
+	private readonly maps: PlanningMaps;
 	private campaign: Campaign | null = null;
+	/** The campaign's area map once it's in, which Plan a supply run reads. */
+	private map: PlanningMap | null = null;
+	/** What Plan's line says while there's no map: how far it's got, or why it couldn't be made. */
+	private mapWait = 'Making the area map.';
 	private dayLabel: Text | null = null;
 	private stores: Stack | null = null;
 	private readonly resources = new Map<keyof Resources, Text>();
@@ -132,8 +143,10 @@ export class CompoundScreen extends Screen {
 	/** Counts mounts and unmounts, so an answer that arrives after the screen has gone changes nothing. */
 	private visit = 0;
 	private loaded: Promise<void> = Promise.resolve();
+	/** Settles once the campaign's map is in, or couldn't be made. */
+	private mapLoaded: Promise<void> = Promise.resolve();
 
-	constructor({ store = CampaignStore.shared }: CompoundScreenOptions = {}) {
+	constructor({ store = CampaignStore.shared, maps = PlanningMaps.shared }: CompoundScreenOptions = {}) {
 		const root = new Stack({
 			id: 'compoundScreen',
 			widthMode: 'fill',
@@ -144,6 +157,7 @@ export class CompoundScreen extends Screen {
 		super('compoundScreen', { root });
 		this.stack = root;
 		this.store = store;
+		this.maps = maps;
 	}
 
 	/** The campaign on show, once there is one. */
@@ -151,7 +165,7 @@ export class CompoundScreen extends Screen {
 		return this.campaign;
 	}
 
-	/** Settles once a save loaded on mount has been shown. */
+	/** Settles once a save loaded on mount, or the campaign handed over, has been shown with its area map, or the map couldn't be made. */
 	public get campaignLoaded(): Promise<void> {
 		return this.loaded;
 	}
@@ -191,8 +205,12 @@ export class CompoundScreen extends Screen {
 		this.context.focus.focus(back);
 
 		const handed = (data as Partial<CompoundScreenData> | undefined)?.campaign;
-		if (handed) this.show(handed);
-		else this.loaded = this.loadSave();
+		if (handed) {
+			this.show(handed);
+			this.loaded = this.mapLoaded;
+		} else {
+			this.loaded = this.loadSave();
+		}
 	}
 
 	protected onUnmount(): void {
@@ -205,6 +223,8 @@ export class CompoundScreen extends Screen {
 		this.backButton = null;
 		this.stack.clearChildren();
 		this.campaign = null;
+		this.map = null;
+		this.mapWait = 'Making the area map.';
 		this.dayLabel = null;
 		this.stores = null;
 		this.resources.clear();
@@ -346,7 +366,10 @@ export class CompoundScreen extends Screen {
 			trouble = error instanceof CampaignStoreError ? error.message : "The saved campaign couldn't be read.";
 		}
 		if (visit !== this.visit) return;
-		if (campaign) this.show(campaign);
+		if (campaign) {
+			this.show(campaign);
+			await this.mapLoaded;
+		}
 		else if (this.restLine) {
 			this.restLine.text = trouble;
 			this.restLine.color = 'status_warn';
@@ -361,9 +384,31 @@ export class CompoundScreen extends Screen {
 		}
 		if (this.dayLabel) this.dayLabel.visible = true;
 		if (this.stores) this.stores.visible = true;
+		this.map = this.maps.known(campaign);
 		this.refresh();
 		// A save holding a campaign already over (another tab's, or a hand-made one) is ended in the store first.
 		if (campaign.isOver) void this.settleFall(campaign);
+		else if (!this.map) this.mapLoaded = this.loadMap(campaign);
+	}
+
+	/** The campaign's area map, for Plan, saying how far it's got on Plan's line until it's in. */
+	private async loadMap(campaign: Campaign): Promise<void> {
+		const visit = this.visit;
+		const waiting = (text: string) => {
+			if (visit !== this.visit) return;
+			this.mapWait = text;
+			this.refresh();
+		};
+		try {
+			const map = await this.maps.load(campaign, { onProgress: (progress) => waiting(mapProgressText(progress)) });
+			if (visit !== this.visit || this.campaign !== campaign) return;
+			this.map = map;
+			this.refresh();
+		} catch (error) {
+			if (visit !== this.visit) return;
+			console.error('CompoundScreen: the area map could not be made', error);
+			waiting("The area map couldn't be made, so no run can be planned.");
+		}
 	}
 
 	/**
@@ -438,11 +483,13 @@ export class CompoundScreen extends Screen {
 			if (stranded) this.scavengeLine.text = '';
 			else this.scavengeLine.text = blocker === null ? scavengeCaption(rollScavengeHaul({ seed: campaign.seed, day })) : scavengeRefusal(blocker);
 		}
-		const plan = getPlanBlocker({ campaign });
-		if (this.planButton) this.planButton.enabled = plan === null && !stranded;
+		const map = this.map;
+		const plan = map ? getPlanBlocker({ campaign, map }) : null;
+		if (this.planButton) this.planButton.enabled = map !== null && plan === null && !stranded;
 		if (this.planLine) {
 			if (stranded) this.planLine.text = STRANDED_BUILDING;
-			else this.planLine.text = plan === null ? `${routesOnOffer({ campaign }).length} routes on offer today.` : planRefusal(plan);
+			else if (!map) this.planLine.text = this.mapWait;
+			else this.planLine.text = plan === null ? destinationsText(map) : planRefusal(plan);
 		}
 		const needs = this.needs;
 		if (!needs) return;
@@ -540,11 +587,11 @@ export class CompoundScreen extends Screen {
 		ScreenManager.navigate(building.screen, { campaign: this.campaign });
 	}
 
-	/** The route pick, handed the campaign; not while a day end is being saved, as a building waits. */
+	/** The area map, handed the campaign; not while a day end is being saved, as a building waits. */
 	private plan(): void {
-		const campaign = this.campaign;
-		if (!campaign || this.passingDay || this.halted !== null || getPlanBlocker({ campaign }) !== null) return;
-		ScreenManager.navigate('routePickScreen', { campaign });
+		const { campaign, map } = this;
+		if (!campaign || !map || this.passingDay || this.halted !== null || getPlanBlocker({ campaign, map }) !== null) return;
+		ScreenManager.navigate('areaMapScreen', { campaign });
 	}
 
 	/** To the menu, focus back on the button that opened this screen. */
@@ -627,6 +674,12 @@ function buildingTile({ building, open, live }: { building: Building; open: (bui
 	foot.addChild(button);
 	tile.addChild(foot);
 	return tile;
+}
+
+/** Plan's line when a run can go: "31 destinations on the area map." */
+function destinationsText(map: PlanningMap): string {
+	const destinations = new Set(routesOnOffer({ map }).map((route) => route.destination.id)).size;
+	return `${destinations} destination${destinations === 1 ? '' : 's'} on the area map.`;
 }
 
 function caption({ id, text, color = 'text_dim' }: { id: string; text: string; color?: ColorToken }): Text {
