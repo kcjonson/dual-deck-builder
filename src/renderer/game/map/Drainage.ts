@@ -25,15 +25,17 @@
  * - Spills: neighbouring cells in two basins make a pass at the higher of
  *   the two. A pit's spill is the lowest, over every way to the ocean, of
  *   the highest pass on the way: a widest-path Dijkstra over the basins.
- * - The flood: over each pit's cells below its spill and a band, from the
- *   cells round them, which stand at their heights. A heap holds the cells
- *   reached at their own heights and a FIFO those reached under water, one
- *   rise above the level just settled, so its levels never fall, and cells
- *   leave the two in level order.
- * - The check: the cells round the flood keep their heights only if no
- *   level beside them now raises one. One does only for a lake too wide for
- *   the band, and then the flood runs again over the pits' whole basins,
- *   which hold all the water there is.
+ * - The flood: over each pit's cells under its limit, its spill and a band,
+ *   from the cells round them, which stand at their heights and offer
+ *   nothing over a candidate's limit. A heap holds the cells reached at their
+ *   own heights and a FIFO those reached under water, one rise above the
+ *   level just settled, so its levels never fall, and cells leave the two in
+ *   level order.
+ * - The check: every level settles under its limit, so nothing left out
+ *   could have lowered it, and the cells round the flood keep their heights
+ *   only if no level beside them now raises one. Only a lake too wide for
+ *   the band fails, and then the flood runs again over the pits' whole
+ *   basins, which hold all the water there is, leaving nothing out.
  * - Receivers: the local ones, except in and beside the flood, where it's
  *   the steepest fall on the levels. A cell standing at its height whose
  *   local receiver does too drains to that same neighbour on the levels.
