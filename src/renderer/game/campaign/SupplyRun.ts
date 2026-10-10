@@ -8,7 +8,7 @@ import { Campaign, NO_RESOURCES, RESOURCE_NAMES, Resources, UnloadedCargo, resou
 import { CampaignEnd, refuseOver, refuseOverBlocker } from './CampaignEnd';
 import { CardCounts, NO_CARDS } from './CardCounts';
 import { addCardsWon } from './CardsWon';
-import { CampaignFight, FailedRun, RunParty, WonFight, startCampaignFight, writeBackFight } from './CombatBridge';
+import { CampaignFight, FailedRun, RunParty, WonFight, openingStructure, startCampaignFight, writeBackFight } from './CombatBridge';
 import { DayEnd, endDay } from './DayClock';
 import { cardName } from './DeckRules';
 import type { DriverRecord } from './DriverRecord';
@@ -230,17 +230,19 @@ export interface StopFightOptions {
 /**
  * The fight at the run's stop, started through the combat bridge on the
  * run's stream for that stop, `fork('fight', stop)` off the run's own
- * (`runStream`). Nothing is saved: a load finds the run driving to this
- * stop, and the fight replays from the same stream. Throws unless the run
- * is driving to a fight, and as `startCampaignFight` does.
+ * (`runStream`). The encounter's raiders size up the seats as they'll
+ * open the fight (`encounterTeam`). Nothing is saved: a load finds the run
+ * driving to this stop, and the fight replays from the same stream. Throws
+ * unless the run is driving to a fight, and as `startCampaignFight` does.
  */
 export function startStopFight({ campaign, cards, raiders, enemyAI }: StopFightOptions): CampaignFight {
 	const run = drivingTo({ campaign, kind: 'fight' });
 	const encounter = encounterFor((currentStop(run) as Extract<RouteStop, { kind: 'fight' }>).skulls);
-	const enemyTeam = raiders ? raiders(encounter) : encounterTeam({ encounter, cards });
+	const party = runParty({ campaign });
+	const enemyTeam = raiders ? raiders(encounter) : encounterTeam({ encounter, cards, crewStructure: party.seats.map(openingStructure) });
 	return startCampaignFight({
 		campaign,
-		party: runParty({ campaign }),
+		party,
 		enemyTeam,
 		rng: runStream({ campaign }).fork('fight', run.stop),
 		cards,

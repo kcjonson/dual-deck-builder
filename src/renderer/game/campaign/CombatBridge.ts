@@ -361,12 +361,16 @@ function combatDriverOf({ record, runDeck, cards }: { record: DriverRecord; runD
  * saved lowers them, and the next write-back stores the clamped values.
  */
 function vehicleOf({ record, driver }: { record: DriverRecord; driver: Driver }): Vehicle {
-	const { maxStructure, armor: maxArmor } = driver.vehicleStats;
 	return createDrivenVehicle({
 		driver,
-		structure: Math.min(record.vehicle.structure, maxStructure),
-		armor: Math.min(record.vehicle.armor, maxArmor)
+		structure: openingStructure(record),
+		armor: Math.min(record.vehicle.armor, driver.vehicleStats.armor)
 	});
+}
+
+/** The structure a seat's vehicle opens its next fight with: the record's, clamped to the archetype's maximum as it stands now. */
+export function openingStructure(record: DriverRecord): number {
+	return Math.min(record.vehicle.structure, DRIVER_CONFIGS[record.archetype].vehicleStats.maxStructure);
 }
 
 /**
