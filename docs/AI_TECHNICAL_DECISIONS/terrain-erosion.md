@@ -6,7 +6,7 @@ Date: 2026-10-09. Code: `src/renderer/game/map/` (`LandGrid.ts`, `Uplift.ts`, `D
 
 Realistic-map decision 1 picked the method: an uplift field cut down by stream-power erosion, so ranges, valleys, and a drainage network that runs downhill everywhere come out of one process. Its offline prototype showed the look and gave the numbers. This stage builds it in the game: the land on a grid a fifth wider than the disc, outlets on the grid's edge, dry terraces, elevation sampled bicubic, and the drainage kept as plain data for the water stage (Map 5, DDB-289).
 
-The constraints were the spec's. The land is regenerated on load rather than saved, so it has to come out to the same bits in every engine, which rules out `Math.sin`, `exp`, `pow`, `hypot`, and `**` anywhere a value branches or feeds the grid. The `Terrain` interface (`sample`, `elevation`, `slope`, `obstacle`, `travelCost`) keeps its shape, since road growth, its checks, and the area map's bake all read it. And the grid stages share a budget of 1 second on a mid-range laptop, against the prototype's 460 to 550 ms for erosion alone.
+The constraints were the spec's. The land is regenerated on load rather than saved, so it has to come out to the same bits in every engine, which rules out `Math.sin`, `exp`, `pow`, `hypot`, and `**` anywhere a value branches or feeds the grid. The `Terrain` interface (`sample`, `elevation`, `slope`, `obstacle`, and then `travelCost`, which the water stage replaced with `moveCost`) keeps its shape, since road growth, its checks, and the area map's bake all read it. And the grid stages share a budget of 1 second on a mid-range laptop, against the prototype's 460 to 550 ms for erosion alone.
 
 ## The grid
 

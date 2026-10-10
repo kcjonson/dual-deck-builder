@@ -829,10 +829,10 @@ class RoadGrower {
 
 	/**
 	 * How much of the way ahead along (dx, dy) is rough country or crater, 0
-	 * to 1: lattice lookups and crater circles at `SCORE.roughSamples` points,
-	 * the nearest weighted most, so a road starts round an island of cliff
-	 * country while it can still bend that far. Points off the map count as
-	 * open.
+	 * to 1: rough country's lookups on the land grid and crater circles at
+	 * `SCORE.roughSamples` points, the nearest weighted most, so a road starts
+	 * round an island of cliff country while it can still bend that far.
+	 * Points off the map count as open.
 	 */
 	private roughAhead(x: number, y: number, dx: number, dy: number): number {
 		const samples = SCORE.roughSamples;

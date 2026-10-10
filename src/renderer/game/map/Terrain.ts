@@ -234,7 +234,7 @@ export class TerrainFields {
 	public readonly blendRadius: number;
 	/** Out to this the ranges rise to full, and no cliff stands inside it. */
 	public readonly reliefRadius: number;
-	/** Badlands per land cell, 0 to 1, read bilinear; never written. */
+	/** Badlands per land cell, 0 to 1, read bilinear. Read-only by contract: the badlands sampler reads it. */
 	public readonly badlandsCells: Float32Array;
 	/** How wet the map runs on average: `aridity`'s level. */
 	public readonly wetness: number;
@@ -841,7 +841,12 @@ export class Terrain {
 		return this.land.hotspots;
 	}
 
-	/** Badlands per land cell, 0 to 1, as `badlands` reads them bilinear: what a worker sends so the client needn't work them out again. */
+	/**
+	 * Badlands per land cell, 0 to 1, as `badlands` reads them bilinear: what a
+	 * worker sends so the client needn't work them out again. Read-only: the
+	 * terrain samples this array, so writing it changes the map. A typed
+	 * array can't be frozen, so that's by contract.
+	 */
 	public get badlandsCells(): Float32Array {
 		return this.land.badlandsCells;
 	}

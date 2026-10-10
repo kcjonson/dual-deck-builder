@@ -1,5 +1,6 @@
 import { resolveMapParams } from '../../map/MapParams';
-import { CAMPAIGN_SCHEMA_VERSION, Campaign } from '../Campaign';
+import { CAMPAIGN_SCHEMA_VERSION, Campaign, CampaignData } from '../Campaign';
+import { stepLog } from '../CampaignEnd';
 import { CampaignStore, CampaignStoreError, campaignKeys } from '../CampaignStore';
 import { MemorySaveStorage, SaveStorage } from '../SaveStorage';
 import cardsFile from '../../data/cards.json';
@@ -58,6 +59,32 @@ export function atHomeCampaign(change: (campaign: Campaign) => void = () => unde
 /** `atHomeCampaign` as save text. */
 export function atHomeText(change: (campaign: Campaign) => void = () => undefined): string {
 	return saveText({ campaign: atHomeCampaign(change).toSaveText() });
+}
+
+/**
+ * The fixture home from its run, then lost as `end` says, on its day 9:
+ * with no People left, or with nobody left at the compound, its last
+ * drivers killed or missing on a third run that failed carrying nothing.
+ * No food when it starved, and unrest 12 when it rioted. The log ends with
+ * the fall's line, as play writes it.
+ */
+export function lostCampaign(end: NonNullable<CampaignData['end']>): Campaign {
+	return atHomeCampaign((campaign) => {
+		const { resources, tally } = campaign;
+		if (end.cause === 'last_driver') {
+			const [warrior, , mechanic, , interceptor] = campaign.drivers;
+			warrior.set({ status: 'dead', hitpoints: 0, defaultDeck: {} });
+			mechanic.set({ status: 'missing', injuredDays: 0 });
+			interceptor.set({ status: 'missing' });
+		}
+		campaign.set({
+			resources: { ...resources, people: end.cause === 'no_people' ? 0 : resources.people, food: end.ending === 'starved' ? 0 : resources.food },
+			unrest: end.ending === 'rioted' ? 12 : campaign.unrest,
+			tally: end.cause === 'last_driver' ? { ...tally, runsFailed: tally.runsFailed + 1 } : tally,
+			log: stepLog({ log: campaign.log, day: campaign.day, lines: [], end }),
+			end
+		});
+	});
 }
 
 /**

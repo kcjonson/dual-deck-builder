@@ -47,7 +47,7 @@ The cheap rules go first: outward, the junction angle on a parent's first step a
 | The step's cost as a move, per unit | 1 | `moveCost` over its length: 1 on flat ground, more for a climb, a slope across, or a bridge |
 | The land's cost 2.5 steps on, per unit | 0.5 | `moveCost` from the step's end along its heading, bridges aside; impassable ground counts as 8, off the map as 1 |
 | Straying from the preferred heading | 12 highway, 6 back road, 3 trail | 1 - cos of the angle off it |
-| Rough country and craters ahead | 4, 1.5, 0.3 | 10 lattice lookups 16 units apart, the nearest weighted most |
+| Rough country and craters ahead | 4, 1.5, 0.3 | 10 lookups of rough country on the land grid, 16 units apart, the nearest weighted most |
 | Impassable ground ahead, highways only | 6 | the share of 80 units clear, sampled every 4 |
 | Crowding by kin | 2 | how far into the band past the gap the clearance rule needs |
 | Noise | 0.15 | one draw a candidate |
@@ -70,7 +70,7 @@ When the bench first counted them, 22% to 42% of highways reached the rim, fewes
 
 - A highway's drift turned it back into its own branch, and the taper then blocked every candidate. Kin crowding scores how near a candidate comes to the gap the rule needs from a road it meets: 1 at that gap, easing to 0 at 1.75 times it. A road and its branch turn apart before the rule stops either.
 - A branch of a neighbouring highway's branch swept across a highway's path before the highway got there. The queue orders tips by distance from the compound, and a road heading tangentially outruns one heading straight out. Highways now count 100 units nearer than they are, so the trunks claim their way first.
-- Cliff bands across the whole fan. One cost sample ahead rarely lands on a band a few units wide. The rough-country ray, lattice lookups out to 160 units, steers every class round islands of cliff country, and highways look for impassable ground itself 80 units ahead.
+- Cliff bands across the whole fan. One cost sample ahead rarely lands on a band a few units wide. The rough-country ray, lookups on the land grid out to 160 units, steers every class round islands of cliff country, and highways look for impassable ground itself 80 units ahead.
 
 Now 76% to 87% of highways reach the rim (table below). The rest end in rough country.
 

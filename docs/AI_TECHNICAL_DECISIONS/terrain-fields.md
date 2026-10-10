@@ -90,5 +90,5 @@ The stage forks its stream by feature: for the land `hills`, `ranges`, `rangeWar
 
 - Every number here is a starting value for the Map Lab (DDB-299), which should show biome shares, rough country, and the share of the edge a fine flood fill over `impassable` reaches, alongside its timings.
 - Saves keep the gameplay map, so terrain only matters for loading as a picture; because sampling is arithmetic, a shared seed draws the same terrain in any engine as well.
-- The renderer (DDB-298) can shade from `sample`'s slope without sampling neighbours, and should draw cliffs from `obstacle` so roads never seem to cross one.
+- The renderer (DDB-298) can shade from `sample`'s slope without sampling neighbours. It draws cliffs from `cliffDepth`, the same fields `obstacle` reads, closed over two texels (water-and-biomes.md), so roads never seem to cross one.
 - `surelyReachable(x, y)` proves ground reachable but never proves it cut off, so growth shouldn't steer away from where it reads false; its own search over `impassable` is what finds the pockets. Cliffs stand only where `rough(x, y)`, a bilinear lookup on the land grid, and there they taper at their tips, so a step should be sampled at a unit or less in rough country; outside it no cliff stands, and a cliff reads no elevation, only two bilinear lookups.

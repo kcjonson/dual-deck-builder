@@ -656,14 +656,14 @@ describe('the history', () => {
 		const { store, campaign } = await lastNight(storage);
 
 		endDay({ campaign });
-		expect(await store.checkpoint(campaign)).toBe(true);
+		expect(await store.checkpoint(campaign)).toBe('ended');
 
 		const line: CampaignHistoryEntry = { seed: SEED, day: 5, strongholdsTaken: 1, ending: 'starved' };
 		expect(await store.history()).toEqual([line]);
 		expect(await store.saveStatus()).toBe('none');
 		expect(storage.keys).toEqual([KEYS.history]);
 		// Every later checkpoint, end, or save of it records nothing more
-		expect(await store.checkpoint(campaign)).toBe(false);
+		expect(await store.checkpoint(campaign)).toBe('ended');
 		expect((await failure(store.end({ campaign }))).reason).toBe('retired');
 		expect((await failure(store.save(campaign))).reason).toBe('retired');
 		expect(await store.history()).toEqual([line]);
@@ -676,7 +676,7 @@ describe('the history', () => {
 
 		expect(await store.end({ campaign, ending: 'abandoned' })).toEqual({ seed: SEED, day: 1, strongholdsTaken: 0, ending: 'disbanded' });
 		expect(await store.saveStatus()).toBe('saved');
-		expect(await store.checkpoint(campaign)).toBe(false);
+		expect(await store.checkpoint(campaign)).toBe('ended');
 		expect(await store.history()).toHaveLength(1);
 	});
 
@@ -688,9 +688,9 @@ describe('the history', () => {
 		endDay({ campaign });
 		storage.fault = { method: 'removeItem', key: KEYS.slots.a, times: 1 };
 
-		expect(await store.checkpoint(campaign)).toBe(false);
+		expect(await store.checkpoint(campaign)).toBe('failed');
 		expect(failures.mock.calls.map(([error]) => error.reason)).toEqual(['storage']);
-		expect(await store.checkpoint(campaign)).toBe(true);
+		expect(await store.checkpoint(campaign)).toBe('ended');
 
 		expect(await store.history()).toHaveLength(1);
 		expect(storage.keys).toEqual([KEYS.history]);
@@ -701,7 +701,7 @@ describe('the history', () => {
 		const { store: crashed, campaign } = await lastNight(storage);
 		endDay({ campaign });
 		storage.fault = { method: 'removeItem', key: KEYS.slots.a };
-		expect(await crashed.checkpoint(campaign)).toBe(false);
+		expect(await crashed.checkpoint(campaign)).toBe('failed');
 		storage.fault = null;
 
 		// A new session finds the save from before the night, and the night goes the same way
@@ -709,7 +709,7 @@ describe('the history', () => {
 		const again = await store.load() as Campaign;
 		expect(again.isOver).toBe(false);
 		endDay({ campaign: again });
-		expect(await store.checkpoint(again)).toBe(true);
+		expect(await store.checkpoint(again)).toBe('ended');
 
 		expect((await store.history()).map(entry => entry.ending)).toEqual(['starved']);
 		expect(await store.saveStatus()).toBe('none');
@@ -779,7 +779,7 @@ describe('a seeded walk to the fall', () => {
 				if (everDead.has(driver)) expect(driver.status).toBe('dead');
 				if (driver.status === 'dead') everDead.add(driver);
 			});
-			expect(await store.checkpoint(campaign)).toBe(true);
+			expect(await store.checkpoint(campaign)).toBe(campaign.isOver ? 'ended' : 'saved');
 		}
 		return { campaign, store, storage, runs, found };
 	}
@@ -806,7 +806,7 @@ describe('a seeded walk to the fall', () => {
 			expect(() => loaded.recruitDriver({ archetype: 'mechanic' })).toThrow(CampaignOverError);
 			expect(await store.history()).toEqual([{ seed, day: campaign.day, strongholdsTaken: 0, ending: end.ending }]);
 			expect(storage.keys).toEqual([KEYS.history]);
-			expect(await store.checkpoint(campaign)).toBe(false);
+			expect(await store.checkpoint(campaign)).toBe('ended');
 			expect(await store.history()).toHaveLength(1);
 		}
 
