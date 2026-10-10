@@ -1,9 +1,10 @@
 import type { MapParams } from './MapParams';
 import { STRONGHOLD_TYPE } from './PoiData';
 import type { PoiLayer } from './Pois';
+import type { RoadNetwork } from './RoadNetwork';
 import { Route, routesTo } from './RouteTree';
 import { STOP_TUNING, StopTuning, StopType, isCalm, isFight } from './StopData';
-import { DAYLIGHT_TIERS, StopLayer } from './Stops';
+import { DAYLIGHT_TIERS, StopLayer, junctionsAlong, nodeDegrees } from './Stops';
 
 /**
  * Checks a map's stops against the rules they keep (Area Map Generation, 9.
@@ -14,7 +15,7 @@ import { DAYLIGHT_TIERS, StopLayer } from './Stops';
  * itself and keeps the attempt with the fewest.
  */
 
-export type StopRule = 'placement' | 'fights' | 'calm' | 'finds' | 'daylight';
+export type StopRule = 'placement' | 'clearance' | 'fights' | 'calm' | 'finds' | 'daylight';
 
 export interface StopViolation {
 	readonly rule: StopRule;
@@ -22,6 +23,7 @@ export interface StopViolation {
 }
 
 export interface StopCheckOptions {
+	readonly network: RoadNetwork;
 	readonly layer: PoiLayer;
 	readonly stops: StopLayer;
 	readonly params: Pick<MapParams, 'driverFinds' | 'daylightHours'>;
@@ -33,6 +35,8 @@ export interface StopCheckOptions {
  *
  * - placement: one profile a leg; each stop on its leg, inside it, at its
  *   share of it, listed by its leg in driving order, its id its place.
+ * - clearance: each stop keeps its clearance from its leg's ends, and from
+ *   every junction partway along it (a node where three or more roads meet).
  * - fights: no route has more than two fights in a row.
  * - calm: every three stops in a row on a route hold a non-fight, neither a
  *   fight nor a checkpoint.
@@ -42,10 +46,11 @@ export interface StopCheckOptions {
  *   in daylightHours, unless its quickest route runs past dark with no stops
  *   at all, which the layer lists in its failures (guarantee 10).
  */
-export function checkStopLayer({ layer, stops, params, tuning = STOP_TUNING }: StopCheckOptions): StopViolation[] {
+export function checkStopLayer({ network, layer, stops, params, tuning = STOP_TUNING }: StopCheckOptions): StopViolation[] {
 	const violations: StopViolation[] = [];
 	const report = (rule: StopRule, detail: string) => violations.push({ rule, detail });
 	checkPlacement(layer, stops, report);
+	checkClearance({ network, layer, stops, tuning, report });
 	layer.pois.forEach((poi, index) => {
 		const routes = routesTo(layer, poi);
 		routes.forEach((route, place) => {
@@ -91,6 +96,26 @@ function checkPlacement(layer: PoiLayer, { stops, legs }: StopLayer, report: (ru
 			if (stops[id]?.leg !== leg) report('placement', `leg ${leg} lists stop ${id}, which is on leg ${stops[id]?.leg}`);
 			if (place > 0 && !(stops[id]?.along > stops[ids[place - 1]]?.along)) report('placement', `leg ${leg}'s stops ${ids[place - 1]} and ${id} aren't in driving order`);
 		});
+	});
+}
+
+function checkClearance({ network, layer, stops, tuning, report }: { network: RoadNetwork; layer: PoiLayer; stops: StopLayer; tuning: StopTuning; report: (rule: StopRule, detail: string) => void }): void {
+	const degrees = nodeDegrees(network);
+	const { clearance } = tuning;
+	const slack = 1e-9;
+	layer.legs.forEach((leg, id) => {
+		const ids = stops.legs[id]?.stops ?? [];
+		if (ids.length === 0) return;
+		const ends = clearance.ends < 0.25 * leg.length ? clearance.ends : 0.25 * leg.length;
+		const joins = junctionsAlong({ network, leg, degrees });
+		for (const stopId of ids) {
+			const along = stops.stops[stopId]?.along;
+			if (along === undefined) continue;
+			if (along < ends - slack || along > leg.length - ends + slack) report('clearance', `stop ${stopId} is ${along.toFixed(2)} along leg ${id}, inside its ${ends.toFixed(2)} from an end`);
+			for (const join of joins) {
+				if (Math.abs(along - join) < clearance.junctions - slack) report('clearance', `stop ${stopId} is ${Math.abs(along - join).toFixed(2)} from a junction ${join.toFixed(2)} along leg ${id}`);
+			}
+		}
 	});
 }
 

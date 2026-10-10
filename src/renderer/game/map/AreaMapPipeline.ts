@@ -126,7 +126,7 @@ export const STOPS_STAGE: MapStage<MapParams, StopsUpstream, 'stops', StopLayer>
 	name: 'stops',
 	localRetry: true,
 	run: ({ input, products, rng }) => placeStops({ network: products.growth.network, layer: products.pois, ground: products.water.terrain, params: input, rng }),
-	check: (stops, { input, products }) => checkStopLayer({ layer: products.pois, stops, params: input }).map(({ rule, detail }) => `${rule}: ${detail}`),
+	check: (stops, { input, products }) => checkStopLayer({ network: products.growth.network, layer: products.pois, stops, params: input }).map(({ rule, detail }) => `${rule}: ${detail}`),
 };
 
 export interface AreaMapPipelineOptions {

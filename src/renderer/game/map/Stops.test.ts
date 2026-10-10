@@ -11,7 +11,7 @@ import { paramsFor } from './roadTesting';
 import { checkStopLayer, typesAlong } from './StopChecks';
 import stopTablesFile from '../data/stopTables.json';
 import { STOP_TUNING, STOP_TYPES, StopTuning, StopType, isCalm, isFight } from './StopData';
-import { DAYLIGHT_TIERS, StopLayer, keepsRules, placeStops, pointsAlong, rollStop } from './Stops';
+import { DAYLIGHT_TIERS, StopLayer, junctionsAlong, keepsRules, nearestClear, nodeDegrees, placeStops, pointsAlong, rollStop } from './Stops';
 
 /** The shipped tables with some types' class weights replaced, everywhere. */
 function tablesWith(weights: Partial<Record<StopType, number>>): StopTables {
@@ -34,8 +34,8 @@ function routeTypes(layer: ReturnType<typeof mapOn>['products']): StopType[][] {
 describe('stops on legs', () => {
 	it('keep every rule the checks know, on random meshes', () => {
 		meshes.forEach((_, index) => {
-			const { params, products } = mapOn(index);
-			expect(checkStopLayer({ layer: products.pois, stops: products.stops, params })).toEqual([]);
+			const { network, params, products } = mapOn(index);
+			expect(checkStopLayer({ network, layer: products.pois, stops: products.stops, params })).toEqual([]);
 			expect(products.stops.legs).toHaveLength(products.pois.legs.length);
 			expect(products.stops.stops.length).toBeGreaterThan(products.pois.legs.length / 2);
 		});
@@ -49,8 +49,8 @@ describe('stops on legs', () => {
 	});
 
 	describe('by arc length', () => {
-		// A loop out from the compound with one POI on its far stretch: a leg each way round, each two stretches long.
-		const network = meshFrom({ nodes: [[0, 0], [300, 250], [300, -250], [600, 0]], edges: [[0, 1], [0, 2], [1, 3], [2, 3]] });
+		// A loop out from the compound with one POI on its far stretch, a leg each way round; a spur off (300, 250) makes it a junction.
+		const network = meshFrom({ nodes: [[0, 0], [300, 250], [300, -250], [600, 0], [300, 400]], edges: [[0, 1], [0, 2], [1, 3], [2, 3], [1, 4]] });
 		const poiTuning: PoiTuning = { ...POI_TUNING, rings: { ...POI_TUNING.rings, targets: [0, 1, 1, 1] }, cover: [] };
 		const tree = buildRouteTree({ network, travelPace: 1, routeSplit: 0.5 });
 		const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
@@ -73,21 +73,29 @@ describe('stops on legs', () => {
 			expect(doubled.stops.length).toBeGreaterThanOrEqual(2 * Math.floor(expected[0] + expected[1]) - 2);
 		});
 
-		it('spread them evenly along the leg by arc length, each in its own slot, clear of the ends and of junctions', () => {
-			const tuning = tuned({ jitter: 0, spacing: { highway: 60, backRoad: 60, trail: 60 } });
-			const stops = placeStops({ network, layer, ground: fakeGround(), params, rng: new Rng({ seed: 3 }), tuning });
+		it('spread them evenly along the leg by arc length, each in its own slot, clear of the ends and of junctions, and minGap apart', () => {
+			const tuning = tuned({ jitter: 0, spacing: { highway: 45, backRoad: 45, trail: 45 } });
+			// Daylight to spare, so nothing's thinned.
+			const stops = placeStops({ network, layer, ground: fakeGround(), params: { ...params, daylightHours: 100 }, rng: new Rng({ seed: 3 }), tuning });
+			const degrees = nodeDegrees(network);
+			// The quickest leg runs through the spur's junction, and on through a place where it only changes stretch, which isn't one.
+			expect(junctionsAlong({ network, leg: layer.legs[0], degrees })).toEqual([layer.legs[0].pieces[0].length]);
+			expect(layer.legs[0].pieces).toHaveLength(3);
 			layer.legs.forEach((leg, id) => {
 				const ids = stops.legs[id].stops;
 				const ends = Math.min(tuning.clearance.ends, 0.25 * leg.length);
-				const slot = (leg.length - 2 * ends) / ids.length;
-				const junction = leg.pieces[0].length;
+				const usable = leg.length - 2 * ends;
+				const dealt = ids.length;
+				expect([Math.floor(leg.length / 45), Math.ceil(leg.length / 45)].map((count) => Math.min(count, Math.floor(usable / tuning.minGap)))).toContain(dealt);
+				const slot = usable / dealt;
+				const joins = junctionsAlong({ network, leg, degrees });
 				const line = legPoints(network, leg);
+				let atMiddle = 0;
 				ids.forEach((stopId, place) => {
 					const stop = stops.stops[stopId];
-					const middle = ends + (place + 0.5) * slot;
-					// At the slot's middle, or moved just clear of the junction the slot holds.
-					if (Math.abs(middle - junction) >= tuning.clearance.junctions) expect(stop.along).toBeCloseTo(middle, 9);
-					else expect(Math.abs(Math.abs(stop.along - junction) - tuning.clearance.junctions)).toBeLessThan(1e-9);
+					if (Math.abs(stop.along - (ends + (place + 0.5) * slot)) < 1e-9) atMiddle += 1;
+					for (const join of joins) expect(Math.abs(stop.along - join)).toBeGreaterThanOrEqual(tuning.clearance.junctions - 1e-9);
+					if (place > 0) expect(stop.along - stops.stops[ids[place - 1]].along).toBeGreaterThanOrEqual(tuning.minGap - 1e-9);
 					expect(stop.along).toBeGreaterThanOrEqual(ends);
 					expect(stop.along).toBeLessThanOrEqual(leg.length - ends);
 					expect(stop.at).toBeCloseTo(stop.along / leg.length, 12);
@@ -97,27 +105,46 @@ describe('stops on legs', () => {
 					expect(stop.roadClass).toBe('backRoad');
 					expect(stop.biome).toBe('scrub');
 				});
+				// With no jitter every stop sits at its slot's middle, but the one a junction moves and the few after it that it crowds to minGap.
+				expect(atMiddle).toBeGreaterThanOrEqual(ids.length - 4 * joins.length);
+				if (joins.length === 0) expect(atMiddle).toBe(ids.length);
 			});
 		});
 
-		it('keep clear of junctions on random meshes, and in driving order with ids in the map\'s order', () => {
-			meshes.forEach((network, index) => {
-				const { products } = mapOn(index);
-				const { stops, legs } = products.stops;
-				stops.forEach((stop, id) => expect(stop.id).toBe(id));
-				products.pois.legs.forEach((leg, id) => {
-					const joins: number[] = [];
-					let along = 0;
-					for (const { length } of leg.pieces.slice(0, -1)) joins.push((along += length));
-					const ids = legs[id].stops;
-					ids.forEach((stopId, place) => {
-						if (place > 0) expect(stops[stopId].along).toBeGreaterThan(stops[ids[place - 1]].along);
-						// Find: driver stops added for the floor sit in the middle of a gap instead.
-						if (stops[stopId].type !== 'findDriver') for (const join of joins) expect(Math.abs(stops[stopId].along - join)).toBeGreaterThanOrEqual(STOP_TUNING.clearance.junctions - 1e-9);
+		it('take the nearest point in a slot that clears every junction, or none when the slot has none', () => {
+			const near = (target: number, joins: number[], from = 0, to = 100) => nearestClear({ target, from, to, joins, clear: 8 });
+			expect(near(50, [])).toBe(50);
+			expect(near(50, [53])).toBe(45);
+			expect(near(55, [53])).toBe(61);
+			// Off one junction and onto the next is no good: past both, whichever side is nearer.
+			expect(near(50, [53, 44])).toBe(61);
+			expect(near(50, [53, 58])).toBe(45);
+			// Ties go low.
+			expect(near(50, [50])).toBe(42);
+			// A target outside the slot comes to its nearest end.
+			expect(near(-10, [])).toBe(0);
+			expect(near(50, [5, 15, 25], 0, 30)).toBeNull();
+			expect(near(4, [4], 0, 30)).toBe(12);
+		});
+
+		it('keep clear of junctions on random meshes, added finds too, and in driving order with ids in the map\'s order', () => {
+			const sparse = tuned({ spacing: { highway: 300, backRoad: 300, trail: 300 } });
+			for (const options of [{}, { stopTuning: sparse, driverFinds: 4 }]) {
+				meshes.forEach((network, index) => {
+					const { products } = mapOn(index, options);
+					const { stops, legs } = products.stops;
+					const degrees = nodeDegrees(network);
+					stops.forEach((stop, id) => expect(stop.id).toBe(id));
+					products.pois.legs.forEach((leg, id) => {
+						const joins = junctionsAlong({ network, leg, degrees });
+						const ids = legs[id].stops;
+						ids.forEach((stopId, place) => {
+							if (place > 0) expect(stops[stopId].along).toBeGreaterThan(stops[ids[place - 1]].along);
+							for (const join of joins) expect(Math.abs(stops[stopId].along - join)).toBeGreaterThanOrEqual(STOP_TUNING.clearance.junctions - 1e-9);
+						});
 					});
 				});
-				expect(network.stretches.length).toBeGreaterThan(0);
-			});
+			}
 		});
 	});
 
@@ -144,7 +171,7 @@ describe('stops on legs', () => {
 			let pairs = 0;
 			meshes.forEach((_, index) => {
 				const map = mapOn(index, { stopTables: fighty, dangerCurve: 2 });
-				const violations = checkStopLayer({ layer: map.products.pois, stops: map.products.stops, params: map.params });
+				const violations = checkStopLayer({ network: map.network, layer: map.products.pois, stops: map.products.stops, params: map.params });
 				expect(violations.filter(({ rule }) => rule === 'fights' || rule === 'calm')).toEqual([]);
 				for (const types of routeTypes(map.products)) {
 					expect(keepsRules(types)).toBe(true);
@@ -164,7 +191,7 @@ describe('stops on legs', () => {
 				...map.products.stops,
 				stops: map.products.stops.stops.map((stop) => (ids.includes(stop.id) ? { ...stop, type: types[ids.indexOf(stop.id)], skulls: 1 } : stop)),
 			});
-			const rules = (types: StopType[]) => new Set(checkStopLayer({ layer: map.products.pois, stops: doctor(types), params: { ...map.params, driverFinds: 0, daylightHours: 100 } }).map(({ rule }) => rule));
+			const rules = (types: StopType[]) => new Set(checkStopLayer({ network: map.network, layer: map.products.pois, stops: doctor(types), params: { ...map.params, driverFinds: 0, daylightHours: 100 } }).map(({ rule }) => rule));
 			expect(rules(['ambush', 'warband', 'ambush'])).toEqual(new Set(['fights', 'calm']));
 			expect(rules(['ambush', 'checkpoint', 'ambush'])).toEqual(new Set(['calm']));
 			expect(rules(['ambush', 'wreck', 'ambush'])).toEqual(new Set());
@@ -203,7 +230,7 @@ describe('stops on legs', () => {
 				meshes.slice(0, 4).forEach((_, index) => {
 					const map = mapOn(index, { stopTables: noFinds, driverFinds });
 					expect(findsIn(map, (tier) => tier <= 2)).toBeGreaterThanOrEqual(driverFinds);
-					expect(checkStopLayer({ layer: map.products.pois, stops: map.products.stops, params: map.params })).toEqual([]);
+					expect(checkStopLayer({ network: map.network, layer: map.products.pois, stops: map.products.stops, params: map.params })).toEqual([]);
 				});
 			}
 		});
@@ -247,7 +274,7 @@ describe('stops on legs', () => {
 				meshes.forEach((_, index) => {
 					const map = mapOn(index, { daylightHours });
 					fits(map, daylightHours);
-					expect(checkStopLayer({ layer: map.products.pois, stops: map.products.stops, params: map.params })).toEqual([]);
+					expect(checkStopLayer({ network: map.network, layer: map.products.pois, stops: map.products.stops, params: map.params })).toEqual([]);
 				});
 			}
 			const short = mapOn(0, { daylightHours: 10 });
@@ -282,7 +309,7 @@ describe('stops on legs', () => {
 			const map = mapOn(1, { daylightHours: 10, travelPace: 2 });
 			expect(map.products.stops.failures.length).toBeGreaterThan(0);
 			for (const failure of map.products.stops.failures) expect(failure).toMatch(/^poi \d+ \(tier [1-3]\): its quickest route takes [\d.]+ hours with no stops/);
-			expect(checkStopLayer({ layer: map.products.pois, stops: map.products.stops, params: map.params })).toEqual([]);
+			expect(checkStopLayer({ network: map.network, layer: map.products.pois, stops: map.products.stops, params: map.params })).toEqual([]);
 		});
 	});
 
@@ -359,7 +386,7 @@ describe('the stops stage in the pipeline', () => {
 		expect(result.attempts).toEqual({ water: 0, growth: 0, routeTree: 0, pois: 0, stops: 0 });
 		const { pois, stops } = result.products;
 		expect(stops.stops.length).toBeGreaterThan(0);
-		expect(checkStopLayer({ layer: pois, stops, params })).toEqual([]);
+		expect(checkStopLayer({ network: looped, layer: pois, stops, params })).toEqual([]);
 		// Its contents hang from its own winning stream.
 		expect(stops.contentSeed).toBe(new Rng({ seed: result.streams.stops }).fork('contents').seed);
 	});

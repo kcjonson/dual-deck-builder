@@ -296,7 +296,7 @@ Reveal rules:
 - The graph stages (route tree, POIs, tiers, stops, knowledge, the validator) keep the 200 ms budget, on the same machines; the prototype's take under 30 ms. A stage that reruns reuses everything its upstream built once (the route tree, meeting points, spatial indexes) and allocates nothing per candidate.
 - The Map Lab caches each stage's output by its inputs, so a gameplay parameter reruns only the graph stages, live, and a world parameter regenerates everything, with a progress readout.
 - Rendering: the land bakes into one image per map when the map is generated or loaded, in the same worker; fog draws over it; roads, routes, and markers draw live, since their state and highlighting change.
-- Expected sizes at radius 1000: 450 to 600 nodes, 560 to 770 stretches, about 40,000 units of road, about 30 POIs, about 300 stops.
+- Expected sizes at radius 1000: 450 to 600 nodes, 560 to 770 stretches, about 40,000 units of road, about 30 POIs, about 150 to 200 stops.
 
 ## Saving
 

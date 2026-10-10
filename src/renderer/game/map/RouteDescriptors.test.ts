@@ -67,7 +67,8 @@ describe('route descriptors', () => {
 		const poi = pois.pois.findIndex((candidate) => routesTo(pois, candidate).some(({ legs }) => fits(stops, legs)));
 		const charted = describeRoutes(map, poi);
 		const route = charted.findIndex(({ legs }) => fits(stops, legs));
-		const [first, second, third] = charted[route].legs;
+		const [first, second, third, ...beyond] = charted[route].legs;
+		// Everything past the uncharted leg is charted, which a run can't see past it anyway.
 		const knowledge = (leg: number): LegKnowledge => (leg === second ? 'rumored' : leg === third ? 'uncharted' : 'charted');
 		const known = describeRoutes(map, poi, { knowledge })[route];
 		expect(known.knowledge).toBe('uncharted');
@@ -76,17 +77,18 @@ describe('route descriptors', () => {
 		expect(on(first).every(({ type }) => type !== null)).toBe(true);
 		// Rumored: how many stops, not what they are.
 		expect(on(second).map(({ id, type, skulls }) => ({ id, type, skulls }))).toEqual(stops.legs[second].stops.map((id) => ({ id, type: null, skulls: 0 })));
-		// Uncharted: the next stop, and nothing past it on the leg.
+		// Uncharted: a direction and the next stop, and nothing past it, on this leg or any after.
 		expect(on(third).map(({ id, type }) => ({ id, type }))).toEqual([{ id: stops.legs[third].stops[0], type: null }]);
-		// Hours estimate what isn't known.
+		for (const leg of beyond) expect(on(leg)).toEqual([]);
+		expect(known.stops).toHaveLength(on(first).length + on(second).length + 1);
+		// Hours estimate what isn't known: the rumored leg's stops at the unknown rate, and every leg from the uncharted one on at what its road would earn.
+		const hoursOf = (legs: number[]) => legs.flatMap((leg) => stops.legs[leg].stops).reduce((sum, id) => sum + STOP_TUNING.types[stops.stops[id].type].hours, 0);
+		const earns = (leg: number) => (['highway', 'backRoad', 'trail'] as const).reduce((sum, roadClass) => sum + stops.legs[leg].classLengths[roadClass] / STOP_TUNING.spacing[roadClass], 0) * map.params.stopDensity;
 		const rumoredHours = stops.legs[second].stops.length * ROUTE_TUNING.unknownStopHours;
-		const actualRumored = stops.legs[second].stops.reduce((sum, id) => sum + STOP_TUNING.types[stops.stops[id].type].hours, 0);
+		const fogged = [third, ...beyond];
+		const foggedHours = fogged.reduce((sum, leg) => sum + earns(leg), 0) * ROUTE_TUNING.unknownStopHours;
 		expect(known.hours.home).toBeCloseTo(charted[route].hours.home, 9);
-		expect(known.hours.out).not.toBeCloseTo(charted[route].hours.out, 9);
-		const thirdProfile = stops.legs[third];
-		const expected = (thirdProfile.classLengths.highway / STOP_TUNING.spacing.highway + thirdProfile.classLengths.backRoad / STOP_TUNING.spacing.backRoad + thirdProfile.classLengths.trail / STOP_TUNING.spacing.trail) * map.params.stopDensity;
-		const actualThird = stops.legs[third].stops.reduce((sum, id) => sum + STOP_TUNING.types[stops.stops[id].type].hours, 0);
-		expect(known.hours.out).toBeCloseTo(charted[route].hours.out - actualRumored + rumoredHours - actualThird + expected * ROUTE_TUNING.unknownStopHours, 9);
+		expect(known.hours.out).toBeCloseTo(charted[route].hours.out - hoursOf([second, ...fogged]) + rumoredHours + foggedHours, 9);
 		// Risk counts only fights it knows of.
 		const knownFights = on(first).filter(({ type }) => type !== null && isFight(type)).map(({ skulls }) => skulls);
 		expect(known.risk).toBe(Math.max(0, ...knownFights));

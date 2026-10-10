@@ -4,9 +4,9 @@ Date: 2026-10-10. Code: `src/renderer/game/map/Stops.ts` (the stage, `rollStop`)
 
 ## Context
 
-Maps 12 and 14 sit between the route tree and a playable run. The run loop (DDB-454, PR #201) drives a route's legs and their stops and shows each route's fuel, hours, and risk, all from mock routes today; it needs the real map's. Map 12 puts stops on the legs the POIs' routes use, and Map 14 describes each route the way the run route screen shows it.
+Maps 12 and 14 sit between the route tree and a playable run. The run loop (DDB-454, PR #201) drives a route's legs and their stops and shows each route's fuel, hours, and risk, from mock routes; it needs the real map's. Map 12 puts stops on the legs the POIs' routes use, and Map 14 describes each route the way the run route screen shows it.
 
-Two of the inputs aren't built. Tiers in hours and territories are stage 8 (DDB-292), deferred for the MVP, and fog is DDB-294. So a leg's tier is a stand-in, territory is no one's everywhere, and every leg is charted. And today's main has no POIs at all on a real map: growth's roads are trees, with no meeting points, until the road graph (Maps 7 and 8). Like #202, this was built and tested on `meshTesting`'s random meshes, with a POI layer placed over them (`meshMap`), and runs on real maps placing nothing.
+Two of the inputs aren't built. Tiers in hours and territories are stage 8 (DDB-292), deferred for the MVP, and fog is DDB-294. So a leg's tier is a stand-in, territory is no one's everywhere, and every leg is charted. Like #202's, the tests run on `meshTesting`'s random meshes with a POI layer placed over them (`meshMap`). A map with no POIs has no legs, and gets no stops.
 
 ## The stage
 
@@ -20,7 +20,7 @@ The product is plain data, which crosses the worker boundary by structured clone
 
 A leg's count is its length of each class over that class's spacing, summed, times `stopDensity`, rounded up or down by a draw. The spec says "plus or minus one"; a draw on the fraction is that, read so the map's total comes to what its road earns, and so a short leg gets a stop only as often as its length earns one. That answers DDB-290's QA note about tiny trail stretches at the rim: a 10-unit stretch earns a tenth of a stop, not one. The count is then capped at what the leg holds at `minGap` between stops, inside its ends.
 
-Positions are by arc length along the leg's pieces: the leg minus a clearance at each end is cut into one slot per stop, and each stop sits at its slot's middle, moved by up to half the slot by a draw. One that lands within the junction clearance of a place partway along the leg, where its pieces meet, moves just clear of it on the nearer side that stays in its slot. Points come from `legPoints` in one walk.
+Positions are by arc length along the leg's pieces: the leg minus a clearance at each end is cut into one slot per stop, and each stop aims at its slot's middle, moved by up to half the slot by a draw. It goes to the nearest point in its slot that's `minGap` past the stop before and clear of every junction partway along the leg: a node where three or more roads meet, not one where the leg only changes stretch, at a class change or a roadside point. The nearest such point is the aim, an end of the slot, or a junction's clearance either side, so those are all it tries; a slot with none loses its stop. A slot is at least `minGap` wide, so the stop before always leaves the next room. Points come from `legPoints` in one walk, and `checkStopLayer` checks the clearances.
 
 ## Types and the stop tables
 
@@ -40,7 +40,7 @@ Two facts the later steps lean on: turning a stop calm, or adding a calm one, ne
 
 ## Find: driver
 
-First a soft rate per tier: at least `rates[tier]` of a tier's stops, rounded down, are Find: driver (0 in tiers 1 and 2 and 4% beyond, shipped). Then the floor: at least `driverFinds` in tiers 1 and 2. Each shortfall turns a stop into a Find: driver, an event first, then a hazard, a garage, a checkpoint, another find, and a fight last, on a leg with none yet where it can, picked by a draw among the best. Where the floor's legs hold too few stops to turn, a Find: driver goes into the widest gap on any of them. Only a map with legs but none in tiers 1 and 2 misses it, and says so in the layer's failures.
+First a soft rate per tier: at least `rates[tier]` of a tier's stops, rounded down, are Find: driver (0 in tiers 1 and 2 and 4% beyond, shipped). Then the floor: at least `driverFinds` in tiers 1 and 2. Each shortfall turns a stop into a Find: driver, an event first, then a hazard, a garage, a checkpoint, another find, and a fight last, on a leg with none yet where it can, picked by a draw among the best. Where the floor's legs hold too few stops to turn, a Find: driver goes into the gap where it can stand furthest from the stops either side, clear of junctions; it keeps `minGap` where the legs have room, and may sit closer where they don't. Only a map with legs but none in tiers 1 and 2 misses it, and says so in the layer's failures.
 
 ## The daylight check
 
@@ -60,7 +60,7 @@ A POI whose quickest route runs past dark with no stops at all can't be mended b
 
 - Name: from the route's own road, the legs no other route to the POI uses, since that's what tells routes apart. A biome with a name ("Through the mire") where it covers half of that road, or else the dominant class's: "Route N highway", numbered by the road with the most highway on it, "Back roads", "Trails". Two routes to one POI that come out alike get the side they come in from, "Back roads from the north", and any still alike their letter. Highway numbers are road ids plus one until the dressing gives highways their shields.
 - Knowledge: the least known leg, by a function from leg to charted, rumored, or uncharted that defaults to charted everywhere until fog exists.
-- Stops as far as known: a charted leg's with their types, a rumored leg's as stops of unknown type, an uncharted leg's next stop and nothing past it.
+- Stops as far as known: a charted leg's with their types, a rumored leg's as stops of unknown type, and from the first uncharted leg on, a direction and the next stop, as the spec has it: every leg past it counts as uncharted.
 - Hours: out is the drive plus the known stops' hours, with unknown types at three quarters of an hour and an uncharted leg's at what its road would earn; at the objective, 1.5 hours, 2 at a stronghold; home is the drive alone. `estimated` says when any leg isn't charted.
 - The return against dark: the hour it's back, leaving at 06:00, dark at dawn plus `daylightHours`, and the spare daylight, below 0 past dark.
 - Fuel: a unit per 150 units of road, out and back, at least one, the mock routes' rate.
@@ -72,24 +72,20 @@ A POI whose quickest route runs past dark with no stops at all can't be mended b
 
 `routeOffers(map)` gives every route on the map in the run loop's route model (`RunRoute`, with its `RouteDestination`, `RouteLeg`, and `RouteStop`), POI by POI. Ids come from the map's own (`poi-3`, `route-3-1`, `leg-12`, `stop-40`), so a map gives the same routes however often it's asked, which `departRun`'s check that a route is on offer needs. A run carries every stop on its legs, whatever the route card knows. Fights are fights with their skulls, and every other stop is a quiet stretch (DDB-432's call 70) until the run has screens for events, finds, garages, and hazards. Hours are rounded to tenths and lengths to whole units, as the mock's are. Risk is the route card's, with 1 for a route with no fight, since the model's risk runs 1 to 3. A destination yields what its POI's type does (`data/pois.json`), in place of #201's tier ranges; meds aren't among the run's yields yet, so they're left out, and a stronghold yields nothing until it has rules of its own.
 
-`offersForDay` stands in for the area map screen (DDB-43), which picks a POI: it keeps the run loop's contract of two or three destinations a day with a tier 1 one among them, drawn from `fork('routes', day)` off the campaign's seed, each with every route it has. Only destinations with a route home by dark are offered, since a run has no night yet (call 5), and never a stronghold.
+`offersForDay` stands in for the area map screen (DDB-43), which picks a POI: it keeps the run loop's contract of two or three destinations a day with a tier 1 one among them, drawn from `fork('routes', day)` off the campaign's seed, each with every route it has. Only destinations with a route home by dark are offered, since a run has no night yet (call 5), read from the descriptors' unrounded hours rather than the run's tenths, which can round a run a minute past dark back inside it; and never a stronghold.
 
-The model's types live in `MapRoutes.ts`, field for field with #201's `SupplyRoutes.ts`, until #201 merges; then they're imported from there. Wiring `routesOnOffer` waits for #201 and for #205, whose `getAreaMap(campaign)` is the map. That's asynchronous and `routesOnOffer` isn't, so the route pick loads the map first and passes it in, with the mock kept for a campaign without one, in tests and dev.
-
-## Real maps, and when Maps 7 and 8 land
-
-On today's main the POI layer is empty, so the stops stage has no legs and places nothing, and passes. When the road graph lands and the POI stage turns strict, the stops follow with nothing to change. What real maps will move is the tuning: road lengths, the class mix, and how far tier 3 reaches.
+`getAreaMap(campaign)` is asynchronous and the run loop's `routesOnOffer` isn't, so the route pick loads the map first and passes it in, with the mock kept for a campaign without one, in tests and dev.
 
 ## Measured
 
-Random meshes at radius 1000, 80 to 90 units apart, 34 POIs and 125 to 130 legs each, shipped tuning, 14 hours of daylight: 131 to 158 stops a map, 4.6 to 5.7 a route on average and 11 at most; the daylight check took 13 to 36 stops off; 0 to 3 tier 3 POIs a map ran past dark with no stops. Placing them took 2 to 5 ms in Jest after a first map of 12 ms.
+Random meshes at radius 1000, 80 to 90 units apart, 34 POIs and 125 to 130 legs each, shipped tuning, 14 hours of daylight: 131 to 158 stops a map, 4.6 to 5.7 a route on average and 11 at most; the daylight check took 13 to 36 stops off; 0 to 3 tier 3 POIs a map ran past dark with no stops. Placing them took 2 to 5 ms in Jest after a first map of 12 ms. On the road graph's maps (Maps 7 and 8), about 145 stops a map at radius 900 and 185 at 1200.
 
 ## Provisional calls
 
 Calls the spec left open, made the simplest way consistent with it, for Kevin to approve or adjust. The tuning numbers are starting values for the Map Lab.
 
-1. A leg's count is rounded up or down by a draw on its fraction, then capped at what the leg holds at 40 units between stops.
-2. Spacing per stop: highway 150 units, back road 120, trail 100. Clearance 15 units from a leg's ends and 8 from a junction partway along it; jitter half a slot.
+1. A leg's count is rounded up or down by a draw on its fraction, then capped at what the leg holds at 40 units between stops, the least gap between the stops it's dealt.
+2. Spacing per stop: highway 150 units, back road 120, trail 100. Clearance 15 units from a leg's ends and 8 from a junction partway along it, a node where three or more roads meet; jitter half a slot.
 3. Stop tables as class weights times biome, tier, and territory multipliers; the shipped weights in `data/stopTables.json` (highways lean to ambushes and checkpoints, trails to hazards, mire triples hazards, no warbands in tier 1, no one's ground halves checkpoints).
 4. A checkpoint isn't a non-fight for the per-route rules.
 5. A fight's skulls are fixed with the map: 1 at tier 1, half a skull more a tier times `dangerCurve`, rounded by a draw; a warband one more; at most 3.
@@ -108,7 +104,7 @@ Calls the spec left open, made the simplest way consistent with it, for Kevin to
 
 ## Consequences
 
-- The run loop reads `routeOffers` in place of its mock once #201 and #205 are in; the state machine doesn't change.
+- The run loop's `routesOnOffer` reads `offersForDay` over the campaign's map in place of its mock; the state machine doesn't change.
 - Stage 8 (DDB-292) replaces two stand-ins: the leg tier, where its tiers in hours become the stops' tiers, and the territory, which the tables already key on.
 - The map validator (DDB-296) runs `checkStopLayer`; the Map Lab (DDB-299) can show stops by type and the readout's stops by type from the layer.
 - Knowledge (DDB-294) passes its leg states to `describeRoutes`; the descriptors already show rumored and uncharted legs.

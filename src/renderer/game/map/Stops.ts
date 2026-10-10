@@ -4,7 +4,7 @@ import type { MapParams } from './MapParams';
 import { POI_RESOURCES, PoiResource, STRONGHOLD_TYPE } from './PoiData';
 import type { PoiLayer } from './Pois';
 import { ROAD_CLASSES, RoadClass, RoadNetwork } from './RoadNetwork';
-import { Route, legPoints, routesTo } from './RouteTree';
+import { Leg, Route, legPoints, routesTo } from './RouteTree';
 import { CompiledStopTables, NO_TERRITORY, STOP_TUNING, StopTuning, StopType, isCalm, isFight, stopTablesFor } from './StopData';
 import type { Terrain } from './Terrain';
 
@@ -149,6 +149,10 @@ class StopPlacer {
 	/** Each leg's routes, by POI. */
 	private readonly routesOn: PoiRoute[][];
 	private readonly tiers: Int32Array;
+	/** Each node's roads, which say where roads meet. */
+	private readonly degrees: Int32Array;
+	/** Each leg's junctions, as world units along it. */
+	private readonly joins: number[][];
 	/** Each leg's stops, in driving order. */
 	private readonly placed: Placed[][];
 	private readonly profiles: Omit<LegProfile, 'stops'>[] = [];
@@ -176,6 +180,8 @@ class StopPlacer {
 			}
 		});
 		this.placed = layer.legs.map(() => []);
+		this.degrees = nodeDegrees(network);
+		this.joins = layer.legs.map((leg) => junctionsAlong({ network, leg, degrees: this.degrees }));
 	}
 
 	public place(): StopLayer {
@@ -205,7 +211,7 @@ class StopPlacer {
 	/** A leg's classes and biomes by length, its main highway, and its middle. */
 	private profile(id: number, line: readonly number[]): Omit<LegProfile, 'stops'> {
 		const leg = this.layer.legs[id];
-		const classLengths = { highway: 0, backRoad: 0, trail: 0 };
+		const classLengths = Object.fromEntries(ROAD_CLASSES.map((roadClass) => [roadClass, 0])) as Record<RoadClass, number>;
 		const highways = new Map<number, number>();
 		for (const { stretch, length } of leg.pieces) {
 			const { roadClass, road } = this.network.stretches[stretch];
@@ -234,9 +240,11 @@ class StopPlacer {
 	 * A leg's stops: its count, its length by class over the class's spacing
 	 * times stopDensity, rounded up or down by a draw so the map's count is
 	 * what its road earns; then each in a slot of its own along the leg, clear
-	 * of the ends and of junctions; then each one's type, carrying on from the
-	 * stops behind the leg so no route has three fights or checkpoints in a
-	 * row. One draw for the count, and three a stop.
+	 * of the ends and of junctions and `minGap` past the one before, at the
+	 * nearest point to where its draw puts it, or dropped where the slot has no
+	 * such point; then each one's type, carrying on from the stops behind the
+	 * leg so no route has three fights or checkpoints in a row. One draw for
+	 * the count, and three a stop, kept or dropped.
 	 */
 	private placeOnLeg(id: number, line: readonly number[], stream: Rng, behind: readonly StopType[]): void {
 		const leg = this.layer.legs[id];
@@ -251,16 +259,22 @@ class StopPlacer {
 		const drawn = floor(expected * this.params.stopDensity + stream.float());
 		const count = drawn < most ? drawn : most;
 		if (count === 0) return;
-		const joins = this.junctions(id);
+		const joins = this.joins[id];
 		const slot = usable / count;
 		const alongs: number[] = [];
 		const draws: { type: number; skulls: number }[] = [];
 		for (let index = 0; index < count; index += 1) {
 			const start = ends + index * slot;
-			const along = clearOf(joins, start + (0.5 + (stream.float() - 0.5) * jitter) * slot, clearance.junctions, start, start + slot);
+			const target = start + (0.5 + (stream.float() - 0.5) * jitter) * slot;
+			const draw = { type: stream.float(), skulls: stream.float() };
+			// A slot is at least minGap wide, so the one before always leaves this one room.
+			const from = alongs.length > 0 && alongs[alongs.length - 1] + minGap > start ? alongs[alongs.length - 1] + minGap : start;
+			const along = nearestClear({ target, from, to: start + slot, joins, clear: clearance.junctions });
+			if (along === null) continue;
 			alongs.push(along);
-			draws.push({ type: stream.float(), skulls: stream.float() });
+			draws.push(draw);
 		}
+		if (alongs.length === 0) return;
 		const points = pointsAlong(line, alongs);
 		const tail = [...behind];
 		alongs.forEach((along, index) => {
@@ -269,23 +283,11 @@ class StopPlacer {
 			const roadClass = this.classAt(id, along);
 			const biome = this.ground.biome(x, y);
 			const calmOnly = tail.length === 2 && !isCalm(tail[0]) && !isCalm(tail[1]);
-			const type = this.tables.draw(this.tables.rowOf(roadClass, biome, tier, territory), draws[index].type, calmOnly);
+			const type = this.tables.draw({ row: this.tables.rowOf({ roadClass, biome, tier, territory }), draw: draws[index].type, calmOnly });
 			tail.push(type);
 			if (tail.length > 2) tail.shift();
 			this.placed[id].push({ along, x, y, type, skulls: this.skulls(type, tier, draws[index].skulls), roadClass, biome });
 		});
-	}
-
-	/** World units along a leg of each place partway along it, where its pieces meet. */
-	private junctions(id: number): number[] {
-		const joins: number[] = [];
-		let along = 0;
-		const { pieces } = this.layer.legs[id];
-		for (let piece = 0; piece + 1 < pieces.length; piece += 1) {
-			along += pieces[piece].length;
-			joins.push(along);
-		}
-		return joins;
 	}
 
 	private classAt(id: number, along: number): RoadClass {
@@ -366,19 +368,33 @@ class StopPlacer {
 		return turned;
 	}
 
-	/** Adds a Find: driver stop in the middle of the widest gap on any leg in these tiers, but those in `avoid`. False when there's none. */
+	/**
+	 * Adds a Find: driver stop on a leg in these tiers, but those in `avoid`:
+	 * in the gap between stops (or a stop and the clearance at a leg's end)
+	 * where it can stand furthest from both sides, clear of junctions, as near
+	 * the gap's middle as junctions let it. False when no gap has room.
+	 */
 	private addFind(tierHolds: (tier: number) => boolean, avoid: ReadonlySet<number> = new Set()): boolean {
+		const { clearance } = this.tuning;
 		let bestLeg = -1;
 		let bestAlong = 0;
 		let widest = 0;
 		this.layer.legs.forEach(({ length }, leg) => {
 			if (!tierHolds(this.tiers[leg]) || length <= 0 || avoid.has(leg)) return;
-			const marks = [0, ...this.placed[leg].map(({ along }) => along), length];
+			const ends = clearance.ends < 0.25 * length ? clearance.ends : 0.25 * length;
+			const marks = [ends, ...this.placed[leg].map(({ along }) => along), length - ends];
 			for (let index = 1; index < marks.length; index += 1) {
-				if (marks[index] - marks[index - 1] > widest) {
-					widest = marks[index] - marks[index - 1];
+				// Strictly between two stops, so the leg's stops stay in order; up to the end's clearance itself.
+				const from = index === 1 ? marks[0] : marks[index - 1] + GAP_EDGE;
+				const to = index === marks.length - 1 ? marks[index] : marks[index] - GAP_EDGE;
+				if (!(from <= to)) continue;
+				const along = nearestClear({ target: (marks[index - 1] + marks[index]) / 2, from, to, joins: this.joins[leg], clear: clearance.junctions });
+				if (along === null) continue;
+				const room = along - marks[index - 1] < marks[index] - along ? along - marks[index - 1] : marks[index] - along;
+				if (room > widest || bestLeg < 0) {
+					widest = room;
 					bestLeg = leg;
-					bestAlong = (marks[index] + marks[index - 1]) / 2;
+					bestAlong = along;
 				}
 			}
 		});
@@ -544,18 +560,59 @@ function before(a: readonly number[], b: readonly number[]): boolean {
 	return false;
 }
 
+/** World units a Find: driver added for the floor keeps from the stops either side of it, at the least. */
+const GAP_EDGE = 1;
+/** Slack for a junction's clearance, which `join + clear` can miss by a rounding. */
+const CLEAR_SLACK = 1e-9;
+
 /**
- * `along` moved off any junction within `clear` of it, to whichever side is
- * nearer and still inside [from, to]; where neither is, left where it was.
+ * The point of [from, to] nearest `target` that keeps `clear` from every
+ * junction, the lower of two as near; null when there's none. The nearest
+ * such point is the target itself, an end of the range, or a junction's
+ * clearance either side, so those are all it tries.
  */
-function clearOf(joins: readonly number[], along: number, clear: number, from: number, to: number): number {
-	for (const join of joins) {
-		const off = along - join;
-		if (off * off >= clear * clear) continue;
-		const sides = off < 0 ? [join - clear, join + clear] : [join + clear, join - clear];
-		for (const side of sides) if (side >= from && side <= to) return side;
+export function nearestClear({ target, from, to, joins, clear }: { target: number; from: number; to: number; joins: readonly number[]; clear: number }): number | null {
+	const clears = (along: number) => along >= from && along <= to && joins.every((join) => (along - join) * (along - join) >= (clear - CLEAR_SLACK) * (clear - CLEAR_SLACK));
+	const aim = target < from ? from : target > to ? to : target;
+	let best: number | null = null;
+	let bestOff = Infinity;
+	for (const along of [aim, from, to, ...joins.flatMap((join) => [join - clear, join + clear])]) {
+		if (!clears(along)) continue;
+		const off = along < aim ? aim - along : along - aim;
+		if (off < bestOff || (off === bestOff && best !== null && along < best)) {
+			best = along;
+			bestOff = off;
+		}
 	}
-	return along;
+	return best;
+}
+
+/** How many roads meet at each node: a stretch from a node to itself is no road. */
+export function nodeDegrees({ nodes, stretches }: RoadNetwork): Int32Array {
+	const degrees = new Int32Array(nodes.length);
+	for (const { from, to } of stretches) {
+		if (from === to) continue;
+		degrees[from] += 1;
+		degrees[to] += 1;
+	}
+	return degrees;
+}
+
+/**
+ * World units along a leg of each junction partway along it: a node between
+ * two of its pieces where three or more roads meet. A node where a leg only
+ * changes stretch, at a class change or a roadside point, isn't one.
+ */
+export function junctionsAlong({ network, leg, degrees }: { network: RoadNetwork; leg: Pick<Leg, 'pieces'>; degrees: Int32Array }): number[] {
+	const joins: number[] = [];
+	let along = 0;
+	const { pieces } = leg;
+	for (let piece = 0; piece + 1 < pieces.length; piece += 1) {
+		along += pieces[piece].length;
+		const { from, to } = network.stretches[pieces[piece].stretch];
+		if (degrees[pieces[piece].forward ? to : from] >= 3) joins.push(along);
+	}
+	return joins;
 }
 
 /** The points at increasing distances along a polyline, flat x0, y0, x1, y1, ..., in one walk; its end past its length. */

@@ -96,12 +96,11 @@ describe('routeOffers', () => {
 describe('offersForDay', () => {
 	const map = maps[2];
 	const routes = routeOffers(map);
-	const daylightHours = map.params.daylightHours;
 	const destinations = (offered: readonly RunRoute[]) => [...new Set(offered.map(({ destination }) => destination.id))];
 
 	it('offers a tier 1 destination and up to two from tiers 2 and 3, each with every route it has', () => {
 		for (let day = 1; day <= 10; day += 1) {
-			const offered = offersForDay({ routes, seed: 42, day, daylightHours });
+			const offered = offersForDay({ map, seed: 42, day });
 			const ids = destinations(offered);
 			expect(ids.length).toBeGreaterThanOrEqual(1);
 			expect(ids.length).toBeLessThanOrEqual(3);
@@ -114,21 +113,27 @@ describe('offersForDay', () => {
 		}
 	});
 
-	it('offers only destinations a run can reach and leave by dark, and never a stronghold', () => {
+	it('offers only destinations a run can reach and leave by dark, by the unrounded hours, and never a stronghold', () => {
 		const strongholds = new Set(map.products.pois.strongholds.map(({ poi }) => `poi-${poi}`));
-		for (let day = 1; day <= 10; day += 1) {
-			const offered = offersForDay({ routes, seed: 7, day, daylightHours: 9 });
-			for (const id of destinations(offered)) {
+		const short = { ...map, params: { ...map.params, daylightHours: 9 } };
+		const described = describeMap(short);
+		const seen = new Set<string>();
+		for (let day = 1; day <= 20; day += 1) {
+			for (const id of destinations(offersForDay({ map: short, seed: 7, day }))) {
+				seen.add(id);
 				expect(strongholds.has(id)).toBe(false);
-				expect(offered.filter((route) => route.destination.id === id).some(({ hours }) => hours.out + hours.objective + hours.home <= 9)).toBe(true);
+				expect(described[Number(id.slice('poi-'.length))].some(({ spare }) => spare >= 0)).toBe(true);
 			}
 		}
+		// Some destinations the full day would offer are past dark in a short one.
+		const fullDay = new Set(Array.from({ length: 20 }, (_, day) => destinations(offersForDay({ map, seed: 7, day: day + 1 }))).flat());
+		expect([...fullDay].some((id) => !seen.has(id))).toBe(true);
 		expect(map.products.pois.pois.some(({ type }) => type === STRONGHOLD_TYPE)).toBe(true);
 	});
 
 	it('offers the same for a day however often it\'s asked, and other days differ', () => {
-		expect(offersForDay({ routes, seed: 42, day: 3, daylightHours })).toEqual(offersForDay({ routes, seed: 42, day: 3, daylightHours }));
-		const days = new Set(Array.from({ length: 10 }, (_, day) => destinations(offersForDay({ routes, seed: 42, day: day + 1, daylightHours })).join()));
+		expect(offersForDay({ map, seed: 42, day: 3 })).toEqual(offersForDay({ map, seed: 42, day: 3 }));
+		const days = new Set(Array.from({ length: 10 }, (_, day) => destinations(offersForDay({ map, seed: 42, day: day + 1 })).join()));
 		expect(days.size).toBeGreaterThan(1);
 	});
 });

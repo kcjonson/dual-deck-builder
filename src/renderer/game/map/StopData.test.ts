@@ -4,7 +4,7 @@ import stopsFile from '../data/stops.json';
 import { ReaderRangeError, ReaderTypeError } from '../core/JsonReader';
 import { BIOMES } from './Biome';
 import { ROAD_CLASSES } from './RoadNetwork';
-import { NO_TERRITORY, STOP_TABLES, STOP_TYPES, StopType, isCalm, isFight, readRouteTuning, readStopTables, readStopTuning, stopTablesFor } from './StopData';
+import { NO_TERRITORY, STOP_TABLES, STOP_TYPES, StopType, isCalm, isFight, compileStopTables, readRouteTuning, readStopTuning, stopTablesFor } from './StopData';
 
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
@@ -13,58 +13,62 @@ describe('stop tables', () => {
 		for (const roadClass of ROAD_CLASSES) {
 			for (const biome of BIOMES) {
 				for (let tier = 1; tier <= 5; tier += 1) {
-					const row = STOP_TABLES.rowOf(roadClass, biome, tier, NO_TERRITORY);
+					const row = STOP_TABLES.rowOf({ roadClass, biome, tier, territory: NO_TERRITORY });
 					expect(row).toBeGreaterThanOrEqual(0);
-					expect(STOP_TYPES).toContain(STOP_TABLES.draw(row, 0.5, false));
-					expect(isCalm(STOP_TABLES.draw(row, 0.5, true))).toBe(true);
+					expect(STOP_TYPES).toContain(STOP_TABLES.draw({ row, draw: 0.5, calmOnly: false }));
+					expect(isCalm(STOP_TABLES.draw({ row, draw: 0.5, calmOnly: true }))).toBe(true);
 				}
 			}
 		}
-		expect(STOP_TABLES.rowOf('highway', 'scrub', 1, 'mireCrawlers')).toBe(-1);
+		// A territory the tables don't have, or a tier past 5, is a bug, not a row.
+		expect(() => STOP_TABLES.rowOf({ roadClass: 'highway', biome: 'scrub', tier: 1, territory: 'mireCrawlers' })).toThrow(/no territory "mireCrawlers"/);
+		expect(() => STOP_TABLES.rowOf({ roadClass: 'highway', biome: 'scrub', tier: 6, territory: NO_TERRITORY })).toThrow(/tier/);
 	});
 
 	it('draw each type in proportion to its weight: class times biome, tier, and territory', () => {
-		const tables = readStopTables({
+		const tables = compileStopTables({
 			classes: { highway: { ambush: 1, wreck: 3 }, backRoad: { wreck: 1 }, trail: { wreck: 1 } },
 			biomes: { mire: { ambush: 3 } },
 			tiers: { 1: { ambush: 0 } },
 			territories: { none: {}, raiders: { ambush: 3 } },
 		}, 'test');
-		const row = tables.rowOf('highway', 'scrub', 2, 'none');
+		const at = (biome: 'scrub' | 'mire', tier: number, territory = 'none') => tables.rowOf({ roadClass: 'highway', biome, tier, territory });
+		const pick = (row: number, draw: number, calmOnly = false) => tables.draw({ row, draw, calmOnly });
+		const row = at('scrub', 2);
 		// Cumulative: ambush [0, 1), then wreck [1, 4) of 4.
-		expect(tables.draw(row, 0, false)).toBe('ambush');
-		expect(tables.draw(row, 0.249, false)).toBe('ambush');
-		expect(tables.draw(row, 0.25, false)).toBe('wreck');
-		expect(tables.draw(row, 0.9999999, false)).toBe('wreck');
+		expect(pick(row, 0)).toBe('ambush');
+		expect(pick(row, 0.249)).toBe('ambush');
+		expect(pick(row, 0.25)).toBe('wreck');
+		expect(pick(row, 0.9999999)).toBe('wreck');
 		// In mire, ambush is 3 of 6.
-		expect(tables.draw(tables.rowOf('highway', 'mire', 2, 'none'), 0.49, false)).toBe('ambush');
+		expect(pick(at('mire', 2), 0.49)).toBe('ambush');
 		// At tier 1 there's no ambush to draw, and the calm draw never gives a fight.
-		expect(tables.draw(tables.rowOf('highway', 'scrub', 1, 'none'), 0, false)).toBe('wreck');
-		expect(tables.draw(row, 0, true)).toBe('wreck');
+		expect(pick(at('scrub', 1), 0)).toBe('wreck');
+		expect(pick(row, 0, true)).toBe('wreck');
 		// In a raiders' territory, ambush is 3 of 6.
-		const raiders = tables.rowOf('highway', 'scrub', 2, 'raiders');
-		expect(tables.draw(raiders, 0.49, false)).toBe('ambush');
-		expect(tables.draw(raiders, 0.5, false)).toBe('wreck');
+		const raiders = at('scrub', 2, 'raiders');
+		expect(pick(raiders, 0.49)).toBe('ambush');
+		expect(pick(raiders, 0.5)).toBe('wreck');
 	});
 
 	it('fail when read, not mid-map, on a row with nothing to draw or no non-fight to fall back on', () => {
 		const noWeight = copy(stopTablesFile);
 		noWeight.classes.trail = Object.fromEntries(STOP_TYPES.map((type) => [type, 0])) as typeof noWeight.classes.trail;
-		expect(() => readStopTables(noWeight, 'stopTables')).toThrow(/stopTables: trail in scrub at tier 1 in territory none weighs nothing/);
+		expect(() => compileStopTables(noWeight, 'stopTables')).toThrow(/stopTables: trail in scrub at tier 1 in territory none weighs nothing/);
 		const fightsOnly = copy(stopTablesFile);
 		fightsOnly.classes.highway = Object.fromEntries(STOP_TYPES.map((type) => [type, isFight(type) ? 1 : 0])) as typeof fightsOnly.classes.highway;
-		expect(() => readStopTables(fightsOnly, 'stopTables')).toThrow(/weighs no non-fight/);
+		expect(() => compileStopTables(fightsOnly, 'stopTables')).toThrow(/weighs no non-fight/);
 		// A biome that zeroes every calm type, only where it applies.
 		const mire = copy(stopTablesFile) as unknown as { biomes: Record<string, Record<string, number>> };
 		mire.biomes.mire = Object.fromEntries(STOP_TYPES.filter(isCalm).map((type) => [type, 0]));
-		expect(() => readStopTables(mire, 'stopTables')).toThrow(/highway in mire at tier 1 in territory none weighs no non-fight/);
+		expect(() => compileStopTables(mire, 'stopTables')).toThrow(/highway in mire at tier 1 in territory none weighs no non-fight/);
 	});
 
 	it('refuse an unknown type, class, biome, or tier, a negative weight, and tables with no unclaimed ground', () => {
 		const at = (edit: (tables: Record<string, Record<string, unknown>>) => void) => {
 			const tables = copy(stopTablesFile) as unknown as Record<string, Record<string, unknown>>;
 			edit(tables);
-			return () => readStopTables(tables, 'stopTables');
+			return () => compileStopTables(tables, 'stopTables');
 		};
 		expect(at((tables) => { (tables.classes.highway as Record<string, number>).ambsuh = 1; })).toThrow(ReaderRangeError);
 		expect(at((tables) => { tables.classes.dirtRoad = {}; })).toThrow(ReaderTypeError);

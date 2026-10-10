@@ -1,5 +1,5 @@
 import { Rng } from '../core/Rng';
-import { POI_TUNING, PoiTuning } from '../map/PoiData';
+import { POI_TUNING, PoiTuning, STRONGHOLD_TYPE } from '../map/PoiData';
 import type { RoadClass } from '../map/RoadNetwork';
 import { DescribeOptions, RouteDescriptor, RouteMap, describeMap, poiNames } from '../map/RouteDescriptors';
 import { ROAD_CLASSES } from '../map/RoadNetwork';
@@ -14,9 +14,6 @@ import type { LegProfile } from '../map/Stops';
  * events, finds, garages, and hazards. A destination yields what its POI
  * type does, meds aside until a run can carry them. The decision record is
  * docs/AI_TECHNICAL_DECISIONS/stops-and-routes.md.
- *
- * The route model below matches SupplyRoutes.ts on DDB-454's branch field
- * for field, and gives way to its types once that merges.
  */
 
 export type Skulls = 1 | 2 | 3;
@@ -76,11 +73,21 @@ export interface RunRoute {
  * tenths and lengths to whole units, as the run shows them. Risk is the
  * route card's, its worst known fight, and 1, the objective's, with none.
  */
-export function routeOffers(map: RouteMap, options: DescribeOptions & { poiTuning?: PoiTuning } = {}): readonly RunRoute[] {
+export function routeOffers(map: RouteMap, options: OfferOptions = {}): readonly RunRoute[] {
+	return Object.freeze(offersByPoi(map, describeMap(map, options), options).flat());
+}
+
+export interface OfferOptions extends DescribeOptions {
+	/** The shipped POI tuning, whose types' yields a destination yields, when left out. */
+	readonly poiTuning?: PoiTuning;
+}
+
+/** Each POI's routes, from its descriptors. */
+function offersByPoi(map: RouteMap, described: readonly (readonly RouteDescriptor[])[], { poiTuning = POI_TUNING }: OfferOptions): RunRoute[][] {
 	const { pois } = map.products;
-	const { types } = options.poiTuning ?? POI_TUNING;
+	const { types } = poiTuning;
 	const names = poiNames(pois);
-	return Object.freeze(describeMap(map, options).flatMap((routes, poi) => {
+	return described.map((routes, poi) => {
 		const { tier, type } = pois.pois[poi];
 		// A stronghold yields by its own rules, none of which exist yet.
 		const yields = types[type]?.yields ?? {};
@@ -91,7 +98,7 @@ export function routeOffers(map: RouteMap, options: DescribeOptions & { poiTunin
 			yield: Object.freeze(Object.fromEntries(YIELD_RESOURCES.map((resource) => [resource, yields[resource] ?? 0])) as Record<YieldResource, number>),
 		});
 		return routes.map((descriptor) => runRoute({ descriptor, destination, map }));
-	}));
+	});
 }
 
 function runRoute({ descriptor, destination, map }: { descriptor: RouteDescriptor; destination: RouteDestination; map: RouteMap }): RunRoute {
@@ -132,20 +139,16 @@ const DAY_TIERS = [2, 3];
  * POIs (DDB-43): a tier 1 destination and up to two from tiers 2 and 3,
  * drawn from `fork('routes', day)` off the campaign's seed, each with every
  * route it has. Only destinations a run can reach and leave by dark, on at
- * least one route, are offered, since a run has no night yet; strongholds
+ * least one route, are offered, since a run has no night yet: that's read
+ * from the descriptors' unrounded hours, never the run's tenths. Strongholds
  * never are. Throws on a seed or day `Rng.fork` won't take.
  */
-export function offersForDay({ routes, seed, day, daylightHours }: {
-	routes: readonly RunRoute[];
-	seed: number;
-	day: number;
-	daylightHours: number;
-}): readonly RunRoute[] {
+export function offersForDay({ map, seed, day, ...options }: OfferOptions & { map: RouteMap; seed: number; day: number }): readonly RunRoute[] {
 	const rng = new Rng({ seed }).fork('routes', day);
-	const byDestination = new Map<string, RunRoute[]>();
-	for (const route of routes) byDestination.set(route.destination.id, [...(byDestination.get(route.destination.id) ?? []), route]);
-	const homeByDark = (offered: readonly RunRoute[]) => offered.some(({ hours }) => hours.out + hours.objective + hours.home <= daylightHours);
-	const open = [...byDestination.values()].filter((offered) => offered[0].destination.tier <= 3 && homeByDark(offered));
+	const described = describeMap(map, options);
+	const offers = offersByPoi(map, described, options);
+	const { pois } = map.products;
+	const open = offers.filter((offered, poi) => offered.length > 0 && pois.pois[poi].type !== STRONGHOLD_TYPE && pois.pois[poi].tier <= 3 && described[poi].some(({ spare }) => spare >= 0));
 	const first = open.filter((offered) => offered[0].destination.tier === 1);
 	const rest = open.filter((offered) => DAY_TIERS.includes(offered[0].destination.tier));
 	const picked: RunRoute[][] = [];

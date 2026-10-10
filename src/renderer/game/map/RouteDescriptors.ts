@@ -32,7 +32,7 @@ export interface KnownStop {
 	readonly leg: number;
 	/** Its share of its leg, 0 at the inner end to 1 at the outer. */
 	readonly at: number;
-	/** Null where only that a stop is there is known: a rumored leg's, or an uncharted leg's next stop. */
+	/** Null where only that a stop is there is known: a rumored leg's, or the next stop past charted and rumored road. */
 	readonly type: StopType | null;
 	/** A known fight's skulls; 0 otherwise. */
 	readonly skulls: number;
@@ -106,8 +106,10 @@ export function describeRoutes(map: RouteMap, poi: number, { knowledge = () => '
 		const known: KnownStop[] = [];
 		let stopHours = 0;
 		let least: LegKnowledge = 'charted';
+		let nextShown = false;
 		for (const leg of route.legs) {
-			const state = knowledge(leg);
+			// Past the first uncharted leg nothing is known: a direction and the next stop.
+			const state: LegKnowledge = least === 'uncharted' ? 'uncharted' : knowledge(leg);
 			if (LEG_KNOWLEDGE.indexOf(state) < LEG_KNOWLEDGE.indexOf(least)) least = state;
 			const ids = stops.legs[leg].stops;
 			if (state === 'charted') {
@@ -120,7 +122,10 @@ export function describeRoutes(map: RouteMap, poi: number, { knowledge = () => '
 				for (const id of ids) known.push({ id, leg, at: stops.stops[id].at, type: null, skulls: 0 });
 				stopHours += ids.length * tuning.unknownStopHours;
 			} else {
-				if (ids.length > 0) known.push({ id: ids[0], leg, at: stops.stops[ids[0]].at, type: null, skulls: 0 });
+				if (!nextShown && ids.length > 0) {
+					known.push({ id: ids[0], leg, at: stops.stops[ids[0]].at, type: null, skulls: 0 });
+					nextShown = true;
+				}
 				stopHours += expectedStops(stops.legs[leg], map.params.stopDensity, stopTuning) * tuning.unknownStopHours;
 			}
 		}
@@ -172,7 +177,7 @@ function expectedStops({ classLengths }: LegProfile, stopDensity: number, { spac
  * numbered by its road.
  */
 function nameOf(legs: readonly LegProfile[], { names }: RouteTuning): { roadClass: RoadClass; biome: Biome; name: string } {
-	const classLengths: Record<RoadClass, number> = { highway: 0, backRoad: 0, trail: 0 };
+	const classLengths = Object.fromEntries(ROAD_CLASSES.map((roadClass) => [roadClass, 0])) as Record<RoadClass, number>;
 	const biomeLengths = Object.fromEntries(BIOMES.map((biome) => [biome, 0])) as Record<Biome, number>;
 	let total = 0;
 	let highwayRoad = -1;

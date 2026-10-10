@@ -157,9 +157,8 @@ export interface MeshMap {
 
 /**
  * The route tree, POIs, and stops over a network, on fake ground: a map
- * with routes, which real maps won't have until the road graph (Map 8)
- * gives them meeting points. The POIs draw on the seed's `pois` fork and
- * the stops on its `stops` fork, as the pipeline nests them.
+ * with routes, small and quick to build. The POIs draw on the seed's `pois`
+ * fork and the stops on its `stops` fork, as the pipeline nests them.
  */
 export function meshMap(network: RoadNetwork, {
 	seed = 1, ground = fakeGround(), strongholds = 4, poiDensity = 1, routeSplit = 0.5, travelPace = 1,

@@ -36,17 +36,16 @@ export type StopType = (typeof STOP_TYPES)[number];
 
 /** Stops that are fights. */
 export const FIGHT_TYPES: readonly StopType[] = ['ambush', 'warband'];
+/** Stops that aren't non-fights for the per-route rules: the fights, and a checkpoint, which can turn into one. */
+const UNCALM_TYPES: readonly StopType[] = [...FIGHT_TYPES, 'checkpoint'];
 
-/**
- * Whether a stop counts as a non-fight for the per-route rules: neither a
- * fight nor a checkpoint, which can turn into one.
- */
+/** Whether a stop counts as a non-fight for the per-route rules: neither a fight nor a checkpoint. */
 export function isCalm(type: StopType): boolean {
-	return type !== 'ambush' && type !== 'warband' && type !== 'checkpoint';
+	return !UNCALM_TYPES.includes(type);
 }
 
 export function isFight(type: StopType): boolean {
-	return type === 'ambush' || type === 'warband';
+	return FIGHT_TYPES.includes(type);
 }
 
 /** Tiers the tables key on, 1 to 5. */
@@ -75,7 +74,11 @@ export interface StopTuning {
 		/** ...and from a place partway along it where roads meet. */
 		readonly junctions: number;
 	};
-	/** Least world units between a leg's stops, which caps how many it holds. */
+	/**
+	 * Least world units between the stops a leg is dealt, which also caps how
+	 * many it holds. A Find: driver added for the floor keeps it where the
+	 * legs have room, and may sit closer where they don't.
+	 */
 	readonly minGap: number;
 	/** Share of its slot a stop moves at most, either way about the slot's middle. */
 	readonly jitter: number;
@@ -156,7 +159,7 @@ export class CompiledStopTables {
 			BIOMES.forEach((biome) => {
 				for (let tier = 1; tier <= STOP_TIERS; tier += 1) {
 					this.territories.forEach((territory) => {
-						const row = this.rowOf(roadClass, biome, tier, territory);
+						const row = this.rowOf({ roadClass, biome, tier, territory });
 						let all = 0;
 						let calm = 0;
 						STOP_TYPES.forEach((type, index) => {
@@ -178,16 +181,17 @@ export class CompiledStopTables {
 		});
 	}
 
-	/** The row's offset for a class, biome, tier 1 to 5, and territory; -1 for a territory the tables don't have. */
-	public rowOf(roadClass: RoadClass, biome: Biome, tier: number, territory: string): number {
+	/** The row's offset for a class, biome, tier 1 to 5, and territory. Throws on a tier out of range or a territory the tables don't have. */
+	public rowOf({ roadClass, biome, tier, territory }: { roadClass: RoadClass; biome: Biome; tier: number; territory: string }): number {
 		const place = this.territories.indexOf(territory);
-		if (place < 0) return -1;
+		if (place < 0) throw new RangeError(`stop tables: no territory "${territory}"; they have ${this.territories.join(', ')}`);
+		if (!(Number.isInteger(tier) && tier >= 1 && tier <= STOP_TIERS)) throw new RangeError(`stop tables: tier must be an integer from 1 to ${STOP_TIERS}, got ${tier}`);
 		const row = ((ROAD_CLASSES.indexOf(roadClass) * BIOMES.length + BIOMES.indexOf(biome)) * STOP_TIERS + tier - 1) * this.territories.length + place;
 		return row * STOP_TYPES.length;
 	}
 
-	/** The type a draw in [0, 1) picks from a row, from every type or the calm ones alone. */
-	public draw(row: number, draw: number, calmOnly: boolean): StopType {
+	/** The type a draw in [0, 1) picks from a row (`rowOf`), from every type or the calm ones alone. */
+	public draw({ row, draw, calmOnly }: { row: number; draw: number; calmOnly: boolean }): StopType {
 		const sums = calmOnly ? this.calm : this.all;
 		const total = sums[row + STOP_TYPES.length - 1];
 		const target = draw * total;
@@ -272,7 +276,7 @@ export function readRouteTuning(value: unknown, path: string): RouteTuning {
 }
 
 /** Stop tables from JSON (the shipped file, or a map's `stopTables` param), checked and compiled. */
-export function readStopTables(value: unknown, path: string): CompiledStopTables {
+export function compileStopTables(value: unknown, path: string): CompiledStopTables {
 	const fields = readFields(value, path, ['classes', 'biomes', 'tiers', 'territories']);
 	const classes = readFields(fields.classes, `${path}.classes`, ROAD_CLASSES);
 	const biomes = readObject(fields.biomes, `${path}.biomes`);
@@ -299,7 +303,7 @@ export function stopTablesFor(stopTables: object | undefined): CompiledStopTable
 	if (stopTables === undefined) return STOP_TABLES;
 	let tables = compiled.get(stopTables);
 	if (!tables) {
-		tables = readStopTables(stopTables, 'stopTables');
+		tables = compileStopTables(stopTables, 'stopTables');
 		compiled.set(stopTables, tables);
 	}
 	return tables;
@@ -346,4 +350,4 @@ function mapKeys<Key extends string, Value>(keys: readonly Key[], read: (key: Ke
 /** The shipped tuning and tables, read as this module loads, so a bad edit to a file fails straight away. */
 export const STOP_TUNING: StopTuning = readStopTuning(stopsFile, 'StopTuning');
 export const ROUTE_TUNING: RouteTuning = readRouteTuning(routesFile, 'RouteTuning');
-export const STOP_TABLES: CompiledStopTables = readStopTables(stopTablesFile, 'stopTables');
+export const STOP_TABLES: CompiledStopTables = compileStopTables(stopTablesFile, 'stopTables');

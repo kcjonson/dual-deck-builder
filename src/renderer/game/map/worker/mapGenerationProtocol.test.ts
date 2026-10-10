@@ -143,7 +143,7 @@ describe('the generation worker\'s transfer format', () => {
 	});
 
 	it('carries the POIs and their stops across as they are, so routes and stop contents come out the same on the other side', () => {
-		// Real maps have no POIs until the road graph (Map 8), so a mesh's stand in for them.
+		// A mesh's POIs and stops, so there are plenty whatever the generated map has.
 		const mesh = meshMap(randomMesh({ seed: 41 }), { seed: 3 });
 		const own = generateAreaMap({ params });
 		const withStops = { ...own, products: { ...own.products, pois: mesh.products.pois, stops: mesh.products.stops } };
