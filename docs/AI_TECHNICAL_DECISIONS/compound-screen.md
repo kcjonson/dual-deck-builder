@@ -18,7 +18,7 @@ Considered: a pressable tile drawing its name and text itself, closer to the wir
 
 ### Disabled with the reason on screen
 
-The six buildings, the Area map, and Plan a supply run are disabled, each with a line of text saying why, as Continue on the main menu is. A disabled control takes no focus and shows no hover (R9.5), and a tooltip needs one or the other (R12.22), so the reason can't be a tooltip. The Area map and the Map room open the same thing, so the Map room's line is the reason for both. When a building's screen lands, its entry in `BUILDINGS` gets a null reason and an `action`, which the button calls.
+A building with nothing behind it, the Area map, and Plan a supply run are disabled, each with a line of text saying why, as Continue on the main menu is. A disabled control takes no focus and shows no hover (R9.5), and a tooltip needs one or the other (R12.22), so the reason can't be a tooltip. The Area map and the Map room open the same thing, so the Map room's line is the reason for both. A building whose screen exists has a null reason and the `screen` its button opens, handed the campaign on show; until there's a campaign it's disabled too, with a line saying it opens with a campaign in progress, and it doesn't open while a Rest is being saved. The bunkhouse is the first, opening the Crew screen ([crew-screen.md](./crew-screen.md)).
 
 ### Rest
 
@@ -34,7 +34,7 @@ When `endDay` reports `abandoned` (People reached 0) and the day has been saved,
 
 ### Focus and keys
 
-Focus starts on Back to menu. Tab reaches only live controls (R9.18, R9.19), so with everything else disabled it moves between Back and Rest. The buildings are one focus group (R9.29) whose Left and Right move through them in reading order; Up and Down go unconsumed to directional focus (R9.24, R9.26), which moves between the rows. Rest and Plan a supply run are another group. Escape goes back to the menu with focus restored on the button that opened the compound, as Back does from the menu's other screens; under the notice the modal scope takes Escape instead (R9.20).
+Focus starts on Back to menu. Tab reaches only live controls (R9.18, R9.19): Back, the buildings with a screen behind them, and Rest. The buildings are one focus group (R9.29) whose Left and Right move through them in reading order; Up and Down go unconsumed to directional focus (R9.24, R9.26), which moves between the rows. Rest and Plan a supply run are another group. Escape goes back to the menu with focus restored on the button that opened the compound, as Back does from the menu's other screens; under the notice the modal scope takes Escape instead (R9.20).
 
 ## Provisional calls
 
@@ -53,7 +53,7 @@ Each is the simplest option where the spec leaves a choice open, and a line or t
 
 ## Consequences
 
-- Each building screen that lands gives its `BUILDINGS` entry an action and drops its reason; the Area map button and Plan a supply run follow the area map, load out, and the run route. When the first building is live, focus could start on the buildings instead of Back.
+- Each building screen that lands gives its `BUILDINGS` entry a `screen` and drops its reason; the Area map button and Plan a supply run follow the area map, load out, and the run route. With a building live, focus could start on the buildings instead of Back.
 - The needs panel takes rumors when the radio mast has them (DDB-337). The infirmary's meds line ("out of meds, a driver can't heal") comes with the infirmary screen, from `getTreatmentBlocker`'s `too_few_meds` ([injuries.md](./injuries.md)).
 - DDB-305 replaces `compoundFell` with the defeat screen and ends the campaign in the store.
 - The scavenging party (DDB-303) is a second day-ending action beside Rest, with the same end-then-checkpoint shape.

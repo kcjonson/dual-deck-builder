@@ -2,6 +2,7 @@ import { resolveMapParams } from '../../map/MapParams';
 import { CAMPAIGN_SCHEMA_VERSION, Campaign } from '../Campaign';
 import { CampaignStore, CampaignStoreError, campaignKeys } from '../CampaignStore';
 import { MemorySaveStorage, SaveStorage } from '../SaveStorage';
+import cardsFile from '../../data/cards.json';
 import campaignFixture from './campaign-v5.json';
 
 export const SEED = 20261006;
@@ -40,6 +41,39 @@ export function fixtureText(change: (campaign: Record<string, unknown>) => void 
 	const campaign = JSON.parse(JSON.stringify(CAMPAIGN_FIXTURE));
 	change(campaign);
 	return saveText({ campaign: JSON.stringify(campaign) });
+}
+
+/**
+ * The fixture's campaign with its run home and unwound, as the compound
+ * holds it between runs: every driver's cards back in their default deck,
+ * what they borrowed back in the locker. Changed first if asked.
+ */
+export function atHomeCampaign(change: (campaign: Campaign) => void = () => undefined): Campaign {
+	const campaign = Campaign.fromJSON(JSON.parse(JSON.stringify(CAMPAIGN_FIXTURE)), { onWarning: () => undefined });
+	campaign.unwindRunDecks();
+	change(campaign);
+	return campaign;
+}
+
+/** `atHomeCampaign` as save text. */
+export function atHomeText(change: (campaign: Campaign) => void = () => undefined): string {
+	return saveText({ campaign: atHomeCampaign(change).toSaveText() });
+}
+
+/**
+ * The longest lists the Crew screen shows from the shipped cards: the
+ * fixture at home, its first driver's deck at the most a deck holds, and
+ * the locker holding one to four copies of every card that isn't an
+ * escort's signature card, the Interceptor's Precision Shot among them.
+ */
+export function fullLockerCampaign(): Campaign {
+	return atHomeCampaign((campaign) => {
+		const types = cardsFile.cards.filter((card) => card.rarity !== 'signature').map((card) => card.type);
+		campaign.drivers[0].set({
+			defaultDeck: { armor_plating: 3, covering_fire: 1, far_shoot: 2, flank: 1, nitro_boost: 2, oil_slick: 1, point_blank: 2, ram: 2, ramming_speed: 4, repair_kit: 2 },
+		});
+		campaign.set({ locker: Object.fromEntries(types.map((type, index) => [type, (index % 4) + 1])) });
+	});
 }
 
 /** A save of this version that won't load: a driver in a state that doesn't exist. */

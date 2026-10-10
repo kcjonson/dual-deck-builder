@@ -7,7 +7,7 @@ import type { IconName } from '../text/icons';
 import type { FontRole } from '../text/fontFaces';
 import { resolveFontRole } from '../text/fontRoles';
 import { tokens } from '../theme/tokens';
-import { Look, LookInk, LookLayers, glowShadow, lookInk, resolveLook } from '../style/look';
+import { Look, LookInk, LookLayers, glowShadow, lookInk, resolveLook, shadowExtent } from '../style/look';
 import { LookTransition } from '../style/LookTransition';
 import {
 	Sides,
@@ -105,6 +105,8 @@ export class Button extends Pressable {
 	private readonly transition: LookTransition;
 	/** Height comes from `size` until the caller gives one (R11.10). */
 	private heightFollowsSize: boolean;
+	/** Whether the look drawn last showed a glow. */
+	private glowing = false;
 
 	constructor({
 		label = '',
@@ -224,9 +226,18 @@ export class Button extends Pressable {
 		return true;
 	}
 
-	/** R8.8: the ring, any glow a state can raise, the style's shadow, and the press nudge. */
+	/**
+	 * R8.8: the ring, any glow a state can raise, the style's shadow, and the
+	 * press nudge. A restyle while a glow shows (a hovered button turned
+	 * ghost) fades the old look's glow and nudge out over the transition, past
+	 * anything the new layers can raise, so the extent covers what the look
+	 * drawn now holds too until its glow is gone (R4.2a).
+	 */
 	public get inkExtent(): number {
-		return this.inkFromLook.extent;
+		const settled = this.inkFromLook.extent;
+		const look = this.transition.look;
+		if (look.glow[3] <= 0) return settled;
+		return Math.max(settled, shadowExtent(glowShadow(look.glow)) + Math.max(0, look.offsetY));
 	}
 
 	/** The ring while focus shows and the style's shadow where it falls, never the hover glow or the press nudge (R12.20). */
@@ -354,8 +365,17 @@ export class Button extends Pressable {
 		return this.styleObject.padding !== undefined ? resolvePadding(this.styleObject.padding, fallback) : fallback;
 	}
 
-	/** The label and icon take the look's text colour and follow the pressed nudge. */
+	/**
+	 * The label and icon take the look's text colour and follow the pressed
+	 * nudge. A glow starting or ending changes the extent and the draws, so
+	 * the cached ink is marked stale then.
+	 */
 	private followLook(look: Look): void {
+		const glowing = look.glow[3] > 0;
+		if (glowing !== this.glowing) {
+			this.glowing = glowing;
+			this.invalidateInk();
+		}
 		this.text.color = [...look.text] as [number, number, number, number];
 		if (this.icon) this.icon.tint = look.text;
 		const nudge = look.offsetY;

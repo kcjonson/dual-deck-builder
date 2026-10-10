@@ -112,14 +112,17 @@ describe('CompoundScreen', () => {
 			expect(chips).toEqual(['Food 14', 'Water 11', 'Fuel 6', 'Scrap 35', 'Meds 2', 'People 18']);
 		});
 
-		it('names each building at the top of its tile, and disables it, the Area map, and Plan a supply run, each with its reason on screen', () => {
+		it('names each building at the top of its tile, and disables those with nothing behind them, the Area map, and Plan a supply run, each with its reason on screen', () => {
 			for (const building of BUILDINGS) {
 				expect(text(`compound_building_${building.id}_name`)).toBe(building.name);
 				expect(find<{ color: unknown }>(`compound_building_${building.id}_name`).color).toEqual(tokens.color.text_bright);
+				if (building.reason === null) continue;
 				expect(find<Button>(`compound_building_${building.id}_button`).enabled).toBe(false);
 				expect(find<Text>(`compound_building_${building.id}_reason`).visible).toBe(true);
 				expect(text(`compound_building_${building.id}_reason`)).toBe(building.reason);
 			}
+			expect(find<Button>('compound_building_bunkhouse_button').enabled).toBe(true);
+			expect(find<Text>('compound_building_bunkhouse_reason').visible).toBe(false);
 			// The Map room's tile carries the Area map's reason.
 			expect(find<Button>('compound_area_map_button').enabled).toBe(false);
 			expect(text('compound_building_map_room_reason')).toBe("The area map isn't built yet.");
@@ -138,14 +141,30 @@ describe('CompoundScreen', () => {
 			expect(text('compound_rest_line')).toBe('Ends day 9. The compound eats 5 food and 5 water.');
 		});
 
-		it('starts focus on Back to menu, and Tab reaches only the live controls: Back and Rest', () => {
+		it('starts focus on Back to menu, and Tab reaches only the live controls: Back, the Bunkhouse, and Rest', () => {
 			expect(context.focus.focused?.id).toBe('compound_back_button');
-			send(context, [key('Tab')]);
-			expect(context.focus.focused?.id).toBe('compound_rest_button');
-			send(context, [key('Tab')]);
-			expect(context.focus.focused?.id).toBe('compound_back_button');
+			const stops = ['Tab', 'Tab', 'Tab'].map((tab) => {
+				send(context, [key(tab)]);
+				return context.focus.focused?.id;
+			});
+			expect(stops).toEqual(['compound_building_bunkhouse_button', 'compound_rest_button', 'compound_back_button']);
 			context.focus.focus(find('compound_building_garage_button'));
 			expect(context.focus.focused?.id).toBe('compound_back_button');
+		});
+
+		it('opens the Crew screen from the Bunkhouse, handing it the campaign', () => {
+			context.focus.focus(find('compound_building_bunkhouse_button'));
+			send(context, [key('Enter')]);
+			expect(navigate).toHaveBeenLastCalledWith('crewScreen', { campaign: screen.shown });
+		});
+
+		it('keeps the Bunkhouse shut while a Rest is being saved', async () => {
+			find<Button>('compound_rest_button').onClick?.({} as never);
+			find<Button>('compound_building_bunkhouse_button').onClick?.({} as never);
+			expect(navigate).not.toHaveBeenCalled();
+			await flush();
+			find<Button>('compound_building_bunkhouse_button').onClick?.({} as never);
+			expect(navigate).toHaveBeenLastCalledWith('crewScreen', { campaign: screen.shown });
 		});
 
 		it('goes back to the menu with focus restored on Back, Enter on Back, or Escape', () => {
@@ -316,6 +335,9 @@ describe('CompoundScreen', () => {
 			screen.mount(context);
 			await screen.campaignLoaded;
 			expect(find<Button>('compound_rest_button').enabled).toBe(false);
+			expect(find<Button>('compound_building_bunkhouse_button').enabled).toBe(false);
+			expect(find<Text>('compound_building_bunkhouse_reason').visible).toBe(true);
+			expect(text('compound_building_bunkhouse_reason')).toBe('Opens with a campaign in progress.');
 			expect(text('compound_rest_line')).toBe('No campaign in progress.');
 			expect(find<{ visible: boolean }>('compound_resources').visible).toBe(false);
 			expect(find<{ visible: boolean }>('compound_day').visible).toBe(false);

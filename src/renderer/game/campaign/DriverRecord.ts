@@ -222,11 +222,15 @@ export function describeDriver(driver: DriverRecord): string {
 	return `${driver.name} (${driver.id})`;
 }
 
-/** "Road Warrior 2": the archetype's title and an ordinal, until drivers get names (DDB-318). */
-export function placeholderName({ archetype, ordinal }: { archetype: DriverArchetype; ordinal: number }): string {
-	const title = DRIVER_CONFIGS[archetype].metadata.name
+/** "Road Warrior": an archetype's name in title case, without its "The". */
+export function archetypeTitle(archetype: DriverArchetype): string {
+	return DRIVER_CONFIGS[archetype].metadata.name
 		.replace(/^THE\s+/i, '')
 		.toLowerCase()
 		.replace(/\b[a-z]/g, letter => letter.toUpperCase());
-	return `${title} ${ordinal}`;
+}
+
+/** "Road Warrior 2": the archetype's title and an ordinal, until drivers get names (DDB-318). */
+export function placeholderName({ archetype, ordinal }: { archetype: DriverArchetype; ordinal: number }): string {
+	return `${archetypeTitle(archetype)} ${ordinal}`;
 }
