@@ -286,11 +286,11 @@ describe('pointer focus on a disabled control (R9.5, R9.23)', () => {
 		expect(focusedId()).toBe('rest');
 	});
 
-	it('focuses no focusable ancestor of a disabled control, nor an enabled control inside a disabled one', () => {
+	it('focuses no focusable ancestor of a disabled control, nor an enabled control inside a disabled one, but passes over a disabled container that is not focusable', () => {
 		const { root } = buttons();
 		const panel = new Probe({ id: 'panel', x: 0, y: 100, width: 400, height: 200, focusable: true, tabIndex: -1 });
 		panel.addChild(new Button({ label: 'Off', id: 'off', x: 10, y: 10, width: 100, height: 40, disabled: true }));
-		const section = new Group({ id: 'section', x: 0, y: 100, width: 400, height: 100, enabled: false });
+		const section = new Probe({ id: 'section', x: 0, y: 100, width: 400, height: 100, enabled: false });
 		section.addChild(new Button({ label: 'Inside', id: 'inside', x: 10, y: 10, width: 100, height: 40 }));
 		panel.addChild(section);
 		root.addChild(panel);
@@ -300,6 +300,11 @@ describe('pointer focus on a disabled control (R9.5, R9.23)', () => {
 		press(50, 230);
 		expect(focusedId()).toBe('rest');
 		press(300, 150);
+		expect(focusedId()).toBe('panel');
+
+		// The section isn't focusable, so a press on it reaches the panel as it would were the section enabled.
+		context.focus.blur();
+		press(300, 280);
 		expect(focusedId()).toBe('panel');
 	});
 });
