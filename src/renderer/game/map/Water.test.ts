@@ -301,6 +301,21 @@ describe('generateWater', () => {
 		});
 	});
 
+	describe('hazards', () => {
+		it.each(SETS)('finds the craters, placed before the water, clear of every river, in %s', (_name, set) => {
+			const land = landFor(set);
+			const water = waterFor(set);
+			land.hotspots.forEach(({ x, y, craterRadius }) => {
+				for (let ring = 0; ring <= craterRadius; ring += 2) {
+					for (let step = 0; step < 48; step += 1) {
+						const angle = (step / 48) * 2 * Math.PI;
+						expect(water.waterAt(x + ring * Math.cos(angle), y + ring * Math.sin(angle))).not.toBe('river');
+					}
+				}
+			});
+		});
+	});
+
 	describe('moisture and low ground', () => {
 		it('makes the ground beside rivers wetter and lower than the country at large', () => {
 			const set = { seed: 7, radius: 800 };
@@ -389,4 +404,7 @@ interface PinnedWater {
 	readonly lakes: string[];
 }
 
-const PINNED: PinnedWater[] = [];
+const PINNED: PinnedWater[] = [
+	{ set: { seed: 7, radius: 800 }, moisture: 2290296385, lakeDepth: 1644368829, points: 3277945661, rivers: 28, lakes: ['reservoir 166', 'reservoir 33'] },
+	{ set: { seed: 17, environment: 'floodlands', radius: 800, rivers: 0 }, moisture: 4283430836, lakeDepth: 1256971727, points: 2864465443, rivers: 43, lakes: ['reservoir 58', 'reservoir 65', 'reservoir 127', 'reservoir 33', 'reservoir 59'] },
+];

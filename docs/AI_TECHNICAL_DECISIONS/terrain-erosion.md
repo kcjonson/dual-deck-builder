@@ -59,7 +59,7 @@ The change is in elevation, which runs 0 to about 0.7 on these maps. The coarse 
 
 The prototype normalised each map's eroded height to its own 0.2% and 99.5% quantiles, which cancels most of what ruggedness and coverage do to how tall the land stands: a map with no ranges stretched its hills to the same peaks as the most rugged. Here eroded height h becomes elevation h / sqrt(h^2 + 36), close to h / 6 below about 3 and easing toward 1 above, so a gentle map stays low, a rugged one stands tall, and nothing flattens at a clamp. On the environments' defaults the plains run about 0.03 to 0.1 and the peaks 0.55 to 0.8; the steepest corner of the tuning ranges reaches 0.86.
 
-`RELIEF`, the world units elevation 1 stands, is 100, down from the field model's 150. At 150 the eroded ranges, steeper than the field model's, put grade 1 or more on a fifth of Mixed, and since cliffs stand wherever rough country reaches grade 1, the bake drew whole 16-unit roughness cells of cliff, blocks across the ranges. At 100, over five environments by two seeds at radius 1000, cliffs cover 0% to 3.6% of the disc by environment, against 0.2% to 5.3% on the field model, and ground graded 1 or more covers 0.5% to 12%, against 0.3% to 6.9%. `RELIEF` lives in `Land.ts` now, since the metro's flattening measures grades with it, and `Terrain.ts` re-exports it.
+`RELIEF`, the world units elevation 1 stands, is 100, down from the field model's 150. At 150 the eroded ranges, steeper than the field model's, put grade 1 or more on a fifth of Mixed, and since cliffs stand wherever rough country reaches grade 1, the bake drew whole 16-unit roughness cells of cliff, blocks across the ranges. At 100, over five environments by two seeds at radius 1000, cliffs covered 0% to 3.6% of the disc by environment on that lattice, against 0.2% to 5.3% on the field model, and ground graded 1 or more covers 0.5% to 12%, against 0.3% to 6.9%. `RELIEF` lives in `Land.ts` now, since the metro's flattening measures grades with it, and `Terrain.ts` re-exports it.
 
 `Terrain` samples the grid with `GridSampler.bicubic`, Catmull-Rom through the cell centres, smooth in value and slope, so the bake's hill shading has no facets and slope is the exact gradient. A dry map's terraces go on that value (Terraces, below). Range country adds fine relief for the picture: 60-unit, 3-octave noise times 0.006 of the bicubic mask, with its gradient. Plain noise, not ridged, so the land has no crease; the slope test allows none.
 
@@ -69,9 +69,9 @@ Below an aridity of 0.4, full at 0.1, elevation is pulled toward 7 benches a uni
 
 `Terrain` terraces what it samples, not the grid: `terraceHeight` of the bicubic value, its gradient scaled by `terraceSlope`, the terrace's derivative, by the chain rule. Terraced cell by cell, a grid's risers fall between cells, and the bicubic draws a riser crossing a slope as a row of steps along the cells, barcodes on every flank. Terraced as it's sampled, a riser follows the land's contours. The grid, and so its drainage, is the same at any aridity, as a test checks.
 
-The pull is the same everywhere past the blend radius and never all the way, so terracing is monotone: a higher point stays higher, and the land drains the same way terraced or not. The prototype pulled less in range country, which reorders heights wherever the mask changes across a slope; its own drainage then crossed High Desert's plains in long straight diagonals. The pull does fade out over the blend ring, by the same ease as the metro's other fields, so the metro is flat ground rather than a bench; there two points' heights can swap as the pull changes between them, in the picture only, since drainage is the grid's. The lowland level is terraced the same way, so mire and moisture compare like with like.
+The pull is the same everywhere past the blend radius and never all the way, so terracing is monotone: a higher point stays higher, and the land drains the same way terraced or not. The prototype pulled less in range country, which reorders heights wherever the mask changes across a slope; its own drainage then crossed High Desert's plains in long straight diagonals. The pull does fade out over the blend ring, by the same ease as the metro's other fields, so the metro is flat ground rather than a bench; there two points' heights can swap as the pull changes between them, in the picture only, since drainage is the grid's.
 
-Cliffs on a dry map are mostly risers, steeper than the slope they cross and narrower: a cliff band's median width across the slope is 5 units in the High Desert and 6 in the Badlands, against 11 on a map that isn't terraced, and under 2% of cliff ground lies in bands narrower than 2 units, which roads checked every half unit don't slip through. High Desert's cliffs cover 2.6% to 2.8% of the disc on seeds 7 and 3 (field model 3.1% to 3.3%), and Badlands' 3.4% to 3.6% (5.3%).
+Cliffs on a dry map are mostly risers, steeper than the slope they cross and narrower: a cliff band's median width across the slope is 5 units in the High Desert and 6 in the Badlands, against 11 on a map that isn't terraced, and under 2% of cliff ground lies in bands narrower than 2 units, which roads checked every half unit don't slip through. On the field model's rough-country lattice, High Desert's cliffs covered 2.6% to 2.8% of the disc on seeds 7 and 3, and Badlands' 3.4% to 3.6%; rough country from the eroded slope puts more of the risers in cliffs (water-and-biomes.md).
 
 ## The metro
 
@@ -91,13 +91,7 @@ Measured by sampling the terrain on polar grids of the metro, its steepest grade
 
 Water stands where a level is above the land. Over 90 maps, five environments by six seeds at radius 800, 1000, and 1200, that's a median 0.57% of the grid and at most 8.5%, 2% or more on 19 maps; inside the disc the median is 0.03% and the most 5.6%, since most of it lies in the grid's margin past the rim. The tests hold it under 10% on every map and 2% at the median over the five environments. They're the coarse pass's last pits, which more coarse iterations drain, but 40 and 10 already take the land to 350 ms at radius 1200, so they stay, for the water stage as lake sites.
 
-For Map 5, the water stage:
-
-- Re-accumulates area with rain weighted by moisture and the ranges over the same receivers and order with `accumulateArea({ drainage, rain })`, or reroutes the finished elevation with `routeDrainage`, which gives the same receivers.
-- Gets natural lake and reservoir sites for free: a cell whose level stands above its elevation holds water until it spills.
-- Will find straight runs where drainage crosses gentle, even slopes, fewer since steepest descent but still eight directions. The spec's river smoothing and `riverMeander` are the place to break them up.
-- Lays its water with `Terrain.withWater`, a layer of functions, which `encodeAreaMap` refuses to send: the water stage sends its own arrays across the worker boundary beside the land's, and the decode lays them back.
-- Will find dead-flat metros draining in ruler-straight lines, where the metro's water fill leaves flat ground the flood crosses cell by cell. Either resolve flats after the fill, draining each flat cell toward lower ground and away from higher, or add noise of under 0.01 grade and route again.
+The water stage ([water-and-biomes.md](./water-and-biomes.md)) routes the finished land again with noise of under a hundredth of grade added, which breaks up the metro's filled flats and the eight-direction runs on gentle slopes that the land's own drainage crosses in ruler-straight lines; weights the rain by moisture and the ranges; takes the pits as natural lake sites where the country is wet; and sends its own arrays across the worker boundary beside the land's.
 
 ## Crossing the worker boundary
 
@@ -105,31 +99,15 @@ The generation worker ([map-pipeline-worker.md](./map-pipeline-worker.md)) used 
 
 Over five environments by three seeds, a decode takes 11 ms median at radius 1000 and 28 ms at 1600 in Node 24, and about 20 ms and 60 to 130 ms on Chromium's main thread, sending 2.6 MB and 6.6 MB, against 236 and 670 ms in Node to grow the land again.
 
-## What the field model lost, and what Map 5 still owns
+## What the field model lost
 
-The plains, ranges, ridges, canyons, badlands, and gully layers are gone, with the derivative bookkeeping that carried their gradients and the canyon wall profile. What the field model also did, and Map 5 (DDB-289) reworks, is kept and adapted only as far as keeping the stages after it working:
-
-- Canyons and badlands are biome categories still, but read off the eroded land rather than drawn. Canyons are the valleys cut deepest below the lower of the cells three either side, across whichever of four directions cuts deepest, 10% of the land outside the ranges on maps of aridity 0.45 and under, none above 0.55. Badlands are the most broken ground, the land's curvature blurred over three cells, their share the field model's (0.7 x ruggedness x (0.3 + 0.7 x contamination)) of the land outside the ranges. Both keep three cells off any range lift, since a range's foot bends the land as hard as any gully, and out of the metro; a map whose shares are both 0 skips them. They're stand-ins: the water stage should read canyons off its rivers.
-- Low ground is measured on each map's own land: its lowland level is the elevation 55% of the land outside the ranges lies under, and `lowland` goes from 1 to 0 across it over 0.02 of elevation. Mire needs lowland of a half or more where it needed elevation under 0.42 on the field model, and moisture gains 0.5 a unit of elevation below the level and loses it above. A fixed level followed ruggedness, since rugged maps stand taller: at elevation 0.05, mire on a Floodlands map at radius 800 fell from 55% to 29% between ruggedness 0.15 and 0.85, and on the lowland level it's 35% and 36%. Both are stand-ins until the water stage spreads wetness from its rivers.
-- Rough country is still the 16-unit roughness lattice, and cliffs still stand only there, wherever the eroded slope reaches grade 1. Realistic-map.md has rough country and cliffs coming from eroded slope; that's Map 5's.
-- Moisture's noise, contamination, hotspots, towns, cost, and the `WaterLayer` seam are unchanged.
-
-On seed 7's five environments the biome shares come out near the field model's: Mixed 24% mountains, 45% scrub, 12% desert, 9% mire, 6% badlands, 3% canyons (field model 24, 37, 15, 13, 8, 4); High Desert 34% mountains, 38% desert, 15% scrub, 8% badlands, 6% canyons (33, 36, 15, 11, 5); Badlands 34% mountains, 21% desert, 21% scrub, 16% badlands, 6% canyons, 4% mire (33, 20, 16, 21, 6, 5). Floodlands carries 41% mire against 44%, and Rust Belt 17%.
-
-How much of the edge the start reaches, by a 4-unit flood fill over `impassable` from the metro, as the share of the outer band's passable ground, over the first 20 seeds of the sequence terrain-fields.md samples:
-
-| Parameters | Least | 5th percentile | Median | Towns cut off |
-| --- | --- | --- | --- | --- |
-| steepest corner, radius 600 | 97.7% | 99.2% | 99.8% | 0 of 100 |
-| Badlands, radius 600 | 98.4% | 99.1% | 99.6% | 0 of 60 |
-| High Desert defaults | 99.9% | 99.9% | 100% | 0 of 60 |
-| Mixed defaults | 99.9% | 100% | 100% | 0 of 100 |
+The plains, ranges, ridges, canyons, badlands, and gully layers are gone, with the derivative bookkeeping that carried their gradients and the canyon wall profile. Canyons, badlands, low ground, moisture, rough country, and cliffs now come from the water and the eroded slope ([water-and-biomes.md](./water-and-biomes.md)), which replaced the stand-ins this stage kept them working with.
 
 ## Determinism
 
 The land is built from adds, multiplies, divides, compares, square roots, and floors, which ECMAScript gives exactly, and from noise and draws that are too. ESLint holds generation to that: under `src/renderer/game/map/`, tests aside, it rejects `Math.sin`, `cos`, `tan` and their inverses, `exp` and `log` in all their forms, `pow`, `hypot`, `cbrt`, the hyperbolics, and `**`. The road tests' fixtures, which place a test's own departures and measure what growth made, disable it line by line with their reasons. The tests pin a hash of the eroded grid and its receivers for two maps, a Mixed map at radius 800 and a High Desert closed basin, computed in a separate Node process from the Jest run that checks them, and a fresh copy of the module erodes the same bits.
 
-The terrain stream forks by feature: `hills`, `ranges`, `rangeWarp`, `rangeBreaks`, `grain`, `outlets`, and `initial` for the land, and `detail`, `moisture`, `roughness`, `contamination`, `hotspots`, and `towns` for the rest. So towns, hotspots, contamination, and anything past the terrain stage never move the land; a test changes six such parameters and gets the same grid.
+The terrain stream forks by feature: `hills`, `ranges`, `rangeWarp`, `rangeBreaks`, `grain`, `outlets`, and `initial` for the land, and `detail`, `roughness`, `contamination`, `hotspots`, and `towns` for the rest; moisture's noise moved to the water stream. So towns, hotspots, contamination, and anything past the terrain stage never move the land; a test changes six such parameters and gets the same grid.
 
 ## Performance
 
@@ -152,7 +130,7 @@ Under Jest a terrain at radius 1000 takes about 0.3 s to build, and 0.8 s with c
 
 - The area map gallery scene's land and roads move, and its goldens re-baseline with this change.
 - Every generated map moves. Nothing saved holds the land (it regenerates on load), but saves made before this load onto a different picture under the same roads, and DDB-296's generator version should count this change.
-- The field model's records stay in terrain-fields.md where they still hold: the noise, the start's blends, sites, rough country, cliffs, cost, and the water seam.
+- The field model's records stay in terrain-fields.md where they still hold: the noise, contamination, the start's blends, and sites. Rough country, cliffs, cost, and the water are water-and-biomes.md's.
 
 ## Provisional calls
 
@@ -169,4 +147,3 @@ Calls the spec and realistic-map.md left to the build, made the simplest way con
 9. The metro: the hills lift at half round it rather than not at all; after erosion it's lowered toward its exit level, keeping 15% of its relief or less where a grade would pass 0.1, easing out to the blend radius, the ways water left it lowered through the ring with it, and standing water inside the blend radius is filled to its level.
 10. Standing water left where the coarse pass leaves it, under 2% of the grid on most maps, rather than more iterations to drain it.
 11. Fine relief in range country: 60-unit, 3-octave noise at 0.006 times the mask.
-12. Until Map 5: canyons and badlands as above; the lowland level at the elevation 55% of the land outside the ranges lies under, with a ramp of 0.02, for mire and moisture.

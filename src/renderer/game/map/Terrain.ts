@@ -166,6 +166,15 @@ const CONTAMINATION = {
 	/** Contamination goes from none to full over 1 / this of noise around the calibrated threshold. */
 	sharpness: 3,
 };
+/**
+ * Craters keep off the land's drainage, so a blast site doesn't sit on a
+ * river: no cell within `margin` cells of the crater carries `area` cells'
+ * drainage, under the least a river needs at any `riverDensity` and the
+ * heaviest rain (Rivers.ts, Water.ts). The water stage routes the land again
+ * with a little noise, which can move a river a cell on flat ground, so the
+ * margin is two cells.
+ */
+const CRATER_DRAINAGE = { area: 40, margin: 2 };
 /** Inside the metro moisture is scrub's middling level. */
 const START_MOISTURE = 0.45;
 /** World units past the metro's edge its streets' bridges reach, so a highway leaving it over a river leaves on one. */
@@ -283,6 +292,7 @@ export class TerrainFields {
 			count: params.hotspots,
 			radius,
 			ring: { inner: blendRadius + MAX_CRATER_RADIUS, outer: 0.9 * radius },
+			suits: (x, y, craterRadius) => offDrainage({ surface, x, y, reach: craterRadius + CRATER_DRAINAGE.margin * grid.cellSize }),
 		});
 		this.hotspotData = new Float64Array(this.hotspots.length * 5);
 		this.hotspots.forEach((hotspot, index) => {
@@ -902,6 +912,24 @@ export class Terrain {
 	public sample(x: number, y: number, out: TerrainSample): TerrainSample {
 		return this.land.sample(x, y, out, this.water);
 	}
+}
+
+/** Whether no cell whose centre lies within `reach` of (x, y) carries `CRATER_DRAINAGE.area` cells of the land's drainage. */
+function offDrainage({ surface, x, y, reach }: { surface: LandSurface; x: number; y: number; reach: number }): boolean {
+	const { grid, drainage } = surface;
+	const size = grid.size;
+	const first = floor((x - reach + grid.halfExtent) / grid.cellSize);
+	const last = floor((x + reach + grid.halfExtent) / grid.cellSize);
+	const bottom = floor((y - reach + grid.halfExtent) / grid.cellSize);
+	const top = floor((y + reach + grid.halfExtent) / grid.cellSize);
+	for (let row = bottom < 0 ? 0 : bottom; row <= top && row < size; row += 1) {
+		const dy = cellCentre(grid, row) - y;
+		for (let column = first < 0 ? 0 : first; column <= last && column < size; column += 1) {
+			const dx = cellCentre(grid, column) - x;
+			if (dx * dx + dy * dy <= reach * reach && drainage.area[row * size + column] >= CRATER_DRAINAGE.area) return false;
+		}
+	}
+	return true;
 }
 
 /**
