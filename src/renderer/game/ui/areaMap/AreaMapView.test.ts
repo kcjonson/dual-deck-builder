@@ -558,6 +558,14 @@ describe('AreaMapView places', () => {
 	const withPlaces = (): AreaMapViewOptions => ({ map: { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK, rivers: NO_RIVERS, places } });
 	const texts = (commands: readonly DrawCommand[]) => commands.filter((command) => command.kind === 'text').map((command) => command.kind === 'text' && command.text);
 
+	it('names a place on its left where its right would run past the view\'s edge', () => {
+		const east: Places = { ...places, towns: [{ id: 7, kind: 'town', x: 580, y: 0, radius: 30, name: 'Eastport', suitability: 2 }], villages: [] };
+		const { view, frame } = mountView({ map: { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK, rivers: NO_RIVERS, places: east } }, { measuring: true });
+		frame();
+		const label = frame().find((command): command is TextCommand => command.kind === 'text' && command.text === 'Eastport');
+		expect((label?.box?.x ?? Infinity) + (label?.box?.width ?? 0)).toBeLessThan(view.camera.worldToScreen(580, 0).x);
+	});
+
 	it('names a place on its left where its right would cover a marker, and not at all where both would (DDB-43)', () => {
 		const measured = (options: AreaMapViewOptions) => mountView({ ...withPlaces(), ...options }, { measuring: true });
 		// Ashford at (300, 200): a POI just east of it, then one just west as well
@@ -648,27 +656,49 @@ describe('AreaMapView rivers', () => {
 describe('AreaMapView labels, badges, and the night ring', () => {
 	const texts = (commands: readonly DrawCommand[]): string[] => commands.filter((command): command is TextCommand => command.kind === 'text').map((command) => command.text);
 
-	it('places labels by priority, the selected first, and leaves out one that would cover a label or a marker until the zoom makes room', () => {
-		// Eighteen pixels apart at the fit zoom: either label would run over the other marker.
+	it('places labels by priority, the selected first, on the right or else the left, and leaves out one with neither side clear until the zoom makes room', () => {
+		// Eighteen pixels apart at the fit zoom: Alpha has Bravo on its right and Delta on its left.
 		const markers: MapMarker[] = [
 			{ id: 'a', kind: 'poi', x: 0, y: 400, label: 'Alpha station', priority: 2 },
 			{ id: 'b', kind: 'poi', x: 40, y: 400, label: 'Bravo yard', priority: 1 },
+			{ id: 'd', kind: 'poi', x: -40, y: 400, label: 'Delta camp', priority: 3 },
 			{ id: 'c', kind: 'poi', x: -400, y: -300, label: 'Charlie mine' },
 		];
 		const { view, frame } = mountView({ markers }, { measuring: true });
+		const labelOf = (commands: readonly DrawCommand[], text: string) => commands.find((command): command is TextCommand => command.kind === 'text' && command.text === text);
 		frame();
-		// Home's label is drawn last, over any marker, and placed first.
-		expect(texts(frame())).toEqual(['Charlie mine', 'Bravo yard', 'Home']);
-		expect(view.drawnText).toEqual(['Home', 'Charlie mine', 'Bravo yard']);
+		let commands = frame();
+		// Bravo on its right; Alpha boxed in, left out; Delta's right would cover Alpha, so its left. Home's label is drawn last, over any marker.
+		expect(texts(commands)).toEqual(['Charlie mine', 'Bravo yard', 'Delta camp', 'Home']);
+		expect(view.drawnText).toEqual(['Home', 'Charlie mine', 'Bravo yard', 'Delta camp']);
+		// Text boxes are in the view's own space, as the camera's points are.
+		const delta = labelOf(commands, 'Delta camp')?.box;
+		expect((delta?.x ?? Infinity) + (delta?.width ?? 0)).toBeLessThan(view.camera.worldToScreen(-40, 400).x);
 
+		// Chosen, Alpha goes first, on its right though nothing's clear; Bravo then has no side clear.
 		view.selection = { kind: 'marker', id: 'a' };
-		expect(texts(frame())).toEqual(['Alpha station', 'Charlie mine', 'Home']);
+		commands = frame();
+		expect(texts(commands)).toEqual(['Alpha station', 'Charlie mine', 'Delta camp', 'Home']);
+		expect(labelOf(commands, 'Alpha station')?.box?.x ?? -Infinity).toBeGreaterThan(view.camera.worldToScreen(0, 400).x);
 
 		view.selection = null;
 		view.camera.zoom = 4;
-		view.camera.center = { x: 20, y: 400 };
-		// Home and Charlie are out of view, culled.
-		expect(texts(frame())).toEqual(['Bravo yard', 'Alpha station']);
+		view.camera.center = { x: 0, y: 400 };
+		// Room for all three; Home and Charlie are out of view, culled.
+		expect(texts(frame())).toEqual(['Bravo yard', 'Alpha station', 'Delta camp']);
+	});
+
+	it('keeps labels off the picked route\'s stops, and draws the stops over the labels', () => {
+		// A stop about 25 pixels east of the chosen POI at the fit zoom, where its label would go.
+		const markers: MapMarker[] = [{ id: 'p', kind: 'poi', x: 0, y: 300, label: 'Pumping station' }];
+		const routes: MapRoute[] = [{ id: 'picked', points: [0, 0, 0, 300], picked: true, stops: [{ x: 54, y: 300, fight: true }] }];
+		const { view, frame } = mountView({ markers, routes, selection: { kind: 'marker', id: 'p' } }, { measuring: true });
+		frame();
+		const commands = frame();
+		const label = commands.find((command): command is TextCommand => command.kind === 'text' && command.text === 'Pumping station');
+		expect((label?.box?.x ?? Infinity) + (label?.box?.width ?? 0)).toBeLessThan(view.camera.worldToScreen(0, 300).x);
+		const ids = commands.map((command) => command.id);
+		expect(ids.indexOf('map.route_picked_stop_0')).toBeGreaterThan(ids.indexOf('map.label_p'));
 	});
 
 	it('draws a POI\'s badge in its disc and a night ring round one with no route home by dark', () => {

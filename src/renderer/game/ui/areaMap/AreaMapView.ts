@@ -158,7 +158,10 @@ export class AreaMapView extends Component {
 	private placedLabels: string[] | null = null;
 	/** The places' names the last frame placed, likewise, towns and villages apart. */
 	private placedPlaceNames: { town: string[]; village: string[] } | null = null;
+	/** What labels must keep clear of this frame: Home's, the picked route's stops, then each marker label as it's placed. */
 	private readonly labelBoxes: LabelBox[] = [];
+	/** The markers' labels this frame places, worked out before the places' names, which keep clear of them. */
+	private readonly labelPlan: { marker: MapMarker; label: string; x: number; y: number }[] = [];
 	private routeLines: readonly RouteLine[] = [];
 	private readonly markerScratch: Vec2 = { x: 0, y: 0 };
 	private knowledgeLayer: RoadKnowledgeLayer | null = null;
@@ -427,8 +430,8 @@ export class AreaMapView extends Component {
 		const box = { x: 0, y: 0, width, height };
 		draw.pushClip(box);
 		draw.drawRect({ id: this.part('ground'), rect: box, fill: MAP_GROUND });
-		// Names placed this frame, the places' and then the markers', which keep clear of them.
 		this.labelBoxes.length = 0;
+		this.labelPlan.length = 0;
 		if (this.mapData && this.geometry) {
 			const layers = this.layerToggles;
 			draw.pushTransform(this.mapCamera.matrix);
@@ -439,10 +442,13 @@ export class AreaMapView extends Component {
 			if (layers.roads) this.drawRoads(draw, this.geometry);
 			if (layers.junctions) this.drawJunctions(draw, this.geometry);
 			draw.popTransform();
+			// The markers' labels are placed first, the nearest POIs' first of all, and the places' names keep clear of them.
+			this.planLabels(draw);
 			if (layers.places) this.drawPlaces(draw);
-			this.drawRouteStops(draw);
 			this.drawCompound(draw);
 			if (layers.markers) this.drawMarkers(draw);
+			// Over the labels, so no label hides a stop.
+			this.drawRouteStops(draw);
 			// Last, so no marker near home covers it.
 			this.drawCompoundLabel(draw);
 		}
@@ -723,8 +729,10 @@ export class AreaMapView extends Component {
 
 	/**
 	 * Towns or villages: a dot each, named when `named`, on the dot's right,
-	 * or its left where the right would cover a marker; where both would,
-	 * the name is left out, since the markers are what the map is picked by.
+	 * or its left where the right would run past the view's edge or cover a
+	 * marker, a marker's label, Home's, or the picked route's stops; where
+	 * both would, the name is left out, since the markers are what the map is
+	 * picked by. Names don't keep clear of each other.
 	 */
 	private drawSettlements(draw: DrawApi, settlements: Places['towns'], named: boolean): void {
 		const camera = this.mapCamera;
@@ -735,11 +743,9 @@ export class AreaMapView extends Component {
 			const at = camera.worldToScreen(x, y, this.scratch);
 			draw.drawCircle({ id: this.part(`place_${id}`), center: at, radius: style.radius, fill: ink, border: { color: paper, width: style.ring, position: 'outside' } });
 			if (!named) continue;
-			const box = { x: at.x + style.radius + LABEL.gap, y: at.y - LABEL.height / 2, width: this.labelWidth(draw, name) + LABEL.padX * 2, height: LABEL.height };
-			if (this.coversMarker(box)) box.x = at.x - style.radius - LABEL.gap - box.width;
-			if (this.coversMarker(box)) continue;
+			const box = this.besideBox({ x: at.x, y: at.y, radius: style.radius, width: this.labelWidth(draw, name), clear: (candidate) => !this.coversMarker(candidate) && !overlapsAny(candidate, this.labelBoxes) });
+			if (!box) continue;
 			this.drawLabel(draw, name, box.x, at.y, `place_${id}_label`);
-			this.labelBoxes.push(box);
 			this.placedPlaceNames?.[kind].push(name);
 		}
 	}
@@ -815,35 +821,64 @@ export class AreaMapView extends Component {
 	}
 
 	/**
-	 * The markers' labels, beside each marker, placed in their order
-	 * (`markerLabelOrder`): on its right, or its left where the right would
-	 * run past the view's edge. One that would overlap a label already
-	 * placed, a place's name among them, the compound's, or another marker
-	 * is left out, the selected
-	 * marker's excepted. Where text can't be measured nothing can be placed
-	 * clear, so every label is drawn.
+	 * Where this frame's labels go, before anything is drawn: Home's box and
+	 * the picked route's stops first, as things to keep clear of, then the
+	 * markers' labels in their order (`markerLabelOrder`), each on its
+	 * marker's right or else its left (`besideBox`). One with no clear side
+	 * is left out, but the selected marker's, which takes a clear side if it
+	 * has one and its right if not. Where text can't be measured nothing can
+	 * be placed clear, so every label is drawn.
 	 */
-	private drawMarkerLabels(draw: DrawApi): void {
+	private planLabels(draw: DrawApi): void {
 		const camera = this.mapCamera;
-		const order = this.markerLabelOrder();
-		const selectedId = this.currentSelection?.kind === 'marker' ? this.currentSelection.id : null;
 		const boxes = this.labelBoxes;
 		const home = camera.worldToScreen(0, 0, this.scratch);
 		boxes.push({ x: home.x - COMPOUND.size / 2, y: home.y - COMPOUND.size / 2, width: COMPOUND.size + LABEL.gap + this.labelWidth(draw, COMPOUND.label) + LABEL.padX * 2, height: Math.max(COMPOUND.size, LABEL.height) });
+		const { half } = ROUTE_STOP;
+		for (const { route } of this.routeLines) {
+			if (!route.picked || !route.stops) continue;
+			for (const stop of route.stops) {
+				const at = camera.worldToScreen(stop.x, stop.y, this.scratch);
+				boxes.push({ x: at.x - half - 1, y: at.y - half - 1, width: half * 2 + 2, height: half * 2 + 2 });
+			}
+		}
+		if (!this.layerToggles.markers) return;
+		const selectedId = this.currentSelection?.kind === 'marker' ? this.currentSelection.id : null;
 		const placed: string[] = [];
-		for (const marker of order) {
+		for (const marker of this.markerLabelOrder()) {
 			const label = marker.label as string;
-			const at = camera.worldToScreen(marker.x, marker.y, this.scratch);
+			// Copied out: the marker check below reuses the scratch points.
+			const { x, y } = camera.worldToScreen(marker.x, marker.y, this.scratch);
 			const radius = markerRadius(marker);
 			const width = this.labelWidth(draw, label);
-			const box = { x: at.x + radius + LABEL.gap, y: at.y - LABEL.height / 2, width: width + LABEL.padX * 2, height: LABEL.height };
-			if (box.x + box.width > this.width) box.x = at.x - radius - LABEL.gap - box.width;
-			if (width > 0 && marker.id !== selectedId && (overlapsAny(box, boxes) || this.overlapsMarker(box, marker))) continue;
+			const clear = (candidate: LabelBox): boolean => width === 0 || (!overlapsAny(candidate, boxes) && !this.overlapsMarker(candidate, marker));
+			const box = this.besideBox({ x, y, radius, width, clear })
+				?? (marker.id === selectedId ? this.besideBox({ x, y, radius, width, clear: () => true }) : null);
+			if (!box) continue;
 			boxes.push(box);
 			placed.push(label);
-			this.drawLabel(draw, label, box.x, at.y, `label_${marker.id}`);
+			this.labelPlan.push({ marker, label, x: box.x, y });
 		}
 		this.placedLabels = placed;
+	}
+
+	/**
+	 * A label's box beside a point: on its right, or its left where the
+	 * right runs past the view's edge or isn't `clear`; null when neither
+	 * side is clear. `width` is the text's, without the padding.
+	 */
+	private besideBox({ x, y, radius, width, clear }: { x: number; y: number; radius: number; width: number; clear: (box: LabelBox) => boolean }): LabelBox | null {
+		const boxWidth = width + LABEL.padX * 2;
+		const right = { x: x + radius + LABEL.gap, y: y - LABEL.height / 2, width: boxWidth, height: LABEL.height };
+		if (right.x + right.width <= this.width && clear(right)) return right;
+		const left = { ...right, x: x - radius - LABEL.gap - boxWidth };
+		if (clear(left)) return left;
+		return null;
+	}
+
+	/** The labels `planLabels` placed, over the markers. */
+	private drawMarkerLabels(draw: DrawApi): void {
+		for (const { marker, label, x, y } of this.labelPlan) this.drawLabel(draw, label, x, y, `label_${marker.id}`);
 	}
 
 	/** The selected marker's label first, then by priority, then in the markers' order: those with labels only. */

@@ -150,14 +150,16 @@ export const NIGHT_RING = {
 } as const;
 
 /**
- * A POI's routes on the run route screen, as highlighter bands under the
- * roads (Area Map Generation, Rendering): the picked one wide and strong in
- * a colour nothing else on the map uses, the others narrow and faint.
+ * A POI's routes on the run route screen, as bands under the roads (Area
+ * Map Generation, Rendering): the picked one wide in a strong colour
+ * nothing else on the map uses, the others a little narrower in a pale tint
+ * of it, so they read on dark ground and under highways alike. Opaque, as
+ * a translucent polyline darkens where its segments overlap at the joints.
  * Screen pixels, scaled with the roads (`roadWidthScale`).
  */
 export const ROUTE_BAND = {
-	picked: { color: [222 / 255, 64 / 255, 140 / 255, 0.6] as RGBA, width: 12 },
-	other: { color: [20 / 255, 20 / 255, 20 / 255, 0.22] as RGBA, width: 9 },
+	picked: { color: [214 / 255, 58 / 255, 134 / 255, 1] as RGBA, width: 12 },
+	other: { color: [244 / 255, 196 / 255, 222 / 255, 1] as RGBA, width: 10 },
 } as const;
 
 /** A stop on the picked route: a fight as a diamond in ink, anything else as a square on paper. Screen pixels. */
