@@ -1,5 +1,5 @@
 import { Rng } from '../core/Rng';
-import { areaMapPipeline, generateAreaMap, growthStage } from './AreaMapPipeline';
+import { ROUTE_TREE_STAGE, areaMapPipeline, generateAreaMap, growthStage } from './AreaMapPipeline';
 import { planHighways } from './Highways';
 import { createTerrainSample, generateTerrain } from './Terrain';
 import { paramsFor } from './roadTesting';
@@ -9,12 +9,20 @@ describe('the area map pipeline', () => {
 	const map = generateAreaMap({ params });
 	const terrainStream = new Rng({ seed: 11 }).fork('map', 0).fork('terrain', 0);
 
-	it('runs terrain, then the highways and growth, each first time on its nested stream', () => {
-		expect(areaMapPipeline().stageNames).toEqual(['terrain', 'highways', 'growth']);
-		expect(map.attempts).toEqual({ terrain: 0, highways: 0, growth: 0 });
+	it('runs terrain, the highways and growth, then the route tree and the POIs, each first time on its nested stream', () => {
+		expect(areaMapPipeline().stageNames).toEqual(['terrain', 'highways', 'growth', 'routeTree', 'pois']);
+		expect(map.attempts).toEqual({ terrain: 0, highways: 0, growth: 0, routeTree: 0, pois: 0 });
 		expect(map.mapAttempt).toBe(0);
 		const highwaysStream = terrainStream.fork('highways', 0);
-		expect(map.streams).toEqual({ terrain: terrainStream.seed, highways: highwaysStream.seed, growth: highwaysStream.fork('growth', 0).seed });
+		const growthStream = highwaysStream.fork('growth', 0);
+		const routeTreeStream = growthStream.fork('routeTree', 0);
+		expect(map.streams).toEqual({
+			terrain: terrainStream.seed,
+			highways: highwaysStream.seed,
+			growth: growthStream.seed,
+			routeTree: routeTreeStream.seed,
+			pois: routeTreeStream.fork('pois', 0).seed,
+		});
 		expect(map.products.highways).toEqual(planHighways({ terrain: map.products.terrain, params, rng: highwaysStream }));
 	});
 
@@ -49,10 +57,21 @@ describe('the area map pipeline', () => {
 		problems.forEach((problem) => expect(problem).toMatch(/^(structure|outward|disc|passable|crossing|clearance|junctionAngle): ./));
 	});
 
+	it("gives the route tree one attempt, since it takes no draws, and lets the POIs report what growth's tree of roads can't give them", () => {
+		expect(ROUTE_TREE_STAGE.attempts).toBe(1);
+		// Growth grows trees, so no stretch is off every way home and no leaf has three roads.
+		expect(map.products.routeTree.meetingPoints).toEqual([]);
+		const { pois } = map.products;
+		expect(pois.pois).toEqual([]);
+		expect(pois.failures).toContain('sector 0 has no free meeting point in the outer band');
+		expect(pois.failures.length).toBe(params.strongholds + 1);
+		expect(map.timings.pois.runs).toBe(1);
+	});
+
 	it('reruns growth on its next stream when the accept hook rejects it, leaving terrain and the highways be', () => {
 		let rejections = 0;
 		const retried = generateAreaMap({ params, accept: (_map, { stage }) => (stage === 'growth' && rejections++ === 0 ? ['not this one'] : []) });
-		expect(retried.attempts).toEqual({ terrain: 0, highways: 0, growth: 1 });
+		expect(retried.attempts).toEqual({ terrain: 0, highways: 0, growth: 1, routeTree: 0, pois: 0 });
 		expect(retried.timings.terrain.runs).toBe(1);
 		expect(retried.timings.highways.runs).toBe(1);
 		expect(retried.timings.growth.runs).toBe(2);
