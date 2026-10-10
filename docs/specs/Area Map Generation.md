@@ -217,18 +217,18 @@ POIs go where two or three ways home meet.
 
 ### 8. Tiers and territories
 
-- Tier: travel time in hours from the compound along the route tree, banded into tiers 1 to 5. A leg's tier is its far end's; a POI's is its quickest route's. The tier 3 to 4 boundary sits where an estimated run (out, typical stops, objective, home) stops fitting in `daylightHours`, so tiers 4 and 5 are night country. Strongholds are always tier 5. Stops are placed in stage 9, after tiers, so the daylight check (guarantee 10) runs after stage 9 and a failure reruns stage 9 with fewer stops on the offending routes before anything earlier. Tier sets encounter pools and skull counts, scaled by `dangerCurve`.
+- Tier: travel time in hours from the compound along the route tree, banded into tiers 1 to 5. A leg's tier is its far end's; a POI's is its quickest route's. The tier 3 to 4 boundary sits where an estimated run (out, typical stops, objective, home) stops fitting in `daylightHours`, so tiers 4 and 5 are night country. Strongholds are always tier 5. Stops are placed in stage 9, after tiers, so the daylight check (guarantee 10) runs in stage 9: a POI with no route home by dark sheds stops from its quickest route until it has one, before anything earlier reruns. Tier sets encounter pools and skull counts, scaled by `dangerCurve`.
 - Territory: each stronghold claims the legs and POIs nearest to it in travel time over the road network. Tier 1 is no one's ground, worked by scavengers. Territory sets checkpoint owners, raider rosters, stop weights, and place names.
 
 ### 9. Stops
 
 - Stops sit only on legs, never on roads no route uses.
-- Count per leg: for each class along the leg, its length over the class's stop spacing, times `stopDensity`, plus or minus one, clamped to the leg's range.
+- Count per leg: for each class along the leg, its length over the class's stop spacing, times `stopDensity`, rounded up or down by a draw, so a map's count is what its road earns and a short leg seldom gets one; no more than the leg holds at the least gap between stops.
 - Positions: spread evenly along the leg with jitter, kept clear of both ends and of junctions.
-- Type: a weighted draw from `stopTables`, keyed by road class, the biome at that point, tier, and territory. Highways favour raider ambushes and checkpoints, towns favour wrecks, finds, and distress signals, mire favours hazards, and a bridge is a candidate for a "bridge out" hazard.
+- Type: a weighted draw from `stopTables`, keyed by road class, the biome at that point, tier, and territory: a weight per type for each class, times a multiplier per type for each biome, tier, and territory. The tables are checked whole when they're read, so a key with nothing to draw fails before any map. Highways favour raider ambushes and checkpoints, towns favour wrecks, finds, and distress signals, mire favours hazards, and a bridge is a candidate for a "bridge out" hazard.
 - Per route rules, checked on every route to every POI: no more than two fights in a row, at least one non-fight stop in any three.
 - Map rules: `driverFinds` Find: driver stops within tiers 1 and 2, then a soft rate per tier so the pool can be refilled through the campaign without counting on luck.
-- A stop's type is fixed at generation. Its exact contents are rolled when first revealed, from a stream keyed by the stop's id and its roll count, and the save keeps a revealed stop's rolled contents. When a cleared leg's stops come back, the roll count goes up and they reroll.
+- A stop's type is fixed at generation, and so is a fight's skull count, which the route card shows before the stop is revealed. Its exact contents are rolled when first revealed, from a stream keyed by the stop's id (its place in the map's stops) and its roll count, and the save keeps a revealed stop's rolled contents. When a cleared leg's stops come back, the roll count goes up and they reroll.
 
 ### 10. Starting knowledge
 
