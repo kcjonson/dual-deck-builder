@@ -37,6 +37,13 @@ export interface CardEntry {
 	copies: number;
 	/** The mini's state against the deck being built (Game Flow 7.0); none when left out. */
 	state?: MiniCardState | null;
+	/**
+	 * A card type whose stack takes focus when this entry goes from under
+	 * it: Customize's +N and HOME stacks name their own card, so emptying one
+	 * lands on the card's plain stack rather than on a control of whatever
+	 * slides into its place.
+	 */
+	focusHeir?: string;
 	controls: readonly CardControl[];
 }
 

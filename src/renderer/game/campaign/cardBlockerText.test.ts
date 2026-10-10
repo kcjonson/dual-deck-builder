@@ -16,6 +16,8 @@ describe('cardBlockerReason', () => {
 			[{ reason: 'too_few', place: 'locker', held: 0 }, 'None left'],
 			[{ reason: 'already_borrowed', place: 'locker', held: 0, by: runDeck }, 'Other seat has it'],
 			[{ reason: 'card_locked', place: runDeck, broughtBy: 'escort-1' }, "Escort's card"],
+			[{ reason: 'own_at_home', place: runDeck, held: 2 }, 'Yours at home'],
+			[{ reason: 'borrowed_first', place: runDeck, held: 1 }, 'Borrowed go first'],
 			[{ reason: 'too_little_scrap', needed: 12, held: 3 }, 'Needs 12 scrap'],
 			[{ reason: 'other_archetype', archetype: 'interceptor', place: driver }, 'Interceptor only'],
 			[{ reason: 'deck_full', max: 20, place: driver }, 'Deck full'],

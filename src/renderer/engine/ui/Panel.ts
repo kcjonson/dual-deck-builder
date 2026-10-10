@@ -211,6 +211,11 @@ export class Panel extends Stack {
 		return this.kickerText?.text ?? null;
 	}
 
+	public set kicker(kicker: string | null) {
+		if (!this.kickerText) throw new Error('Panel: a panel built without a kicker has no line in its header to put one in');
+		this.kickerText.text = kicker ?? '';
+	}
+
 	public get actions(): readonly Component[] {
 		return this.actionItems;
 	}

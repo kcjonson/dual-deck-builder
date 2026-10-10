@@ -10,7 +10,7 @@
  */
 import { SHORT_VIEWPORT } from '../../../playwright.config';
 import type { Viewport } from '../../../playwright.config';
-import { AT_HOME, DAMAGED, ENDED, FULL_LOCKER, IN_PROGRESS, LOST, OUTDATED } from './campaignSaves';
+import { AT_HOME, DAMAGED, ENDED, FULL_LOCKER, FULL_RUN, IN_PROGRESS, LOST, OUTDATED } from './campaignSaves';
 
 export interface ScreenScenario {
 	/** The golden's name: the screen's, plus a variant and a window size where they are not the defaults. */
@@ -71,9 +71,10 @@ interface ScreenCase {
  *
  * The screens that read the campaign store mount over the saves a case puts
  * in local storage first, the way a player's page holds them, and every other
- * case over none. The compound and Crew screens are opened with no campaign
- * handed over, so each loads the save as Continue would (DDB-283, DDB-301,
- * DDB-314).
+ * case over none. The compound, Crew, and Customize screens are opened with
+ * no campaign handed over, so each loads the save as Continue would, and
+ * Customize shows the first seat's run deck (DDB-283, DDB-301, DDB-314,
+ * DDB-321).
  */
 const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'splashScreen' },
@@ -100,6 +101,9 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	// The fixture's run home, then a deck at the most it holds beside every card but the escorts' in the locker (DDB-314)
 	{ screen: 'crewScreen', storage: AT_HOME },
 	{ screen: 'crewScreen', variant: 'full', storage: FULL_LOCKER },
+	// The fixture's run in seat 1: a card left at home, one borrowed, and an escort card; then a run deck at the most it holds beside the full locker (DDB-321)
+	{ screen: 'customizeScreen', storage: IN_PROGRESS },
+	{ screen: 'customizeScreen', variant: 'full', storage: FULL_RUN },
 	// A save already lost, which the defeat screen shows as the compound hands it one (DDB-305)
 	{ screen: 'defeatScreen', storage: LOST },
 ];
@@ -185,6 +189,8 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	// The dock's worst cases, gated at both sizes as the combat screen is (DDB-136)
 	{ scene: 'combat-dock', lintShort: true },
 	{ scene: 'combat-dock-crashed-out', lintShort: true },
+	// The developer way into Customize (DDB-321)
+	{ scene: 'customize' },
 ];
 
 /** A scene at one window size, and the name its golden and text record go by there. */

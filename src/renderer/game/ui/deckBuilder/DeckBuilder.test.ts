@@ -4,6 +4,7 @@
 import { Clock } from '../../../engine/animation/Clock';
 import { Stack } from '../../../engine/components/Stack';
 import { createTestContext } from '../../../engine/components/testing';
+import type { MountContext } from '../../../engine/components/MountContext';
 import { lookup } from '../testing';
 import type { CardEntry } from './cardSource';
 import { DeckBuilder } from './DeckBuilder';
@@ -33,14 +34,19 @@ describe('DeckBuilder', () => {
 		],
 	};
 
+	let context: MountContext;
+	/** What the deck source hands the builder; a test changes it and refreshes. */
+	let deckEntries: readonly CardEntry[] = [];
+
 	function mount(deck: readonly CardEntry[]): DeckBuilder {
-		const context = createTestContext({ viewport: { logical: { width: 1440, height: 882 } }, clock: new Clock() });
+		context = createTestContext({ viewport: { logical: { width: 1440, height: 882 } }, clock: new Clock() });
+		deckEntries = deck;
 		const builder = new DeckBuilder({
 			id: 'builder',
 			side: new Stack({ id: 'side', width: 200 }),
 			deckHeader: new Stack({ id: 'header' }),
 			deckCaption: 'Run deck',
-			deck: { entries: () => deck },
+			deck: { entries: () => deckEntries },
 			pool: { entries: () => [] },
 			poolTitle: 'Locker',
 			poolKicker: 'Free copies',
@@ -80,5 +86,41 @@ describe('DeckBuilder', () => {
 		expect(builder.findById('builder_pool_empty')?.visible).toBe(true);
 		builder.poolNote = 'Borrowed cards come back with the driver.';
 		expect(builder.findById('builder_pool_foot')?.visible).toBe(true);
+	});
+
+	it('changes the pool\'s kicker in place', () => {
+		const builder = mount([own]);
+		builder.poolKicker = 'Spare copies';
+		expect([builder.poolKicker, (builder.findById('builder_pool_panel') as unknown as { kicker: string }).kicker]).toEqual(['Spare copies', 'Spare copies']);
+	});
+
+	describe('when the entry with focus goes', () => {
+		const heir: CardEntry = { ...borrowed, focusHeir: 'headshot' };
+		const ram: CardEntry = { cardType: 'ram', copies: 1, controls: own.controls };
+
+		function goes({ from, to }: { from: CardEntry; to: readonly CardEntry[] }): string | null | undefined {
+			const builder = mount([own, from, ram]);
+			context.focus.focus(builder.deckGrid.entryFor(from.key ?? from.cardType)?.control('fewer') ?? null);
+			deckEntries = to;
+			builder.refresh();
+			return context.focus.focused?.id;
+		}
+
+		it("lands on its heir's stack that's left", () => {
+			expect(goes({ from: heir, to: [own, ram] })).toBe('builder_deck_grid_headshot_card');
+		});
+
+		it('lands on the mini, not the control, in its place when its heir has no stack left', () => {
+			expect(goes({ from: heir, to: [ram] })).toBe('builder_deck_grid_ram_card');
+		});
+
+		it('lands on the same control in its place when it names no heir', () => {
+			expect(goes({ from: borrowed, to: [own, ram] })).toBe('builder_deck_grid_ram_fewer');
+		});
+	});
+
+	it('draws no control row for an entry with no controls', () => {
+		const builder = mount([{ cardType: 'headshot', copies: 1, controls: [] }]);
+		expect(builder.findById('builder_deck_grid_headshot_controls')?.visible).toBe(false);
 	});
 });
