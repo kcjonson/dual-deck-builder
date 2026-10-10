@@ -1,5 +1,5 @@
 import { readFields, readInteger, readText } from '../core/JsonReader';
-import { Campaign, CampaignData, RESOURCE_NAMES, Resources, readResources } from './Campaign';
+import { Campaign, CampaignData, MAX_DAY, RESOURCE_NAMES, Resources, readResources } from './Campaign';
 import { CampaignEnd, fallOf, refuseOver, stepLog } from './CampaignEnd';
 import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES, UpkeepResource, readCompoundRules, upkeepRecord } from './CompoundRules';
 import { DriverRecord } from './DriverRecord';
@@ -126,7 +126,7 @@ export function endDay({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS
 	const people = resources.people - peopleLost;
 	// An end needs the run home first, and a run out is the next day end's to settle
 	const lost = people === 0 && dusk.runDecks.length === 0;
-	const nextDay = lost ? day : readInteger(day + 1, 'Campaign.day', { min: 1 });
+	const nextDay = lost ? day : readInteger(day + 1, 'Campaign.day', { min: 1, max: MAX_DAY });
 	const nextUnrest = readInteger(unrest + unrestGained, 'Campaign.unrest', { min: 0 });
 	const healing = dusk.drivers
 		.filter(driver => driver.status === 'injured')

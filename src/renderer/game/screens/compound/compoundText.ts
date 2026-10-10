@@ -1,10 +1,10 @@
 import type { ScreenName } from '../../core/ScreenManager';
 import type { Resources } from '../../campaign/Campaign';
-import { SCAVENGED_RESOURCES, UPKEEP_RESOURCES } from '../../campaign/CompoundRules';
+import { UPKEEP_RESOURCES } from '../../campaign/CompoundRules';
 import { shortfallMessage } from '../../campaign/DayClock';
 import type { DayEnd, NeedForecast, NeedsForecast } from '../../campaign/DayClock';
 import type { DriverRecord } from '../../campaign/DriverRecord';
-import { scavengeMessage } from '../../campaign/Scavenging';
+import { haulText, scavengeMessage } from '../../campaign/Scavenging';
 import type { Scavenge, ScavengeBlocker, ScavengeHaul } from '../../campaign/Scavenging';
 import { countOf } from '../main-menu/campaignText';
 
@@ -128,8 +128,7 @@ export const REST_RUN_OUT = 'A run is out, and its return ends the day.';
  * what the press will bring.
  */
 export function scavengeCaption(haul: ScavengeHaul): string {
-	const found = SCAVENGED_RESOURCES.filter((resource) => haul[resource] > 0).map((resource) => `${amountText(haul[resource])} ${resource}`);
-	return `Scavenging ends it too, and brings back ${found.join(' and ')}.`;
+	return `Scavenging ends it too, with ${haulText(haul)}.`;
 }
 
 const SCAVENGE_REFUSALS: Readonly<Record<ScavengeBlocker['reason'], string>> = {
@@ -156,9 +155,9 @@ function listText(items: readonly string[]): string {
 }
 
 /**
- * What the night did, under Rest once it's over: the day that ended, the
- * shortfall as the log words it, and who is fit again. Urgent when the
- * stores fell short.
+ * What the night did, over the buttons once it's over: the day that
+ * ended, the shortfall as the log words it, and who is fit again. Urgent
+ * when the stores fell short.
  */
 export function dayEndReport(dayEnd: DayEnd): NeedLine {
 	const parts = [`Day ${dayEnd.day} ended.`];

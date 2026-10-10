@@ -20,7 +20,7 @@ import { rollScavengeHaul, scavengeMessage } from '../../campaign/Scavenging';
 import {
 	CAMPAIGN_FIXTURE, FaultyStorage, KEYS, damagedText, fixtureText, newCampaign, quotaError, saveText, storageWith, storeOver
 } from '../../campaign/__fixtures__/storeFixtures';
-import { BUILDINGS } from './compoundText';
+import { BUILDINGS, RESOURCE_ORDER } from './compoundText';
 import { CompoundScreen } from './CompoundScreen';
 
 jest.mock('../../core/ScreenManager', () => ({
@@ -31,6 +31,8 @@ const navigate = ScreenManager.navigate as jest.Mock;
 const OPEN_MS = tokens.motion.dur + 32;
 const CLOSE_MS = tokens.motion.dur_fast + 32;
 const TO_MENU = ['mainMenuScreen', undefined, { restoreFocus: true }];
+/** Past the window in which a press right after a day ended counts as the same click (the screen's 300 ms). */
+const NEXT_PRESS_MS = 320;
 
 type Fixture = Record<string, unknown> & { resources: Record<string, number>; drivers: { status: string; injuredDays: number }[] };
 
@@ -111,18 +113,31 @@ describe('CompoundScreen', () => {
 		for (let turn = 0; turn < 4; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
 	}
 
-	/** Tab to Rest from Back, where focus starts, and Enter. */
+	/** A deliberate press of Rest, well after any day before it ended: focus on it, and Enter. */
 	async function rest(): Promise<void> {
+		advance(context, NEXT_PRESS_MS);
 		context.focus.focus(find('compound_rest_button'));
 		send(context, [key('Enter')]);
 		await flush();
 	}
 
-	/** Focus on Scavenge, and Enter. */
+	/** A deliberate press of Scavenge, as `rest` presses Rest. */
 	async function scavenge(): Promise<void> {
+		advance(context, NEXT_PRESS_MS);
 		context.focus.focus(find('compound_scavenge_button'));
 		send(context, [key('Enter')]);
 		await flush();
+	}
+
+	/** A component's box, laid out in the real faces. */
+	function bounds(id: string): { x: number; y: number; width: number; height: number } {
+		return find<{ screenBounds: { x: number; y: number; width: number; height: number } }>(id).screenBounds;
+	}
+
+	/** A pointer click at the middle of a component. */
+	function clickOn(id: string): void {
+		const { x, y, width, height } = bounds(id);
+		click(context, x + width / 2, y + height / 2);
 	}
 
 	/** What a party sent out from the fixture's compound on `day` brings back. */
@@ -131,7 +146,7 @@ describe('CompoundScreen', () => {
 	/** Scavenge's line for that haul. */
 	const scavengeLine = (day: number): string => {
 		const { fuel, scrap } = haulOn(day);
-		return `Scavenging ends it too, and brings back ${fuel} fuel and ${scrap} scrap.`;
+		return `Scavenging ends it too, with ${fuel} fuel and ${scrap} scrap.`;
 	};
 
 	beforeEach(() => {
@@ -275,16 +290,16 @@ describe('CompoundScreen', () => {
 		});
 
 		it('ignores a second press of either until the first day end has been saved, and keeps the Bunkhouse shut meanwhile', async () => {
-			find<Button>('compound_scavenge_button').onClick?.({} as never);
-			find<Button>('compound_scavenge_button').onClick?.({} as never);
-			find<Button>('compound_rest_button').onClick?.({} as never);
-			find<Button>('compound_building_bunkhouse_button').onClick?.({} as never);
+			context.focus.focus(find('compound_scavenge_button'));
+			send(context, [key('Enter'), key('Enter'), key('ArrowUp'), key('Enter')]);
+			expect(context.focus.focused?.id).toBe('compound_rest_button');
+			context.focus.focus(find('compound_building_bunkhouse_button'));
+			send(context, [key('Enter')]);
 			expect(navigate).not.toHaveBeenCalled();
 			await flush();
 			expect(screen.shown?.day).toBe(10);
 			expect(screen.shown?.resources.fuel).toBe(6 + haulOn(9).fuel);
-			find<Button>('compound_scavenge_button').onClick?.({} as never);
-			await flush();
+			await scavenge();
 			expect(screen.shown?.day).toBe(11);
 		});
 
@@ -448,6 +463,8 @@ describe('CompoundScreen', () => {
 			expect(find<Button>('compound_scavenge_button').enabled).toBe(false);
 			expect(text('compound_scavenge_line')).toBe('The campaign is over, so no party goes out.');
 			expect(find<Button>('compound_rest_button').enabled).toBe(true);
+			// Focus was on Scavenge, which disabled itself; it moves to Rest, which saves the end, not to nothing.
+			expect(context.focus.focused?.id).toBe('compound_rest_button');
 			expect(text('compound_rest_line')).toBe('The compound has fallen. Rest saves its end again.');
 			find<Button>('compound_scavenge_button').onClick?.({} as never);
 			await flush();
@@ -532,7 +549,7 @@ describe('CompoundScreen', () => {
 			await screen.campaignLoaded;
 			expect(find<Button>('compound_rest_button').enabled).toBe(false);
 			expect(find<Button>('compound_scavenge_button').enabled).toBe(false);
-			expect(find<Text>('compound_scavenge_line').visible).toBe(false);
+			expect(text('compound_scavenge_line')).toBe('');
 			expect(find<Button>('compound_building_bunkhouse_button').enabled).toBe(false);
 			expect(find<Text>('compound_building_bunkhouse_reason').visible).toBe(true);
 			expect(text('compound_building_bunkhouse_reason')).toBe('Opens with a campaign in progress.');
@@ -592,8 +609,7 @@ describe('CompoundScreen', () => {
 	async function stores(amount: number | Record<string, number>): Promise<void> {
 		viewport.logical = { width: 1024, height: 600 };
 		context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
-		const resources = ['food', 'water', 'fuel', 'meds', 'scrap', 'people'] as const;
-		await open(Object.fromEntries(resources.map((resource) => [resource, typeof amount === 'number' ? amount : amount[resource]])));
+		await open(Object.fromEntries(RESOURCE_ORDER.map((resource) => [resource, typeof amount === 'number' ? amount : amount[resource]])));
 	}
 
 	/** The chips stay inside the bar, and nothing lints (R13.29). */
@@ -643,12 +659,53 @@ describe('CompoundScreen', () => {
 		expect(lint.violations).toEqual([]);
 	});
 
-	it('clicks Rest like any button', async () => {
-		context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
-		await open();
-		const { x, y, width, height } = find<{ screenBounds: { x: number; y: number; width: number; height: number } }>('compound_rest_button').screenBounds;
-		click(context, x + width / 2, y + height / 2);
-		await flush();
-		expect(screen.shown?.day).toBe(10);
+	describe('pressed with the pointer, laid out in the real faces', () => {
+		beforeEach(async () => {
+			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
+			await open();
+		});
+
+		it('clicks Rest and Scavenge like any button', async () => {
+			clickOn('compound_rest_button');
+			await flush();
+			expect(screen.shown?.day).toBe(10);
+			advance(context, NEXT_PRESS_MS);
+			clickOn('compound_scavenge_button');
+			await flush();
+			expect(screen.shown?.day).toBe(11);
+		});
+
+		it.each([
+			{ button: 'compound_scavenge_button', gap: 100, days: 1 },
+			{ button: 'compound_scavenge_button', gap: 400, days: 2 },
+			{ button: 'compound_rest_button', gap: 100, days: 1 },
+			{ button: 'compound_rest_button', gap: 400, days: 2 },
+		])('ends $days day(s) from two clicks on $button $gap ms apart, a double-click being one press', async ({ button, gap, days }) => {
+			clickOn(button);
+			await flush();
+			advance(context, gap);
+			clickOn(button);
+			await flush();
+			expect(screen.shown?.day).toBe(9 + days);
+			expect((await storeOver(storage).load())?.day).toBe(9 + days);
+		});
+
+		it('keeps Rest and Scavenge where they are as the report, the lines, and a save failure come and go', async () => {
+			context.frame.layout();
+			const where = () => [bounds('compound_rest_button').y, bounds('compound_scavenge_button').y];
+			const start = where();
+			clickOn('compound_scavenge_button');
+			await flush();
+			context.frame.layout();
+			expect(find<Text>('compound_report').visible).toBe(true);
+			expect(where()).toEqual(start);
+			storage.fault = { method: 'setItem', error: quotaError() };
+			advance(context, NEXT_PRESS_MS);
+			clickOn('compound_scavenge_button');
+			await flush();
+			context.frame.layout();
+			expect(find<Text>('compound_save_error').visible).toBe(true);
+			expect(where()).toEqual(start);
+		});
 	});
 });

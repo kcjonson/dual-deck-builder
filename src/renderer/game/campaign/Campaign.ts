@@ -240,6 +240,9 @@ const JSON_FIELDS: readonly (keyof CampaignJson)[] = [
 
 export const RESOURCE_NAMES: readonly (keyof Resources)[] = ['food', 'water', 'fuel', 'meds', 'scrap', 'people'];
 
+/** The last day a campaign reaches: the day names each day's streams (`fork('scavenge', day)`), and `Rng.fork` takes attempts up to 2^32 - 1. */
+export const MAX_DAY = 0xffffffff;
+
 /**
  * What the map was made from, set at founding, and the convoy, whose
  * counter a replacement would start over, handing escort ids out again.
@@ -1377,7 +1380,7 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 	if (mapParams.seed !== seed) {
 		throw new ReaderRangeError(`${path}.mapParams.seed must be the campaign's seed, ${seed}, got ${describeValue(mapParams.seed)}`);
 	}
-	const day = readInteger(fields.day, `${path}.day`, { min: 1 });
+	const day = readInteger(fields.day, `${path}.day`, { min: 1, max: MAX_DAY });
 	const nextDriverNumber = readInteger(fields.nextDriverNumber, `${path}.nextDriverNumber`, { min: 1 });
 	if (!(fields.convoy instanceof Convoy)) throw new ReaderTypeError(`${path}.convoy must be a Convoy, got ${describeValue(fields.convoy)}`);
 	const drivers = readDrivers(fields.drivers, `${path}.drivers`, nextDriverNumber, previous);

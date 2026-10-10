@@ -91,10 +91,9 @@ describe('compoundText', () => {
 		expect(dayEndReport(dayEnd({ healed: ['A', 'B', 'C'].map(named) })).text).toBe('Day 9 ended. A, B, and C are fit again.');
 	});
 
-	it("previews a party's haul under Rest's line, leaving out scrap tuned to 0, and abbreviates as the chips do", () => {
-		expect(scavengeCaption({ fuel: 2, scrap: 15 })).toBe('Scavenging ends it too, and brings back 2 fuel and 15 scrap.');
-		expect(scavengeCaption({ fuel: 1, scrap: 0 })).toBe('Scavenging ends it too, and brings back 1 fuel.');
-		expect(scavengeCaption({ fuel: 100, scrap: 12_000 })).toBe('Scavenging ends it too, and brings back 100 fuel and 12k scrap.');
+	it("previews a party's haul under Rest's line, leaving out scrap tuned to 0", () => {
+		expect(scavengeCaption({ fuel: 2, scrap: 15 })).toBe('Scavenging ends it too, with 2 fuel and 15 scrap.');
+		expect(scavengeCaption({ fuel: 1, scrap: 0 })).toBe('Scavenging ends it too, with 1 fuel.');
 	});
 
 	it('says why no party can go, and why Rest waits while a run is out', () => {

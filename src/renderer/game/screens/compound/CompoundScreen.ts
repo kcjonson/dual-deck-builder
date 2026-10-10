@@ -3,7 +3,7 @@ import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign, Resources } from '../../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
 import { endDay, forecastNeeds } from '../../campaign/DayClock';
-import { getScavengeBlocker, rollScavengeHaul, scavenge } from '../../campaign/Scavenging';
+import { getScavengeBlocker, rollScavengeHaul, scavenge as sendScavengingParty } from '../../campaign/Scavenging';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
@@ -42,6 +42,18 @@ const FALLEN_BUTTON_WIDTH = 160;
 const PLAN_REASON = "Load out and the run route aren't built yet.";
 const NO_RUMORS = 'Radio: no new rumors';
 const NO_CAMPAIGN = 'Opens with a campaign in progress.';
+/**
+ * Rest's and Scavenge's lines hold two lines of caption, the most either
+ * takes, so the buttons above them stay put under the pointer as the lines
+ * change.
+ */
+const DAY_LINE_HEIGHT = 2 * tokens.fontSize.fs_sm * tokens.lineHeight.lh;
+/**
+ * A press this soon after a day ended is the same click, a double-click's
+ * second half, and ends nothing. A checkpoint to local storage lands within
+ * the frame, so waiting for it alone lets a double-click spend two days.
+ */
+const SECOND_PRESS_MS = 300;
 
 /** What New Campaign and Continue hand the compound screen: the campaign, as the store saves it. */
 export interface CompoundScreenData {
@@ -71,9 +83,9 @@ export interface CompoundScreenOptions {
  * run is out, Scavenge also once the campaign is over.
  *
  * Focus starts on Back to menu, not Rest or Scavenge, so a stray Enter
- * can't spend a day. The buildings and the two actions are focus groups (R9.29), and
- * Escape returns to the menu with focus restored, as Back does from the
- * menu's other screens. Opened with no campaign, as a capture or the dev
+ * can't spend a day. The buildings are a focus group (R9.29), and so are
+ * Rest, Scavenge, and Plan a supply run. Escape returns to the menu with
+ * focus restored, as Back does from the menu's other screens. Opened with no campaign, as a capture or the dev
  * navigate hook does, it loads the save as Continue would.
  */
 export class CompoundScreen extends Screen {
@@ -96,7 +108,9 @@ export class CompoundScreen extends Screen {
 	private readonly liveBuildings: { button: Button; waiting: Text }[] = [];
 	private unsubscribe: (() => void) | null = null;
 	/** A day end (Rest or Scavenge) or a fall's checkpoint is on its way, so the next step waits for it. */
-	private resting = false;
+	private passingDay = false;
+	/** The clock's time when the last day ended, for `SECOND_PRESS_MS`. */
+	private dayEndedAt = -Infinity;
 	/** Counts mounts and unmounts, so an answer that arrives after the screen has gone changes nothing. */
 	private visit = 0;
 	private loaded: Promise<void> = Promise.resolve();
@@ -184,7 +198,8 @@ export class CompoundScreen extends Screen {
 		this.report = null;
 		this.saveError = null;
 		this.liveBuildings.length = 0;
-		this.resting = false;
+		this.passingDay = false;
+		this.dayEndedAt = -Infinity;
 	}
 
 	private createTopBar(back: Button): Stack {
@@ -250,6 +265,14 @@ export class CompoundScreen extends Screen {
 		side.addChild(panel);
 
 		const actions = new FocusGroup({ id: 'compound_actions', orientation: 'vertical', crossAlign: 'stretch', gap: space.space_1_5 });
+		// What the last day did, and why it couldn't be saved; each hidden until there's something to say. Above
+		// the buttons, so the column grows upward into the panel and the buttons stay where the pointer left them.
+		this.report = caption({ id: 'compound_report', text: '' });
+		this.report.visible = false;
+		actions.addChild(this.report);
+		this.saveError = caption({ id: 'compound_save_error', text: '' });
+		this.saveError.visible = false;
+		actions.addChild(this.saveError);
 		// The two ways to spend a day at home, side by side, each with its line under the pair.
 		const days = new Stack({ id: 'compound_day_actions', direction: 'horizontal', crossAlign: 'stretch', gap: space.space_1_5 });
 		this.restButton = new Button({
@@ -269,19 +292,11 @@ export class CompoundScreen extends Screen {
 		});
 		days.addChild(this.scavengeButton);
 		actions.addChild(days);
-		this.restLine = caption({ id: 'compound_rest_line', text: 'Looking for the saved campaign.' });
+		this.restLine = dayLine({ id: 'compound_rest_line', text: 'Looking for the saved campaign.' });
 		actions.addChild(this.restLine);
-		// Hidden until there's a campaign whose day it can preview.
-		this.scavengeLine = caption({ id: 'compound_scavenge_line', text: '' });
-		this.scavengeLine.visible = false;
+		// Empty until there's a campaign whose day it can preview.
+		this.scavengeLine = dayLine({ id: 'compound_scavenge_line', text: '' });
 		actions.addChild(this.scavengeLine);
-		// What the last night did, and why it couldn't be saved; each hidden until there's something to say.
-		this.report = caption({ id: 'compound_report', text: '' });
-		this.report.visible = false;
-		actions.addChild(this.report);
-		this.saveError = caption({ id: 'compound_save_error', text: '' });
-		this.saveError.visible = false;
-		actions.addChild(this.saveError);
 		actions.addChild(new Button({
 			label: 'Plan a supply run',
 			id: 'compound_plan_button',
@@ -330,14 +345,14 @@ export class CompoundScreen extends Screen {
 	/**
 	 * A lost campaign's checkpoint, which ends it in the store (its history
 	 * line in, its save removed), then the notice. A checkpoint that fails
-	 * shows its reason under Rest, and Rest tries it again.
+	 * shows its reason over the buttons, and Rest tries it again.
 	 */
 	private async settleFall(campaign: Campaign): Promise<void> {
 		const visit = this.visit;
-		this.resting = true;
+		this.passingDay = true;
 		const saved = await this.store.checkpoint(campaign);
 		if (visit !== this.visit) return;
-		this.resting = false;
+		this.passingDay = false;
 		if (saved) this.compoundFell();
 	}
 
@@ -351,17 +366,16 @@ export class CompoundScreen extends Screen {
 
 		const forecast = forecastNeeds({ resources });
 		// Rest stays live once the campaign is over, to save its end again.
-		const runOut = campaign.currentRun !== null;
-		if (this.restButton) this.restButton.enabled = !runOut;
+		const restWaits = this.restWaits;
+		if (this.restButton) this.restButton.enabled = !restWaits;
 		if (this.restLine) {
-			this.restLine.text = runOut ? REST_RUN_OUT : restCaption({ day, forecast, over: campaign.isOver });
+			this.restLine.text = restWaits ? REST_RUN_OUT : restCaption({ day, forecast, over: campaign.isOver });
 			this.restLine.color = 'text_dim';
 		}
 		const blocker = getScavengeBlocker({ campaign });
 		if (this.scavengeButton) this.scavengeButton.enabled = blocker === null;
 		if (this.scavengeLine) {
 			this.scavengeLine.text = blocker === null ? scavengeCaption(rollScavengeHaul({ seed: campaign.seed, day })) : scavengeRefusal(blocker);
-			this.scavengeLine.visible = true;
 		}
 		const needs = this.needs;
 		if (!needs) return;
@@ -375,33 +389,40 @@ export class CompoundScreen extends Screen {
 		needs.addChild(needRow({ id: 'compound_rumors', text: NO_RUMORS, color: 'text_dim' }));
 	}
 
+	/** Rest waits while a run is out, since the run's return ends the day. */
+	private get restWaits(): boolean {
+		return (this.campaign?.currentRun ?? null) !== null;
+	}
+
 	/** A day of rest, refused while a run is out; once the campaign is over, its end's checkpoint again. */
 	private async rest(): Promise<void> {
-		if (!this.campaign || this.campaign.currentRun !== null) return;
+		if (!this.campaign || this.restWaits) return;
 		await this.passDay((campaign) => dayEndReport(endDay({ campaign })));
 	}
 
 	/** A party out on foot for the day, refused as `getScavengeBlocker` says. */
 	private async scavenge(): Promise<void> {
 		if (!this.campaign || getScavengeBlocker({ campaign: this.campaign }) !== null) return;
-		await this.passDay((campaign) => scavengeReport(scavenge({ campaign })));
+		await this.passDay((campaign) => scavengeReport(sendScavengingParty({ campaign })));
 	}
 
 	/**
 	 * Ends the day with `step`, which says what it did, then checkpoints. A
 	 * second press of either while the checkpoint is on its way does
-	 * nothing, so the next step starts after it, as the store asks. A night
+	 * nothing, so the next step starts after it, as the store asks, and nor
+	 * does one within `SECOND_PRESS_MS` of the day ending. A night
 	 * that empties the compound ends the campaign, and its checkpoint ends it
 	 * in the store, writing the history line and removing the save, before
-	 * the notice opens. A save that fails says so under the buttons
+	 * the notice opens. A save that fails says so over the buttons
 	 * (`onSaveFailed`), and a fall whose checkpoint failed shows no notice:
 	 * the save still holds the day before, and Rest tries the checkpoint
 	 * again without ending another day.
 	 */
 	private async passDay(step: (campaign: Campaign) => NeedLine): Promise<void> {
 		const campaign = this.campaign;
-		if (!campaign || this.resting || this.fallen) return;
-		this.resting = true;
+		if (!campaign || this.passingDay || this.fallen) return;
+		if (this.context.clock.now - this.dayEndedAt < SECOND_PRESS_MS) return;
+		this.passingDay = true;
 		const visit = this.visit;
 		if (this.saveError) this.saveError.visible = false;
 		if (!campaign.isOver) {
@@ -411,15 +432,19 @@ export class CompoundScreen extends Screen {
 			} catch (error) {
 				console.error('CompoundScreen: ending the day failed', error);
 				this.showLine({ line: this.report, text: "The day couldn't end.", color: 'status_crit' });
-				this.resting = false;
+				this.passingDay = false;
 				return;
 			}
+			this.dayEndedAt = this.context.clock.now;
+			const scavengeFocused = this.context.focus.focused === this.scavengeButton;
 			this.refresh();
+			// A night that ends the campaign disables Scavenge; focus goes to Rest, which saves the end again, not to nothing (R9.28).
+			if (scavengeFocused && this.restButton?.enabled && !this.scavengeButton?.enabled) this.context.focus.focus(this.restButton);
 			this.showLine({ line: this.report, text: report.text, color: report.urgent ? 'status_warn' : 'text_dim' });
 		}
 		const saved = await this.store.checkpoint(campaign);
 		if (visit !== this.visit) return;
-		this.resting = false;
+		this.passingDay = false;
 		if (saved && campaign.isOver) this.compoundFell();
 	}
 
@@ -466,7 +491,7 @@ export class CompoundScreen extends Screen {
 	 * step starts after its checkpoint, as a second Rest or Scavenge waits.
 	 */
 	private open(building: Building): void {
-		if (!this.campaign || !building.screen || this.resting || this.fallen) return;
+		if (!this.campaign || !building.screen || this.passingDay || this.fallen) return;
 		ScreenManager.navigate(building.screen, { campaign: this.campaign });
 	}
 
@@ -554,6 +579,19 @@ function buildingTile({ building, open, live }: { building: Building; open: (bui
 
 function caption({ id, text, color = 'text_dim' }: { id: string; text: string; color?: ColorToken }): Text {
 	return new Text({ text, id, widthMode: 'fill', style: { fontSize: 'fs_sm', color } });
+}
+
+/** A caption held at `DAY_LINE_HEIGHT`, a longer one ending in an ellipsis. */
+function dayLine({ id, text }: { id: string; text: string }): Text {
+	return new Text({
+		text,
+		id,
+		widthMode: 'fill',
+		height: DAY_LINE_HEIGHT,
+		lineHeight: tokens.lineHeight.lh,
+		textOverflow: 'ellipsis',
+		style: { fontSize: 'fs_sm', color: 'text_dim' },
+	});
 }
 
 /** A line of the needs panel, boxed as the wireframe draws them. */

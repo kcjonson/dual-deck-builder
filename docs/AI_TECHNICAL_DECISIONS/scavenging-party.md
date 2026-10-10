@@ -29,7 +29,7 @@ While a run is out:
 - Refused in `endDay`. Holing up at a POI (Night) would end a day with a run out, so the day end can't refuse one.
 - Refused in the blocker (chosen). The run's return ends its day, so a party that day would end it twice. The compound screen disables Rest while a run is out for the same reason.
 
-The stream is `new Rng({ seed }).fork('scavenge', day)`, off the campaign's root. A party ends its day, so there's one a day, and the day is a saved counter that `Campaign.set` never turns back, like the driver and run counters: every party has a stream of its own and the save keeps nothing new. A day past 2^32 - 1, the most `fork` takes as an attempt, is refused before anything rolls. Fuel draws first, then scrap, one `int` each, and a golden pins the first six days of one seed at `RNG_VERSION` 1. day-clock.md plans `fork('day', day)` for night steps that draw; the party's roll is the day's action, not a night step, so it has its own name and moves none of those.
+The stream is `new Rng({ seed }).fork('scavenge', day)`, off the campaign's root. A party ends its day, so there's one a day, and the day is a saved counter that `Campaign.set` never turns back, like the driver and run counters: every party has a stream of its own and the save keeps nothing new. The day stops at 2^32 - 1 (`MAX_DAY`), the most `fork` takes as an attempt: the campaign's reader, the day end, and the roll each refuse a day past it, so a stream is always there to name. Fuel draws first, then scrap, one `int` each, and a golden pins the first six days of one seed at `RNG_VERSION` 1. day-clock.md plans `fork('day', day)` for night steps that draw; the party's roll is the day's action, not a night step, so it has its own name and moves none of those.
 
 ## Decision
 

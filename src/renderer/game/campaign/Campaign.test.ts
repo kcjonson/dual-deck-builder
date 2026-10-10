@@ -644,7 +644,8 @@ describe('Campaign', () => {
 		});
 
 		it.each([
-			['day 0', { day: 0 }, 'Campaign.day must be an integer >= 1, got 0'],
+			['day 0', { day: 0 }, 'Campaign.day must be an integer from 1 to 4294967295, got 0'],
+			['a day past the last a stream can name', { day: 2 ** 32 }, 'Campaign.day must be an integer from 1 to 4294967295, got 4294967296'],
 			['negative fuel', { resources: { ...NO_RESOURCES, fuel: -1 } }, 'Campaign.resources.fuel must be an integer >= 0, got -1'],
 			['part of a scrap', { resources: { ...NO_RESOURCES, scrap: 0.5 } }, 'Campaign.resources.scrap must be an integer >= 0, got 0.5'],
 			['a missing resource', { resources: { food: 1 } }, 'Campaign.resources.water is missing'],
