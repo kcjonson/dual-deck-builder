@@ -19,11 +19,11 @@ import type {
  * game code.
  */
 
-/** The area map's stages as they stand, through the pipeline runner: the terrain and the drivable network. */
+/** The area map's stages as they stand, through the pipeline runner: the land with its water, the rivers, and the drivable network. */
 export function fixtureAreaMap(set: MapParamSet): AreaMapData {
 	const { params } = validateMapParams(resolveMapParams(set).params);
-	const { terrain, growth } = generateAreaMap({ params }).products;
-	return { terrain, network: growth.network };
+	const { water, growth } = generateAreaMap({ params }).products;
+	return { terrain: water.terrain, network: growth.network, rivers: water.lines };
 }
 
 /**

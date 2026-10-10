@@ -40,14 +40,14 @@ Each highway's preferred heading drifts from its bearing through knots 200 units
 
 Five candidate headings, evenly across the class's turn limit either way. The spec's limits (10, 18, and 28 degrees) are curviness 0.5's, and `curviness` scales them from 0.6 times at 0 to 1.4 times at 1, since even a ruler-straight road has to bend round a crater.
 
-The cheap rules go first: outward, the junction angle on a parent's first step after a branch, and a travel cost sample at the step's end, which is Infinity on impassable ground. The survivors are scored, lowest best:
+The cheap rules go first: outward, the junction angle on a parent's first step after a branch, and the step's cost as a move (`moveCost`, water-and-biomes.md), which is Infinity where its end or middle is impassable, short of a river it bridges, or where it climbs too steeply for its class. The survivors are scored, lowest best:
 
 | Term | Weight | What it reads |
 | --- | --- | --- |
-| Travel cost at the step's end | 1 | `travelCost`, 1 on flat scrub |
-| Travel cost 2.5 steps on | 0.5 | impassable ground counts as 8, off the map as 1 |
+| The step's cost as a move, per unit | 1 | `moveCost` over its length: 1 on flat ground, more for a climb, a slope across, or a bridge |
+| The land's cost 2.5 steps on, per unit | 0.5 | `moveCost` from the step's end along its heading, bridges aside; impassable ground counts as 8, off the map as 1 |
 | Straying from the preferred heading | 12 highway, 6 back road, 3 trail | 1 - cos of the angle off it |
-| Rough country and craters ahead | 4, 1.5, 0.3 | 10 lattice lookups 16 units apart, the nearest weighted most |
+| Rough country and craters ahead | 4, 1.5, 0.3 | 10 lookups of rough country on the land grid, 16 units apart, the nearest weighted most |
 | Impassable ground ahead, highways only | 6 | the share of 80 units clear, sampled every 4 |
 | Crowding by kin | 2 | how far into the band past the gap the clearance rule needs |
 | Noise | 0.15 | one draw a candidate |
@@ -70,7 +70,7 @@ When the bench first counted them, 22% to 42% of highways reached the rim, fewes
 
 - A highway's drift turned it back into its own branch, and the taper then blocked every candidate. Kin crowding scores how near a candidate comes to the gap the rule needs from a road it meets: 1 at that gap, easing to 0 at 1.75 times it. A road and its branch turn apart before the rule stops either.
 - A branch of a neighbouring highway's branch swept across a highway's path before the highway got there. The queue orders tips by distance from the compound, and a road heading tangentially outruns one heading straight out. Highways now count 100 units nearer than they are, so the trunks claim their way first.
-- Cliff bands across the whole fan. One cost sample ahead rarely lands on a band a few units wide. The rough-country ray, lattice lookups out to 160 units, steers every class round islands of cliff country, and highways look for impassable ground itself 80 units ahead.
+- Cliff bands across the whole fan. One cost sample ahead rarely lands on a band a few units wide. The rough-country ray, lookups on the land grid out to 160 units, steers every class round islands of cliff country, and highways look for impassable ground itself 80 units ahead.
 
 Now 76% to 87% of highways reach the rim (table below). The rest end in rough country.
 
@@ -93,7 +93,7 @@ A branch has to take its first two steps at once, the first straight along its j
 
 ## Class change
 
-A back road keeps a running mean of its steps' travel cost, each step weighing half, and becomes a trail from its tip on once the mean passes a threshold that falls from 3.2 at `trailShare` 0 to 1.7 at 1. Flat scrub costs 1 and mountains 2.5 before slope, so at the default threshold (2.45) back roads give out in mountains and on steep badlands, and at 1 in mire and any badlands too. A mean rather than one step's cost keeps a single costly step, across a canyon say, from degrading the rest of the road.
+A back road keeps a running mean of its steps' cost per unit over the land, bridges aside, each step weighing half, and becomes a trail from its tip on once the mean passes a threshold that falls from 3.2 at `trailShare` 0 to 1.7 at 1. Flat ground costs 1 and a back road's climb 10 times its grade squared at the default `curviness`, so at the default threshold (2.45) back roads give out on a sustained grade of about 0.38, at `trailShare` 0 on 0.47, and at 1 on 0.26. A mean rather than one step's cost keeps a single costly step, across a canyon say, from degrading the rest of the road.
 
 ## Smoothing
 
@@ -101,7 +101,7 @@ Chaikin, two passes, stretch by stretch with the nodes held still. Each end segm
 
 ## The water seam
 
-Water is impassable through `impassable` like the rest, once the water stage (DDB-289) adds it with `withWater`, and growth samples every half unit everywhere, not just in rough cells, so only water narrower than that could slip between samples, and a step can clip a bank by as much. The bridge rule, a river crossed square-on, needs rivers told from lakes and a river's direction, which `WaterLayer` doesn't give yet. `isPassable` is where it goes in: samples on a river the step crosses within some angle of square stop counting, and the crossing is recorded as a bridge. The network has no bridges until then.
+Water is impassable through `obstacle` once the water stage (DDB-289) lays it over the land, and growth samples every half unit, so only water narrower than that could slip between samples. A step crosses a river only on a bridge: its samples on river water count only within the step's bridges (`Terrain.bridgeSpans`), none longer than the longest bridge, and a step that would end in a river stretches on to the far bank, by a longest bridge at most. Lakes never let a step through. The network records no bridges; Map 7's links will. water-and-biomes.md has the rules and what they did to growth.
 
 ## Tests
 
@@ -121,7 +121,7 @@ Measured with `scripts/road-growth.mjs bench` on a Ryzen 9 5950X that other work
 | 1200 | 29.0 ms (41.9) | | 1,942 | 270 | 39,500 | 81% |
 | 1600 | 52.9 ms (73.0) | 56.4 ms (75.5) | 3,401 | 428 | 68,900 | 76% |
 
-About 15 us a step, most of it terrain: two `travelCost` samples a candidate, about 600 ns each (terrain-fields.md), and the half-unit passability samples for the candidates checked, cheap outside rough cells. Steps follow the network's length, so the area and `branchiness`: the densest corner of the tuning ranges, radius 1600 with branchiness 1, takes about 5,500 steps and 95 ms here. Campaign maps (radius 800 to 1200, branchiness 0.3 to 0.7) take 14 to 30 ms, which leaves most of the 200 ms to the stages after. Nothing is allocated per candidate; the only allocation in a step is its point and segment joining arrays that double as they fill. `checkRoadNetwork` takes a median of 6 ms over sampled maps, 36 ms at the densest, which the map validator will spend once a map.
+About 15 us a step, most of it terrain: two moves' costs a candidate, the step and the land on from it, about 0.9 us each (water-and-biomes.md), and the half-unit passability samples for the candidates checked. Steps follow the network's length, so the area and `branchiness`: the densest corner of the tuning ranges, radius 1600 with branchiness 1, takes about 5,500 steps and 95 ms here. Campaign maps (radius 800 to 1200, branchiness 0.3 to 0.7) take 14 to 30 ms, which leaves most of the 200 ms to the stages after. Nothing is allocated per candidate; the only allocation in a step is its point and segment joining arrays that double as they fill. `checkRoadNetwork` takes a median of 6 ms over sampled maps, 36 ms at the densest, which the map validator will spend once a map.
 
 ## Consequences
 

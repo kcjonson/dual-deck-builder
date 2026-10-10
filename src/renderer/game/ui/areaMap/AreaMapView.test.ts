@@ -6,11 +6,12 @@ import { createTestContext } from '../../../engine/components/testing';
 import { CircleCommand, DrawApi, DrawCommand, ImageCommand, PolylineCommand, RecordingBackend } from '../../../engine/draw';
 import { NO_MODIFIERS } from '../../../engine/input/events';
 import { click, key, pointer, send } from '../../../engine/services/testing';
-import { FOG, ROAD_STYLES, RUMORED_FADE, RUMORED_TOWARD, roadWidthScale } from './areaMapStyle';
+import type { RiverLines } from '../../map/Rivers';
+import { FOG, RIVER_STYLE, ROAD_STYLES, RUMORED_FADE, RUMORED_TOWARD, roadWidthScale } from './areaMapStyle';
 import { AreaMapView, AreaMapViewOptions, WHEEL_ZOOM_RATE } from './AreaMapView';
 import type { AreaMapSelection, LandFogLayer, MapMarker, RoadKnowledge } from './layers';
 import { FIT_MARGIN } from './MapCamera';
-import { SMALL_NETWORK, flatTerrain } from './testing';
+import { NO_RIVERS, SMALL_NETWORK, flatTerrain } from './testing';
 
 /**
  * The view on a mounted root, drawn through a recording backend and driven
@@ -40,7 +41,7 @@ function mountView(options: AreaMapViewOptions = {}): Mounted {
 		y: 50,
 		width: WIDTH,
 		height: HEIGHT,
-		map: { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK },
+		map: { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK, rivers: NO_RIVERS },
 		...options,
 	});
 	root.addChild(view);
@@ -83,7 +84,7 @@ describe('AreaMapView layout and camera', () => {
 		const backend = new RecordingBackend();
 		const context = createTestContext({ draw: new DrawApi({ backend, development: false }) });
 		const root = new Stack({ width: 900, height: 500 });
-		const view = new AreaMapView({ widthMode: 'fill', heightMode: 'fill', map: { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK } });
+		const view = new AreaMapView({ widthMode: 'fill', heightMode: 'fill', map: { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK, rivers: NO_RIVERS } });
 		root.addChild(view);
 		root.mount(context);
 		context.frame.layout();
@@ -242,7 +243,7 @@ describe('AreaMapView pan, zoom, and selection', () => {
 		view.knowledge = { knowledgeOf: () => 'uncharted' };
 		view.layers = { markers: false, roads: false };
 		expect(view.selection).toEqual({ kind: 'marker', id: 'a' });
-		view.map = { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK };
+		view.map = { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK, rivers: NO_RIVERS };
 		expect(view.selection).toBeNull();
 		expect(onSelect).not.toHaveBeenCalled();
 	});
@@ -320,7 +321,7 @@ describe('AreaMapView baking', () => {
 		const backend = new RecordingBackend();
 		const context = createTestContext({ draw: new DrawApi({ backend, development: false }) });
 		const create = jest.spyOn(context.draw, 'createTexture');
-		const view = new AreaMapView({ id: 'map', width: WIDTH, height: HEIGHT, map: { terrain, network: SMALL_NETWORK } });
+		const view = new AreaMapView({ id: 'map', width: WIDTH, height: HEIGHT, map: { terrain, network: SMALL_NETWORK, rivers: NO_RIVERS } });
 		// Nothing is baked before mount (R8.14)
 		expect(terrain.samples).toBe(0);
 		const root = new Container({ width: 800, height: 800 });
@@ -347,7 +348,7 @@ describe('AreaMapView baking', () => {
 		const { view, context } = mountView({ fog: { cells: 8, isRevealed: () => true } });
 		const create = jest.spyOn(context.draw, 'createTexture');
 		const destroy = jest.spyOn(context.draw, 'destroyTexture');
-		view.map = { terrain: flatTerrain({ radius: 400 }), network: SMALL_NETWORK };
+		view.map = { terrain: flatTerrain({ radius: 400 }), network: SMALL_NETWORK, rivers: NO_RIVERS };
 		expect(create).toHaveBeenCalledTimes(1);
 		expect(destroy).toHaveBeenCalledTimes(1);
 		expect(view.camera.radius).toBe(400);
@@ -359,7 +360,7 @@ describe('AreaMapView baking', () => {
 		const { view } = mountView();
 		view.camera.zoom = 2;
 		view.camera.center = { x: 120, y: -40 };
-		view.map = { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK };
+		view.map = { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK, rivers: NO_RIVERS };
 		expect(view.camera.zoom).toBe(2);
 		expect(view.camera.center).toEqual({ x: 120, y: -40 });
 	});
@@ -369,7 +370,7 @@ describe('AreaMapView baking', () => {
 		const context = createTestContext({ draw: new DrawApi({ backend, development: false }) });
 		const create = jest.spyOn(context.draw, 'createTexture');
 		const root = new Container({ width: 800, height: 800 });
-		const view = new AreaMapView({ id: 'map', width: WIDTH, height: HEIGHT, map: { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK }, fog: { cells: 8, isRevealed: () => false } });
+		const view = new AreaMapView({ id: 'map', width: WIDTH, height: HEIGHT, map: { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK, rivers: NO_RIVERS }, fog: { cells: 8, isRevealed: () => false } });
 		root.addChild(view);
 		root.mount(context);
 		expect(create.mock.calls.map(([options]) => options.label)).toEqual(['area map fog', 'area map terrain']);
@@ -518,5 +519,38 @@ describe('AreaMapView knowledge and markers', () => {
 		const ids = frame().map((command) => command.id);
 		expect(ids.indexOf('map.selected_road')).toBeGreaterThan(-1);
 		expect(ids.indexOf('map.selected_road')).toBeLessThan(ids.indexOf('map.road_3'));
+	});
+});
+
+describe('AreaMapView rivers', () => {
+	// West to east south of the compound, a creek widening to a river, and out past the rim.
+	const rivers: RiverLines = { points: Float64Array.of(-300, -100, 0, -100, 300, -50, 700, -50), widths: Float64Array.of(2, 2, 6, 6), offsets: Uint32Array.of(0, 4) };
+	const isRiver = (color: readonly number[]) => [RIVER_STYLE.color, RIVER_STYLE.outside].some((river) => river.every((channel, index) => channel === color[index]));
+	const riverCommands = (commands: readonly DrawCommand[]): PolylineCommand[] => commands.filter((command): command is PolylineCommand => command.kind === 'polyline' && isRiver(command.color));
+
+	it('draws rivers live over the land and under the roads, at their width, never under a pixel, and fainter past the rim', () => {
+		const { view, frame } = mountView({ map: { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK, rivers } });
+		frame();
+		const commands = frame();
+		const drawn = riverCommands(commands);
+		// A run for the creek, one for the river, and one past the rim.
+		expect(drawn.map((command) => [...command.color])).toEqual([[...RIVER_STYLE.color], [...RIVER_STYLE.color], [...RIVER_STYLE.outside]]);
+		const least = RIVER_STYLE.minPixels / view.camera.zoom;
+		expect(drawn[0].width).toBeCloseTo(Math.max(2.25, least), 12);
+		expect(drawn[1].width).toBeCloseTo(Math.max(6, least), 12);
+		// North up: world y flips into map space.
+		expect(drawn[0].points[0]).toEqual({ x: -300, y: 100 });
+		const firstRiver = commands.indexOf(drawn[0]);
+		expect(firstRiver).toBeGreaterThan(commands.findIndex((command) => command.kind === 'image'));
+		expect(firstRiver).toBeLessThan(commands.indexOf(roads(commands)[0]));
+
+		view.layers = { water: false };
+		expect(riverCommands(frame())).toHaveLength(0);
+	});
+
+	it('draws no rivers for a map with none', () => {
+		const { frame } = mountView();
+		frame();
+		expect(riverCommands(frame())).toHaveLength(0);
 	});
 });

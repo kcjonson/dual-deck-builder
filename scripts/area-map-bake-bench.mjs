@@ -1,6 +1,6 @@
 /**
- * Times the area map view's bakes (DDB-298): the terrain texture at each
- * radius and environment, and the fog texture. Like terrain-bench.mjs, it
+ * Times the area map view's bakes (DDB-298): the terrain texture, the land
+ * with its water, at each radius and environment, and the fog texture. Like terrain-bench.mjs, it
  * transpiles the modules into a temporary folder and runs them in a fresh
  * child process, clear of Jest's coverage and the TypeScript compiler's heap.
  *
@@ -25,7 +25,8 @@ const script = fileURLToPath(import.meta.url);
 const SOURCES = [
 	'game/core/Json', 'game/core/Rng', 'game/map/MapParams', 'game/map/ParamValidator', 'game/map/Noise', 'game/map/Biome',
 	'game/map/TerrainSites', 'game/map/Geometry', 'game/map/LandGrid', 'game/map/MapMath', 'game/map/Drainage', 'game/map/Erosion', 'game/map/Uplift',
-	'game/map/Land', 'game/map/Terrain', 'engine/theme/tokens', 'game/ui/areaMap/areaMapStyle', 'game/ui/areaMap/terrainBake',
+	'game/map/Land', 'game/map/Terrain', 'game/map/Rivers', 'game/map/Lakes', 'game/map/Water',
+	'engine/theme/tokens', 'game/ui/areaMap/areaMapStyle', 'game/ui/areaMap/terrainBake',
 	'game/ui/areaMap/fogBake',
 ];
 
@@ -54,6 +55,7 @@ const { Rng } = load('./game/core/Rng.js');
 const { resolveMapParams } = load('./game/map/MapParams.js');
 const { validateMapParams } = load('./game/map/ParamValidator.js');
 const { generateTerrain } = load('./game/map/Terrain.js');
+const { generateWater } = load('./game/map/Water.js');
 const { bakeTerrain, terrainBakeSize } = load('./game/ui/areaMap/terrainBake.js');
 const { bakeFog } = load('./game/ui/areaMap/fogBake.js');
 
@@ -64,9 +66,11 @@ const seeds = Number(options.seeds ?? 3);
 const repeat = Number(options.repeat ?? 3);
 const radii = (options.radii ?? '600,1000,1600').split(',').map(Number);
 
+/** The land with its water over it, as the view bakes it. */
 function terrainFor(set) {
 	const { params } = validateMapParams(resolveMapParams(set).params);
-	return generateTerrain({ params, rng: new Rng({ seed: params.seed }).fork('map', 0).fork('terrain', 0) });
+	const rng = new Rng({ seed: params.seed }).fork('map', 0).fork('terrain', 0);
+	return generateWater({ params, terrain: generateTerrain({ params, rng }), rng: rng.fork('water', 0) }).terrain;
 }
 
 function fastest(run) {

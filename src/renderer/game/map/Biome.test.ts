@@ -1,4 +1,4 @@
-import { BIOMES, BIOME_COSTS, BIOME_LABELS, BIOME_THRESHOLDS, BiomeFields, classifyBiome } from './Biome';
+import { BIOMES, BIOME_LABELS, BIOME_THRESHOLDS, BiomeFields, classifyBiome } from './Biome';
 
 /** Middling ground: scrub, with nothing pushing it toward any other biome. */
 const scrub: BiomeFields = { lowland: 0, moisture: 0.45, contamination: 0, mountains: 0, canyons: 0, badlands: 0 };
@@ -52,15 +52,7 @@ describe('classifyBiome', () => {
 });
 
 describe('biome tables', () => {
-	it('labels and costs every biome', () => {
-		BIOMES.forEach((biome) => {
-			expect(BIOME_LABELS[biome]).toEqual(expect.any(String));
-			expect(BIOME_COSTS[biome]).toBeGreaterThanOrEqual(1);
-		});
-	});
-
-	it('makes flat scrub the cheapest ground, at 1', () => {
-		expect(BIOME_COSTS.scrub).toBe(1);
-		expect(Math.min(...BIOMES.map((biome) => BIOME_COSTS[biome]))).toBe(1);
+	it('labels every biome', () => {
+		BIOMES.forEach((biome) => expect(BIOME_LABELS[biome]).toEqual(expect.any(String)));
 	});
 });

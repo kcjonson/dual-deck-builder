@@ -67,16 +67,18 @@ export interface HotspotPlacement {
 	radius: number;
 	/** Where crater centres may go. */
 	ring: Ring;
+	/** Whether a crater of `craterRadius` at (x, y) suits the land there; anywhere when left out. */
+	suits?: (x: number, y: number, craterRadius: number) => boolean;
 }
 
 /**
  * Up to `count` hotspots, each `HOTSPOT_SPACING` of the radius from the
- * others, centred in the ring. A hotspot draws its crater, plume, and
- * strength first, then candidates, two draws each; one that finds no room in
- * `PLACEMENT_ATTEMPTS` candidates is left out, which the spacing makes
- * vanishingly rare across the tuning ranges.
+ * others, centred in the ring, where the land suits them. A hotspot draws
+ * its crater, plume, and strength first, then candidates, two draws each;
+ * one that finds no room in `PLACEMENT_ATTEMPTS` candidates is left out,
+ * which the spacing makes vanishingly rare across the tuning ranges.
  */
-export function placeHotspots({ rng, count, radius, ring }: HotspotPlacement): Hotspot[] {
+export function placeHotspots({ rng, count, radius, ring, suits }: HotspotPlacement): Hotspot[] {
 	const spacing = HOTSPOT_SPACING * radius;
 	const spacingSquared = spacing * spacing;
 	const hotspots: Hotspot[] = [];
@@ -84,7 +86,7 @@ export function placeHotspots({ rng, count, radius, ring }: HotspotPlacement): H
 		const craterRadius = between(rng, CRATER_RADIUS);
 		const plumeRadius = craterRadius * between(rng, PLUME_SCALE);
 		const strength = between(rng, PLUME_STRENGTH);
-		const point = throwDart(rng, ring, (x, y) => hotspots.every((other) => distanceSquared(x, y, other) >= spacingSquared));
+		const point = throwDart(rng, ring, (x, y) => hotspots.every((other) => distanceSquared(x, y, other) >= spacingSquared) && (suits?.(x, y, craterRadius) ?? true));
 		if (point) hotspots.push({ x: point.x, y: point.y, craterRadius, plumeRadius, strength });
 	}
 	return hotspots;

@@ -1,13 +1,14 @@
 import { Rng } from '../core/Rng';
-import { AreaMapProducts, TERRAIN_STAGE, areaMapPipeline } from './AreaMapPipeline';
+import { AreaMapProducts, areaMapPipeline } from './AreaMapPipeline';
 import type { HighwayDeparture } from './Highways';
 import { MAP_PARAMETERS, MapParamSet, MapParams, NUMBER_PARAMS, ENVIRONMENTS, resolveMapParams } from './MapParams';
-import { AcceptHook, MapStage, PipelineResult } from './MapPipeline';
+import { AcceptHook, PipelineResult } from './MapPipeline';
 import { validateMapParams } from './ParamValidator';
 import { GROWTH_RANGES, GROWTH_TUNING, GrowthStats, GrowthTerrain, GrowthTuning } from './RoadGrowth';
 import { RoadClass, RoadNetwork } from './RoadNetwork';
-import type { Terrain, WaterLayer } from './Terrain';
+import type { Obstacle, Terrain } from './Terrain';
 import type { Hotspot } from './TerrainSites';
+import type { Water } from './Water';
 
 /**
  * Fixtures for the road growth tests. Nothing in the game imports this file.
@@ -24,7 +25,9 @@ export interface GrownMap {
 	readonly params: MapParams;
 	/** The clearance growth kept, for the network checks. */
 	readonly clearance: number;
+	/** The land with its water, which growth grew over. */
 	readonly terrain: Terrain;
+	readonly water: Water;
 	readonly highways: readonly HighwayDeparture[];
 	readonly network: RoadNetwork;
 	readonly stats: GrowthStats;
@@ -34,49 +37,53 @@ export interface GrownMap {
 }
 
 /**
- * The area map's stages through the pipeline runner, with water laid over
- * the terrain when given. The runner retries a stage that fails its checks,
- * which would retry a growth regression out of a test's sight, so this
- * throws unless every stage won its first attempt on the first map attempt.
- * A caller that passes `accept` is steering the retries itself, and gets
- * whatever won.
+ * The area map's stages through the pipeline runner. The runner retries a
+ * stage that fails its checks, which would retry a growth regression out of
+ * a test's sight, so this throws unless every stage won its first attempt on
+ * the first map attempt. A caller that passes `accept` is steering the
+ * retries itself, and gets whatever won.
  */
-export function growMap(set: GrowthSet, { water, accept }: { water?: WaterLayer; accept?: AcceptHook<AreaMapProducts> } = {}): GrownMap {
+export function growMap(set: GrowthSet, { accept }: { accept?: AcceptHook<AreaMapProducts> } = {}): GrownMap {
 	const { branchiness, clearance = GROWTH_TUNING.clearance, ...mapSet } = set;
 	const params = paramsFor(mapSet);
-	const terrain: MapStage<MapParams, Record<never, never>, 'terrain', Terrain> | undefined = water
-		? { name: 'terrain', run: (context) => TERRAIN_STAGE.run(context).withWater(water) }
-		: undefined;
-	const { products, attempts, mapAttempt, failures } = areaMapPipeline({ growth: { branchiness, clearance }, terrain })
+	const { products, attempts, mapAttempt, failures } = areaMapPipeline({ growth: { branchiness, clearance } })
 		.run({ seed: params.seed, input: params, accept });
 	if (!accept && failures.length > 0) {
 		const shown = failures.slice(0, 3).map(({ stage, attempt, mapAttempt: map, problems }) => `${stage} attempt ${attempt}, map attempt ${map}: ${problems.slice(0, 3).join('; ')}`);
 		throw new Error(`growMap: seed ${params.seed} needed a retry, which hides what failed: ${shown.join(' | ')}`);
 	}
-	return { params, clearance, terrain: products.terrain, highways: products.highways, network: products.growth.network, stats: products.growth.stats, attempts, mapAttempt };
+	const { water } = products;
+	return { params, clearance, terrain: water.terrain, water, highways: products.highways, network: products.growth.network, stats: products.growth.stats, attempts, mapAttempt };
 }
 
 export interface FakeTerrainOptions {
 	radius?: number;
 	metroRadius?: number;
 	hotspots?: Hotspot[];
-	/** Travel cost on passable ground; 1 everywhere when left out. */
+	/** Cost per world unit on passable ground, at a move's end; 1 everywhere when left out. */
 	cost?: (x: number, y: number) => number;
-	/** Impassable ground besides craters. */
+	/** Impassable ground besides craters, which reads as a cliff. */
 	wall?: (x: number, y: number) => boolean;
 	rough?: (x: number, y: number) => boolean;
 }
 
-/** A terrain made of functions, for steering growth with ground no seed would draw. */
+/** A terrain made of functions, for steering growth with ground no seed would draw. Its moves cost their length times `cost` at their end. */
 export function fakeTerrain({ radius = 1000, metroRadius = 150, hotspots = [], cost, wall, rough }: FakeTerrainOptions = {}): GrowthTerrain {
-	const impassable = (x: number, y: number) => hotspots.some((hotspot) => (x - hotspot.x) * (x - hotspot.x) + (y - hotspot.y) * (y - hotspot.y) < hotspot.craterRadius * hotspot.craterRadius)
-		|| (wall?.(x, y) ?? false);
+	const obstacle = (x: number, y: number): Obstacle | null => {
+		if (hotspots.some((hotspot) => (x - hotspot.x) * (x - hotspot.x) + (y - hotspot.y) * (y - hotspot.y) < hotspot.craterRadius * hotspot.craterRadius)) return 'crater';
+		return wall?.(x, y) ? 'cliff' : null;
+	};
 	return {
 		radius,
 		metro: { x: 0, y: 0, radius: metroRadius },
 		hotspots,
-		impassable,
-		travelCost: (x, y) => (impassable(x, y) ? Infinity : cost?.(x, y) ?? 1),
+		obstacle,
+		bridgeSpans: () => 0,
+		moveCost: (x0, y0, x1, y1, _roadClass, parts) => {
+			if (parts) parts.bridge = 0;
+			if (obstacle(x1, y1) !== null || obstacle((x0 + x1) / 2, (y0 + y1) / 2) !== null) return Infinity;
+			return Math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)) * (cost?.(x1, y1) ?? 1);
+		},
 		rough: (x, y) => rough?.(x, y) ?? false,
 	};
 }
