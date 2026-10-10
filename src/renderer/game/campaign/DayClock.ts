@@ -1,5 +1,5 @@
 import { readFields, readInteger, readText } from '../core/JsonReader';
-import { Campaign, CampaignData, MAX_DAY, RESOURCE_NAMES, Resources, readResources } from './Campaign';
+import { Campaign, CampaignData, MAX_DAY, RESOURCE_NAMES, Resources, readResources, resourceAmount } from './Campaign';
 import { CampaignEnd, fallOf, refuseOver, stepLog } from './CampaignEnd';
 import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES, UpkeepResource, readCompoundRules, upkeepRecord } from './CompoundRules';
 import { DriverRecord } from './DriverRecord';
@@ -194,5 +194,5 @@ function dailyUpkeep({ people, rules }: { people: number; rules: CompoundRules }
 export function shortfallMessage({ shortfall, peopleLost }: { shortfall: Upkeep; peopleLost: number }): string {
 	const short = UPKEEP_RESOURCES.filter(resource => shortfall[resource] > 0).map(resource => `${shortfall[resource]} ${resource}`).join(' and ');
 	if (peopleLost === 0) return `Ran short of ${short}.`;
-	return `Ran short of ${short}; ${peopleLost} ${peopleLost === 1 ? 'person' : 'people'} lost.`;
+	return `Ran short of ${short}; ${resourceAmount({ resource: 'people', amount: peopleLost })} lost.`;
 }

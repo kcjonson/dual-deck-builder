@@ -2,12 +2,12 @@ import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign, Resources } from '../../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
+import type { CheckpointResult } from '../../campaign/CampaignStore';
 import { endDay, forecastNeeds } from '../../campaign/DayClock';
 import { getScavengeBlocker, rollScavengeHaul, scavenge as sendScavengingParty } from '../../campaign/Scavenging';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
-import { Dialog } from '../../../engine/ui/Dialog';
 import { Divider } from '../../../engine/ui/Divider';
 import { FocusGroup } from '../../../engine/ui/FocusGroup';
 import { Panel } from '../../../engine/ui/Panel';
@@ -16,9 +16,12 @@ import { ColorToken, tokens } from '../../../engine/theme/tokens';
 import {
 	BUILDINGS,
 	Building,
+	NOT_THE_SAVE,
 	NeedLine,
 	RESOURCE_ORDER,
 	REST_RUN_OUT,
+	STRANDED_BUILDING,
+	STRANDED_DAY,
 	dayEndReport,
 	dayText,
 	forecastLines,
@@ -34,10 +37,9 @@ const { space } = tokens;
 const TOP_BAR_HEIGHT = 64;
 const SIDE_WIDTH = 320;
 const BUILDINGS_PER_ROW = 3;
-/** A button doesn't hug its label, so the top bar's and the notice's have widths that fit theirs. */
+/** A button doesn't hug its label, so the top bar's have widths that fit theirs. */
 const BACK_WIDTH = 136;
 const AREA_MAP_WIDTH = 96;
-const FALLEN_BUTTON_WIDTH = 160;
 
 const PLAN_REASON = "Load out and the run route aren't built yet.";
 const NO_RUMORS = 'Radio: no new rumors';
@@ -82,6 +84,11 @@ export interface CompoundScreenOptions {
  * checkpoints the campaign, and each is disabled with its reason while a
  * run is out, Scavenge also once the campaign is over.
  *
+ * A day that loses the campaign goes to the defeat screen once its end is
+ * saved (`DefeatScreen`), handed the campaign. A checkpoint that finds the
+ * store has moved on from this instance strands the screen: it says nothing
+ * more is saved here, and Rest, Scavenge, and the buildings turn off.
+ *
  * Focus starts on Back to menu, not Rest or Scavenge, so a stray Enter
  * can't spend a day. The buildings are a focus group (R9.29), and so are
  * Rest, Scavenge, and Plan a supply run. Escape returns to the menu with
@@ -103,7 +110,13 @@ export class CompoundScreen extends Screen {
 	private scavengeLine: Text | null = null;
 	private report: Text | null = null;
 	private saveError: Text | null = null;
-	private fallen: Dialog | null = null;
+	private backButton: Button | null = null;
+	/**
+	 * Nothing more starts here: the campaign is lost and the defeat screen is
+	 * on its way, or the store has moved on from this instance, so nothing
+	 * done here would be saved.
+	 */
+	private halted: 'defeated' | 'stranded' | null = null;
 	/** The buttons of buildings whose screens exist, enabled once there's a campaign to open them with, and the lines saying so until then. */
 	private readonly liveBuildings: { button: Button; waiting: Text }[] = [];
 	private unsubscribe: (() => void) | null = null;
@@ -148,6 +161,7 @@ export class CompoundScreen extends Screen {
 			width: BACK_WIDTH,
 			onClick: () => this.back(),
 		});
+		this.backButton = back;
 		this.stack.addChild(this.createTopBar(back));
 		this.stack.addChild(new Divider({ id: 'compound_top_rule' }));
 
@@ -182,8 +196,8 @@ export class CompoundScreen extends Screen {
 		for (const key of ['Escape', 'PageDown', 'PageUp']) hotkeys.unregister(key);
 		this.unsubscribe?.();
 		this.unsubscribe = null;
-		this.fallen?.close();
-		this.fallen = null;
+		this.halted = null;
+		this.backButton = null;
 		this.stack.clearChildren();
 		this.campaign = null;
 		this.dayLabel = null;
@@ -344,16 +358,49 @@ export class CompoundScreen extends Screen {
 
 	/**
 	 * A lost campaign's checkpoint, which ends it in the store (its history
-	 * line in, its save removed), then the notice. A checkpoint that fails
-	 * shows its reason over the buttons, and Rest tries it again.
+	 * line in, its save removed), then the defeat screen. A checkpoint that
+	 * fails shows its reason over the buttons, and Rest tries it again.
 	 */
 	private async settleFall(campaign: Campaign): Promise<void> {
 		const visit = this.visit;
 		this.passingDay = true;
-		const saved = await this.store.checkpoint(campaign);
+		const result = await this.store.checkpoint(campaign);
 		if (visit !== this.visit) return;
 		this.passingDay = false;
-		if (saved) this.compoundFell();
+		this.afterCheckpoint({ campaign, result });
+	}
+
+	/**
+	 * After a day end's or a fall's checkpoint: a lost campaign whose end is
+	 * in the history, from this checkpoint or one before, goes to the defeat
+	 * screen. One whose end failed to save stays, its reason over the buttons
+	 * (`onSaveFailed`), and Rest tries again. An instance the store has moved
+	 * on from (the save was loaded again, replaced, or deleted, or a campaign
+	 * still standing was ended elsewhere) is stranded, lost or not.
+	 */
+	private afterCheckpoint({ campaign, result }: { campaign: Campaign; result: CheckpointResult }): void {
+		if (result === 'ended' && campaign.isOver) this.toDefeat(campaign);
+		else if (result === 'ended' || result === 'retired') this.strand();
+	}
+
+	/**
+	 * Nothing done here would be saved any more: says so over the buttons,
+	 * and turns off Rest, Scavenge, and the buildings, each saying why. Focus
+	 * on one of them goes to Back to menu, which picks up the save.
+	 */
+	private strand(): void {
+		if (this.halted !== null) return;
+		this.halted = 'stranded';
+		const focused = this.context.focus.focused;
+		const turnedOff = [this.restButton, this.scavengeButton, ...this.liveBuildings.map(({ button }) => button)];
+		for (const { button, waiting } of this.liveBuildings) {
+			button.enabled = false;
+			waiting.text = STRANDED_BUILDING;
+			waiting.visible = true;
+		}
+		this.refresh();
+		this.showLine({ line: this.saveError, text: NOT_THE_SAVE, color: 'status_warn' });
+		if (focused !== null && turnedOff.includes(focused as Button) && this.backButton) this.context.focus.focus(this.backButton);
 	}
 
 	/** Everything that reads the campaign, again. */
@@ -367,15 +414,19 @@ export class CompoundScreen extends Screen {
 		const forecast = forecastNeeds({ resources });
 		// Rest stays live once the campaign is over, to save its end again.
 		const restWaits = this.restWaits;
-		if (this.restButton) this.restButton.enabled = !restWaits;
+		const stranded = this.halted === 'stranded';
+		if (this.restButton) this.restButton.enabled = !restWaits && !stranded;
 		if (this.restLine) {
-			this.restLine.text = restWaits ? REST_RUN_OUT : restCaption({ day, forecast, over: campaign.isOver });
+			if (stranded) this.restLine.text = STRANDED_DAY;
+			else this.restLine.text = restWaits ? REST_RUN_OUT : restCaption({ day, forecast, over: campaign.isOver });
 			this.restLine.color = 'text_dim';
 		}
 		const blocker = getScavengeBlocker({ campaign });
-		if (this.scavengeButton) this.scavengeButton.enabled = blocker === null;
+		if (this.scavengeButton) this.scavengeButton.enabled = blocker === null && !stranded;
 		if (this.scavengeLine) {
-			this.scavengeLine.text = blocker === null ? scavengeCaption(rollScavengeHaul({ seed: campaign.seed, day })) : scavengeRefusal(blocker);
+			// Rest's line says why both are off.
+			if (stranded) this.scavengeLine.text = '';
+			else this.scavengeLine.text = blocker === null ? scavengeCaption(rollScavengeHaul({ seed: campaign.seed, day })) : scavengeRefusal(blocker);
 		}
 		const needs = this.needs;
 		if (!needs) return;
@@ -413,14 +464,15 @@ export class CompoundScreen extends Screen {
 	 * does one within `SECOND_PRESS_MS` of the day ending. A night
 	 * that empties the compound ends the campaign, and its checkpoint ends it
 	 * in the store, writing the history line and removing the save, before
-	 * the notice opens. A save that fails says so over the buttons
-	 * (`onSaveFailed`), and a fall whose checkpoint failed shows no notice:
-	 * the save still holds the day before, and Rest tries the checkpoint
-	 * again without ending another day.
+	 * the defeat screen opens (`afterCheckpoint`). A save that fails says so
+	 * over the buttons (`onSaveFailed`), and a fall whose checkpoint failed
+	 * stays here: the save still holds the day before, and Rest tries the
+	 * checkpoint again without ending another day. Nothing ends once the
+	 * screen has halted.
 	 */
 	private async passDay(step: (campaign: Campaign) => NeedLine): Promise<void> {
 		const campaign = this.campaign;
-		if (!campaign || this.passingDay || this.fallen) return;
+		if (!campaign || this.passingDay || this.halted !== null) return;
 		if (this.context.clock.now - this.dayEndedAt < SECOND_PRESS_MS) return;
 		this.passingDay = true;
 		const visit = this.visit;
@@ -442,10 +494,10 @@ export class CompoundScreen extends Screen {
 			if (scavengeFocused && this.restButton?.enabled && !this.scavengeButton?.enabled) this.context.focus.focus(this.restButton);
 			this.showLine({ line: this.report, text: report.text, color: report.urgent ? 'status_warn' : 'text_dim' });
 		}
-		const saved = await this.store.checkpoint(campaign);
+		const result = await this.store.checkpoint(campaign);
 		if (visit !== this.visit) return;
 		this.passingDay = false;
-		if (saved && campaign.isOver) this.compoundFell();
+		this.afterCheckpoint({ campaign, result });
 	}
 
 	private showLine({ line, text, color }: { line: Text | null; text: string; color: ColorToken }): void {
@@ -455,34 +507,11 @@ export class CompoundScreen extends Screen {
 		line.visible = true;
 	}
 
-	/**
-	 * Nobody is left at the compound, and the campaign is lost. A stand-in
-	 * for the defeat screen (DDB-305), which replaces this method; the
-	 * checkpoint before it has ended the campaign in the store. Whatever
-	 * closes it goes to the menu.
-	 */
-	private compoundFell(): void {
-		if (this.fallen || !this.campaign) return;
-		const dialog: Dialog = new Dialog({
-			id: 'compound_fallen_dialog',
-			kicker: dayText(this.campaign.day),
-			title: 'The compound has fallen',
-			size: 'sm',
-			content: new Text({
-				text: 'Nobody is left at the compound. The campaign is lost.',
-				id: 'compound_fallen_body',
-				widthMode: 'fill',
-				style: { fontSize: 'fs_base', color: 'text' },
-			}),
-			footer: [new Button({ label: 'Back to menu', id: 'compound_fallen_back', width: FALLEN_BUTTON_WIDTH, onClick: () => dialog.close() })],
-			onClose: () => {
-				if (this.fallen !== dialog) return;
-				this.fallen = null;
-				this.back();
-			},
-		});
-		this.fallen = dialog;
-		dialog.show(this.context);
+	/** The campaign is lost: the defeat screen, handed the campaign, once. */
+	private toDefeat(campaign: Campaign): void {
+		if (this.halted !== null) return;
+		this.halted = 'defeated';
+		ScreenManager.navigate('defeatScreen', { campaign });
 	}
 
 	/**
@@ -491,7 +520,7 @@ export class CompoundScreen extends Screen {
 	 * step starts after its checkpoint, as a second Rest or Scavenge waits.
 	 */
 	private open(building: Building): void {
-		if (!this.campaign || !building.screen || this.passingDay || this.fallen) return;
+		if (!this.campaign || !building.screen || this.passingDay || this.halted !== null) return;
 		ScreenManager.navigate(building.screen, { campaign: this.campaign });
 	}
 

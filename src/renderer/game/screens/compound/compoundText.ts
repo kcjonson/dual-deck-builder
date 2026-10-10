@@ -123,6 +123,19 @@ export function restCaption({ day, forecast, over = false }: { day: number; fore
 export const REST_RUN_OUT = 'A run is out, and its return ends the day.';
 
 /**
+ * Over the buttons once the store has moved on from this instance of the
+ * campaign (the save was loaded again, replaced, or deleted), so nothing
+ * done here would be saved.
+ */
+export const NOT_THE_SAVE = "This campaign isn't the save any more, so nothing more is saved here. Back to menu to pick up the save.";
+
+/** Rest's line then, for Rest and Scavenge both. */
+export const STRANDED_DAY = 'Nothing more is saved here, so no day ends.';
+
+/** A live building's line then. */
+export const STRANDED_BUILDING = 'Shut, since nothing more is saved here.';
+
+/**
  * Scavenge's line, under Rest's: what a party on foot brings back today,
  * rolled ahead from the day's own stream (`rollScavengeHaul`), so it's
  * what the press will bring.

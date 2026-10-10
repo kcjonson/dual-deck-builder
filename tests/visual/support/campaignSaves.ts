@@ -11,7 +11,7 @@
  */
 import { CAMPAIGN_SCHEMA_VERSION } from '../../../src/renderer/game/campaign/Campaign';
 import { campaignKeys, pageNamespace } from '../../../src/renderer/game/campaign/CampaignStore';
-import { atHomeText, fixtureText, fullLockerCampaign, outdatedText, saveText } from '../../../src/renderer/game/campaign/__fixtures__/storeFixtures';
+import { atHomeText, fixtureText, fullLockerCampaign, lostCampaign, outdatedText, saveText } from '../../../src/renderer/game/campaign/__fixtures__/storeFixtures';
 
 /** Every key the store writes starts with this, whatever the build. */
 export const CAMPAIGN_KEY_PREFIX = 'dual-deckbuilder.campaign[';
@@ -34,6 +34,9 @@ export const AT_HOME = savedAs(atHomeText());
 
 /** The Crew screen's longest lists from the shipped cards: a deck at the most it holds, and every card but the escorts' in the locker. */
 export const FULL_LOCKER = savedAs(saveText({ campaign: fullLockerCampaign().toSaveText() }));
+
+/** The fixture home from its run, then lost: its last drivers killed or missing, and the compound rioting (DDB-305). */
+export const LOST = savedAs(saveText({ campaign: lostCampaign({ ending: 'rioted', cause: 'last_driver' }).toSaveText() }));
 
 /** The fixture as the next save format version wrote it. */
 export const OUTDATED = savedAs(outdatedText());

@@ -509,8 +509,8 @@ export class CrewScreen extends Screen {
 		const campaign = this.campaign;
 		if (!campaign) return;
 		const visit = this.visit;
-		void this.store.checkpoint(campaign).then((saved) => {
-			if (saved && visit === this.visit && this.saveError) this.saveError.visible = false;
+		void this.store.checkpoint(campaign).then((result) => {
+			if (result === 'saved' && visit === this.visit && this.saveError) this.saveError.visible = false;
 		});
 	}
 

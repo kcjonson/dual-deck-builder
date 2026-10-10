@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { CampaignStore, CampaignStoreError, campaignKeys, pageNamespace } from '../../../src/renderer/game/campaign/CampaignStore';
 import { MemorySaveStorage } from '../../../src/renderer/game/campaign/SaveStorage';
-import { AT_HOME, CAMPAIGN_KEY_PREFIX, DAMAGED, ENDED, FULL_LOCKER, HARNESS_PAGE, IN_PROGRESS, OUTDATED } from './campaignSaves';
+import { AT_HOME, CAMPAIGN_KEY_PREFIX, DAMAGED, ENDED, FULL_LOCKER, HARNESS_PAGE, IN_PROGRESS, LOST, OUTDATED } from './campaignSaves';
 
 /** The harness's dev server's store, over the items a scenario writes. */
 function storeOver(items: Record<string, string>): CampaignStore {
@@ -13,7 +13,7 @@ describe('the screen scenarios\' campaign saves', () => {
 		const keys = campaignKeys(pageNamespace(HARNESS_PAGE));
 		const every = [keys.active, keys.slots.a, keys.slots.b, keys.recovery, keys.history, keys.historyRecovery];
 		expect(every.every((key) => key.startsWith(CAMPAIGN_KEY_PREFIX))).toBe(true);
-		for (const items of [IN_PROGRESS, AT_HOME, FULL_LOCKER, OUTDATED, DAMAGED, ENDED]) {
+		for (const items of [IN_PROGRESS, AT_HOME, FULL_LOCKER, LOST, OUTDATED, DAMAGED, ENDED]) {
 			expect(Object.keys(items).every((key) => every.includes(key))).toBe(true);
 		}
 	});
@@ -30,6 +30,11 @@ describe('the screen scenarios\' campaign saves', () => {
 		const full = await storeOver(FULL_LOCKER).load();
 		expect(full?.drivers[0].deckSize).toBe(20);
 		expect(Object.keys(full?.locker ?? {}).length).toBeGreaterThan(20);
+	});
+
+	it('hold a campaign already lost, that loads over', async () => {
+		const lost = await storeOver(LOST).load();
+		expect([lost?.isOver, lost?.end]).toEqual([true, { ending: 'rioted', cause: 'last_driver' }]);
 	});
 
 	it('hold an outdated save and a damaged one', async () => {
