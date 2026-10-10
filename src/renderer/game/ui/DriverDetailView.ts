@@ -78,10 +78,14 @@ export function driverDeckGrid(kinds: number): { columns: number; rows: number }
 }
 
 /**
- * The deck's cards the lookup knows, cheapest first and then by name, the
- * order the Crew screen and load out show a deck in, names compared as a
- * pile's are (`drawPileOrder`).
+ * Cheapest first and then by name, the order the Crew screen, its locker,
+ * and load out show cards in, names compared as a pile's are (`drawPileOrder`).
  */
+export function deckOrder(a: GameCard, b: GameCard): number {
+	return a.cost - b.cost || a.displayName.localeCompare(b.displayName);
+}
+
+/** The deck's cards the lookup knows, in `deckOrder`. */
 function deckEntries(deck: CardCounts, cards: CardLookup): { card: GameCard; copies: number }[] {
 	const entries: { card: GameCard; copies: number }[] = [];
 	for (const [type, copies] of Object.entries(deck)) {
@@ -89,7 +93,7 @@ function deckEntries(deck: CardCounts, cards: CardLookup): { card: GameCard; cop
 		const card = cards(type);
 		if (card) entries.push({ card, copies });
 	}
-	return entries.sort((a, b) => a.card.cost - b.card.cost || a.card.displayName.localeCompare(b.card.displayName));
+	return entries.sort((a, b) => deckOrder(a.card, b.card));
 }
 
 /**

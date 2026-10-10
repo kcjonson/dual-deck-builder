@@ -1,7 +1,8 @@
 /**
  * Campaign saves for the screen scenarios: local storage items a capture
- * writes before it navigates, so the main menu, Campaign History, and the
- * compound screen render from a save the way a player's page would.
+ * writes before it navigates, so the main menu, Campaign History, the
+ * compound screen, and the Crew screen render from a save the way a
+ * player's page would.
  *
  * Built from the campaign store's own test fixtures, so they follow the
  * fixture and the save format version wherever those move, and nothing here
@@ -10,7 +11,7 @@
  */
 import { CAMPAIGN_SCHEMA_VERSION } from '../../../src/renderer/game/campaign/Campaign';
 import { campaignKeys, pageNamespace } from '../../../src/renderer/game/campaign/CampaignStore';
-import { fixtureText, outdatedText } from '../../../src/renderer/game/campaign/__fixtures__/storeFixtures';
+import { atHomeText, fixtureText, fullLockerCampaign, outdatedText, saveText } from '../../../src/renderer/game/campaign/__fixtures__/storeFixtures';
 
 /** Every key the store writes starts with this, whatever the build. */
 export const CAMPAIGN_KEY_PREFIX = 'dual-deckbuilder.campaign[';
@@ -27,6 +28,12 @@ function savedAs(text: string): Record<string, string> {
 
 /** The fixture: day 9, three drivers at the compound, one stronghold taken. */
 export const IN_PROGRESS = savedAs(fixtureText());
+
+/** The fixture with its run home and unwound, as the Crew screen sees the compound between runs. */
+export const AT_HOME = savedAs(atHomeText());
+
+/** The Crew screen's longest lists from the shipped cards: a deck at the most it holds, and every card but the escorts' in the locker. */
+export const FULL_LOCKER = savedAs(saveText({ campaign: fullLockerCampaign().toSaveText() }));
 
 /** The fixture as the next save format version wrote it. */
 export const OUTDATED = savedAs(outdatedText());
