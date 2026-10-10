@@ -2,7 +2,7 @@
 
 Date: 2026-10-07. Code: `src/renderer/game/map/` (`Noise.ts`, `Terrain.ts`, `Biome.ts`, `TerrainSites.ts`), timed by `scripts/terrain-bench.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 1. Terrain. Follows [seeded-prng.md](./seeded-prng.md) and [map-params.md](./map-params.md).
 
-The land's relief, the plains, ranges, ridges, canyons, and badlands layers this record built elevation from, gave way to uplift and erosion: [terrain-erosion.md](./terrain-erosion.md). What's here still holds for the noise, moisture, contamination, the biome thresholds, the start's blends, hotspots, towns, rough country, cliffs, cost, and the water seam, as noted where the eroded land changed them.
+The land's relief, the plains, ranges, ridges, canyons, and badlands layers this record built elevation from, gave way to uplift and erosion: [terrain-erosion.md](./terrain-erosion.md). Moisture, rough country, cliffs, cost, and the water then went to the water stage: [water-and-biomes.md](./water-and-biomes.md). What's here still holds for the noise, contamination, the biome thresholds, the start's blends, hotspots, and towns, as noted where the later stages changed them.
 
 ## Context
 
@@ -25,15 +25,13 @@ Fewer directions could favour some. Any finite set leaves a comb of slightly fav
 
 ## The fields
 
-Feature sizes are world units, not shares of the radius, so a bigger map has more of everything rather than bigger mountains, and roads, which step and keep clear in world units, meet the same terrain on any map. Every value below is a starting value for the Map Lab to tune. Elevation, the range mask, canyons, and badlands now come from the eroded land (terrain-erosion.md); the layers left are these:
+Feature sizes are world units, not shares of the radius, so a bigger map has more of everything rather than bigger mountains, and roads, which step and keep clear in world units, meet the same terrain on any map. Every value below is a starting value for the Map Lab to tune. Elevation and the range mask now come from the eroded land (terrain-erosion.md), and moisture, rough country, canyons, and badlands from the water and the eroded slope (water-and-biomes.md); the layer left is this:
 
 | Layer | Noise | Shaped by |
 | --- | --- | --- |
-| Roughness | 2 octaves, 360 units: rough country is where it's above its calibrated floor, decided per cell of a 16-unit lattice | `ruggedness`: rough country is 10% to 35% of the land past the relief radius |
-| Moisture | 2 octaves, 650 units, spread 0.55 around the map's level, plus 0.5 per unit of elevation below the map's lowland level, minus above | `aridity` |
 | Contamination | 2 octaves, 450 units; hotspot plumes combine over it as 1 - (1 - c)(1 - p) | `contamination`, the toxic share; `hotspots` |
 
-Each threshold behind a share (rough country's floor, toxic ground, and on the eroded land the range mask, canyons, and badlands) is a quantile of its layer over a lattice of the disc, taken past the radius where the feature fades in, so `contamination` 0.3 means that share of the country beyond the metro's surroundings on every map, whatever the noise drew. Shares of 0 and 1 are infinite thresholds: none and all.
+Each threshold behind a share (toxic ground, and on the eroded land the range mask, rough country, canyons, and badlands) is a quantile of its layer over a lattice of the disc or the land's cells, taken past the radius where the feature fades in, so `contamination` 0.3 means that share of the country beyond the metro's surroundings on every map, whatever the noise drew. Shares of 0 and 1 are infinite thresholds: none and all.
 
 `aridity` follows the spec as written, 0 dry desert to 1 wet ground and mire, which reads backwards for the name. Whether to rename it or flip it is open (DDB-405), so the mapping lives in one function, `moistureLevel(aridity)`, and either change is a line there.
 
@@ -44,8 +42,8 @@ Thresholds on the fields, first match wins:
 | Biome | Where |
 | --- | --- |
 | Mountains | the range mask is 0.5 or more: range country, ridges and valleys alike |
-| Canyons | the canyon field is 0.5 or more: deep in a valley cut into dry land |
-| Toxic mire | low ground, under the map's lowland level (terrain-erosion.md), and moisture plus 0.25 x contamination is 0.75 or more |
+| Canyons | the canyon field is 0.5 or more: deep in a river valley cut into dry country (water-and-biomes.md) |
+| Toxic mire | low ground, at least half as low as the water's level beside it (water-and-biomes.md), and moisture plus 0.25 x contamination is 0.75 or more |
 | Badlands | the badlands field is 0.5 or more and moisture under 0.6 |
 | Barren desert | moisture under 0.3 |
 | Scrub | the middling rest |
@@ -60,37 +58,29 @@ The metro is `metroSize` of the radius around the compound. Inside it the fields
 
 Both are Poisson-disc samples: candidates drawn uniformly, each kept only if it's far enough from those kept before. Hotspots are dart-thrown over a ring of the disc (in its bounding square, redrawn until inside, so no square root or trig); one gets 48 candidates and is left out if none fits, which their spacing makes vanishingly rare across the tuning ranges, and tests check every one asked for is placed.
 
-- Hotspots: crater radius 14 to 26 units, impassable; plume 5 to 8 times the crater, contamination at the centre 0.75 to 1, falling off as (1 - d^2 / r^2)^2; centres at least a quarter of the radius apart, between the blend radius plus the largest crater and 0.9 of the radius.
-- Towns: radius 0.25 to 0.4 of the metro's, at least 20 units; centres 0.22 of the radius apart, wholly between the blend radius and 0.9 of the radius, and 20 units clear of craters. Candidates come from the cells the metro's flood fill reaches (below) whose centres lie in that ring: a cell picked evenly and a point picked evenly inside it, so every candidate is ground a road can reach. The first 24 of a town's 48 candidates also have to be out of mountains and canyons (the range mask and canyon field under a quarter). If none fits, the town walks the same cells in an order shuffled from the towns stream (once a map) and takes the first centre with room, so a town is left out only when no reached cell's centre in the ring has room for it. Dart-thrown over the whole ring and kept only where reachable, towns came up short on 17% of maps at the most crowded corner of the tuning range (coverage 1, ruggedness 1, aridity 0, contamination 1, 6 hotspots, 12 towns, metro 0.25, radius 600); from the reachable cells, none of 500 seeds at that corner or at nine neighbours of it, 5,000 maps in all, is short a town.
+- Hotspots: crater radius 14 to 26 units, impassable; plume 5 to 8 times the crater, contamination at the centre 0.75 to 1, falling off as (1 - d^2 / r^2)^2; centres at least a quarter of the radius apart, between the blend radius plus the largest crater and 0.9 of the radius, and off the land's drainage, so no crater sits on a river (water-and-biomes.md, Hazards).
+- Towns: radius 0.25 to 0.4 of the metro's, at least 20 units; centres 0.22 of the radius apart, wholly between the blend radius and 0.9 of the radius, and 20 units clear of craters. Candidates come from the squares between land cells that the metro's flood fill reaches, with their eight neighbours (water-and-biomes.md, Rough country), whose centres lie in that ring: a square picked evenly and a point picked evenly inside it, so every candidate is ground a road can reach. The first 24 of a town's 48 candidates also have to be out of the ranges (the range mask under a quarter). If none fits, the town walks the same squares in an order shuffled from the towns stream (once a map) and takes the first centre with room, so a town is left out only when no such centre in the ring has room for it. Dart-thrown over the whole ring and kept only where reachable, towns came up short on 17% of maps at the most crowded corner of the tuning range (coverage 1, ruggedness 1, aridity 0, contamination 1, 6 hotspots, 12 towns, metro 0.25, radius 600); from the reachable cells of the old lattice, none of 500 seeds at that corner or at nine neighbours of it, 5,000 maps in all, was short a town, and the tests hold that corner on the squares.
 
 ## Slope, obstacles, and cost
 
 Elevation carries its exact gradient: the eroded grid's bicubic gradient, plus range country's fine relief through the chain rule (terrain-erosion.md). Forward differences took two more elevation samples per slope, which made cost and the full sample three times as dear as elevation. A test holds the gradient to central differences on a round-numbered grid over three maps, where one-sided slopes that disagree would mark a crease, and allows none.
 
 - Grade is the gradient's size times `RELIEF`: rise over run, with elevation 1 standing `RELIEF` world units high (terrain-erosion.md has its value).
-- Obstacles, in precedence: a crater, water (from the water stage), a cliff: grade 1 or steeper in rough country. Steep ground outside rough country isn't a cliff, only costly.
-- Travel cost per world unit: the biome's base cost plus 3 x (grade / 1)^2, so 1 on flat scrub and Infinity on impassable ground; steep ground outside rough country costs more than 3 on top. Base costs: scrub 1, desert 1.25, canyons 1.5, badlands 1.8, mire 2.2, mountains 2.5. Growth tunes these.
-- The cliff test compares squared gradients, so no branch depends on a square root. `grade` takes one, for display.
+- Obstacles, in precedence: a crater, a lake or river (from the water stage), a cliff: the steepest of the rough country by the land grid's averaged grade (water-and-biomes.md). Steep ground outside rough country isn't a cliff, only costly.
+- What travel costs is a move's, not a point's: water-and-biomes.md, The cost of a move.
 - Cliffs are bands, not hairlines, which growth sampling every few units would hit or miss by chance. The field model's canyons once laced a middling map with cliffs a twentieth of a unit wide; eroded slopes are steep across cells nine units wide, and a test holds the share of cliff ground in bands under 2 units under 8%, and the median band over 6 units, on four maps.
 
 ## Keeping the land connected
 
 Ridged noise makes crest lines that enclose its valleys, and canyon lines close into loops. With cliffs wherever the slope ran steep, the field model's first version left a quarter of the passable land, and 4% of the outer band, reachable from the metro at the steepest corner of the tuning range (coverage 1, ruggedness 1, aridity 0, contamination 1), with towns cut off behind canyon walls. Eroded ranges are steeper still, so the rule holds on the eroded land too.
 
-Cliffs stand only in rough country, with no exceptions:
+Cliffs stand only in rough country, with no exceptions. Rough country is now the steep ground itself, decided on the land grid, and the flood fill from the metro that proves ground reachable runs over the squares between land cells (water-and-biomes.md, Rough country and cliffs from eroded slope). `surelyReachable(x, y)` is sufficient only: false means not proven, not a pocket, and it ignores water. So the Map Lab's reach readout is a fine flood fill over `impassable`, not this.
 
-- Rough country is where the roughness layer is above a floor calibrated to 10% to 35% of the land past the relief radius, by `ruggedness`. Well under half, an excursion set of a smooth layer breaks into islands, and the land around them connects across the map.
-- It's decided per cell of a 16-unit lattice, from the layer at the cell's centre, and a cell counts only if all of it lies past the relief radius. Then a flood fill from the metro over the cells that aren't rough, wholly inside the disc and clear of craters, is exact: every cell it reaches joins the metro through ground no cliff can stand on. Towns are placed only in reached cells, and `surelyReachable(x, y)` reads the fill. It's sufficient only: false means not proven, not a pocket. It reads false on all rough ground, where roads can often still find a way, on open ground rough cells ring off, and in cells at the rim or touching a crater, and it ignores water. On the field model it was false for 15% to 33% of the ground a 2-unit flood fill over `impassable` reaches, most of that rough. So the Map Lab's reach readout is a fine flood fill over `impassable`, not this.
-
-Nothing guarantees how much of the edge the start reaches: rough islands could close into a ring round the metro, or one can lie across the outer band and wall a stretch of it off against the rim. terrain-erosion.md measures it on the eroded land. A test holds the first two seeds of each of three sets above 80% on a 4-unit grid, with every town reached.
-
-## The water seam
-
-Rivers and lakes are the water stage's (DDB-289). `WaterLayer` is one method for now, `isWater(x, y)`, and `terrain.withWater(layer)` returns a `Terrain` sharing the land with water added to the obstacles (a crater still reads as a crater) and to cost (Infinity). The water stage will widen it: growth crosses rivers square-on at bridges, so it needs to tell a lake from a river and know which way a river runs. It traces over the eroded land's drainage (`terrain.surface`, terrain-erosion.md), forks its own streams from the terrain stream under names not used here, and decides how water meets the metro, which this stage keeps passable. Town placement's flood fill knows cliffs and craters, not water, so a river can still cut a town off from the metro until a bridge crosses it, and towns are placed before lakes fill the low basins, so the water stage keeps its lakes off them; it can read `terrain.towns`.
+Nothing guarantees how much of the edge the start reaches: rough country can lie across the outer band and wall a stretch of it off against the rim. water-and-biomes.md measures it. A test holds the first two seeds of each of three sets above 80% on a 4-unit grid, with every town reached.
 
 ## Streams
 
-The stage forks its stream by feature: for the land `hills`, `ranges`, `rangeWarp`, `rangeBreaks`, `grain`, `outlets`, and `initial`, and for the rest `detail`, `roughness`, `moisture`, `contamination`, `hotspots`, and `towns`. It never draws from the stream itself. So towns and hotspots never move the land, and a parameter change moves only what reads it, as the PRNG record intends. Goldens pin three seeds' hotspots, towns, and full samples at four points; a deliberate change to any constant or formula moves them and every map, so it ships with a generator version bump (DDB-296).
+The stage forks its stream by feature: for the land `hills`, `ranges`, `rangeWarp`, `rangeBreaks`, `grain`, `outlets`, and `initial`, and for the rest `detail`, `roughness`, `contamination`, `hotspots`, and `towns`; moisture's noise is the water stream's now. It never draws from the stream itself. So towns and hotspots never move the land, and a parameter change moves only what reads it, as the PRNG record intends. Goldens pin three seeds' hotspots, towns, and full samples at four points; a deliberate change to any constant or formula moves them and every map, so it ships with a generator version bump (DDB-296).
 
 ## Performance
 
@@ -100,5 +90,5 @@ The stage forks its stream by feature: for the land `hills`, `ranges`, `rangeWar
 
 - Every number here is a starting value for the Map Lab (DDB-299), which should show biome shares, rough country, and the share of the edge a fine flood fill over `impassable` reaches, alongside its timings.
 - Saves keep the gameplay map, so terrain only matters for loading as a picture; because sampling is arithmetic, a shared seed draws the same terrain in any engine as well.
-- The renderer (DDB-298) can shade from `sample`'s slope without sampling neighbours, and should draw cliffs from `obstacle` so roads never seem to cross one. Cliffs end in straight cuts along the 16-unit lattice where a rough cell meets one that isn't: rough country is decided by cell and height point by point, so the same steep wall carries on past the line as passable, costly ground, and drawn from `obstacle` the cut shows where a road can cross.
-- Growth (DDB-290) has `travelCost`, Infinity on impassable ground, and `obstacle` to tell water (bridgeable) from the rest. `surelyReachable(x, y)` proves ground reachable but never proves it cut off, so growth shouldn't steer away from where it reads false; its own search over `impassable` is what finds the pockets. Cliffs stand only where `rough(x, y)`, a lookup in the lattice, and there they taper at their tips and steep crests can leave slivers under a unit wide, so a step should be sampled at a unit or less inside rough cells; outside them no cliff stands, and `impassable` checks the lattice before it reads any elevation.
+- The renderer (DDB-298) can shade from `sample`'s slope without sampling neighbours. It draws cliffs from `cliffDepth`, the same fields `obstacle` reads, closed over two texels (water-and-biomes.md), so roads never seem to cross one.
+- `surelyReachable(x, y)` proves ground reachable but never proves it cut off, so growth shouldn't steer away from where it reads false; its own search over `impassable` is what finds the pockets. Cliffs stand only where `rough(x, y)`, a bilinear lookup on the land grid, and there they taper at their tips, so a step should be sampled at a unit or less in rough country; outside it no cliff stands, and a cliff reads no elevation, only two bilinear lookups.

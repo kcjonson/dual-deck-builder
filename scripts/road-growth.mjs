@@ -38,7 +38,7 @@ const SOURCES = [
 	'core/Json', 'core/Rng', 'map/MapParams', 'map/ParamValidator', 'map/Noise', 'map/Biome', 'map/TerrainSites',
 	'map/LandGrid', 'map/MapMath', 'map/Drainage', 'map/Erosion', 'map/Uplift', 'map/Land', 'map/Terrain',
 	'map/Geometry', 'map/SegmentIndex', 'map/RoadNetwork', 'map/RoadGrowth', 'map/Highways', 'map/RoadChecks',
-	'map/MapPipeline', 'map/AreaMapPipeline',
+	'map/Rivers', 'map/Lakes', 'map/Water', 'map/MapPipeline', 'map/AreaMapPipeline',
 ];
 
 if (process.argv[2] !== '--built') {
@@ -98,8 +98,8 @@ function generate(set, repeat = 1) {
 		fastest = Math.min(fastest, highways.milliseconds + growth.milliseconds);
 		checks = Math.min(checks, growth.checkMilliseconds);
 	}
-	const { terrain, growth } = result.products;
-	return { params, clearance, terrain, network: growth.network, stats: growth.stats, failures: result.failures, milliseconds: fastest, checkMilliseconds: checks };
+	const { water, growth } = result.products;
+	return { params, clearance, terrain: water.terrain, network: growth.network, stats: growth.stats, failures: result.failures, milliseconds: fastest, checkMilliseconds: checks };
 }
 
 function lengths(network) {
@@ -251,7 +251,7 @@ async function png() {
 				colour = base.map((channel) => Math.min(255, Math.round(channel * shade)));
 				if (sample.obstacle === 'cliff') colour = [90, 30, 30];
 				else if (sample.obstacle === 'crater') colour = [40, 40, 40];
-				else if (sample.obstacle === 'water') colour = [70, 110, 170];
+				else if (sample.obstacle === 'lake' || sample.obstacle === 'river') colour = [70, 110, 170];
 			}
 			const at = (row * size + column) * 4;
 			image.data[at] = colour[0];

@@ -1,4 +1,4 @@
-import { clamp01, lerp, quantileAbove, smooth01, smoothSlope } from './MapMath';
+import { clamp01, lerp, positiveQuantile, quantileAbove, smooth01, smoothSlope } from './MapMath';
 
 describe('smooth01', () => {
 	it('eases from 0 to 1 over [0, 1], flat at both ends, and holds outside', () => {
@@ -42,5 +42,17 @@ describe('quantileAbove', () => {
 		const values = Float64Array.of(3, 1, 2);
 		quantileAbove(values, 0.5);
 		expect(Array.from(values)).toEqual([3, 1, 2]);
+	});
+});
+
+describe('positiveQuantile', () => {
+	it('is the value the share lies at or above among values above 0, and the least of those when too few are', () => {
+		const values = [0, 0, 0, 0, 0, 0, 3, 1, 4, 2];
+		expect(positiveQuantile(values, 0.2)).toBe(3);
+		expect(values.filter((value) => value >= positiveQuantile(values, 0.2))).toHaveLength(2);
+		// Half asked for, four in ten above 0: all four qualify.
+		expect(positiveQuantile(values, 0.5)).toBe(1);
+		expect(positiveQuantile(values, 0)).toBe(Infinity);
+		expect(positiveQuantile([0, 0, -1], 0.5)).toBe(Infinity);
 	});
 });

@@ -40,7 +40,7 @@ function outcome(generation: MapGeneration): Promise<unknown> {
 	return generation.result.then((map) => map, (error: unknown) => error);
 }
 
-const terrainAttempt: StageAttempt<AreaMapStageName> = { stage: 'terrain', index: 0, count: 5, attempt: 0, mapAttempt: 0, seed: 9 };
+const terrainAttempt: StageAttempt<AreaMapStageName> = { stage: 'terrain', index: 0, count: 6, attempt: 0, mapAttempt: 0, seed: 9 };
 
 describe('MapGeneration', () => {
 	afterEach(() => {
@@ -65,8 +65,8 @@ describe('MapGeneration', () => {
 			expect(map.streams).toEqual(expected.streams);
 			expect(map.products.routeTree).toEqual(expected.products.routeTree);
 			expect(map.products.pois).toEqual(expected.products.pois);
-			expect(map.attempts).toEqual({ terrain: 0, highways: 0, growth: 0, routeTree: 0, pois: 0 });
-			expect(progress.map(({ stage, attempt }) => `${stage} ${attempt}`)).toEqual(['terrain 0', 'highways 0', 'growth 0', 'routeTree 0', 'pois 0']);
+			expect(map.attempts).toEqual({ terrain: 0, water: 0, highways: 0, growth: 0, routeTree: 0, pois: 0 });
+			expect(progress.map(({ stage, attempt }) => `${stage} ${attempt}`)).toEqual(['terrain 0', 'water 0', 'highways 0', 'growth 0', 'routeTree 0', 'pois 0']);
 			expect(map.wallMilliseconds).toBeGreaterThanOrEqual(map.decodeMilliseconds);
 		});
 
@@ -94,7 +94,7 @@ describe('MapGeneration', () => {
 		});
 
 		it('rejects with what the pipeline threw', async () => {
-			const failure: StageFailure = { stage: 'growth', index: 2, count: 5, attempt: 7, mapAttempt: 31, seed: 9, problems: ['disc'] };
+			const failure: StageFailure = { stage: 'growth', index: 2, count: 6, attempt: 7, mapAttempt: 31, seed: 9, problems: ['disc'] };
 			jest.spyOn(protocol, 'generateTransfer').mockImplementation(() => {
 				throw new MapPipelineError({ message: 'ran out', failure, exhausted: 'map' });
 			});
@@ -136,6 +136,7 @@ describe('MapGeneration', () => {
 			expect(map.inWorker).toBe(true);
 			expect(map.products.growth).toEqual(expected.products.growth);
 			expect(Array.from(map.products.terrain.surface.elevation)).toEqual(Array.from(expected.products.terrain.surface.elevation));
+			expect(Array.from(map.products.water.lines.points)).toEqual(Array.from(expected.products.water.lines.points));
 			expect(worker.terminated).toBe(1);
 			// Anything after the end is ignored.
 			worker.reply({ type: 'progress', progress: terrainAttempt });
@@ -143,7 +144,7 @@ describe('MapGeneration', () => {
 		});
 
 		it('rejects with the worker\'s error, a MapPipelineError when the pipeline gave up', async () => {
-			const failure: StageFailure = { stage: 'highways', index: 1, count: 5, attempt: 7, mapAttempt: 31, seed: 9, problems: ['none'] };
+			const failure: StageFailure = { stage: 'highways', index: 1, count: 6, attempt: 7, mapAttempt: 31, seed: 9, problems: ['none'] };
 			const { worker, generation } = start();
 			worker.reply({ type: 'failed', message: 'ran out', stack: 'at the worker', pipeline: { failure, exhausted: 'map' } });
 			const error = await outcome(generation);
@@ -200,12 +201,12 @@ describe('MapGeneration', () => {
 
 	it('sums a generation up in one line for the dev hook', async () => {
 		const summary = summarizeGeneration(await new MapGeneration({ params }).result);
-		expect(summary).toMatchObject({ seed: 9, environment: 'highDesert', radius: 700, inWorker: false, attempts: { terrain: 0, highways: 0, growth: 0, routeTree: 0, pois: 0 }, mapAttempt: 0 });
+		expect(summary).toMatchObject({ seed: 9, environment: 'highDesert', radius: 700, inWorker: false, attempts: { terrain: 0, water: 0, highways: 0, growth: 0, routeTree: 0, pois: 0 }, mapAttempt: 0 });
 		expect(summary.nodes).toBe(expected.products.growth.network.nodes.length);
 		expect(summary.meetingPoints).toBe(expected.products.routeTree.meetingPoints.length);
 		expect(summary.pois).toBe(expected.products.pois.pois.length);
 		const line = describeGeneration(summary);
-		expect(line).toMatch(/^Map generation, seed 9 highDesert radius 700, in-process: [\d.]+ ms wall, pipeline [\d.]+ ms \(terrain [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), highways/);
+		expect(line).toMatch(/^Map generation, seed 9 highDesert radius 700, in-process: [\d.]+ ms wall, pipeline [\d.]+ ms \(terrain [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), water [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), highways/);
 		expect(line).toMatch(/growth [\d.]+ \+ [\d.]+ checks \(attempt 0\), routeTree [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), pois [\d.]+( \+ [\d.]+ checks)? \(attempt 0\); map attempt 0\), decode [\d.]+ ms; /);
 		expect(line).toMatch(/; \d+ nodes, \d+ stretches, \d+ meeting points, \d+ POIs \(\d+ strongholds\)$/);
 	});
