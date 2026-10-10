@@ -148,6 +148,22 @@ export const LABEL = {
 	gap: 6,
 } as const;
 
+/**
+ * Places, plain until the atlas styling (Map 19): towns a dark dot with a
+ * white ring and their name, villages a smaller one, named once the map is
+ * zoomed in to `villageLabelZoom` screen pixels a world unit, crossroads a
+ * small grey dot, and exits a dark ring. Screen pixels.
+ */
+export const PLACE_STYLE = {
+	town: { radius: 5, ring: 1.5 },
+	village: { radius: 3.5, ring: 1 },
+	crossroads: { radius: 2, color: [0.3, 0.3, 0.28, 0.8] as RGBA },
+	exit: { radius: 4, ring: 2 },
+	ink: [20 / 255, 20 / 255, 20 / 255, 1] as RGBA,
+	paper: [1, 1, 1, 1] as RGBA,
+	villageLabelZoom: 0.6,
+} as const;
+
 /** Screen pixels from a drawn road that pick it. */
 export const ROAD_PICK_DISTANCE = 6;
 

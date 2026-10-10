@@ -1,12 +1,14 @@
 /**
- * The area map's drivable roads (DDB-290) outside Jest: timings, a sweep of
- * the network checks over many maps, and a picture of one map's roads over
- * its terrain. Like terrain-bench.mjs, it transpiles the map modules into a
- * temporary folder and runs them in a fresh child process, clear of Jest's
- * coverage and the TypeScript compiler's heap.
+ * The area map's places and drivable roads (DDB-290, DDB-442) outside Jest:
+ * timings, a sweep of the network checks over many maps, and a picture of
+ * one map's roads and places over its terrain. Like terrain-bench.mjs, it
+ * transpiles the map modules into a temporary folder and runs them in a
+ * fresh child process, clear of Jest's coverage and the TypeScript
+ * compiler's heap.
  *
  *   node scripts/road-growth.mjs bench [--seeds 3] [--repeat 5] [--radii 600,1000,1600]
  *   node scripts/road-growth.mjs check [--maps 500] [--from 0]
+ *   node scripts/road-growth.mjs places [--seeds 3] [--repeat 3] [--radii 600,1000,1600]
  *   node scripts/road-growth.mjs png --seed 7 [--environment badlands] [--radius 1000] [--size 1024] [--window x,y,half] [--out roads.png] [--curviness 0.8 ...]
  *
  * For the V8 the desktop app runs, use Electron's bundled Node:
@@ -15,15 +17,15 @@
  *
  * Every command runs the area map's stages through the pipeline runner
  * (map/AreaMapPipeline.ts), on its nested streams, with growth checked by
- * checkRoadNetwork as the game runs it. bench times the highways and growth
- * runs together at each radius, each row the median and the slowest over the
- * five environments and the seeds, each map's time the fastest of its runs,
- * and hashes every network so two engines can be compared. check generates
- * maps with parameters sampled across their tuning ranges, as the property
- * tests do, and reports every map whose growth failed its checks on a first
- * attempt, the spec's health metric. png draws one map, or a window of it;
- * any parameter can be set by name. Any command takes --profile <folder> for
- * a CPU profile of the run.
+ * checkRoadNetwork as the game runs it. bench times growth at each radius,
+ * each row the median and the slowest over the five environments and the
+ * seeds, each map's time the fastest of its runs, and hashes every network
+ * so two engines can be compared. check generates maps with parameters
+ * sampled across their tuning ranges, as the property tests do, and reports
+ * every map whose growth failed its checks on a first attempt, the spec's
+ * health metric. places times the hazards and places stages and counts the
+ * places. png draws one map, or a window of it; any parameter can be set by
+ * name. Any command takes --profile <folder> for a CPU profile of the run.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -38,7 +40,7 @@ const SOURCES = [
 	'core/Json', 'core/Rng', 'map/MapParams', 'map/ParamValidator', 'map/Noise', 'map/Biome', 'map/TerrainSites',
 	'map/LandGrid', 'map/MapMath', 'map/Drainage', 'map/Erosion', 'map/Uplift', 'map/Land', 'map/Terrain',
 	'map/Geometry', 'map/SegmentIndex', 'map/RoadNetwork', 'map/RoadGrowth', 'map/Highways', 'map/RoadChecks',
-	'map/Rivers', 'map/Lakes', 'map/Water', 'map/MapPipeline', 'map/AreaMapPipeline',
+	'map/Rivers', 'map/Lakes', 'map/Water', 'map/Hazards', 'map/PlaceNames', 'map/Places', 'map/MapPipeline', 'map/AreaMapPipeline',
 ];
 
 if (process.argv[2] !== '--built') {
@@ -80,10 +82,11 @@ const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.l
 
 /**
  * The area map's stages through the pipeline runner, `repeat` times, keeping
- * the fastest highways and growth runs, since other work on the machine only
- * ever adds time, and the fastest growth checks. Debug, as the tests run.
- * A map that runs out of attempts throws a MapPipelineError. The set can carry
- * growth's own `branchiness` and `clearance` beside the map parameters.
+ * the fastest growth runs, since other work on the machine only ever adds
+ * time, and the fastest growth checks, hazards, and places. Debug, as the
+ * tests run. A map that runs out of attempts throws a MapPipelineError. The
+ * set can carry growth's own `branchiness` and `clearance` beside the map
+ * parameters.
  */
 function generate(set, repeat = 1) {
 	const { branchiness, clearance = GROWTH_TUNING.clearance, ...mapSet } = set;
@@ -91,15 +94,22 @@ function generate(set, repeat = 1) {
 	const pipeline = areaMapPipeline({ growth: { branchiness, clearance } });
 	let fastest = Infinity;
 	let checks = Infinity;
+	let hazards = Infinity;
+	let places = Infinity;
 	let result = null;
 	for (let run = 0; run < repeat; run += 1) {
 		result = pipeline.run({ seed: params.seed, input: params, debug: true, now });
-		const { highways, growth } = result.timings;
-		fastest = Math.min(fastest, highways.milliseconds + growth.milliseconds);
-		checks = Math.min(checks, growth.checkMilliseconds);
+		const { timings } = result;
+		fastest = Math.min(fastest, timings.growth.milliseconds);
+		checks = Math.min(checks, timings.growth.checkMilliseconds);
+		hazards = Math.min(hazards, timings.hazards.milliseconds);
+		places = Math.min(places, timings.places.milliseconds);
 	}
-	const { water, growth } = result.products;
-	return { params, clearance, terrain: water.terrain, network: growth.network, stats: growth.stats, failures: result.failures, milliseconds: fastest, checkMilliseconds: checks };
+	const { products } = result;
+	return {
+		params, clearance, terrain: products.hazards.terrain, places: products.places, network: products.growth.network, stats: products.growth.stats,
+		failures: result.failures, milliseconds: fastest, checkMilliseconds: checks, hazardsMilliseconds: hazards, placesMilliseconds: places,
+	};
 }
 
 function lengths(network) {
@@ -213,7 +223,7 @@ function check() {
 		}
 		if ((index - from + 1) % 100 === 0) console.log(`${index - from + 1} maps, ${failed} failing, ${((now() - started) / 1000).toFixed(0)} s`);
 	}
-	console.log(`${maps} maps from ${from}: ${failed} failing a first attempt; highways and growth median ${median(times).toFixed(1)} ms, slowest ${slowest.milliseconds.toFixed(1)} ms (map ${slowest.index}, ${slowest.steps} steps: ${JSON.stringify(sampledSet(slowest.index))})`);
+	console.log(`${maps} maps from ${from}: ${failed} failing a first attempt; growth median ${median(times).toFixed(1)} ms, slowest ${slowest.milliseconds.toFixed(1)} ms (map ${slowest.index}, ${slowest.steps} steps: ${JSON.stringify(sampledSet(slowest.index))})`);
 	console.log(`growth's checks median ${median(checks).toFixed(1)} ms, slowest ${Math.max(...checks).toFixed(1)} ms`);
 	process.exitCode = failed > 0 ? 1 : 0;
 }
@@ -230,9 +240,11 @@ async function png() {
 		if (['seed', 'size', 'out', 'window', 'profile'].includes(key)) continue;
 		set[key] = key === 'environment' ? value : Number(value);
 	}
-	const { params, clearance, terrain, network, stats, milliseconds } = generate(set);
+	const { params, clearance, terrain, places, network, stats, milliseconds } = generate(set);
 	const size = Number(options.size ?? 1024);
 	const radius = terrain.radius;
+	const ruins = [places.metro, ...places.towns, ...places.villages];
+	const inRuin = (x, y) => ruins.some((ruin) => (x - ruin.x) ** 2 + (y - ruin.y) ** 2 <= ruin.radius * ruin.radius);
 	// --window x,y,half draws the square of world space around (x, y) instead of the whole disc.
 	const [centreX, centreY, half] = options.window ? options.window.split(',').map(Number) : [0, 0, radius];
 	const image = new PNG({ width: size, height: size });
@@ -247,7 +259,7 @@ async function png() {
 				const base = BIOME_COLOURS[sample.biome];
 				// Light from the north-west, in a few steps so the picture compresses.
 				const light = Math.max(0.55, Math.min(1.25, 1 + (sample.slopeY - sample.slopeX) * 60));
-				const shade = Math.round(light * 10) / 10 * (sample.ruin > 0.5 ? 0.85 : 1);
+				const shade = Math.round(light * 10) / 10 * (inRuin(x, y) ? 0.85 : 1);
 				colour = base.map((channel) => Math.min(255, Math.round(channel * shade)));
 				if (sample.obstacle === 'cliff') colour = [90, 30, 30];
 				else if (sample.obstacle === 'crater') colour = [40, 40, 40];
@@ -294,17 +306,64 @@ async function png() {
 		else if (node.kind === 'end') dot(px, py, 4, [30, 90, 200]);
 		else if (node.kind === 'classChange') dot(px, py, 4, [230, 160, 0]);
 	}
+	// Places over the roads: crossroads small and grey, exits white, villages and towns black with a white ring.
+	for (const { x, y } of places.crossroads) dot(...toPixel(x, y), 5, [90, 90, 90]);
+	for (const { x, y, highway } of places.exits) {
+		dot(...toPixel(x, y), highway ? 11 : 8, [20, 20, 20]);
+		dot(...toPixel(x, y), highway ? 6 : 4, [255, 255, 255]);
+	}
+	for (const { x, y, kind } of [...places.villages, ...places.towns]) {
+		dot(...toPixel(x, y), kind === 'town' ? 13 : 9, [255, 255, 255]);
+		dot(...toPixel(x, y), kind === 'town' ? 10 : 6, [20, 20, 20]);
+	}
 	const out = options.out ?? `roads-${params.seed}.png`;
 	writeFileSync(out, PNG.sync.write(image, { colorType: 2, deflateLevel: 9 }));
 	const byClass = lengths(network);
 	console.log(`${out}: ${JSON.stringify(set)}`);
+	console.log(`${places.towns.length} towns (${places.towns.map(({ name }) => name).join(', ')}), ${places.villages.length} villages, ${places.crossroads.length} crossroads, ${places.exits.length} exits`);
 	console.log(`growth ${milliseconds.toFixed(1)} ms; ${network.roads.length} roads, ${network.stretches.length} stretches; units of road ${Object.entries(byClass).map(([name, value]) => `${name} ${value.toFixed(0)}`).join(', ')}; ${(100 * highwaysOut(network)).toFixed(0)}% of highways reach the rim`);
 	console.log(JSON.stringify(stats));
 	const violations = checkRoadNetwork({ network, terrain, clearance });
 	console.log(violations.length === 0 ? 'checks pass' : violations.map(({ rule, detail }) => `${rule}: ${detail}`).join('\n'));
 }
 
+/**
+ * The hazards and places stages over the five environments by `seeds` seeds
+ * at each radius: their times, the median of each map's fastest of `repeat`
+ * runs, and how many of each kind of place a map gets against what it asks for.
+ */
+function placesBench() {
+	const seeds = Number(options.seeds ?? 3);
+	const repeat = Number(options.repeat ?? 3);
+	const radii = (options.radii ?? '600,1000,1600').split(',').map(Number);
+	const runtime = process.versions.electron ? `Electron ${process.versions.electron}` : `Node ${process.version}`;
+	console.log(`${runtime}; ${ENVIRONMENTS.length} environments x ${seeds} seeds per radius, the fastest of ${repeat} runs each`);
+	for (const radius of radii) {
+		const hazards = [];
+		const placing = [];
+		const counts = { towns: [], villages: [], crossroads: [], exits: [], short: 0 };
+		for (const environment of ENVIRONMENTS) {
+			for (let seed = 1; seed <= seeds; seed += 1) {
+				const { params, places, hazardsMilliseconds, placesMilliseconds } = generate({ seed, environment, radius }, repeat);
+				hazards.push(hazardsMilliseconds);
+				placing.push(placesMilliseconds);
+				counts.towns.push(places.towns.length);
+				counts.villages.push(places.villages.length);
+				counts.crossroads.push(places.crossroads.length);
+				counts.exits.push(places.exits.length);
+				if (places.towns.length < params.towns || places.villages.length < params.villages) {
+					counts.short += 1;
+					console.log(`  ${environment} seed ${seed}: ${places.towns.length} of ${params.towns} towns, ${places.villages.length} of ${params.villages} villages`);
+				}
+			}
+		}
+		const range = (values) => `${Math.min(...values)} to ${Math.max(...values)}`;
+		console.log(`radius ${radius}: hazards median ${median(hazards).toFixed(1)} ms, places median ${median(placing).toFixed(1)} ms, slowest ${Math.max(...placing).toFixed(1)} ms; towns ${range(counts.towns)}, villages ${range(counts.villages)}, crossroads ${range(counts.crossroads)} (median ${median(counts.crossroads)}), exits ${range(counts.exits)}; ${counts.short} maps short of a town or village`);
+	}
+}
+
 if (command === 'bench') bench();
 else if (command === 'check') check();
 else if (command === 'png') await png();
-else throw new Error(`unknown command ${command}: bench, check, or png`);
+else if (command === 'places') placesBench();
+else throw new Error(`unknown command ${command}: bench, check, png, or places`);

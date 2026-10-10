@@ -4,7 +4,7 @@ import { validateMapParams } from '../../map/ParamValidator';
 import { Terrain, generateTerrain } from '../../map/Terrain';
 import { generateWater } from '../../map/Water';
 import { HILL_SHADE, LAND_COLOURS, OBSTACLE_COLOURS, landColour } from './areaMapStyle';
-import { MAX_BAKE_SIZE, MIN_BAKE_SIZE, TEXEL_WORLD_UNITS, bakeTerrain, terrainBakeSize } from './terrainBake';
+import { MAX_BAKE_SIZE, MIN_BAKE_SIZE, TEXEL_WORLD_UNITS, bakeTerrain, ruinAt, terrainBakeSize } from './terrainBake';
 import { flatTerrain } from './testing';
 
 /** The texel at world (x, y) in a bake of `size` over a disc of `radius`. */
@@ -76,6 +76,24 @@ describe('bakeTerrain', () => {
 			previous = texel;
 		}
 		expect(steps).toBeGreaterThan(20);
+	});
+
+	it('shades the ruins it\'s given darker, out to twice their radius, and leaves the land past them be', () => {
+		const terrain = flatTerrain({ radius: 600 });
+		const ruins = [{ x: 0, y: 0, radius: 100 }, { x: 300, y: 300, radius: 20 }];
+		expect(ruinAt(0, 0, ruins)).toBe(1);
+		expect(ruinAt(95, 0, ruins)).toBe(1);
+		expect(ruinAt(150, 0, ruins)).toBeCloseTo((4 - 2.25) / 3, 12);
+		expect(ruinAt(-250, 0, ruins)).toBe(0);
+		expect(ruinAt(300, 310, ruins)).toBe(1);
+		const plain = bakeTerrain({ terrain, size: 240 });
+		const ruined = bakeTerrain({ terrain, size: 240, ruins });
+		const [red, green, blue] = texelAt(plain, 240, 600, 0, 0);
+		const shaded = texelAt(ruined, 240, 600, 0, 0);
+		expect(shaded[0]).toBeLessThan(red);
+		expect(shaded[1]).toBeLessThan(green);
+		expect(shaded[2]).toBeLessThan(blue);
+		expect(texelAt(ruined, 240, 600, -400, -200)).toEqual(texelAt(plain, 240, 600, -400, -200));
 	});
 
 	it('draws craters as circles, anti-aliased at the edge', () => {

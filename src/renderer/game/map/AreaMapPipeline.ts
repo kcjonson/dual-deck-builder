@@ -1,25 +1,30 @@
-import { HighwayDeparture, planHighways } from './Highways';
+import { Hazards, generateHazards } from './Hazards';
+import { highwayDepartures } from './Highways';
 import type { MapParams } from './MapParams';
 import { AcceptHook, MapPipeline, MapStage, PipelineResult, StageAttempt } from './MapPipeline';
+import { Places, generatePlaces } from './Places';
 import { checkRoadNetwork } from './RoadChecks';
 import { GROWTH_TUNING, GrowthTuning, RoadGrowth, growRoads } from './RoadGrowth';
 import { Terrain, generateTerrain } from './Terrain';
 import { Water, generateWater } from './Water';
 
 /**
- * The area map's stages as they stand: terrain, water, then the highways
- * and growth pair, stand-ins until settlements and road links (Map 7 and 8)
- * replace them. Each runs on the stream the runner nests for it, so water
- * draws from root.fork('map', m).fork('terrain', t).fork('water', w), the
- * highways one level further down, and growth one more.
+ * The area map's stages as they stand: terrain, water, hazards, places, then
+ * growth, the stand-in until road links (Maps 7 and 8) replace it. Each runs
+ * on the stream the runner nests for it, so water draws from
+ * root.fork('map', m).fork('terrain', t).fork('water', w), hazards one level
+ * further down, places one more, and growth one more again.
  */
 
 export interface AreaMapProducts {
 	/** The land, without water. */
 	readonly terrain: Terrain;
-	/** Rivers, lakes, and the fields beside them; `water.terrain` is the land with its water, what every stage after reads. */
+	/** Rivers, lakes, and the fields beside them; `water.terrain` is the land with its water. */
 	readonly water: Water;
-	readonly highways: readonly HighwayDeparture[];
+	/** Craters and plumes; `hazards.terrain` is the land with its water and hazards, what every stage after reads. */
+	readonly hazards: Hazards;
+	/** The metro, towns, villages, crossroads, and exits. */
+	readonly places: Places;
 	readonly growth: RoadGrowth;
 }
 
@@ -39,18 +44,34 @@ export const WATER_STAGE: MapStage<MapParams, Pick<AreaMapProducts, 'terrain'>, 
 	run: ({ input, products, rng }) => generateWater({ params: input, terrain: products.terrain, rng }),
 };
 
-export const HIGHWAYS_STAGE: MapStage<MapParams, Pick<AreaMapProducts, 'terrain' | 'water'>, 'highways', readonly HighwayDeparture[]> = {
-	name: 'highways',
-	run: ({ input, products, rng }) => planHighways({ terrain: products.water.terrain, params: input, rng }),
+/** Stage 3, hotspots over the land with its water, off the rivers and lakes. */
+export const HAZARDS_STAGE: MapStage<MapParams, Pick<AreaMapProducts, 'water'>, 'hazards', Hazards> = {
+	name: 'hazards',
+	run: ({ input, products, rng }) => generateHazards({ params: input, terrain: products.water.terrain, rng }),
 };
 
-/** Growth with its own knobs, over the land with its water, checked by the network checks the map validator will run. */
-export function growthStage(tuning: GrowthTuning = {}): MapStage<MapParams, Pick<AreaMapProducts, 'water' | 'highways'>, 'growth', RoadGrowth> {
+/** Stage 4, settlements, crossroads, and exits. */
+export const PLACES_STAGE: MapStage<MapParams, Pick<AreaMapProducts, 'water' | 'hazards'>, 'places', Places> = {
+	name: 'places',
+	run: ({ input, products, rng }) => generatePlaces({ params: input, terrain: products.hazards.terrain, water: products.water, rng }),
+};
+
+/**
+ * Growth with its own knobs, its highways leaving the metro toward the
+ * highway exits, over the land with its water and hazards, checked by the
+ * network checks the map validator will run. The departures' drift draws on
+ * the stage stream's `highways` fork.
+ */
+export function growthStage(tuning: GrowthTuning = {}): MapStage<MapParams, Pick<AreaMapProducts, 'hazards' | 'places'>, 'growth', RoadGrowth> {
 	const { branchiness, clearance = GROWTH_TUNING.clearance } = tuning;
 	return {
 		name: 'growth',
-		run: ({ input, products, rng }) => growRoads({ terrain: products.water.terrain, params: input, highways: products.highways, rng, branchiness, clearance }),
-		check: ({ network }, { products }) => checkRoadNetwork({ network, terrain: products.water.terrain, clearance })
+		run: ({ input, products, rng }) => {
+			const terrain = products.hazards.terrain;
+			const highways = highwayDepartures({ terrain, params: input, exits: products.places.exits, rng: rng.fork('highways') });
+			return growRoads({ terrain, params: input, highways, rng, branchiness, clearance });
+		},
+		check: ({ network }, { products }) => checkRoadNetwork({ network, terrain: products.hazards.terrain, clearance })
 			.map(({ rule, detail }) => `${rule}: ${detail}`),
 	};
 }
@@ -64,7 +85,8 @@ export function areaMapPipeline({ growth }: AreaMapPipelineOptions = {}): MapPip
 	return new MapPipeline<MapParams>()
 		.stage(TERRAIN_STAGE)
 		.stage(WATER_STAGE)
-		.stage(HIGHWAYS_STAGE)
+		.stage(HAZARDS_STAGE)
+		.stage(PLACES_STAGE)
 		.stage(growthStage(growth));
 }
 
