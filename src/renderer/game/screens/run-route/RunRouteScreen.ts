@@ -15,8 +15,7 @@ import { ColorToken, tokens } from '../../../engine/theme/tokens';
 import { AreaMapView } from '../../ui/areaMap/AreaMapView';
 import { RouteCard } from '../../ui/RouteCard';
 import { STRONGHOLD_NOT_YET, QUIET_STOPS, clockText, homeByText, poiKindText, poiYieldText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
-import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, routesBounds, viewData } from '../area-map/planningMap';
-import { NOT_THE_SAVE } from '../compound/compoundText';
+import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, quickestOf, routesBounds, viewData } from '../area-map/planningMap';
 import { mapProgressText } from '../main-menu/campaignText';
 import { departRefusal, planRefusal } from '../run/runText';
 
@@ -30,6 +29,8 @@ const FRAME_MARGIN = 60;
  * isn't drawn so close that the baked land shows its texels.
  */
 const MIN_FRAME = 800;
+/** What the status line says once the store has moved on from this campaign; Back then goes to the menu. */
+export const STRANDED_RUN_ROUTE = "This campaign isn't the save any more, so nothing more is saved here. Back goes to the menu to pick up the save.";
 /** A stop's tag holds the longest, CHECKPOINT, so the rows' text lines up. */
 const TAG_WIDTH = 92;
 
@@ -88,6 +89,8 @@ export class RunRouteScreen extends Screen {
 	private loadOutReason: Text | null = null;
 	/** The run is setting off, so another press waits for it. */
 	private departing = false;
+	/** The store has moved on from this campaign: nothing here is saved, and Back goes to the menu. */
+	private stranded = false;
 	private unsubscribe: (() => void) | null = null;
 	private visit = 0;
 	/** Stops waiting for the map once the screen has gone. */
@@ -171,6 +174,7 @@ export class RunRouteScreen extends Screen {
 		this.loadOutButton = null;
 		this.loadOutReason = null;
 		this.departing = false;
+		this.stranded = false;
 	}
 
 	/** Back and the heading, the POI, the status line, the route cards and the picked route's stops, and Load out the crew at the foot. */
@@ -292,8 +296,9 @@ export class RunRouteScreen extends Screen {
 
 	/**
 	 * The POI and its routes: the view framed on them, a card per route,
-	 * and the first route the stores can fuel picked, or the quickest when
-	 * none can be. A POI the map doesn't have, a stronghold, or one with no
+	 * and the quickest route the stores can fuel picked (fewest hours out,
+	 * stops included), or the quickest of all when none can be fuelled. A POI
+	 * the map doesn't have, a stronghold, or one with no
 	 * route says so and offers only Back.
 	 */
 	private showMap(map: PlanningMap): void {
@@ -322,7 +327,7 @@ export class RunRouteScreen extends Screen {
 			view.map = viewData(map);
 			view.markers = [{ id: poi.id, kind: 'poi', x: poi.x, y: poi.y, label: poi.name, badge: String(poi.tier), pastDark: poi.pastDark }];
 			view.selection = { kind: 'marker', id: poi.id };
-			view.camera.fit(frameOf(routesBounds(map, poi)));
+			view.camera.fit(frameOf(routesBounds({ map, poi })));
 		}
 		const cards = this.cards;
 		if (cards) {
@@ -338,8 +343,8 @@ export class RunRouteScreen extends Screen {
 				}));
 			});
 		}
-		const first = poi.routes.findIndex((route) => this.departBlocker(route) === null);
-		this.pick(first >= 0 ? first : 0);
+		const fuelled = quickestOf(poi.routes.filter((route) => this.departBlocker(route) === null)) ?? poi.quickest;
+		this.pick(fuelled ? poi.routes.indexOf(fuelled) : 0);
 	}
 
 	/**
@@ -353,7 +358,7 @@ export class RunRouteScreen extends Screen {
 		const route = poi.routes[index];
 		const card = this.cards?.selectableMembers[index];
 		if (card && !card.selected) this.cards?.select([card]);
-		if (this.view) this.view.routes = mapRoutes(map, poi.routes, index);
+		if (this.view) this.view.routes = mapRoutes({ map, routes: poi.routes, picked: route.route });
 
 		const list = this.stopsList;
 		if (list) {
@@ -391,6 +396,7 @@ export class RunRouteScreen extends Screen {
 	private loadOutBlocked(route: RouteDescriptor): string | null {
 		const { campaign, map } = this;
 		if (!campaign || !map) return null;
+		if (this.stranded) return STRANDED_RUN_ROUTE;
 		const plan = getPlanBlocker({ campaign, map });
 		if (plan !== null && plan.reason !== 'too_little_fuel') return planRefusal(plan);
 		const blocker = this.departBlocker(route);
@@ -403,7 +409,8 @@ export class RunRouteScreen extends Screen {
 	 * result so it can say a save failed. A load out that can't seat anyone,
 	 * or a departure that's refused, says why here, giving up any run decks
 	 * it started, and nothing is saved. A save the store has moved on from
-	 * stays here, saying nothing more is saved.
+	 * stays here, saying nothing more is saved, with Load out off and Back
+	 * going to the menu, where Continue picks up the save.
 	 */
 	private async loadOut(): Promise<void> {
 		const { campaign, map, poi } = this;
@@ -431,7 +438,10 @@ export class RunRouteScreen extends Screen {
 		const result = await this.store.checkpoint(campaign);
 		if (visit !== this.visit) return;
 		if (result === 'retired') {
-			this.say({ text: NOT_THE_SAVE, color: 'status_warn' });
+			this.departing = false;
+			this.stranded = true;
+			this.say({ text: STRANDED_RUN_ROUTE, color: 'status_warn' });
+			this.pick(this.picked);
 			return;
 		}
 		ScreenManager.navigate('runScreen', { campaign, saved: Promise.resolve(result) });
@@ -445,10 +455,10 @@ export class RunRouteScreen extends Screen {
 		this.status.visible = text !== '';
 	}
 
-	/** To the area map with this POI still chosen, or the menu with no campaign to show. */
+	/** To the area map with this POI still chosen, or the menu with no campaign to show or once it isn't the save. */
 	private back(): void {
 		if (this.departing) return;
-		if (this.campaign) ScreenManager.navigate('areaMapScreen', { campaign: this.campaign, poi: this.poiIndex ?? undefined }, { restoreFocus: true });
+		if (this.campaign && !this.stranded) ScreenManager.navigate('areaMapScreen', { campaign: this.campaign, poi: this.poiIndex ?? undefined }, { restoreFocus: true });
 		else ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 	}
 }

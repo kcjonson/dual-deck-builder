@@ -15,16 +15,6 @@ export function stopTitle(stop: RouteStop): string {
 	return stop.kind === 'fight' ? `Raider ambush, ${skullsText(stop.skulls)}` : 'Quiet stretch';
 }
 
-/** "3 fuel, 4.8 h out, 2.3 h home". */
-export function routeCost(route: RunRoute): string {
-	return `${route.fuel} fuel, ${route.hours.out} h out, ${route.hours.home} h home`;
-}
-
-/** "Risk: 2 skulls". */
-export function riskText(route: RunRoute): string {
-	return `Risk: ${skullsText(route.risk)}`;
-}
-
 /** "4 food, 3 water, 2 fuel, and 12 scrap", or "nothing". */
 export function yieldText(yields: RouteYield): string {
 	return cargoText({ cargo: yieldResources(yields) }) ?? 'nothing';

@@ -37,8 +37,8 @@ export function hoursText(hours: number): string {
 }
 
 /** "2 routes, the quickest 3.1 h out.", or "No routes." */
-export function routesText(poi: Pick<PlannedPoi, 'routes'>): string {
-	const [quickest] = poi.routes;
+export function routesText(poi: Pick<PlannedPoi, 'routes' | 'quickest'>): string {
+	const { quickest } = poi;
 	if (!quickest) return 'No routes.';
 	return `${countOf(poi.routes.length, 'route')}, the quickest ${hoursText(quickest.hours.out)} out.`;
 }
@@ -58,17 +58,35 @@ export function clockText(hours: number): string {
 	return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
-/** "Home by 17:30, 2.5 h before dark.", "Home by 21:40, 1.7 h after dark.", or "Home at dark, 20:00." */
+/**
+ * "Home by 17:30, 2.5 h before dark.", "Home by 21:40, 1.7 h after dark.",
+ * "Home by 03:10 the next morning, 7.2 h after dark.", or "Home at dark,
+ * 20:00." Hours count from the midnight before the run leaves.
+ */
 export function homeByText({ back, spare, dark }: Pick<RouteDescriptor, 'back' | 'spare' | 'dark'>): string {
 	const margin = Math.round(Math.abs(spare) * 10) / 10;
 	if (margin === 0) return `Home at dark, ${clockText(dark)}.`;
-	return `Home by ${clockText(back)}, ${margin} h ${spare > 0 ? 'before' : 'after'} dark.`;
+	return `Home by ${clockText(back)}${dayAfter(back)}, ${margin} h ${spare > 0 ? 'before' : 'after'} dark.`;
 }
 
-/** The route card's mono line: "charted / 4 stops / 5.2 h out / fuel 4 / risk 2 of 3", the hours marked as estimates off charted road. */
+/** Past midnight, which day it is by then: " the next morning", or " 2 days later" and on. */
+function dayAfter(hours: number): string {
+	const days = Math.floor(Math.round(hours * 60) / (24 * 60));
+	if (days <= 0) return '';
+	return days === 1 ? ' the next morning' : ` ${days} days later`;
+}
+
+/**
+ * The no-break space: the wrap (R6.13) never breaks at it, so a card's
+ * detail wraps between its parts and never inside one ("risk 2 | of 3").
+ */
+const NO_BREAK = '\u00a0';
+
+/** The route card's mono line: "charted / 4 stops / 5.2 h out / fuel 4 / risk 2 of 3", the hours marked as estimates off charted road, wrapping only between parts. */
 export function routeDetail(route: Pick<RouteDescriptor, 'knowledge' | 'stops' | 'hours' | 'fuel' | 'risk' | 'estimated'>): string {
 	const hours = `${route.estimated ? 'about ' : ''}${hoursText(route.hours.out)} out`;
-	return [route.knowledge, countOf(route.stops.length, 'stop'), hours, `fuel ${route.fuel}`, `risk ${route.risk} of 3`].join(' / ');
+	const parts = [route.knowledge, countOf(route.stops.length, 'stop'), hours, `fuel ${route.fuel}`, `risk ${route.risk} of 3`];
+	return parts.map((part) => part.replace(/ /g, NO_BREAK)).join(' / ');
 }
 
 const STOP_TAGS: Readonly<Record<StopType, string>> = {

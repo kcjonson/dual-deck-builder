@@ -23,8 +23,7 @@ import type { RouteCard } from '../../ui/RouteCard';
 import { STRONGHOLD_NOT_YET, homeByText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
 import { PlannedPoi, byDistance, plannedPois, routePoints } from '../area-map/planningMap';
 import { TestMaps, meshPlanningMap, testMaps } from '../area-map/testing';
-import { NOT_THE_SAVE } from '../compound/compoundText';
-import { RunRouteScreen } from './RunRouteScreen';
+import { RunRouteScreen, STRANDED_RUN_ROUTE } from './RunRouteScreen';
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -106,7 +105,7 @@ describe('RunRouteScreen (DDB-319)', () => {
 		expect(shown.markers).toEqual([expect.objectContaining({ id: NEAR.id, label: NEAR.name, badge: String(NEAR.tier) })]);
 		expect(shown.selection).toEqual({ kind: 'marker', id: NEAR.id });
 		expect(shown.routes.map(({ picked }) => picked)).toEqual(NEAR.routes.map((_route, index) => index === 0));
-		expect(shown.routes[0].points).toEqual(routePoints(MAP, NEAR.routes[0]));
+		expect(shown.routes[0].points).toEqual(routePoints({ map: MAP, route: NEAR.routes[0] }));
 		const world = shown.camera.visibleWorld;
 		const inside = (x: number, y: number) => x >= world.x && x <= world.x + world.width && y >= world.y && y <= world.y + world.height;
 		expect(inside(0, 0)).toBe(true);
@@ -196,13 +195,31 @@ describe('RunRouteScreen (DDB-319)', () => {
 		expect(text('run_route_load_out_reason')).toBe('Nobody at the compound is fit to go out.');
 	});
 
-	it('stays put, saying nothing more is saved, when the store has moved on from this campaign', async () => {
+	it('says nothing more is saved when the store has moved on from this campaign, with Load out off and Back to the menu', async () => {
 		await open(NEAR);
 		await store.load();
 		find<Button>('run_route_load_out_button').onClick?.({} as never);
 		await flush();
-		expect(text('run_route_status')).toBe(NOT_THE_SAVE);
+		expect(text('run_route_status')).toBe(STRANDED_RUN_ROUTE);
 		expect(navigate).not.toHaveBeenCalled();
+		expect(find<Button>('run_route_load_out_button').enabled).toBe(false);
+		expect(text('run_route_load_out_reason')).toBe(STRANDED_RUN_ROUTE);
+		// Not stuck: Back and Escape go to the menu, where Continue picks up the save
+		send(context, [key('Escape')]);
+		expect(navigate).toHaveBeenLastCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
+		find<Button>('run_route_back_button').onClick?.({} as never);
+		expect(navigate).toHaveBeenCalledTimes(2);
+	});
+
+	it('picks the quickest route the stores can fuel, by hours out with its stops, or the quickest of all when none can be', async () => {
+		const poi = POIS.find((candidate) => !candidate.stronghold && candidate.routes.length > 1 && candidate.quickest !== candidate.routes[0]) ?? UNEVEN;
+		const quickest = poi.routes.indexOf(poi.quickest as (typeof poi.routes)[number]);
+		await open(poi, withFuel(99));
+		expect(screen.pickedRoute).toBe(quickest);
+		screen.unmount();
+		await open(poi, withFuel(0));
+		expect(screen.pickedRoute).toBe(quickest);
+		expect(find<Button>('run_route_load_out_button').enabled).toBe(false);
 	});
 
 	it.each([
