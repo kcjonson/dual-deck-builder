@@ -12,7 +12,10 @@ import { MOVE_COST, METRO_BRIDGES, Terrain } from './Terrain';
  * every path search after, so `Terrain.moveCost` stays out of the searches'
  * inner loop (water-and-biomes.md, What Maps 6 to 8 get).
  *
- * A move runs between two cell centres, eight ways. Each keeps the parts of
+ * A move runs between two cell centres, eight ways to a neighbour, or
+ * straight on two cells where it bridges a river over the cell between,
+ * whose centre is in the water: a broad river can leave no dry centre either
+ * side close enough for a single step. Each move keeps the parts of
  * its cost no class changes: its length, the grade along it, the slope across
  * it at its middle, its bridges as a sum of their lengths' factors, and
  * whether it's blocked. A class weights them as `moveCost` does, so the field
@@ -28,9 +31,31 @@ import { MOVE_COST, METRO_BRIDGES, Terrain } from './Terrain';
  * whichever order searches fill it in.
  */
 
-/** The eight moves, east first and counterclockwise. The first four are forward: each move is filed under the cell it leaves forward. */
-export const MOVE_X = [1, 1, 0, -1, -1, -1, 0, 1] as const;
-export const MOVE_Y = [0, 1, 1, 1, 0, -1, -1, -1] as const;
+/**
+ * The moves: the eight to a neighbour, east first and counterclockwise, then
+ * the four bridges two cells straight on, east, north, west, and south.
+ */
+export const MOVE_X = [1, 1, 0, -1, -1, -1, 0, 1, 2, 0, -2, 0] as const;
+export const MOVE_Y = [0, 1, 1, 1, 0, -1, -1, -1, 0, 2, 0, -2] as const;
+export const MOVES = 12;
+/** The moves to a neighbour come first. */
+export const NEIGHBOURS = 8;
+/** Each move's way back. */
+export const OPPOSITE = [4, 5, 6, 7, 0, 1, 2, 3, 10, 11, 8, 9] as const;
+/** Moves a cell files: the forward ones, east, north-east, north, north-west, and the bridges east and north. */
+const SLOTS = 6;
+const SLOT_OF = [0, 1, 2, 3, -1, -1, -1, -1, 4, 5, -1, -1] as const;
+const SLOT_MOVE = [0, 1, 2, 3, 8, 9] as const;
+/** The move by (dx + 2) * 5 + (dy + 2), -1 for none. */
+const MOVE_BY_STEP = new Int8Array(25).fill(-1);
+MOVE_X.forEach((dx, move) => {
+	MOVE_BY_STEP[(dx + 2) * 5 + MOVE_Y[move] + 2] = move;
+});
+
+/** The move from a cell to the one `dx` columns and `dy` rows off, -1 for none. */
+export function moveBetween(dx: number, dy: number): number {
+	return dx < -2 || dx > 2 || dy < -2 || dy > 2 ? -1 : MOVE_BY_STEP[(dx + 2) * 5 + dy + 2];
+}
 
 /** World units between the samples a move through possibly impassable ground is checked at. */
 export const SAMPLE_SPACING = 0.5;
@@ -40,6 +65,12 @@ const RIVER_MARGIN = 1;
 const RIM_INSET = 0.5;
 
 const BLOCKED = Infinity;
+/** What could stand in a square, as bits: rough country, so cliffs; a lake; a river; a crater; or a corner that isn't open, so anything. */
+const ROUGH = 1;
+const LAKE = 2;
+const RIVER = 4;
+const CRATER = 8;
+const ANYTHING = 16;
 /** The move crosses a river outside the metro, on a bridge. */
 const BRIDGED = 1;
 /** Too steep for a highway or back road. */
@@ -60,9 +91,9 @@ export interface EdgeCostOptions {
 
 /**
  * The cost field over one map's land grid. Cells are `row * size + column`,
- * and a move is `cell * 4 + direction` for the forward directions 0 to 3
- * (east, north-east, north, north-west) from `cell`; `edge` finds a move's
- * id from either end.
+ * and each cell files six moves, its forward ones (east, north-east, north,
+ * north-west, and the bridges east and north); `edge` finds a move's id from
+ * either end.
  */
 export class EdgeCostField {
 	public readonly grid: LandGrid;
@@ -71,12 +102,14 @@ export class EdgeCostField {
 	public readonly open: Uint8Array;
 	/** Per cell, its centre's elevation. */
 	public readonly elevation: Float64Array;
-	/** Cell index offsets of the eight moves. */
+	/** Cell index offsets of the moves. */
 	public readonly offsets: Int32Array;
+	/** Moves filed in all: six a cell. */
+	public readonly edges: number;
 
 	private readonly terrain: Terrain;
 	private readonly bridgedSquared: number;
-	/** Per square between cell centres, 1 where something impassable could stand, so its moves are sampled. */
+	/** Per square between cell centres, what impassable could stand in it as bits, so its moves are sampled for those. */
 	private readonly hazards: Uint8Array;
 	/** Per move: world units long... */
 	private readonly lengths: Float64Array;
@@ -93,6 +126,7 @@ export class EdgeCostField {
 	private readonly bridgeWeights: Float64Array;
 	private readonly maxGrades: Float64Array;
 	private readonly slope = { x: 0, y: 0 };
+	private workedCount = 0;
 	private readonly spans: number[] = [];
 
 	constructor({ terrain, rivers, curviness }: EdgeCostOptions) {
@@ -126,7 +160,8 @@ export class EdgeCostField {
 			}
 		}
 		this.hazards = hazardSquares({ terrain, rivers, open: this.open });
-		const moves = cells * 4;
+		const moves = cells * SLOTS;
+		this.edges = moves;
 		this.lengths = new Float64Array(moves);
 		this.grades = new Float64Array(moves);
 		this.acrosses = new Float64Array(moves);
@@ -134,9 +169,16 @@ export class EdgeCostField {
 		this.flags = new Uint8Array(moves);
 	}
 
-	/** The move from `cell` in `direction` (0 to 7): its id, filed under whichever end it leaves forward. */
+	/** The move from `cell` in `direction` (0 to 11): its id, filed under whichever end it leaves forward. */
 	public edge(cell: number, direction: number): number {
-		return direction < 4 ? cell * 4 + direction : (cell + this.offsets[direction]) * 4 + direction - 4;
+		const slot = SLOT_OF[direction];
+		return slot >= 0 ? cell * SLOTS + slot : (cell + this.offsets[direction]) * SLOTS + SLOT_OF[OPPOSITE[direction]];
+	}
+
+	/** The cell a move is filed under, and the way it leaves it forward. */
+	public ends(edge: number): { cell: number; direction: number } {
+		const cell = floor(edge / SLOTS);
+		return { cell, direction: SLOT_MOVE[edge - cell * SLOTS] };
 	}
 
 	/** What the move costs a road of class `rank` (0 highway, 1 back road, 2 trail): Infinity where it's blocked or too steep. */
@@ -194,18 +236,16 @@ export class EdgeCostField {
 
 	/** How many moves have been worked out, for the stats. */
 	public get worked(): number {
-		let count = 0;
-		const units = this.bridgeUnits;
-		for (let edge = 0; edge < units.length; edge += 1) if (units[edge] === units[edge]) count += 1;
-		return count;
+		return this.workedCount;
 	}
 
 	/** Works the move out, stores its parts, and returns its bridges' factors, Infinity where it's blocked. */
 	private work(edge: number): number {
 		const size = this.size;
-		const from = floor(edge / 4);
-		const direction = edge - from * 4;
+		const from = floor(edge / SLOTS);
+		const direction = SLOT_MOVE[edge - from * SLOTS];
 		const to = from + this.offsets[direction];
+		const leap = direction >= NEIGHBOURS;
 		const fromColumn = from % size;
 		const toColumn = fromColumn + MOVE_X[direction];
 		const x0 = cellCentre(this.grid, fromColumn);
@@ -216,7 +256,10 @@ export class EdgeCostField {
 		const dy = y1 - y0;
 		const length = sqrt(dx * dx + dy * dy);
 		this.lengths[edge] = length;
+		this.workedCount += 1;
 		if (this.open[from] === 0 || this.open[to] === 0 || toColumn < 0 || toColumn >= size) return this.block(edge);
+		// A bridge two cells long only where a step can't do: over a cell whose centre is in the river.
+		if (leap && this.open[from + (to - from) / 2] === 1) return this.block(edge);
 		const terrain = this.terrain;
 		const water = terrain.water;
 		let units = 0;
@@ -233,7 +276,9 @@ export class EdgeCostField {
 		}
 		const middle = terrain.obstacle(x0 + 0.5 * dx, y0 + 0.5 * dy);
 		if (middle !== null && !(middle === 'river' && units > 0)) return this.block(edge);
-		if (this.hazardous(from, direction) && !this.clear(x0, y0, x1, y1, length)) return this.block(edge);
+		if (leap && middle !== 'river') return this.block(edge);
+		const hazards = leap ? ANYTHING : this.hazardsOf(from, direction);
+		if (hazards !== 0 && !this.clear(x0, y0, x1, y1, length, hazards)) return this.block(edge);
 		const climb = this.elevation[to] - this.elevation[from];
 		const grade = (climb < 0 ? -climb : climb) * RELIEF / length;
 		terrain.slope(x0 + 0.5 * dx, y0 + 0.5 * dy, this.slope);
@@ -250,37 +295,64 @@ export class EdgeCostField {
 		return BLOCKED;
 	}
 
-	/** Whether the move from `cell` in forward `direction` runs through a square where something impassable could stand. */
-	private hazardous(cell: number, direction: number): boolean {
+	/** What impassable could stand in the squares the move from `cell` in forward `direction` runs through, as bits. */
+	private hazardsOf(cell: number, direction: number): number {
 		const squares = this.size - 1;
 		const column = cell % this.size;
 		const row = floor(cell / this.size);
 		const hazards = this.hazards;
-		const at = (squareColumn: number, squareRow: number) => squareColumn >= 0 && squareRow >= 0 && squareColumn < squares && squareRow < squares
-			&& hazards[squareRow * squares + squareColumn] === 1;
+		const at = (squareColumn: number, squareRow: number) => (squareColumn >= 0 && squareRow >= 0 && squareColumn < squares && squareRow < squares
+			? hazards[squareRow * squares + squareColumn] : ANYTHING);
 		switch (direction) {
 			case 0:
-				return at(column, row - 1) || at(column, row);
+				return at(column, row - 1) | at(column, row);
 			case 1:
 				return at(column, row);
 			case 2:
-				return at(column - 1, row) || at(column, row);
+				return at(column - 1, row) | at(column, row);
 			default:
 				return at(column - 1, row);
 		}
 	}
 
-	/** True when no sample along the move, every half unit, is impassable, bar river water under one of its bridges. */
-	private clear(x0: number, y0: number, x1: number, y1: number, length: number): boolean {
+	/**
+	 * True when no sample along the move, every half unit, is impassable, bar
+	 * river water under one of its bridges. Each sample asks only after what
+	 * could stand in the move's squares (`hazards`), in `obstacle`'s terms.
+	 */
+	private clear(x0: number, y0: number, x1: number, y1: number, length: number, hazards: number): boolean {
 		const terrain = this.terrain;
 		const spans = this.spans;
-		const bridges = terrain.bridgeSpans(x0, y0, x1, y1, spans);
+		const bridges = (hazards & (RIVER | ANYTHING)) !== 0 ? terrain.bridgeSpans(x0, y0, x1, y1, spans) : 0;
 		const samples = floor(length / SAMPLE_SPACING) + 1;
+		const anything = (hazards & ANYTHING) !== 0;
+		const craters = (hazards & CRATER) !== 0 ? terrain.hotspots : [];
+		const wet = (hazards & (LAKE | RIVER)) !== 0;
+		const rough = (hazards & ROUGH) !== 0;
 		for (let sample = 1; sample < samples; sample += 1) {
 			const along = sample / samples;
-			const obstacle = terrain.obstacle(x0 + (x1 - x0) * along, y0 + (y1 - y0) * along);
-			if (obstacle === null) continue;
-			if (obstacle !== 'river') return false;
+			const x = x0 + (x1 - x0) * along;
+			const y = y0 + (y1 - y0) * along;
+			let river = false;
+			if (anything) {
+				const obstacle = terrain.obstacle(x, y);
+				if (obstacle === null) continue;
+				if (obstacle !== 'river') return false;
+				river = true;
+			} else {
+				for (const crater of craters) {
+					const cx = x - crater.x;
+					const cy = y - crater.y;
+					if (cx * cx + cy * cy < crater.craterRadius * crater.craterRadius) return false;
+				}
+				if (wet) {
+					const kind = terrain.waterAt(x, y);
+					if (kind === 'lake') return false;
+					river = kind === 'river' && x * x + y * y > this.bridgedSquared;
+				}
+				if (!river && rough && terrain.cliff(x, y)) return false;
+			}
+			if (!river) continue;
 			let bridged = false;
 			for (let span = 0; span < bridges && !bridged; span += 1) bridged = along >= spans[2 * span] && along <= spans[2 * span + 1];
 			if (!bridged) return false;
@@ -291,12 +363,12 @@ export class EdgeCostField {
 
 /**
  * Per square between cell centres, counted from the square whose lower-left
- * corner is cell 0's centre: 1 where something impassable could stand. A
+ * corner is cell 0's centre: what impassable could stand in it, as bits. A
  * cliff needs rough country, which reads bilinear off the cells, so it can
  * only stand in a square with a rough corner; a lake likewise needs a corner
  * under water. Rivers mark the squares their water, and a little more,
- * reaches into, and craters theirs. A square beside a cell that isn't open
- * counts too.
+ * reaches into, and craters theirs. Anything could stand in a square with a
+ * corner that isn't open.
  */
 function hazardSquares({ terrain, rivers, open }: { terrain: Terrain; rivers: RiverLines | null; open: Uint8Array }): Uint8Array {
 	const { grid } = terrain.surface;
@@ -310,22 +382,22 @@ function hazardSquares({ terrain, rivers, open }: { terrain: Terrain; rivers: Ri
 		for (let column = 0; column < size; column += 1) {
 			const cell = row * size + column;
 			const x = cellCentre(grid, column);
-			if (open[cell] === 0 || terrain.rough(x, y) || (water !== null && water.lakeDepth(x, y) > -0.001)) risky[cell] = 1;
+			risky[cell] = (open[cell] === 0 ? ANYTHING : 0) | (terrain.rough(x, y) ? ROUGH : 0) | (water !== null && water.lakeDepth(x, y) > -0.001 ? LAKE : 0);
 		}
 	}
 	for (let row = 0; row < squares; row += 1) {
 		for (let column = 0; column < squares; column += 1) {
 			const cell = row * size + column;
-			if (risky[cell] === 1 || risky[cell + 1] === 1 || risky[cell + size] === 1 || risky[cell + size + 1] === 1) hazards[row * squares + column] = 1;
+			hazards[row * squares + column] = risky[cell] | risky[cell + 1] | risky[cell + size] | risky[cell + size + 1];
 		}
 	}
-	const mark = (minX: number, minY: number, maxX: number, maxY: number) => {
+	const mark = (minX: number, minY: number, maxX: number, maxY: number, bit: number) => {
 		const first = floor((minX + grid.halfExtent) / grid.cellSize - 0.5);
 		const last = floor((maxX + grid.halfExtent) / grid.cellSize - 0.5);
 		const bottom = floor((minY + grid.halfExtent) / grid.cellSize - 0.5);
 		const top = floor((maxY + grid.halfExtent) / grid.cellSize - 0.5);
 		for (let row = bottom < 0 ? 0 : bottom; row <= top && row < squares; row += 1) {
-			for (let column = first < 0 ? 0 : first; column <= last && column < squares; column += 1) hazards[row * squares + column] = 1;
+			for (let column = first < 0 ? 0 : first; column <= last && column < squares; column += 1) hazards[row * squares + column] |= bit;
 		}
 	};
 	if (rivers !== null) {
@@ -337,13 +409,13 @@ function hazardSquares({ terrain, rivers, open }: { terrain: Terrain; rivers: Ri
 				const ay = points[2 * point + 1];
 				const bx = points[2 * point + 2];
 				const by = points[2 * point + 3];
-				mark((ax < bx ? ax : bx) - reach, (ay < by ? ay : by) - reach, (ax < bx ? bx : ax) + reach, (ay < by ? by : ay) + reach);
+				mark((ax < bx ? ax : bx) - reach, (ay < by ? ay : by) - reach, (ax < bx ? bx : ax) + reach, (ay < by ? by : ay) + reach, RIVER);
 			}
 		}
 	}
 	for (const { x, y, craterRadius } of terrain.hotspots) {
 		const reach = craterRadius + RIVER_MARGIN;
-		mark(x - reach, y - reach, x + reach, y + reach);
+		mark(x - reach, y - reach, x + reach, y + reach, CRATER);
 	}
 	return hazards;
 }

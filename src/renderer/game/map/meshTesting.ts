@@ -1,7 +1,7 @@
 import { Rng } from '../core/Rng';
 import type { Biome } from './Biome';
 import type { PoiGround } from './Pois';
-import type { Road, RoadClass, RoadNetwork, RoadNode, RoadStretch } from './RoadNetwork';
+import type { RoadClass, RoadNetwork, RoadNode, RoadStretch } from './RoadNetwork';
 
 /**
  * Synthetic road networks for the route tree and POI tests: hand-built
@@ -15,22 +15,17 @@ export type MeshEdge = readonly [number, number] | readonly [number, number, Roa
 
 /**
  * A network from points and edges, in the order given: node 0 is the
- * compound, each edge a straight stretch from its first node to its second,
- * and each stretch a road of its own, since the route tree reads neither
- * roads nor a stretch's parent.
+ * compound, and each edge a straight stretch from its first node to its
+ * second, with no bridges.
  */
 export function meshFrom({ nodes, edges }: { nodes: readonly (readonly [number, number])[]; edges: readonly MeshEdge[] }): RoadNetwork {
 	const roadNodes: RoadNode[] = nodes.map(([x, y], id) => ({ kind: id === 0 ? 'compound' : 'junction', x, y }));
-	const stretches: RoadStretch[] = edges.map(([from, to, roadClass = 'backRoad'], id) => ({
-		road: id,
-		roadClass,
-		from,
-		to,
-		parent: -1,
-		points: [nodes[from][0], nodes[from][1], nodes[to][0], nodes[to][1]],
-	}));
-	const roads: Road[] = stretches.map(({ roadClass, from }, id) => ({ roadClass, parent: -1, from, stretches: [id] }));
-	return { nodes: roadNodes, roads, stretches };
+	const stretches: RoadStretch[] = edges.map(([from, to, roadClass = 'backRoad']) => {
+		const [x0, y0] = nodes[from];
+		const [x1, y1] = nodes[to];
+		return { roadClass, from, to, length: Math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)), points: [x0, y0, x1, y1], bridges: [], street: false };
+	});
+	return { nodes: roadNodes, stretches, broken: [], passes: [] };
 }
 
 export interface RandomMeshOptions {

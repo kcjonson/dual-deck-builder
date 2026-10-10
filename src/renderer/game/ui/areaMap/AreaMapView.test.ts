@@ -213,7 +213,7 @@ describe('AreaMapView pan, zoom, and selection', () => {
 		view.markers = [];
 		const states: RoadKnowledge[] = ['charted', 'uncharted', 'uncharted', 'uncharted'];
 		view.knowledge = { knowledgeOf: (stretch) => states[stretch] };
-		// Stretch 2's parent is uncharted, so it's hidden; stretch 1 is a stub from the city street
+		// Stretch 2 leaves a node where nothing's known, so it's hidden; stretch 1 is a stub from the city street
 		expect(view.pick(view.camera.worldToScreen(0, 450))).toBeNull();
 		expect(view.pick(view.camera.worldToScreen(0, 150))).toEqual({ kind: 'stretch', stretch: 1 });
 	});
@@ -443,7 +443,7 @@ describe('AreaMapView with its optional layers absent', () => {
 		expect(view.markers).toEqual([]);
 	});
 
-	it('draws the junction where its inbound road is drawn, with the roads layer off too', () => {
+	it('draws the junction where a road into it is drawn, with the roads layer off too', () => {
 		const { view, frame } = mountView();
 		frame();
 		const circles = frame().filter((command) => command.kind === 'circle');
@@ -484,7 +484,7 @@ describe('AreaMapView knowledge and markers', () => {
 			for (let index = 1; index < alphas.length; index++) expect(alphas[index]).toBeLessThan(alphas[index - 1]);
 		}
 
-		// A stub's parent uncharted: hidden whole, and so is the junction it leaves
+		// Nothing known where a stub would leave: hidden whole, and so is the junction there
 		const deeper: RoadKnowledge[] = ['charted', 'uncharted', 'uncharted', 'uncharted'];
 		const second = mountView({ knowledge: { knowledgeOf: (stretch) => deeper[stretch] } });
 		second.frame();

@@ -906,6 +906,11 @@ export class Terrain {
 		return this.land.rough(x, y);
 	}
 
+	/** True on a cliff, as `obstacle` reads one: the road links sample cliffs alone where nothing else could stand. */
+	public cliff(x: number, y: number): boolean {
+		return this.land.cliff(x, y);
+	}
+
 	/**
 	 * How far into a cliff (x, y) lies, for drawing its edge: 0 or more on a
 	 * cliff, less off one. Cliffs are the steepest of the rough country by

@@ -22,30 +22,29 @@ import type {
 /** The area map's stages as they stand, through the pipeline runner: the land with its water, the rivers, and the drivable network. */
 export function fixtureAreaMap(set: MapParamSet): AreaMapData {
 	const { params } = validateMapParams(resolveMapParams(set).params);
-	const { water, growth } = generateAreaMap({ params }).products;
-	return { terrain: water.terrain, network: growth.network, rivers: water.lines };
+	const { water, roads } = generateAreaMap({ params }).products;
+	return { terrain: water.terrain, network: roads.network, rivers: water.lines };
 }
 
 /**
- * A starting reveal of sorts: stretches that end within `reach` of the
- * compound charted, each highway's next stretch past that charted too, and
- * the first `rumored` back roads leaving charted road rumored. The rest are
+ * A starting reveal of sorts: stretches with both ends within `reach` of the
+ * compound charted, each highway stretch leaving that charted too, and the
+ * first `rumored` back roads leaving charted road rumored. The rest are
  * uncharted, which the view draws as stubs where they leave known road.
  */
 export function fixtureKnowledge(network: RoadNetwork, { reach, rumored }: { reach: number; rumored: number }): RoadKnowledgeLayer {
-	const states: RoadKnowledge[] = network.stretches.map((stretch) => {
-		const end = network.nodes[stretch.to];
-		return Math.hypot(end.x, end.y) <= reach ? 'charted' : 'uncharted';
+	const near = (node: number) => Math.hypot(network.nodes[node].x, network.nodes[node].y) <= reach;
+	const states: RoadKnowledge[] = network.stretches.map((stretch) => (near(stretch.from) && near(stretch.to) ? 'charted' : 'uncharted'));
+	const charted = new Set<number>([0]);
+	network.stretches.forEach((stretch, id) => {
+		if (states[id] === 'charted') [stretch.from, stretch.to].forEach((node) => charted.add(node));
 	});
 	network.stretches.forEach((stretch, id) => {
-		if (states[id] === 'uncharted' && stretch.roadClass === 'highway' && (stretch.parent < 0 || states[stretch.parent] === 'charted')) {
-			const start = network.nodes[stretch.from];
-			if (Math.hypot(start.x, start.y) <= reach) states[id] = 'charted';
-		}
+		if (states[id] === 'uncharted' && stretch.roadClass === 'highway' && charted.has(stretch.from) && near(stretch.from)) states[id] = 'charted';
 	});
 	let left = rumored;
 	network.stretches.forEach((stretch, id) => {
-		if (left > 0 && states[id] === 'uncharted' && stretch.roadClass === 'backRoad' && stretch.parent >= 0 && states[stretch.parent] === 'charted') {
+		if (left > 0 && states[id] === 'uncharted' && stretch.roadClass === 'backRoad' && charted.has(stretch.from)) {
 			states[id] = 'rumored';
 			left -= 1;
 		}

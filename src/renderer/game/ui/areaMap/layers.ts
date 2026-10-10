@@ -32,9 +32,9 @@ export type RoadKnowledge = (typeof ROAD_KNOWLEDGE)[number];
 
 /**
  * Per-stretch knowledge, by stretch id. An uncharted stretch is drawn only
- * where it leaves known road (its parent stretch charted or rumored, or it
- * starts at the compound); one deeper in the fog isn't drawn at all, so the
- * three states are enough to say what's hidden.
+ * where it leaves known road (it starts at the compound, or at a node a
+ * charted or rumored stretch ends on); one deeper in the fog isn't drawn at
+ * all, so the three states are enough to say what's hidden.
  */
 export interface RoadKnowledgeLayer {
 	knowledgeOf(stretch: number): RoadKnowledge;
@@ -105,14 +105,32 @@ export const ALL_CHARTED: RoadKnowledgeLayer = Object.freeze({
 
 /**
  * Whether stretch `id` is drawn under `knowledge`, and how: as itself, or as
- * a stub of an uncharted stretch leaving known road; null when it's hidden.
+ * a stub of an uncharted stretch leaving known road from its `from` end;
+ * null when it's hidden.
  */
 export function drawnKnowledge(network: RoadNetwork, knowledge: RoadKnowledgeLayer, id: number): RoadKnowledge | null {
 	const own = knowledge.knowledgeOf(id);
 	if (own !== 'uncharted') return own;
-	const parent = network.stretches[id].parent;
-	if (parent < 0) return own;
-	return knowledge.knowledgeOf(parent) === 'uncharted' ? null : own;
+	const { from } = network.stretches[id];
+	if (from === 0) return own;
+	return stretchesAt(network)[from].some((other) => other !== id && knowledge.knowledgeOf(other) !== 'uncharted') ? own : null;
+}
+
+const incidence = new WeakMap<RoadNetwork, readonly (readonly number[])[]>();
+
+/** Per node, the stretches ending on it, worked out once a network. */
+export function stretchesAt(network: RoadNetwork): readonly (readonly number[])[] {
+	let found = incidence.get(network);
+	if (!found) {
+		const lists: number[][] = network.nodes.map(() => []);
+		network.stretches.forEach(({ from, to }, id) => {
+			lists[from].push(id);
+			lists[to].push(id);
+		});
+		found = lists;
+		incidence.set(network, found);
+	}
+	return found;
 }
 
 /**

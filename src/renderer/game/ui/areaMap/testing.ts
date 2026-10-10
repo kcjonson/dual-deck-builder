@@ -19,16 +19,14 @@ export const SMALL_NETWORK: RoadNetwork = {
 		{ kind: 'end', x: 0, y: 500 },
 		{ kind: 'end', x: 200, y: 400 },
 	],
-	roads: [
-		{ roadClass: 'highway', parent: -1, from: 0, stretches: [0, 1, 2] },
-		{ roadClass: 'backRoad', parent: 0, from: 2, stretches: [3] },
-	],
 	stretches: [
-		{ road: 0, roadClass: 'highway', from: 0, to: 1, parent: -1, points: [0, 0, 0, 100] },
-		{ road: 0, roadClass: 'highway', from: 1, to: 2, parent: 0, points: [0, 100, 0, 200, 0, 300] },
-		{ road: 0, roadClass: 'highway', from: 2, to: 3, parent: 1, points: [0, 300, 0, 400, 0, 500] },
-		{ road: 1, roadClass: 'backRoad', from: 2, to: 4, parent: 1, points: [0, 300, 100, 350, 200, 400] },
+		{ roadClass: 'highway', from: 0, to: 1, length: 100, points: [0, 0, 0, 100], bridges: [], street: true },
+		{ roadClass: 'highway', from: 1, to: 2, length: 200, points: [0, 100, 0, 200, 0, 300], bridges: [], street: false },
+		{ roadClass: 'highway', from: 2, to: 3, length: 200, points: [0, 300, 0, 400, 0, 500], bridges: [], street: false },
+		{ roadClass: 'backRoad', from: 2, to: 4, length: 2 * Math.sqrt(12500), points: [0, 300, 100, 350, 200, 400], bridges: [], street: false },
 	],
+	broken: [],
+	passes: [],
 };
 
 /** A map's rivers when it has none. */

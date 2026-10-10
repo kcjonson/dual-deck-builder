@@ -154,27 +154,6 @@ export class Sectors {
 	}
 }
 
-/**
- * The sectors' rotation: `drawn`, then stepped by a sector's width over
- * `steps`, up to `steps` times, until every sector holds a site. When none
- * does, the drawn rotation, and `every` is false.
- */
-export function stepSectors({ drawn, count, steps, sites }: {
-	drawn: number;
-	count: number;
-	steps: number;
-	sites: readonly { readonly x: number; readonly y: number }[];
-}): { rotation: number; sectors: Sectors; every: boolean } {
-	for (let step = 0; step < steps; step += 1) {
-		const rotation = drawn + step * 360 / count / steps;
-		const sectors = new Sectors({ rotation, count });
-		const held = new Uint8Array(count);
-		for (const { x, y } of sites) held[sectors.sectorOf(x, y)] = 1;
-		if (held.every((holds) => holds === 1)) return { rotation, sectors, every: true };
-	}
-	return { rotation: drawn, sectors: new Sectors({ rotation: drawn, count }), every: false };
-}
-
 /** A placed site before its arrivals have legs. A stronghold's type is set when it's seated, a POI's is '' until `typePois`. */
 interface Placement {
 	readonly candidate: number;
@@ -314,10 +293,14 @@ class PoiPlacer {
 	}
 
 	/**
-	 * The sectors' rotation, drawn, then stepped by a share of a sector until
-	 * every sector holds a meeting point in the outer band; then one
-	 * stronghold a sector, on the free site whose best untaken faction fits it
-	 * best. A sector left without one is a failure. Returns the rotation.
+	 * The sectors' rotation, drawn, then stepped by a share of a sector, up to
+	 * `rotationSteps` rotations, until one seats a stronghold in every sector:
+	 * one a sector, on the free site in its outer band whose best untaken
+	 * faction fits it best. A step whose sectors all hold a band site can
+	 * still leave one unseated, to spacing or a stretch another took, so each
+	 * step is seated in full. When none seats every sector, the drawn rotation
+	 * is kept, and each sector it leaves without one is a failure. Returns the
+	 * rotation.
 	 */
 	private seatStrongholds(): number {
 		const count = this.params.strongholds;
@@ -329,15 +312,32 @@ class PoiPlacer {
 		for (let candidate = 0; candidate < this.count; candidate += 1) {
 			if (this.siteRadius[candidate] >= inner && this.siteRadius[candidate] <= outer) inBand.push(candidate);
 		}
-		const sites = inBand.map((candidate) => ({ x: this.siteX[candidate], y: this.siteY[candidate] }));
-		const { rotation, sectors } = stepSectors({ drawn, count, steps: rotationSteps, sites });
-
 		const names = Object.keys(this.factions);
 		const jitterStream = this.rng.fork('factions');
 		const jitter = names.map(() => jitterStream.float() * fitJitter);
+		// A site's land doesn't turn with the sectors, so it's sampled once whatever the step.
+		const lands = new Map<number, Float64Array>();
+		for (const candidate of inBand) lands.set(candidate, this.landAround(this.siteX[candidate], this.siteY[candidate], new Float64Array(BIOMES.length + 2)));
+		for (let step = 0; step < rotationSteps; step += 1) {
+			const rotation = drawn + step * 360 / count / rotationSteps;
+			if (this.seatAt({ sectors: new Sectors({ rotation, count }), count, inBand, names, jitter, lands }).length === 0) return rotation;
+			this.usedStretch.fill(0);
+			this.placedX.length = 0;
+			this.placedY.length = 0;
+			this.placements.length = 0;
+		}
+		for (const sector of this.seatAt({ sectors: new Sectors({ rotation: drawn, count }), count, inBand, names, jitter, lands })) {
+			this.failures.push(`sector ${sector} has no free meeting point in the outer band`);
+		}
+		return drawn;
+	}
+
+	/** One stronghold a sector under `sectors`, each sector in turn. Returns the sectors left without one. */
+	private seatAt({ sectors, count, inBand, names, jitter, lands }: {
+		sectors: Sectors; count: number; inBand: readonly number[]; names: readonly string[]; jitter: readonly number[]; lands: ReadonlyMap<number, Float64Array>;
+	}): number[] {
+		const missing: number[] = [];
 		const taken = new Uint8Array(names.length);
-		// Every site is in one sector, so each one's land is sampled once, into the one scratch array.
-		const land = new Float64Array(BIOMES.length + 2);
 		for (let sector = 0; sector < count; sector += 1) {
 			let best = -1;
 			let bestFit = -Infinity;
@@ -346,7 +346,7 @@ class PoiPlacer {
 				const x = this.siteX[candidate];
 				const y = this.siteY[candidate];
 				if (sectors.sectorOf(x, y) !== sector || !this.free(candidate, true)) continue;
-				const { fit, faction } = this.bestFaction(this.landAround(x, y, land), jitter, taken);
+				const { fit, faction } = this.bestFaction(lands.get(candidate) as Float64Array, jitter, taken);
 				if (fit > bestFit || (fit === bestFit && this.siteScore[candidate] > this.siteScore[best])) {
 					best = candidate;
 					bestFit = fit;
@@ -354,13 +354,13 @@ class PoiPlacer {
 				}
 			}
 			if (best < 0) {
-				this.failures.push(`sector ${sector} has no free meeting point in the outer band`);
+				missing.push(sector);
 				continue;
 			}
 			taken[bestFaction] = 1;
 			this.take(best, { type: STRONGHOLD_TYPE, ring: this.ringOf(this.siteRadius[best]), faction: names[bestFaction], sector });
 		}
-		return rotation;
+		return missing;
 	}
 
 	/** Biome counts and ruin around a site, into `land`: the site and `FIT_DIRECTIONS` points `fitRadius` from it, those inside the disc. The last two entries are the ruin sum and the samples. */
@@ -486,19 +486,19 @@ class PoiPlacer {
 	}
 
 	/**
-	 * A type for a first-ring POI that yields something still needed: its
-	 * location's if that does, or else the one yielding the most needed
-	 * resources, preferring types whose placement rule holds here, then the
+	 * A type for a first-ring POI: its location's, unless another yields
+	 * strictly more of what's still needed; among those, the one yielding the
+	 * most, preferring types whose placement rule holds here, then the
 	 * placement rules' order.
 	 */
 	private coverType(located: string, candidate: number, needed: ReadonlySet<PoiResource>): string {
 		const covers = (type: string) => Object.keys(this.tuning.types[type].yields).filter((resource) => needed.has(resource as PoiResource)).length;
-		if (covers(located) > 0) return located;
 		const x = this.siteX[candidate];
 		const y = this.siteY[candidate];
 		let best = located;
-		let bestCovers = 0;
-		let bestHolds = false;
+		let bestCovers = covers(located);
+		// The location's own rule holds here, so a tie never displaces it.
+		let bestHolds = true;
 		for (const rule of this.tuning.placement) {
 			const holds = rule.where.some((condition) => this.holds(condition, x, y));
 			for (const type of rule.types) {

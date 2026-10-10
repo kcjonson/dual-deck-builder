@@ -486,7 +486,7 @@ export class AreaMapView extends Component {
 		if (skipped > 0) draw.cullGroups(skipped);
 	}
 
-	/** A dot at each junction whose inbound road is drawn solid, whether or not the roads layer is on. */
+	/** A dot at each junction where a road is drawn solid, whether or not the roads layer is on. */
 	private drawJunctions(draw: DrawApi, geometry: RoadGeometry): void {
 		const map = this.mapData;
 		if (!map) return;
@@ -496,8 +496,10 @@ export class AreaMapView extends Component {
 		const visible = this.visibleMap();
 		let skipped = 0;
 		for (const junction of geometry.junctions) {
-			const inbound = drawnKnowledge(map.network, knowledge, junction.inbound);
-			if (inbound === null || inbound === 'uncharted') continue;
+			if (!junction.stretches.some((id) => {
+				const drawn = drawnKnowledge(map.network, knowledge, id);
+				return drawn !== null && drawn !== 'uncharted';
+			})) continue;
 			const at = junction.at;
 			if (at.x < visible.minX - radius || at.x > visible.maxX + radius || at.y < visible.minY - radius || at.y > visible.maxY + radius) {
 				skipped += 1;

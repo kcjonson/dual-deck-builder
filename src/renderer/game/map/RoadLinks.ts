@@ -1,6 +1,6 @@
 import type { Rng } from '../core/Rng';
 import { unitVector } from './Geometry';
-import { EdgeCostField, MOVE_X, MOVE_Y } from './RoadCost';
+import { EdgeCostField, MOVES, MOVE_X, MOVE_Y, NEIGHBOURS, OPPOSITE, moveBetween } from './RoadCost';
 import type { Terrain } from './Terrain';
 import { createTerrainSample } from './Terrain';
 
@@ -16,12 +16,13 @@ import { createTerrainSample } from './Terrain';
  * trails into the high country from villages, and back roads give out to
  * trails where they cross rough country, by `trailShare`.
  *
- * Every search is A* over the eight moves, bounded to an ellipse round its
+ * Every search is A* over the field's moves, bounded to an ellipse round its
  * two ends. Existing road is a little cheaper than new ground, so roads
  * merge into trunks, and ground beside a road dearer, so a road joins
- * another or keeps its distance. A move never crosses a road's diagonal or
- * closes a triangle with two road moves, so where two paths meet they share
- * a cell, and the graph (RoadGraph.ts) makes it a junction. Ties go to the
+ * another or keeps its distance. A move never crosses a road's diagonal, or a
+ * bridge two cells long another over the same cell, and never closes a
+ * triangle with two road moves, so where two paths meet they share a cell,
+ * and the graph (RoadGraph.ts) makes it a junction. Ties go to the
  * lower cell index, and every number is adds, multiplies, divides, compares,
  * and square roots, so a seed's roads are the same in every engine.
  * Starting values are provisional calls, listed in
@@ -125,8 +126,6 @@ const HIGHWAY = 0;
 const BACK_ROAD = 1;
 const TRAIL = 2;
 
-/** The move from a cell to its neighbour, by (dx + 1) * 3 + (dy + 1); -1 for none. */
-const DIRECTION = [5, 4, 3, 6, -1, 2, 7, 0, 1];
 
 // Globals read once, at load: under Jest's vm context each read costs about 0.15 us (seeded-prng.md).
 const sqrt = Math.sqrt;
@@ -160,8 +159,10 @@ class RoadBuilder {
 	private readonly trailRun: number;
 
 	private readonly classes: Int8Array;
-	/** Per cell, a bit for each direction a road leaves it in. */
-	private readonly roadMask: Uint8Array;
+	/** Per cell, a bit for each move a road leaves it by. */
+	private readonly roadMask: Uint16Array;
+	/** Per cell, 1 where a road bridges over it east to west, 2 north to south. */
+	private readonly leaps: Uint8Array;
 	/** Per cell, 1 on or beside a road. */
 	private readonly near: Uint8Array;
 	private readonly placeCells: Int32Array;
@@ -202,8 +203,9 @@ class RoadBuilder {
 		this.detour = ROAD_LINKS.detour.none + (ROAD_LINKS.detour.all - ROAD_LINKS.detour.none) * loops;
 		this.trailRun = ROAD_LINKS.trailRun.none + (ROAD_LINKS.trailRun.all - ROAD_LINKS.trailRun.none) * trailShare;
 		const cells = size * size;
-		this.classes = new Int8Array(cells * 4).fill(-1);
-		this.roadMask = new Uint8Array(cells);
+		this.classes = new Int8Array(field.edges).fill(-1);
+		this.roadMask = new Uint16Array(cells);
+		this.leaps = new Uint8Array(cells);
 		this.near = new Uint8Array(cells);
 		this.roughCells = new Int8Array(cells).fill(-1);
 		this.score = new Float64Array(cells);
@@ -509,9 +511,12 @@ class RoadBuilder {
 			const row = (cell - column) / size;
 			const base = score[cell];
 			const mask = roadMask[cell];
-			for (let direction = 0; direction < 8; direction += 1) {
+			for (let direction = 0; direction < MOVES; direction += 1) {
 				const next = cell + offsets[direction];
 				if (done[next] === stamp) continue;
+				const leap = direction >= NEIGHBOURS;
+				// A bridge two cells long goes only over a cell in a river, and never across another over the same cell.
+				if (leap && (field.open[(cell + next) / 2] === 1 || (this.leaps[(cell + next) / 2] & ((direction & 1) === 0 ? 2 : 1)) !== 0)) continue;
 				const nextX = columnX[column + MOVE_X[direction]];
 				const nextY = rowY[row + MOVE_Y[direction]];
 				const ax = nextX - fromX;
@@ -519,16 +524,16 @@ class RoadBuilder {
 				const bx = nextX - goalX;
 				const by = nextY - goalY;
 				if (sqrt(ax * ax + ay * ay) + sqrt(bx * bx + by * by) > limit) continue;
-				const edge = direction < 4 ? cell * 4 + direction : next * 4 + direction - 4;
+				const edge = field.edge(cell, direction);
 				let cost = field.cost(edge, rank);
 				if (cost === Infinity) continue;
 				const onRoad = classes[edge];
 				if (onRoad >= 0) {
 					cost *= rank === HIGHWAY && onRoad === HIGHWAY ? ROAD_LINKS.highwayReuse : ROAD_LINKS.reuse;
 				} else {
-					if ((direction & 1) === 1 && this.crossesDiagonal(cell, direction)) continue;
+					if (!leap && (direction & 1) === 1 && this.crossesDiagonal(cell, direction, stamp)) continue;
 					if (roadMask[next] !== 0) {
-						if (mask !== 0 && this.closesTriangle(cell, direction, next)) continue;
+						if (!leap && mask !== 0 && this.closesTriangle(cell, direction, next)) continue;
 					} else if (near[next] === 1) {
 						cost *= ROAD_LINKS.beside;
 					}
@@ -573,7 +578,7 @@ class RoadBuilder {
 		while (stack.length > 0) {
 			const cell = stack.pop() as number;
 			const mask = roadMask[cell];
-			for (let direction = 0; direction < 8; direction += 1) {
+			for (let direction = 0; direction < MOVES; direction += 1) {
 				if ((mask & (1 << direction)) === 0) continue;
 				const next = cell + field.offsets[direction];
 				if (reached[next] === 1) continue;
@@ -606,7 +611,7 @@ class RoadBuilder {
 			if (goal[cell] === stamp) return distance;
 			done[cell] = stamp;
 			const mask = roadMask[cell];
-			for (let direction = 0; direction < 8; direction += 1) {
+			for (let direction = 0; direction < MOVES; direction += 1) {
 				if ((mask & (1 << direction)) === 0) continue;
 				const next = cell + field.offsets[direction];
 				if (done[next] === stamp) continue;
@@ -638,7 +643,8 @@ class RoadBuilder {
 			const edge = field.edge(cell, direction);
 			if (classes[edge] < 0 || ranks[move] < classes[edge]) classes[edge] = ranks[move];
 			roadMask[cell] |= 1 << direction;
-			roadMask[next] |= 1 << ((direction + 4) & 7);
+			roadMask[next] |= 1 << OPPOSITE[direction];
+			if (direction >= NEIGHBOURS) this.leaps[(cell + next) / 2] |= (direction & 1) === 0 ? 1 : 2;
 			this.markNear(cell);
 			this.markNear(next);
 		}
@@ -695,26 +701,35 @@ class RoadBuilder {
 	private markNear(cell: number): void {
 		const { near, field } = this;
 		near[cell] = 1;
-		for (let direction = 0; direction < 8; direction += 1) near[cell + field.offsets[direction]] = 1;
+		for (let direction = 0; direction < NEIGHBOURS; direction += 1) near[cell + field.offsets[direction]] = 1;
 	}
 
-	/** Whether the diagonal move from `cell` in `direction` would cross a road along the square's other diagonal. */
-	private crossesDiagonal(cell: number, direction: number): boolean {
+	/**
+	 * Whether the diagonal move from `cell` in `direction` would cross the
+	 * square's other diagonal: a road's, or the search's own path's last two
+	 * moves, which a zigzag round a blocked square's side could make.
+	 */
+	private crossesDiagonal(cell: number, direction: number, stamp: number): boolean {
 		const side = cell + MOVE_X[direction];
-		const across = DIRECTION[(1 - MOVE_X[direction]) * 3 + MOVE_Y[direction] + 1];
-		return (this.roadMask[side] & (1 << across)) !== 0;
+		const across = moveBetween(-MOVE_X[direction], MOVE_Y[direction]);
+		if ((this.roadMask[side] & (1 << across)) !== 0) return true;
+		const above = cell + MOVE_Y[direction] * this.size;
+		const back = this.came[cell];
+		if (back === side) return this.seen[side] === stamp && this.came[side] === above;
+		if (back === above) return this.seen[above] === stamp && this.came[above] === side;
+		return false;
 	}
 
 	/** Whether the move from `cell` to `next`, both on roads, would close a triangle with two road moves. */
 	private closesTriangle(cell: number, direction: number, next: number): boolean {
 		const mask = this.roadMask[cell];
 		const nextMask = this.roadMask[next];
-		for (let other = 0; other < 8; other += 1) {
+		for (let other = 0; other < NEIGHBOURS; other += 1) {
 			if (other === direction || (mask & (1 << other)) === 0) continue;
 			const dx = MOVE_X[other] - MOVE_X[direction];
 			const dy = MOVE_Y[other] - MOVE_Y[direction];
 			if (dx < -1 || dx > 1 || dy < -1 || dy > 1) continue;
-			if ((nextMask & (1 << DIRECTION[(dx + 1) * 3 + dy + 1])) !== 0) return true;
+			if ((nextMask & (1 << moveBetween(dx, dy))) !== 0) return true;
 		}
 		return false;
 	}
@@ -723,7 +738,7 @@ class RoadBuilder {
 		const size = this.size;
 		const dx = (next % size) - (cell % size);
 		const dy = floor(next / size) - floor(cell / size);
-		return DIRECTION[(dx + 1) * 3 + dy + 1];
+		return moveBetween(dx, dy);
 	}
 
 	private pathLength(path: readonly number[]): number {

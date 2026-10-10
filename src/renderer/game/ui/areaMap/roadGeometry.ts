@@ -1,6 +1,7 @@
 import type { Vec2 } from '../../../engine/draw';
 import { pointSegmentDistanceSquared } from '../../map/Geometry';
 import type { RoadNetwork } from '../../map/RoadNetwork';
+import { stretchesAt } from './layers';
 
 /**
  * The drivable network's geometry as the view draws it, built once per map:
@@ -28,8 +29,8 @@ export interface StretchGeometry {
 export interface JunctionGeometry {
 	/** Map space. */
 	readonly at: Vec2;
-	/** The stretch that leads into it from the compound's side. */
-	readonly inbound: number;
+	/** The stretches that meet there. */
+	readonly stretches: readonly number[];
 }
 
 /**
@@ -52,12 +53,8 @@ export class RoadGeometry {
 			const points = toMapSpace(stretch.points);
 			return { points, bounds: boundsOf(points) };
 		});
-		const inbound = new Map<number, number>();
-		network.stretches.forEach((stretch, id) => inbound.set(stretch.to, id));
-		this.junctions = network.nodes.flatMap((node, id) => {
-			const into = inbound.get(id);
-			return node.kind === 'junction' && into !== undefined ? [{ at: { x: node.x, y: 0 - node.y }, inbound: into }] : [];
-		});
+		const meeting = stretchesAt(network);
+		this.junctions = network.nodes.flatMap((node, id) => (node.kind === 'junction' && meeting[id].length > 0 ? [{ at: { x: node.x, y: 0 - node.y }, stretches: meeting[id] }] : []));
 		this.levels = Array.from({ length: DETAIL_LEVELS }, () => new Array<Vec2[] | undefined>(this.stretches.length));
 	}
 

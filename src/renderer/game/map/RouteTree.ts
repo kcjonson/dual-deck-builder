@@ -204,6 +204,8 @@ function findMeetingPoints({ network, tree, incidence, routeSplit }: {
 		if (incidence.start[node + 1] - incidence.start[node] !== 3) continue;
 		const first = incidence.start[node];
 		const from = [incidence.other[first], incidence.other[first + 1], incidence.other[first + 2]];
+		// Two roads from one neighbour would give two routes the same way home.
+		if (from[0] === from[1] || from[0] === from[2] || from[1] === from[2]) continue;
 		if (splitsInTime(tree, from[0], from[1], routeSplit) && splitsInTime(tree, from[0], from[2], routeSplit) && splitsInTime(tree, from[1], from[2], routeSplit)) {
 			points.push({ stretch: -1, node, from, via: [incidence.stretch[first], incidence.stretch[first + 1], incidence.stretch[first + 2]] });
 		}
