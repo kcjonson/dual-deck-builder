@@ -24,12 +24,13 @@ describe('compound-rules.json', () => {
 		expect(read(shipped())).toEqual(COMPOUND_RULES);
 	});
 
-	it('feeds 4 people with each unit of food and water, a unit short costs a person and a point of unrest, an infirmary day is 10 HP or a med, and a scavenging party brings back 1 to 2 fuel and 5 to 15 scrap', () => {
+	it('feeds 4 people with each unit of food and water, a unit short costs a person and a point of unrest, an infirmary day is 10 HP or a med, a scavenging party brings back 1 to 2 fuel and 5 to 15 scrap, and a lost compound starves with no food or riots at 10 unrest', () => {
 		expect(COMPOUND_RULES).toEqual({
 			upkeep: { peoplePerUnit: { food: 4, water: 4 } },
 			shortfall: { peopleLostPerUnit: 1, unrestPerUnit: 1 },
 			infirmary: { hitpointsPerDay: 10, medsPerDay: 1 },
-			scavenging: { fuel: { min: 1, max: 2 }, scrap: { min: 5, max: 15 } }
+			scavenging: { fuel: { min: 1, max: 2 }, scrap: { min: 5, max: 15 } },
+			fall: { starveAtFood: 0, riotAtUnrest: 10 }
 		});
 	});
 
@@ -39,6 +40,7 @@ describe('compound-rules.json', () => {
 		expect(Object.isFrozen(COMPOUND_RULES.upkeep.peoplePerUnit)).toBe(true);
 		expect(Object.isFrozen(COMPOUND_RULES.shortfall)).toBe(true);
 		expect(Object.isFrozen(COMPOUND_RULES.infirmary)).toBe(true);
+		expect(Object.isFrozen(COMPOUND_RULES.fall)).toBe(true);
 		expect(Object.isFrozen(COMPOUND_RULES.scavenging)).toBe(true);
 		expect(Object.isFrozen(COMPOUND_RULES.scavenging.fuel)).toBe(true);
 		expect(Object.isFrozen(COMPOUND_RULES.scavenging.scrap)).toBe(true);
@@ -101,7 +103,16 @@ describe('compound-rules.json', () => {
 			'CompoundRules.scavenging.scrap.min must be an integer from 0 to 1000, got -5'],
 		['part of a scrap', (json: RulesJson) => { scavenged(json, 'scrap').max = 7.5; },
 			'CompoundRules.scavenging.scrap.max must be an integer from 5 to 1000, got 7.5'],
-		['a range with no max', (json: RulesJson) => { delete scavenged(json, 'scrap').max; }, 'CompoundRules.scavenging.scrap.max is missing']
+		['a range with no max', (json: RulesJson) => { delete scavenged(json, 'scrap').max; }, 'CompoundRules.scavenging.scrap.max is missing'],
+		['no fall', (json: RulesJson) => { delete json.fall; }, 'CompoundRules.fall is missing'],
+		['a fall that never starves', (json: RulesJson) => { json.fall.starveAtFood = -1; },
+			'CompoundRules.fall.starveAtFood must be an integer from 0 to 1000, got -1'],
+		['a fall that riots at no unrest at all', (json: RulesJson) => { json.fall.riotAtUnrest = 0; },
+			'CompoundRules.fall.riotAtUnrest must be an integer from 1 to 1000, got 0'],
+		['a riot threshold past any tuning', (json: RulesJson) => { json.fall.riotAtUnrest = 1001; },
+			'CompoundRules.fall.riotAtUnrest must be an integer from 1 to 1000, got 1001'],
+		['a fall rule nothing reads', (json: RulesJson) => { json.fall.disbandAtPeople = 0; },
+			'CompoundRules.fall has an unknown field "disbandAtPeople"']
 	])('rejects %s', (_label, change, message) => {
 		expect(() => read(damaged(change))).toThrow(message);
 	});

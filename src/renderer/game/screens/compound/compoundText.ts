@@ -109,8 +109,9 @@ export function injuredLine(driver: DriverRecord): string {
 	return `${driver.name} is injured, fit in ${countOf(driver.injuredDays, 'day')}`;
 }
 
-/** Rest's line: what ending the day costs. */
-export function restCaption({ day, forecast }: { day: number; forecast: NeedsForecast }): string {
+/** Rest's line: what ending the day costs, or, once the campaign is over and its end is still unsaved, that Rest saves it. */
+export function restCaption({ day, forecast, over = false }: { day: number; forecast: NeedsForecast; over?: boolean }): string {
+	if (over) return 'The compound has fallen. Rest saves its end again.';
 	const eats = UPKEEP_RESOURCES.filter((resource) => forecast[resource].perDay > 0)
 		.map((resource) => `${amountText(forecast[resource].perDay)} ${resource}`);
 	return eats.length > 0 ? `Ends day ${day}. The compound eats ${eats.join(' and ')}.` : `Ends day ${day}.`;

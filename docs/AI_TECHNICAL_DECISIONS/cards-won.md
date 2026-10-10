@@ -66,7 +66,7 @@ Every driver in the pool is listed, the dead and missing with `driver_away`, so 
 
 ## Saves
 
-The campaign saves `nextRunNumber`, which bumped `CAMPAIGN_SCHEMA_VERSION` from 4 to 5; the format fixture is `campaign-v5.json`, with a run out, so its counter is past the run's id. A load refuses a run out with no id handed out (`nextRunNumber` below 2 while run decks are saved). Cards won live on the run party, which the run controller saves with the run, its `run` included ([combat-bridge.md](./combat-bridge.md), The run party). The bump starts Campaign History over, as every bump does ([campaign-save-and-load.md](./campaign-save-and-load.md)).
+The campaign saves `nextRunNumber`, which bumped `CAMPAIGN_SCHEMA_VERSION` from 4 to 5; the format fixture (`CAMPAIGN_FIXTURE`) has a run out, so its counter is past the run's id. A load refuses a run out with no id handed out (`nextRunNumber` below 2 while run decks are saved). Cards won live on the run party, which the run controller saves with the run, its `run` included ([combat-bridge.md](./combat-bridge.md), The run party). The bump starts Campaign History over, as every bump does ([campaign-save-and-load.md](./campaign-save-and-load.md)).
 
 ## Provisional calls
 

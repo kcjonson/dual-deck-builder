@@ -257,7 +257,7 @@ describe('Cards won (DDB-316)', () => {
 
 			const unloaded = campaign.unloadRun({ party });
 
-			expect(unloaded).toEqual({ resources: CARGO, cards: CARDS_WON });
+			expect(unloaded).toEqual({ resources: CARGO, cards: CARDS_WON, found: [] });
 			expect(Object.isFrozen(unloaded)).toBe(true);
 			expect(campaign.runDecks).toEqual([]);
 			expect(campaign.resources).toEqual({ ...STORES, fuel: 8, scrap: 70, people: 9 });

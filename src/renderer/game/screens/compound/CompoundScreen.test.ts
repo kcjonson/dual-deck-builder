@@ -13,9 +13,12 @@ import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
 import { tokens } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
+import { Campaign, CampaignData, Resources } from '../../campaign/Campaign';
 import type { CampaignStore } from '../../campaign/CampaignStore';
 import { MemorySaveStorage } from '../../campaign/SaveStorage';
-import { FaultyStorage, damagedText, fixtureText, newCampaign, quotaError, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
+import {
+	CAMPAIGN_FIXTURE, FaultyStorage, KEYS, damagedText, fixtureText, newCampaign, quotaError, saveText, storageWith, storeOver
+} from '../../campaign/__fixtures__/storeFixtures';
 import { BUILDINGS } from './compoundText';
 import { CompoundScreen } from './CompoundScreen';
 
@@ -39,12 +42,30 @@ describe('CompoundScreen', () => {
 
 	/** Mounts the screen over a save of the fixture, changed first if asked, and waits for it to load. */
 	async function open(change: (campaign: Fixture) => void = () => undefined): Promise<void> {
-		storage = storageWith(fixtureText((campaign) => change(campaign as Fixture)));
+		await openText(fixtureText((campaign) => change(campaign as Fixture)));
+	}
+
+	/** Mounts the screen over this save text, storage failing as asked from the start, and waits for it to load. */
+	async function openText(text: string, { fault = null }: { fault?: FaultyStorage['fault'] } = {}): Promise<void> {
+		storage = storageWith(text);
+		storage.fault = fault;
 		store = storeOver(storage);
 		screen = new CompoundScreen({ store });
 		screen.mount(context);
 		await screen.campaignLoaded;
 		context.frame.layout();
+	}
+
+	/**
+	 * The fixture home from its run, so a night can end the campaign (an end
+	 * waits for a run out), its stores changed and its end set if asked, as
+	 * save text.
+	 */
+	function homeText(resources: Partial<Resources>, end: CampaignData['end'] = null): string {
+		const campaign = Campaign.fromJSON(JSON.parse(JSON.stringify(CAMPAIGN_FIXTURE)));
+		campaign.unwindRunDecks();
+		campaign.set({ resources: { ...campaign.resources, ...resources }, end });
+		return saveText({ campaign: campaign.toSaveText() });
 	}
 
 	function find<T>(id: string): T {
@@ -257,19 +278,20 @@ describe('CompoundScreen', () => {
 	});
 
 	describe('when the last people leave', () => {
-		beforeEach(() => open((campaign) => {
-			campaign.resources.people = 1;
-			campaign.resources.food = 0;
-			campaign.resources.water = 0;
-		}));
+		beforeEach(() => openText(homeText({ people: 1, food: 0, water: 0 })));
 
-		it('saves the day, then says the compound has fallen, and its button goes to the menu', async () => {
+		it('ends the campaign, whose checkpoint writes its line and removes the save, then says the compound has fallen, and its button goes to the menu (DDB-305)', async () => {
 			expect(fallen()).toBe(false);
 			await rest();
 			advance(context, OPEN_MS);
+			expect(screen.shown?.end).toEqual({ ending: 'starved', cause: 'no_people' });
 			expect(fallen()).toBe(true);
 			expect(text('compound_fallen_body')).toBe('Nobody is left at the compound. The campaign is lost.');
-			expect((await storeOver(storage).load())?.resources.people).toBe(0);
+			// The day stops on the day the compound fell
+			expect(noticeKicker()).toBe('Day 9 / dawn');
+			expect(await storeOver(storage).load()).toBeNull();
+			expect(await storeOver(storage).history()).toEqual([{ seed: CAMPAIGN_FIXTURE.seed, day: 9, strongholdsTaken: 1, ending: 'starved' }]);
+			expect(storage.keys).toEqual([KEYS.history]);
 			expect(context.focus.focused?.id).toBe('compound_fallen_back');
 			expect(navigate).not.toHaveBeenCalled();
 			send(context, [key('Enter')]);
@@ -278,26 +300,27 @@ describe('CompoundScreen', () => {
 			expect(navigate).toHaveBeenLastCalledWith(...TO_MENU);
 		});
 
-		it('holds the notice back while the fall is unsaved, showing why, and opens it once a Rest saves', async () => {
+		it('holds the notice back while the end is unsaved, showing why, and opens it once a Rest ends it, without another night', async () => {
 			storage.fault = { method: 'setItem', error: quotaError() };
 			await rest();
 			advance(context, OPEN_MS);
 			expect(fallen()).toBe(false);
-			expect(text('compound_save_error')).toBe("The campaign couldn't be saved: storage is full.");
+			expect(text('compound_save_error')).toBe("The campaign couldn't be ended: storage is full.");
+			// The save still holds the day before, and the history has nothing yet
 			expect((await storeOver(storage).load())?.resources.people).toBe(1);
+			expect(await storeOver(storage).history()).toEqual([]);
 			// Retrying while storage still fails ends no day either.
 			await rest();
-			expect(screen.shown?.day).toBe(10);
+			expect(screen.shown?.day).toBe(9);
 			storage.fault = null;
 			await rest();
 			advance(context, OPEN_MS);
 			expect(fallen()).toBe(true);
-			expect(noticeKicker()).toBe('Day 10 / dawn');
-			const saved = await storeOver(storage).load();
-			expect(saved?.resources.people).toBe(0);
-			// The save is the fall's dawn, not a day after it, and the injured driver healed one night only.
-			expect(saved?.day).toBe(10);
-			expect(saved?.drivers[2]).toMatchObject({ status: 'injured', injuredDays: 1 });
+			expect(noticeKicker()).toBe('Day 9 / dawn');
+			expect(await storeOver(storage).load()).toBeNull();
+			expect(await storeOver(storage).history()).toHaveLength(1);
+			// The injured driver healed one night only.
+			expect(screen.shown?.drivers[2]).toMatchObject({ status: 'injured', injuredDays: 1 });
 		});
 
 		it('goes to the menu on Escape, with no hotkey beneath the notice firing twice', async () => {
@@ -310,11 +333,47 @@ describe('CompoundScreen', () => {
 		});
 	});
 
-	it('says the compound has fallen at once when the save it opens has nobody left', async () => {
-		await open((campaign) => { campaign.resources.people = 0; });
+	it('ends a save that holds a campaign already over, as another tab or a hand-made save could leave one, then says the compound has fallen', async () => {
+		await openText(homeText({ people: 0 }, { ending: 'disbanded', cause: 'no_people' }));
+		await flush();
 		advance(context, OPEN_MS);
 		expect(fallen()).toBe(true);
+		expect(await storeOver(storage).load()).toBeNull();
+		expect(await storeOver(storage).history()).toEqual([{ seed: CAMPAIGN_FIXTURE.seed, day: 9, strongholdsTaken: 1, ending: 'disbanded' }]);
 		expect(navigate).not.toHaveBeenCalled();
+	});
+
+	it('retries the end of a save already over with Rest when its checkpoint failed as the screen opened, ending no day', async () => {
+		await openText(homeText({ people: 0 }, { ending: 'disbanded', cause: 'no_people' }), { fault: { method: 'setItem', error: quotaError() } });
+		await flush();
+		advance(context, OPEN_MS);
+		expect(fallen()).toBe(false);
+		expect(text('compound_save_error')).toBe("The campaign couldn't be ended: storage is full.");
+		expect(text('compound_rest_line')).toBe('The compound has fallen. Rest saves its end again.');
+		expect(await storeOver(storage).history()).toEqual([]);
+		storage.fault = null;
+
+		await rest();
+		advance(context, OPEN_MS);
+
+		expect(fallen()).toBe(true);
+		expect(screen.shown?.day).toBe(9);
+		expect(await storeOver(storage).load()).toBeNull();
+		expect(await storeOver(storage).history()).toEqual([{ seed: CAMPAIGN_FIXTURE.seed, day: 9, strongholdsTaken: 1, ending: 'disbanded' }]);
+	});
+
+	it('says nothing has fallen while a run is out at 0 People, since the end waits for the run to come home', async () => {
+		await open((campaign) => {
+			campaign.resources.people = 1;
+			campaign.resources.food = 0;
+			campaign.resources.water = 0;
+		});
+		await rest();
+		advance(context, OPEN_MS);
+		expect(fallen()).toBe(false);
+		expect(screen.shown?.isOver).toBe(false);
+		const saved = await storeOver(storage).load();
+		expect([saved?.resources.people, saved?.isOver]).toEqual([0, false]);
 	});
 
 	describe('opened with or without a campaign handed over', () => {
@@ -417,10 +476,7 @@ describe('CompoundScreen', () => {
 	])('lays the fallen notice out with no lint at $width x $height', async (size) => {
 		viewport.logical = size;
 		context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
-		await open((campaign) => {
-			campaign.resources.people = 1;
-			campaign.resources.food = 0;
-		});
+		await openText(homeText({ people: 1, food: 0 }));
 		await rest();
 		advance(context, OPEN_MS);
 		expect(fallen()).toBe(true);

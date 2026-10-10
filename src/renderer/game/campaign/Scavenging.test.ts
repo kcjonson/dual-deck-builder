@@ -119,7 +119,8 @@ describe('scavenge', () => {
 		const { haul, dayEnd } = scavenge({ campaign });
 
 		expect(haul).toEqual(expected);
-		expect(dayEnd).toMatchObject({ day: 1, upkeep: { food: 3, water: 3 }, shortfall: { food: 0, water: 0 }, outcome: 'continues' });
+		expect(dayEnd).toMatchObject({ day: 1, upkeep: { food: 3, water: 3 }, shortfall: { food: 0, water: 0 } });
+		expect(campaign.isOver).toBe(false);
 		expect(campaign.day).toBe(2);
 		expect(campaign.resources).toEqual({ ...STORES, food: 18, water: 18, fuel: haul.fuel, scrap: haul.scrap });
 		expect(campaign.log).toEqual([{ day: 1, message: scavengeMessage(haul) }]);
@@ -314,9 +315,9 @@ describe('never stuck', () => {
 		let days = 0;
 
 		while (campaign.resources.fuel < RUN_FUEL) {
-			const { dayEnd } = scavenge({ campaign });
+			scavenge({ campaign });
 			days++;
-			expect(dayEnd.outcome).toBe('continues');
+			expect(campaign.isOver).toBe(false);
 		}
 
 		expect(days).toBeLessThanOrEqual(Math.ceil(RUN_FUEL / COMPOUND_RULES.scavenging.fuel.min));
@@ -372,7 +373,9 @@ describe('never stuck', () => {
 			}
 			if (campaign.resources.people === 0) {
 				fallenCompounds++;
-				expect(getScavengeBlocker({ campaign })).toEqual({ reason: 'abandoned' });
+				// The night that emptied it ended the campaign (DDB-305), which the check names first
+				expect(campaign.end?.cause).toBe('no_people');
+				expect(getScavengeBlocker({ campaign })).toEqual({ reason: 'campaign_over', end: campaign.end });
 			}
 		}
 

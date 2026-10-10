@@ -68,7 +68,7 @@ Card types are checked for shape (lower snake case), not against `cards.json`, s
 
 - HP runs from 0 to max, and max is at least 1. A driver is dead exactly when their HP is 0: the dead have none, the living some. The dead have no cards either.
 - `injuredDays` is above 0 exactly while injured. It's "fit in N days", which load out shows.
-- The dead and the missing stay in the pool, which the Crew screen lists for the record.
+- The dead and the missing stay in the pool, which the Crew screen lists for the record. A dead driver stays dead: the record refuses any other status ([campaign-end.md](./campaign-end.md)).
 - A new record defaults to its archetype's config: max HP, all of it, the hand limit (`DRIVER_CONFIGS[archetype].handLimit`, DDB-285), and the starting deck, ready.
 - The name is the archetype's title and an ordinal, "Road Warrior 2", counting every driver of that archetype the compound has had, dead included, so no two share one. It's stored, so the names DDB-318 decides on can replace it.
 
@@ -80,13 +80,13 @@ Card types are checked for shape (lower snake case), not against `cards.json`, s
 - Every object must be a plain object with exactly its fields. Missing and unknown fields both throw, as map presets do, so a renamed field can't vanish quietly; map params are the one exception (below). An object made on another, whose values it would inherit, isn't a plain object, nor is a class instance; another realm's plain object is (`isPlainObject` in `core/Json.ts`, which `copyJson` uses as well), and what the readers keep of it, arrays included, is built in this realm.
 - Every array must hold a value at every index. JSON never makes a hole, but a `set` could pass one, and `map` and `forEach` would skip it unchecked.
 - Errors name where: `Campaign.drivers[1].status must be one of ready, injured, dead, missing, got "sleeping"`. A `ReaderTypeError` for the wrong kind of value, a `ReaderRangeError` for a value out of range: still a TypeError and a RangeError, but classes of their own, so a load can tell a damaged save from a bug in the code reading it, and log the bug (it still treats the save as damaged).
-- `campaign/__fixtures__/campaign-v5.json` is a campaign at the current format, with a run out, which loads and writes back the same, and tests take it through `storeFixtures.ts` as `CAMPAIGN_FIXTURE`. When the format changes, the fixture changes with it and the version goes up.
+- `campaign/__fixtures__/campaign-v6.json` is a campaign at the current format, with a run out, which loads and writes back the same, and tests take it through `storeFixtures.ts` as `CAMPAIGN_FIXTURE`. When the format changes, the fixture changes with it and the version goes up.
 
 Loading leniently, as `GameSettings` does (defaults for what's missing, unknown keys ignored), was rejected for saves: a damaged campaign would load as a different campaign.
 
 ## Resources and unrest are whole numbers, never below 0
 
-People may reach 0; whether that ends the campaign is open (Compound and Supply Runs, open question 2). Whole numbers is the strict choice, and the safe one to start with: loosening it later still reads every old save, tightening it wouldn't. A route's fuel cost that comes out fractional has to be rounded.
+People may reach 0, which ends the campaign, provisionally, while the spec keeps it open (Compound and Supply Runs, open question 2; [campaign-end.md](./campaign-end.md)). Whole numbers is the strict choice, and the safe one to start with: loosening it later still reads every old save, tightening it wouldn't. A route's fuel cost that comes out fractional has to be rounded.
 
 ## The convoy saves each escort's stat block
 
@@ -110,7 +110,7 @@ An escort's id is `escort-<n>`, on its profile (`EscortProfile.id`), handed out 
 
 The save's `convoy` is `{ nextEscortNumber, escorts }`, each escort's `id` beside its name rather than in its profile. The reader refuses an id that isn't `escort-<n>`, one an earlier escort holds, and one at or past the counter, so a loaded convoy can't hand out an id it already has.
 
-Everything a save cross-references, it refers to by these ids: drivers by `driver-<n>`, escorts by `escort-<n>`, runs by `run-<n>` (from the campaign's `nextRunNumber`, [cards-won.md](./cards-won.md)), and stops and strongholds by the map's own. A run party saves as its seats' and escorts' ids and its run's ([combat-bridge.md](./combat-bridge.md)), and a run deck's escort card as its card type and `broughtBy`, and the run deck itself by its driver's id; the run controller writes the party, and the campaign its run decks. Card copies have no identity of their own, which is why decks and the locker are counts. Model ids are never saved, and nothing a save holds names one.
+Everything a save cross-references, it refers to by these ids: drivers by `driver-<n>`, escorts by `escort-<n>`, runs by `run-<n>` (from the campaign's `nextRunNumber`, [cards-won.md](./cards-won.md)), and stops and strongholds by the map's own. A run party saves as its seats' and escorts' ids and its run's ([combat-bridge.md](./combat-bridge.md)), and a run deck's escort card as its card type and `broughtBy`, the run deck itself by its driver's id, and a driver found on the run by theirs; the run controller writes the party, and the campaign its run decks and who it found. Card copies have no identity of their own, which is why decks and the locker are counts. Model ids are never saved, and nothing a save holds names one.
 
 ## Map params: complete in the model, repaired on load
 
@@ -135,6 +135,6 @@ The log is `{ day, message }` lines, dated by `addLogEntry` with the current day
 
 - Saving (DDB-49, [campaign-save-and-load.md](./campaign-save-and-load.md)) writes `campaign.toSaveText()` at checkpoints, stamped with the save format version, and loads with `Campaign.fromJSON(json, { onWarning })`; a reader error means the save can't be loaded (or, from `toSaveText`, written), and warnings mean it loaded with its map params repaired.
 - Founding (DDB-284) builds `new Campaign({ seed, generatorVersion, mapParams, map, resources })` with params it has validated, and calls `recruitDriver` for each starting driver.
-- The combat bridge (DDB-286, [combat-bridge.md](./combat-bridge.md)) builds combat drivers from records and writes each back after every fight in one `set`: their HP and their vehicle's structure and armor. Status only changes when a fight fails the run: dead (0 HP and an empty deck) or missing. Injured days are set when a run comes home.
+- The combat bridge (DDB-286, [combat-bridge.md](./combat-bridge.md)) builds combat drivers from records and writes each back after every fight in one `set`: their HP and their vehicle's structure and armor. Status only changes when a fight fails the run: dead (0 HP and an empty deck) or missing. Injured days are set when a run comes home, and a missing driver found on a run (`Campaign.findMissingDriver`) comes back when it gets home ([campaign-end.md](./campaign-end.md)).
 - Every change to the format bumps `CAMPAIGN_SCHEMA_VERSION`, which invalidates every existing save of a build, since there are no migrations; the fixture changes with it.
 - A checked `set` can still replace a whole deck or the locker, which makes or destroys copies; `moveCards` is the path that conserves them.
