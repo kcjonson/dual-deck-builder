@@ -225,7 +225,8 @@ describe('the POI stage in the pipeline', () => {
 	const pipeline = (networks: RoadNetwork[], strict: boolean) => {
 		let runs = 0;
 		return new MapPipeline<MapParams>()
-			.stage({ name: 'water', run: () => ({ terrain: fakeGround() }) })
+			.stage({ name: 'hazards', run: () => ({ terrain: fakeGround() }) })
+			.stage({ name: 'places', run: () => ({ metro: { id: 0, kind: 'metro' as const, x: 0, y: 0, radius: 150 }, towns: [], villages: [] }) })
 			.stage({ name: 'growth', run: () => ({ network: networks[Math.min(runs++, networks.length - 1)] }) })
 			.stage(ROUTE_TREE_STAGE)
 			.stage(poisStage({ strict }));
@@ -233,7 +234,7 @@ describe('the POI stage in the pipeline', () => {
 
 	it('escalates to the roads when strict and no rotation seats every stronghold', () => {
 		const result = pipeline([treeOnly, looped], true).run({ seed: params.seed, input: params, debug: true });
-		expect(result.attempts).toEqual({ water: 0, growth: 1, routeTree: 0, pois: 0 });
+		expect(result.attempts).toEqual({ hazards: 0, places: 0, growth: 1, routeTree: 0, pois: 0 });
 		expect(result.timings.pois.runs).toBe(9);
 		expect(result.failures.filter(({ stage }) => stage === 'pois')).toHaveLength(8);
 		expect(result.failures[0].problems).toContain('sector 0 has no free meeting point in the outer band');
@@ -242,7 +243,7 @@ describe('the POI stage in the pipeline', () => {
 
 	it('passes when lenient, with what it missed in its failures', () => {
 		const result = pipeline([treeOnly, looped], false).run({ seed: params.seed, input: params, debug: true });
-		expect(result.attempts).toEqual({ water: 0, growth: 0, routeTree: 0, pois: 0 });
+		expect(result.attempts).toEqual({ hazards: 0, places: 0, growth: 0, routeTree: 0, pois: 0 });
 		expect(result.products.routeTree.meetingPoints).toEqual([]);
 		expect(result.products.pois.failures).toHaveLength(5);
 	});

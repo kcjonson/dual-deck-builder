@@ -228,6 +228,17 @@ describe('RiverIndex', () => {
 		expect(index.contains(150, 150)).toBe(false);
 	});
 
+	it('finds water within a reach of a point, across buckets, as far as half the width plus the reach', () => {
+		expect(index.near(5.9, 0, 3)).toBe(true);
+		expect(index.near(6.1, 0, 3)).toBe(false);
+		expect(index.near(0, 70, 17.9)).toBe(true);
+		expect(index.near(0, 70, 15)).toBe(false);
+		// Two buckets over from the water, and reached all the same.
+		expect(index.near(-33, -20, 32)).toBe(true);
+		expect(index.near(150, 150, 20)).toBe(false);
+		expect(index.near(1, 0, 0)).toBe(index.contains(1, 0));
+	});
+
 	it('finds where a move crosses a centreline: how far along, the width there, and how square-on', () => {
 		expect(index.crossings(-10, 0, 10, 0)).toBe(1);
 		expect(index.crossing(0)).toEqual({ along: 0.5, width: 6, sine: 1 });

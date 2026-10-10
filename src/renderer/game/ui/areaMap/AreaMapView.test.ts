@@ -6,8 +6,9 @@ import { createTestContext } from '../../../engine/components/testing';
 import { CircleCommand, DrawApi, DrawCommand, ImageCommand, PolylineCommand, RecordingBackend } from '../../../engine/draw';
 import { NO_MODIFIERS } from '../../../engine/input/events';
 import { click, key, pointer, send } from '../../../engine/services/testing';
+import type { Places } from '../../map/Places';
 import type { RiverLines } from '../../map/Rivers';
-import { FOG, RIVER_STYLE, ROAD_STYLES, RUMORED_FADE, RUMORED_TOWARD, roadWidthScale } from './areaMapStyle';
+import { FOG, PLACE_STYLE, RIVER_STYLE, ROAD_STYLES, RUMORED_FADE, RUMORED_TOWARD, roadWidthScale } from './areaMapStyle';
 import { AreaMapView, AreaMapViewOptions, WHEEL_ZOOM_RATE } from './AreaMapView';
 import type { AreaMapSelection, LandFogLayer, MapMarker, RoadKnowledge } from './layers';
 import { FIT_MARGIN } from './MapCamera';
@@ -519,6 +520,58 @@ describe('AreaMapView knowledge and markers', () => {
 		const ids = frame().map((command) => command.id);
 		expect(ids.indexOf('map.selected_road')).toBeGreaterThan(-1);
 		expect(ids.indexOf('map.selected_road')).toBeLessThan(ids.indexOf('map.road_3'));
+	});
+});
+
+describe('AreaMapView places', () => {
+	const places: Places = {
+		metro: { id: 0, kind: 'metro', x: 0, y: 0, radius: 90 },
+		towns: [
+			{ id: 1, kind: 'town', x: 300, y: 200, radius: 30, name: 'Ashford', suitability: 2 },
+			{ id: 2, kind: 'town', x: -300, y: -250, radius: 30, name: 'Cold Springs', suitability: 1.9 },
+		],
+		villages: [{ id: 3, kind: 'village', x: -100, y: 350, radius: 10, name: 'Elkdale', suitability: 1.5 }],
+		crossroads: [{ id: 4, kind: 'crossroads', x: 150, y: -300 }],
+		exits: [{ id: 5, kind: 'exit', x: 0, y: 590, bearing: 90, highway: true }, { id: 6, kind: 'exit', x: -590, y: 0, bearing: 180, highway: false }],
+	};
+	const withPlaces = (): AreaMapViewOptions => ({ map: { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK, rivers: NO_RIVERS, places } });
+	const texts = (commands: readonly DrawCommand[]) => commands.filter((command) => command.kind === 'text').map((command) => command.kind === 'text' && command.text);
+
+	it('draws every place where it is, names the towns, and names the villages once zoomed in', () => {
+		const { view, frame } = mountView(withPlaces());
+		frame();
+		const commands = frame();
+		const placeCircles = commands.filter((command): command is CircleCommand => command.kind === 'circle' && /^map\.place_\d+$/.test(command.id ?? ''));
+		expect(placeCircles.map(({ id }) => id)).toEqual(['map.place_4', 'map.place_5', 'map.place_6', 'map.place_3', 'map.place_1', 'map.place_2']);
+		const ashford = placeCircles.find(({ id }) => id === 'map.place_1');
+		const expected = onPage(view, 300, 200);
+		expect(ashford?.center.x).toBeCloseTo(expected.x - 100, 9);
+		expect(ashford?.center.y).toBeCloseTo(expected.y - 50, 9);
+		expect(view.camera.zoom).toBeLessThan(PLACE_STYLE.villageLabelZoom);
+		expect(texts(commands)).toEqual(['Ashford', 'Cold Springs', 'Home']);
+		expect(view.drawnText).toEqual(['Ashford', 'Cold Springs', 'Home']);
+
+		view.camera.zoom = PLACE_STYLE.villageLabelZoom;
+		expect(texts(frame())).toEqual(['Elkdale', 'Ashford', 'Cold Springs', 'Home']);
+		expect(view.drawnText).toEqual(['Ashford', 'Cold Springs', 'Elkdale', 'Home']);
+	});
+
+	it('draws none with the places layer off, and none the fog hides', () => {
+		const { view, frame } = mountView(withPlaces());
+		view.layers = { places: false };
+		frame();
+		expect(frame().some((command) => command.id?.startsWith('map.place_'))).toBe(false);
+		expect(view.drawnText).toEqual(['Home']);
+
+		// Only the south-west quarter is revealed: Cold Springs is, the rest aren't.
+		const fog: LandFogLayer = { cells: 4, isRevealed: (column, row) => column < 2 && row < 2 };
+		const fogged = mountView({ ...withPlaces(), fog });
+		fogged.frame();
+		const drawn = fogged.frame().filter((command) => /^map\.place_\d+$/.test(command.id ?? '')).map(({ id }) => id);
+		expect(drawn).toEqual(['map.place_2']);
+		expect(fogged.view.drawnText).toEqual(['Cold Springs', 'Home']);
+		fogged.view.layers = { fog: false };
+		expect(fogged.view.drawnText).toEqual(['Ashford', 'Cold Springs', 'Home']);
 	});
 });
 

@@ -1,6 +1,7 @@
 import { landGridFor } from '../../map/LandGrid';
+import { ruinAt } from '../../map/Places';
 import { TerrainSample, WaterLayer, createTerrainSample } from '../../map/Terrain';
-import type { Hotspot } from '../../map/TerrainSites';
+import type { Hotspot, Ruin } from '../../map/TerrainSites';
 import { HILL_SHADE, OBSTACLE_COLOURS, RUIN_SHADE, landColour } from './areaMapStyle';
 
 /**
@@ -50,6 +51,8 @@ export interface TerrainBakeOptions {
 	size: number;
 	/** Texels between colour samples, 1 for every texel; about `COLOUR_WORLD_UNITS` apart when left out. */
 	colourStep?: number;
+	/** The metro, towns, and villages, shaded darker out to twice their radius; none when left out. */
+	ruins?: readonly Ruin[];
 }
 
 export const TEXEL_WORLD_UNITS = 2.5;
@@ -70,11 +73,11 @@ export function terrainBakeSize(radius: number): number {
 	return Math.max(MIN_BAKE_SIZE, Math.min(MAX_BAKE_SIZE, size));
 }
 
-export function bakeTerrain({ terrain, size, colourStep }: TerrainBakeOptions): Uint8Array {
+export function bakeTerrain({ terrain, size, colourStep, ruins = [] }: TerrainBakeOptions): Uint8Array {
 	if (!Number.isInteger(size) || size < 1) throw new Error(`bakeTerrain: size must be a positive integer, got ${size}`);
 	const step = colourStep ?? Math.max(1, Math.round(COLOUR_WORLD_UNITS / ((terrain.radius * 2) / size)));
 	if (!Number.isInteger(step) || step < 1) throw new Error(`bakeTerrain: colourStep must be a positive integer, got ${step}`);
-	const baker = new TerrainBaker({ terrain, size, step });
+	const baker = new TerrainBaker({ terrain, size, step, ruins });
 	// A row at a time, each its own call, so the engine optimises the row
 	// whole rather than entering it mid-loop and leaving at every row's end.
 	for (let row = 0; row < size; row++) baker.row(row);
@@ -95,14 +98,14 @@ class TerrainBaker {
 	private readonly outerSquared: number;
 	private readonly innerSquared: number;
 
-	constructor({ terrain, size, step }: { terrain: BakeTerrain; size: number; step: number }) {
+	constructor({ terrain, size, step, ruins }: { terrain: BakeTerrain; size: number; step: number; ruins: readonly Ruin[] }) {
 		this.terrain = terrain;
 		this.size = size;
 		this.radius = terrain.radius;
 		this.texel = (terrain.radius * 2) / size;
 		this.step = step;
 		this.nodes = latticeNodes(size, step);
-		this.colours = colourLattice(terrain, size, step);
+		this.colours = colourLattice(terrain, size, step, ruins);
 		this.shades = new ShadeLattice({ terrain, size });
 		this.cliffs = new CliffLattice({ terrain, size });
 		this.texels = new Uint8Array(size * size * 4);
@@ -204,7 +207,7 @@ const CHANNELS = 4;
  * reads them are skipped; the fields are defined past the rim, so a node
  * just outside is real land.
  */
-function colourLattice(terrain: BakeTerrain, size: number, step: number): Float32Array {
+function colourLattice(terrain: BakeTerrain, size: number, step: number, ruins: readonly Ruin[]): Float32Array {
 	const radius = terrain.radius;
 	const texel = (radius * 2) / size;
 	const nodes = latticeNodes(size, step);
@@ -224,7 +227,7 @@ function colourLattice(terrain: BakeTerrain, size: number, step: number): Float3
 			values[at] = colour[0];
 			values[at + 1] = colour[1];
 			values[at + 2] = colour[2];
-			values[at + 3] = 1 - RUIN_SHADE * smooth(sample.ruin);
+			values[at + 3] = 1 - RUIN_SHADE * smooth(ruinAt(worldX, worldY, ruins));
 		}
 	}
 	return values;

@@ -1,6 +1,8 @@
-import { HighwayDeparture, planHighways } from './Highways';
+import { Hazards, generateHazards } from './Hazards';
+import { highwayDepartures } from './Highways';
 import type { MapParams } from './MapParams';
 import { AcceptHook, MapPipeline, MapStage, PipelineResult, StageAttempt } from './MapPipeline';
+import { Places, checkPlaces, generatePlaces, ruinAt, ruinsOf } from './Places';
 import { checkPoiLayer } from './PoiChecks';
 import { PoiGround, PoiLayer, placePois } from './Pois';
 import { checkRoadNetwork } from './RoadChecks';
@@ -11,21 +13,24 @@ import { Terrain, generateTerrain } from './Terrain';
 import { Water, generateWater } from './Water';
 
 /**
- * The area map's stages as they stand: terrain, water, then the highways
- * and growth pair, stand-ins until settlements and road links (Map 7 and 8)
- * replace them, then the route tree and the POIs over growth's network. Each
- * runs on the stream the runner nests for it, so water draws from
- * root.fork('map', m).fork('terrain', t).fork('water', w), the highways one
- * level further down, growth one more, and so on; the route tree takes no
- * draws, but it's a link in the chain all the same.
+ * The area map's stages as they stand: terrain, water, hazards, places, then
+ * growth, the stand-in until road links (Maps 7 and 8) replace it, then the
+ * route tree and the POIs over growth's network. Each runs on the stream the
+ * runner nests for it, so water draws from
+ * root.fork('map', m).fork('terrain', t).fork('water', w), hazards one level
+ * further down, places one more, and so on; the route tree takes no draws,
+ * but it's a link in the chain all the same.
  */
 
 export interface AreaMapProducts {
 	/** The land, without water. */
 	readonly terrain: Terrain;
-	/** Rivers, lakes, and the fields beside them; `water.terrain` is the land with its water, what every stage after reads. */
+	/** Rivers, lakes, and the fields beside them; `water.terrain` is the land with its water. */
 	readonly water: Water;
-	readonly highways: readonly HighwayDeparture[];
+	/** Craters and plumes; `hazards.terrain` is the land with its water and hazards, what every stage after reads. */
+	readonly hazards: Hazards;
+	/** The metro, towns, villages, crossroads, and exits. */
+	readonly places: Places;
 	readonly growth: RoadGrowth;
 	readonly routeTree: RouteTree;
 	readonly pois: PoiLayer;
@@ -47,18 +52,39 @@ export const WATER_STAGE: MapStage<MapParams, Pick<AreaMapProducts, 'terrain'>, 
 	run: ({ input, products, rng }) => generateWater({ params: input, terrain: products.terrain, rng }),
 };
 
-export const HIGHWAYS_STAGE: MapStage<MapParams, Pick<AreaMapProducts, 'terrain' | 'water'>, 'highways', readonly HighwayDeparture[]> = {
-	name: 'highways',
-	run: ({ input, products, rng }) => planHighways({ terrain: products.water.terrain, params: input, rng }),
+/** Stage 3, hotspots over the land with its water, off the rivers and lakes. */
+export const HAZARDS_STAGE: MapStage<MapParams, Pick<AreaMapProducts, 'water'>, 'hazards', Hazards> = {
+	name: 'hazards',
+	run: ({ input, products, rng }) => generateHazards({ params: input, terrain: products.water.terrain, rng }),
 };
 
-/** Growth with its own knobs, over the land with its water, checked by the network checks the map validator will run. */
-export function growthStage(tuning: GrowthTuning = {}): MapStage<MapParams, Pick<AreaMapProducts, 'water' | 'highways'>, 'growth', RoadGrowth> {
+/**
+ * Stage 4, settlements, crossroads, and exits, checked that a road from the
+ * metro surely reaches every one, so an exit with no reachable ground near any
+ * turn of its bearings reruns the stage on a fresh draw of them.
+ */
+export const PLACES_STAGE: MapStage<MapParams, Pick<AreaMapProducts, 'water' | 'hazards'>, 'places', Places> = {
+	name: 'places',
+	run: ({ input, products, rng }) => generatePlaces({ params: input, terrain: products.hazards.terrain, water: products.water, rng }),
+	check: (places, { products }) => checkPlaces({ places, terrain: products.hazards.terrain, water: products.water }),
+};
+
+/**
+ * Growth with its own knobs, its highways leaving the metro toward the
+ * highway exits, over the land with its water and hazards, checked by the
+ * network checks the map validator will run. The departures' drift draws on
+ * the stage stream's `highways` fork.
+ */
+export function growthStage(tuning: GrowthTuning = {}): MapStage<MapParams, Pick<AreaMapProducts, 'hazards' | 'places'>, 'growth', RoadGrowth> {
 	const { branchiness, clearance = GROWTH_TUNING.clearance } = tuning;
 	return {
 		name: 'growth',
-		run: ({ input, products, rng }) => growRoads({ terrain: products.water.terrain, params: input, highways: products.highways, rng, branchiness, clearance }),
-		check: ({ network }, { products }) => checkRoadNetwork({ network, terrain: products.water.terrain, clearance })
+		run: ({ input, products, rng }) => {
+			const terrain = products.hazards.terrain;
+			const highways = highwayDepartures({ terrain, params: input, exits: products.places.exits, rng: rng.fork('highways') });
+			return growRoads({ terrain, params: input, highways, rng, branchiness, clearance });
+		},
+		check: ({ network }, { products }) => checkRoadNetwork({ network, terrain: products.hazards.terrain, clearance })
 			.map(({ rule, detail }) => `${rule}: ${detail}`),
 	};
 }
@@ -68,7 +94,7 @@ interface RoadsProduct {
 	readonly growth: { readonly network: RoadNetwork };
 }
 
-/** Stage 6, the route tree. It takes no draws, so one attempt: another would only repeat it. */
+/** The route tree. It takes no draws, so one attempt: another would only repeat it. */
 export const ROUTE_TREE_STAGE: MapStage<MapParams, RoadsProduct, 'routeTree', RouteTree> = {
 	name: 'routeTree',
 	attempts: 1,
@@ -87,20 +113,36 @@ export interface PoisStageOptions {
 	readonly strict?: boolean;
 }
 
-/** What the POIs read besides the roads: the land with its water, and the route tree. */
+/** What the POIs read besides the roads: the land with its water and hazards, the places' ruins, and the route tree. */
 interface PoisUpstream extends RoadsProduct {
-	readonly water: { readonly terrain: PoiGround };
+	readonly hazards: { readonly terrain: Omit<PoiGround, 'ruin'> };
+	readonly places: Pick<Places, 'metro' | 'towns' | 'villages'>;
 	readonly routeTree: RouteTree;
 }
 
-/** Stage 7, strongholds and POIs on the route tree's meeting points, checked by the checks the map validator will run. */
+/** The ground the POIs read: the land with its water and hazards, and ruin from the metro, towns, and villages. */
+export function poiGround({ terrain, places }: { terrain: Omit<PoiGround, 'ruin'>; places: Pick<Places, 'metro' | 'towns' | 'villages'> }): PoiGround {
+	const ruins = ruinsOf(places);
+	return {
+		radius: terrain.radius,
+		metro: terrain.metro,
+		biome: (x, y) => terrain.biome(x, y),
+		elevation: (x, y) => terrain.elevation(x, y),
+		moisture: (x, y) => terrain.moisture(x, y),
+		ruin: (x, y) => ruinAt(x, y, ruins),
+	};
+}
+
+/** Strongholds and POIs on the route tree's meeting points, checked by the checks the map validator will run. */
 export function poisStage({ strict = false }: PoisStageOptions = {}): MapStage<MapParams, PoisUpstream, 'pois', PoiLayer> {
 	return {
 		name: 'pois',
 		escalate: strict ? 'growth' : undefined,
-		run: ({ input, products, rng }) => placePois({ network: products.growth.network, tree: products.routeTree, ground: products.water.terrain, params: input, rng }),
+		run: ({ input, products, rng }) => placePois({
+			network: products.growth.network, tree: products.routeTree, ground: poiGround({ terrain: products.hazards.terrain, places: products.places }), params: input, rng,
+		}),
 		check: (layer, { input, products }) => {
-			const violations = checkPoiLayer({ network: products.growth.network, tree: products.routeTree, layer, params: input, radius: products.water.terrain.radius })
+			const violations = checkPoiLayer({ network: products.growth.network, tree: products.routeTree, layer, params: input, radius: products.hazards.terrain.radius })
 				.filter(({ rule }) => strict || rule !== 'sectors')
 				.map(({ rule, detail }) => `${rule}: ${detail}`);
 			return strict ? [...layer.failures, ...violations] : violations;
@@ -118,7 +160,8 @@ export function areaMapPipeline({ growth, pois }: AreaMapPipelineOptions = {}): 
 	return new MapPipeline<MapParams>()
 		.stage(TERRAIN_STAGE)
 		.stage(WATER_STAGE)
-		.stage(HIGHWAYS_STAGE)
+		.stage(HAZARDS_STAGE)
+		.stage(PLACES_STAGE)
 		.stage(growthStage(growth))
 		.stage(ROUTE_TREE_STAGE)
 		.stage(poisStage(pois));
