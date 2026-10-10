@@ -75,6 +75,39 @@ export interface MapMarker {
 	readonly label?: string;
 	/** A POI's; unvisited when absent. Strongholds ignore it. */
 	readonly state?: PoiState;
+	/** A character or two drawn inside a POI's disc, its tier on the area map screen. Strongholds ignore it. */
+	readonly badge?: string;
+	/** A POI with no route home by dark (Racing the dark): drawn with a night ring. */
+	readonly pastDark?: boolean;
+	/**
+	 * Its label's place in line, lowest first: labels are placed in this
+	 * order, and one that would overlap a label or marker already placed is
+	 * left out until the zoom makes room (Area Map Generation, Dressing). A
+	 * selected marker's label goes first; then 0 when absent.
+	 */
+	readonly priority?: number;
+}
+
+/** A stop on a drawn route, world space: a fight, or anything else. */
+export interface MapRouteStop {
+	readonly x: number;
+	readonly y: number;
+	readonly fight: boolean;
+}
+
+/**
+ * One of a POI's routes, which the run route screen draws over the map as a
+ * band under the roads (Area Map Generation, Rendering): the picked one
+ * strong with its stops, the others faint.
+ */
+export interface MapRoute {
+	/** Unique among the routes. */
+	readonly id: string;
+	/** World space, flat x0, y0, x1, y1, ..., from the compound out to the POI. */
+	readonly points: readonly number[];
+	readonly picked: boolean;
+	/** In driving order; drawn on the picked route only. */
+	readonly stops?: readonly MapRouteStop[];
 }
 
 /** What a press on the map picked: a marker, a drawn stretch, or nothing (null). */

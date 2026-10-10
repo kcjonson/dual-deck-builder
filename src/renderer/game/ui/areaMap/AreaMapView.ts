@@ -6,15 +6,19 @@ import type { AnyUiEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../..
 import { Places, ruinsOf } from '../../map/Places';
 import { ROAD_CLASSES, RoadClass } from '../../map/RoadNetwork';
 import {
+	BADGE,
 	COMPOUND,
 	JUNCTION,
 	LABEL,
 	MAP_GROUND,
 	MARKER,
+	NIGHT_RING,
 	PLACE_STYLE,
 	RIVER_STYLE,
 	ROAD_PICK_DISTANCE,
 	ROAD_STYLES,
+	ROUTE_BAND,
+	ROUTE_STOP,
 	RUMORED_FADE,
 	RUMORED_TOWARD,
 	SELECTED_ROAD,
@@ -32,6 +36,8 @@ import {
 	AreaMapSelection,
 	LandFogLayer,
 	MapMarker,
+	MapRoute,
+	MapRouteStop,
 	RoadKnowledgeLayer,
 	drawnKnowledge,
 	stubEnd,
@@ -44,9 +50,11 @@ import { bakeTerrain, terrainBakeSize } from './terrainBake';
 /**
  * Draws a generated area map: the terrain and its lakes baked once into a
  * texture, ruins shaded into it, rivers live under the roads, width by size,
- * the drivable roads live by class and knowledge, junctions, places (towns
- * and villages named, crossroads, and exits), the compound, POI and
- * stronghold markers, and land fog, with pan, zoom, and selection.
+ * a POI's routes as bands under the roads, the drivable roads live by class
+ * and knowledge, junctions, places (towns and villages named, crossroads,
+ * and exits), the compound, POI and stronghold markers with their labels
+ * placed by priority clear of the places' names, and land fog, with pan,
+ * zoom, and selection.
  * Shared by the Map Lab (DDB-299) and the area map screen (DDB-43); the
  * inputs later generation stages fill in are in `layers.ts`.
  *
@@ -71,6 +79,7 @@ import { bakeTerrain, terrainBakeSize } from './terrainBake';
 export interface AreaMapViewOptions extends ComponentOptions {
 	map?: AreaMapData | null;
 	markers?: readonly MapMarker[];
+	routes?: readonly MapRoute[];
 	knowledge?: RoadKnowledgeLayer | null;
 	fog?: LandFogLayer | null;
 	layers?: Partial<AreaMapLayerToggles>;
@@ -120,6 +129,21 @@ interface Baked {
 	size: number;
 }
 
+/** A route as drawn: its line in map space and the box round it. */
+interface RouteLine {
+	readonly route: MapRoute;
+	readonly points: readonly Vec2[];
+	readonly bounds: { minX: number; minY: number; maxX: number; maxY: number };
+}
+
+/** A label's box on screen, for placing labels clear of each other. */
+interface LabelBox {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
 export class AreaMapView extends Component {
 	private mapData: AreaMapData | null = null;
 	private geometry: RoadGeometry | null = null;
@@ -128,6 +152,13 @@ export class AreaMapView extends Component {
 	private drawOrder: number[] = [];
 	private stretchIds: string[] = [];
 	private markerList: readonly MapMarker[] = [];
+	/** The markers' labels in the order they're placed, worked out when the markers or the selection change. */
+	private labelOrder: readonly MapMarker[] | null = null;
+	/** The labels the last frame placed, for `drawnText`; null before the first. */
+	private placedLabels: string[] | null = null;
+	private readonly labelBoxes: LabelBox[] = [];
+	private routeLines: readonly RouteLine[] = [];
+	private readonly markerScratch: Vec2 = { x: 0, y: 0 };
 	private knowledgeLayer: RoadKnowledgeLayer | null = null;
 	private fogLayer: LandFogLayer | null = null;
 	private layerToggles: AreaMapLayerToggles = ALL_LAYERS;
@@ -152,11 +183,12 @@ export class AreaMapView extends Component {
 	private readonly labelWidths = new Map<string, number>();
 	private readonly scratch: Vec2 = { x: 0, y: 0 };
 
-	constructor({ map = null, markers = [], knowledge = null, fog = null, layers, selection = null, onSelect = null, ...options }: AreaMapViewOptions = {}) {
+	constructor({ map = null, markers = [], routes = [], knowledge = null, fog = null, layers, selection = null, onSelect = null, ...options }: AreaMapViewOptions = {}) {
 		super({ focusable: true, ...options });
 		this.componentType = 'AreaMapView';
 		this.mapCamera = new MapCamera({ radius: map?.terrain.radius ?? 1, width: this.width, height: this.height });
 		this.markerList = markers;
+		this.routes = routes;
 		this.knowledgeLayer = knowledge;
 		this.fogLayer = fog;
 		if (layers) this.layerToggles = { ...ALL_LAYERS, ...layers };
@@ -179,6 +211,7 @@ export class AreaMapView extends Component {
 	public set map(map: AreaMapData | null) {
 		this.rebuildGeometry(map);
 		this.currentSelection = null;
+		this.labelOrder = null;
 		this.bakeTerrainTexture();
 	}
 
@@ -188,6 +221,17 @@ export class AreaMapView extends Component {
 
 	public set markers(markers: readonly MapMarker[]) {
 		this.markerList = markers;
+		this.labelOrder = null;
+		this.placedLabels = null;
+	}
+
+	/** A POI's routes, drawn under the roads; none when empty. */
+	public get routes(): readonly MapRoute[] {
+		return this.routeLines.map(({ route }) => route);
+	}
+
+	public set routes(routes: readonly MapRoute[]) {
+		this.routeLines = routes.map((route) => routeLine(route));
 	}
 
 	/** Absent, every road is charted. */
@@ -225,6 +269,7 @@ export class AreaMapView extends Component {
 	/** Programmatic: fires no `onSelect`. */
 	public set selection(selection: AreaMapSelection | null) {
 		this.currentSelection = selection;
+		this.labelOrder = null;
 	}
 
 	public get onSelect(): ((selection: AreaMapSelection | null) => void) | null {
@@ -335,7 +380,11 @@ export class AreaMapView extends Component {
 		return true;
 	}
 
-	/** The labels it draws itself, for the tree snapshot and the text record (DDB-206). */
+	/**
+	 * The labels and badges it draws itself, for the tree snapshot and the
+	 * text record (DDB-206): the labels the last frame placed, or before the
+	 * first every marker's.
+	 */
 	public get drawnText(): readonly string[] | null {
 		if (!this.mapData) return null;
 		const labels: string[] = [];
@@ -348,7 +397,9 @@ export class AreaMapView extends Component {
 		}
 		labels.push(COMPOUND.label);
 		if (this.layerToggles.markers) {
-			for (const marker of this.markerList) if (marker.label) labels.push(marker.label);
+			for (const marker of this.markerList) if (marker.kind === 'poi' && marker.badge) labels.push(marker.badge);
+			if (this.placedLabels) labels.push(...this.placedLabels);
+			else for (const marker of this.markerList) if (marker.label) labels.push(marker.label);
 		}
 		return labels;
 	}
@@ -361,18 +412,24 @@ export class AreaMapView extends Component {
 		const box = { x: 0, y: 0, width, height };
 		draw.pushClip(box);
 		draw.drawRect({ id: this.part('ground'), rect: box, fill: MAP_GROUND });
+		// Names placed this frame, the places' and then the markers', which keep clear of them.
+		this.labelBoxes.length = 0;
 		if (this.mapData && this.geometry) {
 			const layers = this.layerToggles;
 			draw.pushTransform(this.mapCamera.matrix);
 			if (layers.terrain) this.drawTerrain(draw);
 			if (layers.water) this.drawRivers(draw);
 			if (layers.fog) this.drawFog(draw);
+			this.drawRoutes(draw);
 			if (layers.roads) this.drawRoads(draw, this.geometry);
 			if (layers.junctions) this.drawJunctions(draw, this.geometry);
 			draw.popTransform();
 			if (layers.places) this.drawPlaces(draw);
+			this.drawRouteStops(draw);
 			this.drawCompound(draw);
 			if (layers.markers) this.drawMarkers(draw);
+			// Last, so no marker near home covers it.
+			this.drawCompoundLabel(draw);
 		}
 		draw.popClip();
 	}
@@ -450,6 +507,56 @@ export class AreaMapView extends Component {
 			rect: { x: -radius + left * texel, y: -radius + top * texel, width: (right - left) * texel, height: (bottom - top) * texel },
 			sourceRect: { x: left, y: top, width: right - left, height: bottom - top },
 		});
+	}
+
+	/**
+	 * A POI's routes as bands under the roads, the others first and the
+	 * picked one over them, at widths that scale with the roads'.
+	 */
+	private drawRoutes(draw: DrawApi): void {
+		if (this.routeLines.length === 0) return;
+		const zoom = this.mapCamera.zoom;
+		const pixel = roadWidthScale(zoom) / zoom;
+		const visible = this.visibleMap();
+		let skipped = 0;
+		for (const picked of [false, true]) {
+			const style = picked ? ROUTE_BAND.picked : ROUTE_BAND.other;
+			const width = style.width * pixel;
+			for (const line of this.routeLines) {
+				if (line.route.picked !== picked) continue;
+				const { bounds } = line;
+				if (bounds.maxX < visible.minX - width || bounds.minX > visible.maxX + width
+					|| bounds.maxY < visible.minY - width || bounds.minY > visible.maxY + width) {
+					skipped += 1;
+					continue;
+				}
+				draw.drawPolyline({ id: this.part(`route_${line.route.id}`), points: line.points, color: style.color, width, cap: 'round' });
+			}
+		}
+		if (skipped > 0) draw.cullGroups(skipped);
+	}
+
+	/** The picked route's stops, in screen space at a constant size: a fight a diamond, anything else a square. */
+	private drawRouteStops(draw: DrawApi): void {
+		const camera = this.mapCamera;
+		const { half, ink, paper, border } = ROUTE_STOP;
+		for (const { route } of this.routeLines) {
+			if (!route.picked || !route.stops) continue;
+			route.stops.forEach((stop: MapRouteStop, index: number) => {
+				const at = camera.worldToScreen(stop.x, stop.y, this.scratch);
+				const id = this.part(`route_${route.id}_stop_${index}`);
+				if (stop.fight) {
+					draw.drawPolygon({
+						id,
+						points: [{ x: at.x, y: at.y - half }, { x: at.x + half, y: at.y }, { x: at.x, y: at.y + half }, { x: at.x - half, y: at.y }],
+						indices: [0, 1, 2, 0, 2, 3],
+						fill: ink,
+					});
+				} else {
+					draw.drawRect({ id, rect: { x: at.x - half, y: at.y - half, width: half * 2, height: half * 2 }, fill: paper, border: { color: ink, width: border, position: 'inside' } });
+				}
+			});
+		}
 	}
 
 	private drawRoads(draw: DrawApi, geometry: RoadGeometry): void {
@@ -569,7 +676,11 @@ export class AreaMapView extends Component {
 			fill: COMPOUND.fill,
 			border: { color: COMPOUND.border, width: 1.5, position: 'outside' },
 		});
-		this.drawLabel(draw, COMPOUND.label, at.x + half + LABEL.gap, at.y, 'compound_label');
+	}
+
+	private drawCompoundLabel(draw: DrawApi): void {
+		const at = this.mapCamera.worldToScreen(0, 0, this.scratch);
+		this.drawLabel(draw, COMPOUND.label, at.x + COMPOUND.size / 2 + LABEL.gap, at.y, 'compound_label');
 	}
 
 	/**
@@ -603,7 +714,10 @@ export class AreaMapView extends Component {
 			const style = PLACE_STYLE[kind];
 			const at = camera.worldToScreen(x, y, this.scratch);
 			draw.drawCircle({ id: this.part(`place_${id}`), center: at, radius: style.radius, fill: ink, border: { color: paper, width: style.ring, position: 'outside' } });
-			if (named) this.drawLabel(draw, name, at.x + style.radius + LABEL.gap, at.y, `place_${id}_label`);
+			if (!named) continue;
+			const left = at.x + style.radius + LABEL.gap;
+			this.drawLabel(draw, name, left, at.y, `place_${id}_label`);
+			this.labelBoxes.push({ x: left, y: at.y - LABEL.height / 2, width: this.labelWidth(draw, name) + LABEL.padX * 2, height: LABEL.height });
 		}
 	}
 
@@ -629,10 +743,14 @@ export class AreaMapView extends Component {
 		const selectedId = this.currentSelection?.kind === 'marker' ? this.currentSelection.id : null;
 		for (const marker of this.markerList) {
 			const at = camera.worldToScreen(marker.x, marker.y, this.scratch);
-			const radius = marker.kind === 'stronghold' ? MARKER.stronghold : MARKER.radius;
+			const radius = markerRadius(marker);
 			const id = this.part(`marker_${marker.id}`);
 			if (marker.id === selectedId) {
-				draw.drawCircle({ id, center: at, radius: radius + MARKER.ring * 2, fill: [0, 0, 0, 0], border: { color: SELECTED_ROAD.color, width: MARKER.ring * 1.5 } });
+				const outside = marker.kind === 'poi' && marker.pastDark ? NIGHT_RING.gap + NIGHT_RING.width : 0;
+				draw.drawCircle({ id, center: at, radius: radius + outside + MARKER.ring * 2, fill: [0, 0, 0, 0], border: { color: SELECTED_ROAD.color, width: MARKER.ring * 1.5 } });
+			}
+			if (marker.kind === 'poi' && marker.pastDark) {
+				draw.drawCircle({ id, center: at, radius: radius + NIGHT_RING.gap + NIGHT_RING.width / 2, fill: [0, 0, 0, 0], border: { color: NIGHT_RING.color, width: NIGHT_RING.width } });
 			}
 			if (marker.kind === 'stronghold') {
 				draw.drawCircle({ id, center: at, radius, fill: MARKER.fill, border: { color: MARKER.ink, width: MARKER.ring } });
@@ -656,10 +774,76 @@ export class AreaMapView extends Component {
 						width: 1.75,
 						cap: 'round',
 					});
+				} else if (marker.badge) {
+					draw.drawText({
+						id: this.part(`badge_${marker.id}`),
+						text: marker.badge,
+						box: { x: at.x - radius, y: at.y - radius, width: radius * 2, height: radius * 2 },
+						font: BADGE.font,
+						size: BADGE.size,
+						color: state === 'depleted' ? MARKER.fill : ink,
+						align: 'center',
+						verticalAlign: 'middle',
+					});
 				}
 			}
-			if (marker.label) this.drawLabel(draw, marker.label, at.x + radius + LABEL.gap, at.y, `label_${marker.id}`);
 		}
+		this.drawMarkerLabels(draw);
+	}
+
+	/**
+	 * The markers' labels, beside each marker, placed in their order
+	 * (`markerLabelOrder`): on its right, or its left where the right would
+	 * run past the view's edge. One that would overlap a label already
+	 * placed, a place's name among them, the compound's, or another marker
+	 * is left out, the selected
+	 * marker's excepted. Where text can't be measured nothing can be placed
+	 * clear, so every label is drawn.
+	 */
+	private drawMarkerLabels(draw: DrawApi): void {
+		const camera = this.mapCamera;
+		const order = this.markerLabelOrder();
+		const selectedId = this.currentSelection?.kind === 'marker' ? this.currentSelection.id : null;
+		const boxes = this.labelBoxes;
+		const home = camera.worldToScreen(0, 0, this.scratch);
+		boxes.push({ x: home.x - COMPOUND.size / 2, y: home.y - COMPOUND.size / 2, width: COMPOUND.size + LABEL.gap + this.labelWidth(draw, COMPOUND.label) + LABEL.padX * 2, height: Math.max(COMPOUND.size, LABEL.height) });
+		const placed: string[] = [];
+		for (const marker of order) {
+			const label = marker.label as string;
+			const at = camera.worldToScreen(marker.x, marker.y, this.scratch);
+			const radius = markerRadius(marker);
+			const width = this.labelWidth(draw, label);
+			const box = { x: at.x + radius + LABEL.gap, y: at.y - LABEL.height / 2, width: width + LABEL.padX * 2, height: LABEL.height };
+			if (box.x + box.width > this.width) box.x = at.x - radius - LABEL.gap - box.width;
+			if (width > 0 && marker.id !== selectedId && (overlapsAny(box, boxes) || this.overlapsMarker(box, marker))) continue;
+			boxes.push(box);
+			placed.push(label);
+			this.drawLabel(draw, label, box.x, at.y, `label_${marker.id}`);
+		}
+		this.placedLabels = placed;
+	}
+
+	/** The selected marker's label first, then by priority, then in the markers' order: those with labels only. */
+	private markerLabelOrder(): readonly MapMarker[] {
+		if (this.labelOrder) return this.labelOrder;
+		const selectedId = this.currentSelection?.kind === 'marker' ? this.currentSelection.id : null;
+		const labelled = this.markerList.filter((marker) => marker.label);
+		const place = new Map(labelled.map((marker, index) => [marker, index]));
+		const rank = (marker: MapMarker): number => (marker.id === selectedId ? -Infinity : marker.priority ?? 0);
+		this.labelOrder = [...labelled].sort((a, b) => rank(a) - rank(b) || (place.get(a) ?? 0) - (place.get(b) ?? 0));
+		return this.labelOrder;
+	}
+
+	/** Whether a label box covers any marker but its own. */
+	private overlapsMarker(box: LabelBox, own: MapMarker): boolean {
+		const at = this.markerScratch;
+		for (const marker of this.markerList) {
+			if (marker === own) continue;
+			this.mapCamera.worldToScreen(marker.x, marker.y, at);
+			const radius = markerRadius(marker);
+			if (at.x + radius > box.x && at.x - radius < box.x + box.width && at.y + radius > box.y && at.y - radius < box.y + box.height) return true;
+		}
+		return false;
 	}
 
 	/** A label on a light box, its left edge at `x` and centred on `y`. */
@@ -895,6 +1079,36 @@ export class AreaMapView extends Component {
 		}
 		return false;
 	}
+}
+
+function markerRadius(marker: MapMarker): number {
+	return marker.kind === 'stronghold' ? MARKER.stronghold : MARKER.radius;
+}
+
+function overlapsAny(box: LabelBox, boxes: readonly LabelBox[]): boolean {
+	for (const other of boxes) {
+		if (box.x < other.x + other.width && box.x + box.width > other.x && box.y < other.y + other.height && box.y + box.height > other.y) return true;
+	}
+	return false;
+}
+
+/** A route's line in map space, y flipped from the world's, and the box round it. */
+function routeLine(route: MapRoute): RouteLine {
+	const points: Vec2[] = [];
+	let minX = Infinity;
+	let minY = Infinity;
+	let maxX = -Infinity;
+	let maxY = -Infinity;
+	for (let index = 0; index + 1 < route.points.length; index += 2) {
+		const x = route.points[index];
+		const y = -route.points[index + 1];
+		points.push({ x, y });
+		if (x < minX) minX = x;
+		if (x > maxX) maxX = x;
+		if (y < minY) minY = y;
+		if (y > maxY) maxY = y;
+	}
+	return { route, points, bounds: { minX, minY, maxX, maxY } };
 }
 
 function wheelFactor(deltaY: number): number {

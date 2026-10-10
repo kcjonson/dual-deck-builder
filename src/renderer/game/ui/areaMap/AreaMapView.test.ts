@@ -3,14 +3,15 @@ import type { MountContext } from '../../../engine/components/MountContext';
 import { renderTree } from '../../../engine/components/renderTree';
 import { Stack } from '../../../engine/components/Stack';
 import { createTestContext } from '../../../engine/components/testing';
-import { CircleCommand, DrawApi, DrawCommand, ImageCommand, PolylineCommand, RecordingBackend } from '../../../engine/draw';
+import { CircleCommand, DrawApi, DrawCommand, ImageCommand, PolygonCommand, PolylineCommand, RecordingBackend, RectCommand, TextCommand } from '../../../engine/draw';
 import { NO_MODIFIERS } from '../../../engine/input/events';
 import { click, key, pointer, send } from '../../../engine/services/testing';
+import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import type { Places } from '../../map/Places';
 import type { RiverLines } from '../../map/Rivers';
-import { FOG, PLACE_STYLE, RIVER_STYLE, ROAD_STYLES, RUMORED_FADE, RUMORED_TOWARD, roadWidthScale } from './areaMapStyle';
+import { FOG, NIGHT_RING, PLACE_STYLE, RIVER_STYLE, ROAD_STYLES, ROUTE_BAND, RUMORED_FADE, RUMORED_TOWARD, roadWidthScale } from './areaMapStyle';
 import { AreaMapView, AreaMapViewOptions, WHEEL_ZOOM_RATE } from './AreaMapView';
-import { AreaMapSelection, LandFogLayer, MapMarker, RoadKnowledge, stubEnd } from './layers';
+import { AreaMapSelection, LandFogLayer, MapMarker, MapRoute, RoadKnowledge, stubEnd } from './layers';
 import { FIT_MARGIN } from './MapCamera';
 import { NO_RIVERS, SMALL_NETWORK, flatTerrain } from './testing';
 
@@ -32,9 +33,11 @@ interface Mounted {
 	frame: () => readonly DrawCommand[];
 }
 
-function mountView(options: AreaMapViewOptions = {}): Mounted {
-	const backend = new RecordingBackend();
-	const context = createTestContext({ draw: new DrawApi({ backend, development: false }) });
+/** Mounted over a recording backend, or one that measures text where a test places labels. */
+function mountView(options: AreaMapViewOptions = {}, { measuring = false }: { measuring?: boolean } = {}): Mounted {
+	const measured = measuring ? createMeasuringDrawApi() : null;
+	const backend = measured?.backend ?? new RecordingBackend();
+	const context = createTestContext({ draw: measured?.api ?? new DrawApi({ backend, development: false }) });
 	const root = new Container({ width: 1000, height: 800 });
 	const view = new AreaMapView({
 		id: 'map',
@@ -527,8 +530,9 @@ describe('AreaMapView knowledge and markers', () => {
 		expect(kinds('c')).toEqual(['circle']);
 		// The ring, the disc, the diamond
 		expect(kinds('d')).toEqual(['circle', 'circle', 'polygon']);
-		expect(commands.filter((command) => command.kind === 'text').map((command) => command.kind === 'text' && command.text)).toEqual(['Home', 'Hospital', 'Rust Vulture yard']);
-		expect(view.drawnText).toEqual(['Home', 'Hospital', 'Rust Vulture yard']);
+		// The selected marker's label is placed first.
+		expect(commands.filter((command) => command.kind === 'text').map((command) => command.kind === 'text' && command.text)).toEqual(['Rust Vulture yard', 'Hospital', 'Home']);
+		expect(view.drawnText).toEqual(['Home', 'Rust Vulture yard', 'Hospital']);
 	});
 
 	it('highlights a selected road under it', () => {
@@ -622,5 +626,93 @@ describe('AreaMapView rivers', () => {
 		const { frame } = mountView();
 		frame();
 		expect(riverCommands(frame())).toHaveLength(0);
+	});
+});
+
+describe('AreaMapView labels, badges, and the night ring', () => {
+	const texts = (commands: readonly DrawCommand[]): string[] => commands.filter((command): command is TextCommand => command.kind === 'text').map((command) => command.text);
+
+	it('places labels by priority, the selected first, and leaves out one that would cover a label or a marker until the zoom makes room', () => {
+		// Eighteen pixels apart at the fit zoom: either label would run over the other marker.
+		const markers: MapMarker[] = [
+			{ id: 'a', kind: 'poi', x: 0, y: 400, label: 'Alpha station', priority: 2 },
+			{ id: 'b', kind: 'poi', x: 40, y: 400, label: 'Bravo yard', priority: 1 },
+			{ id: 'c', kind: 'poi', x: -400, y: -300, label: 'Charlie mine' },
+		];
+		const { view, frame } = mountView({ markers }, { measuring: true });
+		frame();
+		// Home's label is drawn last, over any marker, and placed first.
+		expect(texts(frame())).toEqual(['Charlie mine', 'Bravo yard', 'Home']);
+		expect(view.drawnText).toEqual(['Home', 'Charlie mine', 'Bravo yard']);
+
+		view.selection = { kind: 'marker', id: 'a' };
+		expect(texts(frame())).toEqual(['Alpha station', 'Charlie mine', 'Home']);
+
+		view.selection = null;
+		view.camera.zoom = 4;
+		view.camera.center = { x: 20, y: 400 };
+		// Home and Charlie are out of view, culled.
+		expect(texts(frame())).toEqual(['Bravo yard', 'Alpha station']);
+	});
+
+	it('draws a POI\'s badge in its disc and a night ring round one with no route home by dark', () => {
+		const markers: MapMarker[] = [
+			{ id: 'near', kind: 'poi', x: 0, y: 300, badge: '1' },
+			{ id: 'far', kind: 'poi', x: 300, y: -300, badge: '4', pastDark: true },
+		];
+		const { view, frame } = mountView({ markers });
+		frame();
+		const commands = frame();
+		const circles = (id: string) => commands.filter((command): command is CircleCommand => command.kind === 'circle' && command.id === `map.marker_${id}`);
+		expect(circles('near')).toHaveLength(1);
+		const [ring, disc] = circles('far');
+		expect(ring.border?.color).toEqual(NIGHT_RING.color);
+		expect(ring.radius).toBeGreaterThan(disc.radius);
+		const badges = commands.filter((command): command is TextCommand => command.kind === 'text' && (command.id ?? '').startsWith('map.badge_'));
+		expect(badges.map((command) => [command.id, command.text, command.align])).toEqual([['map.badge_near', '1', 'center'], ['map.badge_far', '4', 'center']]);
+		const at = view.camera.worldToScreen(0, 300);
+		expect(badges[0].box?.x).toBeCloseTo(at.x - (badges[0].box?.width ?? 0) / 2, 9);
+		expect(view.drawnText).toEqual(['Home', '1', '4']);
+	});
+});
+
+describe('AreaMapView routes', () => {
+	const routes: MapRoute[] = [
+		{ id: 'picked', points: [0, 0, 0, 300, 200, 400], picked: true, stops: [{ x: 0, y: 150, fight: true }, { x: 100, y: 350, fight: false }] },
+		{ id: 'other', points: [0, 0, 0, 500], picked: false, stops: [{ x: 0, y: 250, fight: true }] },
+	];
+
+	it('draws a POI\'s routes as bands under the roads, the picked one over the others, north up', () => {
+		const { view, frame } = mountView({ routes });
+		frame();
+		const commands = frame();
+		const ids = commands.map((command) => command.id);
+		const picked = commands.find((command): command is PolylineCommand => command.id === 'map.route_picked') as PolylineCommand;
+		const other = commands.find((command): command is PolylineCommand => command.id === 'map.route_other') as PolylineCommand;
+		expect(ids.indexOf('map.route_other')).toBeLessThan(ids.indexOf('map.route_picked'));
+		expect(ids.indexOf('map.route_picked')).toBeLessThan(commands.indexOf(roads(commands)[0]));
+		expect(picked.points).toEqual([{ x: 0, y: -0 }, { x: 0, y: -300 }, { x: 200, y: -400 }]);
+		const pixel = roadWidthScale(view.camera.zoom) / view.camera.zoom;
+		expect(picked.width).toBeCloseTo(ROUTE_BAND.picked.width * pixel, 12);
+		expect(other.width).toBeCloseTo(ROUTE_BAND.other.width * pixel, 12);
+		expect([...picked.color]).toEqual([...ROUTE_BAND.picked.color]);
+		expect(view.routes).toEqual(routes);
+	});
+
+	it('marks the picked route\'s stops on screen, a fight as a diamond and anything else as a square, and no other route\'s', () => {
+		const { view, frame } = mountView({ routes });
+		frame();
+		const commands = frame();
+		const stops = commands.filter((command) => (command.id ?? '').includes('_stop_'));
+		expect(stops.map((command) => [command.id, command.kind])).toEqual([['map.route_picked_stop_0', 'polygon'], ['map.route_picked_stop_1', 'rect']]);
+		const diamond = stops[0] as PolygonCommand;
+		const at = view.camera.worldToScreen(0, 150);
+		expect(diamond.points[1].x - diamond.points[3].x).toBeGreaterThan(0);
+		expect((diamond.points[0].x + diamond.points[2].x) / 2).toBeCloseTo(at.x, 9);
+		const square = stops[1] as RectCommand;
+		expect(square.rect.width).toBe(square.rect.height);
+
+		view.routes = [];
+		expect(frame().some((command) => (command.id ?? '').startsWith('map.route_'))).toBe(false);
 	});
 });
