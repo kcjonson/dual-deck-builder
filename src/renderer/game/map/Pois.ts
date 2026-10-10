@@ -175,11 +175,12 @@ export function stepSectors({ drawn, count, steps, sites }: {
 	return { rotation: drawn, sectors: new Sectors({ rotation: drawn, count }), every: false };
 }
 
-/** A placed POI before its arrivals have legs. */
+/** A placed site before its arrivals have legs. A stronghold's type is set when it's seated, a POI's is '' until `typePois`. */
 interface Placement {
 	readonly candidate: number;
 	readonly type: string;
 	readonly ring: number;
+	/** A stronghold's faction and sector; '' and -1 for a POI. */
 	readonly faction: string;
 	readonly sector: number;
 }
