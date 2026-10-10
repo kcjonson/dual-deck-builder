@@ -1,10 +1,12 @@
 import { Screen } from '../../core/Screen';
-import { ScreenManager } from '../../core/ScreenManager';
+import { ScreenManager, type ScreenName } from '../../core/ScreenManager';
 import { DriverLoader } from '../../core/DriverLoader';
 import { freshSeed } from '../../core/Rng';
 import type { Campaign } from '../../campaign/Campaign';
+import { CampaignFounding, CampaignFoundingOptions, FoundedCampaign } from '../../campaign/CampaignFounding';
+import { CampaignMaps } from '../../campaign/CampaignMaps';
 import { CampaignStore, CampaignStoreError, CampaignStoreFailure } from '../../campaign/CampaignStore';
-import { foundCampaign } from '../../campaign/Founding';
+import { MapGenerationCancelled } from '../../map/worker/MapGeneration';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
@@ -12,9 +14,14 @@ import { Dialog } from '../../../engine/ui/Dialog';
 import { FocusGroup } from '../../../engine/ui/FocusGroup';
 import { ColorToken, tokens } from '../../../engine/theme/tokens';
 import { formatBuildLabel } from './buildLabel';
-import { campaignSummary } from './campaignText';
+import { campaignSummary, foundingText } from './campaignText';
 
 const MENU_WIDTH = 320;
+/** Wider than the column, so a failure's sentence stays on one line. */
+const NOTICE_WIDTH = 480;
+/** Title to notice and notice to column: with the notice's line, the gap the title always had above the column. */
+const NOTICE_GAP = tokens.space.space_2;
+const NOTICE_LINE = tokens.space.space_8 - 2 * NOTICE_GAP;
 const REPLACE_CANCEL_WIDTH = 120;
 const REPLACE_CONFIRM_WIDTH = 180;
 
@@ -74,9 +81,19 @@ function replaceWarning(save: MenuSave): { title: string; body: string; confirm:
 	}
 }
 
+/** A founding under way, which a CampaignFounding is. */
+export interface FoundingTask {
+	readonly result: Promise<FoundedCampaign>;
+	cancel(): void;
+}
+
 export interface MainMenuScreenOptions {
 	/** Where the campaign is saved. Default: the game's shared store. */
 	store?: CampaignStore;
+	/** Where the session's area map is kept. Default: the game's shared cache. */
+	maps?: CampaignMaps;
+	/** Founds a campaign with its map. Default: a CampaignFounding, generating in the map worker. */
+	startFounding?: (options: CampaignFoundingOptions) => FoundingTask;
 }
 
 /**
@@ -89,8 +106,12 @@ export interface MainMenuScreenOptions {
  *
  * The menu loads the save on mount, since Continue's line reads from the
  * campaign, and Continue hands that instance on: it's the one the store
- * saves from then on. New Campaign over a save asks first; a campaign in
- * progress goes into the history as abandoned before the new one is saved.
+ * saves from then on. Continue also starts making the campaign's area map
+ * again in the map worker, which the screens that need it wait for. New
+ * Campaign over a save asks first; founding generates the area map, with a
+ * progress line between the title and the column, and leaving the menu
+ * cancels it. A campaign in progress goes into the history as abandoned
+ * before the new one is saved.
  *
  * Skirmish keeps the old quick fight from driver selection reachable for
  * playtesters until load out replaces driver selection.
@@ -98,6 +119,10 @@ export interface MainMenuScreenOptions {
 export class MainMenuScreen extends Screen {
 	private readonly stack: Stack;
 	private readonly store: CampaignStore;
+	private readonly maps: CampaignMaps;
+	private readonly startFounding: (options: CampaignFoundingOptions) => FoundingTask;
+	/** The founding under way, which leaving the menu cancels. */
+	private founding: FoundingTask | null = null;
 	private newCampaignButton: Button | null = null;
 	private continueButton: Button | null = null;
 	private continueLine: Text | null = null;
@@ -109,19 +134,21 @@ export class MainMenuScreen extends Screen {
 	private visit = 0;
 	private starting = false;
 
-	constructor({ store = CampaignStore.shared }: MainMenuScreenOptions = {}) {
+	constructor({ store = CampaignStore.shared, maps = CampaignMaps.shared, startFounding = (options) => new CampaignFounding(options) }: MainMenuScreenOptions = {}) {
 		const root = new Stack({
 			id: 'mainMenuScreen',
 			widthMode: 'fill',
 			heightMode: 'fill',
 			distribution: 'center',
 			crossAlign: 'center',
-			gap: tokens.space.space_8,
+			gap: NOTICE_GAP,
 			style: { backgroundColor: 'bg_base' },
 		});
 		super('mainMenuScreen', { root });
 		this.stack = root;
 		this.store = store;
+		this.maps = maps;
+		this.startFounding = startFounding;
 	}
 
 	/** The save as the menu last read it. */
@@ -147,6 +174,19 @@ export class MainMenuScreen extends Screen {
 			},
 			wrap: 'none',
 		}));
+		// How far founding has got, or why the last New Campaign failed; empty
+		// otherwise. Its one line is held between the title and the column, in
+		// the space the title always left there, so nothing moves as it fills
+		// in; a message too long for it ends in an ellipsis rather than wrap.
+		this.notice = new Text({
+			id: 'main_menu_notice',
+			width: NOTICE_WIDTH,
+			lineHeight: NOTICE_LINE / tokens.fontSize.fs_sm,
+			wrap: 'none',
+			textOverflow: 'ellipsis',
+			style: { fontSize: 'fs_sm', color: 'status_crit', textAlign: 'center' },
+		});
+		this.stack.addChild(this.notice);
 		this.stack.addChild(this.createMenu());
 
 		// The build stamp in the bottom-right corner, so a playtester can tell
@@ -174,6 +214,8 @@ export class MainMenuScreen extends Screen {
 
 	protected onUnmount(): void {
 		this.visit += 1;
+		this.founding?.cancel();
+		this.founding = null;
 		this.dialog?.close();
 		this.dialog = null;
 		this.stack.clearChildren();
@@ -204,14 +246,6 @@ export class MainMenuScreen extends Screen {
 			onClick: () => { void this.newCampaign(); },
 		});
 		campaign.addChild(this.newCampaignButton);
-		// Why the last New Campaign failed; hidden until one does.
-		this.notice = new Text({
-			id: 'main_menu_notice',
-			visible: false,
-			widthMode: 'fill',
-			style: { fontSize: 'fs_sm', color: 'status_crit', textAlign: 'center' },
-		});
-		campaign.addChild(this.notice);
 
 		const resume = new Stack({ id: 'main_menu_continue', crossAlign: 'stretch', gap: tokens.space.space_1_5 });
 		// Enabled until the save check says otherwise, so Back from the screen
@@ -237,7 +271,7 @@ export class MainMenuScreen extends Screen {
 			id: 'main_menu_history_button',
 			size: 'lg',
 			block: true,
-			onClick: () => ScreenManager.navigate('campaignHistoryScreen'),
+			onClick: () => this.leave('campaignHistoryScreen'),
 		}));
 		menu.addChild(campaign);
 
@@ -246,25 +280,25 @@ export class MainMenuScreen extends Screen {
 			label: 'Skirmish',
 			id: 'main_menu_skirmish_button',
 			block: true,
-			onClick: () => ScreenManager.navigate('driverSelectionScreen'),
+			onClick: () => this.leave('driverSelectionScreen'),
 		}));
 		more.addChild(new Button({
 			label: 'Settings',
 			id: 'main_menu_settings_button',
 			block: true,
-			onClick: () => ScreenManager.navigate('settingsScreen'),
+			onClick: () => this.leave('settingsScreen'),
 		}));
 		more.addChild(new Button({
 			label: 'Credits',
 			id: 'main_menu_credits_button',
 			block: true,
-			onClick: () => ScreenManager.navigate('creditsScreen'),
+			onClick: () => this.leave('creditsScreen'),
 		}));
 		more.addChild(new Button({
 			label: 'Card Showcase',
 			id: 'main_menu_card_showcase_button',
 			block: true,
-			onClick: () => ScreenManager.navigate('cardShowcaseScreen'),
+			onClick: () => this.leave('cardShowcaseScreen'),
 		}));
 		// Development tooling, so absent from a production build (R13.2).
 		if (__DEV_TOOLS__) {
@@ -272,7 +306,7 @@ export class MainMenuScreen extends Screen {
 				label: 'Developer Tools',
 				id: 'main_menu_developer_button',
 				block: true,
-				onClick: () => ScreenManager.navigate('developerScreen'),
+				onClick: () => this.leave('developerScreen'),
 			}));
 		}
 
@@ -313,15 +347,7 @@ export class MainMenuScreen extends Screen {
 
 	private showSave(save: MenuSave): void {
 		this.saveState = save;
-		const continueButton = this.continueButton;
-		if (continueButton) {
-			const { focus } = this.context;
-			// Focused, or waiting to be once a transition's scope pops (Back restored it during the fade).
-			const holdsFocus = focus.focused === continueButton || focus.pendingFocus === continueButton;
-			continueButton.enabled = save.kind === 'saved' || save.kind === 'checking';
-			// A disabled control can't hold focus (R9.5); the column's first action takes it, or the request, in its place.
-			if (holdsFocus && !continueButton.enabled && this.newCampaignButton) focus.focus(this.newCampaignButton);
-		}
+		this.showContinue();
 		if (this.continueLine) {
 			const { text, color } = continueCaption(save);
 			this.continueLine.text = text;
@@ -329,10 +355,30 @@ export class MainMenuScreen extends Screen {
 		}
 	}
 
-	private showNotice(message: string | null): void {
+	/** Continue is enabled for a save it can open, or while the check runs, and never while a campaign is being founded. */
+	private showContinue(): void {
+		const continueButton = this.continueButton;
+		if (!continueButton) return;
+		const { focus } = this.context;
+		// Focused, or waiting to be once a transition's scope pops (Back restored it during the fade).
+		const holdsFocus = focus.focused === continueButton || focus.pendingFocus === continueButton;
+		const save = this.saveState.kind;
+		continueButton.enabled = !this.starting && (save === 'saved' || save === 'checking');
+		// A disabled control can't hold focus (R9.5); the column's first action takes it, or the request, in its place.
+		if (holdsFocus && !continueButton.enabled && this.newCampaignButton) focus.focus(this.newCampaignButton);
+	}
+
+	private showNotice(message: string | null, color: ColorToken = 'status_crit'): void {
 		if (!this.notice) return;
 		this.notice.text = message ?? '';
-		this.notice.visible = message !== null;
+		this.notice.color = color;
+	}
+
+	/** Leaves the menu, cancelling a founding under way at the click rather than once the fade has unmounted the menu. */
+	private leave(screenName: ScreenName): void {
+		this.founding?.cancel();
+		this.founding = null;
+		ScreenManager.navigate(screenName);
 	}
 
 	/**
@@ -343,6 +389,7 @@ export class MainMenuScreen extends Screen {
 	private continueCampaign(): void {
 		if (this.starting || this.saveState.kind !== 'saved') return;
 		const { campaign } = this.saveState;
+		this.maps.prepare(campaign);
 		if (campaign.supplyRun !== null) {
 			ScreenManager.navigate('runScreen', { campaign });
 			return;
@@ -419,35 +466,57 @@ export class MainMenuScreen extends Screen {
 	}
 
 	/**
-	 * Founds a campaign on a fresh seed and saves it, ending the campaign in
-	 * progress as abandoned first so it reaches the history (a damaged or
-	 * outdated save is simply replaced), then opens the compound. A failure
+	 * Founds a campaign on a fresh seed, its area map generated in the map
+	 * worker while the notice line above New Campaign shows how far it's got, and
+	 * saves it, ending the campaign in progress as abandoned first so it
+	 * reaches the history (a damaged or outdated save is simply replaced),
+	 * then keeps the map for the session and opens the compound. Leaving the
+	 * menu before the map is made cancels it, changing nothing. A failure
 	 * stays on the menu and says why, and the save is read again, since the
 	 * old campaign may have ended before it.
 	 */
 	private async startCampaign(replacing: MenuSave): Promise<void> {
 		if (this.starting) return;
 		this.starting = true;
+		this.showContinue();
 		this.showNotice(null);
 		const visit = this.visit;
+		let founding: FoundingTask | null = null;
 		try {
 			const loader = DriverLoader.getInstance();
 			await loader.loadDrivers();
-			const campaign = foundCampaign({
+			if (visit !== this.visit) return;
+			this.showNotice('Founding the compound.', 'text_dim');
+			founding = this.startFounding({
 				seed: freshSeed(),
 				unlockedArchetypes: loader.getUnlockedDrivers().map((driver) => driver.archetype),
+				onProgress: (progress) => {
+					if (visit === this.visit) this.showNotice(foundingText(progress), 'text_dim');
+				},
 			});
+			this.founding = founding;
+			const { campaign, map } = await founding.result;
+			// Leaving starts a fade, and the menu unmounts only at its end: a map that arrives in between founds nothing.
+			if (visit !== this.visit || this.founding !== founding || ScreenManager.transitioning) return;
 			if (replacing.kind === 'saved') await this.store.end({ campaign: replacing.campaign, ending: 'abandoned' });
 			await this.store.save(campaign);
-			if (visit === this.visit) ScreenManager.navigate('compoundScreen', { campaign });
+			this.maps.remember(campaign, map);
+			// Saved now, so it's there to continue, but a player who left as it saved goes where they asked.
+			if (visit === this.visit && !ScreenManager.transitioning) ScreenManager.navigate('compoundScreen', { campaign });
 		} catch (error) {
+			// The player left, which cancelled the founding.
+			if (error instanceof MapGenerationCancelled) return;
 			if (!(error instanceof CampaignStoreError)) console.error('MainMenuScreen: starting a campaign failed', error);
 			if (visit !== this.visit) return;
 			this.showNotice(error instanceof CampaignStoreError ? error.message : "The new campaign couldn't be started.");
 			this.showSave({ kind: 'checking' });
 			void this.readSave();
 		} finally {
-			if (visit === this.visit) this.starting = false;
+			if (founding !== null && this.founding === founding) this.founding = null;
+			if (visit === this.visit) {
+				this.starting = false;
+				this.showContinue();
+			}
 		}
 	}
 }

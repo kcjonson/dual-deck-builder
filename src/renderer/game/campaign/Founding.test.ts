@@ -2,6 +2,7 @@ import { runInNewContext } from 'vm';
 import { DriverLoader } from '../core/DriverLoader';
 import { ReaderTypeError } from '../core/JsonReader';
 import { RNG_VERSION, Rng } from '../core/Rng';
+import { AREA_MAP_GENERATOR_VERSION } from '../map/GeneratorVersion';
 import { MapParamSet, resolveMapParams } from '../map/MapParams';
 import { validateMapParams } from '../map/ParamValidator';
 import { rollParams } from '../map/RollParams';
@@ -10,7 +11,9 @@ import { Campaign } from './Campaign';
 import { CAMPAIGN_START, CampaignStart } from './CampaignStart';
 import { startingDeckCounts } from './CardCounts';
 import { DRIVER_ARCHETYPES, placeholderName } from './DriverRecord';
-import { FoundingOptions, foundCampaign } from './Founding';
+import { FoundingOptions, foundCampaign, prepareFounding } from './Founding';
+import { readMapParams } from './MapParamsJson';
+import { foundTestCampaign, stubMap } from './__fixtures__/mapFixtures';
 
 const SEED = 20261007;
 
@@ -26,7 +29,7 @@ const FOUR: CampaignStart = { ...CAMPAIGN_START, poolSize: 4 };
 /** Seeds spread over the uint32 range. */
 const SEEDS = Array.from({ length: 400 }, (_, index) => (index * 2654435761) >>> 0);
 
-const found = (options: Partial<FoundingOptions> = {}): Campaign => foundCampaign({
+const found = (options: Partial<Omit<FoundingOptions, 'map'>> = {}): Campaign => foundTestCampaign({
 	seed: SEED,
 	unlockedArchetypes: ARCHETYPES,
 	...options
@@ -59,7 +62,7 @@ describe('foundCampaign', () => {
 		});
 
 		it('founds a different campaign from a different seed: other map params, and another deal', () => {
-			const campaigns = SEEDS.slice(0, 8).map(seed => foundCampaign({ seed, unlockedArchetypes: ARCHETYPES }));
+			const campaigns = SEEDS.slice(0, 8).map(seed => foundTestCampaign({ seed, unlockedArchetypes: ARCHETYPES }));
 			const params = new Set(campaigns.map(campaign => JSON.stringify({ ...campaign.mapParams, seed: 0 })));
 			const pools = new Set(campaigns.map(campaign => archetypesOf(campaign).join()));
 
@@ -199,7 +202,9 @@ describe('foundCampaign', () => {
 				}
 			};
 
-			expect(found({ mapParams }).mapParams.towns).toBe(9);
+			// The map is made on what the first read answered, so founding's one read is the only one here.
+			const map = stubMap(prepareFounding({ seed: SEED, unlockedArchetypes: ARCHETYPES, mapParams: { seed: SEED, towns: 9 } }).params);
+			expect(foundCampaign({ seed: SEED, unlockedArchetypes: ARCHETYPES, mapParams, map }).mapParams.towns).toBe(9);
 			expect(reads).toBe(1);
 		});
 
@@ -362,11 +367,25 @@ describe('foundCampaign', () => {
 			expect(campaign.log).toEqual([{ day: 1, message: 'Founded the compound.' }]);
 		});
 
-		it('is founded on the model\'s stand-in map, at generator version 1, until the generator exists', () => {
-			const campaign = found();
+		it('keeps where the map it\'s given sits among the seed\'s attempts, at the generator\'s version, with nothing changed on it yet', () => {
+			const params = readMapParams(rollParams(SEED), 'mapParams');
+			const campaign = foundCampaign({ seed: SEED, unlockedArchetypes: ARCHETYPES, map: { params, mapAttempt: 2, attempts: { terrain: 1, water: 0, highways: 3, growth: 0 } } });
 
+			expect(campaign.mapAttempts).toEqual({ map: 2, stages: { terrain: 1, water: 0, highways: 3, growth: 0 } });
+			expect(Object.isFrozen(campaign.mapAttempts)).toBe(true);
+			expect(campaign.generatorVersion).toBe(AREA_MAP_GENERATOR_VERSION);
 			expect(campaign.map).toEqual({});
-			expect(campaign.generatorVersion).toBe(1);
+		});
+
+		it('refuses a map generated on other params', () => {
+			const params = readMapParams(rollParams(SEED), 'mapParams');
+			const onAnotherSeed = stubMap(readMapParams(rollParams(SEED + 1), 'mapParams'));
+			const otherwise = stubMap({ ...params, radius: params.radius + 1 });
+
+			expect(() => foundCampaign({ seed: SEED, unlockedArchetypes: ARCHETYPES, map: onAnotherSeed }))
+				.toThrow(`map must be generated on the campaign's params (seed ${SEED}), got one made on seed ${SEED + 1} or other params`);
+			expect(() => foundCampaign({ seed: SEED, unlockedArchetypes: ARCHETYPES, map: otherwise })).toThrow(RangeError);
+			expect(foundCampaign({ seed: SEED, unlockedArchetypes: ARCHETYPES, map: stubMap(params) }).mapParams).toEqual(params);
 		});
 
 		it('checks the start it\'s given', () => {

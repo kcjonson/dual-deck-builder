@@ -1,6 +1,7 @@
 import type { JsonObject } from '../../core/Json';
 import { Rng } from '../../core/Rng';
 import cardsFile from '../../data/cards.json';
+import { AREA_MAP_GENERATOR_VERSION } from '../../map/GeneratorVersion';
 import { resolveMapParams } from '../../map/MapParams';
 import { Convoy } from '../../mechanics/Convoy';
 import { createEscort } from '../../mechanics/Escort';
@@ -21,16 +22,18 @@ const STOPS = 300;
  * eight strongholds, 2,000 log lines, and a stand-in gameplay map at the
  * spec's sizes (polylines to a tenth of a world unit, POIs with approaches,
  * stops with their state, 64 by 64 land fog). It measures how big a save
- * gets, and how long one takes, until the map generator makes real maps.
+ * gets, and how long one takes, with the map's lines in it, as saves will
+ * hold them (DDB-436); today's saves keep only its attempts.
  */
 export function stressCampaign(): Campaign {
 	const seed = 4242;
 	const rng = new Rng({ seed }).fork('stress');
 	const campaign = new Campaign({
 		seed,
-		generatorVersion: 1,
+		generatorVersion: AREA_MAP_GENERATOR_VERSION,
 		mapParams: resolveMapParams({ seed, environment: 'rustBelt' }).params,
 		map: stressMap(rng.fork('map')),
+		mapAttempts: { map: 3, stages: { terrain: 0, water: 1, places: 0, roads: 2, routeTree: 0, pois: 5, stops: 7, dressing: 1 } },
 		resources: { food: 1240, water: 980, fuel: 312, meds: 87, scrap: 4310, people: 260 },
 		unrest: 12,
 		locker: Object.fromEntries(CARD_TYPES.map(type => [type, rng.int(1, 9)])),
@@ -82,5 +85,5 @@ function stressMap(rng: Rng): JsonObject {
 		rolls: rng.int(0, 9)
 	}));
 	const fog = Array.from({ length: 128 }, () => rng.next());
-	return { attempts: { map: 0, terrain: 0, dressing: 1 }, roads, pois, stops, fog };
+	return { roads, pois, stops, fog };
 }

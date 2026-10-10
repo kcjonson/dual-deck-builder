@@ -1,7 +1,7 @@
 import { Hazards, generateHazards } from './Hazards';
 import { highwayDepartures } from './Highways';
 import type { MapParams } from './MapParams';
-import { AcceptHook, MapPipeline, MapStage, PipelineResult, StageAttempt } from './MapPipeline';
+import { AcceptHook, MapPipeline, MapStage, PipelineReplay, PipelineResult, StageAttempt } from './MapPipeline';
 import { Places, checkPlaces, generatePlaces, ruinAt, ruinsOf } from './Places';
 import { checkPoiLayer } from './PoiChecks';
 import { PoiGround, PoiLayer, placePois } from './Pois';
@@ -156,6 +156,7 @@ export interface AreaMapPipelineOptions {
 	readonly pois?: PoisStageOptions;
 }
 
+/** Adding, removing, or renaming a stage here bumps `AREA_MAP_GENERATOR_VERSION` (GeneratorVersion.ts). */
 export function areaMapPipeline({ growth, pois }: AreaMapPipelineOptions = {}): MapPipeline<MapParams, AreaMapProducts> {
 	return new MapPipeline<MapParams>()
 		.stage(TERRAIN_STAGE)
@@ -180,6 +181,8 @@ export interface AreaMapOptions {
 	readonly onProgress?: (stage: StageAttempt<AreaMapStageName>) => void;
 	/** `__DEV_TOOLS__` when left out. */
 	readonly debug?: boolean;
+	/** Make again the map a run on these params made, from its map attempt and stage attempts, unchecked. */
+	readonly replay?: PipelineReplay;
 }
 
 /**
@@ -187,6 +190,6 @@ export interface AreaMapOptions {
  * worker runs this. Throws a MapPipelineError when every map attempt on the
  * seed fails; founding answers that with the next seed (map-pipeline-worker.md).
  */
-export function generateAreaMap({ params, growth, accept, onProgress, debug }: AreaMapOptions): AreaMapGeneration {
-	return { ...areaMapPipeline({ growth }).run({ seed: params.seed, input: params, accept, onProgress, debug }), params };
+export function generateAreaMap({ params, growth, accept, onProgress, debug, replay }: AreaMapOptions): AreaMapGeneration {
+	return { ...areaMapPipeline({ growth }).run({ seed: params.seed, input: params, accept, onProgress, debug, replay }), params };
 }

@@ -3,7 +3,7 @@ import { AreaMapGeneration, AreaMapStageName, generateAreaMap } from '../AreaMap
 import { Hazards } from '../Hazards';
 import { LandSurface, freezeSurface } from '../Land';
 import type { MapParams } from '../MapParams';
-import { MapPipelineError, StageAttempt, StageFailure } from '../MapPipeline';
+import { MapPipelineError, PipelineReplay, StageAttempt, StageFailure } from '../MapPipeline';
 import { Places, freezePlaces } from '../Places';
 import type { PoiLayer } from '../Pois';
 import type { GrowthStats } from '../RoadGrowth';
@@ -24,6 +24,8 @@ import { WaterSurface, waterFromSurface } from '../Water';
 export interface GenerateRequest {
 	/** Resolved and validated. */
 	readonly params: MapParams;
+	/** A saved map's attempts, to make that map again rather than a new one: what loading a campaign sends. */
+	readonly replay?: PipelineReplay;
 }
 
 export type WorkerReply =
@@ -146,8 +148,8 @@ export function decodeAreaMap({ surface, badlands, water, hotspots, places, grow
 }
 
 /** One request's generation, packed for the reply. */
-export function generateTransfer({ params, onProgress }: GenerateRequest & { onProgress?: (progress: StageAttempt<AreaMapStageName>) => void }): { map: AreaMapTransfer; buffers: ArrayBuffer[] } {
-	return encodeAreaMap(generateAreaMap({ params, onProgress }));
+export function generateTransfer({ params, replay, onProgress }: GenerateRequest & { onProgress?: (progress: StageAttempt<AreaMapStageName>) => void }): { map: AreaMapTransfer; buffers: ArrayBuffer[] } {
+	return encodeAreaMap(generateAreaMap({ params, replay, onProgress }));
 }
 
 /** A thrown error as a reply, keeping a pipeline failure's details. */

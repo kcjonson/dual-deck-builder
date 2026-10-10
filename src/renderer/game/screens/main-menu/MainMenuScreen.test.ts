@@ -13,6 +13,8 @@ import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
 import { tokens } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
+import { CampaignFounding, FoundingGeneration, StartGeneration } from '../../campaign/CampaignFounding';
+import { CampaignMapGeneration, CampaignMaps } from '../../campaign/CampaignMaps';
 import { CampaignStoreError } from '../../campaign/CampaignStore';
 import type { CampaignStore, SaveStatus } from '../../campaign/CampaignStore';
 import { MemorySaveStorage } from '../../campaign/SaveStorage';
@@ -31,13 +33,36 @@ import {
 	HeldStorage,
 	storeOver,
 } from '../../campaign/__fixtures__/storeFixtures';
+import { stubGeneration, stubResult } from '../../campaign/__fixtures__/mapFixtures';
+import type { AreaMapGeneration } from '../../map/AreaMapPipeline';
+import type { MapGenerationOptions } from '../../map/worker/MapGeneration';
 import { MainMenuScreen } from './MainMenuScreen';
 
 jest.mock('../../core/ScreenManager', () => ({
-	ScreenManager: { navigate: jest.fn() },
+	ScreenManager: { navigate: jest.fn(), transitioning: false },
 }));
 
 const navigate = ScreenManager.navigate as jest.Mock;
+/** The mock's fade: a test sets it to stand for a navigation still fading out. */
+const screens = ScreenManager as unknown as { transitioning: boolean };
+
+/** A founding generation the test releases, whose cancel comes too late to stop it, as a worker's reply already posted would. */
+function heldGeneration(): { generate: StartGeneration; release: () => void; cancels: () => number; started: Promise<void> } {
+	let release = (): void => undefined;
+	let cancels = 0;
+	let started = (): void => undefined;
+	const starting = new Promise<void>((resolve) => {
+		started = resolve;
+	});
+	const generate: StartGeneration = (options): FoundingGeneration => {
+		started();
+		const result = new Promise<ReturnType<typeof stubResult>>((resolve) => {
+			release = () => resolve(stubResult(options.params));
+		});
+		return { result, cancel: () => { cancels += 1; } };
+	};
+	return { generate, release: () => release(), cancels: () => cancels, started: starting };
+}
 
 const OPEN_MS = tokens.motion.dur + 32;
 const CLOSE_MS = tokens.motion.dur_fast + 32;
@@ -52,6 +77,11 @@ describe('MainMenuScreen', () => {
 	let screen: MainMenuScreen;
 	let store: CampaignStore;
 	let storage: FaultyStorage | MemorySaveStorage;
+	/** Founding's generations, stubbed unless a test holds them. */
+	let generate: StartGeneration;
+	/** The session's map cache, and the regenerations it asked for. */
+	let maps: CampaignMaps;
+	let regenerations: Pick<MapGenerationOptions, 'params' | 'replay'>[];
 
 	beforeAll(() => {
 		jest.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -65,7 +95,7 @@ describe('MainMenuScreen', () => {
 	async function open(over: FaultyStorage | MemorySaveStorage = new MemorySaveStorage()): Promise<void> {
 		storage = over;
 		store = storeOver(storage);
-		screen = new MainMenuScreen({ store });
+		screen = new MainMenuScreen({ store, maps, startFounding: (options) => new CampaignFounding({ ...options, generate: (each) => generate(each) }) });
 		screen.mount(context);
 		await screen.saveChecked;
 		context.frame.layout();
@@ -116,6 +146,15 @@ describe('MainMenuScreen', () => {
 
 	beforeEach(() => {
 		navigate.mockClear();
+		screens.transitioning = false;
+		generate = stubGeneration;
+		regenerations = [];
+		maps = new CampaignMaps({
+			generate: ({ params, replay }): CampaignMapGeneration => {
+				regenerations.push({ params, replay });
+				return { result: new Promise<AreaMapGeneration>(() => undefined), cancel: () => undefined };
+			},
+		});
 		viewport.logical = { width: 1280, height: 720 };
 		context = createTestContext({ viewport, clock: new Clock() });
 	});
@@ -146,6 +185,121 @@ describe('MainMenuScreen', () => {
 			expect(await store.checkpoint(campaign)).toBe('saved');
 			expect((await store.load())?.seed).toBe(campaign.seed);
 			expect(await store.history()).toEqual([]);
+			// The map founding made is the session's, so nothing makes it again.
+			expect(await maps.mapOf(campaign)).toEqual(stubResult(campaign.mapParams));
+			expect(regenerations).toEqual([]);
+		});
+
+		it('shows how far the map has got in the notice line while founding, then opens the compound', async () => {
+			const held: { options?: Parameters<StartGeneration>[0]; finish: () => void } = { finish: () => undefined };
+			generate = (options): FoundingGeneration => {
+				const result = new Promise<ReturnType<typeof stubResult>>((resolve) => {
+					held.finish = () => resolve(stubResult(options.params));
+				});
+				held.options = options;
+				return { result, cancel: () => undefined };
+			};
+			send(context, [key('Enter')]);
+			await flush();
+			const notice = find<Text>('main_menu_notice');
+			expect(notice.visible).toBe(true);
+			expect(notice.text).toBe('Founding the compound.');
+			const options = held.options as Parameters<StartGeneration>[0];
+			options.onProgress?.({ stage: 'places', index: 3, count: 7, attempt: 0, mapAttempt: 0, seed: options.params.seed });
+			expect(notice.text).toBe('Making the area map: places (4 of 7)');
+			// New Campaign again does nothing while one is being founded.
+			send(context, [key('Enter')]);
+			held.finish();
+			await flush();
+			expect(navigate.mock.calls.filter(([name]) => name === 'compoundScreen')).toHaveLength(1);
+			expect(openedCampaign().seed).toBe(options.params.seed);
+		});
+
+		it('cancels the founding when the player leaves the menu, saving and opening nothing', async () => {
+			const cancel = jest.fn();
+			let started = (): void => undefined;
+			const starting = new Promise<void>((resolve) => {
+				started = resolve;
+			});
+			generate = (options): FoundingGeneration => {
+				started();
+				const generation = stubGeneration(options);
+				return { result: generation.result, cancel: () => { cancel(); generation.cancel(); } };
+			};
+			const errors = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+			send(context, [key('Enter')]);
+			await starting;
+			screen.unmount();
+			await flush();
+			expect(cancel).toHaveBeenCalledTimes(1);
+			expect(await store.saveStatus()).toBe('none');
+			expect(navigate).not.toHaveBeenCalledWith('compoundScreen', expect.anything());
+			expect(errors).not.toHaveBeenCalled();
+			errors.mockRestore();
+			screen.mount(context);
+			await screen.saveChecked;
+		});
+
+		it('founds nothing when the player leaves as the map arrives: the worker stops at the click, and the screen asked for opens', async () => {
+			const held = heldGeneration();
+			generate = held.generate;
+			send(context, [key('Enter')]);
+			await held.started;
+			clickOn('main_menu_settings_button');
+			expect(held.cancels()).toBe(1);
+			// The menu is still mounted under the fade when the map comes in.
+			held.release();
+			await flush();
+			expect(storage.keys).toEqual([]);
+			expect(await store.saveStatus()).toBe('none');
+			expect(navigate.mock.calls.map(([name]) => name)).toEqual(['settingsScreen']);
+		});
+
+		it('founds nothing when the map arrives while another navigation is fading out', async () => {
+			const held = heldGeneration();
+			generate = held.generate;
+			send(context, [key('Enter')]);
+			await held.started;
+			screens.transitioning = true;
+			held.release();
+			await flush();
+			expect(storage.keys).toEqual([]);
+			expect(navigate).not.toHaveBeenCalled();
+		});
+
+		it('keeps the buttons where they are as the progress line fills in, measured in the real faces', async () => {
+			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
+			screen.unmount();
+			await open();
+			const held = heldGeneration();
+			generate = held.generate;
+			const continueTop = (): number => find<{ screenBounds: { y: number } }>('main_menu_continue_button').screenBounds.y;
+			const before = continueTop();
+			send(context, [key('Enter')]);
+			await held.started;
+			context.frame.layout();
+			expect(find<Text>('main_menu_notice').text).toBe('Founding the compound.');
+			expect(continueTop()).toBe(before);
+			held.release();
+			await flush();
+		});
+
+		it('keeps a failure too long for the notice line to that one line, measured in the real faces', async () => {
+			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
+			screen.unmount();
+			await open();
+			const notice = (): Text => find<Text>('main_menu_notice');
+			const continueTop = (): number => find<{ screenBounds: { y: number } }>('main_menu_continue_button').screenBounds.y;
+			const line = notice().height;
+			const before = continueTop();
+			const message = "The campaign couldn't be saved: it holds something a save couldn't load back, and storage is blocked as well.";
+			jest.spyOn(store, 'save').mockRejectedValue(new CampaignStoreError({ reason: 'unsavable', message, cause: new Error('too long') }));
+			send(context, [key('Enter')]);
+			await flush();
+			context.frame.layout();
+			expect(notice().text).toBe(message);
+			expect(notice().height).toBe(line);
+			expect(continueTop()).toBe(before);
 		});
 
 		it('moves through the enabled buttons with the arrows, wrapping, past the disabled Continue', () => {
@@ -225,6 +379,61 @@ describe('MainMenuScreen', () => {
 			expect(campaign.supplyRun?.phase).toBe('reward');
 			expect(navigate.mock.calls.some(([name]) => name === 'compoundScreen')).toBe(false);
 			expect(await store.checkpoint(campaign)).toBe('saved');
+		});
+
+		it('disables Continue while a new campaign is founded, and enables it again if the founding fails', async () => {
+			const held = heldGeneration();
+			let fail = (): void => undefined;
+			generate = (options): FoundingGeneration => {
+				const founding = held.generate(options);
+				const result = new Promise<ReturnType<typeof stubResult>>((_resolve, reject) => {
+					fail = () => reject(new TypeError('a stage bug'));
+				});
+				return { result, cancel: founding.cancel };
+			};
+			const errors = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+			send(context, [key('Enter')]);
+			await flush();
+			advance(context, OPEN_MS);
+			clickOn('main_menu_replace_confirm');
+			advance(context, CLOSE_MS);
+			await held.started;
+			expect(continueEnabled()).toBe(false);
+			clickOn('main_menu_continue_button');
+			expect(navigate).not.toHaveBeenCalled();
+			fail();
+			await flush();
+			await screen.saveChecked;
+			expect(continueEnabled()).toBe(true);
+			expect(continueLine()).toBe('Day 9 - 3 drivers - 1 stronghold taken');
+			expect(errors).toHaveBeenCalledTimes(1);
+			errors.mockRestore();
+		});
+
+		it('leaves a campaign in progress as it was when the player leaves while its replacement is founded', async () => {
+			const held = heldGeneration();
+			generate = held.generate;
+			const stored = async (): Promise<Record<string, string | null>> => Object.fromEntries(await Promise.all(storage.keys.map(async (each) => [each, await storage.getItem(each)])));
+			const before = await stored();
+			send(context, [key('Enter')]);
+			await flush();
+			advance(context, OPEN_MS);
+			clickOn('main_menu_replace_confirm');
+			advance(context, CLOSE_MS);
+			await held.started;
+			clickOn('main_menu_history_button');
+			held.release();
+			await flush();
+			expect(await stored()).toEqual(before);
+			expect(await store.history()).toEqual([]);
+			expect(navigate.mock.calls.map(([name]) => name)).toEqual(['campaignHistoryScreen']);
+		});
+
+		it('starts making the campaign\'s map again as it continues, from the attempts the save kept', () => {
+			clickOn('main_menu_continue_button');
+			// The fixture's run is on the road, so Continue opens the run screen.
+			const campaign = openedCampaign('runScreen');
+			expect(regenerations).toEqual([{ params: campaign.mapParams, replay: { mapAttempt: campaign.mapAttempts?.map, attempts: campaign.mapAttempts?.stages } }]);
 		});
 
 		it('asks before abandoning it, and Cancel or Escape keeps it, focus back on New Campaign', async () => {

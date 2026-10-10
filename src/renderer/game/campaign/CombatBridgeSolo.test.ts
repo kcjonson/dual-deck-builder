@@ -11,7 +11,7 @@ import { Campaign, NO_RESOURCES } from './Campaign';
 import { NO_CARDS, addCards, startingDeckCounts } from './CardCounts';
 import { CampaignFight, FailedRun, FightWriteBack, LIMP_STRUCTURE, RunParty, WonFight, startCampaignFight, writeBackFight } from './CombatBridge';
 import { DriverRecord } from './DriverRecord';
-import { foundCampaign } from './Founding';
+import { foundTestCampaign } from './__fixtures__/mapFixtures';
 import { RunDeck } from './RunDeck';
 
 /**
@@ -69,7 +69,7 @@ function raider(card: () => Card): Vehicle {
 
 /** A compound founded with only the Road Warrior and the Interceptor unlocked; the Road Warrior is gone, and the Interceptor is the last driver. */
 function lastDriver(): { campaign: Campaign; interceptor: DriverRecord } {
-	const campaign = foundCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
+	const campaign = foundTestCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
 	const interceptor = campaign.drivers.find(driver => driver.archetype === 'interceptor');
 	const warrior = campaign.drivers.find(driver => driver.archetype === 'road_warrior');
 	if (!interceptor || !warrior) throw new Error('founding should have dealt one of each');
@@ -174,7 +174,7 @@ describe('the combat bridge with one seat', () => {
 	});
 
 	it('refuses a party of one on a run of two, which could win fights the run\'s end would never take', () => {
-		const campaign = foundCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
+		const campaign = foundTestCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
 		const [warrior, interceptor] = (['road_warrior', 'interceptor'] as const).map(archetype => {
 			const record = campaign.drivers.find(driver => driver.archetype === archetype);
 			if (!record) throw new Error(`founding should have dealt a ${archetype}`);

@@ -1,6 +1,6 @@
 # The map pipeline runner and its worker (DDB-446)
 
-Date: 2026-10-09. Code: `src/renderer/game/map/MapPipeline.ts` (the runner), `AreaMapPipeline.ts` (the stages), and `map/worker/` (the worker, its client, the transfer format, and the dev hook). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, Validation and retries, Performance, and Saving. Follows [realistic-map.md](./realistic-map.md), decision 5, and builds on [seeded-prng.md](./seeded-prng.md), [map-params.md](./map-params.md), and [campaign-founding.md](./campaign-founding.md).
+Date: 2026-10-09, revised 2026-10-10 for founding and loading (DDB-467). Code: `src/renderer/game/map/MapPipeline.ts` (the runner), `AreaMapPipeline.ts` (the stages), `map/worker/` (the worker, its client, the transfer format, and the dev hook), and `campaign/CampaignFounding.ts` and `campaign/CampaignMaps.ts` (founding on a generated map, and the session's map). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, Validation and retries, Performance, and Saving. Follows [realistic-map.md](./realistic-map.md), decision 5, and builds on [seeded-prng.md](./seeded-prng.md), [map-params.md](./map-params.md), and [campaign-founding.md](./campaign-founding.md).
 
 ## Context
 
@@ -36,6 +36,7 @@ A stage has a name, `run({ input, products, rng })`, an optional `check(product,
 - A local-retry stage reruns alone and never restarts the map. Past its cap a debug build throws and a release build warns and keeps its best attempt, the one with the fewest problems, the earliest on a tie. Later stages nest in the kept attempt's stream, and the result's `keptFailing` names the stage. Because problems are counted to rank attempts, a local-retry stage's checks report every problem, never stopping at a limit.
 - Past the map cap the run throws a `MapPipelineError` with `exhausted: 'map'` and the last failure, in every build. The runner never changes seed. Params roll from the seed, and the pool is dealt from it, so a map on another seed needs both done again, which is founding's to do (below).
 - Debug is `__DEV_TOOLS__`, the DefinePlugin constant every other dev-only path reads, unless the caller passes `debug`. Node scripts pass it, since nothing defines the constant there.
+- A run can replay a map instead of generating one, given its map attempt and each stage's winning attempt (`replay`). Each stage runs once, on the stream that attempt had, and nothing is checked, since those attempts passed; the result has no failures. Attempts that don't fit the pipeline, a stage's missing or one for a stage it doesn't have, or one past a stage's attempts, are a RangeError before anything runs. It's how a load makes a saved campaign's map again (below).
 - The result holds the products, the map attempt, each stage's winning attempt and winning stream (as its seed), per-stage timings (runs, milliseconds in runs, and milliseconds in checks and the hook), every failed attempt with its problems, and the whole run's milliseconds. Progress is reported as each attempt starts, with the stage, its index and the count, the attempt, the map attempt, and the seed. The accept hook and progress see stage names typed as the pipeline's own.
 
 A stage list typed loosely, every stage seeing `Partial<Products>`, was simpler but put a non-null assertion on every upstream read. The builder costs one generic type and catches a stage placed before what it reads, or escalating to one after it.
@@ -91,7 +92,7 @@ The client starts a worker wherever `Worker` exists. It generates in-process ins
 
 ### Showing it
 
-Development builds have `window.__map.generate(set?, { inProcess? })`, installed from Game's `__DEV_TOOLS__` branch beside the other debug hooks. It makes the map in a worker (or on the page's thread, for comparison), logs one line of where the time went, and resolves with the same numbers for a script to read; `__map.start(set?)` hands back the `MapGeneration` itself, to watch or cancel. With no map section on the Developer screen, a hook leaves `sections.ts` untouched. A production bundle never carries the hook, and carries the worker chunk only once production code imports the client.
+Development builds have `window.__map.generate(set?, { inProcess? })`, installed from Game's `__DEV_TOOLS__` branch beside the other debug hooks. It makes the map in a worker (or on the page's thread, for comparison), logs one line of where the time went, and resolves with the same numbers for a script to read; `__map.start(set?)` hands back the `MapGeneration` itself, to watch or cancel. With no map section on the Developer screen, a hook leaves `sections.ts` untouched. A production bundle never carries the hook. It carries the worker chunk, since founding imports the client, and the packaged-build smoke test (`scripts/smoke-electron-package.mjs`, which CI runs on Windows and macOS) starts that chunk from inside the asar, the one path no development run covers: a reply, even to a request it can't use, means the chunk and the chunks it shares with the page loaded.
 
 ## Timings
 
@@ -111,20 +112,36 @@ Electron against the development dev server, the build the screenshot harness ru
 
 ## What a save needs from it
 
-Because streams nest, a stage's stream depends on every winning attempt above it, not on the map attempt alone. The land is rebuilt on load from terrain's stream, which needs the map attempt and terrain's attempt, and dressing, the last stage, from a stream nested under every stage before it. So the save (Map 18) keeps the map attempt and every stage's winning attempt, a dozen small integers, which the result carries; a load rebuilds any stage's stream from them. The spec's Saving section says the same.
+Because streams nest, a stage's stream depends on every winning attempt above it, not on the map attempt alone. The land is rebuilt on load from terrain's stream, which needs the map attempt and terrain's attempt, and dressing, the last stage, from a stream nested under every stage before it. So a campaign keeps the map attempt and every stage's winning attempt, `mapAttempts`, a dozen small integers fixed at founding beside the seed and the params; a load rebuilds any stage's stream from them. The spec's Saving section says the same.
+
+Until saves keep the map's lines (DDB-436), a load rebuilds every stage, not just the land (Making a saved map again, below). A save names the stages in `mapAttempts.stages`, so adding, removing, or renaming a stage bumps `AREA_MAP_GENERATOR_VERSION` (`map/GeneratorVersion.ts`, a module of its own so the store reads it without loading the pipeline), and a test pins the list to it. The save format version stays where it is: the campaign store reads a save whose map another generator version made as outdated, as it does one of another format version.
 
 ## The founding contract
 
-Founding starts generation and takes the next seed past the map cap; the runner does neither. `foundCampaign` is synchronous and holds the generator's slot where it reads `MAP_STAND_IN`, and its caller, `MainMenuScreen.startCampaign`, is async, so the generation goes between them:
+Founding starts generation and takes the next seed past the map cap; the runner does neither. `foundCampaign` stays synchronous and takes the generated map, and `CampaignFounding` is the async half round it, which the main menu's New Campaign runs:
 
-- Behind the founding screen, `startCampaign` resolves the founding params and the deal for the seed, starts `new MapGeneration({ params, onProgress })`, shows progress, awaits `result`, and cancels it if the player leaves.
-- On a `MapPipelineError` with `exhausted: 'map'`, a release build logs and starts over from `seed + 1` (wrapped to uint32): params rolled from that seed, the pool dealt from it, and the map generated from it, up to 4 seeds, then the error stands. A debug build rethrows at once. Params given rather than rolled (the Map Lab's) never move seed, since they're tied to the seed they were made on, and the Map Lab is a debug tool.
-- `foundCampaign` takes the generated map in place of `MAP_STAND_IN` and keeps what the save needs: the map, the map attempt, and the stage attempts, on the seed the campaign records, so its history reproduces it.
-- The founding hookup smoke-tests a packaged build, as `scripts/smoke-electron-package.mjs` does for the fonts: the worker chunk loading from inside the asar is the one path no development run covers.
+- `prepareFounding` runs founding's checks and resolves the params for the seed, rolled or given, so a bad call fails before a generation is spent on it. Then it starts `new MapGeneration({ params, onProgress })` and awaits `result`. The menu shows the progress in its notice line above New Campaign ("Making the area map: water (2 of 7)"). Leaving through any of the menu's buttons cancels the founding at the click, which terminates the worker and saves nothing, and a map that arrives while a navigation is fading out founds nothing either, since the menu unmounts only once the fade ends.
+- On a `MapPipelineError` with `exhausted: 'map'`, a release build logs and starts over from `seed + 1` (wrapped to uint32): params rolled from that seed, the pool dealt from it, and the map generated from it, up to 4 seeds, then the last error stands. A debug build rethrows at once. Params given rather than rolled (the Map Lab's) never move seed in any build, since they're tied to the seed they were made on. Any other error, a local-retry stage's in a debug build included, stands at once.
+- `foundCampaign({ ..., map })` takes the result as a `FoundingMap`, its params, map attempt, and stage attempts, refuses one generated on params other than the campaign's, and keeps the attempts as `mapAttempts`, at `AREA_MAP_GENERATOR_VERSION`, on the seed the campaign records, so its history reproduces it ([campaign-founding.md](./campaign-founding.md)).
+- The menu saves the campaign, then hands the map to the session's cache (`CampaignMaps.remember`), so the session never makes it again.
+
+## Making a saved map again
+
+A load makes the map again from the campaign's seed, params, and `mapAttempts`, in the worker: `MapGeneration` takes the attempts as `replay`, which crosses to the worker in the request, and the runner replays them. The same campaign always makes the same map, the same road network and land bit for bit, which a test holds by founding a campaign, saving and loading it through the store, and comparing the two maps' hashes. Nothing is checked on the way, so a check that tightens later (the validator's accept hook, say) never moves a saved map; a stage that makes something else from the same stream does.
+
+`CampaignMaps` holds the session's map, one campaign's at a time, and is how screens get it:
+
+- `remember(campaign, map)`: founding's map.
+- `prepare(campaign)`: starts making it and waits for nothing. Continue calls it.
+- `mapOf(campaign, { onProgress, signal })`, or `getAreaMap(campaign, { onProgress, signal })` on the shared cache: the map, whether it's kept, being made, or made now, with progress while it's being made. The area map screen (DDB-43) and the run loop's routes read it here, and abort the signal when they unmount: that caller hears no more progress and its promise rejects with an AbortError, while the map goes on being made for anyone else waiting and is kept.
+
+The map is keyed by the generator version, the seed, the params, and the attempts, so any instance of a campaign, the one founding made or one a later load made, gets the same map. Asking for another campaign's drops the one kept, cancelling it if it's still being made. A failure isn't kept, so asking again tries again. A campaign with no map attempts (one built without a map, as tests build them), or one recorded at another `AREA_MAP_GENERATOR_VERSION` ("this save's map is from an older build"), is refused without generating; the store already reads the second kind of save as outdated, so only a campaign that never went through it gets that far. Attempts that don't fit the pipeline are refused by the runner, in the worker.
+
+Making the map takes as long as founding it did, less any failed attempts: the same stages, once each. A screen that needs it shows the progress the same way the menu does (`mapProgressText`).
 
 ## Provisional calls
 
-Calls the spec left open, made the simplest way consistent with it:
+Calls the spec left open, made the simplest way consistent with it (founding's and loading's are in [campaign-founding.md](./campaign-founding.md) and [campaign-save-and-load.md](./campaign-save-and-load.md)):
 
 1. Founding tries 4 seeds past the map cap, the one it was given and the three after it, before the error stands.
 2. A local-retry stage that runs out keeps the attempt with the fewest problems, the earliest on a tie.
