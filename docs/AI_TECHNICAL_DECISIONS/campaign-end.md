@@ -1,6 +1,6 @@
 # The campaign's end: death, missing drivers, and the compound falling (DDB-305)
 
-Date: 2026-10-09. Code: `src/renderer/game/campaign/CampaignEnd.ts`, with the end itself in `Campaign.ts` (`end`, `tally`, `foundOnRun`, `loseRun`, `unloadRun`, `findMissingDriver`), `DayClock.ts` (`endDay`), `DriverRecord.ts`, `Seating.ts`, `Infirmary.ts`, `Scavenging.ts`, `CampaignStore.ts` (`checkpoint`, `save`, `end`), and `core/ClosedModels.ts`, and the thresholds in `src/renderer/game/data/compound-rules.json`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (The driver pool, A failed run, Stops) and [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 6.3. Builds on [combat-bridge.md](./combat-bridge.md), [run-decks.md](./run-decks.md), [day-clock.md](./day-clock.md), [injuries.md](./injuries.md), and [campaign-save-and-load.md](./campaign-save-and-load.md).
+Date: 2026-10-09. Code: `src/renderer/game/campaign/CampaignEnd.ts`, with the end itself in `Campaign.ts` (`end`, `tally`, `foundOnRun`, `loseRun`, `unloadRun`, `findMissingDriver`), `DayClock.ts` (`endDay`), `DriverRecord.ts`, `Seating.ts`, `Infirmary.ts`, `Scavenging.ts`, `CampaignStore.ts` (`checkpoint`, `save`, `end`), `core/ClosedModels.ts`, and `screens/defeat/DefeatScreen.ts` with `defeatText.ts`, and the thresholds in `src/renderer/game/data/compound-rules.json`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (The driver pool, A failed run, Stops) and [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 6.3. Builds on [combat-bridge.md](./combat-bridge.md), [run-decks.md](./run-decks.md), [day-clock.md](./day-clock.md), [injuries.md](./injuries.md), and [campaign-save-and-load.md](./campaign-save-and-load.md).
 
 ## Context
 
@@ -73,6 +73,21 @@ The history entry is unchanged (`seed`, `day`, `strongholdsTaken`, `ending`). Th
 
 Considered: keeping the lost campaign as the save until the defeat screen closes. Continue would then offer a campaign that can't be played, and a quit on the defeat screen would leave the history without its line. The defeat screen gets the campaign from the step that lost it.
 
+## The defeat screen
+
+`DefeatScreen` (Game Flow 6.3) is where a lost campaign goes once its end is saved: the compound hands it the campaign after the checkpoint that ends it in the store lands ([compound-screen.md](./compound-screen.md)). It shows, in order:
+
+- the day it fell on ("Fell on day 12");
+- how the compound fell, as its title ("The compound starved", "rioted", "disbanded");
+- why, the Cause of Defeat: what lost the campaign (no drivers left at the compound, or no People), then the state that chose the ending;
+- the campaign's record, from `campaignStats`: days held, supply runs home and failed, fights won and lost, drivers killed and missing, and strongholds taken, then what the compound held at the end (People, food, water, unrest), which is what the ending was read from.
+
+Back to menu is the only control, so focus starts there, and Escape does the same. Both go to the menu with focus restored: the button that opened the compound was Continue or New Campaign, and Continue, with nothing left to continue, hands focus to New Campaign. The menu's Campaign History already lists the fall.
+
+Opened with nothing handed over, as a capture or the dev navigate hook does, it loads the save. A campaign already over is shown and checkpointed, which ends it in the store as the compound would, and a checkpoint that fails says so under the record; anything else shows that there's no fall to show.
+
+The rest of 6.3 isn't in the campaign, so the screen leaves it out: the last run's final moments and the compound's art, the last fight's damage and turns (the fight's own, gone by the time the campaign is lost), a critical moment ("Only one driver left for 20 days" needs a history the campaign doesn't keep), the explored percentage (the map's fog, DDB-275), and unlocks, resources contributed, and new knowledge, which don't exist yet.
+
 ## The defeat screen's numbers
 
 `campaignStats({ campaign })` returns days held, runs (home and failed), fights won and lost, drivers dead and missing, and strongholds taken. Most of it is derived: the day, the pool's statuses, the strongholds taken, and fights lost, since a run fails in the one fight it loses and only then. The rest needed counters, kept in `Campaign.tally`, each only going up:
@@ -83,7 +98,6 @@ Considered: keeping the lost campaign as the save until the defeat screen closes
 
 A load refuses a tally that counts more runs ended than run ids handed out, less the run out.
 
-The rest of 6.3 isn't in the campaign. The last fight's damage and turns are the fight's, the explored percentage waits for the map's fog (DDB-275), and unlocks don't exist yet.
 
 ## Provisional calls
 
@@ -102,9 +116,18 @@ Made here, each a line or a value to change:
 - A found driver comes home injured for the HP they're missing, as a seat coming home hurt is, and keeps the armor the crash left.
 - The fall writes one log line, dated the day it fell.
 
+On the defeat screen (UI calls, each a line to change):
+
+- It's text on the screen's background, with no illustration of the last run or the compound until there's art.
+- The title is the fall ("The compound rioted"), and the line under it pairs the cause with the ending: "No drivers were left at the compound to send out. Unrest boiled over, and the last of them fought over what was left."
+- The record's last row, "At the end", shows People, food, water, and unrest, standing in for 6.3's critical moment with the state the ending was read from.
+- Back to menu is the only way on; there's no New Campaign or Campaign History shortcut on the screen.
+- A lost campaign the store refuses with no reason still goes to the defeat screen; a standing one says nothing more is saved here.
+
 ## Consequences
 
-- The compound screen decides the fall from `campaign.isOver`, after the checkpoint that ends it in the store; the day end's old `outcome` is gone. The defeat screen replaces the screen's fallen notice, and reads `campaign.end` and `campaignStats`.
+- The compound screen decides the fall from `campaign.isOver`, after the checkpoint that ends it in the store, and goes to the defeat screen; the day end's old `outcome` is gone.
+- The run controller (DDB-322) goes to the defeat screen the same way when `loseRun` ends the campaign, handing it the campaign once its checkpoint lands.
 - The run controller (DDB-322) calls `loseRun`, then `endDay` unless the campaign is over, then checkpoints, which ends a lost campaign in the store. Its debrief names who `unloadRun` brought home in `found`.
 - The Find: driver stop (DDB-279) calls `findMissingDriver` for a missing driver it turns up.
 - The screens word `campaign_over` as "Campaign over" under a card (`cardBlockerReason`); any later screen that words a blocker takes it too.
