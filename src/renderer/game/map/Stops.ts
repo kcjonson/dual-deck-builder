@@ -369,18 +369,18 @@ class StopPlacer {
 	}
 
 	/**
-	 * Adds a Find: driver stop on a leg in these tiers, but those in `avoid`:
-	 * in the gap between stops (or a stop and the clearance at a leg's end)
-	 * where it can stand furthest from both sides, clear of junctions, as near
-	 * the gap's middle as junctions let it. False when no gap has room.
+	 * Adds a Find: driver stop on a leg in these tiers that `allowed` lets it
+	 * onto: in the gap between stops (or a stop and the clearance at a leg's
+	 * end) where it can stand furthest from both sides, clear of junctions, as
+	 * near the gap's middle as junctions let it. False when no gap has room.
 	 */
-	private addFind(tierHolds: (tier: number) => boolean, avoid: ReadonlySet<number> = new Set()): boolean {
+	private addFind(tierHolds: (tier: number) => boolean, allowed: (leg: number) => boolean = () => true): boolean {
 		const { clearance } = this.tuning;
 		let bestLeg = -1;
 		let bestAlong = 0;
 		let widest = 0;
 		this.layer.legs.forEach(({ length }, leg) => {
-			if (!tierHolds(this.tiers[leg]) || length <= 0 || avoid.has(leg)) return;
+			if (!tierHolds(this.tiers[leg]) || length <= 0 || !allowed(leg)) return;
 			const ends = clearance.ends < 0.25 * length ? clearance.ends : 0.25 * length;
 			const marks = [ends, ...this.placed[leg].map(({ along }) => along), length - ends];
 			for (let index = 1; index < marks.length; index += 1) {
@@ -451,7 +451,9 @@ class StopPlacer {
 	 * first, and a Find: driver last. A fight or checkpoint can always go;
 	 * any other stop only where every route through its leg keeps the rules
 	 * without it. A Find: driver the floor or its tier's rate still needs
-	 * moves to the widest gap on a leg of its tiers off this route.
+	 * moves to the widest gap on a leg of its tiers off this route, and only
+	 * onto a leg where its half hour tips no POI that's home by dark past it,
+	 * so two POIs can't hand one find back and forth.
 	 */
 	private thin(route: Route): boolean {
 		const { types } = this.tuning;
@@ -471,7 +473,8 @@ class StopPlacer {
 				const tier = this.tiers[leg];
 				const { floorTiers } = this.tuning.driverFinds;
 				const sameTiers = tier <= floorTiers ? (legTier: number) => legTier <= floorTiers : (legTier: number) => legTier === tier;
-				if (!this.addFind(sameTiers, onRoute)) {
+				const hours = this.tuning.types.findDriver.hours;
+				if (!this.addFind(sameTiers, (other) => !onRoute.has(other) && this.roomFor(other, hours))) {
 					this.placed[leg].splice(index, 0, stop);
 					continue;
 				}
@@ -480,6 +483,22 @@ class StopPlacer {
 			return true;
 		}
 		return false;
+	}
+
+	/**
+	 * Whether a leg can take `extra` hours of stops without tipping past dark
+	 * any POI in tiers 1 to 3 whose routes use it and that's home by dark now.
+	 */
+	private roomFor(leg: number, extra: number): boolean {
+		const { daylightHours } = this.params;
+		const pois = new Set(this.routesOn[leg].map(({ poi }) => poi));
+		for (const poi of pois) {
+			if (this.layer.pois[poi].tier > DAYLIGHT_TIERS) continue;
+			const estimates = this.routes[poi].map((route) => ({ hours: this.estimate(poi, route), through: route.legs.includes(leg) }));
+			if (!estimates.some(({ hours }) => hours <= daylightHours)) continue;
+			if (!estimates.some(({ hours, through }) => hours + (through ? extra : 0) <= daylightHours)) return false;
+		}
+		return true;
 	}
 
 	/** Whether the Find: driver floor holds, and the rate for this tier. */
