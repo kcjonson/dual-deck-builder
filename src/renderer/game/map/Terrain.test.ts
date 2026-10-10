@@ -424,11 +424,13 @@ describe('generateTerrain', () => {
 			expect(checked).toBeGreaterThan(200);
 		});
 
-		it('marks open squares: none with a rough corner, none past the rim, and all of the metro', () => {
+		it('marks open squares: no cliff anywhere in one, none past the rim, all of the metro, and rough country that stops short of cliff', () => {
 			const terrain = terrainFor({ seed: 2, environment: 'badlands', radius: 800 });
 			const { grid } = terrain.surface;
 			const squares = grid.size - 1;
 			let open = 0;
+			let rough = 0;
+			let cliffs = 0;
 			for (let row = 0; row < squares; row += 1) {
 				for (let column = 0; column < squares; column += 1) {
 					const left = cellCentre(grid, column);
@@ -438,13 +440,19 @@ describe('generateTerrain', () => {
 					if (terrain.openSquares[row * squares + column] === 1) {
 						open += 1;
 						corners.forEach(([x, y]) => expect(terrain.contains(x, y)).toBe(true));
-						expect(terrain.rough(middle[0], middle[1])).toBe(false);
-						expect(terrain.cliffDepth(middle[0], middle[1])).toBeLessThan(0);
+						if (terrain.rough(middle[0], middle[1])) rough += 1;
+						for (let u = 0; u <= 4; u += 1) {
+							for (let v = 0; v <= 4; v += 1) {
+								if (terrain.obstacle(left + grid.cellSize * u / 4, bottom + grid.cellSize * v / 4) === 'cliff') cliffs += 1;
+							}
+						}
 					} else if (Math.hypot(middle[0], middle[1]) < terrain.metro.radius) {
 						throw new Error(`square ${row}, ${column} in the metro isn't open`);
 					}
 				}
 			}
+			expect(cliffs).toBe(0);
+			expect(rough).toBeGreaterThan(100);
 			expect(open).toBeGreaterThan(squares * squares / 3);
 		});
 	});

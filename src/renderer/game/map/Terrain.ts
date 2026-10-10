@@ -238,9 +238,9 @@ export class TerrainFields {
 	public readonly wetness: number;
 	/**
 	 * Per square between cell centres, row by row from the square whose
-	 * lower-left corner is cell 0's centre: 1 where none of its four corners
-	 * is rough, so no point in it is and no cliff stands there, and it lies
-	 * wholly inside the disc. Read-only by contract.
+	 * lower-left corner is cell 0's centre: 1 where no cliff stands in it, its
+	 * four corners all under the rough threshold or all under the cliff
+	 * threshold, and it lies wholly inside the disc. Read-only by contract.
 	 */
 	public readonly openSquares: Uint8Array;
 
@@ -313,12 +313,12 @@ export class TerrainFields {
 		const roughThreshold = quantileAbove(landValues({ surface, radius, reliefRadius, values: roughness, ranges: true }), lerp(ROUGHNESS.share, params.ruggedness));
 		// Ground with no grade at all is never rough, which only a map flatter than any erosion makes would need.
 		this.roughThreshold = roughThreshold > 0 ? roughThreshold : Infinity;
-		this.openSquares = this.openSquaresOf(roughness);
 		this.steepGrid = new GridSampler({ grid, values: steepness });
 		const roughSteepness = new Float64Array(cells);
 		for (let cell = 0; cell < cells; cell += 1) if (roughness[cell] >= this.roughThreshold) roughSteepness[cell] = steepness[cell];
 		const cliffThreshold = positiveQuantile(landValues({ surface, radius, reliefRadius, values: roughSteepness, ranges: true }), CLIFFS.share * params.ruggedness * params.ruggedness);
 		this.cliffThreshold = cliffThreshold > CLIFFS.least ? cliffThreshold : CLIFFS.least;
+		this.openSquares = this.openSquaresOf(roughness, steepness);
 
 		if (badlands !== undefined && badlands.length !== cells) throw new RangeError(`TerrainFields: the badlands hold ${badlands.length} values, not the grid's ${cells}`);
 		const badlandsShare = BADLANDS.share * params.ruggedness * (0.3 + 0.7 * params.contamination);
@@ -567,17 +567,19 @@ export class TerrainFields {
 	}
 
 	/**
-	 * Per square between cell centres, 1 where its four corners are all under
-	 * the rough threshold, so no point in it is rough and no cliff stands
-	 * there, and it lies wholly inside the disc: what a flood fill from the
-	 * metro crosses to prove ground reachable (Places.ts adds the craters and
-	 * lakes).
+	 * Per square between cell centres, 1 where no cliff stands in it, and it
+	 * lies wholly inside the disc: what a flood fill from the metro crosses to
+	 * prove ground reachable (Places.ts adds the craters and lakes). A cliff is
+	 * rough and steep at once, each read bilinear, which can't pass the
+	 * largest of its four corners, so a square whose corners are all under the
+	 * rough threshold, or all under the cliff threshold, holds no cliff.
 	 */
-	private openSquaresOf(roughness: Float64Array): Uint8Array {
+	private openSquaresOf(roughness: Float64Array, steepness: Float64Array): Uint8Array {
 		const { grid } = this.surface;
 		const size = grid.size;
 		const squares = size - 1;
-		const threshold = this.roughThreshold;
+		const rough = this.roughThreshold;
+		const steep = this.cliffThreshold;
 		const radiusSquared = this.radius * this.radius;
 		const open = new Uint8Array(squares * squares);
 		for (let row = 0; row < squares; row += 1) {
@@ -585,7 +587,9 @@ export class TerrainFields {
 			const top = cellCentre(grid, row + 1);
 			for (let column = 0; column < squares; column += 1) {
 				const corner = row * size + column;
-				if (!(roughness[corner] < threshold && roughness[corner + 1] < threshold && roughness[corner + size] < threshold && roughness[corner + size + 1] < threshold)) continue;
+				const smooth = roughness[corner] < rough && roughness[corner + 1] < rough && roughness[corner + size] < rough && roughness[corner + size + 1] < rough;
+				const gentle = steepness[corner] < steep && steepness[corner + 1] < steep && steepness[corner + size] < steep && steepness[corner + size + 1] < steep;
+				if (!smooth && !gentle) continue;
 				const left = cellCentre(grid, column);
 				const right = cellCentre(grid, column + 1);
 				// The disc is convex, so the square is inside it when its farthest corner is.
@@ -707,11 +711,11 @@ export class Terrain {
 
 	/**
 	 * Per square between land cell centres, row by row from the square whose
-	 * lower-left corner is cell 0's centre: 1 where no point in it is rough, so
-	 * no cliff stands there, and it lies wholly inside the disc. A flood fill
-	 * over these from the metro, less the squares craters and lakes reach
-	 * into, is exact: whatever it reaches, a road from the metro can, bridging
-	 * rivers. Read-only by contract.
+	 * lower-left corner is cell 0's centre: 1 where no cliff stands in it and
+	 * it lies wholly inside the disc. A flood fill over these from the metro,
+	 * less the squares craters and lakes reach into, is exact: whatever it
+	 * reaches, a road from the metro can, bridging rivers. Read-only by
+	 * contract.
 	 */
 	public get openSquares(): Uint8Array {
 		return this.land.openSquares;

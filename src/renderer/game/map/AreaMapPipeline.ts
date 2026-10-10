@@ -2,7 +2,7 @@ import { Hazards, generateHazards } from './Hazards';
 import { highwayDepartures } from './Highways';
 import type { MapParams } from './MapParams';
 import { AcceptHook, MapPipeline, MapStage, PipelineResult, StageAttempt } from './MapPipeline';
-import { Places, generatePlaces, ruinAt, ruinsOf } from './Places';
+import { Places, checkPlaces, generatePlaces, ruinAt, ruinsOf } from './Places';
 import { checkPoiLayer } from './PoiChecks';
 import { PoiGround, PoiLayer, placePois } from './Pois';
 import { checkRoadNetwork } from './RoadChecks';
@@ -58,10 +58,15 @@ export const HAZARDS_STAGE: MapStage<MapParams, Pick<AreaMapProducts, 'water'>, 
 	run: ({ input, products, rng }) => generateHazards({ params: input, terrain: products.water.terrain, rng }),
 };
 
-/** Stage 4, settlements, crossroads, and exits. */
+/**
+ * Stage 4, settlements, crossroads, and exits, checked that a road from the
+ * metro surely reaches every one, so an exit with no reachable ground near any
+ * turn of its bearings reruns the stage on a fresh draw of them.
+ */
 export const PLACES_STAGE: MapStage<MapParams, Pick<AreaMapProducts, 'water' | 'hazards'>, 'places', Places> = {
 	name: 'places',
 	run: ({ input, products, rng }) => generatePlaces({ params: input, terrain: products.hazards.terrain, water: products.water, rng }),
+	check: (places, { products }) => checkPlaces({ places, terrain: products.hazards.terrain, water: products.water }),
 };
 
 /**

@@ -25,9 +25,11 @@ Two things followed from taking hotspots out of the terrain stage:
 
 ## Where a road surely reaches
 
-The terrain keeps `openSquares`: per square between land cell centres, whether its four corners are all under the rough threshold, so no point in it is rough and no cliff stands there, and whether it lies wholly inside the disc. The places stage floods from the metro over those squares, less any a crater reaches into and any with a lake cell at a corner. A lake's shore lies between its cells and their dry neighbours, so a square with four dry corners holds no lake; rivers don't stop the fill, since roads bridge them. That's the old towns' exact flood fill with lakes added and craters moved, and its cost is a pass over the squares, a millisecond or two.
+The terrain keeps `openSquares`: per square between land cell centres, whether no cliff stands in it and it lies wholly inside the disc. A cliff is rough and steep at once, each read bilinear, which can't pass the largest of a square's four corners, so a square whose corners are all under the rough threshold, or all under the cliff threshold, holds no cliff. The places stage floods from the metro over those squares, less any a crater reaches into and any with a lake cell at a corner. A lake's shore lies between its cells and their dry neighbours, so a square with four dry corners holds no lake; rivers don't stop the fill, since roads bridge them. The fill is exact for cliffs, craters, and lakes, and costs a pass over the squares, a millisecond or two.
 
-A cell is usable when the four squares round its centre are reached, its centre keeps 4 units off any river's water (`Water.nearRiver`, exact: the river index scans the buckets within reach), and it's outside the ranges' heart (a range mask under 0.5). Towns, villages, and crossroads stand only on usable cells, at their centres, so every one is reachable from the metro, across rivers by bridges, and a 4-unit flood fill over the impassable ground, rivers aside, reaches all of them on every map the tests build.
+The old towns' fill kept off every square with a rough corner, which walls off far more than the cliffs do: rough country is a tenth to a third of the land past the relief radius, cliffs a few percent. Run that way, the fill missed stretches of the rim a road can get to, and exits held to it needed a retry on a quarter of campaign maps.
+
+A cell is usable when the four squares round its centre are reached, its centre keeps 4 units off any river's water (`Water.nearRiver`, exact: the river index scans the buckets within reach) and off rough country, and it's outside the ranges' heart (a range mask under 0.5). Towns, villages, and crossroads stand only on usable cells, at their centres, and exits on reached squares (below), so every place is reachable from the metro, across rivers by bridges.
 
 ## Suitability
 
@@ -48,17 +50,23 @@ Taken best first, ties by cell index, each kept when it's its kind's spacing fro
 
 Where the land has no room, fewer are placed: the old placement's fallback walk, which put a town anywhere a road reached once the good ground ran out, is gone, since the spec rules out the ranges' heart. At the tuning range's most mountainous corner, coverage 1 at radius 600, no town fits; across the campaign ranges every map gets all it asks for (`road-growth.mjs places`, below).
 
-Names come from a first part and an ending, 35 by 22 (Ashford, Cold Springs), none repeated on a map. Placeholder words until the atlas or a writer gives regions their own.
+Names come from a first part and an ending, 35 by 22 (Ashford, Cold Springs), none repeated on a map, and no first part used twice while one is left, so a map doesn't fill with Copper this and Copper that. Placeholder words until the atlas or a writer gives regions their own.
 
 ## Crossroads
 
-Usable cells no steeper than a grade of 0.6, inside 0.93 of the radius and past the metro's edge by half the spacing, in an order shuffled from the `crossroads` fork, each kept when it's the spacing from every crossroads before it and three quarters of it from every town, village, and exit. The spacing is the spec's, 140 units at `roadDensity` 0 to 70 at 1. A spatial hash keeps it fast. That's dart throwing to a jam over the usable land: at radius 1000 a median of 129 crossroads over five environments by three seeds, 84 to 155, against the prototype's "about 100", which ran over less land; four times as many at `roadDensity` 1 as at 0, give or take the edges.
+Usable cells no steeper than a grade of 0.6, inside 0.93 of the radius and past the metro's edge by half the spacing, in an order shuffled from the `crossroads` fork, each kept when it's the spacing from every crossroads before it and three quarters of it from every town, village, and exit. The spacing is the spec's, 140 units at `roadDensity` 0 to 70 at 1. A spatial hash keeps it fast. That's dart throwing to a jam over the usable land: at radius 1000 a median of 135 crossroads over five environments by three seeds, 109 to 167, against the prototype's "about 100", which ran over less land; four times as many at `roadDensity` 1 as at 0, give or take the edges.
 
 ## Exits
 
-Highway exits take the old departures' bearings, `highways` of them, evenly spread, turned, and jittered a third of the gap, at least `highwaySeparation` apart (`exitBearings`, moved from `Highways.ts`). Each sits 1.5% of the radius in from the rim and slides up to 8 degrees either way, a degree at a time, to the bearing with the least grade, averaged there and a cell further in, plus 0.0175 a degree slid; impassable ground never wins. An exit slides at most half its slack toward a neighbour, so two sliding toward each other still keep the separation. Over the same fifteen maps, the exits' median grade is 0.037 against 0.060 for the rim at large, and no exit is on impassable ground.
+Highway exits take the old departures' bearings, `highways` of them, evenly spread, turned, and jittered a third of the gap, at least `highwaySeparation` apart (`exitBearings`, moved from `Highways.ts`). Each sits a cell and a half in from the rim, so the square under it lies wholly inside the disc, and slides up to 8 degrees either way, a degree at a time, to the bearing with the least grade, averaged there and a cell further in, plus 0.0175 a degree slid. A bearing only counts when the square under its point is one the flood fill reached and no river's water lies within 4 units of it. An exit slides at most half its slack toward a neighbour, so two sliding toward each other still keep the separation.
 
-A back-road exit goes in each gap between highway exits 30 degrees wide or more, near its middle (up to half its room either way, drawn on the `back` fork at the gap's index), slid the same way, and at least 12 degrees from either highway exit. Every gap is at least `highwaySeparation`, so at a separation of 30 or more every gap takes one, six back roads at the default six highways; under that, a gap the jitter squeezes below 30 takes none.
+Where some highway exit finds no such ground within its slide, the whole set turns a degree at a time, either way, up to half the gap between exits, which keeps every gap and so the separation, until every exit finds some. That's what lets nine highways 40 degrees apart, which have no slack to slide in, find their ground. Only when no turn works do the highways keep their drawn bearings, off reached ground, for the stage's check to catch.
+
+A back-road exit goes in each gap between highway exits 30 degrees wide or more, near its middle (up to half its room either way, drawn on the `back` fork at the gap's index), slid the same way, and at least 12 degrees from either highway exit; one that finds no reached ground within its slide is left out. Every gap is at least `highwaySeparation`, so at a separation of 30 or more every gap takes one where the ground allows, six back roads at the default six highways; under that, a gap the jitter squeezes below 30 takes none.
+
+### The stage's check
+
+`PLACES_STAGE` checks its output with `checkPlaces`, built from the land, its water, and its hazards alone: every place but the metro has to stand on a square the flood fill reaches and out of river water, or the stage fails, and the runner reruns it on its next stream, a fresh draw of bearings and turn. Past its eight attempts the map restarts, as for any stage. Over QA's 150 campaign-range maps, its 120 across the tuning ranges, and 60 more at nine highways 40 degrees apart, the check never failed: no retry, no restart, every exit reached by a 4-unit flood fill from the metro and none on impassable ground. Over five environments by three seeds at radius 1000, the exits' median grade is 0.038 against 0.059 for the reachable rim at large.
 
 ## The data: what Maps 7 and 8 read
 
@@ -84,9 +92,7 @@ The hotspots and the places are small and go by structured clone beside the land
 
 ## Rendering
 
-`AreaMapData` takes the places, optional, and the view draws them on a `places` layer between the roads and the compound, a constant size on screen: towns a dark dot with a white ring and their name, villages a smaller one named once the zoom passes 0.6 pixels a world unit (a 1000-radius map fitted to the screen is about 0.34), crossroads a small grey dot, and exits a dark ring. A place under the fog isn't drawn. The bake shades the ruins it's given, the metro's, towns', and villages', as it shaded the terrain's metro and towns, darker out to twice their radius. Map 19 restyles all of it.
-
-The gallery's area map scenes re-baseline: hotspots and lakes moved, towns moved to the rivers, and places are drawn. The fog scene's stand-in knowledge reaches 520 units rather than 430, since the roads growing toward the exits left only one dead end in the old reach for its four POIs.
+`AreaMapData` takes the places, optional, and the view draws them on a `places` layer between the roads and the compound, a constant size on screen: towns a dark dot with a white ring and their name, villages a smaller one named once the zoom passes 0.6 pixels a world unit (a 1000-radius map fitted to the screen is about 0.34), crossroads a small grey dot, and exits a dark ring. A place under the fog isn't drawn. The bake shades the ruins it's given, the metro's, towns', and villages', darker out to twice their radius. Map 19 restyles all of it.
 
 ## Determinism
 
@@ -98,15 +104,15 @@ Everything on the gameplay path is adds, multiplies, divides, compares, and squa
 
 | Radius | Hazards, ms | Places, ms | Slowest places, ms | Crossroads |
 | --- | --- | --- | --- | --- |
-| 600 | 0.1 | 5.7 | 10.0 | 24 to 47 |
-| 1000 | 0.0 | 17.2 | 23.5 | 84 to 155 |
-| 1600 | 0.0 | 48.0 | 61.1 | 259 to 408 |
+| 600 | 0.1 | 6.1 | 11.2 | 34 to 51 |
+| 1000 | 0.0 | 20.2 | 26.3 | 109 to 167 |
+| 1600 | 0.0 | 51.0 | 75.4 | 282 to 425 |
 
-Most of the places stage is per-cell passes over the land grid (the grade, three chamfer distances, the flood fill, the score) and sorting the scored cells. It runs once in the worker; the client only clones the result.
+Most of the places stage is per-cell passes over the land grid (the grade, three chamfer distances, the flood fill, the score) and sorting the scored cells. Its check floods the squares again, a millisecond or two. It runs once in the worker; the client only clones the result.
 
 ## Consequences
 
-- Every map moves: its hotspots, its lakes (which no longer keep off towns and craters), its badlands near the old plumes, its towns, and with the departures its roads. Saves keep resolved params and regenerate the map, so DDB-296's generator version should count this change.
+- Every map moves: its hotspots, its lakes (which no longer keep off towns and craters), its badlands near the old plumes, its towns, and with the departures its roads.
 - `Terrain.towns`, `Terrain.ruin`, `Terrain.surelyReachable`, `TerrainSample.ruin`, `placeTowns`, `planHighways`, and the `highways` stage are gone; `Terrain.openSquares`, `Terrain.withHazards`, and `Water.nearRiver` are new.
 - The POI stage (route-tree-and-pois.md) reads the land from the hazards stage, craters and all, and ruin from the places through `poiGround`: `ruinAt` over the metro, towns, and villages, where it read the terrain's metro and towns. Villages count as ruins now, which nudges the POIs that look for ruin.
 - On very mountainous maps fewer towns and villages are placed than asked for.
@@ -119,8 +125,8 @@ Calls the spec and realistic-map.md left to the build, made the simplest way con
 2. Badlands weigh the contamination noise without the plumes.
 3. Suitability: 1.2 for level ground, gone at grade 0.25; 0.6 of low ground; 1.1 beside a river or lake, gone at 60 units, half for a creek, full at four steps of the square root of the area's multiple of the threshold, three quarters for a lake; 0.6 near a confluence, gone at 90 units; less 0.8 of elevation and 1.2 of the range mask; none where the mask reaches 0.5; plus 0.4 of an even draw per cell.
 4. Towns a quarter of the radius apart and villages a tenth, villages that far from towns too; past the metro's edge by 0.8 of their spacing; ruins outside the blend radius, inside 0.92 of the radius, 20 units off craters, and a cell off lakes; a town's ruins a quarter to 0.4 of the metro's radius, at least 20, a village's 0.08 to 0.14, at least 8. Fewer places where there's no room, never one in the ranges' heart.
-5. Place centres 4 units off any river's water, on cells whose four squares a flood fill from the metro reaches past rough ground, craters, and lakes.
+5. Place centres 4 units off any river's water and off rough country, on cells whose four squares a flood fill from the metro reaches past cliffs, craters, and lakes.
 6. Crossroads on usable cells no steeper than grade 0.6, inside 0.93 of the radius, past the metro's edge by half their spacing, three quarters of it from towns, villages, and exits.
-7. Exits 1.5% of the radius in from the rim, slid up to 8 degrees in 1-degree steps to the least grade averaged there and a cell in, plus 0.0175 a degree slid, each at most half its slack toward a neighbour; a back-road exit in each gap of 30 degrees or more, up to half its room either side of the middle, 12 degrees or more from a highway exit.
-8. Names from 35 first parts and 22 endings, unique on a map, numbered past the 770 pairings.
+7. Exits a cell and a half in from the rim, on a square the flood fill reaches and 4 units off river water, slid up to 8 degrees in 1-degree steps to the least grade averaged there and a cell in, plus 0.0175 a degree slid, each at most half its slack toward a neighbour; the whole set turned a degree at a time, up to half a gap either way, when some highway exit finds no such ground; a back-road exit in each gap of 30 degrees or more, up to half its room either side of the middle, 12 degrees or more from a highway exit, left out where it finds no such ground.
+8. Names from 35 first parts and 22 endings, unique on a map, no first part repeated while one is left, numbered past the 770 pairings.
 9. Places drawn plain: towns 5 pixels with their names, villages 3.5 named from a zoom of 0.6, crossroads 2, exits a 4-pixel ring; none under the fog.

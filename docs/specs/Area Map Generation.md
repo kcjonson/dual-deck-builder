@@ -172,7 +172,7 @@ Mountains are where the land is pushed up, and valleys are what rivers cut into 
 ### 3. Biomes, hazards, and cost
 
 - Biomes come from the fields: mountains (range country), canyons (deep valleys on dry maps), toxic mire (wet, low, and contaminated), badlands, barren desert (dry), and scrub for the middling rest. The game reads them as categories (stop tables, POI types, faction fit). The picture never draws them as flat patches: colour is a continuous blend of elevation, moisture, and contamination, so country shades from one kind to the next.
-- Hotspots (`hotspots`): blast sites and spills, spread out past the metro, each an impassable crater in a plume of contamination. They're the `hazards` stage, after the water, so craters keep off the rivers and lakes rather than lakes off craters.
+- Hotspots (`hotspots`): blast sites and spills, spread out past the metro, each an impassable crater in a plume of contamination. They're the `hazards` stage, after the water, and craters keep off the rivers and lakes.
 - Cliffs: ground too steep for any road, only in rough country.
 - Impassable: water (bar bridges), craters, cliffs. No road or POI goes on it.
 - Travel cost for a road between neighbouring cells: the distance, times one plus a grade term (the climb along the move, squared, weighted by class and by `curviness`) and a side-slope term, plus a bridge cost to cross a river, growing with the river's size. Cost along a move rather than of a cell is what makes roads follow contours and valley floors.

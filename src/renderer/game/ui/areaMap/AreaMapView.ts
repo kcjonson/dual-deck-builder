@@ -3,7 +3,7 @@ import type { MountContext } from '../../../engine/components/MountContext';
 import type { DrawApi, RGBA, Rect, TextureHandle, Vec2 } from '../../../engine/draw';
 import { dragThreshold } from '../../../engine/input/DragService';
 import type { AnyUiEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../../../engine/input/events';
-import { ruinsOf } from '../../map/Places';
+import { Places, ruinsOf } from '../../map/Places';
 import { ROAD_CLASSES, RoadClass } from '../../map/RoadNetwork';
 import {
 	COMPOUND,
@@ -577,14 +577,20 @@ export class AreaMapView extends Component {
 			if (this.fogged(x, y)) continue;
 			draw.drawCircle({ id: this.part(`place_${id}`), center: camera.worldToScreen(x, y, this.scratch), radius: PLACE_STYLE.exit.radius, fill: paper, border: { color: ink, width: PLACE_STYLE.exit.ring } });
 		}
-		const named = this.villagesNamed();
-		for (const settlement of [...places.villages, ...places.towns]) {
-			const { id, x, y, kind, name } = settlement;
+		this.drawSettlements(draw, places.villages, this.villagesNamed());
+		this.drawSettlements(draw, places.towns, true);
+	}
+
+	/** Towns or villages: a dot each, named when `named`. */
+	private drawSettlements(draw: DrawApi, settlements: Places['towns'], named: boolean): void {
+		const camera = this.mapCamera;
+		const { ink, paper } = PLACE_STYLE;
+		for (const { id, x, y, kind, name } of settlements) {
 			if (this.fogged(x, y)) continue;
 			const style = PLACE_STYLE[kind];
 			const at = camera.worldToScreen(x, y, this.scratch);
 			draw.drawCircle({ id: this.part(`place_${id}`), center: at, radius: style.radius, fill: ink, border: { color: paper, width: style.ring, position: 'outside' } });
-			if (kind === 'town' || named) this.drawLabel(draw, name, at.x + style.radius + LABEL.gap, at.y, `place_${id}_label`);
+			if (named) this.drawLabel(draw, name, at.x + style.radius + LABEL.gap, at.y, `place_${id}_label`);
 		}
 	}
 

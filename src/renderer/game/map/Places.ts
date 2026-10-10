@@ -25,8 +25,9 @@ import type { Water } from './Water';
  *
  * Every place stands where a road from the metro surely reaches it: a flood
  * fill from the metro over the squares between land cell centres that no
- * rough ground, crater, or lake reaches into (rivers are bridged), so road
- * links (Maps 7 and 8) can join them all. The output is plain, frozen data
+ * cliff, crater, or lake reaches into (rivers are bridged), so road links
+ * (Maps 7 and 8) can join them all. The stage's check (`checkPlaces`) holds
+ * it to that, exits included. The output is plain, frozen data
  * that crosses the worker boundary as it is. Each feature draws on its own
  * fork of the stream (`suitability`, `towns`, `villages`, `exits`,
  * `crossroads`, `names`), so retuning one never moves another's draws.
@@ -137,19 +138,24 @@ export const RIVER_CLEARANCE = 4;
 /**
  * Crossroads: `sparse` world units apart at `roadDensity` 0 to `dense` at 1;
  * `others` of that from towns, villages, and exits, and `metro` of it past
- * the metro's edge; on ground no steeper than `grade`, outside the ranges'
- * heart, inside `outer` of the radius.
+ * the metro's edge; on usable ground no steeper than `grade`, inside `outer`
+ * of the radius.
  */
 export const CROSSROADS = { sparse: 140, dense: 70, others: 0.75, metro: 0.5, grade: 0.6, outer: 0.93 } as const;
 /**
- * Exits: `inset` of the radius in from the rim. Each slides up to `slide`
- * degrees either way, in `step`s, to the gentlest ground, its grade averaged
- * there and a cell further in, paying `penalty` of grade a degree it slides,
- * and never so far it could come within `highwaySeparation` of the next.
- * A back-road exit goes in each gap between highway exits `backGap` degrees
- * wide or more, at least `backClearance` from either side.
+ * Exits: `inset` land cells in from the rim, so the square between cell
+ * centres under one lies wholly inside the disc, where the flood fill from
+ * the metro can reach it. Each slides up to `slide` degrees either way, in
+ * `step`s, to the gentlest ground a road from the metro surely reaches, its
+ * grade averaged there and a cell further in, paying `penalty` of grade a
+ * degree it slides, and never so far it could come within
+ * `highwaySeparation` of the next. Where some highway exit finds no such
+ * ground, the whole set turns a `step` at a time, either way up to half the
+ * gap between exits, until every one does. A back-road exit goes in each gap
+ * between highway exits `backGap` degrees wide or more, at least
+ * `backClearance` from either side, unless it finds no such ground.
  */
-export const EXITS = { inset: 0.015, slide: 8, step: 1, penalty: 0.0175, backGap: 30, backClearance: 12 } as const;
+export const EXITS = { inset: 1.5, slide: 8, step: 1, penalty: 0.0175, backGap: 30, backClearance: 12 } as const;
 /** Jittered sets of bearings drawn, at most, for one that keeps `highwaySeparation`, before the last is pulled in to fit. */
 const BEARING_DRAWS = 16;
 
@@ -175,7 +181,7 @@ export function generatePlaces({ params, terrain, water, rng }: PlacesOptions): 
 	const towns = site.settle({ kind: 'town', count: params.towns, rng: rng.fork('towns'), others: [] });
 	const villages = site.settle({ kind: 'village', count: params.villages, rng: rng.fork('villages'), others: towns });
 	const names = placeNames(rng.fork('names'));
-	const exits = placeExits({ params, terrain, rng: rng.fork('exits') });
+	const exits = placeExits({ params, ground: new RimGround({ terrain, water, reached: site.reached, radius: params.radius }), rng: rng.fork('exits') });
 	const crossroads = site.crossroads({ rng: rng.fork('crossroads'), others: [...towns, ...villages, ...exits] });
 	let id = 1;
 	const settled = (kind: 'town' | 'village') => ({ x, y, radius, suitability }: Spot): Settlement => ({ id: id++, kind, x, y, radius, name: names(), suitability });
@@ -251,10 +257,12 @@ class SiteField {
 	public readonly suitability: Float64Array;
 	/**
 	 * Per cell: 1 where the four squares round its centre are reached from
-	 * the metro, its centre keeps off river water, and it's outside the
-	 * ranges' heart. Every place but an exit stands on one.
+	 * the metro, its centre keeps off river water and off rough country, and
+	 * it's outside the ranges' heart. Every place but an exit stands on one.
 	 */
 	public readonly usable: Uint8Array;
+	/** Per square between cell centres: 1 where a road from the metro surely reaches (`reachedSquares`). Exits stand on one. */
+	public readonly reached: Uint8Array;
 	private readonly params: MapParams;
 	private readonly grid: LandGrid;
 	private readonly grade: Float64Array;
@@ -300,6 +308,7 @@ class SiteField {
 		this.lakeDistance = distanceField(grid, lakeSources).distance;
 
 		const reached = reachedSquares({ grid, open: terrain.openSquares, lakeOf, hotspots: this.hotspots });
+		this.reached = reached;
 		const usable = new Uint8Array(cells);
 		const suitability = new Float64Array(cells).fill(-Infinity);
 		const noise = new Float64Array(cells);
@@ -317,7 +326,7 @@ class SiteField {
 				if (!(reached[square] === 1 && reached[square + 1] === 1 && reached[square + squares] === 1 && reached[square + squares + 1] === 1)) continue;
 				const cell = row * size + column;
 				if (river.distance[cell] <= riverNear && water.nearRiver(x, y, RIVER_CLEARANCE)) continue;
-				if (mountains[cell] >= SUITABILITY.heart) continue;
+				if (mountains[cell] >= SUITABILITY.heart || terrain.rough(x, y)) continue;
 				usable[cell] = 1;
 				let score = SUITABILITY.flat * (1 - smooth01(this.grade[cell] / SUITABILITY.flatGrade))
 					+ SUITABILITY.valley * lowland[cell]
@@ -424,38 +433,81 @@ export function suitabilityField(options: PlacesOptions): Float64Array {
 
 /**
  * Exits at the rim: the highways' first, counterclockwise, then a back road's
- * in each gap between them `EXITS.backGap` degrees wide or more.
+ * in each gap between them `EXITS.backGap` degrees wide or more. Every exit
+ * stands on ground a road from the metro surely reaches, unless no turn of
+ * the drawn bearings finds such ground for every highway; then the highways
+ * keep their drawn bearings and `checkPlaces` fails the stage.
  */
-function placeExits({ params, terrain, rng }: { params: MapParams; terrain: Terrain; rng: Rng }): Omit<Exit, 'id' | 'kind'>[] {
+function placeExits({ params, ground, rng }: { params: MapParams; ground: RimGround; rng: Rng }): Omit<Exit, 'id' | 'kind'>[] {
 	const separation = params.highwaySeparation;
 	const bearings = exitBearings({ count: params.highways, separation, rng: rng.fork('bearings') });
 	const count = bearings.length;
-	const ground = new RimGround({ terrain, radius: params.radius });
-	const highways = bearings.map((bearing, index) => {
-		const before = arc(bearings[(index + count - 1) % count], bearing);
-		const after = arc(bearing, bearings[(index + 1) % count]);
-		// Each exit slides at most half the slack toward a neighbour, so two sliding toward each other still keep the separation.
-		const back = Math.min(EXITS.slide, Math.max(0, (count > 1 ? before - separation : Infinity) / 2));
-		const ahead = Math.min(EXITS.slide, Math.max(0, (count > 1 ? after - separation : Infinity) / 2));
-		return ground.gentlest(bearing, back, ahead);
-	});
+	// Each exit slides at most half the slack toward a neighbour, so two sliding toward each other still keep the separation. Turning the set keeps its gaps.
+	const backs = bearings.map((bearing, index) => (count > 1 ? Math.min(EXITS.slide, Math.max(0, (arc(bearings[(index + count - 1) % count], bearing) - separation) / 2)) : EXITS.slide));
+	const aheads = bearings.map((bearing, index) => (count > 1 ? Math.min(EXITS.slide, Math.max(0, (arc(bearing, bearings[(index + 1) % count]) - separation) / 2)) : EXITS.slide));
+	const turns = floor(180 / count / EXITS.step);
+	let highways: number[] | null = null;
+	for (let turn = 0; turn <= 2 * turns && highways === null; turn += 1) {
+		// 0, then a step counterclockwise, a step clockwise, two counterclockwise, and so on.
+		const offset = (turn % 2 === 1 ? (turn + 1) / 2 : -turn / 2) * EXITS.step;
+		const slid: number[] = [];
+		for (let index = 0; index < count; index += 1) {
+			const best = ground.gentlest(normalised(bearings[index] + offset), backs[index], aheads[index]);
+			if (best.cost === Infinity) break;
+			slid.push(best.bearing);
+		}
+		if (slid.length === count) highways = slid;
+	}
+	if (highways === null) highways = bearings;
+	const chosen = highways;
 	const backRoads: number[] = [];
 	if (count > 1) {
-		highways.forEach((from, index) => {
-			const to = highways[(index + 1) % count];
+		chosen.forEach((from, index) => {
+			const to = chosen[(index + 1) % count];
 			const gap = arc(from, to);
 			if (gap < EXITS.backGap) return;
 			const room = gap / 2 - EXITS.backClearance;
 			const target = from + gap / 2 + (rng.fork('back', index).float() * 2 - 1) * 0.5 * room;
 			const back = Math.min(EXITS.slide, target - (from + EXITS.backClearance));
 			const ahead = Math.min(EXITS.slide, from + gap - EXITS.backClearance - target);
-			backRoads.push(ground.gentlest(normalised(target), back, ahead));
+			const best = ground.gentlest(normalised(target), back, ahead);
+			if (best.cost < Infinity) backRoads.push(best.bearing);
 		});
 	}
 	return [
-		...highways.map((bearing) => ({ ...ground.at(bearing), bearing, highway: true })),
+		...chosen.map((bearing) => ({ ...ground.at(bearing), bearing, highway: true })),
 		...backRoads.map((bearing) => ({ ...ground.at(bearing), bearing, highway: false })),
 	];
+}
+
+/**
+ * What's wrong with a map's places, for the stage's check: any place but the
+ * metro whose point lies off the squares a road from the metro surely
+ * reaches (`reachedSquares`), or in a river's water. Built from the land, its
+ * water, and its hazards alone, so it checks a loaded map as it checks a
+ * fresh one. Empty passes.
+ */
+export function checkPlaces({ places, terrain, water }: { places: Places; terrain: Terrain; water: Pick<Water, 'surface' | 'nearRiver'> }): string[] {
+	const { grid } = terrain.surface;
+	const reached = reachedSquares({ grid, open: terrain.openSquares, lakeOf: water.surface.lakeOf, hotspots: terrain.hotspots });
+	const problems: string[] = [];
+	for (const place of placeList(places)) {
+		if (place.kind === 'metro') continue;
+		const square = squareAt(grid, place.x, place.y);
+		const where = `${place.kind} ${place.id} at (${place.x.toFixed(1)}, ${place.y.toFixed(1)})`;
+		if (square < 0 || reached[square] !== 1) problems.push(`reach: ${where} stands where no road from the metro surely reaches`);
+		else if (water.nearRiver(place.x, place.y, 0)) problems.push(`water: ${where} stands in a river`);
+	}
+	return problems;
+}
+
+/** The square between cell centres holding (x, y), counted from the square whose lower-left corner is cell 0's centre, or -1 off them. */
+function squareAt(grid: LandGrid, x: number, y: number): number {
+	const column = floor((x + grid.halfExtent) / grid.cellSize - 0.5);
+	const row = floor((y + grid.halfExtent) / grid.cellSize - 0.5);
+	const squares = grid.size - 1;
+	if (!(column >= 0 && row >= 0 && column < squares && row < squares)) return -1;
+	return row * squares + column;
 }
 
 /**
@@ -494,17 +546,23 @@ function worstSqueeze(jitter: readonly number[]): number {
 	return worst;
 }
 
-/** The ground just inside the rim, by bearing: where an exit is, and how gentle and passable the ground there is. */
+/** The ground just inside the rim, by bearing: where an exit is, and how gentle the ground there is, if a road from the metro surely reaches it. */
 class RimGround {
 	private readonly terrain: Terrain;
+	private readonly water: Pick<Water, 'nearRiver'>;
+	private readonly reached: Uint8Array;
+	private readonly grid: LandGrid;
 	private readonly at1: number;
 	private readonly at2: number;
 	private readonly direction = { x: 0, y: 0 };
 
-	constructor({ terrain, radius }: { terrain: Terrain; radius: number }) {
+	constructor({ terrain, water, reached, radius }: { terrain: Terrain; water: Pick<Water, 'nearRiver'>; reached: Uint8Array; radius: number }) {
 		this.terrain = terrain;
-		this.at1 = radius * (1 - EXITS.inset);
-		this.at2 = this.at1 - terrain.surface.grid.cellSize;
+		this.water = water;
+		this.reached = reached;
+		this.grid = terrain.surface.grid;
+		this.at1 = radius - EXITS.inset * this.grid.cellSize;
+		this.at2 = this.at1 - this.grid.cellSize;
 	}
 
 	/** The exit's point on `bearing`. */
@@ -516,10 +574,10 @@ class RimGround {
 	/**
 	 * The bearing within `back` degrees clockwise and `ahead` counterclockwise
 	 * of `bearing`, on `EXITS.step`s from it, whose ground is gentlest less
-	 * `EXITS.penalty` a degree slid, over passable ground; `bearing` itself
-	 * when none is passable.
+	 * `EXITS.penalty` a degree slid, with that cost: Infinity, at `bearing`
+	 * itself, when no road surely reaches any of them.
 	 */
-	public gentlest(bearing: number, back: number, ahead: number): number {
+	public gentlest(bearing: number, back: number, ahead: number): { bearing: number; cost: number } {
 		let best = bearing;
 		let bestCost = Infinity;
 		const first = -floor(back / EXITS.step);
@@ -534,19 +592,22 @@ class RimGround {
 				best = candidate;
 			}
 		}
-		return best;
+		return { bearing: best, cost: bestCost };
 	}
 
-	/** The grade averaged at the exit's point and a cell further in, or Infinity where either is impassable. */
+	/**
+	 * The grade averaged at the exit's point and a cell further in; Infinity
+	 * unless the square under the point is one the flood fill from the metro
+	 * reached and no river's water lies within `RIVER_CLEARANCE` of it.
+	 */
 	private grade(bearing: number): number {
 		const { terrain, direction } = this;
 		unitVector(bearing, direction);
 		const x1 = direction.x * this.at1;
 		const y1 = direction.y * this.at1;
-		const x2 = direction.x * this.at2;
-		const y2 = direction.y * this.at2;
-		if (terrain.obstacle(x1, y1) !== null || terrain.obstacle(x2, y2) !== null) return Infinity;
-		return 0.5 * (terrain.grade(x1, y1) + terrain.grade(x2, y2));
+		const square = squareAt(this.grid, x1, y1);
+		if (square < 0 || this.reached[square] !== 1 || this.water.nearRiver(x1, y1, RIVER_CLEARANCE)) return Infinity;
+		return 0.5 * (terrain.grade(x1, y1) + terrain.grade(direction.x * this.at2, direction.y * this.at2));
 	}
 }
 
@@ -642,7 +703,7 @@ export function distanceField(grid: LandGrid, sources: Float64Array): { distance
 /**
  * Which squares between land cell centres a road from the metro surely
  * reaches: a flood fill from the square holding the compound through the
- * terrain's open squares (no rough ground, wholly inside the disc) that no
+ * terrain's open squares (no cliff, wholly inside the disc) that no
  * crater reaches into and that have no lake cell at a corner. 1 where
  * reached. Rivers are bridged, so they don't stop it. Exact for cliffs,
  * craters, and lakes: a lake's shore lies between its cells and their dry

@@ -1,15 +1,18 @@
 import { Rng } from '../core/Rng';
+import { HAZARDS_STAGE, PLACES_STAGE, TERRAIN_STAGE, WATER_STAGE } from './AreaMapPipeline';
 import { unitVector } from './Geometry';
 import { generateHazards } from './Hazards';
 import { RELIEF, startRadii } from './Land';
 import { LandGrid, cellAt, cellCentre, landGridFor } from './LandGrid';
 import { MapParamSet, MapParams, resolveMapParams } from './MapParams';
+import { MapPipeline } from './MapPipeline';
 import { validateMapParams } from './ParamValidator';
 import { NAME_ENDINGS, NAME_STARTS, placeNames } from './PlaceNames';
 import {
 	CROSSROADS, EXITS, Places, RIVER_CLEARANCE, RUIN_SIZE, SETTLED, SETTLEMENT_SPACING, SUITABILITY,
-	distanceField, exitBearings, generatePlaces, placeList, ruinsOf, suitabilityField,
+	checkPlaces, distanceField, exitBearings, generatePlaces, placeList, reachedSquares, ruinsOf, suitabilityField,
 } from './Places';
+import { rollParams } from './RollParams';
 import { Terrain, generateTerrain } from './Terrain';
 import { CRATER_GAP } from './TerrainSites';
 import { Water, WaterSurface, generateWater } from './Water';
@@ -99,14 +102,29 @@ function reachable(terrain: Terrain, points: readonly { x: number; y: number }[]
 	return points.map(({ x, y }) => reached[Math.floor((y + radius) / cell) * cells + Math.floor((x + radius) / cell)] === 1);
 }
 
-/** The ground an exit stands on, as the places stage scores it: the grade there and a cell further in, or Infinity where either is impassable. */
-function exitGround(terrain: Terrain, bearing: number): number {
-	const { x, y } = unitVector(bearing, { x: 0, y: 0 });
-	const at1 = terrain.radius * (1 - EXITS.inset);
-	const at2 = at1 - terrain.surface.grid.cellSize;
-	const [x1, y1, x2, y2] = [x * at1, y * at1, x * at2, y * at2];
-	if (terrain.obstacle(x1, y1) !== null || terrain.obstacle(x2, y2) !== null) return Infinity;
-	return 0.5 * (terrain.grade(x1, y1) + terrain.grade(x2, y2));
+/** World units from the compound to an exit. */
+const exitDistance = (terrain: Terrain) => terrain.radius - EXITS.inset * terrain.surface.grid.cellSize;
+
+/**
+ * The ground an exit stands on by bearing, as the places stage scores it: the
+ * grade there and a cell further in, or Infinity unless the flood fill from
+ * the metro reached the square under it and no river's water is within the
+ * clearance.
+ */
+function exitGround({ terrain, water }: { terrain: Terrain; water: Water }): (bearing: number) => number {
+	const { grid } = terrain.surface;
+	const reached = reachedSquares({ grid, open: terrain.openSquares, lakeOf: water.surface.lakeOf, hotspots: terrain.hotspots });
+	const squares = grid.size - 1;
+	return (bearing) => {
+		const { x, y } = unitVector(bearing, { x: 0, y: 0 });
+		const at1 = exitDistance(terrain);
+		const at2 = at1 - grid.cellSize;
+		const [x1, y1, x2, y2] = [x * at1, y * at1, x * at2, y * at2];
+		const column = Math.floor((x1 + grid.halfExtent) / grid.cellSize - 0.5);
+		const row = Math.floor((y1 + grid.halfExtent) / grid.cellSize - 0.5);
+		if (reached[row * squares + column] !== 1 || water.nearRiver(x1, y1, RIVER_CLEARANCE)) return Infinity;
+		return 0.5 * (terrain.grade(x1, y1) + terrain.grade(x2, y2));
+	};
 }
 
 describe('suitabilityField', () => {
@@ -150,7 +168,7 @@ describe('suitabilityField', () => {
 		const riverX = cellCentre(grid, riverColumn);
 		const tributaryY = cellCentre(grid, tributaryRow);
 		const surface = { elevation, mountains, grid };
-		const terrain = { radius, surface, hotspots: [], openSquares: new Uint8Array((size - 1) * (size - 1)).fill(1) } as unknown as Terrain;
+		const terrain = { radius, surface, hotspots: [], openSquares: new Uint8Array((size - 1) * (size - 1)).fill(1), rough: () => false } as unknown as Terrain;
 		const water = {
 			surface: { grid, receivers, area, threshold, lakeOf, lowland } as unknown as WaterSurface,
 			nearRiver: (x: number, y: number, reach: number) => Math.abs(x - riverX) < 1.5 + reach || (Math.abs(y - tributaryY) < 1 + reach && x > riverX && x < 400),
@@ -322,7 +340,8 @@ describe('generatePlaces', () => {
 				expect(mountains[cellAt(grid, place.x, place.y)]).toBeLessThan(SUITABILITY.heart);
 				terrain.hotspots.forEach((hotspot) => expect(distance(place, hotspot)).toBeGreaterThanOrEqual(hotspot.craterRadius + radius + CRATER_GAP));
 			});
-			expect(reachable(terrain, settled).every(Boolean)).toBe(true);
+			places.exits.forEach((exit) => expect(terrain.obstacle(exit.x, exit.y)).toBeNull());
+			expect(reachable(terrain, [...settled, ...places.exits]).every(Boolean)).toBe(true);
 		});
 
 		// Range country covers the whole map past the metro here, and its heart takes no town, so what room there is goes to the few that fit.
@@ -331,7 +350,7 @@ describe('generatePlaces', () => {
 			const { params, terrain, places } = build(crowded);
 			expect(places.towns.length).toBeLessThan(params.towns);
 			expect(places.villages.length).toBeLessThan(params.villages);
-			const settled = [...places.towns, ...places.villages, ...places.crossroads];
+			const settled = [...places.towns, ...places.villages, ...places.crossroads, ...places.exits];
 			settled.forEach((place) => expect(terrain.obstacle(place.x, place.y)).toBeNull());
 			expect(reachable(terrain, settled).every(Boolean)).toBe(true);
 		});
@@ -385,22 +404,26 @@ describe('generatePlaces', () => {
 			});
 			backRoads.forEach((back) => highways.forEach((exit) => expect(apart(back.bearing, exit.bearing)).toBeGreaterThanOrEqual(EXITS.backClearance - 1e-9)));
 			places.exits.forEach((exit) => {
-				expect(Math.hypot(exit.x, exit.y)).toBeCloseTo(params.radius * (1 - EXITS.inset), 9);
-				expect(exit.x).toBeCloseTo(params.radius * (1 - EXITS.inset) * Math.cos(exit.bearing * Math.PI / 180), 9);
+				expect(Math.hypot(exit.x, exit.y)).toBeCloseTo(exitDistance(build(set).terrain), 9);
+				expect(exit.x).toBeCloseTo(exitDistance(build(set).terrain) * Math.cos(exit.bearing * Math.PI / 180), 9);
 			});
 		});
 
-		it.each(SETS)('slides each highway exit to gentler ground than its bearing\'s, on passable ground, in %s', (_name, set) => {
-			const { params, terrain, places } = build(set);
+		it.each(SETS)('slides each highway exit to gentler ground a road reaches, turning the set only where its bearings find none, in %s', (_name, set) => {
+			const built = build(set);
+			const { params, places } = built;
+			const ground = exitGround(built);
 			const drawn = exitBearings({ count: params.highways, separation: params.highwaySeparation, rng: placesStream(params.seed).fork('exits').fork('bearings') });
 			const highways = places.exits.filter((exit) => exit.highway);
-			highways.forEach((exit, index) => {
-				const slid = apart(exit.bearing, drawn[index]);
-				expect(slid).toBeLessThanOrEqual(EXITS.slide + 1e-9);
-				const here = exitGround(terrain, exit.bearing);
-				expect(here).toBeLessThan(Infinity);
-				expect(here + EXITS.penalty * slid).toBeLessThanOrEqual(exitGround(terrain, drawn[index]) + 1e-12);
-			});
+			places.exits.forEach((exit) => expect(ground(exit.bearing)).toBeLessThan(Infinity));
+			// Turned or not, the set keeps its order and every exit stays within a slide and half a gap of its drawn bearing.
+			highways.forEach((exit, index) => expect(apart(exit.bearing, drawn[index])).toBeLessThanOrEqual(EXITS.slide + 180 / params.highways + 1e-9));
+			if (highways.every((exit, index) => apart(exit.bearing, drawn[index]) <= EXITS.slide + 1e-9)) {
+				highways.forEach((exit, index) => {
+					const slid = apart(exit.bearing, drawn[index]);
+					expect(ground(exit.bearing) + EXITS.penalty * slid).toBeLessThanOrEqual(ground(drawn[index]) + 1e-12);
+				});
+			}
 		});
 
 		it('leaves the ground at the exits gentler than the rim at large, over the sets', () => {
@@ -409,19 +432,63 @@ describe('generatePlaces', () => {
 			let exitCount = 0;
 			let rimCount = 0;
 			SETS.forEach(([, set]) => {
-				const { terrain, places } = build(set);
-				places.exits.forEach(({ bearing }) => {
-					exits += exitGround(terrain, bearing);
+				const built = build(set);
+				const ground = exitGround(built);
+				built.places.exits.forEach(({ bearing }) => {
+					exits += ground(bearing);
 					exitCount += 1;
 				});
 				for (let bearing = 0; bearing < 360; bearing += 1) {
-					const ground = exitGround(terrain, bearing);
-					if (ground === Infinity) continue;
-					rim += ground;
+					const here = ground(bearing);
+					if (here === Infinity) continue;
+					rim += here;
 					rimCount += 1;
 				}
 			});
 			expect(exits / exitCount).toBeLessThan(0.8 * (rim / rimCount));
+		});
+
+		/**
+		 * Every exit a road from the metro reaches, through the stages as the
+		 * game runs them, checks and retries and all: maps QA found exits cut
+		 * off on (on slivers between a lake and the rim, on a cliff), campaign
+		 * rolls, and nine highways 40 degrees apart, which can't slide at all.
+		 */
+		it.each([
+			['QA: highDesert, a lake-and-rim sliver', { seed: 2092472941, environment: 'highDesert', radius: 901, aridity: 0.1, mountainCoverage: 0.09962156908586622, ruggedness: 0.85, rivers: 0, riverDensity: 0.3, riverMeander: 0.6877327581867576, lakes: 6, contamination: 0.6781098707113414, hotspots: 4, metroSize: 0.2, towns: 8, villages: 14, highways: 5, highwaySeparation: 39, roadDensity: 0.46171528098639103, loops: 0.3, curviness: 0.25, trailShare: 0.25, brokenHighways: 1, strongholds: 3 }],
+			['QA: badlands, a lake-and-rim sliver', { seed: 1182128276, environment: 'badlands', radius: 885, aridity: 0.11391479261219502, mountainCoverage: 0.11529248449951411, ruggedness: 0.15, rivers: 1, riverDensity: 0.5957504308782517, riverMeander: 0.6839807495474817, lakes: 6, contamination: 0.4809727669227868, hotspots: 5, metroSize: 0.15526452304795385, towns: 2, villages: 28, highways: 6, highwaySeparation: 45, roadDensity: 0.65, loops: 0.3, curviness: 0.5030892182840034, trailShare: 0.75, brokenHighways: 1, strongholds: 4 }],
+			['QA: rustBelt, an exit on a cliff', { seed: 1918663461, environment: 'rustBelt', radius: 942, aridity: 0.3072595464065671, mountainCoverage: 0.14266214640811087, ruggedness: 0.85, rivers: 5, riverDensity: 0.7, riverMeander: 0.7918466999661178, lakes: 4, contamination: 0.31083143162541094, hotspots: 5, metroSize: 0.2, towns: 8, villages: 15, highways: 5, highwaySeparation: 43, roadDensity: 0.5980984067544342, loops: 0.6385535525158047, curviness: 0.25, trailShare: 0.4318917602067813, brokenHighways: 2, strongholds: 5 }],
+			['QA: floodlands, cut off', { seed: 3326005576, environment: 'floodlands', radius: 945, aridity: 0.22181719858199359, mountainCoverage: 0.1888756573200226, ruggedness: 0.838753589359112, rivers: 0, riverDensity: 0.3, riverMeander: 0.4167495947796852, lakes: 1, contamination: 0.7, hotspots: 5, metroSize: 0.12417349932715296, towns: 2, villages: 24, highways: 6, highwaySeparation: 45, roadDensity: 0.35, loops: 0.34635055158287287, curviness: 0.5205056684790179, trailShare: 0.6996058876393363, brokenHighways: 4, strongholds: 3 }],
+			['zero slack: the most rugged mixed map', { seed: 2833163350, environment: 'mixed', radius: 742, aridity: 0, mountainCoverage: 0.5558478857856244, ruggedness: 1, lakes: 0, contamination: 0.6924523543566465, hotspots: 4, metroSize: 0.08, highways: 9, highwaySeparation: 40, strongholds: 7 }],
+			['zero slack: all range country', { seed: 3639808821, environment: 'floodlands', radius: 651, aridity: 0, mountainCoverage: 1, ruggedness: 0.9504218937363476, rivers: 5, riverDensity: 1, lakes: 0, highways: 9, highwaySeparation: 40, strongholds: 7 }],
+			['a campaign roll, seed 1', rollParams(1)],
+			['a campaign roll, seed 2', rollParams(2)],
+		] as [string, MapParamSet][])('puts every exit where a road from the metro reaches it, in %s', (_name, set) => {
+			const params = paramsFor(set);
+			const { products } = new MapPipeline<MapParams>().stage(TERRAIN_STAGE).stage(WATER_STAGE).stage(HAZARDS_STAGE).stage(PLACES_STAGE)
+				.run({ seed: params.seed, input: params, debug: true });
+			const { places, hazards, water } = products;
+			const terrain = hazards.terrain;
+			expect(places.exits.filter((exit) => exit.highway)).toHaveLength(params.highways);
+			expect(checkPlaces({ places, terrain, water })).toEqual([]);
+			places.exits.forEach((exit) => expect(terrain.obstacle(exit.x, exit.y)).toBeNull());
+			expect(reachable(terrain, placeList(places).filter(({ kind }) => kind !== 'metro')).every(Boolean)).toBe(true);
+		});
+
+		it('fails the stage\'s check on an exit off the ground a road reaches, or in a river', () => {
+			const { terrain, water, places } = build(SETS[0][1]);
+			expect(checkPlaces({ places, terrain, water })).toEqual([]);
+			const [first] = places.exits;
+			// Out past the rim, where no square is open.
+			const outside = { ...places, exits: [{ ...first, x: first.x * 1.05, y: first.y * 1.05 }, ...places.exits.slice(1)] };
+			expect(checkPlaces({ places: outside, terrain, water })).toEqual([expect.stringMatching(/^reach: exit \d+ at /)]);
+			// On a river's water, well inside the disc.
+			const { points } = water.lines;
+			let at = 0;
+			while (Math.hypot(points[at], points[at + 1]) > 0.7 * terrain.radius || Math.hypot(points[at], points[at + 1]) < terrain.metro.radius * 2) at += 2;
+			const onRiver = { ...places, exits: [{ ...first, x: points[at], y: points[at + 1] }, ...places.exits.slice(1)] };
+			expect(checkPlaces({ places: onRiver, terrain, water })).toEqual([expect.stringMatching(/^water: exit \d+ at /)]);
+			expect(PLACES_STAGE.check).toBeDefined();
 		});
 	});
 
@@ -476,6 +543,13 @@ describe('placeNames', () => {
 		expect(NAME_ENDINGS.length * NAME_STARTS.length).toBeGreaterThan(700);
 	});
 
+	it('starts no two names alike while a first part is left unused', () => {
+		const names = placeNames(new Rng({ seed: 7 }));
+		const drawn = Array.from({ length: NAME_STARTS.length }, () => names());
+		const startOf = (name: string) => NAME_STARTS.find((start) => name.startsWith(start) && NAME_ENDINGS.some((ending) => name === `${start}${ending}`));
+		expect(new Set(drawn.map(startOf)).size).toBe(NAME_STARTS.length);
+	});
+
 	it('numbers a name once every pairing is taken, rather than looping forever', () => {
 		const names = placeNames(new Rng({ seed: 9 }));
 		const drawn = Array.from({ length: NAME_STARTS.length * NAME_ENDINGS.length + 20 }, () => names());
@@ -503,6 +577,6 @@ interface PinnedPlaces {
 }
 
 const PINNED: PinnedPlaces[] = [
-	{ set: { seed: 7, radius: 800 }, places: 1282691387, hotspots: 1026844018, counts: [5, 20, 83, 12], towns: ['Copper Center', 'Copperfield', 'Red Crossing', 'Copperburg', 'Kettleburg'] },
-	{ set: { seed: 29, environment: 'rustBelt', radius: 1000 }, places: 381667960, hotspots: 1773523043, counts: [8, 26, 140, 12], towns: ['Salt Falls', 'Cedarford', 'Ironburg', 'Highby', 'Oakby', 'Wolfdale', 'Coldwood', 'Kettlehaven'] },
+	{ set: { seed: 7, radius: 800 }, places: 3113498314, hotspots: 1026844018, counts: [5, 20, 84, 12], towns: ['Copper Center', 'Corbinfield', 'Black Crossing', 'Saltburg', 'Crowburg'] },
+	{ set: { seed: 29, environment: 'rustBelt', radius: 1000 }, places: 3637288523, hotspots: 1773523043, counts: [8, 26, 157, 12], towns: ['Salt Falls', 'Gailford', 'Fairburg', 'Highby', 'Coldby', 'Brightdale', 'Silverwood', 'Elkhaven'] },
 ];
