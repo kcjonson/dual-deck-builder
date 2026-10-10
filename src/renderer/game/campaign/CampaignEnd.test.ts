@@ -98,6 +98,7 @@ function fallenFixture(): CampaignJson {
 	const save = savedCampaign();
 	save.runDecks = [];
 	save.foundOnRun = [];
+	save.supplyRun = null;
 	save.drivers[0] = { ...save.drivers[0], status: 'dead', hitpoints: 0 };
 	save.drivers[2] = { ...save.drivers[2], status: 'missing', injuredDays: 0 };
 	save.drivers[4] = { ...save.drivers[4], status: 'missing', defaultDeck: startingDeckCounts('interceptor') };

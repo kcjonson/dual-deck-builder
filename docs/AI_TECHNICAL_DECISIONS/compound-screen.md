@@ -18,7 +18,7 @@ Considered: a pressable tile drawing its name and text itself, closer to the wir
 
 ### Disabled with the reason on screen
 
-A building with nothing behind it, the Area map, and Plan a supply run are disabled, each with a line of text saying why, as Continue on the main menu is. A disabled control takes no focus and shows no hover (R9.5), and a tooltip needs one or the other (R12.22), so the reason can't be a tooltip. The Area map and the Map room open the same thing, so the Map room's line is the reason for both. A building whose screen exists has a null reason and the `screen` its button opens, handed the campaign on show; until there's a campaign it's disabled too, with a line saying it opens with a campaign in progress, and it doesn't open while a day end is being saved. The bunkhouse is the first, opening the Crew screen ([crew-screen.md](./crew-screen.md)).
+A building with nothing behind it and the Area map are disabled, each with a line of text saying why, as Continue on the main menu is. Plan a supply run opens the route pick ([mvp-supply-run.md](./mvp-supply-run.md)), and its line says how many routes today offers, or, disabled, why (`getPlanBlocker`). A disabled control takes no focus and shows no hover (R9.5), and a tooltip needs one or the other (R12.22), so the reason can't be a tooltip. The Area map and the Map room open the same thing, so the Map room's line is the reason for both. A building whose screen exists has a null reason and the `screen` its button opens, handed the campaign on show; until there's a campaign it's disabled too, with a line saying it opens with a campaign in progress, and it doesn't open while a day end is being saved. The bunkhouse is the first, opening the Crew screen ([crew-screen.md](./crew-screen.md)).
 
 ### Rest and Scavenge
 
@@ -46,7 +46,7 @@ A save at 0 People with a run out isn't over, since the end waits for the run; R
 
 ### Focus and keys
 
-Focus starts on Back to menu. Tab reaches only live controls (R9.18, R9.19): Back, the buildings with a screen behind them, and Rest. The buildings are one focus group (R9.29) whose Left and Right move through them in reading order; Up and Down go unconsumed to directional focus (R9.24, R9.26), which moves between the rows. Rest, Scavenge, and Plan a supply run are another group, one Tab stop entered at Rest, or at whichever was last focused (R9.29): Down goes to Scavenge as the group's next member, and Right does too, as directional focus finds it beside Rest. Rest and Scavenge could be a horizontal group of their own inside it, Left and Right between them and Down to Plan, but a nested group is no Tab stop of its own, and while Plan is disabled the outer group would have no member to stop at; that's for when Plan goes live. Escape goes back to the menu with focus restored on the button that opened the compound, as Back does from the menu's other screens.
+Focus starts on Back to menu. Tab reaches only live controls (R9.18, R9.19): Back, the buildings with a screen behind them, and Rest. The buildings are one focus group (R9.29) whose Left and Right move through them in reading order; Up and Down go unconsumed to directional focus (R9.24, R9.26), which moves between the rows. Rest, Scavenge, and Plan a supply run are another group, one Tab stop entered at Rest, or at whichever was last focused (R9.29): Down goes to Scavenge as the group's next member, and Right does too, as directional focus finds it beside Rest. Rest and Scavenge could be a horizontal group of their own inside it, Left and Right between them and Down to Plan, but a nested group is no Tab stop of its own, and while Plan is disabled the outer group would have no member to stop at. Plan is live when a run can go, so that nesting is open again. Escape goes back to the menu with focus restored on the button that opened the compound, as Back does from the menu's other screens.
 
 ## Provisional calls
 
@@ -66,6 +66,6 @@ Each is the simplest option where the spec leaves a choice open, and a line or t
 
 ## Consequences
 
-- Each building screen that lands gives its `BUILDINGS` entry a `screen` and drops its reason; the Area map button and Plan a supply run follow the area map, load out, and the run route. With a building live, focus could start on the buildings instead of Back.
+- Each building screen that lands gives its `BUILDINGS` entry a `screen` and drops its reason; the Area map button follows the area map, and Plan a supply run moves from the MVP route pick to it. With a building live, focus could start on the buildings instead of Back.
 - The needs panel takes rumors when the radio mast has them (DDB-337). The infirmary's meds line ("out of meds, a driver can't heal") comes with the infirmary screen, from `getTreatmentBlocker`'s `too_few_meds` ([injuries.md](./injuries.md)).
 - While scavenging costs and risks nothing, it's never worse than a day of rest ([scavenging-party.md](./scavenging-party.md)), so Rest is a button with no reason to be pressed until one of them changes.

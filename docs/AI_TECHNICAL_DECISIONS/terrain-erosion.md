@@ -26,11 +26,23 @@ Ranges run with the grain loosely rather than ruler-straight. Measured as how mu
 
 ## Drainage
 
-`DrainageRouter` routes by priority flood from the outlets (Barnes 2014). A cell enters the queue at its own height, or 1e-7 above the cell that reached it where that's higher, so pits and flats fill as they're reached and drain outward from their spill. That entry is the cell's water level, and the router keeps it. The queue breaks ties by cell index, so its order never depends on how the heap was built or the order outlets are listed.
+A cell's water level is its height, or 1e-7 above its lowest neighbour's level where that's higher, and an outlet's is its height: the levels a priority flood from the outlets gives (Barnes 2014), so pits and flats fill to their spill and drain outward from it. They're the one solution of that rule as long as a flood rise still raises a level, x + 1e-7 > x, which holds for heights within 2^30, about a billion, of zero. So any way of finding them gives the same bits, up to the sign of a zero: a height of -0 whose lowest neighbour stands exactly 1e-7 below it can come out -0 one way and 0 another. The router keeps the levels.
 
-When a cell leaves the queue it drains to the neighbour, among those that left before it, that falls furthest per unit of distance on the levels, a diagonal's drop counted at 1 / sqrt(2), ties to the lower index. Every neighbour lower than a cell has left the queue by then, so this is steepest descent, and every cell's level is strictly above its receiver's. Every cell of a plane tilted 10 degrees off east drains east, and of a 35-degree one north-east, as the tests check, and 35% to 43% of the disc's cells drain diagonally on real maps. Draining each cell to whichever neighbour reached it instead follows the flood's order, not the slope's: every cell of the 10-degree plane drains diagonally, and range flanks come out striped at 45 degrees.
+Each cell drains to the neighbour that falls furthest per unit of distance on the levels, a diagonal's drop counted at 1 / sqrt(2), ties to the lower index: steepest descent, so every cell's level is strictly above its receiver's. Every cell of a plane tilted 10 degrees off east drains east, and of a 35-degree one north-east, as the tests check, and 35% to 43% of the disc's cells drain diagonally on real maps. Draining each cell to whichever neighbour the flood reached it from instead follows the flood's order, not the slope's: every cell of the 10-degree plane drains diagonally, and range flanks come out striped at 45 degrees.
 
-`accumulateArea({ drainage, rain })` sums rain down a drainage's receivers in its order into a new array, without routing again; the router's own `accumulate` does the same in place.
+`DrainageRouter` finds the levels and receivers in time linear in the grid wherever the land drains freely, after Braun and Willett (2013), and runs the priority flood only where water stands:
+
+- One scan in index order finds each cell's steepest fall on the heights, its local receiver. A cell whose steepest fall is less than 1e-7 is a root: an outlet, or a pit.
+- A cell's basin is the root its chain of local receivers ends at, found by walking the chain to a cell whose basin is known. The outlets' basins together are the ocean, and every cell of it stands at its height, since each falls 1e-7 or more to a cell that does.
+- Neighbouring cells in two basins make a pass at the higher of their heights. A pit's spill is the lowest, over every way to the ocean, of the highest pass on the way: a widest-path Dijkstra over the basins, a few hundred on a map.
+- The flood runs over each pit's cells under its limit, its spill and a band of 1e-4, from the cells round them, which stand at their heights. A cell reached at its own height waits in a heap; one reached under water goes in a FIFO, 1e-7 above the level just settled, so the FIFO's levels never fall and the two together keep level order. The cells round a lake in its own basin stand over its limit, so what they'd offer it is left out, and most of a lake fills from its spill through the FIFO with no heap work.
+- Then it's checked. Every level must settle under its limit, so nothing left out could have lowered one, and a cell round the flood that drains into it keeps its height only if no level beside it now raises it. A lake more than a thousand cells across, whose levels climb past the band, fails, and the flood runs again over the pits' whole basins, which hold all the water there is, leaving nothing out. Once the check holds, every level obeys the rule, so the levels are the flood's exactly. The exactness is the check's, not the spills': a spill found too low leaves water out, which the check catches, and one too high floods cells it needn't, so a wrong spill costs time, never bits.
+- Receivers are the local ones except in and beside the flood, where they're the steepest fall on the levels: a cell standing at its height whose local receiver does too falls to that same neighbour on the levels. A cell beside one whose height isn't a number takes its receiver on the levels too, since that neighbour's level, a flood rise over its lowest neighbour's, isn't at least its height.
+- The order walks each cell's chain of receivers down to a cell already listed and lists the walk bottom up, so every cell comes after the one it drains to.
+
+On real maps the pits' catchments cover 85% to 99% of the grid, since each iteration's diffusion leaves pits along the channels, but the water standing in them is 1.4% to 3% of the full-size grid and about 14% of the coarse pass's, and the flood with its band covers barely more. The tests hold the router to a plain priority flood written cell by cell, on random, terraced, and near-level grids, a height that isn't a number, and a lake too wide for the band: the same levels, receivers, and areas to the bit. Erosion's own loops smooth and cut to the same bits as the plain ones too, the edge aside, which keeps its heights rather than adding them a Laplacian of 0 and so would keep a -0 the plain loop turns to 0; the land never holds a -0.
+
+`accumulate` without rain sums whole numbers, exact in any order, walking the order upstream first. With rain, each cell sums its donors highest level first, ties highest index first, so the rounding doesn't depend on the order the routing lists cells in. `accumulateArea({ drainage, rain })` does the same into a new array, without routing again.
 
 ## Erosion
 
@@ -111,18 +123,20 @@ The terrain stream forks by feature: `hills`, `ranges`, `rangeWarp`, `rangeBreak
 
 ## Performance
 
-`node scripts/terrain-bench.mjs --radii 800,1000,1200,1600`, Node 24 (V8 13.6), the same shared desktop, the median of three seeds per radius and environment:
+`node scripts/terrain-bench.mjs --radii 800,1000,1200,1600`, Node 24 (V8 13.6), the same shared desktop, the median of three seeds per radius and environment. Other work on the desktop slows every column alike, by half again in a busy spell, the uplift's included, so these are from a quiet one:
 
 | Radius | Grid | Mixed | High Desert | Rust Belt | Floodlands | Badlands | Uplift | Erosion | Drainage |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 800 | 204 x 204 | 141 ms | 140 | 142 | 148 | 142 | 16 | 121 | 5.9 |
-| 1000 | 256 x 256 | 236 | 235 | 239 | 243 | 233 | 26 | 203 | 9.7 |
-| 1200 | 308 x 308 | 359 | 357 | 357 | 364 | 355 | 38 | 306 | 14.7 |
-| 1600 | 410 x 410 | 675 | 658 | 675 | 679 | 662 | 67 | 576 | 27.1 |
+| 800 | 204 x 204 | 78 ms | 76 | 74 | 77 | 77 | 16 | 59 | 2.1 |
+| 1000 | 256 x 256 | 126 | 131 | 156 | 133 | 127 | 27 | 98 | 3.4 |
+| 1200 | 308 x 308 | 188 | 193 | 188 | 187 | 192 | 38 | 145 | 4.8 |
+| 1600 | 410 x 410 | 347 | 346 | 348 | 352 | 355 | 69 | 271 | 8.8 |
 
-Erosion is the land's time less the uplift's and the final drainage's; it includes elevation and the metro's routing and flattening, a few milliseconds. The whole terrain build at radius 1000 is 248 ms. Sampling, terraces included: a full sample 455 ns (626 on the field model), elevation 135 ns (396), slope 144 ns (397), travel cost 366 ns (583).
+Erosion is the land's time less the uplift's and the final drainage's; it includes elevation and the metro's routing and flattening, a few milliseconds. The whole terrain build, the land and the terrain's fields over it, is 89 ms at radius 800, 150 at 1000, 212 at 1200, and 400 at 1600, and the water stage adds 18 to 66. Sampling at radius 1000: a full sample 432 ns, elevation 142, slope 142, a 9-unit move's cost 648.
 
-The spec gives the grid stages a second on a mid-range laptop. Scaled from this desktop to one, the land with water and roads comes to about 1.0 to 1.4 s at radius 1200: over budget on the largest maps once the water stage lands, before counting radius 1600, where the land alone takes nearly twice radius 1200's time. Whenever the pipeline goes back to the terrain stage, a map restart or a retry escalated up to it, the land grows again, erosion and all; retries of the stages after it reuse it. Routing is most of erosion's time, a priority flood, O(n log n), fifty times over. The lever is routing in O(n): receivers by steepest descent straight from the heights, with the priority flood run only over the cells in pits. It isn't built.
+Routing is about three quarters of erosion's time: 52 routings a land, 40 at half size, 10 at full, and the final two, at under 60 ns a cell. The scan for local receivers takes about 30% of it, labelling basins and finding their passes and spills a third, the flood and its candidates a fifth, most of that the coarse pass's lakes, which hold 14% of its grid, and listing the order an eighth. The scan costs about 14 ns a cell even unrolled, most of it the branch on which neighbour falls furthest, which no ordering of the work makes predictable. The rest of erosion is diffusion, the area, and the implicit solve's square root and divide per cell.
+
+The spec gives the grid stages a second on a mid-range laptop. At radius 1200 the land takes 190 ms here and the water about 30; with roads (Maps 7 and 8) estimated at 140 to 210 ms, the grid stages come to 0.36 to 0.43 s on this desktop, or 0.6 to 0.95 s on a mid-range laptop taking 1.6 to 2.2 times as long. At radius 1600 the land alone takes 350 ms. Whenever the pipeline goes back to the terrain stage, a map restart or a retry escalated up to it, the land grows again, erosion and all; retries of the stages after it reuse it.
 
 Under Jest a terrain at radius 1000 takes about 0.3 s to build, and 0.8 s with coverage on, which CI runs. So the terrain tests build each parameter set once a file, and the sweeps stay at 15 sets.
 
