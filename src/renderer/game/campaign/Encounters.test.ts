@@ -69,7 +69,7 @@ describe('where a lone raider opens', () => {
 		expect(raider.slot?.row).toBe(RoadRow.BEHIND);
 	});
 
-	it('fills the opening order with no crew to size up, as the combat screen\'s skirmish builds it', () => {
+	it('fills the opening order with no crew to size up', () => {
 		const [raider] = encounterTeam({ encounter: 'scavengers', cards: CARDS }).vehicles;
 		expect(raider.slot).toBeNull();
 	});

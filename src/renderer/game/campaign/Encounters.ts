@@ -46,10 +46,11 @@ const SEAT_ROWS: readonly RoadRow[] = openingSlots(TeamType.PLAYER).slice(0, PLA
  * deck from `cards`, sized up against the crew in `crewStructure`. A lone
  * raider opens on the inside lane across from the vehicle with the most
  * structure, the first seat's on a tie, where a ram from either side
- * reaches; a gang, or a lone raider with no crew given (the combat screen's
- * skirmish), fills the formation's opening order. Against one seat every
- * raider refills to its solo adrenaline. Throws as `raiderVehicle` does for
- * a card the map doesn't hold.
+ * reaches; a gang, or a lone raider with no crew given, fills the
+ * formation's opening order. Against one seat every raider refills to its
+ * solo adrenaline. The combat screen's skirmish is the one-skull encounter
+ * against its pair. Throws as `raiderVehicle` does for a card the map
+ * doesn't hold.
  */
 export function encounterTeam({ encounter, cards, crewStructure = [] }: {
 	encounter: EncounterId;

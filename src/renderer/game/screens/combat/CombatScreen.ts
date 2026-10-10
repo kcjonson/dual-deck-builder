@@ -31,9 +31,8 @@ import { Driver, DriverRole } from '../../mechanics/Driver';
 import { assertDriverPair, assertDriverSeats } from '../../mechanics/DriverPair';
 import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
 import { Vehicle, createDrivenVehicle } from '../../mechanics/Vehicle';
-import { RoadLane, RoadRow } from '../../mechanics/Road';
 import { Team, TeamType } from '../../mechanics/Team';
-import { raiderVehicle } from '../../mechanics/Raiders';
+import { encounterFor, encounterTeam } from '../../campaign/Encounters';
 import { Battle, BattleState, BattleMessage, EnemyTurnStep, HitEvent } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { AimPreview, previewAim } from '../../mechanics/AimPreview';
@@ -236,8 +235,7 @@ export class CombatScreen extends Screen {
 				vehicles: [vehicle1, vehicle2]
 			});
 
-			// Create simple enemy team for testing
-			const enemyTeam = this.createTestEnemyTeam();
+			const enemyTeam = this.createTestEnemyTeam([vehicle1, vehicle2]);
 
 			const battle = new Battle({ playerTeam, enemyTeam, rng });
 
@@ -459,13 +457,15 @@ export class CombatScreen extends Screen {
 	}
 
 	/**
-	 * The skirmish's raiders: one Rust Buggy, the profile a supply run's
-	 * encounters field too, inside center.
+	 * The skirmish's raiders: a supply run's one-skull encounter, its Rust
+	 * Buggy opening across from the pair's tougher vehicle as a run's would.
 	 */
-	private createTestEnemyTeam(): Team {
-		const buggy = raiderVehicle({ raider: 'rust_buggy', cards: CardLoader.getInstance().getAllCardsAsMap() });
-		buggy.slot = { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER };
-		return new Team({ type: TeamType.ENEMY, vehicles: [buggy] });
+	private createTestEnemyTeam(vehicles: readonly Vehicle[]): Team {
+		return encounterTeam({
+			encounter: encounterFor(1),
+			cards: CardLoader.getInstance().getAllCardsAsMap(),
+			crewStructure: vehicles.map(vehicle => vehicle.structure),
+		});
 	}
 
 	/**

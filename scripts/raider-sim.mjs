@@ -15,9 +15,10 @@
  * --routes lists what each cell fights, comma separated: a skull count is
  * one fight, and `1+2` is a run's fights in order, each carrying the last
  * one's damage as the combat bridge writes it back (a driver who went down
- * revived at REVIVE_HP, a wreck limping on at LIMP_STRUCTURE). `s` is the
- * combat screen's skirmish, a pair against its Rust Buggy. --crews takes
- * `all`, `pairs`, `solo`, or a list like `road_warrior+interceptor,mechanic`;
+ * revived at REVIVE_HP, a wreck limping on at LIMP_STRUCTURE). The combat
+ * screen's skirmish fields the one-skull encounter, so a pair's 1 is its
+ * row too. --crews takes `all`, `pairs`, `solo`, or a list like
+ * `road_warrior+interceptor,mechanic`;
  * --archetypes defaults to the ones a new campaign can deal (unlocked in
  * DRIVER_CONFIGS). Run n of every cell draws from the same streams, off
  * --seed, and a pair swaps seats on every other run; the by-seat column
@@ -93,8 +94,7 @@ const { Battle } = game('mechanics/Battle');
 const { Card } = game('mechanics/Card');
 const { Deck } = game('mechanics/Deck');
 const { DRIVER_CONFIGS, Driver, DriverRole } = game('mechanics/Driver');
-const { RAIDER_PROFILES, raiderVehicle } = game('mechanics/Raiders');
-const { RoadLane, RoadRow } = game('mechanics/Road');
+const { RAIDER_PROFILES } = game('mechanics/Raiders');
 const { Team } = game('mechanics/Team');
 const { TeamType } = game('mechanics/TeamType');
 const { createDrivenVehicle } = game('mechanics/Vehicle');
@@ -125,8 +125,7 @@ const FIGHTS = Number(options.fights ?? 150);
 const SEED = Number(options.seed ?? 1);
 const TURNS = Number(options.turns ?? 25);
 const PLAYER_AI = options['player-ai'] ?? 'aggressive';
-const SKIRMISH = 's';
-const ROUTES = (options.routes ?? '1,2,3').split(',').map(route => route.split('+').map(stop => stop === SKIRMISH ? stop : Number(stop)));
+const ROUTES = (options.routes ?? '1,2,3').split(',').map(route => route.split('+').map(Number));
 const ARCHETYPES = options.archetypes
 	? options.archetypes.split(',')
 	: Object.keys(DRIVER_CONFIGS).filter(archetype => DRIVER_CONFIGS[archetype].metadata.unlocked);
@@ -172,22 +171,12 @@ function seatFor({ archetype, hitpoints, structure, armor }) {
 	return { driver, vehicle: createDrivenVehicle({ driver, structure, armor }) };
 }
 
-/** The raiders a stop fields: its skulls' encounter, or the skirmish's Rust Buggy inside center as the combat screen places it. */
-function raidersFor({ skulls, vehicles }) {
-	if (skulls === SKIRMISH) {
-		const buggy = raiderVehicle({ raider: 'rust_buggy', cards: CARDS });
-		buggy.slot = { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER };
-		return new Team({ type: TeamType.ENEMY, vehicles: [buggy] });
-	}
-	return encounterTeam({ encounter: encounterFor(skulls), cards: CARDS, crewStructure: vehicles.map(vehicle => vehicle.structure) });
-}
-
-/** One fight, played out by the AIs on the stream given. */
+/** One fight, played out by the AIs on the stream given, against the skull count's encounter sized up as a run's stop does it. */
 async function fight({ seats, skulls, rng }) {
 	const vehicles = seats.map(seat => seat.vehicle);
 	const battle = new Battle({
 		playerTeam: new Team({ type: TeamType.PLAYER, vehicles }),
-		enemyTeam: raidersFor({ skulls, vehicles }),
+		enemyTeam: encounterTeam({ encounter: encounterFor(skulls), cards: CARDS, crewStructure: vehicles.map(vehicle => vehicle.structure) }),
 		rng,
 	});
 	battle.aiController.setEnemyAI('aggressive');
@@ -248,7 +237,7 @@ const routeName = (route) => route.join('+');
 
 if (options.log) {
 	const [crew, skulls, index] = options.log.split(':');
-	const result = await run({ crew: crew.split('+'), route: [skulls === SKIRMISH ? skulls : Number(skulls)], index: Number(index) });
+	const result = await run({ crew: crew.split('+'), route: [Number(skulls)], index: Number(index) });
 	for (const { turn, type, message } of result.battle.getMessages()) {
 		if (type !== 'debug') print(`${turn} ${type}: ${message}`);
 	}
@@ -263,7 +252,6 @@ print('');
 print('crew          fights   won  by seat  stall  HP lost  struct lost  down  turns   (lost, down, and turns over runs won)');
 for (const crew of crewsAsked()) {
 	for (const route of ROUTES) {
-		if (crew.length === 1 && route.includes(SKIRMISH)) continue;
 		const results = [];
 		for (let index = 0; index < FIGHTS; index += 1) results.push(await run({ crew, route, index }));
 		const wins = results.filter(result => result.outcome === 'home');
