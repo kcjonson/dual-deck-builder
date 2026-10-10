@@ -3,7 +3,9 @@ import type { DayEnd } from '../../campaign/DayClock';
 import { forecastNeeds } from '../../campaign/DayClock';
 import type { DriverRecord } from '../../campaign/DriverRecord';
 import { newCampaign } from '../../campaign/__fixtures__/storeFixtures';
-import { BUILDINGS, amountText, dayEndReport, dayText, forecastLines, injuredLine, resourceText, restCaption } from './compoundText';
+import {
+	BUILDINGS, REST_RUN_OUT, amountText, dayEndReport, dayText, forecastLines, injuredLine, resourceText, restCaption, scavengeCaption, scavengeRefusal, scavengeReport,
+} from './compoundText';
 
 function dayEnd(changes: Partial<DayEnd> = {}): DayEnd {
 	return {
@@ -87,5 +89,25 @@ describe('compoundText', () => {
 		const named = (name: string) => ({ name }) as DriverRecord;
 		expect(dayEndReport(dayEnd({ healed: [named('Mechanic 1')] })).text).toBe('Day 9 ended. Mechanic 1 is fit again.');
 		expect(dayEndReport(dayEnd({ healed: ['A', 'B', 'C'].map(named) })).text).toBe('Day 9 ended. A, B, and C are fit again.');
+	});
+
+	it("previews a party's haul under Rest's line, leaving out scrap tuned to 0, and abbreviates as the chips do", () => {
+		expect(scavengeCaption({ fuel: 2, scrap: 15 })).toBe('Scavenging ends it too, and brings back 2 fuel and 15 scrap.');
+		expect(scavengeCaption({ fuel: 1, scrap: 0 })).toBe('Scavenging ends it too, and brings back 1 fuel.');
+		expect(scavengeCaption({ fuel: 100, scrap: 12_000 })).toBe('Scavenging ends it too, and brings back 100 fuel and 12k scrap.');
+	});
+
+	it('says why no party can go, and why Rest waits while a run is out', () => {
+		expect(scavengeRefusal({ reason: 'run_out', run: 'run-3' })).toBe("A run is out, so no party goes until it's home.");
+		expect(scavengeRefusal({ reason: 'abandoned' })).toBe('Nobody is left to send out.');
+		expect(scavengeRefusal({ reason: 'campaign_over', end: { ending: 'starved', cause: 'no_people' } })).toBe('The campaign is over, so no party goes out.');
+		expect(REST_RUN_OUT).toBe('A run is out, and its return ends the day.');
+	});
+
+	it("reports a scavenged day with the party's haul ahead of the night, urgent as the night was", () => {
+		expect(scavengeReport({ haul: { fuel: 2, scrap: 15 }, dayEnd: dayEnd() }))
+			.toEqual({ text: 'A scavenging party brought back 2 fuel and 15 scrap. Day 9 ended.', urgent: false });
+		expect(scavengeReport({ haul: { fuel: 1, scrap: 5 }, dayEnd: dayEnd({ shortfall: { food: 1, water: 0 }, peopleLost: 1 }) }))
+			.toEqual({ text: 'A scavenging party brought back 1 fuel and 5 scrap. Day 9 ended. Ran short of 1 food; 1 person lost.', urgent: true });
 	});
 });

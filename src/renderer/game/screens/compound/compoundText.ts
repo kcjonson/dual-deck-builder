@@ -1,9 +1,11 @@
 import type { ScreenName } from '../../core/ScreenManager';
 import type { Resources } from '../../campaign/Campaign';
-import { UPKEEP_RESOURCES } from '../../campaign/CompoundRules';
+import { SCAVENGED_RESOURCES, UPKEEP_RESOURCES } from '../../campaign/CompoundRules';
 import { shortfallMessage } from '../../campaign/DayClock';
 import type { DayEnd, NeedForecast, NeedsForecast } from '../../campaign/DayClock';
 import type { DriverRecord } from '../../campaign/DriverRecord';
+import { scavengeMessage } from '../../campaign/Scavenging';
+import type { Scavenge, ScavengeBlocker, ScavengeHaul } from '../../campaign/Scavenging';
 import { countOf } from '../main-menu/campaignText';
 
 export type BuildingId = 'bunkhouse' | 'radio_mast' | 'infirmary' | 'garage' | 'map_room' | 'stores';
@@ -115,6 +117,36 @@ export function restCaption({ day, forecast, over = false }: { day: number; fore
 	const eats = UPKEEP_RESOURCES.filter((resource) => forecast[resource].perDay > 0)
 		.map((resource) => `${amountText(forecast[resource].perDay)} ${resource}`);
 	return eats.length > 0 ? `Ends day ${day}. The compound eats ${eats.join(' and ')}.` : `Ends day ${day}.`;
+}
+
+/** Rest's line while a run is out, since the run's return ends the day. */
+export const REST_RUN_OUT = 'A run is out, and its return ends the day.';
+
+/**
+ * Scavenge's line, under Rest's: what a party on foot brings back today,
+ * rolled ahead from the day's own stream (`rollScavengeHaul`), so it's
+ * what the press will bring.
+ */
+export function scavengeCaption(haul: ScavengeHaul): string {
+	const found = SCAVENGED_RESOURCES.filter((resource) => haul[resource] > 0).map((resource) => `${amountText(haul[resource])} ${resource}`);
+	return `Scavenging ends it too, and brings back ${found.join(' and ')}.`;
+}
+
+const SCAVENGE_REFUSALS: Readonly<Record<ScavengeBlocker['reason'], string>> = {
+	campaign_over: 'The campaign is over, so no party goes out.',
+	abandoned: 'Nobody is left to send out.',
+	run_out: "A run is out, so no party goes until it's home.",
+};
+
+/** Why Scavenge is disabled, in its line's place. */
+export function scavengeRefusal(blocker: ScavengeBlocker): string {
+	return SCAVENGE_REFUSALS[blocker.reason];
+}
+
+/** What a day scavenging did: the party's haul as the log words it, ahead of the night's report. */
+export function scavengeReport({ haul, dayEnd }: Scavenge): NeedLine {
+	const night = dayEndReport(dayEnd);
+	return { text: `${scavengeMessage(haul)} ${night.text}`, urgent: night.urgent };
 }
 
 /** "A", "A and B", "A, B, and C". */

@@ -2,7 +2,8 @@ import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign, Resources } from '../../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
-import { DayEnd, endDay, forecastNeeds } from '../../campaign/DayClock';
+import { endDay, forecastNeeds } from '../../campaign/DayClock';
+import { getScavengeBlocker, rollScavengeHaul, scavenge } from '../../campaign/Scavenging';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
@@ -17,12 +18,16 @@ import {
 	Building,
 	NeedLine,
 	RESOURCE_ORDER,
+	REST_RUN_OUT,
 	dayEndReport,
 	dayText,
 	forecastLines,
 	injuredLine,
 	resourceText,
 	restCaption,
+	scavengeCaption,
+	scavengeRefusal,
+	scavengeReport,
 } from './compoundText';
 
 const { space } = tokens;
@@ -53,7 +58,7 @@ export interface CompoundScreenOptions {
  * Back to menu, the day, the Area map, and the stores; the buildings as the
  * menu, in a grid where the illustrated scene will go; and beside them the
  * needs panel (food and water forecasts, injured drivers, rumors) over Rest
- * and Plan a supply run.
+ * and Scavenge, side by side, and Plan a supply run.
  *
  * The bunkhouse opens the Crew screen with the campaign. Nothing behind the
  * other buildings, the Area map, or Plan a supply run exists yet, so each
@@ -61,10 +66,12 @@ export interface CompoundScreenOptions {
  * Continue is: a disabled control takes no focus or hover (R9.5), and a
  * tooltip needs one of them (R12.22). The Area map's reason is the Map
  * room's, on its tile, which leaves the top bar room for the stores. Rest
- * is live: it ends the day (`endDay`) and checkpoints the campaign.
+ * and Scavenge are live: each ends the day (`endDay`, `scavenge`) and
+ * checkpoints the campaign, and each is disabled with its reason while a
+ * run is out, Scavenge also once the campaign is over.
  *
- * Focus starts on Back to menu, not Rest, so a stray Enter can't spend a
- * day. The buildings and the two actions are focus groups (R9.29), and
+ * Focus starts on Back to menu, not Rest or Scavenge, so a stray Enter
+ * can't spend a day. The buildings and the two actions are focus groups (R9.29), and
  * Escape returns to the menu with focus restored, as Back does from the
  * menu's other screens. Opened with no campaign, as a capture or the dev
  * navigate hook does, it loads the save as Continue would.
@@ -80,12 +87,15 @@ export class CompoundScreen extends Screen {
 	private needsScroll: ScrollContainer | null = null;
 	private restButton: Button | null = null;
 	private restLine: Text | null = null;
+	private scavengeButton: Button | null = null;
+	private scavengeLine: Text | null = null;
 	private report: Text | null = null;
 	private saveError: Text | null = null;
 	private fallen: Dialog | null = null;
 	/** The buttons of buildings whose screens exist, enabled once there's a campaign to open them with, and the lines saying so until then. */
 	private readonly liveBuildings: { button: Button; waiting: Text }[] = [];
 	private unsubscribe: (() => void) | null = null;
+	/** A day end (Rest or Scavenge) or a fall's checkpoint is on its way, so the next step waits for it. */
 	private resting = false;
 	/** Counts mounts and unmounts, so an answer that arrives after the screen has gone changes nothing. */
 	private visit = 0;
@@ -169,6 +179,8 @@ export class CompoundScreen extends Screen {
 		this.needsScroll = null;
 		this.restButton = null;
 		this.restLine = null;
+		this.scavengeButton = null;
+		this.scavengeLine = null;
 		this.report = null;
 		this.saveError = null;
 		this.liveBuildings.length = 0;
@@ -238,6 +250,8 @@ export class CompoundScreen extends Screen {
 		side.addChild(panel);
 
 		const actions = new FocusGroup({ id: 'compound_actions', orientation: 'vertical', crossAlign: 'stretch', gap: space.space_1_5 });
+		// The two ways to spend a day at home, side by side, each with its line under the pair.
+		const days = new Stack({ id: 'compound_day_actions', direction: 'horizontal', crossAlign: 'stretch', gap: space.space_1_5 });
 		this.restButton = new Button({
 			label: 'Rest a day',
 			id: 'compound_rest_button',
@@ -245,9 +259,22 @@ export class CompoundScreen extends Screen {
 			disabled: true,
 			onClick: () => { void this.rest(); },
 		});
-		actions.addChild(this.restButton);
+		days.addChild(this.restButton);
+		this.scavengeButton = new Button({
+			label: 'Scavenge',
+			id: 'compound_scavenge_button',
+			block: true,
+			disabled: true,
+			onClick: () => { void this.scavenge(); },
+		});
+		days.addChild(this.scavengeButton);
+		actions.addChild(days);
 		this.restLine = caption({ id: 'compound_rest_line', text: 'Looking for the saved campaign.' });
 		actions.addChild(this.restLine);
+		// Hidden until there's a campaign whose day it can preview.
+		this.scavengeLine = caption({ id: 'compound_scavenge_line', text: '' });
+		this.scavengeLine.visible = false;
+		actions.addChild(this.scavengeLine);
 		// What the last night did, and why it couldn't be saved; each hidden until there's something to say.
 		this.report = caption({ id: 'compound_report', text: '' });
 		this.report.visible = false;
@@ -289,7 +316,6 @@ export class CompoundScreen extends Screen {
 
 	private show(campaign: Campaign): void {
 		this.campaign = campaign;
-		if (this.restButton) this.restButton.enabled = true;
 		for (const { button, waiting } of this.liveBuildings) {
 			button.enabled = true;
 			waiting.visible = false;
@@ -324,9 +350,18 @@ export class CompoundScreen extends Screen {
 		for (const [resource, amount] of this.resources) amount.text = resourceText({ resource, amount: resources[resource] });
 
 		const forecast = forecastNeeds({ resources });
+		// Rest stays live once the campaign is over, to save its end again.
+		const runOut = campaign.currentRun !== null;
+		if (this.restButton) this.restButton.enabled = !runOut;
 		if (this.restLine) {
-			this.restLine.text = restCaption({ day, forecast, over: campaign.isOver });
+			this.restLine.text = runOut ? REST_RUN_OUT : restCaption({ day, forecast, over: campaign.isOver });
 			this.restLine.color = 'text_dim';
+		}
+		const blocker = getScavengeBlocker({ campaign });
+		if (this.scavengeButton) this.scavengeButton.enabled = blocker === null;
+		if (this.scavengeLine) {
+			this.scavengeLine.text = blocker === null ? scavengeCaption(rollScavengeHaul({ seed: campaign.seed, day })) : scavengeRefusal(blocker);
+			this.scavengeLine.visible = true;
 		}
 		const needs = this.needs;
 		if (!needs) return;
@@ -340,26 +375,39 @@ export class CompoundScreen extends Screen {
 		needs.addChild(needRow({ id: 'compound_rumors', text: NO_RUMORS, color: 'text_dim' }));
 	}
 
+	/** A day of rest, refused while a run is out; once the campaign is over, its end's checkpoint again. */
+	private async rest(): Promise<void> {
+		if (!this.campaign || this.campaign.currentRun !== null) return;
+		await this.passDay((campaign) => dayEndReport(endDay({ campaign })));
+	}
+
+	/** A party out on foot for the day, refused as `getScavengeBlocker` says. */
+	private async scavenge(): Promise<void> {
+		if (!this.campaign || getScavengeBlocker({ campaign: this.campaign }) !== null) return;
+		await this.passDay((campaign) => scavengeReport(scavenge({ campaign })));
+	}
+
 	/**
-	 * Ends the day, then checkpoints. A second press while the checkpoint is
-	 * on its way does nothing, so the next step starts after it, as the store
-	 * asks. A night that empties the compound ends the campaign, and its
-	 * checkpoint ends it in the store, writing the history line and removing
-	 * the save, before the notice opens. A save that fails says so under Rest
+	 * Ends the day with `step`, which says what it did, then checkpoints. A
+	 * second press of either while the checkpoint is on its way does
+	 * nothing, so the next step starts after it, as the store asks. A night
+	 * that empties the compound ends the campaign, and its checkpoint ends it
+	 * in the store, writing the history line and removing the save, before
+	 * the notice opens. A save that fails says so under the buttons
 	 * (`onSaveFailed`), and a fall whose checkpoint failed shows no notice:
 	 * the save still holds the day before, and Rest tries the checkpoint
 	 * again without ending another day.
 	 */
-	private async rest(): Promise<void> {
+	private async passDay(step: (campaign: Campaign) => NeedLine): Promise<void> {
 		const campaign = this.campaign;
 		if (!campaign || this.resting || this.fallen) return;
 		this.resting = true;
 		const visit = this.visit;
 		if (this.saveError) this.saveError.visible = false;
 		if (!campaign.isOver) {
-			let dayEnd: DayEnd;
+			let report: NeedLine;
 			try {
-				dayEnd = endDay({ campaign });
+				report = step(campaign);
 			} catch (error) {
 				console.error('CompoundScreen: ending the day failed', error);
 				this.showLine({ line: this.report, text: "The day couldn't end.", color: 'status_crit' });
@@ -367,7 +415,6 @@ export class CompoundScreen extends Screen {
 				return;
 			}
 			this.refresh();
-			const report = dayEndReport(dayEnd);
 			this.showLine({ line: this.report, text: report.text, color: report.urgent ? 'status_warn' : 'text_dim' });
 		}
 		const saved = await this.store.checkpoint(campaign);
@@ -415,8 +462,8 @@ export class CompoundScreen extends Screen {
 
 	/**
 	 * A building's screen, handed the campaign; Back from it lands on the
-	 * building's button. Not while a Rest is being saved, so the next step
-	 * starts after its checkpoint, as Rest's own second press waits.
+	 * building's button. Not while a day end is being saved, so the next
+	 * step starts after its checkpoint, as a second Rest or Scavenge waits.
 	 */
 	private open(building: Building): void {
 		if (!this.campaign || !building.screen || this.resting || this.fallen) return;
