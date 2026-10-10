@@ -18,6 +18,7 @@ export interface Vector {
 const RADIANS_PER_DEGREE = Math.PI / 180;
 // Read once, at load: under Jest's vm context each global read costs about 0.15 us (seeded-prng.md).
 const round = Math.round;
+const sqrt = Math.sqrt;
 
 /**
  * The unit vector at `degrees` counterclockwise from east (+x), into `out`.
@@ -167,3 +168,33 @@ export function chaikin(points: readonly number[]): number[] {
 	return smoothed;
 }
 
+/** A polyline's length: the sum of its segments'. */
+export function polylineLength(points: readonly number[]): number {
+	let length = 0;
+	for (let index = 0; index + 3 < points.length; index += 2) {
+		const dx = points[index + 2] - points[index];
+		const dy = points[index + 3] - points[index + 1];
+		length += sqrt(dx * dx + dy * dy);
+	}
+	return length;
+}
+
+/** The point `distance` along a polyline from its start, into `out`; its end past its length. */
+export function pointAlong(points: readonly number[], distance: number, out: { x: number; y: number }): { x: number; y: number } {
+	let travelled = 0;
+	for (let index = 0; index + 3 < points.length; index += 2) {
+		const dx = points[index + 2] - points[index];
+		const dy = points[index + 3] - points[index + 1];
+		const segment = sqrt(dx * dx + dy * dy);
+		if (travelled + segment >= distance && segment > 0) {
+			const share = (distance - travelled) / segment;
+			out.x = points[index] + dx * share;
+			out.y = points[index + 1] + dy * share;
+			return out;
+		}
+		travelled += segment;
+	}
+	out.x = points[points.length - 2];
+	out.y = points[points.length - 1];
+	return out;
+}

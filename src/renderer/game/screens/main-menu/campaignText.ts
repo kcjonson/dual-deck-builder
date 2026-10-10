@@ -52,7 +52,7 @@ export const MAP_STAGE_LABELS: Readonly<Record<AreaMapStageName, string>> = {
 	water: 'water',
 	hazards: 'hazards',
 	places: 'places',
-	growth: 'roads',
+	roads: 'roads',
 	routeTree: 'route tree',
 	pois: 'POIs',
 };

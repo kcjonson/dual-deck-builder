@@ -1,6 +1,6 @@
 # Places and hazards (DDB-442)
 
-Date: 2026-10-10. Code: `src/renderer/game/map/` (`Hazards.ts`, `Places.ts`, `PlaceNames.ts`, `Highways.ts` for growth's departures, `Terrain.ts` laying the hazards over the land; `AreaMapPipeline.ts` runs the stages; `worker/mapGenerationProtocol.ts` carries them across the worker boundary), and `ui/areaMap/` (`AreaMapView.ts`, `terrainBake.ts`), timed and drawn by `scripts/road-growth.mjs places` and `png`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, 3. Biomes, hazards, and cost, and 4. Settlements. Builds Map 6 of [realistic-map.md](./realistic-map.md) on the water of [water-and-biomes.md](./water-and-biomes.md), and replaces terrain-fields.md's town placement and the old `highways` stand-in stage.
+Date: 2026-10-10. Code: `src/renderer/game/map/` (`Hazards.ts`, `Places.ts`, `PlaceNames.ts`, `Terrain.ts` laying the hazards over the land; `AreaMapPipeline.ts` runs the stages; `worker/mapGenerationProtocol.ts` carries them across the worker boundary), and `ui/areaMap/` (`AreaMapView.ts`, `terrainBake.ts`), timed and drawn by `scripts/road-network.mjs places` and `png`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, 3. Biomes, hazards, and cost, and 4. Settlements. Builds Map 6 of [realistic-map.md](./realistic-map.md) on the water of [water-and-biomes.md](./water-and-biomes.md), and replaces terrain-fields.md's town placement and the old `highways` stand-in stage.
 
 ## Context
 
@@ -48,7 +48,7 @@ The prototype's terms, with its Gaussians made smoothsteps so the score is exact
 
 Taken best first, ties by cell index, each kept when it's its kind's spacing from the others of its kind and from those placed before (towns a quarter of the radius apart, villages a tenth from villages and towns), past the metro's edge by 0.8 of its spacing, with its ruins outside the blend radius, inside 0.92 of the radius, 20 units clear of every crater, and a cell clear of every lake. The checks use the largest ruins a kind can draw, so one pass down the ranking settles them; each place's ruins are drawn once it's placed: a town's a quarter to 0.4 of the metro's radius and at least 20 units, as before, a village's 0.08 to 0.14 and at least 8.
 
-Where the land has no room, fewer are placed: the old placement's fallback walk, which put a town anywhere a road reached once the good ground ran out, is gone, since the spec rules out the ranges' heart. At the tuning range's most mountainous corner, coverage 1 at radius 600, no town fits; across the campaign ranges every map gets all it asks for (`road-growth.mjs places`, below).
+Where the land has no room, fewer are placed: the old placement's fallback walk, which put a town anywhere a road reached once the good ground ran out, is gone, since the spec rules out the ranges' heart. At the tuning range's most mountainous corner, coverage 1 at radius 600, no town fits; across the campaign ranges every map gets all it asks for (`road-network.mjs places`, below).
 
 Names come from a first part and an ending, 35 by 22 (Ashford, Cold Springs), none repeated on a map, and no first part used twice while one is left, so a map doesn't fill with Copper this and Copper that. Placeholder words until the atlas or a writer gives regions their own.
 
@@ -82,9 +82,9 @@ interface Places {
 
 `placeList(places)` lists every place in id order, the metro first, then towns, villages, crossroads, and exits, which is what a Gabriel graph over places wants. `ruinsOf(places)` is the metro, towns, and villages, what the bake shades. Positions are world units with the compound at the origin; an exit's bearing is degrees counterclockwise from east. Everything is frozen.
 
-## The old growth on the new places
+## The roads on the places
 
-Growth keeps its own rules. Its highways now leave the metro toward the highway exits: `highwayDepartures` puts each on the metro's edge on its exit's bearing, with its drift drawn on the growth stream's `highways` fork at its index. Nothing else changed, so growth doesn't aim at the exit's slid point or route through towns; Map 7's least-cost highways from the exits do. `node scripts/road-growth.mjs check --maps 50` finds no map failing a first attempt, and the property tests pass.
+The roads stage (road-network.md) joins every place in `placeList`'s order, the metro as the compound: a highway from each highway exit through the best town near its bearing, and back roads over the Gabriel graph of the rest, back-road exits included. Growth, which this record's first cut ran on the places, is gone with `Highways.ts` and `highwayDepartures`.
 
 ## Crossing the worker boundary
 
@@ -100,7 +100,7 @@ Everything on the gameplay path is adds, multiplies, divides, compares, and squa
 
 ## Performance
 
-`node scripts/road-growth.mjs places --seeds 3 --repeat 2`, Node 24 on the shared desktop, medians over five environments by three seeds, each map's fastest of two runs:
+`node scripts/road-network.mjs places --seeds 3 --repeat 2` (`road-growth.mjs` when measured), Node 24 on the shared desktop, medians over five environments by three seeds, each map's fastest of two runs:
 
 | Radius | Hazards, ms | Places, ms | Slowest places, ms | Crossroads |
 | --- | --- | --- | --- | --- |

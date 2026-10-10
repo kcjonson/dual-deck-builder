@@ -1,3 +1,4 @@
+import { polylineLength } from './Geometry';
 import type { RoadClass, RoadNetwork } from './RoadNetwork';
 
 /**
@@ -204,6 +205,8 @@ function findMeetingPoints({ network, tree, incidence, routeSplit }: {
 		if (incidence.start[node + 1] - incidence.start[node] !== 3) continue;
 		const first = incidence.start[node];
 		const from = [incidence.other[first], incidence.other[first + 1], incidence.other[first + 2]];
+		// Two roads from one neighbour would give two routes the same way home.
+		if (from[0] === from[1] || from[0] === from[2] || from[1] === from[2]) continue;
 		if (splitsInTime(tree, from[0], from[1], routeSplit) && splitsInTime(tree, from[0], from[2], routeSplit) && splitsInTime(tree, from[1], from[2], routeSplit)) {
 			points.push({ stretch: -1, node, from, via: [incidence.stretch[first], incidence.stretch[first + 1], incidence.stretch[first + 2]] });
 		}
@@ -375,37 +378,6 @@ export function legPoints(network: RoadNetwork, { pieces }: Pick<Leg, 'pieces'>)
 		for (let index = line.length === 0 ? 0 : 2; index < piece.length; index += 1) line.push(piece[index]);
 	}
 	return line;
-}
-
-/** A polyline's length: the sum of its segments'. */
-export function polylineLength(points: readonly number[]): number {
-	let length = 0;
-	for (let index = 0; index + 3 < points.length; index += 2) {
-		const dx = points[index + 2] - points[index];
-		const dy = points[index + 3] - points[index + 1];
-		length += sqrt(dx * dx + dy * dy);
-	}
-	return length;
-}
-
-/** The point `distance` along a polyline from its start, into `out`; its end past its length. */
-export function pointAlong(points: readonly number[], distance: number, out: { x: number; y: number }): { x: number; y: number } {
-	let travelled = 0;
-	for (let index = 0; index + 3 < points.length; index += 2) {
-		const dx = points[index + 2] - points[index];
-		const dy = points[index + 3] - points[index + 1];
-		const segment = sqrt(dx * dx + dy * dy);
-		if (travelled + segment >= distance && segment > 0) {
-			const share = (distance - travelled) / segment;
-			out.x = points[index] + dx * share;
-			out.y = points[index + 1] + dy * share;
-			return out;
-		}
-		travelled += segment;
-	}
-	out.x = points[points.length - 2];
-	out.y = points[points.length - 1];
-	return out;
 }
 
 /** A polyline up to `distance` along it, ending on the point there; the whole of it at or past its length. */

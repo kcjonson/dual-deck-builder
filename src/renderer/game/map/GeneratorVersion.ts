@@ -10,4 +10,4 @@
  *
  * A module of its own, so the store reads it without loading the pipeline.
  */
-export const AREA_MAP_GENERATOR_VERSION = 3;
+export const AREA_MAP_GENERATOR_VERSION = 4;

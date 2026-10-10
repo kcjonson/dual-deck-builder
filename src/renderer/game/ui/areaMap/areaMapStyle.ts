@@ -4,9 +4,7 @@ import { tokens } from '../../../engine/theme/tokens';
 
 /**
  * How the area map is drawn: the baked terrain's palette and the live
- * layers' colours and sizes. The terrain and road colours are
- * `scripts/road-growth.mjs png`'s, so the view and the offline pictures in
- * road-growth.md read alike. Sizes are screen pixels at any zoom.
+ * layers' colours and sizes. Sizes are screen pixels at any zoom.
  */
 
 /** 0 to 255 RGB, baked into the terrain texture. */

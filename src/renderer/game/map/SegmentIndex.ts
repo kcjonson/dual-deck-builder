@@ -5,12 +5,11 @@ const sqrt = Math.sqrt;
 const floor = Math.floor;
 
 /**
- * A spatial hash over road segments, for growth's clearance checks: a square
- * grid of cells over the disc, each listing the segments whose bounding box
- * overlaps it. Segments are added as growth accepts steps and can be
- * retired (smoothing swaps a stretch's steps for its curve), never moved.
+ * A spatial hash over segments: a square grid of cells, each listing the
+ * segments whose bounding box overlaps it, each filed under an owner. The
+ * POI stage files the highways in one to ask how near a site is to one.
  * Storage is typed arrays that double when full, and a query fills a reused
- * buffer, so checking a step allocates nothing.
+ * buffer, so asking allocates nothing.
  */
 export class SegmentIndex {
 	private readonly cellSize: number;
@@ -26,7 +25,6 @@ export class SegmentIndex {
 	/** x0, y0, x1, y1 per segment. */
 	private ends = new Float64Array(4 * 256);
 	private owners = new Int32Array(256);
-	private live = new Uint8Array(256);
 	/** The query each segment was last returned by, so one listed in several cells comes back once. */
 	private stamps = new Int32Array(256);
 	private segmentCount = 0;
@@ -42,12 +40,12 @@ export class SegmentIndex {
 		this.heads = new Int32Array(this.columns * this.columns).fill(-1);
 	}
 
-	/** Segments added so far, retired ones included; ids run from 0 to this. */
+	/** Segments added so far; ids run from 0 to this. */
 	public get size(): number {
 		return this.segmentCount;
 	}
 
-	/** Files a segment under `owner` (a road's id) and returns its id. */
+	/** Files a segment under `owner` and returns its id. */
 	public add(x0: number, y0: number, x1: number, y1: number, owner: number): number {
 		const id = this.segmentCount;
 		if (id === this.owners.length) this.growSegments();
@@ -57,7 +55,6 @@ export class SegmentIndex {
 		this.ends[4 * id + 2] = x1;
 		this.ends[4 * id + 3] = y1;
 		this.owners[id] = owner;
-		this.live[id] = 1;
 		this.stamps[id] = 0;
 		const first = this.column(x0 < x1 ? x0 : x1);
 		const last = this.column(x0 < x1 ? x1 : x0);
@@ -69,33 +66,8 @@ export class SegmentIndex {
 		return id;
 	}
 
-	/** Takes a segment out of every later query. */
-	public retire(id: number): void {
-		this.live[id] = 0;
-	}
-
-	public owner(id: number): number {
-		return this.owners[id];
-	}
-
-	public x0(id: number): number {
-		return this.ends[4 * id];
-	}
-
-	public y0(id: number): number {
-		return this.ends[4 * id + 1];
-	}
-
-	public x1(id: number): number {
-		return this.ends[4 * id + 2];
-	}
-
-	public y1(id: number): number {
-		return this.ends[4 * id + 3];
-	}
-
 	/**
-	 * The live segments filed in cells the box overlaps, each once, into
+	 * The segments filed in cells the box overlaps, each once, into
 	 * `results` (read it before the next query). Returns how many; the list
 	 * holds every segment that comes within the box, and some that don't.
 	 */
@@ -111,7 +83,7 @@ export class SegmentIndex {
 			for (let column = first; column <= last; column += 1) {
 				for (let entry = this.heads[row * this.columns + column]; entry >= 0; entry = this.entryNext[entry]) {
 					const id = this.entrySegment[entry];
-					if (this.stamps[id] === stamp || this.live[id] === 0) continue;
+					if (this.stamps[id] === stamp) continue;
 					this.stamps[id] = stamp;
 					if (count === this.found.length) this.growFound();
 					this.found[count] = id;
@@ -128,7 +100,7 @@ export class SegmentIndex {
 	}
 
 	/**
-	 * The distance from (x, y) to the nearest live segment not owned by
+	 * The distance from (x, y) to the nearest segment not owned by
 	 * `skipOwner`, or `limit` when none comes nearer.
 	 */
 	public nearest(x: number, y: number, limit: number, skipOwner: number): number {
@@ -166,9 +138,6 @@ export class SegmentIndex {
 		this.ends = ends;
 		this.owners = grown(this.owners);
 		this.stamps = grown(this.stamps);
-		const live = new Uint8Array(this.live.length * 2);
-		live.set(this.live);
-		this.live = live;
 	}
 
 	private growFound(): void {

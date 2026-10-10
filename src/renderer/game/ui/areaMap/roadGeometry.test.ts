@@ -21,9 +21,9 @@ describe('road geometry', () => {
 		expect(lengthOf(geometry.stretches[2].points)).toBe(200);
 	});
 
-	it('finds the junctions and the stretch leading into each', () => {
+	it('finds the junctions and the stretches meeting at each', () => {
 		const geometry = new RoadGeometry({ network: SMALL_NETWORK });
-		expect(geometry.junctions).toEqual([{ at: { x: 0, y: -300 }, inbound: 1 }]);
+		expect(geometry.junctions).toEqual([{ at: { x: 0, y: -300 }, stretches: [1, 2, 3] }]);
 	});
 
 	it('picks the coarsest detail level that stays under the pixel tolerance', () => {
