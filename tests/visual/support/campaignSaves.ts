@@ -1,8 +1,8 @@
 /**
  * Campaign saves for the screen scenarios: local storage items a capture
  * writes before it navigates, so the main menu, Campaign History, the
- * compound screen, and the Crew screen render from a save the way a
- * player's page would.
+ * compound screen, the Crew screen, and Customize render from a save the
+ * way a player's page would.
  *
  * Built from the campaign store's own test fixtures, so they follow the
  * fixture and the save format version wherever those move, and nothing here
@@ -11,7 +11,7 @@
  */
 import { CAMPAIGN_SCHEMA_VERSION } from '../../../src/renderer/game/campaign/Campaign';
 import { campaignKeys, pageNamespace } from '../../../src/renderer/game/campaign/CampaignStore';
-import { atHomeText, fixtureText, fullLockerCampaign, outdatedText, saveText } from '../../../src/renderer/game/campaign/__fixtures__/storeFixtures';
+import { atHomeText, fixtureText, fullLockerCampaign, fullRunCampaign, outdatedText, saveText } from '../../../src/renderer/game/campaign/__fixtures__/storeFixtures';
 
 /** Every key the store writes starts with this, whatever the build. */
 export const CAMPAIGN_KEY_PREFIX = 'dual-deckbuilder.campaign[';
@@ -34,6 +34,9 @@ export const AT_HOME = savedAs(atHomeText());
 
 /** The Crew screen's longest lists from the shipped cards: a deck at the most it holds, and every card but the escorts' in the locker. */
 export const FULL_LOCKER = savedAs(saveText({ campaign: fullLockerCampaign().toSaveText() }));
+
+/** Customize's longest lists from the shipped cards: a run deck at the most it holds, both escorts' cards, and the full locker. */
+export const FULL_RUN = savedAs(saveText({ campaign: fullRunCampaign().toSaveText() }));
 
 /** The fixture as the next save format version wrote it. */
 export const OUTDATED = savedAs(outdatedText());

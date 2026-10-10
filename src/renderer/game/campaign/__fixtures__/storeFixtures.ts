@@ -76,6 +76,21 @@ export function fullLockerCampaign(): Campaign {
 	});
 }
 
+/**
+ * The longest lists Customize shows from the shipped cards: the full
+ * locker campaign with a run out, its first driver in seat 1 with a run
+ * deck at the most a deck holds (an Armor Plating left at home and a
+ * Headshot borrowed in its place) and both escorts' cards, the fifth in
+ * seat 2.
+ */
+export function fullRunCampaign(): Campaign {
+	const campaign = fullLockerCampaign();
+	const [runDeck] = campaign.startRunDecks({ seats: [campaign.drivers[0], campaign.drivers[4]], escorts: campaign.convoy.escorts });
+	campaign.moveCards({ cardType: 'armor_plating', from: runDeck, to: 'locker' });
+	campaign.moveCards({ cardType: 'headshot', from: 'locker', to: runDeck });
+	return campaign;
+}
+
 /** A save of this version that won't load: a driver in a state that doesn't exist. */
 export function damagedText(): string {
 	return fixtureText(campaign => { (campaign.drivers as { status: string }[])[1].status = 'sleeping'; });
