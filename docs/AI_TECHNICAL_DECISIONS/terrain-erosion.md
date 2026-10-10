@@ -123,18 +123,20 @@ The terrain stream forks by feature: `hills`, `ranges`, `rangeWarp`, `rangeBreak
 
 ## Performance
 
-`node scripts/terrain-bench.mjs --radii 800,1000,1200,1600`, Node 24 (V8 13.6), the same shared desktop, the median of three seeds per radius and environment:
+`node scripts/terrain-bench.mjs --radii 800,1000,1200,1600`, Node 24 (V8 13.6), the same shared desktop, the median of three seeds per radius and environment. Other work on the desktop slows every column alike, by half again in a busy spell, the uplift's included, so these are from a quiet one:
 
 | Radius | Grid | Mixed | High Desert | Rust Belt | Floodlands | Badlands | Uplift | Erosion | Drainage |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 800 | 204 x 204 | 141 ms | 140 | 142 | 148 | 142 | 16 | 121 | 5.9 |
-| 1000 | 256 x 256 | 236 | 235 | 239 | 243 | 233 | 26 | 203 | 9.7 |
-| 1200 | 308 x 308 | 359 | 357 | 357 | 364 | 355 | 38 | 306 | 14.7 |
-| 1600 | 410 x 410 | 675 | 658 | 675 | 679 | 662 | 67 | 576 | 27.1 |
+| 800 | 204 x 204 | 78 ms | 76 | 74 | 77 | 77 | 16 | 59 | 2.1 |
+| 1000 | 256 x 256 | 126 | 131 | 156 | 133 | 127 | 27 | 98 | 3.4 |
+| 1200 | 308 x 308 | 188 | 193 | 188 | 187 | 192 | 38 | 145 | 4.8 |
+| 1600 | 410 x 410 | 347 | 346 | 348 | 352 | 355 | 69 | 271 | 8.8 |
 
-Erosion is the land's time less the uplift's and the final drainage's; it includes elevation and the metro's routing and flattening, a few milliseconds. The whole terrain build at radius 1000 is 248 ms. Sampling, terraces included: a full sample 455 ns (626 on the field model), elevation 135 ns (396), slope 144 ns (397), travel cost 366 ns (583).
+Erosion is the land's time less the uplift's and the final drainage's; it includes elevation and the metro's routing and flattening, a few milliseconds. The whole terrain build, the land and the terrain's fields over it, is 89 ms at radius 800, 150 at 1000, 212 at 1200, and 400 at 1600, and the water stage adds 18 to 66. Sampling at radius 1000: a full sample 432 ns, elevation 142, slope 142, a 9-unit move's cost 648.
 
-The spec gives the grid stages a second on a mid-range laptop. Scaled from this desktop to one, the land with water and roads comes to about 1.0 to 1.4 s at radius 1200: over budget on the largest maps once the water stage lands, before counting radius 1600, where the land alone takes nearly twice radius 1200's time. Whenever the pipeline goes back to the terrain stage, a map restart or a retry escalated up to it, the land grows again, erosion and all; retries of the stages after it reuse it. Routing is most of erosion's time, a priority flood, O(n log n), fifty times over. The lever is routing in O(n): receivers by steepest descent straight from the heights, with the priority flood run only over the cells in pits. It isn't built.
+Routing is about three quarters of erosion's time: 52 routings a land, 40 at half size, 10 at full, and the final two, at under 60 ns a cell. The scan for local receivers takes about 30% of it, labelling basins and finding their passes and spills a third, the flood and its candidates a fifth, most of that the coarse pass's lakes, which hold 14% of its grid, and listing the order an eighth. The scan costs about 14 ns a cell even unrolled, most of it the branch on which neighbour falls furthest, which no ordering of the work makes predictable. The rest of erosion is diffusion, the area, and the implicit solve's square root and divide per cell.
+
+The spec gives the grid stages a second on a mid-range laptop. At radius 1200 the land takes 190 ms here and the water about 30; with roads (Maps 7 and 8) estimated at 140 to 210 ms, the grid stages come to 0.36 to 0.43 s on this desktop, or 0.6 to 0.95 s on a mid-range laptop taking 1.6 to 2.2 times as long. At radius 1600 the land alone takes 350 ms. Whenever the pipeline goes back to the terrain stage, a map restart or a retry escalated up to it, the land grows again, erosion and all; retries of the stages after it reuse it.
 
 Under Jest a terrain at radius 1000 takes about 0.3 s to build, and 0.8 s with coverage on, which CI runs. So the terrain tests build each parameter set once a file, and the sweeps stay at 15 sets.
 
