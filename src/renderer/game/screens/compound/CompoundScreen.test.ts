@@ -16,6 +16,7 @@ import { Campaign, CampaignData, Resources } from '../../campaign/Campaign';
 import type { CampaignStore } from '../../campaign/CampaignStore';
 import { MemorySaveStorage } from '../../campaign/SaveStorage';
 import { rollScavengeHaul, scavengeMessage } from '../../campaign/Scavenging';
+import { routesOnOffer } from '../../campaign/SupplyRun';
 import {
 	CAMPAIGN_FIXTURE, FaultyStorage, KEYS, damagedText, fixtureText, newCampaign, quotaError, saveText, storageWith, storeOver
 } from '../../campaign/__fixtures__/storeFixtures';
@@ -66,9 +67,10 @@ describe('CompoundScreen', () => {
 	 * waits for a run out), its stores changed and its end set if asked, as
 	 * save text.
 	 */
-	function homeText(resources: Partial<Resources>, end: CampaignData['end'] = null): string {
+	function homeText(resources: Partial<Resources>, end: CampaignData['end'] = null, change: (campaign: Campaign) => void = () => undefined): string {
 		const campaign = Campaign.fromJSON(JSON.parse(JSON.stringify(CAMPAIGN_FIXTURE)));
 		campaign.unwindRunDecks();
+		change(campaign);
 		campaign.set({ resources: { ...campaign.resources, ...resources }, end });
 		return saveText({ campaign: campaign.toSaveText() });
 	}
@@ -154,7 +156,7 @@ describe('CompoundScreen', () => {
 			expect(chips).toEqual(['Food 14', 'Water 11', 'Fuel 6', 'Scrap 35', 'Meds 2', 'People 18']);
 		});
 
-		it('names each building at the top of its tile, and disables those with nothing behind them, the Area map, and Plan a supply run, each with its reason on screen', () => {
+		it('names each building at the top of its tile, and disables those with nothing behind them and the Area map, each with its reason on screen', () => {
 			for (const building of BUILDINGS) {
 				expect(text(`compound_building_${building.id}_name`)).toBe(building.name);
 				expect(find<{ color: unknown }>(`compound_building_${building.id}_name`).color).toEqual(tokens.color.text_bright);
@@ -168,8 +170,6 @@ describe('CompoundScreen', () => {
 			// The Map room's tile carries the Area map's reason.
 			expect(find<Button>('compound_area_map_button').enabled).toBe(false);
 			expect(text('compound_building_map_room_reason')).toBe("The area map isn't built yet.");
-			expect(find<Button>('compound_plan_button').enabled).toBe(false);
-			expect(text('compound_plan_reason')).toBe("Load out and the run route aren't built yet.");
 			expect(find<Button>('compound_rest_button').enabled).toBe(true);
 			expect(find<Button>('compound_scavenge_button').enabled).toBe(true);
 		});
@@ -359,6 +359,30 @@ describe('CompoundScreen', () => {
 		expect(find<Text>('compound_save_error').visible).toBe(false);
 		const saved = await storeOver(storage).load();
 		expect([saved?.day, saved?.resources.fuel]).toEqual([11, 6 + first.fuel + second.fuel]);
+	});
+
+	describe('Plan a supply run (DDB-454)', () => {
+		it('opens the route pick with the campaign, saying how many routes today offers', async () => {
+			await open();
+			const campaign = screen.shown as Campaign;
+			expect(find<Button>('compound_plan_button').enabled).toBe(true);
+			expect(text('compound_plan_reason')).toBe(`${routesOnOffer({ campaign }).length} routes on offer today.`);
+			find<Button>('compound_plan_button').onClick?.({} as never);
+			expect(navigate).toHaveBeenLastCalledWith('routePickScreen', { campaign });
+		});
+
+		it.each([
+			['a run out', () => openRunOut(), 'A run is out. Continue from the menu drives it on.'],
+			['too little fuel for any route', () => open({ fuel: 0 }), /^Today's cheapest route takes \d fuel, and the stores hold 0\.$/],
+			['nobody to send', () => openText(homeText({}, null, (campaign) => campaign.drivers[0].set({ status: 'injured', injuredDays: 1, hitpoints: 30 }))),
+				'No two drivers at the compound can go out together.'],
+		])('is off with its reason with %s, and does nothing', async (_name, mount, reason) => {
+			await mount();
+			expect(find<Button>('compound_plan_button').enabled).toBe(false);
+			expect(text('compound_plan_reason')).toMatch(reason);
+			find<Button>('compound_plan_button').onClick?.({} as never);
+			expect(navigate).not.toHaveBeenCalledWith('routePickScreen', expect.anything());
+		});
 	});
 
 	it('disables Rest and Scavenge while a run is out, each saying why, since the run\'s return ends the day', async () => {

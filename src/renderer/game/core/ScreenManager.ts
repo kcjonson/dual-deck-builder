@@ -13,6 +13,8 @@ import { CampaignHistoryScreen } from '../screens/campaign-history/CampaignHisto
 import { CompoundScreen } from '../screens/compound/CompoundScreen';
 import { CrewScreen } from '../screens/crew/CrewScreen';
 import { DefeatScreen } from '../screens/defeat/DefeatScreen';
+import { RoutePickScreen } from '../screens/route-pick/RoutePickScreen';
+import { RunScreen } from '../screens/run/RunScreen';
 import { ScreenTransition } from '../../engine/ui/ScreenTransition';
 
 /**
@@ -31,7 +33,9 @@ export type ScreenName =
 	| 'campaignHistoryScreen'
 	| 'compoundScreen'
 	| 'crewScreen'
-	| 'defeatScreen';
+	| 'defeatScreen'
+	| 'routePickScreen'
+	| 'runScreen';
 
 /**
  * Screen constructor type
@@ -66,6 +70,8 @@ function buildScreenConstructors(): Map<ScreenName, ScreenConstructor> {
 		['compoundScreen', CompoundScreen],
 		['crewScreen', CrewScreen],
 		['defeatScreen', DefeatScreen],
+		['routePickScreen', RoutePickScreen],
+		['runScreen', RunScreen],
 	);
 	return new Map(entries);
 }

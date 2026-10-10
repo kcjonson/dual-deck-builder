@@ -1,16 +1,12 @@
 import { Rng } from '../core/Rng';
 import cardsFile from '../data/cards.json';
-import { Card, CardData, CardEffect } from '../mechanics/Card';
-import { Deck } from '../mechanics/Deck';
-import { Driver, DriverArchetype, DriverRole } from '../mechanics/Driver';
+import { Card, CardData } from '../mechanics/Card';
+import type { DriverArchetype } from '../mechanics/Driver';
 import { createEscort } from '../mechanics/Escort';
-import { Team, TeamType } from '../mechanics/Team';
-import { Vehicle, createDrivenVehicle } from '../mechanics/Vehicle';
 import { Campaign, CampaignJson } from './Campaign';
 import { CampaignOverError } from './CampaignEnd';
 import { CAMPAIGN_START } from './CampaignStart';
 import { CampaignStore } from './CampaignStore';
-import type { CampaignFight } from './CombatBridge';
 import { ENCOUNTER_IDS, ENCOUNTERS, encounterFor, encounterTeam } from './Encounters';
 import { foundCampaign } from './Founding';
 import { REWARD_CHOICES, rollRewardCards } from './RunRewards';
@@ -21,6 +17,7 @@ import {
 	DepartRuleError, arriveHome, currentStop, departRun, finishStopFight, getDepartBlocker, getPlanBlocker, passQuietStop, quickLoadOut,
 	rewardOffer, routesOnOffer, runParty, startStopFight, takeReward
 } from './SupplyRun';
+import { fightOut, pushovers, snipers } from './__fixtures__/runFixtures';
 import { CAMPAIGN_FIXTURE } from './__fixtures__/storeFixtures';
 
 /** DDB-454: the MVP supply run, from the route pick to home or a failed run. */
@@ -30,46 +27,6 @@ const SEED = 20261009;
 const CARDS: ReadonlyMap<string, Card> = new Map(
 	(cardsFile as unknown as { cards: CardData[] }).cards.map(data => [data.type, new Card(data)])
 );
-
-/** A raider's card that always lands where its AI aims it. */
-const raiderCard = (name: string, effect: CardEffect): Card => new Card({
-	type: name.toLowerCase(),
-	name,
-	summary: name,
-	description: name,
-	rarity: 'common',
-	cost: 1,
-	targetType: 'enemy_single',
-	effects: [{ ...effect, always_hits: true }],
-	tags: ['attack']
-});
-
-/** Takes down the driver it hits. */
-const snipe = (): Card => raiderCard('Snipe', { type: 'damage', value: 500, target: 'driver' });
-
-/** A raider any hit finishes, playing its deck's cards at its first legal target. */
-function raider(deck: Card[] = []): Vehicle {
-	const driver = new Driver({
-		archetype: 'raider',
-		metadata: { name: 'Scrapper', vehicleName: 'Scrap Buggy', specialty: 'TEST RAIDER', flavorText: 'Built to lose.', unlocked: true },
-		skills: { ramming: 0, gunnery: 0, evade: 0, speed: 1 },
-		vehicleStats: { maxStructure: 1, weight: 1, armor: 0, speed: 1, gunnery: 0, evade: 0 },
-		startingDeck: { cards: [] },
-		hitpoints: 1,
-		maxHitpoints: 1,
-		adrenaline: 3,
-		maxAdrenaline: 3,
-		handLimit: 7,
-		role: DriverRole.ACTIVE,
-		hand: [],
-		discard: [],
-		deck: new Deck('scrapper', "Scrapper's deck", deck)
-	});
-	return createDrivenVehicle({ driver });
-}
-
-const pushovers = (): Team => new Team({ type: TeamType.ENEMY, vehicles: [raider()] });
-const snipers = (): Team => new Team({ type: TeamType.ENEMY, vehicles: [raider(Array.from({ length: 10 }, snipe))] });
 
 /** A compound founded with only these archetypes unlocked, so its pool is one of each, and fuel to spare. */
 function newCampaign(archetypes: DriverArchetype[] = ['road_warrior', 'interceptor', 'mechanic']): Campaign {
@@ -96,20 +53,6 @@ function onRoad(campaign: Campaign): SupplyRun {
 /** Quiet stretches passed until the run is driving to a fight. */
 function toNextFight(campaign: Campaign): void {
 	while (currentStop(onRoad(campaign))?.kind === 'quiet') passQuietStop({ campaign });
-}
-
-/** The fight played to its end: each turn, both seats shoot the first raider still in it unless told to hold fire, until one side is out. */
-function fightOut(fight: CampaignFight, { shoot = true }: { shoot?: boolean } = {}): void {
-	const { battle } = fight;
-	for (let turn = 1; turn <= 10 && !battle.isBattleOver(); turn++) {
-		for (const driver of shoot ? fight.drivers : []) {
-			const target = battle.enemyTeam.vehicles.find(vehicle => vehicle.isAlive());
-			const cardIndex = driver.hand.findIndex(card => card.type === 'precision_shot');
-			if (target && cardIndex >= 0 && driver.isAlive() && !battle.isBattleOver()) battle.playCard({ driver, cardIndex, targetVehicle: target });
-		}
-		if (!battle.isBattleOver()) battle.endPlayerTurn();
-	}
-	expect(battle.isBattleOver()).toBe(true);
 }
 
 /** A save and a load through the store, as quitting and Continue would. */
@@ -154,8 +97,8 @@ describe('the mock routes', () => {
 			routeStops(route).map(stop => (stop.kind === 'fight' ? stop.skulls : stop.kind)).join(' ')
 		]);
 		expect(summary).toEqual([
-			['Red Mesa Silos', 'Route 11 highway', 2, 'highway highway', 'quiet 1'],
-			['Red Mesa Silos', 'Dry wash trail', 2, 'highway trail', '1'],
+			['Red Mesa Silos', 'Canyon trail', 3, 'highway trail trail', 'quiet 1'],
+			['Red Mesa Silos', 'Route 38 highway', 2, 'highway highway', '1'],
 			['Halfway Truck Stop', 'Old county road', 4, 'highway backRoad backRoad', 'quiet 3'],
 			['Halfway Truck Stop', 'Route 90 highway', 2, 'highway highway', 'quiet 3'],
 		]);
@@ -167,6 +110,7 @@ describe('the mock routes', () => {
 		expect(destinations.length).toBeGreaterThanOrEqual(2);
 		expect(destinations.length).toBeLessThanOrEqual(3);
 		expect(destinations.map(destination => destination.tier)).toEqual([...new Set(destinations.map(destination => destination.tier))].sort());
+		expect(destinations[0].tier).toBe(1);
 		expect(new Set(destinations.map(destination => destination.name)).size).toBe(destinations.length);
 		for (const destination of destinations) {
 			const [first, second, ...more] = routes.filter(route => route.destination === destination);

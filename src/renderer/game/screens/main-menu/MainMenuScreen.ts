@@ -335,9 +335,23 @@ export class MainMenuScreen extends Screen {
 		this.notice.visible = message !== null;
 	}
 
+	/**
+	 * The run screen with a run on the road, at its saved step; otherwise the
+	 * compound. A load out left before its run set off is given up first, and
+	 * saved, since nothing at the compound can bring it back.
+	 */
 	private continueCampaign(): void {
 		if (this.starting || this.saveState.kind !== 'saved') return;
-		ScreenManager.navigate('compoundScreen', { campaign: this.saveState.campaign });
+		const { campaign } = this.saveState;
+		if (campaign.supplyRun !== null) {
+			ScreenManager.navigate('runScreen', { campaign });
+			return;
+		}
+		if (campaign.currentRun !== null && !campaign.isOver) {
+			campaign.unwindRunDecks();
+			void this.store.checkpoint(campaign);
+		}
+		ScreenManager.navigate('compoundScreen', { campaign });
 	}
 
 	/**

@@ -117,11 +117,12 @@ const UNITS_PER_FUEL = 150;
 const MAX_ROUTE_STOPS = 3;
 
 /**
- * Today's destinations and their routes: two or three POIs, each with two
- * routes that leave the compound on one leg and split after it, as the
- * route tree's do before halfway. A POI's tier, 1 to 3, sets its routes'
- * fights: one to three on each route, the last one at the tier's skulls
- * and none worse, and three stops hold a quiet one. Drawn from
+ * Today's destinations and their routes: two or three POIs, a tier 1 one
+ * always among them so every day has a run a battered crew can risk, each
+ * with two routes that leave the compound on one leg and split after it,
+ * as the route tree's do before halfway. A POI's tier, 1 to 3, sets its
+ * routes' fights: one or two on each route, the last one at the tier's
+ * skulls and none worse, and three stops hold a quiet one. Drawn from
  * `fork('routes', day)` off the campaign's seed, so a day offers the same
  * routes however often it's asked, and the day never comes round again.
  * Throws on a seed or day `Rng.fork` won't take.
@@ -130,7 +131,7 @@ export function supplyRoutes({ seed, day }: { seed: number; day: number }): read
 	const rng = new Rng({ seed }).fork('routes', day);
 	const count = rng.int(2, 3);
 	const names = rng.shuffle([...POI_NAMES]);
-	const tiers = rng.shuffle([1, 2, 3] as Skulls[]).slice(0, count).sort((a, b) => a - b);
+	const tiers: Skulls[] = [1, ...rng.shuffle([2, 3] as Skulls[]).slice(0, count - 1).sort((a, b) => a - b)];
 	return Object.freeze(tiers.flatMap((tier, index) => {
 		const destination: RouteDestination = Object.freeze({ id: `poi-${day}-${index + 1}`, name: names[index], tier });
 		const prefix = `${day}-${index + 1}`;

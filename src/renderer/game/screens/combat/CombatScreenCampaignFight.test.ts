@@ -17,6 +17,9 @@ import { NO_CARDS } from '../../campaign/CardCounts';
 import { startCampaignFight } from '../../campaign/CombatBridge';
 import { DriverRecord } from '../../campaign/DriverRecord';
 import { foundCampaign } from '../../campaign/Founding';
+import { fightOut } from '../../campaign/__fixtures__/runFixtures';
+import { ScreenManager } from '../../core/ScreenManager';
+import type { BattleResultData } from '../battleResult/BattleResultScreen';
 
 /**
  * DDB-286: a fight the combat bridge builds from the campaign is the
@@ -117,6 +120,32 @@ describe('CombatScreen: a campaign fight (DDB-286)', () => {
 		expect(topBar).toContain('73');
 		expect(topBar).toContain('9');
 		expect(topBar).not.toContain('150');
+		combat.unmount();
+	});
+
+	it('settles the fight with its end hook as the battle ends, and hands the battle result what the hook returns (DDB-454)', async () => {
+		const campaign = foundCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
+		const seats = [...campaign.drivers];
+		seats.forEach(record => record.set({ defaultDeck: { precision_shot: 10 } }));
+		campaign.startRunDecks({ seats });
+		const fight = startCampaignFight({
+			campaign,
+			party: { seats, escorts: [], cargo: NO_RESOURCES, cargoCards: NO_CARDS, run: campaign.currentRun ?? 'none' },
+			enemyTeam: raiderTeam(),
+			rng: new Rng({ seed: SEED }),
+			cards: CardLoader.getInstance().getAllCardsAsMap()
+		});
+		const result: BattleResultData = { victory: true, next: { screen: 'runScreen', data: { campaign } } };
+		const onEnded = jest.fn(() => result);
+		const combat = new CombatScreen();
+		combat.mount(createTestContext(), { prepare: async () => ({ ...fight, onEnded }) } as PreparedCombatMount);
+		await flushPromises();
+		(ScreenManager as unknown as { activeScreen: unknown }).activeScreen = combat;
+
+		fightOut(fight);
+
+		expect(onEnded).toHaveBeenCalledWith({ won: true });
+		expect(ScreenManager.navigate).toHaveBeenLastCalledWith('battleResultScreen', result);
 		combat.unmount();
 	});
 });

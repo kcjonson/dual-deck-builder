@@ -71,6 +71,13 @@ export interface PreparedCombat {
 	fuel?: number;
 	/** Log lines after the matchup, oldest first; the last is the top bar's ticker. */
 	log?: readonly string[];
+	/**
+	 * What the fight's end hands the battle result screen, worked out when
+	 * the battle ends: a supply run's fight writes itself back here and
+	 * sends Continue back to the run. Left out, the result is the outcome
+	 * alone, and Continue goes to the menu.
+	 */
+	onEnded?: (event: { won: boolean }) => BattleResultData;
 }
 
 /** Mount data that prepares its own fight, awaited before the screen shows it. */
@@ -142,6 +149,8 @@ export class CombatScreen extends Screen {
 	private fuel = 5;
 	private scrap = 150;
 	private wave: WaveStatus = SINGLE_WAVE;
+	/** The prepared fight's end hook, if it brought one. */
+	private onEnded: PreparedCombat['onEnded'] = undefined;
 	
 	// The player's drivers in seat order (Driver 1, Driver 2), fixed for the
 	// fight so a driver keeps their seat after riding on as a passenger
@@ -227,7 +236,7 @@ export class CombatScreen extends Screen {
 	}
 
 	/** Show a started battle: subscribe to it, announce the turn, log the matchup, and draw it. */
-	private beginCombat({ battle, wave = SINGLE_WAVE, scrap, fuel, log = [] }: PreparedCombat): void {
+	private beginCombat({ battle, wave = SINGLE_WAVE, scrap, fuel, log = [], onEnded }: PreparedCombat): void {
 		// One seat, or two held to the same pair rule as the default fight
 		const drivers = battle.playerSeats;
 		assertDriverSeats(drivers);
@@ -237,6 +246,7 @@ export class CombatScreen extends Screen {
 		this.playerTeam = battle.playerTeam;
 		this.enemyTeam = battle.enemyTeam;
 		this.wave = wave;
+		this.onEnded = onEnded;
 		if (scrap !== undefined) this.scrap = scrap;
 		if (fuel !== undefined) this.fuel = fuel;
 
@@ -282,13 +292,13 @@ export class CombatScreen extends Screen {
 
 		this.unsubscribers.push(
 			this.battle.on('battleEnded', (event: { won: boolean }) => {
-				// The battle logs its own end; navigate to battle result screen.
-				// Only the game's own screen does: the gallery mounts this one
-				// with no screen manager, and its fight just stays at its end
-				if (this.battle && ScreenManager.activeScreen === this) {
-					const resultData: BattleResultData = { victory: event.won };
-					ScreenManager.navigate('battleResultScreen', resultData);
-				}
+				// The battle logs its own end. A fight that brought an end hook
+				// settles itself here, then the result screen follows. Only the
+				// game's own screen navigates: the gallery mounts this one with
+				// no screen manager, and its fight just stays at its end
+				if (!this.battle) return;
+				const resultData: BattleResultData = this.onEnded?.(event) ?? { victory: event.won };
+				if (ScreenManager.activeScreen === this) ScreenManager.navigate('battleResultScreen', resultData);
 			})
 		);
 

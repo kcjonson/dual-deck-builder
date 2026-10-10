@@ -10,7 +10,7 @@
  */
 import { SHORT_VIEWPORT } from '../../../playwright.config';
 import type { Viewport } from '../../../playwright.config';
-import { AT_HOME, DAMAGED, ENDED, FULL_LOCKER, IN_PROGRESS, LOST, OUTDATED } from './campaignSaves';
+import { AT_HOME, DAMAGED, ENDED, FULL_LOCKER, IN_PROGRESS, LOST, ON_THE_ROAD, OUTDATED } from './campaignSaves';
 
 export interface ScreenScenario {
 	/** The golden's name: the screen's, plus a variant and a window size where they are not the defaults. */
@@ -71,9 +71,9 @@ interface ScreenCase {
  *
  * The screens that read the campaign store mount over the saves a case puts
  * in local storage first, the way a player's page holds them, and every other
- * case over none. The compound and Crew screens are opened with no campaign
- * handed over, so each loads the save as Continue would (DDB-283, DDB-301,
- * DDB-314).
+ * case over none. The compound, Crew, route pick, and run screens are opened
+ * with no campaign handed over, so each loads the save as Continue would
+ * (DDB-283, DDB-301, DDB-314, DDB-454).
  */
 const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'splashScreen' },
@@ -102,6 +102,11 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'crewScreen', variant: 'full', storage: FULL_LOCKER },
 	// A save already lost, which the defeat screen shows as the compound hands it one (DDB-305)
 	{ screen: 'defeatScreen', storage: LOST },
+	// Today's destinations and their routes from the compound between runs, then the run on the road:
+	// the fixture's at its last fight's reward, and a step earlier with the fight ahead (DDB-454)
+	{ screen: 'routePickScreen', storage: AT_HOME },
+	{ screen: 'runScreen', storage: IN_PROGRESS },
+	{ screen: 'runScreen', variant: 'road', storage: ON_THE_ROAD },
 ];
 
 function caseName({ screen, variant }: ScreenCase): string {

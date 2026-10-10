@@ -54,6 +54,13 @@ describe('BattleResultScreen', () => {
 		expect(navigate).toHaveBeenCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
 	});
 
+	it.each(['Enter', 'Escape'])('continues where the fight said to go, a supply run\'s fight back to its run, on %p (DDB-454)', (name) => {
+		const data = { from: 'the fight' };
+		screen.mount(context, { victory: false, next: { screen: 'runScreen', data } });
+		send(context, [key(name)]);
+		expect(navigate).toHaveBeenCalledWith('runScreen', data);
+	});
+
 	it('logs and builds nothing without result data', () => {
 		const logged = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 		screen.mount(context);

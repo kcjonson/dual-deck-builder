@@ -26,8 +26,14 @@ function savedAs(text: string): Record<string, string> {
 	return { [KEYS.active]: 'a', [KEYS.slots.a]: text };
 }
 
-/** The fixture: day 9, three drivers at the compound, one stronghold taken. */
+/** The fixture: day 9, three drivers at the compound, one stronghold taken, its run on the road at its last fight's reward. */
 export const IN_PROGRESS = savedAs(fixtureText());
+
+/** The fixture's run a step earlier, driving to its last fight (DDB-454). */
+export const ON_THE_ROAD = savedAs(fixtureText((campaign) => {
+	const run = campaign.supplyRun as { phase: string };
+	run.phase = 'driving';
+}));
 
 /** The fixture with its run home and unwound, as the Crew screen sees the compound between runs. */
 export const AT_HOME = savedAs(atHomeText());
