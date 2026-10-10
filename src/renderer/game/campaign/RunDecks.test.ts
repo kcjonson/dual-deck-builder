@@ -284,6 +284,41 @@ describe('Run decks (DDB-315)', () => {
 			expect(campaign.locker).toEqual({ repair_kit: 2 });
 		});
 
+		it('move only the copies a move names, refusing while the others come first', () => {
+			const { campaign, warrior } = onARun({ repair_kit: 2 });
+			const deck = (): RunDeck => runDeckOf(campaign, warrior);
+			const owned = campaign.cardsOwned;
+
+			campaign.moveCards({ cardType: 'repair_kit', from: deck(), to: 'locker', copies: 'own' });
+			expect(deck()).toMatchObject({ leftHome: { repair_kit: 1 }, borrowed: {} });
+			expect(campaign.locker).toEqual({ repair_kit: 2 });
+			// The locker's can't be borrowed while one of the driver's own waits at home
+			const borrow: CardMove = { cardType: 'repair_kit', from: 'locker', to: deck(), copies: 'borrowed' };
+			expectRefused({ campaign, move: borrow, blocker: { reason: 'own_at_home', place: deck(), held: 1 } });
+			expect(() => campaign.moveCards(borrow)).toThrow("Can't borrow 1 repair_kit into Road Warrior 1's run deck: the 1 of the driver's own left at home come back first");
+
+			campaign.moveCards({ cardType: 'repair_kit', from: 'locker', to: deck(), copies: 'home' });
+			expect(deck()).toMatchObject({ leftHome: {}, borrowed: {} });
+			const fromHome: CardMove = { cardType: 'repair_kit', from: 'locker', to: deck(), copies: 'home' };
+			expectRefused({ campaign, move: fromHome, blocker: { reason: 'too_few', place: deck(), held: 0 } });
+			expect(() => campaign.moveCards(fromHome)).toThrow("Can't bring 1 repair_kit back into Road Warrior 1's run deck, which left 0 at home");
+
+			// Borrowed now, so the driver's own can't stay home until it's back in the locker
+			campaign.moveCards(borrow);
+			const leave: CardMove = { cardType: 'repair_kit', from: deck(), to: 'locker', copies: 'own' };
+			expectRefused({ campaign, move: leave, blocker: { reason: 'borrowed_first', place: deck(), held: 1 } });
+			expect(() => campaign.moveCards(leave)).toThrow("Can't leave 1 of the driver's own repair_kit at home while 1 borrowed are in Road Warrior 1's run deck: borrowed copies go back first");
+
+			campaign.moveCards({ cardType: 'repair_kit', from: deck(), to: 'locker', copies: 'borrowed' });
+			expect(deck()).toMatchObject({ leftHome: {}, borrowed: {} });
+			expect(campaign.locker).toEqual({ repair_kit: 2 });
+			expectRefused({ campaign, move: { cardType: 'repair_kit', from: deck(), to: 'locker', copies: 'borrowed' }, blocker: { reason: 'too_few', place: deck(), held: 0 } });
+			expect(campaign.cardsOwned).toEqual(owned);
+			// An escort card is neither the driver's own nor borrowed, so a move that names either has none to take
+			expectRefused({ campaign, move: { cardType: 'top_off', from: deck(), to: 'locker', copies: 'own' }, blocker: { reason: 'too_few', place: deck(), held: 0 } });
+			expect(campaign.getCardMoveBlocker({ cardType: 'top_off', from: deck(), to: 'locker' })).toEqual({ reason: 'card_locked', place: deck(), broughtBy: 'escort-1' });
+		});
+
 		it('keep a run deck inside the limits, counting its own and borrowed copies and not its escort cards', () => {
 			const { campaign, warrior, interceptor, hauler } = crew({ headshot: 2 });
 			warrior.set({ defaultDeck: { repair_kit: max } });
@@ -395,9 +430,12 @@ describe('Run decks (DDB-315)', () => {
 			const heard = jest.fn();
 			campaign.on('change', heard);
 
+			expect(runDeckOf(campaign, warrior).isCustomized).toBe(true);
+			expect(campaign.getResetRunDeckBlocker({ runDeck: runDeckOf(campaign, warrior) })).toBeNull();
 			campaign.resetRunDeck({ runDeck: runDeckOf(campaign, warrior) });
 
 			expect(runDeckOf(campaign, warrior)).toMatchObject({ own: startingDeckCounts('road_warrior'), leftHome: {}, borrowed: {} });
+			expect(runDeckOf(campaign, warrior).isCustomized).toBe(false);
 			expect(runDeckOf(campaign, warrior).escortCards.map(card => card.broughtBy)).toEqual(['escort-1', 'escort-2']);
 			expect(campaign.locker).toEqual(locker);
 			expect(heard).toHaveBeenCalledTimes(1);
@@ -412,7 +450,10 @@ describe('Run decks (DDB-315)', () => {
 				[{ cardType: 'headshot', from: warriorDeck, to: runDeckOf(campaign, interceptor) }, "Cards move between a run deck and the locker, not from Road Warrior 1's run deck to Interceptor 1's run deck"],
 				[{ cardType: 'headshot', from: warriorDeck, to: new RunDeck({ driver: warrior }) }, "Can't move headshot from Road Warrior 1's run deck to itself"],
 				[{ cardType: 'headshot', from: 'locker', to: new RunDeck({ driver: mechanic }) }, "Mechanic 1 (driver-3) has no run deck in this campaign"],
-				[{ cardType: 'headshot', from: 'locker', to: warriorDeck, count: 0 }, 'count must be an integer >= 1, got 0']
+				[{ cardType: 'headshot', from: 'locker', to: warriorDeck, count: 0 }, 'count must be an integer >= 1, got 0'],
+				[{ cardType: 'headshot', from: 'locker', to: warriorDeck, copies: 'own' }, "Copies going into a run deck come from home or the locker, not 'own'"],
+				[{ cardType: 'headshot', from: warriorDeck, to: 'locker', copies: 'home' }, "Copies coming out of a run deck are the driver's own or borrowed, not 'home'"],
+				[{ cardType: 'headshot', from: 'locker', to: mechanic, copies: 'borrowed' }, "copies names a run deck's copies, and neither the locker nor Mechanic 1's deck is a run deck"]
 			] as [CardMove, string][]) {
 				expect(() => campaign.getCardMoveBlocker(move)).toThrow(message);
 				expect(() => campaign.moveCards(move)).toThrow(message);
@@ -568,6 +609,7 @@ describe('Run decks (DDB-315)', () => {
 			warrior.set(status === 'dead' ? { status, hitpoints: 0, defaultDeck: {} } : { status });
 			const before = campaign.toSaveText();
 
+			expect(campaign.getResetRunDeckBlocker({ runDeck: runDeckOf(campaign, warrior) })).toEqual({ reason: 'driver_away', place: warrior });
 			const error = refusal(() => campaign.resetRunDeck({ runDeck: runDeckOf(campaign, warrior) }));
 
 			expect(error.blocker).toEqual({ reason: 'driver_away', place: warrior });

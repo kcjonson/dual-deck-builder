@@ -3,24 +3,34 @@ import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Panel } from '../../../engine/ui/Panel';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
+import { SCROLLBAR_GUTTER } from '../../../engine/ui/Scrollbar';
 import { SegmentedControl } from '../../../engine/ui/SegmentedControl';
 import { tokens } from '../../../engine/theme/tokens';
+import { MINI_GRID } from '../Card';
 import { inspectOnContextMenu } from '../cardInspect';
+import { DRIVER_CARD_SIZE } from '../DriverCard';
 import { CardLookup, deckOrder } from '../DriverDetailView';
 import { CardEntryGrid, CardEntryItem } from './CardEntryGrid';
 import { CARD_FILTERS, CardEntry, CardFilter, CardSource, entryKey, passesFilter } from './cardSource';
 
 const { space, fontSize } = tokens;
 
+/** How far in a flush panel still sets its content, which clears the border and the corner radius both (R12.19). */
+const FLUSH_EDGE = Math.max(tokens.borderWidth.bw, tokens.radius.radius_panel);
+
 /**
  * The builder's spacing: between its columns, a panel's inset round what
- * isn't a grid, and how far in a flush panel still sets its content, which
- * clears the border and the corner radius both (R12.19).
+ * isn't a grid, how far in a flush panel sets its content, and the left
+ * column's width, which the Crew screen's roster and Customize's driver
+ * share so the deck and the pool are as wide on both: two driver cards
+ * abreast, spaced as minis are, beside a scroller's gutter, inside a flush
+ * panel.
  */
 export const DECK_BUILDER = {
 	gap: space.space_3,
 	inset: space.space_2,
-	flushEdge: Math.max(tokens.borderWidth.bw, tokens.radius.radius_panel),
+	flushEdge: FLUSH_EDGE,
+	sideWidth: DRIVER_CARD_SIZE.width * 2 + MINI_GRID.gap + MINI_GRID.margin * 2 + SCROLLBAR_GUTTER + FLUSH_EDGE * 2,
 } as const;
 
 export interface DeckBuilderOptions extends Omit<StackOptions, 'id' | 'direction'> {
@@ -81,6 +91,7 @@ export class DeckBuilder extends Stack {
 	private readonly poolEmpty: Text;
 	private readonly note: Text;
 	private readonly noteSection: Stack;
+	private readonly poolPanel: Panel;
 	private readonly foot: Stack | null;
 	private emptyDeckText: string;
 	private emptyPoolText: string;
@@ -144,7 +155,7 @@ export class DeckBuilder extends Stack {
 		if (this.foot) deckPanel.addChild(this.foot);
 		this.addChild(deckPanel);
 
-		const poolPanel = new Panel({
+		const poolPanel = this.poolPanel = new Panel({
 			id: `${id}_pool_panel`,
 			title: poolTitle,
 			kicker: poolKicker,
@@ -182,6 +193,15 @@ export class DeckBuilder extends Stack {
 		if (filter === this.filterValue) return;
 		this.filterValue = filter;
 		this.showPool();
+	}
+
+	/** The small line over the pool's title. */
+	public get poolKicker(): string {
+		return this.poolPanel.kicker ?? '';
+	}
+
+	public set poolKicker(text: string) {
+		this.poolPanel.kicker = text;
 	}
 
 	/** The line under the pool. */

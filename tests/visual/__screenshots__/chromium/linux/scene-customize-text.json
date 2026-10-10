@@ -1,0 +1,6 @@
+[
+{"path":"gallery_root/dev_section_customize/Text[0]","text":"Customize","rect":[53,53,99.37,50]},
+{"path":"gallery_root/dev_section_customize/dev_section_customize_rows/Stack[0]/Text[0]","text":"The test campaign's run, saved in memory only; Done comes back here","rect":[53,103,429.65,17.7]},
+{"path":"gallery_root/dev_section_customize/dev_section_customize_rows/Stack[0]/Stack[1]/dev_customize_seat_1/Text[0]","text":"Driver 1's run deck","rect":[65,126.7,176,34]},
+{"path":"gallery_root/dev_section_customize/dev_section_customize_rows/Stack[0]/Stack[1]/dev_customize_seat_2/Text[0]","text":"Driver 2's run deck","rect":[289,126.7,176,34]}
+]
