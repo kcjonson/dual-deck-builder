@@ -1,7 +1,7 @@
 import { Rng } from '../core/Rng';
 import { resolveMapParams } from '../map/MapParams';
 import { DriverArchetype } from '../mechanics/Driver';
-import { Campaign, Resources } from './Campaign';
+import { Campaign, MAX_DAY, Resources } from './Campaign';
 import { CAMPAIGN_START } from './CampaignStart';
 import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES } from './CompoundRules';
 import { DAY_END_HOOKS, DayEnd, DayEndHooks, DayHaul, DuskState, MapDayStep, NeedsForecast, endDay, forecastNeeds } from './DayClock';
@@ -295,8 +295,8 @@ describe('endDay', () => {
 		it.each([
 			['unrest a shortfall would push past what a save holds', (campaign: Campaign) => campaign.set({ unrest: Number.MAX_SAFE_INTEGER }), {},
 				/^Campaign\.unrest must be an integer >= 0, got 900719925474099\d$/],
-			['a day past what a save holds', (campaign: Campaign) => campaign.set({ day: Number.MAX_SAFE_INTEGER }), {},
-				'Campaign.day must be an integer >= 1, got 9007199254740992'],
+			['a day past what a save holds', (campaign: Campaign) => campaign.set({ day: MAX_DAY }), {},
+				'Campaign.day must be an integer from 1 to 4294967295, got 4294967296'],
 			['rules whose unrest per unit would overflow it', () => undefined, { unrestPerUnit: 2 ** 52 },
 				'CompoundRules.shortfall.unrestPerUnit must be an integer from 0 to 100, got 4503599627370496']
 		])('refuses %s before anyone heals or the day turns', (_label, setUp, shortfall, message) => {

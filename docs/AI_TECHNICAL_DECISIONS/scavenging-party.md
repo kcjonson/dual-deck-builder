@@ -27,9 +27,9 @@ Who has to be there:
 While a run is out:
 
 - Refused in `endDay`. Holing up at a POI (Night) would end a day with a run out, so the day end can't refuse one.
-- Refused in the blocker (chosen). The run's return ends its day, so a party that day would end it twice. Rest gets the same check with the compound screen's buttons.
+- Refused in the blocker (chosen). The run's return ends its day, so a party that day would end it twice. The compound screen disables Rest while a run is out for the same reason.
 
-The stream is `new Rng({ seed }).fork('scavenge', day)`, off the campaign's root. A party ends its day, so there's one a day, and the day is a saved counter that `Campaign.set` never turns back, like the driver and run counters: every party has a stream of its own and the save keeps nothing new. A day past 2^32 - 1, the most `fork` takes as an attempt, is refused before anything rolls. Fuel draws first, then scrap, one `int` each, and a golden pins the first six days of one seed at `RNG_VERSION` 1. day-clock.md plans `fork('day', day)` for night steps that draw; the party's roll is the day's action, not a night step, so it has its own name and moves none of those.
+The stream is `new Rng({ seed }).fork('scavenge', day)`, off the campaign's root. A party ends its day, so there's one a day, and the day is a saved counter that `Campaign.set` never turns back, like the driver and run counters: every party has a stream of its own and the save keeps nothing new. The day stops at 2^32 - 1 (`MAX_DAY`), the most `fork` takes as an attempt: the campaign's reader, the day end, and the roll each refuse a day past it, so a stream is always there to name. Fuel draws first, then scrap, one `int` each, and a golden pins the first six days of one seed at `RNG_VERSION` 1. day-clock.md plans `fork('day', day)` for night steps that draw; the party's roll is the day's action, not a night step, so it has its own name and moves none of those.
 
 ## Decision
 
@@ -61,12 +61,12 @@ Each is a value or a line or two to change.
 - Settlers go, not drivers: the party needs People 1 or more and nothing else. Injured, dead, or missing drivers don't stop it.
 - The haul is 1 to 2 fuel and 5 to 15 scrap, flat: it doesn't scale with People, the day, or unrest.
 - A party carries no risk. Nobody is lost or hurt, and it never comes home empty; the spec rules out a fight and says nothing of other risks.
-- A party is refused only at People 0 and while a run is out, the blocker's check rather than `endDay`'s. Rest gets the run-out check with the compound screen's buttons.
+- A party is refused once the campaign is over, at People 0, and while a run is out, the blocker's check rather than `endDay`'s. The compound screen disables Rest while a run is out too.
 - The log line names what came back, and leaves out scrap tuned to 0: "A scavenging party brought back 1 fuel."
 
 ## Consequences
 
-- The compound screen's Scavenge sits beside Rest with the same end-then-checkpoint shape ([compound-screen.md](./compound-screen.md)).
+- The compound screen's Scavenge sits beside Rest and shares its end-then-checkpoint step, guard, save-failure line, and fall ([compound-screen.md](./compound-screen.md)). Its line previews the day's haul from `rollScavengeHaul`, the report leads with the log's line, and each refusal disables it with its reason; Rest is disabled while a run is out too.
 - With no cost and no risk, a day scavenging is never worse than a day of rest: it eats the same, heals the same, and brings fuel and scrap. Rest becomes a button nobody has a reason to press until scavenging costs or risks something, or resting gains something of its own.
 - When routes have fuel costs, the tests' stand-in becomes the cheapest tier-1 route's, and the fuel range gets tuned against it.
 - The save format doesn't change: the haul goes into stores the campaign already keeps, and the stream is named by the day.

@@ -1,6 +1,6 @@
 import { readInteger, readSeed } from '../core/JsonReader';
 import { Rng } from '../core/Rng';
-import type { Campaign } from './Campaign';
+import { type Campaign, MAX_DAY } from './Campaign';
 import { CampaignEnd, refuseOverBlocker } from './CampaignEnd';
 import { COMPOUND_RULES, CompoundRules, SCAVENGED_RESOURCES, ScavengedResource, readCompoundRules } from './CompoundRules';
 import { DAY_END_HOOKS, DayEnd, DayEndHooks, endDay } from './DayClock';
@@ -11,9 +11,6 @@ import { DAY_END_HOOKS, DayEnd, DayEndHooks, endDay } from './DayClock';
  * fuel always has a way to its next run (Compound and Supply Runs, Never
  * stuck). Decision record: docs/AI_TECHNICAL_DECISIONS/scavenging-party.md.
  */
-
-/** The largest stream attempt `Rng.fork` takes, so the day a party goes out can be one. */
-const MAX_ATTEMPT = 0xffffffff;
 
 /** What a party brought back. */
 export type ScavengeHaul = Readonly<Record<ScavengedResource, number>>;
@@ -80,7 +77,7 @@ export function getScavengeBlocker({ campaign }: { campaign: Campaign }): Scaven
  */
 export function rollScavengeHaul({ seed, day, rules = COMPOUND_RULES }: { seed: number; day: number; rules?: CompoundRules }): ScavengeHaul {
 	const { fuel, scrap } = readCompoundRules(rules, 'CompoundRules').scavenging;
-	const rng = new Rng({ seed: readSeed(seed, 'seed') }).fork('scavenge', readInteger(day, 'day', { min: 1, max: MAX_ATTEMPT }));
+	const rng = new Rng({ seed: readSeed(seed, 'seed') }).fork('scavenge', readInteger(day, 'day', { min: 1, max: MAX_DAY }));
 	const fuelFound = rng.int(fuel.min, fuel.max);
 	return Object.freeze({ fuel: fuelFound, scrap: rng.int(scrap.min, scrap.max) });
 }
@@ -103,10 +100,14 @@ export function scavenge({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOO
 	return Object.freeze({ haul, dayEnd });
 }
 
-/** "A scavenging party brought back 2 fuel and 15 scrap.", leaving out scrap tuned to 0. A party always brings fuel. */
+/** "2 fuel and 15 scrap", leaving out scrap tuned to 0. A party always brings fuel. */
+export function haulText(haul: ScavengeHaul): string {
+	return SCAVENGED_RESOURCES.filter(resource => haul[resource] > 0).map(resource => `${haul[resource]} ${resource}`).join(' and ');
+}
+
+/** "A scavenging party brought back 2 fuel and 15 scrap." */
 export function scavengeMessage(haul: ScavengeHaul): string {
-	const found = SCAVENGED_RESOURCES.filter(resource => haul[resource] > 0).map(resource => `${haul[resource]} ${resource}`);
-	return `A scavenging party brought back ${found.join(' and ')}.`;
+	return `A scavenging party brought back ${haulText(haul)}.`;
 }
 
 /** What a refused party throws, worded for the console; the compound screen words its own from the blocker. */
