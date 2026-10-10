@@ -228,12 +228,12 @@ describe('the POI stage in the pipeline', () => {
 	const treeOnly = randomMesh({ seed: 31, loops: 0, diagonals: 0 });
 
 	/** A pipeline over synthetic roads: each run of the roads stage hands back the next network, the last one again past the end. */
-	const pipeline = (networks: RoadNetwork[], strict: boolean, places = 1000) => {
+	const pipeline = (networks: RoadNetwork[], strict: boolean, places = 1000, loops = 0) => {
 		let runs = 0;
 		return new MapPipeline<MapParams>()
 			.stage({ name: 'hazards', run: () => ({ terrain: fakeGround() }) })
 			.stage({ name: 'places', run: () => ({ metro: { id: 0, kind: 'metro' as const, x: 0, y: 0, radius: 150 }, towns: [], villages: [] }) })
-			.stage({ name: 'roads', run: () => ({ network: networks[Math.min(runs++, networks.length - 1)], stats: { inland: places } }) })
+			.stage({ name: 'roads', run: () => ({ network: networks[Math.min(runs++, networks.length - 1)], stats: { inland: places, loops } }) })
 			.stage(ROUTE_TREE_STAGE)
 			.stage(poisStage({ strict }));
 	};
@@ -247,10 +247,15 @@ describe('the POI stage in the pipeline', () => {
 		expect(result.products.pois.strongholds).toHaveLength(4);
 	});
 
-	it('holds a map whose places can\'t close the loops the POIs want leniently, strict or not', () => {
+	it('holds a map whose places can\'t close the loops the POIs want, and whose roads close fewer, leniently, strict or not', () => {
 		const result = pipeline([treeOnly, looped], true, 4).run({ seed: params.seed, input: params, debug: true });
 		expect(result.attempts).toEqual({ hazards: 0, places: 0, roads: 0, routeTree: 0, pois: 0 });
 		expect(result.products.pois.failures.length).toBeGreaterThan(0);
+	});
+
+	it('stays strict on a map whose places cap the loops but whose roads close all the POIs want', () => {
+		const result = pipeline([treeOnly, looped], true, 4, 1000).run({ seed: params.seed, input: params, debug: true });
+		expect(result.attempts).toEqual({ hazards: 0, places: 0, roads: 1, routeTree: 0, pois: 0 });
 	});
 
 	it('passes when lenient, with what it missed in its failures', () => {

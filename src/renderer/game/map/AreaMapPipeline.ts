@@ -110,7 +110,7 @@ export interface PoisStageOptions {
 
 /** What the POIs read: the roads and how many places they join, the land with its water and hazards, the places' ruins, and the route tree. */
 interface PoisUpstream {
-	readonly roads: { readonly network: RoadNetwork; readonly stats: Pick<RoadStats, 'inland'> };
+	readonly roads: { readonly network: RoadNetwork; readonly stats: Pick<RoadStats, 'inland' | 'loops'> };
 	readonly hazards: { readonly terrain: Omit<PoiGround, 'ruin'> };
 	readonly places: Pick<Places, 'metro' | 'towns' | 'villages'>;
 	readonly routeTree: RouteTree;
@@ -132,9 +132,11 @@ export function poiGround({ terrain, places }: { terrain: Omit<PoiGround, 'ruin'
 /**
  * Stage 7, strongholds and POIs on the route tree's meeting points, checked
  * by the checks the map validator will run. On a map whose places can't
- * close the loops the POIs want (`loopsNeeded`), which no campaign map is,
+ * close the loops the POIs want (`loopsNeeded`) and whose roads close fewer,
  * no attempt can seat them all, so the stage holds it leniently whatever
  * `strict` says, and the map goes on with what it missed in `failures`.
+ * Roads that close the loops wanted keep it strict, so a campaign map, whose
+ * roads always do, never loses a stronghold quietly.
  */
 export function poisStage({ strict = true }: PoisStageOptions = {}): MapStage<MapParams, PoisUpstream, 'pois', PoiLayer> {
 	return {
@@ -144,7 +146,9 @@ export function poisStage({ strict = true }: PoisStageOptions = {}): MapStage<Ma
 			network: products.roads.network, tree: products.routeTree, ground: poiGround({ terrain: products.hazards.terrain, places: products.places }), params: input, rng,
 		}),
 		check: (layer, { input, products }) => {
-			const holds = strict && loopsNeeded(input, products.roads.stats.inland) >= loopsWanted(input);
+			const wanted = loopsWanted(input);
+			const { inland, loops } = products.roads.stats;
+			const holds = strict && (loopsNeeded(input, inland) >= wanted || loops >= wanted);
 			const violations = checkPoiLayer({ network: products.roads.network, tree: products.routeTree, layer, params: input, radius: products.hazards.terrain.radius })
 				.filter(({ rule }) => holds || rule !== 'sectors')
 				.map(({ rule, detail }) => `${rule}: ${detail}`);

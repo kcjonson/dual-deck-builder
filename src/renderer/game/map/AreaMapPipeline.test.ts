@@ -1,5 +1,5 @@
 import { Rng } from '../core/Rng';
-import { ROADS_STAGE, ROUTE_TREE_STAGE, areaMapPipeline, generateAreaMap } from './AreaMapPipeline';
+import { ROADS_STAGE, ROUTE_TREE_STAGE, areaMapPipeline, generateAreaMap, poisStage } from './AreaMapPipeline';
 import { generateHazards } from './Hazards';
 import { generatePlaces, placeList } from './Places';
 import { generateRoads, loopsNeeded, loopsWanted } from './Roads';
@@ -106,6 +106,17 @@ describe('the area map pipeline', () => {
 		expect(needed).toBeLessThan(loopsWanted(sparse.params));
 		expect(roads.stats.loops).toBeGreaterThanOrEqual(needed);
 		expect(pois.failures.length).toBeGreaterThan(0);
+	});
+
+	it('holds a campaign-range map strict where its places cap the loops, since its roads close all the POIs want', () => {
+		// The campaign ranges' corner: radius 800, mountains 0.45, road density 0.35, loops 0.3, 1.2 times the POIs, five strongholds.
+		const corner = generateAreaMap({ params: paramsFor({ seed: 6, radius: 800, mountainCoverage: 0.45, roadDensity: 0.35, loops: 0.3, poiDensity: 1.2, strongholds: 5 }) });
+		const { products, params: input } = corner;
+		expect(loopsNeeded(input, products.roads.stats.inland)).toBeLessThan(loopsWanted(input));
+		expect(products.roads.stats.loops).toBeGreaterThanOrEqual(loopsWanted(input));
+		// A sector that couldn't seat its stronghold fails the stage, so it escalates rather than ship without one.
+		const missed = { ...products.pois, failures: ['sector 0 has no free meeting point in the outer band'] };
+		expect(poisStage().check?.(missed, { input, products })).toContain('sector 0 has no free meeting point in the outer band');
 	});
 
 	it('reruns the roads on their next stream when the accept hook rejects them, leaving the stages before them be', () => {
