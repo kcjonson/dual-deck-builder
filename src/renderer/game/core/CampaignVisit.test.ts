@@ -1,8 +1,9 @@
 import { Text } from '../../engine/components/Text';
 import { tokens } from '../../engine/theme/tokens';
 import type { Campaign } from '../campaign/Campaign';
+import type { CampaignStore, CheckpointResult } from '../campaign/CampaignStore';
 import { MemorySaveStorage } from '../campaign/SaveStorage';
-import { FaultyStorage, atHomeCampaign, damagedText, fixtureText, quotaError, settle, storageWith, storeOver } from '../campaign/__fixtures__/storeFixtures';
+import { FaultyStorage, atHomeCampaign, damagedText, fixtureText, lostCampaign, quotaError, settle, storageWith, storeOver } from '../campaign/__fixtures__/storeFixtures';
 import type { CardLookup } from '../ui/DriverDetailView';
 import { lookup } from '../ui/testing';
 import { CampaignVisit } from './CampaignVisit';
@@ -99,5 +100,39 @@ describe('CampaignVisit', () => {
 		await store.checkpoint(campaign);
 		quiet.mockRestore();
 		expect(line.visible).toBe(false);
+	});
+
+	/** The visit's checkpoint, and how the store says it went once it has. */
+	async function checkpointed(store: CampaignStore, campaign: Campaign): Promise<CheckpointResult> {
+		const spy = jest.spyOn(store, 'checkpoint');
+		visit.checkpoint(campaign);
+		const result = await (spy.mock.results[0].value as Promise<CheckpointResult>);
+		spy.mockRestore();
+		await settle();
+		return result;
+	}
+
+	it('keeps the line through a failed save once the checkpoint has settled, a failure being no landing', async () => {
+		const storage = new FaultyStorage();
+		const store = storeOver(storage);
+		visit.start({ store, saveError: line });
+		storage.fault = { method: 'setItem', error: quotaError() };
+		expect(await checkpointed(store, atHomeCampaign())).toBe('failed');
+		expect(line.visible).toBe(true);
+	});
+
+	it('leaves the line as it is when a checkpoint ends a campaign that is over, or the store has moved on from it', async () => {
+		const store = storeOver(new FaultyStorage());
+		visit.start({ store, saveError: line });
+		line.text = 'An earlier failure.';
+		line.visible = true;
+		expect(await checkpointed(store, lostCampaign({ ending: 'rioted', cause: 'last_driver' }))).toBe('ended');
+		expect(line.visible).toBe(true);
+
+		const campaign = atHomeCampaign();
+		await store.save(campaign);
+		await store.load();
+		expect(await checkpointed(store, campaign)).toBe('retired');
+		expect(line.visible).toBe(true);
 	});
 });

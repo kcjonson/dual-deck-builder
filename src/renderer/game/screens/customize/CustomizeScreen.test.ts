@@ -530,12 +530,17 @@ describe('CustomizeScreen', () => {
 		expect(find<Text>('customize_save_error').visible).toBe(true);
 		expect(text('customize_save_error')).toBe("The campaign couldn't be saved: storage is full.");
 		expect(find<{ color: unknown }>('customize_save_error').color).toEqual(tokens.color.status_crit);
+		// A failed checkpoint has settled by now, and a failure is no landing: the line stays through another one.
+		press(control('deck', 'armor_plating', 'fewer'));
+		await flush();
+		expect(find<Text>('customize_save_error').visible).toBe(true);
 		storage.fault = null;
 		press(control('pool', 'emp_blast', 'borrow'));
 		await flush();
 		expect(find<Text>('customize_save_error').visible).toBe(false);
 		const loaded = await saved();
 		expect(loaded.runDecks[0].borrowed).toMatchObject({ headshot: 1, emp_blast: 1 });
+		expect(loaded.runDecks[0].leftHome).toMatchObject({ armor_plating: 1 });
 	});
 
 	it('says there is no run deck when no run is out, and hides the driver', async () => {

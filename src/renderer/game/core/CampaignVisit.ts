@@ -1,6 +1,7 @@
 import type { Text } from '../../engine/components/Text';
 import type { Campaign } from '../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../campaign/CampaignStore';
+import type { CheckpointResult } from '../campaign/CampaignStore';
 import type { CardLookup } from '../ui/DriverDetailView';
 
 export interface CampaignVisitLoad {
@@ -81,13 +82,18 @@ export class CampaignVisit {
 		cardsLoaded(loaded);
 	}
 
-	/** Saves the step just taken. A save that lands clears the line a failed one left. */
+	/**
+	 * Saves the step just taken. A save that lands (`saved`) clears the line
+	 * a failed one left; a failure shows on it through `onSaveFailed`; and a
+	 * campaign ended into the history, or one the store has moved on from,
+	 * leaves the line as it is.
+	 */
 	public checkpoint(campaign: Campaign): void {
 		const store = this.store;
 		if (!store) return;
 		const visit = this.visit;
-		void store.checkpoint(campaign).then((saved) => {
-			if (saved && visit === this.visit && this.saveError) this.saveError.visible = false;
+		void store.checkpoint(campaign).then((result: CheckpointResult) => {
+			if (result === 'saved' && visit === this.visit && this.saveError) this.saveError.visible = false;
 		});
 	}
 

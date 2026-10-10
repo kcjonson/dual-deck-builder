@@ -413,12 +413,16 @@ describe('CrewScreen', () => {
 		expect(find<Text>('crew_save_error').visible).toBe(true);
 		expect(text('crew_save_error')).toBe("The campaign couldn't be saved: storage is full.");
 		expect(find<{ color: unknown }>('crew_save_error').color).toEqual(tokens.color.status_crit);
+		// A failed checkpoint has settled by now, and a failure is no landing: the line stays through another one.
+		press(control('pool', 'headshot', 'add'));
+		await flush();
+		expect(find<Text>('crew_save_error').visible).toBe(true);
 		storage.fault = null;
 		press(control('pool', 'emp_blast', 'add'));
 		await flush();
 		expect(find<Text>('crew_save_error').visible).toBe(false);
 		const campaign = await saved();
-		expect(campaign.drivers[0].defaultDeck).toMatchObject({ headshot: 1, emp_blast: 1 });
+		expect(campaign.drivers[0].defaultDeck).toMatchObject({ headshot: 2, emp_blast: 1 });
 	});
 
 	it("shows a driver out on a run with their seat, their default deck from the run deck, and Remove and Add disabled", async () => {
