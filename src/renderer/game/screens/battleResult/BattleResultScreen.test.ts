@@ -45,6 +45,13 @@ describe('BattleResultScreen', () => {
 	it('says defeat on a loss', () => {
 		screen.mount(context, result(false));
 		expect((screen.root.findById('result_title') as Text).text).toBe('DEFEAT!');
+		expect((screen.root.findById('result_subtitle') as Text).text).toBe('Your vehicles have been destroyed!');
+	});
+
+	it('shows the line the fight sent in place of the stock one, so a fight given up says so (DDB-454)', () => {
+		screen.mount(context, { victory: false, subtitle: 'The crew abandoned the fight.' });
+		expect((screen.root.findById('result_title') as Text).text).toBe('DEFEAT!');
+		expect((screen.root.findById('result_subtitle') as Text).text).toBe('The crew abandoned the fight.');
 	});
 
 	it.each(['Enter', 'Escape'])('focuses Continue on mount, and %p goes back to the menu, focus back on what opened the fight', (name) => {
@@ -52,6 +59,13 @@ describe('BattleResultScreen', () => {
 		expect(context.focus.focused?.id).toBe('result_continue_button');
 		send(context, [key(name)]);
 		expect(navigate).toHaveBeenCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
+	});
+
+	it.each(['Enter', 'Escape'])('continues where the fight said to go, a supply run\'s fight back to its run, on %p (DDB-454)', (name) => {
+		const data = { from: 'the fight' };
+		screen.mount(context, { victory: false, next: { screen: 'runScreen', data } });
+		send(context, [key(name)]);
+		expect(navigate).toHaveBeenCalledWith('runScreen', data);
 	});
 
 	it('logs and builds nothing without result data', () => {

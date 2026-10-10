@@ -1,15 +1,17 @@
 import { Rng } from '../../core/Rng';
 import { AreaMapGeneration, AreaMapStageName, generateAreaMap } from '../AreaMapPipeline';
-import type { HighwayDeparture } from '../Highways';
+import { Hazards } from '../Hazards';
 import { LandSurface, freezeSurface } from '../Land';
 import type { MapParams } from '../MapParams';
-import { MapPipelineError, StageAttempt, StageFailure } from '../MapPipeline';
+import { MapPipelineError, PipelineReplay, StageAttempt, StageFailure } from '../MapPipeline';
+import { Places, freezePlaces } from '../Places';
 import type { PoiLayer } from '../Pois';
 import type { GrowthStats } from '../RoadGrowth';
 import type { Road, RoadNetwork, RoadNode, RoadStretch } from '../RoadNetwork';
 import type { RouteTree } from '../RouteTree';
 import type { StopLayer } from '../Stops';
 import { terrainFromSurface } from '../Terrain';
+import type { Hotspot } from '../TerrainSites';
 import { WaterSurface, waterFromSurface } from '../Water';
 
 /**
@@ -23,6 +25,8 @@ import { WaterSurface, waterFromSurface } from '../Water';
 export interface GenerateRequest {
 	/** Resolved and validated. */
 	readonly params: MapParams;
+	/** A saved map's attempts, to make that map again rather than a new one: what loading a campaign sends. */
+	readonly replay?: PipelineReplay;
 }
 
 export type WorkerReply =
@@ -58,15 +62,17 @@ export interface PackedRoadNetwork {
  * land and its badlands, and the water as its surface, whose arrays
  * transfer; the client rebuilds the rest of the terrain from the land on the
  * winning terrain stream, and the water's river index from its lines, which
- * costs a small part of the erosion and routing they save. The route tree,
- * the POIs, and the stops are plain data already, a few typed arrays and
- * small records, and go by structured clone.
+ * costs a small part of the erosion and routing they save. The hazards
+ * travel as their hotspots, and the places, the route tree, the POIs, and
+ * the stops are plain data already, a few typed arrays and small records;
+ * all go by structured clone.
  */
 export interface AreaMapTransfer extends Omit<AreaMapGeneration, 'products'> {
 	readonly surface: LandSurface;
 	readonly badlands: Float32Array;
 	readonly water: WaterSurface;
-	readonly highways: readonly HighwayDeparture[];
+	readonly hotspots: readonly Hotspot[];
+	readonly places: Places;
 	readonly growthStats: GrowthStats;
 	readonly network: PackedRoadNetwork;
 	readonly routeTree: RouteTree;
@@ -103,7 +109,7 @@ export function unpackRoadNetwork({ nodes, roads, stretches, points, offsets }: 
  * before it's terminated.
  */
 export function encodeAreaMap({ products, ...map }: AreaMapGeneration): { map: AreaMapTransfer; buffers: ArrayBuffer[] } {
-	const { terrain, water, highways, growth, routeTree, pois, stops } = products;
+	const { terrain, water, hazards, places, growth, routeTree, pois, stops } = products;
 	const { surface } = terrain;
 	const network = packRoadNetwork(growth.network);
 	const { elevation, mountains, drainage } = surface;
@@ -115,7 +121,7 @@ export function encodeAreaMap({ products, ...map }: AreaMapGeneration): { map: A
 		wet.receivers, wet.area, wet.moisture, wet.lowland, wet.canyons, wet.lakeDepth, wet.lakeOf, wet.lines.points, wet.lines.widths, wet.lines.offsets,
 	];
 	return {
-		map: { ...map, surface, badlands, water: wet, highways, growthStats: growth.stats, network, routeTree, pois, stops },
+		map: { ...map, surface, badlands, water: wet, hotspots: hazards.hotspots, places, growthStats: growth.stats, network, routeTree, pois, stops },
 		// Listing a buffer twice is a DataCloneError, so each goes once.
 		buffers: [...new Set(arrays.map((array) => array.buffer as ArrayBuffer))],
 	};
@@ -123,16 +129,19 @@ export function encodeAreaMap({ products, ...map }: AreaMapGeneration): { map: A
 
 /**
  * The map back, its terrain rebuilt over the land it was sent on the winning
- * terrain stream, and its water over that, without eroding or routing again.
+ * terrain stream, its water over that, and its hazards over that, without
+ * eroding or routing again.
  */
-export function decodeAreaMap({ surface, badlands, water, highways, growthStats, network, routeTree, pois, stops, ...map }: AreaMapTransfer): AreaMapGeneration {
+export function decodeAreaMap({ surface, badlands, water, hotspots, places, growthStats, network, routeTree, pois, stops, ...map }: AreaMapTransfer): AreaMapGeneration {
 	const terrain = terrainFromSurface({ params: map.params, rng: new Rng({ seed: map.streams.terrain }), surface: freezeSurface(surface), badlands });
+	const wet = waterFromSurface({ terrain, surface: water });
 	return {
 		...map,
 		products: {
 			terrain,
-			water: waterFromSurface({ terrain, surface: water }),
-			highways,
+			water: wet,
+			hazards: new Hazards({ terrain: wet.terrain, hotspots }),
+			places: freezePlaces(places),
 			growth: { network: unpackRoadNetwork(network), stats: growthStats },
 			routeTree,
 			pois,
@@ -142,8 +151,8 @@ export function decodeAreaMap({ surface, badlands, water, highways, growthStats,
 }
 
 /** One request's generation, packed for the reply. */
-export function generateTransfer({ params, onProgress }: GenerateRequest & { onProgress?: (progress: StageAttempt<AreaMapStageName>) => void }): { map: AreaMapTransfer; buffers: ArrayBuffer[] } {
-	return encodeAreaMap(generateAreaMap({ params, onProgress }));
+export function generateTransfer({ params, replay, onProgress }: GenerateRequest & { onProgress?: (progress: StageAttempt<AreaMapStageName>) => void }): { map: AreaMapTransfer; buffers: ArrayBuffer[] } {
+	return encodeAreaMap(generateAreaMap({ params, replay, onProgress }));
 }
 
 /** A thrown error as a reply, keeping a pipeline failure's details. */

@@ -210,9 +210,9 @@ export interface GrowthOptions extends GrowthTuning {
 	terrain: GrowthTerrain;
 	/** Validated. */
 	params: MapParams;
-	/** Stage 2's departures, from `planHighways`. */
+	/** Where the highways leave the metro, from `highwayDepartures`. */
 	highways: readonly HighwayDeparture[];
-	/** The stage's stream, nested in the highways' winning stream: ....fork('highways', h).fork('growth', stageAttempt). Each road forks its own from it. */
+	/** The stage's stream, nested in the places' winning stream: ....fork('places', p).fork('growth', stageAttempt). Each road forks its own from it. */
 	rng: Rng;
 }
 
@@ -238,7 +238,7 @@ export interface RoadGrowth {
 	readonly stats: GrowthStats;
 }
 
-/** Stages 3 and 4: the drivable network grown from stage 2's highways, on the `growth` stream. */
+/** The drivable network grown from the highways' departures, on the `growth` stream. */
 export function growRoads(options: GrowthOptions): RoadGrowth {
 	return new RoadGrower(options).grow();
 }

@@ -315,6 +315,59 @@ describe('MapPipeline', () => {
 		});
 	});
 
+	describe('replay', () => {
+		it('makes a map again from its map attempt and stage attempts, each stage run once on the attempt that won it', () => {
+			// b runs out in map attempt 0 and wins its third in map attempt 1, so the replay has to land on both.
+			const scripted = (stages?: Spec[]) => harness({ stages: stages ?? abc({ a: { fails: failing(1) }, b: { fails: ({ mapAttempt, attempt }) => (mapAttempt === 0 || attempt < 2 ? ['no'] : []) } }) });
+			const made = scripted().run();
+			expect({ mapAttempt: made.mapAttempt, attempts: made.attempts }).toEqual({ mapAttempt: 1, attempts: { a: 0, b: 2, c: 0 } });
+
+			const { run, runs, progress } = scripted();
+			const replayed = run({ replay: { mapAttempt: made.mapAttempt, attempts: made.attempts } });
+			expect(replayed.products).toEqual(made.products);
+			expect(replayed.streams).toEqual(made.streams);
+			expect({ mapAttempt: replayed.mapAttempt, attempts: replayed.attempts, failures: replayed.failures, keptFailing: replayed.keptFailing })
+				.toEqual({ mapAttempt: 1, attempts: made.attempts, failures: [], keptFailing: [] });
+			expect(runs.map(({ stage, stream: seed }) => ({ stage, seed }))).toEqual(['a', 'b', 'c'].map((stage) => ({ stage, seed: made.streams[stage] })));
+			expect(progress.map(({ stage, index, attempt, mapAttempt }) => `${stage} ${index} attempt ${attempt} map ${mapAttempt}`)).toEqual([
+				'a 0 attempt 0 map 1', 'b 1 attempt 2 map 1', 'c 2 attempt 0 map 1',
+			]);
+			expect(Object.values(replayed.timings).map(({ runs: count }) => count)).toEqual([1, 1, 1]);
+
+			// Escalation reruns stages under a new upstream; the attempts the run kept still name the streams.
+			const underFirstB = stream(7, 0, ['a', 0], ['b', 0]);
+			const escalating = [{ name: 'a' }, { name: 'b' }, { name: 'c' }, { name: 'd', escalate: 'b', fails: (_attempt: StageAttempt, upstream: Drawns) => (upstream.b.stream === underFirstB ? ['no sites'] : []) }];
+			const escalated = scripted(escalating).run();
+			expect(escalated.attempts).toEqual({ a: 0, b: 1, c: 0, d: 0 });
+			expect(scripted(escalating).run({ replay: { mapAttempt: 0, attempts: escalated.attempts } }).streams).toEqual(escalated.streams);
+		});
+
+		it('checks nothing and calls no accept hook, since the attempts it replays passed them', () => {
+			const made = harness().run();
+			const accept = jest.fn(() => ['rejected']);
+			const failingNow = harness({ stages: abc({ a: { fails: always }, b: { fails: always }, c: { fails: always } }) });
+			const replayed = failingNow.run({ accept, replay: { mapAttempt: 0, attempts: made.attempts } });
+			expect(replayed.products).toEqual(made.products);
+			expect(accept).not.toHaveBeenCalled();
+			expect(replayed.failures).toEqual([]);
+			expect(Object.values(replayed.timings).map(({ checkMilliseconds }) => checkMilliseconds)).toEqual([0, 0, 0]);
+		});
+
+		it('refuses attempts that don\'t fit the pipeline, before running anything', () => {
+			const { run, runs } = harness({ stages: abc({ b: { attempts: 2 } }) });
+			const replay = (mapAttempt: number, attempts: Record<string, number>) => () => run({ replay: { mapAttempt, attempts } });
+			expect(replay(0, { a: 0, b: 0 })).toThrow("MapPipeline: can't replay without c's attempt");
+			expect(replay(0, { a: 0, b: 0, c: 0, z: 1 })).toThrow("MapPipeline: can't replay an attempt for z, which isn't a stage of this pipeline");
+			expect(replay(0, { a: STAGE_ATTEMPTS, b: 0, c: 0 })).toThrow(`MapPipeline: can't replay a on attempt ${STAGE_ATTEMPTS}; it has ${STAGE_ATTEMPTS}`);
+			expect(replay(0, { a: 0, b: 2, c: 0 })).toThrow("MapPipeline: can't replay b on attempt 2; it has 2");
+			expect(replay(0, { a: 0, b: 0, c: 1.5 })).toThrow(RangeError);
+			expect(replay(0, { a: -1, b: 0, c: 0 })).toThrow(RangeError);
+			expect(replay(MAP_ATTEMPTS, { a: 0, b: 0, c: 0 })).toThrow(`MapPipeline: can't replay map attempt ${MAP_ATTEMPTS}; a run makes 0 to ${MAP_ATTEMPTS - 1}`);
+			expect(replay(0.5, { a: 0, b: 0, c: 0 })).toThrow(RangeError);
+			expect(runs).toEqual([]);
+		});
+	});
+
 	it('reports progress as each attempt starts, and times every run and check', () => {
 		let clock = 0;
 		const { run, progress } = harness({ stages: abc({ b: { fails: failing(0) } }) });

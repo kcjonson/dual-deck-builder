@@ -7,7 +7,6 @@ import { clamp01, positiveQuantile, quantileAbove, smooth01 } from './MapMath';
 import type { MapParams } from './MapParams';
 import { SimplexNoise } from './Noise';
 import { RiverCrossing, RiverIndex, RiverInfo, RiverLines, riverPolylines, riverThreshold, traceRivers } from './Rivers';
-import { TOWN_CRATER_GAP } from './TerrainSites';
 import { featureRoom, landValues } from './Terrain';
 import type { Terrain, WaterKind, WaterLayer } from './Terrain';
 
@@ -102,8 +101,6 @@ const LOWLAND = { share: 0.45, least: 1 } as const;
 const CANYONS = { reach: 3, width: 24, share: 0.1, dryness: 0.45, drynessRange: 0.1 } as const;
 /** World units across the buckets rivers are filed in. */
 const RIVER_BUCKET = 16;
-/** Lakes keep this many world units off towns and craters. */
-const LAKE_CLEARANCE = TOWN_CRATER_GAP;
 
 // Read once, at load: under Jest's vm context each global read costs about 0.15 us (seeded-prng.md).
 const sqrt = Math.sqrt;
@@ -248,6 +245,11 @@ export class Water implements WaterLayer {
 		return null;
 	}
 
+	/** True where a river's water lies within `reach` world units of (x, y). */
+	public nearRiver(x: number, y: number, reach: number): boolean {
+		return this.index.near(x, y, reach);
+	}
+
 	/** A lake's depth at (x, y) as elevation, less than 0 on land; 0 at the shore. */
 	public lakeDepth(x: number, y: number): number {
 		return this.lakeGrid.bilinear(x, y);
@@ -308,34 +310,19 @@ function roughened({ grid, elevation, rng }: { grid: LandGrid; elevation: Float6
 }
 
 /**
- * Cells no lake may cover: inside the blend radius round the metro, within
- * `LAKE_CLEARANCE` of a town or a crater, and on the grid's outer cells,
- * where drainage leaves. 1 where blocked.
+ * Cells no lake may cover: inside the blend radius round the metro, and on
+ * the grid's outer cells, where drainage leaves. 1 where blocked. Craters
+ * and places come after the water and keep off the lakes themselves.
  */
 function lakeBlocked({ grid, terrain }: { grid: LandGrid; terrain: Terrain }): Uint8Array {
 	const size = grid.size;
 	const blocked = new Uint8Array(size * size);
 	const blendSquared = terrain.blendRadius * terrain.blendRadius;
-	const keepOff = [
-		...terrain.towns.map(({ x, y, radius }) => ({ x, y, reach: radius + LAKE_CLEARANCE })),
-		...terrain.hotspots.map(({ x, y, craterRadius }) => ({ x, y, reach: craterRadius + LAKE_CLEARANCE })),
-	];
 	for (let row = 0; row < size; row += 1) {
 		const y = cellCentre(grid, row);
 		for (let column = 0; column < size; column += 1) {
 			const x = cellCentre(grid, column);
-			const cell = row * size + column;
-			if (row === 0 || column === 0 || row === size - 1 || column === size - 1 || x * x + y * y < blendSquared) {
-				blocked[cell] = 1;
-				continue;
-			}
-			for (const place of keepOff) {
-				const reach = place.reach + grid.cellSize;
-				if ((x - place.x) * (x - place.x) + (y - place.y) * (y - place.y) < reach * reach) {
-					blocked[cell] = 1;
-					break;
-				}
-			}
+			if (row === 0 || column === 0 || row === size - 1 || column === size - 1 || x * x + y * y < blendSquared) blocked[row * size + column] = 1;
 		}
 	}
 	return blocked;

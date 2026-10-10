@@ -1,15 +1,13 @@
 import { Rng } from '../core/Rng';
 
 /**
- * The terrain's point features (Area Map Generation, Pipeline, 1. Terrain):
- * hotspots, the blast sites and spills that leave craters and contamination,
- * and towns, the smaller ruins out past the metro. Both are dart-thrown, a
- * Poisson-disc sample: candidates drawn uniformly, each kept only if it's far
- * enough from those kept before it. Hotspots draw over a ring of the disc,
- * in its bounding square and redrawn until inside, and towns over the cells a
- * road from the metro reaches. Placement is plain arithmetic, with no square
- * root or trig to differ between engines. Each feature draws on its own
- * stream, so the order other features draw in never moves it.
+ * Hotspots (Area Map Generation, Pipeline, 3. Biomes, hazards, and cost),
+ * the blast sites and spills that leave craters and contamination, and the
+ * ruins' shape. Hotspots are dart-thrown, a Poisson-disc sample: candidates
+ * drawn uniformly over a ring of the disc, in its bounding square and redrawn
+ * until inside, each kept only if it's far enough from those kept before it.
+ * Placement is plain arithmetic, with no square root or trig to differ
+ * between engines.
  */
 
 /** A blast site or spill: an impassable crater in a plume of contamination. */
@@ -24,7 +22,7 @@ export interface Hotspot {
 	readonly strength: number;
 }
 
-/** A patch of ruins: the metro around the compound, or a town. */
+/** A patch of ruins: the metro around the compound, a town, or a village. */
 export interface Ruin {
 	readonly x: number;
 	readonly y: number;
@@ -39,7 +37,7 @@ export interface Ring {
 	readonly outer: number;
 }
 
-/** Candidates tried per feature before it's left out. */
+/** Candidates tried per hotspot before it's left out. */
 export const PLACEMENT_ATTEMPTS = 48;
 
 /** Crater radius, world units. */
@@ -51,13 +49,8 @@ const PLUME_STRENGTH = { min: 0.75, max: 1 };
 export const HOTSPOT_SPACING = 0.25;
 /** The largest crater, for keeping craters clear of the start. */
 export const MAX_CRATER_RADIUS = CRATER_RADIUS.max;
-
-/** A town's radius as a share of the metro's, and the smallest it can be in world units. */
-const TOWN_RADIUS = { min: 0.25, max: 0.4, floor: 20 };
-/** Town centres at least this share of the map's radius apart: the Poisson-disc spacing. */
-export const TOWN_SPACING = 0.22;
-/** World units of clear ground kept between a town's edge and a crater's. */
-export const TOWN_CRATER_GAP = 20;
+/** World units of clear ground kept between a crater's edge and a town's, a village's, or a lake's. */
+export const CRATER_GAP = 20;
 
 export interface HotspotPlacement {
 	/** The `hotspots` stream. */
@@ -90,73 +83,6 @@ export function placeHotspots({ rng, count, radius, ring, suits }: HotspotPlacem
 		if (point) hotspots.push({ x: point.x, y: point.y, craterRadius, plumeRadius, strength });
 	}
 	return hotspots;
-}
-
-export interface TownPlacement {
-	/** The `towns` stream. */
-	rng: Rng;
-	count: number;
-	/** The map's radius, world units. */
-	radius: number;
-	/** The metro's radius, which sizes towns. */
-	metroRadius: number;
-	/** Where towns may go, edges included: centres land a town's radius inside it. */
-	ring: Ring;
-	/** Craters keep towns `TOWN_CRATER_GAP` clear of them. */
-	hotspots: readonly Hotspot[];
-	/** Centres of the square cells, `cellSize` across, that towns stand in: every point of one is ground a town may have. */
-	cells: readonly { readonly x: number; readonly y: number }[];
-	cellSize: number;
-	/** Whether a candidate at (x, y) suits a town; `strict` is the first half of them, which ask for good ground. */
-	suits(x: number, y: number, strict: boolean): boolean;
-}
-
-/**
- * Up to `count` towns, centres `TOWN_SPACING` of the radius apart, inside the
- * ring, clear of craters, and in the cells given. A town draws its size, then
- * up to `PLACEMENT_ATTEMPTS` candidates, each a cell picked evenly and a
- * point picked evenly inside it, that have to suit it, strictly for the
- * first half. If none does, it walks the cells in an order shuffled from the
- * stream (once, the first time any town needs it), and takes the first
- * centre with room, suited or not. So a town is left out only when no cell
- * centre in the ring has room for it.
- */
-export function placeTowns({ rng, count, radius, metroRadius, ring, hotspots, cells, cellSize, suits }: TownPlacement): Ruin[] {
-	const spacing = TOWN_SPACING * radius;
-	const spacingSquared = spacing * spacing;
-	const towns: Ruin[] = [];
-	let walk: number[] | null = null;
-	for (let index = 0; index < count && cells.length > 0; index += 1) {
-		const townRadius = Math.max(TOWN_RADIUS.floor, metroRadius * between(rng, TOWN_RADIUS));
-		const inner = ring.inner + townRadius;
-		const outer = ring.outer - townRadius;
-		const hasRoom = (x: number, y: number) => {
-			const fromCentre = x * x + y * y;
-			if (fromCentre < inner * inner || fromCentre > outer * outer) return false;
-			for (const other of towns) {
-				if (distanceSquared(x, y, other) < spacingSquared) return false;
-			}
-			for (const hotspot of hotspots) {
-				const clearance = hotspot.craterRadius + townRadius + TOWN_CRATER_GAP;
-				if (distanceSquared(x, y, hotspot) < clearance * clearance) return false;
-			}
-			return true;
-		};
-		let point: { x: number; y: number } | null = null;
-		for (let attempt = 0; attempt < PLACEMENT_ATTEMPTS && point === null; attempt += 1) {
-			const cell = cells[rng.int(0, cells.length - 1)];
-			const x = cell.x + (rng.float() - 0.5) * cellSize;
-			const y = cell.y + (rng.float() - 0.5) * cellSize;
-			if (hasRoom(x, y) && suits(x, y, attempt < PLACEMENT_ATTEMPTS / 2)) point = { x, y };
-		}
-		if (point === null) {
-			if (walk === null) walk = rng.shuffle(cells.map((_, cell) => cell));
-			const found = walk.find((cell) => hasRoom(cells[cell].x, cells[cell].y));
-			if (found !== undefined) point = { x: cells[found].x, y: cells[found].y };
-		}
-		if (point) towns.push({ x: point.x, y: point.y, radius: townRadius });
-	}
-	return towns;
 }
 
 /**

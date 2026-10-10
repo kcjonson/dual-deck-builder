@@ -4,7 +4,7 @@ import { stepLog } from '../CampaignEnd';
 import { CampaignStore, CampaignStoreError, campaignKeys } from '../CampaignStore';
 import { MemorySaveStorage, SaveStorage } from '../SaveStorage';
 import cardsFile from '../../data/cards.json';
-import campaignFixture from './campaign-v6.json';
+import campaignFixture from './campaign-v8.json';
 
 export const SEED = 20261006;
 

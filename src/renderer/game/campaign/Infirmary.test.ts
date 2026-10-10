@@ -7,7 +7,7 @@ import { REVIVE_HP } from './CombatBridge';
 import { COMPOUND_RULES, CompoundRules } from './CompoundRules';
 import { endDay } from './DayClock';
 import { DriverRecord, DriverStatus } from './DriverRecord';
-import { foundCampaign } from './Founding';
+import { foundTestCampaign } from './__fixtures__/mapFixtures';
 import {
 	TreatmentBlocker, TreatmentRuleError, getTreatmentBlocker, healingChanges, injureOnArrival, injuryDays, treatDriver, treatmentCost
 } from './Infirmary';
@@ -490,7 +490,7 @@ function playInfirmary({ campaign, script, days }: { campaign: Campaign; script:
 
 describe('the infirmary over a campaign', () => {
 	const founded = (): Campaign => {
-		const campaign = foundCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor', 'mechanic', 'raider'] });
+		const campaign = foundTestCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor', 'mechanic', 'raider'] });
 		campaign.set({ resources: { ...campaign.resources, food: 1000, water: 1000 } });
 		return campaign;
 	};

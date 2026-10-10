@@ -1,7 +1,7 @@
 import type { AreaMapGeneration, AreaMapStageName } from '../AreaMapPipeline';
 import type { MapParams } from '../MapParams';
-import type { StageAttempt } from '../MapPipeline';
-import { AreaMapTransfer, WorkerReply, decodeAreaMap, errorFromReply, generateTransfer } from './mapGenerationProtocol';
+import type { PipelineReplay, StageAttempt } from '../MapPipeline';
+import { AreaMapTransfer, GenerateRequest, WorkerReply, decodeAreaMap, errorFromReply, generateTransfer } from './mapGenerationProtocol';
 import { spawnMapWorker } from './spawnMapWorker';
 
 /**
@@ -28,6 +28,8 @@ export interface MapGenerationResult extends AreaMapGeneration {
 export interface MapGenerationOptions {
 	/** Resolved and validated. Generation starts from `params.seed`. */
 	readonly params: MapParams;
+	/** A map made earlier on these params, to make again from its attempts instead of generating a new one: a load's regeneration. */
+	readonly replay?: PipelineReplay;
 	/** Told as each stage attempt starts. */
 	readonly onProgress?: (progress: StageAttempt<AreaMapStageName>) => void;
 	/** Starts the worker, or gives null to run in-process. `spawnMapWorker` when left out; never called where there's no Worker. */
@@ -49,6 +51,7 @@ export class MapGeneration {
 	public readonly result: Promise<MapGenerationResult>;
 
 	private readonly params: MapParams;
+	private readonly replay: PipelineReplay | undefined;
 	private readonly onProgress: ((progress: StageAttempt<AreaMapStageName>) => void) | undefined;
 	private readonly now: () => number;
 	private readonly started: number;
@@ -60,8 +63,9 @@ export class MapGeneration {
 	private resolveResult: (result: MapGenerationResult) => void = () => undefined;
 	private rejectResult: (error: unknown) => void = () => undefined;
 
-	constructor({ params, onProgress, spawn = spawnMapWorker, now = () => performance.now() }: MapGenerationOptions) {
+	constructor({ params, replay, onProgress, spawn = spawnMapWorker, now = () => performance.now() }: MapGenerationOptions) {
 		this.params = params;
+		this.replay = replay;
 		this.onProgress = onProgress;
 		this.now = now;
 		this.started = now();
@@ -114,7 +118,8 @@ export class MapGeneration {
 			this.runInProcessLater();
 		};
 		worker.onmessageerror = () => this.fail(new Error('MapGeneration: a reply from the worker could not be read'));
-		worker.postMessage({ params: this.params });
+		const request: GenerateRequest = { params: this.params, replay: this.replay };
+		worker.postMessage(request);
 	}
 
 	private runInProcessLater(): void {
@@ -125,7 +130,7 @@ export class MapGeneration {
 		this.pending = null;
 		let map: AreaMapTransfer;
 		try {
-			map = generateTransfer({ params: this.params, onProgress: (progress) => this.onProgress?.(progress) }).map;
+			map = generateTransfer({ params: this.params, replay: this.replay, onProgress: (progress) => this.onProgress?.(progress) }).map;
 		} catch (error) {
 			this.fail(error);
 			return;

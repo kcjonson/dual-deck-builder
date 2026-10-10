@@ -1,9 +1,10 @@
 import { Rng } from '../core/Rng';
 import { AreaMapProducts, areaMapPipeline } from './AreaMapPipeline';
-import type { HighwayDeparture } from './Highways';
+import { HighwayDeparture, highwayDepartures } from './Highways';
 import { MAP_PARAMETERS, MapParamSet, MapParams, NUMBER_PARAMS, ENVIRONMENTS, resolveMapParams } from './MapParams';
 import { AcceptHook, PipelineResult } from './MapPipeline';
 import { validateMapParams } from './ParamValidator';
+import type { Places } from './Places';
 import { GROWTH_RANGES, GROWTH_TUNING, GrowthStats, GrowthTerrain, GrowthTuning } from './RoadGrowth';
 import { RoadClass, RoadNetwork } from './RoadNetwork';
 import type { Obstacle, Terrain } from './Terrain';
@@ -25,9 +26,11 @@ export interface GrownMap {
 	readonly params: MapParams;
 	/** The clearance growth kept, for the network checks. */
 	readonly clearance: number;
-	/** The land with its water, which growth grew over. */
+	/** The land with its water and hazards, which growth grew over. */
 	readonly terrain: Terrain;
 	readonly water: Water;
+	readonly places: Places;
+	/** The departures growth grew its highways from, on the growth stream's `highways` fork. */
 	readonly highways: readonly HighwayDeparture[];
 	readonly network: RoadNetwork;
 	readonly stats: GrowthStats;
@@ -46,14 +49,16 @@ export interface GrownMap {
 export function growMap(set: GrowthSet, { accept }: { accept?: AcceptHook<AreaMapProducts> } = {}): GrownMap {
 	const { branchiness, clearance = GROWTH_TUNING.clearance, ...mapSet } = set;
 	const params = paramsFor(mapSet);
-	const { products, attempts, mapAttempt, failures } = areaMapPipeline({ growth: { branchiness, clearance } })
+	const { products, attempts, mapAttempt, failures, streams } = areaMapPipeline({ growth: { branchiness, clearance } })
 		.run({ seed: params.seed, input: params, accept });
 	if (!accept && failures.length > 0) {
 		const shown = failures.slice(0, 3).map(({ stage, attempt, mapAttempt: map, problems }) => `${stage} attempt ${attempt}, map attempt ${map}: ${problems.slice(0, 3).join('; ')}`);
 		throw new Error(`growMap: seed ${params.seed} needed a retry, which hides what failed: ${shown.join(' | ')}`);
 	}
-	const { water } = products;
-	return { params, clearance, terrain: water.terrain, water, highways: products.highways, network: products.growth.network, stats: products.growth.stats, attempts, mapAttempt };
+	const { water, hazards, places } = products;
+	const terrain = hazards.terrain;
+	const highways = highwayDepartures({ terrain, params, exits: places.exits, rng: new Rng({ seed: streams.growth }).fork('highways') });
+	return { params, clearance, terrain, water, places, highways, network: products.growth.network, stats: products.growth.stats, attempts, mapAttempt };
 }
 
 export interface FakeTerrainOptions {

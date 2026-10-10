@@ -374,8 +374,12 @@ describe('the stops stage in the pipeline', () => {
 	const params: MapParams = paramsFor({ seed: 21, strongholds: 4 });
 	const looped = randomMesh({ seed: 31 });
 
-	const pipeline = (network: RoadNetwork) => new MapPipeline<MapParams>()
-		.stage({ name: 'water', run: () => ({ terrain: fakeGround() }) })
+	/** The land and places as stand-ins, before roads of the test's own. */
+	const upstream = () => new MapPipeline<MapParams>()
+		.stage({ name: 'hazards', run: () => ({ terrain: fakeGround() }) })
+		.stage({ name: 'places', run: () => ({ metro: { id: 0, kind: 'metro' as const, x: 0, y: 0, radius: 150 }, towns: [], villages: [] }) });
+
+	const pipeline = (network: RoadNetwork) => upstream()
 		.stage({ name: 'growth', run: () => ({ network }) })
 		.stage(ROUTE_TREE_STAGE)
 		.stage(poisStage({ strict: true }))
@@ -383,7 +387,7 @@ describe('the stops stage in the pipeline', () => {
 
 	it('places stops on the POIs\' legs and passes its checks', () => {
 		const result = pipeline(looped).run({ seed: params.seed, input: params, debug: true });
-		expect(result.attempts).toEqual({ water: 0, growth: 0, routeTree: 0, pois: 0, stops: 0 });
+		expect(result.attempts).toEqual({ hazards: 0, places: 0, growth: 0, routeTree: 0, pois: 0, stops: 0 });
 		const { pois, stops } = result.products;
 		expect(stops.stops.length).toBeGreaterThan(0);
 		expect(checkStopLayer({ network: looped, layer: pois, stops, params })).toEqual([]);
@@ -399,7 +403,7 @@ describe('the stops stage in the pipeline', () => {
 			debug: true,
 			accept: (_map, { stage }) => (stage === 'stops' && rejections++ < 2 ? ['force a stops rerun'] : []),
 		});
-		expect(result.attempts).toEqual({ water: 0, growth: 0, routeTree: 0, pois: 0, stops: 2 });
+		expect(result.attempts).toEqual({ hazards: 0, places: 0, growth: 0, routeTree: 0, pois: 0, stops: 2 });
 		expect(result.mapAttempt).toBe(0);
 		expect(result.timings.pois.runs).toBe(1);
 	});
@@ -416,11 +420,10 @@ describe('the stops stage in the pipeline', () => {
 
 	it('places nothing, and passes, on roads with no meeting points', () => {
 		const treeOnly = randomMesh({ seed: 31, loops: 0, diagonals: 0 });
-		const lenient = new MapPipeline<MapParams>()
-			.stage({ name: 'water', run: () => ({ terrain: fakeGround() }) })
+		const lenient = upstream()
 			.stage({ name: 'growth', run: () => ({ network: treeOnly }) })
 			.stage(ROUTE_TREE_STAGE)
-			.stage(poisStage())
+			.stage(poisStage({ strict: false }))
 			.stage(STOPS_STAGE);
 		const result = lenient.run({ seed: params.seed, input: params, debug: true });
 		expect(result.products.stops).toMatchObject({ stops: [], legs: [], failures: [] });

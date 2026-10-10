@@ -3,7 +3,8 @@ import { POI_TUNING, STRONGHOLD_TYPE } from '../map/PoiData';
 import { ROAD_CLASSES } from '../map/RoadNetwork';
 import { describeMap } from '../map/RouteDescriptors';
 import { isFight } from '../map/StopData';
-import { RunRoute, offersForDay, routeOffers } from './MapRoutes';
+import { offersForDay, routeOffers } from './MapRoutes';
+import { RunRoute, readRunRoute } from './SupplyRoutes';
 
 const maps = Array.from({ length: 3 }, (_, index) => meshMap(randomMesh({ seed: 900 + index, spacing: 85 + index }), { seed: index }));
 
@@ -44,6 +45,8 @@ describe('routeOffers', () => {
 			const described = describeMap(map).flat();
 			expect(routes).toHaveLength(described.length);
 			routes.forEach(expectRunRoute);
+			// The run's own save reader takes every one, unchanged.
+			routes.forEach((route, index) => expect(readRunRoute(JSON.parse(JSON.stringify(route)), `routes[${index}]`)).toEqual(route));
 			expect(new Set(routes.map(({ id }) => id)).size).toBe(routes.length);
 			const stopIds = routes.flatMap(({ legs }) => legs.flatMap(({ stops }) => stops.map(({ id }) => id)));
 			// A stop on a shared leg is the same stop on every route over it.

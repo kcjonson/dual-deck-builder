@@ -1,6 +1,6 @@
 import { closeModels } from '../core/ClosedModels';
 import { describeValue, type JsonObject } from '../core/Json';
-import { ReaderRangeError, ReaderTypeError, readArray, readFields, readInteger, readOneOf, readSeed, readText } from '../core/JsonReader';
+import { ReaderRangeError, ReaderTypeError, readArray, readFields, readInteger, readNullable, readOneOf, readSeed, readText } from '../core/JsonReader';
 import { Model } from '../core/Model';
 import { MapParams } from '../map/MapParams';
 import { Convoy } from '../mechanics/Convoy';
@@ -16,10 +16,11 @@ import { DECK_RULES, DeckBlocker, cardName, deckAddBlocker, deckRemoveBlocker, r
 import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordData, DriverRecordJson, describeDriver, placeholderName, readDriverRecord, readDriverRecordData, readPoolDriver } from './DriverRecord';
 import { injuryDays } from './Infirmary';
 import { readMapParams, repairMapParams } from './MapParamsJson';
-import { EMPTY_MAP, MapState, readMapState } from './MapState';
+import { EMPTY_MAP, MapAttempts, MapState, readMapAttempts, readMapState } from './MapState';
 import { hasOpenFight } from './OpenFights';
 import { EscortCard, RunDeck, RunDeckJson, readRunDeckJson } from './RunDeck';
-import { SeatBlocker, getSeatBlocker } from './Seating';
+import { SeatBlocker, getCrewRule, getSeatBlocker } from './Seating';
+import { SupplyRun, SupplyRunJson, readSupplyRun, readSupplyRunJson, readSupplyRunTies, supplyRunToJson } from './SupplyRunState';
 
 /**
  * The save format's version, which `CampaignStore` stamps on every save and
@@ -28,7 +29,7 @@ import { SeatBlocker, getSeatBlocker } from './Seating';
  * with another version isn't loaded, so a bump invalidates every existing
  * save of that build.
  */
-export const CAMPAIGN_SCHEMA_VERSION = 6;
+export const CAMPAIGN_SCHEMA_VERSION = 8;
 
 /** Structure a missing driver's vehicle comes home with once they're found. A tuning value. */
 export const RETURN_STRUCTURE = 1;
@@ -144,8 +145,10 @@ export interface CampaignData {
 	generatorVersion: number;
 	/** The parameters the map was made with, as resolved and validated at founding. */
 	mapParams: Readonly<MapParams>;
-	/** The gameplay map and what's changed on it since. */
+	/** What's changed on the area map since it was made. */
 	map: MapState;
+	/** Where the map sits among the seed's attempts, which with the seed and params make it again; null for a campaign built without a map. */
+	mapAttempts: MapAttempts | null;
 	/** Founding day is day 1. */
 	day: number;
 	resources: Readonly<Resources>;
@@ -172,6 +175,13 @@ export interface CampaignData {
 	 * fails (`loseRun`). Empty at home.
 	 */
 	foundOnRun: readonly DriverRecord[];
+	/**
+	 * The supply run on the road (SupplyRun.ts): its route, the stop it's at,
+	 * its escorts and cargo. Null at home, and from the moment load out
+	 * starts the run decks until the run departs; the run's end, home or
+	 * failed, clears it with the run decks.
+	 */
+	supplyRun: SupplyRun | null;
 	/** Ids of the strongholds taken, in the order they fell. */
 	strongholdsTaken: readonly string[];
 	log: readonly Readonly<CampaignLogEntry>[];
@@ -199,12 +209,14 @@ export interface CampaignJson {
 	runDecks: RunDeckJson[];
 	/** Their driver ids. */
 	foundOnRun: string[];
+	supplyRun: SupplyRunJson | null;
 	strongholdsTaken: string[];
 	log: CampaignLogEntry[];
 	tally: CampaignTally;
 	end: CampaignEnd | null;
 	mapParams: MapParams;
 	map: JsonObject;
+	mapAttempts: MapAttempts | null;
 }
 
 export interface LoadOptions {
@@ -220,6 +232,7 @@ const FIELDS: readonly (keyof CampaignData)[] = [
 	'generatorVersion',
 	'mapParams',
 	'map',
+	'mapAttempts',
 	'day',
 	'resources',
 	'unrest',
@@ -230,6 +243,7 @@ const FIELDS: readonly (keyof CampaignData)[] = [
 	'nextRunNumber',
 	'runDecks',
 	'foundOnRun',
+	'supplyRun',
 	'strongholdsTaken',
 	'log',
 	'tally',
@@ -249,12 +263,14 @@ const JSON_FIELDS: readonly (keyof CampaignJson)[] = [
 	'nextRunNumber',
 	'runDecks',
 	'foundOnRun',
+	'supplyRun',
 	'strongholdsTaken',
 	'log',
 	'tally',
 	'end',
 	'mapParams',
-	'map'
+	'map',
+	'mapAttempts'
 ];
 
 export const RESOURCE_NAMES: readonly (keyof Resources)[] = ['food', 'water', 'fuel', 'meds', 'scrap', 'people'];
@@ -266,7 +282,7 @@ export const MAX_DAY = 0xffffffff;
  * What the map was made from, set at founding, and the convoy, whose
  * counter a replacement would start over, handing escort ids out again.
  */
-const FIXED_FIELDS = ['seed', 'generatorVersion', 'mapParams', 'convoy'] as const;
+const FIXED_FIELDS = ['seed', 'generatorVersion', 'mapParams', 'mapAttempts', 'convoy'] as const;
 
 /**
  * Counters that never go back: the two that hand out ids, so no id is
@@ -295,9 +311,9 @@ export interface Campaign extends Readonly<CampaignData> {}
  * Properties are read-only. A change goes through `set`, which checks the
  * whole campaign and throws, changing nothing, if the result would be
  * invalid, so whatever `toJSON` writes, `fromJSON` reads back. The seed,
- * generator version, map params, and convoy never change after founding,
- * the day, the driver and run counters, and the tally never go back, and
- * the pool only grows. Once the campaign is over (`end`), nothing changes
+ * generator version, map params, map attempts, and convoy never change
+ * after founding, the day, the driver and run counters, and the tally never
+ * go back, and the pool only grows. Once the campaign is over (`end`), nothing changes
  * it: `set` and every method that would change it throw a
  * `CampaignOverError`, and so do its driver records and its convoy, which
  * the end closes.
@@ -332,6 +348,7 @@ export class Campaign extends Model<CampaignData> {
 		generatorVersion,
 		mapParams,
 		map = EMPTY_MAP,
+		mapAttempts = null,
 		day = 1,
 		resources = NO_RESOURCES,
 		unrest = 0,
@@ -342,6 +359,7 @@ export class Campaign extends Model<CampaignData> {
 		nextRunNumber,
 		runDecks = [],
 		foundOnRun = [],
+		supplyRun = null,
 		strongholdsTaken = [],
 		log = [],
 		tally = NO_TALLY,
@@ -352,6 +370,7 @@ export class Campaign extends Model<CampaignData> {
 			generatorVersion,
 			mapParams,
 			map,
+			mapAttempts,
 			day,
 			resources,
 			unrest,
@@ -362,6 +381,7 @@ export class Campaign extends Model<CampaignData> {
 			nextRunNumber: nextRunNumber ?? (runDecks.length > 0 ? 2 : 1),
 			runDecks,
 			foundOnRun,
+			supplyRun,
 			strongholdsTaken,
 			log,
 			tally,
@@ -382,21 +402,24 @@ export class Campaign extends Model<CampaignData> {
 		const save = readFields(json, path, JSON_FIELDS);
 		const mapParams = repairMapParams(save.mapParams, `${path}.mapParams`);
 		const drivers = readArray(save.drivers, `${path}.drivers`).map((driver, index) => readDriverRecord(driver, `${path}.drivers[${index}]`));
+		const convoy = readConvoy(save.convoy, `${path}.convoy`);
 		const campaign = new Campaign(readCampaignData({
 			seed: save.seed,
 			generatorVersion: save.generatorVersion,
 			mapParams: mapParams.params,
 			map: save.map,
+			mapAttempts: save.mapAttempts,
 			day: save.day,
 			resources: save.resources,
 			unrest: save.unrest,
 			drivers,
 			nextDriverNumber: save.nextDriverNumber,
 			locker: save.locker,
-			convoy: readConvoy(save.convoy, `${path}.convoy`),
+			convoy,
 			nextRunNumber: save.nextRunNumber,
 			runDecks: readArray(save.runDecks, `${path}.runDecks`).map((deck, index) => readRunDeckJson(deck, `${path}.runDecks[${index}]`, drivers)),
 			foundOnRun: readArray(save.foundOnRun, `${path}.foundOnRun`).map((id, index) => readPoolDriver(id, `${path}.foundOnRun[${index}]`, drivers)),
+			supplyRun: readNullable(save.supplyRun, `${path}.supplyRun`, (run, at) => readSupplyRunJson(run, at, { convoy, readCargo: readResources })),
 			strongholdsTaken: save.strongholdsTaken,
 			log: save.log,
 			tally: save.tally,
@@ -409,7 +432,7 @@ export class Campaign extends Model<CampaignData> {
 	/**
 	 * Changes fields together, checked as a whole. Throws without changing
 	 * anything if the campaign would be invalid, a field is unknown, the
-	 * seed, generator version, or map params would change, another convoy
+	 * seed, generator version, map params, or map attempts would change, another convoy
 	 * would replace the campaign's (starting its escort ids over), the day
 	 * would go back (rolling a day's draws again), the driver or run counter
 	 * would go back (handing out an id again), a driver
@@ -701,17 +724,20 @@ export class Campaign extends Model<CampaignData> {
 	 * decks and the error is thrown on.
 	 *
 	 * Throws, starting nothing, while a run's decks are out, unless load
-	 * out's seat check (`getSeatBlocker`) seats the two drivers together,
+	 * out's seat check (`getSeatBlocker`) seats the drivers together,
 	 * asked of each seat alone and then of the pair (a `CampaignOverError`
 	 * once the campaign is over), and for an escort that isn't in the convoy
-	 * or is listed twice.
+	 * or is listed twice. A run seats two, or one when only one driver is
+	 * ready at the compound (`getCrewRule`'s `solo`).
 	 */
 	public startRunDecks({ seats, escorts = [] }: { seats: readonly DriverRecord[]; escorts?: readonly Vehicle[] }): readonly RunDeck[] {
 		if (storingMoves.has(this)) throw new Error("Can't start run decks while a card move is being stored");
 		if (this.runDecks.length > 0) throw new Error('A run is already out; unwind its run decks before starting new ones');
-		if (seats.length !== 2) throw new RangeError(`A run seats two drivers, not ${seats.length}`);
-		const [first, second] = seats;
-		for (const { driver, partner } of [{ driver: first, partner: null }, { driver: second, partner: null }, { driver: first, partner: second }]) {
+		const solo = seats.length === 1 && getCrewRule({ campaign: this }) === 'solo';
+		if (seats.length !== 2 && !solo) throw new RangeError(`A run seats two drivers, not ${seats.length}`);
+		const [first, second = null] = seats;
+		const checks = [{ driver: first, partner: null }, ...(second ? [{ driver: second, partner: null }, { driver: first, partner: second }] : [])];
+		for (const { driver, partner } of checks) {
 			const blocker = getSeatBlocker({ campaign: this, driver, partner });
 			refuseOverBlocker({ blocker, action: 'start run decks' });
 			if (blocker !== null) throw new RangeError(seatRefusal({ driver, blocker }));
@@ -866,7 +892,7 @@ export class Campaign extends Model<CampaignData> {
 	public unwindRunDecks(): { lost: readonly RunDeck[] } {
 		const decks = this.endingRun({ action: 'unwind run decks' });
 		const { locker, lost } = this.unwindRecords({ decks });
-		this.set({ runDecks: [], foundOnRun: [], locker });
+		this.set({ runDecks: [], foundOnRun: [], supplyRun: null, locker });
 		return { lost };
 	}
 
@@ -920,7 +946,7 @@ export class Campaign extends Model<CampaignData> {
 		const found = this.foundOnRun;
 		const homecomings = found.map(driver => ({ driver, changes: homecoming({ driver, rules: checked }) }));
 		const { locker } = this.unwindRecords({ decks, cardsWon: cards, first: () => homecomings.forEach(({ driver, changes }) => driver.set(changes)) });
-		this.set({ runDecks: [], foundOnRun: [], locker, resources, tally: { ...this.tally, runsHome: this.tally.runsHome + 1 } });
+		this.set({ runDecks: [], foundOnRun: [], supplyRun: null, locker, resources, tally: { ...this.tally, runsHome: this.tally.runsHome + 1 } });
 		return Object.freeze({ resources: cargo, cards, found });
 	}
 
@@ -971,6 +997,7 @@ export class Campaign extends Model<CampaignData> {
 		this.set({
 			runDecks: [],
 			foundOnRun: [],
+			supplyRun: null,
 			locker,
 			log: stepLog({ log: this.log, day: this.day, lines: [message], end }),
 			tally: { ...this.tally, runsFailed: this.tally.runsFailed + 1 },
@@ -1022,6 +1049,7 @@ export class Campaign extends Model<CampaignData> {
 		readConvoy(convoy, 'Campaign.convoy');
 		readRunDeckTies({ decks: this.runDecks, convoy: this.convoy, path: 'Campaign.runDecks' });
 		readFoundTies({ found: this.foundOnRun, path: 'Campaign.foundOnRun' });
+		if (this.supplyRun !== null) readSupplyRunTies({ run: this.supplyRun, convoy: this.convoy, path: 'Campaign.supplyRun' });
 		const save: Record<keyof CampaignJson, unknown> = {
 			seed: this.seed,
 			generatorVersion: this.generatorVersion,
@@ -1035,12 +1063,14 @@ export class Campaign extends Model<CampaignData> {
 			nextRunNumber: this.nextRunNumber,
 			runDecks: this.runDecks,
 			foundOnRun: this.foundOnRun.map(driver => driver.id),
+			supplyRun: this.supplyRun === null ? null : supplyRunToJson(this.supplyRun),
 			strongholdsTaken: this.strongholdsTaken,
 			log: this.log,
 			tally: this.tally,
 			end: this.end,
 			mapParams: this.mapParams,
-			map: this.map
+			map: this.map,
+			mapAttempts: this.mapAttempts
 		};
 		return JSON.stringify(save);
 	}
@@ -1444,6 +1474,7 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 	const drivers = readDrivers(fields.drivers, `${path}.drivers`, nextDriverNumber, previous);
 	const runDecks = readRunDecks(fields.runDecks, `${path}.runDecks`, { drivers, convoy: fields.convoy, held: previous.runDecks });
 	const foundOnRun = readFound(fields.foundOnRun, `${path}.foundOnRun`, { drivers, runDecks, held: previous.foundOnRun });
+	const supplyRun = readSupplyRunField(fields.supplyRun, `${path}.supplyRun`, { convoy: fields.convoy, runDecks, held: previous.supplyRun });
 	// A run out has its id handed out already, so the counter has passed it
 	const nextRunNumber = readInteger(fields.nextRunNumber, `${path}.nextRunNumber`, { min: runDecks.length > 0 ? 2 : 1 });
 	const resources = readResources(fields.resources, `${path}.resources`);
@@ -1462,6 +1493,7 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 		generatorVersion: readInteger(fields.generatorVersion, `${path}.generatorVersion`, { min: 1 }),
 		mapParams,
 		map: readMapState(fields.map, `${path}.map`),
+		mapAttempts: readMapAttempts(fields.mapAttempts, `${path}.mapAttempts`),
 		day,
 		resources,
 		unrest: readInteger(fields.unrest, `${path}.unrest`, { min: 0 }),
@@ -1472,11 +1504,28 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 		nextRunNumber,
 		runDecks,
 		foundOnRun,
+		supplyRun,
 		strongholdsTaken: readStrongholds(fields.strongholdsTaken, `${path}.strongholdsTaken`),
 		log: readLog(fields.log, `${path}.log`, day, previous.log),
 		tally,
 		end
 	};
+}
+
+/**
+ * The supply run: none, or one on the road with its run decks out. One held
+ * before was checked when it was stored, and its escorts leave the convoy
+ * outside the campaign's checks, so `toSaveText` checks that tie; the run
+ * decks can go without it, so they're checked every time.
+ */
+function readSupplyRunField(
+	value: unknown,
+	path: string,
+	{ convoy, runDecks, held }: { convoy: Convoy; runDecks: readonly RunDeck[]; held?: SupplyRun | null }
+): SupplyRun | null {
+	const run = held !== undefined && value === held ? held : readNullable(value, path, (given, at) => readSupplyRun(given, at, { convoy, readCargo: readResources }));
+	if (run !== null && runDecks.length === 0) throw new ReaderRangeError(`${path} is on the road with no run out; the run's end clears it with the run decks`);
+	return run;
 }
 
 /**

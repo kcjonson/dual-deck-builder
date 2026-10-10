@@ -1,6 +1,6 @@
 {
 	"seed": 20261006,
-	"generatorVersion": 1,
+	"generatorVersion": 5,
 	"day": 9,
 	"resources": {
 		"food": 14,
@@ -216,6 +216,89 @@
 	"foundOnRun": [
 		"driver-4"
 	],
+	"supplyRun": {
+		"route": {
+			"id": "route-9-2-1",
+			"name": "Back roads",
+			"destination": {
+				"id": "poi-9-2",
+				"name": "Red Mesa Silos",
+				"tier": 2,
+				"yield": {
+					"food": 6,
+					"water": 5,
+					"fuel": 3,
+					"scrap": 15
+				}
+			},
+			"legs": [
+				{
+					"id": "leg-9-2-1",
+					"roadClass": "highway",
+					"length": 140,
+					"hours": 0.5,
+					"stops": []
+				},
+				{
+					"id": "leg-9-2-2-1",
+					"roadClass": "backRoad",
+					"length": 120,
+					"hours": 0.8,
+					"stops": [
+						{
+							"id": "leg-9-2-2-1-stop-1",
+							"kind": "fight",
+							"at": 0.3,
+							"skulls": 1
+						},
+						{
+							"id": "leg-9-2-2-1-stop-2",
+							"kind": "quiet",
+							"at": 0.7
+						}
+					]
+				},
+				{
+					"id": "leg-9-2-2-2",
+					"roadClass": "backRoad",
+					"length": 160,
+					"hours": 1,
+					"stops": [
+						{
+							"id": "leg-9-2-2-2-stop-1",
+							"kind": "fight",
+							"at": 0.5,
+							"skulls": 2
+						}
+					]
+				}
+			],
+			"fuel": 3,
+			"hours": {
+				"out": 4.8,
+				"objective": 1,
+				"home": 2.3
+			},
+			"risk": 2
+		},
+		"stop": 2,
+		"phase": "reward",
+		"escorts": [
+			"escort-1",
+			"escort-3"
+		],
+		"cargo": {
+			"food": 0,
+			"water": 0,
+			"fuel": 2,
+			"meds": 0,
+			"scrap": 0,
+			"people": 0
+		},
+		"cargoCards": {
+			"caltrops": 1
+		}
+	},
 	"strongholdsTaken": [
 		"stronghold-3"
 	],
@@ -280,5 +363,18 @@
 		"streetGrids": 0.7,
 		"railLines": 1
 	},
-	"map": {}
+	"map": {},
+	"mapAttempts": {
+		"map": 0,
+		"stages": {
+			"terrain": 0,
+			"water": 1,
+			"hazards": 0,
+			"places": 0,
+			"growth": 0,
+			"routeTree": 0,
+			"pois": 0,
+			"stops": 0
+		}
+	}
 }

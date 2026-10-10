@@ -5,6 +5,8 @@ import { DescribeOptions, RouteDescriptor, RouteMap, describeMap, poiNames } fro
 import { ROAD_CLASSES } from '../map/RoadNetwork';
 import { isFight } from '../map/StopData';
 import type { LegProfile } from '../map/Stops';
+import type { Skulls } from './Encounters';
+import { RouteDestination, RouteLeg, RouteStop, RunRoute, YIELD_RESOURCES, YieldResource } from './SupplyRoutes';
 
 /**
  * The area map's routes in the run loop's route model (DDB-454's
@@ -15,53 +17,6 @@ import type { LegProfile } from '../map/Stops';
  * type does, meds aside until a run can carry them. The decision record is
  * docs/AI_TECHNICAL_DECISIONS/stops-and-routes.md.
  */
-
-export type Skulls = 1 | 2 | 3;
-
-export type RouteStop =
-	| { readonly id: string; readonly kind: 'fight'; readonly at: number; readonly skulls: Skulls }
-	| { readonly id: string; readonly kind: 'quiet'; readonly at: number };
-
-export interface RouteLeg {
-	readonly id: string;
-	/** The class most of it is. */
-	readonly roadClass: RoadClass;
-	/** World units. */
-	readonly length: number;
-	/** Driving it, without its stops. */
-	readonly hours: number;
-	readonly stops: readonly RouteStop[];
-}
-
-/** What a destination yields to a run that reaches it. */
-export const YIELD_RESOURCES = ['food', 'water', 'fuel', 'scrap'] as const;
-export type YieldResource = (typeof YIELD_RESOURCES)[number];
-export type RouteYield = Readonly<Record<YieldResource, number>>;
-
-export interface RouteDestination {
-	readonly id: string;
-	readonly name: string;
-	/** 1 to 5. */
-	readonly tier: number;
-	readonly yield: RouteYield;
-}
-
-export interface RunRouteHours {
-	readonly out: number;
-	readonly objective: number;
-	readonly home: number;
-}
-
-export interface RunRoute {
-	readonly id: string;
-	readonly name: string;
-	readonly destination: RouteDestination;
-	readonly legs: readonly RouteLeg[];
-	readonly fuel: number;
-	readonly hours: RunRouteHours;
-	/** Its worst fight, in skulls. */
-	readonly risk: Skulls;
-}
 
 /**
  * Every route on the map as the run takes it, POI by POI, each POI's

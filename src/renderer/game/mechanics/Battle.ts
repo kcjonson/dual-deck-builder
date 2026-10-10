@@ -580,6 +580,22 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
+	 * The player gives the fight up: it ends lost, as a defeat does, with
+	 * whoever is still in it fleeing. A supply run's fight offers it, so a
+	 * fight that stalls has a way out; the run that loses it has failed.
+	 * Does nothing once the fight is over.
+	 */
+	public forfeit(): void {
+		if (this.battleOver) return;
+		this.battleOver = true;
+		this.battleWon = false;
+		this.log('battle_end', 'Battle lost: the crew abandoned the fight');
+		this.endCombat();
+		this.emit('battleEnded', Object.freeze({ won: false }));
+		this.emit('stateChanged', this.getState());
+	}
+
+	/**
 	 * Play a card from a specific driver's hand
 	 */
 	public playCard({

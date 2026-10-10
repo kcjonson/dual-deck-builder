@@ -365,29 +365,12 @@ describe('generateWater', () => {
 			expect(NATURAL_LAKE.moisture).toBeGreaterThan(0.5);
 		});
 
-		it.each(SETS)('keeps lakes off the metro, the towns, and the craters, in %s', (_name, set) => {
+		it.each(SETS)('keeps lakes off the metro, in %s', (_name, set) => {
 			const land = landFor(set);
 			const { surface } = waterFor(set);
 			lakeCells(surface).forEach((cell) => {
 				const [x, y] = centreOf(surface.grid, cell);
 				expect(Math.hypot(x, y)).toBeGreaterThan(land.blendRadius);
-				land.towns.forEach((town) => expect(Math.hypot(x - town.x, y - town.y)).toBeGreaterThan(town.radius));
-				land.hotspots.forEach((hotspot) => expect(Math.hypot(x - hotspot.x, y - hotspot.y)).toBeGreaterThan(hotspot.craterRadius));
-			});
-		});
-	});
-
-	describe('hazards', () => {
-		it.each(SETS)('finds the craters, placed before the water, clear of every river, in %s', (_name, set) => {
-			const land = landFor(set);
-			const water = waterFor(set);
-			land.hotspots.forEach(({ x, y, craterRadius }) => {
-				for (let ring = 0; ring <= craterRadius; ring += 2) {
-					for (let step = 0; step < 48; step += 1) {
-						const angle = (step / 48) * 2 * Math.PI;
-						expect(water.waterAt(x + ring * Math.cos(angle), y + ring * Math.sin(angle))).not.toBe('river');
-					}
-				}
 			});
 		});
 	});
@@ -503,6 +486,6 @@ interface PinnedWater {
 }
 
 const PINNED: PinnedWater[] = [
-	{ set: { seed: 7, radius: 800 }, moisture: 170918580, lakeDepth: 121594240, points: 1765450325, rivers: 28, lakes: ['reservoir 166', 'reservoir 94'] },
-	{ set: { seed: 17, environment: 'floodlands', radius: 800, rivers: 0 }, moisture: 3769450932, lakeDepth: 561159859, points: 181102847, rivers: 43, lakes: ['reservoir 33', 'reservoir 87', 'reservoir 42', 'reservoir 177', 'reservoir 134'] },
+	{ set: { seed: 7, radius: 800 }, moisture: 1312995165, lakeDepth: 3774271930, points: 3764155189, rivers: 28, lakes: ['reservoir 139', 'reservoir 71'] },
+	{ set: { seed: 17, environment: 'floodlands', radius: 800, rivers: 0 }, moisture: 2355180018, lakeDepth: 561856472, points: 3664585084, rivers: 43, lakes: ['reservoir 113', 'reservoir 145', 'reservoir 111', 'reservoir 35', 'reservoir 37'] },
 ];
