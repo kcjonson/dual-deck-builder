@@ -42,7 +42,7 @@ How they're cut:
 
 ## Strongholds
 
-- The sectors' rotation is drawn on the `sectors` fork within one sector's width, then stepped by an eighth of a sector, up to 8 steps, until every sector holds a site in the outer band, 0.72 to 0.97 of the radius. When no step does, the drawn rotation is kept and the sectors without one fail.
+- The sectors' rotation is drawn on the `sectors` fork within one sector's width, then stepped by an eighth of a sector, up to 8 steps, until one seats a stronghold in every sector's outer band, 0.72 to 0.97 of the radius. Each step is seated in full, since a step whose sectors all hold a band site can still lose one to spacing or a stretch another took (3 of 60 runs did, when the first cut stopped at the first step where every sector held a site). When no step does, the drawn rotation is kept and the sectors it leaves without one fail.
 - Which sector a point is in uses no trig: each boundary is a `unitVector`, and a point's angle from the first boundary is a diamond angle in that boundary's frame, which grows with the true angle and needs only adds, multiplies, and divides.
 - Each sector in turn seats one stronghold, on the free site in it whose best untaken faction fits best. The fit is #177's: biome counts at the site and six points 40 units round it, inside the disc, weighted by the faction's biome weights, plus its ruin weight times the ruin there, averaged, plus a jitter per faction drawn once on the `factions` fork so close calls vary between maps. Ties go to the site that scores better by geography, then the earlier site.
 - A stronghold is a POI of type `stronghold`, listed before the others, with its faction and sector in `strongholds`. Its routes are legs like any POI's.
@@ -66,18 +66,13 @@ Every draw comes from a fork of the stage's stream named for its use (`sectors`,
 
 ## Strict mode, and what Maps 7 and 8 do
 
-`poisStage({ strict })` is off in `areaMapPipeline` until the road graph replaces growth.
+`poisStage({ strict })` is on in `areaMapPipeline` since the road graph replaced growth (road-network.md); a caller can still pass `pois: { strict: false }`.
 
-- Lenient (now): the stage's check runs `checkPoiLayer` without the sector rule, so a bug still fails it, and the layer's `failures` list what it missed: sectors with no stronghold, and cover the first ring doesn't yield. On growth's network that's every sector and all three resources, with no POIs, and the map goes on.
+- Lenient: the stage's check runs `checkPoiLayer` without the sector rule, so a bug still fails it, and the layer's `failures` list what it missed: sectors with no stronghold, and cover the first ring doesn't yield. On growth's network that's every sector and all three resources, with no POIs, and the map goes on.
 - Strict: `failures` and every violation fail the stage. After its 8 attempts it escalates to the roads, which rerun on their next attempt; escalation is the runner's (map-pipeline-worker.md).
+- Except where the map's places can't close the loops the POIs want, so the roads stage asked for fewer (road-network.md), and the roads close fewer than the POIs want: a map in the tuning ranges' high mountains with a handful of villages and crossroads. No attempt there can seat a stronghold in every sector, so the stage holds it leniently, strict or not, and the map goes on with what it missed in `failures`. Roads that close what the POIs want keep it strict, capped or not, so a campaign map never loses a stronghold quietly.
 
-To turn it on, Map 8:
-
-1. Points `ROUTE_TREE_STAGE` and `poisStage` at the roads stage's product, and the escalation at the roads stage, in place of `growth`.
-2. Passes `pois: { strict: true }` in `areaMapPipeline`.
-3. Adds the roads stage's own loop check from the spec's Validation section, so escalations stay rare.
-
-`roadTesting.growMap` already throws when any stage needed a retry, so its tests will see a POI stage that couldn't place.
+Map 8 turned it on: the route tree and the POIs read the roads stage's product, the POIs escalate to the roads, and the roads stage fails on too few loops (the spec's Validation section), so escalations stay rare. With it came three changes real roads needed: a three-way point needs three distinct neighbours, since two roads from one neighbour give two routes one way home; the sector seating above; and the first ring's cover keeps a location's type unless another yields strictly more of what's still needed, where it used to keep any type that yielded one.
 
 ## Measured
 
@@ -113,4 +108,4 @@ Calls the spec left open, made the simplest way consistent with it, for Kevin to
 9. The first ring covers food, water, and fuel, quickest first, keeping a location's type where it already yields something needed.
 10. A POI's arrivals, and so its routes, are listed quickest first, ties to the lower node.
 11. Tier stand-in: ring plus one.
-12. The POI stage is lenient until Map 8 turns strict mode on.
+12. The POI stage ran lenient until Map 8; the game's pipeline runs it strict, bar maps whose places cap the loops the roads need and whose roads close fewer than the POIs want, which it holds leniently.

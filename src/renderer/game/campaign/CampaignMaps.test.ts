@@ -243,7 +243,7 @@ describe('CampaignMaps', () => {
 			expect(await waits.sharedStaying).toBe(map);
 			// Aborting once the map is made changes nothing, and the map is kept for the next to ask.
 			staying.abort();
-			tell('growth');
+			tell('roads');
 			expect(heard).toHaveLength(6);
 			expect(await maps.mapOf(campaign, { signal: new AbortController().signal })).toBe(map);
 			expect(asked).toHaveLength(1);
@@ -318,7 +318,7 @@ describe('CampaignMaps', () => {
 	it('pins the pipeline\'s stages to the generator version', () => {
 		const pinned = { generatorVersion: AREA_MAP_GENERATOR_VERSION, stages: areaMapPipeline().stageNames };
 		try {
-			expect(pinned).toEqual({ generatorVersion: 5, stages: ['terrain', 'water', 'hazards', 'places', 'growth', 'routeTree', 'pois', 'stops'] });
+			expect(pinned).toEqual({ generatorVersion: 5, stages: ['terrain', 'water', 'hazards', 'places', 'roads', 'routeTree', 'pois', 'stops'] });
 		} catch (error) {
 			throw new Error(`the pipeline's stages changed: bump AREA_MAP_GENERATOR_VERSION (map/GeneratorVersion.ts), so the store reads older saves as outdated, and re-pin\n${(error as Error).message}`);
 		}

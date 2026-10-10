@@ -31,6 +31,8 @@ export interface MapGenerationSummary {
 	readonly mapAttempt: number;
 	readonly nodes: number;
 	readonly stretches: number;
+	/** Independent loops the roads close. */
+	readonly loops: number;
 	readonly meetingPoints: number;
 	/** Placed, strongholds among them. */
 	readonly pois: number;
@@ -88,8 +90,9 @@ export function summarizeGeneration(result: MapGenerationResult): MapGenerationS
 		stages: timings,
 		attempts: result.attempts,
 		mapAttempt: result.mapAttempt,
-		nodes: products.growth.network.nodes.length,
-		stretches: products.growth.network.stretches.length,
+		nodes: products.roads.network.nodes.length,
+		stretches: products.roads.network.stretches.length,
+		loops: products.roads.stats.loops,
 		meetingPoints: products.routeTree.meetingPoints.length,
 		pois: products.pois.pois.length,
 		strongholds: products.pois.strongholds.length,
@@ -107,5 +110,5 @@ export function describeGeneration(summary: MapGenerationSummary): string {
 	const where = summary.inWorker ? 'in a worker' : 'in-process';
 	return `Map generation, seed ${summary.seed} ${summary.environment} radius ${summary.radius}, ${where}: ${summary.wallMilliseconds.toFixed(1)} ms wall, `
 		+ `pipeline ${summary.pipelineMilliseconds.toFixed(1)} ms (${stages.join(', ')}; map attempt ${summary.mapAttempt}), decode ${summary.decodeMilliseconds.toFixed(1)} ms; `
-		+ `${summary.nodes} nodes, ${summary.stretches} stretches, ${summary.meetingPoints} meeting points, ${summary.pois} POIs (${summary.strongholds} strongholds), ${summary.stops} stops`;
+		+ `${summary.nodes} nodes, ${summary.stretches} stretches, ${summary.loops} loops, ${summary.meetingPoints} meeting points, ${summary.pois} POIs (${summary.strongholds} strongholds), ${summary.stops} stops`;
 }

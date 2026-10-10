@@ -10,7 +10,7 @@ import type { Places } from '../../map/Places';
 import type { RiverLines } from '../../map/Rivers';
 import { FOG, PLACE_STYLE, RIVER_STYLE, ROAD_STYLES, RUMORED_FADE, RUMORED_TOWARD, roadWidthScale } from './areaMapStyle';
 import { AreaMapView, AreaMapViewOptions, WHEEL_ZOOM_RATE } from './AreaMapView';
-import type { AreaMapSelection, LandFogLayer, MapMarker, RoadKnowledge } from './layers';
+import { AreaMapSelection, LandFogLayer, MapMarker, RoadKnowledge, stubEnd } from './layers';
 import { FIT_MARGIN } from './MapCamera';
 import { NO_RIVERS, SMALL_NETWORK, flatTerrain } from './testing';
 
@@ -214,7 +214,7 @@ describe('AreaMapView pan, zoom, and selection', () => {
 		view.markers = [];
 		const states: RoadKnowledge[] = ['charted', 'uncharted', 'uncharted', 'uncharted'];
 		view.knowledge = { knowledgeOf: (stretch) => states[stretch] };
-		// Stretch 2's parent is uncharted, so it's hidden; stretch 1 is a stub from the city street
+		// Stretch 2 leaves a node where nothing's known, so it's hidden; stretch 1 is a stub from the city street
 		expect(view.pick(view.camera.worldToScreen(0, 450))).toBeNull();
 		expect(view.pick(view.camera.worldToScreen(0, 150))).toEqual({ kind: 'stretch', stretch: 1 });
 	});
@@ -444,7 +444,7 @@ describe('AreaMapView with its optional layers absent', () => {
 		expect(view.markers).toEqual([]);
 	});
 
-	it('draws the junction where its inbound road is drawn, with the roads layer off too', () => {
+	it('draws the junction where a road into it is drawn, with the roads layer off too', () => {
 		const { view, frame } = mountView();
 		frame();
 		const circles = frame().filter((command) => command.kind === 'circle');
@@ -485,13 +485,30 @@ describe('AreaMapView knowledge and markers', () => {
 			for (let index = 1; index < alphas.length; index++) expect(alphas[index]).toBeLessThan(alphas[index - 1]);
 		}
 
-		// A stub's parent uncharted: hidden whole, and so is the junction it leaves
+		// Nothing known where a stub would leave: hidden whole, and so is the junction there
 		const deeper: RoadKnowledge[] = ['charted', 'uncharted', 'uncharted', 'uncharted'];
 		const second = mountView({ knowledge: { knowledgeOf: (stretch) => deeper[stretch] } });
 		second.frame();
 		const commands = second.frame();
 		expect(roads(commands).filter((road) => road.id === 'map.road_2' || road.id === 'map.road_3')).toEqual([]);
 		expect(commands.filter((command) => command.kind === 'circle')).toEqual([]);
+	});
+
+	it('draws an uncharted stub from whichever end leaves known road', () => {
+		// Only the highway's last stretch, from the junction north, is known.
+		const states: RoadKnowledge[] = ['uncharted', 'uncharted', 'charted', 'uncharted'];
+		const knowledge = { knowledgeOf: (stretch: number) => states[stretch] };
+		expect(stubEnd(SMALL_NETWORK, knowledge, 1)).toBe('to');
+		expect(stubEnd(SMALL_NETWORK, knowledge, 3)).toBe('from');
+		expect(stubEnd(SMALL_NETWORK, knowledge, 0)).toBe('from');
+		const { frame } = mountView({ knowledge });
+		frame();
+		const drawn = roads(frame());
+		// Stretch 1 runs from the metro's edge up to the junction, and its stub starts at the junction, (0, 300) in world space.
+		const stub = drawn.filter((road) => road.id === 'map.road_1');
+		expect(stub.length).toBeGreaterThan(2);
+		expect(stub[0].points[0]).toEqual({ x: 0, y: -300 });
+		expect(drawn.filter((road) => road.id === 'map.road_3')[0].points[0]).toEqual({ x: 0, y: -300 });
 	});
 
 	it('draws each marker kind and state, its label, and the selection ring', () => {

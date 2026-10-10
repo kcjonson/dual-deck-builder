@@ -6,8 +6,8 @@ import type { MapParams } from '../MapParams';
 import { MapPipelineError, PipelineReplay, StageAttempt, StageFailure } from '../MapPipeline';
 import { Places, freezePlaces } from '../Places';
 import type { PoiLayer } from '../Pois';
-import type { GrowthStats } from '../RoadGrowth';
-import type { Road, RoadNetwork, RoadNode, RoadStretch } from '../RoadNetwork';
+import type { RoadNetwork, RoadNode, RoadPass, RoadStretch } from '../RoadNetwork';
+import type { RoadStats } from '../Roads';
 import type { RouteTree } from '../RouteTree';
 import type { StopLayer } from '../Stops';
 import { terrainFromSurface } from '../Terrain';
@@ -50,8 +50,10 @@ export type PackedStretch = Omit<RoadStretch, 'points'>;
  */
 export interface PackedRoadNetwork {
 	readonly nodes: readonly RoadNode[];
-	readonly roads: readonly Road[];
 	readonly stretches: readonly PackedStretch[];
+	/** Few and small, so they go by structured clone with their points. */
+	readonly broken: readonly RoadStretch[];
+	readonly passes: readonly RoadPass[];
 	readonly points: Float64Array;
 	/** Stretch i's points run from offsets[i] up to offsets[i + 1]. */
 	readonly offsets: Uint32Array;
@@ -73,7 +75,7 @@ export interface AreaMapTransfer extends Omit<AreaMapGeneration, 'products'> {
 	readonly water: WaterSurface;
 	readonly hotspots: readonly Hotspot[];
 	readonly places: Places;
-	readonly growthStats: GrowthStats;
+	readonly roadStats: RoadStats;
 	readonly network: PackedRoadNetwork;
 	readonly routeTree: RouteTree;
 	readonly pois: PoiLayer;
@@ -90,14 +92,15 @@ export function packRoadNetwork(network: RoadNetwork): PackedRoadNetwork {
 		points.set(line, offsets[id]);
 		return stretch;
 	});
-	return { nodes: network.nodes, roads: network.roads, stretches, points, offsets };
+	return { nodes: network.nodes, stretches, broken: network.broken, passes: network.passes, points, offsets };
 }
 
-export function unpackRoadNetwork({ nodes, roads, stretches, points, offsets }: PackedRoadNetwork): RoadNetwork {
+export function unpackRoadNetwork({ nodes, stretches, broken, passes, points, offsets }: PackedRoadNetwork): RoadNetwork {
 	return {
 		nodes,
-		roads,
 		stretches: stretches.map((stretch, id) => ({ ...stretch, points: Array.from(points.subarray(offsets[id], offsets[id + 1])) })),
+		broken,
+		passes,
 	};
 }
 
@@ -109,9 +112,9 @@ export function unpackRoadNetwork({ nodes, roads, stretches, points, offsets }: 
  * before it's terminated.
  */
 export function encodeAreaMap({ products, ...map }: AreaMapGeneration): { map: AreaMapTransfer; buffers: ArrayBuffer[] } {
-	const { terrain, water, hazards, places, growth, routeTree, pois, stops } = products;
+	const { terrain, water, hazards, places, roads, routeTree, pois, stops } = products;
 	const { surface } = terrain;
-	const network = packRoadNetwork(growth.network);
+	const network = packRoadNetwork(roads.network);
 	const { elevation, mountains, drainage } = surface;
 	const badlands = terrain.badlandsCells;
 	const wet = water.surface;
@@ -121,7 +124,7 @@ export function encodeAreaMap({ products, ...map }: AreaMapGeneration): { map: A
 		wet.receivers, wet.area, wet.moisture, wet.lowland, wet.canyons, wet.lakeDepth, wet.lakeOf, wet.lines.points, wet.lines.widths, wet.lines.offsets,
 	];
 	return {
-		map: { ...map, surface, badlands, water: wet, hotspots: hazards.hotspots, places, growthStats: growth.stats, network, routeTree, pois, stops },
+		map: { ...map, surface, badlands, water: wet, hotspots: hazards.hotspots, places, roadStats: roads.stats, network, routeTree, pois, stops },
 		// Listing a buffer twice is a DataCloneError, so each goes once.
 		buffers: [...new Set(arrays.map((array) => array.buffer as ArrayBuffer))],
 	};
@@ -132,7 +135,7 @@ export function encodeAreaMap({ products, ...map }: AreaMapGeneration): { map: A
  * terrain stream, its water over that, and its hazards over that, without
  * eroding or routing again.
  */
-export function decodeAreaMap({ surface, badlands, water, hotspots, places, growthStats, network, routeTree, pois, stops, ...map }: AreaMapTransfer): AreaMapGeneration {
+export function decodeAreaMap({ surface, badlands, water, hotspots, places, roadStats, network, routeTree, pois, stops, ...map }: AreaMapTransfer): AreaMapGeneration {
 	const terrain = terrainFromSurface({ params: map.params, rng: new Rng({ seed: map.streams.terrain }), surface: freezeSurface(surface), badlands });
 	const wet = waterFromSurface({ terrain, surface: water });
 	return {
@@ -142,7 +145,7 @@ export function decodeAreaMap({ surface, badlands, water, hotspots, places, grow
 			water: wet,
 			hazards: new Hazards({ terrain: wet.terrain, hotspots }),
 			places: freezePlaces(places),
-			growth: { network: unpackRoadNetwork(network), stats: growthStats },
+			roads: { network: unpackRoadNetwork(network), stats: roadStats },
 			routeTree,
 			pois,
 			stops,

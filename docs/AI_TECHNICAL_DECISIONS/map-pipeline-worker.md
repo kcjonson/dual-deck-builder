@@ -23,8 +23,8 @@ What the worker had to fit:
 ```ts
 new MapPipeline<MapParams>()
 	.stage(TERRAIN_STAGE)
-	.stage(HIGHWAYS_STAGE)
-	.stage(growthStage({ branchiness, clearance }))
+	.stage(WATER_STAGE)
+	.stage(ROADS_STAGE)
 	.run({ seed, input: params, accept, onProgress });
 ```
 
@@ -45,11 +45,11 @@ An escalation could instead have been a failure a stage returns naming the stage
 
 ## The stages
 
-Terrain, water (water-and-biomes.md), then the highways and growth, stand-ins for settlements and road links (Map 7 and 8), named for the streams they always drew on. Growth's check is `checkRoadNetwork`, the network checks the map validator will run, worded `rule: detail`. `areaMapPipeline` takes growth's knobs and, for tests, a terrain stage to use in place of `TERRAIN_STAGE`.
+Terrain, water (water-and-biomes.md), hazards and places (places.md), the roads (road-network.md), then the route tree and the POIs (route-tree-and-pois.md). The highways and growth stages this record started with were stand-ins until the places and the road links and graph (Maps 6 to 8) replaced them. The roads' check is too few loops, a place no road reaches, and `checkRoadNetwork`, the network checks the map validator will run, worded `rule: detail`.
 
-Terrain is the first stage, so its stream is `root.fork('map', m).fork('terrain', t)`, and water, the highways, and growth nest under it in turn. `roadTesting.growMap`, `scripts/road-growth.mjs`, and the gallery's `fixtureAreaMap` all run the runner.
+Terrain is the first stage, so its stream is `root.fork('map', m).fork('terrain', t)`, and every stage after nests under the one before. `roadTesting.roadMap`, `scripts/road-network.mjs`, and the gallery's `fixtureAreaMap` all run the runner.
 
-Retries can hide a regression from a test: a network that breaks a road rule is retried, and the test sees the attempt that passed. So `growMap` throws unless every stage won its first attempt on the first map attempt, naming what failed, and only a caller that passes `accept`, steering the retries itself, gets whatever won. `road-growth.mjs check` reports every first-attempt failure, the spec's health metric.
+Retries can hide a regression from a test: a network that breaks a road rule is retried, and the test sees the attempt that passed. So `roadMap` throws on any failure but too few loops, which the spec retries on purpose, naming what failed. `road-network.mjs check` reports each stage's first-attempt pass rate, the spec's health metric.
 
 ## The worker
 
@@ -147,13 +147,13 @@ Calls the spec left open, made the simplest way consistent with it (founding's a
 2. A local-retry stage that runs out keeps the attempt with the fewest problems, the earliest on a tie.
 3. Growth's own check is `checkRoadNetwork`, so a network breaking a road rule is retried on growth's next stream rather than handed on.
 4. A worker per generation, terminated when the map comes back; `cancel()` terminates it.
-5. The stand-in stages are named `highways` and `growth`, the streams they always drew on, until the spec's `places` and `roads` stages replace them.
+5. The stand-in stages were named `highways` and `growth`, the streams they always drew on, until the spec's `places` and `roads` stages replaced them.
 6. A stage's 8 attempts cover its own retries and the reruns escalations ask for, so one that won its first can be escalated to 7 times; after that its own escalation or a map restart follows. The escalating stage starts its count again under each new upstream.
 
 ## Consequences
 
 - Every stage the realistic map adds is a `.stage()` call with its checks, attempts, and escalation; retries, streams, progress, timings, and the debug and release paths come with it.
 - The accept hook is where the map validator (DDB-296) plugs in, stage by stage.
-- A seed's roads come from the nested highways and growth streams, which the area map goldens show.
+- A seed's roads come from the nested places and roads streams, which the area map goldens show.
 - A fresh worker runs cold code, roughly doubling the pipeline against a warm thread today. Fine for founding; the Map Lab wants a long-lived worker.
 - A future CSP has to allow `worker-src 'self'`, and the `@ts-expect-error` in `spawnMapWorker.ts` goes when tsconfig moves to ES modules.

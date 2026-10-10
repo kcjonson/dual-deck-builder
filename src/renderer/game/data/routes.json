@@ -12,7 +12,7 @@
 			"mountains": "Over the mountains"
 		},
 		"classes": {
-			"highway": "Route {road} highway",
+			"highway": "Route {number} highway",
 			"backRoad": "Back roads",
 			"trail": "Trails"
 		}

@@ -2,7 +2,7 @@ import { Rng } from '../core/Rng';
 import type { Biome } from './Biome';
 import type { MapParams, StopTables } from './MapParams';
 import { PoiGround, PoiLayer, placePois } from './Pois';
-import type { Road, RoadClass, RoadNetwork, RoadNode, RoadStretch } from './RoadNetwork';
+import type { RoadClass, RoadNetwork, RoadNode, RoadStretch } from './RoadNetwork';
 import { RouteTree, buildRouteTree } from './RouteTree';
 import type { StopTuning } from './StopData';
 import { StopLayer, placeStops } from './Stops';
@@ -10,31 +10,28 @@ import { StopLayer, placeStops } from './Stops';
 /**
  * Synthetic road networks for the route tree, POI, and stop tests:
  * hand-built meshes with loops, and random planar meshes, the shape the
- * road links (Map 7 and 8) will make, which outward growth never does.
- * Nothing in the game imports this file.
+ * road links (Map 7 and 8) make, for ground no seed would draw. Nothing in
+ * the game imports this file.
  */
 
-/** A node's place, and an edge as its two nodes and its class (a back road when left out). */
-export type MeshEdge = readonly [number, number] | readonly [number, number, RoadClass];
+/** A node's place, and an edge as its two nodes and its class (a back road when left out), and a highway's index (0 when left out). */
+export type MeshEdge = readonly [number, number] | readonly [number, number, RoadClass] | readonly [number, number, 'highway', number];
 
 /**
  * A network from points and edges, in the order given: node 0 is the
- * compound, each edge a straight stretch from its first node to its second,
- * and each stretch a road of its own, since the route tree reads neither
- * roads nor a stretch's parent.
+ * compound, and each edge a straight stretch from its first node to its
+ * second, with no bridges. A highway stretch carries its highway's index.
  */
 export function meshFrom({ nodes, edges }: { nodes: readonly (readonly [number, number])[]; edges: readonly MeshEdge[] }): RoadNetwork {
 	const roadNodes: RoadNode[] = nodes.map(([x, y], id) => ({ kind: id === 0 ? 'compound' : 'junction', x, y }));
-	const stretches: RoadStretch[] = edges.map(([from, to, roadClass = 'backRoad'], id) => ({
-		road: id,
-		roadClass,
-		from,
-		to,
-		parent: -1,
-		points: [nodes[from][0], nodes[from][1], nodes[to][0], nodes[to][1]],
-	}));
-	const roads: Road[] = stretches.map(({ roadClass, from }, id) => ({ roadClass, parent: -1, from, stretches: [id] }));
-	return { nodes: roadNodes, roads, stretches };
+	const stretches: RoadStretch[] = edges.map((edge) => {
+		const [from, to, roadClass = 'backRoad'] = edge;
+		const [x0, y0] = nodes[from];
+		const [x1, y1] = nodes[to];
+		const stretch: RoadStretch = { roadClass, from, to, length: Math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)), points: [x0, y0, x1, y1], bridges: [], street: false };
+		return roadClass === 'highway' ? { ...stretch, highway: edge.length > 3 ? edge[3] : 0 } : stretch;
+	});
+	return { nodes: roadNodes, stretches, broken: [], passes: [] };
 }
 
 export interface RandomMeshOptions {
@@ -56,7 +53,8 @@ export interface RandomMeshOptions {
  * A random planar mesh over a disc: a jittered square grid with the
  * compound at its origin, each cell given at most one diagonal so no two
  * edges cross, cut to a random spanning tree plus `loops` of the rest. The
- * grid's two axes through the compound are highways. Points stay within
+ * grid's two axes through the compound are highways, four of them out of the
+ * compound, indexed east, north, west, south. Points stay within
  * 0.97 of the radius.
  */
 export function randomMesh({ seed, radius = 1000, spacing = 90, jitter = 0.25, diagonals = 0.4, loops = 0.6, trails = 0.2 }: RandomMeshOptions): RoadNetwork {
@@ -75,18 +73,19 @@ export function randomMesh({ seed, radius = 1000, spacing = 90, jitter = 0.25, d
 	add(0, 0);
 	for (let j = -span; j <= span; j += 1) for (let i = -span; i <= span; i += 1) if (i !== 0 || j !== 0) add(i, j);
 	const at = (i: number, j: number) => ids.get(cell(i, j)) ?? -1;
-	const candidates: { a: number; b: number; roadClass: RoadClass }[] = [];
-	const link = (a: number, b: number, highway: boolean) => {
+	/** Each candidate edge, and its highway's index, or -1 for any other road. */
+	const candidates: { a: number; b: number; roadClass: RoadClass; highway: number }[] = [];
+	const link = (a: number, b: number, highway: number) => {
 		if (a < 0 || b < 0) return;
-		candidates.push({ a, b, roadClass: highway ? 'highway' : rng.float() < trails ? 'trail' : 'backRoad' });
+		candidates.push({ a, b, roadClass: highway >= 0 ? 'highway' : rng.float() < trails ? 'trail' : 'backRoad', highway });
 	};
 	for (let j = -span; j <= span; j += 1) {
 		for (let i = -span; i <= span; i += 1) {
-			link(at(i, j), at(i + 1, j), j === 0);
-			link(at(i, j), at(i, j + 1), i === 0);
+			link(at(i, j), at(i + 1, j), j === 0 ? (i >= 0 ? 0 : 2) : -1);
+			link(at(i, j), at(i, j + 1), i === 0 ? (j >= 0 ? 1 : 3) : -1);
 			if (rng.float() < diagonals) {
-				if (rng.float() < 0.5) link(at(i, j), at(i + 1, j + 1), false);
-				else link(at(i + 1, j), at(i, j + 1), false);
+				if (rng.float() < 0.5) link(at(i, j), at(i + 1, j + 1), -1);
+				else link(at(i + 1, j), at(i, j + 1), -1);
 			}
 		}
 	}
@@ -114,10 +113,11 @@ export function randomMesh({ seed, radius = 1000, spacing = 90, jitter = 0.25, d
 		}
 	}
 	const edges: MeshEdge[] = [];
-	candidates.forEach(({ a, b, roadClass }, index) => {
+	candidates.forEach(({ a, b, roadClass, highway }, index) => {
 		if (kept[index] === 0) return;
 		// Either way round, since the route tree drives a stretch whichever way its points run.
-		edges.push(rng.float() < 0.5 ? [a, b, roadClass] : [b, a, roadClass]);
+		const [from, to] = rng.float() < 0.5 ? [a, b] : [b, a];
+		edges.push(highway >= 0 ? [from, to, 'highway', highway] : [from, to, roadClass]);
 	});
 	return meshFrom({ nodes, edges });
 }

@@ -6,7 +6,7 @@ import { MapPipeline } from './MapPipeline';
 import { FakeGroundOptions, fakeGround, meshFrom, randomMesh } from './meshTesting';
 import { checkPoiLayer } from './PoiChecks';
 import { FACTIONS, POI_TUNING, PoiResource, PoiTuning, STRONGHOLD_TYPE } from './PoiData';
-import { PoiGround, PoiLayer, Sectors, placePois, stepSectors } from './Pois';
+import { PoiGround, PoiLayer, Sectors, placePois } from './Pois';
 import type { RoadNetwork } from './RoadNetwork';
 import { RouteTree, buildRouteTree, routesTo } from './RouteTree';
 import { paramsFor } from './roadTesting';
@@ -108,16 +108,21 @@ describe('POIs and strongholds on the route tree', () => {
 			expect([[0, 1], [-1, 0], [0, -1], [1, 0]].map(([x, y]) => two.sectorOf(x, y))).toEqual([0, 0, 1, 1]);
 		});
 
-		it('step the drawn rotation by a share of a sector until every sector holds a site', () => {
-			// Two sites 160 degrees apart, both in sector 0 from a rotation of 5 degrees; a step of 22.5 parts them.
-			const near = (degrees: number) => ({ x: Math.cos(degrees * Math.PI / 180), y: Math.sin(degrees * Math.PI / 180) });
-			const stepped = stepSectors({ drawn: 5, count: 2, steps: 8, sites: [near(10), near(170)] });
-			expect(stepped.every).toBe(true);
-			expect(stepped.rotation).toBe(27.5);
-			expect(stepped.sectors.sectorOf(near(10).x, near(10).y)).toBe(1);
-			// Sites in one sector whatever the step: the drawn rotation back, and a failure to report.
-			const crowded = stepSectors({ drawn: 5, count: 4, steps: 8, sites: [near(100), near(110)] });
-			expect(crowded).toMatchObject({ rotation: 5, every: false });
+		it('step the drawn rotation by a share of a sector until one seats a stronghold in every sector', () => {
+			const strongholds = 8;
+			const share = 360 / strongholds / POI_TUNING.strongholds.rotationSteps;
+			const steps = meshes.map((network, index) => {
+				const { layer } = place(network, { seed: index, strongholds });
+				const drawn = new Rng({ seed: index }).fork('sectors').float() * 360 / strongholds;
+				const step = (layer.sectorRotation - drawn) / share;
+				expect(Math.abs(step - Math.round(step))).toBeLessThan(1e-9);
+				expect(step).toBeGreaterThanOrEqual(0);
+				expect(step).toBeLessThan(POI_TUNING.strongholds.rotationSteps);
+				expect(layer.strongholds).toHaveLength(strongholds);
+				return Math.round(step);
+			});
+			// Crowded with eight, some meshes seat every sector only a step or more round.
+			expect(steps.some((step) => step > 0)).toBe(true);
 		});
 	});
 
@@ -204,7 +209,8 @@ describe('POIs and strongholds on the route tree', () => {
 			const first = typeOf(layer).filter(({ ring }) => ring === 0);
 			expect(first).toHaveLength(1);
 			const missing = POI_TUNING.cover.filter((resource) => !yields([first[0].type]).has(resource as PoiResource));
-			expect(missing.length).toBeGreaterThan(0);
+			// A type yielding two of the three wins over a mine's one, so only one is missing.
+			expect(missing).toHaveLength(1);
 			expect(layer.failures).toEqual([`the first ring's POIs yield no ${missing.join(', ')}`]);
 		});
 	});
@@ -222,28 +228,39 @@ describe('the POI stage in the pipeline', () => {
 	const treeOnly = randomMesh({ seed: 31, loops: 0, diagonals: 0 });
 
 	/** A pipeline over synthetic roads: each run of the roads stage hands back the next network, the last one again past the end. */
-	const pipeline = (networks: RoadNetwork[], strict: boolean) => {
+	const pipeline = (networks: RoadNetwork[], strict: boolean, places = 1000, loops = 0) => {
 		let runs = 0;
 		return new MapPipeline<MapParams>()
 			.stage({ name: 'hazards', run: () => ({ terrain: fakeGround() }) })
 			.stage({ name: 'places', run: () => ({ metro: { id: 0, kind: 'metro' as const, x: 0, y: 0, radius: 150 }, towns: [], villages: [] }) })
-			.stage({ name: 'growth', run: () => ({ network: networks[Math.min(runs++, networks.length - 1)] }) })
+			.stage({ name: 'roads', run: () => ({ network: networks[Math.min(runs++, networks.length - 1)], stats: { inland: places, loops } }) })
 			.stage(ROUTE_TREE_STAGE)
 			.stage(poisStage({ strict }));
 	};
 
 	it('escalates to the roads when strict and no rotation seats every stronghold', () => {
 		const result = pipeline([treeOnly, looped], true).run({ seed: params.seed, input: params, debug: true });
-		expect(result.attempts).toEqual({ hazards: 0, places: 0, growth: 1, routeTree: 0, pois: 0 });
+		expect(result.attempts).toEqual({ hazards: 0, places: 0, roads: 1, routeTree: 0, pois: 0 });
 		expect(result.timings.pois.runs).toBe(9);
 		expect(result.failures.filter(({ stage }) => stage === 'pois')).toHaveLength(8);
 		expect(result.failures[0].problems).toContain('sector 0 has no free meeting point in the outer band');
 		expect(result.products.pois.strongholds).toHaveLength(4);
 	});
 
+	it('holds a map whose places can\'t close the loops the POIs want, and whose roads close fewer, leniently, strict or not', () => {
+		const result = pipeline([treeOnly, looped], true, 4).run({ seed: params.seed, input: params, debug: true });
+		expect(result.attempts).toEqual({ hazards: 0, places: 0, roads: 0, routeTree: 0, pois: 0 });
+		expect(result.products.pois.failures.length).toBeGreaterThan(0);
+	});
+
+	it('stays strict on a map whose places cap the loops but whose roads close all the POIs want', () => {
+		const result = pipeline([treeOnly, looped], true, 4, 1000).run({ seed: params.seed, input: params, debug: true });
+		expect(result.attempts).toEqual({ hazards: 0, places: 0, roads: 1, routeTree: 0, pois: 0 });
+	});
+
 	it('passes when lenient, with what it missed in its failures', () => {
 		const result = pipeline([treeOnly, looped], false).run({ seed: params.seed, input: params, debug: true });
-		expect(result.attempts).toEqual({ hazards: 0, places: 0, growth: 0, routeTree: 0, pois: 0 });
+		expect(result.attempts).toEqual({ hazards: 0, places: 0, roads: 0, routeTree: 0, pois: 0 });
 		expect(result.products.routeTree.meetingPoints).toEqual([]);
 		expect(result.products.pois.failures).toHaveLength(5);
 	});

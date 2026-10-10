@@ -156,6 +156,12 @@ describe('meeting points', () => {
 		]);
 	});
 
+	it('isn\'t a three-way point when two of its roads come from one neighbour', () => {
+		// Two roads from 1 into the leaf, and one from 2: three roads, but two of the routes would share a way home.
+		const doubled = tree(meshFrom({ nodes: spokes, edges: [[0, 1], [0, 2], [0, 3], [1, 4], [1, 4], [2, 4]] }));
+		expect(doubled.meetingPoints.some(({ node }) => node === 4)).toBe(false);
+	});
+
 	it('isn\'t a three-way point with a fourth road, or a way home through it', () => {
 		const fourth = tree(meshFrom({ nodes: [...spokes, [300, 400]], edges: [...spokeEdges, [5, 4], [0, 5]] }));
 		expect(fourth.meetingPoints.some(({ node }) => node === 4)).toBe(false);

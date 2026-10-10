@@ -119,7 +119,7 @@ export interface RouteTuning {
 		readonly biomeShare: number;
 		/** Names by biome; a biome left out never names a route. */
 		readonly biomes: Readonly<Partial<Record<Biome, string>>>;
-		/** Names by class; `{road}` is the highway's number. */
+		/** Names by class; `{number}` is the highway's, its index plus one, as its shields number it. */
 		readonly classes: { readonly [Name in RoadClass]: string };
 	};
 }

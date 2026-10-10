@@ -104,4 +104,4 @@ Made here, each a line or a value to change:
 
 - The founding progress is the menu's notice line, held between the title and New Campaign in the space the title always left there, rather than a founding screen or overlay, so no button moves as it fills in: "Founding the compound." until the first stage starts, then "Making the area map: water (2 of 7)", each stage by its label (`MAP_STAGE_LABELS`, which a new stage can't miss, since it's keyed by every stage name), with ", try 2" once a seed has given up. Continue is disabled while founding. The menu's other buttons stay live, and leaving through one cancels the founding at the click; a map that arrives while a navigation is still fading out founds nothing.
 - A new campaign's old one is abandoned only once the new map is made, so leaving partway, or a failure, keeps the campaign in progress as it was.
-- Founding records `AREA_MAP_GENERATOR_VERSION` on every campaign; 2 was the first generated map.
+- Founding records `AREA_MAP_GENERATOR_VERSION` on every campaign; 2 was the first generated map, 3 added the hazards and places stages, and 4 the roads stage in place of growth.

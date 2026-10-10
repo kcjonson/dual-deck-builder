@@ -98,7 +98,7 @@ describe('stop types', () => {
 describe('the stops and routes tuning', () => {
 	it('reads the shipped files', () => {
 		expect(readStopTuning(stopsFile, 'StopTuning').types.ambush).toEqual({ label: 'Raider ambush', hours: 1 });
-		expect(readRouteTuning(routesFile, 'RouteTuning').names.classes.highway).toBe('Route {road} highway');
+		expect(readRouteTuning(routesFile, 'RouteTuning').names.classes.highway).toBe('Route {number} highway');
 	});
 
 	it('refuses a missing type, a rate for each tier but one, and an unknown biome name', () => {

@@ -16,7 +16,7 @@ const ARCHETYPES: readonly DriverArchetype[] = ['road_warrior', 'interceptor', '
 function exhausted(seed: number, kind: MapPipelineError['exhausted'] = 'map'): MapPipelineError {
 	return new MapPipelineError({
 		message: `MapPipeline: seed ${seed} failed 32 map attempts`,
-		failure: { stage: 'growth', index: 3, count: 4, attempt: 7, mapAttempt: 31, seed, problems: ['branching: too close'] },
+		failure: { stage: 'roads', index: 4, count: 7, attempt: 7, mapAttempt: 31, seed, problems: ['loops: the roads close 30 loops, and the POIs need 34'] },
 		exhausted: kind,
 	});
 }

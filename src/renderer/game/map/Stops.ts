@@ -71,8 +71,8 @@ export interface LegProfile {
 	readonly classLengths: { readonly [Name in RoadClass]: number };
 	/** ...and of each biome, sampled every `biomeStep`. */
 	readonly biomeLengths: { readonly [Name in Biome]: number };
-	/** The highway road with the most length on it, which numbers a highway route's name; -1 with none. */
-	readonly highwayRoad: number;
+	/** The highway with the most length on it, by its index (`RoadStretch.highway`), which numbers a highway route's name; -1 with none. */
+	readonly highway: number;
 	/** The point halfway along it. */
 	readonly midX: number;
 	readonly midY: number;
@@ -214,15 +214,15 @@ class StopPlacer {
 		const classLengths = Object.fromEntries(ROAD_CLASSES.map((roadClass) => [roadClass, 0])) as Record<RoadClass, number>;
 		const highways = new Map<number, number>();
 		for (const { stretch, length } of leg.pieces) {
-			const { roadClass, road } = this.network.stretches[stretch];
+			const { roadClass, highway } = this.network.stretches[stretch];
 			classLengths[roadClass] += length;
-			if (roadClass === 'highway') highways.set(road, (highways.get(road) ?? 0) + length);
+			if (roadClass === 'highway' && highway !== undefined) highways.set(highway, (highways.get(highway) ?? 0) + length);
 		}
-		let highwayRoad = -1;
+		let highway = -1;
 		let most = 0;
-		for (const [road, length] of highways) {
-			if (length > most || (length === most && road < highwayRoad)) {
-				highwayRoad = road;
+		for (const [index, length] of highways) {
+			if (length > most || (length === most && index < highway)) {
+				highway = index;
 				most = length;
 			}
 		}
@@ -233,7 +233,7 @@ class StopPlacer {
 		const points = pointsAlong(line, distances);
 		for (let sample = 0; sample < samples; sample += 1) biomeLengths[this.ground.biome(points[2 * sample], points[2 * sample + 1])] += leg.length / samples;
 		const [midX, midY] = pointsAlong(line, [leg.length / 2]);
-		return { tier: this.tiers[id], territory: NO_TERRITORY, classLengths, biomeLengths, highwayRoad, midX, midY };
+		return { tier: this.tiers[id], territory: NO_TERRITORY, classLengths, biomeLengths, highway, midX, midY };
 	}
 
 	/**

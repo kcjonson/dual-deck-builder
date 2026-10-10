@@ -28,7 +28,7 @@ function filled(): { index: SegmentIndex; segments: Filed[] } {
 }
 
 describe('SegmentIndex', () => {
-	it('returns every live segment whose box meets the query box, each once', () => {
+	it('returns every segment whose box meets the query box, each once', () => {
 		const { index, segments } = filled();
 		expect(index.size).toBe(600);
 		[[-100, -100, 50, 20], [300, 300, 520, 520], [-500, -500, 500, 500], [10, 10, 10, 10]].forEach(([minX, minY, maxX, maxY]) => {
@@ -38,19 +38,6 @@ describe('SegmentIndex', () => {
 			const meeting = segments.filter((s) => Math.max(s.x0, s.x1) >= minX && Math.min(s.x0, s.x1) <= maxX && Math.max(s.y0, s.y1) >= minY && Math.min(s.y0, s.y1) <= maxY);
 			meeting.forEach((s) => expect(found).toContain(s.id));
 		});
-	});
-
-	it('keeps each segment\'s ends and owner, and leaves retired segments out of queries', () => {
-		const { index, segments } = filled();
-		const [first, second] = segments;
-		expect([index.x0(first.id), index.y0(first.id), index.x1(first.id), index.y1(first.id), index.owner(first.id)])
-			.toEqual([first.x0, first.y0, first.x1, first.y1, first.owner]);
-		index.retire(first.id);
-		const count = index.query(-500, -500, 500, 500);
-		const found = Array.from(index.results.slice(0, count));
-		expect(found).not.toContain(first.id);
-		expect(found).toContain(second.id);
-		expect(count).toBe(599);
 	});
 
 	it('finds the distance to the nearest segment of another owner, up to a limit', () => {

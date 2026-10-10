@@ -6,7 +6,8 @@ import { MeshMapOptions, fakeGround, meshFrom, meshMap, randomMesh } from './mes
 import { POI_TUNING, PoiTuning } from './PoiData';
 import { placePois } from './Pois';
 import type { RoadNetwork } from './RoadNetwork';
-import { buildRouteTree, legPoints, pointAlong, routesTo } from './RouteTree';
+import { pointAlong } from './Geometry';
+import { buildRouteTree, legPoints, routesTo } from './RouteTree';
 import { paramsFor } from './roadTesting';
 import { checkStopLayer, typesAlong } from './StopChecks';
 import stopTablesFile from '../data/stopTables.json';
@@ -380,14 +381,14 @@ describe('the stops stage in the pipeline', () => {
 		.stage({ name: 'places', run: () => ({ metro: { id: 0, kind: 'metro' as const, x: 0, y: 0, radius: 150 }, towns: [], villages: [] }) });
 
 	const pipeline = (network: RoadNetwork) => upstream()
-		.stage({ name: 'growth', run: () => ({ network }) })
+		.stage({ name: 'roads', run: () => ({ network, stats: { inland: 1000, loops: 0 } }) })
 		.stage(ROUTE_TREE_STAGE)
 		.stage(poisStage({ strict: true }))
 		.stage(STOPS_STAGE);
 
 	it('places stops on the POIs\' legs and passes its checks', () => {
 		const result = pipeline(looped).run({ seed: params.seed, input: params, debug: true });
-		expect(result.attempts).toEqual({ hazards: 0, places: 0, growth: 0, routeTree: 0, pois: 0, stops: 0 });
+		expect(result.attempts).toEqual({ hazards: 0, places: 0, roads: 0, routeTree: 0, pois: 0, stops: 0 });
 		const { pois, stops } = result.products;
 		expect(stops.stops.length).toBeGreaterThan(0);
 		expect(checkStopLayer({ network: looped, layer: pois, stops, params })).toEqual([]);
@@ -403,7 +404,7 @@ describe('the stops stage in the pipeline', () => {
 			debug: true,
 			accept: (_map, { stage }) => (stage === 'stops' && rejections++ < 2 ? ['force a stops rerun'] : []),
 		});
-		expect(result.attempts).toEqual({ hazards: 0, places: 0, growth: 0, routeTree: 0, pois: 0, stops: 2 });
+		expect(result.attempts).toEqual({ hazards: 0, places: 0, roads: 0, routeTree: 0, pois: 0, stops: 2 });
 		expect(result.mapAttempt).toBe(0);
 		expect(result.timings.pois.runs).toBe(1);
 	});
@@ -421,7 +422,7 @@ describe('the stops stage in the pipeline', () => {
 	it('places nothing, and passes, on roads with no meeting points', () => {
 		const treeOnly = randomMesh({ seed: 31, loops: 0, diagonals: 0 });
 		const lenient = upstream()
-			.stage({ name: 'growth', run: () => ({ network: treeOnly }) })
+			.stage({ name: 'roads', run: () => ({ network: treeOnly, stats: { inland: 1000, loops: 0 } }) })
 			.stage(ROUTE_TREE_STAGE)
 			.stage(poisStage({ strict: false }))
 			.stage(STOPS_STAGE);

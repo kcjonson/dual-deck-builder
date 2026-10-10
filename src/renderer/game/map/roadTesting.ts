@@ -1,123 +1,144 @@
 import { Rng } from '../core/Rng';
-import { AreaMapProducts, areaMapPipeline } from './AreaMapPipeline';
-import { HighwayDeparture, highwayDepartures } from './Highways';
-import { MAP_PARAMETERS, MapParamSet, MapParams, NUMBER_PARAMS, ENVIRONMENTS, resolveMapParams } from './MapParams';
-import { AcceptHook, PipelineResult } from './MapPipeline';
+import { HAZARDS_STAGE, PLACES_STAGE, ROADS_STAGE, TERRAIN_STAGE, WATER_STAGE } from './AreaMapPipeline';
+import type { Hazards } from './Hazards';
+import { ENVIRONMENTS, MAP_PARAMETERS, MapParamSet, MapParams, NUMBER_PARAMS, resolveMapParams } from './MapParams';
+import { MapPipeline, PipelineResult } from './MapPipeline';
 import { validateMapParams } from './ParamValidator';
-import type { Places } from './Places';
-import { GROWTH_RANGES, GROWTH_TUNING, GrowthStats, GrowthTerrain, GrowthTuning } from './RoadGrowth';
-import { RoadClass, RoadNetwork } from './RoadNetwork';
+import { Places, placeList } from './Places';
+import type { RoadGround } from './RoadChecks';
+import type { RoadPlace } from './RoadLinks';
+import type { RoadNetwork } from './RoadNetwork';
+import type { Roads } from './Roads';
 import type { Obstacle, Terrain } from './Terrain';
-import type { Hotspot } from './TerrainSites';
 import type { Water } from './Water';
 
 /**
- * Fixtures for the road growth tests. Nothing in the game imports this file.
+ * Fixtures for the road tests. Nothing in the game imports this file.
  */
 
 export function paramsFor(set: MapParamSet): MapParams {
 	return validateMapParams(resolveMapParams(set).params).params;
 }
 
-/** A parameter set with growth's own knobs beside it. */
-export type GrowthSet = MapParamSet & GrowthTuning;
+interface PlacedProducts {
+	readonly terrain: Terrain;
+	readonly water: Water;
+	readonly hazards: Hazards;
+	readonly places: Places;
+}
 
-export interface GrownMap {
+interface RoadProducts extends PlacedProducts {
+	readonly roads: Roads;
+}
+
+/** The area map's stages up to the places, through the runner. */
+function placesPipeline(): MapPipeline<MapParams, PlacedProducts> {
+	return new MapPipeline<MapParams>().stage(TERRAIN_STAGE).stage(WATER_STAGE).stage(HAZARDS_STAGE).stage(PLACES_STAGE);
+}
+
+/** The area map's stages up to the roads, through the runner. */
+export function roadPipeline(): MapPipeline<MapParams, RoadProducts> {
+	return placesPipeline().stage(ROADS_STAGE);
+}
+
+export interface RoadMap {
 	readonly params: MapParams;
-	/** The clearance growth kept, for the network checks. */
-	readonly clearance: number;
-	/** The land with its water and hazards, which growth grew over. */
+	/** The land with its water and hazards, which the roads were laid over. */
 	readonly terrain: Terrain;
 	readonly water: Water;
 	readonly places: Places;
-	/** The departures growth grew its highways from, on the growth stream's `highways` fork. */
-	readonly highways: readonly HighwayDeparture[];
+	readonly roads: Roads;
 	readonly network: RoadNetwork;
-	readonly stats: GrowthStats;
-	/** Each stage's winning attempt, and the map attempt they won in. */
-	readonly attempts: PipelineResult<AreaMapProducts>['attempts'];
-	readonly mapAttempt: number;
+	readonly result: PipelineResult<RoadProducts>;
 }
 
 /**
- * The area map's stages through the pipeline runner. The runner retries a
- * stage that fails its checks, which would retry a growth regression out of
- * a test's sight, so this throws unless every stage won its first attempt on
- * the first map attempt. A caller that passes `accept` is steering the
- * retries itself, and gets whatever won.
+ * A map's roads through the runner. The roads stage may retry on its next
+ * stream when it closes too few loops, as the spec has it; any other failure
+ * is a broken rule that a retry would hide, so this throws on one.
  */
-export function growMap(set: GrowthSet, { accept }: { accept?: AcceptHook<AreaMapProducts> } = {}): GrownMap {
-	const { branchiness, clearance = GROWTH_TUNING.clearance, ...mapSet } = set;
-	const params = paramsFor(mapSet);
-	const { products, attempts, mapAttempt, failures, streams } = areaMapPipeline({ growth: { branchiness, clearance } })
-		.run({ seed: params.seed, input: params, accept });
-	if (!accept && failures.length > 0) {
-		const shown = failures.slice(0, 3).map(({ stage, attempt, mapAttempt: map, problems }) => `${stage} attempt ${attempt}, map attempt ${map}: ${problems.slice(0, 3).join('; ')}`);
-		throw new Error(`growMap: seed ${params.seed} needed a retry, which hides what failed: ${shown.join(' | ')}`);
+export function roadMap(set: MapParamSet): RoadMap {
+	const params = paramsFor(set);
+	const result = roadPipeline().run({ seed: params.seed, input: params, debug: true });
+	const broken = result.failures.filter(({ problems }) => problems.some((problem) => !problem.startsWith('loops:')));
+	if (broken.length > 0) {
+		const shown = broken.slice(0, 3).map(({ stage, attempt, mapAttempt, problems }) => `${stage} attempt ${attempt}, map attempt ${mapAttempt}: ${problems.slice(0, 3).join('; ')}`);
+		throw new Error(`roadMap: seed ${params.seed} broke a rule, which a retry hides: ${shown.join(' | ')}`);
 	}
-	const { water, hazards, places } = products;
-	const terrain = hazards.terrain;
-	const highways = highwayDepartures({ terrain, params, exits: places.exits, rng: new Rng({ seed: streams.growth }).fork('highways') });
-	return { params, clearance, terrain, water, places, highways, network: products.growth.network, stats: products.growth.stats, attempts, mapAttempt };
+	const { water, hazards, places, roads } = result.products;
+	return { params, terrain: hazards.terrain, water, places, roads, network: roads.network, result };
 }
 
-export interface FakeTerrainOptions {
+/**
+ * A set's land with its water and hazards and its places, through the runner,
+ * and the roads stage's first stream after them, for laying roads by hand.
+ */
+export function landFor(set: MapParamSet): { params: MapParams; terrain: Terrain; water: Water; places: RoadPlace[]; rng: Rng } {
+	const params = paramsFor(set);
+	const { products, streams } = placesPipeline().run({ seed: params.seed, input: params, debug: true });
+	return { params, terrain: products.hazards.terrain, water: products.water, places: placeList(products.places), rng: new Rng({ seed: streams.places }).fork('roads', 0) };
+}
+
+/**
+ * World units of road in river water off its bridges' decks and Home's own
+ * cells, sampled every half unit along every stretch, the metro's rivers
+ * included: none, when roads cross rivers rather than run along them.
+ */
+export function riverOffDecks(network: RoadNetwork, terrain: Terrain): number {
+	const home = terrain.surface.grid.cellSize;
+	let wet = 0;
+	for (const { points, bridges } of network.stretches) {
+		let along = 0;
+		for (let point = 0; point + 3 < points.length; point += 2) {
+			const dx = points[point + 2] - points[point];
+			const dy = points[point + 3] - points[point + 1];
+			const length = Math.sqrt(dx * dx + dy * dy);
+			const samples = Math.max(1, Math.ceil(length / 0.5));
+			for (let sample = 1; sample <= samples; sample += 1) {
+				const x = points[point] + dx * sample / samples;
+				const y = points[point + 1] + dy * sample / samples;
+				const at = along + length * sample / samples;
+				if (Math.abs(x) <= home && Math.abs(y) <= home) continue;
+				if (terrain.waterAt(x, y) !== 'river' || bridges.some(({ start, end }) => at >= start && at <= end)) continue;
+				wet += length / samples;
+			}
+			along += length;
+		}
+	}
+	return wet;
+}
+
+export interface FakeGroundOptions {
 	radius?: number;
 	metroRadius?: number;
-	hotspots?: Hotspot[];
-	/** Cost per world unit on passable ground, at a move's end; 1 everywhere when left out. */
-	cost?: (x: number, y: number) => number;
-	/** Impassable ground besides craters, which reads as a cliff. */
+	/** Impassable ground, which reads as a cliff. */
 	wall?: (x: number, y: number) => boolean;
-	rough?: (x: number, y: number) => boolean;
 }
 
-/** A terrain made of functions, for steering growth with ground no seed would draw. Its moves cost their length times `cost` at their end. */
-export function fakeTerrain({ radius = 1000, metroRadius = 150, hotspots = [], cost, wall, rough }: FakeTerrainOptions = {}): GrowthTerrain {
-	const obstacle = (x: number, y: number): Obstacle | null => {
-		if (hotspots.some((hotspot) => (x - hotspot.x) * (x - hotspot.x) + (y - hotspot.y) * (y - hotspot.y) < hotspot.craterRadius * hotspot.craterRadius)) return 'crater';
-		return wall?.(x, y) ? 'cliff' : null;
-	};
+/** Land made of functions for the network checks: a disc, a metro, a wall, and no rivers. */
+export function fakeGround({ radius = 1000, metroRadius = 150, wall }: FakeGroundOptions = {}): RoadGround {
 	return {
 		radius,
 		metro: { x: 0, y: 0, radius: metroRadius },
-		hotspots,
-		obstacle,
+		obstacle: (x: number, y: number): Obstacle | null => (wall?.(x, y) ? 'cliff' : null),
+		waterAt: () => null,
 		bridgeSpans: () => 0,
-		moveCost: (x0, y0, x1, y1, _roadClass, parts) => {
-			if (parts) parts.bridge = 0;
-			if (obstacle(x1, y1) !== null || obstacle((x0 + x1) / 2, (y0 + y1) / 2) !== null) return Infinity;
-			return Math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0)) * (cost?.(x1, y1) ?? 1);
-		},
-		rough: (x, y) => rough?.(x, y) ?? false,
 	};
-}
-
-/** One highway leaving a metro of `metroRadius` at `bearing`, its drift knots as given (degrees) and level after. */
-export function departure(bearing: number, metroRadius: number, drift: number[] = [0]): HighwayDeparture {
-	const radians = bearing * Math.PI / 180;
-	// A test's own departures, placed by hand; nothing generated reads this.
-	// eslint-disable-next-line no-restricted-properties
-	return { bearing, x: metroRadius * Math.cos(radians), y: metroRadius * Math.sin(radians), drift };
 }
 
 /**
  * Parameter sets across the tuning ranges: the corners that push hardest on
- * growth first (dense and sparse, tight and loose, straight and winding, on
- * the smallest and largest maps), then random sets where each world or
- * network number, `strongholds`, and growth's own knobs are at an end of
- * their range two times in five. The validator keeps `highways` at
- * `strongholds` plus 2, so the corners hold strongholds at 2 to reach the
- * fewest highways a map can have, 4; left at the default of 4, every map
- * would grow 6 or more.
+ * the roads first (small and large, rugged and flat, sparse and dense,
+ * straight and winding), then random sets where each world, network, and
+ * gameplay number is at an end of its range two times in five.
  */
-export function sampledRoadParamSets(count: number): GrowthSet[] {
-	const corners: GrowthSet[] = [
-		{ seed: 1, radius: 600, strongholds: 2, highways: 9, highwaySeparation: 20, branchiness: 1, curviness: 1, clearance: 60, metroSize: 0.08, ruggedness: 1, mountainCoverage: 1, aridity: 0, hotspots: 6 },
-		{ seed: 2, radius: 1600, strongholds: 2, highways: 9, highwaySeparation: 40, branchiness: 1, curviness: 0, clearance: 10, trailShare: 1, metroSize: 0.25 },
-		{ seed: 3, radius: 600, strongholds: 2, highways: 4, highwaySeparation: 60, branchiness: 0, curviness: 0, clearance: 10, trailShare: 0 },
-		{ seed: 4, radius: 1600, strongholds: 2, highways: 4, highwaySeparation: 20, branchiness: 0.5, curviness: 1, clearance: 60, environment: 'badlands', hotspots: 6 },
-		{ seed: 5, radius: 1000, strongholds: 2, highways: 9, highwaySeparation: 40, branchiness: 1, curviness: 0.5, clearance: 24, metroSize: 0.08, mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1 },
+export function sampledRoadParamSets(count: number): MapParamSet[] {
+	const corners: MapParamSet[] = [
+		{ seed: 1, radius: 600, highways: 9, highwaySeparation: 20, curviness: 1, metroSize: 0.08, ruggedness: 1, mountainCoverage: 1, aridity: 0, hotspots: 6, roadDensity: 1 },
+		{ seed: 2, radius: 1600, highways: 9, highwaySeparation: 40, curviness: 0, trailShare: 1, metroSize: 0.25, roadDensity: 0, loops: 0 },
+		{ seed: 3, radius: 600, curviness: 0, trailShare: 0, loops: 1, lakes: 8, rivers: 6 },
+		{ seed: 4, radius: 1600, curviness: 1, environment: 'badlands', hotspots: 6, roadDensity: 1, loops: 1 },
+		{ seed: 5, radius: 1000, metroSize: 0.08, mountainCoverage: 1, ruggedness: 1, aridity: 0, contamination: 1 },
 	];
 	const rng = new Rng({ seed: 2026 });
 	const draw = ({ kind, tuning }: { kind: 'int' | 'float'; tuning: { min: number; max: number } }): number => {
@@ -125,44 +146,13 @@ export function sampledRoadParamSets(count: number): GrowthSet[] {
 		const value = end < 0.2 ? tuning.min : end < 0.4 ? tuning.max : tuning.min + (tuning.max - tuning.min) * rng.float();
 		return kind === 'int' ? Math.round(value) : value;
 	};
-	const random = Array.from({ length: Math.max(0, count - corners.length) }, (): GrowthSet => {
-		const set: GrowthSet = { seed: rng.next(), environment: rng.pick(ENVIRONMENTS) };
+	const random = Array.from({ length: Math.max(0, count - corners.length) }, (): MapParamSet => {
+		const set: MapParamSet = { seed: rng.next(), environment: rng.pick(ENVIRONMENTS) };
 		for (const name of NUMBER_PARAMS) {
 			const spec = MAP_PARAMETERS[name];
-			if (spec.group === 'world' || spec.group === 'network' || name === 'strongholds') set[name] = draw(spec);
+			if (spec.group === 'world' || spec.group === 'network' || name === 'strongholds' || name === 'poiDensity') set[name] = draw(spec);
 		}
-		set.branchiness = draw(GROWTH_RANGES.branchiness);
-		set.clearance = draw(GROWTH_RANGES.clearance);
 		return set;
 	});
 	return [...corners.slice(0, count), ...random];
-}
-
-/** A road's whole polyline, stretch after stretch, with each segment's class. */
-export interface RoadLine {
-	readonly road: number;
-	readonly points: number[];
-	readonly classes: RoadClass[];
-}
-
-export function roadLines(network: RoadNetwork): RoadLine[] {
-	return network.roads.map((road, id) => {
-		const points: number[] = [];
-		const classes: RoadClass[] = [];
-		road.stretches.forEach((stretchId, place) => {
-			const stretch = network.stretches[stretchId];
-			const from = place === 0 ? 0 : 2;
-			for (let point = from; point < stretch.points.length; point += 1) points.push(stretch.points[point]);
-			for (let segment = 0; segment + 3 < stretch.points.length; segment += 2) classes.push(stretch.roadClass);
-		});
-		return { road: id, points, classes };
-	});
-}
-
-/** Degrees between two directions. */
-export function degreesBetween(ax: number, ay: number, bx: number, by: number): number {
-	const cos = (ax * bx + ay * by) / Math.sqrt((ax * ax + ay * ay) * (bx * bx + by * by));
-	// Measures what growth made for a test to check; generation never reads it.
-	// eslint-disable-next-line no-restricted-properties
-	return Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
 }

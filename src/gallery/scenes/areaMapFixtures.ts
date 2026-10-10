@@ -1,6 +1,7 @@
 import { generateAreaMap } from '../../renderer/game/map/AreaMapPipeline';
 import { MapParamSet, resolveMapParams } from '../../renderer/game/map/MapParams';
 import { validateMapParams } from '../../renderer/game/map/ParamValidator';
+import type { PoiLayer } from '../../renderer/game/map/Pois';
 import type { RoadNetwork } from '../../renderer/game/map/RoadNetwork';
 import type {
 	AreaMapData,
@@ -13,39 +14,43 @@ import type {
 
 /**
  * Typed stand-ins for what later stages generate, so the gallery draws every
- * path of the area map view before those stages exist: knowledge (DDB-294),
- * fog (DDB-294), and POI and stronghold markers (DDB-291). Each is built
- * from the grown network by a plain rule, not by the spec's, and none is
- * game code.
+ * path of the area map view before those stages exist: knowledge and fog
+ * (DDB-294), each built from the network by a plain rule, not by the spec's,
+ * and markers for some of the map's own POIs and a stronghold, with labels
+ * and states of the fixture's. None is game code.
  */
 
-/** The area map's stages as they stand, through the pipeline runner: the land with its water and hazards, the rivers, the places, and the drivable network. */
-export function fixtureAreaMap(set: MapParamSet): AreaMapData {
+/** A generated map as the view draws it, with the POIs the pipeline placed on it. */
+export interface FixtureAreaMap extends AreaMapData {
+	readonly pois: PoiLayer;
+}
+
+/** The area map's stages as they stand, through the pipeline runner: the land with its water and hazards, the rivers, the places, the road network, and its POIs. */
+export function fixtureAreaMap(set: MapParamSet): FixtureAreaMap {
 	const { params } = validateMapParams(resolveMapParams(set).params);
-	const { water, hazards, places, growth } = generateAreaMap({ params }).products;
-	return { terrain: hazards.terrain, network: growth.network, rivers: water.lines, places };
+	const { water, hazards, places, roads, pois } = generateAreaMap({ params }).products;
+	return { terrain: hazards.terrain, network: roads.network, rivers: water.lines, places, pois };
 }
 
 /**
- * A starting reveal of sorts: stretches that end within `reach` of the
- * compound charted, each highway's next stretch past that charted too, and
- * the first `rumored` back roads leaving charted road rumored. The rest are
+ * A starting reveal of sorts: stretches with both ends within `reach` of the
+ * compound charted, each highway stretch leaving that charted too, and the
+ * first `rumored` back roads leaving charted road rumored. The rest are
  * uncharted, which the view draws as stubs where they leave known road.
  */
 export function fixtureKnowledge(network: RoadNetwork, { reach, rumored }: { reach: number; rumored: number }): RoadKnowledgeLayer {
-	const states: RoadKnowledge[] = network.stretches.map((stretch) => {
-		const end = network.nodes[stretch.to];
-		return Math.hypot(end.x, end.y) <= reach ? 'charted' : 'uncharted';
+	const near = (node: number) => Math.hypot(network.nodes[node].x, network.nodes[node].y) <= reach;
+	const states: RoadKnowledge[] = network.stretches.map((stretch) => (near(stretch.from) && near(stretch.to) ? 'charted' : 'uncharted'));
+	const charted = new Set<number>([0]);
+	network.stretches.forEach((stretch, id) => {
+		if (states[id] === 'charted') [stretch.from, stretch.to].forEach((node) => charted.add(node));
 	});
 	network.stretches.forEach((stretch, id) => {
-		if (states[id] === 'uncharted' && stretch.roadClass === 'highway' && (stretch.parent < 0 || states[stretch.parent] === 'charted')) {
-			const start = network.nodes[stretch.from];
-			if (Math.hypot(start.x, start.y) <= reach) states[id] = 'charted';
-		}
+		if (states[id] === 'uncharted' && stretch.roadClass === 'highway' && charted.has(stretch.from) && near(stretch.from)) states[id] = 'charted';
 	});
 	let left = rumored;
 	network.stretches.forEach((stretch, id) => {
-		if (left > 0 && states[id] === 'uncharted' && stretch.roadClass === 'backRoad' && stretch.parent >= 0 && states[stretch.parent] === 'charted') {
+		if (left > 0 && states[id] === 'uncharted' && stretch.roadClass === 'backRoad' && charted.has(stretch.from)) {
 			states[id] = 'rumored';
 			left -= 1;
 		}
@@ -86,31 +91,24 @@ export interface FixtureMarkerSpec {
 }
 
 /**
- * POIs at dead ends within `within` of the compound, farthest first so they
+ * The map's own POIs within `within` of the compound, farthest first so they
  * spread round the map: one per spec, in order, each at least `spacing` from
- * the ones before. A stronghold goes at the nearest dead end of an
- * uncharted road at least `strongholdBeyond` out, found in the fog.
+ * the ones before. The stronghold marker goes on the map's nearest
+ * stronghold at least `strongholdBeyond` out.
  */
 export function fixtureMarkers(
-	network: RoadNetwork,
-	knowledge: RoadKnowledgeLayer,
+	layer: PoiLayer,
 	{ pois, stronghold, spacing, within, strongholdBeyond }: { pois: readonly FixtureMarkerSpec[]; stronghold: FixtureMarkerSpec; spacing: number; within: number; strongholdBeyond: number },
 ): MapMarker[] {
-	const ends = network.stretches
-		.map((stretch, id) => ({ id, node: network.nodes[stretch.to] }))
-		.filter(({ node }) => node.kind === 'end');
-	const known = ends
-		.filter(({ node }) => Math.hypot(node.x, node.y) <= within)
-		.sort((a, b) => Math.hypot(b.node.x, b.node.y) - Math.hypot(a.node.x, a.node.y));
+	const sites = layer.pois.map(({ site, type }) => ({ x: site.x, y: site.y, out: Math.hypot(site.x, site.y), stronghold: type === 'stronghold' }));
+	const known = sites.filter(({ out, stronghold: held }) => !held && out <= within).sort((a, b) => b.out - a.out);
 	const markers: MapMarker[] = [];
 	for (const spec of pois) {
-		const end = known.find(({ node }) => markers.every((marker) => Math.hypot(marker.x - node.x, marker.y - node.y) >= spacing));
-		if (!end) break;
-		markers.push({ id: spec.id, kind: 'poi', x: end.node.x, y: end.node.y, label: spec.label, state: spec.state });
+		const site = known.find(({ x, y }) => markers.every((marker) => Math.hypot(marker.x - x, marker.y - y) >= spacing));
+		if (!site) break;
+		markers.push({ id: spec.id, kind: 'poi', x: site.x, y: site.y, label: spec.label, state: spec.state });
 	}
-	const far = ends
-		.filter(({ id, node }) => knowledge.knowledgeOf(id) === 'uncharted' && Math.hypot(node.x, node.y) >= strongholdBeyond)
-		.sort((a, b) => Math.hypot(a.node.x, a.node.y) - Math.hypot(b.node.x, b.node.y))[0];
-	if (far) markers.push({ id: stronghold.id, kind: 'stronghold', x: far.node.x, y: far.node.y, label: stronghold.label });
+	const far = sites.filter(({ out, stronghold: held }) => held && out >= strongholdBeyond).sort((a, b) => a.out - b.out)[0];
+	if (far) markers.push({ id: stronghold.id, kind: 'stronghold', x: far.x, y: far.y, label: stronghold.label });
 	return markers;
 }

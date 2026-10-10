@@ -180,7 +180,7 @@ function nameOf(legs: readonly LegProfile[], { names }: RouteTuning): { roadClas
 	const classLengths = Object.fromEntries(ROAD_CLASSES.map((roadClass) => [roadClass, 0])) as Record<RoadClass, number>;
 	const biomeLengths = Object.fromEntries(BIOMES.map((biome) => [biome, 0])) as Record<Biome, number>;
 	let total = 0;
-	let highwayRoad = -1;
+	let highway = -1;
 	let mostHighway = 0;
 	for (const leg of legs) {
 		for (const roadClass of ROAD_CLASSES) {
@@ -188,8 +188,8 @@ function nameOf(legs: readonly LegProfile[], { names }: RouteTuning): { roadClas
 			total += leg.classLengths[roadClass];
 		}
 		for (const biome of BIOMES) biomeLengths[biome] += leg.biomeLengths[biome];
-		if (leg.highwayRoad >= 0 && leg.classLengths.highway > mostHighway) {
-			highwayRoad = leg.highwayRoad;
+		if (leg.highway >= 0 && leg.classLengths.highway > mostHighway) {
+			highway = leg.highway;
 			mostHighway = leg.classLengths.highway;
 		}
 	}
@@ -197,7 +197,7 @@ function nameOf(legs: readonly LegProfile[], { names }: RouteTuning): { roadClas
 	const biome = BIOMES.reduce((best, next) => (biomeLengths[next] > biomeLengths[best] ? next : best));
 	const biomeName = names.biomes[biome];
 	if (biomeName !== undefined && total > 0 && biomeLengths[biome] >= names.biomeShare * total) return { roadClass, biome, name: biomeName };
-	const name = names.classes[roadClass].replace('{road}', highwayRoad >= 0 ? String(highwayRoad + 1) : '').replace(/\s+/g, ' ').trim();
+	const name = names.classes[roadClass].replace('{number}', highway >= 0 ? String(highway + 1) : '').replace(/\s+/g, ' ').trim();
 	return { roadClass, biome, name };
 }
 

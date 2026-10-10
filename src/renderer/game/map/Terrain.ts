@@ -188,7 +188,7 @@ const CONTAMINATION = {
 /** Inside the metro moisture is scrub's middling level. */
 const START_MOISTURE = 0.45;
 /** World units past the metro's edge its streets' bridges reach, so a highway leaving it over a river leaves on one. */
-const METRO_BRIDGES = 1;
+export const METRO_BRIDGES = 1;
 /** Lattice spacing, as a share of the radius, for the samples thresholds are calibrated on. */
 const CALIBRATION_SPACING = 0.05;
 
@@ -784,6 +784,11 @@ export class Terrain {
 	 */
 	public rough(x: number, y: number): boolean {
 		return this.land.rough(x, y);
+	}
+
+	/** True on a cliff, as `obstacle` reads one: the road links sample cliffs alone where nothing else could stand. */
+	public cliff(x: number, y: number): boolean {
+		return this.land.cliff(x, y);
 	}
 
 	/**

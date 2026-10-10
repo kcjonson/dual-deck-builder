@@ -34,6 +34,7 @@ import {
 	MapMarker,
 	RoadKnowledgeLayer,
 	drawnKnowledge,
+	stubEnd,
 } from './layers';
 import { MapCamera } from './MapCamera';
 import { RiverGeometry } from './riverGeometry';
@@ -469,7 +470,7 @@ export class AreaMapView extends Component {
 			const drawn = drawnKnowledge(network, knowledge, selected);
 			if (drawn !== null) {
 				const points = drawn === 'uncharted'
-					? truncatePolyline(geometry.stretches[selected].points, UNCHARTED_STUB.length)
+					? truncatePolyline(this.stubPoints(selected), UNCHARTED_STUB.length)
 					: geometry.polyline(selected, level);
 				draw.drawPolyline({ id: this.part('selected_road'), points, color: SELECTED_ROAD.color, width: SELECTED_ROAD.width * pixel, cap: 'round' });
 			}
@@ -499,7 +500,7 @@ export class AreaMapView extends Component {
 		if (skipped > 0) draw.cullGroups(skipped);
 	}
 
-	/** A dot at each junction whose inbound road is drawn solid, whether or not the roads layer is on. */
+	/** A dot at each junction where a road is drawn solid, whether or not the roads layer is on. */
 	private drawJunctions(draw: DrawApi, geometry: RoadGeometry): void {
 		const map = this.mapData;
 		if (!map) return;
@@ -509,8 +510,10 @@ export class AreaMapView extends Component {
 		const visible = this.visibleMap();
 		let skipped = 0;
 		for (const junction of geometry.junctions) {
-			const inbound = drawnKnowledge(map.network, knowledge, junction.inbound);
-			if (inbound === null || inbound === 'uncharted') continue;
+			if (!junction.stretches.some((id) => {
+				const drawn = drawnKnowledge(map.network, knowledge, id);
+				return drawn !== null && drawn !== 'uncharted';
+			})) continue;
 			const at = junction.at;
 			if (at.x < visible.minX - radius || at.x > visible.maxX + radius || at.y < visible.minY - radius || at.y > visible.maxY + radius) {
 				skipped += 1;
@@ -533,18 +536,28 @@ export class AreaMapView extends Component {
 			this.dashCache.clear();
 			this.dashZoom = zoom;
 		}
-		let dashes = this.dashCache.get(id);
+		const points = this.stubPoints(id);
+		// Keyed by the end too, since the knowledge can move a stub to the other.
+		const key = points === this.geometry?.stretches[id].points ? 2 * id : 2 * id + 1;
+		let dashes = this.dashCache.get(key);
 		if (!dashes) {
 			const roadClass = this.mapData?.network.stretches[id].roadClass ?? 'trail';
 			const color = ROAD_STYLES[roadClass].color;
-			const points = this.geometry?.stretches[id].points ?? [];
 			dashes = dashesAlong(points, UNCHARTED_STUB.length, UNCHARTED_STUB.dash / zoom, UNCHARTED_STUB.gap / zoom).map((dash) => ({
 				points: dash.points,
 				color: [color[0], color[1], color[2], color[3] * (1 - (1 - STUB_FADE_FLOOR) * dash.along)] as RGBA,
 			}));
-			this.dashCache.set(id, dashes);
+			this.dashCache.set(key, dashes);
 		}
 		return dashes;
+	}
+
+	/** An uncharted stretch's polyline from the end where it leaves known road. */
+	private stubPoints(id: number): readonly Vec2[] {
+		const geometry = this.geometry;
+		const map = this.mapData;
+		if (!geometry || !map) return [];
+		return geometry.fromEnd(id, stubEnd(map.network, this.knowledgeLayer ?? ALL_CHARTED, id) ?? 'from');
 	}
 
 	private drawCompound(draw: DrawApi): void {
@@ -736,7 +749,9 @@ export class AreaMapView extends Component {
 				if (mapX < bounds.minX - reach || mapX > bounds.maxX + reach || mapY < bounds.minY - reach || mapY > bounds.maxY + reach) continue;
 				const drawn = drawnKnowledge(network, knowledge, id);
 				if (drawn === null) continue;
-				const distance = distanceToPolyline(stretch.points, mapX, mapY, drawn === 'uncharted' ? UNCHARTED_STUB.length : Infinity);
+				const distance = drawn === 'uncharted'
+					? distanceToPolyline(this.stubPoints(id), mapX, mapY, UNCHARTED_STUB.length)
+					: distanceToPolyline(stretch.points, mapX, mapY, Infinity);
 				if (distance <= reach && distance <= nearestDistance) {
 					nearest = id;
 					nearestDistance = distance;

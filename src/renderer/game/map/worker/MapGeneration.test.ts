@@ -60,13 +60,13 @@ describe('MapGeneration', () => {
 			expect(generation.settled).toBe(true);
 			expect(map.inWorker).toBe(false);
 			expect(map.params).toBe(params);
-			expect(map.products.growth).toEqual(expected.products.growth);
+			expect(map.products.roads).toEqual(expected.products.roads);
 			expect(map.products.places).toEqual(expected.products.places);
 			expect(map.streams).toEqual(expected.streams);
 			expect(map.products.routeTree).toEqual(expected.products.routeTree);
 			expect(map.products.pois).toEqual(expected.products.pois);
-			expect(map.attempts).toEqual({ terrain: 0, water: 0, hazards: 0, places: 0, growth: 0, routeTree: 0, pois: 0, stops: 0 });
-			expect(progress.map(({ stage, attempt }) => `${stage} ${attempt}`)).toEqual(['terrain 0', 'water 0', 'hazards 0', 'places 0', 'growth 0', 'routeTree 0', 'pois 0', 'stops 0']);
+			expect(map.attempts).toEqual({ terrain: 0, water: 0, hazards: 0, places: 0, roads: 0, routeTree: 0, pois: 0, stops: 0 });
+			expect(progress.map(({ stage, attempt }) => `${stage} ${attempt}`)).toEqual(['terrain 0', 'water 0', 'hazards 0', 'places 0', 'roads 0', 'routeTree 0', 'pois 0', 'stops 0']);
 			expect(map.wallMilliseconds).toBeGreaterThanOrEqual(map.decodeMilliseconds);
 		});
 
@@ -94,7 +94,7 @@ describe('MapGeneration', () => {
 		});
 
 		it('rejects with what the pipeline threw', async () => {
-			const failure: StageFailure = { stage: 'growth', index: 2, count: 6, attempt: 7, mapAttempt: 31, seed: 9, problems: ['disc'] };
+			const failure: StageFailure = { stage: 'roads', index: 2, count: 5, attempt: 7, mapAttempt: 31, seed: 9, problems: ['disc'] };
 			jest.spyOn(protocol, 'generateTransfer').mockImplementation(() => {
 				throw new MapPipelineError({ message: 'ran out', failure, exhausted: 'map' });
 			});
@@ -134,7 +134,7 @@ describe('MapGeneration', () => {
 			expect(buffers.every((buffer) => buffer.byteLength === 0)).toBe(true);
 			const map = await generation.result;
 			expect(map.inWorker).toBe(true);
-			expect(map.products.growth).toEqual(expected.products.growth);
+			expect(map.products.roads).toEqual(expected.products.roads);
 			expect(Array.from(map.products.terrain.surface.elevation)).toEqual(Array.from(expected.products.terrain.surface.elevation));
 			expect(Array.from(map.products.water.lines.points)).toEqual(Array.from(expected.products.water.lines.points));
 			expect(worker.terminated).toBe(1);
@@ -165,7 +165,7 @@ describe('MapGeneration', () => {
 			worker.reply({ type: 'failed', message: 'late', stack: null, pipeline: null });
 			const map = await generation.result;
 			expect(map.inWorker).toBe(false);
-			expect(map.products.growth).toEqual(expected.products.growth);
+			expect(map.products.roads).toEqual(expected.products.roads);
 			expect(warn).toHaveBeenCalledTimes(1);
 			expect(String(warn.mock.calls[0][0])).toMatch(/failed before it replied \(its script did not load\)/);
 			expect(worker.terminated).toBe(1);
@@ -194,21 +194,22 @@ describe('MapGeneration', () => {
 			const generation = new MapGeneration({ params, spawn: () => { throw new Error('SecurityError'); } });
 			expect(generation.inWorker).toBe(false);
 			const map = await generation.result;
-			expect(map.products.growth).toEqual(expected.products.growth);
+			expect(map.products.roads).toEqual(expected.products.roads);
 			expect(warn).toHaveBeenCalledTimes(1);
 		});
 	});
 
 	it('sums a generation up in one line for the dev hook', async () => {
 		const summary = summarizeGeneration(await new MapGeneration({ params }).result);
-		expect(summary).toMatchObject({ seed: 9, environment: 'highDesert', radius: 700, inWorker: false, attempts: { terrain: 0, water: 0, hazards: 0, places: 0, growth: 0, routeTree: 0, pois: 0, stops: 0 }, mapAttempt: 0 });
-		expect(summary.nodes).toBe(expected.products.growth.network.nodes.length);
+		expect(summary).toMatchObject({ seed: 9, environment: 'highDesert', radius: 700, inWorker: false, attempts: { terrain: 0, water: 0, hazards: 0, places: 0, roads: 0, routeTree: 0, pois: 0, stops: 0 }, mapAttempt: 0 });
+		expect(summary.nodes).toBe(expected.products.roads.network.nodes.length);
+		expect(summary.loops).toBe(expected.products.roads.stats.loops);
 		expect(summary.meetingPoints).toBe(expected.products.routeTree.meetingPoints.length);
 		expect(summary.pois).toBe(expected.products.pois.pois.length);
 		expect(summary.stops).toBe(expected.products.stops.stops.length);
 		const line = describeGeneration(summary);
 		expect(line).toMatch(/^Map generation, seed 9 highDesert radius 700, in-process: [\d.]+ ms wall, pipeline [\d.]+ ms \(terrain [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), water [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), hazards [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), places/);
-		expect(line).toMatch(/growth [\d.]+ \+ [\d.]+ checks \(attempt 0\), routeTree [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), pois [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), stops [\d.]+( \+ [\d.]+ checks)? \(attempt 0\); map attempt 0\), decode [\d.]+ ms; /);
-		expect(line).toMatch(/; \d+ nodes, \d+ stretches, \d+ meeting points, \d+ POIs \(\d+ strongholds\), \d+ stops$/);
+		expect(line).toMatch(/roads [\d.]+ \+ [\d.]+ checks \(attempt 0\), routeTree [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), pois [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), stops [\d.]+( \+ [\d.]+ checks)? \(attempt 0\); map attempt 0\), decode [\d.]+ ms; /);
+		expect(line).toMatch(/; \d+ nodes, \d+ stretches, \d+ loops, \d+ meeting points, \d+ POIs \(\d+ strongholds\), \d+ stops$/);
 	});
 });

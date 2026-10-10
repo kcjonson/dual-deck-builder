@@ -1,7 +1,7 @@
-import { pointSegmentDistanceSquared, segmentDistanceSquared, segmentsMeet } from './Geometry';
-import { ROAD_CLASSES, RoadNetwork, RoadStretch, classRank } from './RoadNetwork';
-import { JUNCTION_COS, JUNCTION_TAPER, OUTWARD_SHARE, isPassable } from './RoadGrowth';
-import type { Terrain } from './Terrain';
+import { pointAlong, pointSegmentDistanceSquared, polylineLength, segmentDistanceSquared, segmentsMeet } from './Geometry';
+import { landGridFor } from './LandGrid';
+import { ROAD_CLASSES, RoadBridge, RoadNetwork, RoadStretch } from './RoadNetwork';
+import { METRO_BRIDGES, Terrain } from './Terrain';
 
 // Globals read once, at load: under Jest's vm context each read costs about 0.15 us (seeded-prng.md).
 const sqrt = Math.sqrt;
@@ -10,16 +10,17 @@ const min = Math.min;
 const max = Math.max;
 
 /**
- * Checks a drivable network against the guarantees growth keeps (Area Map
- * Generation, Guarantees 2, 3, and 8, and the tree the routes walk), from the
- * network's plain data alone, so it can check a loaded map as well as one
- * just grown. Growth keeps every rule as it lays each step; this looks again
- * by other means (every pair of nearby segments, through grid buckets of its
- * own rather than growth's spatial hash, and the tree from its links), which
- * is what the property tests and the map validator lean on.
+ * Checks a road network against the guarantees the roads keep (Area Map
+ * Generation, Guarantees 3, real roads), from the network's plain data and
+ * the land alone, so the map validator can check a loaded map as well as one
+ * just generated: planarity and clearance by a sweep over every pair of
+ * polylines through grid buckets, passability every half unit along each
+ * whole polyline, bridges, the disc, and that every node reaches the
+ * compound. The road graph (RoadGraph.ts) holds its geometry to the same
+ * rules with the same functions.
  */
 
-export type RoadRule = 'structure' | 'outward' | 'disc' | 'passable' | 'crossing' | 'clearance' | 'junctionAngle';
+export type RoadRule = 'structure' | 'disc' | 'passable' | 'bridges' | 'crossing' | 'clearance' | 'reach';
 
 export interface RoadViolation {
 	readonly rule: RoadRule;
@@ -27,11 +28,30 @@ export interface RoadViolation {
 	readonly detail: string;
 }
 
+/** World units two stretches keep apart, tapering to nothing toward a node they share. */
+export const ROAD_CLEARANCE = 2;
+/** Near a node two stretches share, they need only this times the farther one's distance from it, up to the clearance. */
+export const NODE_TAPER = 0.25;
+/** Two stretches ending on one node leave it at least 20 degrees apart: the cosine. */
+export const NODE_COS = 0.9396926207859084;
+/** World units between the samples a polyline is checked at for impassable ground. */
+export const PASSABLE_SPACING = 0.5;
+
+/** What the checks read of the land. */
+export type RoadGround = Pick<Terrain, 'radius' | 'metro' | 'obstacle' | 'bridgeSpans' | 'waterAt'>;
+
+/**
+ * Whether (x, y) is on Home's own four land cells round the origin, `cell`
+ * world units each way: the compound can stand in a river, so roads leave it
+ * through its water.
+ */
+export function atHome(x: number, y: number, cell: number): boolean {
+	return x <= cell && x >= -cell && y <= cell && y >= -cell;
+}
+
 export interface RoadCheckOptions {
 	network: RoadNetwork;
-	terrain: Pick<Terrain, 'radius' | 'hotspots' | 'obstacle' | 'bridgeSpans'>;
-	/** What growth kept: its `clearance`. */
-	clearance: number;
+	terrain: RoadGround;
 	/** Stops after this many violations. */
 	limit?: number;
 }
@@ -39,163 +59,193 @@ export interface RoadCheckOptions {
 /**
  * Every rule the network breaks, up to `limit`:
  *
- * - structure: node 0 is the compound; each stretch runs between its nodes
- *   and follows on from its parent; every parent chain ends at a city street
- *   from the compound on a highway out of the metro, so the stretches are
- *   trees; roads are chains of stretches; classes never upgrade outward,
- *   highways branch into back roads or highways, back roads into back roads
- *   or trails, and trails don't branch; nodes have the stretches their kind
- *   says.
- * - outward: every segment gains at least `OUTWARD_SHARE` of its length in
- *   distance from the compound, so every road runs away from it throughout.
+ * - structure: node 0 is the compound at the origin; each stretch runs
+ *   between two different nodes, from the one to the other, with its class,
+ *   its length, its bridges in order along it, and a highway's number on a
+ *   highway and on nothing else.
  * - disc: every point is inside the disc.
- * - passable: no segment crosses a crater or, sampled as growth samples,
- *   impassable ground, bar river water under a bridge (`isPassable`).
- * - crossing and clearance: segments of different roads keep
- *   `clearance` apart, except near a junction the two share, where the gap
- *   tapers as growth's does and they touch only at the junction; segments of
- *   one road touch only where they join.
- * - junctionAngle: a branch leaves its junction at least 20 degrees from its
- *   parent's way in, carried on through the junction, and from its way on.
+ * - passable: no sample every half unit along a polyline is impassable, bar
+ *   river water under one of the stretch's bridges. The metro's rivers,
+ *   which `obstacle` passes, count too: a road crosses them, never runs
+ *   along them, bar on Home's own cells.
+ * - bridges: a stretch's bridges are where its polyline crosses rivers, each
+ *   crossing outside the metro no longer than the longest bridge, since a
+ *   longer one has no deck and leaves its water impassable. Crossings close
+ *   together, two channels at a confluence say, share one deck.
+ * - crossing and clearance: two stretches meet only at a node they both end
+ *   on, leaving it 20 degrees apart or more, and otherwise keep
+ *   `ROAD_CLEARANCE` apart, less near a node they share; a stretch never
+ *   touches itself.
+ * - reach: every node reaches the compound.
  */
-export function checkRoadNetwork({ network, terrain, clearance, limit = 20 }: RoadCheckOptions): RoadViolation[] {
+export function checkRoadNetwork({ network, terrain, limit = 20 }: RoadCheckOptions): RoadViolation[] {
 	const violations: RoadViolation[] = [];
 	const report = (rule: RoadRule, detail: string) => {
 		if (violations.length < limit) violations.push({ rule, detail });
 	};
 	checkStructure(network, report);
 	if (violations.length > 0) return violations;
-	checkSegments(network, terrain, report);
-	checkPairs(network, clearance, report);
-	checkJunctions(network, report);
+	checkGround(network, terrain, report);
+	checkPairs(network, report);
+	checkReach(network, report);
 	return violations;
 }
 
 type Report = (rule: RoadRule, detail: string) => void;
 
-function checkStructure({ nodes, roads, stretches }: RoadNetwork, report: Report): void {
+function checkStructure({ nodes, stretches, broken }: RoadNetwork, report: Report): void {
 	if (nodes.length === 0 || nodes[0].kind !== 'compound' || nodes[0].x !== 0 || nodes[0].y !== 0) {
 		report('structure', 'node 0 is not the compound at the origin');
 		return;
 	}
-	const ins = new Array<number>(nodes.length).fill(0);
-	const outs = new Array<number>(nodes.length).fill(0);
 	nodes.forEach((node, id) => {
 		if (id > 0 && node.kind === 'compound') report('structure', `node ${id} is a second compound`);
 	});
-	stretches.forEach((stretch, id) => {
-		const { from, to, points, parent, road } = stretch;
+	[...stretches, ...broken].forEach((stretch, index) => {
+		const id = index < stretches.length ? `stretch ${index}` : `broken span ${index - stretches.length}`;
+		const { from, to, points, bridges } = stretch;
 		if (!(from >= 0 && from < nodes.length && to >= 0 && to < nodes.length && from !== to)) {
-			report('structure', `stretch ${id} runs between nodes ${from} and ${to}`);
+			report('structure', `${id} runs between nodes ${from} and ${to}`);
 			return;
 		}
-		outs[from] += 1;
-		ins[to] += 1;
-		if (!ROAD_CLASSES.includes(stretch.roadClass)) report('structure', `stretch ${id} has class ${stretch.roadClass}`);
+		if (!ROAD_CLASSES.includes(stretch.roadClass)) report('structure', `${id} has class ${stretch.roadClass}`);
+		const numbered = stretch.highway !== undefined && Number.isInteger(stretch.highway) && stretch.highway >= 0;
+		if (stretch.roadClass === 'highway' ? !numbered : stretch.highway !== undefined) report('structure', `${id}, a ${stretch.roadClass}, has highway number ${stretch.highway}`);
 		if (points.length < 4 || points.length % 2 !== 0 || points.some((value) => !Number.isFinite(value))) {
-			report('structure', `stretch ${id} has ${points.length} coordinates`);
+			report('structure', `${id} has ${points.length} coordinates`);
 			return;
 		}
-		if (points[0] !== nodes[from].x || points[1] !== nodes[from].y) report('structure', `stretch ${id} doesn't start at node ${from}`);
-		if (points[points.length - 2] !== nodes[to].x || points[points.length - 1] !== nodes[to].y) report('structure', `stretch ${id} doesn't end at node ${to}`);
-		if (!(road >= 0 && road < roads.length) || !roads[road].stretches.includes(id)) report('structure', `stretch ${id} isn't listed by its road ${road}`);
-		if (nodes[from].kind === 'compound') {
-			if (parent !== -1) report('structure', `stretch ${id} starts at the compound but has parent ${parent}`);
-		} else if (!(parent >= 0 && parent < stretches.length) || stretches[parent].to !== from) {
-			report('structure', `stretch ${id} has parent ${parent}, which doesn't end where it starts`);
-		}
-	});
-
-	// Every parent chain ends at a city street, within as many links as there are stretches: no cycles.
-	stretches.forEach((stretch, id) => {
-		let at = id;
-		let links = 0;
-		while (stretches[at].parent !== -1 && links <= stretches.length) {
-			at = stretches[at].parent;
-			if (!(at >= 0 && at < stretches.length)) return;
-			links += 1;
-		}
-		if (links > stretches.length) {
-			report('structure', `stretch ${id}'s parent chain loops`);
-			return;
-		}
-		const root = roads[stretches[at].road];
-		if (nodes[stretches[at].from].kind !== 'compound' || root === undefined || root.parent !== -1 || root.roadClass !== 'highway') {
-			report('structure', `stretch ${id}'s parent chain ends at stretch ${at}, not a highway's city street`);
-		}
-	});
-
-	roads.forEach((road, id) => {
-		const chain = road.stretches;
-		if (chain.length === 0) {
-			report('structure', `road ${id} has no stretches`);
-			return;
-		}
-		chain.forEach((stretchId, place) => {
-			const stretch = stretches[stretchId];
-			if (stretch === undefined || stretch.road !== id) {
-				report('structure', `road ${id} lists stretch ${stretchId}, which isn't its`);
-				return;
-			}
-			if (place > 0) {
-				if (stretch.parent !== chain[place - 1]) report('structure', `road ${id}'s stretch ${stretchId} doesn't follow on from ${chain[place - 1]}`);
-				if (classRank(stretch.roadClass) < classRank(stretches[chain[place - 1]].roadClass)) {
-					report('structure', `road ${id} upgrades to ${stretch.roadClass} at stretch ${stretchId}`);
-				}
-			}
+		if (points[0] !== nodes[from].x || points[1] !== nodes[from].y) report('structure', `${id} doesn't start at node ${from}`);
+		if (points[points.length - 2] !== nodes[to].x || points[points.length - 1] !== nodes[to].y) report('structure', `${id} doesn't end at node ${to}`);
+		const length = polylineLength(points);
+		if (!(Math.abs(length - stretch.length) <= 1e-9 * length + 1e-9)) report('structure', `${id} is ${length} long, not the ${stretch.length} it says`);
+		let last = 0;
+		bridges.forEach(({ start, end }, bridge) => {
+			if (!(start >= last && end > start && end <= length)) report('structure', `${id}'s bridge ${bridge} runs from ${start} to ${end}, out of order or off its ${length} units`);
+			last = end;
 		});
-		const first = stretches[chain[0]];
-		if (first === undefined) return;
-		if (road.from !== first.from) report('structure', `road ${id} starts at node ${road.from}, its first stretch at ${first.from}`);
-		if (road.roadClass !== first.roadClass) report('structure', `road ${id} is a ${road.roadClass}, its first stretch a ${first.roadClass}`);
-		if (road.parent === -1) {
-			if (nodes[road.from].kind !== 'compound' || road.roadClass !== 'highway') report('structure', `road ${id} has no parent but isn't a highway from the compound`);
-			return;
-		}
-		const junction = stretches[first.parent];
-		if (junction === undefined || junction.road !== road.parent) {
-			report('structure', `road ${id} branches from road ${road.parent}, but its first stretch follows on from another`);
-			return;
-		}
-		const allowed = junction.roadClass === 'highway' ? ['highway', 'backRoad'] : junction.roadClass === 'backRoad' ? ['backRoad', 'trail'] : [];
-		if (!allowed.includes(road.roadClass)) report('structure', `road ${id}, a ${road.roadClass}, branches from a ${junction.roadClass}`);
-	});
-
-	const roots = roads.filter((road) => road.parent === -1).length;
-	nodes.forEach((node, id) => {
-		const [inward, outward] = [ins[id], outs[id]];
-		// A highway blocked as it leaves the metro ends at its metro edge.
-		const fits = node.kind === 'compound' ? inward === 0 && outward === roots
-			: node.kind === 'metroEdge' ? inward === 1 && outward <= 1
-				: node.kind === 'classChange' ? inward === 1 && outward === 1
-					: node.kind === 'junction' ? inward === 1 && outward >= 1 && outward <= 2
-						: inward === 1 && outward === 0;
-		if (!fits) report('structure', `node ${id}, a ${node.kind}, has ${inward} stretches in and ${outward} out`);
 	});
 }
 
-function checkSegments({ stretches }: RoadNetwork, terrain: RoadCheckOptions['terrain'], report: Report): void {
+function checkGround({ stretches }: RoadNetwork, terrain: RoadGround, report: Report): void {
 	const radiusSquared = terrain.radius * terrain.radius;
-	stretches.forEach(({ points }, id) => {
+	stretches.forEach(({ points, bridges }, id) => {
 		for (let point = 0; point < points.length; point += 2) {
 			const x = points[point];
 			const y = points[point + 1];
 			if (x * x + y * y > radiusSquared) report('disc', `stretch ${id} point ${point / 2} (${x}, ${y}) is outside the disc`);
 		}
-		for (let point = 0; point + 3 < points.length; point += 2) {
-			const [x0, y0, x1, y1] = [points[point], points[point + 1], points[point + 2], points[point + 3]];
-			const length = sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
-			if (!(sqrt(x1 * x1 + y1 * y1) - sqrt(x0 * x0 + y0 * y0) >= OUTWARD_SHARE * length)) {
-				report('outward', `stretch ${id} segment ${point / 2} from (${x0}, ${y0}) to (${x1}, ${y1}) gains too little`);
-			}
-			if (!isPassable(terrain, x0, y0, x1, y1)) report('passable', `stretch ${id} segment ${point / 2} from (${x0}, ${y0}) to (${x1}, ${y1}) crosses impassable ground`);
+		const found = polylineBridges(terrain, points);
+		if (found.length !== bridges.length || found.some((bridge, index) => !(Math.abs(bridge.start - bridges[index].start) <= 1e-6 && Math.abs(bridge.end - bridges[index].end) <= 1e-6))) {
+			report('bridges', `stretch ${id} records ${bridges.length} bridges, but its polyline crosses rivers at ${found.length}`);
 		}
+		const blocked = impassableAlong(terrain, points, bridges);
+		if (blocked >= 0) report('passable', `stretch ${id} is impassable ${blocked.toFixed(2)} units along, at ${describePoint(points, blocked)}`);
 	});
+}
+
+function checkReach({ nodes, stretches }: RoadNetwork, report: Report): void {
+	const linked: number[][] = nodes.map(() => []);
+	stretches.forEach(({ from, to }) => {
+		linked[from].push(to);
+		linked[to].push(from);
+	});
+	const reached = new Uint8Array(nodes.length);
+	reached[0] = 1;
+	const stack = [0];
+	while (stack.length > 0) {
+		for (const next of linked[stack.pop() as number]) {
+			if (reached[next] === 1) continue;
+			reached[next] = 1;
+			stack.push(next);
+		}
+	}
+	reached.forEach((value, id) => {
+		if (value === 0) report('reach', `node ${id}, a ${nodes[id].kind} at (${nodes[id].x}, ${nodes[id].y}), doesn't reach the compound`);
+	});
+}
+
+const spans: number[] = [];
+
+/**
+ * A polyline's bridges, over the whole line rather than a segment at a time:
+ * each river it crosses with a bridge no longer than the longest, or any
+ * bridge in the metro, its deck reaching the bridge's span either side of the
+ * crossing and a little past, as world units along the line from its first
+ * point. Decks that meet or overlap are one bridge.
+ */
+export function polylineBridges(terrain: Pick<RoadGround, 'bridgeSpans'>, points: readonly number[]): RoadBridge[] {
+	const decks: { start: number; end: number }[] = [];
+	let along = 0;
+	for (let point = 0; point + 3 < points.length; point += 2) {
+		const x0 = points[point];
+		const y0 = points[point + 1];
+		const x1 = points[point + 2];
+		const y1 = points[point + 3];
+		const length = sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
+		const count = terrain.bridgeSpans(x0, y0, x1, y1, spans);
+		for (let span = 0; span < count; span += 1) decks.push({ start: along + spans[2 * span] * length, end: along + spans[2 * span + 1] * length });
+		along += length;
+	}
+	decks.sort((a, b) => a.start - b.start);
+	const merged: RoadBridge[] = [];
+	for (const deck of decks) {
+		const start = deck.start < 0 ? 0 : deck.start;
+		const end = deck.end > along ? along : deck.end;
+		const last = merged[merged.length - 1];
+		if (last !== undefined && start <= last.end) merged[merged.length - 1] = { start: last.start, end: end > last.end ? end : last.end };
+		else merged.push({ start, end });
+	}
+	return merged;
+}
+
+/**
+ * The first point along a polyline, as world units from its start, where a
+ * sample every half unit lands on impassable ground, bar river water under
+ * one of `bridges`; -1 where none does. River water in the metro counts,
+ * though `obstacle` passes it, bar on Home's own cells. Every segment's
+ * ends are sampled.
+ */
+export function impassableAlong(terrain: Pick<RoadGround, 'radius' | 'metro' | 'obstacle' | 'waterAt'>, points: readonly number[], bridges: readonly RoadBridge[]): number {
+	const bridged = terrain.metro.radius + METRO_BRIDGES;
+	const bridgedSquared = bridged * bridged;
+	const home = landGridFor(terrain.radius).cellSize;
+	let along = 0;
+	for (let point = 0; point + 3 < points.length; point += 2) {
+		const x0 = points[point];
+		const y0 = points[point + 1];
+		const dx = points[point + 2] - x0;
+		const dy = points[point + 3] - y0;
+		const length = sqrt(dx * dx + dy * dy);
+		const samples = floor(length / PASSABLE_SPACING) + 1;
+		for (let sample = point === 0 ? 0 : 1; sample <= samples; sample += 1) {
+			const share = sample / samples;
+			const x = x0 + dx * share;
+			const y = y0 + dy * share;
+			const obstacle = terrain.obstacle(x, y);
+			if (obstacle === null) {
+				if (!(x * x + y * y <= bridgedSquared && terrain.waterAt(x, y) === 'river')) continue;
+			} else if (obstacle !== 'river') {
+				return along + length * share;
+			}
+			const at = along + length * share;
+			if (atHome(x, y, home) || bridges.some(({ start, end }) => at >= start && at <= end)) continue;
+			return at;
+		}
+		along += length;
+	}
+	return -1;
+}
+
+function describePoint(points: readonly number[], along: number): string {
+	const { x, y } = pointAlong(points, along, { x: 0, y: 0 });
+	return `(${x.toFixed(2)}, ${y.toFixed(2)})`;
 }
 
 interface Segment {
 	readonly stretch: number;
-	readonly road: number;
+	/** Its index along its stretch. */
+	readonly index: number;
 	readonly x0: number;
 	readonly y0: number;
 	readonly x1: number;
@@ -206,24 +256,45 @@ interface Segment {
 	readonly maxY: number;
 }
 
+/** A pair of stretches the planarity sweep found breaking a rule. */
+export interface RoadClash {
+	readonly rule: 'crossing' | 'clearance';
+	/** The two stretches, and the segment of each, by its index along the stretch. */
+	readonly a: number;
+	readonly b: number;
+	readonly segmentA: number;
+	readonly segmentB: number;
+	readonly detail: string;
+}
+
+function checkPairs(network: RoadNetwork, report: Report): void {
+	for (const { rule, detail } of roadClashes(network)) report(rule, detail);
+}
+
 /**
- * Every pair of segments within `clearance` of each other against the
- * clearance rule, found through grid buckets of the checker's own: each
- * segment is filed in the cells its box covers, and looks for partners in the
- * cells its box covers grown by the clearance.
+ * Every pair of segments within `ROAD_CLEARANCE` of each other, found through
+ * grid buckets, against the rules: segments of one stretch touch only where
+ * they join; two stretches meet only at a node both end on, leaving it 20
+ * degrees apart or more, and otherwise keep the clearance, tapering to
+ * nothing toward a node they share. Each pair of stretches is reported once
+ * for each rule it breaks, or with `bySegment`, once for each pair of
+ * segments.
  */
-function checkPairs(network: RoadNetwork, clearance: number, report: Report): void {
+export function roadClashes(
+	{ nodes, stretches }: { nodes: RoadNetwork['nodes']; stretches: readonly Pick<RoadStretch, 'from' | 'to' | 'points'>[] },
+	{ bySegment = false }: { bySegment?: boolean } = {},
+): RoadClash[] {
+	const clearance = ROAD_CLEARANCE;
 	const segments: Segment[] = [];
-	network.stretches.forEach(({ points, road }, stretch) => {
+	stretches.forEach(({ points }, stretch) => {
 		for (let point = 0; point + 3 < points.length; point += 2) {
 			const [x0, y0, x1, y1] = [points[point], points[point + 1], points[point + 2], points[point + 3]];
-			segments.push({
-				stretch, road, x0, y0, x1, y1,
-				minX: min(x0, x1), maxX: max(x0, x1), minY: min(y0, y1), maxY: max(y0, y1),
-			});
+			segments.push({ stretch, index: point / 2, x0, y0, x1, y1, minX: min(x0, x1), maxX: max(x0, x1), minY: min(y0, y1), maxY: max(y0, y1) });
 		}
 	});
-	const size = max(clearance, 32);
+	const clashes: RoadClash[] = [];
+	if (segments.length === 0) return clashes;
+	const size = 16;
 	let left = Infinity;
 	let bottom = Infinity;
 	let right = -Infinity;
@@ -234,69 +305,91 @@ function checkPairs(network: RoadNetwork, clearance: number, report: Report): vo
 		right = max(right, segment.maxX + clearance);
 		top = max(top, segment.maxY + clearance);
 	});
-	if (segments.length === 0) return;
 	const columns = floor((right - left) / size) + 1;
 	const rows = floor((top - bottom) / size) + 1;
-	const cells: number[][] = Array.from({ length: columns * rows }, () => []);
+	const starts = new Int32Array(columns * rows + 1);
 	const columnOf = (x: number) => floor((x - left) / size);
 	const rowOf = (y: number) => floor((y - bottom) / size);
-	segments.forEach((segment, id) => {
-		for (let row = rowOf(segment.minY); row <= rowOf(segment.maxY); row += 1) {
-			for (let column = columnOf(segment.minX); column <= columnOf(segment.maxX); column += 1) cells[row * columns + column].push(id);
+	const eachCell = (segment: Segment, grow: number, visit: (cell: number) => void) => {
+		for (let row = rowOf(segment.minY - grow); row <= rowOf(segment.maxY + grow); row += 1) {
+			for (let column = columnOf(segment.minX - grow); column <= columnOf(segment.maxX + grow); column += 1) visit(row * columns + column);
 		}
-	});
+	};
+	segments.forEach((segment) => eachCell(segment, 0, (cell) => {
+		starts[cell + 1] += 1;
+	}));
+	for (let cell = 0; cell < columns * rows; cell += 1) starts[cell + 1] += starts[cell];
+	const filled = starts.slice(0, columns * rows);
+	const filed = new Int32Array(starts[columns * rows]);
+	segments.forEach((segment, id) => eachCell(segment, 0, (cell) => {
+		filed[filled[cell]] = id;
+		filled[cell] += 1;
+	}));
 	const seen = new Int32Array(segments.length).fill(-1);
+	const reported = new Set<string>();
 	segments.forEach((a, first) => {
-		for (let row = rowOf(a.minY - clearance); row <= rowOf(a.maxY + clearance); row += 1) {
-			for (let column = columnOf(a.minX - clearance); column <= columnOf(a.maxX + clearance); column += 1) {
-				for (const second of cells[row * columns + column]) {
-					if (second <= first || seen[second] === first) continue;
-					seen[second] = first;
-					checkPair(network, clearance, a, segments[second], report);
-				}
+		eachCell(a, clearance, (cell) => {
+			for (let entry = starts[cell]; entry < starts[cell + 1]; entry += 1) {
+				const second = filed[entry];
+				if (second <= first || seen[second] === first) continue;
+				seen[second] = first;
+				const found = checkPair(nodes, stretches, a, segments[second]);
+				if (found === null) continue;
+				const clash = { ...found, segmentA: a.index, segmentB: segments[second].index };
+				const key = bySegment ? `${clash.a} ${clash.segmentA} ${clash.b} ${clash.segmentB}` : `${clash.a} ${clash.b} ${clash.rule}`;
+				if (reported.has(key)) continue;
+				reported.add(key);
+				clashes.push(clash);
 			}
-		}
+		});
 	});
+	return clashes;
 }
 
-/** One pair of segments against the clearance rule. */
-function checkPair({ nodes, roads }: RoadNetwork, clearance: number, a: Segment, b: Segment, report: Report): void {
-	if (b.minY > a.maxY + clearance || a.minY > b.maxY + clearance || b.minX > a.maxX + clearance || a.minX > b.maxX + clearance) return;
+/** One pair of segments against the rules, or null where they keep them. */
+function checkPair(nodes: RoadNetwork['nodes'], stretches: readonly Pick<RoadStretch, 'from' | 'to' | 'points'>[], a: Segment, b: Segment): Omit<RoadClash, 'segmentA' | 'segmentB'> | null {
+	const clearance = ROAD_CLEARANCE;
+	if (b.minY > a.maxY + clearance || a.minY > b.maxY + clearance || b.minX > a.maxX + clearance || a.minX > b.maxX + clearance) return null;
 	const distanceSquared = segmentDistanceSquared(a.x0, a.y0, a.x1, a.y1, b.x0, b.y0, b.x1, b.y1);
-	if (distanceSquared >= clearance * clearance) return;
-	const where = () => `stretches ${a.stretch} and ${b.stretch}, near (${a.x1}, ${a.y1})`;
-	const apart = () => sqrt(distanceSquared).toFixed(3);
+	if (distanceSquared >= clearance * clearance) return null;
+	const where = `stretches ${a.stretch} and ${b.stretch}, segments ${a.index} and ${b.index}, near (${a.x1.toFixed(2)}, ${a.y1.toFixed(2)})`;
 	const meet = () => segmentsMeet(a.x0, a.y0, a.x1, a.y1, b.x0, b.y0, b.x1, b.y1);
-	if (a.road === b.road) {
-		const joined = (a.x1 === b.x0 && a.y1 === b.y0) || (b.x1 === a.x0 && b.y1 === a.y0);
-		if (!joined && meet()) report('crossing', `road ${a.road} touches itself at ${where()}`);
-		return;
+	if (a.stretch === b.stretch) {
+		if (a.index + 1 === b.index || b.index + 1 === a.index) return null;
+		const { from, to } = stretches[a.stretch];
+		// A loop's two ends meet at its node.
+		if (from === to && ((a.index === 0 && b.x1 === a.x0 && b.y1 === a.y0) || (b.index === 0 && a.x1 === b.x0 && a.y1 === b.y0))) return null;
+		return meet() ? { rule: 'crossing', a: a.stretch, b: b.stretch, detail: `a stretch touches itself at ${where}` } : null;
 	}
-	const junction = sharedJunction(roads, a.road, b.road);
-	if (junction < 0) {
-		report(meet() ? 'crossing' : 'clearance', `roads ${a.road} and ${b.road} are ${apart()} apart at ${where()}`);
-		return;
+	const first = stretches[a.stretch];
+	const second = stretches[b.stretch];
+	const shared = [first.from, first.to].filter((node) => node === second.from || node === second.to);
+	const apart = sqrt(distanceSquared).toFixed(3);
+	if (shared.length === 0) {
+		return { rule: meet() ? 'crossing' : 'clearance', a: a.stretch, b: b.stretch, detail: `${apart} apart at ${where}` };
 	}
-	const { x, y } = nodes[junction];
-	const gap = min(clearance, JUNCTION_TAPER * sqrt(max(
-		pointSegmentDistanceSquared(x, y, a.x0, a.y0, a.x1, a.y1),
-		pointSegmentDistanceSquared(x, y, b.x0, b.y0, b.x1, b.y1),
-	)));
-	if (gap > 0) {
-		if (distanceSquared < gap * gap) {
-			report(meet() ? 'crossing' : 'clearance', `roads ${a.road} and ${b.road}, meeting at node ${junction}, are ${apart()} apart at ${where()}, under ${gap.toFixed(3)}`);
+	let gap = clearance;
+	let at = shared[0];
+	for (const node of shared) {
+		const { x, y } = nodes[node];
+		const reach = min(clearance, NODE_TAPER * sqrt(max(distanceToNode(x, y, a), distanceToNode(x, y, b))));
+		if (reach < gap) {
+			gap = reach;
+			at = node;
 		}
-		return;
 	}
-	if (!meetAtAngle(x, y, a, b)) report('crossing', `roads ${a.road} and ${b.road} meet at node ${junction} other than end to end at 20 degrees or more, at ${where()}`);
+	if (gap > 0) {
+		if (distanceSquared < gap * gap) return { rule: meet() ? 'crossing' : 'clearance', a: a.stretch, b: b.stretch, detail: `${apart} apart, under ${gap.toFixed(3)} near node ${at}, at ${where}` };
+		return null;
+	}
+	const { x, y } = nodes[at];
+	return meetAtAngle(x, y, a, b) ? null : { rule: 'crossing', a: a.stretch, b: b.stretch, detail: `meet at node ${at} other than end to end 20 degrees apart, at ${where}` };
 }
 
-/** The node two roads share: a branch's junction on its parent, or the compound for two highways out of the metro. -1 for none. */
-function sharedJunction(roads: RoadNetwork['roads'], a: number, b: number): number {
-	if (roads[a].parent === b) return roads[a].from;
-	if (roads[b].parent === a) return roads[b].from;
-	if (roads[a].parent === -1 && roads[b].parent === -1) return 0;
-	return -1;
+/** The squared distance from a node to a segment: exactly 0 when the segment ends on it, which the projection's rounding can miss. */
+function distanceToNode(x: number, y: number, segment: Segment): number {
+	if ((segment.x0 === x && segment.y0 === y) || (segment.x1 === x && segment.y1 === y)) return 0;
+	return pointSegmentDistanceSquared(x, y, segment.x0, segment.y0, segment.x1, segment.y1);
 }
 
 /** Whether two segments both end exactly at (x, y) and leave it at least 20 degrees apart. */
@@ -305,45 +398,9 @@ function meetAtAngle(x: number, y: number, a: Segment, b: Segment): boolean {
 	const bStarts = b.x0 === x && b.y0 === y;
 	if (!aStarts && !(a.x1 === x && a.y1 === y)) return false;
 	if (!bStarts && !(b.x1 === x && b.y1 === y)) return false;
-	return cosine((aStarts ? a.x1 : a.x0) - x, (aStarts ? a.y1 : a.y0) - y, (bStarts ? b.x1 : b.x0) - x, (bStarts ? b.y1 : b.y0) - y) <= JUNCTION_COS;
-}
-
-/**
- * Guarantee 8: at every junction, each branch leaves at least 20 degrees
- * from the direction its parent came in on, carried on through the junction,
- * and from the direction the parent goes on in, where it does. A parent can
- * end at its junction, blocked right after branching, and then its way in is
- * the only parent direction there is.
- */
-function checkJunctions({ nodes, stretches }: RoadNetwork, report: Report): void {
-	const into: (RoadStretch | undefined)[] = [];
-	const from: RoadStretch[][] = nodes.map(() => []);
-	stretches.forEach((stretch) => {
-		into[stretch.to] = stretch;
-		from[stretch.from].push(stretch);
-	});
-	nodes.forEach((node, id) => {
-		if (node.kind !== 'junction') return;
-		const inward = into[id];
-		if (inward === undefined) return;
-		const leaving = from[id];
-		const onward = leaving.find((stretch) => stretch.road === inward.road);
-		const inPoints = inward.points;
-		// The way in, pointing on through the junction.
-		const inX = node.x - inPoints[inPoints.length - 4];
-		const inY = node.y - inPoints[inPoints.length - 3];
-		leaving.filter((stretch) => stretch.road !== inward.road).forEach((branch) => {
-			const branchX = branch.points[2] - node.x;
-			const branchY = branch.points[3] - node.y;
-			const sides: [string, number, number][] = [['way in', inX, inY]];
-			if (onward !== undefined) sides.push(['way on', onward.points[2] - node.x, onward.points[3] - node.y]);
-			sides.forEach(([side, x, y]) => {
-				if (cosine(branchX, branchY, x, y) > JUNCTION_COS) report('junctionAngle', `road ${branch.road} leaves node ${id} within 20 degrees of its parent ${side}`);
-			});
-		});
-	});
-}
-
-function cosine(ax: number, ay: number, bx: number, by: number): number {
-	return (ax * bx + ay * by) / sqrt((ax * ax + ay * ay) * (bx * bx + by * by));
+	const ax = (aStarts ? a.x1 : a.x0) - x;
+	const ay = (aStarts ? a.y1 : a.y0) - y;
+	const bx = (bStarts ? b.x1 : b.x0) - x;
+	const by = (bStarts ? b.y1 : b.y0) - y;
+	return (ax * bx + ay * by) / sqrt((ax * ax + ay * ay) * (bx * bx + by * by)) <= NODE_COS;
 }
