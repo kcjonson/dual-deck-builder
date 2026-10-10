@@ -503,6 +503,6 @@ interface PinnedWater {
 }
 
 const PINNED: PinnedWater[] = [
-	{ set: { seed: 7, radius: 800 }, moisture: 170918580, lakeDepth: 121594240, points: 2984396213, rivers: 28, lakes: ['reservoir 166', 'reservoir 94'] },
-	{ set: { seed: 17, environment: 'floodlands', radius: 800, rivers: 0 }, moisture: 3769450932, lakeDepth: 561159859, points: 4152388316, rivers: 43, lakes: ['reservoir 33', 'reservoir 87', 'reservoir 42', 'reservoir 177', 'reservoir 134'] },
+	{ set: { seed: 7, radius: 800 }, moisture: 170918580, lakeDepth: 121594240, points: 1765450325, rivers: 28, lakes: ['reservoir 166', 'reservoir 94'] },
+	{ set: { seed: 17, environment: 'floodlands', radius: 800, rivers: 0 }, moisture: 3769450932, lakeDepth: 561159859, points: 181102847, rivers: 43, lakes: ['reservoir 33', 'reservoir 87', 'reservoir 42', 'reservoir 177', 'reservoir 134'] },
 ];

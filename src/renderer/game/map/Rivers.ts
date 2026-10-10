@@ -76,10 +76,12 @@ export const RIVER_WIDTH = { min: 1.2, gain: 0.75, max: 9, rise: 40 } as const;
  * cells, which takes out the eight-direction staircase, down to `steep` of
  * it where the land's grade passes `steepGrade`, so a river in a steep
  * valley keeps to its floor rather than cutting over a spur; `smoothing`
- * passes of Chaikin's corner cutting; then points every `spacing` cells, so
- * the meander has somewhere to bend a long straight run.
+ * passes of Chaikin's corner cutting; then points evenly every `spacing`
+ * cells, so the meander has somewhere to bend a long straight run; and,
+ * after the meander, one more Chaikin pass, which rounds off the corners
+ * an offset of up to a couple of cells leaves between points a cell apart.
  */
-const SHAPE = { simplify: 0.6, steep: 0.35, steepGrade: 0.15, smoothing: 3, spacing: 0.5 } as const;
+const SHAPE = { simplify: 0.6, steep: 0.35, steepGrade: 0.15, smoothing: 3, spacing: 1 } as const;
 
 /**
  * Meander: a sideways offset from noise along the river `wavelength` world
@@ -200,10 +202,10 @@ export interface PolylineOptions {
 
 /**
  * Each chain as a line: its cell centres simplified, less on steep ground,
- * smoothed, resampled every half cell, and given a meander, with a width per
- * point by the drainage area there. A tributary is drawn after the river it
- * joins and ends on that river's line, the nearest point to their meeting
- * cell, so every confluence touches.
+ * smoothed, resampled every cell, given a meander, and smoothed once more,
+ * with a width per point by the drainage area there. A tributary is drawn
+ * after the river it joins and ends on that river's line, the nearest point
+ * to their meeting cell, so every confluence touches.
  */
 export function riverPolylines({ grid, chains, area, threshold, elevation, meander, noise, relief }: PolylineOptions): RiverLines {
 	const lines: number[][] = new Array(chains.length);
@@ -226,9 +228,9 @@ export function riverPolylines({ grid, chains, area, threshold, elevation, meand
 		let line = simplify(raw, tolerances);
 		for (let pass = 0; pass < SHAPE.smoothing; pass += 1) line = chaikin(line);
 		line = resampled(line, SHAPE.spacing * grid.cellSize);
-		line = meandered({
+		line = chaikin(meandered({
 			line, least: MEANDER.least * grid.cellSize, amount: meander * MEANDER.amplitude * grid.cellSize, noise, offset: 13.7 * id, sampler, relief,
-		});
+		}));
 		if (chain.end === 'confluence') snapEnd(line, lines[chain.into]);
 		lines[id] = line;
 		widths[id] = widthsAlong({
@@ -318,22 +320,27 @@ export function simplify(points: readonly number[], tolerance: number | readonly
 }
 
 /**
- * The line with a point every `spacing` world units or a little less along
- * it, its own points among them where it bends, its ends kept.
+ * The line's points evenly along it, `spacing` world units apart or a little
+ * less, its ends kept: even spacing gives every point neighbours the same
+ * distance away, which the meander's normals and its room to bend read.
  */
 export function resampled(line: readonly number[], spacing: number): number[] {
 	const count = line.length / 2;
 	if (count < 2) return line.slice();
+	const along = lengthsAlong(line);
+	const length = along[count - 1];
+	const steps = ceil(length / spacing);
+	if (!(steps > 1)) return [line[0], line[1], line[line.length - 2], line[line.length - 1]];
 	const out: number[] = [line[0], line[1]];
-	for (let index = 1; index < count; index += 1) {
-		const ax = line[2 * index - 2];
-		const ay = line[2 * index - 1];
-		const dx = line[2 * index] - ax;
-		const dy = line[2 * index + 1] - ay;
-		const steps = ceil(sqrt(dx * dx + dy * dy) / spacing);
-		for (let step = 1; step < steps; step += 1) out.push(ax + dx * (step / steps), ay + dy * (step / steps));
-		out.push(line[2 * index], line[2 * index + 1]);
+	let segment = 1;
+	for (let step = 1; step < steps; step += 1) {
+		const target = length * (step / steps);
+		while (along[segment] < target) segment += 1;
+		const start = along[segment - 1];
+		const t = (target - start) / (along[segment] - start);
+		out.push(line[2 * segment - 2] + (line[2 * segment] - line[2 * segment - 2]) * t, line[2 * segment - 1] + (line[2 * segment + 1] - line[2 * segment - 1]) * t);
 	}
+	out.push(line[line.length - 2], line[line.length - 1]);
 	return out;
 }
 
@@ -350,6 +357,27 @@ function meandered({ line, least, amount, noise, offset, sampler, relief }: {
 	if (count < 3) return line;
 	const along = lengthsAlong(line);
 	const length = along[count - 1];
+	// Room to move at each point: the least, over the line, of a point's radius of curvature plus how far along the line it is,
+	// so the room shrinks steadily toward a tight bend rather than only at it, and neighbours can't cross there.
+	const room = new Float64Array(count).fill(Infinity);
+	for (let index = 1; index < count - 1; index += 1) {
+		const inX = line[2 * index] - line[2 * index - 2];
+		const inY = line[2 * index + 1] - line[2 * index - 1];
+		const outX = line[2 * index + 2] - line[2 * index];
+		const outY = line[2 * index + 3] - line[2 * index + 1];
+		const turn = inX * outY - inY * outX;
+		const product = sqrt((inX * inX + inY * inY) * (outX * outX + outY * outY));
+		const sine = product > 0 ? (turn < 0 ? -turn : turn) / product : 0;
+		if (sine > 0) room[index] = 0.5 * (along[index + 1] - along[index - 1]) / sine;
+	}
+	for (let index = 1; index < count; index += 1) {
+		const eased = room[index - 1] + (along[index] - along[index - 1]);
+		if (eased < room[index]) room[index] = eased;
+	}
+	for (let index = count - 2; index >= 0; index -= 1) {
+		const eased = room[index + 1] + (along[index + 1] - along[index]);
+		if (eased < room[index]) room[index] = eased;
+	}
 	const out = line.slice();
 	const span = MEANDER.steep - MEANDER.flat;
 	for (let index = 1; index < count - 1; index += 1) {
@@ -364,23 +392,13 @@ function meandered({ line, least, amount, noise, offset, sampler, relief }: {
 			const grade = sqrt(sampler.gradientX * sampler.gradientX + sampler.gradientY * sampler.gradientY) * relief;
 			reach += amount * (1 - smooth01((grade - MEANDER.flat) / span));
 		}
-		// The two segments either side: their turn sets how far the point can move before the bend folds.
-		const inX = x - line[2 * index - 2];
-		const inY = y - line[2 * index - 1];
-		const outX = line[2 * index + 2] - x;
-		const outY = line[2 * index + 3] - y;
-		const inLength = sqrt(inX * inX + inY * inY);
-		const outLength = sqrt(outX * outX + outY * outY);
-		if (!(inLength > 0 && outLength > 0)) continue;
-		const turn = inX * outY - inY * outX;
-		const sine = (turn < 0 ? -turn : turn) / (inLength * outLength);
-		const radius = sine > 0 ? 0.5 * (inLength + outLength) / sine : Infinity;
-		const cap = MEANDER.bend * radius;
+		const cap = MEANDER.bend * room[index];
 		let shift = reach * taper * noise.fractal(along[index] / MEANDER.wavelength, offset, 2, 0.5);
 		if (shift > cap) shift = cap;
 		else if (shift < -cap) shift = -cap;
-		const tx = inX / inLength + outX / outLength;
-		const ty = inY / inLength + outY / outLength;
+		// Square to the chord across the point, from its neighbour behind to its neighbour ahead.
+		const tx = line[2 * index + 2] - line[2 * index - 2];
+		const ty = line[2 * index + 3] - line[2 * index - 1];
 		const norm = sqrt(tx * tx + ty * ty);
 		if (!(norm > 0)) continue;
 		out[2 * index] = x - (ty / norm) * shift;

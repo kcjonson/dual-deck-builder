@@ -201,12 +201,14 @@ describe('simplify', () => {
 });
 
 describe('resampled', () => {
-	it('puts a point every spacing or a little less, keeping the line\'s own points and ends', () => {
+	it('puts points evenly along the line, spacing apart or a little less, keeping its ends', () => {
+		// 13 units long, so four steps of 3.25, the last round the corner.
 		const line = resampled([0, 0, 10, 0, 10, 3], 4);
 		expect(line.slice(0, 2)).toEqual([0, 0]);
 		expect(line.slice(-2)).toEqual([10, 3]);
-		[0, 0, 10 / 3, 0, 20 / 3, 0, 10, 0, 10, 3].forEach((value, index) => expect(line[index]).toBeCloseTo(value, 12));
+		[0, 0, 3.25, 0, 6.5, 0, 9.75, 0, 10, 3].forEach((value, index) => expect(line[index]).toBeCloseTo(value, 12));
 		expect(line).toHaveLength(10);
+		expect(resampled([0, 0, 1, 0], 4)).toEqual([0, 0, 1, 0]);
 		for (let index = 0; index + 3 < line.length; index += 2) expect(Math.hypot(line[index + 2] - line[index], line[index + 3] - line[index + 1])).toBeLessThanOrEqual(4);
 	});
 });

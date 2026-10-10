@@ -41,10 +41,11 @@ Tracing (`traceRivers`): at a confluence the river carries on from its biggest t
 Each chain becomes a line (`riverPolylines`):
 
 - The cell centres simplified by Douglas-Peucker at 0.6 of a cell, which takes out the eight-direction staircase, down to 0.35 of that where the land's grade passes 0.15, so a river in a steep valley keeps to its floor instead of cutting over a spur.
-- Three passes of Chaikin, then a point every half cell along the line, so a long straight run has somewhere to bend.
-- The meander, a sideways offset from 90-unit noise along the river: 0.4 of a cell anywhere, at any grade and any `riverMeander`, plus up to 1.4 cells at `riverMeander` 1, full on ground flatter than grade 0.015 and none past 0.06. It tapers over 30 units at each end, and never moves a point further than 0.6 of the line's radius of curvature there, so a bend can't fold over itself.
+- Three passes of Chaikin, then points evenly along the line a cell apart, so a long straight run has somewhere to bend.
+- The meander, a sideways offset from 90-unit noise along the river: 0.4 of a cell anywhere, at any grade and any `riverMeander`, plus up to 1.4 cells at `riverMeander` 1, full on ground flatter than grade 0.015 and none past 0.06. It tapers over 30 units at each end, and is held within 0.6 of the line's radius of curvature, eased away from a tight bend so the points beside it can't cross there either.
+- One more pass of Chaikin, which rounds off the corners an offset of a cell or two leaves between points a cell apart. The first cut's lines turned more than 30 degrees at 7.3% of their points inside the disc, over five maps at radius 1000; these do at 0.6%.
 
-The first cut meandered on flat ground only and didn't resample, so where Douglas-Peucker had dropped a run of cells on a slope the line was a ruler. Over QA's 30 maps at radius 1000, five environments by six seeds, 87 of 1,335 rivers were a single straight segment over 40 units long, and 80 straight stretches inside the disc ran past 60 units, 31 of them on the grid's eight directions and 19 past 100, the longest 235. Measured the same way, a run of segments within a degree of the heading it started on, no river is now a single segment and the longest straight stretch is 27 units, under three cells; a test holds every river on eight maps under five cells.
+The first cut meandered on flat ground only and didn't resample, so where Douglas-Peucker had dropped a run of cells on a slope the line was a ruler. Over QA's 30 maps at radius 1000, five environments by six seeds, 87 of 1,335 rivers were a single straight segment over 40 units long, and 80 straight stretches inside the disc ran past 60 units, 31 of them on the grid's eight directions and 19 past 100, the longest 235. Measured the same way, a run of segments within a degree of the heading it started on, no river over 40 units is a single segment, and the longest straight stretch is 33 units, three and a half cells; a test holds every river on eight maps under five cells.
 
 Tributaries are drawn after the river they join and end on its line, the nearest point to their meeting cell, so every confluence touches. Width is 1.2 units at the threshold, plus 0.75 for each step of the square root of the area's multiple of it, up to 9, read off the chain's cell the same share of the way along by length. A river that ends on another's cell or a lake's takes its own last cell's area there, and so does its `RiverInfo.area`, so a river running into a lake isn't sized as the lake's whole inflow. A river rising where many small flows meet on flat ground starts already broad, so a river widens from 1.2 over its first 40 units.
 
@@ -155,23 +156,23 @@ Outward growth stays until Map 7, adapted only where the water and the move cost
 
 | | main | first cut | this |
 | --- | --- | --- | --- |
-| Steps, median | 1,508 | 1,161 | 1,319 |
-| Stretches, median | 214 | 168 | 186 |
-| Road, units, median | 30,731 | 23,766 | 26,939 |
-| Highways reaching the rim | 82% | 53% | 73% |
-| Stretches that kept their steps | 16 of 2,922 | 309 of 2,270 | 475 of 2,757 |
+| Steps, median | 1,508 | 1,161 | 1,334 |
+| Stretches, median | 214 | 168 | 189 |
+| Road, units, median | 30,731 | 23,766 | 27,118 |
+| Highways reaching the rim | 82% | 53% | 72% |
+| Stretches that kept their steps | 16 of 2,922 | 309 of 2,270 | 461 of 2,785 |
 
-By QA's count of what lies nearest ahead of a highway that stops short, main's 16 stopped at cliffs 14 times; the first cut's 42 at cliffs 32 times, rivers 5, and lakes 4; and these 24 at cliffs 16 times, rivers 3, and lakes 2, with nothing within 60 units of 3. The cliffs' share is main's again, and the stretched steps cross the rivers. Growth's checks don't cover how far roads reach, nothing else was tuned, and Map 7's least-cost links route through the passes instead.
+By QA's count of what lies nearest ahead of a highway that stops short, main's 16 stopped at cliffs 14 times; the first cut's 42 at cliffs 32 times, rivers 5, and lakes 4; and these 25 at cliffs 15 times, lakes 2, and a river once, with nothing within 60 units of 7. The cliffs' share is main's again, and the stretched steps cross the rivers. Growth's checks don't cover how far roads reach, nothing else was tuned, and Map 7's least-cost links route through the passes instead.
 
 ## Crossing the worker boundary
 
 `WaterSurface` is plain data: the routing's `receivers` and `area`, `moisture`, `lowland`, `canyons`, and `lakeDepth` as Float32Array, `lakeOf` as Int16Array, the rivers' `lines` packed end to end (points, a width per point, and offsets), and small lists of rivers and lakes. Its ten arrays go in the transfer list beside the land's seven, the terrain's badlands, and the network's two, and `decodeAreaMap` rebuilds the terrain over the land and the badlands it was sent, then `waterFromSurface({ terrain, surface })` the water over that, refreezing it and filing the river index, 0.3 ms at radius 1000. It refuses a surface for another grid or with arrays that don't fit. `encodeAreaMap` used to refuse a terrain with water; that refusal is gone.
 
-The water adds about 30 bytes a cell: 2 MB at radius 1000 and 5 MB at 1600, beside the land's 2.6 and 6.6. The badlands cross too, a Float32Array of 4 bytes a cell, since working them out takes a contamination sample a cell: the client rebuilds the terrain's fields in 13 ms at radius 1000 with them, against 20 without, where Map 4's whole decode took 11.
+The water adds about 30 bytes a cell: 2 MB at radius 1000 and 5 MB at 1600, beside the land's 2.6 and 6.6. The badlands cross too, a Float32Array of 4 bytes a cell, since working them out takes a contamination sample a cell: the client rebuilds the terrain's fields in 11 ms at radius 1000 with them, against 18 without, where Map 4's whole decode took 11.
 
 ## Rendering
 
-- The bake blends the land's colour (above), fills lakes from the depth field, a bilinear lookup per texel, with a darker shore where a texel beside one is dry, and draws craters as before. Cliffs are `cliffDepth` every second texel, closed (each node takes the most round it, then the least of that, which fills a gap or notch a node or two wide), and read bilinear with the edge anti-aliased over a texel by the field's own gradient. `scripts/area-map-bake-bench.mjs` now bakes the land with its water: a median of 99 ms at radius 1000 and 189 ms at 1600, over five environments by two seeds on the same shared desktop.
+- The bake blends the land's colour (above), fills lakes from the depth field, a bilinear lookup per texel, with a darker shore where a texel beside one is dry, and draws craters as before. Cliffs are `cliffDepth` every second texel, closed (each node takes the most round it, then the least of that, which fills a gap or notch a node or two wide), and read bilinear with the edge anti-aliased over a texel by the field's own gradient. `scripts/area-map-bake-bench.mjs` now bakes the land with its water: a median of 68 ms at radius 1000 and 119 ms at 1600, over five environments by two seeds on the same shared desktop.
 - Rivers draw live, under the fog and the roads, as runs of one width each, widths rounded to 0.75 units so a river widens in a few steps, at their world width but never under a pixel, simplified by zoom as the roads are, and fainter past the rim, where the land fades but the rivers go on. A `water` layer toggle turns them off.
 - Dam marks, river names, and the atlas palette are Map 19's.
 
@@ -183,16 +184,16 @@ Everything on the gameplay path is adds, multiplies, divides, compares, square r
 
 ## Performance
 
-`node scripts/terrain-bench.mjs --radii 800,1000,1200,1600 --runs 3 --seeds 3`, Node 24, the same shared desktop as Map 4's figures, busy enough that the same code's runs differ by a fifth: the water stage took 24 to 28 ms at radius 1000 in one run and 29 to 39 in the next, which this is. Medians of three seeds, with the rivers and lakes a map makes:
+`node scripts/terrain-bench.mjs --radii 800,1000,1200,1600 --runs 3 --seeds 3`, Node 24, the same shared desktop as Map 4's figures, busy enough that runs of the same code differ by a fifth or more; Mixed at radius 1600 is one slow run. Medians of three seeds, with the rivers and lakes a map makes:
 
 | Radius | Water stage, ms: Mixed | High Desert | Rust Belt | Floodlands | Badlands | Fields, ms: worker | client | Water rebuild, ms | Rivers | Lakes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 800 | 25 | 17 | 28 | 20 | 20 | 11.4 | 7.0 | 0.3 | 27 | 2 |
-| 1000 | 32 | 31 | 29 | 39 | 34 | 20.1 | 13.0 | 0.5 | 41 | 2 |
-| 1200 | 54 | 52 | 53 | 40 | 40 | 30.2 | 18.8 | 0.6 | 59 | 2 |
-| 1600 | 85 | 72 | 74 | 76 | 78 | 40.7 | 25.9 | 1.0 | 111 | 2 |
+| 800 | 19 | 17 | 17 | 20 | 20 | 10.3 | 6.3 | 0.2 | 27 | 2 |
+| 1000 | 30 | 25 | 28 | 26 | 40 | 17.6 | 10.6 | 0.3 | 41 | 2 |
+| 1200 | 52 | 52 | 52 | 44 | 50 | 32.1 | 18.5 | 0.6 | 59 | 2 |
+| 1600 | 114 | 68 | 68 | 72 | 76 | 42.4 | 26.4 | 0.7 | 111 | 2 |
 
-The water stage compares with the prototype's 40 to 50 ms at radius 1000 and the first cut's 22 to 32. Fields is `terrainFromSurface`: the worker builds the badlands, and the client, sent them, doesn't. The water's rebuild is `waterFromSurface`. Routing again, a priority flood, is about two fifths of the stage, and it's O(n log n) like erosion's; DDB-448's O(n) routing would speed both. Sampling at radius 1000, with water: a full sample 430 ns (455 on Map 4), elevation 152, slope 155, biome 314, impassable 55, and a 9-unit move's cost 624.
+The water stage compares with the prototype's 40 to 50 ms at radius 1000 and the first cut's 22 to 32. Fields is `terrainFromSurface`: the worker builds the badlands, and the client, sent them, doesn't. The water's rebuild is `waterFromSurface`. Routing again, a priority flood, is about two fifths of the stage, and it's O(n log n) like erosion's; DDB-448's O(n) routing would speed both. Sampling at radius 1000, with water: a full sample 430 ns (455 on Map 4), elevation 137, slope 135, biome 313, impassable 55, and a 9-unit move's cost 617.
 
 ## What Maps 6 to 8 get
 
@@ -205,7 +206,7 @@ The water stage compares with the prototype's 40 to 50 ms at radius 1000 and the
 - Every map moves: its moisture, biomes, rough country, cliffs, towns, and hotspots, and so its roads. Saves keep resolved params and regenerate the land, so a save made before this loads onto different water and biomes under the same roads, and DDB-296's generator version should count this change.
 - `Terrain.travelCost`, `TerrainSample.cost`, and `BIOME_COSTS` are gone; `moveCost` replaces them. `Obstacle` is `crater`, `lake`, `river`, or `cliff`.
 - Rough country follows the steep ground, and cliffs stand on its averaged grade at about main's share, a band per escarpment; the start reaches as much of the edge as on main or more (above).
-- On a closed basin, rivers running along the inside of the rim wander a little into the grid's outermost cells, past the disc: 229 points on the `rivers` 0 map of QA's sweep, against 108 for the first cut, where nothing leaves the map either way.
+- On a closed basin, rivers running along the inside of the rim wander a little into the grid's outermost cells, past the disc: 191 points on the `rivers` 0 map of QA's sweep, against 108 for the first cut, where nothing leaves the map either way.
 
 ## Provisional calls
 
@@ -214,7 +215,7 @@ Calls the spec and realistic-map.md left to the build, made the simplest way con
 1. Moisture before the rivers: the map's level, plus 0.55 either way of 650-unit, 2-octave noise, less 0.6 a unit of elevation. Rain 0.5 plus that moisture, times one plus 0.6 of the range mask.
 2. The routing's noise: one 80-unit octave of 0.0015 of elevation, grade under 0.01, rather than Garbrecht and Martz.
 3. The stream threshold: 700 cells of rain at `riverDensity` 0 to 110 at 1, linear.
-4. River lines: Douglas-Peucker at 0.6 of a cell, 0.35 of that past grade 0.15; three Chaikin passes; a point every half cell; a meander from 90-unit noise of 0.4 of a cell anywhere plus up to 1.4 cells at `riverMeander` 1, full below grade 0.015 and none past 0.06, tapering over 30 units at each end and held within 0.6 of the line's radius of curvature.
+4. River lines: Douglas-Peucker at 0.6 of a cell, 0.35 of that past grade 0.15; three Chaikin passes; points evenly a cell apart; a meander from 90-unit noise of 0.4 of a cell anywhere plus up to 1.4 cells at `riverMeander` 1, full below grade 0.015 and none past 0.06, tapering over 30 units at each end and held within 0.6 of the line's radius of curvature, eased away from tight bends; one more Chaikin pass.
 5. Width: 1.2 units at the threshold, plus 0.75 a step of the square root of the area's multiple of it, up to 9; widening from 1.2 over a source's first 40 units.
 6. Reservoirs: dams on rivers 3 to 80 times the threshold, in valleys 0.8 units deep three cells either side, past the relief radius and inside 0.88 of the radius, 0.25 of the radius apart; a wall three cells each side of the dam, square to the outflow; lakes joined side by side, or across a corner whose four cells average under the level, held below the lowest saddle; 30 to 220 cells, 0.5 to 30 units deep at the dam; 120 floods tried at most.
 7. Natural lakes: the land's pits 0.01 units wet, joined side by side, at least 4 cells and 0.25 units deep, in country of moisture 0.55 or more before the rivers. `lakes` 0 turns them off with the reservoirs.
