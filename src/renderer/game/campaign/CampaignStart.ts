@@ -1,8 +1,16 @@
 import { readArray, readFields, readInteger, readOneOf } from '../core/JsonReader';
 import campaignStartFile from '../data/campaign-start.json';
 import { ESCORT_CONFIGS, EscortType } from '../mechanics/Escort';
-import { MAX_CONVOY_ESCORTS, PLAYER_DRIVEN_VEHICLES } from '../mechanics/Team';
+import { MAX_CONVOY_ESCORTS } from '../mechanics/Team';
 import { RESOURCE_NAMES, Resources } from './Campaign';
+
+/**
+ * A full run's seats: two drivers, no two alike (load out's pair rule). A
+ * compound is founded able to send one, so its starting pool and its
+ * unlocked archetypes hold at least this many. A run down to its last
+ * driver seats fewer, but no campaign starts that way.
+ */
+export const FULL_RUN_SEATS = 2;
 
 /**
  * What a new campaign starts with (Compound and Supply Runs, Founding the
@@ -40,7 +48,7 @@ export function readCampaignStart(value: unknown, path: string): CampaignStart {
 		throw new RangeError(`${path}.escorts must hold at most ${MAX_CONVOY_ESCORTS}, as many as the convoy takes, got ${escorts.length}`);
 	}
 	return Object.freeze({
-		poolSize: readInteger(fields.poolSize, `${path}.poolSize`, { min: PLAYER_DRIVEN_VEHICLES }),
+		poolSize: readInteger(fields.poolSize, `${path}.poolSize`, { min: FULL_RUN_SEATS }),
 		resources: Object.freeze(resources),
 		escorts: Object.freeze(escorts.map((type, index) => readOneOf(type, `${path}.escorts[${index}]`, ESCORT_TYPES)))
 	});

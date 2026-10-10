@@ -23,6 +23,19 @@ export function assertDriverPair(drivers: Driver[]): asserts drivers is [Driver,
 }
 
 /**
+ * Throws unless `drivers` is one driver, or two different drivers: a fight's
+ * seats, which can be down to one when a run has lost a driver
+ * (solo-driver-fights.md). Two seats keep the pairing rule.
+ */
+export function assertDriverSeats(drivers: readonly Driver[]): asserts drivers is readonly [Driver] | readonly [Driver, Driver] {
+	if (drivers.length === 1) return;
+	if (drivers.length !== 2) {
+		throw new Error(`Combat seats one or two drivers, not ${drivers.length}`);
+	}
+	assertDriverPair([...drivers]);
+}
+
+/**
  * Index of the first driver at or after `fromIndex`, wrapping around, that
  * isn't `partner`. Returns -1 when every driver is the partner.
  */

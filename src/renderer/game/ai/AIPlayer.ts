@@ -2,7 +2,7 @@ import { Battle } from '../mechanics/Battle';
 import { Team } from '../mechanics/Team';
 import { Vehicle } from '../mechanics/Vehicle';
 import { Driver } from '../mechanics/Driver';
-import { Card } from '../mechanics/Card';
+import { Card, TargetType } from '../mechanics/Card';
 import { BoardProjection } from '../mechanics/BoardProjection';
 import { preferredTargets } from '../mechanics/RaiderArchetype';
 import { AIDecision, GameStateEvaluation, TeamEvaluation, VehicleEvaluation } from './types';
@@ -73,39 +73,36 @@ export abstract class AIPlayer {
 		};
 	}
 
+	/**
+	 * Every play the team could make now, each card with each legal target,
+	 * then ending the turn. Each living occupant plays from the vehicle they
+	 * ride in, a passenger included, so a driver riding in an escort after
+	 * their wreck still plays their orders. A raider's plan is its driver's
+	 * alone, since the enemy turn plays it as theirs (planEnemyTurn).
+	 */
 	protected generatePossibleActions(): AIDecision[] {
 		const actions: AIDecision[] = [];
 
 		for (const vehicle of this.team.vehicles) {
-			if (vehicle.isOutOfFight || !vehicle.driver) continue;
+			if (vehicle.isOutOfFight) continue;
 			if (this.board.actor && vehicle !== this.board.actor) continue;
 
-			const driver = vehicle.driver;
-			
-			for (const card of this.board.handOf(driver)) {
-				if (this.board.adrenalineOf(driver) < card.cost) continue;
+			for (const driver of this.actingOccupants(vehicle)) {
+				for (const card of this.board.handOf(driver)) {
+					if (!this.canPlay({ driver, card })) continue;
 
-				const validTargets = this.getValidTargets(card, vehicle);
-				
-				if (validTargets.length === 0 && this.cardRequiresTarget(card)) {
-					continue;
-				}
-
-				if (validTargets.length > 0) {
-					for (const target of validTargets) {
-						actions.push({
-							type: 'playCard',
-							card,
-							driver,
-							target
-						});
+					const validTargets = this.getValidTargets(card, vehicle);
+					if (validTargets.length === 0 && this.cardRequiresTarget(card)) {
+						continue;
 					}
-				} else {
-					actions.push({
-						type: 'playCard',
-						card,
-						driver
-					});
+
+					if (validTargets.length > 0) {
+						for (const target of validTargets) {
+							actions.push({ type: 'playCard', card, driver, target });
+						}
+					} else {
+						actions.push({ type: 'playCard', card, driver });
+					}
 				}
 			}
 		}
@@ -116,45 +113,50 @@ export abstract class AIPlayer {
 	}
 
 	/**
+	 * Who plays cards from this vehicle: its living driver and passenger, or
+	 * only its driver while a raider plans (see generatePossibleActions)
+	 */
+	protected actingOccupants(vehicle: Vehicle): Driver[] {
+		const occupants = this.board.actor ? [vehicle.driver] : [vehicle.driver, vehicle.passenger];
+		return occupants.filter((occupant): occupant is Driver => occupant?.isAlive() ?? false);
+	}
+
+	/**
+	 * Whether a driver could play this card now on the board being judged:
+	 * its cost from their projected adrenaline, no attacks from a passenger,
+	 * and the battle's own check on the convoy (a signature card needs a
+	 * living escort of its type, Rally the Convoy a ready escort), which
+	 * playCard would otherwise refuse
+	 */
+	protected canPlay({ driver, card }: { driver: Driver; card: Card }): boolean {
+		if (this.board.adrenalineOf(driver) < card.cost) return false;
+		if (card.isAttack && !driver.canPlayAttackCards()) return false;
+		return this.battle.getCardBlocker({ driver, card }) === null;
+	}
+
+	/**
 	 * The targets the battle's targeting rules accept for this card, narrowed
 	 * to the ones a raider's archetype prefers when any of them is legal
 	 */
 	protected getValidTargets(card: Card, sourceVehicle: Vehicle): Vehicle[] {
-		// First get potential targets based on target type
-		let potentialTargets: Vehicle[] = [];
-		
-		switch (card.targetType) {
-			case 'enemy_single':
-				const enemyTeam = this.team === this.battle.playerTeam ? 
-					this.battle.enemyTeam : this.battle.playerTeam;
-				potentialTargets = enemyTeam.vehicles.filter(v => !v.isOutOfFight);
+		const inFight = (vehicles: readonly Vehicle[]): Vehicle[] => vehicles.filter(vehicle => !vehicle.isOutOfFight);
+		const theirs = (): Vehicle[] => inFight((this.team === this.battle.playerTeam ? this.battle.enemyTeam : this.battle.playerTeam).vehicles);
+		let potentialTargets: Vehicle[];
+		switch (AIPlayer.aimedAt(card.targetType)) {
+			case 'theirs':
+				potentialTargets = theirs();
 				break;
-			
-			case 'enemy_all':
-				// Enemy all cards don't need specific targets - handled by battle system
+			case 'ours':
+				potentialTargets = inFight(this.team.vehicles);
 				break;
-			
-			case 'ally':
-				potentialTargets = this.team.vehicles.filter(v => !v.isOutOfFight);
+			case 'escorts':
+				potentialTargets = inFight(this.team.escorts);
 				break;
-			
-			case 'self':
-				// Self-targeting cards don't need an explicit target
-				// The battle system will handle this automatically
-				break;
-			
-			case 'both_drivers':
-				// Both drivers cards don't need an explicit target
-				// The battle system will handle this automatically
-				break;
-				
 			case 'any':
-				// 'Any' target type means it can target any vehicle
-				potentialTargets = [
-					...this.team.vehicles.filter(v => !v.isOutOfFight),
-					...(this.team === this.battle.playerTeam ?
-						this.battle.enemyTeam : this.battle.playerTeam).vehicles.filter(v => !v.isOutOfFight)
-				];
+				potentialTargets = [...inFight(this.team.vehicles), ...theirs()];
+				break;
+			case null:
+				potentialTargets = [];
 				break;
 		}
 
@@ -166,9 +168,35 @@ export abstract class AIPlayer {
 		return preferredTargets({ archetype, card, targets: legalTargets });
 	}
 
+	/**
+	 * Which vehicles a card of this target type is aimed at: the other side's,
+	 * the team's own (an ally card), the team's escorts (a buff order such as
+	 * Draw Fire or Close Ranks), or any; null for one the battle aims itself,
+	 * at the caster's vehicle or every raider
+	 */
+	private static aimedAt(targetType: TargetType): 'theirs' | 'ours' | 'escorts' | 'any' | null {
+		switch (targetType) {
+			case 'enemy_single':
+				return 'theirs';
+			case 'ally':
+				return 'ours';
+			case 'escort':
+				return 'escorts';
+			case 'any':
+				return 'any';
+			case 'self':
+			case 'both_drivers':
+			case 'enemy_all':
+				return null;
+			default: {
+				const unknown: never = targetType;
+				throw new Error(`Unknown target type ${String(unknown)}`);
+			}
+		}
+	}
+
+	/** A card the player aims, rather than one the battle aims itself */
 	protected cardRequiresTarget(card: Card): boolean {
-		// Only enemy_single, ally and any cards require explicit targets
-		// self, both_drivers, and enemy_all are handled automatically by the battle system
-		return ['enemy_single', 'ally', 'any'].includes(card.targetType || '');
+		return AIPlayer.aimedAt(card.targetType) !== null;
 	}
 }
