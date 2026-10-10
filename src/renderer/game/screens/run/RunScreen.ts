@@ -377,7 +377,11 @@ export class RunScreen extends Screen {
 			await this.step(() => passQuietStop({ campaign }), 'The road was quiet.');
 			return;
 		}
-		if (this.busy || this.stranded || !this.cards) return;
+		if (this.busy || this.stranded) return;
+		if (!this.cards) {
+			this.showLine({ line: this.report, text: "The cards couldn't be loaded, so the fight can't start.", color: 'status_crit' });
+			return;
+		}
 		this.busy = true;
 		let fight: CampaignFight;
 		try {
