@@ -102,14 +102,15 @@ function reachable(terrain: Terrain, points: readonly { x: number; y: number }[]
 	return points.map(({ x, y }) => reached[Math.floor((y + radius) / cell) * cells + Math.floor((x + radius) / cell)] === 1);
 }
 
-/** World units from the compound to an exit. */
+/** World units from the compound to an exit at the rim, before it comes in. */
 const exitDistance = (terrain: Terrain) => terrain.radius - EXITS.inset * terrain.surface.grid.cellSize;
 
 /**
- * The ground an exit stands on by bearing, as the places stage scores it: the
- * grade there and a cell further in, or Infinity unless the flood fill from
- * the metro reached the square under it and no river's water is within the
- * clearance.
+ * The ground an exit stands on by bearing, as the places stage scores it:
+ * coming in from the rim a cell at a time, the first point whose square the
+ * flood fill from the metro reached, with no river's water within the
+ * clearance, and the grade there and a cell further in, plus the cost of
+ * coming in; Infinity when none within the depth will do.
  */
 function exitGround({ terrain, water }: { terrain: Terrain; water: Water }): (bearing: number) => number {
 	const { grid } = terrain.surface;
@@ -117,13 +118,15 @@ function exitGround({ terrain, water }: { terrain: Terrain; water: Water }): (be
 	const squares = grid.size - 1;
 	return (bearing) => {
 		const { x, y } = unitVector(bearing, { x: 0, y: 0 });
-		const at1 = exitDistance(terrain);
-		const at2 = at1 - grid.cellSize;
-		const [x1, y1, x2, y2] = [x * at1, y * at1, x * at2, y * at2];
-		const column = Math.floor((x1 + grid.halfExtent) / grid.cellSize - 0.5);
-		const row = Math.floor((y1 + grid.halfExtent) / grid.cellSize - 0.5);
-		if (reached[row * squares + column] !== 1 || water.nearRiver(x1, y1, RIVER_CLEARANCE)) return Infinity;
-		return 0.5 * (terrain.grade(x1, y1) + terrain.grade(x2, y2));
+		for (let depth = 0; depth <= EXITS.depth; depth += 1) {
+			const at = exitDistance(terrain) - depth * grid.cellSize;
+			const column = Math.floor((x * at + grid.halfExtent) / grid.cellSize - 0.5);
+			const row = Math.floor((y * at + grid.halfExtent) / grid.cellSize - 0.5);
+			if (reached[row * squares + column] !== 1 || water.nearRiver(x * at, y * at, RIVER_CLEARANCE)) continue;
+			const inner = at - grid.cellSize;
+			return 0.5 * (terrain.grade(x * at, y * at) + terrain.grade(x * inner, y * inner)) + EXITS.inward * depth;
+		}
+		return Infinity;
 	};
 }
 
@@ -403,10 +406,19 @@ describe('generatePlaces', () => {
 				expect(inGap).toHaveLength(arc(exit.bearing, next.bearing) >= EXITS.backGap ? 1 : 0);
 			});
 			backRoads.forEach((back) => highways.forEach((exit) => expect(apart(back.bearing, exit.bearing)).toBeGreaterThanOrEqual(EXITS.backClearance - 1e-9)));
+			// At the rim, or a whole number of cells in from it where the rim itself won't do.
+			const { terrain } = build(set);
+			let inward = 0;
 			places.exits.forEach((exit) => {
-				expect(Math.hypot(exit.x, exit.y)).toBeCloseTo(exitDistance(build(set).terrain), 9);
-				expect(exit.x).toBeCloseTo(exitDistance(build(set).terrain) * Math.cos(exit.bearing * Math.PI / 180), 9);
+				const distance = Math.hypot(exit.x, exit.y);
+				const depth = Math.round((exitDistance(terrain) - distance) / terrain.surface.grid.cellSize);
+				expect(depth).toBeGreaterThanOrEqual(0);
+				expect(depth).toBeLessThanOrEqual(EXITS.depth);
+				if (depth > 0) inward += 1;
+				expect(distance).toBeCloseTo(exitDistance(terrain) - depth * terrain.surface.grid.cellSize, 9);
+				expect(exit.x).toBeCloseTo(distance * Math.cos(exit.bearing * Math.PI / 180), 9);
 			});
+			expect(inward).toBeLessThan(places.exits.length / 2);
 		});
 
 		it.each(SETS)('slides each highway exit to gentler ground a road reaches, turning the set only where its bearings find none, in %s', (_name, set) => {

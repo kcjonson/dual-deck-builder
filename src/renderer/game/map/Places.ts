@@ -145,17 +145,19 @@ export const CROSSROADS = { sparse: 140, dense: 70, others: 0.75, metro: 0.5, gr
 /**
  * Exits: `inset` land cells in from the rim, so the square between cell
  * centres under one lies wholly inside the disc, where the flood fill from
- * the metro can reach it. Each slides up to `slide` degrees either way, in
- * `step`s, to the gentlest ground a road from the metro surely reaches, its
- * grade averaged there and a cell further in, paying `penalty` of grade a
- * degree it slides, and never so far it could come within
+ * the metro can reach it; or, where a cliff, a lake, or a river's water
+ * stands there, the first point a road surely reaches coming in along the
+ * bearing, up to `depth` cells further, paying `inward` of grade a cell. Each
+ * slides up to `slide` degrees either way, in `step`s, to the gentlest such
+ * ground, its grade averaged there and a cell further in, paying `penalty`
+ * of grade a degree it slides, and never so far it could come within
  * `highwaySeparation` of the next. Where some highway exit finds no such
  * ground, the whole set turns a `step` at a time, either way up to half the
  * gap between exits, until every one does. A back-road exit goes in each gap
  * between highway exits `backGap` degrees wide or more, at least
  * `backClearance` from either side, unless it finds no such ground.
  */
-export const EXITS = { inset: 1.5, slide: 8, step: 1, penalty: 0.0175, backGap: 30, backClearance: 12 } as const;
+export const EXITS = { inset: 1.5, depth: 6, inward: 0.02, slide: 8, step: 1, penalty: 0.0175, backGap: 30, backClearance: 12 } as const;
 /** Jittered sets of bearings drawn, at most, for one that keeps `highwaySeparation`, before the last is pulled in to fit. */
 const BEARING_DRAWS = 16;
 
@@ -553,7 +555,6 @@ class RimGround {
 	private readonly reached: Uint8Array;
 	private readonly grid: LandGrid;
 	private readonly at1: number;
-	private readonly at2: number;
 	private readonly direction = { x: 0, y: 0 };
 
 	constructor({ terrain, water, reached, radius }: { terrain: Terrain; water: Pick<Water, 'nearRiver'>; reached: Uint8Array; radius: number }) {
@@ -562,13 +563,13 @@ class RimGround {
 		this.reached = reached;
 		this.grid = terrain.surface.grid;
 		this.at1 = radius - EXITS.inset * this.grid.cellSize;
-		this.at2 = this.at1 - this.grid.cellSize;
 	}
 
-	/** The exit's point on `bearing`. */
+	/** The exit's point on `bearing`: the first a road surely reaches, coming in from the rim, or the rim's when none is. */
 	public at(bearing: number): { x: number; y: number } {
-		unitVector(bearing, this.direction);
-		return { x: this.direction.x * this.at1, y: this.direction.y * this.at1 };
+		const depth = this.depth(bearing);
+		const distance = this.at1 - (depth < 0 ? 0 : depth) * this.grid.cellSize;
+		return { x: this.direction.x * distance, y: this.direction.y * distance };
 	}
 
 	/**
@@ -596,18 +597,37 @@ class RimGround {
 	}
 
 	/**
-	 * The grade averaged at the exit's point and a cell further in; Infinity
-	 * unless the square under the point is one the flood fill from the metro
-	 * reached and no river's water lies within `RIVER_CLEARANCE` of it.
+	 * The grade averaged at the exit's point and a cell further in, plus
+	 * `EXITS.inward` a cell it had to come in from the rim; Infinity when no
+	 * point within `EXITS.depth` cells of the rim on the bearing will do.
 	 */
 	private grade(bearing: number): number {
+		const depth = this.depth(bearing);
+		if (depth < 0) return Infinity;
 		const { terrain, direction } = this;
+		const distance = this.at1 - depth * this.grid.cellSize;
+		const inner = distance - this.grid.cellSize;
+		return 0.5 * (terrain.grade(direction.x * distance, direction.y * distance) + terrain.grade(direction.x * inner, direction.y * inner)) + EXITS.inward * depth;
+	}
+
+	/**
+	 * How many cells in from the exit's place at the rim, along `bearing`, the
+	 * first point is whose square the flood fill from the metro reached and
+	 * that no river's water lies within `RIVER_CLEARANCE` of; -1 when none
+	 * within `EXITS.depth` cells is. Leaves the bearing's unit vector in
+	 * `direction`.
+	 */
+	private depth(bearing: number): number {
+		const { direction, grid } = this;
 		unitVector(bearing, direction);
-		const x1 = direction.x * this.at1;
-		const y1 = direction.y * this.at1;
-		const square = squareAt(this.grid, x1, y1);
-		if (square < 0 || this.reached[square] !== 1 || this.water.nearRiver(x1, y1, RIVER_CLEARANCE)) return Infinity;
-		return 0.5 * (terrain.grade(x1, y1) + terrain.grade(direction.x * this.at2, direction.y * this.at2));
+		for (let depth = 0; depth <= EXITS.depth; depth += 1) {
+			const distance = this.at1 - depth * grid.cellSize;
+			const x = direction.x * distance;
+			const y = direction.y * distance;
+			const square = squareAt(grid, x, y);
+			if (square >= 0 && this.reached[square] === 1 && !this.water.nearRiver(x, y, RIVER_CLEARANCE)) return depth;
+		}
+		return -1;
 	}
 }
 
