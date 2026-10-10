@@ -83,7 +83,19 @@ export interface CardMove {
 	to: CardPlace;
 	/** 1 when left out. */
 	count?: number;
+	/**
+	 * With a run deck at one end, which of its copies move: coming out, the
+	 * driver's own (`own`, left at home) or borrowed ones (`borrowed`, back to
+	 * the locker); going in, the driver's own from home (`home`) or new ones
+	 * from the locker (`borrowed`). Left out, the rules pick: borrowed copies
+	 * out first, the driver's own in first.
+	 */
+	copies?: RunDeckCopies;
 }
+
+/** Which of a run deck's copies a move can be for (`CardMove.copies`). */
+export const RUN_DECK_COPIES = ['own', 'borrowed', 'home'] as const;
+export type RunDeckCopies = (typeof RUN_DECK_COPIES)[number];
 
 /**
  * Why the rules refuse a card move, a scrap, or a purchase, which the Crew
@@ -93,7 +105,11 @@ export interface CardMove {
  * their run deck until it's unwound, a place holding too few copies, the
  * locker holding too few because the other seated driver borrowed the rest
  * (`by`), a run deck whose copies of the card are escort cards locked there
- * (`broughtBy`, the first of them), or a deck whose rules say no
+ * (`broughtBy`, the first of them), a run deck asked to borrow a card while
+ * some of the driver's own are left at home, which come back first
+ * (`own_at_home`), or to leave one of the driver's own at home while copies
+ * of it are borrowed, which go back first (`borrowed_first`), `held` being
+ * how many wait first, or a deck whose rules say no
  * (`DeckBlocker`). A purchase the stores can't pay for has no place: the
  * stores hold less scrap than it costs, and nor does anything once the
  * campaign is over (`campaign_over`), which its `end` says how.
@@ -105,6 +121,8 @@ export type CardBlocker =
 	| { reason: 'too_few'; place: CardPlace; held: number }
 	| { reason: 'already_borrowed'; place: 'locker'; held: number; by: RunDeck }
 	| { reason: 'card_locked'; place: RunDeck; broughtBy: string }
+	| { reason: 'own_at_home'; place: RunDeck; held: number }
+	| { reason: 'borrowed_first'; place: RunDeck; held: number }
 	| { reason: 'too_little_scrap'; needed: number; held: number }
 	| (DeckBlocker & { place: DriverRecord | RunDeck });
 
@@ -505,16 +523,20 @@ export class Campaign extends Model<CampaignData> {
 	 * holds fewer than `count`, the card is marked for another archetype than
 	 * `to`'s driver, `to`'s deck would go past the most it holds, or `from`'s
 	 * under the fewest (`DECK_RULES`). Between the locker and a run deck, the
-	 * same order: its driver is away; the locker holds too few for it
+	 * same order: its driver is away; for `copies`, the copies that move
+	 * first are waiting (`own_at_home` to borrow, `borrowed_first` to leave
+	 * the driver's own at home); the locker holds too few for it
 	 * (`already_borrowed` when the other run deck borrowed what's missing),
 	 * or the run deck does (`card_locked` when its copies are escort cards);
 	 * then the deck rules on the run deck's own and borrowed copies, which is
-	 * what the limits count.
+	 * what the limits count. It works out no stores, so a screen can ask it
+	 * of every control on every change.
 	 *
 	 * Throws, as `moveCards` does, on a move no rule covers: a malformed card
 	 * type or count, a place to itself, a driver outside this campaign's
-	 * pool, a run deck it doesn't have, or a run deck and anywhere but the
-	 * locker. A record's listener can see half a move, so the Crew screen
+	 * pool, a run deck it doesn't have, a run deck and anywhere but the
+	 * locker, `copies` without a run deck, and `own` going into one or `home`
+	 * coming out. A record's listener can see half a move, so the Crew screen
 	 * asks again on the campaign's `change`, not a record's.
 	 */
 	public getCardMoveBlocker(move: CardMove): CardBlocker | null {
@@ -529,7 +551,8 @@ export class Campaign extends Model<CampaignData> {
 	 * going into a run deck are the driver's own left at home first, then
 	 * the locker's, borrowed; copies coming out go back to the locker if
 	 * they were borrowed, first, and stay at home if they're the driver's
-	 * own. A move never makes or loses a copy, so each copy stays in exactly
+	 * own. `copies` names which move, and is refused when the others come
+	 * first. A move never makes or loses a copy, so each copy stays in exactly
 	 * one place. Throws a `CardRuleError`, moving nothing, when
 	 * `getCardMoveBlocker` refuses it, and a `CampaignOverError` when it
 	 * refuses because the campaign is over.
@@ -553,7 +576,16 @@ export class Campaign extends Model<CampaignData> {
 			throw cardRefusal({ blocker: plan.blocker, action: 'move cards', message: () => blockerMessage({ blocker: plan.blocker as CardBlocker, verb, cardType, count }) });
 		}
 		if (plan.kind === 'run_deck') {
-			this.set({ runDecks: plan.runDecks, locker: plan.locker });
+			// Signed by direction: going in, copies leave home and the locker; coming out, they go back to them.
+			const { deck, home, locker, sign } = plan;
+			this.set({
+				runDecks: this.withRunDeck(deck.with({
+					own: shiftCards(deck.own, cardType, sign * home),
+					leftHome: shiftCards(deck.leftHome, cardType, -sign * home),
+					borrowed: shiftCards(deck.borrowed, cardType, sign * locker)
+				})),
+				locker: shiftCards(this.locker, cardType, -sign * locker)
+			});
 			return;
 		}
 		const { from, to, source, target } = plan;
@@ -705,21 +737,39 @@ export class Campaign extends Model<CampaignData> {
 	}
 
 	/**
+	 * Why `resetRunDeck` would refuse this run deck, or null if it would
+	 * reset it: the campaign is over (`campaign_over`), or its driver is dead
+	 * or missing (`driver_away`), since folding what they left at home into
+	 * what went would lose it when their run deck is unwound. Throws for a
+	 * driver with no run deck here.
+	 */
+	public getResetRunDeckBlocker({ runDeck }: { runDeck: RunDeck }): CardBlocker | null {
+		if (this.end !== null) return { reason: 'campaign_over', end: this.end };
+		const deck = this.currentRunDeck(runDeck);
+		return isAtCompound(deck.driver) ? null : { reason: 'driver_away', place: deck.driver };
+	}
+
+	/**
 	 * Customize's "Reset to default": the run deck goes back to its driver's
 	 * whole default deck, everything left at home going after all and
 	 * everything borrowed back in the locker, in one `set`. Escort cards stay
-	 * where they are. Throws a `CardRuleError` (`driver_away`) for a driver
-	 * who's dead or missing, since folding what they left at home into what
-	 * went would lose it when their run deck is unwound, and a plain error
-	 * for a driver with no run deck here.
+	 * where they are. Throws, changing nothing, when `getResetRunDeckBlocker`
+	 * refuses: a `CampaignOverError` once the campaign is over, else a
+	 * `CardRuleError`.
 	 */
 	public resetRunDeck({ runDeck }: { runDeck: RunDeck }): void {
-		refuseOver({ campaign: this, action: 'reset a run deck' });
-		const deck = this.currentRunDeck(runDeck);
-		if (!isAtCompound(deck.driver)) {
-			const blocker: CardBlocker = { reason: 'driver_away', place: deck.driver };
-			throw new CardRuleError({ message: `${describeDriver(deck.driver)} is ${deck.driver.status}, so their run deck can't be reset`, blocker });
+		const blocker = this.getResetRunDeckBlocker({ runDeck });
+		if (blocker !== null) {
+			throw cardRefusal({
+				blocker,
+				action: 'reset a run deck',
+				// A campaign that's over throws its own error before this is asked for.
+				message: () => (blocker.reason === 'driver_away'
+					? `${describeDriver(blocker.place)} is ${blocker.place.status}, so their run deck can't be reset`
+					: `${placeName(runDeck)} can't be reset`),
+			});
 		}
+		const deck = this.currentRunDeck(runDeck);
 		this.set({
 			runDecks: this.withRunDeck(deck.with({ own: deck.defaultDeck, leftHome: NO_CARDS, borrowed: NO_CARDS })),
 			locker: addCounts(this.locker, deck.borrowed)
@@ -994,16 +1044,19 @@ export class Campaign extends Model<CampaignData> {
 	}
 
 	/**
-	 * A move checked against the rules, with what `moveCards` stores: the
-	 * counts each end holds now, for a move between the locker and default
-	 * decks, or the run decks and locker after it. Every deck rule reads a
-	 * deck's counts and its driver's archetype.
+	 * A move checked against the rules, with what `moveCards` needs to store
+	 * it: the counts each end holds now, for a move between the locker and
+	 * default decks, or how many copies come from home and how many from the
+	 * locker, for a run deck. Every deck rule reads a deck's counts and its
+	 * driver's archetype.
 	 */
-	private checkMove({ cardType, from, to, count = 1 }: CardMove): MovePlan {
+	private checkMove({ cardType, from, to, count = 1, copies }: CardMove): MovePlan {
 		readCardType(cardType, 'cardType');
 		readInteger(count, 'count', { min: 1 });
+		if (copies !== undefined) readOneOf(copies, 'copies', RUN_DECK_COPIES);
 		if (this.end !== null) return { blocker: { reason: 'campaign_over', end: this.end } };
-		if (from instanceof RunDeck || to instanceof RunDeck) return this.checkRunDeckMove({ cardType, from, to, count });
+		if (from instanceof RunDeck || to instanceof RunDeck) return this.checkRunDeckMove({ cardType, from, to, count, copies });
+		if (copies !== undefined) throw new RangeError(`copies names a run deck's copies, and neither ${placeName(from)} nor ${placeName(to)} is a run deck`);
 		if (from === to) throw new RangeError(`Can't move ${cardType} from ${placeName(from)} to itself`);
 		const source = this.countsAt(from);
 		const target = this.countsAt(to);
@@ -1030,9 +1083,10 @@ export class Campaign extends Model<CampaignData> {
 	 * A move between the locker and a run deck. Going in, the driver's own
 	 * copies left at home go first, then the locker's, borrowed; coming out,
 	 * borrowed copies go back to the locker first, then the driver's own stay
-	 * home. Escort cards never move this way.
+	 * home. `copies` asks for one kind, refused while the other comes first.
+	 * Escort cards never move this way.
 	 */
-	private checkRunDeckMove({ cardType, from, to, count }: Required<CardMove>): MovePlan {
+	private checkRunDeckMove({ cardType, from, to, count, copies }: Required<Omit<CardMove, 'copies'>> & Pick<CardMove, 'copies'>): MovePlan {
 		const going = to instanceof RunDeck;
 		const end = (going ? to : from) as RunDeck;
 		const other = going ? from : to;
@@ -1040,10 +1094,16 @@ export class Campaign extends Model<CampaignData> {
 			if (other instanceof RunDeck && other.driver === end.driver) throw new RangeError(`Can't move ${cardType} from ${placeName(from)} to itself`);
 			throw new RangeError(`Cards move between a run deck and the locker, not from ${placeName(from)} to ${placeName(to)}; escort cards move with moveEscortCard`);
 		}
+		if (copies === (going ? 'own' : 'home')) {
+			throw new RangeError(going ? "Copies going into a run deck come from home or the locker, not 'own'" : "Copies coming out of a run deck are the driver's own or borrowed, not 'home'");
+		}
 		const deck = this.currentRunDeck(end);
 		if (!isAtCompound(deck.driver)) return { blocker: { reason: 'driver_away', place: deck.driver } };
+		const home = cardCount(deck.leftHome, cardType);
 		if (going) {
-			const fromHome = Math.min(count, cardCount(deck.leftHome, cardType));
+			if (copies === 'borrowed' && home > 0) return { blocker: { reason: 'own_at_home', place: deck, held: home } };
+			if (copies === 'home' && home < count) return { blocker: { reason: 'too_few', place: deck, held: home } };
+			const fromHome = copies === 'borrowed' ? 0 : Math.min(count, home);
 			const fromLocker = count - fromHome;
 			const inLocker = cardCount(this.locker, cardType);
 			if (inLocker < fromLocker) {
@@ -1053,36 +1113,19 @@ export class Campaign extends Model<CampaignData> {
 			}
 			const blocker = deckAddBlocker({ deck: deck.cards, archetype: deck.driver.archetype, cardType, count });
 			if (blocker !== null) return { blocker: { ...blocker, place: deck } };
-			return {
-				blocker: null,
-				kind: 'run_deck',
-				runDecks: this.withRunDeck(deck.with({
-					own: shiftCards(deck.own, cardType, fromHome),
-					leftHome: shiftCards(deck.leftHome, cardType, -fromHome),
-					borrowed: shiftCards(deck.borrowed, cardType, fromLocker)
-				})),
-				locker: shiftCards(this.locker, cardType, -fromLocker)
-			};
+			return { blocker: null, kind: 'run_deck', deck, home: fromHome, locker: fromLocker, sign: 1 };
 		}
-		const held = cardCount(deck.cards, cardType);
+		const borrowed = cardCount(deck.borrowed, cardType);
+		const held = copies === 'own' ? cardCount(deck.own, cardType) : copies === 'borrowed' ? borrowed : cardCount(deck.cards, cardType);
 		if (held < count) {
 			const locked = deck.escortCards.find(card => card.cardType === cardType);
 			return { blocker: locked ? { reason: 'card_locked', place: deck, broughtBy: locked.broughtBy } : { reason: 'too_few', place: deck, held } };
 		}
+		if (copies === 'own' && borrowed > 0) return { blocker: { reason: 'borrowed_first', place: deck, held: borrowed } };
 		const blocker = deckRemoveBlocker({ deck: deck.cards, count });
 		if (blocker !== null) return { blocker: { ...blocker, place: deck } };
-		const toLocker = Math.min(count, cardCount(deck.borrowed, cardType));
-		const toHome = count - toLocker;
-		return {
-			blocker: null,
-			kind: 'run_deck',
-			runDecks: this.withRunDeck(deck.with({
-				borrowed: shiftCards(deck.borrowed, cardType, -toLocker),
-				own: shiftCards(deck.own, cardType, -toHome),
-				leftHome: shiftCards(deck.leftHome, cardType, toHome)
-			})),
-			locker: shiftCards(this.locker, cardType, toLocker)
-		};
+		const toLocker = copies === 'own' ? 0 : Math.min(count, borrowed);
+		return { blocker: null, kind: 'run_deck', deck, home: count - toLocker, locker: toLocker, sign: -1 };
 	}
 
 	/** An escort card's move checked, with the run decks at each end. */
@@ -1215,7 +1258,8 @@ export class Campaign extends Model<CampaignData> {
 type MovePlan =
 	| { blocker: CardBlocker }
 	| { blocker: null; kind: 'decks'; from: 'locker' | DriverRecord; to: 'locker' | DriverRecord; source: CardCounts; target: CardCounts }
-	| { blocker: null; kind: 'run_deck'; runDecks: readonly RunDeck[]; locker: CardCounts };
+	/** `home` copies to or from home and `locker` to or from the locker; `sign` is 1 going into the run deck and -1 coming out. */
+	| { blocker: null; kind: 'run_deck'; deck: RunDeck; home: number; locker: number; sign: 1 | -1 };
 
 type EscortCardPlan =
 	| { blocker: CardBlocker; card: EscortCard | null }
@@ -1246,7 +1290,12 @@ function blockerMessage({ blocker, verb, cardType, count }: { blocker: CardBlock
 			return `Can't take ${count} ${cardType} into a run deck, with ${available(blocker.held)}: ${describeDriver(blocker.by.driver)} has borrowed the rest`;
 		case 'card_locked':
 			return `The ${cardType} ${blocker.broughtBy} brought is locked in ${placeName(blocker.place)}`;
+		case 'own_at_home':
+			return `Can't borrow ${count} ${cardType} into ${placeName(blocker.place)}: the ${blocker.held} of the driver's own left at home come back first`;
+		case 'borrowed_first':
+			return `Can't leave ${count} of the driver's own ${cardType} at home while ${blocker.held} borrowed are in ${placeName(blocker.place)}: borrowed copies go back first`;
 		case 'too_few':
+			if (verb === 'take' && blocker.place instanceof RunDeck) return `Can't bring ${count} ${cardType} back into ${placeName(blocker.place)}, which left ${blocker.held} at home`;
 			if (verb === 'take') return `Can't take ${count} ${cardType} into a run deck, with ${available(blocker.held)}`;
 			return `Can't ${verb} ${count} ${cardType} from ${placeName(blocker.place)}, which holds ${blocker.held}`;
 		case 'other_archetype':

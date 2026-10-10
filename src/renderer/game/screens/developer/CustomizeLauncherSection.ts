@@ -10,12 +10,11 @@ import { CAMPAIGN_FIXTURE } from '../../campaign/__fixtures__/storeFixtures';
 const BUTTON_WIDTH = 200;
 
 /**
- * Customize (DDB-321) has no way in until load out (DDB-320) is built, so
- * this opens it on the test campaign's run, one seat or the other: a card
- * left at home, one borrowed, and an escort card in seat 1. Changes save
- * into memory, so the player's save is left alone, and Done comes back
- * here. In the gallery, where no screens are mounted, the buttons do
- * nothing.
+ * A developer way into Customize (DDB-321), beside load out's (DDB-320):
+ * the test campaign's run, one seat or the other, with a card left at
+ * home, one borrowed, and an escort card in seat 1. Changes save into
+ * memory, so the player's save is left alone, and Done comes back here. In
+ * the gallery, where no screens are mounted, the buttons do nothing.
  */
 export class CustomizeLauncherSection extends CatalogSection {
 	constructor(options: DeveloperSectionOptions = {}) {

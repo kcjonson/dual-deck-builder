@@ -245,7 +245,7 @@ export const developerSections: readonly DeveloperSection[] = [
 		name: 'combat-dock-crashed-out',
 		build: (options) => new CombatDockCrashedOutSection(options),
 	},
-	// Opens Customize on the test campaign's run until load out can (DDB-321)
+	// Opens Customize on the test campaign's run, a developer way in beside load out's (DDB-321)
 	{
 		name: 'customize',
 		build: (options) => new CustomizeLauncherSection(options),

@@ -187,6 +187,8 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	// The dock's worst cases, gated at both sizes as the combat screen is (DDB-136)
 	{ scene: 'combat-dock', lintShort: true },
 	{ scene: 'combat-dock-crashed-out', lintShort: true },
+	// The developer way into Customize (DDB-321)
+	{ scene: 'customize' },
 ];
 
 /** A scene at one window size, and the name its golden and text record go by there. */

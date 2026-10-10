@@ -6,7 +6,7 @@ import { createTestContext } from '../../../engine/components/testing';
 import type { MountContext } from '../../../engine/components/MountContext';
 import type { Text } from '../../../engine/components/Text';
 import type { Button } from '../../../engine/ui/Button';
-import { key, send } from '../../../engine/services/testing';
+import { click, key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
@@ -33,9 +33,9 @@ import { CardLookup, deckOrder } from '../../ui/DriverDetailView';
 import { cardData, lookup } from '../../ui/testing';
 import { CARD_ENTRY } from '../../ui/deckBuilder/CardEntryGrid';
 import type { CardEntryGrid } from '../../ui/deckBuilder/CardEntryGrid';
-import { ROSTER_WIDTH } from '../crew/CrewScreen';
-import { CustomizeScreen, LOCKER_KICKER } from './CustomizeScreen';
-import { YOURS_AT_HOME, giveLabel } from './customizeText';
+import { DECK_BUILDER } from '../../ui/deckBuilder/DeckBuilder';
+import { CustomizeScreen } from './CustomizeScreen';
+import { LOCKER_KICKERS, giveLabel } from './customizeText';
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -190,13 +190,14 @@ describe('CustomizeScreen', () => {
 			expect(grid('deck').entryFor('medical_kit-borrowed')?.card.miniState).toBe('borrowed');
 		});
 
-		it('gives each stack one-fewer and one-more, live only where the move changes that stack, with nothing said for the rest', () => {
+		it('gives each stack one-fewer and one-more for its own copies, saying nothing where the run deck has no such copy to move', () => {
 			// Nothing at home: the own stack's one-more is off with no line, as under a full stack on the wireframe.
 			expect(live('deck', 'armor_plating')).toEqual([true, false]);
 			expect(reason('deck', 'armor_plating')).toBe('');
 			// The fixture borrowed the locker's only Medical Kit.
 			expect(live('deck', 'medical_kit-borrowed')).toEqual([true, false]);
 			expect(reason('deck', 'medical_kit-borrowed')).toBe('None left');
+			// Both Nitro Boosts are at home, so there's none of the driver's own left to leave there.
 			expect(live('deck', 'nitro_boost-home')).toEqual([false, true]);
 			expect(reason('deck', 'nitro_boost-home')).toBe('');
 			expect(grid('deck').entryFor('armor_plating')?.control('fewer')?.label).toBe('-');
@@ -206,7 +207,7 @@ describe('CustomizeScreen', () => {
 		it("shows the locker after the other seat's borrowing, each card with Borrow", () => {
 			expect(keys('pool').sort()).toEqual(['emp_blast', 'headshot', 'ramming_speed']);
 			for (const cardType of keys('pool')) expect(live('pool', cardType)).toEqual([true]);
-			expect(find<{ kicker: string }>('customize_pool_panel').kicker).toBe(LOCKER_KICKER);
+			expect(find<{ kicker: string }>('customize_pool_panel').kicker).toBe(LOCKER_KICKERS.pair);
 		});
 
 		it('shows the escort card in this run deck, locked, with a control that gives it to the other seat', () => {
@@ -260,9 +261,10 @@ describe('CustomizeScreen', () => {
 			expect(loaded.locker.ramming_speed).toBeUndefined();
 		});
 
-		it("puts a borrowed copy back with one-fewer, and the own stack's one-fewer stays off while copies are borrowed", async () => {
+		it("puts a borrowed copy back with one-fewer, and the own stack's one-fewer says borrowed copies go first", async () => {
 			press(control('pool', 'ramming_speed', 'borrow'));
 			expect(live('deck', 'ramming_speed')).toEqual([false, false]);
+			expect(reason('deck', 'ramming_speed')).toBe('Borrowed go first');
 			press(control('deck', 'ramming_speed-borrowed', 'fewer'));
 			expect(grid('deck').entryFor('ramming_speed-borrowed')).toBeNull();
 			expect(live('deck', 'ramming_speed')).toEqual([true, false]);
@@ -306,7 +308,7 @@ describe('CustomizeScreen', () => {
 			expect(reason('pool', 'precision_shot')).toBe('Interceptor only');
 			expect(grid('pool').entryFor('precision_shot')?.card.miniState).toBe('unavailable');
 			expect(live('pool', 'nitro_boost')).toEqual([false]);
-			expect(reason('pool', 'nitro_boost')).toBe(YOURS_AT_HOME);
+			expect(reason('pool', 'nitro_boost')).toBe('Yours at home');
 			expect(grid('pool').entryFor('nitro_boost')?.card.miniState).toBeNull();
 		});
 
@@ -393,6 +395,55 @@ describe('CustomizeScreen', () => {
 			expect(context.focus.focused?.id).toBe('customize_deck_grid_armor_plating_card');
 		});
 
+		it("leaves another of the driver's own at home from the HOME stack's one-fewer", () => {
+			press(control('deck', 'armor_plating', 'fewer'));
+			press(control('deck', 'armor_plating-home', 'fewer'));
+			expect(entries('deck')).toContainEqual(['armor_plating', 1, null]);
+			expect(entries('deck')).toContainEqual(['armor_plating-home', 2, 'home']);
+		});
+
+		it("keeps focus on the card's own stack when HOME's one-more brings its last copy back", () => {
+			press(control('deck', 'nitro_boost-home', 'more'));
+			send(context, [key('Enter')]);
+			context.frame.layout();
+			expect(grid('deck').entryFor('nitro_boost-home')).toBeNull();
+			expect(context.focus.focused?.id).toBe('customize_deck_grid_nitro_boost_card');
+		});
+
+		it("keeps focus on the card's own stack when +N's one-fewer puts its last borrowed copy back", () => {
+			press(control('pool', 'ramming_speed', 'borrow'));
+			press(control('deck', 'ramming_speed-borrowed', 'fewer'));
+			expect(grid('deck').entryFor('ramming_speed-borrowed')).toBeNull();
+			expect(context.focus.focused?.id).toBe('customize_deck_grid_ramming_speed_card');
+		});
+
+		it('lands on the mini, not a control, of the card in its place when a +N stack with no own copies empties, so the next press moves nothing', () => {
+			const order = keys('deck');
+			const next = order[order.indexOf('medical_kit-borrowed') + 1];
+			press(control('deck', 'medical_kit-borrowed', 'fewer'));
+			expect(context.focus.focused?.id).toBe(`customize_deck_grid_${next}_card`);
+			const before = entries('deck');
+			send(context, [key('Enter')]);
+			context.frame.layout();
+			expect(entries('deck')).toEqual(before);
+		});
+
+		it("turns Reset off when the rules refuse it, the driver being away", () => {
+			campaign().drivers[0].set({ status: 'missing' });
+			// The screen reads the campaign again on its change, not a record's.
+			campaign().set({ locker: { ...campaign().locker, ram: 1 } });
+			context.frame.layout();
+			expect(campaign().runDecks[0].isCustomized).toBe(true);
+			expect(find<Button>('customize_reset_button').enabled).toBe(false);
+		});
+
+		it("pins the driver card's detail view on a secondary click, as the Crew screen's roster does", () => {
+			const card = find<DriverCard>('customize_driver_card');
+			const { x, y, width, height } = card.screenBounds;
+			click(context, x + width / 2, y + height / 2, { button: 2 });
+			expect(context.tooltips.pinned).toBe(card);
+		});
+
 		it("keeps focus in the locker when Borrow takes a card's last copy: on the Borrow of the card now in its place", () => {
 			const order = keys('pool');
 			const index = order.indexOf('emp_blast');
@@ -427,6 +478,34 @@ describe('CustomizeScreen', () => {
 		expect(find<Button>('customize_reset_button').enabled).toBe(false);
 		send(context, [key('Escape')]);
 		expect(navigate).toHaveBeenLastCalledWith('developerScreen', { campaign: handed }, { restoreFocus: true });
+	});
+
+	it('hands back what it was handed to hand back, with the campaign', async () => {
+		const handed = fullRunCampaign();
+		screen = new CustomizeScreen({ store: storeOver(new FaultyStorage()), cards: async () => lookup });
+		screen.mount(context, { campaign: handed, returnTo: 'developerScreen', returnData: { route: 'route-2', campaign: 'stale' } });
+		await screen.campaignLoaded;
+		find<Button>('customize_done_button').onClick?.({} as never);
+		expect(navigate).toHaveBeenLastCalledWith('developerScreen', { route: 'route-2', campaign: handed }, { restoreFocus: true });
+	});
+
+	it('on a run with one seat, offers no escort card control and says the locker is all free to borrow', async () => {
+		await open({ text: soloText() });
+		expect(find<{ title: string }>('customize_side_panel').title).toBe('Driver 1 of 1');
+		expect(keys('escort')).toEqual(['escort-1']);
+		expect(grid('escort').views[0].control('give')).toBeNull();
+		expect(reason('escort', 'escort-1')).toBe('');
+		expect(find<{ kicker: string }>('customize_pool_panel').kicker).toBe(LOCKER_KICKERS.solo);
+	});
+
+	it('says the cards are loading, or failed to, in place of the escort cards too', async () => {
+		storage = storageWith(fixtureText());
+		screen = new CustomizeScreen({ store: storeOver(storage), cards: () => new Promise<CardLookup>(() => undefined) });
+		screen.mount(context);
+		await flush();
+		context.frame.layout();
+		expect(screen.driver?.id).toBe('driver-1');
+		expect([find<Text>('customize_escort_empty').visible, text('customize_escort_empty')]).toEqual([true, 'Loading the cards.']);
 	});
 
 	it('saves into the store it is handed in place of its own, which the developer launcher uses to leave the save alone', async () => {
@@ -511,6 +590,7 @@ describe('CustomizeScreen', () => {
 		expect(entries('deck')).toEqual([]);
 		expect(text('customize_deck_empty')).toBe("The cards couldn't be loaded.");
 		expect(text('customize_pool_empty')).toBe("The cards couldn't be loaded.");
+		expect([find<Text>('customize_escort_empty').visible, text('customize_escort_empty')]).toEqual([true, "The cards couldn't be loaded."]);
 	});
 
 	describe('laid out in the real faces', () => {
@@ -525,7 +605,7 @@ describe('CustomizeScreen', () => {
 			await openMeasured(size);
 			expect(lintAt(size)).toEqual([]);
 			expect(bounds('customize_deck_home').y).toBe(bounds('customize_deck_size').y);
-			expect(bounds('customize_side_panel').width).toBe(ROSTER_WIDTH);
+			expect(bounds('customize_side_panel').width).toBe(DECK_BUILDER.sideWidth);
 		});
 
 		/** 44 kinds of card for the locker, past what cards.json holds, each named as a shipped card is. */
@@ -574,6 +654,11 @@ describe('CustomizeScreen', () => {
 			expect(lintAt(size)).toEqual([]);
 		});
 
+		it.each(sizes)('lays out a run with one seat, its escort card with no control, with no lint at $width x $height', async (size) => {
+			await openMeasured(size, { text: soloText() });
+			expect(lintAt(size)).toEqual([]);
+		});
+
 		it.each(sizes)('lays out a campaign that is over with no lint at $width x $height', async (size) => {
 			await openMeasured(size, { text: fallenText() });
 			expect(lintAt(size)).toEqual([]);
@@ -588,10 +673,9 @@ describe('CustomizeScreen', () => {
 			expect(lintAt(size)).toEqual([]);
 		});
 
-		it('fits the escort control and the reason only this screen gives on one line under a card', async () => {
+		// Every reason under a card, the run deck's own included, is measured by the Crew screen's test.
+		it('fits the escort control on one line under its card', async () => {
 			await openMeasured({ width: 1024, height: 600 });
-			const reason = context.draw.measureText({ text: YOURS_AT_HOME, font: 'body', size: CARD_ENTRY.reason.size });
-			expect(reason.width).toBeLessThanOrEqual(CARD_ENTRY.width);
 			const give = control('escort', 'escort-1', 'give');
 			for (const label of [giveLabel(1), giveLabel(2)]) {
 				const measured = context.draw.measureText({ text: label, font: 'display', size: tokens.control.control_fs_sm });
@@ -600,6 +684,16 @@ describe('CustomizeScreen', () => {
 		});
 	});
 });
+
+/** The fixture's run with its first seat alone, as a run of one saves: the second seat home with their run deck back as their default deck. */
+function soloText(): string {
+	return fixtureText((json) => {
+		const drivers = json.drivers as Record<string, unknown>[];
+		const [first, second] = json.runDecks as { own: Record<string, number> }[];
+		json.runDecks = [first];
+		drivers[4] = { ...drivers[4], defaultDeck: second.own };
+	});
+}
 
 /** The fixture home from its run with nobody left at the compound, the campaign over, as a save holds it. */
 function fallenText(): string {

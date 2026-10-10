@@ -40,7 +40,8 @@ import { cardData, lookup } from '../../ui/testing';
 import { CARD_ENTRY } from '../../ui/deckBuilder/CardEntryGrid';
 import type { CardEntryGrid } from '../../ui/deckBuilder/CardEntryGrid';
 import { NO_DRIVER } from './crewSources';
-import { CrewScreen, ROSTER_WIDTH } from './CrewScreen';
+import { CrewScreen } from './CrewScreen';
+import { DECK_BUILDER } from '../../ui/deckBuilder/DeckBuilder';
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -525,7 +526,7 @@ describe('CrewScreen', () => {
 			}
 			expect(find<{ overflows: boolean }>('crew_pool_scroll').overflows).toBe(true);
 			const roster = bounds('crew_roster_panel');
-			expect(roster.width).toBe(ROSTER_WIDTH);
+			expect(roster.width).toBe(DECK_BUILDER.sideWidth);
 			const [first, second] = find<{ children: readonly DriverCard[] }>('crew_roster_pool').children;
 			expect(second.screenBounds.y).toBe(first.screenBounds.y);
 			for (const id of ['crew_top_bar', 'crew_pool_panel', 'crew_deck_panel']) {
@@ -642,6 +643,8 @@ describe('CrewScreen', () => {
 				too_few: [{ reason: 'too_few', place: 'locker', held: 0 }],
 				already_borrowed: [{ reason: 'already_borrowed', place: 'locker', held: 0, by: runDeck }],
 				card_locked: [{ reason: 'card_locked', place: runDeck, broughtBy: 'escort-12' }],
+				own_at_home: [{ reason: 'own_at_home', place: runDeck, held: 2 }],
+				borrowed_first: [{ reason: 'borrowed_first', place: runDeck, held: 1 }],
 				too_little_scrap: [{ reason: 'too_little_scrap', needed: 9999, held: 0 }],
 				other_archetype: DRIVER_ARCHETYPES.map((archetype) => ({ reason: 'other_archetype', archetype, place: driver })),
 				deck_full: [{ reason: 'deck_full', max: 20, place: driver }],

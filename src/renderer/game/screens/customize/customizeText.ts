@@ -8,15 +8,23 @@ import type { DriverRecord } from '../../campaign/DriverRecord';
 import type { RunDeck } from '../../campaign/RunDeck';
 import { countOf } from '../main-menu/campaignText';
 
-/**
- * Why Borrow is off for a card the driver left some of their own at home:
- * those come back first (run-decks.md), so the HOME stack's one-more is the
- * way to take another.
- */
-export const YOURS_AT_HOME = 'Yours at home';
-
 /** Under the run deck, from the wireframe: what borrowing risks. */
 export const RUN_DECK_FOOT = "Borrowed cards come back with the driver. If the driver dies, they're lost with the deck.";
+
+/**
+ * Over the locker, which holds only what's free (`campaign.locker`): with
+ * two seats, the other seat's borrowing is out of it. Each fits the panel
+ * at 1024 px.
+ */
+export const LOCKER_KICKERS = {
+	pair: "Copies the other seat hasn't borrowed",
+	solo: 'Spare copies, free to borrow',
+} as const;
+
+/** The locker's kicker for a run with this many seats. */
+export function lockerKicker(seats: number): string {
+	return seats > 1 ? LOCKER_KICKERS.pair : LOCKER_KICKERS.solo;
+}
 
 /**
  * In place of the run deck and the locker once the campaign is over, which
@@ -52,14 +60,9 @@ export function leftHomeText(deck: RunDeck): string {
 	return `LEFT HOME ${totalCards(deck.leftHome)}`;
 }
 
-/** Whether the run deck differs from the default deck it was copied from, which Reset to default undoes. */
-export function isCustomized(deck: RunDeck): boolean {
-	return totalCards(deck.leftHome) > 0 || totalCards(deck.borrowed) > 0;
-}
-
 /** Under the driver card: whether the run deck is the default deck, and if not, how it differs. */
 export function runDeckNote(deck: RunDeck): string {
-	if (!isCustomized(deck)) return 'Same as the default deck. Change anything here and it applies to this run only.';
+	if (!deck.isCustomized) return 'Same as the default deck. Change anything here and it applies to this run only.';
 	const home = totalCards(deck.leftHome);
 	const borrowed = totalCards(deck.borrowed);
 	const changes = [home > 0 ? `${countOf(home, 'card')} left at home` : '', borrowed > 0 ? `${borrowed} borrowed` : ''].filter((change) => change !== '');
@@ -68,6 +71,9 @@ export function runDeckNote(deck: RunDeck): string {
 
 /** Under the escort cards, from the wireframe. */
 export const ESCORT_NOTE = 'Locked, and outside the size limit.';
+
+/** What the escort cards' place says when there are none to show. */
+export const NO_ESCORT_CARDS = 'None in this run deck.';
 
 /** An escort card's control, giving it to the other seat, named as load out names seats. */
 export function giveLabel(seat: number | null): string {

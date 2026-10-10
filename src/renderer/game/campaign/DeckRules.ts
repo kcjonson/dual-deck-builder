@@ -92,6 +92,16 @@ export function cardArchetype(cardType: string): DriverArchetype | null {
 	return CARD_CATALOGUE.get(cardType)?.archetype ?? null;
 }
 
+/**
+ * Whether a card is marked for an archetype other than `archetype`, so it
+ * can never go in that driver's deck, whatever else would refuse it first:
+ * the deck builders fade it.
+ */
+export function isForOtherArchetype({ cardType, archetype }: { cardType: string; archetype: DriverArchetype }): boolean {
+	const marked = cardArchetype(cardType);
+	return marked !== null && marked !== archetype;
+}
+
 /** What the log calls a card: its name in cards.json, or its card type for one the file no longer lists. */
 export function cardName(cardType: string): string {
 	return CARD_CATALOGUE.get(cardType)?.name ?? cardType;
@@ -129,8 +139,7 @@ export function deckAddBlocker({ deck, archetype, cardType, count }: {
 	cardType: string;
 	count: number;
 }): DeckBlocker | null {
-	const marked = cardArchetype(cardType);
-	if (marked !== null && marked !== archetype) return { reason: 'other_archetype', archetype: marked };
+	if (isForOtherArchetype({ cardType, archetype })) return { reason: 'other_archetype', archetype: cardArchetype(cardType) as DriverArchetype };
 	const { max } = DECK_RULES.deckSize;
 	return totalCards(deck) + count > max ? { reason: 'deck_full', max } : null;
 }

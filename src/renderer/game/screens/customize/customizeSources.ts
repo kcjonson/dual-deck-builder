@@ -1,11 +1,10 @@
-import type { Campaign, CardMove } from '../../campaign/Campaign';
+import type { CardBlocker, CardMove, Campaign } from '../../campaign/Campaign';
 import { cardBlockerReason } from '../../campaign/cardBlockerText';
-import { NO_CARDS, cardCount } from '../../campaign/CardCounts';
-import { deckAddBlocker } from '../../campaign/DeckRules';
+import { isForOtherArchetype } from '../../campaign/DeckRules';
 import type { DriverRecord } from '../../campaign/DriverRecord';
-import type { RunDeck } from '../../campaign/RunDeck';
+import { RunDeck } from '../../campaign/RunDeck';
 import type { CardControl, CardEntry, CardSource } from '../../ui/deckBuilder/cardSource';
-import { YOURS_AT_HOME, giveLabel, seatOf } from './customizeText';
+import { giveLabel, seatOf } from './customizeText';
 
 export interface CustomizeSourceOptions {
 	campaign: Campaign;
@@ -24,53 +23,50 @@ export const STACK_KEYS = {
 /**
  * The run deck (Game Flow 1.2, Customize): a card's own copies going, its
  * copies borrowed from the locker (dashed, "+N"), and its copies left at
- * home (faded, HOME), each a stack of its own with one-fewer and one-more
- * controls. Each control is `moveCards` between the run deck and the
- * locker, whose order decides which stack it acts on: copies come out
- * borrowed first, then the driver's own stay home, and go in from home
- * first, then borrowed (run-decks.md). So a control is live only on the
- * stack its move changes, and disabled with no line of its own elsewhere:
- * one-more on a stack with nothing at home ("full", as on the wireframe),
- * one-fewer on the own stack while copies of the card are borrowed, and
- * one-fewer on HOME. A live control that the rules refuse says why
- * (`getCardMoveBlocker`).
+ * home (faded, HOME), each a stack of its own with one-fewer and one-more.
+ * Each control is `moveCards` between the run deck and the locker for the
+ * copies its stack holds (`CardMove.copies`): on the own and HOME stacks,
+ * one of the driver's own going home or coming back; on the +N stack, a
+ * borrowed copy going back or another borrowed. The rules say why one
+ * can't, the move order included (borrowed copies go back before the
+ * driver's own stay home, and the driver's own come back before anything's
+ * borrowed), and the line under the card says so, except where the run
+ * deck itself has no such copy to move: a full stack's one-more, as on the
+ * wireframe, says nothing. A +N or HOME stack that empties hands focus to
+ * its card's plain stack (`focusHeir`).
  */
 export function runDeckSource({ campaign, driver, changed }: CustomizeSourceOptions): CardSource {
 	return {
 		entries: (): CardEntry[] => {
 			const deck = campaign.runDeckOf(driver);
 			if (!deck) return [];
-			const move = { campaign, deck, changed };
-			const entries: CardEntry[] = [];
-			for (const [cardType, copies] of Object.entries(deck.own)) {
-				entries.push({
-					cardType,
-					copies,
-					controls: [
-						fewer({ ...move, cardType, live: cardCount(deck.borrowed, cardType) === 0 }),
-						more({ ...move, cardType, live: cardCount(deck.leftHome, cardType) > 0 }),
-					],
-				});
-			}
-			for (const [cardType, copies] of Object.entries(deck.borrowed)) {
-				entries.push({
+			const control = (cardType: string, key: 'fewer' | 'more', copies: 'own' | 'borrowed' | 'home'): CardControl => moveControl({
+				key,
+				label: key === 'fewer' ? '-' : '+',
+				campaign,
+				changed,
+				move: key === 'fewer' ? { cardType, from: deck, to: 'locker', copies } : { cardType, from: 'locker', to: deck, copies },
+			});
+			const ownControls = (cardType: string): CardControl[] => [control(cardType, 'fewer', 'own'), control(cardType, 'more', 'home')];
+			return [
+				...Object.entries(deck.own).map(([cardType, copies]): CardEntry => ({ cardType, copies, controls: ownControls(cardType) })),
+				...Object.entries(deck.borrowed).map(([cardType, copies]): CardEntry => ({
 					key: STACK_KEYS.borrowed(cardType),
 					cardType,
 					copies,
 					state: 'borrowed',
-					controls: [fewer({ ...move, cardType, live: true }), more({ ...move, cardType, live: true })],
-				});
-			}
-			for (const [cardType, copies] of Object.entries(deck.leftHome)) {
-				entries.push({
+					focusHeir: cardType,
+					controls: [control(cardType, 'fewer', 'borrowed'), control(cardType, 'more', 'borrowed')],
+				})),
+				...Object.entries(deck.leftHome).map(([cardType, copies]): CardEntry => ({
 					key: STACK_KEYS.home(cardType),
 					cardType,
 					copies,
 					state: 'home',
-					controls: [fewer({ ...move, cardType, live: false }), more({ ...move, cardType, live: true })],
-				});
-			}
-			return entries;
+					focusHeir: cardType,
+					controls: ownControls(cardType),
+				})),
+			];
 		},
 	};
 }
@@ -78,34 +74,21 @@ export function runDeckSource({ campaign, driver, changed }: CustomizeSourceOpti
 /**
  * The locker after the other seat's borrowing (`campaign.locker` holds
  * only what's free), each card with Borrow, disabled with the rules'
- * reason when the run deck is full or the card is for another archetype,
- * which is faded as on the Crew screen, or with `YOURS_AT_HOME` when the
- * driver left some of their own at home, which would come back instead.
+ * reason: the run deck is full, the card is for another archetype, which
+ * is faded as on the Crew screen, or the driver left some of their own at
+ * home, which come back first.
  */
 export function customizeLockerSource({ campaign, driver, changed }: CustomizeSourceOptions): CardSource {
 	return {
 		entries: (): CardEntry[] => {
 			const deck = campaign.runDeckOf(driver);
 			if (!deck) return [];
-			return Object.entries(campaign.locker).map(([cardType, copies]) => {
-				const otherArchetype = deckAddBlocker({ deck: NO_CARDS, archetype: driver.archetype, cardType, count: 1 })?.reason === 'other_archetype';
-				const blocker = campaign.getCardMoveBlocker({ cardType, from: 'locker', to: deck });
-				const home = cardCount(deck.leftHome, cardType) > 0;
-				return {
-					cardType,
-					copies,
-					state: otherArchetype ? 'unavailable' : null,
-					controls: [{
-						key: 'borrow',
-						label: 'Borrow',
-						reason: blocker ? cardBlockerReason(blocker) : home ? YOURS_AT_HOME : null,
-						run: () => {
-							campaign.moveCards({ cardType, from: 'locker', to: deck });
-							changed();
-						},
-					}],
-				};
-			});
+			return Object.entries(campaign.locker).map(([cardType, copies]) => ({
+				cardType,
+				copies,
+				state: isForOtherArchetype({ cardType, archetype: driver.archetype }) ? 'unavailable' : null,
+				controls: [moveControl({ key: 'borrow', label: 'Borrow', campaign, changed, move: { cardType, from: 'locker', to: deck, copies: 'borrowed' } })],
+			}));
 		},
 	};
 }
@@ -113,7 +96,8 @@ export function customizeLockerSource({ campaign, driver, changed }: CustomizeSo
 /**
  * The escort cards in the run deck, each locked, with a control that gives
  * it to the other seat (`moveEscortCard`), disabled with the rules' reason
- * when either driver is away. Keyed by the escort that brought it, in
+ * when either driver is away. On a run with one seat there's nobody to give
+ * one to, so there's no control. Keyed by the escort that brought it, in
  * escort order, as the run deck holds them.
  */
 export function escortCardSource({ campaign, driver, changed }: CustomizeSourceOptions): CardSource {
@@ -122,64 +106,55 @@ export function escortCardSource({ campaign, driver, changed }: CustomizeSourceO
 			const deck = campaign.runDeckOf(driver);
 			if (!deck) return [];
 			const partner = campaign.runDecks.find((other) => other.driver !== driver) ?? null;
-			const seat = partner ? seatOf({ campaign, driver: partner.driver }) : null;
-			return deck.escortCards.map(({ cardType, broughtBy }) => {
-				const blocker = partner ? campaign.getEscortCardMoveBlocker({ broughtBy, to: partner }) : null;
-				return {
-					key: broughtBy,
-					cardType,
-					copies: 1,
-					state: 'locked',
-					controls: [{
-						key: 'give',
-						label: giveLabel(seat),
-						reason: blocker ? cardBlockerReason(blocker) : null,
-						disabled: partner === null,
-						run: () => {
-							if (!partner) return;
-							campaign.moveEscortCard({ broughtBy, to: partner });
-							changed();
-						},
-					}],
-				};
-			});
+			return deck.escortCards.map(({ cardType, broughtBy }) => ({
+				key: broughtBy,
+				cardType,
+				copies: 1,
+				state: 'locked',
+				controls: partner ? [giveControl({ campaign, broughtBy, partner, changed })] : [],
+			}));
 		},
 	};
 }
 
-interface MoveOptions {
-	campaign: Campaign;
-	/** Any snapshot stands for the driver's run deck as it is now. */
-	deck: RunDeck;
-	cardType: string;
-	changed: () => void;
-	/** Whether the move would change this stack; a control that wouldn't is disabled with nothing to say. */
-	live: boolean;
-}
-
-/** One copy out of the run deck: back to the locker if borrowed, else left at home. */
-function fewer({ campaign, deck, cardType, changed, live }: MoveOptions): CardControl {
-	return moveControl({ key: 'fewer', label: '-', live, campaign, changed, move: { cardType, from: deck, to: 'locker' } });
-}
-
-/** One copy into the run deck: one of the driver's own from home if any, else borrowed. */
-function more({ campaign, deck, cardType, changed, live }: MoveOptions): CardControl {
-	return moveControl({ key: 'more', label: '+', live, campaign, changed, move: { cardType, from: 'locker', to: deck } });
-}
-
-function moveControl({ key, label, live, campaign, changed, move }: {
-	key: string;
-	label: string;
-	live: boolean;
-	campaign: Campaign;
-	changed: () => void;
-	move: CardMove;
-}): CardControl {
-	const run = (): void => {
-		campaign.moveCards(move);
-		changed();
+function giveControl({ campaign, broughtBy, partner, changed }: { campaign: Campaign; broughtBy: string; partner: RunDeck; changed: () => void }): CardControl {
+	const blocker = campaign.getEscortCardMoveBlocker({ broughtBy, to: partner });
+	return {
+		key: 'give',
+		label: giveLabel(seatOf({ campaign, driver: partner.driver })),
+		reason: blocker ? cardBlockerReason(blocker) : null,
+		run: () => {
+			campaign.moveEscortCard({ broughtBy, to: partner });
+			changed();
+		},
 	};
-	if (!live) return { key, label, reason: null, disabled: true, run };
+}
+
+/**
+ * A control that makes a move, disabled with the rules' reason when they
+ * refuse it, or with nothing said when the run deck holds no such copy to
+ * move (`isQuiet`).
+ */
+function moveControl({ key, label, campaign, changed, move }: { key: string; label: string; campaign: Campaign; changed: () => void; move: CardMove }): CardControl {
 	const blocker = campaign.getCardMoveBlocker(move);
-	return { key, label, reason: blocker ? cardBlockerReason(blocker) : null, run };
+	return {
+		key,
+		label,
+		reason: blocker && !isQuiet(blocker) ? cardBlockerReason(blocker) : null,
+		disabled: blocker !== null,
+		run: () => {
+			campaign.moveCards(move);
+			changed();
+		},
+	};
+}
+
+/**
+ * A run deck short of the copies a control would move: nothing at home to
+ * bring back under a full stack, or none of the driver's own left to leave
+ * home under HOME. The stack's own count says it, so the line under the
+ * card stays free for a reason that tells the player something.
+ */
+function isQuiet(blocker: CardBlocker): boolean {
+	return blocker.reason === 'too_few' && blocker.place instanceof RunDeck;
 }
