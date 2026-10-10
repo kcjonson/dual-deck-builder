@@ -5,6 +5,18 @@ const common = require('./webpack.common.js');
 const mode = process.env.NODE_ENV === 'production' ? 'production' : 'development';
 const devtool = process.env.NODE_ENV === 'production' ? 'source-map' : 'eval-source-map';
 
+// Each compiler gets its own ts-loader program, and by default that program is
+// everything tsconfig.json includes (all of src, tests too), about 900 MB of
+// heap apiece. The renderer's program already type-checks all of it in this
+// same process, so main and preload only compile what they bundle; three full
+// programs at once ran the macOS runner out of heap.
+const nodeSideTypeScriptRule = {
+	test: /\.tsx?$/,
+	loader: 'ts-loader',
+	exclude: /node_modules/,
+	options: { onlyCompileBundledFiles: true },
+};
+
 // Main and preload are Node-side bundles; the renderer is the same web app
 // as the browser build, emitted into dist/electron/renderer so its entry
 // names can't collide with main.js/preload.js.
@@ -21,13 +33,7 @@ const mainConfig = {
 		path: path.resolve(__dirname, '../dist/electron'),
 	},
 	module: {
-		rules: [
-			{
-				test: /\.tsx?$/,
-				use: 'ts-loader',
-				exclude: /node_modules/,
-			},
-		],
+		rules: [nodeSideTypeScriptRule],
 	},
 	resolve: {
 		extensions: ['.ts', '.js'],
@@ -51,13 +57,7 @@ const preloadConfig = {
 		path: path.resolve(__dirname, '../dist/electron'),
 	},
 	module: {
-		rules: [
-			{
-				test: /\.tsx?$/,
-				use: 'ts-loader',
-				exclude: /node_modules/,
-			},
-		],
+		rules: [nodeSideTypeScriptRule],
 	},
 	resolve: {
 		extensions: ['.ts', '.js'],
