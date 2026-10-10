@@ -36,6 +36,7 @@ const FALLEN_BUTTON_WIDTH = 160;
 
 const PLAN_REASON = "Load out and the run route aren't built yet.";
 const NO_RUMORS = 'Radio: no new rumors';
+const NO_CAMPAIGN = 'Opens with a campaign in progress.';
 
 /** What New Campaign and Continue hand the compound screen: the campaign, as the store saves it. */
 export interface CompoundScreenData {
@@ -54,12 +55,13 @@ export interface CompoundScreenOptions {
  * needs panel (food and water forecasts, injured drivers, rumors) over Rest
  * and Plan a supply run.
  *
- * Nothing behind the buildings, the Area map, or Plan a supply run exists
- * yet, so each is disabled with its reason as a line of text, as the main
- * menu's Continue is: a disabled control takes no focus or hover (R9.5),
- * and a tooltip needs one of them (R12.22). The Area map's reason is the
- * Map room's, on its tile, which leaves the top bar room for the stores.
- * Rest is live: it ends the day (`endDay`) and checkpoints the campaign.
+ * The bunkhouse opens the Crew screen with the campaign. Nothing behind the
+ * other buildings, the Area map, or Plan a supply run exists yet, so each
+ * is disabled with its reason as a line of text, as the main menu's
+ * Continue is: a disabled control takes no focus or hover (R9.5), and a
+ * tooltip needs one of them (R12.22). The Area map's reason is the Map
+ * room's, on its tile, which leaves the top bar room for the stores. Rest
+ * is live: it ends the day (`endDay`) and checkpoints the campaign.
  *
  * Focus starts on Back to menu, not Rest, so a stray Enter can't spend a
  * day. The buildings and the two actions are focus groups (R9.29), and
@@ -81,6 +83,8 @@ export class CompoundScreen extends Screen {
 	private report: Text | null = null;
 	private saveError: Text | null = null;
 	private fallen: Dialog | null = null;
+	/** The buttons of buildings whose screens exist, enabled once there's a campaign to open them with, and the lines saying so until then. */
+	private readonly liveBuildings: { button: Button; waiting: Text }[] = [];
 	private unsubscribe: (() => void) | null = null;
 	private resting = false;
 	/** Counts mounts and unmounts, so an answer that arrives after the screen has gone changes nothing. */
@@ -132,7 +136,7 @@ export class CompoundScreen extends Screen {
 			padding: space.space_4,
 			gap: space.space_4,
 		});
-		body.addChild(createBuildings());
+		body.addChild(createBuildings({ open: (building) => this.open(building), live: this.liveBuildings }));
 		body.addChild(this.createSide());
 		this.stack.addChild(body);
 
@@ -167,6 +171,7 @@ export class CompoundScreen extends Screen {
 		this.restLine = null;
 		this.report = null;
 		this.saveError = null;
+		this.liveBuildings.length = 0;
 		this.resting = false;
 	}
 
@@ -285,11 +290,29 @@ export class CompoundScreen extends Screen {
 	private show(campaign: Campaign): void {
 		this.campaign = campaign;
 		if (this.restButton) this.restButton.enabled = true;
+		for (const { button, waiting } of this.liveBuildings) {
+			button.enabled = true;
+			waiting.visible = false;
+		}
 		if (this.dayLabel) this.dayLabel.visible = true;
 		if (this.stores) this.stores.visible = true;
 		this.refresh();
-		// A save made the night the last people left has fallen already.
-		if (campaign.resources.people === 0) this.compoundFell();
+		// A save holding a campaign already over (another tab's, or a hand-made one) is ended in the store first.
+		if (campaign.isOver) void this.settleFall(campaign);
+	}
+
+	/**
+	 * A lost campaign's checkpoint, which ends it in the store (its history
+	 * line in, its save removed), then the notice. A checkpoint that fails
+	 * shows its reason under Rest, and Rest tries it again.
+	 */
+	private async settleFall(campaign: Campaign): Promise<void> {
+		const visit = this.visit;
+		this.resting = true;
+		const saved = await this.store.checkpoint(campaign);
+		if (visit !== this.visit) return;
+		this.resting = false;
+		if (saved) this.compoundFell();
 	}
 
 	/** Everything that reads the campaign, again. */
@@ -302,7 +325,7 @@ export class CompoundScreen extends Screen {
 
 		const forecast = forecastNeeds({ resources });
 		if (this.restLine) {
-			this.restLine.text = restCaption({ day, forecast });
+			this.restLine.text = restCaption({ day, forecast, over: campaign.isOver });
 			this.restLine.color = 'text_dim';
 		}
 		const needs = this.needs;
@@ -320,9 +343,12 @@ export class CompoundScreen extends Screen {
 	/**
 	 * Ends the day, then checkpoints. A second press while the checkpoint is
 	 * on its way does nothing, so the next step starts after it, as the store
-	 * asks. A save that fails says so under Rest (`onSaveFailed`), and a fall
-	 * whose save failed shows no notice: the save still holds the day before,
-	 * and Rest tries the save again without ending another day.
+	 * asks. A night that empties the compound ends the campaign, and its
+	 * checkpoint ends it in the store, writing the history line and removing
+	 * the save, before the notice opens. A save that fails says so under Rest
+	 * (`onSaveFailed`), and a fall whose checkpoint failed shows no notice:
+	 * the save still holds the day before, and Rest tries the checkpoint
+	 * again without ending another day.
 	 */
 	private async rest(): Promise<void> {
 		const campaign = this.campaign;
@@ -330,8 +356,7 @@ export class CompoundScreen extends Screen {
 		this.resting = true;
 		const visit = this.visit;
 		if (this.saveError) this.saveError.visible = false;
-		let fell = campaign.resources.people === 0;
-		if (!fell) {
+		if (!campaign.isOver) {
 			let dayEnd: DayEnd;
 			try {
 				dayEnd = endDay({ campaign });
@@ -344,12 +369,11 @@ export class CompoundScreen extends Screen {
 			this.refresh();
 			const report = dayEndReport(dayEnd);
 			this.showLine({ line: this.report, text: report.text, color: report.urgent ? 'status_warn' : 'text_dim' });
-			fell = dayEnd.outcome === 'abandoned';
 		}
 		const saved = await this.store.checkpoint(campaign);
 		if (visit !== this.visit) return;
 		this.resting = false;
-		if (saved && fell) this.compoundFell();
+		if (saved && campaign.isOver) this.compoundFell();
 	}
 
 	private showLine({ line, text, color }: { line: Text | null; text: string; color: ColorToken }): void {
@@ -361,8 +385,9 @@ export class CompoundScreen extends Screen {
 
 	/**
 	 * Nobody is left at the compound, and the campaign is lost. A stand-in
-	 * for the defeat screen (DDB-305), which replaces this method; it doesn't
-	 * end the campaign in the store. Whatever closes it goes to the menu.
+	 * for the defeat screen (DDB-305), which replaces this method; the
+	 * checkpoint before it has ended the campaign in the store. Whatever
+	 * closes it goes to the menu.
 	 */
 	private compoundFell(): void {
 		if (this.fallen || !this.campaign) return;
@@ -388,6 +413,16 @@ export class CompoundScreen extends Screen {
 		dialog.show(this.context);
 	}
 
+	/**
+	 * A building's screen, handed the campaign; Back from it lands on the
+	 * building's button. Not while a Rest is being saved, so the next step
+	 * starts after its checkpoint, as Rest's own second press waits.
+	 */
+	private open(building: Building): void {
+		if (!this.campaign || !building.screen || this.resting || this.fallen) return;
+		ScreenManager.navigate(building.screen, { campaign: this.campaign });
+	}
+
 	/** To the menu, focus back on the button that opened this screen. */
 	private back(): void {
 		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
@@ -398,9 +433,11 @@ export class CompoundScreen extends Screen {
  * The buildings as the menu: rows of three tiles that share the room, where
  * the illustrated scene will go. One focus group whose Left and Right move
  * through the buildings in reading order; Up and Down go unconsumed to
- * directional focus (R9.24, R9.26), so they move between the rows.
+ * directional focus (R9.24, R9.26), so they move between the rows. A
+ * building whose screen exists has its button added to `live`, disabled
+ * until there's a campaign to open it with, with a line saying so.
  */
-function createBuildings(): FocusGroup {
+function createBuildings({ open, live }: { open: (building: Building) => void; live: { button: Button; waiting: Text }[] }): FocusGroup {
 	const grid = new FocusGroup({
 		id: 'compound_buildings',
 		orientation: 'horizontal',
@@ -418,7 +455,7 @@ function createBuildings(): FocusGroup {
 			crossAlign: 'stretch',
 			gap: space.space_3,
 		});
-		BUILDINGS.slice(start, start + BUILDINGS_PER_ROW).forEach((building) => row.addChild(buildingTile(building)));
+		BUILDINGS.slice(start, start + BUILDINGS_PER_ROW).forEach((building) => row.addChild(buildingTile({ building, open, live })));
 		grid.addChild(row);
 	}
 	return grid;
@@ -429,7 +466,8 @@ function createBuildings(): FocusGroup {
  * what it's for and why it's disabled over its button, so the buttons line up
  * whatever the text above them wraps to. The art goes in the room between.
  */
-function buildingTile({ id, name, description, reason, action }: Building): Stack {
+function buildingTile({ building, open, live }: { building: Building; open: (building: Building) => void; live: { button: Button; waiting: Text }[] }): Stack {
+	const { id, name, description, reason } = building;
 	const tile = new Stack({
 		id: `compound_building_${id}`,
 		widthMode: 'fill',
@@ -449,15 +487,20 @@ function buildingTile({ id, name, description, reason, action }: Building): Stac
 	}));
 	const foot = new Stack({ id: `compound_building_${id}_foot`, crossAlign: 'stretch', gap: space.space_1_5 });
 	foot.addChild(caption({ id: `compound_building_${id}_description`, text: description, color: 'text' }));
+	// A live building is disabled only until there's a campaign, and says so.
+	const waiting = building.screen ? caption({ id: `compound_building_${id}_reason`, text: NO_CAMPAIGN }) : null;
 	if (reason !== null) foot.addChild(caption({ id: `compound_building_${id}_reason`, text: reason }));
-	foot.addChild(new Button({
+	else if (waiting) foot.addChild(waiting);
+	const button = new Button({
 		label: name,
 		id: `compound_building_${id}_button`,
 		block: true,
-		disabled: reason !== null,
-		onClick: action,
+		disabled: true,
+		onClick: () => open(building),
 		margin: { top: space.space_1_5 },
-	}));
+	});
+	if (reason === null && waiting) live.push({ button, waiting });
+	foot.addChild(button);
 	tile.addChild(foot);
 	return tile;
 }

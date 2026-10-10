@@ -125,13 +125,15 @@ describe('MapGeneration', () => {
 			expect(worker.posted).toEqual([{ params }]);
 			worker.reply({ type: 'progress', progress: terrainAttempt });
 			expect(progress).toEqual([terrainAttempt]);
-			const { map: transfer, buffers } = protocol.encodeAreaMap(expected);
+			// A map of its own to send, since sending detaches the land's arrays.
+			const { map: transfer, buffers } = protocol.encodeAreaMap(generateAreaMap({ params }));
 			worker.reply({ type: 'done', map: structuredClone(transfer, { transfer: buffers }) });
 			// Transferred, not copied: the sender's buffers are detached.
 			expect(buffers.every((buffer) => buffer.byteLength === 0)).toBe(true);
 			const map = await generation.result;
 			expect(map.inWorker).toBe(true);
 			expect(map.products.growth).toEqual(expected.products.growth);
+			expect(Array.from(map.products.terrain.surface.elevation)).toEqual(Array.from(expected.products.terrain.surface.elevation));
 			expect(worker.terminated).toBe(1);
 			// Anything after the end is ignored.
 			worker.reply({ type: 'progress', progress: terrainAttempt });

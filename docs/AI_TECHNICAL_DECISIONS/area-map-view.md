@@ -27,18 +27,19 @@ A drag pans once it passes the drag threshold (R9.12a's tokens). The dispatcher 
 
 ## The terrain bake
 
-Measured with `scripts/area-map-bake-bench.mjs` on the 5950X, shared with other work at about 30% load, so each map's time is the fastest of five: the median and the slowest over five environments and three seeds.
+Measured with `scripts/area-map-bake-bench.mjs` on the 5950X, shared with other work, so each map's time is the fastest of five: the median and the slowest over five environments and three seeds, on the eroded land (terrain-erosion.md).
 
-| Radius | Texels | Node 24 | Electron 25 |
-| --- | --- | --- | --- |
-| 600 | 480 (2.5 units each) | 15 ms (19) | |
-| 1000 | 800 (2.5) | 45 ms (69) | 52 ms (64) |
-| 1200 | 960 (2.5) | 66 ms (101) | |
-| 1600 | 1024 (3.1) | 98 ms (155) | 100 ms (121) |
+| Radius | Texels | Node 24 |
+| --- | --- | --- |
+| 600 | 480 (2.5 units each) | 18.5 ms (20.6) |
+| 1000 | 800 (2.5) | 50 ms (59) |
+| 1200 | 960 (2.5) | 73 ms (86) |
+| 1600 | 1024 (3.1) | 89 ms (104) |
 
-A full sample at every texel would be about 0.6 s at 1024, and `obstacle` alone at every texel is 70 to 105 ms at radius 1600, more than the bake. The bake gets there by reading the land on two lattices coarser than the texels:
+A full sample at every texel would be about 0.6 s at 1024, and `obstacle` alone at every texel is 70 to 105 ms at radius 1600, more than the bake. The bake gets there by reading the land on three lattices coarser than the texels:
 
-- The fields biomes are read from, and the hill shade, every 16 world units. A texel inside one biome's four nodes is that biome; where they differ, it classifies the biome from the fields interpolated at the texel, so a biome's edge is a curve through the lattice. Interpolating the colours instead was a staircase of 16-unit cells, plain at the fit zoom.
+- The fields biomes are read from, and how much ruins darken the shade, every 16 world units. A texel inside one biome's four nodes is that biome; where they differ, it classifies the biome from the fields interpolated at the texel, so a biome's edge is a curve through the lattice. Interpolating the colours instead was a staircase of 16-unit cells, plain at the fit zoom.
+- The hill shade, from the slope, about every half land cell, rounded up to whole texels: 5 world units at 2.5 a texel, 6.25 at 3.1. The land's hills come at the grid's 9.4 units, so shade on the 16-unit lattice drew them as blocks. A slope costs about a third of a full sample, and the shade lattice takes the bake to 1.2 to 1.5 times its time with the shade on the fields' lattice.
 - The slope every second texel, filled lazily, so it's sampled only around rough country, the one place a cliff can stand (terrain-fields.md). A texel in rough country is a cliff where the interpolated slope reaches the cliff grade, with its edge anti-aliased over the last 15% of the slope's square. On the steepest corner of the tuning ranges, 75% or more of the ground `obstacle` calls cliff is drawn as full cliff and 85% or more of what's drawn as full cliff is, which a test holds; the rest is the edges.
 - Craters are drawn exactly as anti-aliased circles, and water is asked per texel when there is any. The precedence is `obstacle`'s.
 
@@ -94,4 +95,4 @@ One GPU draw a frame: the terrain and fog textures take two of the dynamic units
 
 - The Map Lab and the area map screen host the view and set its inputs; neither draws a map of its own.
 - The gallery scenes are in `SCENE_SCENARIOS` (`tests/visual/support/scenarios.ts`), so the gallery and lint specs hold their goldens, text records, and lint gate, and the electron project captures them too.
-- The bake's resolution and lattices are starting values. `TEXEL_WORLD_UNITS`, `MAX_BAKE_SIZE`, and `COLOUR_WORLD_UNITS` trade the picture against the bake's time; the bench reports both.
+- The bake's resolution and lattices are starting values. `TEXEL_WORLD_UNITS`, `MAX_BAKE_SIZE`, `COLOUR_WORLD_UNITS`, and the shade's half land cell trade the picture against the bake's time; the bench reports both.

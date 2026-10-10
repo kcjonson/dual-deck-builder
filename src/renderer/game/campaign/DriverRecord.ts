@@ -1,3 +1,4 @@
+import { refuseIfClosed } from '../core/ClosedModels';
 import { describeValue } from '../core/Json';
 import { ReaderRangeError, readFields, readInteger, readOneOf, readText } from '../core/JsonReader';
 import { Model } from '../core/Model';
@@ -107,16 +108,20 @@ export class DriverRecord extends Model<DriverRecordData> {
 	/**
 	 * Changes fields together, checked as a whole: dying sets status, 0
 	 * hitpoints, and an empty deck in one call. Throws without changing
-	 * anything if the record would be invalid, a field is unknown, or the id
-	 * or archetype would change.
+	 * anything if the record would be invalid, a field is unknown, the id or
+	 * archetype would change, or a dead driver would be anything but dead:
+	 * death is permanent. Nothing changes once the campaign the record
+	 * belongs to is over, which closes it.
 	 */
 	public override set(changes: Partial<DriverRecordData>): void {
+		refuseIfClosed({ model: this, action: 'change a driver' });
 		const current = this.getState();
 		for (const field of FIXED_FIELDS) {
 			if (current[field] !== undefined && field in changes && changes[field] !== current[field]) {
 				throw new RangeError(`DriverRecord.${field} can't change, from ${describeValue(current[field])} to ${describeValue(changes[field])}`);
 			}
 		}
+		refuseRevival({ driver: this, changes });
 		const valid = readDriverRecordData({ ...current, ...changes }, 'DriverRecord');
 		super.set(Object.fromEntries(Object.keys(changes).map(key => [key, valid[key as keyof DriverRecordData]])));
 	}
@@ -199,6 +204,25 @@ export function readDriverRecordData(value: unknown, path: string): DriverRecord
 	return data;
 }
 
+/**
+ * Throws when these changes would make a dead driver anything but dead:
+ * death is permanent. Storing the same death again passes, as a write-back
+ * tried a second time does.
+ */
+export function refuseRevival({ driver, changes }: { driver: DriverRecord; changes: Partial<DriverRecordData> }): void {
+	if (driver.status === 'dead' && changes.status !== undefined && changes.status !== 'dead') {
+		throw new RangeError(`${describeDriver(driver)} is dead, and death is permanent, so they can't be ${describeValue(changes.status)}`);
+	}
+}
+
+/** A driver from the pool, by the id a save refers to them by. */
+export function readPoolDriver(value: unknown, path: string, drivers: readonly DriverRecord[]): DriverRecord {
+	const id = readText(value, path);
+	const driver = drivers.find(record => record.id === id);
+	if (driver === undefined) throw new ReaderRangeError(`${path} ${describeValue(id)} isn't a driver in the pool`);
+	return driver;
+}
+
 /** A record read from a save, with errors naming where in the save it was. */
 export function readDriverRecord(value: unknown, path: string): DriverRecord {
 	return new DriverRecord(readDriverRecordData(value, path));
@@ -222,11 +246,15 @@ export function describeDriver(driver: DriverRecord): string {
 	return `${driver.name} (${driver.id})`;
 }
 
-/** "Road Warrior 2": the archetype's title and an ordinal, until drivers get names (DDB-318). */
-export function placeholderName({ archetype, ordinal }: { archetype: DriverArchetype; ordinal: number }): string {
-	const title = DRIVER_CONFIGS[archetype].metadata.name
+/** "Road Warrior": an archetype's name in title case, without its "The". */
+export function archetypeTitle(archetype: DriverArchetype): string {
+	return DRIVER_CONFIGS[archetype].metadata.name
 		.replace(/^THE\s+/i, '')
 		.toLowerCase()
 		.replace(/\b[a-z]/g, letter => letter.toUpperCase());
-	return `${title} ${ordinal}`;
+}
+
+/** "Road Warrior 2": the archetype's title and an ordinal, until drivers get names (DDB-318). */
+export function placeholderName({ archetype, ordinal }: { archetype: DriverArchetype; ordinal: number }): string {
+	return `${archetypeTitle(archetype)} ${ordinal}`;
 }

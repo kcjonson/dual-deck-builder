@@ -3,6 +3,7 @@
  */
 import { Clock } from '../animation/Clock';
 import { DrawApi, RectCommand, TextCommand } from '../draw';
+import { Container } from '../components/Container';
 import type { MountContext } from '../components/MountContext';
 import { renderTree } from '../components/renderTree';
 import { createTestContext } from '../components/testing';
@@ -259,6 +260,39 @@ describe('Button styling (R11)', () => {
 			expect(ring.rect).toEqual({ x: -offset, y: -offset, width: 100 + offset * 2, height: button.height + offset * 2 });
 			expect(ring.border).toEqual({ color: color.accent, width: tokens.control.focus_ring_width, position: 'outside' });
 			expect(ring.fill).toEqual([0, 0, 0, 0]);
+		});
+	});
+
+	describe('ink while a restyle fades a hovered look (R4.2a, R8.8)', () => {
+		it.each(['warn', 'crit'] as const)("keeps a hovered %s button's fading glow inside its cull ink when it turns ghost", (tone) => {
+			const clip = new Container({ id: 'clip', width: 400, height: 200, overflow: 'hidden' });
+			const button = new Button({ id: 'confirm', label: 'Confirm', tone, size: 'sm', width: 64, x: 120, y: 80 });
+			clip.addChild(button);
+			clip.mount(context);
+			context.frame.layout();
+			const audited = (): void => {
+				api.beginFrame({ viewport: { width: 400, height: 200 } });
+				renderTree(clip, api);
+				api.endFrame();
+				expect(api.diagnostics.filter((diagnostic) => diagnostic.code === 'ink-outside-bound')).toEqual([]);
+			};
+			button.hovered = true;
+			advance(tokens.motion.dur);
+			expect(button.look.glow[3]).toBeGreaterThan(0);
+			audited();
+
+			button.tone = 'default';
+			button.ghost = true;
+			for (let step = 0; step < 8; step++) {
+				audited();
+				advance(tokens.motion.dur / 6);
+			}
+			audited();
+			button.hovered = false;
+			advance(tokens.motion.dur);
+			expect(button.look.glow[3]).toBe(0);
+			expect(button.inkExtent).toBe(new Button({ label: 'Go', ghost: true, size: 'sm', width: 64 }).inkExtent);
+			audited();
 		});
 	});
 

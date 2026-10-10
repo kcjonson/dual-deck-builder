@@ -1,5 +1,6 @@
 import { readFields, readInteger, readText } from '../core/JsonReader';
 import { Campaign, CampaignData, RESOURCE_NAMES, Resources, readResources } from './Campaign';
+import { CampaignEnd, fallOf, refuseOver, stepLog } from './CampaignEnd';
 import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES, UpkeepResource, readCompoundRules, upkeepRecord } from './CompoundRules';
 import { DriverRecord } from './DriverRecord';
 import { healingChanges } from './Infirmary';
@@ -31,12 +32,9 @@ const keepMap: MapDayStep = ({ map }) => map;
 /** Nothing changes on the map overnight until the map keeps stop and POI state. */
 export const DAY_END_HOOKS: DayEndHooks = Object.freeze({ stopCooldowns: keepMap, poiRefills: keepMap });
 
-/** The compound still stands, or People reached 0 and it's abandoned, which loses the campaign. */
-export type DayEndOutcome = 'continues' | 'abandoned';
-
 /** What happened overnight, for the debrief, the compound screen, and whatever ends the campaign. */
 export interface DayEnd {
-	/** The day that ended. The campaign is now at the dawn of the next. */
+	/** The day that ended. The campaign is now at the dawn of the next, unless the night lost it (`Campaign.isOver`). */
 	readonly day: number;
 	/** What the day's upkeep came to, for the People there at dusk. */
 	readonly upkeep: Upkeep;
@@ -46,11 +44,6 @@ export interface DayEnd {
 	readonly unrestGained: number;
 	/** Injured drivers who are fit again at dawn. */
 	readonly healed: readonly DriverRecord[];
-	/**
-	 * `abandoned` whenever People is 0 at dawn: the compound is empty, and the
-	 * campaign is lost. Ending it is the caller's job; the day end only says so.
-	 */
-	readonly outcome: DayEndOutcome;
 }
 
 /** One resource's forecast for the needs panel. */
@@ -101,6 +94,10 @@ export interface DayEndOptions {
  *    there is ready again at full HP, as meds would leave them (Infirmary).
  * 4. Stop cooldowns, then POI refills, on the map (`hooks`).
  * 5. The day turns, and a shortfall goes in the log, dated the day it happened.
+ * 6. A night that leaves no People, with no run out, loses the campaign
+ *    (`end`, cause `no_people`): the compound falls as `fallOf` reads its
+ *    stores and unrest, the log says how, and the day doesn't turn, since
+ *    the compound fell on the day that ended.
  *
  * It refuses while the campaign is storing a card move or a run's records,
  * as a record's listener partway through one would see it: the healed
@@ -110,8 +107,10 @@ export interface DayEndOptions {
  * a save holds) changes nothing. Then the healed records are stored, and the
  * campaign last, in one `set` that takes the haul with the rest: its
  * `change` comes once the day end is whole. Nothing here draws randomness.
+ * Throws, changing nothing, once the campaign is over.
  */
 export function endDay({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS, haul }: DayEndOptions): DayEnd {
+	refuseOver({ campaign, action: 'end the day' });
 	if (campaign.isStoring) throw new Error("The day can't end while a card move is being stored");
 	const checked = readCompoundRules(rules, 'CompoundRules');
 	const { map: duskMap, ...state } = campaign.getState();
@@ -124,26 +123,26 @@ export function endDay({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS
 	const unitsShort = UPKEEP_RESOURCES.reduce((total, resource) => total + shortfall[resource], 0);
 	const peopleLost = Math.min(resources.people, unitsShort * checked.shortfall.peopleLostPerUnit);
 	const unrestGained = unitsShort * checked.shortfall.unrestPerUnit;
-	const nextDay = readInteger(day + 1, 'Campaign.day', { min: 1 });
+	const people = resources.people - peopleLost;
+	// An end needs the run home first, and a run out is the next day end's to settle
+	const lost = people === 0 && dusk.runDecks.length === 0;
+	const nextDay = lost ? day : readInteger(day + 1, 'Campaign.day', { min: 1 });
 	const nextUnrest = readInteger(unrest + unrestGained, 'Campaign.unrest', { min: 0 });
 	const healing = dusk.drivers
 		.filter(driver => driver.status === 'injured')
 		.map(driver => ({ driver, changes: healingChanges({ driver, days: 1 }) }));
 	const afterCooldowns = readMapState(hooks.stopCooldowns({ campaign: dusk, map: duskMap }), 'DayEndHooks.stopCooldowns');
 	const map = readMapState(hooks.poiRefills({ campaign: dusk, map: afterCooldowns }), 'DayEndHooks.poiRefills');
-	const people = resources.people - peopleLost;
 	const stores: Resources = { ...resources, people };
 	for (const resource of UPKEEP_RESOURCES) stores[resource] = Math.max(0, resources[resource] - upkeep[resource]);
-
-	const lines = [
-		...(haulMessage === null ? [] : [{ day, message: haulMessage }]),
-		...(unitsShort > 0 ? [{ day, message: shortfallMessage({ shortfall, peopleLost }) }] : [])
-	];
+	// Fallen with the haul in and the night eaten
+	const end: CampaignEnd | null = lost ? { ending: fallOf({ resources: stores, unrest: nextUnrest, rules: checked }), cause: 'no_people' } : null;
 
 	healing.forEach(({ driver, changes }) => driver.set(changes));
-	// Read after the records are stored, so a line a record's listener logged stays in.
-	const log = lines.length > 0 ? [...campaign.log, ...lines] : campaign.log;
-	campaign.set({ day: nextDay, resources: stores, unrest: nextUnrest, map, log });
+	// Read after the records are stored, so a line a record's listener logged stays in: the haul, the shortfall, then the fall.
+	const lines = [haulMessage, unitsShort > 0 ? shortfallMessage({ shortfall, peopleLost }) : null];
+	const log = stepLog({ log: campaign.log, day, lines, end });
+	campaign.set({ day: nextDay, resources: stores, unrest: nextUnrest, map, log, end });
 
 	return Object.freeze({
 		day,
@@ -151,8 +150,7 @@ export function endDay({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS
 		shortfall,
 		peopleLost,
 		unrestGained,
-		healed: Object.freeze(healing.filter(({ changes }) => changes.status === 'ready').map(({ driver }) => driver)),
-		outcome: people === 0 ? 'abandoned' : 'continues'
+		healed: Object.freeze(healing.filter(({ changes }) => changes.status === 'ready').map(({ driver }) => driver))
 	});
 }
 

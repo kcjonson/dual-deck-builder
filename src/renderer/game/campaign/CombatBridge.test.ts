@@ -442,8 +442,9 @@ describe('the combat bridge', () => {
 			const result = writeBackFight({ fight });
 
 			expect(result).toEqual({ outcome: 'won', party, revived: [], pickedUp: [], escortsLost: [] });
-			// No escort's card left a run deck, so the campaign itself didn't change
-			expect(heard).not.toHaveBeenCalled();
+			// No escort's card left a run deck, so the campaign itself changed only to count the fight won
+			expect(heard).toHaveBeenCalledTimes(1);
+			expect(campaign.tally).toEqual({ runsHome: 0, runsFailed: 0, fightsWon: 1 });
 			expect([warrior.hitpoints, warrior.status, warrior.vehicle]).toEqual([26, 'ready', { structure: 75, armor: 0 }]);
 			expect([interceptor.hitpoints, interceptor.vehicle]).toEqual([25, { structure: 50, armor: 0 }]);
 
@@ -639,6 +640,27 @@ describe('the combat bridge', () => {
 			expect(result.outcome).toBe('run_failed');
 			expect([warrior.status, interceptor.status]).toEqual(['missing', 'dead']);
 		});
+
+		it('refuses, storing nothing, a result that would bring back a driver whose record died under the fight (DDB-305)', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			toughen(warrior, interceptor);
+			interceptor.set({ hitpoints: 190, defaultDeck: { covering_fire: 10 } });
+			const outrider = createEscort({ type: 'outrider' });
+			campaign.convoy.add(outrider);
+			const wrecker = raider({ deck: cardsOf(10, wreck), adrenaline: 2 });
+			const sniper = raider({ deck: cardsOf(10, snipe), adrenaline: 1 });
+			const fight = startFight({ campaign, party: loadOut({ campaign, seats: [warrior, interceptor], escorts: [outrider] }), enemy: [wrecker, sniper] });
+			fightOut(fight, turn => {
+				if (turn === 2) play({ fight, seat: 1, cardType: 'covering_fire', target: wrecker });
+			});
+			// The Road Warrior crashed out alive, so the result has them missing, but their record died in the meantime
+			warrior.set({ status: 'dead', hitpoints: 0, defaultDeck: {} });
+			const interceptorBefore = interceptor.toJSON();
+
+			expect(() => writeBackFight({ fight })).toThrow(`${named(warrior)} is dead, and death is permanent, so they can't be "missing"`);
+			expect(interceptor.toJSON()).toEqual(interceptorBefore);
+			expect(campaign.convoy.escorts).toContain(outrider);
+		});
 	});
 
 	describe('a vehicle retuned since the save', () => {
@@ -760,7 +782,7 @@ describe('the combat bridge', () => {
 			expect(campaign.cardsOwned).toEqual(kept);
 		});
 
-		it('loses the cards won with the cargo: none reach the locker when the run is settled, and the log says what was lost (DDB-316)', () => {
+		it('loses the cards won with the cargo: none reach the locker when the run is settled, and the log says what was lost (DDB-316) before the fall', () => {
 			const { campaign, warrior, interceptor, party, stores, result } = failedRun();
 			const owned = campaign.cardsOwned;
 			const lostWithTheDead = runDeckOf(campaign, interceptor);
@@ -774,8 +796,13 @@ describe('the combat bridge', () => {
 			// The unwinding's locker, as above, with no Headshot in it
 			expect(campaign.locker).toEqual({ emp_blast: 1, medical_kit: 1 });
 			expect(totalCards(owned) - totalCards(campaign.cardsOwned)).toBe(lostWithTheDead.deckSize);
-			expect(campaign.log[campaign.log.length - 1]).toEqual({ day: campaign.day, message: 'Cargo lost with the run: 2 fuel, 30 scrap, and Headshot.' });
-			expect(() => campaign.unloadRun({ party })).toThrow('No run is out, so there are no run decks');
+			// The pool was these two, so nobody is left at the compound, and the campaign is over (DDB-305)
+			expect(campaign.log.slice(-2)).toEqual([
+				{ day: campaign.day, message: 'Cargo lost with the run: 2 fuel, 30 scrap, and Headshot.' },
+				{ day: campaign.day, message: 'No drivers are left, and the compound disbanded.' }
+			]);
+			expect(campaign.end).toEqual({ ending: 'disbanded', cause: 'last_driver' });
+			expect(() => campaign.unloadRun({ party })).toThrow("Can't unload a run: the campaign is over, since the compound disbanded");
 		});
 	});
 
@@ -802,7 +829,7 @@ describe('the combat bridge', () => {
 
 			const unloaded = campaign.unloadRun({ party });
 
-			expect(unloaded).toEqual({ resources: { ...NO_RESOURCES, scrap: 30 }, cards: { headshot: 2, repair_kit: 1 } });
+			expect(unloaded).toEqual({ resources: { ...NO_RESOURCES, scrap: 30 }, cards: { headshot: 2, repair_kit: 1 }, found: [] });
 			expect(campaign.resources).toEqual({ ...stores, scrap: stores.scrap + 30 });
 			expect(campaign.locker).toEqual({ headshot: 2, repair_kit: 1 });
 			expect(campaign.cardsOwned).toEqual(addCards(addCards(owned, 'headshot', 2), 'repair_kit'));
@@ -888,7 +915,7 @@ describe('the combat bridge', () => {
 			return { campaign, warrior, interceptor, hauler, fight };
 		}
 
-		it('stores the records in seat order, then the run deck the wreck\'s card leaves, then the convoy', () => {
+		it('stores the records in seat order, then the run deck the wreck\'s card leaves, then the convoy, then the fight won in the tally', () => {
 			const { campaign, warrior, interceptor, fight } = wonWithAWreck();
 			const stored: string[] = [];
 			warrior.on('change', () => stored.push('Road Warrior 1'));
@@ -898,8 +925,9 @@ describe('the combat bridge', () => {
 
 			writeBackFight({ fight });
 
-			expect(stored).toEqual(['Road Warrior 1', 'Interceptor 1', 'campaign', 'convoy']);
+			expect(stored).toEqual(['Road Warrior 1', 'Interceptor 1', 'campaign', 'convoy', 'campaign']);
 			expect(runDeckOf(campaign, warrior).escortCards).toEqual([]);
+			expect(campaign.tally.fightsWon).toBe(1);
 		});
 
 		it('leaves a wreck in the convoy until the fight is written back, so the step\'s checkpoint saves after it', () => {
@@ -996,13 +1024,13 @@ describe('the combat bridge', () => {
 
 		it('lets the next fight start only once a write-back that threw part way is finished', () => {
 			const { campaign, warrior, interceptor, fight } = wonWithAWreck();
-			warrior.once('change', () => interceptor.set({ status: 'dead', hitpoints: 0, defaultDeck: {} }));
+			warrior.once('change', () => interceptor.set({ maxHitpoints: 20, hitpoints: 20 }));
 
-			expect(() => writeBackFight({ fight })).toThrow('DriverRecord.hitpoints must be 0 for a dead driver, got 25');
+			expect(() => writeBackFight({ fight })).toThrow('DriverRecord.hitpoints must be an integer from 0 to maxHitpoints (20), got 25');
 			expect(() => startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() }))
 				.toThrow("This campaign's last fight hasn't been written back");
 
-			interceptor.set({ status: 'ready', hitpoints: 25 });
+			interceptor.set({ maxHitpoints: 25 });
 			writeBackFight({ fight });
 			expect(() => startFight({ campaign, party: partyOf([warrior, interceptor]), enemy: idle() })).not.toThrow();
 		});
@@ -1022,22 +1050,24 @@ describe('the combat bridge', () => {
 			expect(campaign.convoy.escorts).toEqual([]);
 		});
 
-		it('can write a fight back again when a store throws part way, and finishes the job', () => {
+		it('can write a fight back again when a store throws part way, and finishes the job, counting the fight once', () => {
 			const { campaign, warrior, interceptor, hauler, fight } = wonWithAWreck();
-			// A listener on the first record sends the second away before its turn comes
-			warrior.once('change', () => interceptor.set({ status: 'dead', hitpoints: 0, defaultDeck: {} }));
+			// A listener on the first record cuts the second's max HP below what the fight left them before their turn comes
+			warrior.once('change', () => interceptor.set({ maxHitpoints: 20, hitpoints: 20 }));
 
-			expect(() => writeBackFight({ fight })).toThrow('DriverRecord.hitpoints must be 0 for a dead driver, got 25');
+			expect(() => writeBackFight({ fight })).toThrow('DriverRecord.hitpoints must be an integer from 0 to maxHitpoints (20), got 25');
 			// The Road Warrior's record was stored, setting the listener off, and nothing after the throw was
-			expect(interceptor.status).toBe('dead');
+			expect(interceptor.maxHitpoints).toBe(20);
 			expect(campaign.convoy.escorts).toContain(hauler);
+			expect(campaign.tally.fightsWon).toBe(0);
 
-			interceptor.set({ status: 'ready', hitpoints: 25 });
+			interceptor.set({ maxHitpoints: 25 });
 			const result = writeBackFight({ fight });
 
 			expect(result.outcome).toBe('won');
 			expect(campaign.convoy.escorts).toEqual([]);
 			expect(interceptor.hitpoints).toBe(25);
+			expect(campaign.tally.fightsWon).toBe(1);
 			expect(() => JSON.stringify(campaign)).not.toThrow();
 		});
 	});

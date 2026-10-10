@@ -13,15 +13,20 @@ function dayEnd(changes: Partial<DayEnd> = {}): DayEnd {
 		peopleLost: 0,
 		unrestGained: 0,
 		healed: [],
-		outcome: 'continues',
 		...changes,
 	};
 }
 
 describe('compoundText', () => {
-	it('lists the six buildings in the wireframe order, each disabled with a reason for now', () => {
+	it('lists the six buildings in the wireframe order: the bunkhouse opens the Crew screen, the rest are disabled with a reason for now', () => {
 		expect(BUILDINGS.map((building) => building.name)).toEqual(['Bunkhouse', 'Radio mast', 'Infirmary', 'Garage', 'Map room', 'Stores']);
-		for (const building of BUILDINGS) expect(building.reason).toMatch(/\.$/);
+		const [bunkhouse, ...rest] = BUILDINGS;
+		expect(bunkhouse.reason).toBeNull();
+		expect(bunkhouse.screen).toBe('crewScreen');
+		for (const building of rest) {
+			expect(building.reason).toMatch(/\.$/);
+			expect(building.screen).toBeUndefined();
+		}
 	});
 
 	it('writes the day and the resources for the top bar', () => {
@@ -67,6 +72,8 @@ describe('compoundText', () => {
 		expect(restCaption({ day: 9, forecast: forecastNeeds({ resources: { ...NO_RESOURCES, food: 14, water: 11, people: 18 } }) }))
 			.toBe('Ends day 9. The compound eats 5 food and 5 water.');
 		expect(restCaption({ day: 3, forecast: forecastNeeds({ resources: NO_RESOURCES }) })).toBe('Ends day 3.');
+		// A campaign that's over ends no day: Rest only saves its end again
+		expect(restCaption({ day: 3, forecast: forecastNeeds({ resources: NO_RESOURCES }), over: true })).toBe('The compound has fallen. Rest saves its end again.');
 		expect(restCaption({ day: 3, forecast: forecastNeeds({ resources: { ...NO_RESOURCES, people: 100_000 } }) }))
 			.toBe('Ends day 3. The compound eats 25k food and 25k water.');
 	});

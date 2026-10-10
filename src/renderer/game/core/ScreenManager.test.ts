@@ -11,8 +11,10 @@ import { advance, click, key, send } from '../../engine/services/testing';
 import { tokens } from '../../engine/theme/tokens';
 import type { BattleResultData } from '../screens/battleResult/BattleResultScreen';
 import { MainMenuScreen } from '../screens/main-menu/MainMenuScreen';
+import type { CompoundScreen } from '../screens/compound/CompoundScreen';
+import type { CrewScreen } from '../screens/crew/CrewScreen';
 import { campaignKeys, pageNamespace } from '../campaign/CampaignStore';
-import { fixtureText } from '../campaign/__fixtures__/storeFixtures';
+import { atHomeText, fixtureText } from '../campaign/__fixtures__/storeFixtures';
 
 /** R8.22 and R12.38 through the game's scene manager. */
 
@@ -213,6 +215,37 @@ describe('ScreenManager.navigate', () => {
 		advance(context, FADE_MS * 2);
 		expect(ScreenManager.transitioning).toBe(false);
 		expect(context.focus.focused?.id).toBe('main_menu_new_campaign_button');
+	});
+
+	it('opens the Crew screen from the compound\'s Bunkhouse with the campaign, and Escape comes back to the same campaign with focus on the Bunkhouse', async () => {
+		localStorage.setItem(KEYS.slots.a, atHomeText());
+		localStorage.setItem(KEYS.active, 'a');
+		await openMenu();
+		advance(context, FADE_MS * 2);
+		send(context, [key('ArrowDown'), key('Enter')]);
+		advance(context, FADE_MS * 2);
+		const compound = ScreenManager.activeScreen as CompoundScreen;
+		await compound.campaignLoaded;
+		const campaign = compound.shown;
+		expect(campaign).not.toBeNull();
+
+		focusOn('compound_building_bunkhouse_button');
+		send(context, [key('Enter')]);
+		advance(context, FADE_MS * 2);
+		expect(ScreenManager.getCurrentScreenName()).toBe('crewScreen');
+		const crew = ScreenManager.activeScreen as CrewScreen;
+		// The cards can't be fetched here, which the screen says in place of the deck and the locker.
+		const quiet = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+		await crew.campaignLoaded;
+		quiet.mockRestore();
+		expect(crew.shown).toBe(campaign);
+
+		send(context, [key('Escape')]);
+		advance(context, FADE_MS * 2);
+		expect(ScreenManager.getCurrentScreenName()).toBe('compoundScreen');
+		expect((ScreenManager.activeScreen as CompoundScreen).shown).toBe(campaign);
+		expect(context.focus.focused?.id).toBe('compound_building_bunkhouse_button');
+		expect(context.focus.focusVisible).toBe(true);
 	});
 
 	it('returns focus without a ring after a pointer round trip (R9.23)', () => {
