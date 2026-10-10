@@ -233,6 +233,16 @@ describe('RunRouteScreen (DDB-319)', () => {
 		expect(screen.destination).toBe(NEAR);
 	});
 
+	it('shows the nearest destination when opened with no POI, as a capture opens it', async () => {
+		screen = new RunRouteScreen({ store: storeOver(storageWith(atHomeText())), maps: planning.maps });
+		screen.mount(context);
+		await screen.campaignLoaded;
+		const nearest = byDistance(POIS).find(({ stronghold }) => !stronghold);
+		expect(screen.destination).toBe(nearest);
+		send(context, [key('Escape')]);
+		expect(navigate).toHaveBeenLastCalledWith('areaMapScreen', { campaign: screen.shown, poi: nearest?.poi }, { restoreFocus: true });
+	});
+
 	it('says so with no campaign to show', async () => {
 		screen = new RunRouteScreen({ store: storeOver(new MemorySaveStorage()), maps: planning.maps });
 		screen.mount(context, { poi: NEAR.poi });

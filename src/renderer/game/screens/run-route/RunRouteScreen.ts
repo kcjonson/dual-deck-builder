@@ -15,7 +15,7 @@ import { ColorToken, tokens } from '../../../engine/theme/tokens';
 import { AreaMapView } from '../../ui/areaMap/AreaMapView';
 import { RouteCard } from '../../ui/RouteCard';
 import { STRONGHOLD_NOT_YET, QUIET_STOPS, clockText, homeByText, poiKindText, poiYieldText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
-import { PlannedPoi, PlanningMap, PlanningMaps, mapRoutes, plannedPois, routesBounds, viewData } from '../area-map/planningMap';
+import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, routesBounds, viewData } from '../area-map/planningMap';
 import { NOT_THE_SAVE } from '../compound/compoundText';
 import { mapProgressText } from '../main-menu/campaignText';
 import { departRefusal, planRefusal } from '../run/runText';
@@ -36,7 +36,8 @@ const TAG_WIDTH = 92;
 /** What Plan a run here hands the run route screen: the campaign, and the POI by its index in the map's POI layer. */
 export interface RunRouteScreenData {
 	campaign: Campaign;
-	poi: number;
+	/** The nearest destination when left out, as a capture or the dev navigate hook opens it. */
+	poi?: number;
 }
 
 export interface RunRouteScreenOptions {
@@ -61,7 +62,8 @@ export interface RunRouteScreenOptions {
  * (DDB-320): it seats the crew, departs on the route against the same map
  * the cards came from, checkpoints, and opens the run screen. Back and
  * Escape return to the area map with the POI still chosen. Opened with no
- * campaign it loads the save as Continue would. The decision record is
+ * campaign it loads the save as Continue would, and with no POI it shows
+ * the nearest destination (`byDistance`). The decision record is
  * docs/AI_TECHNICAL_DECISIONS/area-map-route-pick.md.
  */
 export class RunRouteScreen extends Screen {
@@ -70,14 +72,14 @@ export class RunRouteScreen extends Screen {
 	private readonly maps: PlanningMaps;
 	private campaign: Campaign | null = null;
 	private map: PlanningMap | null = null;
-	private poiIndex = -1;
+	/** The POI handed over, or null for the nearest. */
+	private poiIndex: number | null = null;
 	private poi: PlannedPoi | null = null;
 	private picked = -1;
 	private view: AreaMapView | null = null;
 	private nameLine: Text | null = null;
 	private dayLine: Text | null = null;
 	private kindLine: Text | null = null;
-	private yieldLine: Text | null = null;
 	private status: Text | null = null;
 	private cards: FocusGroup | null = null;
 	private stopsList: Stack | null = null;
@@ -140,7 +142,7 @@ export class RunRouteScreen extends Screen {
 		this.context.focus.focus(back);
 
 		const handed = data as Partial<RunRouteScreenData> | undefined;
-		this.poiIndex = typeof handed?.poi === 'number' ? handed.poi : -1;
+		this.poiIndex = typeof handed?.poi === 'number' ? handed.poi : null;
 		if (handed?.campaign) this.loaded = this.show(handed.campaign);
 		else this.loaded = this.loadSave();
 	}
@@ -155,14 +157,13 @@ export class RunRouteScreen extends Screen {
 		this.stack.clearChildren();
 		this.campaign = null;
 		this.map = null;
-		this.poiIndex = -1;
+		this.poiIndex = null;
 		this.poi = null;
 		this.picked = -1;
 		this.view = null;
 		this.nameLine = null;
 		this.dayLine = null;
 		this.kindLine = null;
-		this.yieldLine = null;
 		this.status = null;
 		this.cards = null;
 		this.stopsList = null;
@@ -203,8 +204,6 @@ export class RunRouteScreen extends Screen {
 		side.addChild(this.dayLine);
 		this.kindLine = caption({ id: 'run_route_kind', text: '', color: 'text' });
 		side.addChild(this.kindLine);
-		this.yieldLine = caption({ id: 'run_route_yield', text: '', color: 'text' });
-		side.addChild(this.yieldLine);
 		this.status = caption({ id: 'run_route_status', text: 'Looking for the saved campaign.' });
 		side.addChild(this.status);
 
@@ -301,20 +300,22 @@ export class RunRouteScreen extends Screen {
 		const campaign = this.campaign;
 		if (!campaign) return;
 		this.map = map;
-		const poi = plannedPois(map)[this.poiIndex] ?? null;
+		const pois = plannedPois(map);
+		const poi = (this.poiIndex === null ? byDistance(pois).find(({ stronghold }) => !stronghold) : pois[this.poiIndex]) ?? null;
 		const trouble = poi === null ? "That destination isn't on the area map." : poi.stronghold ? STRONGHOLD_NOT_YET : poi.routes.length === 0 ? 'No road reaches it.' : null;
 		if (poi === null || trouble !== null) {
 			this.say({ text: trouble ?? '', color: 'status_warn' });
 			return;
 		}
 		this.poi = poi;
+		this.poiIndex = poi.poi;
 		const dark = poi.routes[0].dark;
 		if (this.nameLine) this.nameLine.text = poi.name;
 		if (this.dayLine) this.dayLine.text = `Day ${campaign.day} / dawn ${clockText(dark - map.params.daylightHours)} / dark ${clockText(dark)} / fuel ${campaign.resources.fuel}`;
-		if (this.kindLine) this.kindLine.text = poiKindText(poi);
 		const destination = this.runRoute(poi.routes[0])?.destination ?? null;
-		if (this.yieldLine) this.yieldLine.text = poiYieldText({ stronghold: false, yields: destination?.yield ?? null });
-		this.say({ text: 'Pick a route. Fuel is paid when the run sets off, and the run comes home down the road it took.', color: 'text_dim' });
+		if (this.kindLine) this.kindLine.text = `${poiKindText(poi)}. ${poiYieldText({ stronghold: false, yields: destination?.yield ?? null })}`;
+		// Nothing to wait for or warn of: the cards say the rest.
+		this.say({ text: '', color: 'text_dim' });
 
 		const view = this.view;
 		if (view) {
@@ -436,16 +437,18 @@ export class RunRouteScreen extends Screen {
 		ScreenManager.navigate('runScreen', { campaign, saved: Promise.resolve(result) });
 	}
 
+	/** The status line, hidden with nothing to say. */
 	private say({ text, color }: { text: string; color: ColorToken }): void {
 		if (!this.status) return;
 		this.status.text = text;
 		this.status.color = color;
+		this.status.visible = text !== '';
 	}
 
 	/** To the area map with this POI still chosen, or the menu with no campaign to show. */
 	private back(): void {
 		if (this.departing) return;
-		if (this.campaign) ScreenManager.navigate('areaMapScreen', { campaign: this.campaign, poi: this.poiIndex }, { restoreFocus: true });
+		if (this.campaign) ScreenManager.navigate('areaMapScreen', { campaign: this.campaign, poi: this.poiIndex ?? undefined }, { restoreFocus: true });
 		else ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 	}
 }
