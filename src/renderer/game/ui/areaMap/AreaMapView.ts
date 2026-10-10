@@ -154,8 +154,10 @@ export class AreaMapView extends Component {
 	private markerList: readonly MapMarker[] = [];
 	/** The markers' labels in the order they're placed, worked out when the markers or the selection change. */
 	private labelOrder: readonly MapMarker[] | null = null;
-	/** The labels the last frame placed, for `drawnText`; null before the first. */
+	/** The markers' labels the last frame placed, for `drawnText`; null before the first. */
 	private placedLabels: string[] | null = null;
+	/** The places' names the last frame placed, likewise, towns and villages apart. */
+	private placedPlaceNames: { town: string[]; village: string[] } | null = null;
 	private readonly labelBoxes: LabelBox[] = [];
 	private routeLines: readonly RouteLine[] = [];
 	private readonly markerScratch: Vec2 = { x: 0, y: 0 };
@@ -212,6 +214,7 @@ export class AreaMapView extends Component {
 		this.rebuildGeometry(map);
 		this.currentSelection = null;
 		this.labelOrder = null;
+		this.forgetPlacedLabels();
 		this.bakeTerrainTexture();
 	}
 
@@ -222,7 +225,7 @@ export class AreaMapView extends Component {
 	public set markers(markers: readonly MapMarker[]) {
 		this.markerList = markers;
 		this.labelOrder = null;
-		this.placedLabels = null;
+		this.forgetPlacedLabels();
 	}
 
 	/** A POI's routes, drawn under the roads; none when empty. */
@@ -250,6 +253,7 @@ export class AreaMapView extends Component {
 
 	public set fog(fog: LandFogLayer | null) {
 		this.fogLayer = fog;
+		this.forgetPlacedLabels();
 		this.bakeFogTexture();
 	}
 
@@ -260,6 +264,7 @@ export class AreaMapView extends Component {
 	/** Merged over the current toggles: `{ fog: false }` turns the fog off and leaves the rest. */
 	public set layers(layers: Partial<AreaMapLayerToggles>) {
 		this.layerToggles = { ...this.layerToggles, ...layers };
+		this.forgetPlacedLabels();
 	}
 
 	public get selection(): AreaMapSelection | null {
@@ -270,6 +275,13 @@ export class AreaMapView extends Component {
 	public set selection(selection: AreaMapSelection | null) {
 		this.currentSelection = selection;
 		this.labelOrder = null;
+		this.forgetPlacedLabels();
+	}
+
+	/** What changes which labels are placed: `drawnText` lists every one again until the next frame places them. */
+	private forgetPlacedLabels(): void {
+		this.placedLabels = null;
+		this.placedPlaceNames = null;
 	}
 
 	public get onSelect(): ((selection: AreaMapSelection | null) => void) | null {
@@ -390,9 +402,12 @@ export class AreaMapView extends Component {
 		const labels: string[] = [];
 		const places = this.mapData.places;
 		if (places && this.layerToggles.places) {
-			for (const town of places.towns) if (!this.fogged(town.x, town.y)) labels.push(town.name);
-			if (this.villagesNamed()) {
-				for (const village of places.villages) if (!this.fogged(village.x, village.y)) labels.push(village.name);
+			if (this.placedPlaceNames) labels.push(...this.placedPlaceNames.town, ...this.placedPlaceNames.village);
+			else {
+				for (const town of places.towns) if (!this.fogged(town.x, town.y)) labels.push(town.name);
+				if (this.villagesNamed()) {
+					for (const village of places.villages) if (!this.fogged(village.x, village.y)) labels.push(village.name);
+				}
 			}
 		}
 		labels.push(COMPOUND.label);
@@ -701,11 +716,16 @@ export class AreaMapView extends Component {
 			if (this.fogged(x, y)) continue;
 			draw.drawCircle({ id: this.part(`place_${id}`), center: camera.worldToScreen(x, y, this.scratch), radius: PLACE_STYLE.exit.radius, fill: paper, border: { color: ink, width: PLACE_STYLE.exit.ring } });
 		}
+		this.placedPlaceNames = { town: [], village: [] };
 		this.drawSettlements(draw, places.villages, this.villagesNamed());
 		this.drawSettlements(draw, places.towns, true);
 	}
 
-	/** Towns or villages: a dot each, named when `named`. */
+	/**
+	 * Towns or villages: a dot each, named when `named`, on the dot's right,
+	 * or its left where the right would cover a marker; where both would,
+	 * the name is left out, since the markers are what the map is picked by.
+	 */
 	private drawSettlements(draw: DrawApi, settlements: Places['towns'], named: boolean): void {
 		const camera = this.mapCamera;
 		const { ink, paper } = PLACE_STYLE;
@@ -715,9 +735,12 @@ export class AreaMapView extends Component {
 			const at = camera.worldToScreen(x, y, this.scratch);
 			draw.drawCircle({ id: this.part(`place_${id}`), center: at, radius: style.radius, fill: ink, border: { color: paper, width: style.ring, position: 'outside' } });
 			if (!named) continue;
-			const left = at.x + style.radius + LABEL.gap;
-			this.drawLabel(draw, name, left, at.y, `place_${id}_label`);
-			this.labelBoxes.push({ x: left, y: at.y - LABEL.height / 2, width: this.labelWidth(draw, name) + LABEL.padX * 2, height: LABEL.height });
+			const box = { x: at.x + style.radius + LABEL.gap, y: at.y - LABEL.height / 2, width: this.labelWidth(draw, name) + LABEL.padX * 2, height: LABEL.height };
+			if (this.coversMarker(box)) box.x = at.x - style.radius - LABEL.gap - box.width;
+			if (this.coversMarker(box)) continue;
+			this.drawLabel(draw, name, box.x, at.y, `place_${id}_label`);
+			this.labelBoxes.push(box);
+			this.placedPlaceNames?.[kind].push(name);
 		}
 	}
 
@@ -834,8 +857,13 @@ export class AreaMapView extends Component {
 		return this.labelOrder;
 	}
 
+	/** Whether a label box covers a drawn marker. */
+	private coversMarker(box: LabelBox): boolean {
+		return this.layerToggles.markers && this.overlapsMarker(box, null);
+	}
+
 	/** Whether a label box covers any marker but its own. */
-	private overlapsMarker(box: LabelBox, own: MapMarker): boolean {
+	private overlapsMarker(box: LabelBox, own: MapMarker | null): boolean {
 		const at = this.markerScratch;
 		for (const marker of this.markerList) {
 			if (marker === own) continue;

@@ -558,6 +558,22 @@ describe('AreaMapView places', () => {
 	const withPlaces = (): AreaMapViewOptions => ({ map: { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK, rivers: NO_RIVERS, places } });
 	const texts = (commands: readonly DrawCommand[]) => commands.filter((command) => command.kind === 'text').map((command) => command.kind === 'text' && command.text);
 
+	it('names a place on its left where its right would cover a marker, and not at all where both would (DDB-43)', () => {
+		const measured = (options: AreaMapViewOptions) => mountView({ ...withPlaces(), ...options }, { measuring: true });
+		// Ashford at (300, 200): a POI just east of it, then one just west as well
+		const east: MapMarker = { id: 'east', kind: 'poi', x: 330, y: 200 };
+		const west: MapMarker = { id: 'west', kind: 'poi', x: 270, y: 200 };
+		const one = measured({ markers: [east] });
+		one.frame();
+		const label = one.frame().find((command): command is TextCommand => command.kind === 'text' && command.text === 'Ashford');
+		const dot = one.view.camera.worldToScreen(300, 200);
+		expect((label?.box?.x ?? 0) - 100).toBeLessThan(dot.x);
+		one.view.markers = [east, west];
+		expect(texts(one.frame())).not.toContain('Ashford');
+		expect(one.view.drawnText).not.toContain('Ashford');
+		expect(one.view.drawnText).toContain('Cold Springs');
+	});
+
 	it('draws every place where it is, names the towns, and names the villages once zoomed in', () => {
 		const { view, frame } = mountView(withPlaces());
 		frame();
