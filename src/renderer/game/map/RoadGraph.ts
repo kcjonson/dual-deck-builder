@@ -10,16 +10,16 @@ import { ROAD_CLASSES, RoadNode, RoadNodeKind, RoadStretch } from './RoadNetwork
  * links' moves on the land grid turned into the network's nodes and
  * stretches. A node is the compound, a place, a junction, the metro's edge, a
  * class change, a dead end, or a roadside point splitting a long stretch;
- * a stretch is the road between two nodes, traced as cells, simplified, and
- * smoothed with its nodes and both ends of every bridge held still. Paths
- * that crossed share a cell, so they share a junction and the network is
- * planar. Every node but the compound stands on a cell centre, at least a
- * cell from any other, so no two junctions are closer than a cell; the
- * compound stands at the origin, where its four cells meet.
+ * a stretch is the road between two nodes, traced as cells, relaxed,
+ * simplified, and smoothed with its nodes and both ends of every bridge held
+ * still. Paths that crossed share a cell, so they share a junction and the
+ * network is planar. Every node but the compound and roadside points stands
+ * on a cell centre, so no two junctions are closer than a cell; the compound
+ * stands at the origin, where its four cells meet.
  *
  * A smoothed stretch has to stay passable and keep clear of every other;
- * one that doesn't falls back to its simplified line, then to its cells,
- * which the edge cost field already proved.
+ * one that doesn't falls back to its line smoothed without the relaxing,
+ * then to its cells, which the edge cost field already proved.
  */
 
 export const ROAD_GRAPH = {

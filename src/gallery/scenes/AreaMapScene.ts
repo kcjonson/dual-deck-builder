@@ -4,7 +4,7 @@ import { rgba } from '../../renderer/engine/ui/surfaces';
 import { ENVIRONMENTS, Environment, MAP_PARAMETERS } from '../../renderer/game/map/MapParams';
 import { DeveloperSectionPanel } from '../../renderer/game/screens/developer/DeveloperSectionPanel';
 import { AreaMapView } from '../../renderer/game/ui/areaMap/AreaMapView';
-import { AreaMapData, revealedBounds } from '../../renderer/game/ui/areaMap/layers';
+import { revealedBounds } from '../../renderer/game/ui/areaMap/layers';
 import type { SceneFactoryOptions } from '../registry';
 import { fixtureAreaMap, fixtureFog, fixtureKnowledge, fixtureMarkers } from './areaMapFixtures';
 
@@ -103,11 +103,11 @@ function wholeMap({ seed, environment, radius, frame }: AreaMapQuery): AreaMapVi
 
 function fogMap(): AreaMapView {
 	const radius = 1000;
-	const map: AreaMapData = fixtureAreaMap({ seed: 3, environment: 'mixed', radius });
+	const map = fixtureAreaMap({ seed: 3, environment: 'mixed', radius });
 	const reach = 430;
 	const knowledge = fixtureKnowledge(map.network, { reach, rumored: 2 });
 	const fog = fixtureFog(map.network, knowledge, { radius, reach: reach * 0.8, sight: 100 });
-	const markers = fixtureMarkers(map.network, knowledge, {
+	const markers = fixtureMarkers(map.pois, {
 		pois: [
 			{ id: 'hospital', label: 'St. Brendan\'s Hospital' },
 			{ id: 'water_plant', label: 'Water plant (looted)', state: 'looted' },

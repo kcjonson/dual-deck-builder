@@ -23,7 +23,7 @@ export const ROAD_CLASS_LABELS: { readonly [Name in RoadClass]: string } = {
  * - `junction`: where three or more stretches meet away from a place.
  * - `metroEdge`: the last point inside the metro on a road leaving it, so the
  *   stretches inside are city streets.
- * - `classChange`: where a back road gives out to a trail, or a trail joins a highway.
+ * - `classChange`: where a road's class changes along it, a back road giving out to a trail say.
  * - `end`: a dead end, where a spur trail stops at a pass, a mine, or a lookout.
  * - `roadside`: a point that splits a long stretch, so meeting points and legs have places to fall.
  */
