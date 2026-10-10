@@ -314,6 +314,9 @@ describe('Run decks (DDB-315)', () => {
 			expect(campaign.locker).toEqual({ repair_kit: 2 });
 			expectRefused({ campaign, move: { cardType: 'repair_kit', from: deck(), to: 'locker', copies: 'borrowed' }, blocker: { reason: 'too_few', place: deck(), held: 0 } });
 			expect(campaign.cardsOwned).toEqual(owned);
+			// An escort card is neither the driver's own nor borrowed, so a move that names either has none to take
+			expectRefused({ campaign, move: { cardType: 'top_off', from: deck(), to: 'locker', copies: 'own' }, blocker: { reason: 'too_few', place: deck(), held: 0 } });
+			expect(campaign.getCardMoveBlocker({ cardType: 'top_off', from: deck(), to: 'locker' })).toEqual({ reason: 'card_locked', place: deck(), broughtBy: 'escort-1' });
 		});
 
 		it('keep a run deck inside the limits, counting its own and borrowed copies and not its escort cards', () => {

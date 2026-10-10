@@ -21,9 +21,9 @@ export const LOCKER_KICKERS = {
 	solo: 'Spare copies, free to borrow',
 } as const;
 
-/** The locker's kicker for a run with this many seats. */
+/** The locker's kicker for a run with this many seats; with no run out it says nothing of borrowing alone. */
 export function lockerKicker(seats: number): string {
-	return seats > 1 ? LOCKER_KICKERS.pair : LOCKER_KICKERS.solo;
+	return seats === 1 ? LOCKER_KICKERS.solo : LOCKER_KICKERS.pair;
 }
 
 /**

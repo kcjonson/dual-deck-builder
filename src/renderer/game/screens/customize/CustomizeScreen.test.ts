@@ -548,6 +548,8 @@ describe('CustomizeScreen', () => {
 		expect(find<{ visible: boolean }>('customize_side_body').visible).toBe(false);
 		expect(find<{ visible: boolean }>('customize_deck_chips').visible).toBe(false);
 		expect(find<{ visible: boolean }>('customize_deck_foot').visible).toBe(false);
+		// No run is no run of one: the locker says nothing of being all free to borrow.
+		expect(find<{ kicker: string }>('customize_pool_panel').kicker).toBe(LOCKER_KICKERS.pair);
 	});
 
 	it('says the campaign is over, and how it fell, in place of the run deck and the locker', async () => {

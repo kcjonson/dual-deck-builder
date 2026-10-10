@@ -523,14 +523,16 @@ export class Campaign extends Model<CampaignData> {
 	 * holds fewer than `count`, the card is marked for another archetype than
 	 * `to`'s driver, `to`'s deck would go past the most it holds, or `from`'s
 	 * under the fewest (`DECK_RULES`). Between the locker and a run deck, the
-	 * same order: its driver is away; for `copies`, the copies that move
-	 * first are waiting (`own_at_home` to borrow, `borrowed_first` to leave
-	 * the driver's own at home); the locker holds too few for it
-	 * (`already_borrowed` when the other run deck borrowed what's missing),
-	 * or the run deck does (`card_locked` when its copies are escort cards);
-	 * then the deck rules on the run deck's own and borrowed copies, which is
-	 * what the limits count. It works out no stores, so a screen can ask it
-	 * of every control on every change.
+	 * same order: its driver is away. Going in, borrowing while some of the
+	 * driver's own wait at home (`own_at_home`), or for `home`, too few at
+	 * home (`too_few`), then the locker holds too few (`already_borrowed`
+	 * when the other run deck borrowed what's missing). Coming out, the run
+	 * deck holds too few of the copies asked for (`card_locked` when, with no
+	 * `copies` named, its copies are escort cards), then leaving the driver's
+	 * own at home while copies are borrowed, which go back first
+	 * (`borrowed_first`). Then the deck rules on the run deck's own and
+	 * borrowed copies, which is what the limits count. It works out no
+	 * stores, so a screen can ask it of every control on every change.
 	 *
 	 * Throws, as `moveCards` does, on a move no rule covers: a malformed card
 	 * type or count, a place to itself, a driver outside this campaign's
@@ -1118,7 +1120,8 @@ export class Campaign extends Model<CampaignData> {
 		const borrowed = cardCount(deck.borrowed, cardType);
 		const held = copies === 'own' ? cardCount(deck.own, cardType) : copies === 'borrowed' ? borrowed : cardCount(deck.cards, cardType);
 		if (held < count) {
-			const locked = deck.escortCards.find(card => card.cardType === cardType);
+			// Escort cards are neither the driver's own nor borrowed, so only a move that names no copies is after one.
+			const locked = copies === undefined ? deck.escortCards.find(card => card.cardType === cardType) : undefined;
 			return { blocker: locked ? { reason: 'card_locked', place: deck, broughtBy: locked.broughtBy } : { reason: 'too_few', place: deck, held } };
 		}
 		if (copies === 'own' && borrowed > 0) return { blocker: { reason: 'borrowed_first', place: deck, held: borrowed } };
