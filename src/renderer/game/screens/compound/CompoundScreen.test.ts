@@ -16,10 +16,11 @@ import { ScreenManager } from '../../core/ScreenManager';
 import { Campaign, CampaignData, Resources } from '../../campaign/Campaign';
 import type { CampaignStore } from '../../campaign/CampaignStore';
 import { MemorySaveStorage } from '../../campaign/SaveStorage';
+import { rollScavengeHaul, scavengeMessage } from '../../campaign/Scavenging';
 import {
 	CAMPAIGN_FIXTURE, FaultyStorage, KEYS, damagedText, fixtureText, newCampaign, quotaError, saveText, storageWith, storeOver
 } from '../../campaign/__fixtures__/storeFixtures';
-import { BUILDINGS } from './compoundText';
+import { BUILDINGS, RESOURCE_ORDER } from './compoundText';
 import { CompoundScreen } from './CompoundScreen';
 
 jest.mock('../../core/ScreenManager', () => ({
@@ -30,6 +31,8 @@ const navigate = ScreenManager.navigate as jest.Mock;
 const OPEN_MS = tokens.motion.dur + 32;
 const CLOSE_MS = tokens.motion.dur_fast + 32;
 const TO_MENU = ['mainMenuScreen', undefined, { restoreFocus: true }];
+/** Past the window in which a press right after a day ended counts as the same click (the screen's 300 ms). */
+const NEXT_PRESS_MS = 320;
 
 type Fixture = Record<string, unknown> & { resources: Record<string, number>; drivers: { status: string; injuredDays: number }[] };
 
@@ -40,8 +43,13 @@ describe('CompoundScreen', () => {
 	let store: CampaignStore;
 	let storage: FaultyStorage;
 
-	/** Mounts the screen over a save of the fixture, changed first if asked, and waits for it to load. */
-	async function open(change: (campaign: Fixture) => void = () => undefined): Promise<void> {
+	/** Mounts the screen over the fixture home from its run, its stores changed if asked, and waits for it to load. */
+	async function open(resources: Partial<Resources> = {}): Promise<void> {
+		await openText(homeText(resources));
+	}
+
+	/** Mounts the screen over the fixture as saved, with its run out, changed first if asked. */
+	async function openRunOut(change: (campaign: Fixture) => void = () => undefined): Promise<void> {
 		await openText(fixtureText((campaign) => change(campaign as Fixture)));
 	}
 
@@ -105,12 +113,41 @@ describe('CompoundScreen', () => {
 		for (let turn = 0; turn < 4; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
 	}
 
-	/** Tab to Rest from Back, where focus starts, and Enter. */
+	/** A deliberate press of Rest, well after any day before it ended: focus on it, and Enter. */
 	async function rest(): Promise<void> {
+		advance(context, NEXT_PRESS_MS);
 		context.focus.focus(find('compound_rest_button'));
 		send(context, [key('Enter')]);
 		await flush();
 	}
+
+	/** A deliberate press of Scavenge, as `rest` presses Rest. */
+	async function scavenge(): Promise<void> {
+		advance(context, NEXT_PRESS_MS);
+		context.focus.focus(find('compound_scavenge_button'));
+		send(context, [key('Enter')]);
+		await flush();
+	}
+
+	/** A component's box, laid out in the real faces. */
+	function bounds(id: string): { x: number; y: number; width: number; height: number } {
+		return find<{ screenBounds: { x: number; y: number; width: number; height: number } }>(id).screenBounds;
+	}
+
+	/** A pointer click at the middle of a component. */
+	function clickOn(id: string): void {
+		const { x, y, width, height } = bounds(id);
+		click(context, x + width / 2, y + height / 2);
+	}
+
+	/** What a party sent out from the fixture's compound on `day` brings back. */
+	const haulOn = (day: number) => rollScavengeHaul({ seed: CAMPAIGN_FIXTURE.seed, day });
+
+	/** Scavenge's line for that haul. */
+	const scavengeLine = (day: number): string => {
+		const { fuel, scrap } = haulOn(day);
+		return `Scavenging ends it too, with ${fuel} fuel and ${scrap} scrap.`;
+	};
 
 	beforeEach(() => {
 		navigate.mockClear();
@@ -122,7 +159,7 @@ describe('CompoundScreen', () => {
 		screen?.unmount();
 	});
 
-	describe('over the fixture save', () => {
+	describe('over the fixture save, home from its run', () => {
 		beforeEach(() => open());
 
 		it('shows the day and the stores along the top', () => {
@@ -150,6 +187,7 @@ describe('CompoundScreen', () => {
 			expect(find<Button>('compound_plan_button').enabled).toBe(false);
 			expect(text('compound_plan_reason')).toBe("Load out and the run route aren't built yet.");
 			expect(find<Button>('compound_rest_button').enabled).toBe(true);
+			expect(find<Button>('compound_scavenge_button').enabled).toBe(true);
 		});
 
 		it('lists the food and water forecasts, the injured, and an empty rumors line', () => {
@@ -162,7 +200,22 @@ describe('CompoundScreen', () => {
 			expect(text('compound_rest_line')).toBe('Ends day 9. The compound eats 5 food and 5 water.');
 		});
 
-		it('starts focus on Back to menu, and Tab reaches only the live controls: Back, the Bunkhouse, and Rest', () => {
+		it('previews under Rest\'s line what a party on foot would bring back today, as the press will bring it', () => {
+			expect(text('compound_scavenge_line')).toBe(scavengeLine(9));
+			expect(find<Text>('compound_scavenge_line').visible).toBe(true);
+		});
+
+		it('moves between Rest and Scavenge with the arrows, the actions being one stop: Down and Right go to Scavenge, Up and Left back', () => {
+			context.frame.layout();
+			context.focus.focus(find('compound_rest_button'));
+			const moves = ['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft'].map((arrow) => {
+				send(context, [key(arrow)]);
+				return context.focus.focused?.id;
+			});
+			expect(moves).toEqual(['compound_scavenge_button', 'compound_rest_button', 'compound_scavenge_button', 'compound_rest_button']);
+		});
+
+		it('starts focus on Back to menu, and Tab reaches only the live controls: Back, the Bunkhouse, and the actions at Rest', () => {
 			expect(context.focus.focused?.id).toBe('compound_back_button');
 			const stops = ['Tab', 'Tab', 'Tab'].map((tab) => {
 				send(context, [key(tab)]);
@@ -219,6 +272,37 @@ describe('CompoundScreen', () => {
 			expect(context.focus.focused?.id).toBe('compound_rest_button');
 		});
 
+		it('sends a scavenging party on Scavenge: the day ends, the haul comes home, it\'s checkpointed, and the haul leads the report', async () => {
+			const haul = haulOn(9);
+			await scavenge();
+			const campaign = screen.shown;
+			expect(campaign?.day).toBe(10);
+			expect(campaign?.resources).toMatchObject({ food: 9, water: 6, fuel: 6 + haul.fuel, scrap: 35 + haul.scrap, people: 18 });
+			const saved = await storeOver(storage).load();
+			expect([saved?.day, saved?.resources.fuel, saved?.resources.scrap]).toEqual([10, 6 + haul.fuel, 35 + haul.scrap]);
+			expect(saved?.log.at(-1)).toEqual({ day: 9, message: scavengeMessage(haul) });
+			expect(find<{ children: readonly Text[] }>('compound_resource_fuel').children[0].text).toBe(`Fuel ${6 + haul.fuel}`);
+			expect(text('compound_report')).toBe(`${scavengeMessage(haul)} Day 9 ended.`);
+			expect(find<{ color: unknown }>('compound_report').color).toEqual(tokens.color.text_dim);
+			expect(text('compound_rest_line')).toBe('Ends day 10. The compound eats 5 food and 5 water.');
+			expect(text('compound_scavenge_line')).toBe(scavengeLine(10));
+			expect(context.focus.focused?.id).toBe('compound_scavenge_button');
+		});
+
+		it('ignores a second press of either until the first day end has been saved, and keeps the Bunkhouse shut meanwhile', async () => {
+			context.focus.focus(find('compound_scavenge_button'));
+			send(context, [key('Enter'), key('Enter'), key('ArrowUp'), key('Enter')]);
+			expect(context.focus.focused?.id).toBe('compound_rest_button');
+			context.focus.focus(find('compound_building_bunkhouse_button'));
+			send(context, [key('Enter')]);
+			expect(navigate).not.toHaveBeenCalled();
+			await flush();
+			expect(screen.shown?.day).toBe(10);
+			expect(screen.shown?.resources.fuel).toBe(6 + haulOn(9).fuel);
+			await scavenge();
+			expect(screen.shown?.day).toBe(11);
+		});
+
 		it('takes the healed off the needs, and reports them', async () => {
 			await rest();
 			await rest();
@@ -253,7 +337,7 @@ describe('CompoundScreen', () => {
 	});
 
 	it('marks tonight\'s shortfall as urgent, and reports what a short night cost in the warning colour', async () => {
-		await open((campaign) => { campaign.resources.food = 3; });
+		await open({ food: 3 });
 		expect(needs()[0]).toBe('Food runs out tonight, 2 short');
 		expect(find<{ color: unknown }>('compound_need_0_text').color).toEqual(tokens.color.status_crit);
 		await rest();
@@ -275,6 +359,40 @@ describe('CompoundScreen', () => {
 		await rest();
 		expect(find<Text>('compound_save_error').visible).toBe(false);
 		expect((await storeOver(storage).load())?.day).toBe(11);
+	});
+
+	it('says under the buttons when a scavenged day could not be saved, keeping the report with its haul, and the next day end saves both', async () => {
+		await open();
+		const [first, second] = [haulOn(9), haulOn(10)];
+		storage.fault = { method: 'setItem', error: quotaError() };
+		await scavenge();
+		expect(screen.shown?.resources.fuel).toBe(6 + first.fuel);
+		expect(text('compound_report')).toBe(`${scavengeMessage(first)} Day 9 ended.`);
+		expect(text('compound_save_error')).toBe("The campaign couldn't be saved: storage is full.");
+		expect((await storeOver(storage).load())?.day).toBe(9);
+		storage.fault = null;
+		await scavenge();
+		expect(find<Text>('compound_save_error').visible).toBe(false);
+		const saved = await storeOver(storage).load();
+		expect([saved?.day, saved?.resources.fuel]).toEqual([11, 6 + first.fuel + second.fuel]);
+	});
+
+	it('disables Rest and Scavenge while a run is out, each saying why, since the run\'s return ends the day', async () => {
+		await openRunOut();
+		expect(find<Button>('compound_rest_button').enabled).toBe(false);
+		expect(find<Button>('compound_scavenge_button').enabled).toBe(false);
+		expect(text('compound_rest_line')).toBe('A run is out, and its return ends the day.');
+		expect(text('compound_scavenge_line')).toBe("A run is out, so no party goes until it's home.");
+		const stops = ['Tab', 'Tab'].map((tab) => {
+			send(context, [key(tab)]);
+			return context.focus.focused?.id;
+		});
+		expect(stops).toEqual(['compound_building_bunkhouse_button', 'compound_back_button']);
+		find<Button>('compound_rest_button').onClick?.({} as never);
+		find<Button>('compound_scavenge_button').onClick?.({} as never);
+		await flush();
+		expect(screen.shown?.day).toBe(9);
+		expect((await storeOver(storage).load())?.day).toBe(9);
 	});
 
 	describe('when the last people leave', () => {
@@ -323,6 +441,43 @@ describe('CompoundScreen', () => {
 			expect(screen.shown?.drivers[2]).toMatchObject({ status: 'injured', injuredDays: 1 });
 		});
 
+		it('ends the campaign from a scavenged day the same way, the haul in the report and the log, then says the compound has fallen', async () => {
+			const haul = haulOn(9);
+			await scavenge();
+			advance(context, OPEN_MS);
+			expect(screen.shown?.end).toEqual({ ending: 'starved', cause: 'no_people' });
+			expect(screen.shown?.resources.fuel).toBe(6 + haul.fuel);
+			expect(screen.shown?.log.map((entry) => entry.message)).toContain(scavengeMessage(haul));
+			expect(text('compound_report')).toBe(`${scavengeMessage(haul)} Day 9 ended. Ran short of 1 food and 1 water; 1 person lost.`);
+			expect(fallen()).toBe(true);
+			expect(await storeOver(storage).load()).toBeNull();
+			expect(await storeOver(storage).history()).toEqual([{ seed: CAMPAIGN_FIXTURE.seed, day: 9, strongholdsTaken: 1, ending: 'starved' }]);
+		});
+
+		it('holds the notice back when a scavenged fall can\'t be saved, disables Scavenge as over, and lets Rest save the end without another night', async () => {
+			storage.fault = { method: 'setItem', error: quotaError() };
+			await scavenge();
+			advance(context, OPEN_MS);
+			expect(fallen()).toBe(false);
+			expect(text('compound_save_error')).toBe("The campaign couldn't be ended: storage is full.");
+			expect(find<Button>('compound_scavenge_button').enabled).toBe(false);
+			expect(text('compound_scavenge_line')).toBe('The campaign is over, so no party goes out.');
+			expect(find<Button>('compound_rest_button').enabled).toBe(true);
+			// Focus was on Scavenge, which disabled itself; it moves to Rest, which saves the end, not to nothing.
+			expect(context.focus.focused?.id).toBe('compound_rest_button');
+			expect(text('compound_rest_line')).toBe('The compound has fallen. Rest saves its end again.');
+			find<Button>('compound_scavenge_button').onClick?.({} as never);
+			await flush();
+			expect(await storeOver(storage).history()).toEqual([]);
+			storage.fault = null;
+			await rest();
+			advance(context, OPEN_MS);
+			expect(fallen()).toBe(true);
+			expect(screen.shown?.day).toBe(9);
+			expect(screen.shown?.resources.fuel).toBe(6 + haulOn(9).fuel);
+			expect(await storeOver(storage).history()).toHaveLength(1);
+		});
+
 		it('goes to the menu on Escape, with no hotkey beneath the notice firing twice', async () => {
 			await rest();
 			advance(context, OPEN_MS);
@@ -350,6 +505,8 @@ describe('CompoundScreen', () => {
 		expect(fallen()).toBe(false);
 		expect(text('compound_save_error')).toBe("The campaign couldn't be ended: storage is full.");
 		expect(text('compound_rest_line')).toBe('The compound has fallen. Rest saves its end again.');
+		expect(find<Button>('compound_scavenge_button').enabled).toBe(false);
+		expect(text('compound_scavenge_line')).toBe('The campaign is over, so no party goes out.');
 		expect(await storeOver(storage).history()).toEqual([]);
 		storage.fault = null;
 
@@ -362,18 +519,15 @@ describe('CompoundScreen', () => {
 		expect(await storeOver(storage).history()).toEqual([{ seed: CAMPAIGN_FIXTURE.seed, day: 9, strongholdsTaken: 1, ending: 'disbanded' }]);
 	});
 
-	it('says nothing has fallen while a run is out at 0 People, since the end waits for the run to come home', async () => {
-		await open((campaign) => {
-			campaign.resources.people = 1;
-			campaign.resources.food = 0;
-			campaign.resources.water = 0;
-		});
-		await rest();
+	it('says nothing has fallen while a run is out at 0 People, since the end waits for the run to come home, and sends nobody out', async () => {
+		await openRunOut((campaign) => { campaign.resources.people = 0; });
+		await flush();
 		advance(context, OPEN_MS);
 		expect(fallen()).toBe(false);
 		expect(screen.shown?.isOver).toBe(false);
-		const saved = await storeOver(storage).load();
-		expect([saved?.resources.people, saved?.isOver]).toEqual([0, false]);
+		expect(find<Button>('compound_scavenge_button').enabled).toBe(false);
+		expect(text('compound_scavenge_line')).toBe('Nobody is left to send out.');
+		expect(find<Button>('compound_rest_button').enabled).toBe(false);
 	});
 
 	describe('opened with or without a campaign handed over', () => {
@@ -394,6 +548,8 @@ describe('CompoundScreen', () => {
 			screen.mount(context);
 			await screen.campaignLoaded;
 			expect(find<Button>('compound_rest_button').enabled).toBe(false);
+			expect(find<Button>('compound_scavenge_button').enabled).toBe(false);
+			expect(text('compound_scavenge_line')).toBe('');
 			expect(find<Button>('compound_building_bunkhouse_button').enabled).toBe(false);
 			expect(find<Text>('compound_building_bunkhouse_reason').visible).toBe(true);
 			expect(text('compound_building_bunkhouse_reason')).toBe('Opens with a campaign in progress.');
@@ -410,13 +566,36 @@ describe('CompoundScreen', () => {
 		});
 	});
 
-	it.each([
-		{ width: 1440, height: 882 },
-		{ width: 1024, height: 600 },
-	])('lays out with no lint at $width x $height, measured in the real faces', async (size) => {
+	/** States the side column has to hold: the buttons live, refused with their reasons, and a scavenged night's longest report. */
+	const LAYOUTS: { name: string; mount: () => Promise<void> }[] = [
+		{ name: 'at home', mount: () => open() },
+		{ name: 'a run out', mount: () => openRunOut() },
+		{
+			name: 'a scavenged night that ran short and healed someone',
+			mount: async () => {
+				await open({ food: 3 });
+				screen.shown?.drivers[2].set({ injuredDays: 1 });
+				await scavenge();
+			},
+		},
+		{
+			name: 'four-digit stores after a scavenged night',
+			mount: async () => {
+				await open({ food: 9999, water: 9999, fuel: 9990, scrap: 9900, meds: 9999, people: 9999 });
+				await scavenge();
+			},
+		},
+	];
+
+	const LAYOUT_CASES = [{ width: 1440, height: 882 }, { width: 1024, height: 600 }]
+		.flatMap((size) => LAYOUTS.map(({ name, mount }) => ({ ...size, name, mount })));
+
+	it.each(LAYOUT_CASES)('lays out with no lint at $width x $height with $name, measured in the real faces', async ({ width, height, mount }) => {
+		const size = { width, height };
 		viewport.logical = size;
 		context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
-		await open();
+		await mount();
+		context.frame.layout();
 		const lint = layoutLint(treeSnapshot([screen.root], size));
 		expect(lint.violations).toEqual([]);
 		const side = find<{ screenBounds: { x: number; y: number; width: number; height: number } }>('compound_side').screenBounds;
@@ -430,11 +609,7 @@ describe('CompoundScreen', () => {
 	async function stores(amount: number | Record<string, number>): Promise<void> {
 		viewport.logical = { width: 1024, height: 600 };
 		context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
-		await open((campaign) => {
-			for (const resource of Object.keys(campaign.resources)) {
-				campaign.resources[resource] = typeof amount === 'number' ? amount : amount[resource];
-			}
-		});
+		await open(Object.fromEntries(RESOURCE_ORDER.map((resource) => [resource, typeof amount === 'number' ? amount : amount[resource]])));
 	}
 
 	/** The chips stay inside the bar, and nothing lints (R13.29). */
@@ -484,12 +659,53 @@ describe('CompoundScreen', () => {
 		expect(lint.violations).toEqual([]);
 	});
 
-	it('clicks Rest like any button', async () => {
-		context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
-		await open();
-		const { x, y, width, height } = find<{ screenBounds: { x: number; y: number; width: number; height: number } }>('compound_rest_button').screenBounds;
-		click(context, x + width / 2, y + height / 2);
-		await flush();
-		expect(screen.shown?.day).toBe(10);
+	describe('pressed with the pointer, laid out in the real faces', () => {
+		beforeEach(async () => {
+			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
+			await open();
+		});
+
+		it('clicks Rest and Scavenge like any button', async () => {
+			clickOn('compound_rest_button');
+			await flush();
+			expect(screen.shown?.day).toBe(10);
+			advance(context, NEXT_PRESS_MS);
+			clickOn('compound_scavenge_button');
+			await flush();
+			expect(screen.shown?.day).toBe(11);
+		});
+
+		it.each([
+			{ button: 'compound_scavenge_button', gap: 100, days: 1 },
+			{ button: 'compound_scavenge_button', gap: 400, days: 2 },
+			{ button: 'compound_rest_button', gap: 100, days: 1 },
+			{ button: 'compound_rest_button', gap: 400, days: 2 },
+		])('ends $days day(s) from two clicks on $button $gap ms apart, a double-click being one press', async ({ button, gap, days }) => {
+			clickOn(button);
+			await flush();
+			advance(context, gap);
+			clickOn(button);
+			await flush();
+			expect(screen.shown?.day).toBe(9 + days);
+			expect((await storeOver(storage).load())?.day).toBe(9 + days);
+		});
+
+		it('keeps Rest and Scavenge where they are as the report, the lines, and a save failure come and go', async () => {
+			context.frame.layout();
+			const where = () => [bounds('compound_rest_button').y, bounds('compound_scavenge_button').y];
+			const start = where();
+			clickOn('compound_scavenge_button');
+			await flush();
+			context.frame.layout();
+			expect(find<Text>('compound_report').visible).toBe(true);
+			expect(where()).toEqual(start);
+			storage.fault = { method: 'setItem', error: quotaError() };
+			advance(context, NEXT_PRESS_MS);
+			clickOn('compound_scavenge_button');
+			await flush();
+			context.frame.layout();
+			expect(find<Text>('compound_save_error').visible).toBe(true);
+			expect(where()).toEqual(start);
+		});
 	});
 });
