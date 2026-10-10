@@ -1,6 +1,6 @@
 {
 	"seed": 20261006,
-	"generatorVersion": 4,
+	"generatorVersion": 5,
 	"day": 9,
 	"resources": {
 		"food": 14,
@@ -373,7 +373,8 @@
 			"places": 0,
 			"roads": 0,
 			"routeTree": 0,
-			"pois": 0
+			"pois": 0,
+			"stops": 0
 		}
 	}
 }

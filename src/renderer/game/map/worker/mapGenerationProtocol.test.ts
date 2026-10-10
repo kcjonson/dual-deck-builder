@@ -2,6 +2,9 @@ import { AreaMapGeneration, generateAreaMap } from '../AreaMapPipeline';
 import * as drainage from '../Drainage';
 import * as land from '../Land';
 import { MapPipelineError, StageFailure } from '../MapPipeline';
+import { meshMap, randomMesh } from '../meshTesting';
+import { describeMap } from '../RouteDescriptors';
+import { rollStop } from '../Stops';
 import { Terrain, TerrainSample, WaterKind, createTerrainSample } from '../Terrain';
 import { paramsFor } from '../roadTesting';
 import { AreaMapTransfer, decodeAreaMap, encodeAreaMap, errorFromReply, failureReply, packRoadNetwork, unpackRoadNetwork } from './mapGenerationProtocol';
@@ -110,6 +113,7 @@ describe('the generation worker\'s transfer format', () => {
 		expect(products.hazards.hotspots).toEqual(original.hazards.hotspots);
 		expect(plain(products.routeTree)).toEqual(plain(original.routeTree));
 		expect(products.pois).toEqual(original.pois);
+		expect(products.stops).toEqual(original.stops);
 		expect(products.water.rivers).toEqual(map.products.water.rivers);
 		expect(products.water.lakes).toEqual(map.products.water.lakes);
 		expect(products.water.terrain.water).toBe(products.water);
@@ -140,7 +144,7 @@ describe('the generation worker\'s transfer format', () => {
 			},
 		});
 		expect(retried.mapAttempt).toBe(1);
-		expect(retried.attempts).toEqual({ terrain: 0, water: 0, hazards: 0, places: 0, roads: 2, routeTree: 0, pois: 0 });
+		expect(retried.attempts).toEqual({ terrain: 0, water: 0, hazards: 0, places: 0, roads: 2, routeTree: 0, pois: 0, stops: 0 });
 		const retriedLand = landLattice(retried.products.hazards.terrain);
 		const retriedPlaces = retried.products.places;
 		const decoded = decodeAreaMap(sent(retried));
@@ -149,6 +153,20 @@ describe('the generation worker\'s transfer format', () => {
 		expect(landLattice(decoded.products.hazards.terrain)).toEqual(retriedLand);
 		// Map attempt 1's terrain, not the first map attempt's.
 		expect(decoded.streams.terrain).not.toBe(map.streams.terrain);
+	});
+
+	it('carries the POIs and their stops across as they are, so routes and stop contents come out the same on the other side', () => {
+		// A mesh's POIs and stops, so there are plenty whatever the generated map has.
+		const mesh = meshMap(randomMesh({ seed: 41 }), { seed: 3 });
+		const own = generateAreaMap({ params });
+		const withStops = { ...own, products: { ...own.products, pois: mesh.products.pois, stops: mesh.products.stops } };
+		expect(mesh.products.stops.stops.length).toBeGreaterThan(0);
+		const { products } = decodeAreaMap(sent(withStops));
+		expect(products.pois).toEqual(mesh.products.pois);
+		expect(products.stops).toEqual(mesh.products.stops);
+		const decoded = { params: { ...params, daylightHours: 14, stopDensity: 1 }, products };
+		expect(describeMap(decoded)).toEqual(describeMap({ ...decoded, products: mesh.products }));
+		expect(rollStop({ products }, 5, 2)).toEqual(rollStop(mesh, 5, 2));
 	});
 
 	it('carries an error across, keeping a pipeline failure\'s details', () => {

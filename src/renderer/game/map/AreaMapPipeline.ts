@@ -8,13 +8,16 @@ import { checkRoadNetwork } from './RoadChecks';
 import type { RoadNetwork } from './RoadNetwork';
 import { RoadStats, Roads, generateRoads, loopsNeeded, loopsWanted, roadsProblems } from './Roads';
 import { RouteTree, buildRouteTree } from './RouteTree';
+import { checkStopLayer } from './StopChecks';
+import { StopGround, StopLayer, placeStops } from './Stops';
 import { Terrain, generateTerrain } from './Terrain';
 import { Water, generateWater } from './Water';
 
 /**
  * The area map's stages as they stand: terrain, water, hazards, places, the
- * roads, then the route tree and the POIs over the roads' network. Each runs
- * on the stream the runner nests for it, so water draws from
+ * roads, then the route tree, the POIs, and the stops over the roads'
+ * network. Each runs on the stream the runner nests for it, so water draws
+ * from
  * root.fork('map', m).fork('terrain', t).fork('water', w), hazards one level
  * further down, places one more, and so on; the route tree takes no draws,
  * but it's a link in the chain all the same.
@@ -33,6 +36,7 @@ export interface AreaMapProducts {
 	readonly roads: Roads;
 	readonly routeTree: RouteTree;
 	readonly pois: PoiLayer;
+	readonly stops: StopLayer;
 }
 
 export type AreaMapStageName = keyof AreaMapProducts;
@@ -157,6 +161,24 @@ export function poisStage({ strict = true }: PoisStageOptions = {}): MapStage<Ma
 	};
 }
 
+/** What the stops read: the roads, the land with its water and hazards, and the POIs with their legs. */
+interface StopsUpstream extends RoadsProduct {
+	readonly hazards: { readonly terrain: StopGround };
+	readonly pois: PoiLayer;
+}
+
+/**
+ * Stage 9, stops on the legs, checked by the checks the map validator will
+ * run. It retries only itself and never restarts the map; on a map with no
+ * POIs it places nothing and passes.
+ */
+export const STOPS_STAGE: MapStage<MapParams, StopsUpstream, 'stops', StopLayer> = {
+	name: 'stops',
+	localRetry: true,
+	run: ({ input, products, rng }) => placeStops({ network: products.roads.network, layer: products.pois, ground: products.hazards.terrain, params: input, rng }),
+	check: (stops, { input, products }) => checkStopLayer({ network: products.roads.network, layer: products.pois, stops, params: input }).map(({ rule, detail }) => `${rule}: ${detail}`),
+};
+
 export interface AreaMapPipelineOptions {
 	/** Strict unless told otherwise. */
 	readonly pois?: PoisStageOptions;
@@ -171,7 +193,8 @@ export function areaMapPipeline({ pois = {} }: AreaMapPipelineOptions = {}): Map
 		.stage(PLACES_STAGE)
 		.stage(ROADS_STAGE)
 		.stage(ROUTE_TREE_STAGE)
-		.stage(poisStage(pois));
+		.stage(poisStage(pois))
+		.stage(STOPS_STAGE);
 }
 
 export interface AreaMapGeneration extends PipelineResult<AreaMapProducts> {

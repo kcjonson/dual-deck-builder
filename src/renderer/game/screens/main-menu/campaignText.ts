@@ -55,9 +55,10 @@ export const MAP_STAGE_LABELS: Readonly<Record<AreaMapStageName, string>> = {
 	roads: 'roads',
 	routeTree: 'route tree',
 	pois: 'POIs',
+	stops: 'stops',
 };
 
-/** A map generation's progress, for a line under whatever waits on it: "Making the area map: POIs (7 of 7)". */
+/** A map generation's progress, for a line under whatever waits on it: "Making the area map: POIs (7 of 8)". */
 export function mapProgressText({ stage, index, count }: Pick<StageAttempt<AreaMapStageName>, 'stage' | 'index' | 'count'>): string {
 	return `Making the area map: ${MAP_STAGE_LABELS[stage]} (${index + 1} of ${count})`;
 }
