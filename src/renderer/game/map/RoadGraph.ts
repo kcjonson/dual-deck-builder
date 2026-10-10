@@ -27,6 +27,8 @@ export const ROAD_GRAPH = {
 	simplify: 0.6,
 	/** Chaikin passes after simplifying. */
 	smoothing: 2,
+	/** Passes of a quarter, half, quarter average over a stretch's cells before it's simplified, which takes out steps back and forth between two rows. */
+	relaxing: 2,
 	/** A stretch longer than this many world units is split at roadside nodes into pieces no longer. */
 	longest: 140,
 } as const;
@@ -319,13 +321,30 @@ function traceLines(trace: Trace, nodes: readonly RoadNode[], field: RoadCells['
 	const smoothed: number[] = [raw[0], raw[1]];
 	for (let hold = 0; hold + 1 < held.length; hold += 1) {
 		const run = raw.slice(2 * held[hold], 2 * held[hold + 1] + 2);
-		const simple = simplify(run, tolerance);
-		let smooth = simple;
+		let simple = simplify(run, tolerance);
+		for (let pass = 0; pass < ROAD_GRAPH.smoothing; pass += 1) simple = chaikin(simple);
+		let smooth = run;
+		for (let pass = 0; pass < ROAD_GRAPH.relaxing; pass += 1) smooth = relaxed(smooth);
+		smooth = simplify(smooth, tolerance);
 		for (let pass = 0; pass < ROAD_GRAPH.smoothing; pass += 1) smooth = chaikin(smooth);
 		for (let point = 2; point < simple.length; point += 1) simplified.push(simple[point]);
 		for (let point = 2; point < smooth.length; point += 1) smoothed.push(smooth[point]);
 	}
 	return [raw, simplified, smoothed];
+}
+
+/**
+ * One pass of a quarter, half, quarter average over a flat polyline's inner
+ * points, its ends held: a step back and forth between two rows of cells,
+ * which no simplifying takes out, averages to the line between them.
+ */
+function relaxed(points: readonly number[]): number[] {
+	const out = points.slice();
+	for (let point = 2; point + 2 < points.length; point += 2) {
+		out[point] = 0.25 * points[point - 2] + 0.5 * points[point] + 0.25 * points[point + 2];
+		out[point + 1] = 0.25 * points[point - 1] + 0.5 * points[point + 1] + 0.25 * points[point + 3];
+	}
+	return out;
 }
 
 interface Piece {
@@ -335,15 +354,17 @@ interface Piece {
 }
 
 /**
- * A polyline longer than `ROAD_GRAPH.longest` cut at the points nearest even
- * shares of its length into pieces about that long or less, never on a
- * bridge: the roadside nodes.
+ * A polyline longer than `ROAD_GRAPH.longest` cut into pieces about that
+ * long or less at even shares of its length, the roadside nodes: on a point
+ * of the line within a world unit of the share, or else a point put there on
+ * its segment, which leaves the line where it was. A share on a bridge moves
+ * to the nearer end of its deck.
  */
 function splitLong(points: readonly number[], bridges: readonly { start: number; end: number }[]): Piece[] {
 	const length = polylineLength(points);
 	const parts = Math.ceil(length / ROAD_GRAPH.longest);
 	const count = points.length / 2;
-	if (parts <= 1 || count < 3) return [{ points: points.slice(), first: true, last: true }];
+	if (parts <= 1) return [{ points: points.slice(), first: true, last: true }];
 	const along = new Float64Array(count);
 	for (let point = 1; point < count; point += 1) {
 		const dx = points[2 * point] - points[2 * point - 2];
@@ -351,24 +372,41 @@ function splitLong(points: readonly number[], bridges: readonly { start: number;
 		along[point] = along[point - 1] + Math.sqrt(dx * dx + dy * dy);
 	}
 	const cuts: number[] = [];
-	let previous = 0;
 	for (let part = 1; part < parts; part += 1) {
-		const target = length * part / parts;
-		let best = -1;
-		for (let point = previous + 1; point < count - 1; point += 1) {
-			if (bridges.some(({ start, end }) => along[point] >= start && along[point] <= end)) continue;
-			if (best < 0 || Math.abs(along[point] - target) < Math.abs(along[best] - target)) best = point;
-		}
-		if (best < 0) break;
-		cuts.push(best);
-		previous = best;
+		let target = length * part / parts;
+		const deck = bridges.find(({ start, end }) => target >= start && target <= end);
+		if (deck !== undefined) target = target - deck.start < deck.end - target ? deck.start : deck.end;
+		const previous = cuts.length > 0 ? cuts[cuts.length - 1] : 0;
+		if (target - previous >= 1 && length - target >= 1) cuts.push(target);
 	}
 	const pieces: Piece[] = [];
-	let start = 0;
-	[...cuts, count - 1].forEach((end, index, all) => {
-		pieces.push({ points: points.slice(2 * start, 2 * end + 2), first: index === 0, last: index === all.length - 1 });
-		start = end;
-	});
+	let piece: number[] = [points[0], points[1]];
+	let cut = 0;
+	for (let point = 1; point < count; point += 1) {
+		while (cut < cuts.length && cuts[cut] < along[point] - 1) {
+			const share = (cuts[cut] - along[point - 1]) / (along[point] - along[point - 1]);
+			const x = points[2 * point - 2] + (points[2 * point] - points[2 * point - 2]) * share;
+			const y = points[2 * point - 1] + (points[2 * point + 1] - points[2 * point - 1]) * share;
+			const last = piece.length;
+			// Within a unit of the point before, the cut moves onto it.
+			if (cuts[cut] - along[point - 1] < 1 && last > 2) {
+				pieces.push({ points: piece, first: pieces.length === 0, last: false });
+				piece = [piece[last - 2], piece[last - 1]];
+			} else {
+				piece.push(x, y);
+				pieces.push({ points: piece, first: pieces.length === 0, last: false });
+				piece = [x, y];
+			}
+			cut += 1;
+		}
+		piece.push(points[2 * point], points[2 * point + 1]);
+		if (cut < cuts.length && cuts[cut] <= along[point] && point < count - 1) {
+			pieces.push({ points: piece, first: pieces.length === 0, last: false });
+			piece = [points[2 * point], points[2 * point + 1]];
+			cut += 1;
+		}
+	}
+	pieces.push({ points: piece, first: pieces.length === 0, last: true });
 	return pieces;
 }
 

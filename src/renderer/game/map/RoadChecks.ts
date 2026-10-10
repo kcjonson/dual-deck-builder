@@ -1,6 +1,6 @@
 import { pointSegmentDistanceSquared, segmentDistanceSquared, segmentsMeet } from './Geometry';
 import { ROAD_CLASSES, RoadBridge, RoadNetwork, RoadStretch } from './RoadNetwork';
-import { MOVE_COST, METRO_BRIDGES, Terrain } from './Terrain';
+import type { Terrain } from './Terrain';
 
 // Globals read once, at load: under Jest's vm context each read costs about 0.15 us (seeded-prng.md).
 const sqrt = Math.sqrt;
@@ -55,8 +55,10 @@ export interface RoadCheckOptions {
  * - disc: every point is inside the disc.
  * - passable: no sample every half unit along a polyline is impassable, bar
  *   river water under one of the stretch's bridges.
- * - bridges: a stretch's bridges are where its polyline crosses rivers outside
- *   the metro, each no longer than the longest bridge.
+ * - bridges: a stretch's bridges are where its polyline crosses rivers, each
+ *   crossing outside the metro no longer than the longest bridge, since a
+ *   longer one has no deck and leaves its water impassable. Crossings close
+ *   together, two channels at a confluence say, share one deck.
  * - crossing and clearance: two stretches meet only at a node they both end
  *   on, leaving it 20 degrees apart or more, and otherwise keep
  *   `ROAD_CLEARANCE` apart, less near a node they share; a stretch never
@@ -112,8 +114,6 @@ function checkStructure({ nodes, stretches, broken }: RoadNetwork, report: Repor
 
 function checkGround({ stretches }: RoadNetwork, terrain: RoadGround, report: Report): void {
 	const radiusSquared = terrain.radius * terrain.radius;
-	const bridged = terrain.metro.radius + METRO_BRIDGES;
-	const bridgedSquared = bridged * bridged;
 	stretches.forEach(({ points, bridges }, id) => {
 		for (let point = 0; point < points.length; point += 2) {
 			const x = points[point];
@@ -121,14 +121,9 @@ function checkGround({ stretches }: RoadNetwork, terrain: RoadGround, report: Re
 			if (x * x + y * y > radiusSquared) report('disc', `stretch ${id} point ${point / 2} (${x}, ${y}) is outside the disc`);
 		}
 		const found = polylineBridges(terrain, points);
-		const longest = MOVE_COST.longestBridge + 2 * MOVE_COST.bridgeSlack;
 		if (found.length !== bridges.length || found.some((bridge, index) => !(Math.abs(bridge.start - bridges[index].start) <= 1e-6 && Math.abs(bridge.end - bridges[index].end) <= 1e-6))) {
 			report('bridges', `stretch ${id} records ${bridges.length} bridges, but its polyline crosses rivers at ${found.length}`);
 		}
-		bridges.forEach(({ start, end }, bridge) => {
-			const { x, y } = pointAlong(points, 0.5 * (start + end));
-			if (x * x + y * y > bridgedSquared && !(end - start <= longest + 1e-9)) report('bridges', `stretch ${id}'s bridge ${bridge} runs ${end - start} units, past the longest`);
-		});
 		const blocked = impassableAlong(terrain, points, bridges);
 		if (blocked >= 0) report('passable', `stretch ${id} is impassable ${blocked.toFixed(2)} units along, at ${describePoint(points, blocked)}`);
 	});
@@ -369,10 +364,7 @@ function checkPair(nodes: RoadNetwork['nodes'], stretches: readonly Pick<RoadStr
 	let at = shared[0];
 	for (const node of shared) {
 		const { x, y } = nodes[node];
-		const reach = min(clearance, NODE_TAPER * sqrt(max(
-			pointSegmentDistanceSquared(x, y, a.x0, a.y0, a.x1, a.y1),
-			pointSegmentDistanceSquared(x, y, b.x0, b.y0, b.x1, b.y1),
-		)));
+		const reach = min(clearance, NODE_TAPER * sqrt(max(distanceToNode(x, y, a), distanceToNode(x, y, b))));
 		if (reach < gap) {
 			gap = reach;
 			at = node;
@@ -384,6 +376,12 @@ function checkPair(nodes: RoadNetwork['nodes'], stretches: readonly Pick<RoadStr
 	}
 	const { x, y } = nodes[at];
 	return meetAtAngle(x, y, a, b) ? null : { rule: 'crossing', a: a.stretch, b: b.stretch, detail: `meet at node ${at} other than end to end 20 degrees apart, at ${where}` };
+}
+
+/** The squared distance from a node to a segment: exactly 0 when the segment ends on it, which the projection's rounding can miss. */
+function distanceToNode(x: number, y: number, segment: Segment): number {
+	if ((segment.x0 === x && segment.y0 === y) || (segment.x1 === x && segment.y1 === y)) return 0;
+	return pointSegmentDistanceSquared(x, y, segment.x0, segment.y0, segment.x1, segment.y1);
 }
 
 /** Whether two segments both end exactly at (x, y) and leave it at least 20 degrees apart. */

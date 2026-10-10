@@ -23,8 +23,8 @@ What the worker had to fit:
 ```ts
 new MapPipeline<MapParams>()
 	.stage(TERRAIN_STAGE)
-	.stage(HIGHWAYS_STAGE)
-	.stage(growthStage({ branchiness, clearance }))
+	.stage(WATER_STAGE)
+	.stage(ROADS_STAGE)
 	.run({ seed, input: params, accept, onProgress });
 ```
 
@@ -44,11 +44,11 @@ An escalation could instead have been a failure a stage returns naming the stage
 
 ## The stages
 
-Terrain, water (water-and-biomes.md), then the highways and growth, stand-ins for settlements and road links (Map 7 and 8), named for the streams they always drew on. Growth's check is `checkRoadNetwork`, the network checks the map validator will run, worded `rule: detail`. `areaMapPipeline` takes growth's knobs and, for tests, a terrain stage to use in place of `TERRAIN_STAGE`.
+Terrain, water (water-and-biomes.md), the roads (road-network.md), then the route tree and the POIs (route-tree-and-pois.md). The highways and growth stages this record started with were stand-ins until the road links and graph (Maps 7 and 8) replaced them. The roads' check is too few loops, a place no road reaches, and `checkRoadNetwork`, the network checks the map validator will run, worded `rule: detail`.
 
-Terrain is the first stage, so its stream is `root.fork('map', m).fork('terrain', t)`, and water, the highways, and growth nest under it in turn. `roadTesting.growMap`, `scripts/road-growth.mjs`, and the gallery's `fixtureAreaMap` all run the runner.
+Terrain is the first stage, so its stream is `root.fork('map', m).fork('terrain', t)`, and every stage after nests under the one before. `roadTesting.roadMap`, `scripts/road-network.mjs`, and the gallery's `fixtureAreaMap` all run the runner.
 
-Retries can hide a regression from a test: a network that breaks a road rule is retried, and the test sees the attempt that passed. So `growMap` throws unless every stage won its first attempt on the first map attempt, naming what failed, and only a caller that passes `accept`, steering the retries itself, gets whatever won. `road-growth.mjs check` reports every first-attempt failure, the spec's health metric.
+Retries can hide a regression from a test: a network that breaks a road rule is retried, and the test sees the attempt that passed. So `roadMap` throws on any failure but too few loops, which the spec retries on purpose, naming what failed. `road-network.mjs check` reports each stage's first-attempt pass rate, the spec's health metric.
 
 ## The worker
 

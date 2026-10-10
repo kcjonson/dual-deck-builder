@@ -50,7 +50,7 @@ describe('the generation worker\'s transfer format', () => {
 	const params = paramsFor({ seed: 5, environment: 'floodlands', radius: 700 });
 	const map = generateAreaMap({ params });
 	const mapLand = landLattice(map.products.water.terrain);
-	const { network } = map.products.growth;
+	const { network } = map.products.roads;
 
 	afterEach(() => {
 		jest.restoreAllMocks();
@@ -101,8 +101,7 @@ describe('the generation worker\'s transfer format', () => {
 		const { products, ...rest } = decoded;
 		const { products: original, ...expected } = own;
 		expect(rest).toEqual(expected);
-		expect(products.highways).toEqual(original.highways);
-		expect(products.growth).toEqual(original.growth);
+		expect(products.roads).toEqual(original.roads);
 		expect(plain(products.routeTree)).toEqual(plain(original.routeTree));
 		expect(products.pois).toEqual(original.pois);
 		expect(products.water.rivers).toEqual(map.products.water.rivers);
@@ -116,30 +115,30 @@ describe('the generation worker\'s transfer format', () => {
 	});
 
 	it('decodes the streams that won, after retries and a map restart', () => {
-		let growthRejections = 0;
+		let roadsRejections = 0;
 		const retried = generateAreaMap({
 			params,
 			accept: (_map, { stage, mapAttempt }) => {
-				if (stage === 'highways' && mapAttempt === 0) return ['force a map restart'];
-				if (stage === 'growth' && growthRejections < 2) {
-					growthRejections += 1;
-					return ['force a growth rerun'];
+				if (stage === 'water' && mapAttempt === 0) return ['force a map restart'];
+				if (stage === 'roads' && roadsRejections < 2) {
+					roadsRejections += 1;
+					return ['force a roads rerun'];
 				}
 				return [];
 			},
 		});
 		expect(retried.mapAttempt).toBe(1);
-		expect(retried.attempts).toEqual({ terrain: 0, water: 0, highways: 0, growth: 2, routeTree: 0, pois: 0 });
+		expect(retried.attempts).toEqual({ terrain: 0, water: 0, roads: 2, routeTree: 0, pois: 0 });
 		const retriedLand = landLattice(retried.products.water.terrain);
 		const decoded = decodeAreaMap(sent(retried));
-		expect(decoded.products.growth).toEqual(retried.products.growth);
+		expect(decoded.products.roads).toEqual(retried.products.roads);
 		expect(landLattice(decoded.products.water.terrain)).toEqual(retriedLand);
 		// Map attempt 1's terrain, not the first map attempt's.
 		expect(decoded.streams.terrain).not.toBe(map.streams.terrain);
 	});
 
 	it('carries an error across, keeping a pipeline failure\'s details', () => {
-		const failure: StageFailure = { stage: 'growth', index: 3, count: 4, attempt: 7, mapAttempt: 31, seed: 5, problems: ['disc: out'] };
+		const failure: StageFailure = { stage: 'roads', index: 2, count: 5, attempt: 7, mapAttempt: 31, seed: 5, problems: ['disc: out'] };
 		const reply = failureReply(new MapPipelineError({ message: 'ran out', failure, exhausted: 'map' }));
 		expect(reply).toMatchObject({ type: 'failed', message: 'ran out', pipeline: { failure, exhausted: 'map' } });
 		const error = errorFromReply(structuredClone(reply) as Extract<typeof reply, { type: 'failed' }>);

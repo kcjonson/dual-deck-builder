@@ -6,8 +6,8 @@ import { validateMapParams } from './ParamValidator';
 import type { RoadGround } from './RoadChecks';
 import type { RoadNetwork } from './RoadNetwork';
 import type { Roads } from './Roads';
-import type { Obstacle, Terrain } from './Terrain';
-import type { Water } from './Water';
+import { Obstacle, Terrain, generateTerrain } from './Terrain';
+import { Water, generateWater } from './Water';
 
 /**
  * Fixtures for the road tests. Nothing in the game imports this file.
@@ -53,6 +53,15 @@ export function roadMap(set: MapParamSet): RoadMap {
 	}
 	const { water, roads } = result.products;
 	return { params, terrain: water.terrain, water, roads, network: roads.network, result };
+}
+
+/** The land with its water for a set, on the pipeline's first streams, and the roads stage's first stream. */
+export function landFor(set: MapParamSet): { params: MapParams; terrain: Terrain; water: Water; rng: Rng } {
+	const params = paramsFor(set);
+	const terrainStream = new Rng({ seed: params.seed }).fork('map', 0).fork('terrain', 0);
+	const waterStream = terrainStream.fork('water', 0);
+	const water = generateWater({ params, terrain: generateTerrain({ params, rng: terrainStream }), rng: waterStream });
+	return { params, terrain: water.terrain, water, rng: waterStream.fork('roads', 0) };
 }
 
 export interface FakeGroundOptions {

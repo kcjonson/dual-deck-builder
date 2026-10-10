@@ -1,137 +1,152 @@
-import { RoadRule, checkRoadNetwork } from './RoadChecks';
-import { RoadNetwork, RoadNode, RoadStretch } from './RoadNetwork';
-import { fakeTerrain } from './roadTesting';
+import { RoadGround, RoadRule, checkRoadNetwork, impassableAlong, polylineBridges, polylineLength, roadClashes } from './RoadChecks';
+import type { RoadNetwork, RoadNode, RoadStretch } from './RoadNetwork';
+import { fakeGround } from './roadTesting';
+import type { Obstacle } from './Terrain';
 
-const terrain = fakeTerrain();
-
-const BRANCH = { x: Math.sin(40 * Math.PI / 180) * 100, y: Math.cos(40 * Math.PI / 180) * 100 };
+/** A stretch along `points`, with its length worked out. */
+function stretch(from: number, to: number, points: number[], roadClass: RoadStretch['roadClass'] = 'backRoad'): RoadStretch {
+	return { roadClass, from, to, length: polylineLength(points), points, bridges: [], street: false };
+}
 
 /**
- * A highway north out of the metro, through a junction at (0, 300) to a
- * dead end at (0, 600), and a back road leaving the junction 40 degrees east
- * of it, two segments long.
+ * A square loop out of the compound, (0, 0) to (0, 300) to (300, 300) to
+ * (300, 0) and home, and a spur from (300, 300) to a dead end at (400, 400).
  */
-function valid(): { nodes: RoadNode[]; roads: RoadNetwork['roads'][number][]; stretches: RoadStretch[] } {
-	const branchEnd = { x: 2 * BRANCH.x, y: 300 + 2 * BRANCH.y };
+function valid(): { nodes: RoadNode[]; stretches: RoadStretch[]; broken: RoadStretch[]; passes: RoadNetwork['passes'] } {
 	return {
 		nodes: [
-			{ kind: 'compound', x: 0, y: 0 },
-			{ kind: 'metroEdge', x: 0, y: 100 },
+			{ kind: 'compound', x: 0, y: 0, place: 0 },
 			{ kind: 'junction', x: 0, y: 300 },
-			{ kind: 'end', x: 0, y: 600 },
-			{ kind: 'end', x: branchEnd.x, y: branchEnd.y },
-		],
-		roads: [
-			{ roadClass: 'highway', parent: -1, from: 0, stretches: [0, 1, 2] },
-			{ roadClass: 'backRoad', parent: 0, from: 2, stretches: [3] },
+			{ kind: 'town', x: 300, y: 300, place: 1 },
+			{ kind: 'crossroads', x: 300, y: 0, place: 2 },
+			{ kind: 'end', x: 400, y: 400 },
 		],
 		stretches: [
-			{ road: 0, roadClass: 'highway', from: 0, to: 1, parent: -1, points: [0, 0, 0, 100] },
-			{ road: 0, roadClass: 'highway', from: 1, to: 2, parent: 0, points: [0, 100, 0, 200, 0, 300] },
-			{ road: 0, roadClass: 'highway', from: 2, to: 3, parent: 1, points: [0, 300, 0, 400, 0, 500, 0, 600] },
-			{ road: 1, roadClass: 'backRoad', from: 2, to: 4, parent: 1, points: [0, 300, BRANCH.x, 300 + BRANCH.y, branchEnd.x, branchEnd.y] },
+			stretch(0, 1, [0, 0, 0, 150, 0, 300], 'highway'),
+			stretch(1, 2, [0, 300, 150, 300, 300, 300]),
+			stretch(2, 3, [300, 300, 300, 150, 300, 0]),
+			stretch(3, 0, [300, 0, 150, 0, 0, 0]),
+			stretch(2, 4, [300, 300, 400, 400], 'trail'),
 		],
+		broken: [],
+		passes: [],
 	};
 }
 
-const rules = (network: RoadNetwork, clearance = 24, options: Partial<Parameters<typeof checkRoadNetwork>[0]> = {}): RoadRule[] =>
-	checkRoadNetwork({ network, terrain, clearance, ...options }).map(({ rule }) => rule);
-
-/** The branch with its far end moved to (x, y). */
-function branchTo(x: number, y: number) {
-	const network = valid();
-	network.nodes[4] = { kind: 'end', x, y };
-	network.stretches[3] = { ...network.stretches[3], points: [0, 300, BRANCH.x, 300 + BRANCH.y, x, y] };
-	return network;
-}
+const ground = fakeGround();
+const rules = (network: RoadNetwork, terrain: RoadGround = ground): RoadRule[] => checkRoadNetwork({ network, terrain }).map(({ rule }) => rule);
 
 describe('checkRoadNetwork', () => {
-	it('passes a network that keeps every rule', () => {
-		expect(checkRoadNetwork({ network: valid(), terrain, clearance: 24 })).toEqual([]);
+	it('passes a network with a loop that keeps every rule', () => {
+		expect(checkRoadNetwork({ network: valid(), terrain: ground })).toEqual([]);
 	});
 
-	it('finds a crossing', () => {
-		expect(rules(branchTo(-50, 460))).toContain('crossing');
-	});
-
-	it('finds roads closer than the clearance away from their junction', () => {
-		expect(rules(branchTo(10, 470))).toEqual(['clearance']);
-		// The same gap passes once the clearance asks for less.
-		expect(rules(branchTo(10, 470), 8)).toEqual([]);
-	});
-
-	it('finds a segment that gains too little distance from the compound', () => {
-		const network = valid();
-		network.nodes[3] = { kind: 'end', x: -300, y: 420 };
-		network.stretches[2] = { ...network.stretches[2], points: [0, 300, 0, 400, -300, 420] };
-		expect(rules(network)).toEqual(['outward']);
+	it('finds broken structure: no compound at the origin, a stretch off its nodes, a wrong length, a loop on one node, bridges out of order', () => {
+		const moved = valid();
+		moved.nodes[0] = { kind: 'compound', x: 1, y: 0 };
+		expect(rules(moved)).toEqual(['structure']);
+		const off = valid();
+		off.stretches[1] = stretch(1, 2, [0, 301, 150, 300, 300, 300]);
+		expect(rules(off)).toContain('structure');
+		const long = valid();
+		long.stretches[4] = { ...long.stretches[4], length: 10 };
+		expect(rules(long)).toEqual(['structure']);
+		const loop = valid();
+		loop.stretches.push(stretch(4, 4, [400, 400, 410, 400, 400, 400]));
+		expect(rules(loop)).toEqual(['structure']);
+		const bridges = valid();
+		bridges.stretches[1] = { ...bridges.stretches[1], bridges: [{ start: 100, end: 110 }, { start: 50, end: 60 }] };
+		expect(rules(bridges)).toEqual(['structure']);
 	});
 
 	it('finds a point outside the disc', () => {
-		const network = valid();
-		network.nodes[3] = { kind: 'end', x: 0, y: 1001 };
-		network.stretches[2] = { ...network.stretches[2], points: [0, 300, 0, 400, 0, 1001] };
-		expect(rules(network)).toEqual(['disc']);
+		// The dead end at (400, 400) is 565.7 out.
+		expect(rules(valid(), fakeGround({ radius: 566 }))).toEqual([]);
+		expect(rules(valid(), fakeGround({ radius: 565 }))).toEqual(['disc']);
 	});
 
-	it('finds impassable ground on a segment', () => {
-		// The crater reaches both of the highway's segments either side of (0, 200).
-		const cratered = fakeTerrain({ hotspots: [{ x: 30, y: 200, craterRadius: 40, plumeRadius: 200, strength: 1 }] });
-		expect(rules(valid(), 24, { terrain: cratered })).toEqual(['passable', 'passable']);
+	it('finds impassable ground between the polyline\'s points, sampled every half unit', () => {
+		// A wall a unit thick across the middle of the top road, between its points.
+		expect(rules(valid(), fakeGround({ wall: (x, y) => x > 100 && x < 101 && y > 290 }))).toEqual(['passable']);
+		// The same wall across nothing.
+		expect(rules(valid(), fakeGround({ wall: (x, y) => x > 100 && x < 101 && y > 310 }))).toEqual([]);
 	});
 
-	it('finds a branch leaving within 20 degrees of its parent', () => {
-		const network = valid();
-		const near = { x: Math.sin(10 * Math.PI / 180) * 100, y: Math.cos(10 * Math.PI / 180) * 100 };
-		network.nodes[4] = { kind: 'end', x: 2 * near.x, y: 300 + 2 * near.y };
-		network.stretches[3] = { ...network.stretches[3], points: [0, 300, near.x, 300 + near.y, 2 * near.x, 300 + 2 * near.y] };
-		expect(rules(network)).toContain('junctionAngle');
+	it('finds stretches that cross, that come closer than the clearance, and that leave a node they share too close together', () => {
+		const crossing = valid();
+		crossing.stretches.push(stretch(1, 3, [0, 300, 300, 0]), stretch(0, 2, [0, 0, 300, 300]));
+		expect(rules(crossing)).toContain('crossing');
+
+		const close = valid();
+		// Beside the top road a unit away, sharing neither of its nodes.
+		close.nodes.push({ kind: 'end', x: 50, y: 301 }, { kind: 'end', x: 250, y: 301 });
+		close.stretches.push(stretch(5, 6, [50, 301, 250, 301]));
+		expect(rules(close)).toContain('clearance');
+
+		const narrow = valid();
+		// A second road out of the compound five degrees off the first.
+		narrow.nodes.push({ kind: 'end', x: 26, y: 300 });
+		narrow.stretches.push(stretch(0, 5, [0, 0, 26, 300]));
+		expect(rules(narrow)).toContain('crossing');
+		// Twenty-five degrees apart is room enough.
+		const wide = valid();
+		wide.nodes.push({ kind: 'end', x: 250 * Math.tan(25 * Math.PI / 180), y: 250 });
+		wide.stretches.push(stretch(0, 5, [0, 0, wide.nodes[5].x, wide.nodes[5].y]));
+		expect(roadClashes(wide)).toEqual([]);
 	});
 
-	it('measures a branch from its parent\'s way in when the parent ends at the junction', () => {
-		// The highway, blocked right after branching, ends at its junction: the branch is the only stretch out.
-		const endingAt = (degrees: number): RoadNetwork => {
-			const off = { x: Math.sin(degrees * Math.PI / 180) * 100, y: Math.cos(degrees * Math.PI / 180) * 100 };
-			return {
-				nodes: [
-					{ kind: 'compound', x: 0, y: 0 },
-					{ kind: 'metroEdge', x: 0, y: 100 },
-					{ kind: 'junction', x: 0, y: 300 },
-					{ kind: 'end', x: 2 * off.x, y: 300 + 2 * off.y },
-				],
-				roads: [
-					{ roadClass: 'highway', parent: -1, from: 0, stretches: [0, 1] },
-					{ roadClass: 'backRoad', parent: 0, from: 2, stretches: [2] },
-				],
-				stretches: [
-					{ road: 0, roadClass: 'highway', from: 0, to: 1, parent: -1, points: [0, 0, 0, 100] },
-					{ road: 0, roadClass: 'highway', from: 1, to: 2, parent: 0, points: [0, 100, 0, 200, 0, 300] },
-					{ road: 1, roadClass: 'backRoad', from: 2, to: 3, parent: 1, points: [0, 300, off.x, 300 + off.y, 2 * off.x, 300 + 2 * off.y] },
-				],
-			};
-		};
-		expect(rules(endingAt(10))).toEqual(['junctionAngle']);
-		expect(rules(endingAt(40))).toEqual([]);
-	});
-
-	it('finds broken trees: a parent link that loops, a stretch off its node, a trail that branches', () => {
+	it('finds a stretch that touches itself', () => {
 		const looped = valid();
-		looped.stretches[1] = { ...looped.stretches[1], parent: 2 };
-		expect(rules(looped)).toContain('structure');
-
-		const adrift = valid();
-		adrift.stretches[2] = { ...adrift.stretches[2], points: [0, 301, 0, 400, 0, 500, 0, 600] };
-		expect(rules(adrift)).toContain('structure');
-
-		const trail = valid();
-		trail.roads[0] = { ...trail.roads[0], roadClass: 'trail' };
-		trail.stretches = trail.stretches.map((stretch) => (stretch.road === 0 ? { ...stretch, roadClass: 'trail' } : stretch));
-		expect(rules(trail)).toContain('structure');
+		looped.stretches[4] = stretch(2, 4, [300, 300, 350, 350, 350, 320, 320, 350, 400, 400]);
+		expect(rules(looped)).toContain('crossing');
 	});
 
-	it('stops at the limit it\'s given', () => {
-		const network = branchTo(10, 470);
-		network.stretches[2] = { ...network.stretches[2], points: [0, 300, 0, 400, 0, 500, 0, 600] };
-		expect(checkRoadNetwork({ network, terrain, clearance: 24, limit: 1 })).toHaveLength(1);
+	it('finds a node that doesn\'t reach the compound', () => {
+		const cut = valid();
+		cut.nodes.push({ kind: 'end', x: -100, y: -100 }, { kind: 'end', x: -200, y: -100 });
+		cut.stretches.push(stretch(5, 6, [-100, -100, -200, -100]));
+		expect(rules(cut)).toEqual(['reach', 'reach']);
+	});
+});
+
+describe('bridges along a polyline', () => {
+	/** A river along x = 100, 4 units across, bridged square-on; nothing else in the way. */
+	const river: RoadGround = {
+		radius: 1000,
+		metro: { x: 0, y: 0, radius: 10 },
+		obstacle: (x: number): Obstacle | null => (Math.abs(x - 100) < 2 ? 'river' : null),
+		bridgeSpans: (x0, _y0, x1, _y1, spans) => {
+			if ((x0 - 100) * (x1 - 100) >= 0) return 0;
+			const length = Math.abs(x1 - x0);
+			const along = (100 - x0) / (x1 - x0);
+			spans[0] = along - 3 / length;
+			spans[1] = along + 3 / length;
+			return 1;
+		},
+	};
+
+	it('find each deck over the whole line, across a point near the water, and the samples pass under it', () => {
+		// A point a unit past the river: the deck runs on into the next segment.
+		const points = [50, 0, 101, 0, 150, 0];
+		const bridges = polylineBridges(river, points);
+		expect(bridges).toHaveLength(1);
+		expect(bridges[0].start).toBeCloseTo(47, 9);
+		expect(bridges[0].end).toBeCloseTo(53, 9);
+		expect(impassableAlong(river, points, bridges)).toBe(-1);
+		// A segment at a time, the deck would stop at the point, and the water past it would be impassable.
+		expect(impassableAlong(river, points, [{ start: 47, end: 51 }])).toBeGreaterThan(51);
+		expect(impassableAlong(river, points, [])).toBeGreaterThan(48);
+	});
+
+	it('are checked against the stretch\'s own', () => {
+		const network: RoadNetwork = {
+			nodes: [{ kind: 'compound', x: 0, y: 0 }, { kind: 'end', x: 150, y: 0 }],
+			stretches: [stretch(0, 1, [0, 0, 101, 0, 150, 0])],
+			broken: [],
+			passes: [],
+		};
+		expect(checkRoadNetwork({ network, terrain: river }).map(({ rule }) => rule)).toEqual(['bridges', 'passable']);
+		const bridged = { ...network, stretches: [{ ...network.stretches[0], bridges: polylineBridges(river, network.stretches[0].points) }] };
+		expect(checkRoadNetwork({ network: bridged, terrain: river })).toEqual([]);
 	});
 });
