@@ -4,6 +4,8 @@ import { UPKEEP_RESOURCES } from '../../campaign/CompoundRules';
 import { shortfallMessage } from '../../campaign/DayClock';
 import type { DayEnd, NeedForecast, NeedsForecast } from '../../campaign/DayClock';
 import type { DriverRecord } from '../../campaign/DriverRecord';
+import { haulText, scavengeMessage } from '../../campaign/Scavenging';
+import type { Scavenge, ScavengeBlocker, ScavengeHaul } from '../../campaign/Scavenging';
 import { countOf } from '../main-menu/campaignText';
 
 export type BuildingId = 'bunkhouse' | 'radio_mast' | 'infirmary' | 'garage' | 'map_room' | 'stores';
@@ -117,6 +119,35 @@ export function restCaption({ day, forecast, over = false }: { day: number; fore
 	return eats.length > 0 ? `Ends day ${day}. The compound eats ${eats.join(' and ')}.` : `Ends day ${day}.`;
 }
 
+/** Rest's line while a run is out, since the run's return ends the day. */
+export const REST_RUN_OUT = 'A run is out, and its return ends the day.';
+
+/**
+ * Scavenge's line, under Rest's: what a party on foot brings back today,
+ * rolled ahead from the day's own stream (`rollScavengeHaul`), so it's
+ * what the press will bring.
+ */
+export function scavengeCaption(haul: ScavengeHaul): string {
+	return `Scavenging ends it too, with ${haulText(haul)}.`;
+}
+
+const SCAVENGE_REFUSALS: Readonly<Record<ScavengeBlocker['reason'], string>> = {
+	campaign_over: 'The campaign is over, so no party goes out.',
+	abandoned: 'Nobody is left to send out.',
+	run_out: "A run is out, so no party goes until it's home.",
+};
+
+/** Why Scavenge is disabled, in its line's place. */
+export function scavengeRefusal(blocker: ScavengeBlocker): string {
+	return SCAVENGE_REFUSALS[blocker.reason];
+}
+
+/** What a day scavenging did: the party's haul as the log words it, ahead of the night's report. */
+export function scavengeReport({ haul, dayEnd }: Scavenge): NeedLine {
+	const night = dayEndReport(dayEnd);
+	return { text: `${scavengeMessage(haul)} ${night.text}`, urgent: night.urgent };
+}
+
 /** "A", "A and B", "A, B, and C". */
 function listText(items: readonly string[]): string {
 	if (items.length <= 2) return items.join(' and ');
@@ -124,9 +155,9 @@ function listText(items: readonly string[]): string {
 }
 
 /**
- * What the night did, under Rest once it's over: the day that ended, the
- * shortfall as the log words it, and who is fit again. Urgent when the
- * stores fell short.
+ * What the night did, over the buttons once it's over: the day that
+ * ended, the shortfall as the log words it, and who is fit again. Urgent
+ * when the stores fell short.
  */
 export function dayEndReport(dayEnd: DayEnd): NeedLine {
 	const parts = [`Day ${dayEnd.day} ended.`];

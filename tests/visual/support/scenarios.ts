@@ -95,7 +95,9 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'battleResultScreen', variant: 'defeat', data: { victory: false } },
 	{ screen: 'campaignHistoryScreen' },
 	{ screen: 'campaignHistoryScreen', variant: 'ended', storage: ENDED },
+	// The fixture with its run out, Rest and Scavenge waiting for it, then home, the two live (DDB-303)
 	{ screen: 'compoundScreen', storage: IN_PROGRESS },
+	{ screen: 'compoundScreen', variant: 'home', storage: AT_HOME },
 	// The fixture's run home, then a deck at the most it holds beside every card but the escorts' in the locker (DDB-314)
 	{ screen: 'crewScreen', storage: AT_HOME },
 	{ screen: 'crewScreen', variant: 'full', storage: FULL_LOCKER },
