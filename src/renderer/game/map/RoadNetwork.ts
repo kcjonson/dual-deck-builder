@@ -1,12 +1,13 @@
 /**
- * The drivable road network (Area Map Generation, Pipeline, 2 to 4): trees
- * of roads grown outward from the compound, as plain data a save can hold.
- * Nodes are where something happens on a road, stretches are the road
- * between two nodes, and roads are the lineage growth works in: a highway
- * out of the metro, or a branch from its junction to its end.
+ * The road network (Area Map Generation, Pipeline, 5. Roads): every road on
+ * the map, highways, back roads, and trails, as plain data a save can hold.
+ * Nodes are where something happens on a road and stretches are the road
+ * between two nodes. It's a real network with loops, not a tree: a stretch
+ * runs either way, and the route tree (RouteTree.ts) chooses each place's
+ * way home over it.
  */
 
-/** In the order a road can degrade: a class never comes before its road's earlier one. */
+/** Best first: a highway outranks a back road, which outranks a trail. */
 export const ROAD_CLASSES = ['highway', 'backRoad', 'trail'] as const;
 export type RoadClass = (typeof ROAD_CLASSES)[number];
 
@@ -17,63 +18,87 @@ export const ROAD_CLASS_LABELS: { readonly [Name in RoadClass]: string } = {
 };
 
 /**
- * - `compound`: the root at the origin, node 0, where every highway out of the metro starts.
- * - `metroEdge`: where a highway's city street meets the metro's edge and growth took over.
- *   A highway blocked as it leaves the metro ends here, on this node rather than an `end`.
- * - `junction`: where a branch leaves its parent road. A parent blocked right after
- *   branching ends here too, so the junction has the branch as its one stretch out and
- *   no `end` node follows.
- * - `classChange`: where a back road degrades to a trail.
- * - `end`: a dead end, where a road was blocked or reached its class's longest.
- * - `exit`: where a road leaves the area at the disc's rim.
+ * - `compound`: node 0, at the origin, where every road into the metro ends.
+ * - `town`, `village`, `crossroads`, `exit`: a place the roads join, `place` naming it.
+ * - `junction`: where three or more stretches meet away from a place.
+ * - `metroEdge`: the last point inside the metro on a road leaving it, so the
+ *   stretches inside are city streets.
+ * - `classChange`: where a back road gives out to a trail, or a trail joins a highway.
+ * - `end`: a dead end, where a spur trail stops at a pass, a mine, or a lookout.
+ * - `roadside`: a point that splits a long stretch, so meeting points and legs have places to fall.
  */
-export type RoadNodeKind = 'compound' | 'metroEdge' | 'junction' | 'classChange' | 'end' | 'exit';
+export type RoadNodeKind = 'compound' | 'town' | 'village' | 'crossroads' | 'exit' | 'junction' | 'metroEdge' | 'classChange' | 'end' | 'roadside';
 
 export interface RoadNode {
 	readonly kind: RoadNodeKind;
 	readonly x: number;
 	readonly y: number;
+	/** The place it stands for, by its id in the places list; absent on a node that's no place. */
+	readonly place?: number;
 }
 
-/**
- * Road between two nodes, of one class: the unit stops, knowledge, and
- * travel time work in. Its points run outward, from `from` to `to`.
- */
+/** Where a stretch crosses a river: its deck, as world units along the stretch's polyline from its first point. */
+export interface RoadBridge {
+	readonly start: number;
+	readonly end: number;
+}
+
+/** Road between two nodes, of one class: what a route drives, either way. */
 export interface RoadStretch {
-	/** The road it's part of. */
-	readonly road: number;
 	readonly roadClass: RoadClass;
-	/** The node at its inner end, nearer the compound along the road... */
 	readonly from: number;
-	/** ...and at its outer end. */
 	readonly to: number;
-	/** The stretch it leads on from, toward the compound; -1 for a city street, which starts at the compound. */
-	readonly parent: number;
+	/** World units along its polyline. */
+	readonly length: number;
 	/** The polyline from `from` to `to`, flat: x0, y0, x1, y1, ... At least two points. */
 	readonly points: readonly number[];
+	/** Its bridges, in order along it. */
+	readonly bridges: readonly RoadBridge[];
+	/** A city street: wholly inside the metro, charted from the start. */
+	readonly street: boolean;
 }
 
-export interface Road {
-	/** Its class where it starts; later stretches may have degraded to trails. */
-	readonly roadClass: RoadClass;
-	/** The road it branched from, or -1 for a highway out of the metro. */
-	readonly parent: number;
-	/** The node it starts at: the compound, or its junction on its parent. */
-	readonly from: number;
-	/** Its stretches, inner to outer. */
-	readonly stretches: readonly number[];
+/** The highest point of a road over a range, which the dressing can label. */
+export interface RoadPass {
+	readonly x: number;
+	readonly y: number;
 }
 
-/** The drivable layer: trees rooted at the compound, planar by construction. */
 export interface RoadNetwork {
 	/** Node 0 is the compound. */
 	readonly nodes: readonly RoadNode[];
-	/** The highways out of the metro first, in departure order, then branches in the order they grew. */
-	readonly roads: readonly Road[];
 	readonly stretches: readonly RoadStretch[];
+	/** Highway spans that collapsed: drawn with their gap, never driven, and in no node's stretches. */
+	readonly broken: readonly RoadStretch[];
+	readonly passes: readonly RoadPass[];
 }
 
 /** 0 for a highway, 1 a back road, 2 a trail. */
 export function classRank(roadClass: RoadClass): number {
 	return ROAD_CLASSES.indexOf(roadClass);
+}
+
+/** Independent loops: stretches less nodes plus the pieces they make, what a road network's POIs need one each of. */
+export function loopCount({ nodes, stretches }: Pick<RoadNetwork, 'nodes' | 'stretches'>): number {
+	const parent = nodes.map((_node, id) => id);
+	const find = (id: number): number => {
+		let root = id;
+		while (parent[root] !== root) root = parent[root];
+		while (parent[id] !== root) {
+			const next = parent[id];
+			parent[id] = root;
+			id = next;
+		}
+		return root;
+	};
+	let pieces = nodes.length;
+	for (const { from, to } of stretches) {
+		const a = find(from);
+		const b = find(to);
+		if (a !== b) {
+			parent[a] = b;
+			pieces -= 1;
+		}
+	}
+	return stretches.length - nodes.length + pieces;
 }

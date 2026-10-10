@@ -187,7 +187,7 @@ const CRATER_DRAINAGE = { area: 40, margin: 2 };
 /** Inside the metro moisture is scrub's middling level. */
 const START_MOISTURE = 0.45;
 /** World units past the metro's edge its streets' bridges reach, so a highway leaving it over a river leaves on one. */
-const METRO_BRIDGES = 1;
+export const METRO_BRIDGES = 1;
 /** Lattice spacing, as a share of the radius, for the samples thresholds are calibrated on. */
 const CALIBRATION_SPACING = 0.05;
 
