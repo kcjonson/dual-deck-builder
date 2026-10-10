@@ -2,6 +2,7 @@ import type { Campaign } from '../../campaign/Campaign';
 import { AreaMapProgress, CampaignMaps } from '../../campaign/CampaignMaps';
 import { destinationId } from '../../campaign/MapRoutes';
 import { STRONGHOLD_TYPE } from '../../map/PoiData';
+import type { Places } from '../../map/Places';
 import type { RiverLines } from '../../map/Rivers';
 import type { RoadNetwork } from '../../map/RoadNetwork';
 import { RouteDescriptor, RouteMap, describeRoutes, poiNames } from '../../map/RouteDescriptors';
@@ -22,6 +23,10 @@ import type { BakeTerrain } from '../../ui/areaMap/terrainBake';
 export interface PlanningMap extends RouteMap {
 	readonly products: RouteMap['products'] & {
 		readonly water: { readonly terrain: BakeTerrain; readonly lines: RiverLines };
+		/** The land with its craters and contamination, which the view bakes when there is one. */
+		readonly hazards?: { readonly terrain: BakeTerrain };
+		/** Towns, villages, crossroads, and exits, which the view draws when there are some. */
+		readonly places?: Places;
 		readonly roads: { readonly network: RoadNetwork };
 	};
 }
@@ -73,10 +78,10 @@ export class PlanningMaps {
 	}
 }
 
-/** What the view draws of the map: the land with its water, the rivers, and the roads. */
+/** What the view draws of the map: the land with its water and hazards, the rivers, the roads, and the places. */
 export function viewData(map: PlanningMap): AreaMapData {
-	const { water, roads } = map.products;
-	return { terrain: water.terrain, network: roads.network, rivers: water.lines };
+	const { water, hazards, places, roads } = map.products;
+	return { terrain: hazards?.terrain ?? water.terrain, network: roads.network, rivers: water.lines, places: places ?? null };
 }
 
 /** A POI as the planning screens show it. */

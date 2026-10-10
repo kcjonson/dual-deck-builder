@@ -85,7 +85,9 @@ describe('a POI\'s routes on the map', () => {
 	});
 
 	it('are drawn over the map\'s own land and roads', () => {
-		expect(viewData(MAP)).toEqual({ terrain: MAP.products.water.terrain, network: MAP.products.roads.network, rivers: MAP.products.water.lines });
+		expect(viewData(MAP)).toEqual({ terrain: MAP.products.water.terrain, network: MAP.products.roads.network, rivers: MAP.products.water.lines, places: null });
+		const hazards = { terrain: MAP.products.water.terrain };
+		expect(viewData({ ...MAP, products: { ...MAP.products, hazards } }).terrain).toBe(hazards.terrain);
 	});
 });
 
