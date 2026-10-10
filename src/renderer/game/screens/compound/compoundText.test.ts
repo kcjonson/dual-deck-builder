@@ -19,9 +19,15 @@ function dayEnd(changes: Partial<DayEnd> = {}): DayEnd {
 }
 
 describe('compoundText', () => {
-	it('lists the six buildings in the wireframe order, each disabled with a reason for now', () => {
+	it('lists the six buildings in the wireframe order: the bunkhouse opens the Crew screen, the rest are disabled with a reason for now', () => {
 		expect(BUILDINGS.map((building) => building.name)).toEqual(['Bunkhouse', 'Radio mast', 'Infirmary', 'Garage', 'Map room', 'Stores']);
-		for (const building of BUILDINGS) expect(building.reason).toMatch(/\.$/);
+		const [bunkhouse, ...rest] = BUILDINGS;
+		expect(bunkhouse.reason).toBeNull();
+		expect(bunkhouse.screen).toBe('crewScreen');
+		for (const building of rest) {
+			expect(building.reason).toMatch(/\.$/);
+			expect(building.screen).toBeUndefined();
+		}
 	});
 
 	it('writes the day and the resources for the top bar', () => {

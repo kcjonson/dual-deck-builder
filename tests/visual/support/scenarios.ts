@@ -10,7 +10,7 @@
  */
 import { SHORT_VIEWPORT } from '../../../playwright.config';
 import type { Viewport } from '../../../playwright.config';
-import { DAMAGED, ENDED, IN_PROGRESS, OUTDATED } from './campaignSaves';
+import { AT_HOME, DAMAGED, ENDED, FULL_LOCKER, IN_PROGRESS, OUTDATED } from './campaignSaves';
 
 export interface ScreenScenario {
 	/** The golden's name: the screen's, plus a variant and a window size where they are not the defaults. */
@@ -71,8 +71,9 @@ interface ScreenCase {
  *
  * The screens that read the campaign store mount over the saves a case puts
  * in local storage first, the way a player's page holds them, and every other
- * case over none. The compound screen is opened with no campaign handed over,
- * so it loads the save as Continue would (DDB-283, DDB-301).
+ * case over none. The compound and Crew screens are opened with no campaign
+ * handed over, so each loads the save as Continue would (DDB-283, DDB-301,
+ * DDB-314).
  */
 const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'splashScreen' },
@@ -94,6 +95,9 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'campaignHistoryScreen' },
 	{ screen: 'campaignHistoryScreen', variant: 'ended', storage: ENDED },
 	{ screen: 'compoundScreen', storage: IN_PROGRESS },
+	// The fixture's run home, then a deck at the most it holds beside every card but the escorts' in the locker (DDB-314)
+	{ screen: 'crewScreen', storage: AT_HOME },
+	{ screen: 'crewScreen', variant: 'full', storage: FULL_LOCKER },
 ];
 
 function caseName({ screen, variant }: ScreenCase): string {
