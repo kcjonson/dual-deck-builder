@@ -104,7 +104,8 @@ function wholeMap({ seed, environment, radius, frame }: AreaMapQuery): AreaMapVi
 function fogMap(): AreaMapView {
 	const radius = 1000;
 	const map: AreaMapData = fixtureAreaMap({ seed: 3, environment: 'mixed', radius });
-	const reach = 430;
+	// Far enough that four dead ends spaced 200 apart lie in reach, one POI for each state.
+	const reach = 520;
 	const knowledge = fixtureKnowledge(map.network, { reach, rumored: 2 });
 	const fog = fixtureFog(map.network, knowledge, { radius, reach: reach * 0.8, sight: 100 });
 	const markers = fixtureMarkers(map.network, knowledge, {
