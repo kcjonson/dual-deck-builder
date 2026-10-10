@@ -108,6 +108,7 @@ Most of the places stage is per-cell passes over the land grid (the grade, three
 
 - Every map moves: its hotspots, its lakes (which no longer keep off towns and craters), its badlands near the old plumes, its towns, and with the departures its roads. Saves keep resolved params and regenerate the map, so DDB-296's generator version should count this change.
 - `Terrain.towns`, `Terrain.ruin`, `Terrain.surelyReachable`, `TerrainSample.ruin`, `placeTowns`, `planHighways`, and the `highways` stage are gone; `Terrain.openSquares`, `Terrain.withHazards`, and `Water.nearRiver` are new.
+- The POI stage (route-tree-and-pois.md) reads the land from the hazards stage, craters and all, and ruin from the places through `poiGround`: `ruinAt` over the metro, towns, and villages, where it read the terrain's metro and towns. Villages count as ruins now, which nudges the POIs that look for ruin.
 - On very mountainous maps fewer towns and villages are placed than asked for.
 
 ## Provisional calls

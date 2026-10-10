@@ -4,7 +4,8 @@ import { validateMapParams } from '../../map/ParamValidator';
 import { Terrain, generateTerrain } from '../../map/Terrain';
 import { generateWater } from '../../map/Water';
 import { HILL_SHADE, LAND_COLOURS, OBSTACLE_COLOURS, landColour } from './areaMapStyle';
-import { MAX_BAKE_SIZE, MIN_BAKE_SIZE, TEXEL_WORLD_UNITS, bakeTerrain, ruinAt, terrainBakeSize } from './terrainBake';
+import { ruinAt } from '../../map/Places';
+import { MAX_BAKE_SIZE, MIN_BAKE_SIZE, TEXEL_WORLD_UNITS, bakeTerrain, terrainBakeSize } from './terrainBake';
 import { flatTerrain } from './testing';
 
 /** The texel at world (x, y) in a bake of `size` over a disc of `radius`. */

@@ -1,4 +1,5 @@
 import { landGridFor } from '../../map/LandGrid';
+import { ruinAt } from '../../map/Places';
 import { TerrainSample, WaterLayer, createTerrainSample } from '../../map/Terrain';
 import type { Hotspot, Ruin } from '../../map/TerrainSites';
 import { HILL_SHADE, OBSTACLE_COLOURS, RUIN_SHADE, landColour } from './areaMapStyle';
@@ -358,20 +359,6 @@ function craterCoverage(hotspots: readonly Hotspot[], x: number, y: number, texe
 		if (inside > coverage) coverage = inside;
 	}
 	return coverage;
-}
-
-/** 1 inside a ruin, fading to 0 at twice its radius; the most of any ruin over (x, y). */
-export function ruinAt(x: number, y: number, ruins: readonly Ruin[]): number {
-	let most = 0;
-	for (let index = 0; index < ruins.length && most < 1; index++) {
-		const ruin = ruins[index];
-		const dx = x - ruin.x;
-		const dy = y - ruin.y;
-		const ratio = (dx * dx + dy * dy) / (ruin.radius * ruin.radius);
-		const weight = ratio <= 1 ? 1 : ratio >= 4 ? 0 : (4 - ratio) / 3;
-		if (weight > most) most = weight;
-	}
-	return most;
 }
 
 /** Ruin's 0 to 1, eased so the edge of a ruin is soft rather than a ring. */

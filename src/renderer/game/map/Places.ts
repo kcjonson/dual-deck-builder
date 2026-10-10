@@ -198,8 +198,22 @@ export function placeList({ metro, towns, villages, crossroads, exits }: Places)
 }
 
 /** The ruins on the map: the metro, every town, and every village. */
-export function ruinsOf({ metro, towns, villages }: Places): (Metro | Settlement)[] {
+export function ruinsOf({ metro, towns, villages }: Pick<Places, 'metro' | 'towns' | 'villages'>): (Metro | Settlement)[] {
 	return [metro, ...towns, ...villages];
+}
+
+/** 1 inside a ruin, fading to 0 at twice its radius: the most of any ruin over (x, y). */
+export function ruinAt(x: number, y: number, ruins: readonly { readonly x: number; readonly y: number; readonly radius: number }[]): number {
+	let most = 0;
+	for (let index = 0; index < ruins.length && most < 1; index += 1) {
+		const ruin = ruins[index];
+		const dx = x - ruin.x;
+		const dy = y - ruin.y;
+		const ratio = (dx * dx + dy * dy) / (ruin.radius * ruin.radius);
+		const weight = ratio <= 1 ? 1 : ratio >= 4 ? 0 : (4 - ratio) / 3;
+		if (weight > most) most = weight;
+	}
+	return most;
 }
 
 /** Places frozen through, as the stage hands them out and as the client gets them back from the worker. */

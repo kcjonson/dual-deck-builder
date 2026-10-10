@@ -1,5 +1,5 @@
 import { Rng } from '../core/Rng';
-import { areaMapPipeline, generateAreaMap, growthStage } from './AreaMapPipeline';
+import { ROUTE_TREE_STAGE, areaMapPipeline, generateAreaMap, growthStage } from './AreaMapPipeline';
 import { generateHazards } from './Hazards';
 import { generatePlaces } from './Places';
 import { createTerrainSample, generateTerrain } from './Terrain';
@@ -14,12 +14,20 @@ describe('the area map pipeline', () => {
 	const hazardsStream = waterStream.fork('hazards', 0);
 	const placesStream = hazardsStream.fork('places', 0);
 
-	it('runs terrain, water, hazards, places, then growth, each first time on its nested stream', () => {
-		expect(areaMapPipeline().stageNames).toEqual(['terrain', 'water', 'hazards', 'places', 'growth']);
-		expect(map.attempts).toEqual({ terrain: 0, water: 0, hazards: 0, places: 0, growth: 0 });
+	it('runs terrain, water, hazards, places, growth, then the route tree and the POIs, each first time on its nested stream', () => {
+		expect(areaMapPipeline().stageNames).toEqual(['terrain', 'water', 'hazards', 'places', 'growth', 'routeTree', 'pois']);
+		expect(map.attempts).toEqual({ terrain: 0, water: 0, hazards: 0, places: 0, growth: 0, routeTree: 0, pois: 0 });
 		expect(map.mapAttempt).toBe(0);
+		const growthStream = placesStream.fork('growth', 0);
+		const routeTreeStream = growthStream.fork('routeTree', 0);
 		expect(map.streams).toEqual({
-			terrain: terrainStream.seed, water: waterStream.seed, hazards: hazardsStream.seed, places: placesStream.seed, growth: placesStream.fork('growth', 0).seed,
+			terrain: terrainStream.seed,
+			water: waterStream.seed,
+			hazards: hazardsStream.seed,
+			places: placesStream.seed,
+			growth: growthStream.seed,
+			routeTree: routeTreeStream.seed,
+			pois: routeTreeStream.fork('pois', 0).seed,
 		});
 		const { water, hazards, places } = map.products;
 		expect(hazards.hotspots).toEqual(generateHazards({ params, terrain: water.terrain, rng: hazardsStream }).hotspots);
@@ -83,10 +91,21 @@ describe('the area map pipeline', () => {
 		problems.forEach((problem) => expect(problem).toMatch(/^(structure|outward|disc|passable|crossing|clearance|junctionAngle): ./));
 	});
 
+	it("gives the route tree one attempt, since it takes no draws, and lets the POIs report what growth's tree of roads can't give them", () => {
+		expect(ROUTE_TREE_STAGE.attempts).toBe(1);
+		// Growth grows trees, so no stretch is off every way home and no leaf has three roads.
+		expect(map.products.routeTree.meetingPoints).toEqual([]);
+		const { pois } = map.products;
+		expect(pois.pois).toEqual([]);
+		expect(pois.failures).toContain('sector 0 has no free meeting point in the outer band');
+		expect(pois.failures.length).toBe(params.strongholds + 1);
+		expect(map.timings.pois.runs).toBe(1);
+	});
+
 	it('reruns growth on its next stream when the accept hook rejects it, leaving the stages before it be', () => {
 		let rejections = 0;
 		const retried = generateAreaMap({ params, accept: (_map, { stage }) => (stage === 'growth' && rejections++ === 0 ? ['not this one'] : []) });
-		expect(retried.attempts).toEqual({ terrain: 0, water: 0, hazards: 0, places: 0, growth: 1 });
+		expect(retried.attempts).toEqual({ terrain: 0, water: 0, hazards: 0, places: 0, growth: 1, routeTree: 0, pois: 0 });
 		expect(retried.timings.terrain.runs).toBe(1);
 		expect(retried.timings.water.runs).toBe(1);
 		expect(retried.timings.hazards.runs).toBe(1);
@@ -99,7 +118,7 @@ describe('the area map pipeline', () => {
 	it('reruns the places on their next stream when the accept hook rejects them, on the same land, water, and hazards', () => {
 		let rejections = 0;
 		const retried = generateAreaMap({ params, accept: (_map, { stage }) => (stage === 'places' && rejections++ === 0 ? ['not this one'] : []) });
-		expect(retried.attempts).toEqual({ terrain: 0, water: 0, hazards: 0, places: 1, growth: 0 });
+		expect(retried.attempts).toEqual({ terrain: 0, water: 0, hazards: 0, places: 1, growth: 0, routeTree: 0, pois: 0 });
 		expect(retried.streams.places).toBe(hazardsStream.fork('places', 1).seed);
 		expect(retried.products.hazards.hotspots).toEqual(map.products.hazards.hotspots);
 		expect(retried.products.places).not.toEqual(map.products.places);
@@ -108,7 +127,7 @@ describe('the area map pipeline', () => {
 	it('reruns the water on its next stream when the accept hook rejects it, on the same land', () => {
 		let rejections = 0;
 		const retried = generateAreaMap({ params, accept: (_map, { stage }) => (stage === 'water' && rejections++ === 0 ? ['not this one'] : []) });
-		expect(retried.attempts).toEqual({ terrain: 0, water: 1, hazards: 0, places: 0, growth: 0 });
+		expect(retried.attempts).toEqual({ terrain: 0, water: 1, hazards: 0, places: 0, growth: 0, routeTree: 0, pois: 0 });
 		expect(retried.timings.terrain.runs).toBe(1);
 		expect(retried.streams.water).toBe(terrainStream.fork('water', 1).seed);
 		expect(retried.products.terrain.surface.elevation).toEqual(map.products.terrain.surface.elevation);

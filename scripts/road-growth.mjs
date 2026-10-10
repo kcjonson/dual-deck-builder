@@ -41,7 +41,10 @@ const SOURCES = [
 	'map/LandGrid', 'map/MapMath', 'map/Drainage', 'map/Erosion', 'map/Uplift', 'map/Land', 'map/Terrain',
 	'map/Geometry', 'map/SegmentIndex', 'map/RoadNetwork', 'map/RoadGrowth', 'map/Highways', 'map/RoadChecks',
 	'map/Rivers', 'map/Lakes', 'map/Water', 'map/Hazards', 'map/PlaceNames', 'map/Places', 'map/MapPipeline', 'map/AreaMapPipeline',
+	'core/JsonReader', 'map/PoiData', 'map/Pois', 'map/PoiChecks', 'map/RouteTree',
 ];
+/** JSON the sources import, copied beside them. */
+const DATA = ['data/factions.json', 'data/pois.json'];
 
 if (process.argv[2] !== '--built') {
 	const { default: ts } = await import('typescript');
@@ -49,10 +52,15 @@ if (process.argv[2] !== '--built') {
 	const build = mkdtempSync(join(tmpdir(), 'road-growth-'));
 	for (const source of SOURCES) {
 		const text = readFileSync(join(root, 'src/renderer/game', `${source}.ts`), 'utf8');
-		const { outputText } = ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } });
+		const { outputText } = ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } });
 		const target = join(build, `${source}.js`);
 		mkdirSync(dirname(target), { recursive: true });
 		writeFileSync(target, outputText);
+	}
+	for (const file of DATA) {
+		const target = join(build, file);
+		mkdirSync(dirname(target), { recursive: true });
+		writeFileSync(target, readFileSync(join(root, 'src/renderer/game', file)));
 	}
 	const profile = process.argv.indexOf('--profile');
 	const flags = profile >= 0 ? ['--cpu-prof', '--cpu-prof-dir', process.argv[profile + 1]] : [];
