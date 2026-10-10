@@ -92,10 +92,16 @@ const OUTLET = -1;
 const PIT = -2;
 /** The ocean's basin: the outlets'. */
 const OCEAN = 0;
-/** Marks on a cell while routing: a candidate for the flood, beside one, and a candidate whose level is settled. */
+/**
+ * Marks on a cell while routing: a candidate for the flood, beside one, a
+ * candidate whose level is settled, and beside a candidate whose height isn't
+ * a number, whose level, unlike every other's, is not at least its height, so
+ * the cells beside it may fall to it on the levels though not on the heights.
+ */
 const CANDIDATE = 1;
 const BESIDE = 2;
 const SETTLED = 4;
+const BESIDE_UNKNOWN = 8;
 
 /**
  * Routes drainage on a grid of one size, over and over, allocating only to
@@ -367,6 +373,7 @@ export class DrainageRouter {
 		let besideCount = 0;
 		for (let index = 0; index < count; index += 1) {
 			const cell = candidates[index];
+			const unknown = !(elevation[cell] === elevation[cell]);
 			const row = (cell / size) | 0;
 			const column = cell - row * size;
 			const inside = row > 0 && column > 0 && row < last && column < last;
@@ -384,6 +391,7 @@ export class DrainageRouter {
 					beside[besideCount] = next;
 					besideCount += 1;
 				}
+				if (unknown && (mark[next] & BESIDE) !== 0) mark[next] |= BESIDE_UNKNOWN;
 			}
 		}
 		this.candidateCount = count;
@@ -412,9 +420,9 @@ export class DrainageRouter {
 			let cell: number;
 			let level: number;
 			if (head < tail && (heapSize === 0 || offered[queue[head]] <= this.heapKeys[0])) {
+				// A cell enters the FIFO at most once, at the lowest level it's ever offered: levels settle in order, so nothing later undercuts it.
 				cell = queue[head];
 				head += 1;
-				if ((mark[cell] & SETTLED) !== 0) continue;
 				level = offered[cell];
 			} else if (heapSize > 0) {
 				level = this.heapKeys[0];
@@ -459,7 +467,7 @@ export class DrainageRouter {
 		for (let index = 0; index < besideCount; index += 1) {
 			const cell = beside[index];
 			const receiver = local[cell];
-			if (receiver < 0 || mark[receiver] === BESIDE || mark[receiver] === 0) continue;
+			if (receiver < 0 || (mark[receiver] & CANDIDATE) === 0) continue;
 			const row = (cell / size) | 0;
 			const column = cell - row * size;
 			const inside = row > 0 && column > 0 && row < last && column < last;
@@ -517,7 +525,11 @@ export class DrainageRouter {
 		for (let index = 0; index < besideCount; index += 1) mark[beside[index]] = 0;
 	}
 
-	/** Receivers by the steepest fall on the levels, for the candidates and the cells beside them that drain into the flood. */
+	/**
+	 * Receivers by the steepest fall on the levels, for the candidates and the
+	 * cells beside them that drain into the flood or lie beside a height that
+	 * isn't a number.
+	 */
 	private drainFlood(elevation: ArrayLike<number>): void {
 		const { size, local, mark, candidates, candidateCount, beside, besideCount, levels, receivers } = this;
 		const last = size - 1;
@@ -525,7 +537,7 @@ export class DrainageRouter {
 			const isCandidate = index < candidateCount;
 			const cell = isCandidate ? candidates[index] : beside[index - candidateCount];
 			const receiver = local[cell];
-			if (receiver === OUTLET || (!isCandidate && (mark[receiver] & CANDIDATE) === 0)) continue;
+			if (receiver === OUTLET || (!isCandidate && (mark[receiver] & CANDIDATE) === 0 && (mark[cell] & BESIDE_UNKNOWN) === 0)) continue;
 			const row = (cell / size) | 0;
 			const column = cell - row * size;
 			const fall = row > 0 && column > 0 && row < last && column < last ? steepestFallInside(levels, size, cell) : steepestFall(levels, size, cell);
