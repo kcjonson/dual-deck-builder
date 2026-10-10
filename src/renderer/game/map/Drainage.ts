@@ -133,8 +133,13 @@ export class DrainageRouter {
 	/** A binary min-heap of cells, keyed by level, then by index; basins share it when spills are found. */
 	private heapCells = new Int32Array(1024);
 	private heapKeys = new Float64Array(1024);
-	/** Per basin: its spill, where its passes start in the pass lists, whether it's done, and its last neighbour and that pass. */
+	/**
+	 * Per basin: its spill, the height its candidates stay under, where its
+	 * passes start in the pass lists, whether it's done, and its last
+	 * neighbour and that pass.
+	 */
 	private spill = new Float64Array(0);
+	private limit = new Float64Array(0);
 	private passStart = new Int32Array(0);
 	private done = new Uint8Array(0);
 	private partner = new Int32Array(0);
@@ -356,15 +361,20 @@ export class DrainageRouter {
 		}
 	}
 
-	/** The flood's candidates, each pit's cells below its spill and `band`, and the cells beside them. */
+	/**
+	 * The flood's candidates, each pit's cells under its limit, its spill and
+	 * `band`, and every pit; and the cells beside them. The ocean's limit is
+	 * below every height.
+	 */
 	private findCandidates(elevation: ArrayLike<number>, band: number): void {
-		const { size, offsets, basin, local, spill, mark, candidates, beside } = this;
+		const { size, offsets, basin, local, spill, limit, mark, candidates, beside } = this;
 		const cells = size * size;
 		const last = size - 1;
+		limit[OCEAN] = -Infinity;
+		for (let id = 1; id <= this.pits; id += 1) limit[id] = spill[id] + band;
 		let count = 0;
 		for (let cell = 0; cell < cells; cell += 1) {
-			const id = basin[cell];
-			if (id !== OCEAN && (elevation[cell] < spill[id] + band || local[cell] === PIT)) {
+			if (elevation[cell] < limit[basin[cell]] || local[cell] === PIT) {
 				mark[cell] = CANDIDATE;
 				candidates[count] = cell;
 				count += 1;
@@ -401,11 +411,17 @@ export class DrainageRouter {
 	/**
 	 * Floods the candidates from the cells beside them, which stand at their
 	 * heights, in level order, each candidate's level settled the first time
-	 * it leaves the heap or the FIFO. Returns whether the cells beside the
-	 * flood still stand at their heights.
+	 * it leaves the heap or the FIFO. Returns whether the levels hold: every
+	 * candidate settled under its limit, and the cells beside the flood still
+	 * at their heights.
+	 *
+	 * The cells beside a lake in its own basin stand over its limit, so what
+	 * they'd offer it is left out, and most of a lake fills from its spill
+	 * through the FIFO alone. That's exact while every level settles under
+	 * its limit, as nothing left out could have lowered one.
 	 */
 	private flood(elevation: ArrayLike<number>): boolean {
-		const { size, offsets, mark, beside, besideCount, candidates, candidateCount, queue, offered, levels, local } = this;
+		const { size, offsets, mark, beside, besideCount, candidates, candidateCount, queue, offered, levels, local, limit, basin } = this;
 		const last = size - 1;
 		for (let index = 0; index < candidateCount; index += 1) offered[candidates[index]] = Infinity;
 		for (let index = 0; index < besideCount; index += 1) this.offer(beside[index], elevation[beside[index]], elevation);
@@ -459,8 +475,18 @@ export class DrainageRouter {
 				}
 			}
 		}
-		// A candidate the flood never reached has no level, and no receiver.
-		for (let index = 0; index < candidateCount; index += 1) if ((mark[candidates[index]] & SETTLED) === 0) levels[candidates[index]] = NaN;
+		for (let index = 0; index < candidateCount; index += 1) {
+			const cell = candidates[index];
+			const under = limit[basin[cell]];
+			if ((mark[cell] & SETTLED) !== 0) {
+				if (levels[cell] > under) return false;
+			} else if (under < Infinity) {
+				return false;
+			} else {
+				// Nothing was left out of this pit's flood, and it never reached the cell: it has no level, and no receiver.
+				levels[cell] = NaN;
+			}
+		}
 		// A cell beside the flood that drains to a cell outside it stands at its
 		// height, a flood rise or more above that cell's. One draining into the
 		// flood stands at its height only if no level beside it now raises it.
@@ -488,9 +514,13 @@ export class DrainageRouter {
 		return true;
 	}
 
-	/** Offers `level` plus a flood rise, or a candidate's own height where that's higher, to the candidates beside `cell`. */
+	/**
+	 * Offers `level` plus a flood rise, or a candidate's own height where
+	 * that's higher, to the candidates beside `cell`, unless that's over the
+	 * candidate's limit.
+	 */
 	private offer(cell: number, level: number, elevation: ArrayLike<number>): void {
-		const { size, offsets, mark, offered } = this;
+		const { size, offsets, mark, offered, limit, basin } = this;
 		const last = size - 1;
 		const raised = level + FLOOD_RISE;
 		const row = (cell / size) | 0;
@@ -508,7 +538,7 @@ export class DrainageRouter {
 			if (mark[next] !== CANDIDATE) continue;
 			const height = elevation[next];
 			const value = height > raised ? height : raised;
-			if (value < offered[next]) offered[next] = value;
+			if (value < offered[next] && value <= limit[basin[next]]) offered[next] = value;
 		}
 	}
 
@@ -628,6 +658,7 @@ export class DrainageRouter {
 		if (this.spill.length >= count) return;
 		const capacity = Math.max(64, 2 * count);
 		this.spill = new Float64Array(capacity);
+		this.limit = new Float64Array(capacity);
 		this.passStart = new Int32Array(capacity + 1);
 		this.done = new Uint8Array(capacity);
 		this.partner = new Int32Array(capacity);
