@@ -98,8 +98,14 @@ export interface PlannedPoi {
 	readonly stronghold: boolean;
 	readonly x: number;
 	readonly y: number;
-	/** Its routes, quickest first. */
+	/** Its routes in the descriptors' order, by driving hours, which their ids follow. */
 	readonly routes: readonly RouteDescriptor[];
+	/**
+	 * The route with the fewest hours out, stops included, as the screens
+	 * show hours; the first of those tied. Not always `routes[0]`, which has
+	 * the fewest driving hours. Null with no routes.
+	 */
+	readonly quickest: RouteDescriptor | null;
 	/** No route gets a run there and home before dark (Racing the dark). */
 	readonly pastDark: boolean;
 }
@@ -124,6 +130,7 @@ export function plannedPois(map: RouteMap): readonly PlannedPoi[] {
 				x: site.x,
 				y: site.y,
 				routes,
+				quickest: quickestOf(routes),
 				pastDark: routes.every(({ spare }) => spare < 0),
 			});
 		}));
@@ -132,10 +139,17 @@ export function plannedPois(map: RouteMap): readonly PlannedPoi[] {
 	return pois;
 }
 
+/** The route with the fewest hours out, the first of those tied, or null with none. */
+export function quickestOf(routes: readonly RouteDescriptor[]): RouteDescriptor | null {
+	let quickest: RouteDescriptor | null = null;
+	for (const route of routes) if (!quickest || route.hours.out < quickest.hours.out) quickest = route;
+	return quickest;
+}
+
 /** The POIs nearest first: by tier, then by the quickest route's hours out, strongholds last. */
 export function byDistance(pois: readonly PlannedPoi[]): PlannedPoi[] {
 	const rank = (poi: PlannedPoi) => (poi.stronghold ? Infinity : poi.tier);
-	const hours = (poi: PlannedPoi) => poi.routes[0]?.hours.out ?? Infinity;
+	const hours = (poi: PlannedPoi) => poi.quickest?.hours.out ?? Infinity;
 	return [...pois].sort((a, b) => rank(a) - rank(b) || hours(a) - hours(b) || a.poi - b.poi);
 }
 
@@ -159,7 +173,7 @@ export function poiMarkers(pois: readonly PlannedPoi[]): MapMarker[] {
 }
 
 /** A route's road from the compound out to its POI, world space, flat x0, y0, x1, y1, ... */
-export function routePoints(map: PlanningMap, route: RouteDescriptor): number[] {
+export function routePoints({ map, route }: { map: PlanningMap; route: RouteDescriptor }): number[] {
 	const { network } = map.products.roads;
 	const { legs } = map.products.pois;
 	const points: number[] = [];
@@ -171,25 +185,25 @@ export function routePoints(map: PlanningMap, route: RouteDescriptor): number[] 
 	return points;
 }
 
-/** A POI's routes for the view: each one's road, the picked one with its stops. */
-export function mapRoutes(map: PlanningMap, routes: readonly RouteDescriptor[], picked: number): MapRoute[] {
+/** A POI's routes for the view: each one's road, the picked one (by its place among them) with its stops. */
+export function mapRoutes({ map, routes, picked }: { map: PlanningMap; routes: readonly RouteDescriptor[]; picked: number }): MapRoute[] {
 	const { stops } = map.products.stops;
 	return routes.map((route) => ({
 		id: String(route.route),
-		points: routePoints(map, route),
+		points: routePoints({ map, route }),
 		picked: route.route === picked,
 		stops: route.stops.map(({ id, type }) => ({ x: stops[id].x, y: stops[id].y, fight: type !== null && isFight(type) })),
 	}));
 }
 
 /** The world rect round the compound, a POI, and its routes, which the run route screen frames (Area Map Generation, World space). */
-export function routesBounds(map: PlanningMap, poi: PlannedPoi): { x: number; y: number; width: number; height: number } {
+export function routesBounds({ map, poi }: { map: PlanningMap; poi: PlannedPoi }): { x: number; y: number; width: number; height: number } {
 	let minX = Math.min(0, poi.x);
 	let minY = Math.min(0, poi.y);
 	let maxX = Math.max(0, poi.x);
 	let maxY = Math.max(0, poi.y);
 	for (const route of poi.routes) {
-		const points = routePoints(map, route);
+		const points = routePoints({ map, route });
 		for (let index = 0; index + 1 < points.length; index += 2) {
 			minX = Math.min(minX, points[index]);
 			maxX = Math.max(maxX, points[index]);

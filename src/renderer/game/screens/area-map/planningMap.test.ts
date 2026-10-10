@@ -3,7 +3,8 @@ import { foundTestCampaign } from '../../campaign/__fixtures__/mapFixtures';
 import { STRONGHOLD_TYPE } from '../../map/PoiData';
 import { describeRoutes } from '../../map/RouteDescriptors';
 import { clockText, darkText, homeByText, poiKindText, poiYieldText, routeDetail, routesText, stopTag, stopText } from './areaMapText';
-import { PlanningMaps, byDistance, mapRoutes, plannedPois, poiMarkers, routePoints, routesBounds, viewData } from './planningMap';
+import type { RouteDescriptor } from '../../map/RouteDescriptors';
+import { PlannedPoi, PlanningMaps, byDistance, mapRoutes, plannedPois, poiMarkers, quickestOf, routePoints, routesBounds, viewData } from './planningMap';
 import { meshPlanningMap } from './testing';
 
 /** The planning screens' reading of a campaign's map, and what they say about it (DDB-43, DDB-319). */
@@ -20,6 +21,10 @@ describe('the planned POIs', () => {
 			expect(planned).toMatchObject({ id: `poi-${planned.poi}`, type: poi.type, tier: poi.tier, x: poi.site.x, y: poi.site.y, stronghold: poi.type === STRONGHOLD_TYPE });
 			expect(planned.routes).toEqual(describeRoutes(MAP, planned.poi));
 			expect(planned.pastDark).toBe(planned.routes.every(({ spare }) => spare < 0));
+			// The fewest hours out, stops included, which isn't always the fewest driving hours (routes[0])
+			const fewest = Math.min(...planned.routes.map(({ hours }) => hours.out));
+			expect(planned.quickest?.hours.out).toBe(planned.routes.length > 0 ? fewest : undefined);
+			expect(planned.quickest).toBe(planned.routes.find(({ hours }) => hours.out === fewest) ?? null);
 		});
 		expect(POIS.filter(({ stronghold }) => stronghold)).toHaveLength(strongholds.length);
 		expect(POIS.some(({ pastDark, stronghold }) => pastDark && !stronghold)).toBe(true);
@@ -31,13 +36,22 @@ describe('the planned POIs', () => {
 
 	it('go nearest first: by tier, then the quickest route\'s hours out, the strongholds last', () => {
 		const ordered = byDistance(POIS);
-		const key = (poi: (typeof POIS)[number]) => [poi.stronghold ? 9 : poi.tier, poi.routes[0]?.hours.out ?? Infinity];
+		const key = (poi: (typeof POIS)[number]) => [poi.stronghold ? 9 : poi.tier, poi.quickest?.hours.out ?? Infinity];
 		for (let index = 1; index < ordered.length; index += 1) {
 			const [tier, hours] = key(ordered[index]);
 			const [before, beforeHours] = key(ordered[index - 1]);
 			expect(tier > before || (tier === before && hours >= beforeHours)).toBe(true);
 		}
 		expect(ordered[ordered.length - 1].stronghold).toBe(true);
+
+		// By the quickest's hours out, whichever route that is
+		const poi = (index: number, outs: number[]): PlannedPoi => {
+			const routes = outs.map((out, place) => ({ route: place, hours: { out, objective: 1.5, home: 1 } }) as unknown as RouteDescriptor);
+			return { ...POIS[0], poi: index, stronghold: false, tier: 2, routes, quickest: quickestOf(routes) };
+		};
+		const slowFirst = poi(1, [9, 4]);
+		const steady = poi(2, [6, 7]);
+		expect(byDistance([steady, slowFirst]).map(({ poi: index }) => index)).toEqual([1, 2]);
 	});
 
 	it('mark the map: a badge of the tier, the night ring past dark, and labels placed nearest first', () => {
@@ -57,7 +71,7 @@ describe('a POI\'s routes on the map', () => {
 
 	it('run from the compound out to the POI along their legs, one line each', () => {
 		for (const route of poi.routes) {
-			const points = routePoints(MAP, route);
+			const points = routePoints({ map: MAP, route });
 			expect(points.slice(0, 2)).toEqual([0, 0]);
 			const end = points.slice(-2);
 			expect(Math.hypot(end[0] - poi.x, end[1] - poi.y)).toBeLessThan(1e-6);
@@ -69,11 +83,11 @@ describe('a POI\'s routes on the map', () => {
 	});
 
 	it('draw the picked one with its stops, and frame the compound, the POI, and every route', () => {
-		const routes = mapRoutes(MAP, poi.routes, 1);
+		const routes = mapRoutes({ map: MAP, routes: poi.routes, picked: 1 });
 		expect(routes.map(({ picked }) => picked)).toEqual(poi.routes.map((_route, index) => index === 1));
 		const { stops } = MAP.products.stops;
 		expect(routes[1].stops).toEqual(poi.routes[1].stops.map(({ id, type }) => ({ x: stops[id].x, y: stops[id].y, fight: type === 'ambush' || type === 'warband' })));
-		const bounds = routesBounds(MAP, poi);
+		const bounds = routesBounds({ map: MAP, poi });
 		for (const route of routes) {
 			for (let index = 0; index + 1 < route.points.length; index += 2) {
 				expect(route.points[index]).toBeGreaterThanOrEqual(bounds.x);
@@ -122,12 +136,18 @@ describe('what the planning screens say', () => {
 		expect(homeByText({ back: 17.5, dark: 20, spare: 2.5 })).toBe('Home by 17:30, 2.5 h before dark.');
 		expect(homeByText({ back: 21.7, dark: 20, spare: -1.7 })).toBe('Home by 21:42, 1.7 h after dark.');
 		expect(homeByText({ back: 20, dark: 20, spare: 0 })).toBe('Home at dark, 20:00.');
+		// A run home past midnight says it's the next morning
+		expect(homeByText({ back: 33.43, dark: 20, spare: -13.43 })).toBe('Home by 09:26 the next morning, 13.4 h after dark.');
+		expect(homeByText({ back: 50, dark: 20, spare: -30 })).toBe('Home by 02:00 2 days later, 30 h after dark.');
 	});
 
 	it('describes a route on its card, its hours as an estimate off charted road', () => {
 		const route = { knowledge: 'charted' as const, stops: [{}, {}, {}, {}] as never[], hours: { out: 5.24, objective: 1.5, home: 3 }, fuel: 4, risk: 2, estimated: false };
-		expect(routeDetail(route)).toBe('charted / 4 stops / 5.2 h out / fuel 4 / risk 2 of 3');
-		expect(routeDetail({ ...route, knowledge: 'rumored', estimated: true, stops: [{}] as never[], risk: 0 })).toBe('rumored / 1 stop / about 5.2 h out / fuel 4 / risk 0 of 3');
+		// No-break spaces inside each part, so a card wraps between parts and never inside one
+		const plain = (text: string) => text.replace(/\u00a0/g, ' ');
+		expect(plain(routeDetail(route))).toBe('charted / 4 stops / 5.2 h out / fuel 4 / risk 2 of 3');
+		expect(routeDetail(route).split(' / ').every((part) => !part.includes(' '))).toBe(true);
+		expect(plain(routeDetail({ ...route, knowledge: 'rumored', estimated: true, stops: [{}] as never[], risk: 0 }))).toBe('rumored / 1 stop / about 5.2 h out / fuel 4 / risk 0 of 3');
 	});
 
 	it('tags and names a stop by its type, skulls for a fight, and "?" for one not known', () => {
@@ -145,6 +165,12 @@ describe('what the planning screens say', () => {
 		expect(poiYieldText({ stronghold: false, yields: { food: 6, water: 4, fuel: 0, scrap: 0 } })).toBe('Yields 6 food and 4 water.');
 		expect(poiYieldText({ stronghold: true, yields: null })).toBe('Its stores go to whoever takes it.');
 		expect(routesText(poi)).toMatch(/^\d routes, the quickest [\d.]+ h out\.$/);
+		// The quickest by hours out, stops included, not the first by driving hours
+		const route = (out: number, place: number) => ({ route: place, hours: { out, objective: 1.5, home: 1 } }) as unknown as RouteDescriptor;
+		const routes = [route(17.7, 0), route(16.1, 1)];
+		expect(routesText({ routes, quickest: quickestOf(routes) })).toBe('2 routes, the quickest 16.1 h out.');
+		expect(quickestOf([])).toBeNull();
+		expect(quickestOf([route(3, 0), route(3, 1)])?.route).toBe(0);
 		expect(darkText({ routes: [{ spare: 1 }, { spare: -1 }] as never[] })).toBe('Home by dark on 1 of 2 routes.');
 		expect(darkText({ routes: [{ spare: -1 }] as never[] })).toBe('No route gets home by dark.');
 	});
