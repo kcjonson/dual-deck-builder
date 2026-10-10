@@ -135,8 +135,10 @@ describe('EdgeCostField', () => {
 				const { x0, y0, x1, y1 } = move(cell, direction);
 				const count = terrain.bridgeSpans(x0, y0, x1, y1, spans);
 				if (count > 0) crossings += 1;
-				for (let sample = 1; sample < 40; sample += 1) {
-					const along = sample / 40;
+				// Every half unit, as the field and the network checks sample.
+				const samples = Math.floor(Math.hypot(x1 - x0, y1 - y0) / 0.5) + 1;
+				for (let sample = 1; sample < samples; sample += 1) {
+					const along = sample / samples;
 					const sx = x0 + (x1 - x0) * along;
 					const sy = y0 + (y1 - y0) * along;
 					if (terrain.waterAt(sx, sy) !== 'river' || atHome(sx, sy, field.grid.cellSize)) continue;

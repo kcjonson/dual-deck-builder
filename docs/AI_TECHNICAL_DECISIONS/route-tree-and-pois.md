@@ -70,6 +70,7 @@ Every draw comes from a fork of the stage's stream named for its use (`sectors`,
 
 - Lenient: the stage's check runs `checkPoiLayer` without the sector rule, so a bug still fails it, and the layer's `failures` list what it missed: sectors with no stronghold, and cover the first ring doesn't yield. On growth's network that's every sector and all three resources, with no POIs, and the map goes on.
 - Strict: `failures` and every violation fail the stage. After its 8 attempts it escalates to the roads, which rerun on their next attempt; escalation is the runner's (map-pipeline-worker.md).
+- Except where the map's places can't close the loops the POIs want, and the roads stage asked for fewer (road-network.md): a map in the tuning ranges' high mountains with a handful of villages and crossroads, which no campaign map is. No attempt there can seat a stronghold in every sector, so the stage holds it leniently, strict or not, and the map goes on with what it missed in `failures`.
 
 Map 8 turned it on: the route tree and the POIs read the roads stage's product, the POIs escalate to the roads, and the roads stage fails on too few loops (the spec's Validation section), so escalations stay rare. With it came three changes real roads needed: a three-way point needs three distinct neighbours, since two roads from one neighbour give two routes one way home; the sector seating above; and the first ring's cover keeps a location's type unless another yields strictly more of what's still needed, where it used to keep any type that yielded one.
 
@@ -107,4 +108,4 @@ Calls the spec left open, made the simplest way consistent with it, for Kevin to
 9. The first ring covers food, water, and fuel, quickest first, keeping a location's type where it already yields something needed.
 10. A POI's arrivals, and so its routes, are listed quickest first, ties to the lower node.
 11. Tier stand-in: ring plus one.
-12. The POI stage ran lenient until Map 8; the game's pipeline runs it strict.
+12. The POI stage ran lenient until Map 8; the game's pipeline runs it strict, bar maps whose places cap the loops the roads need, which it holds leniently.

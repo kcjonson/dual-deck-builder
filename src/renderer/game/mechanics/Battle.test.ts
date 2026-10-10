@@ -255,6 +255,23 @@ describe('Battle', () => {
 		});
 	});
 
+	describe('forfeit (DDB-454)', () => {
+		test('ends the fight lost, once, with the crew still aboard, and says so', () => {
+			const ended = jest.fn();
+			battle.on('battleEnded', ended);
+
+			battle.forfeit();
+			battle.forfeit();
+
+			expect([battle.isBattleOver(), battle.isBattleWon()]).toEqual([true, false]);
+			expect(battle.afterFight).not.toBeNull();
+			expect(battle.playerTeam.isAboard(playerDriver1)).toBe(true);
+			expect(ended).toHaveBeenCalledTimes(1);
+			expect(ended).toHaveBeenCalledWith({ won: false });
+			expect(battle.getMessagesByType('battle_end').map(message => message.message)).toEqual(['Battle lost: the crew abandoned the fight']);
+		});
+	});
+
 	describe('Battle Initialization', () => {
 		test('should create a battle with correct initial state', () => {
 			expect(battle.playerTeam).toBe(playerTeam);

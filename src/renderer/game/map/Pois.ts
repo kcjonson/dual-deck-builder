@@ -37,8 +37,8 @@ const NO_OWNER = -2;
 /** Tiers until stage 8 works them out from hours: a POI's ring plus one, and a stronghold always this. */
 const STRONGHOLD_TIER = 5;
 
-/** What the stage reads from the land. */
-export type PoiGround = Pick<Terrain, 'radius' | 'metro' | 'biome' | 'ruin' | 'elevation' | 'moisture'>;
+/** What the stage reads from the land, and from the places how ruined it is: 1 in a ruin, fading to 0 at twice its radius. */
+export type PoiGround = Pick<Terrain, 'radius' | 'metro' | 'biome' | 'elevation' | 'moisture'> & { ruin(x: number, y: number): number };
 
 /** Where a POI stands: partway along a meeting stretch, or on a three-way point's node. */
 export interface PoiSite {

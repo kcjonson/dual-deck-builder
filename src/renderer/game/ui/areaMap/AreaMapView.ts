@@ -3,6 +3,7 @@ import type { MountContext } from '../../../engine/components/MountContext';
 import type { DrawApi, RGBA, Rect, TextureHandle, Vec2 } from '../../../engine/draw';
 import { dragThreshold } from '../../../engine/input/DragService';
 import type { AnyUiEvent, UiKeyEvent, UiPointerEvent, UiWheelEvent } from '../../../engine/input/events';
+import { Places, ruinsOf } from '../../map/Places';
 import { ROAD_CLASSES, RoadClass } from '../../map/RoadNetwork';
 import {
 	COMPOUND,
@@ -10,6 +11,7 @@ import {
 	LABEL,
 	MAP_GROUND,
 	MARKER,
+	PLACE_STYLE,
 	RIVER_STYLE,
 	ROAD_PICK_DISTANCE,
 	ROAD_STYLES,
@@ -41,9 +43,10 @@ import { bakeTerrain, terrainBakeSize } from './terrainBake';
 
 /**
  * Draws a generated area map: the terrain and its lakes baked once into a
- * texture, rivers live under the roads, width by size, the drivable roads
- * live by class and knowledge, junctions, the compound, POI and stronghold
- * markers, and land fog, with pan, zoom, and selection.
+ * texture, ruins shaded into it, rivers live under the roads, width by size,
+ * the drivable roads live by class and knowledge, junctions, places (towns
+ * and villages named, crossroads, and exits), the compound, POI and
+ * stronghold markers, and land fog, with pan, zoom, and selection.
  * Shared by the Map Lab (DDB-299) and the area map screen (DDB-43); the
  * inputs later generation stages fill in are in `layers.ts`.
  *
@@ -295,7 +298,8 @@ export class AreaMapView extends Component {
 		if (!map) return;
 		const terrain = map.terrain;
 		const size = terrainBakeSize(terrain.radius);
-		const bake = (): Uint8Array => bakeTerrain({ terrain, size });
+		const ruins = map.places ? ruinsOf(map.places) : [];
+		const bake = (): Uint8Array => bakeTerrain({ terrain, size, ruins });
 		const texture = draw.createTexture({ width: size, height: size, label: TERRAIN_LABEL, source: bake(), reload: () => Promise.resolve(bake()) });
 		this.terrainTexture = { texture, size };
 	}
@@ -334,7 +338,15 @@ export class AreaMapView extends Component {
 	/** The labels it draws itself, for the tree snapshot and the text record (DDB-206). */
 	public get drawnText(): readonly string[] | null {
 		if (!this.mapData) return null;
-		const labels: string[] = [COMPOUND.label];
+		const labels: string[] = [];
+		const places = this.mapData.places;
+		if (places && this.layerToggles.places) {
+			for (const town of places.towns) if (!this.fogged(town.x, town.y)) labels.push(town.name);
+			if (this.villagesNamed()) {
+				for (const village of places.villages) if (!this.fogged(village.x, village.y)) labels.push(village.name);
+			}
+		}
+		labels.push(COMPOUND.label);
 		if (this.layerToggles.markers) {
 			for (const marker of this.markerList) if (marker.label) labels.push(marker.label);
 		}
@@ -358,6 +370,7 @@ export class AreaMapView extends Component {
 			if (layers.roads) this.drawRoads(draw, this.geometry);
 			if (layers.junctions) this.drawJunctions(draw, this.geometry);
 			draw.popTransform();
+			if (layers.places) this.drawPlaces(draw);
 			this.drawCompound(draw);
 			if (layers.markers) this.drawMarkers(draw);
 		}
@@ -557,6 +570,58 @@ export class AreaMapView extends Component {
 			border: { color: COMPOUND.border, width: 1.5, position: 'outside' },
 		});
 		this.drawLabel(draw, COMPOUND.label, at.x + half + LABEL.gap, at.y, 'compound_label');
+	}
+
+	/**
+	 * Crossroads, exits, villages, then towns, at a constant size on screen;
+	 * towns named always and villages once the map is zoomed in far enough
+	 * that their names have room. A place under the fog isn't drawn.
+	 */
+	private drawPlaces(draw: DrawApi): void {
+		const places = this.mapData?.places;
+		if (!places) return;
+		const camera = this.mapCamera;
+		const { ink, paper } = PLACE_STYLE;
+		for (const { id, x, y } of places.crossroads) {
+			if (this.fogged(x, y)) continue;
+			draw.drawCircle({ id: this.part(`place_${id}`), center: camera.worldToScreen(x, y, this.scratch), radius: PLACE_STYLE.crossroads.radius, fill: PLACE_STYLE.crossroads.color });
+		}
+		for (const { id, x, y } of places.exits) {
+			if (this.fogged(x, y)) continue;
+			draw.drawCircle({ id: this.part(`place_${id}`), center: camera.worldToScreen(x, y, this.scratch), radius: PLACE_STYLE.exit.radius, fill: paper, border: { color: ink, width: PLACE_STYLE.exit.ring } });
+		}
+		this.drawSettlements(draw, places.villages, this.villagesNamed());
+		this.drawSettlements(draw, places.towns, true);
+	}
+
+	/** Towns or villages: a dot each, named when `named`. */
+	private drawSettlements(draw: DrawApi, settlements: Places['towns'], named: boolean): void {
+		const camera = this.mapCamera;
+		const { ink, paper } = PLACE_STYLE;
+		for (const { id, x, y, kind, name } of settlements) {
+			if (this.fogged(x, y)) continue;
+			const style = PLACE_STYLE[kind];
+			const at = camera.worldToScreen(x, y, this.scratch);
+			draw.drawCircle({ id: this.part(`place_${id}`), center: at, radius: style.radius, fill: ink, border: { color: paper, width: style.ring, position: 'outside' } });
+			if (named) this.drawLabel(draw, name, at.x + style.radius + LABEL.gap, at.y, `place_${id}_label`);
+		}
+	}
+
+	/** Whether villages are named at this zoom. */
+	private villagesNamed(): boolean {
+		return this.mapCamera.zoom >= PLACE_STYLE.villageLabelZoom;
+	}
+
+	/** Whether the fog, drawn, hides the land at (x, y). */
+	private fogged(x: number, y: number): boolean {
+		const fog = this.fogLayer;
+		if (!fog || !this.layerToggles.fog) return false;
+		const radius = this.mapCamera.radius;
+		const side = (radius * 2) / fog.cells;
+		const column = Math.floor((x + radius) / side);
+		const row = Math.floor((y + radius) / side);
+		if (column < 0 || row < 0 || column >= fog.cells || row >= fog.cells) return true;
+		return !fog.isRevealed(column, row);
 	}
 
 	private drawMarkers(draw: DrawApi): void {

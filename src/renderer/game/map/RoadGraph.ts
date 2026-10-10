@@ -152,8 +152,10 @@ export function buildRoadGraph({ cells, terrain }: RoadGraphOptions): RoadGraph 
 	};
 	const kindOf = (cell: number): RoadNodeKind | null => {
 		const place = placeAt[cell];
-		if (place === 0) return 'compound';
-		if (place > 0) return places[place].kind;
+		if (place >= 0) {
+			const { kind } = places[place];
+			return kind === 'metro' ? 'compound' : kind;
+		}
 		const around = neighbours(cell);
 		if (around.length === 0) return null;
 		if (around.length >= 3) return 'junction';

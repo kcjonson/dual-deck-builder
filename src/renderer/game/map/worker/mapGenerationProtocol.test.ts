@@ -49,7 +49,7 @@ describe('the generation worker\'s transfer format', () => {
 	// Floodlands, so the water stage has rivers, reservoirs, and wet ground to send.
 	const params = paramsFor({ seed: 5, environment: 'floodlands', radius: 700 });
 	const map = generateAreaMap({ params });
-	const mapLand = landLattice(map.products.water.terrain);
+	const mapLand = landLattice(map.products.hazards.terrain);
 	const { network } = map.products.roads;
 
 	afterEach(() => {
@@ -81,13 +81,17 @@ describe('the generation worker\'s transfer format', () => {
 		expect(transfer.surface).toBe(surface);
 		expect(transfer.badlands).toBe(map.products.terrain.badlandsCells);
 		expect(transfer.water).toBe(wet);
+		expect(transfer.hotspots).toBe(map.products.hazards.hotspots);
+		expect(transfer.places).toBe(map.products.places);
 		expect(wet.lakes.length).toBeGreaterThan(0);
+		expect(map.products.hazards.hotspots.length).toBeGreaterThan(0);
+		expect(map.products.places.towns.length).toBeGreaterThan(0);
 		expect(plain(structuredClone(transfer))).toEqual(plain(transfer));
 		expect(transfer).not.toHaveProperty('products');
 		expect(transfer.params).toEqual(params);
 	});
 
-	it('decodes to the map it encoded, the terrain and its water rebuilt over what was sent without eroding or routing again', () => {
+	it('decodes to the map it encoded, the terrain, its water, and its hazards rebuilt over what was sent without eroding or routing again', () => {
 		// A map of its own to send, since sending detaches its arrays; the same as the shared one, from the same seed.
 		const own = generateAreaMap({ params });
 		const erode = jest.spyOn(land, 'generateLand');
@@ -102,16 +106,24 @@ describe('the generation worker\'s transfer format', () => {
 		const { products: original, ...expected } = own;
 		expect(rest).toEqual(expected);
 		expect(products.roads).toEqual(original.roads);
+		expect(products.places).toEqual(original.places);
+		expect(products.hazards.hotspots).toEqual(original.hazards.hotspots);
 		expect(plain(products.routeTree)).toEqual(plain(original.routeTree));
 		expect(products.pois).toEqual(original.pois);
 		expect(products.water.rivers).toEqual(map.products.water.rivers);
 		expect(products.water.lakes).toEqual(map.products.water.lakes);
 		expect(products.water.terrain.water).toBe(products.water);
-		expect(landLattice(products.water.terrain)).toEqual(mapLand);
+		expect(products.hazards.terrain.water).toBe(products.water);
+		expect(products.hazards.terrain.hazards).toBe(products.hazards);
+		expect(landLattice(products.hazards.terrain)).toEqual(mapLand);
 		expect(Object.isFrozen(products.terrain.surface)).toBe(true);
 		expect(Object.isFrozen(products.terrain.surface.drainage)).toBe(true);
 		expect(Object.isFrozen(products.water.surface)).toBe(true);
 		expect(Object.isFrozen(products.water.surface.lines)).toBe(true);
+		expect(Object.isFrozen(products.places)).toBe(true);
+		expect(Object.isFrozen(products.places.towns)).toBe(true);
+		expect(Object.isFrozen(products.places.towns[0])).toBe(true);
+		expect(Object.isFrozen(products.hazards.hotspots)).toBe(true);
 	});
 
 	it('decodes the streams that won, after retries and a map restart', () => {
@@ -119,7 +131,7 @@ describe('the generation worker\'s transfer format', () => {
 		const retried = generateAreaMap({
 			params,
 			accept: (_map, { stage, mapAttempt }) => {
-				if (stage === 'water' && mapAttempt === 0) return ['force a map restart'];
+				if (stage === 'places' && mapAttempt === 0) return ['force a map restart'];
 				if (stage === 'roads' && roadsRejections < 2) {
 					roadsRejections += 1;
 					return ['force a roads rerun'];
@@ -128,11 +140,13 @@ describe('the generation worker\'s transfer format', () => {
 			},
 		});
 		expect(retried.mapAttempt).toBe(1);
-		expect(retried.attempts).toEqual({ terrain: 0, water: 0, roads: 2, routeTree: 0, pois: 0 });
-		const retriedLand = landLattice(retried.products.water.terrain);
+		expect(retried.attempts).toEqual({ terrain: 0, water: 0, hazards: 0, places: 0, roads: 2, routeTree: 0, pois: 0 });
+		const retriedLand = landLattice(retried.products.hazards.terrain);
+		const retriedPlaces = retried.products.places;
 		const decoded = decodeAreaMap(sent(retried));
 		expect(decoded.products.roads).toEqual(retried.products.roads);
-		expect(landLattice(decoded.products.water.terrain)).toEqual(retriedLand);
+		expect(decoded.products.places).toEqual(retriedPlaces);
+		expect(landLattice(decoded.products.hazards.terrain)).toEqual(retriedLand);
 		// Map attempt 1's terrain, not the first map attempt's.
 		expect(decoded.streams.terrain).not.toBe(map.streams.terrain);
 	});

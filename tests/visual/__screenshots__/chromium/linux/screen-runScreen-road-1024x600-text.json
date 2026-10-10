@@ -1,0 +1,18 @@
+[
+{"path":"runScreen/run_top_bar/run_back_button/Text[0]","text":"Back to menu","rect":[47,19,93,26]},
+{"path":"runScreen/run_top_bar/run_heading/run_title","text":"Run to Red Mesa Silos","rect":[168,10.88,564,26.4]},
+{"path":"runScreen/run_top_bar/run_heading/run_subtitle","text":"Day 9 / on the road / Back roads","rect":[168,37.28,564,15.84]},
+{"path":"runScreen/run_top_bar/run_cargo","text":"Cargo: 2 fuel and Caltrops","rect":[748,23.83,260,16.34]},
+{"path":"runScreen/run_body/run_road_panel/Text[0]","text":"The road","rect":[28,87,296,21]},
+{"path":"runScreen/run_body/run_road_panel/run_road_scroll/run_road/run_stop_0/run_stop_0_label","text":"1. Raider ambush, 1 skull","rect":[32,128,233.8,16.34]},
+{"path":"runScreen/run_body/run_road_panel/run_road_scroll/run_road/run_stop_0/run_stop_0_state","text":"Cleared","rect":[273.8,128.91,46.2,14.52]},
+{"path":"runScreen/run_body/run_road_panel/run_road_scroll/run_road/run_stop_1/run_stop_1_label","text":"2. Quiet stretch","rect":[32,162.34,233.8,16.34]},
+{"path":"runScreen/run_body/run_road_panel/run_road_scroll/run_road/run_stop_1/run_stop_1_state","text":"Cleared","rect":[273.8,163.25,46.2,14.52]},
+{"path":"runScreen/run_body/run_road_panel/run_road_scroll/run_road/run_stop_2/run_stop_2_label","text":"3. Raider ambush, 2 skulls","rect":[32,196.68,253.6,16.34]},
+{"path":"runScreen/run_body/run_road_panel/run_road_scroll/run_road/run_stop_2/run_stop_2_state","text":"Next","rect":[293.6,197.59,26.4,14.52]},
+{"path":"runScreen/run_body/run_road_panel/run_road_scroll/run_road/run_stop_home/run_stop_home_label","text":"Home, from Red Mesa Silos","rect":[32,231.03,288,16.34]},
+{"path":"runScreen/run_body/run_road_panel/run_seats","text":"Road Warrior 1, 40 of 40 HP; Interceptor 2, 25 of 25 HP","rect":[24,543.32,304,32.68]},
+{"path":"runScreen/run_body/run_side/run_action/run_action_title","text":"Next: Raider ambush, 2 skulls","rect":[352,81,656,21.6]},
+{"path":"runScreen/run_body/run_side/run_action/run_action_line","text":"Raiders hold the road ahead, 2 skulls of danger. Driving on starts the fight.","rect":[352,114.6,656,16.34]},
+{"path":"runScreen/run_body/run_side/run_action/run_drive_button/Text[0]","text":"Drive on","rect":[364,142.94,216,46]}
+]

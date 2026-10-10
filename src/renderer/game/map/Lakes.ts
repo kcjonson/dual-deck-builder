@@ -101,7 +101,7 @@ export interface NaturalLakeOptions {
 	/** Vertical scale: world units elevation 1 stands. */
 	readonly relief: number;
 	/**
-	 * Cells no lake may cover: the metro, towns, craters, the grid's edge. A
+	 * Cells no lake may cover: the metro and the grid's edge. A
 	 * pit touching one stays dry. The cells round each lake made are marked
 	 * too, so no lake made after it touches it.
 	 */

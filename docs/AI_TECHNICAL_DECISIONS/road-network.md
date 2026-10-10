@@ -1,12 +1,12 @@
 # The road network: links and the graph (DDB-443, DDB-444)
 
-Date: 2026-10-10. Code: `src/renderer/game/map/` (`RoadCost.ts`, the edge cost field; `RoadLinks.ts`, the links; `RoadGraph.ts`, the graph; `Roads.ts`, the stage, broken highways, and the stand-in places; `RoadChecks.ts`; `RoadNetwork.ts`, the plain data), wired in `AreaMapPipeline.ts`, timed, swept, and drawn by `scripts/road-network.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), 5. Roads, Guarantees 3, Validation and retries, and Performance. Builds Maps 7 and 8 of [realistic-map.md](./realistic-map.md), decision 2, over the land and water of [water-and-biomes.md](./water-and-biomes.md), and replaces road-growth.md's outward growth, whose `Highways.ts`, `RoadGrowth.ts`, step rules, tests, and script are gone.
+Date: 2026-10-10. Code: `src/renderer/game/map/` (`RoadCost.ts`, the edge cost field; `RoadLinks.ts`, the links; `RoadGraph.ts`, the graph; `Roads.ts`, the stage, the loops it asks for, and broken highways; `RoadChecks.ts`; `RoadNetwork.ts`, the plain data), wired in `AreaMapPipeline.ts`, timed, swept, and drawn by `scripts/road-network.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), 5. Roads, Guarantees 3, Validation and retries, and Performance. Builds Maps 7 and 8 of [realistic-map.md](./realistic-map.md), decision 2, between the places of [places.md](./places.md) over the land, water, and hazards of [water-and-biomes.md](./water-and-biomes.md) and places.md, and replaces road-growth.md's outward growth, whose `Highways.ts`, `RoadGrowth.ts`, step rules, tests, and script are gone.
 
 ## Context
 
 The spec's roads are least-cost links between places with a detour test for loops (Galin et al.), and the prototype showed the shape: 36,000 to 47,000 units of road at radius 1000, 450 to 600 nodes, 110 to 190 loops. The route tree and POIs (route-tree-and-pois.md) were built against synthetic meshes and waited on a real network with loops, so this is what turns their strict mode on. Map 5 left four notes for it: hold both ends of a bridge step when smoothing, find bridges over the whole polyline, use a per-map edge cost field rather than `moveCost` in the search's inner loop, and test that field against `moveCost`.
 
-Two maps at radius 1000, drawn by `scripts/road-network.mjs png` with the stand-in places: highways red, back roads grey, trails dashed brown, broken highway spans dashed white, towns and exits as large dots, crossroads small, passes white, and POIs green (three routes yellow, strongholds purple).
+Two maps at radius 1000, drawn by `scripts/road-network.mjs png`: highways red, back roads grey, trails dashed brown, broken highway spans dashed white, towns and villages black in a white ring, crossroads small and grey, exits ringed, red on a highway, dead ends blue, passes white, and POIs green (three routes yellow, strongholds purple).
 
 ![Mixed, seed 7](../design/road-network/mixed-seed-7.png)
 
@@ -14,7 +14,7 @@ Two maps at radius 1000, drawn by `scripts/road-network.mjs png` with the stand-
 
 ## The stage
 
-`roads` runs after water on `root.fork('map', m).fork('terrain', t).fork('water', w).fork('roads', r)`, and draws only on named forks: `spur` at each village's id, `broken`, and, for the stand-in places, `exits` and `crossroads`. Its product is `{ network, stats }`. It fails, and reruns on its next attempt, when a place has no road, when the network closes fewer loops than `poiDensity` times 30 plus `strongholds` (rounded up), or on any of `checkRoadNetwork`'s rules. The POI stage escalates to it.
+`roads` runs after the places on `root.fork('map', m).fork('terrain', t).fork('water', w).fork('hazards', h).fork('places', p).fork('roads', r)`, over the land with its water and hazards, and draws only on named forks: `spur` at each village's id, and `broken`. Its product is `{ network, stats }`. It fails, and reruns on its next attempt, when a place has no road, when the network closes fewer loops than the POIs need (below), or on any of `checkRoadNetwork`'s rules. The POI stage escalates to it.
 
 ## The edge cost field
 
@@ -47,7 +47,7 @@ Back roads take the Gabriel graph over every place, exits never with exits, unde
 
 A back road gives out to a trail along a run of moves through rough country (`Terrain.rough`, the steepest 10% to 35% of the land) at least 150 units long at `trailShare` 0 to 15 at 1, 82 at the default. A move keeps the best class laid along it. Trails come to 8% or 9% of the road at the defaults.
 
-A village takes a spur trail with chance 0.55, drawn on its own fork: toward the highest open cell 60 to 140 units off at 16 bearings, turned by a draw, 0.12 of elevation above it or more, if the trail runs 200 units or less. It ends at a dead end. The stand-in places have no villages, so spurs wait for Map 6.
+A village takes a spur trail with chance 0.55, drawn on its own fork: toward the highest open cell 60 to 140 units off at 16 bearings, turned by a draw, 0.12 of elevation above it or more, if the trail runs 200 units or less. It ends at a dead end.
 
 A path's highest cell is a pass where the ranges' mask is 0.5 or more there and it stands 0.05 above both ends, 30 units from any other: 11 a map at radius 1000.
 
@@ -59,9 +59,9 @@ The road moves become nodes and stretches:
 - Every other node stands on a cell centre: a place's (each place stands on its own cell or the nearest open neighbour), a junction (three or more moves), a dead end, the last cell inside the metro on a road leaving it, and a class change. So no two nodes are closer than a cell, and no merging is needed. A diagonal closing a triangle with two orthogonal road moves is dropped first, handing its class on.
 - Each road between two nodes is walked once. A loop back to its own node is split at its middle.
 - A stretch's line is its cells, held still at its nodes and at both ends of every bridge move. Between holds, two passes of a quarter, half, quarter average take out steps back and forth between two rows (which simplifying keeps), then Douglas-Peucker at 0.6 of a cell, then two passes of Chaikin.
-- Each run between holds settles on its own. A smoothed run that would be impassable, sampled every half unit with its bridges, is held at the cell nearest where it clips, and both halves are smoothed again, down to single moves if need be; so a road along a river bank stays smooth past the bend that touches the water, where the first cut dropped its whole stretch to cells and drew 45-degree stair steps (0 to 13 a map). Badlands seed 7 at radius 1000, its highway along the river's bend (drawn as a broken span here):
+- Each run between holds settles on its own. A smoothed run that would be impassable, sampled every half unit with its bridges, is held at the cell nearest where it clips, and both halves are smoothed again, down to single moves if need be; so a road along a river bank stays smooth past the bend that touches the water, where the first cut dropped its whole stretch to cells and drew 45-degree stair steps (0 to 13 a map). Badlands seed 7 at radius 1000, a back road along the river's bend:
 
-  ![Badlands, seed 7: a highway along a river bank, smooth](../design/road-network/river-bank-badlands-7.png)
+  ![Badlands, seed 7: a back road along a river bank, smooth](../design/road-network/river-bank-badlands-7.png)
 
 - A run that clashes with another falls back: to the line smoothed without the averaging, then simplified without smoothing, then its cells, which the field proved. A run out of the compound has a last level through the centre of the cell it leaves by, since the line from the origin to the next cell is no move the field proved.
 - Stretches over 140 units are cut into even pieces at roadside nodes, on a point within a unit of the share or a point put on the segment there, moved off any bridge to the nearer end of its deck.
@@ -77,9 +77,11 @@ Highway stretches 70 units or longer whose middle lies past 0.35 of the radius, 
 
 A bridge longer than the longest has no deck, so its water fails passability; a length check on decks was dropped, since two crossings sharing a deck can run 32 units together.
 
-## Stand-in places
+## The places, and the loops they can close
 
-Until the places stage (Map 6, DDB-442) lands, `standInPlaces` gives the roads the compound, the terrain's towns, crossroads thrown over open ground `roadDensity` apart (140 units at 0 to 70 at 1) and three quarters of that from towns and exits, and the highway exits at 0.985 of the radius, evenly round from a drawn turn, each slid up to 8 degrees to ground a side-to-side flood fill from the compound reaches past lakes, cliffs, and craters with rivers crossed. An eight-way fill leaked past a lake's corner and left an exit cut off. It goes when Map 6's `Places` are read instead.
+The roads join every place in `placeList`'s order (places.md): the metro first, standing for the compound at node 0, then the towns, villages, crossroads, and exits. A highway exit gets its highway; a back-road exit is one more place on the Gabriel graph, never linked to another exit, so it gets a back road or a trail. Where the rim is a cliff, a lake, or a river, an exit comes in up to six cells; on 20 maps QA found each one reached under the field and every highway exit on its highway. Until the places stage landed, a stand-in threw crossroads over any open ground, mountains included, and had no villages.
+
+The loops the POIs want are `poiDensity` times 30 plus `strongholds`, rounded up. Real places put that out of reach in the high ranges: at `mountainCoverage` 1 and radius 600 the places stage finds room for eight villages and nothing else inside the rim, and the roads close 6 loops against 34 wanted. So the stage asks for no more than the map's towns, villages, and crossroads can close, the places inside the rim a loop can run round. The first four only branch; past them, 0.3 of a loop each at `loops` 0, rising by 0.9 times `loops` to at most 0.6. With a share of every place and no allowance for the first few, another map in that corner, with 13 such places, was asked for 8 loops where its roads close 6 on every attempt, and had to restart. The cap never binds in the campaign ranges. Over 600 rolled campaign maps the fewest such places was 78, which close 43 at the campaign's least `loops`, 0.3, past the 41 its most POIs and strongholds want; every map's cap sat 8 or more above what it wanted. On such a map no attempt can seat a stronghold in every sector either, so the POI stage holds it leniently, strict or not, and the map goes on with what it missed in the POI layer's `failures` (route-tree-and-pois.md).
 
 ## Measured
 
@@ -87,14 +89,14 @@ Until the places stage (Map 6, DDB-442) lands, `standInPlaces` gives the roads t
 
 | Radius | Roads, ms median (slowest) | Terrain | Water | Nodes | Stretches | Road, units | Loops (least) | Bridges | POIs placed | Three-route POIs | Retries |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1000 | 201 (270) | 149 | 30 | 459 | 607 | 43,509 | 164 (120) | 62 | 450 of 450, 60 strongholds | 55 | 0 of 15 |
-| 1200 | 277 (301) | 211 | 36 | 634 | 852 | 61,457 | 221 (177) | 94 | 450 of 450, 60 strongholds | 57 | 0 of 15 |
+| 1000 | 209 (266) | 177 | 31 | 411 | 569 | 42,737 | 156 (101) | 69 | 446 of 450, 60 strongholds | 33 | 0 of 15 |
+| 1200 | 366 (405) | 285 | 41 | 596 | 808 | 59,164 | 212 (151) | 95 | 448 of 450, 60 strongholds | 37 | 0 of 15 |
 
-The roads' time at radius 1000, profiled over six maps: A* about 50 ms, the field's moves about 90 (their samples, the grade, the slope, and river crossings), the graph about 40, the network checks 10, the stand-in places about 20. The prototype's roads took 140 to 210 ms; the spec's grid stages budget a second on a mid-range laptop, and terrain, water, and roads come to about 380 ms here at radius 1000 and 520 at 1200, with the linear-time drainage router in.
+The roads' time at radius 1000, profiled over six maps: A* about 50 ms, the field's moves about 90 (their samples, the grade, the slope, and river crossings), the graph about 40, the network checks 10. The places stage takes 24 ms at radius 1000 and 37 at 1200, the hazards nothing to speak of. The prototype's roads took 140 to 210 ms; the spec's grid stages budget a second on a mid-range laptop, and terrain through roads come to about 440 ms here at radius 1000 and 730 at 1200. The desktop was busier for this run than for the stand-in's, when the roads took 201 and 277 ms: terrain alone ran a fifth slower at 1000 and a third at 1200.
 
-QA's 30 maps (five environments by seeds 3, 7, and 11 at radius 900 and 1200): no road has any river water off its bridges' decks and Home's cells, where the first cut had 3 maps past 15 units off its decks and 16 past 15 counting the decks it laid down rivers. Runs left as cells three moves or more come to 27 over the 30 maps, 0 to 3 a map; the first cut left 125 whole stretches as cells, 1 to 10 a map. The levers, should a laptop need them, are the obstacle samples and the per-class cost.
+QA's 30 maps (five environments by seeds 3, 7, and 11 at radius 900 and 1200): no road has any river water off its bridges' decks and Home's cells, where the first cut had 3 maps past 15 units off its decks and 16 past 15 counting the decks it laid down rivers. Runs left as cells three moves or more come to 5 over the 30 maps, 0 to 2 a map, 27 on the stand-in places; the first cut left 125 whole stretches as cells, 1 to 10 a map. The levers, should a laptop need them, are the obstacle samples and the per-class cost.
 
-`check --maps 30`, parameters sampled across their tuning ranges: every stage's first attempt passed on 27 or more of 28, none broke a road rule, and two maps gave up, both radius 600 to 644 with `poiDensity` near 2, five to seven strongholds, and `roadDensity` 0: they need 64 or 65 loops and their stand-in places close 30 to 35. That corner of the tuning ranges can't hold the POIs it asks for, whatever the roads do.
+`check --maps 30`, parameters sampled across their tuning ranges: every stage's first attempt passed on all 29 maps that finished, and none broke a road rule. 14 of them have places that cap the loops, 13 with `mountainCoverage` 0.6 or more and one at radius 600 asking 1.8 times the POIs and 7 strongholds; they pass with 0 to 7 of their 2 to 7 strongholds and 2 to 31 of 23 to 60 POIs, the rest in the POIs' `failures`. One gave up: Badlands at radius 1600 with `mountainCoverage` 1, whose 56 places close 33 loops, past the 22 it wants, but whose sectors' outer band holds no meeting point a stronghold can take, so the POIs escalate until the map runs out of attempts. Seating strongholds on a map that's mountains to the rim is the POI stage's to settle.
 
 ## Determinism
 
@@ -105,7 +107,8 @@ The tests pin two maps' networks as hashes of every node and stretch point, comp
 - `RoadNetwork` is `{ nodes, stretches, broken, passes }`; a node has an optional `place`, and a stretch `length`, `bridges`, and `street`, without `road` or `parent`. The worker packs stretches' points as before and sends broken spans and passes by structured clone.
 - The area map view draws an uncharted stretch as a stub from whichever end a charted or rumored stretch ends on, or the compound, and a junction dot where any stretch there is drawn solid, since there are no parents to ask. Knowledge per leg is DDB-294's.
 - `polylineLength` and `pointAlong` live in `Geometry.ts`, for the roads, the route tree, and the POIs alike.
-- The POI stage is strict (route-tree-and-pois.md), and the gallery's area map scenes move with every road.
+- The roads read the places stage's `placeList`, the metro as the compound; the stand-in places are gone. `RoadStats` counts the towns, villages, and crossroads (`inland`) for the loops rule.
+- The POI stage is strict (route-tree-and-pois.md), bar maps whose places cap the loops, and the gallery's area map scenes move with every road.
 - A change to any number here moves every map, so it goes with a generator version bump.
 
 ## Provisional calls
@@ -126,6 +129,7 @@ Calls the spec and realistic-map.md left to the build, made the simplest way con
 12. Stretches cut at 140 units; clearance 2 units, tapering by a quarter toward a shared node; stretches meet at nodes 20 degrees apart or more.
 13. The compound stands on its four cells, with one move into them from each cell, and its roads leave it through any river on them.
 14. Broken highways: stretches 70 units or longer with their middle past 0.35 of the radius.
-15. The roads stage fails below `poiDensity` times 30 plus `strongholds` loops, rounded up.
+15. The roads stage fails below `poiDensity` times 30 plus `strongholds` loops, rounded up, or below what the map's towns, villages, and crossroads can close where that's fewer: none for the first four, then 0.3 of a loop each at `loops` 0, rising by 0.9 times `loops` to at most 0.6.
 16. The metro's rivers are crossed, free and on a bridge of any length, never driven along: no road through a cell centre in one, and no sample in one off a bridge's deck.
 17. A highway stretch's number is its exit's order among the highway exits; a trunk takes the first laid's.
+18. Where the places cap the loops (15), the POI stage holds the map leniently, strict or not.

@@ -58,7 +58,7 @@ Once it's set, nothing changes the campaign:
 
 ## Saved, and ended in the store once
 
-The save keeps `end`, `tally`, and `foundOnRun`, so the format is version 6 and the fixture is `campaign-v6.json`, a standing campaign with a run out, a tally, and a driver found on it. A campaign that's over saves and loads as it is, and still refuses every change.
+The save keeps `end`, `tally`, and `foundOnRun`, so the format went to version 6 and the fixture to `campaign-v6.json` (since `campaign-v7.json`, [mvp-supply-run.md](./mvp-supply-run.md)), a standing campaign with a run out, a tally, and a driver found on it. A campaign that's over saves and loads as it is, and still refuses every change.
 
 The store never writes one as the save, though. A `checkpoint` or `save` of a campaign that's over ends it in the store instead, as `end` does: its line goes into the history and its save is removed. So the checkpoint the screens already make after the step that lost the campaign writes the history line, once, and the main menu has no lost campaign to Continue.
 

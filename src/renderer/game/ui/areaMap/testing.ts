@@ -66,7 +66,6 @@ export function flatTerrain({ radius = 600, craters = [], cliffDepth = () => -1,
 			out.contamination = 0;
 			out.slopeX = 0;
 			out.slopeY = 0;
-			out.ruin = 0;
 			return out;
 		},
 		slope: <Out extends { x: number; y: number }>(_x: number, _y: number, out: Out): Out => {

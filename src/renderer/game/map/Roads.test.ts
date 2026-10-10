@@ -3,7 +3,7 @@ import { ROAD_CLEARANCE, checkRoadNetwork, polylineBridges, roadClashes } from '
 import { ROAD_GRAPH, buildRoadGraph } from './RoadGraph';
 import { ROAD_LINKS, RoadPlace, buildRoadCells } from './RoadLinks';
 import { ROAD_CLASSES, RoadNetwork, classRank, loopCount } from './RoadNetwork';
-import { generateRoads, loopsNeeded, roadsProblems, standInPlaces } from './Roads';
+import { LOOPS_PER_PLACE, generateRoads, loopsNeeded, roadsProblems } from './Roads';
 import { createTerrainSample } from './Terrain';
 import { MapParamSet } from './MapParams';
 import { landFor, riverOffDecks, roadMap, sampledRoadParamSets } from './roadTesting';
@@ -28,14 +28,14 @@ function networkHash({ nodes, stretches }: RoadNetwork): number {
 }
 
 const PINNED: [MapParamSet, { nodes: number; stretches: number; hash: number }][] = [
-	[{ seed: 7, radius: 800 }, { nodes: 329, stretches: 439, hash: 2213561524 }],
-	[{ seed: 17, environment: 'badlands', radius: 800 }, { nodes: 294, stretches: 372, hash: 3725655979 }],
+	[{ seed: 7, radius: 800 }, { nodes: 334, stretches: 460, hash: 125372455 }],
+	[{ seed: 17, environment: 'badlands', radius: 800 }, { nodes: 264, stretches: 330, hash: 3473896097 }],
 ];
 
 const SET: MapParamSet = { seed: 3, radius: 800 };
 const land = landFor(SET);
 const fieldFor = (curviness = land.params.curviness) => new EdgeCostField({ terrain: land.terrain, rivers: land.water.lines, curviness });
-const places = standInPlaces({ terrain: land.terrain, params: land.params, rng: land.rng });
+const { places } = land;
 const cellsFor = (options: { loops?: number; trailShare?: number; places?: readonly RoadPlace[] } = {}) => buildRoadCells({
 	field: fieldFor(), terrain: land.terrain, places: options.places ?? places, loops: options.loops ?? land.params.loops, trailShare: options.trailShare ?? land.params.trailShare, rng: land.rng,
 });
@@ -43,11 +43,18 @@ const cells = cellsFor();
 const graph = buildRoadGraph({ cells, terrain: land.terrain });
 
 describe('road links', () => {
-	it('join every place to the compound, with a highway from every highway exit', () => {
+	it('join every place to the compound, with a highway from every highway exit and a road from every back-road exit', () => {
 		expect(cells.stats.unreached).toEqual([]);
-		expect(cells.stats.highways).toBe(places.filter(({ kind, highway }) => kind === 'exit' && highway).length);
+		const highwayExits = places.filter(({ kind, highway }) => kind === 'exit' && highway).length;
+		expect(cells.stats.highways).toBe(highwayExits);
+		expect(places.filter(({ kind, highway }) => kind === 'exit' && !highway).length).toBeGreaterThan(0);
 		const exits = graph.nodes.flatMap((node, id) => (node.kind === 'exit' ? [id] : []));
-		exits.forEach((exit) => expect(graph.stretches.some(({ from, to, roadClass }) => (from === exit || to === exit) && roadClass === 'highway')).toBe(true));
+		expect(exits).toHaveLength(places.filter(({ kind }) => kind === 'exit').length);
+		exits.forEach((exit) => {
+			const leaving = graph.stretches.filter(({ from, to }) => from === exit || to === exit);
+			expect(leaving.length).toBeGreaterThan(0);
+			if (places[graph.nodes[exit].place as number].highway) expect(leaving.some(({ roadClass }) => roadClass === 'highway')).toBe(true);
+		});
 	});
 
 	it('build a link between places already joined only past the detour, so more go in as loops rises', () => {
@@ -91,13 +98,10 @@ describe('road links', () => {
 	});
 
 	it('run spur trails from villages into the high country, each stopping at a dead end', () => {
-		// The stand-in has no villages, so the crossroads in the ranges stand in for them.
-		const rugged = landFor({ seed: 5, radius: 800, ruggedness: 0.9, mountainCoverage: 0.5 });
-		const villages = standInPlaces({ terrain: rugged.terrain, params: rugged.params, rng: rugged.rng })
-			.map((place): RoadPlace => (place.kind === 'crossroads' ? { ...place, kind: 'village' } : place));
+		const rugged = landFor({ seed: 5, radius: 800, ruggedness: 0.9, mountainCoverage: 0.5, villages: 30 });
 		const laid = buildRoadCells({
 			field: new EdgeCostField({ terrain: rugged.terrain, rivers: rugged.water.lines, curviness: rugged.params.curviness }),
-			terrain: rugged.terrain, places: villages, loops: rugged.params.loops, trailShare: rugged.params.trailShare, rng: rugged.rng,
+			terrain: rugged.terrain, places: rugged.places, loops: rugged.params.loops, trailShare: rugged.params.trailShare, rng: rugged.rng,
 		});
 		expect(laid.stats.spurs).toBeGreaterThan(0);
 		expect(laid.spurEnds).toHaveLength(laid.stats.spurs);
@@ -160,7 +164,7 @@ describe('the road graph', () => {
 					break;
 				default:
 					expect(placeIds.has(node.place as number)).toBe(true);
-					expect(places[node.place as number].kind === 'compound' ? 'compound' : places[node.place as number].kind).toBe(node.kind);
+					expect(places[node.place as number].kind === 'metro' ? 'compound' : places[node.place as number].kind).toBe(node.kind);
 			}
 		});
 		expect(nodes.filter(({ kind }) => kind === 'junction').length).toBeGreaterThan(50);
@@ -228,7 +232,7 @@ describe('the roads stage', () => {
 		expect(checkRoadNetwork({ network, terrain })).toEqual([]);
 		expect(riverOffDecks(network, terrain)).toBe(0);
 		expect(roads.stats.links.unreached).toEqual([]);
-		expect(loopCount(network)).toBeGreaterThanOrEqual(loopsNeeded(params));
+		expect(loopCount(network)).toBeGreaterThanOrEqual(loopsNeeded(params, roads.stats.inland));
 		expect(network.broken.length).toBeLessThanOrEqual(params.brokenHighways);
 		network.broken.forEach(({ roadClass, length }) => {
 			expect(roadClass).toBe('highway');
@@ -242,11 +246,29 @@ describe('the roads stage', () => {
 	it('fails on too few loops for the POIs, and on a place no road reaches', () => {
 		const roads = generateRoads({ terrain: land.terrain, rivers: land.water.lines, params: land.params, places, rng: land.rng });
 		expect(roadsProblems(roads, land.params)).toEqual([]);
-		const needed = loopsNeeded({ poiDensity: 2, strongholds: 8 });
-		expect(needed).toBe(68);
-		expect(roadsProblems(roads, { poiDensity: 30, strongholds: 8 })).toEqual([`loops: the roads close ${roads.stats.loops} loops, and the POIs need 908`]);
+		expect(roads.stats.inland).toBe(places.filter(({ kind }) => kind === 'town' || kind === 'village' || kind === 'crossroads').length);
+		expect(loopsNeeded({ poiDensity: 2, strongholds: 8, loops: 0.5 }, 1000)).toBe(68);
+		const crowded = { ...roads, stats: { ...roads.stats, inland: 10000 } };
+		expect(roadsProblems(crowded, { poiDensity: 30, strongholds: 8, loops: 0.5 })).toEqual([`loops: the roads close ${roads.stats.loops} loops, and the POIs need 908`]);
 		const cut = { ...roads, stats: { ...roads.stats, links: { ...roads.stats.links, unreached: [4, 9] } } };
 		expect(roadsProblems(cut, land.params)[0]).toBe('reach: no road reaches places 4, 9');
+	});
+
+	it('asks no more loops than a map\'s towns, villages, and crossroads can close, so the high ranges\' few places pass', () => {
+		// Past the first four places, three tenths of a loop a place at loops 0, rising to 0.6 from a third up.
+		expect(LOOPS_PER_PLACE).toEqual({ first: 4, none: 0.3, rise: 0.9, most: 0.6 });
+		expect(loopsNeeded({ poiDensity: 1, strongholds: 4, loops: 0.5 }, 13)).toBe(6);
+		expect(loopsNeeded({ poiDensity: 1, strongholds: 4, loops: 0 }, 13)).toBe(3);
+		expect(loopsNeeded({ poiDensity: 1, strongholds: 4, loops: 0.15 }, 13)).toBe(4);
+		expect(loopsNeeded({ poiDensity: 1, strongholds: 4, loops: 1 }, 3)).toBe(0);
+		// The campaign's corner, loops 0.3 and five strongholds at 1.2 times the ring targets, on 78 places, the fewest of 600 rolled maps: no cap.
+		expect(loopsNeeded({ poiDensity: 1.2, strongholds: 5, loops: 0.3 }, 78)).toBe(41);
+		// All mountains at radius 600: a few villages and crossroads, and the stage passes on them.
+		const { network, roads, params } = roadMap({ seed: 1, radius: 600, mountainCoverage: 1, ruggedness: 1, roadDensity: 1 });
+		expect(roads.stats.inland).toBeLessThan(20);
+		const needed = loopsNeeded(params, roads.stats.inland);
+		expect(needed).toBeLessThan(Math.ceil(params.poiDensity * 30) + params.strongholds);
+		expect(loopCount(network)).toBeGreaterThanOrEqual(needed);
 	});
 
 	describe('determinism', () => {
@@ -263,7 +285,7 @@ describe('the roads stage', () => {
 			expect(again.network).toEqual(first.network);
 			expect(again.network.stretches.length).toBe(graph.stretches.length - first.network.broken.length);
 			const next = land.rng.fork('next');
-			const other = generateRoads({ terrain: land.terrain, rivers: land.water.lines, params: land.params, places: standInPlaces({ terrain: land.terrain, params: land.params, rng: next }), rng: next });
+			const other = generateRoads({ terrain: land.terrain, rivers: land.water.lines, params: land.params, places, rng: next });
 			expect(networkHash(other.network)).not.toBe(networkHash(first.network));
 		});
 	});

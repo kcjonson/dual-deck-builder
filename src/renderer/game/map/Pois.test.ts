@@ -228,27 +228,34 @@ describe('the POI stage in the pipeline', () => {
 	const treeOnly = randomMesh({ seed: 31, loops: 0, diagonals: 0 });
 
 	/** A pipeline over synthetic roads: each run of the roads stage hands back the next network, the last one again past the end. */
-	const pipeline = (networks: RoadNetwork[], strict: boolean) => {
+	const pipeline = (networks: RoadNetwork[], strict: boolean, places = 1000) => {
 		let runs = 0;
 		return new MapPipeline<MapParams>()
-			.stage({ name: 'water', run: () => ({ terrain: fakeGround() }) })
-			.stage({ name: 'roads', run: () => ({ network: networks[Math.min(runs++, networks.length - 1)] }) })
+			.stage({ name: 'hazards', run: () => ({ terrain: fakeGround() }) })
+			.stage({ name: 'places', run: () => ({ metro: { id: 0, kind: 'metro' as const, x: 0, y: 0, radius: 150 }, towns: [], villages: [] }) })
+			.stage({ name: 'roads', run: () => ({ network: networks[Math.min(runs++, networks.length - 1)], stats: { inland: places } }) })
 			.stage(ROUTE_TREE_STAGE)
 			.stage(poisStage({ strict }));
 	};
 
 	it('escalates to the roads when strict and no rotation seats every stronghold', () => {
 		const result = pipeline([treeOnly, looped], true).run({ seed: params.seed, input: params, debug: true });
-		expect(result.attempts).toEqual({ water: 0, roads: 1, routeTree: 0, pois: 0 });
+		expect(result.attempts).toEqual({ hazards: 0, places: 0, roads: 1, routeTree: 0, pois: 0 });
 		expect(result.timings.pois.runs).toBe(9);
 		expect(result.failures.filter(({ stage }) => stage === 'pois')).toHaveLength(8);
 		expect(result.failures[0].problems).toContain('sector 0 has no free meeting point in the outer band');
 		expect(result.products.pois.strongholds).toHaveLength(4);
 	});
 
+	it('holds a map whose places can\'t close the loops the POIs want leniently, strict or not', () => {
+		const result = pipeline([treeOnly, looped], true, 4).run({ seed: params.seed, input: params, debug: true });
+		expect(result.attempts).toEqual({ hazards: 0, places: 0, roads: 0, routeTree: 0, pois: 0 });
+		expect(result.products.pois.failures.length).toBeGreaterThan(0);
+	});
+
 	it('passes when lenient, with what it missed in its failures', () => {
 		const result = pipeline([treeOnly, looped], false).run({ seed: params.seed, input: params, debug: true });
-		expect(result.attempts).toEqual({ water: 0, roads: 0, routeTree: 0, pois: 0 });
+		expect(result.attempts).toEqual({ hazards: 0, places: 0, roads: 0, routeTree: 0, pois: 0 });
 		expect(result.products.routeTree.meetingPoints).toEqual([]);
 		expect(result.products.pois.failures).toHaveLength(5);
 	});

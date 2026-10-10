@@ -1,13 +1,16 @@
 import { Rng } from '../core/Rng';
-import { ROADS_STAGE, TERRAIN_STAGE, WATER_STAGE } from './AreaMapPipeline';
+import { HAZARDS_STAGE, PLACES_STAGE, ROADS_STAGE, TERRAIN_STAGE, WATER_STAGE } from './AreaMapPipeline';
+import type { Hazards } from './Hazards';
 import { ENVIRONMENTS, MAP_PARAMETERS, MapParamSet, MapParams, NUMBER_PARAMS, resolveMapParams } from './MapParams';
 import { MapPipeline, PipelineResult } from './MapPipeline';
 import { validateMapParams } from './ParamValidator';
+import { Places, placeList } from './Places';
 import type { RoadGround } from './RoadChecks';
+import type { RoadPlace } from './RoadLinks';
 import type { RoadNetwork } from './RoadNetwork';
 import type { Roads } from './Roads';
-import { Obstacle, Terrain, generateTerrain } from './Terrain';
-import { Water, generateWater } from './Water';
+import type { Obstacle, Terrain } from './Terrain';
+import type { Water } from './Water';
 
 /**
  * Fixtures for the road tests. Nothing in the game imports this file.
@@ -17,22 +20,33 @@ export function paramsFor(set: MapParamSet): MapParams {
 	return validateMapParams(resolveMapParams(set).params).params;
 }
 
-interface RoadProducts {
+interface PlacedProducts {
 	readonly terrain: Terrain;
 	readonly water: Water;
+	readonly hazards: Hazards;
+	readonly places: Places;
+}
+
+interface RoadProducts extends PlacedProducts {
 	readonly roads: Roads;
+}
+
+/** The area map's stages up to the places, through the runner. */
+function placesPipeline(): MapPipeline<MapParams, PlacedProducts> {
+	return new MapPipeline<MapParams>().stage(TERRAIN_STAGE).stage(WATER_STAGE).stage(HAZARDS_STAGE).stage(PLACES_STAGE);
 }
 
 /** The area map's stages up to the roads, through the runner. */
 export function roadPipeline(): MapPipeline<MapParams, RoadProducts> {
-	return new MapPipeline<MapParams>().stage(TERRAIN_STAGE).stage(WATER_STAGE).stage(ROADS_STAGE);
+	return placesPipeline().stage(ROADS_STAGE);
 }
 
 export interface RoadMap {
 	readonly params: MapParams;
-	/** The land with its water, which the roads were laid over. */
+	/** The land with its water and hazards, which the roads were laid over. */
 	readonly terrain: Terrain;
 	readonly water: Water;
+	readonly places: Places;
 	readonly roads: Roads;
 	readonly network: RoadNetwork;
 	readonly result: PipelineResult<RoadProducts>;
@@ -51,17 +65,18 @@ export function roadMap(set: MapParamSet): RoadMap {
 		const shown = broken.slice(0, 3).map(({ stage, attempt, mapAttempt, problems }) => `${stage} attempt ${attempt}, map attempt ${mapAttempt}: ${problems.slice(0, 3).join('; ')}`);
 		throw new Error(`roadMap: seed ${params.seed} broke a rule, which a retry hides: ${shown.join(' | ')}`);
 	}
-	const { water, roads } = result.products;
-	return { params, terrain: water.terrain, water, roads, network: roads.network, result };
+	const { water, hazards, places, roads } = result.products;
+	return { params, terrain: hazards.terrain, water, places, roads, network: roads.network, result };
 }
 
-/** The land with its water for a set, on the pipeline's first streams, and the roads stage's first stream. */
-export function landFor(set: MapParamSet): { params: MapParams; terrain: Terrain; water: Water; rng: Rng } {
+/**
+ * A set's land with its water and hazards and its places, through the runner,
+ * and the roads stage's first stream after them, for laying roads by hand.
+ */
+export function landFor(set: MapParamSet): { params: MapParams; terrain: Terrain; water: Water; places: RoadPlace[]; rng: Rng } {
 	const params = paramsFor(set);
-	const terrainStream = new Rng({ seed: params.seed }).fork('map', 0).fork('terrain', 0);
-	const waterStream = terrainStream.fork('water', 0);
-	const water = generateWater({ params, terrain: generateTerrain({ params, rng: terrainStream }), rng: waterStream });
-	return { params, terrain: water.terrain, water, rng: waterStream.fork('roads', 0) };
+	const { products, streams } = placesPipeline().run({ seed: params.seed, input: params, debug: true });
+	return { params, terrain: products.hazards.terrain, water: products.water, places: placeList(products.places), rng: new Rng({ seed: streams.places }).fork('roads', 0) };
 }
 
 /**

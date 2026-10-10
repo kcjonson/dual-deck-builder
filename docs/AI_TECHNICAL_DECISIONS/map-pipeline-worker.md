@@ -44,7 +44,7 @@ An escalation could instead have been a failure a stage returns naming the stage
 
 ## The stages
 
-Terrain, water (water-and-biomes.md), the roads (road-network.md), then the route tree and the POIs (route-tree-and-pois.md). The highways and growth stages this record started with were stand-ins until the road links and graph (Maps 7 and 8) replaced them. The roads' check is too few loops, a place no road reaches, and `checkRoadNetwork`, the network checks the map validator will run, worded `rule: detail`.
+Terrain, water (water-and-biomes.md), hazards and places (places.md), the roads (road-network.md), then the route tree and the POIs (route-tree-and-pois.md). The highways and growth stages this record started with were stand-ins until the places and the road links and graph (Maps 6 to 8) replaced them. The roads' check is too few loops, a place no road reaches, and `checkRoadNetwork`, the network checks the map validator will run, worded `rule: detail`.
 
 Terrain is the first stage, so its stream is `root.fork('map', m).fork('terrain', t)`, and every stage after nests under the one before. `roadTesting.roadMap`, `scripts/road-network.mjs`, and the gallery's `fixtureAreaMap` all run the runner.
 
@@ -130,7 +130,7 @@ Calls the spec left open, made the simplest way consistent with it:
 2. A local-retry stage that runs out keeps the attempt with the fewest problems, the earliest on a tie.
 3. Growth's own check is `checkRoadNetwork`, so a network breaking a road rule is retried on growth's next stream rather than handed on.
 4. A worker per generation, terminated when the map comes back; `cancel()` terminates it.
-5. The stand-in stages are named `highways` and `growth`, the streams they always drew on, until the spec's `places` and `roads` stages replace them.
+5. The stand-in stages were named `highways` and `growth`, the streams they always drew on, until the spec's `places` and `roads` stages replaced them.
 6. A stage's 8 attempts cover its own retries and the reruns escalations ask for, so one that won its first can be escalated to 7 times; after that its own escalation or a map restart follows. The escalating stage starts its count again under each new upstream.
 
 ## Consequences

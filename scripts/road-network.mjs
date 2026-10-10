@@ -1,12 +1,13 @@
 /**
- * The area map's road network (Maps 7 and 8) outside Jest: timings, a sweep
- * of the stages' first-attempt health over sampled parameters, and a picture
- * of one map's roads over its land. Like terrain-bench.mjs, it transpiles the
+ * The area map's places and road network (Maps 6 to 8) outside Jest:
+ * timings, a sweep of the stages' first-attempt health over sampled
+ * parameters, and a picture of one map's roads and places over its land. Like terrain-bench.mjs, it transpiles the
  * map modules into a temporary folder and runs them in a fresh child process,
  * clear of Jest's coverage and the TypeScript compiler's heap.
  *
  *   node scripts/road-network.mjs bench [--seeds 3] [--repeat 1] [--radii 1000,1200]
  *   node scripts/road-network.mjs check [--maps 30] [--from 0]
+ *   node scripts/road-network.mjs places [--seeds 3] [--repeat 3] [--radii 600,1000,1600]
  *   node scripts/road-network.mjs png --seed 7 [--environment badlands] [--radius 1000] [--size 1024] [--window x,y,half] [--out roads.png] [--loops 0.8 ...]
  *
  * Every command runs the area map's stages through the pipeline runner
@@ -17,8 +18,9 @@
  * it seats, and hashes every network so two engines can be compared. check
  * runs parameters sampled across their tuning ranges and reports each stage's
  * first-attempt pass rate, the spec's health metric, and any map the pipeline
- * gave up on. png draws one map, or a window of it, with its POIs; any
- * parameter can be set by name. Any command takes --profile <folder> for a CPU
+ * gave up on. places times the hazards and places stages and counts the
+ * places against what each map asks for. png draws one map, or a window of
+ * it, with its places and POIs; any parameter can be set by name. Any command takes --profile <folder> for a CPU
  * profile of the run.
  */
 import { spawnSync } from 'node:child_process';
@@ -72,7 +74,7 @@ const { MapPipelineError } = load('./map/MapPipeline.js');
 const { loopsNeeded } = load('./map/Roads.js');
 
 const ENVIRONMENTS = ['mixed', 'highDesert', 'rustBelt', 'floodlands', 'badlands'];
-const STAGES = ['terrain', 'water', 'roads', 'routeTree', 'pois'];
+const STAGES = ['terrain', 'water', 'hazards', 'places', 'roads', 'routeTree', 'pois'];
 const now = () => Number(process.hrtime.bigint()) / 1e6;
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 
@@ -92,11 +94,12 @@ function generate(set, repeat = 1) {
 }
 
 function describe({ result }) {
-	const { roads, routeTree, pois } = result.products;
+	const { places, roads, routeTree, pois } = result.products;
 	const { network, stats } = roads;
 	const length = stats.lengths.highway + stats.lengths.backRoad + stats.lengths.trail;
 	const routes = pois.pois.filter(({ type }) => type !== 'stronghold').map(({ arrivals }) => arrivals.length);
 	return {
+		places: places.towns.length + places.villages.length + places.crossroads.length + places.exits.length,
 		nodes: network.nodes.length,
 		stretches: network.stretches.length,
 		length,
@@ -191,13 +194,13 @@ function check() {
 				reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
 			}
 		}
-		const violations = checkRoadNetwork({ network: result.products.roads.network, terrain: result.products.water.terrain });
+		const violations = checkRoadNetwork({ network: result.products.roads.network, terrain: result.products.hazards.terrain });
 		if (violations.length > 0) {
 			broken += 1;
 			console.log(`map ${index} ${JSON.stringify(set)}: ${violations.slice(0, 3).map(({ rule, detail }) => `${rule}: ${detail}`).join('; ')}`);
 		}
 		const row = describe(map);
-		console.log(`map ${index} ${params.environment} r${params.radius}: ${row.loops} loops of ${loopsNeeded(params)} needed, POIs ${row.pois} of ${row.target}, strongholds ${row.strongholds} of ${params.strongholds}, roads ${map.fastest.roads.toFixed(0)} ms, retries ${row.retries}`);
+		console.log(`map ${index} ${params.environment} r${params.radius}: ${row.places} places, ${row.loops} loops of ${loopsNeeded(params, result.products.roads.stats.inland)} needed, POIs ${row.pois} of ${row.target}, strongholds ${row.strongholds} of ${params.strongholds}, roads ${map.fastest.roads.toFixed(0)} ms, retries ${row.retries}`);
 	}
 	console.log(`${maps} maps from ${from}: first-attempt pass rate ${STAGES.map((stage) => `${stage} ${firstPass[stage]}`).join(', ')} of ${maps - gaveUp}; ${gaveUp} gave up; ${broken} broke a road rule; roads median ${median(roadTimes).toFixed(0)} ms`);
 	console.log(`failures by reason: ${[...reasons].map(([reason, count]) => `${reason} ${count}`).join(', ') || 'none'}`);
@@ -218,7 +221,8 @@ async function png() {
 	}
 	const map = generate(set);
 	const { result, params } = map;
-	const terrain = result.products.water.terrain;
+	const terrain = result.products.hazards.terrain;
+	const { places } = result.products;
 	const { network } = result.products.roads;
 	const size = Number(options.size ?? 1024);
 	const radius = terrain.radius;
@@ -279,12 +283,16 @@ async function png() {
 		for (const stretch of network.stretches) if (stretch.roadClass === roadClass) line(stretch.points, width, colour, roadClass === 'trail');
 	}
 	for (const stretch of network.broken) line(stretch.points, ROAD_STYLES.highway.width, [255, 255, 255], true);
-	for (const node of network.nodes) {
-		const [px, py] = toPixel(node.x, node.y);
-		if (node.kind === 'town' || node.kind === 'village') dot(px, py, 7, [30, 30, 30]);
-		else if (node.kind === 'crossroads') dot(px, py, 4, [60, 60, 60]);
-		else if (node.kind === 'exit') dot(px, py, 6, [200, 60, 30]);
-		else if (node.kind === 'end') dot(px, py, 4, [30, 90, 200]);
+	for (const node of network.nodes) if (node.kind === 'end') dot(...toPixel(node.x, node.y), 4, [30, 90, 200]);
+	// Places: crossroads small and grey, exits ringed, red on a highway, villages and towns black with a white ring.
+	for (const { x, y } of places.crossroads) dot(...toPixel(x, y), 4, [60, 60, 60]);
+	for (const { x, y, highway } of places.exits) {
+		dot(...toPixel(x, y), 9, [20, 20, 20]);
+		dot(...toPixel(x, y), 5, highway ? [200, 60, 30] : [255, 255, 255]);
+	}
+	for (const { x, y, kind } of [...places.villages, ...places.towns]) {
+		dot(...toPixel(x, y), kind === 'town' ? 11 : 8, [255, 255, 255]);
+		dot(...toPixel(x, y), kind === 'town' ? 8 : 5, [30, 30, 30]);
 	}
 	for (const { x, y } of network.passes) {
 		const [px, py] = toPixel(x, y);
@@ -300,12 +308,50 @@ async function png() {
 	writeFileSync(out, PNG.sync.write(image, { colorType: 2, deflateLevel: 9 }));
 	const row = describe(map);
 	console.log(`${out}: ${JSON.stringify(set)}`);
+	console.log(`${places.towns.length} towns (${places.towns.map(({ name }) => name).join(', ')}), ${places.villages.length} villages, ${places.crossroads.length} crossroads, ${places.exits.length} exits`);
 	console.log(`roads ${map.fastest.roads.toFixed(0)} ms; ${row.nodes} nodes, ${row.stretches} stretches, ${row.length.toFixed(0)} units (${(100 * row.trailShare).toFixed(0)}% trail), ${row.loops} loops, ${row.bridges} bridges, ${row.passes} passes, ${row.broken} broken; POIs ${row.pois} of ${row.target}, strongholds ${row.strongholds}, three-route ${row.threeRoutes}; retries ${row.retries}`);
 	const violations = checkRoadNetwork({ network, terrain });
 	console.log(violations.length === 0 ? 'checks pass' : violations.map(({ rule, detail }) => `${rule}: ${detail}`).join('\n'));
 }
 
+/**
+ * The hazards and places stages over the five environments by `seeds` seeds
+ * at each radius: their times, the median of each map's fastest of `repeat`
+ * runs, and how many of each kind of place a map gets against what it asks for.
+ */
+function placesBench() {
+	const seeds = Number(options.seeds ?? 3);
+	const repeat = Number(options.repeat ?? 3);
+	const radii = (options.radii ?? '600,1000,1600').split(',').map(Number);
+	const runtime = process.versions.electron ? `Electron ${process.versions.electron}` : `Node ${process.version}`;
+	console.log(`${runtime}; ${ENVIRONMENTS.length} environments x ${seeds} seeds per radius, the fastest of ${repeat} runs each`);
+	for (const radius of radii) {
+		const hazards = [];
+		const placing = [];
+		const counts = { towns: [], villages: [], crossroads: [], exits: [], short: 0 };
+		for (const environment of ENVIRONMENTS) {
+			for (let seed = 1; seed <= seeds; seed += 1) {
+				const { params, result, fastest } = generate({ seed, environment, radius }, repeat);
+				const { places } = result.products;
+				hazards.push(fastest.hazards);
+				placing.push(fastest.places);
+				counts.towns.push(places.towns.length);
+				counts.villages.push(places.villages.length);
+				counts.crossroads.push(places.crossroads.length);
+				counts.exits.push(places.exits.length);
+				if (places.towns.length < params.towns || places.villages.length < params.villages) {
+					counts.short += 1;
+					console.log(`  ${environment} seed ${seed}: ${places.towns.length} of ${params.towns} towns, ${places.villages.length} of ${params.villages} villages`);
+				}
+			}
+		}
+		const range = (values) => `${Math.min(...values)} to ${Math.max(...values)}`;
+		console.log(`radius ${radius}: hazards median ${median(hazards).toFixed(1)} ms, places median ${median(placing).toFixed(1)} ms, slowest ${Math.max(...placing).toFixed(1)} ms; towns ${range(counts.towns)}, villages ${range(counts.villages)}, crossroads ${range(counts.crossroads)} (median ${median(counts.crossroads)}), exits ${range(counts.exits)}; ${counts.short} maps short of a town or village`);
+	}
+}
+
 if (command === 'bench') bench();
 else if (command === 'check') check();
 else if (command === 'png') await png();
-else throw new Error(`unknown command ${command}: bench, check, or png`);
+else if (command === 'places') placesBench();
+else throw new Error(`unknown command ${command}: bench, check, png, or places`);

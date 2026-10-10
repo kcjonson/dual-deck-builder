@@ -25,11 +25,11 @@ export interface FixtureAreaMap extends AreaMapData {
 	readonly pois: PoiLayer;
 }
 
-/** The area map's stages as they stand, through the pipeline runner: the land with its water, the rivers, the road network, and its POIs. */
+/** The area map's stages as they stand, through the pipeline runner: the land with its water and hazards, the rivers, the places, the road network, and its POIs. */
 export function fixtureAreaMap(set: MapParamSet): FixtureAreaMap {
 	const { params } = validateMapParams(resolveMapParams(set).params);
-	const { water, roads, pois } = generateAreaMap({ params }).products;
-	return { terrain: water.terrain, network: roads.network, rivers: water.lines, pois };
+	const { water, hazards, places, roads, pois } = generateAreaMap({ params }).products;
+	return { terrain: hazards.terrain, network: roads.network, rivers: water.lines, places, pois };
 }
 
 /**

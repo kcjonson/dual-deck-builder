@@ -1,5 +1,4 @@
 import type { Rng } from '../core/Rng';
-import { unitVector } from './Geometry';
 import type { MapParams } from './MapParams';
 import type { RiverLines } from './Rivers';
 import { EdgeCostField } from './RoadCost';
@@ -10,14 +9,16 @@ import type { Terrain } from './Terrain';
 
 /**
  * Stage 5 of area map generation, roads (Area Map Generation, 5. Roads): the
- * edge cost field over the land with its water (RoadCost.ts), the road links
- * over it (Map 7, RoadLinks.ts), the road graph from them (Map 8,
- * RoadGraph.ts), and then the broken highways: spans that collapsed, taken
- * out of the network only where every node still reaches the compound.
+ * edge cost field over the land with its water and hazards (RoadCost.ts),
+ * the road links between the places over it (Map 7, RoadLinks.ts), the road
+ * graph from them (Map 8, RoadGraph.ts), and then the broken highways: spans
+ * that collapsed, taken out of the network only where every node still
+ * reaches the compound.
  *
  * The stage fails when its network has fewer loops than the POIs need,
- * `poiDensity` times 30 plus `strongholds`, so a different attempt can try
- * again (Validation and retries); `roadsProblems` says so.
+ * `poiDensity` times 30 plus `strongholds`, or than its places can close
+ * where that's fewer, so a different attempt can try again (Validation and
+ * retries); `roadsProblems` says so.
  */
 
 export interface RoadStats {
@@ -26,6 +27,8 @@ export interface RoadStats {
 	/** Moves the edge cost field worked out. */
 	readonly moves: number;
 	readonly loops: number;
+	/** Towns, villages, and crossroads: the places a loop can run round, where the exits stand on the rim. */
+	readonly inland: number;
 	/** World units of road by class, broken spans left out. */
 	readonly lengths: { readonly highway: number; readonly backRoad: number; readonly trail: number };
 	readonly bridges: number;
@@ -37,12 +40,12 @@ export interface Roads {
 }
 
 export interface RoadsOptions {
-	/** The land with its water. */
+	/** The land with its water and hazards. */
 	readonly terrain: Terrain;
 	/** The water's river lines. */
 	readonly rivers: RiverLines;
 	readonly params: MapParams;
-	/** Index 0 the compound at the origin, then every place the roads join. */
+	/** Every place the roads join, in `placeList`'s order: the metro first, where the compound stands at the origin. */
 	readonly places: readonly RoadPlace[];
 	/** The stage's stream: spurs draw on its `spur` forks, broken highways on `broken`. */
 	readonly rng: Rng;
@@ -64,19 +67,42 @@ export function generateRoads({ terrain, rivers, params, places, rng }: RoadsOpt
 		lengths[stretch.roadClass] += stretch.length;
 		bridges += stretch.bridges.length;
 	}
-	return { network, stats: { links: cells.stats, graph: graph.stats, moves: field.worked, loops: loopCount(network), lengths, bridges } };
+	const inland = places.filter(({ kind }) => kind === 'town' || kind === 'village' || kind === 'crossroads').length;
+	return { network, stats: { links: cells.stats, graph: graph.stats, moves: field.worked, loops: loopCount(network), inland, lengths, bridges } };
 }
 
-/** The loops the POIs need: one each, and one for each stronghold. */
-export function loopsNeeded(params: Pick<MapParams, 'poiDensity' | 'strongholds'>): number {
+/**
+ * The loops a map's places can close, for each town, village, and crossroads
+ * past the first `first`, which only branch: `none` at `loops` 0, where
+ * the detour lets fewest links in, rising by `rise` times `loops` to at
+ * most `most`.
+ */
+export const LOOPS_PER_PLACE = { first: 4, none: 0.3, rise: 0.9, most: 0.6 } as const;
+
+/** The loops the POIs want: one each, and one for each stronghold. */
+export function loopsWanted(params: Pick<MapParams, 'poiDensity' | 'strongholds'>): number {
 	return Math.ceil(params.poiDensity * 30) + params.strongholds;
 }
 
+/**
+ * The loops the POIs want, but no more than the map's `inland` places can
+ * close: a map in the high ranges with a few villages and crossroads can't
+ * hold more, whatever the roads do.
+ */
+export function loopsNeeded(params: Pick<MapParams, 'poiDensity' | 'strongholds' | 'loops'>, inland: number): number {
+	const wanted = loopsWanted(params);
+	const { first, none, rise, most } = LOOPS_PER_PLACE;
+	const rising = none + rise * params.loops;
+	const share = rising < most ? rising : most;
+	const closable = inland > first ? Math.ceil(share * (inland - first)) : 0;
+	return closable < wanted ? closable : wanted;
+}
+
 /** What fails the roads stage: places no road reaches, and too few loops. The network checks come on top. */
-export function roadsProblems({ network, stats }: Roads, params: Pick<MapParams, 'poiDensity' | 'strongholds'>): string[] {
+export function roadsProblems({ network, stats }: Roads, params: Pick<MapParams, 'poiDensity' | 'strongholds' | 'loops'>): string[] {
 	const problems: string[] = [];
 	if (stats.links.unreached.length > 0) problems.push(`reach: no road reaches places ${stats.links.unreached.join(', ')}`);
-	const needed = loopsNeeded(params);
+	const needed = loopsNeeded(params, stats.inland);
 	const loops = loopCount(network);
 	if (loops < needed) problems.push(`loops: the roads close ${loops} loops, and the POIs need ${needed}`);
 	return problems;
@@ -131,92 +157,4 @@ function allReach(nodeCount: number, stretches: readonly RoadStretch[], gone: Re
 		}
 	}
 	return count === nodeCount;
-}
-
-/**
- * Places for the roads until the places stage (Map 6) lands: the compound,
- * the terrain's towns, crossroads thrown over open ground `roadDensity`
- * apart (140 world units at 0 to 70 at 1), and the highways' exits at the
- * rim, evenly round it from a drawn turn, each slid up to 8 degrees to ground
- * the roads can reach. Only cells a flood fill from the compound reaches
- * past lakes, cliffs, and craters, with rivers bridged, hold a place, so the
- * links can join them all, as the places stage promises. Draws on
- * `crossroads` and `exits`.
- */
-export function standInPlaces({ terrain, params, rng }: { terrain: Terrain; params: MapParams; rng: Rng }): RoadPlace[] {
-	const radius = terrain.radius;
-	const { grid } = terrain.surface;
-	const reached = reachedCells(terrain);
-	const reaches = (x: number, y: number) => {
-		const column = Math.floor((x + grid.halfExtent) / grid.cellSize);
-		const row = Math.floor((y + grid.halfExtent) / grid.cellSize);
-		return reached[row * grid.size + column] === 1;
-	};
-	const places: RoadPlace[] = [{ id: 0, kind: 'compound', x: 0, y: 0 }];
-	for (const town of terrain.towns) if (reaches(town.x, town.y)) places.push({ id: places.length, kind: 'town', x: town.x, y: town.y });
-	const direction = { x: 0, y: 0 };
-	const turn = rng.fork('exits').float() * 360;
-	const exits: RoadPlace[] = [];
-	for (let index = 0; index < params.highways; index += 1) {
-		for (const slide of [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6, 7, -7, 8, -8]) {
-			unitVector(turn + index * 360 / params.highways + slide, direction);
-			const x = direction.x * 0.985 * radius;
-			const y = direction.y * 0.985 * radius;
-			if (!reaches(x, y)) continue;
-			exits.push({ id: 0, kind: 'exit', x, y, highway: true });
-			break;
-		}
-	}
-	const spacing = 140 - 70 * params.roadDensity;
-	const metro = terrain.metro.radius + 0.5 * spacing;
-	const candidates: [number, number][] = [];
-	for (let row = 0; row < grid.size; row += 1) {
-		const y = -grid.halfExtent + (row + 0.5) * grid.cellSize;
-		for (let column = 0; column < grid.size; column += 1) {
-			const x = -grid.halfExtent + (column + 0.5) * grid.cellSize;
-			const squared = x * x + y * y;
-			if (squared < metro * metro || squared > 0.93 * 0.93 * radius * radius) continue;
-			if (reached[row * grid.size + column] === 0 || terrain.obstacle(x, y) !== null || terrain.rough(x, y) || terrain.grade(x, y) > 0.6) continue;
-			candidates.push([x, y]);
-		}
-	}
-	rng.fork('crossroads').shuffle(candidates);
-	const taken: { x: number; y: number; gap: number }[] = [...places.slice(1), ...exits].map(({ x, y }) => ({ x, y, gap: 0.75 * spacing }));
-	const crossroads: RoadPlace[] = [];
-	for (const [x, y] of candidates) {
-		if (taken.some((other) => (other.x - x) * (other.x - x) + (other.y - y) * (other.y - y) < other.gap * other.gap)) continue;
-		taken.push({ x, y, gap: spacing });
-		crossroads.push({ id: 0, kind: 'crossroads', x, y });
-	}
-	return [...places, ...crossroads, ...exits].map((place, id) => ({ ...place, id }));
-}
-
-/** Per land cell, 1 where a flood fill from the compound's cells gets to, side to side, through cells inside the disc that are open or in a river. */
-function reachedCells(terrain: Terrain): Uint8Array {
-	const { grid } = terrain.surface;
-	const size = grid.size;
-	const reach = terrain.radius - 0.5;
-	const passable = new Uint8Array(size * size);
-	for (let row = 0; row < size; row += 1) {
-		const y = -grid.halfExtent + (row + 0.5) * grid.cellSize;
-		for (let column = 0; column < size; column += 1) {
-			const x = -grid.halfExtent + (column + 0.5) * grid.cellSize;
-			if (x * x + y * y >= reach * reach) continue;
-			const obstacle = terrain.obstacle(x, y);
-			if (obstacle === null || obstacle === 'river') passable[row * size + column] = 1;
-		}
-	}
-	const reached = new Uint8Array(size * size);
-	const middle = size / 2;
-	const stack = [middle * size + middle];
-	reached[stack[0]] = 1;
-	while (stack.length > 0) {
-		const cell = stack.pop() as number;
-		for (const next of [cell + 1, cell - 1, cell + size, cell - size]) {
-			if (reached[next] === 1 || passable[next] === 0) continue;
-			reached[next] = 1;
-			stack.push(next);
-		}
-	}
-	return reached;
 }

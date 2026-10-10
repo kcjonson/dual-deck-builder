@@ -1,5 +1,6 @@
 import type { Rng } from '../core/Rng';
 import { unitVector } from './Geometry';
+import type { PlaceKind } from './Places';
 import { EdgeCostField, MOVES, MOVE_X, MOVE_Y, NEIGHBOURS, OPPOSITE, moveBetween } from './RoadCost';
 import type { Terrain } from './Terrain';
 import { createTerrainSample } from './Terrain';
@@ -29,13 +30,11 @@ import { createTerrainSample } from './Terrain';
  * docs/AI_TECHNICAL_DECISIONS/road-network.md.
  */
 
-export type RoadPlaceKind = 'compound' | 'town' | 'village' | 'crossroads' | 'exit';
-
-/** A place the roads join, as the places stage lists it. */
+/** A place the roads join, as the places stage lists it (`placeList`): the metro first, at the origin, where the compound stands. */
 export interface RoadPlace {
-	/** Its id in the places list; the compound is 0. */
+	/** Its id in the places list; the metro is 0. */
 	readonly id: number;
-	readonly kind: RoadPlaceKind;
+	readonly kind: PlaceKind;
 	readonly x: number;
 	readonly y: number;
 	/** An exit's: a highway leaves the area there, rather than a back road. */
@@ -192,7 +191,7 @@ class RoadBuilder {
 	private readonly sample = createTerrainSample();
 
 	constructor({ field, terrain, places, loops, trailShare, rng }: RoadLinkOptions) {
-		if (places.length === 0 || places[0].kind !== 'compound') throw new RangeError('buildRoadCells: place 0 must be the compound');
+		if (places.length === 0 || places[0].kind !== 'metro') throw new RangeError('buildRoadCells: place 0 must be the metro');
 		this.field = field;
 		this.terrain = terrain;
 		this.places = places;
