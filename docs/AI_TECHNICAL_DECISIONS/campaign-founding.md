@@ -102,6 +102,6 @@ Founding reads no randomness at all but the seed's own streams. The params and t
 
 Made here, each a line or a value to change:
 
-- The founding progress is a line under New Campaign, in the notice's place, rather than a founding screen or overlay: "Founding the compound." until the first stage starts, then "Making the area map: water (2 of 4)", with ", try 2" once a seed has given up. The menu's other buttons stay live, and leaving through one cancels the founding.
+- The founding progress is a line under New Campaign, in the notice's place, rather than a founding screen or overlay: "Founding the compound." until the first stage starts, then "Making the area map: water (2 of 6)", with ", try 2" once a seed has given up. The menu's other buttons stay live, and leaving through one cancels the founding.
 - A new campaign's old one is abandoned only once the new map is made, so leaving partway, or a failure, keeps the campaign in progress as it was.
 - `AREA_MAP_GENERATOR_VERSION` is 2, and founding records it on every campaign.

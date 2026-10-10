@@ -1,0 +1,12 @@
+{
+	"ironcladNomads": { "label": "Ironclad Nomads", "terrain": { "biomes": { "scrub": 1, "desert": 0.6 }, "ruin": 0.3 } },
+	"sunChasers": { "label": "Sun Chasers", "terrain": { "biomes": { "desert": 1, "scrub": 0.4 }, "ruin": 0 } },
+	"rustVultures": { "label": "Rust Vultures", "terrain": { "biomes": { "scrub": 0.3, "badlands": 0.4 }, "ruin": 1 } },
+	"gearPriests": { "label": "Gear-Priests of the Cog", "terrain": { "biomes": { "scrub": 0.3 }, "ruin": 1 } },
+	"asphaltPhantoms": { "label": "Asphalt Phantoms", "terrain": { "biomes": { "canyons": 1, "mountains": 0.6 }, "ruin": 0 } },
+	"scrapheartUnion": { "label": "Scrapheart Union", "terrain": { "biomes": { "scrub": 0.6, "badlands": 0.6 }, "ruin": 0.6 } },
+	"duneStriders": { "label": "Dune Striders", "terrain": { "biomes": { "desert": 1, "canyons": 0.6 }, "ruin": 0 } },
+	"voltVultures": { "label": "Volt Vultures", "terrain": { "biomes": { "mountains": 1, "badlands": 0.4 }, "ruin": 0.4 } },
+	"roadWardens": { "label": "Road Wardens", "terrain": { "biomes": { "scrub": 0.8, "desert": 0.4 }, "ruin": 0.2 } },
+	"mireCrawlers": { "label": "Mire-Crawlers", "terrain": { "biomes": { "mire": 1, "badlands": 0.3 }, "ruin": 0 } }
+}
