@@ -103,6 +103,8 @@ describe('the generation worker\'s transfer format', () => {
 		expect(rest).toEqual(expected);
 		expect(products.highways).toEqual(original.highways);
 		expect(products.growth).toEqual(original.growth);
+		expect(plain(products.routeTree)).toEqual(plain(original.routeTree));
+		expect(products.pois).toEqual(original.pois);
 		expect(products.water.rivers).toEqual(map.products.water.rivers);
 		expect(products.water.lakes).toEqual(map.products.water.lakes);
 		expect(products.water.terrain.water).toBe(products.water);
@@ -127,7 +129,7 @@ describe('the generation worker\'s transfer format', () => {
 			},
 		});
 		expect(retried.mapAttempt).toBe(1);
-		expect(retried.attempts).toEqual({ terrain: 0, water: 0, highways: 0, growth: 2 });
+		expect(retried.attempts).toEqual({ terrain: 0, water: 0, highways: 0, growth: 2, routeTree: 0, pois: 0 });
 		const retriedLand = landLattice(retried.products.water.terrain);
 		const decoded = decodeAreaMap(sent(retried));
 		expect(decoded.products.growth).toEqual(retried.products.growth);
