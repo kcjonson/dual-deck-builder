@@ -190,7 +190,7 @@ describe('MainMenuScreen', () => {
 			expect(regenerations).toEqual([]);
 		});
 
-		it('shows how far the map has got under New Campaign while founding, then opens the compound', async () => {
+		it('shows how far the map has got in the notice line while founding, then opens the compound', async () => {
 			const held: { options?: Parameters<StartGeneration>[0]; finish: () => void } = { finish: () => undefined };
 			generate = (options): FoundingGeneration => {
 				const result = new Promise<ReturnType<typeof stubResult>>((resolve) => {
@@ -282,6 +282,24 @@ describe('MainMenuScreen', () => {
 			expect(continueTop()).toBe(before);
 			held.release();
 			await flush();
+		});
+
+		it('keeps a failure too long for the notice line to that one line, measured in the real faces', async () => {
+			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
+			screen.unmount();
+			await open();
+			const notice = (): Text => find<Text>('main_menu_notice');
+			const continueTop = (): number => find<{ screenBounds: { y: number } }>('main_menu_continue_button').screenBounds.y;
+			const line = notice().height;
+			const before = continueTop();
+			const message = "The campaign couldn't be saved: it holds something a save couldn't load back, and storage is blocked as well.";
+			jest.spyOn(store, 'save').mockRejectedValue(new CampaignStoreError({ reason: 'unsavable', message, cause: new Error('too long') }));
+			send(context, [key('Enter')]);
+			await flush();
+			context.frame.layout();
+			expect(notice().text).toBe(message);
+			expect(notice().height).toBe(line);
+			expect(continueTop()).toBe(before);
 		});
 
 		it('moves through the enabled buttons with the arrows, wrapping, past the disabled Continue', () => {

@@ -109,9 +109,9 @@ export interface MainMenuScreenOptions {
  * saves from then on. Continue also starts making the campaign's area map
  * again in the map worker, which the screens that need it wait for. New
  * Campaign over a save asks first; founding generates the area map, with a
- * progress line under the button, and leaving the menu cancels it. A
- * campaign in progress goes into the history as abandoned before the new
- * one is saved.
+ * progress line between the title and the column, and leaving the menu
+ * cancels it. A campaign in progress goes into the history as abandoned
+ * before the new one is saved.
  *
  * Skirmish keeps the old quick fight from driver selection reachable for
  * playtesters until load out replaces driver selection.
@@ -175,12 +175,15 @@ export class MainMenuScreen extends Screen {
 			wrap: 'none',
 		}));
 		// How far founding has got, or why the last New Campaign failed; empty
-		// otherwise. Its line is held between the title and the column, in the
-		// space the title always left there, so nothing moves as it fills in.
+		// otherwise. Its one line is held between the title and the column, in
+		// the space the title always left there, so nothing moves as it fills
+		// in; a message too long for it ends in an ellipsis rather than wrap.
 		this.notice = new Text({
 			id: 'main_menu_notice',
 			width: NOTICE_WIDTH,
 			lineHeight: NOTICE_LINE / tokens.fontSize.fs_sm,
+			wrap: 'none',
+			textOverflow: 'ellipsis',
 			style: { fontSize: 'fs_sm', color: 'status_crit', textAlign: 'center' },
 		});
 		this.stack.addChild(this.notice);
@@ -464,7 +467,7 @@ export class MainMenuScreen extends Screen {
 
 	/**
 	 * Founds a campaign on a fresh seed, its area map generated in the map
-	 * worker while the line under New Campaign shows how far it's got, and
+	 * worker while the notice line above New Campaign shows how far it's got, and
 	 * saves it, ending the campaign in progress as abandoned first so it
 	 * reaches the history (a damaged or outdated save is simply replaced),
 	 * then keeps the map for the session and opens the compound. Leaving the
