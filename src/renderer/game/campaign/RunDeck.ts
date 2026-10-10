@@ -89,6 +89,15 @@ export class RunDeck implements Readonly<RunDeckData> {
 		return addCounts(this.own, this.leftHome);
 	}
 
+	/**
+	 * Whether it differs from the default deck it was copied from: anything
+	 * left at home or borrowed, which Reset to default undoes, and which load
+	 * out's CUSTOM tag marks. Escort cards don't count.
+	 */
+	public get isCustomized(): boolean {
+		return totalCards(this.leftHome) > 0 || totalCards(this.borrowed) > 0;
+	}
+
 	/** This run deck with these changes, checked. */
 	public with(changes: Partial<Omit<RunDeckData, 'driver'>>): RunDeck {
 		return new RunDeck({

@@ -241,4 +241,14 @@ describe('Panel header (R12.19)', () => {
 			new Panel().title = 'x';
 		}).toThrow(/no header/);
 	});
+
+	it('updates its kicker in place', () => {
+		const panel = mount({ title: 'Garage', kicker: 'Before' });
+		panel.kicker = 'After';
+		expect(panel.kicker).toBe('After');
+		expect(frame().some((command) => command.kind === 'text' && command.text === 'After')).toBe(true);
+		expect(() => {
+			new Panel({ title: 'x' }).kicker = 'x';
+		}).toThrow(/no line/);
+	});
 });

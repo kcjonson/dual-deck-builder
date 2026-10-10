@@ -42,8 +42,8 @@ export interface CardEntryItem {
 	card: GameCard;
 }
 
-/** Where focus was in an entry, so it can land on a neighbour's same part. */
-type FocusSpot = { index: number; key: string; destructive: boolean };
+/** Where focus was in an entry, so it can land on a neighbour's same part, or on its heir's mini. */
+type FocusSpot = { index: number; key: string; destructive: boolean; heir: string | null };
 
 /**
  * One card's copies with what can be done to them: the mini stacked to its
@@ -150,6 +150,8 @@ export class CardEntryView extends Stack {
 		this.card.miniState = entry.state ?? null;
 		const keys = entry.controls.map((control) => control.key);
 		if (keys.join('|') !== [...this.buttons.keys()].join('|')) this.buildControls(keys);
+		// An entry with nothing to do (an escort card on a run of one) has no row, rather than one with no height (R13.25).
+		this.controlRow.visible = keys.length > 0;
 
 		const focus = this.context?.focus;
 		let firstLive: Button | null = null;
@@ -251,7 +253,9 @@ export class CardEntryView extends Stack {
  * entry with focus goes (its last copy moved), focus lands on the same part
  * of the entry now in its place, or the one before it; after a destructive
  * control, on that entry's mini, so the next press can't destroy a card the
- * player didn't aim at. With no entry left, focus goes to `fallback`.
+ * player didn't aim at; and from an entry with a `focusHeir`, on that
+ * card's stack that's left, else the mini in its place. With no entry left,
+ * focus goes to `fallback`.
  */
 export class CardEntryGrid extends FlowWrap {
 	private readonly fallback: () => Component | null;
@@ -294,13 +298,20 @@ export class CardEntryGrid extends FlowWrap {
 		const views = this.views;
 		for (let index = 0; index < views.length; index += 1) {
 			const spot = views[index].spotOf(focused);
-			if (spot !== null) return { index, ...spot };
+			if (spot !== null) return { index, ...spot, heir: views[index].shown.focusHeir ?? null };
 		}
 		return null;
 	}
 
-	/** Focus went with its entry: the same part of the entry now at its place, or the last, else the fallback. */
-	private restoreFocus({ index, key, destructive }: FocusSpot): void {
+	/**
+	 * Focus went with its entry. An entry with a `focusHeir` hands it to that
+	 * card's stack that's left, or else to the mini, never a control, of the
+	 * entry now in its place: a stack emptied by a repeated press mustn't pass
+	 * the next press to another card. Any other entry hands it to the same
+	 * part of the entry now at its place, or the last. With none left, the
+	 * fallback.
+	 */
+	private restoreFocus({ index, key, destructive, heir }: FocusSpot): void {
 		const focus = this.context?.focus;
 		if (!focus || focus.focused !== null) return;
 		const views = this.views;
@@ -310,6 +321,10 @@ export class CardEntryGrid extends FlowWrap {
 			return;
 		}
 		const view = views[Math.min(index, views.length - 1)];
+		if (heir !== null) {
+			focus.focus(views.find((candidate) => candidate.shown.cardType === heir)?.card ?? view.card);
+			return;
+		}
 		const control = key === 'card' || destructive ? null : view.control(key);
 		focus.focus(control?.canReceiveFocus() ? control : view.card);
 	}

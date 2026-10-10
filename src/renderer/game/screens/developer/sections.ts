@@ -34,6 +34,7 @@ import { SliderTabsSection } from './SliderTabsSection';
 import { VehicleTokensSection } from './VehicleTokensSection';
 import { CombatTargetingSection } from './CombatTargetingSection';
 import { CombatDockCrashedOutSection, CombatDockSection } from './CombatDockSection';
+import { CustomizeLauncherSection } from './CustomizeLauncherSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -243,5 +244,10 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'combat-dock-crashed-out',
 		build: (options) => new CombatDockCrashedOutSection(options),
+	},
+	// Opens Customize on the test campaign's run, a developer way in beside load out's (DDB-321)
+	{
+		name: 'customize',
+		build: (options) => new CustomizeLauncherSection(options),
 	},
 ];

@@ -39,7 +39,9 @@ The check keeps `checkMove`'s order, and the deck rules are the same `deckAddBlo
 
 Moves into a run deck say what's short as copies available, since `held` counts the driver's own left at home as well as the locker's.
 
-`resetRunDeck` puts everything left at home back in `own` and everything borrowed back in the locker. It refuses a driver who's dead or missing (`driver_away`, as a `CardRuleError`): after a failed run, folding what a dead driver left at home into what went would lose it when the run deck is unwound.
+A move can name which copies it's for (`CardMove.copies`, added for Customize, [customize-screen.md](./customize-screen.md)): coming out, the driver's own (`own`) or borrowed ones (`borrowed`); going in, the driver's own from home (`home`) or new ones from the locker (`borrowed`). The order above still holds, so the rules refuse a move whose copies wait their turn, with two more reasons: `own_at_home`, borrowing a card while some of the driver's own are left at home, and `borrowed_first`, leaving the driver's own at home while copies of it are borrowed, each with `held` the copies that come first. A screen asks for exactly the stack a control sits under and words the refusal from the reason, and none of it restates the order. `getCardMoveBlocker` works out no stores, only the counts, so it's cheap to ask of every control on every change.
+
+`resetRunDeck` puts everything left at home back in `own` and everything borrowed back in the locker. It refuses, and `getResetRunDeckBlocker` says so first, once the campaign is over (`campaign_over`) and for a driver who's dead or missing (`driver_away`, as a `CardRuleError`): after a failed run, folding what a dead driver left at home into what went would lose it when the run deck is unwound. `RunDeck.isCustomized` says whether there's anything to reset: something left at home or borrowed.
 
 ## Escort cards
 
