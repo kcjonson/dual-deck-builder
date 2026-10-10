@@ -22,6 +22,9 @@ import cardsFile from '../data/cards.json';
 
 const CARDS = new Map((cardsFile as unknown as { cards: CardData[] }).cards.map(data => [data.type, new Card(data)]));
 
+/** Cards by the name a play is logged under. */
+const CARDS_BY_NAME = new Map([...CARDS.values()].map(template => [template.displayName, template]));
+
 const card = (type: string): Card => {
 	const template = CARDS.get(type);
 	if (!template) throw new Error(`no card ${type}`);
@@ -163,7 +166,7 @@ describe('a fight with one driver', () => {
 			expect(() => playerTeam([rig, bike]).addVehicle(carriedOnUnmanned('mechanic')))
 				.toThrow("Player teams can field 2 drivers' vehicles, driven or carrying on unmanned, not 3");
 			expect(() => playerTeam([carriedOnUnmanned('interceptor'), ...convoy('outrider')]))
-				.toThrow('Player teams must have 1 or 2 driven vehicles, not 0');
+				.toThrow('Player teams must have a driven vehicle');
 		});
 
 		it('ends a fight with the vehicle that carried on unmanned still its driver\'s: not in the convoy, its armor as it was', () => {
@@ -177,6 +180,22 @@ describe('a fight with one driver', () => {
 
 			expect(after.escorts).toEqual([hauler]);
 			expect(bike.armor).toBe(2);
+		});
+	});
+
+	describe('the seats', () => {
+		it('seats the lone driver alone, and a pair in vehicle order, each keeping their seat through a wreck', () => {
+			const lone = createDrivenVehicle({ driver: seated('interceptor') });
+			expect(fight({ player: [lone, ...convoy('outrider')], raiders: [raider()] }).playerSeats).toEqual([driverOf(lone)]);
+
+			const rig = createDrivenVehicle({ driver: seated('road_warrior') });
+			const bike = createDrivenVehicle({ driver: seated('interceptor') });
+			const [warrior, interceptor] = [driverOf(rig), driverOf(bike)];
+			const pair = fight({ player: [rig, bike], raiders: [raider()] });
+			pair.playerTeam.handleVehicleDestruction(rig);
+
+			expect(bike.passenger).toBe(warrior);
+			expect(pair.playerSeats).toEqual([warrior, interceptor]);
 		});
 	});
 
@@ -301,7 +320,7 @@ describe('a fight with one driver', () => {
 });
 
 /** Escort orders for the player's deck, the buff orders that target an escort among them. */
-const ORDERS = ['covering_fire', 'draw_fire', 'close_ranks', 'run_ahead', 'top_off', 'triage'];
+const ORDERS = ['covering_fire', 'draw_fire', 'close_ranks', 'run_ahead', 'top_off', 'triage', 'rally_the_convoy'];
 
 /** Each AI on each side once a seed, MCTS on both. */
 const MATCHUPS: readonly [AIType, AIType][] = [
@@ -321,46 +340,79 @@ function rustBuggy({ looter }: { looter: boolean }): Vehicle {
 	return buggy;
 }
 
+/** The plays the battle refused: an AI that offers one stops its turn there. */
+const refusals = (battle: Battle): string[] => battle.getMessages().map(({ message }) => message)
+	.filter(message => message.startsWith('Cannot play card') || message.startsWith('Invalid target') || message === 'Driver does not belong to player team');
+
+/** The lone Interceptor with three escorts, against two Rust Buggies, both sides played by AIs, on `seed`. */
+function aiFight({ playerAI, enemyAI, seed, extra = ORDERS }: { playerAI: AIType; enemyAI: AIType; seed: number; extra?: string[] }): { battle: Battle; driver: Driver; player: Vehicle[] } {
+	const driver = seated('interceptor', extra);
+	const player = [createDrivenVehicle({ driver }), ...convoy('outrider', 'fuel_hauler', 'med_truck')];
+	const battle = new Battle({
+		playerTeam: playerTeam(player),
+		enemyTeam: new Team({ type: TeamType.ENEMY, vehicles: [rustBuggy({ looter: true }), rustBuggy({ looter: false })] }),
+		maxTurns: 25,
+		rng: new Rng({ seed })
+	});
+	battle.aiController.setPlayerAI(playerAI);
+	battle.aiController.setEnemyAI(enemyAI);
+	battle.start();
+	return { battle, driver, player };
+}
+
+/** Plays the fight to its end, checking each turn that every attack the raiders plan is aimed at one of the player's vehicles. */
+async function playOut({ battle, player }: { battle: Battle; player: Vehicle[] }): Promise<void> {
+	for (let turn = 0; turn < 30 && !battle.isBattleOver(); turn++) {
+		for (const intents of battle.getAllIntents().values()) {
+			for (const intent of intents.filter(planned => planned.type === IntentType.ATTACK && planned.target !== 'both' && planned.target !== null)) {
+				expect(player.map(vehicle => vehicle.id)).toContain(intent.target);
+			}
+		}
+		await battle.aiController.playPlayerCards();
+		battle.endPlayerTurn();
+	}
+	expect(battle.isBattleOver()).toBe(true);
+}
+
+const playsBy = (battle: Battle, driver: Driver): string[] => battle.getMessagesByType('card_played')
+	.filter(message => message.metadata?.driver === driver.metadata.name)
+	.map(message => String(message.metadata?.card));
+
 describe('AIs against one player vehicle', () => {
 	beforeEach(() => {
 		jest.spyOn(console, 'log').mockImplementation(() => undefined);
+		jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 	});
 
 	afterEach(() => {
 		jest.restoreAllMocks();
 	});
 
-	const played: string[] = [];
-
 	describe.each(SEEDS)('seed %i', (seed) => {
-		it.each(MATCHUPS)('%s for the player against %s raiders plays the fight out', async (playerAI, enemyAI) => {
-			const driver = seated('interceptor', ORDERS);
-			const player = [createDrivenVehicle({ driver }), ...convoy('outrider', 'fuel_hauler', 'med_truck')];
-			const battle = new Battle({
-				playerTeam: playerTeam(player),
-				enemyTeam: new Team({ type: TeamType.ENEMY, vehicles: [rustBuggy({ looter: true }), rustBuggy({ looter: false })] }),
-				maxTurns: 25,
-				rng: new Rng({ seed })
-			});
-			battle.aiController.setPlayerAI(playerAI);
-			battle.aiController.setEnemyAI(enemyAI);
-			battle.start();
+		it.each(MATCHUPS)('%s for the player against %s raiders plays the fight out, never offering a play the battle refuses', async (playerAI, enemyAI) => {
+			const { battle, driver, player } = aiFight({ playerAI, enemyAI, seed });
 
-			for (let turn = 0; turn < 30 && !battle.isBattleOver(); turn++) {
-				// Every attack the raiders plan is aimed at one of the player's vehicles
-				for (const intents of battle.getAllIntents().values()) {
-					for (const intent of intents.filter(planned => planned.type === IntentType.ATTACK && planned.target !== 'both' && planned.target !== null)) {
-						expect(player.map(vehicle => vehicle.id)).toContain(intent.target);
-					}
-				}
-				await battle.aiController.playPlayerCards();
-				battle.endPlayerTurn();
-			}
+			await playOut({ battle, player });
 
-			expect(battle.isBattleOver()).toBe(true);
-			const plays = battle.getMessagesByType('card_played').filter(message => message.metadata?.driver === driver.metadata.name);
+			expect(refusals(battle)).toEqual([]);
+			expect(playsBy(battle, driver).length).toBeGreaterThan(0);
+		});
+
+		// The Bike is wrecked as the fight opens, so the Interceptor rides in an
+		// escort from the first turn and plays only what a passenger can
+		it.each(MATCHUPS)('%s for the player against %s raiders plays the fight out from an escort\'s passenger seat', async (playerAI, enemyAI) => {
+			const { battle, driver, player } = aiFight({ playerAI, enemyAI, seed });
+			const [bike, ...escorts] = player;
+			battle.playerTeam.handleVehicleDestruction(bike);
+			battle.planEnemyTurn();
+			expect(escorts.some(escort => escort.passenger === driver)).toBe(true);
+
+			await playOut({ battle, player });
+
+			expect(refusals(battle)).toEqual([]);
+			const plays = playsBy(battle, driver).map(name => CARDS_BY_NAME.get(name));
 			expect(plays.length).toBeGreaterThan(0);
-			played.push(...plays.map(message => String(message.metadata?.card)));
+			expect(plays.filter(played => played?.isAttack)).toEqual([]);
 		});
 	});
 
@@ -377,8 +429,34 @@ describe('AIs against one player vehicle', () => {
 		expect(offered.filter(action => action.card?.type === 'draw_fire').map(action => action.target)).toEqual([outrider, hauler]);
 	});
 
-	it('plays the orders that target an escort along the way', () => {
-		expect(played).toEqual(expect.arrayContaining(['Draw Fire']));
-		expect(played.some(name => name === 'Close Ranks' || name === 'Draw Fire')).toBe(true);
+	it('offers nothing the battle would refuse: no signature card once its escort is wrecked, no Rally with no ready escort, no attack from a passenger', () => {
+		const driver = seated('interceptor');
+		const [hauler, outrider] = convoy('fuel_hauler', 'outrider');
+		const bike = createDrivenVehicle({ driver });
+		const battle = fight({ player: [bike, hauler, outrider], raiders: [raider()] });
+		battle.playerTeam.handleVehicleDestruction(hauler);
+		outrider.spent = true;
+		deal(driver, ['top_off', 'rally_the_convoy', 'far_shoot', 'close_ranks']);
+		const ai = new RandomAI({ team: battle.playerTeam, battle, rng: new Rng({ seed: 1 }) });
+		ai['board'] = new BoardProjection({ battle });
+		const offeredCards = (): (string | undefined)[] => [...new Set((ai['generatePossibleActions']() as AIDecision[]).map(action => action.card?.type))];
+
+		expect(offeredCards()).toEqual(['far_shoot', 'close_ranks', undefined]);
+		driver.set({ maxHitpoints: 200, hitpoints: 200 });
+		battle.playerTeam.handleVehicleDestruction(bike);
+		expect(outrider.passenger).toBe(driver);
+		expect(offeredCards()).toEqual(['close_ranks', undefined]);
+	});
+
+	it('plays the orders that target an escort, from a hand of nothing else', async () => {
+		const { battle, driver, player } = aiFight({ playerAI: 'random', enemyAI: 'aggressive', seed: 1, extra: [] });
+		driver.set({ deck: new Deck('orders', 'Orders', Array.from({ length: 6 }, (_, index) => card(index % 2 === 0 ? 'draw_fire' : 'close_ranks'))) });
+		deal(driver, ['draw_fire', 'close_ranks', 'draw_fire']);
+		battle.planEnemyTurn();
+
+		await playOut({ battle, player });
+
+		expect(refusals(battle)).toEqual([]);
+		expect(playsBy(battle, driver).filter(name => name === 'Draw Fire' || name === 'Close Ranks').length).toBeGreaterThan(0);
 	});
 });

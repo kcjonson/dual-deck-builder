@@ -1137,7 +1137,7 @@ function sumCounts(all: readonly CardCounts[], path: string): CardCounts {
 }
 
 /** "Road Warrior 1 (driver-1) and Interceptor 1 (driver-2)", or "nobody". */
-function driverList(drivers: readonly DriverRecord[]): string {
+export function driverList(drivers: readonly DriverRecord[]): string {
 	return drivers.length === 0 ? 'nobody' : drivers.map(describeDriver).join(' and ');
 }
 

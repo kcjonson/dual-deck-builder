@@ -325,20 +325,22 @@ export class PlayerHandLayer extends Stack {
 class HandHalf extends Stack {
 	public readonly tab: DriverTab;
 	public readonly fan: HandFan;
+	private readonly seat: DriverSeat;
 	private readonly crashNote: Stack;
-	private readonly emptyNote: Stack;
+	/** Built the first time the seat is empty; only a second seat ever is. */
+	private emptyNote: Stack | null = null;
 	private crashed = false;
+	private empty = false;
 
 	constructor({ seat }: { seat: DriverSeat }) {
 		super({ direction: 'vertical', crossAlign: 'stretch', widthMode: 'fill', heightMode: 'fill' });
+		this.seat = seat;
 		this.tab = new DriverTab({ id: `driver${seat}_tab`, seat });
 		this.fan = new HandFan({ id: `driver${seat}_hand`, widthMode: 'fill', heightMode: 'fill' });
 		this.crashNote = HandHalf.note({ id: `driver${seat}_crashed_out`, text: 'No free seat after the wreck: out of this fight' });
-		this.emptyNote = HandHalf.note({ id: `driver${seat}_empty_seat`, text: 'Empty seat: one driver on this run' });
 		this.addChild(this.tab);
 		this.addChild(this.fan);
 		this.addChild(this.crashNote);
-		this.addChild(this.emptyNote);
 	}
 
 	/** A line of dim mono text centred where the fan would be, hidden until its case comes up. */
@@ -370,18 +372,22 @@ class HandHalf extends Stack {
 	}
 
 	public get emptySeat(): boolean {
-		return this.emptyNote.visible;
+		return this.empty;
 	}
 
 	public set emptySeat(empty: boolean) {
-		this.emptyNote.visible = empty;
+		this.empty = empty;
+		if (empty && !this.emptyNote) {
+			this.emptyNote = HandHalf.note({ id: `driver${this.seat}_empty_seat`, text: 'Empty seat: one driver on this run' });
+			this.addChild(this.emptyNote);
+		}
 		this.show();
 	}
 
 	private show(): void {
-		const empty = this.emptyNote.visible;
-		this.tab.visible = !empty;
-		this.fan.visible = !empty && !this.crashed;
-		this.crashNote.visible = !empty && this.crashed;
+		this.tab.visible = !this.empty;
+		this.fan.visible = !this.empty && !this.crashed;
+		this.crashNote.visible = !this.empty && this.crashed;
+		if (this.emptyNote) this.emptyNote.visible = this.empty;
 	}
 }

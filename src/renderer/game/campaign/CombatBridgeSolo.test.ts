@@ -173,6 +173,22 @@ describe('the combat bridge with one seat', () => {
 		expect(fight.party.seats).toEqual([interceptor]);
 	});
 
+	it('refuses a party of one on a run of two, which could win fights the run\'s end would never take', () => {
+		const campaign = foundCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
+		const [warrior, interceptor] = (['road_warrior', 'interceptor'] as const).map(archetype => {
+			const record = campaign.drivers.find(driver => driver.archetype === archetype);
+			if (!record) throw new Error(`founding should have dealt a ${archetype}`);
+			return record;
+		});
+		campaign.startRunDecks({ seats: [warrior, interceptor] });
+		const party: RunParty = { seats: [interceptor], escorts: [], cargo: NO_RESOURCES, cargoCards: NO_CARDS, run: campaign.currentRun ?? 'none' };
+		const named = (record: DriverRecord): string => `${record.name} (${record.id})`;
+
+		expect(() => startFight({ campaign, party, enemy: raider(jab) }))
+			.toThrow(`This party seats ${named(interceptor)}, and the run out seats ${named(warrior)} and ${named(interceptor)}`);
+		expect(() => startFight({ campaign, party: { ...party, seats: [warrior, interceptor] }, enemy: raider(jab) })).not.toThrow();
+	});
+
 	it('holds the lone seat to load out\'s own check', () => {
 		const { campaign, interceptor } = lastDriver();
 		const party = loadOutAlone({ campaign, seat: interceptor });

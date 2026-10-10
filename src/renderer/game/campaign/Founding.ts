@@ -6,9 +6,8 @@ import { rollParams } from '../map/RollParams';
 import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
 import { createEscort } from '../mechanics/Escort';
-import { PLAYER_DRIVEN_VEHICLES } from '../mechanics/Team';
 import { Campaign } from './Campaign';
-import { CAMPAIGN_START, CampaignStart, readCampaignStart } from './CampaignStart';
+import { CAMPAIGN_START, CampaignStart, FULL_RUN_SEATS, readCampaignStart } from './CampaignStart';
 import { DRIVER_ARCHETYPES } from './DriverRecord';
 import { readMapParamSet, readMapParams } from './MapParamsJson';
 import { EMPTY_MAP } from './MapState';
@@ -66,8 +65,8 @@ export function foundCampaign({ seed, unlockedArchetypes, mapParams, start = CAM
 	const startingValues = readCampaignStart(start, 'CampaignStart');
 	const params = foundingParams({ seed, set: mapParams });
 	const unlocked = readUnlocked(unlockedArchetypes);
-	if (unlocked.length < PLAYER_DRIVEN_VEHICLES) {
-		throw new RangeError(`unlockedArchetypes must hold at least ${PLAYER_DRIVEN_VEHICLES} different archetypes, since a run takes ${PLAYER_DRIVEN_VEHICLES} drivers and no two alike, got ${unlocked.length}`);
+	if (unlocked.length < FULL_RUN_SEATS) {
+		throw new RangeError(`unlockedArchetypes must hold at least ${FULL_RUN_SEATS} different archetypes, since a run takes ${FULL_RUN_SEATS} drivers and no two alike, got ${unlocked.length}`);
 	}
 	const pool = deal({ seed, unlocked, size: startingValues.poolSize });
 

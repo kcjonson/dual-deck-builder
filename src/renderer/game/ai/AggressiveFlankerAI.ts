@@ -1,4 +1,4 @@
-import { AIPlayer } from './AIPlayer';
+import { AIPlayer, carriesDriver } from './AIPlayer';
 import { AIDecision, AIStrategy, GameStateEvaluation, VehicleEvaluation } from './types';
 import { Team } from '../mechanics/Team';
 import { Battle } from '../mechanics/Battle';
@@ -225,7 +225,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 	): VehicleEvaluation | null {
 		// Check enemy team vehicles
 		for (const vehicleEval of gameState.enemyTeam.vehicles) {
-			if (vehicleEval.driver === driver) {
+			if (carriesDriver(vehicleEval.vehicle, driver)) {
 				return vehicleEval;
 			}
 		}

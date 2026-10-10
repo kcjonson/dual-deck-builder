@@ -8,7 +8,7 @@ import { Deck } from '../mechanics/Deck';
 import { DRIVER_CONFIGS, Driver, DriverRole } from '../mechanics/Driver';
 import { PLAYER_DRIVEN_VEHICLES, Team, TeamType } from '../mechanics/Team';
 import { Vehicle, createDrivenVehicle } from '../mechanics/Vehicle';
-import { Campaign, NO_RESOURCES, Resources, readResources } from './Campaign';
+import { Campaign, NO_RESOURCES, Resources, driverList, readResources } from './Campaign';
 import { CardCounts, NO_CARDS, addCards, readCardCounts } from './CardCounts';
 import { DriverRecord, DriverRecordData, VehicleCondition, describeDriver, readDriverRecordData } from './DriverRecord';
 import { isStoringWriteBack, openFightOf, setOpenFight, setStoringWriteBack } from './OpenFights';
@@ -139,15 +139,16 @@ type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
  * card move, or a run starting or ending), and unless the party seats one
  * or two drivers load out's own check (`getSeatBlocker`) seats: each from
  * the campaign's pool and ready, checked in seat order, then two different
- * drivers of different archetypes when there are two. One seat is a run
- * down to its last driver, who fights alone with the escorts
- * (solo-driver-fights.md). So does a party whose cargo doesn't check out,
- * an escort that isn't the campaign's, a seat with no run deck or one
- * holding the card of an escort that isn't in the party, an escort in the
- * party whose card no run deck holds, a party that set off on another run
- * than the one out, or a card in the decks with no template. The teams and
- * the encounter can refuse the road too (Team, Battle), and move nobody
- * when they do.
+ * drivers of different archetypes when there are two. So does a party
+ * whose cargo doesn't check out, an escort that isn't the campaign's, a
+ * seat with no run deck or one holding the card of an escort that isn't in
+ * the party, a party that doesn't seat every driver on the run out and
+ * nobody else, an escort in the party whose card no run deck holds, a
+ * party that set off on another run than the one out, or a card in the
+ * decks with no template. The teams and the encounter can refuse the road
+ * too (Team, Battle), and move nobody when they do. One seat is a run down
+ * to its last driver, who fights alone with the escorts
+ * (solo-driver-fights.md).
  */
 export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, enemyAI = 'aggressive' }: CampaignFightOptions): CampaignFight {
 	if (isStoringWriteBack(campaign)) throw new Error("This campaign's last fight is still being written back");
@@ -173,6 +174,12 @@ export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, ene
 	const escorts = campaign.convoy.escorts.filter(escort => party.escorts.includes(escort));
 	const cargoCards = readCardCounts(party.cargoCards, 'RunParty.cargoCards');
 	const runDecks = party.seats.map(record => seatRunDeck({ campaign, record, escorts }));
+	// Every driver on the run, and only them: a party short a seat could win
+	// fights that the run's end (unloadRun, loseRun) would then never take
+	const seated = campaign.runDecks.map(deck => deck.driver);
+	if (seated.length !== party.seats.length || !seated.every(driver => party.seats.includes(driver))) {
+		throw new RangeError(`This party seats ${driverList(party.seats)}, and the run out seats ${driverList(seated)}`);
+	}
 	escorts.forEach(escort => {
 		const cardType = escort.escort?.signatureCard ?? null;
 		if (cardType === null || runDecks.some(deck => deck.escortCards.some(card => card.broughtBy === escort.convoyId))) return;

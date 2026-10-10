@@ -155,11 +155,11 @@ describe('Escorts', () => {
 
 		test('a player team needs one or two driven vehicles; escorts never count', () => {
 			expect(() => playerTeam(fullConvoy()))
-				.toThrow('Player teams must have 1 or 2 driven vehicles, not 0');
+				.toThrow('Player teams must have a driven vehicle');
 			expect(() => playerTeam([rig, bike, createDriven('Van')]))
-				.toThrow('Player teams must have 1 or 2 driven vehicles, not 3');
+				.toThrow("Player teams can field 2 drivers' vehicles, driven or carrying on unmanned, not 3");
 			expect(() => playerTeam([rig, bike]).addVehicle(createDriven('Van')))
-				.toThrow('Player teams cannot have more than 2 driven vehicles');
+				.toThrow("Player teams can field 2 drivers' vehicles, driven or carrying on unmanned, not 3");
 		});
 
 		test('addVehicle takes escorts up to the cap', () => {

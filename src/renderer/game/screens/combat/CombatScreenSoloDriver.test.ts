@@ -115,7 +115,7 @@ function soloFight(): PreparedCombatMount {
 		rng: new Rng({ seed: 166 }),
 	});
 	battle.start();
-	return { prepare: async () => ({ battle, drivers: [interceptor] }) };
+	return { prepare: async () => ({ battle }) };
 }
 
 async function mountSolo(context: ReturnType<typeof createTestContext>): Promise<CombatScreen> {
@@ -145,6 +145,7 @@ describe('CombatScreen with one driver (DDB-166)', () => {
 		const layer: PlayerHandLayer = combat['handLayer'];
 		const [driver] = combat['playerDrivers'];
 
+		expect(combat['playerDrivers']).toEqual(combat['battle']?.playerSeats);
 		expect(combat['playerDrivers']).toHaveLength(1);
 		expect(layer.driverCount).toBe(1);
 		expect(shown(layer.tabOf(1), layer)).toBe(true);

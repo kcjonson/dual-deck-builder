@@ -27,7 +27,7 @@ export function assertDriverPair(drivers: Driver[]): asserts drivers is [Driver,
  * seats, which can be down to one when a run has lost a driver
  * (solo-driver-fights.md). Two seats keep the pairing rule.
  */
-export function assertDriverSeats(drivers: readonly Driver[]): void {
+export function assertDriverSeats(drivers: readonly Driver[]): asserts drivers is readonly [Driver] | readonly [Driver, Driver] {
 	if (drivers.length === 1) return;
 	if (drivers.length !== 2) {
 		throw new Error(`Combat seats one or two drivers, not ${drivers.length}`);

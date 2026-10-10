@@ -432,6 +432,15 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
+	 * The player's drivers in seat order, Driver 1 first: everyone aboard when
+	 * the fight was built, in the order their vehicles are listed, then anyone
+	 * seated later. A driver keeps their seat through a wreck or a death.
+	 */
+	public get playerSeats(): readonly Driver[] {
+		return [...(Battle.driverSeats.get(this)?.get(TeamType.PLAYER) ?? [])];
+	}
+
+	/**
 	 * Get the AI controller for this battle
 	 */
 	public get aiController(): AIController {

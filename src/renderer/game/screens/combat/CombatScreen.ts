@@ -21,7 +21,7 @@ import { CombatFxLayer } from './CombatFxLayer';
 import { Rgba } from './combatStyle';
 import { openPileDialog } from '../../ui/CardPileView';
 import { INSPECT_KEYS, inspectHotkey } from '../../ui/cardInspect';
-import { DriverSeat, buildPlayerHandView } from './PlayerHandView';
+import { buildPlayerHandView } from './PlayerHandView';
 import { TargetMark, seatMark } from '../../ui/targetMarks';
 import { statusLabel } from '../../ui/IntentPill';
 import { Driver, DriverRole } from '../../mechanics/Driver';
@@ -57,15 +57,15 @@ function isHandCardDrag(data: unknown): data is HandCardDrag {
 
 /**
  * A fight handed to the screen ready to show: its battle already started,
- * the player's drivers in seat order, and what the top bar and log read.
- * The gallery's battle scenes (DDB-141) arrive this way, mid-fight, and so
- * does a supply run's fight, which the combat bridge builds from the
- * campaign (`startCampaignFight`, DDB-286). A run down to its last driver
- * seats one, and the dock's second half is an empty seat.
+ * and what the top bar and log read. The player's drivers are the battle's
+ * seats (`Battle.playerSeats`). The gallery's battle scenes (DDB-141) arrive
+ * this way, mid-fight, and so does a supply run's fight, which the combat
+ * bridge builds from the campaign (`startCampaignFight`, DDB-286). A run
+ * down to its last driver seats one, and the dock's second half is an
+ * empty seat.
  */
 export interface PreparedCombat {
 	battle: Battle;
-	drivers: readonly Driver[];
 	wave?: WaveStatus;
 	scrap?: number;
 	fuel?: number;
@@ -220,18 +220,19 @@ export class CombatScreen extends Screen {
 			battle.aiController.setEnemyAI('aggressive');
 			battle.start();
 
-			this.beginCombat({ battle, drivers: [driver1, driver2] });
+			this.beginCombat({ battle });
 		} catch (error) {
 			console.error('Failed to initialize combat:', error);
 		}
 	}
 
 	/** Show a started battle: subscribe to it, announce the turn, log the matchup, and draw it. */
-	private beginCombat({ battle, drivers, wave = SINGLE_WAVE, scrap, fuel, log = [] }: PreparedCombat): void {
+	private beginCombat({ battle, wave = SINGLE_WAVE, scrap, fuel, log = [] }: PreparedCombat): void {
 		// One seat, or two held to the same pair rule as the default fight
+		const drivers = battle.playerSeats;
 		assertDriverSeats(drivers);
 		this.playerDrivers = [...drivers];
-		this.handLayer.driverCount = drivers.length as DriverSeat;
+		this.handLayer.driverCount = drivers.length;
 		this.battle = battle;
 		this.playerTeam = battle.playerTeam;
 		this.enemyTeam = battle.enemyTeam;
@@ -281,8 +282,10 @@ export class CombatScreen extends Screen {
 
 		this.unsubscribers.push(
 			this.battle.on('battleEnded', (event: { won: boolean }) => {
-				// The battle logs its own end; navigate to battle result screen
-				if (this.battle) {
+				// The battle logs its own end; navigate to battle result screen.
+				// Only the game's own screen does: the gallery mounts this one
+				// with no screen manager, and its fight just stays at its end
+				if (this.battle && ScreenManager.activeScreen === this) {
 					const resultData: BattleResultData = { victory: event.won };
 					ScreenManager.navigate('battleResultScreen', resultData);
 				}

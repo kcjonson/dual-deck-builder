@@ -75,9 +75,8 @@ export class Team extends Model<TeamData> {
 		super(initialData);
 
 		if (initialData.type === TeamType.PLAYER) {
-			const driven = this.drivenVehicles.length;
-			if (driven < 1 || driven > PLAYER_DRIVEN_VEHICLES) {
-				throw new Error(`Player teams must have 1 or ${PLAYER_DRIVEN_VEHICLES} driven vehicles, not ${driven}`);
+			if (this.drivenVehicles.length < 1) {
+				throw new Error('Player teams must have a driven vehicle');
 			}
 			this.assertDriversVehicleRoom(0);
 			this.assertEscortRoom(0);
@@ -189,9 +188,6 @@ export class Team extends Model<TeamData> {
 	 */
 	public addVehicle(vehicle: Vehicle): void {
 		if (this.type === TeamType.PLAYER) {
-			if (!vehicle.isEscort && this.drivenVehicles.length >= PLAYER_DRIVEN_VEHICLES) {
-				throw new Error(`Player teams cannot have more than ${PLAYER_DRIVEN_VEHICLES} driven vehicles`);
-			}
 			if (Team.isDriversVehicle(vehicle)) {
 				this.assertDriversVehicleRoom(1);
 			}

@@ -26,7 +26,7 @@ Option 3.
 
 ### The team
 
-- A player `Team` holds one or two driven vehicles (`PLAYER_DRIVEN_VEHICLES` is the most), plus up to four convoy escorts, plus set-piece allies. None is refused, as is a third.
+- A player `Team` holds one or two driven vehicles (`PLAYER_DRIVEN_VEHICLES` is the most), plus up to four convoy escorts, plus set-piece allies. None is refused, as is a third. Founding keeps its own two (`FULL_RUN_SEATS`): a compound starts able to send a full run, two drivers no two alike.
 - A driver's vehicle that carried on unmanned (`Vehicle.carriesOnUnmanned`: an escort profile of no hired type, `convertToEscort`'s) can go into a new team beside one driven vehicle. It's still its driver's, so it counts toward the two drivers' vehicles, driven or carrying on unmanned, and not toward the convoy's four. `Team.convoyEscorts` is the convoy's own, the escorts that count toward the four, and `Battle` takes its convoy from it when a fight starts, so a vehicle carrying on unmanned from an earlier fight isn't refilled, paid out, or lost as the convoy's when this one ends. The campaign never does this, since the bridge builds each fight's driven vehicles fresh from the records; it's for a caller that carries a team from fight to fight.
 
 ### What leaned on a partner
@@ -38,17 +38,20 @@ Each was checked against the code and covered by `SoloDriver.test.ts`:
 - **Defeat.** "No driver still in the fight" holds for one: a lone driver at 0 HP or crashed out loses the fight on the spot.
 - **Wrecks.** A wreck's survivor goes to the partner's vehicle first, then the nearest escort with a free seat. With no partner, the lone driver goes straight to the nearest escort, and crashes out if there's none.
 - **Cards.** No card in `cards.json` targets the partner alone, and none is `both_drivers`. Coordinated Attack is the only card that reads the partner, through its `partner_attacked` bonus. See the provisional calls.
-- **The AI.** Every AI reads the other team's vehicles as a list, so raiders target, plan, and project against one player vehicle as they do against two. Player-side AIs never offered an order aimed at an escort (Draw Fire, Close Ranks): `AIPlayer` had no case for the `escort` target type, so it put up the card with no target, the battle refused it, and the turn stopped there. It now offers the team's own escorts in the fight as targets. A lone driver leans on escorts more than a pair does, so this mattered here first.
+- **The AI.** Every AI reads the other team's vehicles as a list, so raiders target, plan, and project against one player vehicle as they do against two. Player-side AIs had three gaps a lone driver hits first, since they lean on escorts and ride in one after a wreck. An AI stops its turn at the first play the battle refuses, so each of the first two ended turns early:
+  - They never offered an order aimed at an escort (Draw Fire, Close Ranks): `AIPlayer` had no case for the `escort` target type, so the card went up with no target and was refused. The target types now map to the vehicles they aim at in one switch, which the compiler holds to every type, and the team's own escorts in the fight are the targets.
+  - They offered cards the battle's convoy check refuses: a signature card whose escort is wrecked, or Rally the Convoy with no escort ready. They now ask `Battle.getCardBlocker` first.
+  - Only a vehicle's driver got plays, so a driver riding as a passenger held their hand all fight. Every living occupant now plays from the vehicle they ride in, a passenger's attacks left out, and the AIs that score a play by the player's vehicle find a passenger's too. A raider still plans for its driver alone, since the enemy turn plays its plan as theirs.
 
 ### The bridge
 
-`startCampaignFight` takes a `RunParty` of one or two seats. One seat is checked by load out's own check (`getSeatBlocker`) alone; two are checked each alone and then as a pair, as before. The fight seats the lone driver at the wheel of their own vehicle, opening inside center, with the escorts that came along in roster order. `writeBackFight` was already per seat: after a win the lone driver goes on, and a lost fight leaves them dead (down) or missing (crashed out).
+`startCampaignFight` takes a `RunParty` of one or two seats. One seat is checked by load out's own check (`getSeatBlocker`) alone; two are checked each alone and then as a pair, as before. The party has to seat every driver on the run out and nobody else: a party of one on a run of two could otherwise win fights that `unloadRun` and `loseRun` would then refuse forever, the soft-lock over again. The fight seats the lone driver at the wheel of their own vehicle, opening inside center, with the escorts that came along in roster order. `writeBackFight` was already per seat: after a win the lone driver goes on, and a lost fight leaves them dead (down) or missing (crashed out).
 
 The campaign's run decks are one per seat, so a run out holds one or two (`readRunDecks`), and a run with one seat saves and loads. `startRunDecks` and `getSeatBlocker` are unchanged: when load out seats one driver is load out's call (DDB-320), which owns the pair rule.
 
 ### The screen
 
-`PreparedCombat.drivers` is one or two drivers (`assertDriverSeats`: one, or two different ones). The dock keeps both halves, so the lone driver's hand and tab stay where a first driver's always are, at the width they always have. The second half is an empty seat: no tab and no fan, and a dim line where the fan would be, the same treatment as a driver who crashed out (`PlayerHandLayer.driverCount`). The log opens on the lone driver's name against the raiders.
+The screen reads the player's drivers from the battle's own seats (`Battle.playerSeats`), so they can't drift from who's in the fight, and holds them to one, or two different ones (`assertDriverSeats`). The dock keeps both halves, so the lone driver's hand and tab stay where a first driver's always are, at the width they always have. The second half is an empty seat: no tab and no fan, and a dim line where the fan would be, the same treatment as a driver who crashed out (`PlayerHandLayer.driverCount`). The log opens on the lone driver's name against the raiders.
 
 The gallery's `battle-solo` scene is that fight: the Interceptor alone with an Outrider, a Fuel Hauler, and a Med Truck against the typical scene's three raiders. It runs in the battle fit suite with the mock's six, at every size and state, and has goldens at both gate sizes.
 
