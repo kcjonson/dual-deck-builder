@@ -2,6 +2,7 @@ import { isAtCompound } from '../../campaign/Campaign';
 import type { Campaign } from '../../campaign/Campaign';
 import type { FoundingProgress } from '../../campaign/CampaignFounding';
 import type { CampaignEnding, CampaignHistoryEntry } from '../../campaign/CampaignHistory';
+import type { AreaMapStageName } from '../../map/AreaMapPipeline';
 import type { StageAttempt } from '../../map/MapPipeline';
 
 /** How each ending reads in Campaign History: how the compound fell, or that it didn't. */
@@ -42,10 +43,22 @@ export function campaignSummary(campaign: Campaign): string {
 	].join(' - ');
 }
 
-/** A map generation's progress, for a line under whatever waits on it: "Making the area map: route tree (6 of 7)". */
-export function mapProgressText({ stage, index, count }: Pick<StageAttempt, 'stage' | 'index' | 'count'>): string {
-	const name = stage.replace(/[A-Z]/g, (letter) => ` ${letter.toLowerCase()}`);
-	return `Making the area map: ${name} (${index + 1} of ${count})`;
+/**
+ * What the progress line calls each stage of the area map pipeline. Keyed
+ * by every stage name, so a stage added without a label fails the typecheck.
+ */
+export const MAP_STAGE_LABELS: Readonly<Record<AreaMapStageName, string>> = {
+	terrain: 'terrain',
+	water: 'water',
+	highways: 'highways',
+	growth: 'roads',
+	routeTree: 'route tree',
+	pois: 'POIs',
+};
+
+/** A map generation's progress, for a line under whatever waits on it: "Making the area map: POIs (6 of 6)". */
+export function mapProgressText({ stage, index, count }: Pick<StageAttempt<AreaMapStageName>, 'stage' | 'index' | 'count'>): string {
+	return `Making the area map: ${MAP_STAGE_LABELS[stage]} (${index + 1} of ${count})`;
 }
 
 /** New Campaign's line while founding: the map's progress, with the try once generation has given up on a seed. */

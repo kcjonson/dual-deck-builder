@@ -1,6 +1,7 @@
 import { Campaign } from '../../campaign/Campaign';
 import { fixtureText, lostCampaign, newCampaign } from '../../campaign/__fixtures__/storeFixtures';
-import { campaignSummary, countOf, driversAtCompound, foundingText, historyColumns, mapProgressText } from './campaignText';
+import { areaMapPipeline } from '../../map/AreaMapPipeline';
+import { MAP_STAGE_LABELS, campaignSummary, countOf, driversAtCompound, foundingText, historyColumns, mapProgressText } from './campaignText';
 
 describe('campaignText', () => {
 	it("summarises a campaign as Continue shows it, leaving out the dead and the missing", () => {
@@ -31,10 +32,13 @@ describe('campaignText', () => {
 	});
 
 	it('says how far a map has got, by stage, with the try once founding has moved past a seed', () => {
-		const at = { stage: 'routeTree', index: 4, count: 6, attempt: 2, mapAttempt: 1, seed: 9 };
+		const at = { stage: 'routeTree' as const, index: 4, count: 6, attempt: 2, mapAttempt: 1, seed: 9 };
 		expect(mapProgressText(at)).toBe('Making the area map: route tree (5 of 6)');
+		expect(mapProgressText({ ...at, stage: 'pois', index: 5 })).toBe('Making the area map: POIs (6 of 6)');
 		expect(mapProgressText({ ...at, stage: 'terrain', index: 0 })).toBe('Making the area map: terrain (1 of 6)');
-		expect(foundingText({ ...at, stage: 'water', index: 1, seedAttempt: 0 } as Parameters<typeof foundingText>[0])).toBe('Making the area map: water (2 of 6)');
-		expect(foundingText({ ...at, stage: 'water', index: 1, seedAttempt: 2 } as Parameters<typeof foundingText>[0])).toBe('Making the area map: water (2 of 6), try 3');
+		expect(foundingText({ ...at, stage: 'water', index: 1, seedAttempt: 0 })).toBe('Making the area map: water (2 of 6)');
+		expect(foundingText({ ...at, stage: 'water', index: 1, seedAttempt: 2 })).toBe('Making the area map: water (2 of 6), try 3');
+		// Every stage the pipeline runs has a label, and nothing else does.
+		expect(Object.keys(MAP_STAGE_LABELS)).toEqual(areaMapPipeline().stageNames);
 	});
 });

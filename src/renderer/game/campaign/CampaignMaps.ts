@@ -14,8 +14,8 @@ import type { Campaign } from './Campaign';
  * generator version made can't have it made again; the store reads its save
  * as outdated, as it does one of another save format version.
  *
- *   CampaignMaps.shared.prepare(campaign);                  // Continue: start it, wait for nothing
- *   const map = await getAreaMap(campaign, { onProgress }); // a screen that needs it
+ *   CampaignMaps.shared.prepare(campaign);                          // Continue: start it, wait for nothing
+ *   const map = await getAreaMap(campaign, { onProgress, signal }); // a screen that needs it; abort on unmount
  */
 
 export type AreaMapProgress = StageAttempt<AreaMapStageName>;
@@ -32,8 +32,15 @@ export interface CampaignMapsOptions {
 }
 
 export interface AreaMapRequest {
-	/** Told as each stage starts while the map is being made; never called for a map already made. */
+	/** Told as each stage starts while the map is being made, until it's made or `signal` aborts; never called for a map already made. */
 	onProgress?: (progress: AreaMapProgress) => void;
+	/**
+	 * Stops this caller waiting, as a screen that unmounts does: its
+	 * `onProgress` hears no more, and its promise rejects with the signal's
+	 * reason (an AbortError unless the caller gave one). The map goes on
+	 * being made for anyone else waiting, and is kept.
+	 */
+	signal?: AbortSignal;
 }
 
 interface Kept {
@@ -76,17 +83,38 @@ export class CampaignMaps {
 	 * generation failing or being cancelled. A failure isn't kept, so asking
 	 * again tries again.
 	 */
-	public mapOf(campaign: Campaign, { onProgress }: AreaMapRequest = {}): Promise<AreaMapGeneration> {
+	public mapOf(campaign: Campaign, { onProgress, signal }: AreaMapRequest = {}): Promise<AreaMapGeneration> {
+		if (signal?.aborted) return Promise.reject(abortReason(signal));
 		const key = mapKey(campaign);
 		const kept = this.kept?.key === key ? this.kept : this.start({ campaign, key });
-		if (onProgress && kept.generation) {
-			kept.listeners.add(onProgress);
-			const stop = (): void => {
-				kept.listeners.delete(onProgress);
-			};
-			kept.map.then(stop, stop);
+		// A listener of this call's own, so one caller detaching never detaches another that passed the same function.
+		const listener = onProgress && kept.generation ? (progress: AreaMapProgress): void => onProgress(progress) : null;
+		if (listener) kept.listeners.add(listener);
+		if (!signal) {
+			if (listener) kept.map.then(() => kept.listeners.delete(listener), () => kept.listeners.delete(listener));
+			return kept.map;
 		}
-		return kept.map;
+		return new Promise<AreaMapGeneration>((resolve, reject) => {
+			const done = (): void => {
+				if (listener) kept.listeners.delete(listener);
+				signal.removeEventListener('abort', aborted);
+			};
+			const aborted = (): void => {
+				done();
+				reject(abortReason(signal));
+			};
+			signal.addEventListener('abort', aborted, { once: true });
+			kept.map.then(
+				(map) => {
+					done();
+					resolve(map);
+				},
+				(error: unknown) => {
+					done();
+					reject(error);
+				}
+			);
+		});
 	}
 
 	/** Drops the kept map, cancelling it if it's being made. */
@@ -132,6 +160,11 @@ export class CampaignMaps {
 /** The shared cache's map for the campaign (`CampaignMaps.mapOf`). */
 export function getAreaMap(campaign: Campaign, request: AreaMapRequest = {}): Promise<AreaMapGeneration> {
 	return CampaignMaps.shared.mapOf(campaign, request);
+}
+
+/** Why a wait was aborted: the reason the caller gave the signal, or an AbortError. */
+function abortReason(signal: AbortSignal): unknown {
+	return signal.reason ?? new DOMException('CampaignMaps: stopped waiting for the area map', 'AbortError');
 }
 
 function replayOf({ generatorVersion, mapAttempts }: Campaign): PipelineReplay {

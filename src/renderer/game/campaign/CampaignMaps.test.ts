@@ -205,6 +205,67 @@ describe('CampaignMaps', () => {
 		expect(heard).toEqual(['a terrain', 'b terrain']);
 	});
 
+	describe('a caller\'s signal', () => {
+		it('stops that caller waiting and hearing progress when it aborts, and nobody else: the map goes on, and is kept', async () => {
+			const asked: Parameters<NonNullable<CampaignMapsOptions['generate']>>[0][] = [];
+			const generation = new HeldGeneration();
+			const maps = new CampaignMaps({ generate: (options) => (asked.push(options), generation) });
+			const campaign = founded();
+			const heard: string[] = [];
+			const hear = (who: string) => ({ stage }: AreaMapProgress): void => {
+				heard.push(`${who} ${stage}`);
+			};
+			const leaving = new AbortController();
+			const staying = new AbortController();
+			// The same function from two callers, so detaching one can't detach the other.
+			const shared = hear('shared');
+			const waits = {
+				leaving: maps.mapOf(campaign, { onProgress: hear('leaving'), signal: leaving.signal }),
+				staying: maps.mapOf(campaign, { onProgress: hear('staying'), signal: staying.signal }),
+				sharedLeaving: maps.mapOf(campaign, { onProgress: shared, signal: leaving.signal }),
+				sharedStaying: maps.mapOf(campaign, { onProgress: shared }),
+			};
+			const tell = (stage: AreaMapProgress['stage']): void => asked[0].onProgress?.({ stage, index: 0, count: 6, attempt: 0, mapAttempt: 0, seed: SEED });
+			tell('terrain');
+			leaving.abort();
+			const error = await outcome(waits.leaving);
+			expect(error).toBeInstanceOf(DOMException);
+			expect((error as DOMException).name).toBe('AbortError');
+			expect(error).toBe(leaving.signal.reason);
+			expect(await outcome(waits.sharedLeaving)).toBe(leaving.signal.reason);
+			tell('water');
+			expect(heard).toEqual(['leaving terrain', 'staying terrain', 'shared terrain', 'shared terrain', 'staying water', 'shared water']);
+			expect(generation.cancelled).toBe(0);
+
+			const map = stubResult(campaign.mapParams);
+			generation.resolve(map);
+			expect(await waits.staying).toBe(map);
+			expect(await waits.sharedStaying).toBe(map);
+			// Aborting once the map is made changes nothing, and the map is kept for the next to ask.
+			staying.abort();
+			tell('growth');
+			expect(heard).toHaveLength(6);
+			expect(await maps.mapOf(campaign, { signal: new AbortController().signal })).toBe(map);
+			expect(asked).toHaveLength(1);
+		});
+
+		it('rejects at once when it has already aborted, with the reason the caller gave, starting nothing', async () => {
+			const { maps, asked } = held();
+			const controller = new AbortController();
+			const reason = new Error('the area map screen closed');
+			controller.abort(reason);
+			expect(await outcome(maps.mapOf(founded(), { signal: controller.signal }))).toBe(reason);
+			expect(asked).toEqual([]);
+		});
+
+		it('still hears a failure before it aborts', async () => {
+			const { maps, generations } = held();
+			const waiting = maps.mapOf(founded(), { signal: new AbortController().signal });
+			generations[0].reject(new Error('worker failed'));
+			expect(await outcome(waiting)).toEqual(new Error('worker failed'));
+		});
+	});
+
 	it('keeps one campaign\'s map: asking for another\'s cancels the one being made and drops the one kept', async () => {
 		const { maps, generations } = held();
 		const first = founded(SEED);
