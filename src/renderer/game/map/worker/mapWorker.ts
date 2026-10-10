@@ -20,6 +20,7 @@ scope.onmessage = ({ data }) => {
 	try {
 		const { map, buffers } = generateTransfer({
 			params: data.params,
+			replay: data.replay,
 			onProgress: (progress) => scope.postMessage({ type: 'progress', progress }),
 		});
 		scope.postMessage({ type: 'done', map }, buffers);

@@ -1,6 +1,6 @@
 # Saving and loading a campaign (DDB-49)
 
-Date: 2026-10-07, revised 2026-10-08 for per-build saves (DDB-413). Code: `src/renderer/game/campaign/CampaignStore.ts`, `SaveStorage.ts`, `CampaignHistory.ts`, and `Campaign.toSaveText`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Terms), [Area Map Generation](../specs/Area%20Map%20Generation.md) (Saving), [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) (1.1). Builds on [campaign-state-model.md](./campaign-state-model.md), and follows the persistence pattern of [settings-store-and-screens.md](./settings-store-and-screens.md).
+Date: 2026-10-07, revised 2026-10-08 for per-build saves (DDB-413) and 2026-10-10 for the area map (DDB-467). Code: `src/renderer/game/campaign/CampaignStore.ts`, `SaveStorage.ts`, `CampaignHistory.ts`, `CampaignMaps.ts`, and `Campaign.toSaveText`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Terms), [Area Map Generation](../specs/Area%20Map%20Generation.md) (Saving), [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) (1.1). Builds on [campaign-state-model.md](./campaign-state-model.md), and follows the persistence pattern of [settings-store-and-screens.md](./settings-store-and-screens.md).
 
 ## Context
 
@@ -60,7 +60,7 @@ Measured, with the save as compact JSON:
 | its 60 drivers, with decks drawn from every card in `cards.json` | 17,903 |
 | A history entry | about 70 |
 
-The stand-in map has 300 stretches of 12 points at a tenth of a world unit (78 KB), 300 stops with their state (27 KB), 40 POIs with approaches (10 KB), and 64 by 64 land fog (1.4 KB). A real campaign's log is far shorter, so the map is most of a real save, and the stand-in puts it nearer 120 KB than the spec's tens of KB; how many points a stretch keeps decides most of that.
+The stand-in map has 300 stretches of 12 points at a tenth of a world unit (78 KB), 300 stops with their state (27 KB), 40 POIs with approaches (10 KB), and 64 by 64 land fog (1.4 KB). A real campaign's log is far shorter, so the map is most of a real save, and the stand-in puts it nearer 120 KB than the spec's tens of KB; how many points a stretch keeps decides most of that. Saves today keep the map's attempts rather than its lines (The area map, below), so a real save is a few KB until DDB-436 adds the lines; the stress campaign keeps its stand-in lines so the budget test already covers them.
 
 Browsers give local storage about 5 MiB an origin (MDN, Storage quotas and eviction criteria). Electron 25's `file://` page, which the packaged build loads, took about 52 million characters before throwing `QuotaExceededError`. The store can hold three copies of a save at once (two slots and a recovery copy), which at two bytes a character fit 5 MiB up to 873,813 characters a save, leaving room for the settings and the history. So a save has a budget of 800,000 characters, which the stress campaign meets at 45%, and the store test holds a long campaign to it. A generated map that pushes a long campaign past the budget is the cue to move to IndexedDB.
 
@@ -119,13 +119,31 @@ No `Rng` is saved. Campaign-time draws fork a stream per event from the seed and
 
 The seed is checked on load as an integer from 0 to 2^32 - 1 (`readSeed` in `core/JsonReader.ts`, shared by founding, the campaign, its map params, and the history), so a save whose seed is a string, null, or a number JSON reads as Infinity (`1e999`) fails as damaged. `new Rng({ seed })` throws on a seed that isn't a number but coerces NaN and Infinity to 0, which would quietly build seed 0's map.
 
-Loading rebuilds terrain and dressing from their streams, which nest: each stage's stream forks from the winning stream of the stage before it ([map-pipeline-worker.md](./map-pipeline-worker.md)), so the map state the generator defines (DDB-275) keeps the map attempt and every stage's winning attempt, since the dressing's stream hangs from all of them. Until the generator exists the map state is opaque JSON, nested at most 100 levels as the stop tables are (`MAX_JSON_DEPTH`), so a save nested deeper fails as damaged instead of overflowing the stack; `MapState` names where the attempts go.
+Loading rebuilds the map from its streams, which nest: each stage's stream forks from the winning stream of the stage before it ([map-pipeline-worker.md](./map-pipeline-worker.md)), so the campaign keeps the map attempt and every stage's winning attempt, `mapAttempts`, since the last stage's stream hangs from all of them. It's `{ map, stages }`, a uint32 map attempt and a uint32 attempt for each stage by its name, read strictly like the rest of the save and fixed at founding beside the seed and the params; null for a campaign built without a map, as tests build them. The reader takes any stage name; the pipeline checks the names when it replays them. What's changed on the map since founding (`map`) is still opaque JSON, nested at most 100 levels as the stop tables are (`MAX_JSON_DEPTH`), so a save nested deeper fails as damaged instead of overflowing the stack.
+
+## The area map
+
+Saves don't keep the map's lines until DDB-436, so a loaded campaign's map is made again from its seed, params, and `mapAttempts`, in the generation worker: the runner replays each stage once on the attempt that won it, which makes the map founding made, bit for bit. That takes as long as founding's generation, about a second.
+
+`CampaignMaps.shared` keeps the session's map. Founding hands over the map it just made. Continue starts making the loaded campaign's map and opens the next screen without waiting (`prepare`); a screen that needs the map awaits `getAreaMap(campaign, { onProgress })` and shows the progress while it's being made, which by then is usually done or nearly so. The cache keys the map by the generator version, the seed, the params, and the attempts, so a later load of the same campaign reuses it, and keeps one campaign's map at a time.
+
+A save names the pipeline's stages in `mapAttempts.stages`, so adding, removing, or renaming a stage is a format change: it bumps `CAMPAIGN_SCHEMA_VERSION`, and older saves read as outdated, which the menu explains, instead of loading with attempts their map can't replay. A test pins the stage list to the save version and the generator version, so a stage change fails it until both are looked at. A change inside a stage that makes something else from the same streams isn't caught: an older save of that build loads onto the map the new code makes, which holds until saves keep the map's lines.
 
 ## Consequences
 
 - Founding saves with `CampaignStore.shared.save(campaign)`; a failure there means the new campaign isn't saved, and the message says why.
 - The main menu reads `saveStatus()`: Continue on `'saved'`, a note that a campaign from another version can't be continued on `'outdated'`. It opens the save with `load()` and picks its words for a failure from `reason`. New Campaign over a save in progress calls `end({ ending: 'abandoned' })` to keep it in the history, or `delete()`; over an outdated save it can simply save the new campaign.
 - The run and compound screens call `checkpoint` at the end of each step, start the next step only after it or on a later frame, subscribe to `onSaveFailed` for a "couldn't save" notice, and call `end` when the campaign is won. The checkpoint after the step that loses the campaign ends it in the store by itself ([campaign-end.md](./campaign-end.md)).
-- Bumping `CAMPAIGN_SCHEMA_VERSION` invalidates every existing save of a build, and starts its history over. `Campaign.test.ts` pins the format to it (the fixture's key paths, and a history entry's and list's fields), so a change that moves the pin fails until the version goes up with it.
+- Bumping `CAMPAIGN_SCHEMA_VERSION` invalidates every existing save of a build, and starts its history over. `Campaign.test.ts` pins the format to it (the fixture's key paths, and a history entry's and list's fields), and `CampaignMaps.test.ts` pins the pipeline's stage names, so a change that moves either pin fails until the version goes up with it.
+- The area map screen (DDB-43) and the run loop's routes read the map with `getAreaMap(campaign)`, and show `mapProgressText` while they wait.
 - Saves of builds that are gone stay in the playtesters' local storage until they clear it, and count against the origin's quota.
 - The recovery keys hold one save and one history each.
+
+## Provisional calls
+
+Made here, each a line or a value to change:
+
+- A loaded campaign's map is started on Continue and awaited where it's needed, rather than made before Continue opens anything or only when a screen first asks. Continue never waits, the worker keeps the frame free, and the map is usually ready before the player reaches a screen that needs it.
+- The session keeps one campaign's map. Asking for another's cancels or drops it.
+- Making a saved map again runs no checks, so a check added later never moves a saved map, and a map the checks would now refuse still loads.
+- A change inside a stage that moves maps doesn't bump anything: older saves of that build load onto the new map. Adding, removing, or renaming a stage bumps the save version.

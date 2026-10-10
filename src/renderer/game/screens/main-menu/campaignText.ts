@@ -1,6 +1,8 @@
 import { isAtCompound } from '../../campaign/Campaign';
 import type { Campaign } from '../../campaign/Campaign';
+import type { FoundingProgress } from '../../campaign/CampaignFounding';
 import type { CampaignEnding, CampaignHistoryEntry } from '../../campaign/CampaignHistory';
+import type { StageAttempt } from '../../map/MapPipeline';
 
 /** How each ending reads in Campaign History: how the compound fell, or that it didn't. */
 export const ENDING_LABELS: Readonly<Record<CampaignEnding, string>> = {
@@ -38,6 +40,18 @@ export function campaignSummary(campaign: Campaign): string {
 		countOf(driversAtCompound(campaign), 'driver'),
 		strongholdsText(campaign.strongholdsTaken.length),
 	].join(' - ');
+}
+
+/** A map generation's progress, for a line under whatever waits on it: "Making the area map: route tree (6 of 7)". */
+export function mapProgressText({ stage, index, count }: Pick<StageAttempt, 'stage' | 'index' | 'count'>): string {
+	const name = stage.replace(/[A-Z]/g, (letter) => ` ${letter.toLowerCase()}`);
+	return `Making the area map: ${name} (${index + 1} of ${count})`;
+}
+
+/** New Campaign's line while founding: the map's progress, with the try once generation has given up on a seed. */
+export function foundingText(progress: FoundingProgress): string {
+	const line = mapProgressText(progress);
+	return progress.seedAttempt === 0 ? line : `${line}, try ${progress.seedAttempt + 1}`;
 }
 
 /** A past campaign's columns in Campaign History. Day 1 is founding day, so a campaign that ended on day 12 held out 12 days. */

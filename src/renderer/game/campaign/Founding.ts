@@ -1,5 +1,6 @@
 import { readArray, readOneOf, readSeed } from '../core/JsonReader';
 import { Rng } from '../core/Rng';
+import { AREA_MAP_GENERATOR_VERSION } from '../map/AreaMapPipeline';
 import { MapParamSet, MapParams } from '../map/MapParams';
 import { validateMapParamSet } from '../map/ParamValidator';
 import { rollParams } from '../map/RollParams';
@@ -13,11 +14,17 @@ import { readMapParamSet, readMapParams } from './MapParamsJson';
 import { EMPTY_MAP } from './MapState';
 
 /**
- * What campaigns are founded on until the area map generator exists: the
- * campaign model's stand-in map state, at generator version 1. Read in the
- * one place the generator's call goes, in `foundCampaign`.
+ * The area map a campaign is founded on, as the generator hands it back
+ * (`MapGeneration`'s result fits): the params it was made on, which must be
+ * the campaign's, and where it sits among the seed's attempts, which the
+ * campaign keeps so a load can make it again.
  */
-const MAP_STAND_IN = Object.freeze({ map: EMPTY_MAP, generatorVersion: 1 });
+export interface FoundingMap {
+	readonly params: Readonly<MapParams>;
+	readonly mapAttempt: number;
+	/** Each stage's winning attempt, by stage name. */
+	readonly attempts: Readonly<Record<string, number>>;
+}
 
 export interface FoundingOptions {
 	/**
@@ -43,24 +50,30 @@ export interface FoundingOptions {
 	mapParams?: MapParamSet;
 	/** What the compound starts with: the shipped `data/campaign-start.json` when left out. */
 	start?: CampaignStart;
+	/**
+	 * The area map, generated on the params founding resolves for these
+	 * options (`prepareFounding`) and the seed, in the generation worker:
+	 * `CampaignFounding` runs both and hands it in.
+	 */
+	map: FoundingMap;
+}
+
+/** What founding checked and resolved before it builds anything. */
+export interface PreparedFounding {
+	/** Rolled from the seed, or the set given, filled out and validated: what the map is generated on. */
+	readonly params: Readonly<MapParams>;
+	readonly startingValues: CampaignStart;
+	/** The unlocked archetypes without repeats, sorted by id. */
+	readonly unlocked: readonly DriverArchetype[];
 }
 
 /**
- * A new campaign (Compound and Supply Runs, Founding the compound): map
- * params rolled from the seed unless they're given, the starting pool dealt
- * from the unlocked archetypes and recruited through the campaign, each with
- * their archetype's starting deck, the start's stores and starter escorts,
- * an empty locker, and day 1 at dawn. The same options found the same
- * campaign: founding reads no randomness but the seed's own streams, and
- * never calls `Math.random`.
- *
- * Throws, founding nothing, on a seed that isn't a uint32, map params that
- * don't read or hold another seed, a start that doesn't check out, or fewer
- * than two archetypes unlocked: a run takes two drivers, no two alike, and
- * the pool only grows on runs, so a compound founded with one could never
- * leave.
+ * Founding's checks, and the params to generate the map on: everything
+ * `foundCampaign` does before it needs the map. The async founding runs it
+ * first, so a bad call fails before a generation is spent on it. Throws as
+ * `foundCampaign` does.
  */
-export function foundCampaign({ seed, unlockedArchetypes, mapParams, start = CAMPAIGN_START }: FoundingOptions): Campaign {
+export function prepareFounding({ seed, unlockedArchetypes, mapParams, start = CAMPAIGN_START }: Omit<FoundingOptions, 'map'>): PreparedFounding {
 	readSeed(seed, 'seed');
 	const startingValues = readCampaignStart(start, 'CampaignStart');
 	const params = foundingParams({ seed, set: mapParams });
@@ -68,22 +81,40 @@ export function foundCampaign({ seed, unlockedArchetypes, mapParams, start = CAM
 	if (unlocked.length < FULL_RUN_SEATS) {
 		throw new RangeError(`unlockedArchetypes must hold at least ${FULL_RUN_SEATS} different archetypes, since a run takes ${FULL_RUN_SEATS} drivers and no two alike, got ${unlocked.length}`);
 	}
-	const pool = deal({ seed, unlocked, size: startingValues.poolSize });
+	return { params, startingValues, unlocked };
+}
 
-	// The area map generator's map goes here: made from the seed and `params`
-	// in its worker by the async caller, which then hands it in, and kept
-	// with the generator's version. When generation gives up on a seed
-	// (`MapPipelineError`, `exhausted: 'map'`), release builds start over
-	// from the next seed, params and deal included, since both came from
-	// this one (map-pipeline-worker.md, The founding contract). Until the
-	// generator is hooked up, campaigns are founded on the model's stand-in.
-	const { map, generatorVersion } = MAP_STAND_IN;
+/**
+ * A new campaign (Compound and Supply Runs, Founding the compound): map
+ * params rolled from the seed unless they're given, the area map generated
+ * on them, the starting pool dealt from the unlocked archetypes and
+ * recruited through the campaign, each with their archetype's starting
+ * deck, the start's stores and starter escorts, an empty locker, and day 1
+ * at dawn. The same options found the same
+ * campaign: founding reads no randomness but the seed's own streams, and
+ * never calls `Math.random`.
+ *
+ * Throws, founding nothing, on a seed that isn't a uint32, map params that
+ * don't read or hold another seed, a start that doesn't check out, fewer
+ * than two archetypes unlocked (a run takes two drivers, no two alike, and
+ * the pool only grows on runs, so a compound founded with one could never
+ * leave), or a map generated on other params.
+ */
+export function foundCampaign({ map, ...options }: FoundingOptions): Campaign {
+	const { seed } = options;
+	const { params, startingValues, unlocked } = prepareFounding(options);
+	// The map was generated in a worker by the async caller (CampaignFounding), which also takes the next seed when generation gives up on this one.
+	if (JSON.stringify(map.params) !== JSON.stringify(params)) {
+		throw new RangeError(`map must be generated on the campaign's params (seed ${seed}), got one made on seed ${map.params.seed} or other params`);
+	}
+	const pool = deal({ seed, unlocked, size: startingValues.poolSize });
 
 	const campaign = new Campaign({
 		seed,
-		generatorVersion,
+		generatorVersion: AREA_MAP_GENERATOR_VERSION,
 		mapParams: params,
-		map,
+		map: EMPTY_MAP,
+		mapAttempts: { map: map.mapAttempt, stages: { ...map.attempts } },
 		// The clock only runs on the road, and it's one run a day, so the compound is always at the dawn of its day.
 		day: 1,
 		resources: startingValues.resources,

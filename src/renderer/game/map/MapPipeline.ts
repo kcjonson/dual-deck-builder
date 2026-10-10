@@ -98,6 +98,22 @@ export interface PipelineRunOptions<Input, Products> {
 	readonly warn?: (message: string) => void;
 	/** Milliseconds, for timings: performance.now when left out. */
 	readonly now?: () => number;
+	/**
+	 * Rebuild a map an earlier run made instead of generating one: each stage
+	 * runs once, on the attempt that won it, nested as that run nested it.
+	 * No checks and no accept hook run, since those attempts passed them, and
+	 * the result has no failures. What a load does with a save's attempts.
+	 * Throws a RangeError when they don't fit the pipeline: a stage's attempt
+	 * missing, one for a stage it doesn't have, or one it could never have won.
+	 */
+	readonly replay?: PipelineReplay;
+}
+
+/** Where a map sits among its seed's attempts: with the seed and the input, all it takes to make it again. */
+export interface PipelineReplay {
+	readonly mapAttempt: number;
+	/** Each stage's winning attempt, by stage name. */
+	readonly attempts: Readonly<Record<string, number>>;
 }
 
 export interface StageTiming {
@@ -215,6 +231,7 @@ class PipelineRun<Input> {
 	private readonly warn: (message: string) => void;
 	private readonly now: () => number;
 	private readonly seed: number;
+	private readonly replay: PipelineReplay | undefined;
 	private readonly timings: Record<string, MutableTiming> = {};
 	private readonly failures: StageFailure[] = [];
 
@@ -227,12 +244,14 @@ class PipelineRun<Input> {
 		this.warn = options.warn ?? ((message) => console.warn(message));
 		this.now = options.now ?? (() => performance.now());
 		this.seed = options.seed >>> 0;
+		this.replay = options.replay;
 		for (const { name } of stages) this.timings[name] = { runs: 0, milliseconds: 0, checkMilliseconds: 0 };
 	}
 
 	public run(): PipelineResult<AnyProducts> {
 		const started = this.now();
 		const root = new Rng({ seed: this.seed });
+		if (this.replay) return this.replayMap({ root, replay: this.replay, started });
 		let failure: StageFailure | null = null;
 		for (let mapAttempt = 0; mapAttempt < MAP_ATTEMPTS; mapAttempt += 1) {
 			const outcome = this.runMap({ map: root.fork('map', mapAttempt), mapAttempt });
@@ -288,6 +307,31 @@ class PipelineRun<Input> {
 			index = target;
 		}
 		return { winners: winners as Winner[], failure: null };
+	}
+
+	/** The map attempt a replay names, every stage run once on its winning attempt and nothing checked. */
+	private replayMap({ root, replay, started }: { root: Rng; replay: PipelineReplay; started: number }): PipelineResult<AnyProducts> {
+		checkReplay(this.stages, replay);
+		const { mapAttempt, attempts } = replay;
+		const winners: Winner[] = [];
+		let upstream = root.fork('map', mapAttempt);
+		this.stages.forEach((stage, index) => {
+			const attempt = attempts[stage.name];
+			this.onProgress?.({ stage: stage.name, index, count: this.stages.length, attempt, mapAttempt, seed: this.seed });
+			const rng = upstream.fork(stage.name, attempt);
+			const products: AnyProducts = {};
+			winners.forEach(({ product }, earlier) => {
+				products[this.stages[earlier].name] = product;
+			});
+			const timing = this.timings[stage.name];
+			const before = this.now();
+			const product = stage.run({ input: this.input, products, rng });
+			timing.runs += 1;
+			timing.milliseconds += this.now() - before;
+			winners.push({ attempt, rng, product, kept: false });
+			upstream = rng;
+		});
+		return this.result({ winners, mapAttempt, started });
 	}
 
 	/** Where a stage out of attempts goes: the stage it escalates to, or past any that are out too, theirs; -1 restarts the map. */
@@ -362,6 +406,22 @@ class PipelineRun<Input> {
 			keptFailing,
 			milliseconds: this.now() - started,
 		};
+	}
+}
+
+/** Refuses a replay whose attempts this pipeline could never have won. */
+function checkReplay(stages: readonly AnyStage<unknown>[], { mapAttempt, attempts }: PipelineReplay): void {
+	if (!(Number.isInteger(mapAttempt) && mapAttempt >= 0 && mapAttempt < MAP_ATTEMPTS)) {
+		throw new RangeError(`MapPipeline: can't replay map attempt ${mapAttempt}; a run makes 0 to ${MAP_ATTEMPTS - 1}`);
+	}
+	const unknown = Object.keys(attempts).filter((name) => !stages.some((stage) => stage.name === name));
+	if (unknown.length > 0) throw new RangeError(`MapPipeline: can't replay an attempt for ${unknown.join(', ')}, which isn't a stage of this pipeline`);
+	for (const stage of stages) {
+		if (!Object.prototype.hasOwnProperty.call(attempts, stage.name)) throw new RangeError(`MapPipeline: can't replay without ${stage.name}'s attempt`);
+		const attempt = attempts[stage.name];
+		if (!(Number.isInteger(attempt) && attempt >= 0 && attempt < attemptsOf(stage))) {
+			throw new RangeError(`MapPipeline: can't replay ${stage.name} on attempt ${attempt}; it has ${attemptsOf(stage)}`);
+		}
 	}
 }
 

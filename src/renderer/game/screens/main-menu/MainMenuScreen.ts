@@ -3,8 +3,10 @@ import { ScreenManager } from '../../core/ScreenManager';
 import { DriverLoader } from '../../core/DriverLoader';
 import { freshSeed } from '../../core/Rng';
 import type { Campaign } from '../../campaign/Campaign';
+import { CampaignFounding, CampaignFoundingOptions, FoundedCampaign } from '../../campaign/CampaignFounding';
+import { CampaignMaps } from '../../campaign/CampaignMaps';
 import { CampaignStore, CampaignStoreError, CampaignStoreFailure } from '../../campaign/CampaignStore';
-import { foundCampaign } from '../../campaign/Founding';
+import { MapGenerationCancelled } from '../../map/worker/MapGeneration';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
@@ -12,7 +14,7 @@ import { Dialog } from '../../../engine/ui/Dialog';
 import { FocusGroup } from '../../../engine/ui/FocusGroup';
 import { ColorToken, tokens } from '../../../engine/theme/tokens';
 import { formatBuildLabel } from './buildLabel';
-import { campaignSummary } from './campaignText';
+import { campaignSummary, foundingText } from './campaignText';
 
 const MENU_WIDTH = 320;
 const REPLACE_CANCEL_WIDTH = 120;
@@ -74,9 +76,19 @@ function replaceWarning(save: MenuSave): { title: string; body: string; confirm:
 	}
 }
 
+/** A founding under way, which a CampaignFounding is. */
+export interface FoundingTask {
+	readonly result: Promise<FoundedCampaign>;
+	cancel(): void;
+}
+
 export interface MainMenuScreenOptions {
 	/** Where the campaign is saved. Default: the game's shared store. */
 	store?: CampaignStore;
+	/** Where the session's area map is kept. Default: the game's shared cache. */
+	maps?: CampaignMaps;
+	/** Founds a campaign with its map. Default: a CampaignFounding, generating in the map worker. */
+	startFounding?: (options: CampaignFoundingOptions) => FoundingTask;
 }
 
 /**
@@ -89,8 +101,12 @@ export interface MainMenuScreenOptions {
  *
  * The menu loads the save on mount, since Continue's line reads from the
  * campaign, and Continue hands that instance on: it's the one the store
- * saves from then on. New Campaign over a save asks first; a campaign in
- * progress goes into the history as abandoned before the new one is saved.
+ * saves from then on. Continue also starts making the campaign's area map
+ * again in the map worker, which the screens that need it wait for. New
+ * Campaign over a save asks first; founding generates the area map, with a
+ * progress line under the button, and leaving the menu cancels it. A
+ * campaign in progress goes into the history as abandoned before the new
+ * one is saved.
  *
  * Skirmish keeps the old quick fight from driver selection reachable for
  * playtesters until load out replaces driver selection.
@@ -98,6 +114,10 @@ export interface MainMenuScreenOptions {
 export class MainMenuScreen extends Screen {
 	private readonly stack: Stack;
 	private readonly store: CampaignStore;
+	private readonly maps: CampaignMaps;
+	private readonly startFounding: (options: CampaignFoundingOptions) => FoundingTask;
+	/** The founding under way, which leaving the menu cancels. */
+	private founding: FoundingTask | null = null;
 	private newCampaignButton: Button | null = null;
 	private continueButton: Button | null = null;
 	private continueLine: Text | null = null;
@@ -109,7 +129,7 @@ export class MainMenuScreen extends Screen {
 	private visit = 0;
 	private starting = false;
 
-	constructor({ store = CampaignStore.shared }: MainMenuScreenOptions = {}) {
+	constructor({ store = CampaignStore.shared, maps = CampaignMaps.shared, startFounding = (options) => new CampaignFounding(options) }: MainMenuScreenOptions = {}) {
 		const root = new Stack({
 			id: 'mainMenuScreen',
 			widthMode: 'fill',
@@ -122,6 +142,8 @@ export class MainMenuScreen extends Screen {
 		super('mainMenuScreen', { root });
 		this.stack = root;
 		this.store = store;
+		this.maps = maps;
+		this.startFounding = startFounding;
 	}
 
 	/** The save as the menu last read it. */
@@ -174,6 +196,8 @@ export class MainMenuScreen extends Screen {
 
 	protected onUnmount(): void {
 		this.visit += 1;
+		this.founding?.cancel();
+		this.founding = null;
 		this.dialog?.close();
 		this.dialog = null;
 		this.stack.clearChildren();
@@ -329,14 +353,16 @@ export class MainMenuScreen extends Screen {
 		}
 	}
 
-	private showNotice(message: string | null): void {
+	private showNotice(message: string | null, color: ColorToken = 'status_crit'): void {
 		if (!this.notice) return;
 		this.notice.text = message ?? '';
+		this.notice.color = color;
 		this.notice.visible = message !== null;
 	}
 
 	private continueCampaign(): void {
 		if (this.starting || this.saveState.kind !== 'saved') return;
+		this.maps.prepare(this.saveState.campaign);
 		ScreenManager.navigate('compoundScreen', { campaign: this.saveState.campaign });
 	}
 
@@ -405,9 +431,12 @@ export class MainMenuScreen extends Screen {
 	}
 
 	/**
-	 * Founds a campaign on a fresh seed and saves it, ending the campaign in
-	 * progress as abandoned first so it reaches the history (a damaged or
-	 * outdated save is simply replaced), then opens the compound. A failure
+	 * Founds a campaign on a fresh seed, its area map generated in the map
+	 * worker while the line under New Campaign shows how far it's got, and
+	 * saves it, ending the campaign in progress as abandoned first so it
+	 * reaches the history (a damaged or outdated save is simply replaced),
+	 * then keeps the map for the session and opens the compound. Leaving the
+	 * menu before the map is made cancels it, changing nothing. A failure
 	 * stays on the menu and says why, and the save is read again, since the
 	 * old campaign may have ended before it.
 	 */
@@ -416,23 +445,35 @@ export class MainMenuScreen extends Screen {
 		this.starting = true;
 		this.showNotice(null);
 		const visit = this.visit;
+		let founding: FoundingTask | null = null;
 		try {
 			const loader = DriverLoader.getInstance();
 			await loader.loadDrivers();
-			const campaign = foundCampaign({
+			if (visit !== this.visit) return;
+			this.showNotice('Founding the compound.', 'text_dim');
+			founding = this.startFounding({
 				seed: freshSeed(),
 				unlockedArchetypes: loader.getUnlockedDrivers().map((driver) => driver.archetype),
+				onProgress: (progress) => {
+					if (visit === this.visit) this.showNotice(foundingText(progress), 'text_dim');
+				},
 			});
+			this.founding = founding;
+			const { campaign, map } = await founding.result;
 			if (replacing.kind === 'saved') await this.store.end({ campaign: replacing.campaign, ending: 'abandoned' });
 			await this.store.save(campaign);
+			this.maps.remember(campaign, map);
 			if (visit === this.visit) ScreenManager.navigate('compoundScreen', { campaign });
 		} catch (error) {
+			// The player left, which cancelled the founding.
+			if (error instanceof MapGenerationCancelled) return;
 			if (!(error instanceof CampaignStoreError)) console.error('MainMenuScreen: starting a campaign failed', error);
 			if (visit !== this.visit) return;
 			this.showNotice(error instanceof CampaignStoreError ? error.message : "The new campaign couldn't be started.");
 			this.showSave({ kind: 'checking' });
 			void this.readSave();
 		} finally {
+			if (founding !== null && this.founding === founding) this.founding = null;
 			if (visit === this.visit) this.starting = false;
 		}
 	}

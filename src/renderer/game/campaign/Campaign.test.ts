@@ -42,7 +42,8 @@ const DATA_KEYS: Readonly<Record<string, string>> = {
 	'runDecks[].own': '<card type>',
 	'runDecks[].leftHome': '<card type>',
 	'runDecks[].borrowed': '<card type>',
-	'mapParams': '<map parameter>'
+	'mapParams': '<map parameter>',
+	'mapAttempts.stages': '<stage>'
 };
 
 /** Every key path in a JSON value, sorted, with array items as [] and data keys collapsed. */
@@ -71,6 +72,7 @@ const SAVE_FORMAT = {
 		'day', 'drivers', 'drivers[]', 'drivers[].archetype', 'drivers[].defaultDeck', 'drivers[].defaultDeck.<card type>',
 		'drivers[].handLimit', 'drivers[].hitpoints', 'drivers[].id', 'drivers[].injuredDays', 'drivers[].maxHitpoints', 'drivers[].name',
 		'drivers[].runsCompleted', 'drivers[].status', 'drivers[].vehicle', 'drivers[].vehicle.armor', 'drivers[].vehicle.structure', 'end', 'foundOnRun', 'foundOnRun[]', 'generatorVersion', 'locker', 'locker.<card type>', 'log', 'log[]', 'log[].day', 'log[].message', 'map',
+		'mapAttempts', 'mapAttempts.map', 'mapAttempts.stages', 'mapAttempts.stages.<stage>',
 		'mapParams', 'mapParams.<map parameter>', 'nextDriverNumber', 'nextRunNumber', 'resources', 'resources.food', 'resources.fuel', 'resources.meds', 'resources.people',
 		'resources.scrap', 'resources.water', 'runDecks', 'runDecks[]', 'runDecks[].borrowed', 'runDecks[].borrowed.<card type>', 'runDecks[].driver',
 		'runDecks[].escortCards', 'runDecks[].escortCards[]', 'runDecks[].escortCards[].broughtBy', 'runDecks[].escortCards[].cardType',
@@ -726,13 +728,20 @@ describe('Campaign', () => {
 			expect(Object.entries(held).filter(([field, value]) => campaign[field as keyof typeof held] !== value)).toEqual([]);
 		});
 
-		it('keeps the seed, generator version, and map params from founding', () => {
-			const campaign = newCampaign();
+		it('keeps the seed, generator version, map params, and map attempts from founding', () => {
+			const campaign = newCampaign({ mapAttempts: { map: 1, stages: { terrain: 0, water: 2 } } });
 
 			expect(() => campaign.set({ seed: 7 })).toThrow('Campaign.seed is fixed at founding');
 			expect(() => campaign.set({ generatorVersion: 2 })).toThrow('Campaign.generatorVersion is fixed at founding');
 			expect(() => campaign.set({ mapParams: mapParamsFor(SEED) })).toThrow('Campaign.mapParams is fixed at founding');
-			campaign.set({ seed: SEED, generatorVersion: 1, mapParams: campaign.mapParams });
+			expect(() => campaign.set({ mapAttempts: { map: 1, stages: { terrain: 0, water: 2 } } })).toThrow('Campaign.mapAttempts is fixed at founding');
+			expect(() => campaign.set({ mapAttempts: null })).toThrow('Campaign.mapAttempts is fixed at founding');
+			campaign.set({ seed: SEED, generatorVersion: 1, mapParams: campaign.mapParams, mapAttempts: campaign.mapAttempts });
+			expect(campaign.mapAttempts).toEqual({ map: 1, stages: { terrain: 0, water: 2 } });
+			expect(Object.isFrozen(campaign.mapAttempts) && Object.isFrozen(campaign.mapAttempts?.stages)).toBe(true);
+			// A campaign built without a map has none, and keeps none.
+			expect(newCampaign().mapAttempts).toBeNull();
+			expect(reload(newCampaign()).mapAttempts).toBeNull();
 		});
 
 		it('keeps its convoy for good, since a new one would start the escort ids over', () => {
@@ -879,7 +888,7 @@ describe('Campaign', () => {
 				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
 			};
 
-			expect(CAMPAIGN_SCHEMA_VERSION).toBe(6);
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(7);
 			try {
 				expect(format).toEqual(SAVE_FORMAT);
 			} catch (error) {
@@ -896,6 +905,12 @@ describe('Campaign', () => {
 				['map params that aren\'t an object', (save: CampaignJson) => { (save as unknown as Record<string, unknown>).mapParams = null; }, TypeError, 'Campaign.mapParams must be an object, got null'],
 				['map params with no seed', (save: CampaignJson) => { delete (save.mapParams as Partial<MapParams>).seed; }, TypeError, 'Campaign.mapParams.seed is missing'],
 				['a map parameter in a string', (save: CampaignJson) => { (save.mapParams as unknown as Record<string, unknown>).radius = '1000'; }, TypeError, 'Campaign.mapParams.radius must be a number, got "1000"'],
+				['map attempts that aren\'t an object', (save: CampaignJson) => { (save as unknown as Record<string, unknown>).mapAttempts = 'first'; }, TypeError, 'Campaign.mapAttempts must be an object, got "first"'],
+				['map attempts with no map attempt', (save: CampaignJson) => { delete (save.mapAttempts as { map?: number }).map; }, TypeError, 'Campaign.mapAttempts.map is missing'],
+				['a negative map attempt', (save: CampaignJson) => { (save.mapAttempts as { map: number }).map = -1; }, RangeError, 'Campaign.mapAttempts.map must be an integer from 0 to 4294967295, got -1'],
+				['a stage attempt that isn\'t whole', (save: CampaignJson) => { (save.mapAttempts?.stages as Record<string, number>).water = 1.5; }, RangeError, 'Campaign.mapAttempts.stages.water must be an integer from 0 to 4294967295, got 1.5'],
+				['no stage attempts', (save: CampaignJson) => { (save.mapAttempts as { stages: object }).stages = {}; }, RangeError, 'Campaign.mapAttempts.stages must hold every stage\'s attempt, got none'],
+				['a stage name that isn\'t one', (save: CampaignJson) => { (save.mapAttempts?.stages as Record<string, number>)['dressing pass'] = 0; }, RangeError, 'Campaign.mapAttempts.stages has "dressing pass", which isn\'t a stage name'],
 				['an environment that isn\'t a string', (save: CampaignJson) => { (save.mapParams as unknown as Record<string, unknown>).environment = 7; }, TypeError, 'Campaign.mapParams.environment must be a string, got 7'],
 				['stop tables that aren\'t an object', (save: CampaignJson) => { (save.mapParams as unknown as Record<string, unknown>).stopTables = []; }, TypeError, 'Campaign.mapParams.stopTables must be an object, got []'],
 				['a driver with an unknown status', (save: CampaignJson) => { (save.drivers[1] as { status: string }).status = 'sleeping'; }, RangeError, 'Campaign.drivers[1].status must be one of ready, injured, dead, missing, got "sleeping"'],

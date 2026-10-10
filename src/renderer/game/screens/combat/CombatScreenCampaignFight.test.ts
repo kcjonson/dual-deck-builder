@@ -16,7 +16,7 @@ import { CAMPAIGN_START } from '../../campaign/CampaignStart';
 import { NO_CARDS } from '../../campaign/CardCounts';
 import { startCampaignFight } from '../../campaign/CombatBridge';
 import { DriverRecord } from '../../campaign/DriverRecord';
-import { foundCampaign } from '../../campaign/Founding';
+import { foundTestCampaign } from '../../campaign/__fixtures__/mapFixtures';
 
 /**
  * DDB-286: a fight the combat bridge builds from the campaign is the
@@ -80,7 +80,7 @@ afterAll(() => {
 
 describe('CombatScreen: a campaign fight (DDB-286)', () => {
 	it('mounts through prepare, showing the records\' names, the run\'s escorts, and the run\'s cargo rather than the stores', async () => {
-		const campaign = foundCampaign({
+		const campaign = foundTestCampaign({
 			seed: SEED,
 			unlockedArchetypes: ['road_warrior', 'interceptor'],
 			start: { ...CAMPAIGN_START, resources: { ...CAMPAIGN_START.resources, scrap: 150, fuel: 10 }, escorts: ['outrider'] }

@@ -12,7 +12,7 @@ import { CampaignFight, FailedRun, RunParty, startCampaignFight, writeBackFight 
 import { COMPOUND_RULES, CompoundRules } from './CompoundRules';
 import { endDay } from './DayClock';
 import { DriverRecord } from './DriverRecord';
-import { foundCampaign } from './Founding';
+import { foundTestCampaign } from './__fixtures__/mapFixtures';
 import { getTreatmentBlocker, injureOnArrival, treatDriver } from './Infirmary';
 import { setOpenFight } from './OpenFights';
 import { RunDeck } from './RunDeck';
@@ -739,7 +739,7 @@ describe('a seeded walk to the fall', () => {
 	 */
 	async function walk(seed: number) {
 		const rng = new Rng({ seed }).fork('walk');
-		const campaign = foundCampaign({ seed, unlockedArchetypes: ARCHETYPES });
+		const campaign = foundTestCampaign({ seed, unlockedArchetypes: ARCHETYPES });
 		const storage = new MemorySaveStorage();
 		const store = storeOver(storage);
 		await store.save(campaign);

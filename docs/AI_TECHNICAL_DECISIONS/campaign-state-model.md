@@ -80,7 +80,7 @@ Card types are checked for shape (lower snake case), not against `cards.json`, s
 - Every object must be a plain object with exactly its fields. Missing and unknown fields both throw, as map presets do, so a renamed field can't vanish quietly; map params are the one exception (below). An object made on another, whose values it would inherit, isn't a plain object, nor is a class instance; another realm's plain object is (`isPlainObject` in `core/Json.ts`, which `copyJson` uses as well), and what the readers keep of it, arrays included, is built in this realm.
 - Every array must hold a value at every index. JSON never makes a hole, but a `set` could pass one, and `map` and `forEach` would skip it unchecked.
 - Errors name where: `Campaign.drivers[1].status must be one of ready, injured, dead, missing, got "sleeping"`. A `ReaderTypeError` for the wrong kind of value, a `ReaderRangeError` for a value out of range: still a TypeError and a RangeError, but classes of their own, so a load can tell a damaged save from a bug in the code reading it, and log the bug (it still treats the save as damaged).
-- `campaign/__fixtures__/campaign-v6.json` is a campaign at the current format, with a run out, which loads and writes back the same, and tests take it through `storeFixtures.ts` as `CAMPAIGN_FIXTURE`. When the format changes, the fixture changes with it and the version goes up.
+- `campaign/__fixtures__/campaign-v7.json` is a campaign at the current format, with a run out, which loads and writes back the same, and tests take it through `storeFixtures.ts` as `CAMPAIGN_FIXTURE`. When the format changes, the fixture changes with it and the version goes up.
 
 Loading leniently, as `GameSettings` does (defaults for what's missing, unknown keys ignored), was rejected for saves: a damaged campaign would load as a different campaign.
 
@@ -125,16 +125,18 @@ Each repair, and each value kept outside today's ranges, is a warning worded wit
 
 `MapParams` became a `type` rather than an `interface`, a one-word change in the map module, so it fits `JsonObject` and copies like any other JSON. `JsonValue` and `JsonObject` live in `core/Json.ts`, and `StopTables` is a `JsonObject`, so the map and campaign modules share one JSON type.
 
-## Map state is a stand-in
+## Map state is a stand-in; the map's attempts aren't
 
-Map state (DDB-275) is opaque JSON, copied and frozen, and nested at most 100 levels, until the map defines it. `strongholdsTaken` holds ids as strings until the map defines its ids.
+What's changed on the map since founding (DDB-275), `map`, is opaque JSON, copied and frozen, and nested at most 100 levels, until stops and POIs define it. `strongholdsTaken` holds ids as strings until the map defines its ids.
+
+The map itself isn't saved yet (DDB-436). The campaign keeps what makes it again: `mapAttempts`, the map attempt and each stage's winning attempt, fixed at founding with the seed, the generator version, and the params, and null for a campaign built without a map ([campaign-save-and-load.md](./campaign-save-and-load.md), The area map).
 
 The log is `{ day, message }` lines, dated by `addLogEntry` with the current day, in day order, none after today. Plain text for now; campaign history may want structured entries later, which is a schema bump.
 
 ## Consequences
 
 - Saving (DDB-49, [campaign-save-and-load.md](./campaign-save-and-load.md)) writes `campaign.toSaveText()` at checkpoints, stamped with the save format version, and loads with `Campaign.fromJSON(json, { onWarning })`; a reader error means the save can't be loaded (or, from `toSaveText`, written), and warnings mean it loaded with its map params repaired.
-- Founding (DDB-284) builds `new Campaign({ seed, generatorVersion, mapParams, map, resources })` with params it has validated, and calls `recruitDriver` for each starting driver.
+- Founding (DDB-284) builds `new Campaign({ seed, generatorVersion, mapParams, map, mapAttempts, resources })` with params it has validated and the attempts of the map it generated on them, and calls `recruitDriver` for each starting driver.
 - The combat bridge (DDB-286, [combat-bridge.md](./combat-bridge.md)) builds combat drivers from records and writes each back after every fight in one `set`: their HP and their vehicle's structure and armor. Status only changes when a fight fails the run: dead (0 HP and an empty deck) or missing. Injured days are set when a run comes home, and a missing driver found on a run (`Campaign.findMissingDriver`) comes back when it gets home ([campaign-end.md](./campaign-end.md)).
 - Every change to the format bumps `CAMPAIGN_SCHEMA_VERSION`, which invalidates every existing save of a build, since there are no migrations; the fixture changes with it.
 - A checked `set` can still replace a whole deck or the locker, which makes or destroys copies; `moveCards` is the path that conserves them.

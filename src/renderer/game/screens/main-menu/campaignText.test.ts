@@ -1,6 +1,6 @@
 import { Campaign } from '../../campaign/Campaign';
 import { fixtureText, lostCampaign, newCampaign } from '../../campaign/__fixtures__/storeFixtures';
-import { campaignSummary, countOf, driversAtCompound, historyColumns } from './campaignText';
+import { campaignSummary, countOf, driversAtCompound, foundingText, historyColumns, mapProgressText } from './campaignText';
 
 describe('campaignText', () => {
 	it("summarises a campaign as Continue shows it, leaving out the dead and the missing", () => {
@@ -28,5 +28,13 @@ describe('campaignText', () => {
 			seed: 'Seed 20261006',
 		});
 		expect(historyColumns({ seed: 7, day: 40, strongholdsTaken: 1, ending: 'abandoned' }).days).toBe('40 days');
+	});
+
+	it('says how far a map has got, by stage, with the try once founding has moved past a seed', () => {
+		const at = { stage: 'routeTree', index: 4, count: 6, attempt: 2, mapAttempt: 1, seed: 9 };
+		expect(mapProgressText(at)).toBe('Making the area map: route tree (5 of 6)');
+		expect(mapProgressText({ ...at, stage: 'terrain', index: 0 })).toBe('Making the area map: terrain (1 of 6)');
+		expect(foundingText({ ...at, stage: 'water', index: 1, seedAttempt: 0 } as Parameters<typeof foundingText>[0])).toBe('Making the area map: water (2 of 6)');
+		expect(foundingText({ ...at, stage: 'water', index: 1, seedAttempt: 2 } as Parameters<typeof foundingText>[0])).toBe('Making the area map: water (2 of 6), try 3');
 	});
 });

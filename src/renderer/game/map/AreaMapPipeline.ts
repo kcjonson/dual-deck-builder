@@ -1,6 +1,6 @@
 import { HighwayDeparture, planHighways } from './Highways';
 import type { MapParams } from './MapParams';
-import { AcceptHook, MapPipeline, MapStage, PipelineResult, StageAttempt } from './MapPipeline';
+import { AcceptHook, MapPipeline, MapStage, PipelineReplay, PipelineResult, StageAttempt } from './MapPipeline';
 import { checkRoadNetwork } from './RoadChecks';
 import { GROWTH_TUNING, GrowthTuning, RoadGrowth, growRoads } from './RoadGrowth';
 import { Terrain, generateTerrain } from './Terrain';
@@ -13,6 +13,15 @@ import { Water, generateWater } from './Water';
  * draws from root.fork('map', m).fork('terrain', t).fork('water', w), the
  * highways one level further down, and growth one more.
  */
+
+/**
+ * The generator version a campaign records with its map. 1 was the stand-in
+ * campaigns were founded on before the generator existed. A change that
+ * makes another map from the same seed, params, and attempts, or adds,
+ * removes, or renames a stage, bumps it, and a campaign recorded at another
+ * version isn't regenerated (map-pipeline-worker.md, The founding contract).
+ */
+export const AREA_MAP_GENERATOR_VERSION = 2;
 
 export interface AreaMapProducts {
 	/** The land, without water. */
@@ -81,6 +90,8 @@ export interface AreaMapOptions {
 	readonly onProgress?: (stage: StageAttempt<AreaMapStageName>) => void;
 	/** `__DEV_TOOLS__` when left out. */
 	readonly debug?: boolean;
+	/** Make again the map a run on these params made, from its map attempt and stage attempts, unchecked. */
+	readonly replay?: PipelineReplay;
 }
 
 /**
@@ -88,6 +99,6 @@ export interface AreaMapOptions {
  * worker runs this. Throws a MapPipelineError when every map attempt on the
  * seed fails; founding answers that with the next seed (map-pipeline-worker.md).
  */
-export function generateAreaMap({ params, growth, accept, onProgress, debug }: AreaMapOptions): AreaMapGeneration {
-	return { ...areaMapPipeline({ growth }).run({ seed: params.seed, input: params, accept, onProgress, debug }), params };
+export function generateAreaMap({ params, growth, accept, onProgress, debug, replay }: AreaMapOptions): AreaMapGeneration {
+	return { ...areaMapPipeline({ growth }).run({ seed: params.seed, input: params, accept, onProgress, debug, replay }), params };
 }

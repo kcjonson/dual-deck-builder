@@ -13,6 +13,8 @@ import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
 import { tokens } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
+import { CampaignFounding, FoundingGeneration, StartGeneration } from '../../campaign/CampaignFounding';
+import { CampaignMapGeneration, CampaignMaps } from '../../campaign/CampaignMaps';
 import { CampaignStoreError } from '../../campaign/CampaignStore';
 import type { CampaignStore, SaveStatus } from '../../campaign/CampaignStore';
 import { MemorySaveStorage } from '../../campaign/SaveStorage';
@@ -30,6 +32,9 @@ import {
 	HeldStorage,
 	storeOver,
 } from '../../campaign/__fixtures__/storeFixtures';
+import { stubGeneration, stubResult } from '../../campaign/__fixtures__/mapFixtures';
+import type { AreaMapGeneration } from '../../map/AreaMapPipeline';
+import type { MapGenerationOptions } from '../../map/worker/MapGeneration';
 import { MainMenuScreen } from './MainMenuScreen';
 
 jest.mock('../../core/ScreenManager', () => ({
@@ -51,6 +56,11 @@ describe('MainMenuScreen', () => {
 	let screen: MainMenuScreen;
 	let store: CampaignStore;
 	let storage: FaultyStorage | MemorySaveStorage;
+	/** Founding's generations, stubbed unless a test holds them. */
+	let generate: StartGeneration;
+	/** The session's map cache, and the regenerations it asked for. */
+	let maps: CampaignMaps;
+	let regenerations: Pick<MapGenerationOptions, 'params' | 'replay'>[];
 
 	beforeAll(() => {
 		jest.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -64,7 +74,7 @@ describe('MainMenuScreen', () => {
 	async function open(over: FaultyStorage | MemorySaveStorage = new MemorySaveStorage()): Promise<void> {
 		storage = over;
 		store = storeOver(storage);
-		screen = new MainMenuScreen({ store });
+		screen = new MainMenuScreen({ store, maps, startFounding: (options) => new CampaignFounding({ ...options, generate: (each) => generate(each) }) });
 		screen.mount(context);
 		await screen.saveChecked;
 		context.frame.layout();
@@ -115,6 +125,14 @@ describe('MainMenuScreen', () => {
 
 	beforeEach(() => {
 		navigate.mockClear();
+		generate = stubGeneration;
+		regenerations = [];
+		maps = new CampaignMaps({
+			generate: ({ params, replay }): CampaignMapGeneration => {
+				regenerations.push({ params, replay });
+				return { result: new Promise<AreaMapGeneration>(() => undefined), cancel: () => undefined };
+			},
+		});
 		viewport.logical = { width: 1280, height: 720 };
 		context = createTestContext({ viewport, clock: new Clock() });
 	});
@@ -145,6 +163,59 @@ describe('MainMenuScreen', () => {
 			expect(await store.checkpoint(campaign)).toBe('saved');
 			expect((await store.load())?.seed).toBe(campaign.seed);
 			expect(await store.history()).toEqual([]);
+			// The map founding made is the session's, so nothing makes it again.
+			expect(await maps.mapOf(campaign)).toEqual(stubResult(campaign.mapParams));
+			expect(regenerations).toEqual([]);
+		});
+
+		it('shows how far the map has got under New Campaign while founding, then opens the compound', async () => {
+			const held: { options?: Parameters<StartGeneration>[0]; finish: () => void } = { finish: () => undefined };
+			generate = (options): FoundingGeneration => {
+				const result = new Promise<ReturnType<typeof stubResult>>((resolve) => {
+					held.finish = () => resolve(stubResult(options.params));
+				});
+				held.options = options;
+				return { result, cancel: () => undefined };
+			};
+			send(context, [key('Enter')]);
+			await flush();
+			const notice = find<Text>('main_menu_notice');
+			expect(notice.visible).toBe(true);
+			expect(notice.text).toBe('Founding the compound.');
+			const options = held.options as Parameters<StartGeneration>[0];
+			options.onProgress?.({ stage: 'highways', index: 2, count: 4, attempt: 0, mapAttempt: 0, seed: options.params.seed });
+			expect(notice.text).toBe('Making the area map: highways (3 of 4)');
+			// New Campaign again does nothing while one is being founded.
+			send(context, [key('Enter')]);
+			held.finish();
+			await flush();
+			expect(navigate.mock.calls.filter(([name]) => name === 'compoundScreen')).toHaveLength(1);
+			expect(openedCampaign().seed).toBe(options.params.seed);
+		});
+
+		it('cancels the founding when the player leaves the menu, saving and opening nothing', async () => {
+			const cancel = jest.fn();
+			let started = (): void => undefined;
+			const starting = new Promise<void>((resolve) => {
+				started = resolve;
+			});
+			generate = (options): FoundingGeneration => {
+				started();
+				const generation = stubGeneration(options);
+				return { result: generation.result, cancel: () => { cancel(); generation.cancel(); } };
+			};
+			const errors = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+			send(context, [key('Enter')]);
+			await starting;
+			screen.unmount();
+			await flush();
+			expect(cancel).toHaveBeenCalledTimes(1);
+			expect(await store.saveStatus()).toBe('none');
+			expect(navigate).not.toHaveBeenCalledWith('compoundScreen', expect.anything());
+			expect(errors).not.toHaveBeenCalled();
+			errors.mockRestore();
+			screen.mount(context);
+			await screen.saveChecked;
 		});
 
 		it('moves through the enabled buttons with the arrows, wrapping, past the disabled Continue', () => {
@@ -205,6 +276,12 @@ describe('MainMenuScreen', () => {
 			const loaded = screen.save;
 			expect(loaded.kind === 'saved' && loaded.campaign).toBe(campaign);
 			expect(await store.checkpoint(campaign)).toBe('saved');
+		});
+
+		it('starts making the campaign\'s map again as it continues, from the attempts the save kept', () => {
+			clickOn('main_menu_continue_button');
+			const campaign = openedCampaign();
+			expect(regenerations).toEqual([{ params: campaign.mapParams, replay: { mapAttempt: campaign.mapAttempts?.map, attempts: campaign.mapAttempts?.stages } }]);
 		});
 
 		it('asks before abandoning it, and Cancel or Escape keeps it, focus back on New Campaign', async () => {
