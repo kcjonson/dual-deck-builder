@@ -636,6 +636,7 @@ describe('CrewScreen', () => {
 			const driver = new DriverRecord({ id: 'driver-9', archetype: 'road_warrior', name: 'Road Warrior 9' });
 			const runDeck = { driver } as unknown as RunDeck;
 			const blockers: Record<CardBlocker['reason'], CardBlocker[]> = {
+				campaign_over: [{ reason: 'campaign_over', end: { ending: 'disbanded', cause: 'last_driver' } }],
 				driver_away: (['dead', 'missing'] as const).map((status) => ({ reason: 'driver_away', place: new DriverRecord({ id: 'driver-8', archetype: 'raider', name: 'Raider 8', status, hitpoints: status === 'dead' ? 0 : 10, defaultDeck: {} }) })),
 				on_run: [{ reason: 'on_run', place: driver }],
 				too_few: [{ reason: 'too_few', place: 'locker', held: 0 }],

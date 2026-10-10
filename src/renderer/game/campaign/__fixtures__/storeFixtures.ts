@@ -3,7 +3,7 @@ import { CAMPAIGN_SCHEMA_VERSION, Campaign } from '../Campaign';
 import { CampaignStore, CampaignStoreError, campaignKeys } from '../CampaignStore';
 import { MemorySaveStorage, SaveStorage } from '../SaveStorage';
 import cardsFile from '../../data/cards.json';
-import campaignFixture from './campaign-v5.json';
+import campaignFixture from './campaign-v6.json';
 
 export const SEED = 20261006;
 

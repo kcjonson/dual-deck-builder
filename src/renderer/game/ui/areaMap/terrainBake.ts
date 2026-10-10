@@ -1,4 +1,5 @@
 import { BIOMES, classifyBiome } from '../../map/Biome';
+import { landGridFor } from '../../map/LandGrid';
 import { CLIFF_GRADE, RELIEF, TerrainSample, WaterLayer, createTerrainSample } from '../../map/Terrain';
 import type { Hotspot } from '../../map/TerrainSites';
 import { BIOME_COLOURS, HILL_SHADE, OBSTACLE_COLOURS, RUIN_SHADE } from './areaMapStyle';
@@ -10,14 +11,16 @@ import { BIOME_COLOURS, HILL_SHADE, OBSTACLE_COLOURS, RUIN_SHADE } from './areaM
  * generated or loaded). No GL here, so it runs and is tested in Node.
  *
  * The texture covers the disc's bounding square, row 0 at the north edge.
- * A full terrain sample costs about 600 ns and a slope about 400
- * (terrain-fields.md), so the bake reads the land on two lattices coarser
+ * A full terrain sample costs about 450 ns and a slope about 140
+ * (terrain-erosion.md), so the bake reads the land on three lattices coarser
  * than the texels and interpolates between their nodes:
  *
- * - the fields biomes are read from, and hill shade, every `colourStep`
- *   texels, where the land changes slowly. Each texel classifies its own
- *   biome from the fields interpolated there, so a biome's edge is a
- *   curve through the lattice rather than a staircase of its cells;
+ * - the fields biomes are read from, and the ruins' shade, every
+ *   `colourStep` texels, where they change slowly. Each texel classifies
+ *   its own biome from the fields interpolated there, so a biome's edge is
+ *   a curve through the lattice rather than a staircase of its cells;
+ * - hill shade from the slope about every half land cell, the finest the
+ *   land's hills come: a coarser lattice draws the grid's cells as blocks;
  * - the slope every `CLIFF_STEP` texels, and only around rough country,
  *   the one place a cliff can stand. A texel in rough country is a cliff
  *   where the interpolated slope reaches the cliff grade, which draws the
@@ -93,10 +96,11 @@ class TerrainBaker {
 	private readonly nodes: number;
 	private readonly fields: Float32Array;
 	private readonly biomes: Uint8Array;
+	private readonly shades: ShadeLattice;
 	private readonly slopes: SlopeLattice;
 	private readonly outerSquared: number;
 	private readonly innerSquared: number;
-	private readonly land = { elevation: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0 };
+	private readonly land = { lowland: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0 };
 
 	constructor({ terrain, size, step }: { terrain: BakeTerrain; size: number; step: number }) {
 		this.terrain = terrain;
@@ -108,6 +112,7 @@ class TerrainBaker {
 		const { fields, biomes } = fieldLattice(terrain, size, step);
 		this.fields = fields;
 		this.biomes = biomes;
+		this.shades = new ShadeLattice({ terrain, size });
 		this.slopes = new SlopeLattice({ terrain, size });
 		this.texels = new Uint8Array(size * size * 4);
 		const radius = this.radius;
@@ -117,12 +122,17 @@ class TerrainBaker {
 	}
 
 	public row(row: number): void {
-		const { radius, texel, step, nodes, fields, biomes, texels, outerSquared, innerSquared, terrain } = this;
+		const { radius, texel, step, nodes, fields, biomes, texels, outerSquared, innerSquared, terrain, shades } = this;
 		const craters = terrain.hotspots;
 		const water = terrain.water;
 		const worldY = radius - (row + 0.5) * texel;
 		const latticeRow = Math.min(nodes - 2, Math.floor(row / step));
 		const fy = row / step - latticeRow;
+		const shadeStep = shades.step;
+		const shadeNodes = shades.nodes;
+		const lights = shades.values;
+		const shadeRow = Math.min(shadeNodes - 2, Math.floor(row / shadeStep));
+		const shadeFy = row / shadeStep - shadeRow;
 		// The disc's span of this row, so nothing past the rim is visited.
 		const halfChord = Math.sqrt(Math.max(0, outerSquared - worldY * worldY));
 		const first = Math.max(0, Math.floor((radius - halfChord) / texel - 0.5));
@@ -142,7 +152,10 @@ class TerrainBaker {
 			const node = latticeRow * nodes + latticeColumn;
 			const at = node * FIELDS;
 			const below = at + nodes * FIELDS;
-			const shade = bilinear(fields[at + 6], fields[at + FIELDS + 6], fields[below + 6], fields[below + FIELDS + 6], fx, fy);
+			const shadeColumn = Math.min(shadeNodes - 2, Math.floor(column / shadeStep));
+			const shadeNode = shadeRow * shadeNodes + shadeColumn;
+			const light = bilinear(lights[shadeNode], lights[shadeNode + 1], lights[shadeNode + shadeNodes], lights[shadeNode + shadeNodes + 1], column / shadeStep - shadeColumn, shadeFy);
+			const shade = light * bilinear(fields[at + 6], fields[at + FIELDS + 6], fields[below + 6], fields[below + FIELDS + 6], fx, fy);
 			// Inside one biome's nodes the texel is that biome. Where they
 			// differ, the biome is read off the fields interpolated at the
 			// texel, so the edge is a curve through the lattice rather than
@@ -190,7 +203,7 @@ class TerrainBaker {
 	/** The biome, as an index into `BIOMES`, at (fx, fy) in the lattice cell whose top-left node's fields start at `at`. */
 	private classify(at: number, below: number, fx: number, fy: number): number {
 		const { fields, land } = this;
-		land.elevation = bilinear(fields[at], fields[at + FIELDS], fields[below], fields[below + FIELDS], fx, fy);
+		land.lowland = bilinear(fields[at], fields[at + FIELDS], fields[below], fields[below + FIELDS], fx, fy);
 		land.moisture = bilinear(fields[at + 1], fields[at + FIELDS + 1], fields[below + 1], fields[below + FIELDS + 1], fx, fy);
 		land.contamination = bilinear(fields[at + 2], fields[at + FIELDS + 2], fields[below + 2], fields[below + FIELDS + 2], fx, fy);
 		land.mountains = bilinear(fields[at + 3], fields[at + FIELDS + 3], fields[below + 3], fields[below + FIELDS + 3], fx, fy);
@@ -205,13 +218,13 @@ function latticeNodes(size: number, step: number): number {
 	return Math.ceil((size - 1) / step) + 2;
 }
 
-/** What a field lattice node holds: the six fields biomes are read from, then the shade. */
+/** What a field lattice node holds: the six fields biomes are read from, then the ruins' shade. */
 const FIELDS = 7;
 
 /**
- * Per node, at every `step`th texel centre: elevation, moisture,
- * contamination, mountains, canyons, badlands, and the shade (hill shading
- * from the slope, darkened in ruins). Nodes far enough past the rim that no
+ * Per node, at every `step`th texel centre: low ground, moisture,
+ * contamination, mountains, canyons, badlands, and how much ruins darken
+ * the hill shade. Nodes far enough past the rim that no
  * texel inside the disc reads them are skipped; the fields are defined past
  * the rim, so a node just outside is real land.
  */
@@ -231,19 +244,52 @@ function fieldLattice(terrain: BakeTerrain, size: number, step: number): { field
 			const worldX = -radius + (column * step + 0.5) * texel;
 			if (worldX * worldX + worldY * worldY > reachSquared) continue;
 			terrain.sample(worldX, worldY, sample);
-			const light = Math.max(HILL_SHADE.min, Math.min(HILL_SHADE.max, 1 + (sample.slopeY - sample.slopeX) * HILL_SHADE.gain));
 			const at = (row * nodes + column) * FIELDS;
-			values[at] = sample.elevation;
+			values[at] = sample.lowland;
 			values[at + 1] = sample.moisture;
 			values[at + 2] = sample.contamination;
 			values[at + 3] = sample.mountains;
 			values[at + 4] = sample.canyons;
 			values[at + 5] = sample.badlands;
-			values[at + 6] = light * (1 - RUIN_SHADE * smooth(sample.ruin));
+			values[at + 6] = 1 - RUIN_SHADE * smooth(sample.ruin);
 			biomes[row * nodes + column] = BIOME_INDEX[sample.biome];
 		}
 	}
 	return { fields: values, biomes };
+}
+
+/**
+ * Hill shade from the slope about every half land cell, every node the bake
+ * reads: a slope costs a third of a full sample, so this lattice can be
+ * finer than the fields'. Lit from the north-west, like the rest of the map.
+ */
+class ShadeLattice {
+	public readonly step: number;
+	public readonly nodes: number;
+	public readonly values: Float32Array;
+
+	constructor({ terrain, size }: { terrain: BakeTerrain; size: number }) {
+		const radius = terrain.radius;
+		const texel = (radius * 2) / size;
+		const step = Math.max(1, Math.ceil(landGridFor(radius).cellSize / 2 / texel));
+		const nodes = latticeNodes(size, step);
+		const values = new Float32Array(nodes * nodes);
+		const slope = { x: 0, y: 0 };
+		const reach = radius + texel * (step * 1.5 + 1);
+		const reachSquared = reach * reach;
+		for (let row = 0; row < nodes; row++) {
+			const worldY = radius - (row * step + 0.5) * texel;
+			for (let column = 0; column < nodes; column++) {
+				const worldX = -radius + (column * step + 0.5) * texel;
+				if (worldX * worldX + worldY * worldY > reachSquared) continue;
+				terrain.slope(worldX, worldY, slope);
+				values[row * nodes + column] = Math.max(HILL_SHADE.min, Math.min(HILL_SHADE.max, 1 + (slope.y - slope.x) * HILL_SHADE.gain));
+			}
+		}
+		this.step = step;
+		this.nodes = nodes;
+		this.values = values;
+	}
 }
 
 /**

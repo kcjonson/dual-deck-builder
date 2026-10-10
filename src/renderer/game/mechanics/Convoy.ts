@@ -1,3 +1,4 @@
+import { refuseIfClosed } from '../core/ClosedModels';
 import { Model } from '../core/Model';
 import { Driver } from './Driver';
 import { EscortDividend, EscortProfile } from './Escort';
@@ -104,11 +105,13 @@ export class Convoy extends Model<ConvoyData> {
 	 * escort would join (`add` is the way in, with an id), escorts would
 	 * change places or be listed twice, or the counter would go back and hand
 	 * out an id again or stop being a whole number from 1. Nothing changes
-	 * while an escort is being given its id.
+	 * while an escort is being given its id, or once whatever owns the convoy
+	 * has closed it (a campaign that's over).
 	 */
 	public override set(changes: Partial<ConvoyData>): void {
 		// Model's constructor sets the first state, which the convoy's constructor has checked
 		const constructing = this.escorts === undefined;
+		if (!constructing) refuseIfClosed({ model: this, action: 'change the convoy' });
 		if (joining.has(this)) throw new Error("The convoy can't change while an escort is joining it");
 		const counter = changes.nextEscortNumber;
 		if (counter !== undefined) {
@@ -132,9 +135,11 @@ export class Convoy extends Model<ConvoyData> {
 	 * A newly acquired escort joins the end of the roster, with the next id.
 	 * The escort's listeners hear the id before it's in the convoy, so the
 	 * convoy refuses every change, another add included, until it's in;
-	 * the convoy's own listeners hear it once it's whole.
+	 * the convoy's own listeners hear it once it's whole. A closed convoy
+	 * takes nobody.
 	 */
 	public add(escort: Vehicle): void {
+		refuseIfClosed({ model: this, action: 'add an escort to the convoy' });
 		if (joining.has(this)) throw new Error(`Can't add ${escort.name} while another escort is joining the convoy`);
 		Convoy.assertConvoyEscort(escort);
 		if (this.escorts.includes(escort)) {

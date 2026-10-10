@@ -1,23 +1,30 @@
 import { Rng } from '../core/Rng';
 import { BIOME_COSTS, Biome, BiomeFields, classifyBiome } from './Biome';
+import { LandSurface, RELIEF, generateLand, moistureLevel, startRadii, terraceHeight, terraceLift, terracePull, terraceSlope } from './Land';
+import { GridSampler, cellCentre, landGridFor } from './LandGrid';
+import { clamp01, lerp, quantileAbove, smooth01, smoothSlope } from './MapMath';
 import { MapParams } from './MapParams';
 import { SimplexNoise } from './Noise';
 import { Hotspot, MAX_CRATER_RADIUS, Ruin, placeHotspots, placeTowns } from './TerrainSites';
 
 /**
  * Stage 1 of area map generation, terrain (Area Map Generation, Pipeline,
- * 1. Terrain): continuous fields over the disc, the biomes read off them,
- * the metro and towns, hotspots, what's impassable, and what it costs to
- * travel. Everything is a pure function of (x, y) in world units, the
- * compound at the origin, so later stages and the renderer sample it at
- * whatever resolution they need. Building one precomputes the per-map parts
- * (noise permutations, calibrated thresholds, hotspots, towns); sampling
- * allocates nothing.
+ * 1. Terrain): the eroded land (Land.ts) read as fields over the disc, the
+ * biomes read off them, the metro and towns, hotspots, what's impassable,
+ * and what it costs to travel. Every query is a function of (x, y) in world
+ * units, the compound at the origin, so later stages and the renderer
+ * sample it at whatever resolution they need. Building one erodes the land
+ * and precomputes the rest of the per-map parts (noise permutations,
+ * calibrated thresholds, hotspots, towns); sampling allocates nothing.
  *
- * Elevation carries its exact gradient, worked through every term from the
- * noise's own derivatives, so slope costs no extra samples. Starting values
- * throughout are for the Map Lab to tune; the field model and its numbers are
- * in docs/AI_TECHNICAL_DECISIONS/terrain-fields.md.
+ * Elevation is the eroded grid sampled bicubic, plus a little fine noise in
+ * range country for the picture, and carries its exact gradient, so slope
+ * costs no extra samples. Moisture, contamination, hotspots, rough country,
+ * and cost are the water and hazards stages' to rework (DDB-289); they're
+ * kept here, adapted to the new land, so the stages after keep working.
+ * Starting values throughout are for the Map Lab to tune; the land's are in
+ * docs/AI_TECHNICAL_DECISIONS/terrain-erosion.md and the rest in
+ * terrain-fields.md.
  */
 
 /** Why ground is impassable. Water comes from the water stage, through `withWater`. */
@@ -25,7 +32,7 @@ export type Obstacle = 'crater' | 'cliff' | 'water';
 
 /**
  * Rivers and lakes, from the water stage, which traces them over this
- * terrain's elevation and hands them back through `Terrain.withWater`. One
+ * terrain's drainage and hands them back through `Terrain.withWater`. One
  * question for now; the water stage widens it to tell lakes from rivers and
  * give a river's flow, which square-on bridge crossings need.
  */
@@ -37,6 +44,7 @@ export interface WaterLayer {
 /** Everything about one point; `Terrain.sample` fills one in, so a caller can reuse it. */
 export interface TerrainSample extends BiomeFields {
 	elevation: number;
+	lowland: number;
 	moisture: number;
 	contamination: number;
 	mountains: number;
@@ -58,7 +66,7 @@ export interface TerrainSample extends BiomeFields {
 
 export function createTerrainSample(): TerrainSample {
 	return {
-		elevation: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0,
+		elevation: 0, lowland: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0,
 		slopeX: 0, slopeY: 0, grade: 0, ruin: 0, biome: 'scrub', obstacle: null, cost: 0,
 	};
 }
@@ -72,139 +80,90 @@ export interface TerrainOptions {
 
 /** Stage 1: the terrain for validated params, from the `terrain` stream. */
 export function generateTerrain({ params, rng }: TerrainOptions): Terrain {
-	return new Terrain({ fields: new TerrainFields({ params, rng }) });
+	return terrainFromSurface({ params, rng, surface: generateLand({ params, rng }) });
 }
 
 /**
- * How wet the land runs on average, 0 to 1, from `aridity`. The spec defines
- * aridity as "dry desert to wet ground and mire" over 0 to 1, which this
- * follows as written; whether to rename it or flip it is open (DDB-405), and
- * either is a change here alone.
+ * The terrain over land already grown for these params and this stream, by
+ * `generateLand` here or in a worker: everything but the erosion, which is
+ * most of the time. The surface has to be the land those params grow, on
+ * their grid; the rest of the terrain is rebuilt from the stream.
  */
-export function moistureLevel(aridity: number): number {
-	return aridity;
+export function terrainFromSurface({ params, rng, surface }: TerrainFieldsOptions): Terrain {
+	return new Terrain({ fields: new TerrainFields({ params, rng, surface }) });
 }
 
-// Feature sizes are world units, not shares of the radius, so a bigger map
-// has more of everything rather than bigger mountains, and roads, which step
-// and keep clear in world units too, meet the same terrain on any map. A
-// wavelength is roughly the size of one hill or patch; each octave of a
-// fractal layer halves it.
-
-/** Vertical scale for slopes: elevation 1 stands this many world units high. */
-export const RELIEF = 150;
+export { RELIEF };
 /** Rise over run at which ground in rough country is a cliff, impassable. */
 export const CLIFF_GRADE = 1;
 /** Travel cost added at the cliff grade, rising with the square of the grade. */
 export const SLOPE_COST = 3;
 
-/** Plains: rolling ground under everything. */
-const BASE = { wavelength: 900, octaves: 3, gain: 0.45, level: 0.42, relief: 0.18 };
-/** Mountain ranges: where they stand, and how they're ridged. */
-const MOUNTAINS = {
-	/** Ranges follow the zero lines of a broad layer... */
-	rangeWavelength: 1300,
-	/** ...broken into stretches by a finer one, weighted this much. */
-	breakWavelength: 520, breakWeight: 0.25,
-	/** The mask goes from none to full over 1 / this around the calibrated threshold. */
-	maskSharpness: 4,
-	ridgeWavelength: 300, ridgeOctaves: 3,
-	/** The land a range stands on is this much higher than the plains around it. */
-	lift: 0.06,
-	/** Ridge height in rough country, at ruggedness 0 and 1. */
-	height: { min: 0.2, max: 0.4 },
-	/** Ridge octave gain, at ruggedness 0 and 1: rough ranges keep more fine detail. */
-	gain: { min: 0.45, max: 0.62 },
-};
+/** Fine relief in range country, for the picture: as much as this, times the range mask. */
+const DETAIL = { wavelength: 60, octaves: 3, gain: 0.5, amplitude: 0.006 };
 const MOISTURE = {
 	wavelength: 650, octaves: 2, gain: 0.5,
 	/** How far moisture strays from the map's level. */
 	spread: 0.55,
-	/** Moisture gained per unit of elevation below the plains' level, lost above it. */
+	/** Moisture gained per unit of elevation below the map's lowland level, lost above it. */
 	lowland: 0.5,
 };
-/** Canyons: the zero lines of a noise layer, cut into dry country. */
-const CANYONS = {
-	wavelength: 520, octaves: 2, gain: 0.4,
-	/** The map's dryness (1 - its moisture level) where canyons begin, and over how much more they reach full strength. */
-	dryness: 0.35, drynessRange: 0.4,
-	/** Strength at ruggedness 0 and 1, which sets width as well as depth. */
-	strength: { min: 0.35, max: 1 },
-	/** Half-width in canyon noise at strength 1. A canyon only the map's dryness makes faint is as wide, just shallower. */
-	halfWidth: 0.15,
-	/** Depth at full strength, in rough country. */
-	depth: 0.2,
-	/** The share of the half-width that's flat floor. */
-	floor: 0.35,
-	/** The share of the wall at each end over which its slope eases in and out; between, it rises at one grade. */
-	wallEase: 0.2,
-	/** Canyons fade out where a finer sample of their layer dips, leaving crossings. */
-	gapWavelength: 420, gapLevel: 0.3, gapSharpness: 3,
-};
 /**
- * Rough country: the only ground where a cliff can stand, and where
- * mountains, canyons, and badlands rise to their full height. Elsewhere they
- * keep `floor` of it, and steep ground is only costly. Ruggedness sets rough
- * country's share of the land past the metro's surroundings, kept well under
- * half so it breaks into islands and the land between connects across the
- * map. It's decided per cell of a `cell`-unit lattice, so a flood fill over
- * the cells that aren't rough is exact: no cliff stands in any of them.
+ * Low ground, a stand-in until the water stage reads wet lowland off its
+ * rivers: the map's lowland level is the elevation `share` of the land
+ * outside the ranges, past the relief radius and inside the disc, lies
+ * under, and `lowland` goes from 1 to 0 over `ramp` of elevation across it.
+ * Measured on each map's own land, so the share of low ground doesn't
+ * follow how tall the land stands.
  */
-const ROUGHNESS = {
-	wavelength: 360, octaves: 2, gain: 0.5,
-	/** Height climbs from `floor` to full over 1 / this of roughness noise above its calibrated floor. */
-	sharpness: 5,
-	share: { min: 0.1, max: 0.35 },
-	floor: 0.3,
-	cell: 16,
-};
-/** Badlands: patches of broken, gullied ground. */
-const BADLANDS = {
-	patchWavelength: 480, patchOctaves: 2, patchGain: 0.5,
-	patchSharpness: 5,
-	gullyWavelength: 60, gullyOctaves: 2, gullyGain: 0.5,
-	/** Gully relief at ruggedness 0 and 1. */
-	relief: { min: 0.03, max: 0.09 },
-	/** The share of the map that's broken ground: this times ruggedness, weighted by contamination. */
-	share: 0.7,
-};
+const LOWLAND = { share: 0.55, ramp: 0.02 };
+/**
+ * Rough country: the only ground where a cliff can stand. Ruggedness sets
+ * its share of the land past the metro's surroundings, kept well under half
+ * so it breaks into islands and the land between connects across the map.
+ * It's decided per cell of a `cell`-unit lattice, so a flood fill over the
+ * cells that aren't rough is exact: no cliff stands in any of them.
+ */
+const ROUGHNESS = { wavelength: 360, octaves: 2, gain: 0.5, share: { min: 0.1, max: 0.35 }, cell: 16 };
+/**
+ * Canyons, until the water stage reads them off its rivers: the valleys cut
+ * deepest into the land, measured across `reach` cells either side, `share`
+ * of the land outside the ranges on dry maps. The map's dryness (1 - its
+ * moisture level) where they begin, and over how much more they reach their
+ * full share.
+ */
+const CANYONS = { reach: 3, share: 0.1, dryness: 0.45, drynessRange: 0.1 };
+/**
+ * Badlands, likewise: the most broken ground away from the ranges, the
+ * curvature of the land averaged over `blur` cells; its share this times
+ * ruggedness, weighted by contamination.
+ */
+const BADLANDS = { blur: 3, share: 0.7 };
+/** Canyons and badlands go from none to full over a quarter of their threshold either side of it. */
+const FEATURE_SHARPNESS = 2;
+/** Canyons and badlands keep `reach` cells off any range lift, and off a range mask of `mask` entirely. */
+const RANGE_CLEARANCE = { reach: 3, mask: 0.1 };
 const CONTAMINATION = {
 	wavelength: 450, octaves: 2, gain: 0.5,
 	/** Contamination goes from none to full over 1 / this of noise around the calibrated threshold. */
 	sharpness: 3,
 };
-/** Inside the metro the fields are scrub's: middling moisture, nothing toxic, the plains flattened this much. */
-const START = { moisture: 0.45, flatten: 0.7 };
+/** Inside the metro moisture is scrub's middling level. */
+const START_MOISTURE = 0.45;
 /** Lattice spacing, as a share of the radius, for the samples thresholds are calibrated on. */
 const CALIBRATION_SPACING = 0.05;
 
-const BASE_FREQUENCY = 1 / BASE.wavelength;
-const RANGE_FREQUENCY = 1 / MOUNTAINS.rangeWavelength;
-const BREAK_FREQUENCY = 1 / MOUNTAINS.breakWavelength;
-const RIDGE_FREQUENCY = 1 / MOUNTAINS.ridgeWavelength;
+const DETAIL_FREQUENCY = 1 / DETAIL.wavelength;
 const MOISTURE_FREQUENCY = 1 / MOISTURE.wavelength;
-const CANYON_FREQUENCY = 1 / CANYONS.wavelength;
-const CANYON_GAP_FREQUENCY = 1 / CANYONS.gapWavelength;
-const PATCH_FREQUENCY = 1 / BADLANDS.patchWavelength;
-const GULLY_FREQUENCY = 1 / BADLANDS.gullyWavelength;
 const CONTAMINATION_FREQUENCY = 1 / CONTAMINATION.wavelength;
 const ROUGHNESS_FREQUENCY = 1 / ROUGHNESS.wavelength;
-/** Where single-octave layers and ridge octaves sample from, off the lattice points every layer shares at the origin. */
-const RANGE_OFFSET = 7.31;
-const BREAK_OFFSET = 23.17;
-const GAP_OFFSET_X = 91.3;
-const GAP_OFFSET_Y = 47.9;
-const RIDGE_OFFSETS = [3.7, 57.1, 113.3];
 /** A slope's squared gradient at the cliff grade. */
 const CLIFF_SLOPE_SQUARED = (CLIFF_GRADE / RELIEF) * (CLIFF_GRADE / RELIEF);
 
-/**
- * What `land` leaves behind for the callers that need more than elevation.
- * Moisture and contamination are theirs to fill, since elevation and slope
- * don't need them.
- */
+/** What `land`, `landFeatures`, and `landMoisture` leave behind for the callers that need more than elevation. */
 interface LandFields {
 	elevation: number;
+	lowland: number;
 	moisture: number;
 	contamination: number;
 	mountains: number;
@@ -212,10 +171,11 @@ interface LandFields {
 	badlands: number;
 	slopeX: number;
 	slopeY: number;
-	/** Elevation before canyons and badlands cut it, which moisture reads. */
-	uplands: number;
-	/** The start weight: 1 in the metro, 0 past the blend radius. */
-	start: number;
+}
+
+export interface TerrainFieldsOptions extends TerrainOptions {
+	/** The eroded land these fields read: `generateLand`'s for the same params, never written. */
+	surface: LandSurface;
 }
 
 /**
@@ -225,38 +185,31 @@ interface LandFields {
  */
 export class TerrainFields {
 	public readonly radius: number;
-	/** The metro, around the compound; the fields are scrub's in it and nothing is impassable. */
+	public readonly surface: LandSurface;
+	/** The metro, around the compound; moisture is scrub's in it, the land is flat, and nothing is impassable. */
 	public readonly metro: Ruin;
 	public readonly towns: readonly Ruin[];
 	public readonly hotspots: readonly Hotspot[];
-	/** Out to this the fields blend from scrub's to their own. */
+	/** Out to this moisture and contamination blend from the metro's to their own. */
 	public readonly blendRadius: number;
-	/** Out to this mountains, canyons, and badlands rise from nothing to full, and no cliff stands inside it. */
+	/** Out to this the ranges rise to full, and no cliff stands inside it. */
 	public readonly reliefRadius: number;
 
-	private readonly baseNoise: SimplexNoise;
-	private readonly rangeNoise: SimplexNoise;
-	private readonly breakNoise: SimplexNoise;
-	private readonly ridgeNoise: SimplexNoise;
+	private readonly elevationGrid: GridSampler;
+	private readonly mountainGrid: GridSampler;
+	private readonly canyonGrid: GridSampler;
+	private readonly badlandsGrid: GridSampler;
+	private readonly detailNoise: SimplexNoise;
 	private readonly moistureNoise: SimplexNoise;
-	private readonly canyonNoise: SimplexNoise;
-	private readonly patchNoise: SimplexNoise;
-	private readonly gullyNoise: SimplexNoise;
 	private readonly roughNoise: SimplexNoise;
 	private readonly contaminationNoise: SimplexNoise;
 
-	/** Range value above this is mountains: the `mountainCoverage` quantile. */
-	private readonly maskThreshold: number;
-	/** Patch noise above this is badlands. */
-	private readonly patchThreshold: number;
 	/** Contamination noise above this is toxic: the `contamination` quantile. */
 	private readonly contaminationThreshold: number;
+	/** Where the contamination ramp bottoms out: values at or under this contribute nothing. */
+	private readonly contaminationFloor: number;
 	/** Roughness noise above this is rough country: the share `ruggedness` asks for. */
 	private readonly roughFloor: number;
-	/** Where each ramp around a threshold bottoms out: values at or under these contribute nothing. */
-	private readonly maskFloor: number;
-	private readonly patchFloor: number;
-	private readonly contaminationFloor: number;
 	/** Rough country by lattice cell, row by row from (-radius, -radius): 1 where a cliff can stand. */
 	private readonly roughCells: Uint8Array;
 	/** The cells a road from the metro reaches over ground no cliff or crater stands on: 1 where reached. */
@@ -264,13 +217,10 @@ export class TerrainFields {
 	private readonly cellColumns: number;
 
 	private readonly wetness: number;
-	private readonly ruggedness: number;
-	private readonly ridgeGain: number;
-	private readonly ridgeHeight: number;
-	/** Canyon strength from the map's dryness and ruggedness, 0 for none. */
-	private readonly canyonStrength: number;
-	private readonly canyonHalfWidth: number;
-	private readonly gullyRelief: number;
+	/** How hard dry land is pulled toward terraces past the blend radius: `terracePull` of the map's wetness. */
+	private readonly terracing: number;
+	/** The elevation `LOWLAND.share` of the land outside the ranges lies under. */
+	private readonly lowlandLevel: number;
 	private readonly startSquared: number;
 	private readonly blendSquared: number;
 	private readonly reliefSquared: number;
@@ -278,71 +228,59 @@ export class TerrainFields {
 	private readonly hotspotData: Float64Array;
 
 	private readonly scratch: LandFields = {
-		elevation: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0, slopeX: 0, slopeY: 0, uplands: 0, start: 0,
+		elevation: 0, lowland: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0, slopeX: 0, slopeY: 0,
 	};
-	/** What each of `land`'s terms leaves behind: its gradient, per world unit, and its feature's value. */
-	private partX = 0;
-	private partY = 0;
-	private partValue = 0;
-	/** The gradients `rangeValue`, `ridge`, and `ruggedScale` leave behind, per world unit. */
-	private rangeX = 0;
-	private rangeY = 0;
-	private ridgeX = 0;
-	private ridgeY = 0;
-	private ruggedX = 0;
-	private ruggedY = 0;
-	/** `ruggedScale` at the point `land` is on, worked out once per call however many terms ask. */
-	private ruggedValue = 0;
-	private ruggedReady = false;
 
-	constructor({ params, rng }: TerrainOptions) {
+	constructor({ params, rng, surface }: TerrainFieldsOptions) {
 		const { radius } = params;
-		const metroRadius = params.metroSize * radius;
+		const expected = landGridFor(radius);
+		const { grid } = surface;
+		if (grid.size !== expected.size || grid.cellSize !== expected.cellSize || grid.halfExtent !== expected.halfExtent) {
+			throw new RangeError(`TerrainFields: the surface's grid (${grid.size} cells over ${grid.halfExtent}) isn't radius ${radius}'s (${expected.size} over ${expected.halfExtent})`);
+		}
+		const cells = grid.size * grid.size;
+		const { drainage } = surface;
+		if (drainage.size !== grid.size) throw new RangeError(`TerrainFields: the surface's drainage is for a grid of ${drainage.size}, not ${grid.size}`);
+		[surface.elevation, surface.mountains, drainage.receivers, drainage.levels, drainage.area, drainage.order].forEach((values) => {
+			if (values.length !== cells) throw new RangeError(`TerrainFields: a surface array holds ${values.length} values, not the grid's ${cells}`);
+		});
+		const { metroRadius, blendRadius, reliefRadius } = startRadii(params);
 		this.radius = radius;
+		this.surface = surface;
 		this.metro = { x: 0, y: 0, radius: metroRadius };
-		this.blendRadius = metroRadius + Math.max(0.5 * metroRadius, 0.06 * radius);
-		this.reliefRadius = this.blendRadius + 0.1 * radius;
+		this.blendRadius = blendRadius;
+		this.reliefRadius = reliefRadius;
 		this.startSquared = metroRadius * metroRadius;
-		this.blendSquared = this.blendRadius * this.blendRadius;
-		this.reliefSquared = this.reliefRadius * this.reliefRadius;
-
+		this.blendSquared = blendRadius * blendRadius;
+		this.reliefSquared = reliefRadius * reliefRadius;
 		this.wetness = moistureLevel(params.aridity);
-		this.ruggedness = params.ruggedness;
-		this.ridgeGain = lerp(MOUNTAINS.gain, params.ruggedness);
-		this.ridgeHeight = lerp(MOUNTAINS.height, params.ruggedness);
-		this.canyonStrength = smooth01((1 - this.wetness - CANYONS.dryness) / CANYONS.drynessRange) * lerp(CANYONS.strength, params.ruggedness);
-		this.canyonHalfWidth = CANYONS.halfWidth * lerp(CANYONS.strength, params.ruggedness);
-		this.gullyRelief = lerp(BADLANDS.relief, params.ruggedness);
+		this.terracing = terracePull(this.wetness);
 
-		this.baseNoise = new SimplexNoise({ rng: rng.fork('plains') });
-		this.rangeNoise = new SimplexNoise({ rng: rng.fork('ranges') });
-		this.breakNoise = new SimplexNoise({ rng: rng.fork('rangeBreaks') });
-		this.ridgeNoise = new SimplexNoise({ rng: rng.fork('ridges') });
+		this.elevationGrid = new GridSampler({ grid, values: surface.elevation });
+		this.mountainGrid = new GridSampler({ grid, values: surface.mountains });
+		// Measured on the grid, then terraced as the samples it's compared with are; terracing keeps heights in order.
+		const lowland = quantileAbove(outsideRanges({ surface, radius, reliefRadius, values: surface.elevation }), 1 - LOWLAND.share);
+		this.lowlandLevel = this.terracing > 0 ? terraceHeight(lowland, this.terracing) : lowland;
+		const canyonShare = CANYONS.share * smooth01((1 - this.wetness - CANYONS.dryness) / CANYONS.drynessRange);
+		const badlandsShare = BADLANDS.share * params.ruggedness * (0.3 + 0.7 * params.contamination);
+		const clear = canyonShare > 0 || badlandsShare > 0 ? featureRoom({ surface, metroRadius, reliefRadius }) : null;
+		this.canyonGrid = new GridSampler({ grid, values: canyonField({ surface, radius, reliefRadius, share: canyonShare, clear }) });
+		this.badlandsGrid = new GridSampler({ grid, values: badlandsField({ surface, radius, reliefRadius, share: badlandsShare, clear }) });
+
+		this.detailNoise = new SimplexNoise({ rng: rng.fork('detail') });
 		this.moistureNoise = new SimplexNoise({ rng: rng.fork('moisture') });
-		this.canyonNoise = new SimplexNoise({ rng: rng.fork('canyons') });
-		this.patchNoise = new SimplexNoise({ rng: rng.fork('badlands') });
-		this.gullyNoise = new SimplexNoise({ rng: rng.fork('gullies') });
 		this.roughNoise = new SimplexNoise({ rng: rng.fork('roughness') });
 		this.contaminationNoise = new SimplexNoise({ rng: rng.fork('contamination') });
 
-		const badlandsShare = BADLANDS.share * params.ruggedness * (0.3 + 0.7 * params.contamination);
-		// Shares are of the land where each feature is at full strength, past
-		// the start's blend: `mountainCoverage` 0.25 is a quarter of the country
-		// beyond the metro's surroundings, whatever the metro's size.
-		const reliefRing = this.reliefRadius;
-		this.maskThreshold = this.calibrate((x, y) => this.rangeValue(x, y, -Infinity), params.mountainCoverage, reliefRing);
-		this.patchThreshold = this.calibrate((x, y) => this.patchNoise.fractal(x * PATCH_FREQUENCY, y * PATCH_FREQUENCY, BADLANDS.patchOctaves, BADLANDS.patchGain), badlandsShare, reliefRing);
-		this.roughFloor = this.calibrate((x, y) => this.roughNoise.fractal(x * ROUGHNESS_FREQUENCY, y * ROUGHNESS_FREQUENCY, ROUGHNESS.octaves, ROUGHNESS.gain), lerp(ROUGHNESS.share, params.ruggedness), reliefRing);
-		this.contaminationThreshold = this.calibrate((x, y) => this.contaminationNoise.fractal(x * CONTAMINATION_FREQUENCY, y * CONTAMINATION_FREQUENCY, CONTAMINATION.octaves, CONTAMINATION.gain), params.contamination, this.blendRadius);
-		this.maskFloor = this.maskThreshold - 0.5 / MOUNTAINS.maskSharpness;
-		this.patchFloor = this.patchThreshold - 0.5 / BADLANDS.patchSharpness;
+		this.roughFloor = this.calibrate((x, y) => this.roughNoise.fractal(x * ROUGHNESS_FREQUENCY, y * ROUGHNESS_FREQUENCY, ROUGHNESS.octaves, ROUGHNESS.gain), lerp(ROUGHNESS.share, params.ruggedness), reliefRadius);
+		this.contaminationThreshold = this.calibrate((x, y) => this.contaminationNoise.fractal(x * CONTAMINATION_FREQUENCY, y * CONTAMINATION_FREQUENCY, CONTAMINATION.octaves, CONTAMINATION.gain), params.contamination, blendRadius);
 		this.contaminationFloor = this.contaminationThreshold - 0.5 / CONTAMINATION.sharpness;
 
 		this.hotspots = placeHotspots({
 			rng: rng.fork('hotspots'),
 			count: params.hotspots,
 			radius,
-			ring: { inner: this.blendRadius + MAX_CRATER_RADIUS, outer: 0.9 * radius },
+			ring: { inner: blendRadius + MAX_CRATER_RADIUS, outer: 0.9 * radius },
 		});
 		this.hotspotData = new Float64Array(this.hotspots.length * 5);
 		this.hotspots.forEach((hotspot, index) => {
@@ -353,7 +291,7 @@ export class TerrainFields {
 		this.roughCells = this.markRoughCells();
 		this.reachedCells = this.reachFromMetro();
 
-		const townRing = { inner: this.blendRadius, outer: 0.9 * radius };
+		const townRing = { inner: blendRadius, outer: 0.9 * radius };
 		this.towns = placeTowns({
 			rng: rng.fork('towns'),
 			count: params.towns,
@@ -364,11 +302,7 @@ export class TerrainFields {
 			cells: params.towns > 0 ? this.reachedCellsIn(townRing) : [],
 			cellSize: ROUGHNESS.cell,
 			// Every point of a reached cell is ground a road can get to; towns prefer open country.
-			suits: (x, y, strict) => {
-				if (!strict) return true;
-				this.land(x, y);
-				return this.scratch.mountains < 0.25 && this.scratch.canyons <= 0;
-			},
+			suits: (x, y, strict) => !strict || (this.mountainGrid.bilinear(x, y) < 0.25 && this.canyonGrid.bilinear(x, y) < 0.25),
 		});
 	}
 
@@ -420,6 +354,7 @@ export class TerrainFields {
 	public biome(x: number, y: number): Biome {
 		this.land(x, y);
 		this.landMoisture(x, y);
+		this.landFeatures(x, y);
 		this.scratch.contamination = this.contamination(x, y);
 		return classifyBiome(this.scratch);
 	}
@@ -475,6 +410,7 @@ export class TerrainFields {
 		const slopeSquared = this.slopeSquared();
 		if (this.cliffAt(x, y, slopeSquared)) return Infinity;
 		this.landMoisture(x, y);
+		this.landFeatures(x, y);
 		this.scratch.contamination = this.contamination(x, y);
 		return slopeCost(classifyBiome(this.scratch), slopeSquared);
 	}
@@ -484,6 +420,8 @@ export class TerrainFields {
 		const scratch = this.scratch;
 		out.elevation = this.land(x, y);
 		out.moisture = this.landMoisture(x, y);
+		this.landFeatures(x, y);
+		out.lowland = scratch.lowland;
 		out.mountains = scratch.mountains;
 		out.canyons = scratch.canyons;
 		out.badlands = scratch.badlands;
@@ -513,247 +451,82 @@ export class TerrainFields {
 	}
 
 	/**
-	 * Elevation at (x, y), with its gradient and the other land fields left in
-	 * `scratch` (contamination isn't touched): the plains, then mountains,
-	 * canyons, and badlands on top, each fading out toward the metro, where
-	 * the plains flatten and moisture blends to scrub's. Each term's gradient
-	 * is worked alongside it, from the noise layers' own derivatives.
+	 * Elevation at (x, y), with its gradient and the range mask left in
+	 * `scratch`: the eroded grid, bicubic, terraced on a dry map, plus fine
+	 * relief as strong as the point is range country, held to 0 to 1.
+	 * Terraced here rather than on the grid, so a riser follows the land's
+	 * contours instead of its cells. The pull fades out over the blend ring,
+	 * since the metro is flat ground, not a bench.
 	 */
 	private land(x: number, y: number): number {
-		this.ruggedReady = false;
+		const elevationGrid = this.elevationGrid;
+		const mountainGrid = this.mountainGrid;
+		let elevation = elevationGrid.bicubic(x, y);
+		let slopeX = elevationGrid.gradientX;
+		let slopeY = elevationGrid.gradientY;
 		const distanceSquared = x * x + y * y;
-		// The start and relief weights and their gradients, as functions of
-		// distance squared, whose gradient is (2x, 2y): no square root taken.
-		let start = 0;
-		let startX = 0;
-		let startY = 0;
-		let relief = 1;
-		let reliefX = 0;
-		let reliefY = 0;
-		if (distanceSquared <= this.startSquared) {
-			start = 1;
-			relief = 0;
-		} else {
+		if (this.terracing > 0 && distanceSquared > this.startSquared) {
+			let pull = this.terracing;
+			let pullX = 0;
+			let pullY = 0;
 			if (distanceSquared < this.blendSquared) {
 				const span = this.blendSquared - this.startSquared;
-				const along = (this.blendSquared - distanceSquared) / span;
-				start = smooth01(along);
-				const rate = -2 * smoothSlope(along) / span;
-				startX = rate * x;
-				startY = rate * y;
+				const ramp = (this.blendSquared - distanceSquared) / span;
+				pull *= 1 - smooth01(ramp);
+				const change = 2 * this.terracing * smoothSlope(ramp) / span;
+				pullX = change * x;
+				pullY = change * y;
 			}
-			if (distanceSquared < this.reliefSquared) {
-				const span = this.reliefSquared - this.startSquared;
-				const along = (distanceSquared - this.startSquared) / span;
-				relief = smooth01(along);
-				const rate = 2 * smoothSlope(along) / span;
-				reliefX = rate * x;
-				reliefY = rate * y;
-			}
+			const lift = terraceLift(elevation);
+			const scale = terraceSlope(elevation, pull);
+			slopeX = slopeX * scale + lift * pullX;
+			slopeY = slopeY * scale + lift * pullY;
+			elevation += lift * pull;
 		}
-
-		let elevation = this.plains(x, y, start, startX, startY);
-		let slopeX = this.partX;
-		let slopeY = this.partY;
-
-		let mountains = 0;
-		if (relief > 0 && this.maskThreshold !== Infinity) {
-			elevation += this.mountainRelief(x, y, relief, reliefX, reliefY);
-			slopeX += this.partX;
-			slopeY += this.partY;
-			mountains = this.partValue;
+		const mountains = mountainGrid.bicubic(x, y);
+		// Bicubic mountains overshoot a little past a range's edge, which only
+		// flips the detail's sign there; leaving it out instead would crease the
+		// land where the mask crosses zero. Far from any range it's exactly 0.
+		if (mountains !== 0) {
+			const noise = this.detailNoise;
+			const detail = noise.fractal(x * DETAIL_FREQUENCY, y * DETAIL_FREQUENCY, DETAIL.octaves, DETAIL.gain);
+			const weight = DETAIL.amplitude * mountains;
+			elevation += weight * detail;
+			slopeX += DETAIL.amplitude * (mountainGrid.gradientX * detail + mountains * noise.derivativeX * DETAIL_FREQUENCY);
+			slopeY += DETAIL.amplitude * (mountainGrid.gradientY * detail + mountains * noise.derivativeY * DETAIL_FREQUENCY);
 		}
-
-		// Moisture reads the land before canyons and badlands cut it, so a
-		// canyon floor stays as dry as the country it's cut into.
-		const uplands = elevation;
-
-		let canyons = 0;
-		if (relief > 0 && this.canyonStrength > 0) {
-			elevation += this.canyonRelief(x, y, relief, reliefX, reliefY);
-			slopeX += this.partX;
-			slopeY += this.partY;
-			canyons = this.partValue;
-		}
-
-		let badlands = 0;
-		if (relief > 0 && this.patchThreshold !== Infinity) {
-			elevation += this.badlandsRelief(x, y, relief, reliefX, reliefY);
-			slopeX += this.partX;
-			slopeY += this.partY;
-			badlands = this.partValue;
-		}
-
 		if (elevation < 0 || elevation > 1) {
 			elevation = elevation < 0 ? 0 : 1;
 			slopeX = 0;
 			slopeY = 0;
 		}
-
 		const scratch = this.scratch;
 		scratch.elevation = elevation;
-		scratch.mountains = mountains;
-		scratch.canyons = canyons;
-		scratch.badlands = badlands;
+		scratch.mountains = clamp01(mountains);
 		scratch.slopeX = slopeX;
 		scratch.slopeY = slopeY;
-		scratch.uplands = uplands;
-		scratch.start = start;
 		return elevation;
 	}
 
 	/**
-	 * The plains: rolling ground, flattened toward the metro. Its gradient
-	 * goes in `partX` and `partY`, as every term's does.
-	 */
-	private plains(x: number, y: number, start: number, startX: number, startY: number): number {
-		const noise = this.baseNoise;
-		const base = noise.fractal(x * BASE_FREQUENCY, y * BASE_FREQUENCY, BASE.octaves, BASE.gain);
-		const flatten = 1 - START.flatten * start;
-		this.partX = BASE.relief * (noise.derivativeX * BASE_FREQUENCY * flatten - base * START.flatten * startX);
-		this.partY = BASE.relief * (noise.derivativeY * BASE_FREQUENCY * flatten - base * START.flatten * startY);
-		return BASE.level + BASE.relief * base * flatten;
-	}
-
-	/**
-	 * What mountain ranges add: ridges standing on lifted ground, as tall as
-	 * the country is rough, inside the coverage mask, which goes in `partValue`.
-	 */
-	private mountainRelief(x: number, y: number, relief: number, reliefX: number, reliefY: number): number {
-		this.partX = 0;
-		this.partY = 0;
-		this.partValue = 0;
-		const along = (this.rangeValue(x, y, this.maskFloor) - this.maskThreshold) * MOUNTAINS.maskSharpness + 0.5;
-		const raw = smooth01(along);
-		if (raw <= 0) return 0;
-		const rate = smoothSlope(along) * MOUNTAINS.maskSharpness;
-		const mask = raw * relief;
-		const maskX = rate * this.rangeX * relief + raw * reliefX;
-		const maskY = rate * this.rangeY * relief + raw * reliefY;
-		const ridge = this.ridge(x, y);
-		const ridgeX = this.ridgeX;
-		const ridgeY = this.ridgeY;
-		const scale = this.ruggedScale(x, y) * this.ridgeHeight;
-		const scaleX = this.ruggedX * this.ridgeHeight;
-		const scaleY = this.ruggedY * this.ridgeHeight;
-		const height = MOUNTAINS.lift + scale * ridge;
-		this.partX = maskX * height + mask * (scaleX * ridge + scale * ridgeX);
-		this.partY = maskY * height + mask * (scaleY * ridge + scale * ridgeY);
-		this.partValue = mask;
-		return mask * height;
-	}
-
-	/**
-	 * What canyons take away: a flat floor and walls along the zero lines of
-	 * their layer, deep in rough country and faded out at gaps; how far into
-	 * one (x, y) is goes in `partValue`. A canyon's width is the map's, so a
-	 * faint one is shallow rather than narrow, and its walls rise at one grade
-	 * over their middle, so where one is steep enough to be a cliff, most of
-	 * the wall is.
-	 */
-	private canyonRelief(x: number, y: number, relief: number, reliefX: number, reliefY: number): number {
-		this.partX = 0;
-		this.partY = 0;
-		this.partValue = 0;
-		const noise = this.canyonNoise;
-		const halfWidth = this.canyonHalfWidth;
-		let line = noise.fractal(x * CANYON_FREQUENCY, y * CANYON_FREQUENCY, CANYONS.octaves, CANYONS.gain, -halfWidth, halfWidth);
-		let lineX = noise.derivativeX * CANYON_FREQUENCY;
-		let lineY = noise.derivativeY * CANYON_FREQUENCY;
-		if (line < 0) {
-			line = -line;
-			lineX = -lineX;
-			lineY = -lineY;
-		}
-		if (!(line < halfWidth)) return 0;
-		const gapAlong = (noise.sample(x * CANYON_GAP_FREQUENCY + GAP_OFFSET_X, y * CANYON_GAP_FREQUENCY + GAP_OFFSET_Y) + CANYONS.gapLevel) * CANYONS.gapSharpness;
-		const gap = smooth01(gapAlong);
-		if (gap <= 0) return 0;
-		const gapRate = smoothSlope(gapAlong) * CANYONS.gapSharpness * CANYON_GAP_FREQUENCY;
-		const gapX = gapRate * noise.derivativeX;
-		const gapY = gapRate * noise.derivativeY;
-		const strength = this.canyonStrength * relief * gap;
-		const strengthX = this.canyonStrength * (reliefX * gap + relief * gapX);
-		const strengthY = this.canyonStrength * (reliefY * gap + relief * gapY);
-		const wall = (line / halfWidth - CANYONS.floor) / (1 - CANYONS.floor);
-		const profile = 1 - wallRise(wall);
-		const profileRate = -wallRiseSlope(wall) / ((1 - CANYONS.floor) * halfWidth);
-		const scale = this.ruggedScale(x, y);
-		const depth = CANYONS.depth * strength * scale;
-		this.partX = -CANYONS.depth * ((strengthX * scale + strength * this.ruggedX) * profile + strength * scale * profileRate * lineX);
-		this.partY = -CANYONS.depth * ((strengthY * scale + strength * this.ruggedY) * profile + strength * scale * profileRate * lineY);
-		// A faint canyon is a gully, not the biome.
-		this.partValue = profile * smooth01(strength * 4);
-		return -depth * profile;
-	}
-
-	/**
-	 * What badlands add: inside a patch, ridges where the gully layer crosses
-	 * zero and gullies between them, as deep as the country is rough. The
-	 * patch goes in `partValue`.
-	 */
-	private badlandsRelief(x: number, y: number, relief: number, reliefX: number, reliefY: number): number {
-		this.partX = 0;
-		this.partY = 0;
-		this.partValue = 0;
-		const patchNoise = this.patchNoise;
-		const along = (patchNoise.fractal(x * PATCH_FREQUENCY, y * PATCH_FREQUENCY, BADLANDS.patchOctaves, BADLANDS.patchGain, this.patchFloor, Infinity) - this.patchThreshold) * BADLANDS.patchSharpness + 0.5;
-		const raw = smooth01(along);
-		if (raw <= 0) return 0;
-		const rate = smoothSlope(along) * BADLANDS.patchSharpness * PATCH_FREQUENCY;
-		const patch = raw * relief;
-		const patchX = rate * patchNoise.derivativeX * relief + raw * reliefX;
-		const patchY = rate * patchNoise.derivativeY * relief + raw * reliefY;
-		const gullyNoise = this.gullyNoise;
-		let gully = gullyNoise.fractal(x * GULLY_FREQUENCY, y * GULLY_FREQUENCY, BADLANDS.gullyOctaves, BADLANDS.gullyGain);
-		let gullyX = gullyNoise.derivativeX * GULLY_FREQUENCY;
-		let gullyY = gullyNoise.derivativeY * GULLY_FREQUENCY;
-		if (gully < 0) {
-			gully = -gully;
-			gullyX = -gullyX;
-			gullyY = -gullyY;
-		}
-		const crest = 1 - gully;
-		const shape = crest * crest - 0.5;
-		const scale = this.ruggedScale(x, y) * this.gullyRelief;
-		const scaleX = this.ruggedX * this.gullyRelief;
-		const scaleY = this.ruggedY * this.gullyRelief;
-		this.partX = patchX * scale * shape + patch * (scaleX * shape - scale * 2 * crest * gullyX);
-		this.partY = patchY * scale * shape + patch * (scaleY * shape - scale * 2 * crest * gullyY);
-		this.partValue = patch;
-		return patch * scale * shape;
-	}
-
-	/**
 	 * Moisture at (x, y), the point `land` was last called with, left in
-	 * `scratch` too: the map's level, its own noise, wetter in low country and
-	 * drier high up, and scrub's in the metro.
+	 * `scratch` too: the map's level, its own noise, wetter below the map's
+	 * lowland level and drier above it, and scrub's in the metro.
 	 */
 	private landMoisture(x: number, y: number): number {
 		const scratch = this.scratch;
 		const noise = this.moistureNoise.fractal(x * MOISTURE_FREQUENCY, y * MOISTURE_FREQUENCY, MOISTURE.octaves, MOISTURE.gain);
-		const moisture = clamp01(this.wetness + MOISTURE.spread * noise + MOISTURE.lowland * (BASE.level - scratch.uplands));
-		scratch.moisture = moisture + (START.moisture - moisture) * scratch.start;
+		const moisture = clamp01(this.wetness + MOISTURE.spread * noise + MOISTURE.lowland * (this.lowlandLevel - scratch.elevation));
+		scratch.moisture = moisture + (START_MOISTURE - moisture) * this.startWeight(x * x + y * y);
 		return scratch.moisture;
 	}
 
-	/**
-	 * How much of their full height mountains, canyons, and badlands stand to
-	 * at (x, y), the point `land` is on, its gradient left in `ruggedX` and
-	 * `ruggedY`: `ROUGHNESS.floor` of it outside rough country, climbing to all
-	 * of it inside. Worked out once per `land` call.
-	 */
-	private ruggedScale(x: number, y: number): number {
-		if (this.ruggedReady) return this.ruggedValue;
-		this.ruggedReady = true;
-		const noise = this.roughNoise;
-		const along = (noise.fractal(x * ROUGHNESS_FREQUENCY, y * ROUGHNESS_FREQUENCY, ROUGHNESS.octaves, ROUGHNESS.gain, this.roughFloor, Infinity) - this.roughFloor) * ROUGHNESS.sharpness;
-		const rough = smooth01(along);
-		const rate = (1 - ROUGHNESS.floor) * smoothSlope(along) * ROUGHNESS.sharpness * ROUGHNESS_FREQUENCY;
-		this.ruggedX = rough > 0 && rough < 1 ? rate * noise.derivativeX : 0;
-		this.ruggedY = rough > 0 && rough < 1 ? rate * noise.derivativeY : 0;
-		this.ruggedValue = ROUGHNESS.floor + (1 - ROUGHNESS.floor) * rough;
-		return this.ruggedValue;
+	/** Canyons, badlands, and low ground at (x, y), the point `land` was last called with, into `scratch`. */
+	private landFeatures(x: number, y: number): void {
+		const scratch = this.scratch;
+		scratch.canyons = this.canyonGrid.bilinear(x, y);
+		scratch.badlands = this.badlandsGrid.bilinear(x, y);
+		scratch.lowland = smooth01((this.lowlandLevel - scratch.elevation) / LOWLAND.ramp + 0.5);
 	}
 
 	/** The lattice cell holding (x, y), or -1 off the lattice, which covers the disc's bounding square. */
@@ -861,85 +634,6 @@ export class TerrainFields {
 		return centres;
 	}
 
-	/**
-	 * How much (x, y) is range country, its gradient left in `rangeX` and
-	 * `rangeY`: high along the zero lines of a broad layer, so ranges run in
-	 * long belts, raised or lowered by a finer one, which breaks them into
-	 * stretches with gaps between. The coverage threshold is a quantile of it.
-	 * -Infinity, without a gradient, when it's sure to be `floor` or under.
-	 */
-	private rangeValue(x: number, y: number, floor: number): number {
-		const rangeNoise = this.rangeNoise;
-		const breakNoise = this.breakNoise;
-		let line = rangeNoise.sample(x * RANGE_FREQUENCY + RANGE_OFFSET, y * RANGE_FREQUENCY + RANGE_OFFSET);
-		let lineX = rangeNoise.derivativeX * RANGE_FREQUENCY;
-		let lineY = rangeNoise.derivativeY * RANGE_FREQUENCY;
-		if (line < 0) {
-			line = -line;
-			lineX = -lineX;
-			lineY = -lineY;
-		}
-		// The breaks layer is under 1 in size, so it lifts the value by less than its weight.
-		if (1 - line + MOUNTAINS.breakWeight <= floor) return -Infinity;
-		const breaks = breakNoise.sample(x * BREAK_FREQUENCY + BREAK_OFFSET, y * BREAK_FREQUENCY + BREAK_OFFSET);
-		this.rangeX = -lineX + MOUNTAINS.breakWeight * breakNoise.derivativeX * BREAK_FREQUENCY;
-		this.rangeY = -lineY + MOUNTAINS.breakWeight * breakNoise.derivativeY * BREAK_FREQUENCY;
-		return 1 - line + MOUNTAINS.breakWeight * breaks;
-	}
-
-	/**
-	 * Ridged noise in [0, 1], high along the noise's zero lines, its gradient
-	 * left in `ridgeX` and `ridgeY`. Each octave's crest is sharpened by
-	 * ruggedness, from a rounded 1 - n^2 to a creased (1 - |n|)^3, and
-	 * weighted by the octave before, so detail gathers on the ridges and
-	 * valleys stay smooth.
-	 */
-	private ridge(x: number, y: number): number {
-		const noise = this.ridgeNoise;
-		const sharpness = this.ruggedness;
-		const gain = this.ridgeGain;
-		let sum = 0;
-		let sumX = 0;
-		let sumY = 0;
-		let total = 0;
-		let amplitude = 1;
-		let scale = RIDGE_FREQUENCY;
-		let weight = 1;
-		let weightX = 0;
-		let weightY = 0;
-		for (let octave = 0; octave < MOUNTAINS.ridgeOctaves; octave += 1) {
-			const value = noise.sample(x * scale + RIDGE_OFFSETS[octave], y * scale + RIDGE_OFFSETS[octave]);
-			const sign = value < 0 ? -1 : 1;
-			const crest = 1 - sign * value;
-			const rounded = 1 - value * value;
-			const raw = rounded + (crest * crest * crest - rounded) * sharpness;
-			const rate = (-2 * value + (2 * value - 3 * sign * crest * crest) * sharpness) * scale;
-			const rawX = rate * noise.derivativeX;
-			const rawY = rate * noise.derivativeY;
-			const signal = raw * weight;
-			const signalX = rawX * weight + raw * weightX;
-			const signalY = rawY * weight + raw * weightY;
-			sum += signal * amplitude;
-			sumX += signalX * amplitude;
-			sumY += signalY * amplitude;
-			total += amplitude;
-			if (signal * 2 < 1) {
-				weight = signal * 2;
-				weightX = signalX * 2;
-				weightY = signalY * 2;
-			} else {
-				weight = 1;
-				weightX = 0;
-				weightY = 0;
-			}
-			amplitude *= gain;
-			scale *= 2;
-		}
-		this.ridgeX = sumX / total;
-		this.ridgeY = sumY / total;
-		return sum / total;
-	}
-
 	/** 1 inside the metro, easing to 0 at the blend radius, on squared distance so no square root is taken. */
 	private startWeight(distanceSquared: number): number {
 		if (distanceSquared <= this.startSquared) return 1;
@@ -967,9 +661,7 @@ export class TerrainFields {
 				if (distanceSquared >= innerSquared && distanceSquared <= radiusSquared) samples.push(noise(x, y));
 			}
 		}
-		samples.sort((a, b) => a - b);
-		const index = Math.min(samples.length - 1, Math.max(0, Math.round((1 - share) * samples.length)));
-		return samples[index];
+		return quantileAbove(samples, share);
 	}
 }
 
@@ -991,7 +683,16 @@ export class Terrain {
 		return this.land.radius;
 	}
 
-	/** The metro's ruins around the compound, `metroSize` of the radius: the start, never impassable. */
+	/**
+	 * The eroded land on its grid, with the drainage of the finished land and
+	 * its outlets, as plain typed arrays: what the water stage traces rivers
+	 * and fills lakes from.
+	 */
+	public get surface(): LandSurface {
+		return this.land.surface;
+	}
+
+	/** The metro's ruins around the compound, `metroSize` of the radius: the start, flat and never impassable. */
 	public get metro(): Ruin {
 		return this.land.metro;
 	}
@@ -1005,12 +706,12 @@ export class Terrain {
 		return this.land.towns;
 	}
 
-	/** World units: out to this the fields blend from scrub's to their own. */
+	/** World units: out to this moisture and contamination blend from the metro's to their own. */
 	public get blendRadius(): number {
 		return this.land.blendRadius;
 	}
 
-	/** World units: out to this mountains, canyons, and badlands rise to full, and no cliff stands inside it. */
+	/** World units: out to this the ranges rise to full, and no cliff stands inside it. */
 	public get reliefRadius(): number {
 		return this.land.reliefRadius;
 	}
@@ -1031,7 +732,7 @@ export class Terrain {
 		return x * x + y * y <= radius * radius;
 	}
 
-	/** 0 to 1: basins and canyon floors to peaks. */
+	/** 0 to 1: outlets and valley floors to the highest peaks. */
 	public elevation(x: number, y: number): number {
 		return this.land.elevation(x, y);
 	}
@@ -1124,6 +825,180 @@ export class Terrain {
 	}
 }
 
+interface FeatureOptions {
+	surface: LandSurface;
+	/** World units: the disc's radius, and the relief radius; a feature's share is of the land between, outside the ranges. */
+	radius: number;
+	reliefRadius: number;
+	share: number;
+	/** Per cell, 1 where canyons and badlands have room, 0 where they have none (see `featureRoom`); null when neither has a share. */
+	clear: Float64Array | null;
+}
+
+/**
+ * Canyons per cell, 0 to 1: the valleys cut deepest into the land away from
+ * the ranges, `share` of the land outside them. A cell's cut is how far it
+ * sits below the lower of the two cells `CANYONS.reach` away on either
+ * side, across whichever of four directions cuts deepest, so a valley
+ * counts and a slope doesn't. A stand-in until the water stage reads
+ * canyons off its rivers.
+ */
+function canyonField({ surface, radius, reliefRadius, share, clear }: FeatureOptions): Float32Array {
+	const { grid, elevation } = surface;
+	const size = grid.size;
+	if (share <= 0 || clear === null) return new Float32Array(size * size);
+	const reach = CANYONS.reach;
+	const cut = new Float64Array(size * size);
+	const steps = [reach, reach * size, reach * (size + 1), reach * (size - 1)];
+	for (let row = reach; row < size - reach; row += 1) {
+		for (let column = reach; column < size - reach; column += 1) {
+			const cell = row * size + column;
+			let deepest = 0;
+			for (let direction = 0; direction < 4; direction += 1) {
+				const ahead = elevation[cell + steps[direction]];
+				const behind = elevation[cell - steps[direction]];
+				const depth = (ahead < behind ? ahead : behind) - elevation[cell];
+				if (depth > deepest) deepest = depth;
+			}
+			cut[cell] = deepest * clear[cell];
+		}
+	}
+	return calibratedField({ surface, radius, reliefRadius, share, values: cut });
+}
+
+/**
+ * Badlands per cell, 0 to 1: the most broken ground away from the ranges,
+ * `share` of the land outside them, broken being the land's curvature
+ * blurred over `BADLANDS.blur` cells. A stand-in until the hazards stage
+ * decides what badlands are on eroded land.
+ */
+function badlandsField({ surface, radius, reliefRadius, share, clear }: FeatureOptions): Float32Array {
+	const { grid, elevation } = surface;
+	const size = grid.size;
+	if (share <= 0 || clear === null) return new Float32Array(size * size);
+	const curvature = new Float64Array(size * size);
+	for (let row = 1; row < size - 1; row += 1) {
+		for (let column = 1; column < size - 1; column += 1) {
+			const cell = row * size + column;
+			const bend = elevation[cell - 1] + elevation[cell + 1] + elevation[cell - size] + elevation[cell + size] - 4 * elevation[cell];
+			curvature[cell] = bend < 0 ? -bend : bend;
+		}
+	}
+	const broken = blur(curvature, size, BADLANDS.blur);
+	for (let cell = 0; cell < broken.length; cell += 1) broken[cell] *= clear[cell];
+	return calibratedField({ surface, radius, reliefRadius, share, values: broken });
+}
+
+/**
+ * Per cell, the room canyons and badlands have: 1 where no cell within
+ * `RANGE_CLEARANCE.reach` has any range lift, falling to 0 where one's range
+ * mask reaches `RANGE_CLEARANCE.mask`, since a range's flanks run on past its
+ * mask's middle and bend the land at their foot as hard as any gully; and,
+ * like the ranges, none in the metro, rising to full at the relief radius.
+ */
+function featureRoom({ surface, metroRadius, reliefRadius }: { surface: LandSurface; metroRadius: number; reliefRadius: number }): Float64Array {
+	const { grid, mountains } = surface;
+	const size = grid.size;
+	const metroSquared = metroRadius * metroRadius;
+	const reliefSquared = reliefRadius * reliefRadius;
+	const reach = RANGE_CLEARANCE.reach;
+	const across = new Float64Array(size * size);
+	const clear = new Float64Array(size * size);
+	for (let row = 0; row < size; row += 1) {
+		for (let column = 0; column < size; column += 1) {
+			const first = column - reach < 0 ? 0 : column - reach;
+			const last = column + reach >= size ? size - 1 : column + reach;
+			let most = 0;
+			for (let at = first; at <= last; at += 1) {
+				if (mountains[row * size + at] > most) most = mountains[row * size + at];
+			}
+			across[row * size + column] = most;
+		}
+	}
+	for (let row = 0; row < size; row += 1) {
+		const first = row - reach < 0 ? 0 : row - reach;
+		const last = row + reach >= size ? size - 1 : row + reach;
+		const y = cellCentre(grid, row);
+		for (let column = 0; column < size; column += 1) {
+			let most = 0;
+			for (let at = first; at <= last; at += 1) {
+				if (across[at * size + column] > most) most = across[at * size + column];
+			}
+			const x = cellCentre(grid, column);
+			const distanceSquared = x * x + y * y;
+			const start = distanceSquared >= reliefSquared ? 1 : smooth01((distanceSquared - metroSquared) / (reliefSquared - metroSquared));
+			clear[row * size + column] = start * (1 - smooth01(most / RANGE_CLEARANCE.mask));
+		}
+	}
+	return clear;
+}
+
+/**
+ * Per cell, 0 to 1: 0.5 where `values` passes the quantile that `share` of
+ * the land outside the ranges, past the relief radius and inside the disc,
+ * lies above, ramping over a quarter of it either way.
+ */
+function calibratedField({ surface, radius, reliefRadius, share, values }: Omit<FeatureOptions, 'clear'> & { values: Float64Array }): Float32Array {
+	const field = new Float32Array(values.length);
+	const threshold = quantileAbove(outsideRanges({ surface, radius, reliefRadius, values }), share);
+	if (!(threshold > 0) || threshold === Infinity) return field;
+	for (let cell = 0; cell < field.length; cell += 1) field[cell] = smooth01((values[cell] / threshold - 1) * FEATURE_SHARPNESS + 0.5);
+	return field;
+}
+
+/**
+ * `values` at the cells outside the ranges, past `reliefRadius` and inside
+ * the disc: the land the stand-ins' shares are of. Where the ranges cover
+ * all of it, the cells past `reliefRadius`, ranges and all.
+ */
+function outsideRanges({ surface, radius, reliefRadius, values }: { surface: LandSurface; radius: number; reliefRadius: number; values: ArrayLike<number> }): number[] {
+	const { grid, mountains } = surface;
+	const innerSquared = reliefRadius * reliefRadius;
+	const outerSquared = radius * radius;
+	const outside: number[] = [];
+	const all: number[] = [];
+	for (let row = 0; row < grid.size; row += 1) {
+		const y = cellCentre(grid, row);
+		for (let column = 0; column < grid.size; column += 1) {
+			const x = cellCentre(grid, column);
+			const distanceSquared = x * x + y * y;
+			if (distanceSquared < innerSquared || distanceSquared > outerSquared) continue;
+			const cell = row * grid.size + column;
+			all.push(values[cell]);
+			if (mountains[cell] < 0.5) outside.push(values[cell]);
+		}
+	}
+	return outside.length > 0 ? outside : all;
+}
+
+/** A box blur `reach` cells each way along rows, then columns, held at the edges. */
+function blur(values: ArrayLike<number>, size: number, reach: number): Float64Array {
+	const across = new Float64Array(size * size);
+	const out = new Float64Array(size * size);
+	const span = 2 * reach + 1;
+	for (let row = 0; row < size; row += 1) {
+		for (let column = 0; column < size; column += 1) {
+			let sum = 0;
+			for (let offset = -reach; offset <= reach; offset += 1) {
+				const at = column + offset < 0 ? 0 : column + offset >= size ? size - 1 : column + offset;
+				sum += values[row * size + at];
+			}
+			across[row * size + column] = sum / span;
+		}
+	}
+	for (let row = 0; row < size; row += 1) {
+		for (let column = 0; column < size; column += 1) {
+			let sum = 0;
+			for (let offset = -reach; offset <= reach; offset += 1) {
+				const at = row + offset < 0 ? 0 : row + offset >= size ? size - 1 : row + offset;
+				sum += across[at * size + column];
+			}
+			out[row * size + column] = sum / span;
+		}
+	}
+	return out;
+}
+
 /** Travel cost per world unit on passable ground: the biome's base cost plus the slope term. */
 function slopeCost(biome: Biome, slopeSquared: number): number {
 	return BIOME_COSTS[biome] + SLOPE_COST * (slopeSquared / CLIFF_SLOPE_SQUARED);
@@ -1136,53 +1011,4 @@ function ruinWeight(x: number, y: number, ruin: Ruin): number {
 	if (ratio <= 1) return 1;
 	if (ratio >= 4) return 0;
 	return (4 - ratio) / 3;
-}
-
-function lerp({ min, max }: { min: number; max: number }, amount: number): number {
-	return min + (max - min) * amount;
-}
-
-function clamp01(value: number): number {
-	return value < 0 ? 0 : value > 1 ? 1 : value;
-}
-
-/** Smoothstep of a value already scaled to [0, 1], clamped outside it. */
-function smooth01(value: number): number {
-	if (value <= 0) return 0;
-	if (value >= 1) return 1;
-	return value * value * (3 - 2 * value);
-}
-
-/** The derivative of `smooth01`. */
-function smoothSlope(value: number): number {
-	if (value <= 0 || value >= 1) return 0;
-	return 6 * value * (1 - value);
-}
-
-/**
- * How far up a canyon wall `v` is, 0 at its foot to 1 at its rim: the slope
- * eases in over the first `CANYONS.wallEase` of the wall, holds one grade
- * over the middle, and eases out over the last, so it's smooth everywhere.
- */
-function wallRise(v: number): number {
-	if (v <= 0) return 0;
-	if (v >= 1) return 1;
-	const ease = CANYONS.wallEase;
-	const rate = 1 / (1 - ease);
-	if (v < ease) return rate * v * v / (2 * ease);
-	if (v > 1 - ease) {
-		const rest = 1 - v;
-		return 1 - rate * rest * rest / (2 * ease);
-	}
-	return rate * (v - ease / 2);
-}
-
-/** The derivative of `wallRise`. */
-function wallRiseSlope(v: number): number {
-	if (v <= 0 || v >= 1) return 0;
-	const ease = CANYONS.wallEase;
-	const rate = 1 / (1 - ease);
-	if (v < ease) return rate * v / ease;
-	if (v > 1 - ease) return rate * (1 - v) / ease;
-	return rate;
 }

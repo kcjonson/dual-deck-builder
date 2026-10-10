@@ -2,7 +2,7 @@ import { describeValue } from '../core/Json';
 import { ReaderRangeError, ReaderTypeError, readArray, readFields, readText } from '../core/JsonReader';
 import { escortNumber } from '../mechanics/Convoy';
 import { CardCounts, NO_CARDS, addCounts, cardCount, readCardCounts, readCardType, totalCards } from './CardCounts';
-import { DriverRecord } from './DriverRecord';
+import { DriverRecord, readPoolDriver } from './DriverRecord';
 
 /** An escort card as a save holds it. */
 export interface EscortCardJson {
@@ -118,9 +118,7 @@ export class RunDeck implements Readonly<RunDeckData> {
  */
 export function readRunDeckJson(value: unknown, path: string, drivers: readonly DriverRecord[]): RunDeck {
 	const fields = readFields(value, path, JSON_FIELDS);
-	const id = readText(fields.driver, `${path}.driver`);
-	const driver = drivers.find(record => record.id === id);
-	if (driver === undefined) throw new ReaderRangeError(`${path}.driver ${describeValue(id)} isn't a driver in the pool`);
+	const driver = readPoolDriver(fields.driver, `${path}.driver`, drivers);
 	const data = readRunDeckData({ ...fields, driver }, path);
 	return new RunDeck(data);
 }

@@ -1,3 +1,5 @@
+import { clamp01 } from './MapMath';
+
 /**
  * Plane geometry for the area map's roads. Everything here is adds,
  * multiplies, divides, square roots, and comparisons, which IEEE 754 and
@@ -165,6 +167,3 @@ export function chaikin(points: readonly number[]): number[] {
 	return smoothed;
 }
 
-function clamp01(value: number): number {
-	return value < 0 ? 0 : value > 1 ? 1 : value;
-}

@@ -14,7 +14,7 @@ The campaign model writes and reads its own JSON, but nothing kept it, so a camp
 - `load()`: the campaign in progress, or null (none, or outdated). What Continue opens; the menu's summary line ("Day 12 - 3 drivers - 1 stronghold taken") reads from the loaded campaign.
 - `save(campaign)`: writes it, and rejects if it can't. Founding saves a new campaign with it.
 - `checkpoint(campaign)`: what the run and compound screens call at the end of each step. It never rejects: it resolves false after telling `onSaveFailed` listeners why, so a screen can fire it and move on while one notice in the UI covers every failure.
-- `end({ campaign, ending })`: the campaign goes into the history and its save goes.
+- `end({ campaign, ending })`: the campaign goes into the history and its save goes. A campaign that's over (`Campaign.end`) goes in with its own ending, and a checkpoint or save of one ends it this way instead of writing it ([campaign-end.md](./campaign-end.md)).
 - `delete()`: the save goes without a history line.
 - `history()`: past campaigns, newest first.
 
@@ -107,7 +107,7 @@ The lineage lives in each store's memory, so a second tab of one build has its o
 
 ## The history
 
-`history` holds `{ version, campaigns }`, newest first, each entry `{ seed, day, strongholdsTaken, ending }`, about 70 characters. It's kept apart from the save: Continue never reads it, and the history list never reads a save. The seed is there because the spec shows it in campaign history; `day` is the day the campaign ended on, from which the menu tells days survived. The endings are `starved`, `rioted`, and `disbanded` for the compound's fall, `won`, and `abandoned` for a campaign given up for a new one. Unlocks earned (Game Flow 1.1) join with a version bump once unlocks exist. `end` records the campaign as it stood when it was called.
+`history` holds `{ version, campaigns }`, newest first, each entry `{ seed, day, strongholdsTaken, ending }`, about 70 characters. It's kept apart from the save: Continue never reads it, and the history list never reads a save. The seed is there because the spec shows it in campaign history; `day` is the day the campaign ended on, from which the menu tells days survived. The endings are `starved`, `rioted`, and `disbanded` for the compound's fall, `won`, and `abandoned` for a campaign given up for a new one. A fall comes only from the campaign's own end: `end` records a campaign that's over with its own ending, whatever it's given, and one still standing as won or abandoned ([campaign-end.md](./campaign-end.md)). Unlocks earned (Game Flow 1.1) join with a version bump once unlocks exist. `end` records the campaign as it stood when it was called.
 
 An entry equal to the newest one isn't added again. A new session after a crash between recording a campaign and removing its save doesn't know the campaign ended, so that heals the crash only when the campaign is ended the same way again; ended another way (abandoned from New Campaign, say), it gets a second line. Entries carry no campaign identity, so two campaigns on one seed that end the same way on the same day, back to back, also read as one.
 
@@ -125,7 +125,7 @@ Loading rebuilds terrain and dressing from their streams, which nest: each stage
 
 - Founding saves with `CampaignStore.shared.save(campaign)`; a failure there means the new campaign isn't saved, and the message says why.
 - The main menu reads `saveStatus()`: Continue on `'saved'`, a note that a campaign from another version can't be continued on `'outdated'`. It opens the save with `load()` and picks its words for a failure from `reason`. New Campaign over a save in progress calls `end({ ending: 'abandoned' })` to keep it in the history, or `delete()`; over an outdated save it can simply save the new campaign.
-- The run and compound screens call `checkpoint` at the end of each step, start the next step only after it or on a later frame, subscribe to `onSaveFailed` for a "couldn't save" notice, and call `end` when the last driver dies or the campaign is won.
+- The run and compound screens call `checkpoint` at the end of each step, start the next step only after it or on a later frame, subscribe to `onSaveFailed` for a "couldn't save" notice, and call `end` when the campaign is won. The checkpoint after the step that loses the campaign ends it in the store by itself ([campaign-end.md](./campaign-end.md)).
 - Bumping `CAMPAIGN_SCHEMA_VERSION` invalidates every existing save of a build, and starts its history over. `Campaign.test.ts` pins the format to it (the fixture's key paths, and a history entry's and list's fields), so a change that moves the pin fails until the version goes up with it.
 - Saves of builds that are gone stay in the playtesters' local storage until they clear it, and count against the origin's quota.
 - The recovery keys hold one save and one history each.

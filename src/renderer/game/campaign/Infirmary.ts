@@ -1,5 +1,6 @@
 import { readInteger } from '../core/JsonReader';
 import type { Campaign } from './Campaign';
+import { CampaignEnd, refuseOver, refuseOverBlocker } from './CampaignEnd';
 import { hasOpenFight } from './OpenFights';
 import { COMPOUND_RULES, CompoundRules, readCompoundRules } from './CompoundRules';
 import type { DriverRecord, DriverRecordData, DriverStatus } from './DriverRecord';
@@ -23,11 +24,13 @@ export interface Injury {
 
 /**
  * Why the infirmary won't treat a driver, which its screen shows on the
- * action it disables: they aren't injured (their status says what they
- * are), they'll be fit in fewer days than were asked for, or the stores
- * hold fewer meds than it takes.
+ * action it disables: the campaign is over (its `end` says how), they
+ * aren't injured (their status says what they are), they'll be fit in
+ * fewer days than were asked for, or the stores hold fewer meds than it
+ * takes.
  */
 export type TreatmentBlocker =
+	| { reason: 'campaign_over'; end: Readonly<CampaignEnd> }
 	| { reason: 'not_injured'; status: Exclude<DriverStatus, 'injured'> }
 	| { reason: 'too_many_days'; injuredDays: number }
 	| { reason: 'too_few_meds'; needed: number; held: number };
@@ -80,10 +83,10 @@ export function injuryDays({ hitpoints, maxHitpoints, rules = COMPOUND_RULES }: 
  *
  * Returns who's injured, in the order given, frozen. The campaign itself
  * doesn't change, so only the injured drivers' records emit. Throws,
- * changing nothing, while the campaign's fight is open or being written
- * back (the write-back has to fit the records as the fight left them, and
- * a listener partway through it sees them half stored), and for a driver
- * outside the campaign's pool, one listed twice, or one who isn't ready: a
+ * changing nothing, once the campaign is over, while the campaign's fight
+ * is open or being written back (the write-back has to fit the records as
+ * the fight left them, and a listener partway through it sees them half
+ * stored), and for a driver outside the campaign's pool, one listed twice, or one who isn't ready: a
  * run leaves with ready drivers, and only a failed run, which never gets
  * home, changes a seat's status on the road.
  */
@@ -92,6 +95,7 @@ export function injureOnArrival({ campaign, drivers, rules = COMPOUND_RULES }: {
 	drivers: readonly DriverRecord[];
 	rules?: CompoundRules;
 }): readonly Injury[] {
+	refuseOver({ campaign, action: 'injure drivers coming home' });
 	if (hasOpenFight(campaign)) throw new Error("This campaign's last fight hasn't been written back, so nobody has come home from it yet");
 	const checked = readCompoundRules(rules, 'CompoundRules');
 	drivers.forEach((driver, index) => {
@@ -128,8 +132,8 @@ export function treatmentCost({ days, rules = COMPOUND_RULES }: { days: number; 
 
 /**
  * Why the infirmary won't take `days` off this driver's injury, or null if
- * `treatDriver` would, in this order: they aren't injured, they'll be fit in
- * fewer days than that, or the stores hold fewer meds than it costs. Throws,
+ * `treatDriver` would, in this order: the campaign is over, they aren't
+ * injured, they'll be fit in fewer days than that, or the stores hold fewer meds than it costs. Throws,
  * as `treatDriver` does, on a driver outside the campaign's pool or `days`
  * that isn't a whole number from 1.
  */
@@ -144,10 +148,12 @@ export function getTreatmentBlocker({ campaign, driver, days = 1, rules = COMPOU
  * away, as one the night heals is at dawn, so they can go out today. The
  * record is stored first and the campaign last, so the campaign's `change`
  * comes once the treatment is whole. Throws a `TreatmentRuleError`,
- * changing nothing, when `getTreatmentBlocker` refuses.
+ * changing nothing, when `getTreatmentBlocker` refuses, and a
+ * `CampaignOverError` when it refuses because the campaign is over.
  */
 export function treatDriver({ campaign, driver, days = 1, rules = COMPOUND_RULES }: TreatmentOptions): number {
 	const { blocker, cost } = checkTreatment({ campaign, driver, days, rules });
+	refuseOverBlocker({ blocker, action: 'treat a driver' });
 	if (blocker !== null) throw new TreatmentRuleError({ message: treatmentMessage({ blocker, driver, days }), blocker });
 	driver.set(healingChanges({ driver, days }));
 	campaign.set({ resources: { ...campaign.resources, meds: campaign.resources.meds - cost } });
@@ -159,6 +165,7 @@ function checkTreatment({ campaign, driver, days, rules }: Required<TreatmentOpt
 	checkInPool({ campaign, driver });
 	const cost = treatmentCost({ days, rules });
 	const refused = (blocker: TreatmentBlocker) => ({ blocker, cost });
+	if (campaign.end !== null) return refused({ reason: 'campaign_over', end: campaign.end });
 	if (driver.status !== 'injured') return refused({ reason: 'not_injured', status: driver.status });
 	if (days > driver.injuredDays) return refused({ reason: 'too_many_days', injuredDays: driver.injuredDays });
 	const held = campaign.resources.meds;
@@ -169,6 +176,8 @@ function checkTreatment({ campaign, driver, days, rules }: Required<TreatmentOpt
 /** What a refused treatment throws, worded for the console; the infirmary screen words its own from the blocker. */
 function treatmentMessage({ blocker, driver, days }: { blocker: TreatmentBlocker; driver: DriverRecord; days: number }): string {
 	switch (blocker.reason) {
+		case 'campaign_over':
+			return `The campaign is over, since the compound ${blocker.end.ending}, so nobody is treated`;
 		case 'not_injured':
 			return `${describeDriver(driver)} is ${blocker.status}, not injured, so there's nothing to treat`;
 		case 'too_many_days':
