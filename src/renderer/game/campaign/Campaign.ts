@@ -6,13 +6,13 @@ import { MapParams } from '../map/MapParams';
 import { Convoy } from '../mechanics/Convoy';
 import { DriverArchetype } from '../mechanics/Driver';
 import type { Vehicle } from '../mechanics/Vehicle';
-import { CampaignEnd, CampaignOverError, CampaignTally, NO_TALLY, checkTallyGrows, fallOf, readCampaignEnd, readTally, refuseOver, stepLog } from './CampaignEnd';
+import { CampaignEnd, CampaignOverError, CampaignTally, NO_TALLY, checkTallyGrows, fallOf, readCampaignEnd, readTally, refuseOver, refuseOverBlocker, stepLog } from './CampaignEnd';
 import { CardCounts, NO_CARDS, addCards, addCounts, cardCount, readCardCounts, readCardType, removeCards, totalCards } from './CardCounts';
 import type { FailedRun, RunParty } from './CombatBridge';
 import { COMPOUND_RULES, CompoundRules, readCompoundRules } from './CompoundRules';
 import { ConvoyJson, convoyToJson, readConvoy } from './ConvoyJson';
 import { DECK_RULES, DeckBlocker, cardName, deckAddBlocker, deckRemoveBlocker, readNewCards } from './DeckRules';
-import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordData, DriverRecordJson, describeDriver, placeholderName, readDriverRecord, readDriverRecordData } from './DriverRecord';
+import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordData, DriverRecordJson, describeDriver, placeholderName, readDriverRecord, readDriverRecordData, readPoolDriver } from './DriverRecord';
 import { injuryDays } from './Infirmary';
 import { readMapParams, repairMapParams } from './MapParamsJson';
 import { EMPTY_MAP, MapState, readMapState } from './MapState';
@@ -675,7 +675,7 @@ export class Campaign extends Model<CampaignData> {
 		const [first, second] = seats;
 		for (const { driver, partner } of [{ driver: first, partner: null }, { driver: second, partner: null }, { driver: first, partner: second }]) {
 			const blocker = getSeatBlocker({ campaign: this, driver, partner });
-			if (blocker?.reason === 'campaign_over') throw new CampaignOverError({ end: blocker.end, action: 'start run decks' });
+			refuseOverBlocker({ blocker, action: 'start run decks' });
 			if (blocker !== null) throw new RangeError(seatRefusal({ driver, blocker }));
 		}
 		const escortCards = this.escortCardsOf(escorts);
@@ -829,9 +829,9 @@ export class Campaign extends Model<CampaignData> {
 	 * who was found.
 	 *
 	 * Everything is checked first, the stores and the locker it all comes to
-	 * included. Then the records are stored, the seats in seat order and the
-	 * found after them, and the campaign last in one `set` of its run decks,
-	 * the found, locker, stores, and tally, so its `change`
+	 * included. Then the records are stored, the found first and then the
+	 * seats in seat order, and the campaign last in one `set` of its run
+	 * decks, the found, locker, stores, and tally, so its `change`
 	 * comes once the run is home; save at the step's checkpoint after it. The
 	 * run's decks go in that set, so a second unload of this run finds no run
 	 * out, whatever party it's handed, and a party left over from an earlier
@@ -863,13 +863,7 @@ export class Campaign extends Model<CampaignData> {
 		const resources = readResources(stores, 'Campaign.resources');
 		const found = this.foundOnRun;
 		const homecomings = found.map(driver => ({ driver, changes: homecoming({ driver, rules: checked }) }));
-		const { locker } = this.unwindRecords({ decks, cardsWon: cards });
-		storingMoves.add(this);
-		try {
-			homecomings.forEach(({ driver, changes }) => driver.set(changes));
-		} finally {
-			storingMoves.delete(this);
-		}
+		const { locker } = this.unwindRecords({ decks, cardsWon: cards, first: () => homecomings.forEach(({ driver, changes }) => driver.set(changes)) });
 		this.set({ runDecks: [], foundOnRun: [], locker, resources, tally: { ...this.tally, runsHome: this.tally.runsHome + 1 } });
 		return Object.freeze({ resources: cargo, cards, found });
 	}
@@ -1172,14 +1166,21 @@ export class Campaign extends Model<CampaignData> {
 	 * the cards won, so a locker that can't count that high stores nothing.
 	 * The campaign refuses every change while the records are stored; the
 	 * caller stores the locker, and empties the run decks, in one `set`.
+	 * `first` stores other records the step changes (the found coming home)
+	 * once the checks have passed, ahead of the seats.
 	 */
-	private unwindRecords({ decks, cardsWon = NO_CARDS }: { decks: readonly RunDeck[]; cardsWon?: CardCounts }): { locker: CardCounts; lost: readonly RunDeck[] } {
+	private unwindRecords({ decks, cardsWon = NO_CARDS, first = () => undefined }: {
+		decks: readonly RunDeck[];
+		cardsWon?: CardCounts;
+		first?: () => void;
+	}): { locker: CardCounts; lost: readonly RunDeck[] } {
 		sumCounts([this.locker, cardsWon, ...decks.flatMap(deck => [deck.borrowed, deck.leftHome])], 'Campaign.locker');
 		decks.forEach(deck => addCounts(deck.driver.defaultDeck, deck.defaultDeck));
 		const lost: RunDeck[] = [];
 		let locker = addCounts(this.locker, cardsWon);
 		storingMoves.add(this);
 		try {
+			first();
 			for (const deck of decks) {
 				if (deck.driver.status === 'dead') {
 					lost.push(deck);
@@ -1261,7 +1262,7 @@ function blockerMessage({ blocker, verb, cardType, count }: { blocker: CardBlock
  * blocker its check gave.
  */
 function cardRefusal({ blocker, action, message }: { blocker: CardBlocker; action: string; message: () => string }): Error {
-	if (blocker.reason === 'campaign_over') return new CampaignOverError({ end: blocker.end, action });
+	refuseOverBlocker({ blocker, action });
 	return new CardRuleError({ message: message(), blocker });
 }
 
@@ -1420,27 +1421,38 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 /**
  * Drivers found on the run out: none at home, and while a run is out,
  * drivers from the pool, each listed once, missing, and not seated (a seat
- * whose run failed is settled first). Found drivers held before were checked
- * when they were stored; their records change outside the campaign's
- * checks, so `toSaveText` checks they're still missing.
+ * whose run failed is settled first). Found drivers held before had their
+ * one-by-one checks when they were stored, but the run decks can change
+ * without them, so the run out and the seats are checked every time; their
+ * records change outside the campaign's checks, so `toSaveText` checks
+ * they're still missing.
  */
 function readFound(
 	value: unknown,
 	path: string,
 	{ drivers, runDecks, held }: { drivers: readonly DriverRecord[]; runDecks: readonly RunDeck[]; held?: readonly DriverRecord[] }
 ): readonly DriverRecord[] {
-	if (held !== undefined && value === held) return held;
+	const wasHeld = held !== undefined && value === held;
+	const found = wasHeld ? held : readFoundDrivers(value, path, drivers);
+	// Checked whatever was held, since the run decks can change without the found
+	if (found.length > 0 && runDecks.length === 0) throw new ReaderRangeError(`${path} holds ${found.length} found with no run out; they come home with the run, or stay missing`);
+	found.forEach((driver, index) => {
+		if (runDecks.some(deck => deck.driver === driver)) throw new ReaderRangeError(`${path}[${index}] ${driver.id} is seated on the run`);
+	});
+	if (!wasHeld) readFoundTies({ found, path });
+	return found;
+}
+
+/** Found drivers checked one by one: records from the pool, each listed once. */
+function readFoundDrivers(value: unknown, path: string, drivers: readonly DriverRecord[]): readonly DriverRecord[] {
 	const found = Array.from(readArray(value, path), (driver, index) => {
 		if (!(driver instanceof DriverRecord)) throw new ReaderTypeError(`${path}[${index}] must be a DriverRecord, got ${describeValue(driver)}`);
 		if (!drivers.includes(driver)) throw new ReaderRangeError(`${path}[${index}] ${driver.id} isn't in the pool`);
 		return driver;
 	});
-	if (found.length > 0 && runDecks.length === 0) throw new ReaderRangeError(`${path} holds ${found.length} found with no run out; they come home with the run, or stay missing`);
 	found.forEach((driver, index) => {
 		if (found.indexOf(driver) !== index) throw new ReaderRangeError(`${path}[${index}] ${driver.id} is listed twice`);
-		if (runDecks.some(deck => deck.driver === driver)) throw new ReaderRangeError(`${path}[${index}] ${driver.id} is seated on the run`);
 	});
-	readFoundTies({ found, path });
 	return Object.freeze(found);
 }
 
@@ -1449,14 +1461,6 @@ function readFoundTies({ found, path }: { found: readonly DriverRecord[]; path: 
 	found.forEach((driver, index) => {
 		if (driver.status !== 'missing') throw new ReaderRangeError(`${path}[${index}] ${driver.id} must be missing until the run brings them home, got ${describeValue(driver.status)}`);
 	});
-}
-
-/** A driver from the pool, by the id a save refers to them by. */
-function readPoolDriver(value: unknown, path: string, drivers: readonly DriverRecord[]): DriverRecord {
-	const id = readText(value, path);
-	const driver = drivers.find(record => record.id === id);
-	if (driver === undefined) throw new ReaderRangeError(`${path} ${describeValue(id)} isn't a driver in the pool`);
-	return driver;
 }
 
 /** Refuses an end with a run still out, or a cause the campaign doesn't show. */

@@ -159,15 +159,16 @@ describe('endDay', () => {
 	});
 
 	describe('People reaching 0', () => {
-		it('says the compound is abandoned on the day the last of its people go, and the campaign ends on that day (DDB-305)', () => {
+		it('ends the campaign on the day the last of its people go (DDB-305)', () => {
 			const campaign = newCampaign({ people: 3, food: 0, water: 0 });
 
 			const first = endDay({ campaign });
+			expect(campaign.isOver).toBe(false);
 			const second = endDay({ campaign });
 
-			expect(first).toMatchObject({ peopleLost: 2, outcome: 'continues' });
+			expect(first).toMatchObject({ peopleLost: 2 });
 			expect(campaign.resources.people).toBe(0);
-			expect(second).toMatchObject({ day: 2, peopleLost: 1, outcome: 'abandoned' });
+			expect(second).toMatchObject({ day: 2, peopleLost: 1 });
 			// With no food left it starved, on the day that ended, which doesn't turn
 			expect(campaign.end).toEqual({ ending: 'starved', cause: 'no_people' });
 			expect(campaign.day).toBe(2);
@@ -183,7 +184,7 @@ describe('endDay', () => {
 
 			const result = endDay({ campaign });
 
-			expect(result).toMatchObject({ day: 1, upkeep: { food: 0, water: 0 }, shortfall: { food: 0, water: 0 }, peopleLost: 0, outcome: 'abandoned' });
+			expect(result).toMatchObject({ day: 1, upkeep: { food: 0, water: 0 }, shortfall: { food: 0, water: 0 }, peopleLost: 0 });
 			expect(campaign.resources.food).toBe(5);
 			expect(campaign.day).toBe(1);
 			expect(campaign.end).toEqual({ ending: 'disbanded', cause: 'no_people' });
@@ -191,8 +192,12 @@ describe('endDay', () => {
 			expect(() => endDay({ campaign })).toThrow("Can't end the day: the campaign is over, since the compound disbanded");
 		});
 
-		it('says the compound continues while anyone is left', () => {
-			expect(endDay({ campaign: newCampaign({ people: 1, food: 0, water: 0 }), rules: rulesWith({ peopleLostPerUnit: 0 }) }).outcome).toBe('continues');
+		it('goes on while anyone is left', () => {
+			const campaign = newCampaign({ people: 1, food: 0, water: 0 });
+
+			endDay({ campaign, rules: rulesWith({ peopleLostPerUnit: 0 }) });
+
+			expect([campaign.isOver, campaign.day]).toEqual([false, 2]);
 		});
 	});
 
@@ -657,7 +662,6 @@ describe('the day clock over a campaign', () => {
 				expect(result.unrestGained).toBe(unitsShort);
 				expect(after.unrest).toBe(before.unrest + unitsShort);
 				expect(after.log.length).toBe(before.logLength + (unitsShort > 0 ? 1 : 0));
-				expect(result.outcome).toBe('continues');
 				expect(after.end).toBeNull();
 				before.drivers.forEach((was, index) => {
 					const driver = after.drivers[index];

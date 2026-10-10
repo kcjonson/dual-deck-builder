@@ -215,6 +215,14 @@ export function refuseRevival({ driver, changes }: { driver: DriverRecord; chang
 	}
 }
 
+/** A driver from the pool, by the id a save refers to them by. */
+export function readPoolDriver(value: unknown, path: string, drivers: readonly DriverRecord[]): DriverRecord {
+	const id = readText(value, path);
+	const driver = drivers.find(record => record.id === id);
+	if (driver === undefined) throw new ReaderRangeError(`${path} ${describeValue(id)} isn't a driver in the pool`);
+	return driver;
+}
+
 /** A record read from a save, with errors naming where in the save it was. */
 export function readDriverRecord(value: unknown, path: string): DriverRecord {
 	return new DriverRecord(readDriverRecordData(value, path));

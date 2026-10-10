@@ -1,6 +1,6 @@
 import { readInteger } from '../core/JsonReader';
 import type { Campaign } from './Campaign';
-import { CampaignEnd, CampaignOverError, refuseOver } from './CampaignEnd';
+import { CampaignEnd, refuseOver, refuseOverBlocker } from './CampaignEnd';
 import { hasOpenFight } from './OpenFights';
 import { COMPOUND_RULES, CompoundRules, readCompoundRules } from './CompoundRules';
 import type { DriverRecord, DriverRecordData, DriverStatus } from './DriverRecord';
@@ -153,7 +153,7 @@ export function getTreatmentBlocker({ campaign, driver, days = 1, rules = COMPOU
  */
 export function treatDriver({ campaign, driver, days = 1, rules = COMPOUND_RULES }: TreatmentOptions): number {
 	const { blocker, cost } = checkTreatment({ campaign, driver, days, rules });
-	if (blocker?.reason === 'campaign_over') throw new CampaignOverError({ end: blocker.end, action: 'treat a driver' });
+	refuseOverBlocker({ blocker, action: 'treat a driver' });
 	if (blocker !== null) throw new TreatmentRuleError({ message: treatmentMessage({ blocker, driver, days }), blocker });
 	driver.set(healingChanges({ driver, days }));
 	campaign.set({ resources: { ...campaign.resources, meds: campaign.resources.meds - cost } });

@@ -1,7 +1,7 @@
 import { readInteger, readSeed } from '../core/JsonReader';
 import { Rng } from '../core/Rng';
 import type { Campaign } from './Campaign';
-import { CampaignEnd, CampaignOverError } from './CampaignEnd';
+import { CampaignEnd, refuseOverBlocker } from './CampaignEnd';
 import { COMPOUND_RULES, CompoundRules, SCAVENGED_RESOURCES, ScavengedResource, readCompoundRules } from './CompoundRules';
 import { DAY_END_HOOKS, DayEnd, DayEndHooks, endDay } from './DayClock';
 
@@ -96,7 +96,7 @@ export function rollScavengeHaul({ seed, day, rules = COMPOUND_RULES }: { seed: 
  */
 export function scavenge({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS }: ScavengeOptions): Scavenge {
 	const blocker = getScavengeBlocker({ campaign });
-	if (blocker?.reason === 'campaign_over') throw new CampaignOverError({ end: blocker.end, action: 'send a scavenging party' });
+	refuseOverBlocker({ blocker, action: 'send a scavenging party' });
 	if (blocker !== null) throw new ScavengeRuleError({ message: blockerMessage(blocker), blocker });
 	const haul = rollScavengeHaul({ seed: campaign.seed, day: campaign.day, rules });
 	const dayEnd = endDay({ campaign, rules, hooks, haul: { resources: haul, message: scavengeMessage(haul) } });

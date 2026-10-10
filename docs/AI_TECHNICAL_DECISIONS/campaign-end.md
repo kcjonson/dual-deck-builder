@@ -32,7 +32,7 @@ The missing count as lost (Provisional calls). A missing driver only comes back 
 
 Nobody dies at the end of a day and nobody leaves on a run, so neither step checks the other's cause. A campaign standing at 0 People (only a test builds one) ends at its next day end.
 
-The end needs the run home first: a campaign that's over has no run decks out. A night that leaves no People while a run is out still reports `abandoned`, and the first day end after the run gets home ends the campaign.
+The end needs the run home first: a campaign that's over has no run decks out. A night that leaves no People while a run is out ends nothing, and the first day end after the run gets home ends the campaign.
 
 The day stops on the day the compound fell. `loseRun` never turns the day, and the night that empties the compound doesn't either, so `campaign.day` is the day it fell on, which the history's `day` and the defeat screen's days held both read.
 
@@ -104,7 +104,7 @@ Made here, each a line or a value to change:
 
 ## Consequences
 
-- The compound screen decides the fall from `campaign.isOver`, after the checkpoint that ends it in the store, so nothing in the game reads `DayEnd.outcome` any more, and it can go. The defeat screen replaces the screen's fallen notice, and reads `campaign.end` and `campaignStats`.
+- The compound screen decides the fall from `campaign.isOver`, after the checkpoint that ends it in the store; the day end's old `outcome` is gone. The defeat screen replaces the screen's fallen notice, and reads `campaign.end` and `campaignStats`.
 - The run controller (DDB-322) calls `loseRun`, then `endDay` unless the campaign is over, then checkpoints, which ends a lost campaign in the store. Its debrief names who `unloadRun` brought home in `found`.
 - The Find: driver stop (DDB-279) calls `findMissingDriver` for a missing driver it turns up.
 - The screens word `campaign_over` as "Campaign over" under a card (`cardBlockerReason`); any later screen that words a blocker takes it too.

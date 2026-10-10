@@ -35,7 +35,7 @@ How stop cooldowns and POI refills plug in:
 
 `endDay` refuses while the campaign is storing a card move or a run's records (`Campaign.isStoring`): a record's listener calling it then would see the healed records stored and the campaign's `set` refused. Everything is worked out and checked before anything is stored: the hooks' maps with the save's reader, the stores with the haul in with the save's resource reader, and the next day and unrest with the integer reader the campaign's own check uses. So a hook that throws or returns something a save can't hold, or a haul, day, or unrest past a safe integer, changes nothing. Then the healed records are stored, and the campaign last, in one `set` that carries the haul too, so its `change` comes once the day end is whole, as with a card move. The log is read after the records are stored, so a line a record's listener adds while a driver heals stays in. Saving stays with the caller's checkpoint after the step.
 
-It returns a frozen `DayEnd`: the day that ended, the upkeep, the shortfall, people lost, unrest gained, the drivers healed, and an `outcome`, `abandoned` whenever People is 0 at dawn and `continues` otherwise. With no run out, that night also ends the campaign in the same `set`, and the day doesn't turn ([campaign-end.md](./campaign-end.md)).
+It returns a frozen `DayEnd`: the day that ended, the upkeep, the shortfall, people lost, unrest gained, and the drivers healed. A night that leaves no People with no run out also ends the campaign in the same `set`, and the day doesn't turn; callers read that off the campaign (`isOver`, `end`) rather than the day end ([campaign-end.md](./campaign-end.md)).
 
 `forecastNeeds` gives food and water each a stock, a daily upkeep, `days` (how many more day ends the stock covers in full, if People holds and nothing comes in), and `shortTonight`. `days` is 0 when tonight is already short and null when nobody's there to eat. People only changes on a short night, so the forecast is exact up to the first shortage: the first short night is the one after the smaller `days`, which the tests check against `endDay` itself.
 
@@ -54,7 +54,7 @@ Nothing here draws randomness. A later step that needs a draw forks a stream per
 Each is a value or a line or two to change.
 
 - One run a day (DDB-327). A run's return ends the day, so the compound between runs is always at dawn. Two runs in a day's light would have the run controller skip `endDay` while there's light for another; the day end itself wouldn't change, though the compound would then need an hour on the campaign.
-- People reaching 0 loses the campaign (DDB-308). `endDay` reports `outcome: 'abandoned'` and, with no run out, ends the campaign itself ([campaign-end.md](./campaign-end.md)). An empty compound eats nothing.
+- People reaching 0 loses the campaign (DDB-308). With no run out, `endDay` ends the campaign itself ([campaign-end.md](./campaign-end.md)). An empty compound eats nothing.
 - A shortfall costs 1 person and 1 unrest per unit short, counting food and water separately and adding them. Short 1 food and 2 water costs 3 people and 3 unrest. Counting the larger of the two instead (the same people go hungry and thirsty) is one line.
 - Upkeep counts People at dusk, before the night's losses, and the compound eats what's there before counting what's short.
 - Unrest only rises. Nothing in the spec lowers it, so nothing here does; cooling on a fed day would be one rule value and one line.

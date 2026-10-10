@@ -72,6 +72,21 @@ export function refuseOver({ campaign, action }: { campaign: Campaign; action: s
 	if (campaign.isOver) throw new CampaignOverError({ end: campaign.end as Readonly<CampaignEnd>, action });
 }
 
+/** A check's reason that the campaign is over, which every check over the campaign gives first. */
+export interface CampaignOverBlocker {
+	readonly reason: 'campaign_over';
+	readonly end: Readonly<CampaignEnd>;
+}
+
+/**
+ * Throws the `CampaignOverError` a check's `campaign_over` stands for, with
+ * its clearer message, before `action` changes anything; any other reason,
+ * or none, passes for the action's own refusal.
+ */
+export function refuseOverBlocker({ blocker, action }: { blocker: { readonly reason: string } | null; action: string }): void {
+	if (blocker !== null && blocker.reason === 'campaign_over') throw new CampaignOverError({ end: (blocker as CampaignOverBlocker).end, action });
+}
+
 /**
  * How a lost campaign's compound falls, read off its stores and unrest at
  * the end, in this order: it starves with food at or below

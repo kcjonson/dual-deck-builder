@@ -45,9 +45,10 @@ describe('CompoundScreen', () => {
 		await openText(fixtureText((campaign) => change(campaign as Fixture)));
 	}
 
-	/** Mounts the screen over this save text, and waits for it to load. */
-	async function openText(text: string): Promise<void> {
+	/** Mounts the screen over this save text, storage failing as asked from the start, and waits for it to load. */
+	async function openText(text: string, { fault = null }: { fault?: FaultyStorage['fault'] } = {}): Promise<void> {
 		storage = storageWith(text);
+		storage.fault = fault;
 		store = storeOver(storage);
 		screen = new CompoundScreen({ store });
 		screen.mount(context);
@@ -340,6 +341,25 @@ describe('CompoundScreen', () => {
 		expect(await storeOver(storage).load()).toBeNull();
 		expect(await storeOver(storage).history()).toEqual([{ seed: CAMPAIGN_FIXTURE.seed, day: 9, strongholdsTaken: 1, ending: 'disbanded' }]);
 		expect(navigate).not.toHaveBeenCalled();
+	});
+
+	it('retries the end of a save already over with Rest when its checkpoint failed as the screen opened, ending no day', async () => {
+		await openText(homeText({ people: 0 }, { ending: 'disbanded', cause: 'no_people' }), { fault: { method: 'setItem', error: quotaError() } });
+		await flush();
+		advance(context, OPEN_MS);
+		expect(fallen()).toBe(false);
+		expect(text('compound_save_error')).toBe("The campaign couldn't be ended: storage is full.");
+		expect(text('compound_rest_line')).toBe('The compound has fallen. Rest saves its end again.');
+		expect(await storeOver(storage).history()).toEqual([]);
+		storage.fault = null;
+
+		await rest();
+		advance(context, OPEN_MS);
+
+		expect(fallen()).toBe(true);
+		expect(screen.shown?.day).toBe(9);
+		expect(await storeOver(storage).load()).toBeNull();
+		expect(await storeOver(storage).history()).toEqual([{ seed: CAMPAIGN_FIXTURE.seed, day: 9, strongholdsTaken: 1, ending: 'disbanded' }]);
 	});
 
 	it('says nothing has fallen while a run is out at 0 People, since the end waits for the run to come home', async () => {

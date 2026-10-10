@@ -228,7 +228,7 @@ describe('People reaching 0', () => {
 		const night = endDay({ campaign });
 
 		expect(heard).toHaveBeenCalledTimes(1);
-		expect(night.outcome).toBe('abandoned');
+		expect(night.day).toBe(4);
 		expect(campaign.end).toEqual({ ending, cause: 'no_people' });
 		expect(campaign.day).toBe(4);
 		expect(campaign.log[campaign.log.length - 1]).toEqual({ day: 4, message: `No people are left, and the compound ${ending === 'rioted' ? 'rioted over what was left' : ending}.` });
@@ -254,7 +254,7 @@ describe('People reaching 0', () => {
 
 		const { haul, dayEnd } = scavenge({ campaign });
 
-		expect(dayEnd.outcome).toBe('abandoned');
+		expect(dayEnd.peopleLost).toBe(1);
 		expect(campaign.end).toEqual({ ending: 'starved', cause: 'no_people' });
 		expect(campaign.resources.fuel).toBe(STORES.fuel + haul.fuel);
 		expect(campaign.log.map(entry => entry.message)).toEqual([
@@ -269,9 +269,9 @@ describe('People reaching 0', () => {
 		const seats = ARCHETYPES.slice(0, 2).map(archetype => campaign.recruitDriver({ archetype })) as [DriverRecord, DriverRecord];
 		const party = setOff({ campaign, seats });
 
-		// People is 0 at dawn, so the night says the compound is abandoned, and the campaign waits for the run
-		expect(endDay({ campaign }).outcome).toBe('abandoned');
-		expect([campaign.end, campaign.day]).toEqual([null, 2]);
+		// People is 0 at dawn, and the campaign waits for the run
+		endDay({ campaign });
+		expect([campaign.isOver, campaign.day]).toEqual([false, 2]);
 		campaign.unloadRun({ party });
 		expect(campaign.end).toBeNull();
 		endDay({ campaign });
@@ -402,6 +402,17 @@ describe('a missing driver found on a run', () => {
 		expect(JSON.stringify(campaign)).toBe(before);
 		campaign.unloadRun({ party });
 		expect(() => campaign.findMissingDriver({ driver: interceptor })).toThrow('No run is out, so nobody is on the road to find them');
+	});
+
+	it('can\'t be left behind by a set that takes the run decks away, which would save a campaign that won\'t load', () => {
+		const { campaign, interceptor } = onTheRoad();
+		campaign.findMissingDriver({ driver: interceptor });
+		const before = JSON.stringify(campaign);
+
+		expect(() => campaign.set({ runDecks: [] }))
+			.toThrow('Campaign.foundOnRun holds 1 found with no run out; they come home with the run, or stay missing');
+		expect(JSON.stringify(campaign)).toBe(before);
+		expect(() => Campaign.fromJSON(JSON.parse(campaign.toSaveText()))).not.toThrow();
 	});
 
 	it('refuses a seat whose own failed run hasn\'t been settled, with their run deck still out', () => {

@@ -9,7 +9,7 @@ import { DRIVER_CONFIGS, Driver, DriverRole } from '../mechanics/Driver';
 import { Team, TeamType } from '../mechanics/Team';
 import { Vehicle, createDrivenVehicle } from '../mechanics/Vehicle';
 import { Campaign, NO_RESOURCES, Resources, readResources } from './Campaign';
-import { CampaignOverError, refuseOver } from './CampaignEnd';
+import { refuseOver, refuseOverBlocker } from './CampaignEnd';
 import { CardCounts, NO_CARDS, addCards, readCardCounts } from './CardCounts';
 import { DriverRecord, DriverRecordData, VehicleCondition, describeDriver, readDriverRecordData, refuseRevival } from './DriverRecord';
 import { isStoringWriteBack, openFightOf, setOpenFight, setStoringWriteBack } from './OpenFights';
@@ -158,7 +158,7 @@ export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, ene
 	const checks = [{ driver: first, partner: null }, { driver: second, partner: null }, { driver: first, partner: second }];
 	for (const { driver, partner } of checks) {
 		const blocker = getSeatBlocker({ campaign, driver, partner });
-		if (blocker?.reason === 'campaign_over') throw new CampaignOverError({ end: blocker.end, action: 'start a fight' });
+		refuseOverBlocker({ blocker, action: 'start a fight' });
 		if (blocker !== null) throw new RangeError(seatRefusal({ record: driver, blocker }));
 	}
 	const cargo = readResources(party.cargo, 'RunParty.cargo');

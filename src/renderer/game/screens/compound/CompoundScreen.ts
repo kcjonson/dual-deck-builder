@@ -325,7 +325,7 @@ export class CompoundScreen extends Screen {
 
 		const forecast = forecastNeeds({ resources });
 		if (this.restLine) {
-			this.restLine.text = restCaption({ day, forecast });
+			this.restLine.text = restCaption({ day, forecast, over: campaign.isOver });
 			this.restLine.color = 'text_dim';
 		}
 		const needs = this.needs;

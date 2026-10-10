@@ -32,12 +32,9 @@ const keepMap: MapDayStep = ({ map }) => map;
 /** Nothing changes on the map overnight until the map keeps stop and POI state. */
 export const DAY_END_HOOKS: DayEndHooks = Object.freeze({ stopCooldowns: keepMap, poiRefills: keepMap });
 
-/** The compound still stands, or People reached 0 and it's abandoned, which lost the campaign. */
-export type DayEndOutcome = 'continues' | 'abandoned';
-
 /** What happened overnight, for the debrief, the compound screen, and whatever ends the campaign. */
 export interface DayEnd {
-	/** The day that ended. The campaign is now at the dawn of the next, unless the night lost it. */
+	/** The day that ended. The campaign is now at the dawn of the next, unless the night lost it (`Campaign.isOver`). */
 	readonly day: number;
 	/** What the day's upkeep came to, for the People there at dusk. */
 	readonly upkeep: Upkeep;
@@ -47,12 +44,6 @@ export interface DayEnd {
 	readonly unrestGained: number;
 	/** Injured drivers who are fit again at dawn. */
 	readonly healed: readonly DriverRecord[];
-	/**
-	 * `abandoned` whenever People is 0 at dawn, and `continues` otherwise.
-	 * With no run out the campaign is then over (`Campaign.end` says how it
-	 * fell); with one out, it ends the first night after the run is home.
-	 */
-	readonly outcome: DayEndOutcome;
 }
 
 /** One resource's forecast for the needs panel. */
@@ -159,8 +150,7 @@ export function endDay({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS
 		shortfall,
 		peopleLost,
 		unrestGained,
-		healed: Object.freeze(healing.filter(({ changes }) => changes.status === 'ready').map(({ driver }) => driver)),
-		outcome: people === 0 ? 'abandoned' : 'continues'
+		healed: Object.freeze(healing.filter(({ changes }) => changes.status === 'ready').map(({ driver }) => driver))
 	});
 }
 
