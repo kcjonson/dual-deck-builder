@@ -433,7 +433,9 @@ export class RunScreen extends Screen {
 		}
 		if (this.shown.kind === 'road') this.shown = campaign.supplyRun ? { kind: 'road', run: campaign.supplyRun } : { kind: 'none' };
 		this.refresh();
+		// The last step's report goes with it
 		if (report !== null) this.showLine({ line: this.report, text: report, color: 'text_dim' });
+		else if (this.report) this.report.visible = false;
 		const result = await this.store.checkpoint(campaign);
 		if (visit !== this.visit) return;
 		this.busy = false;

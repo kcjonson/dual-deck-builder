@@ -133,6 +133,13 @@ describe('RunScreen', () => {
 			expect((await saved())?.supplyRun?.stop).toBe(3);
 		});
 
+		it('drops a step\'s report once the next step is taken', async () => {
+			await press('run_skip_button');
+			expect([text('run_report'), find<Text>('run_report').visible]).toEqual(['Left the cards.', true]);
+			await press('run_home_button');
+			expect(find<Text>('run_report').visible).toBe(false);
+		});
+
 		it('goes to the menu on Escape', () => {
 			send(context, [key('Escape')]);
 			expect(navigate).toHaveBeenLastCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
