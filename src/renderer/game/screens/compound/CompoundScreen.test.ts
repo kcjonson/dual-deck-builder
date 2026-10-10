@@ -7,6 +7,7 @@ import type { Component } from '../../../engine/components/Component';
 import type { MountContext } from '../../../engine/components/MountContext';
 import type { Text } from '../../../engine/components/Text';
 import type { Button } from '../../../engine/ui/Button';
+import { NO_MODIFIERS } from '../../../engine/input/events';
 import { advance, click, key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
@@ -663,6 +664,21 @@ describe('CompoundScreen', () => {
 		beforeEach(async () => {
 			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
 			await open();
+		});
+
+		it('keeps focus on Rest through a click on the disabled Area map, so Tab goes on from Rest rather than the top (R9.5, R9.23)', () => {
+			context.frame.layout();
+			context.focus.focus(find('compound_rest_button'));
+			clickOn('compound_area_map_button');
+			expect(context.focus.focused?.id).toBe('compound_rest_button');
+			// From nothing, Shift+Tab would land on the last stop, the actions at Rest.
+			send(context, [{ kind: 'key', phase: 'down', key: 'Tab', repeat: false, modifiers: { ...NO_MODIFIERS, shift: true } }]);
+			expect(context.focus.focused?.id).toBe('compound_building_bunkhouse_button');
+			const stops = ['Tab', 'Tab'].map((tab) => {
+				send(context, [key(tab)]);
+				return context.focus.focused?.id;
+			});
+			expect(stops).toEqual(['compound_rest_button', 'compound_back_button']);
 		});
 
 		it('clicks Rest and Scavenge like any button', async () => {

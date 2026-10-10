@@ -1,6 +1,7 @@
 import { Component, ComponentOptions, FOCUS_RING_EXTENT } from '../components/Component';
 import { Container } from '../components/Container';
 import { Stack } from '../components/Stack';
+import { Button } from '../ui/Button';
 import { ScrollContainer } from '../ui/ScrollContainer';
 import type { MountContext } from '../components/MountContext';
 import { createTestContext } from '../components/testing';
@@ -222,6 +223,84 @@ describe('pointer focus (R9.23)', () => {
 		expect(focusedId()).toBe('a');
 		press(700, 300);
 		expect(focusedId()).toBeNull();
+	});
+});
+
+describe('pointer focus on a disabled control (R9.5, R9.23)', () => {
+	/** Rest, a disabled Area map, and Scavenge in a row, 100 px wide and 20 px apart, with Rest focused by a press. */
+	function buttons(): { root: Group; rest: Button; areaMap: Button; scavenge: Button } {
+		const root = new Group({ id: 'root', width: 1000, height: 600 });
+		const rest = new Button({ label: 'Rest', id: 'rest', x: 0, width: 100, height: 40 });
+		const areaMap = new Button({ label: 'Area map', id: 'area_map', x: 120, width: 100, height: 40, disabled: true });
+		const scavenge = new Button({ label: 'Scavenge', id: 'scavenge', x: 240, width: 100, height: 40 });
+		for (const button of [rest, areaMap, scavenge]) root.addChild(button);
+		root.mount(context);
+		context.frame.layout();
+		press(50, 20);
+		return { root, rest, areaMap, scavenge };
+	}
+
+	it('leaves focus where it was on a press of a disabled button, moves it on a press of an enabled one, and clears it on a press of the background', () => {
+		buttons();
+		expect(focusedId()).toBe('rest');
+
+		press(170, 20);
+		expect(focusedId()).toBe('rest');
+		press(290, 20);
+		expect(focusedId()).toBe('scavenge');
+		press(170, 20);
+		expect(focusedId()).toBe('scavenge');
+		press(700, 300);
+		expect(focusedId()).toBeNull();
+	});
+
+	it('goes on from where focus was with the next Tab, not from the top', () => {
+		buttons();
+		press(170, 20);
+		key('Tab');
+		expect(focusedId()).toBe('scavenge');
+	});
+
+	it('fires no blur or focus on the press, and leaves a ring that Tab showed', () => {
+		const { rest } = buttons();
+		key('Tab', { shift: true });
+		key('Tab');
+		expect(rest.focusVisible).toBe(true);
+		const heard: string[] = [];
+		rest.onBlur = () => heard.push('blur:rest');
+		context.focus.onFocusChange((focused, visible) => heard.push(`change:${focused?.id ?? null}:${visible}`));
+
+		press(170, 20);
+		expect(focusedId()).toBe('rest');
+		expect(rest.focusVisible).toBe(true);
+		expect(heard).toEqual([]);
+	});
+
+	it('leaves focus where it was on a press of a part inside a disabled control that cannot take focus itself', () => {
+		const { root } = buttons();
+		const control = new Probe({ id: 'control', x: 0, y: 100, width: 200, height: 60, focusable: true, enabled: false });
+		control.addChild(new Probe({ id: 'label', x: 10, y: 10, width: 100, height: 20 }));
+		root.addChild(control);
+
+		press(50, 120);
+		expect(focusedId()).toBe('rest');
+	});
+
+	it('focuses no focusable ancestor of a disabled control, nor an enabled control inside a disabled one', () => {
+		const { root } = buttons();
+		const panel = new Probe({ id: 'panel', x: 0, y: 100, width: 400, height: 200, focusable: true, tabIndex: -1 });
+		panel.addChild(new Button({ label: 'Off', id: 'off', x: 10, y: 10, width: 100, height: 40, disabled: true }));
+		const section = new Group({ id: 'section', x: 0, y: 100, width: 400, height: 100, enabled: false });
+		section.addChild(new Button({ label: 'Inside', id: 'inside', x: 10, y: 10, width: 100, height: 40 }));
+		panel.addChild(section);
+		root.addChild(panel);
+
+		press(50, 130);
+		expect(focusedId()).toBe('rest');
+		press(50, 230);
+		expect(focusedId()).toBe('rest');
+		press(300, 150);
+		expect(focusedId()).toBe('panel');
 	});
 });
 
