@@ -1,3 +1,4 @@
+import type { RiverLines } from '../../map/Rivers';
 import type { RoadNetwork } from '../../map/RoadNetwork';
 import { createTerrainSample } from '../../map/Terrain';
 import type { BakeTerrain } from './terrainBake';
@@ -30,38 +31,56 @@ export const SMALL_NETWORK: RoadNetwork = {
 	],
 };
 
+/** A map's rivers when it has none. */
+export const NO_RIVERS: RiverLines = { points: new Float64Array(0), widths: new Float64Array(0), offsets: Uint32Array.of(0) };
+
 export interface FlatTerrainOptions {
 	radius?: number;
 	/** Craters, as `Terrain.hotspots` holds them. */
 	craters?: { x: number; y: number; craterRadius: number }[];
-	/** Rough country, and its slope's size there. */
-	rough?: (x: number, y: number) => boolean;
+	/** How far into a cliff a point is, as `Terrain.cliffDepth` reads it: 0 or more on one; no cliffs when left out. */
+	cliffDepth?: (x: number, y: number) => number;
+	/** The slope east, everywhere, for the hill shade; flat when left out. */
 	slope?: number;
+	/** Moisture at a point; middling, 0.5, everywhere when left out. */
+	moisture?: (x: number, y: number) => number;
+	/** A water layer's lake depth, more than 0 under a lake; no water when left out. */
+	lakeDepth?: (x: number, y: number) => number;
 }
 
-/** Flat scrub with whatever craters and rough ground a test asks for, sloping only where it's rough; it counts the samples and slopes taken. */
-export function flatTerrain({ radius = 600, craters = [], rough = () => false, slope = 0 }: FlatTerrainOptions = {}): BakeTerrain & { samples: number; slopes: number } {
+/**
+ * Middling scrub with whatever craters, cliffs, slope, moisture, and lakes a
+ * test asks for; it counts the samples, slopes, and cliff depths taken.
+ */
+export function flatTerrain({ radius = 600, craters = [], cliffDepth = () => -1, slope = 0, moisture, lakeDepth }: FlatTerrainOptions = {}): BakeTerrain & { samples: number; slopes: number; depths: number } {
 	const terrain = {
 		radius,
 		hotspots: craters.map((crater) => ({ ...crater, plumeRadius: crater.craterRadius * 5, strength: 1 })),
-		water: null,
+		water: lakeDepth ? { lakeDepth } : null,
 		samples: 0,
 		slopes: 0,
-		sample: (_x: number, _y: number, out = createTerrainSample()) => {
+		depths: 0,
+		sample: (x: number, y: number, out = createTerrainSample()) => {
 			terrain.samples += 1;
 			out.biome = 'scrub';
+			out.elevation = 0;
+			out.moisture = moisture ? moisture(x, y) : 0.5;
+			out.contamination = 0;
 			out.slopeX = 0;
 			out.slopeY = 0;
 			out.ruin = 0;
 			return out;
 		},
-		slope: <Out extends { x: number; y: number }>(x: number, y: number, out: Out): Out => {
+		slope: <Out extends { x: number; y: number }>(_x: number, _y: number, out: Out): Out => {
 			terrain.slopes += 1;
-			out.x = rough(x, y) ? slope : 0;
+			out.x = slope;
 			out.y = 0;
 			return out;
 		},
-		rough,
+		cliffDepth: (x: number, y: number) => {
+			terrain.depths += 1;
+			return cliffDepth(x, y);
+		},
 	};
 	return terrain;
 }

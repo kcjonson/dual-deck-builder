@@ -177,13 +177,18 @@ export class FocusManager {
 	}
 
 	/**
-	 * R9.23: a press focuses the nearest inclusive ancestor of its target that
-	 * can take focus, so a press on a button's label focuses the button, and
-	 * clears focus when there is none. Focus moved this way is not visible.
+	 * R9.23: a press focuses the nearest focusable inclusive ancestor of its
+	 * target, so a press on a button's label focuses the button, and clears
+	 * focus when there is none. When that ancestor is disabled, which R9.5
+	 * says cannot take focus, focus stays where it was: the disabled control
+	 * occludes the press, so nothing beyond it takes focus, and focus doesn't
+	 * fall to nothing either. Focus moved this way is not visible; a press
+	 * that leaves it put leaves the modality as it was, as `preventFocus` does.
 	 */
 	public focusFromPointer(target: Component | null): void {
 		let node = target;
-		while (node && !node.canReceiveFocus()) node = node.parent;
+		while (node && !node.focusable) node = node.parent;
+		if (node && !node.canReceiveFocus()) return;
 		this.setFocus(node, 'pointer');
 	}
 

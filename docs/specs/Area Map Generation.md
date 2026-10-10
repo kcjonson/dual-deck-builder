@@ -150,7 +150,7 @@ Each value sits at least a step inside its campaign range. Half an environment's
 
 ## Pipeline
 
-Eleven stages, in order. Each takes the earlier stages' output and its own stream. Stages 1 to 10 make the gameplay map; stage 11 dresses it. The numbers in this section are the prototype's starting values for the Map Lab to settle, each a provisional call in [realistic-map.md](../AI_TECHNICAL_DECISIONS/realistic-map.md), and the prototype's renders are there too. Where a stage is built, its record lists the values it settled on as provisional calls of its own, as [terrain-erosion.md](../AI_TECHNICAL_DECISIONS/terrain-erosion.md) does for the terrain.
+Eleven stages, in order. Each takes the earlier stages' output and its own stream. Stages 1 to 10 make the gameplay map; stage 11 dresses it. The numbers in this section are the prototype's starting values for the Map Lab to settle, each a provisional call in [realistic-map.md](../AI_TECHNICAL_DECISIONS/realistic-map.md), and the prototype's renders are there too. Where a stage is built, its record lists the values it settled on as provisional calls of its own, as [terrain-erosion.md](../AI_TECHNICAL_DECISIONS/terrain-erosion.md) does for the terrain and [water-and-biomes.md](../AI_TECHNICAL_DECISIONS/water-and-biomes.md) for the water, biomes, hazards, and cost.
 
 ### 1. Terrain: uplift and erosion
 
@@ -165,7 +165,7 @@ Mountains are where the land is pushed up, and valleys are what rivers cut into 
 ### 2. Water
 
 - Drainage: a final priority flood over the finished elevation, with rain weighted by moisture and heavier in the ranges, gives every cell its downstream neighbour and drainage area.
-- Rivers: cells whose drainage area passes a threshold set by `riverDensity`, traced from their sources down to a confluence, a lake, or the edge, then smoothed and given a meander on flat ground by `riverMeander`. Width grows with drainage area, so a river reads as a creek near its source and a broad river near its outlet.
+- Rivers: cells whose drainage area passes a threshold set by `riverDensity`, traced from their sources down to a confluence, a lake, or the edge (or a closed basin's sink), then smoothed and given a meander on flat ground by `riverMeander`. Width grows with drainage area, so a river reads as a creek near its source and a broad river near its outlet. The smoothed lines with their widths are the rivers: where they're drawn, saved, and impassable.
 - Lakes: `lakes` reservoirs, each held behind a dam on a river in a valley and filled up to a level, which floods the valley and its side branches into a lake of real shape; a few natural lakes where the land holds water (Floodlands). Lakes and the river channel are impassable except where a road crosses at a bridge.
 - Moisture: from `aridity`, a broad noise layer, wetness spreading from the rivers, and drier with height.
 

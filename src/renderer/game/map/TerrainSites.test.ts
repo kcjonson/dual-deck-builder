@@ -31,6 +31,16 @@ describe('placeHotspots', () => {
 		expect(place(5)).not.toEqual(place(6));
 	});
 
+	it('places them only where the land suits a crater of the size drawn', () => {
+		SEEDS.slice(0, 10).forEach((seed) => {
+			// Nothing north of the equator, and nothing whose crater reaches past x = 600.
+			const suits = (x: number, y: number, craterRadius: number) => y < 0 && x + craterRadius < 600;
+			const hotspots = placeHotspots({ rng: new Rng({ seed }), count: 3, radius: 1000, ring, suits });
+			expect(hotspots).toHaveLength(3);
+			hotspots.forEach((hotspot) => expect(suits(hotspot.x, hotspot.y, hotspot.craterRadius)).toBe(true));
+		});
+	});
+
 	it('places none in an empty ring, or when asked for none', () => {
 		expect(placeHotspots({ rng: new Rng({ seed: 1 }), count: 3, radius: 1000, ring: { inner: 500, outer: 500 } })).toEqual([]);
 		expect(place(1, 0)).toEqual([]);

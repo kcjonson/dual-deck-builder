@@ -1,8 +1,9 @@
 /**
- * Times the area map's terrain stage (DDB-288, DDB-441): growing the land
- * (uplift, erosion, and the finished land's drainage) at several radii
- * across the environments, then building a map's terrain and sampling each
- * query over a grid of the disc's bounding square. It runs outside Jest,
+ * Times the area map's terrain and water stages (DDB-288, DDB-441,
+ * DDB-289): growing the land (uplift, erosion, and the finished land's
+ * drainage) and laying its water at several radii across the environments,
+ * then building a map's terrain with its water and sampling each query over
+ * a grid of the disc's bounding square. It runs outside Jest,
  * whose coverage instrumentation and vm context slow the per-sample code
  * several times over: it transpiles the stage's modules into a temporary
  * folder, then times them in a fresh child process, since the TypeScript
@@ -17,7 +18,11 @@
  *
  * The land table gives, per radius and environment, the median of `runs`
  * builds of seeds 1 to `runs`; erosion is the land's time less the uplift's
- * and the final drainage's, each timed on its own. Each query row is the
+ * and the final drainage's, each timed on its own. The water table gives
+ * the water stage's time the same way, with the terrain's fields over the
+ * land as the worker builds them and as the client rebuilds them with the
+ * badlands it's sent, and the water's rebuild over its surface, what the
+ * client pays when a map crosses the worker boundary. Each query row is the
  * median, over environments and seeds, of one grid's time, then that per
  * sample.
  */
@@ -31,7 +36,7 @@ import { fileURLToPath } from 'node:url';
 const script = fileURLToPath(import.meta.url);
 const SOURCES = [
 	'core/Json', 'core/Rng', 'map/MapParams', 'map/ParamValidator', 'map/Noise', 'map/Biome', 'map/TerrainSites', 'map/Geometry',
-	'map/LandGrid', 'map/MapMath', 'map/Drainage', 'map/Erosion', 'map/Uplift', 'map/Land', 'map/Terrain',
+	'map/LandGrid', 'map/MapMath', 'map/Drainage', 'map/Erosion', 'map/Uplift', 'map/Land', 'map/Terrain', 'map/Rivers', 'map/Lakes', 'map/Water',
 ];
 
 if (process.argv[2] !== '--built') {
@@ -66,7 +71,8 @@ const { routeDrainage } = load('./map/Drainage.js');
 const { landGridFor } = load('./map/LandGrid.js');
 const { generateLand, startRadii } = load('./map/Land.js');
 const { buildUplift } = load('./map/Uplift.js');
-const { createTerrainSample, generateTerrain } = load('./map/Terrain.js');
+const { createTerrainSample, generateTerrain, terrainFromSurface } = load('./map/Terrain.js');
+const { generateWater, waterFromSurface } = load('./map/Water.js');
 
 const ENVIRONMENTS = ['mixed', 'highDesert', 'rustBelt', 'floodlands', 'badlands'];
 const now = () => Number(process.hrtime.bigint()) / 1e6;
@@ -115,9 +121,55 @@ for (const radius of options.radii.split(',').map(Number)) {
 		.map((cell) => String(cell).padStart(11)).join(''));
 }
 
+/**
+ * The water stage over each map's land: generateWater; the terrain's fields
+ * over the land as the worker builds them (terrainFromSurface); and the
+ * client's side of the worker boundary, the fields rebuilt over the land
+ * with the badlands it was sent, and the water over its surface
+ * (waterFromSurface).
+ */
+function timeWater(params) {
+	const rng = terrainStream(params.seed);
+	const land = generateLand({ params, rng });
+	let start = now();
+	const terrain = terrainFromSurface({ params, rng, surface: land });
+	const fields = now() - start;
+	start = now();
+	terrainFromSurface({ params, rng, surface: land, badlands: terrain.badlandsCells });
+	const sent = now() - start;
+	start = now();
+	const water = generateWater({ params, terrain, rng: rng.fork('water', 0) });
+	const total = now() - start;
+	start = now();
+	waterFromSurface({ terrain, surface: water.surface });
+	const rebuild = now() - start;
+	return { total, fields, sent, rebuild, rivers: water.rivers.length, lakes: water.lakes.length };
+}
+
+for (const environment of ENVIRONMENTS) timeWater(paramsFor(99, environment, 1000));
+
+console.log(`\nthe water stage, median of ${options.runs} seeds per radius and environment (ms); the terrain's fields as the worker builds them and as the client does with the badlands sent, the water's rebuild, and the rivers and lakes made`);
+console.log(['radius', ...ENVIRONMENTS, 'fields', 'sent', 'rebuild', 'rivers', 'lakes'].map((cell) => cell.padStart(11)).join(''));
+for (const radius of options.radii.split(',').map(Number)) {
+	const parts = { fields: [], sent: [], rebuild: [], rivers: [], lakes: [] };
+	const totals = ENVIRONMENTS.map((environment) => {
+		const times = [];
+		for (let seed = 1; seed <= options.runs; seed += 1) {
+			const time = timeWater(paramsFor(seed, environment, radius));
+			times.push(time.total);
+			for (const part of Object.keys(parts)) parts[part].push(time[part]);
+		}
+		return median(times);
+	});
+	console.log([radius, ...totals.map((time) => time.toFixed(0)), ...['fields', 'sent', 'rebuild'].map((part) => median(parts[part]).toFixed(1)), ...['rivers', 'lakes'].map((part) => median(parts[part]))]
+		.map((cell) => String(cell).padStart(11)).join(''));
+}
+
+/** A radius 1000 map's land with its water, what the stages after water sample. */
 function terrainFor(seed, environment) {
 	const params = paramsFor(seed, environment, 1000);
-	return generateTerrain({ params, rng: terrainStream(seed) });
+	const rng = terrainStream(seed);
+	return generateWater({ params, terrain: generateTerrain({ params, rng }), rng: rng.fork('water', 0) }).terrain;
 }
 
 const out = createTerrainSample();
@@ -128,8 +180,8 @@ const QUERIES = {
 	slope: (terrain, x, y) => terrain.slope(x, y, slope).x,
 	biome: (terrain, x, y) => terrain.biome(x, y).length,
 	impassable: (terrain, x, y) => (terrain.impassable(x, y) ? 1 : 0),
-	travelCost: (terrain, x, y) => {
-		const cost = terrain.travelCost(x, y);
+	'moveCost (9 units)': (terrain, x, y) => {
+		const cost = terrain.moveCost(x, y, x + 7.2, y + 5.4, 'backRoad');
 		return cost === Infinity ? 0 : cost;
 	},
 };

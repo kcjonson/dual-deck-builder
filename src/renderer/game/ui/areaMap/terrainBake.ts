@@ -1,8 +1,7 @@
-import { BIOMES, classifyBiome } from '../../map/Biome';
 import { landGridFor } from '../../map/LandGrid';
-import { CLIFF_GRADE, RELIEF, TerrainSample, WaterLayer, createTerrainSample } from '../../map/Terrain';
+import { TerrainSample, WaterLayer, createTerrainSample } from '../../map/Terrain';
 import type { Hotspot } from '../../map/TerrainSites';
-import { BIOME_COLOURS, HILL_SHADE, OBSTACLE_COLOURS, RUIN_SHADE } from './areaMapStyle';
+import { HILL_SHADE, OBSTACLE_COLOURS, RUIN_SHADE, landColour } from './areaMapStyle';
 
 /**
  * The area map's terrain picture, baked once per map into premultiplied
@@ -11,35 +10,38 @@ import { BIOME_COLOURS, HILL_SHADE, OBSTACLE_COLOURS, RUIN_SHADE } from './areaM
  * generated or loaded). No GL here, so it runs and is tested in Node.
  *
  * The texture covers the disc's bounding square, row 0 at the north edge.
- * A full terrain sample costs about 450 ns and a slope about 140
- * (terrain-erosion.md), so the bake reads the land on three lattices coarser
- * than the texels and interpolates between their nodes:
+ * A full terrain sample costs about half a microsecond and a slope about
+ * 140 ns (terrain-erosion.md), so the bake reads the land on three lattices
+ * coarser than the texels and interpolates between their nodes:
  *
- * - the fields biomes are read from, and the ruins' shade, every
- *   `colourStep` texels, where they change slowly. Each texel classifies
- *   its own biome from the fields interpolated there, so a biome's edge is
- *   a curve through the lattice rather than a staircase of its cells;
+ * - the land's colour, a continuous blend of elevation, moisture, and
+ *   contamination (`landColour`), and the ruins' shade, every `colourStep`
+ *   texels, where they change slowly. Biomes are categories the game reads,
+ *   never paint, so country shades from one kind to the next;
  * - hill shade from the slope about every half land cell, the finest the
  *   land's hills come: a coarser lattice draws the grid's cells as blocks;
- * - the slope every `CLIFF_STEP` texels, and only around rough country,
- *   the one place a cliff can stand. A texel in rough country is a cliff
- *   where the interpolated slope reaches the cliff grade, which draws the
- *   cliffs `Terrain.obstacle` reports, give or take a texel at their
- *   edges, for a quarter of the samples.
+ * - how far into a cliff the land is (`Terrain.cliffDepth`) every
+ *   `CLIFF_STEP` texels, closed so a notch or gap a node or two wide in a
+ *   band fills in. Cliffs are read off the land grid's averaged grade, so
+ *   this draws the cliffs `Terrain.obstacle` reports, a band per
+ *   escarpment, give or take the closing and a texel at their edges.
  *
- * Craters are circles, so they're drawn exactly, and water is asked per
- * texel. Obstacles take `obstacle`'s precedence: crater, water, cliff.
- * Texels past the rim are transparent, the rim itself anti-aliased.
+ * Craters are circles, so they're drawn exactly. Lakes are read per texel
+ * from the water's depth field, a bilinear lookup, and filled with a darker
+ * shore where a texel beside them is dry. Rivers aren't baked: the view
+ * draws them live, under the roads. Obstacles take `obstacle`'s precedence:
+ * crater, lake, cliff. Texels past the rim are transparent, the rim itself
+ * anti-aliased.
  */
 
 /** What the bake reads of a `Terrain`. */
 export interface BakeTerrain {
 	readonly radius: number;
 	readonly hotspots: readonly Hotspot[];
-	readonly water: WaterLayer | null;
+	readonly water: Pick<WaterLayer, 'lakeDepth'> | null;
 	sample(x: number, y: number, out: TerrainSample): TerrainSample;
 	slope<Out extends { x: number; y: number }>(x: number, y: number, out: Out): Out;
-	rough(x: number, y: number): boolean;
+	cliffDepth(x: number, y: number): number;
 }
 
 export interface TerrainBakeOptions {
@@ -53,17 +55,10 @@ export interface TerrainBakeOptions {
 export const TEXEL_WORLD_UNITS = 2.5;
 export const MIN_BAKE_SIZE = 256;
 export const MAX_BAKE_SIZE = 1024;
-/** World units between colour samples: biomes span hundreds, and hills a few dozen at their finest. */
+/** World units between colour samples: the land's colour changes over hundreds, and hills a few dozen at their finest. */
 export const COLOUR_WORLD_UNITS = 16;
-/** Texels between slope samples in rough country. */
+/** Texels between cliff samples. */
 export const CLIFF_STEP = 2;
-
-const CLIFF_SLOPE_SQUARED = (CLIFF_GRADE / RELIEF) ** 2;
-/** `BIOME_COLOURS` by index into `BIOMES`, three channels each. */
-const BIOME_RGB = new Float32Array(BIOMES.flatMap((biome) => BIOME_COLOURS[biome]));
-const BIOME_INDEX = Object.fromEntries(BIOMES.map((biome, index) => [biome, index])) as Record<string, number>;
-/** How far either side of the cliff grade, in the slope's square, a cliff's edge ramps in: an anti-aliased edge, not a band. */
-const CLIFF_RAMP = CLIFF_SLOPE_SQUARED * 0.15;
 
 /**
  * Texels per side for a map of `radius`: about `TEXEL_WORLD_UNITS` a texel,
@@ -94,13 +89,11 @@ class TerrainBaker {
 	private readonly texel: number;
 	private readonly step: number;
 	private readonly nodes: number;
-	private readonly fields: Float32Array;
-	private readonly biomes: Uint8Array;
+	private readonly colours: Float32Array;
 	private readonly shades: ShadeLattice;
-	private readonly slopes: SlopeLattice;
+	private readonly cliffs: CliffLattice;
 	private readonly outerSquared: number;
 	private readonly innerSquared: number;
-	private readonly land = { lowland: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0 };
 
 	constructor({ terrain, size, step }: { terrain: BakeTerrain; size: number; step: number }) {
 		this.terrain = terrain;
@@ -109,11 +102,9 @@ class TerrainBaker {
 		this.texel = (terrain.radius * 2) / size;
 		this.step = step;
 		this.nodes = latticeNodes(size, step);
-		const { fields, biomes } = fieldLattice(terrain, size, step);
-		this.fields = fields;
-		this.biomes = biomes;
+		this.colours = colourLattice(terrain, size, step);
 		this.shades = new ShadeLattice({ terrain, size });
-		this.slopes = new SlopeLattice({ terrain, size });
+		this.cliffs = new CliffLattice({ terrain, size });
 		this.texels = new Uint8Array(size * size * 4);
 		const radius = this.radius;
 		const texel = this.texel;
@@ -122,7 +113,7 @@ class TerrainBaker {
 	}
 
 	public row(row: number): void {
-		const { radius, texel, step, nodes, fields, biomes, texels, outerSquared, innerSquared, terrain, shades } = this;
+		const { radius, texel, step, nodes, colours, texels, outerSquared, innerSquared, terrain, shades } = this;
 		const craters = terrain.hotspots;
 		const water = terrain.water;
 		const worldY = radius - (row + 0.5) * texel;
@@ -149,34 +140,25 @@ class TerrainBaker {
 
 			const latticeColumn = Math.min(nodes - 2, Math.floor(column / step));
 			const fx = column / step - latticeColumn;
-			const node = latticeRow * nodes + latticeColumn;
-			const at = node * FIELDS;
-			const below = at + nodes * FIELDS;
+			const at = (latticeRow * nodes + latticeColumn) * CHANNELS;
+			const below = at + nodes * CHANNELS;
 			const shadeColumn = Math.min(shadeNodes - 2, Math.floor(column / shadeStep));
 			const shadeNode = shadeRow * shadeNodes + shadeColumn;
 			const light = bilinear(lights[shadeNode], lights[shadeNode + 1], lights[shadeNode + shadeNodes], lights[shadeNode + shadeNodes + 1], column / shadeStep - shadeColumn, shadeFy);
-			const shade = light * bilinear(fields[at + 6], fields[at + FIELDS + 6], fields[below + 6], fields[below + FIELDS + 6], fx, fy);
-			// Inside one biome's nodes the texel is that biome. Where they
-			// differ, the biome is read off the fields interpolated at the
-			// texel, so the edge is a curve through the lattice rather than
-			// its cells' staircase.
-			let biome = biomes[node];
-			if (biomes[node + 1] !== biome || biomes[node + nodes] !== biome || biomes[node + nodes + 1] !== biome) {
-				biome = this.classify(at, below, fx, fy);
-			}
-			let red = Math.min(255, BIOME_RGB[biome * 3] * shade);
-			let green = Math.min(255, BIOME_RGB[biome * 3 + 1] * shade);
-			let blue = Math.min(255, BIOME_RGB[biome * 3 + 2] * shade);
+			const shade = light * bilinear(colours[at + 3], colours[at + CHANNELS + 3], colours[below + 3], colours[below + CHANNELS + 3], fx, fy);
+			let red = Math.min(255, bilinear(colours[at], colours[at + CHANNELS], colours[below], colours[below + CHANNELS], fx, fy) * shade);
+			let green = Math.min(255, bilinear(colours[at + 1], colours[at + CHANNELS + 1], colours[below + 1], colours[below + CHANNELS + 1], fx, fy) * shade);
+			let blue = Math.min(255, bilinear(colours[at + 2], colours[at + CHANNELS + 2], colours[below + 2], colours[below + CHANNELS + 2], fx, fy) * shade);
 
 			const inCrater = craterCoverage(craters, worldX, worldY, texel);
 			if (inCrater < 1) {
 				let obstacle = 0;
 				let colour = OBSTACLE_COLOURS.cliff;
-				if (water !== null && water.isWater(worldX, worldY)) {
+				if (water !== null && water.lakeDepth(worldX, worldY) > 0) {
 					obstacle = 1;
-					colour = OBSTACLE_COLOURS.water;
-				} else if (terrain.rough(worldX, worldY)) {
-					obstacle = (this.slopes.at(column, row) - CLIFF_SLOPE_SQUARED) / CLIFF_RAMP + 0.5;
+					colour = this.onShore(water, worldX, worldY) ? OBSTACLE_COLOURS.shore : OBSTACLE_COLOURS.lake;
+				} else {
+					obstacle = this.cliffs.at(column, row);
 				}
 				if (obstacle > 0) {
 					const amount = obstacle < 1 ? obstacle : 1;
@@ -200,16 +182,11 @@ class TerrainBaker {
 		}
 	}
 
-	/** The biome, as an index into `BIOMES`, at (fx, fy) in the lattice cell whose top-left node's fields start at `at`. */
-	private classify(at: number, below: number, fx: number, fy: number): number {
-		const { fields, land } = this;
-		land.lowland = bilinear(fields[at], fields[at + FIELDS], fields[below], fields[below + FIELDS], fx, fy);
-		land.moisture = bilinear(fields[at + 1], fields[at + FIELDS + 1], fields[below + 1], fields[below + FIELDS + 1], fx, fy);
-		land.contamination = bilinear(fields[at + 2], fields[at + FIELDS + 2], fields[below + 2], fields[below + FIELDS + 2], fx, fy);
-		land.mountains = bilinear(fields[at + 3], fields[at + FIELDS + 3], fields[below + 3], fields[below + FIELDS + 3], fx, fy);
-		land.canyons = bilinear(fields[at + 4], fields[at + FIELDS + 4], fields[below + 4], fields[below + FIELDS + 4], fx, fy);
-		land.badlands = bilinear(fields[at + 5], fields[at + FIELDS + 5], fields[below + 5], fields[below + FIELDS + 5], fx, fy);
-		return BIOME_INDEX[classifyBiome(land)];
+	/** Whether a lake texel at (x, y) has dry ground a texel away on any side: its shore. */
+	private onShore(water: Pick<WaterLayer, 'lakeDepth'>, x: number, y: number): boolean {
+		const texel = this.texel;
+		return water.lakeDepth(x - texel, y) <= 0 || water.lakeDepth(x + texel, y) <= 0
+			|| water.lakeDepth(x, y - texel) <= 0 || water.lakeDepth(x, y + texel) <= 0;
 	}
 }
 
@@ -218,24 +195,22 @@ function latticeNodes(size: number, step: number): number {
 	return Math.ceil((size - 1) / step) + 2;
 }
 
-/** What a field lattice node holds: the six fields biomes are read from, then the ruins' shade. */
-const FIELDS = 7;
+/** What a colour lattice node holds: the land's red, green, and blue, then how much ruins darken the hill shade. */
+const CHANNELS = 4;
 
 /**
- * Per node, at every `step`th texel centre: low ground, moisture,
- * contamination, mountains, canyons, badlands, and how much ruins darken
- * the hill shade. Nodes far enough past the rim that no
- * texel inside the disc reads them are skipped; the fields are defined past
- * the rim, so a node just outside is real land.
+ * Per node, at every `step`th texel centre: the land's colour and the
+ * ruins' shade. Nodes far enough past the rim that no texel inside the disc
+ * reads them are skipped; the fields are defined past the rim, so a node
+ * just outside is real land.
  */
-function fieldLattice(terrain: BakeTerrain, size: number, step: number): { fields: Float32Array; biomes: Uint8Array } {
+function colourLattice(terrain: BakeTerrain, size: number, step: number): Float32Array {
 	const radius = terrain.radius;
 	const texel = (radius * 2) / size;
 	const nodes = latticeNodes(size, step);
-	const values = new Float32Array(nodes * nodes * FIELDS);
-	// Each node's own biome, as an index into BIOMES.
-	const biomes = new Uint8Array(nodes * nodes);
+	const values = new Float32Array(nodes * nodes * CHANNELS);
 	const sample = createTerrainSample();
+	const colour = [0, 0, 0];
 	const reach = radius + texel * (step * 1.5 + 1);
 	const reachSquared = reach * reach;
 	for (let row = 0; row < nodes; row++) {
@@ -244,24 +219,21 @@ function fieldLattice(terrain: BakeTerrain, size: number, step: number): { field
 			const worldX = -radius + (column * step + 0.5) * texel;
 			if (worldX * worldX + worldY * worldY > reachSquared) continue;
 			terrain.sample(worldX, worldY, sample);
-			const at = (row * nodes + column) * FIELDS;
-			values[at] = sample.lowland;
-			values[at + 1] = sample.moisture;
-			values[at + 2] = sample.contamination;
-			values[at + 3] = sample.mountains;
-			values[at + 4] = sample.canyons;
-			values[at + 5] = sample.badlands;
-			values[at + 6] = 1 - RUIN_SHADE * smooth(sample.ruin);
-			biomes[row * nodes + column] = BIOME_INDEX[sample.biome];
+			landColour(sample.elevation, sample.moisture, sample.contamination, colour);
+			const at = (row * nodes + column) * CHANNELS;
+			values[at] = colour[0];
+			values[at + 1] = colour[1];
+			values[at + 2] = colour[2];
+			values[at + 3] = 1 - RUIN_SHADE * smooth(sample.ruin);
 		}
 	}
-	return { fields: values, biomes };
+	return values;
 }
 
 /**
  * Hill shade from the slope about every half land cell, every node the bake
  * reads: a slope costs a third of a full sample, so this lattice can be
- * finer than the fields'. Lit from the north-west, like the rest of the map.
+ * finer than the colours'. Lit from the north-west, like the rest of the map.
  */
 class ShadeLattice {
 	public readonly step: number;
@@ -293,54 +265,74 @@ class ShadeLattice {
 }
 
 /**
- * The slope's square every `CLIFF_STEP` texels, each node read from the
- * terrain the first time a texel needs it, so nothing is sampled away from
- * rough country.
+ * How far into a cliff the land is (`cliffDepth`) every `CLIFF_STEP`
+ * texels, closed: each node takes the most round it, then the least of
+ * that round it, which fills a notch or a gap in a band a node or two wide,
+ * so an escarpment draws as one. A texel reads the nodes bilinear, its edge
+ * anti-aliased over a texel by the field's own gradient there.
  */
-class SlopeLattice {
-	private readonly terrain: BakeTerrain;
-	private readonly radius: number;
-	private readonly texel: number;
+class CliffLattice {
 	private readonly nodes: number;
 	private readonly values: Float32Array;
-	private readonly slope = { x: 0, y: 0 };
 
 	constructor({ terrain, size }: { terrain: BakeTerrain; size: number }) {
-		this.terrain = terrain;
-		this.radius = terrain.radius;
-		this.texel = (terrain.radius * 2) / size;
-		this.nodes = latticeNodes(size, CLIFF_STEP);
-		this.values = new Float32Array(this.nodes * this.nodes).fill(-1);
+		const radius = terrain.radius;
+		const texel = (radius * 2) / size;
+		const nodes = latticeNodes(size, CLIFF_STEP);
+		const depths = new Float32Array(nodes * nodes).fill(-1);
+		const reach = radius + texel * (CLIFF_STEP * 2.5 + 1);
+		const reachSquared = reach * reach;
+		for (let row = 0; row < nodes; row++) {
+			const worldY = radius - (row * CLIFF_STEP + 0.5) * texel;
+			for (let column = 0; column < nodes; column++) {
+				const worldX = -radius + (column * CLIFF_STEP + 0.5) * texel;
+				if (worldX * worldX + worldY * worldY > reachSquared) continue;
+				depths[row * nodes + column] = Math.max(-1, terrain.cliffDepth(worldX, worldY));
+			}
+		}
+		this.nodes = nodes;
+		this.values = spread(spread(depths, nodes, Math.max), nodes, Math.min);
 	}
 
-	/** The slope's square at a texel, bilinear between its four nodes. */
+	/** How much of the texel is cliff, 0 to 1. */
 	public at(column: number, row: number): number {
 		const nodes = this.nodes;
+		const values = this.values;
 		const latticeRow = Math.min(nodes - 2, Math.floor(row / CLIFF_STEP));
 		const latticeColumn = Math.min(nodes - 2, Math.floor(column / CLIFF_STEP));
 		const node = latticeRow * nodes + latticeColumn;
-		return bilinear(
-			this.node(node, latticeColumn, latticeRow),
-			this.node(node + 1, latticeColumn + 1, latticeRow),
-			this.node(node + nodes, latticeColumn, latticeRow + 1),
-			this.node(node + nodes + 1, latticeColumn + 1, latticeRow + 1),
-			column / CLIFF_STEP - latticeColumn,
-			row / CLIFF_STEP - latticeRow,
-		);
+		const topLeft = values[node];
+		const topRight = values[node + 1];
+		const bottomLeft = values[node + nodes];
+		const bottomRight = values[node + nodes + 1];
+		if (topLeft < 0 && topRight < 0 && bottomLeft < 0 && bottomRight < 0) return 0;
+		const depth = bilinear(topLeft, topRight, bottomLeft, bottomRight, column / CLIFF_STEP - latticeColumn, row / CLIFF_STEP - latticeRow);
+		// The change in depth across a texel, so the edge ramps over one.
+		const acrossX = (topRight - topLeft + bottomRight - bottomLeft) * 0.5 / CLIFF_STEP;
+		const acrossY = (bottomLeft - topLeft + bottomRight - topRight) * 0.5 / CLIFF_STEP;
+		const change = Math.sqrt(acrossX * acrossX + acrossY * acrossY);
+		if (!(change > 0)) return depth >= 0 ? 1 : 0;
+		return Math.min(1, Math.max(0, depth / change + 0.5));
 	}
+}
 
-	private node(node: number, column: number, row: number): number {
-		const known = this.values[node];
-		if (known >= 0) return known;
-		const slope = this.terrain.slope(
-			-this.radius + (column * CLIFF_STEP + 0.5) * this.texel,
-			this.radius - (row * CLIFF_STEP + 0.5) * this.texel,
-			this.slope,
-		);
-		const squared = slope.x * slope.x + slope.y * slope.y;
-		this.values[node] = squared;
-		return squared;
+/** Each node of a square lattice `nodes` across set to `pick` of itself and its eight neighbours, held at the edges. */
+function spread(values: Float32Array, nodes: number, pick: (a: number, b: number) => number): Float32Array {
+	const across = new Float32Array(values.length);
+	const out = new Float32Array(values.length);
+	for (let row = 0; row < nodes; row++) {
+		for (let column = 0; column < nodes; column++) {
+			const at = row * nodes + column;
+			across[at] = pick(values[at], pick(values[column > 0 ? at - 1 : at], values[column < nodes - 1 ? at + 1 : at]));
+		}
 	}
+	for (let row = 0; row < nodes; row++) {
+		for (let column = 0; column < nodes; column++) {
+			const at = row * nodes + column;
+			out[at] = pick(across[at], pick(across[row > 0 ? at - nodes : at], across[row < nodes - 1 ? at + nodes : at]));
+		}
+	}
+	return out;
 }
 
 function bilinear(topLeft: number, topRight: number, bottomLeft: number, bottomRight: number, fx: number, fy: number): number {
