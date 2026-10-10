@@ -441,7 +441,11 @@ describe('CampaignStore', () => {
 				const saved = tabB.checkpoint(newCampaign(2));
 
 				await tabs.drain();
-				await finished;
+				// An end that finds the other tab's campaign already in the save is refused, and records nothing.
+				const refused = await finished.then(() => false, (error: CampaignStoreError) => {
+					expect(error.reason).toBe('retired');
+					return true;
+				});
 
 				expect(await saved).toBe('saved');
 				const fresh = storeOver(tabs.shared);
@@ -449,11 +453,13 @@ describe('CampaignStore', () => {
 				expect(await fresh.hasSave()).toBe(loaded !== null);
 				// Nothing, or the other tab's campaign; never the one tab A finished.
 				expect([null, 2]).toContain(loaded?.seed ?? null);
-				outcomes.add(loaded === null ? 'nothing' : 'the other tab\'s campaign');
+				if (refused) expect([loaded?.seed, await fresh.history()]).toEqual([2, []]);
+				outcomes.add(loaded === null ? 'nothing' : refused ? 'the other tab\'s campaign, the end refused' : 'the other tab\'s campaign');
 			});
 
 			expect(orders).toBeGreaterThan(100);
-			expect([...outcomes].sort()).toEqual(['nothing', 'the other tab\'s campaign']);
+			const expected = ['nothing', 'the other tab\'s campaign'];
+			expect([...outcomes].sort()).toEqual(finish === 'end' ? [...expected, 'the other tab\'s campaign, the end refused'] : expected);
 		}, 120000);
 	});
 
@@ -846,6 +852,144 @@ describe('CampaignStore', () => {
 			storage.release();
 
 			expect((await ended).day).toBe(6);
+		});
+	});
+
+	describe('two tabs of one build', () => {
+		/** One saved campaign, loaded in two tabs, as both their menus load it. */
+		async function twoTabs(): Promise<{ storage: FaultyStorage; tabA: CampaignStore; tabB: CampaignStore; inA: Campaign; inB: Campaign }> {
+			const storage = new FaultyStorage();
+			await storeOver(storage).save(newCampaign(1));
+			const tabA = storeOver(storage);
+			const tabB = storeOver(storage);
+			const inA = await tabA.load() as Campaign;
+			const inB = await tabB.load() as Campaign;
+			return { storage, tabA, tabB, inA, inB };
+		}
+
+		it('won\'t let a tab\'s checkpoint save its old campaign over the new one another tab started', async () => {
+			const { storage, tabA, tabB, inA, inB } = await twoTabs();
+			const failures = jest.fn();
+			tabA.onSaveFailed(failures);
+			await tabB.end({ campaign: inB, ending: 'abandoned' });
+			const started = newCampaign(2);
+			await tabB.save(started);
+
+			inA.set({ day: 5 });
+
+			expect(await tabA.checkpoint(inA)).toBe('retired');
+			const error = await failure(tabA.save(inA));
+			expect([error.reason, error.message]).toEqual(['retired', "The campaign couldn't be saved: another tab saved over it."]);
+			expect((await failure(tabA.end({ campaign: inA, ending: 'abandoned' }))).reason).toBe('retired');
+			expect(failures).not.toHaveBeenCalled();
+			expect((await storeOver(storage).load())?.seed).toBe(2);
+			expect((await tabB.history()).map(entry => [entry.seed, entry.ending])).toEqual([[1, 'abandoned']]);
+			started.set({ day: 2 });
+			expect(await tabB.checkpoint(started)).toBe('saved');
+		});
+
+		it('won\'t let a tab save or end a campaign another tab has ended, nor record it twice', async () => {
+			const { storage, tabA, tabB, inA, inB } = await twoTabs();
+			await tabA.end({ campaign: inA, ending: 'abandoned' });
+
+			inB.set({ day: 5 });
+
+			const error = await failure(tabB.save(inB));
+			expect([error.reason, error.message]).toEqual(['retired', "The campaign couldn't be saved: another tab ended it."]);
+			expect(await tabB.checkpoint(inB)).toBe('retired');
+			expect((await failure(tabB.end({ campaign: inB, ending: 'won' }))).message).toBe("The campaign couldn't be ended: another tab ended it.");
+			expect(await storeOver(storage).hasSave()).toBe(false);
+			expect((await tabB.history()).map(entry => entry.ending)).toEqual(['abandoned']);
+		});
+
+		it('records nothing for a campaign that falls in one tab after another tab ended it', async () => {
+			const { tabA, tabB, inA, inB } = await twoTabs();
+			await tabA.end({ campaign: inA, ending: 'abandoned' });
+
+			inB.set({ resources: { ...inB.resources, people: 0, food: 0 }, end: { ending: 'starved', cause: 'no_people' } });
+
+			expect(await tabB.checkpoint(inB)).toBe('retired');
+			expect((await tabB.history()).map(entry => entry.ending)).toEqual(['abandoned']);
+		});
+
+		it('lets the first of two tabs on one campaign save, and turns the other away rather than roll it back', async () => {
+			const { storage, tabA, tabB, inA, inB } = await twoTabs();
+
+			inB.set({ day: 3 });
+			expect(await tabB.checkpoint(inB)).toBe('saved');
+			inA.set({ day: 2 });
+			expect(await tabA.checkpoint(inA)).toBe('retired');
+
+			expect((await storeOver(storage).load())?.day).toBe(3);
+			inB.set({ day: 4 });
+			expect(await tabB.checkpoint(inB)).toBe('saved');
+		});
+
+		it('keeps saving, then ends, while another tab only reads: its menu looking, loading, and listing the history', async () => {
+			const { storage, tabA, tabB, inA } = await twoTabs();
+
+			inA.set({ day: 2 });
+			expect(await tabA.checkpoint(inA)).toBe('saved');
+			expect([await tabB.saveStatus(), (await tabB.load())?.day, await tabB.history()]).toEqual(['saved', 2, []]);
+			inA.set({ day: 3 });
+			expect(await tabA.checkpoint(inA)).toBe('saved');
+			await tabA.end({ campaign: inA, ending: 'won' });
+
+			expect(await storeOver(storage).hasSave()).toBe(false);
+			expect((await tabA.history()).map(entry => [entry.day, entry.ending])).toEqual([[3, 'won']]);
+		});
+
+		it('won\'t let a menu that found no save found a campaign over one another tab has started since', async () => {
+			const storage = new MemorySaveStorage();
+			const tabA = storeOver(storage);
+			const tabB = storeOver(storage);
+			expect(await tabA.saveStatus()).toBe('none');
+			await tabB.save(newCampaign(2));
+
+			const error = await failure(tabA.save(newCampaign(3)));
+
+			expect([error.reason, error.message]).toEqual(['retired', "The campaign couldn't be saved: another tab started a campaign in the meantime."]);
+			expect((await tabA.load())?.seed).toBe(2);
+			// Once it has found that campaign, as the menu reads the save again after a failure, it can replace it.
+			await tabA.save(newCampaign(4));
+			expect((await tabB.load())?.seed).toBe(4);
+		});
+
+		it('drops a removal it owes rather than remove the campaign another tab has saved since', async () => {
+			const storage = new FaultyStorage();
+			const tabA = storeOver(storage);
+			const ended = newCampaign(1);
+			await tabA.save(ended);
+			storage.fault = { method: 'removeItem', key: KEYS.slots.a, times: 1 };
+			expect((await failure(tabA.end({ campaign: ended, ending: 'abandoned' }))).reason).toBe('storage');
+
+			await storeOver(storage).save(newCampaign(2));
+
+			expect(await tabA.saveStatus()).toBe('saved');
+			expect((await tabA.load())?.seed).toBe(2);
+			expect((await tabA.history()).map(entry => entry.seed)).toEqual([1]);
+		});
+
+		it.each([
+			['`active` names the save', true],
+			['nothing names the save', false]
+		])('takes its own write that failed part way for its own, not another tab\'s, when %s', async (_label, named) => {
+			const storage = new FaultyStorage();
+			const store = storeOver(storage);
+			const campaign = newCampaign();
+			await store.save(campaign);
+			if (!named) await storage.removeItem(KEYS.active);
+			jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+			campaign.set({ day: 2 });
+			storage.fault = { method: 'setItem', key: KEYS.active, times: 1 };
+			expect(await store.checkpoint(campaign)).toBe('failed');
+			campaign.set({ day: 3 });
+
+			expect(await store.checkpoint(campaign)).toBe('saved');
+			expect((await storeOver(storage).load())?.day).toBe(3);
+			await store.save(newCampaign(2));
+			expect((await storeOver(storage).load())?.seed).toBe(2);
 		});
 	});
 

@@ -19,7 +19,7 @@ import { fightOut, pushovers, snipers } from '../../campaign/__fixtures__/runFix
 import { Card as GameCard } from '../../mechanics/Card';
 import { CardPileView } from '../../ui/CardPileView';
 import { cardData } from '../../ui/testing';
-import { CAMPAIGN_FIXTURE, FaultyStorage, fixtureText, saveText, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
+import { CAMPAIGN_FIXTURE, FaultyStorage, fixtureText, newCampaign, saveText, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
 import type { PreparedCombatMount } from '../combat/CombatScreen';
 import { NOT_THE_SAVE } from '../compound/compoundText';
 import { RunScreen, RunScreenData, STEP_NOT_SAVED, stopFightMount } from './RunScreen';
@@ -276,6 +276,34 @@ describe('RunScreen', () => {
 			for (let turn = 0; turn < 4; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
 			expect(navigate).toHaveBeenLastCalledWith('defeatScreen', { campaign: lost });
 			expect(navigate).not.toHaveBeenCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
+		});
+
+		it('strands, and goes to the menu on Back to menu, when another tab started a new campaign while the fight was on', async () => {
+			storage = storageWith(drivingText(2));
+			store = storeOver(storage);
+			const lost = await store.load() as Campaign;
+			const otherTab = storeOver(storage);
+			await otherTab.end({ campaign: await otherTab.load() as Campaign, ending: 'abandoned' });
+			await otherTab.save(newCampaign(7));
+			lost.drivers.filter((driver) => !lost.runDecks.some((deck) => deck.driver === driver) && driver.status !== 'dead').forEach((driver) => driver.set({ status: 'missing', injuredDays: 0 }));
+			const fight = startStopFight({ campaign: lost, cards: CARDS, raiders: snipers, enemyAI: null });
+			fightOut(fight, { shoot: false });
+			const prepared = await stopFightMount({ campaign: lost, fight, store }).prepare();
+			const ended = prepared.onEnded?.({ won: false });
+			expect(lost.isOver).toBe(true);
+
+			screen = new RunScreen({ store, cards: async () => CARDS });
+			screen.mount(context, ended?.next?.data as RunScreenData);
+			await screen.campaignLoaded;
+
+			expect(await (ended?.next?.data as RunScreenData).saved).toBe('retired');
+			expect(text('run_save_error')).toBe(NOT_THE_SAVE);
+			expect(find<Button>('run_defeat_button').enabled).toBe(false);
+			expect(context.focus.focused?.id).toBe('run_back_button');
+			await press('run_back_button');
+			expect(navigate).toHaveBeenLastCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
+			expect((await storeOver(storage).load())?.seed).toBe(7);
+			expect((await storeOver(storage).history()).map((entry) => entry.ending)).toEqual(['abandoned']);
 		});
 	});
 

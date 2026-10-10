@@ -59,7 +59,8 @@ export type SaveStatus = 'none' | 'saved' | 'outdated';
  * Why a store call failed: storage threw (full, blocked); a save or the
  * history is damaged; the campaign can't be written (it holds something a
  * save couldn't load back); or it's retired (it has ended, its save was
- * deleted, or a new campaign replaced it), so it isn't saved again.
+ * deleted, a new campaign replaced it, or another page saved over the save
+ * or ended it), so it isn't saved again.
  */
 export type CampaignStoreFailure = 'storage' | 'damaged' | 'unsavable' | 'retired';
 
@@ -86,7 +87,8 @@ export type SaveFailedListener = (error: CampaignStoreError) => void;
  * (a campaign that's over is ended, not saved, by this checkpoint or a call
  * before it); it failed, and `onSaveFailed` heard why; or the store has
  * moved on from this instance (the save was loaded again, deleted, or
- * replaced), so nothing was saved, and nobody is told.
+ * replaced, here or in another page), so nothing was saved, and nobody is
+ * told.
  */
 export type CheckpointResult = 'saved' | 'ended' | 'failed' | 'retired';
 
@@ -201,9 +203,18 @@ interface Waiting {
  * instances are saved. Loading the save, ending its campaign, deleting it,
  * and saving a new campaign each start a new lineage, so the instance a
  * load hands out is the only one that saves, and a screen still holding an
- * older one can't write it back. The lineage lives in this store's memory,
- * so two tabs of one build can still overwrite each other's saves until a
- * single-writer lock lands (DDB-415).
+ * older one can't write it back.
+ *
+ * The lineage lives in this store's memory, out of reach of another page of
+ * the build (a second tab), so a write or an end first checks the save
+ * hasn't changed under it. A campaign this store loaded or saved needs the
+ * save as this store left it, the text it last wrote or loaded in that slot;
+ * a new campaign replaces only the save this store last found, once it has
+ * looked. Otherwise another page has saved over the save or ended it, and the
+ * call is refused as `retired`; a removal this store owes is dropped once
+ * another page has written a save. The check and the write aren't one step
+ * across tabs, so two writes a few milliseconds apart can still both land,
+ * until a single-writer lock (DDB-415).
  */
 export class CampaignStore extends EventEmitter {
 	private static sharedInstance: CampaignStore | null = null;
@@ -220,6 +231,12 @@ export class CampaignStore extends EventEmitter {
 	private owed: Lineage | null = null;
 	/** Text this store wrote to a slot, read there and loaded, or copied to recovery: safe to write over. */
 	private readonly known = new Map<Slot, string>();
+	/**
+	 * The save's text as this store last found or left it, null for no save.
+	 * Undefined before it has looked, and while a write or removal is under
+	 * way, since one that fails part way leaves it unsure.
+	 */
+	private seen: string | null | undefined = undefined;
 	private readonly verdicts = new Map<string, Verdict>();
 	/** The tail of the calls waiting their turn. */
 	private queue: Promise<void> = Promise.resolve();
@@ -245,6 +262,7 @@ export class CampaignStore extends EventEmitter {
 		return this.enqueue(async () => {
 			await this.settleOwed(LOADING);
 			const survey = await this.survey(LOADING);
+			this.seen = saveTextOf(survey);
 			if (survey.save === null) return 'none';
 			return this.isOutdated(survey.texts[survey.save] as string) ? 'outdated' : 'saved';
 		});
@@ -270,6 +288,7 @@ export class CampaignStore extends EventEmitter {
 			try {
 				await this.settleOwed(LOADING);
 				const survey = await this.survey(LOADING);
+				this.seen = saveTextOf(survey);
 				if (survey.save === null) return null;
 				const slot = survey.save;
 				const text = survey.texts[slot] as string;
@@ -298,7 +317,9 @@ export class CampaignStore extends EventEmitter {
 	 * Writes the campaign as the save. One the store hasn't loaded or saved
 	 * before is a new campaign, which replaces the save. Rejects with a
 	 * `CampaignStoreError`, keeping the save before, when storage fails or the
-	 * campaign is retired or can't be written. Founding (DDB-284) saves the
+	 * campaign is retired or can't be written; as `retired`, too, when another
+	 * page has changed the save since this store last saw it (the class
+	 * comment says how that's told). Founding (DDB-284) saves the
 	 * new campaign with this; later saves go through `checkpoint`. A campaign
 	 * that's over is ended instead, as `end` ends it.
 	 */
@@ -364,6 +385,8 @@ export class CampaignStore extends EventEmitter {
 					} catch (error) {
 						if (!(error instanceof CampaignStoreError) || !isQuotaError(error.cause)) throw error;
 						warnings.push(`CampaignStore: storage was too full to keep a copy of the damaged save in slot ${slot}; deleted it anyway`);
+						// The player has given it up, so it's this store's to remove, should the removal fail part way and be owed.
+						this.known.set(slot, survey.texts[slot] as string);
 					}
 				}
 				this.owed = this.retire('its save was deleted');
@@ -383,9 +406,9 @@ export class CampaignStore extends EventEmitter {
 	 * (`Campaign.end`) goes in with its own ending, whatever `ending` says;
 	 * one still going needs `ending`, abandoned or won. Rejects with
 	 * 'retired', recording nothing, for a campaign that has already ended or
-	 * been deleted or replaced, except to finish removing a save an earlier
-	 * end couldn't. An entry equal to the newest isn't added twice. Resolves
-	 * to the entry.
+	 * been deleted or replaced, here or in another page, except to finish
+	 * removing a save an earlier end couldn't. An entry equal to the newest
+	 * isn't added twice. Resolves to the entry.
 	 */
 	public end({ campaign, ending }: { campaign: Campaign; ending?: CampaignEnding }): Promise<CampaignHistoryEntry> {
 		let entry: CampaignHistoryEntry;
@@ -455,6 +478,7 @@ export class CampaignStore extends EventEmitter {
 				return entry;
 			}
 			const survey = await this.survey(ENDING);
+			this.refuseChanged({ campaign, survey, action: ENDING });
 			for (const slot of this.slotsToKeep(survey)) await this.protect({ slot, text: survey.texts[slot], action: ENDING });
 			await this.record({ entry, warnings });
 			const ended = this.retire('it has ended');
@@ -481,6 +505,7 @@ export class CampaignStore extends EventEmitter {
 		this.refuseRetired(campaign, SAVING);
 		const body = snapshot.take();
 		const survey = await this.survey(SAVING);
+		this.refuseChanged({ campaign, survey, action: SAVING });
 		const save = survey.save;
 		const text = stamp({ version: this.version, sequence: Math.max(sequenceOf(survey.texts.a), sequenceOf(survey.texts.b)) + 1, campaign: body });
 		if (save !== null && survey.texts[save] === stamp({ version: this.version, sequence: sequenceOf(survey.texts[save]), campaign: body })) {
@@ -489,6 +514,7 @@ export class CampaignStore extends EventEmitter {
 			this.known.set(save, survey.texts[save] as string);
 			if (!survey.named) await this.protect({ slot: otherSlot(save), text: survey.texts[otherSlot(save)], action: SAVING });
 			if (survey.pointer !== save) await this.put(this.keys.active, save, SAVING);
+			this.seen = survey.texts[save];
 			this.adopt(campaign);
 			return 'saved';
 		}
@@ -497,11 +523,43 @@ export class CampaignStore extends EventEmitter {
 		// the slot about to be written could hold anything.
 		if (save !== null) await this.protect({ slot: save, text: survey.texts[save], action: SAVING });
 		if (!survey.named) await this.protect({ slot: next, text: survey.texts[next], action: SAVING });
+		this.seen = undefined;
 		await this.put(this.keys.slots[next], text, SAVING);
 		this.known.set(next, text);
 		await this.put(this.keys.active, next, SAVING);
+		this.seen = text;
 		this.adopt(campaign);
 		return 'saved';
+	}
+
+	/**
+	 * Refuses a write or an end as `retired`, and retires the campaign so it
+	 * isn't tried again, when another page has changed the save since this
+	 * store last saw it. A campaign this store loaded or saved needs the save
+	 * as this store left it (`isOwnSave`). A new campaign replaces only the
+	 * save this store last found (`seen`), or anything while it hasn't looked
+	 * or can't be sure, and where there's no save it loses nothing.
+	 */
+	private refuseChanged({ campaign, survey, action }: { campaign: Campaign; survey: Survey; action: string }): void {
+		const tagged = this.lineages.has(campaign);
+		const text = saveTextOf(survey);
+		let why: string | null;
+		if (tagged) why = text === null ? 'another tab ended it' : this.isOwnSave(survey) ? null : 'another tab saved over it';
+		else why = this.seen === undefined || text === null || text === this.seen ? null : 'another tab started a campaign in the meantime';
+		if (why === null) return;
+		if (tagged) this.retire(why);
+		else this.lineages.set(campaign, { retired: why });
+		this.refuseRetired(campaign, action);
+	}
+
+	/**
+	 * Whether the save is as this store left it: the text it last wrote or
+	 * loaded in that slot. A write of its own that failed part way still is,
+	 * whichever slot it left as the save; another page's write never is, since
+	 * each write carries one more in the build's run of writes.
+	 */
+	private isOwnSave(survey: Survey): boolean {
+		return survey.save !== null && survey.texts[survey.save] === this.known.get(survey.save);
 	}
 
 	private refuseRetired(campaign: Campaign, action: string): void {
@@ -540,17 +598,27 @@ export class CampaignStore extends EventEmitter {
 
 	/** Removes the save's slots, then `active`. */
 	private async remove({ survey, action }: { survey: Survey; action: string }): Promise<void> {
+		this.seen = undefined;
 		for (const slot of this.slotsToRemove(survey)) {
 			await this.drop(this.keys.slots[slot], action);
 			this.known.delete(slot);
 		}
 		if (survey.pointer !== null) await this.drop(this.keys.active, action);
+		this.seen = null;
 	}
 
-	/** Finishes removing the save of a lineage that ended while its removal failed part way. */
+	/**
+	 * Finishes removing the save of a lineage that ended while its removal
+	 * failed part way, unless another page has written a save since: that
+	 * one's campaign has taken its place, so nothing is owed.
+	 */
 	private async settleOwed(action: string): Promise<void> {
 		if (this.owed === null) return;
 		const survey = await this.survey(action);
+		if (survey.save !== null && !this.isOwnSave(survey)) {
+			this.owed = null;
+			return;
+		}
 		for (const slot of this.slotsToKeep(survey)) await this.protect({ slot, text: survey.texts[slot], action });
 		await this.remove({ survey, action });
 		this.owed = null;
@@ -777,6 +845,11 @@ function isDamage(error: unknown): boolean {
 
 function pageNamespaceHere(): string {
 	return typeof location === 'undefined' ? 'dev' : pageNamespace(location);
+}
+
+/** The save's text, or null when there's no save. */
+function saveTextOf(survey: Survey): string | null {
+	return survey.save === null ? null : survey.texts[survey.save];
 }
 
 function isSlot(value: string | null): value is Slot {

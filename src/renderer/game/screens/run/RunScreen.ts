@@ -525,10 +525,15 @@ export class RunScreen extends Screen {
 		ScreenManager.navigate('compoundScreen', { campaign: this.campaign });
 	}
 
-	/** To the menu, or, once the campaign is lost, to the defeat screen, which nothing skips. */
+	/**
+	 * To the menu, or, once the campaign is lost, to the defeat screen, which
+	 * nothing skips. A stranded screen's loss was never saved, since the save
+	 * had moved on (another tab saved over it or ended it), so it goes to the
+	 * menu: its defeat would wait on a checkpoint that's refused every time.
+	 */
 	private toMenu(): void {
 		if (this.busy) return;
-		if (this.campaign?.isOver) {
+		if (this.campaign?.isOver && !this.stranded) {
 			void this.toDefeat();
 			return;
 		}
