@@ -1,6 +1,6 @@
 import { readArray, readOneOf, readSeed } from '../core/JsonReader';
 import { Rng } from '../core/Rng';
-import { AREA_MAP_GENERATOR_VERSION } from '../map/AreaMapPipeline';
+import { AREA_MAP_GENERATOR_VERSION } from '../map/GeneratorVersion';
 import { MapParamSet, MapParams } from '../map/MapParams';
 import { validateMapParamSet } from '../map/ParamValidator';
 import { rollParams } from '../map/RollParams';

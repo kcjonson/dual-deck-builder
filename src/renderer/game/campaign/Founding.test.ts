@@ -2,7 +2,7 @@ import { runInNewContext } from 'vm';
 import { DriverLoader } from '../core/DriverLoader';
 import { ReaderTypeError } from '../core/JsonReader';
 import { RNG_VERSION, Rng } from '../core/Rng';
-import { AREA_MAP_GENERATOR_VERSION } from '../map/AreaMapPipeline';
+import { AREA_MAP_GENERATOR_VERSION } from '../map/GeneratorVersion';
 import { MapParamSet, resolveMapParams } from '../map/MapParams';
 import { validateMapParams } from '../map/ParamValidator';
 import { rollParams } from '../map/RollParams';

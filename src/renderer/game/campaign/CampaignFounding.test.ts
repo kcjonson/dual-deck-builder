@@ -1,4 +1,4 @@
-import { AREA_MAP_GENERATOR_VERSION } from '../map/AreaMapPipeline';
+import { AREA_MAP_GENERATOR_VERSION } from '../map/GeneratorVersion';
 import { MapPipelineError } from '../map/MapPipeline';
 import { rollParams } from '../map/RollParams';
 import { MapGenerationCancelled } from '../map/worker/MapGeneration';

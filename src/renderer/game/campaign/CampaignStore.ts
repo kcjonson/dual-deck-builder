@@ -1,6 +1,6 @@
 import { EventEmitter } from '../core/EventEmitter';
 import { describeValue } from '../core/Json';
-import { AREA_MAP_GENERATOR_VERSION } from '../map/AreaMapPipeline';
+import { AREA_MAP_GENERATOR_VERSION } from '../map/GeneratorVersion';
 import { ReaderTypeError, isReaderError, readFields, readInteger, readObject } from '../core/JsonReader';
 import { CAMPAIGN_SCHEMA_VERSION, Campaign, LoadOptions, logWarning } from './Campaign';
 import { CampaignEnding, CampaignHistoryEntry, historyEntry, historyToJson, readHistory, sameEntry } from './CampaignHistory';

@@ -20,18 +20,6 @@ import { Water, generateWater } from './Water';
  * draws, but it's a link in the chain all the same.
  */
 
-/**
- * The generator version a campaign records with its map. 1 was the stand-in
- * campaigns were founded on before the generator existed. Adding, removing,
- * or renaming a stage bumps it, since a save names the stages its attempts
- * belong to (a test pins the list to it), and so may any change that makes
- * another map from the same seed, params, and attempts. The campaign store
- * reads a save recorded at another version as outdated, the way it reads
- * one of another save format version (map-pipeline-worker.md, Making a
- * saved map again).
- */
-export const AREA_MAP_GENERATOR_VERSION = 2;
-
 export interface AreaMapProducts {
 	/** The land, without water. */
 	readonly terrain: Terrain;
@@ -126,6 +114,7 @@ export interface AreaMapPipelineOptions {
 	readonly pois?: PoisStageOptions;
 }
 
+/** Adding, removing, or renaming a stage here bumps `AREA_MAP_GENERATOR_VERSION` (GeneratorVersion.ts). */
 export function areaMapPipeline({ growth, pois }: AreaMapPipelineOptions = {}): MapPipeline<MapParams, AreaMapProducts> {
 	return new MapPipeline<MapParams>()
 		.stage(TERRAIN_STAGE)

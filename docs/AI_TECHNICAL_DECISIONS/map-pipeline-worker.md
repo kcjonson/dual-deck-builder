@@ -114,7 +114,7 @@ Electron against the development dev server, the build the screenshot harness ru
 
 Because streams nest, a stage's stream depends on every winning attempt above it, not on the map attempt alone. The land is rebuilt on load from terrain's stream, which needs the map attempt and terrain's attempt, and dressing, the last stage, from a stream nested under every stage before it. So a campaign keeps the map attempt and every stage's winning attempt, `mapAttempts`, a dozen small integers fixed at founding beside the seed and the params; a load rebuilds any stage's stream from them. The spec's Saving section says the same.
 
-Until saves keep the map's lines (DDB-436), a load rebuilds every stage, not just the land (Making a saved map again, below). A save names the stages in `mapAttempts.stages`, so adding, removing, or renaming a stage bumps `AREA_MAP_GENERATOR_VERSION`, beside the stage list in `AreaMapPipeline.ts`, and a test pins the list to it. The save format version stays where it is: the campaign store reads a save whose map another generator version made as outdated, as it does one of another format version.
+Until saves keep the map's lines (DDB-436), a load rebuilds every stage, not just the land (Making a saved map again, below). A save names the stages in `mapAttempts.stages`, so adding, removing, or renaming a stage bumps `AREA_MAP_GENERATOR_VERSION` (`map/GeneratorVersion.ts`, a module of its own so the store reads it without loading the pipeline), and a test pins the list to it. The save format version stays where it is: the campaign store reads a save whose map another generator version made as outdated, as it does one of another format version.
 
 ## The founding contract
 

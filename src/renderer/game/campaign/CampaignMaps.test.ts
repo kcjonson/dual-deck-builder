@@ -1,4 +1,5 @@
-import { AREA_MAP_GENERATOR_VERSION, AreaMapGeneration, areaMapPipeline } from '../map/AreaMapPipeline';
+import { AreaMapGeneration, areaMapPipeline } from '../map/AreaMapPipeline';
+import { AREA_MAP_GENERATOR_VERSION } from '../map/GeneratorVersion';
 import { MapGenerationCancelled } from '../map/worker/MapGeneration';
 import { encodeAreaMap } from '../map/worker/mapGenerationProtocol';
 import type { DriverArchetype } from '../mechanics/Driver';
@@ -258,7 +259,7 @@ describe('CampaignMaps', () => {
 		try {
 			expect(pinned).toEqual({ generatorVersion: 2, stages: ['terrain', 'water', 'highways', 'growth', 'routeTree', 'pois'] });
 		} catch (error) {
-			throw new Error(`the pipeline's stages changed: bump AREA_MAP_GENERATOR_VERSION (map/AreaMapPipeline.ts), so the store reads older saves as outdated, and re-pin\n${(error as Error).message}`);
+			throw new Error(`the pipeline's stages changed: bump AREA_MAP_GENERATOR_VERSION (map/GeneratorVersion.ts), so the store reads older saves as outdated, and re-pin\n${(error as Error).message}`);
 		}
 	});
 

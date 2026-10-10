@@ -1,4 +1,5 @@
-import { AREA_MAP_GENERATOR_VERSION, AreaMapGeneration, AreaMapStageName } from '../map/AreaMapPipeline';
+import type { AreaMapGeneration, AreaMapStageName } from '../map/AreaMapPipeline';
+import { AREA_MAP_GENERATOR_VERSION } from '../map/GeneratorVersion';
 import type { PipelineReplay, StageAttempt } from '../map/MapPipeline';
 import { MapGeneration, type MapGenerationOptions } from '../map/worker/MapGeneration';
 import type { Campaign } from './Campaign';

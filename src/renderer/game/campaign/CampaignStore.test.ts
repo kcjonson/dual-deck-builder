@@ -1,4 +1,4 @@
-import { AREA_MAP_GENERATOR_VERSION } from '../map/AreaMapPipeline';
+import { AREA_MAP_GENERATOR_VERSION } from '../map/GeneratorVersion';
 import { CAMPAIGN_SCHEMA_VERSION, Campaign } from './Campaign';
 import { CampaignEnding, CampaignHistoryEntry, historyToJson } from './CampaignHistory';
 import { CampaignStore, CampaignStoreError, CheckpointResult, campaignKeys, pageNamespace } from './CampaignStore';

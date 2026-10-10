@@ -1,7 +1,7 @@
 import type { JsonObject } from '../../core/Json';
 import { Rng } from '../../core/Rng';
 import cardsFile from '../../data/cards.json';
-import { AREA_MAP_GENERATOR_VERSION } from '../../map/AreaMapPipeline';
+import { AREA_MAP_GENERATOR_VERSION } from '../../map/GeneratorVersion';
 import { resolveMapParams } from '../../map/MapParams';
 import { Convoy } from '../../mechanics/Convoy';
 import { createEscort } from '../../mechanics/Escort';
