@@ -263,7 +263,7 @@ export class Battle extends Model<BattleData> {
 			[TeamType.PLAYER, playerTeam.getAllDrivers()],
 			[TeamType.ENEMY, enemyTeam.getAllDrivers()]
 		]));
-		Battle.convoyEscorts.set(this, playerTeam.escorts.filter(escort => !escort.escort?.setPiece));
+		Battle.convoyEscorts.set(this, playerTeam.convoyEscorts);
 		Battle.fightRngs.set(this, rng);
 		Battle.deckRngs.set(this, new Map());
 
@@ -429,6 +429,15 @@ export class Battle extends Model<BattleData> {
 		const fight = Battle.fightRngs.get(this);
 		if (!fight) throw new Error('Battle random streams not initialized');
 		return fight.seed;
+	}
+
+	/**
+	 * The player's drivers in seat order, Driver 1 first: everyone aboard when
+	 * the fight was built, in the order their vehicles are listed, then anyone
+	 * seated later. A driver keeps their seat through a wreck or a death.
+	 */
+	public get playerSeats(): readonly Driver[] {
+		return [...(Battle.driverSeats.get(this)?.get(TeamType.PLAYER) ?? [])];
 	}
 
 	/**
@@ -2137,7 +2146,7 @@ export class Battle extends Model<BattleData> {
 	 * Get the vehicle that a driver is in
 	 */
 	public getVehicleForDriver(driver: Driver): Vehicle | null {
-		return this.getAllVehicles().find(v => v.driver === driver || v.passenger === driver) || null;
+		return this.getAllVehicles().find(vehicle => vehicle.carries(driver)) ?? null;
 	}
 
 	/**

@@ -255,12 +255,12 @@ export class MCTSAI extends AIPlayer {
 	private countRemainingValuableActions(): number {
 		let count = 0;
 		for (const vehicle of this.team.vehicles) {
-			if (vehicle.isOutOfFight || !vehicle.driver) continue;
-			const driver = vehicle.driver;
-			
-			for (const card of this.board.handOf(driver)) {
-				if (this.board.adrenalineOf(driver) >= card.cost && this.isValuablePlay({ card, driver })) {
-					count++;
+			if (vehicle.isOutOfFight) continue;
+			for (const driver of this.actingOccupants(vehicle)) {
+				for (const card of this.board.handOf(driver)) {
+					if (this.canPlay({ driver, card }) && this.isValuablePlay({ card, driver })) {
+						count++;
+					}
 				}
 			}
 		}
@@ -284,15 +284,10 @@ export class MCTSAI extends AIPlayer {
 	}
 	
 	/**
-	 * Find vehicle for a driver
+	 * The vehicle a driver plays from: the one they drive, or ride in as a passenger
 	 */
 	private findVehicleForDriver(driver: Driver): Vehicle | null {
-		for (const vehicle of [...this.team.vehicles, ...this.getEnemyTeam().vehicles]) {
-			if (vehicle.driver === driver) {
-				return vehicle;
-			}
-		}
-		return null;
+		return [...this.team.vehicles, ...this.getEnemyTeam().vehicles].find(vehicle => vehicle.carries(driver)) ?? null;
 	}
 	
 	/**

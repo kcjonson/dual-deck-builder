@@ -126,6 +126,18 @@ export class PlayerHandLayer extends Stack {
 		return this.halves[seat].tab;
 	}
 
+	/**
+	 * How many seats have a driver this fight. A run down to its last driver
+	 * seats one, and the second half is an empty seat: no tab and no hand.
+	 */
+	public get driverCount(): DriverSeat {
+		return this.halves[2].emptySeat ? 1 : 2;
+	}
+
+	public set driverCount(count: DriverSeat) {
+		this.halves[2].emptySeat = count < 2;
+	}
+
 	/** A driver's tab (name, tag, mods, adrenaline, piles), and whether their half has a hand. */
 	public setDriverData(seat: DriverSeat, data: Partial<DriverResourceData>): void {
 		this.halves[seat].tab.setData(data);
@@ -306,42 +318,76 @@ export class PlayerHandLayer extends Stack {
 /**
  * One driver's half of the hand: their tab, and their fan below it. A
  * driver who crashed out has no hand for the rest of the fight (section 9),
- * so their half says so where the fan was.
+ * so their half says so where the fan was. A seat nobody fills (a run down
+ * to its last driver) shows neither tab nor fan, only a note that it's
+ * empty.
  */
 class HandHalf extends Stack {
 	public readonly tab: DriverTab;
 	public readonly fan: HandFan;
+	private readonly seat: DriverSeat;
 	private readonly crashNote: Stack;
+	/** Built the first time the seat is empty; only a second seat ever is. */
+	private emptyNote: Stack | null = null;
+	private crashed = false;
+	private empty = false;
 
 	constructor({ seat }: { seat: DriverSeat }) {
 		super({ direction: 'vertical', crossAlign: 'stretch', widthMode: 'fill', heightMode: 'fill' });
+		this.seat = seat;
 		this.tab = new DriverTab({ id: `driver${seat}_tab`, seat });
 		this.fan = new HandFan({ id: `driver${seat}_hand`, widthMode: 'fill', heightMode: 'fill' });
-		this.crashNote = new Stack({
-			id: `driver${seat}_crashed_out`,
+		this.crashNote = HandHalf.note({ id: `driver${seat}_crashed_out`, text: 'No free seat after the wreck: out of this fight' });
+		this.addChild(this.tab);
+		this.addChild(this.fan);
+		this.addChild(this.crashNote);
+	}
+
+	/** A line of dim mono text centred where the fan would be, hidden until its case comes up. */
+	private static note({ id, text }: { id: string; text: string }): Stack {
+		const note = new Stack({
+			id,
 			widthMode: 'fill',
 			heightMode: 'fill',
 			distribution: 'center',
 			crossAlign: 'center',
 			visible: false,
 		});
-		this.crashNote.addChild(new Text({
-			text: 'No free seat after the wreck: out of this fight',
+		note.addChild(new Text({
+			text,
 			style: { fontRole: 'mono', fontSize: 12, color: rgba('text_dim') },
 			wrap: 'none',
 			textOverflow: 'ellipsis',
 		}));
-		this.addChild(this.tab);
-		this.addChild(this.fan);
-		this.addChild(this.crashNote);
+		return note;
 	}
 
 	public get crashedOut(): boolean {
-		return this.crashNote.visible;
+		return this.crashed;
 	}
 
 	public set crashedOut(crashedOut: boolean) {
-		this.fan.visible = !crashedOut;
-		this.crashNote.visible = crashedOut;
+		this.crashed = crashedOut;
+		this.show();
+	}
+
+	public get emptySeat(): boolean {
+		return this.empty;
+	}
+
+	public set emptySeat(empty: boolean) {
+		this.empty = empty;
+		if (empty && !this.emptyNote) {
+			this.emptyNote = HandHalf.note({ id: `driver${this.seat}_empty_seat`, text: 'Empty seat: one driver on this run' });
+			this.addChild(this.emptyNote);
+		}
+		this.show();
+	}
+
+	private show(): void {
+		this.tab.visible = !this.empty;
+		this.fan.visible = !this.empty && !this.crashed;
+		this.crashNote.visible = !this.empty && this.crashed;
+		if (this.emptyNote) this.emptyNote.visible = this.empty;
 	}
 }
