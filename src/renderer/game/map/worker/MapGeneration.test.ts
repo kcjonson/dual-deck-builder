@@ -65,8 +65,8 @@ describe('MapGeneration', () => {
 			expect(map.streams).toEqual(expected.streams);
 			expect(map.products.routeTree).toEqual(expected.products.routeTree);
 			expect(map.products.pois).toEqual(expected.products.pois);
-			expect(map.attempts).toEqual({ terrain: 0, water: 0, highways: 0, growth: 0, routeTree: 0, pois: 0 });
-			expect(progress.map(({ stage, attempt }) => `${stage} ${attempt}`)).toEqual(['terrain 0', 'water 0', 'highways 0', 'growth 0', 'routeTree 0', 'pois 0']);
+			expect(map.attempts).toEqual({ terrain: 0, water: 0, highways: 0, growth: 0, routeTree: 0, pois: 0, stops: 0 });
+			expect(progress.map(({ stage, attempt }) => `${stage} ${attempt}`)).toEqual(['terrain 0', 'water 0', 'highways 0', 'growth 0', 'routeTree 0', 'pois 0', 'stops 0']);
 			expect(map.wallMilliseconds).toBeGreaterThanOrEqual(map.decodeMilliseconds);
 		});
 
@@ -201,13 +201,14 @@ describe('MapGeneration', () => {
 
 	it('sums a generation up in one line for the dev hook', async () => {
 		const summary = summarizeGeneration(await new MapGeneration({ params }).result);
-		expect(summary).toMatchObject({ seed: 9, environment: 'highDesert', radius: 700, inWorker: false, attempts: { terrain: 0, water: 0, highways: 0, growth: 0, routeTree: 0, pois: 0 }, mapAttempt: 0 });
+		expect(summary).toMatchObject({ seed: 9, environment: 'highDesert', radius: 700, inWorker: false, attempts: { terrain: 0, water: 0, highways: 0, growth: 0, routeTree: 0, pois: 0, stops: 0 }, mapAttempt: 0 });
 		expect(summary.nodes).toBe(expected.products.growth.network.nodes.length);
 		expect(summary.meetingPoints).toBe(expected.products.routeTree.meetingPoints.length);
 		expect(summary.pois).toBe(expected.products.pois.pois.length);
+		expect(summary.stops).toBe(expected.products.stops.stops.length);
 		const line = describeGeneration(summary);
 		expect(line).toMatch(/^Map generation, seed 9 highDesert radius 700, in-process: [\d.]+ ms wall, pipeline [\d.]+ ms \(terrain [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), water [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), highways/);
-		expect(line).toMatch(/growth [\d.]+ \+ [\d.]+ checks \(attempt 0\), routeTree [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), pois [\d.]+( \+ [\d.]+ checks)? \(attempt 0\); map attempt 0\), decode [\d.]+ ms; /);
-		expect(line).toMatch(/; \d+ nodes, \d+ stretches, \d+ meeting points, \d+ POIs \(\d+ strongholds\)$/);
+		expect(line).toMatch(/growth [\d.]+ \+ [\d.]+ checks \(attempt 0\), routeTree [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), pois [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), stops [\d.]+( \+ [\d.]+ checks)? \(attempt 0\); map attempt 0\), decode [\d.]+ ms; /);
+		expect(line).toMatch(/; \d+ nodes, \d+ stretches, \d+ meeting points, \d+ POIs \(\d+ strongholds\), \d+ stops$/);
 	});
 });

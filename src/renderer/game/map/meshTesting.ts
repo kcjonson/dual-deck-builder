@@ -1,13 +1,17 @@
 import { Rng } from '../core/Rng';
 import type { Biome } from './Biome';
-import type { PoiGround } from './Pois';
+import type { MapParams, StopTables } from './MapParams';
+import { PoiGround, PoiLayer, placePois } from './Pois';
 import type { Road, RoadClass, RoadNetwork, RoadNode, RoadStretch } from './RoadNetwork';
+import { RouteTree, buildRouteTree } from './RouteTree';
+import type { StopTuning } from './StopData';
+import { StopLayer, placeStops } from './Stops';
 
 /**
- * Synthetic road networks for the route tree and POI tests: hand-built
- * meshes with loops, and random planar meshes, the shape the road links
- * (Map 7 and 8) will make, which outward growth never does. Nothing in the
- * game imports this file.
+ * Synthetic road networks for the route tree, POI, and stop tests:
+ * hand-built meshes with loops, and random planar meshes, the shape the
+ * road links (Map 7 and 8) will make, which outward growth never does.
+ * Nothing in the game imports this file.
  */
 
 /** A node's place, and an edge as its two nodes and its class (a back road when left out). */
@@ -125,6 +129,48 @@ export interface FakeGroundOptions {
 	readonly ruin?: (x: number, y: number) => number;
 	readonly elevation?: (x: number, y: number) => number;
 	readonly moisture?: (x: number, y: number) => number;
+}
+
+export interface MeshMapOptions {
+	/** The POI and stop stages' streams fork from it. */
+	readonly seed?: number;
+	readonly ground?: PoiGround;
+	readonly strongholds?: number;
+	readonly poiDensity?: number;
+	readonly routeSplit?: number;
+	readonly travelPace?: number;
+	readonly stopDensity?: number;
+	readonly dangerCurve?: number;
+	readonly driverFinds?: number;
+	readonly daylightHours?: number;
+	readonly stopTables?: StopTables;
+	readonly stopTuning?: StopTuning;
+}
+
+export interface MeshMap {
+	readonly network: RoadNetwork;
+	readonly tree: RouteTree;
+	/** What the descriptors and the run's adapter read, as a generation holds it. */
+	readonly params: Pick<MapParams, 'stopDensity' | 'dangerCurve' | 'driverFinds' | 'daylightHours' | 'stopTables'>;
+	readonly products: { readonly pois: PoiLayer; readonly stops: StopLayer };
+}
+
+/**
+ * The route tree, POIs, and stops over a network, on fake ground: a map
+ * with routes, which real maps won't have until the road graph (Map 8)
+ * gives them meeting points. The POIs draw on the seed's `pois` fork and
+ * the stops on its `stops` fork, as the pipeline nests them.
+ */
+export function meshMap(network: RoadNetwork, {
+	seed = 1, ground = fakeGround(), strongholds = 4, poiDensity = 1, routeSplit = 0.5, travelPace = 1,
+	stopDensity = 1, dangerCurve = 1, driverFinds = 2, daylightHours = 14, stopTables, stopTuning,
+}: MeshMapOptions = {}): MeshMap {
+	const tree = buildRouteTree({ network, travelPace, routeSplit });
+	const root = new Rng({ seed });
+	const pois = placePois({ network, tree, ground, params: { strongholds, poiDensity }, rng: root.fork('pois') });
+	const params = { stopDensity, dangerCurve, driverFinds, daylightHours, ...(stopTables === undefined ? {} : { stopTables }) };
+	const stops = placeStops({ network, layer: pois, ground, params, rng: root.fork('stops'), tuning: stopTuning });
+	return { network, tree, params, products: { pois, stops } };
 }
 
 /** Land made of functions: scrub everywhere, no ruin, middling height and moisture, unless given. */

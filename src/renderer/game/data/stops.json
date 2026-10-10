@@ -1,0 +1,35 @@
+{
+	"spacing": { "highway": 150, "backRoad": 120, "trail": 100 },
+	"clearance": { "ends": 15, "junctions": 8 },
+	"minGap": 40,
+	"jitter": 0.5,
+	"biomeStep": 12,
+	"types": {
+		"ambush": { "label": "Raider ambush", "hours": 1 },
+		"warband": { "label": "Warband", "hours": 1.5 },
+		"checkpoint": { "label": "Checkpoint", "hours": 0.5 },
+		"wreck": { "label": "Wreck", "hours": 0.5 },
+		"distress": { "label": "Distress signal", "hours": 0.5 },
+		"garage": { "label": "Roadside garage", "hours": 1 },
+		"hazard": { "label": "Hazard", "hours": 1 },
+		"findDriver": { "label": "Find: driver", "hours": 0.5 },
+		"findSettlers": { "label": "Find: settlers", "hours": 0.5 },
+		"findVehicle": { "label": "Find: vehicle", "hours": 0.5 },
+		"findCards": { "label": "Find: cards", "hours": 0.5 },
+		"findSupplies": { "label": "Find: supplies", "hours": 0.5 }
+	},
+	"objectiveHours": { "poi": 1.5, "stronghold": 2 },
+	"skulls": { "step": 0.5, "warband": 1 },
+	"driverFinds": { "floorTiers": 2, "rates": [0, 0, 0.04, 0.04, 0.04] },
+	"contents": {
+		"hazards": ["storm", "radiation", "sinkhole", "floodedUnderpass"],
+		"hazardHours": { "min": 0.5, "max": 2, "step": 0.5 },
+		"supplies": {
+			"food": { "min": 2, "max": 5 },
+			"water": { "min": 2, "max": 5 },
+			"fuel": { "min": 1, "max": 3 },
+			"meds": { "min": 1, "max": 2 },
+			"scrap": { "min": 5, "max": 15 }
+		}
+	}
+}

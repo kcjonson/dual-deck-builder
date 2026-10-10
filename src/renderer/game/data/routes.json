@@ -1,0 +1,20 @@
+{
+	"unitsPerFuel": 150,
+	"unknownStopHours": 0.75,
+	"dawn": 6,
+	"names": {
+		"biomeShare": 0.5,
+		"biomes": {
+			"desert": "Across the desert",
+			"mire": "Through the mire",
+			"badlands": "Through the badlands",
+			"canyons": "Down the canyons",
+			"mountains": "Over the mountains"
+		},
+		"classes": {
+			"highway": "Route {road} highway",
+			"backRoad": "Back roads",
+			"trail": "Trails"
+		}
+	}
+}

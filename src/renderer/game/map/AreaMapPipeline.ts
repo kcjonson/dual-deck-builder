@@ -7,13 +7,15 @@ import { checkRoadNetwork } from './RoadChecks';
 import { GROWTH_TUNING, GrowthTuning, RoadGrowth, growRoads } from './RoadGrowth';
 import type { RoadNetwork } from './RoadNetwork';
 import { RouteTree, buildRouteTree } from './RouteTree';
+import { checkStopLayer } from './StopChecks';
+import { StopGround, StopLayer, placeStops } from './Stops';
 import { Terrain, generateTerrain } from './Terrain';
 import { Water, generateWater } from './Water';
 
 /**
  * The area map's stages as they stand: terrain, water, then the highways
  * and growth pair, stand-ins until settlements and road links (Map 7 and 8)
- * replace them, then the route tree and the POIs over growth's network. Each
+ * replace them, then the route tree, the POIs, and the stops over growth's network. Each
  * runs on the stream the runner nests for it, so water draws from
  * root.fork('map', m).fork('terrain', t).fork('water', w), the highways one
  * level further down, growth one more, and so on; the route tree takes no
@@ -29,6 +31,7 @@ export interface AreaMapProducts {
 	readonly growth: RoadGrowth;
 	readonly routeTree: RouteTree;
 	readonly pois: PoiLayer;
+	readonly stops: StopLayer;
 }
 
 export type AreaMapStageName = keyof AreaMapProducts;
@@ -108,6 +111,24 @@ export function poisStage({ strict = false }: PoisStageOptions = {}): MapStage<M
 	};
 }
 
+/** What the stops read: the roads, the land with its water, and the POIs with their legs. */
+interface StopsUpstream extends RoadsProduct {
+	readonly water: { readonly terrain: StopGround };
+	readonly pois: PoiLayer;
+}
+
+/**
+ * Stage 9, stops on the legs, checked by the checks the map validator will
+ * run. It retries only itself and never restarts the map; on a map with no
+ * POIs it places nothing and passes.
+ */
+export const STOPS_STAGE: MapStage<MapParams, StopsUpstream, 'stops', StopLayer> = {
+	name: 'stops',
+	localRetry: true,
+	run: ({ input, products, rng }) => placeStops({ network: products.growth.network, layer: products.pois, ground: products.water.terrain, params: input, rng }),
+	check: (stops, { input, products }) => checkStopLayer({ layer: products.pois, stops, params: input }).map(({ rule, detail }) => `${rule}: ${detail}`),
+};
+
 export interface AreaMapPipelineOptions {
 	/** Growth's own knobs. */
 	readonly growth?: GrowthTuning;
@@ -121,7 +142,8 @@ export function areaMapPipeline({ growth, pois }: AreaMapPipelineOptions = {}): 
 		.stage(HIGHWAYS_STAGE)
 		.stage(growthStage(growth))
 		.stage(ROUTE_TREE_STAGE)
-		.stage(poisStage(pois));
+		.stage(poisStage(pois))
+		.stage(STOPS_STAGE);
 }
 
 export interface AreaMapGeneration extends PipelineResult<AreaMapProducts> {
