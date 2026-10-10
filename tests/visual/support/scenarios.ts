@@ -10,7 +10,7 @@
  */
 import { SHORT_VIEWPORT } from '../../../playwright.config';
 import type { Viewport } from '../../../playwright.config';
-import { AT_HOME, DAMAGED, ENDED, FULL_LOCKER, FULL_RUN, IN_PROGRESS, OUTDATED } from './campaignSaves';
+import { AT_HOME, DAMAGED, ENDED, FULL_LOCKER, FULL_RUN, IN_PROGRESS, LOST, OUTDATED } from './campaignSaves';
 
 export interface ScreenScenario {
 	/** The golden's name: the screen's, plus a variant and a window size where they are not the defaults. */
@@ -104,6 +104,8 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	// The fixture's run in seat 1: a card left at home, one borrowed, and an escort card; then a run deck at the most it holds beside the full locker (DDB-321)
 	{ screen: 'customizeScreen', storage: IN_PROGRESS },
 	{ screen: 'customizeScreen', variant: 'full', storage: FULL_RUN },
+	// A save already lost, which the defeat screen shows as the compound hands it one (DDB-305)
+	{ screen: 'defeatScreen', storage: LOST },
 ];
 
 function caseName({ screen, variant }: ScreenCase): string {

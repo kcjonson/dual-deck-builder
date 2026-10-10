@@ -1378,10 +1378,15 @@ export function driverList(drivers: readonly DriverRecord[]): string {
 /** What one of each resource is called in the log: "1 med", "1 person". */
 const SINGULAR: Readonly<Record<keyof Resources, string>> = { food: 'food', water: 'water', fuel: 'fuel', meds: 'med', scrap: 'scrap', people: 'person' };
 
+/** An amount of a resource as the log words it: "1 med", "2 meds", "1 person", "3 people". */
+export function resourceAmount({ resource, amount }: { resource: keyof Resources; amount: number }): string {
+	return `${amount} ${amount === 1 ? SINGULAR[resource] : resource}`;
+}
+
 /** "Cargo lost with the run: 2 fuel, 30 scrap, and Repair Kit x2.", or null when the run carried nothing. */
 function cargoLostMessage({ cargo, cards }: { cargo: Readonly<Resources>; cards: CardCounts }): string | null {
 	const items = [
-		...RESOURCE_NAMES.filter(name => cargo[name] > 0).map(name => `${cargo[name]} ${cargo[name] === 1 ? SINGULAR[name] : name}`),
+		...RESOURCE_NAMES.filter(name => cargo[name] > 0).map(name => resourceAmount({ resource: name, amount: cargo[name] })),
 		...Object.entries(cards).map(([cardType, count]) => (count === 1 ? cardName(cardType) : `${cardName(cardType)} x${count}`))
 	];
 	if (items.length === 0) return null;
