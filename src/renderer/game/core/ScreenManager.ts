@@ -12,6 +12,7 @@ import { CreditsScreen } from '../screens/credits/CreditsScreen';
 import { CampaignHistoryScreen } from '../screens/campaign-history/CampaignHistoryScreen';
 import { CompoundScreen } from '../screens/compound/CompoundScreen';
 import { CrewScreen } from '../screens/crew/CrewScreen';
+import { CustomizeScreen } from '../screens/customize/CustomizeScreen';
 import { DefeatScreen } from '../screens/defeat/DefeatScreen';
 import { RoutePickScreen } from '../screens/route-pick/RoutePickScreen';
 import { RunScreen } from '../screens/run/RunScreen';
@@ -33,6 +34,7 @@ export type ScreenName =
 	| 'campaignHistoryScreen'
 	| 'compoundScreen'
 	| 'crewScreen'
+	| 'customizeScreen'
 	| 'defeatScreen'
 	| 'routePickScreen'
 	| 'runScreen';
@@ -69,6 +71,7 @@ function buildScreenConstructors(): Map<ScreenName, ScreenConstructor> {
 		['campaignHistoryScreen', CampaignHistoryScreen],
 		['compoundScreen', CompoundScreen],
 		['crewScreen', CrewScreen],
+		['customizeScreen', CustomizeScreen],
 		['defeatScreen', DefeatScreen],
 		['routePickScreen', RoutePickScreen],
 		['runScreen', RunScreen],

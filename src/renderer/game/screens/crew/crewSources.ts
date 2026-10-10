@@ -1,7 +1,6 @@
 import type { Campaign } from '../../campaign/Campaign';
 import { cardBlockerReason } from '../../campaign/cardBlockerText';
-import { NO_CARDS } from '../../campaign/CardCounts';
-import { deckAddBlocker } from '../../campaign/DeckRules';
+import { isForOtherArchetype } from '../../campaign/DeckRules';
 import type { DriverRecord } from '../../campaign/DriverRecord';
 import type { CardEntry, CardSource } from '../../ui/deckBuilder/cardSource';
 import { defaultDeckOf } from './crewText';
@@ -64,7 +63,7 @@ export function crewLockerSource({ campaign, selected, changed }: CrewSourceOpti
 			return Object.entries(campaign.locker).map(([cardType, copies]) => {
 				const addBlocker = driver ? campaign.getCardMoveBlocker({ cardType, from: 'locker', to: driver }) : null;
 				const scrapBlocker = campaign.getScrapBlocker({ cardType });
-				const otherArchetype = driver !== null && deckAddBlocker({ deck: NO_CARDS, archetype: driver.archetype, cardType, count: 1 })?.reason === 'other_archetype';
+				const otherArchetype = driver !== null && isForOtherArchetype({ cardType, archetype: driver.archetype });
 				return {
 					cardType,
 					copies,

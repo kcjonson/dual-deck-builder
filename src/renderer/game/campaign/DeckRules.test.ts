@@ -1,7 +1,7 @@
 import cardsFile from '../data/cards.json';
 import deckRulesFile from '../data/deck-rules.json';
 import { CardCounts, startingDeckCounts, totalCards } from './CardCounts';
-import { DECK_RULES, cardArchetype, cardName, deckAddBlocker, deckRemoveBlocker, readCardCatalogue, readDeckRules, readNewCards } from './DeckRules';
+import { DECK_RULES, cardArchetype, cardName, deckAddBlocker, deckRemoveBlocker, isForOtherArchetype, readCardCatalogue, readDeckRules, readNewCards } from './DeckRules';
 import { DRIVER_ARCHETYPES } from './DriverRecord';
 
 type RulesJson = Record<string, unknown>;
@@ -127,5 +127,11 @@ describe('a deck', () => {
 		expect(deckAddBlocker({ deck: deckOf(min), archetype: 'interceptor', cardType: 'precision_shot', count: 1 })).toBeNull();
 		expect(deckAddBlocker({ deck: deckOf(max), archetype: 'road_warrior', cardType: 'precision_shot', count: 1 }))
 			.toEqual({ reason: 'other_archetype', archetype: 'interceptor' });
+	});
+
+	it('says a card marked for another archetype is for another, and one marked for none is for nobody else', () => {
+		expect(isForOtherArchetype({ cardType: 'precision_shot', archetype: 'road_warrior' })).toBe(true);
+		expect(isForOtherArchetype({ cardType: 'precision_shot', archetype: 'interceptor' })).toBe(false);
+		expect(isForOtherArchetype({ cardType: 'headshot', archetype: 'road_warrior' })).toBe(false);
 	});
 });

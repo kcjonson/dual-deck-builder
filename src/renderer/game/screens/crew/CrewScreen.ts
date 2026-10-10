@@ -1,9 +1,10 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { CardLoader } from '../../core/CardLoader';
+import { loadedCardLookup } from '../../core/CardLoader';
+import { CampaignVisit } from '../../core/CampaignVisit';
 import { isAtCompound } from '../../campaign/Campaign';
 import type { Campaign } from '../../campaign/Campaign';
-import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
+import { CampaignStore } from '../../campaign/CampaignStore';
 import type { DriverRecord } from '../../campaign/DriverRecord';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
@@ -12,12 +13,11 @@ import { Divider } from '../../../engine/ui/Divider';
 import { FocusGroup } from '../../../engine/ui/FocusGroup';
 import { Panel } from '../../../engine/ui/Panel';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
-import { SCROLLBAR_GUTTER } from '../../../engine/ui/Scrollbar';
 import { tokens } from '../../../engine/theme/tokens';
 import { DRIVER_CONFIGS } from '../../mechanics/Driver';
 import { MINI_GRID } from '../../ui/Card';
 import { INSPECT_KEYS, inspectHotkey, inspectOnContextMenu, makeDriverInspectable } from '../../ui/cardInspect';
-import { DRIVER_CARD_SIZE, DriverCard } from '../../ui/DriverCard';
+import { DriverCard } from '../../ui/DriverCard';
 import { driverCardData } from '../../ui/driverCardData';
 import type { CardLookup } from '../../ui/DriverDetailView';
 import { FlowWrap } from '../../ui/FlowWrap';
@@ -33,8 +33,6 @@ const TOP_BAR_HEIGHT = 64;
 const BACK_WIDTH = 168;
 const CARDS_FAILED = "The cards couldn't be loaded.";
 const LOOKING = 'Looking for the saved campaign.';
-/** Two driver cards abreast, spaced as minis are, beside the scroller's gutter, inside a flush panel. */
-export const ROSTER_WIDTH = DRIVER_CARD_SIZE.width * 2 + MINI_GRID.gap + MINI_GRID.margin * 2 + SCROLLBAR_GUTTER + DECK_BUILDER.flushEdge * 2;
 
 /** What the compound hands the Crew screen: the campaign, as the store saves it. */
 export interface CrewScreenData {
@@ -46,14 +44,6 @@ export interface CrewScreenOptions {
 	store?: CampaignStore;
 	/** The game's cards, to draw the minis and the detail views. Default: the card loader's, loaded if they aren't yet. */
 	cards?: () => Promise<CardLookup>;
-}
-
-/** The game's cards from the card loader, fetched the first time anything asks. */
-async function loaderCards(): Promise<CardLookup> {
-	const loader = CardLoader.getInstance();
-	if (!loader.isLoaded()) await loader.loadCards();
-	const cards = loader.getAllCardsAsMap();
-	return (type) => cards.get(type) ?? null;
 }
 
 /**
@@ -107,11 +97,10 @@ export class CrewScreen extends Screen {
 	private curve: CostCurve | null = null;
 	private saveError: Text | null = null;
 	private unsubscribe: (() => void)[] = [];
-	/** Counts mounts and unmounts, so an answer that arrives after the screen has gone changes nothing. */
-	private visit = 0;
+	private readonly session = new CampaignVisit({ name: 'CrewScreen' });
 	private loaded: Promise<void> = Promise.resolve();
 
-	constructor({ store = CampaignStore.shared, cards = loaderCards }: CrewScreenOptions = {}) {
+	constructor({ store = CampaignStore.shared, cards = loadedCardLookup }: CrewScreenOptions = {}) {
 		const root = new Stack({
 			id: 'crewScreen',
 			widthMode: 'fill',
@@ -146,7 +135,6 @@ export class CrewScreen extends Screen {
 	}
 
 	protected onMount(data?: unknown): void {
-		this.visit += 1;
 		const back = new Button({
 			label: 'Back to compound',
 			id: 'crew_back_button',
@@ -188,15 +176,29 @@ export class CrewScreen extends Screen {
 		const { hotkeys } = this.rootLayer;
 		hotkeys.register('Escape', () => this.back());
 		for (const key of INSPECT_KEYS) hotkeys.register(key, () => inspectHotkey(this.context));
-		this.unsubscribe.push(this.store.onSaveFailed((error) => this.showSaveError(error.message)));
+		this.session.start({ store: this.store, saveError: this.saveError });
 		this.context.focus.focus(back);
 
-		const handed = (data as Partial<CrewScreenData> | undefined)?.campaign ?? null;
-		this.loaded = this.load(handed);
+		// The roster and the header show as soon as there's a campaign, and the deck and locker fill in once the cards are there.
+		this.loaded = this.session.load({
+			handed: (data as Partial<CrewScreenData> | undefined)?.campaign ?? null,
+			cards: this.loadCards,
+			show: (campaign) => this.show(campaign),
+			missing: (trouble) => {
+				this.trouble = trouble;
+				this.sayEmpty();
+			},
+			cardsLoaded: (lookup) => {
+				this.lookup = lookup;
+				this.cardsState = lookup ? 'ready' : 'failed';
+				this.sayEmpty();
+				this.refresh();
+			},
+		});
 	}
 
 	protected onUnmount(): void {
-		this.visit += 1;
+		this.session.stop();
 		const { hotkeys } = this.rootLayer;
 		for (const key of ['Escape', ...INSPECT_KEYS]) hotkeys.unregister(key);
 		this.unsubscribe.forEach((unsubscribe) => unsubscribe());
@@ -262,7 +264,7 @@ export class CrewScreen extends Screen {
 	 * a row's end (R9.26, R9.29).
 	 */
 	private createRoster(): Panel {
-		const panel = new Panel({ id: 'crew_roster_panel', title: rosterTitle(null), flush: true, width: ROSTER_WIDTH, heightMode: 'fill', crossAlign: 'stretch' });
+		const panel = new Panel({ id: 'crew_roster_panel', title: rosterTitle(null), flush: true, width: DECK_BUILDER.sideWidth, heightMode: 'fill', crossAlign: 'stretch' });
 		const scroll = new ScrollContainer({ id: 'crew_roster_scroll', widthMode: 'fill', heightMode: 'fill' });
 		const group = new FocusGroup({ id: 'crew_roster', orientation: 'horizontal', direction: 'vertical', crossAlign: 'stretch', visible: false });
 		const pool = new FlowWrap({ id: 'crew_roster_pool', margin: MINI_GRID.margin, gap: MINI_GRID.gap, visible: false });
@@ -335,52 +337,6 @@ export class CrewScreen extends Screen {
 		row.addChild(new Text({ id: 'crew_deck_limits', text: deckLimitsText(), widthMode: 'fill', style: { fontSize: 'fs_sm', color: 'text_dim', textAlign: 'right' } }));
 		foot.addChild(row);
 		return foot;
-	}
-
-	/**
-	 * The cards, and the campaign: handed over, and shown at once, or loaded
-	 * as Continue would. Both start now, the cards first so the screen
-	 * capture's asset gate sees them in flight; the roster and the header
-	 * show as soon as there's a campaign, and the deck and locker fill in
-	 * once the cards are there.
-	 */
-	private async load(handed: Campaign | null): Promise<void> {
-		const visit = this.visit;
-		const cards = this.loadCards().then(
-			(lookup) => lookup,
-			(error: unknown) => {
-				console.error('CrewScreen: loading the cards failed', error);
-				return null;
-			},
-		);
-		if (handed) {
-			this.show(handed);
-		} else {
-			const found = await this.loadSave();
-			if (visit !== this.visit) return;
-			if (found.campaign) {
-				this.show(found.campaign);
-			} else {
-				this.trouble = found.trouble;
-				this.sayEmpty();
-			}
-		}
-		const lookup = await cards;
-		if (visit !== this.visit) return;
-		this.lookup = lookup;
-		this.cardsState = lookup ? 'ready' : 'failed';
-		this.sayEmpty();
-		this.refresh();
-	}
-
-	private async loadSave(): Promise<{ campaign: Campaign | null; trouble: string | null }> {
-		try {
-			const campaign = await this.store.load();
-			return { campaign, trouble: campaign ? null : 'No campaign in progress.' };
-		} catch (error) {
-			if (!(error instanceof CampaignStoreError)) console.error('CrewScreen: loading the save failed', error);
-			return { campaign: null, trouble: error instanceof CampaignStoreError ? error.message : "The saved campaign couldn't be read." };
-		}
 	}
 
 	private show(campaign: Campaign): void {
@@ -504,22 +460,9 @@ export class CrewScreen extends Screen {
 		if (chip) chip.text = text;
 	}
 
-	/** Saves the step just taken. A save that lands clears the line a failed one left. */
+	/** Saves the step just taken. */
 	private checkpoint(): void {
-		const campaign = this.campaign;
-		if (!campaign) return;
-		const visit = this.visit;
-		void this.store.checkpoint(campaign).then((result) => {
-			if (result === 'saved' && visit === this.visit && this.saveError) this.saveError.visible = false;
-		});
-	}
-
-	private showSaveError(message: string): void {
-		const line = this.saveError;
-		if (!line) return;
-		line.text = message;
-		line.color = 'status_crit';
-		line.visible = true;
+		if (this.campaign) this.session.checkpoint(this.campaign);
 	}
 
 	/** To the compound, focus back on the Bunkhouse that opened this screen. */

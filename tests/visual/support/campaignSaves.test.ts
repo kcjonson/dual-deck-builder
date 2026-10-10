@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import { CampaignStore, CampaignStoreError, campaignKeys, pageNamespace } from '../../../src/renderer/game/campaign/CampaignStore';
 import { MemorySaveStorage } from '../../../src/renderer/game/campaign/SaveStorage';
-import { AT_HOME, CAMPAIGN_KEY_PREFIX, DAMAGED, ENDED, FULL_LOCKER, HARNESS_PAGE, IN_PROGRESS, LOST, ON_THE_ROAD, OUTDATED } from './campaignSaves';
+import { AT_HOME, CAMPAIGN_KEY_PREFIX, DAMAGED, ENDED, FULL_LOCKER, FULL_RUN, HARNESS_PAGE, IN_PROGRESS, LOST, ON_THE_ROAD, OUTDATED } from './campaignSaves';
 
 /** The harness's dev server's store, over the items a scenario writes. */
 function storeOver(items: Record<string, string>): CampaignStore {
@@ -13,7 +13,7 @@ describe('the screen scenarios\' campaign saves', () => {
 		const keys = campaignKeys(pageNamespace(HARNESS_PAGE));
 		const every = [keys.active, keys.slots.a, keys.slots.b, keys.recovery, keys.history, keys.historyRecovery];
 		expect(every.every((key) => key.startsWith(CAMPAIGN_KEY_PREFIX))).toBe(true);
-		for (const items of [IN_PROGRESS, ON_THE_ROAD, AT_HOME, FULL_LOCKER, LOST, OUTDATED, DAMAGED, ENDED]) {
+		for (const items of [IN_PROGRESS, ON_THE_ROAD, AT_HOME, FULL_LOCKER, FULL_RUN, LOST, OUTDATED, DAMAGED, ENDED]) {
 			expect(Object.keys(items).every((key) => every.includes(key))).toBe(true);
 		}
 	});
@@ -36,6 +36,15 @@ describe('the screen scenarios\' campaign saves', () => {
 		const full = await storeOver(FULL_LOCKER).load();
 		expect(full?.drivers[0].deckSize).toBe(20);
 		expect(Object.keys(full?.locker ?? {}).length).toBeGreaterThan(20);
+	});
+
+	it('hold a run out with a run deck at the most it holds, a card left home, one borrowed, and both escorts\' cards, that loads', async () => {
+		const run = await storeOver(FULL_RUN).load();
+		const [first] = run?.runDecks ?? [];
+		expect(first?.deckSize).toBe(20);
+		expect(first?.leftHome).toEqual({ armor_plating: 1 });
+		expect(first?.borrowed).toEqual({ headshot: 1 });
+		expect(first?.escortCards.map((card) => card.cardType)).toEqual(['top_off', 'run_ahead']);
 	});
 
 	it('hold a campaign already lost, that loads over', async () => {
