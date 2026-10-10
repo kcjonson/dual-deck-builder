@@ -1,44 +1,60 @@
 import { Rng } from '../core/Rng';
-import { BIOME_COSTS, Biome, BiomeFields, classifyBiome } from './Biome';
-import { LandSurface, RELIEF, generateLand, moistureLevel, startRadii, terraceHeight, terraceLift, terracePull, terraceSlope } from './Land';
+import { Biome, BiomeFields, classifyBiome } from './Biome';
+import { LandSurface, RELIEF, generateLand, moistureLevel, startRadii, terraceLift, terracePull, terraceSlope } from './Land';
 import { GridSampler, cellCentre, landGridFor } from './LandGrid';
-import { clamp01, lerp, quantileAbove, smooth01, smoothSlope } from './MapMath';
+import { clamp01, lerp, positiveQuantile, quantileAbove, smooth01, smoothSlope } from './MapMath';
 import { MapParams } from './MapParams';
 import { SimplexNoise } from './Noise';
+import type { RiverCrossing } from './Rivers';
+import type { RoadClass } from './RoadNetwork';
 import { Hotspot, MAX_CRATER_RADIUS, Ruin, placeHotspots, placeTowns } from './TerrainSites';
 
 /**
  * Stage 1 of area map generation, terrain (Area Map Generation, Pipeline,
- * 1. Terrain): the eroded land (Land.ts) read as fields over the disc, the
- * biomes read off them, the metro and towns, hotspots, what's impassable,
- * and what it costs to travel. Every query is a function of (x, y) in world
- * units, the compound at the origin, so later stages and the renderer
- * sample it at whatever resolution they need. Building one erodes the land
- * and precomputes the rest of the per-map parts (noise permutations,
- * calibrated thresholds, hotspots, towns); sampling allocates nothing.
+ * 1. Terrain, and 3. Biomes, hazards, and cost): the eroded land (Land.ts)
+ * read as fields over the disc, the metro and towns, hotspots, rough country
+ * and cliffs, and, once the water stage lays its water over it, the biomes,
+ * what's impassable, and what a move costs. Every query is a function of
+ * (x, y) in world units, the compound at the origin, so later stages and the
+ * renderer sample it at whatever resolution they need. Building one erodes
+ * the land and precomputes the rest of the per-map parts (noise
+ * permutations, calibrated thresholds, hotspots, towns); sampling allocates
+ * nothing.
  *
  * Elevation is the eroded grid sampled bicubic, plus a little fine noise in
  * range country for the picture, and carries its exact gradient, so slope
- * costs no extra samples. Moisture, contamination, hotspots, rough country,
- * and cost are the water and hazards stages' to rework (DDB-289); they're
- * kept here, adapted to the new land, so the stages after keep working.
- * Starting values throughout are for the Map Lab to tune; the land's are in
- * docs/AI_TECHNICAL_DECISIONS/terrain-erosion.md and the rest in
- * terrain-fields.md.
+ * costs no extra samples. Moisture, low ground, and canyons are the water
+ * stage's (Water.ts): until it lays its water over the land, moisture is the
+ * map's level and there are no canyons. Starting values throughout are for
+ * the Map Lab to tune; the land's are in
+ * docs/AI_TECHNICAL_DECISIONS/terrain-erosion.md, the water's, the biomes',
+ * and cost's in water-and-biomes.md, and the rest in terrain-fields.md.
  */
 
-/** Why ground is impassable. Water comes from the water stage, through `withWater`. */
-export type Obstacle = 'crater' | 'cliff' | 'water';
+/** Why ground is impassable. Lakes and rivers come from the water stage, through `withWater`. */
+export type Obstacle = 'crater' | 'lake' | 'river' | 'cliff';
+
+export type WaterKind = 'lake' | 'river';
 
 /**
- * Rivers and lakes, from the water stage, which traces them over this
- * terrain's drainage and hands them back through `Terrain.withWater`. One
- * question for now; the water stage widens it to tell lakes from rivers and
- * give a river's flow, which square-on bridge crossings need.
+ * Rivers and lakes, and the fields that follow where water runs: what the
+ * water stage lays over the land through `Terrain.withWater`. `Water` is the
+ * real one; tests can stand in their own.
  */
 export interface WaterLayer {
-	/** True where (x, y) is in a river or standing water. */
-	isWater(x: number, y: number): boolean;
+	/** A lake, a river, or neither at (x, y); a lake where both are. */
+	waterAt(x: number, y: number): WaterKind | null;
+	/** A lake's depth at (x, y) as elevation, less than 0 on land and 0 at the shore. */
+	lakeDepth(x: number, y: number): number;
+	/** 0 dry to 1 wet. */
+	moisture(x: number, y: number): number;
+	/** 1 barely above the river or lake the ground drains to, 0 well above it. */
+	lowland(x: number, y: number): number;
+	/** 0 to 1: deep in a river valley cut into dry country. */
+	canyons(x: number, y: number): number;
+	/** How many river centrelines the move crosses; `riverCrossing(index)` reads each until the next call. */
+	riverCrossings(x0: number, y0: number, x1: number, y1: number): number;
+	riverCrossing(index: number): RiverCrossing;
 }
 
 /** Everything about one point; `Terrain.sample` fills one in, so a caller can reuse it. */
@@ -60,14 +76,12 @@ export interface TerrainSample extends BiomeFields {
 	ruin: number;
 	biome: Biome;
 	obstacle: Obstacle | null;
-	/** `travelCost` here. */
-	cost: number;
 }
 
 export function createTerrainSample(): TerrainSample {
 	return {
 		elevation: 0, lowland: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0,
-		slopeX: 0, slopeY: 0, grade: 0, ruin: 0, biome: 'scrub', obstacle: null, cost: 0,
+		slopeX: 0, slopeY: 0, grade: 0, ruin: 0, biome: 'scrub', obstacle: null,
 	};
 }
 
@@ -96,52 +110,56 @@ export function terrainFromSurface({ params, rng, surface }: TerrainFieldsOption
 export { RELIEF };
 /** Rise over run at which ground in rough country is a cliff, impassable. */
 export const CLIFF_GRADE = 1;
-/** Travel cost added at the cliff grade, rising with the square of the grade. */
-export const SLOPE_COST = 3;
+
+/**
+ * What a road pays to move over the land (Area Map Generation, 3. Biomes,
+ * hazards, and cost): the distance, times one plus the grade along the move
+ * squared, weighted by class and by `curviness`, plus the slope across it
+ * squared, weighted by class; and a bridge to cross a river, dearer the
+ * longer the bridge, which keeps crossings short and square-on. Highways
+ * mind grades most and bridges least. A highway or back road can't climb a
+ * grade past `maxGrade`, and no bridge runs longer than `longestBridge`, so
+ * a creek can be crossed at almost any angle and a broad river only close
+ * to square.
+ */
+export const MOVE_COST = {
+	grade: { highway: 26, backRoad: 10, trail: 3.5 },
+	side: { highway: 3, backRoad: 1.2, trail: 0.3 },
+	/** The grade weight's scale, from curviness 0, roads that barely mind a climb, to 1, roads that wind to keep it gentle. */
+	curviness: { min: 0.2, max: 1.8 },
+	maxGrade: { highway: 1.1, backRoad: 1.1, trail: Infinity },
+	/** World units of flat road a bridge costs, by class, for a bridge `bridgeSpan` long; more for a longer one. */
+	bridge: { highway: 130, backRoad: 210, trail: 280 },
+	bridgeSpan: 8,
+	/** World units: the longest a bridge can be, the river's width over the sine of the angle it's crossed at. */
+	longestBridge: 24,
+	/** World units past the water a bridge's deck reaches either side. */
+	bridgeSlack: 1,
+} as const;
 
 /** Fine relief in range country, for the picture: as much as this, times the range mask. */
 const DETAIL = { wavelength: 60, octaves: 3, gain: 0.5, amplitude: 0.006 };
-const MOISTURE = {
-	wavelength: 650, octaves: 2, gain: 0.5,
-	/** How far moisture strays from the map's level. */
-	spread: 0.55,
-	/** Moisture gained per unit of elevation below the map's lowland level, lost above it. */
-	lowland: 0.5,
-};
 /**
- * Low ground, a stand-in until the water stage reads wet lowland off its
- * rivers: the map's lowland level is the elevation `share` of the land
- * outside the ranges, past the relief radius and inside the disc, lies
- * under, and `lowland` goes from 1 to 0 over `ramp` of elevation across it.
- * Measured on each map's own land, so the share of low ground doesn't
- * follow how tall the land stands.
+ * Rough country: the only ground where a cliff can stand. It's the
+ * steepest land past the relief radius, the eroded grade averaged over
+ * `blur` cells each way, `share` of it by ruggedness. Steep land runs in
+ * belts along the ranges, so the grade is swayed by `breaks` of a noise
+ * layer `wavelength` world units across, which breaks a belt into stretches
+ * with gaps where a road can climb, and the land between connects across
+ * the map. The land grid's cells carry it and it's read bilinear, so a
+ * flood fill over the squares between cell centres whose four corners are
+ * all under the threshold is exact: no cliff stands in any of them.
  */
-const LOWLAND = { share: 0.55, ramp: 0.02 };
+const ROUGHNESS = { blur: 1, share: { min: 0.1, max: 0.35 }, breaks: 0.7, wavelength: 300, octaves: 2 };
 /**
- * Rough country: the only ground where a cliff can stand. Ruggedness sets
- * its share of the land past the metro's surroundings, kept well under half
- * so it breaks into islands and the land between connects across the map.
- * It's decided per cell of a `cell`-unit lattice, so a flood fill over the
- * cells that aren't rough is exact: no cliff stands in any of them.
+ * Badlands: the most broken ground away from the ranges, the averaged
+ * grade weighted toward the toxic, `share` times ruggedness of the land
+ * outside the ranges, weighted by contamination.
  */
-const ROUGHNESS = { wavelength: 360, octaves: 2, gain: 0.5, share: { min: 0.1, max: 0.35 }, cell: 16 };
-/**
- * Canyons, until the water stage reads them off its rivers: the valleys cut
- * deepest into the land, measured across `reach` cells either side, `share`
- * of the land outside the ranges on dry maps. The map's dryness (1 - its
- * moisture level) where they begin, and over how much more they reach their
- * full share.
- */
-const CANYONS = { reach: 3, share: 0.1, dryness: 0.45, drynessRange: 0.1 };
-/**
- * Badlands, likewise: the most broken ground away from the ranges, the
- * curvature of the land averaged over `blur` cells; its share this times
- * ruggedness, weighted by contamination.
- */
-const BADLANDS = { blur: 3, share: 0.7 };
-/** Canyons and badlands go from none to full over a quarter of their threshold either side of it. */
+const BADLANDS = { share: 0.7, toxic: 0.7 };
+/** Badlands go from none to full over a quarter of their threshold either side of it. */
 const FEATURE_SHARPNESS = 2;
-/** Canyons and badlands keep `reach` cells off any range lift, and off a range mask of `mask` entirely. */
+/** Badlands keep `reach` cells off any range lift, and off a range mask of `mask` entirely. */
 const RANGE_CLEARANCE = { reach: 3, mask: 0.1 };
 const CONTAMINATION = {
 	wavelength: 450, octaves: 2, gain: 0.5,
@@ -150,25 +168,24 @@ const CONTAMINATION = {
 };
 /** Inside the metro moisture is scrub's middling level. */
 const START_MOISTURE = 0.45;
+/** World units past the metro's edge its streets' bridges reach, so a highway leaving it over a river leaves on one. */
+const METRO_BRIDGES = 1;
 /** Lattice spacing, as a share of the radius, for the samples thresholds are calibrated on. */
 const CALIBRATION_SPACING = 0.05;
 
 const DETAIL_FREQUENCY = 1 / DETAIL.wavelength;
-const MOISTURE_FREQUENCY = 1 / MOISTURE.wavelength;
 const CONTAMINATION_FREQUENCY = 1 / CONTAMINATION.wavelength;
-const ROUGHNESS_FREQUENCY = 1 / ROUGHNESS.wavelength;
 /** A slope's squared gradient at the cliff grade. */
 const CLIFF_SLOPE_SQUARED = (CLIFF_GRADE / RELIEF) * (CLIFF_GRADE / RELIEF);
 
-/** What `land`, `landFeatures`, and `landMoisture` leave behind for the callers that need more than elevation. */
+// Read once, at load: under Jest's vm context each global read costs about 0.15 us (seeded-prng.md).
+const sqrt = Math.sqrt;
+const floor = Math.floor;
+
+/** What `land` leaves behind for the callers that need more than elevation. */
 interface LandFields {
 	elevation: number;
-	lowland: number;
-	moisture: number;
-	contamination: number;
 	mountains: number;
-	canyons: number;
-	badlands: number;
 	slopeX: number;
 	slopeY: number;
 }
@@ -179,9 +196,9 @@ export interface TerrainFieldsOptions extends TerrainOptions {
 }
 
 /**
- * The land: every field, the features, and the parts of impassability and
- * cost that don't need water. Built once per map by `generateTerrain`;
- * `Terrain` is what stages use.
+ * The land: every field, the features, and impassability and cost, with the
+ * water layer, when there is one, passed in. Built once per map by
+ * `generateTerrain`; `Terrain` is what stages use.
  */
 export class TerrainFields {
 	public readonly radius: number;
@@ -194,42 +211,38 @@ export class TerrainFields {
 	public readonly blendRadius: number;
 	/** Out to this the ranges rise to full, and no cliff stands inside it. */
 	public readonly reliefRadius: number;
+	/** How wet the map runs on average: `aridity`'s level. */
+	public readonly wetness: number;
 
 	private readonly elevationGrid: GridSampler;
 	private readonly mountainGrid: GridSampler;
-	private readonly canyonGrid: GridSampler;
+	private readonly roughGrid: GridSampler;
 	private readonly badlandsGrid: GridSampler;
 	private readonly detailNoise: SimplexNoise;
-	private readonly moistureNoise: SimplexNoise;
-	private readonly roughNoise: SimplexNoise;
 	private readonly contaminationNoise: SimplexNoise;
 
 	/** Contamination noise above this is toxic: the `contamination` quantile. */
 	private readonly contaminationThreshold: number;
 	/** Where the contamination ramp bottoms out: values at or under this contribute nothing. */
 	private readonly contaminationFloor: number;
-	/** Roughness noise above this is rough country: the share `ruggedness` asks for. */
-	private readonly roughFloor: number;
-	/** Rough country by lattice cell, row by row from (-radius, -radius): 1 where a cliff can stand. */
-	private readonly roughCells: Uint8Array;
-	/** The cells a road from the metro reaches over ground no cliff or crater stands on: 1 where reached. */
-	private readonly reachedCells: Uint8Array;
-	private readonly cellColumns: number;
+	/** Rough country is where the averaged grade, read bilinear, is this or more: the share `ruggedness` asks for. */
+	private readonly roughThreshold: number;
+	/** Per square between cell centres, row by row from the square whose lower-left corner is cell 0's centre: 1 where a road from the metro surely reaches. */
+	private readonly reachedSquares: Uint8Array;
+	/** The grade weight's scale by `curviness`. */
+	private readonly gradeScale: number;
 
-	private readonly wetness: number;
 	/** How hard dry land is pulled toward terraces past the blend radius: `terracePull` of the map's wetness. */
 	private readonly terracing: number;
-	/** The elevation `LOWLAND.share` of the land outside the ranges lies under. */
-	private readonly lowlandLevel: number;
 	private readonly startSquared: number;
+	/** Inside this, a river isn't an obstacle: the metro's streets cross its rivers, its edge and the highways' departures on it included. */
+	private readonly bridgedSquared: number;
 	private readonly blendSquared: number;
-	private readonly reliefSquared: number;
 	/** Hotspots flattened for the per-sample loops: x, y, crater radius squared, plume radius squared, strength. */
 	private readonly hotspotData: Float64Array;
 
-	private readonly scratch: LandFields = {
-		elevation: 0, lowland: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0, slopeX: 0, slopeY: 0,
-	};
+	private readonly scratch: LandFields = { elevation: 0, mountains: 0, slopeX: 0, slopeY: 0 };
+	private readonly biomeFields = { lowland: 0, moisture: 0, contamination: 0, mountains: 0, canyons: 0, badlands: 0 };
 
 	constructor({ params, rng, surface }: TerrainFieldsOptions) {
 		const { radius } = params;
@@ -251,28 +264,17 @@ export class TerrainFields {
 		this.blendRadius = blendRadius;
 		this.reliefRadius = reliefRadius;
 		this.startSquared = metroRadius * metroRadius;
+		this.bridgedSquared = (metroRadius + METRO_BRIDGES) * (metroRadius + METRO_BRIDGES);
 		this.blendSquared = blendRadius * blendRadius;
-		this.reliefSquared = reliefRadius * reliefRadius;
 		this.wetness = moistureLevel(params.aridity);
 		this.terracing = terracePull(this.wetness);
+		this.gradeScale = lerp(MOVE_COST.curviness, params.curviness);
 
 		this.elevationGrid = new GridSampler({ grid, values: surface.elevation });
 		this.mountainGrid = new GridSampler({ grid, values: surface.mountains });
-		// Measured on the grid, then terraced as the samples it's compared with are; terracing keeps heights in order.
-		const lowland = quantileAbove(outsideRanges({ surface, radius, reliefRadius, values: surface.elevation }), 1 - LOWLAND.share);
-		this.lowlandLevel = this.terracing > 0 ? terraceHeight(lowland, this.terracing) : lowland;
-		const canyonShare = CANYONS.share * smooth01((1 - this.wetness - CANYONS.dryness) / CANYONS.drynessRange);
-		const badlandsShare = BADLANDS.share * params.ruggedness * (0.3 + 0.7 * params.contamination);
-		const clear = canyonShare > 0 || badlandsShare > 0 ? featureRoom({ surface, metroRadius, reliefRadius }) : null;
-		this.canyonGrid = new GridSampler({ grid, values: canyonField({ surface, radius, reliefRadius, share: canyonShare, clear }) });
-		this.badlandsGrid = new GridSampler({ grid, values: badlandsField({ surface, radius, reliefRadius, share: badlandsShare, clear }) });
-
 		this.detailNoise = new SimplexNoise({ rng: rng.fork('detail') });
-		this.moistureNoise = new SimplexNoise({ rng: rng.fork('moisture') });
-		this.roughNoise = new SimplexNoise({ rng: rng.fork('roughness') });
 		this.contaminationNoise = new SimplexNoise({ rng: rng.fork('contamination') });
 
-		this.roughFloor = this.calibrate((x, y) => this.roughNoise.fractal(x * ROUGHNESS_FREQUENCY, y * ROUGHNESS_FREQUENCY, ROUGHNESS.octaves, ROUGHNESS.gain), lerp(ROUGHNESS.share, params.ruggedness), reliefRadius);
 		this.contaminationThreshold = this.calibrate((x, y) => this.contaminationNoise.fractal(x * CONTAMINATION_FREQUENCY, y * CONTAMINATION_FREQUENCY, CONTAMINATION.octaves, CONTAMINATION.gain), params.contamination, blendRadius);
 		this.contaminationFloor = this.contaminationThreshold - 0.5 / CONTAMINATION.sharpness;
 
@@ -287,9 +289,15 @@ export class TerrainFields {
 			this.hotspotData.set([hotspot.x, hotspot.y, hotspot.craterRadius * hotspot.craterRadius, hotspot.plumeRadius * hotspot.plumeRadius, hotspot.strength], index * 5);
 		});
 
-		this.cellColumns = Math.ceil(2 * radius / ROUGHNESS.cell);
-		this.roughCells = this.markRoughCells();
-		this.reachedCells = this.reachFromMetro();
+		const { steepness, roughness } = roughnessField({ surface, reliefRadius, noise: new SimplexNoise({ rng: rng.fork('roughness') }) });
+		this.roughGrid = new GridSampler({ grid, values: roughness });
+		const roughThreshold = quantileAbove(landValues({ surface, radius, reliefRadius, values: roughness, ranges: true }), lerp(ROUGHNESS.share, params.ruggedness));
+		// Ground with no grade at all is never rough, which only a map flatter than any erosion makes would need.
+		this.roughThreshold = roughThreshold > 0 ? roughThreshold : Infinity;
+		this.reachedSquares = this.reachFromMetro(roughness);
+
+		const badlandsShare = BADLANDS.share * params.ruggedness * (0.3 + 0.7 * params.contamination);
+		this.badlandsGrid = new GridSampler({ grid, values: this.badlandsField({ steepness, share: badlandsShare, metroRadius }) });
 
 		const townRing = { inner: blendRadius, outer: 0.9 * radius };
 		this.towns = placeTowns({
@@ -299,10 +307,10 @@ export class TerrainFields {
 			metroRadius,
 			ring: townRing,
 			hotspots: this.hotspots,
-			cells: params.towns > 0 ? this.reachedCellsIn(townRing) : [],
-			cellSize: ROUGHNESS.cell,
-			// Every point of a reached cell is ground a road can get to; towns prefer open country.
-			suits: (x, y, strict) => !strict || (this.mountainGrid.bilinear(x, y) < 0.25 && this.canyonGrid.bilinear(x, y) < 0.25),
+			cells: params.towns > 0 ? this.reachedSquaresIn(townRing) : [],
+			cellSize: grid.cellSize,
+			// Every point of a reached square is ground a road can get to; towns prefer open country.
+			suits: (x, y, strict) => !strict || this.mountainGrid.bilinear(x, y) < 0.25,
 		});
 	}
 
@@ -310,9 +318,10 @@ export class TerrainFields {
 		return this.land(x, y);
 	}
 
-	public moisture(x: number, y: number): number {
-		this.land(x, y);
-		return this.landMoisture(x, y);
+	/** 0 dry to 1 wet: the water's moisture, or the map's level before there's water, and scrub's in the metro. */
+	public moisture(x: number, y: number, water: WaterLayer | null): number {
+		const moisture = water === null ? this.wetness : water.moisture(x, y);
+		return moisture + (START_MOISTURE - moisture) * this.startWeight(x * x + y * y);
 	}
 
 	/** 0 clean to 1 toxic: the calibrated noise, hotspot plumes over it, and nothing in the metro. */
@@ -351,12 +360,16 @@ export class TerrainFields {
 		return ruin;
 	}
 
-	public biome(x: number, y: number): Biome {
+	public biome(x: number, y: number, water: WaterLayer | null): Biome {
+		const fields = this.biomeFields;
 		this.land(x, y);
-		this.landMoisture(x, y);
-		this.landFeatures(x, y);
-		this.scratch.contamination = this.contamination(x, y);
-		return classifyBiome(this.scratch);
+		fields.mountains = this.scratch.mountains;
+		fields.moisture = this.moisture(x, y, water);
+		fields.contamination = this.contamination(x, y);
+		fields.badlands = this.badlandsGrid.bilinear(x, y);
+		fields.lowland = water === null ? 0 : water.lowland(x, y);
+		fields.canyons = water === null ? 0 : water.canyons(x, y);
+		return classifyBiome(fields);
 	}
 
 	/** True inside a hotspot's crater. */
@@ -372,14 +385,13 @@ export class TerrainFields {
 
 	/** True in rough country, where steep ground is a cliff; elsewhere it's only costly. */
 	public rough(x: number, y: number): boolean {
-		const cell = this.cellAt(x, y);
-		return cell >= 0 && this.roughCells[cell] === 1;
+		return this.roughGrid.bilinear(x, y) >= this.roughThreshold;
 	}
 
-	/** True in a lattice cell the flood fill from the metro got to; false only means not proven. */
+	/** True in a square between cell centres that the flood fill from the metro got to; false only means not proven. */
 	public surelyReachable(x: number, y: number): boolean {
-		const cell = this.cellAt(x, y);
-		return cell >= 0 && this.reachedCells[cell] === 1;
+		const square = this.squareAt(x, y);
+		return square >= 0 && this.reachedSquares[square] === 1;
 	}
 
 	/** True on a cliff: grade `CLIFF_GRADE` or more, in rough country. Outside it, no elevation is read. */
@@ -392,7 +404,7 @@ export class TerrainFields {
 	/** Rise over run at (x, y). */
 	public grade(x: number, y: number): number {
 		this.land(x, y);
-		return Math.sqrt(this.slopeSquared()) * RELIEF;
+		return sqrt(this.slopeSquared()) * RELIEF;
 	}
 
 	/** Elevation's gradient at (x, y) into `out`, per world unit. Returns `out`. */
@@ -403,51 +415,110 @@ export class TerrainFields {
 		return out;
 	}
 
-	/** Travel cost without water: Infinity in a crater or on a cliff, else the biome's cost plus the slope term. */
-	public cost(x: number, y: number): number {
-		if (this.crater(x, y)) return Infinity;
-		this.land(x, y);
-		const slopeSquared = this.slopeSquared();
-		if (this.cliffAt(x, y, slopeSquared)) return Infinity;
-		this.landMoisture(x, y);
-		this.landFeatures(x, y);
-		this.scratch.contamination = this.contamination(x, y);
-		return slopeCost(classifyBiome(this.scratch), slopeSquared);
+	/**
+	 * Why (x, y) is impassable, or null: a crater, then water, then a cliff.
+	 * The metro's rivers aren't: its streets cross them wherever they meet.
+	 */
+	public obstacle(x: number, y: number, water: WaterLayer | null): Obstacle | null {
+		if (this.crater(x, y)) return 'crater';
+		if (water !== null) {
+			const kind = water.waterAt(x, y);
+			if (kind === 'lake' || (kind === 'river' && x * x + y * y > this.bridgedSquared)) return kind;
+		}
+		if (this.cliff(x, y)) return 'cliff';
+		return null;
 	}
 
-	/** Everything at (x, y) into `out`, water aside: its obstacle is a crater, a cliff, or none. Returns `out`. */
-	public sample(x: number, y: number, out: TerrainSample): TerrainSample {
+	/** Everything at (x, y) into `out`. Returns `out`. */
+	public sample(x: number, y: number, out: TerrainSample, water: WaterLayer | null): TerrainSample {
 		const scratch = this.scratch;
 		out.elevation = this.land(x, y);
-		out.moisture = this.landMoisture(x, y);
-		this.landFeatures(x, y);
-		out.lowland = scratch.lowland;
 		out.mountains = scratch.mountains;
-		out.canyons = scratch.canyons;
-		out.badlands = scratch.badlands;
 		out.slopeX = scratch.slopeX;
 		out.slopeY = scratch.slopeY;
+		const slopeSquared = this.slopeSquared();
+		out.grade = sqrt(slopeSquared) * RELIEF;
+		out.moisture = this.moisture(x, y, water);
 		out.contamination = this.contamination(x, y);
+		out.badlands = this.badlandsGrid.bilinear(x, y);
+		out.lowland = water === null ? 0 : water.lowland(x, y);
+		out.canyons = water === null ? 0 : water.canyons(x, y);
 		out.ruin = this.ruin(x, y);
 		out.biome = classifyBiome(out);
-		const slopeSquared = this.slopeSquared();
-		out.grade = Math.sqrt(slopeSquared) * RELIEF;
-		if (this.crater(x, y)) out.obstacle = 'crater';
-		else if (this.cliffAt(x, y, slopeSquared)) out.obstacle = 'cliff';
-		else out.obstacle = null;
-		out.cost = out.obstacle === null ? slopeCost(out.biome, slopeSquared) : Infinity;
+		if (this.crater(x, y)) {
+			out.obstacle = 'crater';
+			return out;
+		}
+		const kind = water === null ? null : water.waterAt(x, y);
+		if (kind === 'lake' || (kind === 'river' && x * x + y * y > this.bridgedSquared)) out.obstacle = kind;
+		else out.obstacle = slopeSquared >= CLIFF_SLOPE_SQUARED && this.rough(x, y) ? 'cliff' : null;
 		return out;
+	}
+
+	/**
+	 * What a road of `roadClass` pays to drive the short move from (x0, y0) to
+	 * (x1, y1) (`MOVE_COST`): Infinity when its end or its middle is
+	 * impassable, short of a river it bridges, when a bridge would run longer
+	 * than `longestBridge`, or when it climbs too steeply for its class.
+	 * The ground between its end and its middle isn't sampled, so a caller
+	 * stepping further than a few world units samples its own way. The
+	 * metro's rivers cost nothing to cross. Leaves the bridges' share in
+	 * `parts`, when given.
+	 */
+	public moveCost(x0: number, y0: number, x1: number, y1: number, roadClass: RoadClass, water: WaterLayer | null, parts?: { bridge: number }): number {
+		if (parts) parts.bridge = 0;
+		const dx = x1 - x0;
+		const dy = y1 - y0;
+		const length = sqrt(dx * dx + dy * dy);
+		if (!(length > 0)) return 0;
+		if (this.obstacle(x1, y1, water) !== null) return Infinity;
+		let bridge = 0;
+		const crossings = water === null ? 0 : water.riverCrossings(x0, y0, x1, y1);
+		for (let index = 0; index < crossings; index += 1) {
+			const { along, width, sine } = (water as WaterLayer).riverCrossing(index);
+			const cx = x0 + dx * along;
+			const cy = y0 + dy * along;
+			if (cx * cx + cy * cy <= this.bridgedSquared) continue;
+			if (!(width <= MOVE_COST.longestBridge * sine)) return Infinity;
+			bridge += MOVE_COST.bridge[roadClass] * (1 + width / sine / MOVE_COST.bridgeSpan);
+		}
+		const middle = this.obstacle(x0 + 0.5 * dx, y0 + 0.5 * dy, water);
+		if (middle !== null && !(middle === 'river' && bridge > 0)) return Infinity;
+		const climb = this.land(x1, y1) - this.land(x0, y0);
+		const grade = (climb < 0 ? -climb : climb) * RELIEF / length;
+		if (grade > MOVE_COST.maxGrade[roadClass]) return Infinity;
+		this.land(x0 + 0.5 * dx, y0 + 0.5 * dy);
+		const across = (this.scratch.slopeY * dx - this.scratch.slopeX * dy) * RELIEF / length;
+		if (parts) parts.bridge = bridge;
+		return length * (1 + MOVE_COST.grade[roadClass] * this.gradeScale * grade * grade + MOVE_COST.side[roadClass] * across * across) + bridge;
+	}
+
+	/**
+	 * True when the point `along` (0 to 1) of the move from (x0, y0) to
+	 * (x1, y1) is on a bridge: over a river the move crosses with a bridge no
+	 * longer than `MOVE_COST.longestBridge`, within the bridge's span of
+	 * where it crosses, and `MOVE_COST.bridgeSlack` either side.
+	 */
+	public onBridge(x0: number, y0: number, x1: number, y1: number, along: number, water: WaterLayer | null): boolean {
+		if (water === null) return false;
+		const dx = x1 - x0;
+		const dy = y1 - y0;
+		const length = sqrt(dx * dx + dy * dy);
+		const crossings = water.riverCrossings(x0, y0, x1, y1);
+		for (let index = 0; index < crossings; index += 1) {
+			const crossing = water.riverCrossing(index);
+			if (!(crossing.width <= MOVE_COST.longestBridge * crossing.sine)) continue;
+			const away = (along - crossing.along) * length;
+			const reach = 0.5 * crossing.width / crossing.sine + MOVE_COST.bridgeSlack;
+			if (away <= reach && away >= -reach) return true;
+		}
+		return false;
 	}
 
 	/** The squared gradient the last `land` call left. */
 	private slopeSquared(): number {
 		const scratch = this.scratch;
 		return scratch.slopeX * scratch.slopeX + scratch.slopeY * scratch.slopeY;
-	}
-
-	/** Whether ground at (x, y) with this squared slope is a cliff: steep enough, in rough country. */
-	private cliffAt(x: number, y: number, slopeSquared: number): boolean {
-		return slopeSquared >= CLIFF_SLOPE_SQUARED && this.rough(x, y);
 	}
 
 	/**
@@ -509,95 +580,59 @@ export class TerrainFields {
 	}
 
 	/**
-	 * Moisture at (x, y), the point `land` was last called with, left in
-	 * `scratch` too: the map's level, its own noise, wetter below the map's
-	 * lowland level and drier above it, and scrub's in the metro.
+	 * The square between cell centres holding (x, y), counted from the square
+	 * whose lower-left corner is cell 0's centre, or -1 off them: the cells
+	 * whose values `GridSampler.bilinear` blends there are its corners.
 	 */
-	private landMoisture(x: number, y: number): number {
-		const scratch = this.scratch;
-		const noise = this.moistureNoise.fractal(x * MOISTURE_FREQUENCY, y * MOISTURE_FREQUENCY, MOISTURE.octaves, MOISTURE.gain);
-		const moisture = clamp01(this.wetness + MOISTURE.spread * noise + MOISTURE.lowland * (this.lowlandLevel - scratch.elevation));
-		scratch.moisture = moisture + (START_MOISTURE - moisture) * this.startWeight(x * x + y * y);
-		return scratch.moisture;
-	}
-
-	/** Canyons, badlands, and low ground at (x, y), the point `land` was last called with, into `scratch`. */
-	private landFeatures(x: number, y: number): void {
-		const scratch = this.scratch;
-		scratch.canyons = this.canyonGrid.bilinear(x, y);
-		scratch.badlands = this.badlandsGrid.bilinear(x, y);
-		scratch.lowland = smooth01((this.lowlandLevel - scratch.elevation) / LOWLAND.ramp + 0.5);
-	}
-
-	/** The lattice cell holding (x, y), or -1 off the lattice, which covers the disc's bounding square. */
-	private cellAt(x: number, y: number): number {
-		const column = (x + this.radius) / ROUGHNESS.cell;
-		const row = (y + this.radius) / ROUGHNESS.cell;
-		const columns = this.cellColumns;
-		if (!(column >= 0 && row >= 0 && column < columns && row < columns)) return -1;
-		return (row | 0) * columns + (column | 0);
+	private squareAt(x: number, y: number): number {
+		const { grid } = this.surface;
+		const column = floor((x + grid.halfExtent) / grid.cellSize - 0.5);
+		const row = floor((y + grid.halfExtent) / grid.cellSize - 0.5);
+		const squares = grid.size - 1;
+		if (!(column >= 0 && row >= 0 && column < squares && row < squares)) return -1;
+		return row * squares + column;
 	}
 
 	/**
-	 * Rough country by cell: a cell is rough when roughness noise at its
-	 * centre is above the calibrated floor and the whole cell lies past the
-	 * relief radius, so no cliff stands inside it.
+	 * Which squares between cell centres a road from the metro can reach: a
+	 * flood fill from the square holding the compound through squares whose
+	 * four corners are all under the rough threshold, so no point in them is
+	 * rough and no cliff stands there, that lie wholly inside the disc, and
+	 * that no crater reaches into. 1 where reached. Exact for cliffs and
+	 * craters by construction; water comes later.
 	 */
-	private markRoughCells(): Uint8Array {
-		const columns = this.cellColumns;
-		const cells = new Uint8Array(columns * columns);
-		const noise = this.roughNoise;
-		const floor = this.roughFloor;
-		const half = ROUGHNESS.cell / 2;
-		if (floor === Infinity) return cells;
-		for (let row = 0; row < columns; row += 1) {
-			const y = (row + 0.5) * ROUGHNESS.cell - this.radius;
-			const nearY = Math.max(0, Math.abs(y) - half);
-			for (let column = 0; column < columns; column += 1) {
-				const x = (column + 0.5) * ROUGHNESS.cell - this.radius;
-				// The cell's nearest point to the compound.
-				const nearX = Math.max(0, Math.abs(x) - half);
-				if (nearX * nearX + nearY * nearY < this.reliefSquared) continue;
-				// Early out either way: only which side of the floor matters.
-				const value = noise.fractal(x * ROUGHNESS_FREQUENCY, y * ROUGHNESS_FREQUENCY, ROUGHNESS.octaves, ROUGHNESS.gain, floor, floor);
-				if (value > floor) cells[row * columns + column] = 1;
-			}
-		}
-		return cells;
-	}
-
-	/**
-	 * Which cells a road from the metro can reach: a flood fill from the
-	 * metro's cell through cells wholly inside the disc, outside rough country
-	 * (so no cliff stands in them), and clear of craters. 1 where reached.
-	 * Exact for cliffs and craters by construction; water comes later.
-	 */
-	private reachFromMetro(): Uint8Array {
-		const columns = this.cellColumns;
-		const corner = ROUGHNESS.cell / 2 * Math.SQRT2;
-		// Cells wholly inside the disc have their centres this close to the compound.
-		const inside = this.radius - corner;
+	private reachFromMetro(roughness: Float64Array): Uint8Array {
+		const { grid } = this.surface;
+		const size = grid.size;
+		const squares = size - 1;
+		const threshold = this.roughThreshold;
+		const radiusSquared = this.radius * this.radius;
 		const hotspots = this.hotspots;
-		const open = new Uint8Array(columns * columns);
-		for (let row = 0; row < columns; row += 1) {
-			const y = (row + 0.5) * ROUGHNESS.cell - this.radius;
-			for (let column = 0; column < columns; column += 1) {
-				const index = row * columns + column;
-				if (this.roughCells[index] === 1) continue;
-				const x = (column + 0.5) * ROUGHNESS.cell - this.radius;
-				if (inside <= 0 || x * x + y * y > inside * inside) continue;
+		const open = new Uint8Array(squares * squares);
+		for (let row = 0; row < squares; row += 1) {
+			const bottom = cellCentre(grid, row);
+			const top = cellCentre(grid, row + 1);
+			for (let column = 0; column < squares; column += 1) {
+				const corner = row * size + column;
+				if (!(roughness[corner] < threshold && roughness[corner + 1] < threshold && roughness[corner + size] < threshold && roughness[corner + size + 1] < threshold)) continue;
+				const left = cellCentre(grid, column);
+				const right = cellCentre(grid, column + 1);
+				// The disc is convex, so the square is inside it when its farthest corner is.
+				const farX = -left > right ? left : right;
+				const farY = -bottom > top ? bottom : top;
+				if (farX * farX + farY * farY > radiusSquared) continue;
 				let touchesCrater = false;
 				for (let hotspot = 0; hotspot < hotspots.length && !touchesCrater; hotspot += 1) {
-					const reach = hotspots[hotspot].craterRadius + corner;
-					const dx = x - hotspots[hotspot].x;
-					const dy = y - hotspots[hotspot].y;
-					touchesCrater = dx * dx + dy * dy < reach * reach;
+					const { x, y, craterRadius } = hotspots[hotspot];
+					const nearX = x < left ? left : x > right ? right : x;
+					const nearY = y < bottom ? bottom : y > top ? top : y;
+					touchesCrater = (nearX - x) * (nearX - x) + (nearY - y) * (nearY - y) < craterRadius * craterRadius;
 				}
-				if (!touchesCrater) open[index] = 1;
+				if (!touchesCrater) open[row * squares + column] = 1;
 			}
 		}
-		const reached = new Uint8Array(columns * columns);
-		const start = this.cellAt(0, 0);
+		const reached = new Uint8Array(squares * squares);
+		const start = this.squareAt(0, 0);
 		if (start < 0 || open[start] !== 1) return reached;
 		const queue = [start];
 		reached[start] = 1;
@@ -608,30 +643,62 @@ export class TerrainFields {
 			}
 		};
 		while (queue.length > 0) {
-			const index = queue.pop() as number;
-			const column = index % columns;
-			if (column > 0) visit(index - 1);
-			if (column < columns - 1) visit(index + 1);
-			if (index >= columns) visit(index - columns);
-			if (index + columns < open.length) visit(index + columns);
+			const square = queue.pop() as number;
+			const column = square % squares;
+			if (column > 0) visit(square - 1);
+			if (column < squares - 1) visit(square + 1);
+			if (square >= squares) visit(square - squares);
+			if (square + squares < open.length) visit(square + squares);
 		}
 		return reached;
 	}
 
-	/** The centres of the reached cells whose centres lie in the ring, in lattice order. */
-	private reachedCellsIn({ inner, outer }: { inner: number; outer: number }): { x: number; y: number }[] {
-		const columns = this.cellColumns;
+	/** The centres of the reached squares whose eight neighbours are reached too, and whose centres lie in the ring, in order. */
+	private reachedSquaresIn({ inner, outer }: { inner: number; outer: number }): { x: number; y: number }[] {
+		const { grid } = this.surface;
+		const squares = grid.size - 1;
+		const reached = this.reachedSquares;
 		const centres: { x: number; y: number }[] = [];
-		for (let row = 0; row < columns; row += 1) {
-			const y = (row + 0.5) * ROUGHNESS.cell - this.radius;
-			for (let column = 0; column < columns; column += 1) {
-				if (this.reachedCells[row * columns + column] !== 1) continue;
-				const x = (column + 0.5) * ROUGHNESS.cell - this.radius;
+		for (let row = 1; row < squares - 1; row += 1) {
+			const y = cellCentre(grid, row) + 0.5 * grid.cellSize;
+			for (let column = 1; column < squares - 1; column += 1) {
+				const square = row * squares + column;
+				// Its eight neighbours too, so a town stands a square clear of rough ground.
+				if (reached[square] !== 1 || reached[square - 1] !== 1 || reached[square + 1] !== 1
+					|| reached[square - squares - 1] !== 1 || reached[square - squares] !== 1 || reached[square - squares + 1] !== 1
+					|| reached[square + squares - 1] !== 1 || reached[square + squares] !== 1 || reached[square + squares + 1] !== 1) continue;
+				const x = cellCentre(grid, column) + 0.5 * grid.cellSize;
 				const distanceSquared = x * x + y * y;
 				if (distanceSquared >= inner * inner && distanceSquared <= outer * outer) centres.push({ x, y });
 			}
 		}
 		return centres;
+	}
+
+	/**
+	 * Badlands per cell, 0 to 1: the most broken ground away from the ranges,
+	 * the averaged grade weighted toward toxic ground, `share` of the land
+	 * outside the ranges.
+	 */
+	private badlandsField({ steepness, share, metroRadius }: { steepness: Float64Array; share: number; metroRadius: number }): Float32Array {
+		const surface = this.surface;
+		const { grid } = surface;
+		const size = grid.size;
+		const field = new Float32Array(size * size);
+		if (!(share > 0)) return field;
+		const room = featureRoom({ surface, metroRadius, reliefRadius: this.reliefRadius });
+		const broken = new Float64Array(size * size);
+		for (let row = 0; row < size; row += 1) {
+			const y = cellCentre(grid, row);
+			for (let column = 0; column < size; column += 1) {
+				const cell = row * size + column;
+				if (room[cell] > 0) broken[cell] = steepness[cell] * room[cell] * (1 - BADLANDS.toxic + BADLANDS.toxic * this.contamination(cellCentre(grid, column), y));
+			}
+		}
+		const threshold = positiveQuantile(landValues({ surface, radius: this.radius, reliefRadius: this.reliefRadius, values: broken, ranges: false }), share);
+		if (threshold === Infinity) return field;
+		for (let cell = 0; cell < field.length; cell += 1) field[cell] = smooth01((broken[cell] / threshold - 1) * FEATURE_SHARPNESS + 0.5);
+		return field;
 	}
 
 	/** 1 inside the metro, easing to 0 at the blend radius, on squared distance so no square root is taken. */
@@ -666,8 +733,9 @@ export class TerrainFields {
 }
 
 /**
- * The terrain stages read: the land's fields plus water, once the water
- * stage adds it, in what's impassable and what it costs to cross.
+ * The terrain stages read: the land's fields, plus water once the water
+ * stage lays it over the land, in the biomes, what's impassable, and what a
+ * move costs.
  */
 export class Terrain {
 	public readonly water: WaterLayer | null;
@@ -700,7 +768,7 @@ export class Terrain {
 	/**
 	 * Ruined towns out past the metro: up to `towns` of them, each where a road
 	 * from the metro surely reaches it. A town is left out only when no reached
-	 * cell's centre in the ring has room for it.
+	 * square's centre in the ring has room for it.
 	 */
 	public get towns(): readonly Ruin[] {
 		return this.land.towns;
@@ -721,7 +789,7 @@ export class Terrain {
 		return this.land.hotspots;
 	}
 
-	/** The same land with water in what's impassable and what it costs. */
+	/** The same land with water in its fields, what's impassable, and what a move costs. */
 	public withWater(water: WaterLayer): Terrain {
 		return new Terrain({ fields: this.land, water });
 	}
@@ -742,9 +810,9 @@ export class Terrain {
 		return this.land.slope(x, y, out);
 	}
 
-	/** 0 dry to 1 wet. */
+	/** 0 dry to 1 wet: the map's level until there's water, then wetter beside rivers and lakes. */
 	public moisture(x: number, y: number): number {
-		return this.land.moisture(x, y);
+		return this.land.moisture(x, y, this.water);
 	}
 
 	/** 0 clean to 1 toxic. */
@@ -758,7 +826,7 @@ export class Terrain {
 	}
 
 	public biome(x: number, y: number): Biome {
-		return this.land.biome(x, y);
+		return this.land.biome(x, y, this.water);
 	}
 
 	/** Rise over run at (x, y); `CLIFF_GRADE` and up is a cliff in rough country. */
@@ -767,36 +835,38 @@ export class Terrain {
 	}
 
 	/**
-	 * True in rough country, the only ground where a cliff can stand: islands
-	 * covering at most about a third of the land past the metro's
-	 * surroundings, decided per cell of a 16-unit lattice. Elsewhere steep
-	 * ground is only costly.
+	 * True in rough country, the only ground where a cliff can stand: the
+	 * steepest land past the relief radius, `ruggedness`'s share of it, in
+	 * bands and islands along the steep slopes. Elsewhere steep ground is only
+	 * costly.
 	 */
 	public rough(x: number, y: number): boolean {
 		return this.land.rough(x, y);
 	}
 
 	/**
-	 * True where a road from the metro surely reaches: a cell of the 16-unit
-	 * lattice that a flood fill from the metro gets to through cells that
-	 * aren't rough, lie wholly inside the disc, and keep clear of craters, so
-	 * no cliff or crater stands between. It's the test towns are placed by,
-	 * and it's sufficient only: false means not proven, not a pocket. It reads
-	 * false on all rough ground, on open ground rough cells ring off, and in
-	 * cells at the rim or touching a crater, though roads often find a way
-	 * through, and it ignores water. How much a road can reach is a fine flood
-	 * fill over `impassable`.
+	 * True where a road from the metro surely reaches: a square between land
+	 * cell centres that a flood fill from the metro gets to through squares
+	 * with no rough ground in them, lying wholly inside the disc and clear of
+	 * craters, so no cliff or crater stands between. It's the test towns are
+	 * placed by, and it's sufficient only: false means not proven, not a
+	 * pocket. It reads false next to rough ground, on open ground rough
+	 * country rings off, and at the rim or by a crater, though roads often
+	 * find a way, and it ignores water. How much a road can reach is a fine
+	 * flood fill over `impassable`.
 	 */
 	public surelyReachable(x: number, y: number): boolean {
 		return this.land.surelyReachable(x, y);
 	}
 
-	/** Why (x, y) is impassable, or null: a crater, water, then a cliff. */
+	/** A lake, a river, or neither at (x, y): the water layer's, none before it's laid. */
+	public waterAt(x: number, y: number): WaterKind | null {
+		return this.water === null ? null : this.water.waterAt(x, y);
+	}
+
+	/** Why (x, y) is impassable, or null: a crater, water, then a cliff. The metro's rivers are bridged everywhere. */
 	public obstacle(x: number, y: number): Obstacle | null {
-		if (this.land.crater(x, y)) return 'crater';
-		if (this.water !== null && this.water.isWater(x, y)) return 'water';
-		if (this.land.cliff(x, y)) return 'cliff';
-		return null;
+		return this.land.obstacle(x, y, this.water);
 	}
 
 	public impassable(x: number, y: number): boolean {
@@ -804,97 +874,86 @@ export class Terrain {
 	}
 
 	/**
-	 * What a world unit of travel at (x, y) costs: the biome's base cost plus
-	 * `SLOPE_COST` times the grade's square over the cliff grade's, so 1 on
-	 * flat scrub, and more than `SLOPE_COST` on top only for steep ground
-	 * outside rough country. Infinity on impassable ground.
+	 * What a road of `roadClass` pays to drive from (x0, y0) to (x1, y1), a
+	 * short move of a few world units to a land cell or so (`MOVE_COST`): the
+	 * distance times one plus the grade along it squared and the slope
+	 * across it squared, by class and `curviness`, plus a bridge for each
+	 * river it crosses, dearer the longer the bridge. Infinity where its end
+	 * or middle is impassable bar a bridge, where a bridge would run longer
+	 * than `MOVE_COST.longestBridge`, or where it climbs too steeply for the
+	 * class. Cost along a move, rather than of a point, is what makes roads
+	 * follow the contours and the valley floors. Leaves the bridges' share in
+	 * `parts`, when given.
 	 */
-	public travelCost(x: number, y: number): number {
-		if (this.water !== null && this.water.isWater(x, y)) return Infinity;
-		return this.land.cost(x, y);
+	public moveCost(x0: number, y0: number, x1: number, y1: number, roadClass: RoadClass, parts?: { bridge: number }): number {
+		return this.land.moveCost(x0, y0, x1, y1, roadClass, this.water, parts);
+	}
+
+	/**
+	 * True when the point `along` (0 to 1) of the move from (x0, y0) to
+	 * (x1, y1) is on a bridge over a river the move crosses: the river water
+	 * a road can drive over.
+	 */
+	public onBridge(x0: number, y0: number, x1: number, y1: number, along: number): boolean {
+		return this.land.onBridge(x0, y0, x1, y1, along, this.water);
 	}
 
 	/** Everything at (x, y) into `out`, sharing the work between fields. Returns `out`. */
 	public sample(x: number, y: number, out: TerrainSample): TerrainSample {
-		this.land.sample(x, y, out);
-		if (this.water !== null && out.obstacle !== 'crater' && this.water.isWater(x, y)) {
-			out.obstacle = 'water';
-			out.cost = Infinity;
-		}
-		return out;
+		return this.land.sample(x, y, out, this.water);
 	}
 }
 
-interface FeatureOptions {
-	surface: LandSurface;
-	/** World units: the disc's radius, and the relief radius; a feature's share is of the land between, outside the ranges. */
-	radius: number;
-	reliefRadius: number;
-	share: number;
-	/** Per cell, 1 where canyons and badlands have room, 0 where they have none (see `featureRoom`); null when neither has a share. */
-	clear: Float64Array | null;
-}
-
 /**
- * Canyons per cell, 0 to 1: the valleys cut deepest into the land away from
- * the ranges, `share` of the land outside them. A cell's cut is how far it
- * sits below the lower of the two cells `CANYONS.reach` away on either
- * side, across whichever of four directions cuts deepest, so a valley
- * counts and a slope doesn't. A stand-in until the water stage reads
- * canyons off its rivers.
+ * Per cell, rough country's measure: how steep the country is, the eroded
+ * land's grade averaged over `ROUGHNESS.blur` cells each way, swayed by
+ * `ROUGHNESS.breaks` of a broad noise layer, so a long steep belt breaks
+ * into stretches with gaps where a road can climb. None within the relief
+ * radius, by a cell's diagonal, so no point inside it reads as rough.
  */
-function canyonField({ surface, radius, reliefRadius, share, clear }: FeatureOptions): Float32Array {
+function roughnessField({ surface, reliefRadius, noise }: { surface: LandSurface; reliefRadius: number; noise: SimplexNoise }): { steepness: Float64Array; roughness: Float64Array } {
 	const { grid, elevation } = surface;
 	const size = grid.size;
-	if (share <= 0 || clear === null) return new Float32Array(size * size);
-	const reach = CANYONS.reach;
-	const cut = new Float64Array(size * size);
-	const steps = [reach, reach * size, reach * (size + 1), reach * (size - 1)];
-	for (let row = reach; row < size - reach; row += 1) {
-		for (let column = reach; column < size - reach; column += 1) {
+	const grade = new Float64Array(size * size);
+	const toGrade = RELIEF / grid.cellSize;
+	for (let row = 0; row < size; row += 1) {
+		const below = row > 0 ? row - 1 : row;
+		const above = row < size - 1 ? row + 1 : row;
+		for (let column = 0; column < size; column += 1) {
+			const left = column > 0 ? column - 1 : column;
+			const right = column < size - 1 ? column + 1 : column;
+			const slopeX = (elevation[row * size + right] - elevation[row * size + left]) / (right - left) * toGrade;
+			const slopeY = (elevation[above * size + column] - elevation[below * size + column]) / (above - below) * toGrade;
+			grade[row * size + column] = sqrt(slopeX * slopeX + slopeY * slopeY);
+		}
+	}
+	const steepness = blur(grade, size, ROUGHNESS.blur);
+	const roughness = new Float64Array(size * size);
+	const clear = reliefRadius + Math.SQRT2 * grid.cellSize;
+	const clearSquared = clear * clear;
+	const frequency = 1 / ROUGHNESS.wavelength;
+	for (let row = 0; row < size; row += 1) {
+		const y = cellCentre(grid, row);
+		for (let column = 0; column < size; column += 1) {
+			const x = cellCentre(grid, column);
 			const cell = row * size + column;
-			let deepest = 0;
-			for (let direction = 0; direction < 4; direction += 1) {
-				const ahead = elevation[cell + steps[direction]];
-				const behind = elevation[cell - steps[direction]];
-				const depth = (ahead < behind ? ahead : behind) - elevation[cell];
-				if (depth > deepest) deepest = depth;
+			if (x * x + y * y < clearSquared) {
+				steepness[cell] = 0;
+				continue;
 			}
-			cut[cell] = deepest * clear[cell];
+			roughness[cell] = steepness[cell] * (1 + ROUGHNESS.breaks * noise.fractal(x * frequency, y * frequency, ROUGHNESS.octaves, 0.5));
 		}
 	}
-	return calibratedField({ surface, radius, reliefRadius, share, values: cut });
+	return { steepness, roughness };
 }
 
 /**
- * Badlands per cell, 0 to 1: the most broken ground away from the ranges,
- * `share` of the land outside them, broken being the land's curvature
- * blurred over `BADLANDS.blur` cells. A stand-in until the hazards stage
- * decides what badlands are on eroded land.
- */
-function badlandsField({ surface, radius, reliefRadius, share, clear }: FeatureOptions): Float32Array {
-	const { grid, elevation } = surface;
-	const size = grid.size;
-	if (share <= 0 || clear === null) return new Float32Array(size * size);
-	const curvature = new Float64Array(size * size);
-	for (let row = 1; row < size - 1; row += 1) {
-		for (let column = 1; column < size - 1; column += 1) {
-			const cell = row * size + column;
-			const bend = elevation[cell - 1] + elevation[cell + 1] + elevation[cell - size] + elevation[cell + size] - 4 * elevation[cell];
-			curvature[cell] = bend < 0 ? -bend : bend;
-		}
-	}
-	const broken = blur(curvature, size, BADLANDS.blur);
-	for (let cell = 0; cell < broken.length; cell += 1) broken[cell] *= clear[cell];
-	return calibratedField({ surface, radius, reliefRadius, share, values: broken });
-}
-
-/**
- * Per cell, the room canyons and badlands have: 1 where no cell within
+ * Per cell, the room badlands have: 1 where no cell within
  * `RANGE_CLEARANCE.reach` has any range lift, falling to 0 where one's range
  * mask reaches `RANGE_CLEARANCE.mask`, since a range's flanks run on past its
- * mask's middle and bend the land at their foot as hard as any gully; and,
- * like the ranges, none in the metro, rising to full at the relief radius.
+ * mask's middle and bend the land at their foot as steeply as any broken
+ * ground; and, like the ranges, none in the metro, rising to full at the
+ * relief radius.
  */
 function featureRoom({ surface, metroRadius, reliefRadius }: { surface: LandSurface; metroRadius: number; reliefRadius: number }): Float64Array {
 	const { grid, mountains } = surface;
@@ -934,24 +993,11 @@ function featureRoom({ surface, metroRadius, reliefRadius }: { surface: LandSurf
 }
 
 /**
- * Per cell, 0 to 1: 0.5 where `values` passes the quantile that `share` of
- * the land outside the ranges, past the relief radius and inside the disc,
- * lies above, ramping over a quarter of it either way.
+ * `values` at the cells past `reliefRadius` and inside the disc: the land a
+ * feature's share is of. Without `ranges`, only the cells outside the
+ * ranges, unless the ranges cover all of it.
  */
-function calibratedField({ surface, radius, reliefRadius, share, values }: Omit<FeatureOptions, 'clear'> & { values: Float64Array }): Float32Array {
-	const field = new Float32Array(values.length);
-	const threshold = quantileAbove(outsideRanges({ surface, radius, reliefRadius, values }), share);
-	if (!(threshold > 0) || threshold === Infinity) return field;
-	for (let cell = 0; cell < field.length; cell += 1) field[cell] = smooth01((values[cell] / threshold - 1) * FEATURE_SHARPNESS + 0.5);
-	return field;
-}
-
-/**
- * `values` at the cells outside the ranges, past `reliefRadius` and inside
- * the disc: the land the stand-ins' shares are of. Where the ranges cover
- * all of it, the cells past `reliefRadius`, ranges and all.
- */
-function outsideRanges({ surface, radius, reliefRadius, values }: { surface: LandSurface; radius: number; reliefRadius: number; values: ArrayLike<number> }): number[] {
+export function landValues({ surface, radius, reliefRadius, values, ranges }: { surface: LandSurface; radius: number; reliefRadius: number; values: ArrayLike<number>; ranges: boolean }): number[] {
 	const { grid, mountains } = surface;
 	const innerSquared = reliefRadius * reliefRadius;
 	const outerSquared = radius * radius;
@@ -968,7 +1014,7 @@ function outsideRanges({ surface, radius, reliefRadius, values }: { surface: Lan
 			if (mountains[cell] < 0.5) outside.push(values[cell]);
 		}
 	}
-	return outside.length > 0 ? outside : all;
+	return ranges || outside.length === 0 ? all : outside;
 }
 
 /** A box blur `reach` cells each way along rows, then columns, held at the edges. */
@@ -999,11 +1045,6 @@ function blur(values: ArrayLike<number>, size: number, reach: number): Float64Ar
 	return out;
 }
 
-/** Travel cost per world unit on passable ground: the biome's base cost plus the slope term. */
-function slopeCost(biome: Biome, slopeSquared: number): number {
-	return BIOME_COSTS[biome] + SLOPE_COST * (slopeSquared / CLIFF_SLOPE_SQUARED);
-}
-
 function ruinWeight(x: number, y: number, ruin: Ruin): number {
 	const dx = x - ruin.x;
 	const dy = y - ruin.y;
@@ -1012,3 +1053,4 @@ function ruinWeight(x: number, y: number, ruin: Ruin): number {
 	if (ratio >= 4) return 0;
 	return (4 - ratio) / 3;
 }
+

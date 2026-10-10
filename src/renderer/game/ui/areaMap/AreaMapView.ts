@@ -10,13 +10,14 @@ import {
 	LABEL,
 	MAP_GROUND,
 	MARKER,
+	RIVER_STYLE,
 	ROAD_PICK_DISTANCE,
 	ROAD_STYLES,
 	RUMORED_FADE,
 	RUMORED_TOWARD,
 	SELECTED_ROAD,
 	UNCHARTED_STUB,
-	BIOME_COLOURS,
+	LAND_COLOURS,
 	FOG,
 	roadWidthScale,
 } from './areaMapStyle';
@@ -33,13 +34,15 @@ import {
 	drawnKnowledge,
 } from './layers';
 import { MapCamera } from './MapCamera';
+import { RiverGeometry } from './riverGeometry';
 import { RoadGeometry, dashesAlong, detailLevel, distanceToPolyline, truncatePolyline } from './roadGeometry';
 import { bakeTerrain, terrainBakeSize } from './terrainBake';
 
 /**
- * Draws a generated area map: the terrain baked once into a texture, the
- * drivable roads live by class and knowledge, junctions, the compound, POI
- * and stronghold markers, and land fog, with pan, zoom, and selection.
+ * Draws a generated area map: the terrain and its lakes baked once into a
+ * texture, rivers live under the roads, width by size, the drivable roads
+ * live by class and knowledge, junctions, the compound, POI and stronghold
+ * markers, and land fog, with pan, zoom, and selection.
  * Shared by the Map Lab (DDB-299) and the area map screen (DDB-43); the
  * inputs later generation stages fill in are in `layers.ts`.
  *
@@ -116,6 +119,7 @@ interface Baked {
 export class AreaMapView extends Component {
 	private mapData: AreaMapData | null = null;
 	private geometry: RoadGeometry | null = null;
+	private rivers: RiverGeometry | null = null;
 	/** Stretch ids in drawing order: trails, then back roads, then highways, so the widest lie on top. */
 	private drawOrder: number[] = [];
 	private stretchIds: string[] = [];
@@ -238,12 +242,14 @@ export class AreaMapView extends Component {
 		this.dashCache.clear();
 		if (!map) {
 			this.geometry = null;
+			this.rivers = null;
 			this.drawOrder = [];
 			this.stretchIds = [];
 			return;
 		}
 		const network = map.network;
 		this.geometry = new RoadGeometry({ network });
+		this.rivers = map.rivers ? new RiverGeometry({ rivers: map.rivers, radius: map.terrain.radius }) : null;
 		const order = [...ROAD_CLASSES].reverse();
 		this.drawOrder = order.flatMap((roadClass) => network.stretches.flatMap((stretch, id) => (stretch.roadClass === roadClass ? [id] : [])));
 		const prefix = this.id ?? 'area_map';
@@ -346,6 +352,7 @@ export class AreaMapView extends Component {
 			const layers = this.layerToggles;
 			draw.pushTransform(this.mapCamera.matrix);
 			if (layers.terrain) this.drawTerrain(draw);
+			if (layers.water) this.drawRivers(draw);
 			if (layers.fog) this.drawFog(draw);
 			if (layers.roads) this.drawRoads(draw, this.geometry);
 			if (layers.junctions) this.drawJunctions(draw, this.geometry);
@@ -366,10 +373,36 @@ export class AreaMapView extends Component {
 		if (baked && draw.isTextureResident(baked.texture)) {
 			this.drawMapImage(draw, baked, 'terrain');
 		} else {
-			// R12.5's placeholder until the upload lands: the disc in scrub.
-			const [red, green, blue] = BIOME_COLOURS.scrub;
+			// R12.5's placeholder until the upload lands: the disc in middling ground's colour.
+			const [red, green, blue] = LAND_COLOURS.middling;
 			draw.drawCircle({ id: this.part('terrain'), center: { x: 0, y: 0 }, radius, fill: [red / 255, green / 255, blue / 255, 1] });
 		}
+	}
+
+	/**
+	 * Each river run at its world width, never under `RIVER_STYLE.minPixels`
+	 * on screen, fainter past the rim, simplified by zoom as the roads are.
+	 */
+	private drawRivers(draw: DrawApi): void {
+		const rivers = this.rivers;
+		if (!rivers) return;
+		const zoom = this.mapCamera.zoom;
+		const least = RIVER_STYLE.minPixels / zoom;
+		const level = detailLevel(zoom);
+		const visible = this.visibleMap();
+		let skipped = 0;
+		rivers.runs.forEach((run, id) => {
+			const width = run.width > least ? run.width : least;
+			const { bounds } = run;
+			if (bounds.maxX < visible.minX - width || bounds.minX > visible.maxX + width
+				|| bounds.maxY < visible.minY - width || bounds.minY > visible.maxY + width) {
+				skipped += 1;
+				return;
+			}
+			draw.drawPolyline({ points: rivers.polyline(id, level), color: run.inside ? RIVER_STYLE.color : RIVER_STYLE.outside, width, cap: 'round' });
+		});
+		// R4.2a: what the view skipped itself still counts as asked for and culled.
+		if (skipped > 0) draw.cullGroups(skipped);
 	}
 
 	private drawFog(draw: DrawApi): void {

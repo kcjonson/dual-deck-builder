@@ -29,7 +29,7 @@ export interface RoadViolation {
 
 export interface RoadCheckOptions {
 	network: RoadNetwork;
-	terrain: Pick<Terrain, 'radius' | 'hotspots' | 'impassable'>;
+	terrain: Pick<Terrain, 'radius' | 'hotspots' | 'obstacle' | 'onBridge'>;
 	/** What growth kept: its `clearance`. */
 	clearance: number;
 	/** Stops after this many violations. */
@@ -50,7 +50,7 @@ export interface RoadCheckOptions {
  *   distance from the compound, so every road runs away from it throughout.
  * - disc: every point is inside the disc.
  * - passable: no segment crosses a crater or, sampled as growth samples,
- *   impassable ground.
+ *   impassable ground, bar river water under a bridge (`isPassable`).
  * - crossing and clearance: segments of different roads keep
  *   `clearance` apart, except near a junction the two share, where the gap
  *   tapers as growth's does and they touch only at the junction; segments of

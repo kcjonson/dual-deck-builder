@@ -334,13 +334,32 @@ describe('growth', () => {
 		network.stretches.forEach((stretch) => stretch.points.forEach((value) => expect(Number.isFinite(value)).toBe(true)));
 	});
 
-	it('keeps off water: steps never cross the water layer', () => {
-		const lake = { isWater: (x: number, y: number) => Math.hypot(x - 300, y - 200) < 140 };
-		const { network, terrain, clearance } = growMap({ seed: 24, branchiness: 1 }, { water: lake });
+	it('keeps off lakes, and crosses rivers past the metro only on bridges', () => {
+		const { network, terrain, water, clearance } = growMap({ seed: 24, environment: 'floodlands', branchiness: 1 });
+		expect(water.lakes.length).toBeGreaterThan(0);
 		expect(checkRoadNetwork({ network, terrain, clearance })).toEqual([]);
+		const metro = terrain.metro.radius + 1;
+		let bridges = 0;
 		network.stretches.forEach(({ points }) => {
-			for (let point = 0; point < points.length; point += 2) expect(lake.isWater(points[point], points[point + 1])).toBe(false);
+			for (let point = 0; point + 3 < points.length; point += 2) {
+				const [x0, y0, x1, y1] = [points[point], points[point + 1], points[point + 2], points[point + 3]];
+				const samples = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / PASSABLE_SPACING);
+				let bridged = false;
+				for (let sample = 1; sample <= samples; sample += 1) {
+					const along = sample / samples;
+					const x = x0 + (x1 - x0) * along;
+					const y = y0 + (y1 - y0) * along;
+					const kind = terrain.waterAt(x, y);
+					expect(kind).not.toBe('lake');
+					if (kind === 'river' && Math.hypot(x, y) > metro) {
+						expect(terrain.onBridge(x0, y0, x1, y1, along)).toBe(true);
+						bridged = true;
+					}
+				}
+				if (bridged) bridges += 1;
+			}
 		});
+		expect(bridges).toBeGreaterThan(0);
 	});
 });
 

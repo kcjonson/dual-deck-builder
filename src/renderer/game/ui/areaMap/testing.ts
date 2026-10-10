@@ -37,19 +37,30 @@ export interface FlatTerrainOptions {
 	/** Rough country, and its slope's size there. */
 	rough?: (x: number, y: number) => boolean;
 	slope?: number;
+	/** Moisture at a point; middling, 0.5, everywhere when left out. */
+	moisture?: (x: number, y: number) => number;
+	/** A water layer's lake depth, more than 0 under a lake; no water when left out. */
+	lakeDepth?: (x: number, y: number) => number;
 }
 
-/** Flat scrub with whatever craters and rough ground a test asks for, sloping only where it's rough; it counts the samples and slopes taken. */
-export function flatTerrain({ radius = 600, craters = [], rough = () => false, slope = 0 }: FlatTerrainOptions = {}): BakeTerrain & { samples: number; slopes: number } {
+/**
+ * Flat, middling scrub with whatever craters, rough ground, moisture, and
+ * lakes a test asks for, sloping only where it's rough; it counts the
+ * samples and slopes taken.
+ */
+export function flatTerrain({ radius = 600, craters = [], rough = () => false, slope = 0, moisture, lakeDepth }: FlatTerrainOptions = {}): BakeTerrain & { samples: number; slopes: number } {
 	const terrain = {
 		radius,
 		hotspots: craters.map((crater) => ({ ...crater, plumeRadius: crater.craterRadius * 5, strength: 1 })),
-		water: null,
+		water: lakeDepth ? { lakeDepth } : null,
 		samples: 0,
 		slopes: 0,
-		sample: (_x: number, _y: number, out = createTerrainSample()) => {
+		sample: (x: number, y: number, out = createTerrainSample()) => {
 			terrain.samples += 1;
 			out.biome = 'scrub';
+			out.elevation = 0;
+			out.moisture = moisture ? moisture(x, y) : 0.5;
+			out.contamination = 0;
 			out.slopeX = 0;
 			out.slopeY = 0;
 			out.ruin = 0;

@@ -6,7 +6,8 @@ import { createTestContext } from '../../../engine/components/testing';
 import { CircleCommand, DrawApi, DrawCommand, ImageCommand, PolylineCommand, RecordingBackend } from '../../../engine/draw';
 import { NO_MODIFIERS } from '../../../engine/input/events';
 import { click, key, pointer, send } from '../../../engine/services/testing';
-import { FOG, ROAD_STYLES, RUMORED_FADE, RUMORED_TOWARD, roadWidthScale } from './areaMapStyle';
+import type { RiverLines } from '../../map/Rivers';
+import { FOG, RIVER_STYLE, ROAD_STYLES, RUMORED_FADE, RUMORED_TOWARD, roadWidthScale } from './areaMapStyle';
 import { AreaMapView, AreaMapViewOptions, WHEEL_ZOOM_RATE } from './AreaMapView';
 import type { AreaMapSelection, LandFogLayer, MapMarker, RoadKnowledge } from './layers';
 import { FIT_MARGIN } from './MapCamera';
@@ -518,5 +519,38 @@ describe('AreaMapView knowledge and markers', () => {
 		const ids = frame().map((command) => command.id);
 		expect(ids.indexOf('map.selected_road')).toBeGreaterThan(-1);
 		expect(ids.indexOf('map.selected_road')).toBeLessThan(ids.indexOf('map.road_3'));
+	});
+});
+
+describe('AreaMapView rivers', () => {
+	// West to east south of the compound, a creek widening to a river, and out past the rim.
+	const rivers: RiverLines = { points: Float64Array.of(-300, -100, 0, -100, 300, -50, 700, -50), widths: Float64Array.of(2, 2, 6, 6), offsets: Uint32Array.of(0, 4) };
+	const isRiver = (color: readonly number[]) => [RIVER_STYLE.color, RIVER_STYLE.outside].some((river) => river.every((channel, index) => channel === color[index]));
+	const riverCommands = (commands: readonly DrawCommand[]): PolylineCommand[] => commands.filter((command): command is PolylineCommand => command.kind === 'polyline' && isRiver(command.color));
+
+	it('draws rivers live over the land and under the roads, at their width, never under a pixel, and fainter past the rim', () => {
+		const { view, frame } = mountView({ map: { terrain: flatTerrain({ radius: RADIUS }), network: SMALL_NETWORK, rivers } });
+		frame();
+		const commands = frame();
+		const drawn = riverCommands(commands);
+		// A run for the creek, one for the river, and one past the rim.
+		expect(drawn.map((command) => [...command.color])).toEqual([[...RIVER_STYLE.color], [...RIVER_STYLE.color], [...RIVER_STYLE.outside]]);
+		const least = RIVER_STYLE.minPixels / view.camera.zoom;
+		expect(drawn[0].width).toBeCloseTo(Math.max(2.25, least), 12);
+		expect(drawn[1].width).toBeCloseTo(Math.max(6, least), 12);
+		// North up: world y flips into map space.
+		expect(drawn[0].points[0]).toEqual({ x: -300, y: 100 });
+		const firstRiver = commands.indexOf(drawn[0]);
+		expect(firstRiver).toBeGreaterThan(commands.findIndex((command) => command.kind === 'image'));
+		expect(firstRiver).toBeLessThan(commands.indexOf(roads(commands)[0]));
+
+		view.layers = { water: false };
+		expect(riverCommands(frame())).toHaveLength(0);
+	});
+
+	it('draws no rivers for a map without them', () => {
+		const { frame } = mountView();
+		frame();
+		expect(riverCommands(frame())).toHaveLength(0);
 	});
 });

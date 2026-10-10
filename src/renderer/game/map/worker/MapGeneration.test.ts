@@ -40,7 +40,7 @@ function outcome(generation: MapGeneration): Promise<unknown> {
 	return generation.result.then((map) => map, (error: unknown) => error);
 }
 
-const terrainAttempt: StageAttempt<AreaMapStageName> = { stage: 'terrain', index: 0, count: 3, attempt: 0, mapAttempt: 0, seed: 9 };
+const terrainAttempt: StageAttempt<AreaMapStageName> = { stage: 'terrain', index: 0, count: 4, attempt: 0, mapAttempt: 0, seed: 9 };
 
 describe('MapGeneration', () => {
 	afterEach(() => {
@@ -63,8 +63,8 @@ describe('MapGeneration', () => {
 			expect(map.products.growth).toEqual(expected.products.growth);
 			expect(map.products.highways).toEqual(expected.products.highways);
 			expect(map.streams).toEqual(expected.streams);
-			expect(map.attempts).toEqual({ terrain: 0, highways: 0, growth: 0 });
-			expect(progress.map(({ stage, attempt }) => `${stage} ${attempt}`)).toEqual(['terrain 0', 'highways 0', 'growth 0']);
+			expect(map.attempts).toEqual({ terrain: 0, water: 0, highways: 0, growth: 0 });
+			expect(progress.map(({ stage, attempt }) => `${stage} ${attempt}`)).toEqual(['terrain 0', 'water 0', 'highways 0', 'growth 0']);
 			expect(map.wallMilliseconds).toBeGreaterThanOrEqual(map.decodeMilliseconds);
 		});
 
@@ -134,6 +134,7 @@ describe('MapGeneration', () => {
 			expect(map.inWorker).toBe(true);
 			expect(map.products.growth).toEqual(expected.products.growth);
 			expect(Array.from(map.products.terrain.surface.elevation)).toEqual(Array.from(expected.products.terrain.surface.elevation));
+			expect(Array.from(map.products.water.lines.points)).toEqual(Array.from(expected.products.water.lines.points));
 			expect(worker.terminated).toBe(1);
 			// Anything after the end is ignored.
 			worker.reply({ type: 'progress', progress: terrainAttempt });
@@ -198,10 +199,10 @@ describe('MapGeneration', () => {
 
 	it('sums a generation up in one line for the dev hook', async () => {
 		const summary = summarizeGeneration(await new MapGeneration({ params }).result);
-		expect(summary).toMatchObject({ seed: 9, environment: 'highDesert', radius: 700, inWorker: false, attempts: { terrain: 0, highways: 0, growth: 0 }, mapAttempt: 0 });
+		expect(summary).toMatchObject({ seed: 9, environment: 'highDesert', radius: 700, inWorker: false, attempts: { terrain: 0, water: 0, highways: 0, growth: 0 }, mapAttempt: 0 });
 		expect(summary.nodes).toBe(expected.products.growth.network.nodes.length);
 		const line = describeGeneration(summary);
-		expect(line).toMatch(/^Map generation, seed 9 highDesert radius 700, in-process: [\d.]+ ms wall, pipeline [\d.]+ ms \(terrain [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), highways/);
+		expect(line).toMatch(/^Map generation, seed 9 highDesert radius 700, in-process: [\d.]+ ms wall, pipeline [\d.]+ ms \(terrain [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), water [\d.]+( \+ [\d.]+ checks)? \(attempt 0\), highways/);
 		expect(line).toMatch(/growth [\d.]+ \+ [\d.]+ checks \(attempt 0\); map attempt 0\), decode [\d.]+ ms; \d+ nodes, \d+ stretches$/);
 	});
 });

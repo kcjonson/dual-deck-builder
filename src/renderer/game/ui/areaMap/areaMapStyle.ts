@@ -1,6 +1,4 @@
 import type { RGBA } from '../../../engine/draw';
-import type { Biome } from '../../map/Biome';
-import type { Obstacle } from '../../map/Terrain';
 import type { RoadClass } from '../../map/RoadNetwork';
 import { tokens } from '../../../engine/theme/tokens';
 
@@ -14,20 +12,55 @@ import { tokens } from '../../../engine/theme/tokens';
 /** 0 to 255 RGB, baked into the terrain texture. */
 export type Rgb8 = readonly [number, number, number];
 
-export const BIOME_COLOURS: { readonly [Name in Biome]: Rgb8 } = {
-	scrub: [196, 190, 150],
-	desert: [226, 208, 160],
-	mire: [128, 150, 112],
-	badlands: [182, 140, 110],
-	canyons: [204, 160, 120],
-	mountains: [150, 140, 130],
-};
+/**
+ * The land's colour, a continuous blend rather than biome patches (Area Map
+ * Generation, Rendering): dry ground buff, middling ground khaki, wet ground
+ * sage, by moisture; warming to grey-brown in high country, from elevation
+ * `high.from` to `high.to`; and tinted rust by contamination, up to
+ * `toxic.weight` of the way. A functional first pass; the atlas styling
+ * (Map 19) tunes it.
+ */
+export const LAND_COLOURS = {
+	dry: [226, 208, 160] as Rgb8,
+	middling: [200, 194, 152] as Rgb8,
+	wet: [150, 172, 128] as Rgb8,
+	high: { colour: [160, 146, 128] as Rgb8, from: 0.2, to: 0.6 },
+	toxic: { colour: [176, 112, 80] as Rgb8, weight: 0.45 },
+} as const;
 
-export const OBSTACLE_COLOURS: { readonly [Name in Obstacle]: Rgb8 } = {
-	cliff: [90, 30, 30],
-	crater: [40, 40, 40],
-	water: [70, 110, 170],
-};
+/** The land's colour for its fields, 0 to 255 each, into `out`. Returns `out`. */
+export function landColour(elevation: number, moisture: number, contamination: number, out: number[]): number[] {
+	const { dry, middling, wet, high, toxic } = LAND_COLOURS;
+	const wetness = moisture < 0 ? 0 : moisture > 1 ? 1 : moisture;
+	const from = wetness < 0.5 ? dry : middling;
+	const to = wetness < 0.5 ? middling : wet;
+	const along = wetness < 0.5 ? wetness * 2 : wetness * 2 - 1;
+	const height = Math.max(0, Math.min(1, (elevation - high.from) / (high.to - high.from)));
+	const tint = Math.max(0, Math.min(1, contamination)) * toxic.weight;
+	for (let channel = 0; channel < 3; channel++) {
+		let value = from[channel] + (to[channel] - from[channel]) * along;
+		value += (high.colour[channel] - value) * height;
+		out[channel] = value + (toxic.colour[channel] - value) * tint;
+	}
+	return out;
+}
+
+/** What makes ground impassable, baked: cliffs and craters, and lakes, filled with a darker shore. Rivers draw live. */
+export const OBSTACLE_COLOURS = {
+	cliff: [90, 30, 30] as Rgb8,
+	crater: [40, 40, 40] as Rgb8,
+	lake: [96, 138, 186] as Rgb8,
+	shore: [52, 86, 140] as Rgb8,
+} as const;
+
+/** Rivers, drawn live under the roads: their world width, never under `minPixels` on screen, and fainter past the rim. */
+export const RIVER_STYLE = {
+	color: [96 / 255, 138 / 255, 186 / 255, 1] as RGBA,
+	outside: [96 / 255, 138 / 255, 186 / 255, 0.35] as RGBA,
+	minPixels: 1,
+	/** World units widths are rounded to, so a river draws as a few runs of one width each. */
+	widthStep: 0.75,
+} as const;
 
 /** Hill shading: light from the north-west, `1 + (slopeY - slopeX) * gain`, held to [min, max]. */
 export const HILL_SHADE = { gain: 60, min: 0.55, max: 1.25 } as const;

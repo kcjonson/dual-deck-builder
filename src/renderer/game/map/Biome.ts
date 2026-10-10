@@ -1,7 +1,10 @@
 /**
- * The area map's biomes (Area Map Generation, Pipeline, 1. Terrain): the
- * regions the lore names, read off the terrain fields by thresholds. Ruins
- * aren't a biome; they overlay whatever land they stand on.
+ * The area map's biomes (Area Map Generation, Pipeline, 3. Biomes, hazards,
+ * and cost): the regions the lore names, read off the land's and the
+ * water's fields by thresholds, as categories the game reads (stop tables,
+ * POI types, faction fit). The map never paints them: its colour is a blend
+ * of the fields. Ruins aren't a biome; they overlay whatever land they stand
+ * on.
  */
 
 /** In the Map Lab's order. */
@@ -19,20 +22,15 @@ export const BIOME_LABELS: { readonly [Name in Biome]: string } = {
 
 /** The fields a biome is read from, each 0 to 1 (see `Terrain`). */
 export interface BiomeFields {
-	/**
-	 * Low ground: 1 well below the map's lowland level, 0.5 at it, 0 well above,
-	 * measured for each map's own land, so how much of it is low doesn't follow
-	 * how tall the land stands. A stand-in until the water stage (DDB-289)
-	 * decides mire from its rivers and lakes.
-	 */
+	/** Low ground: 1 barely above the river or lake the ground drains to, 0.5 a few world units up, 0 well above it. */
 	readonly lowland: number;
 	readonly moisture: number;
 	readonly contamination: number;
 	/** Mountain ranges: 1 in range country, its ridges and valleys alike. */
 	readonly mountains: number;
-	/** Canyons: 1 deep in a valley cut into the land, 0 out of one. */
+	/** Canyons: 1 deep in a river valley cut into dry country, 0 out of one. */
 	readonly canyons: number;
-	/** Badlands: 1 on broken, gullied ground. */
+	/** Badlands: 1 on the most broken ground outside the ranges, the toxic above all. */
 	readonly badlands: number;
 }
 
@@ -73,16 +71,3 @@ export function classifyBiome(fields: BiomeFields): Biome {
 	if (fields.moisture < thresholds.desertMoisture) return 'desert';
 	return 'scrub';
 }
-
-/**
- * Travel cost per world unit on flat ground of each biome, scrub 1; the
- * terrain's slope term goes on top. Starting values for growth to tune.
- */
-export const BIOME_COSTS: { readonly [Name in Biome]: number } = {
-	scrub: 1,
-	desert: 1.25,
-	canyons: 1.5,
-	badlands: 1.8,
-	mire: 2.2,
-	mountains: 2.5,
-};

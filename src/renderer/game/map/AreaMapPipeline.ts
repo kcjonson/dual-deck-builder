@@ -4,17 +4,21 @@ import { AcceptHook, MapPipeline, MapStage, PipelineResult, StageAttempt } from 
 import { checkRoadNetwork } from './RoadChecks';
 import { GROWTH_TUNING, GrowthTuning, RoadGrowth, growRoads } from './RoadGrowth';
 import { Terrain, generateTerrain } from './Terrain';
+import { Water, generateWater } from './Water';
 
 /**
- * The area map's stages as they stand: terrain, then the highways and growth
- * pair, stand-ins until settlements and road links (Map 7 and 8) replace
- * them. Each runs on the stream the runner nests for it, so the highways
- * draw from root.fork('map', m).fork('terrain', t).fork('highways', h), and
- * growth one level further down.
+ * The area map's stages as they stand: terrain, water, then the highways
+ * and growth pair, stand-ins until settlements and road links (Map 7 and 8)
+ * replace them. Each runs on the stream the runner nests for it, so water
+ * draws from root.fork('map', m).fork('terrain', t).fork('water', w), the
+ * highways one level further down, and growth one more.
  */
 
 export interface AreaMapProducts {
+	/** The land, without water. */
 	readonly terrain: Terrain;
+	/** Rivers, lakes, and the fields beside them; `water.terrain` is the land with its water, what every stage after reads. */
+	readonly water: Water;
 	readonly highways: readonly HighwayDeparture[];
 	readonly growth: RoadGrowth;
 }
@@ -29,18 +33,24 @@ export const TERRAIN_STAGE: MapStage<MapParams, NoProducts, 'terrain', Terrain> 
 	run: ({ input, rng }) => generateTerrain({ params: input, rng }),
 };
 
-export const HIGHWAYS_STAGE: MapStage<MapParams, Pick<AreaMapProducts, 'terrain'>, 'highways', readonly HighwayDeparture[]> = {
-	name: 'highways',
-	run: ({ input, products, rng }) => planHighways({ terrain: products.terrain, params: input, rng }),
+/** Stage 2, rivers and lakes over the land. */
+export const WATER_STAGE: MapStage<MapParams, Pick<AreaMapProducts, 'terrain'>, 'water', Water> = {
+	name: 'water',
+	run: ({ input, products, rng }) => generateWater({ params: input, terrain: products.terrain, rng }),
 };
 
-/** Growth with its own knobs, checked by the network checks the map validator will run. */
-export function growthStage(tuning: GrowthTuning = {}): MapStage<MapParams, Pick<AreaMapProducts, 'terrain' | 'highways'>, 'growth', RoadGrowth> {
+export const HIGHWAYS_STAGE: MapStage<MapParams, Pick<AreaMapProducts, 'terrain' | 'water'>, 'highways', readonly HighwayDeparture[]> = {
+	name: 'highways',
+	run: ({ input, products, rng }) => planHighways({ terrain: products.water.terrain, params: input, rng }),
+};
+
+/** Growth with its own knobs, over the land with its water, checked by the network checks the map validator will run. */
+export function growthStage(tuning: GrowthTuning = {}): MapStage<MapParams, Pick<AreaMapProducts, 'water' | 'highways'>, 'growth', RoadGrowth> {
 	const { branchiness, clearance = GROWTH_TUNING.clearance } = tuning;
 	return {
 		name: 'growth',
-		run: ({ input, products, rng }) => growRoads({ terrain: products.terrain, params: input, highways: products.highways, rng, branchiness, clearance }),
-		check: ({ network }, { products }) => checkRoadNetwork({ network, terrain: products.terrain, clearance })
+		run: ({ input, products, rng }) => growRoads({ terrain: products.water.terrain, params: input, highways: products.highways, rng, branchiness, clearance }),
+		check: ({ network }, { products }) => checkRoadNetwork({ network, terrain: products.water.terrain, clearance })
 			.map(({ rule, detail }) => `${rule}: ${detail}`),
 	};
 }
@@ -48,13 +58,14 @@ export function growthStage(tuning: GrowthTuning = {}): MapStage<MapParams, Pick
 export interface AreaMapPipelineOptions {
 	/** Growth's own knobs. */
 	readonly growth?: GrowthTuning;
-	/** In place of `TERRAIN_STAGE`: a test's terrain with water laid over it, say. */
+	/** In place of `TERRAIN_STAGE`, for a test. */
 	readonly terrain?: MapStage<MapParams, NoProducts, 'terrain', Terrain>;
 }
 
 export function areaMapPipeline({ growth, terrain = TERRAIN_STAGE }: AreaMapPipelineOptions = {}): MapPipeline<MapParams, AreaMapProducts> {
 	return new MapPipeline<MapParams>()
 		.stage(terrain)
+		.stage(WATER_STAGE)
 		.stage(HIGHWAYS_STAGE)
 		.stage(growthStage(growth));
 }

@@ -1,3 +1,4 @@
+import type { RiverLines } from '../../map/Rivers';
 import type { RoadNetwork } from '../../map/RoadNetwork';
 import type { BakeTerrain } from './terrainBake';
 
@@ -13,10 +14,12 @@ import type { BakeTerrain } from './terrainBake';
  * north, as generation lays them.
  */
 
-/** The generated map: terrain to bake, and the drivable network to draw. */
+/** The generated map: terrain to bake, its lakes with it, and the rivers and drivable network to draw. */
 export interface AreaMapData {
 	readonly terrain: BakeTerrain;
 	readonly network: RoadNetwork;
+	/** The water stage's rivers, drawn live under the roads, width by size; none when absent. */
+	readonly rivers?: RiverLines | null;
 }
 
 /**
@@ -78,6 +81,8 @@ export type AreaMapSelection =
 /** Which layers draw. Every layer is on unless turned off; the Map Lab's toggles set these. */
 export interface AreaMapLayerToggles {
 	readonly terrain: boolean;
+	/** Rivers; lakes are baked with the terrain. */
+	readonly water: boolean;
 	readonly roads: boolean;
 	readonly junctions: boolean;
 	readonly markers: boolean;
@@ -86,6 +91,7 @@ export interface AreaMapLayerToggles {
 
 export const ALL_LAYERS: AreaMapLayerToggles = Object.freeze({
 	terrain: true,
+	water: true,
 	roads: true,
 	junctions: true,
 	markers: true,
