@@ -55,6 +55,68 @@ function steepestBelow({ size, levels }: Drainage, cell: number): number {
 	return best;
 }
 
+/**
+ * The routing by its definition, to hold the router to: a priority flood from
+ * the outlets, each cell entering at its own height or a flood rise above the
+ * cell that reached it, whichever is higher, and settled the first time it's
+ * the lowest reached, ties to the lower index, found by scanning every cell;
+ * then each cell's steepest fall on the levels. Its order is the flood's, and
+ * its area sums each cell into its receiver walking that order backwards.
+ */
+function floodByDefinition(size: number, elevation: ArrayLike<number>, outlets: number[], rain?: ArrayLike<number>) {
+	const cells = size * size;
+	const levels = new Float64Array(cells);
+	const reached = new Uint8Array(cells);
+	const settled = new Uint8Array(cells);
+	outlets.forEach((outlet) => {
+		levels[outlet] = elevation[outlet];
+		reached[outlet] = 1;
+	});
+	const order: number[] = [];
+	for (;;) {
+		let cell = -1;
+		for (let at = 0; at < cells; at += 1) {
+			if (reached[at] === 1 && settled[at] === 0 && (cell < 0 || levels[at] < levels[cell])) cell = at;
+		}
+		if (cell < 0) break;
+		settled[cell] = 1;
+		order.push(cell);
+		const raised = levels[cell] + FLOOD_RISE;
+		const row = Math.floor(cell / size);
+		const column = cell - row * size;
+		for (let rowStep = -1; rowStep <= 1; rowStep += 1) {
+			for (let columnStep = -1; columnStep <= 1; columnStep += 1) {
+				const nextRow = row + rowStep;
+				const nextColumn = column + columnStep;
+				if (nextRow < 0 || nextColumn < 0 || nextRow >= size || nextColumn >= size) continue;
+				const next = nextRow * size + nextColumn;
+				if (reached[next] === 1) continue;
+				reached[next] = 1;
+				levels[next] = elevation[next] > raised ? elevation[next] : raised;
+			}
+		}
+	}
+	const drainage = { size, levels } as Drainage;
+	const receivers = Int32Array.from({ length: cells }, (_, cell) => (outlets.includes(cell) ? -1 : steepestBelow(drainage, cell)));
+	const area = Float64Array.from({ length: cells }, (_, cell) => (rain ? rain[cell] : 1));
+	for (let index = order.length - 1; index >= 0; index -= 1) {
+		const receiver = receivers[order[index]];
+		if (receiver >= 0) area[receiver] += area[order[index]];
+	}
+	return { levels, receivers, area };
+}
+
+/** The router's drainage against floodByDefinition's: the same levels, receivers, and areas to the bit, with and without rain. */
+function expectSameAsDefinition(size: number, elevation: Float64Array, outlets: number[], rain: Float64Array): void {
+	const drainage = routeDrainage({ size, elevation, outlets });
+	const definition = floodByDefinition(size, elevation, outlets);
+	expect(Array.from(drainage.levels)).toEqual(Array.from(definition.levels));
+	expect(Array.from(drainage.receivers)).toEqual(Array.from(definition.receivers));
+	expect(Array.from(drainage.area)).toEqual(Array.from(definition.area));
+	expect(Array.from(accumulateArea({ drainage, rain }))).toEqual(Array.from(floodByDefinition(size, elevation, outlets, rain).area));
+	expectDrainageShape(drainage, elevation);
+}
+
 /** Checks every drainage keeps: receivers are the steepest neighbour below, levels fall to them, the order is downstream first, and every cell reaches an outlet. */
 function expectDrainageShape(drainage: Drainage, elevation: Float64Array): void {
 	const { size, receivers, levels, order, outlets } = drainage;
@@ -203,7 +265,90 @@ describe('routeDrainage', () => {
 		expect(() => routeDrainage({ size: 3, elevation: flat, outlets: [0], router: new DrainageRouter({ size: 4 }) })).toThrow(RangeError);
 		// An outlet's height that isn't a number leaves every level unknown and no cell anywhere to drain: a mistake to report, not a drainage to return.
 		const broken = Float64Array.from([NaN, 1, 2, 1, 2, 3, 2, 3, 4]);
-		expect(() => routeDrainage({ size: 3, elevation: broken, outlets: [0] })).toThrow(/isn't a number/);
+		expect(() => routeDrainage({ size: 3, elevation: broken, outlets: [0] })).toThrow(/outlet 0's height, NaN, isn't a number/);
+		expect(() => routeDrainage({ size: 3, elevation: broken, outlets: [0] })).toThrow(RangeError);
+	});
+});
+
+describe('the router against the flood by definition', () => {
+	/** A grid's outlets: one to three cells, on the edge or inside, drawn from `rng`. */
+	function outletsFor(size: number, rng: Rng): number[] {
+		const outlets = new Set<number>();
+		const count = 1 + Math.floor(rng.float() * 3);
+		while (outlets.size < count) outlets.add(Math.floor(rng.float() * size * size));
+		return [...outlets];
+	}
+
+	it('routes random land the same, pits and all', () => {
+		for (let seed = 1; seed <= 30; seed += 1) {
+			const rng = new Rng({ seed });
+			const size = 3 + (seed % 18);
+			const elevation = heights(size, () => rng.float());
+			expectSameAsDefinition(size, elevation, outletsFor(size, rng), heights(size, () => 0.5 + rng.float()));
+		}
+	});
+
+	it('routes terraced land the same, its flats and plateaus filled outward from their spills', () => {
+		for (let seed = 1; seed <= 30; seed += 1) {
+			const rng = new Rng({ seed: 100 + seed });
+			const size = 4 + (seed % 17);
+			const elevation = heights(size, () => Math.floor(4 * rng.float()) / 4);
+			expectSameAsDefinition(size, elevation, outletsFor(size, rng), heights(size, () => 0.5 + rng.float()));
+		}
+	});
+
+	it('routes land whose neighbours lie less than a flood rise apart the same', () => {
+		for (let seed = 1; seed <= 20; seed += 1) {
+			const rng = new Rng({ seed: 200 + seed });
+			const size = 5 + (seed % 12);
+			const elevation = heights(size, (column, row) => 0.3 * (column + row) * FLOOD_RISE + Math.floor(3 * rng.float()) * FLOOD_RISE / 3);
+			expectSameAsDefinition(size, elevation, outletsFor(size, rng), heights(size, () => 0.5 + rng.float()));
+		}
+	});
+
+	it('floods a cell whose height isn\'t a number as it does a pit, to a flood rise above its lowest neighbour', () => {
+		const rng = new Rng({ seed: 7 });
+		const elevation = heights(9, () => rng.float());
+		elevation[40] = NaN;
+		const drainage = routeDrainage({ size: 9, elevation, outlets: [0] });
+		const definition = floodByDefinition(9, elevation, [0]);
+		expect(Array.from(drainage.levels)).toEqual(Array.from(definition.levels));
+		expect(Array.from(drainage.receivers)).toEqual(Array.from(definition.receivers));
+		expect(drainage.levels[40]).toBeGreaterThan(0);
+	});
+
+	it('floods a lake too wide for its spill\'s band over its whole basin, and still matches', () => {
+		// A channel at height 0 winding back and forth through walls at 1, from
+		// an outlet at its west end: over 1000 cells long, so its far end's water
+		// stands more than 1000 flood rises above the spill. A cell beside the far
+		// end stands just under that, and above the band the flood first looks in.
+		const size = 48;
+		const floor = (column: number, row: number) => {
+			if (row % 2 === 1 && row <= size - 3 && column >= 1 && column <= size - 2) return true;
+			if (row % 2 === 0 && row >= 2 && row <= size - 4) return column === ((row / 2) % 2 === 1 ? size - 2 : 1);
+			return false;
+		};
+		const shore = (size - 2) * size + size - 2;
+		const elevation = heights(size, (column, row) => (floor(column, row) ? 0 : 1));
+		elevation[size] = 0;
+		elevation[shore] = 1010 * FLOOD_RISE;
+		const outlets = [size];
+		const definition = floodByDefinition(size, elevation, outlets);
+		expect(definition.levels[shore]).toBeGreaterThan(elevation[shore]);
+		const rng = new Rng({ seed: 3 });
+		expectSameAsDefinition(size, elevation, outlets, heights(size, () => 0.5 + rng.float()));
+	});
+
+	it('sums rain the same over any downstream-first order', () => {
+		const rng = new Rng({ seed: 23 });
+		const elevation = heights(14, () => Math.floor(6 * rng.float()) / 6);
+		const rain = heights(14, () => 0.1 + rng.float());
+		const drainage = routeDrainage({ size: 14, elevation, outlets: [0, 195] });
+		// The cells by level, then index: downstream first too, as each level is above its receiver's.
+		const byLevel = Int32Array.from(drainage.order).sort((a, b) => drainage.levels[a] - drainage.levels[b] || a - b);
+		expect(Array.from(byLevel)).not.toEqual(Array.from(drainage.order));
+		const area = accumulateArea({ drainage, rain });
+		expect(Array.from(accumulateArea({ drainage: { ...drainage, order: byLevel }, rain }))).toEqual(Array.from(area));
 	});
 });
 
@@ -232,6 +377,23 @@ describe('DrainageRouter', () => {
 		router.route(second, [0, 99]);
 		router.accumulate();
 		const fresh = routeDrainage({ size: 10, elevation: second, outlets: [0, 99] });
+		expect(Array.from(router.receivers)).toEqual(Array.from(fresh.receivers));
+		expect(Array.from(router.levels)).toEqual(Array.from(fresh.levels));
+		expect(Array.from(router.order)).toEqual(Array.from(fresh.order));
+		expect(Array.from(router.area)).toEqual(Array.from(fresh.area));
+	});
+
+	it('routes the same after a routing that threw partway as a fresh router does', () => {
+		// A cell walled in by infinite heights never gets a level, so it has no
+		// receiver, which the router finds only after it has flooded.
+		const walled = heights(10, (column, row) => (Math.max(Math.abs(column - 5), Math.abs(row - 5)) === 1 ? Infinity : column + row));
+		const router = new DrainageRouter({ size: 10 });
+		expect(() => router.route(walled, [0])).toThrow(/no neighbour below it/);
+		const rng = new Rng({ seed: 11 });
+		const land = heights(10, () => Math.floor(5 * rng.float()) / 5);
+		router.route(land, [0, 99]);
+		router.accumulate();
+		const fresh = routeDrainage({ size: 10, elevation: land, outlets: [0, 99] });
 		expect(Array.from(router.receivers)).toEqual(Array.from(fresh.receivers));
 		expect(Array.from(router.levels)).toEqual(Array.from(fresh.levels));
 		expect(Array.from(router.order)).toEqual(Array.from(fresh.order));

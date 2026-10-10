@@ -89,6 +89,44 @@ describe('erode', () => {
 		[6, 8, 16, 18].forEach((cell) => expect(elevation[cell]).toBe(0));
 	});
 
+	it('erodes to the same bits as the plain loops: the whole Laplacian, then every cell by its step to its receiver', () => {
+		const size = 12;
+		const rng = new Rng({ seed: 31 });
+		const start = heights(size, () => rng.float());
+		const uplift = heights(size, () => 0.1 * rng.float());
+		// One outlet inside the grid, which diffusion leaves alone too.
+		const outlets = [0, 77, 143];
+		const timeStep = 1.2;
+		const erodibility = 0.11;
+		const diffusion = 0.05;
+		const elevation = Float64Array.from(start);
+		erode({ size, elevation, uplift, outlets, iterations: 6, timeStep, erodibility, diffusion });
+
+		const expected = Float64Array.from(start);
+		const router = new DrainageRouter({ size });
+		const laplacian = new Float64Array(size * size);
+		const straight = timeStep * erodibility;
+		const diagonal = straight / Math.SQRT2;
+		for (let iteration = 0; iteration < 6; iteration += 1) {
+			for (let row = 1; row < size - 1; row += 1) {
+				for (let column = 1; column < size - 1; column += 1) {
+					const cell = row * size + column;
+					laplacian[cell] = expected[cell - 1] + expected[cell + 1] + expected[cell - size] + expected[cell + size] - 4 * expected[cell];
+				}
+			}
+			for (let cell = 0; cell < size * size; cell += 1) if (!outlets.includes(cell)) expected[cell] += diffusion * laplacian[cell];
+			router.route(expected, outlets);
+			router.accumulate();
+			router.order.forEach((cell) => {
+				const receiver = router.receivers[cell];
+				if (receiver < 0) return;
+				const flow = (stepTo(size, cell, receiver) === 1 ? straight : diagonal) * Math.sqrt(router.area[cell]);
+				expected[cell] = (expected[cell] + timeStep * uplift[cell] + flow * expected[receiver]) / (1 + flow);
+			});
+		}
+		expect(Array.from(elevation)).toEqual(Array.from(expected));
+	});
+
 	it('erodes the same with a router it is given as with its own', () => {
 		const rng = new Rng({ seed: 13 });
 		const start = heights(10, () => rng.float());
