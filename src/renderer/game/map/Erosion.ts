@@ -73,7 +73,9 @@ export function erode({ size, elevation, uplift, outlets, iterations, timeStep, 
 		// Diffusion first, so each iteration ends on stream power: smoothing
 		// a channel's banks into it would leave pits along it for the next
 		// iteration, and after the last there's no next. The edge has no
-		// Laplacian and keeps its heights.
+		// Laplacian and keeps its heights as they are, where adding it a
+		// Laplacian of 0 would turn a -0 into a 0; the land never holds a -0,
+		// so the two are the same bits.
 		if (diffusion > 0 && size > 2) {
 			previousRow.set(elevation.subarray(0, size));
 			for (let row = 1; row < size - 1; row += 1) {

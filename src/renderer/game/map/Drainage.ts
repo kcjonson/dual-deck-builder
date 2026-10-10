@@ -9,16 +9,18 @@
  * an outlet's is its height: a priority flood's levels (Barnes et al. 2014),
  * so a pit or a flat fills to its spill and drains out over it, outward from
  * it, and water runs downhill everywhere on the levels. Those levels are the
- * one solution of that rule, so however they're found they come out the
- * same to the bit.
+ * one solution of that rule as long as a flood rise still raises a level,
+ * x + FLOOD_RISE > x, which holds for heights within 2^30, about a billion,
+ * of zero. So however they're found they come out the same to the bit, up
+ * to the sign of a zero.
  *
  * Routing finds them in time linear in the grid where the land drains
  * freely, after Braun and Willett (2013), and floods only where water
  * stands:
  *
  * - Local receivers: one scan in index order finds each cell's steepest
- *   fall on the heights. A cell with no neighbour a flood rise below it is
- *   a root, a pit unless it's an outlet.
+ *   fall on the heights. A cell whose steepest fall is less than a flood
+ *   rise is a root, a pit unless it's an outlet.
  * - Basins: each cell's root, found by walking its local receivers. The
  *   outlets' basins are one, the ocean, and every cell in it stands at its
  *   height, since each falls a flood rise or more to a cell that does.
@@ -35,7 +37,9 @@
  *   could have lowered it, and the cells round the flood keep their heights
  *   only if no level beside them now raises one. Only a lake too wide for
  *   the band fails, and then the flood runs again over the pits' whole
- *   basins, which hold all the water there is, leaving nothing out.
+ *   basins, which hold all the water there is, leaving nothing out. The
+ *   check, not the spills, is what makes the levels exact: a spill found
+ *   wrong only costs that second flood.
  * - Receivers: the local ones, except in and beside the flood, where it's
  *   the steepest fall on the levels. A cell standing at its height whose
  *   local receiver does too drains to that same neighbour on the levels.
@@ -122,7 +126,7 @@ export class DrainageRouter {
 	private readonly basin: Int32Array;
 	/** A chain of receivers being walked. */
 	private readonly chain: Int32Array;
-	/** CANDIDATE, BESIDE, and SETTLED while routing; all clear between calls. */
+	/** CANDIDATE, BESIDE, SETTLED, and BESIDE_UNKNOWN while flooding, then which cells are listed; cleared as each routing starts. */
 	private readonly mark: Uint8Array;
 	private readonly candidates: Int32Array;
 	private readonly beside: Int32Array;
@@ -187,8 +191,11 @@ export class DrainageRouter {
 			const outlet = outlets[index];
 			if (!(outlet >= 0 && outlet < cells && Number.isInteger(outlet))) throw new RangeError(`DrainageRouter: outlet ${outlet} is not a cell`);
 			if (basin[outlet] === OCEAN) throw new RangeError(`DrainageRouter: outlet ${outlet} is listed twice`);
+			if (!(elevation[outlet] === elevation[outlet])) throw new RangeError(`DrainageRouter: outlet ${outlet}'s height, ${elevation[outlet]}, isn't a number`);
 			basin[outlet] = OCEAN;
 		}
+		// A routing that threw partway may have left marks.
+		this.mark.fill(0);
 		this.levels.set(elevation);
 		this.scanLocal(elevation);
 		// An outlet drains nowhere, though a neighbour may lie below it.
@@ -213,7 +220,11 @@ export class DrainageRouter {
 		accumulateInto({ area: this.area, receivers: this.receivers, levels: this.levels, order: this.order, rain, caller: 'DrainageRouter.accumulate' });
 	}
 
-	/** Local receivers, by one scan in index order; the pits go in `queue`. Outlets are the caller's to set. */
+	/**
+	 * Local receivers, by one scan in index order. A cell whose steepest fall
+	 * on the heights is less than a flood rise is a pit, and goes in `queue`.
+	 * Outlets are the caller's to set.
+	 */
 	private scanLocal(elevation: ArrayLike<number>): void {
 		const { size, local, basin, queue } = this;
 		const last = size - 1;
@@ -314,6 +325,14 @@ export class DrainageRouter {
 	 * Each pit's spill: over every way from it to the ocean, the lowest of
 	 * the highest pass on the way. A widest-path Dijkstra from the ocean, over
 	 * the basins' passes listed by basin.
+	 *
+	 * Spills only choose which cells the flood covers. The levels' exactness
+	 * comes from the check after it, never from them: a spill too low leaves
+	 * water out, which the check catches, and a spill too high floods more
+	 * cells than it needs to; either way it costs time, not bits. The check
+	 * in turn rests on the levels being the flood rule's one solution, which
+	 * holds while x + FLOOD_RISE > x, for heights within about a billion of
+	 * zero.
 	 */
 	private findSpills(): void {
 		const { passLow, passHigh, passHeight, passCount, passStart, spill, done } = this;
@@ -581,7 +600,7 @@ export class DrainageRouter {
 	/** Downstream first: each cell's chain of receivers walked down to a cell already listed, then listed bottom up. */
 	private writeOrder(): void {
 		const { receivers, chain, order } = this;
-		// mark is clear between calls; here it marks the cells listed.
+		// The flood's marks are cleared by now; here they mark the cells listed.
 		const listed = this.mark;
 		const cells = this.size * this.size;
 		let count = 0;
@@ -602,7 +621,6 @@ export class DrainageRouter {
 				count += 1;
 			}
 		}
-		listed.fill(0);
 	}
 
 	private push(heapSize: number, cell: number, key: number): number {

@@ -265,7 +265,8 @@ describe('routeDrainage', () => {
 		expect(() => routeDrainage({ size: 3, elevation: flat, outlets: [0], router: new DrainageRouter({ size: 4 }) })).toThrow(RangeError);
 		// An outlet's height that isn't a number leaves every level unknown and no cell anywhere to drain: a mistake to report, not a drainage to return.
 		const broken = Float64Array.from([NaN, 1, 2, 1, 2, 3, 2, 3, 4]);
-		expect(() => routeDrainage({ size: 3, elevation: broken, outlets: [0] })).toThrow(/isn't a number/);
+		expect(() => routeDrainage({ size: 3, elevation: broken, outlets: [0] })).toThrow(/outlet 0's height, NaN, isn't a number/);
+		expect(() => routeDrainage({ size: 3, elevation: broken, outlets: [0] })).toThrow(RangeError);
 	});
 });
 
@@ -376,6 +377,23 @@ describe('DrainageRouter', () => {
 		router.route(second, [0, 99]);
 		router.accumulate();
 		const fresh = routeDrainage({ size: 10, elevation: second, outlets: [0, 99] });
+		expect(Array.from(router.receivers)).toEqual(Array.from(fresh.receivers));
+		expect(Array.from(router.levels)).toEqual(Array.from(fresh.levels));
+		expect(Array.from(router.order)).toEqual(Array.from(fresh.order));
+		expect(Array.from(router.area)).toEqual(Array.from(fresh.area));
+	});
+
+	it('routes the same after a routing that threw partway as a fresh router does', () => {
+		// A cell walled in by infinite heights never gets a level, so it has no
+		// receiver, which the router finds only after it has flooded.
+		const walled = heights(10, (column, row) => (Math.max(Math.abs(column - 5), Math.abs(row - 5)) === 1 ? Infinity : column + row));
+		const router = new DrainageRouter({ size: 10 });
+		expect(() => router.route(walled, [0])).toThrow(/no neighbour below it/);
+		const rng = new Rng({ seed: 11 });
+		const land = heights(10, () => Math.floor(5 * rng.float()) / 5);
+		router.route(land, [0, 99]);
+		router.accumulate();
+		const fresh = routeDrainage({ size: 10, elevation: land, outlets: [0, 99] });
 		expect(Array.from(router.receivers)).toEqual(Array.from(fresh.receivers));
 		expect(Array.from(router.levels)).toEqual(Array.from(fresh.levels));
 		expect(Array.from(router.order)).toEqual(Array.from(fresh.order));
