@@ -2146,7 +2146,7 @@ export class Battle extends Model<BattleData> {
 	 * Get the vehicle that a driver is in
 	 */
 	public getVehicleForDriver(driver: Driver): Vehicle | null {
-		return this.getAllVehicles().find(v => v.driver === driver || v.passenger === driver) || null;
+		return this.getAllVehicles().find(vehicle => vehicle.carries(driver)) ?? null;
 	}
 
 	/**

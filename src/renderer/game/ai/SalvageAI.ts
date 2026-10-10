@@ -1,4 +1,4 @@
-import { AIPlayer, carriesDriver } from './AIPlayer';
+import { AIPlayer } from './AIPlayer';
 import { AIDecision, AIStrategy, GameStateEvaluation } from './types';
 import { Battle } from '../mechanics/Battle';
 import { Driver } from '../mechanics/Driver';
@@ -158,7 +158,7 @@ export class SalvageAIStrategy implements AIStrategy {
 			if (action.driver) {
 				// Find our vehicle
 				for (const vehicleEval of ourTeam.vehicles) {
-					if (carriesDriver(vehicleEval.vehicle, action.driver)) {
+					if (vehicleEval.vehicle.carries(action.driver)) {
 						const vehicle = vehicleEval.vehicle;
 						// Check if structure is below max
 						if (vehicle.structure < vehicle.maxStructure) {
@@ -309,7 +309,7 @@ export class SalvageAIStrategy implements AIStrategy {
 		
 		// Find the driver's vehicle in the game state
 		for (const vehicleEval of ourVehicles) {
-			if (carriesDriver(vehicleEval.vehicle, driver)) {
+			if (vehicleEval.vehicle.carries(driver)) {
 				return vehicleEval.isFlanking;
 			}
 		}

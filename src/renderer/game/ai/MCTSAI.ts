@@ -1,4 +1,4 @@
-import { AIPlayer, carriesDriver } from './AIPlayer';
+import { AIPlayer } from './AIPlayer';
 import { AIDecision, GameStateEvaluation } from './types';
 import { Battle } from '../mechanics/Battle';
 import { Team } from '../mechanics/Team';
@@ -287,7 +287,7 @@ export class MCTSAI extends AIPlayer {
 	 * The vehicle a driver plays from: the one they drive, or ride in as a passenger
 	 */
 	private findVehicleForDriver(driver: Driver): Vehicle | null {
-		return [...this.team.vehicles, ...this.getEnemyTeam().vehicles].find(vehicle => carriesDriver(vehicle, driver)) ?? null;
+		return [...this.team.vehicles, ...this.getEnemyTeam().vehicles].find(vehicle => vehicle.carries(driver)) ?? null;
 	}
 	
 	/**

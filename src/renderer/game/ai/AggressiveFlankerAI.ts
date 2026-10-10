@@ -1,9 +1,10 @@
-import { AIPlayer, carriesDriver } from './AIPlayer';
+import { AIPlayer } from './AIPlayer';
 import { AIDecision, AIStrategy, GameStateEvaluation, VehicleEvaluation } from './types';
 import { Team } from '../mechanics/Team';
 import { Battle } from '../mechanics/Battle';
 import { Vehicle } from '../mechanics/Vehicle';
 import { Card } from '../mechanics/Card';
+import type { Driver } from '../mechanics/Driver';
 import { CardEffectValidator } from './CardEffectValidator';
 import { cardDamageKind, damageToFinish, lastingDamage } from './DamageEstimate';
 import { selfSpeedBonus } from '../mechanics/BoardProjection';
@@ -219,30 +220,14 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		return Math.floor(damage);
 	}
 
-	private getVehicleForDriver(
-		driver: unknown, 
-		gameState: GameStateEvaluation
-	): VehicleEvaluation | null {
-		// Check enemy team vehicles
-		for (const vehicleEval of gameState.enemyTeam.vehicles) {
-			if (carriesDriver(vehicleEval.vehicle, driver)) {
-				return vehicleEval;
-			}
-		}
-		return null;
+	/** The vehicle a driver plays from, on either team, since this AI can play either side */
+	private getVehicleForDriver(driver: Driver, gameState: GameStateEvaluation): VehicleEvaluation | null {
+		return [...gameState.playerTeam.vehicles, ...gameState.enemyTeam.vehicles].find(vehicleEval => vehicleEval.vehicle.carries(driver)) ?? null;
 	}
 
-	private getVehicleEvaluation(
-		vehicle: Vehicle, 
-		gameState: GameStateEvaluation
-	): VehicleEvaluation | null {
-		// Check player team vehicles
-		for (const vehicleEval of gameState.playerTeam.vehicles) {
-			if (vehicleEval.vehicle === vehicle) {
-				return vehicleEval;
-			}
-		}
-		return null;
+	/** A vehicle's evaluation, on either team */
+	private getVehicleEvaluation(vehicle: Vehicle, gameState: GameStateEvaluation): VehicleEvaluation | null {
+		return [...gameState.playerTeam.vehicles, ...gameState.enemyTeam.vehicles].find(vehicleEval => vehicleEval.vehicle === vehicle) ?? null;
 	}
 }
 

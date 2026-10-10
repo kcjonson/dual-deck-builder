@@ -1,9 +1,10 @@
-import { AIPlayer, carriesDriver } from './AIPlayer';
+import { AIPlayer } from './AIPlayer';
 import { AIDecision, AIStrategy, GameStateEvaluation, VehicleEvaluation } from './types';
 import { Team } from '../mechanics/Team';
 import { Battle } from '../mechanics/Battle';
 import { Vehicle } from '../mechanics/Vehicle';
 import { Card } from '../mechanics/Card';
+import type { Driver } from '../mechanics/Driver';
 import { CardEffectValidator } from './CardEffectValidator';
 import { cardDamageKind, damageToFinish, lastingDamage } from './DamageEstimate';
 import { cardsKeptFromDraw } from './DrawEstimate';
@@ -345,17 +346,17 @@ export class RammingStrategy implements AIStrategy {
 	}
 
 	private getVehicleForDriver(
-		driver: unknown, 
+		driver: Driver,
 		gameState: GameStateEvaluation
 	): VehicleEvaluation | null {
 		// Check both teams - AI can control either team
 		for (const vehicleEval of gameState.playerTeam.vehicles) {
-			if (carriesDriver(vehicleEval.vehicle, driver)) {
+			if (vehicleEval.vehicle.carries(driver)) {
 				return vehicleEval;
 			}
 		}
 		for (const vehicleEval of gameState.enemyTeam.vehicles) {
-			if (carriesDriver(vehicleEval.vehicle, driver)) {
+			if (vehicleEval.vehicle.carries(driver)) {
 				return vehicleEval;
 			}
 		}

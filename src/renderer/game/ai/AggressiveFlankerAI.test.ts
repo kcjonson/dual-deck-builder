@@ -92,6 +92,22 @@ describe('AggressiveFlankerAI', () => {
 		ai = new AggressiveFlankerAI(enemyTeam, battle);
 	});
 
+	test('scores a play for the player\'s side from the caster\'s own vehicle, so the best play wins, not the first offered', async () => {
+		battle.start();
+		const playerAI = new AggressiveFlankerAI(playerTeam, battle);
+		const [driver, partner] = playerTeam.vehicles.map(driverOf);
+		partner.hand = [];
+		// Armor Plating comes first and does nothing at full armor; Power Shot hits
+		driver.hand = [realCard('armor_plating'), powerShot()];
+		driver.adrenaline = 5;
+
+		const score = new ScoringAggressiveAI(playerTeam, battle).score({ type: 'playCard', card: driver.hand[1], driver, target: enemyTeam.vehicles[1] });
+		const decision = await playerAI.makeDecision();
+
+		expect(score).toBeGreaterThan(0);
+		expect(decision?.card?.name).toBe('Power Shot');
+	});
+
 	test('should prioritize moving to flanking position', async () => {
 		// Start battle to setup hands
 		battle.start();

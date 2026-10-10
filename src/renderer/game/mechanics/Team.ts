@@ -171,7 +171,7 @@ export class Team extends Model<TeamData> {
 	 * after their wreck.
 	 */
 	public isAboard(driver: Driver): boolean {
-		return this.vehicles.some(vehicle => vehicle.driver === driver || vehicle.passenger === driver);
+		return this.vehicles.some(vehicle => vehicle.carries(driver));
 	}
 
 	/**

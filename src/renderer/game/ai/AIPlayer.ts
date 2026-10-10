@@ -7,11 +7,6 @@ import { BoardProjection } from '../mechanics/BoardProjection';
 import { preferredTargets } from '../mechanics/RaiderArchetype';
 import { AIDecision, GameStateEvaluation, TeamEvaluation, VehicleEvaluation } from './types';
 
-/** Whether a vehicle carries this driver, at the wheel or as a passenger: the vehicle they play from */
-export function carriesDriver(vehicle: Vehicle, driver: unknown): boolean {
-	return vehicle.driver === driver || vehicle.passenger === driver;
-}
-
 export abstract class AIPlayer {
 	protected team: Team;
 	protected battle: Battle;
