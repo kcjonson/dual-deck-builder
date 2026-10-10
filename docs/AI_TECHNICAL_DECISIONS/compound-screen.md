@@ -30,7 +30,7 @@ Boxed lines, as the wireframe draws them: a forecast for food and for water from
 
 ### The fallen compound
 
-When `endDay` reports `abandoned` (People reached 0) and the day has been saved, a small modal notice opens (R12.21): "The compound has fallen", one Back to menu button, and whatever closes it (the button, Escape) goes to the menu. A save at 0 People opens it as the screen shows the campaign. If the save fails that night, there's no notice: the save still holds the day before, the failure shows under Rest, and Rest tries the save again without ending another day. The notice's kicker is the empty compound's dawn, "Day 10 / dawn" after the report's "Day 9 ended." It's one method, `compoundFell`, so the defeat screen (DDB-305) replaces its body with a navigate. It doesn't end the campaign in the store; that's DDB-305's, with the ending the spec picks by the compound's state.
+When a Rest's night leaves no People, the day end ends the campaign (`campaign.isOver`), and the checkpoint after it ends it in the store, writing its history line and removing the save ([campaign-end.md](./campaign-end.md)). Once that lands, a small modal notice opens (R12.21): "The compound has fallen", one Back to menu button, and whatever closes it (the button, Escape) goes to the menu. A save holding a campaign already over (another tab's, or a hand-made one) is checkpointed as the screen shows it, which ends it the same way, then the notice opens. If the checkpoint fails, there's no notice: the failure shows under Rest, Rest's own line says it saves the end again, and Rest tries the checkpoint again without ending another day. After a Rest, the save still holds the day before until that checkpoint lands; a save already over stays as it was. The notice's kicker is the campaign's day, which stops on the day the compound fell, so "Day 9 / dawn" after the report's "Day 9 ended." A night at 0 People with a run out ends nothing, since the end waits for the run, so no notice opens. It's one method, `compoundFell`, so the defeat screen (DDB-305) replaces its body with a navigate.
 
 ### Focus and keys
 
@@ -49,11 +49,10 @@ Each is the simplest option where the spec leaves a choice open, and a line or t
 - The compound is "The Compound": campaigns have no names.
 - The wireframe's driver pool list, its escorts and losses lines, and the gate tile are left out. The needs panel lists the injured; the roster is the bunkhouse's Crew screen (DDB-314), and the convoy is load out's and the garage's.
 - Each Rest reports the night under it. Nothing else shows the log.
-- The fallen notice leaves the save in place at 0 People, so Continue reopens it, straight to the notice, until DDB-305 ends the campaign.
 
 ## Consequences
 
 - Each building screen that lands gives its `BUILDINGS` entry a `screen` and drops its reason; the Area map button and Plan a supply run follow the area map, load out, and the run route. With a building live, focus could start on the buildings instead of Back.
 - The needs panel takes rumors when the radio mast has them (DDB-337). The infirmary's meds line ("out of meds, a driver can't heal") comes with the infirmary screen, from `getTreatmentBlocker`'s `too_few_meds` ([injuries.md](./injuries.md)).
-- DDB-305 replaces `compoundFell` with the defeat screen and ends the campaign in the store.
+- DDB-305 replaces `compoundFell` with the defeat screen.
 - The scavenging party (DDB-303) is a second day-ending action beside Rest, with the same end-then-checkpoint shape.

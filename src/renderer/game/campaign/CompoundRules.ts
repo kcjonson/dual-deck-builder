@@ -19,9 +19,9 @@ export interface AmountRange {
 
 /**
  * The compound's standing rules (Compound and Supply Runs, Hours on the
- * road, days at home; Buildings, the infirmary; Never stuck), kept in
- * `data/compound-rules.json` so they tune without a code change. Every value
- * is a starting point for tuning.
+ * road, days at home; Buildings, the infirmary; Never stuck; The driver
+ * pool), kept in `data/compound-rules.json` so they tune without a code
+ * change. Every value is a starting point for tuning.
  */
 export interface CompoundRules {
 	readonly upkeep: {
@@ -45,6 +45,17 @@ export interface CompoundRules {
 	};
 	/** What a scavenging party on foot brings back, each amount rolled from its range. */
 	readonly scavenging: Readonly<Record<ScavengedResource, AmountRange>>;
+	/**
+	 * How a compound that has lost its campaign falls (Compound and Supply
+	 * Runs, The driver pool), read off its stores and unrest in this order:
+	 * it starves, then riots, and otherwise disbands (`fallOf`).
+	 */
+	readonly fall: {
+		/** Food in the stores at or below which it starves. */
+		readonly starveAtFood: number;
+		/** Unrest at or above which it riots over what's left. */
+		readonly riotAtUnrest: number;
+	};
 }
 
 /** Ceilings far past any tuning, so a slip in the file fails as it loads instead of overflowing a day's sums. */
@@ -52,6 +63,7 @@ const MAX_PEOPLE_PER_UNIT = 100;
 const MAX_SHORTFALL_COST = 100;
 const MAX_HITPOINTS_PER_DAY = 100;
 const MAX_MEDS_PER_DAY = 100;
+const MAX_FALL_THRESHOLD = 1000;
 
 /**
  * What a party's haul can be tuned to. Fuel never goes below 1, so every
@@ -68,13 +80,13 @@ export function upkeepRecord<Value>(valueOf: (resource: UpkeepResource) => Value
 /**
  * Rules checked: exactly these fields, a whole number of people from 1 to
  * 100 that each unit feeds, whole-number shortfall costs from 0 to 100, an
- * infirmary day worth 1 to 100 HP and costing 1 to 100 meds, and a
- * scavenging haul of 1 to 100 fuel and 0 to 1,000 scrap, each range's min
- * no more than its max. Errors name the path, as a save's do. Comes back
- * frozen.
+ * infirmary day worth 1 to 100 HP and costing 1 to 100 meds, a scavenging
+ * haul of 1 to 100 fuel and 0 to 1,000 scrap, each range's min no more than
+ * its max, and a fall that starves at 0 to 1,000 food and riots at 1 to
+ * 1,000 unrest. Errors name the path, as a save's do. Comes back frozen.
  */
 export function readCompoundRules(value: unknown, path: string): CompoundRules {
-	const fields = readFields(value, path, ['upkeep', 'shortfall', 'infirmary', 'scavenging']);
+	const fields = readFields(value, path, ['upkeep', 'shortfall', 'infirmary', 'scavenging', 'fall']);
 	const upkeep = readFields(fields.upkeep, `${path}.upkeep`, ['peoplePerUnit']);
 	const perUnit = readFields(upkeep.peoplePerUnit, `${path}.upkeep.peoplePerUnit`, UPKEEP_RESOURCES);
 	const shortfall = readFields(fields.shortfall, `${path}.shortfall`, ['peopleLostPerUnit', 'unrestPerUnit']);
@@ -82,6 +94,7 @@ export function readCompoundRules(value: unknown, path: string): CompoundRules {
 		readInteger(shortfall[name], `${path}.shortfall.${name}`, { min: 0, max: MAX_SHORTFALL_COST });
 	const infirmary = readFields(fields.infirmary, `${path}.infirmary`, ['hitpointsPerDay', 'medsPerDay']);
 	const scavenging = readFields(fields.scavenging, `${path}.scavenging`, SCAVENGED_RESOURCES);
+	const fall = readFields(fields.fall, `${path}.fall`, ['starveAtFood', 'riotAtUnrest']);
 	return Object.freeze({
 		upkeep: Object.freeze({
 			peoplePerUnit: upkeepRecord(resource =>
@@ -98,6 +111,10 @@ export function readCompoundRules(value: unknown, path: string): CompoundRules {
 		scavenging: Object.freeze({
 			fuel: readRange(scavenging.fuel, `${path}.scavenging.fuel`, SCAVENGING_LIMITS.fuel),
 			scrap: readRange(scavenging.scrap, `${path}.scavenging.scrap`, SCAVENGING_LIMITS.scrap)
+		}),
+		fall: Object.freeze({
+			starveAtFood: readInteger(fall.starveAtFood, `${path}.fall.starveAtFood`, { min: 0, max: MAX_FALL_THRESHOLD }),
+			riotAtUnrest: readInteger(fall.riotAtUnrest, `${path}.fall.riotAtUnrest`, { min: 1, max: MAX_FALL_THRESHOLD })
 		})
 	});
 }

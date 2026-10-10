@@ -1,6 +1,7 @@
 import { readInteger, readSeed } from '../core/JsonReader';
 import { Rng } from '../core/Rng';
 import type { Campaign } from './Campaign';
+import { CampaignEnd, refuseOverBlocker } from './CampaignEnd';
 import { COMPOUND_RULES, CompoundRules, SCAVENGED_RESOURCES, ScavengedResource, readCompoundRules } from './CompoundRules';
 import { DAY_END_HOOKS, DayEnd, DayEndHooks, endDay } from './DayClock';
 
@@ -24,10 +25,15 @@ export interface Scavenge {
 }
 
 /**
- * Why no party can go out: People is 0, so nobody's left to send and the
- * compound has fallen, or a run is out, whose return ends the day.
+ * Why no party can go out: the campaign is over (its `end` says how, and a
+ * campaign lost with its last driver still has People), People is 0, so
+ * nobody's left to send and the compound has fallen, or a run is out, whose
+ * return ends the day.
  */
-export type ScavengeBlocker = { reason: 'abandoned' } | { reason: 'run_out'; run: string };
+export type ScavengeBlocker =
+	| { reason: 'campaign_over'; end: Readonly<CampaignEnd> }
+	| { reason: 'abandoned' }
+	| { reason: 'run_out'; run: string };
 
 /** A party the compound can't send, carrying the blocker its check gives. */
 export class ScavengeRuleError extends RangeError {
@@ -50,13 +56,15 @@ export interface ScavengeOptions {
 
 /**
  * Why the compound can't send a party out, or null if `scavenge` would, in
- * this order: an empty compound, which has already fallen, or a run out,
+ * this order: the campaign is over, an empty compound, which has already
+ * fallen, or a run out,
  * since the day it's out ends when it gets home. It takes settlers, not
  * drivers, so injured, missing, or dead drivers don't stop it. The check is
  * here rather than in `endDay`, since holing up at a POI will end a day
  * with a run out.
  */
 export function getScavengeBlocker({ campaign }: { campaign: Campaign }): ScavengeBlocker | null {
+	if (campaign.end !== null) return { reason: 'campaign_over', end: campaign.end };
 	if (campaign.resources.people === 0) return { reason: 'abandoned' };
 	const run = campaign.currentRun;
 	return run === null ? null : { reason: 'run_out', run };
@@ -82,11 +90,13 @@ export function rollScavengeHaul({ seed, day, rules = COMPOUND_RULES }: { seed: 
  * back and the night after. The haul comes home at dusk, before the
  * compound eats, and goes into the stores in `endDay`'s own `set`, with a
  * line in the log, so a day end that throws stores neither. Throws a
- * `ScavengeRuleError`, changing nothing, when `getScavengeBlocker` refuses.
+ * `ScavengeRuleError`, changing nothing, when `getScavengeBlocker` refuses,
+ * and a `CampaignOverError` when it refuses because the campaign is over.
  * Saving is the caller's checkpoint after it, as with Rest.
  */
 export function scavenge({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS }: ScavengeOptions): Scavenge {
 	const blocker = getScavengeBlocker({ campaign });
+	refuseOverBlocker({ blocker, action: 'send a scavenging party' });
 	if (blocker !== null) throw new ScavengeRuleError({ message: blockerMessage(blocker), blocker });
 	const haul = rollScavengeHaul({ seed: campaign.seed, day: campaign.day, rules });
 	const dayEnd = endDay({ campaign, rules, hooks, haul: { resources: haul, message: scavengeMessage(haul) } });
@@ -102,6 +112,8 @@ export function scavengeMessage(haul: ScavengeHaul): string {
 /** What a refused party throws, worded for the console; the compound screen words its own from the blocker. */
 function blockerMessage(blocker: ScavengeBlocker): string {
 	switch (blocker.reason) {
+		case 'campaign_over':
+			return `The campaign is over, since the compound ${blocker.end.ending}, so no scavenging party goes`;
 		case 'abandoned':
 			return 'Nobody is left at the compound to send out scavenging';
 		case 'run_out':

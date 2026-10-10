@@ -16,6 +16,8 @@ export function awayText(status: DriverStatus): string {
  */
 export function cardBlockerReason(blocker: CardBlocker): string {
 	switch (blocker.reason) {
+		case 'campaign_over':
+			return 'Campaign over';
 		case 'driver_away':
 			return awayText(blocker.place.status);
 		case 'on_run':

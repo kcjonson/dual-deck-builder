@@ -22,7 +22,7 @@ When it lands against upkeep:
 Who has to be there:
 
 - A ready driver. The spec sends the party on foot, which reads as settlers, and an injured pool would have to wait out the infirmary before it could get fuel.
-- At least one person (chosen). People 0 is the fallen compound, so this is available in every state where the compound still stands, which is what the guarantee needs. The last driver's death ends the campaign too (Compound and Supply Runs, The driver pool); that check is DDB-305's, with the rest of the campaign's end, so the party doesn't repeat it.
+- At least one person (chosen). People 0 is the fallen compound, so this is available in every state where the compound still stands, which is what the guarantee needs. The last driver's death ends the campaign too (Compound and Supply Runs, The driver pool), with People left; the campaign's end names that first (below, and [campaign-end.md](./campaign-end.md)), so the party doesn't repeat the check.
 
 While a run is out:
 
@@ -34,7 +34,7 @@ The stream is `new Rng({ seed }).fork('scavenge', day)`, off the campaign's root
 ## Decision
 
 - `scavenge({ campaign, rules?, hooks? })` checks `getScavengeBlocker`, rolls the haul from the day's stream, and calls `endDay` with it and the line "A scavenging party brought back 2 fuel and 15 scrap." It returns the haul and the `DayEnd`, frozen. Saving is the caller's checkpoint after it, as with Rest.
-- `getScavengeBlocker` refuses People 0 as `{ reason: 'abandoned' }`, and then a run out as `{ reason: 'run_out', run }`, naming `campaign.currentRun`. `scavenge` throws either as a `ScavengeRuleError`, changing nothing.
+- `getScavengeBlocker` refuses a campaign that's over as `{ reason: 'campaign_over', end }`, then People 0 as `{ reason: 'abandoned' }`, and then a run out as `{ reason: 'run_out', run }`, naming `campaign.currentRun`. `scavenge` throws the first as a `CampaignOverError` and the others as a `ScavengeRuleError`, changing nothing. A night that empties the compound ends the campaign ([campaign-end.md](./campaign-end.md)), so `abandoned` is left for a campaign that stands at 0 People, which only a test builds.
 - `rollScavengeHaul({ seed, day, rules? })` is pure, so the screen or a test can ask what a day would bring.
 - `endDay` refuses while the campaign is storing (`Campaign.isStoring`), as it is partway through a card move or a run's start or end. A record's listener calling it then would have the healed records stored and the campaign's `set` refused: half a night, for Rest as well as a party.
 - `endDay`'s `haul` adds to the stores at dusk. Each amount has to be a whole number from 0, for a resource the campaign keeps, and no sum can pass a safe integer; all of that is checked before anyone heals. Its log line is dated the day that ended, ahead of any shortfall line, since the party was home before the compound ate.

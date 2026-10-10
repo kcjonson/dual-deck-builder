@@ -22,5 +22,9 @@
 			"min": 5,
 			"max": 15
 		}
+	},
+	"fall": {
+		"starveAtFood": 0,
+		"riotAtUnrest": 10
 	}
 }

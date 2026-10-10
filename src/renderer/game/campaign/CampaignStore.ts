@@ -146,6 +146,11 @@ interface Waiting {
  * persisted through a `SaveStorage`: local storage in both builds, a map in
  * tests. One active save, and a history list kept apart from it.
  *
+ * A campaign that's over (`Campaign.end`) is never written as the save: a
+ * save or checkpoint of one ends it in the store instead, as `end` does, so
+ * the step that lost the campaign puts its line in the history and removes
+ * its save.
+ *
  * Saves are per build. Every key carries the build's namespace, and every
  * save and history list carries the save format version
  * (`CAMPAIGN_SCHEMA_VERSION`). A save stamped with another version, an
@@ -276,7 +281,8 @@ export class CampaignStore extends EventEmitter {
 	 * before is a new campaign, which replaces the save. Rejects with a
 	 * `CampaignStoreError`, keeping the save before, when storage fails or the
 	 * campaign is retired or can't be written. Founding (DDB-284) saves the
-	 * new campaign with this; later saves go through `checkpoint`.
+	 * new campaign with this; later saves go through `checkpoint`. A campaign
+	 * that's over is ended instead, as `end` ends it.
 	 */
 	public save(campaign: Campaign): Promise<void> {
 		const snapshot = new Snapshot({ campaign });
@@ -290,6 +296,10 @@ export class CampaignStore extends EventEmitter {
 	 * between ends the sharing. Never rejects: resolves true once saved, or
 	 * false. A failure goes to `onSaveFailed` listeners (logged when none
 	 * listen), except for a retired campaign, which the game has moved on from.
+	 * A campaign that's over is ended instead, as `end` ends it, so the
+	 * checkpoint after the step that lost it writes its history line, once:
+	 * it resolves true when the end is recorded and the save removed, and
+	 * every checkpoint of it after that resolves false.
 	 */
 	public checkpoint(campaign: Campaign): Promise<boolean> {
 		const joining = this.waiting;
@@ -348,47 +358,22 @@ export class CampaignStore extends EventEmitter {
 	 * The campaign is over: its line goes into the history, as it stood when
 	 * this was called, and it can't be saved again. If it's the save's
 	 * campaign (whichever instance of it), the save goes too; one the store
-	 * never loaded or saved leaves the save alone. Rejects with 'retired',
-	 * recording nothing, for a campaign that has already ended or been
-	 * deleted or replaced, except to finish removing a save an earlier end
-	 * couldn't. An entry equal to the newest isn't added twice. Resolves to
-	 * the entry.
+	 * never loaded or saved leaves the save alone. A campaign that's over
+	 * (`Campaign.end`) goes in with its own ending, whatever `ending` says;
+	 * one still going needs `ending`, abandoned or won. Rejects with
+	 * 'retired', recording nothing, for a campaign that has already ended or
+	 * been deleted or replaced, except to finish removing a save an earlier
+	 * end couldn't. An entry equal to the newest isn't added twice. Resolves
+	 * to the entry.
 	 */
-	public end({ campaign, ending }: { campaign: Campaign; ending: CampaignEnding }): Promise<CampaignHistoryEntry> {
+	public end({ campaign, ending }: { campaign: Campaign; ending?: CampaignEnding }): Promise<CampaignHistoryEntry> {
 		let entry: CampaignHistoryEntry;
 		try {
 			entry = historyEntry({ campaign, ending });
 		} catch (error) {
-			return Promise.reject(new CampaignStoreError({ reason: 'unsavable', message: `${ENDING}: ${describeValue(ending)} isn't a way a campaign ends.`, cause: error }));
+			return Promise.reject(new CampaignStoreError({ reason: 'unsavable', message: `${ENDING}: a campaign still standing is won or abandoned, not ${describeValue(ending)}.`, cause: error }));
 		}
-		return this.enqueue(async () => {
-			const warnings: string[] = [];
-			try {
-				const lineage = this.lineages.get(campaign);
-				if (lineage !== undefined && lineage === this.owed) {
-					// Its save's removal failed part way: finish it, and answer with what the end that retired it recorded.
-					await this.settleOwed(ENDING);
-					if (lineage.ended !== undefined) return lineage.ended;
-				}
-				this.refuseRetired(campaign, ENDING);
-				if (lineage === undefined) {
-					await this.record({ entry, warnings });
-					this.lineages.set(campaign, { retired: 'it has ended', ended: entry });
-					return entry;
-				}
-				const survey = await this.survey(ENDING);
-				for (const slot of this.slotsToKeep(survey)) await this.protect({ slot, text: survey.texts[slot], action: ENDING });
-				await this.record({ entry, warnings });
-				const ended = this.retire('it has ended');
-				ended.ended = entry;
-				this.owed = ended;
-				await this.remove({ survey, action: ENDING });
-				this.owed = null;
-				return entry;
-			} finally {
-				deliver(warnings, this.onWarning);
-			}
-		});
+		return this.enqueue(() => this.close({ campaign, entry }));
 	}
 
 	/**
@@ -429,8 +414,49 @@ export class CampaignStore extends EventEmitter {
 		return { pointer, texts, save, named: false };
 	}
 
-	/** The snapshot into the slot that isn't the save's, then `active` switched to it. */
+	/**
+	 * Ends the campaign in the store: its history line, then its save
+	 * removed, as `end` describes.
+	 */
+	private async close({ campaign, entry }: { campaign: Campaign; entry: CampaignHistoryEntry }): Promise<CampaignHistoryEntry> {
+		const warnings: string[] = [];
+		try {
+			const lineage = this.lineages.get(campaign);
+			if (lineage !== undefined && lineage === this.owed) {
+				// Its save's removal failed part way: finish it, and answer with what the end that retired it recorded.
+				await this.settleOwed(ENDING);
+				if (lineage.ended !== undefined) return lineage.ended;
+			}
+			this.refuseRetired(campaign, ENDING);
+			if (lineage === undefined) {
+				await this.record({ entry, warnings });
+				this.lineages.set(campaign, { retired: 'it has ended', ended: entry });
+				return entry;
+			}
+			const survey = await this.survey(ENDING);
+			for (const slot of this.slotsToKeep(survey)) await this.protect({ slot, text: survey.texts[slot], action: ENDING });
+			await this.record({ entry, warnings });
+			const ended = this.retire('it has ended');
+			ended.ended = entry;
+			this.owed = ended;
+			await this.remove({ survey, action: ENDING });
+			this.owed = null;
+			return entry;
+		} finally {
+			deliver(warnings, this.onWarning);
+		}
+	}
+
+	/**
+	 * The snapshot into the slot that isn't the save's, then `active`
+	 * switched to it; or, for a campaign that's over, its end. A campaign
+	 * that's over can't change, so it's read as it is when its turn comes.
+	 */
 	private async write({ campaign, snapshot }: { campaign: Campaign; snapshot: Snapshot }): Promise<void> {
+		if (campaign.isOver) {
+			await this.close({ campaign, entry: historyEntry({ campaign }) });
+			return;
+		}
 		this.refuseRetired(campaign, SAVING);
 		const body = snapshot.take();
 		const survey = await this.survey(SAVING);

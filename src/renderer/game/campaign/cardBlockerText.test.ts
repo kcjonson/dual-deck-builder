@@ -10,6 +10,7 @@ describe('cardBlockerReason', () => {
 
 	it('words every reason the rules give in a few words, naming nobody', () => {
 		const reasons: [CardBlocker, string][] = [
+			[{ reason: 'campaign_over', end: { ending: 'starved', cause: 'no_people' } }, 'Campaign over'],
 			[{ reason: 'driver_away', place: dead }, 'Killed on a run'],
 			[{ reason: 'on_run', place: driver }, 'Out on a run'],
 			[{ reason: 'too_few', place: 'locker', held: 0 }, 'None left'],

@@ -333,7 +333,7 @@ describe('CampaignStore', () => {
 			const store = storeOver(storage, { onWarning });
 
 			expect(await store.history()).toEqual([]);
-			await store.end({ campaign: newCampaign(2), ending: 'rioted' });
+			await store.end({ campaign: newCampaign(2), ending: 'abandoned' });
 
 			expect((await store.history()).map(entry => entry.seed)).toEqual([2]);
 			expect(await storage.getItem(KEYS.historyRecovery)).toBeNull();
@@ -646,9 +646,9 @@ describe('CampaignStore', () => {
 			await store.save(campaign);
 			const loaded = await store.load() as Campaign;
 
-			expect((await failure(store.end({ campaign, ending: 'disbanded' }))).reason).toBe('retired');
+			expect((await failure(store.end({ campaign, ending: 'won' }))).reason).toBe('retired');
 			expect([await store.hasSave(), await store.history()]).toEqual([true, []]);
-			await store.end({ campaign: loaded, ending: 'disbanded' });
+			await store.end({ campaign: loaded, ending: 'won' });
 
 			expect(await store.hasSave()).toBe(false);
 			expect(await store.history()).toHaveLength(1);
@@ -691,11 +691,11 @@ describe('CampaignStore', () => {
 			}],
 			['an end whose history write fails', (storage: FaultyStorage, store: CampaignStore, campaign: Campaign): Promise<unknown> => {
 				storage.fault = { method: 'setItem', key: KEYS.history };
-				return store.end({ campaign, ending: 'starved' });
+				return store.end({ campaign, ending: 'abandoned' });
 			}],
 			['an end whose copy fails', (storage: FaultyStorage, store: CampaignStore, campaign: Campaign): Promise<unknown> => {
 				storage.fault = { method: 'setItem', key: KEYS.recovery };
-				return store.end({ campaign, ending: 'starved' });
+				return store.end({ campaign, ending: 'abandoned' });
 			}]
 		])('leaves the campaign saving after %s, which removed nothing', async (_label, fail) => {
 			const storage = new FaultyStorage();
@@ -721,10 +721,10 @@ describe('CampaignStore', () => {
 			await store.save(campaign);
 			storage.fault = { method: 'removeItem', key: KEYS.slots.a, times: 1 };
 
-			expect((await failure(store.end({ campaign, ending: 'starved' }))).reason).toBe('storage');
-			const retried = await store.end({ campaign, ending: 'starved' });
+			expect((await failure(store.end({ campaign, ending: 'abandoned' }))).reason).toBe('storage');
+			const retried = await store.end({ campaign, ending: 'abandoned' });
 
-			expect(retried.ending).toBe('starved');
+			expect(retried.ending).toBe('abandoned');
 			expect(await store.hasSave()).toBe(false);
 			expect(await store.history()).toHaveLength(1);
 		});
@@ -735,12 +735,12 @@ describe('CampaignStore', () => {
 			const campaign = newCampaign();
 			await store.save(campaign);
 			storage.fault = { method: 'removeItem', key: KEYS.slots.a, times: 1 };
-			await failure(store.end({ campaign, ending: 'starved' }));
+			await failure(store.end({ campaign, ending: 'abandoned' }));
 
 			const retried = await store.end({ campaign, ending: 'won' });
 
-			expect(retried.ending).toBe('starved');
-			expect((await store.history()).map(entry => entry.ending)).toEqual(['starved']);
+			expect(retried.ending).toBe('abandoned');
+			expect((await store.history()).map(entry => entry.ending)).toEqual(['abandoned']);
 			expect(await store.hasSave()).toBe(false);
 		});
 
@@ -754,7 +754,7 @@ describe('CampaignStore', () => {
 			storage.fault = { method: 'removeItem', key: KEYS.slots.b, times: 1 };
 			expect((await failure(store.delete())).reason).toBe('storage');
 
-			const error = await failure(store.end({ campaign, ending: 'starved' }));
+			const error = await failure(store.end({ campaign, ending: 'abandoned' }));
 
 			expect([error.reason, error.message]).toEqual(['retired', "The campaign couldn't be ended: its save was deleted."]);
 			expect(await store.history()).toEqual([]);
@@ -771,7 +771,7 @@ describe('CampaignStore', () => {
 			const campaign = newCampaign();
 			await store.save(campaign);
 			storage.fault = { method: 'removeItem', key: KEYS.slots.a, times: 1 };
-			await failure(store.end({ campaign, ending: 'starved' }));
+			await failure(store.end({ campaign, ending: 'abandoned' }));
 
 			await next(store);
 
@@ -784,7 +784,7 @@ describe('CampaignStore', () => {
 			const ended = newCampaign(1);
 			await store.save(ended);
 			storage.fault = { method: 'removeItem', key: KEYS.slots.a, times: 1 };
-			await failure(store.end({ campaign: ended, ending: 'starved' }));
+			await failure(store.end({ campaign: ended, ending: 'abandoned' }));
 
 			await store.save(newCampaign(2));
 
@@ -798,15 +798,15 @@ describe('CampaignStore', () => {
 			const inMenu = await store.load() as Campaign;
 			await store.end({ campaign: inMenu, ending: 'abandoned' });
 
-			const error = await failure(store.end({ campaign: inScreen, ending: 'starved' }));
+			const error = await failure(store.end({ campaign: inScreen, ending: 'abandoned' }));
 
 			expect([error.reason, error.message]).toEqual(['retired', "The campaign couldn't be ended: the save was loaded again."]);
-			expect((await failure(store.end({ campaign: inMenu, ending: 'starved' }))).message).toBe("The campaign couldn't be ended: it has ended.");
+			expect((await failure(store.end({ campaign: inMenu, ending: 'abandoned' }))).message).toBe("The campaign couldn't be ended: it has ended.");
 			expect((await store.history()).map(entry => entry.ending)).toEqual(['abandoned']);
 			const deleted = newCampaign(3);
 			await store.save(deleted);
 			await store.delete();
-			expect((await failure(store.end({ campaign: deleted, ending: 'starved' }))).reason).toBe('retired');
+			expect((await failure(store.end({ campaign: deleted, ending: 'abandoned' }))).reason).toBe('retired');
 			expect(await store.history()).toHaveLength(1);
 		});
 
@@ -967,7 +967,7 @@ describe('CampaignStore', () => {
 			const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 			const campaign = newCampaign();
 			await store.save(campaign);
-			void store.end({ campaign, ending: 'starved' });
+			void store.end({ campaign, ending: 'abandoned' });
 
 			expect(await store.checkpoint(campaign)).toBe(false);
 			expect(warn).not.toHaveBeenCalled();
@@ -987,9 +987,9 @@ describe('CampaignStore', () => {
 			await store.save(campaign);
 			campaign.set({ day: 12, strongholdsTaken: ['stronghold-2'] });
 
-			const entry = await store.end({ campaign, ending: 'starved' });
+			const entry = await store.end({ campaign, ending: 'abandoned' });
 
-			expect(entry).toEqual({ seed: SEED, day: 12, strongholdsTaken: 1, ending: 'starved' });
+			expect(entry).toEqual({ seed: SEED, day: 12, strongholdsTaken: 1, ending: 'abandoned' });
 			expect(await store.history()).toEqual([entry]);
 			expect(await store.hasSave()).toBe(false);
 			expect(storage.keys).toEqual([KEYS.history]);
@@ -998,15 +998,15 @@ describe('CampaignStore', () => {
 		it('lists past campaigns newest first', async () => {
 			const store = storeOver(new MemorySaveStorage());
 
-			await store.end({ campaign: newCampaign(1), ending: 'rioted' });
+			await store.end({ campaign: newCampaign(1), ending: 'abandoned' });
 			await store.end({ campaign: newCampaign(2), ending: 'won' });
 
-			expect((await store.history()).map(entry => [entry.seed, entry.ending])).toEqual([[2, 'won'], [1, 'rioted']]);
+			expect((await store.history()).map(entry => [entry.seed, entry.ending])).toEqual([[2, 'won'], [1, 'abandoned']]);
 		});
 
 		it.each([
-			['the same way, records it once', 'disbanded', ['disbanded']],
-			['another way, records it again: entries carry no campaign identity', 'abandoned', ['abandoned', 'disbanded']]
+			['the same way, records it once', 'won', ['won']],
+			['another way, records it again: entries carry no campaign identity', 'abandoned', ['abandoned', 'won']]
 		] as const)('in a new session after a crash between its two writes, ending it again %s', async (_label, again, endings) => {
 			const storage = new FaultyStorage();
 			const crashed = storeOver(storage);
@@ -1014,7 +1014,7 @@ describe('CampaignStore', () => {
 			await crashed.save(campaign);
 			storage.fault = { method: 'removeItem', key: KEYS.slots.a };
 
-			expect((await failure(crashed.end({ campaign, ending: 'disbanded' }))).reason).toBe('storage');
+			expect((await failure(crashed.end({ campaign, ending: 'won' }))).reason).toBe('storage');
 			storage.fault = null;
 			const store = storeOver(storage);
 			const loaded = await store.load() as Campaign;
@@ -1041,7 +1041,7 @@ describe('CampaignStore', () => {
 			await store.save(newCampaign(1));
 			const other = newCampaign(2);
 
-			await store.end({ campaign: other, ending: 'disbanded' });
+			await store.end({ campaign: other, ending: 'won' });
 
 			expect((await store.load())?.seed).toBe(1);
 			expect((await failure(store.save(other))).reason).toBe('retired');
@@ -1087,19 +1087,22 @@ describe('CampaignStore', () => {
 			expect(onWarning).toHaveBeenCalledWith(expect.stringMatching(/^CampaignStore: set a damaged history aside/));
 		});
 
-		it('refuses an ending that doesn\'t exist at once, before the calls ahead of it finish', async () => {
+		it.each([
+			['an ending that doesn\'t exist', 'exploded'],
+			['a fall for a campaign still standing, since how a compound falls comes from its state (DDB-305)', 'starved']
+		])('refuses %s at once, before the calls ahead of it finish', async (_label, ending) => {
 			const storage = new HeldStorage();
 			const store = storeOver(storage);
 			const campaign = newCampaign();
 			storage.hold();
 			const saving = store.save(campaign);
 
-			const error = await failure(store.end({ campaign, ending: 'exploded' as CampaignEnding }));
+			const error = await failure(store.end({ campaign, ending: ending as CampaignEnding }));
 
 			expect([error.reason, error.message, error.detail]).toEqual([
 				'unsavable',
-				'The campaign couldn\'t be ended: "exploded" isn\'t a way a campaign ends.',
-				'ending must be one of starved, rioted, disbanded, won, abandoned, got "exploded"'
+				`The campaign couldn't be ended: a campaign still standing is won or abandoned, not "${ending}".`,
+				`ending must be one of won, abandoned, got "${ending}"`
 			]);
 			storage.release();
 			await saving;
