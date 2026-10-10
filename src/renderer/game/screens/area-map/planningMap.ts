@@ -29,6 +29,8 @@ export interface PlanningMap extends RouteMap {
 export interface PlanningMapRequest {
 	/** Told as each stage starts while the map is being made; never for a map already made. */
 	onProgress?: (progress: AreaMapProgress) => void;
+	/** Stops this caller waiting, as a screen that unmounts does: the promise rejects, and the map goes on being made for anyone else (`AreaMapRequest`). */
+	signal?: AbortSignal;
 }
 
 /** Where a campaign's map comes from: the session's map cache, or a test's stand-in. */

@@ -82,6 +82,8 @@ export class AreaMapScreen extends Screen {
 	private planReason: Text | null = null;
 	/** Counts mounts and unmounts, so a map or save that arrives after the screen has gone changes nothing. */
 	private visit = 0;
+	/** Stops waiting for the map once the screen has gone. */
+	private waiting: AbortController | null = null;
 	private loaded: Promise<void> = Promise.resolve();
 
 	constructor({ store = CampaignStore.shared, maps = PlanningMaps.shared }: AreaMapScreenOptions = {}) {
@@ -116,6 +118,7 @@ export class AreaMapScreen extends Screen {
 
 	protected onMount(data?: unknown): void {
 		this.visit += 1;
+		this.waiting = new AbortController();
 		this.view = new AreaMapView({
 			id: 'area_map_view',
 			widthMode: 'fill',
@@ -136,6 +139,8 @@ export class AreaMapScreen extends Screen {
 
 	protected onUnmount(): void {
 		this.visit += 1;
+		this.waiting?.abort();
+		this.waiting = null;
 		this.rootLayer.hotkeys.unregister('Escape');
 		this.stack.clearChildren();
 		this.campaign = null;
@@ -272,6 +277,7 @@ export class AreaMapScreen extends Screen {
 		let map: PlanningMap;
 		try {
 			map = await this.maps.load(campaign, {
+				signal: this.waiting?.signal,
 				onProgress: (progress) => {
 					if (visit === this.visit) this.say({ text: mapProgressText(progress), color: 'text_dim' });
 				},

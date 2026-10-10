@@ -199,6 +199,7 @@ describe('AreaMapScreen (DDB-43)', () => {
 		expect(text('area_map_status')).toBe('Making the area map: roads (3 of 6)');
 		expect(view().map).toBeNull();
 		screen.unmount();
+		expect(planning.aborted()).toBe(1);
 		await planning.finish();
 		expect(planning.asked()).toBe(1);
 	});

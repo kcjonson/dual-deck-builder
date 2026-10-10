@@ -88,6 +88,8 @@ export class RunRouteScreen extends Screen {
 	private departing = false;
 	private unsubscribe: (() => void) | null = null;
 	private visit = 0;
+	/** Stops waiting for the map once the screen has gone. */
+	private waiting: AbortController | null = null;
 	private loaded: Promise<void> = Promise.resolve();
 
 	constructor({ store = CampaignStore.shared, maps = PlanningMaps.shared }: RunRouteScreenOptions = {}) {
@@ -127,6 +129,7 @@ export class RunRouteScreen extends Screen {
 
 	protected onMount(data?: unknown): void {
 		this.visit += 1;
+		this.waiting = new AbortController();
 		this.view = new AreaMapView({ id: 'run_route_view', widthMode: 'fill', heightMode: 'fill' });
 		this.stack.addChild(this.view);
 		const back = new Button({ label: 'Back', id: 'run_route_back_button', icon: 'arrow_back', size: 'sm', width: BACK_WIDTH, onClick: () => this.back() });
@@ -144,6 +147,8 @@ export class RunRouteScreen extends Screen {
 
 	protected onUnmount(): void {
 		this.visit += 1;
+		this.waiting?.abort();
+		this.waiting = null;
 		this.rootLayer.hotkeys.unregister('Escape');
 		this.unsubscribe?.();
 		this.unsubscribe = null;
@@ -271,6 +276,7 @@ export class RunRouteScreen extends Screen {
 		let map: PlanningMap;
 		try {
 			map = await this.maps.load(campaign, {
+				signal: this.waiting?.signal,
 				onProgress: (progress) => {
 					if (visit === this.visit) this.say({ text: mapProgressText(progress), color: 'text_dim' });
 				},

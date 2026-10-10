@@ -143,6 +143,8 @@ export class CompoundScreen extends Screen {
 	/** Counts mounts and unmounts, so an answer that arrives after the screen has gone changes nothing. */
 	private visit = 0;
 	private loaded: Promise<void> = Promise.resolve();
+	/** Stops waiting for the map once the screen has gone. */
+	private waiting: AbortController | null = null;
 	/** Settles once the campaign's map is in, or couldn't be made. */
 	private mapLoaded: Promise<void> = Promise.resolve();
 
@@ -172,6 +174,7 @@ export class CompoundScreen extends Screen {
 
 	protected onMount(data?: unknown): void {
 		this.visit += 1;
+		this.waiting = new AbortController();
 		const back = new Button({
 			label: 'Back to menu',
 			id: 'compound_back_button',
@@ -215,6 +218,8 @@ export class CompoundScreen extends Screen {
 
 	protected onUnmount(): void {
 		this.visit += 1;
+		this.waiting?.abort();
+		this.waiting = null;
 		const { hotkeys } = this.rootLayer;
 		for (const key of ['Escape', 'PageDown', 'PageUp']) hotkeys.unregister(key);
 		this.unsubscribe?.();
@@ -400,7 +405,7 @@ export class CompoundScreen extends Screen {
 			this.refresh();
 		};
 		try {
-			const map = await this.maps.load(campaign, { onProgress: (progress) => waiting(mapProgressText(progress)) });
+			const map = await this.maps.load(campaign, { signal: this.waiting?.signal, onProgress: (progress) => waiting(mapProgressText(progress)) });
 			if (visit !== this.visit || this.campaign !== campaign) return;
 			this.map = map;
 			this.refresh();
