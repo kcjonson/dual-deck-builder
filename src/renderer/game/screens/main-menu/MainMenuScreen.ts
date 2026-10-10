@@ -56,7 +56,8 @@ function replaceWarning(save: MenuSave): { title: string; body: string; confirm:
 	switch (save.kind) {
 		case 'saved': return {
 			title: 'Abandon this campaign?',
-			body: `${campaignSummary(save.campaign)}. A new campaign replaces it, and it goes into Campaign History as abandoned.`,
+			// A campaign that's over goes in with its own fall, whatever the end asks (`CampaignStore.end`).
+			body: `${campaignSummary(save.campaign)}. A new campaign replaces it, and it goes into Campaign History as ${save.campaign.isOver ? 'it fell' : 'abandoned'}.`,
 			confirm: 'Abandon and start new',
 		};
 		case 'outdated': return {

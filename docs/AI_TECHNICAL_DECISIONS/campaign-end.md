@@ -62,7 +62,8 @@ The save keeps `end`, `tally`, and `foundOnRun`, so the format is version 6 and 
 
 The store never writes one as the save, though. A `checkpoint` or `save` of a campaign that's over ends it in the store instead, as `end` does: its line goes into the history and its save is removed. So the checkpoint the screens already make after the step that lost the campaign writes the history line, once, and the main menu has no lost campaign to Continue.
 
-- Every later checkpoint resolves false, and `end` and `save` reject as `retired`, recording nothing.
+- A checkpoint resolves to how it went (`CheckpointResult`): `saved`; `ended`, the campaign's end in the history, from this checkpoint or a call before it; `failed`, with the reason told to `onSaveFailed`; or `retired`, the store having moved on from the instance (the save loaded again, replaced, or deleted), told to nobody. So a screen can tell a fall already recorded from an instance nothing saves any more.
+- Every later checkpoint resolves `ended`, recording nothing more, and `end` and `save` reject as `retired`.
 - A removal that fails part way is owed, and the next checkpoint finishes it with no second line.
 - A crash between the line and the removal leaves the save from before the losing step, and the next session plays that step again. If it ends the same way, the history's newest-entry check adds nothing. A replay can go another way (a fight's draws, a different choice): a campaign that survives it plays on with its fall already in the history, and one that falls another way gets a second line, as the store's crash note already allows.
 - A save that holds a campaign already over (another tab, or a hand-made save) loads, and its next checkpoint or save ends it.
@@ -80,13 +81,16 @@ Considered: keeping the lost campaign as the save until the defeat screen closes
 - the day it fell on ("Fell on day 12");
 - how the compound fell, as its title ("The compound starved", "rioted", "disbanded");
 - why, the Cause of Defeat: what lost the campaign (no drivers left at the compound, or no People), then the state that chose the ending;
-- the campaign's record, from `campaignStats`: days held, supply runs home and failed, fights won and lost, drivers killed and missing, and strongholds taken, then what the compound held at the end (People, food, water, unrest), which is what the ending was read from.
+- the last day, standing in for the final moments: the log's lines dated the day it fell, as play writes them, the haul and the shortfall then the fall, or what a failed run lost then the fall;
+- beside it, the campaign's record, from `campaignStats`: days held, supply runs home and failed, fights won and lost, drivers killed and missing, and strongholds taken, then what the compound held at the end (People, food, water, unrest), which is what the ending was read from.
+
+The last day and the record sit side by side, so both fit under the story at 1024x600. With no line dated the day it fell (a hand-made save), the record stands alone.
 
 Back to menu is the only control, so focus starts there, and Escape does the same. Both go to the menu with focus restored: the button that opened the compound was Continue or New Campaign, and Continue, with nothing left to continue, hands focus to New Campaign. The menu's Campaign History already lists the fall.
 
-Opened with nothing handed over, as a capture or the dev navigate hook does, it loads the save. A campaign already over is shown and checkpointed, which ends it in the store as the compound would, and a checkpoint that fails says so under the record; anything else shows that there's no fall to show.
+Opened with nothing handed over, as a capture or the dev navigate hook does, it loads the save. A campaign already over is shown and checkpointed, which ends it in the store as the compound would, and a checkpoint that fails says so under the record. A save that can't be loaded says why, as the compound does; a campaign still standing, or none, shows that there's no fall to show. The menu's Continue line names the day a save already over fell on, and replacing it puts it in the history as it fell.
 
-The rest of 6.3 isn't in the campaign, so the screen leaves it out: the last run's final moments and the compound's art, the last fight's damage and turns (the fight's own, gone by the time the campaign is lost), a critical moment ("Only one driver left for 20 days" needs a history the campaign doesn't keep), the explored percentage (the map's fog, DDB-275), and unlocks, resources contributed, and new knowledge, which don't exist yet.
+The rest of 6.3 isn't in the campaign, so the screen leaves it out: the last run's own moments and the compound's art, the last fight's damage and turns (the fight's own, gone by the time the campaign is lost), a critical moment ("Only one driver left for 20 days" needs a history the campaign doesn't keep), the explored percentage (the map's fog, DDB-275), and unlocks, resources contributed, and new knowledge, which don't exist yet.
 
 ## The defeat screen's numbers
 
@@ -97,7 +101,6 @@ The rest of 6.3 isn't in the campaign, so the screen leaves it out: the last run
 - `fightsWon`, counted by `writeBackFight` after a win, in a `set` of its own as the last stored step. Folding it into the step that takes the lost escorts' cards out of the run decks would count it twice when a later step throws and the fight is written back again.
 
 A load refuses a tally that counts more runs ended than run ids handed out, less the run out.
-
 
 ## Provisional calls
 
@@ -120,15 +123,15 @@ On the defeat screen (UI calls, each a line to change):
 
 - It's text on the screen's background, with no illustration of the last run or the compound until there's art.
 - The title is the fall ("The compound rioted"), and the line under it pairs the cause with the ending: "No drivers were left at the compound to send out. Unrest boiled over, and the last of them fought over what was left."
+- The last day's log lines stand in for 6.3's final moments, and the screen shows the latest four of them, the fall's own line always among them.
 - The record's last row, "At the end", shows People, food, water, and unrest, standing in for 6.3's critical moment with the state the ending was read from.
 - Back to menu is the only way on; there's no New Campaign or Campaign History shortcut on the screen.
-- A lost campaign the store refuses with no reason still goes to the defeat screen; a standing one says nothing more is saved here.
+- The compound goes to the defeat screen only once the fall is in the history. An instance the store has moved on from, lost or standing, stays on the compound, saying nothing more is saved there, with Rest, Scavenge, and the buildings off; Back to menu picks up the save.
 
 ## Consequences
 
 - The compound screen decides the fall from `campaign.isOver`, after the checkpoint that ends it in the store, and goes to the defeat screen; the day end's old `outcome` is gone.
-- The run controller (DDB-322) goes to the defeat screen the same way when `loseRun` ends the campaign, handing it the campaign once its checkpoint lands.
-- The run controller (DDB-322) calls `loseRun`, then `endDay` unless the campaign is over, then checkpoints, which ends a lost campaign in the store. Its debrief names who `unloadRun` brought home in `found`.
+- The run controller (DDB-322) calls `loseRun`, then `endDay` unless the campaign is over, then checkpoints, which ends a lost campaign in the store; once that checkpoint resolves `ended`, it goes to the defeat screen, handing it the campaign, as the compound does. Its debrief names who `unloadRun` brought home in `found`.
 - The Find: driver stop (DDB-279) calls `findMissingDriver` for a missing driver it turns up.
 - The screens word `campaign_over` as "Campaign over" under a card (`cardBlockerReason`); any later screen that words a blocker takes it too.
 - Anything later that drops People (an event) has to end the campaign in its own `set` too, as `endDay` does.

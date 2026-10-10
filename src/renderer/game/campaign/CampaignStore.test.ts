@@ -1,6 +1,6 @@
 import { CAMPAIGN_SCHEMA_VERSION, Campaign } from './Campaign';
 import { CampaignEnding, CampaignHistoryEntry, historyToJson } from './CampaignHistory';
-import { CampaignStore, CampaignStoreError, campaignKeys, pageNamespace } from './CampaignStore';
+import { CampaignStore, CampaignStoreError, CheckpointResult, campaignKeys, pageNamespace } from './CampaignStore';
 import { cardCount } from './CardCounts';
 import { LocalSaveStorage, MemorySaveStorage, WebStorage } from './SaveStorage';
 import { stressCampaign } from './__fixtures__/stressCampaign';
@@ -178,7 +178,7 @@ describe('CampaignStore', () => {
 			campaign.set({ unrest: 3 });
 			storage.release();
 
-			expect(await Promise.all([first, second])).toEqual([true, true]);
+			expect(await Promise.all([first, second])).toEqual(['saved', 'saved']);
 			const loaded = await storeOver(storage).load();
 			expect([loaded?.day, loaded?.unrest]).toEqual([3, 0]);
 		});
@@ -248,9 +248,9 @@ describe('CampaignStore', () => {
 			const parse = jest.spyOn(Campaign, 'fromJSON');
 
 			campaign.set({ day: 3 });
-			expect(await store.checkpoint(campaign)).toBe(true);
+			expect(await store.checkpoint(campaign)).toBe('saved');
 			campaign.set({ day: 4 });
-			expect(await store.checkpoint(campaign)).toBe(true);
+			expect(await store.checkpoint(campaign)).toBe('saved');
 
 			expect(parse).not.toHaveBeenCalled();
 			parse.mockRestore();
@@ -421,7 +421,7 @@ describe('CampaignStore', () => {
 				await tabs.drain();
 				await finished;
 
-				expect(await saved).toBe(true);
+				expect(await saved).toBe('saved');
 				const fresh = storeOver(tabs.shared);
 				const loaded = await fresh.load();
 				expect(await fresh.hasSave()).toBe(loaded !== null);
@@ -603,8 +603,9 @@ describe('CampaignStore', () => {
 
 			inScreen.set({ day: 5 });
 
-			expect(await store.checkpoint(inScreen)).toBe(false);
-			expect(await store.checkpoint(inMenu)).toBe(false);
+			// The menu's instance ended (abandoned); the screen's was only left behind by the load
+			expect(await store.checkpoint(inScreen)).toBe('retired');
+			expect(await store.checkpoint(inMenu)).toBe('ended');
 			expect((await store.load())?.seed).toBe(2);
 			expect((await store.history()).map(entry => [entry.seed, entry.ending])).toEqual([[1, 'abandoned']]);
 			const error = await failure(store.save(inMenu));
@@ -619,11 +620,11 @@ describe('CampaignStore', () => {
 			await store.save(oldScreen);
 			const continued = await store.load() as Campaign;
 			continued.set({ day: 7 });
-			expect(await store.checkpoint(continued)).toBe(true);
+			expect(await store.checkpoint(continued)).toBe('saved');
 
 			oldScreen.set({ unrest: 2 });
 
-			expect(await store.checkpoint(oldScreen)).toBe(false);
+			expect(await store.checkpoint(oldScreen)).toBe('retired');
 			expect((await failure(store.save(oldScreen))).message).toBe("The campaign couldn't be saved: the save was loaded again.");
 			expect((await storeOver(storage).load())?.day).toBe(7);
 		});
@@ -635,7 +636,7 @@ describe('CampaignStore', () => {
 
 			await store.delete();
 
-			expect(await store.checkpoint(campaign)).toBe(false);
+			expect(await store.checkpoint(campaign)).toBe('retired');
 			expect(await store.hasSave()).toBe(false);
 			expect((await failure(store.save(campaign))).message).toBe("The campaign couldn't be saved: its save was deleted.");
 		});
@@ -664,7 +665,7 @@ describe('CampaignStore', () => {
 
 			await store.delete();
 
-			expect(await store.checkpoint(campaign)).toBe(false);
+			expect(await store.checkpoint(campaign)).toBe('retired');
 			expect(await store.hasSave()).toBe(false);
 		});
 
@@ -675,7 +676,7 @@ describe('CampaignStore', () => {
 
 			await store.save(newCampaign(2));
 
-			expect(await store.checkpoint(first)).toBe(false);
+			expect(await store.checkpoint(first)).toBe('retired');
 			expect((await failure(store.save(first))).message).toBe("The campaign couldn't be saved: a new campaign replaced it.");
 			expect((await store.load())?.seed).toBe(2);
 		});
@@ -710,7 +711,7 @@ describe('CampaignStore', () => {
 			storage.fault = null;
 			campaign.set({ day: 3 });
 
-			expect(await store.checkpoint(campaign)).toBe(true);
+			expect(await store.checkpoint(campaign)).toBe('saved');
 			expect((await storeOver(storage).load())?.day).toBe(3);
 		});
 
@@ -832,12 +833,12 @@ describe('CampaignStore', () => {
 			const store = storeOver(storage);
 			const campaign = newCampaign();
 			const [warrior, mechanic] = campaign.drivers;
-			const saved: Promise<boolean>[] = [];
+			const saved: Promise<CheckpointResult>[] = [];
 			warrior.once('defaultDeck', () => saved.push(store.checkpoint(campaign)));
 
 			campaign.moveCards({ cardType: 'ramming_speed', from: warrior, to: mechanic, count: 2 });
 
-			expect(await Promise.all(saved)).toEqual([true]);
+			expect(await Promise.all(saved)).toEqual(['saved']);
 			expect((await storeOver(storage).load())?.toJSON()).toEqual(campaign.toJSON());
 		});
 
@@ -852,7 +853,7 @@ describe('CampaignStore', () => {
 			campaign.set({ day: 3 });
 
 			expect(second).toBe(first);
-			expect(await first).toBe(true);
+			expect(await first).toBe('saved');
 			expect(storage.writes).toEqual([KEYS.slots.a, KEYS.active]);
 			expect((await storeOver(storage).load())?.day).toBe(3);
 		});
@@ -873,7 +874,7 @@ describe('CampaignStore', () => {
 
 			expect(second).toBe(first);
 			await busy;
-			expect(await first).toBe(true);
+			expect(await first).toBe('saved');
 			expect((await storeOver(storage).load())?.day).toBe(2);
 		});
 
@@ -891,7 +892,7 @@ describe('CampaignStore', () => {
 			storage.release();
 
 			expect(second).not.toBe(first);
-			expect(await Promise.all([first, second])).toEqual([true, true]);
+			expect(await Promise.all([first, second])).toEqual(['saved', 'saved']);
 			expect((await storeOver(storage).load())?.day).toBe(2);
 		});
 
@@ -902,7 +903,7 @@ describe('CampaignStore', () => {
 			const second = store.checkpoint(newCampaign(2));
 
 			expect(second).not.toBe(first);
-			expect(await Promise.all([first, second])).toEqual([true, true]);
+			expect(await Promise.all([first, second])).toEqual(['saved', 'saved']);
 			expect((await store.load())?.seed).toBe(2);
 		});
 
@@ -920,21 +921,21 @@ describe('CampaignStore', () => {
 			await middle;
 
 			expect(second).not.toBe(first);
-			expect([await first, await second]).toEqual([true, false]);
+			expect([await first, await second]).toEqual(['saved', between === 'end' ? 'ended' : 'retired']);
 			expect(await store.hasSave()).toBe(between === 'save');
 		});
 
-		it('never reject: a failed one resolves false and tells onSaveFailed listeners why, or logs it', async () => {
+		it('never reject: a failed one resolves as failed and tells onSaveFailed listeners why, or logs it', async () => {
 			const storage = new FaultyStorage();
 			const store = storeOver(storage);
 			const heard: CampaignStoreError[] = [];
 			const stop = store.onSaveFailed(error => heard.push(error));
 			storage.fault = { method: 'setItem', error: quotaError() };
 
-			expect(await store.checkpoint(newCampaign())).toBe(false);
+			expect(await store.checkpoint(newCampaign())).toBe('failed');
 			stop();
 			const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-			expect(await store.checkpoint(newCampaign())).toBe(false);
+			expect(await store.checkpoint(newCampaign())).toBe('failed');
 
 			expect(heard.map(error => [error.reason, error.message])).toEqual([['storage', "The campaign couldn't be saved: storage is full."]]);
 			expect(warn).toHaveBeenCalledWith("CampaignStore: The campaign couldn't be saved: storage is full.", 'The quota has been exceeded.');
@@ -952,7 +953,7 @@ describe('CampaignStore', () => {
 			store.onSaveFailed(later);
 			storage.fault = { method: 'setItem', error: quotaError() };
 
-			expect(await store.checkpoint(newCampaign())).toBe(false);
+			expect(await store.checkpoint(newCampaign())).toBe('failed');
 			await settle();
 
 			expect(later).toHaveBeenCalledTimes(1);
@@ -962,18 +963,18 @@ describe('CampaignStore', () => {
 			expect(await store.hasSave()).toBe(true);
 		});
 
-		it('of a campaign that has ended resolve false without telling anyone, as a game over expects', async () => {
+		it('of a campaign that has ended resolve as ended without telling anyone, as a game over expects', async () => {
 			const store = storeOver(new MemorySaveStorage());
 			const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 			const campaign = newCampaign();
 			await store.save(campaign);
 			void store.end({ campaign, ending: 'abandoned' });
 
-			expect(await store.checkpoint(campaign)).toBe(false);
+			expect(await store.checkpoint(campaign)).toBe('ended');
 			expect(warn).not.toHaveBeenCalled();
 			const failures = jest.fn();
 			store.onSaveFailed(failures);
-			expect(await store.checkpoint(campaign)).toBe(false);
+			expect(await store.checkpoint(campaign)).toBe('ended');
 			expect(failures).not.toHaveBeenCalled();
 			expect((await failure(store.save(campaign))).reason).toBe('retired');
 		});

@@ -8,11 +8,15 @@ import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
 import { Divider } from '../../../engine/ui/Divider';
 import { Panel } from '../../../engine/ui/Panel';
-import { tokens } from '../../../engine/theme/tokens';
-import { FALL_TITLES, NO_FALL, fallStory, fellOnText, recordRows } from './defeatText';
+import { ColorToken, tokens } from '../../../engine/theme/tokens';
+import { fellOnText } from '../main-menu/campaignText';
+import { FALL_TITLES, NO_FALL, fallStory, lastDayLines, recordRows } from './defeatText';
 
 const { space } = tokens;
-const PANEL_WIDTH = 560;
+const STORY_WIDTH = 560;
+/** The last day beside the record, with the gap between, fits inside the root's padding at 1024 wide. */
+const LAST_DAY_WIDTH = 400;
+const RECORD_WIDTH = 520;
 const LABEL_WIDTH = 170;
 const BACK_WIDTH = 200;
 
@@ -29,16 +33,17 @@ export interface DefeatScreenOptions {
 /**
  * The campaign's defeat (Game Flow 6.3): over the day it fell on, how the
  * compound fell, why (the last driver lost, or the last People gone, and the
- * state that chose the ending), and the campaign's record from
- * `campaignStats`, then Back to menu. A root stack centres it all, as Campaign
- * History does.
+ * state that chose the ending), then the last day's log, in place of the
+ * final moments, beside the campaign's record from `campaignStats`, then Back
+ * to menu. A root stack centres it all, as Campaign History does.
  *
  * The compound hands it the campaign once the end's checkpoint has landed, so
  * the history already holds its line and the save is gone. Opened with
  * nothing handed over, as a capture or the dev navigate hook does, it loads
  * the save: a campaign already over is shown, and checkpointed, which ends it
- * in the store as the compound would; anything else shows that there's no
- * fall to show. A checkpoint that fails says so under the record.
+ * in the store as the compound would; a campaign still standing, or none,
+ * shows that there's no fall to show, and a save that can't be loaded says
+ * why. A checkpoint that fails says so under the record.
  *
  * Back to menu is the only control, so focus starts there; Enter on it and
  * Escape both go to the menu with focus restored, which lands on New
@@ -88,7 +93,7 @@ export class DefeatScreen extends Screen {
 		this.saveError = new Text({
 			text: '',
 			id: 'defeat_save_error',
-			width: PANEL_WIDTH,
+			width: STORY_WIDTH,
 			visible: false,
 			style: { fontSize: 'fs_sm', color: 'status_crit', textAlign: 'center' },
 		});
@@ -123,30 +128,46 @@ export class DefeatScreen extends Screen {
 		this.saveError = null;
 	}
 
-	/** The save's campaign: shown when it's over, and its end checkpointed. */
+	/** The save's campaign: shown when it's over, and its end checkpointed. A save that can't be loaded says why, as the compound does. */
 	private async loadSave(): Promise<void> {
 		const visit = this.visit;
 		let campaign: Campaign | null = null;
+		let trouble: string | null = null;
 		try {
 			campaign = await this.store.load();
 		} catch (error) {
 			if (!(error instanceof CampaignStoreError)) console.error('DefeatScreen: loading the save failed', error);
+			trouble = error instanceof CampaignStoreError ? error.message : "The saved campaign couldn't be read.";
 		}
 		if (visit !== this.visit) return;
+		if (trouble !== null) {
+			this.showNone({ text: trouble, color: 'status_warn' });
+			return;
+		}
 		this.show(campaign);
 		if (campaign?.isOver) await this.store.checkpoint(campaign);
 	}
 
-	/** The fall and the record, or that there's none to show for a campaign still standing, or none at all. */
+	/** In the fall's place, a line saying why there's none to show. */
+	private showNone({ text, color }: { text: string; color: ColorToken }): void {
+		this.content?.clearChildren();
+		this.content?.addChild(new Text({ text, id: 'defeat_none', width: STORY_WIDTH, style: { fontSize: 'fs_md', color, textAlign: 'center' } }));
+	}
+
+	/**
+	 * The fall: the day, the title, and the story, then the last day's log
+	 * beside the record. Or that there's none to show, for a campaign still
+	 * standing or none at all.
+	 */
 	private show(campaign: Campaign | null): void {
 		const content = this.content;
 		if (!content) return;
-		content.clearChildren();
 		const end = campaign?.end ?? null;
 		if (!campaign || end === null) {
-			content.addChild(new Text({ text: NO_FALL, id: 'defeat_none', width: PANEL_WIDTH, style: { fontSize: 'fs_md', color: 'text_dim', textAlign: 'center' } }));
+			this.showNone({ text: NO_FALL, color: 'text_dim' });
 			return;
 		}
+		content.clearChildren();
 		this.campaign = campaign;
 		content.addChild(new Text({
 			text: fellOnText(campaign.day),
@@ -163,11 +184,22 @@ export class DefeatScreen extends Screen {
 		content.addChild(new Text({
 			text: fallStory(end),
 			id: 'defeat_story',
-			width: PANEL_WIDTH,
+			width: STORY_WIDTH,
 			style: { fontSize: 'fs_md', color: 'text', textAlign: 'center' },
 		}));
 
-		const record = new Panel({ id: 'defeat_record', title: 'Campaign record', compact: true, corners: true, width: PANEL_WIDTH, crossAlign: 'stretch', gap: space.space_1_5 });
+		// Side by side, so both fit under the story at 1024x600; the row stretches them to one height.
+		const panels = new Stack({ id: 'defeat_panels', direction: 'horizontal', crossAlign: 'stretch', gap: space.space_4 });
+		const lastDay = lastDayLines(campaign);
+		if (lastDay.length > 0) {
+			const panel = new Panel({ id: 'defeat_last_day', title: 'The last day', compact: true, corners: true, width: LAST_DAY_WIDTH, crossAlign: 'stretch', gap: space.space_1_5 });
+			lastDay.forEach((message, index) => {
+				if (index > 0) panel.addChild(new Divider());
+				panel.addChild(new Text({ text: message, id: `defeat_last_day_${index}`, widthMode: 'fill', style: { fontSize: 'fs_md', color: 'text' } }));
+			});
+			panels.addChild(panel);
+		}
+		const record = new Panel({ id: 'defeat_record', title: 'Campaign record', compact: true, corners: true, width: RECORD_WIDTH, crossAlign: 'stretch', gap: space.space_1_5 });
 		recordRows({ campaign, stats: campaignStats({ campaign }) }).forEach((row, index) => {
 			if (index > 0) record.addChild(new Divider());
 			const line = new Stack({ id: `defeat_record_${row.id}`, direction: 'horizontal', crossAlign: 'center', gap: space.space_4 });
@@ -175,7 +207,8 @@ export class DefeatScreen extends Screen {
 			line.addChild(new Text({ text: row.value, id: `defeat_record_${row.id}_value`, widthMode: 'fill', style: { fontRole: 'mono', fontSize: 'fs_md', color: 'text_bright' } }));
 			record.addChild(line);
 		});
-		content.addChild(record);
+		panels.addChild(record);
+		content.addChild(panels);
 	}
 
 	private showError(message: string): void {

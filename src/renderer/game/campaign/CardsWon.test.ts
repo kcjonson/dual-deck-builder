@@ -294,7 +294,7 @@ describe('Cards won (DDB-316)', () => {
 			await store.save(campaign);
 
 			campaign.unloadRun({ party });
-			expect(await store.checkpoint(campaign)).toBe(true);
+			expect(await store.checkpoint(campaign)).toBe('saved');
 			const loaded = await storeOver(storage).load();
 
 			expect(loaded?.toJSON()).toEqual(campaign.toJSON());

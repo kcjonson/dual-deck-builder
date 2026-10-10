@@ -1,3 +1,4 @@
+import { resourceAmount } from '../../campaign/Campaign';
 import type { Campaign } from '../../campaign/Campaign';
 import type { CampaignEnd, CampaignStats } from '../../campaign/CampaignEnd';
 import type { CompoundFall } from '../../campaign/CampaignHistory';
@@ -9,11 +10,6 @@ export const FALL_TITLES: Readonly<Record<CompoundFall, string>> = {
 	rioted: 'The compound rioted',
 	disbanded: 'The compound disbanded',
 };
-
-/** Over the title: the day it fell on, which is the days it held out. */
-export function fellOnText(day: number): string {
-	return `Fell on day ${day}`;
-}
 
 /** Why it fell, then how (Game Flow 6.3, Cause of Defeat): what lost the campaign, and the state that chose the ending. */
 export function fallStory(end: CampaignEnd): string {
@@ -41,15 +37,28 @@ export interface RecordRow {
  * compound held at the end, which is what chose the ending.
  */
 export function recordRows({ campaign, stats }: { campaign: Campaign; stats: CampaignStats }): readonly RecordRow[] {
-	const { people, food, water } = campaign.resources;
+	const stores = (['people', 'food', 'water'] as const).map((resource) => resourceAmount({ resource, amount: campaign.resources[resource] }));
 	return [
 		{ id: 'days', label: 'Days held', value: countOf(stats.daysHeld, 'day') },
 		{ id: 'runs', label: 'Supply runs', value: `${stats.runsHome} home, ${stats.runsFailed} failed` },
 		{ id: 'fights', label: 'Fights', value: `${stats.fightsWon} won, ${stats.fightsLost} lost` },
 		{ id: 'drivers', label: 'Drivers lost', value: `${stats.driversDead} killed, ${stats.driversMissing} missing` },
 		{ id: 'strongholds', label: 'Strongholds taken', value: `${stats.strongholdsTaken}` },
-		{ id: 'stores', label: 'At the end', value: `${people} ${people === 1 ? 'person' : 'people'}, ${food} food, ${water} water, unrest ${campaign.unrest}` },
+		{ id: 'stores', label: 'At the end', value: `${stores.join(', ')}, unrest ${campaign.unrest}` },
 	];
+}
+
+/** The most of the last day's log the screen shows. The latest are kept, so the fall's own line, always last, is among them. */
+export const LAST_DAY_LINES = 4;
+
+/**
+ * The last day's log, standing in for Game Flow 6.3's final moments: the
+ * lines dated the day it fell, which play writes as the haul and the
+ * shortfall then the fall, or what a failed run lost then the fall. The
+ * latest `LAST_DAY_LINES` of them.
+ */
+export function lastDayLines(campaign: Campaign): readonly string[] {
+	return campaign.log.filter((entry) => entry.day === campaign.day).map((entry) => entry.message).slice(-LAST_DAY_LINES);
 }
 
 /** What the screen says when it has no lost campaign to show, opened with none and no save that's over. */

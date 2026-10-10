@@ -40,7 +40,7 @@ When a Rest's or a Scavenge's night leaves no People, the day end ends the campa
 
 If the checkpoint fails, the screen stays: the failure shows over the buttons, Rest's own line says it saves the end again, Scavenge is disabled as over, and Rest tries the checkpoint again without ending another day. After the night, the save still holds the day before until that checkpoint lands; a save already over stays as it was.
 
-A checkpoint can also resolve false with no failure to show, when the store has moved on from this instance of the campaign (it ended already, or the save was loaded again, replaced, or deleted). A campaign that's over still goes to the defeat screen then, so the player is never left on a compound that has fallen. One still standing says over the buttons that nothing more is saved here, and Back to menu picks up the save.
+The screen acts on what the checkpoint resolves (`CheckpointResult`). A lost campaign goes to the defeat screen when its end is in the history, from this checkpoint or an earlier one (`ended`). When the store has moved on from this instance (`retired`: the save was loaded again, replaced, or deleted; or `ended` for a campaign still standing, ended elsewhere), the screen is stranded, lost campaign or not: it says over the buttons that nothing more is saved here, Rest, Scavenge, and the Bunkhouse turn off, each saying why, focus on one of them goes to Back to menu, and Back to menu picks up the save. A lost instance stranded this way has no line in the history; the save still holds the day before its fall.
 
 A save at 0 People with a run out isn't over, since the end waits for the run; Rest and Scavenge wait for the run too.
 

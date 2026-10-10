@@ -397,7 +397,6 @@ describe('CompoundScreen', () => {
 		it('goes to the defeat screen once, whatever is pressed after the fall', async () => {
 			await rest();
 			await rest();
-			await scavenge();
 			find<Button>('compound_building_bunkhouse_button').onClick?.({} as never);
 			expect(navigate).toHaveBeenCalledTimes(1);
 			expect(defeats()).toBe(1);
@@ -457,25 +456,74 @@ describe('CompoundScreen', () => {
 			expect(await storeOver(storage).history()).toHaveLength(1);
 		});
 
-		it('goes to the defeat screen even when the store refuses the end with no reason, so the player is never left on a fallen compound', async () => {
-			// Loading the save again moves the store on from the instance on show, so its checkpoints resolve false, unheard
+		it('goes to the defeat screen with a lost campaign whose end an earlier checkpoint saved, recording nothing more', async () => {
+			await rest();
+			const lost = screen.shown as Campaign;
+			screen.unmount();
+			navigate.mockClear();
+
+			// Handed back the campaign whose end is already in the history, as a screen left open could hand it
+			screen = new CompoundScreen({ store });
+			screen.mount(context, { campaign: lost });
+			await flush();
+
+			expect(defeats()).toBe(1);
+			expect(find<Text>('compound_save_error').visible).toBe(false);
+			expect(await storeOver(storage).history()).toHaveLength(1);
+		});
+
+		it('strands a lost campaign the store has moved on from: no defeat screen, nothing more saved, and only Back to menu left', async () => {
+			// Loading the save again moves the store on from the instance on show, which ends nothing in the history
 			await store.load();
 			await rest();
 			expect(screen.shown?.isOver).toBe(true);
-			expect(find<Text>('compound_save_error').visible).toBe(false);
-			expect(defeats()).toBe(1);
+			expect(defeats()).toBe(0);
+			expectStranded();
+			// The save still holds the day before the fall, for Back to menu to pick up
+			expect((await storeOver(storage).load())?.resources.people).toBe(1);
+			expect(await storeOver(storage).history()).toEqual([]);
+			send(context, [key('Escape')]);
+			expect(navigate).toHaveBeenLastCalledWith(...TO_MENU);
+			expect(navigate).toHaveBeenCalledTimes(1);
 		});
 	});
 
-	it('says why nothing more is saved when the store refuses a standing campaign with no reason, and Back still goes to the menu', async () => {
+	/** Over the buttons, that nothing more is saved here; Rest, Scavenge, and the Bunkhouse off, each saying why; focus on Back. */
+	function expectStranded(): void {
+		expect(text('compound_save_error')).toBe("This campaign isn't the save any more, so nothing more is saved here. Back to menu to pick up the save.");
+		expect(find<{ color: unknown }>('compound_save_error').color).toEqual(tokens.color.status_warn);
+		expect(find<Button>('compound_rest_button').enabled).toBe(false);
+		expect(find<Button>('compound_scavenge_button').enabled).toBe(false);
+		expect(text('compound_rest_line')).toBe('Nothing more is saved here, so no day ends.');
+		expect(text('compound_scavenge_line')).toBe('');
+		expect(find<Button>('compound_building_bunkhouse_button').enabled).toBe(false);
+		expect(text('compound_building_bunkhouse_reason')).toBe('Shut, since nothing more is saved here.');
+		expect(find<Text>('compound_building_bunkhouse_reason').visible).toBe(true);
+		expect(context.focus.focused?.id).toBe('compound_back_button');
+	}
+
+	it('strands a standing campaign the store has moved on from, its day ended but nothing more saved, and Back still goes to the menu', async () => {
 		await open();
 		await store.load();
 		await rest();
 		expect(screen.shown?.day).toBe(10);
-		expect(text('compound_save_error')).toBe("This campaign isn't the save any more, so nothing more is saved here. Back to menu to pick up the save.");
+		expectStranded();
+		// Even pressed past their disabled state, nothing starts
+		advance(context, NEXT_PRESS_MS);
+		for (const id of ['compound_rest_button', 'compound_scavenge_button', 'compound_building_bunkhouse_button']) find<Button>(id).onClick?.({} as never);
+		await flush();
+		expect(screen.shown?.day).toBe(10);
 		expect(navigate).not.toHaveBeenCalled();
 		send(context, [key('Escape')]);
 		expect(navigate).toHaveBeenLastCalledWith(...TO_MENU);
+	});
+
+	it('strands a standing campaign that was ended elsewhere, as abandoned', async () => {
+		await open();
+		await store.end({ campaign: screen.shown as Campaign, ending: 'abandoned' });
+		await rest();
+		expect(defeats()).toBe(0);
+		expectStranded();
 	});
 
 	it('ends a save that holds a campaign already over, as another tab or a hand-made save could leave one, then goes to the defeat screen', async () => {
@@ -628,6 +676,17 @@ describe('CompoundScreen', () => {
 		screen.mount(context);
 		await screen.campaignLoaded;
 		context.frame.layout();
+		expect(layoutLint(treeSnapshot([screen.root], viewport.logical)).violations).toEqual([]);
+	});
+
+	it.each([{ width: 1024, height: 600 }, { width: 1440, height: 882 }])('lays out with no lint at $width x $height once stranded', async (size) => {
+		viewport.logical = size;
+		context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
+		await open();
+		await store.load();
+		await rest();
+		context.frame.layout();
+		expectStranded();
 		expect(layoutLint(treeSnapshot([screen.root], viewport.logical)).violations).toEqual([]);
 	});
 

@@ -1,5 +1,5 @@
 import { Campaign } from '../../campaign/Campaign';
-import { fixtureText, newCampaign } from '../../campaign/__fixtures__/storeFixtures';
+import { fixtureText, lostCampaign, newCampaign } from '../../campaign/__fixtures__/storeFixtures';
 import { campaignSummary, countOf, driversAtCompound, historyColumns } from './campaignText';
 
 describe('campaignText', () => {
@@ -8,6 +8,10 @@ describe('campaignText', () => {
 		expect(campaign.drivers).toHaveLength(5);
 		expect(driversAtCompound(campaign)).toBe(3);
 		expect(campaignSummary(campaign)).toBe('Day 9 - 3 drivers - 1 stronghold taken');
+	});
+
+	it('says the day a campaign that is over fell on, in place of its state', () => {
+		expect(campaignSummary(lostCampaign({ ending: 'starved', cause: 'no_people' }))).toBe('Fell on day 9');
 	});
 
 	it('counts in the singular and the plural', () => {
