@@ -44,7 +44,7 @@ As on the Crew screen: every control checkpoints after its move, the screen show
 
 ### Opening and leaving
 
-Opened with `{ campaign, driver, returnTo }`, the screen shows that driver's run deck at once. `returnTo` is the screen Done goes back to, handed `{ campaign }` with `restoreFocus`, so load out gets the campaign back and focus lands on the seat's Customize; until load out exists it defaults to the compound. Opened with nothing, as the screen captures do, it loads the save as Continue would and shows the first seat. With no run out it says so in place of the run deck and the locker; a driver handed over who isn't seated says that instead.
+Opened with `{ campaign, driver, returnTo }`, the screen shows that driver's run deck at once. `returnTo` is the screen Done goes back to, handed `{ campaign }` with `restoreFocus`, so load out gets the campaign back and focus lands on the seat's Customize; until load out exists it defaults to the compound. Opened with nothing, as the screen captures do, it loads the save as Continue would and shows the first seat. With no run out it says so in place of the run deck and the locker; a driver handed over who isn't seated says that instead. A campaign that's over never has a run out ([campaign-end.md](./campaign-end.md)), so there it says "Campaign over." and how the compound fell (`fallMessage`). Every check the controls ask names the end first, so "Campaign over" would show under any control the same way, as on the Crew screen, and Reset is off.
 
 The data can also carry a `store`, which this visit saves into in place of the screen's own. The developer launcher uses it to open the screen on the test campaign without writing over the player's save; load out won't need it.
 

@@ -14,6 +14,7 @@ import { tokens } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
 import type { CampaignStore } from '../../campaign/CampaignStore';
+import { startingDeckCounts } from '../../campaign/CardCounts';
 import { MemorySaveStorage } from '../../campaign/SaveStorage';
 import {
 	FaultyStorage,
@@ -470,6 +471,18 @@ describe('CustomizeScreen', () => {
 		expect(find<{ visible: boolean }>('customize_deck_foot').visible).toBe(false);
 	});
 
+	it('says the campaign is over, and how it fell, in place of the run deck and the locker', async () => {
+		await open({ text: fallenText() });
+		expect(screen.shown?.isOver).toBe(true);
+		expect([text('customize_deck_empty'), text('customize_pool_empty')]).toEqual([
+			'Campaign over. No drivers are left, and the compound disbanded.',
+			'Campaign over. No drivers are left, and the compound disbanded.',
+		]);
+		expect(find<{ visible: boolean }>('customize_side_body').visible).toBe(false);
+		find<Button>('customize_done_button').onClick?.({} as never);
+		expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign: screen.shown }, { restoreFocus: true });
+	});
+
 	it("says why there is no run deck when there is no save, or it is damaged, and Done still goes back", async () => {
 		store = storeOver(new MemorySaveStorage());
 		screen = new CustomizeScreen({ store, cards: async () => lookup });
@@ -561,6 +574,11 @@ describe('CustomizeScreen', () => {
 			expect(lintAt(size)).toEqual([]);
 		});
 
+		it.each(sizes)('lays out a campaign that is over with no lint at $width x $height', async (size) => {
+			await openMeasured(size, { text: fallenText() });
+			expect(lintAt(size)).toEqual([]);
+		});
+
 		it.each(sizes)('lays out with no save with no lint at $width x $height', async (size) => {
 			viewport.logical = size;
 			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
@@ -582,6 +600,19 @@ describe('CustomizeScreen', () => {
 		});
 	});
 });
+
+/** The fixture home from its run with nobody left at the compound, the campaign over, as a save holds it. */
+function fallenText(): string {
+	return fixtureText((json) => {
+		const drivers = json.drivers as Record<string, unknown>[];
+		json.runDecks = [];
+		json.foundOnRun = [];
+		drivers[0] = { ...drivers[0], status: 'dead', hitpoints: 0 };
+		drivers[2] = { ...drivers[2], status: 'missing', injuredDays: 0 };
+		drivers[4] = { ...drivers[4], status: 'missing', defaultDeck: startingDeckCounts('interceptor') };
+		json.end = { ending: 'disbanded', cause: 'last_driver' };
+	});
+}
 
 /** Cheapest first, then by name, as the deck builder orders cards. */
 function byCost(a: string, b: string): number {

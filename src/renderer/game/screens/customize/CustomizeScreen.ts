@@ -30,6 +30,7 @@ import {
 	ESCORT_NOTE,
 	RUN_DECK_FOOT,
 	borrowedText,
+	campaignOverText,
 	isCustomized,
 	leftHomeText,
 	runDeckNote,
@@ -416,6 +417,7 @@ export class CustomizeScreen extends Screen {
 		let deck: string;
 		let pool: string;
 		if (!this.campaign) deck = pool = this.trouble ?? LOOKING;
+		else if (this.campaign.end) deck = pool = campaignOverText(this.campaign.end);
 		else if (!runDeck) deck = pool = this.campaign.runDecks.length === 0 || !this.chosen ? NO_RUN : `${this.chosen.name} isn't seated on this run.`;
 		else if (this.cardsState === 'loading') deck = pool = 'Loading the cards.';
 		else if (this.cardsState === 'failed') deck = pool = CARDS_FAILED;
@@ -465,7 +467,7 @@ export class CustomizeScreen extends Screen {
 		if (this.note) this.note.text = runDeckNote(runDeck);
 		const reset = this.reset;
 		if (reset) {
-			const live = isCustomized(runDeck) && isAtCompound(driver);
+			const live = !campaign.isOver && isCustomized(runDeck) && isAtCompound(driver);
 			// Disabled under focus, it hands focus to the card above it rather than back to Done (R9.28).
 			if (!live && this.context.focus.focused === reset && card) this.context.focus.focus(card);
 			reset.enabled = live;
@@ -504,7 +506,7 @@ export class CustomizeScreen extends Screen {
 	private resetRunDeck(): void {
 		const campaign = this.campaign;
 		const runDeck = this.runDeck;
-		if (!campaign || !runDeck || !isCustomized(runDeck)) return;
+		if (!campaign || campaign.isOver || !runDeck || !isCustomized(runDeck)) return;
 		campaign.resetRunDeck({ runDeck });
 		this.checkpoint();
 	}

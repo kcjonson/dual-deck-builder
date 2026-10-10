@@ -1,4 +1,7 @@
 import type { Campaign } from '../../campaign/Campaign';
+import { fallMessage } from '../../campaign/CampaignEnd';
+import type { CampaignEnd } from '../../campaign/CampaignEnd';
+import { cardBlockerReason } from '../../campaign/cardBlockerText';
 import { totalCards } from '../../campaign/CardCounts';
 import { DECK_RULES } from '../../campaign/DeckRules';
 import type { DriverRecord } from '../../campaign/DriverRecord';
@@ -14,6 +17,14 @@ export const YOURS_AT_HOME = 'Yours at home';
 
 /** Under the run deck, from the wireframe: what borrowing risks. */
 export const RUN_DECK_FOOT = "Borrowed cards come back with the driver. If the driver dies, they're lost with the deck.";
+
+/**
+ * In place of the run deck and the locker once the campaign is over, which
+ * leaves no run out: the controls' own "Campaign over", then how it fell.
+ */
+export function campaignOverText(end: Readonly<CampaignEnd>): string {
+	return `${cardBlockerReason({ reason: 'campaign_over', end })}. ${fallMessage(end)}`;
+}
 
 /** A driver's seat on the run, counted from 1, or null for a driver with no run deck. */
 export function seatOf({ campaign, driver }: { campaign: Campaign; driver: DriverRecord }): number | null {
