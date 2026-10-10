@@ -1,5 +1,6 @@
 import { EventEmitter } from '../core/EventEmitter';
 import { describeValue } from '../core/Json';
+import { AREA_MAP_GENERATOR_VERSION } from '../map/AreaMapPipeline';
 import { ReaderTypeError, isReaderError, readFields, readInteger, readObject } from '../core/JsonReader';
 import { CAMPAIGN_SCHEMA_VERSION, Campaign, LoadOptions, logWarning } from './Campaign';
 import { CampaignEnding, CampaignHistoryEntry, historyEntry, historyToJson, readHistory, sameEntry } from './CampaignHistory';
@@ -49,8 +50,8 @@ export function pageNamespace({ protocol, hostname, pathname }: Pick<Location, '
 /**
  * Whether there's a campaign to continue: none; one saved by this version
  * of the save format, which Continue opens (a damaged one fails to load,
- * saying so); or one saved by another version, which this build can't
- * continue.
+ * saying so); or one saved by another version, or whose map another version
+ * of the area map generator made, which this build can't continue.
  */
 export type SaveStatus = 'none' | 'saved' | 'outdated';
 
@@ -95,6 +96,12 @@ export interface CampaignStoreOptions {
 	namespace?: string;
 	/** The save format version stamped on every save and history list. `CAMPAIGN_SCHEMA_VERSION` when left out. */
 	version?: number;
+	/**
+	 * The area map generator version a saved campaign's map has to be from:
+	 * one recorded at another can't be made again here, so its save is
+	 * outdated. `AREA_MAP_GENERATOR_VERSION` when left out.
+	 */
+	generatorVersion?: number;
 	/**
 	 * Hears map param repairs on load, a history set aside or started over,
 	 * and a copy too big for full storage. Logs them by default. A callback
@@ -204,6 +211,7 @@ export class CampaignStore extends EventEmitter {
 	private readonly storage: SaveStorage;
 	private readonly keys: CampaignKeys;
 	private readonly version: number;
+	private readonly generatorVersion: number;
 	private readonly onWarning: (warning: string) => void;
 	/** The save's lineage now. */
 	private current: Lineage = {};
@@ -217,11 +225,12 @@ export class CampaignStore extends EventEmitter {
 	private queue: Promise<void> = Promise.resolve();
 	private waiting: Waiting | null = null;
 
-	constructor({ storage, namespace = pageNamespaceHere(), version = CAMPAIGN_SCHEMA_VERSION, onWarning = logWarning }: CampaignStoreOptions) {
+	constructor({ storage, namespace = pageNamespaceHere(), version = CAMPAIGN_SCHEMA_VERSION, generatorVersion = AREA_MAP_GENERATOR_VERSION, onWarning = logWarning }: CampaignStoreOptions) {
 		super();
 		this.storage = storage;
 		this.keys = campaignKeys(namespace);
 		this.version = version;
+		this.generatorVersion = generatorVersion;
 		this.onWarning = onWarning;
 	}
 
@@ -588,7 +597,9 @@ export class CampaignStore extends EventEmitter {
 
 	/**
 	 * A save's campaign: null when another version stamped it, an integer
-	 * other than this one. The version is checked first, so only a save of
+	 * other than this one, or when its campaign's map is from another
+	 * generator version, an integer other than this build's, since the map
+	 * can't be made again. The versions are checked first, so only a save of
 	 * this version has to be well formed. Anything else, a stamp with no
 	 * version or one that isn't an integer included, is damaged, and throws a
 	 * SyntaxError or a reader error (or, from a bug, anything at all).
@@ -599,10 +610,15 @@ export class CampaignStore extends EventEmitter {
 		const fields = readFields(save, 'Save', ['version', 'sequence', 'campaign']);
 		if (fields.version !== this.version) throw new ReaderTypeError(`Save.version must be an integer, got ${describeValue(fields.version)}`);
 		readInteger(fields.sequence, 'Save.sequence', { min: 1 });
+		if (isOtherGenerator(fields.campaign, this.generatorVersion)) return null;
 		return Campaign.fromJSON(fields.campaign, { onWarning });
 	}
 
-	/** Whether another version stamped a save, read off its stamp alone, so the menu never reads a campaign it won't open. */
+	/**
+	 * Whether another version stamped a save, or another generator version
+	 * made its campaign's map, read off the stamp and that one field, so the
+	 * menu never reads a campaign it won't open.
+	 */
 	private isOutdated(text: string): boolean {
 		let save: unknown;
 		try {
@@ -610,7 +626,9 @@ export class CampaignStore extends EventEmitter {
 		} catch {
 			return false;
 		}
-		return typeof save === 'object' && save !== null && isOtherVersion((save as { version?: unknown }).version, this.version);
+		if (typeof save !== 'object' || save === null) return false;
+		const { version, campaign } = save as { version?: unknown; campaign?: unknown };
+		return isOtherVersion(version, this.version) || (version === this.version && isOtherGenerator(campaign, this.generatorVersion));
 	}
 
 	/**
@@ -731,6 +749,20 @@ function stamp({ version, sequence, campaign }: { version: number; sequence: num
 function sequenceOf(text: string | null): number {
 	const match = text === null ? null : /^\{"version":-?\d+,"sequence":(\d+),"campaign":/.exec(text);
 	return match ? Number(match[1]) : 0;
+}
+
+/**
+ * Whether a saved campaign's map is from another generator version: it has
+ * map attempts to make the map again from, and its generator version is an
+ * integer other than this build's. A campaign without map attempts (built
+ * without a map, as tests build them) has no map to be from anywhere, and
+ * anything malformed in either field is the campaign reader's to refuse as
+ * damage.
+ */
+function isOtherGenerator(campaign: unknown, current: number): boolean {
+	if (typeof campaign !== 'object' || campaign === null) return false;
+	const { generatorVersion, mapAttempts } = campaign as { generatorVersion?: unknown; mapAttempts?: unknown };
+	return typeof mapAttempts === 'object' && mapAttempts !== null && isOtherVersion(generatorVersion, current);
 }
 
 /** Whether a save's version is another version's: an integer other than this build's. Anything else in its place is damage. */

@@ -114,7 +114,7 @@ Electron against the development dev server, the build the screenshot harness ru
 
 Because streams nest, a stage's stream depends on every winning attempt above it, not on the map attempt alone. The land is rebuilt on load from terrain's stream, which needs the map attempt and terrain's attempt, and dressing, the last stage, from a stream nested under every stage before it. So a campaign keeps the map attempt and every stage's winning attempt, `mapAttempts`, a dozen small integers fixed at founding beside the seed and the params; a load rebuilds any stage's stream from them. The spec's Saving section says the same.
 
-Until saves keep the map's lines (DDB-436), a load rebuilds every stage, not just the land (Making a saved map again, below). A save names the stages in `mapAttempts.stages`, so adding, removing, or renaming a stage changes the save format and bumps the save version, and a test pins the stage list to it.
+Until saves keep the map's lines (DDB-436), a load rebuilds every stage, not just the land (Making a saved map again, below). A save names the stages in `mapAttempts.stages`, so adding, removing, or renaming a stage bumps `AREA_MAP_GENERATOR_VERSION`, beside the stage list in `AreaMapPipeline.ts`, and a test pins the list to it. The save format version stays where it is: the campaign store reads a save whose map another generator version made as outdated, as it does one of another format version.
 
 ## The founding contract
 
@@ -135,7 +135,7 @@ A load makes the map again from the campaign's seed, params, and `mapAttempts`, 
 - `prepare(campaign)`: starts making it and waits for nothing. Continue calls it.
 - `mapOf(campaign, { onProgress })`, or `getAreaMap(campaign, { onProgress })` on the shared cache: the map, whether it's kept, being made, or made now, with progress while it's being made. The area map screen (DDB-43) and the run loop's routes read it here.
 
-The map is keyed by the generator version, the seed, the params, and the attempts, so any instance of a campaign, the one founding made or one a later load made, gets the same map. Asking for another campaign's drops the one kept, cancelling it if it's still being made. A failure isn't kept, so asking again tries again. A campaign with no map attempts (one built without a map, as tests build them), or one recorded at another `AREA_MAP_GENERATOR_VERSION`, is refused without generating; attempts that don't fit the pipeline are refused by the runner, in the worker.
+The map is keyed by the generator version, the seed, the params, and the attempts, so any instance of a campaign, the one founding made or one a later load made, gets the same map. Asking for another campaign's drops the one kept, cancelling it if it's still being made. A failure isn't kept, so asking again tries again. A campaign with no map attempts (one built without a map, as tests build them), or one recorded at another `AREA_MAP_GENERATOR_VERSION` ("this save's map is from an older build"), is refused without generating; the store already reads the second kind of save as outdated, so only a campaign that never went through it gets that far. Attempts that don't fit the pipeline are refused by the runner, in the worker.
 
 Making the map takes as long as founding it did, less any failed attempts: the same stages, once each. A screen that needs it shows the progress the same way the menu does (`mapProgressText`).
 

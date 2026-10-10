@@ -22,10 +22,13 @@ import { Water, generateWater } from './Water';
 
 /**
  * The generator version a campaign records with its map. 1 was the stand-in
- * campaigns were founded on before the generator existed. A change that
- * makes another map from the same seed, params, and attempts, or adds,
- * removes, or renames a stage, bumps it, and a campaign recorded at another
- * version isn't regenerated (map-pipeline-worker.md, The founding contract).
+ * campaigns were founded on before the generator existed. Adding, removing,
+ * or renaming a stage bumps it, since a save names the stages its attempts
+ * belong to (a test pins the list to it), and so may any change that makes
+ * another map from the same seed, params, and attempts. The campaign store
+ * reads a save recorded at another version as outdated, the way it reads
+ * one of another save format version (map-pipeline-worker.md, Making a
+ * saved map again).
  */
 export const AREA_MAP_GENERATOR_VERSION = 2;
 

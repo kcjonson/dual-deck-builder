@@ -247,18 +247,18 @@ describe('CampaignMaps', () => {
 		const older = new Campaign({ seed: SEED, generatorVersion: 1, mapParams: campaign.mapParams, mapAttempts: campaign.mapAttempts });
 		expect(await outcome(maps.mapOf(mapless))).toEqual(new Error('CampaignMaps: the campaign has no map attempts, so it has no map to make again'));
 		expect(await outcome(maps.mapOf(older)))
-			.toEqual(new Error(`CampaignMaps: the campaign's map was made by generator version 1, and this build makes version ${AREA_MAP_GENERATOR_VERSION}`));
+			.toEqual(new Error(`CampaignMaps: this save's map is from an older build (generator version 1; this build makes version ${AREA_MAP_GENERATOR_VERSION})`));
 		maps.prepare(older);
 		expect(asked).toEqual([]);
 	});
 
 	// A save names the stages (mapAttempts.stages), and one made before a stage was added, removed, or renamed can't replay.
-	it('pins the pipeline\'s stages to the save format version and the generator version', () => {
-		const pinned = { saveVersion: CAMPAIGN_SCHEMA_VERSION, generatorVersion: AREA_MAP_GENERATOR_VERSION, stages: areaMapPipeline().stageNames };
+	it('pins the pipeline\'s stages to the generator version', () => {
+		const pinned = { generatorVersion: AREA_MAP_GENERATOR_VERSION, stages: areaMapPipeline().stageNames };
 		try {
-			expect(pinned).toEqual({ saveVersion: 7, generatorVersion: 2, stages: ['terrain', 'water', 'highways', 'growth', 'routeTree', 'pois'] });
+			expect(pinned).toEqual({ generatorVersion: 2, stages: ['terrain', 'water', 'highways', 'growth', 'routeTree', 'pois'] });
 		} catch (error) {
-			throw new Error(`the pipeline's stages changed: bump CAMPAIGN_SCHEMA_VERSION, so older saves read as outdated, and re-pin\n${(error as Error).message}`);
+			throw new Error(`the pipeline's stages changed: bump AREA_MAP_GENERATOR_VERSION (map/AreaMapPipeline.ts), so the store reads older saves as outdated, and re-pin\n${(error as Error).message}`);
 		}
 	});
 

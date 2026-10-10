@@ -9,7 +9,9 @@ import type { Campaign } from './Campaign';
  * in the generation worker, since saves don't keep the map's lines yet
  * (DDB-436). Either way it's kept for the session, so it's made at most once.
  * One campaign's map is kept at a time: asking for another's drops it,
- * cancelling it if it's still being made.
+ * cancelling it if it's still being made. A campaign whose map another
+ * generator version made can't have it made again; the store reads its save
+ * as outdated, as it does one of another save format version.
  *
  *   CampaignMaps.shared.prepare(campaign);                  // Continue: start it, wait for nothing
  *   const map = await getAreaMap(campaign, { onProgress }); // a screen that needs it
@@ -133,8 +135,10 @@ export function getAreaMap(campaign: Campaign, request: AreaMapRequest = {}): Pr
 
 function replayOf({ generatorVersion, mapAttempts }: Campaign): PipelineReplay {
 	if (mapAttempts === null) throw new Error('CampaignMaps: the campaign has no map attempts, so it has no map to make again');
+	// The store reads such a save as outdated, so only a campaign that never went through it gets here.
 	if (generatorVersion !== AREA_MAP_GENERATOR_VERSION) {
-		throw new Error(`CampaignMaps: the campaign's map was made by generator version ${generatorVersion}, and this build makes version ${AREA_MAP_GENERATOR_VERSION}`);
+		const build = generatorVersion < AREA_MAP_GENERATOR_VERSION ? 'an older' : 'a newer';
+		throw new Error(`CampaignMaps: this save's map is from ${build} build (generator version ${generatorVersion}; this build makes version ${AREA_MAP_GENERATOR_VERSION})`);
 	}
 	return { mapAttempt: mapAttempts.map, attempts: mapAttempts.stages };
 }
