@@ -15,7 +15,7 @@ import { addCardsWon, getDebrief } from './CardsWon';
 import { CampaignFight, FailedRun, FightWriteBack, LIMP_STRUCTURE, REVIVE_HP, RunParty, WonFight, startCampaignFight, writeBackFight } from './CombatBridge';
 import { endDay } from './DayClock';
 import { DriverRecord } from './DriverRecord';
-import { foundCampaign } from './Founding';
+import { foundTestCampaign } from './__fixtures__/mapFixtures';
 import { injureOnArrival, treatDriver } from './Infirmary';
 import { RunDeck } from './RunDeck';
 import { MemorySaveStorage } from './SaveStorage';
@@ -84,7 +84,7 @@ function raider({ deck, adrenaline, archetype = null }: { deck: Card[]; adrenali
 
 /** A compound founded with only the Road Warrior and the Interceptor unlocked, so its pool is one of each. */
 function newCampaign(): { campaign: Campaign; warrior: DriverRecord; interceptor: DriverRecord } {
-	const campaign = foundCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
+	const campaign = foundTestCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
 	const recordOf = (archetype: DriverArchetype): DriverRecord => {
 		const record = campaign.drivers.find(driver => driver.archetype === archetype);
 		if (!record) throw new Error(`founding should have dealt a ${archetype}`);

@@ -6,8 +6,8 @@ import type { RoadClass, RoadNetwork, RoadNode, RoadStretch } from './RoadNetwor
 /**
  * Synthetic road networks for the route tree and POI tests: hand-built
  * meshes with loops, and random planar meshes, the shape the road links
- * (Map 7 and 8) will make, which outward growth never does. Nothing in the
- * game imports this file.
+ * (Map 7 and 8) make, for ground no seed would draw. Nothing in the game
+ * imports this file.
  */
 
 /** A node's place, and an edge as its two nodes and its class (a back road when left out). */

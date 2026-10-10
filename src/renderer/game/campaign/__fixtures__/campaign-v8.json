@@ -1,6 +1,6 @@
 {
 	"seed": 20261006,
-	"generatorVersion": 1,
+	"generatorVersion": 4,
 	"day": 9,
 	"resources": {
 		"food": 14,
@@ -363,5 +363,17 @@
 		"streetGrids": 0.7,
 		"railLines": 1
 	},
-	"map": {}
+	"map": {},
+	"mapAttempts": {
+		"map": 0,
+		"stages": {
+			"terrain": 0,
+			"water": 1,
+			"hazards": 0,
+			"places": 0,
+			"roads": 0,
+			"routeTree": 0,
+			"pois": 0
+		}
+	}
 }

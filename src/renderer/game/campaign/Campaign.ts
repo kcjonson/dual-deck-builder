@@ -16,7 +16,7 @@ import { DECK_RULES, DeckBlocker, cardName, deckAddBlocker, deckRemoveBlocker, r
 import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordData, DriverRecordJson, describeDriver, placeholderName, readDriverRecord, readDriverRecordData, readPoolDriver } from './DriverRecord';
 import { injuryDays } from './Infirmary';
 import { readMapParams, repairMapParams } from './MapParamsJson';
-import { EMPTY_MAP, MapState, readMapState } from './MapState';
+import { EMPTY_MAP, MapAttempts, MapState, readMapAttempts, readMapState } from './MapState';
 import { hasOpenFight } from './OpenFights';
 import { EscortCard, RunDeck, RunDeckJson, readRunDeckJson } from './RunDeck';
 import { SeatBlocker, getCrewRule, getSeatBlocker } from './Seating';
@@ -29,7 +29,7 @@ import { SupplyRun, SupplyRunJson, readSupplyRun, readSupplyRunJson, readSupplyR
  * with another version isn't loaded, so a bump invalidates every existing
  * save of that build.
  */
-export const CAMPAIGN_SCHEMA_VERSION = 7;
+export const CAMPAIGN_SCHEMA_VERSION = 8;
 
 /** Structure a missing driver's vehicle comes home with once they're found. A tuning value. */
 export const RETURN_STRUCTURE = 1;
@@ -145,8 +145,10 @@ export interface CampaignData {
 	generatorVersion: number;
 	/** The parameters the map was made with, as resolved and validated at founding. */
 	mapParams: Readonly<MapParams>;
-	/** The gameplay map and what's changed on it since. */
+	/** What's changed on the area map since it was made. */
 	map: MapState;
+	/** Where the map sits among the seed's attempts, which with the seed and params make it again; null for a campaign built without a map. */
+	mapAttempts: MapAttempts | null;
 	/** Founding day is day 1. */
 	day: number;
 	resources: Readonly<Resources>;
@@ -214,6 +216,7 @@ export interface CampaignJson {
 	end: CampaignEnd | null;
 	mapParams: MapParams;
 	map: JsonObject;
+	mapAttempts: MapAttempts | null;
 }
 
 export interface LoadOptions {
@@ -229,6 +232,7 @@ const FIELDS: readonly (keyof CampaignData)[] = [
 	'generatorVersion',
 	'mapParams',
 	'map',
+	'mapAttempts',
 	'day',
 	'resources',
 	'unrest',
@@ -265,7 +269,8 @@ const JSON_FIELDS: readonly (keyof CampaignJson)[] = [
 	'tally',
 	'end',
 	'mapParams',
-	'map'
+	'map',
+	'mapAttempts'
 ];
 
 export const RESOURCE_NAMES: readonly (keyof Resources)[] = ['food', 'water', 'fuel', 'meds', 'scrap', 'people'];
@@ -277,7 +282,7 @@ export const MAX_DAY = 0xffffffff;
  * What the map was made from, set at founding, and the convoy, whose
  * counter a replacement would start over, handing escort ids out again.
  */
-const FIXED_FIELDS = ['seed', 'generatorVersion', 'mapParams', 'convoy'] as const;
+const FIXED_FIELDS = ['seed', 'generatorVersion', 'mapParams', 'mapAttempts', 'convoy'] as const;
 
 /**
  * Counters that never go back: the two that hand out ids, so no id is
@@ -306,9 +311,9 @@ export interface Campaign extends Readonly<CampaignData> {}
  * Properties are read-only. A change goes through `set`, which checks the
  * whole campaign and throws, changing nothing, if the result would be
  * invalid, so whatever `toJSON` writes, `fromJSON` reads back. The seed,
- * generator version, map params, and convoy never change after founding,
- * the day, the driver and run counters, and the tally never go back, and
- * the pool only grows. Once the campaign is over (`end`), nothing changes
+ * generator version, map params, map attempts, and convoy never change
+ * after founding, the day, the driver and run counters, and the tally never
+ * go back, and the pool only grows. Once the campaign is over (`end`), nothing changes
  * it: `set` and every method that would change it throw a
  * `CampaignOverError`, and so do its driver records and its convoy, which
  * the end closes.
@@ -343,6 +348,7 @@ export class Campaign extends Model<CampaignData> {
 		generatorVersion,
 		mapParams,
 		map = EMPTY_MAP,
+		mapAttempts = null,
 		day = 1,
 		resources = NO_RESOURCES,
 		unrest = 0,
@@ -364,6 +370,7 @@ export class Campaign extends Model<CampaignData> {
 			generatorVersion,
 			mapParams,
 			map,
+			mapAttempts,
 			day,
 			resources,
 			unrest,
@@ -401,6 +408,7 @@ export class Campaign extends Model<CampaignData> {
 			generatorVersion: save.generatorVersion,
 			mapParams: mapParams.params,
 			map: save.map,
+			mapAttempts: save.mapAttempts,
 			day: save.day,
 			resources: save.resources,
 			unrest: save.unrest,
@@ -424,7 +432,7 @@ export class Campaign extends Model<CampaignData> {
 	/**
 	 * Changes fields together, checked as a whole. Throws without changing
 	 * anything if the campaign would be invalid, a field is unknown, the
-	 * seed, generator version, or map params would change, another convoy
+	 * seed, generator version, map params, or map attempts would change, another convoy
 	 * would replace the campaign's (starting its escort ids over), the day
 	 * would go back (rolling a day's draws again), the driver or run counter
 	 * would go back (handing out an id again), a driver
@@ -1061,7 +1069,8 @@ export class Campaign extends Model<CampaignData> {
 			tally: this.tally,
 			end: this.end,
 			mapParams: this.mapParams,
-			map: this.map
+			map: this.map,
+			mapAttempts: this.mapAttempts
 		};
 		return JSON.stringify(save);
 	}
@@ -1484,6 +1493,7 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 		generatorVersion: readInteger(fields.generatorVersion, `${path}.generatorVersion`, { min: 1 }),
 		mapParams,
 		map: readMapState(fields.map, `${path}.map`),
+		mapAttempts: readMapAttempts(fields.mapAttempts, `${path}.mapAttempts`),
 		day,
 		resources,
 		unrest: readInteger(fields.unrest, `${path}.unrest`, { min: 0 }),

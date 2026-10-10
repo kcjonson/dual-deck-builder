@@ -109,7 +109,8 @@ The tests pin two maps' networks as hashes of every node and stretch point, comp
 - `polylineLength` and `pointAlong` live in `Geometry.ts`, for the roads, the route tree, and the POIs alike.
 - The roads read the places stage's `placeList`, the metro as the compound; the stand-in places are gone. `RoadStats` counts the towns, villages, and crossroads (`inland`) for the loops rule.
 - The POI stage is strict (route-tree-and-pois.md), bar maps whose places cap the loops, and the gallery's area map scenes move with every road.
-- A change to any number here moves every map, so it goes with a generator version bump.
+- `roads` in place of `growth` takes `AREA_MAP_GENERATOR_VERSION` to 4, so a save whose map version 3 made reads as outdated; `CampaignMaps.test.ts` pins the stage list, the menu labels the stage, and the save fixture names it. A change to any number here moves every map, so it goes with another bump.
+- New Campaign founds through the whole pipeline, so the roads run at founding. Over 100 rolled campaign seeds none gave up or needed a retry, no map's loops were capped, and every map seated all its strongholds: the pipeline took 420 ms median, 703 at the slowest, the roads 190.
 
 ## Provisional calls
 

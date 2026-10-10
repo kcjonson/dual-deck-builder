@@ -16,7 +16,7 @@ import { CAMPAIGN_START } from '../../campaign/CampaignStart';
 import { NO_CARDS } from '../../campaign/CardCounts';
 import { startCampaignFight } from '../../campaign/CombatBridge';
 import { DriverRecord } from '../../campaign/DriverRecord';
-import { foundCampaign } from '../../campaign/Founding';
+import { foundTestCampaign } from '../../campaign/__fixtures__/mapFixtures';
 import { fightOut } from '../../campaign/__fixtures__/runFixtures';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { BattleResultData } from '../battleResult/BattleResultScreen';
@@ -88,7 +88,7 @@ describe('CombatScreen: a campaign fight (DDB-286)', () => {
 	});
 
 	it('mounts through prepare, showing the records\' names, the run\'s escorts, and the run\'s cargo rather than the stores', async () => {
-		const campaign = foundCampaign({
+		const campaign = foundTestCampaign({
 			seed: SEED,
 			unlockedArchetypes: ['road_warrior', 'interceptor'],
 			start: { ...CAMPAIGN_START, resources: { ...CAMPAIGN_START.resources, scrap: 150, fuel: 10 }, escorts: ['outrider'] }
@@ -129,7 +129,7 @@ describe('CombatScreen: a campaign fight (DDB-286)', () => {
 	});
 
 	it('settles the fight with its end hook as the battle ends, and hands the battle result what the hook returns (DDB-454)', async () => {
-		const campaign = foundCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
+		const campaign = foundTestCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
 		const seats = [...campaign.drivers];
 		seats.forEach(record => record.set({ defaultDeck: { precision_shot: 10 } }));
 		campaign.startRunDecks({ seats });
@@ -155,7 +155,7 @@ describe('CombatScreen: a campaign fight (DDB-286)', () => {
 	});
 
 	it('offers "Abandon the run" from the menu when the fight can be given up, behind a confirm that keeps fighting first (DDB-454)', async () => {
-		const campaign = foundCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
+		const campaign = foundTestCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
 		const seats = [...campaign.drivers];
 		campaign.startRunDecks({ seats });
 		const fight = startCampaignFight({
@@ -194,7 +194,7 @@ describe('CombatScreen: a campaign fight (DDB-286)', () => {
 
 	it('keeps the menu off for a fight that can\'t be given up', async () => {
 		const combat = new CombatScreen();
-		const campaign = foundCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
+		const campaign = foundTestCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor'] });
 		const seats = [...campaign.drivers];
 		campaign.startRunDecks({ seats });
 		const fight = startCampaignFight({

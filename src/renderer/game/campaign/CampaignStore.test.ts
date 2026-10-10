@@ -1,3 +1,4 @@
+import { AREA_MAP_GENERATOR_VERSION } from '../map/GeneratorVersion';
 import { CAMPAIGN_SCHEMA_VERSION, Campaign } from './Campaign';
 import { CampaignEnding, CampaignHistoryEntry, historyToJson } from './CampaignHistory';
 import { CampaignStore, CampaignStoreError, CheckpointResult, campaignKeys, pageNamespace } from './CampaignStore';
@@ -5,7 +6,7 @@ import { cardCount } from './CardCounts';
 import { LocalSaveStorage, MemorySaveStorage, WebStorage } from './SaveStorage';
 import { stressCampaign } from './__fixtures__/stressCampaign';
 import {
-	CAMPAIGN_FIXTURE, FaultyStorage, HeldStorage, KEYS, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
+	CAMPAIGN_FIXTURE, FaultyStorage, HeldStorage, KEYS, NAMESPACE, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
 	saveText, securityError, settle, storageWith, storeOver
 } from './__fixtures__/storeFixtures';
 
@@ -299,6 +300,27 @@ describe('CampaignStore', () => {
 				expect(await store.load()).toBeNull();
 				expect(storage.writes).toEqual([]);
 			}
+		});
+
+		it('doesn\'t load a save whose map another generator version made, older or newer, and leaves it be', async () => {
+			for (const generatorVersion of [AREA_MAP_GENERATOR_VERSION - 1, AREA_MAP_GENERATOR_VERSION + 1]) {
+				const storage = storageWith(fixtureText((campaign) => { campaign.generatorVersion = generatorVersion; }));
+				const store = storeOver(storage);
+
+				expect(await store.saveStatus()).toBe('outdated');
+				expect(await store.load()).toBeNull();
+				expect(storage.writes).toEqual([]);
+			}
+			// Today's save, in a build whose generator has moved on.
+			const moved = new CampaignStore({ storage: storageWith(fixtureText()), namespace: NAMESPACE, generatorVersion: AREA_MAP_GENERATOR_VERSION + 1 });
+			expect(await moved.saveStatus()).toBe('outdated');
+			// A campaign without map attempts has no map to be from another build.
+			const mapless = storageWith(fixtureText((campaign) => {
+				campaign.generatorVersion = 1;
+				campaign.mapAttempts = null;
+			}));
+			expect(await storeOver(mapless).saveStatus()).toBe('saved');
+			expect((await storeOver(mapless).load())?.generatorVersion).toBe(1);
 		});
 
 		it('reads today\'s saves as outdated in a build with the next version', async () => {

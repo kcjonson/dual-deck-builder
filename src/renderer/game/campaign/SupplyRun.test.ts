@@ -9,7 +9,7 @@ import { CampaignOverError } from './CampaignEnd';
 import { CAMPAIGN_START } from './CampaignStart';
 import { CampaignStore } from './CampaignStore';
 import { ENCOUNTER_IDS, ENCOUNTERS, encounterFor, encounterTeam } from './Encounters';
-import { foundCampaign } from './Founding';
+import { foundTestCampaign } from './__fixtures__/mapFixtures';
 import type { DriverRecord } from './DriverRecord';
 import { getCrewRule, getSeatBlocker } from './Seating';
 import { REWARD_CHOICES, rollRewardCards } from './RunRewards';
@@ -34,7 +34,7 @@ const CARDS: ReadonlyMap<string, Card> = new Map(
 
 /** A compound founded with only these archetypes unlocked, so its pool is one of each, and fuel to spare. */
 function newCampaign(archetypes: DriverArchetype[] = ['road_warrior', 'interceptor', 'mechanic']): Campaign {
-	return foundCampaign({ seed: SEED, unlockedArchetypes: archetypes, start: { ...CAMPAIGN_START, resources: { ...CAMPAIGN_START.resources, fuel: 20 } } });
+	return foundTestCampaign({ seed: SEED, unlockedArchetypes: archetypes, start: { ...CAMPAIGN_START, resources: { ...CAMPAIGN_START.resources, fuel: 20 } } });
 }
 
 /** Today's route with the most stops. */

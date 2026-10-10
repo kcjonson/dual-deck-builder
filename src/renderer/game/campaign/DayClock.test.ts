@@ -6,7 +6,7 @@ import { CAMPAIGN_START } from './CampaignStart';
 import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES } from './CompoundRules';
 import { DAY_END_HOOKS, DayEnd, DayEndHooks, DayHaul, DuskState, MapDayStep, NeedsForecast, endDay, forecastNeeds } from './DayClock';
 import { DriverRecord, DriverStatus } from './DriverRecord';
-import { foundCampaign } from './Founding';
+import { foundTestCampaign } from './__fixtures__/mapFixtures';
 import { MapState } from './MapState';
 
 const SEED = 20261008;
@@ -587,7 +587,7 @@ function playDays({ seed, script, days, check }: {
 	days: number;
 	check?: (campaign: Campaign, before: Snapshot, result: DayEnd) => void;
 }): { campaign: Campaign; results: DayEnd[] } {
-	const campaign = foundCampaign({ seed, unlockedArchetypes: ARCHETYPES });
+	const campaign = foundTestCampaign({ seed, unlockedArchetypes: ARCHETYPES });
 	const results: DayEnd[] = [];
 	for (let night = 0; night < days; night++) {
 		const stores = campaign.resources;
