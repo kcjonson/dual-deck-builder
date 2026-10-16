@@ -214,8 +214,15 @@ describe('generateTerrain', () => {
 				expect(sample.grade).toBeLessThan(0.4);
 				expect(sample.contamination).toBe(0);
 				expect(terrain.impassable(x, y)).toBe(false);
-				// A city street's cost is its length, give or take the metro's gentle grades, rivers and all.
+				// A city street's cost is its length, give or take the metro's gentle grades, rivers and all, bar a river it would cross less than 30 degrees off its line.
 				const cost = terrain.moveCost(x, y, 0.95 * x, 0.95 * y, 'highway');
+				const crossings = terrain.water?.riverCrossings(x, y, 0.95 * x, 0.95 * y) ?? 0;
+				let shallow = false;
+				for (let index = 0; index < crossings; index += 1) shallow ||= (terrain.water as WaterLayer).riverCrossing(index).sine < MOVE_COST.leastCrossing;
+				if (shallow) {
+					expect(cost).toBe(Infinity);
+					return;
+				}
 				expect(cost).toBeGreaterThanOrEqual(0.05 * Math.hypot(x, y) - 1e-9);
 				expect(cost).toBeLessThan(0.05 * Math.hypot(x, y) * 1.5 + 1e-9);
 			});
@@ -665,7 +672,7 @@ describe('generateTerrain', () => {
 			expect(checked).toBeGreaterThan(0);
 		});
 
-		it('bridges a river: a crossing costs more than the land, more the wider the river and the less square-on, cheapest for a highway, and never past the longest bridge', () => {
+		it('bridges a river: a crossing costs more than the land, more the wider the river and the less square-on, cheapest for a highway, never past the longest bridge or under 30 degrees off the river', () => {
 			const terrain = land();
 			const [x, y] = openGround(terrain, 40);
 			const narrow = terrain.withWater(straightRiver({ at: x, width: 2 }));
@@ -678,10 +685,14 @@ describe('generateTerrain', () => {
 			expect(broad.moveCost(x - 10, y, x + 10, y, 'backRoad')).toBeGreaterThan(square);
 			expect(narrow.moveCost(x - 10, y, x + 10, y + 10, 'backRoad')).toBeGreaterThan(narrow.moveCost(x - 10, y, x + 10, y, 'backRoad'));
 			expect(narrow.moveCost(x - 10, y, x + 10, y, 'highway')).toBeLessThan(narrow.moveCost(x - 10, y, x + 10, y, 'trail'));
-			// Crossed at a sine of 0.25, 2 across is a bridge 8 long, and 8 across one 32 long, past the longest.
+			// Crossed at a sine of 0.6, 2 across is a bridge 3.3 long, and 15 across one 25 long, past the longest.
+			const wide = terrain.withWater(straightRiver({ at: x, width: 15 }));
+			const [ax, ay] = [x + 5, y + Math.sqrt((10 / 0.6) ** 2 - 10 * 10)];
+			expect(narrow.moveCost(x - 5, y, ax, ay, 'highway')).toBeLessThan(Infinity);
+			expect(wide.moveCost(x - 5, y, ax, ay, 'highway')).toBe(Infinity);
+			// At a sine of 0.25, under 30 degrees off the river, even 2 across, a bridge 8 long, isn't crossed.
 			const [ex, ey] = [x + 5, y + Math.sqrt(40 * 40 - 10 * 10)];
-			expect(narrow.moveCost(x - 5, y, ex, ey, 'highway')).toBeLessThan(Infinity);
-			expect(broad.moveCost(x - 5, y, ex, ey, 'highway')).toBe(Infinity);
+			expect(narrow.moveCost(x - 5, y, ex, ey, 'trail')).toBe(Infinity);
 			// Stopping in the river, or alongside it, is never a bridge.
 			expect(narrow.moveCost(x - 10, y, x + 0.5, y, 'trail')).toBe(Infinity);
 			expect(narrow.moveCost(x, y - 10, x, y + 10, 'trail')).toBe(Infinity);
@@ -699,15 +710,23 @@ describe('generateTerrain', () => {
 			expect(terrain.bridgeSpans(x - 10, y, x - 30, y, spans)).toBe(0);
 			// Too long a bridge isn't one: crossed at a sine of 0.1, 4 across would run 40.
 			expect(terrain.bridgeSpans(x - 1, y - 10, x + 1, y + 10, spans)).toBe(0);
+			// Nor one under 30 degrees off the river: at a sine of 0.4 it would run 10, short enough.
+			expect(terrain.bridgeSpans(x - 4, y, x + 4, y + Math.sqrt(20 * 20 - 8 * 8), spans)).toBe(0);
+			expect(terrain.bridgeSpans(x - 4, y, x + 4, y + Math.sqrt((8 / 0.6) ** 2 - 8 * 8), spans)).toBe(1);
 			expect(terrain.obstacle(x, y)).toBe('river');
 		});
 
-		it('leaves the metro\'s rivers bridged everywhere, at no cost', () => {
+		it('leaves the metro\'s rivers bridged everywhere, at no cost, crossed 30 degrees off their line or more', () => {
 			const terrain = land().withWater(straightRiver({ at: 10, width: 6 }));
 			expect(terrain.obstacle(10, 0)).toBeNull();
 			const parts = { bridge: 0 };
 			expect(terrain.moveCost(0, 0, 20, 0, 'highway', parts)).toBeLessThan(20.5);
 			expect(parts.bridge).toBe(0);
+			const spans: number[] = [];
+			expect(terrain.bridgeSpans(8, 0, 12, 2, spans)).toBe(1);
+			// Down the river, 11 degrees off it.
+			expect(terrain.moveCost(8, 0, 12, 20, 'highway')).toBe(Infinity);
+			expect(terrain.bridgeSpans(8, 0, 12, 20, spans)).toBe(0);
 		});
 	});
 
