@@ -8,6 +8,7 @@ import { NO_MODIFIERS } from '../../../engine/input/events';
 import { click, key, pointer, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import type { Places } from '../../map/Places';
+import { POI_TUNING } from '../../map/PoiData';
 import type { RiverLines } from '../../map/Rivers';
 import type { RoadNetwork } from '../../map/RoadNetwork';
 import {
@@ -799,6 +800,7 @@ describe('AreaMapView labels, glyphs, and the night ring', () => {
 	});
 
 	it('names every POI type with a glyph of its own', () => {
+		expect(Object.keys(POI_GLYPHS).sort()).toEqual(Object.keys(POI_TUNING.types).sort());
 		const glyphs = Object.values(POI_GLYPHS);
 		expect(new Set(glyphs.map((glyph) => glyph.toUpperCase())).size).toBe(glyphs.length);
 	});
@@ -894,8 +896,9 @@ describe('AreaMapView road details', () => {
 		// Casing, casing, fill, fill, and the cross's two strokes.
 		expect(span.map((command) => command.kind)).toEqual(['polyline', 'polyline', 'polyline', 'polyline', 'line', 'line']);
 		const [west, east] = span.slice(0, 2) as PolylineCommand[];
-		const zoom = view.camera.zoom;
-		const gap = BROKEN_SPAN.gap * roadWidthScale(zoom) / zoom;
+		// Cut at the zoom step the dashes are built at, as wide as the gap on screen near enough.
+		const step = 2 ** (Math.round(Math.log2(view.camera.zoom) * DASH_ZOOM_STEPS) / DASH_ZOOM_STEPS);
+		const gap = BROKEN_SPAN.gap * roadWidthScale(step) / step;
 		expect(west.points[west.points.length - 1].x).toBeCloseTo(250 - gap / 2, 9);
 		expect(east.points[0].x).toBeCloseTo(250 + gap / 2, 9);
 		const cross = span[4] as LineCommand;
@@ -951,20 +954,30 @@ describe('AreaMapView probes', () => {
 		expect(mounted.view.selection).toEqual({ kind: 'marker', id: 'edge' });
 	});
 
-	it('counts what it culls itself as a group a dash for a stub, so drawn and culled add up wherever the camera is', () => {
-		const states: RoadKnowledge[] = ['charted', 'charted', 'uncharted', 'uncharted'];
-		const { view, context, frame } = mountView({ knowledge: { knowledgeOf: (stretch) => states[stretch] } });
+	it('counts what it culls itself as the groups it would have drawn, so drawn and culled add up wherever the camera is', () => {
+		// Every kind of road group: cased stretches, a stub's dashes, a trail's dashes, a bridge's parapets, and a collapsed span.
+		const network: RoadNetwork = {
+			...SMALL_NETWORK,
+			stretches: [
+				...SMALL_NETWORK.stretches.map((stretch, id) => (id === 1 ? { ...stretch, bridges: [{ start: 50, end: 60 }] } : stretch)),
+				{ roadClass: 'trail', from: 4, to: 3, length: Math.hypot(200, 100), points: [200, 400, 0, 500], bridges: [], street: false },
+			],
+			broken: [{ roadClass: 'highway', from: 3, to: 4, length: 200, points: [-200, 450, 0, 450], bridges: [], street: false }],
+		};
+		const states: RoadKnowledge[] = ['charted', 'charted', 'charted', 'uncharted', 'charted'];
+		const { view, context, frame } = mountView({ map: { terrain: flatTerrain({ radius: RADIUS }), network, rivers: NO_RIVERS }, knowledge: { knowledgeOf: (stretch) => states[stretch] } });
 		const culled = jest.spyOn(context.draw, 'cullGroups');
 		view.camera.zoom = 1;
+		expect(view.camera.zoom).toBeGreaterThanOrEqual(ROAD_DETAIL_ZOOM);
 		view.camera.center = { x: 0, y: 300 };
 		const asked = (): number => {
 			culled.mockClear();
-			const drawn = roads(frame()).length;
+			const drawn = frame().filter((command) => /^map\.(road|broken)_\d+$/.test(command.id ?? '')).length;
 			return drawn + culled.mock.calls.reduce((sum, [groups]) => sum + groups, 0);
 		};
 		const whole = asked();
 		expect(culled).not.toHaveBeenCalled();
-		// Panned south at the same zoom, the stubs north of the junction are out of view.
+		// Panned south at the same zoom: the bridge, the stub, the trail, and the span are all out of view.
 		view.camera.center = { x: 0, y: -250 };
 		expect(asked()).toBe(whole);
 		expect(culled).toHaveBeenCalled();

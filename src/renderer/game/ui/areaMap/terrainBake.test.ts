@@ -235,11 +235,14 @@ describe('bakeTerrain', () => {
 		expect(terrain.depths).toBeGreaterThan(400 * 400 * 0.7);
 	});
 
-	it('bakes the same bytes for the same terrain', () => {
-		const terrain = terrainFor({ seed: 11, radius: 600 });
+	it('bakes the same bytes for the same terrain, its craters, and its places', () => {
+		const land = terrainFor({ seed: 11, radius: 600 });
+		const craters = [{ x: 150, y: -200, craterRadius: 20, plumeRadius: 120, strength: 1 }];
+		const terrain: BakeTerrain = { radius: land.radius, hotspots: craters, water: land.water, sample: (x, y, out) => land.sample(x, y, out), slope: (x, y, out) => land.slope(x, y, out), cliffDepth: (x, y) => land.cliffDepth(x, y) };
+		const ruins = [{ x: 0, y: 0, radius: 90, kind: 'metro' as const }, { x: -250, y: 150, radius: 40, kind: 'town' as const }, { x: 200, y: 250, radius: 14, kind: 'village' as const }];
 		const size = terrainBakeSize(terrain.radius);
 		// Compared as buffers: a deep equal over a million elements takes seconds
-		expect(Buffer.from(bakeTerrain({ terrain, size })).equals(Buffer.from(bakeTerrain({ terrain, size })))).toBe(true);
+		expect(Buffer.from(bakeTerrain({ terrain, size, ruins })).equals(Buffer.from(bakeTerrain({ terrain, size, ruins })))).toBe(true);
 	});
 
 	it('draws the lakes Terrain.obstacle reports, give or take their shores', () => {

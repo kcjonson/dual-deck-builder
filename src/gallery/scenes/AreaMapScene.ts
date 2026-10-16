@@ -10,7 +10,6 @@ import { fixtureAreaMap, fixtureFog, fixtureKnowledge, fixtureMarkers } from './
 
 export type AreaMapSceneMode = 'whole' | 'fog';
 
-const NOTE_HEIGHT = 20;
 /** The view's height where the gallery gives the scene none to fill. */
 const VIEW_HEIGHT = 680;
 
@@ -44,7 +43,8 @@ export class AreaMapScene extends DeveloperSectionPanel {
 			text: mode === 'whole'
 				? `Seed ${query.seed}, ${environmentLabel(query.environment)}, radius ${query.radius}: terrain baked once, every road charted. Drag to pan, wheel to zoom, click to select.`
 				: 'Seed 3, Mixed, radius 1000: stand-in knowledge, fog, and markers. Charted solid, rumored pale, uncharted dashed into the fog.',
-			height: NOTE_HEIGHT,
+			// Wrapped to the frame's width and as tall as its lines, so a narrow window doesn't cut it off.
+			widthMode: 'fill',
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
 		}));
 		this.addChild(this.view);
@@ -114,10 +114,10 @@ function fogMap(size: Pick<AreaMapViewOptions, 'height' | 'heightMode'>): AreaMa
 	const fog = fixtureFog(map.network, knowledge, { radius, reach: reach * 0.8, sight: 100 });
 	const markers = fixtureMarkers(map.pois, {
 		pois: [
-			{ id: 'hospital', label: 'St. Brendan\'s Hospital' },
-			{ id: 'water_plant', label: 'Water plant (looted)', state: 'looted' },
-			{ id: 'silos', label: 'Grain silos' },
-			{ id: 'fuel_depot', label: 'Fuel Depot 9 (depleted)', state: 'depleted' },
+			{ id: 'hospital', label: 'St. Brendan\'s Hospital', type: 'hospital' },
+			{ id: 'water_plant', label: 'Water plant (looted)', state: 'looted', type: 'waterPlant' },
+			{ id: 'silos', label: 'Grain silos', type: 'silo' },
+			{ id: 'fuel_depot', label: 'Fuel Depot 9 (depleted)', state: 'depleted', type: 'fuelDepot' },
 		],
 		stronghold: { id: 'rust_vultures', label: 'Rust Vulture yard' },
 		spacing: 200,

@@ -139,7 +139,7 @@ class TerrainBaker {
 		const texel = this.texel;
 		this.outerSquared = (radius + texel) * (radius + texel);
 		this.innerSquared = radius > texel ? (radius - texel) * (radius - texel) : 0;
-		const rimInner = Math.max(0, Math.min(radius * (1 - RIM.fade), radius - texel * 2.5));
+		const rimInner = Math.max(0, Math.min(radius * (1 - RIM.fade), radius - texel * (RIM.lineInset + 1)));
 		this.rimSquared = rimInner * rimInner;
 	}
 
@@ -230,7 +230,7 @@ class TerrainBaker {
 			const plumeInner = hotspot.plumeRadius - texel;
 			if (squared > plumeInner * plumeInner) {
 				const distance = Math.sqrt(squared);
-				const onRing = 1 - Math.abs(distance - hotspot.plumeRadius) / (texel * 0.75);
+				const onRing = 1 - Math.abs(distance - hotspot.plumeRadius) / (texel * ring.halfWidth);
 				if (onRing > 0 && dashOn(Math.atan2(dy, dx) * hotspot.plumeRadius, ring.dash)) mix(ink, ring.colour, onRing * ring.weight);
 				continue;
 			}
@@ -251,7 +251,7 @@ class TerrainBaker {
 		const texel = this.texel;
 		const into = (distance - radius * (1 - RIM.fade)) / (radius * RIM.fade);
 		if (into > 0) mix(this.ink, PAPER, smooth(into) * RIM.fadeWeight);
-		const onLine = 1 - Math.abs(distance - (radius - texel * 1.5)) / texel;
+		const onLine = 1 - Math.abs(distance - (radius - texel * RIM.lineInset)) / texel;
 		if (onLine > 0 && dashOn(Math.atan2(y, x) * radius, RIM.dash)) mix(this.ink, RIM.line, onLine * RIM.lineWeight);
 	}
 

@@ -2,9 +2,11 @@ import { LABEL_LAYOUT } from './areaMapStyle';
 
 /**
  * Label placement for the area map (Area Map Generation, Rendering: the road
- * atlas): labels are placed by priority, each in the first of its candidate
- * spots that stays inside the view and clear of everything placed before it,
- * and dropped rather than overlapped when none is. Screen space.
+ * atlas): labels are placed by priority, each on the first side of its
+ * symbol that stays inside the view and clear of everything placed before
+ * it, and dropped rather than overlapped when none is. Screen space. A frame
+ * places into boxes kept from the last, so placing allocates nothing once
+ * the map has been drawn.
  */
 
 /** A box on screen. */
@@ -20,68 +22,103 @@ export type LabelSide = 'right' | 'left' | 'above' | 'below';
 
 export const BESIDE: readonly LabelSide[] = ['right', 'left', 'above', 'below'];
 
-/**
- * A label `width` by `height` beside a symbol `radius` across at (x, y), on
- * each of `sides` in turn, `LABEL_LAYOUT.gap` clear of its edge: level with
- * its centre to the right or left, centred over it above or below.
- */
-export function besideBoxes({ x, y, radius, width, height, sides = BESIDE }: { x: number; y: number; radius: number; width: number; height: number; sides?: readonly LabelSide[] }): LabelBox[] {
-	const away = radius + LABEL_LAYOUT.gap;
-	return sides.map((side) => {
-		switch (side) {
-			case 'right':
-				return { x: x + away, y: y - height / 2, width, height };
-			case 'left':
-				return { x: x - away - width, y: y - height / 2, width, height };
-			case 'above':
-				return { x: x - width / 2, y: y - away - height, width, height };
-			case 'below':
-				return { x: x - width / 2, y: y + away, width, height };
-		}
-	});
+interface Box {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
 }
 
-export function overlaps(a: LabelBox, b: LabelBox): boolean {
-	return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+export interface BesideOptions {
+	/** The symbol's centre and its extent from it. */
+	x: number;
+	y: number;
+	radius: number;
+	/** The label's size. */
+	width: number;
+	height: number;
+	sides?: readonly LabelSide[];
+	/** With no side clear, take the first anyway, and block it. */
+	anyway?: boolean;
 }
 
 /**
  * One frame's taken space: symbols blocked first, then each label as it's
- * placed, padded by `LABEL_LAYOUT.pad` so neighbouring halos don't touch.
+ * placed, kept `LABEL_LAYOUT.pad` from its neighbours so halos don't touch.
  */
 export class LabelLayout {
-	private readonly taken: LabelBox[] = [];
+	private readonly taken: Box[] = [];
+	private count = 0;
 	private width = 0;
 	private height = 0;
+	/** Without measured text nothing can be kept clear, so every label takes its first side. */
+	private checked = true;
+	private readonly corner = { x: 0, y: 0 };
 
-	/** A new frame in a view `width` by `height`. */
-	public reset(width: number, height: number): void {
-		this.taken.length = 0;
+	/** A new frame in a view `width` by `height`; `checked` false where labels can't be measured. */
+	public reset(width: number, height: number, checked = true): void {
+		this.count = 0;
 		this.width = width;
 		this.height = height;
+		this.checked = checked;
 	}
 
-	/** Space no label may enter: a symbol, or a label placed whatever was there. */
-	public block(box: LabelBox): void {
-		this.taken.push(box);
+	/** Space no label may enter: a symbol. */
+	public block(x: number, y: number, width: number, height: number): void {
+		this.take(x, y, width, height);
 	}
 
-	/** Whether `box` is inside the view and clear of everything taken. */
-	public isClear(box: LabelBox): boolean {
-		if (box.x < 0 || box.y < 0 || box.x + box.width > this.width || box.y + box.height > this.height) return false;
+	/**
+	 * A label `width` by `height` beside a symbol `radius` across at (x, y),
+	 * on the first of `sides` that's clear, `LABEL_LAYOUT.gap` from the
+	 * symbol's edge: level with its centre to the right or left, centred over
+	 * it above or below. Returns its box, valid until the next `reset`, or
+	 * null when no side is clear.
+	 */
+	public placeBeside({ x, y, radius, width, height, sides = BESIDE, anyway = false }: BesideOptions): LabelBox | null {
+		const away = radius + LABEL_LAYOUT.gap;
+		const at = this.corner;
+		for (const side of sides) {
+			cornerBeside(side, x, y, away, width, height, at);
+			if (!this.checked || this.isClear(at.x, at.y, width, height)) return this.take(at.x, at.y, width, height);
+		}
+		if (!anyway || sides.length === 0) return null;
+		cornerBeside(sides[0], x, y, away, width, height, at);
+		return this.take(at.x, at.y, width, height);
+	}
+
+	/** Whether a box is inside the view and `pad` clear of everything taken. */
+	public isClear(x: number, y: number, width: number, height: number): boolean {
+		if (x < 0 || y < 0 || x + width > this.width || y + height > this.height) return false;
 		const pad = LABEL_LAYOUT.pad;
-		const padded = { x: box.x - pad, y: box.y - pad, width: box.width + pad * 2, height: box.height + pad * 2 };
-		for (const other of this.taken) if (overlaps(padded, other)) return false;
+		const left = x - pad;
+		const top = y - pad;
+		const right = x + width + pad;
+		const bottom = y + height + pad;
+		for (let index = 0; index < this.count; index++) {
+			const other = this.taken[index];
+			if (left < other.x + other.width && right > other.x && top < other.y + other.height && bottom > other.y) return false;
+		}
 		return true;
 	}
 
-	/** The first clear candidate, taken; null when none is. */
-	public place(candidates: readonly LabelBox[]): LabelBox | null {
-		for (const box of candidates) {
-			if (!this.isClear(box)) continue;
+	private take(x: number, y: number, width: number, height: number): Box {
+		let box = this.taken[this.count];
+		if (!box) {
+			box = { x: 0, y: 0, width: 0, height: 0 };
 			this.taken.push(box);
-			return box;
 		}
-		return null;
+		box.x = x;
+		box.y = y;
+		box.width = width;
+		box.height = height;
+		this.count += 1;
+		return box;
 	}
+}
+
+/** The top-left corner, into `out`, of a label `width` by `height` on `side` of a symbol at (x, y), `away` from its centre. */
+function cornerBeside(side: LabelSide, x: number, y: number, away: number, width: number, height: number, out: { x: number; y: number }): void {
+	out.x = side === 'right' ? x + away : side === 'left' ? x - away - width : x - width / 2;
+	out.y = side === 'above' ? y - away - height : side === 'below' ? y + away : y - height / 2;
 }

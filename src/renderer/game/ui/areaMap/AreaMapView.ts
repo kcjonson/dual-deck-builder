@@ -51,7 +51,7 @@ import {
 	stubEnd,
 } from './layers';
 import { MapCamera } from './MapCamera';
-import { BESIDE, LabelBox, LabelLayout, LabelSide, besideBoxes } from './mapLabels';
+import { BESIDE, LabelBox, LabelLayout, LabelSide } from './mapLabels';
 import { RiverGeometry } from './riverGeometry';
 import { RoadGeometry, dashesAlong, detailLevel, distanceToPolyline, lengthOf, offsetPolyline, slicePolyline, truncatePolyline } from './roadGeometry';
 import { bakeTerrain, terrainBakeSize } from './terrainBake';
@@ -119,7 +119,9 @@ const CLEAR: RGBA = [0, 0, 0, 0];
 const CLASS_ORDER: readonly RoadClass[] = [...ROAD_CLASSES].reverse();
 /** Home's star, outer and inner points alternating from the top, about the origin. */
 const STAR = starPoints(COMPOUND.outer, COMPOUND.inner);
-const STAR_HALO = starPoints(COMPOUND.outer + COMPOUND.haloWidth * 1.8, COMPOUND.inner + COMPOUND.haloWidth);
+const STAR_HALO = starPoints(COMPOUND.outer + COMPOUND.haloOuter, COMPOUND.inner + COMPOUND.haloInner);
+const HOME_SIDES: readonly LabelSide[] = ['below', 'right', 'left', 'above'];
+const METRO_SIDES: readonly LabelSide[] = ['above', 'below'];
 const STAR_INDICES = triangulatePolygon(STAR);
 
 /** Each class's fill and casing on a rumored road: opaque, so its joints don't darken. */
@@ -167,12 +169,18 @@ interface Deck {
 	readonly points: readonly Vec2[];
 }
 
-/** A label this frame places: its text, style, and box, and the name its draws go by. */
+/** A label this frame places: its text, style, and box, and the name its draws go by. Kept from frame to frame and refilled. */
 interface PlacedLabel {
-	readonly text: string;
-	readonly style: LabelStyle;
-	readonly box: LabelBox;
-	readonly part: string;
+	text: string;
+	style: LabelStyle;
+	box: LabelBox;
+	part: string;
+}
+
+/** A collapsed span's length and middle, worked out once a map. */
+interface BrokenSpan {
+	readonly length: number;
+	readonly middle: Vec2 | null;
 }
 
 export class AreaMapView extends Component {
@@ -186,14 +194,23 @@ export class AreaMapView extends Component {
 	private stretchIds: string[] = [];
 	/** Every bridge's deck, worked out once a map. */
 	private decks: readonly Deck[] = [];
+	/** Each deck's two parapets at `dashZoom`, built when first drawn there. */
+	private parapets: (readonly (readonly Vec2[])[] | undefined)[] = [];
+	private brokenSpans: readonly BrokenSpan[] = [];
+	/** Each collapsed span's two pieces either side of its gap at `dashZoom`. */
+	private brokenPieces: (readonly (readonly Vec2[])[] | undefined)[] = [];
+	/** Towns and villages biggest first, the order their names are placed in. */
+	private settlementOrder: { readonly towns: readonly Settlement[]; readonly villages: readonly Settlement[] } = { towns: [], villages: [] };
 	private markerList: readonly MapMarker[] = [];
 	/** The markers' labels in the order they're placed, worked out when the markers or the selection change. */
 	private labelOrder: readonly MapMarker[] | null = null;
-	/** The labels the last frame placed, for `drawnText`; null before the first. */
-	private placedText: string[] | null = null;
+	/** The labels the last frame placed, for `drawnText`; stale (`textPlaced` false) until a frame after anything that moves them. */
+	private readonly placedText: string[] = [];
+	private textPlaced = false;
 	private readonly labelLayout = new LabelLayout();
-	/** This frame's labels, placed before any is drawn. */
+	/** This frame's labels, placed before any is drawn: the first `planned` of them. */
 	private readonly labelPlan: PlacedLabel[] = [];
+	private planned = 0;
 	private routeLines: readonly RouteLine[] = [];
 	private knowledgeLayer: RoadKnowledgeLayer | null = null;
 	private fogLayer: LandFogLayer | null = null;
@@ -216,8 +233,10 @@ export class AreaMapView extends Component {
 	/** Trails' and uncharted stubs' dashes at `dashZoom`; a zoom changes their world length, a pan doesn't. */
 	private readonly dashCache = new Map<number, Dash[]>();
 	private dashZoom = 0;
-	private readonly labelWidths = new Map<string, number>();
+	/** Measured label widths, by style, then text. */
+	private readonly labelWidths = new Map<LabelStyle, Map<string, number>>();
 	private readonly scratch: Vec2 = { x: 0, y: 0 };
+	private readonly homeScratch: Vec2 = { x: 0, y: 0 };
 
 	constructor({ map = null, markers = [], routes = [], knowledge = null, fog = null, layers, selection = null, onSelect = null, ...options }: AreaMapViewOptions = {}) {
 		super({ focusable: true, ...options });
@@ -248,7 +267,7 @@ export class AreaMapView extends Component {
 		this.rebuildGeometry(map);
 		this.currentSelection = null;
 		this.labelOrder = null;
-		this.placedText = null;
+		this.textPlaced = false;
 		this.bakeTerrainTexture();
 	}
 
@@ -259,7 +278,7 @@ export class AreaMapView extends Component {
 	public set markers(markers: readonly MapMarker[]) {
 		this.markerList = markers;
 		this.labelOrder = null;
-		this.placedText = null;
+		this.textPlaced = false;
 	}
 
 	/** A POI's routes, drawn under the roads; none when empty. */
@@ -287,7 +306,7 @@ export class AreaMapView extends Component {
 
 	public set fog(fog: LandFogLayer | null) {
 		this.fogLayer = fog;
-		this.placedText = null;
+		this.textPlaced = false;
 		this.bakeFogTexture();
 	}
 
@@ -298,7 +317,7 @@ export class AreaMapView extends Component {
 	/** Merged over the current toggles: `{ fog: false }` turns the fog off and leaves the rest. */
 	public set layers(layers: Partial<AreaMapLayerToggles>) {
 		this.layerToggles = { ...this.layerToggles, ...layers };
-		this.placedText = null;
+		this.textPlaced = false;
 	}
 
 	public get selection(): AreaMapSelection | null {
@@ -309,7 +328,7 @@ export class AreaMapView extends Component {
 	public set selection(selection: AreaMapSelection | null) {
 		this.currentSelection = selection;
 		this.labelOrder = null;
-		this.placedText = null;
+		this.textPlaced = false;
 	}
 
 	public get onSelect(): ((selection: AreaMapSelection | null) => void) | null {
@@ -336,6 +355,10 @@ export class AreaMapView extends Component {
 			this.drawOrder = [];
 			this.stretchIds = [];
 			this.decks = [];
+			this.parapets = [];
+			this.brokenSpans = [];
+			this.brokenPieces = [];
+			this.settlementOrder = { towns: [], villages: [] };
 			return;
 		}
 		const network = map.network;
@@ -349,6 +372,13 @@ export class AreaMapView extends Component {
 		this.stretchIds = network.stretches.map((_stretch, id) => `${prefix}.road_${id}`);
 		this.decks = network.stretches.flatMap((stretch, id) => stretch.bridges.map(({ start, end }) => ({ stretch: id, points: slicePolyline(geometry.stretches[id].points, start, end) })))
 			.filter((deck) => deck.points.length >= 2);
+		this.parapets = [];
+		this.brokenSpans = geometry.broken.map(({ points }) => {
+			const length = lengthOf(points);
+			return { length, middle: slicePolyline(points, length / 2, length)[0] ?? null };
+		});
+		this.brokenPieces = [];
+		this.settlementOrder = { towns: bySize(map.places?.towns ?? []), villages: bySize(map.places?.villages ?? []) };
 		this.mapCamera.radius = map.terrain.radius;
 	}
 
@@ -440,7 +470,7 @@ export class AreaMapView extends Component {
 				if (glyph) labels.push(glyph);
 			}
 		}
-		if (this.placedText) {
+		if (this.textPlaced) {
 			labels.push(...this.placedText);
 			return labels;
 		}
@@ -698,17 +728,23 @@ export class AreaMapView extends Component {
 		const reach = casing.width * pixel;
 		const { cross, gap } = BROKEN_SPAN;
 		let skipped = 0;
+		const step = this.dashStep();
+		const stepPixel = roadWidthScale(step) / step;
 		geometry.broken.forEach(({ points, bounds }, index) => {
-			const length = lengthOf(points);
-			const middle = slicePolyline(points, length / 2, length)[0];
+			const { length, middle } = this.brokenSpans[index];
 			if (!middle || this.fogged(middle.x, -middle.y)) return;
 			if (bounds.maxX < visible.minX - reach || bounds.minX > visible.maxX + reach
 				|| bounds.maxY < visible.minY - reach || bounds.minY > visible.maxY + reach) {
+				// Its casing and fill each side of the gap, and the cross's two strokes.
 				skipped += 6;
 				return;
 			}
-			const half = Math.min(length / 2, (gap / 2) * pixel);
-			const pieces = [slicePolyline(points, 0, length / 2 - half), slicePolyline(points, length / 2 + half, length)];
+			let pieces = this.brokenPieces[index];
+			if (!pieces) {
+				const half = Math.min(length / 2, (gap / 2) * stepPixel);
+				pieces = [slicePolyline(points, 0, length / 2 - half), slicePolyline(points, length / 2 + half, length)];
+				this.brokenPieces[index] = pieces;
+			}
 			const id = this.part(`broken_${index}`);
 			for (const piece of pieces) draw.drawPolyline({ id, points: piece, color: casing.color, width: casing.width * pixel, cap: 'butt' });
 			for (const piece of pieces) draw.drawPolyline({ id, points: piece, color: style.color, width: style.width * pixel, cap: 'butt' });
@@ -730,21 +766,27 @@ export class AreaMapView extends Component {
 		const network = map.network;
 		const knowledge = this.knowledgeLayer ?? ALL_CHARTED;
 		const visible = this.visibleMap();
+		const step = this.dashStep();
+		const stepPixel = roadWidthScale(step) / step;
+		const reach = BRIDGE.reach * pixel;
 		let skipped = 0;
-		for (const deck of this.decks) {
+		this.decks.forEach((deck, index) => {
 			const drawn = drawnKnowledge(network, knowledge, deck.stretch);
-			if (drawn === null || drawn === 'uncharted') continue;
+			if (drawn === null || drawn === 'uncharted') return;
 			const first = deck.points[0];
-			const reach = 12 * pixel;
 			if (first.x < visible.minX - reach || first.x > visible.maxX + reach || first.y < visible.minY - reach || first.y > visible.maxY + reach) {
+				// A parapet each side.
 				skipped += 2;
-				continue;
+				return;
 			}
-			const offset = (roadReach(ROAD_STYLES[network.stretches[deck.stretch].roadClass]) / 2 + BRIDGE.gap + BRIDGE.width / 2) * pixel;
-			for (const side of [1, -1]) {
-				draw.drawPolyline({ id: this.stretchIds[deck.stretch], points: parapet(deck.points, offset * side, BRIDGE.flare * pixel), color: BRIDGE.color, width: BRIDGE.width * pixel, cap: 'butt' });
+			let sides = this.parapets[index];
+			if (!sides) {
+				const offset = (roadReach(ROAD_STYLES[network.stretches[deck.stretch].roadClass]) / 2 + BRIDGE.gap + BRIDGE.width / 2) * stepPixel;
+				sides = [parapet(deck.points, offset, BRIDGE.flare * stepPixel), parapet(deck.points, -offset, BRIDGE.flare * stepPixel)];
+				this.parapets[index] = sides;
 			}
-		}
+			for (const side of sides) draw.drawPolyline({ id: this.stretchIds[deck.stretch], points: side, color: BRIDGE.color, width: BRIDGE.width * pixel, cap: 'butt' });
+		});
 		return skipped;
 	}
 
@@ -806,11 +848,13 @@ export class AreaMapView extends Component {
 		return dashes;
 	}
 
-	/** The zoom dashes are built at: the camera's, in steps of `DASH_ZOOM_STEPS` a doubling; a new step drops every cached dash. */
+	/** The zoom dashes, parapets, and broken spans' pieces are built at: the camera's, in steps of `DASH_ZOOM_STEPS` a doubling; a new step drops all of them. */
 	private dashStep(): number {
 		const zoom = 2 ** (Math.round(Math.log2(this.mapCamera.zoom) * DASH_ZOOM_STEPS) / DASH_ZOOM_STEPS);
 		if (zoom !== this.dashZoom) {
 			this.dashCache.clear();
+			this.parapets.length = 0;
+			this.brokenPieces.length = 0;
 			this.dashZoom = zoom;
 		}
 		return zoom;
@@ -862,8 +906,8 @@ export class AreaMapView extends Component {
 				draw.drawCircle({ id, center: at, radius: radius + outside + MARKER.ring * 2.5, fill: CLEAR, border: { color: SELECTED_ROAD.color, width: MARKER.ring * 2 } });
 			}
 			if (marker.kind === 'stronghold') {
-				const { half, fill, border, borderWidth } = MARKER.stronghold;
-				draw.drawPolygon({ id, points: diamond(at, half + borderWidth * 1.5), indices: DIAMOND_INDICES, fill: border });
+				const { half, fill, border, edge } = MARKER.stronghold;
+				draw.drawPolygon({ id, points: diamond(at, half + edge), indices: DIAMOND_INDICES, fill: border });
 				draw.drawPolygon({ id, points: diamond(at, half), indices: DIAMOND_INDICES, fill });
 				continue;
 			}
@@ -887,7 +931,7 @@ export class AreaMapView extends Component {
 				});
 			}
 			if (state === 'depleted') {
-				const arm = radius * 0.72;
+				const arm = radius * MARKER.strike;
 				draw.drawLine({ id, from: { x: at.x - arm, y: at.y + arm }, to: { x: at.x + arm, y: at.y - arm }, color: MARKER.ink, width: MARKER.ring, cap: 'round' });
 			}
 		}
@@ -907,25 +951,31 @@ export class AreaMapView extends Component {
 	private planLabels(draw: DrawApi): void {
 		const camera = this.mapCamera;
 		const layout = this.labelLayout;
-		const plan = this.labelPlan;
-		plan.length = 0;
-		layout.reset(this.width, this.height);
-		const measured = draw.canMeasureText(LABELS.poi.font);
-		const place = (text: string, style: LabelStyle, candidates: readonly LabelBox[], part: string, anyway = false): void => {
-			const box = measured ? layout.place(candidates) ?? (anyway ? candidates[0] : null) : candidates[0];
+		this.planned = 0;
+		layout.reset(this.width, this.height, draw.canMeasureText(LABELS.poi.font));
+		const place = (text: string, style: LabelStyle, x: number, y: number, radius: number, part: string, sides: readonly LabelSide[] = BESIDE, anyway = false): void => {
+			const box = layout.placeBeside({ x, y, radius, width: this.labelWidth(draw, text, style), height: labelHeight(style), sides, anyway });
 			if (!box) return;
-			if (anyway) layout.block(box);
-			plan.push({ text, style, box, part });
+			let entry = this.labelPlan[this.planned];
+			if (!entry) {
+				entry = { text, style, box, part };
+				this.labelPlan.push(entry);
+			}
+			entry.text = text;
+			entry.style = style;
+			entry.box = box;
+			entry.part = part;
+			this.planned += 1;
 		};
 
-		const home = camera.worldToScreen(0, 0);
-		layout.block({ x: home.x - COMPOUND.outer, y: home.y - COMPOUND.outer, width: COMPOUND.outer * 2, height: COMPOUND.outer * 2 });
+		const home = camera.worldToScreen(0, 0, this.homeScratch);
+		layout.block(home.x - COMPOUND.outer, home.y - COMPOUND.outer, COMPOUND.outer * 2, COMPOUND.outer * 2);
 		const { half } = ROUTE_STOP;
 		for (const { route } of this.routeLines) {
 			if (!route.picked || !route.stops) continue;
 			for (const stop of route.stops) {
 				const at = camera.worldToScreen(stop.x, stop.y, this.scratch);
-				layout.block({ x: at.x - half - 1, y: at.y - half - 1, width: half * 2 + 2, height: half * 2 + 2 });
+				layout.block(at.x - half - 1, at.y - half - 1, half * 2 + 2, half * 2 + 2);
 			}
 		}
 		const markers = this.layerToggles.markers;
@@ -933,49 +983,43 @@ export class AreaMapView extends Component {
 			for (const marker of this.markerList) {
 				const at = camera.worldToScreen(marker.x, marker.y, this.scratch);
 				const radius = markerExtent(marker);
-				layout.block({ x: at.x - radius, y: at.y - radius, width: radius * 2, height: radius * 2 });
+				layout.block(at.x - radius, at.y - radius, radius * 2, radius * 2);
 			}
 		}
 
-		const beside = (text: string, style: LabelStyle, x: number, y: number, radius: number, sides: readonly LabelSide[] = BESIDE) =>
-			besideBoxes({ x, y, radius, width: this.labelWidth(draw, text, style), height: labelHeight(style), sides });
-		place(COMPOUND.label, LABELS.home, beside(COMPOUND.label, LABELS.home, home.x, home.y, COMPOUND.outer, ['below', 'right', 'left', 'above']), 'compound_label');
+		place(COMPOUND.label, LABELS.home, home.x, home.y, COMPOUND.outer, 'compound_label', HOME_SIDES);
 
 		if (markers) {
 			const selectedId = this.currentSelection?.kind === 'marker' ? this.currentSelection.id : null;
 			for (const marker of this.markerLabelOrder()) {
-				const label = marker.label as string;
 				const style = marker.kind === 'stronghold' ? LABELS.stronghold : LABELS.poi;
-				const { x, y } = camera.worldToScreen(marker.x, marker.y, this.scratch);
-				place(label, style, beside(label, style, x, y, markerExtent(marker)), `label_${marker.id}`, marker.id === selectedId);
+				const at = camera.worldToScreen(marker.x, marker.y, this.scratch);
+				place(marker.label as string, style, at.x, at.y, markerExtent(marker), `label_${marker.id}`, BESIDE, marker.id === selectedId);
 			}
 		}
 
 		const map = this.mapData;
 		if (map && this.layerToggles.places) {
-			if (map.metroName) {
-				const text = capitals(map.metroName, LABELS.metro);
-				place(text, LABELS.metro, beside(text, LABELS.metro, home.x, home.y, COMPOUND.outer + labelHeight(LABELS.home), ['above', 'below']), 'metro_label');
-			}
-			const places = map.places;
-			if (places) {
-				for (const [settlements, style] of [[places.towns, LABELS.town], [places.villages, LABELS.village]] as const) {
-					for (const settlement of bySize(settlements)) {
-						if (this.fogged(settlement.x, settlement.y)) continue;
-						const at = camera.worldToScreen(settlement.x, settlement.y, this.scratch);
-						const radius = Math.min(settlement.radius * camera.zoom * 0.5, style === LABELS.town ? 10 : 5);
-						place(settlement.name, style, beside(settlement.name, style, at.x, at.y, radius), `place_${settlement.id}_label`);
-					}
+			if (map.metroName) place(capitals(map.metroName, LABELS.metro), LABELS.metro, home.x, home.y, COMPOUND.outer + labelHeight(LABELS.home), 'metro_label', METRO_SIDES);
+			const { share, town, village } = LABEL_LAYOUT.place;
+			for (const [settlements, style, most] of [[this.settlementOrder.towns, LABELS.town, town], [this.settlementOrder.villages, LABELS.village, village]] as const) {
+				for (const settlement of settlements) {
+					if (this.fogged(settlement.x, settlement.y)) continue;
+					const at = camera.worldToScreen(settlement.x, settlement.y, this.scratch);
+					place(settlement.name, style, at.x, at.y, Math.min(settlement.radius * camera.zoom * share, most), `place_${settlement.id}_label`);
 				}
 			}
 		}
-		this.placedText = plan.map(({ text }) => text);
+		this.placedText.length = 0;
+		for (let index = 0; index < this.planned; index++) this.placedText.push(this.labelPlan[index].text);
+		this.textPlaced = true;
 	}
 
 	/** The labels `planLabels` placed, each on its paper halo. */
 	private drawLabels(draw: DrawApi): void {
 		const { halo } = LABEL_LAYOUT;
-		for (const { text, style, box, part } of this.labelPlan) {
+		for (let index = 0; index < this.planned; index++) {
+			const { text, style, box, part } = this.labelPlan[index];
 			draw.drawText({
 				id: this.part(part),
 				text,
@@ -1003,12 +1047,16 @@ export class AreaMapView extends Component {
 
 	/** Measured once per string and style (R2.14); 0 where the backend can't measure. */
 	private labelWidth(draw: DrawApi, text: string, style: LabelStyle): number {
-		const key = `${style.font}|${style.size}|${style.letterSpacing ?? 0}|${text}`;
-		const known = this.labelWidths.get(key);
+		let widths = this.labelWidths.get(style);
+		if (!widths) {
+			widths = new Map();
+			this.labelWidths.set(style, widths);
+		}
+		const known = widths.get(text);
 		if (known !== undefined) return known;
 		if (!draw.canMeasureText(style.font)) return 0;
 		const width = Math.ceil(draw.measureText({ text, font: style.font, size: style.size, letterSpacing: style.letterSpacing }).width);
-		this.labelWidths.set(key, width);
+		widths.set(text, width);
 		return width;
 	}
 
@@ -1223,7 +1271,7 @@ export class AreaMapView extends Component {
 
 /** A marker's extent from its centre: a POI's disc, or a stronghold's diamond with its edge. */
 function markerRadius(marker: MapMarker): number {
-	return marker.kind === 'stronghold' ? MARKER.stronghold.half + MARKER.stronghold.borderWidth * 1.5 : MARKER.radius;
+	return marker.kind === 'stronghold' ? MARKER.stronghold.half + MARKER.stronghold.edge : MARKER.radius;
 }
 
 /** A marker's extent with its night ring, what labels keep clear of. */

@@ -73,7 +73,8 @@ export const CRATER_STYLE = {
 	coreColour: [118, 110, 100] as Rgb8,
 	rim: 0.16,
 	core: 0.32,
-	ring: { colour: [186, 120, 96] as Rgb8, weight: 0.7, dash: 9 },
+	/** Its texels either side of the plume's edge, out to `halfWidth` texels. */
+	ring: { colour: [186, 120, 96] as Rgb8, weight: 0.7, dash: 9, halfWidth: 0.75 },
 } as const;
 
 /**
@@ -98,9 +99,9 @@ export const BUILT_UP = {
 /**
  * The rim: the land fades toward paper over its last `fade` of the radius,
  * up to `fadeWeight` of the way, and a dashed grey line, `dash` world units
- * of dash and gap, marks the edge.
+ * of dash and gap, marks the edge `lineInset` texels inside it.
  */
-export const RIM = { fade: 0.025, fadeWeight: 0.45, line: [150, 146, 136] as Rgb8, lineWeight: 0.85, dash: 12 } as const;
+export const RIM = { fade: 0.025, fadeWeight: 0.45, line: [150, 146, 136] as Rgb8, lineWeight: 0.85, dash: 12, lineInset: 1.5 } as const;
 
 /** Rivers, drawn live under the roads: their world width, never under `minPixels` on screen, and faint past the rim. */
 export const RIVER_STYLE = {
@@ -202,7 +203,14 @@ export const ROAD_DETAIL_ZOOM = 0.3;
  * A bridge's parapets: a line each side of the deck, `gap` outside the
  * road's widest line, flared outward `flare` at each end. Screen pixels.
  */
-export const BRIDGE = { color: [70 / 255, 64 / 255, 56 / 255, 1] as RGBA, width: 1, gap: 1, flare: 2.5 } as const;
+export const BRIDGE = {
+	color: [70 / 255, 64 / 255, 56 / 255, 1] as RGBA,
+	width: 1,
+	gap: 1,
+	flare: 2.5,
+	/** Round a deck's first point, what keeps it drawn rather than culled. */
+	reach: 12,
+} as const;
 
 /**
  * A collapsed highway span: drawn as a highway with a `gap` in its middle
@@ -213,13 +221,14 @@ export const BROKEN_SPAN = { gap: 9, cross: { color: [186 / 255, 38 / 255, 28 / 
 /** A pass, the top of a road over a range: a dark chevron, `half` wide each side and `rise` tall. Screen pixels. */
 export const PASS_MARK = { color: INK, half: 4, rise: 3.5, width: 1.5 } as const;
 
-/** Home: a five-pointed star in ink on a paper halo. Screen pixels. */
+/** Home: a five-pointed star in ink on a paper halo, the halo's points `haloOuter` and `haloInner` further out. Screen pixels. */
 export const COMPOUND = {
 	outer: 8,
 	inner: 3.3,
 	fill: INK,
 	halo: PAPER_RGBA,
-	haloWidth: 1.5,
+	haloOuter: 2.7,
+	haloInner: 1.5,
 	label: 'Home',
 } as const;
 
@@ -235,8 +244,10 @@ export const MARKER = {
 	ink: INK,
 	/** A looted or depleted POI's ring and glyph; a depleted one's disc too. */
 	spent: [0.6, 0.58, 0.54, 1] as RGBA,
-	/** A stronghold's diamond, by its half diagonal, in its faction's colour on a paper edge. */
-	stronghold: { half: 7.5, fill: [150 / 255, 36 / 255, 30 / 255, 1] as RGBA, border: PAPER_RGBA, borderWidth: 1.5 },
+	/** A depleted POI's strike, this share of its radius from the centre each way. */
+	strike: 0.72,
+	/** A stronghold's diamond, by its half diagonal, in its faction's colour on a paper edge `edge` wide. */
+	stronghold: { half: 7.5, fill: [150 / 255, 36 / 255, 30 / 255, 1] as RGBA, border: PAPER_RGBA, edge: 2.25 },
 	/** Screen pixels around a marker's centre that pick it. */
 	pickRadius: 14,
 } as const;
@@ -321,9 +332,17 @@ export const LABELS = {
 /**
  * Label layout: the halo, a paper shadow `blur` pixels round the glyphs;
  * `gap` between a symbol's edge and its label; `pad` round each label's box
- * that no other may enter; `lineHeight` of the size a box is tall.
+ * that no other may enter; `lineHeight` of the size a box is tall. A place's
+ * name sits `place.share` of its patch's radius on screen from its centre,
+ * at most `place.town` or `place.village` pixels.
  */
-export const LABEL_LAYOUT = { halo: { color: PAPER_RGBA, blur: 2.2 }, gap: 4, pad: 1.5, lineHeight: 1.25 } as const;
+export const LABEL_LAYOUT = {
+	halo: { color: PAPER_RGBA, blur: 2.2 },
+	gap: 4,
+	pad: 1.5,
+	lineHeight: 1.25,
+	place: { share: 0.5, town: 10, village: 5 },
+} as const;
 
 /** Screen pixels from a drawn road that pick it. */
 export const ROAD_PICK_DISTANCE = 6;

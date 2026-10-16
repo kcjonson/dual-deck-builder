@@ -1,6 +1,7 @@
 import { generateAreaMap } from '../../renderer/game/map/AreaMapPipeline';
 import { MapParamSet, resolveMapParams } from '../../renderer/game/map/MapParams';
 import { validateMapParams } from '../../renderer/game/map/ParamValidator';
+import { POI_TUNING } from '../../renderer/game/map/PoiData';
 import type { PoiLayer } from '../../renderer/game/map/Pois';
 import type { RoadNetwork } from '../../renderer/game/map/RoadNetwork';
 import type {
@@ -95,6 +96,8 @@ export interface FixtureMarkerSpec {
 	id: string;
 	label: string;
 	state?: PoiState;
+	/** The POI type to put it on, so its glyph agrees with its name; where the map has none in reach, any site, named for its own type. */
+	type?: string;
 }
 
 /**
@@ -111,9 +114,11 @@ export function fixtureMarkers(
 	const known = sites.filter(({ out, stronghold: held }) => !held && out <= within).sort((a, b) => b.out - a.out);
 	const markers: MapMarker[] = [];
 	for (const spec of pois) {
-		const site = known.find(({ x, y }) => markers.every((marker) => Math.hypot(marker.x - x, marker.y - y) >= spacing));
+		const spaced = ({ x, y }: { x: number; y: number }) => markers.every((marker) => Math.hypot(marker.x - x, marker.y - y) >= spacing);
+		const site = known.find((candidate) => candidate.type === spec.type && spaced(candidate)) ?? known.find(spaced);
 		if (!site) break;
-		markers.push({ id: spec.id, kind: 'poi', x: site.x, y: site.y, label: spec.label, state: spec.state, type: site.type });
+		const label = site.type === spec.type ? spec.label : POI_TUNING.types[site.type]?.label ?? spec.label;
+		markers.push({ id: spec.id, kind: 'poi', x: site.x, y: site.y, label, state: spec.state, type: site.type });
 	}
 	const far = sites.filter(({ out, stronghold: held }) => held && out >= strongholdBeyond).sort((a, b) => a.out - b.out)[0];
 	if (far) markers.push({ id: stronghold.id, kind: 'stronghold', x: far.x, y: far.y, label: stronghold.label });
