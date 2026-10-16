@@ -231,9 +231,10 @@ export interface StopFightOptions {
  * The fight at the run's stop, started through the combat bridge on the
  * run's stream for that stop, `fork('fight', stop)` off the run's own
  * (`runStream`). The encounter's raiders size up the seats' vehicles as
- * the bridge builds them (`encounterTeam`). Nothing is saved: a load finds the run
- * driving to this stop, and the fight replays from the same stream. Throws
- * unless the run is driving to a fight, and as `startCampaignFight` does.
+ * the bridge builds them (`encounterTeam`). Nothing is saved: a load finds
+ * the run driving to this stop, and the fight replays from the same stream.
+ * Throws unless the run is driving to a fight, and as `startCampaignFight`
+ * does.
  */
 export function startStopFight({ campaign, cards, raiders, enemyAI }: StopFightOptions): CampaignFight {
 	const run = drivingTo({ campaign, kind: 'fight' });
@@ -241,7 +242,7 @@ export function startStopFight({ campaign, cards, raiders, enemyAI }: StopFightO
 	return startCampaignFight({
 		campaign,
 		party: runParty({ campaign }),
-		raiders: seats => raiders ? raiders(encounter) : encounterTeam({ encounter, cards, crewStructure: seats.map(vehicle => vehicle.structure) }),
+		raiders: vehicles => raiders ? raiders(encounter) : encounterTeam({ encounter, cards, crewStructure: vehicles.map(vehicle => vehicle.structure) }),
 		rng: runStream({ campaign }).fork('fight', run.stop),
 		cards,
 		...(enemyAI === undefined ? {} : { enemyAI }),

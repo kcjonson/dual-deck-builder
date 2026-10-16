@@ -82,7 +82,7 @@ export interface CampaignFightOptions {
 	 * The encounter's raiders, built once everything else checks out, sized
 	 * up against each seat's vehicle as it opens the fight, Driver 1's first
 	 */
-	raiders: (seats: readonly Vehicle[]) => Team;
+	raiders: (vehicles: readonly Vehicle[]) => Team;
 	/** The fight's stream, `run.fork('fight', i)` off the run's saved fight count */
 	rng: Rng;
 	/** Card templates by card type, as `CardLoader.getAllCardsAsMap` hands them out */
@@ -152,8 +152,9 @@ type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
  * another run than the one out, or a card in the decks with no template.
  * The raiders are built after all of that, so a party the bridge refuses
  * never reaches them. The teams and the encounter can refuse the road too
- * (Team, Battle), and move nobody when they do. One seat is a run down to its last driver, who
- * fights alone with the escorts (solo-driver-fights.md).
+ * (Team, Battle), and move nobody when they do. One seat is a run down to
+ * its last driver, who fights alone with the escorts
+ * (solo-driver-fights.md).
  */
 export function startCampaignFight({ campaign, party, raiders, rng, cards, enemyAI = 'aggressive' }: CampaignFightOptions): CampaignFight {
 	if (isStoringWriteBack(campaign)) throw new Error("This campaign's last fight is still being written back");

@@ -236,15 +236,15 @@ describe('the combat bridge', () => {
 		it('builds the raiders against each seat\'s vehicle as it opens the fight', () => {
 			const { campaign, warrior, interceptor } = newCampaign();
 			warrior.set({ vehicle: { structure: 52, armor: 3 } });
-			const raiders = jest.fn((_seats: readonly Vehicle[]) => new Team({ type: TeamType.ENEMY, vehicles: [idle()] }));
+			const raiders = jest.fn((_vehicles: readonly Vehicle[]) => new Team({ type: TeamType.ENEMY, vehicles: [idle()] }));
 
 			const fight = startCampaignFight({ campaign, party: loadOut({ campaign, seats: [warrior, interceptor] }), raiders, rng: new Rng({ seed: SEED }), cards: CARDS, enemyAI: null });
 
 			expect(raiders).toHaveBeenCalledTimes(1);
-			const [seats] = raiders.mock.calls[0];
-			expect(seats).toHaveLength(2);
-			seats.forEach((vehicle, seat) => expect(vehicle).toBe(fight.vehicles[seat]));
-			expect(seats.map(vehicle => vehicle.structure)).toEqual([52, 50]);
+			const [vehicles] = raiders.mock.calls[0];
+			expect(vehicles).toHaveLength(2);
+			vehicles.forEach((vehicle, seat) => expect(vehicle).toBe(fight.vehicles[seat]));
+			expect(vehicles.map(vehicle => vehicle.structure)).toEqual([52, 50]);
 		});
 
 		it('fields the escorts that came along in roster order, and none left at home', () => {
