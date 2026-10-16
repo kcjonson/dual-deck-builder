@@ -31,8 +31,9 @@ export interface PoiNameOptions {
  * of POI and place within reach are named first, so where two clinics are
  * near Elk Creek the nearer is Elk Creek Clinic and the other takes the
  * next place in its reach that has none; one whose places in reach all
- * have one is numbered after the nearest, "Elk Creek Clinic 2". Any other
- * name another POI already took gets a number too.
+ * have one is numbered after the nearest, nearest first, "Elk Creek Clinic
+ * 2". Any other name another POI already took gets a number too. A reach
+ * of 0, with no radius given, lends no place's name.
  */
 export function poiNames(layer: Pick<PoiLayer, 'pois' | 'strongholds'>, { places = null, radius = 0, tuning = POI_TUNING, factions = FACTIONS }: PoiNameOptions = {}): string[] {
 	const named = places ? [...places.towns, ...places.villages] : [];
@@ -40,40 +41,40 @@ export function poiNames(layer: Pick<PoiLayer, 'pois' | 'strongholds'>, { places
 	const reachSquared = reach * reach;
 	const label = (type: string) => tuning.types[type]?.label ?? type;
 	const pairs: { poi: number; place: number; distance: number }[] = [];
-	layer.pois.forEach(({ type, site }, poi) => {
-		if (type === STRONGHOLD_TYPE) return;
-		named.forEach(({ x, y }, place) => {
-			const dx = x - site.x;
-			const dy = y - site.y;
-			const distance = dx * dx + dy * dy;
-			if (distance <= reachSquared) pairs.push({ poi, place, distance });
+	if (reach > 0) {
+		layer.pois.forEach(({ type, site }, poi) => {
+			if (type === STRONGHOLD_TYPE) return;
+			named.forEach(({ x, y }, place) => {
+				const dx = x - site.x;
+				const dy = y - site.y;
+				const distance = dx * dx + dy * dy;
+				if (distance <= reachSquared) pairs.push({ poi, place, distance });
+			});
 		});
-	});
+	}
 	pairs.sort((a, b) => a.distance - b.distance || a.poi - b.poi || a.place - b.place);
 
 	const taken = new Set<string>();
-	const names: (string | null)[] = layer.pois.map(() => null);
-	const nearest: number[] = layer.pois.map(() => -1);
-	for (const { poi, place } of pairs) {
-		if (nearest[poi] < 0) nearest[poi] = place;
-		if (names[poi] !== null) continue;
-		const name = `${named[place].name} ${titleCase(label(layer.pois[poi].type))}`;
-		if (taken.has(name)) continue;
-		names[poi] = name;
+	const unique = (base: string) => {
+		let name = base;
+		for (let number = 2; taken.has(name); number += 1) name = `${base} ${number}`;
 		taken.add(name);
+		return name;
+	};
+	const placeName = (poi: number, place: number) => `${named[place].name} ${titleCase(label(layer.pois[poi].type))}`;
+	const names: (string | null)[] = layer.pois.map(() => null);
+	for (const { poi, place } of pairs) {
+		if (names[poi] !== null || taken.has(placeName(poi, place))) continue;
+		names[poi] = unique(placeName(poi, place));
 	}
+	// A POI's first pair left is its nearest place, so the numbers go nearest first.
+	for (const { poi, place } of pairs) if (names[poi] === null) names[poi] = unique(placeName(poi, place));
 	return layer.pois.map(({ type, site }, poi) => {
 		const name = names[poi];
 		if (name !== null) return name;
 		const stronghold = type === STRONGHOLD_TYPE ? layer.strongholds.find((held) => held.poi === poi) : undefined;
-		let base: string;
-		if (stronghold) base = `${factions[stronghold.faction]?.label ?? stronghold.faction} stronghold`;
-		else if (nearest[poi] >= 0) base = `${named[nearest[poi]].name} ${titleCase(label(type))}`;
-		else base = `${label(type)}, ${compass(site.x, site.y)}`;
-		let unique = base;
-		for (let number = 2; taken.has(unique); number += 1) unique = `${base} ${number}`;
-		taken.add(unique);
-		return unique;
+		if (stronghold) return unique(`${factions[stronghold.faction]?.label ?? stronghold.faction} stronghold`);
+		return unique(`${label(type)}, ${compass(site.x, site.y)}`);
 	});
 }
 

@@ -29,6 +29,8 @@ describe('POI names', () => {
 		const names = poiNames(layerOf(poi('clinic', REACH + 1, 0), poi('farm', -REACH, 0), poi('mine', 400, 400)), { places, radius: RADIUS });
 		expect(names).toEqual(['Clinic, east', 'Elk Creek Farm', 'Mine, north-east']);
 		expect(poiNames(layerOf(poi('clinic', 10, 0)))).toEqual(['Clinic, east']);
+		// No radius, no reach: not even a POI standing on the place takes its name.
+		expect(poiNames(layerOf(poi('clinic', 0, 0), poi('farm', 10, 0)), { places })).toEqual(['Clinic, east', 'Farm, east']);
 		expect(poiNames(layerOf(poi('clinic', 10, 0)), { places: placesOf(), radius: RADIUS })).toEqual(['Clinic, east']);
 	});
 
@@ -43,6 +45,9 @@ describe('POI names', () => {
 		const places = placesOf(settlement('town', 'Elk Creek', 0, 0));
 		const pois = layerOf(poi('farm', 10, 0), poi('farm', 20, 0), poi('farm', 30, 0), poi('farm', 900, 10), poi('farm', 910, -10));
 		expect(poiNames(pois, { places, radius: RADIUS })).toEqual(['Elk Creek Farm', 'Elk Creek Farm 2', 'Elk Creek Farm 3', 'Farm, east', 'Farm, east 2']);
+		// Numbers go nearest first too, whatever the layer's order.
+		const outward = layerOf(poi('farm', 200, 0), poi('farm', 100, 0), poi('farm', 10, 0));
+		expect(poiNames(outward, { places, radius: RADIUS })).toEqual(['Elk Creek Farm 3', 'Elk Creek Farm 2', 'Elk Creek Farm']);
 	});
 
 	it('name strongholds by faction, whatever stands near them', () => {
