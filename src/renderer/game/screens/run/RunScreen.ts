@@ -352,7 +352,9 @@ export class RunScreen extends Screen {
 		if (stop === null) {
 			const { name, yield: yields } = run.route.destination;
 			action.addChild(heading({ id: 'run_action_title', text: `${name} reached` }));
-			action.addChild(caption({ id: 'run_action_line', text: `Loaded ${yieldText(yields)}. The road home is clear, and getting home unloads the cargo and ends the day.` }));
+			const loaded = yieldText(yields);
+			const took = loaded === 'nothing' ? 'Nothing was left here to load.' : `Loaded ${loaded}.`;
+			action.addChild(caption({ id: 'run_action_line', text: `${took} The road home is clear, and getting home unloads the cargo and ends the day.` }));
 			return this.addButton({ action, id: 'run_home_button', label: 'Head home', onClick: () => { void this.headHome(); } });
 		}
 		action.addChild(heading({ id: 'run_action_title', text: `Next: ${stopTitle(stop)}` }));

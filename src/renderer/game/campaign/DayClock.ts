@@ -5,6 +5,7 @@ import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES, UpkeepResource, readCo
 import { DriverRecord } from './DriverRecord';
 import { healingChanges } from './Infirmary';
 import { MapState, readMapState } from './MapState';
+import { refillPois } from './PoiStock';
 
 /** An amount of each resource the compound eats. */
 export type Upkeep = Readonly<Record<UpkeepResource, number>>;
@@ -28,9 +29,10 @@ export interface DayEndHooks {
 }
 
 const keepMap: MapDayStep = ({ map }) => map;
+const refill: MapDayStep = ({ map }) => refillPois(map);
 
-/** Nothing changes on the map overnight until the map keeps stop and POI state. */
-export const DAY_END_HOOKS: DayEndHooks = Object.freeze({ stopCooldowns: keepMap, poiRefills: keepMap });
+/** Overnight, POIs refill (`refillPois`); stops have no cooldowns until the map keeps their state. */
+export const DAY_END_HOOKS: DayEndHooks = Object.freeze({ stopCooldowns: keepMap, poiRefills: refill });
 
 /** What happened overnight, for the debrief, the compound screen, and whatever ends the campaign. */
 export interface DayEnd {

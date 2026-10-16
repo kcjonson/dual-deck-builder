@@ -2,6 +2,7 @@ import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
+import { POI_SHARES } from '../../campaign/PoiStock';
 import { getPlanBlocker, routesOnOffer } from '../../campaign/SupplyRun';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
@@ -15,8 +16,8 @@ import { AreaMapView } from '../../ui/areaMap/AreaMapView';
 import type { AreaMapSelection } from '../../ui/areaMap/layers';
 import { mapProgressText } from '../main-menu/campaignText';
 import { planRefusal } from '../run/runText';
-import { STRONGHOLD_NOT_YET, darkText, poiKindText, poiYieldText, routesText } from './areaMapText';
-import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, plannedPois, poiMarkers, viewData } from './planningMap';
+import { STRONGHOLD_NOT_YET, darkText, poiKindText, poiStockText, poiYieldText, routesText } from './areaMapText';
+import { PlannedPoi, PlanningMap, PlanningMaps, PoiStockView, byDistance, plannedPois, poiMarkers, poiStock, viewData } from './planningMap';
 
 const { space } = tokens;
 const SIDE_WIDTH = 340;
@@ -82,6 +83,7 @@ export class AreaMapScreen extends Screen {
 	private nameLine: Text | null = null;
 	private kindLine: Text | null = null;
 	private yieldLine: Text | null = null;
+	private stockLine: Text | null = null;
 	private routesLine: Text | null = null;
 	private darkLine: Text | null = null;
 	private planButton: Button | null = null;
@@ -168,6 +170,7 @@ export class AreaMapScreen extends Screen {
 		this.nameLine = null;
 		this.kindLine = null;
 		this.yieldLine = null;
+		this.stockLine = null;
 		this.routesLine = null;
 		this.darkLine = null;
 		this.planButton = null;
@@ -241,6 +244,8 @@ export class AreaMapScreen extends Screen {
 		details.addChild(this.kindLine);
 		this.yieldLine = detailLine({ id: 'area_map_selected_yield', color: 'text' });
 		details.addChild(this.yieldLine);
+		this.stockLine = detailLine({ id: 'area_map_selected_stock' });
+		details.addChild(this.stockLine);
 		this.routesLine = detailLine({ id: 'area_map_selected_routes' });
 		details.addChild(this.routesLine);
 		this.darkLine = detailLine({ id: 'area_map_selected_dark' });
@@ -309,16 +314,17 @@ export class AreaMapScreen extends Screen {
 		this.map = map;
 		this.pois = plannedPois(map);
 		const view = this.view;
+		const stockOf = (planned: PlannedPoi): PoiStockView => this.stockOf(planned);
 		if (view) {
 			view.map = viewData(map);
-			view.markers = poiMarkers(this.pois);
+			view.markers = poiMarkers(this.pois, (planned) => stockOf(planned).state);
 		}
 		const list = this.list;
 		if (list) {
 			list.clearChildren();
 			this.rows.clear();
 			for (const planned of byDistance(this.pois)) {
-				const row = new ListRow({ id: `area_map_poi_${planned.poi}`, label: planned.name, trailing: rowTrailing(planned), dim: planned.stronghold });
+				const row = new ListRow({ id: `area_map_poi_${planned.poi}`, label: planned.name, trailing: rowTrailing(planned, stockOf(planned)), dim: planned.stronghold });
 				this.rows.set(planned.poi, row);
 				list.addChild(row);
 			}
@@ -383,14 +389,19 @@ export class AreaMapScreen extends Screen {
 		const { campaign, map } = this;
 		if (!poi || !campaign || !map) {
 			if (this.nameLine) this.nameLine.text = NOTHING_CHOSEN;
-			for (const line of [this.kindLine, this.yieldLine, this.routesLine, this.darkLine, this.planReason]) if (line) line.text = '';
+			for (const line of [this.kindLine, this.yieldLine, this.stockLine, this.routesLine, this.darkLine, this.planReason]) if (line) line.text = '';
 			if (this.planButton) this.planButton.enabled = false;
 			return;
 		}
-		const destination = routesOnOffer({ map }).find((route) => route.destination.id === poi.id)?.destination ?? null;
+		const destination = routesOnOffer({ map, campaign }).find((route) => route.destination.id === poi.id)?.destination ?? null;
+		const stock = this.stockOf(poi);
 		if (this.nameLine) this.nameLine.text = poi.name;
-		if (this.kindLine) this.kindLine.text = poiKindText(poi);
-		if (this.yieldLine) this.yieldLine.text = poiYieldText({ stronghold: poi.stronghold, yields: destination?.yield ?? null });
+		if (this.kindLine) this.kindLine.text = poiKindText(poi, stock.state);
+		if (this.yieldLine) this.yieldLine.text = poiYieldText({ stronghold: poi.stronghold, yields: destination?.yield ?? null, state: stock.state });
+		if (this.stockLine) {
+			this.stockLine.text = poi.stronghold ? '' : poiStockText(stock);
+			this.stockLine.color = stock.state === 'depleted' ? 'status_warn' : 'text_dim';
+		}
 		if (this.routesLine) this.routesLine.text = routesText(poi);
 		if (this.darkLine) {
 			this.darkLine.text = darkText(poi);
@@ -399,6 +410,11 @@ export class AreaMapScreen extends Screen {
 		const reason = this.planBlocked(poi);
 		if (this.planButton) this.planButton.enabled = reason === null;
 		if (this.planReason) this.planReason.text = reason ?? '';
+	}
+
+	/** What's left at a POI on the campaign's map, full until there's a campaign. */
+	private stockOf(poi: PlannedPoi): PoiStockView {
+		return this.campaign ? poiStock({ campaign: this.campaign, poi }) : { shares: POI_SHARES, state: 'unvisited', nextShare: null };
 	}
 
 	/** Why Plan a run here is off for this POI, or null. */
@@ -431,10 +447,10 @@ export class AreaMapScreen extends Screen {
 	}
 }
 
-/** A destination row's trailing text: its tier, and when no route gets home by dark; a stronghold says so. */
-function rowTrailing(poi: PlannedPoi): string {
+/** A destination row's trailing text: its tier, looted or depleted, and when no route gets home by dark; a stronghold says so. */
+function rowTrailing(poi: PlannedPoi, { state }: PoiStockView): string {
 	if (poi.stronghold) return 'stronghold';
-	return poi.pastDark ? `tier ${poi.tier}, past dark` : `tier ${poi.tier}`;
+	return [`tier ${poi.tier}`, ...(state === 'unvisited' ? [] : [state]), ...(poi.pastDark ? ['past dark'] : [])].join(', ');
 }
 
 /** Whether a POI is inside the part of the world the view shows. */

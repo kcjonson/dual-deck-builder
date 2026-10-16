@@ -3,10 +3,12 @@ import { CAMPAIGN_SCHEMA_VERSION, Campaign } from './Campaign';
 import { CampaignEnding, CampaignHistoryEntry, historyToJson } from './CampaignHistory';
 import { CampaignStore, CampaignStoreError, CheckpointResult, campaignKeys, pageNamespace } from './CampaignStore';
 import { cardCount } from './CardCounts';
+import { sharesLeft, takeShare } from './PoiStock';
+import { UPGRADABLE_SCHEMA_VERSIONS } from './SaveUpgrades';
 import { LocalSaveStorage, MemorySaveStorage, WebStorage } from './SaveStorage';
 import { stressCampaign } from './__fixtures__/stressCampaign';
 import {
-	CAMPAIGN_FIXTURE, FaultyStorage, HeldStorage, KEYS, NAMESPACE, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
+	CAMPAIGN_FIXTURE, CAMPAIGN_V8_FIXTURE, FaultyStorage, HeldStorage, KEYS, NAMESPACE, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
 	saveText, securityError, settle, storageWith, storeOver
 } from './__fixtures__/storeFixtures';
 
@@ -290,7 +292,7 @@ describe('CampaignStore', () => {
 		});
 
 		it('doesn\'t load a save from another version of the save format, older or newer, and leaves it be', async () => {
-			for (const version of [CAMPAIGN_SCHEMA_VERSION - 1, CAMPAIGN_SCHEMA_VERSION + 1]) {
+			for (const version of [CAMPAIGN_SCHEMA_VERSION - 2, CAMPAIGN_SCHEMA_VERSION + 1]) {
 				const text = saveText({ campaign: JSON.stringify(CAMPAIGN_FIXTURE), version });
 				const storage = storageWith(text);
 				const store = storeOver(storage);
@@ -360,6 +362,76 @@ describe('CampaignStore', () => {
 			expect((await store.history()).map(entry => entry.seed)).toEqual([2]);
 			expect(await storage.getItem(KEYS.historyRecovery)).toBeNull();
 			expect(onWarning).toHaveBeenCalledWith('CampaignStore: started a new history over one another version of the game saved');
+		});
+
+		it('loads a version 8 save, from before POI stock, with every POI full, and saves it in this version (DDB-483)', async () => {
+			const text = saveText({ campaign: JSON.stringify(CAMPAIGN_V8_FIXTURE), version: 8 });
+			const storage = storageWith(text);
+			const store = storeOver(storage);
+
+			expect(UPGRADABLE_SCHEMA_VERSIONS).toEqual([8]);
+			expect(await store.saveStatus()).toBe('saved');
+			const loaded = await store.load();
+			expect(loaded?.map).toEqual({});
+			expect(loaded?.toJSON()).toEqual({ ...CAMPAIGN_FIXTURE, map: {} });
+			expect(storage.writes).toEqual([]);
+
+			loaded?.set({ map: takeShare({ map: (loaded as Campaign).map, poi: 2 }) });
+			expect(await store.checkpoint(loaded as Campaign)).toBe('saved');
+			const saved = JSON.parse(await storage.getItem(KEYS.slots.b) ?? '') as { version: number; campaign: { map: unknown } };
+			expect([saved.version, saved.campaign.map]).toEqual([CAMPAIGN_SCHEMA_VERSION, { pois: [{ poi: 2, left: 2, nights: 0 }] }]);
+			// The version 8 save is the save before, and nothing went to recovery
+			expect(await storage.getItem(KEYS.slots.a)).toBe(text);
+			expect(await storage.getItem(KEYS.recovery)).toBeNull();
+		});
+
+		it('upgrades only from the versions it lists: a store at another version reads none', async () => {
+			const text = saveText({ campaign: JSON.stringify(CAMPAIGN_V8_FIXTURE), version: 8 });
+
+			expect(await storeOver(storageWith(text), { version: CAMPAIGN_SCHEMA_VERSION }).saveStatus()).toBe('outdated');
+			expect(await new CampaignStore({ storage: storageWith(text), namespace: NAMESPACE, upgradesFrom: [], onWarning: () => undefined }).saveStatus()).toBe('outdated');
+		});
+
+		it('takes a version 8 save its upgrade can\'t read as damage, and keeps it', async () => {
+			const text = saveText({ campaign: JSON.stringify({ ...CAMPAIGN_V8_FIXTURE, map: [] }), version: 8 });
+			const storage = storageWith(text);
+			const store = storeOver(storage);
+
+			expect(await store.saveStatus()).toBe('saved');
+			expect((await failure(store.load())).reason).toBe('damaged');
+			expect(await storage.getItem(KEYS.recovery)).toBe(text);
+		});
+
+		it('keeps a version 8 save\'s map from another generator version outdated', async () => {
+			const text = saveText({ campaign: JSON.stringify({ ...CAMPAIGN_V8_FIXTURE, generatorVersion: AREA_MAP_GENERATOR_VERSION + 1 }), version: 8 });
+
+			expect(await storeOver(storageWith(text)).saveStatus()).toBe('outdated');
+			expect(await storeOver(storageWith(text)).load()).toBeNull();
+		});
+
+		it('keeps the history a version 8 build wrote, and adds to it', async () => {
+			const older = stampedHistory([{ seed: 1, day: 3, strongholdsTaken: 0, ending: 'won' }], 8);
+			const storage = storageWith(fixtureText(), { [KEYS.history]: older });
+			const store = storeOver(storage);
+
+			expect((await store.history()).map(entry => entry.seed)).toEqual([1]);
+			await store.end({ campaign: newCampaign(2), ending: 'abandoned' });
+
+			expect((await store.history()).map(entry => entry.seed)).toEqual([2, 1]);
+			expect(JSON.parse(await storage.getItem(KEYS.history) ?? '').version).toBe(CAMPAIGN_SCHEMA_VERSION);
+		});
+
+		it('saves and loads each POI\'s stock as it was', async () => {
+			const storage = new MemorySaveStorage();
+			const campaign = newCampaign();
+			campaign.set({ map: { pois: [{ poi: 1, left: 0, nights: 12 }, { poi: 6, left: 2, nights: 3 }] } });
+
+			await storeOver(storage).save(campaign);
+			const loaded = await storeOver(storage).load();
+
+			expect(loaded?.map).toEqual(campaign.map);
+			expect(sharesLeft({ map: (loaded as Campaign).map, poi: 1 })).toBe(1);
+			expect(loaded?.toSaveText()).toBe(campaign.toSaveText());
 		});
 	});
 
@@ -503,7 +575,7 @@ describe('CampaignStore', () => {
 		it.each([
 			['a bug in the code reading it', fixtureText(), true],
 			['stop tables nested past the limit', fixtureText(campaign => { (campaign.mapParams as Record<string, unknown>).stopTables = nested(150); }), false],
-			['a map nested far past the stack\'s depth', fixtureText().replace('"map":{}', `"map":${'{"a":'.repeat(20000)}1${'}'.repeat(20000)}`), false]
+			['a map nested far past the stack\'s depth', fixtureText(campaign => { campaign.map = {}; }).replace('"map":{}', `"map":${'{"a":'.repeat(20000)}1${'}'.repeat(20000)}`), false]
 		])('takes anything thrown while reading a save of this version as damage, here %s, so it never locks the player out', async (_label, text, bug) => {
 			if (bug) jest.spyOn(Campaign, 'fromJSON').mockImplementation(() => { throw new TypeError("Cannot read properties of undefined (reading 'day')"); });
 			const logged = jest.spyOn(console, 'error').mockImplementation(() => undefined);

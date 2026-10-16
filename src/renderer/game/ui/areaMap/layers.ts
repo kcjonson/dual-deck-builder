@@ -1,3 +1,4 @@
+import type { PoiState } from '../../map/PoiData';
 import type { Places } from '../../map/Places';
 import type { RiverLines } from '../../map/Rivers';
 import type { RoadNetwork } from '../../map/RoadNetwork';
@@ -60,9 +61,6 @@ export interface LandFogLayer {
 export const MAP_MARKER_KINDS = ['poi', 'stronghold'] as const;
 export type MapMarkerKind = (typeof MAP_MARKER_KINDS)[number];
 
-/** Compound and Supply Runs, POIs: what's left to take. */
-export const POI_STATES = ['unvisited', 'looted', 'depleted'] as const;
-export type PoiState = (typeof POI_STATES)[number];
 
 /** A point of interest or a stronghold, as the view draws and picks it. */
 export interface MapMarker {

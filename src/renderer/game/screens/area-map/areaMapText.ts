@@ -1,5 +1,6 @@
+import { POI_SHARES } from '../../campaign/PoiStock';
 import type { RouteYield } from '../../campaign/SupplyRoutes';
-import { POI_TUNING, STRONGHOLD_TYPE } from '../../map/PoiData';
+import { POI_TUNING, PoiState, STRONGHOLD_TYPE } from '../../map/PoiData';
 import type { KnownStop, RouteDescriptor } from '../../map/RouteDescriptors';
 import { STOP_TUNING, StopType, isFight } from '../../map/StopData';
 import { countOf } from '../main-menu/campaignText';
@@ -20,15 +21,23 @@ export function poiTypeText(type: string): string {
 	return POI_TUNING.types[type]?.label ?? type;
 }
 
-/** "General store, tier 1". */
-export function poiKindText(poi: Pick<PlannedPoi, 'type' | 'tier'>): string {
-	return `${poiTypeText(poi.type)}, tier ${poi.tier}`;
+/** "General store, tier 1", and "General store, tier 1, looted" or "..., depleted" once runs have taken from it. */
+export function poiKindText(poi: Pick<PlannedPoi, 'type' | 'tier'>, state: PoiState = 'unvisited'): string {
+	const kind = `${poiTypeText(poi.type)}, tier ${poi.tier}`;
+	return state === 'unvisited' ? kind : `${kind}, ${state}`;
 }
 
-/** "Yields 6 food and 4 water.", or a stronghold's line. */
-export function poiYieldText({ stronghold, yields }: { stronghold: boolean; yields: RouteYield | null }): string {
+/** "Yields 6 food and 4 water.", what's left of it once looted, a depleted POI's line, or a stronghold's. */
+export function poiYieldText({ stronghold, yields, state = 'unvisited' }: { stronghold: boolean; yields: RouteYield | null; state?: PoiState }): string {
 	if (stronghold || !yields) return 'Its stores go to whoever takes it.';
+	if (state === 'depleted') return 'Nothing left to take until it refills.';
 	return `Yields ${yieldText(yields)}.`;
+}
+
+/** "3 of 3 shares left.", "2 of 3 shares left, the next back in 4 days.", or "No shares left, the next back in 7 days." */
+export function poiStockText({ shares, nextShare }: { shares: number; nextShare: number | null }): string {
+	const left = shares <= 0 ? 'No shares left' : `${shares} of ${POI_SHARES} shares left`;
+	return nextShare === null ? `${left}.` : `${left}, the next back in ${countOf(nextShare, 'day')}.`;
 }
 
 /** Hours to a tenth: "5.2 h". */

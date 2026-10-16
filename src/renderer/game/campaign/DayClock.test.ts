@@ -428,7 +428,7 @@ describe('endDay', () => {
 	describe('stop cooldowns and POI refills', () => {
 		it('runs stop cooldowns, then POI refills, each once, on the campaign\'s state at dusk and the map so far, and keeps the map the last returns', () => {
 			const campaign = newCampaign();
-			campaign.set({ map: { stops: { 's-1': { clearedOn: 1 } }, pois: {} } });
+			campaign.set({ map: { stops: { 's-1': { clearedOn: 1 } }, fog: {} } });
 			const driver = campaign.recruitDriver({ archetype: 'mechanic' });
 			injure(driver, 1);
 			const calls: { step: string; map: MapState; day: number; food: number; status: DriverStatus }[] = [];
@@ -438,8 +438,8 @@ describe('endDay', () => {
 				states.push(atDusk);
 				return next;
 			};
-			const cooled = { stops: { 's-1': { clearedOn: 1, rolls: 1 } }, pois: {} };
-			const refilled = { stops: { 's-1': { clearedOn: 1, rolls: 1 } }, pois: { 'p-1': { stock: 3 } } };
+			const cooled = { stops: { 's-1': { clearedOn: 1, rolls: 1 } }, fog: {} };
+			const refilled = { stops: { 's-1': { clearedOn: 1, rolls: 1 } }, fog: { 'p-1': { stock: 3 } } };
 			const hooks: DayEndHooks = { stopCooldowns: step('stopCooldowns', cooled), poiRefills: step('poiRefills', refilled) };
 			const mapAtDusk = campaign.map;
 

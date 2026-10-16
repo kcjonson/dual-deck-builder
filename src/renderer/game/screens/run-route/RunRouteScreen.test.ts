@@ -20,7 +20,7 @@ import { routesOnOffer } from '../../campaign/SupplyRun';
 import { FaultyStorage, atHomeText, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
 import type { AreaMapView } from '../../ui/areaMap/AreaMapView';
 import type { RouteCard } from '../../ui/RouteCard';
-import { STRONGHOLD_NOT_YET, homeByText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
+import { STRONGHOLD_NOT_YET, homeByText, poiKindText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
 import { PlannedPoi, byDistance, plannedPois, routePoints } from '../area-map/planningMap';
 import { TestMaps, meshPlanningMap, testMaps } from '../area-map/testing';
 import { RunRouteScreen, STRANDED_RUN_ROUTE } from './RunRouteScreen';
@@ -115,6 +115,13 @@ describe('RunRouteScreen (DDB-319)', () => {
 		expect(text('run_route_name')).toBe(NEAR.name);
 	});
 
+	it('says when the POI is depleted, on its marker and in its line, and still lets a run go (DDB-483)', async () => {
+		await open(NEAR, (campaign) => campaign.set({ map: { pois: [{ poi: NEAR.poi, left: 0, nights: 0 }] } }));
+		expect(view().markers).toEqual([expect.objectContaining({ id: NEAR.id, state: 'depleted' })]);
+		expect(text('run_route_kind')).toBe(`${poiKindText(NEAR)}, depleted. Nothing left to take until it refills.`);
+		expect(find<Button>('run_route_load_out_button').enabled).toBe(true);
+	});
+
 	it('shows a card for each route from its descriptor, and the picked one\'s stops in order and when it\'d be home', async () => {
 		await open(NEAR);
 		NEAR.routes.forEach((route, index) => {
@@ -177,7 +184,7 @@ describe('RunRouteScreen (DDB-319)', () => {
 		await open(NEAR, withFuel(20));
 		const campaign = screen.shown as Campaign;
 		clickOn('run_route_card_1');
-		const route = routesOnOffer({ map: MAP }).find(({ id }) => id === routeId(NEAR.poi, 1));
+		const route = routesOnOffer({ map: MAP, campaign }).find(({ id }) => id === routeId(NEAR.poi, 1));
 		if (!route) throw new Error('the route should be on offer');
 		find<Button>('run_route_load_out_button').onClick?.({} as never);
 		await flush();

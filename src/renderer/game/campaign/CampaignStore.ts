@@ -3,6 +3,7 @@ import { describeValue } from '../core/Json';
 import { AREA_MAP_GENERATOR_VERSION } from '../map/GeneratorVersion';
 import { ReaderTypeError, isReaderError, readFields, readInteger, readObject } from '../core/JsonReader';
 import { CAMPAIGN_SCHEMA_VERSION, Campaign, LoadOptions, logWarning } from './Campaign';
+import { UPGRADABLE_SCHEMA_VERSIONS, upgradeCampaignJson } from './SaveUpgrades';
 import { CampaignEnding, CampaignHistoryEntry, historyEntry, historyToJson, readHistory, sameEntry } from './CampaignHistory';
 import { LocalSaveStorage, SaveStorage, isQuotaError, storageTrouble } from './SaveStorage';
 
@@ -99,6 +100,13 @@ export interface CampaignStoreOptions {
 	/** The save format version stamped on every save and history list. `CAMPAIGN_SCHEMA_VERSION` when left out. */
 	version?: number;
 	/**
+	 * Older versions whose saves load, upgraded to this one
+	 * (`upgradeCampaignJson`), and whose histories are read.
+	 * `UPGRADABLE_SCHEMA_VERSIONS` when `version` is left out, and none
+	 * otherwise.
+	 */
+	upgradesFrom?: readonly number[];
+	/**
 	 * The area map generator version a saved campaign's map has to be from:
 	 * one recorded at another can't be made again here, so its save is
 	 * outdated. `AREA_MAP_GENERATOR_VERSION` when left out.
@@ -171,11 +179,13 @@ interface Waiting {
  *
  * Saves are per build. Every key carries the build's namespace, and every
  * save and history list carries the save format version
- * (`CAMPAIGN_SCHEMA_VERSION`). A save stamped with another version, an
- * integer other than this one, isn't loaded: `saveStatus` calls it
+ * (`CAMPAIGN_SCHEMA_VERSION`). A save stamped with an older version the
+ * build upgrades (`upgradesFrom`) loads as if it were this version's, and
+ * is written in this one at the next save. A save stamped with any other
+ * version, an integer other than these, isn't loaded: `saveStatus` calls it
  * outdated, `load` passes it by, and a new campaign or a delete replaces it
- * without a copy. A history stamped with another version starts over. There
- * are no migrations. Anything else that can't be read is damaged, whatever
+ * without a copy. A history stamped with another version than these starts
+ * over. Anything else that can't be read is damaged, whatever
  * threw while reading it, a bug included, so one bad save can't lock the
  * player out: only `load` fails on it.
  *
@@ -222,6 +232,8 @@ export class CampaignStore extends EventEmitter {
 	private readonly storage: SaveStorage;
 	private readonly keys: CampaignKeys;
 	private readonly version: number;
+	/** This version, then the older ones it upgrades. */
+	private readonly readable: readonly number[];
 	private readonly generatorVersion: number;
 	private readonly onWarning: (warning: string) => void;
 	/** The save's lineage now. */
@@ -242,11 +254,12 @@ export class CampaignStore extends EventEmitter {
 	private queue: Promise<void> = Promise.resolve();
 	private waiting: Waiting | null = null;
 
-	constructor({ storage, namespace = pageNamespaceHere(), version = CAMPAIGN_SCHEMA_VERSION, generatorVersion = AREA_MAP_GENERATOR_VERSION, onWarning = logWarning }: CampaignStoreOptions) {
+	constructor({ storage, namespace = pageNamespaceHere(), version, upgradesFrom, generatorVersion = AREA_MAP_GENERATOR_VERSION, onWarning = logWarning }: CampaignStoreOptions) {
 		super();
 		this.storage = storage;
 		this.keys = campaignKeys(namespace);
-		this.version = version;
+		this.version = version ?? CAMPAIGN_SCHEMA_VERSION;
+		this.readable = Object.freeze([this.version, ...(upgradesFrom ?? (version === undefined ? UPGRADABLE_SCHEMA_VERSIONS : []))]);
 		this.generatorVersion = generatorVersion;
 		this.onWarning = onWarning;
 	}
@@ -431,7 +444,7 @@ export class CampaignStore extends EventEmitter {
 			const text = await this.read(this.keys.history, READING_HISTORY);
 			if (text === null) return [];
 			try {
-				return readHistory(JSON.parse(text), { version: this.version }) ?? [];
+				return readHistory(JSON.parse(text), { versions: this.readable }) ?? [];
 			} catch (error) {
 				if (!isDamage(error)) throw error;
 				await this.setAside({ key: this.keys.historyRecovery, text, action: READING_HISTORY }).catch(logKeepAsideFailure);
@@ -650,7 +663,7 @@ export class CampaignStore extends EventEmitter {
 		let entries: CampaignHistoryEntry[] = [];
 		if (text !== null) {
 			try {
-				const stored = readHistory(JSON.parse(text), { version: this.version });
+				const stored = readHistory(JSON.parse(text), { versions: this.readable });
 				if (stored === null) warnings.push('CampaignStore: started a new history over one another version of the game saved');
 				entries = stored ?? [];
 			} catch (error) {
@@ -664,22 +677,25 @@ export class CampaignStore extends EventEmitter {
 	}
 
 	/**
-	 * A save's campaign: null when another version stamped it, an integer
-	 * other than this one, or when its campaign's map is from another
-	 * generator version, an integer other than this build's, since the map
-	 * can't be made again. The versions are checked first, so only a save of
-	 * this version has to be well formed. Anything else, a stamp with no
-	 * version or one that isn't an integer included, is damaged, and throws a
-	 * SyntaxError or a reader error (or, from a bug, anything at all).
+	 * A save's campaign, upgraded first when an older version it reads
+	 * stamped it: null when another version stamped it, an integer other than
+	 * these, or when its campaign's map is from another generator version, an
+	 * integer other than this build's, since the map can't be made again. The
+	 * versions are checked first, so only a save of a version it reads has to
+	 * be well formed. Anything else, a stamp with no version or one that
+	 * isn't an integer included, is damaged, and throws a SyntaxError or a
+	 * reader error (or, from a bug, anything at all).
 	 */
 	private readSave(text: string, onWarning: (warning: string) => void): Campaign | null {
 		const save = readObject(JSON.parse(text), 'Save');
-		if (isOtherVersion(save.version, this.version)) return null;
+		if (isOtherVersion(save.version, this.readable)) return null;
 		const fields = readFields(save, 'Save', ['version', 'sequence', 'campaign']);
-		if (fields.version !== this.version) throw new ReaderTypeError(`Save.version must be an integer, got ${describeValue(fields.version)}`);
+		const version = fields.version;
+		if (typeof version !== 'number' || !this.readable.includes(version)) throw new ReaderTypeError(`Save.version must be an integer, got ${describeValue(version)}`);
 		readInteger(fields.sequence, 'Save.sequence', { min: 1 });
 		if (isOtherGenerator(fields.campaign, this.generatorVersion)) return null;
-		return Campaign.fromJSON(fields.campaign, { onWarning });
+		const campaign = version === this.version ? fields.campaign : upgradeCampaignJson({ campaign: fields.campaign, version });
+		return Campaign.fromJSON(campaign, { onWarning });
 	}
 
 	/**
@@ -696,7 +712,7 @@ export class CampaignStore extends EventEmitter {
 		}
 		if (typeof save !== 'object' || save === null) return false;
 		const { version, campaign } = save as { version?: unknown; campaign?: unknown };
-		return isOtherVersion(version, this.version) || (version === this.version && isOtherGenerator(campaign, this.generatorVersion));
+		return isOtherVersion(version, this.readable) || (this.readable.includes(version as number) && isOtherGenerator(campaign, this.generatorVersion));
 	}
 
 	/**
@@ -830,12 +846,12 @@ function sequenceOf(text: string | null): number {
 function isOtherGenerator(campaign: unknown, current: number): boolean {
 	if (typeof campaign !== 'object' || campaign === null) return false;
 	const { generatorVersion, mapAttempts } = campaign as { generatorVersion?: unknown; mapAttempts?: unknown };
-	return typeof mapAttempts === 'object' && mapAttempts !== null && isOtherVersion(generatorVersion, current);
+	return typeof mapAttempts === 'object' && mapAttempts !== null && isOtherVersion(generatorVersion, [current]);
 }
 
-/** Whether a save's version is another version's: an integer other than this build's. Anything else in its place is damage. */
-function isOtherVersion(version: unknown, current: number): boolean {
-	return Number.isInteger(version) && version !== current;
+/** Whether a version is another's: an integer other than those the build reads. Anything else in its place is damage. */
+function isOtherVersion(version: unknown, readable: readonly number[]): boolean {
+	return Number.isInteger(version) && !readable.includes(version as number);
 }
 
 /** An error a save's damage throws, as against a bug in the code reading it. */

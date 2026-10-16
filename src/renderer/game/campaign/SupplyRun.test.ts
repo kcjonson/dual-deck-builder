@@ -6,7 +6,7 @@ import { Card, CardData } from '../mechanics/Card';
 import type { DriverArchetype } from '../mechanics/Driver';
 import { createEscort } from '../mechanics/Escort';
 import { RAIDER_PROFILES } from '../mechanics/Raiders';
-import { Campaign, CampaignJson } from './Campaign';
+import { Campaign, CampaignJson, Resources } from './Campaign';
 import { CampaignOverError } from './CampaignEnd';
 import { CAMPAIGN_START } from './CampaignStart';
 import { CampaignStore } from './CampaignStore';
@@ -15,7 +15,9 @@ import { foundTestCampaign } from './__fixtures__/mapFixtures';
 import type { DriverRecord } from './DriverRecord';
 import { getCrewRule, getSeatBlocker } from './Seating';
 import { REWARD_CHOICES, rollRewardCards } from './RunRewards';
-import { destinationId, routeOffers } from './MapRoutes';
+import { endDay } from './DayClock';
+import { destinationId, poiOf, routeOffers } from './MapRoutes';
+import { POI_REFILL_DAYS, POI_SHARES, sharesLeft, takeShare } from './PoiStock';
 import { MemorySaveStorage } from './SaveStorage';
 import { RunRoute, readRunRoute, routeStops } from './SupplyRoutes';
 import type { SupplyRun } from './SupplyRunState';
@@ -53,7 +55,7 @@ function newCampaign(archetypes: DriverArchetype[] = ['road_warrior', 'intercept
  * and a quiet stretch on it, so a run meets both and stays quick to drive.
  */
 function testRoute(): RunRoute {
-	const mixed = routesOnOffer({ map: MAP }).filter(route => {
+	const mixed = routesOnOffer({ map: MAP, campaign: newCampaign() }).filter(route => {
 		const kinds = routeStops(route).map(stop => stop.kind);
 		return kinds.includes('fight') && kinds.includes('quiet');
 	});
@@ -109,15 +111,15 @@ afterEach(() => {
 
 describe('the routes on offer (DDB-479)', () => {
 	it('offers every route the area map has, POI by POI, but a stronghold\'s, worked out once a map', () => {
-		const offered = routesOnOffer({ map: MAP });
+		const offered = routesOnOffer({ map: MAP, campaign: newCampaign() });
 		const strongholds = new Set(MAP.products.pois.strongholds.map(({ poi }) => destinationId(poi)));
 		expect(strongholds.size).toBeGreaterThan(0);
 		expect(offered).toEqual(routeOffers(MAP).filter(route => !strongholds.has(route.destination.id)));
-		expect(routesOnOffer({ map: MAP })).toBe(offered);
+		expect(routesOnOffer({ map: MAP, campaign: newCampaign() })).toBe(offered);
 	});
 
 	it('offers every POI that isn\'t a stronghold, at any tier, whether or not a route is home by dark', () => {
-		const offered = routesOnOffer({ map: MAP });
+		const offered = routesOnOffer({ map: MAP, campaign: newCampaign() });
 		const destinations = new Set(offered.map(route => route.destination.id));
 		MAP.products.pois.pois.forEach((poi, index) => expect(destinations.has(destinationId(index))).toBe(poi.type !== STRONGHOLD_TYPE));
 		expect(new Set(offered.map(route => route.destination.tier)).size).toBeGreaterThan(1);
@@ -126,7 +128,7 @@ describe('the routes on offer (DDB-479)', () => {
 	});
 
 	it('offers nothing on a map with no POIs', () => {
-		expect(routesOnOffer({ map: EMPTY_MAP })).toEqual([]);
+		expect(routesOnOffer({ map: EMPTY_MAP, campaign: newCampaign() })).toEqual([]);
 	});
 
 	it.each([
@@ -143,7 +145,7 @@ describe('the routes on offer (DDB-479)', () => {
 		['a road class it doesn\'t know', (route: Record<string, unknown>) => { (route.legs as { roadClass: string }[])[0].roadClass = 'canal'; },
 			'route.legs[0].roadClass must be one of highway, backRoad, trail, got "canal"'],
 	])('refuses a saved route with %s', (_name, change, message) => {
-		const twoLegs = routesOnOffer({ map: MAP }).find(offered => offered.legs.length > 1);
+		const twoLegs = routesOnOffer({ map: MAP, campaign: newCampaign() }).find(offered => offered.legs.length > 1);
 		const route = JSON.parse(JSON.stringify(twoLegs)) as Record<string, unknown>;
 		expect(readRunRoute(JSON.parse(JSON.stringify(route)), 'route')).toEqual(twoLegs);
 		change(route);
@@ -166,7 +168,7 @@ describe('the raider encounters', () => {
 			const fight = routeStops(route).find(stop => stop.kind === 'fight');
 			return fight?.kind === 'fight' && ENCOUNTERS[encounterFor(fight.skulls)].raiders.length === 1;
 		};
-		const [route] = routesOnOffer({ map: MAP }).filter(firstFightIsLone).sort((a, b) => a.fuel - b.fuel);
+		const [route] = routesOnOffer({ map: MAP, campaign: newCampaign() }).filter(firstFightIsLone).sort((a, b) => a.fuel - b.fuel);
 		if (!route) throw new Error('the map should offer a route whose first fight is a lone raider');
 		departRun({ campaign, map: MAP, route, escorts: [] });
 		toNextFight(campaign);
@@ -229,7 +231,7 @@ describe('planning a run', () => {
 		expect(getPlanBlocker({ map: EMPTY_MAP, campaign: newCampaign() })).toEqual({ reason: 'no_routes' });
 
 		const dry = newCampaign();
-		const cheapest = Math.min(...routesOnOffer({ map: MAP }).map(route => route.fuel));
+		const cheapest = Math.min(...routesOnOffer({ map: MAP, campaign: newCampaign() }).map(route => route.fuel));
 		dry.set({ resources: { ...dry.resources, fuel: cheapest - 1 } });
 		expect(getPlanBlocker({ map: MAP, campaign: dry })).toEqual({ reason: 'too_little_fuel', needed: cheapest, held: cheapest - 1 });
 
@@ -423,7 +425,7 @@ describe('departing', () => {
 
 	it('refuses once the campaign is over', () => {
 		const over = overCampaign();
-		expect(() => departRun({ campaign: over, map: MAP, route: routesOnOffer({ map: MAP })[0], escorts: [] })).toThrow(CampaignOverError);
+		expect(() => departRun({ campaign: over, map: MAP, route: routesOnOffer({ map: MAP, campaign: newCampaign() })[0], escorts: [] })).toThrow(CampaignOverError);
 	});
 });
 
@@ -537,6 +539,118 @@ describe('a whole run, scripted through the real APIs and saved after every step
 		const replay = startStopFight({ campaign, cards: CARDS });
 		expect(replay.battle.seed).toBe(fight.battle.seed);
 		expect(replay.drivers.map(driver => driver.hand.map(card => card.type))).toEqual(hands);
+	});
+});
+
+describe('a POI\'s stock (DDB-483)', () => {
+	/** The run to `route`'s POI driven out and home, fights won and rewards skipped; what it unloaded. */
+	function runTo(campaign: Campaign, route: RunRoute): Resources {
+		quickLoadOut({ campaign });
+		departRun({ campaign, map: MAP, route: offerFor(campaign, route), escorts: [] });
+		while (!atDestination(onRoad(campaign))) {
+			if (currentStop(onRoad(campaign))?.kind === 'quiet') {
+				passQuietStop({ campaign });
+				continue;
+			}
+			const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+			fightOut(fight);
+			finishStopFight({ campaign, fight });
+			takeReward({ campaign, cardType: null });
+		}
+		return arriveHome({ campaign }).cargo.resources;
+	}
+
+	/** The route as the campaign's offer has it now, its yield scaled to the POI's stock. */
+	function offerFor(campaign: Campaign, route: RunRoute): RunRoute {
+		return routesOnOffer({ map: MAP, campaign }).find(offered => offered.id === route.id) as RunRoute;
+	}
+
+	/** A compound with fuel and food for many runs, every seat a sharpshooter. */
+	function stocked(): Campaign {
+		const campaign = newCampaign();
+		sharpshooters(campaign);
+		campaign.set({ resources: { ...campaign.resources, food: 200, water: 200, fuel: 200 } });
+		return campaign;
+	}
+
+	const scaled = (route: RunRoute, shares: number): Resources => {
+		const full = yieldResources(route.destination.yield);
+		return Object.fromEntries(Object.entries(full).map(([resource, amount]) => [resource, Math.ceil((amount * shares) / POI_SHARES)])) as unknown as Resources;
+	};
+
+	it('takes a share on each run that reaches the POI, the yield scaled by what was left, and nothing once it\'s depleted', () => {
+		const campaign = stocked();
+		const route = testRoute();
+		const poi = poiOf(route.destination.id) as number;
+		expect(yieldResources(route.destination.yield).food + yieldResources(route.destination.yield).scrap).toBeGreaterThan(0);
+
+		const brought = [3, 2, 1, 0].map((shares) => {
+			expect(sharesLeft({ map: campaign.map, poi })).toBe(shares);
+			expect(yieldResources(offerFor(campaign, route).destination.yield)).toEqual(scaled(route, shares));
+			return runTo(campaign, route);
+		});
+
+		expect(brought).toEqual([3, 2, 1, 0].map(shares => scaled(route, shares)));
+		expect(sharesLeft({ map: campaign.map, poi })).toBe(0);
+		// Every other POI's routes still yield in full
+		const others = routesOnOffer({ map: MAP, campaign }).filter(offered => offered.destination.id !== route.destination.id);
+		const full = new Map(routesOnOffer({ map: MAP, campaign: newCampaign() }).map(offered => [offered.id, offered]));
+		others.forEach(offered => expect(offered).toBe(full.get(offered.id)));
+	});
+
+	it('loads the scaled yield into the cargo on reaching the POI, and takes the share in the same step', () => {
+		const campaign = stocked();
+		const route = testRoute();
+		const poi = poiOf(route.destination.id) as number;
+		campaign.set({ map: takeShare({ map: campaign.map, poi }) });
+		quickLoadOut({ campaign });
+		departRun({ campaign, map: MAP, route: offerFor(campaign, route), escorts: [] });
+		expect(onRoad(campaign).route.destination.yield).toEqual(offerFor(campaign, route).destination.yield);
+		while (!atDestination(onRoad(campaign))) {
+			if (currentStop(onRoad(campaign))?.kind === 'quiet') passQuietStop({ campaign });
+			else {
+				const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+				fightOut(fight);
+				finishStopFight({ campaign, fight });
+				expect(sharesLeft({ map: campaign.map, poi })).toBe(2);
+				takeReward({ campaign, cardType: null });
+			}
+		}
+		expect(onRoad(campaign).cargo).toEqual(scaled(route, 2));
+		expect(sharesLeft({ map: campaign.map, poi })).toBe(1);
+	});
+
+	it('refills overnight, a share every third of 20 nights, through the day end\'s own hooks', () => {
+		const campaign = stocked();
+		const route = testRoute();
+		const poi = poiOf(route.destination.id) as number;
+		for (let run = 0; run < POI_SHARES; run += 1) runTo(campaign, route);
+		// Each run's arrival ended its day, so the last one has had a night already
+		expect(campaign.map).toEqual({ pois: [{ poi, left: 0, nights: 1 }] });
+		for (let night = 1; night < POI_REFILL_DAYS; night += 1) {
+			campaign.set({ resources: { ...campaign.resources, food: 200, water: 200 } });
+			endDay({ campaign });
+		}
+		expect(campaign.map).toEqual({});
+		expect(offerFor(campaign, route)).toEqual(route);
+	});
+
+	it('works the offer out once for each map state', () => {
+		const campaign = stocked();
+		const route = testRoute();
+		campaign.set({ map: takeShare({ map: campaign.map, poi: poiOf(route.destination.id) as number }) });
+		const offered = routesOnOffer({ map: MAP, campaign });
+		expect(routesOnOffer({ map: MAP, campaign })).toBe(offered);
+		campaign.set({ map: takeShare({ map: campaign.map, poi: poiOf(route.destination.id) as number }) });
+		expect(routesOnOffer({ map: MAP, campaign })).not.toBe(offered);
+	});
+
+	it('takes nothing from a POI whose id the map doesn\'t name, as a run saved before the real map had', () => {
+		const campaign = Campaign.fromJSON(CAMPAIGN_FIXTURE);
+		const before = campaign.map;
+		takeReward({ campaign, cardType: null });
+		expect(atDestination(onRoad(campaign))).toBe(true);
+		expect(campaign.map).toBe(before);
 	});
 });
 
