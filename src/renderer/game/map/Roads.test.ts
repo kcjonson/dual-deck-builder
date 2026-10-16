@@ -268,7 +268,7 @@ describe('the roads stage', () => {
 	it('never breaks the last highway out of a highway exit, though the span further in can break', () => {
 		const highway = (from: number, to: number, points: number[], number = 0): RoadStretch => ({ roadClass: 'highway', from, to, length: polylineLength(points), points, bridges: [], street: false, highway: number });
 		const backRoad = (from: number, to: number, points: number[]): RoadStretch => ({ roadClass: 'backRoad', from, to, length: polylineLength(points), points, bridges: [], street: false });
-		const broken = ({ nodes, stretches, places, radius }: { nodes: RoadNetwork['nodes']; stretches: RoadStretch[]; places: RoadPlace[]; radius: number }) => breakHighways({ nodes, stretches, places, count: 2, radius, rng: new Rng({ seed: 1 }) }).broken;
+		const broken = ({ nodes, stretches, places, radius }: { nodes: RoadNetwork['nodes']; stretches: RoadStretch[]; places: RoadPlace[]; radius: number }) => breakHighways({ nodes, stretches, places, count: 2, radius, rng: new Rng({ seed: 4 }) }).broken;
 
 		// Home, junctions 100 and 200 out, and a highway exit 300 out, on one highway, with a back road from the first junction round to the exit.
 		const line: RoadNetwork['nodes'] = [{ kind: 'compound', x: 0, y: 0, place: 0 }, { kind: 'junction', x: 100, y: 0 }, { kind: 'junction', x: 200, y: 0 }, { kind: 'exit', x: 300, y: 0, place: 1 }];
@@ -276,10 +276,10 @@ describe('the roads stage', () => {
 		const outer = highway(2, 3, [200, 0, 300, 0]);
 		const lineStretches = [highway(0, 1, [0, 0, 100, 0]), inner, outer, backRoad(1, 3, [100, 0, 200, 40, 300, 0])];
 		const exit: RoadPlace = { id: 1, kind: 'exit', x: 300, y: 0, highway: true };
-		// Either span past 0.35 of the radius can break, but not both, which would cut the middle junction off; the outer is the exit's only highway, so the inner goes.
+		// Either span past 0.35 of the radius can break, but not both, which would cut the middle junction off. This stream tries the outer first; it's the exit's only highway, so the inner goes.
 		expect(broken({ nodes: line, stretches: lineStretches, places: [exit], radius: 310 })).toEqual([inner]);
 		// A back-road exit can lose its outer span.
-		expect([[inner], [outer]]).toContainEqual(broken({ nodes: line, stretches: lineStretches, places: [{ ...exit, highway: false }], radius: 310 }));
+		expect(broken({ nodes: line, stretches: lineStretches, places: [{ ...exit, highway: false }], radius: 310 })).toEqual([outer]);
 
 		// Two highways into one exit from junctions off to either side, and a back road from Home: either can go, and once one has, the other is the exit's last.
 		const fork: RoadNetwork['nodes'] = [{ kind: 'compound', x: 0, y: 0, place: 0 }, { kind: 'junction', x: 100, y: 50 }, { kind: 'junction', x: 100, y: -50 }, { kind: 'exit', x: 300, y: 0, place: 1 }];
