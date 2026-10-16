@@ -21,8 +21,8 @@
 {"path":"areaMapScreen/area_map_side/area_map_destinations_scroll/area_map_destinations/area_map_poi_28/Text[1]","text":"tier 2","rect":[1352.4,297.44,39.6,26]},
 {"path":"areaMapScreen/area_map_side/area_map_destinations_scroll/area_map_destinations/area_map_poi_24/Text[0]","text":"Water plant, north 2","rect":[1124,323.44,220.4,26]},
 {"path":"areaMapScreen/area_map_side/area_map_destinations_scroll/area_map_destinations/area_map_poi_24/Text[1]","text":"tier 2","rect":[1352.4,323.44,39.6,26]},
-{"path":"areaMapScreen/area_map_side/area_map_destinations_scroll/area_map_destinations/area_map_poi_5/Text[0]","text":"School, north-east","rect":[1124,349.44,220.4,26]},
-{"path":"areaMapScreen/area_map_side/area_map_destinations_scroll/area_map_destinations/area_map_poi_5/Text[1]","text":"tier 2","rect":[1352.4,349.44,39.6,26]},
+{"path":"areaMapScreen/area_map_side/area_map_destinations_scroll/area_map_destinations/area_map_poi_5/Text[0]","text":"School, north-east","rect":[1124,349.44,154.4,26]},
+{"path":"areaMapScreen/area_map_side/area_map_destinations_scroll/area_map_destinations/area_map_poi_5/Text[1]","text":"tier 2, depleted","rect":[1286.4,349.44,105.6,26]},
 {"path":"areaMapScreen/area_map_side/area_map_destinations_scroll/area_map_destinations/area_map_poi_25/Text[0]","text":"Water plant, east 2","rect":[1124,375.44,220.4,26]},
 {"path":"areaMapScreen/area_map_side/area_map_destinations_scroll/area_map_destinations/area_map_poi_25/Text[1]","text":"tier 2","rect":[1352.4,375.44,39.6,26]},
 {"path":"areaMapScreen/area_map_side/area_map_destinations_scroll/area_map_destinations/area_map_poi_19/Text[0]","text":"Clinic, south-west","rect":[1124,401.44,220.4,26]},
@@ -43,7 +43,7 @@
 {"path":"areaMapScreen/area_map_side/area_map_destinations_scroll/area_map_destinations/area_map_poi_17/Text[1]","text":"tier 3","rect":[1352.4,583.44,39.6,26]},
 {"path":"areaMapScreen/area_map_side/area_map_destinations_scroll/area_map_destinations/area_map_poi_6/Text[0]","text":"Hospital, east","rect":[1124,609.44,220.4,26]},
 {"path":"areaMapScreen/area_map_side/area_map_destinations_scroll/area_map_destinations/area_map_poi_6/Text[1]","text":"tier 3","rect":[1352.4,609.44,39.6,26]},
-{"path":"areaMapScreen/area_map_side/area_map_details/area_map_selected_kicker","text":"Selected","rect":[1116,659.08,308,14.52]},
-{"path":"areaMapScreen/area_map_side/area_map_details/area_map_selected_name","text":"No destination chosen","rect":[1116,677.6,308,21.6]},
+{"path":"areaMapScreen/area_map_side/area_map_details/area_map_selected_kicker","text":"Selected","rect":[1116,638.28,308,14.52]},
+{"path":"areaMapScreen/area_map_side/area_map_details/area_map_selected_name","text":"No destination chosen","rect":[1116,656.8,308,21.6]},
 {"path":"areaMapScreen/area_map_side/area_map_details/area_map_plan_button/Text[0]","text":"Plan a run here","rect":[1128,794.4,284,34]}
 ]
