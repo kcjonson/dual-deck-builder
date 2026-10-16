@@ -475,7 +475,7 @@ describe('a campaign that\'s over', () => {
 		['end the day', ({ campaign }: Fallen) => endDay({ campaign })],
 		['injure drivers coming home', ({ campaign }: Fallen) => injureOnArrival({ campaign, drivers: [] })],
 		['treat a driver', ({ campaign, interceptor }: Fallen) => treatDriver({ campaign, driver: interceptor })],
-		['start a fight', ({ campaign, party }: Fallen) => startCampaignFight({ campaign, party, enemyTeam: {} as Team, rng: new Rng({ seed: 1 }), cards: new Map() })],
+		['start a fight', ({ campaign, party }: Fallen) => startCampaignFight({ campaign, party, raiders: () => ({} as Team), rng: new Rng({ seed: 1 }), cards: new Map() })],
 		['write a fight back', ({ campaign, party }: Fallen) => {
 			const battle = { isBattleOver: () => true, isBattleTied: () => false, isBattleWon: () => true, afterFight: { escorts: [], lost: [], dividends: [] } };
 			const fight = { campaign, battle, drivers: [], vehicles: [], scrap: 0, fuel: 0, party } as unknown as CampaignFight;

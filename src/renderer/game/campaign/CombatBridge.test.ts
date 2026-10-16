@@ -140,7 +140,7 @@ function startFight({ campaign, party, enemy, seed = SEED }: { campaign: Campaig
 	return startCampaignFight({
 		campaign,
 		party,
-		enemyTeam: new Team({ type: TeamType.ENEMY, vehicles: Array.isArray(enemy) ? enemy : [enemy] }),
+		raiders: () => new Team({ type: TeamType.ENEMY, vehicles: Array.isArray(enemy) ? enemy : [enemy] }),
 		rng: new Rng({ seed }),
 		cards: CARDS,
 		enemyAI: null
@@ -233,6 +233,20 @@ describe('the combat bridge', () => {
 			expect(fight.campaign).toBe(campaign);
 		});
 
+		it('builds the raiders against each seat\'s vehicle as it opens the fight', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			warrior.set({ vehicle: { structure: 52, armor: 3 } });
+			const raiders = jest.fn((_seats: readonly Vehicle[]) => new Team({ type: TeamType.ENEMY, vehicles: [idle()] }));
+
+			const fight = startCampaignFight({ campaign, party: loadOut({ campaign, seats: [warrior, interceptor] }), raiders, rng: new Rng({ seed: SEED }), cards: CARDS, enemyAI: null });
+
+			expect(raiders).toHaveBeenCalledTimes(1);
+			const [seats] = raiders.mock.calls[0];
+			expect(seats).toHaveLength(2);
+			seats.forEach((vehicle, seat) => expect(vehicle).toBe(fight.vehicles[seat]));
+			expect(seats.map(vehicle => vehicle.structure)).toEqual([52, 50]);
+		});
+
 		it('fields the escorts that came along in roster order, and none left at home', () => {
 			const { campaign, warrior, interceptor } = newCampaign();
 			const [outrider, pilotCar, hauler] = (['outrider', 'pilot_car', 'fuel_hauler'] as const).map(type => createEscort({ type }));
@@ -286,6 +300,18 @@ describe('the combat bridge', () => {
 					.toThrow('A fight seats one or two drivers, and this party has 0');
 				expect(() => startFight({ campaign, party: partyOf([warrior, interceptor, mechanic]), enemy: idle() }))
 					.toThrow('A fight seats one or two drivers, and this party has 3');
+			});
+
+			it('a party before building its raiders', () => {
+				const { campaign, warrior, interceptor } = newCampaign();
+				const mechanic = campaign.recruitDriver({ archetype: 'mechanic' });
+				const raiders = jest.fn(() => new Team({ type: TeamType.ENEMY, vehicles: [idle()] }));
+
+				for (const seats of [[], [warrior, interceptor, mechanic]]) {
+					expect(() => startCampaignFight({ campaign, party: partyOf(seats), raiders, rng: new Rng({ seed: SEED }), cards: CARDS }))
+						.toThrow(`A fight seats one or two drivers, and this party has ${seats.length}`);
+				}
+				expect(raiders).not.toHaveBeenCalled();
 			});
 
 			it('two drivers of one archetype, naming them', () => {

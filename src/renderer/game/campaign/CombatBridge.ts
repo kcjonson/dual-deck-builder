@@ -78,8 +78,11 @@ export interface CampaignFight {
 export interface CampaignFightOptions {
 	campaign: Campaign;
 	party: RunParty;
-	/** The encounter's raiders */
-	enemyTeam: Team;
+	/**
+	 * The encounter's raiders, built once everything else checks out, sized
+	 * up against each seat's vehicle as it opens the fight, Driver 1's first
+	 */
+	raiders: (seats: readonly Vehicle[]) => Team;
 	/** The fight's stream, `run.fork('fight', i)` off the run's saved fight count */
 	rng: Rng;
 	/** Card templates by card type, as `CardLoader.getAllCardsAsMap` hands them out */
@@ -147,11 +150,12 @@ type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
  * party that doesn't seat every driver on the run out and nobody else, an
  * escort in the party whose card no run deck holds, a party that set off on
  * another run than the one out, or a card in the decks with no template.
- * The teams and the encounter can refuse the road too (Team, Battle), and
- * move nobody when they do. One seat is a run down to its last driver, who
+ * The raiders are built after all of that, so a party the bridge refuses
+ * never reaches them. The teams and the encounter can refuse the road too
+ * (Team, Battle), and move nobody when they do. One seat is a run down to its last driver, who
  * fights alone with the escorts (solo-driver-fights.md).
  */
-export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, enemyAI = 'aggressive' }: CampaignFightOptions): CampaignFight {
+export function startCampaignFight({ campaign, party, raiders, rng, cards, enemyAI = 'aggressive' }: CampaignFightOptions): CampaignFight {
 	if (isStoringWriteBack(campaign)) throw new Error("This campaign's last fight is still being written back");
 	if (openFightOf(campaign) !== null) throw new Error("This campaign's last fight hasn't been written back");
 	if (campaign.isStoring) throw new Error("This campaign is partway through storing its records, so a fight can't start on them");
@@ -189,8 +193,10 @@ export function startCampaignFight({ campaign, party, enemyTeam, rng, cards, ene
 	});
 	if (party.run !== campaign.currentRun) throw new RangeError(`This party set off on ${describeValue(party.run)}, and the run out is ${campaign.currentRun}`);
 
-	const drivers = party.seats.map((record, seat) => combatDriverOf({ record, runDeck: runDecks[seat], cards }));
-	const vehicles = party.seats.map((record, seat) => vehicleOf({ record, driver: drivers[seat] }));
+	const seats = party.seats.map((record, seat) => seatOf({ record, runDeck: runDecks[seat], cards }));
+	const drivers = seats.map(({ driver }) => driver);
+	const vehicles = seats.map(({ vehicle }) => vehicle);
+	const enemyTeam = raiders(vehicles);
 	const playerTeam = new Team({ type: TeamType.PLAYER, vehicles: [...vehicles, ...escorts] });
 	const battle = new Battle({ playerTeam, enemyTeam, rng });
 	battle.aiController.setEnemyAI(enemyAI);
@@ -315,6 +321,22 @@ function seatRunDeck({ campaign, record, escorts }: { campaign: Campaign; record
 	return runDeck;
 }
 
+/** A seat as a fight deals it: the combat driver at the wheel of their own vehicle. */
+export interface Seat {
+	readonly driver: Driver;
+	readonly vehicle: Vehicle;
+}
+
+/**
+ * A seat as a fight builds it from the seat's record and run deck. The
+ * raider sim (scripts/raider-sim.mjs) builds its seats here too, so it deals
+ * what a run deals. Throws for a card in the run deck with no template.
+ */
+export function seatOf({ record, runDeck, cards }: { record: DriverRecord; runDeck: RunDeck; cards: ReadonlyMap<string, Card> }): Seat {
+	const driver = combatDriverOf({ record, runDeck, cards });
+	return { driver, vehicle: vehicleOf({ record, driver }) };
+}
+
 /**
  * A seat's driver as a fight deals them: the record's name, HP, and hand
  * limit, the archetype's skills, vehicle, and adrenaline, and a fresh copy
@@ -363,14 +385,9 @@ function combatDriverOf({ record, runDeck, cards }: { record: DriverRecord; runD
 function vehicleOf({ record, driver }: { record: DriverRecord; driver: Driver }): Vehicle {
 	return createDrivenVehicle({
 		driver,
-		structure: openingStructure(record),
+		structure: Math.min(record.vehicle.structure, driver.vehicleStats.maxStructure),
 		armor: Math.min(record.vehicle.armor, driver.vehicleStats.armor)
 	});
-}
-
-/** The structure a seat's vehicle opens its next fight with: the record's, clamped to the archetype's maximum as it stands now. */
-export function openingStructure(record: DriverRecord): number {
-	return Math.min(record.vehicle.structure, DRIVER_CONFIGS[record.archetype].vehicleStats.maxStructure);
 }
 
 /**
