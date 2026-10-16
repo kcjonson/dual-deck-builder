@@ -1,0 +1,156 @@
+# The dressing stage
+
+Date: 2026-10-16. Code: `src/renderer/game/map/` (`Dressing.ts`, the stage's output and its hatching, stipple, and route numbers; `StreetGrids.ts`; `RailLines.ts`; `MapLabels.ts`, label candidates and the land's named features; `PlaceNames.ts`, feature roots; `NodeHeap.ts`, moved out of `RouteTree.ts` for the rail search), wired in `AreaMapPipeline.ts` (`DRESSING_STAGE`), carried by `worker/mapGenerationProtocol.ts`, timed and drawn by `scripts/road-network.mjs dressing` and `bench`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), 11. Dressing, Saving, Seeds and determinism, and Guarantee 9. Builds Map 15 of [realistic-map.md](./realistic-map.md) over the places of [places.md](./places.md) and the roads of [road-network.md](./road-network.md), on the runner of [map-pipeline-worker.md](./map-pipeline-worker.md).
+
+## Context
+
+The spec's last stage dresses the map so it reads as a page of a road atlas: street grids for the ruined towns and the metro, rail lines, contamination hatching and mire stipple, and labels. It carries no gameplay. It reads every stage before it, writes nothing back, isn't saved, and a load makes it again from the seed, the params, and the saved map; removing all of it changes no gameplay data (Guarantee 9).
+
+The item's first description had county roads, farm tracks, and broken highways in the dressing. Maps 7 and 8 made back roads, trails, and broken highway spans real roads, so the dressing keeps to the spec's four parts.
+
+This stage generates; it draws nothing. Drawing it in the atlas style comes with the view's restyle.
+
+Rust Belt seed 11 and Mixed seed 7 at radius 1000, and Rust Belt 11's metro close up, drawn by `node scripts/road-network.mjs dressing`. The labels there are set by the script's own greedy placement, not the view's:
+
+![Rust Belt, seed 11](../design/dressing/rust-belt-seed-11.png)
+
+![Mixed, seed 7](../design/dressing/mixed-seed-7.png)
+
+![Rust Belt, seed 11: the metro's districts](../design/dressing/metro-rust-belt-11.png)
+
+## The stage, and saves made before it
+
+`dressing` runs last, on `root.fork('map', m)` ... `.fork('stops', s).fork('dressing', d)`, and forks every part from that by name: `routes`, `names` (with `metro` and `features` under it), `rails`, `grids` (with `ruin` at each place's id, and `district` at each district's index under that), `hatches`, and `stipple`. A part never draws from another's fork, so laying a rail more or less never moves a block, and a town's grid never depends on another town's.
+
+Options for fitting it to saves:
+
+1. A stage like any other, with a generator version bump. A save names its stages' attempts and the runner refuses a replay missing one, so adding a stage meant bumping `AREA_MAP_GENERATOR_VERSION`, and the store would read every save made today as outdated. That breaks "old saves load" for a stage that can't change play.
+2. Not a stage at all: a function run after the pipeline on the stops' winning stream. It loses the runner's timings, progress, and local retries, and the spec calls the dressing stage 11 of the pipeline, a link in the stream chain like any other.
+3. A stage the runner knows is inert (chosen). `MapStage.inert` marks a stage that carries no gameplay. The builder holds it to two rules: it retries only itself (`localRetry`), since a map restart would move the gameplay map, and no gameplay stage may follow it, so nothing play reads can depend on it. A replay whose attempts leave an inert stage out runs it on its first attempt. So a save made before the dressing existed replays exactly as it did, gameplay and all, with the dressing's first attempt, and the version stays at 5. The pinned stage list (`CampaignMaps.test.ts`) pins the inert stages too, and `GeneratorVersion.ts` says an inert stage never bumps it.
+
+The stage has no checks, so its first attempt always wins and a save's `mapAttempts.stages.dressing` is always 0 today. It keeps the attempt anyway, so a check added later (the validator's "dressing touches nothing") can reject an attempt without moving saves that already won theirs. A change to what the dressing makes needs no version bump either: like the land's shading under the saved lines, it only changes the picture.
+
+## The data: what the view draws
+
+```ts
+interface Dressing {
+	readonly districts: readonly StreetDistrict[];  // the metro's districts first, then towns', then villages'
+	readonly rails: readonly RailLine[];
+	readonly hatches: readonly HatchRegion[];
+	readonly stipple: Float64Array;                 // mire dots, x, y per dot
+	readonly metroName: string;                     // "Elkford"; its label is in capitals
+	readonly routeNumbers: readonly number[];       // by RoadStretch.highway, from 0
+	readonly ranges: readonly MapRange[];           // { name, cells, x, y, ux, uy }
+	readonly labels: readonly MapLabel[];           // highest priority first
+}
+interface StreetDistrict { place; kind: 'metro' | 'town' | 'village'; x; y; ux; uy; spacing; blocks: Float64Array; rubble: Float64Array }
+interface RailLine { points: readonly number[]; length; bridges: readonly RoadBridge[] }
+interface HatchRegion { x; y; inner; outer; ux; uy; spacing }
+interface MapLabel { kind; text; priority; x; y; path: readonly number[]; ref }
+```
+
+All world units, the compound at the origin, frozen. A district's blocks are squares `spacing` across centred on each `blocks` and `rubble` point, sides along (ux, uy) and (-uy, ux); the street between blocks is the view's to choose. `x, y` is a block corner. A rail's bridges are decks as distances along its line, like a road's. A hatch region is the annulus from `inner` (the crater's rim) to `outer`, lined along (ux, uy) every `spacing`. The typed arrays transfer from the worker with the rest of the map's; `freezeDressing` refreezes the rest after the crossing.
+
+## Street grids
+
+Each town and village gets one grid at a drawn rotation, centred on the place; the metro gets several districts. Every block's centre runs out to the ruin's radius, with an edge drawn per block between 0.85 and 1.15 of it so it's ragged. A block is kept only where its centre and corners are clear of water, craters, and cliffs, no river's water lies within half a block of its centre, and no road or rail runs through it: each segment is walked block by block (Amanatides and Woo), so a line that clips a corner still makes the block street. A kept block stands with the survival odds, or is rubble.
+
+- Spacing 14 world units at `streetGrids` 0 to 8 at 1, 9.8 at the default 0.7.
+- Survival 0.3 at `streetGrids` 0 to 0.9 at 1, times one less 0.6 of the square of the block's share of the way to the edge.
+- Metro districts: 2 plus one per 50 units of the metro's radius, at most 7: 5 at the default metro of 150. The first sits within 0.15 of the radius of the middle, the rest 0.45 to 0.8 out, evenly round and jittered by a quarter of the gap. A block corner belongs to the district whose seed is nearest by 2 units or more, so neighbouring grids stop short of the line between them and their streets meet along it, the old district line.
+- District angles: spread evenly over a quarter turn from a drawn angle, in a shuffled order, each jittered by a quarter step, so any two differ by at least half a step (9 degrees for five). A first cut drew each angle and redrew within 15 degrees of another; five districts can't all keep 15 degrees apart in a quarter turn, and two came out 0.2 degrees apart.
+
+Rust Belt 11 at radius 1000: 38 districts, 886 blocks standing and 729 rubble.
+
+## Rail lines
+
+`railLines` lays `railLines` lines, fewer where the land leaves no way across, each from the rim to the rim. It searches a grid two land cells to one (about 19 units a cell) by A*:
+
+- A move costs its length times one plus 400 times its grade squared, times one plus 1.5 times how far it stands above the low ground (the water's lowland, 1 on a valley floor), plus 4 times the range mask times its length, plus 40 units for each end on a river cell, any land cell of the four under it carrying the stream threshold's drainage. Lakes, craters, and cliffs are closed, and a diagonal needs both cells beside it open. So lines take valley floors and gentle grades, and cross a river rather than running along it; a first cut, charging 6 for a river cell at its centre only, ran a line down the river with a 60-unit "bridge".
+- Line k's first end is at a bearing spread evenly round half the rim from a drawn one, the second 140 to 220 degrees round from it; each end is the lowest open cell just inside the rim within 25 degrees of its bearing, the line running on to the rim beyond it.
+- A line keeps 5 cells off an earlier one by costing twice as much there; it can still cross.
+- The cells are simplified by Douglas-Peucker at 2 cells and cut by Chaikin four times. Where that clips a lake, crater, or cliff (sampled every unit) or lays a deck over 30 units, tolerances of 1 and 0.5 cells are tried, then the cells themselves.
+- Bridges are where the line's samples fall in river water, merged across gaps of 2 units or less.
+
+A rail is never a road: it's in no network, nothing routes or places stops on it, and the view draws it with the rail pattern.
+
+## Hatching and stipple
+
+Every crater inside the disc whose plume is stronger than 0.15 is hatched from its rim out to where its contamination, strength times (1 - d²/r²)², falls to 0.15. Lines run at 45 degrees, turned up to 15 either way per crater, 8 units apart at the default dressing.
+
+Mire is stippled one dot to a cell of a grid 12 units across at the default, each dot anywhere in its cell, kept where it lands on mire and no water. Mire is only ever low ground, so the water's lowland is asked first; that took the stipple from 15 ms to a few.
+
+## Labels
+
+Generation knows no font and no zoom, so it places nothing. It offers every candidate with a priority, and the view sets them highest first with a collision box at its size, dropping one that can't fit. Point labels are anchored at their feature; line labels carry a `path` to be set along.
+
+| Kind | Base priority | Text | Anchor |
+| --- | --- | --- | --- |
+| metro | 100 | its name, in capitals | the metro's centre |
+| stronghold | 95 | its name | the site |
+| poi | 90 | its name | the site |
+| town | 80 | its name | the place |
+| shield | 70 | the route number | a stretch's middle |
+| range | 65 | "Mercer Mountains", "Mercer Hills" | the long axis, a path |
+| reservoir, lake | 60 | "Mercer Reservoir", "Lake Mercer" | its cell nearest its middle |
+| river | 55 | "Mercer River", "Mercer Creek" | a stretch of its course, a path |
+| village | 50 | its name | the place |
+| pass | 40 | "Mercer Pass" | the pass |
+
+Within a kind, a label gains under 1 by size: a town's or village's ruins, a lake's cells, a river's drainage area, a range's cells; for shields, the stretch nearest the rim gains most. `ref` says what a label names, so the view can tie it to the feature it draws.
+
+- The metro's name comes from the places' namer on the `names` fork, never one a town or village has, nor a first part one used.
+- Rivers draining 4 times the stream threshold where they end, with 120 units of course inside 0.92 of the radius, are named, a river from 25 times the threshold and a creek under it. A river's candidates are along its longest run inside, one every 450 units, each set along 90 units either side of its anchor.
+- Lakes and reservoirs of 3 cells or more whose middle is inside 0.95 of the radius are named.
+- Ranges are the pieces of land cells where the range mask is past half, inside 0.95 of the radius, 30 cells or more. The long axis is the cells' principal axis (the covariance's larger eigenvector), read west to east; the path runs 1.6 standard deviations either side of the middle, drawn in until both ends are inside. A range is mountains where its peak's elevation is 0.55 or more (55 world units), hills under it. On campaign maps that makes High Desert's and Badlands' ranges mountains, Floodlands' hills, and Rust Belt and Mixed some of each. Peaks relative to the map's highest, the first cut, named almost every range mountains, Floodlands' included.
+- Every pass is named.
+- Feature names are a root from 40 placeholder words and a kind, no root used twice while one's left. Every feature is named in a fixed order (rivers biggest first, then lakes, ranges biggest first, and passes) whatever the dressing amount, so a name never changes with how much is labelled.
+- Shields: each highway's stretches outside the metro, one candidate a stretch, 0.35 of the radius apart along one number, the rim's first. Route numbers are drawn 2 to 99, none twice, one per highway exit.
+- POI names: the POIs' own names, worked out from the POI layer the way every screen names them (`poiNames`), so a label and the run route screen never disagree.
+
+## How `dressing` scales it
+
+`dressing` over its default, 0.6, is the scale: 1 at the default, 0 with none.
+
+- Below the default, the parts with a parameter of their own thin: grids cover that share of each ruin's radius, and `round(railLines * scale)` rails are laid. At or above it they keep to `streetGrids` and `railLines`.
+- The rest scales on up: hatch lines `8 / scale` apart, stipple cells `12 / sqrt(scale)` across, and a feature labelled once its size times the scale reaches its threshold: rivers from 8 times the stream threshold, lakes from 6 cells, ranges from 60.
+- At 0 there are no grids, rails, hatching, stipple, or feature labels. The metro, towns, villages, POIs, strongholds, and shields keep their labels, since they name what play uses.
+
+## Performance
+
+`node scripts/road-network.mjs bench --radii 1000,1200 --seeds 3 --repeat 2`, Node 24 on the shared development desktop, five environments by three seeds, each map's fastest of two runs:
+
+| Radius | Dressing, ms median (slowest) | Stops | Terrain | Roads |
+| --- | --- | --- | --- | --- |
+| 1000 | 25 (44) | 3 | 204 | 252 |
+| 1200 | 31 (46) | 3 | 301 | 329 |
+
+The graph stages' budget is 200 ms on a mid-range laptop; the route tree, POIs, stops, and dressing come to about 30 ms here at radius 1000 and 36 at 1200. The rails are the largest share, their coarse grid and searches; a first cut that sampled the land between every pair of cells a move joined took 47 ms for two lines on its own. One map's first run in a fresh process, as `dressing` reports, takes about twice the bench's median: cold code, which a fresh worker also starts with.
+
+## Testing
+
+`Dressing.test.ts`: the stage runs last, inert, on its own stream; the same seed and params make the same dressing; generating with `dressing` 0 and 1 makes the same gameplay map, every gameplay product, attempt, and stream, on two seeds; running the dressing again leaves every product it read as it was, roads above all; no block stands on water, a crater, a cliff, or under a road or rail; rails run rim to rim, clear of lakes, craters, and cliffs, a bridge wherever they cross river water; hatching fades to its level at the outer edge; stipple lands only on mire; labels come highest first and name every town, village, POI, stronghold, and highway; features are named no two alike and the same at any dressing. `MapPipeline.test.ts` holds the inert stage's rules and its replay; `CampaignMaps.test.ts` loads a save whose attempts name no dressing and makes the same map.
+
+## Provisional calls
+
+Calls the spec left to the build, made the simplest way consistent with it, for Kevin to approve or adjust:
+
+1. The dressing is a pipeline stage marked inert: it retries only itself, nothing gameplay follows it, and a replay without its attempt runs its first, so saves made before it load and no version bump is needed for it.
+2. Street grids: spacing 14 to 8 units by `streetGrids`; survival 0.3 to 0.9 by `streetGrids`, falling by 0.6 of the squared share out; a ragged edge 0.15 either side of the ruin's radius; no block on water, a crater, a cliff, or under a road or rail.
+3. The metro is 2 plus one district per 50 units of its radius, at most 7 (5 at the default), angles spread evenly over a quarter turn and jittered a quarter step; districts stop 2 units short of the line between them.
+4. Rails: grade weight 400 on the grade squared, 1.5 for standing above the low ground, 4 for range country, 40 a river cell, twice the cost within 5 cells of an earlier line; ends 140 to 220 degrees apart round the rim, each at the lowest ground within 25 degrees; Douglas-Peucker at 2, 1, then 0.5 coarse cells and four Chaikin passes; no deck over 30 units.
+5. Hatching to where a plume falls to 0.15 contamination, 8 units between lines at 45 degrees, turned up to 15 either way; stipple a dot to a 12-unit cell.
+6. `dressing` thins grids and rails below its default and keeps them to their parameters above it; hatching, stipple, and feature labels scale with it on up; at 0, only the labels of what play uses are left.
+7. Label priorities as tabled: metro 100, strongholds 95, POIs 90, towns 80, shields 70, ranges 65, lakes and reservoirs 60, rivers 55, villages 50, passes 40, plus under 1 by size within a kind.
+8. Rivers named from 4 times the stream threshold and labelled from 8 over the scale, a river from 25; one candidate per 450 units of course, set along 180 units of it.
+9. Ranges: 30 cells to name, 60 to label at the default; mountains from a peak elevation of 0.55, hills under it; the label along the principal axis, 1.6 standard deviations either side of the middle.
+10. Feature names from 40 placeholder roots, no root twice while one's left; the metro named from the places' namer, never as a town or village is.
+11. Route numbers 2 to 99, none twice; shields 0.35 of the radius apart along a number, outside the metro.
+
+## Consequences
+
+- Every map has a dressing, made in the worker with the rest and made again on load; saves don't change.
+- `AreaMapProducts` and `AreaMapTransfer` gain `dressing`; the founding screen's progress line names the stage ("dressing (9 of 9)").
+- `MapStage.inert` and `MapPipeline.inertStageNames` are new; an inert stage is the only kind a save may leave out.
+- Route numbers come from the dressing, so a route name that uses its highway's shield reads `dressing.routeNumbers`.
+- The view draws all of it, and sets the labels with its own placement.
