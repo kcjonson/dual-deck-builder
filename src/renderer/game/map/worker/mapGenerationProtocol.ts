@@ -1,5 +1,6 @@
 import { Rng } from '../../core/Rng';
 import { AreaMapGeneration, AreaMapStageName, generateAreaMap } from '../AreaMapPipeline';
+import { Dressing, freezeDressing } from '../Dressing';
 import { Hazards } from '../Hazards';
 import { LandSurface, freezeSurface } from '../Land';
 import type { MapParams } from '../MapParams';
@@ -65,9 +66,10 @@ export interface PackedRoadNetwork {
  * transfer; the client rebuilds the rest of the terrain from the land on the
  * winning terrain stream, and the water's river index from its lines, which
  * costs a small part of the erosion and routing they save. The hazards
- * travel as their hotspots, and the places, the route tree, the POIs, and
- * the stops are plain data already, a few typed arrays and small records;
- * all go by structured clone.
+ * travel as their hotspots, and the places, the route tree, the POIs, the
+ * stops, and the dressing are plain data already, a few typed arrays and
+ * small records; all go by structured clone, the dressing's arrays
+ * transferred.
  */
 export interface AreaMapTransfer extends Omit<AreaMapGeneration, 'products'> {
 	readonly surface: LandSurface;
@@ -80,6 +82,7 @@ export interface AreaMapTransfer extends Omit<AreaMapGeneration, 'products'> {
 	readonly routeTree: RouteTree;
 	readonly pois: PoiLayer;
 	readonly stops: StopLayer;
+	readonly dressing: Dressing;
 }
 
 export function packRoadNetwork(network: RoadNetwork): PackedRoadNetwork {
@@ -106,13 +109,13 @@ export function unpackRoadNetwork({ nodes, stretches, broken, passes, points, of
 
 /**
  * The map as plain data, and the buffers to transfer with it: the network's
- * two, the land's seven, the badlands, and the water's ten. Transferring
+ * two, the land's seven, the badlands, the water's ten, and the dressing's. Transferring
  * detaches those arrays from the terrain and water that were encoded, so
  * encode once nothing reads them again; the worker does, as its last act
  * before it's terminated.
  */
 export function encodeAreaMap({ products, ...map }: AreaMapGeneration): { map: AreaMapTransfer; buffers: ArrayBuffer[] } {
-	const { terrain, water, hazards, places, roads, routeTree, pois, stops } = products;
+	const { terrain, water, hazards, places, roads, routeTree, pois, stops, dressing } = products;
 	const { surface } = terrain;
 	const network = packRoadNetwork(roads.network);
 	const { elevation, mountains, drainage } = surface;
@@ -122,9 +125,10 @@ export function encodeAreaMap({ products, ...map }: AreaMapGeneration): { map: A
 		network.points, network.offsets,
 		elevation, mountains, drainage.receivers, drainage.levels, drainage.area, drainage.order, drainage.outlets, badlands,
 		wet.receivers, wet.area, wet.moisture, wet.lowland, wet.canyons, wet.lakeDepth, wet.lakeOf, wet.lines.points, wet.lines.widths, wet.lines.offsets,
+		dressing.stipple, ...dressing.districts.flatMap(({ blocks, rubble }) => [blocks, rubble]),
 	];
 	return {
-		map: { ...map, surface, badlands, water: wet, hotspots: hazards.hotspots, places, roadStats: roads.stats, network, routeTree, pois, stops },
+		map: { ...map, surface, badlands, water: wet, hotspots: hazards.hotspots, places, roadStats: roads.stats, network, routeTree, pois, stops, dressing },
 		// Listing a buffer twice is a DataCloneError, so each goes once.
 		buffers: [...new Set(arrays.map((array) => array.buffer as ArrayBuffer))],
 	};
@@ -135,7 +139,7 @@ export function encodeAreaMap({ products, ...map }: AreaMapGeneration): { map: A
  * terrain stream, its water over that, and its hazards over that, without
  * eroding or routing again.
  */
-export function decodeAreaMap({ surface, badlands, water, hotspots, places, roadStats, network, routeTree, pois, stops, ...map }: AreaMapTransfer): AreaMapGeneration {
+export function decodeAreaMap({ surface, badlands, water, hotspots, places, roadStats, network, routeTree, pois, stops, dressing, ...map }: AreaMapTransfer): AreaMapGeneration {
 	const terrain = terrainFromSurface({ params: map.params, rng: new Rng({ seed: map.streams.terrain }), surface: freezeSurface(surface), badlands });
 	const wet = waterFromSurface({ terrain, surface: water });
 	return {
@@ -149,6 +153,7 @@ export function decodeAreaMap({ surface, badlands, water, hotspots, places, road
 			routeTree,
 			pois,
 			stops,
+			dressing: freezeDressing(dressing),
 		},
 	};
 }

@@ -118,9 +118,11 @@ describe('CampaignMaps', () => {
 		let loaded: Campaign;
 		let saveText: string;
 
+		const savedStorage = new MemorySaveStorage();
+
 		beforeAll(async () => {
 			founding = await new CampaignFounding({ seed: SEED, unlockedArchetypes: ARCHETYPES }).result;
-			const storage = new MemorySaveStorage();
+			const storage = savedStorage;
 			await new CampaignStore({ storage, namespace: 'test' }).save(founding.campaign);
 			const texts = await Promise.all(storage.keys.map((key) => storage.getItem(key)));
 			saveText = texts.find((text) => text?.includes('"campaign"')) ?? '';
@@ -158,6 +160,22 @@ describe('CampaignMaps', () => {
 			expect(progress.map(({ stage, attempt }) => [stage, attempt])).toEqual(Object.entries(founding.map.attempts));
 			// Kept for the session.
 			expect(await maps.mapOf(loaded)).toBe(map);
+		}, GENERATING);
+
+		it('loads a save made before the dressing stage, its attempts naming none, and makes the same map again, dressed on the dressing\'s first attempt', async () => {
+			const save = JSON.parse(saveText);
+			delete save.campaign.mapAttempts.stages.dressing;
+			const storage = new MemorySaveStorage();
+			for (const key of savedStorage.keys) {
+				const text = (await savedStorage.getItem(key)) ?? '';
+				await storage.setItem(key, text === saveText ? JSON.stringify(save) : text);
+			}
+			const older = (await new CampaignStore({ storage, namespace: 'test' }).load()) as Campaign;
+			expect(older.mapAttempts?.stages).not.toHaveProperty('dressing');
+			const map = await new CampaignMaps().mapOf(older);
+			expect(founding.map.attempts.dressing).toBe(0);
+			expect(map.attempts).toEqual(founding.map.attempts);
+			expect(fingerprint(map)).toEqual(fingerprint(founding.map));
 		}, GENERATING);
 
 		it('keeps the map founding made, so a founded campaign, or that campaign loaded, never makes it again', async () => {
@@ -314,11 +332,15 @@ describe('CampaignMaps', () => {
 		expect(asked).toEqual([]);
 	});
 
-	// A save names the stages (mapAttempts.stages), and one made before a stage was added, removed, or renamed can't replay.
+	// A save names the stages (mapAttempts.stages), and one made before a gameplay stage was added, removed, or renamed can't replay.
+	// An inert stage, the dressing, can be: a replay without its attempt runs its first.
 	it('pins the pipeline\'s stages to the generator version', () => {
-		const pinned = { generatorVersion: AREA_MAP_GENERATOR_VERSION, stages: areaMapPipeline().stageNames };
+		const pipeline = areaMapPipeline();
+		const pinned = { generatorVersion: AREA_MAP_GENERATOR_VERSION, stages: pipeline.stageNames, inert: pipeline.inertStageNames };
 		try {
-			expect(pinned).toEqual({ generatorVersion: 5, stages: ['terrain', 'water', 'hazards', 'places', 'roads', 'routeTree', 'pois', 'stops'] });
+			expect(pinned).toEqual({
+				generatorVersion: 5, stages: ['terrain', 'water', 'hazards', 'places', 'roads', 'routeTree', 'pois', 'stops', 'dressing'], inert: ['dressing'],
+			});
 		} catch (error) {
 			throw new Error(`the pipeline's stages changed: bump AREA_MAP_GENERATOR_VERSION (map/GeneratorVersion.ts), so the store reads older saves as outdated, and re-pin\n${(error as Error).message}`);
 		}

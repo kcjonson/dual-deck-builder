@@ -69,16 +69,19 @@ describe('the generation worker\'s transfer format', () => {
 		unpacked.stretches.forEach(({ points }, id) => points.forEach((value, index) => expect(Object.is(value, network.stretches[id].points[index])).toBe(true)));
 	});
 
-	it('is plain data a structured clone keeps, with the bulk in the buffers it transfers: the network\'s, the land\'s, and the water\'s', () => {
+	it('is plain data a structured clone keeps, with the bulk in the buffers it transfers: the network\'s, the land\'s, the water\'s, and the dressing\'s', () => {
 		const { map: transfer, buffers } = encodeAreaMap(map);
 		const { surface } = map.products.terrain;
 		const { drainage: routing } = surface;
 		const wet = map.products.water.surface;
+		const { dressing } = map.products;
 		const bulk = [
 			transfer.network.points, transfer.network.offsets,
 			surface.elevation, surface.mountains, routing.receivers, routing.levels, routing.area, routing.order, routing.outlets, map.products.terrain.badlandsCells,
 			wet.receivers, wet.area, wet.moisture, wet.lowland, wet.canyons, wet.lakeDepth, wet.lakeOf, wet.lines.points, wet.lines.widths, wet.lines.offsets,
+			dressing.stipple, ...dressing.districts.flatMap(({ blocks, rubble }) => [blocks, rubble]),
 		];
+		expect(dressing.districts.length).toBeGreaterThan(0);
 		expect(buffers).toHaveLength(bulk.length);
 		bulk.forEach(({ buffer }, index) => expect(buffers[index]).toBe(buffer));
 		expect(transfer.surface).toBe(surface);
@@ -128,6 +131,13 @@ describe('the generation worker\'s transfer format', () => {
 		expect(Object.isFrozen(products.places.towns)).toBe(true);
 		expect(Object.isFrozen(products.places.towns[0])).toBe(true);
 		expect(Object.isFrozen(products.hazards.hotspots)).toBe(true);
+		// The dressing too, whose arrays went with it: the shared map's is the same, from the same seed.
+		expect(own.products.dressing.stipple).toHaveLength(0);
+		expect(plain(products.dressing)).toEqual(plain(map.products.dressing));
+		expect(Object.isFrozen(products.dressing)).toBe(true);
+		expect(Object.isFrozen(products.dressing.labels[0])).toBe(true);
+		expect(Object.isFrozen(products.dressing.districts[0])).toBe(true);
+		expect(Object.isFrozen(products.dressing.rails)).toBe(true);
 	});
 
 	it('decodes the streams that won, after retries and a map restart', () => {
@@ -144,7 +154,7 @@ describe('the generation worker\'s transfer format', () => {
 			},
 		});
 		expect(retried.mapAttempt).toBe(1);
-		expect(retried.attempts).toEqual({ terrain: 0, water: 0, hazards: 0, places: 0, roads: 2, routeTree: 0, pois: 0, stops: 0 });
+		expect(retried.attempts).toEqual({ terrain: 0, water: 0, hazards: 0, places: 0, roads: 2, routeTree: 0, pois: 0, stops: 0, dressing: 0 });
 		const retriedLand = landLattice(retried.products.hazards.terrain);
 		const retriedPlaces = retried.products.places;
 		const decoded = decodeAreaMap(sent(retried));
