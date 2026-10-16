@@ -60,7 +60,7 @@ Each town and village gets one grid at a drawn rotation, centred on the place; t
 - Metro districts: 2 plus one per 50 units of the radius the grids cover, at most 7: 5 at the default metro of 150 and the default dressing, fewer below it. The first sits within 0.15 of the radius of the middle, the rest 0.45 to 0.8 out, evenly round and jittered by a quarter of the gap. A block corner belongs to the district whose seed is nearest by 2 units or more, so neighbouring grids stop short of the line between them and their streets meet along it, the old district line.
 - District angles: spread evenly over a quarter turn from a drawn angle, in a shuffled order, each jittered by a quarter step, so any two differ by at least half a step (9 degrees for five). A first cut drew each angle and redrew within 15 degrees of another; five districts can't all keep 15 degrees apart in a quarter turn, and two came out 0.2 degrees apart.
 
-Rust Belt 11 at radius 1000: 38 districts, 865 blocks standing and 710 rubble.
+Rust Belt 11 at radius 1000: 38 districts, 865 blocks standing and 717 rubble.
 
 ## Rail lines
 
@@ -68,10 +68,10 @@ Rust Belt 11 at radius 1000: 38 districts, 865 blocks standing and 710 rubble.
 
 - A coarse cell is open where nothing a rail can't cross (a lake, a crater, a cliff) stands at its centre or at the centres of the four land cells under it, so a step between two open cells seldom clips one.
 - A move costs its length times one plus 400 times its grade squared, times one plus 1.5 times how far it stands above the low ground (the water's lowland, 1 on a valley floor), plus 4 times the range mask times its length, plus 40 units for each end on a river cell, any land cell of the four under it carrying the stream threshold's drainage. Lakes, craters, and cliffs are closed, and a diagonal needs both cells beside it open. So lines take valley floors and gentle grades, and cross a river rather than running along it; a first cut, charging 6 for a river cell at its centre only, ran a line down the river with a 60-unit "bridge".
-- Line k's first end is at a bearing spread evenly round half the rim from a drawn one, the second 140 to 220 degrees round from it; each end is the lowest open cell just inside the rim within 25 degrees of its bearing, the line running on to the rim beyond it.
+- Line k's first end is at a bearing spread evenly round half the rim from a drawn one, the second 140 to 220 degrees round from it. The search runs from any open cell just inside the rim within 25 degrees of the first bearing to any within 25 of the second, and the line runs on to the rim beyond the cells it took. A first cut fixed each end at the lowest ground in its window, and the line hooked back to reach it: Mixed 8 lost its only line to that.
 - A line keeps 6 cells off an earlier one by costing six times as much there; it can still cross. At twice, QA found two lines braiding down one valley on Rust Belt 11 (486 units within 30 of each other).
 - Past 0.88 of the radius a move costs four times as much, so a line crosses the rim at its ends rather than running round it; without it, High Desert 3's line ran 1,135 of its 2,997 units along the rim.
-- A line whose direction turns more than about 150 degrees within 200 units (the cosine between two headings read 20 units apart under -0.85) is a hairpin: it's dropped and its second end drawn again, up to three tries.
+- A line is dropped and drawn again, up to six tries in all, where it finds no way, where it doubles back (its heading, read every 20 units, turns more than about 150 degrees, a cosine under -0.85, within 200 units), or where it runs within 30 units of an earlier line for more than 300. Each try draws the second end afresh and, after the first, turns the first up to 25 degrees either way; the last goes without the rim cost, which can leave a line no way across but back on itself. Over 30 maps at the defaults (five environments by seeds 21 to 26) every line asked for was laid; at three lines, High Desert 44 lays two.
 - The cells are simplified by Douglas-Peucker at 2 cells and cut by Chaikin four times. Where that clips a lake, crater, or cliff (sampled every unit) or lays a deck over 30 units, tolerances of 1 and 0.5 cells are tried, then the cells themselves.
 - Bridges are where the line's samples fall in river water, merged across gaps of 2 units or less.
 
@@ -125,10 +125,10 @@ Within a kind, a label gains under 1 by size: a town's or village's ruins, a lak
 
 | Radius | Dressing, ms median (slowest) | Stops | Terrain | Roads |
 | --- | --- | --- | --- | --- |
-| 1000 | 26 (39) | 2 | 160 | 169 |
-| 1200 | 33 (42) | 2 | 228 | 231 |
+| 1000 | 42 (52) | 4 | 224 | 276 |
+| 1200 | 45 (93) | 4 | 304 | 364 |
 
-The graph stages' budget is 200 ms on a mid-range laptop; the route tree, POIs, stops, and dressing come to about 30 ms here at radius 1000 and 37 at 1200. The rails are the largest share, their coarse grid and searches; a first cut that sampled the land between every pair of cells a move joined took 47 ms for two lines on its own. One map's first run in a fresh process, as `dressing` reports, takes about twice the bench's median: cold code, which a fresh worker also starts with.
+The desktop was busy with other work for this run: the terrain took 160 ms at radius 1000 on a quieter one, when the dressing took 26. The graph stages' budget is 200 ms on a mid-range laptop; the route tree, POIs, stops, and dressing come to about 50 ms here at radius 1000, 100 at the slowest map at 1200, where the rails took six tries. The rails are the largest share: their coarse grid, built only inside the disc, and a search a try; a first cut that sampled the land between every pair of cells a move joined took 47 ms for two lines on its own. One map's first run in a fresh process, as `dressing` reports, takes about twice the bench's median: cold code, which a fresh worker also starts with.
 
 ## Testing
 
@@ -141,7 +141,7 @@ Calls the spec left to the build, made the simplest way consistent with it, for 
 1. The dressing is a pipeline stage marked inert: it retries only itself, nothing gameplay follows it, and a replay without its attempt runs its first, so saves made before it load and no version bump is needed for it.
 2. Street grids: spacing 14 to 8 units by `streetGrids`; survival 0.3 to 0.9 by `streetGrids`, falling by 0.6 of the squared share out; a ragged edge 0.15 either side of the ruin's radius; no block on water, a crater, a cliff, or under a road or rail.
 3. The metro is 2 plus one district per 50 units of its radius, at most 7 (5 at the default), angles spread evenly over a quarter turn and jittered a quarter step; districts stop 2 units short of the line between them.
-4. Rails: grade weight 400 on the grade squared, 1.5 for standing above the low ground, 4 for range country, 40 a river cell, six times the cost within 6 cells of an earlier line, four times past 0.88 of the radius; a line turning more than about 150 degrees within 200 units redrawn, up to three tries; ends 140 to 220 degrees apart round the rim, each at the lowest ground within 25 degrees; Douglas-Peucker at 2, 1, then 0.5 coarse cells and four Chaikin passes; no deck over 30 units.
+4. Rails: grade weight 400 on the grade squared, 1.5 for standing above the low ground, 4 for range country, 40 a river cell, six times the cost within 6 cells of an earlier line, four times past 0.88 of the radius (not on the last try); a line turning more than about 150 degrees within 200 units, or within 30 units of an earlier line for more than 300, redrawn, up to six tries; ends 140 to 220 degrees apart round the rim, each anywhere open within 25 degrees, the search choosing; Douglas-Peucker at 2, 1, then 0.5 coarse cells and four Chaikin passes; no deck over 30 units.
 5. Hatching to where a plume falls to 0.15 contamination, 8 units between lines at 45 degrees, turned up to 15 either way; stipple a dot to a 12-unit cell.
 6. `dressing` thins grids and rails below its default and keeps them to their parameters above it; hatching, stipple, and feature labels scale with it on up; at 0, only the labels of what play uses are left.
 7. Label priorities as tabled: metro 100, strongholds 95, POIs 90, towns 80, shields 70, ranges 65, lakes and reservoirs 60, rivers 55, villages 50, passes 40, plus under 1 by size within a kind.

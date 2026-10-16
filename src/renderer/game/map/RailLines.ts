@@ -1,5 +1,5 @@
 import type { Rng } from '../core/Rng';
-import { Vector, chaikin, pointAlong, polylineLength, unitVector } from './Geometry';
+import { Vector, chaikin, pointAlong, pointSegmentDistanceSquared, polylineLength, unitVector } from './Geometry';
 import { RELIEF } from './Land';
 import { LandGrid, cellAt, cellCentre } from './LandGrid';
 import { NodeHeap } from './NodeHeap';
@@ -36,20 +36,26 @@ export interface RailLine {
  *   earlier line, the move costs `apartCost` times as much, so lines keep
  *   apart, even down one valley, but can still cross. Past `rim.band` of
  *   the radius it costs `rim.cost` times more, so a line crosses the rim
- *   at its ends rather than running round it.
+ *   at its ends rather than running round it; the last try goes without
+ *   that, since it can leave no way across but back on itself.
  * - Each line's ends are rim points, the second `across` degrees round from
- *   the first, each the lowest of the bearings `spread` degrees either side
- *   in `step`-degree steps; the lines' first ends are spread evenly round
- *   half the rim from a drawn bearing.
+ *   the first: the search runs from any open cell just inside the rim within
+ *   `spread` degrees of one end's bearing, in `step`-degree steps, to any
+ *   within `spread` of the other's, so a line leaves the map the way it
+ *   arrives rather than hooking round to a set point. The lines' first ends
+ *   are spread evenly round half the rim from a drawn bearing.
  * - The path is simplified to `tolerance` coarse cells and cut by Chaikin
  *   `passes` times; where the curve clips a lake, crater, or cliff (sampled
  *   every `sample` world units) or puts a deck past `longestDeck` world
  *   units over a river, the next tolerance down is tried, then the cells
  *   themselves. Bridges are merged across gaps under `deckGap`.
- * - A line whose heading turns past `hairpin.dot` (the cosine between its
- *   direction at two points up to `hairpin.window` world units apart, -0.85
- *   being about 150 degrees) is dropped, and its second end drawn again, up to `tries`
- *   times.
+ * - A line is dropped, and drawn again, up to `tries` times in all, its
+ *   second end drawn afresh and, after the first try, its first turned up to
+ *   `turn` degrees either way, where it finds no way, where it doubles back (its heading, read
+ *   every `hairpin.step` world units, turns past `hairpin.dot`, about 150
+ *   degrees, within `hairpin.window`), or where it runs within
+ *   `beside.reach` world units of an earlier line for more than
+ *   `beside.most`, read every `beside.step`.
  */
 export const RAIL_LINES = {
 	coarse: 2,
@@ -62,7 +68,9 @@ export const RAIL_LINES = {
 	apartCost: 6,
 	rim: { band: 0.88, cost: 3 },
 	hairpin: { window: 200, dot: -0.85, step: 20 },
-	tries: 3,
+	beside: { reach: 30, most: 300, step: 10 },
+	tries: 6,
+	turn: 25,
 	across: { least: 140, most: 220 },
 	spread: 25,
 	step: 2.5,
@@ -110,14 +118,23 @@ export function railLines({ ground, grid, mountains, lowland, area, threshold, c
 		const own = rng.fork('rail', index);
 		const first = spin + 180 * index / count;
 		for (let attempt = 0; attempt < RAIL_LINES.tries; attempt += 1) {
+			// Both draws every try, so a try's ends never depend on whether an earlier one used its turn.
+			const turned = first + (attempt === 0 ? 0 : (own.float() * 2 - 1) * RAIL_LINES.turn);
 			const second = first + RAIL_LINES.across.least + (RAIL_LINES.across.most - RAIL_LINES.across.least) * own.float();
-			const line = field.lay(first, second);
+			const line = field.lay({ from: turned, to: second, rim: attempt < RAIL_LINES.tries - 1 });
 			if (line === null) continue;
 			lines.push(line);
 			break;
 		}
 	}
 	return lines;
+}
+
+/** A cell a line can start or end on, just inside the rim, and the rim point beyond it. */
+interface RimEnd {
+	readonly cell: number;
+	readonly rimX: number;
+	readonly rimY: number;
 }
 
 const NEIGHBOURS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]] as const;
@@ -138,6 +155,10 @@ class RailField {
 	private readonly crowded: Uint8Array;
 	/** Per coarse cell, 1 past `rim.band` of the radius. */
 	private readonly outer: Uint8Array;
+	/** What a move past the rim band costs times, for the line being laid. */
+	private rimCost = 1;
+	/** The lines laid so far. */
+	private readonly laid: (readonly number[])[] = [];
 
 	constructor({ ground, grid, mountains, lowland, area, threshold }: Omit<RailLineOptions, 'count' | 'rng'>) {
 		this.ground = ground;
@@ -159,6 +180,8 @@ class RailField {
 			for (let column = 0; column < this.size; column += 1) {
 				const x = this.centre(column);
 				const cell = row * this.size + column;
+				// Past the reach a cell stays closed, so nothing about it is needed.
+				if (x * x + y * y > reach * reach) continue;
 				const under = cellAt(grid, x, y);
 				this.height[cell] = ground.elevation(x, y) * RELIEF;
 				this.mask[cell] = under < 0 ? 0 : mountains[under];
@@ -176,25 +199,29 @@ class RailField {
 					}
 				}
 				this.river[cell] = river;
-				this.open[cell] = x * x + y * y <= reach * reach && clear ? 1 : 0;
+				this.open[cell] = clear ? 1 : 0;
 				this.outer[cell] = x * x + y * y > band * band ? 1 : 0;
 			}
 		}
 	}
 
-	/** A line from the rim at bearing `from` to the rim at bearing `to`, or null where none fits. */
-	public lay(from: number, to: number): RailLine | null {
-		const start = this.endAt(from);
-		const end = this.endAt(to);
-		if (start === null || end === null || start.cell === end.cell) return null;
-		const cells = this.search(start.cell, end.cell);
+	/** A line from the rim at bearing `from` to the rim at bearing `to`, kept off the rim between them when `rim`, or null where none fits. */
+	public lay({ from, to, rim }: { from: number; to: number; rim: boolean }): RailLine | null {
+		this.rimCost = rim ? 1 + RAIL_LINES.rim.cost : 1;
+		const starts = this.endsAt(from);
+		const ends = this.endsAt(to);
+		if (starts.length === 0 || ends.length === 0 || starts.some(({ cell }) => ends.some((end) => end.cell === cell))) return null;
+		const cells = this.search(starts, ends);
 		if (cells === null) return null;
+		const start = starts.find(({ cell }) => cell === cells[0]) as RimEnd;
+		const end = ends.find(({ cell }) => cell === cells[cells.length - 1]) as RimEnd;
 		const path: number[] = [start.rimX, start.rimY];
 		for (const cell of cells) path.push(this.centre(cell % this.size), this.centre(floor(cell / this.size)));
 		path.push(end.rimX, end.rimY);
 		const points = this.smooth(path);
-		if (points === null || hairpin(points)) return null;
+		if (points === null || hairpin(points) || this.beside(points)) return null;
 		this.mark(cells);
+		this.laid.push(points);
 		return Object.freeze({ points: Object.freeze(points), length: polylineLength(points), bridges: Object.freeze(this.bridges(points)) });
 	}
 
@@ -202,52 +229,61 @@ class RailField {
 		return -this.halfExtent + (index + 0.5) * this.cellSize;
 	}
 
-	/** The lowest open cell just inside the rim within `spread` degrees of a bearing, and the rim point beyond it. */
-	private endAt(bearing: number): { cell: number; rimX: number; rimY: number } | null {
+	/** The open cells just inside the rim within `spread` degrees of a bearing, each with the rim point beyond it, each cell once. */
+	private endsAt(bearing: number): RimEnd[] {
 		const towards: Vector = { x: 0, y: 0 };
 		const inside = this.ground.radius - (RAIL_LINES.inset + 0.75) * this.cellSize;
-		let best: { cell: number; rimX: number; rimY: number } | null = null;
-		let lowest = Infinity;
-		// Out from the bearing asked for, either way in turn, so a tie goes to the nearer.
-		for (let offset = 0; offset <= 2 * RAIL_LINES.spread / RAIL_LINES.step; offset += 1) {
-			const turn = (offset % 2 === 0 ? 1 : -1) * floor((offset + 1) / 2) * RAIL_LINES.step;
+		const ends: RimEnd[] = [];
+		for (let turn = -RAIL_LINES.spread; turn <= RAIL_LINES.spread; turn += RAIL_LINES.step) {
 			unitVector(bearing + turn, towards);
 			const cell = this.cellOf(towards.x * inside, towards.y * inside);
-			if (cell < 0 || this.open[cell] === 0 || this.river[cell] === 1) continue;
-			if (this.height[cell] < lowest) {
-				lowest = this.height[cell];
-				best = { cell, rimX: towards.x * this.ground.radius, rimY: towards.y * this.ground.radius };
-			}
+			if (cell < 0 || this.open[cell] === 0 || this.river[cell] === 1 || ends.some((end) => end.cell === cell)) continue;
+			ends.push({ cell, rimX: towards.x * this.ground.radius, rimY: towards.y * this.ground.radius });
 		}
-		return best;
+		return ends;
 	}
 
 	private cellOf(x: number, y: number): number {
 		return cellAt({ size: this.size, cellSize: this.cellSize, halfExtent: this.halfExtent }, x, y);
 	}
 
-	/** A* from cell to cell over open cells, ties to the lower cell: the cells in order, or null when nothing joins them. */
-	private search(from: number, to: number): number[] | null {
+	/** A* from any of `starts` to any of `goals` over open cells, ties to the lower cell: the cells in order, or null when nothing joins them. */
+	private search(starts: readonly RimEnd[], goals: readonly RimEnd[]): number[] | null {
 		const size = this.size;
 		const cells = size * size;
 		const cost = new Float64Array(cells).fill(Infinity);
 		const came = new Int32Array(cells).fill(-1);
 		const done = new Uint8Array(cells);
 		const heap = new NodeHeap(8 * cells + 1);
-		const goalX = to % size;
-		const goalY = floor(to / size);
+		const goal = new Uint8Array(cells);
+		for (const { cell } of goals) goal[cell] = 1;
+		// The straight distance to the nearest goal, which never overestimates; worked out once a cell.
+		const guesses = new Float64Array(cells).fill(-1);
 		const heuristic = (cell: number): number => {
-			const dx = (cell % size) - goalX;
-			const dy = floor(cell / size) - goalY;
-			return sqrt(dx * dx + dy * dy) * this.cellSize;
+			if (guesses[cell] >= 0) return guesses[cell];
+			let nearest = Infinity;
+			for (const end of goals) {
+				const dx = (cell % size) - (end.cell % size);
+				const dy = floor(cell / size) - floor(end.cell / size);
+				const squared = dx * dx + dy * dy;
+				if (squared < nearest) nearest = squared;
+			}
+			guesses[cell] = sqrt(nearest) * this.cellSize;
+			return guesses[cell];
 		};
-		cost[from] = 0;
-		heap.push(from, heuristic(from));
+		for (const { cell } of starts) {
+			cost[cell] = 0;
+			heap.push(cell, heuristic(cell));
+		}
+		let reachedGoal = -1;
 		while (heap.size > 0) {
 			const cell = heap.pop();
 			if (done[cell] === 1) continue;
 			done[cell] = 1;
-			if (cell === to) break;
+			if (goal[cell] === 1) {
+				reachedGoal = cell;
+				break;
+			}
 			const column = cell % size;
 			const row = floor(cell / size);
 			for (const [dx, dy] of NEIGHBOURS) {
@@ -267,9 +303,9 @@ class RailField {
 				}
 			}
 		}
-		if (done[to] === 0) return null;
+		if (reachedGoal < 0) return null;
 		const path: number[] = [];
-		for (let cell = to; cell !== -1; cell = came[cell]) path.push(cell);
+		for (let cell = reachedGoal; cell !== -1; cell = came[cell]) path.push(cell);
 		return path.reverse();
 	}
 
@@ -281,7 +317,7 @@ class RailField {
 		let step = length * (1 + RAIL_LINES.grade * grade * grade) * (1 + RAIL_LINES.valley * above) + RAIL_LINES.ranges * mask * length;
 		step += RAIL_LINES.bridge * (this.river[from] + this.river[to]);
 		if (this.crowded[from] > 0 || this.crowded[to] > 0) step *= RAIL_LINES.apartCost;
-		if (this.outer[from] > 0 || this.outer[to] > 0) step *= 1 + RAIL_LINES.rim.cost;
+		if (this.outer[from] > 0 || this.outer[to] > 0) step *= this.rimCost;
 		return step;
 	}
 
@@ -339,6 +375,21 @@ class RailField {
 	}
 
 	/** Marks the cells within `apart` of a laid line, so the next keeps its distance. */
+	/** Whether a line runs within `beside.reach` of one laid already for more than `beside.most`. */
+	private beside(points: readonly number[]): boolean {
+		if (this.laid.length === 0) return false;
+		const { reach, most, step } = RAIL_LINES.beside;
+		const at = { x: 0, y: 0 };
+		const length = polylineLength(points);
+		let near = 0;
+		for (let along = 0; along <= length; along += step) {
+			pointAlong(points, along, at);
+			if (this.laid.some((line) => nearLine(line, at.x, at.y, reach))) near += step;
+			if (near > most) return true;
+		}
+		return false;
+	}
+
 	private mark(cells: readonly number[]): void {
 		const size = this.size;
 		const apart = RAIL_LINES.apart;
@@ -378,6 +429,21 @@ function hairpin(points: readonly number[]): boolean {
 		for (let ahead = 1; ahead <= reach && index + 2 * ahead < headings.length; ahead += 1) {
 			if (headings[index] * headings[index + 2 * ahead] + headings[index + 1] * headings[index + 2 * ahead + 1] < dot) return true;
 		}
+	}
+	return false;
+}
+
+/** Whether (x, y) lies within `reach` of a polyline. */
+function nearLine(points: readonly number[], x: number, y: number, reach: number): boolean {
+	const squared = reach * reach;
+	for (let index = 0; index + 3 < points.length; index += 2) {
+		const ax = points[index];
+		const ay = points[index + 1];
+		const bx = points[index + 2];
+		const by = points[index + 3];
+		// Segments whose box is out of reach can't be near.
+		if ((ax < bx ? ax : bx) > x + reach || (ax > bx ? ax : bx) < x - reach || (ay < by ? ay : by) > y + reach || (ay > by ? ay : by) < y - reach) continue;
+		if (pointSegmentDistanceSquared(x, y, ax, ay, bx, by) <= squared) return true;
 	}
 	return false;
 }

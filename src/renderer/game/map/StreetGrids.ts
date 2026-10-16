@@ -42,9 +42,10 @@ export interface StreetDistrict {
  * - `edge`: the ruin's edge, drawn per block from 1 - `edge` / 2 to
  *   1 + `edge` / 2 times the ruin's radius, so it's ragged.
  * - `districts`: the metro's, `base` plus one per `per` world units of the
- *   radius its grids cover (less below the default dressing), at most `most`; the first at the middle within `centre` of the
- *   radius, the rest `inner` to `outer` of it out, evenly round and jittered
- *   by up to `jitter` of the gap between them. Their grids' angles are
+ *   radius its grids cover (less below the default dressing), at most
+ *   `most`; the first at the middle within `centre` of the radius, the
+ *   rest `inner` to `outer` of it out, evenly round and jittered by up to
+ *   `jitter` of the gap between them. Their grids' angles are
  *   spread evenly over a quarter turn from a drawn one, in a shuffled order,
  *   each jittered by up to `jitter` of the step, so any two differ by at
  *   least half a step.

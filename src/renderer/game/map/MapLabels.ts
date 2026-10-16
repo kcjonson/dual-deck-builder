@@ -307,6 +307,11 @@ function namedRanges({ radius, land }: MapLabelOptions): FoundRange[] {
 	const seen = new Uint8Array(size * size);
 	const found: (FoundRange & { first: number })[] = [];
 	const stack: number[] = [];
+	const visit = (next: number): void => {
+		if (seen[next] === 1 || !inRange(next)) return;
+		seen[next] = 1;
+		stack.push(next);
+	};
 	for (let first = 0; first < size * size; first += 1) {
 		if (seen[first] === 1 || !inRange(first)) continue;
 		seen[first] = 1;
@@ -331,11 +336,6 @@ function namedRanges({ radius, land }: MapLabelOptions): FoundRange[] {
 			sumXY += x * y;
 			sumYY += y * y;
 			if (elevation[cell] > peak) peak = elevation[cell];
-			const visit = (next: number): void => {
-				if (seen[next] === 1 || !inRange(next)) return;
-				seen[next] = 1;
-				stack.push(next);
-			};
 			if (column > 0) visit(cell - 1);
 			if (column < size - 1) visit(cell + 1);
 			if (row > 0) visit(cell - size);
