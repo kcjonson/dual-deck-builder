@@ -2,6 +2,7 @@ import type { Campaign } from '../../campaign/Campaign';
 import { AreaMapProgress, CampaignMaps } from '../../campaign/CampaignMaps';
 import { destinationId } from '../../campaign/MapRoutes';
 import { STRONGHOLD_TYPE } from '../../map/PoiData';
+import type { Lake } from '../../map/Lakes';
 import type { Places } from '../../map/Places';
 import type { RiverLines } from '../../map/Rivers';
 import type { RoadNetwork } from '../../map/RoadNetwork';
@@ -22,7 +23,7 @@ import type { BakeTerrain } from '../../ui/areaMap/terrainBake';
 /** What the screens read of a generated map. */
 export interface PlanningMap extends RouteMap {
 	readonly products: RouteMap['products'] & {
-		readonly water: { readonly terrain: BakeTerrain; readonly lines: RiverLines };
+		readonly water: { readonly terrain: BakeTerrain; readonly lines: RiverLines; readonly lakes: readonly Lake[] };
 		/** The land with its craters and contamination, which the view bakes when there is one. */
 		readonly hazards?: { readonly terrain: BakeTerrain };
 		/** Towns, villages, crossroads, and exits, which the view draws when there are some. */
@@ -78,10 +79,11 @@ export class PlanningMaps {
 	}
 }
 
-/** What the view draws of the map: the land with its water and hazards, the rivers, the roads, and the places. */
+/** What the view draws of the map: the land with its water and hazards, the rivers and dams, the roads, and the places. */
 export function viewData(map: PlanningMap): AreaMapData {
 	const { water, hazards, places, roads } = map.products;
-	return { terrain: hazards?.terrain ?? water.terrain, network: roads.network, rivers: water.lines, places: places ?? null };
+	const dams = water.lakes.flatMap(({ dam }) => (dam ? [dam] : []));
+	return { terrain: hazards?.terrain ?? water.terrain, network: roads.network, rivers: water.lines, dams, places: places ?? null };
 }
 
 /** A POI as the planning screens show it. */
@@ -154,9 +156,9 @@ export function byDistance(pois: readonly PlannedPoi[]): PlannedPoi[] {
 }
 
 /**
- * The map's markers: every POI with its tier as a badge, a night ring when
- * no route gets home by dark, and its name, the nearest placed first; the
- * strongholds with theirs, placed last.
+ * The map's markers: every POI with its type, which picks its glyph, a
+ * night ring when no route gets home by dark, and its name, the nearest
+ * placed first; the strongholds with theirs, placed last.
  */
 export function poiMarkers(pois: readonly PlannedPoi[]): MapMarker[] {
 	const order = new Map(byDistance(pois).map((poi, index) => [poi, index]));
@@ -166,7 +168,7 @@ export function poiMarkers(pois: readonly PlannedPoi[]): MapMarker[] {
 		x: poi.x,
 		y: poi.y,
 		label: poi.name,
-		badge: poi.stronghold ? undefined : String(poi.tier),
+		type: poi.stronghold ? undefined : poi.type,
 		pastDark: !poi.stronghold && poi.pastDark,
 		priority: order.get(poi) ?? 0,
 	}));

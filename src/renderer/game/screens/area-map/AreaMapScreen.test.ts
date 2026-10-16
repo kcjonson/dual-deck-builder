@@ -81,13 +81,13 @@ describe('AreaMapScreen (DDB-43)', () => {
 		screen?.unmount();
 	});
 
-	it('marks every POI and stronghold on the map, each POI with its tier, and lists the destinations nearest first', async () => {
+	it('marks every POI and stronghold on the map, each POI with its type, and lists the destinations nearest first', async () => {
 		await open();
 		const markers = view().markers;
 		expect(markers.map(({ id }) => id)).toEqual(POIS.map(({ id }) => id));
 		POIS.forEach((poi, index) => {
 			expect(markers[index]).toMatchObject({ kind: poi.stronghold ? 'stronghold' : 'poi', x: poi.x, y: poi.y, label: poi.name });
-			if (!poi.stronghold) expect(markers[index].badge).toBe(String(poi.tier));
+			if (!poi.stronghold) expect(markers[index].type).toBe(poi.type);
 		});
 		const rows = find<{ children: readonly ListRow[] }>('area_map_destinations').children;
 		expect(rows.map(({ id }) => id)).toEqual(byDistance(POIS).map(({ poi }) => `area_map_poi_${poi}`));

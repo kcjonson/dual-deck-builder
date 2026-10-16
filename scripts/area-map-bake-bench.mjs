@@ -1,8 +1,10 @@
 /**
- * Times the area map view's bakes (DDB-298): the terrain texture, the land
- * with its water, at each radius and environment, and the fog texture. Like terrain-bench.mjs, it
- * transpiles the modules into a temporary folder and runs them in a fresh
- * child process, clear of Jest's coverage and the TypeScript compiler's heap.
+ * Times the area map view's bakes (DDB-298): the terrain texture as the view
+ * bakes it, the land with its water and hazards and the places' ruins, at
+ * each radius and environment, and the fog texture. Like terrain-bench.mjs, it
+ * transpiles the modules it needs (its entries and their relative imports)
+ * into a temporary folder and runs them in a fresh child process, clear of
+ * Jest's coverage and the TypeScript compiler's heap.
  *
  *   node scripts/area-map-bake-bench.mjs [--seeds 3] [--repeat 3] [--radii 600,1000,1600]
  *
@@ -16,28 +18,40 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const script = fileURLToPath(import.meta.url);
-const SOURCES = [
-	'game/core/Json', 'game/core/Rng', 'game/map/MapParams', 'game/map/ParamValidator', 'game/map/Noise', 'game/map/Biome',
-	'game/map/TerrainSites', 'game/map/Geometry', 'game/map/LandGrid', 'game/map/MapMath', 'game/map/Drainage', 'game/map/Erosion', 'game/map/Uplift',
-	'game/map/Land', 'game/map/Terrain', 'game/map/Rivers', 'game/map/Lakes', 'game/map/Water',
-	'engine/theme/tokens', 'game/ui/areaMap/areaMapStyle', 'game/ui/areaMap/terrainBake',
-	'game/ui/areaMap/fogBake',
-];
+const ENTRIES = ['game/map/MapParams', 'game/map/ParamValidator', 'game/map/AreaMapPipeline', 'game/map/Places', 'game/ui/areaMap/terrainBake', 'game/ui/areaMap/fogBake'];
+// Type-only imports are left out: the transpiler drops them.
+const IMPORT = /^(?:import|export)\s(?!type\s)[^;]*?from\s+'(\.[^']+)'/gms;
+
+/** The entries and every module they import by relative path, JSON files included, as paths under src/renderer. */
+function sourcesOf(root) {
+	const found = new Set();
+	const visit = (path) => {
+		const source = path.endsWith('.json') || existsSync(join(root, 'src/renderer', `${path}.ts`)) ? path : `${path}/index`;
+		if (found.has(source)) return;
+		found.add(source);
+		if (source.endsWith('.json')) return;
+		const text = readFileSync(join(root, 'src/renderer', `${source}.ts`), 'utf8');
+		for (const [, path] of text.matchAll(IMPORT)) visit(posix.normalize(posix.join(posix.dirname(source), path)));
+	};
+	ENTRIES.forEach(visit);
+	return [...found];
+}
 
 if (process.argv[2] !== '--built') {
 	const { default: ts } = await import('typescript');
 	const root = join(dirname(script), '..');
 	const build = mkdtempSync(join(tmpdir(), 'area-map-bake-'));
-	for (const source of SOURCES) {
-		const text = readFileSync(join(root, 'src/renderer', `${source}.ts`), 'utf8');
-		const { outputText } = ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } });
-		const target = join(build, `${source}.js`);
+	for (const source of sourcesOf(root)) {
+		const json = source.endsWith('.json');
+		const text = readFileSync(join(root, 'src/renderer', json ? source : `${source}.ts`), 'utf8');
+		const outputText = json ? text : ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText;
+		const target = join(build, json ? source : `${source}.js`);
 		mkdirSync(dirname(target), { recursive: true });
 		writeFileSync(target, outputText);
 	}
@@ -50,12 +64,13 @@ const build = process.argv[3];
 const options = {};
 for (let index = 4; index < process.argv.length; index += 2) options[process.argv[index].replace(/^--/, '')] = process.argv[index + 1];
 
+// The build's define, off: no dev tools in a timing.
+globalThis.__DEV_TOOLS__ = false;
 const load = createRequire(join(build, 'index.js'));
-const { Rng } = load('./game/core/Rng.js');
 const { resolveMapParams } = load('./game/map/MapParams.js');
 const { validateMapParams } = load('./game/map/ParamValidator.js');
-const { generateTerrain } = load('./game/map/Terrain.js');
-const { generateWater } = load('./game/map/Water.js');
+const { generateAreaMap } = load('./game/map/AreaMapPipeline.js');
+const { ruinsOf } = load('./game/map/Places.js');
 const { bakeTerrain, terrainBakeSize } = load('./game/ui/areaMap/terrainBake.js');
 const { bakeFog } = load('./game/ui/areaMap/fogBake.js');
 
@@ -66,11 +81,11 @@ const seeds = Number(options.seeds ?? 3);
 const repeat = Number(options.repeat ?? 3);
 const radii = (options.radii ?? '600,1000,1600').split(',').map(Number);
 
-/** The land with its water over it, as the view bakes it. */
-function terrainFor(set) {
+/** What the view bakes of a generated map: the land with its water and hazards, and the places' ruins. */
+function bakeInput(set) {
 	const { params } = validateMapParams(resolveMapParams(set).params);
-	const rng = new Rng({ seed: params.seed }).fork('map', 0).fork('terrain', 0);
-	return generateWater({ params, terrain: generateTerrain({ params, rng }), rng: rng.fork('water', 0) }).terrain;
+	const { hazards, places } = generateAreaMap({ params }).products;
+	return { terrain: hazards.terrain, ruins: ruinsOf(places) };
 }
 
 function fastest(run) {
@@ -84,7 +99,7 @@ function fastest(run) {
 }
 
 // Warm the engine on a small bake, so the first map's time isn't its compile.
-bakeTerrain({ terrain: terrainFor({ seed: 99, radius: 600 }), size: 128 });
+bakeTerrain({ ...bakeInput({ seed: 99, radius: 600 }), size: 128 });
 
 const runtime = process.versions.electron ? `Electron ${process.versions.electron}` : `Node ${process.version}`;
 console.log(`${runtime}, V8 ${process.versions.v8}; ${ENVIRONMENTS.length} environments x ${seeds} seeds per radius, the fastest of ${repeat} runs each`);
@@ -92,8 +107,8 @@ for (const radius of radii) {
 	const times = [];
 	for (const environment of ENVIRONMENTS) {
 		for (let seed = 1; seed <= seeds; seed += 1) {
-			const terrain = terrainFor({ seed, environment, radius });
-			times.push(fastest(() => bakeTerrain({ terrain, size: terrainBakeSize(radius) })));
+			const input = bakeInput({ seed, environment, radius });
+			times.push(fastest(() => bakeTerrain({ ...input, size: terrainBakeSize(radius) })));
 		}
 	}
 	const size = terrainBakeSize(radius);

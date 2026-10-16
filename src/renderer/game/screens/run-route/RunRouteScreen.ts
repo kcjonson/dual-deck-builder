@@ -325,7 +325,7 @@ export class RunRouteScreen extends Screen {
 		const view = this.view;
 		if (view) {
 			view.map = viewData(map);
-			view.markers = [{ id: poi.id, kind: 'poi', x: poi.x, y: poi.y, label: poi.name, badge: String(poi.tier), pastDark: poi.pastDark }];
+			view.markers = [{ id: poi.id, kind: 'poi', x: poi.x, y: poi.y, label: poi.name, type: poi.type, pastDark: poi.pastDark }];
 			view.selection = { kind: 'marker', id: poi.id };
 			view.camera.fit(frameOf(routesBounds({ map, poi })));
 		}

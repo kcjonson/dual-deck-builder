@@ -54,13 +54,13 @@ describe('the planned POIs', () => {
 		expect(byDistance([steady, slowFirst]).map(({ poi: index }) => index)).toEqual([1, 2]);
 	});
 
-	it('mark the map: a badge of the tier, the night ring past dark, and labels placed nearest first', () => {
+	it('mark the map: each POI\'s type for its glyph, the night ring past dark, and labels placed nearest first', () => {
 		const markers = poiMarkers(POIS);
 		const order = byDistance(POIS);
 		POIS.forEach((poi, index) => {
 			const marker = markers[index];
 			expect(marker.priority).toBe(order.indexOf(poi));
-			expect(marker.badge).toBe(poi.stronghold ? undefined : String(poi.tier));
+			expect(marker.type).toBe(poi.stronghold ? undefined : poi.type);
 			expect(marker.pastDark).toBe(!poi.stronghold && poi.pastDark);
 		});
 	});
