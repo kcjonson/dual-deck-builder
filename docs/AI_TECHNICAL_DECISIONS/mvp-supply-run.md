@@ -19,7 +19,7 @@ A run counts its place along `routeStops(route)`, every stop on every leg in dri
 
 The routes came from a seeded mock (`supplyRoutes`) until the area map's own replaced it: `routesOnOffer({ map })` now offers every route the campaign's map has but a stronghold's, and the area map and run route screens replace the route pick ([area-map-route-pick.md](./area-map-route-pick.md)). A destination yields what its POI type does, and a route's fuel, hours, and risk are its descriptor's ([stops-and-routes.md](./stops-and-routes.md)).
 
-`Encounters.ts` is the stand-in encounter table, one per skull count: one Rust Buggy, two of them, and a Rust Buggy beside the Raider archetype's Spike Buggy. The raiders are profiles in `mechanics/Raiders.ts`, which the combat screen's own skirmish raider shares, so the two can't drift: the Rust Buggy starts a fight at 3 adrenaline and refills to 10 each turn.
+`Encounters.ts` is the stand-in encounter table, one per skull count. The raiders are profiles in `mechanics/Raiders.ts`, which the combat screen's own skirmish raider shares, so the two can't drift. The table, the profiles' numbers, and where a lone raider opens are [raider-tuning.md](./raider-tuning.md)'s, which superseded this record's first table: one Rust Buggy, two of them, and a Rust Buggy beside the Raider archetype's Spike Buggy, the Rust Buggy refilling to 10.
 
 ## The run's state
 
@@ -78,7 +78,7 @@ None of these is in a spec.
 - A load out left before its run set off is given up on Continue, its run decks unwound and saved, and the compound opens.
 - A quiet stretch is a stop where nothing happens, standing in for the stops that aren't fights.
 - Every day offered a tier 1 POI; the area map superseded the day's offer: any known POI can be picked (area-map-route-pick.md, call 89).
-- The encounters: one Rust Buggy at one skull, two at two, and a Rust Buggy with a Spike Buggy at three.
+- The encounters: one Rust Buggy at one skull, two at two, and a Rust Buggy with a Spike Buggy at three; raider-tuning.md superseded it (calls 1 to 7).
 - Plan a supply run is off when nobody at the compound can go or no route is on offer, as well as on a run out or too little fuel.
 
 ## Consequences

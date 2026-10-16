@@ -174,7 +174,7 @@ describe('RunScreen', () => {
 			const [name, mount] = navigate.mock.calls[navigate.mock.calls.length - 1] as [string, PreparedCombatMount];
 			expect(name).toBe('combatScreen');
 			const prepared = await mount.prepare();
-			expect(prepared.battle.enemyTeam.vehicles.map((vehicle) => vehicle.name)).toEqual(['Rust Buggy', 'Rust Buggy']);
+			expect(prepared.battle.enemyTeam.vehicles.map((vehicle) => vehicle.name)).toEqual(['Spike Buggy']);
 			expect([prepared.fuel, prepared.scrap]).toEqual([2, 0]);
 			expect(typeof prepared.onEnded).toBe('function');
 		});
