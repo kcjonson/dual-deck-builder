@@ -77,6 +77,14 @@ export interface MapStage<Input, Upstream, Name extends string, Product> {
 	 * counting at a limit can't rank two attempts past it.
 	 */
 	readonly localRetry?: boolean;
+	/**
+	 * Carries no gameplay (dressing): no gameplay stage reads it, so only
+	 * other inert stages follow it, and it retries only itself, since a map
+	 * restart would move the gameplay map. A replay without its attempt runs
+	 * its first, so adding a stage like this after saves were made, or
+	 * changing one, never stops a save replaying or moves its gameplay.
+	 */
+	readonly inert?: boolean;
 	run(context: StageContext<Input, Upstream>): Product;
 	/** What's wrong with the output, nothing when it passes. */
 	check?(product: Product, inputs: StageInputs<Input, Upstream>): Problems;
@@ -105,6 +113,7 @@ export interface PipelineRunOptions<Input, Products> {
 	 * the result has no failures. What a load does with a save's attempts.
 	 * Throws a RangeError when they don't fit the pipeline: a stage's attempt
 	 * missing, one for a stage it doesn't have, or one it could never have won.
+	 * An inert stage's attempt may be missing, and then it runs its first.
 	 */
 	readonly replay?: PipelineReplay;
 }
@@ -201,10 +210,17 @@ export class MapPipeline<Input, Products extends object = EmptyProducts> {
 		return this.list.map(({ name }) => name);
 	}
 
+	/** The stages that carry no gameplay, whose attempts a replay may leave out. */
+	public get inertStageNames(): readonly string[] {
+		return this.list.filter(({ inert }) => inert).map(({ name }) => name);
+	}
+
 	/** This pipeline with `stage` after its last. Throws on a repeated name, a bad attempt count, or an escalation it can't make. */
 	public stage<Name extends string, Product>(stage: MapStage<Input, Products, Name, Product>): MapPipeline<Input, Products & { readonly [Key in Name]: Product }> {
-		const { name, attempts, escalate, localRetry } = stage;
+		const { name, attempts, escalate, localRetry, inert } = stage;
 		if (this.list.some((earlier) => earlier.name === name)) throw new RangeError(`MapPipeline: a stage named ${name} is already in the pipeline`);
+		if (inert && !localRetry) throw new RangeError(`MapPipeline: ${name} is inert, so it retries only itself; a map restart would move the gameplay map`);
+		if (!inert && this.list.some((earlier) => earlier.inert)) throw new RangeError(`MapPipeline: ${name} carries gameplay, so it can't follow an inert stage`);
 		if (attempts !== undefined && !(Number.isInteger(attempts) && attempts >= 1)) throw new RangeError(`MapPipeline: ${name} needs at least one attempt, got ${attempts}`);
 		if (escalate !== undefined) {
 			const target = this.list.find((earlier) => earlier.name === escalate);
@@ -316,7 +332,7 @@ class PipelineRun<Input> {
 		const winners: Winner[] = [];
 		let upstream = root.fork('map', mapAttempt);
 		this.stages.forEach((stage, index) => {
-			const attempt = attempts[stage.name];
+			const attempt = replayAttempt(stage, attempts);
 			this.onProgress?.({ stage: stage.name, index, count: this.stages.length, attempt, mapAttempt, seed: this.seed });
 			const rng = upstream.fork(stage.name, attempt);
 			const products: AnyProducts = {};
@@ -417,12 +433,17 @@ function checkReplay(stages: readonly AnyStage<unknown>[], { mapAttempt, attempt
 	const unknown = Object.keys(attempts).filter((name) => !stages.some((stage) => stage.name === name));
 	if (unknown.length > 0) throw new RangeError(`MapPipeline: can't replay an attempt for ${unknown.join(', ')}, which isn't a stage of this pipeline`);
 	for (const stage of stages) {
-		if (!Object.prototype.hasOwnProperty.call(attempts, stage.name)) throw new RangeError(`MapPipeline: can't replay without ${stage.name}'s attempt`);
-		const attempt = attempts[stage.name];
+		if (!stage.inert && !Object.prototype.hasOwnProperty.call(attempts, stage.name)) throw new RangeError(`MapPipeline: can't replay without ${stage.name}'s attempt`);
+		const attempt = replayAttempt(stage, attempts);
 		if (!(Number.isInteger(attempt) && attempt >= 0 && attempt < attemptsOf(stage))) {
 			throw new RangeError(`MapPipeline: can't replay ${stage.name} on attempt ${attempt}; it has ${attemptsOf(stage)}`);
 		}
 	}
+}
+
+/** The attempt a replay runs a stage on: its own, or an inert stage's first where the replay names none. */
+function replayAttempt(stage: AnyStage<unknown>, attempts: Readonly<Record<string, number>>): number {
+	return Object.prototype.hasOwnProperty.call(attempts, stage.name) ? attempts[stage.name] : 0;
 }
 
 function attemptsOf(stage: AnyStage<unknown>): number {
