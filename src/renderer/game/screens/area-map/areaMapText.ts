@@ -22,8 +22,8 @@ export function poiTypeText(type: string): string {
 }
 
 /** "General store, tier 1", and "General store, tier 1, looted" or "..., depleted" once runs have taken from it. */
-export function poiKindText(poi: Pick<PlannedPoi, 'type' | 'tier'>, state: PoiState = 'unvisited'): string {
-	const kind = `${poiTypeText(poi.type)}, tier ${poi.tier}`;
+export function poiKindText({ type, tier, state = 'unvisited' }: Pick<PlannedPoi, 'type' | 'tier'> & { state?: PoiState }): string {
+	const kind = `${poiTypeText(type)}, tier ${tier}`;
 	return state === 'unvisited' ? kind : `${kind}, ${state}`;
 }
 

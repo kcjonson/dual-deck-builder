@@ -140,11 +140,11 @@ describe('AreaMapScreen (DDB-43)', () => {
 		expect(view().markers[looted.poi].state).toBe('looted');
 		expect(view().markers[depleted.poi].state).toBe('depleted');
 		expect(view().markers.filter(({ state }) => state !== undefined)).toHaveLength(2);
-		expect(find<ListRow>(`area_map_poi_${looted.poi}`).trailing).toBe(`tier ${looted.tier}, looted`);
-		expect(find<ListRow>(`area_map_poi_${depleted.poi}`).trailing).toBe(`tier ${depleted.tier}, depleted`);
+		expect([find<ListRow>(`area_map_poi_${looted.poi}`).trailing, find<ListRow>(`area_map_poi_${looted.poi}`).dim]).toEqual([`tier ${looted.tier}`, false]);
+		expect([find<ListRow>(`area_map_poi_${depleted.poi}`).trailing, find<ListRow>(`area_map_poi_${depleted.poi}`).dim]).toEqual([`tier ${depleted.tier}`, true]);
 
 		clickMarker(looted);
-		expect(text('area_map_selected_kind')).toBe(poiKindText(looted, 'looted'));
+		expect(text('area_map_selected_kind')).toBe(poiKindText({ ...looted, state: 'looted' }));
 		expect(text('area_map_selected_stock')).toBe('2 of 3 shares left, the next back in 4 days.');
 		const full = routesOnOffer({ map: MAP, campaign: atHomeCampaign((campaign) => campaign.set({ map: {} })) }).find((route) => route.destination.id === looted.id);
 		const scaled = Object.fromEntries(Object.entries(full?.destination.yield ?? {}).map(([resource, amount]) => [resource, Math.ceil((amount * 2) / 3)]));

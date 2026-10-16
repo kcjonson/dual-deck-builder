@@ -101,9 +101,9 @@ export interface CampaignStoreOptions {
 	version?: number;
 	/**
 	 * Older versions whose saves load, upgraded to this one
-	 * (`upgradeCampaignJson`), and whose histories are read.
-	 * `UPGRADABLE_SCHEMA_VERSIONS` when `version` is left out, and none
-	 * otherwise.
+	 * (`upgradeCampaignJson`), and whose histories are read. When left out,
+	 * `UPGRADABLE_SCHEMA_VERSIONS` at `CAMPAIGN_SCHEMA_VERSION`, and none at
+	 * any other version, which has no upgrades to it.
 	 */
 	upgradesFrom?: readonly number[];
 	/**
@@ -254,12 +254,12 @@ export class CampaignStore extends EventEmitter {
 	private queue: Promise<void> = Promise.resolve();
 	private waiting: Waiting | null = null;
 
-	constructor({ storage, namespace = pageNamespaceHere(), version, upgradesFrom, generatorVersion = AREA_MAP_GENERATOR_VERSION, onWarning = logWarning }: CampaignStoreOptions) {
+	constructor({ storage, namespace = pageNamespaceHere(), version = CAMPAIGN_SCHEMA_VERSION, upgradesFrom, generatorVersion = AREA_MAP_GENERATOR_VERSION, onWarning = logWarning }: CampaignStoreOptions) {
 		super();
 		this.storage = storage;
 		this.keys = campaignKeys(namespace);
-		this.version = version ?? CAMPAIGN_SCHEMA_VERSION;
-		this.readable = Object.freeze([this.version, ...(upgradesFrom ?? (version === undefined ? UPGRADABLE_SCHEMA_VERSIONS : []))]);
+		this.version = version;
+		this.readable = Object.freeze([version, ...(upgradesFrom ?? (version === CAMPAIGN_SCHEMA_VERSION ? UPGRADABLE_SCHEMA_VERSIONS : []))]);
 		this.generatorVersion = generatorVersion;
 		this.onWarning = onWarning;
 	}

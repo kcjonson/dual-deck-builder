@@ -317,14 +317,15 @@ export class AreaMapScreen extends Screen {
 		const stockOf = (planned: PlannedPoi): PoiStockView => this.stockOf(planned);
 		if (view) {
 			view.map = viewData(map);
-			view.markers = poiMarkers(this.pois, (planned) => stockOf(planned).state);
+			view.markers = poiMarkers({ pois: this.pois, stateOf: (planned) => stockOf(planned).state });
 		}
 		const list = this.list;
 		if (list) {
 			list.clearChildren();
 			this.rows.clear();
 			for (const planned of byDistance(this.pois)) {
-				const row = new ListRow({ id: `area_map_poi_${planned.poi}`, label: planned.name, trailing: rowTrailing(planned, stockOf(planned)), dim: planned.stronghold });
+				// A depleted POI is dimmed rather than named in the trailing text, which would squeeze the names out of the list.
+				const row = new ListRow({ id: `area_map_poi_${planned.poi}`, label: planned.name, trailing: rowTrailing(planned), dim: planned.stronghold || stockOf(planned).state === 'depleted' });
 				this.rows.set(planned.poi, row);
 				list.addChild(row);
 			}
@@ -396,7 +397,7 @@ export class AreaMapScreen extends Screen {
 		const destination = routesOnOffer({ map, campaign }).find((route) => route.destination.id === poi.id)?.destination ?? null;
 		const stock = this.stockOf(poi);
 		if (this.nameLine) this.nameLine.text = poi.name;
-		if (this.kindLine) this.kindLine.text = poiKindText(poi, stock.state);
+		if (this.kindLine) this.kindLine.text = poiKindText({ ...poi, state: stock.state });
 		if (this.yieldLine) this.yieldLine.text = poiYieldText({ stronghold: poi.stronghold, yields: destination?.yield ?? null, state: stock.state });
 		if (this.stockLine) {
 			this.stockLine.text = poi.stronghold ? '' : poiStockText(stock);
@@ -447,10 +448,10 @@ export class AreaMapScreen extends Screen {
 	}
 }
 
-/** A destination row's trailing text: its tier, looted or depleted, and when no route gets home by dark; a stronghold says so. */
-function rowTrailing(poi: PlannedPoi, { state }: PoiStockView): string {
+/** A destination row's trailing text: its tier, and when no route gets home by dark; a stronghold says so. */
+function rowTrailing(poi: PlannedPoi): string {
 	if (poi.stronghold) return 'stronghold';
-	return [`tier ${poi.tier}`, ...(state === 'unvisited' ? [] : [state]), ...(poi.pastDark ? ['past dark'] : [])].join(', ');
+	return poi.pastDark ? `tier ${poi.tier}, past dark` : `tier ${poi.tier}`;
 }
 
 /** Whether a POI is inside the part of the world the view shows. */

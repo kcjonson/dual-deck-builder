@@ -55,7 +55,7 @@ describe('the planned POIs', () => {
 	});
 
 	it('mark the map: a badge of the tier, the night ring past dark, and labels placed nearest first', () => {
-		const markers = poiMarkers(POIS);
+		const markers = poiMarkers({ pois: POIS });
 		const order = byDistance(POIS);
 		POIS.forEach((poi, index) => {
 			const marker = markers[index];
@@ -67,7 +67,7 @@ describe('the planned POIs', () => {
 	});
 
 	it('mark a looted or depleted POI with its state, and never a stronghold (DDB-483)', () => {
-		const markers = poiMarkers(POIS, (poi) => (poi.poi % 2 === 0 ? 'looted' : 'depleted'));
+		const markers = poiMarkers({ pois: POIS, stateOf: (poi) => (poi.poi % 2 === 0 ? 'looted' : 'depleted') });
 		POIS.forEach((poi, index) => {
 			expect(markers[index].state).toBe(poi.stronghold ? undefined : poi.poi % 2 === 0 ? 'looted' : 'depleted');
 		});
@@ -172,7 +172,7 @@ describe('what the planning screens say', () => {
 		expect(poiKindText({ type: STRONGHOLD_TYPE, tier: 5 })).toBe('Stronghold, tier 5');
 		expect(poiYieldText({ stronghold: false, yields: { food: 6, water: 4, fuel: 0, scrap: 0 } })).toBe('Yields 6 food and 4 water.');
 		expect(poiYieldText({ stronghold: true, yields: null })).toBe('Its stores go to whoever takes it.');
-		expect(poiKindText(poi, 'looted')).toMatch(new RegExp(`, tier ${poi.tier}, looted$`));
+		expect(poiKindText({ ...poi, state: 'looted' })).toMatch(new RegExp(`, tier ${poi.tier}, looted$`));
 		expect(poiYieldText({ stronghold: false, yields: { food: 0, water: 0, fuel: 0, scrap: 0 }, state: 'depleted' })).toBe('Nothing left to take until it refills.');
 		expect(poiStockText({ shares: 3, nextShare: null })).toBe('3 of 3 shares left.');
 		expect(poiStockText({ shares: 1, nextShare: 1 })).toBe('1 of 3 shares left, the next back in 1 day.');

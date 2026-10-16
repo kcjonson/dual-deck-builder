@@ -319,7 +319,7 @@ export class RunRouteScreen extends Screen {
 		if (this.dayLine) this.dayLine.text = `Day ${campaign.day} / dawn ${clockText(dark - map.params.daylightHours)} / dark ${clockText(dark)} / fuel ${campaign.resources.fuel}`;
 		const destination = this.runRoute(poi.routes[0])?.destination ?? null;
 		const { state } = poiStock({ campaign, poi });
-		if (this.kindLine) this.kindLine.text = `${poiKindText(poi, state)}. ${poiYieldText({ stronghold: false, yields: destination?.yield ?? null, state })}`;
+		if (this.kindLine) this.kindLine.text = `${poiKindText({ ...poi, state })}. ${poiYieldText({ stronghold: false, yields: destination?.yield ?? null, state })}`;
 		// Nothing to wait for or warn of: the cards say the rest.
 		this.say({ text: '', color: 'text_dim' });
 

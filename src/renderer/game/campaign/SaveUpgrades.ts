@@ -19,16 +19,25 @@ export const UPGRADABLE_SCHEMA_VERSIONS: readonly number[] = Object.freeze([8]);
 export function upgradeCampaignJson({ campaign, version }: { campaign: unknown; version: number }): unknown {
 	if (!UPGRADABLE_SCHEMA_VERSIONS.includes(version)) throw new RangeError(`Version ${version} saves can't be upgraded`);
 	let upgraded = campaign;
-	for (let from = version; from < CAMPAIGN_SCHEMA_VERSION; from += 1) upgraded = STEPS[from](upgraded);
+	for (let from = version; from < CAMPAIGN_SCHEMA_VERSION; from += 1) {
+		const step = UPGRADE_STEPS[from];
+		if (!step) throw new RangeError(`No upgrade from version ${from} to ${from + 1}, so version ${version} saves can't be upgraded`);
+		upgraded = step(upgraded);
+	}
 	return upgraded;
 }
 
-/** Version 8 to 9: the map state held nothing yet, and its POIs are all full, which is a map state with no `pois`. */
+/** Version 8 to 9: its POIs are all full, which is a map state with no `pois`; nothing in version 8 wrote one. */
 function fromVersion8(campaign: unknown): unknown {
-	if (typeof campaign !== 'object' || campaign === null || Array.isArray(campaign)) return campaign;
-	const { map } = campaign as { map?: unknown };
-	if (typeof map !== 'object' || map === null || Array.isArray(map)) return campaign;
-	return { ...campaign, map: {} };
+	if (!isObject(campaign)) return campaign;
+	const { map } = campaign;
+	if (!isObject(map)) return campaign;
+	return { ...campaign, map: Object.fromEntries(Object.entries(map).filter(([key]) => key !== 'pois')) };
 }
 
-const STEPS: Readonly<Record<number, (campaign: unknown) => unknown>> = { 8: fromVersion8 };
+function isObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Each version's step to the next, by the version it upgrades from. Every version from the oldest listed up to the current one needs one. */
+export const UPGRADE_STEPS: Readonly<Record<number, (campaign: unknown) => unknown>> = Object.freeze({ 8: fromVersion8 });

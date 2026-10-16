@@ -385,10 +385,11 @@ describe('CampaignStore', () => {
 			expect(await storage.getItem(KEYS.recovery)).toBeNull();
 		});
 
-		it('upgrades only from the versions it lists: a store at another version reads none', async () => {
+		it('upgrades only from the versions it lists, and a store at another version from none', async () => {
 			const text = saveText({ campaign: JSON.stringify(CAMPAIGN_V8_FIXTURE), version: 8 });
 
-			expect(await storeOver(storageWith(text), { version: CAMPAIGN_SCHEMA_VERSION }).saveStatus()).toBe('outdated');
+			expect(await storeOver(storageWith(text), { version: CAMPAIGN_SCHEMA_VERSION }).saveStatus()).toBe('saved');
+			expect(await storeOver(storageWith(text), { version: CAMPAIGN_SCHEMA_VERSION + 1 }).saveStatus()).toBe('outdated');
 			expect(await new CampaignStore({ storage: storageWith(text), namespace: NAMESPACE, upgradesFrom: [], onWarning: () => undefined }).saveStatus()).toBe('outdated');
 		});
 

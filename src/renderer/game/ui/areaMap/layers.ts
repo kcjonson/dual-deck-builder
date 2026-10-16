@@ -61,7 +61,6 @@ export interface LandFogLayer {
 export const MAP_MARKER_KINDS = ['poi', 'stronghold'] as const;
 export type MapMarkerKind = (typeof MAP_MARKER_KINDS)[number];
 
-
 /** A point of interest or a stronghold, as the view draws and picks it. */
 export interface MapMarker {
 	/** Unique among the markers: selection is kept by it. */

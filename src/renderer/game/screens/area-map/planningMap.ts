@@ -174,7 +174,7 @@ export function poiStock({ campaign, poi }: { campaign: Campaign; poi: PlannedPo
  * home by dark, and its name, the nearest placed first; the strongholds
  * with theirs, placed last.
  */
-export function poiMarkers(pois: readonly PlannedPoi[], stateOf: (poi: PlannedPoi) => PoiState = () => 'unvisited'): MapMarker[] {
+export function poiMarkers({ pois, stateOf = () => 'unvisited' }: { pois: readonly PlannedPoi[]; stateOf?: (poi: PlannedPoi) => PoiState }): MapMarker[] {
 	const order = new Map(byDistance(pois).map((poi, index) => [poi, index]));
 	return pois.map((poi) => {
 		const state = poi.stronghold ? 'unvisited' : stateOf(poi);
