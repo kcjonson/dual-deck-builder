@@ -9,6 +9,7 @@
  *   node scripts/road-network.mjs check [--maps 30] [--from 0]
  *   node scripts/road-network.mjs places [--seeds 3] [--repeat 3] [--radii 600,1000,1600]
  *   node scripts/road-network.mjs png --seed 7 [--environment badlands] [--radius 1000] [--size 1024] [--window x,y,half] [--out roads.png] [--loops 0.8 ...]
+ *   node scripts/road-network.mjs png --map 17 [...]
  *
  * Every command runs the area map's stages through the pipeline runner
  * (map/AreaMapPipeline.ts), on their nested streams, the roads checked as the
@@ -20,7 +21,8 @@
  * first-attempt pass rate, the spec's health metric, and any map the pipeline
  * gave up on. places times the hazards and places stages and counts the
  * places against what each map asks for. png draws one map, or a window of
- * it, with its places and POIs; any parameter can be set by name. Any command takes --profile <folder> for a CPU
+ * it, with its places and POIs; any parameter can be set by name, and --map
+ * starts from check's sampled set of that index. Any command takes --profile <folder> for a CPU
  * profile of the run.
  */
 import { spawnSync } from 'node:child_process';
@@ -288,9 +290,10 @@ const ROAD_STYLES = { highway: { colour: [200, 60, 30], width: 3 }, backRoad: { 
 
 async function png() {
 	const { PNG } = (await import('pngjs')).default;
-	const set = { seed: Number(options.seed ?? 1) };
+	const set = options.map === undefined ? { seed: Number(options.seed ?? 1) } : sampledSet(Number(options.map));
+	if (options.seed !== undefined) set.seed = Number(options.seed);
 	for (const [key, value] of Object.entries(options)) {
-		if (['seed', 'size', 'out', 'window', 'profile'].includes(key)) continue;
+		if (['seed', 'size', 'out', 'window', 'profile', 'map'].includes(key)) continue;
 		set[key] = key === 'environment' ? value : Number(value);
 	}
 	const map = generate(set);
