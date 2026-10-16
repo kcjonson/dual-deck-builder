@@ -72,6 +72,7 @@ const { checkRoadNetwork } = load('./map/RoadChecks.js');
 const { areaMapPipeline } = load('./map/AreaMapPipeline.js');
 const { MapPipelineError } = load('./map/MapPipeline.js');
 const { loopsNeeded } = load('./map/Roads.js');
+const { pointAlong } = load('./map/Geometry.js');
 
 const ENVIRONMENTS = ['mixed', 'highDesert', 'rustBelt', 'floodlands', 'badlands'];
 const STAGES = ['terrain', 'water', 'hazards', 'places', 'roads', 'routeTree', 'pois'];
@@ -93,12 +94,80 @@ function generate(set, repeat = 1) {
 	return { params, result, fastest, checks };
 }
 
+const SINE_15 = Math.sin(Math.PI / 12);
+const SINE_30 = 0.5;
+/** World units of water one deck can carry a road over square-on: the longest bridge. */
+const DECK_WATER = 24;
+
+/**
+ * How the roads meet the rivers: crossings of a centreline under 15 and 30
+ * degrees off its line, bar on Home's own cells, which roads leave through
+ * any river on them; the longest run of river water under any one deck; and
+ * decks carrying more water than the longest bridge spans, which is a road
+ * along a river rather than across it. Water is sampled every tenth of a unit.
+ */
+function riverMeasures(network, terrain) {
+	const water = terrain.water;
+	const home = terrain.surface.grid.cellSize;
+	let shallow15 = 0;
+	let shallow30 = 0;
+	let wettest = 0;
+	let wetDecks = 0;
+	const at = { x: 0, y: 0 };
+	for (const { points, bridges } of network.stretches) {
+		if (water !== null) {
+			for (let point = 0; point + 3 < points.length; point += 2) {
+				const [x0, y0, x1, y1] = [points[point], points[point + 1], points[point + 2], points[point + 3]];
+				const count = water.riverCrossings(x0, y0, x1, y1);
+				for (let index = 0; index < count; index += 1) {
+					const { sine, along } = water.riverCrossing(index);
+					if (Math.abs(x0 + (x1 - x0) * along) <= home && Math.abs(y0 + (y1 - y0) * along) <= home) continue;
+					if (sine < SINE_15) shallow15 += 1;
+					if (sine < SINE_30) shallow30 += 1;
+				}
+			}
+		}
+		for (const { start, end } of bridges) {
+			let run = 0;
+			let longest = 0;
+			for (let along = start; along <= end; along += 0.1) {
+				pointAlong(points, along, at);
+				run = terrain.waterAt(at.x, at.y) === 'river' ? run + 0.1 : 0;
+				if (run > longest) longest = run;
+			}
+			if (longest > wettest) wettest = longest;
+			if (longest > DECK_WATER) wetDecks += 1;
+		}
+	}
+	return { shallow15, shallow30, wettest, wetDecks };
+}
+
+/** Highway exits with no highway stretch ending on them, and of those, how many lost theirs to a broken span. */
+function bareExits(network, places) {
+	const highwayExits = new Set(places.exits.filter(({ highway }) => highway).map(({ id }) => id));
+	const ends = (stretches) => {
+		const found = new Set();
+		for (const { roadClass, from, to } of stretches) {
+			if (roadClass !== 'highway') continue;
+			for (const node of [from, to]) if (highwayExits.has(network.nodes[node].place)) found.add(network.nodes[node].place);
+		}
+		return found;
+	};
+	const kept = ends(network.stretches);
+	const lost = ends(network.broken);
+	const bare = [...highwayExits].filter((id) => !kept.has(id));
+	return { bare: bare.length, brokenAway: bare.filter((id) => lost.has(id)).length };
+}
+
 function describe({ result }) {
-	const { places, roads, routeTree, pois } = result.products;
+	const { places, roads, routeTree, pois, hazards } = result.products;
 	const { network, stats } = roads;
 	const length = stats.lengths.highway + stats.lengths.backRoad + stats.lengths.trail;
 	const routes = pois.pois.filter(({ type }) => type !== 'stronghold').map(({ arrivals }) => arrivals.length);
 	return {
+		...riverMeasures(network, hazards.terrain),
+		...bareExits(network, places),
+		passableRetries: result.failures.filter(({ stage, problems }) => stage === 'roads' && problems.some((problem) => problem.startsWith('passable'))).length,
 		places: places.towns.length + places.villages.length + places.crossroads.length + places.exits.length,
 		nodes: network.nodes.length,
 		stretches: network.stretches.length,
@@ -143,6 +212,7 @@ function bench() {
 		console.log(`radius ${radius}:`);
 		console.log(`  ms per run, median (slowest): ${STAGES.map((stage) => `${stage} ${median(times[stage]).toFixed(0)} (${Math.max(...times[stage]).toFixed(0)})`).join(', ')}; the roads' checks ${median(checks).toFixed(0)}`);
 		console.log(`  median ${median(column('nodes'))} nodes, ${median(column('stretches'))} stretches, ${median(column('length')).toFixed(0)} units of road (${(100 * median(column('trailShare'))).toFixed(0)}% trail), ${median(column('loops'))} loops (least ${Math.min(...column('loops'))}), ${median(column('bridges'))} bridges, ${median(column('passes'))} passes, ${median(column('broken'))} broken spans`);
+		console.log(`  rivers: crossings under 15 degrees ${sum('shallow15')}, under 30 ${sum('shallow30')}; decks over ${DECK_WATER} units of water ${sum('wetDecks')}, the wettest ${Math.max(...column('wettest')).toFixed(1)}; highway exits with no highway ${sum('bare')} (${sum('brokenAway')} to a broken span); roads retries on passability ${sum('passableRetries')}`);
 		console.log(`  ${median(column('meetingPoints'))} meeting points; POIs placed ${sum('pois')} of ${sum('target')} (least map ${Math.min(...rows.map(({ pois, target }) => pois / target)).toFixed(2)}), strongholds ${sum('strongholds')}, three-route POIs ${sum('threeRoutes')}; ${rows.filter(({ retries }) => retries > 0).length} of ${rows.length} maps needed a retry`);
 	}
 	console.log(`networks' digest ${digest.digest('hex').slice(0, 16)}`);
@@ -172,6 +242,7 @@ function check() {
 	let gaveUp = 0;
 	let broken = 0;
 	const roadTimes = [];
+	const rows = [];
 	for (let index = from; index < from + maps; index += 1) {
 		const set = sampledSet(index);
 		let map;
@@ -200,9 +271,12 @@ function check() {
 			console.log(`map ${index} ${JSON.stringify(set)}: ${violations.slice(0, 3).map(({ rule, detail }) => `${rule}: ${detail}`).join('; ')}`);
 		}
 		const row = describe(map);
-		console.log(`map ${index} ${params.environment} r${params.radius}: ${row.places} places, ${row.loops} loops of ${loopsNeeded(params, result.products.roads.stats.inland)} needed, POIs ${row.pois} of ${row.target}, strongholds ${row.strongholds} of ${params.strongholds}, roads ${map.fastest.roads.toFixed(0)} ms, retries ${row.retries}`);
+		rows.push(row);
+		console.log(`map ${index} ${params.environment} r${params.radius}: ${row.places} places, ${row.loops} loops of ${loopsNeeded(params, result.products.roads.stats.inland)} needed, POIs ${row.pois} of ${row.target}, strongholds ${row.strongholds} of ${params.strongholds}, roads ${map.fastest.roads.toFixed(0)} ms, retries ${row.retries}; crossings under 15/30 degrees ${row.shallow15}/${row.shallow30}, wettest deck ${row.wettest.toFixed(1)}, bare highway exits ${row.bare}`);
 	}
 	console.log(`${maps} maps from ${from}: first-attempt pass rate ${STAGES.map((stage) => `${stage} ${firstPass[stage]}`).join(', ')} of ${maps - gaveUp}; ${gaveUp} gave up; ${broken} broke a road rule; roads median ${median(roadTimes).toFixed(0)} ms`);
+	const total = (key) => rows.reduce((sum, row) => sum + row[key], 0);
+	console.log(`rivers: crossings under 15 degrees ${total('shallow15')} on ${rows.filter((row) => row.shallow15 > 0).length} maps, under 30 ${total('shallow30')} on ${rows.filter((row) => row.shallow30 > 0).length}; decks over ${DECK_WATER} units of water ${total('wetDecks')}, the wettest ${Math.max(0, ...rows.map((row) => row.wettest)).toFixed(1)}; highway exits with no highway ${total('bare')} on ${rows.filter((row) => row.bare > 0).length} maps (${total('brokenAway')} to a broken span)`);
 	console.log(`failures by reason: ${[...reasons].map(([reason, count]) => `${reason} ${count}`).join(', ') || 'none'}`);
 	process.exitCode = gaveUp > 0 || broken > 0 ? 1 : 0;
 }
