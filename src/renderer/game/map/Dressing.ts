@@ -111,8 +111,8 @@ export function generateDressing({ params, water, hazards, places, network, pois
 		ground: terrain, grid: terrain.surface.grid, mountains: terrain.surface.mountains, lowland: water.surface.lowland, area: water.surface.area, threshold: water.surface.threshold,
 		count: round(params.railLines * thinned), rng: rng.fork('rails'),
 	});
-	// The rails run through the grids as the roads do, so their blocks are street too.
-	const lines = [...network.stretches, ...rails];
+	// Roads, collapsed spans, and rails all run through the grids, so their blocks are street.
+	const lines = [...network.stretches, ...network.broken, ...rails];
 	const ground = { obstacle: (x: number, y: number) => terrain.obstacle(x, y), nearRiver: (x: number, y: number, reach: number) => water.nearRiver(x, y, reach) };
 	return Object.freeze({
 		districts: Object.freeze(streetGrids({ places, lines, ground, built: params.streetGrids, cover: thinned, rng: rng.fork('grids') })),

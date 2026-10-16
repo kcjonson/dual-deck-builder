@@ -21,6 +21,12 @@ function gameplayOf(map: AreaMapGeneration): unknown {
 	}));
 }
 
+/** The land and its water as the grid stages left them: the eroded surface, the badlands, and every field of the water. */
+function landOf(map: AreaMapGeneration): unknown {
+	const { terrain, water } = map.products;
+	return { surface: terrain.surface, badlands: terrain.badlandsCells, water: water.surface };
+}
+
 /** The dressing again on a map's own products, on its own stream, for other dressing params. */
 function redress(map: AreaMapGeneration, params: Partial<MapParams>): Dressing {
 	return DRESSING_STAGE.run({ input: { ...map.params, ...params }, products: map.products, rng: new Rng({ seed: map.streams.dressing }) });
@@ -51,6 +57,7 @@ describe('the dressing', () => {
 			const bare = generateAreaMap({ params: paramsFor({ ...set, dressing: 0 }) });
 			const full = generateAreaMap({ params: paramsFor({ ...set, dressing: 1 }) });
 			expect(gameplayOf(bare)).toEqual(gameplayOf(full));
+			expect(landOf(bare)).toEqual(landOf(full));
 			const none = bare.products.dressing;
 			expect([none.districts, none.rails, none.hatches, Array.from(none.stipple)]).toEqual([[], [], [], []]);
 			none.labels.forEach(({ kind }) => expect(GAMEPLAY_LABELS).toContain(kind));
@@ -91,7 +98,7 @@ describe('the dressing', () => {
 			});
 		});
 
-		it('stand no block on water, a crater, or a cliff, nor under a road or a rail', () => {
+		it('stand no block on water, a crater, or a cliff, nor under a road, a collapsed span, or a rail', () => {
 			const wrong: string[] = [];
 			for (const { x, y, ux, uy, spacing, blocks, rubble, place } of dressing.districts) {
 				const kept = new Set<string>();
@@ -104,7 +111,7 @@ describe('the dressing', () => {
 						reach = Math.max(reach, Math.hypot(centres[index] - x, centres[index + 1] - y) + spacing);
 					}
 				}
-				for (const { points } of [...roads.network.stretches, ...dressing.rails]) {
+				for (const { points } of [...roads.network.stretches, ...roads.network.broken, ...dressing.rails]) {
 					for (let index = 0; index + 3 < points.length; index += 2) {
 						const length = Math.hypot(points[index + 2] - points[index], points[index + 3] - points[index + 1]);
 						if (Math.hypot(points[index] - x, points[index + 1] - y) > reach + length) continue;

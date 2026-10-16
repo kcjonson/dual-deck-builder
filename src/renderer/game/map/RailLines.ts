@@ -1,7 +1,7 @@
 import type { Rng } from '../core/Rng';
-import { Vector, chaikin, polylineLength, unitVector } from './Geometry';
+import { Vector, chaikin, pointAlong, polylineLength, unitVector } from './Geometry';
 import { RELIEF } from './Land';
-import { LandGrid, cellAt } from './LandGrid';
+import { LandGrid, cellAt, cellCentre } from './LandGrid';
 import { NodeHeap } from './NodeHeap';
 import { simplify } from './Rivers';
 import type { RoadBridge } from './RoadNetwork';
@@ -25,15 +25,18 @@ export interface RailLine {
 
 /**
  * - The search runs on a grid `coarse` land cells to one, inside `inset`
- *   coarse cells of the rim.
+ *   coarse cells of the rim. A cell is open where nothing a rail can't
+ *   cross stands at its centre or at the centres of the land cells under it.
  * - A move costs its length times one plus `grade` times its grade squared,
  *   times one plus `valley` times how far it stands above the low ground
  *   (the water's lowland, 1 on a valley floor), plus `ranges` times the
  *   range mask, plus `bridge` world units for each end on a river, so a
  *   line crosses a river rather than running along it. A diagonal move
- *   needs both cells beside it open. Within
- *   `apart` coarse cells of an earlier line, the move costs `apartCost`
- *   times as much, so lines keep apart but can still cross.
+ *   needs both cells beside it open. Within `apart` coarse cells of an
+ *   earlier line, the move costs `apartCost` times as much, so lines keep
+ *   apart, even down one valley, but can still cross. Past `rim.band` of
+ *   the radius it costs `rim.cost` times more, so a line crosses the rim
+ *   at its ends rather than running round it.
  * - Each line's ends are rim points, the second `across` degrees round from
  *   the first, each the lowest of the bearings `spread` degrees either side
  *   in `step`-degree steps; the lines' first ends are spread evenly round
@@ -43,6 +46,10 @@ export interface RailLine {
  *   every `sample` world units) or puts a deck past `longestDeck` world
  *   units over a river, the next tolerance down is tried, then the cells
  *   themselves. Bridges are merged across gaps under `deckGap`.
+ * - A line whose heading turns past `hairpin.dot` (the cosine between its
+ *   direction at two points up to `hairpin.window` world units apart, -0.85
+ *   being about 150 degrees) is dropped, and its second end drawn again, up to `tries`
+ *   times.
  */
 export const RAIL_LINES = {
 	coarse: 2,
@@ -51,8 +58,11 @@ export const RAIL_LINES = {
 	valley: 1.5,
 	ranges: 4,
 	bridge: 40,
-	apart: 5,
-	apartCost: 2,
+	apart: 6,
+	apartCost: 6,
+	rim: { band: 0.88, cost: 3 },
+	hairpin: { window: 200, dot: -0.85, step: 20 },
+	tries: 3,
 	across: { least: 140, most: 220 },
 	spread: 25,
 	step: 2.5,
@@ -99,9 +109,13 @@ export function railLines({ ground, grid, mountains, lowland, area, threshold, c
 	for (let index = 0; index < count; index += 1) {
 		const own = rng.fork('rail', index);
 		const first = spin + 180 * index / count;
-		const second = first + RAIL_LINES.across.least + (RAIL_LINES.across.most - RAIL_LINES.across.least) * own.float();
-		const line = field.lay(first, second);
-		if (line !== null) lines.push(line);
+		for (let attempt = 0; attempt < RAIL_LINES.tries; attempt += 1) {
+			const second = first + RAIL_LINES.across.least + (RAIL_LINES.across.most - RAIL_LINES.across.least) * own.float();
+			const line = field.lay(first, second);
+			if (line === null) continue;
+			lines.push(line);
+			break;
+		}
 	}
 	return lines;
 }
@@ -120,8 +134,10 @@ class RailField {
 	private readonly above: Float64Array;
 	private readonly river: Uint8Array;
 	private readonly open: Uint8Array;
-	/** Per coarse cell, how many lines run within `apart` cells of it. */
+	/** Per coarse cell, 1 within `apart` cells of a line laid already. */
 	private readonly crowded: Uint8Array;
+	/** Per coarse cell, 1 past `rim.band` of the radius. */
+	private readonly outer: Uint8Array;
 
 	constructor({ ground, grid, mountains, lowland, area, threshold }: Omit<RailLineOptions, 'count' | 'rng'>) {
 		this.ground = ground;
@@ -135,6 +151,8 @@ class RailField {
 		this.river = new Uint8Array(cells);
 		this.open = new Uint8Array(cells);
 		this.crowded = new Uint8Array(cells);
+		this.outer = new Uint8Array(cells);
+		const band = RAIL_LINES.rim.band * ground.radius;
 		const reach = ground.radius - RAIL_LINES.inset * this.cellSize;
 		for (let row = 0; row < this.size; row += 1) {
 			const y = this.centre(row);
@@ -148,11 +166,18 @@ class RailField {
 				const obstacle = ground.obstacle(x, y);
 				const land = row * RAIL_LINES.coarse * grid.size + column * RAIL_LINES.coarse;
 				let river = 0;
+				let clear = obstacle === null || obstacle === 'river';
 				for (let down = 0; down < RAIL_LINES.coarse; down += 1) {
-					for (let across = 0; across < RAIL_LINES.coarse; across += 1) if (area[land + down * grid.size + across] >= threshold) river = 1;
+					for (let across = 0; across < RAIL_LINES.coarse; across += 1) {
+						const under = land + down * grid.size + across;
+						if (area[under] >= threshold) river = 1;
+						const blocked = clear ? ground.obstacle(cellCentre(grid, under % grid.size), cellCentre(grid, floor(under / grid.size))) : null;
+						if (blocked !== null && blocked !== 'river') clear = false;
+					}
 				}
 				this.river[cell] = river;
-				this.open[cell] = x * x + y * y <= reach * reach && (obstacle === null || obstacle === 'river') ? 1 : 0;
+				this.open[cell] = x * x + y * y <= reach * reach && clear ? 1 : 0;
+				this.outer[cell] = x * x + y * y > band * band ? 1 : 0;
 			}
 		}
 	}
@@ -168,7 +193,7 @@ class RailField {
 		for (const cell of cells) path.push(this.centre(cell % this.size), this.centre(floor(cell / this.size)));
 		path.push(end.rimX, end.rimY);
 		const points = this.smooth(path);
-		if (points === null) return null;
+		if (points === null || hairpin(points)) return null;
 		this.mark(cells);
 		return Object.freeze({ points: Object.freeze(points), length: polylineLength(points), bridges: Object.freeze(this.bridges(points)) });
 	}
@@ -256,6 +281,7 @@ class RailField {
 		let step = length * (1 + RAIL_LINES.grade * grade * grade) * (1 + RAIL_LINES.valley * above) + RAIL_LINES.ranges * mask * length;
 		step += RAIL_LINES.bridge * (this.river[from] + this.river[to]);
 		if (this.crowded[from] > 0 || this.crowded[to] > 0) step *= RAIL_LINES.apartCost;
+		if (this.outer[from] > 0 || this.outer[to] > 0) step *= 1 + RAIL_LINES.rim.cost;
 		return step;
 	}
 
@@ -328,4 +354,30 @@ class RailField {
 			}
 		}
 	}
+}
+
+/** Whether a line doubles back: its direction, read every `hairpin.step` world units, turns past `hairpin.dot` within `hairpin.window`. */
+function hairpin(points: readonly number[]): boolean {
+	const { window, dot, step } = RAIL_LINES.hairpin;
+	const length = polylineLength(points);
+	const at = { x: 0, y: 0 };
+	const headings: number[] = [];
+	let lastX = points[0];
+	let lastY = points[1];
+	for (let along = step; along <= length; along += step) {
+		pointAlong(points, along, at);
+		const dx = at.x - lastX;
+		const dy = at.y - lastY;
+		const norm = sqrt(dx * dx + dy * dy);
+		headings.push(norm > 0 ? dx / norm : 0, norm > 0 ? dy / norm : 0);
+		lastX = at.x;
+		lastY = at.y;
+	}
+	const reach = floor(window / step);
+	for (let index = 0; index < headings.length; index += 2) {
+		for (let ahead = 1; ahead <= reach && index + 2 * ahead < headings.length; ahead += 1) {
+			if (headings[index] * headings[index + 2 * ahead] + headings[index + 1] * headings[index + 2 * ahead + 1] < dot) return true;
+		}
+	}
+	return false;
 }

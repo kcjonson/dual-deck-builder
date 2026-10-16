@@ -39,10 +39,10 @@ export interface StreetDistrict {
  * - `survival`: a block's chance of standing at the ruin's middle, from
  *   `least` at `streetGrids` 0 to `most` at 1, falling by `fall` times the
  *   square of its share of the way to the ruin's edge.
- * - `edge`: the ruin's edge, drawn per block between 1 less and 1 more than
- *   half `edge` of the ruin's radius, so it's ragged.
- * - `districts`: the metro's, `base` plus one per `per` world units of its
- *   radius, at most `most`; the first at the middle within `centre` of the
+ * - `edge`: the ruin's edge, drawn per block from 1 - `edge` / 2 to
+ *   1 + `edge` / 2 times the ruin's radius, so it's ragged.
+ * - `districts`: the metro's, `base` plus one per `per` world units of the
+ *   radius its grids cover (less below the default dressing), at most `most`; the first at the middle within `centre` of the
  *   radius, the rest `inner` to `outer` of it out, evenly round and jittered
  *   by up to `jitter` of the gap between them. Their grids' angles are
  *   spread evenly over a quarter turn from a drawn one, in a shuffled order,
@@ -94,11 +94,12 @@ export function streetGrids({ places, lines, ground, built, cover, rng }: Street
 		...places.towns.map(({ id, x, y, radius }): Ruin => ({ place: id, kind: 'town', x, y, radius: radius * cover })),
 		...places.villages.map(({ id, x, y, radius }): Ruin => ({ place: id, kind: 'village', x, y, radius: radius * cover })),
 	];
+	const boxes = lines.map(({ points }) => ({ points, box: boundsOf(points) }));
 	const districts: StreetDistrict[] = [];
 	for (const ruin of ruins) {
 		const own = rng.fork('ruin', ruin.place);
 		const seeds = ruin.kind === 'metro' ? metroSeeds(ruin, own) : [{ x: ruin.x, y: ruin.y, angle: own.float() * 90 }];
-		const near = lines.filter(({ points }) => reaches(points, ruin));
+		const near = boxes.filter(({ box }) => reaches(box, ruin));
 		seeds.forEach((seed, index) => {
 			const district = layDistrict({ ruin, seeds, index, spacing, survival, near, ground, rng: own.fork('district', index) });
 			if (district.blocks.length + district.rubble.length > 0) districts.push(district);
@@ -153,9 +154,20 @@ function metroSeeds(ruin: Ruin, rng: Rng): DistrictSeed[] {
 	return seeds;
 }
 
-/** Whether a road's polyline might come within the ruin's reach: its bounding box overlaps the reach's. */
-function reaches(points: readonly number[], { x, y, radius }: Ruin): boolean {
+interface Bounds {
+	readonly left: number;
+	readonly right: number;
+	readonly bottom: number;
+	readonly top: number;
+}
+
+/** Whether a line might come within the ruin's reach: its bounding box overlaps the reach's. */
+function reaches({ left, right, bottom, top }: Bounds, { x, y, radius }: Ruin): boolean {
 	const reach = radius * (1 + STREET_GRIDS.edge);
+	return left < x + reach && right > x - reach && bottom < y + reach && top > y - reach;
+}
+
+function boundsOf(points: readonly number[]): Bounds {
 	let left = Infinity;
 	let right = -Infinity;
 	let bottom = Infinity;
@@ -166,7 +178,7 @@ function reaches(points: readonly number[], { x, y, radius }: Ruin): boolean {
 		if (points[index + 1] < bottom) bottom = points[index + 1];
 		if (points[index + 1] > top) top = points[index + 1];
 	}
-	return left < x + reach && right > x - reach && bottom < y + reach && top > y - reach;
+	return { left, right, bottom, top };
 }
 
 /**

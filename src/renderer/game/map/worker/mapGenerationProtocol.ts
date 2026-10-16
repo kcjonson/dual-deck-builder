@@ -109,8 +109,8 @@ export function unpackRoadNetwork({ nodes, stretches, broken, passes, points, of
 
 /**
  * The map as plain data, and the buffers to transfer with it: the network's
- * two, the land's seven, the badlands, the water's ten, and the dressing's. Transferring
- * detaches those arrays from the terrain and water that were encoded, so
+ * two, the land's seven, the badlands, the water's ten, and the dressing's.
+ * Transferring detaches those arrays from the map that was encoded, so
  * encode once nothing reads them again; the worker does, as its last act
  * before it's terminated.
  */

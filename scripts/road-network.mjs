@@ -75,6 +75,7 @@ const { checkRoadNetwork } = load('./map/RoadChecks.js');
 const { areaMapPipeline } = load('./map/AreaMapPipeline.js');
 const { MapPipelineError } = load('./map/MapPipeline.js');
 const { loopsNeeded } = load('./map/Roads.js');
+const { pointAlong } = load('./map/Geometry.js');
 
 const ENVIRONMENTS = ['mixed', 'highDesert', 'rustBelt', 'floodlands', 'badlands'];
 const STAGES = ['terrain', 'water', 'hazards', 'places', 'roads', 'routeTree', 'pois', 'stops', 'dressing'];
@@ -440,7 +441,7 @@ async function dressingPicture() {
 			const deck = [];
 			for (let along = start; along <= end + 0.01; along += Math.max(0.5, (end - start) / 4)) {
 				const at = { x: 0, y: 0 };
-				pointAlongPolyline(points, Math.min(along, length), at);
+				pointAlong(points, Math.min(along, length), at);
 				deck.push(at.x, at.y);
 			}
 			if (deck.length >= 4) svg.push(`<path d="${line(deck)}" fill="none" stroke="#111" stroke-width="5"/>`);
@@ -526,11 +527,14 @@ async function dressingPicture() {
 	try {
 		const { chromium } = createRequire(script)('@playwright/test');
 		const browser = await chromium.launch();
-		const page = await browser.newPage({ viewport: { width: size, height: size } });
-		await page.setContent(`<html><body style="margin:0">${document}</body></html>`);
-		await page.screenshot({ path: out, clip: { x: 0, y: 0, width: size, height: size } });
-		await browser.close();
-		rendered = true;
+		try {
+			const page = await browser.newPage({ viewport: { width: size, height: size } });
+			await page.setContent(`<html><body style="margin:0">${document}</body></html>`);
+			await page.screenshot({ path: out, clip: { x: 0, y: 0, width: size, height: size } });
+			rendered = true;
+		} finally {
+			await browser.close();
+		}
 	} catch (error) {
 		writeFileSync(out.replace(/\.png$/, '.svg'), document);
 		console.log(`no Chromium (${error.message.split('\n')[0]}), wrote the SVG instead`);
@@ -543,24 +547,6 @@ async function dressingPicture() {
 	console.log(`${dressing.districts.length} districts (${dressing.districts.filter(({ kind }) => kind === 'metro').length} in the metro), ${blocks} blocks standing, ${rubble} rubble; ${dressing.rails.length} of ${params.railLines} rail lines, ${dressing.rails.map(({ length, bridges }) => `${length.toFixed(0)} units with ${bridges.length} bridges`).join(', ') || 'none'}; ${dressing.hatches.length} hatched craters; ${dressing.stipple.length / 2} mire dots`);
 	console.log(`labels placed (dropped): ${kinds.map((kind) => `${kind} ${placed[kind] ?? 0} (${dropped[kind] ?? 0})`).join(', ')}`);
 	console.log(`ranges: ${dressing.ranges.map(({ name, cells }) => `${name} ${cells}`).join(', ') || 'none'}`);
-}
-
-/** A point along a polyline, as Geometry's pointAlong finds it. */
-function pointAlongPolyline(points, distance, out) {
-	let travelled = 0;
-	for (let index = 0; index + 3 < points.length; index += 2) {
-		const segment = Math.hypot(points[index + 2] - points[index], points[index + 3] - points[index + 1]);
-		if (travelled + segment >= distance && segment > 0) {
-			const share = (distance - travelled) / segment;
-			out.x = points[index] + (points[index + 2] - points[index]) * share;
-			out.y = points[index + 1] + (points[index + 3] - points[index + 1]) * share;
-			return out;
-		}
-		travelled += segment;
-	}
-	out.x = points[points.length - 2];
-	out.y = points[points.length - 1];
-	return out;
 }
 
 if (command === 'bench') bench();

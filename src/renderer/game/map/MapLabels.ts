@@ -331,12 +331,15 @@ function namedRanges({ radius, land }: MapLabelOptions): FoundRange[] {
 			sumXY += x * y;
 			sumYY += y * y;
 			if (elevation[cell] > peak) peak = elevation[cell];
-			for (const next of [cell - 1, cell + 1, cell - size, cell + size]) {
-				if (next < 0 || next >= size * size || (next === cell - 1 && column === 0) || (next === cell + 1 && column === size - 1)) continue;
-				if (seen[next] === 1 || !inRange(next)) continue;
+			const visit = (next: number): void => {
+				if (seen[next] === 1 || !inRange(next)) return;
 				seen[next] = 1;
 				stack.push(next);
-			}
+			};
+			if (column > 0) visit(cell - 1);
+			if (column < size - 1) visit(cell + 1);
+			if (row > 0) visit(cell - size);
+			if (row < size - 1) visit(cell + size);
 		}
 		if (count < LABELS.ranges.named) continue;
 		const x = sumX / count;
