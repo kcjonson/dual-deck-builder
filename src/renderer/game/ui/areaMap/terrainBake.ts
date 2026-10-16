@@ -120,6 +120,8 @@ class TerrainBaker {
 	/** Inside this, squared, the rim neither fades nor is lined. */
 	private readonly rimSquared: number;
 	private readonly ink: Ink = { red: 0, green: 0, blue: 0 };
+	/** The hotspots whose plumes reach the row being baked. */
+	private readonly rowHotspots: Hotspot[] = [];
 
 	constructor({ terrain, size, step, ruins }: { terrain: BakeTerrain; size: number; step: number; ruins: readonly BuiltUpPlace[] }) {
 		this.terrain = terrain;
@@ -150,6 +152,9 @@ class TerrainBaker {
 		const lights = shades.rowAt(row);
 		const shadeStep = shades.step;
 		const ruins = this.builtUp.rowAt(worldY);
+		const hotspots = this.rowHotspots;
+		hotspots.length = 0;
+		for (const hotspot of terrain.hotspots) if (Math.abs(worldY - hotspot.y) < hotspot.plumeRadius + texel) hotspots.push(hotspot);
 		// The disc's span of this row, so nothing past the rim is visited.
 		const halfChord = Math.sqrt(Math.max(0, outerSquared - worldY * worldY));
 		const first = Math.max(0, Math.floor((radius - halfChord) / texel - 0.5));
@@ -187,7 +192,7 @@ class TerrainBaker {
 				const cliff = this.cliffs.at(column, row);
 				if (cliff > 0) mix(ink, OBSTACLE_COLOURS.cliff, (cliff < 1 ? cliff : 1) * OBSTACLE_COLOURS.cliffWeight);
 			}
-			this.hotspots(worldX, worldY);
+			if (hotspots.length > 0) this.hotspots(hotspots, worldX, worldY);
 			if (distanceSquared > this.rimSquared) this.rim(worldX, worldY, Math.sqrt(distanceSquared));
 
 			const out = (row * this.size + column) * 4;
@@ -210,8 +215,7 @@ class TerrainBaker {
 	}
 
 	/** Craters over everything, as craters: rim, floor, and core; and each plume's edge a dashed ring. */
-	private hotspots(x: number, y: number): void {
-		const hotspots = this.terrain.hotspots;
+	private hotspots(hotspots: readonly Hotspot[], x: number, y: number): void {
 		const texel = this.texel;
 		const ink = this.ink;
 		const { rim, core, ring } = CRATER_STYLE;
