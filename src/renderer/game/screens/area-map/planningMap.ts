@@ -5,7 +5,8 @@ import { STRONGHOLD_TYPE } from '../../map/PoiData';
 import type { Places } from '../../map/Places';
 import type { RiverLines } from '../../map/Rivers';
 import type { RoadNetwork } from '../../map/RoadNetwork';
-import { RouteDescriptor, RouteMap, describeRoutes, poiNames } from '../../map/RouteDescriptors';
+import { mapPoiNames } from '../../map/PoiNames';
+import { RouteDescriptor, RouteMap, describeRoutes } from '../../map/RouteDescriptors';
 import { legPoints } from '../../map/RouteTree';
 import { isFight } from '../../map/StopData';
 import type { AreaMapData, MapMarker, MapRoute } from '../../ui/areaMap/layers';
@@ -90,7 +91,7 @@ export interface PlannedPoi {
 	readonly poi: number;
 	/** Its marker's id, and its routes' destination id: `poi-<poi>`. */
 	readonly id: string;
-	/** Its type and bearing until place names (`poiNames`). */
+	/** Its place's name and its type, "Elk Creek Clinic", or its type and bearing with no place near (`mapPoiNames`). */
 	readonly name: string;
 	/** A key of the POI tuning's types, or `STRONGHOLD_TYPE`. */
 	readonly type: string;
@@ -117,7 +118,7 @@ export function plannedPois(map: RouteMap): readonly PlannedPoi[] {
 	let pois = planned.get(map);
 	if (!pois) {
 		const layer = map.products.pois;
-		const names = poiNames(layer);
+		const names = mapPoiNames(map);
 		pois = Object.freeze(layer.pois.map(({ site, type, tier }, poi): PlannedPoi => {
 			const routes = describeRoutes(map, poi);
 			return Object.freeze({

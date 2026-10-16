@@ -66,7 +66,13 @@ A POI whose quickest route runs past dark with no stops at all can't be mended b
 - Fuel: a unit per 150 units of road, out and back, at least one, the mock routes' rate.
 - Risk: the worst known fight's skulls, 0 with none known.
 
-`poiNames` stands in for place names until the names stream: a POI's type and its bearing from the compound, "Salvage yard, north-east", a stronghold's faction's, numbered where two would match.
+### POI names
+
+POIs take their names from Map 6's places (`map/PoiNames.ts`, DDB-472): a town's or village's name and the POI type's label in title case, "Elk Creek Clinic". A place lends its name within a quarter of the map's radius of it (`PLACE_REACH`, the towns' spacing); a POI with no town or village that near keeps the stand-in it had, its type and bearing from the compound, "Clinic, north-east". A stronghold is its faction's, "Mire-Crawlers stronghold", whatever stands near it. The metro, crossroads, and exits have no names to lend.
+
+Pairs of POI and place within reach are taken nearest first, so where two clinics are near Elk Creek the nearer is Elk Creek Clinic and the other takes the next place in its reach without one. One whose places in reach all have one is numbered after the nearest, "Elk Creek Clinic 2", and so is any stand-in another POI already took. On six campaign maps a POI's nearest town or village was a median of about 180 units off at radius 1000, as little as 7 and as much as 667, so about four in five POIs take a place's name.
+
+The names are worked out on read, from the POI and places layers alone, and take no draws: generation makes the same map it did, so the generator version stays where it was, and since a load makes the map again from its seed and attempts, the names come back with it and nothing about them is saved. `mapPoiNames(map)` works them out once a map, and the area map, the run route screen, and the run's routes (`routeOffers`) all read it, so a POI is named alike everywhere. A route the run set off on keeps the destination name it was saved with, so a save made mid-run before this change shows the old name until the run is home, and the log keeps what it said.
 
 ## The run loop's routes
 
@@ -97,7 +103,7 @@ Calls the spec left open, made the simplest way consistent with it, for Kevin to
 13. Risk is the worst known fight; the run's is at least 1.
 14. Every stop that isn't a fight runs as a quiet stretch.
 15. A day offered a tier 1 destination and up to two from tiers 2 and 3; the area map replaced the day's offer (area-map-route-pick.md, call 89).
-16. A POI's name is its type and its bearing from the compound until the names stream.
+16. A POI's name is a town's or village's within a quarter of the radius and its type's label in title case, "Elk Creek Clinic", nearest pairs first, the next place in reach for a second POI of a type, then a number; with no place in reach, its type and its bearing from the compound (DDB-472).
 17. A destination yields its POI type's food, water, fuel, and scrap; meds wait for the run to carry them, and a stronghold yields nothing yet.
 
 ## Consequences

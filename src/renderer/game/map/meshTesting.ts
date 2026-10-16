@@ -143,6 +143,8 @@ export interface MeshMapOptions {
 	readonly dangerCurve?: number;
 	readonly driverFinds?: number;
 	readonly daylightHours?: number;
+	/** World units: what POI names' reach scales by (PoiNames.ts); `randomMesh`'s default. */
+	readonly radius?: number;
 	readonly stopTables?: StopTables;
 	readonly stopTuning?: StopTuning;
 }
@@ -151,7 +153,7 @@ export interface MeshMap {
 	readonly network: RoadNetwork;
 	readonly tree: RouteTree;
 	/** What the descriptors and the run's adapter read, as a generation holds it. */
-	readonly params: Pick<MapParams, 'stopDensity' | 'dangerCurve' | 'driverFinds' | 'daylightHours' | 'stopTables'>;
+	readonly params: Pick<MapParams, 'stopDensity' | 'dangerCurve' | 'driverFinds' | 'daylightHours' | 'radius' | 'stopTables'>;
 	readonly products: { readonly pois: PoiLayer; readonly stops: StopLayer };
 }
 
@@ -162,12 +164,12 @@ export interface MeshMap {
  */
 export function meshMap(network: RoadNetwork, {
 	seed = 1, ground = fakeGround(), strongholds = 4, poiDensity = 1, routeSplit = 0.5, travelPace = 1,
-	stopDensity = 1, dangerCurve = 1, driverFinds = 2, daylightHours = 14, stopTables, stopTuning,
+	stopDensity = 1, dangerCurve = 1, driverFinds = 2, daylightHours = 14, radius = 1000, stopTables, stopTuning,
 }: MeshMapOptions = {}): MeshMap {
 	const tree = buildRouteTree({ network, travelPace, routeSplit });
 	const root = new Rng({ seed });
 	const pois = placePois({ network, tree, ground, params: { strongholds, poiDensity }, rng: root.fork('pois') });
-	const params = { stopDensity, dangerCurve, driverFinds, daylightHours, ...(stopTables === undefined ? {} : { stopTables }) };
+	const params = { stopDensity, dangerCurve, driverFinds, daylightHours, radius, ...(stopTables === undefined ? {} : { stopTables }) };
 	const stops = placeStops({ network, layer: pois, ground, params, rng: root.fork('stops'), tuning: stopTuning });
 	return { network, tree, params, products: { pois, stops } };
 }
