@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Playtest: main menu</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Caveat:wght@500;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Open+Sans:wght@400;600&amp;family=Source+Serif+4:ital,wght@1,400;1,600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#23221F;text-decoration:none}a:hover{color:#682C1E}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: #24211C; font-family: 'Open Sans', sans-serif; color: #23221F">
+
+<svg aria-hidden="true" width="0" height="0" style="position: absolute">
+<defs>
+
+
+
+
+
+
+<g id="whL" fill="none" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4 4 L20 126 L42 40 L64 126 L80 4"></path>
+<path transform="translate(108 0)" d="M8 4 V126 M54 4 V126 M8 66 L54 64"></path>
+<path transform="translate(192 0)" d="M46 6 L8 4 V126 L48 124 M8 64 L40 62"></path>
+<path transform="translate(266 0)" d="M46 6 L8 4 V126 L48 124 M8 64 L40 62"></path>
+<path transform="translate(340 0)" d="M8 4 V124 L46 124"></path>
+<path transform="translate(404 0)" d="M52 20 C 46 4, 30 2, 26 2 C 10 2, 4 14, 4 30 C 4 50, 52 56, 52 88 C 52 116, 36 128, 24 128 C 12 128, 4 120, 0 106"></path>
+</g>
+<g id="nib">
+<use href="#whL" transform="translate(-9.84 6.84)"></use>
+<use href="#whL" transform="translate(-8.2 5.7)"></use>
+<use href="#whL" transform="translate(-6.56 4.56)"></use>
+<use href="#whL" transform="translate(-4.92 3.42)"></use>
+<use href="#whL" transform="translate(-3.28 2.28)"></use>
+<use href="#whL" transform="translate(-1.64 1.14)"></use>
+<use href="#whL"></use>
+<use href="#whL" transform="translate(1.64 -1.14)"></use>
+<use href="#whL" transform="translate(3.28 -2.28)"></use>
+<use href="#whL" transform="translate(4.92 -3.42)"></use>
+<use href="#whL" transform="translate(6.56 -4.56)"></use>
+<use href="#whL" transform="translate(8.2 -5.7)"></use>
+<use href="#whL" transform="translate(9.84 -6.84)"></use>
+</g>
+<g id="wlS" fill="none" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4 30 C 6 20, 14 18, 18 26 L 30 100 L 50 40 L 66 100 L 86 22 C 88 16, 94 16, 96 22"></path>
+<path d="M128 64 C 118 56, 100 58, 98 78 C 96 96, 112 104, 124 92 M128 62 L 127 94 C 127 102, 134 104, 142 96"></path>
+<path d="M142 96 C 148 84, 154 68, 156 56 C 168 72, 168 90, 156 100 C 150 104, 142 102, 142 95 M157 99 C 163 101, 169 100, 174 96"></path>
+<path d="M184 26 L 176 94 C 175 102, 182 104, 190 98 M166 58 L 200 55"></path>
+<path d="M190 98 C 204 90, 218 76, 210 64 C 202 54, 190 68, 192 84 C 194 100, 212 102, 222 92"></path>
+<path d="M222 92 C 236 70, 248 30, 240 20 C 232 12, 224 38, 226 70 C 228 96, 234 102, 246 94"></path>
+<path d="M272 64 C 262 56, 246 60, 244 78 C 242 96, 258 104, 270 92 M274 62 L 272 94 C 272 102, 278 104, 286 96"></path>
+<path d="M290 62 L 288 98 M289 74 C 294 60, 314 56, 316 70 L 314 94 C 314 102, 320 104, 328 96"></path>
+<path d="M352 64 C 342 56, 326 60, 324 78 C 322 96, 338 104, 350 92 M360 12 L 354 94 C 353 102, 360 104, 368 98 C 400 84, 440 80, 486 70"></path>
+</g>
+<g id="nibS"><use href="#wlS" transform="translate(-4.10 2.85)"></use><use href="#wlS" transform="translate(-3.28 2.28)"></use><use href="#wlS" transform="translate(-2.46 1.71)"></use><use href="#wlS" transform="translate(-1.64 1.14)"></use><use href="#wlS" transform="translate(-0.82 0.57)"></use><use href="#wlS" transform="translate(0.00 0.00)"></use><use href="#wlS" transform="translate(0.82 -0.57)"></use><use href="#wlS" transform="translate(1.64 -1.14)"></use><use href="#wlS" transform="translate(2.46 -1.71)"></use><use href="#wlS" transform="translate(3.28 -2.28)"></use><use href="#wlS" transform="translate(4.10 -2.85)"></use></g>
+<filter id="brushEdge" x="-5%" y="-5%" width="110%" height="110%">
+<feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="2" seed="5" result="t"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="t" scale="2.6" xChannelSelector="R" yChannelSelector="G" result="d"></feDisplacementMap>
+<feTurbulence type="fractalNoise" baseFrequency="0.5 0.03" numOctaves="2" seed="12" result="streak"></feTurbulence>
+<feColorMatrix in="streak" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -10 0 0 0 9" result="streakMask"></feColorMatrix>
+<feComposite in="d" in2="streakMask" operator="in"></feComposite>
+</filter>
+<filter id="paintChip" x="-5%" y="-5%" width="110%" height="110%">
+<feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="2" seed="5" result="t"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="t" scale="2.6" xChannelSelector="R" yChannelSelector="G" result="d"></feDisplacementMap>
+<feTurbulence type="fractalNoise" baseFrequency="0.5 0.03" numOctaves="2" seed="12" result="streak"></feTurbulence>
+<feColorMatrix in="streak" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -10 0 0 0 9" result="streakMask"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="3" seed="21" result="c"></feTurbulence>
+<feColorMatrix in="c" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -16 0 0 0 12.4" result="chipMask"></feColorMatrix>
+<feComposite in="streakMask" in2="chipMask" operator="in" result="mask"></feComposite>
+<feComposite in="d" in2="mask" operator="in"></feComposite>
+</filter>
+<filter id="bandBrush" x="-5%" y="-20%" width="110%" height="140%">
+<feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="3" seed="9" result="t"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="t" scale="9" xChannelSelector="R" yChannelSelector="G" result="d"></feDisplacementMap>
+<feTurbulence type="fractalNoise" baseFrequency="0.02 0.7" numOctaves="2" seed="4" result="streak"></feTurbulence>
+<feColorMatrix in="streak" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 -10 0 0 9" result="streakMask"></feColorMatrix>
+<feComposite in="d" in2="streakMask" operator="in"></feComposite>
+</filter>
+<filter id="overspray" x="-10%" y="-30%" width="120%" height="160%"><feGaussianBlur stdDeviation="2.2"></feGaussianBlur></filter>
+<g id="stencil" fill="none" stroke-width="11" stroke-linecap="butt" stroke-linejoin="bevel">
+<path d="M2 2 L14 58 L28 18 L42 58 L54 2"></path>
+<path transform="translate(80 0)" d="M2 58 L28 2 L54 58 M12 40 H44"></path>
+<path transform="translate(160 0)" d="M52 12 C 46 2, 34 2, 28 2 C 12 2, 6 10, 6 18 C 6 34, 50 26, 50 42 C 50 54, 40 58, 28 58 C 16 58, 8 54, 2 46"></path>
+<path transform="translate(236 0)" d="M2 6 H54 M28 6 V58"></path>
+<path transform="translate(314 0)" d="M52 6 H8 V54 H52 M8 30 H44"></path>
+<path transform="translate(390 0)" d="M8 2 V54 H50"></path>
+<path transform="translate(458 0)" d="M2 58 L28 2 L54 58 M12 40 H44"></path>
+<path transform="translate(538 0)" d="M6 58 V2 L50 58 V2"></path>
+<path transform="translate(616 0)" d="M6 6 V54 H24 C 48 54, 52 42, 52 30 C 52 16, 46 6, 24 6 Z"></path>
+</g>
+<g id="bridges">
+<rect x="23" y="12" width="10" height="5"></rect>
+<rect x="104" y="0" width="8" height="14"></rect>
+<rect x="176" y="20" width="9" height="4"></rect><rect x="200" y="36" width="9" height="4"></rect>
+<rect x="246" y="10" width="4" height="8"></rect>
+<rect x="326" y="0" width="4" height="60"></rect>
+<rect x="392" y="44" width="10" height="4"></rect>
+<rect x="482" y="0" width="8" height="14"></rect>
+<rect x="538" y="6" width="14" height="5"></rect>
+<rect x="626" y="0" width="4" height="60"></rect>
+</g>
+<linearGradient id="trackFade" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"></stop><stop offset="0.12" stop-color="#fff" stop-opacity="1"></stop><stop offset="0.8" stop-color="#fff" stop-opacity="1"></stop><stop offset="1" stop-color="#fff" stop-opacity="0"></stop></linearGradient>
+<mask id="trackMask" maskUnits="userSpaceOnUse" x="0" y="-80" width="900" height="160"><rect x="0" y="-80" width="900" height="160" fill="url(#trackFade)"></rect></mask><filter id="inkWheel" x="-5%" y="-5%" width="110%" height="110%">
+<feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed="15" result="t"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="t" scale="3" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+</filter>
+<g id="wOnly" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4 L20 126 L42 40 L64 126 L80 4"></path></g>
+<g id="nibW"><use href="#wOnly" transform="translate(-9.84 6.84)"></use><use href="#wOnly" transform="translate(-8.20 5.70)"></use><use href="#wOnly" transform="translate(-6.56 4.56)"></use><use href="#wOnly" transform="translate(-4.92 3.42)"></use><use href="#wOnly" transform="translate(-3.28 2.28)"></use><use href="#wOnly" transform="translate(-1.64 1.14)"></use><use href="#wOnly" transform="translate(0.00 0.00)"></use><use href="#wOnly" transform="translate(1.64 -1.14)"></use><use href="#wOnly" transform="translate(3.28 -2.28)"></use><use href="#wOnly" transform="translate(4.92 -3.42)"></use><use href="#wOnly" transform="translate(6.56 -4.56)"></use><use href="#wOnly" transform="translate(8.20 -5.70)"></use><use href="#wOnly" transform="translate(9.84 -6.84)"></use></g>
+
+<g id="cardBackA">
+<rect width="100" height="140" rx="7" fill="#F4EEDD" stroke="#23221F" stroke-width="1.2"></rect>
+<rect x="5" y="5" width="90" height="130" rx="4" fill="#D86036" stroke="#682C1E" stroke-width="2.5"></rect>
+<rect x="11" y="11" width="78" height="118" rx="2" fill="#F4EEDD"></rect>
+<rect x="14" y="14" width="72" height="112" fill="none" stroke="#682C1E" stroke-width="0.8"></rect>
+<path d="M14 34 C 40 24, 60 48, 86 38 M14 46 C 38 38, 62 60, 86 50 M14 102 C 40 92, 62 114, 86 104 M14 114 C 38 106, 60 124, 86 116" stroke="#D86036" stroke-width="1" opacity="0.55" fill="none"></path>
+<path d="M33 54 Q50 47 67 54 L67 78 Q67 93 50 100 Q33 93 33 78 Z" fill="#F4EEDD" stroke="#682C1E" stroke-width="2.6"></path>
+<path d="M41 61 L45.5 87 L50 70 L54.5 87 L59 61" fill="none" stroke="#D86036" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+</g>
+<g id="cardBackB">
+<rect width="100" height="140" rx="7" fill="#F4EEDD" stroke="#23221F" stroke-width="1.2"></rect>
+<rect x="5" y="5" width="90" height="130" rx="4" fill="#4FA6A3" stroke="#1F6E6A" stroke-width="2.5"></rect>
+<rect x="11" y="11" width="78" height="118" rx="2" fill="#F4EEDD"></rect>
+<rect x="14" y="14" width="72" height="112" fill="none" stroke="#1F6E6A" stroke-width="0.8"></rect>
+<path d="M14 34 C 40 24, 60 48, 86 38 M14 46 C 38 38, 62 60, 86 50 M14 102 C 40 92, 62 114, 86 104 M14 114 C 38 106, 60 124, 86 116" stroke="#4FA6A3" stroke-width="1" opacity="0.55" fill="none"></path>
+<path d="M33 54 Q50 47 67 54 L67 78 Q67 93 50 100 Q33 93 33 78 Z" fill="#F4EEDD" stroke="#1F6E6A" stroke-width="2.6"></path>
+<path d="M41 61 L45.5 87 L50 70 L54.5 87 L59 61" fill="none" stroke="#4FA6A3" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path>
+</g>
+<g id="cardEdge"><rect width="100" height="140" rx="7" fill="#E9E1CB" stroke="#23221F" stroke-width="1"></rect></g>
+<filter id="amGrime" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="4" seed="29" result="big"></feTurbulence>
+<feColorMatrix in="big" type="matrix" values="0 0 0 0 0.40  0 0 0 0 0.28  0 0 0 0 0.13  1.4 0 0 0 -0.62" result="stain"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="3" seed="47" result="mid"></feTurbulence>
+<feColorMatrix in="mid" type="matrix" values="0 0 0 0 0.35  0 0 0 0 0.27  0 0 0 0 0.17  0.5 0 0 0 -0.18" result="mottle"></feColorMatrix>
+<feMerge><feMergeNode in="mottle"></feMergeNode><feMergeNode in="stain"></feMergeNode></feMerge>
+</filter>
+<filter id="amBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="22"></feGaussianBlur></filter>
+<mask id="amEdge" maskUnits="userSpaceOnUse" x="0" y="0" width="1412" height="872">
+<rect width="1412" height="872" fill="#fff"></rect>
+<rect x="60" y="60" width="1292" height="752" fill="#000" filter="url(#amBlur)"></rect>
+</mask>
+<filter id="amRelief" x="0" y="0" width="640" height="780" filterUnits="userSpaceOnUse">
+<feTurbulence type="fractalNoise" baseFrequency="0.005 0.01" numOctaves="5" seed="7" result="noise"></feTurbulence>
+<feDiffuseLighting in="noise" surfaceScale="11" diffuseConstant="1" lighting-color="#ffffff" result="light"><feDistantLight azimuth="300" elevation="38"></feDistantLight></feDiffuseLighting>
+<feComposite in="SourceGraphic" in2="light" operator="arithmetic" k1="1.5" k2="0" k3="0" k4="0"></feComposite>
+</filter>
+<filter id="amSoft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="40"></feGaussianBlur></filter>
+<pattern id="amHatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="10" stroke="#B5643C" stroke-width="1.4" opacity="0.5"></line></pattern>
+<linearGradient id="amFold" x1="0" x2="1"><stop offset="0" stop-color="#3A2A14" stop-opacity="0"></stop><stop offset="0.46" stop-color="#3A2A14" stop-opacity="0.12"></stop><stop offset="0.5" stop-color="#FFF6DC" stop-opacity="0.45"></stop><stop offset="0.56" stop-color="#3A2A14" stop-opacity="0.06"></stop><stop offset="1" stop-color="#3A2A14" stop-opacity="0"></stop></linearGradient>
+</defs>
+</svg>
+
+<div style="position: absolute; left: 14px; top: 14px; width: 1412px; height: 872px; background: #EEE7D2; box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 40px rgba(107,74,34,0.22)">
+<svg aria-hidden="true" width="1412" height="872" style="position: absolute; left: 0; top: 0">
+<rect width="1412" height="872" filter="url(#amGrime)" mask="url(#amEdge)" style="mix-blend-mode: multiply"></rect>
+<rect x="18" y="18" width="1376" height="836" fill="none" stroke="#23221F" stroke-width="0.6"></rect>
+<rect x="26" y="26" width="1360" height="820" fill="none" stroke="#23221F" stroke-width="1.6"></rect>
+</svg>
+
+<svg role="img" aria-label="Cover of the atlas: a worn relief map of the Halcyon region, lying on top of the page, under the title Wasteland Wheels" width="664" height="872" viewBox="0 -24 640 840" style="position: absolute; left: 30px; top: -4px; transform: rotate(-0.8deg); filter: drop-shadow(0 14px 14px rgba(0,0,0,0.5)) drop-shadow(0 2px 2px rgba(0,0,0,0.35))">
+<defs>
+<filter id="mapRough" x="-5%" y="-5%" width="110%" height="110%">
+<feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="4" seed="19" result="t"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="t" scale="20" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+</filter>
+<filter id="mapBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="26"></feGaussianBlur></filter>
+<mask id="mapTorn" maskUnits="userSpaceOnUse" x="-20" y="-44" width="680" height="880">
+<rect x="10" y="-14" width="620" height="820" fill="#fff" filter="url(#mapRough)"></rect>
+<path d="M590 -30 L 660 -30 L 660 70 L 628 52 L 616 20 L 596 10 Z" fill="#000" filter="url(#mapRough)"></path>
+<path d="M-20 700 L 40 724 L 30 770 L 70 800 L 60 840 L -20 840 Z" fill="#000" filter="url(#mapRough)"></path>
+<path d="M240 830 L 262 806 L 286 830 Z" fill="#000" filter="url(#mapRough)"></path>
+<path d="M650 420 L 626 432 L 650 452 Z" fill="#000" filter="url(#mapRough)"></path>
+</mask>
+<mask id="mapBand" maskUnits="userSpaceOnUse" x="0" y="-24" width="640" height="840">
+<rect x="0" y="-24" width="640" height="840" fill="#fff"></rect>
+<rect x="64" y="40" width="512" height="712" fill="#000" filter="url(#mapBlur)"></rect>
+</mask>
+<radialGradient id="mapAge" cx="0.5" cy="0.5" r="0.72"><stop offset="0.6" stop-color="#6B4A22" stop-opacity="0"></stop><stop offset="1" stop-color="#6B4A22" stop-opacity="0.45"></stop></radialGradient>
+</defs>
+<g mask="url(#mapTorn)">
+<g filter="url(#amRelief)">
+<rect x="0" y="-24" width="640" height="840" fill="#E8E3CC"></rect>
+<g filter="url(#amSoft)">
+<ellipse cx="140" cy="620" rx="200" ry="140" fill="#D3DCC4" opacity="0.8"></ellipse>
+<ellipse cx="500" cy="180" rx="200" ry="120" fill="#D4CCBC" opacity="0.9"></ellipse>
+</g>
+</g>
+<path d="M380 470 C 440 450, 520 470, 560 520 C 590 560, 540 600, 470 590 C 410 580, 370 520, 380 470 Z" fill="#B5643C" opacity="0.1"></path>
+<path d="M380 470 C 440 450, 520 470, 560 520 C 590 560, 540 600, 470 590 C 410 580, 370 520, 380 470 Z" fill="url(#amHatch)"></path>
+<path d="M-10 300 C 120 280, 220 340, 320 360 S 520 420, 650 400" fill="none" stroke="#86AED3" stroke-width="3"></path>
+<path d="M60 700 C 110 670, 190 680, 220 710 C 240 740, 190 770, 130 760 C 80 750, 40 730, 60 700 Z" fill="#AFCDE1" stroke="#8DB3D3" stroke-width="1.5"></path>
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+<path d="M320 420 C 400 470, 460 520, 520 600 M320 420 C 260 470, 200 520, 120 560 M320 420 C 330 340, 360 280, 420 220" stroke="#F4F2EA" stroke-width="3.4"></path>
+<path d="M320 420 C 400 470, 460 520, 520 600 M320 420 C 260 470, 200 520, 120 560 M320 420 C 330 340, 360 280, 420 220" stroke="#76726A" stroke-width="1.2"></path>
+<path d="M-10 520 C 120 500, 240 450, 320 420 S 520 300, 650 250 M320 420 C 310 540, 330 660, 360 790" stroke="#682C1E" stroke-width="7.5"></path>
+<path d="M-10 520 C 120 500, 240 450, 320 420 S 520 300, 650 250 M320 420 C 310 540, 330 660, 360 790" stroke="#D86036" stroke-width="4.2"></path>
+</g>
+<path d="M300 380 C 326 372, 352 384, 350 410 C 348 440, 320 452, 298 440 C 276 428, 278 390, 300 380 Z" fill="#E5D4CC" stroke="#C9AFA3" stroke-width="1"></path>
+<path d="M320 409 L324 418 L334 419 L326 425 L329 435 L320 429 L311 435 L314 425 L306 419 L316 418 Z" fill="#23221F" stroke="#F2EFE6" stroke-width="1.6"></path>
+<rect x="312" y="-24" width="22" height="840" fill="url(#amFold)"></rect>
+
+<g transform="translate(320 168)">
+<rect x="-280" y="-136" width="560" height="338" fill="#F4EEDD" stroke="#23221F" stroke-width="1.6"></rect>
+<rect x="-273" y="-129" width="546" height="324" fill="none" stroke="#23221F" stroke-width="0.6"></rect>
+<text x="0" y="-106" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" letter-spacing="3" fill="#5D5A52">A ROAD ATLAS OF THE HALCYON REGION</text>
+<svg x="-262" y="-98" width="524" height="264" viewBox="80 -20 880 444">
+<g transform="translate(744 206) rotate(9) scale(1.02)" filter="url(#inkWheel)">
+<circle r="200" fill="#D6CCB2"></circle>
+<circle r="186" fill="none" stroke="#C2B699" stroke-width="26" stroke-dasharray="20 11"></circle>
+<circle r="200" fill="none" stroke="#9E937C" stroke-width="3"></circle>
+<circle r="168" fill="none" stroke="#9E937C" stroke-width="3"></circle>
+<circle r="124" fill="#E8E1CC" stroke="#9E937C" stroke-width="4"></circle>
+<circle r="108" fill="none" stroke="#9E937C" stroke-width="2"></circle>
+<ellipse cx="0" cy="-72" rx="17" ry="25" fill="#CFC5AB" stroke="#9E937C" stroke-width="2.5" transform="rotate(0)"></ellipse><ellipse cx="0" cy="-72" rx="17" ry="25" fill="#CFC5AB" stroke="#9E937C" stroke-width="2.5" transform="rotate(60)"></ellipse><ellipse cx="0" cy="-72" rx="17" ry="25" fill="#CFC5AB" stroke="#9E937C" stroke-width="2.5" transform="rotate(120)"></ellipse><ellipse cx="0" cy="-72" rx="17" ry="25" fill="#CFC5AB" stroke="#9E937C" stroke-width="2.5" transform="rotate(180)"></ellipse><ellipse cx="0" cy="-72" rx="17" ry="25" fill="#CFC5AB" stroke="#9E937C" stroke-width="2.5" transform="rotate(240)"></ellipse><ellipse cx="0" cy="-72" rx="17" ry="25" fill="#CFC5AB" stroke="#9E937C" stroke-width="2.5" transform="rotate(300)"></ellipse>
+<circle r="38" fill="#E8E1CC" stroke="#9E937C" stroke-width="4"></circle>
+<circle cx="0.0" cy="-22.0" r="5.5" fill="#9E937C"></circle><circle cx="20.9" cy="-6.8" r="5.5" fill="#9E937C"></circle><circle cx="12.9" cy="17.8" r="5.5" fill="#9E937C"></circle><circle cx="-12.9" cy="17.8" r="5.5" fill="#9E937C"></circle><circle cx="-20.9" cy="-6.8" r="5.5" fill="#9E937C"></circle>
+</g>
+<g transform="translate(60 352)" mask="url(#trackMask)" fill="none" opacity="0.6">
+<path d="M0 34 C 220 -6, 430 60, 640 18 S 840 -14, 900 -22" stroke="#23221F" stroke-width="9" stroke-dasharray="7 4" transform="translate(0 -6)"></path>
+<path d="M0 34 C 220 -6, 430 60, 640 18 S 840 -14, 900 -22" stroke="#23221F" stroke-width="9" stroke-dasharray="7 4" stroke-dashoffset="5.5" transform="translate(0 5)"></path>
+<path d="M0 -10 C 230 44, 440 -12, 660 30 S 850 34, 900 30" stroke="#23221F" stroke-width="9" stroke-dasharray="7 4" transform="translate(0 -6)"></path>
+<path d="M0 -10 C 230 44, 440 -12, 660 30 S 850 34, 900 30" stroke="#23221F" stroke-width="9" stroke-dasharray="7 4" stroke-dashoffset="5.5" transform="translate(0 5)"></path>
+</g>
+
+<g transform="translate(128 146) rotate(-2) scale(1.62) skewX(-11)">
+<g transform="translate(5 5)" stroke="#3B1A10" stroke-width="4" filter="url(#brushEdge)"><use href="#nib"></use></g>
+<g stroke="#682C1E" stroke-width="9" filter="url(#brushEdge)"><use href="#nib"></use></g>
+<g stroke="#D86036" stroke-width="4" filter="url(#paintChip)"><use href="#nib"></use></g>
+</g>
+<g transform="translate(104 -6) rotate(-5 250 60) scale(1.36) skewX(-14)">
+<g stroke="#F4EEDD" stroke-width="7"><use href="#nibS"></use></g>
+<g stroke="#23221F" stroke-width="2.4" filter="url(#brushEdge)"><use href="#nibS"></use></g>
+</g>
+</svg>
+<text x="0" y="186" text-anchor="middle" font-family="Source Serif 4, serif" font-style="italic" font-size="15" fill="#5D5A52">fourth edition, revised after</text>
+</g>
+<g transform="translate(26 744)">
+<rect x="0" y="0" width="34" height="6" fill="#23221F"></rect><rect x="34" y="0" width="34" height="6" fill="#E8E3CC" stroke="#23221F" stroke-width="1"></rect><rect x="68" y="0" width="34" height="6" fill="#23221F"></rect>
+<text x="108" y="7" font-family="JetBrains Mono, monospace" font-size="9" fill="#23221F">0 · 20 mi</text>
+</g>
+<rect x="0" y="-24" width="640" height="840" filter="url(#amGrime)" mask="url(#mapBand)" style="mix-blend-mode: multiply"></rect>
+<rect x="0" y="-24" width="640" height="840" filter="url(#amGrime)" mask="url(#mapBand)" style="mix-blend-mode: multiply"></rect>
+<rect x="0" y="-24" width="640" height="840" fill="url(#mapAge)"></rect>
+<path d="M560 700 C 600 690, 640 720, 640 760 L 640 816 L 520 816 C 520 770, 530 712, 560 700 Z" fill="#8A6A3A" opacity="0.1" stroke="#6B4A22" stroke-width="2" stroke-opacity="0.3"></path>
+</g>
+</svg>
+
+<svg aria-hidden="true" width="240" height="220" viewBox="0 0 240 220" style="position: absolute; left: 470px; top: 590px; overflow: visible; filter: drop-shadow(0 8px 8px rgba(0,0,0,0.45))"><g transform="translate(20 24) rotate(-9) scale(0.88)"><use href="#cardEdge" transform="translate(4.8 4.8)"></use><use href="#cardEdge" transform="translate(3.2 3.2)"></use><use href="#cardEdge" transform="translate(1.6 1.6)"></use><use href="#cardBackA"></use></g><g transform="translate(104 40) rotate(8) scale(0.88)"><use href="#cardEdge" transform="translate(4.8 4.8)"></use><use href="#cardEdge" transform="translate(3.2 3.2)"></use><use href="#cardEdge" transform="translate(1.6 1.6)"></use><use href="#cardBackB"></use></g></svg>
+<nav aria-label="Main menu" style="position: absolute; left: 740px; top: 70px; width: 610px; display: flex; flex-direction: column">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 34px; letter-spacing: 0.18em">CONTENTS</div>
+<div style="margin-top: 4px; font-family: 'Source Serif 4', serif; font-style: italic; font-size: 16px; color: #5D5A52">Where to open the book today</div>
+
+<a href="#" style="margin-top: 30px; position: relative; display: flex; align-items: center; gap: 16px; min-height: 76px; padding: 0 12px; border-top: 1.4px solid #23221F; border-bottom: 1.4px solid #23221F">
+<svg aria-hidden="true" width="46" height="52" viewBox="0 0 46 52"><path d="M3 7 Q23 0 43 7 L43 26 Q43 42 23 49 Q3 42 3 26 Z" fill="#D86036" stroke="#682C1E" stroke-width="3"></path><text x="23" y="33" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="22" fill="#FFF8EE">9</text></svg>
+<span style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 36px; line-height: 1">Continue</span>
+<span style="font-family: 'Source Serif 4', serif; font-style: italic; font-size: 15px; color: #5D5A52">Day 9 · 3 drivers · 1 stronghold taken</span>
+</span>
+<span style="flex: 1; align-self: center; height: 0; border-bottom: 2px dotted #8E8778; margin: 0 6px"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 14px">DAY 09</span>
+</a>
+
+<a href="#" style="display: flex; align-items: center; gap: 16px; min-height: 60px; padding: 0 12px; border-bottom: 1px solid #CFC9B8">
+<svg aria-hidden="true" width="46" height="40" viewBox="0 0 46 40"><circle cx="23" cy="20" r="16" fill="#FFF" stroke="#23221F" stroke-width="2.2"></circle><text x="23" y="27" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="19" fill="#23221F">1</text></svg>
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 28px">New campaign</span>
+<span style="flex: 1; height: 0; border-bottom: 2px dotted #8E8778; margin: 0 6px"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 14px">DAY 01</span>
+</a>
+
+<a href="#" style="display: flex; align-items: center; gap: 16px; min-height: 60px; padding: 0 12px; border-bottom: 1px solid #CFC9B8">
+<svg aria-hidden="true" width="46" height="40" viewBox="0 0 46 40"><circle cx="23" cy="20" r="16" fill="#FFF" stroke="#23221F" stroke-width="2.2"></circle><text x="23" y="27" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="19" fill="#23221F">H</text></svg>
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 28px">Campaign history</span>
+<span style="flex: 1; height: 0; border-bottom: 2px dotted #8E8778; margin: 0 6px"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 14px">PAST RUNS</span>
+</a>
+
+<div style="margin-top: 34px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.18em; color: #5D5A52">APPENDICES</div>
+<div style="margin-top: 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 30px">
+<a href="#" style="display: flex; align-items: center; min-height: 46px; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 21px"><span>Skirmish</span><span style="flex: 1; height: 0; border-bottom: 2px dotted #B9B2A2; margin: 0 8px"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #5D5A52">A</span></a>
+<a href="#" style="display: flex; align-items: center; min-height: 46px; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 21px"><span>Settings</span><span style="flex: 1; height: 0; border-bottom: 2px dotted #B9B2A2; margin: 0 8px"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #5D5A52">B</span></a>
+<a href="#" style="display: flex; align-items: center; min-height: 46px; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 21px"><svg aria-hidden="true" width="20" height="18" viewBox="0 0 20 18" style="flex: none; margin-right: 8px"><rect x="1" y="3" width="10" height="14" rx="1.5" fill="#F6F1E4" stroke="#682C1E" stroke-width="1.6" transform="rotate(-10 6 10)"></rect><rect x="8" y="1" width="10" height="14" rx="1.5" fill="#F6F1E4" stroke="#1F6E6A" stroke-width="1.6" transform="rotate(8 13 8)"></rect></svg><span>Card showcase</span><span style="flex: 1; height: 0; border-bottom: 2px dotted #B9B2A2; margin: 0 8px"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #5D5A52">C</span></a>
+<a href="#" style="display: flex; align-items: center; min-height: 46px; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 21px"><span>Credits</span><span style="flex: 1; height: 0; border-bottom: 2px dotted #B9B2A2; margin: 0 8px"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #5D5A52">D</span></a>
+<a href="#" style="display: flex; align-items: center; min-height: 46px; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 21px; color: #6E6A61"><span>Developer tools</span><span style="flex: 1; height: 0; border-bottom: 2px dotted #B9B2A2; margin: 0 8px"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #5D5A52">E</span></a>
+</div>
+</nav>
+
+<div style="position: absolute; left: 740px; bottom: 46px; width: 610px; display: flex; justify-content: space-between; align-items: flex-end; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.12em; color: #5D5A52">
+<span>PRINTED BEFORE · REVISED BY HAND AFTER</span>
+<span>BUILD [VERSION]</span>
+</div>
+</div>
+
+<div style="position: absolute; left: -10px; top: 6px; width: 96px; height: 30px; transform: rotate(-34deg); background-color: #85837D; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.09) 0 1px, transparent 1px 3px), linear-gradient(180deg, rgba(255,255,255,0.15), rgba(0,0,0,0.12))"></div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return {};
+	}
+}
+</script>
+</body>
+</html>

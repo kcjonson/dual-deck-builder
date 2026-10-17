@@ -1,0 +1,190 @@
+{
+	"v": 3,
+	"createdOnFiles": {
+		"v": 1,
+		"at": "2026-10-16T17:30:00Z"
+	},
+	"title": "Wasteland Wheels UI Concept",
+	"launch": {
+		"view": "canvas"
+	},
+	"pages": [],
+	"boards": {
+		"Main.dc.html": {
+			"x": 0,
+			"y": 0,
+			"w": 1920,
+			"h": 1240,
+			"title": "Mood board: the atlas in the glovebox"
+		},
+		"Materials.dc.html": {
+			"x": 2000,
+			"y": 0,
+			"w": 1440,
+			"h": 1240,
+			"title": "Materials and marks"
+		},
+		"Weathered.dc.html": {
+			"x": 0,
+			"y": 1360,
+			"w": 1920,
+			"h": 1240,
+			"title": "Mood board, weathered: the atlas that's been through it"
+		},
+		"Worn.dc.html": {
+			"x": 2000,
+			"y": 1360,
+			"w": 1920,
+			"h": 1240,
+			"title": "Mood board, worn: the atlas in use"
+		},
+		"WearStandards.dc.html": {
+			"x": 4000,
+			"y": 1360,
+			"w": 1920,
+			"h": 1580,
+			"title": "Wear standards"
+		},
+		"AtlasCompound.dc.html": {
+			"x": 0,
+			"y": 3540,
+			"w": 1440,
+			"h": 900,
+			"title": "A · Glovebox Atlas: compound"
+		},
+		"AtlasMenu.dc.html": {
+			"x": 1520,
+			"y": 3540,
+			"w": 1440,
+			"h": 900,
+			"title": "A · Glovebox Atlas: main menu"
+		},
+		"KitCompound.dc.html": {
+			"x": 0,
+			"y": 4880,
+			"w": 1440,
+			"h": 900,
+			"title": "B · Field Kit: compound"
+		},
+		"KitMenu.dc.html": {
+			"x": 1520,
+			"y": 4880,
+			"w": 1440,
+			"h": 900,
+			"title": "B · Field Kit: main menu"
+		},
+		"FormCompound.dc.html": {
+			"x": 0,
+			"y": 6220,
+			"w": 1440,
+			"h": 900,
+			"title": "C · Survey Form: compound"
+		},
+		"FormMenu.dc.html": {
+			"x": 1520,
+			"y": 6220,
+			"w": 1440,
+			"h": 900,
+			"title": "C · Survey Form: main menu"
+		},
+		"Lamplight.dc.html": {
+			"x": 0,
+			"y": 9400,
+			"w": 1920,
+			"h": 900,
+			"title": "Rejected: after dark, the atlas under a map light"
+		},
+		"FinalLogo.dc.html": {
+			"x": 0,
+			"y": 7760,
+			"w": 1040,
+			"h": 900,
+			"title": "Playtest · logo, hand painted"
+		},
+		"FinalMenu.dc.html": {
+			"x": 1120,
+			"y": 7760,
+			"w": 1440,
+			"h": 900,
+			"title": "Playtest · main menu"
+		},
+		"FinalCompound.dc.html": {
+			"x": 2640,
+			"y": 7760,
+			"w": 1440,
+			"h": 900,
+			"title": "Playtest · compound"
+		},
+		"FinalSplash.dc.html": {
+			"x": 4160,
+			"y": 7760,
+			"w": 1440,
+			"h": 900,
+			"title": "Playtest · launch splash"
+		}
+	},
+	"order": [
+		"Main.dc.html",
+		"Materials.dc.html",
+		"Weathered.dc.html",
+		"Worn.dc.html",
+		"WearStandards.dc.html",
+		"AtlasCompound.dc.html",
+		"AtlasMenu.dc.html",
+		"KitCompound.dc.html",
+		"KitMenu.dc.html",
+		"FormCompound.dc.html",
+		"FormMenu.dc.html",
+		"FinalLogo.dc.html",
+		"FinalMenu.dc.html",
+		"FinalCompound.dc.html",
+		"FinalSplash.dc.html",
+		"Lamplight.dc.html"
+	],
+	"notes": {
+		"moodTitle": {
+			"x": 0,
+			"y": -300,
+			"text": "Mood board: carrying the road atlas into the game UI",
+			"kind": "title1",
+			"maxW": 3440
+		},
+		"dirA": {
+			"x": 0,
+			"y": 3240,
+			"text": "A · Glovebox Atlas: the screen is the map page",
+			"kind": "title1",
+			"maxW": 2960
+		},
+		"dirB": {
+			"x": 0,
+			"y": 4580,
+			"text": "B · Field Kit: the UI is objects on the dash",
+			"kind": "title1",
+			"maxW": 2960
+		},
+		"dirC": {
+			"x": 0,
+			"y": 5920,
+			"text": "C · Survey Form: printed dispatch paperwork",
+			"kind": "title1",
+			"maxW": 2960
+		},
+		"rejectedTitle": {
+			"x": 0,
+			"y": 9100,
+			"text": "Rejected",
+			"kind": "title1",
+			"maxW": 1920,
+			"color": "gray"
+		},
+		"finalTitle": {
+			"x": 0,
+			"y": 7460,
+			"text": "Playtest direction (not final): Glovebox Atlas, with the Field Kit compound layout",
+			"kind": "title1",
+			"maxW": 5600
+		}
+	},
+	"designSystems": []
+}

@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mood board, weathered: the atlas that's been through it</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Caveat:wght@500;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Open+Sans:wght@400;600&amp;family=Source+Serif+4:ital,wght@1,400;1,600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#C4572F}a:hover{color:#682C1E}
+</style>
+</helmet>
+<div style="width: 1920px; height: 1240px; position: relative; overflow: hidden; background: #2A241E; font-family: 'Open Sans', sans-serif; color: #2A2620">
+
+<svg aria-hidden="true" width="0" height="0" style="position: absolute">
+<defs>
+<filter id="grimeA" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency="0.011" numOctaves="4" seed="2" result="big"></feTurbulence>
+<feColorMatrix in="big" type="matrix" values="0 0 0 0 0.42  0 0 0 0 0.29  0 0 0 0 0.14  2.1 0 0 0 -0.88" result="stain"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="2" seed="7" result="fine"></feTurbulence>
+<feColorMatrix in="fine" type="matrix" values="0 0 0 0 0.16  0 0 0 0 0.11  0 0 0 0 0.07  5 0 0 0 -3.5" result="specks"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="3" seed="13" result="mid"></feTurbulence>
+<feColorMatrix in="mid" type="matrix" values="0 0 0 0 0.35  0 0 0 0 0.27  0 0 0 0 0.17  0.9 0 0 0 -0.3" result="mottle"></feColorMatrix>
+<feMerge><feMergeNode in="mottle"></feMergeNode><feMergeNode in="stain"></feMergeNode><feMergeNode in="specks"></feMergeNode></feMerge>
+</filter>
+<filter id="grimeB" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="4" seed="17" result="big"></feTurbulence>
+<feColorMatrix in="big" type="matrix" values="0 0 0 0 0.40  0 0 0 0 0.28  0 0 0 0 0.13  2.2 0 0 0 -0.95" result="stain"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="29" result="fine"></feTurbulence>
+<feColorMatrix in="fine" type="matrix" values="0 0 0 0 0.16  0 0 0 0 0.11  0 0 0 0 0.07  5 0 0 0 -3.5" result="specks"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="3" seed="41" result="mid"></feTurbulence>
+<feColorMatrix in="mid" type="matrix" values="0 0 0 0 0.35  0 0 0 0 0.27  0 0 0 0 0.17  0.9 0 0 0 -0.3" result="mottle"></feColorMatrix>
+<feMerge><feMergeNode in="mottle"></feMergeNode><feMergeNode in="stain"></feMergeNode><feMergeNode in="specks"></feMergeNode></feMerge>
+</filter>
+<filter id="rough" x="-5%" y="-5%" width="110%" height="110%">
+<feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="3" seed="6" result="t"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="t" scale="18" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+</filter>
+<filter id="waxW" x="-10%" y="-10%" width="120%" height="120%">
+<feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="g"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="g" scale="3.4" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+</filter>
+<filter id="bleed" x="-10%" y="-10%" width="120%" height="120%">
+<feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="2" seed="9" result="t"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="t" scale="6" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+</filter>
+<filter id="blur8" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="8"></feGaussianBlur></filter>
+<filter id="rustSteel" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency="0.007" numOctaves="4" seed="31" result="big"></feTurbulence>
+<feColorMatrix in="big" type="matrix" values="0 0 0 0 0.46  0 0 0 0 0.21  0 0 0 0 0.08  2.4 0 0 0 -1.0" result="rustA"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.3" numOctaves="2" seed="5" result="fine"></feTurbulence>
+<feColorMatrix in="fine" type="matrix" values="0 0 0 0 0.07  0 0 0 0 0.05  0 0 0 0 0.03  4 0 0 0 -2.5" result="pits"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.004 0.12" numOctaves="2" seed="12" result="streak"></feTurbulence>
+<feColorMatrix in="streak" type="matrix" values="0 0 0 0 0.30  0 0 0 0 0.16  0 0 0 0 0.08  1.4 0 0 0 -0.62" result="runs"></feColorMatrix>
+<feMerge><feMergeNode in="rustA"></feMergeNode><feMergeNode in="runs"></feMergeNode><feMergeNode in="pits"></feMergeNode></feMerge>
+</filter>
+<radialGradient id="ageEdge" cx="0.5" cy="0.5" r="0.72">
+<stop offset="0.55" stop-color="#6B4A22" stop-opacity="0"></stop>
+<stop offset="1" stop-color="#6B4A22" stop-opacity="0.55"></stop>
+</radialGradient>
+<radialGradient id="scorch" cx="0.5" cy="0.5" r="0.5">
+<stop offset="0" stop-color="#1A1208" stop-opacity="0.95"></stop>
+<stop offset="0.45" stop-color="#3A2510" stop-opacity="0.7"></stop>
+<stop offset="1" stop-color="#6B4A22" stop-opacity="0"></stop>
+</radialGradient>
+</defs>
+</svg>
+
+<svg aria-hidden="true" width="1920" height="1240" style="position: absolute; left: 0; top: 0">
+<rect width="1920" height="1240" filter="url(#rustSteel)"></rect>
+<g fill="#1C1814" stroke="#4A3D31" stroke-width="1.2">
+<circle cx="40" cy="16" r="6"></circle><circle cx="240" cy="16" r="6"></circle><circle cx="440" cy="16" r="6"></circle><circle cx="640" cy="16" r="6"></circle><circle cx="840" cy="16" r="6"></circle><circle cx="1040" cy="16" r="6"></circle><circle cx="1240" cy="16" r="6"></circle><circle cx="1440" cy="16" r="6"></circle><circle cx="1640" cy="16" r="6"></circle><circle cx="1840" cy="16" r="6"></circle>
+<circle cx="40" cy="1224" r="6"></circle><circle cx="240" cy="1224" r="6"></circle><circle cx="440" cy="1224" r="6"></circle><circle cx="640" cy="1224" r="6"></circle><circle cx="840" cy="1224" r="6"></circle><circle cx="1040" cy="1224" r="6"></circle><circle cx="1240" cy="1224" r="6"></circle><circle cx="1440" cy="1224" r="6"></circle><circle cx="1640" cy="1224" r="6"></circle><circle cx="1840" cy="1224" r="6"></circle>
+</g>
+<path d="M0 30 H1920 M0 1210 H1920" stroke="#16120E" stroke-width="2"></path>
+<text x="1500" y="1150" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="150" letter-spacing="18" fill="#C9B79A" opacity="0.07" filter="url(#bleed)">UNIT 2</text>
+</svg>
+
+<div style="position: absolute; left: 56px; top: 44px; display: flex; align-items: baseline; gap: 28px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 54px; letter-spacing: 0.01em; color: #E4D7B8">The atlas that's been through it</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 14px; letter-spacing: 0.18em; color: #A8977C">WEATHERED VARIANT · SHEET 1B</div>
+</div>
+
+<div style="position: absolute; left: 56px; top: 132px; width: 1000px; height: 700px; transform: rotate(-0.7deg); filter: drop-shadow(0 20px 22px rgba(0,0,0,0.6)) drop-shadow(0 2px 3px rgba(0,0,0,0.5))">
+<svg role="img" aria-label="A fragment of the Halcyon region road atlas, yellowed, stained, torn at the edges, worn through at the folds, with a bullet hole and hand marks in grease pencil" width="1000" height="700" viewBox="0 0 1000 700" style="display: block">
+<defs>
+<filter id="reliefW" x="0" y="0" width="1000" height="700" filterUnits="userSpaceOnUse">
+<feTurbulence type="fractalNoise" baseFrequency="0.0042 0.0085" numOctaves="5" seed="11" result="noise"></feTurbulence>
+<feDiffuseLighting in="noise" surfaceScale="11" diffuseConstant="1" lighting-color="#ffffff" result="light"><feDistantLight azimuth="300" elevation="38"></feDistantLight></feDiffuseLighting>
+<feComposite in="SourceGraphic" in2="light" operator="arithmetic" k1="1.45" k2="0" k3="0" k4="0"></feComposite>
+</filter>
+<filter id="softW" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="46"></feGaussianBlur></filter>
+<pattern id="hatchW" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="10" stroke="#9A5532" stroke-width="1.4" opacity="0.5"></line></pattern>
+<pattern id="streetsW" width="11" height="11" patternUnits="userSpaceOnUse" patternTransform="rotate(14)"><path d="M0 0 H11 M0 0 V11" stroke="#B89C88" stroke-width="0.9" fill="none"></path></pattern>
+<mask id="tornMap">
+<rect x="8" y="8" width="984" height="684" fill="#fff" filter="url(#rough)"></rect>
+<path d="M0 560 L 60 590 L 52 630 L 96 660 L 84 700 L 0 700 Z" fill="#000" filter="url(#rough)"></path>
+<path d="M940 0 L 1000 0 L 1000 46 L 976 40 L 968 22 Z" fill="#000" filter="url(#rough)"></path>
+<path d="M326 342 L 338 338 L 346 346 L 342 358 L 330 360 L 322 352 Z" fill="#000"></path>
+<path d="M660 344 L 668 340 L 674 349 L 667 355 Z" fill="#000"></path>
+<circle cx="912" cy="92" r="6" fill="#000"></circle>
+<path d="M912 92 L 900 78 M912 92 L 926 80 M912 92 L 928 102 M912 92 L 898 106" stroke="#000" stroke-width="2"></path>
+</mask>
+<linearGradient id="foldV" x1="0" x2="1"><stop offset="0" stop-color="#3A2A14" stop-opacity="0"></stop><stop offset="0.46" stop-color="#3A2A14" stop-opacity="0.22"></stop><stop offset="0.5" stop-color="#FFF6DC" stop-opacity="0.55"></stop><stop offset="0.56" stop-color="#3A2A14" stop-opacity="0.12"></stop><stop offset="1" stop-color="#3A2A14" stop-opacity="0"></stop></linearGradient>
+<linearGradient id="foldH" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#3A2A14" stop-opacity="0"></stop><stop offset="0.46" stop-color="#3A2A14" stop-opacity="0.2"></stop><stop offset="0.5" stop-color="#FFF6DC" stop-opacity="0.5"></stop><stop offset="0.56" stop-color="#3A2A14" stop-opacity="0.12"></stop><stop offset="1" stop-color="#3A2A14" stop-opacity="0"></stop></linearGradient>
+</defs>
+<g mask="url(#tornMap)">
+<g filter="url(#reliefW)">
+<rect width="1000" height="700" fill="#E3D6B1"></rect>
+<g filter="url(#softW)">
+<ellipse cx="220" cy="520" rx="220" ry="150" fill="#CCD0B0" opacity="0.8"></ellipse>
+<ellipse cx="800" cy="160" rx="240" ry="120" fill="#CDBFA2" opacity="0.9"></ellipse>
+<ellipse cx="660" cy="620" rx="160" ry="90" fill="#D0D0B2" opacity="0.8"></ellipse>
+</g>
+</g>
+<path d="M610 70 C 700 40, 820 60, 900 140 C 940 200, 880 260, 790 250 C 700 240, 640 180, 610 70 Z" fill="#9A5532" opacity="0.12"></path>
+<path d="M610 70 C 700 40, 820 60, 900 140 C 940 200, 880 260, 790 250 C 700 240, 640 180, 610 70 Z" fill="url(#hatchW)"></path>
+<circle cx="770" cy="150" r="74" fill="none" stroke="#9A5532" stroke-width="1.6" stroke-dasharray="6 5"></circle>
+<circle cx="770" cy="150" r="15" fill="#C4B999" stroke="#625846" stroke-width="2.4"></circle>
+<circle cx="770" cy="150" r="5" fill="#544B3D"></circle>
+<text x="770" y="96" text-anchor="middle" font-family="Source Serif 4, serif" font-style="italic" font-size="14" fill="#7E4228" stroke="#E3D6B1" stroke-width="3.5" paint-order="stroke">Blast zone</text>
+<path d="M-10 190 C 120 170, 200 240, 300 260 S 470 230, 560 300 S 760 430, 1010 470" fill="none" stroke="#7E9DB4" stroke-width="3"></path>
+<path d="M300 260 C 290 320, 240 380, 160 420 S 40 470, -10 520" fill="none" stroke="#7E9DB4" stroke-width="2"></path>
+<path d="M120 540 C 170 510, 250 515, 290 550 C 320 580, 280 620, 210 620 C 150 620, 100 580, 120 540 Z" fill="#A8BDC4" stroke="#839FB2" stroke-width="1.5"></path>
+<text x="208" y="578" text-anchor="middle" font-family="Source Serif 4, serif" font-style="italic" font-size="15" fill="#3D5E7A">Ennis Reservoir</text>
+<path d="M372 300 C 400 288, 432 296, 470 300 C 506 306, 512 334, 506 362 C 500 396, 488 420, 450 424 C 414 428, 384 418, 370 392 C 356 366, 352 316, 372 300 Z" fill="#DCC6B4"></path>
+<path d="M372 300 C 400 288, 432 296, 470 300 C 506 306, 512 334, 506 362 C 500 396, 488 420, 450 424 C 414 428, 384 418, 370 392 C 356 366, 352 316, 372 300 Z" fill="url(#streetsW)"></path>
+<path d="M548 238 C 566 230, 590 236, 594 252 C 598 270, 580 280, 562 276 C 544 272, 536 248, 548 238 Z" fill="#DCC6B4"></path>
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+<path d="M760 520 C 850 450, 900 380, 940 300" stroke="#6E685D" stroke-width="1.3" stroke-dasharray="4 3"></path>
+<path d="M120 120 C 200 220, 300 300, 438 362 M438 362 C 520 420, 600 470, 760 520 L 1010 560 M760 520 C 800 600, 820 650, 860 710 M250 610 C 300 540, 360 500, 438 480 M560 255 C 600 230, 640 300, 700 300 C 780 300, 840 330, 870 380" stroke="#EDE4CA" stroke-width="3.6"></path>
+<path d="M120 120 C 200 220, 300 300, 438 362 M438 362 C 520 420, 600 470, 760 520 L 1010 560 M760 520 C 800 600, 820 650, 860 710 M250 610 C 300 540, 360 500, 438 480 M560 255 C 600 230, 640 300, 700 300 C 780 300, 840 330, 870 380" stroke="#6E685D" stroke-width="1.3"></path>
+<path d="M-10 420 C 200 400, 330 380, 438 362 S 700 250, 1010 150 M438 362 C 446 470, 466 560, 520 710" stroke="#5E2C1F" stroke-width="7.5" opacity="0.9"></path>
+<path d="M-10 420 C 200 400, 330 380, 438 362 S 700 250, 1010 150 M438 362 C 446 470, 466 560, 520 710" stroke="#C4572F" stroke-width="4.2" opacity="0.85" transform="translate(1.6 -1.2)"></path>
+</g>
+<path d="M458 557 L472 571 M472 557 L458 571" stroke="#8E1F18" stroke-width="2.4" stroke-linecap="round"></path>
+<g transform="translate(624 214)">
+<path d="M-13 -14 Q0 -19 13 -14 L13 -2 Q13 10 0 15 Q-13 10 -13 -2 Z" fill="#F0E8D2" stroke="#2A2620" stroke-width="1.6"></path>
+<text x="0" y="5" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="14" fill="#2A2620">83</text>
+</g>
+<g font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="13" text-anchor="middle">
+<circle cx="700" cy="300" r="10" fill="#F0E8D2" stroke="#2A2620" stroke-width="1.7"></circle><text x="700" y="305" fill="#2A2620">W</text>
+<circle cx="250" cy="610" r="10" fill="#F0E8D2" stroke="#2A2620" stroke-width="1.7"></circle><text x="250" y="615" fill="#2A2620">F</text>
+<circle cx="870" cy="380" r="10" fill="#F0E8D2" stroke="#2A2620" stroke-width="1.7"></circle><text x="870" y="385" fill="#2A2620">T</text>
+<circle cx="760" cy="520" r="11" fill="#F0E8D2" stroke="#2A2620" stroke-width="2"></circle><text x="760" y="525" fill="#2A2620">C</text>
+</g>
+<rect x="172" y="222" width="16" height="16" fill="#8E1F18" stroke="#E3D6B1" stroke-width="2" transform="rotate(45 180 230)"></rect>
+<path d="M438 349 L442 358 L452 359 L444 365 L447 375 L438 369 L429 375 L432 365 L424 359 L434 358 Z" fill="#2A2620" stroke="#E3D6B1" stroke-width="1.6"></path>
+<g font-family="Barlow Condensed, sans-serif" font-weight="600" stroke="#E3D6B1" stroke-width="4" paint-order="stroke" stroke-linejoin="round" opacity="0.9">
+<text x="438" y="320" text-anchor="middle" font-size="22" letter-spacing="3.5" fill="#2A2620">HALCYON</text>
+<text x="438" y="394" text-anchor="middle" font-size="14" fill="#2A2620">Home</text>
+<text x="777" y="525" font-size="16" fill="#2A2620">Millmont Clinic</text>
+<text x="714" y="305" font-size="14" fill="#2A2620">Water plant, north</text>
+<text x="264" y="616" font-size="14" fill="#2A2620">Fuel depot</text>
+<text x="884" y="386" font-size="14" fill="#2A2620">Truck stop</text>
+<text x="196" y="236" font-size="15" fill="#8E1F18">Gear-Priests hold</text>
+</g>
+<g font-family="Open Sans, sans-serif" font-size="11.5" fill="#5A5246" stroke="#E3D6B1" stroke-width="3" paint-order="stroke" opacity="0.85">
+<text x="600" y="262">Kettle Gap</text><text x="880" y="610">Ash Gap</text><text x="40" y="380">Saltville</text>
+</g>
+
+<rect width="1000" height="700" filter="url(#grimeA)" style="mix-blend-mode: multiply"></rect>
+<rect width="1000" height="700" fill="url(#ageEdge)"></rect>
+<g fill="none" stroke="#6B4A22" stroke-width="7" opacity="0.32" filter="url(#bleed)">
+<circle cx="600" cy="560" r="58"></circle>
+</g>
+<circle cx="600" cy="560" r="55" fill="#7A5228" opacity="0.07"></circle>
+<path d="M90 60 C 160 40, 260 70, 280 130 C 300 190, 230 230, 150 210 C 80 190, 40 110, 90 60 Z" fill="#8A6A3A" opacity="0.10" stroke="#6B4A22" stroke-width="2.4" stroke-opacity="0.35" filter="url(#bleed)"></path>
+<ellipse cx="880" cy="640" rx="34" ry="22" fill="#2A1E12" opacity="0.22" filter="url(#blur8)" transform="rotate(-30 880 640)"></ellipse>
+<ellipse cx="850" cy="670" rx="26" ry="16" fill="#2A1E12" opacity="0.18" filter="url(#blur8)" transform="rotate(-20 850 670)"></ellipse>
+<circle cx="912" cy="92" r="20" fill="url(#scorch)"></circle>
+
+<g opacity="{{handOpacity}}">
+<path d="M438 362 C 520 420, 600 470, 760 520" fill="none" stroke="#E2C53C" stroke-width="17" stroke-linecap="round" opacity="0.5" style="mix-blend-mode: multiply"></path>
+<path d="M719 512 C 718 486, 752 474, 784 484 C 810 492, 818 520, 800 538 C 780 556, 738 552, 724 534 C 716 524, 722 500, 742 494" fill="none" stroke="#B3332A" stroke-width="3.6" stroke-linecap="round" filter="url(#waxW)" opacity="0.9"></path>
+<path d="M700 520 C 712 500, 760 470, 820 510" fill="none" stroke="#B3332A" stroke-width="9" stroke-linecap="round" opacity="0.12" filter="url(#blur8)"></path>
+<text x="720" y="630" font-family="Caveat, cursive" font-weight="700" font-size="27" fill="#B3332A" transform="rotate(-4 720 630)" opacity="0.9">meds here? 2 days out</text>
+<path d="M447 548 C 470 590, 500 590, 520 560" fill="none" stroke="#B3332A" stroke-width="2.4" stroke-linecap="round" filter="url(#waxW)"></path>
+<text x="490" y="600" font-family="Caveat, cursive" font-weight="700" font-size="22" fill="#B3332A" transform="rotate(3 490 600)">bridge out</text>
+<text x="300" y="455" font-family="Caveat, cursive" font-weight="500" font-size="20" fill="#2F4470" transform="rotate(-6 300 455)">IIII IIII IIII I</text>
+<path d="M640 60 L 690 110 M690 60 L 640 110" stroke="#2A2620" stroke-width="3" stroke-linecap="round" filter="url(#waxW)" opacity="0.8"></path>
+<text x="700" y="60" font-family="Caveat, cursive" font-weight="700" font-size="20" fill="#2A2620" transform="rotate(-3 700 60)">hot. don't.</text>
+</g>
+
+<rect x="320" y="0" width="28" height="700" fill="url(#foldV)"></rect>
+<rect x="652" y="0" width="28" height="700" fill="url(#foldV)"></rect>
+<rect x="0" y="336" width="1000" height="28" fill="url(#foldH)"></rect>
+<rect x="18" y="18" width="964" height="664" fill="none" stroke="#2A2620" stroke-width="1.4" opacity="0.8"></rect>
+<g font-family="JetBrains Mono, monospace" font-size="8" fill="#5A5246" opacity="0.8"><text x="222" y="16">118°20'</text><text x="422" y="16">118°10'</text><text x="622" y="16">118°00'</text></g>
+<g transform="translate(762 560)" opacity="0.92">
+<rect x="0" y="0" width="200" height="96" fill="#E6DAB8" stroke="#2A2620" stroke-width="1.4"></rect>
+<text x="100" y="34" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="20" letter-spacing="3" fill="#2A2620">HALCYON</text>
+<text x="100" y="54" text-anchor="middle" font-family="Source Serif 4, serif" font-style="italic" font-size="12" fill="#5A5246">and the high desert</text>
+<text x="100" y="76" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1" fill="#5A5246">SHEET 7 OF 12 · 4TH ED.</text>
+</g>
+</g>
+</svg>
+<div style="position: absolute; left: -36px; top: -4px; width: 150px; height: 40px; transform: rotate(-32deg); background-color: #85837D; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.09) 0 1px, transparent 1px 3px), repeating-linear-gradient(0deg, rgba(0,0,0,0.12) 0 1px, transparent 1px 4px), linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.15)); clip-path: polygon(2% 10%, 6% 0, 95% 2%, 98% 18%, 96% 34%, 100% 52%, 97% 70%, 99% 88%, 94% 100%, 4% 97%, 0 80%, 3% 62%, 0 44%, 3% 26%)"></div>
+<div style="position: absolute; right: -30px; bottom: 30px; width: 140px; height: 40px; transform: rotate(-58deg); background-color: #85837D; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.09) 0 1px, transparent 1px 3px), repeating-linear-gradient(0deg, rgba(0,0,0,0.12) 0 1px, transparent 1px 4px), linear-gradient(180deg, rgba(255,255,255,0.18), rgba(0,0,0,0.15)); clip-path: polygon(3% 6%, 96% 0, 100% 22%, 97% 40%, 100% 60%, 96% 80%, 98% 100%, 5% 96%, 0 76%, 4% 56%, 0 36%, 3% 18%)"></div>
+</div>
+
+<div style="position: absolute; left: 1110px; top: 120px; width: 754px; height: 342px; transform: rotate(0.6deg); filter: drop-shadow(0 16px 20px rgba(0,0,0,0.55))">
+<div style="position: relative; width: 754px; height: 342px; box-sizing: border-box; padding: 22px 26px; background: #E4D8B6; clip-path: polygon(0 0.6%, 40% 0, 84% 0.8%, 87% 3%, 90% 1.5%, 93% 6%, 96% 4%, 98% 10%, 100% 12%, 99.6% 60%, 100% 99.4%, 50% 100%, 0.4% 99.2%, 0 50%); box-shadow: inset 0 0 50px rgba(107,74,34,0.4)">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 22px; letter-spacing: 0.16em">LEGEND</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #5A5246">sun-faded, oil-marked, still readable</div>
+</div>
+<div style="margin-top: 16px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 12px 12px">
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 62px; background: #E6DAB8; border: 1px solid #2A2620"></div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; line-height: 1">Aged paper</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246">#E6DAB8</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 62px; background: #E3D6B1; border: 1px solid #2A2620"></div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; line-height: 1">Buff, yellowed</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246">#E3D6B1</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 62px; background: #CCD0B0; border: 1px solid #2A2620"></div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; line-height: 1">Sage, faded</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246">#CCD0B0</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 62px; background: #8B6A3E; border: 1px solid #2A2620"></div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; line-height: 1">Tea stain</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246">#8B6A3E</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 62px; background: #3A2510; border: 1px solid #2A2620"></div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; line-height: 1">Scorch</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246">#3A2510</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 62px; background: #85837D; border: 1px solid #2A2620"></div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; line-height: 1">Duct tape</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246">#85837D</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 62px; background: #2A2620; border: 1px solid #2A2620"></div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; line-height: 1">Worn ink</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246">#2A2620</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 62px; background: #C4572F; border: 4px solid #5E2C1F; box-sizing: border-box"></div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; line-height: 1">Highway, faded</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246">#C4572F / #5E2C1F</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 62px; background: #6E685D; border: 1px solid #2A2620"></div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; line-height: 1">Back road</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246">#6E685D</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 62px; background: #7E9DB4; border: 1px solid #2A2620"></div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; line-height: 1">River, dulled</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246">#7E9DB4</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 62px; background: #8E1F18; border: 1px solid #2A2620"></div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; line-height: 1">Stronghold</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246">#8E1F18</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 62px; background: #7A3E1F; border: 1px solid #2A2620"></div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; line-height: 1">Rust</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246">#7A3E1F</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 62px; background: #E2C53C; border: 1px dashed #2A2620"></div><div style="font-family: 'Caveat', cursive; font-weight: 700; font-size: 19px; line-height: 0.8">Highlighter</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246">#E2C53C</div></div>
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="height: 62px; background: #B3332A; border: 1px dashed #2A2620"></div><div style="font-family: 'Caveat', cursive; font-weight: 700; font-size: 19px; line-height: 0.8">Grease pencil</div><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246">#B3332A</div></div>
+</div>
+<svg aria-hidden="true" width="754" height="342" style="position: absolute; left: 0; top: 0; pointer-events: none">
+<rect width="754" height="342" filter="url(#grimeB)" style="mix-blend-mode: multiply"></rect>
+<ellipse cx="610" cy="300" rx="70" ry="26" fill="#2A1E12" opacity="0.22" filter="url(#blur8)" transform="rotate(-8 610 300)"></ellipse>
+<path d="M0 230 C 60 210, 120 250, 170 300 C 190 320, 160 342, 120 342 L 0 342 Z" fill="#8A6A3A" opacity="0.14" stroke="#6B4A22" stroke-width="2" stroke-opacity="0.4" filter="url(#bleed)"></path>
+</svg>
+</div>
+</div>
+
+<div style="position: absolute; left: 1110px; top: 494px; width: 754px; height: 360px; transform: rotate(-0.5deg); filter: drop-shadow(0 16px 20px rgba(0,0,0,0.55))">
+<div style="position: relative; width: 754px; height: 360px; box-sizing: border-box; padding: 24px 28px; background: #E8DDBF; display: flex; flex-direction: column; gap: 12px; clip-path: polygon(0 0.5%, 30% 0, 62% 0.6%, 100% 0, 99.6% 40%, 100% 88%, 96% 91%, 91% 89.5%, 86% 93%, 80% 90%, 74% 94%, 67% 91%, 61% 95%, 54% 92%, 48% 96%, 41% 92.5%, 35% 95%, 28% 91%, 21% 94.5%, 14% 91.5%, 8% 95%, 3% 92%, 0 94%); box-shadow: inset 0 0 46px rgba(107,74,34,0.42)">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em; color: #5A5246">TYPE, AS AN OLD ATLAS SETS IT</div>
+<div style="display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid #C2B596; padding-bottom: 8px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 58px; letter-spacing: 0.16em; line-height: 1; opacity: 0.9">HALCYON</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246; text-align: right">regions, screen titles<br>spaced capitals</div>
+</div>
+<div style="display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid #C2B596; padding-bottom: 8px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; line-height: 1">Millmont Clinic · Gear-Priests hold</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246; text-align: right">places, names, buttons</div>
+</div>
+<div style="display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid #C2B596; padding-bottom: 8px">
+<div style="font-family: 'Source Serif 4', serif; font-style: italic; font-size: 26px; color: #3D5E7A; line-height: 1">Ennis Reservoir, low since spring</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246; text-align: right">water, flavor, rumor</div>
+</div>
+<div style="display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid #C2B596; padding-bottom: 8px">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 19px; line-height: 1">DAY 09 / FUEL 06 / SCRAP 035</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246; text-align: right">counts, ledgers</div>
+</div>
+<div style="display: flex; align-items: baseline; justify-content: space-between">
+<div style="font-family: 'Caveat', cursive; font-weight: 700; font-size: 30px; color: #B3332A; line-height: 1">take the back roads, 24 is out</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5A5246; text-align: right">the player's own marks</div>
+</div>
+<svg aria-hidden="true" width="754" height="360" style="position: absolute; left: 0; top: 0; pointer-events: none">
+<rect width="754" height="360" filter="url(#grimeA)" style="mix-blend-mode: multiply"></rect>
+<circle cx="560" cy="90" r="62" fill="none" stroke="#6B4A22" stroke-width="8" opacity="0.3" filter="url(#bleed)"></circle>
+<circle cx="560" cy="90" r="58" fill="#7A5228" opacity="0.08"></circle>
+<circle cx="604" cy="128" r="44" fill="none" stroke="#6B4A22" stroke-width="5" opacity="0.18" filter="url(#bleed)"></circle>
+<rect x="250" y="0" width="22" height="360" fill="url(#foldV)" opacity="0.8"></rect>
+</svg>
+</div>
+</div>
+
+<div style="position: absolute; left: 70px; top: 880px; width: 520px; height: 318px; transform: rotate(1.2deg); filter: drop-shadow(0 14px 18px rgba(0,0,0,0.55))">
+<div style="position: relative; width: 520px; height: 318px; box-sizing: border-box; padding: 18px 26px 18px 62px; background-color: #ECE1C4; background-image: radial-gradient(circle at 100% 100%, #1A1208 0, #3A2510 9%, rgba(107,74,34,0.55) 17%, rgba(107,74,34,0) 30%), repeating-linear-gradient(180deg, transparent 0 33px, rgba(110,140,170,0.55) 33px 34px); clip-path: polygon(0 0, 100% 0.8%, 100% 66%, 97% 71%, 98.5% 76%, 94% 80%, 95% 86%, 89% 88%, 88% 94%, 82% 95%, 79% 100%, 0 100%); box-shadow: inset 0 0 40px rgba(107,74,34,0.35)">
+<div style="position: absolute; left: 44px; top: 0; bottom: 0; width: 1.5px; background: #C98A80"></div>
+<div style="font-family: 'Caveat', cursive; font-weight: 700; font-size: 27px; line-height: 34px; color: #2A2620">
+<div style="color: #B3332A">how it should feel</div>
+<div>printed, then lived in</div>
+<div>the world is printed, the player draws on it</div>
+<div>a legend, not a dashboard</div>
+<div>torn at the edges, legible in the middle</div>
+<div>every number is a supply count</div>
+<div>everything here was found, not made</div>
+</div>
+<svg aria-hidden="true" width="520" height="318" style="position: absolute; left: 0; top: 0; pointer-events: none">
+<rect width="520" height="318" filter="url(#grimeB)" style="mix-blend-mode: multiply"></rect>
+<path d="M0 200 C 50 180, 120 210, 170 250 C 200 280, 190 318, 150 318 L 0 318 Z" fill="#7A5A30" opacity="0.16" stroke="#6B4A22" stroke-width="2.4" stroke-opacity="0.45" filter="url(#bleed)"></path>
+</svg>
+</div>
+</div>
+
+<div style="position: absolute; left: 640px; top: 878px; width: 640px; height: 320px; transform: rotate(-1deg); filter: drop-shadow(0 14px 18px rgba(0,0,0,0.55))">
+<div style="position: relative; width: 640px; height: 320px; background: #E6DAB8; display: flex; clip-path: polygon(0 2%, 3% 0, 50% 0.5%, 100% 0, 99.5% 30%, 100% 100%, 60% 99%, 30% 100%, 4% 98%, 0 94%); box-shadow: inset 0 0 44px rgba(107,74,34,0.4)">
+<svg aria-hidden="true" width="300" height="320" viewBox="0 0 300 320" style="display: block; flex: none">
+<defs><pattern id="hatchW2" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="9" stroke="#9A5532" stroke-width="1.4" opacity="0.6"></line></pattern></defs>
+<rect width="300" height="320" fill="#DED0A9"></rect>
+<rect width="300" height="320" fill="#9A5532" opacity="0.14"></rect>
+<rect width="300" height="320" fill="url(#hatchW2)"></rect>
+<circle cx="150" cy="160" r="104" fill="none" stroke="#9A5532" stroke-width="2" stroke-dasharray="8 6"></circle>
+<circle cx="150" cy="160" r="30" fill="#C4B999" stroke="#625846" stroke-width="4"></circle>
+<circle cx="150" cy="160" r="9" fill="#544B3D"></circle>
+<text x="150" y="44" text-anchor="middle" font-family="Source Serif 4, serif" font-style="italic" font-size="17" fill="#7E4228" stroke="#DED0A9" stroke-width="4" paint-order="stroke">Blast zone</text>
+</svg>
+<div style="flex: 1; padding: 22px; display: flex; flex-direction: column; gap: 14px">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em; color: #5A5246">HAZARD AND SYMBOL, WORN</div>
+<svg role="img" aria-label="Map symbols: circled POI letters, a stronghold diamond, a home star, a highway shield, a collapsed span, and a trail" width="300" height="230" viewBox="0 0 300 230">
+<g font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="16" text-anchor="middle">
+<circle cx="24" cy="24" r="15" fill="#F0E8D2" stroke="#2A2620" stroke-width="2"></circle><text x="24" y="30" fill="#2A2620">H</text>
+<circle cx="74" cy="24" r="15" fill="#F0E8D2" stroke="#2A2620" stroke-width="2"></circle><text x="74" y="30" fill="#2A2620">W</text>
+<circle cx="124" cy="24" r="15" fill="#F0E8D2" stroke="#8F887A" stroke-width="2"></circle><text x="124" y="30" fill="#8F887A">F</text>
+<circle cx="174" cy="24" r="15" fill="#8F887A"></circle><text x="174" y="30" fill="#E6DAB8">Q</text><path d="M162 36 L186 12" stroke="#E6DAB8" stroke-width="2"></path>
+<rect x="214" y="12" width="22" height="22" fill="#8E1F18" stroke="#E6DAB8" stroke-width="2" transform="rotate(45 225 23)"></rect>
+<path d="M274 6 L279 18 L292 19 L282 27 L285 40 L274 33 L263 40 L266 27 L256 19 L269 18 Z" fill="#2A2620"></path>
+</g>
+<g font-family="JetBrains Mono, monospace" font-size="9" fill="#5A5246" text-anchor="middle"><text x="24" y="58">open</text><text x="74" y="58">open</text><text x="124" y="58">looted</text><text x="174" y="58">spent</text><text x="225" y="58">hold</text><text x="274" y="58">home</text></g>
+<g transform="translate(24 100)"><path d="M-18 -18 Q0 -25 18 -18 L18 -2 Q18 14 0 21 Q-18 14 -18 -2 Z" fill="#F0E8D2" stroke="#2A2620" stroke-width="2"></path><text x="0" y="6" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="18" fill="#2A2620">24</text></g>
+<g fill="none" stroke-linecap="round">
+<path d="M70 100 H130" stroke="#5E2C1F" stroke-width="8"></path><path d="M70 100 H130" stroke="#C4572F" stroke-width="4.5" transform="translate(1.5 -1)"></path>
+<path d="M150 100 H180 M196 100 H226" stroke="#5E2C1F" stroke-width="8"></path><path d="M150 100 H180 M196 100 H226" stroke="#C4572F" stroke-width="4.5" transform="translate(1.5 -1)"></path>
+<path d="M181 92 L195 108 M195 92 L181 108" stroke="#8E1F18" stroke-width="2.6"></path>
+<path d="M246 100 H296" stroke="#6E685D" stroke-width="1.6" stroke-dasharray="5 4"></path>
+<path d="M70 160 H130" stroke="#EDE4CA" stroke-width="4"></path><path d="M70 160 H130" stroke="#6E685D" stroke-width="1.6"></path>
+<path d="M150 152 H226 M150 168 H226" stroke="#2A2620" stroke-width="1.6"></path>
+<path d="M150 160 H226" stroke="#5E2C1F" stroke-width="8"></path><path d="M150 160 H226" stroke="#C4572F" stroke-width="4.5" transform="translate(1.5 -1)"></path>
+<path d="M258 168 l13 -18 l13 18" stroke="#2A2620" stroke-width="2.4" stroke-linejoin="round"></path>
+</g>
+<g font-family="JetBrains Mono, monospace" font-size="9" fill="#5A5246" text-anchor="middle"><text x="24" y="136">shield</text><text x="100" y="124">highway</text><text x="188" y="124">span out</text><text x="271" y="124">trail</text><text x="100" y="186">back road</text><text x="188" y="190">bridge</text><text x="271" y="190">pass</text></g>
+</svg>
+</div>
+<svg aria-hidden="true" width="640" height="320" style="position: absolute; left: 0; top: 0; pointer-events: none">
+<rect width="640" height="320" filter="url(#grimeA)" style="mix-blend-mode: multiply"></rect>
+<rect x="290" y="0" width="22" height="320" fill="url(#foldV)"></rect>
+<ellipse cx="520" cy="270" rx="40" ry="24" fill="#2A1E12" opacity="0.2" filter="url(#blur8)"></ellipse>
+</svg>
+</div>
+</div>
+
+<div style="position: absolute; left: 1330px; top: 884px; width: 530px; height: 314px; transform: rotate(0.8deg); filter: drop-shadow(0 14px 18px rgba(0,0,0,0.55))">
+<div style="position: relative; width: 530px; height: 314px; box-sizing: border-box; padding: 20px 24px; background: #DDD0AD; clip-path: polygon(0 0, 100% 1%, 99.4% 100%, 0.5% 99%); box-shadow: inset 0 0 40px rgba(107,74,34,0.4)">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em; color: #5A5246">LEAVING BEHIND</div>
+<div style="position: relative; margin-top: 14px; height: 168px; background: #1E1F21; display: flex; gap: 12px; padding: 16px; box-sizing: border-box">
+<div style="flex: 1; display: flex; flex-direction: column; gap: 10px">
+<div style="height: 26px; border: 1px solid #44464C; background: #2A2C30; color: #C9CBD0; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; display: flex; align-items: center; padding-left: 8px">Food runs out in 2 days</div>
+<div style="height: 34px; background: #EDD35A; color: #1E1F21; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 16px; display: flex; align-items: center; justify-content: center">Plan a supply run</div>
+</div>
+<div style="width: 150px; border: 1px solid #3BD1E8; box-shadow: 0 0 14px rgba(59,209,232,0.7); background: rgba(59,209,232,0.08); color: #8EEFFF; font-family: 'JetBrains Mono', monospace; font-size: 11px; display: flex; align-items: center; justify-content: center">GLOW HUD</div>
+<svg aria-hidden="true" width="482" height="168" viewBox="0 0 482 168" style="position: absolute; left: 0; top: 0">
+<path d="M20 20 C 160 70, 320 110, 460 150 M30 150 C 180 110, 300 70, 456 18" fill="none" stroke="#B3332A" stroke-width="7" stroke-linecap="round" opacity="0.92" filter="url(#waxW)"></path>
+</svg>
+</div>
+<div style="margin-top: 14px; font-family: 'Caveat', cursive; font-weight: 700; font-size: 23px; line-height: 1.15; color: #2A2620">also: clean paper. if it looks new, nobody's used it.</div>
+<svg aria-hidden="true" width="530" height="314" style="position: absolute; left: 0; top: 0; pointer-events: none">
+<rect width="530" height="314" filter="url(#grimeB)" style="mix-blend-mode: multiply"></rect>
+</svg>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"showHand":{"editor":"boolean","default":true},"$preview":{"width":1920,"height":1240}}'>
+class Component extends DCLogic {
+	renderVals() {
+		const showHand = this.props.showHand ?? true;
+		return { handOpacity: showHand ? 1 : 0 };
+	}
+}
+</script>
+</body>
+</html>
