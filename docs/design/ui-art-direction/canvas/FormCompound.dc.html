@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Survey Form: compound</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Caveat:wght@500;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Open+Sans:wght@400;600&amp;family=Source+Serif+4:ital,wght@1,400;1,600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#23221F;text-decoration:none}a:hover{color:#682C1E}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: #F3EEE0; font-family: 'Open Sans', sans-serif; color: #23221F; box-shadow: inset 0 0 28px rgba(107,74,34,0.18)">
+
+<svg aria-hidden="true" width="1440" height="900" style="position: absolute; left: 0; top: 0">
+<g stroke="#23221F" stroke-width="1"><path d="M8 24 H20 M24 8 V20 M1432 24 H1420 M1416 8 V20 M8 876 H20 M24 892 V880 M1432 876 H1420 M1416 892 V880"></path></g>
+<g fill="none" stroke="#23221F" stroke-width="0.8"><circle cx="720" cy="12" r="6"></circle><path d="M712 12 H728 M720 4 V20"></path><circle cx="720" cy="888" r="6"></circle><path d="M712 888 H728 M720 880 V896"></path></g>
+</svg>
+
+<header style="position: absolute; left: 32px; top: 30px; width: 1376px; height: 64px; display: flex; align-items: stretch; border: 2px solid #23221F">
+<a href="#" style="display: flex; align-items: center; padding: 0 18px; border-right: 2px solid #23221F; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.14em">MENU</a>
+<div style="display: flex; flex-direction: column; justify-content: center; padding: 0 18px; border-right: 1px solid #23221F">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #5D5A52">FORM C-9</div>
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 28px; letter-spacing: 0.12em; line-height: 1">COMPOUND DAILY RETURN</div>
+</div>
+<div style="flex: 1"></div>
+<div style="display: flex; flex-direction: column; justify-content: center; padding: 0 18px; border-left: 1px solid #23221F"><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #5D5A52">DAY</div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; line-height: 1">09</div></div>
+<div style="display: flex; flex-direction: column; justify-content: center; padding: 0 18px; border-left: 1px solid #23221F"><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #5D5A52">SHIFT</div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; line-height: 1">DAWN</div></div>
+<a href="#" style="display: flex; align-items: center; padding: 0 18px; border-left: 2px solid #23221F; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.14em">AREA MAP</a>
+</header>
+
+<section aria-label="01 Stores" style="position: absolute; left: 32px; top: 110px; width: 1376px; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; gap: 10px"><span style="background: #23221F; color: #F3EEE0; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 6px">01</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.16em">STORES ON HAND</span></div>
+<div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border: 2px solid #23221F">
+<div style="padding: 8px 14px; border-right: 1px solid #23221F"><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #5D5A52">FOOD</div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 46px; line-height: 1">14</div></div>
+<div style="position: relative; padding: 8px 14px; border-right: 1px solid #23221F; background: rgba(216,96,54,0.14)"><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #5D5A52">WATER</div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 46px; line-height: 1">11</div><div style="position: absolute; right: 10px; top: 10px; padding: 3px 7px; background: #A3221B; color: #FBEDEA; font-family: 'JetBrains Mono', monospace; font-size: 11px">2 DAYS</div></div>
+<div style="padding: 8px 14px; border-right: 1px solid #23221F"><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #5D5A52">FUEL</div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 46px; line-height: 1">06</div></div>
+<div style="padding: 8px 14px; border-right: 1px solid #23221F"><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #5D5A52">SCRAP</div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 46px; line-height: 1">35</div></div>
+<div style="padding: 8px 14px; border-right: 1px solid #23221F"><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #5D5A52">MEDS</div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 46px; line-height: 1">02</div></div>
+<div style="padding: 8px 14px"><div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #5D5A52">PEOPLE</div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 46px; line-height: 1">18</div></div>
+</div>
+</section>
+
+<section aria-label="02 Plot plan" style="position: absolute; left: 32px; top: 230px; width: 800px; height: 640px; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; gap: 10px"><span style="background: #23221F; color: #F3EEE0; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 6px">02</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.16em">PLOT PLAN · OVERHEAD · 1:500</span></div>
+<svg role="img" aria-label="Overhead plot plan of the compound on survey grid paper: the bunkhouse is built and selected, five other plots are marked not built, the gate is on the east fence" width="800" height="612" viewBox="0 0 800 612" style="display: block; border: 2px solid #23221F; box-sizing: border-box">
+<defs>
+<pattern id="fcGrid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0 V10 H0" fill="none" stroke="#86AED3" stroke-width="0.5" opacity="0.6"></path></pattern>
+<pattern id="fcGrid5" width="50" height="50" patternUnits="userSpaceOnUse"><path d="M50 0 V50 H0" fill="none" stroke="#86AED3" stroke-width="1" opacity="0.7"></path></pattern>
+<pattern id="fcHatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="#B5643C" stroke-width="1.2" opacity="0.6"></line></pattern>
+<pattern id="fcSolid" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#23221F" stroke-width="1"></line></pattern>
+</defs>
+<rect width="800" height="612" fill="#F7F3E8"></rect>
+<rect width="800" height="612" fill="url(#fcGrid)"></rect>
+<rect width="800" height="612" fill="url(#fcGrid5)"></rect>
+
+<path d="M640 300 H 800" stroke="#D86036" stroke-width="22" opacity="0.85" style="mix-blend-mode: multiply"></path>
+<path d="M640 289 H 800 M640 311 H 800" stroke="#682C1E" stroke-width="1.6"></path>
+
+<rect x="60" y="50" width="580" height="500" fill="none" stroke="#23221F" stroke-width="2.4"></rect>
+<rect x="636" y="270" width="8" height="60" fill="#F7F3E8"></rect>
+<path d="M640 270 A 60 60 0 0 1 700 330" fill="none" stroke="#23221F" stroke-width="1" stroke-dasharray="3 3"></path>
+
+<rect x="100" y="90" width="220" height="110" fill="#F4DA4C" opacity="0.7" style="mix-blend-mode: multiply"></rect>
+<rect x="100" y="90" width="220" height="110" fill="url(#fcSolid)"></rect>
+<rect x="100" y="90" width="220" height="110" fill="none" stroke="#23221F" stroke-width="2.4"></rect>
+
+<g fill="url(#fcHatch)" stroke="#23221F" stroke-width="1.4" stroke-dasharray="6 4">
+<rect x="380" y="90" width="90" height="90"></rect>
+<rect x="500" y="90" width="110" height="150"></rect>
+<rect x="100" y="260" width="150" height="110"></rect>
+<rect x="100" y="410" width="250" height="110"></rect>
+<rect x="400" y="400" width="200" height="120"></rect>
+</g>
+<circle cx="350" cy="320" r="30" fill="none" stroke="#23221F" stroke-width="1.4"></circle>
+<text x="350" y="324" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#5D5A52">TANK</text>
+
+<g stroke="#23221F" stroke-width="1" fill="none">
+<path d="M100 76 H320 M100 70 V82 M320 70 V82"></path>
+<path d="M86 90 V200 M80 90 H92 M80 200 H92"></path>
+</g>
+<g font-family="JetBrains Mono, monospace" font-size="10" fill="#23221F">
+<text x="196" y="72">22 m</text>
+<text x="56" y="150" transform="rotate(-90 70 150)">11 m</text>
+</g>
+
+<g font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="16" text-anchor="middle">
+<g><circle cx="120" cy="110" r="14" fill="#23221F"></circle><text x="120" y="116" fill="#F7F3E8">1</text></g>
+<g><circle cx="425" cy="135" r="14" fill="#F7F3E8" stroke="#23221F" stroke-width="2"></circle><text x="425" y="141" fill="#23221F">2</text></g>
+<g><circle cx="555" cy="165" r="14" fill="#F7F3E8" stroke="#23221F" stroke-width="2"></circle><text x="555" y="171" fill="#23221F">3</text></g>
+<g><circle cx="225" cy="465" r="14" fill="#F7F3E8" stroke="#23221F" stroke-width="2"></circle><text x="225" y="471" fill="#23221F">4</text></g>
+<g><circle cx="175" cy="315" r="14" fill="#F7F3E8" stroke="#23221F" stroke-width="2"></circle><text x="175" y="321" fill="#23221F">5</text></g>
+<g><circle cx="500" cy="460" r="14" fill="#F7F3E8" stroke="#23221F" stroke-width="2"></circle><text x="500" y="466" fill="#23221F">6</text></g>
+</g>
+<g font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="20" fill="#23221F" stroke="#F7F3E8" stroke-width="5" paint-order="stroke">
+<text x="140" y="172">BUNKHOUSE</text>
+</g>
+<g font-family="JetBrains Mono, monospace" font-size="11" fill="#23221F" stroke="#F7F3E8" stroke-width="4" paint-order="stroke">
+<text x="662" y="284">GATE E</text>
+<text x="662" y="350">TO AREA MAP</text>
+</g>
+<g transform="translate(30 580)">
+<path d="M0 -20 L 6 2 L 0 -3 L -6 2 Z" fill="#23221F"></path>
+<text x="12" y="0" font-family="JetBrains Mono, monospace" font-size="10" fill="#23221F">N</text>
+</g>
+</svg>
+</section>
+
+<section aria-label="03 Facilities" style="position: absolute; left: 856px; top: 230px; width: 552px; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; gap: 10px"><span style="background: #23221F; color: #F3EEE0; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 6px">03</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.16em">FACILITIES</span></div>
+<div style="border: 2px solid #23221F; display: grid; grid-template-columns: 40px minmax(0, 1fr) 110px 110px; font-size: 14px">
+<div style="padding: 5px 8px; border-bottom: 1px solid #23221F; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5D5A52">NO.</div><div style="padding: 5px 8px; border-bottom: 1px solid #23221F; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5D5A52">FACILITY</div><div style="padding: 5px 8px; border-bottom: 1px solid #23221F; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5D5A52">STATUS</div><div style="padding: 5px 8px; border-bottom: 1px solid #23221F"></div>
+<div style="padding: 0 8px; min-height: 44px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; background: rgba(244,218,76,0.55); font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px">1</div><div style="padding: 0 8px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; background: rgba(244,218,76,0.55); font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 20px">Bunkhouse</div><div style="padding: 0 8px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; background: rgba(244,218,76,0.55); font-family: 'JetBrains Mono', monospace; font-size: 12px">BUILT</div><div style="padding: 4px 6px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; background: rgba(244,218,76,0.55)"><button type="button" style="width: 100%; min-height: 36px; background: #F7F3E8; border: 1.6px solid #23221F; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 16px">Open</button></div>
+<div style="padding: 0 8px; min-height: 40px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px">2</div><div style="padding: 0 8px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 20px">Radio mast</div><div style="padding: 0 8px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'JetBrains Mono', monospace; font-size: 12px; background-image: repeating-linear-gradient(45deg, rgba(181,100,60,0.35) 0 1.2px, transparent 1.2px 7px)">NOT BUILT</div><div style="padding: 0 8px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #6E6A61">20 scrap</div>
+<div style="padding: 0 8px; min-height: 40px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px">3</div><div style="padding: 0 8px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 20px">Infirmary</div><div style="padding: 0 8px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'JetBrains Mono', monospace; font-size: 12px; background-image: repeating-linear-gradient(45deg, rgba(181,100,60,0.35) 0 1.2px, transparent 1.2px 7px)">NOT BUILT</div><div style="padding: 0 8px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #6E6A61">30 scrap, 2 meds</div>
+<div style="padding: 0 8px; min-height: 40px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px">4</div><div style="padding: 0 8px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 20px">Garage</div><div style="padding: 0 8px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'JetBrains Mono', monospace; font-size: 12px; background-image: repeating-linear-gradient(45deg, rgba(181,100,60,0.35) 0 1.2px, transparent 1.2px 7px)">NOT BUILT</div><div style="padding: 0 8px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #6E6A61">not at home yet</div>
+<div style="padding: 0 8px; min-height: 40px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px">5</div><div style="padding: 0 8px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 20px">Map room</div><div style="padding: 0 8px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'JetBrains Mono', monospace; font-size: 12px; background-image: repeating-linear-gradient(45deg, rgba(181,100,60,0.35) 0 1.2px, transparent 1.2px 7px)">NOT BUILT</div><div style="padding: 0 8px; display: flex; align-items: center; border-bottom: 1px solid #CFC9B8; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #6E6A61">via plan a run</div>
+<div style="padding: 0 8px; min-height: 40px; display: flex; align-items: center; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px">6</div><div style="padding: 0 8px; display: flex; align-items: center; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 20px">Stores</div><div style="padding: 0 8px; display: flex; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 12px; background-image: repeating-linear-gradient(45deg, rgba(181,100,60,0.35) 0 1.2px, transparent 1.2px 7px)">NOT BUILT</div><div style="padding: 0 8px; display: flex; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #6E6A61">15 scrap</div>
+</div>
+</section>
+
+<section aria-label="04 Needs" style="position: absolute; left: 856px; top: 560px; width: 552px; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; align-items: center; gap: 10px"><span style="background: #23221F; color: #F3EEE0; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 6px">04</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.16em">NEEDS</span></div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; font-size: 14px">
+<div style="padding: 6px 0; border-bottom: 1px solid #23221F; color: #A3221B; font-weight: 600">Food runs out in 2 days</div>
+<div style="padding: 6px 0; border-bottom: 1px solid #23221F; color: #A3221B; font-weight: 600">Water runs out in 2 days</div>
+<div style="padding: 6px 0; border-bottom: 1px solid #23221F">Mechanic 1 injured, fit in 2 days</div>
+<div style="padding: 6px 0; border-bottom: 1px solid #23221F; color: #6E6A61">Radio: no new rumors</div>
+</div>
+</section>
+
+<section aria-label="05 Orders" style="position: absolute; left: 856px; top: 680px; width: 552px; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; align-items: center; gap: 10px"><span style="background: #23221F; color: #F3EEE0; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 2px 6px">05</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.16em">ORDERS · TICK ONE</span></div>
+<div style="display: flex; gap: 10px">
+<button type="button" style="flex: 1; min-height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: #F7F3E8; border: 1.6px solid #23221F; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 19px"><span style="width: 16px; height: 16px; border: 1.6px solid #23221F"></span>Rest a day</button>
+<button type="button" style="flex: 1; min-height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: #F7F3E8; border: 1.6px solid #23221F; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 19px"><span style="width: 16px; height: 16px; border: 1.6px solid #23221F"></span>Scavenge</button>
+</div>
+<button type="button" style="min-height: 72px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: #D86036; border: 2.5px solid #23221F; box-shadow: 4px 4px 0 #23221F; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; letter-spacing: 0.04em; color: #FFF8EE"><span>Plan a supply run</span><span style="font-family: 'JetBrains Mono', monospace; font-weight: 400; font-size: 12px">FORM R-1 · 30 DESTINATIONS</span></button>
+<div style="font-size: 12px; line-height: 1.4; color: #4A473F">Resting or scavenging ends day 9. The compound eats 5 food and 5 water.</div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return {};
+	}
+}
+</script>
+</body>
+</html>

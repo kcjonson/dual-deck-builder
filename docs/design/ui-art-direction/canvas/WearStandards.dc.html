@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wear standards</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Caveat:wght@500;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Open+Sans:wght@400;600&amp;family=Source+Serif+4:ital,wght@1,400;1,600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#E2A07E}a:hover{color:#F2EFE6}
+</style>
+</helmet>
+<div style="width: 1920px; height: 1580px; position: relative; overflow: hidden; background: #26221D; font-family: 'Open Sans', sans-serif; color: #E9E2D0">
+
+<svg aria-hidden="true" width="0" height="0" style="position: absolute">
+<defs>
+<filter id="wsGrime" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="4" seed="17" result="big"></feTurbulence>
+<feColorMatrix in="big" type="matrix" values="0 0 0 0 0.40  0 0 0 0 0.28  0 0 0 0 0.13  1.4 0 0 0 -0.62" result="stain"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="3" seed="41" result="mid"></feTurbulence>
+<feColorMatrix in="mid" type="matrix" values="0 0 0 0 0.35  0 0 0 0 0.27  0 0 0 0 0.17  0.5 0 0 0 -0.18" result="mottle"></feColorMatrix>
+<feMerge><feMergeNode in="mottle"></feMergeNode><feMergeNode in="stain"></feMergeNode></feMerge>
+</filter>
+<filter id="wsGrimeHeavy" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="4" seed="3" result="big"></feTurbulence>
+<feColorMatrix in="big" type="matrix" values="0 0 0 0 0.40  0 0 0 0 0.27  0 0 0 0 0.12  2.0 0 0 0 -0.85" result="stain"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="2" seed="7" result="fine"></feTurbulence>
+<feColorMatrix in="fine" type="matrix" values="0 0 0 0 0.16  0 0 0 0 0.11  0 0 0 0 0.07  5 0 0 0 -3.6" result="specks"></feColorMatrix>
+<feMerge><feMergeNode in="stain"></feMergeNode><feMergeNode in="specks"></feMergeNode></feMerge>
+</filter>
+<filter id="wsBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="14"></feGaussianBlur></filter>
+<filter id="wsBlur6" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"></feGaussianBlur></filter>
+<filter id="wsBleed" x="-10%" y="-10%" width="120%" height="120%">
+<feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="2" seed="9" result="t"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="t" scale="6" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+</filter>
+<filter id="wsStamp" x="-5%" y="-5%" width="110%" height="110%">
+<feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="2" seed="21" result="speck"></feTurbulence>
+<feColorMatrix in="speck" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.6 1.75" result="mask"></feColorMatrix>
+<feComposite in="SourceGraphic" in2="mask" operator="in"></feComposite>
+</filter>
+<filter id="wsWax" x="-10%" y="-10%" width="120%" height="120%">
+<feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3" result="g"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="g" scale="3" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+</filter>
+<mask id="edgeBand" maskUnits="userSpaceOnUse" x="0" y="0" width="430" height="250">
+<rect width="430" height="250" fill="#fff"></rect>
+<rect x="34" y="34" width="362" height="182" fill="#000" filter="url(#wsBlur)"></rect>
+</mask>
+<mask id="edgeBandBig" maskUnits="userSpaceOnUse" x="0" y="0" width="560" height="440">
+<rect width="560" height="440" fill="#fff"></rect>
+<rect x="40" y="40" width="480" height="360" fill="#000" filter="url(#wsBlur)"></rect>
+</mask>
+<radialGradient id="wsScorch" cx="1" cy="1" r="1">
+<stop offset="0" stop-color="#1A1208" stop-opacity="0.95"></stop>
+<stop offset="0.25" stop-color="#3A2510" stop-opacity="0.7"></stop>
+<stop offset="0.5" stop-color="#6B4A22" stop-opacity="0"></stop>
+</radialGradient>
+<linearGradient id="wsFold" x1="0" x2="1"><stop offset="0" stop-color="#3A2A14" stop-opacity="0"></stop><stop offset="0.46" stop-color="#3A2A14" stop-opacity="0.16"></stop><stop offset="0.5" stop-color="#FFF6DC" stop-opacity="0.5"></stop><stop offset="0.56" stop-color="#3A2A14" stop-opacity="0.08"></stop><stop offset="1" stop-color="#3A2A14" stop-opacity="0"></stop></linearGradient>
+</defs>
+</svg>
+
+<div style="position: absolute; left: 56px; top: 40px; width: 1808px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; align-items: baseline; gap: 24px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 54px; color: #F2EFE6">Wear standards</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 14px; letter-spacing: 0.18em; color: #A8977C">WHEN THINGS GET DIRTY, AND WHY · SHEET 4</div>
+</div>
+<div style="font-family: 'Source Serif 4', serif; font-style: italic; font-size: 26px; color: #D9CDB0; max-width: 1400px; line-height: 1.3">Wear is history. Every mark needs a reason the player could guess, it grows from the edges in, and it never sits on what they read to make a decision.</div>
+</div>
+
+<div style="position: absolute; left: 56px; top: 200px; width: 1808px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: baseline; gap: 12px"><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 34px; color: #F2EFE6">W0</div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 22px; letter-spacing: 0.12em; color: #D9CDB0">CLEAN</div></div>
+<div style="position: relative; width: 430px; height: 250px; box-sizing: border-box; padding: 20px 22px; background: #F6F1E4; box-shadow: 0 10px 22px rgba(0,0,0,0.45); color: #23221F; display: flex; flex-direction: column; gap: 8px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; letter-spacing: 0.14em">DESTINATIONS</div>
+<div style="display: flex; justify-content: space-between; border-top: 1px solid #D6CFBC; padding-top: 8px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px"><span>Water plant, north</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 400">tier 2</span></div>
+<div style="display: flex; justify-content: space-between; border-top: 1px solid #D6CFBC; padding-top: 8px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px"><span>Clinic, west</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 400">tier 1</span></div>
+<div style="margin-top: auto; align-self: flex-start; padding: 10px 18px; background: #D86036; border: 2.5px solid #682C1E; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; color: #FFF8EE">Plan a run here</div>
+</div>
+<div style="font-size: 15px; line-height: 1.5; color: #E9E2D0"><b style="color: #F2EFE6">Gets it:</b> card text and numbers, button labels, the player's own marks, the thing in focus, anything just acquired or issued this run.</div>
+<div style="font-size: 15px; line-height: 1.5; color: #C9BFA8"><b style="color: #F2EFE6">Why:</b> it's being read right now, or it's new. Fresh print, fresh ink.</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; color: #A8977C">EFFECTS: none. Flat paper tone, full-strength ink.</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: baseline; gap: 12px"><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 34px; color: #F2EFE6">W1</div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 22px; letter-spacing: 0.12em; color: #D9CDB0">HANDLED</div></div>
+<div style="position: relative; width: 430px; height: 250px; box-sizing: border-box; padding: 20px 22px; background: #F0E9D6; box-shadow: 0 10px 22px rgba(0,0,0,0.45), inset 0 0 22px rgba(107,74,34,0.18); color: #23221F; display: flex; flex-direction: column; gap: 8px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; letter-spacing: 0.14em">DESTINATIONS</div>
+<div style="display: flex; justify-content: space-between; border-top: 1px solid #D3C9B1; padding-top: 8px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px"><span>Water plant, north</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 400">tier 2</span></div>
+<div style="display: flex; justify-content: space-between; border-top: 1px solid #D3C9B1; padding-top: 8px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px"><span>Clinic, west</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 400">tier 1</span></div>
+<div style="margin-top: auto; align-self: flex-start; padding: 10px 18px; background: #D86036; border: 2.5px solid #682C1E; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; color: #FFF8EE">Plan a run here</div>
+<svg aria-hidden="true" width="430" height="250" style="position: absolute; left: 0; top: 0; pointer-events: none">
+<ellipse cx="404" cy="232" rx="26" ry="14" fill="#2A1E12" opacity="0.1" filter="url(#wsBlur6)"></ellipse>
+</svg>
+</div>
+<div style="font-size: 15px; line-height: 1.5; color: #E9E2D0"><b style="color: #F2EFE6">Gets it:</b> the default for every UI surface. Panels, lists, ledgers, tabs, the bodies of buttons, the top bar.</div>
+<div style="font-size: 15px; line-height: 1.5; color: #C9BFA8"><b style="color: #F2EFE6">Why:</b> it's kit the crew uses every day. Lived in, kept in a dry cab.</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; color: #A8977C">EFFECTS: warmer paper, soft edge tone, one smudge at the grab corner. No surface texture.</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: baseline; gap: 12px"><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 34px; color: #F2EFE6">W2</div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 22px; letter-spacing: 0.12em; color: #D9CDB0">WORN</div></div>
+<div style="position: relative; width: 430px; height: 250px; filter: drop-shadow(0 10px 14px rgba(0,0,0,0.45))">
+<div style="position: relative; width: 430px; height: 250px; box-sizing: border-box; padding: 20px 22px; background: #EAE1C8; box-shadow: inset 0 0 34px rgba(107,74,34,0.3); color: #23221F; display: flex; flex-direction: column; gap: 8px; clip-path: polygon(0 1%, 50% 0, 92% 0.5%, 95% 3%, 97% 1.5%, 100% 5%, 99.6% 60%, 100% 99%, 50% 100%, 0.5% 99.5%, 0 50%)">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; letter-spacing: 0.14em">DESTINATIONS</div>
+<div style="display: flex; justify-content: space-between; border-top: 1px solid #CFC3A6; padding-top: 8px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px"><span>Water plant, north</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 400">tier 2</span></div>
+<div style="display: flex; justify-content: space-between; border-top: 1px solid #CFC3A6; padding-top: 8px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px"><span>Clinic, west</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 400">tier 1</span></div>
+<div style="margin-top: auto; align-self: flex-start; padding: 10px 18px; background: #D86036; border: 2.5px solid #682C1E; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; color: #FFF8EE">Plan a run here</div>
+<svg aria-hidden="true" width="430" height="250" style="position: absolute; left: 0; top: 0; pointer-events: none">
+<rect width="430" height="250" filter="url(#wsGrime)" mask="url(#edgeBand)" style="mix-blend-mode: multiply"></rect>
+<rect x="300" y="0" width="22" height="250" fill="url(#wsFold)"></rect>
+<path d="M330 250 C 340 226, 380 214, 430 220 L 430 250 Z" fill="#8A6A3A" opacity="0.1" stroke="#6B4A22" stroke-width="1.6" stroke-opacity="0.25" filter="url(#wsBleed)"></path>
+</svg>
+</div>
+<div style="position: absolute; left: -14px; top: -8px; width: 70px; height: 24px; transform: rotate(-30deg); background: #85837D; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.09) 0 1px, transparent 1px 3px)"></div>
+</div>
+<div style="font-size: 15px; line-height: 1.5; color: #E9E2D0"><b style="color: #F2EFE6">Gets it:</b> printed reference that's old in the world: the atlas, the legend, compound signage, screen backdrops, the menu's sheet.</div>
+<div style="font-size: 15px; line-height: 1.5; color: #C9BFA8"><b style="color: #F2EFE6">Why:</b> printed before the end, folded a hundred times, ridden on the dash.</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; color: #A8977C">EFFECTS: aged paper, edge-band grime, folds, shallow tears, tape at corners, a stain in a margin.</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: baseline; gap: 12px"><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 34px; color: #F2EFE6">W3</div><div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 22px; letter-spacing: 0.12em; color: #E2A07E">DAMAGED</div></div>
+<div style="position: relative; width: 430px; height: 250px; filter: drop-shadow(0 10px 14px rgba(0,0,0,0.45))">
+<div style="position: relative; width: 430px; height: 250px; box-sizing: border-box; padding: 20px 22px; background: #E4D9BA; box-shadow: inset 0 0 40px rgba(107,74,34,0.4); color: #23221F; display: flex; flex-direction: column; gap: 8px; clip-path: polygon(0 1%, 30% 0, 34% 4%, 38% 0.5%, 100% 0, 99.6% 50%, 100% 66%, 96% 72%, 97% 79%, 92% 84%, 92% 91%, 86% 93%, 84% 100%, 0.5% 99%, 0 50%)">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; letter-spacing: 0.14em">DESTINATIONS</div>
+<div style="display: flex; justify-content: space-between; border-top: 1px solid #C9BB9B; padding-top: 8px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px"><span>Water plant, north</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 400">tier 2</span></div>
+<div style="display: flex; justify-content: space-between; border-top: 1px solid #C9BB9B; padding-top: 8px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px"><span>Clinic, west</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 400">tier 1</span></div>
+<div style="margin-top: auto; align-self: flex-start; padding: 10px 18px; background: #D86036; border: 2.5px solid #682C1E; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; color: #FFF8EE">Plan a run here</div>
+<svg aria-hidden="true" width="430" height="250" style="position: absolute; left: 0; top: 0; pointer-events: none">
+<rect width="430" height="250" filter="url(#wsGrimeHeavy)" mask="url(#edgeBand)" style="mix-blend-mode: multiply"></rect>
+<rect x="270" y="150" width="160" height="100" fill="url(#wsScorch)"></rect>
+<circle cx="398" cy="34" r="5" fill="#26221D"></circle>
+<circle cx="398" cy="34" r="12" fill="#3A2510" opacity="0.35" filter="url(#wsBlur6)"></circle>
+<g filter="url(#wsStamp)" transform="rotate(-9 300 196)"><rect x="226" y="172" width="150" height="46" rx="4" fill="none" stroke="#23221F" stroke-width="4"></rect><text x="301" y="206" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="28" letter-spacing="4" fill="#23221F">DEPLETED</text></g>
+</svg>
+</div>
+</div>
+<div style="font-size: 15px; line-height: 1.5; color: #E9E2D0"><b style="color: #F2EFE6">Gets it:</b> only what a game event touched. A depleted POI, a wrecked vehicle, an injured driver's tag, a lost run, the defeat screen.</div>
+<div style="font-size: 15px; line-height: 1.5; color: #C9BFA8"><b style="color: #F2EFE6">Why:</b> something happened to it, and the player was there. Damage is a message.</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; color: #A8977C">EFFECTS: W2 plus one hero mark: burn, hole, rip, or a stamp. Never decorative.</div>
+</div>
+</div>
+
+<div style="position: absolute; left: 56px; top: 820px; width: 900px; display: flex; flex-direction: column; gap: 18px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; letter-spacing: 0.06em; color: #F2EFE6">Where wear goes on a surface</div>
+<div style="position: relative; width: 900px; height: 680px">
+<div style="position: absolute; left: 170px; top: 120px; width: 560px; height: 440px; filter: drop-shadow(0 12px 18px rgba(0,0,0,0.5))">
+<div style="position: relative; width: 560px; height: 440px; background: #EAE1C8; box-shadow: inset 0 0 34px rgba(107,74,34,0.3); clip-path: polygon(0 1%, 50% 0, 100% 0.5%, 99.6% 50%, 100% 92%, 97% 95%, 98.5% 99%, 50% 100%, 0.5% 99.5%, 0 50%)">
+<svg aria-hidden="true" width="560" height="440" style="position: absolute; left: 0; top: 0">
+<rect width="560" height="440" filter="url(#wsGrime)" mask="url(#edgeBandBig)" style="mix-blend-mode: multiply"></rect>
+<rect x="268" y="0" width="24" height="440" fill="url(#wsFold)"></rect>
+<rect x="56" y="56" width="448" height="328" fill="none" stroke="#2F6FA8" stroke-width="2" stroke-dasharray="8 6"></rect>
+<rect x="0" y="0" width="560" height="440" fill="none" stroke="#D86036" stroke-width="2"></rect>
+<rect x="34" y="34" width="492" height="372" fill="none" stroke="#D86036" stroke-width="1.5" stroke-dasharray="3 4"></rect>
+<ellipse cx="530" cy="412" rx="30" ry="16" fill="#2A1E12" opacity="0.12" filter="url(#wsBlur6)"></ellipse>
+</svg>
+<div style="position: absolute; left: 76px; top: 76px; width: 408px; display: flex; flex-direction: column; gap: 10px; color: #23221F">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 22px; letter-spacing: 0.14em">STORES LEDGER</div>
+<div style="display: flex; justify-content: space-between; border-top: 1px solid #CFC3A6; padding-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 16px"><span>Water</span><span style="color: #C8372D">11 · 2 days</span></div>
+<div style="display: flex; justify-content: space-between; border-top: 1px solid #CFC3A6; padding-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 16px"><span>Fuel</span><span>06</span></div>
+<div style="display: flex; justify-content: space-between; border-top: 1px solid #CFC3A6; padding-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 16px"><span>Scrap</span><span>35</span></div>
+<div style="font-family: 'Caveat', cursive; font-weight: 700; font-size: 26px; color: #C8372D; margin-top: 10px">send the bike north</div>
+</div>
+</div>
+<div style="position: absolute; left: -16px; top: -10px; width: 92px; height: 28px; transform: rotate(-32deg); background: #85837D; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.09) 0 1px, transparent 1px 3px)"></div>
+</div>
+<svg aria-hidden="true" width="900" height="680" style="position: absolute; left: 0; top: 0; pointer-events: none">
+<g fill="none" stroke="#B9AE96" stroke-width="1.2">
+<path d="M170 140 H 140 L 120 100"></path>
+<path d="M204 154 H 150 L 120 230"></path>
+<path d="M226 420 H 120 L 120 380"></path>
+<path d="M440 120 V 60 H 520"></path>
+<path d="M700 530 H 760 L 780 560"></path>
+<path d="M560 384 H 760 L 780 440"></path>
+<path d="M190 130 L 160 40 H 300"></path>
+</g>
+</svg>
+<div style="position: absolute; left: 0; top: 70px; width: 116px; font-size: 13px; line-height: 1.35; color: #E9E2D0; text-align: right"><b style="color: #E2A07E">Edge band</b><br>the outer 6% of the shortest side: ageing, grime, tears</div>
+<div style="position: absolute; left: 0; top: 214px; width: 116px; font-size: 13px; line-height: 1.35; color: #E9E2D0; text-align: right"><b style="color: #E2A07E">Falloff</b><br>grime fades to nothing across the next 6%</div>
+<div style="position: absolute; left: 0; top: 336px; width: 116px; font-size: 13px; line-height: 1.35; color: #E9E2D0; text-align: right"><b style="color: #8EB8DE">Reading window</b><br>no texture at all. Text, numbers, icons, hit targets live here</div>
+<div style="position: absolute; left: 304px; top: 22px; width: 240px; font-size: 13px; line-height: 1.35; color: #E9E2D0"><b style="color: #E2A07E">Tape</b> pins a corner, never crosses the window</div>
+<div style="position: absolute; left: 528px; top: 44px; width: 260px; font-size: 13px; line-height: 1.35; color: #E9E2D0"><b style="color: #E2A07E">Fold</b> only on printed sheets (W2). A crease is a tone change, not grime, so it may cross the window at low contrast</div>
+<div style="position: absolute; left: 786px; top: 430px; width: 114px; font-size: 13px; line-height: 1.35; color: #E9E2D0"><b style="color: #8EB8DE">Hand marks</b> sit above every wear layer, always fresh</div>
+<div style="position: absolute; left: 786px; top: 548px; width: 114px; font-size: 13px; line-height: 1.35; color: #E9E2D0"><b style="color: #E2A07E">Grab corner</b> one smudge where a thumb holds it</div>
+</div>
+</div>
+
+<div style="position: absolute; left: 1010px; top: 820px; width: 854px; display: flex; flex-direction: column; gap: 30px">
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; letter-spacing: 0.06em; color: #F2EFE6">Four reasons, four kinds of mark</div>
+<div style="display: grid; grid-template-columns: 130px minmax(0, 1fr) minmax(0, 1fr); font-size: 14px; line-height: 1.45; border-top: 1px solid #4A4237">
+<div style="padding: 10px 0; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: #A8977C; border-bottom: 1px solid #4A4237">REASON</div>
+<div style="padding: 10px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: #A8977C; border-bottom: 1px solid #4A4237">LOOKS LIKE</div>
+<div style="padding: 10px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.12em; color: #A8977C; border-bottom: 1px solid #4A4237">ONLY ON</div>
+<div style="padding: 10px 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px; color: #F2EFE6; border-bottom: 1px solid #4A4237">Age</div>
+<div style="padding: 10px 12px; border-bottom: 1px solid #4A4237">paper yellows, edges darken, ink fades a step</div>
+<div style="padding: 10px 12px; border-bottom: 1px solid #4A4237; color: #C9BFA8">things printed before the end (W2)</div>
+<div style="padding: 10px 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px; color: #F2EFE6; border-bottom: 1px solid #4A4237">Handling</div>
+<div style="padding: 10px 12px; border-bottom: 1px solid #4A4237">soft corners, folds, a smudge at the grab point</div>
+<div style="padding: 10px 12px; border-bottom: 1px solid #4A4237; color: #C9BFA8">anything the crew uses daily (W1, W2)</div>
+<div style="padding: 10px 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px; color: #F2EFE6; border-bottom: 1px solid #4A4237">Exposure</div>
+<div style="padding: 10px 12px; border-bottom: 1px solid #4A4237">sun fade on one side, a water tide line, road dust in the edge band</div>
+<div style="padding: 10px 12px; border-bottom: 1px solid #4A4237; color: #C9BFA8">things that ride in the vehicle: run screens, route strip, vehicle tags</div>
+<div style="padding: 10px 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px; color: #E2A07E; border-bottom: 1px solid #4A4237">Damage</div>
+<div style="padding: 10px 12px; border-bottom: 1px solid #4A4237">burn, bullet hole, rip, a stamp</div>
+<div style="padding: 10px 12px; border-bottom: 1px solid #4A4237; color: #C9BFA8">the object a game event hit, and only after it happens (W3)</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; letter-spacing: 0.06em; color: #F2EFE6">States never borrow dirt</div>
+<div style="display: grid; grid-template-columns: 170px minmax(0, 1fr); font-size: 14px; line-height: 1.45; border-top: 1px solid #4A4237">
+<div style="padding: 9px 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 18px; color: #F2EFE6; border-bottom: 1px solid #4A4237">Hover, focus</div><div style="padding: 9px 12px; border-bottom: 1px solid #4A4237">lift and an ink outline. Wear level unchanged.</div>
+<div style="padding: 9px 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 18px; color: #F2EFE6; border-bottom: 1px solid #4A4237">Selected, chosen</div><div style="padding: 9px 12px; border-bottom: 1px solid #4A4237">highlighter or a grease-pencil circle, drawn on top.</div>
+<div style="padding: 9px 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 18px; color: #F2EFE6; border-bottom: 1px solid #4A4237">Disabled</div><div style="padding: 9px 12px; border-bottom: 1px solid #4A4237">faded print, ink at 55%. Not grime: dirty is not the same as unavailable.</div>
+<div style="padding: 9px 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 18px; color: #F2EFE6; border-bottom: 1px solid #4A4237">Locked, unbuilt</div><div style="padding: 9px 12px; border-bottom: 1px solid #4A4237">the atlas's rust hatch over the surface, label still clean.</div>
+<div style="padding: 9px 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 18px; color: #F2EFE6; border-bottom: 1px solid #4A4237">New</div><div style="padding: 9px 12px; border-bottom: 1px solid #4A4237">W0 for the rest of the run it arrived in, then settles to its level.</div>
+<div style="padding: 9px 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 18px; color: #E2A07E; border-bottom: 1px solid #4A4237">Spent, wrecked</div><div style="padding: 9px 12px; border-bottom: 1px solid #4A4237">W3 and a stamp, the one time damage shows up as a state.</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; letter-spacing: 0.06em; color: #F2EFE6">Budget and build</div>
+<div style="font-size: 14px; line-height: 1.55; color: #E9E2D0">
+<div>One hero damage mark on screen at a time. At most two W2 surfaces in view; everything else is W1 or clean.</div>
+<div>Text holds 4.5:1 measured on the worn texture, not the flat colour. If wear breaks it, the wear moves.</div>
+<div>Elements under 120 px on their short side get no texture, only edge tone.</div>
+<div>Wear is seeded per object and never animates or reshuffles between frames.</div>
+<div>Ship it as nine-slice paper: wear lives in the corners and edges, the centre slice is flat paper the shader tints.</div>
+<div style="color: #D9CDB0; margin-top: 6px">Wear can carry state over time: the atlas yellows a step every few days, and a driver's tag picks up a tear per injury.</div>
+</div>
+</div>
+
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":1580}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return {};
+	}
+}
+</script>
+</body>
+</html>

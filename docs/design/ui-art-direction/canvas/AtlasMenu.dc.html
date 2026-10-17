@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Glovebox Atlas: main menu</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Caveat:wght@500;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Open+Sans:wght@400;600&amp;family=Source+Serif+4:ital,wght@1,400;1,600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#23221F;text-decoration:none}a:hover{color:#682C1E}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: #24211C; font-family: 'Open Sans', sans-serif; color: #23221F">
+
+<svg aria-hidden="true" width="0" height="0" style="position: absolute">
+<defs>
+<filter id="amGrime" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="4" seed="29" result="big"></feTurbulence>
+<feColorMatrix in="big" type="matrix" values="0 0 0 0 0.40  0 0 0 0 0.28  0 0 0 0 0.13  1.4 0 0 0 -0.62" result="stain"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="3" seed="47" result="mid"></feTurbulence>
+<feColorMatrix in="mid" type="matrix" values="0 0 0 0 0.35  0 0 0 0 0.27  0 0 0 0 0.17  0.5 0 0 0 -0.18" result="mottle"></feColorMatrix>
+<feMerge><feMergeNode in="mottle"></feMergeNode><feMergeNode in="stain"></feMergeNode></feMerge>
+</filter>
+<filter id="amBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="22"></feGaussianBlur></filter>
+<mask id="amEdge" maskUnits="userSpaceOnUse" x="0" y="0" width="1412" height="872">
+<rect width="1412" height="872" fill="#fff"></rect>
+<rect x="60" y="60" width="1292" height="752" fill="#000" filter="url(#amBlur)"></rect>
+</mask>
+<filter id="amRelief" x="0" y="0" width="640" height="780" filterUnits="userSpaceOnUse">
+<feTurbulence type="fractalNoise" baseFrequency="0.005 0.01" numOctaves="5" seed="7" result="noise"></feTurbulence>
+<feDiffuseLighting in="noise" surfaceScale="11" diffuseConstant="1" lighting-color="#ffffff" result="light"><feDistantLight azimuth="300" elevation="38"></feDistantLight></feDiffuseLighting>
+<feComposite in="SourceGraphic" in2="light" operator="arithmetic" k1="1.5" k2="0" k3="0" k4="0"></feComposite>
+</filter>
+<filter id="amSoft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="40"></feGaussianBlur></filter>
+<pattern id="amHatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="10" stroke="#B5643C" stroke-width="1.4" opacity="0.5"></line></pattern>
+<linearGradient id="amFold" x1="0" x2="1"><stop offset="0" stop-color="#3A2A14" stop-opacity="0"></stop><stop offset="0.46" stop-color="#3A2A14" stop-opacity="0.12"></stop><stop offset="0.5" stop-color="#FFF6DC" stop-opacity="0.45"></stop><stop offset="0.56" stop-color="#3A2A14" stop-opacity="0.06"></stop><stop offset="1" stop-color="#3A2A14" stop-opacity="0"></stop></linearGradient>
+</defs>
+</svg>
+
+<div style="position: absolute; left: 14px; top: 14px; width: 1412px; height: 872px; background: #EEE7D2; box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 40px rgba(107,74,34,0.22)">
+<svg aria-hidden="true" width="1412" height="872" style="position: absolute; left: 0; top: 0">
+<rect width="1412" height="872" filter="url(#amGrime)" mask="url(#amEdge)" style="mix-blend-mode: multiply"></rect>
+<rect x="18" y="18" width="1376" height="836" fill="none" stroke="#23221F" stroke-width="0.6"></rect>
+<rect x="26" y="26" width="1360" height="820" fill="none" stroke="#23221F" stroke-width="1.6"></rect>
+</svg>
+
+<svg role="img" aria-label="Cover of the atlas: a relief map of the Halcyon region under the title Wasteland Wheels" width="640" height="780" viewBox="0 0 640 780" style="position: absolute; left: 46px; top: 46px">
+<g filter="url(#amRelief)">
+<rect width="640" height="780" fill="#E8E3CC"></rect>
+<g filter="url(#amSoft)">
+<ellipse cx="140" cy="620" rx="200" ry="140" fill="#D3DCC4" opacity="0.8"></ellipse>
+<ellipse cx="500" cy="180" rx="200" ry="120" fill="#D4CCBC" opacity="0.9"></ellipse>
+</g>
+</g>
+<path d="M380 470 C 440 450, 520 470, 560 520 C 590 560, 540 600, 470 590 C 410 580, 370 520, 380 470 Z" fill="#B5643C" opacity="0.1"></path>
+<path d="M380 470 C 440 450, 520 470, 560 520 C 590 560, 540 600, 470 590 C 410 580, 370 520, 380 470 Z" fill="url(#amHatch)"></path>
+<path d="M-10 300 C 120 280, 220 340, 320 360 S 520 420, 650 400" fill="none" stroke="#86AED3" stroke-width="3"></path>
+<path d="M60 700 C 110 670, 190 680, 220 710 C 240 740, 190 770, 130 760 C 80 750, 40 730, 60 700 Z" fill="#AFCDE1" stroke="#8DB3D3" stroke-width="1.5"></path>
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+<path d="M320 420 C 400 470, 460 520, 520 600 M320 420 C 260 470, 200 520, 120 560 M320 420 C 330 340, 360 280, 420 220" stroke="#F4F2EA" stroke-width="3.4"></path>
+<path d="M320 420 C 400 470, 460 520, 520 600 M320 420 C 260 470, 200 520, 120 560 M320 420 C 330 340, 360 280, 420 220" stroke="#76726A" stroke-width="1.2"></path>
+<path d="M-10 520 C 120 500, 240 450, 320 420 S 520 300, 650 250 M320 420 C 310 540, 330 660, 360 790" stroke="#682C1E" stroke-width="7.5"></path>
+<path d="M-10 520 C 120 500, 240 450, 320 420 S 520 300, 650 250 M320 420 C 310 540, 330 660, 360 790" stroke="#D86036" stroke-width="4.2"></path>
+</g>
+<path d="M300 380 C 326 372, 352 384, 350 410 C 348 440, 320 452, 298 440 C 276 428, 278 390, 300 380 Z" fill="#E5D4CC" stroke="#C9AFA3" stroke-width="1"></path>
+<path d="M320 409 L324 418 L334 419 L326 425 L329 435 L320 429 L311 435 L314 425 L306 419 L316 418 Z" fill="#23221F" stroke="#F2EFE6" stroke-width="1.6"></path>
+<rect x="312" y="0" width="22" height="780" fill="url(#amFold)"></rect>
+
+<g transform="translate(320 120)">
+<rect x="-250" y="-70" width="500" height="150" fill="#F4EEDD" stroke="#23221F" stroke-width="1.6"></rect>
+<rect x="-243" y="-63" width="486" height="136" fill="none" stroke="#23221F" stroke-width="0.6"></rect>
+<text x="0" y="-26" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" letter-spacing="3" fill="#5D5A52">A ROAD ATLAS OF THE HALCYON REGION</text>
+<text x="0" y="28" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="58" letter-spacing="7" fill="#23221F">WASTELAND WHEELS</text>
+<text x="0" y="56" text-anchor="middle" font-family="Source Serif 4, serif" font-style="italic" font-size="16" fill="#5D5A52">fourth edition, revised after</text>
+</g>
+<g transform="translate(26 744)">
+<rect x="0" y="0" width="34" height="6" fill="#23221F"></rect><rect x="34" y="0" width="34" height="6" fill="#E8E3CC" stroke="#23221F" stroke-width="1"></rect><rect x="68" y="0" width="34" height="6" fill="#23221F"></rect>
+<text x="108" y="7" font-family="JetBrains Mono, monospace" font-size="9" fill="#23221F">0 · 20 mi</text>
+</g>
+<rect x="0.5" y="0.5" width="639" height="779" fill="none" stroke="#23221F" stroke-width="1.4"></rect>
+</svg>
+
+<nav aria-label="Main menu" style="position: absolute; left: 740px; top: 70px; width: 610px; display: flex; flex-direction: column">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 34px; letter-spacing: 0.18em">CONTENTS</div>
+<div style="margin-top: 4px; font-family: 'Source Serif 4', serif; font-style: italic; font-size: 16px; color: #5D5A52">Where to open the book today</div>
+
+<a href="#" style="margin-top: 30px; position: relative; display: flex; align-items: center; gap: 16px; min-height: 76px; padding: 0 12px; border-top: 1.4px solid #23221F; border-bottom: 1.4px solid #23221F">
+<svg aria-hidden="true" width="46" height="52" viewBox="0 0 46 52"><path d="M3 7 Q23 0 43 7 L43 26 Q43 42 23 49 Q3 42 3 26 Z" fill="#D86036" stroke="#682C1E" stroke-width="3"></path><text x="23" y="33" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="22" fill="#FFF8EE">9</text></svg>
+<span style="display: flex; flex-direction: column; gap: 2px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 36px; line-height: 1">Continue</span>
+<span style="font-family: 'Source Serif 4', serif; font-style: italic; font-size: 15px; color: #5D5A52">Day 9 · 3 drivers · 1 stronghold taken</span>
+</span>
+<span style="flex: 1; align-self: center; height: 0; border-bottom: 2px dotted #8E8778; margin: 0 6px"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 14px">DAY 09</span>
+</a>
+
+<a href="#" style="display: flex; align-items: center; gap: 16px; min-height: 60px; padding: 0 12px; border-bottom: 1px solid #CFC9B8">
+<svg aria-hidden="true" width="46" height="40" viewBox="0 0 46 40"><circle cx="23" cy="20" r="16" fill="#FFF" stroke="#23221F" stroke-width="2.2"></circle><text x="23" y="27" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="19" fill="#23221F">1</text></svg>
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 28px">New campaign</span>
+<span style="flex: 1; height: 0; border-bottom: 2px dotted #8E8778; margin: 0 6px"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 14px">DAY 01</span>
+</a>
+
+<a href="#" style="display: flex; align-items: center; gap: 16px; min-height: 60px; padding: 0 12px; border-bottom: 1px solid #CFC9B8">
+<svg aria-hidden="true" width="46" height="40" viewBox="0 0 46 40"><circle cx="23" cy="20" r="16" fill="#FFF" stroke="#23221F" stroke-width="2.2"></circle><text x="23" y="27" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="19" fill="#23221F">H</text></svg>
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 28px">Campaign history</span>
+<span style="flex: 1; height: 0; border-bottom: 2px dotted #8E8778; margin: 0 6px"></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 14px">PAST RUNS</span>
+</a>
+
+<div style="margin-top: 34px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.18em; color: #5D5A52">APPENDICES</div>
+<div style="margin-top: 8px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 30px">
+<a href="#" style="display: flex; align-items: center; min-height: 46px; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 21px"><span>Skirmish</span><span style="flex: 1; height: 0; border-bottom: 2px dotted #B9B2A2; margin: 0 8px"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #5D5A52">A</span></a>
+<a href="#" style="display: flex; align-items: center; min-height: 46px; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 21px"><span>Settings</span><span style="flex: 1; height: 0; border-bottom: 2px dotted #B9B2A2; margin: 0 8px"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #5D5A52">B</span></a>
+<a href="#" style="display: flex; align-items: center; min-height: 46px; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 21px"><span>Card showcase</span><span style="flex: 1; height: 0; border-bottom: 2px dotted #B9B2A2; margin: 0 8px"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #5D5A52">C</span></a>
+<a href="#" style="display: flex; align-items: center; min-height: 46px; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 21px"><span>Credits</span><span style="flex: 1; height: 0; border-bottom: 2px dotted #B9B2A2; margin: 0 8px"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #5D5A52">D</span></a>
+<a href="#" style="display: flex; align-items: center; min-height: 46px; border-bottom: 1px solid #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 21px; color: #6E6A61"><span>Developer tools</span><span style="flex: 1; height: 0; border-bottom: 2px dotted #B9B2A2; margin: 0 8px"></span><span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #5D5A52">E</span></a>
+</div>
+</nav>
+
+<div style="position: absolute; left: 740px; bottom: 46px; width: 610px; display: flex; justify-content: space-between; align-items: flex-end; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.12em; color: #5D5A52">
+<span>PRINTED BEFORE · REVISED BY HAND AFTER</span>
+<span>BUILD [VERSION]</span>
+</div>
+</div>
+
+<div style="position: absolute; left: -10px; top: 6px; width: 96px; height: 30px; transform: rotate(-34deg); background-color: #85837D; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.09) 0 1px, transparent 1px 3px), linear-gradient(180deg, rgba(255,255,255,0.15), rgba(0,0,0,0.12))"></div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return {};
+	}
+}
+</script>
+</body>
+</html>
