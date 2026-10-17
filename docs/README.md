@@ -18,6 +18,7 @@ The specs in [specs/](./specs/) are the source of truth for how the game plays a
 8. [AI System Technical Design](./specs/AI%20System%20Technical%20Design.md)
 9. [Faction Concepts](./specs/Faction%20Concepts.md)
 10. [UI rendering engine implementation](./specs/ui-rendering-engine-implementation.md)
+11. [UI Art Direction](./specs/UI%20Art%20Direction.md)
 
 ## Everything else
 
