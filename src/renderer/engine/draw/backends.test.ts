@@ -41,6 +41,10 @@ class SilentBackend implements DrawBackend {
 	loadFontAtlas(): FontAtlasHandle {
 		return { id: 1, name: 'body' };
 	}
+
+	loadArtAtlas(): void {
+		// Accepted and ignored.
+	}
 }
 
 describe('NullBackend (R2.21)', () => {

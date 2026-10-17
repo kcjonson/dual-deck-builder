@@ -86,6 +86,18 @@ export interface FontAtlasOptions {
 	texture: TextureHandle;
 }
 
+/**
+ * An offline-built UI art atlas page (R5.31): panel art, marks, logos. The
+ * backend keeps it resident on a fixed unit beside the font atlases for the
+ * whole frame (R5.20), so an art piece between a rect and a label does not
+ * split the submission; the caller does not release it.
+ */
+export interface ArtAtlasOptions {
+	/** The name `DrawApi.artAtlas` looks it up by. */
+	name: string;
+	texture: TextureHandle;
+}
+
 export interface DrawBackend {
 	readonly name: string;
 
@@ -121,6 +133,8 @@ export interface DrawBackend {
 	 */
 	readonly textures: TextureStore<unknown>;
 	loadFontAtlas(options: FontAtlasOptions): FontAtlasHandle;
+	/** Between frames (R2.17). Loading a name again replaces its page. */
+	loadArtAtlas(options: ArtAtlasOptions): void;
 	/** Atlases loaded so far. R2.18's precondition is checked against this. */
 	readonly fontAtlasNames: readonly string[];
 

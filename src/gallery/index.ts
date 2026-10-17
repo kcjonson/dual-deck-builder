@@ -1,5 +1,6 @@
 import { DrawApi } from '../renderer/engine/draw';
 import { Renderer, showStatusLine } from '../renderer/engine/rendering/Renderer';
+import { loadUiArt } from '../renderer/game/art/uiArt';
 import { createDrawApi } from '../renderer/engine/rendering/WebGL2Backend';
 import { FrameLoop } from '../renderer/engine/rendering/FrameLoop';
 import { MountContext, createMountContext } from '../renderer/engine/components/MountContext';
@@ -51,6 +52,10 @@ class GalleryApplication {
 			// Handled here too, so a renderer that throws before the await
 			// below does not leave the load's rejection unhandled.
 			fontAtlases.catch(() => undefined);
+			const uiArt = loadUiArt({ loadImage: loadImageElement }).catch((error: unknown) => {
+				console.error('UI art atlas failed to load:', error);
+				return null;
+			});
 			// The gallery is a development-only bundle, so the DevTools track and
 			// the hitch observer (R15.29) and the GPU timer (R13.16) need no
 			// build-time gate here.
@@ -64,6 +69,7 @@ class GalleryApplication {
 				frameTimer: this.frameTimer,
 				gpuTimer: this.gpuTimer,
 				fontAtlases: await fontAtlases,
+				artAtlases: [await uiArt].filter((atlas) => atlas !== null),
 			});
 			const canvas = this.renderer.canvas;
 			this.context = createMountContext({

@@ -28,6 +28,7 @@ import { GpuWork, NO_GPU_WORK } from './stats';
  */
 export class NullBackend implements DrawBackend {
 	readonly name = 'null';
+	artAtlasLoads = 0;
 	/** R5.30: the null backend counts textures through the same resource layer, over a device that does nothing. */
 	readonly textures = new TextureStore({ device: NULL_TEXTURE_DEVICE });
 
@@ -94,5 +95,10 @@ export class NullBackend implements DrawBackend {
 		this.atlases += 1;
 		this.atlasNames.push(name);
 		return { id: this.atlases, name };
+	}
+
+	/** Nothing to bind; counted so a test can see the atlas arrive. The draw API keeps the handle. */
+	loadArtAtlas(): void {
+		this.artAtlasLoads += 1;
 	}
 }
