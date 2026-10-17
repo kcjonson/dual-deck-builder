@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Field Kit: main menu</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Caveat:wght@500;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Open+Sans:wght@400;600&amp;family=Source+Serif+4:ital,wght@1,400;1,600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#23221F;text-decoration:none}a:hover{color:#682C1E}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: #2E2924; font-family: 'Open Sans', sans-serif; color: #23221F">
+
+<svg aria-hidden="true" width="1440" height="900" style="position: absolute; left: 0; top: 0">
+<defs>
+<filter id="kmSteel" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency="0.007" numOctaves="4" seed="37" result="big"></feTurbulence>
+<feColorMatrix in="big" type="matrix" values="0 0 0 0 0.46  0 0 0 0 0.21  0 0 0 0 0.08  1.8 0 0 0 -0.9" result="rustA"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.004 0.12" numOctaves="2" seed="14" result="streak"></feTurbulence>
+<feColorMatrix in="streak" type="matrix" values="0 0 0 0 0.30  0 0 0 0 0.16  0 0 0 0 0.08  1.2 0 0 0 -0.55" result="runs"></feColorMatrix>
+<feMerge><feMergeNode in="rustA"></feMergeNode><feMergeNode in="runs"></feMergeNode></feMerge>
+</filter>
+<filter id="kmPaint" x="-5%" y="-5%" width="110%" height="110%">
+<feTurbulence type="fractalNoise" baseFrequency="0.45" numOctaves="2" seed="21" result="speck"></feTurbulence>
+<feColorMatrix in="speck" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.2 1.7" result="mask"></feColorMatrix>
+<feComposite in="SourceGraphic" in2="mask" operator="in"></feComposite>
+</filter>
+<filter id="kmRelief" x="0" y="0" width="560" height="700" filterUnits="userSpaceOnUse">
+<feTurbulence type="fractalNoise" baseFrequency="0.005 0.01" numOctaves="5" seed="7" result="noise"></feTurbulence>
+<feDiffuseLighting in="noise" surfaceScale="10" diffuseConstant="1" lighting-color="#ffffff" result="light"><feDistantLight azimuth="300" elevation="38"></feDistantLight></feDiffuseLighting>
+<feComposite in="SourceGraphic" in2="light" operator="arithmetic" k1="1.45" k2="0" k3="0" k4="0"></feComposite>
+</filter>
+</defs>
+<rect width="1440" height="900" filter="url(#kmSteel)"></rect>
+<g fill="#1C1814" stroke="#55493D" stroke-width="1.2">
+<circle cx="30" cy="20" r="5"></circle><circle cx="330" cy="20" r="5"></circle><circle cx="630" cy="20" r="5"></circle><circle cx="930" cy="20" r="5"></circle><circle cx="1230" cy="20" r="5"></circle>
+<circle cx="30" cy="880" r="5"></circle><circle cx="330" cy="880" r="5"></circle><circle cx="630" cy="880" r="5"></circle><circle cx="930" cy="880" r="5"></circle><circle cx="1230" cy="880" r="5"></circle>
+</g>
+<g filter="url(#kmPaint)">
+<text x="70" y="148" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="104" letter-spacing="16" fill="#E4D7B8">WASTELAND</text>
+<text x="70" y="250" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="104" letter-spacing="16" fill="#D86036">WHEELS</text>
+</g>
+<path d="M70 300 H 760" stroke="#1C1814" stroke-width="10"></path>
+<g fill="#6A6158" stroke="#1C1814" stroke-width="1.5"><circle cx="190" cy="300" r="9"></circle><circle cx="420" cy="300" r="9"></circle><circle cx="650" cy="300" r="9"></circle></g>
+</svg>
+
+<div style="position: absolute; left: 900px; top: 70px; width: 560px; height: 700px; transform: rotate(7deg); box-shadow: 0 20px 40px rgba(0,0,0,0.55)">
+<svg aria-hidden="true" width="560" height="700" viewBox="0 0 560 700" style="display: block">
+<g filter="url(#kmRelief)"><rect width="560" height="700" fill="#E3DCC2"></rect></g>
+<path d="M-10 260 C 120 240, 220 300, 320 320 S 480 380, 570 360" fill="none" stroke="#86AED3" stroke-width="3"></path>
+<path d="M-10 480 C 120 460, 220 410, 300 380 S 460 260, 570 210 M300 380 C 290 500, 310 600, 340 710" fill="none" stroke="#682C1E" stroke-width="7.5"></path>
+<path d="M-10 480 C 120 460, 220 410, 300 380 S 460 260, 570 210 M300 380 C 290 500, 310 600, 340 710" fill="none" stroke="#D86036" stroke-width="4.2"></path>
+<rect x="180" y="0" width="16" height="700" fill="#3A2A14" opacity="0.1"></rect><rect x="372" y="0" width="16" height="700" fill="#3A2A14" opacity="0.08"></rect>
+<rect x="30" y="40" width="200" height="70" fill="#EEE7D2" stroke="#23221F" stroke-width="1.4"></rect>
+<text x="130" y="72" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="20" letter-spacing="3" fill="#23221F">HALCYON</text>
+<text x="130" y="94" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="9" fill="#5D5A52">ROAD MAP · 4TH ED.</text>
+</svg>
+</div>
+
+<nav aria-label="Main menu" style="position: absolute; left: 70px; top: 300px; width: 780px; height: 560px">
+<div style="position: absolute; left: 0; top: 0; display: flex; gap: 26px; align-items: flex-start">
+
+<a href="#" style="position: relative; display: block; width: 300px; height: 392px; filter: drop-shadow(0 12px 14px rgba(0,0,0,0.55)); transform: rotate(-1.5deg); transform-origin: 150px 0">
+<svg aria-hidden="true" width="300" height="34" viewBox="0 0 300 34" style="display: block"><path d="M120 0 C 112 14, 138 20, 150 34" fill="none" stroke="#CBBE9A" stroke-width="2"></path></svg>
+<span style="position: relative; display: flex; flex-direction: column; gap: 10px; width: 300px; height: 358px; box-sizing: border-box; padding: 46px 22px 20px; background: #E7CF96; clip-path: polygon(14% 0, 86% 0, 100% 9%, 100% 100%, 0 100%, 0 9%); box-shadow: inset 0 0 22px rgba(107,74,34,0.22)">
+<span style="position: absolute; left: 134px; top: 12px; width: 32px; height: 32px; border-radius: 50%; background: #C9AE73; box-shadow: inset 0 0 0 2px #A88F57"><span style="position: absolute; left: 9px; top: 9px; width: 14px; height: 14px; border-radius: 50%; background: #2E2924"></span></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #4A3F2C">CAMPAIGN IN PROGRESS</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.7; color: #2C2620">DAY ......... 09<br>DRIVERS ..... 03<br>STRONGHOLDS . 1 TAKEN</span>
+<span style="margin-top: auto; display: flex; align-items: center; justify-content: center; min-height: 72px; background: #D86036; border: 4px solid #682C1E; box-shadow: 0 3px 0 #682C1E; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 34px; color: #FFF8EE">Continue</span>
+</span>
+</a>
+
+<a href="#" style="position: relative; display: block; width: 210px; height: 300px; filter: drop-shadow(0 12px 14px rgba(0,0,0,0.55)); transform: rotate(1.2deg); transform-origin: 105px 0">
+<svg aria-hidden="true" width="210" height="34" viewBox="0 0 210 34" style="display: block"><path d="M90 0 C 98 14, 96 20, 105 34" fill="none" stroke="#CBBE9A" stroke-width="2"></path></svg>
+<span style="position: relative; display: flex; flex-direction: column; gap: 8px; width: 210px; height: 266px; box-sizing: border-box; padding: 46px 18px 18px; background: #F2DDA6; clip-path: polygon(14% 0, 86% 0, 100% 9%, 100% 100%, 0 100%, 0 9%)">
+<span style="position: absolute; left: 89px; top: 12px; width: 32px; height: 32px; border-radius: 50%; background: #D7BE84; box-shadow: inset 0 0 0 2px #B49A60"><span style="position: absolute; left: 9px; top: 9px; width: 14px; height: 14px; border-radius: 50%; background: #2E2924"></span></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #4A3F2C">BLANK TAG</span>
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; line-height: 1">New campaign</span>
+<span style="font-size: 13px; line-height: 1.4; color: #2C2620">A new compound, day 1.</span>
+</span>
+</a>
+
+<a href="#" style="position: relative; display: block; width: 210px; height: 300px; filter: drop-shadow(0 12px 14px rgba(0,0,0,0.55)); transform: rotate(-0.8deg); transform-origin: 105px 0">
+<svg aria-hidden="true" width="210" height="34" viewBox="0 0 210 34" style="display: block"><path d="M110 0 C 100 14, 112 20, 105 34" fill="none" stroke="#CBBE9A" stroke-width="2"></path></svg>
+<span style="position: relative; display: flex; flex-direction: column; gap: 8px; width: 210px; height: 266px; box-sizing: border-box; padding: 46px 18px 18px; background: #E2CC97; clip-path: polygon(14% 0, 86% 0, 100% 9%, 100% 100%, 0 100%, 0 9%); box-shadow: inset 0 0 22px rgba(107,74,34,0.22)">
+<span style="position: absolute; left: 89px; top: 12px; width: 32px; height: 32px; border-radius: 50%; background: #C9AE73; box-shadow: inset 0 0 0 2px #A88F57"><span style="position: absolute; left: 9px; top: 9px; width: 14px; height: 14px; border-radius: 50%; background: #2E2924"></span></span>
+<span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #4A3F2C">LOGBOOK</span>
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; line-height: 1">Campaign history</span>
+<span style="font-size: 13px; line-height: 1.4; color: #2C2620">Every run, won or lost.</span>
+</span>
+</a>
+</div>
+
+<div style="position: absolute; left: 0; top: 428px; width: 780px; display: flex; flex-wrap: wrap; gap: 14px 16px; align-items: center">
+<a href="#" style="display: flex; align-items: center; min-height: 44px; padding: 0 14px; background: #1C1D22; border-radius: 3px; box-shadow: 0 4px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 20px; letter-spacing: 0.14em; color: #EDEBE4; transform: rotate(-1deg)">SKIRMISH</a>
+<a href="#" style="display: flex; align-items: center; min-height: 44px; padding: 0 14px; background: #1C1D22; border-radius: 3px; box-shadow: 0 4px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 20px; letter-spacing: 0.14em; color: #EDEBE4; transform: rotate(1deg)">SETTINGS</a>
+<a href="#" style="display: flex; align-items: center; min-height: 44px; padding: 0 14px; background: #1C1D22; border-radius: 3px; box-shadow: 0 4px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 20px; letter-spacing: 0.14em; color: #EDEBE4">CARD SHOWCASE</a>
+<a href="#" style="display: flex; align-items: center; min-height: 44px; padding: 0 14px; background: #1C1D22; border-radius: 3px; box-shadow: 0 4px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 20px; letter-spacing: 0.14em; color: #EDEBE4; transform: rotate(-1.5deg)">CREDITS</a>
+<a href="#" style="display: flex; align-items: center; min-height: 44px; padding: 0 14px; background: #E6DAB5; clip-path: polygon(2% 8%, 98% 0, 100% 50%, 97% 100%, 1% 94%, 0 50%); font-family: 'Caveat', cursive; font-weight: 700; font-size: 24px; color: #23221F; transform: rotate(2deg)">dev tools</a>
+</div>
+</nav>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return {};
+	}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Materials and marks</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Caveat:wght@500;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Open+Sans:wght@400;600&amp;family=Source+Serif+4:ital,wght@1,400;1,600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#D86036}a:hover{color:#682C1E}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1240px; position: relative; overflow: hidden; background: #24211C; font-family: 'Open Sans', sans-serif; color: #23221F">
+
+<svg aria-hidden="true" width="1440" height="1240" style="position: absolute; left: 0; top: 0">
+<defs>
+<filter id="grain2" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency="0.002 0.09" numOctaves="3" seed="9"></feTurbulence>
+<feColorMatrix type="matrix" values="0 0 0 0 0.20  0 0 0 0 0.17  0 0 0 0 0.13  0 0 0 0.45 0"></feColorMatrix>
+</filter>
+<filter id="inkStamp" x="-5%" y="-5%" width="110%" height="110%">
+<feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="2" seed="21" result="speck"></feTurbulence>
+<feColorMatrix in="speck" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.6 1.75" result="mask"></feColorMatrix>
+<feComposite in="SourceGraphic" in2="mask" operator="in"></feComposite>
+</filter>
+<filter id="wax2" x="-10%" y="-10%" width="120%" height="120%">
+<feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="5" result="g"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="g" scale="3" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+</filter>
+</defs>
+<rect width="1440" height="1240" filter="url(#grain2)"></rect>
+</svg>
+
+<div style="position: absolute; left: 48px; top: 26px; display: flex; align-items: baseline; gap: 24px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 40px; color: #F2EFE6">Materials and marks</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 0.18em; color: #B9B2A2">WHAT A SURVIVOR'S NAV KIT IS MADE OF · SHEET 2</div>
+</div>
+
+<div style="position: absolute; left: 48px; top: 100px; width: 600px; height: 360px; transform: rotate(-0.6deg); box-shadow: 0 18px 40px rgba(0,0,0,0.5)">
+<svg role="img" aria-label="A road map folded accordion style, each panel shaded where it bends" width="600" height="360" viewBox="0 0 600 360" style="display: block">
+<defs>
+<linearGradient id="panelA" x1="0" x2="1"><stop offset="0" stop-color="#EDEADF"></stop><stop offset="1" stop-color="#D9D4C3"></stop></linearGradient>
+<linearGradient id="panelB" x1="0" x2="1"><stop offset="0" stop-color="#F7F4EB"></stop><stop offset="1" stop-color="#ECE8DB"></stop></linearGradient>
+</defs>
+<polygon points="0,10 150,0 150,360 0,350" fill="url(#panelB)"></polygon>
+<polygon points="150,0 300,10 300,350 150,360" fill="url(#panelA)"></polygon>
+<polygon points="300,10 450,0 450,360 300,350" fill="url(#panelB)"></polygon>
+<polygon points="450,0 600,10 600,350 450,360" fill="url(#panelA)"></polygon>
+<g fill="none" stroke-linecap="round">
+<path d="M0 230 C 90 220, 140 200, 150 196 L 300 160 C 360 150, 420 120, 450 110 L 600 70" stroke="#682C1E" stroke-width="7"></path>
+<path d="M0 230 C 90 220, 140 200, 150 196 L 300 160 C 360 150, 420 120, 450 110 L 600 70" stroke="#D86036" stroke-width="4"></path>
+<path d="M60 0 C 80 120, 120 240, 150 300 L 300 330 C 380 300, 420 280, 450 240 L 600 260" stroke="#86AED3" stroke-width="2.5"></path>
+<path d="M150 80 L 300 100 C 340 140, 360 200, 380 360" stroke="#76726A" stroke-width="1.3"></path>
+</g>
+<g font-family="Barlow Condensed, sans-serif" font-weight="600" font-size="14" fill="#23221F" stroke="#F2EFE6" stroke-width="3.5" paint-order="stroke">
+<text x="190" y="150">Granitefield</text><text x="470" y="96">Pinedale</text><text x="40" y="214">Marsh Junction</text>
+</g>
+<g fill="#000">
+<rect x="140" y="0" width="10" height="360" opacity="0.10"></rect>
+<rect x="290" y="0" width="10" height="360" opacity="0.05"></rect>
+<rect x="440" y="0" width="10" height="360" opacity="0.10"></rect>
+</g>
+<rect x="18" y="26" width="112" height="52" fill="#F2EFE6" stroke="#23221F" stroke-width="1.2"></rect>
+<text x="74" y="50" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="15" letter-spacing="2" fill="#23221F">ROAD MAP</text>
+<text x="74" y="68" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="8" fill="#5D5A52">HIGH DESERT · 4TH ED</text>
+</svg>
+<div style="position: absolute; left: 16px; bottom: -34px; font-family: 'Caveat', cursive; font-weight: 700; font-size: 22px; color: #E9E2CE">panels fold out, crease shading does the depth</div>
+</div>
+
+<div style="position: absolute; left: 690px; top: 86px; width: 226px; height: 716px; transform: rotate(1deg); background: #F7F4EC; box-shadow: 0 18px 40px rgba(0,0,0,0.5)">
+<svg role="img" aria-label="A strip map of one supply run, top to bottom, with numbered stops and mileage" width="226" height="716" viewBox="0 0 226 716" style="display: block">
+<g fill="#24211C"><circle cx="40" cy="14" r="5"></circle><circle cx="80" cy="14" r="5"></circle><circle cx="120" cy="14" r="5"></circle><circle cx="160" cy="14" r="5"></circle><circle cx="200" cy="14" r="5"></circle></g>
+<text x="14" y="46" font-family="JetBrains Mono, monospace" font-size="9" letter-spacing="1" fill="#5D5A52">RUN 3 · STRIP 1 OF 2</text>
+<text x="14" y="70" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="20" fill="#23221F">Home to Millmont</text>
+<path d="M14 82 H212" stroke="#23221F" stroke-width="1.2"></path>
+<path d="M70 96 C 60 200, 96 260, 80 360 S 56 520, 76 690" fill="none" stroke="#F4DA4C" stroke-width="22" stroke-linecap="round" opacity="0.7"></path>
+<path d="M70 96 C 60 200, 96 260, 80 360 S 56 520, 76 690" fill="none" stroke="#682C1E" stroke-width="6.5"></path>
+<path d="M70 96 C 60 200, 96 260, 80 360 S 56 520, 76 690" fill="none" stroke="#D86036" stroke-width="3.6"></path>
+<path d="M76 250 C 40 260, 20 300, 4 310 M82 470 C 120 480, 180 470, 226 500" fill="none" stroke="#76726A" stroke-width="1.2"></path>
+<path d="M0 560 C 60 570, 120 600, 226 590" fill="none" stroke="#86AED3" stroke-width="2.5"></path>
+<g font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="13" text-anchor="middle">
+<circle cx="70" cy="104" r="10" fill="#23221F"></circle><text x="70" y="109" fill="#F7F4EC">★</text>
+<circle cx="80" cy="250" r="10" fill="#FFF" stroke="#23221F" stroke-width="1.8"></circle><text x="80" y="255" fill="#23221F">1</text>
+<circle cx="80" cy="420" r="10" fill="#FFF" stroke="#23221F" stroke-width="1.8"></circle><text x="80" y="425" fill="#23221F">2</text>
+<circle cx="72" cy="560" r="10" fill="#FFF" stroke="#23221F" stroke-width="1.8"></circle><text x="72" y="565" fill="#23221F">3</text>
+<circle cx="76" cy="676" r="12" fill="#FFF" stroke="#23221F" stroke-width="2.2"></circle><text x="76" y="681" fill="#23221F">C</text>
+</g>
+<g font-family="Barlow Condensed, sans-serif" font-weight="600" font-size="15" fill="#23221F">
+<text x="104" y="108">Home</text><text x="104" y="254">Copperford</text><text x="104" y="424">Corbin Creek</text><text x="104" y="564">Elk Crossing</text><text x="104" y="680">Millmont Clinic</text>
+</g>
+<g font-family="JetBrains Mono, monospace" font-size="10" fill="#5D5A52">
+<text x="104" y="270">12 mi · fuel 1</text><text x="104" y="440">9 mi · rumor</text><text x="104" y="580">bridge, ok</text><text x="104" y="696">tier 2</text>
+</g>
+<g stroke="#23221F" stroke-width="1"><path d="M14 150 H24 M14 200 H24 M14 300 H24 M14 350 H24 M14 400 H24 M14 500 H24 M14 600 H24 M14 650 H24"></path></g>
+<text x="128" y="470" font-family="Caveat, cursive" font-weight="700" font-size="21" fill="#C8372D" transform="rotate(-6 128 470)">raiders seen</text>
+<path d="M150 476 C 140 470, 110 446, 92 430" fill="none" stroke="#C8372D" stroke-width="2.2" stroke-linecap="round" filter="url(#wax2)"></path>
+</svg>
+</div>
+
+<div style="position: absolute; left: 968px; top: 92px; width: 226px; height: 392px; transform: rotate(-4deg); filter: drop-shadow(0 16px 24px rgba(0,0,0,0.5))">
+<svg role="img" aria-label="A manila vehicle tag on a string, typed and stamped cleared" width="226" height="392" viewBox="0 0 226 392" style="display: block; overflow: visible">
+<path d="M113 -60 C 80 -30, 140 -10, 113 24" fill="none" stroke="#CBBE9A" stroke-width="2"></path>
+<path d="M40 0 H186 L226 40 V392 H0 V40 Z" fill="#D9BF84"></path>
+<path d="M40 0 H186 L226 40 V392 H0 V40 Z" fill="none" stroke="#B89D62" stroke-width="1"></path>
+<circle cx="113" cy="34" r="16" fill="#C9AE73" stroke="#A88F57" stroke-width="2"></circle>
+<circle cx="113" cy="34" r="8" fill="#24211C"></circle>
+<g font-family="JetBrains Mono, monospace" font-size="12" fill="#2C2620">
+<text x="18" y="90" font-size="9" letter-spacing="1.5">VEHICLE TAG · NO. 0417</text>
+<path d="M18 98 H208" stroke="#2C2620" stroke-width="0.8"></path>
+<text x="18" y="124">LIGHTNING BIKE</text>
+<text x="18" y="146" font-size="10">DRIVER: THE INTERCEPTOR</text>
+<text x="18" y="184">STRUCT .... 50</text>
+<text x="18" y="204">ARMOR ..... 00</text>
+<text x="18" y="224">SPEED ..... 08</text>
+<text x="18" y="244">SLOTS ..... 2/3</text>
+</g>
+<g filter="url(#inkStamp)" transform="rotate(-11 113 320)">
+<rect x="34" y="292" width="158" height="52" rx="4" fill="none" stroke="#2F4A86" stroke-width="4"></rect>
+<text x="113" y="330" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="34" letter-spacing="4" fill="#2F4A86">CLEARED</text>
+</g>
+<text x="24" y="282" font-family="Caveat, cursive" font-weight="700" font-size="20" fill="#C8372D" transform="rotate(3 24 282)">rear tire's bald</text>
+</svg>
+</div>
+
+<div style="position: absolute; left: 1228px; top: 110px; width: 180px; display: flex; flex-direction: column; gap: 26px">
+<div style="align-self: flex-start; padding: 6px 12px 6px 14px; background: #1C1D22; border-radius: 3px; box-shadow: 0 6px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 20px; letter-spacing: 0.14em; color: #EDEBE4; text-shadow: 0 1px 0 rgba(0,0,0,0.6), 0 -1px 0 rgba(255,255,255,0.25); transform: rotate(-2deg)">FUEL 06</div>
+<div style="align-self: flex-end; padding: 6px 12px; background: #7E1F1A; border-radius: 3px; box-shadow: 0 6px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 20px; letter-spacing: 0.14em; color: #F4E9E6; text-shadow: 0 1px 0 rgba(0,0,0,0.6); transform: rotate(3deg)">DAY 09</div>
+<div style="align-self: flex-start; padding: 6px 12px; background: #23402F; border-radius: 3px; box-shadow: 0 6px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 20px; letter-spacing: 0.14em; color: #E8F0E9; text-shadow: 0 1px 0 rgba(0,0,0,0.6); transform: rotate(-1deg)">STORES</div>
+<div style="margin-top: 18px; width: 176px; height: 46px; background: #E6DAB5; clip-path: polygon(3% 8%, 97% 0, 100% 40%, 98% 92%, 2% 100%, 0 55%); display: flex; align-items: center; justify-content: center; font-family: 'Caveat', cursive; font-weight: 700; font-size: 27px; color: #23221F; transform: rotate(4deg); box-shadow: 0 4px 10px rgba(0,0,0,0.4)">GARAGE</div>
+<div style="width: 150px; height: 44px; background: #E6DAB5; clip-path: polygon(0 6%, 96% 0, 100% 60%, 97% 100%, 4% 94%, 2% 50%); display: flex; align-items: center; justify-content: center; font-family: 'Caveat', cursive; font-weight: 700; font-size: 25px; color: #C8372D; transform: rotate(-5deg)">do not move</div>
+<div style="font-family: 'Caveat', cursive; font-weight: 700; font-size: 21px; color: #E9E2CE; line-height: 1.1">label tape and masking tape, for things the survivors named themselves</div>
+</div>
+
+<div style="position: absolute; left: 48px; top: 510px; width: 600px; height: 330px; background: #F2EFE6; transform: rotate(0.8deg); box-shadow: 0 18px 40px rgba(0,0,0,0.5)">
+<svg role="img" aria-label="Rubber stamp impressions: looted, depleted, recon, rumor, and a dated arrival stamp" width="600" height="330" viewBox="0 0 600 330" style="display: block">
+<text x="24" y="34" font-family="JetBrains Mono, monospace" font-size="11" letter-spacing="1.6" fill="#5D5A52">STAMPS · STATE THAT HAS HAPPENED</text>
+<g filter="url(#inkStamp)">
+<g transform="rotate(-8 140 110)"><rect x="40" y="76" width="200" height="66" rx="5" fill="none" stroke="#9A4F2E" stroke-width="5"></rect><text x="140" y="125" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="44" letter-spacing="5" fill="#9A4F2E">LOOTED</text></g>
+<g transform="rotate(5 430 104)"><rect x="310" y="70" width="240" height="66" rx="5" fill="none" stroke="#23221F" stroke-width="5"></rect><rect x="318" y="78" width="224" height="50" rx="3" fill="none" stroke="#23221F" stroke-width="1.6"></rect><text x="430" y="119" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="40" letter-spacing="5" fill="#23221F">DEPLETED</text></g>
+<g transform="rotate(-3 150 236)"><circle cx="150" cy="236" r="62" fill="none" stroke="#2F4A86" stroke-width="4"></circle><circle cx="150" cy="236" r="50" fill="none" stroke="#2F4A86" stroke-width="1.6"></circle><text x="150" y="231" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="26" letter-spacing="3" fill="#2F4A86">RECON</text><text x="150" y="256" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#2F4A86">DAY 09</text></g>
+<g transform="rotate(-6 430 240)"><rect x="300" y="196" width="260" height="84" rx="4" fill="none" stroke="#A3221B" stroke-width="4"></rect><text x="430" y="236" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="32" letter-spacing="4" fill="#A3221B">HOSTILE</text><text x="430" y="264" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" letter-spacing="1" fill="#A3221B">GEAR-PRIESTS HOLD</text></g>
+</g>
+</svg>
+</div>
+
+<div style="position: absolute; left: 980px; top: 540px; width: 420px; height: 660px; transform: rotate(-1.2deg)">
+<div style="position: absolute; left: 0; top: 30px; width: 420px; height: 630px; background: #6B5137; border-radius: 10px; box-shadow: 0 18px 40px rgba(0,0,0,0.55)"></div>
+<div style="position: absolute; left: 22px; top: 54px; width: 376px; height: 584px; background: #F7F4EC; box-sizing: border-box; padding: 54px 22px 22px">
+<div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1.5px solid #23221F; padding-bottom: 6px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 22px; letter-spacing: 0.12em">STORES LEDGER</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5D5A52">WEEK 2</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 34px">
+<div style="color: #5D5A52; font-size: 10px; letter-spacing: 0.1em">ITEM</div><div style="color: #5D5A52; font-size: 10px; text-align: right">IN</div><div style="color: #5D5A52; font-size: 10px; text-align: right">OUT</div><div style="color: #5D5A52; font-size: 10px; text-align: right">LEFT</div>
+<div style="border-top: 1px solid #CFC9B8">Food</div><div style="border-top: 1px solid #CFC9B8; text-align: right">+04</div><div style="border-top: 1px solid #CFC9B8; text-align: right">-05</div><div style="border-top: 1px solid #CFC9B8; text-align: right">14</div>
+<div style="border-top: 1px solid #CFC9B8">Water</div><div style="border-top: 1px solid #CFC9B8; text-align: right">+00</div><div style="border-top: 1px solid #CFC9B8; text-align: right">-05</div><div style="border-top: 1px solid #CFC9B8; text-align: right; color: #C8372D; font-weight: 500">11</div>
+<div style="border-top: 1px solid #CFC9B8">Fuel</div><div style="border-top: 1px solid #CFC9B8; text-align: right">+02</div><div style="border-top: 1px solid #CFC9B8; text-align: right">-01</div><div style="border-top: 1px solid #CFC9B8; text-align: right">06</div>
+<div style="border-top: 1px solid #CFC9B8">Scrap</div><div style="border-top: 1px solid #CFC9B8; text-align: right">+12</div><div style="border-top: 1px solid #CFC9B8; text-align: right">-00</div><div style="border-top: 1px solid #CFC9B8; text-align: right">35</div>
+<div style="border-top: 1px solid #CFC9B8">Meds</div><div style="border-top: 1px solid #CFC9B8; text-align: right">+00</div><div style="border-top: 1px solid #CFC9B8; text-align: right">-01</div><div style="border-top: 1px solid #CFC9B8; text-align: right">02</div>
+<div style="border-top: 1px solid #CFC9B8">People</div><div style="border-top: 1px solid #CFC9B8; text-align: right">+01</div><div style="border-top: 1px solid #CFC9B8; text-align: right">-00</div><div style="border-top: 1px solid #CFC9B8; text-align: right">18</div>
+</div>
+<div style="margin-top: 22px; font-family: 'Caveat', cursive; font-weight: 700; font-size: 25px; line-height: 1.15; color: #C8372D; transform: rotate(-2deg)">water's 2 days. send the bike to the plant north</div>
+<div style="margin-top: 16px; font-family: 'Caveat', cursive; font-weight: 500; font-size: 24px; color: #2F4A86">IIII IIII IIII III &#160; days held</div>
+</div>
+<svg aria-hidden="true" width="420" height="110" viewBox="0 0 420 110" style="position: absolute; left: 0; top: 0">
+<defs><linearGradient id="clip" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#C9CBCC"></stop><stop offset="0.5" stop-color="#8D9092"></stop><stop offset="1" stop-color="#5E6163"></stop></linearGradient></defs>
+<path d="M130 40 H290 L300 92 H120 Z" fill="url(#clip)" stroke="#4A4C4E" stroke-width="1.5"></path>
+<rect x="176" y="14" width="68" height="34" rx="14" fill="none" stroke="#7D8082" stroke-width="7"></rect>
+<circle cx="150" cy="78" r="4" fill="#4A4C4E"></circle><circle cx="270" cy="78" r="4" fill="#4A4C4E"></circle>
+</svg>
+</div>
+
+<div style="position: absolute; left: 48px; top: 880px; width: 600px; height: 320px; background: #F2EFE6; transform: rotate(-0.8deg); box-shadow: 0 18px 40px rgba(0,0,0,0.5)">
+<svg role="img" aria-label="The hand-mark set in grease pencil and highlighter: circle to pick, cross to avoid, tick for done, arrow for next, underline to note, tally to count" width="600" height="320" viewBox="0 0 600 320" style="display: block">
+<text x="24" y="34" font-family="JetBrains Mono, monospace" font-size="11" letter-spacing="1.6" fill="#5D5A52">THE HAND · WHAT THE PLAYER DID</text>
+<g fill="none" stroke="#C8372D" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" filter="url(#wax2)">
+<path d="M48 104 C 50 76, 100 66, 124 88 C 142 106, 128 136, 92 140 C 60 142, 40 120, 52 96 C 58 86, 74 80, 86 80"></path>
+<path d="M200 74 L 252 134 M254 72 L 198 138"></path>
+<path d="M318 104 L 338 132 L 390 68"></path>
+<path d="M444 104 C 480 100, 520 98, 556 102 M536 86 L 558 102 L 534 118"></path>
+<path d="M44 236 C 100 242, 160 238, 214 232 M50 250 C 110 254, 150 250, 200 246"></path>
+<path d="M300 210 V 256 M314 210 V 256 M328 210 V 256 M342 210 V 256 M290 248 L 352 216"></path>
+</g>
+<path d="M420 236 H 566" stroke="#F4DA4C" stroke-width="22" stroke-linecap="round" opacity="0.8"></path>
+<text x="430" y="242" font-family="Barlow Condensed, sans-serif" font-weight="600" font-size="16" fill="#23221F">Water plant, north</text>
+<g font-family="Caveat, cursive" font-weight="700" font-size="22" fill="#23221F" text-anchor="middle">
+<text x="88" y="178">pick</text><text x="226" y="178">avoid</text><text x="354" y="178">done</text><text x="500" y="150">next</text>
+<text x="128" y="292">note</text><text x="322" y="292">count</text><text x="492" y="292">highlight: chosen</text>
+</g>
+</svg>
+</div>
+
+<div style="position: absolute; left: 690px; top: 850px; width: 252px; height: 350px; box-sizing: border-box; padding: 18px; background: #F2EFE6; transform: rotate(1.4deg); box-shadow: 0 18px 40px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 14px">
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.14em; color: #5D5A52">FOUND SHAPES</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; justify-content: space-between; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 14px"><span>Fuel</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px">6 / 10</span></div>
+<div style="display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); height: 10px; border: 1.2px solid #23221F">
+<div style="background: #23221F"></div><div style="background: #F2EFE6"></div><div style="background: #23221F"></div><div style="background: #F2EFE6"></div><div style="background: #23221F"></div><div style="background: #F2EFE6"></div><div style="background: #F2EFE6; border-left: 1px solid #CFC9B8"></div><div style="border-left: 1px solid #CFC9B8"></div><div style="border-left: 1px solid #CFC9B8"></div><div style="border-left: 1px solid #CFC9B8"></div>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; justify-content: space-between; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 14px"><span>Structure</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px">38 / 50</span></div>
+<div style="height: 10px; border: 1.2px solid #682C1E; background: #F2EFE6; position: relative"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 76%; background: #D86036"></div></div>
+</div>
+<div style="display: flex; gap: 10px; align-items: center; margin-top: 4px">
+<svg aria-hidden="true" width="40" height="44" viewBox="0 0 40 44"><path d="M2 6 Q20 0 38 6 L38 22 Q38 36 20 42 Q2 36 2 22 Z" fill="#FFF" stroke="#23221F" stroke-width="2"></path><text x="20" y="28" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="18" fill="#23221F">9</text></svg>
+<svg aria-hidden="true" width="40" height="44" viewBox="0 0 40 44"><path d="M2 6 Q20 0 38 6 L38 22 Q38 36 20 42 Q2 36 2 22 Z" fill="#D86036" stroke="#682C1E" stroke-width="2"></path><text x="20" y="28" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="18" fill="#FFF">2</text></svg>
+<svg aria-hidden="true" width="44" height="44" viewBox="0 0 44 44"><path d="M4 4 H18 M4 4 V18 M40 4 H26 M40 4 V18 M4 40 H18 M4 40 V26 M40 40 H26 M40 40 V26" stroke="#23221F" stroke-width="2" fill="none"></path></svg>
+<svg aria-hidden="true" width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="16" fill="none" stroke="#23221F" stroke-width="1.2"></circle><path d="M22 2 V42 M2 22 H42" stroke="#23221F" stroke-width="1"></path><path d="M22 8 L26 22 L22 20 L18 22 Z" fill="#23221F"></path></svg>
+</div>
+<div style="font-family: 'Caveat', cursive; font-weight: 700; font-size: 20px; line-height: 1.1; color: #23221F">scale bars as gauges, shields as counters, neatline corners as frames, the compass rose</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return {};
+	}
+}
+</script>
+</body>
+</html>

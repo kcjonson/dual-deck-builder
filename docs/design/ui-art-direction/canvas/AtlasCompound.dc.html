@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Glovebox Atlas: compound</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Caveat:wght@500;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Open+Sans:wght@400;600&amp;family=Source+Serif+4:ital,wght@1,400;1,600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#23221F;text-decoration:none}a:hover{color:#682C1E}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: #24211C; font-family: 'Open Sans', sans-serif; color: #23221F">
+
+<svg aria-hidden="true" width="0" height="0" style="position: absolute">
+<defs>
+<filter id="acGrime" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="4" seed="17" result="big"></feTurbulence>
+<feColorMatrix in="big" type="matrix" values="0 0 0 0 0.40  0 0 0 0 0.28  0 0 0 0 0.13  1.4 0 0 0 -0.62" result="stain"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves="3" seed="41" result="mid"></feTurbulence>
+<feColorMatrix in="mid" type="matrix" values="0 0 0 0 0.35  0 0 0 0 0.27  0 0 0 0 0.17  0.5 0 0 0 -0.18" result="mottle"></feColorMatrix>
+<feMerge><feMergeNode in="mottle"></feMergeNode><feMergeNode in="stain"></feMergeNode></feMerge>
+</filter>
+<filter id="acBlur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="22"></feGaussianBlur></filter>
+<mask id="acEdge" maskUnits="userSpaceOnUse" x="0" y="0" width="1412" height="872">
+<rect width="1412" height="872" fill="#fff"></rect>
+<rect x="60" y="60" width="1292" height="752" fill="#000" filter="url(#acBlur)"></rect>
+</mask>
+<linearGradient id="acFold" x1="0" x2="1"><stop offset="0" stop-color="#3A2A14" stop-opacity="0"></stop><stop offset="0.46" stop-color="#3A2A14" stop-opacity="0.12"></stop><stop offset="0.5" stop-color="#FFF6DC" stop-opacity="0.45"></stop><stop offset="0.56" stop-color="#3A2A14" stop-opacity="0.06"></stop><stop offset="1" stop-color="#3A2A14" stop-opacity="0"></stop></linearGradient>
+<pattern id="acHatch" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="9" stroke="#B5643C" stroke-width="1.4" opacity="0.55"></line></pattern>
+<pattern id="acGrid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M0 0 H10 M0 0 V10" stroke="#C9AFA3" stroke-width="0.8" fill="none"></path></pattern>
+</defs>
+</svg>
+
+<div style="position: absolute; left: 14px; top: 14px; width: 1412px; height: 872px; background: #EEE7D2; box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 40px rgba(107,74,34,0.22)">
+<svg aria-hidden="true" width="1412" height="872" style="position: absolute; left: 0; top: 0">
+<rect width="1412" height="872" filter="url(#acGrime)" mask="url(#acEdge)" style="mix-blend-mode: multiply"></rect>
+<rect x="18" y="18" width="1376" height="836" fill="none" stroke="#23221F" stroke-width="0.6"></rect>
+<rect x="26" y="26" width="1360" height="820" fill="none" stroke="#23221F" stroke-width="1.6"></rect>
+<g stroke="#23221F" stroke-width="1"><path d="M226 18 V26 M426 18 V26 M626 18 V26 M826 18 V26 M226 846 V854 M426 846 V854 M626 846 V854 M826 846 V854 M18 226 H26 M18 426 H26 M18 626 H26"></path></g>
+<g font-family="JetBrains Mono, monospace" font-size="8" fill="#5D5A52"><text x="230" y="852">118°14'</text><text x="430" y="852">118°13'</text><text x="630" y="852">118°12'</text><text x="830" y="852">118°11'</text></g>
+</svg>
+
+<nav aria-label="Atlas sections" style="position: absolute; left: 380px; top: -14px; display: flex; gap: 6px">
+<a href="#" style="display: block; padding: 6px 16px 8px; background: #E4DCC4; border: 1.4px solid #23221F; border-top: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.14em; color: #5D5A52">MENU</a>
+<a href="#" style="display: block; padding: 6px 16px 10px; background: #F6F1E4; border: 1.4px solid #23221F; border-top: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.14em; color: #23221F">COMPOUND</a>
+<a href="#" style="display: block; padding: 6px 16px 8px; background: #E4DCC4; border: 1.4px solid #23221F; border-top: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.14em; color: #5D5A52">AREA MAP</a>
+<a href="#" style="display: block; padding: 6px 16px 8px; background: #E4DCC4; border: 1.4px solid #23221F; border-top: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.14em; color: #5D5A52">CREW</a>
+</nav>
+
+<div style="position: absolute; left: 46px; top: 46px; width: 300px; box-sizing: border-box; padding: 14px 18px; background: #F4EEDD; border: 1.4px solid #23221F; outline: 0.6px solid #23221F; outline-offset: -6px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 32px; letter-spacing: 0.16em; line-height: 1">THE COMPOUND</div>
+<div style="margin-top: 6px; font-family: 'Source Serif 4', serif; font-style: italic; font-size: 16px; color: #5D5A52">Site plan, day 9 at dawn</div>
+<div style="margin-top: 8px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.1em; color: #5D5A52">SHEET 1 · HALCYON · 1:2,000</div>
+</div>
+
+<div style="position: absolute; left: 372px; top: 50px; width: 620px; display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: center; font-family: 'JetBrains Mono', monospace; font-size: 14px">
+<div style="display: flex; align-items: center; gap: 7px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><rect x="3" y="4" width="12" height="11" rx="1.5" fill="none" stroke="#23221F" stroke-width="1.6"></rect><path d="M3 7 H15" stroke="#23221F" stroke-width="1.2"></path></svg>FOOD <b>14</b></div>
+<div style="display: flex; align-items: center; gap: 7px; color: #A3221B"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><path d="M9 2 C 12 7, 14 9, 14 12 A5 5 0 0 1 4 12 C 4 9, 6 7, 9 2 Z" fill="none" stroke="#A3221B" stroke-width="1.6"></path></svg>WATER <b>11</b></div>
+<div style="display: flex; align-items: center; gap: 7px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><path d="M4 5 H12 L14 7 V16 H4 Z M7 2 H11 V5" fill="none" stroke="#23221F" stroke-width="1.6"></path></svg>FUEL <b>06</b></div>
+<div style="display: flex; align-items: center; gap: 7px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="4" fill="none" stroke="#23221F" stroke-width="1.6"></circle><path d="M9 1 V4 M9 14 V17 M1 9 H4 M14 9 H17 M3.3 3.3 L5.4 5.4 M12.6 12.6 L14.7 14.7 M3.3 14.7 L5.4 12.6 M12.6 5.4 L14.7 3.3" stroke="#23221F" stroke-width="1.6"></path></svg>SCRAP <b>35</b></div>
+<div style="display: flex; align-items: center; gap: 7px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><path d="M7 2 H11 V7 H16 V11 H11 V16 H7 V11 H2 V7 H7 Z" fill="none" stroke="#23221F" stroke-width="1.6"></path></svg>MEDS <b>02</b></div>
+<div style="display: flex; align-items: center; gap: 7px"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="5" r="3" fill="none" stroke="#23221F" stroke-width="1.6"></circle><path d="M3 16 C 3 11, 15 11, 15 16" fill="none" stroke="#23221F" stroke-width="1.6"></path></svg>PEOPLE <b>18</b></div>
+<div style="width: 100%; font-family: 'Open Sans', sans-serif; font-size: 12px; color: #A3221B">Water and food run out in 2 days.</div>
+</div>
+
+<svg role="img" aria-label="Site plan of the compound: the bunkhouse is built; radio mast, infirmary, garage, map room and stores are marked out but not built. The highway leaves through the gate on the east side toward the area map." width="960" height="700" viewBox="0 0 960 700" style="position: absolute; left: 34px; top: 150px">
+<g fill="none" stroke="#C7B895" stroke-width="1">
+<path d="M0 120 C 200 90, 380 140, 560 110 S 860 60, 960 90"></path>
+<path d="M0 170 C 220 140, 400 190, 600 160 S 860 120, 960 140"></path>
+<path d="M0 640 C 240 610, 420 650, 640 620 S 880 590, 960 600"></path>
+<path d="M0 600 C 220 570, 380 610, 560 590 S 860 540, 960 560" stroke-width="1.6"></path>
+</g>
+<text x="566" y="104" font-family="JetBrains Mono, monospace" font-size="9" fill="#A6956F">1140</text>
+<path d="M0 676 C 180 660, 360 690, 560 668 S 860 640, 960 652" fill="none" stroke="#86AED3" stroke-width="3"></path>
+<text x="150" y="694" font-family="Source Serif 4, serif" font-style="italic" font-size="14" fill="#3E6F98">Dry Fork</text>
+
+<path d="M90 190 H 880 V 600 H 90 Z" fill="none" stroke="#23221F" stroke-width="1.4" stroke-dasharray="10 4"></path>
+<g stroke="#23221F" stroke-width="1.2"><path d="M140 186 L148 194 M148 186 L140 194 M340 186 L348 194 M348 186 L340 194 M540 186 L548 194 M548 186 L540 194 M740 186 L748 194 M748 186 L740 194 M140 596 L148 604 M148 596 L140 604 M340 596 L348 604 M348 596 L340 604 M540 596 L548 604 M548 596 L540 604 M740 596 L748 604 M748 596 L740 604"></path></g>
+
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+<path d="M160 470 C 300 440, 420 420, 600 420 C 720 420, 800 410, 880 395 M600 420 C 600 360, 620 320, 660 300 M300 450 C 300 400, 290 360, 300 330" stroke="#F4F2EA" stroke-width="5"></path>
+<path d="M160 470 C 300 440, 420 420, 600 420 C 720 420, 800 410, 880 395 M600 420 C 600 360, 620 320, 660 300 M300 450 C 300 400, 290 360, 300 330" stroke="#76726A" stroke-width="1.6"></path>
+<path d="M880 395 C 910 390, 930 380, 970 370" stroke="#682C1E" stroke-width="9"></path>
+<path d="M880 395 C 910 390, 930 380, 970 370" stroke="#D86036" stroke-width="5"></path>
+</g>
+<rect x="872" y="378" width="16" height="34" fill="#EEE7D2" stroke="#23221F" stroke-width="1.6"></rect>
+
+<g>
+<rect x="160" y="230" width="240" height="110" fill="#E5D4CC" stroke="#23221F" stroke-width="2.2"></rect>
+<rect x="160" y="230" width="240" height="110" fill="url(#acGrid)"></rect>
+<path d="M200 300 C 240 286, 300 286, 360 296" stroke="#F4DA4C" stroke-width="22" stroke-linecap="round" opacity="0.55" style="mix-blend-mode: multiply" fill="none"></path>
+</g>
+<g>
+<rect x="470" y="220" width="90" height="90" fill="#EEE7D2" stroke="#23221F" stroke-width="1.4" stroke-dasharray="6 4"></rect>
+<rect x="470" y="220" width="90" height="90" fill="url(#acHatch)"></rect>
+<path d="M515 238 L 503 292 M515 238 L 527 292 M507 272 H523" stroke="#23221F" stroke-width="1.4" fill="none"></path>
+</g>
+<g>
+<rect x="640" y="230" width="190" height="120" fill="#EEE7D2" stroke="#23221F" stroke-width="1.4" stroke-dasharray="6 4"></rect>
+<rect x="640" y="230" width="190" height="120" fill="url(#acHatch)"></rect>
+</g>
+<g>
+<rect x="150" y="480" width="250" height="90" fill="#EEE7D2" stroke="#23221F" stroke-width="1.4" stroke-dasharray="6 4"></rect>
+<rect x="150" y="480" width="250" height="90" fill="url(#acHatch)"></rect>
+</g>
+<g>
+<rect x="460" y="460" width="140" height="100" fill="#EEE7D2" stroke="#23221F" stroke-width="1.4" stroke-dasharray="6 4"></rect>
+<rect x="460" y="460" width="140" height="100" fill="url(#acHatch)"></rect>
+</g>
+<g>
+<rect x="660" y="450" width="180" height="120" fill="#EEE7D2" stroke="#23221F" stroke-width="1.4" stroke-dasharray="6 4"></rect>
+<rect x="660" y="450" width="180" height="120" fill="url(#acHatch)"></rect>
+</g>
+
+<g font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="14" text-anchor="middle">
+<circle cx="182" cy="252" r="13" fill="#FFF" stroke="#23221F" stroke-width="2"></circle><text x="182" y="257" fill="#23221F">1</text>
+<circle cx="490" cy="240" r="13" fill="#FFF" stroke="#23221F" stroke-width="2"></circle><text x="490" y="245" fill="#23221F">2</text>
+<circle cx="662" cy="252" r="13" fill="#FFF" stroke="#23221F" stroke-width="2"></circle><text x="662" y="257" fill="#23221F">3</text>
+<circle cx="172" cy="502" r="13" fill="#FFF" stroke="#23221F" stroke-width="2"></circle><text x="172" y="507" fill="#23221F">4</text>
+<circle cx="482" cy="482" r="13" fill="#FFF" stroke="#23221F" stroke-width="2"></circle><text x="482" y="487" fill="#23221F">5</text>
+<circle cx="682" cy="472" r="13" fill="#FFF" stroke="#23221F" stroke-width="2"></circle><text x="682" y="477" fill="#23221F">6</text>
+</g>
+<g font-family="Barlow Condensed, sans-serif" font-weight="700" stroke="#EEE7D2" stroke-width="5" paint-order="stroke" stroke-linejoin="round" fill="#23221F">
+<text x="204" y="300" font-size="26">Bunkhouse</text>
+<text x="470" y="334" font-size="20">Radio mast</text>
+<text x="660" y="378" font-size="20">Infirmary</text>
+<text x="150" y="598" font-size="20">Garage</text>
+<text x="460" y="584" font-size="20">Map room</text>
+<text x="660" y="594" font-size="20">Stores</text>
+</g>
+<g font-family="JetBrains Mono, monospace" font-size="11" stroke="#EEE7D2" stroke-width="4" paint-order="stroke" fill="#5D5A52">
+<text x="204" y="322">BUILT · crew and decks</text>
+<text x="574" y="334">not built</text>
+<text x="742" y="378">not built</text>
+<text x="214" y="598">not built</text>
+<text x="546" y="584">not built</text>
+<text x="710" y="594">not built</text>
+</g>
+<g font-family="Barlow Condensed, sans-serif" font-weight="600" font-size="15" fill="#23221F" stroke="#EEE7D2" stroke-width="4" paint-order="stroke">
+<text x="896" y="430">Gate</text>
+</g>
+<text x="896" y="446" font-family="Open Sans, sans-serif" font-size="11" fill="#5D5A52" stroke="#EEE7D2" stroke-width="3" paint-order="stroke">to the area map</text>
+
+<g transform="translate(40 640)">
+<rect x="0" y="0" width="30" height="6" fill="#23221F"></rect><rect x="30" y="0" width="30" height="6" fill="#EEE7D2" stroke="#23221F" stroke-width="1"></rect><rect x="60" y="0" width="30" height="6" fill="#23221F"></rect>
+<g font-family="JetBrains Mono, monospace" font-size="9" fill="#23221F"><text x="0" y="20">0</text><text x="80" y="20">40 m</text></g>
+</g>
+<g transform="translate(60 230)"><path d="M0 -26 L 8 4 L 0 -2 L -8 4 Z" fill="#23221F"></path><text x="0" y="22" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="14">N</text></g>
+</svg>
+
+<svg aria-hidden="true" width="1412" height="872" style="position: absolute; left: 0; top: 0; pointer-events: none">
+<rect x="1000" y="0" width="26" height="872" fill="url(#acFold)"></rect>
+</svg>
+
+<section aria-label="Needs and the day's orders" style="position: absolute; left: 1046px; top: 46px; width: 330px; height: 780px; display: flex; flex-direction: column; gap: 18px">
+<div style="box-sizing: border-box; padding: 16px 18px; background: #F4EEDD; border: 1.4px solid #23221F; outline: 0.6px solid #23221F; outline-offset: -6px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 20px; letter-spacing: 0.16em">NEEDS</div>
+<div style="margin-top: 10px; display: flex; flex-direction: column; font-size: 15px">
+<div style="display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid #D6CFBC"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14"><rect x="3" y="3" width="8" height="8" fill="#A3221B" transform="rotate(45 7 7)"></rect></svg><span>Food runs out in 2 days</span></div>
+<div style="display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid #D6CFBC"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14"><rect x="3" y="3" width="8" height="8" fill="#A3221B" transform="rotate(45 7 7)"></rect></svg><span>Water runs out in 2 days</span></div>
+<div style="display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid #D6CFBC"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="5" fill="none" stroke="#23221F" stroke-width="1.6"></circle></svg><span>Mechanic 1 is injured, fit in 2 days</span></div>
+<div style="display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid #D6CFBC; color: #6E6A61"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14"><path d="M2 7 H12" stroke="#8E8778" stroke-width="1.6" stroke-dasharray="3 2"></path></svg><span>Radio: no new rumors</span></div>
+</div>
+</div>
+
+<div style="box-sizing: border-box; padding: 16px 18px; background: #F4EEDD; border: 1.4px solid #23221F; outline: 0.6px solid #23221F; outline-offset: -6px; display: flex; flex-direction: column; gap: 12px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 20px; letter-spacing: 0.16em">THE DAY</div>
+<div style="display: flex; gap: 10px">
+<button type="button" style="flex: 1; min-height: 46px; background: #F8F4E8; border: 1.6px solid #76726A; box-shadow: inset 0 0 0 3px #F8F4E8, inset 0 0 0 4px #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 19px; color: #23221F">Rest a day</button>
+<button type="button" style="flex: 1; min-height: 46px; background: #F8F4E8; border: 1.6px solid #76726A; box-shadow: inset 0 0 0 3px #F8F4E8, inset 0 0 0 4px #CFC9B8; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 19px; color: #23221F">Scavenge</button>
+</div>
+<div style="font-size: 13px; line-height: 1.45; color: #4A473F">Ends day 9. The compound eats 5 food and 5 water. Scavenging ends it too, with 2 fuel and 12 scrap.</div>
+</div>
+
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px">
+<button type="button" style="min-height: 64px; background: #D86036; border: 4px solid #682C1E; box-shadow: 0 3px 0 #682C1E; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 28px; letter-spacing: 0.02em; color: #FFF8EE">
+<span>Plan a supply run</span>
+<svg aria-hidden="true" width="34" height="38" viewBox="0 0 34 38"><path d="M2 5 Q17 0 32 5 L32 19 Q32 31 17 36 Q2 31 2 19 Z" fill="#FFF8EE" stroke="#682C1E" stroke-width="2"></path><path d="M10 19 H23 M18 13 L24 19 L18 25" stroke="#682C1E" stroke-width="2.6" fill="none" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #4A473F">30 destinations on the area map</div>
+</div>
+</section>
+
+<div style="position: absolute; left: 46px; bottom: 34px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.12em; color: #5D5A52">HALCYON REGION · COMPOUND SITE PLAN · SURVEYED BY THE CREW, 4TH ED.</div>
+</div>
+
+<div style="position: absolute; left: -10px; top: 6px; width: 96px; height: 30px; transform: rotate(-34deg); background-color: #85837D; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.09) 0 1px, transparent 1px 3px), linear-gradient(180deg, rgba(255,255,255,0.15), rgba(0,0,0,0.12))"></div>
+<div style="position: absolute; right: -14px; bottom: 10px; width: 96px; height: 30px; transform: rotate(-34deg); background-color: #85837D; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.09) 0 1px, transparent 1px 3px), linear-gradient(180deg, rgba(255,255,255,0.15), rgba(0,0,0,0.12))"></div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return {};
+	}
+}
+</script>
+</body>
+</html>

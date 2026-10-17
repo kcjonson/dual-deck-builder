@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>After dark: the atlas under a map light</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Caveat:wght@500;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Open+Sans:wght@400;600&amp;family=Source+Serif+4:ital,wght@1,400;1,600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#D86036}a:hover{color:#F2EFE6}
+</style>
+</helmet>
+<div style="width: 1920px; height: 900px; position: relative; overflow: hidden; background: #14120F; font-family: 'Open Sans', sans-serif; color: #F2EFE6">
+
+<div style="position: absolute; left: 56px; top: 30px; display: flex; align-items: baseline; gap: 24px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 40px; color: #F2EFE6">After dark</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; letter-spacing: 0.18em; color: #9A9384">THE SAME ATLAS, ON THE ROAD, UNDER A MAP LIGHT · SHEET 3</div>
+</div>
+
+<div style="position: absolute; left: 56px; top: 96px; width: 1100px; height: 760px; overflow: hidden; background: #0E0D0B; box-shadow: 0 0 0 1px #2A2620">
+<svg role="img" aria-label="A map on a passenger seat at night, lit by a warm pool of lamp light, with the dashboard gauges dim at the bottom" width="1100" height="760" viewBox="0 0 1100 760" style="display: block">
+<defs>
+<filter id="reliefN" x="0" y="0" width="1100" height="760" filterUnits="userSpaceOnUse">
+<feTurbulence type="fractalNoise" baseFrequency="0.0045 0.009" numOctaves="5" seed="23" result="noise"></feTurbulence>
+<feDiffuseLighting in="noise" surfaceScale="10" diffuseConstant="1" lighting-color="#ffffff" result="light"><feDistantLight azimuth="300" elevation="38"></feDistantLight></feDiffuseLighting>
+<feComposite in="SourceGraphic" in2="light" operator="arithmetic" k1="1.5" k2="0" k3="0" k4="0"></feComposite>
+</filter>
+<radialGradient id="pool" cx="0.48" cy="0.44" r="0.52">
+<stop offset="0" stop-color="#fff" stop-opacity="1"></stop>
+<stop offset="0.55" stop-color="#fff" stop-opacity="0.75"></stop>
+<stop offset="1" stop-color="#fff" stop-opacity="0"></stop>
+</radialGradient>
+<mask id="lamp"><rect width="1100" height="760" fill="url(#pool)"></rect></mask>
+<radialGradient id="warm" cx="0.48" cy="0.44" r="0.5">
+<stop offset="0" stop-color="#FFB45E" stop-opacity="0.22"></stop>
+<stop offset="1" stop-color="#FF8A3A" stop-opacity="0"></stop>
+</radialGradient>
+<pattern id="hatchN" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="10" stroke="#B5643C" stroke-width="1.4" opacity="0.55"></line></pattern>
+<filter id="waxN" x="-10%" y="-10%" width="120%" height="120%">
+<feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="8" result="g"></feTurbulence>
+<feDisplacementMap in="SourceGraphic" in2="g" scale="3" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+</filter>
+</defs>
+<g mask="url(#lamp)" transform="rotate(-6 550 340)">
+<g filter="url(#reliefN)"><rect x="80" y="40" width="940" height="620" fill="#E6E1C9"></rect></g>
+<path d="M600 80 C 700 60, 820 90, 860 170 C 880 230, 800 260, 720 240 C 650 220, 610 160, 600 80 Z" fill="url(#hatchN)"></path>
+<path d="M80 250 C 220 230, 330 300, 450 300 S 700 380, 1020 420" fill="none" stroke="#86AED3" stroke-width="3"></path>
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+<path d="M160 160 C 260 240, 380 300, 520 330 M520 330 C 620 380, 700 430, 820 470 L 1020 520 M300 640 C 360 560, 440 500, 520 470" stroke="#F4F2EA" stroke-width="3.6"></path>
+<path d="M160 160 C 260 240, 380 300, 520 330 M520 330 C 620 380, 700 430, 820 470 L 1020 520 M300 640 C 360 560, 440 500, 520 470" stroke="#76726A" stroke-width="1.3"></path>
+<path d="M80 420 C 260 400, 420 360, 520 330 S 780 220, 1020 140 M520 330 C 530 450, 560 560, 600 660" stroke="#682C1E" stroke-width="7.5"></path>
+<path d="M80 420 C 260 400, 420 360, 520 330 S 780 220, 1020 140 M520 330 C 530 450, 560 560, 600 660" stroke="#D86036" stroke-width="4.2"></path>
+<path d="M520 330 C 620 380, 700 430, 820 470" stroke="#F4DA4C" stroke-width="16" opacity="0.6" style="mix-blend-mode: multiply"></path>
+</g>
+<path d="M520 316 L524 326 L535 327 L527 334 L530 345 L520 339 L510 345 L513 334 L505 327 L516 326 Z" fill="#23221F" stroke="#F2EFE6" stroke-width="1.6"></path>
+<circle cx="820" cy="470" r="11" fill="#FFF" stroke="#23221F" stroke-width="2"></circle>
+<text x="820" y="475" text-anchor="middle" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="13" fill="#23221F">C</text>
+<g font-family="Barlow Condensed, sans-serif" font-weight="600" stroke="#F2EFE6" stroke-width="4" paint-order="stroke">
+<text x="520" y="296" text-anchor="middle" font-size="22" letter-spacing="3.5" fill="#23221F">HALCYON</text>
+<text x="838" y="476" font-size="16" fill="#23221F">Millmont Clinic</text>
+</g>
+<path d="M780 470 C 780 440, 820 430, 850 446 C 872 460, 866 494, 836 500 C 806 506, 782 490, 786 470" fill="none" stroke="#C8372D" stroke-width="3.4" stroke-linecap="round" filter="url(#waxN)"></path>
+<text x="700" y="560" font-family="Caveat, cursive" font-weight="700" font-size="27" fill="#C8372D" transform="rotate(-4 700 560)">two raiders, Rust Buggy</text>
+</g>
+<rect width="1100" height="760" fill="url(#warm)" style="mix-blend-mode: screen"></rect>
+<path d="M0 640 C 200 610, 420 600, 550 600 C 680 600, 900 610, 1100 640 V760 H0 Z" fill="#0A0908"></path>
+<g fill="none" stroke="#6B4A2A" stroke-width="2">
+<path d="M330 740 A 90 90 0 0 1 510 740"></path>
+<path d="M590 740 A 90 90 0 0 1 770 740"></path>
+</g>
+<g stroke="#9C6A37" stroke-width="2.5" stroke-linecap="round">
+<path d="M420 740 L 470 676"></path>
+<path d="M680 740 L 640 680"></path>
+</g>
+<g font-family="JetBrains Mono, monospace" font-size="11" fill="#7A5A38" text-anchor="middle">
+<text x="420" y="708">MPH</text><text x="680" y="708">FUEL</text>
+</g>
+<circle cx="890" cy="704" r="5" fill="#D86036" opacity="0.9"></circle>
+<text x="906" y="708" font-family="JetBrains Mono, monospace" font-size="11" fill="#7A5A38">MAP LIGHT</text>
+</svg>
+</div>
+
+<div style="position: absolute; left: 1196px; top: 96px; width: 668px; height: 360px; background: #1B1A17; box-shadow: 0 0 0 1px #2A2620; overflow: hidden">
+<svg role="img" aria-label="The atlas reverse printed: buff linework and labels on a dark ground, the highway still orange" width="668" height="360" viewBox="0 0 668 360" style="display: block">
+<text x="20" y="30" font-family="JetBrains Mono, monospace" font-size="11" letter-spacing="1.6" fill="#9A9384">NIGHT EDITION · REVERSE PRINT</text>
+<g fill="none" stroke-linecap="round">
+<path d="M0 180 C 120 160, 240 200, 330 170 S 520 120, 668 90" stroke="#4C6E8E" stroke-width="2.6"></path>
+<path d="M60 340 C 140 260, 250 220, 330 200 M330 200 C 420 230, 520 280, 668 300 M330 200 C 320 140, 300 90, 260 40" stroke="#8E8778" stroke-width="1.3"></path>
+<path d="M0 250 C 120 240, 230 220, 330 200 S 520 150, 668 160" stroke="#3A1B13" stroke-width="7.5"></path>
+<path d="M0 250 C 120 240, 230 220, 330 200 S 520 150, 668 160" stroke="#D86036" stroke-width="4"></path>
+<path d="M420 230 C 470 270, 540 330, 560 360" stroke="#8E8778" stroke-width="1.3" stroke-dasharray="4 3"></path>
+</g>
+<g font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="13" text-anchor="middle">
+<circle cx="520" cy="280" r="10" fill="#1B1A17" stroke="#EBE5CF" stroke-width="1.7"></circle><text x="520" y="285" fill="#EBE5CF">W</text>
+<rect x="142" y="92" width="15" height="15" fill="#C93A2E" stroke="#1B1A17" stroke-width="2" transform="rotate(45 150 100)"></rect>
+</g>
+<path d="M330 188 L334 197 L344 198 L336 204 L339 214 L330 208 L321 214 L324 204 L316 198 L326 197 Z" fill="#EBE5CF"></path>
+<g font-family="Barlow Condensed, sans-serif" font-weight="600" fill="#EBE5CF" stroke="#1B1A17" stroke-width="4" paint-order="stroke">
+<text x="330" y="236" text-anchor="middle" font-size="18" letter-spacing="3">HALCYON</text>
+<text x="536" y="286" font-size="14">Water plant, north</text>
+<text x="164" y="104" font-size="14" fill="#E2685A">Gear-Priests hold</text>
+</g>
+<text x="80" y="150" font-family="Source Serif 4, serif" font-style="italic" font-size="13" fill="#7FA0BE">Saltwater Creek</text>
+</svg>
+</div>
+
+<div style="position: absolute; left: 1196px; top: 496px; width: 668px; height: 360px; background: #120606; box-shadow: 0 0 0 1px #2A2620; overflow: hidden">
+<svg role="img" aria-label="The atlas under a red night-vision light: everything in shades of red, read by value alone" width="668" height="360" viewBox="0 0 668 360" style="display: block">
+<defs>
+<radialGradient id="redPool" cx="0.5" cy="0.55" r="0.6"><stop offset="0" stop-color="#5E1712"></stop><stop offset="1" stop-color="#120606"></stop></radialGradient>
+</defs>
+<rect width="668" height="360" fill="url(#redPool)"></rect>
+<text x="20" y="30" font-family="JetBrains Mono, monospace" font-size="11" letter-spacing="1.6" fill="#B0574C">RED LIGHT · DANGER, ENEMY TURN</text>
+<g fill="none" stroke-linecap="round">
+<path d="M0 220 C 140 200, 260 240, 350 210 S 540 160, 668 140" stroke="#2A0907" stroke-width="8"></path>
+<path d="M0 220 C 140 200, 260 240, 350 210 S 540 160, 668 140" stroke="#E07A63" stroke-width="4"></path>
+<path d="M350 210 C 380 270, 400 320, 420 360 M120 60 C 200 120, 280 170, 350 210" stroke="#9A3A30" stroke-width="1.4"></path>
+</g>
+<g font-family="Barlow Condensed, sans-serif" font-weight="700" text-anchor="middle">
+<rect x="460" y="150" width="20" height="20" fill="#F2B3A6" stroke="#2A0907" stroke-width="2" transform="rotate(45 470 160)"></rect>
+<text x="470" y="128" font-size="17" letter-spacing="2" fill="#F2B3A6" stroke="#3A0D09" stroke-width="4" paint-order="stroke">RUST BUGGY · 2 AHEAD</text>
+</g>
+<path d="M350 198 L354 207 L364 208 L356 214 L359 224 L350 218 L341 224 L344 214 L336 208 L346 207 Z" fill="#F2B3A6"></path>
+<text x="40" y="320" font-family="Caveat, cursive" font-weight="700" font-size="26" fill="#F2B3A6" transform="rotate(-3 40 320)">hold the inside lane</text>
+</svg>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1920,"height":900}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return {};
+	}
+}
+</script>
+</body>
+</html>

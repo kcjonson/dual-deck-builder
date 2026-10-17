@@ -42,7 +42,7 @@ The pool size, the stores, and any starter escorts are starting values, kept for
 
 ## The compound
 
-The compound screen is the game's home screen. It's an illustrated scene where the buildings are the menu, with the resources and day along the top and a needs panel beside it.
+The compound screen is the game's home screen. It's an illustrated scene where the buildings are the menu, with the resources and day along the top and a needs panel beside it. Its look, an overhead plate of the yard on the atlas page, is in [UI Art Direction](./UI%20Art%20Direction.md); the wireframe below is the earlier layout.
 
 ![Compound hub wireframe](../design/supply-runs/compound.png)
 

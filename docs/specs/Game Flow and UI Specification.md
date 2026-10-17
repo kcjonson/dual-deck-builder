@@ -2,11 +2,11 @@
 
 ## 1\. Game Start Flow
 
-The game is a campaign: the player runs a compound and sends supply runs out from it. The full structure (compound, driver pool, area map, run route, stops, fog, strongholds) is in [Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md); this document covers the screens.
+The game is a campaign: the player runs a compound and sends supply runs out from it. The full structure (compound, driver pool, area map, run route, stops, fog, strongholds) is in [Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md); this document covers the screens. How every screen except combat looks is in [UI Art Direction](./UI%20Art%20Direction.md).
 
 ### 1.1 Main Menu → New Campaign
 
-When a player launches the game, they'll see the main menu. "New Campaign" is the largest and most visually prominent button: it founds a compound on a freshly generated area map ([Area Map Generation](./Area%20Map%20Generation.md)) and opens the compound screen. Over a save it asks first, and a campaign in progress that it replaces goes into Campaign History as abandoned. Below it, if a campaign is in progress, "Continue" shows its state (e.g., "Day 12 - 3 drivers - 1 stronghold taken", counting the drivers at the compound, not the dead or the missing). With nothing to continue, Continue stays in its place, disabled, and the line under it says why: no campaign in progress, a damaged save, or a save from a version of the game with another save format. New Campaign replaces either kind of save, and a damaged one is set aside rather than deleted. At the bottom, "Campaign History" lists past campaigns, newest first: how each one ended (the compound starved, rioted, or disbanded; the campaign was won; or a new one replaced it), days survived, strongholds taken, unlocks earned, and the seed.
+When a player launches the game, they'll see the main menu. The most prominent entry is "Continue" when a campaign is in progress and "New Campaign" when there isn't one. New Campaign founds a compound on a freshly generated area map ([Area Map Generation](./Area%20Map%20Generation.md)) and opens the compound screen. Over a save it asks first, and a campaign in progress that it replaces goes into Campaign History as abandoned. Continue shows the campaign's state (e.g., "Day 12 - 3 drivers - 1 stronghold taken", counting the drivers at the compound, not the dead or the missing). With nothing to continue, Continue stays in its place, disabled, and the line under it says why: no campaign in progress, a damaged save, or a save from a version of the game with another save format. New Campaign replaces either kind of save, and a damaged one is set aside rather than deleted. At the bottom, "Campaign History" lists past campaigns, newest first: how each one ended (the compound starved, rioted, or disbanded; the campaign was won; or a new one replaced it), days survived, strongholds taken, unlocks earned, and the seed.
 
 There will need to be buttons to see what cards have been (the original note stops here).
 
@@ -262,9 +262,9 @@ When a supply run comes home, a short debrief shows what it brought back (cargo 
 
 When the campaign is won (see [Compound and Supply Runs](./Compound%20and%20Supply%20Runs.md), open question 1, for what wins it), the victory screen celebrates the achievement while setting up future campaigns.
 
-**Victory Presentation:** The screen opens with a cinematic moment - your battered convoy rolling home past the last stronghold burning behind it, the compound's gates open. The title "WASTELAND CONQUERED" or similar appears in weathered metal letters.
+**Victory Presentation:** The screen opens with a cinematic moment - your battered convoy rolling home past the last stronghold burning behind it, the compound's gates open. The title "WASTELAND CONQUERED" or similar appears hand-painted in the logo's brush letters.
 
-**Campaign Statistics Display:** Statistics appear in themed panels that look like scavenged road signs:
+**Campaign Statistics Display:** Statistics appear in the atlas's legend boxes (UI Art Direction):
 
 - **Campaign Length**: "Held Out for 84 Days"
 - **Combat Record**: "Defeated 47 Raiders, 12 Mutants, 3 Warlords"

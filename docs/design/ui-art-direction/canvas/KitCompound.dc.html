@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Field Kit: compound</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&amp;family=Caveat:wght@500;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Open+Sans:wght@400;600&amp;family=Source+Serif+4:ital,wght@1,400;1,600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#23221F;text-decoration:none}a:hover{color:#682C1E}
+button{font:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; position: relative; overflow: hidden; background: #2E2924; font-family: 'Open Sans', sans-serif; color: #23221F">
+
+<svg aria-hidden="true" width="1440" height="900" style="position: absolute; left: 0; top: 0">
+<defs>
+<filter id="kcSteel" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency="0.007" numOctaves="4" seed="31" result="big"></feTurbulence>
+<feColorMatrix in="big" type="matrix" values="0 0 0 0 0.46  0 0 0 0 0.21  0 0 0 0 0.08  1.8 0 0 0 -0.9" result="rustA"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.004 0.12" numOctaves="2" seed="12" result="streak"></feTurbulence>
+<feColorMatrix in="streak" type="matrix" values="0 0 0 0 0.30  0 0 0 0 0.16  0 0 0 0 0.08  1.2 0 0 0 -0.55" result="runs"></feColorMatrix>
+<feMerge><feMergeNode in="rustA"></feMergeNode><feMergeNode in="runs"></feMergeNode></feMerge>
+</filter>
+<filter id="kcPaint" x="-5%" y="-5%" width="110%" height="110%">
+<feTurbulence type="fractalNoise" baseFrequency="0.5" numOctaves="2" seed="21" result="speck"></feTurbulence>
+<feColorMatrix in="speck" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.2 1.7" result="mask"></feColorMatrix>
+<feComposite in="SourceGraphic" in2="mask" operator="in"></feComposite>
+</filter>
+</defs>
+<rect width="1440" height="900" filter="url(#kcSteel)"></rect>
+<path d="M0 96 H1440" stroke="#1C1814" stroke-width="3"></path>
+<path d="M0 99 H1440" stroke="#4A3F35" stroke-width="1"></path>
+<g filter="url(#kcPaint)">
+<text x="132" y="62" font-family="Barlow Condensed, sans-serif" font-weight="700" font-size="44" letter-spacing="10" fill="#E4D7B8">THE COMPOUND</text>
+</g>
+<text x="500" y="60" font-family="JetBrains Mono, monospace" font-size="14" letter-spacing="2" fill="#C9BBA0">DAY 9 · DAWN</text>
+</svg>
+
+<a href="#" style="position: absolute; left: 24px; top: 28px; width: 88px; height: 44px; box-sizing: border-box; background: #D9BF84; clip-path: polygon(16% 0, 100% 0, 100% 100%, 16% 100%, 0 50%); display: flex; align-items: center; justify-content: center; padding-left: 12px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.12em; color: #2C2620">MENU</a>
+
+<div style="position: absolute; left: 700px; top: 30px; display: flex; gap: 10px; align-items: center">
+<div style="padding: 6px 11px; background: #1C1D22; border-radius: 3px; box-shadow: 0 3px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px; letter-spacing: 0.12em; color: #EDEBE4">FOOD 14</div>
+<div style="padding: 6px 11px; background: #8A1F18; border-radius: 3px; box-shadow: 0 3px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px; letter-spacing: 0.12em; color: #FBEDEA">WATER 11</div>
+<div style="padding: 6px 11px; background: #1C1D22; border-radius: 3px; box-shadow: 0 3px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px; letter-spacing: 0.12em; color: #EDEBE4">FUEL 06</div>
+<div style="padding: 6px 11px; background: #1C1D22; border-radius: 3px; box-shadow: 0 3px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px; letter-spacing: 0.12em; color: #EDEBE4">SCRAP 35</div>
+<div style="padding: 6px 11px; background: #1C1D22; border-radius: 3px; box-shadow: 0 3px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px; letter-spacing: 0.12em; color: #EDEBE4">MEDS 02</div>
+<div style="padding: 6px 11px; background: #1C1D22; border-radius: 3px; box-shadow: 0 3px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12); font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 19px; letter-spacing: 0.12em; color: #EDEBE4">PEOPLE 18</div>
+</div>
+
+<div style="position: absolute; left: 30px; top: 120px; width: 920px; height: 760px; box-shadow: 0 0 0 6px #1C1814, 0 0 0 7px #55493D, 0 14px 30px rgba(0,0,0,0.55)">
+<svg role="img" aria-label="Overhead view of the compound yard at dawn: a scrap fence around packed dirt, the built bunkhouse with a corrugated roof, staked-out plots for the radio mast, infirmary, garage, map room and stores, the rig and the bike parked by the gate, and the road leaving east" width="920" height="760" viewBox="0 0 920 760" style="display: block">
+<defs>
+<filter id="kcDirt" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="4" seed="8" result="n"></feTurbulence>
+<feColorMatrix in="n" type="matrix" values="0 0 0 0 0.42  0 0 0 0 0.33  0 0 0 0 0.22  1.1 0 0 0 -0.35" result="patches"></feColorMatrix>
+<feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="2" result="f"></feTurbulence>
+<feColorMatrix in="f" type="matrix" values="0 0 0 0 0.30  0 0 0 0 0.24  0 0 0 0 0.17  3 0 0 0 -1.9" result="grit"></feColorMatrix>
+<feMerge><feMergeNode in="patches"></feMergeNode><feMergeNode in="grit"></feMergeNode></feMerge>
+</filter>
+<pattern id="kcCorr" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#9EA19B"></rect><rect width="3" height="8" fill="#B8BAB3"></rect><rect x="6" width="2" height="8" fill="#80837E"></rect></pattern>
+<pattern id="kcCorrRust" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#8E5B3A"></rect><rect width="3" height="8" fill="#A66C45"></rect><rect x="6" width="2" height="8" fill="#734630"></rect></pattern>
+<pattern id="kcHatchY" width="11" height="11" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="11" stroke="#B5643C" stroke-width="2" opacity="0.55"></line></pattern>
+<filter id="kcShadow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="4"></feGaussianBlur></filter>
+</defs>
+
+<rect width="920" height="760" fill="#B8A27C"></rect>
+<rect width="920" height="760" filter="url(#kcDirt)"></rect>
+
+<path d="M700 410 C 780 404, 860 396, 930 390" fill="none" stroke="#5E5B55" stroke-width="44"></path>
+<path d="M700 410 C 780 404, 860 396, 930 390" fill="none" stroke="#6E6A63" stroke-width="38"></path>
+<path d="M720 409 C 790 403, 860 396, 930 390" fill="none" stroke="#C99A3E" stroke-width="2.4" stroke-dasharray="18 16" opacity="0.6"></path>
+<g fill="none" stroke="#8C7655" stroke-width="7" opacity="0.5">
+<path d="M690 400 C 600 400, 520 420, 470 470 C 430 510, 380 520, 300 520"></path>
+<path d="M690 422 C 600 422, 530 440, 486 484 C 446 524, 390 540, 300 540"></path>
+</g>
+
+<g stroke-linejoin="round">
+<path d="M60 70 H 700 V 360" fill="none" stroke="#2A2521" stroke-width="12"></path>
+<path d="M700 460 V 700 H 60" fill="none" stroke="#2A2521" stroke-width="12"></path>
+<path d="M60 70 V 700" fill="none" stroke="#2A2521" stroke-width="12"></path>
+<path d="M60 70 H 240" stroke="#6E6A61" stroke-width="8"></path><path d="M240 70 H 380" stroke="#8E5B3A" stroke-width="8"></path><path d="M380 70 H 560" stroke="#5C6B5E" stroke-width="8"></path><path d="M560 70 H 700" stroke="#7D7A70" stroke-width="8"></path>
+<path d="M700 70 V 200" stroke="#8E5B3A" stroke-width="8"></path><path d="M700 200 V 360" stroke="#6E6A61" stroke-width="8"></path>
+<path d="M700 460 V 600" stroke="#5C6B5E" stroke-width="8"></path><path d="M700 600 V 700" stroke="#8E5B3A" stroke-width="8"></path>
+<path d="M60 700 H 260" stroke="#7D7A70" stroke-width="8"></path><path d="M260 700 H 480" stroke="#8E5B3A" stroke-width="8"></path><path d="M480 700 H 700" stroke="#6E6A61" stroke-width="8"></path>
+<path d="M60 70 V 300" stroke="#5C6B5E" stroke-width="8"></path><path d="M60 300 V 520" stroke="#7D7A70" stroke-width="8"></path><path d="M60 520 V 700" stroke="#8E5B3A" stroke-width="8"></path>
+</g>
+<g fill="#1F1B18"><rect x="694" y="350" width="14" height="14"></rect><rect x="694" y="456" width="14" height="14"></rect></g>
+<path d="M701 364 L 742 380" stroke="#4A4540" stroke-width="5"></path>
+
+<rect x="132" y="138" width="270" height="140" fill="#000" opacity="0.35" filter="url(#kcShadow)"></rect>
+<rect x="120" y="126" width="270" height="140" fill="url(#kcCorr)"></rect>
+<rect x="120" y="126" width="270" height="140" fill="none" stroke="#4A4C48" stroke-width="2"></rect>
+<path d="M120 196 H390" stroke="#6E716C" stroke-width="3"></path>
+<rect x="300" y="140" width="56" height="40" fill="url(#kcCorrRust)" opacity="0.9"></rect>
+<rect x="160" y="210" width="34" height="34" fill="#5E7F8C" opacity="0.8"></rect>
+<g fill="#5B4A36"><rect x="400" y="190" width="18" height="18"></rect><rect x="402" y="214" width="18" height="18"></rect><circle cx="432" cy="140" r="11" fill="#2D2B29" stroke="#4A4743" stroke-width="5"></circle></g>
+
+<g>
+<rect x="480" y="120" width="110" height="110" fill="url(#kcHatchY)"></rect>
+<rect x="480" y="120" width="110" height="110" fill="none" stroke="#EDE4CA" stroke-width="1.4" stroke-dasharray="4 3" opacity="0.9"></rect>
+<g fill="#3A2F24"><circle cx="480" cy="120" r="3.5"></circle><circle cx="590" cy="120" r="3.5"></circle><circle cx="480" cy="230" r="3.5"></circle><circle cx="590" cy="230" r="3.5"></circle></g>
+<path d="M520 160 l14 10 l10 -6 l12 12 l-18 10 l-16 -8 Z" fill="#6E6A61" stroke="#3A3530" stroke-width="1.5"></path>
+</g>
+<g>
+<rect x="470" y="280" width="190" height="110" fill="url(#kcHatchY)"></rect>
+<rect x="470" y="280" width="190" height="110" fill="none" stroke="#EDE4CA" stroke-width="1.4" stroke-dasharray="4 3" opacity="0.9"></rect>
+<g fill="#3A2F24"><circle cx="470" cy="280" r="3.5"></circle><circle cx="660" cy="280" r="3.5"></circle><circle cx="470" cy="390" r="3.5"></circle><circle cx="660" cy="390" r="3.5"></circle></g>
+</g>
+<g>
+<rect x="110" y="480" width="250" height="150" fill="url(#kcHatchY)"></rect>
+<rect x="110" y="480" width="250" height="150" fill="none" stroke="#EDE4CA" stroke-width="1.4" stroke-dasharray="4 3" opacity="0.9"></rect>
+<g fill="#3A2F24"><circle cx="110" cy="480" r="3.5"></circle><circle cx="360" cy="480" r="3.5"></circle><circle cx="110" cy="630" r="3.5"></circle><circle cx="360" cy="630" r="3.5"></circle></g>
+<g fill="#2D2B29" stroke="#4A4743" stroke-width="5"><circle cx="180" cy="560" r="12"></circle><circle cx="200" cy="575" r="12"></circle></g>
+</g>
+<g>
+<rect x="120" y="320" width="160" height="110" fill="url(#kcHatchY)"></rect>
+<rect x="120" y="320" width="160" height="110" fill="none" stroke="#EDE4CA" stroke-width="1.4" stroke-dasharray="4 3" opacity="0.9"></rect>
+<g fill="#3A2F24"><circle cx="120" cy="320" r="3.5"></circle><circle cx="280" cy="320" r="3.5"></circle><circle cx="120" cy="430" r="3.5"></circle><circle cx="280" cy="430" r="3.5"></circle></g>
+</g>
+<g>
+<rect x="430" y="560" width="200" height="110" fill="url(#kcHatchY)"></rect>
+<rect x="430" y="560" width="200" height="110" fill="none" stroke="#EDE4CA" stroke-width="1.4" stroke-dasharray="4 3" opacity="0.9"></rect>
+<g fill="#3A2F24"><circle cx="430" cy="560" r="3.5"></circle><circle cx="630" cy="560" r="3.5"></circle><circle cx="430" cy="670" r="3.5"></circle><circle cx="630" cy="670" r="3.5"></circle></g>
+<g fill="#6B5A40" stroke="#3A3024" stroke-width="1.5"><rect x="560" y="600" width="26" height="26"></rect><rect x="590" y="612" width="22" height="22"></rect></g>
+</g>
+
+<circle cx="372" cy="440" r="40" fill="#000" opacity="0.3" filter="url(#kcShadow)"></circle>
+<circle cx="364" cy="432" r="40" fill="#6C8A93" stroke="#45585E" stroke-width="5"></circle>
+<circle cx="364" cy="432" r="10" fill="#45585E"></circle>
+
+<g transform="translate(618 452) rotate(-8)">
+<rect x="4" y="6" width="70" height="34" fill="#000" opacity="0.35" filter="url(#kcShadow)"></rect>
+<rect x="0" y="0" width="70" height="34" rx="4" fill="#7A4A2E" stroke="#3A2418" stroke-width="2"></rect>
+<rect x="46" y="4" width="20" height="26" rx="3" fill="#4A2D1E"></rect>
+<rect x="8" y="6" width="32" height="22" fill="#5E3A26"></rect>
+<path d="M70 4 H76 M70 30 H76" stroke="#D86036" stroke-width="3"></path>
+</g>
+<g transform="translate(626 500) rotate(-4)">
+<rect x="2" y="4" width="38" height="12" fill="#000" opacity="0.3" filter="url(#kcShadow)"></rect>
+<rect x="0" y="2" width="38" height="10" rx="5" fill="#2E5E5B" stroke="#183634" stroke-width="2"></rect>
+<path d="M38 2 L 44 0 M38 12 L44 14" stroke="#4FA6A3" stroke-width="2"></path>
+</g>
+
+<g font-family="Barlow Condensed, sans-serif">
+<g transform="translate(130 96) rotate(-2)">
+<rect x="0" y="0" width="150" height="34" rx="2" fill="#1C1D22"></rect>
+<text x="75" y="24" text-anchor="middle" font-weight="600" font-size="20" letter-spacing="2.4" fill="#EDEBE4">BUNKHOUSE</text>
+</g>
+<g transform="translate(486 92) rotate(2)">
+<rect x="0" y="0" width="128" height="30" fill="#E6DAB5"></rect>
+<text x="64" y="21" text-anchor="middle" font-weight="700" font-size="18" fill="#23221F">Radio mast</text>
+</g>
+<g transform="translate(476 252) rotate(-1.5)">
+<rect x="0" y="0" width="112" height="30" fill="#E6DAB5"></rect>
+<text x="56" y="21" text-anchor="middle" font-weight="700" font-size="18" fill="#23221F">Infirmary</text>
+</g>
+<g transform="translate(126 292) rotate(1.5)">
+<rect x="0" y="0" width="112" height="30" fill="#E6DAB5"></rect>
+<text x="56" y="21" text-anchor="middle" font-weight="700" font-size="18" fill="#23221F">Map room</text>
+</g>
+<g transform="translate(116 452) rotate(-2)">
+<rect x="0" y="0" width="96" height="30" fill="#E6DAB5"></rect>
+<text x="48" y="21" text-anchor="middle" font-weight="700" font-size="18" fill="#23221F">Garage</text>
+</g>
+<g transform="translate(436 532) rotate(1)">
+<rect x="0" y="0" width="90" height="30" fill="#E6DAB5"></rect>
+<text x="45" y="21" text-anchor="middle" font-weight="700" font-size="18" fill="#23221F">Stores</text>
+</g>
+<g transform="translate(752 360)">
+<rect x="0" y="0" width="140" height="30" fill="#1C1D22"></rect>
+<text x="70" y="21" text-anchor="middle" font-weight="600" font-size="17" letter-spacing="2" fill="#EDEBE4">GATE · EAST</text>
+</g>
+</g>
+<g font-family="JetBrains Mono, monospace" font-size="11" fill="#23221F">
+<g transform="translate(130 136)"><rect x="0" y="0" width="186" height="20" fill="#F2ECDA"></rect><text x="7" y="14">BUILT · crew and decks</text></g>
+<g transform="translate(496 126)"><rect x="0" y="0" width="84" height="20" fill="#F2ECDA"></rect><text x="7" y="14">not built</text></g>
+<g transform="translate(486 286)"><rect x="0" y="0" width="84" height="20" fill="#F2ECDA"></rect><text x="7" y="14">not built</text></g>
+<g transform="translate(136 326)"><rect x="0" y="0" width="84" height="20" fill="#F2ECDA"></rect><text x="7" y="14">not built</text></g>
+<g transform="translate(126 486)"><rect x="0" y="0" width="84" height="20" fill="#F2ECDA"></rect><text x="7" y="14">not built</text></g>
+<g transform="translate(446 566)"><rect x="0" y="0" width="84" height="20" fill="#F2ECDA"></rect><text x="7" y="14">not built</text></g>
+</g>
+
+<rect x="114" y="120" width="282" height="152" fill="none" stroke="#F4DA4C" stroke-width="5" opacity="0.9"></rect>
+</svg>
+</div>
+
+<section aria-label="Needs and the day's orders" style="position: absolute; left: 976px; top: 128px; width: 430px; height: 520px; transform: rotate(0.6deg)">
+<div style="position: absolute; left: 0; top: 24px; width: 430px; height: 496px; background: #6B5137; border-radius: 10px; box-shadow: 0 14px 28px rgba(0,0,0,0.55)"></div>
+<div style="position: absolute; left: 18px; top: 44px; width: 394px; height: 460px; box-sizing: border-box; padding: 50px 22px 20px; background: #F2ECDA; box-shadow: inset 0 0 18px rgba(107,74,34,0.16); display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1.5px solid #23221F; padding-bottom: 6px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 22px; letter-spacing: 0.14em">BUNKHOUSE</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5D5A52">SELECTED</div>
+</div>
+<div style="font-size: 14px; line-height: 1.45; color: #2C2620">Drivers, settlers, and the Crew screen, where default decks are built.</div>
+<button type="button" style="min-height: 44px; background: #FBF8F0; border: 1.6px solid #23221F; box-shadow: 0 2px 0 #23221F; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 18px; color: #23221F">Open the bunkhouse</button>
+<div style="margin-top: 6px; display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1.5px solid #23221F; padding-bottom: 6px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 22px; letter-spacing: 0.14em">NEEDS</div>
+<div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #5D5A52">DAY 09</div>
+</div>
+<div style="display: flex; flex-direction: column; font-size: 14.5px">
+<div style="padding: 6px 0; border-bottom: 1px solid #D6CFBC; color: #A3221B; font-weight: 600">Food runs out in 2 days</div>
+<div style="padding: 6px 0; border-bottom: 1px solid #D6CFBC; color: #A3221B; font-weight: 600">Water runs out in 2 days</div>
+<div style="padding: 6px 0; border-bottom: 1px solid #D6CFBC">Mechanic 1 is injured, fit in 2 days</div>
+<div style="padding: 6px 0; color: #6E6A61">Radio: no new rumors</div>
+</div>
+</div>
+<svg aria-hidden="true" width="430" height="110" viewBox="0 0 430 110" style="position: absolute; left: 0; top: 0">
+<defs><linearGradient id="kcClip" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#C9CBCC"></stop><stop offset="0.5" stop-color="#8D9092"></stop><stop offset="1" stop-color="#5E6163"></stop></linearGradient></defs>
+<path d="M140 30 H290 L300 80 H130 Z" fill="url(#kcClip)" stroke="#4A4C4E" stroke-width="1.5"></path>
+<rect x="183" y="6" width="64" height="32" rx="14" fill="none" stroke="#7D8082" stroke-width="7"></rect>
+</svg>
+</section>
+
+<div style="position: absolute; left: 976px; top: 672px; width: 430px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; gap: 10px">
+<button type="button" style="flex: 1; min-height: 46px; background: #F2ECDA; border: 1.6px solid #23221F; box-shadow: 0 3px 0 #1C1814; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 19px; color: #23221F">Rest a day</button>
+<button type="button" style="flex: 1; min-height: 46px; background: #F2ECDA; border: 1.6px solid #23221F; box-shadow: 0 3px 0 #1C1814; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 19px; color: #23221F">Scavenge</button>
+</div>
+<button type="button" style="min-height: 76px; background: #D86036; border: 4px solid #682C1E; box-shadow: 0 4px 0 #682C1E, 0 12px 20px rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: space-between; padding: 0 22px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; color: #FFF8EE">
+<span>Plan a supply run</span>
+<span style="font-family: 'JetBrains Mono', monospace; font-weight: 400; font-size: 13px">30 destinations</span>
+</button>
+<div style="font-size: 12.5px; line-height: 1.4; color: #C9BBA0">Resting or scavenging ends day 9. The compound eats 5 food and 5 water.</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+	renderVals() {
+		return {};
+	}
+}
+</script>
+</body>
+</html>
