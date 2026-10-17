@@ -34,21 +34,3 @@ export function assertDriverSeats(drivers: readonly Driver[]): asserts drivers i
 	}
 	assertDriverPair([...drivers]);
 }
-
-/**
- * Index of the first driver at or after `fromIndex`, wrapping around, that
- * isn't `partner`. Returns -1 when every driver is the partner.
- */
-export function nextOpenDriverIndex({ drivers, fromIndex, partner }: {
-	drivers: Driver[];
-	fromIndex: number;
-	partner: Driver | null;
-}): number {
-	for (let offset = 0; offset < drivers.length; offset++) {
-		const index = (fromIndex + offset) % drivers.length;
-		if (!partner || !isSameDriver(drivers[index], partner)) {
-			return index;
-		}
-	}
-	return -1;
-}

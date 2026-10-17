@@ -306,18 +306,16 @@ describe('MainMenuScreen', () => {
 			send(context, [key('ArrowDown')]);
 			expect(context.focus.focused?.id).toBe('main_menu_history_button');
 			send(context, [key('ArrowDown')]);
-			expect(context.focus.focused?.id).toBe('main_menu_skirmish_button');
+			expect(context.focus.focused?.id).toBe('main_menu_settings_button');
 			send(context, [key('ArrowUp'), key('ArrowUp'), key('ArrowUp')]);
 			expect(context.focus.focused?.id).toBe('main_menu_developer_button');
 			send(context, [key('Enter')]);
 			expect(navigate).toHaveBeenCalledWith('developerScreen');
 		});
 
-		it('opens Campaign History and the Skirmish quick fight', () => {
+		it('opens Campaign History', () => {
 			clickOn('main_menu_history_button');
 			expect(navigate).toHaveBeenLastCalledWith('campaignHistoryScreen');
-			clickOn('main_menu_skirmish_button');
-			expect(navigate).toHaveBeenLastCalledWith('driverSelectionScreen');
 		});
 
 		it('shows the check running again after a start that failed to save, until the store answers', async () => {
