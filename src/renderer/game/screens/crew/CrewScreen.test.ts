@@ -10,7 +10,7 @@ import { advance, click, key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
-import { tokens } from '../../../engine/theme/tokens';
+import { themes, tokens } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Campaign } from '../../campaign/Campaign';
 import type { CardBlocker } from '../../campaign/Campaign';
@@ -42,6 +42,8 @@ import type { CardEntryGrid } from '../../ui/deckBuilder/CardEntryGrid';
 import { NO_DRIVER } from './crewSources';
 import { CrewScreen } from './CrewScreen';
 import { DECK_BUILDER } from '../../ui/deckBuilder/DeckBuilder';
+import type { SectionTabs } from '../../ui/atlas/SectionTabs';
+import { atlasScreenParts } from '../../ui/atlas/testing';
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -83,6 +85,14 @@ describe('CrewScreen', () => {
 
 	function text(id: string): string {
 		return find<Text>(id).text;
+	}
+
+	/** Picks a section tab as a press does. */
+	function pickTab(id: string): void {
+		const tabs = find<SectionTabs>('crew_tabs');
+		const tab = tabs.tabs.find((each) => each.tabId === id);
+		if (!tab) throw new Error(`no ${id} tab`);
+		tabs.memberPressed(tab, {} as never);
 	}
 
 	function bounds(id: string): Bounds {
@@ -275,7 +285,7 @@ describe('CrewScreen', () => {
 		});
 
 		it('starts focus on Back, and Tabs through the roster, the deck, the filter, and the locker', () => {
-			expect(context.focus.focused?.id).toBe('crew_back_button');
+			expect(context.focus.focused?.id).toBe('crew_tabs_crew');
 			// A segment has no id of its own; its control does.
 			const stops = Array.from({ length: 5 }, () => {
 				send(context, [key('Tab')]);
@@ -287,7 +297,7 @@ describe('CrewScreen', () => {
 				'crew_deck_grid_armor_plating_card',
 				'crew_pool_filter',
 				`crew_pool_grid_${entries('pool')[0][0]}_card`,
-				'crew_back_button',
+				'crew_tabs_crew',
 			]);
 		});
 
@@ -397,11 +407,19 @@ describe('CrewScreen', () => {
 
 		it('goes back to the compound with the campaign, focus restored on the Bunkhouse, on Back or Escape', () => {
 			const campaign = screen.shown;
-			find<Button>('crew_back_button').onClick?.({} as never);
+			pickTab('compound');
 			expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign }, { restoreFocus: true });
 			navigate.mockClear();
 			send(context, [key('Escape')]);
 			expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign }, { restoreFocus: true });
+		});
+
+		it('sits on one atlas sheet among the menu and the compound as tabs, with no highway, and its Menu tab goes to the menu', () => {
+			const parts = atlasScreenParts(screen.root);
+			expect([screen.theme, parts.sheets.length, parts.highways.length]).toEqual(['atlas', 1, 0]);
+			expect(parts.tabs[0]?.tabs.map((tab) => [tab.tabId, tab.selected])).toEqual([['menu', false], ['compound', false], ['crew', true]]);
+			pickTab('menu');
+			expect(navigate).toHaveBeenLastCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
 		});
 	});
 
@@ -412,7 +430,7 @@ describe('CrewScreen', () => {
 		await flush();
 		expect(find<Text>('crew_save_error').visible).toBe(true);
 		expect(text('crew_save_error')).toBe("The campaign couldn't be saved: storage is full.");
-		expect(find<{ color: unknown }>('crew_save_error').color).toEqual(tokens.color.status_crit);
+		expect(find<{ color: unknown }>('crew_save_error').color).toEqual(themes.atlas.color.status_crit);
 		// A failed checkpoint has settled by now, and a failure is no landing: the line stays through another one.
 		press(control('pool', 'headshot', 'add'));
 		await flush();
@@ -461,7 +479,7 @@ describe('CrewScreen', () => {
 		// A roster card's detail view lays its deck out as minis, so it opens once the cards are in.
 		expect(rosterCard('driver-1').tooltip).toBeNull();
 		expect([text('crew_deck_empty'), text('crew_pool_empty')]).toEqual(['Loading the cards.', 'Loading the cards.']);
-		find<Button>('crew_back_button').onClick?.({} as never);
+		pickTab('compound');
 		expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign }, { restoreFocus: true });
 		release(lookup);
 		await screen.campaignLoaded;
@@ -483,7 +501,7 @@ describe('CrewScreen', () => {
 		screen.mount(context);
 		await screen.campaignLoaded;
 		expect(text('crew_deck_empty')).toBe("The saved campaign is damaged and can't be loaded. It's been kept.");
-		find<Button>('crew_back_button').onClick?.({} as never);
+		pickTab('compound');
 		expect(navigate).toHaveBeenLastCalledWith('compoundScreen', undefined, { restoreFocus: true });
 	});
 
@@ -532,7 +550,7 @@ describe('CrewScreen', () => {
 			const roster = bounds('crew_roster_panel');
 			expect(roster.width).toBe(DECK_BUILDER.sideWidth);
 			const [first, second] = find<{ children: readonly DriverCard[] }>('crew_roster_pool').children;
-			expect(second.screenBounds.y).toBe(first.screenBounds.y);
+			expect(second.screenBounds.y).toBeGreaterThan(first.screenBounds.y);
 			for (const id of ['crew_top_bar', 'crew_pool_panel', 'crew_deck_panel']) {
 				const box = bounds(id);
 				expect(box.x + box.width).toBeLessThanOrEqual(width);

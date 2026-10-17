@@ -7,6 +7,7 @@ import { Container } from '../../../engine/components/Container';
 import type { MountContext } from '../../../engine/components/MountContext';
 import { renderTree } from '../../../engine/components/renderTree';
 import { Stack } from '../../../engine/components/Stack';
+import { Text } from '../../../engine/components/Text';
 import { createTestContext } from '../../../engine/components/testing';
 import type { CircleCommand, DrawCommand, PolygonCommand, RectCommand, TextCommand } from '../../../engine/draw';
 import type { RGBA } from '../../../engine/draw/geometry';
@@ -295,6 +296,13 @@ describe('SectionTabs', () => {
 		tabs.selectedId = 'locked';
 		expect(tabs.selectedId).toBeNull();
 	});
+
+	it('names its tabs after itself when it has an id', () => {
+		const named = add(new SectionTabs({ id: 'crew_tabs', tabs: specs }));
+		expect(named.tabs.map((tab) => tab.id)).toEqual(['crew_tabs_menu', 'crew_tabs_compound', 'crew_tabs_locked', 'crew_tabs_crew']);
+		const unnamed = add(new SectionTabs({ tabs: specs }));
+		expect(unnamed.tabs[0].id).toBeNull();
+	});
 });
 
 describe('AtlasSheet', () => {
@@ -335,6 +343,15 @@ describe('AtlasSheet', () => {
 		expect(child.placedX).toBe(inset);
 		expect(child.placedY).toBe(inset);
 	});
+
+	it('clears its content and keeps its tabs', () => {
+		const tabs = new SectionTabs({ tabs: [{ id: 'a', label: 'Menu' }] });
+		const sheet = add(new AtlasSheet({ tabs, width: 1024, height: 600 }));
+		sheet.addChild(new Stack({ id: 'page', width: 100, height: 20 }));
+		sheet.clearContent();
+		expect(sheet.children).toEqual([tabs]);
+		expect(sheet.tabs).toBe(tabs);
+	});
 });
 
 describe('LegendBox', () => {
@@ -349,6 +366,21 @@ describe('LegendBox', () => {
 		expect(drawn[2]).toMatchObject({ border: { width: ATLAS.legendRule }, rect: { x: ATLAS.legendRuleInset } });
 		expect(drawn.filter((command) => same(command.fill, atlas.color.line_hairline))).toHaveLength(2);
 		expect(box.title).toBe('Needs');
+	});
+
+	it('sets its head further in than its padding by the head indent, and its content below it', () => {
+		const box = new LegendBox({ title: 'Locker', padding: 8, headIndent: 4, gap: 0, width: 320 });
+		const content = new Stack({ width: 100, height: 20 });
+		box.addChild(content);
+		add(box);
+		const head = box.children.find((child): child is Text => child instanceof Text && child.isPart);
+		expect([head?.placedX, head?.placedY]).toEqual([12, 12]);
+		expect([content.placedX, content.placedY]).toEqual([8, 12 + 24]);
+	});
+
+	it('names the body line of a row when asked', () => {
+		const row = add(new LegendRow({ text: 'No campaign has ended yet.', symbol: 'dash', textId: 'history_empty' }));
+		expect(row.findById('history_empty')).not.toBeNull();
 	});
 
 	it('draws the thing in focus on flat fresh paper, W0, with no art', () => {
@@ -423,6 +455,15 @@ describe('ContentsRow', () => {
 		expect(drawn.find((command): command is CircleCommand => command.kind === 'circle')?.border?.color).toEqual(tokens.color.text);
 		expect(drawn.find((command): command is TextCommand => command.kind === 'text' && command.text === 'New campaign')?.color).toEqual(tokens.color.text);
 		expect(drawn.some((command) => command.kind === 'rect' && same(command.fill, tokens.color.text_disabled))).toBe(true);
+	});
+
+	it('names its label, value, and subtitle after the row', () => {
+		const column = new Stack({ width: 600 });
+		const row = new ContentsRow({ id: 'history_row_0', label: 'Starved', value: '34 days', subtitle: 'Seed 7', focusable: false, pointerEvents: 'none' });
+		column.addChild(row);
+		add(column);
+		expect(['label', 'value', 'subtitle'].map((part) => (row.findById(`history_row_0_${part}`) as Text | null)?.text)).toEqual(['Starved', '34 days', 'Seed 7']);
+		expect(row.canReceiveFocus()).toBe(false);
 	});
 
 	it('activates from the keyboard', () => {

@@ -9,11 +9,12 @@ import type { DriverRecord } from '../../campaign/DriverRecord';
 import type { RunDeck } from '../../campaign/RunDeck';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Button } from '../../../engine/ui/Button';
-import { Divider } from '../../../engine/ui/Divider';
-import { Panel } from '../../../engine/ui/Panel';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { tokens } from '../../../engine/theme/tokens';
+import { AtlasButton } from '../../ui/atlas/AtlasButton';
+import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
+import { LegendBox } from '../../ui/atlas/LegendBox';
+import { PageTitle } from '../../ui/atlas/PageTitle';
 import { DRIVER_CONFIGS } from '../../mechanics/Driver';
 import { INSPECT_KEYS, inspectHotkey, inspectOnContextMenu, makeDriverInspectable } from '../../ui/cardInspect';
 import { DriverCard } from '../../ui/DriverCard';
@@ -40,9 +41,14 @@ import {
 } from './customizeText';
 
 const { space, fontSize } = tokens;
-const TOP_BAR_HEIGHT = 64;
-/** A button doesn't hug its label, so Done has a width that fits its label. */
-const DONE_WIDTH = 104;
+/** Done is the highway, shorter than the default so the deck keeps its rows at 600 px. */
+const DONE_WIDTH = 168;
+const DONE_HEIGHT = 50;
+const DONE_LABEL = 24;
+/** Reset sits in the side column, a card's width and a little more, so its back road sets a smaller label. */
+const RESET_LABEL = 17;
+/** The deck and the locker need every pixel across for their columns, so the sheet sets its content close inside the neatline. */
+const SHEET_INSET = space.space_2;
 const CARDS_LOADING = 'Loading the cards.';
 const CARDS_FAILED = "The cards couldn't be loaded.";
 const LOOKING = 'Looking for the saved campaign.';
@@ -92,6 +98,10 @@ export interface CustomizeScreenOptions {
  * change, and says under the top bar when a save fails until a later one
  * lands.
  *
+ * It's one atlas sheet (UI Art Direction, Screens): the title with Done as
+ * the screen's one highway, then the Crew screen's legend boxes; the cards
+ * keep their own faces. Reset to default is a back road.
+ *
  * Focus starts on Done. Tab goes Done, the driver card, Reset, the escort
  * cards, the run deck, the filter, and the locker (R9.18); each grid is one
  * focus group whose minis and controls Up and Down move between (R9.26,
@@ -99,7 +109,7 @@ export interface CustomizeScreenOptions {
  * a secondary click pin a card's detail view, the driver's included.
  */
 export class CustomizeScreen extends Screen {
-	private readonly stack: Stack;
+	private readonly sheet: AtlasSheet;
 	private readonly store: CampaignStore;
 	private readonly loadCards: () => Promise<CardLookup>;
 	private readonly session = new CampaignVisit({ name: 'CustomizeScreen' });
@@ -115,13 +125,13 @@ export class CustomizeScreen extends Screen {
 	private trouble: string | null = null;
 	private cardsState: 'loading' | 'ready' | 'failed' = 'loading';
 	private builder: DeckBuilder | null = null;
-	private sidePanel: Panel | null = null;
+	private sidePanel: LegendBox | null = null;
 	private sideBody: Stack | null = null;
 	private driverCard: DriverCard | null = null;
 	private inspectable = false;
 	private vehicle: Text | null = null;
 	private note: Text | null = null;
-	private reset: Button | null = null;
+	private reset: AtlasButton | null = null;
 	private escortGrid: CardEntryGrid | null = null;
 	private escortEmpty: Text | null = null;
 	private escortNote: Text | null = null;
@@ -131,15 +141,16 @@ export class CustomizeScreen extends Screen {
 	private loaded: Promise<void> = Promise.resolve();
 
 	constructor({ store = CampaignStore.shared, cards = loadedCardLookup }: CustomizeScreenOptions = {}) {
-		const root = new Stack({
+		const root = new AtlasSheet({
 			id: 'customizeScreen',
 			widthMode: 'fill',
 			heightMode: 'fill',
 			crossAlign: 'stretch',
-			style: { backgroundColor: 'bg_base' },
+			contentInset: SHEET_INSET,
+			gap: space.space_3,
 		});
-		super('customizeScreen', { root });
-		this.stack = root;
+		super('customizeScreen', { root, theme: 'atlas' });
+		this.sheet = root;
 		this.store = store;
 		this.loadCards = cards;
 	}
@@ -169,29 +180,27 @@ export class CustomizeScreen extends Screen {
 		this.returnTo = handed.returnTo ?? 'compoundScreen';
 		this.returnData = handed.returnData ?? null;
 
-		const done = new Button({
+		const done = new AtlasButton({
 			label: 'Done',
 			id: 'customize_done_button',
-			icon: 'check',
-			tone: 'accent',
-			size: 'sm',
+			variant: 'highway',
+			shield: true,
+			labelSize: DONE_LABEL,
 			width: DONE_WIDTH,
+			height: DONE_HEIGHT,
 			onClick: () => this.done(),
 		});
-		this.stack.addChild(this.createTopBar(done));
-		this.stack.addChild(new Divider({ id: 'customize_top_rule' }));
+		this.sheet.addChild(this.createTopBar(done));
 		const saveError = new Text({
 			id: 'customize_save_error',
 			visible: false,
 			widthMode: 'fill',
-			margin: { top: space.space_3, left: space.space_4, right: space.space_4 },
 			style: { fontSize: 'fs_sm', color: 'status_crit' },
 		});
-		this.stack.addChild(saveError);
+		this.sheet.addChild(saveError);
 
 		this.builder = new DeckBuilder({
 			id: 'customize',
-			padding: space.space_4,
 			side: this.createSide(),
 			deckHeader: this.createHeader(),
 			deckCaption: 'Run deck / hover a card for its detail view',
@@ -206,7 +215,7 @@ export class CustomizeScreen extends Screen {
 			emptyPool: LOOKING,
 		});
 		this.builder.footVisible = false;
-		this.stack.addChild(this.builder);
+		this.sheet.addChild(this.builder);
 
 		const { hotkeys } = this.rootLayer;
 		hotkeys.register('Escape', () => this.done());
@@ -237,7 +246,7 @@ export class CustomizeScreen extends Screen {
 		for (const key of ['Escape', ...INSPECT_KEYS]) hotkeys.unregister(key);
 		this.unsubscribe.forEach((unsubscribe) => unsubscribe());
 		this.unsubscribe = [];
-		this.stack.clearChildren();
+		this.sheet.clearChildren();
 		this.campaign = null;
 		this.chosen = null;
 		this.returnTo = 'compoundScreen';
@@ -261,33 +270,22 @@ export class CustomizeScreen extends Screen {
 		this.chips.clear();
 	}
 
-	private createTopBar(done: Button): Stack {
+	/** The title and what changes here last for, and Done at the right. */
+	private createTopBar(done: AtlasButton): Stack {
 		const bar = new Stack({
 			id: 'customize_top_bar',
 			direction: 'horizontal',
 			widthMode: 'fill',
-			height: TOP_BAR_HEIGHT,
-			padding: { left: space.space_4, right: space.space_4 },
 			crossAlign: 'center',
 			gap: space.space_4,
-			style: { backgroundColor: 'bg_panel' },
 		});
-		const heading = new Stack({ id: 'customize_heading', widthMode: 'fill', crossAlign: 'stretch' });
-		heading.addChild(new Text({
-			text: 'Customize',
-			id: 'customize_title',
-			style: { fontRole: 'display', fontSize: 'fs_xl', color: 'text_bright', textTransform: 'uppercase', letterSpacing: 'ls_wide' },
-			wrap: 'none',
+		bar.addChild(new PageTitle({
+			id: 'customize_heading',
+			title: 'Customize',
+			subtitle: 'Changes last for this run only / default deck unchanged',
+			titleId: 'customize_title',
+			subtitleId: 'customize_kicker',
 		}));
-		heading.addChild(new Text({
-			text: 'Changes last for this run only / default deck unchanged',
-			id: 'customize_kicker',
-			widthMode: 'fill',
-			style: { fontRole: 'mono', fontSize: 'fs_sm', color: 'text_dim', textTransform: 'uppercase' },
-			wrap: 'none',
-			textOverflow: 'ellipsis',
-		}));
-		bar.addChild(heading);
 		bar.addChild(done);
 		return bar;
 	}
@@ -301,17 +299,16 @@ export class CustomizeScreen extends Screen {
 	 * 1024x600 holds. A secondary click on any card in it pins its detail
 	 * view.
 	 */
-	private createSide(): Panel {
-		const { inset } = DECK_BUILDER;
-		const panel = new Panel({ id: 'customize_side_panel', title: seatTitle({ seat: null, seats: 0 }), flush: true, width: DECK_BUILDER.sideWidth, heightMode: 'fill', crossAlign: 'stretch' });
+	private createSide(): LegendBox {
+		const panel = new LegendBox({ id: 'customize_side_panel', title: seatTitle({ seat: null, seats: 0 }), padding: DECK_BUILDER.boxPadding, headIndent: DECK_BUILDER.headIndent, gap: 0, width: DECK_BUILDER.sideWidth, heightMode: 'fill', crossAlign: 'stretch' });
 		const scroll = new ScrollContainer({ id: 'customize_side_scroll', widthMode: 'fill', heightMode: 'fill' });
-		const body = new Stack({ id: 'customize_side_body', crossAlign: 'stretch', gap: space.space_2, padding: inset, visible: false });
+		const body = new Stack({ id: 'customize_side_body', crossAlign: 'stretch', gap: space.space_2, padding: { top: space.space_1, bottom: space.space_1 }, visible: false });
 		const card = new DriverCard({ id: 'customize_driver_card', data: driverCardData({ archetype: 'road_warrior' }) });
 		card.focusable = true;
 		card.alignSelf = 'start';
 		this.vehicle = new Text({ id: 'customize_vehicle', widthMode: 'fill', style: { fontSize: 'fs_base', color: 'text' }, wrap: 'none', textOverflow: 'ellipsis' });
 		this.note = new Text({ id: 'customize_note', widthMode: 'fill', style: { fontSize: 'fs_sm', color: 'text_dim' } });
-		this.reset = new Button({ label: 'Reset to default', id: 'customize_reset_button', size: 'sm', block: true, disabled: true, onClick: () => this.resetRunDeck() });
+		this.reset = new AtlasButton({ label: 'Reset to default', id: 'customize_reset_button', labelSize: RESET_LABEL, block: true, disabled: true, onClick: () => this.resetRunDeck() });
 		const caption = new Text({
 			id: 'customize_escort_caption',
 			text: 'Escort cards',
@@ -342,7 +339,7 @@ export class CustomizeScreen extends Screen {
 			const chip = new Stack({
 				id: `customize_deck_${key}`,
 				padding: { top: space.space_1, bottom: space.space_1, left: space.space_1_5, right: space.space_1_5 },
-				style: { borderColor: key === 'size' ? 'text_dim' : 'line_edge', borderWidth: 'bw', borderRadius: 'r_sm' },
+				style: { borderColor: key === 'size' ? 'text_dim' : 'line_edge', borderWidth: 'bw', borderRadius: 'radius_ui' },
 			});
 			const text = new Text({ id: `customize_deck_${key}_text`, style: { fontRole: 'mono', fontSize: 'fs_sm', color: 'text' }, wrap: 'none' });
 			chip.addChild(text);

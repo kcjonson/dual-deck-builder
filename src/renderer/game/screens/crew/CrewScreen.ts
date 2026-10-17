@@ -8,12 +8,14 @@ import { CampaignStore } from '../../campaign/CampaignStore';
 import type { DriverRecord } from '../../campaign/DriverRecord';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Button } from '../../../engine/ui/Button';
 import { Divider } from '../../../engine/ui/Divider';
 import { FocusGroup } from '../../../engine/ui/FocusGroup';
-import { Panel } from '../../../engine/ui/Panel';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { tokens } from '../../../engine/theme/tokens';
+import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
+import { LegendBox } from '../../ui/atlas/LegendBox';
+import { PageTitle } from '../../ui/atlas/PageTitle';
+import { SectionTabs } from '../../ui/atlas/SectionTabs';
 import { DRIVER_CONFIGS } from '../../mechanics/Driver';
 import { MINI_GRID } from '../../ui/Card';
 import { INSPECT_KEYS, inspectHotkey, inspectOnContextMenu, makeDriverInspectable } from '../../ui/cardInspect';
@@ -28,9 +30,15 @@ import { crewDeckSource, crewLockerSource } from './crewSources';
 import { deckLimitsText, deckSizeText, defaultDeckOf, hitpointsText, lockerNote, lostNote, rosterStatus, rosterTitle, standingText } from './crewText';
 
 const { space, fontSize } = tokens;
-const TOP_BAR_HEIGHT = 64;
-/** A button doesn't hug its label, so Back has a width that fits its. */
-const BACK_WIDTH = 168;
+/** The sections the Crew screen sits among: the menu, the compound it opens from, and itself, with the deck glyph (UI Art Direction, Card hints). */
+const CREW_TABS = [
+	{ id: 'menu', label: 'Menu' },
+	{ id: 'compound', label: 'Compound' },
+	{ id: 'crew', label: 'Crew', deck: true },
+] as const;
+
+/** The deck and the locker need every pixel across for their columns, so the sheet sets its content close inside the neatline. */
+const SHEET_INSET = space.space_2;
 const CARDS_FAILED = "The cards couldn't be loaded.";
 const LOOKING = 'Looking for the saved campaign.';
 
@@ -64,13 +72,21 @@ export interface CrewScreenOptions {
  * change; a save that fails says so under the top bar, as the compound's
  * does under Rest, until a later one lands.
  *
- * Focus starts on Back. The roster is one focus group, so Left and Right
- * walk every driver in reading order and Up and Down move between rows
- * (R9.26, R9.29); each grid is another. Escape goes back to the compound
- * with focus restored on the Bunkhouse, as Back does.
+ * It's one atlas sheet (UI Art Direction, Screens) with the menu, the
+ * compound, and the crew as thumb-index tabs, which stand in for Back: the
+ * Compound tab goes back to the compound. The roster, the deck, and the
+ * locker are legend boxes; the cards keep their own faces. Nothing here is
+ * a primary action (every change is free and saved as it's made), so there
+ * is no highway.
+ *
+ * Focus starts on the Crew tab. The roster is one focus group, so Left and
+ * Right walk every driver in reading order and Up and Down move between
+ * rows (R9.26, R9.29); each grid is another. Escape goes back to the
+ * compound with focus restored on the Bunkhouse, as the Compound tab does.
  */
 export class CrewScreen extends Screen {
-	private readonly stack: Stack;
+	private readonly sheet: AtlasSheet;
+	private readonly tabs: SectionTabs;
 	private readonly store: CampaignStore;
 	private readonly loadCards: () => Promise<CardLookup>;
 	private campaign: Campaign | null = null;
@@ -85,7 +101,7 @@ export class CrewScreen extends Screen {
 	private inspectable = new WeakSet<DriverCard>();
 	private chosen: DriverRecord | null = null;
 	private builder: DeckBuilder | null = null;
-	private rosterPanel: Panel | null = null;
+	private rosterPanel: LegendBox | null = null;
 	private rosterPool: FlowWrap | null = null;
 	private rosterLost: FlowWrap | null = null;
 	private rosterGroup: FocusGroup | null = null;
@@ -101,15 +117,24 @@ export class CrewScreen extends Screen {
 	private loaded: Promise<void> = Promise.resolve();
 
 	constructor({ store = CampaignStore.shared, cards = loadedCardLookup }: CrewScreenOptions = {}) {
-		const root = new Stack({
+		const tabs = new SectionTabs({
+			id: 'crew_tabs',
+			tabs: CREW_TABS,
+			selectedId: 'crew',
+			onSelect: (id) => this.toSection(id),
+		});
+		const root = new AtlasSheet({
 			id: 'crewScreen',
+			tabs,
 			widthMode: 'fill',
 			heightMode: 'fill',
 			crossAlign: 'stretch',
-			style: { backgroundColor: 'bg_base' },
+			contentInset: SHEET_INSET,
+			gap: space.space_3,
 		});
-		super('crewScreen', { root });
-		this.stack = root;
+		super('crewScreen', { root, theme: 'atlas' });
+		this.sheet = root;
+		this.tabs = tabs;
 		this.store = store;
 		this.loadCards = cards;
 	}
@@ -135,28 +160,23 @@ export class CrewScreen extends Screen {
 	}
 
 	protected onMount(data?: unknown): void {
-		const back = new Button({
-			label: 'Back to compound',
-			id: 'crew_back_button',
-			icon: 'arrow_back',
-			size: 'sm',
-			width: BACK_WIDTH,
-			onClick: () => this.back(),
-		});
-		this.stack.addChild(this.createTopBar(back));
-		this.stack.addChild(new Divider({ id: 'crew_top_rule' }));
+		this.sheet.addChild(new PageTitle({
+			id: 'crew_top_bar',
+			title: 'Crew and decks',
+			subtitle: 'Bunkhouse / default decks / changes here are free',
+			titleId: 'crew_title',
+			subtitleId: 'crew_kicker',
+		}));
 		this.saveError = new Text({
 			id: 'crew_save_error',
 			visible: false,
 			widthMode: 'fill',
-			margin: { top: space.space_3, left: space.space_4, right: space.space_4 },
 			style: { fontSize: 'fs_sm', color: 'status_crit' },
 		});
-		this.stack.addChild(this.saveError);
+		this.sheet.addChild(this.saveError);
 
 		this.builder = new DeckBuilder({
 			id: 'crew',
-			padding: space.space_4,
 			side: this.createRoster(),
 			deckHeader: this.createHeader(),
 			deckCaption: 'Default deck / hover a card for its detail view',
@@ -171,13 +191,15 @@ export class CrewScreen extends Screen {
 			emptyDeck: LOOKING,
 			emptyPool: LOOKING,
 		});
-		this.stack.addChild(this.builder);
+		this.sheet.addChild(this.builder);
 
 		const { hotkeys } = this.rootLayer;
 		hotkeys.register('Escape', () => this.back());
 		for (const key of INSPECT_KEYS) hotkeys.register(key, () => inspectHotkey(this.context));
 		this.session.start({ store: this.store, saveError: this.saveError });
-		this.context.focus.focus(back);
+		this.tabs.selectedId = 'crew';
+		const open = this.tabs.tabs.find((tab) => tab.selected);
+		if (open) this.context.focus.focus(open);
 
 		// The roster and the header show as soon as there's a campaign, and the deck and locker fill in once the cards are there.
 		this.loaded = this.session.load({
@@ -203,7 +225,7 @@ export class CrewScreen extends Screen {
 		for (const key of ['Escape', ...INSPECT_KEYS]) hotkeys.unregister(key);
 		this.unsubscribe.forEach((unsubscribe) => unsubscribe());
 		this.unsubscribe = [];
-		this.stack.clearChildren();
+		this.sheet.clearContent();
 		this.campaign = null;
 		this.lookup = null;
 		this.sources = null;
@@ -225,46 +247,15 @@ export class CrewScreen extends Screen {
 		this.saveError = null;
 	}
 
-	private createTopBar(back: Button): Stack {
-		const bar = new Stack({
-			id: 'crew_top_bar',
-			direction: 'horizontal',
-			widthMode: 'fill',
-			height: TOP_BAR_HEIGHT,
-			padding: { left: space.space_4, right: space.space_4 },
-			crossAlign: 'center',
-			gap: space.space_4,
-			style: { backgroundColor: 'bg_panel' },
-		});
-		bar.addChild(back);
-		const heading = new Stack({ id: 'crew_heading', widthMode: 'fill', crossAlign: 'stretch' });
-		heading.addChild(new Text({
-			text: 'Crew and decks',
-			id: 'crew_title',
-			style: { fontRole: 'display', fontSize: 'fs_xl', color: 'text_bright', textTransform: 'uppercase', letterSpacing: 'ls_wide' },
-			wrap: 'none',
-		}));
-		heading.addChild(new Text({
-			text: 'Bunkhouse / default decks / changes here are free',
-			id: 'crew_kicker',
-			widthMode: 'fill',
-			style: { fontRole: 'mono', fontSize: 'fs_sm', color: 'text_dim', textTransform: 'uppercase' },
-			wrap: 'none',
-			textOverflow: 'ellipsis',
-		}));
-		bar.addChild(heading);
-		return bar;
-	}
-
 	/**
-	 * Every driver the compound has had, as driver cards two abreast: those
-	 * at the compound first, then, under a caption, those lost on runs,
-	 * faded with a LOST tag. One focus group across both, so Left and Right
-	 * read on from one row to the next rather than turning off diagonally at
-	 * a row's end (R9.26, R9.29).
+	 * Every driver the compound has had, as driver cards one above the
+	 * next: those at the compound first, then, under a caption, those lost
+	 * on runs, faded with a LOST tag. One focus group across both, so Left
+	 * and Right read on through every driver as Up and Down do (R9.26,
+	 * R9.29).
 	 */
-	private createRoster(): Panel {
-		const panel = new Panel({ id: 'crew_roster_panel', title: rosterTitle(null), flush: true, width: DECK_BUILDER.sideWidth, heightMode: 'fill', crossAlign: 'stretch' });
+	private createRoster(): LegendBox {
+		const panel = new LegendBox({ id: 'crew_roster_panel', title: rosterTitle(null), padding: DECK_BUILDER.boxPadding, headIndent: DECK_BUILDER.headIndent, gap: 0, width: DECK_BUILDER.sideWidth, heightMode: 'fill', crossAlign: 'stretch' });
 		const scroll = new ScrollContainer({ id: 'crew_roster_scroll', widthMode: 'fill', heightMode: 'fill' });
 		const group = new FocusGroup({ id: 'crew_roster', orientation: 'horizontal', direction: 'vertical', crossAlign: 'stretch', visible: false });
 		const pool = new FlowWrap({ id: 'crew_roster_pool', margin: MINI_GRID.margin, gap: MINI_GRID.gap, visible: false });
@@ -307,7 +298,7 @@ export class CrewScreen extends Screen {
 			const chip = new Stack({
 				id: `crew_driver_${key}`,
 				padding: { top: space.space_1, bottom: space.space_1, left: space.space_1_5, right: space.space_1_5 },
-				style: { borderColor: key === 'deck' ? 'text_dim' : 'line_edge', borderWidth: 'bw', borderRadius: 'r_sm' },
+				style: { borderColor: key === 'deck' ? 'text_dim' : 'line_edge', borderWidth: 'bw', borderRadius: 'radius_ui' },
 			});
 			const text = new Text({ id: `crew_driver_${key}_text`, style: { fontRole: key === 'standing' ? 'body' : 'mono', fontSize: 'fs_sm', color: 'text' }, wrap: 'none' });
 			chip.addChild(text);
@@ -469,4 +460,11 @@ export class CrewScreen extends Screen {
 	private back(): void {
 		ScreenManager.navigate('compoundScreen', this.campaign ? { campaign: this.campaign } : undefined, { restoreFocus: true });
 	}
+
+	/** A tab: the compound as Back goes there, or the menu. */
+	private toSection(id: string): void {
+		if (id === 'compound') this.back();
+		else if (id === 'menu') ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
+	}
 }
+

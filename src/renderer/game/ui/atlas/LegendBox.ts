@@ -15,6 +15,12 @@ export interface LegendBoxOptions extends Omit<StackOptions, 'style' | 'padding'
 	fresh?: boolean;
 	/** Inside the ink border. Default 16. */
 	padding?: number;
+	/**
+	 * How much further in than the padding the head sits, across and down.
+	 * Default 0; a box whose content runs close to its rule (a grid of cards)
+	 * keeps its head off the rule with it.
+	 */
+	headIndent?: number;
 }
 
 const CLEAR: RGBA = [0, 0, 0, 0];
@@ -34,6 +40,7 @@ const ROW_GAP = 8;
 export class LegendBox extends Stack {
 	private readonly head: Text | null;
 	private readonly boxPadding: number;
+	private readonly headIndent: number;
 	private readonly fresh: boolean;
 	private inks: AtlasInks;
 	private readonly box: Rect = { x: 0, y: 0, width: 0, height: 0 };
@@ -42,11 +49,12 @@ export class LegendBox extends Stack {
 	private ruleCount = 0;
 	private surface: UiArtName = 'paper_w1_a';
 
-	constructor({ title, fresh = false, padding = ATLAS.legendPadding, gap = ROW_GAP, ...options }: LegendBoxOptions = {}) {
-		const headSpace = title !== undefined ? HEAD_LINE + gap : 0;
+	constructor({ title, fresh = false, padding = ATLAS.legendPadding, headIndent = 0, gap = ROW_GAP, ...options }: LegendBoxOptions = {}) {
+		const headSpace = title !== undefined ? headIndent + HEAD_LINE + gap : 0;
 		super({ ...options, gap, padding: { top: padding + headSpace, right: padding, bottom: padding, left: padding } });
 		this.componentType = 'LegendBox';
 		this.boxPadding = padding;
+		this.headIndent = headIndent;
 		this.fresh = fresh;
 		this.inks = atlasInks(this.themeTokens);
 		this.head = title !== undefined
@@ -91,8 +99,9 @@ export class LegendBox extends Stack {
 		const inset = ATLAS.legendRuleInset;
 		setRect(this.rule, inset, inset, width - inset * 2, height - inset * 2);
 		if (this.head) {
-			this.head.setPosition(padding, padding);
-			this.head.setSize(Math.max(0, width - padding * 2), HEAD_LINE);
+			const at = padding + this.headIndent;
+			this.head.setPosition(at, at);
+			this.head.setSize(Math.max(0, width - at * 2), HEAD_LINE);
 		}
 		this.placeRowRules();
 	}
