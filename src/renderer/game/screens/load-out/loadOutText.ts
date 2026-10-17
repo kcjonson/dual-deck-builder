@@ -7,12 +7,23 @@ import { DRIVER_CONFIGS } from '../../mechanics/Driver';
 import { DriverSynergy, SynergyAnalysis } from '../../mechanics/DriverSynergy';
 import { countOf } from '../main-menu/campaignText';
 import type { LoadOutPlan, PoolStanding, StartBlocker } from './LoadOutPlan';
+import type { LoadOutTrip } from './LoadOutScreen';
+
+/** Beside the title. */
+export const LOAD_OUT_SUBTITLE = 'Two drivers, their decks for this run, and the escorts coming along';
+
+/** In the route line's place when load out was opened without a route. */
+export const NO_ROUTE_PICKED = 'No route picked';
 
 /** Under the pool's title, from the wireframe. */
 export const POOL_NOTE = 'Drivers who die on a run are gone for good, with their run deck.';
 
 /** Over the escorts. */
 export const ESCORT_CAPTION = 'Escorts / click to bring or leave';
+
+/** Under an escort card: coming along, marked in highlighter, or left at home. */
+export const ESCORT_COMING = 'Coming';
+export const ESCORT_STAYING = 'At home';
 
 /** Where the second seat would be on a solo run. */
 export const SOLO_SEAT = 'Solo run: nobody else is fit to go.';
@@ -60,7 +71,7 @@ export function standingText(standing: PoolStanding): { label: string; reason: s
 	}
 }
 
-/** Why START RUN can't go, beside it. */
+/** Why Start run can't go, under it. */
 export function startBlockerText(blocker: StartBlocker, end: Readonly<CampaignEnd> | null = null): string {
 	switch (blocker.reason) {
 		case 'campaign_over':
@@ -74,7 +85,7 @@ export function startBlockerText(blocker: StartBlocker, end: Readonly<CampaignEn
 	}
 }
 
-/** Beside a live START RUN: what the drivers take, and who comes along. */
+/** Under a live Start run: what the drivers take, and who comes along. */
 export function readyText(plan: LoadOutPlan): string {
 	const custom = plan.seats.filter((_, seat) => plan.runDeckAt(seat)?.isCustomized).length;
 	const decks = plan.seatsNeeded === 1
@@ -100,5 +111,27 @@ function synergyDriver(driver: DriverRecord) {
 	return { archetype: driver.archetype, vehicleStats, metadata: { ...metadata, name: driver.name } };
 }
 
-/** Beside START RUN once the store has moved on from this campaign; Back then goes to the menu. */
+/** One item on the route line, and whether it's a shortfall to set in stronghold red. */
+export interface TripItem {
+	text: string;
+	short: boolean;
+}
+
+/**
+ * The route line's items after the destination, as the map's legend sets
+ * them: "by Back roads", "2 stops", "fuel 3", "home by 16:30". The fuel
+ * says what the stores hold when it's less than the route burns, and
+ * home-by says when it's after dark.
+ */
+export function tripItems(trip: LoadOutTrip, fuelHeld: number): Record<'route_name' | 'stops' | 'fuel' | 'home_by', TripItem> {
+	const fuelShort = fuelHeld < trip.fuel;
+	return {
+		route_name: { text: `by ${trip.routeName}`, short: false },
+		stops: { text: countOf(trip.stops, 'stop'), short: false },
+		fuel: { text: fuelShort ? `fuel ${trip.fuel}, ${fuelHeld} held` : `fuel ${trip.fuel}`, short: fuelShort },
+		home_by: { text: trip.pastDark ? `home by ${trip.homeBy}, after dark` : `home by ${trip.homeBy}`, short: trip.pastDark },
+	};
+}
+
+/** Under Start run once the store has moved on from this campaign; Back then goes to the menu. */
 export const STRANDED_LOAD_OUT = "This campaign isn't the save any more, so nothing more is saved here. Back goes to the menu to pick up the save.";

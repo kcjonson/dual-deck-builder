@@ -5,10 +5,12 @@ import { Clock } from '../../../engine/animation/Clock';
 import { createTestContext } from '../../../engine/components/testing';
 import type { MountContext } from '../../../engine/components/MountContext';
 import type { Text } from '../../../engine/components/Text';
-import type { Button } from '../../../engine/ui/Button';
+import type { AtlasButton } from '../../ui/atlas/AtlasButton';
 import { key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
+import { themes } from '../../../engine/theme/tokens';
+import type { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
@@ -16,10 +18,13 @@ import type { CampaignStore } from '../../campaign/CampaignStore';
 import { routeId } from '../../campaign/MapRoutes';
 import { FaultyStorage, atHomeText, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
 import type { EscortCard } from '../../ui/EscortCard';
+import type { FlowWrap } from '../../ui/FlowWrap';
+import type { HandMarkLayer } from '../../ui/atlas/HandMarkLayer';
+import { atlasScreenParts } from '../../ui/atlas/testing';
 import { lookup } from '../../ui/testing';
 import { PlannedPoi, byDistance, plannedPois } from '../area-map/planningMap';
 import { TestMaps, meshPlanningMap, testMaps } from '../area-map/testing';
-import { LoadOutScreen, LoadOutScreenData } from './LoadOutScreen';
+import { LoadOutScreen, LoadOutScreenData, LoadOutTrip } from './LoadOutScreen';
 import { STRANDED_LOAD_OUT } from './loadOutText';
 import { departRefusal } from '../run/runText';
 
@@ -33,6 +38,7 @@ const MAP = meshPlanningMap({ daylightHours: 9 });
 /** The nearest POI with a route, which the run route screen would hand over. */
 const NEAR = byDistance(plannedPois(MAP)).find((poi) => !poi.stronghold && poi.routes.length > 0) as PlannedPoi;
 const ROUTE = NEAR.routes[0];
+const TRIP: LoadOutTrip = { destination: NEAR.name, routeName: ROUTE.name, stops: ROUTE.stops.length, fuel: ROUTE.fuel, homeBy: '16:30', pastDark: false };
 
 describe('LoadOutScreen (DDB-320)', () => {
 	const viewport = { logical: { width: 1440, height: 882 } };
@@ -43,12 +49,12 @@ describe('LoadOutScreen (DDB-320)', () => {
 	let planning: TestMaps;
 
 	/** Mounts load out on the near route over the fixture home from its run, changed first if asked, as the run route screen opens it. */
-	async function open(change: (campaign: Campaign) => void = () => undefined): Promise<Campaign> {
+	async function open(change: (campaign: Campaign) => void = () => undefined, trip: LoadOutTrip = TRIP): Promise<Campaign> {
 		storage = storageWith(atHomeText(change));
 		store = storeOver(storage);
 		const campaign = await store.load() as Campaign;
 		screen = new LoadOutScreen({ store, cards: async () => lookup, maps: planning.maps });
-		const data: LoadOutScreenData = { campaign, poi: NEAR.poi, route: routeId(ROUTE.poi, ROUTE.route), heading: `${NEAR.name} by ${ROUTE.name}`, summary: 'test summary' };
+		const data: LoadOutScreenData = { campaign, poi: NEAR.poi, route: routeId(ROUTE.poi, ROUTE.route), trip };
 		screen.mount(context, data);
 		await screen.campaignLoaded;
 		context.frame.layout();
@@ -62,7 +68,9 @@ describe('LoadOutScreen (DDB-320)', () => {
 	}
 
 	const text = (id: string): string => find<Text>(id).text;
-	const press = (id: string): void => { find<Button>(id).onClick?.({} as never); };
+	const bounds = (id: string): { x: number; y: number; width: number; height: number } => find<{ screenBounds: { x: number; y: number; width: number; height: number } }>(id).screenBounds;
+	const { color } = themes.atlas;
+	const press = (id: string): void => { find<AtlasButton>(id).onClick?.({} as never); };
 
 	async function flush(): Promise<void> {
 		for (let turn = 0; turn < 6; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
@@ -83,13 +91,13 @@ describe('LoadOutScreen (DDB-320)', () => {
 
 	it('seats the crew that can go, shows the pool with why each can\'t, and brings every escort, START RUN live', async () => {
 		await open(withFuel(20));
-		expect(text('load_out_destination')).toBe(`${NEAR.name} by ${ROUTE.name}`);
+		expect(text('load_out_destination')).toBe(NEAR.name);
 		expect(screen.plan?.seats.map((driver) => driver?.name)).toEqual(['Road Warrior 1', 'Interceptor 2']);
 		expect(text('load_out_pool_driver-3_reason')).toBe('Injured, fit in 2 days');
 		expect(text('load_out_pool_driver-1_reason')).toBe('In seat 1');
 		expect(find<EscortCard>('load_out_escort_escort-1').staying).toBe(false);
 		expect(text('load_out_summary_line')).toBe('Both drivers take their default decks. 2 escorts and their cards come along.');
-		expect(find<Button>('load_out_start_button').enabled).toBe(true);
+		expect(find<AtlasButton>('load_out_start_button').enabled).toBe(true);
 		expect(context.focus.focused?.id).toBe('load_out_start_button');
 	});
 
@@ -123,7 +131,7 @@ describe('LoadOutScreen (DDB-320)', () => {
 		expect(text('load_out_summary_line')).toBe(departRefusal({ reason: 'too_little_fuel', needed: ROUTE.fuel, held: 0 }));
 		expect(campaign.supplyRun).toBeNull();
 		expect(campaign.runDecks).toHaveLength(0);
-		expect(find<Button>('load_out_start_button').enabled).toBe(true);
+		expect(find<AtlasButton>('load_out_start_button').enabled).toBe(true);
 		expect(navigate).not.toHaveBeenCalled();
 	});
 
@@ -145,7 +153,7 @@ describe('LoadOutScreen (DDB-320)', () => {
 			campaign,
 			driver: campaign.runDecks[1].driver,
 			returnTo: 'loadOutScreen',
-			returnData: { poi: NEAR.poi, route: routeId(ROUTE.poi, ROUTE.route), heading: `${NEAR.name} by ${ROUTE.name}`, summary: 'test summary' },
+			returnData: { poi: NEAR.poi, route: routeId(ROUTE.poi, ROUTE.route), trip: TRIP },
 		});
 	});
 
@@ -156,14 +164,14 @@ describe('LoadOutScreen (DDB-320)', () => {
 		});
 		expect(text('load_out_seat_2_empty')).toBe('Solo run: nobody else is fit to go.');
 		expect(text('load_out_summary_line')).toBe('A solo run on the default deck. 2 escorts and their cards come along.');
-		expect(find<Button>('load_out_start_button').enabled).toBe(true);
+		expect(find<AtlasButton>('load_out_start_button').enabled).toBe(true);
 	});
 
 	it('keeps START RUN off with a seat empty, saying why', async () => {
 		await open(withFuel(20));
 		press('load_out_seat_1_clear_button');
 		expect(text('load_out_summary_line')).toBe('Seat two drivers to start the run.');
-		expect(find<Button>('load_out_start_button').enabled).toBe(false);
+		expect(find<AtlasButton>('load_out_start_button').enabled).toBe(false);
 	});
 
 	it('says nothing more is saved when the store has moved on from this campaign, with Back to the menu', async () => {
@@ -172,7 +180,7 @@ describe('LoadOutScreen (DDB-320)', () => {
 		press('load_out_start_button');
 		await flush();
 		expect(text('load_out_summary_line')).toBe(STRANDED_LOAD_OUT);
-		expect(find<Button>('load_out_start_button').enabled).toBe(false);
+		expect(find<AtlasButton>('load_out_start_button').enabled).toBe(false);
 		press('load_out_back_button');
 		expect(navigate).toHaveBeenLastCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
 	});
@@ -195,5 +203,98 @@ describe('LoadOutScreen (DDB-320)', () => {
 		await open(withFuel(20));
 		context.frame.layout();
 		expect(layoutLint(treeSnapshot([screen.root], size)).violations).toEqual([]);
+	});
+
+	describe('in the atlas look (DDB-518)', () => {
+		/** Mounts at `size` with the real faces measuring, as the lint gate lays it out. */
+		async function openMeasured(size: { width: number; height: number }, change = withFuel(20), trip: LoadOutTrip = TRIP): Promise<Campaign> {
+			viewport.logical = size;
+			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
+			const campaign = await open(change, trip);
+			context.frame.layout();
+			return campaign;
+		}
+
+		/** How many minis sit on the first row of a seat's deck. */
+		function firstRow(seat: number): number {
+			const minis = find<FlowWrap>(`load_out_seat_${seat}_deck`).children;
+			return minis.filter((mini) => mini.screenBounds.y === minis[0].screenBounds.y).length;
+		}
+
+		it('is one atlas sheet with no section tabs, Start run its one highway, and Back to the route a back road', async () => {
+			await openMeasured({ width: 1440, height: 882 });
+			const parts = atlasScreenParts(screen.root);
+			expect([screen.theme, parts.sheets.length, parts.tabs.length]).toEqual(['atlas', 1, 0]);
+			expect(parts.highways.map((button) => button.id)).toEqual(['load_out_start_button']);
+			expect([find<AtlasButton>('load_out_back_button').variant, find<AtlasButton>('load_out_back_button').label]).toEqual(['backRoad', 'Back to the route']);
+			expect(text('load_out_title')).toBe('Load out');
+		});
+
+		it('fits the seats, the pool, the convoy, and Start run on the sheet at 1440 x 882 with nothing to scroll', async () => {
+			await openMeasured({ width: 1440, height: 882 });
+			expect(find<ScrollContainer>('load_out_scroll').overflows).toBe(false);
+			expect([firstRow(1), firstRow(2)]).toEqual([5, 5]);
+			const start = bounds('load_out_start_button');
+			const sheetRight = bounds('load_out_convoy_panel').x + bounds('load_out_convoy_panel').width;
+			expect(start.x + start.width).toBe(sheetRight);
+			expect(bounds('load_out_seat_1_panel').y).toBeGreaterThan(bounds('load_out_destination').y);
+			expect(bounds('load_out_pool_panel').y).toBeGreaterThan(bounds('load_out_seat_1_panel').y + bounds('load_out_seat_1_panel').height);
+			expect(bounds('load_out_convoy_panel').y).toBe(bounds('load_out_pool_panel').y);
+		});
+
+		it('reflows at 1024 x 600: fewer columns in each deck, the body scrolling, Start run still in view at the bottom right', async () => {
+			await openMeasured({ width: 1024, height: 600 });
+			expect([firstRow(1), firstRow(2)]).toEqual([2, 2]);
+			expect(find<ScrollContainer>('load_out_scroll').overflows).toBe(true);
+			const start = bounds('load_out_start_button');
+			const line = bounds('load_out_summary_line');
+			expect(start.y + start.height).toBeLessThanOrEqual(600);
+			expect(line.y + line.height).toBeLessThanOrEqual(600);
+			expect(start.x + start.width).toBeGreaterThan(1024 - 80);
+			expect(screen.root.findById('load_out_scroll')?.findById('load_out_start_button')).toBeNull();
+			for (const id of ['load_out_seat_1_panel', 'load_out_seat_2_panel', 'load_out_pool_panel', 'load_out_convoy_panel']) {
+				const box = bounds(id);
+				expect([id, box.x + box.width <= 1024]).toEqual([id, true]);
+			}
+		});
+
+		it('sets the route line as the legend does, a fuel or home-by shortfall in stronghold red', async () => {
+			await openMeasured({ width: 1440, height: 882 });
+			expect([text('load_out_destination'), text('load_out_route_name'), text('load_out_stops'), text('load_out_fuel'), text('load_out_home_by')])
+				.toEqual([NEAR.name, `by ${ROUTE.name}`, `${ROUTE.stops.length} ${ROUTE.stops.length === 1 ? 'stop' : 'stops'}`, `fuel ${ROUTE.fuel}`, 'home by 16:30']);
+			expect(find<Text>('load_out_fuel').color).toEqual(color.text_dim);
+			screen.unmount();
+			await openMeasured({ width: 1440, height: 882 }, withFuel(ROUTE.fuel - 1), { ...TRIP, homeBy: '21:40', pastDark: true });
+			expect([text('load_out_fuel'), text('load_out_home_by')]).toEqual([`fuel ${ROUTE.fuel}, ${ROUTE.fuel - 1} held`, 'home by 21:40, after dark']);
+			expect([find<Text>('load_out_fuel').color, find<Text>('load_out_home_by').color]).toEqual([color.status_crit, color.status_crit]);
+		});
+
+		it('marks the escorts coming along in highlighter, and takes the mark off one left at home', async () => {
+			const campaign = await openMeasured({ width: 1440, height: 882 });
+			const [first, second] = campaign.convoy.escorts.map((escort) => `load_out_escort_${escort.convoyId}`);
+			const marks = find<HandMarkLayer>('load_out_escort_marks');
+			expect(marks.marks.map((mark) => mark.target?.id)).toEqual([`${first}_label`, `${second}_label`]);
+			expect(text(`${first}_label`)).toBe('Coming');
+			find<EscortCard>(first).onSelect?.({} as never);
+			expect(marks.marks.map((mark) => mark.target?.id)).toEqual([`${second}_label`]);
+			expect(text(`${first}_label`)).toBe('At home');
+		});
+
+		it('fades Start run with its reason under it in stronghold red while a seat is empty, and with no route', async () => {
+			await openMeasured({ width: 1440, height: 882 });
+			expect(find<Text>('load_out_summary_line').color).toEqual(color.text);
+			press('load_out_seat_2_clear_button');
+			expect(find<AtlasButton>('load_out_start_button').enabled).toBe(false);
+			expect(find<Text>('load_out_summary_line').color).toEqual(color.status_crit);
+			const start = bounds('load_out_start_button');
+			expect(bounds('load_out_summary_line').y).toBeGreaterThanOrEqual(start.y + start.height);
+			screen.unmount();
+			storage = storageWith(atHomeText());
+			screen = new LoadOutScreen({ store: storeOver(storage), cards: async () => lookup, maps: planning.maps });
+			screen.mount(context);
+			await screen.campaignLoaded;
+			expect([text('load_out_destination'), find<Text>('load_out_fuel').visible]).toEqual(['No route picked', false]);
+			expect(find<Text>('load_out_summary_line').color).toEqual(color.status_crit);
+		});
 	});
 });
