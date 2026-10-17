@@ -104,7 +104,7 @@ describe('CombatScreen: a campaign fight (DDB-286)', () => {
 		const fight = startCampaignFight({
 			campaign,
 			party: { seats, escorts: [outrider], cargo: { ...NO_RESOURCES, scrap: 73, fuel: 9 }, cargoCards: NO_CARDS, run: campaign.currentRun ?? 'none' },
-			enemyTeam: raiderTeam(),
+			raiders: raiderTeam,
 			rng: new Rng({ seed: SEED }),
 			cards: CardLoader.getInstance().getAllCardsAsMap()
 		});
@@ -136,7 +136,7 @@ describe('CombatScreen: a campaign fight (DDB-286)', () => {
 		const fight = startCampaignFight({
 			campaign,
 			party: { seats, escorts: [], cargo: NO_RESOURCES, cargoCards: NO_CARDS, run: campaign.currentRun ?? 'none' },
-			enemyTeam: raiderTeam(),
+			raiders: raiderTeam,
 			rng: new Rng({ seed: SEED }),
 			cards: CardLoader.getInstance().getAllCardsAsMap()
 		});
@@ -161,7 +161,7 @@ describe('CombatScreen: a campaign fight (DDB-286)', () => {
 		const fight = startCampaignFight({
 			campaign,
 			party: { seats, escorts: [], cargo: NO_RESOURCES, cargoCards: NO_CARDS, run: campaign.currentRun ?? 'none' },
-			enemyTeam: raiderTeam(),
+			raiders: raiderTeam,
 			rng: new Rng({ seed: SEED }),
 			cards: CardLoader.getInstance().getAllCardsAsMap()
 		});
@@ -200,7 +200,7 @@ describe('CombatScreen: a campaign fight (DDB-286)', () => {
 		const fight = startCampaignFight({
 			campaign,
 			party: { seats, escorts: [], cargo: NO_RESOURCES, cargoCards: NO_CARDS, run: campaign.currentRun ?? 'none' },
-			enemyTeam: raiderTeam(),
+			raiders: raiderTeam,
 			rng: new Rng({ seed: SEED }),
 			cards: CardLoader.getInstance().getAllCardsAsMap()
 		});

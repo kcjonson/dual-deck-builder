@@ -4,10 +4,10 @@ import type { MapParams, StopTables } from './MapParams';
 import { MapPipeline, MapPipelineError } from './MapPipeline';
 import { MeshMapOptions, fakeGround, meshFrom, meshMap, randomMesh } from './meshTesting';
 import { POI_TUNING, PoiTuning } from './PoiData';
-import { placePois } from './Pois';
+import { Poi, PoiLayer, placePois } from './Pois';
 import type { RoadNetwork } from './RoadNetwork';
 import { pointAlong } from './Geometry';
-import { buildRouteTree, legPoints, routesTo } from './RouteTree';
+import { Route, buildLegs, buildRouteTree, legPoints, routesTo } from './RouteTree';
 import { paramsFor } from './roadTesting';
 import { checkStopLayer, typesAlong } from './StopChecks';
 import stopTablesFile from '../data/stopTables.json';
@@ -304,6 +304,55 @@ describe('stops on legs', () => {
 			expect(hours(thinned, 0)).toBeGreaterThan(params.daylightHours - 1);
 			expect(typesAlong(thinned, routes[1])).toEqual(typesAlong(loose, routes[1]));
 			expect(thinned.thinned).toBe(typesAlong(loose, routes[0]).length - typesAlong(thinned, routes[0]).length);
+		});
+
+		it('moves a find the floor needs off a thinned route only onto a leg that tips no one past dark', () => {
+			// Two loops off the compound, a POI partway along each one's far stretch: a long bent highway out is its quickest route, a short trail its slower.
+			const network = meshFrom({
+				nodes: [[0, 0], [400, 300], [600, 0], [250, -150], [-300, 250], [-500, 0], [-150, -400]],
+				edges: [[0, 1, 'highway', 0], [1, 2, 'highway', 0], [0, 3, 'trail'], [2, 3], [0, 4, 'highway', 1], [4, 5, 'highway', 1], [0, 6, 'trail'], [5, 6]],
+			});
+			const tree = buildRouteTree({ network, travelPace: 1, routeSplit: 0.5 });
+			const daylightHours = 10;
+			// Each quickest route is home a quarter hour before dark bare, so the find's half hour on it runs past.
+			const quickHours = (daylightHours - STOP_TUNING.objectiveHours.poi - 0.25) / 2;
+			const destinations = [3, 7].map((stretch) => {
+				expect(tree.meetingPoints.some((point) => point.stretch === stretch)).toBe(true);
+				const { from, to } = network.stretches[stretch];
+				const along = (quickHours - tree.hours[from]) / tree.stretchHours[stretch] * tree.lengths[stretch];
+				const into = (node: number, length: number) => ({ from: node, stretch, length, hours: tree.hours[node] + tree.stretchHours[stretch] * length / tree.lengths[stretch] });
+				return { stretch, along, arrivals: [into(from, along), into(to, tree.lengths[stretch] - along)] };
+			});
+			const { legs, lastLegs } = buildLegs({ network, tree, destinations });
+			const pois: Poi[] = destinations.map(({ stretch, along, arrivals }, poi) => {
+				const [x, y] = pointsAlong(network.stretches[stretch].points, [along]);
+				return { site: { x, y, stretch, along, node: -1 }, arrivals: arrivals.map((arrival, index) => ({ ...arrival, leg: lastLegs[poi][index] })), type: Object.keys(POI_TUNING.types)[0], ring: 1, tier: 2 };
+			});
+			const layer: PoiLayer = { pois, strongholds: [], sectorRotation: 0, legs, rings: [], failures: [] };
+			const [near, far] = pois.map((poi) => routesTo(layer, poi));
+			// No stops drawn, so the floor's one find is the only stop, on the widest leg: the near POI's quickest.
+			const tuning = tuned({ spacing: { highway: 1e9, backRoad: 1e9, trail: 1e9 }, driverFinds: { floorTiers: 2, rates: [0, 0, 0, 0, 0] } });
+			const params = { stopDensity: 1, dangerCurve: 1, driverFinds: 1, daylightHours };
+			const findLeg = (stops: StopLayer) => stops.stops.filter(({ type }) => type === 'findDriver').map(({ leg }) => leg);
+			const loose = placeStops({ network, layer, ground: fakeGround(), params: { ...params, daylightHours: 100 }, rng: new Rng({ seed: 1 }), tuning });
+			expect(findLeg(loose)).toEqual([near[0].legs[0]]);
+			for (const routes of [near, far]) {
+				expect(routes.map(({ legs: ids }) => ids.length)).toEqual([1, 1]);
+				expect(2 * routes[0].hours + STOP_TUNING.objectiveHours.poi).toBeCloseTo(daylightHours - 0.25, 9);
+				expect(2 * routes[1].hours + STOP_TUNING.objectiveHours.poi).toBeGreaterThan(daylightHours);
+			}
+			// The far POI's quickest leg is the widest gap off the near one's route, and the find's half hour there would tip it past dark.
+			expect(legs[far[0].legs[0]].length).toBeGreaterThan(Math.max(legs[near[1].legs[0]].length, legs[far[1].legs[0]].length));
+
+			const stops = placeStops({ network, layer, ground: fakeGround(), params, rng: new Rng({ seed: 1 }), tuning });
+			// The stage's own check, so it passes on its first attempt.
+			expect(stops.failures).toEqual([]);
+			expect(checkStopLayer({ network, layer, stops, params })).toEqual([]);
+			const hours = (route: Route) => 2 * route.hours + STOP_TUNING.objectiveHours.poi + typesAlong(stops, route).reduce((sum, type) => sum + STOP_TUNING.types[type].hours, 0);
+			for (const routes of [near, far]) expect(hours(routes[0])).toBeLessThanOrEqual(daylightHours);
+			// One move, onto the far POI's slower route, the widest gap left that tips no one; never back and forth.
+			expect(stops.thinned).toBe(1);
+			expect(findLeg(stops)).toEqual([far[1].legs[0]]);
 		});
 
 		it('lists a POI whose quickest route runs past dark with no stops at all, and goes on', () => {

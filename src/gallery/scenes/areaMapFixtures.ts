@@ -1,13 +1,13 @@
 import { generateAreaMap } from '../../renderer/game/map/AreaMapPipeline';
 import { MapParamSet, resolveMapParams } from '../../renderer/game/map/MapParams';
 import { validateMapParams } from '../../renderer/game/map/ParamValidator';
+import type { PoiState } from '../../renderer/game/map/PoiData';
 import type { PoiLayer } from '../../renderer/game/map/Pois';
 import type { RoadNetwork } from '../../renderer/game/map/RoadNetwork';
 import type {
 	AreaMapData,
 	LandFogLayer,
 	MapMarker,
-	PoiState,
 	RoadKnowledge,
 	RoadKnowledgeLayer,
 } from '../../renderer/game/ui/areaMap/layers';

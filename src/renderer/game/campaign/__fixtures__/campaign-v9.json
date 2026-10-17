@@ -1,0 +1,393 @@
+{
+	"seed": 20261006,
+	"generatorVersion": 6,
+	"day": 9,
+	"resources": {
+		"food": 14,
+		"water": 11,
+		"fuel": 6,
+		"meds": 2,
+		"scrap": 35,
+		"people": 18
+	},
+	"unrest": 3,
+	"nextDriverNumber": 6,
+	"drivers": [
+		{
+			"id": "driver-1",
+			"archetype": "road_warrior",
+			"name": "Road Warrior 1",
+			"hitpoints": 40,
+			"maxHitpoints": 40,
+			"vehicle": {
+				"structure": 72,
+				"armor": 4
+			},
+			"injuredDays": 0,
+			"handLimit": 7,
+			"defaultDeck": {},
+			"status": "ready",
+			"runsCompleted": 4
+		},
+		{
+			"id": "driver-2",
+			"archetype": "interceptor",
+			"name": "Interceptor 1",
+			"hitpoints": 0,
+			"maxHitpoints": 25,
+			"vehicle": {
+				"structure": 50,
+				"armor": 0
+			},
+			"injuredDays": 0,
+			"handLimit": 7,
+			"defaultDeck": {},
+			"status": "dead",
+			"runsCompleted": 2
+		},
+		{
+			"id": "driver-3",
+			"archetype": "mechanic",
+			"name": "Mechanic 1",
+			"hitpoints": 18,
+			"maxHitpoints": 30,
+			"vehicle": {
+				"structure": 41,
+				"armor": 0
+			},
+			"injuredDays": 2,
+			"handLimit": 7,
+			"defaultDeck": {
+				"armor_plating": 2,
+				"emp_blast": 1,
+				"nitro_boost": 2,
+				"repair_kit": 3
+			},
+			"status": "injured",
+			"runsCompleted": 3
+		},
+		{
+			"id": "driver-4",
+			"archetype": "road_warrior",
+			"name": "Road Warrior 2",
+			"hitpoints": 31,
+			"maxHitpoints": 40,
+			"vehicle": {
+				"structure": 1,
+				"armor": 0
+			},
+			"injuredDays": 0,
+			"handLimit": 7,
+			"defaultDeck": {
+				"armor_plating": 3,
+				"nitro_boost": 2,
+				"ramming_speed": 5,
+				"repair_kit": 2
+			},
+			"status": "missing",
+			"runsCompleted": 1
+		},
+		{
+			"id": "driver-5",
+			"archetype": "interceptor",
+			"name": "Interceptor 2",
+			"hitpoints": 25,
+			"maxHitpoints": 25,
+			"vehicle": {
+				"structure": 50,
+				"armor": 0
+			},
+			"injuredDays": 0,
+			"handLimit": 7,
+			"defaultDeck": {},
+			"status": "ready",
+			"runsCompleted": 0
+		}
+	],
+	"locker": {
+		"emp_blast": 1,
+		"headshot": 1,
+		"ramming_speed": 1
+	},
+	"convoy": {
+		"nextEscortNumber": 4,
+		"escorts": [
+			{
+				"id": "escort-1",
+				"name": "Fuel Hauler",
+				"armor": 5,
+				"maxArmor": 5,
+				"structure": 31,
+				"maxStructure": 40,
+				"baseSpeed": 2,
+				"mods": [
+					{
+						"name": "Reinforced Tank",
+						"kind": "defense"
+					}
+				],
+				"escort": {
+					"type": "fuel_hauler",
+					"role": "hauler",
+					"gunnery": 1,
+					"evade": 1,
+					"ramming": 3,
+					"preferredSlot": {
+						"lane": "outside",
+						"row": "center"
+					},
+					"signatureCard": "top_off",
+					"dividend": {
+						"kind": "fuel",
+						"amount": 1
+					}
+				}
+			},
+			{
+				"id": "escort-3",
+				"name": "Outrider",
+				"armor": 0,
+				"maxArmor": 0,
+				"structure": 18,
+				"maxStructure": 25,
+				"baseSpeed": 5,
+				"mods": [],
+				"escort": {
+					"type": "outrider",
+					"role": "gun",
+					"gunnery": 6,
+					"evade": 6,
+					"ramming": 2,
+					"preferredSlot": {
+						"lane": "inside",
+						"row": "ahead"
+					},
+					"signatureCard": "run_ahead",
+					"dividend": null
+				}
+			}
+		]
+	},
+	"nextRunNumber": 4,
+	"runDecks": [
+		{
+			"driver": "driver-1",
+			"own": {
+				"armor_plating": 3,
+				"covering_fire": 1,
+				"ramming_speed": 4,
+				"repair_kit": 2
+			},
+			"leftHome": {
+				"nitro_boost": 2
+			},
+			"borrowed": {
+				"medical_kit": 1
+			},
+			"escortCards": [
+				{
+					"cardType": "top_off",
+					"broughtBy": "escort-1"
+				}
+			]
+		},
+		{
+			"driver": "driver-5",
+			"own": {
+				"armor_plating": 1,
+				"flanking_maneuver": 2,
+				"headshot": 2,
+				"nitro_boost": 2,
+				"precision_shot": 3,
+				"repair_kit": 1
+			},
+			"leftHome": {},
+			"borrowed": {
+				"headshot": 1
+			},
+			"escortCards": [
+				{
+					"cardType": "run_ahead",
+					"broughtBy": "escort-3"
+				}
+			]
+		}
+	],
+	"foundOnRun": [
+		"driver-4"
+	],
+	"supplyRun": {
+		"route": {
+			"id": "route-9-2-1",
+			"name": "Back roads",
+			"destination": {
+				"id": "poi-9-2",
+				"name": "Red Mesa Silos",
+				"tier": 2,
+				"yield": {
+					"food": 6,
+					"water": 5,
+					"fuel": 3,
+					"scrap": 15
+				}
+			},
+			"legs": [
+				{
+					"id": "leg-9-2-1",
+					"roadClass": "highway",
+					"length": 140,
+					"hours": 0.5,
+					"stops": []
+				},
+				{
+					"id": "leg-9-2-2-1",
+					"roadClass": "backRoad",
+					"length": 120,
+					"hours": 0.8,
+					"stops": [
+						{
+							"id": "leg-9-2-2-1-stop-1",
+							"kind": "fight",
+							"at": 0.3,
+							"skulls": 1
+						},
+						{
+							"id": "leg-9-2-2-1-stop-2",
+							"kind": "quiet",
+							"at": 0.7
+						}
+					]
+				},
+				{
+					"id": "leg-9-2-2-2",
+					"roadClass": "backRoad",
+					"length": 160,
+					"hours": 1,
+					"stops": [
+						{
+							"id": "leg-9-2-2-2-stop-1",
+							"kind": "fight",
+							"at": 0.5,
+							"skulls": 2
+						}
+					]
+				}
+			],
+			"fuel": 3,
+			"hours": {
+				"out": 4.8,
+				"objective": 1,
+				"home": 2.3
+			},
+			"risk": 2
+		},
+		"stop": 2,
+		"phase": "reward",
+		"escorts": [
+			"escort-1",
+			"escort-3"
+		],
+		"cargo": {
+			"food": 0,
+			"water": 0,
+			"fuel": 2,
+			"meds": 0,
+			"scrap": 0,
+			"people": 0
+		},
+		"cargoCards": {
+			"caltrops": 1
+		}
+	},
+	"strongholdsTaken": [
+		"stronghold-3"
+	],
+	"log": [
+		{
+			"day": 1,
+			"message": "Founded the compound."
+		},
+		{
+			"day": 3,
+			"message": "Interceptor 1 died when the run to the Saltflat Pumps failed."
+		},
+		{
+			"day": 6,
+			"message": "Took the Rustwater stronghold."
+		},
+		{
+			"day": 8,
+			"message": "Road Warrior 2 went missing on the run to Mile 40."
+		}
+	],
+	"tally": {
+		"runsHome": 1,
+		"runsFailed": 1,
+		"fightsWon": 3
+	},
+	"end": null,
+	"mapParams": {
+		"seed": 20261006,
+		"environment": "mixed",
+		"radius": 1000,
+		"aridity": 0.5,
+		"mountainCoverage": 0.25,
+		"ruggedness": 0.5,
+		"rivers": 2,
+		"riverDensity": 0.5,
+		"riverMeander": 0.5,
+		"lakes": 2,
+		"contamination": 0.3,
+		"hotspots": 3,
+		"metroSize": 0.15,
+		"towns": 5,
+		"villages": 20,
+		"highways": 6,
+		"highwaySeparation": 35,
+		"roadDensity": 0.5,
+		"loops": 0.5,
+		"curviness": 0.5,
+		"trailShare": 0.5,
+		"brokenHighways": 2,
+		"strongholds": 4,
+		"poiDensity": 1,
+		"routesTarget": 3,
+		"routeSplit": 0.5,
+		"startingReveal": 1,
+		"stopDensity": 1,
+		"dangerCurve": 1,
+		"driverFinds": 2,
+		"daylightHours": 14,
+		"travelPace": 1,
+		"dressing": 0.6,
+		"streetGrids": 0.7,
+		"railLines": 1
+	},
+	"map": {
+		"pois": [
+			{
+				"poi": 3,
+				"left": 1,
+				"nights": 4
+			},
+			{
+				"poi": 5,
+				"left": 0,
+				"nights": 2
+			}
+		]
+	},
+	"mapAttempts": {
+		"map": 0,
+		"stages": {
+			"terrain": 0,
+			"water": 0,
+			"hazards": 0,
+			"places": 0,
+			"roads": 0,
+			"routeTree": 0,
+			"pois": 0,
+			"stops": 0
+		}
+	}
+}

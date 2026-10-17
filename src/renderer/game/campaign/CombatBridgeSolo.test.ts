@@ -103,7 +103,7 @@ function startFight({ campaign, party, enemy }: { campaign: Campaign; party: Run
 	return startCampaignFight({
 		campaign,
 		party,
-		enemyTeam: new Team({ type: TeamType.ENEMY, vehicles: [enemy] }),
+		raiders: () => new Team({ type: TeamType.ENEMY, vehicles: [enemy] }),
 		rng: new Rng({ seed: SEED }),
 		cards: CARDS,
 		enemyAI: null
