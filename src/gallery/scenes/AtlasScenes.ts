@@ -4,7 +4,6 @@ import { Text } from '../../renderer/engine/components/Text';
 import { Panel } from '../../renderer/engine/ui/Panel';
 import { AtlasButton } from '../../renderer/game/ui/atlas/AtlasButton';
 import { AtlasSheet } from '../../renderer/game/ui/atlas/AtlasSheet';
-import { DISPLAY_BOLD } from '../../renderer/game/ui/atlas/atlasStyle';
 import { ContentsRow } from '../../renderer/game/ui/atlas/ContentsRow';
 import { DeckGlyph, DeckStack } from '../../renderer/game/ui/atlas/deck';
 import { CasedBar, ScaleBar } from '../../renderer/game/ui/atlas/gauges';
@@ -81,7 +80,7 @@ export class AtlasSheetScene extends Panel {
 		const tabs = new SectionTabs({ id: 'atlas_sheet_tabs', tabs: SECTIONS, selectedId: 'compound' });
 		const sheet = new AtlasSheet({ id: 'atlas_sheet', tabs, widthMode: 'fill', heightMode: 'fill', gap: 14 });
 		const title = new Stack({ direction: 'horizontal', gap: 16, crossAlign: 'end' });
-		title.addChild(new Text({ text: 'The compound', style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: 30, letterSpacing: 0.16, textTransform: 'uppercase', color: 'text' } }));
+		title.addChild(new Text({ text: 'The compound', style: { fontRole: 'display', fontWeight: 700, fontSize: 30, letterSpacing: 0.16, textTransform: 'uppercase', color: 'text' } }));
 		title.addChild(new Text({ text: 'day 9, dawn', style: { fontSize: 15, color: 'text_dim' } }));
 		sheet.addChild(title);
 		sheet.addChild(new ResourceStrip({
@@ -173,7 +172,7 @@ export class AtlasLegendScene extends AtlasCatalogScene {
 		const selected = new LegendBox({ id: 'atlas_legend_selected', fresh: true, width: 360, gap: 10 });
 		const head = new Stack({ direction: 'horizontal', gap: 10, crossAlign: 'center', widthMode: 'fill' });
 		head.addChild(new MapGlyph({ kind: 'circled', label: '1', size: 26 }));
-		head.addChild(new Text({ text: 'Bunkhouse', widthMode: 'fill', style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: 24, color: 'text' } }));
+		head.addChild(new Text({ text: 'Bunkhouse', widthMode: 'fill', style: { fontRole: 'display', fontWeight: 700, fontSize: 24, color: 'text' } }));
 		head.addChild(new Text({ text: 'Built', style: { fontRole: 'mono', fontSize: 11, textTransform: 'uppercase', color: 'text_dim' } }));
 		selected.addChild(head);
 		selected.addChild(new Text({ text: 'Drivers, settlers, and the Crew screen, where default decks are built.', widthMode: 'fill', wrap: 'word', style: { fontSize: 14, color: 'text' } }));
@@ -261,7 +260,7 @@ export class AtlasPlateScene extends AtlasCatalogScene {
 		const yard = new Stack({ id: 'atlas_plate_yard', widthMode: 'fill', heightMode: 'fill', padding: 28, style: { backgroundColor: 'built_up' } });
 		const place = new Stack({ id: 'atlas_plate_bunkhouse', direction: 'horizontal', gap: 6, crossAlign: 'center' });
 		place.addChild(new MapGlyph({ kind: 'circled', label: '1', size: 28 }));
-		place.addChild(new Text({ text: 'Bunkhouse', style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: 22, color: 'text' } }));
+		place.addChild(new Text({ text: 'Bunkhouse', style: { fontRole: 'display', fontWeight: 700, fontSize: 22, color: 'text' } }));
 		yard.addChild(place);
 		const loops = new HandMarkLayer({ id: 'atlas_plate_marks' });
 		yard.addChild(loops);

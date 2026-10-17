@@ -5,7 +5,7 @@ import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { RGBA, Rect } from '../../../engine/draw/geometry';
 import type { Theme } from '../../../engine/theme/tokens';
 import { UiArtName, drawAtlasArt, paperPiece } from './atlasArt';
-import { ATLAS, AtlasInks, DISPLAY_BOLD, atlasInks } from './atlasStyle';
+import { ATLAS, AtlasInks, atlasInks } from './atlasStyle';
 import { MapGlyph } from './mapGlyphs';
 
 export interface LegendBoxOptions extends Omit<StackOptions, 'style' | 'padding'> {
@@ -52,7 +52,7 @@ export class LegendBox extends Stack {
 		this.head = title !== undefined
 			? new Text({
 				text: title,
-				style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: ATLAS.headSize, letterSpacing: ATLAS.headTracking, textTransform: 'uppercase', color: 'text' },
+				style: { fontRole: 'display', fontWeight: 700, fontSize: ATLAS.headSize, letterSpacing: ATLAS.headTracking, textTransform: 'uppercase', color: 'text' },
 				wrap: 'none',
 				textOverflow: 'ellipsis',
 				verticalAlign: 'middle',
