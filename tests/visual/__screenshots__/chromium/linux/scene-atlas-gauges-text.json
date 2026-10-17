@@ -1,0 +1,9 @@
+[
+{"path":"gallery_root/gallery_scene_atlas_gauges/Text[0]","text":"Gauges","rect":[56,48,1328,21]},
+{"path":"gallery_root/gallery_scene_atlas_gauges/gallery_scene_atlas_gauges_rows/Stack[0]/Text[0]","text":"the scale bar: alternating ink and paper","rect":[56,93,315.48,14.52]},
+{"path":"gallery_root/gallery_scene_atlas_gauges/gallery_scene_atlas_gauges_rows/Stack[0]/Stack[1]/Text[1]","text":"0 · 20 mi","rect":[166,115.52,59.4,14.52]},
+{"path":"gallery_root/gallery_scene_atlas_gauges/gallery_scene_atlas_gauges_rows/Stack[1]/Text[0]","text":"as a count: stores, 6 of 10","rect":[56,146.04,212.52,14.52]},
+{"path":"gallery_root/gallery_scene_atlas_gauges/gallery_scene_atlas_gauges_rows/Stack[2]/Text[0]","text":"the splash loader: Highway on a Casing frame","rect":[56,194.56,347.16,14.52]},
+{"path":"gallery_root/gallery_scene_atlas_gauges/gallery_scene_atlas_gauges_rows/Stack[2]/Stack[1]/Text[1]","text":"Unfolding the map 40%","rect":[388,217.08,169.4,14.52]},
+{"path":"gallery_root/gallery_scene_atlas_gauges/gallery_scene_atlas_gauges_rows/Stack[3]/Text[0]","text":"the cased bar: each driver's colour on its casing","rect":[56,247.6,386.76,14.52]}
+]
