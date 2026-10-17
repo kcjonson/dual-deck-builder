@@ -583,6 +583,43 @@ describe('ContentsRow', () => {
 		expect(row.canReceiveFocus()).toBe(false);
 	});
 
+	it('moves between primary and standard in place, turning its glyph and keeping its focus', () => {
+		const column = new Stack({ width: 600 });
+		const row = new ContentsRow({ variant: 'primary', lead: { glyph: '' }, label: 'Continue', subtitle: '', value: '' });
+		column.addChild(row);
+		add(column);
+		row.setFocusState(true, true);
+		row.leadLabel = '9';
+		row.subtitle = 'Day 9 - 3 drivers';
+		row.value = 'DAY 09';
+		context.frame.layout();
+		expect(row.height).toBe(72);
+		expect(draws(row).some((command) => command.kind === 'text' && command.text === '9')).toBe(true);
+		expect(draws(row).some((command) => command.kind === 'text' && command.text === 'Day 9 - 3 drivers')).toBe(true);
+
+		row.variant = 'standard';
+		row.faded = true;
+		context.frame.layout();
+		expect(row.height).toBe(56);
+		expect(draws(row).find((command): command is CircleCommand => command.kind === 'circle')?.border?.color).toEqual(atlas.color.text_disabled);
+		row.faded = false;
+		row.variant = 'primary';
+		context.frame.layout();
+		expect(row.height).toBe(72);
+		expect(draws(row).find((command): command is PolygonCommand => command.kind === 'polygon')?.fill).toEqual(atlas.color.accent);
+		expect(() => { row.variant = 'compact'; }).toThrow();
+	});
+
+	it('rings focus in ink on paper, and prints a muted entry in ink faint', () => {
+		const column = new Stack({ width: 600 });
+		const row = new ContentsRow({ label: 'Developer tools', variant: 'compact', value: 'E', muted: true });
+		column.addChild(row);
+		add(column);
+		expect(draws(row).find((command): command is TextCommand => command.kind === 'text' && command.text === 'Developer tools')?.color).toEqual(atlas.color.text_faint);
+		press('Tab');
+		expect(rects(row).some((command) => same(command.border?.color, ink) && command.border?.width === ATLAS.focusRingWidth)).toBe(true);
+	});
+
 	it('activates from the keyboard', () => {
 		let opened = 0;
 		const column = new Stack({ width: 600 });

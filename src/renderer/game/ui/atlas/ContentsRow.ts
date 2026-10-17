@@ -28,14 +28,18 @@ export interface ContentsRowOptions extends Omit<ComponentOptions, 'style'> {
 	label: string;
 	/** Mono, at the right end of the leaders. */
 	value?: string;
-	/** A line under a primary row's label: the save's summary, or why there's nothing to continue. */
+	/** A line under the label, running under the value too: the save's summary, or why there's nothing to continue. */
 	subtitle?: string;
+	/** Lines the subtitle may wrap to before it ends in an ellipsis; the row is taller by the extra lines. Default 1. */
+	subtitleLines?: 1 | 2;
 	lead?: ContentsLead;
 	variant?: ContentsRowVariant;
 	/** Faded print: shown in its place, but not available. Not focusable or pressable. */
 	faded?: boolean;
 	/** The label and value in dim ink and the glyph in faded print, still pressable: a place that can be read but has less to offer (a depleted POI, a stronghold). */
 	dim?: boolean;
+	/** The label in ink faint: an entry that's there but secondary (developer tools). Still pressable. */
+	muted?: boolean;
 	onClick?: ClickCallback;
 }
 
@@ -66,6 +70,8 @@ const METRICS: Readonly<Record<ContentsRowVariant, RowMetrics>> = {
 
 const SUBTITLE_SIZE = 14;
 const SUBTITLE_GAP = 2;
+/** A wrapped subtitle's line, body at 14 px over its 1.4 leading. */
+const SUBTITLE_LINE = 20;
 const LEADER_DOT = 2;
 const LEADER_STEP = 4;
 const LEADER_MARGIN = 8;
@@ -80,16 +86,20 @@ const CLEAR: RGBA = [0, 0, 0, 0];
  * HandMarkLayer's highlighter), never the row's own fill.
  */
 export class ContentsRow extends Pressable {
-	public readonly variant: ContentsRowVariant;
-	private readonly metrics: RowMetrics;
+	private rowVariant: ContentsRowVariant;
+	private metrics: RowMetrics;
 	private readonly labelText: Text;
 	private readonly valueText: Text | null;
 	private readonly subtitleText: Text | null;
-	private readonly glyph: MapGlyphGeometry | null;
-	private readonly glyphLabel: string | null;
+	private readonly subtitleLines: 1 | 2;
+	private glyph: MapGlyphGeometry | null;
+	private glyphLabel: string | null;
 	private readonly deck: DeckGlyphGeometry | null;
 	private isFaded: boolean;
 	private isDim: boolean;
+	private readonly isMuted: boolean;
+	/** The glyph lead is the stronghold diamond, whatever the variant's own glyph. */
+	private readonly diamondLead: boolean;
 	private inks: AtlasInks;
 	private paint: GlyphPaint;
 	private readonly box: Rect = { x: 0, y: 0, width: 0, height: 0 };
@@ -99,17 +109,20 @@ export class ContentsRow extends Pressable {
 	private readonly leaders: Rect[] = [];
 	private leaderCount = 0;
 
-	constructor({ label, value, subtitle, lead = null, variant = 'standard', faded = false, dim = false, onClick, ...options }: ContentsRowOptions) {
+	constructor({ label, value, subtitle, subtitleLines = 1, lead = null, variant = 'standard', faded = false, dim = false, muted = false, onClick, ...options }: ContentsRowOptions) {
 		const metrics = METRICS[variant];
-		super({ focusable: true, widthMode: 'fill', height: metrics.height, ...options, ...(faded ? { enabled: false } : {}) });
+		super({ focusable: true, widthMode: 'fill', height: metrics.height + (subtitleLines - 1) * SUBTITLE_LINE, ...options, ...(faded ? { enabled: false } : {}) });
 		this.componentType = 'ContentsRow';
-		this.variant = variant;
+		this.subtitleLines = subtitleLines;
+		this.rowVariant = variant;
 		this.metrics = metrics;
 		this.isFaded = faded;
 		this.isDim = dim;
+		this.isMuted = muted;
 		this.inks = atlasInks(this.themeTokens);
 		const glyphLead = lead !== null && lead !== 'deck' && metrics.glyph > 0 ? lead : null;
-		const kind = variant === 'primary' ? 'shield' : glyphLead?.diamond ? 'diamond' : 'circled';
+		this.diamondLead = glyphLead?.diamond === true;
+		const kind = this.leadKind;
 		this.glyph = glyphLead ? new MapGlyphGeometry(kind) : null;
 		this.glyphLabel = glyphLead ? glyphLead.glyph : null;
 		this.deck = lead === 'deck' ? new DeckGlyphGeometry() : null;
@@ -126,7 +139,7 @@ export class ContentsRow extends Pressable {
 		});
 		this.addPart(this.labelText);
 		this.subtitleText = subtitle !== undefined
-			? new Text({ id: partId('subtitle'), text: subtitle, style: { fontSize: SUBTITLE_SIZE, color: 'text_dim' }, wrap: 'none', textOverflow: 'ellipsis' })
+			? new Text({ id: partId('subtitle'), text: subtitle, style: { fontSize: SUBTITLE_SIZE, color: 'text_dim' }, wrap: subtitleLines > 1 ? 'word' : 'none', textOverflow: 'ellipsis' })
 			: null;
 		if (this.subtitleText) this.addPart(this.subtitleText);
 		this.valueText = value !== undefined
@@ -140,6 +153,39 @@ export class ContentsRow extends Pressable {
 			: null;
 		if (this.valueText) this.addPart(this.valueText);
 		if (onClick) this.onClick = onClick;
+	}
+
+	public get variant(): ContentsRowVariant {
+		return this.rowVariant;
+	}
+
+	/**
+	 * Moves the row between `primary` and `standard`: the page's lead changes
+	 * with the save (Continue, or New campaign), and the row keeps its place,
+	 * its focus, and its handlers. A glyph lead turns between the shield and
+	 * the circle.
+	 */
+	public set variant(variant: ContentsRowVariant) {
+		if (variant === this.rowVariant) return;
+		if ((variant === 'compact') !== (this.rowVariant === 'compact')) throw new Error('ContentsRow: a compact row has no lead column, so it stays compact');
+		this.rowVariant = variant;
+		this.metrics = METRICS[variant];
+		if (this.glyph) this.glyph = new MapGlyphGeometry(this.leadKind);
+		this.repaint();
+		this.labelText.fontSize = this.metrics.label;
+		if (this.valueText) this.valueText.fontSize = this.metrics.value;
+		this.height = this.metrics.height + (this.subtitleLines - 1) * SUBTITLE_LINE;
+		this.invalidateLayout();
+	}
+
+	/** The number, letter, or day in the lead glyph; null for a row led by the deck glyph or nothing. */
+	public get leadLabel(): string | null {
+		return this.glyphLabel;
+	}
+
+	public set leadLabel(label: string) {
+		if (this.glyphLabel === null) throw new Error('ContentsRow: a row built without a glyph lead has no label for one');
+		this.glyphLabel = label;
 	}
 
 	public get label(): string {
@@ -163,6 +209,32 @@ export class ContentsRow extends Pressable {
 
 	public get subtitle(): string | null {
 		return this.subtitleText?.text ?? null;
+	}
+
+	public set subtitle(subtitle: string) {
+		if (!this.subtitleText) throw new Error('ContentsRow: a row built without a subtitle has no line for one');
+		this.subtitleText.text = subtitle;
+		this.invalidateLayout();
+	}
+
+	/** The subtitle's ink: dim by default, the warning colour for a reason the player should heed. */
+	public get subtitleColor(): RGBA | null {
+		return this.subtitleText?.color ?? null;
+	}
+
+	public set subtitleColor(color: ColorToken) {
+		if (!this.subtitleText) throw new Error('ContentsRow: a row built without a subtitle has no line for one');
+		this.subtitleText.color = color;
+	}
+
+	/** Whether the subtitle fits its lines whole, rather than ending in an ellipsis. */
+	public get subtitleFits(): boolean {
+		const outcome = this.subtitleText?.overflowOutcome ?? null;
+		return outcome === null || outcome === 'none';
+	}
+
+	public get muted(): boolean {
+		return this.isMuted;
 	}
 
 	public get faded(): boolean {
@@ -200,7 +272,13 @@ export class ContentsRow extends Pressable {
 
 	protected onThemeChange(theme: Theme): void {
 		this.inks = atlasInks(theme);
-		this.paint = glyphPaint(this.glyph?.kind ?? 'circled', this.inks, { faded: this.glyphFaded(this.glyph?.kind ?? 'circled') });
+		this.paint = glyphPaint(this.leadKind, this.inks, { faded: this.glyphFaded(this.leadKind) });
+	}
+
+	/** The lead glyph's kind: the variant's own, or the stronghold diamond for a hostile place. */
+	private get leadKind(): MapGlyphKind {
+		if (this.rowVariant === 'primary') return 'shield';
+		return this.diamondLead ? 'diamond' : 'circled';
 	}
 
 	/**
@@ -215,17 +293,18 @@ export class ContentsRow extends Pressable {
 
 	private get labelColor(): ColorToken {
 		if (this.isFaded) return 'text_disabled';
-		return this.isDim ? 'text_dim' : 'text';
+		if (this.isDim) return 'text_dim';
+		return this.isMuted ? 'text_faint' : 'text';
 	}
 
 	private get valueColor(): ColorToken {
 		if (this.isFaded) return 'text_disabled';
 		if (this.isDim) return 'text_dim';
-		return this.variant === 'compact' ? 'text_dim' : 'text';
+		return this.rowVariant === 'compact' ? 'text_dim' : 'text';
 	}
 
 	private repaint(): void {
-		this.paint = glyphPaint(this.glyph?.kind ?? 'circled', this.inks, { faded: this.glyphFaded(this.glyph?.kind ?? 'circled') });
+		this.paint = glyphPaint(this.leadKind, this.inks, { faded: this.glyphFaded(this.leadKind) });
 		this.labelText.color = this.labelColor;
 		if (this.valueText) this.valueText.color = this.valueColor;
 	}
@@ -250,7 +329,15 @@ export class ContentsRow extends Pressable {
 
 		const valueWidth = Math.ceil(this.valueText?.measured?.width ?? 0);
 		const labelLine = Math.ceil(this.labelText.measured?.height ?? m.label);
-		const subtitleLine = this.subtitleText ? Math.ceil(this.subtitleText.measured?.height ?? SUBTITLE_SIZE) : 0;
+		const subtitleWidth = Math.max(0, width - m.padX - x);
+		let subtitleLine = 0;
+		if (this.subtitleText && this.subtitleLines > 1) {
+			// Wrapped at its width, then held to its lines: the block centres on what it uses.
+			const wrapped = this.subtitleText.measure(subtitleWidth, Infinity, 'width').height || SUBTITLE_LINE;
+			subtitleLine = Math.min(this.subtitleLines * SUBTITLE_LINE, Math.ceil(wrapped));
+		} else if (this.subtitleText) {
+			subtitleLine = Math.ceil(this.subtitleText.measured?.height ?? SUBTITLE_SIZE);
+		}
 		const block = labelLine + (this.subtitleText ? SUBTITLE_GAP + subtitleLine : 0);
 		const top = Math.round((height - block) / 2);
 		const valueX = width - m.padX - valueWidth;
@@ -265,7 +352,7 @@ export class ContentsRow extends Pressable {
 		this.labelText.setSize(labelWidth, labelLine);
 		if (this.subtitleText) {
 			this.subtitleText.setPosition(x, top + labelLine + SUBTITLE_GAP);
-			this.subtitleText.setSize(Math.max(0, valueX - LEADER_MARGIN - x), subtitleLine);
+			this.subtitleText.setSize(subtitleWidth, subtitleLine);
 		}
 		this.placeLeaders(x + labelWidth + LEADER_MARGIN, valueX - LEADER_MARGIN, Math.round(top + labelLine / 2));
 	}
@@ -276,7 +363,7 @@ export class ContentsRow extends Pressable {
 		const wash = (flags.pressed || flags.hovered) && flags.enabled ? inks.hover : CLEAR;
 		draw.drawRect({ id: this.id ?? undefined, rect: this.box, fill: wash });
 		if (flags.pressed) draw.drawRect({ rect: this.box, fill: inks.hover });
-		const ruleColor = this.variant === 'primary' ? inks.ink : inks.hairline;
+		const ruleColor = this.rowVariant === 'primary' ? inks.ink : inks.hairline;
 		if (this.metrics.ruleAbove) draw.drawRect({ rect: this.ruleTop, fill: ruleColor });
 		draw.drawRect({ rect: this.ruleBottom, fill: ruleColor });
 		if (this.glyph) this.glyph.draw(draw, this.paint, this.glyphLabel);
