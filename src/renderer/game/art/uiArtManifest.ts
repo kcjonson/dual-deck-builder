@@ -69,12 +69,15 @@ export const UI_ART_MANIFEST = {
 		paper_w3_c: { x: 674, y: 1758, width: 264, height: 264, scale: 1, tint: 'surface', slice: { top: 128, right: 128, bottom: 128, left: 128 } },
 		paper_w3_c_2x: { x: 706, y: 692, width: 528, height: 528, scale: 2, tint: 'surface', slice: { top: 256, right: 256, bottom: 256, left: 256, scale: 2 } },
 		stamp_depleted: { x: 942, y: 1224, width: 264, height: 100, scale: 1, tint: 'none' },
+		stamp_fallen: { x: 1238, y: 1878, width: 248, height: 108, scale: 1, tint: 'none' },
 		stamp_hostile: { x: 942, y: 1328, width: 260, height: 104, scale: 1, tint: 'none' },
 		stamp_looted: { x: 406, y: 1323, width: 232, height: 110, scale: 1, tint: 'none' },
+		stamp_lost: { x: 1490, y: 1856, width: 200, height: 104, scale: 1, tint: 'none' },
 		stamp_recon: { x: 1238, y: 840, width: 140, height: 140, scale: 1, tint: 'none' },
 		tape_a: { x: 610, y: 1039, width: 88, height: 28, scale: 1, tint: 'none' },
 		tape_b: { x: 642, y: 1378, width: 104, height: 28, scale: 1, tint: 'none' },
 		tape_c: { x: 750, y: 1446, width: 120, height: 28, scale: 1, tint: 'none' },
+		tear_a: { x: 1238, y: 1990, width: 36, height: 48, scale: 1, tint: 'none' },
 	},
 } as const satisfies ArtAtlasManifest;
 

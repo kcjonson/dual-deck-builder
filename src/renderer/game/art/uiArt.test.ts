@@ -42,7 +42,7 @@ describe('the UI art manifest (DDB-504)', () => {
 		['tape strips', /^tape_[abc]$/, 3],
 		['highlighter swipes', /^highlight_[a-d]$/, 4],
 		['grease-pencil loops', /^loop_[a-d]$/, 4],
-		['stamps', /^stamp_(looted|depleted|recon|hostile)$/, 4],
+		['stamps', /^stamp_(looted|depleted|recon|hostile|lost|fallen)$/, 6],
 		['card backs A and B at 1x and 2x', /^card_back_[ab](_2x)?$/, 4],
 		['resource icons at 1x and 2x', /^icon_(food|water|fuel|scrap|meds|people)(_2x)?$/, 12],
 		['the logo and the small mark at 1x and 2x', /^(logo|mark)(_2x)?$/, 4],
@@ -50,8 +50,8 @@ describe('the UI art manifest (DDB-504)', () => {
 		expect(NAMES.filter((name) => pattern.test(name))).toHaveLength(count);
 	});
 
-	it('has the card edge, the cover, the fold and the deck glyph', () => {
-		expect(NAMES).toEqual(expect.arrayContaining(['card_edge', 'atlas_cover', 'paper_fold', 'icon_deck', 'icon_deck_2x']));
+	it('has the card edge, the cover, the fold, the deck glyph and the tag tear', () => {
+		expect(NAMES).toEqual(expect.arrayContaining(['card_edge', 'atlas_cover', 'paper_fold', 'icon_deck', 'icon_deck_2x', 'tear_a']));
 	});
 
 	it('pairs every 2x piece with a 1x piece of half its size', () => {

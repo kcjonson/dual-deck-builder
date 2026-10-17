@@ -122,8 +122,8 @@ export class LegendBox extends Stack {
 	}
 }
 
-/** The map-legend symbol that leads a row: a shortfall, a pending item, nothing to report. */
-export type LegendSymbol = 'diamond' | 'ring' | 'dash';
+/** The map-legend symbol that leads a row: a shortfall or anything hostile, a pending item, nothing to report, home. */
+export type LegendSymbol = 'diamond' | 'ring' | 'dash' | 'star';
 
 export interface LegendRowOptions extends Omit<StackOptions, 'style' | 'direction'> {
 	text: string;
@@ -132,7 +132,7 @@ export interface LegendRowOptions extends Omit<StackOptions, 'style' | 'directio
 	faint?: boolean;
 	/** The line's ink, over `faint`: stronghold red (`status_crit`) for news that can't wait. */
 	color?: ColorToken;
-	/** A mono value at the row's right, as a legend key's count. */
+	/** A count or state at the right, in mono 500, for a ledger: "Days held .... 9 days". */
 	value?: string;
 	/** The line's id. Default `<row id>_text` when the row has an id. */
 	textId?: string;
@@ -142,13 +142,13 @@ export interface LegendRowOptions extends Omit<StackOptions, 'style' | 'directio
 
 const SYMBOL_SIZE = 14;
 const BODY_SIZE = 14;
-const VALUE_SIZE = 12;
+const VALUE_SIZE = 13;
 
 /**
  * One row of a legend box: a map-legend symbol where it helps (a stronghold
  * diamond for a shortfall, an open ring for a pending item, a dashed line
- * for nothing to report), a body line that wraps to the box, and an
- * optional mono value at the right.
+ * for nothing to report), a body line that wraps to the box, and, in a
+ * ledger, the value in mono at the right.
  */
 export class LegendRow extends Stack {
 	private readonly line: Text;
@@ -157,6 +157,7 @@ export class LegendRow extends Stack {
 	constructor({ text, symbol, faint = symbol === 'dash', color, value, textId, valueId, ...options }: LegendRowOptions) {
 		super({ widthMode: 'fill', ...options, direction: 'horizontal', gap: 10, crossAlign: 'center' });
 		this.componentType = 'LegendRow';
+		const ink: ColorToken = faint ? 'text_faint' : 'text';
 		if (symbol) this.addChild(new MapGlyph({ kind: symbol, size: SYMBOL_SIZE }));
 		const lineId = textId ?? (options.id ? `${options.id}_text` : undefined);
 		this.line = new Text({
@@ -164,18 +165,19 @@ export class LegendRow extends Stack {
 			...(lineId !== undefined ? { id: lineId } : {}),
 			widthMode: 'fill',
 			wrap: 'word',
-			style: { fontSize: BODY_SIZE, color: color ?? (faint ? 'text_faint' : 'text') },
+			style: { fontSize: BODY_SIZE, color: color ?? ink },
 		});
 		this.addChild(this.line);
 		const valueTextId = valueId ?? (options.id ? `${options.id}_value` : undefined);
 		this.valueText = value !== undefined
-			? new Text({ text: value, ...(valueTextId !== undefined ? { id: valueTextId } : {}), wrap: 'none', style: { fontRole: 'mono', fontSize: VALUE_SIZE, color: faint ? 'text_faint' : 'text_dim' } })
+			? new Text({
+				text: value,
+				...(valueTextId !== undefined ? { id: valueTextId } : {}),
+				wrap: 'word',
+				style: { fontRole: 'mono', fontWeight: 500, fontSize: VALUE_SIZE, color: ink, textAlign: 'right' },
+			})
 			: null;
 		if (this.valueText) this.addChild(this.valueText);
-	}
-
-	public get value(): string | null {
-		return this.valueText?.text ?? null;
 	}
 
 	/** The line's ink as drawn. */
@@ -193,6 +195,11 @@ export class LegendRow extends Stack {
 
 	public set text(text: string) {
 		this.line.text = text;
+	}
+
+	/** The value at the right, or null for a row built without one. */
+	public get value(): string | null {
+		return this.valueText?.text ?? null;
 	}
 }
 

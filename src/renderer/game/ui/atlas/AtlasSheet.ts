@@ -35,6 +35,8 @@ const TAPE_TURN = (-34 * Math.PI) / 180;
 /** How far a strip's centre sits in from its corner of the box, so the whole turned strip stays on screen. */
 const TAPE_IN_X = 50;
 const TAPE_IN_Y = 42;
+/** The W3 piece whose hero mark is a burnt bottom-right corner. */
+const BURNT: UiArtName = 'paper_w3_a';
 
 /**
  * The screen sheet (UI Art Direction, Components): one W2 page on the table
@@ -51,8 +53,8 @@ const TAPE_IN_Y = 42;
 export class AtlasSheet extends Stack {
 	private readonly sheetTabs: SectionTabs | null;
 	private readonly showTape: boolean;
-	private readonly wear: AtlasWear;
-	private readonly paper: AtlasPaperVariant;
+	private sheetWear: AtlasWear;
+	private sheetPaper: AtlasPaperVariant;
 	private surface: UiArtName = 'paper_w1_a';
 	private inks: AtlasInks;
 	private readonly sheetRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
@@ -68,14 +70,45 @@ export class AtlasSheet extends Stack {
 		this.componentType = 'AtlasSheet';
 		this.sheetTabs = tabs ?? null;
 		this.showTape = tape;
-		this.wear = wear;
-		this.paper = paper;
+		this.sheetWear = wear;
+		this.sheetPaper = paper;
 		this.inks = atlasInks(this.themeTokens);
 		if (tabs) this.addChild(tabs);
 	}
 
 	public get tabs(): SectionTabs | null {
 		return this.sheetTabs;
+	}
+
+	/**
+	 * The sheet's wear. A screen whose page is damaged only by an event (a
+	 * lost fight, a fallen compound) sets W3 while it shows the event and W2
+	 * otherwise (UI Art Direction, Wear: damage only after the event).
+	 */
+	public get wear(): AtlasWear {
+		return this.sheetWear;
+	}
+
+	public set wear(wear: AtlasWear) {
+		if (wear === this.sheetWear) return;
+		this.sheetWear = wear;
+		this.invalidateLayout();
+	}
+
+	/** The paper's variant; at W3 it picks the hero mark: a burnt corner (a), a bullet hole (b), a ripped corner (c). */
+	public get paper(): AtlasPaperVariant {
+		return this.sheetPaper;
+	}
+
+	public set paper(paper: AtlasPaperVariant) {
+		if (paper === this.sheetPaper) return;
+		this.sheetPaper = paper;
+		this.invalidateLayout();
+	}
+
+	/** The paper piece the sheet draws at its size, its wear dropped a level where it is too small for it. */
+	public get surfacePiece(): UiArtName {
+		return this.surface;
 	}
 
 	/** The page inside the margin, in this box. */
@@ -134,15 +167,17 @@ export class AtlasSheet extends Stack {
 		const margin = MARGIN;
 		setRect(this.tableRect, 0, 0, width, height);
 		setRect(this.sheetRect, margin, margin, width - margin * 2, height - margin * 2);
-		this.surface = paperPiece(this.wear, this.sheetRect, this.paper);
+		this.surface = paperPiece(this.sheetWear, this.sheetRect, this.sheetPaper);
 		const outer = margin + ATLAS.neatlineInset;
 		const inner = outer + ATLAS.neatlineGap;
 		setRect(this.outerRule, outer, outer, width - outer * 2, height - outer * 2);
 		setRect(this.innerRule, inner, inner, width - inner * 2, height - inner * 2);
-		const cos = Math.cos(TAPE_TURN);
-		const sin = Math.sin(TAPE_TURN);
-		this.tapeStart = [cos, sin, -sin, cos, TAPE_IN_X, TAPE_IN_Y];
-		this.tapeEnd = [cos, sin, -sin, cos, width - TAPE_IN_X, height - TAPE_IN_Y];
+		// Tape never pins a burnt corner: the W3 burn sits bottom right, so its sheet is taped on the other diagonal.
+		const flip = this.surface === BURNT;
+		const cos = Math.cos(flip ? -TAPE_TURN : TAPE_TURN);
+		const sin = Math.sin(flip ? -TAPE_TURN : TAPE_TURN);
+		this.tapeStart = [cos, sin, -sin, cos, flip ? width - TAPE_IN_X : TAPE_IN_X, TAPE_IN_Y];
+		this.tapeEnd = [cos, sin, -sin, cos, flip ? TAPE_IN_X : width - TAPE_IN_X, height - TAPE_IN_Y];
 	}
 }
 

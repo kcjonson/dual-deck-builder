@@ -22,6 +22,12 @@ export interface CardPileViewOptions extends StackOptions {
 	note?: string;
 	/** Makes each card a choice, as a reward is: clicked or activated, it is picked. */
 	onPick?: (card: GameCard) => void;
+	/**
+	 * What the title and note are inked in: the card table's own light inks
+	 * (`card`, the default, for the battle screen's dark ground), or the
+	 * theme's text tokens (`theme`), for a pile on an atlas page.
+	 */
+	ink?: 'card' | 'theme';
 }
 
 /**
@@ -34,16 +40,18 @@ export interface CardPileViewOptions extends StackOptions {
 export class CardPileView extends Stack {
 	private readonly faces: UICard[];
 
-	constructor({ id, title, cards, driver = null, note, onPick, ...options }: CardPileViewOptions) {
+	constructor({ id, title, cards, driver = null, note, onPick, ink = 'card', ...options }: CardPileViewOptions) {
 		super({ id, direction: 'vertical', gap: tokens.space.space_3, crossAlign: 'stretch', focusGroup: { orientation: 'horizontal' }, ...options });
+		const nameInk = ink === 'card' ? CARD_NAME : 'text';
+		const mutedInk = ink === 'card' ? CARD_MUTED : 'text_dim';
 		this.addChild(new Text({
 			id: `${id}_title`,
 			text: title,
-			style: { fontRole: 'display', fontSize: 18, color: CARD_NAME, letterSpacing: 0.04, textTransform: 'uppercase' },
+			style: { fontRole: 'display', fontSize: 18, color: nameInk, letterSpacing: 0.04, textTransform: 'uppercase' },
 			wrap: 'none',
 		}));
 		if (note) {
-			this.addChild(new Text({ id: `${id}_note`, text: note, style: { fontRole: 'mono', fontSize: 11, color: CARD_MUTED } }));
+			this.addChild(new Text({ id: `${id}_note`, text: note, style: { fontRole: 'mono', fontSize: 11, color: mutedInk } }));
 		}
 		const row = new FlowWrap({ id: `${id}_cards`, gap: CARD_GAP });
 		this.faces = cards.map((card, index) => {
@@ -57,7 +65,7 @@ export class CardPileView extends Stack {
 		});
 		// An empty pile says so rather than hugging an empty row to nothing
 		if (cards.length > 0) this.addChild(row);
-		else this.addChild(new Text({ id: `${id}_empty`, text: 'Empty.', style: { fontSize: 13, color: CARD_MUTED } }));
+		else this.addChild(new Text({ id: `${id}_empty`, text: 'Empty.', style: { fontSize: 13, color: mutedInk } }));
 		inspectOnContextMenu(this);
 	}
 
