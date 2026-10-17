@@ -778,6 +778,23 @@ describe('AreaMapView labels, glyphs, and the night ring', () => {
 		expect(ids.indexOf('map.route_picked_stop_0')).toBeGreaterThan(ids.indexOf('map.label_p'));
 	});
 
+	it('sets a marker\'s label over the fog light on the fog\'s dark, and the rest dark on paper', () => {
+		const markers: MapMarker[] = [
+			{ id: 'seen', kind: 'poi', x: -300, y: -300, label: 'Seen camp' },
+			{ id: 'hidden', kind: 'stronghold', x: 300, y: 300, label: 'Rust Vulture yard' },
+		];
+		// Only the south-west quarter is revealed.
+		const fog: LandFogLayer = { cells: 4, isRevealed: (column, row) => column < 2 && row < 2 };
+		const { frame } = mountView({ markers, fog });
+		frame();
+		const commands = frame();
+		const halo = (text: string) => commands[commands.indexOf(labelOf(commands, text) as DrawCommand) - 1] as TextCommand;
+		expect([...(labelOf(commands, 'Rust Vulture yard')?.color ?? [])]).toEqual([...LABEL_LAYOUT.fogged.color]);
+		expect([...halo('Rust Vulture yard').color]).toEqual([...LABEL_LAYOUT.fogged.halo]);
+		expect([...(labelOf(commands, 'Seen camp')?.color ?? [])]).toEqual([...LABELS.poi.color]);
+		expect([...halo('Seen camp').color]).toEqual([...LABEL_LAYOUT.halo.color]);
+	});
+
 	it('draws a POI\'s glyph centred in its disc and a night ring round one with no route home by dark', () => {
 		const markers: MapMarker[] = [
 			{ id: 'near', kind: 'poi', x: 0, y: 300, type: 'clinic' },

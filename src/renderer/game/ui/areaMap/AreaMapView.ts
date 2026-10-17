@@ -175,6 +175,8 @@ interface PlacedLabel {
 	style: LabelStyle;
 	box: LabelBox;
 	part: string;
+	/** Over the fog: set light on a dark halo. */
+	fogged: boolean;
 }
 
 /** A collapsed span's length and middle, worked out once a map. */
@@ -953,18 +955,19 @@ export class AreaMapView extends Component {
 		const layout = this.labelLayout;
 		this.planned = 0;
 		layout.reset(this.width, this.height, draw.canMeasureText(LABELS.poi.font));
-		const place = (text: string, style: LabelStyle, x: number, y: number, radius: number, part: string, sides: readonly LabelSide[] = BESIDE, anyway = false): void => {
+		const place = (text: string, style: LabelStyle, x: number, y: number, radius: number, part: string, sides: readonly LabelSide[] = BESIDE, anyway = false, fogged = false): void => {
 			const box = layout.placeBeside({ x, y, radius, width: this.labelWidth(draw, text, style), height: labelHeight(style), sides, anyway });
 			if (!box) return;
 			let entry = this.labelPlan[this.planned];
 			if (!entry) {
-				entry = { text, style, box, part };
+				entry = { text, style, box, part, fogged };
 				this.labelPlan.push(entry);
 			}
 			entry.text = text;
 			entry.style = style;
 			entry.box = box;
 			entry.part = part;
+			entry.fogged = fogged;
 			this.planned += 1;
 		};
 
@@ -994,7 +997,7 @@ export class AreaMapView extends Component {
 			for (const marker of this.markerLabelOrder()) {
 				const style = marker.kind === 'stronghold' ? LABELS.stronghold : LABELS.poi;
 				const at = camera.worldToScreen(marker.x, marker.y, this.scratch);
-				place(marker.label as string, style, at.x, at.y, markerExtent(marker), `label_${marker.id}`, BESIDE, marker.id === selectedId);
+				place(marker.label as string, style, at.x, at.y, markerExtent(marker), `label_${marker.id}`, BESIDE, marker.id === selectedId, this.fogged(marker.x, marker.y));
 			}
 		}
 
@@ -1015,21 +1018,21 @@ export class AreaMapView extends Component {
 		this.textPlaced = true;
 	}
 
-	/** The labels `planLabels` placed, each on its paper halo. */
+	/** The labels `planLabels` placed, each on its paper halo, or light on the fog's dark over the fog. */
 	private drawLabels(draw: DrawApi): void {
-		const { halo } = LABEL_LAYOUT;
+		const { halo, fogged: overFog } = LABEL_LAYOUT;
 		for (let index = 0; index < this.planned; index++) {
-			const { text, style, box, part } = this.labelPlan[index];
+			const { text, style, box, part, fogged } = this.labelPlan[index];
 			draw.drawText({
 				id: this.part(part),
 				text,
 				box: { x: box.x, y: box.y, width: Math.max(box.width, 1), height: box.height },
 				font: style.font,
 				size: style.size,
-				color: style.color,
+				color: fogged ? overFog.color : style.color,
 				letterSpacing: style.letterSpacing,
 				verticalAlign: 'middle',
-				shadow: { color: halo.color, blur: halo.blur },
+				shadow: { color: fogged ? overFog.halo : halo.color, blur: halo.blur },
 			});
 		}
 	}

@@ -16,6 +16,9 @@ export type Rgb8 = readonly [number, number, number];
  */
 export const PAPER: Rgb8 = [244, 241, 233];
 
+/** The fog's dark, which labels over it are haloed in too. */
+const FOG_DARK: Rgb8 = [36, 39, 46];
+
 /**
  * The land's colour, a continuous blend rather than biome patches (Area Map
  * Generation, Rendering: the road atlas): dry ground buff, middling ground
@@ -338,6 +341,8 @@ export const LABELS = {
  */
 export const LABEL_LAYOUT = {
 	halo: { color: PAPER_RGBA, blur: 2.2 },
+	/** A label over the fog, a marker's found in it: paper type on a halo of the fog's own dark, which a paper halo would smear across. */
+	fogged: { color: PAPER_RGBA, halo: [FOG_DARK[0] / 255, FOG_DARK[1] / 255, FOG_DARK[2] / 255, 1] as RGBA },
 	gap: 4,
 	pad: 1.5,
 	lineHeight: 1.25,
@@ -348,14 +353,15 @@ export const LABEL_LAYOUT = {
 export const ROAD_PICK_DISTANCE = 6;
 
 /**
- * Land fog: a pale wash over hidden land, the terrain faint beneath it. Not
- * hatched as the wireframe draws it: hatching baked into the map scales with
- * the zoom, and drawn on screen it would need a mask the uber shader can't
- * take, so a plain wash reads the same at every zoom.
+ * Land fog: a dark wash over hidden land, the terrain faint beneath it, so
+ * what's unexplored reads as dark against the light page and the fog's soft
+ * edge shows. Not hatched as the wireframe draws it: hatching baked into the
+ * map scales with the zoom, and drawn on screen it would need a mask the uber
+ * shader can't take, so a plain wash reads the same at every zoom.
  */
 export const FOG = {
-	color: [214, 214, 206] as Rgb8,
-	alpha: 0.86,
+	color: FOG_DARK,
+	alpha: 0.82,
 	/** Texels in the fog texture per fog cell. */
 	texelsPerCell: 8,
 } as const;

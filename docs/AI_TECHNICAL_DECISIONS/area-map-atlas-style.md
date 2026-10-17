@@ -62,6 +62,10 @@ Every label is dark type on a paper halo, the blurred shadow run the text path a
 
 Route bands are unchanged here: lettered side-by-side bands are later work.
 
+### Fog is dark
+
+Kevin's direction, 2026-10-16: fog is dark. The fog bake and its soft edge are unchanged, but the old pale wash, (214, 214, 206), sat within a few levels of the new light land, so its blurred edge all but vanished. The wash is now a dark slate, (36, 39, 46) at 0.82, so the hidden land shows faintly through it, and the revealed land reads as a light clearing with a soft edge. A marker found in the fog has its label set in paper on a halo of the fog's dark, since a paper halo smears on it. Area Map Generation still says "fog as a pale wash"; the spec is Kevin's to update.
+
 ### Bridges and passes are zoom-gated
 
 From 0.3 screen pixels a world unit in. A 1600-radius map fitted whole sits near 0.17, where every river crossing's parapets crowd out the roads; the game's maps sit around 0.4 and show them.
