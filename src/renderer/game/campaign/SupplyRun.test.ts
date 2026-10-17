@@ -153,7 +153,7 @@ describe('the routes on offer (DDB-479)', () => {
 
 describe('the raider encounters', () => {
 	it('fields the combat screen\'s own Rust Buggy, one shared profile, refilling to 5 adrenaline a turn against a pair', () => {
-		const [buggy] = encounterTeam({ encounter: 'scavengers', cards: CARDS }).vehicles;
+		const [buggy] = encounterTeam({ encounter: 'scavengers', cards: CARDS, crewStructure: [80, 50] }).vehicles;
 		expect([buggy.name, buggy.driver?.metadata.name, buggy.driver?.adrenaline, buggy.driver?.maxAdrenaline, buggy.raiderArchetype])
 			.toEqual(['Rust Buggy', 'Wasteland Raider', 5, 5, 'looter']);
 		expect(RAIDER_PROFILES.rust_buggy.maxAdrenaline).toBe(5);
@@ -186,10 +186,10 @@ describe('the raider encounters', () => {
 
 	it.each(ENCOUNTER_IDS)('builds %s as a fight the bridge starts', (encounter) => {
 		const campaign = newCampaign();
-		quickLoadOut({ campaign });
+		const { seats } = quickLoadOut({ campaign });
 		departRun({ campaign, map: MAP, route: testRoute(), escorts: [] });
 		toNextFight(campaign);
-		const team = encounterTeam({ encounter, cards: CARDS });
+		const team = encounterTeam({ encounter, cards: CARDS, crewStructure: seats.map(seat => seat.vehicle.structure) });
 		expect(team.vehicles).toHaveLength(ENCOUNTERS[encounter].raiders.length);
 		const fight = startStopFight({ campaign, cards: CARDS, raiders: () => team });
 		expect(fight.battle.enemyTeam).toBe(team);

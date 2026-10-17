@@ -19,10 +19,9 @@ import { Water, generateWater } from './Water';
  * The area map's stages: terrain, water, hazards, places, the roads, then
  * the route tree, the POIs, and the stops over the roads' network, and last
  * the dressing over all of it. Each runs on the stream the runner nests for
- * it, so water draws from
- * root.fork('map', m).fork('terrain', t).fork('water', w), hazards one level
- * further down, places one more, and so on; the route tree takes no draws,
- * but it's a link in the chain all the same.
+ * it, so water draws from root.fork('map', m).fork('terrain', t).fork('water', w),
+ * hazards one level further down, places one more, and so on; the route
+ * tree takes no draws, but it's a link in the chain all the same.
  */
 
 export interface AreaMapProducts {
