@@ -15,8 +15,12 @@ import { NO_MODIFIERS } from '../../../engine/input/events';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../../../engine/text/testing';
 import { themes, tokens } from '../../../engine/theme/tokens';
 import { Button } from '../../../engine/ui/Button';
+import { Checkbox } from '../../../engine/ui/Checkbox';
+import { SegmentedControl } from '../../../engine/ui/SegmentedControl';
+import { Select } from '../../../engine/ui/Select';
 import { Slider } from '../../../engine/ui/Slider';
 import { TabBar } from '../../../engine/ui/TabBar';
+import { Toggle } from '../../../engine/ui/Toggle';
 import { drawAtlasArt, paperPiece } from './atlasArt';
 import { AtlasButton } from './AtlasButton';
 import { AtlasSheet } from './AtlasSheet';
@@ -542,6 +546,60 @@ describe('focus rings on an atlas screen', () => {
 		expect(slider.resolvedColors.fill).toEqual(atlas.color.accent);
 		focus(slider);
 		expect(rects(slider).find((command) => command.id === 'volume.focus_ring')?.border?.color).toEqual(ink);
+	});
+});
+
+describe('settings controls on an atlas screen', () => {
+	const dark = themes.dark;
+
+	it('draws a Checkbox and a Toggle on paper, filled with the highway when on, square where the theme is', () => {
+		const box = add(new Checkbox({ label: 'Subtitles', checked: true }));
+		const toggle = add(new Toggle({ label: 'Screen shake' }));
+		expect(box.look.fill).toEqual(atlas.color.accent);
+		expect(box.look.radius).toBe(0);
+		expect(toggle.look.fill).toEqual(atlas.color.bg_inset);
+		expect(toggle.look.border).toEqual(atlas.color.line_strong);
+		const label = draws(toggle).find((command): command is TextCommand => command.kind === 'text');
+		expect(label?.color).toEqual(atlas.color.text);
+		root.theme = null;
+		expect(box.look.fill).toEqual(dark.color.accent);
+		expect(toggle.look.fill).toEqual(dark.color.bg_inset);
+	});
+
+	it('marks a SegmentedControl choice with the highlighter and ink, in a square index well', () => {
+		const control = add(new SegmentedControl({ id: 'motion', tone: 'highlight', options: [{ label: 'System', value: 'system' }, { label: 'Full', value: 'full' }], selected: 'full' }));
+		const [first, second] = control.items;
+		expect(second.look.fill).toEqual(atlas.color.bg_selection);
+		expect(second.look.text).toEqual(atlas.color.text_bright);
+		expect(first.look.text).toEqual(atlas.color.text_dim);
+		const well = rects(control).find((command) => command.id === 'motion');
+		expect(well?.fill).toEqual(atlas.color.bg_inset);
+		expect(well?.radius ?? 0).toBe(0);
+		first.setFocusState(true, true);
+		context.frame.update(1);
+		expect(first.look.focusRing).toEqual(ink);
+	});
+
+	it('keeps an accent SegmentedControl chip and well as they were on a dark screen, and moves them to the atlas', () => {
+		root.theme = null;
+		const control = add(new SegmentedControl({ id: 'filter', options: [{ label: 'All', value: 'all' }], selected: 'all' }));
+		expect(control.items[0].look.fill).toEqual(dark.color.accent);
+		expect(rects(control).find((command) => command.id === 'filter')?.radius).toBe(dark.radius.r_md);
+		root.theme = 'atlas';
+		expect(control.items[0].look.fill).toEqual(atlas.color.accent);
+	});
+
+	it('draws a Select field, its placeholder, and its menu on paper', () => {
+		const select = add(new Select({ id: 'driver', options: [{ label: 'Road warrior', value: 'a' }], placeholder: 'Pick one' }));
+		expect(select.resolvedColors.fill).toEqual(atlas.color.bg_inset);
+		const placeholder = draws(select).find((command): command is TextCommand => command.kind === 'text');
+		expect(placeholder?.color).toEqual(atlas.color.text_faint);
+		select.show();
+		const menu = select.openMenu;
+		if (!menu) throw new Error('the select should open');
+		expect(menu.effectiveTheme).toBe('atlas');
+		expect(menu.resolvedColors.fill).toEqual(atlas.color.bg_panel_raised);
+		select.closeMenu();
 	});
 });
 

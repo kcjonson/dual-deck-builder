@@ -11,6 +11,8 @@ import {
 	resolveShadow,
 } from './styleObject';
 
+const CLEAR: RGBA = [0, 0, 0, 0];
+
 /** R11.10's cross-component vocabulary. */
 export type Tone = 'accent' | 'data' | 'ok' | 'warn' | 'crit' | 'auto' | 'default';
 export type ControlSize = 'sm' | 'md' | 'lg';
@@ -101,8 +103,8 @@ export function toneColor(tone: Tone, value = 1, theme: Theme = tokens): RGBA {
 }
 
 /** A filled tone's glow colour: the accent glow's alpha in the tone's hue. */
-export function toneGlow(tone: FilledTone, theme: Theme = tokens): RGBA {
-	return themeLook(theme).tones[tone].glow;
+export function toneGlow(tone: SegmentChip, theme: Theme = tokens): RGBA {
+	return tone === 'highlight' ? CLEAR : themeLook(theme).tones[tone].glow;
 }
 
 /** The overlay a per-state override describes: colours only, each replacing (R11.15). */
@@ -226,8 +228,6 @@ function baseColors(style: StyleProperties, theme: Theme): Partial<LookBase> {
 	return colors;
 }
 
-const CLEAR: RGBA = [0, 0, 0, 0];
-
 /**
  * R12.7's ghost button: clear at rest, with no border, and the label in the
  * tone's colour (`text` for the default tone). Hover is the white wash with
@@ -299,7 +299,7 @@ export function markLayers({ on, theme = tokens }: { on: boolean; theme?: Theme 
 		fill: color.bg_inset,
 		border: color.line_strong,
 		borderWidth: theme.borderWidth.bw,
-		radius: theme.radius.r_sm,
+		radius: theme.radius.radius_ui,
 		text: color.text_dim,
 		shadow: null,
 	};
@@ -338,21 +338,32 @@ export function tabLayers(theme: Theme = tokens): LookLayers {
 }
 
 /**
- * R12.17's segment: a dim label on the well at rest; selected, the tone's
- * filled chip with the contrast text (the control draws its glow); hover a
- * wash with the body text, or the tone's bright fill on the chip; pressed a
- * darker wash. Disabled greys the chip and the label; `on` picks the
- * disabled chip, as `markLayers` does.
+ * A segment's selected chip: a filled tone, or `highlight`, the selection
+ * wash with bright text, for a theme whose filled tones are too strong for
+ * small labels (the atlas marks a selection with the highlighter: UI Art
+ * Direction, Wear).
  */
-export function segmentLayers({ tone, on, theme = tokens }: { tone: FilledTone; on: boolean; theme?: Theme }): LookLayers {
+export type SegmentChip = FilledTone | 'highlight';
+
+/**
+ * R12.17's segment: a dim label on the well at rest; selected, the tone's
+ * filled chip with the contrast text (the control draws its glow), or the
+ * highlight's wash with bright text; hover a wash with the body text, or the
+ * tone's bright fill on the chip; pressed a darker wash. Disabled greys the
+ * chip and the label; `on` picks the disabled chip, as `markLayers` does.
+ */
+export function segmentLayers({ tone, on, theme = tokens }: { tone: SegmentChip; on: boolean; theme?: Theme }): LookLayers {
 	const { color, tones } = themeLook(theme);
-	const palette = tones[tone];
-	const normal: LookBase = { fill: CLEAR, border: CLEAR, borderWidth: 0, radius: theme.radius.r_sm, text: color.text_dim, shadow: null };
+	const normal: LookBase = { fill: CLEAR, border: CLEAR, borderWidth: 0, radius: theme.radius.radius_ui, text: color.text_dim, shadow: null };
+	const palette = tone === 'highlight' ? null : tones[tone];
 	let hover: LookOverlay = { wash: color.bg_hover, text: color.text };
-	if (on) hover = palette.bright ? { fill: palette.bright } : { wash: color.bg_hover };
+	if (on) hover = palette?.bright ? { fill: palette.bright } : { wash: color.bg_hover };
+	const selected: LookBase = palette
+		? { ...normal, fill: palette.fill, text: color.accent_contrast }
+		: { ...normal, fill: color.bg_selection, text: color.text_bright };
 	return {
 		normal,
-		selected: { ...normal, fill: palette.fill, text: color.accent_contrast },
+		selected,
 		hover,
 		pressed: { wash: color.bg_pressed },
 		active: {},

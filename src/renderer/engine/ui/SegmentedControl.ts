@@ -5,8 +5,9 @@ import type { DrawApi } from '../draw/DrawApi';
 import type { Rect } from '../draw/geometry';
 import type { AnyUiEvent, UiActionEvent, UiKeyEvent, UiPointerEvent } from '../input/events';
 import { glowShadow, shadowExtent } from '../style/look';
-import { CONTROL_SIZES, ControlSize, Tone, segmentLayers, toneGlow } from '../style/variants';
+import { CONTROL_SIZES, ControlSize, SegmentChip, segmentLayers, toneGlow } from '../style/variants';
 import { tokens } from '../theme/tokens';
+import type { Theme } from '../theme/tokens';
 import { LabelledPressable } from './LabelledPressable';
 
 export interface SegmentOption<T> {
@@ -18,7 +19,8 @@ export interface SegmentOption<T> {
 /** A user change: the new value, already applied, and the press or key that made it. */
 export type SegmentChangeCallback<T> = (value: T, event: UiPointerEvent | UiActionEvent | UiKeyEvent) => void;
 
-export type SegmentTone = Exclude<Tone, 'auto' | 'default'>;
+/** A filled tone, or `highlight`: the selection wash with bright text, the atlas's highlighter. */
+export type SegmentTone = SegmentChip;
 
 export interface SegmentedControlOptions<T> extends Omit<ComponentOptions, 'style'> {
 	options: readonly SegmentOption<T>[];
@@ -44,7 +46,7 @@ const CHIP_GLOW_EXTENT = shadowExtent(glowShadow(tokens.color.accent_glow));
 export class Segment<T = unknown> extends LabelledPressable {
 	public readonly value: T;
 	private readonly tone: SegmentTone;
-	private readonly chipGlow: BoxShadow;
+	private chipGlow: BoxShadow;
 
 	constructor({ label, value, size, tone, disabled }: { label: string; value: T; size: ControlSize; tone: SegmentTone; disabled: boolean }) {
 		super({
@@ -58,7 +60,9 @@ export class Segment<T = unknown> extends LabelledPressable {
 		this.componentType = 'Segment';
 		this.value = value;
 		this.tone = tone;
-		this.chipGlow = glowShadow(toneGlow(tone));
+		this.layers = segmentLayers({ tone, on: false, theme: this.themeTokens });
+		this.transition.moveTo(this.targetLook, null);
+		this.chipGlow = glowShadow(toneGlow(tone, this.themeTokens));
 	}
 
 	/** Segments abut in the well, so the ring is drawn inside. */
@@ -78,8 +82,15 @@ export class Segment<T = unknown> extends LabelledPressable {
 
 	protected onStateChange(): void {
 		// `selected` picks the layers, as a checkable's `checked` does.
-		if (this.transition) this.layers = segmentLayers({ tone: this.tone, on: this.selected });
+		if (this.transition) this.layers = segmentLayers({ tone: this.tone, on: this.selected, theme: this.themeTokens });
 		super.onStateChange();
+	}
+
+	/** The chip, its glow, and the ring follow the theme (R11.15). */
+	protected onThemeChange(theme: Theme): void {
+		this.layers = segmentLayers({ tone: this.tone, on: this.selected, theme });
+		this.chipGlow = glowShadow(toneGlow(this.tone, theme));
+		this.transition.moveTo(this.targetLook, null);
 	}
 
 	public render(draw: DrawApi): void {
@@ -245,14 +256,18 @@ export class SegmentedControl<T = string> extends Component {
 		this.invalidateLayout();
 	}
 
-	/** The inset well (R11.5). */
+	/**
+	 * The inset well (R11.5). Its corner is the chips' plus the padding, so
+	 * the two stay concentric, and square where the theme's controls are.
+	 */
 	public render(draw: DrawApi): void {
-		const { color } = tokens;
+		const { color, radius } = this.themeTokens;
+		const corner = radius.radius_ui > 0 ? radius.radius_ui + WELL_PAD : 0;
 		draw.drawRect({
 			id: this.id ?? undefined,
 			rect: { x: 0, y: 0, width: this.width, height: this.height },
 			fill: color.bg_inset,
-			radius: tokens.radius.r_md,
+			radius: corner > 0 ? corner : undefined,
 			border: { color: color.line_hairline, width: tokens.borderWidth.bw },
 		});
 	}
