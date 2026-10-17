@@ -104,29 +104,39 @@ export interface ResourceSpec {
 const MONO_SIZE = 14;
 
 /** Counts read as a ledger's, two digits at least. */
-function ledger(value: number): string {
+export function ledger(value: number): string {
 	return String(Math.round(value)).padStart(2, '0');
 }
 
-/** One store in the strip: icon, mono name, mono 500 value. */
+/** How a strip prints a value; `ledger` by default. */
+export type ResourceFormat = (value: number) => string;
+
+/** One store in the strip: icon, mono name, mono 500 value. With an id, the value is `<id>_value`. */
 export class ResourceItem extends Stack {
 	public readonly kind: ResourceKind;
 	private readonly icon: ResourceIcon;
 	private readonly nameText: Text;
 	private readonly valueText: Text;
+	private readonly format: ResourceFormat;
 	private amount: number;
 	private isShort: boolean;
 
-	constructor({ kind, name, value, shortfall = false }: ResourceSpec) {
-		super({ direction: 'horizontal', gap: 7, crossAlign: 'center' });
+	constructor({ kind, name, value, shortfall = false, id, format = ledger }: ResourceSpec & { id?: string; format?: ResourceFormat }) {
+		super({ ...(id !== undefined ? { id } : {}), direction: 'horizontal', gap: 7, crossAlign: 'center' });
 		this.componentType = 'ResourceItem';
 		this.kind = kind;
 		this.amount = value;
 		this.isShort = shortfall;
+		this.format = format;
 		this.icon = new ResourceIcon({ kind, shortfall });
 		const color = shortfall ? 'status_crit' : 'text';
 		this.nameText = new Text({ text: name ?? kind, style: { fontRole: 'mono', fontSize: MONO_SIZE, textTransform: 'uppercase', color }, wrap: 'none' });
-		this.valueText = new Text({ text: ledger(value), style: { fontRole: MONO_MEDIUM, fontWeight: 500, fontSize: MONO_SIZE, color }, wrap: 'none' });
+		this.valueText = new Text({
+			text: format(value),
+			...(id !== undefined ? { id: `${id}_value` } : {}),
+			style: { fontRole: MONO_MEDIUM, fontWeight: 500, fontSize: MONO_SIZE, color },
+			wrap: 'none',
+		});
 		this.addChild(this.icon);
 		this.addChild(this.nameText);
 		this.addChild(this.valueText);
@@ -138,7 +148,7 @@ export class ResourceItem extends Stack {
 
 	public set value(value: number) {
 		this.amount = value;
-		this.valueText.text = ledger(value);
+		this.valueText.text = this.format(value);
 	}
 
 	public get shortfall(): boolean {
@@ -163,6 +173,8 @@ export interface ResourceStripOptions extends Omit<StackOptions, 'style' | 'dire
 	items: readonly ResourceSpec[];
 	/** The body line under the strip naming a shortfall ("Water and food run out in 2 days"). */
 	note?: string;
+	/** How values print; two digits at least by default. */
+	format?: ResourceFormat;
 }
 
 /**
@@ -170,18 +182,19 @@ export interface ResourceStripOptions extends Omit<StackOptions, 'style' | 'dire
  * an 18 px stroke icon, the name in mono capitals, the value in mono 500,
  * wrapping onto a second line when the width runs out. A shortfall turns its
  * item stronghold red, and `note` names it in a body line under the strip.
+ * With an id, each item is `<id>_<kind>`.
  */
 export class ResourceStrip extends Stack {
 	private readonly row: FlowWrap;
 	private readonly itemsByKind = new Map<ResourceKind, ResourceItem>();
 	private readonly noteText: Text;
 
-	constructor({ items, note, ...options }: ResourceStripOptions) {
+	constructor({ items, note, format, ...options }: ResourceStripOptions) {
 		super({ ...options, direction: 'vertical', gap: 6 });
 		this.componentType = 'ResourceStrip';
 		this.row = new FlowWrap({ gap: 22, rowGap: 6, widthMode: 'fill' });
 		for (const spec of items) {
-			const item = new ResourceItem(spec);
+			const item = new ResourceItem({ ...spec, id: options.id ? `${options.id}_${spec.kind}` : undefined, format });
 			this.itemsByKind.set(spec.kind, item);
 			this.row.addChild(item);
 		}
