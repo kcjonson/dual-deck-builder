@@ -3,18 +3,18 @@ import { ScreenManager } from '../../core/ScreenManager';
 import type { CampaignHistoryEntry } from '../../campaign/CampaignHistory';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
 import { Stack } from '../../../engine/components/Stack';
-import { Text } from '../../../engine/components/Text';
-import { Button } from '../../../engine/ui/Button';
-import { Divider } from '../../../engine/ui/Divider';
-import { Panel } from '../../../engine/ui/Panel';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { tokens } from '../../../engine/theme/tokens';
-import { historyColumns } from '../main-menu/campaignText';
+import { AtlasButton } from '../../ui/atlas/AtlasButton';
+import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
+import { ContentsRow } from '../../ui/atlas/ContentsRow';
+import { LegendBox, LegendRow } from '../../ui/atlas/LegendBox';
+import { PageTitle } from '../../ui/atlas/PageTitle';
+import { countOf, historyColumns } from '../main-menu/campaignText';
 
+const { space } = tokens;
 const PANEL_WIDTH = 600;
-const BACK_WIDTH = 200;
-const ENDING_WIDTH = 130;
-const DAYS_WIDTH = 90;
+const BACK_WIDTH = 240;
 
 export interface CampaignHistoryScreenOptions {
 	/** Where the history is kept. Default: the game's shared store. */
@@ -22,35 +22,36 @@ export interface CampaignHistoryScreenOptions {
 }
 
 /**
- * Campaign History (Game Flow 1.1): past campaigns, newest first, each with
- * how it ended, the days it held out, the strongholds it took, and its seed.
- * A root stack centres the title, one panel whose list scrolls once it
- * outgrows the room the title and Back leave, and Back. Nothing in the list
- * is interactive, so focus starts on Back; Page Up, Page Down, Home, and End
+ * Campaign History (Game Flow 1.1), an appendix of the atlas: past
+ * campaigns, newest first, as the contents page lists things (UI Art
+ * Direction, Components), each a numbered row with how it ended, the days it
+ * held out at the right, and the strongholds it took and its seed under it.
+ * One sheet holds the title, a legend box whose list scrolls once it
+ * outgrows the room the title and Back leave, and Back to contents as a back
+ * road; there's no primary action, so no highway. Nothing in the list is
+ * interactive, so focus starts on Back; Page Up, Page Down, Home, and End
  * scroll the list from there, as on the credits screen, and Escape and Back
  * return to the menu with focus on Campaign History again.
  */
 export class CampaignHistoryScreen extends Screen {
-	private readonly stack: Stack;
+	private readonly sheet: AtlasSheet;
 	private readonly store: CampaignStore;
+	private title: PageTitle | null = null;
 	private scroller: ScrollContainer | null = null;
 	private list: Stack | null = null;
 	private visit = 0;
 	private historyRead: Promise<void> = Promise.resolve();
 
 	constructor({ store = CampaignStore.shared }: CampaignHistoryScreenOptions = {}) {
-		const root = new Stack({
+		const root = new AtlasSheet({
 			id: 'campaignHistoryScreen',
 			widthMode: 'fill',
 			heightMode: 'fill',
-			distribution: 'center',
 			crossAlign: 'center',
-			gap: tokens.space.space_6,
-			padding: tokens.space.space_8,
-			style: { backgroundColor: 'bg_base' },
+			gap: space.space_5,
 		});
-		super('campaignHistoryScreen', { root });
-		this.stack = root;
+		super('campaignHistoryScreen', { root, theme: 'atlas' });
+		this.sheet = root;
 		this.store = store;
 	}
 
@@ -61,29 +62,23 @@ export class CampaignHistoryScreen extends Screen {
 
 	protected onMount(): void {
 		this.visit += 1;
-		this.stack.addChild(new Text({
-			text: 'Campaign History',
-			id: 'history_title',
-			style: { fontRole: 'display', fontSize: 'fs_4xl', color: 'text_bright', textAlign: 'center' },
-			wrap: 'none',
-		}));
+		this.title = new PageTitle({ title: 'Campaign history', subtitle: '', titleId: 'history_title', subtitleId: 'history_count', alignSelf: 'stretch' });
+		this.sheet.addChild(this.title);
 
-		this.list = new Stack({ id: 'history_list', crossAlign: 'stretch', gap: tokens.space.space_2 });
+		this.list = new Stack({ id: 'history_list', crossAlign: 'stretch' });
 		this.scroller = new ScrollContainer({ id: 'history_scroll', widthMode: 'fill', heightMode: 'hug' });
 		this.scroller.addChild(this.list);
-		const panel = new Panel({ id: 'history_panel', corners: true, width: PANEL_WIDTH, crossAlign: 'stretch' });
+		const panel = new LegendBox({ id: 'history_panel', width: PANEL_WIDTH, crossAlign: 'stretch' });
 		panel.addChild(this.scroller);
-		this.stack.addChild(panel);
+		this.sheet.addChild(panel);
 
-		const back = new Button({
-			label: 'Back',
+		const back = new AtlasButton({
+			label: 'Back to contents',
 			id: 'history_back_button',
-			icon: 'arrow_back',
-			size: 'lg',
 			width: BACK_WIDTH,
 			onClick: () => this.back(),
 		});
-		this.stack.addChild(back);
+		this.sheet.addChild(back);
 
 		const { hotkeys } = this.rootLayer;
 		hotkeys.register('Escape', () => this.back());
@@ -103,7 +98,8 @@ export class CampaignHistoryScreen extends Screen {
 		this.visit += 1;
 		const { hotkeys } = this.rootLayer;
 		for (const key of ['Escape', 'PageDown', 'PageUp', 'Home', 'End']) hotkeys.unregister(key);
-		this.stack.clearChildren();
+		this.sheet.clearChildren();
+		this.title = null;
 		this.scroller = null;
 		this.list = null;
 	}
@@ -123,21 +119,19 @@ export class CampaignHistoryScreen extends Screen {
 		const list = this.list;
 		if (!list) return;
 		if (typeof shown === 'string') {
-			list.addChild(message({ id: 'history_trouble', text: shown, color: 'status_warn' }));
+			list.addChild(message({ id: 'history_trouble', text: shown, symbol: 'diamond' }));
 			return;
 		}
+		if (this.title) this.title.subtitle = shown.length > 0 ? `${countOf(shown.length, 'campaign')} ended` : '';
 		if (shown.length === 0) {
 			list.addChild(message({
 				id: 'history_empty',
 				text: 'No campaign has ended yet. One is listed here when its compound falls, it is won, or a new campaign replaces it.',
-				color: 'text_dim',
+				symbol: 'dash',
 			}));
 			return;
 		}
-		shown.forEach((entry, index) => {
-			if (index > 0) list.addChild(new Divider());
-			list.addChild(historyRow({ entry, index }));
-		});
+		shown.forEach((entry, index) => list.addChild(historyRow({ entry, index })));
 	}
 
 	/** To the menu, focus back on the button that opened this screen. */
@@ -146,22 +140,26 @@ export class CampaignHistoryScreen extends Screen {
 	}
 }
 
-function message({ id, text, color }: { id: string; text: string; color: 'text_dim' | 'status_warn' }): Text {
-	return new Text({ text, id, widthMode: 'fill', style: { fontSize: 'fs_md', color, textAlign: 'center' } });
+/**
+ * Said in place of the list, led by its map-legend symbol: a stronghold
+ * diamond when the history can't be read, a dashed line for nothing to
+ * report.
+ */
+function message({ id, text, symbol }: { id: string; text: string; symbol: 'diamond' | 'dash' }): LegendRow {
+	return new LegendRow({ text, symbol, textId: id });
 }
 
-/** One past campaign: how it ended, the days it held out, the strongholds it took, and its seed at the end. */
-function historyRow({ entry, index }: { entry: CampaignHistoryEntry; index: number }): Stack {
+/** One past campaign: its number, how it ended, the days it held out, and the strongholds it took and its seed. */
+function historyRow({ entry, index }: { entry: CampaignHistoryEntry; index: number }): ContentsRow {
 	const columns = historyColumns(entry);
-	const row = new Stack({ id: `history_row_${index}`, direction: 'horizontal', crossAlign: 'center', gap: tokens.space.space_4 });
-	row.addChild(new Text({
-		text: columns.ending,
-		width: ENDING_WIDTH,
-		style: { fontRole: 'display', fontSize: 'fs_lg', color: entry.ending === 'won' ? 'accent' : 'text_bright', textTransform: 'uppercase', letterSpacing: 'ls_wide' },
-		wrap: 'none',
-	}));
-	row.addChild(new Text({ text: columns.days, width: DAYS_WIDTH, style: { fontSize: 'fs_md', color: 'text' }, wrap: 'none' }));
-	row.addChild(new Text({ text: columns.strongholds, widthMode: 'fill', style: { fontSize: 'fs_md', color: 'text' }, wrap: 'none' }));
-	row.addChild(new Text({ text: columns.seed, style: { fontRole: 'mono', fontSize: 'fs_xs', color: 'text_faint' }, wrap: 'none' }));
-	return row;
+	return new ContentsRow({
+		id: `history_row_${index}`,
+		label: columns.ending,
+		value: columns.days,
+		subtitle: `${columns.strongholds} / ${columns.seed}`,
+		lead: { glyph: String(index + 1) },
+		// A record to read, not a place to go: no hover, no focus stop.
+		focusable: false,
+		pointerEvents: 'none',
+	});
 }

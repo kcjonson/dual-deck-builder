@@ -130,6 +130,8 @@ export interface LegendRowOptions extends Omit<StackOptions, 'style' | 'directio
 	symbol?: LegendSymbol;
 	/** Faint ink, for nothing to report. Default on with the dash. */
 	faint?: boolean;
+	/** The body line's own id, for a row whose text a test or the lint names. */
+	textId?: string;
 }
 
 const SYMBOL_SIZE = 14;
@@ -143,11 +145,11 @@ const BODY_SIZE = 14;
 export class LegendRow extends Stack {
 	private readonly line: Text;
 
-	constructor({ text, symbol, faint = symbol === 'dash', ...options }: LegendRowOptions) {
+	constructor({ text, symbol, faint = symbol === 'dash', textId, ...options }: LegendRowOptions) {
 		super({ widthMode: 'fill', ...options, direction: 'horizontal', gap: 10, crossAlign: 'center' });
 		this.componentType = 'LegendRow';
 		if (symbol) this.addChild(new MapGlyph({ kind: symbol, size: SYMBOL_SIZE }));
-		this.line = new Text({ text, widthMode: 'fill', wrap: 'word', style: { fontSize: BODY_SIZE, color: faint ? 'text_faint' : 'text' } });
+		this.line = new Text({ id: textId, text, widthMode: 'fill', wrap: 'word', style: { fontSize: BODY_SIZE, color: faint ? 'text_faint' : 'text' } });
 		this.addChild(this.line);
 	}
 
