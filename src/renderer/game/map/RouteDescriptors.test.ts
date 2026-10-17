@@ -2,7 +2,7 @@ import { Rng } from '../core/Rng';
 import { fakeGround, meshFrom, meshMap, randomMesh } from './meshTesting';
 import { POI_TUNING, PoiTuning, STRONGHOLD_TYPE } from './PoiData';
 import { placePois } from './Pois';
-import { LegKnowledge, RouteMap, compass, describeMap, describeRoutes, fuelFor, poiNames } from './RouteDescriptors';
+import { LegKnowledge, RouteMap, compass, describeMap, describeRoutes, fuelFor } from './RouteDescriptors';
 import { buildRouteTree, routesTo } from './RouteTree';
 import { ROUTE_TUNING, STOP_TUNING, isFight } from './StopData';
 import { placeStops } from './Stops';
@@ -118,7 +118,7 @@ describe('route descriptors', () => {
 		const poiTuning: PoiTuning = { ...POI_TUNING, rings: { ...POI_TUNING.rings, targets: [0, 1, 1, 1] }, cover: [] };
 		const tree = buildRouteTree({ network, travelPace: 1, routeSplit: 0.5 });
 		const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
-		const params = { stopDensity: 1, dangerCurve: 1, driverFinds: 2, daylightHours: 14 };
+		const params = { stopDensity: 1, dangerCurve: 1, driverFinds: 2, daylightHours: 14, radius: 1000 };
 		const map: RouteMap = { params, products: { pois: layer, stops: placeStops({ network, layer, ground: fakeGround(), params, rng: new Rng({ seed: 1 }) }) } };
 
 		it('come from the dominant class of a route\'s own road, a highway\'s numbered by its road', () => {
@@ -152,15 +152,5 @@ describe('route descriptors', () => {
 		expect(compass(1, 1)).toBe('north-east');
 		expect(compass(-1, -1)).toBe('south-west');
 		expect(compass(-1, 0.5)).toBe('north-west');
-	});
-
-	it('name POIs by type and bearing until places have names, strongholds by faction, and never twice', () => {
-		const { pois } = mapOn(1).products;
-		const names = poiNames(pois);
-		expect(new Set(names).size).toBe(names.length);
-		pois.pois.forEach(({ type }, index) => {
-			if (type === STRONGHOLD_TYPE) expect(names[index]).toMatch(/ stronghold$/);
-			else expect(names[index].startsWith(POI_TUNING.types[type].label)).toBe(true);
-		});
 	});
 });

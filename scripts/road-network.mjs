@@ -9,6 +9,8 @@
  *   node scripts/road-network.mjs check [--maps 30] [--from 0]
  *   node scripts/road-network.mjs places [--seeds 3] [--repeat 3] [--radii 600,1000,1600]
  *   node scripts/road-network.mjs png --seed 7 [--environment badlands] [--radius 1000] [--size 1024] [--window x,y,half] [--out roads.png] [--loops 0.8 ...]
+ *   node scripts/road-network.mjs png --map 17 [...]
+ *   node scripts/road-network.mjs dressing --seed 7 [--environment rustBelt] [--size 1400] [--window x,y,half] [--out dressing.png] [--dressing 1 ...]
  *
  * Every command runs the area map's stages through the pipeline runner
  * (map/AreaMapPipeline.ts), on their nested streams, the roads checked as the
@@ -20,7 +22,10 @@
  * first-attempt pass rate, the spec's health metric, and any map the pipeline
  * gave up on. places times the hazards and places stages and counts the
  * places against what each map asks for. png draws one map, or a window of
- * it, with its places and POIs; any parameter can be set by name. Any command takes --profile <folder> for a CPU
+ * it, with its places and POIs; any parameter can be set by name, and --map
+ * starts from check's sampled set of that index. dressing draws one map's
+ * dressing over its land and roads, labels and all, and reports what it
+ * made and how long it took. Any command takes --profile <folder> for a CPU
  * profile of the run.
  */
 import { spawnSync } from 'node:child_process';
@@ -72,9 +77,10 @@ const { checkRoadNetwork } = load('./map/RoadChecks.js');
 const { areaMapPipeline } = load('./map/AreaMapPipeline.js');
 const { MapPipelineError } = load('./map/MapPipeline.js');
 const { loopsNeeded } = load('./map/Roads.js');
+const { pointAlong } = load('./map/Geometry.js');
 
 const ENVIRONMENTS = ['mixed', 'highDesert', 'rustBelt', 'floodlands', 'badlands'];
-const STAGES = ['terrain', 'water', 'hazards', 'places', 'roads', 'routeTree', 'pois'];
+const STAGES = ['terrain', 'water', 'hazards', 'places', 'roads', 'routeTree', 'pois', 'stops', 'dressing'];
 const now = () => Number(process.hrtime.bigint()) / 1e6;
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 
@@ -93,12 +99,80 @@ function generate(set, repeat = 1) {
 	return { params, result, fastest, checks };
 }
 
+const SINE_15 = Math.sin(Math.PI / 12);
+const SINE_30 = 0.5;
+/** World units of water one deck can carry a road over square-on: the longest bridge. */
+const DECK_WATER = 24;
+
+/**
+ * How the roads meet the rivers: crossings of a centreline under 15 and 30
+ * degrees off its line, bar on Home's own cells, which roads leave through
+ * any river on them; the longest run of river water under any one deck; and
+ * decks carrying more water than the longest bridge spans, which is a road
+ * along a river rather than across it. Water is sampled every tenth of a unit.
+ */
+function riverMeasures(network, terrain) {
+	const water = terrain.water;
+	const home = terrain.surface.grid.cellSize;
+	let shallow15 = 0;
+	let shallow30 = 0;
+	let wettest = 0;
+	let wetDecks = 0;
+	const at = { x: 0, y: 0 };
+	for (const { points, bridges } of network.stretches) {
+		if (water !== null) {
+			for (let point = 0; point + 3 < points.length; point += 2) {
+				const [x0, y0, x1, y1] = [points[point], points[point + 1], points[point + 2], points[point + 3]];
+				const count = water.riverCrossings(x0, y0, x1, y1);
+				for (let index = 0; index < count; index += 1) {
+					const { sine, along } = water.riverCrossing(index);
+					if (Math.abs(x0 + (x1 - x0) * along) <= home && Math.abs(y0 + (y1 - y0) * along) <= home) continue;
+					if (sine < SINE_15) shallow15 += 1;
+					if (sine < SINE_30) shallow30 += 1;
+				}
+			}
+		}
+		for (const { start, end } of bridges) {
+			let run = 0;
+			let longest = 0;
+			for (let along = start; along <= end; along += 0.1) {
+				pointAlong(points, along, at);
+				run = terrain.waterAt(at.x, at.y) === 'river' ? run + 0.1 : 0;
+				if (run > longest) longest = run;
+			}
+			if (longest > wettest) wettest = longest;
+			if (longest > DECK_WATER) wetDecks += 1;
+		}
+	}
+	return { shallow15, shallow30, wettest, wetDecks };
+}
+
+/** Highway exits with no highway stretch ending on them, and of those, how many lost theirs to a broken span. */
+function bareExits(network, places) {
+	const highwayExits = new Set(places.exits.filter(({ highway }) => highway).map(({ id }) => id));
+	const ends = (stretches) => {
+		const found = new Set();
+		for (const { roadClass, from, to } of stretches) {
+			if (roadClass !== 'highway') continue;
+			for (const node of [from, to]) if (highwayExits.has(network.nodes[node].place)) found.add(network.nodes[node].place);
+		}
+		return found;
+	};
+	const kept = ends(network.stretches);
+	const lost = ends(network.broken);
+	const bare = [...highwayExits].filter((id) => !kept.has(id));
+	return { bare: bare.length, brokenAway: bare.filter((id) => lost.has(id)).length };
+}
+
 function describe({ result }) {
-	const { places, roads, routeTree, pois } = result.products;
+	const { places, roads, routeTree, pois, hazards } = result.products;
 	const { network, stats } = roads;
 	const length = stats.lengths.highway + stats.lengths.backRoad + stats.lengths.trail;
 	const routes = pois.pois.filter(({ type }) => type !== 'stronghold').map(({ arrivals }) => arrivals.length);
 	return {
+		...riverMeasures(network, hazards.terrain),
+		...bareExits(network, places),
+		passableRetries: result.failures.filter(({ stage, problems }) => stage === 'roads' && problems.some((problem) => problem.startsWith('passable'))).length,
 		places: places.towns.length + places.villages.length + places.crossroads.length + places.exits.length,
 		nodes: network.nodes.length,
 		stretches: network.stretches.length,
@@ -143,6 +217,7 @@ function bench() {
 		console.log(`radius ${radius}:`);
 		console.log(`  ms per run, median (slowest): ${STAGES.map((stage) => `${stage} ${median(times[stage]).toFixed(0)} (${Math.max(...times[stage]).toFixed(0)})`).join(', ')}; the roads' checks ${median(checks).toFixed(0)}`);
 		console.log(`  median ${median(column('nodes'))} nodes, ${median(column('stretches'))} stretches, ${median(column('length')).toFixed(0)} units of road (${(100 * median(column('trailShare'))).toFixed(0)}% trail), ${median(column('loops'))} loops (least ${Math.min(...column('loops'))}), ${median(column('bridges'))} bridges, ${median(column('passes'))} passes, ${median(column('broken'))} broken spans`);
+		console.log(`  rivers: crossings under 15 degrees ${sum('shallow15')}, under 30 ${sum('shallow30')}; decks over ${DECK_WATER} units of water ${sum('wetDecks')}, the wettest ${Math.max(...column('wettest')).toFixed(1)}; highway exits with no highway ${sum('bare')} (${sum('brokenAway')} to a broken span); roads retries on passability ${sum('passableRetries')}`);
 		console.log(`  ${median(column('meetingPoints'))} meeting points; POIs placed ${sum('pois')} of ${sum('target')} (least map ${Math.min(...rows.map(({ pois, target }) => pois / target)).toFixed(2)}), strongholds ${sum('strongholds')}, three-route POIs ${sum('threeRoutes')}; ${rows.filter(({ retries }) => retries > 0).length} of ${rows.length} maps needed a retry`);
 	}
 	console.log(`networks' digest ${digest.digest('hex').slice(0, 16)}`);
@@ -172,6 +247,7 @@ function check() {
 	let gaveUp = 0;
 	let broken = 0;
 	const roadTimes = [];
+	const rows = [];
 	for (let index = from; index < from + maps; index += 1) {
 		const set = sampledSet(index);
 		let map;
@@ -200,9 +276,12 @@ function check() {
 			console.log(`map ${index} ${JSON.stringify(set)}: ${violations.slice(0, 3).map(({ rule, detail }) => `${rule}: ${detail}`).join('; ')}`);
 		}
 		const row = describe(map);
-		console.log(`map ${index} ${params.environment} r${params.radius}: ${row.places} places, ${row.loops} loops of ${loopsNeeded(params, result.products.roads.stats.inland)} needed, POIs ${row.pois} of ${row.target}, strongholds ${row.strongholds} of ${params.strongholds}, roads ${map.fastest.roads.toFixed(0)} ms, retries ${row.retries}`);
+		rows.push(row);
+		console.log(`map ${index} ${params.environment} r${params.radius}: ${row.places} places, ${row.loops} loops of ${loopsNeeded(params, result.products.roads.stats.inland)} needed, POIs ${row.pois} of ${row.target}, strongholds ${row.strongholds} of ${params.strongholds}, roads ${map.fastest.roads.toFixed(0)} ms, retries ${row.retries}; crossings under 15/30 degrees ${row.shallow15}/${row.shallow30}, wettest deck ${row.wettest.toFixed(1)}, bare highway exits ${row.bare}`);
 	}
 	console.log(`${maps} maps from ${from}: first-attempt pass rate ${STAGES.map((stage) => `${stage} ${firstPass[stage]}`).join(', ')} of ${maps - gaveUp}; ${gaveUp} gave up; ${broken} broke a road rule; roads median ${median(roadTimes).toFixed(0)} ms`);
+	const total = (key) => rows.reduce((sum, row) => sum + row[key], 0);
+	console.log(`rivers: crossings under 15 degrees ${total('shallow15')} on ${rows.filter((row) => row.shallow15 > 0).length} maps, under 30 ${total('shallow30')} on ${rows.filter((row) => row.shallow30 > 0).length}; decks over ${DECK_WATER} units of water ${total('wetDecks')}, the wettest ${Math.max(0, ...rows.map((row) => row.wettest)).toFixed(1)}; highway exits with no highway ${total('bare')} on ${rows.filter((row) => row.bare > 0).length} maps (${total('brokenAway')} to a broken span)`);
 	console.log(`failures by reason: ${[...reasons].map(([reason, count]) => `${reason} ${count}`).join(', ') || 'none'}`);
 	process.exitCode = gaveUp > 0 || broken > 0 ? 1 : 0;
 }
@@ -212,22 +291,21 @@ const BIOME_COLOURS = {
 };
 const ROAD_STYLES = { highway: { colour: [200, 60, 30], width: 3 }, backRoad: { colour: [70, 66, 60], width: 1.8 }, trail: { colour: [130, 90, 50], width: 1.1 } };
 
-async function png() {
-	const { PNG } = (await import('pngjs')).default;
-	const set = { seed: Number(options.seed ?? 1) };
+/** The map's parameters from the command line: --seed, or --map for check's sampled set of that index, and any parameter by name. */
+function mapSet() {
+	const set = options.map === undefined ? { seed: Number(options.seed ?? 1) } : sampledSet(Number(options.map));
+	if (options.seed !== undefined) set.seed = Number(options.seed);
 	for (const [key, value] of Object.entries(options)) {
-		if (['seed', 'size', 'out', 'window', 'profile'].includes(key)) continue;
+		if (['seed', 'size', 'out', 'window', 'profile', 'map'].includes(key)) continue;
 		set[key] = key === 'environment' ? value : Number(value);
 	}
-	const map = generate(set);
-	const { result, params } = map;
-	const terrain = result.products.hazards.terrain;
-	const { places } = result.products;
-	const { network } = result.products.roads;
-	const size = Number(options.size ?? 1024);
+	return set;
+}
+
+/** The land, water, cliffs, and craters as an image, `size` pixels a side, over the square `half` world units round (centreX, centreY). */
+async function landImage({ terrain, size, centreX, centreY, half }) {
+	const { PNG } = (await import('pngjs')).default;
 	const radius = terrain.radius;
-	// --window x,y,half draws the square of world space around (x, y) instead of the whole disc.
-	const [centreX, centreY, half] = options.window ? options.window.split(',').map(Number) : [0, 0, radius];
 	const image = new PNG({ width: size, height: size });
 	const sample = createTerrainSample();
 	for (let row = 0; row < size; row += 1) {
@@ -251,6 +329,19 @@ async function png() {
 			image.data[at + 3] = 255;
 		}
 	}
+	return { PNG, image };
+}
+
+async function png() {
+	const map = generate(mapSet());
+	const { result, params } = map;
+	const terrain = result.products.hazards.terrain;
+	const { places } = result.products;
+	const { network } = result.products.roads;
+	const size = Number(options.size ?? 1024);
+	// --window x,y,half draws the square of world space around (x, y) instead of the whole disc.
+	const [centreX, centreY, half] = options.window ? options.window.split(',').map(Number) : [0, 0, terrain.radius];
+	const { PNG, image } = await landImage({ terrain, size, centreX, centreY, half });
 	const toPixel = (x, y) => [((x - centreX) / half + 1) / 2 * size - 0.5, (-(y - centreY) / half + 1) / 2 * size - 0.5];
 	const dot = (px, py, width, colour) => {
 		const reach = width / 2;
@@ -350,8 +441,193 @@ function placesBench() {
 	}
 }
 
+const LABEL_LOOK = {
+	metro: { size: 15, weight: 700, colour: '#2a2522', spacing: 2 },
+	stronghold: { size: 10, weight: 700, colour: '#8a2a1e' },
+	poi: { size: 9, weight: 600, colour: '#22543a' },
+	town: { size: 11.5, weight: 700, colour: '#2a2522' },
+	shield: { size: 8, weight: 700, colour: '#ffffff' },
+	range: { size: 11, weight: 400, colour: '#5e5148', italic: true, spacing: 4 },
+	reservoir: { size: 9.5, weight: 400, colour: '#2f5f8f', italic: true },
+	lake: { size: 9.5, weight: 400, colour: '#2f5f8f', italic: true },
+	river: { size: 8.5, weight: 400, colour: '#2f5f8f', italic: true, spacing: 1 },
+	village: { size: 8.5, weight: 400, colour: '#3a3430' },
+	pass: { size: 7.5, weight: 400, colour: '#5e5148', italic: true },
+};
+
+/**
+ * One map's dressing drawn over its land and roads, for QA: street grids
+ * (standing blocks rose, rubble pale), rail lines (dark with white ties,
+ * thicker on bridges), crater hatching, mire stipple, and the labels set by
+ * a plain greedy placement, highest priority first, each kept only where its
+ * box is clear. That placement is this script's stand-in, not the view's.
+ * Chromium (Playwright's) renders the SVG to a PNG; without it the SVG is
+ * written instead.
+ */
+async function dressingPicture() {
+	const map = generate(mapSet());
+	const { result, params } = map;
+	const { hazards, roads, dressing } = result.products;
+	const terrain = hazards.terrain;
+	const size = Number(options.size ?? 1400);
+	const [centreX, centreY, half] = options.window ? options.window.split(',').map(Number) : [0, 0, terrain.radius];
+	const { PNG, image } = await landImage({ terrain, size, centreX, centreY, half });
+	const scale = size / (2 * half);
+	const px = (x) => (((x - centreX) / half + 1) / 2 * size).toFixed(1);
+	const py = (y) => ((-(y - centreY) / half + 1) / 2 * size).toFixed(1);
+	const line = (points) => {
+		let d = '';
+		for (let index = 0; index < points.length; index += 2) d += `${index === 0 ? 'M' : 'L'}${px(points[index])},${py(points[index + 1])}`;
+		return d;
+	};
+	const svg = [];
+	svg.push(`<image href="data:image/png;base64,${PNG.sync.write(image, { colorType: 2 }).toString('base64')}" width="${size}" height="${size}"/>`);
+	svg.push(`<g opacity="0.55">${dressing.hatches.map(({ x, y, inner, outer, ux, uy, spacing }, index) => {
+		const angle = (Math.atan2(-uy, ux) * 180 / Math.PI).toFixed(1);
+		return `<pattern id="h${index}" width="${(spacing * scale).toFixed(2)}" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(${angle})"><line x1="0" y1="0" x2="0" y2="4" stroke="#7a2e22" stroke-width="1"/></pattern>`
+			+ `<path fill="url(#h${index})" fill-rule="evenodd" d="M${px(x - outer)},${py(y)}a${(outer * scale).toFixed(1)},${(outer * scale).toFixed(1)} 0 1,0 ${(2 * outer * scale).toFixed(1)},0a${(outer * scale).toFixed(1)},${(outer * scale).toFixed(1)} 0 1,0 ${(-2 * outer * scale).toFixed(1)},0Z M${px(x - inner)},${py(y)}a${(inner * scale).toFixed(1)},${(inner * scale).toFixed(1)} 0 1,0 ${(2 * inner * scale).toFixed(1)},0a${(inner * scale).toFixed(1)},${(inner * scale).toFixed(1)} 0 1,0 ${(-2 * inner * scale).toFixed(1)},0Z"/>`;
+	}).join('')}</g>`);
+	let dots = '';
+	for (let index = 0; index < dressing.stipple.length; index += 2) dots += `M${px(dressing.stipple[index])},${py(dressing.stipple[index + 1])}h0.01`;
+	svg.push(`<path d="${dots}" stroke="#4f6b45" stroke-width="1.6" stroke-linecap="round"/>`);
+	for (const { ux, uy, spacing, blocks, rubble } of dressing.districts) {
+		const inset = spacing * 0.4;
+		const quads = (centres) => {
+			let d = '';
+			for (let index = 0; index < centres.length; index += 2) {
+				const x = centres[index];
+				const y = centres[index + 1];
+				const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => [x + (ux * a - uy * b) * inset, y + (uy * a + ux * b) * inset]);
+				d += `M${corners.map(([cx, cy]) => `${px(cx)},${py(cy)}`).join('L')}Z`;
+			}
+			return d;
+		};
+		svg.push(`<path d="${quads(blocks)}" fill="#c99d93"/><path d="${quads(rubble)}" fill="#c99d93" opacity="0.3"/>`);
+	}
+	const roadLook = { trail: 'stroke="#8a6a44" stroke-width="1" stroke-dasharray="3 2"', backRoad: 'stroke="#6c6660" stroke-width="1.1"', highway: 'stroke="#c8461e" stroke-width="2.6"' };
+	for (const roadClass of ['trail', 'backRoad', 'highway']) {
+		const d = roads.network.stretches.filter((stretch) => stretch.roadClass === roadClass).map(({ points }) => line(points)).join('');
+		if (roadClass === 'highway') svg.push(`<path d="${d}" fill="none" stroke="#5a2412" stroke-width="3.8"/>`);
+		svg.push(`<path d="${d}" fill="none" ${roadLook[roadClass]}/>`);
+	}
+	svg.push(`<path d="${roads.network.broken.map(({ points }) => line(points)).join('')}" fill="none" stroke="#c8461e" stroke-width="2.4" stroke-dasharray="4 4" opacity="0.6"/>`);
+	for (const { points, length, bridges } of dressing.rails) {
+		svg.push(`<path d="${line(points)}" fill="none" stroke="#2b2b2b" stroke-width="2.6"/><path d="${line(points)}" fill="none" stroke="#f4f1ea" stroke-width="1.2" stroke-dasharray="3 3"/>`);
+		for (const { start, end } of bridges) {
+			const deck = [];
+			for (let along = start; along <= end + 0.01; along += Math.max(0.5, (end - start) / 4)) {
+				const at = { x: 0, y: 0 };
+				pointAlong(points, Math.min(along, length), at);
+				deck.push(at.x, at.y);
+			}
+			if (deck.length >= 4) svg.push(`<path d="${line(deck)}" fill="none" stroke="#111" stroke-width="5"/>`);
+		}
+	}
+	for (const poi of result.products.pois.pois) {
+		const stronghold = poi.type === 'stronghold';
+		svg.push(`<circle cx="${px(poi.site.x)}" cy="${py(poi.site.y)}" r="${stronghold ? 4.5 : 3.5}" fill="${stronghold ? '#8a2a1e' : '#2f8a5a'}" stroke="#111" stroke-width="1"/>`);
+	}
+	const { places } = result.products;
+	for (const { x, y, kind } of [...places.villages, ...places.towns]) svg.push(`<circle cx="${px(x)}" cy="${py(y)}" r="${kind === 'town' ? 3.5 : 2.2}" fill="#222" stroke="#fff" stroke-width="1"/>`);
+
+	const boxes = [];
+	const clear = (box) => box.x0 >= 0 && box.y0 >= 0 && box.x1 <= size && box.y1 <= size && boxes.every((other) => box.x1 < other.x0 || other.x1 < box.x0 || box.y1 < other.y0 || other.y1 < box.y0);
+	const placed = {};
+	const dropped = {};
+	dressing.labels.forEach((label, index) => {
+		const look = LABEL_LOOK[label.kind];
+		const width = label.text.length * look.size * 0.56 + label.text.length * (look.spacing ?? 0);
+		const font = `font-family="Georgia, serif" font-size="${look.size}" font-weight="${look.weight}"${look.italic ? ' font-style="italic"' : ''}${look.spacing ? ` letter-spacing="${look.spacing}"` : ''}`;
+		const ax = Number(px(label.x));
+		const ay = Number(py(label.y));
+		let box;
+		let markup;
+		if (label.path.length >= 4) {
+			const xs = [];
+			const ys = [];
+			for (let at = 0; at < label.path.length; at += 2) {
+				xs.push(Number(px(label.path[at])));
+				ys.push(Number(py(label.path[at + 1])));
+			}
+			// Set it left to right.
+			const flip = xs[xs.length - 1] < xs[0];
+			const path = [];
+			for (let at = 0; at < xs.length; at += 1) path.push(flip ? [xs[xs.length - 1 - at], ys[ys.length - 1 - at]] : [xs[at], ys[at]]);
+			const span = path.reduce((total, [x, y], at) => (at === 0 ? 0 : total + Math.hypot(x - path[at - 1][0], y - path[at - 1][1])), 0);
+			if (span < width) {
+				dropped[label.kind] = (dropped[label.kind] ?? 0) + 1;
+				return;
+			}
+			// Small boxes along the middle of the path, as long as the text, stand in for its outline.
+			const pieces = [];
+			let walked = 0;
+			for (let at = 1; at < path.length; at += 1) {
+				const [x0, y0] = path[at - 1];
+				const [x1, y1] = path[at];
+				const piece = Math.hypot(x1 - x0, y1 - y0);
+				const steps = Math.max(1, Math.ceil(piece / look.size));
+				for (let step = 0; step < steps; step += 1) {
+					const middle = walked + piece * (step + 0.5) / steps;
+					if (Math.abs(middle - span / 2) > width / 2) continue;
+					const cx = x0 + (x1 - x0) * (step + 0.5) / steps;
+					const cy = y0 + (y1 - y0) * (step + 0.5) / steps;
+					pieces.push({ x0: cx - look.size * 0.6, y0: cy - look.size * 0.6, x1: cx + look.size * 0.6, y1: cy + look.size * 0.6 });
+				}
+				walked += piece;
+			}
+			box = pieces;
+			markup = `<path id="l${index}" d="M${path.map(([x, y]) => `${x},${y}`).join('L')}" fill="none"/><text ${font} fill="${look.colour}" stroke="#f4f1ea" stroke-width="2.5" paint-order="stroke"><textPath href="#l${index}" startOffset="50%" text-anchor="middle">${label.text}</textPath></text>`;
+		} else if (label.kind === 'shield') {
+			const w = width + 6;
+			box = { x0: ax - w / 2, y0: ay - 6, x1: ax + w / 2, y1: ay + 6 };
+			markup = `<rect x="${box.x0}" y="${box.y0}" width="${w}" height="12" rx="3" fill="#2a4c8a" stroke="#fff" stroke-width="1"/><text x="${ax}" y="${ay + 3}" text-anchor="middle" ${font} fill="#fff">${label.text}</text>`;
+		} else {
+			const right = ['town', 'village', 'poi', 'stronghold', 'pass'].includes(label.kind);
+			const left = right ? ax + 6 : ax - width / 2;
+			box = { x0: left - 1, y0: ay - look.size * 0.8 - 1, x1: left + width + 1, y1: ay + look.size * 0.3 + 1 };
+			markup = `<text x="${left}" y="${ay + look.size * 0.3}" ${font} fill="${look.colour}" stroke="#f4f1ea" stroke-width="2.5" paint-order="stroke">${label.text}</text>`;
+		}
+		const parts = Array.isArray(box) ? box : [box];
+		if (!parts.every(clear)) {
+			dropped[label.kind] = (dropped[label.kind] ?? 0) + 1;
+			return;
+		}
+		boxes.push(...parts);
+		placed[label.kind] = (placed[label.kind] ?? 0) + 1;
+		svg.push(markup);
+	});
+
+	const document = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${svg.join('')}</svg>`;
+	const out = options.out ?? `dressing-${params.seed}.png`;
+	let rendered = false;
+	try {
+		const { chromium } = createRequire(script)('@playwright/test');
+		const browser = await chromium.launch();
+		try {
+			const page = await browser.newPage({ viewport: { width: size, height: size } });
+			await page.setContent(`<html><body style="margin:0">${document}</body></html>`);
+			await page.screenshot({ path: out, clip: { x: 0, y: 0, width: size, height: size } });
+			rendered = true;
+		} finally {
+			await browser.close();
+		}
+	} catch (error) {
+		writeFileSync(out.replace(/\.png$/, '.svg'), document);
+		console.log(`no Chromium (${error.message.split('\n')[0]}), wrote the SVG instead`);
+	}
+	const blocks = dressing.districts.reduce((sum, { blocks: standing }) => sum + standing.length / 2, 0);
+	const rubble = dressing.districts.reduce((sum, { rubble: fallen }) => sum + fallen.length / 2, 0);
+	const kinds = Object.keys(LABEL_LOOK).filter((kind) => placed[kind] || dropped[kind]);
+	console.log(`${rendered ? out : out.replace(/\.png$/, '.svg')}: ${JSON.stringify(mapSet())}`);
+	console.log(`dressing ${map.fastest.dressing.toFixed(1)} ms (stops ${map.fastest.stops.toFixed(1)}, whole map ${result.milliseconds.toFixed(0)}); metro ${dressing.metroName}, routes ${dressing.routeNumbers.join(', ')}`);
+	console.log(`${dressing.districts.length} districts (${dressing.districts.filter(({ kind }) => kind === 'metro').length} in the metro), ${blocks} blocks standing, ${rubble} rubble; ${dressing.rails.length} of ${params.railLines} rail lines, ${dressing.rails.map(({ length, bridges }) => `${length.toFixed(0)} units with ${bridges.length} bridges`).join(', ') || 'none'}; ${dressing.hatches.length} hatched craters; ${dressing.stipple.length / 2} mire dots`);
+	console.log(`labels placed (dropped): ${kinds.map((kind) => `${kind} ${placed[kind] ?? 0} (${dropped[kind] ?? 0})`).join(', ')}`);
+	console.log(`ranges: ${dressing.ranges.map(({ name, cells }) => `${name} ${cells}`).join(', ') || 'none'}`);
+}
+
 if (command === 'bench') bench();
 else if (command === 'check') check();
 else if (command === 'png') await png();
 else if (command === 'places') placesBench();
-else throw new Error(`unknown command ${command}: bench, check, png, or places`);
+else if (command === 'dressing') await dressingPicture();
+else throw new Error(`unknown command ${command}: bench, check, png, places, or dressing`);

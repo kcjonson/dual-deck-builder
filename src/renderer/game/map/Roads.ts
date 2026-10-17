@@ -13,7 +13,7 @@ import type { Terrain } from './Terrain';
  * the road links between the places over it (Map 7, RoadLinks.ts), the road
  * graph from them (Map 8, RoadGraph.ts), and then the broken highways: spans
  * that collapsed, taken out of the network only where every node still
- * reaches the compound.
+ * reaches the compound and every highway exit keeps a highway.
  *
  * The stage fails when its network has fewer loops than the POIs need,
  * `poiDensity` times 30 plus `strongholds`, or than its places can close
@@ -59,7 +59,7 @@ export function generateRoads({ terrain, rivers, params, places, rng }: RoadsOpt
 	const field = new EdgeCostField({ terrain, rivers, curviness: params.curviness });
 	const cells: RoadCells = buildRoadCells({ field, terrain, places, loops: params.loops, trailShare: params.trailShare, rng });
 	const graph = buildRoadGraph({ cells, terrain });
-	const { stretches, broken } = breakHighways({ nodes: graph.nodes, stretches: graph.stretches, count: params.brokenHighways, radius: terrain.radius, rng: rng.fork('broken') });
+	const { stretches, broken } = breakHighways({ nodes: graph.nodes, stretches: graph.stretches, places, count: params.brokenHighways, radius: terrain.radius, rng: rng.fork('broken') });
 	const network: RoadNetwork = { nodes: graph.nodes, stretches, broken, passes: cells.passes };
 	const lengths = { highway: 0, backRoad: 0, trail: 0 };
 	let bridges = 0;
@@ -112,11 +112,24 @@ export function roadsProblems({ network, stats }: Roads, params: Pick<MapParams,
  * Highway spans that collapsed (`brokenHighways`): highway stretches at
  * least `BROKEN.length` long whose middle lies past `BROKEN.outside` of the
  * radius, tried in an order shuffled on the `broken` stream, each taken out
- * only where every node still reaches the compound without it.
+ * only where every node still reaches the compound without it, and where
+ * it isn't the last highway stretch ending on a highway exit, so the
+ * highway still leaves the area where the map says it does.
  */
-function breakHighways({ nodes, stretches, count, radius, rng }: {
-	nodes: RoadNetwork['nodes']; stretches: readonly RoadStretch[]; count: number; radius: number; rng: Rng;
+export function breakHighways({ nodes, stretches, places, count, radius, rng }: {
+	nodes: RoadNetwork['nodes']; stretches: readonly RoadStretch[]; places: readonly RoadPlace[]; count: number; radius: number; rng: Rng;
 }): { stretches: RoadStretch[]; broken: RoadStretch[] } {
+	const highwayExits = new Set(places.filter(({ kind, highway }) => kind === 'exit' && highway === true).map(({ id }) => id));
+	// Per node, the highway stretches ending on it, counted only at highway exits.
+	const exitHighways = new Map<number, number>();
+	stretches.forEach(({ roadClass, from, to }) => {
+		if (roadClass !== 'highway') return;
+		for (const node of [from, to]) {
+			const { place } = nodes[node];
+			if (place !== undefined && highwayExits.has(place)) exitHighways.set(node, (exitHighways.get(node) ?? 0) + 1);
+		}
+	});
+	const lastAtExit = ({ from, to }: RoadStretch) => exitHighways.get(from) === 1 || exitHighways.get(to) === 1;
 	const candidates = stretches.flatMap((stretch, id) => {
 		if (stretch.roadClass !== 'highway' || stretch.length < BROKEN.length) return [];
 		const middle = 2 * Math.floor(stretch.points.length / 4);
@@ -128,8 +141,14 @@ function breakHighways({ nodes, stretches, count, radius, rng }: {
 	const gone = new Set<number>();
 	for (const id of candidates) {
 		if (gone.size >= count) break;
+		if (lastAtExit(stretches[id])) continue;
 		gone.add(id);
-		if (!allReach(nodes.length, stretches, gone)) gone.delete(id);
+		if (!allReach(nodes.length, stretches, gone)) {
+			gone.delete(id);
+			continue;
+		}
+		const { from, to } = stretches[id];
+		for (const node of [from, to]) if (exitHighways.has(node)) exitHighways.set(node, (exitHighways.get(node) as number) - 1);
 	}
 	return {
 		stretches: stretches.filter((_stretch, id) => !gone.has(id)),
