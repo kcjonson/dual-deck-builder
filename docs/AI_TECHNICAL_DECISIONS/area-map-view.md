@@ -65,7 +65,7 @@ A selection outlives changes to the markers, the knowledge, and the layers: it's
 
 The land fog is a grid of cells (64 a side in the spec), baked into its own texture at 8 texels a cell, drawn over the terrain and under the roads and markers: a found stronghold and a charted highway show over fog, as the wireframe has them. The grid is blurred once ([1 2 1] each way) before the texels read it bilinear, so the edge rounds the cells' corners instead of running along their sides; it leans toward the hidden side, clear at half revealed and fully fogged only well below it. So revealed ground two or more cells across is clear, and a lone revealed cell, which blurs to a quarter, stays mostly fogged. The texture is at most 1024 a side whatever the grid. A bake is about 5 ms, done when the fog is set.
 
-It's a plain pale wash, not the wireframe's hatching. Hatching baked into the map scales with the zoom (at the zoom that frames a starting reveal, the lines were 60 pixels apart and 15 wide), and drawn in screen space it needs a mask the uber shader doesn't take. A wash reads the same at every zoom.
+It's a plain wash, not the wireframe's hatching: pale here, dark since the atlas restyle (area-map-atlas-style.md), whose light land hid a pale wash's soft edge. Hatching baked into the map scales with the zoom (at the zoom that frames a starting reveal, the lines were 60 pixels apart and 15 wide), and drawn in screen space it needs a mask the uber shader doesn't take. A wash reads the same at every zoom.
 
 ## The inputs for later stages
 

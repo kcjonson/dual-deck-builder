@@ -64,7 +64,7 @@ Route bands are unchanged here: lettered side-by-side bands are later work.
 
 ### Fog is dark
 
-Kevin's direction, 2026-10-16: fog is dark. The fog bake and its soft edge are unchanged, but the old pale wash, (214, 214, 206), sat within a few levels of the new light land, so its blurred edge all but vanished. The wash is now a dark slate, (36, 39, 46) at 0.82, so the hidden land shows faintly through it, and the revealed land reads as a light clearing with a soft edge. A marker found in the fog has its label set in paper on a halo of the fog's dark, since a paper halo smears on it. Area Map Generation still says "fog as a pale wash"; the spec is Kevin's to update.
+Kevin's direction, 2026-10-16: fog is dark. The fog bake and its soft edge are unchanged, but the old pale wash, (214, 214, 206), sat within a few levels of the new light land, so its blurred edge all but vanished. The wash is now a dark slate, (36, 39, 46) at 0.82, so the hidden land shows faintly through it, and the revealed land reads as a light clearing with a soft edge. A marker found in the fog has its label set in paper on a halo of the fog's dark, since a paper halo smears on it. Area Map Generation says the same now.
 
 ### Bridges and passes are zoom-gated
 
