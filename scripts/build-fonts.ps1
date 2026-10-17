@@ -26,6 +26,19 @@ if (-not $VersionLine.Contains($PinnedVersion) -and -not $env:MSDF_ATLAS_GEN_ANY
 	Write-Error "Expected msdf-atlas-gen $PinnedVersion, found: $VersionLine. Set MSDF_ATLAS_GEN_ANY_VERSION=1 to build anyway, and bump the pinned version in both build-fonts scripts if you commit the result."
 }
 
+# The defaults of a generator built without Skia, which is how Homebrew builds
+# it and how the committed atlases were made. The Windows release zip is built
+# with Skia, whose default path preprocessing draws different pixels for the
+# same face, so the flags are spelled out to make every build agree.
+$Geometry = @('-nopreprocess', '-overlap', '-scanline')
+
+# The Windows build writes the JSON with CRLF; the committed files, the macOS
+# build, and merge-kerning's tail match all use LF.
+function ConvertTo-LfLineEndings([string]$Path) {
+	$Text = [System.IO.File]::ReadAllText($Path)
+	[System.IO.File]::WriteAllText($Path, $Text.Replace("`r`n", "`n"), [System.Text.UTF8Encoding]::new($false))
+}
+
 $Faces = @(
 	@{ Output = 'barlow-condensed-semibold'; Source = 'barlow-condensed\BarlowCondensed-SemiBold.ttf'; Name = 'Barlow Condensed SemiBold' },
 	@{ Output = 'barlow-condensed-bold'; Source = 'barlow-condensed\BarlowCondensed-Bold.ttf'; Name = 'Barlow Condensed Bold' },
@@ -45,12 +58,14 @@ foreach ($Face in $Faces) {
 		-pxrange 8 `
 		-yorigin top `
 		-potr `
+		@Geometry `
 		-format png `
 		-imageout (Join-Path $FontsDir "$($Face.Output).png") `
 		-json (Join-Path $FontsDir "$($Face.Output).json")
 	if ($LASTEXITCODE -ne 0) {
 		Write-Error "msdf-atlas-gen failed for $($Face.Output)"
 	}
+	ConvertTo-LfLineEndings (Join-Path $FontsDir "$($Face.Output).json")
 	# msdf-atlas-gen reads only the legacy kern table; these faces kern in GPOS.
 	& node --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON `
 		(Join-Path $PSScriptRoot 'merge-kerning.mjs') `
@@ -83,11 +98,13 @@ if ($LASTEXITCODE -ne 0) {
 	-pxrange 8 `
 	-yorigin top `
 	-potr `
+	@Geometry `
 	-format png `
 	-imageout (Join-Path $FontsDir 'material-icons.png') `
 	-json (Join-Path $FontsDir 'material-icons.json')
 if ($LASTEXITCODE -ne 0) {
 	Write-Error 'msdf-atlas-gen failed for material-icons'
 }
+ConvertTo-LfLineEndings (Join-Path $FontsDir 'material-icons.json')
 
 Write-Host 'Done. Run npm test (fontAtlas and icon tests validate the committed JSON) and commit src/assets/fonts/ and src/renderer/engine/text/icons.ts.'
