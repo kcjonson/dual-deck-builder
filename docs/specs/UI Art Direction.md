@@ -180,10 +180,10 @@ The rest (crew, load-out, customize, campaign history, settings, credits, result
 - New art in the UI atlas: paper nine-slices for W1, W2, and W3 in two or three variants each, tape strips, hand marks, stamps, the compound plate, the logo and small mark, the two card backs and a card edge, the closed-atlas cover for the splash, and the resource, section, and deck icons.
 - Keep one GPU draw per flush (R5.20). Highlighter is baked as a normal-blend tone, not drawn with the `multiply` blend mode, because every multiply draw is a blend change and splits the submission.
 - Square corners everywhere: the theme re-aliases `radius_ui` and `radius_panel` to zero (R11.7), no component edits.
-- The combat screen keeps the current dark theme until its own pass. Tokens are global today, so the `atlas` theme needs per-screen selection (see open question 1).
+- The combat screen keeps the current dark theme until its own pass. Each screen selects its theme (open question 1): a meta screen opts into `atlas`, and a screen that doesn't stays dark. The mechanism is in [theme-selection.md](../AI_TECHNICAL_DECISIONS/theme-selection.md).
 
 ## Open questions
 
-1. Theme scope. Per-screen theme selection lets the meta screens go atlas while combat stays dark; the alternative is re-theming globally and accepting that combat changes before its pass. Per-screen selection is the recommendation.
+1. Theme scope. Decided: per-screen theme selection, so the meta screens go atlas while combat stays dark, rather than re-theming globally and changing combat before its pass.
 2. The compound plate: a painted bitmap per compound state, or vector shapes built in engine (flat, rect, and circle draws plus a corrugated-metal texture) that can show buildings appearing as they're built. Vector is the recommendation, since the plate has to change as the compound grows.
 3. When the `serif` and `hand` roles land, and whether the game writes its own hand notes (rumors, warnings) or leaves the hand layer to the player's choices only.

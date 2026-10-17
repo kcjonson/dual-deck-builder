@@ -47,7 +47,7 @@ import { HotkeyTable } from '../input/HotkeyTable';
 import type { RootTier } from '../input/Dispatcher';
 import { TooltipInput, TooltipSpec, normalizeTooltip } from '../services/tooltipSpec';
 import type { StateFlags } from '../style/look';
-import { tokens } from '../theme/tokens';
+import { BASE_THEME, Theme, ThemeName, themes, tokens } from '../theme/tokens';
 
 /**
  * R8.29. `auto`: this box is a target and children are hit-tested.
@@ -93,6 +93,8 @@ export interface ComponentOptions {
 	opacity?: number;
 	/** Null or absent inherits the parent's layer (R3.6). */
 	layer?: LayerName | null;
+	/** Null or absent inherits the parent's theme; a root without one is the base theme. */
+	theme?: ThemeName | null;
 	zIndex?: number;
 	margin?: MarginInput;
 	transform?: TransformInput;
@@ -208,6 +210,9 @@ export abstract class Component {
 	private ownEnabled = true;
 	private ownOpacity = 1;
 	private ownLayer: LayerName | null = null;
+	private ownTheme: ThemeName | null = null;
+	/** The effective theme `onThemeChange` last reported; everything is built against the base until told otherwise. */
+	private appliedTheme: ThemeName = BASE_THEME;
 	private ownZIndex = 0;
 	private ownMargin: Sides = ZERO_SIDES;
 	private ownTransform: ComponentTransform = IDENTITY_TRANSFORM;
@@ -295,6 +300,11 @@ export abstract class Component {
 		if (options.enabled !== undefined) this.ownEnabled = options.enabled;
 		if (options.opacity !== undefined) this.ownOpacity = options.opacity;
 		if (options.layer !== undefined) this.ownLayer = options.layer;
+		if (options.theme) {
+			// No parent yet, so this is the effective theme a subclass constructor resolves against.
+			this.ownTheme = options.theme;
+			this.appliedTheme = options.theme;
+		}
 		if (options.zIndex !== undefined) this.ownZIndex = options.zIndex;
 		if (options.margin !== undefined) this.ownMargin = normalizeSides(options.margin);
 		if (options.transform !== undefined) this.ownTransform = normalizeTransform(options.transform);
@@ -1192,6 +1202,54 @@ export abstract class Component {
 		return layerOrdinal(own) > layerOrdinal(inherited);
 	}
 
+	/** Own theme, or null to inherit. A screen sets it on its root (`ScreenOptions.theme`). */
+	public get theme(): ThemeName | null {
+		return this.ownTheme;
+	}
+
+	public set theme(value: ThemeName | null) {
+		if (this.ownTheme === value) return;
+		this.ownTheme = value;
+		this.syncTheme(this.parentComponent ? this.parentComponent.effectiveTheme : BASE_THEME);
+	}
+
+	/** The nearest own theme up the tree, the base theme at a root without one. */
+	public get effectiveTheme(): ThemeName {
+		return this.ownTheme ?? this.parentComponent?.effectiveTheme ?? BASE_THEME;
+	}
+
+	/**
+	 * The token table this component resolves token names and its own look
+	 * against (R11.15): `effectiveTheme`'s, kept in step by `syncTheme`, so a
+	 * read is a lookup rather than a walk.
+	 */
+	public get themeTokens(): Theme {
+		return themes[this.appliedTheme];
+	}
+
+	/**
+	 * Tells each component of this subtree whose effective theme moved, top
+	 * down. Every component starts on the one it was built against, so a
+	 * subtree that stays on it costs one comparison at its root.
+	 */
+	private syncTheme(inherited: ThemeName): void {
+		const effective = this.ownTheme ?? inherited;
+		if (effective === this.appliedTheme) return;
+		this.appliedTheme = effective;
+		this.onThemeChange(themes[effective]);
+		for (const child of this.childList) child.syncTheme(effective);
+	}
+
+	/**
+	 * The effective theme changed: re-resolve whatever was resolved from
+	 * tokens (a style object's token names, a variant's layers). Runs when a
+	 * `theme` set or an insert under a parent moves it, and when a detached
+	 * subtree is mounted as a root, always before that mount's `onMount`.
+	 */
+	protected onThemeChange(_theme: Theme): void {
+		// Override in subclasses
+	}
+
 	// -- tree (R8.4 to R8.7, R8.27) -------------------------------------------
 
 	public get parent(): Component | null {
@@ -1282,6 +1340,7 @@ export abstract class Component {
 		child.ownedByParent = false;
 		this.childList.splice(clampIndex(index, this.childList.length), 0, child);
 		this.orderView = null;
+		child.syncTheme(this.effectiveTheme);
 		// R8.15: adding to a mounted parent mounts at once.
 		if (this.mountContext && !child.mountContext) child.mount(this.mountContext);
 		this.invalidateFocusOrder();
@@ -1455,6 +1514,8 @@ export abstract class Component {
 	 */
 	public mount(context: MountContext, { tier = 'scene' }: RootMountOptions = {}): void {
 		if (this.mountContext) return;
+		// A subtree detached from a themed parent and mounted as a root is on the base theme again.
+		if (!this.parentComponent) this.syncTheme(BASE_THEME);
 		this.mountSubtree(context);
 		// A root sizes its `fill` axes from the viewport, so the frame
 		// re-lays it out when the viewport changes (R8.21).
