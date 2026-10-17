@@ -6,7 +6,6 @@ import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { tokens } from '../../../engine/theme/tokens';
 import { AtlasButton } from '../../ui/atlas/AtlasButton';
 import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
-import { DISPLAY_BOLD } from '../../ui/atlas/atlasStyle';
 import { LegendBox } from '../../ui/atlas/LegendBox';
 import { PageTitle } from '../../ui/atlas/PageTitle';
 import { CREDITS, CreditSection } from './credits';
@@ -104,7 +103,7 @@ function createSection(section: CreditSection): LegendBox {
 	const box = new LegendBox({ title: section.heading, crossAlign: 'stretch', gap: space.space_3 });
 	for (const entry of section.entries) {
 		const block = new Stack({ crossAlign: 'stretch', gap: space.space_0_5 });
-		block.addChild(new Text({ text: entry.name, style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: NAME_SIZE, color: 'text' } }));
+		block.addChild(new Text({ text: entry.name, style: { fontRole: 'display', fontWeight: 700, fontSize: NAME_SIZE, color: 'text' } }));
 		for (const line of entry.lines) {
 			block.addChild(new Text({ text: line, style: { fontSize: 'fs_base', color: 'text_dim' } }));
 		}

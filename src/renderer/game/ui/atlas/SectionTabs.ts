@@ -172,7 +172,7 @@ export class SectionTabs extends Stack {
 		this.onSelect = onSelect;
 		// A named row names its tabs after itself, so focus can be restored to one and a test can find it.
 		for (const tab of tabs) {
-			const item = new SectionTab({ id: options.id ? `${options.id}_${tab.id}` : undefined, tabId: tab.id, label: tab.label, deck: tab.deck, disabled: tab.disabled });
+			const item = new SectionTab({ id: options.id ? `${options.id}.${tab.id}` : undefined, tabId: tab.id, label: tab.label, deck: tab.deck, disabled: tab.disabled });
 			this.items.push(item);
 			this.addChild(item);
 		}

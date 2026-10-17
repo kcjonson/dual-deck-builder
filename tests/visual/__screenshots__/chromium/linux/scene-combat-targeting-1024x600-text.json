@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/dev_section_combat_targeting/Text[0]","text":"Combat Targeting","rect":[53,53,168.45,50]},
+{"path":"gallery_root/dev_section_combat_targeting/Text[0]","text":"Combat Targeting","rect":[53,53,174.16,50]},
 {"path":"gallery_root/dev_section_combat_targeting/dev_section_combat_targeting_rows/Stack[0]/Text[0]","text":"a card dragged onto a raider: ranges, out of reach dimmed, legal dashed, the target solid with its damage ghost, the hit check; a miss at the left edge","rect":[53,103,918,17.7]},
 {"path":"gallery_root/dev_section_combat_targeting/dev_section_combat_targeting_rows/Stack[0]/dev_targeting_scaled/dev_targeting_frame/dev_targeting_road/dev_targeting_road_head_player_shoulder","text":"Raider flank","rect":[160.03,126.7,113.09,14.34]},
 {"path":"gallery_root/dev_section_combat_targeting/dev_section_combat_targeting_rows/Stack[0]/dev_targeting_scaled/dev_targeting_frame/dev_targeting_road/dev_targeting_road_head_player_outside","text":"Outside","rect":[273.12,126.7,113.09,14.34]},

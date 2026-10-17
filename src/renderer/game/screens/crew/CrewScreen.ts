@@ -116,6 +116,8 @@ export class CrewScreen extends Screen {
 	private unsubscribe: (() => void)[] = [];
 	private readonly session = new CampaignVisit({ name: 'CrewScreen' });
 	private loaded: Promise<void> = Promise.resolve();
+	/** Waiting for the campaign's map, which the Area map tab follows; aborted on unmount. */
+	private mapWait: AbortController | null = null;
 
 	constructor({ store = CampaignStore.shared, cards = loadedCardLookup, maps = PlanningMaps.shared }: CrewScreenOptions = {}) {
 		const tabs = metaSectionTabs({ id: 'crew_tabs', open: 'crew', campaignOf: () => this.campaign });
@@ -219,6 +221,8 @@ export class CrewScreen extends Screen {
 
 	protected onUnmount(): void {
 		this.session.stop();
+		this.mapWait?.abort();
+		this.mapWait = null;
 		const { hotkeys } = this.rootLayer;
 		for (const key of ['Escape', ...INSPECT_KEYS]) hotkeys.unregister(key);
 		this.unsubscribe.forEach((unsubscribe) => unsubscribe());
@@ -335,6 +339,21 @@ export class CrewScreen extends Screen {
 		this.sources = { deck: crewDeckSource(options), pool: crewLockerSource(options) };
 		this.unsubscribe.push(campaign.on('change', () => this.refresh()));
 		this.refresh();
+		this.watchMap(campaign);
+	}
+
+	/** Asks for the campaign's map if it isn't made yet, and shows the Area map tab again when it is. */
+	private watchMap(campaign: Campaign): void {
+		if (this.maps.known(campaign)) return;
+		const wait = new AbortController();
+		this.mapWait = wait;
+		this.maps.load(campaign, { signal: wait.signal }).then(
+			() => {
+				if (this.campaign === campaign) this.refreshAreaMapTab(campaign);
+			},
+			// No map, no plan: the tab stays as it is, and the compound says why.
+			() => undefined,
+		);
 	}
 
 	/**
@@ -460,12 +479,15 @@ export class CrewScreen extends Screen {
 		ScreenManager.navigate('compoundScreen', this.campaign ? { campaign: this.campaign } : undefined, { restoreFocus: true });
 	}
 
-	/** The Area map tab is live when the compound's Plan a supply run would be: the map is made and nothing blocks a plan. */
 	private refreshAreaMapTab(campaign: Campaign | null): void {
 		const tab = this.tabs.tabs.find((each) => each.tabId === 'area_map');
-		if (!tab) return;
+		if (tab) tab.enabled = this.areaMapOpen(campaign);
+	}
+
+	/** The Area map tab is live when the compound's Plan a supply run would be: the map is made and nothing blocks a plan. */
+	private areaMapOpen(campaign: Campaign | null): boolean {
 		const map = campaign ? this.maps.known(campaign) : null;
-		tab.enabled = campaign !== null && map !== null && getPlanBlocker({ campaign, map }) === null;
+		return campaign !== null && map !== null && getPlanBlocker({ campaign, map }) === null;
 	}
 }
 

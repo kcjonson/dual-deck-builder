@@ -1,6 +1,6 @@
 import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { ATLAS, DISPLAY_BOLD } from './atlasStyle';
+import { ATLAS } from './atlasStyle';
 
 export interface PageTitleOptions extends Omit<StackOptions, 'style' | 'direction'> {
 	title: string;
@@ -32,7 +32,7 @@ export class PageTitle extends Stack {
 		this.titleText = new Text({
 			id: titleId,
 			text: title,
-			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: TITLE_SIZE, letterSpacing: ATLAS.headTracking, textTransform: 'uppercase', color: 'text' },
+			style: { fontRole: 'display', fontWeight: 700, fontSize: TITLE_SIZE, letterSpacing: ATLAS.headTracking, textTransform: 'uppercase', color: 'text' },
 			wrap: 'none',
 			textOverflow: 'ellipsis',
 		});

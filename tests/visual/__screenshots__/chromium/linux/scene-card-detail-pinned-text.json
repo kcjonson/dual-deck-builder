@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/dev_section_card_detail_pinned/Text[0]","text":"Card Detail View, Pinned","rect":[53,53,232.06,50]},
+{"path":"gallery_root/dev_section_card_detail_pinned/Text[0]","text":"Card Detail View, Pinned","rect":[53,53,239.88,50]},
 {"path":"gallery_root/dev_section_card_detail_pinned/dev_section_card_detail_pinned_rows/Stack[0]/Text[0]","text":"pinned, keyword boxes flipped left","rect":[53,103,208.87,17.7]},
 {"path":"gallery_root/dev_section_card_detail_pinned/dev_section_card_detail_pinned_rows/Stack[0]/dev_card_detail_left/dev_card_detail_left_view/dev_card_detail_left_view_type","text":"ATK","rect":[488.48,151.7,23.52,12]},
 {"path":"gallery_root/dev_section_card_detail_pinned/dev_section_card_detail_pinned_rows/Stack[0]/dev_card_detail_left/dev_card_detail_left_view/dev_card_detail_left_view_name","text":"Headshot","rect":[349,146.2,131.48,23]},

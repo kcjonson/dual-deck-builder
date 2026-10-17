@@ -46,6 +46,10 @@ import type { SectionTabs } from '../../ui/atlas/SectionTabs';
 import { atlasScreenParts } from '../../ui/atlas/testing';
 import { meshPlanningMap, testMaps } from '../area-map/testing';
 
+const MAP = meshPlanningMap();
+/** Maps held until finished, so a test never makes a real one. */
+const heldMaps = () => testMaps(MAP, { held: true }).maps;
+
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
 }));
@@ -65,7 +69,7 @@ describe('CrewScreen', () => {
 	async function open({ text = atHomeText(), cards = lookup }: { text?: string; cards?: CardLookup } = {}): Promise<void> {
 		storage = storageWith(text);
 		store = storeOver(storage);
-		screen = new CrewScreen({ store, cards: async () => cards });
+		screen = new CrewScreen({ store, cards: async () => cards, maps: heldMaps() });
 		screen.mount(context);
 		await screen.campaignLoaded;
 		context.frame.layout();
@@ -286,7 +290,7 @@ describe('CrewScreen', () => {
 		});
 
 		it('starts focus on Back, and Tabs through the roster, the deck, the filter, and the locker', () => {
-			expect(context.focus.focused?.id).toBe('crew_tabs_crew');
+			expect(context.focus.focused?.id).toBe('crew_tabs.crew');
 			// A segment has no id of its own; its control does.
 			const stops = Array.from({ length: 5 }, () => {
 				send(context, [key('Tab')]);
@@ -298,7 +302,7 @@ describe('CrewScreen', () => {
 				'crew_deck_grid_armor_plating_card',
 				'crew_pool_filter',
 				`crew_pool_grid_${entries('pool')[0][0]}_card`,
-				'crew_tabs_crew',
+				'crew_tabs.crew',
 			]);
 		});
 
@@ -464,7 +468,7 @@ describe('CrewScreen', () => {
 	it("shows the roster and says so in place of the deck and the locker when the cards can't be loaded", async () => {
 		const quiet = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 		storage = storageWith(atHomeText());
-		screen = new CrewScreen({ store: storeOver(storage), cards: () => Promise.reject(new Error('offline')) });
+		screen = new CrewScreen({ store: storeOver(storage), cards: () => Promise.reject(new Error('offline')), maps: heldMaps() });
 		screen.mount(context);
 		await screen.campaignLoaded;
 		quiet.mockRestore();
@@ -479,7 +483,7 @@ describe('CrewScreen', () => {
 		const campaign = atHomeCampaign();
 		store = storeOver(new MemorySaveStorage());
 		let release: (cards: CardLookup) => void = () => undefined;
-		screen = new CrewScreen({ store, cards: () => new Promise((resolve) => { release = resolve; }) });
+		screen = new CrewScreen({ store, cards: () => new Promise((resolve) => { release = resolve; }), maps: heldMaps() });
 		screen.mount(context, { campaign });
 		expect(screen.shown).toBe(campaign);
 		expect(screen.selected?.id).toBe('driver-1');
@@ -495,7 +499,7 @@ describe('CrewScreen', () => {
 	});
 
 	it('opens the area map from its tab once the campaign has its map, as the compound plans a run', async () => {
-		const planning = testMaps(meshPlanningMap());
+		const planning = testMaps(MAP);
 		const campaign = await storeOver(storageWith(atHomeText())).load();
 		if (!campaign) throw new Error('no campaign');
 		await planning.maps.load(campaign);
@@ -507,9 +511,26 @@ describe('CrewScreen', () => {
 		expect(navigate).toHaveBeenLastCalledWith('areaMapScreen', { campaign }, { restoreFocus: true });
 	});
 
+	it('asks for the map it lacks and makes the Area map tab live when the map is made', async () => {
+		const planning = testMaps(MAP, { held: true });
+		const campaign = await storeOver(storageWith(atHomeText())).load();
+		if (!campaign) throw new Error('no campaign');
+		screen = new CrewScreen({ store: storeOver(storageWith(atHomeText())), cards: async () => lookup, maps: planning.maps });
+		screen.mount(context, { campaign });
+		await screen.campaignLoaded;
+		const areaMap = () => find<SectionTabs>('crew_tabs').tabs.find((tab) => tab.tabId === 'area_map');
+		expect([planning.asked(), areaMap()?.enabled]).toEqual([1, false]);
+		await planning.finish();
+		expect(areaMap()?.enabled).toBe(true);
+		screen.unmount();
+		screen.mount(context, { campaign });
+		await screen.campaignLoaded;
+		expect(planning.asked()).toBe(1);
+	});
+
 	it('says why there is no deck when there is no save, or it is damaged', async () => {
 		store = storeOver(new MemorySaveStorage());
-		screen = new CrewScreen({ store, cards: async () => lookup });
+		screen = new CrewScreen({ store, cards: async () => lookup, maps: heldMaps() });
 		screen.mount(context);
 		await screen.campaignLoaded;
 		expect(text('crew_deck_empty')).toBe('No campaign in progress.');
@@ -517,7 +538,7 @@ describe('CrewScreen', () => {
 		screen.unmount();
 
 		store = storeOver(storageWith(damagedText()));
-		screen = new CrewScreen({ store, cards: async () => lookup });
+		screen = new CrewScreen({ store, cards: async () => lookup, maps: heldMaps() });
 		screen.mount(context);
 		await screen.campaignLoaded;
 		expect(text('crew_deck_empty')).toBe("The saved campaign is damaged and can't be loaded. It's been kept.");
@@ -751,7 +772,7 @@ describe('CrewScreen', () => {
 		it.each(sizes)('lays out with no save with no lint at $width x $height', async (size) => {
 			viewport.logical = size;
 			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
-			screen = new CrewScreen({ store: storeOver(new MemorySaveStorage()), cards: async () => lookup });
+			screen = new CrewScreen({ store: storeOver(new MemorySaveStorage()), cards: async () => lookup, maps: heldMaps() });
 			screen.mount(context);
 			await screen.campaignLoaded;
 			expect([text('crew_deck_empty'), text('crew_pool_empty')]).toEqual(['No campaign in progress.', 'No campaign in progress.']);
@@ -763,7 +784,7 @@ describe('CrewScreen', () => {
 			const quiet = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 			viewport.logical = size;
 			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
-			screen = new CrewScreen({ store: storeOver(storageWith(atHomeText())), cards: () => Promise.reject(new Error('offline')) });
+			screen = new CrewScreen({ store: storeOver(storageWith(atHomeText())), cards: () => Promise.reject(new Error('offline')), maps: heldMaps() });
 			screen.mount(context);
 			await screen.campaignLoaded;
 			quiet.mockRestore();

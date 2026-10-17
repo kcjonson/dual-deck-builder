@@ -25,7 +25,7 @@ import { Toggle } from '../../../engine/ui/Toggle';
 import { drawAtlasArt, paperPiece } from './atlasArt';
 import { AtlasButton } from './AtlasButton';
 import { AtlasSheet } from './AtlasSheet';
-import { ATLAS, atlasInks } from './atlasStyle';
+import { ATLAS, DISPLAY_BOLD, atlasInks } from './atlasStyle';
 import { ContentsRow } from './ContentsRow';
 import { CasedBar, ScaleBar } from './gauges';
 import { HandMarkLayer } from './HandMarkLayer';
@@ -98,6 +98,23 @@ describe('atlas inks', () => {
 		expect(tokens.color.accent_edge).toEqual(tokens.color.accent);
 		expect(tokens.color.focus_ring).toEqual(tokens.color.accent);
 		expect(atlas.color.accent_edge).toEqual(atlas.color.accent_dim);
+	});
+});
+
+describe('atlas type', () => {
+	it('draws its heads, labels, and tabs in the display 700 face, asked for by weight', () => {
+		expect(DISPLAY_BOLD).toBe('display-700');
+		const button = add(new AtlasButton({ label: 'Plan a run', variant: 'highway', width: 200 }));
+		expect(draws(button).find((command): command is TextCommand => command.kind === 'text')?.font).toBe('display-700');
+		const tabs = add(new SectionTabs({ tabs: [{ id: 'a', label: 'Menu' }] }));
+		expect(draws(tabs).find((command): command is TextCommand => command.kind === 'text')?.font).toBe('display-700');
+		const box = add(new LegendBox({ title: 'Needs', width: 300 }));
+		expect(draws(box).find((command): command is TextCommand => command.kind === 'text' && command.text === 'Needs')?.font).toBe('display-700');
+		const column = new Stack({ width: 500 });
+		const row = new ContentsRow({ label: 'Settings', value: 'B' });
+		column.addChild(row);
+		add(column);
+		expect(draws(row).find((command): command is TextCommand => command.kind === 'text' && command.text === 'Settings')?.font).toBe('display-700');
 	});
 });
 
@@ -299,7 +316,7 @@ describe('SectionTabs', () => {
 
 	it('names its tabs after itself when it has an id', () => {
 		const named = add(new SectionTabs({ id: 'crew_tabs', tabs: specs }));
-		expect(named.tabs.map((tab) => tab.id)).toEqual(['crew_tabs_menu', 'crew_tabs_compound', 'crew_tabs_locked', 'crew_tabs_crew']);
+		expect(named.tabs.map((tab) => tab.id)).toEqual(['crew_tabs.menu', 'crew_tabs.compound', 'crew_tabs.locked', 'crew_tabs.crew']);
 		const unnamed = add(new SectionTabs({ tabs: specs }));
 		expect(unnamed.tabs[0].id).toBeNull();
 	});
@@ -381,6 +398,16 @@ describe('LegendBox', () => {
 	it('names the body line of a row when asked', () => {
 		const row = add(new LegendRow({ text: 'No campaign has ended yet.', symbol: 'dash', textId: 'history_empty' }));
 		expect(row.findById('history_empty')).not.toBeNull();
+	});
+
+	it('names the text and value of a row after it by default, and sets the value in mono at the right', () => {
+		const row = add(new LegendRow({ id: 'need', text: 'Water runs out', symbol: 'diamond', value: '2 DAYS' }));
+		expect((row.findById('need_text') as Text | null)?.text).toBe('Water runs out');
+		const value = row.findById('need_value') as Text | null;
+		expect([value?.text, row.children[row.children.length - 1]]).toEqual(['2 DAYS', value]);
+		row.value = '1 DAY';
+		expect(row.value).toBe('1 DAY');
+		expect(new LegendRow({ text: 'Quiet' }).value).toBeNull();
 	});
 
 	it('draws the thing in focus on flat fresh paper, W0, with no art', () => {

@@ -86,14 +86,16 @@ export class CampaignVisit {
 	 * Saves the step just taken. A save that lands (`saved`) clears the line
 	 * a failed one left; a failure shows on it through `onSaveFailed`; and a
 	 * campaign ended into the history, or one the store has moved on from,
-	 * leaves the line as it is.
+	 * leaves the line as it is. Settles with the store's result, or null
+	 * outside a visit.
 	 */
-	public checkpoint(campaign: Campaign): void {
+	public checkpoint(campaign: Campaign): Promise<CheckpointResult | null> {
 		const store = this.store;
-		if (!store) return;
+		if (!store) return Promise.resolve(null);
 		const visit = this.visit;
-		void store.checkpoint(campaign).then((result: CheckpointResult) => {
+		return store.checkpoint(campaign).then((result: CheckpointResult) => {
 			if (result === 'saved' && visit === this.visit && this.saveError) this.saveError.visible = false;
+			return result;
 		});
 	}
 

@@ -14,7 +14,8 @@ export interface PlatformFacesOptions {
  * The font files behind the distance-field atlases, registered with the
  * platform for R6.4a's raster fallback. Each role's family is private to the
  * engine (`ddb-<face>`), so a page font of the same name can never stand in
- * for it and draw different outlines than the atlas measures.
+ * for it and draw different outlines than the atlas measures. Faces are keyed
+ * by the name the draw API selects them by (`FontFaceAsset.font`).
  *
  * Loading starts on construction and is not awaited by anything: until a
  * role's face is ready `familyOf` is null and its small text stays on the
@@ -28,23 +29,23 @@ export class PlatformFaces {
 	constructor({ faces = FONT_FACES, load, onError = () => undefined }: PlatformFacesOptions) {
 		for (const face of faces) {
 			if (!face.fontUrl) continue;
-			if (face.fieldInk !== undefined) this.fieldInk.set(face.role, face.fieldInk);
+			if (face.fieldInk !== undefined) this.fieldInk.set(face.font, face.fieldInk);
 			const family = `ddb-${face.face}`;
 			load(family, face.fontUrl).then(
-				() => this.ready.set(face.role, family),
+				() => this.ready.set(face.font, family),
 				(error: unknown) => onError(face.face, error),
 			);
 		}
 	}
 
-	/** The family to rasterise a font role with, once its face has loaded; null before, or without one. */
-	familyOf(role: string): string | null {
-		return this.ready.get(role) ?? null;
+	/** The family to rasterise a font with, once its face has loaded; null before, or without one. */
+	familyOf(font: string): string | null {
+		return this.ready.get(font) ?? null;
 	}
 
-	/** The distance field's ink a role's raster glyphs are matched to (`FontFaceAsset.fieldInk`); null without one. */
-	fieldInkOf(role: string): number | null {
-		return this.fieldInk.get(role) ?? null;
+	/** The distance field's ink a font's raster glyphs are matched to (`FontFaceAsset.fieldInk`); null without one. */
+	fieldInkOf(font: string): number | null {
+		return this.fieldInk.get(font) ?? null;
 	}
 }
 
