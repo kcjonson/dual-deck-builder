@@ -40,7 +40,11 @@ export class PageTitle extends Stack {
 		this.subtitleText = subtitle !== undefined
 			? new Text({ id: subtitleId, text: subtitle, style: { fontSize: SUBTITLE_SIZE, color: 'text_dim' }, wrap: 'none', textOverflow: 'ellipsis' })
 			: null;
-		if (this.subtitleText) this.addChild(this.subtitleText);
+		if (this.subtitleText) {
+			// An empty subtitle would lay out as a zero-width box, so it's hidden until it says something.
+			this.subtitleText.visible = subtitle !== '';
+			this.addChild(this.subtitleText);
+		}
 	}
 
 	public get title(): string {
@@ -58,5 +62,6 @@ export class PageTitle extends Stack {
 	public set subtitle(subtitle: string | null) {
 		if (!this.subtitleText) throw new Error('PageTitle: a title built without a subtitle has no place for one');
 		this.subtitleText.text = subtitle ?? '';
+		this.subtitleText.visible = this.subtitleText.text !== '';
 	}
 }
