@@ -44,6 +44,7 @@ import { CrewScreen } from './CrewScreen';
 import { DECK_BUILDER } from '../../ui/deckBuilder/DeckBuilder';
 import type { SectionTabs } from '../../ui/atlas/SectionTabs';
 import { atlasScreenParts } from '../../ui/atlas/testing';
+import { meshPlanningMap, testMaps } from '../area-map/testing';
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -417,7 +418,13 @@ describe('CrewScreen', () => {
 		it('sits on one atlas sheet among the menu and the compound as tabs, with no highway, and its Menu tab goes to the menu', () => {
 			const parts = atlasScreenParts(screen.root);
 			expect([screen.theme, parts.sheets.length, parts.highways.length]).toEqual(['atlas', 1, 0]);
-			expect(parts.tabs[0]?.tabs.map((tab) => [tab.tabId, tab.selected])).toEqual([['menu', false], ['compound', false], ['crew', true]]);
+			expect(parts.tabs[0]?.tabs.map((tab) => [tab.tabId, tab.selected, tab.enabled])).toEqual([
+				['menu', false, true],
+				['compound', false, true],
+				// No map made for this campaign yet, so nothing to plan from.
+				['area_map', false, false],
+				['crew', true, true],
+			]);
 			pickTab('menu');
 			expect(navigate).toHaveBeenLastCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
 		});
@@ -485,6 +492,19 @@ describe('CrewScreen', () => {
 		await screen.campaignLoaded;
 		expect(entries('deck')).toHaveLength(5);
 		expect(rosterCard('driver-1').tooltip).not.toBeNull();
+	});
+
+	it('opens the area map from its tab once the campaign has its map, as the compound plans a run', async () => {
+		const planning = testMaps(meshPlanningMap());
+		const campaign = await storeOver(storageWith(atHomeText())).load();
+		if (!campaign) throw new Error('no campaign');
+		await planning.maps.load(campaign);
+		screen = new CrewScreen({ store: storeOver(storageWith(atHomeText())), cards: async () => lookup, maps: planning.maps });
+		screen.mount(context, { campaign });
+		await screen.campaignLoaded;
+		expect(find<SectionTabs>('crew_tabs').tabs.find((tab) => tab.tabId === 'area_map')?.enabled).toBe(true);
+		pickTab('area_map');
+		expect(navigate).toHaveBeenLastCalledWith('areaMapScreen', { campaign }, { restoreFocus: true });
 	});
 
 	it('says why there is no deck when there is no save, or it is damaged', async () => {

@@ -15,7 +15,10 @@ import { tokens } from '../../../engine/theme/tokens';
 import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
 import { LegendBox } from '../../ui/atlas/LegendBox';
 import { PageTitle } from '../../ui/atlas/PageTitle';
-import { SectionTabs } from '../../ui/atlas/SectionTabs';
+import type { SectionTabs } from '../../ui/atlas/SectionTabs';
+import { getPlanBlocker } from '../../campaign/SupplyRun';
+import { PlanningMaps } from '../area-map/planningMap';
+import { metaSectionTabs } from '../metaSections';
 import { DRIVER_CONFIGS } from '../../mechanics/Driver';
 import { MINI_GRID } from '../../ui/Card';
 import { INSPECT_KEYS, inspectHotkey, inspectOnContextMenu, makeDriverInspectable } from '../../ui/cardInspect';
@@ -30,13 +33,6 @@ import { crewDeckSource, crewLockerSource } from './crewSources';
 import { deckLimitsText, deckSizeText, defaultDeckOf, hitpointsText, lockerNote, lostNote, rosterStatus, rosterTitle, standingText } from './crewText';
 
 const { space, fontSize } = tokens;
-/** The sections the Crew screen sits among: the menu, the compound it opens from, and itself, with the deck glyph (UI Art Direction, Card hints). */
-const CREW_TABS = [
-	{ id: 'menu', label: 'Menu' },
-	{ id: 'compound', label: 'Compound' },
-	{ id: 'crew', label: 'Crew', deck: true },
-] as const;
-
 /** The deck and the locker need every pixel across for their columns, so the sheet sets its content close inside the neatline. */
 const SHEET_INSET = space.space_2;
 const CARDS_FAILED = "The cards couldn't be loaded.";
@@ -52,6 +48,8 @@ export interface CrewScreenOptions {
 	store?: CampaignStore;
 	/** The game's cards, to draw the minis and the detail views. Default: the card loader's, loaded if they aren't yet. */
 	cards?: () => Promise<CardLookup>;
+	/** Where the campaign's area map comes from, for the Area map tab. Default: the session's (`PlanningMaps.shared`). */
+	maps?: PlanningMaps;
 }
 
 /**
@@ -72,9 +70,11 @@ export interface CrewScreenOptions {
  * change; a save that fails says so under the top bar, as the compound's
  * does under Rest, until a later one lands.
  *
- * It's one atlas sheet (UI Art Direction, Screens) with the menu, the
- * compound, and the crew as thumb-index tabs, which stand in for Back: the
- * Compound tab goes back to the compound. The roster, the deck, and the
+ * It's one atlas sheet (UI Art Direction, Screens) hung with the campaign's
+ * section tabs (`metaSectionTabs`), which stand in for Back: the Compound
+ * tab goes back to the compound. The Area map tab goes there as the
+ * compound's Plan a supply run does, so it's live only once the campaign's
+ * map is made and nothing blocks a plan. The roster, the deck, and the
  * locker are legend boxes; the cards keep their own faces. Nothing here is
  * a primary action (every change is free and saved as it's made), so there
  * is no highway.
@@ -88,6 +88,7 @@ export class CrewScreen extends Screen {
 	private readonly sheet: AtlasSheet;
 	private readonly tabs: SectionTabs;
 	private readonly store: CampaignStore;
+	private readonly maps: PlanningMaps;
 	private readonly loadCards: () => Promise<CardLookup>;
 	private campaign: Campaign | null = null;
 	private lookup: CardLookup | null = null;
@@ -116,13 +117,8 @@ export class CrewScreen extends Screen {
 	private readonly session = new CampaignVisit({ name: 'CrewScreen' });
 	private loaded: Promise<void> = Promise.resolve();
 
-	constructor({ store = CampaignStore.shared, cards = loadedCardLookup }: CrewScreenOptions = {}) {
-		const tabs = new SectionTabs({
-			id: 'crew_tabs',
-			tabs: CREW_TABS,
-			selectedId: 'crew',
-			onSelect: (id) => this.toSection(id),
-		});
+	constructor({ store = CampaignStore.shared, cards = loadedCardLookup, maps = PlanningMaps.shared }: CrewScreenOptions = {}) {
+		const tabs = metaSectionTabs({ id: 'crew_tabs', open: 'crew', campaignOf: () => this.campaign });
 		const root = new AtlasSheet({
 			id: 'crewScreen',
 			tabs,
@@ -136,6 +132,7 @@ export class CrewScreen extends Screen {
 		this.sheet = root;
 		this.tabs = tabs;
 		this.store = store;
+		this.maps = maps;
 		this.loadCards = cards;
 	}
 
@@ -198,6 +195,7 @@ export class CrewScreen extends Screen {
 		for (const key of INSPECT_KEYS) hotkeys.register(key, () => inspectHotkey(this.context));
 		this.session.start({ store: this.store, saveError: this.saveError });
 		this.tabs.selectedId = 'crew';
+		this.refreshAreaMapTab(null);
 		const open = this.tabs.tabs.find((tab) => tab.selected);
 		if (open) this.context.focus.focus(open);
 
@@ -374,6 +372,7 @@ export class CrewScreen extends Screen {
 		if (!campaign) return;
 		this.refreshRoster(campaign);
 		this.refreshHeader(campaign);
+		this.refreshAreaMapTab(campaign);
 		this.sayEmpty();
 		if (this.builder) {
 			this.builder.poolNote = lockerNote(campaign.resources.scrap);
@@ -461,10 +460,12 @@ export class CrewScreen extends Screen {
 		ScreenManager.navigate('compoundScreen', this.campaign ? { campaign: this.campaign } : undefined, { restoreFocus: true });
 	}
 
-	/** A tab: the compound as Back goes there, or the menu. */
-	private toSection(id: string): void {
-		if (id === 'compound') this.back();
-		else if (id === 'menu') ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
+	/** The Area map tab is live when the compound's Plan a supply run would be: the map is made and nothing blocks a plan. */
+	private refreshAreaMapTab(campaign: Campaign | null): void {
+		const tab = this.tabs.tabs.find((each) => each.tabId === 'area_map');
+		if (!tab) return;
+		const map = campaign ? this.maps.known(campaign) : null;
+		tab.enabled = campaign !== null && map !== null && getPlanBlocker({ campaign, map }) === null;
 	}
 }
 
