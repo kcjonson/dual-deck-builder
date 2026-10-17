@@ -4,7 +4,7 @@ import { Dressing, HATCH, dressingScale } from './Dressing';
 import { MapLabelKind } from './MapLabels';
 import { MAP_PARAMETERS, MapParams } from './MapParams';
 import { STRONGHOLD_TYPE } from './PoiData';
-import { poiNames } from './RouteDescriptors';
+import { poiNames } from './PoiNames';
 import { STREET_GRIDS } from './StreetGrids';
 import { paramsFor } from './roadTesting';
 
@@ -198,7 +198,7 @@ describe('the dressing', () => {
 
 	describe('labels', () => {
 		const { labels } = dressing;
-		const names = poiNames(pois);
+		const names = poiNames(pois, { places, radius: params.radius });
 
 		it('come highest priority first, the metro in capitals over everything', () => {
 			labels.forEach((label, index) => {
