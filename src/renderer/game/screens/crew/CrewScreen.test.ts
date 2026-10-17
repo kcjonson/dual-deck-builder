@@ -10,7 +10,7 @@ import { advance, click, key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
-import { tokens } from '../../../engine/theme/tokens';
+import { themes, tokens } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Campaign } from '../../campaign/Campaign';
 import type { CardBlocker } from '../../campaign/Campaign';
@@ -42,6 +42,13 @@ import type { CardEntryGrid } from '../../ui/deckBuilder/CardEntryGrid';
 import { NO_DRIVER } from './crewSources';
 import { CrewScreen } from './CrewScreen';
 import { DECK_BUILDER } from '../../ui/deckBuilder/DeckBuilder';
+import type { SectionTabs } from '../../ui/atlas/SectionTabs';
+import { atlasScreenParts } from '../../ui/atlas/testing';
+import { meshPlanningMap, testMaps } from '../area-map/testing';
+
+const MAP = meshPlanningMap();
+/** Maps held until finished, so a test never makes a real one. */
+const heldMaps = () => testMaps(MAP, { held: true }).maps;
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -62,7 +69,7 @@ describe('CrewScreen', () => {
 	async function open({ text = atHomeText(), cards = lookup }: { text?: string; cards?: CardLookup } = {}): Promise<void> {
 		storage = storageWith(text);
 		store = storeOver(storage);
-		screen = new CrewScreen({ store, cards: async () => cards });
+		screen = new CrewScreen({ store, cards: async () => cards, maps: heldMaps() });
 		screen.mount(context);
 		await screen.campaignLoaded;
 		context.frame.layout();
@@ -83,6 +90,14 @@ describe('CrewScreen', () => {
 
 	function text(id: string): string {
 		return find<Text>(id).text;
+	}
+
+	/** Picks a section tab as a press does. */
+	function pickTab(id: string): void {
+		const tabs = find<SectionTabs>('crew_tabs');
+		const tab = tabs.tabs.find((each) => each.tabId === id);
+		if (!tab) throw new Error(`no ${id} tab`);
+		tabs.memberPressed(tab, {} as never);
 	}
 
 	function bounds(id: string): Bounds {
@@ -275,7 +290,7 @@ describe('CrewScreen', () => {
 		});
 
 		it('starts focus on Back, and Tabs through the roster, the deck, the filter, and the locker', () => {
-			expect(context.focus.focused?.id).toBe('crew_back_button');
+			expect(context.focus.focused?.id).toBe('crew_tabs.crew');
 			// A segment has no id of its own; its control does.
 			const stops = Array.from({ length: 5 }, () => {
 				send(context, [key('Tab')]);
@@ -287,7 +302,7 @@ describe('CrewScreen', () => {
 				'crew_deck_grid_armor_plating_card',
 				'crew_pool_filter',
 				`crew_pool_grid_${entries('pool')[0][0]}_card`,
-				'crew_back_button',
+				'crew_tabs.crew',
 			]);
 		});
 
@@ -397,11 +412,25 @@ describe('CrewScreen', () => {
 
 		it('goes back to the compound with the campaign, focus restored on the Bunkhouse, on Back or Escape', () => {
 			const campaign = screen.shown;
-			find<Button>('crew_back_button').onClick?.({} as never);
+			pickTab('compound');
 			expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign }, { restoreFocus: true });
 			navigate.mockClear();
 			send(context, [key('Escape')]);
 			expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign }, { restoreFocus: true });
+		});
+
+		it('sits on one atlas sheet among the menu and the compound as tabs, with no highway, and its Menu tab goes to the menu', () => {
+			const parts = atlasScreenParts(screen.root);
+			expect([screen.theme, parts.sheets.length, parts.highways.length]).toEqual(['atlas', 1, 0]);
+			expect(parts.tabs[0]?.tabs.map((tab) => [tab.tabId, tab.selected, tab.enabled])).toEqual([
+				['menu', false, true],
+				['compound', false, true],
+				// No map made for this campaign yet, so nothing to plan from.
+				['area_map', false, false],
+				['crew', true, true],
+			]);
+			pickTab('menu');
+			expect(navigate).toHaveBeenLastCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
 		});
 	});
 
@@ -412,7 +441,7 @@ describe('CrewScreen', () => {
 		await flush();
 		expect(find<Text>('crew_save_error').visible).toBe(true);
 		expect(text('crew_save_error')).toBe("The campaign couldn't be saved: storage is full.");
-		expect(find<{ color: unknown }>('crew_save_error').color).toEqual(tokens.color.status_crit);
+		expect(find<{ color: unknown }>('crew_save_error').color).toEqual(themes.atlas.color.status_crit);
 		// A failed checkpoint has settled by now, and a failure is no landing: the line stays through another one.
 		press(control('pool', 'headshot', 'add'));
 		await flush();
@@ -439,7 +468,7 @@ describe('CrewScreen', () => {
 	it("shows the roster and says so in place of the deck and the locker when the cards can't be loaded", async () => {
 		const quiet = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 		storage = storageWith(atHomeText());
-		screen = new CrewScreen({ store: storeOver(storage), cards: () => Promise.reject(new Error('offline')) });
+		screen = new CrewScreen({ store: storeOver(storage), cards: () => Promise.reject(new Error('offline')), maps: heldMaps() });
 		screen.mount(context);
 		await screen.campaignLoaded;
 		quiet.mockRestore();
@@ -454,14 +483,14 @@ describe('CrewScreen', () => {
 		const campaign = atHomeCampaign();
 		store = storeOver(new MemorySaveStorage());
 		let release: (cards: CardLookup) => void = () => undefined;
-		screen = new CrewScreen({ store, cards: () => new Promise((resolve) => { release = resolve; }) });
+		screen = new CrewScreen({ store, cards: () => new Promise((resolve) => { release = resolve; }), maps: heldMaps() });
 		screen.mount(context, { campaign });
 		expect(screen.shown).toBe(campaign);
 		expect(screen.selected?.id).toBe('driver-1');
 		// A roster card's detail view lays its deck out as minis, so it opens once the cards are in.
 		expect(rosterCard('driver-1').tooltip).toBeNull();
 		expect([text('crew_deck_empty'), text('crew_pool_empty')]).toEqual(['Loading the cards.', 'Loading the cards.']);
-		find<Button>('crew_back_button').onClick?.({} as never);
+		pickTab('compound');
 		expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign }, { restoreFocus: true });
 		release(lookup);
 		await screen.campaignLoaded;
@@ -469,9 +498,39 @@ describe('CrewScreen', () => {
 		expect(rosterCard('driver-1').tooltip).not.toBeNull();
 	});
 
+	it('opens the area map from its tab once the campaign has its map, as the compound plans a run', async () => {
+		const planning = testMaps(MAP);
+		const campaign = await storeOver(storageWith(atHomeText())).load();
+		if (!campaign) throw new Error('no campaign');
+		await planning.maps.load(campaign);
+		screen = new CrewScreen({ store: storeOver(storageWith(atHomeText())), cards: async () => lookup, maps: planning.maps });
+		screen.mount(context, { campaign });
+		await screen.campaignLoaded;
+		expect(find<SectionTabs>('crew_tabs').tabs.find((tab) => tab.tabId === 'area_map')?.enabled).toBe(true);
+		pickTab('area_map');
+		expect(navigate).toHaveBeenLastCalledWith('areaMapScreen', { campaign }, { restoreFocus: true });
+	});
+
+	it('asks for the map it lacks and makes the Area map tab live when the map is made', async () => {
+		const planning = testMaps(MAP, { held: true });
+		const campaign = await storeOver(storageWith(atHomeText())).load();
+		if (!campaign) throw new Error('no campaign');
+		screen = new CrewScreen({ store: storeOver(storageWith(atHomeText())), cards: async () => lookup, maps: planning.maps });
+		screen.mount(context, { campaign });
+		await screen.campaignLoaded;
+		const areaMap = () => find<SectionTabs>('crew_tabs').tabs.find((tab) => tab.tabId === 'area_map');
+		expect([planning.asked(), areaMap()?.enabled]).toEqual([1, false]);
+		await planning.finish();
+		expect(areaMap()?.enabled).toBe(true);
+		screen.unmount();
+		screen.mount(context, { campaign });
+		await screen.campaignLoaded;
+		expect(planning.asked()).toBe(1);
+	});
+
 	it('says why there is no deck when there is no save, or it is damaged', async () => {
 		store = storeOver(new MemorySaveStorage());
-		screen = new CrewScreen({ store, cards: async () => lookup });
+		screen = new CrewScreen({ store, cards: async () => lookup, maps: heldMaps() });
 		screen.mount(context);
 		await screen.campaignLoaded;
 		expect(text('crew_deck_empty')).toBe('No campaign in progress.');
@@ -479,11 +538,11 @@ describe('CrewScreen', () => {
 		screen.unmount();
 
 		store = storeOver(storageWith(damagedText()));
-		screen = new CrewScreen({ store, cards: async () => lookup });
+		screen = new CrewScreen({ store, cards: async () => lookup, maps: heldMaps() });
 		screen.mount(context);
 		await screen.campaignLoaded;
 		expect(text('crew_deck_empty')).toBe("The saved campaign is damaged and can't be loaded. It's been kept.");
-		find<Button>('crew_back_button').onClick?.({} as never);
+		pickTab('compound');
 		expect(navigate).toHaveBeenLastCalledWith('compoundScreen', undefined, { restoreFocus: true });
 	});
 
@@ -532,7 +591,7 @@ describe('CrewScreen', () => {
 			const roster = bounds('crew_roster_panel');
 			expect(roster.width).toBe(DECK_BUILDER.sideWidth);
 			const [first, second] = find<{ children: readonly DriverCard[] }>('crew_roster_pool').children;
-			expect(second.screenBounds.y).toBe(first.screenBounds.y);
+			expect(second.screenBounds.y).toBeGreaterThan(first.screenBounds.y);
 			for (const id of ['crew_top_bar', 'crew_pool_panel', 'crew_deck_panel']) {
 				const box = bounds(id);
 				expect(box.x + box.width).toBeLessThanOrEqual(width);
@@ -713,7 +772,7 @@ describe('CrewScreen', () => {
 		it.each(sizes)('lays out with no save with no lint at $width x $height', async (size) => {
 			viewport.logical = size;
 			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
-			screen = new CrewScreen({ store: storeOver(new MemorySaveStorage()), cards: async () => lookup });
+			screen = new CrewScreen({ store: storeOver(new MemorySaveStorage()), cards: async () => lookup, maps: heldMaps() });
 			screen.mount(context);
 			await screen.campaignLoaded;
 			expect([text('crew_deck_empty'), text('crew_pool_empty')]).toEqual(['No campaign in progress.', 'No campaign in progress.']);
@@ -725,7 +784,7 @@ describe('CrewScreen', () => {
 			const quiet = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 			viewport.logical = size;
 			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
-			screen = new CrewScreen({ store: storeOver(storageWith(atHomeText())), cards: () => Promise.reject(new Error('offline')) });
+			screen = new CrewScreen({ store: storeOver(storageWith(atHomeText())), cards: () => Promise.reject(new Error('offline')), maps: heldMaps() });
 			screen.mount(context);
 			await screen.campaignLoaded;
 			quiet.mockRestore();

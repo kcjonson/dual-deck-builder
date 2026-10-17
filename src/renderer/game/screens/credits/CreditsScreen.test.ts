@@ -6,7 +6,11 @@ import type { MountContext } from '../../../engine/components/MountContext';
 import { key, send } from '../../../engine/services/testing';
 import { Text } from '../../../engine/components/Text';
 import type { ScrollContainer } from '../../../engine/ui/ScrollContainer';
+import { layoutLint } from '../../../engine/debug/layoutLint';
+import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
+import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { ScreenManager } from '../../core/ScreenManager';
+import { atlasScreenParts } from '../../ui/atlas/testing';
 import { CreditsScreen } from './CreditsScreen';
 import { CREDITS } from './credits';
 
@@ -96,6 +100,17 @@ describe('CreditsScreen', () => {
 		expect(list.scrollPosition).toBe(fromBack);
 		send(context, [key('PageUp')]);
 		expect(list.scrollPosition).toBe(0);
+	});
+
+	it.each([{ width: 1440, height: 882 }, { width: 1024, height: 600 }])('is one atlas sheet with no highway, and lays out with no lint at $width x $height', (size) => {
+		screen.unmount();
+		context = createTestContext({ viewport: { logical: size }, draw: createMeasuringDrawApi().api });
+		screen.mount(context);
+		context.frame.layout();
+		const parts = atlasScreenParts(screen.root);
+		expect(screen.theme).toBe('atlas');
+		expect([parts.sheets.length, parts.highways.length, parts.tabs.length]).toEqual([1, 0, 0]);
+		expect(layoutLint(treeSnapshot([screen.root], size)).violations).toEqual([]);
 	});
 
 	it('releases its keys on unmount', () => {

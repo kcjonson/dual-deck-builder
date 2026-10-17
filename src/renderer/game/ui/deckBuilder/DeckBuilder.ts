@@ -1,11 +1,12 @@
 import type { Component } from '../../../engine/components/Component';
 import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Panel } from '../../../engine/ui/Panel';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { SCROLLBAR_GUTTER } from '../../../engine/ui/Scrollbar';
 import { SegmentedControl } from '../../../engine/ui/SegmentedControl';
 import { tokens } from '../../../engine/theme/tokens';
+import { ATLAS } from '../atlas/atlasStyle';
+import { LegendBox } from '../atlas/LegendBox';
 import { MINI_GRID } from '../Card';
 import { inspectOnContextMenu } from '../cardInspect';
 import { DRIVER_CARD_SIZE } from '../DriverCard';
@@ -15,22 +16,33 @@ import { CARD_FILTERS, CardEntry, CardFilter, CardSource, entryKey, passesFilter
 
 const { space, fontSize } = tokens;
 
-/** How far in a flush panel still sets its content, which clears the border and the corner radius both (R12.19). */
-const FLUSH_EDGE = Math.max(tokens.borderWidth.bw, tokens.radius.radius_panel);
+/** How far in a legend box sets its content: just clear of its inner rule. */
+const BOX_PADDING = ATLAS.legendRuleInset + 2;
 
 /**
- * The builder's spacing: between its columns, a panel's inset round what
- * isn't a grid, how far in a flush panel sets its content, and the left
+ * The left column's content: one driver card with its ink, and room beside
+ * it for a back road's label under it (Customize's "Reset to default").
+ * One card across, where it was two before the atlas, pays for the sheet's
+ * margin and neatline, so the deck and the pool keep three columns of
+ * entries at 1024 px and five at 1440; a few pixels more than the card is
+ * all that slack allows.
+ */
+const SIDE_CONTENT = Math.max(DRIVER_CARD_SIZE.width + MINI_GRID.margin * 2, 144);
+
+/**
+ * The builder's spacing: between its columns, a box's inset round what
+ * isn't a grid, how far in a legend box sets its content, and the left
  * column's width, which the Crew screen's roster and Customize's driver
- * share so the deck and the pool are as wide on both: two driver cards
- * abreast, spaced as minis are, beside a scroller's gutter, inside a flush
- * panel.
+ * share so the deck and the pool are as wide on both: the side's content
+ * beside a scroller's gutter, inside a legend box.
  */
 export const DECK_BUILDER = {
 	gap: space.space_3,
 	inset: space.space_2,
-	flushEdge: FLUSH_EDGE,
-	sideWidth: DRIVER_CARD_SIZE.width * 2 + MINI_GRID.gap + MINI_GRID.margin * 2 + SCROLLBAR_GUTTER + FLUSH_EDGE * 2,
+	boxPadding: BOX_PADDING,
+	/** A box's head sits this much further in, off the rule its grid runs close to. */
+	headIndent: space.space_1,
+	sideWidth: SIDE_CONTENT + SCROLLBAR_GUTTER + BOX_PADDING * 2,
 } as const;
 
 export interface DeckBuilderOptions extends Omit<StackOptions, 'id' | 'direction'> {
@@ -74,9 +86,9 @@ export interface DeckBuilderOptions extends Omit<StackOptions, 'id' | 'direction
  * each scrolls on its own (R12.20), Page Up and Page Down included, so a
  * 20-card deck and a locker of every card type fit at 1024x600.
  *
- * The deck and pool panels are flush, so their grids get every pixel
- * across, which three columns of entries need at 1024 px; what isn't a
- * grid is inset as a compact panel's content is.
+ * The deck and the pool are legend boxes (UI Art Direction, Components)
+ * whose content sits just inside the inner rule, so their grids get every
+ * pixel across the rule leaves; what isn't a grid is inset a little more.
  */
 export class DeckBuilder extends Stack {
 	public readonly deckGrid: CardEntryGrid;
@@ -91,7 +103,7 @@ export class DeckBuilder extends Stack {
 	private readonly poolEmpty: Text;
 	private readonly note: Text;
 	private readonly noteSection: Stack;
-	private readonly poolPanel: Panel;
+	private readonly kicker: Text;
 	private readonly foot: Stack | null;
 	private emptyDeckText: string;
 	private emptyPoolText: string;
@@ -137,10 +149,9 @@ export class DeckBuilder extends Stack {
 
 		this.addChild(side);
 
-		const deckPanel = new Panel({ id: `${id}_deck_panel`, flush: true, widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch' });
+		const deckPanel = box({ id: `${id}_deck_panel` });
 		deckPanel.addChild(insetSection({
 			id: `${id}_deck_head`,
-			edge: 'top',
 			children: [deckHeader, new Text({
 				id: `${id}_deck_caption`,
 				text: deckCaption,
@@ -151,33 +162,35 @@ export class DeckBuilder extends Stack {
 			})],
 		}));
 		deckPanel.addChild(this.deckScroll);
-		this.foot = deckFoot ? insetSection({ id: `${id}_deck_foot`, edge: 'bottom', children: [deckFoot] }) : null;
+		this.foot = deckFoot ? insetSection({ id: `${id}_deck_foot`, children: [deckFoot] }) : null;
 		if (this.foot) deckPanel.addChild(this.foot);
 		this.addChild(deckPanel);
 
-		const poolPanel = this.poolPanel = new Panel({
-			id: `${id}_pool_panel`,
-			title: poolTitle,
-			kicker: poolKicker,
-			flush: true,
+		const poolPanel = box({ id: `${id}_pool_panel`, title: poolTitle });
+		this.kicker = new Text({
+			id: `${id}_pool_kicker`,
+			text: poolKicker,
 			widthMode: 'fill',
-			heightMode: 'fill',
-			crossAlign: 'stretch',
+			style: { fontRole: 'mono', fontSize: fontSize.fs_xs, color: 'text_dim', textTransform: 'uppercase', letterSpacing: ATLAS.captionTracking },
+			wrap: 'none',
+			textOverflow: 'ellipsis',
 		});
+		// The filter's choice is the player's, so it's marked with the highlighter (UI Art Direction, Wear).
 		this.filterControl = new SegmentedControl<CardFilter>({
 			id: `${id}_pool_filter`,
 			options: CARD_FILTERS,
 			selected: 'all',
 			size: 'sm',
+			tone: 'highlight',
 			alignSelf: 'start',
 			onChange: (value) => {
 				this.filter = value;
 			},
 		});
-		poolPanel.addChild(insetSection({ id: `${id}_pool_head`, edge: 'top', children: [this.filterControl] }));
+		poolPanel.addChild(insetSection({ id: `${id}_pool_head`, children: [this.kicker, this.filterControl] }));
 		poolPanel.addChild(this.poolScroll);
 		this.note = caption({ id: `${id}_pool_note`, text: poolNote });
-		this.noteSection = insetSection({ id: `${id}_pool_foot`, edge: 'bottom', children: [this.note] });
+		this.noteSection = insetSection({ id: `${id}_pool_foot`, children: [this.note] });
 		this.noteSection.visible = poolNote !== '';
 		poolPanel.addChild(this.noteSection);
 		this.addChild(poolPanel);
@@ -197,11 +210,11 @@ export class DeckBuilder extends Stack {
 
 	/** The small line over the pool's title. */
 	public get poolKicker(): string {
-		return this.poolPanel.kicker ?? '';
+		return this.kicker.text;
 	}
 
 	public set poolKicker(text: string) {
-		this.poolPanel.kicker = text;
+		this.kicker.text = text;
 	}
 
 	/** The line under the pool. */
@@ -305,17 +318,22 @@ function gridScroller({ id, grid, empty }: { id: string; grid: CardEntryGrid; em
 	return scroll;
 }
 
+/** A column of the builder: a legend box whose content sits just inside its rule, filling the row's height. */
+function box({ id, title }: { id: string; title?: string }): LegendBox {
+	return new LegendBox({ id, title, padding: DECK_BUILDER.boxPadding, headIndent: DECK_BUILDER.headIndent, gap: 0, widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch' });
+}
+
 /**
- * What sits above or below a flush panel's grid, inset from the panel's
- * sides and its outer edge as a compact panel's content is.
+ * What sits above or below a box's grid, inset a little from its sides and
+ * from the grid, so text and controls don't ride the rule.
  */
-function insetSection({ id, edge, children }: { id: string; edge: 'top' | 'bottom'; children: readonly Component[] }): Stack {
+function insetSection({ id, children }: { id: string; children: readonly Component[] }): Stack {
 	const { inset } = DECK_BUILDER;
 	const section = new Stack({
 		id,
 		crossAlign: 'stretch',
 		gap: inset,
-		padding: { left: inset, right: inset, top: edge === 'top' ? inset : space.space_1, bottom: edge === 'bottom' ? inset : space.space_1 },
+		padding: space.space_1,
 	});
 	for (const child of children) section.addChild(child);
 	return section;

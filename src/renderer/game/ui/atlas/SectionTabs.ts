@@ -170,8 +170,8 @@ export class SectionTabs extends Stack {
 		});
 		this.componentType = 'SectionTabs';
 		this.onSelect = onSelect;
+		// A named row names its tabs after itself, so focus can be restored to one and a test can find it.
 		for (const tab of tabs) {
-			// Named under the tabs' id, so a navigate that restores focus by id finds the tab again.
 			const item = new SectionTab({ id: options.id ? `${options.id}.${tab.id}` : undefined, tabId: tab.id, label: tab.label, deck: tab.deck, disabled: tab.disabled });
 			this.items.push(item);
 			this.addChild(item);

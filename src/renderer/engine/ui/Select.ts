@@ -8,6 +8,7 @@ import { Look, LookInk, LookLayers, lookInk, resolveLook } from '../style/look';
 import { LookTransition } from '../style/LookTransition';
 import { CONTROL_SIZES, ControlSize, fieldLayers } from '../style/variants';
 import { tokens } from '../theme/tokens';
+import type { Theme } from '../theme/tokens';
 import { drawControlBox } from './controlBox';
 import { Menu } from './Menu';
 
@@ -63,7 +64,7 @@ export class Select extends Component {
 	private current: string | null;
 	private placeholderText: string;
 	private readonly selectSize: ControlSize;
-	private readonly layers: LookLayers;
+	private layers: LookLayers;
 	private readonly transition: LookTransition;
 	private menu: Menu | null = null;
 	private handle: PopupHandle | null = null;
@@ -93,7 +94,7 @@ export class Select extends Component {
 		this.selectSize = size;
 		this.maxMenuHeight = maxMenuHeight;
 		this.onChange = onChange;
-		this.layers = fieldLayers({});
+		this.layers = fieldLayers({}, this.themeTokens);
 		this.transition = new LookTransition({ owner: this, look: this.targetLook });
 	}
 
@@ -256,6 +257,12 @@ export class Select extends Component {
 		this.transition.moveTo(this.targetLook, this.context?.animator ?? null);
 	}
 
+	/** The field's look follows the theme; its label and caret read it at draw time (R11.15). */
+	protected onThemeChange(theme: Theme): void {
+		this.layers = fieldLayers({}, theme);
+		this.transition.moveTo(this.targetLook, null);
+	}
+
 	public render(draw: DrawApi): void {
 		const look = this.transition.look;
 		drawControlBox(draw, { id: this.id ?? undefined, width: this.width, height: this.height, look });
@@ -263,12 +270,13 @@ export class Select extends Component {
 		const caretBox = { x: this.width - INSET - metrics.iconSize, y: 0, width: metrics.iconSize, height: this.height };
 		const chosen = this.selectedOption;
 		const enabled = this.effectivelyEnabled;
+		const { color } = this.themeTokens;
 		draw.drawText({
 			text: this.selectedLabel,
 			box: { x: INSET, y: 0, width: Math.max(0, caretBox.x - CARET_GAP - INSET), height: this.height },
 			font: 'body',
 			size: metrics.fontSize,
-			color: !enabled ? tokens.color.text_disabled : chosen ? look.text : tokens.color.text_faint,
+			color: !enabled ? color.text_disabled : chosen ? look.text : color.text_faint,
 			align: 'left',
 			verticalAlign: 'middle',
 			wrap: 'none',
@@ -277,7 +285,7 @@ export class Select extends Component {
 		drawIcon(draw, {
 			glyph: this.menu ? 'expand_less' : 'expand_more',
 			size: metrics.iconSize,
-			tint: enabled ? tokens.color.text_dim : tokens.color.text_disabled,
+			tint: enabled ? color.text_dim : color.text_disabled,
 			box: caretBox,
 		});
 	}

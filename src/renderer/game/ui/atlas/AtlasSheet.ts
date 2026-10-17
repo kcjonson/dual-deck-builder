@@ -116,6 +116,13 @@ export class AtlasSheet extends Stack {
 		return this.sheetRect;
 	}
 
+	/** Removes and unmounts everything on the sheet but its tabs, which a screen keeps from one visit to the next. */
+	public clearContent(): void {
+		for (const child of [...this.children]) {
+			if (child !== this.sheetTabs) this.removeChild(child);
+		}
+	}
+
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'auto';
 	}

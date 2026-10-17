@@ -9,6 +9,7 @@ import { Look, LookInk, LookLayers, glowShadow, lookInk, resolveLook } from '../
 import { LookTransition } from '../style/LookTransition';
 import { CONTROL_SIZES, ControlSize, markLayers } from '../style/variants';
 import { tokens } from '../theme/tokens';
+import type { Theme } from '../theme/tokens';
 import { Pressable } from './Pressable';
 
 /** A user change: the new value, already applied, and the press or key that made it. */
@@ -64,7 +65,7 @@ export abstract class Checkable extends Pressable {
 		});
 		this.controlSize = size;
 		this.isChecked = checked;
-		this.layers = markLayers({ on: checked });
+		this.layers = markLayers({ on: checked, theme: this.themeTokens });
 		if (onChange) this.onChange = onChange;
 
 		this.label = new Text({
@@ -202,8 +203,16 @@ export abstract class Checkable extends Pressable {
 		super.onStateChange();
 		// `checked` is set in the constructor before the transition exists.
 		if (!this.transition) return;
-		this.layers = markLayers({ on: this.markOn });
+		this.layers = markLayers({ on: this.markOn, theme: this.themeTokens });
 		this.transition.moveTo(this.targetLook, this.context?.animator ?? null);
+		this.followState();
+	}
+
+	/** The mark's look and the label's colour follow the theme (R11.15). */
+	protected onThemeChange(theme: Theme): void {
+		if (!this.transition) return;
+		this.layers = markLayers({ on: this.markOn, theme });
+		this.transition.moveTo(this.targetLook, null);
 		this.followState();
 	}
 
@@ -235,7 +244,8 @@ export abstract class Checkable extends Pressable {
 
 	/** The label is the text colour, or the disabled one. */
 	private followState(): void {
-		const color = this.effectivelyEnabled ? tokens.color.text : tokens.color.text_disabled;
+		const { color: palette } = this.themeTokens;
+		const color = this.effectivelyEnabled ? palette.text : palette.text_disabled;
 		this.label.color = [...color] as [number, number, number, number];
 	}
 

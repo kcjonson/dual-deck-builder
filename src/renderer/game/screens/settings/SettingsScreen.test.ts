@@ -5,7 +5,12 @@ import { createTestContext } from '../../../engine/components/testing';
 import type { MountContext } from '../../../engine/components/MountContext';
 import { key, send } from '../../../engine/services/testing';
 import type { SegmentedControl } from '../../../engine/ui/SegmentedControl';
+import { layoutLint } from '../../../engine/debug/layoutLint';
+import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
+import { createMeasuringDrawApi } from '../../../engine/text/testing';
+import { themes } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
+import { atlasScreenParts } from '../../ui/atlas/testing';
 import { GameSettings, MotionSetting } from '../../core/GameSettings';
 import { SettingsScreen } from './SettingsScreen';
 
@@ -92,6 +97,19 @@ describe('SettingsScreen', () => {
 		if (!panel || !back) throw new Error('the panel and Back should be mounted');
 		expect(panel.x).toBe((1024 - panel.width) / 2);
 		expect(back.y + back.height).toBeLessThanOrEqual(600);
+	});
+
+	it.each([{ width: 1440, height: 882 }, { width: 1024, height: 600 }])('is one atlas sheet with no highway, the choice highlighted, with no lint at $width x $height', (size) => {
+		screen.unmount();
+		context = createTestContext({ viewport: { logical: size }, draw: createMeasuringDrawApi().api });
+		screen.mount(context);
+		context.frame.layout();
+		const parts = atlasScreenParts(screen.root);
+		expect(screen.theme).toBe('atlas');
+		expect([parts.sheets.length, parts.highways.length, parts.tabs.length]).toEqual([1, 0, 0]);
+		const chosen = motionControl().items.find((segment) => segment.selected);
+		expect(chosen?.look.fill).toEqual(themes.atlas.color.bg_selection);
+		expect(layoutLint(treeSnapshot([screen.root], size)).violations).toEqual([]);
 	});
 
 	it('builds nothing twice across a remount', () => {
