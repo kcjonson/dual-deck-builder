@@ -2,6 +2,7 @@ import { Container } from '../../engine/components/Container';
 import { renderTree } from '../../engine/components/renderTree';
 import type { DrawApi } from '../../engine/draw/DrawApi';
 import type { MountContext } from '../../engine/components/MountContext';
+import type { ThemeName } from '../../engine/theme/tokens';
 
 export interface ScreenOptions {
 	/**
@@ -11,6 +12,12 @@ export interface ScreenOptions {
 	 * places by hand from `onMount` and `onResized`.
 	 */
 	root?: Container;
+	/**
+	 * The theme the screen's tree resolves tokens against, set on its root
+	 * and inherited down. Default: the base theme, `dark` (UI Art Direction,
+	 * open question 1: per-screen selection).
+	 */
+	theme?: ThemeName;
 }
 
 /**
@@ -27,13 +34,14 @@ export abstract class Screen {
 	 * @param id Screen identifier
 	 * @param options.root The screen's own root; a fill root stack is sized by the frame (R8.21)
 	 */
-	constructor(id: string, { root }: ScreenOptions = {}) {
+	constructor(id: string, { root, theme }: ScreenOptions = {}) {
 		this.id = id;
 		// Zero-sized until mount: the default container is sized from the
 		// viewport by `mount` and `resize`, so anything placed from its size is
 		// placed in onMount and onResized; a fill root stack is sized by the
 		// frame's layout instead. Nothing in a screen reads the window.
 		this.rootLayer = root ?? new Container({ id });
+		if (theme) this.rootLayer.theme = theme;
 	}
 
 	/**
@@ -41,6 +49,11 @@ export abstract class Screen {
 	 */
 	public get root(): Container {
 		return this.rootLayer;
+	}
+
+	/** The theme the screen's tree resolves against: its root's. */
+	public get theme(): ThemeName {
+		return this.rootLayer.effectiveTheme;
 	}
 
 	/** A root stack with `fill` on both axes: the frame sizes it from the viewport, never the screen. */

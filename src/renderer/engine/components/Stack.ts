@@ -5,6 +5,7 @@ import { BoxStyle, BoxStyleObject, boxAcceptance, boxColors, boxInkExtent, drawB
 import { MarginInput, Sides, ZERO_SIDES, normalizeSides } from './componentGeometry';
 import { Container, ContainerOptions } from './Container';
 import { validateStyle } from '../style/styleObject';
+import type { Theme } from '../theme/tokens';
 import { Axis, CrossAlign, Direction, Distribution, Size, SizeMode, authoredSizeMode } from './layoutTypes';
 
 export interface StackOptions extends ContainerOptions {
@@ -134,8 +135,14 @@ export class Stack extends Container {
 	public set style(style: BoxStyleObject) {
 		validateBox(style);
 		this.backdropStyle = style;
-		this.backdrop = Object.keys(style).length > 0 ? resolveBoxStyle(style, NO_BOX) : null;
+		this.backdrop = Object.keys(style).length > 0 ? resolveBoxStyle(style, NO_BOX, this.themeTokens) : null;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
+		this.invalidateInk();
+	}
+
+	protected onThemeChange(theme: Theme): void {
+		if (!this.backdrop) return;
+		this.backdrop = resolveBoxStyle(this.backdropStyle, NO_BOX, theme);
 		this.invalidateInk();
 	}
 

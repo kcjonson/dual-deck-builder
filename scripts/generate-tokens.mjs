@@ -17,6 +17,12 @@
  * beside one must describe the same colour, which keeps the two from drifting
  * inside the file itself. `cssOnly` tokens exist for a web prototype and are
  * left out of the module.
+ *
+ * The categories are the base theme, `dark`. A top-level `themes` object
+ * holds further themes by name, each a partial file of the same shape whose
+ * tokens replace the base's whole. A theme only re-values names the base has
+ * (R11.4), only in the paint categories, and aliases resolve inside the
+ * theme, so an alias the theme leaves alone follows whatever it overrides.
  */
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -58,6 +64,10 @@ const NUMERIC_CATEGORIES = new Set([
 ]);
 
 const TOKEN_NAME = /^[a-z][a-z0-9_]*$/;
+const THEMES_KEY = 'themes';
+const BASE_THEME = 'dark';
+/** What a theme may re-value: paint only, so sizes, type metrics, and motion read the base in every theme. */
+const THEMED_CATEGORIES = new Set(['color', 'radius', 'elevation', 'texture']);
 const TOKEN_KEYS = new Set(['value', 'alias', 'css', 'cssOnly', 'description']);
 
 /** Half a step of an 8-bit channel: the most a rounded float may differ from its css form. */
@@ -120,11 +130,31 @@ function isRgba(value) {
 	);
 }
 
+function checkToken(path, token) {
+	if (!isPlainObject(token)) throw new TokenError(`${path}: a token is an object`);
+	for (const key of Object.keys(token)) {
+		if (!TOKEN_KEYS.has(key)) throw new TokenError(`${path}: unknown key "${key}"`);
+	}
+	const hasValue = 'value' in token;
+	const hasAlias = 'alias' in token;
+	if (token.cssOnly === true) {
+		if (typeof token.css !== 'string') throw new TokenError(`${path}: a cssOnly token needs a css form`);
+		if (hasValue || hasAlias) throw new TokenError(`${path}: a cssOnly token has no numeric value`);
+		return;
+	}
+	if (hasValue === hasAlias) throw new TokenError(`${path}: a token has exactly one of value and alias`);
+	if (hasAlias && typeof token.alias !== 'string') throw new TokenError(`${path}: alias is a "category.name" string`);
+}
+
+/** The token categories of a file or a theme: everything but metadata and the themes object. */
+function categoriesOf(source) {
+	return Object.entries(source).filter(([category]) => !category.startsWith('$') && category !== THEMES_KEY);
+}
+
 function checkShape(source) {
 	if (!isPlainObject(source)) throw new TokenError('the token file must be a JSON object of categories');
 	const seen = new Map();
-	for (const [category, tokens] of Object.entries(source)) {
-		if (category.startsWith('$')) continue;
+	for (const [category, tokens] of categoriesOf(source)) {
 		if (!KNOWN_CATEGORIES.has(category)) {
 			throw new TokenError(`unknown category "${category}"; R11.3 allows ${[...KNOWN_CATEGORIES].join(', ')}`);
 		}
@@ -135,24 +165,53 @@ function checkShape(source) {
 			// R11.4: leaf names are the shared identifiers, so one leaf names one token.
 			if (seen.has(name)) throw new TokenError(`${path}: leaf name "${name}" is already used by ${seen.get(name)}`);
 			seen.set(name, path);
-			if (!isPlainObject(token)) throw new TokenError(`${path}: a token is an object`);
-			for (const key of Object.keys(token)) {
-				if (!TOKEN_KEYS.has(key)) throw new TokenError(`${path}: unknown key "${key}"`);
-			}
-			const hasValue = 'value' in token;
-			const hasAlias = 'alias' in token;
-			if (token.cssOnly === true) {
-				if (typeof token.css !== 'string') throw new TokenError(`${path}: a cssOnly token needs a css form`);
-				if (hasValue || hasAlias) throw new TokenError(`${path}: a cssOnly token has no numeric value`);
-				continue;
-			}
-			if (hasValue === hasAlias) throw new TokenError(`${path}: a token has exactly one of value and alias`);
-			if (hasAlias && typeof token.alias !== 'string') throw new TokenError(`${path}: alias is a "category.name" string`);
+			checkToken(path, token);
 		}
 	}
 	for (const category of REQUIRED_CATEGORIES) {
 		if (!isPlainObject(source[category])) throw new TokenError(`missing required category "${category}" (R11.3)`);
 	}
+}
+
+/**
+ * The base with one theme's tokens replacing it, token by token. A theme
+ * names only tokens the base has: it changes values, never leaf names (R11.4).
+ */
+function mergeTheme(source, themeName, theme) {
+	if (!isPlainObject(theme)) throw new TokenError(`themes.${themeName}: a theme is an object of categories`);
+	const merged = {};
+	for (const [category, tokens] of categoriesOf(source)) merged[category] = { ...tokens };
+	for (const [category, tokens] of categoriesOf(theme)) {
+		const where = `themes.${themeName}.${category}`;
+		if (!Object.hasOwn(merged, category)) throw new TokenError(`${where}: the base has no category "${category}"`);
+		if (!THEMED_CATEGORIES.has(category)) {
+			throw new TokenError(`${where}: a theme re-values paint (${[...THEMED_CATEGORIES].join(', ')}), never measurement, so layout is the same in every theme`);
+		}
+		if (!isPlainObject(tokens)) throw new TokenError(`${where}: must be an object of tokens`);
+		for (const [name, token] of Object.entries(tokens)) {
+			if (!Object.hasOwn(merged[category], name)) {
+				throw new TokenError(`${where}.${name}: the base has no token "${name}"; a theme re-values tokens and adds none (R11.4)`);
+			}
+			checkToken(`${where}.${name}`, token);
+			merged[category][name] = token;
+		}
+	}
+	return merged;
+}
+
+/** Every theme's merged source by name, the base first. */
+function themeSources(source) {
+	checkShape(source);
+	const themes = source[THEMES_KEY] ?? {};
+	if (!isPlainObject(themes)) throw new TokenError(`"${THEMES_KEY}" is an object of themes by name`);
+	const out = { [BASE_THEME]: source };
+	for (const [name, theme] of Object.entries(themes)) {
+		if (name.startsWith('$')) continue;
+		if (!TOKEN_NAME.test(name)) throw new TokenError(`themes.${name}: theme names are lower snake case`);
+		if (name === BASE_THEME) throw new TokenError(`themes.${name}: "${BASE_THEME}" is the base theme, the file's own categories`);
+		out[name] = mergeTheme(source, name, theme);
+	}
+	return out;
 }
 
 function createResolver(source) {
@@ -251,14 +310,13 @@ function checkValue(category, name, token, value) {
 
 /**
  * Returns `{ category: { name: { value, alias } } }` in file order with every
- * alias resolved and cssOnly tokens dropped.
+ * alias resolved and cssOnly tokens dropped: the base theme alone.
  */
 export function resolveTokens(source) {
 	checkShape(source);
 	const resolveToken = createResolver(source);
 	const out = {};
-	for (const [category, tokens] of Object.entries(source)) {
-		if (category.startsWith('$')) continue;
+	for (const [category, tokens] of categoriesOf(source)) {
 		out[category] = {};
 		for (const [name, token] of Object.entries(tokens)) {
 			if (token.cssOnly === true) continue;
@@ -285,14 +343,14 @@ function typeName(category) {
 	return `${category[0].toUpperCase()}${category.slice(1)}Token`;
 }
 
-export function generateModule(source) {
-	const resolved = resolveTokens(source);
-	const lines = [
-		'// Generated by scripts/generate-tokens.mjs from tokens.json. Do not edit by hand:',
-		'// change tokens.json and run `npm run tokens`. tokens.test.ts fails when this file is stale (R11.2).',
-		'',
-		'export const tokens = {',
-	];
+/** `{ themeName: resolved }`, the base first, each as `resolveTokens` returns it. */
+export function resolveThemes(source) {
+	const out = {};
+	for (const [name, themeSource] of Object.entries(themeSources(source))) out[name] = resolveTokens(themeSource);
+	return out;
+}
+
+function pushCategories(lines, resolved) {
 	for (const [category, entries] of Object.entries(resolved)) {
 		lines.push(`\t${category}: {`);
 		for (const [name, { value, alias }] of Object.entries(entries)) {
@@ -301,11 +359,43 @@ export function generateModule(source) {
 		}
 		lines.push('\t},');
 	}
+}
+
+export function generateModule(source) {
+	const themes = resolveThemes(source);
+	const resolved = themes[BASE_THEME];
+	const lines = [
+		'// Generated by scripts/generate-tokens.mjs from tokens.json. Do not edit by hand:',
+		'// change tokens.json and run `npm run tokens`. tokens.test.ts fails when this file is stale (R11.2).',
+		'',
+		`/** The base theme, \`${BASE_THEME}\`. Code that can sit on a themed screen reads its component's \`themeTokens\` instead. */`,
+		'export const tokens = {',
+	];
+	pushCategories(lines, resolved);
 	lines.push('} as const;', '', 'export type Tokens = typeof tokens;', '');
 	for (const category of Object.keys(resolved)) {
 		lines.push(`export type ${typeName(category)} = keyof Tokens['${category}'];`);
 	}
-	lines.push('');
+	lines.push(
+		'',
+		'type Widen<T> = T extends number ? number : T extends string ? string : T extends boolean ? boolean : { readonly [K in keyof T]: Widen<T[K]> };',
+		'',
+		"/** Any theme: the base's shape with its values widened, since themes differ only in values (R11.4). */",
+		'export type Theme = Widen<Tokens>;',
+		'',
+		`export type ThemeName = ${Object.keys(themes).map((name) => `'${name}'`).join(' | ')};`,
+		'',
+		`export const BASE_THEME: ThemeName = '${BASE_THEME}';`,
+	);
+	for (const [name, themeResolved] of Object.entries(themes)) {
+		if (name === BASE_THEME) continue;
+		lines.push('', `const ${name}Theme: Theme = {`);
+		pushCategories(lines, themeResolved);
+		lines.push('};');
+	}
+	lines.push('', 'export const themes: Readonly<Record<ThemeName, Theme>> = {');
+	for (const name of Object.keys(themes)) lines.push(`\t${name}: ${name === BASE_THEME ? 'tokens' : `${name}Theme`},`);
+	lines.push('};', '');
 	return lines.join('\n');
 }
 

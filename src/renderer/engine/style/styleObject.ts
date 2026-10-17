@@ -5,7 +5,7 @@ import type { BoxShadow } from '../draw/commands';
 import type { FontRole } from '../text/fontFaces';
 import type { FontWeight } from '../text/fontRoles';
 import { tokens } from '../theme/tokens';
-import type { ColorToken, ElevationToken } from '../theme/tokens';
+import type { ColorToken, ElevationToken, Theme } from '../theme/tokens';
 
 export type { Sides };
 
@@ -146,21 +146,20 @@ function checkProperties(style: StyleProperties, acceptance: StyleAcceptance, st
 
 // -- values -----------------------------------------------------------------
 
-const COLOR_TOKENS = tokens.color as Readonly<Record<string, RGBA>>;
-
 /** What an unparseable colour draws as in a production build: loud, so it is noticed and reported. */
 export const INVALID_COLOR: RGBA = [1, 0, 1, 1];
 
 /**
- * A colour value as floats. A token name reads the theme; `transparent`,
+ * A colour value as floats. A token name reads `theme`, the component's own
+ * (`Component.themeTokens`) where it has one, else the base; `transparent`,
  * `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()`, and `rgba()` are parsed. A string
  * that is none of them throws in a development build, as an unknown style
  * key does (R11.14); a production build warns and draws magenta rather than
  * take the screen down. The old parser turned it into white without a word.
  */
-export function resolveColor(value: ColorValue): RGBA {
+export function resolveColor(value: ColorValue, theme: Theme = tokens): RGBA {
 	if (typeof value !== 'string') return value;
-	const token = COLOR_TOKENS[value];
+	const token = (theme.color as Readonly<Record<string, RGBA>>)[value];
 	if (token) return token;
 	const parsed = parseCssColor(value.trim().toLowerCase());
 	if (parsed) return parsed;
@@ -195,32 +194,32 @@ const LENGTH_CATEGORIES: Readonly<Record<'borderWidth' | 'borderRadius' | 'fontS
 	padding: ['space', 'control'],
 };
 
-export function resolveLength(value: LengthValue, property: keyof typeof LENGTH_CATEGORIES): number {
+export function resolveLength(value: LengthValue, property: keyof typeof LENGTH_CATEGORIES, theme: Theme = tokens): number {
 	if (typeof value === 'number') {
 		if (!Number.isFinite(value)) throw new Error(`style.${property}: ${value} is not a finite number of logical pixels`);
 		return value;
 	}
 	for (const category of LENGTH_CATEGORIES[property]) {
-		const table = tokens[category] as Readonly<Record<string, unknown>>;
+		const table = theme[category] as Readonly<Record<string, unknown>>;
 		const token = table[value];
 		if (typeof token === 'number') return token;
 	}
 	throw new Error(`style.${property}: "${value}" is not a number or a ${LENGTH_CATEGORIES[property].join(' or ')} token`);
 }
 
-export function resolveLetterSpacing(value: number | string): number {
+export function resolveLetterSpacing(value: number | string, theme: Theme = tokens): number {
 	if (typeof value === 'number') return value;
-	const token = (tokens.letterSpacing as Readonly<Record<string, number>>)[value];
+	const token = (theme.letterSpacing as Readonly<Record<string, number>>)[value];
 	if (token === undefined) throw new Error(`style.letterSpacing: "${value}" is not a number or a letterSpacing token`);
 	return token;
 }
 
-export function resolvePadding(value: LengthValue | PaddingSides, fallback: Sides): Sides {
+export function resolvePadding(value: LengthValue | PaddingSides, fallback: Sides, theme: Theme = tokens): Sides {
 	if (typeof value === 'number' || typeof value === 'string') {
-		const all = resolveLength(value, 'padding');
+		const all = resolveLength(value, 'padding', theme);
 		return { top: all, right: all, bottom: all, left: all };
 	}
-	const side = (length: LengthValue | undefined, base: number) => (length === undefined ? base : resolveLength(length, 'padding'));
+	const side = (length: LengthValue | undefined, base: number) => (length === undefined ? base : resolveLength(length, 'padding', theme));
 	return {
 		top: side(value.top, fallback.top),
 		right: side(value.right, fallback.right),
@@ -229,17 +228,17 @@ export function resolvePadding(value: LengthValue | PaddingSides, fallback: Side
 	};
 }
 
-const ELEVATION = tokens.elevation as Readonly<Record<string, { color: RGBA; blur: number; spread: number; offset: readonly number[]; inset?: boolean }>>;
+type ElevationPreset = { color: RGBA; blur: number; spread: number; offset: readonly number[]; inset?: boolean };
 
 /** An elevation token or an explicit shadow, as the draw API's box shadow. Inset presets have no box-shadow form yet. */
-export function resolveShadow(value: ElevationToken | ShadowValue): BoxShadow {
+export function resolveShadow(value: ElevationToken | ShadowValue, theme: Theme = tokens): BoxShadow {
 	if (typeof value === 'string') {
-		const preset = ELEVATION[value];
+		const preset = (theme.elevation as Readonly<Record<string, ElevationPreset>>)[value];
 		if (!preset || !('blur' in preset)) throw new Error(`style.shadow: "${value}" is not an elevation token`);
 		if (preset.inset) throw new Error(`style.shadow: "${value}" is an inset shadow, which the draw API cannot draw yet`);
 		return { color: preset.color, blur: preset.blur, spread: preset.spread, offset: { x: preset.offset[0], y: preset.offset[1] } };
 	}
-	return { color: resolveColor(value.color), blur: value.blur ?? 0, spread: value.spread ?? 0, offset: value.offset ?? { x: 0, y: 0 } };
+	return { color: resolveColor(value.color, theme), blur: value.blur ?? 0, spread: value.spread ?? 0, offset: value.offset ?? { x: 0, y: 0 } };
 }
 
 /**

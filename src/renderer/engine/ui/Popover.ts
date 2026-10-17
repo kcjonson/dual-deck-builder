@@ -8,7 +8,8 @@ import type { OverlayHandle } from '../services/OverlayService';
 import { PlacementAlign, PlacementSide, pointAnchor } from '../services/Placement';
 import { shadowExtent } from '../style/look';
 import { tokens } from '../theme/tokens';
-import { SHADOW_POP, borderClipRadius, borderClipRect } from './surfaces';
+import type { ThemeName } from '../theme/tokens';
+import { borderClipRadius, borderClipRect, themedShadow } from './surfaces';
 
 export interface PopoverOptions {
 	id?: string;
@@ -28,11 +29,11 @@ export interface PopoverOptions {
 	closeOnEscape?: boolean;
 	/** Heard once each time it closes, whatever closed it. */
 	onClose?: () => void;
+	/** Its theme. Default: an anchor component's, else the base theme. */
+	theme?: ThemeName;
 }
 
-const { color } = tokens;
 const OFFSET = tokens.space.space_1_5;
-const RADIUS = tokens.radius.radius_panel;
 const BORDER_WIDTH = tokens.borderWidth.bw;
 
 /**
@@ -65,6 +66,7 @@ export class Popover extends Stack {
 	private handle: OverlayHandle | null = null;
 	private fade: TweenHandle<number> | null = null;
 	private placedSide: PlacementSide | null = null;
+	private readonly openerTheme: ThemeName | null;
 
 	constructor({
 		id = 'popover',
@@ -76,6 +78,7 @@ export class Popover extends Stack {
 		dismissOnOutsidePress = true,
 		closeOnEscape = true,
 		onClose,
+		theme,
 	}: PopoverOptions) {
 		super({ id, direction: 'vertical', padding: tokens.space.space_3 });
 		this.componentType = 'Popover';
@@ -86,6 +89,7 @@ export class Popover extends Stack {
 		this.dismissOnOutsidePress = dismissOnOutsidePress;
 		this.closeOnEscape = closeOnEscape;
 		if (onClose) this.onClose = onClose;
+		this.openerTheme = theme ?? null;
 		this.addChild(content);
 	}
 
@@ -122,11 +126,12 @@ export class Popover extends Stack {
 	}
 
 	public get resolvedColors(): ResolvedColors {
+		const { color } = this.themeTokens;
 		return { fill: color.bg_panel_raised, border: color.line_strong };
 	}
 
 	public get inkExtent(): number {
-		return shadowExtent(SHADOW_POP);
+		return shadowExtent(themedShadow('shadow_pop', this.themeTokens));
 	}
 
 	protected computeClipRect(): Rect {
@@ -134,7 +139,7 @@ export class Popover extends Stack {
 	}
 
 	public get clipRadius(): number {
-		return borderClipRadius(RADIUS, this.clipRect);
+		return borderClipRadius(this.themeTokens.radius.radius_panel, this.clipRect);
 	}
 
 	/** Opens it against its anchor. Ignored while open. */
@@ -147,6 +152,7 @@ export class Popover extends Stack {
 			dismissOnOutsidePress: this.dismissOnOutsidePress,
 			consumeOutsidePress: false,
 			closeOnEscape: this.closeOnEscape,
+			theme: this.openerTheme ?? ('screenBounds' in this.anchorTarget ? this.anchorTarget.effectiveTheme : undefined),
 			onClose: () => this.closed(),
 		});
 		this.reposition();
@@ -200,13 +206,14 @@ export class Popover extends Stack {
 
 	public render(draw: DrawApi): void {
 		if (this.width <= 0 || this.height <= 0) return;
+		const { color, radius } = this.themeTokens;
 		draw.drawRect({
 			id: this.id ?? undefined,
 			rect: { x: 0, y: 0, width: this.width, height: this.height },
 			fill: color.bg_panel_raised,
-			radius: RADIUS,
+			radius: radius.radius_panel,
 			border: { color: color.line_strong, width: BORDER_WIDTH },
-			shadow: SHADOW_POP,
+			shadow: themedShadow('shadow_pop', this.themeTokens),
 		});
 	}
 
