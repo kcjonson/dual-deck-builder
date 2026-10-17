@@ -114,7 +114,7 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	// then the run on the road: the fixture's at its last fight's reward, and a step earlier with the fight ahead (DDB-454)
 	{ screen: 'areaMapScreen', storage: AT_HOME },
 	{ screen: 'runRouteScreen', storage: AT_HOME },
-	{ screen: 'loadOutScreen', storage: AT_HOME, data: { heading: 'Elk Creek Clinic by Back roads', summary: '2 stops / fuel 3 / home by 16:30' } },
+	{ screen: 'loadOutScreen', storage: AT_HOME, data: { trip: { destination: 'Elk Creek Clinic', routeName: 'Back roads', stops: 2, fuel: 3, homeBy: '16:30', pastDark: false } } },
 	{ screen: 'runScreen', storage: IN_PROGRESS },
 	{ screen: 'runScreen', variant: 'road', storage: ON_THE_ROAD },
 ];

@@ -31,6 +31,6 @@ export class LoadOutLauncherSection extends CatalogSection {
 function open(): void {
 	if (!ScreenManager.activeScreen) return;
 	const store = new CampaignStore({ storage: new MemorySaveStorage(), namespace: 'developer', onWarning: () => undefined });
-	const launch: Partial<LoadOutLaunch> = { campaign: atHomeCampaign(), heading: 'No route: opened from the developer screen', store, returnTo: 'developerScreen' };
+	const launch: Partial<LoadOutLaunch> = { campaign: atHomeCampaign(), store, returnTo: 'developerScreen' };
 	ScreenManager.navigate('loadOutScreen', launch);
 }
