@@ -2,7 +2,7 @@ import { RELIEF } from './Land';
 import { LandGrid, cellCentre } from './LandGrid';
 import { lerp } from './MapMath';
 import type { RiverLines } from './Rivers';
-import { atHome } from './RoadChecks';
+import { PASSABLE_SPACING, atHome } from './RoadChecks';
 import { ROAD_CLASSES, RoadClass } from './RoadNetwork';
 import { MOVE_COST, METRO_BRIDGES, Terrain } from './Terrain';
 
@@ -20,11 +20,13 @@ import { MOVE_COST, METRO_BRIDGES, Terrain } from './Terrain';
  * its cost no class changes: its length, the grade along it, the slope across
  * it at its middle, its bridges as a sum of their lengths' factors, and
  * whether it's blocked. A class weights them as `moveCost` does, so the field
- * and `moveCost` agree on every move the field leaves open. The field is
- * stricter: a move through a square where anything impassable could stand
- * (rough country, a lake's shore, a river, a crater) is sampled every half
- * unit, and is blocked where a sample is impassable, bar river water under
- * one of its bridges. `moveCost` reads only a move's end and middle. And
+ * and `moveCost` agree on every move the field leaves open, and a move that
+ * crosses a river less than 30 degrees off its line is blocked in both. The
+ * field is stricter: a move through a square where anything impassable could
+ * stand (rough country, a lake's shore, a river, a crater) is sampled every
+ * half unit, as the network checks sample it (`impassableAlong`), and is
+ * blocked where a sample is impassable, bar river water under one of its
+ * bridges. `moveCost` reads only a move's end and middle. And
  * the metro's rivers, which cost nothing to cross and which `obstacle`
  * passes, can be crossed but not driven along: their water has to be under
  * a bridge too, and no road passes through a cell whose centre is in one,
@@ -62,8 +64,8 @@ export function moveBetween(dx: number, dy: number): number {
 	return dx < -2 || dx > 2 || dy < -2 || dy > 2 ? -1 : MOVE_BY_STEP[(dx + 2) * 5 + dy + 2];
 }
 
-/** World units between the samples a move through possibly impassable ground is checked at. */
-export const SAMPLE_SPACING = 0.5;
+/** World units between the samples a move through possibly impassable ground is checked at, from its lower-left end. */
+export const SAMPLE_SPACING = PASSABLE_SPACING;
 /** World units past a river's water its squares count as near it, for the samples. */
 const RIVER_MARGIN = 1;
 /** Cell centres keep this far inside the rim, so every road stays in the disc. */
@@ -84,6 +86,7 @@ const STEEP = 2;
 // Globals read once, at load: under Jest's vm context each read costs about 0.15 us (seeded-prng.md).
 const sqrt = Math.sqrt;
 const floor = Math.floor;
+const ceil = Math.ceil;
 
 export interface EdgeCostOptions {
 	/** The land with its water, what the roads are laid over. */
@@ -272,6 +275,7 @@ export class EdgeCostField {
 		const crossings = water === null ? 0 : water.riverCrossings(x0, y0, x1, y1);
 		for (let index = 0; index < crossings; index += 1) {
 			const { along, width, sine } = (water as NonNullable<Terrain['water']>).riverCrossing(index);
+			if (!(sine >= MOVE_COST.leastCrossing)) return this.block(edge);
 			const cx = x0 + dx * along;
 			const cy = y0 + dy * along;
 			flags |= BRIDGED;
@@ -331,9 +335,10 @@ export class EdgeCostField {
 	}
 
 	/**
-	 * True when no sample along the move, every half unit, is impassable, bar
-	 * river water under one of its bridges, the metro's rivers included, and
-	 * Home's own cells. Each sample asks only after what could stand in the
+	 * True when no sample along the move, every half unit from its lower-left
+	 * end as `impassableAlong` takes them, is impassable, bar river water under
+	 * one of its bridges, the metro's rivers included, and Home's own cells.
+	 * Each sample asks only after what could stand in the
 	 * move's squares (`hazards`), in `obstacle`'s terms: the lake's depth
 	 * only where a lake could be, the rivers only where one could be.
 	 */
@@ -341,7 +346,13 @@ export class EdgeCostField {
 		const terrain = this.terrain;
 		const spans = this.spans;
 		const bridges = (hazards & (RIVER | ANYTHING)) !== 0 ? terrain.bridgeSpans(x0, y0, x1, y1, spans) : 0;
-		const samples = floor(length / SAMPLE_SPACING) + 1;
+		// From the lower-left end, so a move is sampled the same whichever way a road runs along it.
+		const forward = x0 < x1 || (x0 === x1 && y0 <= y1);
+		const sx = forward ? x0 : x1;
+		const sy = forward ? y0 : y1;
+		const ex = forward ? x1 : x0;
+		const ey = forward ? y1 : y0;
+		const inner = ceil(length / SAMPLE_SPACING) - 1;
 		const anything = (hazards & ANYTHING) !== 0;
 		const craters = (hazards & CRATER) !== 0 ? terrain.hotspots : [];
 		const lakes = (hazards & LAKE) !== 0;
@@ -349,10 +360,11 @@ export class EdgeCostField {
 		const rough = (hazards & ROUGH) !== 0;
 		const water = terrain.water;
 		const home = this.grid.cellSize;
-		for (let sample = 1; sample < samples; sample += 1) {
-			const along = sample / samples;
-			const x = x0 + (x1 - x0) * along;
-			const y = y0 + (y1 - y0) * along;
+		for (let sample = 1; sample <= inner; sample += 1) {
+			const share = sample * SAMPLE_SPACING / length;
+			const x = sx + (ex - sx) * share;
+			const y = sy + (ey - sy) * share;
+			const along = forward ? share : 1 - share;
 			let river = false;
 			if (anything) {
 				const obstacle = terrain.obstacle(x, y);
