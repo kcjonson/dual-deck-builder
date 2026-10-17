@@ -69,9 +69,9 @@ describe('where a lone raider opens', () => {
 		expect(raider.slot?.row).toBe(RoadRow.BEHIND);
 	});
 
-	it('fills the opening order with no crew to size up', () => {
-		const [raider] = encounterTeam({ encounter: 'scavengers', cards: CARDS }).vehicles;
-		expect(raider.slot).toBeNull();
+	it.each([[[]], [[80, 60, 50]]])('refuses a crew of %j, which no fight seats', (crewStructure) => {
+		expect(() => encounterTeam({ encounter: 'scavengers', cards: CARDS, crewStructure }))
+			.toThrow(`An encounter sizes up one or two seats, and this crew has ${crewStructure.length}`);
 	});
 
 	it('leaves a gang to the opening order, one raider across each seat', () => {

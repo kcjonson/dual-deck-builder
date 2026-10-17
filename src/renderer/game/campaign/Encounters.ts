@@ -46,21 +46,24 @@ const SEAT_ROWS: readonly RoadRow[] = openingSlots(TeamType.PLAYER).slice(0, PLA
  * deck from `cards`, sized up against the crew in `crewStructure`. A lone
  * raider opens on the inside lane across from the vehicle with the most
  * structure, the first seat's on a tie, where a ram from either side
- * reaches; a gang, or a lone raider with no crew given, fills the
- * formation's opening order. Against one seat every raider refills to its
- * solo adrenaline. The combat screen's skirmish is the one-skull encounter
- * against its pair. Throws as `raiderVehicle` does for a card the map
- * doesn't hold.
+ * reaches; a gang fills the formation's opening order. Against one seat
+ * every raider refills to its solo adrenaline. The combat screen's skirmish
+ * is the one-skull encounter against its pair. Throws unless the crew is
+ * one or two seats, and as `raiderVehicle` does for a card the map doesn't
+ * hold.
  */
-export function encounterTeam({ encounter, cards, crewStructure = [] }: {
+export function encounterTeam({ encounter, cards, crewStructure }: {
 	encounter: EncounterId;
 	cards: ReadonlyMap<string, Card>;
 	/** Structure each seat's vehicle opens the fight with, Driver 1's first */
-	crewStructure?: readonly number[];
+	crewStructure: readonly number[];
 }): Team {
+	if (crewStructure.length < 1 || crewStructure.length > PLAYER_DRIVEN_VEHICLES) {
+		throw new RangeError(`An encounter sizes up one or two seats, and this crew has ${crewStructure.length}`);
+	}
 	const solo = crewStructure.length === 1;
 	const raiders = ENCOUNTERS[encounter].raiders.map(raider => raiderVehicle({ raider, cards, solo }));
-	if (raiders.length === 1 && crewStructure.length > 0) {
+	if (raiders.length === 1) {
 		const toughest = crewStructure.indexOf(Math.max(...crewStructure));
 		raiders[0].slot = { lane: RoadLane.ENEMY_INSIDE, row: SEAT_ROWS[toughest] };
 	}
