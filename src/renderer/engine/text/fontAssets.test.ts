@@ -95,7 +95,9 @@ describe.each(FONT_FACES.map((face) => [face.face, face] as const))('committed a
 /** Each atlas's source face, as scripts/build-fonts pairs them. */
 const SOURCE_FACES: Readonly<Record<string, string>> = {
 	'barlow-condensed-semibold': 'barlow-condensed/BarlowCondensed-SemiBold.ttf',
+	'barlow-condensed-bold': 'barlow-condensed/BarlowCondensed-Bold.ttf',
 	'open-sans-regular': 'open-sans/OpenSans-Regular.ttf',
+	'open-sans-semibold': 'open-sans/OpenSans-SemiBold.ttf',
 	'jetbrains-mono-regular': 'jetbrains-mono/JetBrainsMono-Regular.ttf',
 };
 
@@ -109,26 +111,33 @@ describe('committed kerning (R6.9)', () => {
 		expect(metrics.kerning).toEqual(pairs);
 	});
 
-	it('kerns the display face\'s classic pairs', () => {
-		const display = atlases.get('barlow-condensed-semibold');
+	it.each([
+		['barlow-condensed-semibold', { AV: -0.047, Ta: -0.068, LT: -0.067, HH: 0 }],
+		['barlow-condensed-bold', { AV: -0.051, Ta: -0.069, LT: -0.064, HH: 0 }],
+	])('kerns the classic pairs of display face %s', (name, expected) => {
+		const display = atlases.get(name);
 		const kern = (pair: string) => display?.kerning(pair.codePointAt(0) ?? 0, pair.codePointAt(1) ?? 0);
 		expect(display?.kerningPairCount).toBeGreaterThan(1000);
-		expect(kern('AV')).toBe(-0.047);
-		expect(kern('Ta')).toBe(-0.068);
-		expect(kern('LT')).toBe(-0.067);
-		expect(kern('HH')).toBe(0);
+		expect(Object.fromEntries(Object.keys(expected).map((pair) => [pair, kern(pair)]))).toEqual(expected);
 	});
 
 	// Open Sans is unkerned by decision (DDB-189): no OFL build kerns, and the mock renders the same unkerned face.
 	it('has no pairs for Open Sans 3.000 or JetBrains Mono, whose faces carry no kerning', () => {
 		expect(atlases.get('open-sans-regular')?.kerningPairCount).toBe(0);
+		expect(atlases.get('open-sans-semibold')?.kerningPairCount).toBe(0);
 		expect(atlases.get('jetbrains-mono-regular')?.kerningPairCount).toBe(0);
 	});
 });
 
 describe('font roles', () => {
-	it('gives each of the three roles exactly one face', () => {
-		expect(FONT_FACES.map((face) => face.role).sort()).toEqual(['body', 'display', 'mono']);
+	it('names each role\'s base face after the role and its other weights <role>-<weight>', () => {
+		expect(FONT_FACES.map((face) => [face.font, face.role, face.weight, face.face])).toEqual([
+			['display', 'display', 600, 'barlow-condensed-semibold'],
+			['display-700', 'display', 700, 'barlow-condensed-bold'],
+			['body', 'body', 400, 'open-sans-regular'],
+			['body-600', 'body', 600, 'open-sans-semibold'],
+			['mono', 'mono', 400, 'jetbrains-mono-regular'],
+		]);
 	});
 
 	it('ships an OFL licence beside each face', () => {

@@ -56,7 +56,7 @@ Both bootstraps (`src/index.ts`, `src/gallery/index.ts`) await `loadFontAtlases`
 
 ### Components
 
-`Text` resolves its role from the style's `fontFamily` and `fontWeight` through `text/fontRoles.ts`, which reads the typography tokens (R11.8): a role name, a role's family or `monospace` picks the role; `bold` on body goes to `boldRole` (display, since no body bold face is loaded); any other weight falls back to the role's one face. Every `fontWeight: 'bold'` title is therefore Barlow Condensed SemiBold now. `Input` measures its caret through `draw.measureText` with its text's role and size. `Text`'s layout, its estimated wrap and the other estimate sites are DDB-71's.
+`Text` resolves its face from the style's `fontFamily` and `fontWeight` through `text/fontRoles.ts`, which reads the typography tokens (R11.8): a role name, a role's family or `monospace` picks the role; `bold` on body goes to `boldRole` (display, since no body bold face is loaded); any other weight falls back to the nearest face the role has. Since DDB-503 a role can have more than one face (display 600 and 700, body 400 and 600), so every `fontWeight: 'bold'` title is Barlow Condensed Bold; see font-pipeline.md. `Input` measures its caret through `draw.measureText` with its text's role and size. `Text`'s layout, its estimated wrap and the other estimate sites are DDB-71's.
 
 ## Consequences
 

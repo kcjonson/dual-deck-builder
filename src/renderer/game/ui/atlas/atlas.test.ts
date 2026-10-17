@@ -21,7 +21,7 @@ import { TabBar } from '../../../engine/ui/TabBar';
 import { drawAtlasArt, paperPiece } from './atlasArt';
 import { AtlasButton } from './AtlasButton';
 import { AtlasSheet } from './AtlasSheet';
-import { ATLAS, atlasInks } from './atlasStyle';
+import { ATLAS, DISPLAY_BOLD, atlasInks } from './atlasStyle';
 import { ContentsRow } from './ContentsRow';
 import { CasedBar, ScaleBar } from './gauges';
 import { HandMarkLayer } from './HandMarkLayer';
@@ -94,6 +94,23 @@ describe('atlas inks', () => {
 		expect(tokens.color.accent_edge).toEqual(tokens.color.accent);
 		expect(tokens.color.focus_ring).toEqual(tokens.color.accent);
 		expect(atlas.color.accent_edge).toEqual(atlas.color.accent_dim);
+	});
+});
+
+describe('atlas type', () => {
+	it('draws its heads, labels, and tabs in the display 700 face, asked for by weight', () => {
+		expect(DISPLAY_BOLD).toBe('display-700');
+		const button = add(new AtlasButton({ label: 'Plan a run', variant: 'highway', width: 200 }));
+		expect(draws(button).find((command): command is TextCommand => command.kind === 'text')?.font).toBe('display-700');
+		const tabs = add(new SectionTabs({ tabs: [{ id: 'a', label: 'Menu' }] }));
+		expect(draws(tabs).find((command): command is TextCommand => command.kind === 'text')?.font).toBe('display-700');
+		const box = add(new LegendBox({ title: 'Needs', width: 300 }));
+		expect(draws(box).find((command): command is TextCommand => command.kind === 'text' && command.text === 'Needs')?.font).toBe('display-700');
+		const column = new Stack({ width: 500 });
+		const row = new ContentsRow({ label: 'Settings', value: 'B' });
+		column.addChild(row);
+		add(column);
+		expect(draws(row).find((command): command is TextCommand => command.kind === 'text' && command.text === 'Settings')?.font).toBe('display-700');
 	});
 });
 

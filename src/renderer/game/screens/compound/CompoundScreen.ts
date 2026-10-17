@@ -17,7 +17,7 @@ import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { ColorToken, tokens } from '../../../engine/theme/tokens';
 import { AtlasButton } from '../../ui/atlas/AtlasButton';
 import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
-import { ATLAS, DISPLAY_BOLD } from '../../ui/atlas/atlasStyle';
+import { ATLAS } from '../../ui/atlas/atlasStyle';
 import { DeckGlyph } from '../../ui/atlas/deck';
 import { LegendBox, LegendRow } from '../../ui/atlas/LegendBox';
 import { MapGlyph } from '../../ui/atlas/mapGlyphs';
@@ -309,7 +309,7 @@ export class CompoundScreen extends Screen {
 		heading.addChild(new Text({
 			text: 'The Compound',
 			id: 'compound_title',
-			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: 34, letterSpacing: 0.16, textTransform: 'uppercase', color: 'text' },
+			style: { fontRole: 'display', fontWeight: 700, fontSize: 34, letterSpacing: 0.16, textTransform: 'uppercase', color: 'text' },
 			wrap: 'none',
 		}));
 		// The day and the stores show once there's a campaign.
@@ -395,7 +395,7 @@ export class CompoundScreen extends Screen {
 		const head = new Stack({ id: 'compound_building_head', direction: 'horizontal', widthMode: 'fill', crossAlign: 'center', gap: 10 });
 		const glyph = new MapGlyph({ id: 'compound_building_number', kind: 'circled', size: 26, label: '1' });
 		head.addChild(glyph);
-		const name = new Text({ id: 'compound_building_name', widthMode: 'fill', wrap: 'none', textOverflow: 'ellipsis', style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: 28, color: 'text' } });
+		const name = new Text({ id: 'compound_building_name', widthMode: 'fill', wrap: 'none', textOverflow: 'ellipsis', style: { fontRole: 'display', fontWeight: 700, fontSize: 28, color: 'text' } });
 		head.addChild(name);
 		const state = new Text({ id: 'compound_building_state', wrap: 'none', style: { fontRole: 'mono', fontSize: 11, textTransform: 'uppercase', color: 'text_dim' } });
 		head.addChild(state);

@@ -148,12 +148,13 @@ export function seatableCrew({ campaign }: { campaign: Campaign }): readonly Dri
 }
 
 /**
- * Load out, stubbed until its screen exists (DDB-320): the crew a run can
- * seat (`seatableCrew`: a pair, a same-archetype pair, or one driver alone),
- * on their default decks, and every escort in the convoy, up to
- * `MAX_CONVOY_ESCORTS` in roster order, their cards to Driver 1, through
- * `startRunDecks`. The one call a load out screen replaces. Throws with
- * nobody to send, and as `startRunDecks` does.
+ * Load out with nothing changed, as the load out screen opens (DDB-320):
+ * the crew a run can seat (`seatableCrew`: a pair, a same-archetype pair,
+ * or one driver alone), on their default decks, and every escort in the
+ * convoy, up to `MAX_CONVOY_ESCORTS` in roster order, their cards to
+ * Driver 1, through `startRunDecks`. For setting a run off without the
+ * screen, as the tests do. Throws with nobody to send, and as
+ * `startRunDecks` does.
  */
 export function quickLoadOut({ campaign }: { campaign: Campaign }): { seats: readonly DriverRecord[]; escorts: readonly Vehicle[] } {
 	const seats = seatableCrew({ campaign });

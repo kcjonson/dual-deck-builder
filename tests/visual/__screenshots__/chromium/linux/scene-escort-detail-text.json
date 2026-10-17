@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/gallery_scene_escort_detail/Text[0]","text":"Escort Detail View","rect":[53,53,172.48,50]},
+{"path":"gallery_root/gallery_scene_escort_detail/Text[0]","text":"Escort Detail View","rect":[53,53,178.95,50]},
 {"path":"gallery_root/gallery_scene_escort_detail/gallery_scene_escort_detail_rows/Stack[0]/Text[0]","text":"the profile, and the signature card it brings","rect":[53,103,258.65,17.7]},
 {"path":"gallery_root/gallery_scene_escort_detail/gallery_scene_escort_detail_rows/Stack[0]/gallery_escort_detail/gallery_escort_detail_name","text":"Fuel Hauler","rect":[167,150.7,134,22]},
 {"path":"gallery_root/gallery_scene_escort_detail/gallery_scene_escort_detail_rows/Stack[0]/gallery_escort_detail/gallery_escort_detail_role","text":"HAULER","rect":[167,174.7,134,18]},
