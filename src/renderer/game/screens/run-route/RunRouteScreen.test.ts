@@ -102,7 +102,7 @@ describe('RunRouteScreen (DDB-319)', () => {
 		expect(screen.destination).toBe(NEAR);
 		expect(screen.pickedRoute).toBe(0);
 		const shown = view();
-		expect(shown.markers).toEqual([expect.objectContaining({ id: NEAR.id, label: NEAR.name, badge: String(NEAR.tier) })]);
+		expect(shown.markers).toEqual([expect.objectContaining({ id: NEAR.id, label: NEAR.name, type: NEAR.type })]);
 		expect(shown.selection).toEqual({ kind: 'marker', id: NEAR.id });
 		expect(shown.routes.map(({ picked }) => picked)).toEqual(NEAR.routes.map((_route, index) => index === 0));
 		expect(shown.routes[0].points).toEqual(routePoints({ map: MAP, route: NEAR.routes[0] }));

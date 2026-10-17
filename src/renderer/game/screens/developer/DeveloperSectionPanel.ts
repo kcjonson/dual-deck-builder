@@ -36,6 +36,12 @@ export interface DeveloperSectionPanelOptions extends DeveloperSectionOptions {
 	 * flows. Absent, the content is a column and the frame hugs it.
 	 */
 	contentHeight?: number;
+	/**
+	 * The frame's outer height, border included, for a section whose
+	 * content fills what's left of it (the gallery's area map scenes) rather
+	 * than the frame hugging the content. Ignored with `contentHeight`.
+	 */
+	height?: number;
 }
 
 /**
@@ -45,13 +51,13 @@ export interface DeveloperSectionPanelOptions extends DeveloperSectionOptions {
  * section built once reflows when its width changes, with nothing rebuilt.
  */
 export class DeveloperSectionPanel extends Panel {
-	constructor({ id, title, x = 0, y = 0, width, contentHeight }: DeveloperSectionPanelOptions) {
+	constructor({ id, title, x = 0, y = 0, width, contentHeight, height }: DeveloperSectionPanelOptions) {
 		super({
 			id,
 			x,
 			y,
 			width,
-			height: contentHeight !== undefined ? contentHeight + SECTION_INSET * 2 : undefined,
+			height: contentHeight !== undefined ? contentHeight + SECTION_INSET * 2 : height,
 			layout: contentHeight !== undefined ? 'free' : 'stack',
 			// The frame the sections have always had, rather than a themed panel.
 			style: {

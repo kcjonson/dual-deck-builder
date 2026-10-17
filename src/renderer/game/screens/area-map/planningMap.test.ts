@@ -54,13 +54,13 @@ describe('the planned POIs', () => {
 		expect(byDistance([steady, slowFirst]).map(({ poi: index }) => index)).toEqual([1, 2]);
 	});
 
-	it('mark the map: a badge of the tier, the night ring past dark, and labels placed nearest first', () => {
+	it('mark the map: each POI\'s type for its glyph, the night ring past dark, and labels placed nearest first', () => {
 		const markers = poiMarkers({ pois: POIS });
 		const order = byDistance(POIS);
 		POIS.forEach((poi, index) => {
 			const marker = markers[index];
 			expect(marker.priority).toBe(order.indexOf(poi));
-			expect(marker.badge).toBe(poi.stronghold ? undefined : String(poi.tier));
+			expect(marker.type).toBe(poi.stronghold ? undefined : poi.type);
 			expect(marker.pastDark).toBe(!poi.stronghold && poi.pastDark);
 			expect(marker.state).toBeUndefined();
 		});
@@ -106,8 +106,11 @@ describe('a POI\'s routes on the map', () => {
 		}
 	});
 
-	it('are drawn over the map\'s own land and roads', () => {
-		expect(viewData(MAP)).toEqual({ terrain: MAP.products.water.terrain, network: MAP.products.roads.network, rivers: MAP.products.water.lines, places: null });
+	it('are drawn over the map\'s own land, water, and roads, the reservoirs\' dams with them', () => {
+		expect(viewData(MAP)).toEqual({ terrain: MAP.products.water.terrain, network: MAP.products.roads.network, rivers: MAP.products.water.lines, dams: [], places: null });
+		const dam = { x: 10, y: 20, towardX: 0, towardY: 1 };
+		const lakes = [{ kind: 'reservoir' as const, level: 0.2, cells: 9, x: 0, y: 0, dam }, { kind: 'natural' as const, level: 0.1, cells: 4, x: 50, y: 50, dam: null }];
+		expect(viewData({ ...MAP, products: { ...MAP.products, water: { ...MAP.products.water, lakes } } }).dams).toEqual([dam]);
 		const hazards = { terrain: MAP.products.water.terrain };
 		expect(viewData({ ...MAP, products: { ...MAP.products, hazards } }).terrain).toBe(hazards.terrain);
 	});

@@ -31,7 +31,15 @@ import { CombatScreen } from '../renderer/game/screens/combat/CombatScreen';
  * deployed bundle; importing it keeps `src/gallery/**` uniformly dev-only.
  */
 
-export type SceneFactoryOptions = DeveloperSectionOptions;
+export interface SceneFactoryOptions extends DeveloperSectionOptions {
+	/**
+	 * The height the gallery leaves the scene, the viewport's less its
+	 * margins, for a scene that fills it rather than hugging its content.
+	 * Not `height`, which the sections that pass their options on to their
+	 * frame would take as a fixed height.
+	 */
+	fillHeight?: number;
+}
 export type SceneFactory = (options: SceneFactoryOptions) => Panel;
 
 /** A scene built as a panel, placed at the gallery's margin and laid out to its width. */

@@ -1,3 +1,4 @@
+import type { Dam } from '../../map/Lakes';
 import type { PoiState } from '../../map/PoiData';
 import type { Places } from '../../map/Places';
 import type { RiverLines } from '../../map/Rivers';
@@ -22,8 +23,12 @@ export interface AreaMapData {
 	readonly network: RoadNetwork;
 	/** The water stage's rivers, drawn live under the roads, width by size. */
 	readonly rivers: RiverLines;
-	/** The places stage's: towns and villages named, crossroads, and exits, and the ruins baked under them. None when absent. */
+	/** The reservoirs' dams, each marked across its river; none when absent. */
+	readonly dams?: readonly Dam[];
+	/** The places stage's: towns and villages named and baked as built-up patches. None when absent. */
 	readonly places?: Places | null;
+	/** The metro's name, set in capitals over it; unnamed when absent, as it is until the dressing names it. */
+	readonly metroName?: string;
 }
 
 /**
@@ -72,8 +77,8 @@ export interface MapMarker {
 	readonly label?: string;
 	/** A POI's; unvisited when absent. Strongholds ignore it. */
 	readonly state?: PoiState;
-	/** A character or two drawn inside a POI's disc, its tier on the area map screen. Strongholds ignore it. */
-	readonly badge?: string;
+	/** A POI's type, a key of the POI tuning's types, which picks the glyph in its disc (`POI_GLYPHS`). Strongholds ignore it. */
+	readonly type?: string;
 	/** A POI with no route home by dark (Racing the dark): drawn with a night ring. */
 	readonly pastDark?: boolean;
 	/**
@@ -117,9 +122,9 @@ export interface AreaMapLayerToggles {
 	readonly terrain: boolean;
 	/** Rivers; lakes are baked with the terrain. */
 	readonly water: boolean;
+	/** Roads with their bridges, collapsed spans, and passes. */
 	readonly roads: boolean;
-	readonly junctions: boolean;
-	/** Towns, villages, crossroads, and exits; a place under the fog isn't drawn. */
+	/** Towns' and villages' names; a place under the fog isn't named. Their built-up patches are baked with the terrain. */
 	readonly places: boolean;
 	readonly markers: boolean;
 	readonly fog: boolean;
@@ -129,7 +134,6 @@ export const ALL_LAYERS: AreaMapLayerToggles = Object.freeze({
 	terrain: true,
 	water: true,
 	roads: true,
-	junctions: true,
 	places: true,
 	markers: true,
 	fog: true,

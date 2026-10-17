@@ -1,15 +1,14 @@
 import type { Vec2 } from '../../../engine/draw';
 import { pointSegmentDistanceSquared } from '../../map/Geometry';
 import type { RoadNetwork } from '../../map/RoadNetwork';
-import { stretchesAt } from './layers';
 
 /**
  * The drivable network's geometry as the view draws it, built once per map:
  * each stretch's polyline in map space (world y flipped, see `MapCamera`)
- * with its bounds, coarser copies of it for zoomed-out frames,
- * and the junctions. Plus the arithmetic the view needs per frame or per
- * press: which detail level a zoom wants, dashes along a stub, and how near
- * a point is to a polyline.
+ * with its bounds, coarser copies of it for zoomed-out frames, and the
+ * collapsed highway spans. Plus the arithmetic the view needs per frame or
+ * per press: which detail level a zoom wants, dashes along a line, pieces of
+ * a line and lines beside it, and how near a point is to a polyline.
  */
 
 /** The bounds of a polyline in map space. */
@@ -26,13 +25,6 @@ export interface StretchGeometry {
 	readonly bounds: MapBounds;
 }
 
-export interface JunctionGeometry {
-	/** Map space. */
-	readonly at: Vec2;
-	/** The stretches that meet there. */
-	readonly stretches: readonly number[];
-}
-
 /**
  * Screen pixels a simplified polyline may stray from the full one. Under
  * half a pixel the two draw alike.
@@ -44,19 +36,20 @@ export const DETAIL_LEVELS = 7;
 
 export class RoadGeometry {
 	public readonly stretches: readonly StretchGeometry[];
-	public readonly junctions: readonly JunctionGeometry[];
+	/** The collapsed highway spans, `network.broken`'s, in its order. */
+	public readonly broken: readonly StretchGeometry[];
 	/** Per level, per stretch: the simplified polyline, filled the first time a frame asks. */
 	private readonly levels: (Vec2[] | undefined)[][];
 	/** Per stretch, its polyline from `to` back to `from`, filled the first time a stub needs it. */
 	private readonly reversed: (Vec2[] | undefined)[];
 
 	constructor({ network }: { network: RoadNetwork }) {
-		this.stretches = network.stretches.map((stretch) => {
-			const points = toMapSpace(stretch.points);
+		const geometry = (flat: readonly number[]): StretchGeometry => {
+			const points = toMapSpace(flat);
 			return { points, bounds: boundsOf(points) };
-		});
-		const meeting = stretchesAt(network);
-		this.junctions = network.nodes.flatMap((node, id) => (node.kind === 'junction' && meeting[id].length > 0 ? [{ at: { x: node.x, y: 0 - node.y }, stretches: meeting[id] }] : []));
+		};
+		this.stretches = network.stretches.map((stretch) => geometry(stretch.points));
+		this.broken = network.broken.map((stretch) => geometry(stretch.points));
 		this.levels = Array.from({ length: DETAIL_LEVELS }, () => new Array<Vec2[] | undefined>(this.stretches.length));
 		this.reversed = new Array<Vec2[] | undefined>(this.stretches.length);
 	}
@@ -175,6 +168,53 @@ export function truncatePolyline(points: readonly Vec2[], length: number): Vec2[
 		travelled += segment;
 	}
 	return kept;
+}
+
+/** The piece of `points` from `start` to `end` world units along it, cut mid-segment at both ends. */
+export function slicePolyline(points: readonly Vec2[], start: number, end: number): Vec2[] {
+	const kept: Vec2[] = [];
+	let travelled = 0;
+	for (let index = 1; index < points.length && travelled < end; index++) {
+		const from = points[index - 1];
+		const to = points[index];
+		const segment = Math.hypot(to.x - from.x, to.y - from.y);
+		const at = (along: number): Vec2 => {
+			const t = segment > 0 ? (along - travelled) / segment : 0;
+			return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+		};
+		if (travelled + segment > start) {
+			if (kept.length === 0) kept.push(at(Math.max(start, travelled)));
+			kept.push(travelled + segment >= end ? at(end) : to);
+		}
+		travelled += segment;
+	}
+	return kept;
+}
+
+/**
+ * `points` moved `offset` sideways, to the left of the way it runs (as map
+ * space draws it, y down) for a positive offset: each point along the
+ * average of its segments' normals, kept `offset` from both.
+ */
+export function offsetPolyline(points: readonly Vec2[], offset: number): Vec2[] {
+	const normals: Vec2[] = [];
+	for (let index = 1; index < points.length; index++) {
+		const dx = points[index].x - points[index - 1].x;
+		const dy = points[index].y - points[index - 1].y;
+		const length = Math.hypot(dx, dy) || 1;
+		normals.push({ x: dy / length, y: -dx / length });
+	}
+	return points.map((point, index) => {
+		const before = normals[Math.max(0, index - 1)];
+		const after = normals[Math.min(normals.length - 1, index)];
+		const x = before.x + after.x;
+		const y = before.y + after.y;
+		const length = Math.hypot(x, y);
+		if (length < 1e-6) return { x: point.x + before.x * offset, y: point.y + before.y * offset };
+		// The miter: as far out along the average as keeps `offset` from each segment.
+		const scale = offset / Math.max(0.25, (x * before.x + y * before.y) / length) / length;
+		return { x: point.x + x * scale, y: point.y + y * scale };
+	});
 }
 
 /** One dash: its points in map space and how far along the stub it starts, 0 to 1. */

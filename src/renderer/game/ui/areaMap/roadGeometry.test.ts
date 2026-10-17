@@ -7,7 +7,9 @@ import {
 	detailLevel,
 	distanceToPolyline,
 	lengthOf,
+	offsetPolyline,
 	simplifyPolyline,
+	slicePolyline,
 	toMapSpace,
 	truncatePolyline,
 } from './roadGeometry';
@@ -21,9 +23,28 @@ describe('road geometry', () => {
 		expect(lengthOf(geometry.stretches[2].points)).toBe(200);
 	});
 
-	it('finds the junctions and the stretches meeting at each', () => {
-		const geometry = new RoadGeometry({ network: SMALL_NETWORK });
-		expect(geometry.junctions).toEqual([{ at: { x: 0, y: -300 }, stretches: [1, 2, 3] }]);
+	it('keeps each collapsed span in map space too', () => {
+		const broken = { roadClass: 'highway' as const, from: 2, to: 3, length: 200, points: [0, 300, 0, 500], bridges: [], street: false };
+		const geometry = new RoadGeometry({ network: { ...SMALL_NETWORK, broken: [broken] } });
+		expect(geometry.broken).toEqual([{ points: [{ x: 0, y: -300 }, { x: 0, y: -500 }], bounds: { minX: 0, minY: -500, maxX: 0, maxY: -300 } }]);
+	});
+
+	it('slices the piece of a polyline between two distances along it, cut mid-segment, corners kept', () => {
+		const bend = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }];
+		expect(slicePolyline(bend, 4, 8)).toEqual([{ x: 4, y: 0 }, { x: 8, y: 0 }]);
+		expect(slicePolyline(bend, 5, 15)).toEqual([{ x: 5, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 5 }]);
+		expect(slicePolyline(bend, 0, 20)).toEqual(bend);
+		expect(slicePolyline(bend, 25, 30)).toEqual([]);
+	});
+
+	it('offsets a polyline to its left, as map space draws it, keeping the offset from each segment at a corner', () => {
+		// East, then south on screen (y down): the left is up, then east.
+		const offset = offsetPolyline([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }], 2);
+		expect(offset[0]).toEqual({ x: 0, y: -2 });
+		expect(offset[1].x).toBeCloseTo(12, 9);
+		expect(offset[1].y).toBeCloseTo(-2, 9);
+		expect(offset[2]).toEqual({ x: 12, y: 10 });
+		expect(offsetPolyline([{ x: 0, y: 0 }, { x: 10, y: 0 }], -3)).toEqual([{ x: 0, y: 3 }, { x: 10, y: 3 }]);
 	});
 
 	it('picks the coarsest detail level that stays under the pixel tolerance', () => {

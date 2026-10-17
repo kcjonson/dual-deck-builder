@@ -3,22 +3,22 @@ import { tokens } from '../../renderer/engine/theme/tokens';
 import { rgba } from '../../renderer/engine/ui/surfaces';
 import { ENVIRONMENTS, Environment, MAP_PARAMETERS } from '../../renderer/game/map/MapParams';
 import { DeveloperSectionPanel } from '../../renderer/game/screens/developer/DeveloperSectionPanel';
-import { AreaMapView } from '../../renderer/game/ui/areaMap/AreaMapView';
+import { AreaMapView, AreaMapViewOptions } from '../../renderer/game/ui/areaMap/AreaMapView';
 import { revealedBounds } from '../../renderer/game/ui/areaMap/layers';
 import type { SceneFactoryOptions } from '../registry';
 import { fixtureAreaMap, fixtureFog, fixtureKnowledge, fixtureMarkers } from './areaMapFixtures';
 
 export type AreaMapSceneMode = 'whole' | 'fog';
 
-const NOTE_HEIGHT = 20;
+/** The view's height where the gallery gives the scene none to fill. */
 const VIEW_HEIGHT = 680;
 
 /**
  * The area map view (DDB-298) over a generated map.
  *
  * - `whole`: a 1600-radius map, the largest the tuning ranges allow, with
- *   nothing yet to hide: terrain, every road charted, junctions, and the
- *   compound, the camera fitted to the disc. It's also the map the view's
+ *   nothing yet to hide: terrain, every road charted, and the compound,
+ *   the camera fitted to the disc. It's also the map the view's
  *   draw calls and frame cost are measured on. The URL can ask for another
  *   map and a closer frame (`readAreaMapQuery`).
  * - `fog`: a 1000-radius map with typed stand-ins for the stages not built
@@ -26,20 +26,25 @@ const VIEW_HEIGHT = 680;
  *   land fog, POIs in each state, a stronghold found in the fog, and a POI
  *   selected, the camera fitted to what's uncovered.
  *
+ * The view fills the height the gallery leaves the scene, so the scene fits
+ * the window at any size (DDB-498); given none, it's `VIEW_HEIGHT` tall.
+ *
  * Gallery only, until the Map Lab section (DDB-299) hosts the view.
  */
 export class AreaMapScene extends DeveloperSectionPanel {
 	public readonly view: AreaMapView;
 
-	constructor({ mode, x, y, width, search = '' }: SceneFactoryOptions & { mode: AreaMapSceneMode; search?: string }) {
-		super({ id: `gallery_scene_area_map_${mode}`, title: 'Area map', x, y, width });
+	constructor({ mode, x, y, width, fillHeight, search = '' }: SceneFactoryOptions & { mode: AreaMapSceneMode; search?: string }) {
+		super({ id: `gallery_scene_area_map_${mode}`, title: 'Area map', x, y, width, height: fillHeight });
 		const query = readAreaMapQuery(search);
-		this.view = mode === 'whole' ? wholeMap(query) : fogMap();
+		const size: Pick<AreaMapViewOptions, 'height' | 'heightMode'> = fillHeight === undefined ? { height: VIEW_HEIGHT } : { heightMode: 'fill' };
+		this.view = mode === 'whole' ? wholeMap(query, size) : fogMap(size);
 		this.addChild(new Text({
 			text: mode === 'whole'
 				? `Seed ${query.seed}, ${environmentLabel(query.environment)}, radius ${query.radius}: terrain baked once, every road charted. Drag to pan, wheel to zoom, click to select.`
 				: 'Seed 3, Mixed, radius 1000: stand-in knowledge, fog, and markers. Charted solid, rumored pale, uncharted dashed into the fog.',
-			height: NOTE_HEIGHT,
+			// Wrapped to the frame's width and as tall as its lines, so a narrow window doesn't cut it off.
+			widthMode: 'fill',
 			style: { fontSize: 14, color: rgba(tokens.color.text_dim) },
 		}));
 		this.addChild(this.view);
@@ -90,18 +95,18 @@ function environmentLabel(environment: Environment): string {
 	return MAP_PARAMETERS.environment.options.find(({ value }) => value === environment)?.label ?? environment;
 }
 
-function wholeMap({ seed, environment, radius, frame }: AreaMapQuery): AreaMapView {
+function wholeMap({ seed, environment, radius, frame }: AreaMapQuery, size: Pick<AreaMapViewOptions, 'height' | 'heightMode'>): AreaMapView {
 	const view = new AreaMapView({
 		id: 'area_map_whole',
 		widthMode: 'fill',
-		height: VIEW_HEIGHT,
+		...size,
 		map: fixtureAreaMap({ seed, environment, radius }),
 	});
 	if (frame) view.camera.fit(frame);
 	return view;
 }
 
-function fogMap(): AreaMapView {
+function fogMap(size: Pick<AreaMapViewOptions, 'height' | 'heightMode'>): AreaMapView {
 	const radius = 1000;
 	const map = fixtureAreaMap({ seed: 3, environment: 'mixed', radius });
 	const reach = 430;
@@ -109,10 +114,10 @@ function fogMap(): AreaMapView {
 	const fog = fixtureFog(map.network, knowledge, { radius, reach: reach * 0.8, sight: 100 });
 	const markers = fixtureMarkers(map.pois, {
 		pois: [
-			{ id: 'hospital', label: 'St. Brendan\'s Hospital' },
-			{ id: 'water_plant', label: 'Water plant (looted)', state: 'looted' },
-			{ id: 'silos', label: 'Grain silos' },
-			{ id: 'fuel_depot', label: 'Fuel Depot 9 (depleted)', state: 'depleted' },
+			{ id: 'hospital', label: 'St. Brendan\'s Hospital', type: 'hospital' },
+			{ id: 'water_plant', label: 'Water plant (looted)', state: 'looted', type: 'waterPlant' },
+			{ id: 'silos', label: 'Grain silos', type: 'silo' },
+			{ id: 'fuel_depot', label: 'Fuel Depot 9 (depleted)', state: 'depleted', type: 'fuelDepot' },
 		],
 		stronghold: { id: 'rust_vultures', label: 'Rust Vulture yard' },
 		spacing: 200,
@@ -122,7 +127,7 @@ function fogMap(): AreaMapView {
 	const view = new AreaMapView({
 		id: 'area_map_fog',
 		widthMode: 'fill',
-		height: VIEW_HEIGHT,
+		...size,
 		map,
 		knowledge,
 		fog,

@@ -204,6 +204,7 @@ export class SceneHost {
 			x: this.margin,
 			y: this.margin,
 			width: Math.max(0, viewport.width - this.margin * 2),
+			fillHeight: Math.max(0, viewport.height - this.margin * 2),
 		});
 		this.rootLayer.addChild(sceneRoot);
 

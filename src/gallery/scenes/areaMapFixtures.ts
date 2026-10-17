@@ -1,7 +1,7 @@
 import { generateAreaMap } from '../../renderer/game/map/AreaMapPipeline';
 import { MapParamSet, resolveMapParams } from '../../renderer/game/map/MapParams';
 import { validateMapParams } from '../../renderer/game/map/ParamValidator';
-import type { PoiState } from '../../renderer/game/map/PoiData';
+import { POI_TUNING, PoiState } from '../../renderer/game/map/PoiData';
 import type { PoiLayer } from '../../renderer/game/map/Pois';
 import type { RoadNetwork } from '../../renderer/game/map/RoadNetwork';
 import type {
@@ -16,8 +16,8 @@ import type {
  * Typed stand-ins for what later stages generate, so the gallery draws every
  * path of the area map view before those stages exist: knowledge and fog
  * (DDB-294), each built from the network by a plain rule, not by the spec's,
- * and markers for some of the map's own POIs and a stronghold, with labels
- * and states of the fixture's. None is game code.
+ * markers for some of the map's own POIs and a stronghold, with labels and
+ * states of the fixture's, and the metro's name. None is game code.
  */
 
 /** A generated map as the view draws it, with the POIs the pipeline placed on it. */
@@ -25,11 +25,18 @@ export interface FixtureAreaMap extends AreaMapData {
 	readonly pois: PoiLayer;
 }
 
-/** The area map's stages as they stand, through the pipeline runner: the land with its water and hazards, the rivers, the places, the road network, and its POIs. */
+/**
+ * The metro's name until the dressing names it (DDB-297): a stand-in, so the
+ * gallery shows the capitals the atlas sets it in.
+ */
+export const FIXTURE_METRO_NAME = 'Halcyon';
+
+/** The area map's stages as they stand, through the pipeline runner: the land with its water and hazards, the rivers and dams, the places, the road network, and its POIs. */
 export function fixtureAreaMap(set: MapParamSet): FixtureAreaMap {
 	const { params } = validateMapParams(resolveMapParams(set).params);
 	const { water, hazards, places, roads, pois } = generateAreaMap({ params }).products;
-	return { terrain: hazards.terrain, network: roads.network, rivers: water.lines, places, pois };
+	const dams = water.lakes.flatMap(({ dam }) => (dam ? [dam] : []));
+	return { terrain: hazards.terrain, network: roads.network, rivers: water.lines, dams, places, metroName: FIXTURE_METRO_NAME, pois };
 }
 
 /**
@@ -88,6 +95,8 @@ export interface FixtureMarkerSpec {
 	id: string;
 	label: string;
 	state?: PoiState;
+	/** The POI type to put it on, so its glyph agrees with its name; where the map has none in reach, any site, named for its own type. */
+	type?: string;
 }
 
 /**
@@ -100,13 +109,15 @@ export function fixtureMarkers(
 	layer: PoiLayer,
 	{ pois, stronghold, spacing, within, strongholdBeyond }: { pois: readonly FixtureMarkerSpec[]; stronghold: FixtureMarkerSpec; spacing: number; within: number; strongholdBeyond: number },
 ): MapMarker[] {
-	const sites = layer.pois.map(({ site, type }) => ({ x: site.x, y: site.y, out: Math.hypot(site.x, site.y), stronghold: type === 'stronghold' }));
+	const sites = layer.pois.map(({ site, type }) => ({ x: site.x, y: site.y, type, out: Math.hypot(site.x, site.y), stronghold: type === 'stronghold' }));
 	const known = sites.filter(({ out, stronghold: held }) => !held && out <= within).sort((a, b) => b.out - a.out);
 	const markers: MapMarker[] = [];
 	for (const spec of pois) {
-		const site = known.find(({ x, y }) => markers.every((marker) => Math.hypot(marker.x - x, marker.y - y) >= spacing));
+		const spaced = ({ x, y }: { x: number; y: number }) => markers.every((marker) => Math.hypot(marker.x - x, marker.y - y) >= spacing);
+		const site = known.find((candidate) => candidate.type === spec.type && spaced(candidate)) ?? known.find(spaced);
 		if (!site) break;
-		markers.push({ id: spec.id, kind: 'poi', x: site.x, y: site.y, label: spec.label, state: spec.state });
+		const label = spec.type === undefined || site.type === spec.type ? spec.label : POI_TUNING.types[site.type]?.label ?? spec.label;
+		markers.push({ id: spec.id, kind: 'poi', x: site.x, y: site.y, label, state: spec.state, type: site.type });
 	}
 	const far = sites.filter(({ out, stronghold: held }) => held && out >= strongholdBeyond).sort((a, b) => a.out - b.out)[0];
 	if (far) markers.push({ id: stronghold.id, kind: 'stronghold', x: far.x, y: far.y, label: stronghold.label });

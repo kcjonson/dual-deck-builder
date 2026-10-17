@@ -15,7 +15,7 @@ export function meshPlanningMap({ seed = 900, spacing = 85, poiSeed = 0, dayligh
 	const mesh = meshMap(network, { seed: poiSeed, daylightHours });
 	return {
 		params: mesh.params,
-		products: { ...mesh.products, water: { terrain: flatTerrain({ radius: 1000 }), lines: NO_RIVERS }, roads: { network } },
+		products: { ...mesh.products, water: { terrain: flatTerrain({ radius: 1000 }), lines: NO_RIVERS, lakes: [] }, roads: { network } },
 	};
 }
 

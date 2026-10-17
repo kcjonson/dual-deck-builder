@@ -1,0 +1,5732 @@
+[
+	{
+		"scenario": "area-map",
+		"samples": [
+			{
+				"timestamp": 1792191035541,
+				"scene": "area-map",
+				"frame": {
+					"ms": 4.380000025033951,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.010000020265579224,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.9399999976158142,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.2600000202655792,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 4.380000025033951,
+					"sectionsMs": 4.2200000286102295,
+					"unaccountedMs": 0.1599999964237213,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1122,
+					"newestSampleAgeMs": 6
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035546,
+				"scene": "area-map",
+				"frame": {
+					"ms": 5.669999986886978,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 1.4200000166893005,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.544999986886978,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 5.669999986886978,
+					"sectionsMs": 4.979999989271164,
+					"unaccountedMs": 0.6899999976158142,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1123,
+					"newestSampleAgeMs": 5
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035550,
+				"scene": "area-map",
+				"frame": {
+					"ms": 5.16499999165535,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0.010000020265579224,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.9749999940395355,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.6449999809265137,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 5.16499999165535,
+					"sectionsMs": 4.634999990463257,
+					"unaccountedMs": 0.5300000011920929,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1124,
+					"newestSampleAgeMs": 4
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035556,
+				"scene": "area-map",
+				"frame": {
+					"ms": 4.534999996423721,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.9350000023841858,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.189999997615814,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 4.534999996423721,
+					"sectionsMs": 4.139999985694885,
+					"unaccountedMs": 0.39500001072883606,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1125,
+					"newestSampleAgeMs": 5
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035560,
+				"scene": "area-map",
+				"frame": {
+					"ms": 5.110000014305115,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.9350000023841858,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.709999978542328,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 5.110000014305115,
+					"sectionsMs": 4.655000001192093,
+					"unaccountedMs": 0.45500001311302185,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1126,
+					"newestSampleAgeMs": 4
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035565,
+				"scene": "area-map",
+				"frame": {
+					"ms": 4.58500000834465,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.9799999892711639,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.2450000047683716,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 4.58500000834465,
+					"sectionsMs": 4.245000004768372,
+					"unaccountedMs": 0.3400000035762787,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1127,
+					"newestSampleAgeMs": 5
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035570,
+				"scene": "area-map",
+				"frame": {
+					"ms": 4.969999998807907,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.8950000107288361,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.7100000083446503,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 4.969999998807907,
+					"sectionsMs": 4.620000004768372,
+					"unaccountedMs": 0.3499999940395355,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1128,
+					"newestSampleAgeMs": 5
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035575,
+				"scene": "area-map",
+				"frame": {
+					"ms": 5.264999985694885,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 1.5100000202655792,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.375,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 5.264999985694885,
+					"sectionsMs": 4.890000015497208,
+					"unaccountedMs": 0.3749999701976776,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1129,
+					"newestSampleAgeMs": 4
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035580,
+				"scene": "area-map",
+				"frame": {
+					"ms": 4.7249999940395355,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 1.1099999845027924,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.155000001192093,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 4.7249999940395355,
+					"sectionsMs": 4.280000001192093,
+					"unaccountedMs": 0.4449999928474426,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1130,
+					"newestSampleAgeMs": 5
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035585,
+				"scene": "area-map",
+				"frame": {
+					"ms": 5.2750000059604645,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 1.0199999809265137,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.800000011920929,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 5.2750000059604645,
+					"sectionsMs": 4.825000017881393,
+					"unaccountedMs": 0.44999998807907104,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1131,
+					"newestSampleAgeMs": 4
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035590,
+				"scene": "area-map",
+				"frame": {
+					"ms": 4.485000014305115,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.9099999964237213,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.2349999845027924,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 4.485000014305115,
+					"sectionsMs": 4.149999976158142,
+					"unaccountedMs": 0.33500003814697266,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1132,
+					"newestSampleAgeMs": 5
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035594,
+				"scene": "area-map",
+				"frame": {
+					"ms": 4.919999986886978,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.9350000023841858,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.5999999940395355,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 4.919999986886978,
+					"sectionsMs": 4.549999982118607,
+					"unaccountedMs": 0.3700000047683716,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1133,
+					"newestSampleAgeMs": 4
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035599,
+				"scene": "area-map",
+				"frame": {
+					"ms": 4.365000009536743,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.949999988079071,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.0850000083446503,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 4.365000009536743,
+					"sectionsMs": 4.03999999165535,
+					"unaccountedMs": 0.32500001788139343,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1134,
+					"newestSampleAgeMs": 5
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035604,
+				"scene": "area-map",
+				"frame": {
+					"ms": 5.16499999165535,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 1.3799999952316284,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.3949999809265137,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 5.16499999165535,
+					"sectionsMs": 4.7799999713897705,
+					"unaccountedMs": 0.3850000202655792,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1135,
+					"newestSampleAgeMs": 5
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035609,
+				"scene": "area-map",
+				"frame": {
+					"ms": 4.925000011920929,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.9449999928474426,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.580000013113022,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 4.925000011920929,
+					"sectionsMs": 4.540000021457672,
+					"unaccountedMs": 0.38499999046325684,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1136,
+					"newestSampleAgeMs": 5
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035614,
+				"scene": "area-map",
+				"frame": {
+					"ms": 4.754999995231628,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 1.2600000202655792,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.149999976158142,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 4.754999995231628,
+					"sectionsMs": 4.424999982118607,
+					"unaccountedMs": 0.33000001311302185,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1137,
+					"newestSampleAgeMs": 5
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035619,
+				"scene": "area-map",
+				"frame": {
+					"ms": 5.139999985694885,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 1.0049999952316284,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.7649999856948853,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 5.139999985694885,
+					"sectionsMs": 4.7799999713897705,
+					"unaccountedMs": 0.36000001430511475,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1138,
+					"newestSampleAgeMs": 5
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035624,
+				"scene": "area-map",
+				"frame": {
+					"ms": 4.985000014305115,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0.009999990463256836,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 1.594999998807907,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.074999988079071,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 4.985000014305115,
+					"sectionsMs": 4.685000002384186,
+					"unaccountedMs": 0.30000001192092896,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1139,
+					"newestSampleAgeMs": 5
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035629,
+				"scene": "area-map",
+				"frame": {
+					"ms": 4.770000010728836,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 1.0400000214576721,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.3649999797344208,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 4.770000010728836,
+					"sectionsMs": 4.41499999165535,
+					"unaccountedMs": 0.35500001907348633,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1140,
+					"newestSampleAgeMs": 5
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191035633,
+				"scene": "area-map",
+				"frame": {
+					"ms": 4.784999996423721,
+					"minMs": 4.014999985694885,
+					"maxMs": 7.399999976158142,
+					"p99Ms": 6.800000011920929,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.015000015497207642
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.010000020265579224
+					},
+					"render": {
+						"ms": 0.9000000059604645,
+						"maxMs": 3.435000002384186
+					},
+					"flush": {
+						"ms": 3.384999990463257,
+						"maxMs": 4.430000007152557
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 3036,
+					"gpuDraws": 1,
+					"vertices": 55242,
+					"triangles": 18414,
+					"instances": 9207,
+					"culled": 6,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 3036,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 1,
+					"clipPushes": 1,
+					"bytesUploaded": 957528,
+					"residentTextureBytes": 9699332,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 55242,
+					"textCharacters": 624
+				},
+				"sanity": {
+					"frameMs": 4.784999996423721,
+					"sectionsMs": 4.299999982118607,
+					"unaccountedMs": 0.48500001430511475,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 1141,
+					"newestSampleAgeMs": 4
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			}
+		]
+	},
+	{
+		"scenario": "area-map-fog",
+		"samples": [
+			{
+				"timestamp": 1792191037389,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.0699999928474426,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.6899999976158142,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.21000000834465027,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7800000011920929,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.0699999928474426,
+					"sectionsMs": 0.9950000047683716,
+					"unaccountedMs": 0.07499998807907104,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2115,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037390,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.7050000131130219,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.010000020265579224
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.5099999904632568,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.8799999952316284,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.7050000131130219,
+					"sectionsMs": 1.3949999809265137,
+					"unaccountedMs": 0.3100000321865082,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2116,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037392,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.3599999845027924,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.3100000023841858,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.8449999988079071,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.3599999845027924,
+					"sectionsMs": 1.1599999964237213,
+					"unaccountedMs": 0.19999998807907104,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2117,
+					"newestSampleAgeMs": 2
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037393,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.1850000023841858,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.010000020265579224
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.23000001907348633,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7999999821186066,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.1850000023841858,
+					"sectionsMs": 1.0349999964237213,
+					"unaccountedMs": 0.15000000596046448,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2118,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037394,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.1349999904632568,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.2150000035762787,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7599999904632568,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.1349999904632568,
+					"sectionsMs": 0.9749999940395355,
+					"unaccountedMs": 0.1599999964237213,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2119,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037395,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.1500000059604645,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.2199999988079071,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7750000059604645,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.1500000059604645,
+					"sectionsMs": 1,
+					"unaccountedMs": 0.15000000596046448,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2120,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037396,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.1200000047683716,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.20500001311302185,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7649999856948853,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.1200000047683716,
+					"sectionsMs": 0.9699999988079071,
+					"unaccountedMs": 0.15000000596046448,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2121,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037397,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.1599999964237213,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.21000000834465027,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7899999916553497,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.1599999964237213,
+					"sectionsMs": 1,
+					"unaccountedMs": 0.1599999964237213,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2122,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037398,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.2150000035762787,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.010000020265579224
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.2550000250339508,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7949999868869781,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.2150000035762787,
+					"sectionsMs": 1.0600000023841858,
+					"unaccountedMs": 0.1550000011920929,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2123,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037400,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.1349999904632568,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.2199999988079071,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7600000202655792,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.1349999904632568,
+					"sectionsMs": 0.9850000143051147,
+					"unaccountedMs": 0.1499999761581421,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2124,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037401,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.2150000035762787,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.010000020265579224
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.2750000059604645,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7949999868869781,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.2150000035762787,
+					"sectionsMs": 1.0699999928474426,
+					"unaccountedMs": 0.14500001072883606,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2125,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037402,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.1500000059604645,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.010000020265579224
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.23000001907348633,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7749999761581421,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.1500000059604645,
+					"sectionsMs": 1.0099999904632568,
+					"unaccountedMs": 0.14000001549720764,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2126,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037403,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.175000011920929,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.014999985694885254,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.23500001430511475,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7849999964237213,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.175000011920929,
+					"sectionsMs": 1.0349999964237213,
+					"unaccountedMs": 0.14000001549720764,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2127,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037404,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.1199999749660492,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.20499998331069946,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7700000107288361,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.1199999749660492,
+					"sectionsMs": 0.9799999892711639,
+					"unaccountedMs": 0.13999998569488525,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2128,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037405,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.175000011920929,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.20999997854232788,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.800000011920929,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.175000011920929,
+					"sectionsMs": 1.0150000154972076,
+					"unaccountedMs": 0.1599999964237213,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2129,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037407,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.1399999856948853,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.24500000476837158,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7599999904632568,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.1399999856948853,
+					"sectionsMs": 1.0099999904632568,
+					"unaccountedMs": 0.12999999523162842,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2130,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037408,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.1050000190734863,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.005000025033950806,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.20499998331069946,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7700000107288361,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.1050000190734863,
+					"sectionsMs": 0.9800000190734863,
+					"unaccountedMs": 0.125,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2131,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037409,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.1899999976158142,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0.004999995231628418,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.25999999046325684,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7849999964237213,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.1899999976158142,
+					"sectionsMs": 1.0499999821186066,
+					"unaccountedMs": 0.14000001549720764,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2132,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037410,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.1850000023841858,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.22999998927116394,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.800000011920929,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.1850000023841858,
+					"sectionsMs": 1.030000001192093,
+					"unaccountedMs": 0.1550000011920929,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2133,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			},
+			{
+				"timestamp": 1792191037411,
+				"scene": "area-map-fog",
+				"frame": {
+					"ms": 1.1349999904632568,
+					"minMs": 1.0100000202655792,
+					"maxMs": 1.7099999785423279,
+					"p99Ms": 1.7050000131130219,
+					"histogram": [
+						120,
+						0,
+						0,
+						0
+					],
+					"spikesOverBudget": 0,
+					"spikesOver2xBudget": 0,
+					"budgetMs": 16.666666666666668,
+					"windowSize": 120,
+					"sampleCount": 120
+				},
+				"sections": {
+					"input": {
+						"ms": 0,
+						"maxMs": 0.014999985694885254
+					},
+					"update": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"layout": {
+						"ms": 0,
+						"maxMs": 0.005000025033950806
+					},
+					"render": {
+						"ms": 0.22499999403953552,
+						"maxMs": 0.7649999856948853
+					},
+					"flush": {
+						"ms": 0.7899999916553497,
+						"maxMs": 1.395000010728836
+					},
+					"present": null
+				},
+				"gpu": {
+					"ms": null,
+					"valid": null,
+					"passes": null,
+					"spanMs": null,
+					"latencyMs": null,
+					"source": null,
+					"p99Ms": null,
+					"maxMs": null,
+					"sampleCount": 0,
+					"invalidCount": 0
+				},
+				"batcher": {
+					"apiDraws": 465,
+					"gpuDraws": 1,
+					"vertices": 15522,
+					"triangles": 5174,
+					"instances": 2587,
+					"culled": 33,
+					"occluded": null,
+					"flushes": {
+						"barrier": 0,
+						"endFrame": 1,
+						"targetChange": 0,
+						"bufferFull": 0
+					},
+					"splits": {
+						"textureSlotsExhausted": 0,
+						"blendChange": 0,
+						"stencilLevel": 0
+					},
+					"groupsByLayer": {
+						"base": 465,
+						"raised": 0,
+						"overlay": 0,
+						"modal": 0,
+						"popup": 0,
+						"toast": 0,
+						"tooltip": 0,
+						"drag": 0,
+						"transition": 0
+					},
+					"reorderedGroups": 0,
+					"clipChange": 0,
+					"shaderChange": 0,
+					"textureBinds": 2,
+					"clipPushes": 1,
+					"bytesUploaded": 269048,
+					"residentTextureBytes": 9113604,
+					"pendingUploads": 0,
+					"evictions": 0,
+					"targetSwitches": null
+				},
+				"memory": {
+					"usedBytes": 90610256
+				},
+				"renderer": {
+					"glDrawCalls": 1,
+					"vertices": 15522,
+					"textCharacters": 455
+				},
+				"sanity": {
+					"frameMs": 1.1349999904632568,
+					"sectionsMs": 1.0149999856948853,
+					"unaccountedMs": 0.12000000476837158,
+					"framesWithSectionsOverSpan": 0
+				},
+				"liveness": {
+					"frameCount": 2134,
+					"newestSampleAgeMs": 1
+				},
+				"device": {
+					"backend": "webgl2",
+					"vendor": "Google Inc. (NVIDIA)",
+					"renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3090 (0x00002204) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+					"features": {
+						"timerQuery": true,
+						"parallelShaderCompile": true,
+						"debugRendererInfo": true
+					}
+				},
+				"tracks": "console.timeStamp",
+				"hitches": {
+					"longFrames": {
+						"source": "long-animation-frame",
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"blockingMs": 0,
+						"worst": null
+					},
+					"slowEvents": {
+						"thresholdMs": 16,
+						"count": 0,
+						"saturated": false,
+						"maxMs": null,
+						"worst": null
+					}
+				}
+			}
+		]
+	}
+]
