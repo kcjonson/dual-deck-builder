@@ -23,6 +23,12 @@ export function destinationId(poi: number): string {
 	return `poi-${poi}`;
 }
 
+/** The POI a destination id names, its index in the POI layer, or null for an id that isn't one (`destinationId`). */
+export function poiOf(id: string): number | null {
+	const match = /^poi-(0|[1-9]\d*)$/.exec(id);
+	return match ? Number(match[1]) : null;
+}
+
 /** The id of a POI's route, its place among the POI's routes, quickest first: `route-<poi>-<route>`. */
 export function routeId(poi: number, route: number): string {
 	return `route-${poi}-${route}`;

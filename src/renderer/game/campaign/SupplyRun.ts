@@ -4,7 +4,7 @@ import type { RouteMap } from '../map/RouteDescriptors';
 import type { Card } from '../mechanics/Card';
 import { MAX_CONVOY_ESCORTS, Team } from '../mechanics/Team';
 import type { Vehicle } from '../mechanics/Vehicle';
-import { Campaign, NO_RESOURCES, RESOURCE_NAMES, Resources, UnloadedCargo, resourceAmount } from './Campaign';
+import { Campaign, CampaignData, NO_RESOURCES, RESOURCE_NAMES, Resources, UnloadedCargo, resourceAmount } from './Campaign';
 import { CampaignEnd, refuseOver, refuseOverBlocker } from './CampaignEnd';
 import { CardCounts, NO_CARDS } from './CardCounts';
 import { addCardsWon } from './CardsWon';
@@ -17,7 +17,9 @@ import { Injury, injureOnArrival } from './Infirmary';
 import type { RunDeck } from './RunDeck';
 import { rollRewardCards } from './RunRewards';
 import { getCrewRule, getSeatBlocker } from './Seating';
-import { destinationId, routeOffers } from './MapRoutes';
+import { destinationId, poiOf, routeOffers } from './MapRoutes';
+import type { MapState } from './MapState';
+import { poiStocks, scaledYield, sharesLeft, takeShare } from './PoiStock';
 import { RouteStop, RouteYield, RunRoute, YIELD_RESOURCES, routeStops } from './SupplyRoutes';
 import type { SupplyRun } from './SupplyRunState';
 
@@ -85,25 +87,48 @@ export interface Arrival {
 	readonly dayEnd: DayEnd;
 }
 
-/** Each map's offer, worked out once: the compound asks on every refresh. */
+/** Each map's offer as it'd be with every POI full, worked out once: the compound asks on every refresh. */
 const offers = new WeakMap<RouteMap, readonly RunRoute[]>();
+
+/** Each map's offer for the last map state asked about, which a campaign replaces whole when a POI's stock changes. */
+const stocked = new WeakMap<RouteMap, { readonly state: MapState; readonly routes: readonly RunRoute[] }>();
 
 /**
  * The routes a run can set off on: every route the area map has
  * (`routeOffers`), POI by POI, each POI's quickest first, but a
- * stronghold's, which waits for assaults. Every POI is known until fog
- * (DDB-294), and none is gated by the day. The one place the run's routes
- * come from, and every caller passes the campaign's own map
- * (`getAreaMap`), so what the screens show is what `departRun` checks.
+ * stronghold's, which waits for assaults, each destination yielding what
+ * the campaign's POI stock has left (`scaledYield`), nothing at a depleted
+ * one. Every POI is known until fog (DDB-294), and none is gated by the
+ * day or its stock. The one place the run's routes come from, and every
+ * caller passes the campaign and its own map (`getAreaMap`), so what the
+ * screens show is what `departRun` checks.
  */
-export function routesOnOffer({ map }: { map: RouteMap }): readonly RunRoute[] {
-	let offered = offers.get(map);
-	if (!offered) {
+export function routesOnOffer({ map, campaign }: { map: RouteMap; campaign: Campaign }): readonly RunRoute[] {
+	let full = offers.get(map);
+	if (!full) {
 		const strongholds = new Set(map.products.pois.strongholds.map(({ poi }) => destinationId(poi)));
-		offered = Object.freeze(routeOffers(map).filter(route => !strongholds.has(route.destination.id)));
-		offers.set(map, offered);
+		full = Object.freeze(routeOffers(map).filter(route => !strongholds.has(route.destination.id)));
+		offers.set(map, full);
 	}
-	return offered;
+	const state = campaign.map;
+	const stocks = poiStocks(state);
+	if (stocks.length === 0) return full;
+	const kept = stocked.get(map);
+	if (kept?.state === state) return kept.routes;
+	const shares = new Map(stocks.map(({ poi }) => [destinationId(poi), sharesLeft({ map: state, poi })]));
+	const destinations = new Map<string, RunRoute['destination']>();
+	const routes = Object.freeze(full.map((route) => {
+		const left = shares.get(route.destination.id);
+		if (left === undefined) return route;
+		let destination = destinations.get(route.destination.id);
+		if (!destination) {
+			destination = Object.freeze({ ...route.destination, yield: scaledYield({ yields: route.destination.yield, shares: left }) });
+			destinations.set(route.destination.id, destination);
+		}
+		return Object.freeze({ ...route, destination });
+	}));
+	stocked.set(map, { state, routes });
+	return routes;
 }
 
 /**
@@ -143,7 +168,7 @@ export function getPlanBlocker({ campaign, map }: { campaign: Campaign; map: Rou
 	const run = campaign.currentRun;
 	if (run !== null) return { reason: 'run_out', run };
 	if (seatableCrew({ campaign }) === null) return { reason: 'no_crew' };
-	const routes = routesOnOffer({ map });
+	const routes = routesOnOffer({ map, campaign });
 	if (routes.length === 0) return { reason: 'no_routes' };
 	const needed = Math.min(...routes.map(route => route.fuel));
 	const held = campaign.resources.fuel;
@@ -181,7 +206,7 @@ export function getDepartBlocker({ campaign, route }: { campaign: Campaign; rout
  * card holding it in a run deck.
  */
 export function departRun({ campaign, map, route, escorts }: { campaign: Campaign; map: RouteMap; route: RunRoute; escorts: readonly Vehicle[] }): SupplyRun {
-	const offered = routesOnOffer({ map }).find(offer => offer.id === route.id);
+	const offered = routesOnOffer({ map, campaign }).find(offer => offer.id === route.id);
 	if (!offered) throw new RangeError(`${route.id} isn't a route the area map offers`);
 	const blocker = getDepartBlocker({ campaign, route: offered });
 	refuseOverBlocker({ blocker, action: 'set off on a run' });
@@ -190,7 +215,7 @@ export function departRun({ campaign, map, route, escorts }: { campaign: Campaig
 	checkEscorts({ campaign, escorts });
 	campaign.set({
 		resources: { ...campaign.resources, fuel: campaign.resources.fuel - offered.fuel },
-		supplyRun: arrivedAt({ route: offered, stop: 0, phase: 'driving', escorts, cargo: NO_RESOURCES, cargoCards: NO_CARDS }),
+		...arrivedAt({ campaign, run: { route: offered, stop: 0, phase: 'driving', escorts, cargo: NO_RESOURCES, cargoCards: NO_CARDS } }),
 	});
 	return requireRun(campaign);
 }
@@ -214,7 +239,7 @@ export function atDestination(run: SupplyRun): boolean {
 /** A quiet stretch passes: on to the next stop, or the destination. Throws unless the run is driving to a quiet stop. */
 export function passQuietStop({ campaign }: { campaign: Campaign }): void {
 	const run = drivingTo({ campaign, kind: 'quiet' });
-	campaign.set({ supplyRun: arrivedAt({ ...run, stop: run.stop + 1 }) });
+	campaign.set(arrivedAt({ campaign, run: { ...run, stop: run.stop + 1 } }));
 }
 
 export interface StopFightOptions {
@@ -291,7 +316,7 @@ export function takeReward({ campaign, cardType }: { campaign: Campaign; cardTyp
 	const run = atReward({ campaign });
 	if (cardType !== null && !rewardOffer({ campaign }).includes(cardType)) throw new RangeError(`${cardType} isn't on offer at stop ${run.stop}`);
 	const cargoCards = cardType === null ? run.cargoCards : addCardsWon({ party: runParty({ campaign }), cardsWon: { [cardType]: 1 } }).cargoCards;
-	campaign.set({ supplyRun: arrivedAt({ ...run, cargoCards, stop: run.stop + 1, phase: 'driving' }) });
+	campaign.set(arrivedAt({ campaign, run: { ...run, cargoCards, stop: run.stop + 1, phase: 'driving' } }));
 }
 
 /**
@@ -348,15 +373,19 @@ export function cargoText({ cargo, cards = NO_CARDS }: { cargo: Readonly<Resourc
 }
 
 /**
- * The run as it stands at `stop`: once that's past the last stop it has
- * reached its destination, so the destination's yield is in its cargo,
- * where a failed run still loses it until it gets home.
+ * The campaign's changes for the run as it stands at `stop`: once that's
+ * past the last stop it has reached its destination, so the destination's
+ * yield is in its cargo, where a failed run still loses it until it gets
+ * home, and the POI has a share less (`takeShare`). The yield is the
+ * route's, scaled to the POI's stock when the run set off, and nothing
+ * else takes from the POI while the run is out.
  */
-function arrivedAt(run: SupplyRun): SupplyRun {
-	if (!atDestination(run)) return run;
+function arrivedAt({ campaign, run }: { campaign: Campaign; run: SupplyRun }): Pick<CampaignData, 'supplyRun'> & Partial<Pick<CampaignData, 'map'>> {
+	if (!atDestination(run)) return { supplyRun: run };
 	const cargo: Resources = { ...run.cargo };
 	for (const resource of YIELD_RESOURCES) cargo[resource] += run.route.destination.yield[resource];
-	return { ...run, cargo };
+	const poi = poiOf(run.route.destination.id);
+	return { supplyRun: { ...run, cargo }, ...(poi === null ? {} : { map: takeShare({ map: campaign.map, poi }) }) };
 }
 
 /** "Road Warrior 1 died and Interceptor 2 went missing when the run to Red Mesa Silos failed." */
