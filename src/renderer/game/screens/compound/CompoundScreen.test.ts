@@ -373,7 +373,7 @@ describe('CompoundScreen', () => {
 		it('opens the area map with the campaign, saying how many destinations it has', async () => {
 			await open();
 			const campaign = screen.shown as Campaign;
-			const destinations = new Set(routesOnOffer({ map: MAP }).map((route) => route.destination.id)).size;
+			const destinations = new Set(routesOnOffer({ map: MAP, campaign }).map((route) => route.destination.id)).size;
 			expect(find<Button>('compound_plan_button').enabled).toBe(true);
 			expect(text('compound_plan_reason')).toBe(`${destinations} destinations on the area map.`);
 			find<Button>('compound_plan_button').onClick?.({} as never);

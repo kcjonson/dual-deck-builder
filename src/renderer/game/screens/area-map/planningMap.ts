@@ -1,7 +1,8 @@
 import type { Campaign } from '../../campaign/Campaign';
 import { AreaMapProgress, CampaignMaps } from '../../campaign/CampaignMaps';
 import { destinationId } from '../../campaign/MapRoutes';
-import { STRONGHOLD_TYPE } from '../../map/PoiData';
+import { POI_SHARES, nightsToNextShare, poiState, sharesLeft } from '../../campaign/PoiStock';
+import { PoiState, STRONGHOLD_TYPE } from '../../map/PoiData';
 import type { Places } from '../../map/Places';
 import type { RiverLines } from '../../map/Rivers';
 import type { RoadNetwork } from '../../map/RoadNetwork';
@@ -154,23 +155,42 @@ export function byDistance(pois: readonly PlannedPoi[]): PlannedPoi[] {
 	return [...pois].sort((a, b) => rank(a) - rank(b) || hours(a) - hours(b) || a.poi - b.poi);
 }
 
+/** What's left at a POI on the campaign's map: its shares, its state, and the nights until a share more, null when full. */
+export interface PoiStockView {
+	readonly shares: number;
+	readonly state: PoiState;
+	readonly nextShare: number | null;
+}
+
+/** A POI's stock as the campaign has it (PoiStock.ts). A stronghold's is always full: it yields by its own rules. */
+export function poiStock({ campaign, poi }: { campaign: Campaign; poi: PlannedPoi }): PoiStockView {
+	if (poi.stronghold) return { shares: POI_SHARES, state: 'unvisited', nextShare: null };
+	const shares = sharesLeft({ map: campaign.map, poi: poi.poi });
+	return { shares, state: poiState(shares), nextShare: nightsToNextShare({ map: campaign.map, poi: poi.poi }) };
+}
+
 /**
- * The map's markers: every POI with its tier as a badge, a night ring when
- * no route gets home by dark, and its name, the nearest placed first; the
- * strongholds with theirs, placed last.
+ * The map's markers: every POI with its tier as a badge, its state (looted
+ * or depleted) when `stateOf` gives one, a night ring when no route gets
+ * home by dark, and its name, the nearest placed first; the strongholds
+ * with theirs, placed last.
  */
-export function poiMarkers(pois: readonly PlannedPoi[]): MapMarker[] {
+export function poiMarkers({ pois, stateOf = () => 'unvisited' }: { pois: readonly PlannedPoi[]; stateOf?: (poi: PlannedPoi) => PoiState }): MapMarker[] {
 	const order = new Map(byDistance(pois).map((poi, index) => [poi, index]));
-	return pois.map((poi) => ({
-		id: poi.id,
-		kind: poi.stronghold ? 'stronghold' : 'poi',
-		x: poi.x,
-		y: poi.y,
-		label: poi.name,
-		badge: poi.stronghold ? undefined : String(poi.tier),
-		pastDark: !poi.stronghold && poi.pastDark,
-		priority: order.get(poi) ?? 0,
-	}));
+	return pois.map((poi) => {
+		const state = poi.stronghold ? 'unvisited' : stateOf(poi);
+		return {
+			id: poi.id,
+			kind: poi.stronghold ? 'stronghold' : 'poi',
+			x: poi.x,
+			y: poi.y,
+			label: poi.name,
+			...(state === 'unvisited' ? {} : { state }),
+			badge: poi.stronghold ? undefined : String(poi.tier),
+			pastDark: !poi.stronghold && poi.pastDark,
+			priority: order.get(poi) ?? 0,
+		};
+	});
 }
 
 /** A route's road from the compound out to its POI, world space, flat x0, y0, x1, y1, ... */

@@ -25,11 +25,11 @@ import { SupplyRun, SupplyRunJson, readSupplyRun, readSupplyRunJson, readSupplyR
 /**
  * The save format's version, which `CampaignStore` stamps on every save and
  * history list. Bump it by hand whenever the text `toSaveText` writes, or a
- * history entry, changes shape. There are no migrations: a save stamped
- * with another version isn't loaded, so a bump invalidates every existing
- * save of that build.
+ * history entry, changes shape. A save stamped with another version isn't
+ * loaded, so a bump invalidates every existing save of that build, unless
+ * its version is one `UPGRADABLE_SCHEMA_VERSIONS` (SaveUpgrades.ts) lists.
  */
-export const CAMPAIGN_SCHEMA_VERSION = 8;
+export const CAMPAIGN_SCHEMA_VERSION = 9;
 
 /** Structure a missing driver's vehicle comes home with once they're found. A tuning value. */
 export const RETURN_STRUCTURE = 1;

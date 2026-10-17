@@ -27,6 +27,9 @@
  * tries a tuning without editing the source. --log prints one fight's
  * battle log: crew, skull count, and run number.
  *
+ * Each seat is a fresh pool record, the archetype's, with its whole default
+ * deck going as its run deck, dealt by the combat bridge's own `seatOf`.
+ *
  * Like road-network.mjs, it transpiles the game modules it needs into a
  * temporary folder and runs them in a child process, clear of Jest.
  */
@@ -92,14 +95,14 @@ const load = createRequire(join(build, 'index.js'));
 const game = (path) => load(`./src/renderer/game/${path}.js`);
 const { Battle } = game('mechanics/Battle');
 const { Card } = game('mechanics/Card');
-const { Deck } = game('mechanics/Deck');
-const { DRIVER_CONFIGS, Driver, DriverRole } = game('mechanics/Driver');
+const { DRIVER_CONFIGS } = game('mechanics/Driver');
 const { RAIDER_PROFILES } = game('mechanics/Raiders');
 const { Team } = game('mechanics/Team');
 const { TeamType } = game('mechanics/TeamType');
-const { createDrivenVehicle } = game('mechanics/Vehicle');
 const { ENCOUNTERS, encounterFor, encounterTeam } = game('campaign/Encounters');
-const { LIMP_STRUCTURE, REVIVE_HP } = game('campaign/CombatBridge');
+const { LIMP_STRUCTURE, REVIVE_HP, seatOf } = game('campaign/CombatBridge');
+const { DriverRecord, placeholderName } = game('campaign/DriverRecord');
+const { RunDeck } = game('campaign/RunDeck');
 const { Rng } = game('core/Rng');
 const cardsFile = JSON.parse(readFileSync(join(build, 'src/renderer/game/data/cards.json'), 'utf8'));
 
@@ -144,32 +147,8 @@ function crewsAsked() {
 	}
 }
 
-/**
- * A seat as the combat bridge deals it for a fight: the archetype's skills,
- * vehicle, and adrenaline, the default deck fresh, and the HP, structure,
- * and armor the seat carries in.
- */
-function seatFor({ archetype, hitpoints, structure, armor }) {
-	const config = DRIVER_CONFIGS[archetype];
-	const deck = config.startingDeck.cards.flatMap(({ type, quantity }) => Array.from({ length: quantity }, () => CARDS.get(type).copy()));
-	const driver = new Driver({
-		archetype,
-		metadata: { ...config.metadata },
-		skills: { ...config.skills },
-		vehicleStats: { ...config.vehicleStats },
-		startingDeck: { cards: config.startingDeck.cards.map(entry => ({ ...entry })) },
-		hitpoints,
-		maxHitpoints: config.maxHitpoints,
-		adrenaline: config.maxAdrenaline,
-		maxAdrenaline: config.maxAdrenaline,
-		handLimit: config.handLimit,
-		role: DriverRole.ACTIVE,
-		hand: [],
-		discard: [],
-		deck: new Deck(`${archetype}_deck`, `${archetype}'s deck`, deck),
-	});
-	return { driver, vehicle: createDrivenVehicle({ driver, structure, armor }) };
-}
+/** A seat as the combat bridge deals it for a fight, the record's whole default deck going. */
+const seatFor = (record) => seatOf({ record, runDeck: new RunDeck({ driver: record, own: record.defaultDeck }), cards: CARDS });
 
 /** One fight, played out by the AIs on the stream given, against the skull count's encounter sized up as a run's stop does it. */
 async function fight({ seats, skulls, rng }) {
@@ -196,10 +175,7 @@ async function fight({ seats, skulls, rng }) {
  */
 async function run({ crew, route, index }) {
 	const order = crew.length === 2 && index % 2 === 1 ? [crew[1], crew[0]] : crew;
-	const records = order.map(archetype => {
-		const config = DRIVER_CONFIGS[archetype];
-		return { archetype, hitpoints: config.maxHitpoints, structure: config.vehicleStats.maxStructure, armor: config.vehicleStats.armor };
-	});
+	const records = order.map((archetype, seat) => new DriverRecord({ id: `driver-${seat + 1}`, archetype, name: placeholderName({ archetype, ordinal: 1 }) }));
 	const stream = new Rng({ seed: SEED }).fork('run', index);
 	let down = false;
 	let turns = 0;
@@ -211,12 +187,10 @@ async function run({ crew, route, index }) {
 		if (last.outcome !== 'won') return { outcome: last.outcome, battle: last.battle, firstSeat: order[0] };
 		seats.forEach(({ driver, vehicle }, seat) => {
 			down ||= !driver.isAlive();
-			records[seat] = {
-				...records[seat],
+			records[seat].set({
 				hitpoints: driver.isAlive() ? driver.hitpoints : REVIVE_HP,
-				structure: vehicle.isAlive() ? vehicle.structure : LIMP_STRUCTURE,
-				armor: vehicle.armor,
-			};
+				vehicle: { structure: vehicle.isAlive() ? vehicle.structure : LIMP_STRUCTURE, armor: vehicle.armor },
+			});
 		});
 	}
 	const share = (lost, max) => records.reduce((sum, record) => sum + lost(record), 0) / records.reduce((sum, record) => sum + max(DRIVER_CONFIGS[record.archetype]), 0);
@@ -227,7 +201,7 @@ async function run({ crew, route, index }) {
 		turns,
 		down,
 		hpLost: share(record => DRIVER_CONFIGS[record.archetype].maxHitpoints - record.hitpoints, config => config.maxHitpoints),
-		structureLost: share(record => DRIVER_CONFIGS[record.archetype].vehicleStats.maxStructure - record.structure, config => config.vehicleStats.maxStructure),
+		structureLost: share(record => DRIVER_CONFIGS[record.archetype].vehicleStats.maxStructure - record.vehicle.structure, config => config.vehicleStats.maxStructure),
 	};
 }
 
