@@ -90,7 +90,7 @@ module.exports = {
 					// The atlases are bundled through imports (R15.34) and the
 					// TTFs and charset are build inputs; only the licences ship
 					// as files, below.
-					globOptions: { ignore: ['**/fonts/**'] },
+					globOptions: { ignore: ['**/fonts/**', '**/ui-art/**'] },
 				},
 				{
 					from: 'fonts/*/OFL.txt',

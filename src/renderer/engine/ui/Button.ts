@@ -6,6 +6,7 @@ import type { RGBA, Rect } from '../draw/geometry';
 import type { IconName } from '../text/icons';
 import type { FontRole } from '../text/fontFaces';
 import { tokens } from '../theme/tokens';
+import type { Theme } from '../theme/tokens';
 import { Look, LookInk, LookLayers, glowShadow, lookInk, resolveLook, shadowExtent } from '../style/look';
 import { LookTransition } from '../style/LookTransition';
 import {
@@ -137,7 +138,7 @@ export class Button extends Pressable {
 		this.buttonTone = tone;
 		this.buttonSize = size;
 		this.styleObject = style;
-		this.layers = buttonLayers(tone, style, ghost);
+		this.layers = buttonLayers(tone, style, ghost, this.themeTokens);
 		if (onClick) this.onClick = onClick;
 		this.padding = this.resolvePadding();
 		if (style.opacity !== undefined) this.opacity = style.opacity;
@@ -333,7 +334,7 @@ export class Button extends Pressable {
 
 	/** Rebuilds everything the tone, size, and style decide, and moves the look there. */
 	private restyle(): void {
-		this.layers = buttonLayers(this.buttonTone, this.styleObject, this.isGhost);
+		this.layers = buttonLayers(this.buttonTone, this.styleObject, this.isGhost, this.themeTokens);
 		this.padding = this.resolvePadding();
 		// A new style replaces the label's whole (R11.16), colour included, so
 		// the look's colour goes back on before any transition moves it.
@@ -341,6 +342,13 @@ export class Button extends Pressable {
 		this.followLook(this.transition.look);
 		this.onStateChange();
 		this.invalidateLayout();
+	}
+
+	/** A new theme is not a state change: the look jumps to it rather than fading (R11.13 covers states). */
+	protected onThemeChange(theme: Theme): void {
+		this.layers = buttonLayers(this.buttonTone, this.styleObject, this.isGhost, theme);
+		this.transition.moveTo(this.targetLook, null);
+		this.invalidateInk();
 	}
 
 	private labelStyle(): TextStyleObject {

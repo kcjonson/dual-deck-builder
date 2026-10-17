@@ -1,4 +1,5 @@
 import {
+	ArtAtlasOptions,
 	DrawBackend,
 	DrawBatch,
 	FontAtlasOptions,
@@ -217,6 +218,8 @@ export class DrawApi {
 	private readonly clipScratch: ClipRect = { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
 	private frameOpen = false;
+	/** R5.31's UI art atlases by name, resident for the life of the backend (R5.20). */
+	private readonly artAtlases = new Map<string, TextureHandle>();
 	private frameIndex = 0;
 	private domain = 0;
 	private sequence = 0;
@@ -929,6 +932,24 @@ export class DrawApi {
 		return this.backend.loadFontAtlas(options);
 	}
 
+	/**
+	 * An offline-built art atlas page joins the resident set (R5.20, R5.31),
+	 * between frames like any upload (R2.17). The backend keeps it; the caller
+	 * does not release it.
+	 */
+	loadArtAtlas(options: ArtAtlasOptions): void {
+		if (this.frameOpen) {
+			this.report('texture-upload-in-frame', `loadArtAtlas(${options.name}) inside a frame; atlases load between frames (R2.17)`);
+		}
+		this.backend.loadArtAtlas(options);
+		this.artAtlases.set(options.name, options.texture);
+	}
+
+	/** The resident art atlas page `name`, or null when it has not loaded (a failed load draws nothing). */
+	artAtlas(name: string): TextureHandle | null {
+		return this.artAtlases.get(name) ?? null;
+	}
+
 	// -- internals ----------------------------------------------------------
 
 	/**
@@ -1099,7 +1120,9 @@ function copyShadow(shadow: BoxShadow): Required<Omit<BoxShadow, 'color'>> & { c
 
 function copySlice(slice: NineSlice | undefined): NineSlice | null {
 	if (!slice) return null;
-	return { top: slice.top, right: slice.right, bottom: slice.bottom, left: slice.left };
+	const copy: NineSlice = { top: slice.top, right: slice.right, bottom: slice.bottom, left: slice.left };
+	if (slice.scale !== undefined) copy.scale = slice.scale;
+	return copy;
 }
 
 function buildText(

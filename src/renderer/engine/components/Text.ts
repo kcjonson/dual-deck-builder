@@ -26,6 +26,7 @@ import {
 	resolveLetterSpacing,
 	validateStyle,
 } from '../style/styleObject';
+import type { Theme } from '../theme/tokens';
 
 const DEFAULT_FONT_SIZE = 16;
 const WHITE: RGBA = [1, 1, 1, 1];
@@ -118,6 +119,8 @@ export class Text extends Component {
 	/** The face, from the style's role or `fontFamily` and its `fontWeight` through R11.8's theme table. */
 	private fontName: FontName = 'body';
 	private ownColor: RGBA = WHITE;
+	/** The colour as authored, a token name included, for a theme change to resolve again. */
+	private colorSource: ColorValue = WHITE;
 	private ownAlign: TextAlign = 'left';
 	private ownVerticalAlign: TextVerticalAlign = 'top';
 	/** A multiple of `fontSize`; null is the face's own (R6.10). */
@@ -171,7 +174,8 @@ export class Text extends Component {
 		this.fontName = style.fontRole !== undefined || style.fontFamily !== undefined || style.fontWeight !== undefined
 			? resolveFont({ family: style.fontRole ?? style.fontFamily, weight: style.fontWeight })
 			: 'body';
-		this.ownColor = style.color !== undefined ? resolveColor(style.color) : WHITE;
+		this.colorSource = style.color ?? WHITE;
+		this.ownColor = resolveColor(this.colorSource, this.themeTokens);
 		this.ownAlign = style.textAlign ?? 'left';
 		this.letterSpacing = style.letterSpacing !== undefined ? resolveLetterSpacing(style.letterSpacing) : 0;
 		this.textTransform = style.textTransform ?? 'none';
@@ -237,7 +241,13 @@ export class Text extends Component {
 	}
 
 	public set color(color: ColorValue) {
-		this.ownColor = resolveColor(color);
+		this.colorSource = color;
+		this.ownColor = resolveColor(color, this.themeTokens);
+	}
+
+	/** Colour is the only thing a theme moves here: themes re-value paint, never measurement. */
+	protected onThemeChange(theme: Theme): void {
+		this.ownColor = resolveColor(this.colorSource, theme);
 	}
 
 	public get align(): TextAlign {

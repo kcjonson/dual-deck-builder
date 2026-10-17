@@ -28,6 +28,20 @@ describe('nineSliceGrid (R5.19)', () => {
 		expect(result.cells).toBe(9);
 	});
 
+	it('draws the corners of a 2x raster at half their texels, so they keep their 1x size', () => {
+		const result = grid({ x: 10, y: 20, width: 100, height: 40 }, { top: 4, right: 8, bottom: 2, left: 6, scale: 2 });
+		expect(result.x).toEqual([10, 13, 106, 110]);
+		expect(result.y).toEqual([20, 22, 59, 60]);
+		expect(result.u).toEqual([0, 6 / 32, 24 / 32, 1]);
+		expect(result.v).toEqual([0, 4 / 16, 14 / 16, 1]);
+	});
+
+	it('fits the corners of a 2x raster by their logical size, not their texels', () => {
+		// 14 texels of corner are 7 logical pixels, which a 10-wide box holds whole.
+		const result = grid({ x: 0, y: 0, width: 10, height: 40 }, { top: 4, right: 8, bottom: 2, left: 6, scale: 2 });
+		expect(result.x).toEqual([0, 3, 6, 10]);
+	});
+
 	it('measures the insets from a pixel source rect', () => {
 		const result = grid({ x: 0, y: 0, width: 50, height: 50 }, { top: 2, right: 2, bottom: 2, left: 2 }, {
 			sourceRect: { x: 16, y: 4, width: 12, height: 8 },

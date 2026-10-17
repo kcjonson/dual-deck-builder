@@ -49,8 +49,9 @@ export interface NineSliceImage {
 /**
  * Fills `out` for one sliced image. The insets are texture pixels measured in
  * from the source rect's edges (the whole texture without one), and a corner
- * draws at one logical pixel per texture pixel: corners keep their size and
- * aspect, the edges stretch along their one axis, the centre along both.
+ * draws at one logical pixel per `slice.scale` texture pixels (one by
+ * default, two for a 2x raster): corners keep their size and aspect, the
+ * edges stretch along their one axis, the centre along both.
  *
  * Two clamps, both uniform so a corner is never squashed out of aspect. Insets
  * that meet or cross inside the source are scaled down per axis to fit it.
@@ -88,10 +89,11 @@ export function nineSliceGrid(source: NineSliceImage, slice: NineSlice, out: Nin
 	top *= fitY;
 	bottom *= fitY;
 
+	const density = slice.scale !== undefined && slice.scale > 0 ? slice.scale : 1;
 	const cornerScale = Math.min(
-		fitFactor(left + right, Math.abs(rect.width)),
-		fitFactor(top + bottom, Math.abs(rect.height)),
-	);
+		fitFactor((left + right) / density, Math.abs(rect.width)),
+		fitFactor((top + bottom) / density, Math.abs(rect.height)),
+	) / density;
 
 	// A negative destination extent runs its edges the other way, which
 	// mirrors the image exactly as an unsliced draw of the same rect does.

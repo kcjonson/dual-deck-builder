@@ -4,7 +4,7 @@ import type { FrameTimer } from './FrameTimer';
 import type { GpuTimer } from './GpuTimer';
 import type { ContextListener, Renderer } from './Renderer';
 import { WebGL2Backend } from './WebGL2Backend';
-import { UBER_ATTRIBUTES, UBER_FRAME_BLOCK, UBER_INSTANCE, UBER_MODE, UBER_STRIDE } from './UberGeometryEncoder';
+import { UBER_ATTRIBUTES, UBER_FRAME_BLOCK, UBER_INSTANCE, UBER_MODE, UBER_STRIDE, UBER_TEXTURE_UNITS } from './UberGeometryEncoder';
 import { TextureStore } from '../gpu/TextureStore';
 import { WebGL2TextureDevice } from './WebGL2TextureDevice';
 import { committedFontAtlas } from '../text/testing';
@@ -145,7 +145,7 @@ function setupBackend(options: SetupOptions = {}) {
 	const restore = (): void => {
 		for (const listener of listeners) listener.restored?.();
 	};
-	return { calls, constant, backend, api, frame, named, restore };
+	return { calls, constant, backend, api, frame, named, restore, renderer };
 }
 
 function someShapesAndText(draw: DrawApi): void {
@@ -237,10 +237,11 @@ describe('WebGL2Backend', () => {
 		expect(named(calls.slice(before), 'provokingVertexWEBGL')).toHaveLength(1);
 	});
 
-	it('points the twelve samplers at units 0 to 11 once, at creation (R5.20)', () => {
+	it('points the sixteen samplers at units 0 to 15 once, at creation (R5.20)', () => {
 		const { calls, named } = setupBackend();
 		const [samplers] = named(calls, 'uniform1iv');
-		expect(Array.from(samplers.args[1] as Int32Array)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+		expect(UBER_TEXTURE_UNITS).toBe(16);
+		expect(Array.from(samplers.args[1] as Int32Array)).toEqual(Array.from({ length: 16 }, (_, unit) => unit));
 	});
 
 	it('makes no synchronous call and no allocation inside a frame (R15.22, R15.11)', () => {
@@ -538,8 +539,8 @@ describe('WebGL2Backend', () => {
 
 	it('binds the atlas and the placeholders once, and nothing on later frames (R5.20)', () => {
 		const { frame, named } = setupBackend();
-		// Unit 0 gets the atlas, units 1 to 11 the empty placeholder.
-		expect(named(frame(threeDomains), 'bindTexture')).toHaveLength(12);
+		// Unit 0 gets the atlas, the rest the empty placeholder.
+		expect(named(frame(threeDomains), 'bindTexture')).toHaveLength(UBER_TEXTURE_UNITS);
 		expect(named(frame(threeDomains), 'bindTexture')).toHaveLength(0);
 	});
 
@@ -574,6 +575,75 @@ describe('WebGL2Backend', () => {
 		} finally {
 			warn.mockRestore();
 		}
+	});
+
+	describe('the UI art page (R5.20, R5.31)', () => {
+		function withArt() {
+			const setup = setupBackend();
+			const page = setup.renderer.textures.create({
+				width: 4,
+				height: 4,
+				label: 'art atlas ui',
+				source: new Uint8Array(64),
+				content: 'color',
+				keepSource: true,
+				immediate: true,
+			});
+			setup.api.loadArtAtlas({ name: 'ui', texture: page });
+			return { ...setup, page };
+		}
+
+		const rectArtText = (page: Parameters<DrawApi['drawImage']>[0]['texture']) => (draw: DrawApi) => {
+			draw.drawRect({ rect: { x: 10, y: 10, width: 100, height: 40 }, fill: WHITE });
+			draw.drawImage({ rect: { x: 10, y: 60, width: 200, height: 120 }, texture: page, sourceRect: { x: 0, y: 0, width: 4, height: 4 }, slice: { top: 1, right: 1, bottom: 1, left: 1 } });
+			draw.drawText({ text: 'Water plant, north', position: { x: 20, y: 100 }, font: 'body', size: 16, color: WHITE });
+			draw.drawRect({ rect: { x: 10, y: 200, width: 100, height: 40 }, fill: WHITE });
+		};
+
+		it('sits on a resident unit after the fonts, so rect, art and text are one GPU draw with no rebinds', () => {
+			const { frame, named, page, constant, renderer } = withArt();
+			const first = frame(rectArtText(page));
+			expect(named(first, 'drawArraysInstanced')).toHaveLength(1);
+			// Unit 1, after the body atlas on unit 0, holds the page from the first frame.
+			const native = renderer.textures.native(page);
+			let unit = -1;
+			const units = new Map<number, unknown>();
+			for (const call of first) {
+				if (call.name === 'activeTexture') unit = (call.args[0] as number) - constant('TEXTURE0');
+				if (call.name === 'bindTexture') units.set(unit, call.args[1]);
+			}
+			expect(units.get(1)).toBe(native);
+
+			const second = frame(rectArtText(page));
+			expect(named(second, 'drawArraysInstanced')).toHaveLength(1);
+			expect(named(second, 'bindTexture')).toHaveLength(0);
+			expect(named(second, 'activeTexture')).toHaveLength(0);
+		});
+
+		it('comes back from its kept image after a lost context, on the same unit', () => {
+			const { frame, named, page, constant, renderer, restore, calls } = withArt();
+			frame(rectArtText(page));
+			const lostNative = renderer.textures.native(page);
+			const before = calls.length;
+			renderer.textures.lose();
+			renderer.textures.restore();
+			restore();
+			const next = frame(rectArtText(page));
+			const restored = renderer.textures.native(page);
+			expect(restored).not.toBeNull();
+			expect(restored).not.toBe(lostNative);
+			// Its kept image went up again into new storage, then it was bound to unit 1 with the rest.
+			const reuploads = named(calls.slice(before), 'texSubImage2D').filter((call) => call.args.includes(4));
+			expect(reuploads.length).toBeGreaterThanOrEqual(1);
+			let unit = -1;
+			let boundToOne: unknown = null;
+			for (const call of next) {
+				if (call.name === 'activeTexture') unit = (call.args[0] as number) - constant('TEXTURE0');
+				if (call.name === 'bindTexture' && unit === 1) boundToOne = call.args[1];
+			}
+			expect(boundToOne).toBe(restored);
+			expect(named(next, 'drawArraysInstanced')).toHaveLength(1);
+		});
 	});
 
 	it('rebuilds every GPU resource on a restored context and starts the rings over (R15.5)', () => {
@@ -614,7 +684,7 @@ describe('WebGL2Backend', () => {
 		expect(named(next, 'useProgram')[0].args[0]).toBe(named(rebuilt, 'createProgram')[0].result);
 		expect(named(next, 'bindVertexArray')[0].args[0]).toBe(named(rebuilt, 'createVertexArray')[0].result);
 		// And every unit again, since the old bindings died with the context.
-		expect(named(next, 'bindTexture')).toHaveLength(12);
+		expect(named(next, 'bindTexture')).toHaveLength(UBER_TEXTURE_UNITS);
 	});
 
 	it('blends premultiplied over, set again after invalidateState and not on an ordinary frame (R5.22, R2.15)', () => {

@@ -36,7 +36,11 @@ module.exports = merge(common, {
 			{
 				test: /\.png$/,
 				type: 'asset/resource',
-				generator: { filename: 'assets/fonts/[name].[contenthash][ext]' },
+				generator: {
+					filename: ({ filename }) => (/ui-art[\\/]/.test(filename ?? '')
+						? 'assets/ui-art/[name].[contenthash][ext]'
+						: 'assets/fonts/[name].[contenthash][ext]'),
+				},
 			},
 			// The faces the small-text raster fallback draws with (R6.4a).
 			{

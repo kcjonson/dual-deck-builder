@@ -137,7 +137,7 @@ Buttons.
 - Hover: the border goes to ink and the button lifts 1 px. Pressed: the offset collapses and it sits 3 px lower. Focus visible: a 2 px ink outline 3 px out. Disabled: faded print and a dashed border.
 - Minimum hit size 44 px.
 
-Resource strip. Stores read like a map's legend key: an 18 px stroke icon, the name in mono capitals, the value in mono 500. A shortfall turns the item stronghold red, with a body line under the strip naming it ("Water and food run out in 2 days"). The stroke icons are new entries in the icon atlas.
+Resource strip. Stores read like a map's legend key: an 18 px stroke icon, the name in mono capitals, the value in mono 500. A shortfall turns the item stronghold red, with a body line under the strip naming it ("Water and food run out in 2 days"). The stroke icons are baked into the UI art atlas at 1x and 2x and tinted ink, since the MSDF icon atlas builds from a font ([ui-art-atlas.md](../AI_TECHNICAL_DECISIONS/ui-art-atlas.md)).
 
 Contents rows. Lists of destinations, menu entries, and history use the atlas's contents page: a leading glyph, the label in display 700, dotted leaders, and a mono value at the right. Numbered things use the map's circled glyph, ink on white; the primary row's glyph is a highway shield.
 
@@ -153,7 +153,7 @@ Card hints. It's a card game, and the UI says so quietly in many places rather t
 
 - The card back is atlas stock at 5:7 with 7 px corners: an ink edge, a band in the driver's colour on its casing (Highway for deck A, Route teal for deck B), a fine inner rule, faint contour lines, and the small mark's W in a shield at the centre. It's a back only; card faces stay with the card spec.
 - Decks appear as physical objects where the scene has room for them: two small stacks set down on the menu cover, two decks on the table beside the atlas on the splash. A stack shows three or four card edges under its top card, with the sheet's drop shadow.
-- The deck glyph, two overlapping card outlines in the two casing colours, marks anything about decks: the Crew tab, the bunkhouse's "3 drivers · 3 default decks" line, the Card showcase entry. It's an icon-atlas entry at 18 to 20 px.
+- The deck glyph, two overlapping card outlines in the two casing colours, marks anything about decks: the Crew tab, the bunkhouse's "3 drivers · 3 default decks" line, the Card showcase entry. It's a UI art atlas entry at 20 by 18 px, baked in its two colours.
 - Rules: at most two deck objects on a screen, never over a reading window or a control; deck objects are W1 (handled, never damaged); A is always orange and B always teal, so the pair reads as the two drivers wherever it shows up.
 
 Logo. `docs/design/ui-art-direction/logo.svg`: "Wasteland" in a broad-nib ink script over "WHEELS" in sign-painted brush capitals (Highway on a Casing outline with a drop shadow and chipped paint), two tire tracks beneath, and a large inked wheel behind the right half. It's hand-drawn letterwork with no font in it. It ships as a baked texture in the UI atlas at 1x and 2x, not as runtime SVG. Use it on the menu cover and the splash; on dark grounds use the reversed variant on the logo sheet. The small mark, the painted W in a highway shield, is the app icon and favicon.
@@ -177,13 +177,13 @@ The rest (crew, load-out, customize, campaign history, settings, credits, result
 ## Building it
 
 - All texture is baked. The canvas mocks use SVG turbulence filters to stand in for paper, grime, relief, and brush edges; in game those are nine-sliced paper textures in the UI art atlas (R5.19, R5.31), one set per wear level with the wear in the corner and edge slices and a flat centre the shader tints. Wear is seeded per object and never animates or reshuffles between frames.
-- New art in the UI atlas: paper nine-slices for W1, W2, and W3 in two or three variants each, tape strips, hand marks, stamps, the compound plate, the logo and small mark, the two card backs and a card edge, the closed-atlas cover for the splash, and the resource, section, and deck icons.
+- New art in the UI atlas ([ui-art-atlas.md](../AI_TECHNICAL_DECISIONS/ui-art-atlas.md)): paper nine-slices for W1, W2, and W3 in two or three variants each, tape strips, hand marks, stamps, the compound plate, the logo and small mark, the two card backs and a card edge, the closed-atlas cover for the splash, and the resource, section, and deck icons.
 - Keep one GPU draw per flush (R5.20). Highlighter is baked as a normal-blend tone, not drawn with the `multiply` blend mode, because every multiply draw is a blend change and splits the submission.
 - Square corners everywhere: the theme re-aliases `radius_ui` and `radius_panel` to zero (R11.7), no component edits.
-- The combat screen keeps the current dark theme until its own pass. Tokens are global today, so the `atlas` theme needs per-screen selection (see open question 1).
+- The combat screen keeps the current dark theme until its own pass. Each screen selects its theme (open question 1): a meta screen opts into `atlas`, and a screen that doesn't stays dark. The mechanism is in [theme-selection.md](../AI_TECHNICAL_DECISIONS/theme-selection.md).
 
 ## Open questions
 
-1. Theme scope. Per-screen theme selection lets the meta screens go atlas while combat stays dark; the alternative is re-theming globally and accepting that combat changes before its pass. Per-screen selection is the recommendation.
+1. Theme scope. Decided: per-screen theme selection, so the meta screens go atlas while combat stays dark, rather than re-theming globally and changing combat before its pass.
 2. The compound plate: a painted bitmap per compound state, or vector shapes built in engine (flat, rect, and circle draws plus a corrugated-metal texture) that can show buildings appearing as they're built. Vector is the recommendation, since the plate has to change as the compound grows.
 3. When the `serif` and `hand` roles land, and whether the game writes its own hand notes (rumors, warnings) or leaves the hand layer to the player's choices only.
