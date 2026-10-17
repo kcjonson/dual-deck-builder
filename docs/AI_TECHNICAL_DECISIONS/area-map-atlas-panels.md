@@ -1,0 +1,52 @@
+# The area map and run route panels on the atlas sheet
+
+Date: 2026-10-17, with DDB-509 (epic DDB-500). Spec: [UI Art Direction](../specs/UI%20Art%20Direction.md), Screens: area map and run route. Builds on [atlas-components.md](./atlas-components.md) and [theme-selection.md](./theme-selection.md), and supersedes the point in [area-map-atlas-style.md](./area-map-atlas-style.md) that kept the side panels dark. The atlas is the playtest direction, not the final UI.
+
+## Context
+
+The map itself was already drawn as a road atlas; the panel beside it was the old dark UI, a grey column with a Back button, a ListRow list, and a yellow primary. Both screens move onto the sheet with the shared parts. There is no canvas board for either screen, so the compound's (`compound.png`) is the reference: a plate on the left, a column of legend boxes on the right, the primary at the foot.
+
+## Decisions
+
+### Layout
+
+Each screen is one `AtlasSheet`, opted into the atlas with `ScreenOptions.theme`. The map's `AreaMapView` sits in a `PlateFrame` on the left with the title above it, the way the compound's plate has its title and resource strip above it; the view draws its own paper inside the frame and is unchanged. The column on the right is 360 px wide.
+
+The title and the day line sit over the plate rather than at the top of the column. At 1024 by 600 the sheet leaves 480 px of height, and with the title in the column the destinations box kept under one row of list once the chosen POI's box and the primary were placed. Over the plate it keeps three.
+
+The status line ("30 destinations and 4 strongholds...", the map's progress, errors) moved under the plate, where it gets the plate's width and rarely wraps.
+
+### Area map column
+
+- Destinations: a legend box holding the scroll container, the list a FocusGroup of `ContentsRow`s, nearest first, each led by the POI's type letter circled as the map draws its marker (a stronghold leads with the red diamond), the tier in mono at the right. Strongholds and depleted POIs are dimmed in faint ink but stay in reach, since choosing one shows why it can't be planned.
+- The chosen row is marked by a `HandMarkLayer` highlighter under the list, its variant from the POI's index so the same choice always gets the same swipe. The box below and the map's selection ring are the other two signals.
+- The chosen POI's box is fresh paper (W0, the thing in focus), led by the same glyph and the name, then the five fixed-height lines it had.
+- Plan a run here is the highway with the shield, its reason in two fixed lines under it.
+
+### Run route column
+
+The destination's box (glyph, name, the day and light in mono, the kind and yield), then the Routes and Stops in order boxes scrolling together, then the home-by line and Load out the crew as the highway. The route cards stay `RouteCard`s, converted to theme tokens: on the atlas their selected wash is the highlighter and the bar the highway.
+
+### Tabs and back
+
+The area map is a sibling of the menu, the compound, and the crew, so it hangs the section tabs (`metaSectionTabs` in `screens/metaSections.ts`, the set the gallery's sheet scene shows) and loses Back; Escape still goes to the compound. The run route is a step under the area map, not a sibling, so it keeps a back link, a back-road button, "Back to the area map".
+
+Each tab gets a component id under its tabs' (`area_map_tabs.compound`), so a navigate that restores focus by id can find it.
+
+Focus order follows the tree, which is reading order now: the tabs, the map, the list, then Plan a run here. It was Back, the list, Plan, the map, when Back sat in the column.
+
+### Warnings in stronghold red
+
+The atlas aliases `status_warn` to the Highway orange, which is about 3.4:1 on paper, under the 4.5:1 small text needs (UI Art Direction, Palette). Warning text on these screens (a depleted POI's stock, past dark, the reasons Plan or Load out is off, status errors) uses `status_crit`, the Stronghold red at 6.5:1, which the spec gives to warnings anyway. `RouteCard` takes a `noteColor` for this; its default stays `status_warn` so nothing dark moves.
+
+## Shared parts this added to
+
+- `ContentsRow`: a `list` variant (44 px, the minimum hit, with a 22 px circled lead), `dim` (faint ink, still pressable), and a `diamond` lead.
+- `SectionTabs`: each tab's component id, as above.
+- `Scrollbar` and `RouteCard` resolve their colours from `themeTokens`; on paper the dark scrollbar's thumb all but vanished.
+
+## Consequences
+
+- The screens' goldens move once; CI mints them. Both screens lint clean at 1440 by 882 and 1024 by 600.
+- At 1024 by 600 the destinations list shows three rows and the run route's stops scroll under the routes. Both scroll with the keyboard as before.
+- Names in the list ellipsize on the narrowest rows when the value reads "tier 2, past dark". The full name is in the box below once chosen.

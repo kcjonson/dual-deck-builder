@@ -8,20 +8,22 @@ import { DepartBlocker, departRun, getDepartBlocker, getPlanBlocker, quickLoadOu
 import type { RouteDescriptor } from '../../map/RouteDescriptors';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Button } from '../../../engine/ui/Button';
 import { FocusGroup } from '../../../engine/ui/FocusGroup';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { ColorToken, tokens } from '../../../engine/theme/tokens';
 import { AreaMapView } from '../../ui/areaMap/AreaMapView';
+import { AtlasButton } from '../../ui/atlas/AtlasButton';
+import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
+import { LegendBox } from '../../ui/atlas/LegendBox';
+import { PlateFrame } from '../../ui/atlas/PlateFrame';
 import { RouteCard } from '../../ui/RouteCard';
 import { STRONGHOLD_NOT_YET, QUIET_STOPS, clockText, homeByText, poiKindText, poiYieldText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
+import { COLUMN_GAP, PRIMARY_HEIGHT, PRIMARY_LABEL, PoiHead, SHEET_GAP, SIDE_WIDTH, caption, screenTitle } from '../area-map/atlasPanel';
 import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, poiStock, quickestOf, routesBounds, viewData } from '../area-map/planningMap';
 import { mapProgressText } from '../main-menu/campaignText';
 import { departRefusal, planRefusal } from '../run/runText';
 
 const { space } = tokens;
-const SIDE_WIDTH = 360;
-const BACK_WIDTH = 96;
 /** World units round the compound, the POI, and its routes, past the camera's own fit margin. */
 const FRAME_MARGIN = 60;
 /**
@@ -66,9 +68,17 @@ export interface RunRouteScreenOptions {
  * campaign it loads the save as Continue would, and with no POI it shows
  * the nearest destination (`byDistance`). The decision record is
  * docs/AI_TECHNICAL_DECISIONS/area-map-route-pick.md.
+ *
+ * It's an atlas sheet like the area map's (DDB-509): Back and the title over
+ * the map's plate, and beside it a column of legend boxes, the destination,
+ * the routes, and the stops, with Load out the crew as the highway. It's a
+ * step under the area map rather than its sibling, so it has a back link
+ * where the area map has section tabs.
  */
 export class RunRouteScreen extends Screen {
-	private readonly stack: Stack;
+	private readonly sheet: AtlasSheet;
+	private main: Stack | null = null;
+	private side: Stack | null = null;
 	private readonly store: CampaignStore;
 	private readonly maps: PlanningMaps;
 	private campaign: Campaign | null = null;
@@ -78,14 +88,14 @@ export class RunRouteScreen extends Screen {
 	private poi: PlannedPoi | null = null;
 	private picked = -1;
 	private view: AreaMapView | null = null;
-	private nameLine: Text | null = null;
+	private nameHead: PoiHead | null = null;
 	private dayLine: Text | null = null;
 	private kindLine: Text | null = null;
 	private status: Text | null = null;
 	private cards: FocusGroup | null = null;
 	private stopsList: Stack | null = null;
 	private homeLine: Text | null = null;
-	private loadOutButton: Button | null = null;
+	private loadOutButton: AtlasButton | null = null;
 	private loadOutReason: Text | null = null;
 	/** The run is setting off, so another press waits for it. */
 	private departing = false;
@@ -98,16 +108,16 @@ export class RunRouteScreen extends Screen {
 	private loaded: Promise<void> = Promise.resolve();
 
 	constructor({ store = CampaignStore.shared, maps = PlanningMaps.shared }: RunRouteScreenOptions = {}) {
-		const root = new Stack({
+		const root = new AtlasSheet({
 			id: 'runRouteScreen',
 			direction: 'horizontal',
 			widthMode: 'fill',
 			heightMode: 'fill',
 			crossAlign: 'stretch',
-			style: { backgroundColor: 'bg_base' },
+			gap: SHEET_GAP,
 		});
-		super('runRouteScreen', { root });
-		this.stack = root;
+		super('runRouteScreen', { root, theme: 'atlas' });
+		this.sheet = root;
 		this.store = store;
 		this.maps = maps;
 	}
@@ -136,9 +146,11 @@ export class RunRouteScreen extends Screen {
 		this.visit += 1;
 		this.waiting = new AbortController();
 		this.view = new AreaMapView({ id: 'run_route_view', widthMode: 'fill', heightMode: 'fill' });
-		this.stack.addChild(this.view);
-		const back = new Button({ label: 'Back', id: 'run_route_back_button', icon: 'arrow_back', size: 'sm', width: BACK_WIDTH, onClick: () => this.back() });
-		this.stack.addChild(this.createSide(back));
+		const back = new AtlasButton({ label: 'Back to the area map', id: 'run_route_back_button', onClick: () => this.back() });
+		this.main = this.createMain(back, this.view);
+		this.sheet.addChild(this.main);
+		this.side = this.createSide();
+		this.sheet.addChild(this.side);
 
 		this.rootLayer.hotkeys.register('Escape', () => this.back());
 		this.unsubscribe = this.store.onSaveFailed((error) => this.say({ text: error.message, color: 'status_crit' }));
@@ -157,14 +169,17 @@ export class RunRouteScreen extends Screen {
 		this.rootLayer.hotkeys.unregister('Escape');
 		this.unsubscribe?.();
 		this.unsubscribe = null;
-		this.stack.clearChildren();
+		if (this.main) this.sheet.removeChild(this.main);
+		if (this.side) this.sheet.removeChild(this.side);
+		this.main = null;
+		this.side = null;
 		this.campaign = null;
 		this.map = null;
 		this.poiIndex = null;
 		this.poi = null;
 		this.picked = -1;
 		this.view = null;
-		this.nameLine = null;
+		this.nameHead = null;
 		this.dayLine = null;
 		this.kindLine = null;
 		this.status = null;
@@ -177,43 +192,36 @@ export class RunRouteScreen extends Screen {
 		this.stranded = false;
 	}
 
-	/** Back and the heading, the POI, the status line, the route cards and the picked route's stops, and Load out the crew at the foot. */
-	private createSide(back: Button): Stack {
-		const side = new Stack({
-			id: 'run_route_side',
-			width: SIDE_WIDTH,
-			heightMode: 'fill',
-			crossAlign: 'stretch',
-			padding: space.space_4,
-			gap: space.space_3,
-			style: { backgroundColor: 'bg_panel' },
-		});
-		const head = new Stack({ id: 'run_route_head', direction: 'horizontal', crossAlign: 'center', gap: space.space_3 });
+	/** Back and the title over the map's plate, and the status line under it, hidden with nothing to say. */
+	private createMain(back: AtlasButton, view: AreaMapView): Stack {
+		const main = new Stack({ id: 'run_route_main', widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch', gap: 10 });
+		const head = new Stack({ id: 'run_route_head', direction: 'horizontal', widthMode: 'fill', crossAlign: 'center', gap: 20 });
 		head.addChild(back);
-		const heading = new Stack({ id: 'run_route_heading', widthMode: 'fill', crossAlign: 'stretch' });
-		heading.addChild(kicker({ id: 'run_route_kicker', text: 'Run route to' }));
-		this.nameLine = new Text({
-			id: 'run_route_name',
-			text: '',
-			widthMode: 'fill',
-			style: { fontRole: 'display', fontSize: 'fs_lg', color: 'text_bright' },
-			wrap: 'none',
-			textOverflow: 'ellipsis',
-		});
-		heading.addChild(this.nameLine);
-		head.addChild(heading);
-		side.addChild(head);
-
-		this.dayLine = new Text({ id: 'run_route_day', text: '', style: { fontRole: 'mono', fontSize: 'fs_xs', color: 'text_dim' }, wrap: 'none' });
-		side.addChild(this.dayLine);
-		this.kindLine = caption({ id: 'run_route_kind', text: '', color: 'text' });
-		side.addChild(this.kindLine);
+		head.addChild(screenTitle({ id: 'run_route_title', text: 'Run route' }));
+		main.addChild(head);
+		const plate = new PlateFrame({ id: 'run_route_plate', widthMode: 'fill', heightMode: 'fill' });
+		plate.addChild(view);
+		main.addChild(plate);
 		this.status = caption({ id: 'run_route_status', text: 'Looking for the saved campaign.' });
-		side.addChild(this.status);
+		main.addChild(this.status);
+		return main;
+	}
+
+	/** The destination's box, the routes and their stops (scrolling together), and Load out the crew at the foot. */
+	private createSide(): Stack {
+		const side = new Stack({ id: 'run_route_side', width: SIDE_WIDTH, heightMode: 'fill', crossAlign: 'stretch', gap: COLUMN_GAP });
+		const destination = new LegendBox({ id: 'run_route_destination', fresh: true, widthMode: 'fill', gap: 4, padding: 14 });
+		this.nameHead = new PoiHead({ id: 'run_route_name' });
+		destination.addChild(this.nameHead);
+		this.dayLine = new Text({ id: 'run_route_day', text: '', widthMode: 'fill', style: { fontRole: 'mono', fontSize: 'fs_xs', color: 'text_dim' }, wrap: 'none', textOverflow: 'ellipsis' });
+		destination.addChild(this.dayLine);
+		this.kindLine = caption({ id: 'run_route_kind', text: '', color: 'text' });
+		destination.addChild(this.kindLine);
+		side.addChild(destination);
 
 		const scroll = new ScrollContainer({ id: 'run_route_scroll', widthMode: 'fill', heightMode: 'fill' });
-		const body = new Stack({ id: 'run_route_body', widthMode: 'fill', crossAlign: 'stretch', gap: space.space_2 });
-		body.addChild(kicker({ id: 'run_route_routes_kicker', text: 'Routes' }));
+		const body = new Stack({ id: 'run_route_body', widthMode: 'fill', crossAlign: 'stretch', gap: COLUMN_GAP });
+		const routes = new LegendBox({ id: 'run_route_routes', title: 'Routes', widthMode: 'fill' });
 		this.cards = new FocusGroup({
 			id: 'run_route_cards',
 			selection: 'single',
@@ -225,29 +233,35 @@ export class RunRouteScreen extends Screen {
 				if (index >= 0) this.pick(index);
 			},
 		});
-		body.addChild(this.cards);
-		body.addChild(kicker({ id: 'run_route_stops_kicker', text: 'Stops in order' }));
+		routes.addChild(this.cards);
+		body.addChild(routes);
+		const stops = new LegendBox({ id: 'run_route_stops_box', title: 'Stops in order', widthMode: 'fill' });
 		this.stopsList = new Stack({ id: 'run_route_stops', widthMode: 'fill', crossAlign: 'stretch', gap: space.space_1 });
-		body.addChild(this.stopsList);
-		body.addChild(caption({ id: 'run_route_quiet_note', text: QUIET_STOPS }));
+		stops.addChild(this.stopsList);
+		stops.addChild(caption({ id: 'run_route_quiet_note', text: QUIET_STOPS }));
+		body.addChild(stops);
 		scroll.addChild(body);
 		side.addChild(scroll);
 
+		const go = new Stack({ id: 'run_route_go', widthMode: 'fill', crossAlign: 'stretch', gap: 6 });
 		this.homeLine = new Text({ id: 'run_route_home_by', text: '', widthMode: 'fill', style: { fontSize: 'fs_sm', fontWeight: 'bold', color: 'text' } });
-		side.addChild(this.homeLine);
-		this.loadOutButton = new Button({
+		go.addChild(this.homeLine);
+		this.loadOutButton = new AtlasButton({
 			label: 'Load out the crew',
 			id: 'run_route_load_out_button',
-			tone: 'accent',
-			size: 'lg',
+			variant: 'highway',
+			shield: true,
+			labelSize: PRIMARY_LABEL,
+			height: PRIMARY_HEIGHT,
 			block: true,
 			disabled: true,
 			onClick: () => { void this.loadOut(); },
 		});
-		side.addChild(this.loadOutButton);
-		this.loadOutReason = caption({ id: 'run_route_load_out_reason', text: '', color: 'status_warn' });
+		go.addChild(this.loadOutButton);
+		this.loadOutReason = caption({ id: 'run_route_load_out_reason', text: '', color: 'status_crit' });
 		this.loadOutReason.visible = false;
-		side.addChild(this.loadOutReason);
+		go.addChild(this.loadOutReason);
+		side.addChild(go);
 		return side;
 	}
 
@@ -263,7 +277,7 @@ export class RunRouteScreen extends Screen {
 		}
 		if (visit !== this.visit) return;
 		if (campaign) await this.show(campaign);
-		else this.say({ text: trouble, color: 'status_warn' });
+		else this.say({ text: trouble, color: 'status_crit' });
 	}
 
 	/** The campaign, then its map, at once when it's been made this session, or once it has, saying how far that's got. */
@@ -309,13 +323,13 @@ export class RunRouteScreen extends Screen {
 		const poi = (this.poiIndex === null ? byDistance(pois).find(({ stronghold }) => !stronghold) : pois[this.poiIndex]) ?? null;
 		const trouble = poi === null ? "That destination isn't on the area map." : poi.stronghold ? STRONGHOLD_NOT_YET : poi.routes.length === 0 ? 'No road reaches it.' : null;
 		if (poi === null || trouble !== null) {
-			this.say({ text: trouble ?? '', color: 'status_warn' });
+			this.say({ text: trouble ?? '', color: 'status_crit' });
 			return;
 		}
 		this.poi = poi;
 		this.poiIndex = poi.poi;
 		const dark = poi.routes[0].dark;
-		if (this.nameLine) this.nameLine.text = poi.name;
+		this.nameHead?.show(poi);
 		if (this.dayLine) this.dayLine.text = `Day ${campaign.day} / dawn ${clockText(dark - map.params.daylightHours)} / dark ${clockText(dark)} / fuel ${campaign.resources.fuel}`;
 		const destination = this.runRoute(poi.routes[0])?.destination ?? null;
 		const { state } = poiStock({ campaign, poi });
@@ -340,6 +354,7 @@ export class RunRouteScreen extends Screen {
 					title: route.name,
 					detail: routeDetail(route),
 					note: blocker !== null ? departRefusal(blocker) : route.spare < 0 ? 'Back after dark.' : null,
+					noteColor: 'status_crit',
 					dim: blocker !== null,
 				}));
 			});
@@ -369,7 +384,7 @@ export class RunRouteScreen extends Screen {
 		}
 		if (this.homeLine) {
 			this.homeLine.text = homeByText(route);
-			this.homeLine.color = route.spare < 0 ? 'status_warn' : 'text';
+			this.homeLine.color = route.spare < 0 ? 'status_crit' : 'text';
 		}
 		const reason = this.loadOutBlocked(route);
 		if (this.loadOutButton) this.loadOutButton.enabled = reason === null && !this.departing;
@@ -441,7 +456,7 @@ export class RunRouteScreen extends Screen {
 		if (result === 'retired') {
 			this.departing = false;
 			this.stranded = true;
-			this.say({ text: STRANDED_RUN_ROUTE, color: 'status_warn' });
+			this.say({ text: STRANDED_RUN_ROUTE, color: 'status_crit' });
 			this.pick(this.picked);
 			return;
 		}
@@ -485,12 +500,4 @@ function stopRow({ id, tag, text }: { id: string; tag: string; text: string }): 
 	row.addChild(chip);
 	row.addChild(new Text({ id: `${id}_text`, text, widthMode: 'fill', style: { fontSize: 'fs_sm', color: 'text' }, wrap: 'none', textOverflow: 'ellipsis' }));
 	return row;
-}
-
-function caption({ id, text, color = 'text_dim' }: { id: string; text: string; color?: ColorToken }): Text {
-	return new Text({ text, id, widthMode: 'fill', style: { fontSize: 'fs_sm', color } });
-}
-
-function kicker({ id, text }: { id: string; text: string }): Text {
-	return new Text({ text, id, style: { fontRole: 'mono', fontSize: 'fs_xs', color: 'text_dim', textTransform: 'uppercase', letterSpacing: 'ls_wide' }, wrap: 'none' });
 }

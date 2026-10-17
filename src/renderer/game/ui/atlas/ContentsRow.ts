@@ -2,7 +2,7 @@ import type { ClickCallback, ComponentOptions } from '../../../engine/components
 import { Text } from '../../../engine/components/Text';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { RGBA, Rect } from '../../../engine/draw/geometry';
-import type { Theme } from '../../../engine/theme/tokens';
+import type { ColorToken, Theme } from '../../../engine/theme/tokens';
 import { Pressable } from '../../../engine/ui/Pressable';
 import { ATLAS, AtlasInks, DISPLAY_BOLD, atlasInks } from './atlasStyle';
 import { DECK_GLYPH, DeckGlyphGeometry } from './deck';
@@ -12,11 +12,17 @@ import { GlyphPaint, MapGlyphGeometry, glyphPaint, glyphWidth } from './mapGlyph
  * `primary` is the one row the page leads with (Continue, or New campaign):
  * a highway shield, a larger label, ink rules above and below. `standard`
  * leads with a circled number or letter. `compact` is the appendix list's.
+ * `list` is a long list's (the area map's destinations): a small circled
+ * lead at the minimum hit height.
  */
-export type ContentsRowVariant = 'primary' | 'standard' | 'compact';
+export type ContentsRowVariant = 'primary' | 'standard' | 'compact' | 'list';
 
-/** What leads the row: a glyph's label (a number, a letter, the day), the deck glyph, or nothing. */
-export type ContentsLead = { glyph: string } | 'deck' | null;
+/**
+ * What leads the row: a glyph's label (a number, a letter, the day), the
+ * deck glyph, or nothing. `diamond` leads with the stronghold diamond in
+ * place of the circle, for a hostile place.
+ */
+export type ContentsLead = { glyph: string; diamond?: boolean } | 'deck' | null;
 
 export interface ContentsRowOptions extends Omit<ComponentOptions, 'style'> {
 	label: string;
@@ -28,6 +34,8 @@ export interface ContentsRowOptions extends Omit<ComponentOptions, 'style'> {
 	variant?: ContentsRowVariant;
 	/** Faded print: shown in its place, but not available. Not focusable or pressable. */
 	faded?: boolean;
+	/** The label and value in faint ink, still pressable: a place that can be read but has less to offer (a depleted POI, a stronghold). */
+	dim?: boolean;
 	onClick?: ClickCallback;
 }
 
@@ -53,6 +61,7 @@ const METRICS: Readonly<Record<ContentsRowVariant, RowMetrics>> = {
 	primary: { height: 72, label: 32, value: 14, glyph: 46, leadSlot: LEAD_SLOT, padX: 12, gap: 16, ruleAbove: true, rule: ATLAS.legendBorder },
 	standard: { height: 56, label: 26, value: 14, glyph: 30, leadSlot: LEAD_SLOT, padX: 12, gap: 16, ruleAbove: false, rule: 1 },
 	compact: { height: 44, label: 20, value: 12, glyph: 0, leadSlot: 0, padX: 4, gap: 8, ruleAbove: false, rule: 1 },
+	list: { height: ATLAS.minHit, label: 18, value: 12, glyph: 22, leadSlot: 26, padX: 6, gap: 10, ruleAbove: false, rule: 1 },
 };
 
 const SUBTITLE_SIZE = 14;
@@ -80,6 +89,7 @@ export class ContentsRow extends Pressable {
 	private readonly glyphLabel: string | null;
 	private readonly deck: DeckGlyphGeometry | null;
 	private isFaded: boolean;
+	private isDim: boolean;
 	private inks: AtlasInks;
 	private paint: GlyphPaint;
 	private readonly box: Rect = { x: 0, y: 0, width: 0, height: 0 };
@@ -89,23 +99,24 @@ export class ContentsRow extends Pressable {
 	private readonly leaders: Rect[] = [];
 	private leaderCount = 0;
 
-	constructor({ label, value, subtitle, lead = null, variant = 'standard', faded = false, onClick, ...options }: ContentsRowOptions) {
+	constructor({ label, value, subtitle, lead = null, variant = 'standard', faded = false, dim = false, onClick, ...options }: ContentsRowOptions) {
 		const metrics = METRICS[variant];
 		super({ focusable: true, widthMode: 'fill', height: metrics.height, ...options, ...(faded ? { enabled: false } : {}) });
 		this.componentType = 'ContentsRow';
 		this.variant = variant;
 		this.metrics = metrics;
 		this.isFaded = faded;
+		this.isDim = dim;
 		this.inks = atlasInks(this.themeTokens);
-		const kind = variant === 'primary' ? 'shield' : 'circled';
-		const glyphLead = lead !== null && lead !== 'deck' && metrics.glyph > 0;
+		const glyphLead = lead !== null && lead !== 'deck' && metrics.glyph > 0 ? lead : null;
+		const kind = variant === 'primary' ? 'shield' : glyphLead?.diamond ? 'diamond' : 'circled';
 		this.glyph = glyphLead ? new MapGlyphGeometry(kind) : null;
-		this.glyphLabel = glyphLead ? (lead as { glyph: string }).glyph : null;
+		this.glyphLabel = glyphLead ? glyphLead.glyph : null;
 		this.deck = lead === 'deck' ? new DeckGlyphGeometry() : null;
 		this.paint = glyphPaint(kind, this.inks, { faded });
 		this.labelText = new Text({
 			text: label,
-			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: metrics.label, color: faded ? 'text_disabled' : 'text' },
+			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: metrics.label, color: this.labelColor },
 			wrap: 'none',
 			textOverflow: 'ellipsis',
 			verticalAlign: 'middle',
@@ -118,7 +129,7 @@ export class ContentsRow extends Pressable {
 		this.valueText = value !== undefined
 			? new Text({
 				text: value,
-				style: { fontRole: 'mono', fontSize: metrics.value, color: faded ? 'text_disabled' : variant === 'compact' ? 'text_dim' : 'text' },
+				style: { fontRole: 'mono', fontSize: metrics.value, color: this.valueColor },
 				wrap: 'none',
 				verticalAlign: 'middle',
 			})
@@ -159,9 +170,18 @@ export class ContentsRow extends Pressable {
 		if (faded === this.isFaded) return;
 		this.isFaded = faded;
 		this.enabled = !faded;
-		this.paint = glyphPaint(this.glyph?.kind ?? 'circled', this.inks, { faded });
-		this.labelText.color = faded ? 'text_disabled' : 'text';
-		if (this.valueText) this.valueText.color = faded ? 'text_disabled' : this.variant === 'compact' ? 'text_dim' : 'text';
+		this.repaint();
+	}
+
+	public get dim(): boolean {
+		return this.isDim;
+	}
+
+	/** Prints the row in faint ink, leaving it in reach. */
+	public set dim(dim: boolean) {
+		if (dim === this.isDim) return;
+		this.isDim = dim;
+		this.repaint();
 	}
 
 	/** Rows abut, so the ring is drawn inside, as a list row's is. */
@@ -177,6 +197,23 @@ export class ContentsRow extends Pressable {
 	protected onThemeChange(theme: Theme): void {
 		this.inks = atlasInks(theme);
 		this.paint = glyphPaint(this.glyph?.kind ?? 'circled', this.inks, { faded: this.isFaded });
+	}
+
+	private get labelColor(): ColorToken {
+		if (this.isFaded) return 'text_disabled';
+		return this.isDim ? 'text_faint' : 'text';
+	}
+
+	private get valueColor(): ColorToken {
+		if (this.isFaded) return 'text_disabled';
+		if (this.isDim) return 'text_faint';
+		return this.variant === 'compact' ? 'text_dim' : 'text';
+	}
+
+	private repaint(): void {
+		this.paint = glyphPaint(this.glyph?.kind ?? 'circled', this.inks, { faded: this.isFaded });
+		this.labelText.color = this.labelColor;
+		if (this.valueText) this.valueText.color = this.valueColor;
 	}
 
 	protected layoutChildren(): void {

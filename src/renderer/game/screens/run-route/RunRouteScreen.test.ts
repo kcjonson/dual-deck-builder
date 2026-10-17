@@ -5,12 +5,11 @@ import { Clock } from '../../../engine/animation/Clock';
 import { createTestContext } from '../../../engine/components/testing';
 import type { MountContext } from '../../../engine/components/MountContext';
 import type { Text } from '../../../engine/components/Text';
-import type { Button } from '../../../engine/ui/Button';
 import { click, key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
-import { tokens } from '../../../engine/theme/tokens';
+import { themes } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
 import type { CampaignStore } from '../../campaign/CampaignStore';
@@ -19,6 +18,7 @@ import { MemorySaveStorage } from '../../campaign/SaveStorage';
 import { routesOnOffer } from '../../campaign/SupplyRun';
 import { FaultyStorage, atHomeText, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
 import type { AreaMapView } from '../../ui/areaMap/AreaMapView';
+import type { AtlasButton } from '../../ui/atlas/AtlasButton';
 import type { RouteCard } from '../../ui/RouteCard';
 import { STRONGHOLD_NOT_YET, homeByText, poiKindText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
 import { PlannedPoi, byDistance, plannedPois, routePoints } from '../area-map/planningMap';
@@ -119,7 +119,7 @@ describe('RunRouteScreen (DDB-319)', () => {
 		await open(NEAR, (campaign) => campaign.set({ map: { pois: [{ poi: NEAR.poi, left: 0, nights: 0 }] } }));
 		expect(view().markers).toEqual([expect.objectContaining({ id: NEAR.id, state: 'depleted' })]);
 		expect(text('run_route_kind')).toBe(`${poiKindText(NEAR)}, depleted. Nothing left to take until it refills.`);
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(true);
+		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(true);
 	});
 
 	it('shows a card for each route from its descriptor, and the picked one\'s stops in order and when it\'d be home', async () => {
@@ -158,8 +158,8 @@ describe('RunRouteScreen (DDB-319)', () => {
 		expect(card(late).noteText).toBe('Back after dark.');
 		clickOn(`run_route_card_${late}`);
 		expect(text('run_route_home_by')).toMatch(/^Home by \d\d:\d\d, [\d.]+ h after dark\.$/);
-		expect(find<Text>('run_route_home_by').color).toEqual(tokens.color.status_warn);
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(true);
+		expect(find<Text>('run_route_home_by').color).toEqual(themes.atlas.color.status_crit);
+		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(true);
 	});
 
 	it('dims a route the stores can\'t fuel with the reason, picks one they can, and keeps Load out off while the other is picked', async () => {
@@ -170,12 +170,12 @@ describe('RunRouteScreen (DDB-319)', () => {
 		expect(card(dear).dim).toBe(true);
 		expect(card(dear).noteText).toBe(`Takes ${fuels[dear]} fuel, and the stores hold ${fuel}.`);
 		expect(card(screen.pickedRoute).dim).toBe(false);
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(true);
+		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(true);
 
 		clickOn(`run_route_card_${dear}`);
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(false);
+		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(false);
 		expect(text('run_route_load_out_reason')).toBe(`Takes ${fuels[dear]} fuel, and the stores hold ${fuel}.`);
-		find<Button>('run_route_load_out_button').onClick?.({} as never);
+		find<AtlasButton>('run_route_load_out_button').onClick?.({} as never);
 		await flush();
 		expect(navigate).not.toHaveBeenCalled();
 	});
@@ -186,7 +186,7 @@ describe('RunRouteScreen (DDB-319)', () => {
 		clickOn('run_route_card_1');
 		const route = routesOnOffer({ map: MAP, campaign }).find(({ id }) => id === routeId(NEAR.poi, 1));
 		if (!route) throw new Error('the route should be on offer');
-		find<Button>('run_route_load_out_button').onClick?.({} as never);
+		find<AtlasButton>('run_route_load_out_button').onClick?.({} as never);
 		await flush();
 
 		expect(campaign.supplyRun?.route).toEqual(route);
@@ -198,23 +198,23 @@ describe('RunRouteScreen (DDB-319)', () => {
 
 	it('keeps Load out off with nobody fit to go, saying why', async () => {
 		await open(NEAR, (campaign) => [campaign.drivers[0], campaign.drivers[4]].forEach((driver) => driver.set({ status: 'injured', injuredDays: 1, hitpoints: 20 })));
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(false);
+		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(false);
 		expect(text('run_route_load_out_reason')).toBe('Nobody at the compound is fit to go out.');
 	});
 
 	it('says nothing more is saved when the store has moved on from this campaign, with Load out off and Back to the menu', async () => {
 		await open(NEAR);
 		await store.load();
-		find<Button>('run_route_load_out_button').onClick?.({} as never);
+		find<AtlasButton>('run_route_load_out_button').onClick?.({} as never);
 		await flush();
 		expect(text('run_route_status')).toBe(STRANDED_RUN_ROUTE);
 		expect(navigate).not.toHaveBeenCalled();
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(false);
+		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(false);
 		expect(text('run_route_load_out_reason')).toBe(STRANDED_RUN_ROUTE);
 		// Not stuck: Back and Escape go to the menu, where Continue picks up the save
 		send(context, [key('Escape')]);
 		expect(navigate).toHaveBeenLastCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
-		find<Button>('run_route_back_button').onClick?.({} as never);
+		find<AtlasButton>('run_route_back_button').onClick?.({} as never);
 		expect(navigate).toHaveBeenCalledTimes(2);
 	});
 
@@ -226,7 +226,7 @@ describe('RunRouteScreen (DDB-319)', () => {
 		screen.unmount();
 		await open(poi, withFuel(0));
 		expect(screen.pickedRoute).toBe(quickest);
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(false);
+		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(false);
 	});
 
 	it.each([
@@ -235,7 +235,7 @@ describe('RunRouteScreen (DDB-319)', () => {
 	])('offers only Back for %s, saying why', async (_name, poi, reason) => {
 		await open(poi());
 		expect(text('run_route_status')).toBe(reason);
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(false);
+		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(false);
 		expect(view().routes).toEqual([]);
 	});
 
@@ -243,7 +243,7 @@ describe('RunRouteScreen (DDB-319)', () => {
 		await open(NEAR);
 		send(context, [key('Escape')]);
 		expect(navigate).toHaveBeenLastCalledWith('areaMapScreen', { campaign: screen.shown, poi: NEAR.poi }, { restoreFocus: true });
-		find<Button>('run_route_back_button').onClick?.({} as never);
+		find<AtlasButton>('run_route_back_button').onClick?.({} as never);
 		expect(navigate).toHaveBeenCalledTimes(2);
 	});
 
