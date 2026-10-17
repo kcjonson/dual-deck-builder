@@ -505,7 +505,43 @@ function stamps() {
 			+ '<rect x="14" y="14" width="232" height="76" rx="4" stroke-width="4"/>'
 			+ `<path d="M38 52 l10 -10 l10 10 l-10 10 z M202 52 l10 -10 l10 10 l-10 10 z" fill="${PALETTE.stronghold}" stroke="none"/>`
 			+ `<text x="130" y="66" ${STAMP_TEXT} font-size="38" letter-spacing="4" fill="${PALETTE.stronghold}" stroke="none">HOSTILE</text></g>`),
+		// The result screens' (DDB-511): a fight or a run lost, and the compound fallen.
+		make('stamp_lost', 200, 104, 25, `<g transform="rotate(-7 100 52)" fill="none" stroke="${PALETTE.stronghold}">`
+			+ '<rect x="18" y="18" width="164" height="68" rx="4" stroke-width="5"/>'
+			+ '<rect x="26" y="26" width="148" height="52" rx="2" stroke-width="1.6"/>'
+			+ `<text x="100" y="69" ${STAMP_TEXT} font-size="44" letter-spacing="7" fill="${PALETTE.stronghold}" stroke="none">LOST</text></g>`),
+		make('stamp_fallen', 248, 108, 26, `<g transform="rotate(4 124 54)" fill="none" stroke="${PALETTE.stronghold}">`
+			+ '<rect x="14" y="16" width="220" height="76" rx="4" stroke-width="4"/>'
+			+ `<path d="M34 54 l9 -9 l9 9 l-9 9 z M196 54 l9 -9 l9 9 l-9 9 z" fill="${PALETTE.stronghold}" stroke="none"/>`
+			+ `<text x="124" y="70" ${STAMP_TEXT} font-size="42" letter-spacing="5" fill="${PALETTE.stronghold}" stroke="none">FALLEN</text></g>`),
 	];
+}
+
+/**
+ * A tag's tear (DDB-511): a rip run in from the top edge, its gap in
+ * shadow and its lip catching the light, for a driver's tag that has
+ * picked up an injury. Drawn at a tag's top corner, on any paper.
+ */
+function tear() {
+	const width = 36;
+	const height = 48;
+	const depth = 42;
+	const opening = 8;
+	const rng = random('tear_a');
+	const lip = [];
+	for (let step = 0; step <= 8; step++) {
+		const t = step / 8;
+		lip.push([24 - 13 * t + (rng() - 0.5) * 4, depth * t]);
+	}
+	lip[0] = [24, 0];
+	// The gap is widest at the edge and closes where the rip stops.
+	const far = lip.slice(0, -1).reverse().map(([x, y]) => [x + opening * (1 - y / depth), y]);
+	const body = `<defs>${BLUR('tearBlur', 0.8)}</defs>`
+		+ `<polyline points="${points(far.map(([x, y]) => [x + 2, y]))}" fill="none" stroke="#3A2A14" stroke-width="3" stroke-opacity="0.35" filter="url(#tearBlur)"/>`
+		+ `<polygon points="${points([...lip, ...far])}" fill="${PALETTE.char}" opacity="0.8"/>`
+		+ `<polyline points="${points(lip)}" fill="none" stroke="#FFFBF0" stroke-width="1.4"/>`
+		+ `<polyline points="${points(far)}" fill="none" stroke="#FFFBF0" stroke-width="0.9" stroke-opacity="0.8"/>`;
+	return { name: 'tear_a', width, height, svg: svg(width, height, body), tint: 'none', scale: 1 };
 }
 
 // -- cards ------------------------------------------------------------------
@@ -653,6 +689,7 @@ export function authorPieces(repoRoot) {
 		...PAPER_VARIANTS.map(tape),
 		...['a', 'b', 'c', 'd'].map(greaseLoop),
 		...stamps(),
+		tear(),
 		...cardBacks(),
 		...logos(repoRoot),
 		...marks(),

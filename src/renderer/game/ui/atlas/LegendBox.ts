@@ -5,7 +5,7 @@ import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { RGBA, Rect } from '../../../engine/draw/geometry';
 import type { Theme } from '../../../engine/theme/tokens';
 import { UiArtName, drawAtlasArt, paperPiece } from './atlasArt';
-import { ATLAS, AtlasInks, DISPLAY_BOLD, atlasInks } from './atlasStyle';
+import { ATLAS, AtlasInks, DISPLAY_BOLD, MONO_MEDIUM, atlasInks } from './atlasStyle';
 import { MapGlyph } from './mapGlyphs';
 
 export interface LegendBoxOptions extends Omit<StackOptions, 'style' | 'padding'> {
@@ -130,25 +130,38 @@ export interface LegendRowOptions extends Omit<StackOptions, 'style' | 'directio
 	symbol?: LegendSymbol;
 	/** Faint ink, for nothing to report. Default on with the dash. */
 	faint?: boolean;
+	/** A count or state at the right, in mono 500, for a ledger: "Days held .... 9 days". */
+	value?: string;
+	/** Ids for the line and the value, so a screen's tests can read each. */
+	textId?: string;
+	valueId?: string;
 }
 
 const SYMBOL_SIZE = 14;
 const BODY_SIZE = 14;
+const VALUE_SIZE = 13;
 
 /**
  * One row of a legend box: a map-legend symbol where it helps (a stronghold
  * diamond for a shortfall, an open ring for a pending item, a dashed line
- * for nothing to report) and a body line that wraps to the box.
+ * for nothing to report), a body line that wraps to the box, and, in a
+ * ledger, the value in mono at the right.
  */
 export class LegendRow extends Stack {
 	private readonly line: Text;
+	private readonly valueText: Text | null;
 
-	constructor({ text, symbol, faint = symbol === 'dash', ...options }: LegendRowOptions) {
+	constructor({ text, symbol, faint = symbol === 'dash', value, textId, valueId, ...options }: LegendRowOptions) {
 		super({ widthMode: 'fill', ...options, direction: 'horizontal', gap: 10, crossAlign: 'center' });
 		this.componentType = 'LegendRow';
+		const color = faint ? 'text_faint' : 'text';
 		if (symbol) this.addChild(new MapGlyph({ kind: symbol, size: SYMBOL_SIZE }));
-		this.line = new Text({ text, widthMode: 'fill', wrap: 'word', style: { fontSize: BODY_SIZE, color: faint ? 'text_faint' : 'text' } });
+		this.line = new Text({ id: textId, text, widthMode: 'fill', wrap: 'word', style: { fontSize: BODY_SIZE, color } });
 		this.addChild(this.line);
+		this.valueText = value !== undefined
+			? new Text({ id: valueId, text: value, wrap: 'word', style: { fontRole: MONO_MEDIUM, fontWeight: 500, fontSize: VALUE_SIZE, color, textAlign: 'right' } })
+			: null;
+		if (this.valueText) this.addChild(this.valueText);
 	}
 
 	public get text(): string {
@@ -157,6 +170,11 @@ export class LegendRow extends Stack {
 
 	public set text(text: string) {
 		this.line.text = text;
+	}
+
+	/** The value at the right, or null for a row built without one. */
+	public get value(): string | null {
+		return this.valueText?.text ?? null;
 	}
 }
 

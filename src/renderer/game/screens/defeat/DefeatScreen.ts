@@ -5,20 +5,23 @@ import { campaignStats } from '../../campaign/CampaignEnd';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Button } from '../../../engine/ui/Button';
-import { Divider } from '../../../engine/ui/Divider';
-import { Panel } from '../../../engine/ui/Panel';
-import { ColorToken, tokens } from '../../../engine/theme/tokens';
+import type { ColorToken } from '../../../engine/theme/tokens';
+import { AtlasButton } from '../../ui/atlas/AtlasButton';
+import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
+import { ATLAS, DISPLAY_BOLD, MONO_MEDIUM } from '../../ui/atlas/atlasStyle';
+import { DamageMark } from '../../ui/atlas/DamageMark';
+import { LegendBox, LegendRow } from '../../ui/atlas/LegendBox';
 import { fellOnText } from '../main-menu/campaignText';
 import { FALL_TITLES, NO_FALL, fallStory, lastDayLines, recordRows } from './defeatText';
 
-const { space } = tokens;
 const STORY_WIDTH = 560;
-/** The last day beside the record, with the gap between, fits inside the root's padding at 1024 wide. */
-const LAST_DAY_WIDTH = 400;
-const RECORD_WIDTH = 520;
-const LABEL_WIDTH = 170;
-const BACK_WIDTH = 200;
+/** The last day beside the record, with the gap between, fits inside the sheet's neatline at 1024 wide. */
+const LAST_DAY_WIDTH = 380;
+const RECORD_WIDTH = 500;
+const BACK_WIDTH = 220;
+const SAVE_ERROR_WIDTH = 420;
+const TITLE_SIZE = 34;
+const KICKER_SIZE = 12;
 
 /** What the compound hands the defeat screen once a lost campaign's end is saved: the campaign. */
 export interface DefeatScreenData {
@@ -31,11 +34,16 @@ export interface DefeatScreenOptions {
 }
 
 /**
- * The campaign's defeat (Game Flow 6.3): over the day it fell on, how the
- * compound fell, why (the last driver lost, or the last People gone, and the
- * state that chose the ending), then the last day's log, in place of the
- * final moments, beside the campaign's record from `campaignStats`, then Back
- * to menu. A root stack centres it all, as Campaign History does.
+ * The campaign's defeat (Game Flow 6.3) on the atlas sheet: over the day it
+ * fell on, how the compound fell, why (the last driver lost, or the last
+ * People gone, and the state that chose the ending), then the last day's
+ * log, in place of the final moments, beside the campaign's record from
+ * `campaignStats`, each a legend box, then Back to menu, the highway.
+ *
+ * A fall is W3 (UI Art Direction, Wear): the sheet is burnt at its bottom
+ * right corner and FALLEN is struck beside the title, the screen's one hero
+ * mark. The page is damaged only once a fall is shown; with none to show it
+ * stays W2. Back to menu sits at the left of the foot, clear of the burn.
  *
  * The compound hands it the campaign once the end's checkpoint has landed, so
  * the history already holds its line and the save is gone. Opened with
@@ -43,14 +51,14 @@ export interface DefeatScreenOptions {
  * the save: a campaign already over is shown, and checkpointed, which ends it
  * in the store as the compound would; a campaign still standing, or none,
  * shows that there's no fall to show, and a save that can't be loaded says
- * why. A checkpoint that fails says so under the record.
+ * why. A checkpoint that fails says so beside Back to menu.
  *
  * Back to menu is the only control, so focus starts there; Enter on it and
  * Escape both go to the menu with focus restored, which lands on New
  * Campaign, since Continue has nothing left to continue.
  */
 export class DefeatScreen extends Screen {
-	private readonly stack: Stack;
+	private readonly sheet: AtlasSheet;
 	private readonly store: CampaignStore;
 	private campaign: Campaign | null = null;
 	private content: Stack | null = null;
@@ -61,18 +69,17 @@ export class DefeatScreen extends Screen {
 	private loaded: Promise<void> = Promise.resolve();
 
 	constructor({ store = CampaignStore.shared }: DefeatScreenOptions = {}) {
-		const root = new Stack({
+		const root = new AtlasSheet({
 			id: 'defeatScreen',
 			widthMode: 'fill',
 			heightMode: 'fill',
 			distribution: 'center',
 			crossAlign: 'center',
-			gap: space.space_4,
-			padding: space.space_6,
-			style: { backgroundColor: 'bg_base' },
+			contentInset: 16,
+			paper: 'a',
 		});
-		super('defeatScreen', { root });
-		this.stack = root;
+		super('defeatScreen', { root, theme: 'atlas' });
+		this.sheet = root;
 		this.store = store;
 	}
 
@@ -88,25 +95,33 @@ export class DefeatScreen extends Screen {
 
 	protected onMount(data?: unknown): void {
 		this.visit += 1;
-		this.content = new Stack({ id: 'defeat_content', crossAlign: 'center', gap: space.space_3 });
-		this.stack.addChild(this.content);
-		this.saveError = new Text({
-			text: '',
-			id: 'defeat_save_error',
-			width: STORY_WIDTH,
-			visible: false,
-			style: { fontSize: 'fs_sm', color: 'status_crit', textAlign: 'center' },
-		});
-		this.stack.addChild(this.saveError);
-		const back = new Button({
+		this.sheet.wear = 2;
+		const page = new Stack({ id: 'defeat_page', crossAlign: 'stretch', gap: 20 });
+		this.content = new Stack({ id: 'defeat_content', crossAlign: 'start', gap: 20 });
+		page.addChild(this.content);
+
+		const foot = new Stack({ id: 'defeat_foot', direction: 'horizontal', widthMode: 'fill', crossAlign: 'center', gap: 16 });
+		const back = new AtlasButton({
 			label: 'Back to menu',
 			id: 'defeat_back_button',
-			icon: 'arrow_back',
-			size: 'lg',
+			variant: 'highway',
+			labelSize: 22,
+			height: 52,
+			labelAlign: 'center',
 			width: BACK_WIDTH,
 			onClick: () => this.back(),
 		});
-		this.stack.addChild(back);
+		foot.addChild(back);
+		this.saveError = new Text({
+			text: '',
+			id: 'defeat_save_error',
+			width: SAVE_ERROR_WIDTH,
+			visible: false,
+			style: { fontSize: 14, color: 'status_crit' },
+		});
+		foot.addChild(this.saveError);
+		page.addChild(foot);
+		this.sheet.addChild(page);
 
 		this.rootLayer.hotkeys.register('Escape', () => this.back());
 		this.unsubscribe = this.store.onSaveFailed((error) => this.showError(error.message));
@@ -122,7 +137,7 @@ export class DefeatScreen extends Screen {
 		this.rootLayer.hotkeys.unregister('Escape');
 		this.unsubscribe?.();
 		this.unsubscribe = null;
-		this.stack.clearChildren();
+		this.sheet.clearChildren();
 		this.campaign = null;
 		this.content = null;
 		this.saveError = null;
@@ -148,16 +163,17 @@ export class DefeatScreen extends Screen {
 		if (campaign?.isOver) await this.store.checkpoint(campaign);
 	}
 
-	/** In the fall's place, a line saying why there's none to show. */
+	/** In the fall's place, a line saying why there's none to show, on an undamaged page. */
 	private showNone({ text, color }: { text: string; color: ColorToken }): void {
+		this.sheet.wear = 2;
 		this.content?.clearChildren();
-		this.content?.addChild(new Text({ text, id: 'defeat_none', width: STORY_WIDTH, style: { fontSize: 'fs_md', color, textAlign: 'center' } }));
+		this.content?.addChild(new Text({ text, id: 'defeat_none', width: STORY_WIDTH, style: { fontSize: 16, color } }));
 	}
 
 	/**
-	 * The fall: the day, the title, and the story, then the last day's log
-	 * beside the record. Or that there's none to show, for a campaign still
-	 * standing or none at all.
+	 * The fall: the day, the title, and the story with the stamp beside
+	 * them, then the last day's log beside the record. Or that there's none
+	 * to show, for a campaign still standing or none at all.
 	 */
 	private show(campaign: Campaign | null): void {
 		const content = this.content;
@@ -169,43 +185,46 @@ export class DefeatScreen extends Screen {
 		}
 		content.clearChildren();
 		this.campaign = campaign;
-		content.addChild(new Text({
+		this.sheet.wear = 3;
+
+		const head = new Stack({ id: 'defeat_head', direction: 'horizontal', crossAlign: 'center', gap: 24 });
+		const heading = new Stack({ id: 'defeat_heading', gap: 6 });
+		heading.addChild(new Text({
 			text: fellOnText(campaign.day),
 			id: 'defeat_day',
-			style: { fontRole: 'mono', fontSize: 'fs_sm', color: 'text_dim', textAlign: 'center' },
+			style: { fontRole: MONO_MEDIUM, fontWeight: 500, fontSize: KICKER_SIZE, letterSpacing: 0.14, textTransform: 'uppercase', color: 'text_dim' },
 			wrap: 'none',
 		}));
-		content.addChild(new Text({
+		heading.addChild(new Text({
 			text: FALL_TITLES[end.ending],
 			id: 'defeat_title',
-			style: { fontRole: 'display', fontSize: 'fs_4xl', color: 'status_crit', textAlign: 'center', textTransform: 'uppercase', letterSpacing: 'ls_wide' },
+			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: TITLE_SIZE, color: 'status_crit', textTransform: 'uppercase', letterSpacing: ATLAS.headTracking },
 			wrap: 'none',
 		}));
-		content.addChild(new Text({
+		heading.addChild(new Text({
 			text: fallStory(end),
 			id: 'defeat_story',
 			width: STORY_WIDTH,
-			style: { fontSize: 'fs_md', color: 'text', textAlign: 'center' },
+			style: { fontSize: 15, color: 'text' },
 		}));
+		head.addChild(heading);
+		head.addChild(new DamageMark({ id: 'defeat_stamp', kind: 'fallen' }));
+		content.addChild(head);
 
 		// Side by side, so both fit under the story at 1024x600; the row stretches them to one height.
-		const panels = new Stack({ id: 'defeat_panels', direction: 'horizontal', crossAlign: 'stretch', gap: space.space_4 });
+		const panels = new Stack({ id: 'defeat_panels', direction: 'horizontal', crossAlign: 'stretch', gap: 16 });
 		const lastDay = lastDayLines(campaign);
 		if (lastDay.length > 0) {
-			const panel = new Panel({ id: 'defeat_last_day', title: 'The last day', compact: true, corners: true, width: LAST_DAY_WIDTH, crossAlign: 'stretch', gap: space.space_1_5 });
+			const panel = new LegendBox({ id: 'defeat_last_day', title: 'The last day', width: LAST_DAY_WIDTH, crossAlign: 'stretch' });
 			lastDay.forEach((message, index) => {
-				if (index > 0) panel.addChild(new Divider());
-				panel.addChild(new Text({ text: message, id: `defeat_last_day_${index}`, widthMode: 'fill', style: { fontSize: 'fs_md', color: 'text' } }));
+				panel.addChild(new LegendRow({ id: `defeat_last_day_${index}`, text: message, symbol: index === lastDay.length - 1 ? 'diamond' : undefined }));
 			});
 			panels.addChild(panel);
 		}
-		const record = new Panel({ id: 'defeat_record', title: 'Campaign record', compact: true, corners: true, width: RECORD_WIDTH, crossAlign: 'stretch', gap: space.space_1_5 });
-		recordRows({ campaign, stats: campaignStats({ campaign }) }).forEach((row, index) => {
-			if (index > 0) record.addChild(new Divider());
-			const line = new Stack({ id: `defeat_record_${row.id}`, direction: 'horizontal', crossAlign: 'center', gap: space.space_4 });
-			line.addChild(new Text({ text: row.label, id: `defeat_record_${row.id}_label`, width: LABEL_WIDTH, style: { fontSize: 'fs_md', color: 'text_dim' }, wrap: 'none' }));
-			line.addChild(new Text({ text: row.value, id: `defeat_record_${row.id}_value`, widthMode: 'fill', style: { fontRole: 'mono', fontSize: 'fs_md', color: 'text_bright' } }));
-			record.addChild(line);
+		const record = new LegendBox({ id: 'defeat_record', title: 'Campaign record', width: RECORD_WIDTH, crossAlign: 'stretch' });
+		recordRows({ campaign, stats: campaignStats({ campaign }) }).forEach((row) => {
+			const id = `defeat_record_${row.id}`;
+			record.addChild(new LegendRow({ id, text: row.label, value: row.value, textId: `${id}_label`, valueId: `${id}_value` }));
 		});
 		panels.addChild(record);
 		content.addChild(panels);

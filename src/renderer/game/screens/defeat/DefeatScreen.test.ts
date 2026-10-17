@@ -9,7 +9,7 @@ import { key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
-import { tokens } from '../../../engine/theme/tokens';
+import { themes } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Campaign } from '../../campaign/Campaign';
 import type { CampaignData } from '../../campaign/Campaign';
@@ -211,7 +211,7 @@ describe('DefeatScreen', () => {
 			await overSave(text);
 
 			expect(find<Text>('defeat_none').text).toBe('No campaign has been lost here. Its record shows once a compound falls.');
-			expect(find<{ color: unknown }>('defeat_none').color).toEqual(tokens.color.text_dim);
+			expect(find<{ color: unknown }>('defeat_none').color).toEqual(themes.atlas.color.text_dim);
 			expect(screen.root.findById('defeat_title')).toBeNull();
 			expect(screen.shown).toBeNull();
 			expect(storage.writes).toEqual([]);
@@ -224,7 +224,7 @@ describe('DefeatScreen', () => {
 			await mount();
 
 			expect(text('defeat_none')).toMatch(message);
-			expect(find<{ color: unknown }>('defeat_none').color).toEqual(tokens.color.status_warn);
+			expect(find<{ color: unknown }>('defeat_none').color).toEqual(themes.atlas.color.status_warn);
 			expect(screen.root.findById('defeat_title')).toBeNull();
 		});
 	});
