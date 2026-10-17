@@ -182,8 +182,12 @@ export const UBER_STRIDE = UBER_INSTANCE.words * 4;
 /** Vertices per instance: two triangles from `gl_VertexID`, no index buffer. */
 export const UBER_VERTICES_PER_INSTANCE = 6;
 
-/** `TEXTURE_UNITS` in `uber.frag`. */
-export const UBER_TEXTURE_UNITS = 8;
+/**
+ * `TEXTURE_UNITS` in `uber.frag`: WebGL2's guaranteed sixteen (R5.20). The
+ * fonts, the icon atlas and the UI art page take five, which leaves eleven
+ * dynamic units before an image splits a submission.
+ */
+export const UBER_TEXTURE_UNITS = 16;
 
 export interface UberGeometryEncoderOptions {
 	/** The glyph iteration every text group is laid out by (R6.8). */

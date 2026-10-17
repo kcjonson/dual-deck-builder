@@ -35,6 +35,7 @@ import { VehicleTokensSection } from './VehicleTokensSection';
 import { CombatTargetingSection } from './CombatTargetingSection';
 import { CombatDockCrashedOutSection, CombatDockSection } from './CombatDockSection';
 import { CustomizeLauncherSection } from './CustomizeLauncherSection';
+import { UiArtCoverSection, UiArtMarksSection, UiArtPaperSection } from './UiArtSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -249,5 +250,18 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'customize',
 		build: (options) => new CustomizeLauncherSection(options),
+	},
+	// The UI art atlas's pieces, drawn from the resident page (DDB-504)
+	{
+		name: 'ui-art-paper',
+		build: (options) => new UiArtPaperSection(options),
+	},
+	{
+		name: 'ui-art-cover',
+		build: (options) => new UiArtCoverSection(options),
+	},
+	{
+		name: 'ui-art-marks',
+		build: (options) => new UiArtMarksSection(options),
 	},
 ];

@@ -1,4 +1,5 @@
 import { Renderer, showStatusLine } from './renderer/engine/rendering/Renderer';
+import { loadUiArt } from './renderer/game/art/uiArt';
 import { createDrawApi } from './renderer/engine/rendering/WebGL2Backend';
 import { FrameLoop } from './renderer/engine/rendering/FrameLoop';
 import { Game } from './renderer/game/Game';
@@ -46,6 +47,12 @@ class Application {
 			// Decoded alongside the rest of startup, awaited before the draw
 			// API exists: text before its atlas is an error (R2.18).
 			const fontAtlases = this.loadFonts();
+			// The UI art page is not a precondition: a failed load is reported
+			// and the screens draw without their paper art.
+			const uiArt = loadUiArt({ loadImage: loadImageElement }).catch((error: unknown) => {
+				console.error('UI art atlas failed to load:', error);
+				return null;
+			});
 
 			// Frame timing, section timing and the per-frame draw counters (R13.7).
 			// A development build mirrors the sections to a DevTools track and
@@ -80,6 +87,7 @@ class Application {
 				frameTimer: this.frameTimer,
 				gpuTimer,
 				fontAtlases: await fontAtlases,
+				artAtlases: [await uiArt].filter((atlas) => atlas !== null),
 			});
 
 			// R1.6: the one object every root is mounted with. The pointer

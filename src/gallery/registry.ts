@@ -21,6 +21,7 @@ import { RoundedClipScene } from './scenes/RoundedClipScene';
 import { ScrollHugScene } from './scenes/ScrollHugScene';
 import { ToastScene } from './scenes/ToastScene';
 import { TransitionScene } from './scenes/TransitionScene';
+import { UiArtSheetScreen } from './scenes/UiArtSheetScene';
 import { BATTLE_FIT_SCENARIOS, prepareBattleFit } from './scenes/battleFitScenarios';
 import { CombatScreen } from '../renderer/game/screens/combat/CombatScreen';
 
@@ -107,6 +108,8 @@ export const galleryOnlyScenes: readonly GalleryScene[] = [
 	{ name: 'atlas-gauges', factory: (options) => new AtlasGaugesScene(options) },
 	{ name: 'atlas-glyphs', factory: (options) => new AtlasGlyphsScene(options) },
 	{ name: 'atlas-plate', factory: (options) => new AtlasPlateScene(options) },
+	// A full-screen W2 sheet, the paper pieces' main use, at the window's size and ratio (DDB-504)
+	{ name: 'ui-art-sheet', screen: () => ({ screen: new UiArtSheetScreen() }) },
 	// The battle screen whole, at the mock's six fit scenarios (DDB-141)
 	...BATTLE_FIT_SCENARIOS.map((scenario): ScreenScene => ({
 		name: `battle-${scenario}`,
