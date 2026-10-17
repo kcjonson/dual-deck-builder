@@ -18,7 +18,6 @@ import { StopFightResult, finishStopFight, rewardOffer, startStopFight } from '.
 import { fightOut, pushovers, snipers } from '../../campaign/__fixtures__/runFixtures';
 import { Card as GameCard } from '../../mechanics/Card';
 import { CardPileView } from '../../ui/CardPileView';
-import { atlasScreenParts } from '../../ui/atlas/testing';
 import { cardData } from '../../ui/testing';
 import { CAMPAIGN_FIXTURE, FaultyStorage, fixtureText, newCampaign, saveText, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
 import type { PreparedCombatMount } from '../combat/CombatScreen';
@@ -104,10 +103,10 @@ describe('RunScreen', () => {
 			expect(text('run_title')).toBe('Run to Red Mesa Silos');
 			expect(text('run_subtitle')).toBe('Day 9 / on the road / Back roads');
 			expect(text('run_cargo')).toBe('Cargo: 2 fuel and Caltrops');
-			expect([0, 1, 2].map((index) => [text(`run_stop_${index}_label`), text(`run_stop_${index}_value`)])).toEqual([
-				['Raider ambush, 1 skull', 'Cleared'],
-				['Quiet stretch', 'Cleared'],
-				['Raider ambush, 2 skulls', 'Here'],
+			expect([0, 1, 2].map((index) => [text(`run_stop_${index}_label`), text(`run_stop_${index}_state`)])).toEqual([
+				['1. Raider ambush, 1 skull', 'Cleared'],
+				['2. Quiet stretch', 'Cleared'],
+				['3. Raider ambush, 2 skulls', 'Here'],
 			]);
 			expect(text('run_stop_home_label')).toBe('Home, from Red Mesa Silos');
 			expect(text('run_seats')).toBe('Road Warrior 1, 40 of 40 HP; Interceptor 2, 25 of 25 HP');
@@ -131,7 +130,7 @@ describe('RunScreen', () => {
 			expect(text('run_action_line')).toBe('Loaded 6 food, 5 water, 3 fuel, and 15 scrap. The road home is clear, and getting home unloads the cargo and ends the day.');
 			expect(text('run_report')).toBe('The card is in the cargo. Reached Red Mesa Silos.');
 			expect(screen.campaignShown?.supplyRun?.cargo).toEqual({ food: 6, water: 5, fuel: 5, meds: 0, scrap: 15, people: 0 });
-			expect(text('run_stop_home_value')).toBe('Next');
+			expect(text('run_stop_home_state')).toBe('Next');
 			const load = await saved();
 			expect([load?.supplyRun?.stop, load?.supplyRun?.phase]).toEqual([3, 'driving']);
 			expect(context.focus.focused?.id).toBe('run_home_button');
@@ -185,7 +184,7 @@ describe('RunScreen', () => {
 			await press('run_home_button');
 			expect(text('run_action_title')).toBe('Home');
 			expect(text('run_summary')).toBe('Home from Red Mesa Silos. Unloaded 6 food, 5 water, 5 fuel, 15 scrap, and Caltrops. Road Warrior 2 is back with the run. Day 9 ended. Road Warrior 2 is fit again.');
-			expect([text('run_stop_home_value'), text('run_subtitle')]).toEqual(['Reached', 'Day 10 / home / Back roads']);
+			expect([text('run_stop_home_state'), text('run_subtitle')]).toEqual(['Reached', 'Day 10 / home / Back roads']);
 			const load = await saved();
 			expect([load?.day, load?.supplyRun, load?.locker.caltrops, load?.resources.scrap]).toEqual([10, null, 1, 35 + 15]);
 			expect(load?.log.map((entry) => entry.message)).toContain('Home from Red Mesa Silos with 6 food, 5 water, 5 fuel, 15 scrap, and Caltrops.');
@@ -211,7 +210,7 @@ describe('RunScreen', () => {
 			await open(saveText({ campaign: data.campaign.toSaveText() }), data);
 			expect(text('run_action_title')).toBe('The run failed');
 			expect(text('run_summary')).toMatch(/^Road Warrior 1 is (dead|missing) and Interceptor 2 is (dead|missing)\. Lost with it: 2 fuel and Caltrops\. .*Day 9 ended\./);
-			expect(routeStops(data.failed?.route as RunRoute).map((_stop, index) => text(`run_stop_${index}_value`))).toEqual(['Cleared', 'Cleared', 'Lost']);
+			expect(routeStops(data.failed?.route as RunRoute).map((_stop, index) => text(`run_stop_${index}_state`))).toEqual(['Cleared', 'Cleared', 'Lost']);
 			expect(text('run_subtitle')).toBe('Day 10 / failed / Back roads');
 			await press('run_compound_button');
 			expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign: data.campaign });
@@ -352,13 +351,11 @@ describe('RunScreen', () => {
 		});
 	});
 
-	// A reward's step is picking a card, so its Skip is a back road and it has no highway.
-	const LAYOUTS: { name: string; highways: number; mount: () => Promise<void> }[] = [
-		{ name: 'a reward', highways: 0, mount: () => open() },
-		{ name: 'a fight ahead', highways: 1, mount: () => open(drivingText(2)) },
+	const LAYOUTS: { name: string; mount: () => Promise<void> }[] = [
+		{ name: 'a reward', mount: () => open() },
+		{ name: 'a fight ahead', mount: () => open(drivingText(2)) },
 		{
 			name: 'home',
-			highways: 1,
 			mount: async () => {
 				await open(drivingText(3));
 				await press('run_home_button');
@@ -367,15 +364,13 @@ describe('RunScreen', () => {
 	];
 
 	it.each([{ width: 1440, height: 882 }, { width: 1024, height: 600 }].flatMap((size) => LAYOUTS.map((layout) => ({ ...size, ...layout }))))(
-		'lays out on one atlas sheet with no lint at $width x $height with $name, measured in the real faces',
-		async ({ width, height, highways, mount }) => {
+		'lays out with no lint at $width x $height with $name, measured in the real faces',
+		async ({ width, height, mount }) => {
 			viewport.logical = { width, height };
 			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
 			await mount();
 			context.frame.layout();
 			expect(layoutLint(treeSnapshot([screen.root], { width, height })).violations).toEqual([]);
-			const parts = atlasScreenParts(screen.root);
-			expect([screen.theme, parts.sheets.length, parts.highways.length]).toEqual(['atlas', 1, highways]);
 		},
 	);
 });

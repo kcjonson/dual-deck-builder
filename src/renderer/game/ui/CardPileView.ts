@@ -1,7 +1,6 @@
 import { Stack, StackOptions } from '../../engine/components/Stack';
 import { Text } from '../../engine/components/Text';
 import type { MountContext } from '../../engine/components/MountContext';
-import type { ColorValue } from '../../engine/style/styleObject';
 import { tokens } from '../../engine/theme/tokens';
 import { Dialog } from '../../engine/ui/Dialog';
 import { ScrollContainer } from '../../engine/ui/ScrollContainer';
@@ -12,7 +11,6 @@ import { FlowWrap } from './FlowWrap';
 import { INSPECT_KEYS, inspectHotkey, inspectOnContextMenu, makeInspectable } from './cardInspect';
 
 const CARD_GAP = 12;
-const CARD_INK = { title: CARD_NAME, note: CARD_MUTED };
 
 export interface CardPileViewOptions extends StackOptions {
 	id: string;
@@ -24,11 +22,6 @@ export interface CardPileViewOptions extends StackOptions {
 	note?: string;
 	/** Makes each card a choice, as a reward is: clicked or activated, it is picked. */
 	onPick?: (card: GameCard) => void;
-	/**
-	 * The title's and note's colours. Default the card palette's, for a pile
-	 * over the combat screen; a pile on the atlas sheet passes its tokens.
-	 */
-	ink?: { title: ColorValue; note: ColorValue };
 }
 
 /**
@@ -41,16 +34,16 @@ export interface CardPileViewOptions extends StackOptions {
 export class CardPileView extends Stack {
 	private readonly faces: UICard[];
 
-	constructor({ id, title, cards, driver = null, note, onPick, ink = CARD_INK, ...options }: CardPileViewOptions) {
+	constructor({ id, title, cards, driver = null, note, onPick, ...options }: CardPileViewOptions) {
 		super({ id, direction: 'vertical', gap: tokens.space.space_3, crossAlign: 'stretch', focusGroup: { orientation: 'horizontal' }, ...options });
 		this.addChild(new Text({
 			id: `${id}_title`,
 			text: title,
-			style: { fontRole: 'display', fontSize: 18, color: ink.title, letterSpacing: 0.04, textTransform: 'uppercase' },
+			style: { fontRole: 'display', fontSize: 18, color: CARD_NAME, letterSpacing: 0.04, textTransform: 'uppercase' },
 			wrap: 'none',
 		}));
 		if (note) {
-			this.addChild(new Text({ id: `${id}_note`, text: note, style: { fontRole: 'mono', fontSize: 11, color: ink.note } }));
+			this.addChild(new Text({ id: `${id}_note`, text: note, style: { fontRole: 'mono', fontSize: 11, color: CARD_MUTED } }));
 		}
 		const row = new FlowWrap({ id: `${id}_cards`, gap: CARD_GAP });
 		this.faces = cards.map((card, index) => {

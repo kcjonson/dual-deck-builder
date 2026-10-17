@@ -13,23 +13,20 @@ import type { SupplyRun } from '../../campaign/SupplyRunState';
 import type { Card } from '../../mechanics/Card';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
+import { Button } from '../../../engine/ui/Button';
+import { Divider } from '../../../engine/ui/Divider';
+import { Panel } from '../../../engine/ui/Panel';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { ColorToken, tokens } from '../../../engine/theme/tokens';
-import { AtlasButton } from '../../ui/atlas/AtlasButton';
-import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
-import { ATLAS, DISPLAY_BOLD } from '../../ui/atlas/atlasStyle';
-import { ContentsRow } from '../../ui/atlas/ContentsRow';
-import { LegendBox } from '../../ui/atlas/LegendBox';
-import { PageTitle } from '../../ui/atlas/PageTitle';
 import { CardPileView } from '../../ui/CardPileView';
 import type { PreparedCombatMount } from '../combat/CombatScreen';
 import { NOT_THE_SAVE } from '../compound/compoundText';
 import { arrivalSummary, failureSummary, skullsText, stopTitle, yieldText } from './runText';
 
 const { space } = tokens;
-const BACK_WIDTH = 172;
-const ROAD_WIDTH = 400;
-const STEP_WIDTH = 300;
+const TOP_BAR_HEIGHT = 64;
+const BACK_WIDTH = 136;
+const ROAD_WIDTH = 320;
 
 type FailedStopFight = Extract<StopFightResult, { outcome: 'run_failed' }>;
 
@@ -79,28 +76,23 @@ type Shown =
  * lost, then the compound, or the defeat screen once nobody is left. Every
  * step checkpoints, so Back to menu and Continue resume where it stands.
  * Opened with no campaign, it loads the save as Continue would.
- *
- * It's one atlas sheet (UI Art Direction, Screens): the run's title and
- * cargo over the road as a legend box of contents rows, and the step on
- * offer in a fresh legend box beside it, its action the screen's one
- * highway. A reward's Skip is a back road, since picking a card is the
- * choice the step offers.
  */
 export class RunScreen extends Screen {
-	private readonly sheet: AtlasSheet;
+	private readonly stack: Stack;
 	private readonly store: CampaignStore;
 	private readonly loadCards: () => Promise<ReadonlyMap<string, Card>>;
 	private cards: ReadonlyMap<string, Card> | null = null;
 	private campaign: Campaign | null = null;
 	private shown: Shown = { kind: 'none' };
-	private title: PageTitle | null = null;
+	private title: Text | null = null;
+	private subtitle: Text | null = null;
 	private cargo: Text | null = null;
 	private road: Stack | null = null;
 	private seats: Text | null = null;
-	private action: LegendBox | null = null;
+	private action: Stack | null = null;
 	private report: Text | null = null;
 	private saveError: Text | null = null;
-	private backButton: AtlasButton | null = null;
+	private backButton: Button | null = null;
 	/** A step is being taken or saved, so another press waits for it. */
 	private busy = false;
 	/** The store has moved on from this instance, so nothing done here would be saved. */
@@ -112,15 +104,15 @@ export class RunScreen extends Screen {
 	private loaded: Promise<void> = Promise.resolve();
 
 	constructor({ store = CampaignStore.shared, cards = loaderCards }: RunScreenOptions = {}) {
-		const root = new AtlasSheet({
+		const root = new Stack({
 			id: 'runScreen',
 			widthMode: 'fill',
 			heightMode: 'fill',
 			crossAlign: 'stretch',
-			gap: space.space_4,
+			style: { backgroundColor: 'bg_base' },
 		});
-		super('runScreen', { root, theme: 'atlas' });
-		this.sheet = root;
+		super('runScreen', { root });
+		this.stack = root;
 		this.store = store;
 		this.loadCards = cards;
 	}
@@ -137,9 +129,10 @@ export class RunScreen extends Screen {
 
 	protected onMount(data?: unknown): void {
 		this.visit += 1;
-		const back = new AtlasButton({ label: 'Back to menu', id: 'run_back_button', width: BACK_WIDTH, onClick: () => this.toMenu() });
+		const back = new Button({ label: 'Back to menu', id: 'run_back_button', icon: 'arrow_back', size: 'sm', width: BACK_WIDTH, onClick: () => this.toMenu() });
 		this.backButton = back;
-		this.sheet.addChild(this.createTopBar(back));
+		this.stack.addChild(this.createTopBar(back));
+		this.stack.addChild(new Divider({ id: 'run_top_rule' }));
 
 		const body = new Stack({
 			id: 'run_body',
@@ -147,22 +140,20 @@ export class RunScreen extends Screen {
 			widthMode: 'fill',
 			heightMode: 'fill',
 			crossAlign: 'stretch',
-			gap: space.space_5,
+			padding: space.space_4,
+			gap: space.space_4,
 		});
-		const roadPanel = new LegendBox({ id: 'run_road_panel', title: 'The road', width: ROAD_WIDTH, heightMode: 'fill', crossAlign: 'stretch', gap: space.space_3 });
+		const roadPanel = new Panel({ id: 'run_road_panel', title: 'The road', compact: true, width: ROAD_WIDTH, heightMode: 'fill', crossAlign: 'stretch', gap: space.space_3 });
 		const roadScroll = new ScrollContainer({ id: 'run_road_scroll', widthMode: 'fill', heightMode: 'fill' });
-		this.road = new Stack({ id: 'run_road', widthMode: 'fill', crossAlign: 'stretch' });
+		this.road = new Stack({ id: 'run_road', widthMode: 'fill', crossAlign: 'stretch', gap: space.space_1_5 });
 		roadScroll.addChild(this.road);
 		roadPanel.addChild(roadScroll);
-		this.cargo = caption({ id: 'run_cargo', text: '', color: 'text' });
-		roadPanel.addChild(this.cargo);
 		this.seats = caption({ id: 'run_seats', text: '' });
 		roadPanel.addChild(this.seats);
 		body.addChild(roadPanel);
 
 		const side = new Stack({ id: 'run_side', widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch', gap: space.space_3 });
-		// The step on offer is the thing in focus: fresh paper (UI Art Direction, Wear).
-		this.action = new LegendBox({ id: 'run_action', fresh: true, widthMode: 'fill', crossAlign: 'stretch', gap: space.space_3 });
+		this.action = new Stack({ id: 'run_action', widthMode: 'fill', crossAlign: 'stretch', gap: space.space_3 });
 		side.addChild(this.action);
 		this.report = caption({ id: 'run_report', text: '' });
 		this.report.visible = false;
@@ -171,7 +162,7 @@ export class RunScreen extends Screen {
 		this.saveError.visible = false;
 		side.addChild(this.saveError);
 		body.addChild(side);
-		this.sheet.addChild(body);
+		this.stack.addChild(body);
 
 		this.rootLayer.hotkeys.register('Escape', () => this.toMenu());
 		this.unsubscribe = this.store.onSaveFailed((error) => this.showLine({ line: this.saveError, text: error.message, color: 'status_crit' }));
@@ -193,10 +184,11 @@ export class RunScreen extends Screen {
 		this.rootLayer.hotkeys.unregister('Escape');
 		this.unsubscribe?.();
 		this.unsubscribe = null;
-		this.sheet.clearChildren();
+		this.stack.clearChildren();
 		this.campaign = null;
 		this.shown = { kind: 'none' };
 		this.title = null;
+		this.subtitle = null;
 		this.cargo = null;
 		this.road = null;
 		this.seats = null;
@@ -209,18 +201,33 @@ export class RunScreen extends Screen {
 		this.lastSave = null;
 	}
 
-	/** The run's title and where it stands, and Back to menu at the right. */
-	private createTopBar(back: AtlasButton): Stack {
+	private createTopBar(back: Button): Stack {
 		const bar = new Stack({
 			id: 'run_top_bar',
 			direction: 'horizontal',
 			widthMode: 'fill',
+			height: TOP_BAR_HEIGHT,
+			padding: { left: space.space_4, right: space.space_4 },
 			crossAlign: 'center',
 			gap: space.space_4,
+			style: { backgroundColor: 'bg_panel' },
 		});
-		this.title = new PageTitle({ id: 'run_heading', title: 'Supply run', subtitle: '', titleId: 'run_title', subtitleId: 'run_subtitle' });
-		bar.addChild(this.title);
 		bar.addChild(back);
+		const heading = new Stack({ id: 'run_heading', widthMode: 'fill', crossAlign: 'start' });
+		this.title = new Text({
+			text: 'Supply run',
+			id: 'run_title',
+			widthMode: 'fill',
+			style: { fontRole: 'display', fontSize: 'fs_xl', color: 'text_bright', textTransform: 'uppercase', letterSpacing: 'ls_wide' },
+			wrap: 'none',
+			textOverflow: 'ellipsis',
+		});
+		heading.addChild(this.title);
+		this.subtitle = new Text({ id: 'run_subtitle', text: '', widthMode: 'fill', style: { fontRole: 'mono', fontSize: 'fs_sm', color: 'text_dim' }, wrap: 'none', textOverflow: 'ellipsis' });
+		heading.addChild(this.subtitle);
+		bar.addChild(heading);
+		this.cargo = new Text({ id: 'run_cargo', text: '', width: 260, style: { fontSize: 'fs_sm', color: 'text', textAlign: 'right' } });
+		bar.addChild(this.cargo);
 		return bar;
 	}
 
@@ -273,15 +280,12 @@ export class RunScreen extends Screen {
 		const campaign = this.campaign;
 		if (!campaign) return;
 		const route = shown.kind === 'road' ? shown.run.route : shown.kind === 'none' ? null : shown.route;
+		if (this.title) this.title.text = route ? `Run to ${route.destination.name}` : 'Supply run';
 		const standing = shown.kind === 'road' ? 'on the road' : shown.kind;
-		if (this.title) {
-			this.title.title = route ? `Run to ${route.destination.name}` : 'Supply run';
-			this.title.subtitle = route ? `Day ${campaign.day} / ${standing} / ${route.name}` : `Day ${campaign.day}`;
-		}
+		if (this.subtitle) this.subtitle.text = route ? `Day ${campaign.day} / ${standing} / ${route.name}` : `Day ${campaign.day}`;
 		if (this.cargo) {
 			const carried = shown.kind === 'road' ? cargoText({ cargo: shown.run.cargo, cards: shown.run.cargoCards }) : null;
 			this.cargo.text = shown.kind === 'road' ? `Cargo: ${carried ?? 'nothing yet'}` : '';
-			this.cargo.visible = this.cargo.text !== '';
 		}
 		if (shown.kind === 'road') this.showRoad({ route: shown.run.route, at: shown.run.stop, mode: shown.run.phase });
 		else if (shown.kind === 'home') this.showRoad({ route: shown.route, at: routeStops(shown.route).length, mode: 'home' });
@@ -291,7 +295,6 @@ export class RunScreen extends Screen {
 			this.seats.text = shown.kind === 'road'
 				? campaign.runDecks.map(({ driver }) => `${driver.name}, ${driver.hitpoints} of ${driver.maxHitpoints} HP`).join('; ')
 				: '';
-			this.seats.visible = this.seats.text !== '';
 		}
 		const action = this.action;
 		if (!action) return;
@@ -313,14 +316,14 @@ export class RunScreen extends Screen {
 		const atStop: Record<typeof mode, string> = { driving: 'Next', reward: 'Here', failed: 'Lost', home: '' };
 		stops.forEach((stop, index) => {
 			const state = index < at ? 'Cleared' : index === at ? atStop[mode] : '';
-			road.addChild(roadRow({ id: `run_stop_${index}`, number: index + 1, label: stopTitle(stop), state }));
+			road.addChild(roadRow({ id: `run_stop_${index}`, label: `${index + 1}. ${stopTitle(stop)}`, state, current: index === at && mode !== 'failed' }));
 		});
 		const homeState = mode === 'home' ? 'Reached' : at >= stops.length && mode === 'driving' ? 'Next' : '';
-		road.addChild(roadRow({ id: 'run_stop_home', number: null, label: `Home, from ${route.destination.name}`, state: homeState }));
+		road.addChild(roadRow({ id: 'run_stop_home', label: `Home, from ${route.destination.name}`, state: homeState, current: homeState !== '' }));
 	}
 
 	/** The step on offer, with its button; returns the button focus goes to. */
-	private buildAction({ action, campaign, shown }: { action: LegendBox; campaign: Campaign; shown: Shown }): AtlasButton | null {
+	private buildAction({ action, campaign, shown }: { action: Stack; campaign: Campaign; shown: Shown }): Button | null {
 		switch (shown.kind) {
 			case 'none': {
 				action.addChild(heading({ id: 'run_action_title', text: 'No run is on the road' }));
@@ -343,7 +346,7 @@ export class RunScreen extends Screen {
 		}
 	}
 
-	private buildRoadAction({ action, run }: { action: LegendBox; run: SupplyRun }): AtlasButton | null {
+	private buildRoadAction({ action, run }: { action: Stack; run: SupplyRun }): Button | null {
 		if (run.phase === 'reward') return this.buildReward({ action });
 		const stop = currentStop(run);
 		if (stop === null) {
@@ -369,7 +372,7 @@ export class RunScreen extends Screen {
 	 * loaded the reward waits, saved, rather than being lost: the cards can
 	 * be loaded again here, or by Continue.
 	 */
-	private buildReward({ action }: { action: LegendBox }): AtlasButton | null {
+	private buildReward({ action }: { action: Stack }): Button | null {
 		const campaign = this.campaign;
 		if (!campaign) return null;
 		const cards = this.cards;
@@ -387,16 +390,13 @@ export class RunScreen extends Screen {
 			title: 'Fight won: pick a card',
 			note: 'It rides home as cargo, and reaches the locker if the run gets home.',
 			cards: offer,
-			ink: { title: 'text', note: 'text_dim' },
 			onPick: (card) => { void this.pick(card.type); },
 		}));
-		// Picking a card is the step; skipping it is the way out, so a back road.
-		return this.addButton({ action, id: 'run_skip_button', label: 'Skip the card', variant: 'backRoad', onClick: () => { void this.pick(null); } });
+		return this.addButton({ action, id: 'run_skip_button', label: 'Skip the card', onClick: () => { void this.pick(null); } });
 	}
 
-	/** The step's action: the screen's one highway, unless a card pick is the step. */
-	private addButton({ action, id, label, variant = 'highway', onClick }: { action: LegendBox; id: string; label: string; variant?: 'highway' | 'backRoad'; onClick: () => void }): AtlasButton {
-		const button = new AtlasButton({ label, id, variant, shield: variant === 'highway', width: STEP_WIDTH, disabled: this.stranded, onClick });
+	private addButton({ action, id, label, onClick }: { action: Stack; id: string; label: string; onClick: () => void }): Button {
+		const button = new Button({ label, id, tone: 'accent', size: 'lg', width: 240, disabled: this.stranded, onClick });
 		action.addChild(button);
 		return button;
 	}
@@ -595,27 +595,26 @@ function abandonWarning({ campaign, fight }: { campaign: Campaign; fight: Campai
 	return `${listText(names)} ${flee} missing, the run's cargo and the escorts that came along are lost, and the day ends.`;
 }
 
-/** The step's head, set as a legend box's is. */
 function heading({ id, text }: { id: string; text: string }): Text {
-	return new Text({ text, id, widthMode: 'fill', style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: ATLAS.headSize, color: 'text', textTransform: 'uppercase', letterSpacing: ATLAS.headTracking } });
+	return new Text({ text, id, widthMode: 'fill', style: { fontRole: 'display', fontSize: 'fs_lg', color: 'text_bright', textTransform: 'uppercase', letterSpacing: 'ls_wide' } });
 }
 
 function caption({ id, text, color = 'text_dim' }: { id: string; text: string; color?: ColorToken }): Text {
 	return new Text({ text, id, widthMode: 'fill', style: { fontSize: 'fs_sm', color } });
 }
 
-/**
- * A stop on the road, as a contents row: its number in a circle (home has
- * none), its name, and Cleared, Next, or Here at the end of the leaders. A
- * record to read, so it takes no focus and no hover.
- */
-function roadRow({ id, number, label, state }: { id: string; number: number | null; label: string; state: string }): ContentsRow {
-	return new ContentsRow({
+/** A stop on the road list: its name, and Cleared or Next beside it; the next one boxed. */
+function roadRow({ id, label, state, current }: { id: string; label: string; state: string; current: boolean }): Stack {
+	const row = new Stack({
 		id,
-		label,
-		value: state === '' ? undefined : state,
-		lead: number === null ? null : { glyph: String(number) },
-		focusable: false,
-		pointerEvents: 'none',
+		direction: 'horizontal',
+		widthMode: 'fill',
+		crossAlign: 'center',
+		gap: space.space_2,
+		padding: { top: space.space_1_5, bottom: space.space_1_5, left: space.space_2, right: space.space_2 },
+		style: current ? { borderColor: 'accent', borderWidth: 'bw', borderRadius: 'r_sm' } : { borderColor: 'line_edge', borderWidth: 'bw', borderRadius: 'r_sm' },
 	});
+	row.addChild(new Text({ id: `${id}_label`, text: label, widthMode: 'fill', style: { fontSize: 'fs_sm', color: state === 'Cleared' ? 'text_dim' : 'text' } }));
+	if (state !== '') row.addChild(new Text({ id: `${id}_state`, text: state, style: { fontRole: 'mono', fontSize: 'fs_xs', color: current ? 'accent' : 'text_dim', textTransform: 'uppercase' }, wrap: 'none' }));
+	return row;
 }
