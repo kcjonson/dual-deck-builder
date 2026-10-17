@@ -17,7 +17,7 @@ import { NO_MODIFIERS } from '../input/events';
 import { PointerAdapter } from '../input/PointerAdapter';
 import type { PopupCloseReason } from '../services/PopupService';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../text/testing';
-import { tokens } from '../theme/tokens';
+import { themes, tokens } from '../theme/tokens';
 import { shadowExtent } from '../style/look';
 import { resolveShadow } from '../style/styleObject';
 import { Button } from './Button';
@@ -1177,6 +1177,19 @@ describe('Scrollbar (R12.37)', () => {
 		inject('move,100,512', 'down,100,512', 'move,200,512', 'up,200,512');
 		expect(asked).toEqual([200]);
 		expect(bar.range.offset).toBe(200);
+	});
+
+	it('draws its track and thumb from the theme it is under', () => {
+		const bar = new Scrollbar({ id: 'bar', x: 0, y: 0, height: 100, range: { offset: 0, extent: 200, viewport: 100 } });
+		root.theme = 'atlas';
+		root.addChild(bar);
+		context.frame.layout();
+		const api = context.draw;
+		api.beginFrame({ viewport: { width: 800, height: 600 }, ratio: 1 });
+		renderTree(root, api);
+		api.endFrame();
+		const fills = backend.commands.filter((command): command is RectCommand => command.kind === 'rect').map(({ fill }) => fill);
+		expect(fills).toEqual([themes.atlas.color.line_hairline, themes.atlas.color.line_strong]);
 	});
 
 	it('draws and hits nothing with nothing to scroll', () => {

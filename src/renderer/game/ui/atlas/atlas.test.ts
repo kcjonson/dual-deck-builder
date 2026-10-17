@@ -439,6 +439,31 @@ describe('ContentsRow', () => {
 		expect(drawn.some((command) => command.kind === 'rect' && same(command.fill, tokens.color.text_disabled))).toBe(true);
 	});
 
+	it('lists at the minimum hit height with a small lead, a diamond for a hostile place, and dims a row still in reach in dim ink and a faded glyph', () => {
+		const column = new Stack({ width: 340 });
+		const store = new ContentsRow({ variant: 'list', lead: { glyph: 'G' }, label: 'General store, south-east', value: 'tier 1' });
+		const held = new ContentsRow({ variant: 'list', lead: { glyph: '', diamond: true }, label: 'Volt Vultures stronghold', value: 'stronghold', dim: true });
+		column.addChild(store);
+		column.addChild(held);
+		add(column);
+		expect(store.height).toBe(ATLAS.minHit);
+		expect(draws(store).find((command): command is CircleCommand => command.kind === 'circle')?.border?.color).toEqual(ink);
+		const diamond = draws(held).find((command): command is PolygonCommand => command.kind === 'polygon');
+		expect(diamond?.fill).toEqual(atlas.color.status_crit);
+		const label = (row: ContentsRow) => draws(row).find((command): command is TextCommand => command.kind === 'text' && command.text === row.label);
+		expect(label(held)?.color).toEqual(atlas.color.text_dim);
+		expect(held.canReceiveFocus()).toBe(true);
+		held.dim = false;
+		expect(label(held)?.color).toEqual(ink);
+		store.dim = true;
+		const dimmed = draws(store);
+		expect(dimmed.find((command): command is TextCommand => command.kind === 'text' && command.text === 'tier 1')?.color).toEqual(atlas.color.text_dim);
+		// The glyph says it too, in faded print; a stronghold's diamond keeps its red.
+		expect(dimmed.find((command): command is CircleCommand => command.kind === 'circle')?.border?.color).toEqual(atlas.color.text_disabled);
+		held.dim = true;
+		expect(draws(held).find((command): command is PolygonCommand => command.kind === 'polygon')?.fill).toEqual(atlas.color.status_crit);
+	});
+
 	it('activates from the keyboard', () => {
 		let opened = 0;
 		const column = new Stack({ width: 600 });

@@ -69,8 +69,9 @@ export class SectionTab extends LabelledPressable {
 	private readonly labelBox: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly ring: Rect = { x: 0, y: 0, width: 0, height: 0 };
 
-	constructor({ tabId, label, deck = false, disabled = false }: { tabId: string; label: string; deck?: boolean; disabled?: boolean }) {
+	constructor({ id, tabId, label, deck = false, disabled = false }: { id?: string; tabId: string; label: string; deck?: boolean; disabled?: boolean }) {
 		super({
+			id,
 			label,
 			face: { font: DISPLAY_BOLD, size: ATLAS.tabSize, letterSpacing: ATLAS.tabTracking, textTransform: 'uppercase' },
 			layers: sectionTabLayers(atlasInks(tokens)),
@@ -170,7 +171,8 @@ export class SectionTabs extends Stack {
 		this.componentType = 'SectionTabs';
 		this.onSelect = onSelect;
 		for (const tab of tabs) {
-			const item = new SectionTab({ tabId: tab.id, label: tab.label, deck: tab.deck, disabled: tab.disabled });
+			// Named under the tabs' id, so a navigate that restores focus by id finds the tab again.
+			const item = new SectionTab({ id: options.id ? `${options.id}.${tab.id}` : undefined, tabId: tab.id, label: tab.label, deck: tab.deck, disabled: tab.disabled });
 			this.items.push(item);
 			this.addChild(item);
 		}
