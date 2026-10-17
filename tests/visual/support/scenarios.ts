@@ -188,6 +188,14 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'screen-transition' },
 	{ scene: 'scroll-hug' },
 	{ scene: 'rounded-clip' },
+	// The atlas parts (DDB-505), gated at both sizes as the meta screens they're for will be
+	{ scene: 'atlas-sheet', lintShort: true },
+	{ scene: 'atlas-buttons', lintShort: true },
+	{ scene: 'atlas-legend', lintShort: true },
+	{ scene: 'atlas-contents', lintShort: true },
+	{ scene: 'atlas-gauges', lintShort: true },
+	{ scene: 'atlas-glyphs', lintShort: true },
+	{ scene: 'atlas-plate', lintShort: true },
 	// Gated at both sizes, as the combat screen is: the intent pills' heavy tier, multi-hit, and "+N" (DDB-139)
 	{ scene: 'combat-road', lintShort: true },
 	{ scene: 'vehicle-tokens' },

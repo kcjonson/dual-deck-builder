@@ -3,6 +3,15 @@ import type { DeveloperSectionOptions } from '../renderer/game/screens/developer
 import type { Screen } from '../renderer/game/core/Screen';
 import { developerSections } from '../renderer/game/screens/developer/sections';
 import { AreaMapScene } from './scenes/AreaMapScene';
+import {
+	AtlasButtonsScene,
+	AtlasContentsScene,
+	AtlasGaugesScene,
+	AtlasGlyphsScene,
+	AtlasLegendScene,
+	AtlasPlateScene,
+	AtlasSheetScene,
+} from './scenes/AtlasScenes';
 import { CardPileScene } from './scenes/CardPileScene';
 import { DialogScene } from './scenes/DialogScene';
 import { EscortCardScene } from './scenes/EscortCardScene';
@@ -90,6 +99,14 @@ export const galleryOnlyScenes: readonly GalleryScene[] = [
 	// `area-map` reads its map and framing from the URL too (`readAreaMapQuery`), for before and after shots.
 	{ name: 'area-map', factory: (options) => new AreaMapScene({ ...options, mode: 'whole', search: globalThis.location?.search ?? '' }) },
 	{ name: 'area-map-fog', factory: (options) => new AreaMapScene({ ...options, mode: 'fog' }) },
+	// The atlas parts under the atlas theme, one group a scene (DDB-505)
+	{ name: 'atlas-sheet', factory: (options) => new AtlasSheetScene(options) },
+	{ name: 'atlas-buttons', factory: (options) => new AtlasButtonsScene(options) },
+	{ name: 'atlas-legend', factory: (options) => new AtlasLegendScene(options) },
+	{ name: 'atlas-contents', factory: (options) => new AtlasContentsScene(options) },
+	{ name: 'atlas-gauges', factory: (options) => new AtlasGaugesScene(options) },
+	{ name: 'atlas-glyphs', factory: (options) => new AtlasGlyphsScene(options) },
+	{ name: 'atlas-plate', factory: (options) => new AtlasPlateScene(options) },
 	// The battle screen whole, at the mock's six fit scenarios (DDB-141)
 	...BATTLE_FIT_SCENARIOS.map((scenario): ScreenScene => ({
 		name: `battle-${scenario}`,

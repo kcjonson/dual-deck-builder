@@ -54,8 +54,12 @@ describe('theme resolution through style resolution (R11.15)', () => {
 		expect(layers.normal.fill).toEqual(atlas.color.accent);
 		expect(layers.normal.text).toEqual(atlas.color.accent_contrast);
 		expect(layers.normal.radius).toBe(0);
-		expect(layers.focusRing).toEqual(atlas.color.accent);
+		// The atlas edges the highway in Casing and rings focus in ink; dark keeps both on its accent.
+		expect(layers.normal.border).toEqual(atlas.color.accent_dim);
+		expect(layers.focusRing).toEqual(atlas.color.text);
 		expect(buttonLayers('accent', {}).normal.fill).toEqual(dark.color.accent);
+		expect(buttonLayers('accent', {}).normal.border).toEqual(dark.color.accent);
+		expect(buttonLayers('accent', {}).focusRing).toEqual(dark.color.accent);
 	});
 });
 

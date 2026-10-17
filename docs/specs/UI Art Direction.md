@@ -68,7 +68,7 @@ The palette lands in `tokens.json` (R11.1) as a second theme, `atlas`, beside th
 | `shadow`, `shadow_strong` | `#140F0A` at 50% and 75% |
 | `radius_ui`, `radius_panel` | `r_0`: the atlas is square-cornered |
 
-Additions: `driver_a`, `driver_a_casing`, `driver_b`, `driver_b_casing`, `hand_highlighter`, `hand_grease`, `hatch_rust`, `built_up`, and `sheet_margin` (14 px).
+Additions: `driver_a`, `driver_a_casing`, `driver_b`, `driver_b_casing`, `hand_highlighter`, `hand_grease`, `hatch_rust`, `built_up`, `back_road`, `duct_tape`, and `sheet_margin` (14 px); and `accent_edge` (Casing) and `focus_ring` (Ink), which the dark theme aliases to its accent.
 
 ## Type
 
