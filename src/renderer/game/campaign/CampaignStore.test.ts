@@ -8,7 +8,7 @@ import { UPGRADABLE_SCHEMA_VERSIONS } from './SaveUpgrades';
 import { LocalSaveStorage, MemorySaveStorage, WebStorage } from './SaveStorage';
 import { stressCampaign } from './__fixtures__/stressCampaign';
 import {
-	CAMPAIGN_FIXTURE, CAMPAIGN_V8_FIXTURE, FaultyStorage, HeldStorage, KEYS, NAMESPACE, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
+	CAMPAIGN_FIXTURE, CAMPAIGN_V8_FIXTURE, CAMPAIGN_V9_FIXTURE, FaultyStorage, HeldStorage, KEYS, NAMESPACE, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
 	saveText, securityError, settle, storageWith, storeOver
 } from './__fixtures__/storeFixtures';
 
@@ -292,7 +292,7 @@ describe('CampaignStore', () => {
 		});
 
 		it('doesn\'t load a save from another version of the save format, older or newer, and leaves it be', async () => {
-			for (const version of [CAMPAIGN_SCHEMA_VERSION - 2, CAMPAIGN_SCHEMA_VERSION + 1]) {
+			for (const version of [Math.min(...UPGRADABLE_SCHEMA_VERSIONS) - 1, CAMPAIGN_SCHEMA_VERSION + 1]) {
 				const text = saveText({ campaign: JSON.stringify(CAMPAIGN_FIXTURE), version });
 				const storage = storageWith(text);
 				const store = storeOver(storage);
@@ -369,7 +369,7 @@ describe('CampaignStore', () => {
 			const storage = storageWith(text);
 			const store = storeOver(storage);
 
-			expect(UPGRADABLE_SCHEMA_VERSIONS).toEqual([8]);
+			expect(UPGRADABLE_SCHEMA_VERSIONS).toEqual([8, 9]);
 			expect(await store.saveStatus()).toBe('saved');
 			const loaded = await store.load();
 			expect(loaded?.map).toEqual({});
@@ -383,6 +383,13 @@ describe('CampaignStore', () => {
 			// The version 8 save is the save before, and nothing went to recovery
 			expect(await storage.getItem(KEYS.slots.a)).toBe(text);
 			expect(await storage.getItem(KEYS.recovery)).toBeNull();
+		});
+
+		it('loads a version 9 save, from before buildings, with the bunkhouse standing (DDB-508)', async () => {
+			const storage = storageWith(saveText({ campaign: JSON.stringify(CAMPAIGN_V9_FIXTURE), version: 9 }));
+			const loaded = await storeOver(storage).load();
+			expect(loaded?.buildings).toEqual(['bunkhouse']);
+			expect(loaded?.toJSON()).toEqual(CAMPAIGN_FIXTURE);
 		});
 
 		it('upgrades only from the versions it lists, and a store at another version from none', async () => {

@@ -8,8 +8,12 @@ import { CAMPAIGN_SCHEMA_VERSION } from './Campaign';
  * bump that can't say what an old save meant leaves its version out.
  */
 
-/** Versions upgraded on load, oldest first. Version 8 has no POI stock: every POI is full. */
-export const UPGRADABLE_SCHEMA_VERSIONS: readonly number[] = Object.freeze([8]);
+/**
+ * Versions upgraded on load, oldest first. Version 8 has no POI stock: every
+ * POI is full. Version 9 has no buildings: only the bunkhouse, which every
+ * campaign was founded with, stands.
+ */
+export const UPGRADABLE_SCHEMA_VERSIONS: readonly number[] = Object.freeze([8, 9]);
 
 /**
  * A campaign as a save of `version` held it, in the current format. Each
@@ -35,9 +39,15 @@ function fromVersion8(campaign: unknown): unknown {
 	return { ...campaign, map: Object.fromEntries(Object.entries(map).filter(([key]) => key !== 'pois')) };
 }
 
+/** Version 9 to 10: the bunkhouse stands, as it did in every version 9 campaign (its Crew screen was always open). */
+function fromVersion9(campaign: unknown): unknown {
+	if (!isObject(campaign)) return campaign;
+	return { ...campaign, buildings: ['bunkhouse'] };
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** Each version's step to the next, by the version it upgrades from. Every version from the oldest listed up to the current one needs one. */
-export const UPGRADE_STEPS: Readonly<Record<number, (campaign: unknown) => unknown>> = Object.freeze({ 8: fromVersion8 });
+export const UPGRADE_STEPS: Readonly<Record<number, (campaign: unknown) => unknown>> = Object.freeze({ 8: fromVersion8, 9: fromVersion9 });

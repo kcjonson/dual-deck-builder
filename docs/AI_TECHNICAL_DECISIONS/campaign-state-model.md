@@ -127,7 +127,7 @@ Each repair, and each value kept outside today's ranges, is a warning worded wit
 
 ## Map state is a stand-in; the map's attempts aren't
 
-What's changed on the map since founding (DDB-275), `map`, is opaque JSON, copied and frozen, and nested at most 100 levels, until stops and POIs define it. `strongholdsTaken` holds ids as strings until the map defines its ids.
+What's changed on the map since founding (DDB-275), `map`, is opaque JSON, copied and frozen, and nested at most 100 levels, until stops and POIs define it. `strongholdsTaken` holds ids as strings until the map defines its ids. `buildings` lists the buildings standing at the compound (`BUILDING_IDS` in `Buildings.ts`, in the order the compound numbers them); founding stands the start's (`campaign-start.json`, the bunkhouse), and nothing builds one yet (DDB-508).
 
 The map itself isn't saved yet (DDB-436). The campaign keeps what makes it again: `mapAttempts`, the map attempt and each stage's winning attempt, fixed at founding with the seed, the generator version, and the params, and null for a campaign built without a map ([campaign-save-and-load.md](./campaign-save-and-load.md), The area map).
 

@@ -64,7 +64,7 @@ const keyPaths = (value: unknown): string[] => {
 /** The save format at the version the test below pins: a change here is a change of format, which bumps `CAMPAIGN_SCHEMA_VERSION`. */
 const SAVE_FORMAT = {
 	campaign: [
-		'convoy', 'convoy.escorts', 'convoy.escorts[]', 'convoy.escorts[].armor', 'convoy.escorts[].baseSpeed', 'convoy.escorts[].escort',
+		'buildings', 'buildings[]', 'convoy', 'convoy.escorts', 'convoy.escorts[]', 'convoy.escorts[].armor', 'convoy.escorts[].baseSpeed', 'convoy.escorts[].escort',
 		'convoy.escorts[].escort.dividend', 'convoy.escorts[].escort.dividend.amount', 'convoy.escorts[].escort.dividend.kind', 'convoy.escorts[].escort.evade',
 		'convoy.escorts[].escort.gunnery', 'convoy.escorts[].escort.preferredSlot', 'convoy.escorts[].escort.preferredSlot.lane', 'convoy.escorts[].escort.preferredSlot.row',
 		'convoy.escorts[].escort.ramming', 'convoy.escorts[].escort.role', 'convoy.escorts[].escort.signatureCard', 'convoy.escorts[].escort.type', 'convoy.escorts[].id',
@@ -668,6 +668,8 @@ describe('Campaign', () => {
 			['negative unrest', { unrest: -1 }, 'Campaign.unrest must be an integer >= 0, got -1'],
 			['a blank stronghold id', { strongholdsTaken: [''] }, 'Campaign.strongholdsTaken[0] must not be blank'],
 			['a stronghold taken twice', { strongholdsTaken: ['north', 'north'] }, 'Campaign.strongholdsTaken[1] "north" is already in the list'],
+			['an unknown building', { buildings: ['bunkhouse', 'chapel'] }, 'Campaign.buildings[1] must be one of bunkhouse, radio_mast, infirmary, map_room, garage, stores, got "chapel"'],
+			['a building standing twice', { buildings: ['garage', 'garage'] }, 'Campaign.buildings[1] "garage" is already standing'],
 			['a log entry dated after today', { log: [{ day: 2, message: 'Tomorrow.' }] }, 'Campaign.log[0].day must be an integer from 1 to today (1), got 2'],
 			['log entries out of order', { day: 5, log: [{ day: 4, message: 'Later.' }, { day: 3, message: 'Earlier.' }] }, 'Campaign.log[1].day must not come before the entry above it (day 4), got 3'],
 			['a blank log message', { log: [{ day: 1, message: '' }] }, 'Campaign.log[0].message must not be blank'],
@@ -902,7 +904,7 @@ describe('Campaign', () => {
 				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
 			};
 
-			expect(CAMPAIGN_SCHEMA_VERSION).toBe(9);
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(10);
 			try {
 				expect(format).toEqual(SAVE_FORMAT);
 			} catch (error) {
