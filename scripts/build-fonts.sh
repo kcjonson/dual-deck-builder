@@ -32,10 +32,18 @@ if [[ "$VERSION_LINE" != *"$PINNED_VERSION"* && -z "${MSDF_ATLAS_GEN_ANY_VERSION
 	exit 1
 fi
 
+# The defaults of a generator built without Skia, which is how Homebrew builds
+# it and how the committed atlases were made. The Windows release zip is built
+# with Skia, whose default path preprocessing draws different pixels for the
+# same face, so the flags are spelled out to make every build agree.
+GEOMETRY=(-nopreprocess -overlap -scanline)
+
 # output basename | source face relative to FONTS_DIR | name written into the JSON
 FACES=(
 	"barlow-condensed-semibold|barlow-condensed/BarlowCondensed-SemiBold.ttf|Barlow Condensed SemiBold"
+	"barlow-condensed-bold|barlow-condensed/BarlowCondensed-Bold.ttf|Barlow Condensed Bold"
 	"open-sans-regular|open-sans/OpenSans-Regular.ttf|Open Sans"
+	"open-sans-semibold|open-sans/OpenSans-SemiBold.ttf|Open Sans SemiBold"
 	"jetbrains-mono-regular|jetbrains-mono/JetBrainsMono-Regular.ttf|JetBrains Mono"
 )
 
@@ -51,6 +59,7 @@ for face in "${FACES[@]}"; do
 		-pxrange 8 \
 		-yorigin top \
 		-potr \
+		"${GEOMETRY[@]}" \
 		-format png \
 		-imageout "$FONTS_DIR/$output.png" \
 		-json "$FONTS_DIR/$output.json"
@@ -73,6 +82,7 @@ node "$SCRIPTS_DIR/generate-icons.mjs"
 	-pxrange 8 \
 	-yorigin top \
 	-potr \
+	"${GEOMETRY[@]}" \
 	-format png \
 	-imageout "$FONTS_DIR/material-icons.png" \
 	-json "$FONTS_DIR/material-icons.json"

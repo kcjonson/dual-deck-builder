@@ -21,7 +21,7 @@ No mipmaps. The pieces are drawn near their native size, and the 1x/2x pairs cov
 
 Every sliced piece (paper, cover, card edge, highlighter) has a 2x raster beside its 1x one, and `drawUiArt` picks it when the frame's ratio is above 1. Its insets are in 2x texels and carry `scale: 2`, which `NineSlice` now takes: the corners draw at one logical pixel per `scale` texels, so a 2x corner is the 1x corner's size, only sharper.
 
-Size: 67 pieces on one 2048x2048 page (the result screens added the LOST and FALLEN stamps and a tag's tear, DDB-511). The logo at 2x (1400x686) is a third of it; the 2x paper about another quarter. Shelf packing no longer fit once the 2x paper arrived, so pieces are packed with MaxRects (best short side fit).
+Size: 67 pieces on one 2048x2048 page (the result screens added the LOST and FALLEN stamps and a tag's tear, DDB-511). The logo at 2x (1400x686) is a third of it; the 2x paper about another quarter. Shelf packing no longer fit once the 2x paper arrived, so pieces are packed with MaxRects (best short side fit). A rebuild pins every piece the committed manifest already places at its size and packs only new or resized pieces round them, so adding art never moves existing pieces (DDB-511).
 
 ### Built by a script, from SVG
 

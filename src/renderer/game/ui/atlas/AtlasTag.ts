@@ -6,7 +6,7 @@ import type { RGBA, Rect } from '../../../engine/draw/geometry';
 import type { Theme } from '../../../engine/theme/tokens';
 import { uiArtSize } from '../../art/uiArt';
 import { UiArtName, drawAtlasArt, paperPiece } from './atlasArt';
-import { ATLAS, AtlasInks, DISPLAY_BOLD, MONO_MEDIUM, atlasInks } from './atlasStyle';
+import { ATLAS, AtlasInks, atlasInks } from './atlasStyle';
 import { damagePiece } from './DamageMark';
 
 export interface AtlasTagOptions extends Omit<StackOptions, 'style' | 'padding' | 'direction'> {
@@ -54,10 +54,10 @@ export class AtlasTag extends Stack {
 		this.componentType = 'AtlasTag';
 		this.isTorn = torn;
 		this.inks = atlasInks(this.themeTokens);
-		this.labelText = new Text({ id: labelId, text: label, widthMode: 'fill', wrap: 'none', textOverflow: 'ellipsis', style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: LABEL_SIZE, color: 'text' } });
+		this.labelText = new Text({ id: labelId, text: label, widthMode: 'fill', wrap: 'none', textOverflow: 'ellipsis', style: { fontRole: 'display', fontWeight: 700, fontSize: LABEL_SIZE, color: 'text' } });
 		this.addChild(this.labelText);
 		this.captionText = caption !== undefined
-			? new Text({ id: captionId, text: caption, widthMode: 'fill', wrap: 'word', style: { fontRole: MONO_MEDIUM, fontWeight: 500, fontSize: CAPTION_SIZE, letterSpacing: ATLAS.captionTracking, textTransform: 'uppercase', color: warn ? 'status_crit' : 'text_dim' } })
+			? new Text({ id: captionId, text: caption, widthMode: 'fill', wrap: 'word', style: { fontRole: 'mono', fontWeight: 500, fontSize: CAPTION_SIZE, letterSpacing: ATLAS.captionTracking, textTransform: 'uppercase', color: warn ? 'status_crit' : 'text_dim' } })
 			: null;
 		if (this.captionText) this.addChild(this.captionText);
 	}

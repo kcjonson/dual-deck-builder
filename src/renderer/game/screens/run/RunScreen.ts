@@ -24,7 +24,7 @@ import { CardPileView } from '../../ui/CardPileView';
 import { AtlasButton } from '../../ui/atlas/AtlasButton';
 import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
 import { AtlasTag } from '../../ui/atlas/AtlasTag';
-import { ATLAS, DISPLAY_BOLD } from '../../ui/atlas/atlasStyle';
+import { ATLAS } from '../../ui/atlas/atlasStyle';
 import { DamageMark, DamageMarkKind } from '../../ui/atlas/DamageMark';
 import { LegendBox, LegendRow, LegendSymbol } from '../../ui/atlas/LegendBox';
 import { ResourceStrip } from '../../ui/atlas/ResourceStrip';
@@ -37,8 +37,6 @@ const ROAD_WIDTH = 320;
 const CARGO_WIDTH = 260;
 const TITLE_SIZE = 30;
 const STEP_WIDTH = 300;
-/** The destination's stamp in the head, a step under full size so the head stays one line of boxes tall. */
-const STAMP_SCALE = 0.7;
 const TAG_WIDTH = 236;
 
 type FailedStopFight = Extract<StopFightResult, { outcome: 'run_failed' }>;
@@ -106,8 +104,6 @@ export class RunScreen extends Screen {
 	private report: Text | null = null;
 	private saveError: Text | null = null;
 	private backButton: AtlasButton | null = null;
-	/** The head's stamp: the destination's state on the debrief, LOST on a failed run. */
-	private stamp: DamageMark | null = null;
 	/** A step is being taken or saved, so another press waits for it. */
 	private busy = false;
 	/** The store has moved on from this instance, so nothing done here would be saved. */
@@ -200,10 +196,8 @@ export class RunScreen extends Screen {
 		this.unsubscribe?.();
 		this.unsubscribe = null;
 		this.sheet.clearChildren();
-		this.sheet.wear = 2;
 		this.campaign = null;
 		this.shown = { kind: 'none' };
-		this.stamp = null;
 		this.title = null;
 		this.subtitle = null;
 		this.cargo = null;
@@ -218,7 +212,7 @@ export class RunScreen extends Screen {
 		this.lastSave = null;
 	}
 
-	/** The head: the title and the day over it, the stamp once the run is over, the cargo while it's out, and Back to menu. */
+	/** The head: the title and the day over it, the cargo while it's out, and Back to menu. */
 	private createTopBar(back: AtlasButton): Stack {
 		const bar = new Stack({ id: 'run_top_bar', direction: 'horizontal', widthMode: 'fill', crossAlign: 'center', gap: 16 });
 		const heading = new Stack({ id: 'run_heading', widthMode: 'fill', crossAlign: 'start', gap: 2 });
@@ -226,7 +220,7 @@ export class RunScreen extends Screen {
 			text: 'Supply run',
 			id: 'run_title',
 			widthMode: 'fill',
-			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: TITLE_SIZE, color: 'text', textTransform: 'uppercase', letterSpacing: ATLAS.headTracking },
+			style: { fontRole: 'display', fontWeight: 700, fontSize: TITLE_SIZE, color: 'text', textTransform: 'uppercase', letterSpacing: ATLAS.headTracking },
 			wrap: 'none',
 			textOverflow: 'ellipsis',
 		});
@@ -234,26 +228,10 @@ export class RunScreen extends Screen {
 		this.subtitle = new Text({ id: 'run_subtitle', text: '', widthMode: 'fill', style: { fontRole: 'mono', fontSize: 13, color: 'text_dim' }, wrap: 'none', textOverflow: 'ellipsis' });
 		heading.addChild(this.subtitle);
 		bar.addChild(heading);
-		this.stamp = new DamageMark({ id: 'run_stamp', kind: 'looted', scale: STAMP_SCALE, visible: false });
-		bar.addChild(this.stamp);
 		this.cargo = new Text({ id: 'run_cargo', text: '', width: CARGO_WIDTH, style: { fontSize: 14, color: 'text', textAlign: 'right' } });
 		bar.addChild(this.cargo);
 		bar.addChild(back);
 		return bar;
-	}
-
-	/**
-	 * The run's damage, at most one hero mark (UI Art Direction, Wear): a
-	 * failed run burns the sheet and is stamped LOST; home, the destination
-	 * is stamped DEPLETED or LOOTED, unless an injured driver's tear takes
-	 * the place (`debriefMark`). On the road nothing is damaged yet.
-	 */
-	private markDamage(mark: DamageMarkKind | null): void {
-		this.sheet.wear = this.shown.kind === 'failed' ? 3 : 2;
-		const stamp = this.stamp;
-		if (!stamp) return;
-		stamp.visible = mark !== null && mark !== 'tear';
-		if (mark !== null && mark !== 'tear') stamp.kind = mark;
 	}
 
 	/** The destination's state on the campaign's map now, or null for a destination off the map's POIs. */
@@ -321,9 +299,14 @@ export class RunScreen extends Screen {
 			this.cargo.text = shown.kind === 'road' ? `Cargo: ${carried ?? 'nothing yet'}` : '';
 			this.cargo.visible = shown.kind === 'road';
 		}
-		if (shown.kind === 'road') this.showRoad({ route: shown.run.route, at: shown.run.stop, mode: shown.run.phase });
-		else if (shown.kind === 'home') this.showRoad({ route: shown.route, at: routeStops(shown.route).length, mode: 'home' });
-		else if (shown.kind === 'failed') this.showRoad({ route: shown.route, at: shown.stop, mode: 'failed' });
+		// The run's one hero mark (UI Art Direction, Wear): LOST for a failed run, home the destination's stamp or a driver's tear (`debriefMark`)
+		const mark = shown.kind === 'home'
+			? debriefMark({ destination: this.destinationState(shown.route), injured: injuredOf(shown.arrival).length > 0 })
+			: shown.kind === 'failed' ? 'lost' : null;
+		const stamp = mark === 'tear' ? null : mark;
+		if (shown.kind === 'road') this.showRoad({ route: shown.run.route, at: shown.run.stop, mode: shown.run.phase, stamp });
+		else if (shown.kind === 'home') this.showRoad({ route: shown.route, at: routeStops(shown.route).length, mode: 'home', stamp });
+		else if (shown.kind === 'failed') this.showRoad({ route: shown.route, at: shown.stop, mode: 'failed', stamp });
 		else this.road?.clearChildren();
 		if (this.seats) {
 			this.seats.text = shown.kind === 'road'
@@ -331,10 +314,6 @@ export class RunScreen extends Screen {
 				: '';
 			this.seats.visible = shown.kind === 'road';
 		}
-		const mark = shown.kind === 'home'
-			? debriefMark({ destination: this.destinationState(shown.route), injured: injuredOf(shown.arrival).length > 0 })
-			: shown.kind === 'failed' ? 'lost' : null;
-		this.markDamage(mark);
 		const action = this.action;
 		if (!action) return;
 		action.clearChildren();
@@ -348,8 +327,9 @@ export class RunScreen extends Screen {
 	 * the run was lost when it failed, and home is reached once it's home.
 	 * Each leads with its map symbol: a fight still ahead is hostile, a
 	 * quiet stretch pending, a cleared stop nothing to report, home the star.
+	 * Once the run is over its stamp is struck under the list, at full size.
 	 */
-	private showRoad({ route, at, mode }: { route: RunRoute; at: number; mode: SupplyRun['phase'] | 'home' | 'failed' }): void {
+	private showRoad({ route, at, mode, stamp }: { route: RunRoute; at: number; mode: SupplyRun['phase'] | 'home' | 'failed'; stamp: DamageMarkKind | null }): void {
 		const road = this.road;
 		if (!road) return;
 		road.clearChildren();
@@ -362,6 +342,7 @@ export class RunScreen extends Screen {
 		});
 		const homeState = mode === 'home' ? 'Reached' : at >= stops.length && mode === 'driving' ? 'Next' : '';
 		road.addChild(roadRow({ id: 'run_stop_home', label: `Home, from ${route.destination.name}`, state: homeState, symbol: 'star' }));
+		if (stamp) road.addChild(new DamageMark({ id: 'run_stamp', kind: stamp, alignSelf: 'center', margin: { top: 12 } }));
 	}
 
 	/** The step on offer in its box, with its button, and the debrief's ledgers; returns the button focus goes to. */
@@ -664,7 +645,7 @@ function abandonWarning({ campaign, fight }: { campaign: Campaign; fight: Campai
 }
 
 function heading({ id, text }: { id: string; text: string }): Text {
-	return new Text({ text, id, widthMode: 'fill', style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: 22, color: 'text', textTransform: 'uppercase', letterSpacing: ATLAS.headTracking } });
+	return new Text({ text, id, widthMode: 'fill', style: { fontRole: 'display', fontWeight: 700, fontSize: 22, color: 'text', textTransform: 'uppercase', letterSpacing: ATLAS.headTracking } });
 }
 
 function caption({ id, text, color = 'text_dim' }: { id: string; text: string; color?: ColorToken }): Text {

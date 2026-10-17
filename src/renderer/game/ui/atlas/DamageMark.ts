@@ -27,13 +27,12 @@ export function damagePiece(kind: DamageMarkKind): UiArtName {
 
 export interface DamageMarkOptions extends Omit<ComponentOptions, 'width' | 'height'> {
 	kind: DamageMarkKind;
-	/** Of the art's own size. Default 1: a stamp is struck at full size; below 1 it aliases a little (no mipmaps). */
-	scale?: number;
 }
 
 /**
- * One damage mark as a component, sized to its art, for a screen to strike
- * on the sheet beside what it marks. It is the screen's one hero mark, so
+ * One damage mark as a component, at its art's own size (the pieces have
+ * no 2x rasters or mipmaps, so a scaled stamp would alias), for a screen
+ * to strike on the sheet beside what it marks. It is the screen's one hero mark, so
  * it goes where the reading window isn't: beside a title or above a box,
  * never across text (Wear: damage sits off the reading window). The mark
  * repeats what the page already says in words, so with the art page not
@@ -41,15 +40,13 @@ export interface DamageMarkOptions extends Omit<ComponentOptions, 'width' | 'hei
  */
 export class DamageMark extends Component {
 	private markKind: DamageMarkKind;
-	private readonly markScale: number;
 	private readonly box: Rect = { x: 0, y: 0, width: 0, height: 0 };
 
-	constructor({ kind, scale = 1, ...options }: DamageMarkOptions) {
+	constructor({ kind, ...options }: DamageMarkOptions) {
 		const size = uiArtSize(PIECES[kind]);
-		super({ ...options, width: Math.round(size.width * scale), height: Math.round(size.height * scale) });
+		super({ ...options, width: size.width, height: size.height });
 		this.componentType = 'DamageMark';
 		this.markKind = kind;
-		this.markScale = scale;
 	}
 
 	public get kind(): DamageMarkKind {
@@ -61,7 +58,7 @@ export class DamageMark extends Component {
 		if (kind === this.markKind) return;
 		this.markKind = kind;
 		const size = uiArtSize(PIECES[kind]);
-		this.setSize(Math.round(size.width * this.markScale), Math.round(size.height * this.markScale));
+		this.setSize(size.width, size.height);
 		this.invalidateLayout();
 	}
 

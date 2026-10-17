@@ -69,17 +69,49 @@ async function rasterise(pieces) {
 }
 
 /**
+ * Where the committed manifest put each piece, by name, so a rebuild keeps
+ * every piece that's already on the page where it is (a texel diff then
+ * shows only what changed, and branches adding art don't move each other's).
+ * A piece whose size changed isn't pinned and is packed again.
+ */
+function committedPlacements() {
+	const pinned = new Map();
+	if (!existsSync(manifestPath)) return pinned;
+	const pattern = /^\t\t(\w+): \{ x: (\d+), y: (\d+), width: (\d+), height: (\d+),/;
+	for (const line of readFileSync(manifestPath, 'utf8').split(/\r?\n/)) {
+		const match = pattern.exec(line);
+		if (match) pinned.set(match[1], { x: Number(match[2]), y: Number(match[3]), width: Number(match[4]), height: Number(match[5]) });
+	}
+	return pinned;
+}
+
+/**
  * MaxRects packing, best short side fit (Jylanki's), largest pieces first
  * and ties by name, so the layout never depends on authoring order. Shelves
- * left a strip as tall as the 2x logo empty beside it; this fills it.
+ * left a strip as tall as the 2x logo empty beside it; this fills it. Pieces
+ * the committed manifest already places at their size stay put, and only
+ * new or resized pieces are packed into the free space round them.
  */
-function pack(pieces) {
+function pack(pieces, pinned) {
 	const order = [...pieces].sort((a, b) => Math.max(b.width, b.height) - Math.max(a.width, a.height)
 		|| b.width * b.height - a.width * a.height || a.name.localeCompare(b.name));
 	let free = [{ x: 0, y: 0, width: ATLAS_WIDTH, height: MAX_HEIGHT }];
 	const placed = new Map();
 	let used = 0;
+	const fixed = (piece) => {
+		const at = pinned.get(piece.name);
+		return at && at.width === piece.width && at.height === piece.height ? at : null;
+	};
 	for (const piece of order) {
+		const at = fixed(piece);
+		if (!at) continue;
+		const cell = { x: at.x - EXTRUDE, y: at.y - EXTRUDE, width: piece.width + GUTTER, height: piece.height + GUTTER };
+		placed.set(piece.name, { x: at.x, y: at.y });
+		used = Math.max(used, cell.y + cell.height);
+		free = splitFree(free, cell);
+	}
+	for (const piece of order) {
+		if (placed.has(piece.name)) continue;
 		const width = piece.width + GUTTER;
 		const height = piece.height + GUTTER;
 		let best = null;
@@ -184,7 +216,7 @@ async function main() {
 		names.add(piece.name);
 	}
 	const images = await rasterise(pieces);
-	const { placed, height } = pack(pieces);
+	const { placed, height } = pack(pieces, committedPlacements());
 	const atlas = new PNG({ width: ATLAS_WIDTH, height });
 	atlas.data.fill(0);
 	for (const piece of pieces) blit(atlas, images.get(piece.name), placed.get(piece.name));

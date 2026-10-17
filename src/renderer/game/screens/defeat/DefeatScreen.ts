@@ -8,7 +8,7 @@ import { Text } from '../../../engine/components/Text';
 import type { ColorToken } from '../../../engine/theme/tokens';
 import { AtlasButton } from '../../ui/atlas/AtlasButton';
 import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
-import { ATLAS, DISPLAY_BOLD, MONO_MEDIUM } from '../../ui/atlas/atlasStyle';
+import { ATLAS } from '../../ui/atlas/atlasStyle';
 import { DamageMark } from '../../ui/atlas/DamageMark';
 import { LegendBox, LegendRow } from '../../ui/atlas/LegendBox';
 import { fellOnText } from '../main-menu/campaignText';
@@ -192,13 +192,13 @@ export class DefeatScreen extends Screen {
 		heading.addChild(new Text({
 			text: fellOnText(campaign.day),
 			id: 'defeat_day',
-			style: { fontRole: MONO_MEDIUM, fontWeight: 500, fontSize: KICKER_SIZE, letterSpacing: 0.14, textTransform: 'uppercase', color: 'text_dim' },
+			style: { fontRole: 'mono', fontWeight: 500, fontSize: KICKER_SIZE, letterSpacing: 0.14, textTransform: 'uppercase', color: 'text_dim' },
 			wrap: 'none',
 		}));
 		heading.addChild(new Text({
 			text: FALL_TITLES[end.ending],
 			id: 'defeat_title',
-			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: TITLE_SIZE, color: 'status_crit', textTransform: 'uppercase', letterSpacing: ATLAS.headTracking },
+			style: { fontRole: 'display', fontWeight: 700, fontSize: TITLE_SIZE, color: 'status_crit', textTransform: 'uppercase', letterSpacing: ATLAS.headTracking },
 			wrap: 'none',
 		}));
 		heading.addChild(new Text({

@@ -5,7 +5,7 @@ import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { RGBA, Rect } from '../../../engine/draw/geometry';
 import type { Theme } from '../../../engine/theme/tokens';
 import { UiArtName, drawAtlasArt, paperPiece } from './atlasArt';
-import { ATLAS, AtlasInks, DISPLAY_BOLD, MONO_MEDIUM, atlasInks } from './atlasStyle';
+import { ATLAS, AtlasInks, atlasInks } from './atlasStyle';
 import { MapGlyph } from './mapGlyphs';
 
 export interface LegendBoxOptions extends Omit<StackOptions, 'style' | 'padding'> {
@@ -52,7 +52,7 @@ export class LegendBox extends Stack {
 		this.head = title !== undefined
 			? new Text({
 				text: title,
-				style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: ATLAS.headSize, letterSpacing: ATLAS.headTracking, textTransform: 'uppercase', color: 'text' },
+				style: { fontRole: 'display', fontWeight: 700, fontSize: ATLAS.headSize, letterSpacing: ATLAS.headTracking, textTransform: 'uppercase', color: 'text' },
 				wrap: 'none',
 				textOverflow: 'ellipsis',
 				verticalAlign: 'middle',
@@ -132,7 +132,7 @@ export interface LegendRowOptions extends Omit<StackOptions, 'style' | 'directio
 	faint?: boolean;
 	/** A count or state at the right, in mono 500, for a ledger: "Days held .... 9 days". */
 	value?: string;
-	/** Ids for the line and the value, so a screen's tests can read each. */
+	/** Ids for the line and the value, so a screen's tests can read each. The line's defaults to `${id}_text` on a row with an id. */
 	textId?: string;
 	valueId?: string;
 }
@@ -156,10 +156,10 @@ export class LegendRow extends Stack {
 		this.componentType = 'LegendRow';
 		const color = faint ? 'text_faint' : 'text';
 		if (symbol) this.addChild(new MapGlyph({ kind: symbol, size: SYMBOL_SIZE }));
-		this.line = new Text({ id: textId, text, widthMode: 'fill', wrap: 'word', style: { fontSize: BODY_SIZE, color } });
+		this.line = new Text({ id: textId ?? (options.id ? `${options.id}_text` : undefined), text, widthMode: 'fill', wrap: 'word', style: { fontSize: BODY_SIZE, color } });
 		this.addChild(this.line);
 		this.valueText = value !== undefined
-			? new Text({ id: valueId, text: value, wrap: 'word', style: { fontRole: MONO_MEDIUM, fontWeight: 500, fontSize: VALUE_SIZE, color, textAlign: 'right' } })
+			? new Text({ id: valueId, text: value, wrap: 'word', style: { fontRole: 'mono', fontWeight: 500, fontSize: VALUE_SIZE, color, textAlign: 'right' } })
 			: null;
 		if (this.valueText) this.addChild(this.valueText);
 	}

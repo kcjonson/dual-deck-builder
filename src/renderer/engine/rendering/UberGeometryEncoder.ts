@@ -184,8 +184,9 @@ export const UBER_VERTICES_PER_INSTANCE = 6;
 
 /**
  * `TEXTURE_UNITS` in `uber.frag`: WebGL2's guaranteed sixteen (R5.20). The
- * fonts, the icon atlas and the UI art page take five, which leaves eleven
- * dynamic units before an image splits a submission.
+ * five font faces (two display, two body, mono), the icon atlas and the UI
+ * art page take seven, which leaves nine dynamic units before an image splits
+ * a submission.
  */
 export const UBER_TEXTURE_UNITS = 16;
 

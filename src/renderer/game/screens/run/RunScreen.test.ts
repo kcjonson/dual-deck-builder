@@ -214,14 +214,14 @@ describe('RunScreen', () => {
 				(campaign.supplyRun as { route: { destination: { id: string } } }).route.destination.id = 'poi-9';
 			}));
 			const sheet = screen.root as AtlasSheet;
-			expect([sheet.wear, find<DamageMark>('run_stamp').visible]).toEqual([2, false]);
+			expect([sheet.wear, screen.root.findById('run_stamp')]).toEqual([2, null]);
 			await press('run_skip_button');
 			await press('run_home_button');
 			expect(find<ResourceStrip>('run_unloaded_stores').items.map((item) => [item.kind, item.value])).toEqual([['food', 6], ['water', 5], ['fuel', 5], ['scrap', 15]]);
 			expect(text('run_unloaded_cards')).toBe('To the locker: Caltrops');
 			expect([text('run_crew_0_name'), text('run_crew_0_state')]).toEqual(['Road Warrior 1', 'Fit']);
 			// Nobody came home hurt, so the looted destination's stamp is the screen's one hero mark
-			expect([sheet.wear, find<DamageMark>('run_stamp').visible, find<DamageMark>('run_stamp').kind]).toEqual([2, true, 'looted']);
+			expect([sheet.wear, find<DamageMark>('run_stamp').kind]).toEqual([2, 'looted']);
 			expect(find<AtlasTag>('run_crew_0').torn).toBe(false);
 		});
 	});
@@ -234,8 +234,8 @@ describe('RunScreen', () => {
 			expect(text('run_summary')).toMatch(/^Road Warrior 1 is (dead|missing) and Interceptor 2 is (dead|missing)\. Lost with it: 2 fuel and Caltrops\. .*Day 9 ended\./);
 			expect(routeStops(data.failed?.route as RunRoute).map((_stop, index) => text(`run_stop_${index}_state`))).toEqual(['Cleared', 'Cleared', 'Lost']);
 			expect(text('run_subtitle')).toBe('Day 10 / failed / Back roads');
-			// A lost run is W3: the burnt sheet, LOST in the head, and the losses in a legend box (DDB-511)
-			expect([(screen.root as AtlasSheet).wear, find<DamageMark>('run_stamp').visible, find<DamageMark>('run_stamp').kind]).toEqual([3, true, 'lost']);
+			// A lost run's one hero mark is LOST, under the road on W2 paper, and the losses go in a legend box (DDB-511)
+			expect([(screen.root as AtlasSheet).wear, find<DamageMark>('run_stamp').kind]).toEqual([2, 'lost']);
 			expect(find<LegendBox>('run_lost').children.filter((child) => child.id?.startsWith('run_lost_')).map((child) => child.id)).toEqual(expect.arrayContaining(['run_lost_cargo']));
 			await press('run_compound_button');
 			expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign: data.campaign });

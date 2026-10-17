@@ -20,8 +20,9 @@ import { TabBar } from '../../../engine/ui/TabBar';
 import { drawAtlasArt, paperPiece } from './atlasArt';
 import { AtlasButton } from './AtlasButton';
 import { AtlasSheet } from './AtlasSheet';
-import { ATLAS, MONO_MEDIUM, atlasInks } from './atlasStyle';
+import { ATLAS, DISPLAY_BOLD, atlasInks } from './atlasStyle';
 import { AtlasTag } from './AtlasTag';
+import { resolveFont } from '../../../engine/text/fontRoles';
 import { ContentsRow } from './ContentsRow';
 import { DamageMark, damagePiece } from './DamageMark';
 import { uiArtSize } from '../../art/uiArt';
@@ -96,6 +97,23 @@ describe('atlas inks', () => {
 		expect(tokens.color.accent_edge).toEqual(tokens.color.accent);
 		expect(tokens.color.focus_ring).toEqual(tokens.color.accent);
 		expect(atlas.color.accent_edge).toEqual(atlas.color.accent_dim);
+	});
+});
+
+describe('atlas type', () => {
+	it('draws its heads, labels, and tabs in the display 700 face, asked for by weight', () => {
+		expect(DISPLAY_BOLD).toBe('display-700');
+		const button = add(new AtlasButton({ label: 'Plan a run', variant: 'highway', width: 200 }));
+		expect(draws(button).find((command): command is TextCommand => command.kind === 'text')?.font).toBe('display-700');
+		const tabs = add(new SectionTabs({ tabs: [{ id: 'a', label: 'Menu' }] }));
+		expect(draws(tabs).find((command): command is TextCommand => command.kind === 'text')?.font).toBe('display-700');
+		const box = add(new LegendBox({ title: 'Needs', width: 300 }));
+		expect(draws(box).find((command): command is TextCommand => command.kind === 'text' && command.text === 'Needs')?.font).toBe('display-700');
+		const column = new Stack({ width: 500 });
+		const row = new ContentsRow({ label: 'Settings', value: 'B' });
+		column.addChild(row);
+		add(column);
+		expect(draws(row).find((command): command is TextCommand => command.kind === 'text' && command.text === 'Settings')?.font).toBe('display-700');
 	});
 });
 
@@ -386,7 +404,8 @@ describe('LegendBox', () => {
 		expect(value.placedX + value.width).toBe(row.width);
 		expect(line.placedX + line.width).toBeLessThanOrEqual(value.placedX);
 		const valueRun = draws(row).find((command): command is TextCommand => command.kind === 'text' && command.text === '9 days');
-		expect(valueRun?.font).toBe(MONO_MEDIUM);
+		expect(valueRun?.font).toBe(resolveFont({ family: 'mono', weight: 500 }));
+		expect(new LegendRow({ id: 'radio', text: 'Radio: no new rumors' }).findById('radio_text')).not.toBeNull();
 		expect(new LegendRow({ text: 'Radio: no new rumors' }).value).toBeNull();
 	});
 
@@ -589,14 +608,14 @@ describe('focus rings on an atlas screen', () => {
 });
 
 describe('DamageMark', () => {
-	it('is its art\'s size at its scale, follows a change of stamp, and takes no hits (DDB-511)', () => {
-		const mark = add(new DamageMark({ id: 'stamp', kind: 'looted', scale: 0.5 }));
+	it('is its art\'s own size, follows a change of stamp, and takes no hits (DDB-511)', () => {
+		const mark = add(new DamageMark({ id: 'stamp', kind: 'looted' }));
 		const looted = uiArtSize('stamp_looted');
-		expect([mark.width, mark.height, mark.piece]).toEqual([Math.round(looted.width * 0.5), Math.round(looted.height * 0.5), 'stamp_looted']);
+		expect([mark.width, mark.height, mark.piece]).toEqual([looted.width, looted.height, 'stamp_looted']);
 		mark.kind = 'depleted';
 		context.frame.layout();
 		const depleted = uiArtSize('stamp_depleted');
-		expect([mark.width, mark.height, mark.piece]).toEqual([Math.round(depleted.width * 0.5), Math.round(depleted.height * 0.5), 'stamp_depleted']);
+		expect([mark.width, mark.height, mark.piece]).toEqual([depleted.width, depleted.height, 'stamp_depleted']);
 		expect(mark.pointerEvents).toBe('none');
 		expect(['lost', 'fallen', 'tear'].map((kind) => damagePiece(kind as 'lost'))).toEqual(['stamp_lost', 'stamp_fallen', 'tear_a']);
 	});

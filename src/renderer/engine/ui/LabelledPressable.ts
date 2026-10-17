@@ -3,14 +3,14 @@ import type { Axis, Size, SizeMode } from '../components/layoutTypes';
 import type { TextTransform } from '../draw/commands';
 import type { DrawApi } from '../draw/DrawApi';
 import type { Rect } from '../draw/geometry';
-import type { FontRole } from '../text/fontFaces';
+import type { FontName } from '../text/fontFaces';
 import { Look, LookLayers, resolveLook } from '../style/look';
 import { LookTransition } from '../style/LookTransition';
 import { Pressable } from './Pressable';
 
 /** How a label is set: the face, size, tracking, and case it is measured and drawn with. */
 export interface LabelFace {
-	font: FontRole;
+	font: FontName;
 	size: number;
 	/** Em. */
 	letterSpacing: number;

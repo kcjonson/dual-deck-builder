@@ -48,8 +48,8 @@ Surfaces take their wear by size: `paperPiece` gives W2 only to a surface at lea
 
 Added with the result screens (DDB-511). W3 is W2 plus one hero mark, and only after a game event (spec, Wear), so the marks are parts a screen adds when it shows the event, never defaults:
 
-- The sheet's own damage is its paper: `AtlasSheet.wear` and `paper` can change after construction, so a screen mounted for a win stays W2 and the same screen mounted for a loss takes W3 (`a` a burnt bottom-right corner, `b` a bullet hole top right, `c` a ripped bottom-left corner). Tape never pins the burnt corner: a burnt sheet is taped on the other diagonal.
-- `DamageMark` is a stamp (LOOTED, DEPLETED, LOST, FALLEN) or a tear as a component at its art's size, struck on the sheet beside what it marks, in the flow, so the lint keeps it off every reading window. It says nothing the page doesn't say in words, so with no art page it draws nothing.
+- The sheet's own damage is its paper: `AtlasSheet.wear` and `paper` can change after construction, so a screen takes W3 only while it shows what wrecked the page (`a` a burnt bottom-right corner, `b` a bullet hole top right, `c` a ripped bottom-left corner). The orchestrator's ruling on the budget: only the fallen compound gets W3 paper plus FALLEN; a lost fight or a failed run gets one mark, LOST, on W2. Tape never pins the burnt corner: a burnt sheet is taped on the other diagonal.
+- `DamageMark` is a stamp (LOOTED, DEPLETED, LOST, FALLEN) or a tear as a component, always at its art's 1x size (the pieces have no 2x rasters or mipmaps, so a scaled stamp aliases), struck on the sheet beside what it marks, in the flow, so the lint keeps it off every reading window. It says nothing the page doesn't say in words, so with no art page it draws nothing.
 - `AtlasTag` is a small W1 tag for a person or vehicle. Its right padding always leaves room for a tear run in from the top edge, so tearing a tag never moves or covers its text.
 - A screen with more than one candidate spends its one mark by priority and says so in code (the run debrief's `debriefMark`).
 

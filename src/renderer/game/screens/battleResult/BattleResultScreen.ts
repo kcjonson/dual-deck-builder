@@ -4,7 +4,7 @@ import type { ScreenName } from '../../core/ScreenManager';
 import { Text } from '../../../engine/components/Text';
 import { AtlasButton } from '../../ui/atlas/AtlasButton';
 import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
-import { ATLAS, DISPLAY_BOLD, MONO_MEDIUM } from '../../ui/atlas/atlasStyle';
+import { ATLAS } from '../../ui/atlas/atlasStyle';
 import { DamageMark } from '../../ui/atlas/DamageMark';
 import { LegendBox } from '../../ui/atlas/LegendBox';
 
@@ -37,9 +37,9 @@ function isBattleResultData(data: unknown): data is BattleResultData {
  * Continue, the highway, which has focus on mount. Enter continues, and so
  * does Escape, since there is nowhere else to go.
  *
- * A loss is W3, damage after the event (Wear): the sheet takes its bullet
- * hole and LOST is stamped on the page above the box, clear of the text. A
- * win stays W2. The title is display 700: the logo's brush letters are baked
+ * A loss takes one hero mark after the event (Wear): LOST, stamped on the
+ * W2 page above the box, clear of the text. Only a fallen compound is a
+ * damaged (W3) sheet. The title is display 700: the logo's brush letters are baked
  * as the logo, not as an alphabet, so there's no "VICTORY" to cut from them.
  */
 export class BattleResultScreen extends Screen {
@@ -66,8 +66,6 @@ export class BattleResultScreen extends Screen {
 		}
 		const { victory } = data;
 		this.next = data.next;
-		this.sheet.wear = victory ? 2 : 3;
-		this.sheet.paper = victory ? 'a' : 'b';
 
 		if (!victory) this.sheet.addChild(new DamageMark({ id: 'result_stamp', kind: 'lost' }));
 		const panel = new LegendBox({
@@ -80,14 +78,14 @@ export class BattleResultScreen extends Screen {
 		panel.addChild(new Text({
 			text: victory ? 'Fight won' : 'Fight lost',
 			id: 'result_kicker',
-			style: { fontRole: MONO_MEDIUM, fontWeight: 500, fontSize: KICKER_SIZE, letterSpacing: 0.14, textTransform: 'uppercase', color: 'text_dim', textAlign: 'center' },
+			style: { fontRole: 'mono', fontWeight: 500, fontSize: KICKER_SIZE, letterSpacing: 0.14, textTransform: 'uppercase', color: 'text_dim', textAlign: 'center' },
 			wrap: 'none',
 		}));
 		panel.addChild(new Text({
 			text: victory ? 'VICTORY!' : 'DEFEAT!',
 			id: 'result_title',
 			style: {
-				fontRole: DISPLAY_BOLD,
+				fontRole: 'display',
 				fontWeight: 700,
 				fontSize: TITLE_SIZE,
 				letterSpacing: ATLAS.headTracking,
@@ -127,11 +125,7 @@ export class BattleResultScreen extends Screen {
 		this.next = undefined;
 	}
 
-	/**
-	 * Where the fight said to go next, or to the menu, focus back on
-	 * Skirmish, which started the fight, so an Enter there doesn't found a
-	 * campaign.
-	 */
+	/** Where the fight said to go next, or to the menu, focus back on what was focused when it was left, so an Enter there doesn't found a campaign. */
 	private continue(): void {
 		if (this.next) ScreenManager.navigate(this.next.screen, this.next.data);
 		else ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });

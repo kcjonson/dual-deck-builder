@@ -1,16 +1,15 @@
 import type { RGBA } from '../../../engine/draw/geometry';
-import { resolveFontRole } from '../../../engine/text/fontRoles';
-import type { FontRole } from '../../../engine/text/fontFaces';
+import { resolveFont } from '../../../engine/text/fontRoles';
+import type { FontName } from '../../../engine/text/fontFaces';
 import type { Theme } from '../../../engine/theme/tokens';
 
 /**
- * The atlas parts' type: display 700 for heads, tabs, labels, and glyph
- * numbers, mono 500 for values (UI Art Direction, Type). The weight goes
- * through the typography tokens (R11.8), so until the 700 and 500 faces are
- * generated each falls back to the role's loaded weight.
+ * The face the atlas parts draw their own labels in: display 700 (UI Art
+ * Direction, Type), through the weight table (R11.8). Text components ask
+ * the same way, with `fontWeight` in their style; mono 500 values do too,
+ * and draw in the nearest mono face until a 500 one is generated.
  */
-export const DISPLAY_BOLD: FontRole = resolveFontRole({ family: 'display', weight: 700 });
-export const MONO_MEDIUM: FontRole = resolveFontRole({ family: 'mono', weight: 500 });
+export const DISPLAY_BOLD: FontName = resolveFont({ family: 'display', weight: 700 });
 
 /**
  * The spec's component geometry (UI Art Direction, Components), in logical

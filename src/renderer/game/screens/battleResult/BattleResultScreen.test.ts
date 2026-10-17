@@ -74,7 +74,7 @@ describe('BattleResultScreen', () => {
 		expect(navigate).toHaveBeenCalledWith('runScreen', data);
 	});
 
-	it('keeps a win on the W2 sheet, and damages the sheet for a loss, the bullet hole and LOST over the box (DDB-511)', () => {
+	it('keeps a win on the W2 sheet, and stamps a loss LOST over the box, its one hero mark, still on W2 (DDB-511)', () => {
 		screen.mount(context, result(true));
 		const sheet = screen.root as AtlasSheet;
 		expect([sheet.wear, screen.root.findById('result_stamp')]).toEqual([2, null]);
@@ -83,7 +83,7 @@ describe('BattleResultScreen', () => {
 		context.frame.layout();
 		const stamp = screen.root.findById('result_stamp') as DamageMark;
 		const panel = screen.root.findById('result_panel');
-		expect([sheet.wear, sheet.paper, stamp.kind]).toEqual([3, 'b', 'lost']);
+		expect([sheet.wear, stamp.kind]).toEqual([2, 'lost']);
 		expect(stamp.y + stamp.height).toBeLessThanOrEqual(panel?.y ?? 0);
 	});
 
