@@ -71,7 +71,7 @@ export class SectionTab extends LabelledPressable {
 
 	constructor({ id, tabId, label, deck = false, disabled = false }: { id?: string; tabId: string; label: string; deck?: boolean; disabled?: boolean }) {
 		super({
-			...(id !== undefined ? { id } : {}),
+			id,
 			label,
 			face: { font: DISPLAY_BOLD, size: ATLAS.tabSize, letterSpacing: ATLAS.tabTracking, textTransform: 'uppercase' },
 			layers: sectionTabLayers(atlasInks(tokens)),
@@ -152,7 +152,6 @@ const STEP: Readonly<Record<string, -1 | 1>> = { ArrowLeft: -1, ArrowRight: 1 };
  * open section (R9.29): Left and Right move focus and selection together,
  * wrapping, Home and End go to the ends, and a release or `activate`
  * selects, as R12.16's tab bar does. `onSelect` fires on user changes only.
- * With an id, each tab is `<id>_<tab id>`.
  */
 export class SectionTabs extends Stack {
 	public onSelect: SectionSelectCallback | null;
@@ -172,7 +171,8 @@ export class SectionTabs extends Stack {
 		this.componentType = 'SectionTabs';
 		this.onSelect = onSelect;
 		for (const tab of tabs) {
-			const item = new SectionTab({ id: options.id ? `${options.id}_${tab.id}` : undefined, tabId: tab.id, label: tab.label, deck: tab.deck, disabled: tab.disabled });
+			// Named under the tabs' id, so a navigate that restores focus by id finds the tab again.
+			const item = new SectionTab({ id: options.id ? `${options.id}.${tab.id}` : undefined, tabId: tab.id, label: tab.label, deck: tab.deck, disabled: tab.disabled });
 			this.items.push(item);
 			this.addChild(item);
 		}
@@ -182,10 +182,6 @@ export class SectionTabs extends Stack {
 
 	public get tabs(): readonly SectionTab[] {
 		return this.items;
-	}
-
-	public tab(tabId: string): SectionTab | null {
-		return this.items.find((tab) => tab.tabId === tabId) ?? null;
 	}
 
 	public get selectedId(): string | null {

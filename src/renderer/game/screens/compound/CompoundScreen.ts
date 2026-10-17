@@ -23,7 +23,8 @@ import { LegendBox, LegendRow } from '../../ui/atlas/LegendBox';
 import { MapGlyph } from '../../ui/atlas/mapGlyphs';
 import { PlateFrame } from '../../ui/atlas/PlateFrame';
 import { ResourceStrip, ledger } from '../../ui/atlas/ResourceStrip';
-import { SectionTabs } from '../../ui/atlas/SectionTabs';
+import type { SectionTab, SectionTabs } from '../../ui/atlas/SectionTabs';
+import { MetaSection, metaSectionTabs } from '../metaSections';
 import {
 	BUILDINGS,
 	Building,
@@ -50,14 +51,6 @@ import {
 } from './compoundText';
 import { CompoundYard } from './CompoundYard';
 import { planRefusal } from '../run/runText';
-
-/** The atlas sections the compound's tabs open (UI Art Direction, Components, Section tabs). */
-const SECTIONS = [
-	{ id: 'menu', label: 'Menu' },
-	{ id: 'compound', label: 'Compound' },
-	{ id: 'area_map', label: 'Area map' },
-	{ id: 'crew', label: 'Crew', deck: true },
-] as const;
 
 const PLATE_CAPTION = 'Plate 1 · the compound from above, at dawn';
 const GATE = { name: 'Gate', road: 'to the area map' };
@@ -218,13 +211,16 @@ export class CompoundScreen extends Screen {
 	protected onMount(data?: unknown): void {
 		this.visit += 1;
 		this.waiting = new AbortController();
-		const tabs = new SectionTabs({
-			id: 'compound_tabs',
-			tabs: SECTIONS.map((section) => ({ ...section, disabled: section.id === 'area_map' || section.id === 'crew' })),
-			selectedId: 'compound',
-			onSelect: (id) => this.tabChosen(id),
-		});
+		const tabs = metaSectionTabs({ id: 'compound_tabs', open: 'compound', campaignOf: () => this.campaign });
+		// The sections go as the shared tabs send them, once nothing here holds them back.
+		const go = tabs.onSelect;
+		tabs.onSelect = (id, event) => {
+			tabs.selectedId = 'compound';
+			if (this.tabHeld(id)) return;
+			go?.(id, event);
+		};
 		this.tabs = tabs;
+		this.refreshTabs();
 		const sheet = new AtlasSheet({ id: 'compound_sheet', tabs, widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch' });
 		const body = new Stack({ id: 'compound_body', direction: 'horizontal', widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch', gap: COLUMN.gap });
 		body.addChild(this.createPlateColumn());
@@ -239,7 +235,7 @@ export class CompoundScreen extends Screen {
 		hotkeys.register('PageDown', () => this.sideScroll?.scrollByPages(1));
 		hotkeys.register('PageUp', () => this.sideScroll?.scrollByPages(-1));
 		this.unsubscribe = this.store.onSaveFailed((error) => this.showLine({ line: this.saveError, text: error.message, color: 'status_crit' }));
-		const home = tabs.tab('compound');
+		const home = this.tab('compound');
 		if (home) this.context.focus.focus(home);
 
 		const handed = (data as Partial<CompoundScreenData> | undefined)?.campaign;
@@ -467,7 +463,7 @@ export class CompoundScreen extends Screen {
 		}
 		else if (this.restLine) {
 			this.restLine.text = trouble;
-			this.restLine.color = 'status_warn';
+			this.restLine.color = 'status_crit';
 		}
 	}
 
@@ -539,10 +535,10 @@ export class CompoundScreen extends Screen {
 		if (this.halted !== null) return;
 		this.halted = 'stranded';
 		const focused = this.context.focus.focused;
-		const turnedOff = [this.restButton, this.scavengeButton, this.planButton, this.building?.action, this.tabs?.tab('area_map'), this.tabs?.tab('crew')];
+		const turnedOff = [this.restButton, this.scavengeButton, this.planButton, this.building?.action, this.tab('area_map'), this.tab('crew')];
 		this.refresh();
-		this.showLine({ line: this.saveError, text: NOT_THE_SAVE, color: 'status_warn' });
-		const home = this.tabs?.tab('compound');
+		this.showLine({ line: this.saveError, text: NOT_THE_SAVE, color: 'status_crit' });
+		const home = this.tab('compound');
 		if (focused !== null && turnedOff.includes(focused as never) && home) this.context.focus.focus(home);
 	}
 
@@ -605,21 +601,35 @@ export class CompoundScreen extends Screen {
 		needs.addChild(new LegendRow({ id: 'compound_rumors', text: NO_RUMORS, symbol: 'dash' }));
 	}
 
+	private tab(section: MetaSection): SectionTab | null {
+		return this.tabs?.tabs.find((tab) => tab.tabId === section) ?? null;
+	}
+
 	/** Area map and Crew open with a campaign to hand them, the Crew only once the bunkhouse stands; none while stranded. */
 	private refreshTabs(): void {
-		const tabs = this.tabs;
-		if (!tabs) return;
-		const open = this.campaign !== null && this.halted !== 'stranded';
-		const areaMap = tabs.tab('area_map');
-		const crew = tabs.tab('crew');
-		if (areaMap) areaMap.enabled = open;
-		if (crew) crew.enabled = open && (this.campaign?.isBuilt('bunkhouse') ?? false);
+		const areaMap = this.tab('area_map');
+		const crew = this.tab('crew');
+		if (areaMap) areaMap.enabled = !this.tabHeld('area_map');
+		if (crew) crew.enabled = !this.tabHeld('crew');
+	}
+
+	/**
+	 * Whether a tab can't go yet: the area map and the Crew screen need a
+	 * campaign to hand them, the Crew a bunkhouse standing, and neither goes
+	 * while a day end is being saved or the screen has halted. Menu always goes.
+	 */
+	private tabHeld(section: string): boolean {
+		if (section === 'menu') return false;
+		const campaign = this.campaign;
+		if (!campaign || this.passingDay || this.halted !== null) return true;
+		return section === 'crew' && !campaign.isBuilt('bunkhouse');
 	}
 
 	/** Each building on the plate, built or staked out, and the chosen one's box. */
 	private refreshBuildings(): void {
 		const yard = this.yard;
 		if (!yard) return;
+		yard.parked = (this.campaign?.currentRun ?? null) === null;
 		for (const id of BUILDING_IDS) {
 			const built = this.campaign?.isBuilt(id) ?? false;
 			yard.setBuilt({ building: id, built, state: this.campaign ? buildingState(built) : '' });
@@ -719,11 +729,12 @@ export class CompoundScreen extends Screen {
 			this.refresh();
 			// A night that ends the campaign disables Scavenge; focus goes to Rest, which saves the end again, not to nothing (R9.28).
 			if (scavengeFocused && this.restButton?.enabled && !this.scavengeButton?.enabled) this.context.focus.focus(this.restButton);
-			this.showLine({ line: this.report, text: report.text, color: report.urgent ? 'status_warn' : 'text_dim' });
+			this.showLine({ line: this.report, text: report.text, color: report.urgent ? 'status_crit' : 'text_dim' });
 		}
 		const result = await this.store.checkpoint(campaign);
 		if (visit !== this.visit) return;
 		this.passingDay = false;
+		this.refreshTabs();
 		this.afterCheckpoint({ campaign, result });
 	}
 
@@ -741,14 +752,6 @@ export class CompoundScreen extends Screen {
 		ScreenManager.navigate('defeatScreen', { campaign });
 	}
 
-	/** A tab: the menu, the area map, or the Crew screen. The Compound stays the open section here, whatever happens. */
-	private tabChosen(id: string): void {
-		if (this.tabs) this.tabs.selectedId = 'compound';
-		if (id === 'menu') this.back();
-		else if (id === 'area_map') this.openAreaMap();
-		else if (id === 'crew') this.open(BUILDINGS[0]);
-	}
-
 	/**
 	 * A building's screen, handed the campaign, once it stands; Back from it
 	 * lands where focus was. Not while a day end is being saved, so the next
@@ -758,13 +761,6 @@ export class CompoundScreen extends Screen {
 		const campaign = this.campaign;
 		if (!campaign || !building.screen || !campaign.isBuilt(building.id) || this.passingDay || this.halted !== null) return;
 		ScreenManager.navigate(building.screen, { campaign });
-	}
-
-	/** The area map, handed the campaign, to look round it; not while a day end is being saved. */
-	private openAreaMap(): void {
-		const campaign = this.campaign;
-		if (!campaign || this.passingDay || this.halted !== null) return;
-		ScreenManager.navigate('areaMapScreen', { campaign });
 	}
 
 	/** The area map, handed the campaign, to plan a run; refused as `getPlanBlocker` says. */

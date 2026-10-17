@@ -166,7 +166,6 @@ export class Scrollbar extends Component {
 		return this.axis === 'vertical' ? this.height : this.width;
 	}
 
-	/** In its theme's colours (R11.15), read per draw: a lookup, so nothing to re-resolve on a theme change. */
 	private get thumbColor(): RGBA {
 		const { color } = this.themeTokens;
 		if (this.drag) return color.accent;

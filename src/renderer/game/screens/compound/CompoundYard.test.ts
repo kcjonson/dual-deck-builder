@@ -96,6 +96,16 @@ describe('CompoundYard', () => {
 		yardOf({ width: 460, height: 380 });
 		const name = draws().find((command): command is TextCommand => command.kind === 'text' && command.text === 'Infirmary' && command.blur === 0);
 		expect(name?.size).toBe(22 * 0.75);
+		const road = draws().find((command): command is TextCommand => command.kind === 'text' && command.text === 'to the area map' && command.blur === 0);
+		expect((road?.box?.x ?? 0) + (road?.box?.width ?? Infinity)).toBeLessThanOrEqual(460);
+	});
+
+	it('leaves the rig and the bike out of the yard while they are out on a run', () => {
+		const yard = yardOf({ width: 920, height: 760 });
+		const rigBody = (): boolean => draws().some((command) => command.kind === 'rect' && command.rect.width === 70 && command.rect.height === 34);
+		expect(rigBody()).toBe(true);
+		yard.parked = false;
+		expect(rigBody()).toBe(false);
 	});
 
 	it('chooses a building by press or by focus, and loops the chosen one in grease pencil', () => {

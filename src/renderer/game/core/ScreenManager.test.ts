@@ -229,7 +229,7 @@ describe('ScreenManager.navigate', () => {
 		const campaign = compound.shown;
 		expect(campaign).not.toBeNull();
 
-		focusOn('compound_building_bunkhouse_button');
+		focusOn('compound_building_action');
 		send(context, [key('Enter')]);
 		advance(context, FADE_MS * 2);
 		expect(ScreenManager.getCurrentScreenName()).toBe('crewScreen');
@@ -244,7 +244,7 @@ describe('ScreenManager.navigate', () => {
 		advance(context, FADE_MS * 2);
 		expect(ScreenManager.getCurrentScreenName()).toBe('compoundScreen');
 		expect((ScreenManager.activeScreen as CompoundScreen).shown).toBe(campaign);
-		expect(context.focus.focused?.id).toBe('compound_building_bunkhouse_button');
+		expect(context.focus.focused?.id).toBe('compound_building_action');
 		expect(context.focus.focusVisible).toBe(true);
 	});
 

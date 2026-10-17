@@ -256,6 +256,8 @@ const RUTS: readonly (readonly Vec2[])[] = [
 /** The road's centre dashes along the curve: 18 on, 16 off, from x 720. */
 const ROAD_DASH = { on: 18, off: 16, width: 3, alpha: 0.8 };
 const MAX_DASHES = 96;
+/** "to the area map" in 13 px mono, with room to spare. */
+const ROAD_LABEL_WIDTH = 124;
 
 /** Soft patches of darker and lighter dirt, scattered once by a fixed seed. */
 const BLOTCHES: readonly { at: Vec2; radius: number; light: boolean }[] = (() => {
@@ -466,7 +468,9 @@ export class CompoundYard extends Stack {
 	private readonly north: Vec2[] = NORTH.map(() => ({ x: 0, y: 0 }));
 	private readonly scaleBar: Rect[] = [0, 1, 2].map(() => ({ x: 0, y: 0, width: 0, height: 0 }));
 	private readonly gateName: Vec2 = { x: 0, y: 0 };
-	private readonly roadName: Vec2 = { x: 0, y: 0 };
+	/** The road's label, right-aligned in a box that ends at the plate's edge when the plate is too narrow for it to start under the road. */
+	private readonly roadName: Rect = { x: 0, y: 0, width: 0, height: 0 };
+	private vehiclesHome = true;
 	private labelScale = 1;
 
 	constructor({ onChoose, names, numbers, gate, ...options }: CompoundYardOptions) {
@@ -532,6 +536,15 @@ export class CompoundYard extends Stack {
 		this.invalidateLayout();
 	}
 
+	/** Whether the rig and the bike are parked inside the gate: not while they're out on a run. */
+	public get parked(): boolean {
+		return this.vehiclesHome;
+	}
+
+	public set parked(parked: boolean) {
+		this.vehiclesHome = parked;
+	}
+
 	public isBuilt(building: BuildingId): boolean {
 		return this.built.has(building);
 	}
@@ -592,7 +605,7 @@ export class CompoundYard extends Stack {
 		}
 		this.drawBunkhouseYard(draw);
 		this.drawTank(draw);
-		this.drawVehicles(draw);
+		if (this.vehiclesHome) this.drawVehicles(draw);
 		draw.popTransform();
 		this.drawMarks(draw);
 	}
@@ -681,7 +694,7 @@ export class CompoundYard extends Stack {
 		const halo = this.halo;
 		const scale = this.labelScale;
 		draw.drawText({ text: this.gateText.name, position: this.gateName, font: DISPLAY_BOLD, size: 20 * scale, color: inks.ink, shadow: halo, wrap: 'none' });
-		draw.drawText({ text: this.gateText.road, position: this.roadName, font: 'mono', size: 13 * scale, color: inks.inkDim, shadow: halo, wrap: 'none' });
+		draw.drawText({ text: this.gateText.road, box: this.roadName, align: 'right', verticalAlign: 'top', font: 'mono', size: 13 * scale, color: inks.inkDim, shadow: halo, wrap: 'none' });
 	}
 
 	/** The centre dashes along the road, 18 on and 16 off from x 720, each a quad across its stretch of the line. */
@@ -740,7 +753,8 @@ export class CompoundYard extends Stack {
 		const by = height - 16 * label;
 		this.scaleBar.forEach((segment, index) => setRect(segment, bx + index * 36 * label, by, 36 * label, 7 * label));
 		set(this.gateName, ox + 752 * scale, oy + 352 * scale);
-		set(this.roadName, ox + 752 * scale, oy + 440 * scale + 13 * label);
+		const roadRight = Math.min(width - 8, ox + 752 * scale + ROAD_LABEL_WIDTH * label);
+		setRect(this.roadName, 0, oy + 428 * scale, roadRight, 18 * label);
 	}
 }
 

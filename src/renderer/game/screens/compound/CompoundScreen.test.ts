@@ -36,6 +36,8 @@ const navigate = ScreenManager.navigate as jest.Mock;
 /** The compound draws in the atlas theme. */
 const { color } = themes.atlas;
 const TO_MENU = ['mainMenuScreen', undefined, { restoreFocus: true }];
+/** A tab goes with the focus it left restored when it comes back (metaSections). */
+const BACK_AGAIN = { restoreFocus: true };
 /** Past the window in which a press right after a day ended counts as the same click (the screen's 300 ms). */
 const NEXT_PRESS_MS = 320;
 
@@ -202,7 +204,7 @@ describe('CompoundScreen', () => {
 			expect(find<CompoundYard>('compound_yard').loop?.target).toBe(find('compound_building_bunkhouse'));
 			expect(find<Button>('compound_rest_button').enabled).toBe(true);
 			expect(find<Button>('compound_scavenge_button').enabled).toBe(true);
-			expect(['area_map', 'crew'].map((id) => tabs().tab(id)?.enabled)).toEqual([true, true]);
+			expect(['area_map', 'crew'].map((id) => tabs().tabs.find((tab) => tab.tabId === id)?.enabled)).toEqual([true, true]);
 		});
 
 		it('chooses a building pressed on the plate: the box shows it, with why it has no action, and the loop goes round it', () => {
@@ -247,12 +249,12 @@ describe('CompoundScreen', () => {
 		});
 
 		it('starts focus on the Compound tab, and Tab reaches only the live controls: the tabs, the plate, the bunkhouse, the day, and Plan', () => {
-			expect(context.focus.focused?.id).toBe('compound_tabs_compound');
+			expect(context.focus.focused?.id).toBe('compound_tabs.compound');
 			const stops = ['Tab', 'Tab', 'Tab', 'Tab', 'Tab'].map((tab) => {
 				send(context, [key(tab)]);
 				return context.focus.focused?.id;
 			});
-			expect(stops).toEqual(['compound_building_bunkhouse', 'compound_building_action', 'compound_rest_button', 'compound_plan_button', 'compound_tabs_compound']);
+			expect(stops).toEqual(['compound_building_bunkhouse', 'compound_building_action', 'compound_rest_button', 'compound_plan_button', 'compound_tabs.compound']);
 		});
 
 		it('does nothing on Enter at the Compound tab, the section already open', () => {
@@ -267,13 +269,13 @@ describe('CompoundScreen', () => {
 			expect(navigate).toHaveBeenLastCalledWith('crewScreen', { campaign: screen.shown });
 			navigate.mockClear();
 			tabs().onSelect?.('crew', {} as never);
-			expect(navigate).toHaveBeenLastCalledWith('crewScreen', { campaign: screen.shown });
+			expect(navigate).toHaveBeenLastCalledWith('crewScreen', { campaign: screen.shown }, BACK_AGAIN);
 		});
 
 		it('opens the area map from its tab, handing it the campaign, and keeps the Compound the open section', () => {
-			context.focus.focus(find('compound_tabs_compound'));
+			context.focus.focus(find('compound_tabs.compound'));
 			send(context, [key('ArrowRight')]);
-			expect(navigate).toHaveBeenLastCalledWith('areaMapScreen', { campaign: screen.shown });
+			expect(navigate).toHaveBeenLastCalledWith('areaMapScreen', { campaign: screen.shown }, BACK_AGAIN);
 			expect(tabs().selectedId).toBe('compound');
 		});
 
@@ -392,7 +394,7 @@ describe('CompoundScreen', () => {
 		expect(find<{ color: unknown }>('compound_need_1_text').color).toEqual(color.text);
 		await rest();
 		expect(text('compound_report')).toBe('Day 9 ended. Ran short of 2 food; 2 people lost.');
-		expect(find<{ color: unknown }>('compound_report').color).toEqual(color.status_warn);
+		expect(find<{ color: unknown }>('compound_report').color).toEqual(color.status_crit);
 		expect(screen.shown?.resources.people).toBe(16);
 		expect(needs()[0]).toBe('No food: 4 short tonight');
 	});
@@ -495,7 +497,8 @@ describe('CompoundScreen', () => {
 			send(context, [key(tab)]);
 			return context.focus.focused?.id;
 		});
-		expect(stops).toEqual(['compound_building_bunkhouse', 'compound_building_action', 'compound_tabs_compound']);
+		expect(stops).toEqual(['compound_building_bunkhouse', 'compound_building_action', 'compound_tabs.compound']);
+		expect(find<CompoundYard>('compound_yard').parked).toBe(false);
 		// The bunkhouse counts the decks out on the run
 		expect(text('compound_building_crew_text')).toBe('3 drivers · 3 default decks');
 		find<Button>('compound_rest_button').onClick?.({} as never);
@@ -617,7 +620,7 @@ describe('CompoundScreen', () => {
 	/** Over the buttons, that nothing more is saved here; Rest, Scavenge, Plan, the bunkhouse, and the tabs but Menu off, each saying why; focus on the Compound tab. */
 	function expectStranded(): void {
 		expect(text('compound_save_error')).toBe("This campaign isn't the save any more, so nothing more is saved here. Back to menu to pick up the save.");
-		expect(find<{ color: unknown }>('compound_save_error').color).toEqual(color.status_warn);
+		expect(find<{ color: unknown }>('compound_save_error').color).toEqual(color.status_crit);
 		expect(find<Button>('compound_rest_button').enabled).toBe(false);
 		expect(find<Button>('compound_scavenge_button').enabled).toBe(false);
 		expect(find<Button>('compound_plan_button').enabled).toBe(false);
@@ -626,8 +629,8 @@ describe('CompoundScreen', () => {
 		expect(find<Button>('compound_building_action').enabled).toBe(false);
 		expect(text('compound_building_reason')).toBe('Shut, since nothing more is saved here.');
 		expect(find<Text>('compound_building_reason').visible).toBe(true);
-		expect(['menu', 'area_map', 'crew'].map((id) => tabs().tab(id)?.enabled)).toEqual([true, false, false]);
-		expect(context.focus.focused?.id).toBe('compound_tabs_compound');
+		expect(['menu', 'area_map', 'crew'].map((id) => tabs().tabs.find((tab) => tab.tabId === id)?.enabled)).toEqual([true, false, false]);
+		expect(context.focus.focused?.id).toBe('compound_tabs.compound');
 	}
 
 	it('strands a standing campaign the store has moved on from, its day ended but nothing more saved, and the menu still open', async () => {
@@ -716,7 +719,7 @@ describe('CompoundScreen', () => {
 			expect(find<BuildingSpot>('compound_building_garage').state).toBe('BUILT');
 			expect(find<Button>('compound_building_action').visible).toBe(false);
 			expect(text('compound_building_reason')).toBe("The bunkhouse isn't built yet.");
-			expect(tabs().tab('crew')?.enabled).toBe(false);
+			expect(tabs().tabs.find((tab) => tab.tabId === 'crew')?.enabled).toBe(false);
 			find<Button>('compound_building_action').onClick?.({} as never);
 			expect(navigate).not.toHaveBeenCalled();
 		});
@@ -736,7 +739,7 @@ describe('CompoundScreen', () => {
 			expect(find<{ visible: boolean }>('compound_resources').visible).toBe(false);
 			expect(find<{ visible: boolean }>('compound_day').visible).toBe(false);
 			expect(find<{ visible: boolean }>('compound_needs').visible).toBe(false);
-			expect(['area_map', 'crew'].map((id) => tabs().tab(id)?.enabled)).toEqual([false, false]);
+			expect(['area_map', 'crew'].map((id) => tabs().tabs.find((tab) => tab.tabId === id)?.enabled)).toEqual([false, false]);
 			screen.unmount();
 
 			store = storeOver(storageWith(damagedText()));

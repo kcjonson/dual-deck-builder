@@ -283,11 +283,9 @@ describe('SectionTabs', () => {
 		expect(chosen).toEqual(['compound', 'crew', 'menu', 'crew', 'menu']);
 	});
 
-	it('names each tab after the row and its own id, and finds one by id', () => {
+	it('names each tab after the row and its own id', () => {
 		const tabs = add(new SectionTabs({ id: 'sections', tabs: specs }));
-		expect(tabs.tabs.map((tab) => tab.id)).toEqual(['sections_menu', 'sections_compound', 'sections_locked', 'sections_crew']);
-		expect(tabs.tab('crew')).toBe(tabs.tabs[3]);
-		expect(tabs.tab('nowhere')).toBeNull();
+		expect(tabs.tabs.map((tab) => tab.id)).toEqual(['sections.menu', 'sections.compound', 'sections.locked', 'sections.crew']);
 	});
 
 	it('selects on activate, and never fires for the tab already open', () => {
