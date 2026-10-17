@@ -201,13 +201,26 @@ describe('Battle on the road grid', () => {
 			expect(playFlank(battle, bike, rig)).toBe(false);
 		});
 
-		test('an existing flanker keeps its first reserved slot when it swerves again', () => {
+		test('a vehicle already flanking cannot flank again', () => {
 			playFlank(battle, bike, buggy);
-			playFlank(battle, bike, hauler);
 
-			expect(bike.slot).toEqual(slot(RoadLane.ENEMY_SHOULDER, RoadRow.BEHIND));
-			expect(bike.flank?.reservedSlot).toEqual(slot(RoadLane.PLAYER_INSIDE, RoadRow.BEHIND));
-			expect(bike.flank?.outran).toBe(hauler);
+			expect(battle.getFlankBlocker(bike, hauler)).toBe('Bike is already flanking');
+			expect(playFlank(battle, bike, hauler)).toBe(false);
+			expect(bike.slot).toEqual(slot(RoadLane.ENEMY_SHOULDER, RoadRow.AHEAD));
+			expect(bike.flank?.outran).toBe(buggy);
+			expect(driverOf(bike).hand).toHaveLength(1);
+		});
+
+		test('a flank card is unplayable from the shoulder, so the hand greys it out', () => {
+			const card = flankCard();
+			const driver = driverOf(bike);
+			expect(battle.canPlayCard({ driver, card })).toBe(true);
+
+			playFlank(battle, bike, buggy);
+			driver.hand = [card];
+
+			expect(battle.getCardBlocker({ driver, card })).toBe('Bike is already flanking');
+			expect(battle.canPlayCard({ driver, card })).toBe(false);
 		});
 
 		test('deals +50% damage', () => {

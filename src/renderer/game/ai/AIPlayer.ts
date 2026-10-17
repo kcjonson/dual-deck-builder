@@ -131,7 +131,7 @@ export abstract class AIPlayer {
 	protected canPlay({ driver, card }: { driver: Driver; card: Card }): boolean {
 		if (this.board.adrenalineOf(driver) < card.cost) return false;
 		if (card.isAttack && !driver.canPlayAttackCards()) return false;
-		return this.battle.getCardBlocker({ driver, card }) === null;
+		return this.battle.getCardBlocker({ driver, card, board: this.board }) === null;
 	}
 
 	/**
