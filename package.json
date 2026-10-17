@@ -11,6 +11,7 @@
 		"start:electron": "electron .",
 		"start:electron:debug": "electron --inspect=5858 .",
 		"start:electron:monitor": "cross-env ELECTRON_ENABLE_LOGGING=true electron .",
+		"build:icons": "node scripts/build-app-icons.mjs",
 		"package": "electron-builder build --publish never",
 		"package:win": "electron-builder build --win --publish never",
 		"package:mac": "electron-builder build --mac --publish never",
@@ -97,9 +98,11 @@
 		},
 		"mac": {
 			"category": "public.app-category.games",
+			"icon": "build/icon.icns",
 			"target": "dmg"
 		},
 		"win": {
+			"icon": "build/icon.ico",
 			"target": "nsis"
 		},
 		"publish": {

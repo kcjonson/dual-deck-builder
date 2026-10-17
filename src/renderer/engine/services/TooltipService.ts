@@ -375,6 +375,7 @@ export class TooltipService implements InputObserver, FrameTicker {
 		const overlay = this.overlays.open(surface, {
 			layer: 'tooltip',
 			id: 'tooltip_root',
+			theme: owner.effectiveTheme,
 			// Closed from outside (a scene change's closeAll): forget it.
 			onClose: () => {
 				if (this.overlay === overlay) {

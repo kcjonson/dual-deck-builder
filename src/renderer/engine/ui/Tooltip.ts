@@ -7,15 +7,13 @@ import { shadowExtent } from '../style/look';
 import type { TooltipSpec } from '../services/tooltipSpec';
 import { tokens } from '../theme/tokens';
 import { KeyCap } from './KeyCap';
-import { SHADOW_RAISED, borderClipRadius, borderClipRect, rgba } from './surfaces';
+import { borderClipRadius, borderClipRect, themedShadow } from './surfaces';
 
 export const DEFAULT_TOOLTIP_MAX_WIDTH = 280;
 
 const PADDING_X = tokens.space.space_3;
 const PADDING_Y = tokens.space.space_2;
-const RADIUS = tokens.radius.radius_ui;
 const BORDER_WIDTH = tokens.borderWidth.bw_hair;
-const { color } = tokens;
 
 export interface TooltipOptions {
 	/** The text content (R12.22): a title, a description, and a key hint. A factory is the service's business, not this surface's. */
@@ -56,7 +54,7 @@ export class Tooltip extends Stack {
 			? new Text({
 				text: spec.title,
 				id: 'tooltip_title',
-				style: { fontRole: 'display', fontSize: tokens.fontSize.fs_base, color: rgba(color.text_bright) },
+				style: { fontRole: 'display', fontSize: tokens.fontSize.fs_base, color: 'text_bright' },
 				wrap: 'none',
 			})
 			: null;
@@ -75,7 +73,7 @@ export class Tooltip extends Stack {
 				// The stack measures its own hug width unconstrained and then
 				// clamps it; the text's own limit is what makes it wrap.
 				maxSize: { width: maxWidth - PADDING_X * 2 },
-				style: { fontSize: tokens.fontSize.fs_sm, color: rgba(color.text_dim) },
+				style: { fontSize: tokens.fontSize.fs_sm, color: 'text_dim' },
 			})
 			: null;
 		if (this.descriptionText) this.addPart(this.descriptionText);
@@ -98,12 +96,13 @@ export class Tooltip extends Stack {
 	}
 
 	public get resolvedColors(): ResolvedColors {
+		const { color } = this.themeTokens;
 		return { fill: color.bg_panel_raised, border: color.line_edge };
 	}
 
 	/** R8.8: the raised shadow reaches past the box. */
 	public get inkExtent(): number {
-		return shadowExtent(SHADOW_RAISED);
+		return shadowExtent(themedShadow('shadow_raised', this.themeTokens));
 	}
 
 	protected computeClipRect(): Rect {
@@ -111,18 +110,19 @@ export class Tooltip extends Stack {
 	}
 
 	public get clipRadius(): number {
-		return borderClipRadius(RADIUS, this.clipRect);
+		return borderClipRadius(this.themeTokens.radius.radius_ui, this.clipRect);
 	}
 
 	public render(draw: DrawApi): void {
 		if (this.width <= 0 || this.height <= 0) return;
+		const { color, radius } = this.themeTokens;
 		draw.drawRect({
 			id: this.id ?? undefined,
 			rect: { x: 0, y: 0, width: this.width, height: this.height },
 			fill: color.bg_panel_raised,
-			radius: RADIUS,
+			radius: radius.radius_ui,
 			border: { color: color.line_edge, width: BORDER_WIDTH },
-			shadow: SHADOW_RAISED,
+			shadow: themedShadow('shadow_raised', this.themeTokens),
 		});
 	}
 }

@@ -266,7 +266,7 @@ A route to a POI is one of its arrivals: the way home of the place it arrives fr
 
 Two layers, both saved state:
 
-- Land fog: a coarse bitset over the disc (64 by 64 cells). Revealed land shows the atlas: terrain, water, every road, towns, labels, and any POI on it.
+- Land fog: a coarse bitset over the disc (64 by 64 cells). Revealed land shows the atlas: terrain, water, every road, towns, labels, and any POI on it. Hidden land is under the dark fog wash; a marker found in the fog shows over it, its name light on a dark halo.
 - Road knowledge: one of charted, rumored, or uncharted per leg (Compound and Supply Runs, Fog of war). Roads no route uses have no knowledge state; they show as plain roads wherever their land is revealed.
 
 Reveal rules:
@@ -314,7 +314,7 @@ The area map, the run route screen, and the Map Lab all draw a map the same way:
 - Water: rivers in blue, width by size, under the roads; lakes and reservoirs filled blue with a darker shore line and a dam mark.
 - Roads by class: highways bold, an orange-red fill in a dark casing, with route-number shields; back roads thin grey with a pale edge; trails dashed. Bridges get ticks either side. A collapsed highway span is drawn as broken casing with a cross.
 - Towns as ruined street-grid patches (the metro as several districts), villages as small built-up patches, both named. Place labels have a halo and avoid each other.
-- Gameplay over the atlas: POIs as circled glyphs by type, strongholds as diamonds, the compound as a star; the selected POI's routes as wide translucent bands under the road lines, side by side where they share road, lettered; knowledge as stops and stubs on legs; fog as a pale wash.
+- Gameplay over the atlas: POIs as circled glyphs by type, strongholds as diamonds, the compound as a star; the selected POI's routes as wide translucent bands under the road lines, side by side where they share road, lettered; knowledge as stops and stubs on legs; fog as a dark wash, the hidden land faint beneath it and its edge soft, so what's been explored reads as a light clearing on the page. Kevin's direction, 2026-10-16.
 - Outside the disc, the land fades to paper, with rivers still faintly drawn, so the area reads as one region on a larger map.
 
 The renders in the decision record are the target.
