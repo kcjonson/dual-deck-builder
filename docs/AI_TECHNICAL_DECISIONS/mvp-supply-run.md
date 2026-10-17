@@ -33,7 +33,7 @@ Options considered for where the state lives: a second storage key beside the ca
 
 ## Who goes
 
-`getCrewRule` (Seating.ts) reads who's ready at the compound, after DDB-432 #35: a pair of different archetypes while two such are ready, the no-duplicate pair rule as before; a pair of one archetype when every ready driver shares it; one driver alone when only one is ready; nobody otherwise. `getSeatBlocker` refuses a same-archetype pair only under the first, and `startRunDecks` takes one seat only under the third, so the bridge's one-seat fights (solo-driver-fights.md) are reachable. A pool that only grows on runs can no longer lock itself out.
+`getCrewRule` (Seating.ts) reads who's ready at the compound, after call 35 in [gameplay-calls.md](../gameplay-calls.md): a pair of different archetypes while two such are ready, the no-duplicate pair rule as before; a pair of one archetype when every ready driver shares it; one driver alone when only one is ready; nobody otherwise. `getSeatBlocker` refuses a same-archetype pair only under the first, and `startRunDecks` takes one seat only under the third, so the bridge's one-seat fights (solo-driver-fights.md) are reachable. A pool that only grows on runs can no longer lock itself out.
 
 ## The loop
 
@@ -71,7 +71,7 @@ None of these is in a spec.
 - The reward is one card of three, or none: rarities at Card System Design's drop rates, no card offered twice, never a signature card, order cards only while the convoy has an escort, and the same three after a reload.
 - Each destination yields food, water, fuel, and scrap, loaded into the cargo on reaching it, before the drive home, so a failed run would lose it. The mock drew them from its tier's ranges; the area map's routes yield their POI type's (stops-and-routes.md, call 17), which superseded the ranges, scaled by what earlier runs left there ([poi-depletion.md](./poi-depletion.md)).
 - Abandoning a fight fails the run: the crew flees and goes missing, as a driver who crashes out with nobody to pick them up does, and the cargo and the escorts that came along are lost. It's behind a confirm on the combat menu.
-- The crew rule reads "at home" in DDB-432 #35 as ready: an injured driver doesn't count toward a pair until fit, so two ready drivers of one archetype go together, and a lone ready driver goes solo, while a third heals.
+- The crew rule reads "at home" in call 35 as ready: an injured driver doesn't count toward a pair until fit, so two ready drivers of one archetype go together, and a lone ready driver goes solo, while a third heals.
 - The quick load out seats the crew the rule allows, in pool order, on their default decks, and takes every escort, their cards to Driver 1.
 - The arrival summary is one line: what was unloaded, who came back with the run, who's still injured after the night, and the night itself. Cards won stay in the locker for the Crew screen, with no per-card offer.
 - The log says "Home from X with Y." on arrival, and names who died and who went missing when a run fails.
