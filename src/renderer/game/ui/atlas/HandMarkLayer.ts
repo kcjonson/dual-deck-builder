@@ -2,7 +2,7 @@ import { Component, ComponentOptions, PointerEvents } from '../../../engine/comp
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { Rect, Vec2 } from '../../../engine/draw/geometry';
 import type { Theme } from '../../../engine/theme/tokens';
-import { AtlasPiece, drawAtlasArt } from './atlasArt';
+import { UiArtName, drawAtlasArt } from './atlasArt';
 import { AtlasInks, atlasInks } from './atlasStyle';
 
 export type HandMarkKind = 'highlight' | 'loop';
@@ -28,13 +28,14 @@ export interface HandMarkLayerOptions extends Omit<ComponentOptions, 'positioned
 	place?: HandMarkPlace;
 }
 
-const HIGHLIGHT_PIECES: readonly AtlasPiece[] = ['highlight_a', 'highlight_b', 'highlight_c', 'highlight_d'];
-const LOOP_PIECES: readonly AtlasPiece[] = ['loop_a', 'loop_b', 'loop_c', 'loop_d'];
+const HIGHLIGHT_PIECES: readonly UiArtName[] = ['highlight_a', 'highlight_b', 'highlight_c', 'highlight_d'];
+const LOOP_PIECES: readonly UiArtName[] = ['loop_a', 'loop_b', 'loop_c', 'loop_d'];
 /** The swipe runs a little past the row's ends and covers the middle of it. */
 const HIGHLIGHT_OVERRUN = 4;
-const HIGHLIGHT_COVER = 0.72;
+const HIGHLIGHT_COVER = 1.1;
 /** A loop rings its target this far out, in grease pencil this wide. */
 const LOOP_REACH = 12;
+const LOOP_ART_REACH = 20;
 const LOOP_WIDTH = 2.4;
 const LOOP_POINTS = 44;
 /** Per variant: the loop's tilt, where the pencil starts, and how far past the start it runs. */
@@ -83,10 +84,11 @@ class Mark implements HandMark {
 			this.art.height = cover;
 			return;
 		}
-		this.art.x = rect.x - LOOP_REACH;
-		this.art.y = rect.y - LOOP_REACH;
-		this.art.width = rect.width + LOOP_REACH * 2;
-		this.art.height = rect.height + LOOP_REACH * 2;
+		// The baked loop's stroke sits inside its piece, so the piece reaches further than the drawn one.
+		this.art.x = rect.x - LOOP_ART_REACH;
+		this.art.y = rect.y - LOOP_ART_REACH;
+		this.art.width = rect.width + LOOP_ART_REACH * 2;
+		this.art.height = rect.height + LOOP_ART_REACH * 2;
 		const hand = LOOP_HANDS[this.variant];
 		const cx = rect.x + rect.width / 2;
 		const cy = rect.y + rect.height / 2;
@@ -169,7 +171,7 @@ export class HandMarkLayer extends Component {
 
 	/** A loop reaches past its target, which may sit at this layer's edge. */
 	public get inkExtent(): number {
-		return LOOP_REACH * 2;
+		return LOOP_ART_REACH * 2;
 	}
 
 	protected onThemeChange(theme: Theme): void {
@@ -182,7 +184,7 @@ export class HandMarkLayer extends Component {
 			mark.shape();
 			if (mark.kind === 'highlight') {
 				if (!drawAtlasArt(draw, { name: HIGHLIGHT_PIECES[mark.variant], rect: mark.art })) draw.drawRect({ rect: mark.art, fill: this.inks.highlighterTone });
-			} else if (!drawAtlasArt(draw, { name: LOOP_PIECES[mark.variant], rect: mark.art, tint: this.inks.grease })) {
+			} else if (!drawAtlasArt(draw, { name: LOOP_PIECES[mark.variant], rect: mark.art })) {
 				draw.drawPolyline({ points: mark.points, color: this.inks.grease, width: LOOP_WIDTH, cap: 'round' });
 			}
 		}

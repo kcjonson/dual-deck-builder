@@ -1,40 +1,49 @@
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { RGBA, Rect } from '../../../engine/draw/geometry';
+import { UiArtName, drawUiArt } from '../../art/uiArt';
+
+export type { UiArtName };
+
+/** The wear levels a surface can be printed at (UI Art Direction, Wear); W0 is flat paper and never art. */
+export type AtlasWear = 1 | 2 | 3;
+export type AtlasPaperVariant = 'a' | 'b' | 'c';
+
+const PAPER: Readonly<Record<AtlasWear, Readonly<Record<AtlasPaperVariant, UiArtName>>>> = {
+	1: { a: 'paper_w1_a', b: 'paper_w1_b', c: 'paper_w1_c' },
+	2: { a: 'paper_w2_a', b: 'paper_w2_b', c: 'paper_w2_c' },
+	3: { a: 'paper_w3_a', b: 'paper_w3_b', c: 'paper_w3_c' },
+};
 
 /**
- * The baked pieces the atlas parts draw, by the names the UI art atlas
- * gives them (DDB-504). Surfaces are paper by wear level; the rest are
- * marks, icons, and card stock.
+ * The short side a surface needs before it takes W2 or W3: room for two of
+ * the piece's corners and its edge between (96 px and 128 px insets, and
+ * the spec's rule that small surfaces get no texture to speak of).
  */
-export type AtlasSurface = 'paper_w1_a' | 'paper_w1_b' | 'paper_w1_c' | 'paper_w2_a' | 'paper_w2_b' | 'paper_w2_c';
-export type AtlasPiece =
-	| AtlasSurface
-	| 'tape_a' | 'tape_b' | 'tape_c'
-	| 'highlight_a' | 'highlight_b' | 'highlight_c' | 'highlight_d'
-	| 'loop_a' | 'loop_b' | 'loop_c' | 'loop_d'
-	| 'card_back_a' | 'card_back_b' | 'card_edge'
-	| 'icon_deck' | 'icon_food' | 'icon_water' | 'icon_fuel' | 'icon_scrap' | 'icon_meds' | 'icon_people';
+export const WEAR_MIN_SIDE: Readonly<Record<2 | 3, number>> = { 2: 288, 3: 352 };
+
+/** The paper piece for a surface of `wear` at the size of `rect`, dropping to W1 when it is too small for its level. */
+export function paperPiece(wear: AtlasWear, rect: Rect, variant: AtlasPaperVariant = 'a'): UiArtName {
+	const side = Math.min(rect.width, rect.height);
+	const level: AtlasWear = wear === 3 && side >= WEAR_MIN_SIDE[3] ? 3 : wear >= 2 && side >= WEAR_MIN_SIDE[2] ? 2 : 1;
+	return PAPER[level][variant];
+}
 
 export interface DrawAtlasArtOptions {
-	name: AtlasPiece;
+	name: UiArtName;
 	rect: Rect;
-	/** A surface's paper colour, or an ink piece's ink. */
+	/** A surface's paper colour, or an ink piece's ink; baked pieces ignore it. */
 	tint?: RGBA;
 	id?: string;
 }
 
-const SURFACES: ReadonlySet<AtlasPiece> = new Set<AtlasPiece>(['paper_w1_a', 'paper_w1_b', 'paper_w1_c', 'paper_w2_a', 'paper_w2_b', 'paper_w2_c']);
-
 /**
- * Every atlas part draws its baked art through here and nowhere else, so the
- * switch to the UI art atlas is this one body: `return drawUiArt(draw, options)`.
- *
- * Until then it does what `drawUiArt` does with no page resident: a surface
- * is a flat rect of its tint, and anything else draws nothing. Returns
+ * Every atlas part draws its baked art through here: the UI art atlas's
+ * `drawUiArt`, which picks the 2x raster by the frame's device pixel ratio
+ * and nine-slices what has insets. With the page not resident a surface is a
+ * flat rect of its tint and anything else draws nothing; the return says
  * whether the art itself was drawn, so a part draws its own flat stand-in
  * for a mark, an icon, or card stock when it was not.
  */
-export function drawAtlasArt(draw: DrawApi, { name, rect, tint, id }: DrawAtlasArtOptions): boolean {
-	if (SURFACES.has(name) && tint) draw.drawRect({ id, rect, fill: tint });
-	return false;
+export function drawAtlasArt(draw: DrawApi, options: DrawAtlasArtOptions): boolean {
+	return drawUiArt(draw, options);
 }

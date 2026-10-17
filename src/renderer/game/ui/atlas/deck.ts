@@ -198,11 +198,14 @@ export class DeckStack extends Component {
 		const inks = this.inks;
 		const scale = this.scale;
 		const radius = BACK.radius * scale;
+		// The art can't carry a shadow, so the stack's drop shadow goes down first on its own.
+		draw.drawRect({ rect: this.edgeRects[0], fill: CLEAR, radius, shadow: this.shadow });
 		for (let index = 0; index < this.edgeRects.length; index++) {
-			draw.drawRect({ rect: this.edgeRects[index], fill: inks.index, radius, border: { color: inks.ink, width: 1 }, shadow: index === 0 ? this.shadow : undefined });
+			const rect = this.edgeRects[index];
+			if (!drawAtlasArt(draw, { name: 'card_edge', rect })) draw.drawRect({ rect, fill: inks.index, radius, border: { color: inks.ink, width: 1 } });
 		}
 		const name = this.driver === 'a' ? 'card_back_a' : 'card_back_b';
-		if (drawAtlasArt(draw, { name, rect: this.card })) return;
+		if (drawAtlasArt(draw, { id: this.id ?? undefined, name, rect: this.card })) return;
 		const { fill, casing } = inks.drivers[this.driver];
 		draw.drawRect({ id: this.id ?? undefined, rect: this.card, fill: inks.paper, radius, border: { color: inks.ink, width: BACK.edge * scale } });
 		draw.drawRect({ rect: this.band, fill, radius: BACK.band.radius * scale, border: { color: casing, width: BACK.band.stroke * scale } });

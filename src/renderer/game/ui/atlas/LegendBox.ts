@@ -4,7 +4,7 @@ import { Text } from '../../../engine/components/Text';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { RGBA, Rect } from '../../../engine/draw/geometry';
 import type { Theme } from '../../../engine/theme/tokens';
-import { drawAtlasArt } from './atlasArt';
+import { UiArtName, drawAtlasArt, paperPiece } from './atlasArt';
 import { ATLAS, AtlasInks, DISPLAY_BOLD, atlasInks } from './atlasStyle';
 import { MapGlyph } from './mapGlyphs';
 
@@ -40,6 +40,7 @@ export class LegendBox extends Stack {
 	private readonly rule: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly rowRules: Rect[] = [];
 	private ruleCount = 0;
+	private surface: UiArtName = 'paper_w1_a';
 
 	constructor({ title, fresh = false, padding = ATLAS.legendPadding, gap = ROW_GAP, ...options }: LegendBoxOptions = {}) {
 		const headSpace = title !== undefined ? HEAD_LINE + gap : 0;
@@ -86,6 +87,7 @@ export class LegendBox extends Stack {
 		const { width, height } = this;
 		const padding = this.boxPadding;
 		setRect(this.box, 0, 0, width, height);
+		this.surface = paperPiece(1, this.box);
 		const inset = ATLAS.legendRuleInset;
 		setRect(this.rule, inset, inset, width - inset * 2, height - inset * 2);
 		if (this.head) {
@@ -99,7 +101,7 @@ export class LegendBox extends Stack {
 		const inks = this.inks;
 		// Fresh paper is W0, clean: a flat tone with no art (UI Art Direction, Wear). Paper is W1.
 		if (this.fresh) draw.drawRect({ id: this.id ?? undefined, rect: this.box, fill: inks.freshPaper });
-		else drawAtlasArt(draw, { id: this.id ?? undefined, name: 'paper_w1_a', rect: this.box, tint: inks.paper });
+		else drawAtlasArt(draw, { id: this.id ?? undefined, name: this.surface, rect: this.box, tint: inks.paper });
 		draw.drawRect({ rect: this.box, fill: CLEAR, border: { color: inks.ink, width: ATLAS.legendBorder } });
 		draw.drawRect({ rect: this.rule, fill: CLEAR, border: { color: inks.ink, width: ATLAS.legendRule, position: 'center' } });
 		for (let index = 0; index < this.ruleCount; index++) draw.drawRect({ rect: this.rowRules[index], fill: inks.hairline });

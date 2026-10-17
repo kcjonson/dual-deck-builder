@@ -5,7 +5,7 @@ import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { RGBA, Rect, Vec2 } from '../../../engine/draw/geometry';
 import type { Theme } from '../../../engine/theme/tokens';
 import { FlowWrap } from '../FlowWrap';
-import { AtlasPiece, drawAtlasArt } from './atlasArt';
+import { UiArtName, drawAtlasArt } from './atlasArt';
 import { AtlasInks, MONO_MEDIUM, atlasInks } from './atlasStyle';
 
 /** The compound's stores, each with its stroke icon in the UI art atlas. */
@@ -37,7 +37,7 @@ const STROKES: Readonly<Record<ResourceKind, IconStrokes>> = {
 	people: { lines: [{ points: [p(3, 16), p(4.5, 13), p(9, 11.8), p(13.5, 13), p(15, 16)] }], circles: [{ x: 9, y: 5, r: 3 }] },
 };
 
-const ICON_PIECES: Readonly<Record<ResourceKind, AtlasPiece>> = {
+const ICON_PIECES: Readonly<Record<ResourceKind, UiArtName>> = {
 	food: 'icon_food',
 	water: 'icon_water',
 	fuel: 'icon_fuel',

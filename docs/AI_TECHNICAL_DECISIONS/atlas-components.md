@@ -38,9 +38,11 @@ The catalog Button still can't be the highway: border width and label size aren'
 - Render paths allocate nothing of their own: rects, polygons, glyph outlines, leaders, and the dashed disabled border are built at layout into arrays the part keeps, and a mark's loop is rebuilt only when its target moves. Draw option literals are the engine's API, as everywhere else.
 - Outlines that aren't convex (the star) are cut by `triangulatePolygon`, so R5.17's feather holds and the dev build doesn't report them.
 
-## The art seam
+## The art
 
-Every baked surface goes through `drawAtlasArt(draw, { name, rect, tint })` in `atlasArt.ts`, named with the UI art atlas's piece names. Until #223 lands it does what `drawUiArt` does with no page resident: a surface is a flat rect of its paper tint, anything else draws nothing and returns false, and the part draws its own flat stand-in (tape strips, the deck glyph, card backs, resource icons, highlighter and loop). Switching is one body: `return drawUiArt(draw, options)`.
+Every baked piece goes through `drawAtlasArt(draw, { name, rect, tint })` in `atlasArt.ts`, which is `drawUiArt` from the UI art atlas ([ui-art-atlas.md](./ui-art-atlas.md)): the 2x raster by the frame's ratio, nine-slicing where a piece has insets. The sheet, legend boxes, tape, card backs and edges, resource icons, the deck glyph, the highlighter, and the grease loops all draw from it. With the page not resident a surface draws as a flat tint and the rest return false, and each part keeps a flat stand-in for that case (and for tests, which have no page).
+
+Surfaces take their wear by size: `paperPiece` gives W2 only to a surface at least 288 px on its short side and W3 at 352, W1 below, so a small panel never squeezes a worn piece's corners. The fresh (W0) legend box is a flat fill, never art, per the wear standards. The loop's stroke sits inside its piece, so the piece is drawn further out (20 px) than the flat loop (12 px).
 
 ## The hand layer
 

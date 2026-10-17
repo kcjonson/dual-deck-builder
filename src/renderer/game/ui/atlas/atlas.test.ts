@@ -17,7 +17,7 @@ import { themes, tokens } from '../../../engine/theme/tokens';
 import { Button } from '../../../engine/ui/Button';
 import { Slider } from '../../../engine/ui/Slider';
 import { TabBar } from '../../../engine/ui/TabBar';
-import { drawAtlasArt } from './atlasArt';
+import { drawAtlasArt, paperPiece } from './atlasArt';
 import { AtlasButton } from './AtlasButton';
 import { AtlasSheet } from './AtlasSheet';
 import { ATLAS, atlasInks } from './atlasStyle';
@@ -503,7 +503,8 @@ describe('HandMarkLayer', () => {
 		const mark = under.highlight(second);
 		expect(under.markRect(mark)).toMatchObject({ x: 0, y: 40, width: 300, height: 40 });
 		const swipe = rects(under).find((command) => same(command.fill, atlas.color.bg_selection));
-		expect(swipe?.rect.y).toBeGreaterThan(40);
+		expect(swipe?.rect).toMatchObject({ x: -4, width: 308 });
+		expect(swipe?.rect.height).toBeCloseTo(44);
 		const loop = over.loop({ x: 0, y: 0, width: 50, height: 20 });
 		expect(draws(over).some((command) => command.kind === 'polyline')).toBe(true);
 		over.remove(loop);
@@ -545,6 +546,15 @@ describe('focus rings on an atlas screen', () => {
 });
 
 describe('drawAtlasArt', () => {
+	it('prints W2 and W3 only on surfaces with room for them, W1 below', () => {
+		const square = (side: number) => ({ x: 0, y: 0, width: side * 2, height: side });
+		expect(paperPiece(2, square(288))).toBe('paper_w2_a');
+		expect(paperPiece(2, square(287))).toBe('paper_w1_a');
+		expect(paperPiece(3, square(352), 'b')).toBe('paper_w3_b');
+		expect(paperPiece(3, square(300))).toBe('paper_w2_a');
+		expect(paperPiece(3, square(100), 'c')).toBe('paper_w1_c');
+	});
+
 	it('draws a surface as a flat tint and reports that no art was drawn, until the art atlas lands', () => {
 		const api = context.draw;
 		api.beginFrame({ viewport: { width: 100, height: 100 } });

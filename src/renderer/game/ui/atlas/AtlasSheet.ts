@@ -4,7 +4,8 @@ import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { Mat2D, RGBA, Rect } from '../../../engine/draw/geometry';
 import { tokens } from '../../../engine/theme/tokens';
 import type { Theme } from '../../../engine/theme/tokens';
-import { AtlasSurface, drawAtlasArt } from './atlasArt';
+import { uiArtSize } from '../../art/uiArt';
+import { AtlasPaperVariant, AtlasWear, UiArtName, drawAtlasArt, paperPiece } from './atlasArt';
 import { ATLAS, AtlasInks, atlasInks } from './atlasStyle';
 import type { SectionTabs } from './SectionTabs';
 
@@ -15,15 +16,21 @@ export interface AtlasSheetOptions extends Omit<StackOptions, 'style' | 'padding
 	contentInset?: number;
 	/** Duct tape at two opposite corners. Default on. */
 	tape?: boolean;
-	/** The sheet's paper: W2, worn, by default (UI Art Direction, Wear). */
-	surface?: AtlasSurface;
+	/** The sheet's wear: W2, worn, by default (UI Art Direction, Wear); a sheet too small for it drops to W1. */
+	wear?: AtlasWear;
+	paper?: AtlasPaperVariant;
 }
 
 const CLEAR: RGBA = [0, 0, 0, 0];
 /** The table round the sheet; a space token, so the same in every theme. */
 const MARGIN = tokens.space.sheet_margin;
-/** A tape strip, level, about its centre; the canvas's 96 by 30, turned 34 degrees off level. */
-const TAPE_RECT: Rect = { x: -48, y: -15, width: 96, height: 30 };
+/** The two tape strips, level, about their centres, at the art's own sizes; turned 34 degrees off level. */
+function tapeRect(name: 'tape_a' | 'tape_b'): Rect {
+	const { width, height } = uiArtSize(name);
+	return { x: -width / 2, y: -height / 2, width, height };
+}
+const TAPE_START = tapeRect('tape_a');
+const TAPE_END = tapeRect('tape_b');
 const TAPE_TURN = (-34 * Math.PI) / 180;
 /** How far a strip's centre sits in from its corner of the box, so the whole turned strip stays on screen. */
 const TAPE_IN_X = 50;
@@ -44,7 +51,9 @@ const TAPE_IN_Y = 42;
 export class AtlasSheet extends Stack {
 	private readonly sheetTabs: SectionTabs | null;
 	private readonly showTape: boolean;
-	private readonly surface: AtlasSurface;
+	private readonly wear: AtlasWear;
+	private readonly paper: AtlasPaperVariant;
+	private surface: UiArtName = 'paper_w1_a';
 	private inks: AtlasInks;
 	private readonly sheetRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly outerRule: Rect = { x: 0, y: 0, width: 0, height: 0 };
@@ -53,13 +62,14 @@ export class AtlasSheet extends Stack {
 	private tapeStart: Mat2D = [1, 0, 0, 1, 0, 0];
 	private tapeEnd: Mat2D = [1, 0, 0, 1, 0, 0];
 
-	constructor({ tabs, contentInset = ATLAS.sheetPadding, tape = true, surface = 'paper_w2_a', ...options }: AtlasSheetOptions = {}) {
+	constructor({ tabs, contentInset = ATLAS.sheetPadding, tape = true, wear = 2, paper = 'a', ...options }: AtlasSheetOptions = {}) {
 		const inset = MARGIN + ATLAS.neatlineInset + ATLAS.neatlineGap + contentInset;
 		super({ ...options, padding: inset });
 		this.componentType = 'AtlasSheet';
 		this.sheetTabs = tabs ?? null;
 		this.showTape = tape;
-		this.surface = surface;
+		this.wear = wear;
+		this.paper = paper;
 		this.inks = atlasInks(this.themeTokens);
 		if (tabs) this.addChild(tabs);
 	}
@@ -108,14 +118,14 @@ export class AtlasSheet extends Stack {
 		draw.drawRect({ rect: this.outerRule, fill: CLEAR, border: { color: inks.ink, width: ATLAS.neatlineOuter, position: 'center' } });
 		draw.drawRect({ rect: this.innerRule, fill: CLEAR, border: { color: inks.ink, width: ATLAS.neatlineInner, position: 'center' } });
 		if (this.showTape) {
-			this.drawTape(draw, this.tapeStart, 'tape_a');
-			this.drawTape(draw, this.tapeEnd, 'tape_b');
+			this.drawTape(draw, this.tapeStart, 'tape_a', TAPE_START);
+			this.drawTape(draw, this.tapeEnd, 'tape_b', TAPE_END);
 		}
 	}
 
-	private drawTape(draw: DrawApi, matrix: Mat2D, name: 'tape_a' | 'tape_b'): void {
+	private drawTape(draw: DrawApi, matrix: Mat2D, name: 'tape_a' | 'tape_b', rect: Rect): void {
 		draw.pushTransform(matrix);
-		if (!drawAtlasArt(draw, { name, rect: TAPE_RECT, tint: this.inks.tape })) draw.drawRect({ rect: TAPE_RECT, fill: this.inks.tape });
+		if (!drawAtlasArt(draw, { name, rect })) draw.drawRect({ rect, fill: this.inks.tape });
 		draw.popTransform();
 	}
 
@@ -124,6 +134,7 @@ export class AtlasSheet extends Stack {
 		const margin = MARGIN;
 		setRect(this.tableRect, 0, 0, width, height);
 		setRect(this.sheetRect, margin, margin, width - margin * 2, height - margin * 2);
+		this.surface = paperPiece(this.wear, this.sheetRect, this.paper);
 		const outer = margin + ATLAS.neatlineInset;
 		const inner = outer + ATLAS.neatlineGap;
 		setRect(this.outerRule, outer, outer, width - outer * 2, height - outer * 2);
