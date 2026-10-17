@@ -271,6 +271,8 @@ const RUTS: readonly (readonly Vec2[])[] = [
 ];
 /** The road's centre dashes along the curve: 18 on, 16 off, from x 720. */
 const ROAD_DASH = { on: 18, off: 16, width: 3, alpha: 0.8 };
+/** The road's casing, the widest thing it draws. */
+const ROAD_CASING = 46;
 const MAX_DASHES = 96;
 
 /**
@@ -299,7 +301,10 @@ const DIRT_PATCHES: Readonly<{ dark: readonly Vec2[]; light: readonly Vec2[] }> 
 			const reach = radius * (0.55 + next() * 0.6);
 			const along = Math.cos(angle) * reach * stretch;
 			const across = Math.sin(angle) * reach;
-			outline.push(p(centre.x + along * Math.cos(turn) - across * Math.sin(turn), centre.y + along * Math.sin(turn) + across * Math.cos(turn)));
+			// Held to the plate, so the patches stay inside the yard's own box and cull ink.
+			const x = centre.x + along * Math.cos(turn) - across * Math.sin(turn);
+			const y = centre.y + along * Math.sin(turn) + across * Math.cos(turn);
+			outline.push(p(Math.min(PLATE.width, Math.max(0, x)), Math.min(PLATE.height, Math.max(0, y))));
 		}
 		const into = next() < 0.45 ? light : dark;
 		for (let side = 0; side < sides; side++) into.push(centre, outline[side], outline[(side + 1) % sides]);
@@ -530,6 +535,8 @@ export class CompoundYard extends Stack {
 	private fitScale = 1;
 	/** The dirt, in plate units: the whole box. */
 	private readonly ground: Rect = { x: 0, y: 0, width: PLATE.width, height: PLATE.height };
+	/** The box, run on east as far as the road's casing goes past it; the plate's clip trims what shows. */
+	private readonly drawnInk: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly road: Vec2[] = [...ROAD_CURVE.map((point) => ({ ...point })), { x: 0, y: 0 }];
 	private readonly dashes: Vec2[];
 	private dashCount = 0;
@@ -649,6 +656,10 @@ export class CompoundYard extends Stack {
 		this.dashInk = withAlpha(this.inks.highway, ROAD_DASH.alpha);
 	}
 
+	protected get cullInk(): Rect | null {
+		return this.drawnInk;
+	}
+
 	protected layoutChildren(): void {
 		super.layoutChildren();
 		const { width, height } = this;
@@ -666,6 +677,7 @@ export class CompoundYard extends Stack {
 		const end = this.road[this.road.length - 1];
 		end.x = Math.max(east, PLATE.width) + 30;
 		end.y = 388;
+		setRect(this.drawnInk, 0, 0, Math.max(width, ox + (end.x + ROAD_CASING / 2) * scale), height);
 		this.placeDashes();
 		for (const spot of this.spots) {
 			const plot = PLOTS[spot.building];
@@ -714,7 +726,7 @@ export class CompoundYard extends Stack {
 		draw.drawPolygon({ points: DIRT_PATCHES.dark, fill: ART.dirtDark });
 		draw.drawPolygon({ points: DIRT_PATCHES.light, fill: ART.dirtLight });
 		for (const rut of RUTS) draw.drawPolyline({ points: rut, color: ART.ruts, width: 7, cap: 'round' });
-		draw.drawPolyline({ points: this.road, color: inks.casing, width: 46 });
+		draw.drawPolyline({ points: this.road, color: inks.casing, width: ROAD_CASING });
 		draw.drawPolyline({ points: this.road, color: ART.asphalt, width: 38 });
 		if (this.dashCount > 0) draw.drawPolygon({ points: this.dashPoints, fill: this.dashInk });
 	}
