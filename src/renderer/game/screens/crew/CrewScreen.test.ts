@@ -542,7 +542,9 @@ describe('CrewScreen', () => {
 		screen.mount(context);
 		await screen.campaignLoaded;
 		expect(text('crew_deck_empty')).toBe("The saved campaign is damaged and can't be loaded. It's been kept.");
-		pickTab('compound');
+		// With no campaign the shared rule holds the Compound tab, and Escape still goes back.
+		expect(find<SectionTabs>('crew_tabs').tabs.find((tab) => tab.tabId === 'compound')?.enabled).toBe(false);
+		send(context, [key('Escape')]);
 		expect(navigate).toHaveBeenLastCalledWith('compoundScreen', undefined, { restoreFocus: true });
 	});
 

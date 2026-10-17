@@ -18,7 +18,7 @@ import { PageTitle } from '../../ui/atlas/PageTitle';
 import type { SectionTabs } from '../../ui/atlas/SectionTabs';
 import { getPlanBlocker } from '../../campaign/SupplyRun';
 import { PlanningMaps } from '../area-map/planningMap';
-import { metaSectionTabs } from '../metaSections';
+import { gateSectionTabs, metaSectionTabs } from '../metaSections';
 import { DRIVER_CONFIGS } from '../../mechanics/Driver';
 import { MINI_GRID } from '../../ui/Card';
 import { INSPECT_KEYS, inspectHotkey, inspectOnContextMenu, makeDriverInspectable } from '../../ui/cardInspect';
@@ -197,7 +197,7 @@ export class CrewScreen extends Screen {
 		for (const key of INSPECT_KEYS) hotkeys.register(key, () => inspectHotkey(this.context));
 		this.session.start({ store: this.store, saveError: this.saveError });
 		this.tabs.selectedId = 'crew';
-		this.refreshAreaMapTab(null);
+		this.gateTabs(null);
 		const open = this.tabs.tabs.find((tab) => tab.selected);
 		if (open) this.context.focus.focus(open);
 
@@ -349,7 +349,7 @@ export class CrewScreen extends Screen {
 		this.mapWait = wait;
 		this.maps.load(campaign, { signal: wait.signal }).then(
 			() => {
-				if (this.campaign === campaign) this.refreshAreaMapTab(campaign);
+				if (this.campaign === campaign) this.gateTabs(campaign);
 			},
 			// No map, no plan: the tab stays as it is, and the compound says why.
 			() => undefined,
@@ -391,7 +391,7 @@ export class CrewScreen extends Screen {
 		if (!campaign) return;
 		this.refreshRoster(campaign);
 		this.refreshHeader(campaign);
-		this.refreshAreaMapTab(campaign);
+		this.gateTabs(campaign);
 		this.sayEmpty();
 		if (this.builder) {
 			this.builder.poolNote = lockerNote(campaign.resources.scrap);
@@ -479,15 +479,10 @@ export class CrewScreen extends Screen {
 		ScreenManager.navigate('compoundScreen', this.campaign ? { campaign: this.campaign } : undefined, { restoreFocus: true });
 	}
 
-	private refreshAreaMapTab(campaign: Campaign | null): void {
-		const tab = this.tabs.tabs.find((each) => each.tabId === 'area_map');
-		if (tab) tab.enabled = this.areaMapOpen(campaign);
-	}
-
-	/** The Area map tab is live when the compound's Plan a supply run would be: the map is made and nothing blocks a plan. */
-	private areaMapOpen(campaign: Campaign | null): boolean {
+	/** The section tabs this screen can take now (`sectionAvailability`); the Area map's is live when the compound's Plan a supply run would be. */
+	private gateTabs(campaign: Campaign | null): void {
 		const map = campaign ? this.maps.known(campaign) : null;
-		return campaign !== null && map !== null && getPlanBlocker({ campaign, map }) === null;
+		gateSectionTabs(this.tabs, { campaign, mapKnown: map !== null, planBlocked: campaign !== null && map !== null && getPlanBlocker({ campaign, map }) !== null, busy: false });
 	}
 }
 

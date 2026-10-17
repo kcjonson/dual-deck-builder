@@ -24,7 +24,7 @@ import { MapGlyph } from '../../ui/atlas/mapGlyphs';
 import { PlateFrame } from '../../ui/atlas/PlateFrame';
 import { ResourceStrip, ledger } from '../../ui/atlas/ResourceStrip';
 import type { SectionTab, SectionTabs } from '../../ui/atlas/SectionTabs';
-import { MetaSection, metaSectionTabs } from '../metaSections';
+import { MetaSection, SectionState, gateSectionTabs, metaSectionTabs, sectionAvailability } from '../metaSections';
 import {
 	BUILDINGS,
 	Building,
@@ -611,24 +611,37 @@ export class CompoundScreen extends Screen {
 		return this.tabs?.tabs.find((tab) => tab.tabId === section) ?? null;
 	}
 
-	/** Area map and Crew open with a campaign to hand them, the Crew only once the bunkhouse stands; none while stranded. */
-	private refreshTabs(): void {
-		const areaMap = this.tab('area_map');
-		const crew = this.tab('crew');
-		if (areaMap) areaMap.enabled = !this.tabHeld('area_map');
-		if (crew) crew.enabled = !this.tabHeld('crew');
+	/**
+	 * The shared rule for the tabs (`sectionAvailability`), busy while a day
+	 * end is being saved or the screen has halted.
+	 */
+	private get sectionState(): SectionState {
+		const { campaign, map } = this;
+		return {
+			campaign,
+			mapKnown: map !== null,
+			planBlocked: campaign !== null && map !== null && getPlanBlocker({ campaign, map }) !== null,
+			busy: this.passingDay || this.halted !== null,
+		};
 	}
 
-	/**
-	 * Whether a tab can't go yet: the area map and the Crew screen need a
-	 * campaign to hand them, the Crew a bunkhouse standing, and neither goes
-	 * while a day end is being saved or the screen has halted. Menu always goes.
-	 */
+	/** The Crew screen is the bunkhouse's, so its tab waits for one standing. */
+	private get crewStands(): boolean {
+		return this.campaign?.isBuilt('bunkhouse') ?? false;
+	}
+
+	private refreshTabs(): void {
+		const tabs = this.tabs;
+		if (!tabs) return;
+		gateSectionTabs(tabs, this.sectionState);
+		const crew = this.tab('crew');
+		if (crew && !this.crewStands) crew.enabled = false;
+	}
+
+	/** Whether a tab can't go now, checked at the press, since a day end can start between refreshes. */
 	private tabHeld(section: string): boolean {
-		if (section === 'menu') return false;
-		const campaign = this.campaign;
-		if (!campaign || this.passingDay || this.halted !== null) return true;
-		return section === 'crew' && !campaign.isBuilt('bunkhouse');
+		const available = sectionAvailability(this.sectionState);
+		return available[section as MetaSection] !== true || (section === 'crew' && !this.crewStands);
 	}
 
 	/** Each building on the plate, built or staked out, and the chosen one's box. */
