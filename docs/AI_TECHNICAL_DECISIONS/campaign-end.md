@@ -23,7 +23,7 @@ It refuses with no run out, a driver who isn't missing (the dead stay dead), one
 
 ## When the campaign is lost
 
-The orchestrator's provisional call (DDB-432, entry 2, pending Kevin) is that a loss is the last driver's death or People reaching 0. Each cause is checked by the step that can bring it about, inside that step's own `set`:
+The provisional call (call 2 in [gameplay-calls.md](../gameplay-calls.md), pending Kevin) is that a loss is the last driver's death or People reaching 0. Each cause is checked by the step that can bring it about, inside that step's own `set`:
 
 - `last_driver`: a failed run (`loseRun`) leaves nobody at the compound, every driver in the pool dead or missing.
 - `no_people`: a night (`endDay`) leaves no People, with no run out.
@@ -106,13 +106,13 @@ A load refuses a tally that counts more runs ended than run ids handed out, less
 
 None of these is written into a spec. Applied from the orchestrator's provisional calls, pending Kevin:
 
-- A loss is the last driver's death or People reaching 0 (DDB-432, entry 2).
-- A missing driver who returns comes back with their vehicle at 1 structure (DDB-432, entry 15).
-- A driver found on a run travels with the party and comes home with `unloadRun`; if the run fails, they stay missing (DDB-432, entry 43).
+- A loss is the last driver's death or People reaching 0 (call 2 in [gameplay-calls.md](../gameplay-calls.md)).
+- A missing driver who returns comes back with their vehicle at 1 structure (call 15).
+- A driver found on a run travels with the party and comes home with `unloadRun`; if the run fails, they stay missing (call 43).
 
 Made here, each a line or a value to change:
 
-- The missing count as lost: the campaign is over when nobody is left at the compound, every driver dead or missing, not only once the last one dies. A single driver left at the compound keeps it going. Once the solo fight lands (DDB-166), a lone driver at home will go out solo, one driven vehicle and the escorts, and a pool at home that shares one archetype will be able to send a same-archetype pair (DDB-432, entry 35).
+- The missing count as lost: the campaign is over when nobody is left at the compound, every driver dead or missing, not only once the last one dies. A single driver left at the compound keeps it going. Once the solo fight lands (DDB-166), a lone driver at home will go out solo, one driven vehicle and the escorts, and a pool at home that shares one archetype will be able to send a same-archetype pair (call 35).
 - People reaching 0 ends the campaign only with no run out. A night at 0 People with a run out waits for the run, and the first night after it's home ends it.
 - The night that empties the compound doesn't turn the day: the compound fell on the day that ended.
 - It starves at 0 food, riots at 10 unrest, and otherwise disbands, hunger before unrest, and water isn't counted.

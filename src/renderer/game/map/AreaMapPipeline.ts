@@ -8,7 +8,7 @@ import { PoiGround, PoiLayer, placePois } from './Pois';
 import { checkRoadNetwork } from './RoadChecks';
 import type { RoadNetwork } from './RoadNetwork';
 import { RoadStats, Roads, generateRoads, loopsNeeded, loopsWanted, roadsProblems } from './Roads';
-import { poiNames } from './RouteDescriptors';
+import { poiNames } from './PoiNames';
 import { RouteTree, buildRouteTree } from './RouteTree';
 import { checkStopLayer } from './StopChecks';
 import { StopGround, StopLayer, placeStops } from './Stops';
@@ -206,7 +206,8 @@ export const DRESSING_STAGE: MapStage<MapParams, DressingUpstream, 'dressing', D
 		places: products.places,
 		network: products.roads.network,
 		pois: products.pois,
-		poiNames: poiNames(products.pois),
+		// The names every screen gives the POIs (mapPoiNames), from the map's own places and radius.
+		poiNames: poiNames(products.pois, { places: products.places, radius: input.radius }),
 		rng,
 	}),
 };

@@ -56,7 +56,7 @@ Plan a supply run opens the area map. Its blockers are the run loop's, now read 
 
 ## Provisional calls
 
-None of these is in a spec. They're on DDB-432 as 89 to 93.
+None of these is in a spec. They're calls 89 to 93 in [gameplay-calls.md](../gameplay-calls.md), and the smaller ones below are 148 to 152.
 
 - 89: any known POI can be picked; the day-offer rule (call 81, `offersForDay`: tier 1 plus up to two) no longer gates the map, and `departRun`'s on-offer check accepts any route the map offers.
 - 90: strongholds are shown, but Plan a run here is off for them ("Not yet") until assaults exist, and their routes aren't offered.

@@ -61,7 +61,7 @@ A run deck unwinds the same way however the run ends: `unloadRun` for a run that
 
 ## Cards won are cargo
 
-Kevin's rule (a) counts loot as cargo (combat-bridge.md, Kevin's rules), and cards won as loot is the provisional call on DDB-432. `RunParty.cargoCards` holds them, the bridge carries them to the next party after a win and reports them as `cargoCardsLost` when a run fails, and they never go in a run deck. `addCardsWon` adds to it, and `unloadRun` unloads it into the locker after unwinding the run decks, where the debrief (`getDebrief`) offers each card to a default deck ([cards-won.md](./cards-won.md)).
+Kevin's rule (a) counts loot as cargo (combat-bridge.md, Kevin's rules), and cards won as loot is a provisional call (19 in [gameplay-calls.md](../gameplay-calls.md)). `RunParty.cargoCards` holds them, the bridge carries them to the next party after a win and reports them as `cargoCardsLost` when a run fails, and they never go in a run deck. `addCardsWon` adds to it, and `unloadRun` unloads it into the locker after unwinding the run decks, where the debrief (`getDebrief`) offers each card to a default deck ([cards-won.md](./cards-won.md)).
 
 ## Saves
 
