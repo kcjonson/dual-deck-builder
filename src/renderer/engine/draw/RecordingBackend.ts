@@ -53,6 +53,7 @@ export interface RecordingBackendOptions {
 
 export class RecordingBackend implements DrawBackend {
 	readonly name = 'recording';
+	artAtlasLoads = 0;
 	readonly textures = new TextureStore({ device: NULL_TEXTURE_DEVICE });
 
 	private readonly maxFrames: number;
@@ -140,5 +141,10 @@ export class RecordingBackend implements DrawBackend {
 		this.atlases += 1;
 		this.atlasNames.push(name);
 		return { id: this.atlases, name };
+	}
+
+	/** Nothing to bind; counted so a test can see the atlas arrive. The draw API keeps the handle. */
+	loadArtAtlas(): void {
+		this.artAtlasLoads += 1;
 	}
 }
