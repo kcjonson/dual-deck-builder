@@ -4,6 +4,7 @@ import type { DrawApi } from '../draw/DrawApi';
 import type { AnyUiEvent, UiActionEvent, UiKeyEvent, UiPointerEvent } from '../input/events';
 import { CONTROL_SIZES, ControlSize, tabLayers } from '../style/variants';
 import { tokens } from '../theme/tokens';
+import type { Theme } from '../theme/tokens';
 import { LabelledPressable } from './LabelledPressable';
 
 export interface TabSpec {
@@ -46,6 +47,12 @@ export class Tab extends LabelledPressable {
 		this.tabId = tabId;
 	}
 
+	/** The look, its ring included, follows the theme; the underline reads it at draw time. */
+	protected onThemeChange(theme: Theme): void {
+		this.layers = tabLayers(theme);
+		this.transition.moveTo(this.targetLook, null);
+	}
+
 	/** Rows of tabs abut, so the ring is drawn inside, as a list row's is. */
 	public get drawsOwnFocusRing(): boolean {
 		return true;
@@ -58,7 +65,7 @@ export class Tab extends LabelledPressable {
 		this.drawLabel(draw, { x: 0, y: 0, width, height });
 		if (this.selected) {
 			const underline = tokens.borderWidth.bw_thick;
-			draw.drawRect({ rect: { x: 0, y: height - underline, width, height: underline }, fill: this.effectivelyEnabled ? tokens.color.accent : tokens.color.text_disabled });
+			draw.drawRect({ rect: { x: 0, y: height - underline, width, height: underline }, fill: this.effectivelyEnabled ? this.themeTokens.color.accent : this.themeTokens.color.text_disabled });
 		}
 		if (look.focusRing) {
 			draw.drawRect({
@@ -162,7 +169,7 @@ export class TabBar extends Stack {
 	/** The hairline the tabs stand on; the selected tab's underline is drawn over it. */
 	public render(draw: DrawApi): void {
 		const hairline = tokens.borderWidth.bw_hair;
-		draw.drawRect({ id: this.id ?? undefined, rect: { x: 0, y: this.height - hairline, width: this.width, height: hairline }, fill: tokens.color.line_hairline });
+		draw.drawRect({ id: this.id ?? undefined, rect: { x: 0, y: this.height - hairline, width: this.width, height: hairline }, fill: this.themeTokens.color.line_hairline });
 	}
 
 	private choose(tab: Tab, event: UiPointerEvent | UiActionEvent | UiKeyEvent): void {

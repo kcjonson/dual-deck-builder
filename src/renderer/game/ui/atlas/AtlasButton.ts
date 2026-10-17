@@ -7,10 +7,13 @@ import type { Theme } from '../../../engine/theme/tokens';
 import { LabelledPressable } from '../../../engine/ui/LabelledPressable';
 import { dashedOutlineTriangles } from '../stripes';
 import { ATLAS, AtlasInks, DISPLAY_BOLD, atlasInks } from './atlasStyle';
-import { GlyphPaint, MapGlyphGeometry, glyphBox, glyphPaint } from './mapGlyphs';
+import { GlyphPaint, MapGlyphGeometry, glyphPaint, glyphWidth } from './mapGlyphs';
 
 /** `highway` is the screen's one primary action; `backRoad` is everything secondary (UI Art Direction, Components). */
 export type AtlasButtonVariant = 'highway' | 'backRoad';
+
+/** `start` sets the label at the left, the shield at the right (the compound's primary); `center` centres it. */
+export type AtlasLabelAlign = 'start' | 'center';
 
 export interface AtlasButtonOptions extends Omit<ComponentOptions, 'style'> {
 	label: string;
@@ -19,6 +22,8 @@ export interface AtlasButtonOptions extends Omit<ComponentOptions, 'style'> {
 	shield?: boolean;
 	/** The label's size: highway 28 by default and never under 18.66, back road 19. */
 	labelSize?: number;
+	/** Default `start` on the highway, `center` on the back road. */
+	labelAlign?: AtlasLabelAlign;
 	/** Fills the parent stack's width. */
 	block?: boolean;
 	disabled?: boolean;
@@ -81,16 +86,15 @@ export class AtlasButton extends LabelledPressable {
 	private shieldPaint: GlyphPaint;
 	private fadedShieldPaint: GlyphPaint;
 	private readonly faceRect: Rect = { x: 0, y: 0, width: 0, height: 0 };
-	private readonly restingFace: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly offset: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly labelBox: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly rule: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly ring: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly dashes: Vec2[] = [];
-	/** The offset the geometry was placed at, so a hover or press moves it only when the look moves. */
-	private placedAt = Number.NaN;
+	private readonly labelSize: number;
+	private readonly labelAlign: AtlasLabelAlign;
 
-	constructor({ label, variant = 'backRoad', shield = false, labelSize, block = false, disabled = false, onClick, height, ...options }: AtlasButtonOptions) {
+	constructor({ label, variant = 'backRoad', shield = false, labelSize, labelAlign, block = false, disabled = false, onClick, height, ...options }: AtlasButtonOptions) {
 		const size = variant === 'highway'
 			? Math.max(ATLAS.highwayLabelMin, labelSize ?? ATLAS.highwayLabel)
 			: labelSize ?? ATLAS.backRoadLabel;
@@ -107,6 +111,8 @@ export class AtlasButton extends LabelledPressable {
 		this.componentType = 'AtlasButton';
 		this.variant = variant;
 		this.hasShield = shield && variant === 'highway';
+		this.labelSize = size;
+		this.labelAlign = labelAlign ?? (variant === 'highway' ? 'start' : 'center');
 		this.inks = atlasInks(this.themeTokens);
 		this.layers = buttonLayers(variant, this.inks);
 		this.transition.moveTo(this.targetLook, null);
@@ -129,7 +135,7 @@ export class AtlasButton extends LabelledPressable {
 	public get hugWidth(): number {
 		const label = super.hugWidth;
 		if (label === 0 || !this.hasShield) return label;
-		return label + glyphBox('shield', this.shieldSize).width + LABEL_INSET.highway / 2;
+		return label + glyphWidth('shield', this.shieldSize) + LABEL_INSET.highway / 2;
 	}
 
 	protected onThemeChange(theme: Theme): void {
@@ -142,20 +148,18 @@ export class AtlasButton extends LabelledPressable {
 
 	protected layoutChildren(): void {
 		super.layoutChildren();
-		this.placedAt = Number.NaN;
-		this.placeGeometry(this.transition.look.offsetY);
-		// Disabled has no hover or press, so its dashed border is only ever drawn at rest.
-		setRect(this.restingFace, 0, 0, this.width, this.faceRect.height);
-		dashedOutlineTriangles(this.restingFace, { width: ATLAS.backRoadBorder, dash: ATLAS.dash, gap: ATLAS.dashGap }, this.dashes);
+		this.placeGeometry();
 	}
 
 	public render(draw: DrawApi): void {
 		const look = this.transition.look;
-		if (look.offsetY !== this.placedAt) this.placeGeometry(look.offsetY);
 		const enabled = this.effectivelyEnabled;
 		const inks = this.inks;
 		const highway = this.variant === 'highway';
 		if (highway && enabled && look.offsetY < ATLAS.highwayOffset) draw.drawRect({ rect: this.offset, fill: inks.casing });
+		// The face and all on it move with the look's offset; the geometry stays as laid out.
+		const moved = look.offsetY !== 0;
+		if (moved) draw.pushTranslate(0, look.offsetY);
 		if (enabled) {
 			draw.drawRect({ id: this.id ?? undefined, rect: this.faceRect, fill: look.fill, border: { color: look.border, width: look.borderWidth } });
 		} else {
@@ -164,35 +168,47 @@ export class AtlasButton extends LabelledPressable {
 		}
 		if (!highway && enabled) draw.drawRect({ rect: this.rule, fill: CLEAR, border: { color: inks.hairline, width: ATLAS.backRoadRule } });
 		if (this.shield) this.shield.draw(draw, enabled ? this.shieldPaint : this.fadedShieldPaint, null, true);
-		this.drawLabel(draw, this.labelBox);
+		draw.drawText({
+			text: this.label,
+			box: this.labelBox,
+			font: DISPLAY_BOLD,
+			size: this.labelSize,
+			color: look.text,
+			align: this.labelAlign === 'start' ? 'left' : 'center',
+			verticalAlign: 'middle',
+			wrap: 'none',
+			overflow: 'ellipsis',
+		});
 		if (look.focusRing) draw.drawRect({ rect: this.ring, fill: CLEAR, border: { color: look.focusRing, width: ATLAS.focusRingWidth, position: 'outside' } });
+		if (moved) draw.popTransform();
 	}
 
 	private get shieldSize(): number {
 		return Math.round((this.height - ATLAS.highwayOffset) * SHIELD_SHARE);
 	}
 
-	/** Everything at the face's offset: down a press, up a hover's lift. */
-	private placeGeometry(offsetY: number): void {
-		this.placedAt = offsetY;
+	/** Everything at rest, once per size; a hover or press translates it in `render`. */
+	private placeGeometry(): void {
 		const { width, height } = this;
 		const highway = this.variant === 'highway';
 		const faceHeight = highway ? height - ATLAS.highwayOffset : height - ATLAS.hoverLift;
-		setRect(this.faceRect, 0, offsetY, width, faceHeight);
+		setRect(this.faceRect, 0, 0, width, faceHeight);
 		setRect(this.offset, 0, ATLAS.highwayOffset, width, faceHeight);
 		const ruleInset = ATLAS.backRoadBorder + ATLAS.backRoadRuleInset;
-		setRect(this.rule, ruleInset, offsetY + ruleInset, width - ruleInset * 2, faceHeight - ruleInset * 2);
+		setRect(this.rule, ruleInset, ruleInset, width - ruleInset * 2, faceHeight - ruleInset * 2);
 		const gap = ATLAS.focusRingGap;
-		setRect(this.ring, -gap, offsetY - gap, width + gap * 2, faceHeight + gap * 2);
-		let labelRight = width;
+		setRect(this.ring, -gap, -gap, width + gap * 2, faceHeight + gap * 2);
+		const inset = LABEL_INSET[this.variant];
+		let labelRight = width - inset;
 		if (this.shield) {
 			const size = this.shieldSize;
-			const box = glyphBox('shield', size);
-			const x = width - LABEL_INSET.highway - box.width;
-			this.shield.place(x, offsetY + (faceHeight - box.height) / 2, size);
-			labelRight = x;
+			const x = width - inset - glyphWidth('shield', size);
+			this.shield.place(x, (faceHeight - size) / 2, size);
+			labelRight = x - inset / 2;
 		}
-		setRect(this.labelBox, 0, offsetY, labelRight, faceHeight);
+		setRect(this.labelBox, inset, 0, labelRight - inset, faceHeight);
+		// Disabled has no hover or press, so its dashed border is only ever drawn at rest.
+		dashedOutlineTriangles(this.faceRect, { width: ATLAS.backRoadBorder, dash: ATLAS.dash, gap: ATLAS.dashGap }, this.dashes);
 	}
 }
 

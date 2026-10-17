@@ -24,6 +24,8 @@ Two tokens and one variant change, so the catalog's accent Button on an atlas sc
 
 `back_road` and `duct_tape` join the base colours at their atlas values, as the other atlas additions did.
 
+The render walk's fallback ring (for focusables without a look of their own), TabBar, and Slider read the node's `themeTokens` rather than the dark table, so focus stays visible on paper: the dark accent is about 1.2:1 there.
+
 The catalog Button still can't be the highway: border width and label size aren't paint, so a theme can't change them. Atlas screens use `AtlasButton` for their primary.
 
 ## How they're built
@@ -32,6 +34,7 @@ The catalog Button still can't be the highway: border width and label size aren'
 - The spec's off-scale geometry is in one table, `ATLAS` in `atlasStyle.ts`, rather than spread through the parts or forced into tokens. Space and size tokens are the same in every theme, and these values are the atlas's alone.
 - Bold goes through `fontWeight` (`DISPLAY_BOLD`, `MONO_MEDIUM` resolve through `resolveFontRole`), never an atlas name, so the generated 700 and 500 faces (DDB-503) apply without code changes. Until then they fall back to the loaded weight.
 - Pressables use R12.7's press machine. The buttons and tabs extend `LabelledPressable`, so their states are R11.12 look layers and move by R11.13's transitions; the hover lift and the press drop are the look's `offsetY`. Tabs reuse R12.16's keyboard model (one Tab stop, arrows with wrap, Home and End).
+- A button's geometry is laid out once per size; a hover's lift or a press's drop translates it in `render`.
 - Render paths allocate nothing of their own: rects, polygons, glyph outlines, leaders, and the dashed disabled border are built at layout into arrays the part keeps, and a mark's loop is rebuilt only when its target moves. Draw option literals are the engine's API, as everywhere else.
 - Outlines that aren't convex (the star) are cut by `triangulatePolygon`, so R5.17's feather holds and the dev build doesn't report them.
 

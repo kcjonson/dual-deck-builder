@@ -135,6 +135,8 @@ const CLEAR: RGBA = [0, 0, 0, 0];
  */
 function drawFocusRing(component: Component, draw: DrawApi): void {
 	const offset = tokens.control.focus_ring_offset;
+	// The node's own theme: the dark accent is a pale ring on atlas paper (UI Art Direction, Tokens).
+	const theme = component.themeTokens;
 	draw.drawRect({
 		id: component.id !== null ? `${component.id}.focus_ring` : undefined,
 		rect: {
@@ -143,9 +145,9 @@ function drawFocusRing(component: Component, draw: DrawApi): void {
 			width: component.width + offset * 2,
 			height: component.height + offset * 2,
 		},
-		radius: tokens.radius.radius_ui + offset,
+		radius: theme.radius.radius_ui + offset,
 		// A rect with no fill is white (R2.8's default); the ring is border only.
 		fill: CLEAR,
-		border: { color: tokens.color.accent, width: tokens.control.focus_ring_width, position: 'outside' },
+		border: { color: theme.color.focus_ring, width: tokens.control.focus_ring_width, position: 'outside' },
 	});
 }

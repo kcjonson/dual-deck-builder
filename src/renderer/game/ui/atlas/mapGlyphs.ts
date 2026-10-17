@@ -70,9 +70,14 @@ const SHIELD_INDICES = fanIndices(SHIELD_OUTLINE.length);
 const STAR_INDICES = triangulatePolygon(STAR_OUTLINE);
 const DIAMOND_INDICES = fanIndices(4);
 
-/** A glyph's box: its outline's aspect (the shield is taller than wide), at `size` on its long side. */
+/** A glyph's width at `size`, its height: the shield is taller than wide, the rest square. */
+export function glyphWidth(kind: MapGlyphKind, size: number): number {
+	return kind === 'shield' ? Math.round((size * SHIELD_W) / SHIELD_H) : size;
+}
+
+/** A glyph's box at `size` on its long side. Allocates; for construction and layout. */
 export function glyphBox(kind: MapGlyphKind, size: number): { width: number; height: number } {
-	return kind === 'shield' ? { width: Math.round((size * SHIELD_W) / SHIELD_H), height: size } : { width: size, height: size };
+	return { width: glyphWidth(kind, size), height: size };
 }
 
 /** The paint a glyph takes from the inks: `faded` prints it all in faded print (a row that cannot be taken). */
@@ -124,7 +129,8 @@ export class MapGlyphGeometry {
 
 	/** The glyph in the box at (`x`, `y`) of `glyphBox(kind, size)`. */
 	public place(x: number, y: number, size: number): void {
-		const { width, height } = glyphBox(this.kind, size);
+		const width = glyphWidth(this.kind, size);
+		const height = size;
 		const cx = x + width / 2;
 		const cy = y + height / 2;
 		this.centre.x = cx;
@@ -137,28 +143,28 @@ export class MapGlyphGeometry {
 				break;
 			case 'shield':
 				this.stroke = Math.max(1.6, size * 0.06);
-				SHIELD_OUTLINE.forEach((unit, index) => {
-					this.points[index].x = x + unit.x * width;
-					this.points[index].y = y + unit.y * height;
-				});
+				for (let index = 0; index < SHIELD_OUTLINE.length; index++) {
+					this.points[index].x = x + SHIELD_OUTLINE[index].x * width;
+					this.points[index].y = y + SHIELD_OUTLINE[index].y * height;
+				}
 				this.labelSize = Math.round(size * 0.45);
 				this.placeArrow(x, y, width, height);
 				break;
 			case 'diamond': {
 				const half = size * 0.4;
-				const corners = [[0, -half], [half, 0], [0, half], [-half, 0]];
-				corners.forEach(([dx, dy], index) => {
-					this.points[index].x = cx + dx;
-					this.points[index].y = cy + dy;
-				});
+				// Top, right, bottom, left.
+				for (let index = 0; index < 4; index++) {
+					this.points[index].x = cx + (index === 1 ? half : index === 3 ? -half : 0);
+					this.points[index].y = cy + (index === 0 ? -half : index === 2 ? half : 0);
+				}
 				break;
 			}
 			case 'star': {
 				const outer = size / 2 - 1;
-				STAR_OUTLINE.forEach((unit, index) => {
-					this.points[index].x = cx + unit.x * outer;
-					this.points[index].y = cy + unit.y * outer;
-				});
+				for (let index = 0; index < STAR_OUTLINE.length; index++) {
+					this.points[index].x = cx + STAR_OUTLINE[index].x * outer;
+					this.points[index].y = cy + STAR_OUTLINE[index].y * outer;
+				}
 				this.stroke = Math.max(1, size * 0.06);
 				break;
 			}
@@ -170,12 +176,13 @@ export class MapGlyphGeometry {
 				// The canvas's `M2 7 H12` dashed 3 on 2, in a 14 px box.
 				const left = x + size * 0.14;
 				const dash = size * 0.22;
-				this.dashes.forEach((rect, index) => {
+				for (let index = 0; index < this.dashes.length; index++) {
+					const rect = this.dashes[index];
 					rect.x = left + index * size * 0.36;
 					rect.y = cy - 0.8;
 					rect.width = dash;
 					rect.height = 1.6;
-				});
+				}
 				break;
 			}
 		}

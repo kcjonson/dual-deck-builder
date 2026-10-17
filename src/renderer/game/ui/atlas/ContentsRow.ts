@@ -6,7 +6,7 @@ import type { Theme } from '../../../engine/theme/tokens';
 import { Pressable } from '../../../engine/ui/Pressable';
 import { ATLAS, AtlasInks, DISPLAY_BOLD, atlasInks } from './atlasStyle';
 import { DECK_GLYPH, DeckGlyphGeometry } from './deck';
-import { GlyphPaint, MapGlyphGeometry, glyphBox, glyphPaint } from './mapGlyphs';
+import { GlyphPaint, MapGlyphGeometry, glyphPaint, glyphWidth } from './mapGlyphs';
 
 /**
  * `primary` is the one row the page leads with (Continue, or New campaign):
@@ -36,6 +36,8 @@ interface RowMetrics {
 	label: number;
 	value: number;
 	glyph: number;
+	/** The lead's column, the same whatever leads the row (or nothing), so labels line up down the page. Zero for compact rows, whose deck glyph runs inline. */
+	leadSlot: number;
 	padX: number;
 	gap: number;
 	/** The rule above and below, or below only, and its weight. */
@@ -43,11 +45,14 @@ interface RowMetrics {
 	rule: number;
 }
 
+/** The canvas's 46 px lead column. */
+const LEAD_SLOT = 46;
+
 /** From the menu canvas, a step smaller so the contents page fits a 1024 by 600 window. */
 const METRICS: Readonly<Record<ContentsRowVariant, RowMetrics>> = {
-	primary: { height: 72, label: 32, value: 14, glyph: 46, padX: 12, gap: 16, ruleAbove: true, rule: ATLAS.legendBorder },
-	standard: { height: 56, label: 26, value: 14, glyph: 30, padX: 12, gap: 16, ruleAbove: false, rule: 1 },
-	compact: { height: 44, label: 20, value: 12, glyph: 0, padX: 4, gap: 8, ruleAbove: false, rule: 1 },
+	primary: { height: 72, label: 32, value: 14, glyph: 46, leadSlot: LEAD_SLOT, padX: 12, gap: 16, ruleAbove: true, rule: ATLAS.legendBorder },
+	standard: { height: 56, label: 26, value: 14, glyph: 30, leadSlot: LEAD_SLOT, padX: 12, gap: 16, ruleAbove: false, rule: 1 },
+	compact: { height: 44, label: 20, value: 12, glyph: 0, leadSlot: 0, padX: 4, gap: 8, ruleAbove: false, rule: 1 },
 };
 
 const SUBTITLE_SIZE = 14;
@@ -183,10 +188,10 @@ export class ContentsRow extends Pressable {
 		setRect(this.ring, m.rule, m.rule, width - m.rule * 2, height - m.rule * 2);
 
 		let x = m.padX;
-		if (this.glyph) {
-			const box = glyphBox(this.glyph.kind, m.glyph);
-			this.glyph.place(x, (height - box.height) / 2, m.glyph);
-			x += box.width + m.gap;
+		if (m.leadSlot > 0) {
+			if (this.glyph) this.glyph.place(x + (m.leadSlot - glyphWidth(this.glyph.kind, m.glyph)) / 2, (height - m.glyph) / 2, m.glyph);
+			else if (this.deck) this.deck.place(x + (m.leadSlot - DECK_GLYPH.width) / 2, (height - DECK_GLYPH.height) / 2);
+			x += m.leadSlot + m.gap;
 		} else if (this.deck) {
 			this.deck.place(x, (height - DECK_GLYPH.height) / 2);
 			x += DECK_GLYPH.width + m.gap / 2;

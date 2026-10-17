@@ -4,7 +4,7 @@ import { Text } from '../../../engine/components/Text';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { RGBA, Rect } from '../../../engine/draw/geometry';
 import type { Theme } from '../../../engine/theme/tokens';
-import { AtlasSurface, drawAtlasArt } from './atlasArt';
+import { drawAtlasArt } from './atlasArt';
 import { ATLAS, AtlasInks, DISPLAY_BOLD, atlasInks } from './atlasStyle';
 import { MapGlyph } from './mapGlyphs';
 
@@ -97,8 +97,9 @@ export class LegendBox extends Stack {
 
 	public render(draw: DrawApi): void {
 		const inks = this.inks;
-		const surface: AtlasSurface = this.fresh ? 'paper_w1_b' : 'paper_w1_a';
-		drawAtlasArt(draw, { id: this.id ?? undefined, name: surface, rect: this.box, tint: this.fresh ? inks.freshPaper : inks.paper });
+		// Fresh paper is W0, clean: a flat tone with no art (UI Art Direction, Wear). Paper is W1.
+		if (this.fresh) draw.drawRect({ id: this.id ?? undefined, rect: this.box, fill: inks.freshPaper });
+		else drawAtlasArt(draw, { id: this.id ?? undefined, name: 'paper_w1_a', rect: this.box, tint: inks.paper });
 		draw.drawRect({ rect: this.box, fill: CLEAR, border: { color: inks.ink, width: ATLAS.legendBorder } });
 		draw.drawRect({ rect: this.rule, fill: CLEAR, border: { color: inks.ink, width: ATLAS.legendRule, position: 'center' } });
 		for (let index = 0; index < this.ruleCount; index++) draw.drawRect({ rect: this.rowRules[index], fill: inks.hairline });

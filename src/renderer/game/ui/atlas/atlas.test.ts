@@ -15,6 +15,8 @@ import { NO_MODIFIERS } from '../../../engine/input/events';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../../../engine/text/testing';
 import { themes, tokens } from '../../../engine/theme/tokens';
 import { Button } from '../../../engine/ui/Button';
+import { Slider } from '../../../engine/ui/Slider';
+import { TabBar } from '../../../engine/ui/TabBar';
 import { drawAtlasArt } from './atlasArt';
 import { AtlasButton } from './AtlasButton';
 import { AtlasSheet } from './AtlasSheet';
@@ -134,13 +136,16 @@ describe('AtlasButton', () => {
 		button.hovered = true;
 		context.frame.update(1);
 		let face = rects(button).find((command) => command.id === 'go');
-		expect(face).toMatchObject({ rect: { y: -ATLAS.hoverLift }, border: { color: ink } });
+		// The face keeps its laid-out rect; the lift is a translation, so no geometry is rebuilt per frame.
+		expect(face).toMatchObject({ rect: { y: 0 }, border: { color: ink } });
+		expect(face?.transform[5]).toBe(-ATLAS.hoverLift);
 		button.hovered = false;
 		button.pressed = true;
 		context.frame.update(1);
 		const drawn = rects(button);
 		face = drawn.find((command) => command.id === 'go');
-		expect(face).toMatchObject({ rect: { y: ATLAS.highwayOffset } });
+		expect(face?.rect.y).toBe(0);
+		expect(face?.transform[5]).toBe(ATLAS.highwayOffset);
 		expect(drawn.filter((command) => same(command.fill, atlas.color.accent_dim) && command.id === undefined)).toHaveLength(0);
 	});
 
@@ -168,6 +173,68 @@ describe('AtlasButton', () => {
 		const text = draws(small).find((command): command is TextCommand => command.kind === 'text');
 		expect(text?.size).toBe(ATLAS.highwayLabelMin);
 		expect(small.height).toBe(ATLAS.minHit);
+	});
+
+	it('sets the highway label at the left with the shield at the right, or centred on request', () => {
+		const label = (button: AtlasButton): TextCommand | undefined => draws(button).find((command): command is TextCommand => command.kind === 'text');
+		const start = add(new AtlasButton({ label: 'Plan a supply run', variant: 'highway', shield: true, width: 320 }));
+		const text = label(start);
+		expect(text?.align).toBe('left');
+		expect(text?.box?.x).toBe(20);
+		const shield = draws(start).find((command): command is PolygonCommand => command.kind === 'polygon');
+		const shieldLeft = Math.min(...(shield?.points ?? []).map((point) => point.x));
+		expect(shieldLeft).toBeGreaterThan(320 / 2);
+		expect((text?.box?.x ?? 0) + (text?.box?.width ?? 0)).toBeLessThanOrEqual(shieldLeft);
+		expect(label(add(new AtlasButton({ label: 'Plan', variant: 'highway', labelAlign: 'center', width: 200 })))?.align).toBe('center');
+		expect(label(add(new AtlasButton({ label: 'Rest', width: 200 })))?.align).toBe('center');
+	});
+
+	describe('the back road', () => {
+		function road(): AtlasButton {
+			return add(new AtlasButton({ id: 'road', label: 'Scavenge', width: 160 }));
+		}
+
+		it('rests on fresh paper with a 1.6 px back-road border and a 1 px inner rule 3 px in', () => {
+			const drawn = rects(road());
+			expect(drawn.find((command) => command.id === 'road')).toMatchObject({
+				fill: atlas.color.bg_panel_raised,
+				border: { color: atlas.color.back_road, width: ATLAS.backRoadBorder },
+				rect: { y: 0 },
+			});
+			const inset = ATLAS.backRoadBorder + ATLAS.backRoadRuleInset;
+			expect(drawn.find((command) => command.border?.width === ATLAS.backRoadRule)).toMatchObject({ border: { color: atlas.color.line_hairline }, rect: { x: inset, y: inset } });
+			expect(drawn.some((command) => same(command.fill, atlas.color.accent_dim))).toBe(false);
+		});
+
+		it('lifts with an ink border on hover, and sinks a pixel with a wash when pressed', () => {
+			const button = road();
+			button.hovered = true;
+			context.frame.update(1);
+			let face = rects(button).find((command) => command.id === 'road');
+			expect(face?.border?.color).toEqual(ink);
+			expect(face?.transform[5]).toBe(-ATLAS.hoverLift);
+			button.hovered = false;
+			button.pressed = true;
+			context.frame.update(1);
+			face = rects(button).find((command) => command.id === 'road');
+			expect(face?.border?.color).toEqual(ink);
+			expect(face?.transform[5]).toBe(ATLAS.hoverLift);
+			expect(face?.fill).not.toEqual(atlas.color.bg_panel_raised);
+		});
+
+		it('rings focus in ink outside, and is faded print with a dashed border and no inner rule when disabled', () => {
+			const button = road();
+			button.setFocusState(true, true);
+			context.frame.update(1);
+			expect(rects(button).find((command) => command.border?.position === 'outside')?.border?.color).toEqual(ink);
+			button.enabled = false;
+			context.frame.update(1);
+			const drawn = draws(button);
+			expect(drawn.some((command) => command.kind === 'polygon' && same(command.fill, atlas.color.text_disabled))).toBe(true);
+			expect(drawn.some((command) => command.kind === 'rect' && command.border?.width === ATLAS.backRoadRule)).toBe(false);
+			expect(drawn.some((command) => command.kind === 'rect' && command.border?.position === 'outside')).toBe(false);
+			expect(drawn.find((command): command is TextCommand => command.kind === 'text')?.color).toEqual(atlas.color.text_disabled);
+		});
 	});
 
 	it('presses from the keyboard', () => {
@@ -242,6 +309,19 @@ describe('AtlasSheet', () => {
 		expect(tabs.x).toBe(Math.round((1024 - tabs.width) / 2));
 	});
 
+	it('follows a theme change after mount, its tabs too', () => {
+		const tabs = new SectionTabs({ tabs: [{ id: 'a', label: 'Menu' }, { id: 'b', label: 'Crew' }] });
+		const sheet = add(new AtlasSheet({ tabs, width: 1024, height: 600 }));
+		root.theme = null;
+		context.frame.layout();
+		const drawn = rects(sheet);
+		expect(drawn[0].fill).toEqual(tokens.color.bg_void);
+		expect(drawn[1].fill).toEqual(tokens.color.bg_base);
+		expect(tabs.tabs[0].look.fill).toEqual(tokens.color.bg_panel_raised);
+		root.theme = 'atlas';
+		expect(rects(sheet)[1].fill).toEqual(atlas.color.bg_base);
+	});
+
 	it('flows its content inside the neatline', () => {
 		const sheet = new AtlasSheet({ width: 1024, height: 600 });
 		const child = new Stack({ width: 100, height: 20 });
@@ -267,9 +347,21 @@ describe('LegendBox', () => {
 		expect(box.title).toBe('Needs');
 	});
 
-	it('uses fresh paper for the thing in focus', () => {
+	it('draws the thing in focus on flat fresh paper, W0, with no art', () => {
 		const box = add(new LegendBox({ fresh: true, width: 200 }));
 		expect(rects(box)[0].fill).toEqual(atlas.color.bg_panel_raised);
+	});
+
+	it('follows a theme change after mount', () => {
+		const box = new LegendBox({ id: 'needs', title: 'Needs', width: 320 });
+		box.addChild(new LegendRow({ symbol: 'diamond', text: 'Food runs out in 2 days' }));
+		add(box);
+		root.theme = null;
+		context.frame.layout();
+		const drawn = rects(box);
+		expect(drawn[0].fill).toEqual(tokens.color.bg_panel);
+		expect(drawn[1].border?.color).toEqual(tokens.color.text);
+		expect(draws(box).find((command): command is PolygonCommand => command.kind === 'polygon')?.fill).toEqual(tokens.color.status_crit);
 	});
 });
 
@@ -299,6 +391,34 @@ describe('ContentsRow', () => {
 		expect(row.canReceiveFocus()).toBe(false);
 		const faded = draws(row).find((command): command is CircleCommand => command.kind === 'circle');
 		expect(faded?.border?.color).toEqual(atlas.color.text_disabled);
+	});
+
+	it('keeps one lead column, so labels line up whatever leads the row', () => {
+		const column = new Stack({ width: 600 });
+		const rows = [
+			new ContentsRow({ variant: 'primary', lead: { glyph: '9' }, label: 'Continue', value: 'DAY 09' }),
+			new ContentsRow({ lead: { glyph: '1' }, label: 'New campaign', value: 'DAY 01' }),
+			new ContentsRow({ label: 'Campaign history', value: 'PAST RUNS' }),
+			new ContentsRow({ lead: 'deck', label: 'Card showcase' }),
+		];
+		for (const row of rows) column.addChild(row);
+		add(column);
+		const labelX = rows.map((row) => draws(row).find((command): command is TextCommand => command.kind === 'text' && command.text === row.label)?.transform[4]);
+		expect(new Set(labelX).size).toBe(1);
+		expect(labelX[0]).toBe(12 + 46 + 16);
+	});
+
+	it('follows a theme change after mount', () => {
+		const column = new Stack({ width: 600 });
+		const row = new ContentsRow({ lead: { glyph: '1' }, label: 'New campaign', value: 'DAY 01' });
+		column.addChild(row);
+		add(column);
+		root.theme = null;
+		context.frame.layout();
+		const drawn = draws(row);
+		expect(drawn.find((command): command is CircleCommand => command.kind === 'circle')?.border?.color).toEqual(tokens.color.text);
+		expect(drawn.find((command): command is TextCommand => command.kind === 'text' && command.text === 'New campaign')?.color).toEqual(tokens.color.text);
+		expect(drawn.some((command) => command.kind === 'rect' && same(command.fill, tokens.color.text_disabled))).toBe(true);
 	});
 
 	it('activates from the keyboard', () => {
@@ -389,6 +509,38 @@ describe('HandMarkLayer', () => {
 		over.remove(loop);
 		expect(over.marks).toHaveLength(0);
 		expect(under.highlight(first).variant).not.toBe(mark.variant);
+	});
+});
+
+describe('focus rings on an atlas screen', () => {
+	function focus(component: Component): void {
+		component.setFocusState(true, true);
+		context.frame.update(1);
+	}
+
+	it('rings a focusable with no look of its own in its theme\'s focus ring, ink on the atlas', () => {
+		const plain = add(new Stack({ id: 'plain', width: 80, height: 40, focusable: true }));
+		focus(plain);
+		expect(rects(plain).find((command) => command.id === 'plain.focus_ring')?.border?.color).toEqual(ink);
+		root.theme = null;
+		expect(rects(plain).find((command) => command.id === 'plain.focus_ring')?.border?.color).toEqual(tokens.color.accent);
+	});
+
+	it('rings a TabBar tab in ink and underlines it in the theme\'s accent', () => {
+		const bar = add(new TabBar({ tabs: [{ id: 'a', label: 'One' }, { id: 'b', label: 'Two' }] }));
+		const [first] = bar.tabs;
+		focus(first);
+		expect(first.look.focusRing).toEqual(ink);
+		const drawn = rects(first);
+		expect(drawn.some((command) => same(command.fill, atlas.color.accent))).toBe(true);
+		expect(rects(bar).some((command) => same(command.fill, atlas.color.line_hairline))).toBe(true);
+	});
+
+	it('draws a Slider in the theme\'s colours, with the walk\'s ring in ink', () => {
+		const slider = add(new Slider({ id: 'volume', min: 0, max: 10, value: 5, width: 200 }));
+		expect(slider.resolvedColors.fill).toEqual(atlas.color.accent);
+		focus(slider);
+		expect(rects(slider).find((command) => command.id === 'volume.focus_ring')?.border?.color).toEqual(ink);
 	});
 });
 
