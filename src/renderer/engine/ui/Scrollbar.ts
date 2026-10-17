@@ -20,7 +20,6 @@ export interface ScrollbarOptions extends Omit<ComponentOptions, 'style'> {
 	onScroll?: (offset: number) => void;
 }
 
-const { color } = tokens;
 /** The track as drawn, across. */
 export const SCROLLBAR_THICKNESS = tokens.space.space_1_5;
 /**
@@ -133,7 +132,7 @@ export class Scrollbar extends Component {
 		const band = (start: number, length: number) => (vertical
 			? { x: inset, y: start, width: across, height: length }
 			: { x: start, y: inset, width: length, height: across });
-		draw.drawRect({ id: this.id ?? undefined, rect: band(0, along), fill: color.line_hairline, radius });
+		draw.drawRect({ id: this.id ?? undefined, rect: band(0, along), fill: this.themeTokens.color.line_hairline, radius });
 		const { start, length } = this.thumb;
 		draw.drawRect({ rect: band(start, length), fill: this.thumbColor, radius });
 	}
@@ -167,7 +166,9 @@ export class Scrollbar extends Component {
 		return this.axis === 'vertical' ? this.height : this.width;
 	}
 
+	/** In its theme's colours (R11.15), read per draw: a lookup, so nothing to re-resolve on a theme change. */
 	private get thumbColor(): RGBA {
+		const { color } = this.themeTokens;
 		if (this.drag) return color.accent;
 		return this.hovered ? color.text_dim : color.line_strong;
 	}

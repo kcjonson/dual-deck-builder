@@ -4,7 +4,8 @@ import { forecastNeeds } from '../../campaign/DayClock';
 import type { DriverRecord } from '../../campaign/DriverRecord';
 import { newCampaign } from '../../campaign/__fixtures__/storeFixtures';
 import {
-	BUILDINGS, REST_RUN_OUT, amountText, dayEndReport, dayText, forecastLines, injuredLine, resourceText, restCaption, scavengeCaption, scavengeRefusal, scavengeReport,
+	BUILDINGS, REST_RUN_OUT, SHORT_WITHIN_DAYS, amountText, buildingNumber, buildingState, crewLine, dayEndReport, dayText, forecastLines, injuredLine, restCaption, scavengeCaption, scavengeRefusal,
+	scavengeReport, unbuiltReason,
 } from './compoundText';
 
 function dayEnd(changes: Partial<DayEnd> = {}): DayEnd {
@@ -20,21 +21,29 @@ function dayEnd(changes: Partial<DayEnd> = {}): DayEnd {
 }
 
 describe('compoundText', () => {
-	it('lists the six buildings in the wireframe order: the bunkhouse opens the Crew screen, the rest are disabled with a reason for now', () => {
-		expect(BUILDINGS.map((building) => building.name)).toEqual(['Bunkhouse', 'Radio mast', 'Infirmary', 'Garage', 'Map room', 'Stores']);
+	it('names the six buildings in the order the campaign numbers them: the bunkhouse opens the Crew screen, the rest say why they have no action for now', () => {
+		expect(BUILDINGS.map((building) => building.name)).toEqual(['Bunkhouse', 'Radio mast', 'Infirmary', 'Map room', 'Garage', 'Stores']);
+		expect(BUILDINGS.map((building) => buildingNumber(building.id))).toEqual(['1', '2', '3', '4', '5', '6']);
 		const [bunkhouse, ...rest] = BUILDINGS;
-		expect(bunkhouse.reason).toBeNull();
-		expect(bunkhouse.screen).toBe('crewScreen');
+		expect([bunkhouse.reason, bunkhouse.screen, bunkhouse.action]).toEqual([null, 'crewScreen', 'Open the bunkhouse']);
 		for (const building of rest) {
 			expect(building.reason).toMatch(/\.$/);
 			expect(building.screen).toBeUndefined();
+			expect(building.action).toBeUndefined();
 		}
+		expect(unbuiltReason(rest[0])).toBe("The radio mast isn't built yet.");
+		expect([buildingState(true), buildingState(false)]).toEqual(['BUILT', 'not built']);
 	});
 
-	it('writes the day and the resources for the top bar', () => {
-		expect(dayText(12)).toBe('Day 12 / dawn');
-		expect(resourceText({ resource: 'people', amount: 23 })).toBe('People 23');
-		expect(resourceText({ resource: 'scrap', amount: 12_345 })).toBe('Scrap 12k');
+	it('writes the day as the atlas subtitles it', () => {
+		expect(dayText(12)).toBe('day 12, dawn');
+	});
+
+	it('counts the drivers at the compound and the default decks with cards in them for the bunkhouse', () => {
+		const campaign = newCampaign();
+		expect(crewLine(campaign)).toBe('2 drivers · 2 default decks');
+		campaign.drivers[0].set({ defaultDeck: {} });
+		expect(crewLine(campaign)).toBe('2 drivers · 1 default deck');
 	});
 
 	it('writes an amount in four characters at most, rounding down past four digits', () => {
@@ -46,8 +55,8 @@ describe('compoundText', () => {
 	it('forecasts how long food and water last, and tonight as urgent when it falls short', () => {
 		const forecast = forecastNeeds({ resources: { ...NO_RESOURCES, food: 18, water: 2, people: 12 } });
 		expect(forecastLines(forecast)).toEqual([
-			{ text: 'Food runs out in 6 days', urgent: false },
-			{ text: 'Water runs out tonight, 1 short', urgent: true },
+			{ text: 'Food runs out in 6 days', urgent: false, short: false },
+			{ text: 'Water runs out tonight, 1 short', urgent: true, short: true },
 		]);
 		const oneDay = forecastNeeds({ resources: { ...NO_RESOURCES, food: 3, water: 5, people: 12 } });
 		expect(forecastLines(oneDay).map((line) => line.text)).toEqual(['Food runs out in 1 day', 'Water runs out in 1 day']);
@@ -55,7 +64,13 @@ describe('compoundText', () => {
 
 	it('says when there is none left at all', () => {
 		const none = forecastNeeds({ resources: { ...NO_RESOURCES, food: 0, water: 7, people: 18 } });
-		expect(forecastLines(none)[0]).toEqual({ text: 'No food: 5 short tonight', urgent: true });
+		expect(forecastLines(none)[0]).toEqual({ text: 'No food: 5 short tonight', urgent: true, short: true });
+	});
+
+	it('flags a store as short when it runs out within two day ends', () => {
+		expect(SHORT_WITHIN_DAYS).toBe(2);
+		const lines = (food: number) => forecastLines(forecastNeeds({ resources: { ...NO_RESOURCES, food, water: 99, people: 12 } }))[0];
+		expect([lines(9), lines(6)].map((line) => [line.text, line.short])).toEqual([['Food runs out in 3 days', false], ['Food runs out in 2 days', true]]);
 	});
 
 	it('forecasts nothing with nobody there to eat', () => {

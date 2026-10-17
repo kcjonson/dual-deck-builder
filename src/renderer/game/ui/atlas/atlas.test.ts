@@ -15,6 +15,7 @@ import { NO_MODIFIERS } from '../../../engine/input/events';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../../../engine/text/testing';
 import { themes, tokens } from '../../../engine/theme/tokens';
 import { Button } from '../../../engine/ui/Button';
+import { Scrollbar } from '../../../engine/ui/Scrollbar';
 import { Slider } from '../../../engine/ui/Slider';
 import { TabBar } from '../../../engine/ui/TabBar';
 import { drawAtlasArt, paperPiece } from './atlasArt';
@@ -569,6 +570,15 @@ describe('focus rings on an atlas screen', () => {
 		expect(slider.resolvedColors.fill).toEqual(atlas.color.accent);
 		focus(slider);
 		expect(rects(slider).find((command) => command.id === 'volume.focus_ring')?.border?.color).toEqual(ink);
+	});
+
+	it('draws a scrollbar in the theme\'s colours, so its thumb shows on paper', () => {
+		const bar = add(new Scrollbar({ id: 'bar', height: 120, range: { offset: 0, extent: 300, viewport: 120 } }));
+		const [track, thumb] = rects(bar);
+		expect(track.fill).toEqual(atlas.color.line_hairline);
+		expect(thumb.fill).toEqual(atlas.color.line_strong);
+		root.theme = null;
+		expect(rects(bar)[1].fill).toEqual(tokens.color.line_strong);
 	});
 });
 

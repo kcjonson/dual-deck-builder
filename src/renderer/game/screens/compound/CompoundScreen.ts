@@ -1,8 +1,10 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import type { Campaign, Resources } from '../../campaign/Campaign';
+import { BUILDING_IDS, BuildingId } from '../../campaign/Buildings';
+import type { Campaign } from '../../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
 import type { CheckpointResult } from '../../campaign/CampaignStore';
+import { UPKEEP_RESOURCES } from '../../campaign/CompoundRules';
 import { endDay, forecastNeeds } from '../../campaign/DayClock';
 import { getScavengeBlocker, rollScavengeHaul, scavenge as sendScavengingParty } from '../../campaign/Scavenging';
 import { getPlanBlocker, routesOnOffer } from '../../campaign/SupplyRun';
@@ -10,12 +12,18 @@ import { PlanningMap, PlanningMaps } from '../area-map/planningMap';
 import { mapProgressText } from '../main-menu/campaignText';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Button } from '../../../engine/ui/Button';
-import { Divider } from '../../../engine/ui/Divider';
 import { FocusGroup } from '../../../engine/ui/FocusGroup';
-import { Panel } from '../../../engine/ui/Panel';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { ColorToken, tokens } from '../../../engine/theme/tokens';
+import { AtlasButton } from '../../ui/atlas/AtlasButton';
+import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
+import { ATLAS, DISPLAY_BOLD } from '../../ui/atlas/atlasStyle';
+import { DeckGlyph } from '../../ui/atlas/deck';
+import { LegendBox, LegendRow } from '../../ui/atlas/LegendBox';
+import { MapGlyph } from '../../ui/atlas/mapGlyphs';
+import { PlateFrame } from '../../ui/atlas/PlateFrame';
+import { ResourceStrip, ledger } from '../../ui/atlas/ResourceStrip';
+import { SectionTabs } from '../../ui/atlas/SectionTabs';
 import {
 	BUILDINGS,
 	Building,
@@ -25,34 +33,54 @@ import {
 	REST_RUN_OUT,
 	STRANDED_BUILDING,
 	STRANDED_DAY,
+	amountText,
+	buildingNumber,
+	buildingState,
+	crewLine,
 	dayEndReport,
 	dayText,
 	forecastLines,
 	injuredLine,
-	resourceText,
+	isShort,
 	restCaption,
 	scavengeCaption,
 	scavengeRefusal,
 	scavengeReport,
+	unbuiltReason,
 } from './compoundText';
+import { CompoundYard } from './CompoundYard';
 import { planRefusal } from '../run/runText';
 
-const { space } = tokens;
-const TOP_BAR_HEIGHT = 64;
-const SIDE_WIDTH = 320;
-const BUILDINGS_PER_ROW = 3;
-/** A button doesn't hug its label, so the top bar's have widths that fit theirs. */
-const BACK_WIDTH = 136;
-const AREA_MAP_WIDTH = 96;
+/** The atlas sections the compound's tabs open (UI Art Direction, Components, Section tabs). */
+const SECTIONS = [
+	{ id: 'menu', label: 'Menu' },
+	{ id: 'compound', label: 'Compound' },
+	{ id: 'area_map', label: 'Area map' },
+	{ id: 'crew', label: 'Crew', deck: true },
+] as const;
 
+const PLATE_CAPTION = 'Plate 1 · the compound from above, at dawn';
+const GATE = { name: 'Gate', road: 'to the area map' };
 const NO_RUMORS = 'Radio: no new rumors';
 const NO_CAMPAIGN = 'Opens with a campaign in progress.';
+/** The right column at its widest, the canvas's, and at its narrowest, for 1024 px; between, a share of the width. */
+const COLUMN = { max: 452, min: 300, gap: 30, wide: 420 } as const;
+/** The sheet's content box sits this far in from the window on every side: the table, the neatlines, and the padding (AtlasSheet). */
+const SHEET_INSET = tokens.space.sheet_margin + ATLAS.neatlineInset + ATLAS.neatlineGap + ATLAS.sheetPadding;
+/** What the plate column spends on the title, the stores, the gaps, the caption, and the plate's rules, above and below the art. */
+const PLATE_COLUMN_CHROME = 150;
+const PLATE_ASPECT = 920 / 760;
+const GAP = 14;
+const LINE_SIZE = tokens.fontSize.fs_sm;
+const LINE_HEIGHT = tokens.lineHeight.lh;
 /**
- * Rest's and Scavenge's lines hold two lines of caption, the most either
- * takes, so the buttons above them stay put under the pointer as the lines
- * change.
+ * Rest's and Scavenge's lines hold as many lines as the longest of either
+ * takes at the column's width (`fitColumn`), so the buttons above them stay
+ * put under the pointer as the lines change; Plan's line holds two.
  */
-const DAY_LINE_HEIGHT = 2 * tokens.fontSize.fs_sm * tokens.lineHeight.lh;
+const TWO_LINES = 2 * LINE_SIZE * LINE_HEIGHT;
+const PLAN_LINE_SIZE = 12;
+const PLAN_LINE_HEIGHT = 2 * PLAN_LINE_SIZE * LINE_HEIGHT;
 /**
  * A press this soon after a day ended is the same click, a double-click's
  * second half, and ends nothing. A checkpoint to local storage lands within
@@ -72,37 +100,43 @@ export interface CompoundScreenOptions {
 	maps?: PlanningMaps;
 }
 
+/** Stores past four digits shortened, at least two digits, as a ledger prints them. */
+function storeText(value: number): string {
+	return value < 10_000 ? ledger(value) : amountText(value);
+}
+
 /**
- * The compound (Game Flow 3.1), the campaign's home screen: a top bar with
- * Back to menu, the day, the Area map, and the stores; the buildings as the
- * menu, in a grid where the illustrated scene will go; and beside them the
- * needs panel (food and water forecasts, injured drivers, rumors) over Rest
- * and Scavenge, side by side, and Plan a supply run.
+ * The compound (Game Flow 3.1), the campaign's home screen, on the atlas
+ * sheet (UI Art Direction, Screens, Compound): the section tabs along the
+ * top; on the left the title, the day, the stores, and the compound plate,
+ * an overhead view of the yard whose buildings are the menu; on the right
+ * the chosen building's box, the needs, the day's orders (Rest and
+ * Scavenge, with what each costs), and Plan a supply run pinned at the foot.
  *
- * The bunkhouse opens the Crew screen with the campaign, and Plan a supply
- * run opens the area map, disabled with its reason (`getPlanBlocker`)
- * while a run is out, nobody can go, or there's too little fuel for the
- * map's cheapest route. Those read the campaign's map, made again on
- * Continue, so Plan waits for it, saying how far it's got. Nothing
- * behind the other buildings or the Area map exists yet, so each is
- * disabled with its reason as a line of text, as the main menu's Continue
- * is: a disabled control takes no focus or hover (R9.5), and a tooltip
- * needs one of them (R12.22). The Area map's reason is the Map room's, on
- * its tile, which leaves the top bar room for the stores. Rest and Scavenge
- * are live: each ends the day (`endDay`, `scavenge`) and checkpoints the
- * campaign, and each is disabled with its reason while a run is out,
- * Scavenge also once the campaign is over.
+ * The buildings and whether each stands come from the campaign
+ * (`Campaign.buildings`). Choosing one on the plate, by press or by
+ * moving focus onto it, shows it in the box with its action; the bunkhouse
+ * opens the Crew screen with the campaign, and a building with nothing
+ * behind it says why. The tabs go to the menu, the area map, and the Crew
+ * screen; Plan a supply run opens the area map too, disabled with its
+ * reason (`getPlanBlocker`) while a run is out, nobody can go, or there's
+ * too little fuel for the map's cheapest route. Those read the campaign's
+ * map, made again on Continue, so Plan waits for it, saying how far it's
+ * got. Rest and Scavenge each end the day (`endDay`, `scavenge`) and
+ * checkpoint the campaign, and each is disabled with its reason while a run
+ * is out, Scavenge also once the campaign is over.
  *
  * A day that loses the campaign goes to the defeat screen once its end is
  * saved (`DefeatScreen`), handed the campaign. A checkpoint that finds the
  * store has moved on from this instance strands the screen: it says nothing
- * more is saved here, and Rest, Scavenge, Plan, and the buildings turn off.
+ * more is saved here, and Rest, Scavenge, Plan, the building's action, and
+ * the tabs but Menu turn off.
  *
- * Focus starts on Back to menu, not Rest or Scavenge, so a stray Enter
+ * Focus starts on the Compound tab, not Rest or Scavenge, so a stray Enter
  * can't spend a day. The buildings are a focus group (R9.29), and so are
- * Rest, Scavenge, and Plan a supply run. Escape returns to the menu with
- * focus restored, as Back does from the menu's other screens. Opened with no campaign, as a capture or the dev
- * navigate hook does, it loads the save as Continue would.
+ * Rest and Scavenge. Escape returns to the menu with focus restored. Opened
+ * with no campaign, as a capture or the dev navigate hook does, it loads the
+ * save as Continue would.
  */
 export class CompoundScreen extends Screen {
 	private readonly stack: Stack;
@@ -113,28 +147,38 @@ export class CompoundScreen extends Screen {
 	private map: PlanningMap | null = null;
 	/** What Plan's line says while there's no map: how far it's got, or why it couldn't be made. */
 	private mapWait = 'Making the area map.';
+	private tabs: SectionTabs | null = null;
+	private side: Stack | null = null;
 	private dayLabel: Text | null = null;
-	private stores: Stack | null = null;
-	private readonly resources = new Map<keyof Resources, Text>();
-	private needs: Stack | null = null;
-	private needsScroll: ScrollContainer | null = null;
-	private restButton: Button | null = null;
+	private stores: ResourceStrip | null = null;
+	private yard: CompoundYard | null = null;
+	private chosen: BuildingId = BUILDING_IDS[0];
+	private building: {
+		glyph: MapGlyph;
+		name: Text;
+		state: Text;
+		description: Text;
+		crew: Stack;
+		crewText: Text;
+		reason: Text;
+		action: AtlasButton;
+	} | null = null;
+	private needs: LegendBox | null = null;
+	private sideScroll: ScrollContainer | null = null;
+	private restButton: AtlasButton | null = null;
 	private restLine: Text | null = null;
-	private scavengeButton: Button | null = null;
+	private scavengeButton: AtlasButton | null = null;
 	private scavengeLine: Text | null = null;
-	private planButton: Button | null = null;
+	private planButton: AtlasButton | null = null;
 	private planLine: Text | null = null;
 	private report: Text | null = null;
 	private saveError: Text | null = null;
-	private backButton: Button | null = null;
 	/**
 	 * Nothing more starts here: the campaign is lost and the defeat screen is
 	 * on its way, or the store has moved on from this instance, so nothing
 	 * done here would be saved.
 	 */
 	private halted: 'defeated' | 'stranded' | null = null;
-	/** The buttons of buildings whose screens exist, enabled once there's a campaign to open them with, and the lines saying so until then. */
-	private readonly liveBuildings: { button: Button; waiting: Text }[] = [];
 	private unsubscribe: (() => void) | null = null;
 	/** A day end (Rest or Scavenge) or a fall's checkpoint is on its way, so the next step waits for it. */
 	private passingDay = false;
@@ -149,14 +193,8 @@ export class CompoundScreen extends Screen {
 	private mapLoaded: Promise<void> = Promise.resolve();
 
 	constructor({ store = CampaignStore.shared, maps = PlanningMaps.shared }: CompoundScreenOptions = {}) {
-		const root = new Stack({
-			id: 'compoundScreen',
-			widthMode: 'fill',
-			heightMode: 'fill',
-			crossAlign: 'stretch',
-			style: { backgroundColor: 'bg_base' },
-		});
-		super('compoundScreen', { root });
+		const root = new Stack({ id: 'compoundScreen', widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch' });
+		super('compoundScreen', { root, theme: 'atlas' });
 		this.stack = root;
 		this.store = store;
 		this.maps = maps;
@@ -167,6 +205,11 @@ export class CompoundScreen extends Screen {
 		return this.campaign;
 	}
 
+	/** The building in the box and circled on the plate. */
+	public get selectedBuilding(): BuildingId {
+		return this.chosen;
+	}
+
 	/** Settles once a save loaded on mount, or the campaign handed over, has been shown with its area map, or the map couldn't be made. */
 	public get campaignLoaded(): Promise<void> {
 		return this.loaded;
@@ -175,37 +218,29 @@ export class CompoundScreen extends Screen {
 	protected onMount(data?: unknown): void {
 		this.visit += 1;
 		this.waiting = new AbortController();
-		const back = new Button({
-			label: 'Back to menu',
-			id: 'compound_back_button',
-			icon: 'arrow_back',
-			size: 'sm',
-			width: BACK_WIDTH,
-			onClick: () => this.back(),
+		const tabs = new SectionTabs({
+			id: 'compound_tabs',
+			tabs: SECTIONS.map((section) => ({ ...section, disabled: section.id === 'area_map' || section.id === 'crew' })),
+			selectedId: 'compound',
+			onSelect: (id) => this.tabChosen(id),
 		});
-		this.backButton = back;
-		this.stack.addChild(this.createTopBar(back));
-		this.stack.addChild(new Divider({ id: 'compound_top_rule' }));
-
-		const body = new Stack({
-			id: 'compound_body',
-			direction: 'horizontal',
-			widthMode: 'fill',
-			heightMode: 'fill',
-			crossAlign: 'stretch',
-			padding: space.space_4,
-			gap: space.space_4,
-		});
-		body.addChild(createBuildings({ open: (building) => this.open(building), live: this.liveBuildings }));
+		this.tabs = tabs;
+		const sheet = new AtlasSheet({ id: 'compound_sheet', tabs, widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch' });
+		const body = new Stack({ id: 'compound_body', direction: 'horizontal', widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch', gap: COLUMN.gap });
+		body.addChild(this.createPlateColumn());
 		body.addChild(this.createSide());
-		this.stack.addChild(body);
+		sheet.addChild(body);
+		this.stack.addChild(sheet);
+		this.fitColumn();
+		this.choose(this.chosen);
 
 		const { hotkeys } = this.rootLayer;
 		hotkeys.register('Escape', () => this.back());
-		hotkeys.register('PageDown', () => this.needsScroll?.scrollByPages(1));
-		hotkeys.register('PageUp', () => this.needsScroll?.scrollByPages(-1));
+		hotkeys.register('PageDown', () => this.sideScroll?.scrollByPages(1));
+		hotkeys.register('PageUp', () => this.sideScroll?.scrollByPages(-1));
 		this.unsubscribe = this.store.onSaveFailed((error) => this.showLine({ line: this.saveError, text: error.message, color: 'status_crit' }));
-		this.context.focus.focus(back);
+		const home = tabs.tab('compound');
+		if (home) this.context.focus.focus(home);
 
 		const handed = (data as Partial<CompoundScreenData> | undefined)?.campaign;
 		if (handed) {
@@ -225,16 +260,18 @@ export class CompoundScreen extends Screen {
 		this.unsubscribe?.();
 		this.unsubscribe = null;
 		this.halted = null;
-		this.backButton = null;
 		this.stack.clearChildren();
 		this.campaign = null;
 		this.map = null;
 		this.mapWait = 'Making the area map.';
+		this.tabs = null;
+		this.side = null;
 		this.dayLabel = null;
 		this.stores = null;
-		this.resources.clear();
+		this.yard = null;
+		this.building = null;
 		this.needs = null;
-		this.needsScroll = null;
+		this.sideScroll = null;
 		this.restButton = null;
 		this.restLine = null;
 		this.scavengeButton = null;
@@ -243,121 +280,174 @@ export class CompoundScreen extends Screen {
 		this.planLine = null;
 		this.report = null;
 		this.saveError = null;
-		this.liveBuildings.length = 0;
 		this.passingDay = false;
 		this.dayEndedAt = -Infinity;
 	}
 
-	private createTopBar(back: Button): Stack {
-		const bar = new Stack({
-			id: 'compound_top_bar',
-			direction: 'horizontal',
-			widthMode: 'fill',
-			height: TOP_BAR_HEIGHT,
-			padding: { left: space.space_4, right: space.space_4 },
-			crossAlign: 'center',
-			gap: space.space_4,
-			style: { backgroundColor: 'bg_panel' },
-		});
-		bar.addChild(back);
+	protected onResized(): void {
+		this.fitColumn();
+	}
 
-		const heading = new Stack({ id: 'compound_heading', crossAlign: 'start' });
+	/**
+	 * The right column takes what the plate leaves: the plate fits its yard
+	 * to the height it has, so the column widens to the canvas's width
+	 * wherever the plate wouldn't use the room, as on a short window. Rest's
+	 * and Scavenge's lines each hold one line in a wide column and two in a
+	 * narrow one, so together they read as a paragraph.
+	 */
+	private fitColumn(): void {
+		if (!this.side) return;
+		const { width, height } = this.context.viewport.logical;
+		const plate = (height - SHEET_INSET * 2 - PLATE_COLUMN_CHROME) * PLATE_ASPECT;
+		const room = width - SHEET_INSET * 2 - COLUMN.gap - plate;
+		const column = Math.round(Math.max(COLUMN.min, Math.min(COLUMN.max, room)));
+		this.side.width = column;
+		const lines = column >= COLUMN.wide ? 1 : 2;
+		for (const line of [this.restLine, this.scavengeLine]) if (line) line.height = lines * LINE_SIZE * LINE_HEIGHT;
+	}
+
+	/** The title and the day, the stores under them, and the plate filling the rest. */
+	private createPlateColumn(): Stack {
+		const column = new Stack({ id: 'compound_plate_column', widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch', gap: GAP });
+		const heading = new Stack({ id: 'compound_heading', direction: 'horizontal', crossAlign: 'end', gap: 16 });
 		heading.addChild(new Text({
 			text: 'The Compound',
 			id: 'compound_title',
-			style: { fontRole: 'display', fontSize: 'fs_xl', color: 'text_bright', textTransform: 'uppercase', letterSpacing: 'ls_wide' },
+			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: 34, letterSpacing: 0.16, textTransform: 'uppercase', color: 'text' },
 			wrap: 'none',
 		}));
 		// The day and the stores show once there's a campaign.
-		this.dayLabel = new Text({ id: 'compound_day', visible: false, style: { fontRole: 'mono', fontSize: 'fs_sm', color: 'text_dim' }, wrap: 'none' });
+		this.dayLabel = new Text({ id: 'compound_day', visible: false, style: { fontSize: 16, color: 'text_dim' }, wrap: 'none' });
 		heading.addChild(this.dayLabel);
-		bar.addChild(heading);
+		column.addChild(heading);
 
-		bar.addChild(new Button({ label: 'Area map', id: 'compound_area_map_button', size: 'sm', width: AREA_MAP_WIDTH, disabled: true }));
-
-		this.stores = new Stack({
+		this.stores = new ResourceStrip({
 			id: 'compound_resources',
-			direction: 'horizontal',
 			widthMode: 'fill',
-			distribution: 'end',
-			crossAlign: 'center',
-			gap: space.space_1_5,
 			visible: false,
+			format: storeText,
+			items: RESOURCE_ORDER.map((kind) => ({ kind, value: 0 })),
 		});
-		for (const resource of RESOURCE_ORDER) {
-			const chip = new Stack({
-				id: `compound_resource_${resource}`,
-				padding: { top: space.space_1, bottom: space.space_1, left: space.space_2, right: space.space_2 },
-				style: { borderColor: 'line_edge', borderWidth: 'bw', borderRadius: 'r_sm' },
-			});
-			const amount = new Text({ style: { fontRole: 'mono', fontSize: 'fs_sm', color: 'text' }, wrap: 'none' });
-			chip.addChild(amount);
-			this.stores.addChild(chip);
-			this.resources.set(resource, amount);
-		}
-		bar.addChild(this.stores);
-		return bar;
+		column.addChild(this.stores);
+
+		const plate = new PlateFrame({ id: 'compound_plate', caption: PLATE_CAPTION, widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch' });
+		this.yard = new CompoundYard({
+			id: 'compound_yard',
+			widthMode: 'fill',
+			heightMode: 'fill',
+			names: Object.fromEntries(BUILDINGS.map((building) => [building.id, building.name])) as Record<BuildingId, string>,
+			numbers: Object.fromEntries(BUILDING_IDS.map((id) => [id, buildingNumber(id)])) as Record<BuildingId, string>,
+			gate: GATE,
+			onChoose: (id) => this.choose(id),
+		});
+		for (const id of BUILDING_IDS) this.yard.setBuilt({ building: id, built: false, state: '' });
+		plate.addChild(this.yard);
+		column.addChild(plate);
+		return column;
 	}
 
+	/**
+	 * The chosen building's box and the needs, scrolling when the column runs
+	 * short; under them the day's orders and Plan a supply run, held to the
+	 * foot so the buttons stay put under the pointer whatever the boxes above
+	 * hold.
+	 */
 	private createSide(): Stack {
-		const side = new Stack({ id: 'compound_side', width: SIDE_WIDTH, heightMode: 'fill', crossAlign: 'stretch', gap: space.space_4 });
-
-		const panel = new Panel({ id: 'compound_needs_panel', title: 'Needs', compact: true, heightMode: 'fill', crossAlign: 'stretch' });
+		const side = new Stack({ id: 'compound_side', width: COLUMN.max, heightMode: 'fill', crossAlign: 'stretch', distribution: 'spaceBetween', gap: GAP });
+		this.side = side;
+		const upper = new Stack({ id: 'compound_side_boxes', widthMode: 'fill', crossAlign: 'stretch', gap: GAP, padding: { top: 0, right: 4, bottom: 4, left: 4 } });
+		upper.addChild(this.createBuildingBox());
 		// Empty, and hidden, until there's a campaign to read.
-		this.needs = new Stack({ id: 'compound_needs', crossAlign: 'stretch', gap: space.space_1_5, visible: false });
-		this.needsScroll = new ScrollContainer({ id: 'compound_needs_scroll', widthMode: 'fill', heightMode: 'fill' });
-		this.needsScroll.addChild(this.needs);
-		panel.addChild(this.needsScroll);
-		side.addChild(panel);
+		this.needs = new LegendBox({ id: 'compound_needs', title: 'Needs', widthMode: 'fill', crossAlign: 'stretch', visible: false });
+		upper.addChild(this.needs);
+		this.sideScroll = new ScrollContainer({ id: 'compound_side_scroll', widthMode: 'fill', heightMode: 'hug' });
+		this.sideScroll.addChild(upper);
+		side.addChild(this.sideScroll);
+		const foot = new Stack({ id: 'compound_side_foot', widthMode: 'fill', crossAlign: 'stretch', gap: GAP });
+		foot.addChild(this.createDayBox());
 
-		const actions = new FocusGroup({ id: 'compound_actions', orientation: 'vertical', crossAlign: 'stretch', gap: space.space_1_5 });
-		// What the last day did, and why it couldn't be saved; each hidden until there's something to say. Above
-		// the buttons, so the column grows upward into the panel and the buttons stay where the pointer left them.
-		this.report = caption({ id: 'compound_report', text: '' });
-		this.report.visible = false;
-		actions.addChild(this.report);
-		this.saveError = caption({ id: 'compound_save_error', text: '' });
-		this.saveError.visible = false;
-		actions.addChild(this.saveError);
-		// The two ways to spend a day at home, side by side, each with its line under the pair.
-		const days = new Stack({ id: 'compound_day_actions', direction: 'horizontal', crossAlign: 'stretch', gap: space.space_1_5 });
-		this.restButton = new Button({
-			label: 'Rest a day',
-			id: 'compound_rest_button',
-			block: true,
-			disabled: true,
-			onClick: () => { void this.rest(); },
-		});
-		days.addChild(this.restButton);
-		this.scavengeButton = new Button({
-			label: 'Scavenge',
-			id: 'compound_scavenge_button',
-			block: true,
-			disabled: true,
-			onClick: () => { void this.scavenge(); },
-		});
-		days.addChild(this.scavengeButton);
-		actions.addChild(days);
-		this.restLine = dayLine({ id: 'compound_rest_line', text: 'Looking for the saved campaign.' });
-		actions.addChild(this.restLine);
-		// Empty until there's a campaign whose day it can preview.
-		this.scavengeLine = dayLine({ id: 'compound_scavenge_line', text: '' });
-		actions.addChild(this.scavengeLine);
-		this.planButton = new Button({
-			label: 'Plan a supply run',
+		const plan = new Stack({ id: 'compound_plan', widthMode: 'fill', crossAlign: 'stretch', gap: 8, padding: { top: 0, right: 4, bottom: 0, left: 4 } });
+		this.planButton = new AtlasButton({
 			id: 'compound_plan_button',
-			tone: 'accent',
-			size: 'lg',
+			label: 'Plan a supply run',
+			variant: 'highway',
+			shield: true,
 			block: true,
+			height: 64,
 			disabled: true,
-			margin: { top: space.space_3 },
 			onClick: () => this.plan(),
 		});
-		actions.addChild(this.planButton);
-		this.planLine = caption({ id: 'compound_plan_reason', text: NO_CAMPAIGN });
-		actions.addChild(this.planLine);
-		side.addChild(actions);
+		plan.addChild(this.planButton);
+		this.planLine = new Text({
+			id: 'compound_plan_reason',
+			text: NO_CAMPAIGN,
+			widthMode: 'fill',
+			height: PLAN_LINE_HEIGHT,
+			lineHeight: LINE_HEIGHT,
+			textOverflow: 'ellipsis',
+			style: { fontRole: 'mono', fontSize: PLAN_LINE_SIZE, color: 'text_dim' },
+		});
+		plan.addChild(this.planLine);
+		foot.addChild(plan);
+		side.addChild(foot);
 		return side;
+	}
+
+	/** The chosen building on fresh paper (W0): its number, name, and state, what it's for, the crew line for the bunkhouse, and its action or why there's none. */
+	private createBuildingBox(): LegendBox {
+		const box = new LegendBox({ id: 'compound_building', fresh: true, widthMode: 'fill', crossAlign: 'stretch', gap: 10 });
+		const head = new Stack({ id: 'compound_building_head', direction: 'horizontal', widthMode: 'fill', crossAlign: 'center', gap: 10 });
+		const glyph = new MapGlyph({ id: 'compound_building_number', kind: 'circled', size: 26, label: '1' });
+		head.addChild(glyph);
+		const name = new Text({ id: 'compound_building_name', widthMode: 'fill', wrap: 'none', textOverflow: 'ellipsis', style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: 28, color: 'text' } });
+		head.addChild(name);
+		const state = new Text({ id: 'compound_building_state', wrap: 'none', style: { fontRole: 'mono', fontSize: 11, textTransform: 'uppercase', color: 'text_dim' } });
+		head.addChild(state);
+		box.addChild(head);
+		const description = new Text({ id: 'compound_building_description', widthMode: 'fill', wrap: 'word', style: { fontSize: 14, color: 'text' } });
+		box.addChild(description);
+		const crew = new Stack({ id: 'compound_building_crew', direction: 'horizontal', crossAlign: 'center', gap: 8, visible: false });
+		crew.addChild(new DeckGlyph());
+		const crewText = new Text({ id: 'compound_building_crew_text', wrap: 'none', style: { fontRole: 'mono', fontSize: 12, textTransform: 'uppercase', color: 'text_dim' } });
+		crew.addChild(crewText);
+		box.addChild(crew);
+		const reason = new Text({ id: 'compound_building_reason', widthMode: 'fill', wrap: 'word', style: { fontSize: LINE_SIZE, color: 'text_dim' } });
+		box.addChild(reason);
+		const action = new AtlasButton({ id: 'compound_building_action', label: 'Open', block: true, disabled: true, visible: false, onClick: () => this.open(this.chosenBuilding) });
+		box.addChild(action);
+		this.building = { glyph, name, state, description, crew, crewText, reason, action };
+		return box;
+	}
+
+	/**
+	 * The day's orders: what the last day did and why it couldn't be saved,
+	 * each hidden until there's something to say, then Rest and Scavenge side
+	 * by side, each with its line under the pair. The report sits above the
+	 * buttons, so the box grows upward and the buttons stay where the pointer
+	 * left them.
+	 */
+	private createDayBox(): LegendBox {
+		const box = new LegendBox({ id: 'compound_day_box', title: 'The day', widthMode: 'fill', crossAlign: 'stretch', gap: 10, margin: { left: 4, right: 4 } });
+		this.report = caption({ id: 'compound_report', text: '' });
+		this.report.visible = false;
+		box.addChild(this.report);
+		this.saveError = caption({ id: 'compound_save_error', text: '' });
+		this.saveError.visible = false;
+		box.addChild(this.saveError);
+		const days = new FocusGroup({ id: 'compound_day_actions', orientation: 'both', direction: 'horizontal', widthMode: 'fill', crossAlign: 'stretch', gap: 10 });
+		this.restButton = new AtlasButton({ id: 'compound_rest_button', label: 'Rest a day', block: true, disabled: true, onClick: () => { void this.rest(); } });
+		days.addChild(this.restButton);
+		this.scavengeButton = new AtlasButton({ id: 'compound_scavenge_button', label: 'Scavenge', block: true, disabled: true, onClick: () => { void this.scavenge(); } });
+		days.addChild(this.scavengeButton);
+		box.addChild(days);
+		const lines = new Stack({ id: 'compound_day_lines', widthMode: 'fill', crossAlign: 'stretch', gap: 2 });
+		this.restLine = dayLine({ id: 'compound_rest_line', text: 'Looking for the saved campaign.' });
+		lines.addChild(this.restLine);
+		// Empty until there's a campaign whose day it can preview.
+		this.scavengeLine = dayLine({ id: 'compound_scavenge_line', text: '' });
+		lines.addChild(this.scavengeLine);
+		box.addChild(lines);
+		return box;
 	}
 
 	private async loadSave(): Promise<void> {
@@ -383,10 +473,6 @@ export class CompoundScreen extends Screen {
 
 	private show(campaign: Campaign): void {
 		this.campaign = campaign;
-		for (const { button, waiting } of this.liveBuildings) {
-			button.enabled = true;
-			waiting.visible = false;
-		}
 		if (this.dayLabel) this.dayLabel.visible = true;
 		if (this.stores) this.stores.visible = true;
 		this.map = this.maps.known(campaign);
@@ -445,22 +531,19 @@ export class CompoundScreen extends Screen {
 
 	/**
 	 * Nothing done here would be saved any more: says so over the buttons,
-	 * and turns off Rest, Scavenge, and the buildings, each saying why. Focus
-	 * on one of them goes to Back to menu, which picks up the save.
+	 * and turns off Rest, Scavenge, Plan, the building's action, and the tabs
+	 * but Menu, each saying why. Focus on one of them goes to the Compound
+	 * tab, from which Menu picks up the save.
 	 */
 	private strand(): void {
 		if (this.halted !== null) return;
 		this.halted = 'stranded';
 		const focused = this.context.focus.focused;
-		const turnedOff = [this.restButton, this.scavengeButton, this.planButton, ...this.liveBuildings.map(({ button }) => button)];
-		for (const { button, waiting } of this.liveBuildings) {
-			button.enabled = false;
-			waiting.text = STRANDED_BUILDING;
-			waiting.visible = true;
-		}
+		const turnedOff = [this.restButton, this.scavengeButton, this.planButton, this.building?.action, this.tabs?.tab('area_map'), this.tabs?.tab('crew')];
 		this.refresh();
 		this.showLine({ line: this.saveError, text: NOT_THE_SAVE, color: 'status_warn' });
-		if (focused !== null && turnedOff.includes(focused as Button) && this.backButton) this.context.focus.focus(this.backButton);
+		const home = this.tabs?.tab('compound');
+		if (focused !== null && turnedOff.includes(focused as never) && home) this.context.focus.focus(home);
 	}
 
 	/** Everything that reads the campaign, again. */
@@ -469,12 +552,21 @@ export class CompoundScreen extends Screen {
 		if (!campaign) return;
 		const { day, resources } = campaign;
 		if (this.dayLabel) this.dayLabel.text = dayText(day);
-		for (const [resource, amount] of this.resources) amount.text = resourceText({ resource, amount: resources[resource] });
 
 		const forecast = forecastNeeds({ resources });
+		const short = new Set<string>(UPKEEP_RESOURCES.filter((resource) => isShort(forecast[resource])));
+		for (const kind of RESOURCE_ORDER) {
+			const item = this.stores?.item(kind);
+			if (!item) continue;
+			item.value = resources[kind];
+			item.shortfall = short.has(kind);
+		}
+		const stranded = this.halted === 'stranded';
+		this.refreshTabs();
+		this.refreshBuildings();
+
 		// Rest stays live once the campaign is over, to save its end again.
 		const restWaits = this.restWaits;
-		const stranded = this.halted === 'stranded';
 		if (this.restButton) this.restButton.enabled = !restWaits && !stranded;
 		if (this.restLine) {
 			if (stranded) this.restLine.text = STRANDED_DAY;
@@ -498,14 +590,81 @@ export class CompoundScreen extends Screen {
 		}
 		const needs = this.needs;
 		if (!needs) return;
-		needs.clearChildren();
+		for (const row of needs.children.filter((child) => child instanceof LegendRow)) needs.removeChild(row);
 		needs.visible = true;
 		const lines: NeedLine[] = [
 			...forecastLines(forecast),
 			...campaign.drivers.filter((driver) => driver.status === 'injured').map((driver) => ({ text: injuredLine(driver), urgent: false })),
 		];
-		lines.forEach((line, index) => needs.addChild(needRow({ id: `compound_need_${index}`, text: line.text, color: line.urgent ? 'status_crit' : 'text' })));
-		needs.addChild(needRow({ id: 'compound_rumors', text: NO_RUMORS, color: 'text_dim' }));
+		lines.forEach((line, index) => needs.addChild(new LegendRow({
+			id: `compound_need_${index}`,
+			text: line.text,
+			symbol: line.short ? 'diamond' : 'ring',
+			...(line.urgent ? { color: 'status_crit' as const } : {}),
+		})));
+		needs.addChild(new LegendRow({ id: 'compound_rumors', text: NO_RUMORS, symbol: 'dash' }));
+	}
+
+	/** Area map and Crew open with a campaign to hand them, the Crew only once the bunkhouse stands; none while stranded. */
+	private refreshTabs(): void {
+		const tabs = this.tabs;
+		if (!tabs) return;
+		const open = this.campaign !== null && this.halted !== 'stranded';
+		const areaMap = tabs.tab('area_map');
+		const crew = tabs.tab('crew');
+		if (areaMap) areaMap.enabled = open;
+		if (crew) crew.enabled = open && (this.campaign?.isBuilt('bunkhouse') ?? false);
+	}
+
+	/** Each building on the plate, built or staked out, and the chosen one's box. */
+	private refreshBuildings(): void {
+		const yard = this.yard;
+		if (!yard) return;
+		for (const id of BUILDING_IDS) {
+			const built = this.campaign?.isBuilt(id) ?? false;
+			yard.setBuilt({ building: id, built, state: this.campaign ? buildingState(built) : '' });
+		}
+		this.showBuilding();
+	}
+
+	/** A building chosen on the plate: circled there, and shown in the box. */
+	private choose(id: BuildingId): void {
+		this.chosen = id;
+		if (this.yard) this.yard.chosenBuilding = id;
+		this.showBuilding();
+	}
+
+	private get chosenBuilding(): Building {
+		return BUILDINGS.find((building) => building.id === this.chosen) ?? BUILDINGS[0];
+	}
+
+	/** The chosen building's box: its action when it stands and has a screen, else why not. */
+	private showBuilding(): void {
+		const parts = this.building;
+		if (!parts) return;
+		const building = this.chosenBuilding;
+		const campaign = this.campaign;
+		const built = campaign?.isBuilt(building.id) ?? false;
+		parts.glyph.label = buildingNumber(building.id);
+		parts.name.text = building.name;
+		parts.state.text = campaign ? buildingState(built) : '';
+		parts.state.visible = campaign !== null;
+		parts.description.text = building.description;
+		const crew = building.id === 'bunkhouse' && campaign !== null && built;
+		parts.crew.visible = crew;
+		if (crew && campaign) parts.crewText.text = crewLine(campaign);
+		const action = building.action ?? null;
+		const stranded = this.halted === 'stranded';
+		parts.action.visible = action !== null && (built || !campaign);
+		if (action) parts.action.label = action;
+		parts.action.enabled = action !== null && campaign !== null && built && !stranded;
+		let reason: string | null;
+		if (stranded && action !== null && built) reason = STRANDED_BUILDING;
+		else if (!campaign) reason = action !== null ? NO_CAMPAIGN : building.reason;
+		else if (!built) reason = unbuiltReason(building);
+		else reason = building.reason;
+		parts.reason.text = reason ?? '';
+		parts.reason.visible = reason !== null;
 	}
 
 	/** Rest waits while a run is out, since the run's return ends the day. */
@@ -582,17 +741,33 @@ export class CompoundScreen extends Screen {
 		ScreenManager.navigate('defeatScreen', { campaign });
 	}
 
+	/** A tab: the menu, the area map, or the Crew screen. The Compound stays the open section here, whatever happens. */
+	private tabChosen(id: string): void {
+		if (this.tabs) this.tabs.selectedId = 'compound';
+		if (id === 'menu') this.back();
+		else if (id === 'area_map') this.openAreaMap();
+		else if (id === 'crew') this.open(BUILDINGS[0]);
+	}
+
 	/**
-	 * A building's screen, handed the campaign; Back from it lands on the
-	 * building's button. Not while a day end is being saved, so the next
+	 * A building's screen, handed the campaign, once it stands; Back from it
+	 * lands where focus was. Not while a day end is being saved, so the next
 	 * step starts after its checkpoint, as a second Rest or Scavenge waits.
 	 */
 	private open(building: Building): void {
-		if (!this.campaign || !building.screen || this.passingDay || this.halted !== null) return;
-		ScreenManager.navigate(building.screen, { campaign: this.campaign });
+		const campaign = this.campaign;
+		if (!campaign || !building.screen || !campaign.isBuilt(building.id) || this.passingDay || this.halted !== null) return;
+		ScreenManager.navigate(building.screen, { campaign });
 	}
 
-	/** The area map, handed the campaign; not while a day end is being saved, as a building waits. */
+	/** The area map, handed the campaign, to look round it; not while a day end is being saved. */
+	private openAreaMap(): void {
+		const campaign = this.campaign;
+		if (!campaign || this.passingDay || this.halted !== null) return;
+		ScreenManager.navigate('areaMapScreen', { campaign });
+	}
+
+	/** The area map, handed the campaign, to plan a run; refused as `getPlanBlocker` says. */
 	private plan(): void {
 		const { campaign, map } = this;
 		if (!campaign || !map || this.passingDay || this.halted !== null || getPlanBlocker({ campaign, map }) !== null) return;
@@ -605,113 +780,25 @@ export class CompoundScreen extends Screen {
 	}
 }
 
-/**
- * The buildings as the menu: rows of three tiles that share the room, where
- * the illustrated scene will go. One focus group whose Left and Right move
- * through the buildings in reading order; Up and Down go unconsumed to
- * directional focus (R9.24, R9.26), so they move between the rows. A
- * building whose screen exists has its button added to `live`, disabled
- * until there's a campaign to open it with, with a line saying so.
- */
-function createBuildings({ open, live }: { open: (building: Building) => void; live: { button: Button; waiting: Text }[] }): FocusGroup {
-	const grid = new FocusGroup({
-		id: 'compound_buildings',
-		orientation: 'horizontal',
-		direction: 'vertical',
-		widthMode: 'fill',
-		heightMode: 'fill',
-		crossAlign: 'stretch',
-		gap: space.space_3,
-	});
-	for (let start = 0; start < BUILDINGS.length; start += BUILDINGS_PER_ROW) {
-		const row = new Stack({
-			id: `compound_building_row_${start / BUILDINGS_PER_ROW}`,
-			direction: 'horizontal',
-			heightMode: 'fill',
-			crossAlign: 'stretch',
-			gap: space.space_3,
-		});
-		BUILDINGS.slice(start, start + BUILDINGS_PER_ROW).forEach((building) => row.addChild(buildingTile({ building, open, live })));
-		grid.addChild(row);
-	}
-	return grid;
-}
-
-/**
- * A building: its name at the top, as the wireframe has it, and at the foot
- * what it's for and why it's disabled over its button, so the buttons line up
- * whatever the text above them wraps to. The art goes in the room between.
- */
-function buildingTile({ building, open, live }: { building: Building; open: (building: Building) => void; live: { button: Button; waiting: Text }[] }): Stack {
-	const { id, name, description, reason } = building;
-	const tile = new Stack({
-		id: `compound_building_${id}`,
-		widthMode: 'fill',
-		distribution: 'spaceBetween',
-		crossAlign: 'stretch',
-		padding: space.space_3,
-		gap: space.space_3,
-		style: { backgroundColor: 'bg_panel', borderColor: 'line_edge', borderWidth: 'bw', borderRadius: 'r_sm' },
-	});
-	tile.addChild(new Text({
-		text: name,
-		id: `compound_building_${id}_name`,
-		widthMode: 'fill',
-		style: { fontRole: 'display', fontSize: 'fs_lg', color: 'text_bright', textTransform: 'uppercase', letterSpacing: 'ls_wide' },
-		wrap: 'none',
-		textOverflow: 'ellipsis',
-	}));
-	const foot = new Stack({ id: `compound_building_${id}_foot`, crossAlign: 'stretch', gap: space.space_1_5 });
-	foot.addChild(caption({ id: `compound_building_${id}_description`, text: description, color: 'text' }));
-	// A live building is disabled only until there's a campaign, and says so.
-	const waiting = building.screen ? caption({ id: `compound_building_${id}_reason`, text: NO_CAMPAIGN }) : null;
-	if (reason !== null) foot.addChild(caption({ id: `compound_building_${id}_reason`, text: reason }));
-	else if (waiting) foot.addChild(waiting);
-	const button = new Button({
-		label: name,
-		id: `compound_building_${id}_button`,
-		block: true,
-		disabled: true,
-		onClick: () => open(building),
-		margin: { top: space.space_1_5 },
-	});
-	if (reason === null && waiting) live.push({ button, waiting });
-	foot.addChild(button);
-	tile.addChild(foot);
-	return tile;
-}
-
-/** Plan's line when a run can go: "31 destinations on the area map." */
+/** Plan's line when a run can go: "31 destinations on the area map". */
 function destinationsText({ map, campaign }: { map: PlanningMap; campaign: Campaign }): string {
 	const destinations = new Set(routesOnOffer({ map, campaign }).map((route) => route.destination.id)).size;
-	return `${destinations} destination${destinations === 1 ? '' : 's'} on the area map.`;
+	return `${destinations} destination${destinations === 1 ? '' : 's'} on the area map`;
 }
 
 function caption({ id, text, color = 'text_dim' }: { id: string; text: string; color?: ColorToken }): Text {
-	return new Text({ text, id, widthMode: 'fill', style: { fontSize: 'fs_sm', color } });
+	return new Text({ text, id, widthMode: 'fill', style: { fontSize: LINE_SIZE, color } });
 }
 
-/** A caption held at `DAY_LINE_HEIGHT`, a longer one ending in an ellipsis. */
+/** A caption held at two lines, a longer one ending in an ellipsis. */
 function dayLine({ id, text }: { id: string; text: string }): Text {
 	return new Text({
 		text,
 		id,
 		widthMode: 'fill',
-		height: DAY_LINE_HEIGHT,
-		lineHeight: tokens.lineHeight.lh,
+		height: TWO_LINES,
+		lineHeight: LINE_HEIGHT,
 		textOverflow: 'ellipsis',
-		style: { fontSize: 'fs_sm', color: 'text_dim' },
+		style: { fontSize: LINE_SIZE, color: 'text_dim' },
 	});
-}
-
-/** A line of the needs panel, boxed as the wireframe draws them. */
-function needRow({ id, text, color }: { id: string; text: string; color: ColorToken }): Stack {
-	const row = new Stack({
-		id,
-		crossAlign: 'stretch',
-		padding: { top: space.space_2, bottom: space.space_2, left: space.space_3, right: space.space_3 },
-		style: { borderColor: 'line_edge', borderWidth: 'bw', borderRadius: 'r_sm' },
-	});
-	row.addChild(new Text({ text, id: `${id}_text`, widthMode: 'fill', style: { fontSize: 'fs_base', color } }));
-	return row;
 }

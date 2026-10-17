@@ -1,5 +1,7 @@
 import type { ScreenName } from '../../core/ScreenManager';
-import type { Resources } from '../../campaign/Campaign';
+import { BUILDING_IDS, BuildingId } from '../../campaign/Buildings';
+import { isAtCompound } from '../../campaign/Campaign';
+import type { Campaign, Resources } from '../../campaign/Campaign';
 import { UPKEEP_RESOURCES } from '../../campaign/CompoundRules';
 import { shortfallMessage } from '../../campaign/DayClock';
 import type { DayEnd, NeedForecast, NeedsForecast } from '../../campaign/DayClock';
@@ -8,40 +10,70 @@ import { haulText, scavengeMessage } from '../../campaign/Scavenging';
 import type { Scavenge, ScavengeBlocker, ScavengeHaul } from '../../campaign/Scavenging';
 import { countOf } from '../main-menu/campaignText';
 
-export type BuildingId = 'bunkhouse' | 'radio_mast' | 'infirmary' | 'garage' | 'map_room' | 'stores';
+export type { BuildingId };
 
-/** A building on the compound screen: what it's for, and what its button does or why it can't. */
+/** A building on the compound screen: what it's for, and what its action does or why there isn't one. */
 export interface Building {
 	id: BuildingId;
 	name: string;
 	description: string;
-	/** Why it's disabled; null once the screen behind it exists. */
+	/** Why it has no action yet; null once the screen behind it exists. */
 	reason: string | null;
-	/** The screen its button opens, handed the campaign on show, once that screen exists. */
+	/** The screen its action opens, handed the campaign, once that screen exists. */
 	screen?: ScreenName;
+	/** Its action's label, once there's a screen behind it. */
+	action?: string;
 }
 
-/**
- * The buildings (Compound and Supply Runs, Buildings) in the wireframe's
- * order, read in rows of three. The bunkhouse opens the Crew screen; none
- * of the other screens behind them exists yet.
- */
-export const BUILDINGS: readonly Building[] = [
-	{
-		id: 'bunkhouse',
+const BUILDING_TEXT: Readonly<Record<BuildingId, Omit<Building, 'id'>>> = {
+	bunkhouse: {
 		name: 'Bunkhouse',
 		description: 'Drivers, settlers, and the Crew screen, where default decks are built.',
 		reason: null,
 		screen: 'crewScreen',
+		action: 'Open the bunkhouse',
 	},
-	{ id: 'radio_mast', name: 'Radio mast', description: 'Rumors: new POIs, and roads into the fog.', reason: "The radio mast isn't built yet." },
-	{ id: 'infirmary', name: 'Infirmary', description: 'Injured drivers heal over days; meds speed it up.', reason: "The infirmary isn't built yet." },
-	{ id: 'garage', name: 'Garage', description: 'Cards, mods, and escort repair and hire.', reason: "The garage isn't open at home yet." },
-	{ id: 'map_room', name: 'Map room', description: 'The area map, to plan a supply run.', reason: 'For now Plan a supply run opens the area map.' },
-	{ id: 'stores', name: 'Stores', description: 'The resource ledger and its forecast.', reason: "The stores ledger isn't built yet." },
-];
+	radio_mast: { name: 'Radio mast', description: 'Rumors: new POIs, and roads into the fog.', reason: "The radio mast's screen isn't in the game yet." },
+	infirmary: { name: 'Infirmary', description: 'Injured drivers heal over days; meds speed it up.', reason: "The infirmary's screen isn't in the game yet." },
+	map_room: { name: 'Map room', description: 'The area map, to plan a supply run.', reason: 'For now Plan a supply run opens the area map.' },
+	garage: { name: 'Garage', description: 'Cards, mods, and escort repair and hire.', reason: "The garage isn't open at home yet." },
+	stores: { name: 'Stores', description: 'The resource ledger and its forecast.', reason: "The stores ledger isn't in the game yet." },
+};
 
-/** The top bar's resources, in the wireframe's order. */
+/**
+ * The buildings (Compound and Supply Runs, Buildings), numbered in the
+ * campaign's order (`BUILDING_IDS`). The bunkhouse opens the Crew screen;
+ * none of the other screens behind them exists yet.
+ */
+export const BUILDINGS: readonly Building[] = BUILDING_IDS.map((id) => ({ id, ...BUILDING_TEXT[id] }));
+
+/** A building's number on the plate and in its box: "1" for the bunkhouse. */
+export function buildingNumber(id: BuildingId): string {
+	return String(BUILDING_IDS.indexOf(id) + 1);
+}
+
+/** The state line under a building's name on the plate. */
+export function buildingState(built: boolean): string {
+	return built ? 'BUILT' : 'not built';
+}
+
+/** Why a building has no action: it isn't built, or its screen doesn't exist yet. */
+export function unbuiltReason(building: Building): string {
+	return `The ${building.name.toLowerCase()} isn't built yet.`;
+}
+
+/**
+ * The bunkhouse's deck line: "3 drivers · 3 default decks", the drivers at
+ * the compound and the default decks they hold cards in. A driver out on a
+ * run counts their deck, whose cards are in their run deck until it's home.
+ */
+export function crewLine(campaign: Campaign): string {
+	const drivers = campaign.drivers.filter((driver) => isAtCompound(driver));
+	const decks = drivers.filter((driver) => driver.deckSize > 0 || campaign.runDecks.some((deck) => deck.driver === driver)).length;
+	return `${countOf(drivers.length, 'driver')} · ${countOf(decks, 'default deck')}`;
+}
+
+/** The stores, in the strip's order. */
 export const RESOURCE_ORDER: readonly (keyof Resources)[] = ['food', 'water', 'fuel', 'scrap', 'meds', 'people'];
 
 const RESOURCE_NAMES: Readonly<Record<keyof Resources, string>> = {
@@ -57,8 +89,8 @@ const RESOURCE_NAMES: Readonly<Record<keyof Resources, string>> = {
 const AMOUNT_SUFFIXES = ['k', 'M', 'B', 'T', 'Q'];
 
 /**
- * An amount in at most four characters, so the top bar's chips fit at
- * 1024 px whatever the stores hold: whole below 10,000, then rounded down
+ * An amount in at most four characters, so the stores fit at 1024 px
+ * whatever they hold: whole below 10,000, then rounded down
  * to thousands, millions, and on ("12k", "999k", "1M"), so a chip never
  * shows more than there is.
  */
@@ -73,20 +105,24 @@ export function amountText(amount: number): string {
 	return `${Math.floor(scaled)}${AMOUNT_SUFFIXES[suffix]}`;
 }
 
-/** "Food 14", "Scrap 12k". */
-export function resourceText({ resource, amount }: { resource: keyof Resources; amount: number }): string {
-	return `${RESOURCE_NAMES[resource]} ${amountText(amount)}`;
-}
-
 /** The compound between runs is always at dawn (Compound and Supply Runs, Founding the compound). */
 export function dayText(day: number): string {
-	return `Day ${day} / dawn`;
+	return `day ${day}, dawn`;
 }
 
-/** A line of text the screen shows, and whether it's bad news. */
+/** A store runs short when it runs out within this many day ends: the strip turns it red and Needs leads it with a diamond. */
+export const SHORT_WITHIN_DAYS = 2;
+
+/** Whether a forecast runs short soon enough to flag. */
+export function isShort(forecast: NeedForecast): boolean {
+	return forecast.days !== null && forecast.days <= SHORT_WITHIN_DAYS;
+}
+
+/** A line of text the screen shows, whether it's bad news, and whether it runs short soon (`isShort`). */
 export interface NeedLine {
 	text: string;
 	urgent: boolean;
+	short?: boolean;
 }
 
 /**
@@ -96,9 +132,9 @@ export interface NeedLine {
 export function forecastLine({ resource, forecast }: { resource: keyof Resources; forecast: NeedForecast }): NeedLine | null {
 	if (forecast.days === null) return null;
 	const name = RESOURCE_NAMES[resource];
-	if (forecast.stock === 0) return { text: `No ${resource}: ${forecast.shortTonight} short tonight`, urgent: true };
-	if (forecast.shortTonight > 0) return { text: `${name} runs out tonight, ${forecast.shortTonight} short`, urgent: true };
-	return { text: `${name} runs out in ${countOf(forecast.days, 'day')}`, urgent: false };
+	if (forecast.stock === 0) return { text: `No ${resource}: ${forecast.shortTonight} short tonight`, urgent: true, short: true };
+	if (forecast.shortTonight > 0) return { text: `${name} runs out tonight, ${forecast.shortTonight} short`, urgent: true, short: true };
+	return { text: `${name} runs out in ${countOf(forecast.days, 'day')}`, urgent: false, short: isShort(forecast) };
 }
 
 /** The forecast lines, food then water. */
