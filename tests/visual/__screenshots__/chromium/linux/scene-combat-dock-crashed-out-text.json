@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/dev_section_combat_dock_crashed_out/Text[0]","text":"Combat Dock: Passenger and Crashed Out","rect":[53,53,403.06,50]},
+{"path":"gallery_root/dev_section_combat_dock_crashed_out/Text[0]","text":"Combat Dock: Passenger and Crashed Out","rect":[53,53,415.16,50]},
 {"path":"gallery_root/dev_section_combat_dock_crashed_out/dev_section_combat_dock_crashed_out_rows/Stack[0]/Text[0]","text":"a passenger tab with no mods and their attacks blocked; a driver crashed out with no hand","rect":[53,103,1334,17.7]},
 {"path":"gallery_root/dev_section_combat_dock_crashed_out/dev_section_combat_dock_crashed_out_rows/Stack[0]/dev_combat_dock_crashed_out/combat_player_hand/Stack[0]/driver1_tab/Stack[1]/driver1_tab_name","text":"The Road Warrior","rect":[103,140.7,112.67,18]},
 {"path":"gallery_root/dev_section_combat_dock_crashed_out/dev_section_combat_dock_crashed_out_rows/Stack[0]/dev_combat_dock_crashed_out/combat_player_hand/Stack[0]/driver1_tab/Stack[1]/Stack[1]/driver1_tab_tag","text":"PASSENGER","rect":[230.67,142.44,59.4,14.52]},

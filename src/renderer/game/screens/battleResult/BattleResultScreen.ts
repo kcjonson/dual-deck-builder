@@ -111,11 +111,7 @@ export class BattleResultScreen extends Screen {
 		this.next = undefined;
 	}
 
-	/**
-	 * Where the fight said to go next, or to the menu, focus back on
-	 * Skirmish, which started the fight, so an Enter there doesn't found a
-	 * campaign.
-	 */
+	/** Where the fight said to go next, or to the menu, focus back on what was focused when it was left, so an Enter there doesn't found a campaign. */
 	private continue(): void {
 		if (this.next) ScreenManager.navigate(this.next.screen, this.next.data);
 		else ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });

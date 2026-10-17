@@ -3,7 +3,7 @@ import { FIELD_INK } from './fieldInk';
 import { PlatformFaces } from './platformFaces';
 
 describe('PlatformFaces (R6.4a)', () => {
-	it('names each role a private family once its face loads, and not before', async () => {
+	it('names each face a private family once it loads, and not before', async () => {
 		const loads: { family: string; url: string; resolve: () => void }[] = [];
 		const faces = new PlatformFaces({
 			load: (family, url) => new Promise<void>((resolve) => loads.push({ family, url, resolve })),
@@ -15,6 +15,12 @@ describe('PlatformFaces (R6.4a)', () => {
 		await Promise.resolve();
 		expect(faces.familyOf('body')).toBe('ddb-open-sans-regular');
 		expect(faces.familyOf('display')).toBeNull();
+		expect(faces.familyOf('body-600')).toBeNull();
+
+		loads.find((load) => load.family === 'ddb-open-sans-semibold')?.resolve();
+		await Promise.resolve();
+		expect(faces.familyOf('body-600')).toBe('ddb-open-sans-semibold');
+		expect(faces.familyOf('body')).toBe('ddb-open-sans-regular');
 	});
 
 	it('loads nothing for a face without a font file, such as the icons', () => {
@@ -41,12 +47,13 @@ describe('PlatformFaces (R6.4a)', () => {
 		expect(faces.familyOf('mono')).toBeNull();
 	});
 
-	it('hands each text role the distance field ink its raster glyphs are matched to (DDB-217)', () => {
+	it('hands each face the distance field ink its raster glyphs are matched to (DDB-217)', () => {
 		const faces = new PlatformFaces({ load: () => new Promise<void>(() => undefined) });
 		for (const face of FONT_FACES) {
 			// The table the web suite measures against the shader
 			expect(face.fieldInk).toBe(FIELD_INK[face.face]);
-			expect(faces.fieldInkOf(face.role)).toBe(FIELD_INK[face.face]);
+			expect(face.fieldInk).toBeDefined();
+			expect(faces.fieldInkOf(face.font)).toBe(FIELD_INK[face.face]);
 		}
 		expect(faces.fieldInkOf('icons')).toBeNull();
 	});

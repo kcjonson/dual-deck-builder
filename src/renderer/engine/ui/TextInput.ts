@@ -3,8 +3,8 @@ import type { MountContext } from '../components/MountContext';
 import type { DrawApi } from '../draw/DrawApi';
 import type { Rect } from '../draw/geometry';
 import type { AnyUiEvent, Modifiers, UiKeyEvent, UiPointerEvent } from '../input/events';
-import type { FontRole } from '../text/fontFaces';
-import { resolveFontRole } from '../text/fontRoles';
+import type { FontName, FontRole } from '../text/fontFaces';
+import { resolveFont } from '../text/fontRoles';
 import { tokens } from '../theme/tokens';
 import { Look, LookInk, LookLayers, lookInk, resolveLook } from '../style/look';
 import { LookTransition } from '../style/LookTransition';
@@ -720,15 +720,15 @@ export class TextInput extends Component {
 	private measureText(): void {
 		if (this.measuredGeneration === this.textGeneration) return;
 		const draw = this.context?.draw;
-		const { role, fontSize, letterSpacing } = this.face;
-		if (!draw || !draw.canMeasureText(role)) {
+		const { font, fontSize, letterSpacing } = this.face;
+		if (!draw || !draw.canMeasureText(font)) {
 			this.measuredAdvances = [];
 			this.measuredLineHeight = fontSize;
 			return;
 		}
 		this.measuredGeneration = this.textGeneration;
 		const text = this.displayText;
-		const metrics = draw.measureText({ text: text === '' ? ' ' : text, font: role, size: fontSize, letterSpacing, wrap: 'none' });
+		const metrics = draw.measureText({ text: text === '' ? ' ' : text, font, size: fontSize, letterSpacing, wrap: 'none' });
 		this.measuredAdvances = text === '' ? [] : metrics.advances;
 		this.measuredLineHeight = metrics.height / Math.max(1, metrics.lines);
 	}
@@ -741,7 +741,7 @@ export class TextInput extends Component {
 
 		const box = this.contentBox;
 		if (box.width <= 0 || box.height <= 0) return;
-		const { role, fontSize, letterSpacing } = this.face;
+		const { font, fontSize, letterSpacing } = this.face;
 		const lineHeight = this.lineHeight;
 		const lineTop = box.y + (box.height - lineHeight) / 2;
 		const text = this.displayText;
@@ -757,7 +757,7 @@ export class TextInput extends Component {
 				draw.drawText({
 					text: this.placeholderText,
 					box,
-					font: role,
+					font,
 					size: fontSize,
 					letterSpacing,
 					color: this.effectivelyEnabled ? tokens.color.text_faint : tokens.color.text_disabled,
@@ -771,7 +771,7 @@ export class TextInput extends Component {
 			draw.drawText({
 				text,
 				box: { x: box.x - this.scrollX, y: box.y, width, height: box.height },
-				font: role,
+				font,
 				size: fontSize,
 				letterSpacing,
 				color: look.text,
@@ -804,10 +804,9 @@ export class TextInput extends Component {
 
 	private resolveFace(): TextFace {
 		const style = this.styleObject;
-		let role: FontRole = style.fontRole ?? (style.fontFamily !== undefined ? fontRoleOfFamily(style.fontFamily, 'TextInput') : 'body');
-		if (style.fontWeight !== undefined) role = resolveFontRole({ family: role, weight: style.fontWeight });
+		const role: FontRole = style.fontRole ?? (style.fontFamily !== undefined ? fontRoleOfFamily(style.fontFamily, 'TextInput') : 'body');
 		return {
-			role,
+			font: resolveFont({ family: role, weight: style.fontWeight }),
 			fontSize: style.fontSize !== undefined ? resolveLength(style.fontSize, 'fontSize') : CONTROL_SIZES[this.fieldSize].fontSize,
 			letterSpacing: style.letterSpacing !== undefined ? resolveLetterSpacing(style.letterSpacing) : 0,
 		};
@@ -830,7 +829,7 @@ export class TextInput extends Component {
 }
 
 interface TextFace {
-	role: FontRole;
+	font: FontName;
 	fontSize: number;
 	letterSpacing: number;
 }

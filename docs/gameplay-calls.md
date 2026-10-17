@@ -117,7 +117,7 @@ Record: mvp-supply-run.md.
 64. DDB-454: a failed run ends the day too, unless it ends the campaign.
 65. DDB-454: a fight in progress isn't saved. Quitting mid-fight resumes at the stop before it, and the fight replays from the same seed.
 66. DDB-454: the reward offers 3 cards, pick one or skip: rarity at Card System Design's drop rates, no duplicates, no signature cards, order cards only while the convoy has an escort, and the same three after a reload.
-67. DDB-454: the quick load out (a stub) seats the first legal pair in pool order on their default decks, and takes every escort, their cards in Driver 1's deck.
+67. DDB-454: the quick load out (a stub) seats the first legal pair in pool order on their default decks, and takes every escort, their cards in Driver 1's deck. Replaced by 177.
 68. DDB-454: arrival is summed up in one line. Cards won stay in the locker, with no per-card debrief offer.
 69. DDB-454: a load out that never set off is given up on Continue, its run decks unwound.
 70. DDB-454: a "Quiet stretch" is a stop where nothing happens, standing in for the other stop kinds.
@@ -157,7 +157,7 @@ Record: area-map-route-pick.md.
 89. DDB-43: any known POI can be picked from the area map; the day offers (71, 81) no longer gate it, and a departure accepts any route the map offers. With fog deferred, every POI is known.
 90. DDB-43: strongholds show on the map, but Plan a run here is off for them ("Not yet") until assaults exist.
 91. DDB-319: a route that runs past dark warns and can still go. There's no night penalty yet.
-92. DDB-43: Plan a supply run opens the area map; on the run route screen, Load out the crew runs the quick load out stub (67, 85) and departs.
+92. DDB-43: Plan a supply run opens the area map; on the run route screen, Load out the crew runs the quick load out stub (67, 85) and departs. Replaced by 177: it opens load out, which departs.
 93. DDB-43: POI state isn't tracked: every POI shows as unvisited, and yields don't deplete. Replaced by 102 to 108.
 
 ## Raider tuning (94 to 100)
@@ -209,7 +209,7 @@ Records: locker-and-deck-rules.md, main-menu-campaigns.md.
 116. DDB-310: scrapping a locker card pays 5 scrap a copy, at every rarity.
 117. DDB-310: when a move breaks more than one rule, "card for another archetype" is the reason shown, ahead of "deck full".
 118. DDB-310: cards can move straight from one driver's default deck to another's, with the rules checked at both ends.
-119. DDB-283: until load out replaces driver selection, the main menu keeps a Skirmish entry to driver selection and a quick fight, so playtesters can still play fights.
+119. DDB-283: until load out replaces driver selection, the main menu keeps a Skirmish entry to driver selection and a quick fight, so playtesters can still play fights. Retired by 181.
 
 ## Damage and the fight log (120)
 
@@ -274,7 +274,7 @@ Record: area-map-route-pick.md.
 151. DDB-319: the run route frame spans at least 800 world units, so a near POI's baked land isn't drawn blurry.
 152. DDB-43: on the planning screens a town or village name steps to the left of its dot, or is left out, rather than cover a POI marker.
 
-## Generation and visual calls (153 on)
+## Generation and visual calls (153 to 176)
 
 Tuning for how the map is made and drawn rather than how the game plays. Two records keep theirs as lists without numbers here: realistic-map.md (22 calls: the route split, the quickest-time route tree, POIs only where routes meet, class speeds, the land grid, worker budgets, what saves keep, and the rest) and road-network.md (15 calls: highways through towns, back road links and detours, trails through rough country, spurs and passes, broken spans, the loops check).
 
@@ -311,3 +311,13 @@ Record for 165 to 175: area-map-atlas-style.md (its Visual calls).
 Record for 176: stops-and-routes.md.
 
 176. DDB-499: a highway route's name takes the route number on its highway's shields ("Route 47 highway"), the main highway of the route's own leg with the most highway, instead of that highway's index plus one, because the run route card and the shields (drawn once DDB-447 lands) should say the same number; two routes on one highway share it and are told apart by side, then letter, as before.
+
+## Load out (177 to 181)
+
+Record: load-out-screen.md.
+
+177. DDB-320: load out opens on the crew the quick load out would send (67) and every escort up to four, and the player changes seats, decks, and escorts from there, because the default should be a run that can go.
+178. DDB-320: a seat change or Swap seats after the run decks are out deals them fresh from the default decks, losing any customizing, because the campaign has no move for a customized run deck between seats and escort cards are dealt to Driver 1.
+179. DDB-320: Back from load out gives up its run decks, customizing and all, and returns to the run route screen, because a started run must never be stranded.
+180. DDB-320: a solo run (35) shows the second seat empty with "Solo run: nobody else is fit to go", and the synergy line says there's no partner, because the pair hints have nothing to compare.
+181. DDB-320: the main menu's Skirmish entry and its quick fight go with driver selection, because 119 kept them only until load out replaced it.

@@ -152,7 +152,9 @@ describe('Text (R12.4)', () => {
 	});
 
 	it('resolves fontWeight through the theme table (R11.8)', () => {
-		expect(mounted(new Text({ text: 'Title', style: { fontWeight: 'bold' } })).font).toBe('display');
+		expect(mounted(new Text({ text: 'Title', style: { fontWeight: 'bold' } })).font).toBe('display-700');
+		expect(mounted(new Text({ text: 'Label', style: { fontRole: 'display' } })).font).toBe('display');
+		expect(mounted(new Text({ text: 'Stress', style: { fontWeight: 600 } })).font).toBe('body-600');
 		expect(mounted(new Text({ text: 'Body' })).font).toBe('body');
 		expect(mounted(new Text({ text: '42', style: { fontFamily: 'monospace' } })).font).toBe('mono');
 	});

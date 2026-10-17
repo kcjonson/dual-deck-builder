@@ -1,4 +1,7 @@
-import { Driver, DriverArchetype } from './Driver';
+import type { Driver, DriverArchetype } from './Driver';
+
+/** What the analysis reads of a driver: the archetype, the vehicle's stats, and the name it says. A combat driver has them, and so does an archetype's config with a campaign driver's name. */
+export type SynergyDriver = Pick<Driver, 'archetype' | 'vehicleStats' | 'metadata'>;
 
 /**
  * Types of synergy relationships between drivers
@@ -37,7 +40,7 @@ export class DriverSynergy {
 	 * @param driver2 Second driver
 	 * @returns Synergy analysis result
 	 */
-	public static analyzeSynergy(driver1: Driver, driver2: Driver): SynergyAnalysis {
+	public static analyzeSynergy(driver1: SynergyDriver, driver2: SynergyDriver): SynergyAnalysis {
 		// const stats1 = driver1.vehicleStats; // For future use
 		// const stats2 = driver2.vehicleStats; // For future use
 		
@@ -60,7 +63,7 @@ export class DriverSynergy {
 	/**
 	 * Calculate stat compatibility scores for a driver
 	 */
-	private static calculateStatCompatibility(driver: Driver): StatCompatibility {
+	private static calculateStatCompatibility(driver: SynergyDriver): StatCompatibility {
 		const stats = driver.vehicleStats;
 		
 		return {
@@ -74,7 +77,7 @@ export class DriverSynergy {
 	/**
 	 * Calculate utility score based on driver archetype
 	 */
-	private static calculateUtilityScore(driver: Driver): number {
+	private static calculateUtilityScore(driver: SynergyDriver): number {
 		const archetype = driver.archetype;
 		
 		// Base utility scores by archetype (could be made configurable)
@@ -219,8 +222,8 @@ export class DriverSynergy {
 	 * Synthesize all analysis into final synergy result
 	 */
 	private static synthesizeSynergyResult(
-		driver1: Driver, 
-		driver2: Driver,
+		driver1: SynergyDriver, 
+		driver2: SynergyDriver,
 		offensive: { score: number; description: string },
 		defensive: { score: number; description: string; warning?: string },
 		speed: { score: number; description: string },
@@ -271,8 +274,8 @@ export class DriverSynergy {
 	 * Generate descriptive tags for the synergy
 	 */
 	private static generateSynergyTags(
-		driver1: Driver, 
-		driver2: Driver, 
+		driver1: SynergyDriver, 
+		driver2: SynergyDriver, 
 		scores: { offensive: number; defensive: number; speed: number; utility: number }
 	): string[] {
 		const tags: string[] = [];
@@ -299,8 +302,8 @@ export class DriverSynergy {
 	 * Format the final synergy description
 	 */
 	private static formatSynergyDescription(
-		driver1: Driver,
-		driver2: Driver,
+		driver1: SynergyDriver,
+		driver2: SynergyDriver,
 		descriptions: string[],
 		type: SynergyType
 	): string {
@@ -312,24 +315,5 @@ export class DriverSynergy {
 		const secondaryDesc = type === 'warning' ? descriptions[1] : descriptions[3];
 		
 		return `${name1} and ${name2}: ${primaryDesc}. ${secondaryDesc}.`;
-	}
-
-	/**
-	 * Get a simple compatibility rating between drivers
-	 * @param driver1 First driver
-	 * @param driver2 Second driver
-	 * @returns Compatibility score from 0-10
-	 */
-	public static getCompatibilityRating(driver1: Driver, driver2: Driver): number {
-		const analysis = this.analyzeSynergy(driver1, driver2);
-		
-		const scoreMap: Record<SynergyType, number> = {
-			strong: 9,
-			good: 7,
-			neutral: 5,
-			warning: 3
-		};
-		
-		return scoreMap[analysis.type];
 	}
 }

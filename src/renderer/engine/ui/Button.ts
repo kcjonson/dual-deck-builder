@@ -5,7 +5,6 @@ import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA, Rect } from '../draw/geometry';
 import type { IconName } from '../text/icons';
 import type { FontRole } from '../text/fontFaces';
-import { resolveFontRole } from '../text/fontRoles';
 import { tokens } from '../theme/tokens';
 import type { Theme } from '../theme/tokens';
 import { Look, LookInk, LookLayers, glowShadow, lookInk, resolveLook, shadowExtent } from '../style/look';
@@ -354,10 +353,10 @@ export class Button extends Pressable {
 
 	private labelStyle(): TextStyleObject {
 		const style = this.styleObject;
-		let role: FontRole = style.fontRole ?? (style.fontFamily !== undefined ? fontRoleOfFamily(style.fontFamily, 'Button') : 'display');
-		if (style.fontWeight !== undefined) role = resolveFontRole({ family: role, weight: style.fontWeight });
+		const role: FontRole = style.fontRole ?? (style.fontFamily !== undefined ? fontRoleOfFamily(style.fontFamily, 'Button') : 'display');
 		return {
 			fontRole: role,
+			...(style.fontWeight !== undefined ? { fontWeight: style.fontWeight } : {}),
 			fontSize: style.fontSize !== undefined ? resolveLength(style.fontSize, 'fontSize') : CONTROL_SIZES[this.buttonSize].fontSize,
 			letterSpacing: style.letterSpacing !== undefined ? resolveLetterSpacing(style.letterSpacing) : 0,
 			textTransform: style.textTransform ?? 'none',
