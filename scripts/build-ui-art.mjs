@@ -1,7 +1,7 @@
 /**
  * Builds the UI art atlas (DDB-504; R5.19, R5.20, R5.31): every piece in
  * scripts/ui-art/pieces.mjs is rasterised from its SVG by Playwright's
- * Chromium, shelf-packed into one 2048-wide RGBA page with its edges extruded
+ * Chromium, packed (MaxRects) into one 2048-wide RGBA page with its edges extruded
  * into a gutter (so linear filtering never samples a neighbour), and written
  * with the typed manifest components import.
  *
@@ -11,7 +11,7 @@
  * Output is byte-stable for a given Chromium build: no timestamps, seeded
  * noise, a fixed packing order, and a fixed PNG encoder setting. A different
  * Chromium or OS can anti-alias a stroke differently, so `--check` is a local
- * tool, not a CI gate.
+ * tool, not a CI gate; it ignores line endings in the manifest.
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -68,31 +68,61 @@ async function rasterise(pieces) {
 	}
 }
 
-/** Shelf packing, tallest first, then widest, then by name, so the layout never depends on authoring order. */
+/**
+ * MaxRects packing, best short side fit (Jylanki's), largest pieces first
+ * and ties by name, so the layout never depends on authoring order. Shelves
+ * left a strip as tall as the 2x logo empty beside it; this fills it.
+ */
 function pack(pieces) {
-	const order = [...pieces].sort((a, b) => b.height - a.height || b.width - a.width || a.name.localeCompare(b.name));
+	const order = [...pieces].sort((a, b) => Math.max(b.width, b.height) - Math.max(a.width, a.height)
+		|| b.width * b.height - a.width * a.height || a.name.localeCompare(b.name));
+	let free = [{ x: 0, y: 0, width: ATLAS_WIDTH, height: MAX_HEIGHT }];
 	const placed = new Map();
-	let x = 0;
-	let y = 0;
-	let shelf = 0;
+	let used = 0;
 	for (const piece of order) {
-		const cellWidth = piece.width + GUTTER;
-		const cellHeight = piece.height + GUTTER;
-		if (cellWidth > ATLAS_WIDTH) throw new Error(`${piece.name} is wider than the atlas`);
-		if (x + cellWidth > ATLAS_WIDTH) {
-			y += shelf;
-			x = 0;
-			shelf = 0;
+		const width = piece.width + GUTTER;
+		const height = piece.height + GUTTER;
+		let best = null;
+		let bestShort = Infinity;
+		let bestLong = Infinity;
+		for (const rect of free) {
+			if (rect.width < width || rect.height < height) continue;
+			const short = Math.min(rect.width - width, rect.height - height);
+			const long = Math.max(rect.width - width, rect.height - height);
+			if (short < bestShort || (short === bestShort && long < bestLong)) {
+				best = rect;
+				bestShort = short;
+				bestLong = long;
+			}
 		}
-		placed.set(piece.name, { x: x + EXTRUDE, y: y + EXTRUDE });
-		x += cellWidth;
-		shelf = Math.max(shelf, cellHeight);
+		if (!best) throw new Error(`${piece.name} does not fit on one ${ATLAS_WIDTH}x${MAX_HEIGHT} page`);
+		const cell = { x: best.x, y: best.y, width, height };
+		placed.set(piece.name, { x: cell.x + EXTRUDE, y: cell.y + EXTRUDE });
+		used = Math.max(used, cell.y + height);
+		free = splitFree(free, cell);
 	}
-	const used = y + shelf;
-	if (used > MAX_HEIGHT) throw new Error(`the pieces need ${used} px of height; the atlas holds ${MAX_HEIGHT}`);
 	let height = 256;
 	while (height < used) height *= 2;
 	return { placed, height };
+}
+
+/** Every free rect the cell overlaps, split into the parts it leaves, then any rect inside another dropped. */
+function splitFree(free, cell) {
+	const next = [];
+	for (const rect of free) {
+		const overlaps = cell.x < rect.x + rect.width && rect.x < cell.x + cell.width && cell.y < rect.y + rect.height && rect.y < cell.y + cell.height;
+		if (!overlaps) {
+			next.push(rect);
+			continue;
+		}
+		if (cell.x > rect.x) next.push({ x: rect.x, y: rect.y, width: cell.x - rect.x, height: rect.height });
+		if (cell.x + cell.width < rect.x + rect.width) next.push({ x: cell.x + cell.width, y: rect.y, width: rect.x + rect.width - cell.x - cell.width, height: rect.height });
+		if (cell.y > rect.y) next.push({ x: rect.x, y: rect.y, width: rect.width, height: cell.y - rect.y });
+		if (cell.y + cell.height < rect.y + rect.height) next.push({ x: rect.x, y: cell.y + cell.height, width: rect.width, height: rect.y + rect.height - cell.y - cell.height });
+	}
+	return next.filter((rect, index) => !next.some((other, otherIndex) => otherIndex !== index
+		&& rect.x >= other.x && rect.y >= other.y && rect.x + rect.width <= other.x + other.width && rect.y + rect.height <= other.y + other.height
+		&& (otherIndex < index || rect.width !== other.width || rect.height !== other.height || rect.x !== other.x || rect.y !== other.y)));
 }
 
 /** Copies a piece into the page and repeats its outermost texels across the gutter. */
@@ -116,10 +146,12 @@ function manifestSource(pieces, placed, height) {
 		.sort((a, b) => a.name.localeCompare(b.name))
 		.map((piece) => {
 			const { x, y } = placed.get(piece.name);
+			const density = piece.slice?.scale ? `, scale: ${piece.slice.scale}` : '';
 			const slice = piece.slice
-				? `, slice: { top: ${piece.slice.top}, right: ${piece.slice.right}, bottom: ${piece.slice.bottom}, left: ${piece.slice.left} }`
+				? `, slice: { top: ${piece.slice.top}, right: ${piece.slice.right}, bottom: ${piece.slice.bottom}, left: ${piece.slice.left}${density} }`
 				: '';
-			return `\t\t${piece.name}: { x: ${x}, y: ${y}, width: ${piece.width}, height: ${piece.height}, scale: ${piece.scale}, tint: '${piece.tint}'${slice} },`;
+			const ground = piece.ground ? `, ground: '${piece.ground}'` : '';
+			return `\t\t${piece.name}: { x: ${x}, y: ${y}, width: ${piece.width}, height: ${piece.height}, scale: ${piece.scale}, tint: '${piece.tint}'${slice}${ground} },`;
 		});
 	return [
 		'/**',
@@ -162,7 +194,9 @@ async function main() {
 	if (check) {
 		const stale = [];
 		if (!existsSync(atlasPath) || !readFileSync(atlasPath).equals(png)) stale.push(atlasPath);
-		if (!existsSync(manifestPath) || readFileSync(manifestPath, 'utf8') !== manifest) stale.push(manifestPath);
+		// A Windows checkout with autocrlf has CRLF in the manifest; the content is what matters.
+		const committed = existsSync(manifestPath) ? readFileSync(manifestPath, 'utf8').replace(/\r\n/g, '\n') : null;
+		if (committed !== manifest) stale.push(manifestPath);
 		if (stale.length > 0) {
 			console.error(`UI art is stale; run node scripts/build-ui-art.mjs:\n${stale.join('\n')}`);
 			process.exit(1);

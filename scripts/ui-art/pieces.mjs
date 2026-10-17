@@ -4,13 +4,18 @@
  * docs/design/ui-art-direction/canvas/ (WearStandards, Materials, FinalSplash,
  * FinalLogo, FinalCompound); the spec is docs/specs/UI Art Direction.md.
  *
- * A piece is { name, width, height, svg, scale, tint, slice? }:
- * - `scale` 2 marks a 2x raster of a 1x piece; it draws at width / 2.
+ * A piece is { name, width, height, svg, scale, tint, slice?, ground? }:
+ * - `scale` 2 marks a 2x raster of a 1x piece; it draws at width / 2. Every
+ *   sliced piece has one, since the full-screen sheet is the main use and a
+ *   1x corner is soft at a device pixel ratio of 2.
  * - `tint` says what the draw multiplies it by (R5.18). `surface` pieces are
  *   white paper with the wear multiplied in, so the shader's tint is the
  *   paper token and the centre slice comes out exactly that colour. `ink`
  *   pieces are white coverage for an ink colour. `none` is baked colour.
- * - `slice` is R5.19's insets in texture pixels.
+ * - `slice` is R5.19's insets in texture pixels, with `scale` beside them on
+ *   a 2x piece so its corners draw at their 1x size.
+ * - `ground` is the flat colour of a baked surface piece, which a draw falls
+ *   back to when the page is not resident; a `surface` piece uses its tint.
  *
  * Every random choice comes from a PRNG seeded by the piece's name, and every
  * feTurbulence has a fixed seed, so a rebuild draws the same pixels.
@@ -127,6 +132,26 @@ function edgeBandMask({ id, width, height, band, falloff }) {
 }
 
 /**
+ * Where the mottle may go: the corners, fading to nothing by `inset`, which is
+ * where the edge slices start. An edge slice is stretched along its length,
+ * up to ten times on a full-screen sheet, so it carries only the band's tone,
+ * the same at every point along it, and a stretch cannot streak it.
+ */
+function cornerMask({ id, width, height, inset }) {
+	const corners = [[0, 0], [width, 0], [width, height], [0, height]];
+	return `<radialGradient id="${id}Fade" cx="0.5" cy="0.5" r="0.5">`
+		+ '<stop offset="0" stop-color="#fff"/><stop offset="0.55" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'
+		+ `<mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="${width}" height="${height}">`
+		+ corners.map(([cx, cy]) => `<circle cx="${cx}" cy="${cy}" r="${inset}" fill="url(#${id}Fade)"/>`).join('')
+		+ '</mask>';
+}
+
+/** The band's even tone, the average of the mottle, so an edge slice reads as the same paper as its corners. */
+function bandTone(width, height, opacity) {
+	return `<rect width="${width}" height="${height}" fill="#66472A" opacity="${opacity}" mask="url(#band)"/>`;
+}
+
+/**
  * WearStandards' wsGrime, reseeded, with its alpha scaled by `strength`: the
  * mock's full strength takes ink on Sheet below 4.5:1 at the darkest blot, and
  * the spec measures contrast on the worn texture, not the flat colour.
@@ -170,13 +195,12 @@ const PAPER_VARIANTS = ['a', 'b', 'c'];
 const STRENGTH_W2 = 0.55;
 const STRENGTH_W3 = 0.54;
 /**
- * Texels of edge slice between a W2 or W3 piece's corners. An edge stretches
- * from these to the surface's length; a surface shorter than the piece
- * squeezes them instead, and without mips that aliases into streaks, so this
- * is short enough that a legend box rarely squeezes and long enough that a
- * full sheet's edge keeps some mottle.
+ * Texels of edge slice between a W2 or W3 piece's corners. The edge is the
+ * same all along its length (`cornerMask`), so a few texels stretch to any
+ * sheet without streaking, and a surface barely larger than two corners
+ * never squeezes it.
  */
-const EDGE_SPAN = 96;
+const EDGE_SPAN = 8;
 
 /**
  * W1, handled: a soft edge tone and one smudge at the grab corner, no
@@ -201,7 +225,7 @@ function paperW1(variant, index) {
 const W2_TEARS = [{ tr: 7 }, { bl: 6, tl: 4 }, { br: 8 }];
 const W2_STAINS = ['br', 'tl', 'bl'];
 
-/** W2, worn: aged edge-band grime, shallow tears, and a margin stain, all inside the 96 px band slices. */
+/** W2, worn: aged edge-band grime, shallow tears, and a margin stain, the marks all inside the 96 px corner slices. */
 function paperW2(variant, index) {
 	const rng = random(`paper_w2_${variant}`);
 	const size = 96 * 2 + EDGE_SPAN;
@@ -209,6 +233,7 @@ function paperW2(variant, index) {
 	const outline = paperOutline({ width: size, height: size, inset, tears: W2_TEARS[index], rng });
 	const body = '<defs>'
 		+ edgeBandMask({ id: 'band', width: size, height: size, band: 24, falloff: 48 })
+		+ cornerMask({ id: 'corners', width: size, height: size, inset })
 		+ grimeFilter('grime', 17 + index * 11, { strength: STRENGTH_W2 })
 		+ BLEED('bleed', 9 + index)
 		+ `<clipPath id="outline"><polygon points="${points(outline)}"/></clipPath>`
@@ -216,7 +241,8 @@ function paperW2(variant, index) {
 		+ '<g clip-path="url(#outline)">'
 		+ `<rect width="${size}" height="${size}" fill="#fff"/>`
 		+ `<rect width="${size}" height="${size}" fill="${PALETTE.grime}" opacity="0.12" mask="url(#band)"/>`
-		+ `<rect width="${size}" height="${size}" filter="url(#grime)" mask="url(#band)" style="mix-blend-mode: multiply"/>`
+		+ bandTone(size, size, 0.06)
+		+ `<g mask="url(#corners)"><rect width="${size}" height="${size}" filter="url(#grime)" mask="url(#band)" style="mix-blend-mode: multiply"/></g>`
 		+ cornerStain({ corner: W2_STAINS[index], width: size, height: size, size: 70, rng })
 		+ '</g>';
 	return { name: `paper_w2_${variant}`, width: size, height: size, svg: svg(size, size, body), slice: { top: inset, right: inset, bottom: inset, left: inset }, tint: 'surface', scale: 1 };
@@ -274,6 +300,7 @@ function paperW3(variant, index) {
 	const clip = `<path clip-rule="evenodd" d="M${points(outline).split(' ').join(' L')} Z${hole}"/>`;
 	const body = '<defs>'
 		+ edgeBandMask({ id: 'band', width: size, height: size, band: 28, falloff: 56 })
+		+ cornerMask({ id: 'corners', width: size, height: size, inset })
 		+ grimeFilter('grime', [3, 29, 41][index], { strength: STRENGTH_W3, specks: true, frequency: 0.012 })
 		+ BLEED('bleed', 5 + index)
 		+ BLUR('charBlur', 1.6)
@@ -286,7 +313,8 @@ function paperW3(variant, index) {
 		+ '<g clip-path="url(#outline)">'
 		+ `<rect width="${size}" height="${size}" fill="#fff"/>`
 		+ `<rect width="${size}" height="${size}" fill="${PALETTE.grime}" opacity="0.12" mask="url(#band)"/>`
-		+ `<rect width="${size}" height="${size}" filter="url(#grime)" mask="url(#band)" style="mix-blend-mode: multiply"/>`
+		+ bandTone(size, size, 0.08)
+		+ `<g mask="url(#corners)"><rect width="${size}" height="${size}" filter="url(#grime)" mask="url(#band)" style="mix-blend-mode: multiply"/></g>`
 		+ hero
 		+ '</g>';
 	return { name: `paper_w3_${variant}`, width: size, height: size, svg: svg(size, size, body), slice: { top: inset, right: inset, bottom: inset, left: inset }, tint: 'surface', scale: 1 };
@@ -312,8 +340,10 @@ function paperFold() {
  * highlight is lighter than the paper and a multiplied tint cannot lighten.
  */
 function atlasCover() {
-	const sheetWidth = 480;
-	const sheetHeight = 360;
+	const slice = { top: 80, right: 90, bottom: 90, left: 96 };
+	// The page edges step 10 px out to the right and bottom, inside those insets.
+	const sheetWidth = slice.left + EDGE_SPAN + slice.right - 10;
+	const sheetHeight = slice.top + EDGE_SPAN + slice.bottom - 10;
 	const width = sheetWidth + 10;
 	const height = sheetHeight + 10;
 	const line = (offset, stroke) => {
@@ -322,18 +352,20 @@ function atlasCover() {
 	};
 	const body = '<defs>'
 		+ edgeBandMask({ id: 'band', width: sheetWidth, height: sheetHeight, band: 20, falloff: 48 })
+		+ cornerMask({ id: 'corners', width: sheetWidth, height: sheetHeight, inset: 80 })
 		+ grimeFilter('grime', 17, { strength: STRENGTH_W2, frequency: 0.012 })
 		+ '</defs>'
 		+ `<rect x="10" y="10" width="${sheetWidth}" height="${sheetHeight}" fill="${PALETTE.ink}"/>`
 		+ `<rect x="9" y="9" width="${sheetWidth}" height="${sheetHeight}" fill="#C9BFA5"/>`
 		+ `<rect x="6" y="6" width="${sheetWidth}" height="${sheetHeight}" fill="#D9D0B8"/>`
 		+ `<rect width="${sheetWidth}" height="${sheetHeight}" fill="${PALETTE.sheet}"/>`
-		+ `<rect width="${sheetWidth}" height="${sheetHeight}" filter="url(#grime)" mask="url(#band)" style="mix-blend-mode: multiply"/>`
+		+ bandTone(sheetWidth, sheetHeight, 0.06)
+		+ `<g mask="url(#corners)"><rect width="${sheetWidth}" height="${sheetHeight}" filter="url(#grime)" mask="url(#band)" style="mix-blend-mode: multiply"/></g>`
 		+ `<rect width="26" height="${sheetHeight}" fill="#3A2A14" opacity="0.12"/>`
 		+ `<rect x="26" width="3" height="${sheetHeight}" fill="#FFF6DC" opacity="0.5"/>`
 		+ line({ left: 44.3, top: 18.3, right: 18.3, bottom: 18.3 }, 0.6)
 		+ line({ left: 52.8, top: 26.8, right: 26.8, bottom: 26.8 }, 1.6);
-	return { name: 'atlas_cover', width, height, svg: svg(width, height, body), slice: { top: 80, right: 90, bottom: 90, left: 96 }, tint: 'none', scale: 1 };
+	return { name: 'atlas_cover', width, height, svg: svg(width, height, body), slice, tint: 'none', scale: 1, ground: PALETTE.sheet };
 }
 
 // -- tape and hand marks ----------------------------------------------------
@@ -502,6 +534,7 @@ function cardBacks() {
 				svg: svg(100 * scale, 140 * scale, group, '0 0 100 140'),
 				tint: 'none',
 				scale,
+				ground: PALETTE.paper,
 			});
 		}
 	}
@@ -512,7 +545,7 @@ function cardBacks() {
 function cardEdge() {
 	const size = 24;
 	const body = `<rect x="0.5" y="0.5" width="23" height="23" rx="7" fill="${PALETTE.cardEdge}" stroke="${PALETTE.ink}" stroke-width="1"/>`;
-	return { name: 'card_edge', width: size, height: size, svg: svg(size, size, body), slice: { top: 9, right: 9, bottom: 9, left: 9 }, tint: 'none', scale: 1 };
+	return { name: 'card_edge', width: size, height: size, svg: svg(size, size, body), slice: { top: 9, right: 9, bottom: 9, left: 9 }, tint: 'none', scale: 1, ground: PALETTE.cardEdge };
 }
 
 // -- logo, mark, icons ------------------------------------------------------
@@ -587,22 +620,43 @@ function icons() {
 	return out;
 }
 
+/**
+ * The 2x raster of a 1x piece: the same SVG at twice the pixels (its viewBox,
+ * and so every filter, gradient and seed, is unchanged), and its insets in
+ * 2x texels with the density that keeps its corners at their 1x size.
+ */
+function at2x(piece) {
+	const width = piece.width * 2;
+	const height = piece.height * 2;
+	const svg2x = piece.svg.replace(`width="${piece.width}" height="${piece.height}"`, `width="${width}" height="${height}"`);
+	if (svg2x === piece.svg) throw new Error(`${piece.name}: no root size to double`);
+	const slice = piece.slice
+		? { top: piece.slice.top * 2, right: piece.slice.right * 2, bottom: piece.slice.bottom * 2, left: piece.slice.left * 2, scale: 2 }
+		: undefined;
+	return { ...piece, name: `${piece.name}_2x`, width, height, svg: svg2x, slice, scale: 2 };
+}
+
 /** Every piece, in a fixed order (the packer sorts its own copy). */
 export function authorPieces(repoRoot) {
-	return [
+	const sliced = [
 		...PAPER_VARIANTS.map(paperW1),
 		...PAPER_VARIANTS.map(paperW2),
 		...PAPER_VARIANTS.map(paperW3),
-		paperFold(),
 		atlasCover(),
-		...PAPER_VARIANTS.map(tape),
 		...['a', 'b', 'c', 'd'].map(highlighter),
+		cardEdge(),
+	];
+	return [
+		...sliced,
+		...sliced.map(at2x),
+		paperFold(),
+		...PAPER_VARIANTS.map(tape),
 		...['a', 'b', 'c', 'd'].map(greaseLoop),
 		...stamps(),
 		...cardBacks(),
-		cardEdge(),
 		...logos(repoRoot),
 		...marks(),
 		...icons(),
 	];
 }
+

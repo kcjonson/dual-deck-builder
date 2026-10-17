@@ -26,15 +26,19 @@ describe('validateArtAtlas', () => {
 		expect(validateArtAtlas(manifest({ paper: PAPER, over: { ...ICON_2X, x: 40 } }))).toEqual(['paper overlaps over']);
 	});
 
-	it('rejects a sliced 2x piece and insets with no centre', () => {
+	it('rejects a 2x piece sliced at 1x density and insets with no centre', () => {
 		const problems = validateArtAtlas(manifest({
 			sliced: { ...ICON_2X, slice: { top: 4, right: 4, bottom: 4, left: 4 } },
 			tight: { ...PAPER, slice: { top: 32, right: 16, bottom: 32, left: 16 } },
 		}));
 		expect(problems).toEqual([
-			'sliced: a sliced piece has to be 1x',
+			'sliced: its slice is at 1x but the piece is 2x',
 			'tight: insets 32 16 32 16 leave no centre in 64x64',
 		]);
+	});
+
+	it('accepts a 2x piece whose slice carries its density', () => {
+		expect(validateArtAtlas(manifest({ sliced: { ...ICON_2X, slice: { top: 4, right: 4, bottom: 4, left: 4, scale: 2 } } }))).toEqual([]);
 	});
 
 	it('rejects a fractional rect and an unknown scale', () => {

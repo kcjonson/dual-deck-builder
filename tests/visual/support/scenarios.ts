@@ -204,6 +204,8 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'ui-art-paper' },
 	{ scene: 'ui-art-cover' },
 	{ scene: 'ui-art-marks' },
+	// The full-screen sheet, gated at both sizes since it fills the window (DDB-504)
+	{ scene: 'ui-art-sheet', shortViewport: true },
 ];
 
 /** A scene at one window size, and the name its golden and text record go by there. */

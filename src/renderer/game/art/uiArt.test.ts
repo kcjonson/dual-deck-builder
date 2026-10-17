@@ -4,9 +4,9 @@ import { PNG } from 'pngjs';
 import { ArtPiece, validateArtAtlas } from '../../engine/draw/artAtlas';
 import { DrawApi } from '../../engine/draw/DrawApi';
 import { RecordingBackend } from '../../engine/draw/RecordingBackend';
-import type { ImageCommand } from '../../engine/draw/commands';
+import type { ImageCommand, RectCommand } from '../../engine/draw/commands';
 import { resolveColor } from '../../engine/style/styleObject';
-import { UI_ART_ATLAS, drawUiArt, loadUiArt, uiArtSize } from './uiArt';
+import { UI_ART_ATLAS, drawUiArt, loadUiArt, uiArtPiece, uiArtSize } from './uiArt';
 import { UI_ART_MANIFEST, UiArtName } from './uiArtManifest';
 
 const ATLAS = PNG.sync.read(readFileSync(resolve(__dirname, '../../../assets/ui-art/ui-art.png')));
@@ -84,6 +84,33 @@ describe('the UI art page', () => {
 		}
 	});
 
+	// A full-screen sheet stretches each edge slice about ten times along its
+	// length, so every row of a top or bottom edge is one colour, and every
+	// column of a side; a stretch then has nothing to streak.
+	it.each(NAMES.filter((name) => /^(paper_w[23]|atlas_cover)/.test(name)))('%s has edge slices that are the same all along', (name) => {
+		const piece: ArtPiece = PIECES[name];
+		const slice = piece.slice ?? { top: 0, right: 0, bottom: 0, left: 0 };
+		const worst = { delta: 0, at: '' };
+		const compare = (x: number, y: number, rx: number, ry: number) => {
+			const a = texel(piece.x + x, piece.y + y);
+			const b = texel(piece.x + rx, piece.y + ry);
+			const delta = Math.max(...a.map((channel, index) => Math.abs(channel - b[index])));
+			if (delta > worst.delta) Object.assign(worst, { delta, at: `${x},${y}` });
+		};
+		const right = piece.width - slice.right;
+		const bottom = piece.height - slice.bottom;
+		for (let x = slice.left; x < right; x++) {
+			for (let y = 0; y < slice.top; y++) compare(x, y, slice.left, y);
+			for (let y = bottom; y < piece.height; y++) compare(x, y, slice.left, y);
+		}
+		for (let y = slice.top; y < bottom; y++) {
+			for (let x = 0; x < slice.left; x++) compare(x, y, x, slice.top);
+			for (let x = right; x < piece.width; x++) compare(x, y, x, slice.top);
+		}
+		expect(worst).toEqual({ delta: expect.any(Number), at: expect.any(String) });
+		expect(worst.delta).toBeLessThanOrEqual(2);
+	});
+
 	// Spec, Wear: text holds 4.5:1 measured on the worn texture, tinted the way it
 	// draws. W3's hero mark is the one place exempt: it sits in its corner, and
 	// nothing is read there.
@@ -91,7 +118,7 @@ describe('the UI art page', () => {
 	it.each(NAMES.filter((name) => PIECES[name].tint === 'surface'))('ink holds 4.5:1 on every opaque texel of %s', (name) => {
 		const piece: ArtPiece = PIECES[name];
 		const tint = resolveColor(/^paper_w1/.test(name) ? '#F4EEDD' : '#EEE7D2');
-		const corner = HERO[name];
+		const corner = HERO[name.replace(/_2x$/, '') as UiArtName];
 		const inset = piece.slice?.top ?? 0;
 		let worst = Infinity;
 		for (let y = 0; y < piece.height; y++) {
@@ -122,13 +149,20 @@ describe('loadUiArt and drawUiArt', () => {
 		});
 	});
 
-	it('draws nothing and says so when the page is not resident', () => {
+	it('falls back to flat paper when the page is not resident, and draws no marks', () => {
 		const backend = new RecordingBackend();
 		const api = new DrawApi({ backend });
+		const sheet = resolveColor('#EEE7D2');
+		const rect = { x: 0, y: 0, width: 400, height: 300 };
 		api.beginFrame({ viewport: { width: 640, height: 480 } });
-		expect(drawUiArt(api, { name: 'paper_w2_a', rect: { x: 0, y: 0, width: 400, height: 300 } })).toBe(false);
+		expect(drawUiArt(api, { name: 'paper_w2_a', rect, tint: sheet })).toBe(false);
+		expect(drawUiArt(api, { name: 'atlas_cover', rect })).toBe(false);
+		expect(drawUiArt(api, { name: 'icon_water', rect: { x: 0, y: 0, width: 18, height: 18 }, tint: sheet })).toBe(false);
 		api.endFrame();
-		expect(backend.commands).toHaveLength(0);
+		expect(backend.commands.map((command) => [command.kind, (command as RectCommand).fill])).toEqual([
+			['rect', sheet],
+			['rect', resolveColor('#EEE7D2')],
+		]);
 	});
 
 	it('draws a piece from the resident page, nine-sliced', () => {
@@ -142,5 +176,23 @@ describe('loadUiArt and drawUiArt', () => {
 		const [command] = backend.commands as ImageCommand[];
 		const piece = PIECES.paper_w2_a;
 		expect(command).toMatchObject({ texture, sourceRect: { x: piece.x, y: piece.y, width: piece.width, height: piece.height }, slice: piece.slice });
+	});
+
+	it('draws the 2x raster at a ratio above 1, its corners at their 1x size', () => {
+		const backend = new RecordingBackend();
+		const api = new DrawApi({ backend });
+		const texture = api.createTexture({ width: UI_ART_MANIFEST.width, height: UI_ART_MANIFEST.height });
+		api.loadArtAtlas({ name: UI_ART_ATLAS, texture });
+		api.beginFrame({ viewport: { width: 640, height: 480 }, ratio: 2 });
+		drawUiArt(api, { name: 'paper_w2_a', rect: { x: 0, y: 0, width: 400, height: 300 } });
+		drawUiArt(api, { name: 'stamp_looted', rect: { x: 0, y: 0, ...uiArtSize('stamp_looted') } });
+		api.endFrame();
+		const [paper, stamp] = backend.commands as ImageCommand[];
+		const dense = PIECES.paper_w2_a_2x;
+		expect(paper.sourceRect).toEqual({ x: dense.x, y: dense.y, width: dense.width, height: dense.height });
+		expect(paper.slice).toEqual({ top: 192, right: 192, bottom: 192, left: 192, scale: 2 });
+		// A piece with no 2x raster draws its 1x one.
+		expect(stamp.sourceRect).toMatchObject({ x: PIECES.stamp_looted.x, y: PIECES.stamp_looted.y });
+		expect(uiArtPiece('stamp_looted', 2)).toBe(PIECES.stamp_looted);
 	});
 });

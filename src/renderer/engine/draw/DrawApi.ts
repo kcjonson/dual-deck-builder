@@ -1120,7 +1120,9 @@ function copyShadow(shadow: BoxShadow): Required<Omit<BoxShadow, 'color'>> & { c
 
 function copySlice(slice: NineSlice | undefined): NineSlice | null {
 	if (!slice) return null;
-	return { top: slice.top, right: slice.right, bottom: slice.bottom, left: slice.left };
+	const copy: NineSlice = { top: slice.top, right: slice.right, bottom: slice.bottom, left: slice.left };
+	if (slice.scale !== undefined) copy.scale = slice.scale;
+	return copy;
 }
 
 function buildText(

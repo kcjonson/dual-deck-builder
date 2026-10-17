@@ -15,6 +15,8 @@ export interface ArtSlice {
 	readonly right: number;
 	readonly bottom: number;
 	readonly left: number;
+	/** Texels per logical pixel in the corners, the piece's own scale; absent is 1 (`NineSlice.scale`). */
+	readonly scale?: number;
 }
 
 /** One piece of an art atlas page: its rect in texture pixels, and how it draws. */
@@ -26,8 +28,10 @@ export interface ArtPiece {
 	/** Texels per logical pixel: 2 for the 2x raster of a 1x piece. */
 	readonly scale: number;
 	readonly tint: ArtTint;
-	/** R5.19's insets in texture pixels; only 1x pieces are sliced, since a corner draws one logical pixel per texel. */
+	/** R5.19's insets in texture pixels, carrying the piece's scale so a 2x piece's corners draw at their 1x size. */
 	readonly slice?: ArtSlice;
+	/** A baked surface piece's flat colour (`#RRGGBB`), drawn instead when the page is not resident. */
+	readonly ground?: string;
 }
 
 /** An offline-built atlas page (R5.31's UI atlases): its size and named pieces. */
@@ -39,8 +43,9 @@ export interface ArtAtlasManifest {
 
 /**
  * The problems with a manifest, none when it is sound: every piece inside the
- * page, no two overlapping, insets that leave a centre, and slices only on 1x
- * pieces. A generated manifest that fails this was generated wrong.
+ * page, no two overlapping, insets that leave a centre, and a slice's density
+ * equal to its piece's scale. A generated manifest that fails this was
+ * generated wrong.
  */
 export function validateArtAtlas(manifest: ArtAtlasManifest): string[] {
 	const problems: string[] = [];
@@ -54,7 +59,7 @@ export function validateArtAtlas(manifest: ArtAtlasManifest): string[] {
 		}
 		if (scale !== 1 && scale !== 2) problems.push(`${name}: scale ${scale} is not 1 or 2`);
 		if (slice) {
-			if (scale !== 1) problems.push(`${name}: a sliced piece has to be 1x`);
+			if ((slice.scale ?? 1) !== scale) problems.push(`${name}: its slice is at ${slice.scale ?? 1}x but the piece is ${scale}x`);
 			if (slice.left + slice.right >= width || slice.top + slice.bottom >= height) {
 				problems.push(`${name}: insets ${slice.top} ${slice.right} ${slice.bottom} ${slice.left} leave no centre in ${width}x${height}`);
 			}
