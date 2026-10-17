@@ -1210,7 +1210,7 @@ export abstract class Component {
 	public set theme(value: ThemeName | null) {
 		if (this.ownTheme === value) return;
 		this.ownTheme = value;
-		this.syncTheme(this.parentComponent ? this.parentComponent.effectiveTheme : BASE_THEME);
+		this.syncTheme(this.parentComponent ? this.parentComponent.appliedTheme : BASE_THEME);
 	}
 
 	/** The nearest own theme up the tree, the base theme at a root without one. */
@@ -1220,8 +1220,10 @@ export abstract class Component {
 
 	/**
 	 * The token table this component resolves token names and its own look
-	 * against (R11.15): `effectiveTheme`'s, kept in step by `syncTheme`, so a
-	 * read is a lookup rather than a walk.
+	 * against (R11.15): `effectiveTheme`'s while attached, kept in step by
+	 * `syncTheme`, so a read is a lookup rather than a walk. A detached
+	 * subtree keeps the theme it was last attached under, and a child added to
+	 * it inherits that, until it is inserted again or mounted as a root.
 	 */
 	public get themeTokens(): Theme {
 		return themes[this.appliedTheme];
@@ -1340,7 +1342,7 @@ export abstract class Component {
 		child.ownedByParent = false;
 		this.childList.splice(clampIndex(index, this.childList.length), 0, child);
 		this.orderView = null;
-		child.syncTheme(this.effectiveTheme);
+		child.syncTheme(this.appliedTheme);
 		// R8.15: adding to a mounted parent mounts at once.
 		if (this.mountContext && !child.mountContext) child.mount(this.mountContext);
 		this.invalidateFocusOrder();

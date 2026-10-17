@@ -7,6 +7,7 @@ import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA } from '../draw/geometry';
 import type { OverlayDismissReason, OverlayHandle } from '../services/OverlayService';
 import { tokens } from '../theme/tokens';
+import type { ThemeName } from '../theme/tokens';
 import { Button } from './Button';
 import { Panel, PanelOptions } from './Panel';
 
@@ -51,7 +52,6 @@ export interface DialogOptions {
 	onClose?: () => void;
 }
 
-const { color } = tokens;
 /** The body's gap above the footer, or above the panel's edge without one. */
 const EDGE = tokens.space.space_4;
 const FOOTER_INSET = tokens.space.space_3;
@@ -80,7 +80,7 @@ class DialogPanel extends Panel {
 		const border = tokens.borderWidth.bw;
 		draw.drawRect({
 			rect: { x: border, y: this.footer.y, width: this.width - border * 2, height: tokens.borderWidth.bw_hair },
-			fill: color.line_hairline,
+			fill: this.themeTokens.color.line_hairline,
 		});
 	}
 }
@@ -243,9 +243,10 @@ export class Dialog extends Component {
 	 * (`overlay` when not modal), through the context of whatever asked (a
 	 * screen, a button's handler). Ignored unless closed. Named `show`
 	 * because `open` is R11.11's state flag on every component, which this
-	 * sets while the dialog is anything but closed.
+	 * sets while the dialog is anything but closed. `theme` is the opener's,
+	 * usually its screen's (`Screen.theme`); absent is the base theme.
 	 */
-	public show(context: MountContext): void {
+	public show(context: MountContext, { theme }: { theme?: ThemeName } = {}): void {
 		if (this.stateValue !== 'closed') return;
 		this.stateValue = 'opening';
 		this.open = true;
@@ -253,6 +254,7 @@ export class Dialog extends Component {
 			id: `${this.id ?? 'dialog'}_root`,
 			layer: this.isModal ? 'modal' : 'overlay',
 			modal: this.isModal,
+			theme,
 			fill: true,
 			inside: this.panel,
 			dismissOnOutsidePress: this.dismissOnOutsidePress,
@@ -279,7 +281,7 @@ export class Dialog extends Component {
 	}
 
 	private get scrimColor(): RGBA {
-		const scrim = color.scrim;
+		const scrim = this.themeTokens.color.scrim;
 		return [scrim[0], scrim[1], scrim[2], scrim[3] * this.progressValue];
 	}
 

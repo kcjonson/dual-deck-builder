@@ -44,16 +44,19 @@ How option 3 works:
 
 ## What follows the theme today
 
-The primitives most screens build with and the one control the atlas primary needs:
+The primitives most screens build with, one control, and the overlay chrome:
 
 - `Rectangle`: its style object and the setter overrides (`fillColor`, `borderColor`, `borderWidth`, `cornerRadius`) are kept as authored and re-resolved, so `fillColor = 'accent'` follows the theme.
 - `Stack`'s backdrop.
 - `Text`'s colour (the only themed thing it draws).
-- `Button`, through `buttonLayers`. On an atlas screen `tone: 'accent'` is the highway primary: Highway fill, paper-coloured `accent_contrast` text, square corners, no glow.
+- `Button`, through `buttonLayers`, in every state. On an atlas screen `tone: 'accent'` has the Highway fill, `accent_contrast` text, square corners, and no glow. That's the token layer of the spec's highway primary, not all of it: the casing border, the ink focus ring, and the 18.66 px minimum label are DDB-505's.
+- `Panel` (its box, its header text, and the content inset that clears its corner, which moves with `radius_panel`), `Dialog` (scrim and footer hairline), `Popover`, `Tooltip`, and `KeyCap`.
 
-Everything else still reads the base table directly: the rest of the engine catalog (Panel, Slider, Toggle, Menu, Dialog, Tooltip, Toast, TabBar, and so on), the shapes (Circle, Polygon, Triangle, Line, Image tint), and the game's composites. Each converts the same way when an atlas screen first uses it: resolve against `this.themeTokens` (or pass it to the variant builder) and re-resolve in `onThemeChange`. Leaving them for now keeps this change to the mechanism; DDB-505 and the screen tasks convert what they use.
+Everything else still reads the base table directly: the rest of the engine catalog (Slider, Toggle, Menu, Toast, TabBar, and so on), the shapes (Circle, Polygon, Triangle, Line, Image tint), and the game's composites. Each converts the same way when an atlas screen first uses it: resolve against `this.themeTokens` (or pass it to the variant builder) and re-resolve in `onThemeChange`. DDB-505 and the screen tasks convert what they use.
 
-Overlays are their own roots. A dialog, popover, or tooltip opened from an atlas screen is dark unless the opener sets `theme` on the content (`dialog.theme = this.effectiveTheme`) before opening it. The services don't do it yet because none of them knows its opener; DDB-505 should decide whether `OverlayService.open` takes a theme or the catalog's openers pass their own.
+Overlays are their own roots, so their theme comes from whoever opens them. `OverlayOptions.theme` sets it on the overlay's root and the content inherits it. The services fill it in from what they already know: the popup service from the trigger, else the anchor component; the tooltip service from the owner; a popover from its anchor component unless `PopoverOptions.theme` says otherwise. A dialog has no opener, so the caller passes one: `dialog.show(this.context, { theme: this.theme })` from a screen.
+
+A detached subtree keeps the theme it was last attached under, and a child added to it while detached inherits that, so re-inserting the subtree under the same theme leaves nothing stale. Syncing reads the parent's applied theme, not a walk up the tree, so an insert costs one comparison when nothing moves.
 
 ## Consequences
 

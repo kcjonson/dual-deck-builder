@@ -2,6 +2,12 @@
  * @jest-environment jsdom
  */
 import { Button } from '../ui/Button';
+import { Dialog } from '../ui/Dialog';
+import { KeyCap } from '../ui/KeyCap';
+import { Panel } from '../ui/Panel';
+import { Popover } from '../ui/Popover';
+import { Tooltip } from '../ui/Tooltip';
+import { over } from '../style/look';
 import { resolveColor, resolveLength, resolveShadow } from '../style/styleObject';
 import { buttonLayers, toneColor } from '../style/variants';
 import { Theme, themes, tokens } from '../theme/tokens';
@@ -167,5 +173,181 @@ describe('Component theme (UI Art Direction, open question 1)', () => {
 	it('resolves a component built with its own theme against it from the constructor', () => {
 		const label = new Text({ text: 'Legend', theme: 'atlas', style: { color: 'text' } });
 		expect(label.color).toEqual(atlas.color.text);
+	});
+});
+
+describe('a detached subtree keeps its theme for what is added to it', () => {
+	it('resolves a child added while detached against the theme it is re-inserted under', () => {
+		const root = new Container({ theme: 'atlas' });
+		const group = new Container();
+		root.addChild(group);
+		root.removeChild(group);
+		const label = new Text({ text: 'Water', style: { color: 'text' } });
+		group.addChild(label);
+		root.addChild(group);
+		expect(label.color).toEqual(atlas.color.text);
+	});
+
+	it('moves that child to dark when the group is re-inserted under a dark parent', () => {
+		const atlasRoot = new Container({ theme: 'atlas' });
+		const darkRoot = new Container();
+		const group = new Container();
+		atlasRoot.addChild(group);
+		atlasRoot.removeChild(group);
+		const label = new Text({ text: 'Water', style: { color: 'text' } });
+		group.addChild(label);
+		darkRoot.addChild(group);
+		expect(label.color).toEqual(dark.color.text);
+	});
+});
+
+describe('atlas state looks (R11.12 over the atlas tokens)', () => {
+	function atlasButton(tone: 'accent' | 'default'): Button {
+		// Unmounted, so every state change snaps rather than fading.
+		const root = new Container({ theme: 'atlas' });
+		const button = new Button({ label: 'Go', tone });
+		root.addChild(button);
+		return button;
+	}
+
+	it('brightens the highway on hover, without a glow', () => {
+		const button = atlasButton('accent');
+		button.hovered = true;
+		expect(button.look.fill).toEqual(atlas.color.accent_bright);
+		expect(button.look.glow[3]).toBe(0);
+	});
+
+	it('washes a neutral button with ink on hover', () => {
+		const button = atlasButton('default');
+		button.hovered = true;
+		expect(button.look.fill).toEqual(over(atlas.color.bg_panel_raised, atlas.color.bg_hover));
+		expect(button.look.border).toEqual(atlas.color.line_edge);
+	});
+
+	it('washes ink at 10% over the fill and nudges it when pressed', () => {
+		const button = atlasButton('accent');
+		button.pressed = true;
+		expect(button.look.fill).toEqual(over(atlas.color.accent, atlas.color.bg_pressed));
+		expect(button.look.offsetY).toBe(atlas.control.press_offset);
+	});
+
+	it('highlights a selected button and inks its text', () => {
+		const button = atlasButton('default');
+		button.selected = true;
+		expect(button.look.fill).toEqual(over(atlas.color.bg_panel_raised, atlas.color.bg_active));
+		expect(button.look.border).toEqual(atlas.color.accent);
+		expect(button.look.text).toEqual(atlas.color.text_bright);
+	});
+
+	it('drops a disabled highway to paper with dim ink', () => {
+		const button = atlasButton('accent');
+		button.enabled = false;
+		expect(button.look.fill).toEqual(atlas.color.bg_panel_raised);
+		expect(button.look.border).toEqual(atlas.color.line_edge);
+		expect(button.look.text).toEqual(atlas.color.text_dim);
+		expect(button.look.glow[3]).toBe(0);
+	});
+
+	it('greys a disabled neutral button to faded print', () => {
+		const button = atlasButton('default');
+		button.enabled = false;
+		expect(button.look.text).toEqual(atlas.color.text_disabled);
+	});
+
+	it('draws a rectangle with atlas borders, shadows, and square corners', () => {
+		const root = new Container({ theme: 'atlas' });
+		const box = new Rectangle({ style: { backgroundColor: 'bg_panel_raised', borderColor: 'line_strong', borderWidth: 'bw', borderRadius: 'radius_ui', shadow: 'shadow_raised' } });
+		root.addChild(box);
+		box.setSize(40, 20);
+		expect(box.resolvedColors).toEqual({ fill: atlas.color.bg_panel_raised, border: atlas.color.line_strong });
+		expect(box.cornerRadius).toBe(0);
+		expect(box.inkExtent).toBeGreaterThan(0);
+	});
+});
+
+/** The first component under `root`, `root` included, that `test` accepts. */
+function find(root: Component, test: (component: Component) => boolean): Component | null {
+	if (test(root)) return root;
+	for (const child of root.children) {
+		const found = find(child, test);
+		if (found) return found;
+	}
+	return null;
+}
+
+describe('overlays take the opener theme', () => {
+	function atlasScene() {
+		const context = createTestContext({ viewport: { logical: { width: 800, height: 600 } } });
+		const scene = new Container({ theme: 'atlas', width: 800, height: 600 });
+		const trigger = new Rectangle({ x: 100, y: 100, width: 80, height: 30, tooltip: { title: 'Save', description: 'Writes the run', hotkey: 'S' } });
+		scene.addChild(trigger);
+		scene.mount(context);
+		return { context, trigger };
+	}
+
+	it('themes an overlay root from OverlayOptions.theme', () => {
+		const { context } = atlasScene();
+		const content = new Rectangle({ width: 10, height: 10, style: { backgroundColor: 'bg_panel' } });
+		const handle = context.overlays.open(content, { layer: 'overlay', theme: 'atlas' });
+		expect(handle.root.theme).toBe('atlas');
+		expect(content.fillColor).toEqual(atlas.color.bg_panel);
+	});
+
+	it('keeps an overlay opened without a theme on the base', () => {
+		const { context } = atlasScene();
+		const content = new Rectangle({ width: 10, height: 10, style: { backgroundColor: 'bg_panel' } });
+		context.overlays.open(content, { layer: 'overlay' });
+		expect(content.fillColor).toEqual(dark.color.bg_panel);
+	});
+
+	it('opens a popup in its trigger theme', () => {
+		const { context, trigger } = atlasScene();
+		const menu = new Panel({ width: 120, height: 60 });
+		context.popups.show({ popup: menu, trigger, anchor: trigger });
+		expect(menu.effectiveTheme).toBe('atlas');
+		expect(menu.resolvedColors.fill).toEqual(atlas.color.bg_panel);
+	});
+
+	it('shows a tooltip in its owner theme, key cap included', () => {
+		const { context, trigger } = atlasScene();
+		context.tooltips.show(trigger, { fade: false });
+		const surface = context.tooltips.surface as Tooltip;
+		expect(surface.resolvedColors).toEqual({ fill: atlas.color.bg_panel_raised, border: atlas.color.line_edge });
+		const title = find(surface, (component) => component.id === 'tooltip_title') as Text;
+		expect(title.color).toEqual(atlas.color.text_bright);
+		const cap = find(surface, (component) => component instanceof KeyCap) as KeyCap;
+		expect(cap.resolvedColors.fill).toEqual(atlas.color.bg_panel_raised);
+	});
+
+	it('opens a popover in its anchor theme', () => {
+		const { context, trigger } = atlasScene();
+		const label = new Text({ text: 'Fuel 4', style: { color: 'text' } });
+		const popover = new Popover({ content: label, anchor: trigger });
+		popover.show(context);
+		expect(popover.resolvedColors).toEqual({ fill: atlas.color.bg_panel_raised, border: atlas.color.line_strong });
+		expect(popover.clipRadius).toBe(0);
+		expect(label.color).toEqual(atlas.color.text);
+	});
+
+	it('opens a dialog in the theme it is shown with: paper panel, table scrim, ink title', () => {
+		const { context } = atlasScene();
+		const body = new Text({ text: 'End the day?', style: { color: 'text' } });
+		const dialog = new Dialog({ title: 'Rest', content: body });
+		dialog.show(context, { theme: 'atlas' });
+		const panel = find(dialog, (component) => component instanceof Panel) as Panel;
+		expect(panel.resolvedColors.fill).toEqual(atlas.color.bg_panel_raised);
+		expect(panel.clipRadius).toBe(0);
+		expect(body.color).toEqual(atlas.color.text);
+		const title = find(panel, (component) => component instanceof Text && component.text === 'Rest') as Text;
+		expect(title.color).toEqual(atlas.color.text_bright);
+		expect(dialog.resolvedColors?.fill?.slice(0, 3)).toEqual(atlas.color.scrim.slice(0, 3));
+	});
+
+	it('re-resolves a panel, inset included, when its theme changes', () => {
+		const panel = new Panel({ flush: true, width: 100, height: 50 });
+		expect(panel.contentInset.left).toBe(dark.radius.radius_panel);
+		panel.theme = 'atlas';
+		expect(panel.resolvedColors.fill).toEqual(atlas.color.bg_panel);
+		expect(panel.contentInset.left).toBe(atlas.borderWidth.bw);
 	});
 });
