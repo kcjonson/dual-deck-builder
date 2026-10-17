@@ -179,7 +179,7 @@ export function createDrawApi({ renderer, frameTimer, gpuTimer, fontAtlases = []
 		onError: (face, error) => console.error(`draw: the ${face} font file failed to load, so its small text stays soft:`, error),
 	});
 	const backend = new WebGL2Backend({ renderer, frameTimer, gpuTimer, rasterFaces });
-	for (const { role, face, atlas, image } of fontAtlases) {
+	for (const { font, face, atlas, image } of fontAtlases) {
 		const texture = renderer.textures.create({
 			width: atlas.width,
 			height: atlas.height,
@@ -189,7 +189,7 @@ export function createDrawApi({ renderer, frameTimer, gpuTimer, fontAtlases = []
 			keepSource: true,
 			immediate: true,
 		});
-		backend.loadFontAtlas({ name: role, atlas, texture });
+		backend.loadFontAtlas({ name: font, atlas, texture });
 	}
 	const api = new DrawApi({
 		backend,

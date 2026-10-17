@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/gallery_scene_card_pile_discard/Text[0]","text":"Card piles and rewards","rect":[53,53,222.99,50]},
+{"path":"gallery_root/gallery_scene_card_pile_discard/Text[0]","text":"Card piles and rewards","rect":[53,53,229.68,50]},
 {"path":"gallery_root/gallery_scene_card_pile_discard/pile_discard/pile_discard_title","text":"Discard pile (4)","rect":[53,103,548,21.6]},
 {"path":"gallery_root/gallery_scene_card_pile_discard/pile_discard/pile_discard_cards/pile_discard_card_0/pile_discard_card_0_title","text":"Headshot","rect":[61,160.6,112,18]},
 {"path":"gallery_root/gallery_scene_card_pile_discard/pile_discard/pile_discard_cards/pile_discard_card_0/pile_discard_card_0_type","text":"ATK","rect":[137.44,141.6,21.56,14]},

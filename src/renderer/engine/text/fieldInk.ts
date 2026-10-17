@@ -13,6 +13,8 @@
  */
 export const FIELD_INK: Readonly<Record<string, number>> = {
 	'barlow-condensed-semibold': 1.91,
+	'barlow-condensed-bold': 2.276,
 	'open-sans-regular': 1.698,
+	'open-sans-semibold': 2.206,
 	'jetbrains-mono-regular': 1.9,
 };

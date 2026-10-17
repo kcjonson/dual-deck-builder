@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/dev_section_card_faces/Text[0]","text":"Card Faces","rect":[53,53,105.5,50]},
+{"path":"gallery_root/dev_section_card_faces/Text[0]","text":"Card Faces","rect":[53,53,108.64,50]},
 {"path":"gallery_root/dev_section_card_faces/dev_section_card_faces_rows/Stack[0]/Text[0]","text":"driver 1, driver 2, unowned, unaffordable, a long name shrunk to 14, a longer one cut","rect":[53,103,514.84,17.7]},
 {"path":"gallery_root/dev_section_card_faces/dev_section_card_faces_rows/Stack[0]/dev_card_faces/dev_card_face_d1/dev_card_face_d1_title","text":"Point Blank","rect":[61,150.7,112,18]},
 {"path":"gallery_root/dev_section_card_faces/dev_section_card_faces_rows/Stack[0]/dev_card_faces/dev_card_face_d1/dev_card_face_d1_type","text":"ATK","rect":[137.44,131.7,21.56,14]},
