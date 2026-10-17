@@ -201,7 +201,8 @@ describe('CompoundScreen', () => {
 			expect(find<Text>('compound_building_reason').visible).toBe(false);
 			const action = find<Button>('compound_building_action');
 			expect([action.visible, action.enabled, action.label]).toEqual([true, true, 'Open the bunkhouse']);
-			expect(find<CompoundYard>('compound_yard').loop?.target).toBe(find('compound_building_bunkhouse'));
+			expect(find<CompoundYard>('compound_yard').chosenBuilding).toBe('bunkhouse');
+			expect(find<CompoundYard>('compound_yard').loop).not.toBeNull();
 			expect(find<Button>('compound_rest_button').enabled).toBe(true);
 			expect(find<Button>('compound_scavenge_button').enabled).toBe(true);
 			expect(['area_map', 'crew'].map((id) => tabs().tabs.find((tab) => tab.tabId === id)?.enabled)).toEqual([true, true]);
@@ -216,7 +217,7 @@ describe('CompoundScreen', () => {
 			expect(find<Button>('compound_building_action').visible).toBe(false);
 			expect(find<Text>('compound_building_reason').visible).toBe(true);
 			expect(text('compound_building_reason')).toBe("The infirmary isn't built yet.");
-			expect(find<CompoundYard>('compound_yard').loop?.target).toBe(find('compound_building_infirmary'));
+			expect(find<CompoundYard>('compound_yard').chosenBuilding).toBe('infirmary');
 		});
 
 		it('lists the food and water forecasts, the injured, and an empty rumors line', () => {
@@ -452,8 +453,11 @@ describe('CompoundScreen', () => {
 			find<Button>('compound_plan_button').onClick?.({} as never);
 			expect(navigate).not.toHaveBeenCalledWith('areaMapScreen', expect.anything());
 
+			const row = find('compound_need_0');
 			await planning.finish();
 			expect(find<Button>('compound_plan_button').enabled).toBe(true);
+			// The map's arrival refreshed the screen, and the Needs, unchanged, kept their rows.
+			expect(find('compound_need_0')).toBe(row);
 			expect(planning.asked()).toBe(1);
 
 			// Back again with the same campaign, the map is there at once
@@ -912,6 +916,8 @@ describe('CompoundScreen', () => {
 		});
 
 		it('keeps Rest and Scavenge where they are as the report, the lines, and a save failure come and go', async () => {
+			// The injured mechanic stays injured, so the Needs above hold their rows across the nights.
+			screen.shown?.drivers[2].set({ injuredDays: 5 });
 			context.frame.layout();
 			const where = () => [bounds('compound_rest_button').y, bounds('compound_scavenge_button').y];
 			const start = where();

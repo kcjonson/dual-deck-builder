@@ -157,6 +157,8 @@ export class CompoundScreen extends Screen {
 		action: AtlasButton;
 	} | null = null;
 	private needs: LegendBox | null = null;
+	/** What the Needs rows say now, so a refresh that changes none of them leaves them be. */
+	private needsShown: string | null = null;
 	private sideScroll: ScrollContainer | null = null;
 	private restButton: AtlasButton | null = null;
 	private restLine: Text | null = null;
@@ -267,6 +269,7 @@ export class CompoundScreen extends Screen {
 		this.yard = null;
 		this.building = null;
 		this.needs = null;
+		this.needsShown = null;
 		this.sideScroll = null;
 		this.restButton = null;
 		this.restLine = null;
@@ -344,9 +347,8 @@ export class CompoundScreen extends Screen {
 
 	/**
 	 * The chosen building's box and the needs, scrolling when the column runs
-	 * short; under them the day's orders and Plan a supply run, held to the
-	 * foot so the buttons stay put under the pointer whatever the boxes above
-	 * hold.
+	 * short, the day's orders right under them, and Plan a supply run alone
+	 * at the foot, as the canvas lays them out.
 	 */
 	private createSide(): Stack {
 		const side = new Stack({ id: 'compound_side', width: COLUMN.max, heightMode: 'fill', crossAlign: 'stretch', distribution: 'spaceBetween', gap: GAP });
@@ -358,9 +360,10 @@ export class CompoundScreen extends Screen {
 		upper.addChild(this.needs);
 		this.sideScroll = new ScrollContainer({ id: 'compound_side_scroll', widthMode: 'fill', heightMode: 'hug' });
 		this.sideScroll.addChild(upper);
-		side.addChild(this.sideScroll);
-		const foot = new Stack({ id: 'compound_side_foot', widthMode: 'fill', crossAlign: 'stretch', gap: GAP });
-		foot.addChild(this.createDayBox());
+		const top = new Stack({ id: 'compound_side_top', widthMode: 'fill', crossAlign: 'stretch', gap: GAP });
+		top.addChild(this.sideScroll);
+		top.addChild(this.createDayBox());
+		side.addChild(top);
 
 		const plan = new Stack({ id: 'compound_plan', widthMode: 'fill', crossAlign: 'stretch', gap: 8, padding: { top: 0, right: 4, bottom: 0, left: 4 } });
 		this.planButton = new AtlasButton({
@@ -384,8 +387,7 @@ export class CompoundScreen extends Screen {
 			style: { fontRole: 'mono', fontSize: PLAN_LINE_SIZE, color: 'text_dim' },
 		});
 		plan.addChild(this.planLine);
-		foot.addChild(plan);
-		side.addChild(foot);
+		side.addChild(plan);
 		return side;
 	}
 
@@ -416,20 +418,14 @@ export class CompoundScreen extends Screen {
 	}
 
 	/**
-	 * The day's orders: what the last day did and why it couldn't be saved,
-	 * each hidden until there's something to say, then Rest and Scavenge side
-	 * by side, each with its line under the pair. The report sits above the
-	 * buttons, so the box grows upward and the buttons stay where the pointer
-	 * left them.
+	 * The day's orders: Rest and Scavenge side by side, each with its line
+	 * under the pair, then what the last day did and why it couldn't be
+	 * saved, each hidden until there's something to say. Those sit under the
+	 * buttons, so the box grows downward and the buttons stay where the
+	 * pointer left them.
 	 */
 	private createDayBox(): LegendBox {
 		const box = new LegendBox({ id: 'compound_day_box', title: 'The day', widthMode: 'fill', crossAlign: 'stretch', gap: 10, margin: { left: 4, right: 4 } });
-		this.report = caption({ id: 'compound_report', text: '' });
-		this.report.visible = false;
-		box.addChild(this.report);
-		this.saveError = caption({ id: 'compound_save_error', text: '' });
-		this.saveError.visible = false;
-		box.addChild(this.saveError);
 		const days = new FocusGroup({ id: 'compound_day_actions', orientation: 'both', direction: 'horizontal', widthMode: 'fill', crossAlign: 'stretch', gap: 10 });
 		this.restButton = new AtlasButton({ id: 'compound_rest_button', label: 'Rest a day', block: true, disabled: true, onClick: () => { void this.rest(); } });
 		days.addChild(this.restButton);
@@ -443,6 +439,12 @@ export class CompoundScreen extends Screen {
 		this.scavengeLine = dayLine({ id: 'compound_scavenge_line', text: '' });
 		lines.addChild(this.scavengeLine);
 		box.addChild(lines);
+		this.report = caption({ id: 'compound_report', text: '' });
+		this.report.visible = false;
+		box.addChild(this.report);
+		this.saveError = caption({ id: 'compound_save_error', text: '' });
+		this.saveError.visible = false;
+		box.addChild(this.saveError);
 		return box;
 	}
 
@@ -586,12 +588,16 @@ export class CompoundScreen extends Screen {
 		}
 		const needs = this.needs;
 		if (!needs) return;
-		for (const row of needs.children.filter((child) => child instanceof LegendRow)) needs.removeChild(row);
 		needs.visible = true;
 		const lines: NeedLine[] = [
 			...forecastLines(forecast),
 			...campaign.drivers.filter((driver) => driver.status === 'injured').map((driver) => ({ text: injuredLine(driver), urgent: false })),
 		];
+		// A map-progress tick or a strand refreshes too; the rows are rebuilt only when what they say moved.
+		const shown = lines.map((line) => `${line.short ? 1 : 0}${line.urgent ? 1 : 0}${line.text}`).join('\n');
+		if (shown === this.needsShown) return;
+		this.needsShown = shown;
+		for (const row of needs.children.filter((child) => child instanceof LegendRow)) needs.removeChild(row);
 		lines.forEach((line, index) => needs.addChild(new LegendRow({
 			id: `compound_need_${index}`,
 			text: line.text,

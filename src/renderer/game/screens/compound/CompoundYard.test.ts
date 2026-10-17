@@ -92,12 +92,39 @@ describe('CompoundYard', () => {
 		expect(texts.find((command) => command.text === 'Infirmary' && command.blur === 0 && command.color[3] === 1)?.color).toEqual(atlas.text);
 	});
 
-	it('keeps its labels readable on a small plate: they shrink with it only to three quarters', () => {
+	it('keeps its labels readable on a small plate: names shrink with it only to three quarters, mono no smaller than 11 px, in full ink on paper tags', () => {
 		yardOf({ width: 460, height: 380 });
-		const name = draws().find((command): command is TextCommand => command.kind === 'text' && command.text === 'Infirmary' && command.blur === 0);
-		expect(name?.size).toBe(22 * 0.75);
-		const road = draws().find((command): command is TextCommand => command.kind === 'text' && command.text === 'to the area map' && command.blur === 0);
-		expect((road?.box?.x ?? 0) + (road?.box?.width ?? Infinity)).toBeLessThanOrEqual(460);
+		const drawn = draws();
+		const text = (label: string) => drawn.find((command): command is TextCommand => command.kind === 'text' && command.text === label && command.blur === 0);
+		expect(text('Infirmary')?.size).toBe(22 * 0.75);
+		for (const label of ['not built', 'to the area map']) {
+			expect(text(label)?.size).toBe(11);
+			expect(text(label)?.color).toEqual(atlas.text);
+		}
+		const road = text('to the area map');
+		expect((road?.position?.x ?? Infinity) + 15 * 0.6 * 11).toBeLessThanOrEqual(460);
+		const tags = drawn.filter((command): command is RectCommand => command.kind === 'rect' && command.fill !== null && command.fill.every((channel, index) => channel === atlas.bg_panel[index]));
+		expect(tags.length).toBeGreaterThanOrEqual(6);
+	});
+
+	it.each([{ width: 920, height: 760 }, { width: 460, height: 380 }])('loops the chosen roof and its label together, the loop through the corners of both, so it never crosses the label ($width wide)', (size) => {
+		const yard = yardOf(size);
+		for (const id of BUILDING_IDS) {
+			yard.chosenBuilding = id;
+			context.frame.layout();
+			const spot = yard.spot(id);
+			const box = spot.screenBounds;
+			const label = spot.labelBox;
+			const loop = yard.loopBounds;
+			// The hand layer's loop runs 12 px outside its target: an ellipse with these radii.
+			const rx = loop.width / 2 + 12;
+			const ry = loop.height / 2 + 12;
+			const cx = loop.x + loop.width / 2;
+			const cy = loop.y + loop.height / 2;
+			const inside = (x: number, y: number) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1.0001;
+			const corners = [[box.x, box.y], [box.x + box.width, box.y + box.height], [box.x + label.x, box.y + label.y], [box.x + label.x + label.width, box.y + label.y + label.height]];
+			expect(corners.every(([x, y]) => inside(x, y))).toBe(true);
+		}
 	});
 
 	it('leaves the rig and the bike out of the yard while they are out on a run', () => {
@@ -114,7 +141,8 @@ describe('CompoundYard', () => {
 		click(context, x + width / 2, y + height / 2);
 		expect(chosen.at(-1)).toBe('garage');
 		yard.chosenBuilding = 'garage';
-		expect(yard.loop?.target).toBe(yard.spot('garage'));
+		context.frame.layout();
+		expect(yard.loop?.target?.id).toBe('compound_yard_loop');
 		expect(yard.spot('garage').selected).toBe(true);
 		send(context, [key('ArrowRight')]);
 		expect(chosen.at(-1)).toBe('stores');

@@ -1,4 +1,4 @@
-import type { Component, ComponentOptions } from '../../../engine/components/Component';
+import { Component, ComponentOptions } from '../../../engine/components/Component';
 import { Stack, StackOptions } from '../../../engine/components/Stack';
 import type { TextShadow } from '../../../engine/draw/commands';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
@@ -78,7 +78,23 @@ const STRING = { width: 1.6, dash: 6, gap: 4 };
 /** Labels read at the plate's scale down to this, then stay put, so names never shrink past reading at 1024 by 600. */
 const LABEL_SCALE_MIN = 0.75;
 const LABEL = { glyph: 30, name: 22, builtName: 26, state: 13, gap: 6, halo: 2.2 };
-const HALO_PASSES = 2;
+/** Mono labels never print under this, scale or no scale. */
+const MONO_MIN = 11;
+/** JetBrains Mono's advance, for sizing a mono label's paper tag without measuring it. */
+const MONO_ADVANCE = 0.6;
+/** A paper tag round a mono label on the plate, so it holds 4.5:1 whatever the dirt or hatch under it. */
+const TAG_PAD = 3;
+/** Barlow Condensed bold's mean advance, for the loop's reach round a name without measuring it. */
+const DISPLAY_ADVANCE = 0.5;
+/**
+ * The loop round a chosen building passes through the corners of the box
+ * round its roof and its label: an ellipse through a box's corners is the
+ * box scaled by root 2, less the reach the hand layer adds itself.
+ */
+const LOOP_SPREAD = Math.SQRT2;
+/** How far outside its target the hand layer draws the loop, and the room left past the corners for the pencil's wobble. */
+const LOOP_REACH = 12;
+const LOOP_MARGIN = 6;
 
 interface Corrugation {
 	base: Rect;
@@ -256,8 +272,6 @@ const RUTS: readonly (readonly Vec2[])[] = [
 /** The road's centre dashes along the curve: 18 on, 16 off, from x 720. */
 const ROAD_DASH = { on: 18, off: 16, width: 3, alpha: 0.8 };
 const MAX_DASHES = 96;
-/** "to the area map" in 13 px mono, with room to spare. */
-const ROAD_LABEL_WIDTH = 124;
 
 /** Soft patches of darker and lighter dirt, scattered once by a fixed seed. */
 const BLOTCHES: readonly { at: Vec2; radius: number; light: boolean }[] = (() => {
@@ -295,7 +309,8 @@ export interface BuildingSpotOptions extends Omit<ComponentOptions, 'width' | 'h
 /**
  * One building on the plate as a hit target over its plot: the circled
  * number and the name in a paper halo, as the map labels its places, and
- * the state in mono beneath (UI Art Direction, Components, Plates). A
+ * the state in mono beneath on a paper tag (UI Art Direction, Components,
+ * Plates), set in the plot's corner as the canvas sets them. A
  * press or keyboard focus chooses it. Hover adds an ink outline; focus
  * visible is the walk's ink ring; the selection is the yard's grease-pencil
  * loop and the screen's building box, so the mark is never the only signal.
@@ -314,6 +329,9 @@ export class BuildingSpot extends Pressable {
 	private readonly outline: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly namePosition: Vec2 = { x: 0, y: 0 };
 	private readonly statePosition: Vec2 = { x: 0, y: 0 };
+	private readonly stateTag: Rect = { x: 0, y: 0, width: 0, height: 0 };
+	/** The label's box in this spot's space, for the loop to take in. */
+	private readonly label: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly onChoose: (building: BuildingId) => void;
 	private texts: readonly string[];
 
@@ -341,6 +359,7 @@ export class BuildingSpot extends Pressable {
 		this.isBuilt = built;
 		this.stateText = text;
 		this.texts = [this.number, this.name, text];
+		this.invalidateLayout();
 	}
 
 	public get state(): string {
@@ -351,9 +370,9 @@ export class BuildingSpot extends Pressable {
 		return this.texts;
 	}
 
-	/** The label runs past the plot to the right, as a map label runs past its symbol. */
+	/** The label sits above the plot and runs past it to the right, as a map label runs past its symbol. */
 	public get inkExtent(): number {
-		return 160;
+		return 180;
 	}
 
 	/** The yard's scale for its labels, set as it lays the spot out. */
@@ -375,31 +394,56 @@ export class BuildingSpot extends Pressable {
 		super.layoutChildren();
 		const scale = this.labelScale;
 		const size = Math.round(LABEL.glyph * scale);
+		const nameSize = this.nameSize;
+		const stateSize = this.stateSize;
 		const corner = Math.round(Math.min(20, this.width / 4, this.height / 4));
-		const cx = corner;
-		const cy = corner;
-		this.glyph.place(cx - size / 2, cy - size / 2, size);
-		const nameSize = (this.isBuilt ? LABEL.builtName : LABEL.name) * scale;
-		this.namePosition.x = cx + size / 2 + LABEL.gap;
-		this.namePosition.y = cy + nameSize * 0.36;
+		this.glyph.place(corner - size / 2, corner - size / 2, size);
+		this.namePosition.x = corner + size / 2 + LABEL.gap;
+		this.namePosition.y = corner + nameSize * 0.36;
 		this.statePosition.x = this.namePosition.x;
-		this.statePosition.y = cy + size / 2 + LABEL.state * scale;
+		this.statePosition.y = corner + size / 2 + stateSize;
+		const tagWidth = this.stateText.length * MONO_ADVANCE * stateSize;
+		setRect(this.stateTag, this.statePosition.x - TAG_PAD, this.statePosition.y - stateSize * 0.82 - TAG_PAD / 2, tagWidth + TAG_PAD * 2, stateSize + TAG_PAD);
+		const right = this.namePosition.x + Math.max(this.name.length * DISPLAY_ADVANCE * nameSize, tagWidth);
+		setRect(this.label, corner - size / 2, corner - size / 2, right - (corner - size / 2), this.stateTag.y + this.stateTag.height - (corner - size / 2));
 		setRect(this.outline, 0, 0, this.width, this.height);
+	}
+
+	/** The label's box, in this spot's space. */
+	public get labelBox(): Readonly<Rect> {
+		return this.label;
+	}
+
+	private get nameSize(): number {
+		return (this.isBuilt ? LABEL.builtName : LABEL.name) * this.labelScale;
+	}
+
+	private get stateSize(): number {
+		return Math.max(MONO_MIN, LABEL.state * this.labelScale);
 	}
 
 	public render(draw: DrawApi): void {
 		const inks = this.inks;
-		const scale = this.labelScale;
 		if (this.hovered && this.effectivelyEnabled) draw.drawRect({ rect: this.outline, fill: CLEAR, border: { color: inks.ink, width: 1.6, position: 'inside' } });
 		this.glyph.draw(draw, this.glyphPaint, this.number);
 		const halo = this.halo;
-		const nameSize = (this.isBuilt ? LABEL.builtName : LABEL.name) * scale;
-		// The halo is laid twice: one blurred run is too faint to lift mono over the hatch.
-		for (let pass = 0; pass < HALO_PASSES; pass++) {
-			const last = pass === HALO_PASSES - 1;
-			draw.drawText({ id: last ? this.id ?? undefined : undefined, text: this.name, position: this.namePosition, font: DISPLAY_BOLD, size: nameSize, color: last ? inks.ink : CLEAR, shadow: halo, wrap: 'none' });
-			if (this.stateText) draw.drawText({ text: this.stateText, position: this.statePosition, font: 'mono', size: LABEL.state * scale, color: last ? inks.ink : CLEAR, shadow: halo, wrap: 'none' });
+		draw.drawText({ id: this.id ?? undefined, text: this.name, position: this.namePosition, font: DISPLAY_BOLD, size: this.nameSize, color: inks.ink, shadow: halo, wrap: 'none' });
+		if (this.stateText) {
+			draw.drawRect({ rect: this.stateTag, fill: inks.paper });
+			draw.drawText({ text: this.stateText, position: this.statePosition, font: 'mono', size: this.stateSize, color: inks.ink, shadow: halo, wrap: 'none' });
 		}
+	}
+}
+
+/**
+ * What the grease loop goes round: the chosen building's roof and its
+ * label together, spread so the loop clears both instead of crossing the
+ * label in the corner. It draws nothing and takes no hits.
+ */
+class LoopFrame extends Component {
+	constructor() {
+		super({ id: 'compound_yard_loop', positioned: 'absolute', pointerEvents: 'none', zIndex: -1 });
+		this.componentType = 'LoopFrame';
 	}
 }
 
@@ -434,6 +478,7 @@ export class CompoundYard extends Stack {
 	private readonly spots: BuildingSpot[] = [];
 	private readonly hand: HandMarkLayer;
 	private loopMark: HandMark | null = null;
+	private readonly loopFrame = new LoopFrame();
 	private loops = 0;
 	private chosen: BuildingId | null = null;
 	private inks: AtlasInks;
@@ -468,8 +513,9 @@ export class CompoundYard extends Stack {
 	private readonly north: Vec2[] = NORTH.map(() => ({ x: 0, y: 0 }));
 	private readonly scaleBar: Rect[] = [0, 1, 2].map(() => ({ x: 0, y: 0, width: 0, height: 0 }));
 	private readonly gateName: Vec2 = { x: 0, y: 0 };
-	/** The road's label, right-aligned in a box that ends at the plate's edge when the plate is too narrow for it to start under the road. */
-	private readonly roadName: Rect = { x: 0, y: 0, width: 0, height: 0 };
+	/** The road's label under the road, pulled in from the plate's edge on a narrow plate, on its paper tag. */
+	private readonly roadName: Vec2 = { x: 0, y: 0 };
+	private readonly roadTag: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private vehiclesHome = true;
 	private labelScale = 1;
 
@@ -493,6 +539,7 @@ export class CompoundYard extends Stack {
 		this.builtArt = built;
 		this.plotArt = plots;
 		this.dashes = Array.from({ length: MAX_DASHES * 6 }, () => ({ x: 0, y: 0 }));
+		this.addChild(this.loopFrame);
 		this.hand = new HandMarkLayer({ id: 'compound_yard_marks', place: 'over' });
 		this.addChild(this.hand);
 	}
@@ -516,7 +563,8 @@ export class CompoundYard extends Stack {
 		this.loopMark = null;
 		for (const spot of this.spots) spot.selected = spot.building === id;
 		if (id === null) return;
-		this.loopMark = this.hand.loop(this.spot(id), { variant: (this.loops % 4) as HandMarkVariant });
+		this.loopMark = this.hand.loop(this.loopFrame, { variant: (this.loops % 4) as HandMarkVariant });
+		this.invalidateLayout();
 		this.loops += 1;
 	}
 
@@ -553,12 +601,21 @@ export class CompoundYard extends Stack {
 		return [this.gateText.name, this.gateText.road];
 	}
 
+	/** What the loop goes round, for a test or the inspector. */
+	public get loopBounds(): Readonly<Rect> {
+		return this.loopFrame.screenBounds;
+	}
+
 	public flows(child: Component): boolean {
-		return !this.spots.includes(child as BuildingSpot) && super.flows(child);
+		return !this.placesItself(child) && super.flows(child);
 	}
 
 	protected anchorsChild(child: Component): boolean {
-		return super.anchorsChild(child) && !this.spots.includes(child as BuildingSpot);
+		return super.anchorsChild(child) && !this.placesItself(child);
+	}
+
+	private placesItself(child: Component): boolean {
+		return child === this.loopFrame || this.spots.includes(child as BuildingSpot);
 	}
 
 	protected onThemeChange(theme: Theme): void {
@@ -593,6 +650,23 @@ export class CompoundYard extends Stack {
 			spot.setPosition(Math.round(ox + plot.x * scale), Math.round(oy + plot.y * scale));
 		}
 		this.placeMarks(ox, oy, scale);
+		this.placeLoop();
+	}
+
+	/** The loop frame round the chosen building's roof and label, spread to clear both. */
+	private placeLoop(): void {
+		const id = this.chosen;
+		if (id === null) return;
+		const spot = this.spot(id);
+		const label = spot.labelBox;
+		const left = spot.x + Math.min(0, label.x);
+		const top = spot.y + Math.min(0, label.y);
+		const right = spot.x + Math.max(spot.width, label.x + label.width);
+		const bottom = spot.y + Math.max(spot.height, label.y + label.height);
+		const width = Math.max(0, (right - left) * LOOP_SPREAD - (LOOP_REACH - LOOP_MARGIN) * 2);
+		const height = Math.max(0, (bottom - top) * LOOP_SPREAD - (LOOP_REACH - LOOP_MARGIN) * 2);
+		this.loopFrame.assignSize(width, height);
+		this.loopFrame.setPosition((left + right - width) / 2, (top + bottom - height) / 2);
 	}
 
 	public render(draw: DrawApi): void {
@@ -694,7 +768,8 @@ export class CompoundYard extends Stack {
 		const halo = this.halo;
 		const scale = this.labelScale;
 		draw.drawText({ text: this.gateText.name, position: this.gateName, font: DISPLAY_BOLD, size: 20 * scale, color: inks.ink, shadow: halo, wrap: 'none' });
-		draw.drawText({ text: this.gateText.road, box: this.roadName, align: 'right', verticalAlign: 'top', font: 'mono', size: 13 * scale, color: inks.inkDim, shadow: halo, wrap: 'none' });
+		draw.drawRect({ rect: this.roadTag, fill: inks.paper });
+		draw.drawText({ text: this.gateText.road, position: this.roadName, font: 'mono', size: this.roadSize, color: inks.ink, wrap: 'none' });
 	}
 
 	/** The centre dashes along the road, 18 on and 16 off from x 720, each a quad across its stretch of the line. */
@@ -743,6 +818,10 @@ export class CompoundYard extends Stack {
 		for (let index = 0; index < count * 6; index++) this.dashPoints.push(this.dashes[index]);
 	}
 
+	private get roadSize(): number {
+		return Math.max(MONO_MIN, 13 * this.labelScale);
+	}
+
 	private placeMarks(ox: number, oy: number, scale: number): void {
 		const label = this.labelScale;
 		const { width, height } = this;
@@ -753,8 +832,10 @@ export class CompoundYard extends Stack {
 		const by = height - 16 * label;
 		this.scaleBar.forEach((segment, index) => setRect(segment, bx + index * 36 * label, by, 36 * label, 7 * label));
 		set(this.gateName, ox + 752 * scale, oy + 352 * scale);
-		const roadRight = Math.min(width - 8, ox + 752 * scale + ROAD_LABEL_WIDTH * label);
-		setRect(this.roadName, 0, oy + 428 * scale, roadRight, 18 * label);
+		const roadSize = this.roadSize;
+		const roadWidth = this.gateText.road.length * MONO_ADVANCE * roadSize;
+		set(this.roadName, Math.min(ox + 752 * scale, width - 8 - TAG_PAD - roadWidth), oy + 428 * scale + roadSize);
+		setRect(this.roadTag, this.roadName.x - TAG_PAD, this.roadName.y - roadSize * 0.82 - TAG_PAD / 2, roadWidth + TAG_PAD * 2, roadSize + TAG_PAD);
 	}
 }
 

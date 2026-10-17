@@ -377,6 +377,10 @@ describe('LegendBox', () => {
 		row.color = 'text';
 		expect(row.color).toEqual(ink);
 		expect(add(new LegendRow({ symbol: 'dash', text: 'Radio: no new rumors' })).color).toEqual(atlas.color.text_faint);
+		const counted = add(new LegendRow({ id: 'poi', text: 'Hospital', value: 'tier 2' }));
+		expect([counted.value, counted.findById('poi_value') !== null, counted.findById('poi_text') !== null]).toEqual(['tier 2', true, true]);
+		const named = add(new LegendRow({ id: 'row', text: 'Clinic', value: '1', textId: 'clinic', valueId: 'clinic_count' }));
+		expect([named.findById('clinic') !== null, named.findById('clinic_count') !== null, named.findById('row_text')]).toEqual([true, true, null]);
 	});
 
 	it('draws the thing in focus on flat fresh paper, W0, with no art', () => {
