@@ -2,59 +2,53 @@ import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Button } from '../../../engine/ui/Button';
-import { Panel } from '../../../engine/ui/Panel';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { tokens } from '../../../engine/theme/tokens';
+import { AtlasButton } from '../../ui/atlas/AtlasButton';
+import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
+import { LegendBox } from '../../ui/atlas/LegendBox';
+import { PageTitle } from '../../ui/atlas/PageTitle';
 import { CREDITS, CreditSection } from './credits';
 
+const { space } = tokens;
 const PANEL_WIDTH = 560;
-const BACK_WIDTH = 200;
+const BACK_WIDTH = 240;
+const NAME_SIZE = 20;
 
 /**
- * The credits screen: a root stack with a title, one panel holding the
- * credits in a scroll container, and Back. The panel takes the height the
- * title and Back leave, so a short viewport scrolls the list rather than
- * pushing Back off screen. Focus starts on Back; Page Up, Page Down, Home,
- * and End scroll the list from there (root hotkeys, R9.15), and a press on
- * the list focuses it for the arrows as well. Escape and Back return to the
- * menu with focus on Credits again.
+ * The credits, an appendix of the atlas (UI Art Direction, Screens): one
+ * sheet with its title at the top, a column of legend boxes, one per
+ * section, and Back to contents as a back road. It has no primary action,
+ * so no highway. The column takes the height the title and Back leave, so a
+ * short viewport scrolls the list rather than pushing Back off the sheet.
+ * Focus starts on Back; Page Up, Page Down, Home, and End scroll the list
+ * from there (root hotkeys, R9.15), and a press on the list focuses it for
+ * the arrows as well. Escape and Back return to the menu with focus on
+ * Credits again.
  */
 export class CreditsScreen extends Screen {
-	private readonly stack: Stack;
+	private readonly sheet: AtlasSheet;
 	private scroller: ScrollContainer | null = null;
 
 	constructor() {
-		const root = new Stack({
+		const root = new AtlasSheet({
 			id: 'creditsScreen',
 			widthMode: 'fill',
 			heightMode: 'fill',
 			crossAlign: 'center',
-			gap: tokens.space.space_6,
-			padding: tokens.space.space_8,
-			style: { backgroundColor: 'bg_base' },
+			gap: space.space_5,
 		});
-		super('creditsScreen', { root });
-		this.stack = root;
+		super('creditsScreen', { root, theme: 'atlas' });
+		this.sheet = root;
 	}
 
 	protected onMount(): void {
-		this.stack.addChild(new Text({
-			text: 'Credits',
-			id: 'credits_title',
-			style: {
-				fontRole: 'display',
-				fontSize: 'fs_4xl',
-				color: 'text_bright',
-				textAlign: 'center',
-			},
-			wrap: 'none',
-		}));
+		this.sheet.addChild(new PageTitle({ title: 'Credits', titleId: 'credits_title', alignSelf: 'stretch' }));
 
 		const content = new Stack({
 			id: 'credits_list',
 			crossAlign: 'stretch',
-			gap: tokens.space.space_6,
+			gap: space.space_4,
 		});
 		for (const section of CREDITS) content.addChild(createSection(section));
 		this.scroller = new ScrollContainer({
@@ -64,25 +58,22 @@ export class CreditsScreen extends Screen {
 		});
 		this.scroller.addChild(content);
 
-		const panel = new Panel({
+		const panel = new Stack({
 			id: 'credits_panel',
-			corners: true,
 			width: PANEL_WIDTH,
 			heightMode: 'fill',
 			crossAlign: 'stretch',
 		});
 		panel.addChild(this.scroller);
-		this.stack.addChild(panel);
+		this.sheet.addChild(panel);
 
-		const back = new Button({
-			label: 'Back',
+		const back = new AtlasButton({
+			label: 'Back to contents',
 			id: 'credits_back_button',
-			icon: 'arrow_back',
-			size: 'lg',
 			width: BACK_WIDTH,
 			onClick: () => this.back(),
 		});
-		this.stack.addChild(back);
+		this.sheet.addChild(back);
 
 		const { hotkeys } = this.rootLayer;
 		hotkeys.register('Escape', () => this.back());
@@ -97,7 +88,7 @@ export class CreditsScreen extends Screen {
 	protected onUnmount(): void {
 		const { hotkeys } = this.rootLayer;
 		for (const key of ['Escape', 'PageDown', 'PageUp', 'Home', 'End']) hotkeys.unregister(key);
-		this.stack.clearChildren();
+		this.sheet.clearChildren();
 		this.scroller = null;
 	}
 
@@ -107,27 +98,16 @@ export class CreditsScreen extends Screen {
 	}
 }
 
-/** A section: its heading, then each entry's name over its lines. */
-function createSection(section: CreditSection): Stack {
-	const stack = new Stack({ crossAlign: 'stretch', gap: tokens.space.space_2 });
-	stack.addChild(new Text({
-		text: section.heading,
-		style: {
-			fontRole: 'display',
-			fontSize: 'fs_lg',
-			color: 'accent',
-			textTransform: 'uppercase',
-			letterSpacing: 'ls_wide',
-		},
-		wrap: 'none',
-	}));
+/** A section: a legend box under its heading, each entry's name in display over its lines. */
+function createSection(section: CreditSection): LegendBox {
+	const box = new LegendBox({ title: section.heading, crossAlign: 'stretch', gap: space.space_3 });
 	for (const entry of section.entries) {
-		const block = new Stack({ crossAlign: 'stretch', gap: tokens.space.space_0_5 });
-		block.addChild(new Text({ text: entry.name, style: { fontSize: 'fs_md', color: 'text_bright' } }));
+		const block = new Stack({ crossAlign: 'stretch', gap: space.space_0_5 });
+		block.addChild(new Text({ text: entry.name, style: { fontRole: 'display', fontWeight: 700, fontSize: NAME_SIZE, color: 'text' } }));
 		for (const line of entry.lines) {
 			block.addChild(new Text({ text: line, style: { fontSize: 'fs_base', color: 'text_dim' } }));
 		}
-		stack.addChild(block);
+		box.addChild(block);
 	}
-	return stack;
+	return box;
 }

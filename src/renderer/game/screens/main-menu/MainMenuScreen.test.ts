@@ -6,11 +6,12 @@ import { createTestContext } from '../../../engine/components/testing';
 import type { MountContext } from '../../../engine/components/MountContext';
 import type { Text } from '../../../engine/components/Text';
 import type { Dialog } from '../../../engine/ui/Dialog';
+import type { ContentsRow } from '../../ui/atlas/ContentsRow';
 import { advance, click, key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
-import { tokens } from '../../../engine/theme/tokens';
+import { themes, tokens } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
 import { CampaignFounding, FoundingGeneration, StartGeneration } from '../../campaign/CampaignFounding';
@@ -112,8 +113,39 @@ describe('MainMenuScreen', () => {
 		click(context, x + width / 2, y + height / 2);
 	}
 
-	function continueLine(): string {
-		return find<Text>('main_menu_continue_line').text;
+	function continueLine(): string | null {
+		return find<ContentsRow>('main_menu_continue_button').subtitle;
+	}
+
+	/** The store's own message for a save it couldn't read, as the menu holds it. */
+	function storeMessage(): string {
+		const save = screen.save;
+		if (save.kind !== 'unreadable') throw new Error(`the save should be unreadable, not ${save.kind}`);
+		return save.message;
+	}
+
+	/** Continue's reason is in the warning colour, and whole on its one line. */
+	function expectWarning(): void {
+		const resume = row('main_menu_continue_button');
+		expect(resume.subtitleColor).toEqual(themes.atlas.color.status_crit);
+		expect(resume.subtitleFits).toBe(true);
+	}
+
+	function row(id: string): ContentsRow {
+		return find<ContentsRow>(id);
+	}
+
+	type Bounds = { x: number; y: number; width: number; height: number };
+
+	function bounds(id: string): Bounds {
+		return find<{ screenBounds: Bounds }>(id).screenBounds;
+	}
+
+	/** From Continue, which focus starts on while there's a campaign to continue, to New campaign under it. */
+	function toNewCampaign(): void {
+		expect(context.focus.focused?.id).toBe('main_menu_continue_button');
+		send(context, [key('ArrowDown')]);
+		expect(context.focus.focused?.id).toBe('main_menu_new_campaign_button');
 	}
 
 	function continueEnabled(): boolean {
@@ -167,10 +199,17 @@ describe('MainMenuScreen', () => {
 	describe('with no save', () => {
 		beforeEach(() => open());
 
-		it('focuses New Campaign, and disables Continue, saying there is nothing to continue', () => {
+		it('leads with New campaign and focuses it, and fades Continue in its place, saying there is nothing to continue', () => {
 			expect(context.focus.focused?.id).toBe('main_menu_new_campaign_button');
+			expect(row('main_menu_new_campaign_button').variant).toBe('primary');
 			expect(continueEnabled()).toBe(false);
+			expect(row('main_menu_continue_button').faded).toBe(true);
+			expect(row('main_menu_continue_button').variant).toBe('standard');
 			expect(continueLine()).toBe('No campaign in progress.');
+			expect(row('main_menu_continue_button').subtitleColor).toEqual(themes.atlas.color.text_dim);
+			expect(row('main_menu_continue_button').value).toBe('NO SAVE');
+			// Continue keeps its place at the head of the page.
+			expect(bounds('main_menu_continue_button').y).toBeLessThan(bounds('main_menu_new_campaign_button').y);
 		});
 
 		it('founds and saves a campaign on Enter, with no question, and opens the compound with it', async () => {
@@ -313,6 +352,19 @@ describe('MainMenuScreen', () => {
 			expect(navigate).toHaveBeenCalledWith('developerScreen');
 		});
 
+		it('moves through the appendices in reading order with either pair of arrows, and opens one with Enter', () => {
+			send(context, [key('ArrowDown'), key('ArrowDown')]);
+			expect(context.focus.focused?.id).toBe('main_menu_settings_button');
+			send(context, [key('ArrowRight')]);
+			expect(context.focus.focused?.id).toBe('main_menu_card_showcase_button');
+			send(context, [key('ArrowDown')]);
+			expect(context.focus.focused?.id).toBe('main_menu_credits_button');
+			send(context, [key('ArrowLeft')]);
+			expect(context.focus.focused?.id).toBe('main_menu_card_showcase_button');
+			send(context, [key('Enter')]);
+			expect(navigate).toHaveBeenLastCalledWith('cardShowcaseScreen');
+		});
+
 		it('opens Campaign History', () => {
 			clickOn('main_menu_history_button');
 			expect(navigate).toHaveBeenLastCalledWith('campaignHistoryScreen');
@@ -345,13 +397,13 @@ describe('MainMenuScreen', () => {
 	describe('continuing a campaign with no run on the road (DDB-454)', () => {
 		it('opens the compound for a campaign at home', async () => {
 			await open(storageWith(atHomeText()));
-			send(context, [key('ArrowDown'), key('Enter')]);
+			send(context, [key('Enter')]);
 			expect(openedCampaign().currentRun).toBeNull();
 		});
 
 		it('gives up a load out left before its run set off, and saves that, then opens the compound', async () => {
 			await open(storageWith(fixtureText(campaign => { campaign.supplyRun = null; })));
-			send(context, [key('ArrowDown'), key('Enter')]);
+			send(context, [key('Enter')]);
 			const campaign = openedCampaign();
 			expect(campaign.currentRun).toBeNull();
 			await flush();
@@ -362,13 +414,18 @@ describe('MainMenuScreen', () => {
 	describe('with a campaign in progress', () => {
 		beforeEach(() => open(storageWith(fixtureText())));
 
-		it("shows the campaign's state under Continue, counting the drivers at the compound", () => {
+		it("leads with Continue, the day in its shield and the campaign's state under it, counting the drivers at the compound", () => {
+			const resume = row('main_menu_continue_button');
 			expect(continueEnabled()).toBe(true);
+			expect(resume.variant).toBe('primary');
+			expect(resume.leadLabel).toBe('9');
+			expect(resume.value).toBe('DAY 09');
 			expect(continueLine()).toBe('Day 9 - 3 drivers - 1 stronghold taken');
+			expect(row('main_menu_new_campaign_button').variant).toBe('standard');
+			expect(context.focus.focused?.id).toBe('main_menu_continue_button');
 		});
 
 		it("continues the loaded campaign from the keys on the road, at the run's saved step, which the store then saves (DDB-454)", async () => {
-			send(context, [key('ArrowDown')]);
 			expect(context.focus.focused?.id).toBe('main_menu_continue_button');
 			send(context, [key('Enter')]);
 			const campaign = openedCampaign('runScreen');
@@ -390,6 +447,7 @@ describe('MainMenuScreen', () => {
 				return { result, cancel: founding.cancel };
 			};
 			const errors = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+			toNewCampaign();
 			send(context, [key('Enter')]);
 			await flush();
 			advance(context, OPEN_MS);
@@ -397,6 +455,8 @@ describe('MainMenuScreen', () => {
 			advance(context, CLOSE_MS);
 			await held.started;
 			expect(continueEnabled()).toBe(false);
+			// The founding leads the page while it runs.
+			expect(row('main_menu_new_campaign_button').variant).toBe('primary');
 			clickOn('main_menu_continue_button');
 			expect(navigate).not.toHaveBeenCalled();
 			fail();
@@ -413,6 +473,7 @@ describe('MainMenuScreen', () => {
 			generate = held.generate;
 			const stored = async (): Promise<Record<string, string | null>> => Object.fromEntries(await Promise.all(storage.keys.map(async (each) => [each, await storage.getItem(each)])));
 			const before = await stored();
+			toNewCampaign();
 			send(context, [key('Enter')]);
 			await flush();
 			advance(context, OPEN_MS);
@@ -434,7 +495,8 @@ describe('MainMenuScreen', () => {
 			expect(regenerations).toEqual([{ params: campaign.mapParams, replay: { mapAttempt: campaign.mapAttempts?.map, attempts: campaign.mapAttempts?.stages } }]);
 		});
 
-		it('asks before abandoning it, and Cancel or Escape keeps it, focus back on New Campaign', async () => {
+		it('asks before abandoning it, and Cancel or Escape keeps it, focus back on New campaign', async () => {
+			toNewCampaign();
 			send(context, [key('Enter')]);
 			await flush();
 			const asked = dialog();
@@ -461,6 +523,7 @@ describe('MainMenuScreen', () => {
 		});
 
 		it('records it in the history as abandoned when confirmed with the pointer, then saves the new one', async () => {
+			toNewCampaign();
 			send(context, [key('Enter')]);
 			await flush();
 			advance(context, OPEN_MS);
@@ -481,6 +544,7 @@ describe('MainMenuScreen', () => {
 			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
 			screen.unmount();
 			await open(storageWith(fixtureText()));
+			toNewCampaign();
 			send(context, [key('Enter')]);
 			await flush();
 			advance(context, OPEN_MS);
@@ -498,6 +562,7 @@ describe('MainMenuScreen', () => {
 		expect(continueEnabled()).toBe(true);
 		expect(continueLine()).toBe('Fell on day 9');
 
+		toNewCampaign();
 		send(context, [key('Enter')]);
 		await flush();
 		expect(find<Text>('main_menu_replace_body').text).toBe('Fell on day 9. A new campaign replaces it, and it goes into Campaign History as it fell.');
@@ -509,7 +574,7 @@ describe('MainMenuScreen', () => {
 	});
 
 	describe('while the save check is running', () => {
-		it('keeps Continue enabled, so Back can land on it, and moves focus to New Campaign if it turns out disabled', async () => {
+		it('keeps Continue enabled and focused, so Back can land on it, and moves focus to New campaign if it turns out disabled', async () => {
 			const held = new HeldStorage();
 			held.hold();
 			storage = held;
@@ -519,7 +584,6 @@ describe('MainMenuScreen', () => {
 			context.frame.layout();
 			expect(screen.save.kind).toBe('checking');
 			expect(continueEnabled()).toBe(true);
-			send(context, [key('ArrowDown')]);
 			expect(context.focus.focused?.id).toBe('main_menu_continue_button');
 			// Nothing to continue yet: Enter on it does nothing.
 			send(context, [key('Enter')]);
@@ -529,6 +593,7 @@ describe('MainMenuScreen', () => {
 			await screen.saveChecked;
 			expect(continueEnabled()).toBe(false);
 			expect(context.focus.focused?.id).toBe('main_menu_new_campaign_button');
+			expect(row('main_menu_new_campaign_button').variant).toBe('primary');
 		});
 	});
 
@@ -537,7 +602,9 @@ describe('MainMenuScreen', () => {
 			const flaky = storageWith(fixtureText());
 			flaky.fault = { method: 'getItem', error: securityError(), times: 1 };
 			await open(flaky);
-			expect(continueLine()).toBe("The saved campaign couldn't be read: storage is blocked.");
+			expect(continueLine()).toBe(storeMessage());
+			expect(continueLine()).toContain('storage is blocked');
+			expectWarning();
 
 			send(context, [key('Enter')]);
 			await flush();
@@ -554,7 +621,9 @@ describe('MainMenuScreen', () => {
 		it("says an outdated save can't be continued, and replaces it after asking, with nothing in the history", async () => {
 			await open(storageWith(outdatedText()));
 			expect(continueEnabled()).toBe(false);
-			expect(continueLine()).toBe("The saved campaign is from another version of the game and can't be continued. New Campaign replaces it.");
+			expect(continueLine()).toBe("Saved by another version of the game, so it can't be continued.");
+			expectWarning();
+			expect(row('main_menu_continue_button').value).toBe('OLD SAVE');
 
 			send(context, [key('Enter')]);
 			await flush();
@@ -572,7 +641,9 @@ describe('MainMenuScreen', () => {
 			const damaged = damagedText();
 			await open(storageWith(damaged));
 			expect(continueEnabled()).toBe(false);
-			expect(continueLine()).toBe("The saved campaign is damaged and can't be loaded. It's been kept.");
+			expect(continueLine()).toBe(storeMessage());
+			expect(continueLine()).toContain('damaged');
+			expectWarning();
 
 			clickOn('main_menu_new_campaign_button');
 			await flush();
@@ -590,7 +661,8 @@ describe('MainMenuScreen', () => {
 			blocked.fault = { method: 'getItem', error: securityError() };
 			await open(blocked);
 			expect(continueEnabled()).toBe(false);
-			expect(continueLine()).toBe("The saved campaign couldn't be read: storage is blocked.");
+			expect(continueLine()).toBe(storeMessage());
+			expectWarning();
 
 			send(context, [key('Enter')]);
 			await flush();
@@ -602,41 +674,90 @@ describe('MainMenuScreen', () => {
 		});
 	});
 
-	it('fits the short viewport with every button and a two-line reason under Continue, measured in the real faces', async () => {
-		(window as ElectronScope).electron = { isElectron: true };
-		viewport.logical = { width: 1024, height: 600 };
-		context = createTestContext({ viewport, draw: createMeasuringDrawApi().api });
-		await open(storageWith(damagedText()));
-		const menu = find<{ screenBounds: { x: number; y: number; width: number; height: number } }>('main_menu_buttons').screenBounds;
-		const title = find<{ screenBounds: { y: number } }>('main_menu_title').screenBounds;
-		expect(find<{ visible: boolean }>('main_menu_exit_button').visible).toBe(true);
-		expect(find<Text>('main_menu_continue_line').height).toBeGreaterThan(tokens.fontSize.fs_sm * 2);
-		expect(title.y).toBeGreaterThanOrEqual(0);
-		expect(menu.y + menu.height).toBeLessThanOrEqual(600);
+	describe.each([
+		{ width: 1440, height: 882 },
+		{ width: 1024, height: 600 },
+	])('at $width x $height, measured in the real faces', (size) => {
+		beforeEach(() => {
+			viewport.logical = size;
+			context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
+		});
+
+		it.each([
+			{ save: 'none', text: (): MemorySaveStorage => new MemorySaveStorage() },
+			{ save: 'in progress', text: (): MemorySaveStorage => storageWith(fixtureText()) },
+			{ save: 'damaged', text: (): MemorySaveStorage => storageWith(damagedText()) },
+		])('lays the menu out with no lint, with a save $save', async ({ text }) => {
+			await open(text());
+			const lint = layoutLint(treeSnapshot([screen.root], size));
+			expect(lint.violations).toEqual([]);
+		});
+
+		it('fits every entry, Exit included, and the whole reason under Continue, above the footer', async () => {
+			(window as ElectronScope).electron = { isElectron: true };
+			await open(storageWith(outdatedText()));
+			expect(find<{ visible: boolean }>('main_menu_exit_button').visible).toBe(true);
+			expectWarning();
+			const menu = bounds('main_menu_buttons');
+			const footer = bounds('main_menu_footer');
+			expect(bounds('main_menu_title').y).toBeGreaterThanOrEqual(0);
+			expect(menu.y + menu.height).toBeLessThanOrEqual(footer.y);
+			expect(footer.y + footer.height).toBeLessThanOrEqual(size.height);
+			const lint = layoutLint(treeSnapshot([screen.root], size));
+			expect(lint.violations).toEqual([]);
+		});
+
+		it.each([
+			{ save: 'damaged', text: (): MemorySaveStorage => storageWith(damagedText()) },
+			{ save: 'behind blocked storage', text: (): FaultyStorage => {
+				const blocked = new FaultyStorage();
+				blocked.fault = { method: 'getItem', error: securityError() };
+				return blocked;
+			} },
+		])("prints the store's message for a save $save whole, in the warning colour", async ({ text }) => {
+			await open(text());
+			expect(continueLine()).toBe(storeMessage());
+			expectWarning();
+		});
+
+		it('sets the decks down on the cover, clear of the contents page', async () => {
+			await open();
+			const page = bounds('main_menu_contents');
+			const cover = bounds('main_menu_cover');
+			for (const id of ['main_menu_deck_a', 'main_menu_deck_b']) {
+				const deck = bounds(id);
+				expect(deck.x).toBeGreaterThanOrEqual(cover.x);
+				expect(deck.x + deck.width).toBeLessThanOrEqual(page.x);
+				expect(deck.y + deck.height).toBeLessThanOrEqual(size.height);
+			}
+		});
 	});
 
-	it('centres the column in the viewport and follows a resize with no screen code', async () => {
+	it('lays the contents page on the right half and follows a resize with no screen code', async () => {
 		await open();
-		const menu = screen.root.findById('main_menu_buttons');
-		if (!menu) throw new Error('the menu should be mounted');
+		const page = (): Bounds => bounds('main_menu_contents');
+		const cover = (): Bounds => bounds('main_menu_cover');
 		expect(screen.root.width).toBe(1280);
-		expect(menu.x).toBe((1280 - menu.width) / 2);
+		expect(page().x).toBeGreaterThan(1280 / 2);
+		expect(cover().x + cover().width).toBeLessThan(page().x);
 
 		viewport.logical = { width: 1024, height: 600 };
 		context.frame.viewportChanged();
 		context.frame.layout();
 		expect(screen.root.height).toBe(600);
-		expect(menu.x).toBe((1024 - menu.width) / 2);
-		expect(menu.y).toBeGreaterThanOrEqual(0);
-		expect(menu.y + menu.height).toBeLessThanOrEqual(600);
+		expect(page().x).toBeGreaterThan(1024 / 2);
+		expect(page().x + page().width).toBeLessThan(1024);
+		expect(page().y + page().height).toBeLessThanOrEqual(600);
 	});
 
 	it('builds nothing twice across a remount, and reads the save again', async () => {
 		await open(storageWith(fixtureText()));
 		screen.unmount();
 		screen.mount(context);
-		expect(screen.root.children.filter((child) => child.id === 'main_menu_buttons')).toHaveLength(1);
-		expect(context.focus.focused?.id).toBe('main_menu_new_campaign_button');
+		expect(screen.root.children.filter((child) => child.id === 'main_menu_contents')).toHaveLength(1);
+		expect(screen.root.children.filter((child) => child.id === 'main_menu_cover')).toHaveLength(1);
+		// Continue holds focus while the save is read again.
+		expect(context.focus.focused?.id).toBe('main_menu_continue_button');
 		await screen.saveChecked;
 		expect(continueLine()).toBe('Day 9 - 3 drivers - 1 stronghold taken');
 	});

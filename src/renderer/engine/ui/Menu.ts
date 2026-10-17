@@ -140,7 +140,7 @@ class MenuRows extends Component {
 	public render(draw: DrawApi): void {
 		const { items } = this.menu;
 		const metrics = CONTROL_SIZES[this.menu.size];
-		const { color } = tokens;
+		const { color } = this.themeTokens;
 		for (let index = 0; index < items.length; index++) {
 			const item = items[index];
 			const row = this.menu.rowRect(index);
@@ -420,7 +420,8 @@ export class Menu extends Component {
 	}
 
 	public get resolvedColors(): ResolvedColors {
-		return { fill: tokens.color.bg_panel_raised, border: tokens.color.line_edge, text: tokens.color.text };
+		const { color } = this.themeTokens;
+		return { fill: color.bg_panel_raised, border: color.line_edge, text: color.text };
 	}
 
 	/** A press on the surface between rows is still inside the menu (R12.11). */
@@ -433,12 +434,13 @@ export class Menu extends Component {
 	}
 
 	public render(draw: DrawApi): void {
+		const { color, radius } = this.themeTokens;
 		draw.drawRect({
 			id: this.id ?? undefined,
 			rect: { x: 0, y: 0, width: this.width, height: this.height },
-			fill: tokens.color.bg_panel_raised,
-			radius: tokens.radius.radius_ui,
-			border: { color: tokens.color.line_edge, width: BORDER_WIDTH },
+			fill: color.bg_panel_raised,
+			radius: radius.radius_ui > 0 ? radius.radius_ui : undefined,
+			border: { color: color.line_edge, width: BORDER_WIDTH },
 			shadow: SURFACE_SHADOW,
 		});
 	}

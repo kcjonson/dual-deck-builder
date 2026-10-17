@@ -5,8 +5,10 @@ import { Clock } from '../../../engine/animation/Clock';
 import { createTestContext } from '../../../engine/components/testing';
 import type { MountContext } from '../../../engine/components/MountContext';
 import type { Text } from '../../../engine/components/Text';
-import type { Button } from '../../../engine/ui/Button';
-import type { ListRow } from '../../../engine/ui/ListRow';
+import type { AtlasButton } from '../../ui/atlas/AtlasButton';
+import { ContentsRow } from '../../ui/atlas/ContentsRow';
+import type { HandMarkLayer } from '../../ui/atlas/HandMarkLayer';
+import type { SectionTabs } from '../../ui/atlas/SectionTabs';
 import { click, key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
@@ -63,6 +65,12 @@ describe('AreaMapScreen (DDB-43)', () => {
 		return poi;
 	};
 
+	/** A click in the middle of a component on the page. */
+	function clickOn(id: string): void {
+		const { x, y, width, height } = find<{ screenBounds: { x: number; y: number; width: number; height: number } }>(id).screenBounds;
+		click(context, x + width / 2, y + height / 2);
+	}
+
 	/** A click on a POI's marker, where the view's camera puts it on the page. */
 	function clickMarker(poi: PlannedPoi): void {
 		const shown = view();
@@ -90,16 +98,18 @@ describe('AreaMapScreen (DDB-43)', () => {
 			expect(markers[index]).toMatchObject({ kind: poi.stronghold ? 'stronghold' : 'poi', x: poi.x, y: poi.y, label: poi.name });
 			if (!poi.stronghold) expect(markers[index].type).toBe(poi.type);
 		});
-		const rows = find<{ children: readonly ListRow[] }>('area_map_destinations').children;
+		const rows = find<{ children: readonly ContentsRow[] }>('area_map_destinations').children;
 		expect(rows.map(({ id }) => id)).toEqual(byDistance(POIS).map(({ poi }) => `area_map_poi_${poi}`));
-		expect(rows[0].trailing).toBe(`tier ${byDistance(POIS)[0].tier}`);
-		expect(rows[rows.length - 1].trailing).toBe('stronghold');
+		expect(rows.every((row) => row instanceof ContentsRow)).toBe(true);
+		expect(rows[0].value).toBe(`tier ${byDistance(POIS)[0].tier}`);
+		expect(rows[rows.length - 1].value).toBe('stronghold');
+		expect(rows[rows.length - 1].dim).toBe(true);
 		const strongholds = POIS.filter(({ stronghold }) => stronghold).length;
 		expect(strongholds).toBeGreaterThan(0);
 		expect(text('area_map_status')).toBe(`${POIS.length - strongholds} destinations and ${strongholds} strongholds. Pick one on the map or in the list.`);
 		expect(text('area_map_day')).toBe('Day 9 / Fuel 6');
 		expect(text('area_map_selected_name')).toBe('No destination chosen');
-		expect(find<Button>('area_map_plan_button').enabled).toBe(false);
+		expect(find<AtlasButton>('area_map_plan_button').enabled).toBe(false);
 	});
 
 	it('marks the POIs no route gets home from by dark, on the map and in the list', async () => {
@@ -110,25 +120,28 @@ describe('AreaMapScreen (DDB-43)', () => {
 			expect(poi.pastDark).toBe(poi.routes.every(({ spare }) => spare < 0));
 			expect(view().markers[poi.poi].pastDark).toBe(!poi.stronghold && poi.pastDark);
 		}
-		expect(find<ListRow>(`area_map_poi_${late[0].poi}`).trailing).toBe(`tier ${late[0].tier}, past dark`);
+		expect(find<ContentsRow>(`area_map_poi_${late[0].poi}`).value).toBe(`tier ${late[0].tier}, past dark`);
 	});
 
-	it('chooses a POI clicked on the map: its details, Plan a run here, and its row picked', async () => {
+	it('chooses a POI clicked on the map: its details, Plan a run here, and its row picked and highlighted by hand', async () => {
 		await open();
 		const poi = firstWhere((candidate) => !candidate.stronghold && candidate.tier === 1);
 		clickMarker(poi);
 		expect(screen.selected).toBe(poi);
 		expect(view().selection).toEqual({ kind: 'marker', id: poi.id });
-		expect(find<ListRow>(`area_map_poi_${poi.poi}`).selected).toBe(true);
+		const row = find<ContentsRow>(`area_map_poi_${poi.poi}`);
+		expect(row.selected).toBe(true);
+		const marks = find<HandMarkLayer>('area_map_destinations_marks').marks;
+		expect(marks.map(({ kind, target }) => [kind, target])).toEqual([['highlight', row]]);
 		expect(text('area_map_selected_name')).toBe(poi.name);
 		expect(text('area_map_selected_kind')).toBe(poiKindText(poi));
 		expect(text('area_map_selected_yield')).toMatch(/^Yields .+\.$/);
 		expect(text('area_map_selected_routes')).toBe(routesText(poi));
 		expect(text('area_map_selected_dark')).toBe(darkText(poi));
-		expect(find<Button>('area_map_plan_button').enabled).toBe(true);
+		expect(find<AtlasButton>('area_map_plan_button').enabled).toBe(true);
 		expect(text('area_map_plan_reason')).toBe('');
 
-		find<Button>('area_map_plan_button').onClick?.({} as never);
+		find<AtlasButton>('area_map_plan_button').onClick?.({} as never);
 		expect(navigate).toHaveBeenLastCalledWith('runRouteScreen', { campaign: screen.shown, poi: poi.poi });
 	});
 
@@ -140,8 +153,8 @@ describe('AreaMapScreen (DDB-43)', () => {
 		expect(view().markers[looted.poi].state).toBe('looted');
 		expect(view().markers[depleted.poi].state).toBe('depleted');
 		expect(view().markers.filter(({ state }) => state !== undefined)).toHaveLength(2);
-		expect([find<ListRow>(`area_map_poi_${looted.poi}`).trailing, find<ListRow>(`area_map_poi_${looted.poi}`).dim]).toEqual([`tier ${looted.tier}`, false]);
-		expect([find<ListRow>(`area_map_poi_${depleted.poi}`).trailing, find<ListRow>(`area_map_poi_${depleted.poi}`).dim]).toEqual([`tier ${depleted.tier}`, true]);
+		expect([find<ContentsRow>(`area_map_poi_${looted.poi}`).value, find<ContentsRow>(`area_map_poi_${looted.poi}`).dim]).toEqual([`tier ${looted.tier}`, false]);
+		expect([find<ContentsRow>(`area_map_poi_${depleted.poi}`).value, find<ContentsRow>(`area_map_poi_${depleted.poi}`).dim]).toEqual([`tier ${depleted.tier}`, true]);
 
 		clickMarker(looted);
 		expect(text('area_map_selected_kind')).toBe(poiKindText({ ...looted, state: 'looted' }));
@@ -155,7 +168,7 @@ describe('AreaMapScreen (DDB-43)', () => {
 		expect(text('area_map_selected_yield')).toBe('Nothing left to take until it refills.');
 		expect(text('area_map_selected_stock')).toBe('No shares left, the next back in 2 days.');
 		// A depleted POI can still be planned: its stops' fights still pay in cards
-		expect(find<Button>('area_map_plan_button').enabled).toBe(true);
+		expect(find<AtlasButton>('area_map_plan_button').enabled).toBe(true);
 
 		const untouched = byDistance(POIS).find((poi) => !poi.stronghold && poi !== looted && poi !== depleted) as PlannedPoi;
 		clickMarker(untouched);
@@ -171,14 +184,17 @@ describe('AreaMapScreen (DDB-43)', () => {
 		click(context, x + width - 4, y + 4);
 		expect(screen.selected).toBeNull();
 		expect(view().selection).toBeNull();
-		expect(find<ListRow>(`area_map_poi_${poi.poi}`).selected).toBe(false);
+		expect(find<ContentsRow>(`area_map_poi_${poi.poi}`).selected).toBe(false);
+		expect(find<HandMarkLayer>('area_map_destinations_marks').marks).toEqual([]);
 		expect(text('area_map_selected_name')).toBe('No destination chosen');
-		expect(find<Button>('area_map_plan_button').enabled).toBe(false);
+		expect(find<AtlasButton>('area_map_plan_button').enabled).toBe(false);
 	});
 
-	it('chooses from the list by keyboard, Back, the list, Plan, then the map in the focus order, and brings the POI into view', async () => {
+	it('chooses from the list by keyboard, the tabs, the map, the list, then Plan in the focus order, and brings the POI into view', async () => {
 		await open();
-		expect(context.focus.focused?.id).toBe('area_map_back_button');
+		expect(context.focus.focused?.id).toBe('area_map_tabs.area_map');
+		send(context, [key('Tab')]);
+		expect(context.focus.focused?.id).toBe('area_map_view');
 		send(context, [key('Tab')]);
 		const [first, second] = byDistance(POIS);
 		expect(context.focus.focused?.id).toBe(`area_map_poi_${first.poi}`);
@@ -190,7 +206,7 @@ describe('AreaMapScreen (DDB-43)', () => {
 		expect(text('area_map_selected_name')).toBe(first.name);
 		send(context, [key('ArrowDown')]);
 		expect(screen.selected).toBe(second);
-		expect(find<ListRow>(`area_map_poi_${second.poi}`).selected).toBe(true);
+		expect(find<ContentsRow>(`area_map_poi_${second.poi}`).selected).toBe(true);
 		const world = shown.camera.visibleWorld;
 		expect(second.x).toBeGreaterThanOrEqual(world.x);
 		expect(second.x).toBeLessThanOrEqual(world.x + world.width);
@@ -199,7 +215,7 @@ describe('AreaMapScreen (DDB-43)', () => {
 		send(context, [key('Tab')]);
 		expect(context.focus.focused?.id).toBe('area_map_plan_button');
 		send(context, [key('Tab')]);
-		expect(context.focus.focused?.id).toBe('area_map_view');
+		expect(context.focus.focused?.id).toBe('area_map_tabs.area_map');
 	});
 
 	it('shows a stronghold, with Plan a run here off until assaults exist', async () => {
@@ -212,9 +228,9 @@ describe('AreaMapScreen (DDB-43)', () => {
 		context.frame.layout();
 		expect(find<{ height: number }>('area_map_destinations_scroll').height).toBe(listHeight);
 		expect(text('area_map_selected_kind')).toBe(`Stronghold, tier ${stronghold.tier}`);
-		expect(find<Button>('area_map_plan_button').enabled).toBe(false);
+		expect(find<AtlasButton>('area_map_plan_button').enabled).toBe(false);
 		expect(text('area_map_plan_reason')).toBe(STRONGHOLD_NOT_YET);
-		find<Button>('area_map_plan_button').onClick?.({} as never);
+		find<AtlasButton>('area_map_plan_button').onClick?.({} as never);
 		expect(navigate).not.toHaveBeenCalled();
 	});
 
@@ -222,12 +238,12 @@ describe('AreaMapScreen (DDB-43)', () => {
 		await open({ change: (campaign) => campaign.set({ resources: { ...campaign.resources, fuel: 0 } }) });
 		const poi = firstWhere((candidate) => !candidate.stronghold);
 		clickMarker(poi);
-		expect(find<Button>('area_map_plan_button').enabled).toBe(true);
+		expect(find<AtlasButton>('area_map_plan_button').enabled).toBe(true);
 		screen.unmount();
 
 		await open({ change: (campaign) => campaign.startRunDecks({ seats: [campaign.drivers[0], campaign.drivers[4]] }) });
 		clickMarker(poi);
-		expect(find<Button>('area_map_plan_button').enabled).toBe(false);
+		expect(find<AtlasButton>('area_map_plan_button').enabled).toBe(false);
 		expect(text('area_map_plan_reason')).toBe('A run is out. Continue from the menu drives it on.');
 	});
 
@@ -253,12 +269,22 @@ describe('AreaMapScreen (DDB-43)', () => {
 		jest.restoreAllMocks();
 	});
 
-	it('goes back to the compound with the campaign on Back and on Escape', async () => {
+	it('goes back to the compound with the campaign on Escape, and to its siblings from the tabs', async () => {
+		// Measured in the real faces, so the tabs have their widths to click.
+		context = createTestContext({ viewport, clock: new Clock(), draw: createMeasuringDrawApi().api });
 		await open();
 		send(context, [key('Escape')]);
 		expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign: screen.shown }, { restoreFocus: true });
-		find<Button>('area_map_back_button').onClick?.({} as never);
+		expect(find<SectionTabs>('area_map_tabs').selectedId).toBe('area_map');
+		clickOn('area_map_tabs.area_map');
+		expect(navigate).toHaveBeenCalledTimes(1);
+		clickOn('area_map_tabs.compound');
 		expect(navigate).toHaveBeenCalledTimes(2);
+		expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign: screen.shown }, { restoreFocus: true });
+		clickOn('area_map_tabs.crew');
+		expect(navigate).toHaveBeenLastCalledWith('crewScreen', { campaign: screen.shown }, { restoreFocus: true });
+		clickOn('area_map_tabs.menu');
+		expect(navigate).toHaveBeenLastCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
 	});
 
 	it('comes back from a run route with its POI chosen and Plan a run here focused, the map at once', async () => {
@@ -282,6 +308,9 @@ describe('AreaMapScreen (DDB-43)', () => {
 		screen.mount(context);
 		await screen.campaignLoaded;
 		expect(text('area_map_status')).toBe('No campaign in progress.');
+		// Only the menu, and this screen's own tab, can be taken with no campaign
+		const tabs = find<SectionTabs>('area_map_tabs').tabs;
+		expect(tabs.map(({ tabId, enabled }) => [tabId, enabled])).toEqual([['menu', true], ['compound', false], ['area_map', true], ['crew', false]]);
 	});
 
 	it.each([{ width: 1440, height: 882 }, { width: 1024, height: 600 }])('lays out with no lint at $width x $height, measured in the real faces, a POI chosen', async (size) => {

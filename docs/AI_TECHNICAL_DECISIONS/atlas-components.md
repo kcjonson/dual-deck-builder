@@ -37,12 +37,24 @@ The catalog Button still can't be the highway: border width and label size aren'
 - A button's geometry is laid out once per size; a hover's lift or a press's drop translates it in `render`.
 - Render paths allocate nothing of their own: rects, polygons, glyph outlines, leaders, and the dashed disabled border are built at layout into arrays the part keeps, and a mark's loop is rebuilt only when its target moves. Draw option literals are the engine's API, as everywhere else.
 - Outlines that aren't convex (the star) are cut by `triangulatePolygon`, so R5.17's feather holds and the dev build doesn't report them.
+- A contents row moves between `primary` and `standard` in place (`variant`), and its lead glyph's label and its subtitle are settable, because the main menu's lead row changes with the save (DDB-507): Continue leads when there's a campaign, New campaign otherwise. Rebuilding the rows instead would drop the focus Back restores to Continue while the save is still being read. The two rows trade heights, so nothing under them moves. A subtitle may take two lines (`subtitleLines`), so a save the store can't read is explained in the store's own words even at 1024 wide.
 
 ## The art
 
 Every baked piece goes through `drawAtlasArt(draw, { name, rect, tint })` in `atlasArt.ts`, which is `drawUiArt` from the UI art atlas ([ui-art-atlas.md](./ui-art-atlas.md)): the 2x raster by the frame's ratio, nine-slicing where a piece has insets. The sheet, legend boxes, tape, card backs and edges, resource icons, the deck glyph, the highlighter, and the grease loops all draw from it. With the page not resident a surface draws as a flat tint and the rest return false, and each part keeps a flat stand-in for that case (and for tests, which have no page).
 
 Surfaces take their wear by size: `paperPiece` gives W2 only to a surface at least 288 px on its short side and W3 at 352, W1 below, so a small panel never squeezes a worn piece's corners. The fresh (W0) legend box is a flat fill, never art, per the wear standards. The loop's stroke sits inside its piece, so the piece is drawn further out (20 px) than the flat loop (12 px).
+
+## Damage (W3)
+
+Added with the result screens (DDB-511). W3 is W2 plus one hero mark, and only after a game event (spec, Wear), so the marks are parts a screen adds when it shows the event, never defaults:
+
+- The sheet's own damage is its paper: `AtlasSheet.wear` and `paper` can change after construction, so a screen takes W3 only while it shows what wrecked the page (`a` a burnt bottom-right corner, `b` a bullet hole top right, `c` a ripped bottom-left corner). The orchestrator's ruling on the budget: only the fallen compound gets W3 paper plus FALLEN; a lost fight or a failed run gets one mark, LOST, on W2. Tape never pins the burnt corner: a burnt sheet is taped on the other diagonal.
+- `DamageMark` is a stamp (LOOTED, DEPLETED, LOST, FALLEN) or a tear as a component, always at its art's 1x size (the pieces have no 2x rasters or mipmaps, so a scaled stamp aliases), struck on the sheet beside what it marks, in the flow, so the lint keeps it off every reading window. It says nothing the page doesn't say in words, so with no art page it draws nothing.
+- `AtlasTag` is a small W1 tag for a person or vehicle. Its right padding always leaves room for a tear run in from the top edge, so tearing a tag never moves or covers its text.
+- A screen with more than one candidate spends its one mark by priority and says so in code (the run debrief's `debriefMark`).
+
+`LegendRow` also took a `value`, mono 500 at the right, for ledgers (the defeat record, the road's stop states), and `LegendSymbol` the star, for home.
 
 ## The hand layer
 

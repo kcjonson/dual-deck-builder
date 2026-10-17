@@ -6,7 +6,7 @@ import { createTestContext } from '../../engine/components/testing';
 import type { DrawCommand, RectCommand, TextCommand } from '../../engine/draw';
 import { key, send } from '../../engine/services/testing';
 import { MeasuringRecordingBackend, createMeasuringDrawApi } from '../../engine/text/testing';
-import { tokens } from '../../engine/theme/tokens';
+import { themes, tokens } from '../../engine/theme/tokens';
 import { FocusGroup } from '../../engine/ui/FocusGroup';
 import { RouteCard } from './RouteCard';
 
@@ -72,5 +72,22 @@ describe('RouteCard', () => {
 		const bar = draws().find((command): command is RectCommand => command.kind === 'rect' && command.rect.x === 0 && command.rect.width === tokens.borderWidth.bw_thick);
 		expect(bar?.fill).toEqual(color.accent);
 		expect(second.look.fill).toEqual(color.bg_active);
+	});
+
+	it('follows the theme it is put under: the highlighter wash, the highway bar, and its note in the colour asked for (DDB-509)', () => {
+		const atlas = themes.atlas.color;
+		const group = new FocusGroup({ id: 'cards', width: 320, crossAlign: 'stretch', selection: 'single' });
+		const card = new RouteCard({ id: 'card', title: 'Back roads', detail: 'charted / 1 stop', note: 'Back after dark.', noteColor: 'status_crit', selected: true, dim: true });
+		group.addChild(card);
+		root.theme = 'atlas';
+		root.addChild(group);
+		context.frame.layout();
+		expect(card.look.fill).toEqual(atlas.bg_active);
+		const drawn = draws();
+		const bar = drawn.find((command): command is RectCommand => command.kind === 'rect' && command.rect.x === 0 && command.rect.width === tokens.borderWidth.bw_thick);
+		expect(bar?.fill).toEqual(atlas.accent);
+		const text = (value: string) => drawn.find((command): command is TextCommand => command.kind === 'text' && command.text === value)?.color;
+		expect(text('Back after dark.')).toEqual(atlas.status_crit);
+		expect(text('charted / 1 stop')).toEqual(atlas.text_faint);
 	});
 });

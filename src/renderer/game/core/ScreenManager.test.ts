@@ -167,11 +167,11 @@ describe('ScreenManager.navigate', () => {
 	it.each([
 		['campaign history', 1, 'Escape', 'main_menu_history_button'],
 		['settings', 2, 'Escape', 'main_menu_settings_button'],
-		['credits', 3, 'Enter', 'main_menu_credits_button'],
-		['card showcase', 4, 'Escape', 'main_menu_card_showcase_button'],
+		['card showcase', 3, 'Escape', 'main_menu_card_showcase_button'],
+		['credits', 4, 'Enter', 'main_menu_credits_button'],
 		['developer tools', 5, 'Enter', 'main_menu_developer_button'],
-		// Continue is enabled while the remounted menu checks the save, so focus can land back on it.
-		['compound', 1, 'Escape', 'main_menu_continue_button', true],
+		// Continue leads, and focus starts on it, with a campaign to continue; it's enabled while the remounted menu checks the save, so focus can land back on it.
+		['compound', 0, 'Escape', 'main_menu_continue_button', true],
 	])('returns focus to the button that opened %s, with the ring a keyboard round trip shows', async (_screen, down, leave, opener, saved = false) => {
 		if (saved) {
 			localStorage.setItem(KEYS.slots.a, fixtureText());
@@ -193,12 +193,12 @@ describe('ScreenManager.navigate', () => {
 		expect(context.focus.focused?.id).toBe(opener);
 	});
 
-	it('hands the restore to New Campaign when the save is gone by the time the menu checks, mid-fade', async () => {
+	it('hands the restore to New campaign when the save is gone by the time the menu checks, mid-fade', async () => {
 		localStorage.setItem(KEYS.slots.a, atHomeText());
 		localStorage.setItem(KEYS.active, 'a');
 		await openMenu();
 		advance(context, FADE_MS * 2);
-		send(context, [key('ArrowDown'), key('Enter')]);
+		send(context, [key('Enter')]);
 		advance(context, FADE_MS * 2);
 		expect(ScreenManager.getCurrentScreenName()).toBe('compoundScreen');
 
@@ -222,14 +222,14 @@ describe('ScreenManager.navigate', () => {
 		localStorage.setItem(KEYS.active, 'a');
 		await openMenu();
 		advance(context, FADE_MS * 2);
-		send(context, [key('ArrowDown'), key('Enter')]);
+		send(context, [key('Enter')]);
 		advance(context, FADE_MS * 2);
 		const compound = ScreenManager.activeScreen as CompoundScreen;
 		await compound.campaignLoaded;
 		const campaign = compound.shown;
 		expect(campaign).not.toBeNull();
 
-		focusOn('compound_building_bunkhouse_button');
+		focusOn('compound_building_action');
 		send(context, [key('Enter')]);
 		advance(context, FADE_MS * 2);
 		expect(ScreenManager.getCurrentScreenName()).toBe('crewScreen');
@@ -244,7 +244,7 @@ describe('ScreenManager.navigate', () => {
 		advance(context, FADE_MS * 2);
 		expect(ScreenManager.getCurrentScreenName()).toBe('compoundScreen');
 		expect((ScreenManager.activeScreen as CompoundScreen).shown).toBe(campaign);
-		expect(context.focus.focused?.id).toBe('compound_building_bunkhouse_button');
+		expect(context.focus.focused?.id).toBe('compound_building_action');
 		expect(context.focus.focusVisible).toBe(true);
 	});
 
@@ -273,7 +273,8 @@ describe('ScreenManager.navigate', () => {
 		ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 		advance(context, FADE_MS * 2);
 		expect(disable).toHaveBeenCalled();
-		expect(context.focus.focused?.id).toBe('main_menu_new_campaign_button');
+		// The menu's own first focus: Continue, while the save check runs.
+		expect(context.focus.focused?.id).toBe('main_menu_continue_button');
 		disable.mockRestore();
 	});
 
@@ -287,19 +288,19 @@ describe('ScreenManager.navigate', () => {
 		expect(ScreenManager.transitioning).toBe(true);
 		ScreenManager.navigate('settingsScreen', undefined, { immediate: true });
 		ScreenManager.navigate('mainMenuScreen', undefined, { immediate: true, restoreFocus: true });
-		expect(context.focus.focused?.id).toBe('main_menu_new_campaign_button');
+		expect(context.focus.focused?.id).toBe('main_menu_continue_button');
 	});
 
 	it('restores focus only when asked, and only what the screen had when left', () => {
 		focusOn('main_menu_settings_button');
 		ScreenManager.navigate('settingsScreen', undefined, { immediate: true });
 		ScreenManager.navigate('mainMenuScreen', undefined, { immediate: true });
-		expect(context.focus.focused?.id).toBe('main_menu_new_campaign_button');
+		expect(context.focus.focused?.id).toBe('main_menu_continue_button');
 
 		context.focus.blur();
 		ScreenManager.navigate('settingsScreen', undefined, { immediate: true });
 		ScreenManager.navigate('mainMenuScreen', undefined, { immediate: true, restoreFocus: true });
-		expect(context.focus.focused?.id).toBe('main_menu_new_campaign_button');
+		expect(context.focus.focused?.id).toBe('main_menu_continue_button');
 	});
 
 	it('runs the whole transition at once under reduced motion', () => {

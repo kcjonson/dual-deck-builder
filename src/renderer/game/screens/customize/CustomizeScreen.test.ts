@@ -10,7 +10,7 @@ import { click, key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
-import { tokens } from '../../../engine/theme/tokens';
+import { themes, tokens } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
 import type { CampaignStore } from '../../campaign/CampaignStore';
@@ -33,6 +33,7 @@ import { CardLookup, deckOrder } from '../../ui/DriverDetailView';
 import { cardData, lookup } from '../../ui/testing';
 import { CARD_ENTRY } from '../../ui/deckBuilder/CardEntryGrid';
 import type { CardEntryGrid } from '../../ui/deckBuilder/CardEntryGrid';
+import { atlasScreenParts } from '../../ui/atlas/testing';
 import { DECK_BUILDER } from '../../ui/deckBuilder/DeckBuilder';
 import { CustomizeScreen } from './CustomizeScreen';
 import { LOCKER_KICKERS, giveLabel } from './customizeText';
@@ -207,7 +208,7 @@ describe('CustomizeScreen', () => {
 		it("shows the locker after the other seat's borrowing, each card with Borrow", () => {
 			expect(keys('pool').sort()).toEqual(['emp_blast', 'headshot', 'ramming_speed']);
 			for (const cardType of keys('pool')) expect(live('pool', cardType)).toEqual([true]);
-			expect(find<{ kicker: string }>('customize_pool_panel').kicker).toBe(LOCKER_KICKERS.pair);
+			expect(find<{ text: string }>('customize_pool_kicker').text).toBe(LOCKER_KICKERS.pair);
 		});
 
 		it('shows the escort card in this run deck, locked, with a control that gives it to the other seat', () => {
@@ -495,7 +496,7 @@ describe('CustomizeScreen', () => {
 		expect(keys('escort')).toEqual(['escort-1']);
 		expect(grid('escort').views[0].control('give')).toBeNull();
 		expect(reason('escort', 'escort-1')).toBe('');
-		expect(find<{ kicker: string }>('customize_pool_panel').kicker).toBe(LOCKER_KICKERS.solo);
+		expect(find<{ text: string }>('customize_pool_kicker').text).toBe(LOCKER_KICKERS.solo);
 	});
 
 	it('says the cards are loading, or failed to, in place of the escort cards too', async () => {
@@ -529,7 +530,7 @@ describe('CustomizeScreen', () => {
 		await flush();
 		expect(find<Text>('customize_save_error').visible).toBe(true);
 		expect(text('customize_save_error')).toBe("The campaign couldn't be saved: storage is full.");
-		expect(find<{ color: unknown }>('customize_save_error').color).toEqual(tokens.color.status_crit);
+		expect(find<{ color: unknown }>('customize_save_error').color).toEqual(themes.atlas.color.status_crit);
 		// A failed checkpoint has settled by now, and a failure is no landing: the line stays through another one.
 		press(control('deck', 'armor_plating', 'fewer'));
 		await flush();
@@ -554,7 +555,7 @@ describe('CustomizeScreen', () => {
 		expect(find<{ visible: boolean }>('customize_deck_chips').visible).toBe(false);
 		expect(find<{ visible: boolean }>('customize_deck_foot').visible).toBe(false);
 		// No run is no run of one: the locker says nothing of being all free to borrow.
-		expect(find<{ kicker: string }>('customize_pool_panel').kicker).toBe(LOCKER_KICKERS.pair);
+		expect(find<{ text: string }>('customize_pool_kicker').text).toBe(LOCKER_KICKERS.pair);
 	});
 
 	it('says the campaign is over, and how it fell, in place of the run deck and the locker', async () => {
@@ -613,6 +614,9 @@ describe('CustomizeScreen', () => {
 			expect(lintAt(size)).toEqual([]);
 			expect(bounds('customize_deck_home').y).toBe(bounds('customize_deck_size').y);
 			expect(bounds('customize_side_panel').width).toBe(DECK_BUILDER.sideWidth);
+			const parts = atlasScreenParts(screen.root);
+			expect([screen.theme, parts.sheets.length, parts.tabs.length]).toEqual(['atlas', 1, 0]);
+			expect(parts.highways.map((button) => button.id)).toEqual(['customize_done_button']);
 		});
 
 		/** 44 kinds of card for the locker, past what cards.json holds, each named as a shipped card is. */
@@ -647,7 +651,7 @@ describe('CustomizeScreen', () => {
 				expect([side, rowOne.length]).toEqual([side, columns]);
 			}
 			const [first, second] = grid('escort').views;
-			expect(second.screenBounds.y).toBe(first.screenBounds.y);
+			expect(second.screenBounds.y).toBeGreaterThan(first.screenBounds.y);
 			expect(find<{ overflows: boolean }>('customize_pool_scroll').overflows).toBe(true);
 			for (const id of ['customize_top_bar', 'customize_side_panel', 'customize_pool_panel', 'customize_deck_panel']) {
 				const box = bounds(id);

@@ -265,7 +265,7 @@ export class AtlasPlateScene extends AtlasCatalogScene {
 		const loops = new HandMarkLayer({ id: 'atlas_plate_marks' });
 		yard.addChild(loops);
 		loops.loop(place);
-		plate.addChild(yard);
+		plate.art.addChild(yard);
 
 		const orders = new LegendBox({ id: 'atlas_plate_orders', title: 'The day', width: 340 });
 		const marks = new HandMarkLayer({ id: 'atlas_plate_highlights', place: 'under' });

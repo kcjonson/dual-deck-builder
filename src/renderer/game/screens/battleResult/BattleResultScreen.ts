@@ -1,11 +1,12 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { ScreenName } from '../../core/ScreenManager';
-import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Button } from '../../../engine/ui/Button';
-import { Panel } from '../../../engine/ui/Panel';
-import { tokens } from '../../../engine/theme/tokens';
+import { AtlasButton } from '../../ui/atlas/AtlasButton';
+import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
+import { ATLAS } from '../../ui/atlas/atlasStyle';
+import { DamageMark } from '../../ui/atlas/DamageMark';
+import { LegendBox } from '../../ui/atlas/LegendBox';
 
 /**
  * What the battle result screen shows: the outcome, and where Continue goes.
@@ -22,31 +23,40 @@ export interface BattleResultData {
 }
 
 const PANEL_WIDTH = 600;
+const CONTINUE_WIDTH = 260;
+const TITLE_SIZE = 56;
+const KICKER_SIZE = 12;
 
 function isBattleResultData(data: unknown): data is BattleResultData {
 	return typeof data === 'object' && data !== null && 'victory' in data;
 }
 
 /**
- * Screen displayed after battle ends: a root stack centring one panel with
- * the outcome and a Continue button, which has focus on mount. Enter
- * continues, and so does Escape, since there is nowhere else to go.
+ * Screen displayed after battle ends, on the atlas sheet (UI Art Direction,
+ * Screens): one legend box centred on the page with the outcome and
+ * Continue, the highway, which has focus on mount. Enter continues, and so
+ * does Escape, since there is nowhere else to go.
+ *
+ * A loss takes one hero mark after the event (Wear): LOST, stamped on the
+ * W2 page above the box, clear of the text. Only a fallen compound is a
+ * damaged (W3) sheet. The title is display 700: the logo's brush letters are baked
+ * as the logo, not as an alphabet, so there's no "VICTORY" to cut from them.
  */
 export class BattleResultScreen extends Screen {
-	private readonly stack: Stack;
+	private readonly sheet: AtlasSheet;
 	private next: BattleResultData['next'] = undefined;
 
 	constructor() {
-		const root = new Stack({
+		const root = new AtlasSheet({
 			id: 'battleResultScreen',
 			widthMode: 'fill',
 			heightMode: 'fill',
 			distribution: 'center',
 			crossAlign: 'center',
-			style: { backgroundColor: 'bg_base' },
+			gap: 4,
 		});
-		super('battleResultScreen', { root });
-		this.stack = root;
+		super('battleResultScreen', { root, theme: 'atlas' });
+		this.sheet = root;
 	}
 
 	protected onMount(data?: unknown): void {
@@ -57,23 +67,29 @@ export class BattleResultScreen extends Screen {
 		const { victory } = data;
 		this.next = data.next;
 
-		const panel = new Panel({
+		if (!victory) this.sheet.addChild(new DamageMark({ id: 'result_stamp', kind: 'lost' }));
+		const panel = new LegendBox({
 			id: 'result_panel',
-			variant: 'raised',
-			accent: victory ? 'accent' : 'none',
-			corners: true,
 			width: PANEL_WIDTH,
 			crossAlign: 'center',
-			gap: tokens.space.space_4,
-			style: { padding: 'space_12' },
+			gap: 12,
+			padding: 32,
 		});
+		panel.addChild(new Text({
+			text: victory ? 'Fight won' : 'Fight lost',
+			id: 'result_kicker',
+			style: { fontRole: 'mono', fontWeight: 500, fontSize: KICKER_SIZE, letterSpacing: 0.14, textTransform: 'uppercase', color: 'text_dim', textAlign: 'center' },
+			wrap: 'none',
+		}));
 		panel.addChild(new Text({
 			text: victory ? 'VICTORY!' : 'DEFEAT!',
 			id: 'result_title',
 			style: {
 				fontRole: 'display',
-				fontSize: 'fs_4xl',
-				color: victory ? 'status_ok' : 'status_crit',
+				fontWeight: 700,
+				fontSize: TITLE_SIZE,
+				letterSpacing: ATLAS.headTracking,
+				color: victory ? 'text' : 'status_crit',
 				textAlign: 'center',
 			},
 			wrap: 'none',
@@ -81,25 +97,23 @@ export class BattleResultScreen extends Screen {
 		panel.addChild(new Text({
 			text: data.subtitle ?? (victory ? 'All enemies have been defeated!' : 'Your vehicles have been destroyed!'),
 			id: 'result_subtitle',
-			style: {
-				fontSize: 'fs_lg',
-				color: 'text_dim',
-				textAlign: 'center',
-			},
-			wrap: 'none',
+			widthMode: 'fill',
+			style: { fontSize: 16, color: 'text_dim', textAlign: 'center' },
 		}));
 
-		const continueButton = new Button({
+		const continueButton = new AtlasButton({
 			label: 'Continue',
 			id: 'result_continue_button',
-			tone: 'accent',
-			size: 'lg',
-			width: 200,
-			margin: { top: tokens.space.space_8 },
+			variant: 'highway',
+			shield: true,
+			labelSize: 24,
+			height: 56,
+			width: CONTINUE_WIDTH,
+			margin: { top: 16 },
 			onClick: () => this.continue(),
 		});
 		panel.addChild(continueButton);
-		this.stack.addChild(panel);
+		this.sheet.addChild(panel);
 
 		this.rootLayer.hotkeys.register('Escape', () => this.continue());
 		this.context.focus.focus(continueButton);
@@ -107,7 +121,7 @@ export class BattleResultScreen extends Screen {
 
 	protected onUnmount(): void {
 		this.rootLayer.hotkeys.unregister('Escape');
-		this.stack.clearChildren();
+		this.sheet.clearChildren();
 		this.next = undefined;
 	}
 

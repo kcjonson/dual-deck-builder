@@ -321,3 +321,9 @@ Record: load-out-screen.md.
 179. DDB-320: Back from load out gives up its run decks, customizing and all, and returns to the run route screen, because a started run must never be stranded.
 180. DDB-320: a solo run (35) shows the second seat empty with "Solo run: nobody else is fit to go", and the synergy line says there's no partner, because the pair hints have nothing to compare.
 181. DDB-320: the main menu's Skirmish entry and its quick fight go with driver selection, because 119 kept them only until load out replaced it.
+
+## Compound buildings (182)
+
+Record: campaign-state-model.md.
+
+182. DDB-508: a new campaign is founded with only the bunkhouse standing, and nothing builds a building yet, so the radio mast, infirmary, map room, garage, and stores show as staked-out plots on the compound plate; `Campaign.buildings` holds what stands (save format 10), founding takes it from `campaign-start.json`, and version 9 saves load with the bunkhouse standing, because the plate draws what stands and the bunkhouse's Crew screen was the only building screen in play.

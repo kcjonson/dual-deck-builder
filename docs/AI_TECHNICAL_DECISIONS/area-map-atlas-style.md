@@ -36,7 +36,7 @@ The gallery's fog scene, with stand-in knowledge, every marker state, and a metr
 
 ### Outside the disc
 
-The view's ground is the paper colour. Rivers past the rim are still drawn, faint, as they were. The bake was not extended past the disc: the target shows paper and rivers out there, not faded land, and a wider bake would cost about a third more texels for nothing on screen. The side panels are separate components and keep the game's dark UI.
+The view's ground is the paper colour. Rivers past the rim are still drawn, faint, as they were. The bake was not extended past the disc: the target shows paper and rivers out there, not faded land, and a wider bake would cost about a third more texels for nothing on screen. The side panels are separate components and keep the game's dark UI; they moved onto the atlas sheet later ([area-map-atlas-panels.md](./area-map-atlas-panels.md)).
 
 ### Roads
 

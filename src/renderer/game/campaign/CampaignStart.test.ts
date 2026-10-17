@@ -48,6 +48,9 @@ describe('campaign-start.json', () => {
 		['escorts that aren\'t a list', (json: StartJson) => { json.escorts = 'outrider'; }, 'CampaignStart.escorts must be an array, got "outrider"'],
 		['an escort the garage doesn\'t hire', (json: StartJson) => { json.escorts = ['outrider', 'tank']; },
 			'CampaignStart.escorts[1] must be one of outrider, pilot_car, fuel_hauler, med_truck, got "tank"'],
+		['no buildings', (json: StartJson) => { delete json.buildings; }, 'CampaignStart.buildings is missing'],
+		['an unknown building', (json: StartJson) => { json.buildings = ['chapel']; },
+			'CampaignStart.buildings[0] must be one of bunkhouse, radio_mast, infirmary, map_room, garage, stores, got "chapel"'],
 		['more escorts than the convoy takes', (json: StartJson) => { json.escorts = ['outrider', 'outrider', 'pilot_car', 'pilot_car', 'med_truck']; },
 			'CampaignStart.escorts must hold at most 4, as many as the convoy takes, got 5']
 	])('rejects %s', (_label, change, message) => {

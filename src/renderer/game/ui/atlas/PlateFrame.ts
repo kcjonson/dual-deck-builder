@@ -20,21 +20,26 @@ const ART_INSET = Math.ceil(ATLAS.plateOuterRule + ATLAS.plateOuterGap + ATLAS.p
 /**
  * An atlas plate (UI Art Direction, Components): an illustrated view framed
  * by a 1.6 px ink rule with a 0.6 px rule 4 px outside it, and a mono
- * caption below. The art is the caller's, laid out as a stack inside the
- * rules (R12.18).
+ * caption below. The art is the caller's, added to `art`: a stack inside the
+ * rules (R12.18) that clips what it holds to them (R4.1), so a road run to
+ * the plate's edge or a zoomed map never crosses the frame.
  */
 export class PlateFrame extends Stack {
+	/** Where the caller's art goes: fills the plate inside both rules, and clips to them. */
+	public readonly art: Stack;
 	private readonly captionText: Text | null;
 	private inks: AtlasInks;
 	private readonly outer: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly main: Rect = { x: 0, y: 0, width: 0, height: 0 };
-	private readonly art: Rect = { x: 0, y: 0, width: 0, height: 0 };
+	private readonly artBox: Rect = { x: 0, y: 0, width: 0, height: 0 };
 
-	constructor({ caption, ...options }: PlateFrameOptions = {}) {
+	constructor({ caption, crossAlign = 'stretch', ...options }: PlateFrameOptions = {}) {
 		const captionSpace = caption !== undefined ? CAPTION_GAP + CAPTION_LINE : 0;
-		super({ ...options, padding: { top: ART_INSET, right: ART_INSET, bottom: ART_INSET + captionSpace, left: ART_INSET } });
+		super({ ...options, crossAlign: 'stretch', padding: { top: ART_INSET, right: ART_INSET, bottom: ART_INSET + captionSpace, left: ART_INSET } });
 		this.componentType = 'PlateFrame';
 		this.inks = atlasInks(this.themeTokens);
+		this.art = new Stack({ id: options.id ? `${options.id}_art` : undefined, widthMode: 'fill', heightMode: 'fill', crossAlign, overflow: 'hidden' });
+		this.addChild(this.art);
 		this.captionText = caption !== undefined
 			? new Text({
 				text: caption,
@@ -57,7 +62,7 @@ export class PlateFrame extends Stack {
 
 	/** Where the art shows, inside both rules. */
 	public get artRect(): Readonly<Rect> {
-		return this.art;
+		return this.artBox;
 	}
 
 	public flows(child: Component): boolean {
@@ -75,7 +80,7 @@ export class PlateFrame extends Stack {
 		setRect(this.outer, 0, 0, width, frameHeight);
 		const gap = ATLAS.plateOuterRule + ATLAS.plateOuterGap;
 		setRect(this.main, gap, gap, width - gap * 2, frameHeight - gap * 2);
-		setRect(this.art, ART_INSET, ART_INSET, width - ART_INSET * 2, frameHeight - ART_INSET * 2);
+		setRect(this.artBox, ART_INSET, ART_INSET, width - ART_INSET * 2, frameHeight - ART_INSET * 2);
 		if (this.captionText) {
 			this.captionText.setPosition(0, frameHeight + CAPTION_GAP);
 			this.captionText.setSize(width, CAPTION_LINE);

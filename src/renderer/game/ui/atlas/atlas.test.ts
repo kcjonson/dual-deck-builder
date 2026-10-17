@@ -7,6 +7,7 @@ import { Container } from '../../../engine/components/Container';
 import type { MountContext } from '../../../engine/components/MountContext';
 import { renderTree } from '../../../engine/components/renderTree';
 import { Stack } from '../../../engine/components/Stack';
+import { Text } from '../../../engine/components/Text';
 import { createTestContext } from '../../../engine/components/testing';
 import type { CircleCommand, DrawCommand, PolygonCommand, RectCommand, TextCommand } from '../../../engine/draw';
 import type { RGBA } from '../../../engine/draw/geometry';
@@ -15,13 +16,25 @@ import { NO_MODIFIERS } from '../../../engine/input/events';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../../../engine/text/testing';
 import { themes, tokens } from '../../../engine/theme/tokens';
 import { Button } from '../../../engine/ui/Button';
+import { Checkbox } from '../../../engine/ui/Checkbox';
+import { Scrollbar } from '../../../engine/ui/Scrollbar';
+import { SegmentedControl } from '../../../engine/ui/SegmentedControl';
+import { Select } from '../../../engine/ui/Select';
 import { Slider } from '../../../engine/ui/Slider';
 import { TabBar } from '../../../engine/ui/TabBar';
+import { Toggle } from '../../../engine/ui/Toggle';
 import { drawAtlasArt, paperPiece } from './atlasArt';
 import { AtlasButton } from './AtlasButton';
 import { AtlasSheet } from './AtlasSheet';
+import { PageTitle } from './PageTitle';
+import { PlateFrame } from './PlateFrame';
 import { ATLAS, DISPLAY_BOLD, atlasInks } from './atlasStyle';
+import { AtlasTag } from './AtlasTag';
+import { resolveFont } from '../../../engine/text/fontRoles';
 import { ContentsRow } from './ContentsRow';
+import { DeckFan, DeckStack } from './deck';
+import { DamageMark, damagePiece } from './DamageMark';
+import { uiArtSize } from '../../art/uiArt';
 import { CasedBar, ScaleBar } from './gauges';
 import { HandMarkLayer } from './HandMarkLayer';
 import { LegendBox, LegendRow } from './LegendBox';
@@ -299,6 +312,11 @@ describe('SectionTabs', () => {
 		expect(chosen).toEqual(['compound', 'crew', 'menu', 'crew', 'menu']);
 	});
 
+	it('names each tab after the row and its own id', () => {
+		const tabs = add(new SectionTabs({ id: 'sections', tabs: specs }));
+		expect(tabs.tabs.map((tab) => tab.id)).toEqual(['sections.menu', 'sections.compound', 'sections.locked', 'sections.crew']);
+	});
+
 	it('selects on activate, and never fires for the tab already open', () => {
 		const chosen: string[] = [];
 		const tabs = add(new SectionTabs({ tabs: specs, selectedId: 'menu', onSelect: (id) => chosen.push(id) }));
@@ -307,6 +325,13 @@ describe('SectionTabs', () => {
 		expect(chosen).toEqual([]);
 		tabs.selectedId = 'locked';
 		expect(tabs.selectedId).toBeNull();
+	});
+
+	it('names its tabs after itself when it has an id', () => {
+		const named = add(new SectionTabs({ id: 'crew_tabs', tabs: specs }));
+		expect(named.tabs.map((tab) => tab.id)).toEqual(['crew_tabs.menu', 'crew_tabs.compound', 'crew_tabs.locked', 'crew_tabs.crew']);
+		const unnamed = add(new SectionTabs({ tabs: specs }));
+		expect(unnamed.tabs[0].id).toBeNull();
 	});
 });
 
@@ -339,6 +364,30 @@ describe('AtlasSheet', () => {
 		expect(rects(sheet)[1].fill).toEqual(atlas.color.bg_base);
 	});
 
+	it('takes W3 and its hero mark for an event shown after mount, and settles back to W2 (DDB-511)', () => {
+		const sheet = add(new AtlasSheet({ width: 1024, height: 600 }));
+		expect(sheet.surfacePiece).toBe('paper_w2_a');
+		sheet.wear = 3;
+		sheet.paper = 'b';
+		context.frame.layout();
+		expect([sheet.wear, sheet.paper, sheet.surfacePiece]).toEqual([3, 'b', 'paper_w3_b']);
+		sheet.wear = 2;
+		context.frame.layout();
+		expect(sheet.surfacePiece).toBe('paper_w2_b');
+	});
+
+	it('tapes a burnt sheet on the other diagonal, so no tape pins the burnt corner (DDB-511)', () => {
+		const sheet = add(new AtlasSheet({ width: 1024, height: 600 }));
+		const tapeCentres = (): number[][] => rects(sheet).filter((command) => same(command.fill, atlas.color.duct_tape)).map((command) => [command.transform[4], command.transform[5]]);
+		const [start, end] = tapeCentres();
+		expect([start[0] < 512, start[1] < 300, end[0] > 512, end[1] > 300]).toEqual([true, true, true, true]);
+		sheet.wear = 3;
+		context.frame.layout();
+		expect(sheet.surfacePiece).toBe('paper_w3_a');
+		const [burntStart, burntEnd] = tapeCentres();
+		expect([burntStart[0] > 512, burntStart[1] < 300, burntEnd[0] < 512, burntEnd[1] > 300]).toEqual([true, true, true, true]);
+	});
+
 	it('flows its content inside the neatline', () => {
 		const sheet = new AtlasSheet({ width: 1024, height: 600 });
 		const child = new Stack({ width: 100, height: 20 });
@@ -347,6 +396,15 @@ describe('AtlasSheet', () => {
 		const inset = tokens.space.sheet_margin + ATLAS.neatlineInset + ATLAS.neatlineGap + ATLAS.sheetPadding;
 		expect(child.placedX).toBe(inset);
 		expect(child.placedY).toBe(inset);
+	});
+
+	it('clears its content and keeps its tabs', () => {
+		const tabs = new SectionTabs({ tabs: [{ id: 'a', label: 'Menu' }] });
+		const sheet = add(new AtlasSheet({ tabs, width: 1024, height: 600 }));
+		sheet.addChild(new Stack({ id: 'page', width: 100, height: 20 }));
+		sheet.clearContent();
+		expect(sheet.children).toEqual([tabs]);
+		expect(sheet.tabs).toBe(tabs);
 	});
 });
 
@@ -362,6 +420,61 @@ describe('LegendBox', () => {
 		expect(drawn[2]).toMatchObject({ border: { width: ATLAS.legendRule }, rect: { x: ATLAS.legendRuleInset } });
 		expect(drawn.filter((command) => same(command.fill, atlas.color.line_hairline))).toHaveLength(2);
 		expect(box.title).toBe('Needs');
+	});
+
+	it('names the line of a row after the row, and inks it as asked', () => {
+		const row = add(new LegendRow({ id: 'need', symbol: 'diamond', text: 'Food runs out tonight', color: 'status_crit' }));
+		expect(row.findById('need_text')).not.toBeNull();
+		expect(row.color).toEqual(atlas.color.status_crit);
+		row.color = 'text';
+		expect(row.color).toEqual(ink);
+		expect(add(new LegendRow({ symbol: 'dash', text: 'Radio: no new rumors' })).color).toEqual(atlas.color.text_faint);
+		const counted = add(new LegendRow({ id: 'poi', text: 'Hospital', value: 'tier 2' }));
+		expect([counted.value, counted.findById('poi_value') !== null, counted.findById('poi_text') !== null]).toEqual(['tier 2', true, true]);
+		const named = add(new LegendRow({ id: 'row', text: 'Clinic', value: '1', textId: 'clinic', valueId: 'clinic_count' }));
+		expect([named.findById('clinic') !== null, named.findById('clinic_count') !== null, named.findById('row_text')]).toEqual([true, true, null]);
+	});
+
+	it('sets a ledger row\'s value at the right in mono 500, and its line and value take ids (DDB-511)', () => {
+		const box = new LegendBox({ title: 'Campaign record', width: 320 });
+		const row = new LegendRow({ id: 'days', text: 'Days held', value: '9 days', textId: 'days_label', valueId: 'days_value' });
+		box.addChild(row);
+		add(box);
+		const value = row.findById('days_value');
+		const line = row.findById('days_label');
+		if (!value || !line) throw new Error('the row should carry its line and value');
+		expect([row.text, row.value]).toEqual(['Days held', '9 days']);
+		expect(value.placedX + value.width).toBe(row.width);
+		expect(line.placedX + line.width).toBeLessThanOrEqual(value.placedX);
+		const valueRun = draws(row).find((command): command is TextCommand => command.kind === 'text' && command.text === '9 days');
+		expect(valueRun?.font).toBe(resolveFont({ family: 'mono', weight: 500 }));
+		expect(new LegendRow({ id: 'radio', text: 'Radio: no new rumors' }).findById('radio_text')).not.toBeNull();
+		expect(new LegendRow({ text: 'Radio: no new rumors' }).value).toBeNull();
+	});
+
+	it('sets its head further in than its padding by the head indent, and its content below it', () => {
+		const box = new LegendBox({ title: 'Locker', padding: 8, headIndent: 4, gap: 0, width: 320 });
+		const content = new Stack({ width: 100, height: 20 });
+		box.addChild(content);
+		add(box);
+		const head = box.children.find((child): child is Text => child instanceof Text && child.isPart);
+		expect([head?.placedX, head?.placedY]).toEqual([12, 12]);
+		expect([content.placedX, content.placedY]).toEqual([8, 12 + 24]);
+	});
+
+	it('names the body line of a row when asked', () => {
+		const row = add(new LegendRow({ text: 'No campaign has ended yet.', symbol: 'dash', textId: 'history_empty' }));
+		expect(row.findById('history_empty')).not.toBeNull();
+	});
+
+	it('names the text and value of a row after it by default, and sets the value in mono at the right', () => {
+		const row = add(new LegendRow({ id: 'need', text: 'Water runs out', symbol: 'diamond', value: '2 DAYS' }));
+		expect((row.findById('need_text') as Text | null)?.text).toBe('Water runs out');
+		const value = row.findById('need_value') as Text | null;
+		expect([value?.text, row.children[row.children.length - 1]]).toEqual(['2 DAYS', value]);
+		row.value = '1 DAY';
+		expect(row.value).toBe('1 DAY');
+		expect(new LegendRow({ text: 'Quiet' }).value).toBeNull();
 	});
 
 	it('draws the thing in focus on flat fresh paper, W0, with no art', () => {
@@ -438,6 +551,77 @@ describe('ContentsRow', () => {
 		expect(drawn.some((command) => command.kind === 'rect' && same(command.fill, tokens.color.text_disabled))).toBe(true);
 	});
 
+	it('lists at the minimum hit height with a small lead, a diamond for a hostile place, and dims a row still in reach in dim ink and a faded glyph', () => {
+		const column = new Stack({ width: 340 });
+		const store = new ContentsRow({ variant: 'list', lead: { glyph: 'G' }, label: 'General store, south-east', value: 'tier 1' });
+		const held = new ContentsRow({ variant: 'list', lead: { glyph: '', diamond: true }, label: 'Volt Vultures stronghold', value: 'stronghold', dim: true });
+		column.addChild(store);
+		column.addChild(held);
+		add(column);
+		expect(store.height).toBe(ATLAS.minHit);
+		expect(draws(store).find((command): command is CircleCommand => command.kind === 'circle')?.border?.color).toEqual(ink);
+		const diamond = draws(held).find((command): command is PolygonCommand => command.kind === 'polygon');
+		expect(diamond?.fill).toEqual(atlas.color.status_crit);
+		const label = (row: ContentsRow) => draws(row).find((command): command is TextCommand => command.kind === 'text' && command.text === row.label);
+		expect(label(held)?.color).toEqual(atlas.color.text_dim);
+		expect(held.canReceiveFocus()).toBe(true);
+		held.dim = false;
+		expect(label(held)?.color).toEqual(ink);
+		store.dim = true;
+		const dimmed = draws(store);
+		expect(dimmed.find((command): command is TextCommand => command.kind === 'text' && command.text === 'tier 1')?.color).toEqual(atlas.color.text_dim);
+		// The glyph says it too, in faded print; a stronghold's diamond keeps its red.
+		expect(dimmed.find((command): command is CircleCommand => command.kind === 'circle')?.border?.color).toEqual(atlas.color.text_disabled);
+		held.dim = true;
+		expect(draws(held).find((command): command is PolygonCommand => command.kind === 'polygon')?.fill).toEqual(atlas.color.status_crit);
+	});
+
+	it('names its label, value, and subtitle after the row', () => {
+		const column = new Stack({ width: 600 });
+		const row = new ContentsRow({ id: 'history_row_0', label: 'Starved', value: '34 days', subtitle: 'Seed 7', focusable: false, pointerEvents: 'none' });
+		column.addChild(row);
+		add(column);
+		expect(['label', 'value', 'subtitle'].map((part) => (row.findById(`history_row_0_${part}`) as Text | null)?.text)).toEqual(['Starved', '34 days', 'Seed 7']);
+		expect(row.canReceiveFocus()).toBe(false);
+	});
+
+	it('moves between primary and standard in place, turning its glyph and keeping its focus', () => {
+		const column = new Stack({ width: 600 });
+		const row = new ContentsRow({ variant: 'primary', lead: { glyph: '' }, label: 'Continue', subtitle: '', value: '' });
+		column.addChild(row);
+		add(column);
+		row.setFocusState(true, true);
+		row.leadLabel = '9';
+		row.subtitle = 'Day 9 - 3 drivers';
+		row.value = 'DAY 09';
+		context.frame.layout();
+		expect(row.height).toBe(72);
+		expect(draws(row).some((command) => command.kind === 'text' && command.text === '9')).toBe(true);
+		expect(draws(row).some((command) => command.kind === 'text' && command.text === 'Day 9 - 3 drivers')).toBe(true);
+
+		row.variant = 'standard';
+		row.faded = true;
+		context.frame.layout();
+		expect(row.height).toBe(56);
+		expect(draws(row).find((command): command is CircleCommand => command.kind === 'circle')?.border?.color).toEqual(atlas.color.text_disabled);
+		row.faded = false;
+		row.variant = 'primary';
+		context.frame.layout();
+		expect(row.height).toBe(72);
+		expect(draws(row).find((command): command is PolygonCommand => command.kind === 'polygon')?.fill).toEqual(atlas.color.accent);
+		expect(() => { row.variant = 'compact'; }).toThrow();
+	});
+
+	it('rings focus in ink on paper, and prints a muted entry in ink faint', () => {
+		const column = new Stack({ width: 600 });
+		const row = new ContentsRow({ label: 'Developer tools', variant: 'compact', value: 'E', muted: true });
+		column.addChild(row);
+		add(column);
+		expect(draws(row).find((command): command is TextCommand => command.kind === 'text' && command.text === 'Developer tools')?.color).toEqual(atlas.color.text_faint);
+		press('Tab');
+		expect(rects(row).some((command) => same(command.border?.color, ink) && command.border?.width === ATLAS.focusRingWidth)).toBe(true);
+	});
+
 	it('activates from the keyboard', () => {
 		let opened = 0;
 		const column = new Stack({ width: 600 });
@@ -465,6 +649,17 @@ describe('ResourceStrip', () => {
 	});
 });
 
+describe('ResourceStrip ids and formats', () => {
+	it('names each item after the strip and its kind, and prints values as asked', () => {
+		const strip = add(new ResourceStrip({ id: 'stores', width: 600, items: [{ kind: 'scrap', value: 12_000 }], format: (value) => `${Math.floor(value / 1000)}k` }));
+		const item = strip.item('scrap');
+		expect(item?.id).toBe('stores_scrap');
+		expect((strip.findById('stores_scrap_value') as { text: string } | null)?.text).toBe('12k');
+		if (item) item.value = 3000;
+		expect((strip.findById('stores_scrap_value') as { text: string } | null)?.text).toBe('3k');
+	});
+});
+
 describe('gauges', () => {
 	it('alternates a scale bar and fills a count from the left', () => {
 		const scale = add(new ScaleBar({ segments: 4 }));
@@ -474,12 +669,46 @@ describe('gauges', () => {
 		expect(scale.filled).toBe(2);
 	});
 
+	it('takes a heavier frame, as the splash loader\'s Casing frame is', () => {
+		const loader = add(new ScaleBar({ segments: 10, value: 0.6, tone: 'highway', frame: 2, width: 420, height: 12 }));
+		const [frame, firstCell] = rects(loader);
+		expect(frame.border?.color).toEqual(atlas.color.accent_dim);
+		expect(frame.border?.width).toBe(2);
+		expect(firstCell.rect).toMatchObject({ x: 2, y: 2, height: 8 });
+		expect(firstCell.fill).toEqual(atlas.color.accent);
+		expect(loader.filled).toBe(6);
+	});
+
 	it('fills a cased bar in the driver\'s colour on its casing', () => {
 		const bar = add(new CasedBar({ value: 0.5, driver: 'b', width: 200, height: 10 }));
 		const drawn = rects(bar);
 		expect(drawn[0].fill).toEqual(atlas.color.driver_b_casing);
 		expect(drawn[2].fill).toEqual(atlas.color.driver_b);
 		expect(drawn[2].rect.width).toBeCloseTo(drawn[1].rect.width / 2);
+	});
+});
+
+describe('deck objects', () => {
+	it('stacks a deck\'s card edges down and right under its back', () => {
+		const deck = add(new DeckStack({ driver: 'b', width: 100, edges: 4 }));
+		expect(deck.width).toBe(Math.ceil(100 + 2.5 * 4));
+		const commands = draws(deck);
+		expect(commands[0].kind).toBe('shadow');
+		const edges = commands.filter((command): command is RectCommand => command.kind === 'rect' && same(command.fill, atlas.color.bg_inset));
+		expect(edges.map((command) => command.rect.x)).toEqual([10, 7.5, 5, 2.5]);
+		expect(commands.some((command) => command.kind === 'rect' && same(command.fill, atlas.color.driver_b))).toBe(true);
+	});
+
+	it('fans a deck\'s backs about a point under them, the last on top, bounded by its box', () => {
+		const fan = add(new DeckFan({ driver: 'a', width: 100, cards: 5, spread: 8 }));
+		expect(fan.cards).toBe(5);
+		// Turned plus and minus 16 degrees about (50, 150), the fan is wider than a card and symmetric.
+		expect(fan.width).toBeGreaterThan(100);
+		expect(fan.cardOrigin.x).toBeCloseTo((fan.width - 100) / 2, 0);
+		const commands = draws(fan);
+		const bands = commands.filter((command): command is RectCommand => command.kind === 'rect' && same(command.fill, atlas.color.driver_a));
+		expect(bands).toHaveLength(5);
+		expect(commands.filter((command) => command.kind === 'shadow')).toHaveLength(5);
 	});
 });
 
@@ -559,6 +788,131 @@ describe('focus rings on an atlas screen', () => {
 		expect(slider.resolvedColors.fill).toEqual(atlas.color.accent);
 		focus(slider);
 		expect(rects(slider).find((command) => command.id === 'volume.focus_ring')?.border?.color).toEqual(ink);
+	});
+
+	it('draws a scrollbar in the theme\'s colours, so its thumb shows on paper', () => {
+		const bar = add(new Scrollbar({ id: 'bar', height: 120, range: { offset: 0, extent: 300, viewport: 120 } }));
+		const [track, thumb] = rects(bar);
+		expect(track.fill).toEqual(atlas.color.line_hairline);
+		expect(thumb.fill).toEqual(atlas.color.line_strong);
+		root.theme = null;
+		expect(rects(bar)[1].fill).toEqual(tokens.color.line_strong);
+	});
+});
+
+describe('DamageMark', () => {
+	it('is its art\'s own size, follows a change of stamp, and takes no hits (DDB-511)', () => {
+		const mark = add(new DamageMark({ id: 'stamp', kind: 'looted' }));
+		const looted = uiArtSize('stamp_looted');
+		expect([mark.width, mark.height, mark.piece]).toEqual([looted.width, looted.height, 'stamp_looted']);
+		mark.kind = 'depleted';
+		context.frame.layout();
+		const depleted = uiArtSize('stamp_depleted');
+		expect([mark.width, mark.height, mark.piece]).toEqual([depleted.width, depleted.height, 'stamp_depleted']);
+		expect(mark.pointerEvents).toBe('none');
+		expect(['lost', 'fallen', 'tear'].map((kind) => damagePiece(kind as 'lost'))).toEqual(['stamp_lost', 'stamp_fallen', 'tear_a']);
+	});
+});
+
+describe('AtlasTag', () => {
+	it('keeps its text clear of where a tear runs in, torn or not, and reds a costly caption (DDB-511)', () => {
+		const torn = new AtlasTag({ label: 'Road Warrior 1', caption: 'Injured, fit in 2 days', warn: true, torn: true, width: 200, labelId: 'name', captionId: 'state' });
+		const whole = new AtlasTag({ label: 'Road Warrior 1', caption: 'Fit', width: 200 });
+		const column = new Stack({ gap: 8 });
+		column.addChild(torn);
+		column.addChild(whole);
+		add(column);
+		const tear = uiArtSize('tear_a');
+		for (const tag of [torn, whole]) {
+			for (const child of tag.children) expect(child.placedX + child.width).toBeLessThanOrEqual(tag.width - tear.width);
+		}
+		expect(torn.height).toBeGreaterThanOrEqual(tear.height);
+		expect([torn.torn, whole.torn, torn.label, torn.caption]).toEqual([true, false, 'Road Warrior 1', 'Injured, fit in 2 days']);
+		const caption = draws(torn).find((command): command is TextCommand => command.kind === 'text' && command.text.toLowerCase().startsWith('injured'));
+		expect(caption?.color).toEqual(atlas.color.status_crit);
+	});
+});
+
+describe('settings controls on an atlas screen', () => {
+	const dark = themes.dark;
+
+	it('draws a Checkbox and a Toggle on paper, filled with the highway when on, square where the theme is', () => {
+		const box = add(new Checkbox({ label: 'Subtitles', checked: true }));
+		const toggle = add(new Toggle({ label: 'Screen shake' }));
+		expect(box.look.fill).toEqual(atlas.color.accent);
+		expect(box.look.radius).toBe(0);
+		expect(toggle.look.fill).toEqual(atlas.color.bg_inset);
+		expect(toggle.look.border).toEqual(atlas.color.line_strong);
+		const label = draws(toggle).find((command): command is TextCommand => command.kind === 'text');
+		expect(label?.color).toEqual(atlas.color.text);
+		root.theme = null;
+		expect(box.look.fill).toEqual(dark.color.accent);
+		expect(toggle.look.fill).toEqual(dark.color.bg_inset);
+	});
+
+	it('marks a SegmentedControl choice with the highlighter and ink, in a square index well', () => {
+		const control = add(new SegmentedControl({ id: 'motion', tone: 'highlight', options: [{ label: 'System', value: 'system' }, { label: 'Full', value: 'full' }], selected: 'full' }));
+		const [first, second] = control.items;
+		expect(second.look.fill).toEqual(atlas.color.bg_selection);
+		expect(second.look.text).toEqual(atlas.color.text_bright);
+		expect(first.look.text).toEqual(atlas.color.text_dim);
+		const well = rects(control).find((command) => command.id === 'motion');
+		expect(well?.fill).toEqual(atlas.color.bg_inset);
+		expect(well?.radius ?? 0).toBe(0);
+		first.setFocusState(true, true);
+		context.frame.update(1);
+		expect(first.look.focusRing).toEqual(ink);
+	});
+
+	it('keeps an accent SegmentedControl chip and well as they were on a dark screen, and moves them to the atlas', () => {
+		root.theme = null;
+		const control = add(new SegmentedControl({ id: 'filter', options: [{ label: 'All', value: 'all' }], selected: 'all' }));
+		expect(control.items[0].look.fill).toEqual(dark.color.accent);
+		expect(rects(control).find((command) => command.id === 'filter')?.radius).toBe(dark.radius.r_md);
+		root.theme = 'atlas';
+		expect(control.items[0].look.fill).toEqual(atlas.color.accent);
+	});
+
+	it('draws a Select field, its placeholder, and its menu on paper', () => {
+		const select = add(new Select({ id: 'driver', options: [{ label: 'Road warrior', value: 'a' }], placeholder: 'Pick one' }));
+		expect(select.resolvedColors.fill).toEqual(atlas.color.bg_inset);
+		const placeholder = draws(select).find((command): command is TextCommand => command.kind === 'text');
+		expect(placeholder?.color).toEqual(atlas.color.text_faint);
+		select.show();
+		const menu = select.openMenu;
+		if (!menu) throw new Error('the select should open');
+		expect(menu.effectiveTheme).toBe('atlas');
+		expect(menu.resolvedColors.fill).toEqual(atlas.color.bg_panel_raised);
+		select.closeMenu();
+	});
+});
+
+describe('PlateFrame', () => {
+	it('holds its art inside both rules and clips it there, caption and all below', () => {
+		const plate = add(new PlateFrame({ id: 'plate', caption: 'Plate 1', width: 300, height: 200 }));
+		const art = new Stack({ id: 'wide_art', width: 600, height: 600 });
+		plate.art.addChild(art);
+		context.frame.layout();
+		expect(plate.art.clipsChildren).toBe(true);
+		const box = plate.artRect;
+		expect([plate.art.placedX, plate.art.placedY, plate.art.width, plate.art.height]).toEqual([box.x, box.y, box.width, box.height]);
+		expect(plate.findById('wide_art')).toBe(art);
+	});
+});
+
+describe('PageTitle', () => {
+	it('sits the standard padding in from the neatline on a sheet built tighter', () => {
+		const tight = add(new AtlasSheet({ width: 1024, height: 600, contentInset: 8 }));
+		const title = new PageTitle({ title: 'Crew and decks' });
+		tight.addChild(title);
+		context.frame.layout();
+		expect([title.padding.left, title.padding.top]).toEqual([ATLAS.sheetPadding - 8, ATLAS.sheetPadding - 8]);
+		root.removeChild(tight);
+		const standard = add(new AtlasSheet({ width: 1024, height: 600 }));
+		const plain = new PageTitle({ title: 'Settings' });
+		standard.addChild(plain);
+		context.frame.layout();
+		expect([plain.padding.left, plain.padding.top]).toEqual([0, 0]);
 	});
 });
 
