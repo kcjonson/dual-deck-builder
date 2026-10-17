@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/dev_section_combat_dock/Text[0]","text":"Combat Dock","rect":[53,53,125.72,50]},
+{"path":"gallery_root/dev_section_combat_dock/Text[0]","text":"Combat Dock","rect":[53,53,129.5,50]},
 {"path":"gallery_root/dev_section_combat_dock/dev_section_combat_dock_rows/Stack[0]/Text[0]","text":"both hands at the cap of seven; six mods as three and +3, adrenaline past six as one bolt; four mods, two of five bolts lit","rect":[53,103,1334,17.7]},
 {"path":"gallery_root/dev_section_combat_dock/dev_section_combat_dock_rows/Stack[0]/dev_combat_dock/combat_player_hand/Stack[0]/driver1_tab/Stack[1]/driver1_tab_name","text":"The Road Warrior","rect":[103,140.7,112.67,18]},
 {"path":"gallery_root/dev_section_combat_dock/dev_section_combat_dock_rows/Stack[0]/dev_combat_dock/combat_player_hand/Stack[0]/driver1_tab/driver1_mods/driver1_mod_more/Text[0]","text":"+3","rect":[387.38,142.44,13.2,14.52]},
