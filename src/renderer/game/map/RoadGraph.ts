@@ -1,6 +1,6 @@
 import { chaikin, pointAlong, polylineLength } from './Geometry';
 import { simplify } from './Rivers';
-import { impassableAlong, polylineBridges, roadClashes, RoadGround } from './RoadChecks';
+import { PASSABLE_SPACING, impassableAlong, polylineBridges, roadClashes, RoadGround } from './RoadChecks';
 import { EdgeCostField, MOVES, MOVE_X, MOVE_Y, NEIGHBOURS, OPPOSITE, moveBetween } from './RoadCost';
 import type { RoadCells } from './RoadLinks';
 import { ROAD_CLASSES, RoadNode, RoadNodeKind, RoadStretch } from './RoadNetwork';
@@ -445,7 +445,7 @@ function relaxed(points: readonly number[]): number[] {
 	return out;
 }
 
-interface Piece {
+export interface Piece {
 	readonly points: number[];
 	readonly first: boolean;
 	readonly last: boolean;
@@ -454,11 +454,13 @@ interface Piece {
 /**
  * A polyline longer than `ROAD_GRAPH.longest` cut into pieces about that
  * long or less at even shares of its length, the roadside nodes: on a point
- * of the line within a world unit of the share, or else a point put there on
- * its segment, which leaves the line where it was. A share on a bridge moves
- * to the nearer end of its deck.
+ * of the line within a world unit of the share, or else a point put on its
+ * segment there, which leaves the line where it was. A share on a bridge
+ * moves to the nearer end of its deck. A point put on a segment lands on
+ * one of the segment's samples (`latticePoint`), so the pieces are sampled
+ * where the whole line was and pass wherever it passed.
  */
-function splitLong(points: readonly number[], bridges: readonly { start: number; end: number }[]): Piece[] {
+export function splitLong(points: readonly number[], bridges: readonly { start: number; end: number }[]): Piece[] {
 	const length = polylineLength(points);
 	const parts = Math.ceil(length / ROAD_GRAPH.longest);
 	const count = points.length / 2;
@@ -470,21 +472,28 @@ function splitLong(points: readonly number[], bridges: readonly { start: number;
 		along[point] = along[point - 1] + Math.sqrt(dx * dx + dy * dy);
 	}
 	const cuts: number[] = [];
+	/** Per cut, which way it rounds onto a sample: back off the start of a deck, on off its end, or to the nearest. */
+	const towards: number[] = [];
 	for (let part = 1; part < parts; part += 1) {
 		let target = length * part / parts;
+		let toward = 0;
 		const deck = bridges.find(({ start, end }) => target >= start && target <= end);
-		if (deck !== undefined) target = target - deck.start < deck.end - target ? deck.start : deck.end;
+		if (deck !== undefined) {
+			toward = target - deck.start < deck.end - target ? -1 : 1;
+			target = toward < 0 ? deck.start : deck.end;
+		}
 		const previous = cuts.length > 0 ? cuts[cuts.length - 1] : 0;
-		if (target - previous >= 1 && length - target >= 1) cuts.push(target);
+		if (target - previous >= 1 && length - target >= 1) {
+			cuts.push(target);
+			towards.push(toward);
+		}
 	}
 	const pieces: Piece[] = [];
 	let piece: number[] = [points[0], points[1]];
 	let cut = 0;
 	for (let point = 1; point < count; point += 1) {
 		while (cut < cuts.length && cuts[cut] < along[point] - 1) {
-			const share = (cuts[cut] - along[point - 1]) / (along[point] - along[point - 1]);
-			const x = points[2 * point - 2] + (points[2 * point] - points[2 * point - 2]) * share;
-			const y = points[2 * point - 1] + (points[2 * point + 1] - points[2 * point - 1]) * share;
+			const { x, y } = latticePoint(points, point - 1, cuts[cut] - along[point - 1], towards[cut]);
 			const last = piece.length;
 			// Within a unit of the point before, the cut moves onto it.
 			if (cuts[cut] - along[point - 1] < 1 && last > 2) {
@@ -506,6 +515,33 @@ function splitLong(points: readonly number[], bridges: readonly { start: number;
 	}
 	pieces.push({ points: piece, first: pieces.length === 0, last: true });
 	return pieces;
+}
+
+/**
+ * The point on the segment from point `segment` to the next nearest
+ * `offset` world units along it from its first, moved onto one of the
+ * segment's samples, a whole number of `PASSABLE_SPACING` from its
+ * lower-left end: back along the line where `toward` is -1, on where it's
+ * 1, and to the nearest where it's 0. Never either end.
+ */
+function latticePoint(points: readonly number[], segment: number, offset: number, toward: number): { x: number; y: number } {
+	const x0 = points[2 * segment];
+	const y0 = points[2 * segment + 1];
+	const x1 = points[2 * segment + 2];
+	const y1 = points[2 * segment + 3];
+	const forward = x0 < x1 || (x0 === x1 && y0 <= y1);
+	const sx = forward ? x0 : x1;
+	const sy = forward ? y0 : y1;
+	const ex = forward ? x1 : x0;
+	const ey = forward ? y1 : y0;
+	const length = Math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
+	const steps = (forward ? offset : length - offset) / PASSABLE_SPACING;
+	const way = forward ? toward : -toward;
+	const rounded = way < 0 ? floor(steps) : way > 0 ? Math.ceil(steps) : Math.round(steps);
+	const last = Math.ceil(length / PASSABLE_SPACING) - 1;
+	const step = rounded < 1 ? 1 : rounded > last ? last : rounded;
+	const share = step * PASSABLE_SPACING / length;
+	return { x: sx + (ex - sx) * share, y: sy + (ey - sy) * share };
 }
 
 function stretchOf({ from, to, roadClass, highway, points, terrain, metroSquared }: {
