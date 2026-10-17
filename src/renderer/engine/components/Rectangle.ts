@@ -13,6 +13,8 @@ import {
 	resolveShadow,
 	validateStyle,
 } from '../style/styleObject';
+import { tokens } from '../theme/tokens';
+import type { Theme } from '../theme/tokens';
 
 /** R11.14's properties a box renders: what Rectangle, and a stack's background, accept. */
 export type BoxStyleObject = Pick<StyleProperties, 'backgroundColor' | 'borderColor' | 'borderWidth' | 'borderRadius' | 'opacity' | 'shadow'>;
@@ -37,14 +39,14 @@ export function boxAcceptance(component: string): StyleAcceptance {
 	return { component, properties: BOX_PROPERTIES, states: new Set() };
 }
 
-/** `base` with whichever box properties `style` sets (R11.15's instance step). */
-export function resolveBoxStyle(style: BoxStyleObject, base: BoxStyle): BoxStyle {
+/** `base` with whichever box properties `style` sets (R11.15's instance step), token names read from `theme`. */
+export function resolveBoxStyle(style: BoxStyleObject, base: BoxStyle, theme: Theme = tokens): BoxStyle {
 	return {
-		fill: style.backgroundColor !== undefined ? resolveColor(style.backgroundColor) : base.fill,
-		borderColor: style.borderColor !== undefined ? resolveColor(style.borderColor) : base.borderColor,
-		borderWidth: style.borderWidth !== undefined ? resolveLength(style.borderWidth, 'borderWidth') : base.borderWidth,
-		cornerRadius: style.borderRadius !== undefined ? resolveLength(style.borderRadius, 'borderRadius') : base.cornerRadius,
-		shadow: style.shadow !== undefined ? resolveShadow(style.shadow) : base.shadow,
+		fill: style.backgroundColor !== undefined ? resolveColor(style.backgroundColor, theme) : base.fill,
+		borderColor: style.borderColor !== undefined ? resolveColor(style.borderColor, theme) : base.borderColor,
+		borderWidth: style.borderWidth !== undefined ? resolveLength(style.borderWidth, 'borderWidth', theme) : base.borderWidth,
+		cornerRadius: style.borderRadius !== undefined ? resolveLength(style.borderRadius, 'borderRadius', theme) : base.cornerRadius,
+		shadow: style.shadow !== undefined ? resolveShadow(style.shadow, theme) : base.shadow,
 	};
 }
 
@@ -78,6 +80,14 @@ export function boxInkExtent(box: BoxStyle): number {
 
 const DEFAULT_BOX: BoxStyle = { fill: [1, 1, 1, 1], borderColor: null, borderWidth: 0, cornerRadius: 0, shadow: null };
 
+/** What the setters changed since the last `style`, kept as authored so a theme change re-resolves it too. */
+interface BoxOverrides {
+	fill?: ColorValue;
+	borderColor?: ColorValue | null;
+	borderWidth?: number;
+	cornerRadius?: number;
+}
+
 /**
  * R12.1's rectangle on R11.14's closed set: `backgroundColor`, `borderColor`,
  * `borderWidth`, `borderRadius`, `opacity`, and `shadow`, each rendered; any
@@ -86,14 +96,30 @@ const DEFAULT_BOX: BoxStyle = { fill: [1, 1, 1, 1], borderColor: null, borderWid
 export class Rectangle extends Component {
 	private box: BoxStyle;
 	private styleObject: BoxStyleObject;
+	private overrides: BoxOverrides = {};
 
 	constructor({ style = {}, ...options }: RectangleOptions = {}) {
 		super(options);
 		this.componentType = 'Rectangle';
 		validateStyle(style, boxAcceptance('Rectangle'));
 		this.styleObject = style;
-		this.box = resolveBoxStyle(style, DEFAULT_BOX);
+		this.box = this.resolveBox(this.themeTokens);
 		if (style.opacity !== undefined) this.opacity = style.opacity;
+	}
+
+	private resolveBox(theme: Theme): BoxStyle {
+		const box = resolveBoxStyle(this.styleObject, DEFAULT_BOX, theme);
+		const { fill, borderColor, borderWidth, cornerRadius } = this.overrides;
+		if (fill !== undefined) box.fill = resolveColor(fill, theme);
+		if (borderColor !== undefined) box.borderColor = borderColor ? resolveColor(borderColor, theme) : null;
+		if (borderWidth !== undefined) box.borderWidth = borderWidth;
+		if (cornerRadius !== undefined) box.cornerRadius = cornerRadius;
+		return box;
+	}
+
+	protected onThemeChange(theme: Theme): void {
+		this.box = this.resolveBox(theme);
+		this.invalidateInk();
 	}
 
 	public get style(): BoxStyleObject {
@@ -104,7 +130,8 @@ export class Rectangle extends Component {
 	public set style(style: BoxStyleObject) {
 		validateStyle(style, boxAcceptance('Rectangle'));
 		this.styleObject = style;
-		this.box = resolveBoxStyle(style, DEFAULT_BOX);
+		this.overrides = {};
+		this.box = this.resolveBox(this.themeTokens);
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 		this.invalidateInk();
 	}
@@ -114,7 +141,8 @@ export class Rectangle extends Component {
 	}
 
 	public set fillColor(color: ColorValue) {
-		this.box = { ...this.box, fill: resolveColor(color) };
+		this.overrides.fill = color;
+		this.box = { ...this.box, fill: resolveColor(color, this.themeTokens) };
 	}
 
 	public get borderColor(): RGBA | null {
@@ -122,7 +150,8 @@ export class Rectangle extends Component {
 	}
 
 	public set borderColor(color: ColorValue | null) {
-		this.box = { ...this.box, borderColor: color ? resolveColor(color) : null };
+		this.overrides.borderColor = color;
+		this.box = { ...this.box, borderColor: color ? resolveColor(color, this.themeTokens) : null };
 	}
 
 	public get borderWidth(): number {
@@ -130,6 +159,7 @@ export class Rectangle extends Component {
 	}
 
 	public set borderWidth(width: number) {
+		this.overrides.borderWidth = width;
 		this.box = { ...this.box, borderWidth: width };
 	}
 
@@ -138,6 +168,7 @@ export class Rectangle extends Component {
 	}
 
 	public set cornerRadius(radius: number) {
+		this.overrides.cornerRadius = radius;
 		this.box = { ...this.box, cornerRadius: radius };
 	}
 

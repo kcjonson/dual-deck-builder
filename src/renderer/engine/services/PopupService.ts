@@ -4,6 +4,7 @@ import type { InputObserver, PointerPress } from '../input/Dispatcher';
 import type { KeyStroke } from '../input/HotkeyTable';
 import { OverlayHandle, OverlayService, contains } from './OverlayService';
 import type { Placement, PlacementAlign, PlacementService, PlacementSide } from './Placement';
+import type { ThemeName } from '../theme/tokens';
 
 export type PopupCloseReason = 'replaced' | 'outside-press' | 'escape' | 'focus-loss' | 'modal' | 'scroll' | 'closed';
 
@@ -28,6 +29,8 @@ export interface PopupOptions {
 	offset?: number;
 	/** Heard once, whatever closed it, including `close()`. */
 	onClose?: (reason: PopupCloseReason) => void;
+	/** The theme of a popup the service mounts. Default: the trigger's, else the anchor component's. */
+	theme?: ThemeName;
 }
 
 /** One open popup. `close` is the owner's own close; the service's are the reasons in `PopupCloseReason`. */
@@ -117,9 +120,11 @@ export class PopupService implements InputObserver {
 		this.closeCurrent('replaced');
 		const { popup } = options;
 		let handle: PopupHandle | null = null;
+		const opener = options.trigger ?? (options.anchor && isComponent(options.anchor) ? options.anchor : null);
 		const overlay = popup.isMounted ? null : this.overlays.open(popup, {
 			layer: 'popup',
 			id: popup.id ? `popup_${popup.id}` : undefined,
+			theme: options.theme ?? opener?.effectiveTheme,
 			// Closed from outside (a scene change's closeAll): the popup is closed too.
 			onClose: () => {
 				if (handle) this.closeHandle(handle, 'closed');

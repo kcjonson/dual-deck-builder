@@ -1,4 +1,7 @@
+import { routeOffers } from '../campaign/MapRoutes';
 import { Rng } from '../core/Rng';
+import { plannedPois } from '../screens/area-map/planningMap';
+import { generateAreaMap } from './AreaMapPipeline';
 import { fakeGround, meshFrom, meshMap, randomMesh } from './meshTesting';
 import { POI_TUNING, PoiTuning, STRONGHOLD_TYPE } from './PoiData';
 import { placePois } from './Pois';
@@ -6,6 +9,7 @@ import { LegKnowledge, RouteMap, compass, describeMap, describeRoutes, fuelFor }
 import { buildRouteTree, routesTo } from './RouteTree';
 import { ROUTE_TUNING, STOP_TUNING, isFight } from './StopData';
 import { placeStops } from './Stops';
+import { paramsFor } from './roadTesting';
 
 const meshes = Array.from({ length: 4 }, (_, index) => randomMesh({ seed: 700 + index, spacing: 85 + index }));
 const mapOn = (index: number, options: Parameters<typeof meshMap>[1] = {}) => meshMap(meshes[index], { seed: index, ...options });
@@ -121,10 +125,51 @@ describe('route descriptors', () => {
 		const params = { stopDensity: 1, dangerCurve: 1, driverFinds: 2, daylightHours: 14, radius: 1000 };
 		const map: RouteMap = { params, products: { pois: layer, stops: placeStops({ network, layer, ground: fakeGround(), params, rng: new Rng({ seed: 1 }) }) } };
 
-		it('come from the dominant class of a route\'s own road, a highway\'s numbered by its road', () => {
+		it('come from the dominant class of a route\'s own road, a highway\'s numbered by its index with no route numbers', () => {
 			const [highway, backRoads] = describeRoutes(map, 0);
 			expect(highway).toMatchObject({ name: 'Route 1 highway', roadClass: 'highway', biome: 'scrub' });
 			expect(backRoads).toMatchObject({ name: 'Back roads', roadClass: 'backRoad' });
+		});
+
+		it('number a highway as its shields do, and leave a route with no highway unnumbered', () => {
+			const [highway, backRoads] = describeRoutes({ ...map, products: { ...map.products, dressing: { routeNumbers: [47] } } }, 0);
+			expect(highway).toMatchObject({ name: 'Route 47 highway', roadClass: 'highway' });
+			expect(backRoads).toMatchObject({ name: 'Back roads', roadClass: 'backRoad' });
+		});
+
+		it('give two routes on one highway its one number, told apart by the side they come in from', () => {
+			// The same loop, both sides highway 1, so each route's own road is highway 1's.
+			const loop = meshFrom({ nodes: [[0, 0], [300, 250], [300, -250], [600, 0]], edges: [[0, 1, 'highway', 1], [0, 2, 'highway', 1], [1, 3, 'highway', 1], [2, 3, 'highway', 1]] });
+			const loopTree = buildRouteTree({ network: loop, travelPace: 1, routeSplit: 0.5 });
+			const loopLayer = placePois({ network: loop, tree: loopTree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
+			const stops = placeStops({ network: loop, layer: loopLayer, ground: fakeGround(), params, rng: new Rng({ seed: 1 }) });
+			const routes = describeRoutes({ params, products: { pois: loopLayer, stops, dressing: { routeNumbers: [12, 47] } } }, 0);
+			expect(routes).toHaveLength(2);
+			for (const { name, roadClass } of routes) {
+				expect(roadClass).toBe('highway');
+				expect(name).toMatch(/^Route 47 highway from the [a-z-]+$/);
+			}
+			expect(routes[0].name).not.toBe(routes[1].name);
+		});
+
+		it('number every highway route on a generated map from its dressing, alike on the area map and the run\'s routes', () => {
+			const generated = generateAreaMap({ params: paramsFor({ seed: 11, environment: 'rustBelt', radius: 800 }) });
+			const { stops, dressing } = generated.products;
+			const described = describeMap(generated);
+			let numbered = 0;
+			for (const routes of described) {
+				for (const { name, legs } of routes) {
+					const match = /^Route (\d+) highway/.exec(name);
+					if (!match) continue;
+					// One of the highways on the route numbers it: its own road's, which a shared leg can't outweigh.
+					const highways = new Set(legs.map((leg) => stops.legs[leg].highway).filter((highway) => highway >= 0));
+					expect([...highways].map((highway) => dressing.routeNumbers[highway])).toContain(Number(match[1]));
+					numbered += 1;
+				}
+			}
+			expect(numbered).toBeGreaterThan(0);
+			expect(plannedPois(generated).map(({ routes }) => routes.map(({ name }) => name))).toEqual(described.map((routes) => routes.map(({ name }) => name)));
+			expect(routeOffers(generated).map(({ name }) => name)).toEqual(described.flat().map(({ name }) => name));
 		});
 
 		it('come from a biome that covers enough of a route\'s own road', () => {

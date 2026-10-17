@@ -3,7 +3,6 @@ import { Text } from '../components/Text';
 import type { DrawApi } from '../draw/DrawApi';
 import { tokens } from '../theme/tokens';
 import { LabelledLeaf } from './LabelledLeaf';
-import { rgba } from './surfaces';
 
 export type KeyCapSize = 'sm' | 'md';
 
@@ -27,7 +26,6 @@ const METRICS: Readonly<Record<KeyCapSize, CapMetrics>> = {
 };
 
 const PAD_X = tokens.space.space_1;
-const { color } = tokens;
 
 /**
  * R12.29's key cap: a key's name in a small extruded cap, for hotkey hints in
@@ -48,7 +46,7 @@ export class KeyCap extends LabelledLeaf {
 			style: {
 				fontRole: 'mono',
 				fontSize: metrics.fontSize,
-				color: rgba(color.text),
+				color: 'text',
 			},
 			verticalAlign: 'middle',
 			wrap: 'none',
@@ -67,6 +65,7 @@ export class KeyCap extends LabelledLeaf {
 	}
 
 	public get resolvedColors(): ResolvedColors {
+		const { color } = this.themeTokens;
 		return { fill: color.bg_panel_raised, border: color.line_strong, text: color.text };
 	}
 
@@ -76,6 +75,7 @@ export class KeyCap extends LabelledLeaf {
 
 	public render(draw: DrawApi): void {
 		if (this.width <= 0 || this.height <= 0) return;
+		const { color } = this.themeTokens;
 		const radius = tokens.radius.r_md;
 		const border = { color: color.line_strong, width: tokens.borderWidth.bw_hair };
 		draw.drawRect({

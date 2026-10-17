@@ -34,13 +34,13 @@ A load out left before it set off is still given up on Continue (call 69): the P
 
 ## Provisional calls
 
-None of these is in a spec. They're calls 176 to 180 in [gameplay-calls.md](../gameplay-calls.md).
+None of these is in a spec. They're calls 177 to 181 in [gameplay-calls.md](../gameplay-calls.md).
 
-- 176: load out opens on the quick load out's crew and every escort up to four; the player changes it from there.
-- 177: a seat change or Swap seats after the run decks are out deals them fresh from the default decks, losing any customizing.
-- 178: Back from load out gives up its run decks, customizing and all.
-- 179: a solo run shows the second seat empty with "Solo run: nobody else is fit to go", and the synergy line says there's no partner.
-- 180: the main menu's Skirmish entry goes with driver selection (call 119's condition met).
+- 177: load out opens on the quick load out's crew and every escort up to four; the player changes it from there.
+- 178: a seat change or Swap seats after the run decks are out deals them fresh from the default decks, losing any customizing.
+- 179: Back from load out gives up its run decks, customizing and all.
+- 180: a solo run shows the second seat empty with "Solo run: nobody else is fit to go", and the synergy line says there's no partner.
+- 181: the main menu's Skirmish entry goes with driver selection (call 119's condition met).
 
 ## Trade-offs
 
