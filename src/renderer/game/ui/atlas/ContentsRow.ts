@@ -103,7 +103,10 @@ export class ContentsRow extends Pressable {
 		this.glyphLabel = glyphLead ? (lead as { glyph: string }).glyph : null;
 		this.deck = lead === 'deck' ? new DeckGlyphGeometry() : null;
 		this.paint = glyphPaint(kind, this.inks, { faded });
+		// A named row names its parts after itself, so a test or the lint can find each line.
+		const partId = (part: string): string | undefined => (options.id ? `${options.id}_${part}` : undefined);
 		this.labelText = new Text({
+			id: partId('label'),
 			text: label,
 			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: metrics.label, color: faded ? 'text_disabled' : 'text' },
 			wrap: 'none',
@@ -112,11 +115,12 @@ export class ContentsRow extends Pressable {
 		});
 		this.addPart(this.labelText);
 		this.subtitleText = subtitle !== undefined
-			? new Text({ text: subtitle, style: { fontSize: SUBTITLE_SIZE, color: 'text_dim' }, wrap: 'none', textOverflow: 'ellipsis' })
+			? new Text({ id: partId('subtitle'), text: subtitle, style: { fontSize: SUBTITLE_SIZE, color: 'text_dim' }, wrap: 'none', textOverflow: 'ellipsis' })
 			: null;
 		if (this.subtitleText) this.addPart(this.subtitleText);
 		this.valueText = value !== undefined
 			? new Text({
+				id: partId('value'),
 				text: value,
 				style: { fontRole: 'mono', fontSize: metrics.value, color: faded ? 'text_disabled' : variant === 'compact' ? 'text_dim' : 'text' },
 				wrap: 'none',

@@ -19,7 +19,8 @@ const GAP = 16;
  * A sheet's title, top left, as the compound plate's "THE COMPOUND, day 9,
  * dawn": the title in display 700 spaced capitals and an optional subtitle
  * after it. The subtitle is set in body until the serif italic role lands
- * (UI Art Direction, Type), and takes what room the title leaves.
+ * (UI Art Direction, Type). Short of room, both shrink with an ellipsis
+ * (R10.7) rather than run past the sheet.
  */
 export class PageTitle extends Stack {
 	private readonly titleText: Text;
@@ -33,10 +34,11 @@ export class PageTitle extends Stack {
 			text: title,
 			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: TITLE_SIZE, letterSpacing: ATLAS.headTracking, textTransform: 'uppercase', color: 'text' },
 			wrap: 'none',
+			textOverflow: 'ellipsis',
 		});
 		this.addChild(this.titleText);
 		this.subtitleText = subtitle !== undefined
-			? new Text({ id: subtitleId, text: subtitle, widthMode: 'fill', style: { fontSize: SUBTITLE_SIZE, color: 'text_dim' }, wrap: 'none', textOverflow: 'ellipsis' })
+			? new Text({ id: subtitleId, text: subtitle, style: { fontSize: SUBTITLE_SIZE, color: 'text_dim' }, wrap: 'none', textOverflow: 'ellipsis' })
 			: null;
 		if (this.subtitleText) this.addChild(this.subtitleText);
 	}
