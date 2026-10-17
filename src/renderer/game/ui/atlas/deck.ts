@@ -1,7 +1,7 @@
 import { Component, ComponentOptions } from '../../../engine/components/Component';
 import type { BoxShadow } from '../../../engine/draw/commands';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
-import type { RGBA, Rect, Vec2 } from '../../../engine/draw/geometry';
+import type { Mat2D, RGBA, Rect, Vec2 } from '../../../engine/draw/geometry';
 import type { Theme } from '../../../engine/theme/tokens';
 import { drawAtlasArt } from './atlasArt';
 import { AtlasInks, Driver, atlasInks } from './atlasStyle';
@@ -128,6 +128,84 @@ const BACK = {
 	wStroke: 4,
 } as const;
 
+
+/** The card back's height for a width: the card is 5:7. */
+function backHeight(width: number): number {
+	return width * (BACK.height / BACK.width);
+}
+
+/** The back's shield: paper on the driver's casing. */
+function backShieldPaint(inks: AtlasInks, driver: Driver): GlyphPaint {
+	const { casing } = inks.drivers[driver];
+	return { fill: inks.paper, stroke: casing, text: casing };
+}
+
+/** A deck object's drop shadow, cast by each card or stack. */
+function deckShadow(inks: AtlasInks): BoxShadow {
+	return { color: inks.shadow, blur: 8, offset: { x: 0, y: 4 } };
+}
+
+/**
+ * One driver's card back at a card width, placed once so a frame draws it as
+ * is: the baked card stock, or its flat stand-in when the art isn't resident.
+ */
+class CardBackGeometry {
+	public readonly driver: Driver;
+	private readonly scale: number;
+	private readonly card: Rect = { x: 0, y: 0, width: 0, height: 0 };
+	private readonly band: Rect = { x: 0, y: 0, width: 0, height: 0 };
+	private readonly inner: Rect = { x: 0, y: 0, width: 0, height: 0 };
+	private readonly rule: Rect = { x: 0, y: 0, width: 0, height: 0 };
+	private readonly shield = new MapGlyphGeometry('shield');
+	private readonly w: Vec2[] = BACK.w.map(() => ({ x: 0, y: 0 }));
+	private shieldPaint: GlyphPaint;
+
+	constructor({ driver, width, inks }: { driver: Driver; width: number; inks: AtlasInks }) {
+		this.driver = driver;
+		this.scale = width / BACK.width;
+		this.shieldPaint = backShieldPaint(inks, driver);
+		const scale = this.scale;
+		const height = backHeight(width);
+		const inset = (value: number): number => value * scale;
+		setRect(this.card, 0, 0, width, height);
+		setRect(this.band, inset(BACK.band.inset), inset(BACK.band.inset), width - inset(BACK.band.inset) * 2, height - inset(BACK.band.inset) * 2);
+		setRect(this.inner, inset(BACK.inner.inset), inset(BACK.inner.inset), width - inset(BACK.inner.inset) * 2, height - inset(BACK.inner.inset) * 2);
+		setRect(this.rule, inset(BACK.rule.inset), inset(BACK.rule.inset), width - inset(BACK.rule.inset) * 2, height - inset(BACK.rule.inset) * 2);
+		const shieldHeight = BACK.shield.height * scale;
+		const shieldWidth = glyphBox('shield', shieldHeight).width;
+		this.shield.place((width - shieldWidth) / 2, BACK.shield.y * scale, shieldHeight);
+		BACK.w.forEach(([x, y], index) => {
+			this.w[index].x = x * scale;
+			this.w[index].y = y * scale;
+		});
+	}
+
+	public get rect(): Readonly<Rect> {
+		return this.card;
+	}
+
+	public get radius(): number {
+		return BACK.radius * this.scale;
+	}
+
+	public retheme(inks: AtlasInks): void {
+		this.shieldPaint = backShieldPaint(inks, this.driver);
+	}
+
+	public draw(draw: DrawApi, inks: AtlasInks, id?: string): void {
+		const name = this.driver === 'a' ? 'card_back_a' : 'card_back_b';
+		if (drawAtlasArt(draw, { id, name, rect: this.card })) return;
+		const scale = this.scale;
+		const { fill, casing } = inks.drivers[this.driver];
+		draw.drawRect({ id, rect: this.card, fill: inks.paper, radius: this.radius, border: { color: inks.ink, width: BACK.edge * scale } });
+		draw.drawRect({ rect: this.band, fill, radius: BACK.band.radius * scale, border: { color: casing, width: BACK.band.stroke * scale } });
+		draw.drawRect({ rect: this.inner, fill: inks.paper, radius: BACK.inner.radius * scale });
+		draw.drawRect({ rect: this.rule, fill: CLEAR, border: { color: casing, width: Math.max(0.6, BACK.rule.stroke * scale) } });
+		this.shield.draw(draw, this.shieldPaint);
+		draw.drawPolyline({ points: this.w, color: fill, width: BACK.wStroke * scale, cap: 'round' });
+	}
+}
+
 export interface DeckStackOptions extends Omit<ComponentOptions, 'width' | 'height'> {
 	driver: Driver;
 	/** The top card's width; the card is 5:7. Default 64. */
@@ -141,40 +219,31 @@ export interface DeckStackOptions extends Omit<ComponentOptions, 'width' | 'heig
  * card back on top of three or four card edges, with a drop shadow. Deck A
  * is always the highway orange, B the route teal; deck objects are W1 and
  * stay out of reading windows, which is the caller's to keep. The card back
- * and edges draw flat until the UI art atlas's card stock lands.
+ * and edges draw flat when the UI art atlas isn't resident.
  */
 export class DeckStack extends Component {
 	public readonly driver: Driver;
 	public readonly edges: 3 | 4;
-	private readonly cardWidth: number;
-	private readonly step: number;
 	private inks: AtlasInks;
+	private readonly back: CardBackGeometry;
 	private readonly edgeRects: Rect[];
-	private readonly card: Rect = { x: 0, y: 0, width: 0, height: 0 };
-	private readonly band: Rect = { x: 0, y: 0, width: 0, height: 0 };
-	private readonly inner: Rect = { x: 0, y: 0, width: 0, height: 0 };
-	private readonly rule: Rect = { x: 0, y: 0, width: 0, height: 0 };
-	private readonly shield = new MapGlyphGeometry('shield');
-	private readonly w: Vec2[] = BACK.w.map(() => ({ x: 0, y: 0 }));
 	private readonly shadow: BoxShadow;
-	private readonly scale: number;
-	private shieldPaint: GlyphPaint;
 
 	constructor({ driver, width = 64, edges = 3, ...options }: DeckStackOptions) {
-		const scale = width / BACK.width;
 		const step = Math.max(1.5, Math.round(width * 0.025 * 2) / 2);
-		super({ ...options, width: Math.ceil(width + step * edges), height: Math.ceil(width * (BACK.height / BACK.width) + step * edges) });
+		const height = backHeight(width);
+		super({ ...options, width: Math.ceil(width + step * edges), height: Math.ceil(height + step * edges) });
 		this.componentType = 'DeckStack';
 		this.driver = driver;
 		this.edges = edges;
-		this.cardWidth = width;
-		this.step = step;
-		this.scale = scale;
 		this.inks = atlasInks(this.themeTokens);
-		this.shadow = { color: this.inks.shadow, blur: 8, offset: { x: 0, y: 4 } };
-		this.shieldPaint = this.backShieldPaint();
-		this.edgeRects = Array.from({ length: edges }, () => ({ x: 0, y: 0, width: 0, height: 0 }));
-		this.placeGeometry();
+		this.shadow = deckShadow(this.inks);
+		this.back = new CardBackGeometry({ driver, width, inks: this.inks });
+		// The edges stack down and right under the top card, the deepest first.
+		this.edgeRects = Array.from({ length: edges }, (_, index) => {
+			const offset = (edges - index) * step;
+			return { x: offset, y: offset, width, height };
+		});
 	}
 
 	/** The drop shadow under the bottom edge. */
@@ -185,57 +254,116 @@ export class DeckStack extends Component {
 	protected onThemeChange(theme: Theme): void {
 		this.inks = atlasInks(theme);
 		this.shadow.color = this.inks.shadow;
-		this.shieldPaint = this.backShieldPaint();
-	}
-
-	/** The back's shield: paper on the driver's casing. */
-	private backShieldPaint(): GlyphPaint {
-		const { casing } = this.inks.drivers[this.driver];
-		return { fill: this.inks.paper, stroke: casing, text: casing };
+		this.back.retheme(this.inks);
 	}
 
 	public render(draw: DrawApi): void {
 		const inks = this.inks;
-		const scale = this.scale;
-		const radius = BACK.radius * scale;
+		const radius = this.back.radius;
 		// The art can't carry a shadow, so the stack's drop shadow goes down first on its own.
 		draw.drawRect({ rect: this.edgeRects[0], fill: CLEAR, radius, shadow: this.shadow });
 		for (let index = 0; index < this.edgeRects.length; index++) {
 			const rect = this.edgeRects[index];
 			if (!drawAtlasArt(draw, { name: 'card_edge', rect })) draw.drawRect({ rect, fill: inks.index, radius, border: { color: inks.ink, width: 1 } });
 		}
-		const name = this.driver === 'a' ? 'card_back_a' : 'card_back_b';
-		if (drawAtlasArt(draw, { id: this.id ?? undefined, name, rect: this.card })) return;
-		const { fill, casing } = inks.drivers[this.driver];
-		draw.drawRect({ id: this.id ?? undefined, rect: this.card, fill: inks.paper, radius, border: { color: inks.ink, width: BACK.edge * scale } });
-		draw.drawRect({ rect: this.band, fill, radius: BACK.band.radius * scale, border: { color: casing, width: BACK.band.stroke * scale } });
-		draw.drawRect({ rect: this.inner, fill: inks.paper, radius: BACK.inner.radius * scale });
-		draw.drawRect({ rect: this.rule, fill: CLEAR, border: { color: casing, width: Math.max(0.6, BACK.rule.stroke * scale) } });
-		this.shield.draw(draw, this.shieldPaint);
-		draw.drawPolyline({ points: this.w, color: fill, width: BACK.wStroke * scale, cap: 'round' });
+		this.back.draw(draw, inks, this.id ?? undefined);
+	}
+}
+
+export interface DeckFanOptions extends Omit<ComponentOptions, 'width' | 'height'> {
+	driver: Driver;
+	/** Each card's width; the card is 5:7. Default 64. */
+	width?: number;
+	/** Default 5. */
+	cards?: number;
+	/** Degrees between neighbouring cards. Default 8. */
+	spread?: number;
+}
+
+/** Where the fan's cards turn, in card widths and heights: just under the bottom edge's centre (FinalSplash). */
+const FAN_PIVOT = { x: 0.5, y: 150 / 140 } as const;
+const CARD_CORNERS: readonly (readonly [number, number])[] = [[0, 0], [1, 0], [1, 1], [0, 1]];
+
+/**
+ * A deck fanned out on the table, the splash's deck A (UI Art Direction,
+ * Card hints): the driver's card backs turned about a point under their
+ * bottom edge, the last on top, each casting the deck objects' shadow. The
+ * box is the fan's bounds; `cardOrigin` is where the unturned card's corner
+ * sits in it, for a caller placing the fan by its card.
+ */
+export class DeckFan extends Component {
+	public readonly driver: Driver;
+	private inks: AtlasInks;
+	private readonly back: CardBackGeometry;
+	private readonly turns: Mat2D[];
+	private readonly origin: Vec2;
+	private readonly shadow: BoxShadow;
+
+	constructor({ driver, width = 64, cards = 5, spread = 8, ...options }: DeckFanOptions) {
+		const height = backHeight(width);
+		const pivotX = width * FAN_PIVOT.x;
+		const pivotY = height * FAN_PIVOT.y;
+		const count = Math.max(1, Math.round(cards));
+		const turns: Mat2D[] = Array.from({ length: count }, (_, index) => {
+			const angle = ((index - (count - 1) / 2) * spread * Math.PI) / 180;
+			const cos = Math.cos(angle);
+			const sin = Math.sin(angle);
+			return [cos, sin, -sin, cos, pivotX - pivotX * cos + pivotY * sin, pivotY - pivotX * sin - pivotY * cos];
+		});
+		let minX = Infinity;
+		let minY = Infinity;
+		let maxX = -Infinity;
+		let maxY = -Infinity;
+		for (const [a, b, c, d, e, f] of turns) {
+			for (const [u, v] of CARD_CORNERS) {
+				const x = a * u * width + c * v * height + e;
+				const y = b * u * width + d * v * height + f;
+				minX = Math.min(minX, x);
+				minY = Math.min(minY, y);
+				maxX = Math.max(maxX, x);
+				maxY = Math.max(maxY, y);
+			}
+		}
+		super({ ...options, width: Math.ceil(maxX - minX), height: Math.ceil(maxY - minY) });
+		this.componentType = 'DeckFan';
+		this.driver = driver;
+		this.inks = atlasInks(this.themeTokens);
+		this.shadow = deckShadow(this.inks);
+		this.back = new CardBackGeometry({ driver, width, inks: this.inks });
+		this.turns = turns.map(([a, b, c, d, e, f]): Mat2D => [a, b, c, d, e - minX, f - minY]);
+		this.origin = { x: -minX, y: -minY };
 	}
 
-	/** The edges stack down and right under the top card, the deepest first. */
-	private placeGeometry(): void {
-		const scale = this.scale;
-		const width = this.cardWidth;
-		const height = width * (BACK.height / BACK.width);
-		this.edgeRects.forEach((rect, index) => {
-			const offset = (this.edges - index) * this.step;
-			setRect(rect, offset, offset, width, height);
-		});
-		setRect(this.card, 0, 0, width, height);
-		const inset = (value: number): number => value * scale;
-		setRect(this.band, inset(BACK.band.inset), inset(BACK.band.inset), width - inset(BACK.band.inset) * 2, height - inset(BACK.band.inset) * 2);
-		setRect(this.inner, inset(BACK.inner.inset), inset(BACK.inner.inset), width - inset(BACK.inner.inset) * 2, height - inset(BACK.inner.inset) * 2);
-		setRect(this.rule, inset(BACK.rule.inset), inset(BACK.rule.inset), width - inset(BACK.rule.inset) * 2, height - inset(BACK.rule.inset) * 2);
-		const shieldHeight = BACK.shield.height * scale;
-		const shieldWidth = glyphBox('shield', shieldHeight).width;
-		this.shield.place((width - shieldWidth) / 2, BACK.shield.y * scale, shieldHeight);
-		BACK.w.forEach(([x, y], index) => {
-			this.w[index].x = x * scale;
-			this.w[index].y = y * scale;
-		});
+	public get cards(): number {
+		return this.turns.length;
+	}
+
+	/** The unturned card's top-left corner in this box. */
+	public get cardOrigin(): Readonly<Vec2> {
+		return this.origin;
+	}
+
+	public get inkExtent(): number {
+		return 16;
+	}
+
+	protected onThemeChange(theme: Theme): void {
+		this.inks = atlasInks(theme);
+		this.shadow.color = this.inks.shadow;
+		this.back.retheme(this.inks);
+	}
+
+	public render(draw: DrawApi): void {
+		const inks = this.inks;
+		const rect = this.back.rect;
+		const radius = this.back.radius;
+		const top = this.turns.length - 1;
+		for (let index = 0; index <= top; index++) {
+			draw.pushTransform(this.turns[index]);
+			draw.drawRect({ rect, fill: CLEAR, radius, shadow: this.shadow });
+			this.back.draw(draw, inks, index === top ? this.id ?? undefined : undefined);
+			draw.popTransform();
+		}
 	}
 }
 

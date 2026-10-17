@@ -22,6 +22,7 @@ import { AtlasButton } from './AtlasButton';
 import { AtlasSheet } from './AtlasSheet';
 import { ATLAS, atlasInks } from './atlasStyle';
 import { ContentsRow } from './ContentsRow';
+import { DeckFan, DeckStack } from './deck';
 import { CasedBar, ScaleBar } from './gauges';
 import { HandMarkLayer } from './HandMarkLayer';
 import { LegendBox, LegendRow } from './LegendBox';
@@ -457,12 +458,46 @@ describe('gauges', () => {
 		expect(scale.filled).toBe(2);
 	});
 
+	it('takes a heavier frame, as the splash loader\'s Casing frame is', () => {
+		const loader = add(new ScaleBar({ segments: 10, value: 0.6, tone: 'highway', frame: 2, width: 420, height: 12 }));
+		const [frame, firstCell] = rects(loader);
+		expect(frame.border?.color).toEqual(atlas.color.accent_dim);
+		expect(frame.border?.width).toBe(2);
+		expect(firstCell.rect).toMatchObject({ x: 2, y: 2, height: 8 });
+		expect(firstCell.fill).toEqual(atlas.color.accent);
+		expect(loader.filled).toBe(6);
+	});
+
 	it('fills a cased bar in the driver\'s colour on its casing', () => {
 		const bar = add(new CasedBar({ value: 0.5, driver: 'b', width: 200, height: 10 }));
 		const drawn = rects(bar);
 		expect(drawn[0].fill).toEqual(atlas.color.driver_b_casing);
 		expect(drawn[2].fill).toEqual(atlas.color.driver_b);
 		expect(drawn[2].rect.width).toBeCloseTo(drawn[1].rect.width / 2);
+	});
+});
+
+describe('deck objects', () => {
+	it('stacks a deck\'s card edges down and right under its back', () => {
+		const deck = add(new DeckStack({ driver: 'b', width: 100, edges: 4 }));
+		expect(deck.width).toBe(Math.ceil(100 + 2.5 * 4));
+		const commands = draws(deck);
+		expect(commands[0].kind).toBe('shadow');
+		const edges = commands.filter((command): command is RectCommand => command.kind === 'rect' && same(command.fill, atlas.color.bg_inset));
+		expect(edges.map((command) => command.rect.x)).toEqual([10, 7.5, 5, 2.5]);
+		expect(commands.some((command) => command.kind === 'rect' && same(command.fill, atlas.color.driver_b))).toBe(true);
+	});
+
+	it('fans a deck\'s backs about a point under them, the last on top, bounded by its box', () => {
+		const fan = add(new DeckFan({ driver: 'a', width: 100, cards: 5, spread: 8 }));
+		expect(fan.cards).toBe(5);
+		// Turned plus and minus 16 degrees about (50, 150), the fan is wider than a card and symmetric.
+		expect(fan.width).toBeGreaterThan(100);
+		expect(fan.cardOrigin.x).toBeCloseTo((fan.width - 100) / 2, 0);
+		const commands = draws(fan);
+		const bands = commands.filter((command): command is RectCommand => command.kind === 'rect' && same(command.fill, atlas.color.driver_a));
+		expect(bands).toHaveLength(5);
+		expect(commands.filter((command) => command.kind === 'shadow')).toHaveLength(5);
 	});
 });
 

@@ -27,6 +27,8 @@ export interface ScaleBarOptions extends ComponentOptions {
 	 */
 	value?: number | null;
 	tone?: ScaleTone;
+	/** The frame's weight. Default the scale bar's 1.2 px; the splash's loader is 2. */
+	frame?: number;
 }
 
 /**
@@ -38,17 +40,19 @@ export class ScaleBar extends Component {
 	private readonly segmentCount: number;
 	private amount: number | null;
 	private readonly tone: ScaleTone;
+	private readonly frameWidth: number;
 	private inks: AtlasInks;
 	private readonly frame: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly cells: Rect[];
 	private readonly seams: Rect[];
 
-	constructor({ segments = 5, value = null, tone = 'ink', height = 8, width = segments * 32, ...options }: ScaleBarOptions = {}) {
+	constructor({ segments = 5, value = null, tone = 'ink', frame = ATLAS.scaleFrame, height = 8, width = segments * 32, ...options }: ScaleBarOptions = {}) {
 		super({ ...options, width, height });
 		this.componentType = 'ScaleBar';
 		this.segmentCount = Math.max(1, Math.round(segments));
 		this.amount = value === null ? null : clamp01(value);
 		this.tone = tone;
+		this.frameWidth = frame;
 		this.inks = atlasInks(this.themeTokens);
 		this.cells = Array.from({ length: this.segmentCount }, () => ({ x: 0, y: 0, width: 0, height: 0 }));
 		this.seams = Array.from({ length: this.segmentCount - 1 }, () => ({ x: 0, y: 0, width: 0, height: 0 }));
@@ -83,7 +87,7 @@ export class ScaleBar extends Component {
 
 	protected layoutChildren(): void {
 		const { width, height } = this;
-		const edge = ATLAS.scaleFrame;
+		const edge = this.frameWidth;
 		setRect(this.frame, 0, 0, width, height);
 		const inner = width - edge * 2;
 		const step = inner / this.segmentCount;
@@ -95,7 +99,7 @@ export class ScaleBar extends Component {
 		const inks = this.inks;
 		const fill = this.tone === 'highway' ? inks.highway : inks.ink;
 		const frame = this.tone === 'highway' ? inks.casing : inks.ink;
-		draw.drawRect({ id: this.id ?? undefined, rect: this.frame, fill: inks.paper, border: { color: frame, width: ATLAS.scaleFrame } });
+		draw.drawRect({ id: this.id ?? undefined, rect: this.frame, fill: inks.paper, border: { color: frame, width: this.frameWidth } });
 		for (let index = 0; index < this.cells.length; index++) {
 			if (this.isFilled(index)) draw.drawRect({ rect: this.cells[index], fill });
 		}
