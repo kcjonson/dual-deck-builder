@@ -310,4 +310,4 @@ Record for 165 to 175: area-map-atlas-style.md (its Visual calls).
 
 Record for 176: stops-and-routes.md.
 
-176. DDB-499: a highway route's name takes the route number on its highway's shields ("Route 47 highway"), the highway with the most length on the route's own road, instead of that highway's index plus one, because the run route card and the map's shields should say the same number; two routes on one highway share it and are told apart by side, then letter, as before.
+176. DDB-499: a highway route's name takes the route number on its highway's shields ("Route 47 highway"), the main highway of the route's own leg with the most highway, instead of that highway's index plus one, because the run route card and the shields (drawn once DDB-447 lands) should say the same number; two routes on one highway share it and are told apart by side, then letter, as before.

@@ -15,8 +15,9 @@ import type { LegProfile, StopLayer } from './Stops';
  * dominant class and biome, the least known leg on it, its fuel, its hours
  * out, at the objective, and home, when it would be back against dark, its
  * stops as far as they're known, and its risk. Read from plain data alone,
- * the POI layer, the stop layer, and the dressing's route numbers, so it works on a map from the worker or
- * one regenerated on load. Knowledge is saved state, so it's passed in;
+ * the POI layer, the stop layer, and the dressing's route numbers, so it
+ * works on a map from the worker or one regenerated on load. Knowledge is
+ * saved state, so it's passed in;
  * until fog (DDB-294) every leg is charted. The decision record is
  * docs/AI_TECHNICAL_DECISIONS/stops-and-routes.md.
  */
@@ -181,8 +182,8 @@ function expectedStops({ classLengths }: LegProfile, stopDensity: number, { spac
 /**
  * A route's name from its own legs: a biome's where one covers `biomeShare`
  * of them and has a name, or else its dominant class's, a highway's
- * numbered as the shields on the highway with the most length on them are,
- * or by that highway's index plus one with no route numbers.
+ * numbered as the shields are on the main highway of the leg with the most
+ * highway, or by that highway's index plus one with no route numbers.
  */
 function nameOf(legs: readonly LegProfile[], routeNumbers: readonly number[] | null, { names }: RouteTuning): { roadClass: RoadClass; biome: Biome; name: string } {
 	const classLengths = Object.fromEntries(ROAD_CLASSES.map((roadClass) => [roadClass, 0])) as Record<RoadClass, number>;
