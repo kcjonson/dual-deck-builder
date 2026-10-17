@@ -102,17 +102,19 @@ src/
    - Decision made and rationale
    - Trade-offs and consequences
 
-3. **Specs** in `/docs/specs/` describe what to build and why. Keep them current when the design changes, but don't annotate them with what has been built.
+3. **Provisional gameplay calls** (a design question decided for now so the build isn't blocked) go in `/docs/gameplay-calls.md`, numbered, one a line as "the item that made it: the call, because why", and in the decision record's provisional calls. Never in a spec, and never on Specboard. Kevin approves or changes them in that file.
 
-4. **Follow existing patterns** in the codebase rather than introducing new paradigms
+4. **Specs** in `/docs/specs/` describe what to build and why. Keep them current when the design changes, but don't annotate them with what has been built.
 
-5. **Test your changes** - ensure the game still builds and runs
+5. **Follow existing patterns** in the codebase rather than introducing new paradigms
 
-6. **Consider both platforms** - web and Electron (mac and windows) versions should work seamlessly
+6. **Test your changes** - ensure the game still builds and runs
 
-7. **Performance first** - this is a game that needs smooth performance
+7. **Consider both platforms** - web and Electron (mac and windows) versions should work seamlessly
 
-8. **Keep the vision** - refer to the game design documents for guidance
+8. **Performance first** - this is a game that needs smooth performance
+
+9. **Keep the vision** - refer to the game design documents for guidance
 
 ## Quick Start Commands
 

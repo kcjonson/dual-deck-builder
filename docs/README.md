@@ -23,6 +23,7 @@ The specs in [specs/](./specs/) are the source of truth for how the game plays a
 ## Everything else
 
 - [AI_TECHNICAL_DECISIONS/](./AI_TECHNICAL_DECISIONS/): one record per architectural decision, with the context, the options, and why one won.
+- [gameplay-calls.md](./gameplay-calls.md): the provisional gameplay calls made during the build so work isn't blocked, numbered, each pending until Kevin approves or changes it. None goes into a spec until approved.
 - [ui-rendering-spec/](./ui-rendering-spec/README.md): the backend-agnostic UI rendering specification the engine implements (rules cited as R3.14).
 - [design/](./design/): mocks and wireframe screenshots the specs embed.
 - [research/](./research/README.md): genre research, comparable games, naming, and the first spec draft.

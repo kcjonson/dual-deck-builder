@@ -43,7 +43,7 @@ Only bumps whose old saves have an obvious meaning in the new format belong in t
 
 ## Provisional calls
 
-None of these is in a spec. They're on DDB-497.
+None of these is in a spec. They're calls 102 to 108 in [gameplay-calls.md](../gameplay-calls.md).
 
 1. A POI holds three runs' worth, so the third run depletes it: the spec's "two or three", taking three because the yield already falls by thirds, so the third run is a small one.
 2. A run's yield is its POI type's, scaled by the shares left, each resource rounded up: full, two thirds, a third, then nothing. A POI with anything left gives some of everything it yields.
