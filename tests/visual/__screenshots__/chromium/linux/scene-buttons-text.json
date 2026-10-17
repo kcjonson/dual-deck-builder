@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/dev_section_buttons/Text[0]","text":"Button Examples","rect":[53,53,161.48,50]},
+{"path":"gallery_root/dev_section_buttons/Text[0]","text":"Button Examples","rect":[53,53,166.49,50]},
 {"path":"gallery_root/dev_section_buttons/Stack[1]/Text[0]","text":"Button clicks: 0","rect":[73,103,112.09,21.79]},
 {"path":"gallery_root/dev_section_buttons/Stack[1]/Stack[1]/Button[0]/Text[0]","text":"Primary","rect":[85,144.79,96,40]},
 {"path":"gallery_root/dev_section_buttons/Stack[1]/Stack[1]/Button[1]/Text[0]","text":"Secondary","rect":[215,144.79,96,40]},

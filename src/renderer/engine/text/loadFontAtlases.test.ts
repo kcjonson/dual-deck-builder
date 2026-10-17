@@ -11,7 +11,7 @@ const sized = (width: number, height: number) => async (): Promise<AtlasImage> =
 });
 
 describe('loadFontAtlases', () => {
-	it('loads every committed face with its role', async () => {
+	it('loads every committed face with its role and draw API name', async () => {
 		// Jest stubs every image module to one URL, so each face gets its own
 		// here and the fake decoder answers with the size its metrics give.
 		const faces = FONT_FACES.map((entry) => ({ ...entry, imageUrl: entry.face }));
@@ -29,8 +29,8 @@ describe('loadFontAtlases', () => {
 				return size;
 			},
 		});
-		expect(loaded.map((entry) => [entry.role, entry.face])).toEqual(
-			FONT_FACES.map((entry) => [entry.role, entry.face]),
+		expect(loaded.map((entry) => [entry.role, entry.font, entry.face])).toEqual(
+			FONT_FACES.map((entry) => [entry.role, entry.font, entry.face]),
 		);
 		expect(requested).toEqual(FONT_FACES.map((entry) => entry.face));
 		expect(loaded[0].atlas.glyph(0x41)).toBeDefined();

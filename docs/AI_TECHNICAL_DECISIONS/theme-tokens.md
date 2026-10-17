@@ -69,7 +69,7 @@ Departures from worldsim's defaults, all allowed by 11.2 ("values are its defaul
 ## Not in this file yet
 
 - Game identity colours: the driver amber and teal, raider red, structure, armor, and HP hues from Battle Screen Design section 7. They are content colours, not UI accents, and R11.6 keeps the UI to two accents plus ok and crit, none of which reuses them. They land when the combat screen migrates, as their own names in the `color` category.
-- Type role faces match what DDB-69 ships: Barlow Condensed 600 for display, Open Sans 400 for body, JetBrains Mono 400 for mono. With no body bold face loaded, `role_body.boldRole: 'display'` sends `bold` on body to the display face (R11.8); a weight no role has falls to the nearest loaded one.
+- Type role faces match what the font pipeline ships: Barlow Condensed 600 and 700 for display, Open Sans 400 and 600 for body (the second weights since DDB-503), JetBrains Mono 400 for mono. With no body bold face loaded, `role_body.boldRole: 'display'` sends `bold` on body to the display face (R11.8); a weight no role has falls to the nearest loaded one.
 - Card-specific text sizes (16 and 14 px card names in the battle screen text budget) are not on the scale; add them as named tokens when the card is migrated rather than widening the general scale.
 
 ## Map for DDB-84
