@@ -1,5 +1,5 @@
 import { FontAtlas, FontAtlasError, FontAtlasWarn, parseFontAtlas } from './FontAtlas';
-import { ATLAS_ASSETS, AtlasRole, FontFaceAsset } from './fontFaces';
+import { ATLAS_ASSETS, AtlasName, AtlasRole, FontFaceAsset } from './fontFaces';
 
 /** The part of a decoded image the loader checks; `HTMLImageElement` satisfies it. */
 export interface AtlasImage {
@@ -9,6 +9,8 @@ export interface AtlasImage {
 
 export interface LoadedFontAtlas<Image extends AtlasImage = HTMLImageElement> {
 	readonly role: AtlasRole;
+	/** The name the draw API loads the atlas under (`FontFaceAsset.font`). */
+	readonly font: AtlasName;
 	readonly face: string;
 	readonly atlas: FontAtlas;
 	readonly image: Image;
@@ -51,7 +53,7 @@ export async function loadFontAtlases<Image extends AtlasImage>({
 				`image is ${image.naturalWidth}x${image.naturalHeight} but the metrics describe ${atlas.width}x${atlas.height}`,
 			);
 		}
-		return { role: face.role, face: face.face, atlas, image };
+		return { role: face.role, font: face.font, face: face.face, atlas, image };
 	}));
 }
 

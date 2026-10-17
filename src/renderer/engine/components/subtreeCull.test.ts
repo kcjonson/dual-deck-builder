@@ -448,8 +448,8 @@ describe('subtree cull (DDB-184, R4.2a)', () => {
 			expect(text.inkRect).toMatchObject({ width: 40, height: 20 });
 
 			for (const asset of ATLAS_ASSETS) {
-				const texture = draw.createTexture({ width: 1, height: 1, label: asset.role });
-				draw.loadFontAtlas({ name: asset.role, atlas: committedAtlas(asset.role), texture });
+				const texture = draw.createTexture({ width: 1, height: 1, label: asset.font });
+				draw.loadFontAtlas({ name: asset.font, atlas: committedAtlas(asset.font), texture });
 			}
 			row.invalidateLayout();
 			context.frame.layout();

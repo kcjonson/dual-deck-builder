@@ -159,13 +159,13 @@ export const tokens = {
 		title_weight: 600, // = typography.weight_semibold
 		role_display: {
 			family: 'Barlow Condensed',
-			weights: [600],
+			weights: [600, 700],
 			titleTransform: 'uppercase',
 			titleLetterSpacing: 0.08,
 		},
 		role_body: {
 			family: 'Open Sans',
-			weights: [400],
+			weights: [400, 600],
 			boldRole: 'display',
 			size: 13,
 			lineHeight: 1.4,

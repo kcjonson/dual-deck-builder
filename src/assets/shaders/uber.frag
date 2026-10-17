@@ -13,7 +13,7 @@ const int MODE_TEXT = 5;
 
 // R5.20: a fixed set of units, selected per draw by slot. GLSL ES 3.00 cannot
 // index a sampler array dynamically, hence the switch in `sampleSlot`.
-const int TEXTURE_UNITS = 8;
+const int TEXTURE_UNITS = 12;
 uniform sampler2D uTextures[TEXTURE_UNITS];
 
 in highp vec2 vPosition;
@@ -43,6 +43,10 @@ vec4 sampleSlot(int slot, vec2 uv, vec2 dx, vec2 dy) {
 		case 5: return textureGrad(uTextures[5], uv, dx, dy);
 		case 6: return textureGrad(uTextures[6], uv, dx, dy);
 		case 7: return textureGrad(uTextures[7], uv, dx, dy);
+		case 8: return textureGrad(uTextures[8], uv, dx, dy);
+		case 9: return textureGrad(uTextures[9], uv, dx, dy);
+		case 10: return textureGrad(uTextures[10], uv, dx, dy);
+		case 11: return textureGrad(uTextures[11], uv, dx, dy);
 	}
 	return vec4(0.0);
 }

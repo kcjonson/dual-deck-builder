@@ -237,10 +237,10 @@ describe('WebGL2Backend', () => {
 		expect(named(calls.slice(before), 'provokingVertexWEBGL')).toHaveLength(1);
 	});
 
-	it('points the eight samplers at units 0 to 7 once, at creation (R5.20)', () => {
+	it('points the twelve samplers at units 0 to 11 once, at creation (R5.20)', () => {
 		const { calls, named } = setupBackend();
 		const [samplers] = named(calls, 'uniform1iv');
-		expect(Array.from(samplers.args[1] as Int32Array)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+		expect(Array.from(samplers.args[1] as Int32Array)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 	});
 
 	it('makes no synchronous call and no allocation inside a frame (R15.22, R15.11)', () => {
@@ -538,8 +538,8 @@ describe('WebGL2Backend', () => {
 
 	it('binds the atlas and the placeholders once, and nothing on later frames (R5.20)', () => {
 		const { frame, named } = setupBackend();
-		// Unit 0 gets the atlas, units 1 to 7 the empty placeholder.
-		expect(named(frame(threeDomains), 'bindTexture')).toHaveLength(8);
+		// Unit 0 gets the atlas, units 1 to 11 the empty placeholder.
+		expect(named(frame(threeDomains), 'bindTexture')).toHaveLength(12);
 		expect(named(frame(threeDomains), 'bindTexture')).toHaveLength(0);
 	});
 
@@ -614,7 +614,7 @@ describe('WebGL2Backend', () => {
 		expect(named(next, 'useProgram')[0].args[0]).toBe(named(rebuilt, 'createProgram')[0].result);
 		expect(named(next, 'bindVertexArray')[0].args[0]).toBe(named(rebuilt, 'createVertexArray')[0].result);
 		// And every unit again, since the old bindings died with the context.
-		expect(named(next, 'bindTexture')).toHaveLength(8);
+		expect(named(next, 'bindTexture')).toHaveLength(12);
 	});
 
 	it('blends premultiplied over, set again after invalidateState and not on an ordinary frame (R5.22, R2.15)', () => {

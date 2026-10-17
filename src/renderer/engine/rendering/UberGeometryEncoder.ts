@@ -182,8 +182,13 @@ export const UBER_STRIDE = UBER_INSTANCE.words * 4;
 /** Vertices per instance: two triangles from `gl_VertexID`, no index buffer. */
 export const UBER_VERTICES_PER_INSTANCE = 6;
 
-/** `TEXTURE_UNITS` in `uber.frag`. */
-export const UBER_TEXTURE_UNITS = 8;
+/**
+ * `TEXTURE_UNITS` in `uber.frag`, under the sixteen WebGL2 guarantees: six
+ * resident atlases (five faces and the icons, DDB-503), the art atlas R5.20
+ * reserves, and the four dynamic units the area map's terrain and fog and the
+ * small-text raster page were budgeted with.
+ */
+export const UBER_TEXTURE_UNITS = 12;
 
 export interface UberGeometryEncoderOptions {
 	/** The glyph iteration every text group is laid out by (R6.8). */
