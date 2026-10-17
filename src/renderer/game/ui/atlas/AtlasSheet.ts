@@ -52,6 +52,7 @@ const BURNT: UiArtName = 'paper_w3_a';
  */
 export class AtlasSheet extends Stack {
 	private readonly sheetTabs: SectionTabs | null;
+	private readonly sheetContentInset: number;
 	private readonly showTape: boolean;
 	private sheetWear: AtlasWear;
 	private sheetPaper: AtlasPaperVariant;
@@ -69,6 +70,7 @@ export class AtlasSheet extends Stack {
 		super({ ...options, padding: inset });
 		this.componentType = 'AtlasSheet';
 		this.sheetTabs = tabs ?? null;
+		this.sheetContentInset = contentInset;
 		this.showTape = tape;
 		this.sheetWear = wear;
 		this.sheetPaper = paper;
@@ -78,6 +80,11 @@ export class AtlasSheet extends Stack {
 
 	public get tabs(): SectionTabs | null {
 		return this.sheetTabs;
+	}
+
+	/** Between the inner neatline and the content, as built. */
+	public get contentInset(): number {
+		return this.sheetContentInset;
 	}
 
 	/**

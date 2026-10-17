@@ -26,6 +26,8 @@ import { Toggle } from '../../../engine/ui/Toggle';
 import { drawAtlasArt, paperPiece } from './atlasArt';
 import { AtlasButton } from './AtlasButton';
 import { AtlasSheet } from './AtlasSheet';
+import { PageTitle } from './PageTitle';
+import { PlateFrame } from './PlateFrame';
 import { ATLAS, DISPLAY_BOLD, atlasInks } from './atlasStyle';
 import { AtlasTag } from './AtlasTag';
 import { resolveFont } from '../../../engine/text/fontRoles';
@@ -882,6 +884,35 @@ describe('settings controls on an atlas screen', () => {
 		expect(menu.effectiveTheme).toBe('atlas');
 		expect(menu.resolvedColors.fill).toEqual(atlas.color.bg_panel_raised);
 		select.closeMenu();
+	});
+});
+
+describe('PlateFrame', () => {
+	it('holds its art inside both rules and clips it there, caption and all below', () => {
+		const plate = add(new PlateFrame({ id: 'plate', caption: 'Plate 1', width: 300, height: 200 }));
+		const art = new Stack({ id: 'wide_art', width: 600, height: 600 });
+		plate.art.addChild(art);
+		context.frame.layout();
+		expect(plate.art.clipsChildren).toBe(true);
+		const box = plate.artRect;
+		expect([plate.art.placedX, plate.art.placedY, plate.art.width, plate.art.height]).toEqual([box.x, box.y, box.width, box.height]);
+		expect(plate.findById('wide_art')).toBe(art);
+	});
+});
+
+describe('PageTitle', () => {
+	it('sits the standard padding in from the neatline on a sheet built tighter', () => {
+		const tight = add(new AtlasSheet({ width: 1024, height: 600, contentInset: 8 }));
+		const title = new PageTitle({ title: 'Crew and decks' });
+		tight.addChild(title);
+		context.frame.layout();
+		expect([title.padding.left, title.padding.top]).toEqual([ATLAS.sheetPadding - 8, ATLAS.sheetPadding - 8]);
+		root.removeChild(tight);
+		const standard = add(new AtlasSheet({ width: 1024, height: 600 }));
+		const plain = new PageTitle({ title: 'Settings' });
+		standard.addChild(plain);
+		context.frame.layout();
+		expect([plain.padding.left, plain.padding.top]).toEqual([0, 0]);
 	});
 });
 

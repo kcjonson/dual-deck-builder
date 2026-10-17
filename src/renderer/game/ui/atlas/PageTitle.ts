@@ -1,5 +1,7 @@
 import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
+import type { MountContext } from '../../../engine/components/MountContext';
+import { AtlasSheet } from './AtlasSheet';
 import { ATLAS } from './atlasStyle';
 
 export interface PageTitleOptions extends Omit<StackOptions, 'style' | 'direction'> {
@@ -45,6 +47,20 @@ export class PageTitle extends Stack {
 			this.subtitleText.visible = subtitle !== '';
 			this.addChild(this.subtitleText);
 		}
+	}
+
+	/**
+	 * Every screen's title sits the sheet's standard padding in from the
+	 * neatline, clear of the corner tape, so on a sheet built tighter (the
+	 * Crew and Customize columns) the title makes up the difference itself.
+	 */
+	protected onMount(context: MountContext): void {
+		super.onMount(context);
+		let ancestor = this.parent;
+		while (ancestor && !(ancestor instanceof AtlasSheet)) ancestor = ancestor.parent;
+		const makeUp = ancestor ? Math.max(0, ATLAS.sheetPadding - ancestor.contentInset) : 0;
+		const { right, bottom } = this.padding;
+		this.padding = { top: makeUp, left: makeUp, right, bottom };
 	}
 
 	public get title(): string {

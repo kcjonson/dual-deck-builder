@@ -2,7 +2,7 @@ import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Stack } from '../../../engine/components/Stack';
 import { linear } from '../../../engine/animation/easing';
-import { formatBuildLabel } from '../main-menu/buildLabel';
+import { buildLine } from '../main-menu/buildLabel';
 import { SplashScene } from './SplashScene';
 
 /** Milliseconds on the mount context's clock (R8.28). */
@@ -10,17 +10,6 @@ const FADE_IN_MS = 1000;
 const HOLD_MS = 2000;
 /** Any of these leaves the splash before the hold is up. */
 const SKIP_KEYS = ['Enter', 'Escape', ' '];
-
-/**
- * The splash's build line: the build number and commit a deploy defines, or
- * "development build" where it defines neither, which keeps the screenshot
- * baselines stable across commits.
- */
-export function splashBuildLine({ sha, number }: { sha: string | null; number: string | null }): string {
-	const label = formatBuildLabel({ sha, number });
-	if (!label) return 'DEVELOPMENT BUILD';
-	return label.startsWith('build ') ? `BUILD ${label.slice('build '.length)}` : `BUILD ${label}`;
-}
 
 /**
  * Splash screen displayed when the game launches: the closed atlas on the
@@ -63,7 +52,7 @@ export class SplashScreen extends Screen {
 		this.shownAt = null;
 		this.leaving = false;
 
-		const scene = new SplashScene({ id: 'splash_scene', buildLine: splashBuildLine({ sha: __BUILD_SHA__, number: __BUILD_NUMBER__ }) });
+		const scene = new SplashScene({ id: 'splash_scene', buildLine: buildLine({ sha: __BUILD_SHA__, number: __BUILD_NUMBER__ }) });
 		this.scene = scene;
 		this.stack.addChild(scene);
 

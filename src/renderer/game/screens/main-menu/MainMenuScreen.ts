@@ -17,7 +17,7 @@ import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
 import { ATLAS } from '../../ui/atlas/atlasStyle';
 import { ContentsRow } from '../../ui/atlas/ContentsRow';
 import { DeckStack } from '../../ui/atlas/deck';
-import { formatBuildLabel } from './buildLabel';
+import { buildLine } from './buildLabel';
 import { campaignSummary, foundingText } from './campaignText';
 import { MenuCover } from './MenuCover';
 
@@ -364,16 +364,15 @@ export class MainMenuScreen extends Screen {
 
 	/**
 	 * The page's foot: the atlas's imprint, and the build stamp so a
-	 * playtester can tell which deploy they're on. Development builds define
-	 * no SHA and show none, which keeps the main menu goldens stable across
-	 * commits.
+	 * playtester can tell which deploy they're on, the splash's line
+	 * (`buildLine`): development builds say DEVELOPMENT BUILD, which keeps
+	 * the main menu goldens stable across commits.
 	 */
 	private createFooter(): Stack {
 		const footer = new Stack({ id: 'main_menu_footer', direction: 'horizontal', crossAlign: 'end', distribution: 'spaceBetween' });
 		const caption = { fontRole: 'mono', fontSize: ATLAS.captionSize, letterSpacing: ATLAS.captionTracking, textTransform: 'uppercase', color: 'text_dim' } as const;
 		footer.addChild(new Text({ text: 'Printed before · revised by hand after', id: 'main_menu_imprint', style: caption, wrap: 'none' }));
-		const label = formatBuildLabel({ sha: __BUILD_SHA__, number: __BUILD_NUMBER__ });
-		if (label) footer.addChild(new Text({ text: label, id: 'main_menu_build_label', style: caption, wrap: 'none' }));
+		footer.addChild(new Text({ text: buildLine({ sha: __BUILD_SHA__, number: __BUILD_NUMBER__ }), id: 'main_menu_build_label', style: caption, wrap: 'none' }));
 		return footer;
 	}
 

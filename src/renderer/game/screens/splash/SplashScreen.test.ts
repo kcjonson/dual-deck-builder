@@ -10,7 +10,7 @@ import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { themes } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { SplashScene } from './SplashScene';
-import { SplashScreen, splashBuildLine } from './SplashScreen';
+import { SplashScreen } from './SplashScreen';
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -223,16 +223,5 @@ describe('the splash table', () => {
 			expect(ratio).toBeGreaterThanOrEqual(4.5);
 			screen.unmount();
 		}
-	});
-});
-
-describe('splashBuildLine', () => {
-	it('names the build number and commit a deploy defines', () => {
-		expect(splashBuildLine({ sha: '2f8d7a7', number: '142' })).toBe('BUILD 142 - 2f8d7a7');
-		expect(splashBuildLine({ sha: '2f8d7a7', number: null })).toBe('BUILD 2f8d7a7');
-	});
-
-	it('says development build where none is defined, so baselines hold across commits', () => {
-		expect(splashBuildLine({ sha: null, number: null })).toBe('DEVELOPMENT BUILD');
 	});
 });
