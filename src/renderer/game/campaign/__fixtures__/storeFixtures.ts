@@ -4,7 +4,8 @@ import { stepLog } from '../CampaignEnd';
 import { CampaignStore, CampaignStoreError, campaignKeys } from '../CampaignStore';
 import { MemorySaveStorage, SaveStorage } from '../SaveStorage';
 import cardsFile from '../../data/cards.json';
-import campaignFixture from './campaign-v9.json';
+import campaignFixture from './campaign-v10.json';
+import campaignV9Fixture from './campaign-v9.json';
 import campaignV8Fixture from './campaign-v8.json';
 
 export const SEED = 20261006;
@@ -15,6 +16,9 @@ export const SEED = 20261006;
  * renames the file in one place.
  */
 export const CAMPAIGN_FIXTURE = campaignFixture;
+
+/** The same campaign as version 9 saved it, before buildings: it loads upgraded (SaveUpgrades.ts), the bunkhouse standing. */
+export const CAMPAIGN_V9_FIXTURE = campaignV9Fixture;
 
 /** The same campaign as version 8 saved it, before POI stock: it loads upgraded (SaveUpgrades.ts), every POI full. */
 export const CAMPAIGN_V8_FIXTURE = campaignV8Fixture;

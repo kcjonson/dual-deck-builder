@@ -127,11 +127,17 @@ Each repair, and each value kept outside today's ranges, is a warning worded wit
 
 ## Map state is a stand-in; the map's attempts aren't
 
-What's changed on the map since founding (DDB-275), `map`, is opaque JSON, copied and frozen, and nested at most 100 levels, until stops and POIs define it. `strongholdsTaken` holds ids as strings until the map defines its ids.
+What's changed on the map since founding (DDB-275), `map`, is opaque JSON, copied and frozen, and nested at most 100 levels, until stops and POIs define it. `strongholdsTaken` holds ids as strings until the map defines its ids. `buildings` lists the buildings standing at the compound (`BUILDING_IDS` in `Buildings.ts`, in the order the compound numbers them); founding stands the start's (`campaign-start.json`, the bunkhouse), and nothing builds one yet (DDB-508).
 
 The map itself isn't saved yet (DDB-436). The campaign keeps what makes it again: `mapAttempts`, the map attempt and each stage's winning attempt, fixed at founding with the seed, the generator version, and the params, and null for a campaign built without a map ([campaign-save-and-load.md](./campaign-save-and-load.md), The area map).
 
 The log is `{ day, message }` lines, dated by `addLogEntry` with the current day, in day order, none after today. Plain text for now; campaign history may want structured entries later, which is a schema bump.
+
+## Buildings standing
+
+`buildings` lists the compound's buildings that stand, in `BUILDING_IDS` order (`Buildings.ts`), each once (DDB-508). The compound plate draws a roof for each and stakes out the rest, so the list has to be the campaign's, not the screen's.
+
+Provisional calls (gameplay-calls.md, 182): a new campaign is founded with only the bunkhouse standing (`campaign-start.json`), and nothing builds a building yet. The bunkhouse's Crew screen was the only building screen in play, and every version 9 campaign could open it, so version 9 saves load with the bunkhouse standing (save format 10).
 
 ## Consequences
 

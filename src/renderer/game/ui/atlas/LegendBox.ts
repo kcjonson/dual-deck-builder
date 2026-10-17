@@ -3,7 +3,7 @@ import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { RGBA, Rect } from '../../../engine/draw/geometry';
-import type { Theme } from '../../../engine/theme/tokens';
+import type { ColorToken, Theme } from '../../../engine/theme/tokens';
 import { UiArtName, drawAtlasArt, paperPiece } from './atlasArt';
 import { ATLAS, AtlasInks, atlasInks } from './atlasStyle';
 import { MapGlyph } from './mapGlyphs';
@@ -130,25 +130,61 @@ export interface LegendRowOptions extends Omit<StackOptions, 'style' | 'directio
 	symbol?: LegendSymbol;
 	/** Faint ink, for nothing to report. Default on with the dash. */
 	faint?: boolean;
+	/** The line's ink, over `faint`: stronghold red (`status_crit`) for news that can't wait. */
+	color?: ColorToken;
+	/** A mono value at the row's right, as a legend key's count. */
+	value?: string;
+	/** The line's id. Default `<row id>_text` when the row has an id. */
+	textId?: string;
+	/** The value's id. Default `<row id>_value` when the row has an id. */
+	valueId?: string;
 }
 
 const SYMBOL_SIZE = 14;
 const BODY_SIZE = 14;
+const VALUE_SIZE = 12;
 
 /**
  * One row of a legend box: a map-legend symbol where it helps (a stronghold
  * diamond for a shortfall, an open ring for a pending item, a dashed line
- * for nothing to report) and a body line that wraps to the box.
+ * for nothing to report), a body line that wraps to the box, and an
+ * optional mono value at the right.
  */
 export class LegendRow extends Stack {
 	private readonly line: Text;
+	private readonly valueText: Text | null;
 
-	constructor({ text, symbol, faint = symbol === 'dash', ...options }: LegendRowOptions) {
+	constructor({ text, symbol, faint = symbol === 'dash', color, value, textId, valueId, ...options }: LegendRowOptions) {
 		super({ widthMode: 'fill', ...options, direction: 'horizontal', gap: 10, crossAlign: 'center' });
 		this.componentType = 'LegendRow';
 		if (symbol) this.addChild(new MapGlyph({ kind: symbol, size: SYMBOL_SIZE }));
-		this.line = new Text({ text, widthMode: 'fill', wrap: 'word', style: { fontSize: BODY_SIZE, color: faint ? 'text_faint' : 'text' } });
+		const lineId = textId ?? (options.id ? `${options.id}_text` : undefined);
+		this.line = new Text({
+			text,
+			...(lineId !== undefined ? { id: lineId } : {}),
+			widthMode: 'fill',
+			wrap: 'word',
+			style: { fontSize: BODY_SIZE, color: color ?? (faint ? 'text_faint' : 'text') },
+		});
 		this.addChild(this.line);
+		const valueTextId = valueId ?? (options.id ? `${options.id}_value` : undefined);
+		this.valueText = value !== undefined
+			? new Text({ text: value, ...(valueTextId !== undefined ? { id: valueTextId } : {}), wrap: 'none', style: { fontRole: 'mono', fontSize: VALUE_SIZE, color: faint ? 'text_faint' : 'text_dim' } })
+			: null;
+		if (this.valueText) this.addChild(this.valueText);
+	}
+
+	public get value(): string | null {
+		return this.valueText?.text ?? null;
+	}
+
+	/** The line's ink as drawn. */
+	public get color(): RGBA {
+		return this.line.color;
+	}
+
+	public set color(color: ColorToken) {
+		this.line.color = color;
 	}
 
 	public get text(): string {

@@ -15,6 +15,7 @@ import { NO_MODIFIERS } from '../../../engine/input/events';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../../../engine/text/testing';
 import { themes, tokens } from '../../../engine/theme/tokens';
 import { Button } from '../../../engine/ui/Button';
+import { Scrollbar } from '../../../engine/ui/Scrollbar';
 import { Slider } from '../../../engine/ui/Slider';
 import { TabBar } from '../../../engine/ui/TabBar';
 import { drawAtlasArt, paperPiece } from './atlasArt';
@@ -300,6 +301,11 @@ describe('SectionTabs', () => {
 		expect(chosen).toEqual(['compound', 'crew', 'menu', 'crew', 'menu']);
 	});
 
+	it('names each tab after the row and its own id', () => {
+		const tabs = add(new SectionTabs({ id: 'sections', tabs: specs }));
+		expect(tabs.tabs.map((tab) => tab.id)).toEqual(['sections.menu', 'sections.compound', 'sections.locked', 'sections.crew']);
+	});
+
 	it('selects on activate, and never fires for the tab already open', () => {
 		const chosen: string[] = [];
 		const tabs = add(new SectionTabs({ tabs: specs, selectedId: 'menu', onSelect: (id) => chosen.push(id) }));
@@ -363,6 +369,19 @@ describe('LegendBox', () => {
 		expect(drawn[2]).toMatchObject({ border: { width: ATLAS.legendRule }, rect: { x: ATLAS.legendRuleInset } });
 		expect(drawn.filter((command) => same(command.fill, atlas.color.line_hairline))).toHaveLength(2);
 		expect(box.title).toBe('Needs');
+	});
+
+	it('names the line of a row after the row, and inks it as asked', () => {
+		const row = add(new LegendRow({ id: 'need', symbol: 'diamond', text: 'Food runs out tonight', color: 'status_crit' }));
+		expect(row.findById('need_text')).not.toBeNull();
+		expect(row.color).toEqual(atlas.color.status_crit);
+		row.color = 'text';
+		expect(row.color).toEqual(ink);
+		expect(add(new LegendRow({ symbol: 'dash', text: 'Radio: no new rumors' })).color).toEqual(atlas.color.text_faint);
+		const counted = add(new LegendRow({ id: 'poi', text: 'Hospital', value: 'tier 2' }));
+		expect([counted.value, counted.findById('poi_value') !== null, counted.findById('poi_text') !== null]).toEqual(['tier 2', true, true]);
+		const named = add(new LegendRow({ id: 'row', text: 'Clinic', value: '1', textId: 'clinic', valueId: 'clinic_count' }));
+		expect([named.findById('clinic') !== null, named.findById('clinic_count') !== null, named.findById('row_text')]).toEqual([true, true, null]);
 	});
 
 	it('draws the thing in focus on flat fresh paper, W0, with no art', () => {
@@ -488,6 +507,17 @@ describe('ResourceStrip', () => {
 		expect(water.ink).toEqual(ink);
 		strip.note = null;
 		expect(strip.note).toBeNull();
+	});
+});
+
+describe('ResourceStrip ids and formats', () => {
+	it('names each item after the strip and its kind, and prints values as asked', () => {
+		const strip = add(new ResourceStrip({ id: 'stores', width: 600, items: [{ kind: 'scrap', value: 12_000 }], format: (value) => `${Math.floor(value / 1000)}k` }));
+		const item = strip.item('scrap');
+		expect(item?.id).toBe('stores_scrap');
+		expect((strip.findById('stores_scrap_value') as { text: string } | null)?.text).toBe('12k');
+		if (item) item.value = 3000;
+		expect((strip.findById('stores_scrap_value') as { text: string } | null)?.text).toBe('3k');
 	});
 });
 
@@ -619,6 +649,15 @@ describe('focus rings on an atlas screen', () => {
 		expect(slider.resolvedColors.fill).toEqual(atlas.color.accent);
 		focus(slider);
 		expect(rects(slider).find((command) => command.id === 'volume.focus_ring')?.border?.color).toEqual(ink);
+	});
+
+	it('draws a scrollbar in the theme\'s colours, so its thumb shows on paper', () => {
+		const bar = add(new Scrollbar({ id: 'bar', height: 120, range: { offset: 0, extent: 300, viewport: 120 } }));
+		const [track, thumb] = rects(bar);
+		expect(track.fill).toEqual(atlas.color.line_hairline);
+		expect(thumb.fill).toEqual(atlas.color.line_strong);
+		root.theme = null;
+		expect(rects(bar)[1].fill).toEqual(tokens.color.line_strong);
 	});
 });
 

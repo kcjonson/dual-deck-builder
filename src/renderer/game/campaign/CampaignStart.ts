@@ -2,6 +2,7 @@ import { readArray, readFields, readInteger, readOneOf } from '../core/JsonReade
 import campaignStartFile from '../data/campaign-start.json';
 import { ESCORT_CONFIGS, EscortType } from '../mechanics/Escort';
 import { MAX_CONVOY_ESCORTS } from '../mechanics/Team';
+import { BuildingId, readBuildings } from './Buildings';
 import { RESOURCE_NAMES, Resources } from './Campaign';
 
 /**
@@ -27,9 +28,11 @@ export interface CampaignStart {
 	resources: Readonly<Resources>;
 	/** Starter escorts by type, in roster order. Empty for an empty convoy. */
 	escorts: readonly EscortType[];
+	/** The buildings standing on day 1. */
+	buildings: readonly BuildingId[];
 }
 
-const FIELDS: readonly (keyof CampaignStart)[] = ['poolSize', 'resources', 'escorts'];
+const FIELDS: readonly (keyof CampaignStart)[] = ['poolSize', 'resources', 'escorts', 'buildings'];
 const ESCORT_TYPES = Object.keys(ESCORT_CONFIGS) as readonly EscortType[];
 
 /**
@@ -50,7 +53,8 @@ export function readCampaignStart(value: unknown, path: string): CampaignStart {
 	return Object.freeze({
 		poolSize: readInteger(fields.poolSize, `${path}.poolSize`, { min: FULL_RUN_SEATS }),
 		resources: Object.freeze(resources),
-		escorts: Object.freeze(escorts.map((type, index) => readOneOf(type, `${path}.escorts[${index}]`, ESCORT_TYPES)))
+		escorts: Object.freeze(escorts.map((type, index) => readOneOf(type, `${path}.escorts[${index}]`, ESCORT_TYPES))),
+		buildings: readBuildings(fields.buildings, `${path}.buildings`)
 	});
 }
 

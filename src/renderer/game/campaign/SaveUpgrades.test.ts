@@ -15,17 +15,27 @@ describe('save upgrades', () => {
 	});
 
 	it('reads version 8\'s map state with every POI full, keeping anything else in it', () => {
-		expect(upgradeCampaignJson({ campaign: { day: 3, map: {} }, version: 8 })).toEqual({ day: 3, map: {} });
-		expect(upgradeCampaignJson({ campaign: { day: 3, map: { pois: 'anything', fog: [1] } }, version: 8 })).toEqual({ day: 3, map: { fog: [1] } });
+		expect(upgradeCampaignJson({ campaign: { day: 3, map: {} }, version: 8 })).toEqual({ day: 3, map: {}, buildings: ['bunkhouse'] });
+		expect(upgradeCampaignJson({ campaign: { day: 3, map: { pois: 'anything', fog: [1] } }, version: 8 })).toEqual({ day: 3, map: { fog: [1] }, buildings: ['bunkhouse'] });
+	});
+
+	it('stands the bunkhouse in a version 9 campaign, which every one was founded with', () => {
+		expect(upgradeCampaignJson({ campaign: { day: 3, map: {} }, version: 9 })).toEqual({ day: 3, map: {}, buildings: ['bunkhouse'] });
 	});
 
 	it.each([
 		['not an object', 'campaign'],
 		['a list', [1]],
 		['null', null],
-		['a campaign whose map isn\'t an object', { day: 3, map: [] }],
-		['a campaign with no map', { day: 3 }],
 	])('passes %s through for the campaign reader to refuse', (_label, campaign) => {
 		expect(upgradeCampaignJson({ campaign, version: 8 })).toEqual(campaign);
+		expect(upgradeCampaignJson({ campaign, version: 9 })).toEqual(campaign);
+	});
+
+	it.each([
+		['a campaign whose map isn\'t an object', { day: 3, map: [] }],
+		['a campaign with no map', { day: 3 }],
+	])('passes %s through version 8\'s step for the campaign reader to refuse', (_label, campaign) => {
+		expect(upgradeCampaignJson({ campaign, version: 8 })).toEqual({ ...campaign, buildings: ['bunkhouse'] });
 	});
 });
