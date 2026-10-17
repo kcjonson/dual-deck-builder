@@ -40,6 +40,8 @@ export function autoTone(value: number): 'crit' | 'warn' | 'ok' {
 
 interface TonePalette {
 	fill: RGBA;
+	/** A filled control's border: the fill itself, except the accent's `accent_edge` (the atlas highway's Casing). */
+	edge: RGBA;
 	/** The hover fill; null for a tone with no bright token, which gets the wash instead. */
 	bright: RGBA | null;
 	glow: RGBA;
@@ -47,6 +49,10 @@ interface TonePalette {
 
 function withAlpha(rgba: RGBA, alpha: number): RGBA {
 	return [rgba[0], rgba[1], rgba[2], alpha];
+}
+
+function sameColor(a: RGBA, b: RGBA): boolean {
+	return a[0] === b[0] && a[1] === b[1] && a[2] === b[2] && a[3] === b[3];
 }
 
 type FilledTone = Exclude<Tone, 'default' | 'auto'>;
@@ -70,11 +76,11 @@ function themeLook(theme: Theme): ThemeLook {
 	look = {
 		color,
 		tones: {
-			accent: { fill: color.accent, bright: color.accent_bright, glow: color.accent_glow },
-			warn: { fill: color.status_warn, bright: color.accent_bright, glow: color.accent_glow },
-			data: { fill: color.data, bright: color.data_bright, glow: color.data_glow },
-			ok: { fill: color.status_ok, bright: null, glow: withAlpha(color.status_ok, glowAlpha) },
-			crit: { fill: color.status_crit, bright: null, glow: withAlpha(color.status_crit, glowAlpha) },
+			accent: { fill: color.accent, edge: color.accent_edge, bright: color.accent_bright, glow: color.accent_glow },
+			warn: { fill: color.status_warn, edge: color.status_warn, bright: color.accent_bright, glow: color.accent_glow },
+			data: { fill: color.data, edge: color.data, bright: color.data_bright, glow: color.data_glow },
+			ok: { fill: color.status_ok, edge: color.status_ok, bright: null, glow: withAlpha(color.status_ok, glowAlpha) },
+			crit: { fill: color.status_crit, edge: color.status_crit, bright: null, glow: withAlpha(color.status_crit, glowAlpha) },
 		},
 		pressed: { wash: color.bg_pressed, offsetY: theme.control.press_offset },
 		active: { border: color.accent, wash: color.bg_active },
@@ -151,7 +157,7 @@ export function buttonLayers(tone: Tone, style: StyleObject, ghost = false, them
 	};
 	const palette = tone === 'default' ? null : tones[tone];
 	const variantBase: LookBase = palette
-		? { ...neutral, fill: palette.fill, border: palette.fill, text: color.accent_contrast }
+		? { ...neutral, fill: palette.fill, border: palette.edge, text: color.accent_contrast }
 		: neutral;
 	const normal = withInstance(variantBase, style, theme);
 	const selected = style.selected ? { ...selectedOf(normal, color), ...baseColors(style.selected, theme) } : selectedOf(normal, color);
@@ -160,8 +166,9 @@ export function buttonLayers(tone: Tone, style: StyleObject, ghost = false, them
 	if (style.hover) {
 		hover = overlayFrom(style.hover, theme);
 	} else if (palette) {
+		// An edge of its own (the atlas Casing) stays through hover; one that is the fill brightens with it.
 		hover = palette.bright && style.backgroundColor === undefined
-			? { fill: palette.bright, border: palette.bright, glow: palette.glow }
+			? { fill: palette.bright, border: sameColor(palette.edge, palette.fill) ? palette.bright : palette.edge, glow: palette.glow }
 			: { wash: color.bg_hover, glow: palette.glow };
 	} else {
 		hover = { wash: color.bg_hover };
@@ -180,7 +187,7 @@ export function buttonLayers(tone: Tone, style: StyleObject, ghost = false, them
 		pressed: style.pressed ? { ...overlayFrom(style.pressed, theme), offsetY: pressed.offsetY } : pressed,
 		active: style.active ? overlayFrom(style.active, theme) : active,
 		disabled,
-		focusRing: color.accent,
+		focusRing: color.focus_ring,
 	};
 }
 
@@ -206,7 +213,7 @@ export function fieldLayers(style: StyleObject, theme: Theme = tokens): LookLaye
 		pressed: {},
 		active: style.active ? overlayFrom(style.active, theme) : active,
 		disabled: style.disabled ? overlayFrom(style.disabled, theme) : { text: color.text_disabled },
-		focusRing: color.accent,
+		focusRing: color.focus_ring,
 	};
 }
 
@@ -246,7 +253,7 @@ function ghostLayers(tone: Exclude<Tone, 'auto'>, style: StyleObject, theme: The
 		pressed: style.pressed ? { ...overlayFrom(style.pressed, theme), offsetY: pressed.offsetY } : pressed,
 		active: style.active ? overlayFrom(style.active, theme) : active,
 		disabled: style.disabled ? overlayFrom(style.disabled, theme) : { text: color.text_disabled },
-		focusRing: color.accent,
+		focusRing: color.focus_ring,
 	};
 }
 
@@ -274,7 +281,7 @@ export function rowLayers({ dim, theme = tokens }: { dim: boolean; theme?: Theme
 		pressed: { wash: color.bg_pressed },
 		active: { wash: color.bg_active },
 		disabled: { text: color.text_disabled },
-		focusRing: color.accent,
+		focusRing: color.focus_ring,
 	};
 }
 
@@ -306,7 +313,7 @@ export function markLayers({ on, theme = tokens }: { on: boolean; theme?: Theme 
 		pressed: { wash: color.bg_pressed },
 		active: {},
 		disabled: { fill: color.bg_inset, border: color.line_edge, text: color.text_disabled },
-		focusRing: color.accent,
+		focusRing: color.focus_ring,
 	};
 }
 
@@ -326,7 +333,7 @@ export function tabLayers(theme: Theme = tokens): LookLayers {
 		pressed: { wash: color.bg_pressed },
 		active: {},
 		disabled: { text: color.text_disabled },
-		focusRing: color.accent,
+		focusRing: color.focus_ring,
 	};
 }
 
@@ -350,6 +357,6 @@ export function segmentLayers({ tone, on, theme = tokens }: { tone: FilledTone; 
 		pressed: { wash: color.bg_pressed },
 		active: {},
 		disabled: on ? { fill: color.line_strong, text: color.text_disabled } : { text: color.text_disabled },
-		focusRing: color.accent,
+		focusRing: color.focus_ring,
 	};
 }

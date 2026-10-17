@@ -1,10 +1,12 @@
 import { Component, ComponentOptions, Cursor, PointerEvents, ResolvedColors } from '../components/Component';
 import type { DrawApi } from '../draw/DrawApi';
+import type { BoxShadow } from '../draw/commands';
 import type { RGBA, Rect } from '../draw/geometry';
 import type { AnyUiEvent, UiKeyEvent, UiPointerEvent } from '../input/events';
 import { glowShadow, shadowExtent } from '../style/look';
 import { CONTROL_SIZES, ControlSize } from '../style/variants';
 import { tokens } from '../theme/tokens';
+import type { Theme } from '../theme/tokens';
 import { StepRange, snapToStep } from './stepGrid';
 
 export interface SliderRange extends StepRange {
@@ -77,8 +79,17 @@ const COLUMN_GAP = tokens.space.space_1_5;
 const LABEL_SIZE = tokens.fontSize.fs_sm;
 /** The most of the width a label column takes. */
 const LABEL_SHARE = 0.4;
-const THUMB_GLOW = glowShadow(tokens.color.accent_glow);
-const DETENT_COLOR: RGBA = [tokens.color.data[0], tokens.color.data[1], tokens.color.data[2], 0.7];
+/** The thumb's glow and the detent ticks per theme, built once each. */
+const THUMB_PAINT = new Map<Theme, { glow: BoxShadow; detent: RGBA }>();
+function thumbPaint(theme: Theme): { glow: BoxShadow; detent: RGBA } {
+	let paint = THUMB_PAINT.get(theme);
+	if (!paint) {
+		const { data } = theme.color;
+		paint = { glow: glowShadow(theme.color.accent_glow), detent: [data[0], data[1], data[2], 0.7] };
+		THUMB_PAINT.set(theme, paint);
+	}
+	return paint;
+}
 
 /**
  * R12.15's slider: a pill track with the filled portion up to a thumb, an
@@ -267,7 +278,7 @@ export class Slider extends Component {
 
 	/** R8.8: the thumb's glow. */
 	public get inkExtent(): number {
-		return shadowExtent(THUMB_GLOW);
+		return shadowExtent(thumbPaint(tokens).glow);
 	}
 
 	/** The thumb stays inside the box, and its glow is left out as a look's glow is (R12.20); the walk adds the ring. */
@@ -277,9 +288,9 @@ export class Slider extends Component {
 
 	public get resolvedColors(): ResolvedColors {
 		return {
-			fill: this.effectivelyEnabled ? tokens.color.accent : tokens.color.text_faint,
-			border: tokens.color.line_hairline,
-			text: this.effectivelyEnabled ? tokens.color.text_dim : tokens.color.text_disabled,
+			fill: this.effectivelyEnabled ? this.themeTokens.color.accent : this.themeTokens.color.text_faint,
+			border: this.themeTokens.color.line_hairline,
+			text: this.effectivelyEnabled ? this.themeTokens.color.text_dim : this.themeTokens.color.text_disabled,
 		};
 	}
 
@@ -326,7 +337,8 @@ export class Slider extends Component {
 
 	public render(draw: DrawApi): void {
 		const enabled = this.effectivelyEnabled;
-		const { color } = tokens;
+		const { color } = this.themeTokens;
+		const paint = thumbPaint(this.themeTokens);
 		const { left, right, y } = this.track;
 		if (this.labelText) {
 			draw.drawText({
@@ -379,7 +391,7 @@ export class Slider extends Component {
 			const inset = tokens.space.space_0_5;
 			draw.drawRect({
 				rect: { x: left + at * (right - left) - tickWidth / 2, y: y - radiusThumb + inset, width: tickWidth, height: THUMB_SIZE - inset * 2 },
-				fill: enabled ? DETENT_COLOR : color.text_disabled,
+				fill: enabled ? paint.detent : color.text_disabled,
 			});
 		}
 
@@ -389,7 +401,7 @@ export class Slider extends Component {
 			fill: !enabled ? color.text_dim : active ? color.text_bright : color.accent_bright,
 			radius: tokens.radius.r_sm,
 			border: { color: color.bg_void, width: tokens.borderWidth.bw },
-			shadow: enabled ? THUMB_GLOW : undefined,
+			shadow: enabled ? paint.glow : undefined,
 		});
 	}
 

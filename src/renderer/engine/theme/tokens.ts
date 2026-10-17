@@ -20,6 +20,8 @@ export const tokens = {
 		accent_bright: [0.9608, 0.8863, 0.5804, 1],
 		accent_dim: [0.2902, 0.2275, 0.0706, 1],
 		accent_contrast: [0.0667, 0.0706, 0.0784, 1],
+		accent_edge: [0.9373, 0.8235, 0.3529, 1], // = color.accent
+		focus_ring: [0.9373, 0.8235, 0.3529, 1], // = color.accent
 		accent_glow: [0.9373, 0.8235, 0.3529, 0.45],
 		data: [0.5176, 0.6078, 0.9608, 1],
 		data_bright: [0.6863, 0.7451, 0.9765, 1],
@@ -45,6 +47,8 @@ export const tokens = {
 		hand_grease: [0.7843, 0.2157, 0.1765, 1],
 		hatch_rust: [0.7098, 0.3922, 0.2353, 1],
 		built_up: [0.898, 0.8314, 0.8, 1],
+		back_road: [0.4627, 0.4471, 0.4157, 1],
+		duct_tape: [0.5216, 0.5137, 0.4902, 1],
 	},
 	space: {
 		space_0_5: 2,
@@ -254,6 +258,8 @@ const atlasTheme: Theme = {
 		accent_bright: [0.9098, 0.4392, 0.2471, 1],
 		accent_dim: [0.4078, 0.1725, 0.1176, 1],
 		accent_contrast: [1, 0.9725, 0.9333, 1],
+		accent_edge: [0.4078, 0.1725, 0.1176, 1], // = color.accent_dim
+		focus_ring: [0.1373, 0.1333, 0.1216, 1],
 		accent_glow: [0.8471, 0.3765, 0.2118, 0],
 		data: [0.2431, 0.4353, 0.5961, 1],
 		data_bright: [0.5255, 0.6824, 0.8275, 1],
@@ -279,6 +285,8 @@ const atlasTheme: Theme = {
 		hand_grease: [0.7843, 0.2157, 0.1765, 1],
 		hatch_rust: [0.7098, 0.3922, 0.2353, 1],
 		built_up: [0.898, 0.8314, 0.8, 1],
+		back_road: [0.4627, 0.4471, 0.4157, 1],
+		duct_tape: [0.5216, 0.5137, 0.4902, 1],
 	},
 	space: {
 		space_0_5: 2,
