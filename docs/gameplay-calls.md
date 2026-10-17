@@ -307,3 +307,7 @@ Record for 165 to 175: area-map-atlas-style.md (its Visual calls).
 173. DDB-498: POI glyphs are letters (hospital H, clinic C, school S, store G, mall M, water plant W, fuel depot F, truck stop T, quarry Q, mine X, farm B, silo O, salvage yard J), because the target uses letters and the icon atlas can't gain glyphs without msdf-atlas-gen.
 174. DDB-498: names in the condensed bold face (towns 14 px; POIs, strongholds, and Home 13 px), villages in the body face at 10.5 px, the metro at 17 px spaced capitals, all on a 2.2 px paper halo.
 175. DDB-498: tier numbers leave the map (POIs show their type's glyph) and stay in the destinations list and the run route panel, because the target has no tier badges.
+
+Record for 176: stops-and-routes.md.
+
+176. DDB-499: a highway route's name takes the route number on its highway's shields ("Route 47 highway"), the highway with the most length on the route's own road, instead of that highway's index plus one, because the run route card and the map's shields should say the same number; two routes on one highway share it and are told apart by side, then letter, as before.
