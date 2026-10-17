@@ -238,7 +238,7 @@ describe('planning a run', () => {
 		expect(getPlanBlocker({ map: MAP, campaign: overCampaign() })?.reason).toBe('campaign_over');
 	});
 
-	it('stays open with one driver fit to go, or only drivers of one archetype (DDB-432 #35)', () => {
+	it('stays open with one driver fit to go, or only drivers of one archetype (gameplay call 35)', () => {
 		const lone = newCampaign();
 		lone.drivers.slice(1).forEach(driver => driver.set({ status: 'injured', injuredDays: 2, hitpoints: 5 }));
 		expect(getPlanBlocker({ map: MAP, campaign: lone })).toBeNull();
@@ -250,7 +250,7 @@ describe('planning a run', () => {
 	});
 });
 
-describe('the crew rule (DDB-432 #35)', () => {
+describe('the crew rule (gameplay call 35)', () => {
 	it('seats a pair of different archetypes while two such are fit, and refuses a same-archetype pair then', () => {
 		const campaign = newCampaign();
 		const second = campaign.recruitDriver({ archetype: campaign.drivers[0].archetype });

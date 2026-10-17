@@ -206,7 +206,7 @@ export const DRESSING_STAGE: MapStage<MapParams, DressingUpstream, 'dressing', D
 		places: products.places,
 		network: products.roads.network,
 		pois: products.pois,
-		// Named as the screens name them (`mapPoiNames`), so a label on the map and a destination in a list agree.
+		// The names every screen gives the POIs (mapPoiNames), from the map's own places and radius.
 		poiNames: poiNames(products.pois, { places: products.places, radius: input.radius }),
 		rng,
 	}),

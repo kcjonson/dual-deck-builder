@@ -19,7 +19,7 @@ export type SeatBlocker =
 	| { reason: 'same_archetype'; archetype: DriverArchetype; partner: DriverRecord };
 
 /**
- * Who a run can seat, from the drivers ready at the compound (DDB-432 #35):
+ * Who a run can seat, from the drivers ready at the compound (gameplay call 35, docs/gameplay-calls.md):
  * a pair of different archetypes while two such are ready (`pair`); a pair
  * of one archetype when every ready driver shares it (`same_archetype`), so
  * a pool that only grows on runs can't lock itself out; one driver when
