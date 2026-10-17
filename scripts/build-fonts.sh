@@ -35,7 +35,9 @@ fi
 # output basename | source face relative to FONTS_DIR | name written into the JSON
 FACES=(
 	"barlow-condensed-semibold|barlow-condensed/BarlowCondensed-SemiBold.ttf|Barlow Condensed SemiBold"
+	"barlow-condensed-bold|barlow-condensed/BarlowCondensed-Bold.ttf|Barlow Condensed Bold"
 	"open-sans-regular|open-sans/OpenSans-Regular.ttf|Open Sans"
+	"open-sans-semibold|open-sans/OpenSans-SemiBold.ttf|Open Sans SemiBold"
 	"jetbrains-mono-regular|jetbrains-mono/JetBrainsMono-Regular.ttf|JetBrains Mono"
 )
 

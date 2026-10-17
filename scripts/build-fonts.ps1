@@ -28,7 +28,9 @@ if (-not $VersionLine.Contains($PinnedVersion) -and -not $env:MSDF_ATLAS_GEN_ANY
 
 $Faces = @(
 	@{ Output = 'barlow-condensed-semibold'; Source = 'barlow-condensed\BarlowCondensed-SemiBold.ttf'; Name = 'Barlow Condensed SemiBold' },
+	@{ Output = 'barlow-condensed-bold'; Source = 'barlow-condensed\BarlowCondensed-Bold.ttf'; Name = 'Barlow Condensed Bold' },
 	@{ Output = 'open-sans-regular'; Source = 'open-sans\OpenSans-Regular.ttf'; Name = 'Open Sans' },
+	@{ Output = 'open-sans-semibold'; Source = 'open-sans\OpenSans-SemiBold.ttf'; Name = 'Open Sans SemiBold' },
 	@{ Output = 'jetbrains-mono-regular'; Source = 'jetbrains-mono\JetBrainsMono-Regular.ttf'; Name = 'JetBrains Mono' }
 )
 
