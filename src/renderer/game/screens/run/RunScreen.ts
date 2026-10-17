@@ -10,23 +10,36 @@ import {
 	Arrival, StopFightResult, arriveHome, atDestination, cargoText, currentStop, finishStopFight, listText, passQuietStop, rewardOffer, startStopFight, takeReward,
 } from '../../campaign/SupplyRun';
 import type { SupplyRun } from '../../campaign/SupplyRunState';
+import { NO_RESOURCES, RESOURCE_NAMES } from '../../campaign/Campaign';
+import type { DriverRecord } from '../../campaign/DriverRecord';
+import { poiOf } from '../../campaign/MapRoutes';
+import { poiState, sharesLeft } from '../../campaign/PoiStock';
+import type { PoiState } from '../../map/PoiData';
 import type { Card } from '../../mechanics/Card';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Button } from '../../../engine/ui/Button';
-import { Divider } from '../../../engine/ui/Divider';
-import { Panel } from '../../../engine/ui/Panel';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
-import { ColorToken, tokens } from '../../../engine/theme/tokens';
+import type { ColorToken } from '../../../engine/theme/tokens';
 import { CardPileView } from '../../ui/CardPileView';
+import { AtlasButton } from '../../ui/atlas/AtlasButton';
+import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
+import { AtlasTag } from '../../ui/atlas/AtlasTag';
+import { ATLAS, DISPLAY_BOLD } from '../../ui/atlas/atlasStyle';
+import { DamageMark, DamageMarkKind } from '../../ui/atlas/DamageMark';
+import { LegendBox, LegendRow, LegendSymbol } from '../../ui/atlas/LegendBox';
+import { ResourceStrip } from '../../ui/atlas/ResourceStrip';
 import type { PreparedCombatMount } from '../combat/CombatScreen';
 import { NOT_THE_SAVE } from '../compound/compoundText';
-import { arrivalSummary, failureSummary, skullsText, stopTitle, yieldText } from './runText';
+import { arrivalSummary, crewState, debriefMark, failureSummary, skullsText, stopTitle, yieldText } from './runText';
 
-const { space } = tokens;
-const TOP_BAR_HEIGHT = 64;
-const BACK_WIDTH = 136;
+const BACK_WIDTH = 160;
 const ROAD_WIDTH = 320;
+const CARGO_WIDTH = 260;
+const TITLE_SIZE = 30;
+const STEP_WIDTH = 300;
+/** The destination's stamp in the head, a step under full size so the head stays one line of boxes tall. */
+const STAMP_SCALE = 0.7;
+const TAG_WIDTH = 200;
 
 type FailedStopFight = Extract<StopFightResult, { outcome: 'run_failed' }>;
 
@@ -78,7 +91,7 @@ type Shown =
  * Opened with no campaign, it loads the save as Continue would.
  */
 export class RunScreen extends Screen {
-	private readonly stack: Stack;
+	private readonly sheet: AtlasSheet;
 	private readonly store: CampaignStore;
 	private readonly loadCards: () => Promise<ReadonlyMap<string, Card>>;
 	private cards: ReadonlyMap<string, Card> | null = null;
@@ -92,7 +105,9 @@ export class RunScreen extends Screen {
 	private action: Stack | null = null;
 	private report: Text | null = null;
 	private saveError: Text | null = null;
-	private backButton: Button | null = null;
+	private backButton: AtlasButton | null = null;
+	/** The head's stamp: the destination's state on the debrief, LOST on a failed run. */
+	private stamp: DamageMark | null = null;
 	/** A step is being taken or saved, so another press waits for it. */
 	private busy = false;
 	/** The store has moved on from this instance, so nothing done here would be saved. */
@@ -104,15 +119,17 @@ export class RunScreen extends Screen {
 	private loaded: Promise<void> = Promise.resolve();
 
 	constructor({ store = CampaignStore.shared, cards = loaderCards }: RunScreenOptions = {}) {
-		const root = new Stack({
+		const root = new AtlasSheet({
 			id: 'runScreen',
 			widthMode: 'fill',
 			heightMode: 'fill',
 			crossAlign: 'stretch',
-			style: { backgroundColor: 'bg_base' },
+			gap: 14,
+			contentInset: 16,
+			paper: 'a',
 		});
-		super('runScreen', { root });
-		this.stack = root;
+		super('runScreen', { root, theme: 'atlas' });
+		this.sheet = root;
 		this.store = store;
 		this.loadCards = cards;
 	}
@@ -129,10 +146,9 @@ export class RunScreen extends Screen {
 
 	protected onMount(data?: unknown): void {
 		this.visit += 1;
-		const back = new Button({ label: 'Back to menu', id: 'run_back_button', icon: 'arrow_back', size: 'sm', width: BACK_WIDTH, onClick: () => this.toMenu() });
+		const back = new AtlasButton({ label: 'Back to menu', id: 'run_back_button', width: BACK_WIDTH, onClick: () => this.toMenu() });
 		this.backButton = back;
-		this.stack.addChild(this.createTopBar(back));
-		this.stack.addChild(new Divider({ id: 'run_top_rule' }));
+		this.sheet.addChild(this.createTopBar(back));
 
 		const body = new Stack({
 			id: 'run_body',
@@ -140,20 +156,19 @@ export class RunScreen extends Screen {
 			widthMode: 'fill',
 			heightMode: 'fill',
 			crossAlign: 'stretch',
-			padding: space.space_4,
-			gap: space.space_4,
+			gap: 16,
 		});
-		const roadPanel = new Panel({ id: 'run_road_panel', title: 'The road', compact: true, width: ROAD_WIDTH, heightMode: 'fill', crossAlign: 'stretch', gap: space.space_3 });
+		const roadPanel = new LegendBox({ id: 'run_road_panel', title: 'The road', width: ROAD_WIDTH, heightMode: 'fill', crossAlign: 'stretch', gap: 12 });
 		const roadScroll = new ScrollContainer({ id: 'run_road_scroll', widthMode: 'fill', heightMode: 'fill' });
-		this.road = new Stack({ id: 'run_road', widthMode: 'fill', crossAlign: 'stretch', gap: space.space_1_5 });
+		this.road = new Stack({ id: 'run_road', widthMode: 'fill', crossAlign: 'stretch', gap: 10 });
 		roadScroll.addChild(this.road);
 		roadPanel.addChild(roadScroll);
 		this.seats = caption({ id: 'run_seats', text: '' });
 		roadPanel.addChild(this.seats);
 		body.addChild(roadPanel);
 
-		const side = new Stack({ id: 'run_side', widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch', gap: space.space_3 });
-		this.action = new Stack({ id: 'run_action', widthMode: 'fill', crossAlign: 'stretch', gap: space.space_3 });
+		const side = new Stack({ id: 'run_side', widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch', gap: 12 });
+		this.action = new Stack({ id: 'run_action', widthMode: 'fill', crossAlign: 'stretch', gap: 12 });
 		side.addChild(this.action);
 		this.report = caption({ id: 'run_report', text: '' });
 		this.report.visible = false;
@@ -162,7 +177,7 @@ export class RunScreen extends Screen {
 		this.saveError.visible = false;
 		side.addChild(this.saveError);
 		body.addChild(side);
-		this.stack.addChild(body);
+		this.sheet.addChild(body);
 
 		this.rootLayer.hotkeys.register('Escape', () => this.toMenu());
 		this.unsubscribe = this.store.onSaveFailed((error) => this.showLine({ line: this.saveError, text: error.message, color: 'status_crit' }));
@@ -184,9 +199,11 @@ export class RunScreen extends Screen {
 		this.rootLayer.hotkeys.unregister('Escape');
 		this.unsubscribe?.();
 		this.unsubscribe = null;
-		this.stack.clearChildren();
+		this.sheet.clearChildren();
+		this.sheet.wear = 2;
 		this.campaign = null;
 		this.shown = { kind: 'none' };
+		this.stamp = null;
 		this.title = null;
 		this.subtitle = null;
 		this.cargo = null;
@@ -201,34 +218,50 @@ export class RunScreen extends Screen {
 		this.lastSave = null;
 	}
 
-	private createTopBar(back: Button): Stack {
-		const bar = new Stack({
-			id: 'run_top_bar',
-			direction: 'horizontal',
-			widthMode: 'fill',
-			height: TOP_BAR_HEIGHT,
-			padding: { left: space.space_4, right: space.space_4 },
-			crossAlign: 'center',
-			gap: space.space_4,
-			style: { backgroundColor: 'bg_panel' },
-		});
-		bar.addChild(back);
-		const heading = new Stack({ id: 'run_heading', widthMode: 'fill', crossAlign: 'start' });
+	/** The head: the title and the day over it, the stamp once the run is over, the cargo while it's out, and Back to menu. */
+	private createTopBar(back: AtlasButton): Stack {
+		const bar = new Stack({ id: 'run_top_bar', direction: 'horizontal', widthMode: 'fill', crossAlign: 'center', gap: 16 });
+		const heading = new Stack({ id: 'run_heading', widthMode: 'fill', crossAlign: 'start', gap: 2 });
 		this.title = new Text({
 			text: 'Supply run',
 			id: 'run_title',
 			widthMode: 'fill',
-			style: { fontRole: 'display', fontSize: 'fs_xl', color: 'text_bright', textTransform: 'uppercase', letterSpacing: 'ls_wide' },
+			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: TITLE_SIZE, color: 'text', textTransform: 'uppercase', letterSpacing: ATLAS.headTracking },
 			wrap: 'none',
 			textOverflow: 'ellipsis',
 		});
 		heading.addChild(this.title);
-		this.subtitle = new Text({ id: 'run_subtitle', text: '', widthMode: 'fill', style: { fontRole: 'mono', fontSize: 'fs_sm', color: 'text_dim' }, wrap: 'none', textOverflow: 'ellipsis' });
+		this.subtitle = new Text({ id: 'run_subtitle', text: '', widthMode: 'fill', style: { fontRole: 'mono', fontSize: 13, color: 'text_dim' }, wrap: 'none', textOverflow: 'ellipsis' });
 		heading.addChild(this.subtitle);
 		bar.addChild(heading);
-		this.cargo = new Text({ id: 'run_cargo', text: '', width: 260, style: { fontSize: 'fs_sm', color: 'text', textAlign: 'right' } });
+		this.stamp = new DamageMark({ id: 'run_stamp', kind: 'looted', scale: STAMP_SCALE, visible: false });
+		bar.addChild(this.stamp);
+		this.cargo = new Text({ id: 'run_cargo', text: '', width: CARGO_WIDTH, style: { fontSize: 14, color: 'text', textAlign: 'right' } });
 		bar.addChild(this.cargo);
+		bar.addChild(back);
 		return bar;
+	}
+
+	/**
+	 * The run's damage, at most one hero mark (UI Art Direction, Wear): a
+	 * failed run burns the sheet and is stamped LOST; home, the destination
+	 * is stamped DEPLETED or LOOTED, unless an injured driver's tear takes
+	 * the place (`debriefMark`). On the road nothing is damaged yet.
+	 */
+	private markDamage(mark: DamageMarkKind | null): void {
+		this.sheet.wear = this.shown.kind === 'failed' ? 3 : 2;
+		const stamp = this.stamp;
+		if (!stamp) return;
+		stamp.visible = mark !== null && mark !== 'tear';
+		if (mark !== null && mark !== 'tear') stamp.kind = mark;
+	}
+
+	/** The destination's state on the campaign's map now, or null for a destination off the map's POIs. */
+	private destinationState(route: RunRoute): PoiState | null {
+		const poi = poiOf(route.destination.id);
+		const campaign = this.campaign;
+		if (poi === null || !campaign) return null;
+		return poiState(sharesLeft({ map: campaign.map, poi }));
 	}
 
 	/** The campaign handed over or loaded, then the cards, then the run as it stands. */
@@ -286,6 +319,7 @@ export class RunScreen extends Screen {
 		if (this.cargo) {
 			const carried = shown.kind === 'road' ? cargoText({ cargo: shown.run.cargo, cards: shown.run.cargoCards }) : null;
 			this.cargo.text = shown.kind === 'road' ? `Cargo: ${carried ?? 'nothing yet'}` : '';
+			this.cargo.visible = shown.kind === 'road';
 		}
 		if (shown.kind === 'road') this.showRoad({ route: shown.run.route, at: shown.run.stop, mode: shown.run.phase });
 		else if (shown.kind === 'home') this.showRoad({ route: shown.route, at: routeStops(shown.route).length, mode: 'home' });
@@ -295,11 +329,16 @@ export class RunScreen extends Screen {
 			this.seats.text = shown.kind === 'road'
 				? campaign.runDecks.map(({ driver }) => `${driver.name}, ${driver.hitpoints} of ${driver.maxHitpoints} HP`).join('; ')
 				: '';
+			this.seats.visible = shown.kind === 'road';
 		}
+		const mark = shown.kind === 'home'
+			? debriefMark({ destination: this.destinationState(shown.route), injured: injuredOf(shown.arrival).length > 0 })
+			: shown.kind === 'failed' ? 'lost' : null;
+		this.markDamage(mark);
 		const action = this.action;
 		if (!action) return;
 		action.clearChildren();
-		const primary = this.buildAction({ action, campaign, shown });
+		const primary = this.buildAction({ action, campaign, shown, torn: mark === 'tear' });
 		if (primary && !this.stranded) this.context.focus.focus(primary);
 	}
 
@@ -307,6 +346,8 @@ export class RunScreen extends Screen {
 	 * The route's stops, each cleared, next, or ahead, and home at the end:
 	 * the stop at `at` is next while driving, here at its reward, and where
 	 * the run was lost when it failed, and home is reached once it's home.
+	 * Each leads with its map symbol: a fight still ahead is hostile, a
+	 * quiet stretch pending, a cleared stop nothing to report, home the star.
 	 */
 	private showRoad({ route, at, mode }: { route: RunRoute; at: number; mode: SupplyRun['phase'] | 'home' | 'failed' }): void {
 		const road = this.road;
@@ -316,88 +357,115 @@ export class RunScreen extends Screen {
 		const atStop: Record<typeof mode, string> = { driving: 'Next', reward: 'Here', failed: 'Lost', home: '' };
 		stops.forEach((stop, index) => {
 			const state = index < at ? 'Cleared' : index === at ? atStop[mode] : '';
-			road.addChild(roadRow({ id: `run_stop_${index}`, label: `${index + 1}. ${stopTitle(stop)}`, state, current: index === at && mode !== 'failed' }));
+			const symbol: LegendSymbol = state === 'Cleared' ? 'dash' : stop.kind === 'fight' ? 'diamond' : 'ring';
+			road.addChild(roadRow({ id: `run_stop_${index}`, label: `${index + 1}. ${stopTitle(stop)}`, state, symbol }));
 		});
 		const homeState = mode === 'home' ? 'Reached' : at >= stops.length && mode === 'driving' ? 'Next' : '';
-		road.addChild(roadRow({ id: 'run_stop_home', label: `Home, from ${route.destination.name}`, state: homeState, current: homeState !== '' }));
+		road.addChild(roadRow({ id: 'run_stop_home', label: `Home, from ${route.destination.name}`, state: homeState, symbol: 'star' }));
 	}
 
-	/** The step on offer, with its button; returns the button focus goes to. */
-	private buildAction({ action, campaign, shown }: { action: Stack; campaign: Campaign; shown: Shown }): Button | null {
+	/** The step on offer in its box, with its button, and the debrief's ledgers; returns the button focus goes to. */
+	private buildAction({ action, campaign, shown, torn }: { action: Stack; campaign: Campaign; shown: Shown; torn: boolean }): AtlasButton | null {
 		switch (shown.kind) {
 			case 'none': {
-				action.addChild(heading({ id: 'run_action_title', text: 'No run is on the road' }));
-				return this.addButton({ action, id: 'run_compound_button', label: 'To the compound', onClick: () => this.toCompound() });
+				const box = stepBox(action);
+				box.addChild(heading({ id: 'run_action_title', text: 'No run is on the road' }));
+				return this.addButton({ box, id: 'run_compound_button', label: 'To the compound', onClick: () => this.toCompound() });
 			}
 			case 'home': {
-				action.addChild(heading({ id: 'run_action_title', text: 'Home' }));
-				action.addChild(caption({ id: 'run_summary', text: arrivalSummary({ arrival: shown.arrival, route: shown.route }), color: 'text' }));
-				if (campaign.isOver) return this.addButton({ action, id: 'run_defeat_button', label: 'Continue', onClick: () => { void this.toDefeat(); } });
-				return this.addButton({ action, id: 'run_compound_button', label: 'Back to the compound', onClick: () => this.toCompound() });
+				const box = stepBox(action);
+				box.addChild(heading({ id: 'run_action_title', text: 'Home' }));
+				box.addChild(caption({ id: 'run_summary', text: arrivalSummary({ arrival: shown.arrival, route: shown.route }), color: 'text' }));
+				const button = campaign.isOver
+					? this.addButton({ box, id: 'run_defeat_button', label: 'Continue', onClick: () => { void this.toDefeat(); } })
+					: this.addButton({ box, id: 'run_compound_button', label: 'Back to the compound', onClick: () => this.toCompound() });
+				action.addChild(debriefLedgers({ arrival: shown.arrival, torn }));
+				return button;
 			}
 			case 'failed': {
-				action.addChild(heading({ id: 'run_action_title', text: 'The run failed' }));
-				action.addChild(caption({ id: 'run_summary', text: failureSummary(shown.result), color: 'text' }));
-				if (campaign.isOver) return this.addButton({ action, id: 'run_defeat_button', label: 'Continue', onClick: () => { void this.toDefeat(); } });
-				return this.addButton({ action, id: 'run_compound_button', label: 'Back to the compound', onClick: () => this.toCompound() });
+				const box = stepBox(action);
+				box.addChild(heading({ id: 'run_action_title', text: 'The run failed' }));
+				box.addChild(caption({ id: 'run_summary', text: failureSummary(shown.result), color: 'text' }));
+				const button = campaign.isOver
+					? this.addButton({ box, id: 'run_defeat_button', label: 'Continue', onClick: () => { void this.toDefeat(); } })
+					: this.addButton({ box, id: 'run_compound_button', label: 'Back to the compound', onClick: () => this.toCompound() });
+				action.addChild(lossLedger(shown.result));
+				return button;
 			}
 			case 'road':
 				return this.buildRoadAction({ action, run: shown.run });
 		}
 	}
 
-	private buildRoadAction({ action, run }: { action: Stack; run: SupplyRun }): Button | null {
+	private buildRoadAction({ action, run }: { action: Stack; run: SupplyRun }): AtlasButton | null {
 		if (run.phase === 'reward') return this.buildReward({ action });
+		const box = stepBox(action);
 		const stop = currentStop(run);
 		if (stop === null) {
 			const { name, yield: yields } = run.route.destination;
-			action.addChild(heading({ id: 'run_action_title', text: `${name} reached` }));
+			box.addChild(heading({ id: 'run_action_title', text: `${name} reached` }));
 			const loaded = yieldText(yields);
 			const line = loaded === 'nothing'
 				? 'Nothing was left here to load. The road home is clear, and getting home ends the day.'
 				: `Loaded ${loaded}. The road home is clear, and getting home unloads the cargo and ends the day.`;
-			action.addChild(caption({ id: 'run_action_line', text: line }));
-			return this.addButton({ action, id: 'run_home_button', label: 'Head home', onClick: () => { void this.headHome(); } });
+			box.addChild(caption({ id: 'run_action_line', text: line }));
+			return this.addButton({ box, id: 'run_home_button', label: 'Head home', onClick: () => { void this.headHome(); } });
 		}
-		action.addChild(heading({ id: 'run_action_title', text: `Next: ${stopTitle(stop)}` }));
+		box.addChild(heading({ id: 'run_action_title', text: `Next: ${stopTitle(stop)}` }));
 		const line = stop.kind === 'fight'
 			? `Raiders hold the road ahead, ${skullsText(stop.skulls)} of danger. Driving on starts the fight.`
 			: 'Nothing on this stretch but wind.';
-		action.addChild(caption({ id: 'run_action_line', text: line }));
-		return this.addButton({ action, id: 'run_drive_button', label: 'Drive on', onClick: () => { void this.driveOn(); } });
+		box.addChild(caption({ id: 'run_action_line', text: line }));
+		return this.addButton({ box, id: 'run_drive_button', label: 'Drive on', onClick: () => { void this.driveOn(); } });
 	}
 
 	/**
 	 * A won fight's cards, picked by clicking one, or skipped. With no cards
 	 * loaded the reward waits, saved, rather than being lost: the cards can
-	 * be loaded again here, or by Continue.
+	 * be loaded again here, or by Continue. Picking a card is the step, so
+	 * Skip is the back road.
 	 */
-	private buildReward({ action }: { action: Stack }): Button | null {
+	private buildReward({ action }: { action: Stack }): AtlasButton | null {
 		const campaign = this.campaign;
 		if (!campaign) return null;
+		const box = stepBox(action);
 		const cards = this.cards;
 		if (!cards) {
-			action.addChild(heading({ id: 'run_action_title', text: 'Fight won' }));
-			action.addChild(caption({ id: 'run_action_line', text: "The cards couldn't be loaded, so the reward waits for them." }));
-			return this.addButton({ action, id: 'run_cards_button', label: 'Load the cards again', onClick: () => { void this.reloadCards(); } });
+			box.addChild(heading({ id: 'run_action_title', text: 'Fight won' }));
+			box.addChild(caption({ id: 'run_action_line', text: "The cards couldn't be loaded, so the reward waits for them." }));
+			return this.addButton({ box, id: 'run_cards_button', label: 'Load the cards again', onClick: () => { void this.reloadCards(); } });
 		}
 		const offer = rewardOffer({ campaign }).flatMap((type) => {
 			const template = cards.get(type);
 			return template ? [template.copy()] : [];
 		});
-		action.addChild(new CardPileView({
+		box.addChild(new CardPileView({
 			id: 'run_reward',
 			title: 'Fight won: pick a card',
 			note: 'It rides home as cargo, and reaches the locker if the run gets home.',
 			cards: offer,
+			ink: 'theme',
 			onPick: (card) => { void this.pick(card.type); },
 		}));
-		return this.addButton({ action, id: 'run_skip_button', label: 'Skip the card', onClick: () => { void this.pick(null); } });
+		return this.addButton({ box, id: 'run_skip_button', label: 'Skip the card', variant: 'backRoad', onClick: () => { void this.pick(null); } });
 	}
 
-	private addButton({ action, id, label, onClick }: { action: Stack; id: string; label: string; onClick: () => void }): Button {
-		const button = new Button({ label, id, tone: 'accent', size: 'lg', width: 240, disabled: this.stranded, onClick });
-		action.addChild(button);
+	/** The step's button: the highway, the screen's one primary, or the back road for a step that passes something up. */
+	private addButton({ box, id, label, variant = 'highway', onClick }: { box: Stack; id: string; label: string; variant?: 'highway' | 'backRoad'; onClick: () => void }): AtlasButton {
+		const highway = variant === 'highway';
+		const button = new AtlasButton({
+			label,
+			id,
+			variant,
+			shield: highway,
+			labelSize: highway ? 24 : undefined,
+			height: highway ? 56 : undefined,
+			width: highway ? STEP_WIDTH : 200,
+			margin: { top: 4 },
+			disabled: this.stranded,
+			onClick,
+		});
+		box.addChild(button);
 		return button;
 	}
 
@@ -596,25 +664,84 @@ function abandonWarning({ campaign, fight }: { campaign: Campaign; fight: Campai
 }
 
 function heading({ id, text }: { id: string; text: string }): Text {
-	return new Text({ text, id, widthMode: 'fill', style: { fontRole: 'display', fontSize: 'fs_lg', color: 'text_bright', textTransform: 'uppercase', letterSpacing: 'ls_wide' } });
+	return new Text({ text, id, widthMode: 'fill', style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: 22, color: 'text', textTransform: 'uppercase', letterSpacing: ATLAS.headTracking } });
 }
 
 function caption({ id, text, color = 'text_dim' }: { id: string; text: string; color?: ColorToken }): Text {
-	return new Text({ text, id, widthMode: 'fill', style: { fontSize: 'fs_sm', color } });
+	return new Text({ text, id, widthMode: 'fill', style: { fontSize: 14, color } });
 }
 
-/** A stop on the road list: its name, and Cleared or Next beside it; the next one boxed. */
-function roadRow({ id, label, state, current }: { id: string; label: string; state: string; current: boolean }): Stack {
-	const row = new Stack({
+/** The step in hand, on fresh paper: the thing in focus (UI Art Direction, Wear: W0). */
+function stepBox(action: Stack): LegendBox {
+	const box = new LegendBox({ id: 'run_step', fresh: true, widthMode: 'fill', crossAlign: 'stretch', gap: 10 });
+	action.addChild(box);
+	return box;
+}
+
+/** A stop on the road list: its map symbol, its name, and Cleared, Next, or Here at the right in mono. */
+function roadRow({ id, label, state, symbol }: { id: string; label: string; state: string; symbol: LegendSymbol }): LegendRow {
+	return new LegendRow({
 		id,
-		direction: 'horizontal',
-		widthMode: 'fill',
-		crossAlign: 'center',
-		gap: space.space_2,
-		padding: { top: space.space_1_5, bottom: space.space_1_5, left: space.space_2, right: space.space_2 },
-		style: current ? { borderColor: 'accent', borderWidth: 'bw', borderRadius: 'r_sm' } : { borderColor: 'line_edge', borderWidth: 'bw', borderRadius: 'r_sm' },
+		text: label,
+		symbol,
+		faint: state === 'Cleared',
+		textId: `${id}_label`,
+		value: state === '' ? undefined : state,
+		valueId: `${id}_state`,
 	});
-	row.addChild(new Text({ id: `${id}_label`, text: label, widthMode: 'fill', style: { fontSize: 'fs_sm', color: state === 'Cleared' ? 'text_dim' : 'text' } }));
-	if (state !== '') row.addChild(new Text({ id: `${id}_state`, text: state, style: { fontRole: 'mono', fontSize: 'fs_xs', color: current ? 'accent' : 'text_dim', textTransform: 'uppercase' }, wrap: 'none' }));
+}
+
+/** The drivers who came home injured after the night. */
+function injuredOf(arrival: Arrival): readonly DriverRecord[] {
+	return arrival.injuries.filter(({ driver }) => driver.status === 'injured').map(({ driver }) => driver);
+}
+
+/**
+ * The debrief's ledgers (Game Flow 6.1), each a legend box: what was
+ * unloaded into the stores, with the cards and anyone found, and the crew
+ * who drove, a tag each. With `torn`, the first injured driver's tag
+ * carries the screen's hero mark, a tear.
+ */
+function debriefLedgers({ arrival, torn }: { arrival: Arrival; torn: boolean }): Stack {
+	const row = new Stack({ id: 'run_debrief', direction: 'horizontal', widthMode: 'fill', crossAlign: 'stretch', gap: 12 });
+	const unloaded = new LegendBox({ id: 'run_unloaded', title: 'Unloaded', widthMode: 'fill', crossAlign: 'stretch' });
+	const { resources, cards, found } = arrival.cargo;
+	const stores = RESOURCE_NAMES.filter((name) => resources[name] > 0).map((name) => ({ kind: name, value: resources[name] }));
+	if (stores.length > 0) unloaded.addChild(new ResourceStrip({ id: 'run_unloaded_stores', items: stores, widthMode: 'fill' }));
+	const carded = cargoText({ cargo: NO_RESOURCES, cards });
+	if (carded) unloaded.addChild(new LegendRow({ id: 'run_unloaded_cards', text: `To the locker: ${carded}`, symbol: 'ring' }));
+	if (found.length > 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_found', text: `${listText(found.map((driver) => driver.name))} found`, symbol: 'ring' }));
+	if (stores.length === 0 && !carded && found.length === 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_none', text: 'Nothing to unload', symbol: 'dash' }));
+	row.addChild(unloaded);
+
+	const crew = new LegendBox({ id: 'run_crew', title: 'The crew', width: TAG_WIDTH + ATLAS.legendPadding * 2, crossAlign: 'stretch' });
+	const tags = new Stack({ id: 'run_crew_tags', gap: 8 });
+	const injured = injuredOf(arrival);
+	arrival.seats.forEach((driver, index) => {
+		tags.addChild(new AtlasTag({
+			id: `run_crew_${index}`,
+			label: driver.name,
+			caption: crewState(driver),
+			warn: injured.includes(driver),
+			torn: torn && driver === injured[0],
+			width: TAG_WIDTH,
+			labelId: `run_crew_${index}_name`,
+			captionId: `run_crew_${index}_state`,
+		}));
+	});
+	crew.addChild(tags);
+	row.addChild(crew);
 	return row;
+}
+
+/** What a failed run lost, in a legend box: the dead and the missing, hostile; the cargo and escorts after. */
+function lossLedger(result: FailedStopFight): LegendBox {
+	const { dead, missing, cargoLost, cargoCardsLost, escortsLost } = result.fight;
+	const box = new LegendBox({ id: 'run_lost', title: 'Lost with the run', widthMode: 'fill', crossAlign: 'stretch' });
+	dead.forEach((driver, index) => box.addChild(new LegendRow({ id: `run_lost_dead_${index}`, text: driver.name, value: 'Dead', symbol: 'diamond' })));
+	missing.forEach((driver, index) => box.addChild(new LegendRow({ id: `run_lost_missing_${index}`, text: driver.name, value: 'Missing', symbol: 'diamond' })));
+	const cargo = cargoText({ cargo: cargoLost, cards: cargoCardsLost });
+	if (cargo) box.addChild(new LegendRow({ id: 'run_lost_cargo', text: `Cargo: ${cargo}`, symbol: 'dash', faint: false }));
+	if (escortsLost.length > 0) box.addChild(new LegendRow({ id: 'run_lost_escorts', text: `Escorts: ${listText(escortsLost.map((escort) => escort.name))}`, symbol: 'dash', faint: false }));
+	return box;
 }

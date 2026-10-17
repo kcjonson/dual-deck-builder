@@ -20,8 +20,11 @@ import { TabBar } from '../../../engine/ui/TabBar';
 import { drawAtlasArt, paperPiece } from './atlasArt';
 import { AtlasButton } from './AtlasButton';
 import { AtlasSheet } from './AtlasSheet';
-import { ATLAS, atlasInks } from './atlasStyle';
+import { ATLAS, MONO_MEDIUM, atlasInks } from './atlasStyle';
+import { AtlasTag } from './AtlasTag';
 import { ContentsRow } from './ContentsRow';
+import { DamageMark, damagePiece } from './DamageMark';
+import { uiArtSize } from '../../art/uiArt';
 import { CasedBar, ScaleBar } from './gauges';
 import { HandMarkLayer } from './HandMarkLayer';
 import { LegendBox, LegendRow } from './LegendBox';
@@ -322,6 +325,18 @@ describe('AtlasSheet', () => {
 		expect(rects(sheet)[1].fill).toEqual(atlas.color.bg_base);
 	});
 
+	it('takes W3 and its hero mark for an event shown after mount, and settles back to W2 (DDB-511)', () => {
+		const sheet = add(new AtlasSheet({ width: 1024, height: 600 }));
+		expect(sheet.surfacePiece).toBe('paper_w2_a');
+		sheet.wear = 3;
+		sheet.paper = 'b';
+		context.frame.layout();
+		expect([sheet.wear, sheet.paper, sheet.surfacePiece]).toEqual([3, 'b', 'paper_w3_b']);
+		sheet.wear = 2;
+		context.frame.layout();
+		expect(sheet.surfacePiece).toBe('paper_w2_b');
+	});
+
 	it('flows its content inside the neatline', () => {
 		const sheet = new AtlasSheet({ width: 1024, height: 600 });
 		const child = new Stack({ width: 100, height: 20 });
@@ -345,6 +360,22 @@ describe('LegendBox', () => {
 		expect(drawn[2]).toMatchObject({ border: { width: ATLAS.legendRule }, rect: { x: ATLAS.legendRuleInset } });
 		expect(drawn.filter((command) => same(command.fill, atlas.color.line_hairline))).toHaveLength(2);
 		expect(box.title).toBe('Needs');
+	});
+
+	it('sets a ledger row\'s value at the right in mono 500, and its line and value take ids (DDB-511)', () => {
+		const box = new LegendBox({ title: 'Campaign record', width: 320 });
+		const row = new LegendRow({ id: 'days', text: 'Days held', value: '9 days', textId: 'days_label', valueId: 'days_value' });
+		box.addChild(row);
+		add(box);
+		const value = row.findById('days_value');
+		const line = row.findById('days_label');
+		if (!value || !line) throw new Error('the row should carry its line and value');
+		expect([row.text, row.value]).toEqual(['Days held', '9 days']);
+		expect(value.placedX + value.width).toBe(row.width);
+		expect(line.placedX + line.width).toBeLessThanOrEqual(value.placedX);
+		const valueRun = draws(row).find((command): command is TextCommand => command.kind === 'text' && command.text === '9 days');
+		expect(valueRun?.font).toBe(MONO_MEDIUM);
+		expect(new LegendRow({ text: 'Radio: no new rumors' }).value).toBeNull();
 	});
 
 	it('draws the thing in focus on flat fresh paper, W0, with no art', () => {
@@ -542,6 +573,39 @@ describe('focus rings on an atlas screen', () => {
 		expect(slider.resolvedColors.fill).toEqual(atlas.color.accent);
 		focus(slider);
 		expect(rects(slider).find((command) => command.id === 'volume.focus_ring')?.border?.color).toEqual(ink);
+	});
+});
+
+describe('DamageMark', () => {
+	it('is its art\'s size at its scale, follows a change of stamp, and takes no hits (DDB-511)', () => {
+		const mark = add(new DamageMark({ id: 'stamp', kind: 'looted', scale: 0.5 }));
+		const looted = uiArtSize('stamp_looted');
+		expect([mark.width, mark.height, mark.piece]).toEqual([Math.round(looted.width * 0.5), Math.round(looted.height * 0.5), 'stamp_looted']);
+		mark.kind = 'depleted';
+		context.frame.layout();
+		const depleted = uiArtSize('stamp_depleted');
+		expect([mark.width, mark.height, mark.piece]).toEqual([Math.round(depleted.width * 0.5), Math.round(depleted.height * 0.5), 'stamp_depleted']);
+		expect(mark.pointerEvents).toBe('none');
+		expect(['lost', 'fallen', 'tear'].map((kind) => damagePiece(kind as 'lost'))).toEqual(['stamp_lost', 'stamp_fallen', 'tear_a']);
+	});
+});
+
+describe('AtlasTag', () => {
+	it('keeps its text clear of where a tear runs in, torn or not, and reds a costly caption (DDB-511)', () => {
+		const torn = new AtlasTag({ label: 'Road Warrior 1', caption: 'Injured, fit in 2 days', warn: true, torn: true, width: 200, labelId: 'name', captionId: 'state' });
+		const whole = new AtlasTag({ label: 'Road Warrior 1', caption: 'Fit', width: 200 });
+		const column = new Stack({ gap: 8 });
+		column.addChild(torn);
+		column.addChild(whole);
+		add(column);
+		const tear = uiArtSize('tear_a');
+		for (const tag of [torn, whole]) {
+			for (const child of tag.children) expect(child.placedX + child.width).toBeLessThanOrEqual(tag.width - tear.width);
+		}
+		expect(torn.height).toBeGreaterThanOrEqual(tear.height);
+		expect([torn.torn, whole.torn, torn.label, torn.caption]).toEqual([true, false, 'Road Warrior 1', 'Injured, fit in 2 days']);
+		const caption = draws(torn).find((command): command is TextCommand => command.kind === 'text' && command.text.toLowerCase().startsWith('injured'));
+		expect(caption?.color).toEqual(atlas.color.status_crit);
 	});
 });
 

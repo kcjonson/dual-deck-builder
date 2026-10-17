@@ -18,6 +18,8 @@ import { scavenge } from '../../campaign/Scavenging';
 import {
 	CAMPAIGN_FIXTURE, FaultyStorage, KEYS, atHomeCampaign, atHomeText, damagedText, lostCampaign, quotaError, saveText, storageWith, storeOver
 } from '../../campaign/__fixtures__/storeFixtures';
+import type { AtlasSheet } from '../../ui/atlas/AtlasSheet';
+import type { DamageMark } from '../../ui/atlas/DamageMark';
 import { DefeatScreen } from './DefeatScreen';
 
 jest.mock('../../core/ScreenManager', () => ({
@@ -130,6 +132,16 @@ describe('DefeatScreen', () => {
 			expect(text('defeat_story')).toBe(story);
 		});
 
+		it('burns the sheet and strikes FALLEN beside the title, clear of the text (DDB-511)', () => {
+			handed(lostCampaign(ENDS[0]));
+
+			const sheet = screen.root as AtlasSheet;
+			const stamp = find<DamageMark>('defeat_stamp');
+			const heading = find<{ x: number; width: number }>('defeat_heading');
+			expect([sheet.wear, sheet.paper, stamp.kind]).toEqual([3, 'a', 'fallen']);
+			expect(stamp.x).toBeGreaterThanOrEqual(heading.x + heading.width);
+		});
+
 		it('shows the campaign\'s record: days held, runs, fights, drivers lost, strongholds taken, and what it held at the end', () => {
 			handed(lostCampaign(ENDS[1]));
 
@@ -212,6 +224,8 @@ describe('DefeatScreen', () => {
 
 			expect(find<Text>('defeat_none').text).toBe('No campaign has been lost here. Its record shows once a compound falls.');
 			expect(find<{ color: unknown }>('defeat_none').color).toEqual(themes.atlas.color.text_dim);
+			// Nothing happened to this page, so it isn't damaged
+			expect([(screen.root as AtlasSheet).wear, screen.root.findById('defeat_stamp')]).toEqual([2, null]);
 			expect(screen.root.findById('defeat_title')).toBeNull();
 			expect(screen.shown).toBeNull();
 			expect(storage.writes).toEqual([]);

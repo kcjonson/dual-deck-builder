@@ -122,8 +122,8 @@ export class LegendBox extends Stack {
 	}
 }
 
-/** The map-legend symbol that leads a row: a shortfall, a pending item, nothing to report. */
-export type LegendSymbol = 'diamond' | 'ring' | 'dash';
+/** The map-legend symbol that leads a row: a shortfall or anything hostile, a pending item, nothing to report, home. */
+export type LegendSymbol = 'diamond' | 'ring' | 'dash' | 'star';
 
 export interface LegendRowOptions extends Omit<StackOptions, 'style' | 'direction'> {
 	text: string;
