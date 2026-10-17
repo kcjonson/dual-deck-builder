@@ -95,6 +95,7 @@ An ambusher has no reserved formation slot and no outran vehicle. It counts as f
 ### Flanking
 
 - A flank card targets the vehicle to outrun. The target must be in the other team's formation (not itself flanking) and slower than the flanker.
+- A vehicle already on the shoulder can't flank again, so a flank card (Flank, Flanking Maneuver) is unplayable while its driver's vehicle is flanking. To flank a different row it has to drop back first.
 - The flanker moves to the far shoulder, in the row of the vehicle it outran. If that shoulder slot is taken, the flank fails and the card goes back to the hand.
 - Its old formation slot stays empty and reserved; the rest of the convoy doesn't shift. Swerving again from the shoulder keeps the original reservation.
 - At the end of every turn (yours and the enemy's), a flanker that is no longer faster than the vehicle it outran loses flanking and returns to its reserved slot. If the vehicle it outran is wrecked, it holds the shoulder. A flanker with no reserved slot (an ambush start) holds the shoulder too, for the same reason: there's nowhere to drop back to.

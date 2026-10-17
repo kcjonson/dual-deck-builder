@@ -130,9 +130,10 @@ export class BoardProjection {
 	}
 
 	/**
-	 * Why a vehicle can't flank a target, or null if it can. The target is
-	 * the vehicle to outrun: it must be in the other team's formation and
-	 * slower than the flanker, and the shoulder slot in its row must be free.
+	 * Why a vehicle can't flank a target, or null if it can. The flanker
+	 * can't already be on the shoulder. The target is the vehicle to outrun:
+	 * it must be in the other team's formation and slower than the flanker,
+	 * and the shoulder slot in its row must be free.
 	 * A speed bonus counts a boost the flanking card gives first.
 	 */
 	public flankBlocker(flanker: Vehicle, target: Vehicle, speedBonus = 0): string | null {
@@ -144,6 +145,9 @@ export class BoardProjection {
 		if (!flanker.isAlive() || !flankerState.slot) {
 			return `${flanker.name} is not on the road`;
 		}
+		if (isShoulder(flankerState.slot.lane)) {
+			return `${flanker.name} is already flanking`;
+		}
 		if (!target.isAlive() || !targetState.slot || !isFormationLane(targetState.team, targetState.slot.lane)) {
 			return `${target.name} is not in formation`;
 		}
@@ -153,9 +157,6 @@ export class BoardProjection {
 		const destination = this.flankDestination(flanker, target);
 		if (this.isSlotTaken(destination, flanker)) {
 			return `${describeSlot(destination)} is taken`;
-		}
-		if (sameSlot(flankerState.slot, destination)) {
-			return `${flanker.name} is already flanking in that row`;
 		}
 		return null;
 	}
@@ -394,10 +395,7 @@ export class BoardProjection {
 					if (!caster || !target || !this.canFlank(caster, target)) return;
 					const casterState = this.vehicles.get(caster);
 					if (!casterState?.slot) return;
-					casterState.flank = {
-						reservedSlot: casterState.flank ? casterState.flank.reservedSlot : casterState.slot,
-						outran: target
-					};
+					casterState.flank = { reservedSlot: casterState.slot, outran: target };
 					casterState.slot = this.flankDestination(caster, target);
 					break;
 				}
