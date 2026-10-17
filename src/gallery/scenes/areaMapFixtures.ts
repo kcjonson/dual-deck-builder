@@ -117,7 +117,7 @@ export function fixtureMarkers(
 		const spaced = ({ x, y }: { x: number; y: number }) => markers.every((marker) => Math.hypot(marker.x - x, marker.y - y) >= spacing);
 		const site = known.find((candidate) => candidate.type === spec.type && spaced(candidate)) ?? known.find(spaced);
 		if (!site) break;
-		const label = site.type === spec.type ? spec.label : POI_TUNING.types[site.type]?.label ?? spec.label;
+		const label = spec.type === undefined || site.type === spec.type ? spec.label : POI_TUNING.types[site.type]?.label ?? spec.label;
 		markers.push({ id: spec.id, kind: 'poi', x: site.x, y: site.y, label, state: spec.state, type: site.type });
 	}
 	const far = sites.filter(({ out, stronghold: held }) => held && out >= strongholdBeyond).sort((a, b) => a.out - b.out)[0];

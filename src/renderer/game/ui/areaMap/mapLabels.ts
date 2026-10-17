@@ -5,8 +5,8 @@ import { LABEL_LAYOUT } from './areaMapStyle';
  * atlas): labels are placed by priority, each on the first side of its
  * symbol that stays inside the view and clear of everything placed before
  * it, and dropped rather than overlapped when none is. Screen space. A frame
- * places into boxes kept from the last, so placing allocates nothing once
- * the map has been drawn.
+ * places into boxes kept from the last, so the boxes aren't made again
+ * every frame.
  */
 
 /** A box on screen. */

@@ -31,10 +31,15 @@ describe('LabelLayout', () => {
 	it('places one with no clear side anyway on its first, when asked, and then keeps others off it', () => {
 		const layout = new LabelLayout();
 		layout.reset(400, 400);
-		layout.block(0, 0, 400, 400);
-		expect(layout.placeBeside({ x: 200, y: 200, radius: 5, ...label })).toBeNull();
-		const anyway = layout.placeBeside({ x: 200, y: 200, radius: 5, ...label, sides: ['above', 'below'], anyway: true });
-		expect(anyway?.y).toBe(200 - 5 - LABEL_LAYOUT.gap - 10);
+		// A small block where the label's only side, below, would go.
+		const below = 200 + 5 + LABEL_LAYOUT.gap;
+		layout.block(190, below + 2, 5, 5);
+		expect(layout.placeBeside({ x: 200, y: 200, radius: 5, ...label, sides: ['below'] })).toBeNull();
+		const anyway = layout.placeBeside({ x: 200, y: 200, radius: 5, ...label, sides: ['below'], anyway: true });
+		expect({ ...anyway }).toEqual({ x: 180, y: below, ...label });
+		// Taken: a label overlapping it, clear of the small block, isn't clear; one beside it is.
+		expect(layout.isClear(150, below, 35, 10)).toBe(false);
+		expect(layout.isClear(100, below, 40, 10)).toBe(true);
 	});
 
 	it('places on the first side without checking where text can\'t be measured, and starts each frame empty', () => {
