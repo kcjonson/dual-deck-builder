@@ -14,7 +14,7 @@ import { Dialog } from '../../../engine/ui/Dialog';
 import { FocusGroup } from '../../../engine/ui/FocusGroup';
 import { ColorToken, tokens } from '../../../engine/theme/tokens';
 import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
-import { ATLAS, DISPLAY_BOLD } from '../../ui/atlas/atlasStyle';
+import { ATLAS } from '../../ui/atlas/atlasStyle';
 import { ContentsRow } from '../../ui/atlas/ContentsRow';
 import { DeckStack } from '../../ui/atlas/deck';
 import { formatBuildLabel } from './buildLabel';
@@ -24,7 +24,7 @@ import { MenuCover } from './MenuCover';
 /** Between the cover and the contents page, the canvas's. */
 const COLUMN_GAP = 46;
 /** The heading block to the rows. */
-const PAGE_GAP = tokens.space.space_6;
+const PAGE_GAP = tokens.space.space_5;
 /** The notice's one line, between the campaign rows and the appendices: held whether or not it says anything. */
 const NOTICE_LINE = tokens.space.space_6;
 const APPENDIX_GAP = 30;
@@ -55,18 +55,21 @@ export type MenuSave =
 	| { kind: 'outdated' }
 	| { kind: 'unreadable'; reason: CampaignStoreFailure; message: string };
 
+/** A save another version of the game wrote, which has no store message of its own. */
+const OUTDATED = "Saved by another version of the game, so it can't be continued.";
+
 /**
  * Continue's subtitle: the campaign's state, or why there's nothing to
- * continue (Game Flow 1.1), short enough for one line of the contents page.
- * The replace dialog and the notice line carry the longer story.
+ * continue (Game Flow 1.1). A save it can't read says so in the store's own
+ * words, in the warning colour.
  */
-function continueCaption(save: MenuSave): string {
+function continueCaption(save: MenuSave): { text: string; color: ColorToken } {
 	switch (save.kind) {
-		case 'checking': return 'Looking for a saved campaign';
-		case 'none': return 'No campaign in progress';
-		case 'saved': return campaignSummary(save.campaign);
-		case 'outdated': return 'Saved by another version of the game';
-		case 'unreadable': return save.reason === 'damaged' ? 'The save is damaged; a copy is kept' : "The save couldn't be read from storage";
+		case 'checking': return { text: 'Looking for a saved campaign.', color: 'text_dim' };
+		case 'none': return { text: 'No campaign in progress.', color: 'text_dim' };
+		case 'saved': return { text: campaignSummary(save.campaign), color: 'text_dim' };
+		case 'outdated': return { text: OUTDATED, color: 'status_crit' };
+		case 'unreadable': return { text: save.message, color: 'status_crit' };
 	}
 }
 
@@ -144,9 +147,6 @@ export interface MainMenuScreenOptions {
  * progress line under the campaign rows, and leaving the menu cancels it. A
  * campaign in progress goes into the history as abandoned before the new
  * one is saved.
- *
- * Skirmish keeps the old quick fight from driver selection reachable for
- * playtesters until load out replaces driver selection.
  */
 export class MainMenuScreen extends Screen {
 	private readonly sheet: AtlasSheet;
@@ -255,7 +255,7 @@ export class MainMenuScreen extends Screen {
 		heading.addChild(new Text({
 			text: 'Contents',
 			id: 'main_menu_title',
-			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: 32, letterSpacing: 0.18, textTransform: 'uppercase', color: 'text' },
+			style: { fontRole: 'display', fontWeight: 700, fontSize: 32, letterSpacing: 0.18, textTransform: 'uppercase', color: 'text' },
 			wrap: 'none',
 		}));
 		// The serif italic of the canvas once that role exists (UI Art Direction, Type); body until then.
@@ -284,6 +284,8 @@ export class MainMenuScreen extends Screen {
 			lead: { glyph: '' },
 			label: 'Continue',
 			subtitle: '',
+			// Room for the store's reason in its own words at the narrowest window.
+			subtitleLines: 2,
 			value: '',
 			onClick: () => this.continueCampaign(),
 		});
@@ -325,7 +327,6 @@ export class MainMenuScreen extends Screen {
 	/** The appendices in two columns, in reading order, lettered like an atlas's. */
 	private createAppendices(): Stack {
 		const entries: ContentsRow[] = [
-			this.appendix({ id: 'main_menu_skirmish_button', label: 'Skirmish', screen: 'driverSelectionScreen' }),
 			this.appendix({ id: 'main_menu_settings_button', label: 'Settings', screen: 'settingsScreen' }),
 			this.appendix({ id: 'main_menu_card_showcase_button', label: 'Card showcase', screen: 'cardShowcaseScreen', deck: true }),
 			this.appendix({ id: 'main_menu_credits_button', label: 'Credits', screen: 'creditsScreen' }),
@@ -401,7 +402,9 @@ export class MainMenuScreen extends Screen {
 		this.saveState = save;
 		const row = this.continueRow;
 		if (row) {
-			row.subtitle = continueCaption(save);
+			const caption = continueCaption(save);
+			row.subtitle = caption.text;
+			row.subtitleColor = caption.color;
 			row.value = continueValue(save);
 			row.leadLabel = save.kind === 'saved' ? String(save.campaign.day) : '';
 		}

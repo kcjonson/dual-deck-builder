@@ -4,7 +4,7 @@ import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { RGBA, Rect } from '../../../engine/draw/geometry';
 import type { ColorToken, Theme } from '../../../engine/theme/tokens';
 import { Pressable } from '../../../engine/ui/Pressable';
-import { ATLAS, AtlasInks, DISPLAY_BOLD, atlasInks } from './atlasStyle';
+import { ATLAS, AtlasInks, atlasInks } from './atlasStyle';
 import { DECK_GLYPH, DeckGlyphGeometry } from './deck';
 import { GlyphPaint, MapGlyphGeometry, glyphPaint, glyphWidth } from './mapGlyphs';
 
@@ -24,6 +24,8 @@ export interface ContentsRowOptions extends Omit<ComponentOptions, 'style'> {
 	value?: string;
 	/** A line under the label, running under the value too: the save's summary, or why there's nothing to continue. */
 	subtitle?: string;
+	/** Lines the subtitle may wrap to before it ends in an ellipsis; the row is taller by the extra lines. Default 1. */
+	subtitleLines?: 1 | 2;
 	lead?: ContentsLead;
 	variant?: ContentsRowVariant;
 	/** Faded print: shown in its place, but not available. Not focusable or pressable. */
@@ -59,6 +61,8 @@ const METRICS: Readonly<Record<ContentsRowVariant, RowMetrics>> = {
 
 const SUBTITLE_SIZE = 14;
 const SUBTITLE_GAP = 2;
+/** A wrapped subtitle's line, body at 14 px over its 1.4 leading. */
+const SUBTITLE_LINE = 20;
 const LEADER_DOT = 2;
 const LEADER_STEP = 4;
 const LEADER_MARGIN = 8;
@@ -78,6 +82,7 @@ export class ContentsRow extends Pressable {
 	private readonly labelText: Text;
 	private readonly valueText: Text | null;
 	private readonly subtitleText: Text | null;
+	private readonly subtitleLines: 1 | 2;
 	private glyph: MapGlyphGeometry | null;
 	private glyphLabel: string | null;
 	private readonly deck: DeckGlyphGeometry | null;
@@ -92,10 +97,11 @@ export class ContentsRow extends Pressable {
 	private readonly leaders: Rect[] = [];
 	private leaderCount = 0;
 
-	constructor({ label, value, subtitle, lead = null, variant = 'standard', faded = false, muted = false, onClick, ...options }: ContentsRowOptions) {
+	constructor({ label, value, subtitle, subtitleLines = 1, lead = null, variant = 'standard', faded = false, muted = false, onClick, ...options }: ContentsRowOptions) {
 		const metrics = METRICS[variant];
-		super({ focusable: true, widthMode: 'fill', height: metrics.height, ...options, ...(faded ? { enabled: false } : {}) });
+		super({ focusable: true, widthMode: 'fill', height: metrics.height + (subtitleLines - 1) * SUBTITLE_LINE, ...options, ...(faded ? { enabled: false } : {}) });
 		this.componentType = 'ContentsRow';
+		this.subtitleLines = subtitleLines;
 		this.rowVariant = variant;
 		this.metrics = metrics;
 		this.isFaded = faded;
@@ -108,14 +114,14 @@ export class ContentsRow extends Pressable {
 		this.paint = glyphPaint(glyphKind(variant), this.inks, { faded });
 		this.labelText = new Text({
 			text: label,
-			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: metrics.label, color: this.labelColor },
+			style: { fontRole: 'display', fontWeight: 700, fontSize: metrics.label, color: this.labelColor },
 			wrap: 'none',
 			textOverflow: 'ellipsis',
 			verticalAlign: 'middle',
 		});
 		this.addPart(this.labelText);
 		this.subtitleText = subtitle !== undefined
-			? new Text({ text: subtitle, style: { fontSize: SUBTITLE_SIZE, color: 'text_dim' }, wrap: 'none', textOverflow: 'ellipsis' })
+			? new Text({ text: subtitle, style: { fontSize: SUBTITLE_SIZE, color: 'text_dim' }, wrap: subtitleLines > 1 ? 'word' : 'none', textOverflow: 'ellipsis' })
 			: null;
 		if (this.subtitleText) this.addPart(this.subtitleText);
 		this.valueText = value !== undefined
@@ -150,7 +156,7 @@ export class ContentsRow extends Pressable {
 		this.paint = glyphPaint(kind, this.inks, { faded: this.isFaded });
 		this.labelText.fontSize = this.metrics.label;
 		if (this.valueText) this.valueText.fontSize = this.metrics.value;
-		this.height = this.metrics.height;
+		this.height = this.metrics.height + (this.subtitleLines - 1) * SUBTITLE_LINE;
 		this.invalidateLayout();
 	}
 
@@ -191,6 +197,22 @@ export class ContentsRow extends Pressable {
 		if (!this.subtitleText) throw new Error('ContentsRow: a row built without a subtitle has no line for one');
 		this.subtitleText.text = subtitle;
 		this.invalidateLayout();
+	}
+
+	/** The subtitle's ink: dim by default, the warning colour for a reason the player should heed. */
+	public get subtitleColor(): RGBA | null {
+		return this.subtitleText?.color ?? null;
+	}
+
+	public set subtitleColor(color: ColorToken) {
+		if (!this.subtitleText) throw new Error('ContentsRow: a row built without a subtitle has no line for one');
+		this.subtitleText.color = color;
+	}
+
+	/** Whether the subtitle fits its lines whole, rather than ending in an ellipsis. */
+	public get subtitleFits(): boolean {
+		const outcome = this.subtitleText?.overflowOutcome ?? null;
+		return outcome === null || outcome === 'none';
 	}
 
 	public get muted(): boolean {
@@ -254,7 +276,15 @@ export class ContentsRow extends Pressable {
 
 		const valueWidth = Math.ceil(this.valueText?.measured?.width ?? 0);
 		const labelLine = Math.ceil(this.labelText.measured?.height ?? m.label);
-		const subtitleLine = this.subtitleText ? Math.ceil(this.subtitleText.measured?.height ?? SUBTITLE_SIZE) : 0;
+		const subtitleWidth = Math.max(0, width - m.padX - x);
+		let subtitleLine = 0;
+		if (this.subtitleText && this.subtitleLines > 1) {
+			// Wrapped at its width, then held to its lines: the block centres on what it uses.
+			const wrapped = this.subtitleText.measure(subtitleWidth, Infinity, 'width').height || SUBTITLE_LINE;
+			subtitleLine = Math.min(this.subtitleLines * SUBTITLE_LINE, Math.ceil(wrapped));
+		} else if (this.subtitleText) {
+			subtitleLine = Math.ceil(this.subtitleText.measured?.height ?? SUBTITLE_SIZE);
+		}
 		const block = labelLine + (this.subtitleText ? SUBTITLE_GAP + subtitleLine : 0);
 		const top = Math.round((height - block) / 2);
 		const valueX = width - m.padX - valueWidth;
@@ -269,7 +299,7 @@ export class ContentsRow extends Pressable {
 		this.labelText.setSize(labelWidth, labelLine);
 		if (this.subtitleText) {
 			this.subtitleText.setPosition(x, top + labelLine + SUBTITLE_GAP);
-			this.subtitleText.setSize(Math.max(0, width - m.padX - x), subtitleLine);
+			this.subtitleText.setSize(subtitleWidth, subtitleLine);
 		}
 		this.placeLeaders(x + labelWidth + LEADER_MARGIN, valueX - LEADER_MARGIN, Math.round(top + labelLine / 2));
 	}

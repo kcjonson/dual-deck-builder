@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/gallery_scene_escort_detail_pinned/Text[0]","text":"Escort Detail View, Pinned","rect":[53,53,248.67,50]},
+{"path":"gallery_root/gallery_scene_escort_detail_pinned/Text[0]","text":"Escort Detail View, Pinned","rect":[53,53,257.52,50]},
 {"path":"gallery_root/gallery_scene_escort_detail_pinned/gallery_scene_escort_detail_pinned_rows/Stack[0]/Text[0]","text":"pinned: a gun escort, hurt","rect":[53,103,156.33,17.7]},
 {"path":"gallery_root/gallery_scene_escort_detail_pinned/gallery_scene_escort_detail_pinned_rows/Stack[0]/gallery_escort_detail_pinned/gallery_escort_detail_pinned_name","text":"Outrider","rect":[167,150.7,134,22]},
 {"path":"gallery_root/gallery_scene_escort_detail_pinned/gallery_scene_escort_detail_pinned_rows/Stack[0]/gallery_escort_detail_pinned/gallery_escort_detail_pinned_role","text":"GUN ESCORT","rect":[167,174.7,134,18]},

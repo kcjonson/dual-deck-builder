@@ -11,7 +11,7 @@ import { advance, click, key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
-import { tokens } from '../../../engine/theme/tokens';
+import { themes, tokens } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
 import { CampaignFounding, FoundingGeneration, StartGeneration } from '../../campaign/CampaignFounding';
@@ -117,6 +117,20 @@ describe('MainMenuScreen', () => {
 		return find<ContentsRow>('main_menu_continue_button').subtitle;
 	}
 
+	/** The store's own message for a save it couldn't read, as the menu holds it. */
+	function storeMessage(): string {
+		const save = screen.save;
+		if (save.kind !== 'unreadable') throw new Error(`the save should be unreadable, not ${save.kind}`);
+		return save.message;
+	}
+
+	/** Continue's reason is in the warning colour, and whole on its one line. */
+	function expectWarning(): void {
+		const resume = row('main_menu_continue_button');
+		expect(resume.subtitleColor).toEqual(themes.atlas.color.status_crit);
+		expect(resume.subtitleFits).toBe(true);
+	}
+
 	function row(id: string): ContentsRow {
 		return find<ContentsRow>(id);
 	}
@@ -191,7 +205,8 @@ describe('MainMenuScreen', () => {
 			expect(continueEnabled()).toBe(false);
 			expect(row('main_menu_continue_button').faded).toBe(true);
 			expect(row('main_menu_continue_button').variant).toBe('standard');
-			expect(continueLine()).toBe('No campaign in progress');
+			expect(continueLine()).toBe('No campaign in progress.');
+			expect(row('main_menu_continue_button').subtitleColor).toEqual(themes.atlas.color.text_dim);
 			expect(row('main_menu_continue_button').value).toBe('NO SAVE');
 			// Continue keeps its place at the head of the page.
 			expect(bounds('main_menu_continue_button').y).toBeLessThan(bounds('main_menu_new_campaign_button').y);
@@ -330,7 +345,7 @@ describe('MainMenuScreen', () => {
 			send(context, [key('ArrowDown')]);
 			expect(context.focus.focused?.id).toBe('main_menu_history_button');
 			send(context, [key('ArrowDown')]);
-			expect(context.focus.focused?.id).toBe('main_menu_skirmish_button');
+			expect(context.focus.focused?.id).toBe('main_menu_settings_button');
 			send(context, [key('ArrowUp'), key('ArrowUp'), key('ArrowUp')]);
 			expect(context.focus.focused?.id).toBe('main_menu_developer_button');
 			send(context, [key('Enter')]);
@@ -339,22 +354,20 @@ describe('MainMenuScreen', () => {
 
 		it('moves through the appendices in reading order with either pair of arrows, and opens one with Enter', () => {
 			send(context, [key('ArrowDown'), key('ArrowDown')]);
-			expect(context.focus.focused?.id).toBe('main_menu_skirmish_button');
+			expect(context.focus.focused?.id).toBe('main_menu_settings_button');
 			send(context, [key('ArrowRight')]);
-			expect(context.focus.focused?.id).toBe('main_menu_settings_button');
-			send(context, [key('ArrowDown')]);
 			expect(context.focus.focused?.id).toBe('main_menu_card_showcase_button');
+			send(context, [key('ArrowDown')]);
+			expect(context.focus.focused?.id).toBe('main_menu_credits_button');
 			send(context, [key('ArrowLeft')]);
-			expect(context.focus.focused?.id).toBe('main_menu_settings_button');
+			expect(context.focus.focused?.id).toBe('main_menu_card_showcase_button');
 			send(context, [key('Enter')]);
-			expect(navigate).toHaveBeenLastCalledWith('settingsScreen');
+			expect(navigate).toHaveBeenLastCalledWith('cardShowcaseScreen');
 		});
 
-		it('opens Campaign History and the Skirmish quick fight', () => {
+		it('opens Campaign History', () => {
 			clickOn('main_menu_history_button');
 			expect(navigate).toHaveBeenLastCalledWith('campaignHistoryScreen');
-			clickOn('main_menu_skirmish_button');
-			expect(navigate).toHaveBeenLastCalledWith('driverSelectionScreen');
 		});
 
 		it('shows the check running again after a start that failed to save, until the store answers', async () => {
@@ -369,10 +382,10 @@ describe('MainMenuScreen', () => {
 			await flush();
 			expect(navigate).not.toHaveBeenCalled();
 			expect(find<Text>('main_menu_notice').text).toBe("The campaign couldn't be saved: storage is full.");
-			expect(continueLine()).toBe('Looking for a saved campaign');
+			expect(continueLine()).toBe('Looking for a saved campaign.');
 			answer('none');
 			await screen.saveChecked;
-			expect(continueLine()).toBe('No campaign in progress');
+			expect(continueLine()).toBe('No campaign in progress.');
 		});
 
 		it('is one Tab stop', () => {
@@ -589,7 +602,9 @@ describe('MainMenuScreen', () => {
 			const flaky = storageWith(fixtureText());
 			flaky.fault = { method: 'getItem', error: securityError(), times: 1 };
 			await open(flaky);
-			expect(continueLine()).toBe("The save couldn't be read from storage");
+			expect(continueLine()).toBe(storeMessage());
+			expect(continueLine()).toContain('storage is blocked');
+			expectWarning();
 
 			send(context, [key('Enter')]);
 			await flush();
@@ -606,7 +621,8 @@ describe('MainMenuScreen', () => {
 		it("says an outdated save can't be continued, and replaces it after asking, with nothing in the history", async () => {
 			await open(storageWith(outdatedText()));
 			expect(continueEnabled()).toBe(false);
-			expect(continueLine()).toBe('Saved by another version of the game');
+			expect(continueLine()).toBe("Saved by another version of the game, so it can't be continued.");
+			expectWarning();
 			expect(row('main_menu_continue_button').value).toBe('OLD SAVE');
 
 			send(context, [key('Enter')]);
@@ -625,7 +641,9 @@ describe('MainMenuScreen', () => {
 			const damaged = damagedText();
 			await open(storageWith(damaged));
 			expect(continueEnabled()).toBe(false);
-			expect(continueLine()).toBe('The save is damaged; a copy is kept');
+			expect(continueLine()).toBe(storeMessage());
+			expect(continueLine()).toContain('damaged');
+			expectWarning();
 
 			clickOn('main_menu_new_campaign_button');
 			await flush();
@@ -643,7 +661,8 @@ describe('MainMenuScreen', () => {
 			blocked.fault = { method: 'getItem', error: securityError() };
 			await open(blocked);
 			expect(continueEnabled()).toBe(false);
-			expect(continueLine()).toBe("The save couldn't be read from storage");
+			expect(continueLine()).toBe(storeMessage());
+			expectWarning();
 
 			send(context, [key('Enter')]);
 			await flush();
@@ -674,10 +693,11 @@ describe('MainMenuScreen', () => {
 			expect(lint.violations).toEqual([]);
 		});
 
-		it('fits every entry, Exit included, and the reason under Continue on its one line, above the footer', async () => {
+		it('fits every entry, Exit included, and the whole reason under Continue, above the footer', async () => {
 			(window as ElectronScope).electron = { isElectron: true };
 			await open(storageWith(outdatedText()));
 			expect(find<{ visible: boolean }>('main_menu_exit_button').visible).toBe(true);
+			expectWarning();
 			const menu = bounds('main_menu_buttons');
 			const footer = bounds('main_menu_footer');
 			expect(bounds('main_menu_title').y).toBeGreaterThanOrEqual(0);
@@ -685,6 +705,19 @@ describe('MainMenuScreen', () => {
 			expect(footer.y + footer.height).toBeLessThanOrEqual(size.height);
 			const lint = layoutLint(treeSnapshot([screen.root], size));
 			expect(lint.violations).toEqual([]);
+		});
+
+		it.each([
+			{ save: 'damaged', text: (): MemorySaveStorage => storageWith(damagedText()) },
+			{ save: 'behind blocked storage', text: (): FaultyStorage => {
+				const blocked = new FaultyStorage();
+				blocked.fault = { method: 'getItem', error: securityError() };
+				return blocked;
+			} },
+		])("prints the store's message for a save $save whole, in the warning colour", async ({ text }) => {
+			await open(text());
+			expect(continueLine()).toBe(storeMessage());
+			expectWarning();
 		});
 
 		it('sets the decks down on the cover, clear of the contents page', async () => {

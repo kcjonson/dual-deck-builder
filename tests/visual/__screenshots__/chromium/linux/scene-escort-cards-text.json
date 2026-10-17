@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/gallery_scene_escort_cards/Text[0]","text":"Escort Cards","rect":[53,53,122.42,50]},
+{"path":"gallery_root/gallery_scene_escort_cards/Text[0]","text":"Escort Cards","rect":[53,53,126.39,50]},
 {"path":"gallery_root/gallery_scene_escort_cards/gallery_scene_escort_cards_rows/Stack[0]/Text[0]","text":"the board: coming on this run, left at home (faded, STAYING); a Pilot Car whole, a Med Truck hurt, and one selected","rect":[53,103,693.83,17.7]},
 {"path":"gallery_root/gallery_scene_escort_cards/gallery_scene_escort_cards_rows/Stack[0]/gallery_escort_cards/Stack[0]/gallery_escort_card_coming/gallery_escort_card_coming_name","text":"Fuel Hauler","rect":[66,184.7,68,27.3]},
 {"path":"gallery_root/gallery_scene_escort_cards/gallery_scene_escort_cards_rows/Stack[0]/gallery_escort_cards/Stack[0]/gallery_escort_card_coming/gallery_escort_card_coming_structure","text":"18/40","rect":[106,214.7,28,11]},

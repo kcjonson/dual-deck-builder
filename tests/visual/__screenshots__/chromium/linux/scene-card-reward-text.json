@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/gallery_scene_card_pile_reward/Text[0]","text":"Card piles and rewards","rect":[53,53,222.99,50]},
+{"path":"gallery_root/gallery_scene_card_pile_reward/Text[0]","text":"Card piles and rewards","rect":[53,53,229.68,50]},
 {"path":"gallery_root/gallery_scene_card_pile_reward/pile_reward/pile_reward_title","text":"Choose a card","rect":[53,103,408,21.6]},
 {"path":"gallery_root/gallery_scene_card_pile_reward/pile_reward/pile_reward_note","text":"One joins a driver's deck.","rect":[53,136.6,408,14.52]},
 {"path":"gallery_root/gallery_scene_card_pile_reward/pile_reward/pile_reward_cards/pile_reward_card_0/pile_reward_card_0_title","text":"Precision Shot","rect":[61,187.12,112,18]},

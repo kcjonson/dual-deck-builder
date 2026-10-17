@@ -166,10 +166,10 @@ describe('ScreenManager.navigate', () => {
 
 	it.each([
 		['campaign history', 1, 'Escape', 'main_menu_history_button'],
-		['settings', 3, 'Escape', 'main_menu_settings_button'],
-		['card showcase', 4, 'Escape', 'main_menu_card_showcase_button'],
-		['credits', 5, 'Enter', 'main_menu_credits_button'],
-		['developer tools', 6, 'Enter', 'main_menu_developer_button'],
+		['settings', 2, 'Escape', 'main_menu_settings_button'],
+		['card showcase', 3, 'Escape', 'main_menu_card_showcase_button'],
+		['credits', 4, 'Enter', 'main_menu_credits_button'],
+		['developer tools', 5, 'Enter', 'main_menu_developer_button'],
 		// Continue leads, and focus starts on it, with a campaign to continue; it's enabled while the remounted menu checks the save, so focus can land back on it.
 		['compound', 0, 'Escape', 'main_menu_continue_button', true],
 	])('returns focus to the button that opened %s, with the ring a keyboard round trip shows', async (_screen, down, leave, opener, saved = false) => {

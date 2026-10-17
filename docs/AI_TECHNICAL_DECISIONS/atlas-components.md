@@ -37,7 +37,7 @@ The catalog Button still can't be the highway: border width and label size aren'
 - A button's geometry is laid out once per size; a hover's lift or a press's drop translates it in `render`.
 - Render paths allocate nothing of their own: rects, polygons, glyph outlines, leaders, and the dashed disabled border are built at layout into arrays the part keeps, and a mark's loop is rebuilt only when its target moves. Draw option literals are the engine's API, as everywhere else.
 - Outlines that aren't convex (the star) are cut by `triangulatePolygon`, so R5.17's feather holds and the dev build doesn't report them.
-- A contents row moves between `primary` and `standard` in place (`variant`), and its lead glyph's label and its subtitle are settable, because the main menu's lead row changes with the save (DDB-507): Continue leads when there's a campaign, New campaign otherwise. Rebuilding the rows instead would drop the focus Back restores to Continue while the save is still being read. The two rows trade heights, so nothing under them moves.
+- A contents row moves between `primary` and `standard` in place (`variant`), and its lead glyph's label and its subtitle are settable, because the main menu's lead row changes with the save (DDB-507): Continue leads when there's a campaign, New campaign otherwise. Rebuilding the rows instead would drop the focus Back restores to Continue while the save is still being read. The two rows trade heights, so nothing under them moves. A subtitle may take two lines (`subtitleLines`), so a save the store can't read is explained in the store's own words even at 1024 wide.
 
 ## The art
 

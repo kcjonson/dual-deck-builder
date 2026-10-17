@@ -1,5 +1,5 @@
 [
-{"path":"gallery_root/dev_section_combat_log/Text[0]","text":"Combat Log","rect":[53,53,113.57,50]},
+{"path":"gallery_root/dev_section_combat_log/Text[0]","text":"Combat Log","rect":[53,53,116.87,50]},
 {"path":"gallery_root/dev_section_combat_log/dev_section_combat_log_rows/Stack[0]/Text[0]","text":"top bar with menu, wave and incoming; the log drawer open, long lines wrapped and scrolled to the newest","rect":[53,103,1334,17.7]},
 {"path":"gallery_root/dev_section_combat_log/dev_section_combat_log_rows/Stack[0]/dev_combat_log_frame/dev_combat_top_bar/Stack[1]/combat_wave","text":"Wave 1 of 2","rect":[113,136.3,65.09,16.8]},
 {"path":"gallery_root/dev_section_combat_log/dev_section_combat_log_rows/Stack[0]/dev_combat_log_frame/dev_combat_top_bar/Stack[1]/combat_incoming","text":"+2 incoming","rect":[186.09,136.3,68.92,16.8]},
