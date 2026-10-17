@@ -20,7 +20,7 @@ How stop cooldowns and POI refills plug in:
 
 - Hooks that change the campaign themselves. A hook failing after upkeep was stored leaves a half-ended day, and each hook's `set` is another `change`.
 - A registry the exploration epic registers into: global mutable state, and tests would have to reset it.
-- Pure map steps (chosen): `({ campaign, map }) => map`, given the campaign's state at dusk and the map so far. The state is a frozen snapshot from `getState()` without its map, not the live `Campaign`, so a step can't `set` anything through it, and POI refills see the map stop cooldowns returned. Stop state and POI stock are map state (Area Map Generation, What changes after generation), so the map is all they return. `DAY_END_HOOKS` is the default, the way `CAMPAIGN_START` is founding's, and holds two no-ops until the map keeps that state; tests pass their own.
+- Pure map steps (chosen): `({ campaign, map }) => map`, given the campaign's state at dusk and the map so far. The state is a frozen snapshot from `getState()` without its map, not the live `Campaign`, so a step can't `set` anything through it, and POI refills see the map stop cooldowns returned. Stop state and POI stock are map state (Area Map Generation, What changes after generation), so the map is all they return. `DAY_END_HOOKS` is the default, the way `CAMPAIGN_START` is founding's; its stop cooldowns are a no-op until the map keeps stop state, and its POI refills are `refillPois` ([poi-depletion.md](./poi-depletion.md)). Tests pass their own.
 
 ## Decision
 

@@ -15,7 +15,7 @@ import { ColorToken, tokens } from '../../../engine/theme/tokens';
 import { AreaMapView } from '../../ui/areaMap/AreaMapView';
 import { RouteCard } from '../../ui/RouteCard';
 import { STRONGHOLD_NOT_YET, QUIET_STOPS, clockText, homeByText, poiKindText, poiYieldText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
-import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, quickestOf, routesBounds, viewData } from '../area-map/planningMap';
+import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, poiStock, quickestOf, routesBounds, viewData } from '../area-map/planningMap';
 import { mapProgressText } from '../main-menu/campaignText';
 import { departRefusal, planRefusal } from '../run/runText';
 
@@ -318,14 +318,15 @@ export class RunRouteScreen extends Screen {
 		if (this.nameLine) this.nameLine.text = poi.name;
 		if (this.dayLine) this.dayLine.text = `Day ${campaign.day} / dawn ${clockText(dark - map.params.daylightHours)} / dark ${clockText(dark)} / fuel ${campaign.resources.fuel}`;
 		const destination = this.runRoute(poi.routes[0])?.destination ?? null;
-		if (this.kindLine) this.kindLine.text = `${poiKindText(poi)}. ${poiYieldText({ stronghold: false, yields: destination?.yield ?? null })}`;
+		const { state } = poiStock({ campaign, poi });
+		if (this.kindLine) this.kindLine.text = `${poiKindText({ ...poi, state })}. ${poiYieldText({ stronghold: false, yields: destination?.yield ?? null, state })}`;
 		// Nothing to wait for or warn of: the cards say the rest.
 		this.say({ text: '', color: 'text_dim' });
 
 		const view = this.view;
 		if (view) {
 			view.map = viewData(map);
-			view.markers = [{ id: poi.id, kind: 'poi', x: poi.x, y: poi.y, label: poi.name, type: poi.type, pastDark: poi.pastDark }];
+			view.markers = [{ id: poi.id, kind: 'poi', x: poi.x, y: poi.y, label: poi.name, type: poi.type, pastDark: poi.pastDark, ...(state === 'unvisited' ? {} : { state }) }];
 			view.selection = { kind: 'marker', id: poi.id };
 			view.camera.fit(frameOf(routesBounds({ map, poi })));
 		}
@@ -380,10 +381,10 @@ export class RunRouteScreen extends Screen {
 
 	/** The run loop's route for a descriptor: the one `departRun` will check it against. */
 	private runRoute(route: RouteDescriptor): RunRoute | null {
-		const { map } = this;
-		if (!map) return null;
+		const { campaign, map } = this;
+		if (!campaign || !map) return null;
 		const id = routeId(route.poi, route.route);
-		return routesOnOffer({ map }).find((offered) => offered.id === id) ?? null;
+		return routesOnOffer({ map, campaign }).find((offered) => offered.id === id) ?? null;
 	}
 
 	private departBlocker(route: RouteDescriptor): DepartBlocker | null {

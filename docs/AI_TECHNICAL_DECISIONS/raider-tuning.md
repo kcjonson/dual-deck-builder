@@ -1,6 +1,6 @@
 # Raider encounter tuning (DDB-462)
 
-Date: 2026-10-10. Code: `src/renderer/game/mechanics/Raiders.ts` (the profiles, `soloAdrenaline`), `campaign/Encounters.ts` (the table, where a lone raider opens, sizing up the crew), `campaign/SupplyRun.ts` (`startStopFight` hands over the seats' structure), `campaign/CombatBridge.ts` (`openingStructure`), `screens/combat/CombatScreen.ts` (the skirmish), and `scripts/raider-sim.mjs`, the fight simulator. Replaces the encounter table in [mvp-supply-run.md](./mvp-supply-run.md), and leans on [combat-bridge.md](./combat-bridge.md), [solo-driver-fights.md](./solo-driver-fights.md), and [stops-and-routes.md](./stops-and-routes.md). Rules it works inside: Combat Rules, The road (an encounter may give a raider its opening slot), Enemy intents (raider archetypes), and the hit rule.
+Date: 2026-10-10. Code: `src/renderer/game/mechanics/Raiders.ts` (the profiles, `soloAdrenaline`), `campaign/Encounters.ts` (the table, where a lone raider opens, sizing up the crew), `campaign/SupplyRun.ts` (`startStopFight` hands over the seats' structure), `campaign/CombatBridge.ts` (`seatOf`, and the raiders built against the seats), `screens/combat/CombatScreen.ts` (the skirmish), and `scripts/raider-sim.mjs`, the fight simulator. Replaces the encounter table in [mvp-supply-run.md](./mvp-supply-run.md), and leans on [combat-bridge.md](./combat-bridge.md), [solo-driver-fights.md](./solo-driver-fights.md), and [stops-and-routes.md](./stops-and-routes.md). Rules it works inside: Combat Rules, The road (an encounter may give a raider its opening slot), Enemy intents (raider archetypes), and the hit rule.
 
 ## Context
 
@@ -10,13 +10,13 @@ The aim, per skull count, for every crew the starting pool can send (each pair o
 
 ## The simulator
 
-Nothing headless played a whole fight with both sides deciding, beyond `SeededFight.test.ts`'s random AIs, so `scripts/raider-sim.mjs` does. Like `road-network.mjs` it transpiles the game modules it reaches into a temporary folder and runs them in a child process, one process, no workers. Each fight seats the crew as the combat bridge does (the archetype's skills, vehicle, adrenaline, and starting deck, full HP), builds the raiders with `encounterTeam` as a run's stop does, and plays it with the aggressive AI on both sides through `AIController.playPlayerCards` and `endPlayerTurn`. A pair swaps seats on every other run, so both seatings count equally, and the by-seat column splits them. A route (`1+2`) carries each won fight's damage into the next the way the bridge writes it back, a driver down revived at `REVIVE_HP` and a wreck at `LIMP_STRUCTURE`; armor carries too. A fight still going after 25 turns is a stall, which a player can only abandon. `--set` tries a profile or table change without touching the source, and `--log` prints one fight.
+Nothing headless played a whole fight with both sides deciding, beyond `SeededFight.test.ts`'s random AIs, so `scripts/raider-sim.mjs` does. Like `road-network.mjs` it transpiles the game modules it reaches into a temporary folder and runs them in a child process, one process, no workers. Each fight seats the crew through the combat bridge's own `seatOf`, each seat a fresh pool record with its whole default deck as its run deck, so it deals what a run deals, card order into the shuffle included, and builds the raiders with `encounterTeam` as a run's stop does, and plays it with the aggressive AI on both sides through `AIController.playPlayerCards` and `endPlayerTurn`. A pair swaps seats on every other run, so both seatings count equally, and the by-seat column splits them. A route (`1+2`) carries each won fight's damage into the next the way the bridge writes it back, a driver down revived at `REVIVE_HP` and a wreck at `LIMP_STRUCTURE`; armor carries too. A fight still going after 25 turns is a stall, which a player can only abandon. `--set` tries a profile or table change without touching the source, and `--log` prints one fight.
 
 ```
 node scripts/raider-sim.mjs --fights 150 --routes 1,2,3,1+1,1+2,2+1
 ```
 
-It takes about 20 seconds. The tables below are seed 1, 150 runs a cell.
+It takes about 20 seconds. The tables below are seed 1, 150 runs a cell. The before columns, and the seat draw tried below, were measured when the sim dealt each deck in the archetype's starting-deck order rather than a run deck's card-type order, which shuffles differently and moves a rate by a few points.
 
 The player side is a stand-in. The aggressive AI plays every card it can afford, damage first, never reads the raiders' intents, and doesn't hold Armor Plating for the big hit, so a person should do somewhat better than these rates, and a person who finds the Mechanic's stun lock (below) does what the AI does.
 
@@ -43,7 +43,7 @@ Points 4 and 5 are the player's cards, which this change doesn't touch, and 3 is
 Option 4.
 
 - The table: one Rust Buggy at one skull (Scavengers), one Spike Buggy at two (Spike raider), two Rust Buggies at three (Road gang).
-- A lone raider opens on the enemy inside lane across from the crew's vehicle with the most structure as the fight opens, Driver 1's on a tie, where a ram from either side reaches. The encounter gives it that slot, which The road allows. `encounterTeam` reads `crewStructure`, each seat's opening structure in seat order; `startStopFight` hands over `openingStructure` of each seat, the record's structure clamped to the archetype's maximum as the bridge clamps it. A gang, or a lone raider with no crew given, fills the opening order as before.
+- A lone raider opens on the enemy inside lane across from the crew's vehicle with the most structure as the fight opens, Driver 1's on a tie, where a ram from either side reaches. The encounter gives it that slot, which The road allows. `encounterTeam` reads `crewStructure`, each seat's opening structure in seat order, and refuses a crew of anything but one or two seats; the bridge builds the raiders once the party checks out, handing over each seat's vehicle as it opens the fight, its structure clamped to the archetype's maximum, and `startStopFight` passes their structure on. A gang fills the opening order as before.
 - Against a lone driver every raider refills to its `soloAdrenaline`, since a lone driver brings half a pair's guns and so gives the raider about twice the turns.
 - Rust Buggy: refills to 5 against a pair, two of its cards a turn (was 10, all five), 3 against a lone driver, one card; gunnery 9 (was 6), so its Precision Shots hit everyone, the bike included. Ramming 5, evade 4, 30 structure, armor 5, 30 HP, and its deck are as they were.
 - Spike Buggy: a raider profile of its own, keeping the archetype's ramming 7, evade, speed, vehicle, and name. Gunnery 9 (6), 85 structure (65), armor 8 (2), driver HP 85 (33), refills to 7 against a pair (5) and 3 against a lone driver, deck Ramming Speed 3, Precision Shot 2, Armor Plating 1 (the archetype's is Berserker 3, Ramming Speed 2, Flanking Maneuver, Repair Kit, Armor Plating, Nitro Boost). The player's Raider archetype is untouched.
@@ -56,26 +56,26 @@ Fights won, with the HP the crew lost over the fights it won in brackets; a stal
 
 | Crew | 1 skull, before | 1 skull, after | 2 skulls, before | 2 skulls, after | 3 skulls, before | 3 skulls, after |
 |---|---|---|---|---|---|---|
-| RW + Int | 100% (19%) | 100% (16%) | 100% (56%) | 75% (62%) | 100% (27%) | 50% (55%) |
-| RW + Mech | 50% (1%), 49% stall | 100% (0%) | 0%, 99% stall | 100% (0%) | 0%, 99% stall | 0%, 99% stall |
-| Int + Mech | 100% (0%) | 100% (0%) | 100% (1%) | 100% (1%) | 100% (1%) | 99% (0%) |
-| RW alone | 0% | 100% (27%) | 0% | 4% (91%) | 0% | 0% |
-| Int alone | 100% (0%) | 100% (40%) | 100% (0%) | 0% | 100% (0%) | 0% |
-| Mech alone | 0%, 99% stall | 0%, 100% stall | 0%, 99% stall | 0%, 100% stall | 0%, 99% stall | 0%, 100% stall |
+| RW + Int | 100% (19%) | 100% (15%) | 100% (56%) | 72% (61%) | 100% (27%) | 50% (52%) |
+| RW + Mech | 50% (1%), 49% stall | 100% (1%) | 0%, 99% stall | 99% (1%) | 0%, 99% stall | 0%, 98% stall |
+| Int + Mech | 100% (0%) | 100% (1%) | 100% (1%) | 99% (1%) | 100% (1%) | 99% (1%), 1% stall |
+| RW alone | 0% | 100% (26%) | 0% | 3% (97%) | 0% | 0% |
+| Int alone | 100% (0%) | 100% (41%) | 100% (0%) | 0% | 100% (0%) | 0% |
+| Mech alone | 0%, 99% stall | 0%, 100% stall | 0%, 99% stall | 0%, 100% stall | 0%, 99% stall | 0%, 98% stall |
 
-After the change a Road Warrior and Interceptor pair goes down a driver in none of its one-skull wins, 83% of its two-skull wins, and 59% of its three-skull wins.
+After the change a Road Warrior and Interceptor pair goes down a driver in none of its one-skull wins, 79% of its two-skull wins, and 53% of its three-skull wins.
 
 Routes, each fight carrying the last one's damage:
 
 | Crew | 1+1, before | 1+1, after | 1+2, before | 1+2, after | 2+1, before | 2+1, after |
 |---|---|---|---|---|---|---|
-| RW + Int | 100% (27%) | 100% (30%) | 100% (57%) | 55% (71%) | 100% (60%) | 74% (64%) |
-| RW + Mech | 50%, 49% stall | 100% (1%) | 0%, 99% stall | 99% (0%) | 0%, 99% stall | 100% (1%) |
-| Int + Mech | 100% (1%) | 100% (1%) | 100% (1%) | 99% (1%) | 100% (1%) | 100% (1%) |
-| RW alone | 0% | 100% (57%) | 0% | 0% | | |
-| Int alone | 100% (0%) | 95% (78%) | 100% (0%) | 0% | | |
+| RW + Int | 100% (27%) | 100% (29%) | 100% (57%) | 55% (69%) | 100% (60%) | 70% (63%) |
+| RW + Mech | 50%, 49% stall | 100% (1%) | 0%, 99% stall | 99% (1%) | 0%, 99% stall | 99% (1%), 1% stall |
+| Int + Mech | 100% (1%) | 100% (1%) | 100% (1%) | 99% (1%) | 100% (1%) | 99% (1%) |
+| RW alone | 0% | 100% (58%) | 0% | 0% | | |
+| Int alone | 100% (0%) | 94% (78%) | 100% (0%) | 0% | | |
 
-The Road Warrior and Interceptor's rates split by who sits in seat 1, Road Warrior first then Interceptor first: 100/100 at one skull, 100/49 at two, 100/0 at three, 99/12 on 1+2, and 100/48 on 2+1. A raider facing two equally healthy vehicles aims at the first in the team's order, Driver 1, and keeps aiming at whoever is hurt worst; with the Interceptor in seat 1 the bike goes down first, and at three skulls the raider across from it is out of the Rig's reach. Drawing between equal targets on the fight's AI stream evens it out, 73/76 at two skulls, 52/49 at three, and 44/45 on 1+2, with the same averages, but it changes every raider's planning, two combat screen tests lean on raiders focusing one vehicle, and it showed an intent row glitch (a leaving pill overlapping the one that slides into its place), so it isn't in this change.
+The Road Warrior and Interceptor's rates split by who sits in seat 1, Road Warrior first then Interceptor first: 100/100 at one skull, 100/44 at two, 100/0 at three, 97/13 on 1+2, and 100/40 on 2+1. A raider facing two equally healthy vehicles aims at the first in the team's order, Driver 1, and keeps aiming at whoever is hurt worst; with the Interceptor in seat 1 the bike goes down first, and at three skulls the raider across from it is out of the Rig's reach. Drawing between equal targets on the fight's AI stream evens it out, 73/76 at two skulls, 52/49 at three, and 44/45 on 1+2, with the same averages, but it changes every raider's planning, two combat screen tests lean on raiders focusing one vehicle, and it showed an intent row glitch (a leaving pill overlapping the one that slides into its place), so it isn't in this change.
 
 Against the aim: one skull lands a little easy for pairs (100%, about a sixth of the crew's HP) and lone drivers win it every time with a quarter to two fifths of their HP gone; two skulls lands at the top of its band for the only pair the raiders can reach; three skulls is in its band on average; and no crew is hopeless at one skull but the lone Mechanic. The Mechanic pairs stay untouched at every skull count and the Rig and Mechanic pair can't clear a three-skull gang, both from the player's side, above.
 
@@ -104,4 +104,5 @@ None of these is in a spec.
 - Retuning is a rerun: `--set` tries a change, and the command above regenerates both tables (run it against the old profiles for the before columns).
 - The combat screen's skirmish and a run's one-skull fight are the same fight now, so tuning one tunes both, placement included.
 - A raider's intents change with the profiles: the Rust Buggy plans two cards a turn where it planned five, so screens and goldens showing its pills change.
-- `encounterTeam` needs the crew to place a lone raider; anything that builds an encounter without it gets the old opening order.
+- `encounterTeam` needs the crew, one or two seats, so nothing can size an encounter up for a pair by leaving the crew out.
+- The sim builds its seats through the bridge's `seatOf`, so a change to how a fight deals a seat reaches the sim's numbers without touching the script.

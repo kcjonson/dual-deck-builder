@@ -85,5 +85,7 @@ function stressMap(rng: Rng): JsonObject {
 		rolls: rng.int(0, 9)
 	}));
 	const fog = Array.from({ length: 128 }, () => rng.next());
-	return { roads, pois, stops, fog };
+	// Its POI stock in the save's own format (PoiStock.ts): every third POI taken from.
+	const stock = Array.from({ length: Math.ceil(POIS / 3) }, (_, index) => ({ poi: index * 3, left: rng.int(0, 2), nights: rng.int(0, 6) }));
+	return { roads, sites: pois, stops, fog, pois: stock };
 }

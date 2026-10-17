@@ -71,14 +71,16 @@ export function historyToJson({ version, entries }: { version: number; entries: 
 }
 
 /**
- * A stored history's entries, or null when another version of the save
- * format stamped it, which this build doesn't read. The version is checked
- * first, so only a history of this version has to be well formed; anything
- * malformed then throws a reader error, naming where.
+ * A stored history's entries, or null when a version of the save format
+ * this build doesn't read stamped it. The version is checked first, so only
+ * a history of a version it reads has to be well formed; anything malformed
+ * then throws a reader error, naming where. An entry is the same in every
+ * version a build reads.
  */
-export function readHistory(value: unknown, { version }: { version: number }): CampaignHistoryEntry[] | null {
+export function readHistory(value: unknown, { versions }: { versions: readonly number[] }): CampaignHistoryEntry[] | null {
 	const path = 'CampaignHistory';
-	if (readObject(value, path).version !== version) return null;
+	const { version } = readObject(value, path);
+	if (typeof version !== 'number' || !versions.includes(version)) return null;
 	const record = readFields(value, path, ['version', 'campaigns']);
 	return readArray(record.campaigns, `${path}.campaigns`).map((entry, index) => readEntry(entry, `${path}.campaigns[${index}]`));
 }

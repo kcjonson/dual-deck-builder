@@ -13,11 +13,12 @@ import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
+import { routesOnOffer } from '../../campaign/SupplyRun';
 import type { CampaignStore } from '../../campaign/CampaignStore';
 import { MemorySaveStorage } from '../../campaign/SaveStorage';
-import { atHomeText, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
+import { atHomeCampaign, atHomeText, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
 import type { AreaMapView } from '../../ui/areaMap/AreaMapView';
-import { STRONGHOLD_NOT_YET, darkText, poiKindText, routesText } from './areaMapText';
+import { STRONGHOLD_NOT_YET, darkText, poiKindText, poiYieldText, routesText } from './areaMapText';
 import { AreaMapScreen } from './AreaMapScreen';
 import { PlannedPoi, byDistance, plannedPois } from './planningMap';
 import { TestMaps, meshPlanningMap, testMaps } from './testing';
@@ -129,6 +130,36 @@ describe('AreaMapScreen (DDB-43)', () => {
 
 		find<Button>('area_map_plan_button').onClick?.({} as never);
 		expect(navigate).toHaveBeenLastCalledWith('runRouteScreen', { campaign: screen.shown, poi: poi.poi });
+	});
+
+	it('shows what runs have left at each POI: on its marker, in its row, and in its details (DDB-483)', async () => {
+		const [looted, depleted] = byDistance(POIS).filter((poi) => !poi.stronghold && !poi.pastDark);
+		const pois = [{ poi: looted.poi, left: 2, nights: 3 }, { poi: depleted.poi, left: 0, nights: 5 }].sort((a, b) => a.poi - b.poi);
+		await open({ change: (campaign) => campaign.set({ map: { pois } }) });
+
+		expect(view().markers[looted.poi].state).toBe('looted');
+		expect(view().markers[depleted.poi].state).toBe('depleted');
+		expect(view().markers.filter(({ state }) => state !== undefined)).toHaveLength(2);
+		expect([find<ListRow>(`area_map_poi_${looted.poi}`).trailing, find<ListRow>(`area_map_poi_${looted.poi}`).dim]).toEqual([`tier ${looted.tier}`, false]);
+		expect([find<ListRow>(`area_map_poi_${depleted.poi}`).trailing, find<ListRow>(`area_map_poi_${depleted.poi}`).dim]).toEqual([`tier ${depleted.tier}`, true]);
+
+		clickMarker(looted);
+		expect(text('area_map_selected_kind')).toBe(poiKindText({ ...looted, state: 'looted' }));
+		expect(text('area_map_selected_stock')).toBe('2 of 3 shares left, the next back in 4 days.');
+		const full = routesOnOffer({ map: MAP, campaign: atHomeCampaign((campaign) => campaign.set({ map: {} })) }).find((route) => route.destination.id === looted.id);
+		const scaled = Object.fromEntries(Object.entries(full?.destination.yield ?? {}).map(([resource, amount]) => [resource, Math.ceil((amount * 2) / 3)]));
+		expect(text('area_map_selected_yield')).toBe(poiYieldText({ stronghold: false, yields: scaled as never }));
+
+		clickMarker(depleted);
+		expect(text('area_map_selected_kind')).toBe(`${poiKindText(depleted)}, depleted`);
+		expect(text('area_map_selected_yield')).toBe('Nothing left to take until it refills.');
+		expect(text('area_map_selected_stock')).toBe('No shares left, the next back in 2 days.');
+		// A depleted POI can still be planned: its stops' fights still pay in cards
+		expect(find<Button>('area_map_plan_button').enabled).toBe(true);
+
+		const untouched = byDistance(POIS).find((poi) => !poi.stronghold && poi !== looted && poi !== depleted) as PlannedPoi;
+		clickMarker(untouched);
+		expect(text('area_map_selected_stock')).toBe('3 of 3 shares left.');
 	});
 
 	it('clears the choice on a click off every marker', async () => {
