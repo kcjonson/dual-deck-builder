@@ -18,6 +18,10 @@ import { MAP_PARAMETERS } from './MapParams';
 export const POI_RESOURCES = ['food', 'water', 'fuel', 'meds', 'scrap'] as const;
 export type PoiResource = (typeof POI_RESOURCES)[number];
 
+/** What's left to take at a POI (Compound and Supply Runs, POIs): all of it, some, or nothing until it refills. */
+export const POI_STATES = ['unvisited', 'looted', 'depleted'] as const;
+export type PoiState = (typeof POI_STATES)[number];
+
 export interface ShareRange {
 	/** Shares of the map's radius. */
 	readonly inner: number;

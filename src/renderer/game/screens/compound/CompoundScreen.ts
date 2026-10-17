@@ -494,7 +494,7 @@ export class CompoundScreen extends Screen {
 		if (this.planLine) {
 			if (stranded) this.planLine.text = STRANDED_BUILDING;
 			else if (!map) this.planLine.text = this.mapWait;
-			else this.planLine.text = plan === null ? destinationsText(map) : planRefusal(plan);
+			else this.planLine.text = plan === null ? destinationsText({ map, campaign }) : planRefusal(plan);
 		}
 		const needs = this.needs;
 		if (!needs) return;
@@ -682,8 +682,8 @@ function buildingTile({ building, open, live }: { building: Building; open: (bui
 }
 
 /** Plan's line when a run can go: "31 destinations on the area map." */
-function destinationsText(map: PlanningMap): string {
-	const destinations = new Set(routesOnOffer({ map }).map((route) => route.destination.id)).size;
+function destinationsText({ map, campaign }: { map: PlanningMap; campaign: Campaign }): string {
+	const destinations = new Set(routesOnOffer({ map, campaign }).map((route) => route.destination.id)).size;
 	return `${destinations} destination${destinations === 1 ? '' : 's'} on the area map.`;
 }
 
