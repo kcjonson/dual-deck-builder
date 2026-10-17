@@ -1,5 +1,6 @@
 import { Stack, StackOptions } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
+import type { DrawRectOptions } from '../../../engine/draw/commands';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { RGBA, Rect } from '../../../engine/draw/geometry';
 import type { Theme } from '../../../engine/theme/tokens';
@@ -28,66 +29,43 @@ const DESIGN = {
 
 const DEG = Math.PI / 180;
 
-interface Range {
-	min: number;
-	max: number;
-}
-
-interface GrainLayer {
-	/** Streak heights in design pixels, and how far down the next row starts, as a share of the height. */
-	height: Range;
-	step: number;
-	/** A streak's share of the width. */
-	length: Range;
-	/** How often a run is drawn rather than left as bare table. */
-	density: number;
-	light: Range;
-	dark: Range;
-}
-
-/**
- * The table's grain, FinalSplash's stretched turbulence done as faint,
- * overlapping horizontal streaks: broad bands of tone, then fine lines over
- * them. Seeded, laid out once per size, and never animated.
- */
-const GRAIN_SEED = 506;
-const GRAIN: readonly GrainLayer[] = [
-	{ height: { min: 8, max: 26 }, step: 0.7, length: { min: 0.3, max: 1.1 }, density: 0.7, light: { min: 0.015, max: 0.045 }, dark: { min: 0.06, max: 0.18 } },
-	{ height: { min: 1, max: 3 }, step: 3, length: { min: 0.08, max: 0.5 }, density: 0.5, light: { min: 0.03, max: 0.07 }, dark: { min: 0.1, max: 0.25 } },
-];
-
-interface Streak {
-	/** Shares of the width, and design pixels down the 900 px table. */
-	x: number;
+interface GrainBand {
+	/** Design pixels down the 900 px table; a band runs the full width. */
 	y: number;
-	width: number;
 	height: number;
+	/** Sheet tone lifts the table, shadow tone darkens it. */
 	light: boolean;
 	alpha: number;
 }
 
-function grainStreaks(): Streak[] {
-	const rng = new Rng({ seed: GRAIN_SEED });
-	const between = ({ min, max }: Range): number => min + rng.float() * (max - min);
-	const streaks: Streak[] = [];
-	for (const layer of GRAIN) {
-		for (let y = 0; y < DESIGN.height;) {
-			const height = between(layer.height);
-			for (let x = -rng.float() * layer.length.max; x < 1;) {
-				const width = between(layer.length);
-				if (rng.float() < layer.density) {
-					const light = rng.float() < 0.5;
-					streaks.push({ x, y, width, height, light, alpha: between(light ? layer.light : layer.dark) });
-				}
-				x += width;
-			}
-			y += height * layer.step;
-		}
+/**
+ * The table's grain: FinalSplash's stretched turbulence as a few dozen
+ * full-width bands of faint tone tiling the height, seeded once at load.
+ * Each band's draw options are built once and only re-placed on a resize,
+ * so a frame allocates nothing.
+ */
+function grainBands(): GrainBand[] {
+	const rng = new Rng({ seed: 506 });
+	const between = (min: number, max: number): number => min + rng.float() * (max - min);
+	const bands: GrainBand[] = [];
+	for (let y = 0; y < DESIGN.height;) {
+		const height = rng.float() < 0.3 ? between(2, 6) : between(12, 44);
+		const light = rng.float() < 0.45;
+		bands.push({ y, height, light, alpha: light ? between(0.01, 0.035) : between(0.05, 0.2) });
+		y += height;
 	}
-	return streaks;
+	return bands;
 }
 
-const STREAKS: readonly Streak[] = grainStreaks();
+const BANDS: readonly GrainBand[] = grainBands();
+
+/**
+ * Under the build line the table is always darkened, and no light band
+ * reaches it, so faded print holds 4.5:1 there on the grain (UI Art
+ * Direction, Wear: text holds 4.5:1 measured on the texture).
+ */
+const BUILD_GROUND = { alpha: 0.2, above: 12 } as const;
+
 
 export interface SplashSceneOptions extends Omit<StackOptions, 'direction' | 'padding' | 'style'> {
 	/** The line at the bottom naming the build. */
@@ -113,15 +91,15 @@ export class SplashScene extends Stack {
 	private readonly percentText: Text;
 	private shown = -1;
 	private inks: AtlasInks;
-	private readonly table: Rect = { x: 0, y: 0, width: 0, height: 0 };
-	private readonly streaks: Rect[] = STREAKS.map(() => ({ x: 0, y: 0, width: 0, height: 0 }));
-	private streakColors: RGBA[] = [];
+	private readonly table: DrawRectOptions = { rect: { x: 0, y: 0, width: 0, height: 0 }, fill: [0, 0, 0, 1] };
+	private readonly bands: DrawRectOptions[] = BANDS.map(() => ({ rect: { x: 0, y: 0, width: 0, height: 0 }, fill: [0, 0, 0, 0] }));
+	private readonly buildGround: DrawRectOptions = { rect: { x: 0, y: 0, width: 0, height: 0 }, fill: [0, 0, 0, 0] };
 
 	constructor({ buildLine, ...options }: SplashSceneOptions) {
 		super({ ...options, widthMode: 'fill', heightMode: 'fill' });
 		this.componentType = 'SplashScene';
 		this.inks = atlasInks(this.themeTokens);
-		this.streakColors = streakColors(this.inks);
+		this.paintTable();
 
 		// Under the book, which the lint reads as declared overlap (R13.25.1).
 		this.deckA = new DeckFan({ id: 'splash_deck_a', driver: 'a', width: DESIGN.deckA.card, zIndex: -1 });
@@ -180,7 +158,15 @@ export class SplashScene extends Stack {
 
 	protected onThemeChange(theme: Theme): void {
 		this.inks = atlasInks(theme);
-		this.streakColors = streakColors(this.inks);
+		this.paintTable();
+	}
+
+	/** The table's and each band's colour, written into the cached draw options. */
+	private paintTable(): void {
+		const { table, sheet, shadow } = this.inks;
+		setColor(this.table.fill, table, table[3]);
+		BANDS.forEach((band, index) => setColor(this.bands[index].fill, band.light ? sheet : shadow, band.alpha));
+		setColor(this.buildGround.fill, shadow, BUILD_GROUND.alpha);
 	}
 
 	protected layoutChildren(): void {
@@ -212,29 +198,32 @@ export class SplashScene extends Stack {
 		this.build.setPosition(0, height - build.bottom - build.line);
 		this.build.setSize(width, build.line);
 
-		setRect(this.table, 0, 0, width, height);
+		this.table.id = this.id ?? undefined;
+		setRect(this.table.rect, 0, 0, width, height);
+		const groundTop = this.build.y - BUILD_GROUND.above;
+		setRect(this.buildGround.rect, 0, groundTop, width, height - groundTop);
 		const rows = height / DESIGN.height;
-		STREAKS.forEach((streak, index) => {
-			const left = Math.max(0, streak.x);
-			const right = Math.min(1, streak.x + streak.width);
-			setRect(this.streaks[index], left * width, streak.y * rows, (right - left) * width, streak.height * rows);
+		BANDS.forEach((band, index) => {
+			const top = band.y * rows;
+			const bottom = band.light ? Math.min(top + band.height * rows, groundTop) : top + band.height * rows;
+			setRect(this.bands[index].rect, 0, top, width, bottom - top);
 		});
 	}
 
 	public render(draw: DrawApi): void {
-		draw.drawRect({ id: this.id ?? undefined, rect: this.table, fill: this.inks.table });
-		for (let index = 0; index < this.streaks.length; index++) {
-			draw.drawRect({ rect: this.streaks[index], fill: this.streakColors[index] });
-		}
+		draw.drawRect(this.table);
+		for (let index = 0; index < this.bands.length; index++) draw.drawRect(this.bands[index]);
+		draw.drawRect(this.buildGround);
 	}
 }
 
-/** Each streak's colour: the sheet's tone or the shadow's, faint, over the table. */
-function streakColors(inks: AtlasInks): RGBA[] {
-	return STREAKS.map(({ light, alpha }) => {
-		const [r, g, b] = light ? inks.sheet : inks.shadow;
-		return [r, g, b, alpha];
-	});
+function setColor(target: RGBA | undefined, source: RGBA, alpha: number): void {
+	if (!target) return;
+	const color = target as [number, number, number, number];
+	color[0] = source[0];
+	color[1] = source[1];
+	color[2] = source[2];
+	color[3] = alpha;
 }
 
 function setRect(rect: Rect, x: number, y: number, width: number, height: number): void {

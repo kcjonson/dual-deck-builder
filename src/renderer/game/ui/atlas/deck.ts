@@ -1,9 +1,9 @@
 import { Component, ComponentOptions } from '../../../engine/components/Component';
-import type { BoxShadow } from '../../../engine/draw/commands';
+import type { BoxShadow, DrawRectOptions } from '../../../engine/draw/commands';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { Mat2D, RGBA, Rect, Vec2 } from '../../../engine/draw/geometry';
 import type { Theme } from '../../../engine/theme/tokens';
-import { drawAtlasArt } from './atlasArt';
+import { DrawAtlasArtOptions, drawAtlasArt } from './atlasArt';
 import { AtlasInks, Driver, atlasInks } from './atlasStyle';
 import { GlyphPaint, MapGlyphGeometry, glyphBox } from './mapGlyphs';
 
@@ -159,9 +159,12 @@ class CardBackGeometry {
 	private readonly shield = new MapGlyphGeometry('shield');
 	private readonly w: Vec2[] = BACK.w.map(() => ({ x: 0, y: 0 }));
 	private shieldPaint: GlyphPaint;
+	/** The card stock's draw, built once so a frame allocates nothing. */
+	private readonly art: DrawAtlasArtOptions;
 
 	constructor({ driver, width, inks }: { driver: Driver; width: number; inks: AtlasInks }) {
 		this.driver = driver;
+		this.art = { name: driver === 'a' ? 'card_back_a' : 'card_back_b', rect: this.card };
 		this.scale = width / BACK.width;
 		this.shieldPaint = backShieldPaint(inks, driver);
 		const scale = this.scale;
@@ -193,8 +196,8 @@ class CardBackGeometry {
 	}
 
 	public draw(draw: DrawApi, inks: AtlasInks, id?: string): void {
-		const name = this.driver === 'a' ? 'card_back_a' : 'card_back_b';
-		if (drawAtlasArt(draw, { id, name, rect: this.card })) return;
+		this.art.id = id;
+		if (drawAtlasArt(draw, this.art)) return;
 		const scale = this.scale;
 		const { fill, casing } = inks.drivers[this.driver];
 		draw.drawRect({ id, rect: this.card, fill: inks.paper, radius: this.radius, border: { color: inks.ink, width: BACK.edge * scale } });
@@ -226,8 +229,10 @@ export class DeckStack extends Component {
 	public readonly edges: 3 | 4;
 	private inks: AtlasInks;
 	private readonly back: CardBackGeometry;
-	private readonly edgeRects: Rect[];
+	/** The edges' and shadow's draws, built once so a frame allocates nothing. */
+	private readonly edgeDraws: DrawAtlasArtOptions[];
 	private readonly shadow: BoxShadow;
+	private readonly stackShadow: DrawRectOptions;
 
 	constructor({ driver, width = 64, edges = 3, ...options }: DeckStackOptions) {
 		const step = Math.max(1.5, Math.round(width * 0.025 * 2) / 2);
@@ -240,10 +245,11 @@ export class DeckStack extends Component {
 		this.shadow = deckShadow(this.inks);
 		this.back = new CardBackGeometry({ driver, width, inks: this.inks });
 		// The edges stack down and right under the top card, the deepest first.
-		this.edgeRects = Array.from({ length: edges }, (_, index) => {
+		this.edgeDraws = Array.from({ length: edges }, (_, index) => {
 			const offset = (edges - index) * step;
-			return { x: offset, y: offset, width, height };
+			return { name: 'card_edge', rect: { x: offset, y: offset, width, height } };
 		});
+		this.stackShadow = { rect: this.edgeDraws[0].rect, fill: CLEAR, radius: this.back.radius, shadow: this.shadow };
 	}
 
 	/** The drop shadow under the bottom edge. */
@@ -261,10 +267,10 @@ export class DeckStack extends Component {
 		const inks = this.inks;
 		const radius = this.back.radius;
 		// The art can't carry a shadow, so the stack's drop shadow goes down first on its own.
-		draw.drawRect({ rect: this.edgeRects[0], fill: CLEAR, radius, shadow: this.shadow });
-		for (let index = 0; index < this.edgeRects.length; index++) {
-			const rect = this.edgeRects[index];
-			if (!drawAtlasArt(draw, { name: 'card_edge', rect })) draw.drawRect({ rect, fill: inks.index, radius, border: { color: inks.ink, width: 1 } });
+		draw.drawRect(this.stackShadow);
+		for (let index = 0; index < this.edgeDraws.length; index++) {
+			const edge = this.edgeDraws[index];
+			if (!drawAtlasArt(draw, edge)) draw.drawRect({ rect: edge.rect, fill: inks.index, radius, border: { color: inks.ink, width: 1 } });
 		}
 		this.back.draw(draw, inks, this.id ?? undefined);
 	}
@@ -298,6 +304,7 @@ export class DeckFan extends Component {
 	private readonly turns: Mat2D[];
 	private readonly origin: Vec2;
 	private readonly shadow: BoxShadow;
+	private readonly cardShadow: DrawRectOptions;
 
 	constructor({ driver, width = 64, cards = 5, spread = 8, ...options }: DeckFanOptions) {
 		const height = backHeight(width);
@@ -330,6 +337,7 @@ export class DeckFan extends Component {
 		this.inks = atlasInks(this.themeTokens);
 		this.shadow = deckShadow(this.inks);
 		this.back = new CardBackGeometry({ driver, width, inks: this.inks });
+		this.cardShadow = { rect: this.back.rect, fill: CLEAR, radius: this.back.radius, shadow: this.shadow };
 		this.turns = turns.map(([a, b, c, d, e, f]): Mat2D => [a, b, c, d, e - minX, f - minY]);
 		this.origin = { x: -minX, y: -minY };
 	}
@@ -355,12 +363,10 @@ export class DeckFan extends Component {
 
 	public render(draw: DrawApi): void {
 		const inks = this.inks;
-		const rect = this.back.rect;
-		const radius = this.back.radius;
 		const top = this.turns.length - 1;
 		for (let index = 0; index <= top; index++) {
 			draw.pushTransform(this.turns[index]);
-			draw.drawRect({ rect, fill: CLEAR, radius, shadow: this.shadow });
+			draw.drawRect(this.cardShadow);
 			this.back.draw(draw, inks, index === top ? this.id ?? undefined : undefined);
 			draw.popTransform();
 		}

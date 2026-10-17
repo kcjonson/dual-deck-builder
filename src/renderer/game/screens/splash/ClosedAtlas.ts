@@ -1,11 +1,11 @@
 import { Component, ComponentOptions } from '../../../engine/components/Component';
 import { Text } from '../../../engine/components/Text';
-import type { BoxShadow } from '../../../engine/draw/commands';
+import type { BoxShadow, DrawRectOptions } from '../../../engine/draw/commands';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { RGBA, Rect } from '../../../engine/draw/geometry';
 import type { Theme } from '../../../engine/theme/tokens';
 import { uiArtSize } from '../../art/uiArt';
-import { drawAtlasArt } from '../../ui/atlas/atlasArt';
+import { DrawAtlasArtOptions, drawAtlasArt } from '../../ui/atlas/atlasArt';
 import { ATLAS, AtlasInks, atlasInks } from '../../ui/atlas/atlasStyle';
 
 const CLEAR: RGBA = [0, 0, 0, 0];
@@ -48,6 +48,12 @@ export class ClosedAtlas extends Component {
 	private readonly innerRule: Rect;
 	private readonly kicker: Text;
 	private readonly edition: Text;
+	/** Draw options built once, so a frame allocates nothing. */
+	private readonly shadowDraw: DrawRectOptions;
+	private readonly coverDraw: DrawAtlasArtOptions = { name: 'atlas_cover', rect: this.cover };
+	private readonly logoDraw: DrawAtlasArtOptions = { name: 'logo', rect: this.logo };
+	private outerRuleDraw: DrawRectOptions;
+	private innerRuleDraw: DrawRectOptions;
 
 	constructor(options: Omit<ComponentOptions, 'width' | 'height'> = {}) {
 		super({ ...options, width: COVER.sheet.width + COVER.pageEdges, height: COVER.sheet.height + COVER.pageEdges });
@@ -57,6 +63,8 @@ export class ClosedAtlas extends Component {
 		const { outer, gap } = COVER.neatline;
 		this.outerRule = { x: outer.x, y: outer.y, width: COVER.sheet.width - outer.x - outer.right, height: COVER.sheet.height - outer.y - outer.bottom };
 		this.innerRule = { x: outer.x + gap, y: outer.y + gap, width: this.outerRule.width - gap * 2, height: this.outerRule.height - gap * 2 };
+		this.shadowDraw = { rect: this.sheet, fill: CLEAR, shadow: this.shadow };
+		[this.outerRuleDraw, this.innerRuleDraw] = this.ruleDraws();
 		this.kicker = new Text({
 			id: 'splash_cover_kicker',
 			text: 'A road atlas of the Halcyon region',
@@ -92,6 +100,7 @@ export class ClosedAtlas extends Component {
 	protected onThemeChange(theme: Theme): void {
 		this.inks = atlasInks(theme);
 		this.shadow.color = this.inks.shadow;
+		[this.outerRuleDraw, this.innerRuleDraw] = this.ruleDraws();
 	}
 
 	protected layoutChildren(): void {
@@ -103,12 +112,21 @@ export class ClosedAtlas extends Component {
 	}
 
 	public render(draw: DrawApi): void {
-		const inks = this.inks;
-		draw.drawRect({ rect: this.sheet, fill: CLEAR, shadow: this.shadow });
-		if (!drawAtlasArt(draw, { id: this.id ?? undefined, name: 'atlas_cover', rect: this.cover })) {
-			draw.drawRect({ rect: this.outerRule, fill: CLEAR, border: { color: inks.ink, width: ATLAS.neatlineOuter, position: 'center' } });
-			draw.drawRect({ rect: this.innerRule, fill: CLEAR, border: { color: inks.ink, width: ATLAS.neatlineInner, position: 'center' } });
+		draw.drawRect(this.shadowDraw);
+		this.coverDraw.id = this.id ?? undefined;
+		if (!drawAtlasArt(draw, this.coverDraw)) {
+			draw.drawRect(this.outerRuleDraw);
+			draw.drawRect(this.innerRuleDraw);
 		}
-		drawAtlasArt(draw, { name: 'logo', rect: this.logo });
+		drawAtlasArt(draw, this.logoDraw);
+	}
+
+	/** The neatline's flat stand-ins, in the theme's ink. */
+	private ruleDraws(): [DrawRectOptions, DrawRectOptions] {
+		const color = this.inks.ink;
+		return [
+			{ rect: this.outerRule, fill: CLEAR, border: { color, width: ATLAS.neatlineOuter, position: 'center' } },
+			{ rect: this.innerRule, fill: CLEAR, border: { color, width: ATLAS.neatlineInner, position: 'center' } },
+		];
 	}
 }
