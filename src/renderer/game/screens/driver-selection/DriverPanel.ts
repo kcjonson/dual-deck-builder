@@ -1,4 +1,4 @@
-import { Stack, StackOptions } from '../../../engine/components/Stack';
+import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Rectangle } from '../../../engine/components/Rectangle';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
@@ -11,10 +11,12 @@ import { CardLoader } from '../../core/CardLoader';
 import { FlowWrap } from '../../ui/FlowWrap';
 import { contains } from '../../../engine/services/OverlayService';
 import { inspectOnContextMenu, makeInspectable } from '../../ui/cardInspect';
+import { ATLAS, DISPLAY_BOLD } from '../../ui/atlas/atlasStyle';
+import { LegendBox, LegendBoxOptions } from '../../ui/atlas/LegendBox';
 
 export type DriverPanelSide = 'left' | 'right';
 
-export interface DriverPanelOptions extends StackOptions {
+export interface DriverPanelOptions extends LegendBoxOptions {
 	side: DriverPanelSide;
 }
 
@@ -34,6 +36,8 @@ const BODY_MIN_HEIGHT = UICard.getDimensions(CardSize.MINI).height + MINI_GRID.m
  * the decks' two rows fit at 1280x720 without scrolling.
  */
 const PORTRAIT_MIN_HEIGHT = 8;
+/** A legend box's padding, a step tighter than the default so the decks' two rows fit at 1280x720 inside the sheet. */
+const PANEL_PADDING = 12;
 
 /**
  * Driver selection panel for the Driver Selection Screen
@@ -46,8 +50,12 @@ const PORTRAIT_MIN_HEIGHT = 8;
  * short one shrinks it first, then the scroll container, which scrolls
  * whatever no longer fits (DDB-31). Built once; a resize only lays it out
  * again.
+ *
+ * On the atlas it's a legend box (UI Art Direction, Components): the name
+ * in display 700, the specialty as a mono kicker, and the flavour in river
+ * blue, the atlas's colour for flavour text; the cards keep their faces.
  */
-export class DriverPanel extends Stack {
+export class DriverPanel extends LegendBox {
 	private readonly panelSide: DriverPanelSide;
 	private readonly idPrefix: string;
 	private empty = true;
@@ -75,13 +83,9 @@ export class DriverPanel extends Stack {
 	constructor({ side, ...options }: DriverPanelOptions) {
 		super({
 			direction: 'vertical',
-			padding: 16,
+			padding: PANEL_PADDING,
+			gap: 0,
 			crossAlign: 'stretch',
-			style: {
-				backgroundColor: '#3a3a5a',
-				borderColor: '#5a5a7a',
-				borderWidth: 2,
-			},
 			...options,
 		});
 
@@ -93,8 +97,10 @@ export class DriverPanel extends Stack {
 			widthMode: 'fill',
 			heightMode: 'fill',
 			style: {
+				fontRole: DISPLAY_BOLD,
+				fontWeight: 700,
 				fontSize: 24,
-				color: '#888888',
+				color: 'text_faint',
 				textAlign: 'center',
 			},
 			verticalAlign: 'middle',
@@ -105,7 +111,7 @@ export class DriverPanel extends Stack {
 		this.details = new Stack({
 			visible: false,
 			direction: 'vertical',
-			gap: 6,
+			gap: 4,
 			crossAlign: 'stretch',
 			widthMode: 'fill',
 			heightMode: 'fill',
@@ -117,11 +123,12 @@ export class DriverPanel extends Stack {
 			widthMode: 'fill',
 			heightMode: 'fill',
 			minSize: { height: PORTRAIT_MIN_HEIGHT },
-			margin: { bottom: 6 },
+			margin: { bottom: 2 },
+			// A portrait's place, not yet drawn: an index well with an ink rule.
 			style: {
-				backgroundColor: '#555577',
-				borderColor: '#777799',
-				borderWidth: 2,
+				backgroundColor: 'bg_inset',
+				borderColor: 'line_edge',
+				borderWidth: 'bw',
 			},
 		}));
 
@@ -130,10 +137,11 @@ export class DriverPanel extends Stack {
 			text: '',
 			id: `${this.idPrefix}driver_name`,
 			style: {
-				fontSize: 20,
-				color: '#ffffff',
+				fontRole: DISPLAY_BOLD,
+				fontWeight: 700,
+				fontSize: 22,
+				color: 'text',
 				textAlign: 'center',
-				fontWeight: 'bold',
 			},
 			wrap: 'none',
 			textOverflow: 'ellipsis',
@@ -142,7 +150,7 @@ export class DriverPanel extends Stack {
 			text: '',
 			style: {
 				fontSize: 14,
-				color: '#cccccc',
+				color: 'text_dim',
 				textAlign: 'center',
 			},
 			wrap: 'none',
@@ -151,10 +159,12 @@ export class DriverPanel extends Stack {
 		this.specialtyTag = this.addLine(this.details, new Text({
 			text: '',
 			style: {
-				fontSize: 16,
-				color: '#ffaa00',
+				fontRole: 'mono',
+				fontSize: 12,
+				color: 'text_dim',
 				textAlign: 'center',
-				fontWeight: 'bold',
+				textTransform: 'uppercase',
+				letterSpacing: ATLAS.captionTracking,
 			},
 			wrap: 'none',
 			textOverflow: 'ellipsis',
@@ -181,19 +191,21 @@ export class DriverPanel extends Stack {
 			text: '',
 			style: {
 				fontSize: 12,
-				color: '#aaaaaa',
+				color: 'data',
 				textAlign: 'center',
 			},
 			wrap: 'word',
 		}));
 		this.addLine(body, new Text({
-			text: 'Starting Deck:',
+			text: 'Starting deck',
 			margin: { top: 4 },
 			style: {
-				fontSize: 16,
-				color: '#ffffff',
+				fontRole: 'mono',
+				fontSize: 12,
+				color: 'text_dim',
 				textAlign: 'center',
-				fontWeight: 'bold',
+				textTransform: 'uppercase',
+				letterSpacing: ATLAS.captionTracking,
 			},
 			wrap: 'none',
 		}));

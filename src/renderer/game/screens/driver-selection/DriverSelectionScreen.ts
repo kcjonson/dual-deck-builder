@@ -1,9 +1,13 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
-import { Button } from '../../../engine/ui/Button';
 import { Container } from '../../../engine/components/Container';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
+import { tokens } from '../../../engine/theme/tokens';
+import { AtlasButton } from '../../ui/atlas/AtlasButton';
+import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
+import { ATLAS } from '../../ui/atlas/atlasStyle';
+import { PageTitle } from '../../ui/atlas/PageTitle';
 import { Driver } from '../../mechanics/Driver';
 import { isSameDriver } from '../../mechanics/DriverPair';
 import { DriverLoader } from '../../core/DriverLoader';
@@ -12,11 +16,16 @@ import { SynergyPreviewPanel } from './SynergyPreviewPanel';
 import { INSPECT_KEYS, inspectHotkey } from '../../ui/cardInspect';
 import { contains } from '../../../engine/services/OverlayService';
 
+const { space } = tokens;
 const BACK_BUTTON_WIDTH = 200;
 /** The driver panels' share of the body's width against the synergy column's. */
 const PANEL_WEIGHT = 35;
 const SYNERGY_WEIGHT = 18;
 const START_RUN_WIDTH = 300;
+/** A step under the highway's default, so the panels keep their room at 1280x720. */
+const START_RUN_HEIGHT = 52;
+/** The panels need their width for two rows of minis at 1024, so the sheet sets its content close inside the neatline. */
+const SHEET_INSET = space.space_2;
 
 /**
  * Driver Selection Screen implementing Game Flow Spec section 1.2
@@ -29,18 +38,22 @@ const START_RUN_WIDTH = 300;
  * and the stacks lay the rest out again; nothing is rebuilt. Escape and Back
  * return to the menu; the Escape is the root's own (R9.15), so an open
  * driver Select closes on it first.
+ *
+ * The page is one atlas sheet (UI Art Direction, Screens): the panels are
+ * legend boxes, Back to menu a back road, and START RUN the screen's one
+ * highway, faded print until two drivers are picked.
  */
 export class DriverSelectionScreen extends Screen {
 	private selectedDriver1: Driver | null = null;
 	private selectedDriver2: Driver | null = null;
 	private availableDrivers: Driver[] = [];
 
-	private page!: Stack;
+	private page!: AtlasSheet;
 	private leftDriverPanel!: DriverPanel;
 	private rightDriverPanel!: DriverPanel;
 	private synergyPanel!: SynergyPreviewPanel;
 	private confirmationText!: Text;
-	private startRunButton!: Button;
+	private startRunButton!: AtlasButton;
 	/**
 	 * A card preview of this screen was up as of the last frame. The tooltip
 	 * service hears Escape before the hotkeys and has hidden the preview by
@@ -49,7 +62,7 @@ export class DriverSelectionScreen extends Screen {
 	private previewShown = false;
 
 	constructor() {
-		super('driverSelectionScreen');
+		super('driverSelectionScreen', { theme: 'atlas' });
 	}
 
 	/**
@@ -57,13 +70,12 @@ export class DriverSelectionScreen extends Screen {
 	 * sizes the page again, so it keeps the selection.
 	 */
 	protected onMount(): void {
-		this.page = new Stack({
+		this.page = new AtlasSheet({
 			id: 'driver_select_page',
 			direction: 'vertical',
-			padding: { top: 24, bottom: 24, left: 48, right: 48 },
-			gap: 16,
+			contentInset: SHEET_INSET,
+			gap: space.space_3,
 			crossAlign: 'stretch',
-			style: { backgroundColor: '#2a2a4a' },
 		});
 		this.page.addChild(this.createHeader());
 		this.page.addChild(this.createBody());
@@ -85,7 +97,7 @@ export class DriverSelectionScreen extends Screen {
 		this.availableDrivers = [];
 	}
 
-	/** Back at the left, the title centred: a spacer the button's width balances the row. */
+	/** The title at the left, as every sheet's is, and Back to menu at the right. */
 	private createHeader(): Stack {
 		const header = new Stack({
 			id: 'driver_select_header',
@@ -94,35 +106,19 @@ export class DriverSelectionScreen extends Screen {
 			gap: 16,
 		});
 
-		const backButton = new Button({
-			label: 'Back to Menu',
+		header.addChild(new PageTitle({ title: 'Choose your drivers', subtitle: 'Skirmish / one run, two drivers', titleId: 'driver_select_title' }));
+
+		const backButton = new AtlasButton({
+			label: 'Back to menu',
 			id: 'driver_select_back_button',
-			// Tab reaches it first, as it reads (R9.18: a positive tabIndex
-			// leads the order)
+			// Tab reaches it first, as the old layout read (R9.18: a positive
+			// tabIndex leads the order)
 			tabIndex: 1,
-			icon: 'arrow_back',
-			size: 'lg',
 			width: BACK_BUTTON_WIDTH,
-			height: 50,
+			height: ATLAS.minHit,
 		});
 		backButton.onClick = () => this.back();
 		header.addChild(backButton);
-
-		header.addChild(new Text({
-			text: 'Choose Your Drivers',
-			id: 'driver_select_title',
-			widthMode: 'fill',
-			style: {
-				fontSize: 48,
-				color: '#ffffff',
-				textAlign: 'center',
-				fontWeight: 'bold',
-			},
-			wrap: 'none',
-			textOverflow: 'ellipsis',
-		}));
-
-		header.addChild(new Container({ width: BACK_BUTTON_WIDTH, height: 1 }));
 		return header;
 	}
 
@@ -200,25 +196,22 @@ export class DriverSelectionScreen extends Screen {
 			widthMode: 'fill',
 			style: {
 				fontSize: 16,
-				color: '#cccccc',
+				color: 'text_dim',
 				textAlign: 'right',
 			},
 			wrap: 'word',
 		});
 		footer.addChild(this.confirmationText);
 
-		// The primary action; disabled until two different drivers are picked,
-		// which the accent tone draws as its neutral disabled look.
-		this.startRunButton = new Button({
-			label: 'START RUN',
+		// The primary action, the highway; faded print until two different
+		// drivers are picked.
+		this.startRunButton = new AtlasButton({
+			label: 'Start run',
 			id: 'driver_select_start_run_button',
-			tone: 'accent',
-			size: 'lg',
+			variant: 'highway',
+			shield: true,
 			width: START_RUN_WIDTH,
-			height: 60,
-			style: {
-				fontSize: 'fs_xl',
-			},
+			height: START_RUN_HEIGHT,
 		});
 		this.startRunButton.enabled = false;
 		this.startRunButton.onClick = () => {

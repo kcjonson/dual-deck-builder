@@ -5,7 +5,10 @@ import { DriverSelectionScreen } from './DriverSelectionScreen';
 import { DriverPanel } from './DriverPanel';
 import type { Component } from '../../../engine/components/Component';
 import type { MountContext } from '../../../engine/components/MountContext';
-import { Button } from '../../../engine/ui/Button';
+import { AtlasButton } from '../../ui/atlas/AtlasButton';
+import { atlasScreenParts } from '../../ui/atlas/testing';
+import { layoutLint } from '../../../engine/debug/layoutLint';
+import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
 import { Badge } from '../../../engine/ui/Badge';
 import { Clock } from '../../../engine/animation/Clock';
 import { clipOnScreen, createTestContext, expectWithin, inkOnScreen } from '../../../engine/components/testing';
@@ -81,7 +84,7 @@ function flushPromises(): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, 0));
 }
 
-async function mountScreen(screen = new DriverSelectionScreen()): Promise<{ screen: DriverSelectionScreen; left: DriverPanel; right: DriverPanel; startRun: Button }> {
+async function mountScreen(screen = new DriverSelectionScreen()): Promise<{ screen: DriverSelectionScreen; left: DriverPanel; right: DriverPanel; startRun: AtlasButton }> {
 	screen.mount(context);
 	await flushPromises();
 	context.frame.layout();
@@ -89,7 +92,7 @@ async function mountScreen(screen = new DriverSelectionScreen()): Promise<{ scre
 	const left = findById(screen.root, 'driver_select_panel_left');
 	const right = findById(screen.root, 'driver_select_panel_right');
 	const startRun = findById(screen.root, 'driver_select_start_run_button');
-	if (!(left instanceof DriverPanel) || !(right instanceof DriverPanel) || !(startRun instanceof Button)) {
+	if (!(left instanceof DriverPanel) || !(right instanceof DriverPanel) || !(startRun instanceof AtlasButton)) {
 		throw new Error('driver selection layout changed; update the test lookups');
 	}
 	return { screen, left, right, startRun };
@@ -154,6 +157,18 @@ describe('DriverSelectionScreen: one driver per slot', () => {
 		expect(left.select.value).toBe(left.selectedDriver?.archetype);
 		expect(right.select.value).toBe(right.selectedDriver?.archetype);
 		expect(startRun.enabled).toBe(true);
+	});
+
+	it.each([[1440, 882], [1024, 600]])('is one atlas sheet whose one highway is START RUN, with no lint at %ix%i', async (width, height) => {
+		viewportSize = { width, height };
+		const { screen } = await mountScreen();
+		screen.resize(width, height);
+		context.frame.layout();
+		const parts = atlasScreenParts(screen.root);
+		expect([screen.theme, parts.sheets.length, parts.tabs.length]).toEqual(['atlas', 1, 0]);
+		expect(parts.highways.map((button) => button.id)).toEqual(['driver_select_start_run_button']);
+		expect(layoutLint(treeSnapshot([screen.root], { width, height })).violations).toEqual([]);
+		screen.unmount();
 	});
 
 	it("offers every driver in each Select, the other panel's disabled", async () => {
