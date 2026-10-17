@@ -127,9 +127,10 @@ export { RELIEF };
  * squared, weighted by class; and a bridge to cross a river, dearer the
  * longer the bridge, which keeps crossings short and square-on. Highways
  * mind grades most and bridges least. A highway or back road can't climb a
- * grade past `maxGrade`, and no bridge runs longer than `longestBridge`, so
- * a creek can be crossed at almost any angle and a broad river only close
- * to square.
+ * grade past `maxGrade`, no bridge runs longer than `longestBridge`, and
+ * none crosses its river less than 30 degrees off the river's line, in the
+ * metro too, so a creek can be crossed well askew and a broad river only
+ * close to square, and no deck runs down a river.
  */
 export const MOVE_COST = {
 	grade: { highway: 26, backRoad: 10, trail: 3.5 },
@@ -142,6 +143,8 @@ export const MOVE_COST = {
 	bridgeSpan: 8,
 	/** World units: the longest a bridge can be, the river's width over the sine of the angle it's crossed at. */
 	longestBridge: 24,
+	/** The sine of the least angle a road crosses a river's line at: 30 degrees. */
+	leastCrossing: 0.5,
 	/** World units past the water a bridge's deck reaches either side. */
 	bridgeSlack: 1,
 } as const;
@@ -439,7 +442,8 @@ export class TerrainFields {
 	 * What a road of `roadClass` pays to drive the short move from (x0, y0) to
 	 * (x1, y1) (`MOVE_COST`): Infinity when its end or its middle is
 	 * impassable, short of a river it bridges, when a bridge would run longer
-	 * than `longestBridge`, or when it climbs too steeply for its class.
+	 * than `longestBridge` or cross its river at less than `leastCrossing`, or
+	 * when it climbs too steeply for its class.
 	 * The ground between its end and its middle isn't sampled, so a caller
 	 * stepping further than a few world units samples its own way. The
 	 * metro's rivers cost nothing to cross. Leaves the bridges' share in
@@ -457,6 +461,7 @@ export class TerrainFields {
 		const crossings = water === null ? 0 : water.riverCrossings(x0, y0, x1, y1);
 		for (let index = 0; index < crossings; index += 1) {
 			const { along, width, sine } = (water as WaterLayer).riverCrossing(index);
+			if (!(sine >= MOVE_COST.leastCrossing)) return Infinity;
 			const cx = x0 + dx * along;
 			const cy = y0 + dy * along;
 			if (cx * cx + cy * cy <= this.bridgedSquared) continue;
@@ -477,8 +482,8 @@ export class TerrainFields {
 	/**
 	 * The stretches of the move from (x0, y0) to (x1, y1) on a bridge, into
 	 * `spans` as pairs of `along` (0 to 1), from then to: one for each river
-	 * the move crosses with a bridge no longer than `MOVE_COST.longestBridge`,
-	 * or any bridge in the metro, reaching the bridge's span either side of
+	 * the move crosses at `MOVE_COST.leastCrossing` or more with a bridge no
+	 * longer than `MOVE_COST.longestBridge`, or any bridge in the metro, reaching the bridge's span either side of
 	 * where it crosses and `MOVE_COST.bridgeSlack` past that. Returns how many.
 	 */
 	public bridgeSpans(x0: number, y0: number, x1: number, y1: number, water: WaterLayer | null, spans: number[]): number {
@@ -491,6 +496,7 @@ export class TerrainFields {
 		let count = 0;
 		for (let index = 0; index < crossings; index += 1) {
 			const { along, width, sine } = water.riverCrossing(index);
+			if (!(sine >= MOVE_COST.leastCrossing)) continue;
 			const cx = x0 + dx * along;
 			const cy = y0 + dy * along;
 			if (cx * cx + cy * cy > this.bridgedSquared && !(width <= MOVE_COST.longestBridge * sine)) continue;
