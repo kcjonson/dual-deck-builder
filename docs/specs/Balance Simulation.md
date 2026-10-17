@@ -52,7 +52,8 @@ Generates campaign maps (`rollParams` seeds, `--maps` of them), reads every rout
 - skulls;
 - hours out and back, and routes past dark;
 - the band and fight-floor shortfalls the stops stage recorded;
-- how many of a sector's routes open on the same stops (shared trunk legs).
+- each route's own road (legs no other POI's routes use): its share of the route's stops, and whether the route's floor fights are on it;
+- for each POI, its nearest neighbor by shared road, and how many of its stops a run to that neighbor would leave cleared.
 
 It also writes a route corpus, those maps' routes as JSON, so `runs` doesn't have to regenerate maps.
 
@@ -62,7 +63,7 @@ Every crew against every encounter template, at each game stage asked for, with 
 
 ### runs
 
-Every crew over routes from the corpus, each stop in order: fights played, calm stops resolved by a stand-in rule (take every find; at a garage, repair what the scrap buys), damage carried from stop to stop as the combat bridge writes it back. Reports by tier against the per-run targets.
+Every crew over routes from the corpus, each stop in order: fights played, calm stops resolved by a stand-in rule (take every find; at a garage, repair what the scrap buys), damage carried from stop to stop as the combat bridge writes it back. Reports by tier against the per-run targets. Each route runs fresh and again the day after a run to its nearest neighbor, with that run's stops still cleared, so the gap shows whether spacing keeps a neighbor's run from getting too easy.
 
 ### calibrate
 
@@ -70,7 +71,7 @@ Fits each raider's nominal threat. It plays random mixes of raiders against the 
 
 ### campaign (later)
 
-A pool of four played day by day: one run a day to a tier its stage reaches, injuries and the infirmary, rewards taken by a simple rule. Reports how long a compound lasts and how often no legal pair is fit.
+A pool of four played day by day: one run a day to a tier its stage reaches, clearing POIs and stops as it goes, injuries and the infirmary, rewards taken by a simple rule. Reports how long a compound lasts, how often no legal pair is fit, and how many POIs are left open by day.
 
 ### Options
 

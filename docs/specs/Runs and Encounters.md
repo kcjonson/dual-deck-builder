@@ -10,6 +10,7 @@ Decided by Kevin, 2026-10-17. Everything below serves these.
 2. No empty steps. Every stop on a run is something to play or decide.
 3. Runs are a similar length: 3 to 4 stops early in a campaign, longer as it goes on. Distance (the destination's tier) sets the base, and game stage adds a stop or two late.
 4. A fight is a group, 4 to 20 raiders to kill, reinforced partway through. Never a single vehicle.
+5. A run clears its POI, so there's no reason to go back: a cleared POI is disabled. Cleared ground doesn't come back right away, and POIs are spaced out enough that clearing one doesn't make its neighbor too easy.
 
 Also decided by Kevin that day:
 
@@ -39,6 +40,7 @@ A route's stop count comes from a band set by its destination's tier, not from t
 - Inside its band a route still leans on its road: a long route sits at the top of its band, a short one at the bottom.
 - When the clock and the band disagree, home by dark wins (Area Map Generation, guarantee 10), then the fight floor, then the band's minimum. A route can lose a calm stop to get home in daylight; it never loses its last fight.
 - Stops are fixed with the map, so the route card shows what a charted route holds. The route card and departure read a route at today's game stage, and a run keeps the route it left with.
+- Every route keeps its fight floor, and at least half its band (starting value), on its own road: legs no other POI's routes use. That's what spacing POIs out buys (rule 5): a run never loses its floor fights to stops another run cleared.
 
 How the stops stage meets the bands on a route tree whose legs are shared is in Area Map Generation, stage 9.
 
@@ -56,9 +58,11 @@ Every stop is a fight or a stop with a choice in it. A stop type goes on the map
 
 While few calm types exist, the tables lean on those, and a route's calm stops may repeat a type.
 
-### Rerolls
+### Clearing
 
-A stop's type is fixed with the map. Its contents (a fight's raiders, a find's haul) reroll every night, so a run always meets its fights, a road cleared the day before included. This replaces the five-day cooldown on cleared stops.
+- A run clears every stop it resolves. A cleared stop stays cleared for a cooldown (starting value: 5 days), then comes back with its contents rerolled; its type is fixed with the map. A later run down that road drives past a stop still cleared: it isn't a step, so it isn't an empty one, and the route card shows it as cleared.
+- A run that reaches its POI clears it, taking its yield, and a cleared POI is disabled: the area map shows it cleared, and it can't be planned (Kevin, 2026-10-17).
+- A run sharing road with a POI cleared in the last few days is shorter than its band, by the shared stops still cleared. Its own road still holds its floor fights and at least half its band (How many stops), so it's never fight-free and never a free ride.
 
 ## Fights
 
@@ -148,7 +152,7 @@ Game stage is how far into the campaign it is: `floor(day / 8) + 2 x strongholds
 - Fight size: templates grow, as above.
 - The return ambush (Compound and Supply Runs, Return): none before stage 2, then 3% a stage, up to 15% at stage 6.
 
-Tier sets where a fight starts and stage lifts everything as the campaign goes on, which keeps an old tier 1 road worth the fuel without making it the hard way home.
+Tier sets where a fight starts and stage lifts everything as the campaign goes on, so the near roads a late run still drives through aren't a free ride.
 
 ## Just hard enough
 
@@ -188,6 +192,7 @@ The sim's player plays worse than a person: the aggressive AI plays every card i
 - Waves need encounter data and the mook class to be worth anything, and the top bar's readout to be readable. Close-up, shake-off, rout, and break-off land with waves or before them.
 - The stop bands need the first calm stops (the finds) at the same time, or the new stops would be empty.
 - Game stage needs the day clock and strongholds taken, both of which exist; its extras need the bands.
+- Clearing needs each stop's state in the save (the day it was cleared, its roll count) and the day clock's cooldown hook. Clearing a POI replaces the share-based POI depletion, and spacing POIs for their own road is a change to the POI stage.
 - Every number here is tuned with the balance sim, so the sim comes first.
 
 ## Open questions
@@ -195,7 +200,7 @@ The sim's player plays worse than a person: the aggressive AI plays every card i
 1. When POI objectives become encounters (Compound and Supply Runs, The loop, step 6), does a route's band come down by one, since every run would then end on a fight?
 2. Should a bigger fight pay more: scrap a raider, or a better card pick?
 3. Ambush waves onto the player's shoulder, once the Rig can reach it (DDB-494).
-4. Once there's plenty of calm content, should a cleared road stay quieter for a few days again, as a reward for clearing it?
+4. Does a cleared POI ever reopen, late in a campaign, or is it gone for good?
 5. What's the least a calm stop can be? It has to be a choice (rule 2), and a find on its own is a gift, not a choice.
 6. What counts as a fight going nowhere, for a break-off?
 7. Does every raider class need a card that can hit every starting archetype's vehicle, so no crew is immune to a whole class?

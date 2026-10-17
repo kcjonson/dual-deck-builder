@@ -147,19 +147,19 @@ Open at any time outside a fight or an event: from the compound's top bar, the m
 It shows:
 
 - The region drawn like a page of a road atlas: the compound at the centre in the ruins of a metro, ranges, rivers, lakes, towns, and the roads between them (Area Map Generation, Rendering).
-- Every known POI, with what it yields, its tier, and its state (unvisited, looted, depleted).
+- Every known POI, with what it yields, its tier, and its state (unvisited or cleared).
 - Roads by class, and on the legs routes use, what you know of them: charted legs with their stops, rumored legs with "?" stops, uncharted legs as dashed stubs fading into fog. Roads no route uses are plain roads on the map; runs never use them.
 - Dressing: street grids, rail lines, labels, and contamination, which make the region look real and carry no gameplay.
 - Fog over everything not yet uncovered.
 - Strongholds you've found. Others are hidden in the fog in every direction.
 - Explored percentage and strongholds found.
 
-Selecting a POI shows its yields, objective, tier, and how many routes are known, with "Plan a run here", which opens the run route screen for it.
+Selecting a POI shows its yields, objective, tier, and how many routes are known, with "Plan a run here", which opens the run route screen for it. A cleared POI's is off.
 
 ### POIs
 
 - Each POI has a yield table (meds and scrap for a hospital, water for a water plant) and an objective: a fight, an elite fight, an event, or for a stronghold a boss.
-- A POI holds a limited amount. Each successful run takes a share, and after two or three it's depleted, which pushes the compound outward. A depleted POI can refill over many days (starting value: 20).
+- A run clears its POI: it takes the POI's yield, and the POI is disabled, so there's no reason to go back (Kevin, 2026-10-17). That's what pushes the compound outward. POIs are spaced out so clearing one doesn't make its neighbor's run too easy ([Runs and Encounters](./Runs%20and%20Encounters.md), Clearing).
 - New POIs come from exploring (the fog lifts over them), the radio mast, and events.
 
 ## The run route screen
@@ -252,7 +252,7 @@ Every leg of road a route uses is in one of three states, and what you see depen
 - Rumored: the road and how many stops, not what they are. From the radio mast, a trader's tip, or an event.
 - Uncharted: a direction and the next stop. Each stop reveals the one after it as you drive.
 
-Charting is permanent, but stops aren't: a cleared road is safe for that run's return, and its stops' contents reroll overnight, so the next run down it meets them again, with the road still charted so you see what's there ([Runs and Encounters](./Runs%20and%20Encounters.md), Rerolls).
+Charting is permanent, but stops aren't: a cleared road is safe for that run's return, and its stops come back over the following days (starting value: a re-roll after 5 days), with the road still charted so you see what's there. Until then a run down that road drives past them ([Runs and Encounters](./Runs%20and%20Encounters.md), Clearing).
 
 Fog over land lifts around every road you drive and every POI you reach (see Area Map Generation, Knowledge and fog). Ways to see further: drive it; the radio mast; a scout escort that shows two stops ahead instead of one; event tips.
 
