@@ -2,7 +2,7 @@ import type { ClickCallback, ComponentOptions } from '../../../engine/components
 import { Text } from '../../../engine/components/Text';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { RGBA, Rect } from '../../../engine/draw/geometry';
-import type { Theme } from '../../../engine/theme/tokens';
+import type { ColorToken, Theme } from '../../../engine/theme/tokens';
 import { Pressable } from '../../../engine/ui/Pressable';
 import { ATLAS, AtlasInks, DISPLAY_BOLD, atlasInks } from './atlasStyle';
 import { DECK_GLYPH, DeckGlyphGeometry } from './deck';
@@ -22,12 +22,14 @@ export interface ContentsRowOptions extends Omit<ComponentOptions, 'style'> {
 	label: string;
 	/** Mono, at the right end of the leaders. */
 	value?: string;
-	/** A line under a primary row's label: the save's summary, or why there's nothing to continue. */
+	/** A line under the label, running under the value too: the save's summary, or why there's nothing to continue. */
 	subtitle?: string;
 	lead?: ContentsLead;
 	variant?: ContentsRowVariant;
 	/** Faded print: shown in its place, but not available. Not focusable or pressable. */
 	faded?: boolean;
+	/** The label in ink faint: an entry that's there but secondary (developer tools). Still pressable. */
+	muted?: boolean;
 	onClick?: ClickCallback;
 }
 
@@ -71,15 +73,16 @@ const CLEAR: RGBA = [0, 0, 0, 0];
  * HandMarkLayer's highlighter), never the row's own fill.
  */
 export class ContentsRow extends Pressable {
-	public readonly variant: ContentsRowVariant;
-	private readonly metrics: RowMetrics;
+	private rowVariant: ContentsRowVariant;
+	private metrics: RowMetrics;
 	private readonly labelText: Text;
 	private readonly valueText: Text | null;
 	private readonly subtitleText: Text | null;
-	private readonly glyph: MapGlyphGeometry | null;
-	private readonly glyphLabel: string | null;
+	private glyph: MapGlyphGeometry | null;
+	private glyphLabel: string | null;
 	private readonly deck: DeckGlyphGeometry | null;
 	private isFaded: boolean;
+	private readonly isMuted: boolean;
 	private inks: AtlasInks;
 	private paint: GlyphPaint;
 	private readonly box: Rect = { x: 0, y: 0, width: 0, height: 0 };
@@ -89,23 +92,23 @@ export class ContentsRow extends Pressable {
 	private readonly leaders: Rect[] = [];
 	private leaderCount = 0;
 
-	constructor({ label, value, subtitle, lead = null, variant = 'standard', faded = false, onClick, ...options }: ContentsRowOptions) {
+	constructor({ label, value, subtitle, lead = null, variant = 'standard', faded = false, muted = false, onClick, ...options }: ContentsRowOptions) {
 		const metrics = METRICS[variant];
 		super({ focusable: true, widthMode: 'fill', height: metrics.height, ...options, ...(faded ? { enabled: false } : {}) });
 		this.componentType = 'ContentsRow';
-		this.variant = variant;
+		this.rowVariant = variant;
 		this.metrics = metrics;
 		this.isFaded = faded;
+		this.isMuted = muted;
 		this.inks = atlasInks(this.themeTokens);
-		const kind = variant === 'primary' ? 'shield' : 'circled';
 		const glyphLead = lead !== null && lead !== 'deck' && metrics.glyph > 0;
-		this.glyph = glyphLead ? new MapGlyphGeometry(kind) : null;
+		this.glyph = glyphLead ? new MapGlyphGeometry(glyphKind(variant)) : null;
 		this.glyphLabel = glyphLead ? (lead as { glyph: string }).glyph : null;
 		this.deck = lead === 'deck' ? new DeckGlyphGeometry() : null;
-		this.paint = glyphPaint(kind, this.inks, { faded });
+		this.paint = glyphPaint(glyphKind(variant), this.inks, { faded });
 		this.labelText = new Text({
 			text: label,
-			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: metrics.label, color: faded ? 'text_disabled' : 'text' },
+			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: metrics.label, color: this.labelColor },
 			wrap: 'none',
 			textOverflow: 'ellipsis',
 			verticalAlign: 'middle',
@@ -118,13 +121,47 @@ export class ContentsRow extends Pressable {
 		this.valueText = value !== undefined
 			? new Text({
 				text: value,
-				style: { fontRole: 'mono', fontSize: metrics.value, color: faded ? 'text_disabled' : variant === 'compact' ? 'text_dim' : 'text' },
+				style: { fontRole: 'mono', fontSize: metrics.value, color: this.valueColor },
 				wrap: 'none',
 				verticalAlign: 'middle',
 			})
 			: null;
 		if (this.valueText) this.addPart(this.valueText);
 		if (onClick) this.onClick = onClick;
+	}
+
+	public get variant(): ContentsRowVariant {
+		return this.rowVariant;
+	}
+
+	/**
+	 * Moves the row between `primary` and `standard`: the page's lead changes
+	 * with the save (Continue, or New campaign), and the row keeps its place,
+	 * its focus, and its handlers. A glyph lead turns between the shield and
+	 * the circle.
+	 */
+	public set variant(variant: ContentsRowVariant) {
+		if (variant === this.rowVariant) return;
+		if ((variant === 'compact') !== (this.rowVariant === 'compact')) throw new Error('ContentsRow: a compact row has no lead column, so it stays compact');
+		this.rowVariant = variant;
+		this.metrics = METRICS[variant];
+		const kind = glyphKind(variant);
+		if (this.glyph) this.glyph = new MapGlyphGeometry(kind);
+		this.paint = glyphPaint(kind, this.inks, { faded: this.isFaded });
+		this.labelText.fontSize = this.metrics.label;
+		if (this.valueText) this.valueText.fontSize = this.metrics.value;
+		this.height = this.metrics.height;
+		this.invalidateLayout();
+	}
+
+	/** The number, letter, or day in the lead glyph; null for a row led by the deck glyph or nothing. */
+	public get leadLabel(): string | null {
+		return this.glyphLabel;
+	}
+
+	public set leadLabel(label: string) {
+		if (this.glyphLabel === null) throw new Error('ContentsRow: a row built without a glyph lead has no label for one');
+		this.glyphLabel = label;
 	}
 
 	public get label(): string {
@@ -150,6 +187,16 @@ export class ContentsRow extends Pressable {
 		return this.subtitleText?.text ?? null;
 	}
 
+	public set subtitle(subtitle: string) {
+		if (!this.subtitleText) throw new Error('ContentsRow: a row built without a subtitle has no line for one');
+		this.subtitleText.text = subtitle;
+		this.invalidateLayout();
+	}
+
+	public get muted(): boolean {
+		return this.isMuted;
+	}
+
 	public get faded(): boolean {
 		return this.isFaded;
 	}
@@ -159,9 +206,17 @@ export class ContentsRow extends Pressable {
 		if (faded === this.isFaded) return;
 		this.isFaded = faded;
 		this.enabled = !faded;
-		this.paint = glyphPaint(this.glyph?.kind ?? 'circled', this.inks, { faded });
-		this.labelText.color = faded ? 'text_disabled' : 'text';
-		if (this.valueText) this.valueText.color = faded ? 'text_disabled' : this.variant === 'compact' ? 'text_dim' : 'text';
+		this.paint = glyphPaint(glyphKind(this.rowVariant), this.inks, { faded });
+		this.labelText.color = this.labelColor;
+		if (this.valueText) this.valueText.color = this.valueColor;
+	}
+
+	private get labelColor(): ColorToken {
+		return this.isFaded ? 'text_disabled' : this.isMuted ? 'text_faint' : 'text';
+	}
+
+	private get valueColor(): ColorToken {
+		return this.isFaded ? 'text_disabled' : this.rowVariant === 'compact' ? 'text_dim' : 'text';
 	}
 
 	/** Rows abut, so the ring is drawn inside, as a list row's is. */
@@ -176,7 +231,7 @@ export class ContentsRow extends Pressable {
 
 	protected onThemeChange(theme: Theme): void {
 		this.inks = atlasInks(theme);
-		this.paint = glyphPaint(this.glyph?.kind ?? 'circled', this.inks, { faded: this.isFaded });
+		this.paint = glyphPaint(glyphKind(this.rowVariant), this.inks, { faded: this.isFaded });
 	}
 
 	protected layoutChildren(): void {
@@ -214,7 +269,7 @@ export class ContentsRow extends Pressable {
 		this.labelText.setSize(labelWidth, labelLine);
 		if (this.subtitleText) {
 			this.subtitleText.setPosition(x, top + labelLine + SUBTITLE_GAP);
-			this.subtitleText.setSize(Math.max(0, valueX - LEADER_MARGIN - x), subtitleLine);
+			this.subtitleText.setSize(Math.max(0, width - m.padX - x), subtitleLine);
 		}
 		this.placeLeaders(x + labelWidth + LEADER_MARGIN, valueX - LEADER_MARGIN, Math.round(top + labelLine / 2));
 	}
@@ -225,7 +280,7 @@ export class ContentsRow extends Pressable {
 		const wash = (flags.pressed || flags.hovered) && flags.enabled ? inks.hover : CLEAR;
 		draw.drawRect({ id: this.id ?? undefined, rect: this.box, fill: wash });
 		if (flags.pressed) draw.drawRect({ rect: this.box, fill: inks.hover });
-		const ruleColor = this.variant === 'primary' ? inks.ink : inks.hairline;
+		const ruleColor = this.rowVariant === 'primary' ? inks.ink : inks.hairline;
 		if (this.metrics.ruleAbove) draw.drawRect({ rect: this.ruleTop, fill: ruleColor });
 		draw.drawRect({ rect: this.ruleBottom, fill: ruleColor });
 		if (this.glyph) this.glyph.draw(draw, this.paint, this.glyphLabel);
@@ -246,6 +301,10 @@ export class ContentsRow extends Pressable {
 		}
 		this.leaderCount = count;
 	}
+}
+
+function glyphKind(variant: ContentsRowVariant): 'shield' | 'circled' {
+	return variant === 'primary' ? 'shield' : 'circled';
 }
 
 function setRect(rect: Rect, x: number, y: number, width: number, height: number): void {
