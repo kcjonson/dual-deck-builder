@@ -1,6 +1,7 @@
 import { POI_TUNING, PoiTuning } from '../map/PoiData';
 import type { RoadClass } from '../map/RoadNetwork';
-import { DescribeOptions, RouteDescriptor, RouteMap, describeMap, poiNames } from '../map/RouteDescriptors';
+import { mapPoiNames } from '../map/PoiNames';
+import { DescribeOptions, RouteDescriptor, RouteMap, describeMap } from '../map/RouteDescriptors';
 import { ROAD_CLASSES } from '../map/RoadNetwork';
 import { isFight } from '../map/StopData';
 import type { LegProfile } from '../map/Stops';
@@ -57,7 +58,7 @@ export interface OfferOptions extends DescribeOptions {
 function offersByPoi(map: RouteMap, described: readonly (readonly RouteDescriptor[])[], { poiTuning = POI_TUNING }: OfferOptions): RunRoute[][] {
 	const { pois } = map.products;
 	const { types } = poiTuning;
-	const names = poiNames(pois);
+	const names = mapPoiNames(map);
 	return described.map((routes, poi) => {
 		const { tier, type } = pois.pois[poi];
 		// A stronghold yields by its own rules, none of which exist yet.

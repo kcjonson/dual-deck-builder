@@ -56,6 +56,7 @@ export const MAP_STAGE_LABELS: Readonly<Record<AreaMapStageName, string>> = {
 	routeTree: 'route tree',
 	pois: 'POIs',
 	stops: 'stops',
+	dressing: 'dressing',
 };
 
 /** A map generation's progress, for a line under whatever waits on it: "Making the area map: POIs (7 of 8)". */
