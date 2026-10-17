@@ -40,8 +40,8 @@ function hex(value: string, alpha = 1): RGBA {
 /** The plate's own colours: dirt, scrap, and tin are art, not print, so they live here rather than in the theme (as the area map's do). */
 const ART = {
 	dirt: hex('#C2AE88'),
-	dirtDark: hex('#7A6244', 0.13),
-	dirtLight: hex('#E8DCBC', 0.22),
+	dirtDark: hex('#7A6244', 0.09),
+	dirtLight: hex('#E8DCBC', 0.13),
 	ruts: hex('#8C7655', 0.5),
 	fenceUnder: hex('#2A2521'),
 	scrap: [hex('#6E6A61'), hex('#8E5B3A'), hex('#5C6B5E'), hex('#7D7A70')],
@@ -273,14 +273,38 @@ const RUTS: readonly (readonly Vec2[])[] = [
 const ROAD_DASH = { on: 18, off: 16, width: 3, alpha: 0.8 };
 const MAX_DASHES = 96;
 
-/** Soft patches of darker and lighter dirt, scattered once by a fixed seed. */
-const BLOTCHES: readonly { at: Vec2; radius: number; light: boolean }[] = (() => {
+/**
+ * Packed dirt's mottling: many small irregular patches, darker and lighter,
+ * scattered once by a fixed seed, each a fan of triangles round a ragged
+ * outline. Each shade is one bare triangle list, so the ground is two draws.
+ */
+const DIRT_PATCHES: Readonly<{ dark: readonly Vec2[]; light: readonly Vec2[] }> = (() => {
 	let seed = 0x2f6b1d;
 	const next = (): number => {
 		seed = (seed * 1664525 + 1013904223) >>> 0;
 		return seed / 0x100000000;
 	};
-	return Array.from({ length: 34 }, () => ({ at: p(next() * PLATE.width, next() * PLATE.height), radius: 18 + next() * 46, light: next() < 0.45 }));
+	const dark: Vec2[] = [];
+	const light: Vec2[] = [];
+	for (let index = 0; index < 260; index++) {
+		const centre = p(next() * PLATE.width, next() * PLATE.height);
+		// Mostly grit, a few broader scuffs.
+		const radius = next() < 0.85 ? 3 + next() * 9 : 12 + next() * 14;
+		const stretch = 0.55 + next() * 0.9;
+		const turn = next() * Math.PI;
+		const sides = 6 + Math.floor(next() * 4);
+		const outline: Vec2[] = [];
+		for (let side = 0; side < sides; side++) {
+			const angle = (side / sides) * Math.PI * 2;
+			const reach = radius * (0.55 + next() * 0.6);
+			const along = Math.cos(angle) * reach * stretch;
+			const across = Math.sin(angle) * reach;
+			outline.push(p(centre.x + along * Math.cos(turn) - across * Math.sin(turn), centre.y + along * Math.sin(turn) + across * Math.cos(turn)));
+		}
+		const into = next() < 0.45 ? light : dark;
+		for (let side = 0; side < sides; side++) into.push(centre, outline[side], outline[(side + 1) % sides]);
+	}
+	return { dark, light };
 })();
 
 const TANK = { at: p(364, 432), radius: 40, rim: 5, hub: 10 };
@@ -687,7 +711,8 @@ export class CompoundYard extends Stack {
 	private drawGround(draw: DrawApi): void {
 		const inks = this.inks;
 		draw.drawRect({ id: this.id ?? undefined, rect: this.ground, fill: ART.dirt });
-		for (const blotch of BLOTCHES) draw.drawCircle({ center: blotch.at, radius: blotch.radius, fill: blotch.light ? ART.dirtLight : ART.dirtDark });
+		draw.drawPolygon({ points: DIRT_PATCHES.dark, fill: ART.dirtDark });
+		draw.drawPolygon({ points: DIRT_PATCHES.light, fill: ART.dirtLight });
 		for (const rut of RUTS) draw.drawPolyline({ points: rut, color: ART.ruts, width: 7, cap: 'round' });
 		draw.drawPolyline({ points: this.road, color: inks.casing, width: 46 });
 		draw.drawPolyline({ points: this.road, color: ART.asphalt, width: 38 });

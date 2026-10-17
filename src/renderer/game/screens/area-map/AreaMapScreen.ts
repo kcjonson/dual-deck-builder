@@ -206,7 +206,7 @@ export class AreaMapScreen extends Screen {
 		head.addChild(this.dayLine);
 		main.addChild(head);
 		const plate = new PlateFrame({ id: 'area_map_plate', widthMode: 'fill', heightMode: 'fill' });
-		plate.addChild(view);
+		plate.art.addChild(view);
 		main.addChild(plate);
 		this.status = caption({ id: 'area_map_status', text: 'Looking for the saved campaign.' });
 		main.addChild(this.status);

@@ -340,7 +340,7 @@ export class CompoundScreen extends Screen {
 			onChoose: (id) => this.choose(id),
 		});
 		for (const id of BUILDING_IDS) this.yard.setBuilt({ building: id, built: false, state: '' });
-		plate.addChild(this.yard);
+		plate.art.addChild(this.yard);
 		column.addChild(plate);
 		return column;
 	}

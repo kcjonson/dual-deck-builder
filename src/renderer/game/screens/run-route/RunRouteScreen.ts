@@ -195,7 +195,7 @@ export class RunRouteScreen extends Screen {
 		head.addChild(screenTitle({ id: 'run_route_title', text: 'Run route' }));
 		main.addChild(head);
 		const plate = new PlateFrame({ id: 'run_route_plate', widthMode: 'fill', heightMode: 'fill' });
-		plate.addChild(view);
+		plate.art.addChild(view);
 		main.addChild(plate);
 		this.status = caption({ id: 'run_route_status', text: 'Looking for the saved campaign.' });
 		main.addChild(this.status);
@@ -239,7 +239,7 @@ export class RunRouteScreen extends Screen {
 		side.addChild(scroll);
 
 		const go = new Stack({ id: 'run_route_go', widthMode: 'fill', crossAlign: 'stretch', gap: 6 });
-		this.homeLine = new Text({ id: 'run_route_home_by', text: '', widthMode: 'fill', style: { fontSize: 'fs_sm', fontWeight: 'bold', color: 'text' } });
+		this.homeLine = new Text({ id: 'run_route_home_by', text: '', widthMode: 'fill', wrap: 'word', style: { fontSize: 14, color: 'text' } });
 		go.addChild(this.homeLine);
 		this.loadOutButton = new AtlasButton({
 			label: 'Load out the crew',
