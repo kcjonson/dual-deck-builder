@@ -2,8 +2,8 @@
 {"path":"gallery_root/gallery_scene_atlas_plate/Text[0]","text":"Plates and the hand","rect":[56,48,1328,21]},
 {"path":"gallery_root/gallery_scene_atlas_plate/gallery_scene_atlas_plate_rows/Stack[0]/Text[0]","text":"a plate with its caption, a grease loop round the selected place; a highlighter under the chosen order","rect":[56,93,806.52,14.52]},
 {"path":"gallery_root/gallery_scene_atlas_plate/gallery_scene_atlas_plate_rows/Stack[0]/Stack[1]/atlas_plate/Text[0]","text":"Plate 1 · The compound from above, at dawn","rect":[56,341.52,420,14]},
-{"path":"gallery_root/gallery_scene_atlas_plate/gallery_scene_atlas_plate_rows/Stack[0]/Stack[1]/atlas_plate/atlas_plate_yard/atlas_plate_bunkhouse/MapGlyph[0]","text":"1","rect":[91,150.52,28,28]},
-{"path":"gallery_root/gallery_scene_atlas_plate/gallery_scene_atlas_plate_rows/Stack[0]/Stack[1]/atlas_plate/atlas_plate_yard/atlas_plate_bunkhouse/Text[1]","text":"Bunkhouse","rect":[125,151.32,86,26.4]},
+{"path":"gallery_root/gallery_scene_atlas_plate/gallery_scene_atlas_plate_rows/Stack[0]/Stack[1]/atlas_plate/atlas_plate_art/atlas_plate_yard/atlas_plate_bunkhouse/MapGlyph[0]","text":"1","rect":[91,150.52,28,28]},
+{"path":"gallery_root/gallery_scene_atlas_plate/gallery_scene_atlas_plate_rows/Stack[0]/Stack[1]/atlas_plate/atlas_plate_art/atlas_plate_yard/atlas_plate_bunkhouse/Text[1]","text":"Bunkhouse","rect":[125,151.32,86,26.4]},
 {"path":"gallery_root/gallery_scene_atlas_plate/gallery_scene_atlas_plate_rows/Stack[0]/Stack[1]/atlas_plate_orders/Text[0]","text":"The day","rect":[520,186.92,308,24]},
 {"path":"gallery_root/gallery_scene_atlas_plate/gallery_scene_atlas_plate_rows/Stack[0]/Stack[1]/atlas_plate_orders/LegendRow[2]/Text[0]","text":"Rest a day: the compound eats 5 food and 5 water","rect":[520,218.92,308,38.13]},
 {"path":"gallery_root/gallery_scene_atlas_plate/gallery_scene_atlas_plate_rows/Stack[0]/Stack[1]/atlas_plate_orders/LegendRow[3]/Text[0]","text":"Scavenge: 2 fuel and 12 scrap","rect":[520,265.05,308,19.07]}

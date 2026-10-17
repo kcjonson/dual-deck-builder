@@ -1,5 +1,6 @@
 [
-{"path":"battleResultScreen/result_panel/result_title","text":"DEFEAT!","rect":[441.57,201.54,140.87,62.4]},
-{"path":"battleResultScreen/result_panel/result_subtitle","text":"Your vehicles have been destroyed!","rect":[363.94,279.94,296.12,24.51]},
-{"path":"battleResultScreen/result_panel/result_continue_button/Text[0]","text":"Continue","rect":[424,352.46,176,46]}
+{"path":"battleResultScreen/result_panel/result_kicker","text":"Fight lost","rect":[468.44,247.59,87.12,15.84]},
+{"path":"battleResultScreen/result_panel/result_title","text":"DEFEAT!","rect":[406.78,275.43,210.45,67.2]},
+{"path":"battleResultScreen/result_panel/result_subtitle","text":"Your vehicles have been destroyed!","rect":[244,354.63,536,21.79]},
+{"path":"battleResultScreen/result_panel/result_continue_button","text":"Continue","rect":[382,404.41,260,56]}
 ]

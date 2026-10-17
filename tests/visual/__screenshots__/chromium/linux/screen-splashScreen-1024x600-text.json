@@ -1,4 +1,7 @@
 [
-{"path":"splashScreen/splash_title","text":"Dual Deckbuilder","rect":[361.46,389.82,301.08,62.4]},
-{"path":"splashScreen/splash_subtitle","text":"A Roguelike Card Game","rect":[391.92,452.22,240.15,29.96]}
+{"path":"splashScreen/splash_scene/splash_book/splash_cover_kicker","text":"A road atlas of the Halcyon region","rect":[268,114.67,505.33,12]},
+{"path":"splashScreen/splash_scene/splash_book/splash_cover_edition","text":"fourth edition, revised after","rect":[268,406.67,505.33,16]},
+{"path":"splashScreen/splash_scene/splash_loader/Stack[1]/splash_loader_caption","text":"UNFOLDING THE MAP","rect":[302,519,149.28,15.84]},
+{"path":"splashScreen/splash_scene/splash_loader/Stack[1]/splash_loader_percent","text":"33%","rect":[697.04,519,24.96,15.84]},
+{"path":"splashScreen/splash_scene/splash_build","text":"DEVELOPMENT BUILD","rect":[0,560,1024,14]}
 ]
