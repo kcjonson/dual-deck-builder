@@ -6,7 +6,7 @@ import type { ColorToken, Theme } from '../../../engine/theme/tokens';
 import { Pressable } from '../../../engine/ui/Pressable';
 import { ATLAS, AtlasInks, atlasInks } from './atlasStyle';
 import { DECK_GLYPH, DeckGlyphGeometry } from './deck';
-import { GlyphPaint, MapGlyphGeometry, glyphPaint, glyphWidth } from './mapGlyphs';
+import { GlyphPaint, MapGlyphGeometry, MapGlyphKind, glyphPaint, glyphWidth } from './mapGlyphs';
 
 /**
  * `primary` is the one row the page leads with (Continue, or New campaign):
@@ -34,7 +34,7 @@ export interface ContentsRowOptions extends Omit<ComponentOptions, 'style'> {
 	variant?: ContentsRowVariant;
 	/** Faded print: shown in its place, but not available. Not focusable or pressable. */
 	faded?: boolean;
-	/** The label and value in faint ink, still pressable: a place that can be read but has less to offer (a depleted POI, a stronghold). */
+	/** The label and value in dim ink and the glyph in faded print, still pressable: a place that can be read but has less to offer (a depleted POI, a stronghold). */
 	dim?: boolean;
 	onClick?: ClickCallback;
 }
@@ -113,7 +113,7 @@ export class ContentsRow extends Pressable {
 		this.glyph = glyphLead ? new MapGlyphGeometry(kind) : null;
 		this.glyphLabel = glyphLead ? glyphLead.glyph : null;
 		this.deck = lead === 'deck' ? new DeckGlyphGeometry() : null;
-		this.paint = glyphPaint(kind, this.inks, { faded });
+		this.paint = glyphPaint(kind, this.inks, { faded: this.glyphFaded(kind) });
 		this.labelText = new Text({
 			text: label,
 			style: { fontRole: 'display', fontWeight: 700, fontSize: metrics.label, color: this.labelColor },
@@ -177,7 +177,7 @@ export class ContentsRow extends Pressable {
 		return this.isDim;
 	}
 
-	/** Prints the row in faint ink, leaving it in reach. */
+	/** Prints the row dim, leaving it in reach. */
 	public set dim(dim: boolean) {
 		if (dim === this.isDim) return;
 		this.isDim = dim;
@@ -196,22 +196,32 @@ export class ContentsRow extends Pressable {
 
 	protected onThemeChange(theme: Theme): void {
 		this.inks = atlasInks(theme);
-		this.paint = glyphPaint(this.glyph?.kind ?? 'circled', this.inks, { faded: this.isFaded });
+		this.paint = glyphPaint(this.glyph?.kind ?? 'circled', this.inks, { faded: this.glyphFaded(this.glyph?.kind ?? 'circled') });
+	}
+
+	/**
+	 * A dim row's glyph goes to faded print, so the symbol says it as well
+	 * as the dim ink, which holds 4.5:1 on paper and so differs from the
+	 * full ink only a little; a diamond keeps its red, since a hostile place
+	 * stays one.
+	 */
+	private glyphFaded(kind: MapGlyphKind): boolean {
+		return this.isFaded || (this.isDim && kind !== 'diamond');
 	}
 
 	private get labelColor(): ColorToken {
 		if (this.isFaded) return 'text_disabled';
-		return this.isDim ? 'text_faint' : 'text';
+		return this.isDim ? 'text_dim' : 'text';
 	}
 
 	private get valueColor(): ColorToken {
 		if (this.isFaded) return 'text_disabled';
-		if (this.isDim) return 'text_faint';
+		if (this.isDim) return 'text_dim';
 		return this.variant === 'compact' ? 'text_dim' : 'text';
 	}
 
 	private repaint(): void {
-		this.paint = glyphPaint(this.glyph?.kind ?? 'circled', this.inks, { faded: this.isFaded });
+		this.paint = glyphPaint(this.glyph?.kind ?? 'circled', this.inks, { faded: this.glyphFaded(this.glyph?.kind ?? 'circled') });
 		this.labelText.color = this.labelColor;
 		if (this.valueText) this.valueText.color = this.valueColor;
 	}

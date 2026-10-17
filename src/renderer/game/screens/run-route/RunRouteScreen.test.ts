@@ -18,6 +18,7 @@ import { MemorySaveStorage } from '../../campaign/SaveStorage';
 import { FaultyStorage, atHomeText, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
 import type { AreaMapView } from '../../ui/areaMap/AreaMapView';
 import type { AtlasButton } from '../../ui/atlas/AtlasButton';
+import type { SectionTabs } from '../../ui/atlas/SectionTabs';
 import type { RouteCard } from '../../ui/RouteCard';
 import { STRONGHOLD_NOT_YET, clockText, homeByText, poiKindText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
 import { PlannedPoi, byDistance, plannedPois, routePoints } from '../area-map/planningMap';
@@ -256,6 +257,15 @@ describe('RunRouteScreen (DDB-319)', () => {
 		screen.mount(context, { poi: NEAR.poi });
 		await screen.campaignLoaded;
 		expect(text('run_route_status')).toBe('No campaign in progress.');
+		expect(find<SectionTabs>('run_route_tabs').tabs.map(({ tabId, enabled }) => [tabId, enabled])).toEqual([['menu', true], ['compound', false], ['area_map', true], ['crew', false]]);
+	});
+
+	it('hangs the area map section tabs, open at the area map, gated by the campaign and its map (DDB-509)', async () => {
+		await open(NEAR);
+		const tabs = find<SectionTabs>('run_route_tabs');
+		expect(tabs.selectedId).toBe('area_map');
+		expect(tabs.tabs.every(({ enabled }) => enabled)).toBe(true);
+		expect(context.focus.focused?.id).toBe('run_route_back_button');
 	});
 
 	it.each([{ width: 1440, height: 882 }, { width: 1024, height: 600 }])('lays out with no lint at $width x $height, measured in the real faces', async (size) => {

@@ -22,6 +22,7 @@ import { COLUMN_GAP, PRIMARY_HEIGHT, PRIMARY_LABEL, PoiHead, SHEET_GAP, SIDE_WID
 import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, poiStock, quickestOf, routesBounds, viewData } from '../area-map/planningMap';
 import { countOf, mapProgressText } from '../main-menu/campaignText';
 import type { LoadOutScreenData } from '../load-out/LoadOutScreen';
+import { gateSectionTabs, metaSectionTabs } from '../metaSections';
 import { departRefusal, planRefusal } from '../run/runText';
 
 const { space } = tokens;
@@ -71,7 +72,7 @@ export interface RunRouteScreenOptions {
  * the map's plate, and beside it a column of legend boxes, the destination,
  * the routes, and the stops, with Load out the crew as the highway. It's a
  * step under the area map rather than its sibling, so it has a back link
- * where the area map has section tabs.
+ * as well as the area map's section tabs, open at the area map.
  */
 export class RunRouteScreen extends Screen {
 	private readonly sheet: AtlasSheet;
@@ -101,8 +102,12 @@ export class RunRouteScreen extends Screen {
 	private loaded: Promise<void> = Promise.resolve();
 
 	constructor({ store = CampaignStore.shared, maps = PlanningMaps.shared }: RunRouteScreenOptions = {}) {
+		// The area map's tabs, open at the area map, since this is a step under it; they read the campaign the screen holds when pressed.
+		let shown: () => Campaign | null = () => null;
+		const tabs = metaSectionTabs({ id: 'run_route_tabs', open: 'area_map', campaignOf: () => shown() });
 		const root = new AtlasSheet({
 			id: 'runRouteScreen',
+			tabs,
 			direction: 'horizontal',
 			widthMode: 'fill',
 			heightMode: 'fill',
@@ -110,6 +115,7 @@ export class RunRouteScreen extends Screen {
 			gap: SHEET_GAP,
 		});
 		super('runRouteScreen', { root, theme: 'atlas' });
+		shown = () => this.campaign;
 		this.sheet = root;
 		this.store = store;
 		this.maps = maps;
@@ -146,6 +152,7 @@ export class RunRouteScreen extends Screen {
 		this.sheet.addChild(this.side);
 
 		this.rootLayer.hotkeys.register('Escape', () => this.back());
+		this.gateTabs();
 		this.context.focus.focus(back);
 
 		const handed = data as Partial<RunRouteScreenData> | undefined;
@@ -271,6 +278,7 @@ export class RunRouteScreen extends Screen {
 	/** The campaign, then its map, at once when it's been made this session, or once it has, saying how far that's got. */
 	private async show(campaign: Campaign): Promise<void> {
 		this.campaign = campaign;
+		this.gateTabs();
 		const known = this.maps.known(campaign);
 		if (known) {
 			this.showMap(known);
@@ -307,6 +315,7 @@ export class RunRouteScreen extends Screen {
 		const campaign = this.campaign;
 		if (!campaign) return;
 		this.map = map;
+		this.gateTabs();
 		const pois = plannedPois(map);
 		const poi = (this.poiIndex === null ? byDistance(pois).find(({ stronghold }) => !stronghold) : pois[this.poiIndex]) ?? null;
 		const trouble = poi === null ? "That destination isn't on the area map." : poi.stronghold ? STRONGHOLD_NOT_YET : poi.routes.length === 0 ? 'No road reaches it.' : null;
@@ -420,6 +429,14 @@ export class RunRouteScreen extends Screen {
 			summary: `${countOf(route.stops.length, 'stop')} / fuel ${route.fuel} / home by ${clockText(route.back)}`,
 		};
 		ScreenManager.navigate('loadOutScreen', data);
+	}
+
+	/** The section tabs this screen can take now (`sectionAvailability`). */
+	private gateTabs(): void {
+		const { campaign, map } = this;
+		const tabs = this.sheet.tabs;
+		if (!tabs) return;
+		gateSectionTabs(tabs, { campaign, mapKnown: map !== null, planBlocked: campaign !== null && map !== null && getPlanBlocker({ campaign, map }) !== null, busy: false });
 	}
 
 	/** The status line, hidden with nothing to say. */

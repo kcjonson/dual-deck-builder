@@ -18,7 +18,7 @@ import { HandMarkLayer, HandMarkVariant } from '../../ui/atlas/HandMarkLayer';
 import { LegendBox } from '../../ui/atlas/LegendBox';
 import { PlateFrame } from '../../ui/atlas/PlateFrame';
 import { mapProgressText } from '../main-menu/campaignText';
-import { metaSectionTabs } from '../metaSections';
+import { gateSectionTabs, metaSectionTabs } from '../metaSections';
 import { planRefusal } from '../run/runText';
 import { STRONGHOLD_NOT_YET, darkText, poiKindText, poiStockText, poiYieldText, routesText } from './areaMapText';
 import { COLUMN_GAP, PRIMARY_HEIGHT, PRIMARY_LABEL, PoiHead, SHEET_GAP, SIDE_WIDTH, caption, detailLine, poiLead, screenTitle, titleNote } from './atlasPanel';
@@ -156,6 +156,7 @@ export class AreaMapScreen extends Screen {
 		this.rootLayer.hotkeys.register('Escape', () => this.back());
 		// Focus moving onto a destination's row chooses it, so the arrows choose as they move.
 		this.stopHearingFocus = this.context.focus.onFocusChange((focused) => this.focusedRow(focused));
+		this.gateTabs();
 		const open = this.sheet.tabs?.tabs.find(({ selected }) => selected);
 		if (open) this.context.focus.focus(open);
 
@@ -296,6 +297,7 @@ export class AreaMapScreen extends Screen {
 	/** The campaign, then its map: at once when it's been made this session, or once it has, saying how far that's got. */
 	private async show(campaign: Campaign, poi: number | undefined): Promise<void> {
 		this.campaign = campaign;
+		this.gateTabs();
 		if (this.dayLine) this.dayLine.text = `Day ${campaign.day} / Fuel ${campaign.resources.fuel}`;
 		const known = this.maps.known(campaign);
 		if (known) {
@@ -324,6 +326,7 @@ export class AreaMapScreen extends Screen {
 
 	private showMap(map: PlanningMap, poi: number | undefined): void {
 		this.map = map;
+		this.gateTabs();
 		this.pois = plannedPois(map);
 		const view = this.view;
 		const stockOf = (planned: PlannedPoi): PoiStockView => this.stockOf(planned);
@@ -453,6 +456,14 @@ export class AreaMapScreen extends Screen {
 		if (poi.routes.length === 0) return 'No road reaches it.';
 		const blocker = getPlanBlocker({ campaign, map });
 		return blocker === null || blocker.reason === 'too_little_fuel' ? null : planRefusal(blocker);
+	}
+
+	/** The section tabs this screen can take now (`sectionAvailability`). */
+	private gateTabs(): void {
+		const { campaign, map } = this;
+		const tabs = this.sheet.tabs;
+		if (!tabs) return;
+		gateSectionTabs(tabs, { campaign, mapKnown: map !== null, planBlocked: campaign !== null && map !== null && getPlanBlocker({ campaign, map }) !== null, busy: false });
 	}
 
 	/** The run route screen for the chosen POI. */

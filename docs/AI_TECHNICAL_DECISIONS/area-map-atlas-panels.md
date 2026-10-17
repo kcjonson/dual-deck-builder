@@ -18,7 +18,7 @@ The status line ("30 destinations and 4 strongholds...", the map's progress, err
 
 ### Area map column
 
-- Destinations: a legend box holding the scroll container, the list a FocusGroup of `ContentsRow`s, nearest first, each led by the POI's type letter circled as the map draws its marker (a stronghold leads with the red diamond), the tier in mono at the right. Strongholds and depleted POIs are dimmed in faint ink but stay in reach, since choosing one shows why it can't be planned.
+- Destinations: a legend box holding the scroll container, the list a FocusGroup of `ContentsRow`s, nearest first, each led by the POI's type letter circled as the map draws its marker (a stronghold leads with the red diamond), the tier in mono at the right. Strongholds and depleted POIs are dimmed but stay in reach, since choosing one shows why it can't be planned. Dim is the dim ink, not the faint one, which measures 4.36:1 on the textured paper; since dim ink sits close to full ink, a depleted row's glyph also goes to faded print (a stronghold's diamond keeps its red, and its value says stronghold).
 - The chosen row is marked by a `HandMarkLayer` highlighter under the list, its variant from the POI's index so the same choice always gets the same swipe. The box below and the map's selection ring are the other two signals.
 - The chosen POI's box is fresh paper (W0, the thing in focus), led by the same glyph and the name, then the five fixed-height lines it had.
 - Plan a run here is the highway with the shield, its reason in two fixed lines under it.
@@ -29,9 +29,11 @@ The destination's box (glyph, name, the day and light in mono, the kind and yiel
 
 ### Tabs and back
 
-The area map is a sibling of the menu, the compound, and the crew, so it hangs the section tabs (`metaSectionTabs` in `screens/metaSections.ts`, the set the gallery's sheet scene shows) and loses Back; Escape still goes to the compound. The run route is a step under the area map, not a sibling, so it keeps a back link, a back-road button, "Back to the area map".
+The area map is a sibling of the menu, the compound, and the crew, so it hangs the section tabs (`metaSectionTabs` in `screens/metaSections.ts`, the set the gallery's sheet scene shows) and loses Back; Escape still goes to the compound. The run route is a step under the area map, so it hangs the same tabs open at the area map and keeps a back link as well, a back-road button, "Back to the area map".
 
-Each tab gets a component id under its tabs' (`area_map_tabs.compound`), so a navigate that restores focus by id can find it.
+Each tab's component id is `${id}.${section}` (`area_map_tabs.compound`), so a navigate that restores focus by id can find it.
+
+Which tabs can be taken is one rule for every screen that hangs them, `sectionAvailability({ campaign, mapKnown, planBlocked, busy })`: Menu always; Compound and Crew once there's a campaign; Area map once the campaign's map is known and nothing blocks planning; and every tab but Menu held while the screen is busy (the compound's day-end save). `gateSectionTabs` applies it and keeps the open tab enabled, since a disabled tab can't show as open. The area map and run route gate on mount, when the campaign loads, and when its map arrives; neither is ever busy.
 
 Focus order follows the tree, which is reading order now: the tabs, the map, the list, then Plan a run here. It was Back, the list, Plan, the map, when Back sat in the column.
 
@@ -42,7 +44,7 @@ The atlas aliases `status_warn` to the Highway orange, which is about 3.4:1 on p
 ## Shared parts this added to
 
 - `ContentsRow`: a `list` variant (44 px, the minimum hit, with a 22 px circled lead), `dim` (faint ink, still pressable), and a `diamond` lead.
-- `SectionTabs`: each tab's component id, as above.
+- `SectionTabs`: each tab's component id, as above, and the gating rule beside the tab set in `metaSections.ts`, for the compound and crew screens to adopt.
 - `Scrollbar` and `RouteCard` resolve their colours from `themeTokens`; on paper the dark scrollbar's thumb all but vanished.
 
 ## Consequences

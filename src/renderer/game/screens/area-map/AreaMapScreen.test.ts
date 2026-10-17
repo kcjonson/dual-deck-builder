@@ -308,6 +308,9 @@ describe('AreaMapScreen (DDB-43)', () => {
 		screen.mount(context);
 		await screen.campaignLoaded;
 		expect(text('area_map_status')).toBe('No campaign in progress.');
+		// Only the menu, and this screen's own tab, can be taken with no campaign
+		const tabs = find<SectionTabs>('area_map_tabs').tabs;
+		expect(tabs.map(({ tabId, enabled }) => [tabId, enabled])).toEqual([['menu', true], ['compound', false], ['area_map', true], ['crew', false]]);
 	});
 
 	it.each([{ width: 1440, height: 882 }, { width: 1024, height: 600 }])('lays out with no lint at $width x $height, measured in the real faces, a POI chosen', async (size) => {
