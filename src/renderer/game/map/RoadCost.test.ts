@@ -2,6 +2,7 @@ import { EdgeCostField, MOVES, MOVE_X, MOVE_Y, NEIGHBOURS, OPPOSITE, moveBetween
 import { atHome, impassableAlong, polylineBridges } from './RoadChecks';
 import { ROAD_CLASSES } from './RoadNetwork';
 import { landFor } from './roadTesting';
+import { MOVE_COST } from './Terrain';
 
 describe('EdgeCostField', () => {
 	// Rugged and wet, with broad rivers, so moves meet every kind of ground.
@@ -114,6 +115,36 @@ describe('EdgeCostField', () => {
 		expect(steep).toBeGreaterThan(0);
 	});
 
+	it('crosses a river 30 degrees off its line or more, in the metro or out, where moveCost and the decks agree', () => {
+		const water = terrain.water as NonNullable<typeof terrain.water>;
+		const spans: number[] = [];
+		let crossed = 0;
+		let shallow = 0;
+		for (let cell = 0; cell < cells; cell += 1) {
+			if (field.open[cell] === 0) continue;
+			for (let direction = 0; direction < MOVES; direction += 1) {
+				const { next, x0, y0, x1, y1 } = move(cell, direction);
+				if (next < 0 || next >= cells || field.open[next] === 0) continue;
+				const count = water.riverCrossings(x0, y0, x1, y1);
+				const sines: number[] = [];
+				for (let index = 0; index < count; index += 1) sines.push(water.riverCrossing(index).sine);
+				if (sines.length === 0) continue;
+				const open = Number.isFinite(field.cost(field.edge(cell, direction), 2));
+				if (sines.every((sine) => sine >= MOVE_COST.leastCrossing)) {
+					if (open) crossed += 1;
+					continue;
+				}
+				shallow += 1;
+				expect(open).toBe(false);
+				expect(terrain.moveCost(x0, y0, x1, y1, 'trail')).toBe(Infinity);
+				// No deck over a shallow crossing, so a smoothed line that makes one finds its water impassable.
+				expect(terrain.bridgeSpans(x0, y0, x1, y1, spans)).toBeLessThanOrEqual(sines.filter((sine) => sine >= MOVE_COST.leastCrossing).length);
+			}
+		}
+		expect(crossed).toBeGreaterThan(0);
+		expect(shallow).toBeGreaterThan(0);
+	});
+
 	it('crosses the metro\'s rivers, free, but never stands in one or runs along it, bar Home\'s own cells', () => {
 		const metro = terrain.metro.radius;
 		const spans: number[] = [];
@@ -135,10 +166,11 @@ describe('EdgeCostField', () => {
 				const { x0, y0, x1, y1 } = move(cell, direction);
 				const count = terrain.bridgeSpans(x0, y0, x1, y1, spans);
 				if (count > 0) crossings += 1;
-				// Every half unit, as the field and the network checks sample.
-				const samples = Math.floor(Math.hypot(x1 - x0, y1 - y0) / 0.5) + 1;
-				for (let sample = 1; sample < samples; sample += 1) {
-					const along = sample / samples;
+				// Every half unit from the lower-left end, as the field and the network checks sample.
+				const length = Math.hypot(x1 - x0, y1 - y0);
+				const forward = x0 < x1 || (x0 === x1 && y0 <= y1);
+				for (let sample = 1; sample < Math.ceil(length / 0.5); sample += 1) {
+					const along = forward ? sample * 0.5 / length : 1 - sample * 0.5 / length;
 					const sx = x0 + (x1 - x0) * along;
 					const sy = y0 + (y1 - y0) * along;
 					if (terrain.waterAt(sx, sy) !== 'river' || atHome(sx, sy, field.grid.cellSize)) continue;

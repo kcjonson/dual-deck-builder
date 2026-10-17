@@ -6,6 +6,7 @@ import { METRO_BRIDGES, Terrain } from './Terrain';
 // Globals read once, at load: under Jest's vm context each read costs about 0.15 us (seeded-prng.md).
 const sqrt = Math.sqrt;
 const floor = Math.floor;
+const ceil = Math.ceil;
 const min = Math.min;
 const max = Math.max;
 
@@ -34,7 +35,12 @@ export const ROAD_CLEARANCE = 2;
 export const NODE_TAPER = 0.25;
 /** Two stretches ending on one node leave it at least 20 degrees apart: the cosine. */
 export const NODE_COS = 0.9396926207859084;
-/** World units between the samples a polyline is checked at for impassable ground. */
+/**
+ * World units between the samples a polyline is checked at for impassable
+ * ground: along each segment from its lower-left end, whichever way the
+ * line runs, so a segment cut at one of its samples is sampled at the same
+ * points in its two pieces as whole.
+ */
 export const PASSABLE_SPACING = 0.5;
 
 /** What the checks read of the land. */
@@ -201,38 +207,48 @@ export function polylineBridges(terrain: Pick<RoadGround, 'bridgeSpans'>, points
 
 /**
  * The first point along a polyline, as world units from its start, where a
- * sample every half unit lands on impassable ground, bar river water under
- * one of `bridges`; -1 where none does. River water in the metro counts,
- * though `obstacle` passes it, bar on Home's own cells. Every segment's
- * ends are sampled.
+ * sample lands on impassable ground, bar river water under one of
+ * `bridges`; -1 where none does. River water in the metro counts, though
+ * `obstacle` passes it, bar on Home's own cells. Every segment's ends are
+ * sampled, and the points between every `PASSABLE_SPACING` from its
+ * lower-left end, as the edge cost field samples a move.
  */
 export function impassableAlong(terrain: Pick<RoadGround, 'radius' | 'metro' | 'obstacle' | 'waterAt'>, points: readonly number[], bridges: readonly RoadBridge[]): number {
 	const bridged = terrain.metro.radius + METRO_BRIDGES;
 	const bridgedSquared = bridged * bridged;
 	const home = landGridFor(terrain.radius).cellSize;
+	const blocked = (x: number, y: number, at: number): boolean => {
+		const obstacle = terrain.obstacle(x, y);
+		if (obstacle === null) {
+			if (!(x * x + y * y <= bridgedSquared && terrain.waterAt(x, y) === 'river')) return false;
+		} else if (obstacle !== 'river') {
+			return true;
+		}
+		return !(atHome(x, y, home) || bridges.some(({ start, end }) => at >= start && at <= end));
+	};
+	if (points.length >= 2 && blocked(points[0], points[1], 0)) return 0;
 	let along = 0;
 	for (let point = 0; point + 3 < points.length; point += 2) {
 		const x0 = points[point];
 		const y0 = points[point + 1];
-		const dx = points[point + 2] - x0;
-		const dy = points[point + 3] - y0;
-		const length = sqrt(dx * dx + dy * dy);
-		const samples = floor(length / PASSABLE_SPACING) + 1;
-		for (let sample = point === 0 ? 0 : 1; sample <= samples; sample += 1) {
-			const share = sample / samples;
-			const x = x0 + dx * share;
-			const y = y0 + dy * share;
-			const obstacle = terrain.obstacle(x, y);
-			if (obstacle === null) {
-				if (!(x * x + y * y <= bridgedSquared && terrain.waterAt(x, y) === 'river')) continue;
-			} else if (obstacle !== 'river') {
-				return along + length * share;
-			}
-			const at = along + length * share;
-			if (atHome(x, y, home) || bridges.some(({ start, end }) => at >= start && at <= end)) continue;
-			return at;
+		const x1 = points[point + 2];
+		const y1 = points[point + 3];
+		const length = sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
+		const forward = x0 < x1 || (x0 === x1 && y0 <= y1);
+		const sx = forward ? x0 : x1;
+		const sy = forward ? y0 : y1;
+		const ex = forward ? x1 : x0;
+		const ey = forward ? y1 : y0;
+		const inner = ceil(length / PASSABLE_SPACING) - 1;
+		// The samples between in the order the line runs, then the segment's end.
+		for (let sample = 1; sample <= inner; sample += 1) {
+			const step = forward ? sample : inner + 1 - sample;
+			const share = step * PASSABLE_SPACING / length;
+			const at = along + (forward ? share : 1 - share) * length;
+			if (blocked(sx + (ex - sx) * share, sy + (ey - sy) * share, at)) return at;
 		}
 		along += length;
+		if (blocked(x1, y1, along)) return along;
 	}
 	return -1;
 }

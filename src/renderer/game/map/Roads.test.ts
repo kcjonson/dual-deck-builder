@@ -1,12 +1,14 @@
 import { EdgeCostField } from './RoadCost';
-import { ROAD_CLEARANCE, checkRoadNetwork, polylineBridges, roadClashes } from './RoadChecks';
-import { ROAD_GRAPH, buildRoadGraph } from './RoadGraph';
+import { Rng } from '../core/Rng';
+import { polylineLength } from './Geometry';
+import { ROAD_CLEARANCE, checkRoadNetwork, impassableAlong, polylineBridges, roadClashes } from './RoadChecks';
+import { ROAD_GRAPH, buildRoadGraph, splitLong } from './RoadGraph';
 import { ROAD_LINKS, RoadPlace, buildRoadCells } from './RoadLinks';
-import { ROAD_CLASSES, RoadNetwork, classRank, loopCount } from './RoadNetwork';
-import { LOOPS_PER_PLACE, generateRoads, loopsNeeded, roadsProblems } from './Roads';
+import { ROAD_CLASSES, RoadNetwork, RoadStretch, classRank, loopCount } from './RoadNetwork';
+import { LOOPS_PER_PLACE, breakHighways, generateRoads, loopsNeeded, roadsProblems } from './Roads';
 import { createTerrainSample } from './Terrain';
 import { MapParamSet } from './MapParams';
-import { landFor, riverOffDecks, roadMap, sampledRoadParamSets } from './roadTesting';
+import { fakeGround, landFor, riverOffDecks, roadMap, sampledRoadParamSets } from './roadTesting';
 
 /** FNV-1a over a typed array's bytes, read as little-endian words: a pin that any one bit moves. */
 function hashOf(values: Float64Array): number {
@@ -28,8 +30,8 @@ function networkHash({ nodes, stretches }: RoadNetwork): number {
 }
 
 const PINNED: [MapParamSet, { nodes: number; stretches: number; hash: number }][] = [
-	[{ seed: 7, radius: 800 }, { nodes: 334, stretches: 460, hash: 125372455 }],
-	[{ seed: 17, environment: 'badlands', radius: 800 }, { nodes: 264, stretches: 330, hash: 3473896097 }],
+	[{ seed: 7, radius: 800 }, { nodes: 334, stretches: 460, hash: 3652141985 }],
+	[{ seed: 17, environment: 'badlands', radius: 800 }, { nodes: 264, stretches: 330, hash: 121933891 }],
 ];
 
 const SET: MapParamSet = { seed: 3, radius: 800 };
@@ -183,6 +185,26 @@ describe('the road graph', () => {
 		expect(stretches.some(({ street }) => street)).toBe(true);
 	});
 
+	it('cuts a long line only where the whole line was sampled, so a sliver its samples stepped over stays stepped over', () => {
+		// 301.3 units askew, cut into three at shares that aren't on the half-unit samples; a sliver a thousandth of a unit wide anywhere along the middle third.
+		const line = [3, 7, 3 + 301.3 * 0.8, 7 + 301.3 * 0.6];
+		let passed = 0;
+		for (let along = 100; along < 200; along += 0.0137) {
+			const sx = 3 + along * 0.8;
+			const ground = fakeGround({ wall: (x) => Math.abs(x - sx) < 0.0005 });
+			if (impassableAlong(ground, line, []) >= 0) continue;
+			passed += 1;
+			const pieces = splitLong(line, []);
+			expect(pieces).toHaveLength(3);
+			pieces.forEach(({ points }) => expect(impassableAlong(ground, points, [])).toBe(-1));
+		}
+		expect(passed).toBeGreaterThan(5000);
+		// The pieces still split the line evenly, and its points stay where they were.
+		const pieces = splitLong(line, []);
+		pieces.forEach(({ points }) => expect(Math.abs(polylineLength(points) - 301.3 / 3)).toBeLessThanOrEqual(0.5));
+		expect(pieces[1].points[0]).toBeCloseTo(3 + 0.8 * polylineLength(pieces[0].points), 9);
+	});
+
 	it('is planar, every stretch clear of the rest, and smoothed where it can be', () => {
 		expect(roadClashes({ nodes, stretches })).toEqual([]);
 		expect(ROAD_CLEARANCE).toBeGreaterThan(0);
@@ -241,6 +263,33 @@ describe('the roads stage', () => {
 		// Planarity holds with the broken spans back in, since they were part of it.
 		expect(roadClashes({ nodes: network.nodes, stretches: [...network.stretches, ...network.broken] })).toEqual([]);
 		network.stretches.forEach(({ roadClass }) => expect(classRank(roadClass)).toBeGreaterThanOrEqual(0));
+	});
+
+	it('never breaks the last highway out of a highway exit, though the span further in can break', () => {
+		const highway = (from: number, to: number, points: number[], number = 0): RoadStretch => ({ roadClass: 'highway', from, to, length: polylineLength(points), points, bridges: [], street: false, highway: number });
+		const backRoad = (from: number, to: number, points: number[]): RoadStretch => ({ roadClass: 'backRoad', from, to, length: polylineLength(points), points, bridges: [], street: false });
+		const broken = ({ nodes, stretches, places, radius }: { nodes: RoadNetwork['nodes']; stretches: RoadStretch[]; places: RoadPlace[]; radius: number }) => breakHighways({ nodes, stretches, places, count: 2, radius, rng: new Rng({ seed: 4 }) }).broken;
+
+		// Home, junctions 100 and 200 out, and a highway exit 300 out, on one highway, with a back road from the first junction round to the exit.
+		const line: RoadNetwork['nodes'] = [{ kind: 'compound', x: 0, y: 0, place: 0 }, { kind: 'junction', x: 100, y: 0 }, { kind: 'junction', x: 200, y: 0 }, { kind: 'exit', x: 300, y: 0, place: 1 }];
+		const inner = highway(1, 2, [100, 0, 200, 0]);
+		const outer = highway(2, 3, [200, 0, 300, 0]);
+		const lineStretches = [highway(0, 1, [0, 0, 100, 0]), inner, outer, backRoad(1, 3, [100, 0, 200, 40, 300, 0])];
+		const exit: RoadPlace = { id: 1, kind: 'exit', x: 300, y: 0, highway: true };
+		// Either span past 0.35 of the radius can break, but not both, which would cut the middle junction off. This stream tries the outer first; it's the exit's only highway, so the inner goes.
+		expect(broken({ nodes: line, stretches: lineStretches, places: [exit], radius: 310 })).toEqual([inner]);
+		// A back-road exit can lose its outer span.
+		expect(broken({ nodes: line, stretches: lineStretches, places: [{ ...exit, highway: false }], radius: 310 })).toEqual([outer]);
+
+		// Two highways into one exit from junctions off to either side, and a back road from Home: either can go, and once one has, the other is the exit's last.
+		const fork: RoadNetwork['nodes'] = [{ kind: 'compound', x: 0, y: 0, place: 0 }, { kind: 'junction', x: 100, y: 50 }, { kind: 'junction', x: 100, y: -50 }, { kind: 'exit', x: 300, y: 0, place: 1 }];
+		const forkStretches = [
+			highway(0, 1, [0, 0, 100, 50]), highway(0, 2, [0, 0, 100, -50], 1),
+			highway(1, 3, [100, 50, 300, 0]), highway(2, 3, [100, -50, 300, 0], 1),
+			backRoad(0, 3, [0, 0, 150, -150, 300, 0]),
+		];
+		expect(broken({ nodes: fork, stretches: forkStretches, places: [exit], radius: 400 })).toHaveLength(1);
+		expect(broken({ nodes: fork, stretches: forkStretches, places: [{ ...exit, highway: false }], radius: 400 })).toHaveLength(2);
 	});
 
 	it('fails on too few loops for the POIs, and on a place no road reaches', () => {
