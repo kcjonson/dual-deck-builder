@@ -56,9 +56,9 @@ A POI whose quickest route runs past dark with no stops at all can't be mended b
 
 ## Route descriptors
 
-`describeRoutes(map, poi, { knowledge })` gives each of a POI's routes, quickest first, as the run route screen shows it, from the POI layer and the stop layer alone:
+`describeRoutes(map, poi, { knowledge })` gives each of a POI's routes, quickest first, as the run route screen shows it, from the POI layer, the stop layer, and the dressing's route numbers:
 
-- Name: from the route's own road, the legs no other route to the POI uses, since that's what tells routes apart. A biome with a name ("Through the mire") where it covers half of that road, or else the dominant class's: "Route N highway", numbered by the highway with the most length on that road (its stretches' `highway` index, the order of its exit among the highway exits, plus one, as the shields number it), "Back roads", "Trails". Two routes to one POI that come out alike get the side they come in from, "Back roads from the north", and any still alike their letter.
+- Name: from the route's own road, the legs no other route to the POI uses, since that's what tells routes apart. A biome with a name ("Through the mire") where it covers half of that road, or else the dominant class's: "Route N highway", N the route number on the shields of that road's main highway (below), "Back roads", "Trails". Two routes to one POI that come out alike get the side they come in from, "Back roads from the north", and any still alike their letter.
 - Knowledge: the least known leg, by a function from leg to charted, rumored, or uncharted that defaults to charted everywhere until fog exists.
 - Stops as far as known: a charted leg's with their types, a rumored leg's as stops of unknown type, and from the first uncharted leg on, a direction and the next stop, as the spec has it: every leg past it counts as uncharted.
 - Hours: out is the drive plus the known stops' hours, with unknown types at three quarters of an hour and an uncharted leg's at what its road would earn; at the objective, 1.5 hours, 2 at a stronghold; home is the drive alone. `estimated` says when any leg isn't charted.
@@ -73,6 +73,14 @@ POIs take their names from Map 6's places (`map/PoiNames.ts`, DDB-472): a town's
 Pairs of POI and place within reach are taken nearest first, so where two clinics are near Elk Creek the nearer is Elk Creek Clinic and the other takes the next place in its reach without one. One whose places in reach all have one is numbered after the nearest, "Elk Creek Clinic 2", and so is any stand-in another POI already took. On the campaign maps `rollParams` makes from seeds 1 to 6 (radius 900 to 1200), 142 of 176 POIs, about four in five, had a town or village in reach; the nearest lay 7 to 667 units off.
 
 The names are worked out on read, from the POI and places layers alone, and take no draws: generation makes the same map it did, so the generator version stays where it was, and since a load makes the map again from its seed and attempts, the names come back with it and nothing about them is saved. `mapPoiNames(map)` works them out once a map, and the area map, the run route screen, and the run's routes (`routeOffers`) all read it, so a POI is named alike everywhere. A route the run set off on keeps the destination name it was saved with, so a save made mid-run before this change shows the old name until the run is home, and the log keeps what it said.
+
+### Highway route numbers
+
+A highway route takes its number from the highway's shields (DDB-499), so the route card's "Route 47 highway" is the 47 the shields along it carry, the labels the dressing places (`MapLabels.ts`) and the area map will draw once it draws shields (DDB-447). The highway is the main one of the route's own leg with the most highway on it, each leg's main highway being the one with the most length on that leg (`LegProfile.highway`), by its stretches' `highway` index, the order of its exit among the highway exits; where highways merge into a trunk, the trunk's stretches keep the first one laid's, for the shields and the name alike; the number is `dressing.routeNumbers[highway]`, which the dressing draws 2 to 99, none twice, on its `routes` fork. Two routes on one highway both take its number and are told apart as any two alike are, by the side they come in from, then a letter.
+
+The numbers aren't saved and needn't be: the dressing is a stage like the rest, so a load that makes the map again from its seed and attempts makes them again with it, on the same fork of the same stream, and every map a screen or the run gets is a whole generation with its dressing. So `RouteMap.products` takes the dressing (`dressing?: Pick<Dressing, 'routeNumbers'>`) beside the places, and the area map, the run route screen, and the run's routes (`routeOffers`) read the one map they're handed. Working them out without the dressing would mean replaying its stream's forks from the root, which needs the map attempts and every stage's attempt; the generation already has the answer, so the descriptors read it. A map without a dressing, which is only a test's mesh, numbers a highway by its index plus one, the old rule.
+
+Generation doesn't change, since the descriptors only read what the dressing already made, so the generator version stays where it was and old saves load as they did. A route the run set off on keeps the name it was saved with, so a save made mid-run before this change shows the old number until the run is home.
 
 ## The run loop's routes
 
@@ -98,13 +106,14 @@ Calls the spec left open, made the simplest way consistent with it, for Kevin to
 8. The daylight check thins inside the stage, the POI's quickest route only, own legs first, then the costliest stops, then the furthest out, and moves a Find: driver it can't spare.
 9. Contents: a hazard is a storm, radiation, a sinkhole, or a flooded underpass; a supplies find is one resource, 2 to 5 food or water, 1 to 3 fuel, 1 to 2 meds, or 5 to 15 scrap.
 10. A leg's tier is the lowest tier of the POIs whose routes use it, with POIs on the ring + 1 stand-in; every stop is on no one's ground.
-11. Route names come from the route's own road; a biome names it at half of that; highways are numbered by their index + 1; duplicates take the side they come in from, then a letter.
+11. Route names come from the route's own road; a biome names it at half of that; highways are numbered by their index + 1 (replaced by 18); duplicates take the side they come in from, then a letter.
 12. Fuel is a unit per 150 units of road, out and back, at least one; an unknown stop counts three quarters of an hour; a run leaves at 06:00.
 13. Risk is the worst known fight; the run's is at least 1.
 14. Every stop that isn't a fight runs as a quiet stretch.
 15. A day offered a tier 1 destination and up to two from tiers 2 and 3; the area map replaced the day's offer (area-map-route-pick.md, call 89).
 16. A POI's name is a town's or village's within a quarter of the radius and its type's label in title case, "Elk Creek Clinic", nearest pairs first, the next place in reach for a second POI of a type, then a number; with no place in reach, its type and its bearing from the compound (DDB-472).
 17. A destination yields its POI type's food, water, fuel, and scrap; meds wait for the run to carry them, and a stronghold yields nothing yet.
+18. A highway route is numbered by its highway's shields, the dressing's route number for the main highway of its own leg with the most highway; a map with no dressing, only a test's mesh, keeps index + 1 (DDB-499).
 
 ## Consequences
 

@@ -1,4 +1,5 @@
 import { BIOMES, Biome } from './Biome';
+import type { Dressing } from './Dressing';
 import type { MapParams } from './MapParams';
 import { STRONGHOLD_TYPE } from './PoiData';
 import type { Places } from './Places';
@@ -14,8 +15,9 @@ import type { LegProfile, StopLayer } from './Stops';
  * dominant class and biome, the least known leg on it, its fuel, its hours
  * out, at the objective, and home, when it would be back against dark, its
  * stops as far as they're known, and its risk. Read from plain data alone,
- * the POI layer and the stop layer, so it works on a map from the worker or
- * one regenerated on load. Knowledge is saved state, so it's passed in;
+ * the POI layer, the stop layer, and the dressing's route numbers, so it
+ * works on a map from the worker or one regenerated on load. Knowledge is
+ * saved state, so it's passed in;
  * until fog (DDB-294) every leg is charted. The decision record is
  * docs/AI_TECHNICAL_DECISIONS/stops-and-routes.md.
  */
@@ -86,6 +88,8 @@ export interface RouteMap {
 		readonly stops: StopLayer;
 		/** The towns and villages POIs are named after (PoiNames.ts); a map without them names POIs by type and bearing. */
 		readonly places?: Pick<Places, 'towns' | 'villages'>;
+		/** The route numbers on the highways' shields (Dressing.ts); a map without them numbers a highway by its index plus one. */
+		readonly dressing?: Pick<Dressing, 'routeNumbers'>;
 	};
 }
 
@@ -98,14 +102,15 @@ export interface DescribeOptions {
 
 /** Each of a POI's routes described, quickest first. */
 export function describeRoutes(map: RouteMap, poi: number, { knowledge = () => 'charted', tuning = ROUTE_TUNING, stopTuning = STOP_TUNING }: DescribeOptions = {}): RouteDescriptor[] {
-	const { pois, stops } = map.products;
+	const { pois, stops, dressing } = map.products;
+	const routeNumbers = dressing?.routeNumbers ?? null;
 	const routes = routesTo(pois, pois.pois[poi]);
 	const objective = pois.pois[poi].type === STRONGHOLD_TYPE ? stopTuning.objectiveHours.stronghold : stopTuning.objectiveHours.poi;
 	const dark = tuning.dawn + map.params.daylightHours;
 	const described = routes.map((route, place) => {
 		const others = new Set(routes.flatMap((other, index) => (index === place ? [] : other.legs)));
 		const own = route.legs.filter((leg) => !others.has(leg));
-		const { roadClass, biome, name } = nameOf(own.map((leg) => stops.legs[leg]), tuning);
+		const { roadClass, biome, name } = nameOf(own.map((leg) => stops.legs[leg]), routeNumbers, tuning);
 		const known: KnownStop[] = [];
 		let stopHours = 0;
 		let least: LegKnowledge = 'charted';
@@ -177,9 +182,10 @@ function expectedStops({ classLengths }: LegProfile, stopDensity: number, { spac
 /**
  * A route's name from its own legs: a biome's where one covers `biomeShare`
  * of them and has a name, or else its dominant class's, a highway's
- * numbered by its road.
+ * numbered as the shields are on the main highway of the leg with the most
+ * highway, or by that highway's index plus one with no route numbers.
  */
-function nameOf(legs: readonly LegProfile[], { names }: RouteTuning): { roadClass: RoadClass; biome: Biome; name: string } {
+function nameOf(legs: readonly LegProfile[], routeNumbers: readonly number[] | null, { names }: RouteTuning): { roadClass: RoadClass; biome: Biome; name: string } {
 	const classLengths = Object.fromEntries(ROAD_CLASSES.map((roadClass) => [roadClass, 0])) as Record<RoadClass, number>;
 	const biomeLengths = Object.fromEntries(BIOMES.map((biome) => [biome, 0])) as Record<Biome, number>;
 	let total = 0;
@@ -200,7 +206,8 @@ function nameOf(legs: readonly LegProfile[], { names }: RouteTuning): { roadClas
 	const biome = BIOMES.reduce((best, next) => (biomeLengths[next] > biomeLengths[best] ? next : best));
 	const biomeName = names.biomes[biome];
 	if (biomeName !== undefined && total > 0 && biomeLengths[biome] >= names.biomeShare * total) return { roadClass, biome, name: biomeName };
-	const name = names.classes[roadClass].replace('{number}', highway >= 0 ? String(highway + 1) : '').replace(/\s+/g, ' ').trim();
+	const number = highway < 0 ? '' : String(routeNumbers?.[highway] ?? highway + 1);
+	const name = names.classes[roadClass].replace('{number}', number).replace(/\s+/g, ' ').trim();
 	return { roadClass, biome, name };
 }
 
