@@ -4,7 +4,7 @@ import type { DrawTextOptions, FontAtlasHandle, MeasureTextOptions, TextMetrics 
 import type { Rect } from '../draw/geometry';
 import { RecordingBackend } from '../draw/RecordingBackend';
 import { FontAtlas, parseFontAtlas } from './FontAtlas';
-import { ATLAS_ASSETS, AtlasRole, FontRole } from './fontFaces';
+import { ATLAS_ASSETS, AtlasName, FontName } from './fontFaces';
 import { TextMetricsService } from './TextMetricsService';
 import { runInk } from './textPlacement';
 
@@ -13,23 +13,23 @@ import { runInk } from './textPlacement';
  * imports this file.
  */
 
-const parsed = new Map<AtlasRole, FontAtlas>();
+const parsed = new Map<AtlasName, FontAtlas>();
 
-/** A committed atlas's metrics, a face's or the icons', parsed once per role; a `FontAtlas` is immutable. */
-export function committedAtlas(role: AtlasRole): FontAtlas {
-	let atlas = parsed.get(role);
+/** A committed atlas's metrics, a face's or the icons', by its draw API name, parsed once; a `FontAtlas` is immutable. */
+export function committedAtlas(font: AtlasName): FontAtlas {
+	let atlas = parsed.get(font);
 	if (!atlas) {
-		const asset = ATLAS_ASSETS.find((candidate) => candidate.role === role);
-		if (!asset) throw new Error(`no committed atlas for role '${role}'`);
+		const asset = ATLAS_ASSETS.find((candidate) => candidate.font === font);
+		if (!asset) throw new Error(`no committed atlas named '${font}'`);
 		atlas = parseFontAtlas({ json: asset.metrics, source: asset.face, warn: () => undefined });
-		parsed.set(role, atlas);
+		parsed.set(font, atlas);
 	}
 	return atlas;
 }
 
-/** A committed face's metrics, parsed once per role. */
-export function committedFontAtlas(role: FontRole): FontAtlas {
-	return committedAtlas(role);
+/** A committed face's metrics, by its draw API name, parsed once. */
+export function committedFontAtlas(font: FontName): FontAtlas {
+	return committedAtlas(font);
 }
 
 /**
@@ -106,15 +106,15 @@ export class MeasuringRecordingBackend extends RecordingBackend {
 
 /**
  * A draw API over a `MeasuringRecordingBackend` with every committed atlas
- * loaded (the three roles and the icons), for a test context that measures
+ * loaded (every face and the icons), for a test context that measures
  * text (`createTestContext({ draw })`).
  */
 export function createMeasuringDrawApi(): { api: DrawApi; backend: MeasuringRecordingBackend } {
 	const backend = new MeasuringRecordingBackend({ maxFrames: 1 });
 	const api = new DrawApi({ backend });
 	for (const asset of ATLAS_ASSETS) {
-		const texture = api.createTexture({ width: 1, height: 1, label: asset.role });
-		api.loadFontAtlas({ name: asset.role, atlas: committedAtlas(asset.role), texture });
+		const texture = api.createTexture({ width: 1, height: 1, label: asset.font });
+		api.loadFontAtlas({ name: asset.font, atlas: committedAtlas(asset.font), texture });
 	}
 	return { api, backend };
 }

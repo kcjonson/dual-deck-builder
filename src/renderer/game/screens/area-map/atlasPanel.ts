@@ -2,7 +2,6 @@ import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { ColorToken, tokens } from '../../../engine/theme/tokens';
 import { POI_GLYPHS } from '../../ui/areaMap/areaMapStyle';
-import { DISPLAY_BOLD } from '../../ui/atlas/atlasStyle';
 import { MapGlyph } from '../../ui/atlas/mapGlyphs';
 
 /**
@@ -31,7 +30,7 @@ export function screenTitle({ id, text }: { id: string; text: string }): Text {
 	return new Text({
 		id,
 		text,
-		style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: 30, letterSpacing: 0.16, textTransform: 'uppercase', color: 'text' },
+		style: { fontRole: 'display', fontWeight: 700, fontSize: 30, letterSpacing: 0.16, textTransform: 'uppercase', color: 'text' },
 		wrap: 'none',
 	});
 }
@@ -83,7 +82,7 @@ export class PoiHead extends Stack {
 			id,
 			text: empty,
 			widthMode: 'fill',
-			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: HEAD_NAME, color: 'text' },
+			style: { fontRole: 'display', fontWeight: 700, fontSize: HEAD_NAME, color: 'text' },
 			wrap: 'none',
 			textOverflow: 'ellipsis',
 		});

@@ -6,7 +6,7 @@ import type { RGBA, Rect, Vec2 } from '../../../engine/draw/geometry';
 import type { Theme } from '../../../engine/theme/tokens';
 import { FlowWrap } from '../FlowWrap';
 import { UiArtName, drawAtlasArt } from './atlasArt';
-import { AtlasInks, MONO_MEDIUM, atlasInks } from './atlasStyle';
+import { AtlasInks, atlasInks } from './atlasStyle';
 
 /** The compound's stores, each with its stroke icon in the UI art atlas. */
 export type ResourceKind = 'food' | 'water' | 'fuel' | 'scrap' | 'meds' | 'people';
@@ -126,7 +126,7 @@ export class ResourceItem extends Stack {
 		this.icon = new ResourceIcon({ kind, shortfall });
 		const color = shortfall ? 'status_crit' : 'text';
 		this.nameText = new Text({ text: name ?? kind, style: { fontRole: 'mono', fontSize: MONO_SIZE, textTransform: 'uppercase', color }, wrap: 'none' });
-		this.valueText = new Text({ text: ledger(value), style: { fontRole: MONO_MEDIUM, fontWeight: 500, fontSize: MONO_SIZE, color }, wrap: 'none' });
+		this.valueText = new Text({ text: ledger(value), style: { fontRole: 'mono', fontWeight: 500, fontSize: MONO_SIZE, color }, wrap: 'none' });
 		this.addChild(this.icon);
 		this.addChild(this.nameText);
 		this.addChild(this.valueText);

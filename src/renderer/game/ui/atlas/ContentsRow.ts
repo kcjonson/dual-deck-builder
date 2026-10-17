@@ -4,7 +4,7 @@ import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { RGBA, Rect } from '../../../engine/draw/geometry';
 import type { ColorToken, Theme } from '../../../engine/theme/tokens';
 import { Pressable } from '../../../engine/ui/Pressable';
-import { ATLAS, AtlasInks, DISPLAY_BOLD, atlasInks } from './atlasStyle';
+import { ATLAS, AtlasInks, atlasInks } from './atlasStyle';
 import { DECK_GLYPH, DeckGlyphGeometry } from './deck';
 import { GlyphPaint, MapGlyphGeometry, glyphPaint, glyphWidth } from './mapGlyphs';
 
@@ -116,7 +116,7 @@ export class ContentsRow extends Pressable {
 		this.paint = glyphPaint(kind, this.inks, { faded });
 		this.labelText = new Text({
 			text: label,
-			style: { fontRole: DISPLAY_BOLD, fontWeight: 700, fontSize: metrics.label, color: this.labelColor },
+			style: { fontRole: 'display', fontWeight: 700, fontSize: metrics.label, color: this.labelColor },
 			wrap: 'none',
 			textOverflow: 'ellipsis',
 			verticalAlign: 'middle',

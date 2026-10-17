@@ -293,7 +293,9 @@ test.describe('raster fallback weight against the distance field (R6.4a)', () =>
 	// is the shipped table itself.
 	const FACES = [
 		{ face: 'open-sans-regular', file: 'open-sans/OpenSans-Regular.ttf' },
+		{ face: 'open-sans-semibold', file: 'open-sans/OpenSans-SemiBold.ttf' },
 		{ face: 'barlow-condensed-semibold', file: 'barlow-condensed/BarlowCondensed-SemiBold.ttf' },
+		{ face: 'barlow-condensed-bold', file: 'barlow-condensed/BarlowCondensed-Bold.ttf' },
 		{ face: 'jetbrains-mono-regular', file: 'jetbrains-mono/JetBrainsMono-Regular.ttf' },
 	];
 	const FIELD_SIZE = 9;
