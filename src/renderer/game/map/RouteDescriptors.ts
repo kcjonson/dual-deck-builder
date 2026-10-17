@@ -1,6 +1,7 @@
 import { BIOMES, Biome } from './Biome';
 import type { MapParams } from './MapParams';
-import { FACTIONS, Factions, POI_TUNING, PoiTuning, STRONGHOLD_TYPE } from './PoiData';
+import { STRONGHOLD_TYPE } from './PoiData';
+import type { Places } from './Places';
 import type { PoiLayer } from './Pois';
 import { ROAD_CLASSES, RoadClass } from './RoadNetwork';
 import { routesTo } from './RouteTree';
@@ -79,10 +80,12 @@ export interface RouteDescriptor {
 
 /** A generated map, as the descriptors read it: a generation's products and params, or anything holding the same. */
 export interface RouteMap {
-	readonly params: Pick<MapParams, 'daylightHours' | 'stopDensity'>;
+	readonly params: Pick<MapParams, 'daylightHours' | 'stopDensity' | 'radius'>;
 	readonly products: {
 		readonly pois: PoiLayer;
 		readonly stops: StopLayer;
+		/** The towns and villages POIs are named after (PoiNames.ts); a map without them names POIs by type and bearing. */
+		readonly places?: Pick<Places, 'towns' | 'villages'>;
 	};
 }
 
@@ -229,21 +232,4 @@ export function compass(dx: number, dy: number): string {
 	if (ay <= ax * EIGHTH) return dx < 0 ? 'west' : 'east';
 	if (ax <= ay * EIGHTH) return dy < 0 ? 'south' : 'north';
 	return `${dy < 0 ? 'south' : 'north'}-${dx < 0 ? 'west' : 'east'}`;
-}
-
-/**
- * A POI's name until place names come from the names stream: its type's
- * label and its bearing from the compound, "Hospital, north-east", or a
- * stronghold's faction's, "Mire-Crawlers stronghold". A name another POI
- * already took gets a number.
- */
-export function poiNames(layer: PoiLayer, { tuning = POI_TUNING, factions = FACTIONS }: { tuning?: PoiTuning; factions?: Factions } = {}): string[] {
-	const seen = new Map<string, number>();
-	return layer.pois.map(({ type, site }, index) => {
-		const stronghold = layer.strongholds.find(({ poi }) => poi === index);
-		const base = stronghold ? `${factions[stronghold.faction]?.label ?? stronghold.faction} stronghold` : `${tuning.types[type]?.label ?? type}, ${compass(site.x, site.y)}`;
-		const count = (seen.get(base) ?? 0) + 1;
-		seen.set(base, count);
-		return count === 1 ? base : `${base} ${count}`;
-	});
 }
