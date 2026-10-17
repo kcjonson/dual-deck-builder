@@ -39,7 +39,7 @@ const TITLE_SIZE = 30;
 const STEP_WIDTH = 300;
 /** The destination's stamp in the head, a step under full size so the head stays one line of boxes tall. */
 const STAMP_SCALE = 0.7;
-const TAG_WIDTH = 200;
+const TAG_WIDTH = 236;
 
 type FailedStopFight = Extract<StopFightResult, { outcome: 'run_failed' }>;
 

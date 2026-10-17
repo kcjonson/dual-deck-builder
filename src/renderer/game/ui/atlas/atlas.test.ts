@@ -337,6 +337,18 @@ describe('AtlasSheet', () => {
 		expect(sheet.surfacePiece).toBe('paper_w2_b');
 	});
 
+	it('tapes a burnt sheet on the other diagonal, so no tape pins the burnt corner (DDB-511)', () => {
+		const sheet = add(new AtlasSheet({ width: 1024, height: 600 }));
+		const tapeCentres = (): number[][] => rects(sheet).filter((command) => same(command.fill, atlas.color.duct_tape)).map((command) => [command.transform[4], command.transform[5]]);
+		const [start, end] = tapeCentres();
+		expect([start[0] < 512, start[1] < 300, end[0] > 512, end[1] > 300]).toEqual([true, true, true, true]);
+		sheet.wear = 3;
+		context.frame.layout();
+		expect(sheet.surfacePiece).toBe('paper_w3_a');
+		const [burntStart, burntEnd] = tapeCentres();
+		expect([burntStart[0] > 512, burntStart[1] < 300, burntEnd[0] < 512, burntEnd[1] > 300]).toEqual([true, true, true, true]);
+	});
+
 	it('flows its content inside the neatline', () => {
 		const sheet = new AtlasSheet({ width: 1024, height: 600 });
 		const child = new Stack({ width: 100, height: 20 });

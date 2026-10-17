@@ -44,6 +44,17 @@ Every baked piece goes through `drawAtlasArt(draw, { name, rect, tint })` in `at
 
 Surfaces take their wear by size: `paperPiece` gives W2 only to a surface at least 288 px on its short side and W3 at 352, W1 below, so a small panel never squeezes a worn piece's corners. The fresh (W0) legend box is a flat fill, never art, per the wear standards. The loop's stroke sits inside its piece, so the piece is drawn further out (20 px) than the flat loop (12 px).
 
+## Damage (W3)
+
+Added with the result screens (DDB-511). W3 is W2 plus one hero mark, and only after a game event (spec, Wear), so the marks are parts a screen adds when it shows the event, never defaults:
+
+- The sheet's own damage is its paper: `AtlasSheet.wear` and `paper` can change after construction, so a screen mounted for a win stays W2 and the same screen mounted for a loss takes W3 (`a` a burnt bottom-right corner, `b` a bullet hole top right, `c` a ripped bottom-left corner). Tape never pins the burnt corner: a burnt sheet is taped on the other diagonal.
+- `DamageMark` is a stamp (LOOTED, DEPLETED, LOST, FALLEN) or a tear as a component at its art's size, struck on the sheet beside what it marks, in the flow, so the lint keeps it off every reading window. It says nothing the page doesn't say in words, so with no art page it draws nothing.
+- `AtlasTag` is a small W1 tag for a person or vehicle. Its right padding always leaves room for a tear run in from the top edge, so tearing a tag never moves or covers its text.
+- A screen with more than one candidate spends its one mark by priority and says so in code (the run debrief's `debriefMark`).
+
+`LegendRow` also took a `value`, mono 500 at the right, for ledgers (the defeat record, the road's stop states), and `LegendSymbol` the star, for home.
+
 ## The hand layer
 
 Highlighter goes down before the ink it marks, at normal blend, so the label keeps full strength; a grease loop goes over everything. One `HandMarkLayer` class covers both by `place`: `under` is `zIndex -1`, `over` is `zIndex 1`, out of the flow and filling its stack's content box (R10.15), with no hits. Different stacking is what the layout lint reads as declared overlap (R3.28), so a layer over its rows lints clean. A mark follows its target through `localToAncestorInto` against the parent they share. Variants cycle so two marks never match.

@@ -35,6 +35,8 @@ const TAPE_TURN = (-34 * Math.PI) / 180;
 /** How far a strip's centre sits in from its corner of the box, so the whole turned strip stays on screen. */
 const TAPE_IN_X = 50;
 const TAPE_IN_Y = 42;
+/** The W3 piece whose hero mark is a burnt bottom-right corner. */
+const BURNT: UiArtName = 'paper_w3_a';
 
 /**
  * The screen sheet (UI Art Direction, Components): one W2 page on the table
@@ -170,10 +172,12 @@ export class AtlasSheet extends Stack {
 		const inner = outer + ATLAS.neatlineGap;
 		setRect(this.outerRule, outer, outer, width - outer * 2, height - outer * 2);
 		setRect(this.innerRule, inner, inner, width - inner * 2, height - inner * 2);
-		const cos = Math.cos(TAPE_TURN);
-		const sin = Math.sin(TAPE_TURN);
-		this.tapeStart = [cos, sin, -sin, cos, TAPE_IN_X, TAPE_IN_Y];
-		this.tapeEnd = [cos, sin, -sin, cos, width - TAPE_IN_X, height - TAPE_IN_Y];
+		// Tape never pins a burnt corner: the W3 burn sits bottom right, so its sheet is taped on the other diagonal.
+		const flip = this.surface === BURNT;
+		const cos = Math.cos(flip ? -TAPE_TURN : TAPE_TURN);
+		const sin = Math.sin(flip ? -TAPE_TURN : TAPE_TURN);
+		this.tapeStart = [cos, sin, -sin, cos, flip ? width - TAPE_IN_X : TAPE_IN_X, TAPE_IN_Y];
+		this.tapeEnd = [cos, sin, -sin, cos, flip ? TAPE_IN_X : width - TAPE_IN_X, height - TAPE_IN_Y];
 	}
 }
 
