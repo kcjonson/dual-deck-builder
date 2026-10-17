@@ -20,7 +20,7 @@ import { RouteCard } from '../../ui/RouteCard';
 import { STRONGHOLD_NOT_YET, QUIET_STOPS, clockText, homeByText, poiKindText, poiYieldText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
 import { COLUMN_GAP, PRIMARY_HEIGHT, PRIMARY_LABEL, PoiHead, SHEET_GAP, SIDE_WIDTH, caption, screenTitle } from '../area-map/atlasPanel';
 import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, poiStock, quickestOf, routesBounds, viewData } from '../area-map/planningMap';
-import { countOf, mapProgressText } from '../main-menu/campaignText';
+import { mapProgressText } from '../main-menu/campaignText';
 import type { LoadOutScreenData } from '../load-out/LoadOutScreen';
 import { gateSectionTabs, metaSectionTabs } from '../metaSections';
 import { departRefusal, planRefusal } from '../run/runText';
@@ -425,8 +425,7 @@ export class RunRouteScreen extends Screen {
 			campaign,
 			poi: poi.poi,
 			route: offered.id,
-			heading: `${poi.name} by ${route.name}`,
-			summary: `${countOf(route.stops.length, 'stop')} / fuel ${route.fuel} / home by ${clockText(route.back)}`,
+			trip: { destination: poi.name, routeName: route.name, stops: route.stops.length, fuel: route.fuel, homeBy: clockText(route.back), pastDark: route.spare < 0 },
 		};
 		ScreenManager.navigate('loadOutScreen', data);
 	}

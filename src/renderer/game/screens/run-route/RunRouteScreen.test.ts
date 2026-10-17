@@ -191,8 +191,7 @@ describe('RunRouteScreen (DDB-319)', () => {
 			campaign,
 			poi: NEAR.poi,
 			route: routeId(NEAR.poi, 1),
-			heading: `${NEAR.name} by ${route.name}`,
-			summary: `${route.stops.length} ${route.stops.length === 1 ? 'stop' : 'stops'} / fuel ${route.fuel} / home by ${clockText(route.back)}`,
+			trip: { destination: NEAR.name, routeName: route.name, stops: route.stops.length, fuel: route.fuel, homeBy: clockText(route.back), pastDark: route.spare < 0 },
 		});
 		expect([campaign.runDecks.length, campaign.supplyRun, campaign.resources.fuel]).toEqual([0, null, 20]);
 	});
