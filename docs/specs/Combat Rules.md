@@ -8,7 +8,7 @@
 
 - Properties
   - Type: Player or Enemy
-  - Vehicles: Array of vehicles. Player teams start with exactly 2 driven vehicles, plus up to 4 escorts in formation (see Escorts), plus any set-piece escorts the encounter starts on the enemy shoulder (ambush starts, see The road). Enemy teams are variable, and their raiders can start on the player's shoulder.
+  - Vehicles: Array of vehicles. Player teams start with exactly 2 driven vehicles, plus up to 4 escorts in formation (see Escorts), plus any set-piece escorts the encounter starts on the enemy shoulder (ambush starts, see The road). Enemy teams are variable, grow as reinforcement waves arrive (see Reinforcements), and their raiders can start on the player's shoulder.
   - Up to 9 vehicles on the road per side: 6 in formation and 3 on the shoulder. A flanker keeps its formation slot reserved, so a side only gets past 6 through ambush starts.
 - Derived States
   - Defeated = No driver still in the fight, driving or riding as a passenger. Every driver is at 0 HP or crashed out. Escorts never count.
@@ -84,7 +84,7 @@ Opening placement: a vehicle whose encounter gives it a slot starts there; the r
 
 Ambush starts: an encounter can place a vehicle already flanking, on the other team's shoulder in a row the encounter names. Ambushers are raiders and set-piece escorts, nothing else:
 
-- Raider encounters and reinforcement waves can place raiders on the player's shoulder, at the start of the fight or when a wave arrives.
+- Raider encounters and reinforcement waves can place raiders on the player's shoulder, at the start of the fight or when a wave arrives. For now no wave does (Reinforcements).
 - A set-piece escort (an event ally, for example) can start on the raiders' shoulder.
 - The player's two driven vehicles always start in formation.
 
@@ -140,12 +140,41 @@ Decided by Kevin, 2026-09-25. Record: [enemy-intent-planning.md](../AI_TECHNICAL
 - Raiders plan from where the enemy turn is expected to find them as the board stands when the plan is made: a flanker too slow to hold the shoulder then plans from the slot it's expected to drop back to, so its cards don't fizzle unless the player changes something (speeding it back past the vehicle it outran, say, so it holds the shoulder after all).
 - When a planned target was wrecked earlier in the enemy turn, the card goes to the vehicle the wrecked driver now rides in as a passenger, escorts included. If there's no such vehicle, it fizzles. A card planned at a player vehicle whose driver has since died lands on it as an escort (so a Headshot fizzles, since it's an empty escort).
 - A raider that is wrecked, or has lost its driver, drops the rest of its plan.
-- A stunned raider skips its turn. EMP Blast played during the player's turn stuns every raider in the fight for the enemy turn that follows: each stunned raider with a committed plan drops it (the log says it's stunned and skips its turn; a raider wrecked or left without its driver by then gets that line instead), and its intents disappear from the preview the moment the card is played, so Draw Fire has nothing of its to redirect. The stun wears off at the start of the next player turn, before raiders plan, so the raider plans and acts normally on the turn after. A raider that arrives after the EMP (a reinforcement wave, once there is one) isn't stunned. A stunned raider is otherwise still in the fight: it stays on the road, can be targeted and damaged, and drops back at the end of the player's turn under the usual flank rules if outpaced. Decided 2026-09-27 as the natural reading of the card (DDB-173).
+- A stunned raider skips its turn. EMP Blast played during the player's turn stuns every raider in the fight but a Steady one (Raider formation and stuns) for the enemy turn that follows: each stunned raider with a committed plan drops it (the log says it's stunned and skips its turn; a raider wrecked or left without its driver by then gets that line instead), and its intents disappear from the preview the moment the card is played, so Draw Fire has nothing of its to redirect. The stun wears off at the start of the next player turn, before raiders plan, so the raider plans and acts normally on the turn after. A raider that arrives after the EMP (a reinforcement wave, Reinforcements) isn't stunned. A stunned raider is otherwise still in the fight: it stays on the road, can be targeted and damaged, and drops back at the end of the player's turn under the usual flank rules if outpaced. Decided 2026-09-27 as the natural reading of the card (DDB-173).
 - Basic raiders show everything. Elites show the type and target but hide the value and the card. Bosses behave like elites until bosses are designed.
 - Raider archetypes have target preferences, applied when the raider plans: looters go for haulers (escorts whose role is hauler), killers go for drivers (driven vehicles). A raider can have neither. The archetype belongs to the raider, whatever AI plans for it. The preference shows only through the planned intents' target marks, so the player reads it off the road before acting. An archetype picks its preferred target when that target is legal for the card, and otherwise plans as usual; among several preferred targets, the raider's usual judgment picks. It applies to cards aimed at one of your vehicles that land something on it, not to a flank, whose target is only the vehicle it outruns. Draw Fire counters both archetypes, since it pulls aimed fire off any of your vehicles in its escort's row, a hauler as much as a driven vehicle. The Rust Buggy is a looter (decided 2026-09-26, Kevin delegated the call; [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decision 30).
 - Draw Fire lasts until the end of the next enemy turn. Each aimed intent (one target) at another of your vehicles in the escort's row, whatever the vehicle is (driven, a hauler, another escort, or one that became an escort when its driver died), is judged as it plays: if its card can reach the escort, it hits the escort instead; if not, it hits its original target as planned. Draw Fire protects; it never makes an attack fizzle. An intent aimed at the escort itself lands on it as planned. Target marks update when Draw Fire is played, so the end-turn preview shows the redirect. The preview judges the board where the enemy turn will find it, as play does: a flanker of yours that will drop back at the end of your turn counts in the row it drops back to, an intent at a vehicle wrecked this turn follows its survivors, and a raider that will drop back because you outpaced it reaches from its reserved slot, without the flank bonus, then moves with any flank earlier in its own plan. An intent that can't reach anyone from there fizzles and disappears from the preview. If two Draw Fires cover the same row, the last one played wins, skipping a cover that's out of the fight. Decided 2026-09-26, Kevin delegated the call; [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decision 48.
 - Draw Fire never redirects an area intent. An area intent hits every vehicle it would have hit, covered rows included, and the escort drawing fire takes only its own hit; Draw Fire pulls aimed fire, and it can't pull a blast. Decided 2026-09-26, Kevin delegated the call; [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decision 29.
 - An escort is a legal target like any vehicle, except for a driver-only attack (Headshot): an empty escort has no HP of its own, so it isn't a legal Headshot target. An escort carrying a passenger is, and Headshot hits the passenger. A planned Headshot whose passenger dies before it plays fizzles. Decided in DDB-148; see [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decision 22.
+
+### Reinforcements
+
+Decided 2026-10-17: a raider encounter is a group that arrives in waves (Kevin's rule), and the encounter sizes, waves, and why are in [Runs and Encounters](./Runs%20and%20Encounters.md). The first wave is on the road when the fight starts; the rest wait in a queue.
+
+- Due: at the start of the player's turn, after the raiders plan, the next wave is due if the raiders on the road are at or below its arrival count, or its turn count has passed since the last wave arrived (or the fight began). The encounter sets both.
+- Announced: a due wave shows in the top bar ("+3 arriving") and marks the rows it will pull into. Kills during the player's turn can change which slots are free, so the marks name rows, not slots.
+- Arrival: at the end of the enemy turn, after flankers drop back, wrecks clear, and the formation closes up. Arrivals fill the enemy formation in the opening order, inside lane first, starting with the row the latest wreck left; with the formation full, the rest stay queued. Each is seated with its deck shuffled from its own seat's stream, and they draw, refill, and plan at the start of the player's turn with every other raider, so every raider on the road shows its intents before the player acts.
+- An empty road: if the player clears the road during their turn, the next wave is announced then and arrives at the end of that enemy turn.
+- No wave arrives as ambushers on the player's shoulder for now, though The road allows it: the Rig can't reach the shoulder (DDB-494).
+- A wave that arrives after an EMP Blast isn't stunned by it.
+
+### Raider formation and stuns
+
+Decided 2026-10-17 as raider-side workarounds for gaps in the starting cards, which Kevin chose over changing the cards for now ([Runs and Encounters](./Runs%20and%20Encounters.md), Raider-side rules that keep groups fair).
+
+- Close-up: at the end of every enemy turn, before arrivals, each empty enemy inside-lane slot across from one of the player's driven vehicles is filled by the nearest raider in the enemy formation that isn't across from one already, ties broken as for attack orders. It never moves a flanker or an ambusher and never takes a reserved slot. Raiders plan after it, at the start of the player's turn, so no plan is made from a slot that then changes.
+- Shake-off: a raider can't be stunned two enemy turns running. A raider stunned on the last enemy turn is Steady through the player's turn that follows: it shows a Steady chip, an EMP Blast played that turn passes it by, and its intents stay up.
+
+### How a fight ends
+
+Decided 2026-10-17 ([Runs and Encounters](./Runs%20and%20Encounters.md)).
+
+- Won: no raider left on the road or in the queue, or a rout.
+- Rout: when a warband's leader is out of the fight, or when the nominal threat still in it (on the road and queued) is at or under a quarter of the encounter's starting threat, the remaining raiders flee and the fight is won. Nominal threat is each raider profile's own number, not what it's taken.
+- Break-off: if the fight goes nowhere for three player turns running, the raiders break off (what counts as going nowhere is open in Runs and Encounters). The fight ends neither won nor lost: the run goes on, the damage carries as usual, and it pays no reward.
+- Lost: as in Losing vehicles and drivers. Abandoning a fight is unchanged.
+
+Victory and a rout are checked after every card and every enemy action; a break-off at the end of the player's turn.
 
 ## Escorts
 

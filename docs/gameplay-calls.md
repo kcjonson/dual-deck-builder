@@ -327,3 +327,11 @@ Record: load-out-screen.md.
 Record: campaign-state-model.md.
 
 182. DDB-508: a new campaign is founded with only the bunkhouse standing, and nothing builds a building yet, so the radio mast, infirmary, map room, garage, and stores show as staked-out plots on the compound plate; `Campaign.buildings` holds what stands (save format 10), founding takes it from `campaign-start.json`, and version 9 saves load with the bunkhouse standing, because the plate draws what stands and the bunkhouse's Crew screen was the only building screen in play.
+
+## Runs and encounters (183 to 185)
+
+Made writing [Runs and Encounters](./specs/Runs%20and%20Encounters.md), beyond what Kevin approved in its plan on 2026-10-17; the spec keeps each as an open question (5 to 7). No decision record yet.
+
+183. DDB-523: the least a calm stop offers is take it, spending the stop's hours, or drive on and keep them, because it's the cheapest way to make a find a choice rather than an empty step, and it costs no new screen.
+184. DDB-525: a fight going nowhere, for a break-off, is three player turns running with no damage to any raider (armor, structure, or HP), because "neither side takes damage", as the plan had it, misses the case break-off exists for: a raider the crew can't reach that's still hitting the crew.
+185. DDB-328: every raider class carries a card that can hit each starting archetype's vehicle, because a class the bike's evade beats leaves an Interceptor pair untouched, as the Rust Buggy's old gunnery of 6 did.
