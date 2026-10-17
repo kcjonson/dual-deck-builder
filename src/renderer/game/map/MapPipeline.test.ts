@@ -18,6 +18,7 @@ interface Spec {
 	readonly localRetry?: boolean;
 	readonly attempts?: number;
 	readonly escalate?: string;
+	readonly inert?: boolean;
 }
 
 interface Run {
@@ -40,12 +41,13 @@ function harness({ stages = abc(), extraDraws = 0 }: { stages?: Spec[]; extraDra
 	const runs: Run[] = [];
 	const progress: StageAttempt[] = [];
 	let pipeline = new MapPipeline<null, Drawns>();
-	for (const { name, fails, localRetry, attempts, escalate } of stages) {
+	for (const { name, fails, localRetry, attempts, escalate, inert } of stages) {
 		const stage: MapStage<null, Drawns, string, Drawn> = {
 			name,
 			localRetry,
 			attempts,
 			escalate,
+			inert,
 			run: ({ rng, products }) => {
 				runs.push({ stage: name, stream: rng.seed, attempt: current as StageAttempt, upstream: products });
 				const value = rng.next();
@@ -260,6 +262,12 @@ describe('MapPipeline', () => {
 			expect(() => local.stage(plain('dressing', { escalate: 'stops' }))).toThrow(/local-retry/);
 			expect(() => ab.stage(plain('stops', { localRetry: true, escalate: 'a' }))).toThrow(/local-retry/);
 			expect(() => ab.stage(plain('c', { attempts: 0 }))).toThrow(RangeError);
+			// An inert stage retries only itself, and only others like it follow it.
+			expect(() => ab.stage(plain('dressing', { inert: true }))).toThrow(/a map restart would move the gameplay map/);
+			const dressed = ab.stage(plain('dressing', { inert: true, localRetry: true })) as unknown as MapPipeline<null, Drawns>;
+			expect(dressed.inertStageNames).toEqual(['dressing']);
+			expect(() => dressed.stage(plain('stops', { localRetry: true }))).toThrow(/can't follow an inert stage/);
+			expect(dressed.stage(plain('labels', { inert: true, localRetry: true })).stageNames).toEqual(['a', 'b', 'dressing', 'labels']);
 			expect(() => ab.stage(plain('c', { attempts: 1.5 }))).toThrow(RangeError);
 		});
 	});
@@ -365,6 +373,19 @@ describe('MapPipeline', () => {
 			expect(replay(MAP_ATTEMPTS, { a: 0, b: 0, c: 0 })).toThrow(`MapPipeline: can't replay map attempt ${MAP_ATTEMPTS}; a run makes 0 to ${MAP_ATTEMPTS - 1}`);
 			expect(replay(0.5, { a: 0, b: 0, c: 0 })).toThrow(RangeError);
 			expect(runs).toEqual([]);
+		});
+
+		it('replays an inert stage on its first attempt where the attempts leave it out, so a save made before it was added still replays', () => {
+			const stages = [...abc(), { name: 'dressing', localRetry: true, inert: true, fails: failing(0) }];
+			const made = harness({ stages }).run();
+			expect(made.attempts).toEqual({ a: 0, b: 0, c: 0, dressing: 1 });
+			const older = harness({ stages }).run({ replay: { mapAttempt: 0, attempts: { a: 0, b: 0, c: 0 } } });
+			expect(older.attempts).toEqual({ a: 0, b: 0, c: 0, dressing: 0 });
+			expect(older.streams.dressing).toBe(stream(7, 0, ['a', 0], ['b', 0], ['c', 0], ['dressing', 0]));
+			expect({ a: older.products.a, b: older.products.b, c: older.products.c }).toEqual({ a: made.products.a, b: made.products.b, c: made.products.c });
+			expect(harness({ stages }).run({ replay: { mapAttempt: 0, attempts: made.attempts } }).products).toEqual(made.products);
+			const { run } = harness({ stages });
+			expect(() => run({ replay: { mapAttempt: 0, attempts: { a: 0, b: 0, dressing: 0 } } })).toThrow("MapPipeline: can't replay without c's attempt");
 		});
 	});
 

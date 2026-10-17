@@ -1,3 +1,4 @@
+import { Dressing, generateDressing } from './Dressing';
 import { Hazards, generateHazards } from './Hazards';
 import type { MapParams } from './MapParams';
 import { AcceptHook, MapPipeline, MapStage, PipelineReplay, PipelineResult, StageAttempt } from './MapPipeline';
@@ -7,6 +8,7 @@ import { PoiGround, PoiLayer, placePois } from './Pois';
 import { checkRoadNetwork } from './RoadChecks';
 import type { RoadNetwork } from './RoadNetwork';
 import { RoadStats, Roads, generateRoads, loopsNeeded, loopsWanted, roadsProblems } from './Roads';
+import { poiNames } from './RouteDescriptors';
 import { RouteTree, buildRouteTree } from './RouteTree';
 import { checkStopLayer } from './StopChecks';
 import { StopGround, StopLayer, placeStops } from './Stops';
@@ -14,12 +16,12 @@ import { Terrain, generateTerrain } from './Terrain';
 import { Water, generateWater } from './Water';
 
 /**
- * The area map's stages as they stand: terrain, water, hazards, places, the
- * roads, then the route tree, the POIs, and the stops over the roads'
- * network. Each runs on the stream the runner nests for it, so water draws
- * from root.fork('map', m).fork('terrain', t).fork('water', w), hazards one
- * level further down, places one more, and so on; the route tree takes no
- * draws, but it's a link in the chain all the same.
+ * The area map's stages: terrain, water, hazards, places, the roads, then
+ * the route tree, the POIs, and the stops over the roads' network, and last
+ * the dressing over all of it. Each runs on the stream the runner nests for
+ * it, so water draws from root.fork('map', m).fork('terrain', t).fork('water', w),
+ * hazards one level further down, places one more, and so on; the route
+ * tree takes no draws, but it's a link in the chain all the same.
  */
 
 export interface AreaMapProducts {
@@ -36,6 +38,8 @@ export interface AreaMapProducts {
 	readonly routeTree: RouteTree;
 	readonly pois: PoiLayer;
 	readonly stops: StopLayer;
+	/** Street grids, rail, hatching, stipple, and labels: drawing only. */
+	readonly dressing: Dressing;
 }
 
 export type AreaMapStageName = keyof AreaMapProducts;
@@ -178,12 +182,45 @@ export const STOPS_STAGE: MapStage<MapParams, StopsUpstream, 'stops', StopLayer>
 	check: (stops, { input, products }) => checkStopLayer({ network: products.roads.network, layer: products.pois, stops, params: input }).map(({ rule, detail }) => `${rule}: ${detail}`),
 };
 
+/** What the dressing reads: the water, the land with its hazards, the places, the roads, and the POIs. */
+interface DressingUpstream extends RoadsProduct {
+	readonly water: Water;
+	readonly hazards: Hazards;
+	readonly places: Places;
+	readonly pois: PoiLayer;
+}
+
+/**
+ * Stage 11, the dressing, last. It carries no gameplay, so it's inert: it
+ * retries only itself, and a save made before it existed replays it on its
+ * first attempt. It has no checks, so its first attempt always wins.
+ */
+export const DRESSING_STAGE: MapStage<MapParams, DressingUpstream, 'dressing', Dressing> = {
+	name: 'dressing',
+	localRetry: true,
+	inert: true,
+	run: ({ input, products, rng }) => generateDressing({
+		params: input,
+		water: products.water,
+		hazards: products.hazards,
+		places: products.places,
+		network: products.roads.network,
+		pois: products.pois,
+		poiNames: poiNames(products.pois),
+		rng,
+	}),
+};
+
 export interface AreaMapPipelineOptions {
 	/** Strict unless told otherwise. */
 	readonly pois?: PoisStageOptions;
 }
 
-/** Adding, removing, or renaming a stage here bumps `AREA_MAP_GENERATOR_VERSION` (GeneratorVersion.ts). */
+/**
+ * Adding, removing, or renaming a gameplay stage here bumps
+ * `AREA_MAP_GENERATOR_VERSION` (GeneratorVersion.ts); an inert stage, the
+ * dressing, doesn't, since a replay runs it on its first attempt.
+ */
 export function areaMapPipeline({ pois = {} }: AreaMapPipelineOptions = {}): MapPipeline<MapParams, AreaMapProducts> {
 	return new MapPipeline<MapParams>()
 		.stage(TERRAIN_STAGE)
@@ -193,7 +230,8 @@ export function areaMapPipeline({ pois = {} }: AreaMapPipelineOptions = {}): Map
 		.stage(ROADS_STAGE)
 		.stage(ROUTE_TREE_STAGE)
 		.stage(poisStage(pois))
-		.stage(STOPS_STAGE);
+		.stage(STOPS_STAGE)
+		.stage(DRESSING_STAGE);
 }
 
 export interface AreaMapGeneration extends PipelineResult<AreaMapProducts> {
