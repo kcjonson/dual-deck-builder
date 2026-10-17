@@ -185,5 +185,5 @@ The rest (crew, load-out, customize, campaign history, settings, credits, result
 ## Open questions
 
 1. Theme scope. Decided: per-screen theme selection, so the meta screens go atlas while combat stays dark, rather than re-theming globally and changing combat before its pass.
-2. The compound plate: a painted bitmap per compound state, or vector shapes built in engine (flat, rect, and circle draws plus a corrugated-metal texture) that can show buildings appearing as they're built. Vector is the recommendation, since the plate has to change as the compound grows.
+2. The compound plate. Decided: vector shapes built in engine (flat, rect, and circle draws, with the corrugated roofs as stripes rather than a texture), drawn from the buildings the campaign holds, so a building appears on the plate the day it's built. A painted bitmap per compound state was the alternative.
 3. When the `serif` and `hand` roles land, and whether the game writes its own hand notes (rumors, warnings) or leaves the hand layer to the player's choices only.
