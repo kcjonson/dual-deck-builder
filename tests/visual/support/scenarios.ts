@@ -57,9 +57,8 @@ interface ScreenCase {
  *
  * Each spec arrives at its screen the same way every time: a fresh page, the
  * splash screen the app boots into, then exactly one `window.__app.navigate`.
- * That matters for driver selection specifically (DDB-106: 49 GPU calls on the
- * first mount and 33 on every mount after it, so the screen is not the same
- * drawing twice), and it costs nothing to hold every other screen to it too.
+ * A screen can draw its first mount differently from a later one (DDB-106
+ * found one that did), and one path holds every screen to the same drawing.
  *
  * Two properties of that path are worth stating, because they decide what
  * these goldens are pictures of. `openScreen` pauses before it navigates, so
@@ -71,13 +70,15 @@ interface ScreenCase {
  *
  * The screens that read the campaign store mount over the saves a case puts
  * in local storage first, the way a player's page holds them, and every other
- * case over none. The compound, Crew, Customize, area map, run route, and
- * run screens are opened with no campaign handed over, so each loads the
- * save as Continue would, Customize shows the first seat's run deck, and
- * the run route screen the nearest destination (DDB-283, DDB-301, DDB-314,
- * DDB-321, DDB-454, DDB-43, DDB-319). The compound, the area map, and the
- * run route screen make the save's map again in the worker as they would
- * on Continue, and the capture waits for it (`assetsReady`).
+ * case over none. The compound, Crew, Customize, area map, run route, load
+ * out, and run screens are opened with no campaign handed over, so each
+ * loads the save as Continue would, Customize shows the first seat's run
+ * deck, and the run route screen the nearest destination (DDB-283,
+ * DDB-301, DDB-314, DDB-321, DDB-454, DDB-43, DDB-319). Load out is handed
+ * a heading and summary but no route, so START RUN says there's no route
+ * to run (DDB-320). The compound, the area map, and the run route screen
+ * make the save's map again in the worker as they would on Continue, and
+ * the capture waits for it (`assetsReady`).
  */
 const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'splashScreen' },
@@ -90,7 +91,6 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'creditsScreen' },
 	{ screen: 'developerScreen' },
 	{ screen: 'cardShowcaseScreen' },
-	{ screen: 'driverSelectionScreen' },
 	{ screen: 'combatScreen' },
 	// The log drawer open over the road, at both sizes: never over the dock or End Turn (DDB-140)
 	{ screen: 'combatScreen', variant: 'log', data: { openLog: true } },
@@ -110,9 +110,11 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	// A save already lost, which the defeat screen shows as the compound hands it one (DDB-305)
 	{ screen: 'defeatScreen', storage: LOST },
 	// The area map from the compound between runs, and the nearest destination's routes (DDB-43, DDB-319);
+	// load out with the crew that can go seated (DDB-320);
 	// then the run on the road: the fixture's at its last fight's reward, and a step earlier with the fight ahead (DDB-454)
 	{ screen: 'areaMapScreen', storage: AT_HOME },
 	{ screen: 'runRouteScreen', storage: AT_HOME },
+	{ screen: 'loadOutScreen', storage: AT_HOME, data: { heading: 'Elk Creek Clinic by Back roads', summary: '2 stops / fuel 3 / home by 16:30' } },
 	{ screen: 'runScreen', storage: IN_PROGRESS },
 	{ screen: 'runScreen', variant: 'road', storage: ON_THE_ROAD },
 ];
@@ -200,6 +202,8 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'combat-dock-crashed-out', lintShort: true },
 	// The developer way into Customize (DDB-321)
 	{ scene: 'customize' },
+	// The developer way into load out (DDB-320)
+	{ scene: 'load-out' },
 ];
 
 /** A scene at one window size, and the name its golden and text record go by there. */

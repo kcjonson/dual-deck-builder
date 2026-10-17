@@ -4,7 +4,7 @@ import type { Campaign } from '../../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
 import { routeId } from '../../campaign/MapRoutes';
 import type { RunRoute } from '../../campaign/SupplyRoutes';
-import { DepartBlocker, departRun, getDepartBlocker, getPlanBlocker, quickLoadOut, routesOnOffer } from '../../campaign/SupplyRun';
+import { DepartBlocker, getDepartBlocker, getPlanBlocker, routesOnOffer } from '../../campaign/SupplyRun';
 import type { RouteDescriptor } from '../../map/RouteDescriptors';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
@@ -16,7 +16,8 @@ import { AreaMapView } from '../../ui/areaMap/AreaMapView';
 import { RouteCard } from '../../ui/RouteCard';
 import { STRONGHOLD_NOT_YET, QUIET_STOPS, clockText, homeByText, poiKindText, poiYieldText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
 import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, poiStock, quickestOf, routesBounds, viewData } from '../area-map/planningMap';
-import { mapProgressText } from '../main-menu/campaignText';
+import { countOf, mapProgressText } from '../main-menu/campaignText';
+import type { LoadOutScreenData } from '../load-out/LoadOutScreen';
 import { departRefusal, planRefusal } from '../run/runText';
 
 const { space } = tokens;
@@ -29,8 +30,6 @@ const FRAME_MARGIN = 60;
  * isn't drawn so close that the baked land shows its texels.
  */
 const MIN_FRAME = 800;
-/** What the status line says once the store has moved on from this campaign; Back then goes to the menu. */
-export const STRANDED_RUN_ROUTE = "This campaign isn't the save any more, so nothing more is saved here. Back goes to the menu to pick up the save.";
 /** A stop's tag holds the longest, CHECKPOINT, so the rows' text lines up. */
 const TAG_WIDTH = 92;
 
@@ -59,9 +58,8 @@ export interface RunRouteScreenOptions {
  * can't fuel is dimmed with the reason, and Load out the crew is off while
  * it's picked.
  *
- * Load out the crew is the quick load out until load out's screen exists
- * (DDB-320): it seats the crew, departs on the route against the same map
- * the cards came from, checkpoints, and opens the run screen. Back and
+ * Load out the crew opens load out (DDB-320) with the POI and the picked
+ * route, and it sets off from there. Back and
  * Escape return to the area map with the POI still chosen. Opened with no
  * campaign it loads the save as Continue would, and with no POI it shows
  * the nearest destination (`byDistance`). The decision record is
@@ -87,11 +85,6 @@ export class RunRouteScreen extends Screen {
 	private homeLine: Text | null = null;
 	private loadOutButton: Button | null = null;
 	private loadOutReason: Text | null = null;
-	/** The run is setting off, so another press waits for it. */
-	private departing = false;
-	/** The store has moved on from this campaign: nothing here is saved, and Back goes to the menu. */
-	private stranded = false;
-	private unsubscribe: (() => void) | null = null;
 	private visit = 0;
 	/** Stops waiting for the map once the screen has gone. */
 	private waiting: AbortController | null = null;
@@ -141,7 +134,6 @@ export class RunRouteScreen extends Screen {
 		this.stack.addChild(this.createSide(back));
 
 		this.rootLayer.hotkeys.register('Escape', () => this.back());
-		this.unsubscribe = this.store.onSaveFailed((error) => this.say({ text: error.message, color: 'status_crit' }));
 		this.context.focus.focus(back);
 
 		const handed = data as Partial<RunRouteScreenData> | undefined;
@@ -155,8 +147,6 @@ export class RunRouteScreen extends Screen {
 		this.waiting?.abort();
 		this.waiting = null;
 		this.rootLayer.hotkeys.unregister('Escape');
-		this.unsubscribe?.();
-		this.unsubscribe = null;
 		this.stack.clearChildren();
 		this.campaign = null;
 		this.map = null;
@@ -173,8 +163,6 @@ export class RunRouteScreen extends Screen {
 		this.homeLine = null;
 		this.loadOutButton = null;
 		this.loadOutReason = null;
-		this.departing = false;
-		this.stranded = false;
 	}
 
 	/** Back and the heading, the POI, the status line, the route cards and the picked route's stops, and Load out the crew at the foot. */
@@ -242,7 +230,7 @@ export class RunRouteScreen extends Screen {
 			size: 'lg',
 			block: true,
 			disabled: true,
-			onClick: () => { void this.loadOut(); },
+			onClick: () => this.loadOut(),
 		});
 		side.addChild(this.loadOutButton);
 		this.loadOutReason = caption({ id: 'run_route_load_out_reason', text: '', color: 'status_warn' });
@@ -372,7 +360,7 @@ export class RunRouteScreen extends Screen {
 			this.homeLine.color = route.spare < 0 ? 'status_warn' : 'text';
 		}
 		const reason = this.loadOutBlocked(route);
-		if (this.loadOutButton) this.loadOutButton.enabled = reason === null && !this.departing;
+		if (this.loadOutButton) this.loadOutButton.enabled = reason === null;
 		if (this.loadOutReason) {
 			this.loadOutReason.text = reason ?? '';
 			this.loadOutReason.visible = reason !== null;
@@ -397,55 +385,26 @@ export class RunRouteScreen extends Screen {
 	private loadOutBlocked(route: RouteDescriptor): string | null {
 		const { campaign, map } = this;
 		if (!campaign || !map) return null;
-		if (this.stranded) return STRANDED_RUN_ROUTE;
 		const plan = getPlanBlocker({ campaign, map });
 		if (plan !== null && plan.reason !== 'too_little_fuel') return planRefusal(plan);
 		const blocker = this.departBlocker(route);
 		return blocker === null ? null : departRefusal(blocker);
 	}
 
-	/**
-	 * The quick load out, then the departure on the picked route against
-	 * this map, and the checkpoint, then the run screen, handed the save's
-	 * result so it can say a save failed. A load out that can't seat anyone,
-	 * or a departure that's refused, says why here, giving up any run decks
-	 * it started, and nothing is saved. A save the store has moved on from
-	 * stays here, saying nothing more is saved, with Load out off and Back
-	 * going to the menu, where Continue picks up the save.
-	 */
-	private async loadOut(): Promise<void> {
+	/** Load out on the picked route, which sets off from there; Back there comes back here with this POI. */
+	private loadOut(): void {
 		const { campaign, map, poi } = this;
 		const route = poi?.routes[this.picked];
 		const offered = route ? this.runRoute(route) : null;
-		if (!campaign || !map || !offered || this.departing || (route && this.loadOutBlocked(route) !== null)) return;
-		this.departing = true;
-		if (this.loadOutButton) this.loadOutButton.enabled = false;
-		const visit = this.visit;
-		try {
-			const { escorts } = quickLoadOut({ campaign });
-			try {
-				departRun({ campaign, map, route: offered, escorts });
-			} catch (error) {
-				campaign.unwindRunDecks();
-				throw error;
-			}
-		} catch (error) {
-			console.error('RunRouteScreen: the run could not set off', error);
-			this.say({ text: error instanceof Error ? error.message : "The run couldn't set off.", color: 'status_crit' });
-			this.departing = false;
-			this.pick(this.picked);
-			return;
-		}
-		const result = await this.store.checkpoint(campaign);
-		if (visit !== this.visit) return;
-		if (result === 'retired') {
-			this.departing = false;
-			this.stranded = true;
-			this.say({ text: STRANDED_RUN_ROUTE, color: 'status_warn' });
-			this.pick(this.picked);
-			return;
-		}
-		ScreenManager.navigate('runScreen', { campaign, saved: Promise.resolve(result) });
+		if (!campaign || !map || !poi || !route || !offered || this.loadOutBlocked(route) !== null) return;
+		const data: LoadOutScreenData = {
+			campaign,
+			poi: poi.poi,
+			route: offered.id,
+			heading: `${poi.name} by ${route.name}`,
+			summary: `${countOf(route.stops.length, 'stop')} / fuel ${route.fuel} / home by ${clockText(route.back)}`,
+		};
+		ScreenManager.navigate('loadOutScreen', data);
 	}
 
 	/** The status line, hidden with nothing to say. */
@@ -456,10 +415,9 @@ export class RunRouteScreen extends Screen {
 		this.status.visible = text !== '';
 	}
 
-	/** To the area map with this POI still chosen, or the menu with no campaign to show or once it isn't the save. */
+	/** To the area map with this POI still chosen, or the menu with no campaign to show. */
 	private back(): void {
-		if (this.departing) return;
-		if (this.campaign && !this.stranded) ScreenManager.navigate('areaMapScreen', { campaign: this.campaign, poi: this.poiIndex ?? undefined }, { restoreFocus: true });
+		if (this.campaign) ScreenManager.navigate('areaMapScreen', { campaign: this.campaign, poi: this.poiIndex ?? undefined }, { restoreFocus: true });
 		else ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 	}
 }

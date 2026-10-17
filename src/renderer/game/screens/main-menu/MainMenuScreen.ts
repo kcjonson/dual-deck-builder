@@ -112,9 +112,6 @@ export interface MainMenuScreenOptions {
  * progress line between the title and the column, and leaving the menu
  * cancels it. A campaign in progress goes into the history as abandoned
  * before the new one is saved.
- *
- * Skirmish keeps the old quick fight from driver selection reachable for
- * playtesters until load out replaces driver selection.
  */
 export class MainMenuScreen extends Screen {
 	private readonly stack: Stack;
@@ -276,12 +273,6 @@ export class MainMenuScreen extends Screen {
 		menu.addChild(campaign);
 
 		const more = new Stack({ id: 'main_menu_more', crossAlign: 'stretch', gap: tokens.space.space_2 });
-		more.addChild(new Button({
-			label: 'Skirmish',
-			id: 'main_menu_skirmish_button',
-			block: true,
-			onClick: () => this.leave('driverSelectionScreen'),
-		}));
 		more.addChild(new Button({
 			label: 'Settings',
 			id: 'main_menu_settings_button',

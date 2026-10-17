@@ -35,6 +35,7 @@ import { VehicleTokensSection } from './VehicleTokensSection';
 import { CombatTargetingSection } from './CombatTargetingSection';
 import { CombatDockCrashedOutSection, CombatDockSection } from './CombatDockSection';
 import { CustomizeLauncherSection } from './CustomizeLauncherSection';
+import { LoadOutLauncherSection } from './LoadOutLauncherSection';
 
 /**
  * The developer screen's sections, defined once.
@@ -249,5 +250,10 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'customize',
 		build: (options) => new CustomizeLauncherSection(options),
+	},
+	// Opens load out on the test campaign at home, saved in memory (DDB-320)
+	{
+		name: 'load-out',
+		build: (options) => new LoadOutLauncherSection(options),
 	},
 ];

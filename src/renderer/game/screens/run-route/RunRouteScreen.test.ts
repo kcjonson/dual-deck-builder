@@ -16,14 +16,13 @@ import type { Campaign } from '../../campaign/Campaign';
 import type { CampaignStore } from '../../campaign/CampaignStore';
 import { routeId } from '../../campaign/MapRoutes';
 import { MemorySaveStorage } from '../../campaign/SaveStorage';
-import { routesOnOffer } from '../../campaign/SupplyRun';
 import { FaultyStorage, atHomeText, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
 import type { AreaMapView } from '../../ui/areaMap/AreaMapView';
 import type { RouteCard } from '../../ui/RouteCard';
-import { STRONGHOLD_NOT_YET, homeByText, poiKindText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
+import { STRONGHOLD_NOT_YET, clockText, homeByText, poiKindText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
 import { PlannedPoi, byDistance, plannedPois, routePoints } from '../area-map/planningMap';
 import { TestMaps, meshPlanningMap, testMaps } from '../area-map/testing';
-import { RunRouteScreen, STRANDED_RUN_ROUTE } from './RunRouteScreen';
+import { RunRouteScreen } from './RunRouteScreen';
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -180,42 +179,27 @@ describe('RunRouteScreen (DDB-319)', () => {
 		expect(navigate).not.toHaveBeenCalled();
 	});
 
-	it('loads out the crew on the picked route: pays the fuel, saves the run, and opens the run screen', async () => {
+	it('opens load out on the picked route, with the POI to come back to, leaving the campaign as it was', async () => {
 		await open(NEAR, withFuel(20));
 		const campaign = screen.shown as Campaign;
 		clickOn('run_route_card_1');
-		const route = routesOnOffer({ map: MAP, campaign }).find(({ id }) => id === routeId(NEAR.poi, 1));
-		if (!route) throw new Error('the route should be on offer');
+		const route = NEAR.routes[1];
 		find<Button>('run_route_load_out_button').onClick?.({} as never);
-		await flush();
 
-		expect(campaign.supplyRun?.route).toEqual(route);
-		expect(campaign.resources.fuel).toBe(20 - route.fuel);
-		expect(navigate).toHaveBeenLastCalledWith('runScreen', { campaign, saved: expect.any(Promise) });
-		const saved = await storeOver(storage).load();
-		expect([saved?.supplyRun?.route.id, saved?.supplyRun?.stop, saved?.resources.fuel]).toEqual([route.id, 0, 20 - route.fuel]);
+		expect(navigate).toHaveBeenLastCalledWith('loadOutScreen', {
+			campaign,
+			poi: NEAR.poi,
+			route: routeId(NEAR.poi, 1),
+			heading: `${NEAR.name} by ${route.name}`,
+			summary: `${route.stops.length} ${route.stops.length === 1 ? 'stop' : 'stops'} / fuel ${route.fuel} / home by ${clockText(route.back)}`,
+		});
+		expect([campaign.runDecks.length, campaign.supplyRun, campaign.resources.fuel]).toEqual([0, null, 20]);
 	});
 
 	it('keeps Load out off with nobody fit to go, saying why', async () => {
 		await open(NEAR, (campaign) => [campaign.drivers[0], campaign.drivers[4]].forEach((driver) => driver.set({ status: 'injured', injuredDays: 1, hitpoints: 20 })));
 		expect(find<Button>('run_route_load_out_button').enabled).toBe(false);
 		expect(text('run_route_load_out_reason')).toBe('Nobody at the compound is fit to go out.');
-	});
-
-	it('says nothing more is saved when the store has moved on from this campaign, with Load out off and Back to the menu', async () => {
-		await open(NEAR);
-		await store.load();
-		find<Button>('run_route_load_out_button').onClick?.({} as never);
-		await flush();
-		expect(text('run_route_status')).toBe(STRANDED_RUN_ROUTE);
-		expect(navigate).not.toHaveBeenCalled();
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(false);
-		expect(text('run_route_load_out_reason')).toBe(STRANDED_RUN_ROUTE);
-		// Not stuck: Back and Escape go to the menu, where Continue picks up the save
-		send(context, [key('Escape')]);
-		expect(navigate).toHaveBeenLastCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
-		find<Button>('run_route_back_button').onClick?.({} as never);
-		expect(navigate).toHaveBeenCalledTimes(2);
 	});
 
 	it('picks the quickest route the stores can fuel, by hours out with its stops, or the quickest of all when none can be', async () => {
