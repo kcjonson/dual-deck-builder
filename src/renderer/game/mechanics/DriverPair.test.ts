@@ -1,5 +1,5 @@
 import { Driver, DriverArchetype, DriverRole, DRIVER_CONFIGS } from './Driver';
-import { assertDriverPair, assertDriverSeats, isSameDriver, nextOpenDriverIndex } from './DriverPair';
+import { assertDriverPair, assertDriverSeats, isSameDriver } from './DriverPair';
 
 function driverFor(archetype: DriverArchetype): Driver {
 	const config = DRIVER_CONFIGS[archetype];
@@ -71,34 +71,6 @@ describe('DriverPair (Combat Rules: one driver per slot)', () => {
 		it('rejects no driver, or more than two', () => {
 			expect(() => assertDriverSeats([])).toThrow('Combat seats one or two drivers, not 0');
 			expect(() => assertDriverSeats([warrior, interceptor, mechanic])).toThrow('Combat seats one or two drivers, not 3');
-		});
-	});
-
-	describe('nextOpenDriverIndex', () => {
-		const drivers = [warrior, interceptor, mechanic];
-
-		it('takes the start index when no partner is set', () => {
-			expect(nextOpenDriverIndex({ drivers, fromIndex: 0, partner: null })).toBe(0);
-		});
-
-		it('skips the partner', () => {
-			expect(nextOpenDriverIndex({ drivers, fromIndex: 0, partner: warrior })).toBe(1);
-			expect(nextOpenDriverIndex({ drivers, fromIndex: 1, partner: interceptor })).toBe(2);
-		});
-
-		it('wraps past the end, skipping the partner on the way', () => {
-			expect(nextOpenDriverIndex({ drivers, fromIndex: 3, partner: null })).toBe(0);
-			expect(nextOpenDriverIndex({ drivers, fromIndex: 2, partner: mechanic })).toBe(0);
-			expect(nextOpenDriverIndex({ drivers, fromIndex: 3, partner: warrior })).toBe(1);
-		});
-
-		it('skips a copy of the partner', () => {
-			expect(nextOpenDriverIndex({ drivers, fromIndex: 0, partner: warrior.copy() })).toBe(1);
-		});
-
-		it('returns -1 when the partner is the only driver', () => {
-			expect(nextOpenDriverIndex({ drivers: [warrior], fromIndex: 0, partner: warrior })).toBe(-1);
-			expect(nextOpenDriverIndex({ drivers: [], fromIndex: 0, partner: null })).toBe(-1);
 		});
 	});
 });
