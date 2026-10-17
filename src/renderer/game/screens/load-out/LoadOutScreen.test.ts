@@ -240,11 +240,20 @@ describe('LoadOutScreen (DDB-320)', () => {
 			expect(bounds('load_out_seat_1_panel').y).toBeGreaterThan(bounds('load_out_destination').y);
 			expect(bounds('load_out_pool_panel').y).toBeGreaterThan(bounds('load_out_seat_1_panel').y + bounds('load_out_seat_1_panel').height);
 			expect(bounds('load_out_convoy_panel').y).toBe(bounds('load_out_pool_panel').y);
+			// The pool lines up as the Crew roster does: each card with Seat and its state under it, the cards on one row.
+			const [driver] = screen.plan?.pool ?? [];
+			const card = bounds(`load_out_pool_${driver.id}_card`);
+			const seat = bounds(`load_out_pool_${driver.id}_seat_button`);
+			expect(seat.y).toBeGreaterThan(card.y + card.height);
+			expect(seat.x).toBeLessThanOrEqual(card.x);
+			expect(bounds(`load_out_pool_${driver.id}_reason`).y).toBeGreaterThan(seat.y);
+			const entries = find<FlowWrap>('load_out_pool').children;
+			expect(new Set(entries.map((entry) => entry.screenBounds.y)).size).toBe(1);
 		});
 
 		it('reflows at 1024 x 600: fewer columns in each deck, the body scrolling, Start run still in view at the bottom right', async () => {
 			await openMeasured({ width: 1024, height: 600 });
-			expect([firstRow(1), firstRow(2)]).toEqual([2, 2]);
+			expect([firstRow(1), firstRow(2)]).toEqual([3, 3]);
 			expect(find<ScrollContainer>('load_out_scroll').overflows).toBe(true);
 			const start = bounds('load_out_start_button');
 			const line = bounds('load_out_summary_line');

@@ -9,13 +9,10 @@ import { countOf } from '../main-menu/campaignText';
 import type { LoadOutPlan, PoolStanding, StartBlocker } from './LoadOutPlan';
 import type { LoadOutTrip } from './LoadOutScreen';
 
-/** Beside the title. */
-export const LOAD_OUT_SUBTITLE = 'Two drivers, their decks for this run, and the escorts coming along';
-
 /** In the route line's place when load out was opened without a route. */
 export const NO_ROUTE_PICKED = 'No route picked';
 
-/** Under the pool's title, from the wireframe. */
+/** Beside the title, from the pool's note in the wireframe. */
 export const POOL_NOTE = 'Drivers who die on a run are gone for good, with their run deck.';
 
 /** Over the escorts. */

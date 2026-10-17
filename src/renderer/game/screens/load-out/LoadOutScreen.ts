@@ -38,7 +38,6 @@ import {
 	ESCORT_CAPTION,
 	ESCORT_COMING,
 	ESCORT_STAYING,
-	LOAD_OUT_SUBTITLE,
 	NO_ROUTE_PICKED,
 	SOLO_SEAT,
 	STRANDED_LOAD_OUT,
@@ -57,24 +56,24 @@ const { space, fontSize } = tokens;
 /** Between the header, the boxes, and the foot, and between the boxes. */
 const GAP = space.space_2;
 /** The boxes run close to their cards, so their padding is the spec's least less a little. */
-const BOX_PADDING = space.space_3;
-const BOX_GAP = space.space_1_5;
+const BOX_PADDING = 10;
+const BOX_GAP = space.space_1;
 /** A seat's vehicle, role, and deck caption share a line where the box is wide enough, each this tall. */
-const NAMED_LINE = 22;
+const NAMED_LINE = 20;
 /** The word under an escort card that the highlighter marks when it's coming along. */
 const ESCORT_LABEL = { size: ATLAS.captionSize + 1, line: 13 } as const;
 /** A seat's left column: the driver card, then Clear seat and Customize under it. */
 const SEAT_COLUMN_WIDTH = DRIVER_CARD_SIZE.width + DRIVER_CARD_INK * 2;
 /** Back roads in a seat or under a pool card sit at a smaller label, to fit a card's width. */
 const SMALL_LABEL = 16;
-/** A pool entry: the card, and beside it Seat over up to three lines of why they can't go. */
-const POOL_ENTRY = { side: 112, reasonSize: fontSize.fs_xs, reasonLine: 15, reasonLines: 3 } as const;
+/** A pool entry, as the Crew screen's roster sets one: the card, Seat under it, and two lines for why they can't go ("Same archetype as a seated driver"). */
+const POOL_ENTRY = { width: 128, reasonSize: fontSize.fs_xs, reasonLine: 13, reasonLines: 2 } as const;
 /** Wide enough for the synergy beside Swap seats in two lines, and four escorts abreast, the most a convoy has. */
 const CONVOY_WIDTH = 500;
 const SWAP_WIDTH = 132;
 /** Start run: the highway, pinned to the sheet's bottom right with its line under it. */
 const START_WIDTH = 240;
-const START_HEIGHT = 50;
+const START_HEIGHT = 48;
 const GO_WIDTH = 620;
 const CARDS_LOADING = 'Loading the cards.';
 const CARDS_FAILED = "The cards couldn't be loaded.";
@@ -159,7 +158,7 @@ interface DeckMini {
 	state: MiniCardState | null;
 }
 
-/** A pool driver's card, and beside it Seat and why they can't go. */
+/** A pool driver's card, with Seat and why they can't go under it. */
 class PoolEntry extends Stack {
 	public readonly card: DriverCard;
 	public readonly seatButton: AtlasButton;
@@ -167,26 +166,25 @@ class PoolEntry extends Stack {
 	public inspectable = false;
 
 	constructor({ id }: { id: string }) {
-		super({ id, direction: 'horizontal', gap: space.space_2 });
+		super({ id, width: POOL_ENTRY.width, crossAlign: 'stretch', gap: space.space_1 });
 		this.card = new DriverCard({ id: `${id}_card`, data: driverCardData({ archetype: 'road_warrior' }) });
 		this.card.focusable = true;
-		this.card.margin = DRIVER_CARD_INK;
-		const side = new Stack({ id: `${id}_side`, width: POOL_ENTRY.side, crossAlign: 'stretch', gap: space.space_1_5, margin: { top: DRIVER_CARD_INK } });
-		this.seatButton = new AtlasButton({ id: `${id}_seat_button`, label: 'Seat', labelSize: SMALL_LABEL, block: true });
+		this.card.alignSelf = 'center';
+		this.card.margin = { top: DRIVER_CARD_INK, bottom: 0 };
+		this.seatButton = new AtlasButton({ id: `${id}_seat_button`, label: 'Seat', labelSize: SMALL_LABEL, height: ATLAS.minHit, block: true });
 		this.reason = new Text({
 			id: `${id}_reason`,
 			height: POOL_ENTRY.reasonLine * POOL_ENTRY.reasonLines,
 			widthMode: 'fill',
-			style: { fontSize: POOL_ENTRY.reasonSize, color: 'text_dim' },
+			style: { fontSize: POOL_ENTRY.reasonSize, color: 'text_dim', textAlign: 'center' },
 			lineHeight: POOL_ENTRY.reasonLine / POOL_ENTRY.reasonSize,
 			verticalAlign: 'top',
 			wrap: 'word',
 			textOverflow: 'ellipsis',
 		});
-		side.addChild(this.seatButton);
-		side.addChild(this.reason);
 		this.addChild(this.card);
-		this.addChild(side);
+		this.addChild(this.seatButton);
+		this.addChild(this.reason);
 	}
 }
 
@@ -391,7 +389,7 @@ export class LoadOutScreen extends Screen {
 		heading.addChild(new PageTitle({
 			id: 'load_out_heading',
 			title: 'Load out',
-			subtitle: LOAD_OUT_SUBTITLE,
+			subtitle: POOL_NOTE,
 			titleId: 'load_out_title',
 			subtitleId: 'load_out_kicker',
 		}));
@@ -458,9 +456,9 @@ export class LoadOutScreen extends Screen {
 		for (const child of [card, clear, customize]) column.addChild(child);
 		body.addChild(column);
 
-		const deckColumn = new Stack({ id: `${id}_deck_column`, widthMode: 'fill', crossAlign: 'stretch', gap: space.space_1 });
+		const deckColumn = new Stack({ id: `${id}_deck_column`, widthMode: 'fill', crossAlign: 'stretch', gap: space.space_0_5 });
 		const named = new FlowWrap({ id: `${id}_named`, gap: space.space_4, rowGap: 0 });
-		const vehicle = new Text({ id: `${id}_vehicle`, height: NAMED_LINE, verticalAlign: 'middle', style: { fontRole: 'display', fontWeight: 700, fontSize: 18, color: 'text' }, wrap: 'none' });
+		const vehicle = new Text({ id: `${id}_vehicle`, height: NAMED_LINE, lineHeight: NAMED_LINE / 18, verticalAlign: 'middle', style: { fontRole: 'display', fontWeight: 700, fontSize: 18, color: 'text' }, wrap: 'none' });
 		const role = new Text({ id: `${id}_role`, height: NAMED_LINE, verticalAlign: 'middle', style: { ...MONO_CAPTION, fontWeight: 500, color: 'text' }, wrap: 'none' });
 		const caption = new Text({ id: `${id}_deck_caption`, height: NAMED_LINE, verticalAlign: 'middle', style: MONO_CAPTION, wrap: 'none' });
 		for (const child of [vehicle, role, caption]) named.addChild(child);
@@ -477,8 +475,7 @@ export class LoadOutScreen extends Screen {
 
 	private createPool(): LegendBox {
 		const panel = new LegendBox({ id: 'load_out_pool_panel', title: 'Driver pool', padding: BOX_PADDING, gap: BOX_GAP, widthMode: 'fill', crossAlign: 'stretch' });
-		panel.addChild(new Text({ id: 'load_out_pool_note', text: POOL_NOTE, widthMode: 'fill', style: { fontSize: 'fs_sm', color: 'text_dim' } }));
-		this.pool = new FlowWrap({ id: 'load_out_pool', gap: space.space_4, rowGap: space.space_2, focusGroup: { orientation: 'horizontal' } });
+		this.pool = new FlowWrap({ id: 'load_out_pool', gap: space.space_3, rowGap: space.space_2, focusGroup: { orientation: 'horizontal' } });
 		inspectOnContextMenu(this.pool);
 		panel.addChild(this.pool);
 		return panel;
