@@ -133,6 +133,12 @@ The map itself isn't saved yet (DDB-436). The campaign keeps what makes it again
 
 The log is `{ day, message }` lines, dated by `addLogEntry` with the current day, in day order, none after today. Plain text for now; campaign history may want structured entries later, which is a schema bump.
 
+## Buildings standing
+
+`buildings` lists the compound's buildings that stand, in `BUILDING_IDS` order (`Buildings.ts`), each once (DDB-508). The compound plate draws a roof for each and stakes out the rest, so the list has to be the campaign's, not the screen's.
+
+Provisional calls (gameplay-calls.md, 182): a new campaign is founded with only the bunkhouse standing (`campaign-start.json`), and nothing builds a building yet. The bunkhouse's Crew screen was the only building screen in play, and every version 9 campaign could open it, so version 9 saves load with the bunkhouse standing (save format 10).
+
 ## Consequences
 
 - Saving (DDB-49, [campaign-save-and-load.md](./campaign-save-and-load.md)) writes `campaign.toSaveText()` at checkpoints, stamped with the save format version, and loads with `Campaign.fromJSON(json, { onWarning })`; a reader error means the save can't be loaded (or, from `toSaveText`, written), and warnings mean it loaded with its map params repaired.
