@@ -50,12 +50,12 @@ export interface RailLine {
  *   units over a river, the next tolerance down is tried, then the cells
  *   themselves. Bridges are merged across gaps under `deckGap`.
  * - A line is dropped, and drawn again, up to `tries` times in all, its
- *   second end drawn afresh and, after the first try, its first turned up to
- *   `turn` degrees either way, where it finds no way, where it doubles back (its heading, read
- *   every `hairpin.step` world units, turns past `hairpin.dot`, about 150
- *   degrees, within `hairpin.window`), or where it runs within
- *   `beside.reach` world units of an earlier line for more than
- *   `beside.most`, read every `beside.step`.
+ *   second end drawn afresh and, after the first try, its first turned up
+ *   to `turn` degrees either way, where it finds no way, where it doubles
+ *   back (its heading, read every `hairpin.step` world units, turns past
+ *   `hairpin.dot`, about 150 degrees, within `hairpin.window`), or where
+ *   it runs within `beside.reach` world units of an earlier line for more
+ *   than `beside.most`, read every `beside.step`.
  */
 export const RAIL_LINES = {
 	coarse: 2,
@@ -118,7 +118,7 @@ export function railLines({ ground, grid, mountains, lowland, area, threshold, c
 		const own = rng.fork('rail', index);
 		const first = spin + 180 * index / count;
 		for (let attempt = 0; attempt < RAIL_LINES.tries; attempt += 1) {
-			// Both draws every try, so a try's ends never depend on whether an earlier one used its turn.
+			// The first try keeps the first bearing; how many draws a try takes depends only on which try it is.
 			const turned = first + (attempt === 0 ? 0 : (own.float() * 2 - 1) * RAIL_LINES.turn);
 			const second = first + RAIL_LINES.across.least + (RAIL_LINES.across.most - RAIL_LINES.across.least) * own.float();
 			const line = field.lay({ from: turned, to: second, rim: attempt < RAIL_LINES.tries - 1 });
@@ -374,7 +374,6 @@ class RailField {
 		return decks.map((deck) => Object.freeze(deck));
 	}
 
-	/** Marks the cells within `apart` of a laid line, so the next keeps its distance. */
 	/** Whether a line runs within `beside.reach` of one laid already for more than `beside.most`. */
 	private beside(points: readonly number[]): boolean {
 		if (this.laid.length === 0) return false;
@@ -390,6 +389,7 @@ class RailField {
 		return false;
 	}
 
+	/** Marks the cells within `apart` of a laid line, so the next keeps its distance. */
 	private mark(cells: readonly number[]): void {
 		const size = this.size;
 		const apart = RAIL_LINES.apart;
