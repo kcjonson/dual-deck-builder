@@ -1,5 +1,5 @@
 import type { Card } from '../mechanics/Card';
-import { RaiderId, raiderVehicle } from '../mechanics/Raiders';
+import { RAIDER_PROFILES, RaiderId, RaiderProfile, raiderVehicle } from '../mechanics/Raiders';
 import { RoadLane, RoadRow, openingSlots } from '../mechanics/Road';
 import { PLAYER_DRIVEN_VEHICLES, Team, TeamType } from '../mechanics/Team';
 
@@ -52,17 +52,21 @@ const SEAT_ROWS: readonly RoadRow[] = openingSlots(TeamType.PLAYER).slice(0, PLA
  * one or two seats, and as `raiderVehicle` does for a card the map doesn't
  * hold.
  */
-export function encounterTeam({ encounter, cards, crewStructure }: {
+export function encounterTeam({ encounter, cards, crewStructure, raiders: raiderIds = ENCOUNTERS[encounter].raiders, profiles = RAIDER_PROFILES }: {
 	encounter: EncounterId;
 	cards: ReadonlyMap<string, Card>;
 	/** Structure each seat's vehicle opens the fight with, Driver 1's first */
 	crewStructure: readonly number[];
+	/** The encounter's own when left out; the balance sim passes its config's. */
+	raiders?: readonly RaiderId[];
+	/** The shipped profiles when left out; the balance sim passes its config's. */
+	profiles?: Readonly<Record<RaiderId, Readonly<RaiderProfile>>>;
 }): Team {
 	if (crewStructure.length < 1 || crewStructure.length > PLAYER_DRIVEN_VEHICLES) {
 		throw new RangeError(`An encounter sizes up one or two seats, and this crew has ${crewStructure.length}`);
 	}
 	const solo = crewStructure.length === 1;
-	const raiders = ENCOUNTERS[encounter].raiders.map(raider => raiderVehicle({ raider, cards, solo }));
+	const raiders = raiderIds.map(raider => raiderVehicle({ raider, cards, solo, profiles }));
 	if (raiders.length === 1) {
 		const toughest = crewStructure.indexOf(Math.max(...crewStructure));
 		raiders[0].slot = { lane: RoadLane.ENEMY_INSIDE, row: SEAT_ROWS[toughest] };
