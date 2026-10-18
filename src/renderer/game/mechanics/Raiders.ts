@@ -148,7 +148,8 @@ export function raiderVehicle({ raider, cards, solo = false, stage = 0, profiles
 	const profile = profiles[raider];
 	const adrenaline = solo ? profile.soloAdrenaline : profile.maxAdrenaline;
 	const grown = (value: number): number => Math.round(value * (1 + STAGE_GROWTH * stage));
-	const hitpoints = grown(profile.hitpoints);
+	// A mook's HP doesn't grow: one starter attack has to take it out at any stage
+	const hitpoints = profile.class === 'mook' ? profile.hitpoints : grown(profile.hitpoints);
 	const deck = Object.entries(profile.deck).flatMap(([type, count]) => {
 		const template = cards.get(type);
 		if (!template) throw new RangeError(`${profile.name}'s deck holds ${type}, which isn't a card`);

@@ -2333,7 +2333,8 @@ export class Battle extends Model<BattleData> {
 	private announceWave(waves: WaveState): void {
 		if (waves.due) return;
 		waves.due = true;
-		const count = waves.queue[0]?.raiders.length ?? 0;
+		const next = waves.queue[0];
+		const count = next ? this.roomFor(next) : 0;
 		this.log('general', `${count} raider${count === 1 ? '' : 's'} arriving`, { value: count });
 	}
 
@@ -2415,7 +2416,7 @@ export class Battle extends Model<BattleData> {
 		const moves = this.planCloseUp(projected);
 		const closedUp: RoadRead = { slotOf: vehicle => moves.get(vehicle) ?? board.slotOf(vehicle), flankOf: projected.flankOf };
 		const slots = this.planArrivals(closedUp, this.roomFor(next));
-		return { number: waves.started, total: waves.total, arriving: next.raiders.length, rows: [...new Set(slots.map(slot => slot.row))] };
+		return { number: waves.started, total: waves.total, arriving: slots.length, rows: [...new Set(slots.map(slot => slot.row))] };
 	}
 
 	/** How many of a due wave can pull in under its road cap */

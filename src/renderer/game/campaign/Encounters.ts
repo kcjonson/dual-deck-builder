@@ -181,7 +181,12 @@ export function readEncounterData(value: unknown, path = 'encounters.json'): Enc
 	};
 	const templates = readArray(fields.templates, `${path}.templates`).map((entry, index) => readTemplate(entry, `${path}.templates[${index}]`));
 	templates.forEach((template, index) => {
-		if (templates.findIndex(other => other.id === template.id) !== index) throw new ReaderRangeError(`${path}.templates[${index}].id ${template.id} is used twice`);
+		const at = `${path}.templates[${index}]`;
+		if (templates.findIndex(other => other.id === template.id) !== index) throw new ReaderRangeError(`${at}.id ${template.id} is used twice`);
+		if (template.tiers.length === 0 || new Set(template.tiers).size !== template.tiers.length) throw new ReaderRangeError(`${at}.tiers must name at least one tier, each once`);
+		if (template.waves[0].raiders.length > roadCap[template.skulls]) {
+			throw new ReaderRangeError(`${at}.waves[0] puts ${template.waves[0].raiders.length} raiders on the road, past the ${template.skulls}-skull cap of ${roadCap[template.skulls]}`);
+		}
 	});
 	for (const skulls of SKULLS) {
 		for (let tier = 1; tier <= COVERED_TIERS; tier += 1) {
@@ -197,8 +202,10 @@ export const ENCOUNTER_DATA: EncounterData = readEncounterData(encountersFile);
 
 /** The templates a fight of this many skulls draws from at this tier. */
 export function templatesFor({ skulls, tier, data = ENCOUNTER_DATA }: { skulls: Skulls; tier: number; data?: EncounterData }): readonly EncounterTemplate[] {
-	const band = Math.min(Math.max(1, tier), COVERED_TIERS);
-	return data.templates.filter(template => template.skulls === skulls && template.tiers.includes(band));
+	const forTier = (band: number): EncounterTemplate[] => data.templates.filter(template => template.skulls === skulls && template.tiers.includes(band));
+	const own = forTier(tier);
+	// A stronghold's tier 5 borrows tier 4's until it has templates of its own
+	return own.length > 0 ? own : forTier(Math.min(Math.max(1, tier), COVERED_TIERS));
 }
 
 /**

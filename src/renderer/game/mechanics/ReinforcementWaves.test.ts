@@ -239,6 +239,23 @@ describe('Reinforcement waves', () => {
 			expect(generalLines(battle)).toContain('1 raider arriving');
 		});
 
+		test('lands only what fits under the road cap, says so, and keeps the rest due', () => {
+			const raiders = ['A', 'B'].map(name => createVehicle(name));
+			const queued = ['Q1', 'Q2', 'Q3'].map(name => createVehicle(name));
+			const battle = fight({ raiders, reinforcements: [{ raiders: queued, arriveAt: 2, maxOnRoad: 3 }] });
+			battle.start();
+			expect(battle.waves).toMatchObject({ arriving: 1 });
+			expect(generalLines(battle)).toContain('1 raider arriving');
+
+			battle.endPlayerTurn();
+
+			expect(queued.map(raider => raider.slot !== null)).toEqual([true, false, false]);
+			expect(battle.queuedRaiders).toEqual([queued[1], queued[2]]);
+			expect(battle.waves).toMatchObject({ number: 2, arriving: 0 });
+			kill(battle, raiders[0]);
+			expect(battle.waves).toMatchObject({ arriving: 1 });
+		});
+
 		test('leaves the rest queued, still due, when the formation is full', () => {
 			const raiders = [
 				...[RoadRow.CENTER, RoadRow.BEHIND, RoadRow.AHEAD].map(row => createVehicle(`In ${row}`, slot(RoadLane.ENEMY_INSIDE, row))),
@@ -247,14 +264,14 @@ describe('Reinforcement waves', () => {
 			const queued = [createVehicle('Q1'), createVehicle('Q2')];
 			const battle = fight({ raiders, reinforcements: [{ raiders: queued, arriveAt: 5 }] });
 			battle.start();
-			expect(battle.waves).toMatchObject({ arriving: 2, rows: [RoadRow.AHEAD] });
+			expect(battle.waves).toMatchObject({ arriving: 1, rows: [RoadRow.AHEAD] });
 
 			battle.endPlayerTurn();
 
 			expect(queued[0].slot).toEqual(slot(RoadLane.ENEMY_OUTSIDE, RoadRow.AHEAD));
 			expect(queued[1].slot).toBeNull();
 			expect(battle.queuedRaiders).toEqual([queued[1]]);
-			expect(battle.waves).toMatchObject({ number: 2, total: 2, arriving: 1, rows: [] });
+			expect(battle.waves).toMatchObject({ number: 2, total: 2, arriving: 0, rows: [] });
 		});
 
 		test('isn\'t stunned by an EMP Blast played before it arrived', () => {

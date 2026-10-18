@@ -37,6 +37,8 @@ Raider profiles gain a class (mook, regular, heavy, leader); the leader is an el
 
 The supply run and the combat screen's skirmish still field the stand-in table. Moving a run's stops to `encounterForces` needs the run to pass its fight stream and stage, and SupplyRun.test.ts asserts on the stand-in table (a lone raider at one skull), so it lands with the run's half of DDB-525, the one PR in this work that changes the run. The skirmish moves with it, since it fields what a run's one-skull stop fields. Until then the templates are reached through the raider sim, which uses them by default (`--table stand-in` for the old table).
 
+The spec says game stage grows a late warband to 20, but with one `grow` raider every two stages and stage capped at 6, the largest warband (10) reaches 13. That's a spec question for Kevin, not changed here; the growth rate is a starting value.
+
 Tuning was raider-side only (calls 199 to 203). On the sim's aggressive stand-in at tier 1, stage 0, the Road Warrior and Interceptor and the Interceptor and Mechanic meet the per-fight home rates (98, 93, and 85% or more at one, two, and three skulls). The Road Warrior and Mechanic don't: every loss comes with the Mechanic in seat 1, where the raiders aim on ties and the Mechanic's starter has no damage, which are DDB-493 and 495's card fixes, and the fairness rule says not to tune raiders over them.
 
 ## Provisional calls
@@ -58,4 +60,5 @@ Numbers 190 to 209 in [gameplay-calls.md](../gameplay-calls.md).
 - 202: one set of templates for tiers 1 to 4.
 - 203: when later waves are due, and the road cap.
 - 204: a lone driver's cut keeps the first wave.
+- 207: "+N arriving" counts only those that will pull in, replacing 194.
 - 206: the leader is its vehicle; it's out when wrecked or driverless.

@@ -60,6 +60,26 @@ describe('Encounter data', () => {
 		expect(template.waves[0].raiders.length).toBeGreaterThan(1);
 	});
 
+	it('refuses a template with no tiers, a tier twice, or a first wave past its road cap', () => {
+		const noTiers = JSON.parse(JSON.stringify(encountersFile));
+		noTiers.templates[0].tiers = [];
+		expect(() => readEncounterData(noTiers)).toThrow('tiers must name at least one tier');
+		const twice = JSON.parse(JSON.stringify(encountersFile));
+		twice.templates[0].tiers = [1, 1];
+		expect(() => readEncounterData(twice)).toThrow('tiers must name at least one tier');
+		const crowded = JSON.parse(JSON.stringify(encountersFile));
+		crowded.templates[0].waves[0].raiders = ['scav_bike', 'scav_bike', 'scav_bike', 'scav_bike'];
+		expect(() => readEncounterData(crowded)).toThrow('past the 1-skull cap of 3');
+	});
+
+	it("fields a tier's own templates, and tier 4's for a tier with none", () => {
+		const data = JSON.parse(JSON.stringify(encountersFile));
+		data.templates.push({ ...data.templates[0], id: 'stronghold_pack', tiers: [5] });
+		const read = readEncounterData(data);
+		expect(templatesFor({ skulls: 1, tier: 5, data: read }).map(template => template.id)).toEqual(['stronghold_pack']);
+		expect(templatesFor({ skulls: 2, tier: 5, data: read })).toEqual(templatesFor({ skulls: 2, tier: 4, data: read }));
+	});
+
 	it('refuses an unknown raider, a missing field, and a skull count with no template at a tier', () => {
 		const data = JSON.parse(JSON.stringify(encountersFile));
 		data.templates[0].waves[0].raiders = ['tank'];
@@ -134,12 +154,12 @@ describe('Raider classes', () => {
 		['road_warrior', 'ramming_speed'],
 		['interceptor', 'precision_shot'],
 		['interceptor', 'headshot']
-	])('lets the %s take the mook out with one %s', (archetype, cardType) => {
+	])('lets the %s take the mook out with one %s, even at stage 6', (archetype, cardType) => {
 		const config = DRIVER_CONFIGS[archetype as 'road_warrior'];
 		const driver = createTestDriver(config.metadata.name);
 		driver.set({ skills: { ...config.skills }, hand: [CARDS.get(cardType)?.copy() as Card], adrenaline: 5 });
 		const vehicle = createDrivenVehicle({ driver });
-		const mook = raiderVehicle({ raider: 'scav_bike', cards: CARDS });
+		const mook = raiderVehicle({ raider: 'scav_bike', cards: CARDS, stage: 6 });
 		const other = raiderVehicle({ raider: 'scav_bike', cards: CARDS });
 		const battle = new Battle({
 			playerTeam: new Team({ type: TeamType.PLAYER, vehicles: [vehicle] }),
