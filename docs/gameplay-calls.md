@@ -342,10 +342,10 @@ Made writing [Runs and Encounters](./specs/Runs%20and%20Encounters.md), beyond w
 
 ## Player stand-ins (240 to 244)
 
-The reasoning is in AI_TECHNICAL_DECISIONS/intent-aware-stand-in.md.
+Record: intent-aware-stand-in.md. Numbered from 240, the range set aside for this work.
 
-240. DDB-528: the intent-aware stand-in reads an elite's hidden attack values from the printed card in that slot of its plan, because the ceiling should know at least what a careful player could work out, and today's encounters are all basic anyway.
+240. DDB-528: the intent-aware stand-in reads an elite's hidden attacks from its plan, the card and its damage worked out on the board as it stands, which is more than a player sees (the card is hidden too), because the ceiling should not be capped by a tier rule, and today's encounters are all basic anyway.
 241. DDB-528: the harm it weighs is structure plus occupant hitpoints lost next enemy turn, split as a hit splits, with a wreck or a dead driver counting 20 more, because either costs a run far more than its points.
 242. DDB-528: non-lethal damage counts for half a turn of the hurt raider's harm, times the share of its toughness it removes, because weighted higher it outbid Flanking Maneuver, and one step can't see that the flank boosts the rest of the turn's hits.
 243. DDB-528: what the harm count doesn't cover (flanking, draws, adrenaline, cards with no effect) is scored as the aggressive AI scores it, so the ceiling keeps the floor's priorities whenever no intent is at stake.
-244. DDB-528: a flanker the play outpaces is taken to lose its flank bonus whole (its hits divided by 1.5, rounded up) and to stay in range, because re-deriving range from the reserved slot needs the battle's own preview, which only reads the live board.
+244. DDB-528: a flanker the play outpaces is taken to lose its flank bonus whole (its hits divided by 1.5, rounded up) and to stay in range, because re-deriving range from the reserved slot needs Battle's enemy-turn preview, which projects only from the board as it stands.
