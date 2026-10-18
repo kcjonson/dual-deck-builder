@@ -46,10 +46,10 @@ function fromVersion9(campaign: unknown): unknown {
 	return { ...campaign, buildings: ['bunkhouse'] };
 }
 
-/** Version 10 to 11: a run out has found nobody new, since version 10 had no Find: driver stops. */
+/** Version 10 to 11: a run out has found nobody new, since version 10 had no Find: driver stops. Recruits already there are left for the reader to refuse. */
 function fromVersion10(campaign: unknown): unknown {
 	if (!isObject(campaign) || !isObject(campaign.supplyRun)) return campaign;
-	return { ...campaign, supplyRun: { ...campaign.supplyRun, recruits: [] } };
+	return { ...campaign, supplyRun: { recruits: [], ...campaign.supplyRun } };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

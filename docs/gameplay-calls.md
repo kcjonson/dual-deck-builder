@@ -340,7 +340,7 @@ Made writing [Runs and Encounters](./specs/Runs%20and%20Encounters.md), beyond w
 188. DDB-336: a POI is cleared when the run reaches it, in the step that loads its yield (as call 105 had the share), so a run that fails on the way home has still cleared it, because the yield and the clearing can't come apart in a save.
 189. DDB-529: each route keeps its floor fights and at least half its stop band on its own road, legs no other POI's routes use, and the POI stage seats a POI only where that fits, because it's the least that keeps a neighbor's cleared road from leaving a run fight-free or nearly empty.
 
-## Finds (210 to 214)
+## Finds (210 to 214, 220)
 
 Record: find-stops.md.
 
@@ -349,3 +349,4 @@ Record: find-stops.md.
 212. DDB-523: someone new found on the road rides home with the run and joins the pool there, lost with the run if it fails, because a found missing driver already does, and the convoy is what brings them in.
 213. DDB-523: a Find: cards is the fight reward's picker and pool, three cards at the drop rates, the one picked riding home as cargo, because the spec names that picker and a find's cards shouldn't be safer than a fight's.
 214. DDB-523: a Find: supplies haul is the stop's rolled contents, one resource in the stop tuning's range, meds included, because the cargo and the stores carry meds though POI yields don't.
+220. DDB-523: a calm stop type the run can't resolve yet (wreck, distress, garage, hazard, Find: settlers, Find: vehicle) still runs as a quiet stretch, rather than the stops stage giving it weight 0 as Runs and Encounters asks, because zeroing it is a stops-stage change that reshapes every map's stops, and finds are what this batch could resolve; the stops stage drops the quiet stretch once it zeroes those weights.

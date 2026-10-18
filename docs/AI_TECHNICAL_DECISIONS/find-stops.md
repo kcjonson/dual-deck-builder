@@ -32,13 +32,14 @@ Options considered for someone new: recruiting them on the spot, which needs not
 
 ## Provisional calls
 
-None of these is in a spec. They're calls 210 to 214 in [gameplay-calls.md](../gameplay-calls.md).
+None of these is in a spec. They're calls 210 to 214 and 220 in [gameplay-calls.md](../gameplay-calls.md).
 
 1. Taking a find costs nothing yet. Call 183 makes the stop's hours the price, and the run doesn't keep its clock on the road yet, so until it does a find is a gift, and the spec's open question 4 stays open.
 2. A Find: driver turns up the pool's first missing driver who can be found, and only with nobody missing someone new, of the unlocked archetype the compound has fewest living drivers of.
 3. Someone new rides home with the run and joins the pool there, lost with the run if it fails, as a found missing driver is.
 4. A Find: cards is the fight reward's picker and pool: three cards at the drop rates, the one picked riding home as cargo.
 5. A Find: supplies haul is the stop's rolled contents, one resource in the stop tuning's range, meds included, since the cargo carries meds though POI yields don't.
+6. A calm type the run can't resolve yet still runs as a quiet stretch, where the spec has the stops stage give it weight 0, until that stage change lands.
 
 ## Consequences
 

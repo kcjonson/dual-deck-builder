@@ -394,7 +394,8 @@ export class RunScreen extends Screen {
 			box.addChild(caption({ id: 'run_action_line', text: line }));
 			return this.addButton({ box, id: 'run_home_button', label: 'Head home', onClick: () => { void this.headHome(); } });
 		}
-		box.addChild(heading({ id: 'run_action_title', text: `Next: ${stopTitle(stop)}` }));
+		// "Find: supplies" carries its own colon, so a find's heading goes without "Next:"
+		box.addChild(heading({ id: 'run_action_title', text: stop.kind === 'find' ? stopTitle(stop) : `Next: ${stopTitle(stop)}` }));
 		if (stop.kind === 'find') {
 			const campaign = this.campaign;
 			const found = stop.find === 'driver' && campaign ? foundDriver({ campaign }) : null;
@@ -462,7 +463,7 @@ export class RunScreen extends Screen {
 		return button;
 	}
 
-	/** The next stop: a quiet stretch passes and saves, a find is left by the road; a fight opens on the combat screen. */
+	/** The next stop: a quiet stretch passes and saves, a find is left behind; a fight opens on the combat screen. */
 	private async driveOn(): Promise<void> {
 		const campaign = this.campaign;
 		if (!campaign || this.shown.kind !== 'road') return;
@@ -472,7 +473,7 @@ export class RunScreen extends Screen {
 			return;
 		}
 		if (stop?.kind === 'find') {
-			await this.step(() => leaveFind({ campaign }), 'Left it by the road.');
+			await this.step(() => leaveFind({ campaign }), 'Left it behind.');
 			return;
 		}
 		if (this.busy || this.stranded) return;
@@ -717,7 +718,7 @@ function debriefLedgers({ arrival, torn }: { arrival: Arrival; torn: boolean }):
 	if (stores.length > 0) unloaded.addChild(new ResourceStrip({ id: 'run_unloaded_stores', items: stores, widthMode: 'fill' }));
 	const carded = cargoText({ cargo: NO_RESOURCES, cards });
 	if (carded) unloaded.addChild(new LegendRow({ id: 'run_unloaded_cards', text: `To the locker: ${carded}`, symbol: 'ring' }));
-		if (found.length > 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_found', text: `${listText(found.map((driver) => driver.name))} found`, symbol: 'ring' }));
+	if (found.length > 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_found', text: `${listText(found.map((driver) => driver.name))} found`, symbol: 'ring' }));
 	const { recruits } = arrival;
 	if (recruits.length > 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_recruits', text: `${listText(recruits.map((driver) => driver.name))} joined`, symbol: 'ring' }));
 	if (stores.length === 0 && !carded && found.length === 0 && recruits.length === 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_none', text: 'Nothing to unload', symbol: 'dash' }));

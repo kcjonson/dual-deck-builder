@@ -196,7 +196,7 @@ describe('RunScreen', () => {
 
 		it('offers a Find: supplies to load or drive past, and loads it into the cargo, saved (DDB-523)', async () => {
 			await open(findText({ find: 'supplies', supplies: { resource: 'water', amount: 6 } }));
-			expect(text('run_action_title')).toBe('Next: Find: supplies');
+			expect(text('run_action_title')).toBe('Find: supplies');
 			expect(text('run_action_line')).toBe('6 water stashed by the road. Load it, or drive on.');
 			expect(find<Button>('run_drive_button')).toBeTruthy();
 			await press('run_take_button');
@@ -208,9 +208,9 @@ describe('RunScreen', () => {
 
 		it('drives past a find with Drive on, taking nothing (DDB-523)', async () => {
 			await open(findText({ find: 'driver' }));
-			expect(text('run_action_line')).toMatch(/^An? [A-Za-z ]+ is by the road, looking for a compound to join\. Take them on, or drive on\.$/);
+			expect(text('run_action_line')).toMatch(/^An? [A-Za-z ]+ flags the convoy down, looking for a compound to join\. Take them on, or drive on\.$/);
 			await press('run_drive_button');
-			expect(text('run_report')).toBe('Left it by the road.');
+			expect(text('run_report')).toBe('Left it behind.');
 			const run = (await saved())?.supplyRun;
 			expect([run?.stop, run?.recruits]).toEqual([2, []]);
 		});

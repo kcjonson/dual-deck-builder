@@ -19,7 +19,7 @@ import { endDay } from './DayClock';
 import { destinationId, poiOf, routeOffers } from './MapRoutes';
 import { POI_REFILL_DAYS, POI_SHARES, sharesLeft, takeShare } from './PoiStock';
 import { MemorySaveStorage } from './SaveStorage';
-import { FindStop, RunRoute, readRunRoute, routeStops } from './SupplyRoutes';
+import { FindStop, RouteStop, RunRoute, readRunRoute, routeStops } from './SupplyRoutes';
 import type { SupplyRun } from './SupplyRunState';
 import {
 	DepartRuleError, arriveHome, atDestination, currentStop, departRun, finishStopFight, foundDriver, getDepartBlocker, getPlanBlocker, leaveFind, passQuietStop,
@@ -736,8 +736,8 @@ describe('finds (DDB-523)', () => {
 	const CARDS_FOUND: FindStop = { id: 'stop-b', kind: 'find', at: 0.4, find: 'cards' };
 	const DRIVER: FindStop = { id: 'stop-c', kind: 'find', at: 0.6, find: 'driver' };
 
-	/** The compound's run on the road, loaded out, its route the test route's first leg holding only `finds`. */
-	function onFinds(campaign: Campaign, finds: readonly FindStop[]): void {
+	/** The compound's run on the road, loaded out, its route the test route's first leg holding only `finds` (and any other stops given). */
+	function onFinds(campaign: Campaign, finds: readonly RouteStop[]): void {
 		quickLoadOut({ campaign });
 		const base = testRoute();
 		const route: RunRoute = { ...base, legs: [{ ...base.legs[0], stops: finds }] };
@@ -808,6 +808,22 @@ describe('finds (DDB-523)', () => {
 		expect(campaign.drivers[pool]).toBe(arrival.recruits[0]);
 		expect(campaign.drivers[pool].status).toBe('ready');
 		expect(campaign.log.map(entry => entry.message)).toContain(`${arrival.recruits[0].name} joined the compound, found on the road.`);
+	});
+
+	it('loses someone new with the run when it fails, so they never join the pool', async () => {
+		const store = newStore();
+		let campaign = newCampaign();
+		const fight: RouteStop = { id: 'stop-d', kind: 'fight', at: 0.8, skulls: 1 };
+		onFinds(campaign, [DRIVER, fight]);
+		const pool = campaign.drivers.map(driver => driver.id);
+		takeFind({ campaign });
+		expect(onRoad(campaign).recruits).toHaveLength(1);
+
+		const lost = startStopFight({ campaign, cards: CARDS, raiders: snipers, enemyAI: null });
+		fightOut(lost, { shoot: false });
+		expect(finishStopFight({ campaign, fight: lost }).outcome).toBe('run_failed');
+		campaign = await reload(store, campaign);
+		expect(campaign.drivers.map(driver => driver.id)).toEqual(pool);
 	});
 
 	it('turns up the first missing driver, who rides home with the run and is back in the pool there', () => {

@@ -29,13 +29,13 @@ export function stopTitle(stop: RouteStop): string {
 export function findStep({ stop, found }: { stop: FindStop; found: FoundDriver | null }): { line: string; take: string } {
 	switch (stop.find) {
 		case 'cards':
-			return { line: 'A gutted trailer by the road, with a crate of cards still in it. Look through them, or drive on.', take: 'Look through them' };
+			return { line: 'A gutted trailer off the shoulder, a crate of cards still in it. Look through them, or drive on.', take: 'Look through them' };
 		case 'supplies':
 			return { line: `${resourceAmount({ resource: stop.supplies.resource, amount: stop.supplies.amount })} stashed by the road. Load it, or drive on.`, take: 'Load it' };
 		case 'driver':
-			if (found?.kind === 'missing') return { line: `${found.driver.name} is by the road, alive. Take them home, or drive on.`, take: 'Take them home' };
+			if (found?.kind === 'missing') return { line: `${found.driver.name} flags the convoy down, alive. Take them home, or drive on.`, take: 'Take them home' };
 			const who = found ? archetypeTitle(found.archetype) : 'driver';
-			return { line: `${/^[AEIOU]/.test(who) ? 'An' : 'A'} ${who} is by the road, looking for a compound to join. Take them on, or drive on.`, take: 'Take them on' };
+			return { line: `${/^[AEIOU]/.test(who) ? 'An' : 'A'} ${who} flags the convoy down, looking for a compound to join. Take them on, or drive on.`, take: 'Take them on' };
 	}
 }
 
