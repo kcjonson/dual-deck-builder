@@ -167,6 +167,24 @@ interface RoadRead {
 	flankOf: (vehicle: Vehicle) => FlankState | null;
 }
 
+/** Rout and break-off: the threat the fight opened with, and how many player turns running have gone nowhere */
+interface FightEndState {
+	startThreat: number;
+	breakOffTurns: number | null;
+	quietTurns: number;
+	/** A raider took damage this player turn */
+	raiderHurt: boolean;
+}
+
+/**
+ * Quiet player turns running that break a fight off (Combat Rules, How a
+ * fight ends; call 184 has what counts as quiet)
+ */
+export const BREAK_OFF_TURNS = 3;
+
+/** The share of the encounter's starting threat at or under which the raiders rout */
+export const ROUT_SHARE = 0.25;
+
 /**
  * Cards each driver draws at the start of every turn
  */
@@ -189,6 +207,10 @@ export interface BattleData {
 	battleWon: boolean;
 	maxTurns?: number;
 	battleTied?: boolean;
+	/** Over with the raiders broken off: neither won nor lost (How a fight ends) */
+	brokenOff?: boolean;
+	/** Won by a rout: the raiders left fled */
+	routed?: boolean;
 }
 
 /**
@@ -216,7 +238,9 @@ export class Battle extends Model<BattleData> {
 		'battleOver',
 		'battleWon',
 		'maxTurns',
-		'battleTied'
+		'battleTied',
+		'brokenOff',
+		'routed'
 	]);
 
 	// AI controller for managing computer players (stored separately due to Model freezing)
@@ -254,6 +278,9 @@ export class Battle extends Model<BattleData> {
 	// Reinforcement waves still to come (stored separately due to Model freezing)
 	private static waveStates = new WeakMap<Battle, WaveState>();
 
+	// Rout and break-off bookkeeping (stored separately due to Model freezing)
+	private static fightEnds = new WeakMap<Battle, FightEndState>();
+
 	// Static flag to control console logging
 	public static suppressConsoleLog = false;
 
@@ -265,16 +292,22 @@ export class Battle extends Model<BattleData> {
 	 * AI from `ai` forked again by the team's type. A fight given no stream
 	 * roots its own with freshSeed. The enemy team's vehicles are the first
 	 * wave, and its `reinforcements` the rest, queued off the road in order.
+	 * `breakOffTurns` is how many quiet player turns running break a fight
+	 * off (How a fight ends): BREAK_OFF_TURNS for the game's own fights, and
+	 * null, the default, for one that never breaks off (a test harness or an
+	 * AI evaluation bounded by `maxTurns`).
 	 */
 	constructor({
 		playerTeam,
 		enemyTeam,
 		maxTurns,
+		breakOffTurns = null,
 		rng = new Rng({ seed: freshSeed() })
 	}: {
 		playerTeam: Team;
 		enemyTeam: Team;
 		maxTurns?: number;
+		breakOffTurns?: number | null;
 		rng?: Rng;
 	}) {
 		super({
@@ -285,7 +318,9 @@ export class Battle extends Model<BattleData> {
 			battleOver: false,
 			battleWon: false,
 			maxTurns,
-			battleTied: false
+			battleTied: false,
+			brokenOff: false,
+			routed: false
 		});
 
 		// Validate team types
@@ -314,6 +349,12 @@ export class Battle extends Model<BattleData> {
 			due: false,
 			lastWreckRow: null,
 			wrecks: new Set()
+		});
+		Battle.fightEnds.set(this, {
+			startThreat: [...enemyTeam.vehicles, ...queued.flatMap(wave => wave.raiders)].reduce((sum, raider) => sum + (raider.threat ?? 0), 0),
+			breakOffTurns,
+			quietTurns: 0,
+			raiderHurt: false
 		});
 
 		// Initialize AI controller (stored in WeakMap to avoid Model freezing issues)
@@ -594,6 +635,7 @@ export class Battle extends Model<BattleData> {
 
 		this.planEnemyTurn();
 		this.checkWaveDue();
+		this.watchPlayerTurn();
 
 		this.log('battle_start', 'Battle started!');
 		this.log('debug', `Fight seed ${this.seed}`);
@@ -889,6 +931,8 @@ export class Battle extends Model<BattleData> {
 				);
 			}
 		}
+
+		if (this.checkBreakOff()) return;
 
 		this.dropBackFlankers();
 		this.clearWrecks();
@@ -1418,6 +1462,7 @@ export class Battle extends Model<BattleData> {
 
 		this.planEnemyTurn();
 		this.checkWaveDue();
+		this.watchPlayerTurn();
 
 		this.log('turn_start', `Player turn ${this.turn} started`, { turn: this.turn });
 		
@@ -1881,6 +1926,7 @@ export class Battle extends Model<BattleData> {
 			{ card: card.displayName, target: vehicle.name, value: damage },
 			line
 		);
+		this.noteRaiderHurt(vehicle, split.some(([amount, where]) => amount > 0 && where !== 'shield'));
 		this.emitHit('hitLanded', vehicle, damage);
 		this.logDeaths(vehicle, crew);
 	}
@@ -1901,7 +1947,9 @@ export class Battle extends Model<BattleData> {
 		card: Card;
 	}): void {
 		const crew = vehicle ? this.crewOf(vehicle) : null;
+		const hitpointsBefore = driver.hitpoints;
 		driver.takeDamage(damage);
+		if (vehicle) this.noteRaiderHurt(vehicle, driver.hitpoints < hitpointsBefore);
 		this.logAbout({
 			type: 'damage_dealt',
 			driver,
@@ -1971,6 +2019,12 @@ export class Battle extends Model<BattleData> {
 
 		this.noteWrecks();
 
+		const fleeing = this.routers();
+		if (fleeing) {
+			this.rout(fleeing);
+			return;
+		}
+
 		// The road is clear but a wave is still queued: it's announced now
 		// and pulls in at the end of this enemy turn
 		const waves = Battle.waveStates.get(this);
@@ -1989,6 +2043,86 @@ export class Battle extends Model<BattleData> {
 			this.emit('stateChanged', this.getState());
 			return;
 		}
+	}
+
+	/**
+	 * The raiders who flee if the fight routs now, or null if it doesn't
+	 * (Combat Rules, How a fight ends): a warband's leader is out of the
+	 * fight, or the nominal threat still in it, on the road and queued, is
+	 * at or under ROUT_SHARE of what the encounter started with. Threat is
+	 * each raider's own number, not what it's taken. A road and queue with
+	 * nobody left is a plain win, not a rout.
+	 */
+	private routers(): Vehicle[] | null {
+		const ends = Battle.fightEnds.get(this);
+		const waves = Battle.waveStates.get(this);
+		if (!ends || !waves) return null;
+		const left = [...this.enemyTeam.vehicles.filter(raider => !raider.isOutOfFight), ...waves.queue.flatMap(wave => wave.raiders)];
+		if (left.length === 0) return null;
+		const leaderOut = [...waves.wrecks].some(raider => raider.leader);
+		const threatLeft = left.reduce((sum, raider) => sum + (raider.threat ?? 0), 0);
+		const thinned = ends.startThreat > 0 && threatLeft <= ends.startThreat * ROUT_SHARE;
+		return leaderOut || thinned ? left : null;
+	}
+
+	/** The rest flee and the fight is won. Those queued never arrive. */
+	private rout(fleeing: readonly Vehicle[]): void {
+		const onRoad = fleeing.filter(raider => this.enemyTeam.vehicles.includes(raider));
+		const leaderOut = [...(Battle.waveStates.get(this)?.wrecks ?? [])].some(raider => raider.leader);
+		const why = leaderOut ? 'their leader is out of the fight' : 'too few are left to fight on';
+		const who = onRoad.length > 0 ? `: ${onRoad.map(raider => raider.name).join(', ')} ${onRoad.length === 1 ? 'flees' : 'flee'}` : '';
+		this.log('general', `The raiders rout, since ${why}${who}`);
+		Battle.waveStates.get(this)?.queue.splice(0);
+		this.battleOver = true;
+		this.battleWon = true;
+		this.routed = true;
+		this.log('battle_end', 'Battle won: the raiders routed');
+		this.endCombat();
+		this.emit('battleEnded', Object.freeze({ won: true, routed: true }));
+		this.emit('stateChanged', this.getState());
+	}
+
+	/**
+	 * At the end of the player's turn: a turn that hurt no raider counts
+	 * toward a break-off, and one that hurt any starts the count again. (A
+	 * player turn never starts on an empty road with a wave still queued:
+	 * an empty road brings the next wave in at the end of the enemy turn.)
+	 * After `breakOffTurns` quiet turns running, the raiders break off: the
+	 * fight ends neither won nor lost. Returns whether it broke off.
+	 */
+	private checkBreakOff(): boolean {
+		const ends = Battle.fightEnds.get(this);
+		if (!ends || this.battleOver || ends.breakOffTurns === null) return false;
+		ends.quietTurns = ends.raiderHurt ? 0 : ends.quietTurns + 1;
+		if (ends.quietTurns < ends.breakOffTurns) return false;
+
+		this.battleOver = true;
+		this.battleWon = false;
+		this.brokenOff = true;
+		this.log('battle_end', `The raiders break off: ${ends.quietTurns} turns without a hit on them`);
+		this.endCombat();
+		this.emit('battleEnded', Object.freeze({ won: false, brokenOff: true }));
+		this.emit('stateChanged', this.getState());
+		return true;
+	}
+
+	/** A player turn starts with no raider hurt yet */
+	private watchPlayerTurn(): void {
+		const ends = Battle.fightEnds.get(this);
+		if (ends) ends.raiderHurt = false;
+	}
+
+	/** A raider lost armor, structure, or HP during the player's turn, which keeps the fight from breaking off */
+	private noteRaiderHurt(vehicle: Vehicle, hurt: boolean): void {
+		const ends = Battle.fightEnds.get(this);
+		if (ends && hurt && this.isPlayerTurn && this.enemyTeam.vehicles.includes(vehicle)) ends.raiderHurt = true;
+	}
+
+	/**
+	 * Whether the fight broke off (How a fight ends): over, neither won nor lost
+	 */
+	public isBattleBrokenOff(): boolean {
+		return this.battleOver && (this.brokenOff ?? false);
 	}
 
 	/**

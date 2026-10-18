@@ -23,6 +23,10 @@ export interface RaiderProfile {
 	flavorText: string;
 	/** Who it goes for (RaiderArchetype). */
 	targets: RaiderArchetype;
+	/** Nominal threat, which a rout counts (Combat Rules, How a fight ends); the balance sim's calibrate fits it. */
+	threat: number;
+	/** A warband's leader, whose fall routs the rest. */
+	leader?: boolean;
 	skills: DriverSkills;
 	vehicleStats: VehicleStats;
 	hitpoints: number;
@@ -44,6 +48,7 @@ export const RAIDER_PROFILES: Readonly<Record<RaiderId, Readonly<RaiderProfile>>
 		specialty: 'AGGRESSIVE',
 		flavorText: 'A dangerous raider',
 		targets: 'looter',
+		threat: 2,
 		skills: { ramming: 5, gunnery: 9, evade: 4, speed: 2 },
 		vehicleStats: { maxStructure: 30, weight: 2, armor: 5, speed: 3, gunnery: 6, evade: 4 },
 		hitpoints: 30,
@@ -61,6 +66,7 @@ export const RAIDER_PROFILES: Readonly<Record<RaiderId, Readonly<RaiderProfile>>
 		specialty: spike.metadata.specialty,
 		flavorText: spike.metadata.flavorText,
 		targets: 'killer',
+		threat: 6,
 		skills: { ...spike.skills, gunnery: 9 },
 		vehicleStats: { ...spike.vehicleStats, maxStructure: 85, armor: 8 },
 		hitpoints: 85,
@@ -109,6 +115,6 @@ export function raiderVehicle({ raider, cards, solo = false, profiles = RAIDER_P
 		deck: new Deck(`${raider}_deck`, `${profile.name}'s deck`, deck),
 	});
 	const vehicle = createDrivenVehicle({ driver });
-	vehicle.raiderArchetype = profile.targets;
+	vehicle.set({ raiderArchetype: profile.targets, threat: profile.threat, leader: profile.leader ?? false });
 	return vehicle;
 }

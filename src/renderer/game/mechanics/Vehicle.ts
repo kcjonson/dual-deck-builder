@@ -59,6 +59,10 @@ export interface VehicleData {
 	intentTier?: IntentTier;
 	/** Who this vehicle goes for when it's a raider: haulers, driven vehicles, or unset for no preference */
 	raiderArchetype?: RaiderArchetype | null;
+	/** A raider's nominal threat, its profile's number, which a rout counts (Combat Rules, How a fight ends). None counts as 0. */
+	threat?: number;
+	/** A warband's leader: its fall routs the rest. */
+	leader?: boolean;
 	/** Set on an escort, which has no driver by design. Unset means a driven vehicle. */
 	escort?: EscortProfile | null;
 	/** An escort that has acted this turn. Every escort is ready again at the start of the player's turn. */
@@ -155,6 +159,8 @@ export class Vehicle extends Model<VehicleData> {
 		'statusEffects',
 		'intentTier',
 		'raiderArchetype',
+		'threat',
+		'leader',
 		'escort',
 		'spent',
 		'shield',

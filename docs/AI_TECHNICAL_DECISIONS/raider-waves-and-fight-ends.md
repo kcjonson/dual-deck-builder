@@ -21,6 +21,14 @@ Waves ride on the enemy `Team` as `reinforcements` (each a list of raider vehicl
 
 The encounter table keeps one wave per encounter until the templates (DDB-328), so play is unchanged except for the readout. raider-sim's `--set` takes waves (`road_gang=rust_buggy|rust_buggy@1`) to measure them.
 
+## Rout and break-off (DDB-525)
+
+Each raider vehicle carries its profile's nominal `threat` and a `leader` flag (`mechanics/Raiders.ts` sets them). `Battle` totals the threat of the first wave and every queued one when it's built, and `checkBattleStatus`, which runs after every card and enemy action, routs the fight when a leader has gone out or the threat still on the road and queued is at or under `ROUT_SHARE` of that. A road and queue with nobody left is a plain win. A rout ends the fight won with `routed` set; the queue never arrives.
+
+Break-off counts quiet player turns: `damageVehicle` and `damageDriver` note a raider losing armor, structure, or HP during the player's turn, and `endPlayerTurn` checks the count before the enemy turn starts, so a broken-off fight has no enemy turn. It ends with `battleOver`, not `battleWon`, and `brokenOff` set; `battleEnded` says `{ won: false, brokenOff: true }`, and the battle result reads "Broken off" with no defeat stamp.
+
+Break-off is opt-in, through the constructor's `breakOffTurns` (`BREAK_OFF_TURNS` is 3). Battles built as test harnesses and the AI evaluators bound fights with `maxTurns` and read anything not won as lost, so a default break-off would change what they measure. The combat screen's skirmish and the raider sim turn it on. Campaign fights turn it on with the run's half of this item: until `SupplyRun.finishStopFight` and the bridge's write-back know a broken-off fight, it would read as a loss and fail the run.
+
 ## Provisional calls
 
 Numbers 190 to 209 in [gameplay-calls.md](../gameplay-calls.md).
@@ -31,3 +39,6 @@ Numbers 190 to 209 in [gameplay-calls.md](../gameplay-calls.md).
 - 193: a wave's turn count runs from the first turn the last wave played.
 - 194: "+N arriving" is the whole wave; the row marks are the rows with room.
 - 195: the top bar shows "+N arriving" only, not the raiders still queued.
+- 196: the Rust Buggy's threat is 2 and the Spike Buggy's 6, until calibrate.
+- 197: break-off counts damage in the player's turn only, shields aside.
+- 198: a break-off revives and picks up drivers as a win does.

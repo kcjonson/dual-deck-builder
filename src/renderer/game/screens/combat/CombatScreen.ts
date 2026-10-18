@@ -33,7 +33,7 @@ import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
 import { Vehicle, createDrivenVehicle } from '../../mechanics/Vehicle';
 import { Team, TeamType } from '../../mechanics/Team';
 import { encounterFor, encounterTeam } from '../../campaign/Encounters';
-import { Battle, BattleState, BattleMessage, EnemyTurnStep, HitEvent } from '../../mechanics/Battle';
+import { BREAK_OFF_TURNS, Battle, BattleState, BattleMessage, EnemyTurnStep, HitEvent } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { AimPreview, previewAim } from '../../mechanics/AimPreview';
 import type { RangeLabel } from '../../ui/RangeChip';
@@ -79,7 +79,7 @@ export interface PreparedCombat {
 	 * sends Continue back to the run. Left out, the result is the outcome
 	 * alone, and Continue goes to the menu.
 	 */
-	onEnded?: (event: { won: boolean }) => BattleResultData;
+	onEnded?: (event: BattleEndEvent) => BattleResultData;
 	/**
 	 * A fight that can be given up: what giving it up costs, which the
 	 * menu's confirm says. The menu then offers "Abandon the run", which
@@ -103,6 +103,16 @@ export interface DriversCombatMount {
 	/** The fight's random stream (Battle), a fresh root when left out */
 	rng?: Rng;
 }
+
+/** How a battle's end reads (Battle's `battleEnded`): won, a rout among wins, or broken off, neither won nor lost. */
+export interface BattleEndEvent {
+	won: boolean;
+	routed?: boolean;
+	brokenOff?: boolean;
+}
+
+/** The battle result's line for a fight won by a rout. */
+const ROUTED_SUBTITLE = 'The raiders routed and fled.';
 
 /** The battle result's line for a fight the crew gave up from the menu. */
 const ABANDONED_SUBTITLE = 'The crew abandoned the fight.';
@@ -232,7 +242,7 @@ export class CombatScreen extends Screen {
 
 			const enemyTeam = this.createTestEnemyTeam([vehicle1, vehicle2]);
 
-			const battle = new Battle({ playerTeam, enemyTeam, rng });
+			const battle = new Battle({ playerTeam, enemyTeam, rng, breakOffTurns: BREAK_OFF_TURNS });
 
 			// Enable AI for enemy team - using aggressive AI as default
 			// Other options: 'random', 'mcts', 'salvage', 'ramming'
@@ -345,13 +355,17 @@ export class CombatScreen extends Screen {
 		);
 
 		this.unsubscribers.push(
-			this.battle.on('battleEnded', (event: { won: boolean }) => {
+			this.battle.on('battleEnded', (event: BattleEndEvent) => {
 				// The battle logs its own end. A fight that brought an end hook
 				// settles itself here, then the result screen follows. Only the
 				// game's own screen navigates: the gallery mounts this one with
 				// no screen manager, and its fight just stays at its end
 				if (!this.battle) return;
-				const settled: BattleResultData = this.onEnded?.(event) ?? { victory: event.won };
+				const settled: BattleResultData = this.onEnded?.(event) ?? {
+					victory: event.won,
+					...(event.brokenOff ? { brokenOff: true } : {}),
+					...(event.routed ? { subtitle: ROUTED_SUBTITLE } : {}),
+				};
 				const resultData = this.abandoned ? { ...settled, subtitle: ABANDONED_SUBTITLE } : settled;
 				if (ScreenManager.activeScreen === this) ScreenManager.navigate('battleResultScreen', resultData);
 			})
