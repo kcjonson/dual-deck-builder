@@ -28,7 +28,26 @@ export interface SimConfigInput {
 	readonly raiders?: Partial<Record<RaiderId, RaiderPatch>>;
 	/** An encounter's raiders, by encounter. */
 	readonly encounters?: Partial<Record<EncounterId, { readonly raiders: readonly RaiderId[] }>>;
+	/** Campaign maps `gen` makes, from `seed` up. */
+	readonly maps?: number;
+	/** What a route to each destination tier should hold, by tier; Runs and Encounters' starting values when left out. */
+	readonly bands?: Readonly<Record<number, TierBand>>;
 }
+
+/** A route's stops and fights at game stage 0, its least and most (Runs and Encounters, How many stops). */
+export interface TierBand {
+	readonly stops: { readonly min: number; readonly max: number };
+	readonly fights: { readonly min: number; readonly max: number };
+}
+
+/** Runs and Encounters' starting bands by destination tier, the stronghold's as tier 5; its boss isn't counted. */
+export const ROUTE_BANDS: Readonly<Record<number, TierBand>> = Object.freeze({
+	1: { stops: { min: 3, max: 4 }, fights: { min: 1, max: 2 } },
+	2: { stops: { min: 3, max: 4 }, fights: { min: 1, max: 2 } },
+	3: { stops: { min: 4, max: 5 }, fights: { min: 2, max: 3 } },
+	4: { stops: { min: 5, max: 6 }, fights: { min: 2, max: 3 } },
+	5: { stops: { min: 6, max: 7 }, fights: { min: 2, max: 3 } },
+});
 
 /** Seat 1 first. A seat is an archetype on its default deck, or one with the deck given. */
 export type CrewInput = readonly (DriverArchetype | SeatInput)[];
@@ -55,6 +74,8 @@ export interface SimConfig {
 	readonly turns: number;
 	readonly raiders: Readonly<Record<RaiderId, Readonly<RaiderProfile>>>;
 	readonly encounters: Readonly<Record<EncounterId, readonly RaiderId[]>>;
+	readonly maps: number;
+	readonly bands: Readonly<Record<number, TierBand>>;
 }
 
 /** The archetypes a new campaign can deal. */
@@ -88,6 +109,8 @@ export function simConfig(input: SimConfigInput = {}): SimConfig {
 		turns: input.turns ?? 25,
 		raiders,
 		encounters,
+		maps: input.maps ?? 30,
+		bands: { ...ROUTE_BANDS, ...input.bands },
 	};
 }
 

@@ -55,7 +55,9 @@ Generates campaign maps (`rollParams` seeds, `--maps` of them), reads every rout
 - each route's own road (legs no other POI's routes use): its share of the route's stops, and whether the route's floor fights are on it;
 - for each POI, its nearest neighbor by shared road, and how many of its stops a run to that neighbor would leave cleared.
 
-It also writes a route corpus, those maps' routes as JSON, so `runs` doesn't have to regenerate maps.
+It also writes a route corpus (`--corpus <file>`), those maps' routes as JSON with each stop's type and each route's audit, its neighbor's run among it, so `runs` doesn't have to regenerate maps.
+
+A leg's room is the most stops the stops stage would deal it: clear of its ends, `minGap` apart. A POI's nearest neighbor is the other POI whose routes share the most road with its routes, by length, and its run is whichever of the neighbor's routes clears the most of this route's stops.
 
 ### fights
 
@@ -132,6 +134,18 @@ The first version must reproduce these, and changes are measured against them. M
 | 5 | 253 | 7.7 (3-15) | 1.94 | 11% | 75% |
 
 Tier 1 fights are always 1 skull. A route's hours out and back averaged 7.1 at tier 1, 11.1 at tier 2, 14.7 at tier 3, and 19.7 at tier 4.
+
+Own road and neighbors on the same maps. A route's own road is its last leg on all but 2 of the 2,037 routes, and its room comes from that leg alone. Floor is the band's fight minimum, half band half its stop minimum, rounded up.
+
+| Tier | Own road's share of stops | Floor fights on own road | Half band on own road | Room for both on own road | Last leg with no room | Neighbor's run clears | Neighbor's run takes every fight |
+|---|---|---|---|---|---|---|---|
+| 1 | 27% | 13% | 15% | 39% | 42% | 64% | 64% |
+| 2 | 23% | 18% | 28% | 46% | 37% | 67% | 63% |
+| 3 | 14% | 3% | 22% | 48% | 33% | 78% | 71% |
+| 4 | 26% | 12% | 34% | 62% | 16% | 64% | 43% |
+| 5 | 27% | 17% | 37% | 62% | 20% | 64% | 40% |
+
+The last column is over routes with a fight. Every POI shares road with another.
 
 `fights`, as `node scripts/balance-sim.mjs fights --runs 100 --routes 1,2,3,1+1,1+2 --crews pairs` (seed 1, the aggressive AI on both sides; first measured with raider-sim's `--fights 100`, on the same streams). Lost and turns are over the runs won.
 
