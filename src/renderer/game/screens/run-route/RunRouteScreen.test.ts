@@ -21,6 +21,7 @@ import type { AtlasButton } from '../../ui/atlas/AtlasButton';
 import type { SectionTabs } from '../../ui/atlas/SectionTabs';
 import type { RouteCard } from '../../ui/RouteCard';
 import { countOf } from '../main-menu/campaignText';
+import { STOP_COOLDOWN_DAYS } from '../../campaign/MapClearing';
 import { POI_CLEARED, STRONGHOLD_NOT_YET, clockText, homeByText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
 import { PlannedPoi, byDistance, plannedPois, routePoints } from '../area-map/planningMap';
 import { TestMaps, meshPlanningMap, testMaps } from '../area-map/testing';
@@ -136,7 +137,7 @@ describe('RunRouteScreen (DDB-319)', () => {
 		const [first, ...rest] = route.stops;
 		screen.unmount();
 		await open(poi, (campaign) => campaign.set({ map: { stops: [{ stop: first.id, roll: 0, cleared: campaign.day }] } }));
-		expect(text('run_route_stop_0_text')).toBe(`${stopText(first)}: cleared, back in 5 days`);
+		expect(text('run_route_stop_0_text')).toBe(`${stopText(first)}: cleared, back in ${countOf(STOP_COOLDOWN_DAYS, 'day')}`);
 		rest.forEach((stop, index) => expect(text(`run_route_stop_${index + 1}_text`)).toBe(stopText(stop)));
 		expect(card(picked).detailText.replace(/\u00a0/g, ' ')).toContain(`${countOf(route.stops.length - 1, 'stop')}, 1 cleared`);
 	});

@@ -587,6 +587,54 @@ describe('clearing (DDB-336)', () => {
 		expect(stopStates(campaign.map)).toEqual(routeStops(route).map(stop => ({ stop: mapStop(stop), roll: 0, cleared: campaign.day })).sort((a, b) => a.stop - b.stop));
 	});
 
+	it('clears each kind of stop as the run moves past it: a find taken or left, a quiet stretch, and a won fight once its reward is picked', () => {
+		const campaign = stocked();
+		quickLoadOut({ campaign });
+		const base = testRoute();
+		const stops: RouteStop[] = [
+			{ id: 'stop-1', kind: 'find', at: 0.1, find: 'supplies', supplies: { resource: 'food', amount: 2 } },
+			{ id: 'stop-2', kind: 'find', at: 0.2, find: 'cards' },
+			{ id: 'stop-3', kind: 'quiet', at: 0.3 },
+			{ id: 'stop-4', kind: 'find', at: 0.4, find: 'driver' },
+			{ id: 'stop-5', kind: 'fight', at: 0.5, skulls: 1 },
+		];
+		const route: RunRoute = { ...base, legs: [{ ...base.legs[0], stops }] };
+		campaign.set({ supplyRun: { route, stop: 0, phase: 'driving', escorts: [], cargo: NO_RESOURCES, cargoCards: {}, recruits: [] } });
+		const clearedNow = (): number[] => stopStates(campaign.map).filter(({ cleared }) => cleared === campaign.day).map(({ stop }) => stop);
+
+		takeFind({ campaign });
+		expect(clearedNow()).toEqual([1]);
+		takeFind({ campaign });
+		// The cards are cleared once picked, not when the picker opens
+		expect(clearedNow()).toEqual([1]);
+		takeReward({ campaign, cardType: null });
+		passQuietStop({ campaign });
+		leaveFind({ campaign });
+		expect(clearedNow()).toEqual([1, 2, 3, 4]);
+		const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+		fightOut(fight);
+		finishStopFight({ campaign, fight });
+		expect(clearedNow()).toEqual([1, 2, 3, 4]);
+		takeReward({ campaign, cardType: null });
+		expect(clearedNow()).toEqual([1, 2, 3, 4, 5]);
+	});
+
+	it('clears neither the stop of a fight the run loses nor its POI, and keeps what it cleared before', () => {
+		const campaign = stocked();
+		quickLoadOut({ campaign });
+		const base = testRoute();
+		const stops: RouteStop[] = [{ id: 'stop-1', kind: 'quiet', at: 0.2 }, { id: 'stop-2', kind: 'fight', at: 0.6, skulls: 1 }];
+		const route: RunRoute = { ...base, legs: [{ ...base.legs[0], stops }] };
+		campaign.set({ supplyRun: { route, stop: 0, phase: 'driving', escorts: [], cargo: NO_RESOURCES, cargoCards: {}, recruits: [] } });
+		const day = campaign.day;
+		passQuietStop({ campaign });
+		const fight = startStopFight({ campaign, cards: CARDS, raiders: snipers, enemyAI: null });
+		fightOut(fight, { shoot: false });
+		expect(finishStopFight({ campaign, fight }).outcome).toBe('run_failed');
+		expect(stopStates(campaign.map)).toEqual([{ stop: 1, roll: 0, cleared: day }]);
+		expect(clearedPois(campaign.map)).toEqual([]);
+	});
+
 	it('takes a cleared POI off the offer for good, and leaves every other POI\'s routes as they were', () => {
 		const campaign = stocked();
 		const route = testRoute();

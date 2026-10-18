@@ -466,9 +466,11 @@ describe('endDay', () => {
 
 		it('brings a cleared stop back, rerolled, at the dawn its cooldown is up, with the shipped hooks (DDB-336)', () => {
 			const campaign = newCampaign({ food: 200, water: 200 });
+			campaign.set({ map: { stops: [{ stop: 4, roll: 0, cleared: 1 }] } });
+			endDay({ campaign });
 			campaign.set({ map: { stops: [{ stop: 4, roll: 0, cleared: 1 }, { stop: 7, roll: 2, cleared: 2 }] } });
 
-			for (let night = 1; night < STOP_COOLDOWN_DAYS; night += 1) endDay({ campaign });
+			for (let night = 2; night < STOP_COOLDOWN_DAYS; night += 1) endDay({ campaign });
 			expect(campaign.map).toEqual({ stops: [{ stop: 4, roll: 0, cleared: 1 }, { stop: 7, roll: 2, cleared: 2 }] });
 			endDay({ campaign });
 			expect([campaign.day, campaign.map]).toEqual([1 + STOP_COOLDOWN_DAYS, { stops: [{ stop: 4, roll: 1, cleared: null }, { stop: 7, roll: 2, cleared: 2 }] }]);

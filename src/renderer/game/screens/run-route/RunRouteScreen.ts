@@ -3,8 +3,8 @@ import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
 import { daysUntilBack } from '../../campaign/MapClearing';
-import { routeId } from '../../campaign/MapRoutes';
-import type { RunRoute } from '../../campaign/SupplyRoutes';
+import { routeId, stopId } from '../../campaign/MapRoutes';
+import { RunRoute, routeStops } from '../../campaign/SupplyRoutes';
 import { DepartBlocker, getDepartBlocker, getPlanBlocker, routesOnOffer } from '../../campaign/SupplyRun';
 import type { RouteDescriptor } from '../../map/RouteDescriptors';
 import { Stack } from '../../../engine/components/Stack';
@@ -21,8 +21,7 @@ import { RouteCard } from '../../ui/RouteCard';
 import { POI_CLEARED, STRONGHOLD_NOT_YET, QUIET_STOPS, clockText, homeByText, poiKindText, poiYieldText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
 import { COLUMN_GAP, PRIMARY_HEIGHT, PRIMARY_LABEL, PoiHead, SHEET_GAP, SIDE_WIDTH, caption, screenTitle } from '../area-map/atlasPanel';
 import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, poiCleared, quickestOf, routesBounds, viewData } from '../area-map/planningMap';
-import { countOf } from '../main-menu/campaignText';
-import { mapProgressText } from '../main-menu/campaignText';
+import { countOf, mapProgressText } from '../main-menu/campaignText';
 import type { LoadOutScreenData } from '../load-out/LoadOutScreen';
 import { gateSectionTabs, metaSectionTabs } from '../metaSections';
 import { departRefusal, planRefusal } from '../run/runText';
@@ -322,7 +321,7 @@ export class RunRouteScreen extends Screen {
 		const open = (planned: PlannedPoi): boolean => !planned.stronghold && !poiCleared({ campaign, poi: planned });
 		const poi = (this.poiIndex === null ? byDistance(pois).find(open) : pois[this.poiIndex]) ?? null;
 		const trouble = poi === null
-			? "That destination isn't on the area map."
+			? this.poiIndex === null ? 'Every destination in reach has been cleared.' : "That destination isn't on the area map."
 			: poi.stronghold ? STRONGHOLD_NOT_YET : poiCleared({ campaign, poi }) ? POI_CLEARED : poi.routes.length === 0 ? 'No road reaches it.' : null;
 		if (poi === null || trouble !== null) {
 			this.say({ text: trouble ?? '', color: 'status_crit' });
@@ -355,7 +354,7 @@ export class RunRouteScreen extends Screen {
 				cards.addChild(new RouteCard({
 					id: `run_route_card_${route.route}`,
 					title: route.name,
-					detail: routeDetail(route, { cleared, risk: cleared > 0 && offered ? offered.risk : route.risk }),
+					detail: routeDetail(route, { cleared, risk: cleared > 0 && offered ? riskLeft(offered) : route.risk }),
 					note: blocker !== null ? departRefusal(blocker) : route.spare < 0 ? 'Back after dark.' : null,
 					noteColor: 'status_crit',
 					dim: blocker !== null,
@@ -385,7 +384,7 @@ export class RunRouteScreen extends Screen {
 			const cleared = this.clearedStops(route);
 			const day = this.campaign?.day ?? 1;
 			route.stops.forEach((stop, place) => {
-				const back = cleared.has(`stop-${stop.id}`) && this.campaign ? daysUntilBack({ map: this.campaign.map, stop: stop.id, day }) : null;
+				const back = cleared.has(stopId(stop.id)) && this.campaign ? daysUntilBack({ map: this.campaign.map, stop: stop.id, day }) : null;
 				const text = back === null ? stopText(stop) : `${stopText(stop)}: cleared, back in ${countOf(back, 'day')}`;
 				list.addChild(stopRow({ id: `run_route_stop_${place}`, tag: stopTag(stop), text, cleared: back !== null }));
 			});
@@ -443,7 +442,7 @@ export class RunRouteScreen extends Screen {
 			campaign,
 			poi: poi.poi,
 			route: offered.id,
-			trip: { destination: poi.name, routeName: route.name, stops: route.stops.length, fuel: route.fuel, homeBy: clockText(route.back), pastDark: route.spare < 0 },
+			trip: { destination: poi.name, routeName: route.name, stops: routeStops(offered).length, fuel: route.fuel, homeBy: clockText(route.back), pastDark: route.spare < 0 },
 		};
 		ScreenManager.navigate('loadOutScreen', data);
 	}
@@ -476,6 +475,11 @@ function frameOf(bounds: { x: number; y: number; width: number; height: number }
 	const width = Math.max(bounds.width + FRAME_MARGIN * 2, MIN_FRAME);
 	const height = Math.max(bounds.height + FRAME_MARGIN * 2, MIN_FRAME);
 	return { x: bounds.x + bounds.width / 2 - width / 2, y: bounds.y + bounds.height / 2 - height / 2, width, height };
+}
+
+/** The worst fight a route still meets, in skulls, 0 with none, as a descriptor counts risk: the run model's floors it at 1. */
+function riskLeft(route: RunRoute): number {
+	return routeStops(route).reduce((worst, stop) => (stop.kind === 'fight' ? Math.max(worst, stop.skulls) : worst), 0);
 }
 
 /** A stop in order: its tag, boxed, and what it is, dimmed when a run would drive past it, cleared. */

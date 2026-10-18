@@ -24,11 +24,21 @@ describe('save upgrades', () => {
 	});
 
 	it('clears each POI a version 11 campaign took stock from, once, in order, and drops the stock', () => {
-		const map = { fog: [1], pois: [{ poi: 5, left: 0, nights: 2 }, { poi: 3, left: 1, nights: 4 }, { poi: 5, left: 2, nights: 0 }] };
+		const map = { fog: [1], pois: [{ poi: 3, left: 1, nights: 4 }, { poi: 5, left: 0, nights: 2 }] };
 		expect(upgradeCampaignJson({ campaign: { day: 3, map }, version: 11 })).toEqual({ day: 3, map: { fog: [1], clearedPois: [3, 5] } });
 		expect(upgradeCampaignJson({ campaign: { day: 3, map: { pois: [] } }, version: 11 })).toEqual({ day: 3, map: {} });
-		expect(upgradeCampaignJson({ campaign: { day: 3, map: { pois: [{ poi: 'x' }, 7] } }, version: 11 })).toEqual({ day: 3, map: {} });
+		expect(upgradeCampaignJson({ campaign: { day: 3, map: { fog: [1] } }, version: 11 })).toEqual({ day: 3, map: { fog: [1] } });
 		expect(upgradeCampaignJson({ campaign: { day: 3, map: [] }, version: 11 })).toEqual({ day: 3, map: [] });
+	});
+
+	it.each([
+		['POIs out of order', [{ poi: 5, left: 0, nights: 2 }, { poi: 3, left: 1, nights: 4 }], 'Campaign.map.pois[1].poi must come after the entry above it (5), got 3'],
+		['a POI twice', [{ poi: 5, left: 0, nights: 2 }, { poi: 5, left: 1, nights: 0 }], 'Campaign.map.pois[1].poi must come after the entry above it (5), got 5'],
+		['a POI that was full', [{ poi: 5, left: 3, nights: 0 }], 'Campaign.map.pois[0].left must be an integer from 0 to 2, got 3'],
+		['an entry with no POI', [{ poi: 'x', left: 0, nights: 0 }], 'Campaign.map.pois[0].poi must be a number, got "x"'],
+		['stock that is not a list', 'garbage', 'Campaign.map.pois must be an array'],
+	])('refuses version 11 stock with %s, as version 11 did, rather than guess at it', (_label, pois, message) => {
+		expect(() => upgradeCampaignJson({ campaign: { day: 3, map: { pois } }, version: 11 })).toThrow(message);
 	});
 
 	it('gives a version 10 run out no recruits, since nothing found anyone new then', () => {

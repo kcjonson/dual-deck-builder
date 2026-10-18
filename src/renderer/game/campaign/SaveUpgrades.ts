@@ -1,3 +1,4 @@
+import { ReaderRangeError, readArray, readFields, readInteger } from '../core/JsonReader';
 import { CAMPAIGN_SCHEMA_VERSION } from './Campaign';
 
 /**
@@ -56,17 +57,32 @@ function fromVersion10(campaign: unknown): unknown {
 /**
  * Version 11 to 12: a POI with stock taken (an entry in the map state's
  * `pois`) had a run reach it, which clears it now, so its index goes into
- * `clearedPois` and the stock goes. No stop was cleared, since nothing kept
- * stop state. A stock entry with no whole POI index is dropped for the
- * campaign reader to pass, as it never read one.
+ * `clearedPois` and the stock goes. A POI that had refilled had no entry
+ * left, so it reads as never reached. No stop was cleared, since nothing
+ * kept stop state. The stock is held to version 11's own reader first, so
+ * a damaged one is refused rather than guessed at.
  */
 function fromVersion11(campaign: unknown): unknown {
 	if (!isObject(campaign) || !isObject(campaign.map)) return campaign;
 	const { pois, ...map } = campaign.map;
-	const cleared = Array.isArray(pois)
-		? [...new Set(pois.flatMap(entry => (isObject(entry) && Number.isInteger(entry.poi) && (entry.poi as number) >= 0 ? [entry.poi as number] : [])))].sort((a, b) => a - b)
-		: [];
+	if (pois === undefined) return campaign;
+	const cleared = readVersion11Stock(pois, 'Campaign.map.pois');
 	return { ...campaign, map: cleared.length === 0 ? map : { ...map, clearedPois: cleared } };
+}
+
+/** Version 11's POI stock as its reader took it, each POI once and in order with its shares short of full; the POIs in it. */
+function readVersion11Stock(value: unknown, path: string): number[] {
+	let previous = -1;
+	return readArray(value, path).map((entry, index) => {
+		const at = `${path}[${index}]`;
+		const fields = readFields(entry, at, ['poi', 'left', 'nights']);
+		const poi = readInteger(fields.poi, `${at}.poi`, { min: 0 });
+		if (poi <= previous) throw new ReaderRangeError(`${at}.poi must come after the entry above it (${previous}), got ${poi}`);
+		previous = poi;
+		readInteger(fields.left, `${at}.left`, { min: 0, max: 2 });
+		readInteger(fields.nights, `${at}.nights`, { min: 0 });
+		return poi;
+	});
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

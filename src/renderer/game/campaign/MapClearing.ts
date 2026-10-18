@@ -27,12 +27,13 @@ export interface StopState {
 }
 
 /**
- * The map state's stop states, read strictly: each stop once, in order, and
- * no entry that says what no entry would (roll 0 and not cleared).
+ * The map state's stop states, read strictly: each stop once, in order, no
+ * entry that says what no entry would (roll 0 and not cleared), and no empty
+ * list, which is the field left out.
  */
 export function readStopStates(value: unknown, path: string): readonly StopState[] {
 	let previous = -1;
-	return readArray(value, path).map((entry, index): StopState => {
+	return nonEmpty(readArray(value, path), path).map((entry, index): StopState => {
 		const at = `${path}[${index}]`;
 		const fields = readFields(entry, at, ['stop', 'roll', 'cleared']);
 		const stop = readInteger(fields.stop, `${at}.stop`, { min: 0 });
@@ -45,10 +46,10 @@ export function readStopStates(value: unknown, path: string): readonly StopState
 	});
 }
 
-/** The map state's cleared POIs, read strictly: each once, in order. */
+/** The map state's cleared POIs, read strictly: each once, in order, and not an empty list, which is the field left out. */
 export function readClearedPois(value: unknown, path: string): readonly number[] {
 	let previous = -1;
-	return readArray(value, path).map((entry, index) => {
+	return nonEmpty(readArray(value, path), path).map((entry, index) => {
 		const poi = readInteger(entry, `${path}[${index}]`, { min: 0 });
 		if (poi <= previous) throw new ReaderRangeError(`${path}[${index}] must come after the POI above it (${previous}), got ${poi}`);
 		previous = poi;
@@ -85,10 +86,14 @@ export function clearStop({ map, stop, day }: { map: MapState; stop: number; day
  */
 export function stopCooldowns({ map, day }: { map: MapState; day: number }): MapState {
 	const states = stopStates(map);
-	if (!states.some(({ cleared }) => cleared !== null && day + 1 >= cleared + STOP_COOLDOWN_DAYS)) return map;
-	return withField(map, 'stops', states.map((entry) => (
-		entry.cleared !== null && day + 1 >= entry.cleared + STOP_COOLDOWN_DAYS ? { ...entry, roll: entry.roll + 1, cleared: null } : entry
-	)));
+	const isBack = ({ cleared }: StopState): boolean => cleared !== null && day + 1 >= cleared + STOP_COOLDOWN_DAYS;
+	if (!states.some(isBack)) return map;
+	return withField(map, 'stops', states.map((entry) => (isBack(entry) ? { ...entry, roll: entry.roll + 1, cleared: null } : entry)));
+}
+
+/** Stops cleared on a day after `day`, which no run could have done yet: the first, or null. */
+export function clearedAfter({ map, day }: { map: MapState; day: number }): StopState | null {
+	return stopStates(map).find(({ cleared }) => cleared !== null && cleared > day) ?? null;
 }
 
 /** The POIs runs have cleared, in order. */
@@ -104,6 +109,11 @@ export function isPoiCleared({ map, poi }: { map: MapState; poi: number }): bool
 export function clearPoi({ map, poi }: { map: MapState; poi: number }): MapState {
 	if (isPoiCleared({ map, poi })) return map;
 	return withField(map, 'clearedPois', [...clearedPois(map), poi].sort((a, b) => a - b));
+}
+
+function nonEmpty<Entry>(entries: readonly Entry[], path: string): readonly Entry[] {
+	if (entries.length === 0) throw new ReaderRangeError(`${path} is empty; with nothing in it, it's left out`);
+	return entries;
 }
 
 /** The map state with `key` set to plain copies of `entries`, or left out when there are none, so an untouched map reads as `{}`. */

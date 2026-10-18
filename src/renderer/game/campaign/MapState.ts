@@ -58,9 +58,15 @@ export function readMapAttempts(value: unknown, path: string): Readonly<MapAttem
 	return attempts;
 }
 
-/** The map state as a frozen copy: any JSON object, whose `stops` and `clearedPois`, when it has them, are what runs have cleared (MapClearing.ts). */
+/**
+ * The map state as a frozen copy: any JSON object, whose `stops` and
+ * `clearedPois`, when it has them, are what runs have cleared
+ * (MapClearing.ts). `pois`, the POI stock clearing replaced, is refused:
+ * a save with it went past the upgrade that drops it.
+ */
 export function readMapState(value: unknown, path: string): MapState {
 	const map = readObject(freezeJson(value, path), path) as MapState;
+	if (map.pois !== undefined) throw new ReaderRangeError(`${path}.pois is the POI stock version 12 replaced with clearedPois`);
 	if (map.stops !== undefined) readStopStates(map.stops, `${path}.stops`);
 	if (map.clearedPois !== undefined) readClearedPois(map.clearedPois, `${path}.clearedPois`);
 	return map;

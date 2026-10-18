@@ -31,6 +31,11 @@ export function poiOf(id: string): number | null {
 	return match ? Number(match[1]) : null;
 }
 
+/** A map stop's id in the route model, `stop-<stop>`. */
+export function stopId(stop: number): string {
+	return `stop-${stop}`;
+}
+
 /** The map stop a route stop's id names, its index in the map's stops, or null for an id that isn't one (`stop-<stop>`). */
 export function stopOf(id: string): number | null {
 	const match = /^stop-(0|[1-9]\d*)$/.exec(id);
@@ -110,7 +115,7 @@ const FINDS: Readonly<Partial<Record<StopType, FindKind>>> = { findCards: 'cards
 /** A map stop as the run takes it, its contents rolled at `roll`. */
 export function routeStop({ map, id, roll = 0 }: { map: RouteMap; id: number; roll?: number }): RouteStop {
 	const { type, at, skulls } = map.products.stops.stops[id];
-	const base = { id: `stop-${id}`, at: hundredths(at) };
+	const base = { id: stopId(id), at: hundredths(at) };
 	if (isFight(type)) return Object.freeze({ ...base, kind: 'fight', skulls: skulls as Skulls });
 	const find = FINDS[type];
 	if (find === undefined) return Object.freeze({ ...base, kind: 'quiet' });

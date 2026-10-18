@@ -121,11 +121,11 @@ export function routesOnOffer({ map, campaign }: { map: RouteMap; campaign: Camp
 		offers.set(map, full);
 	}
 	const state = campaign.map;
-	const closed = new Set(clearedPois(state).map(destinationId));
-	const states = new Map(stopStates(state).map(entry => [entry.stop, entry]));
-	if (closed.size === 0 && states.size === 0) return full;
+	if (clearedPois(state).length === 0 && stopStates(state).length === 0) return full;
 	const kept = cleared.get(map);
 	if (kept?.state === state) return kept.routes;
+	const closed = new Set(clearedPois(state).map(destinationId));
+	const states = new Map(stopStates(state).map(entry => [entry.stop, entry]));
 	const legs = new Map<RouteLeg, RouteLeg>();
 	const legNow = (leg: RouteLeg): RouteLeg => {
 		let now = legs.get(leg);

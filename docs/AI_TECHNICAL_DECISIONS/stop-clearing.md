@@ -13,7 +13,7 @@ Both halves live in the campaign's map state (`Campaign.map`), which a load neve
 - `stops`: one entry for each stop cleared now or rolled again since, in stop order, `{ stop, roll, cleared }`, where `stop` is the map's stop index, `roll` how many times it has come back, and `cleared` the day a run cleared it, or null once it's back. A stop with no entry was never cleared and rolls at 0, so a fresh map state is still `{}`.
 - `clearedPois`: the POIs runs have reached, in order.
 
-The reader refuses an entry out of order or twice, and one that's neither cleared nor rolled again (that's no entry), so each state has one way to be written. Rolled contents aren't saved beside the roll: `rollStop` gives the same contents for the same stop and roll, and a run carries what it rolled in its saved route (find-stops.md), so the save already keeps a revealed stop's contents where they're used.
+The reader refuses an entry out of order or twice, one that's neither cleared nor rolled again (that's no entry), and an empty list (that's the field left out), so each state has one way to be written. The campaign's reader also refuses a stop cleared after its day, which no run could have done, and the map state refuses the retired `pois`. Rolled contents aren't saved beside the roll: `rollStop` gives the same contents for the same stop and roll, and a run carries what it rolled in its saved route (find-stops.md), so the save already keeps a revealed stop's contents where they're used.
 
 ## Clearing
 
@@ -41,17 +41,19 @@ Options considered for driving past a cleared stop: taking it off the route alto
 
 ## Version 11 saves load
 
-The map state changed shape, so the save format goes to version 12. Version 11 saves load (`SaveUpgrades.ts`): a POI with an entry in the old `pois` stock had a run reach it, which clears it now, so its index goes into `clearedPois` and the stock goes; no stop is cleared, since nothing kept stop state. A run out keeps its route as saved; its POI clears when it gets there.
+The map state changed shape, so the save format goes to version 12. Version 11 saves load (`SaveUpgrades.ts`): a POI with an entry in the old `pois` stock had a run reach it, which clears it now, so its index goes into `clearedPois` and the stock goes; no stop is cleared, since nothing kept stop state. A POI that had refilled had dropped its entry, so it reads as never reached; nothing in the save tells it apart. The old stock is held to version 11's own reader first, so a damaged one is damage, not a guess. A run out keeps its route as saved; its POI clears when it gets there.
 
 ## Provisional calls
 
-None of these is in a spec. They're calls 215 to 219 in [gameplay-calls.md](../gameplay-calls.md); 186 to 188 are the clearing rule itself.
+None of these is in a spec. They're calls 215 to 219, 221, and 222 in [gameplay-calls.md](../gameplay-calls.md); 186 to 188 are the clearing rule itself.
 
 1. A run clears a stop when it moves past it, a find left by the road and a fight won included, on the day of the run; a fight it loses isn't cleared.
-2. A cleared stop is back at the dawn five days after the day it was cleared, its roll up one, and only a haul rerolls yet, since a fight's raiders come from the run's own stream.
+2. A cleared stop is back at the dawn five days after the day it was cleared, its roll up one, and only a haul rerolls yet, since a fight's raiders and a find's cards and driver come from the run's own stream.
 3. A route with stops cleared keeps the map's fuel and hours, which then overestimate a little, and takes its risk from the fights it still meets.
-4. A cleared POI draws with the map's depleted marker and dimmed row, its details say cleared, and its Plan is off; the debrief stamps the POI the run cleared LOOTED, after an injured driver's tear.
-5. Version 11 saves load with every POI that had stock taken cleared, and no stop cleared.
+4. A cleared POI draws with the map's depleted marker and dimmed row, its details say cleared, and its Plan is off.
+5. Version 11 saves load with every POI that still had stock taken cleared, a refilled one reading as never reached, and no stop cleared.
+6. The save keeps a stop's roll and cleared day, not its rolled contents, which `rollStop` gives again from the roll (call 221).
+7. The debrief stamps the POI the run cleared LOOTED, after an injured driver's tear (call 222).
 
 ## Consequences
 

@@ -1,5 +1,5 @@
 import {
-	STOP_COOLDOWN_DAYS, clearPoi, clearStop, clearedPois, daysUntilBack, isPoiCleared, readClearedPois, readStopStates, stopCooldowns, stopState,
+	STOP_COOLDOWN_DAYS, clearPoi, clearStop, clearedAfter, clearedPois, daysUntilBack, isPoiCleared, readClearedPois, readStopStates, stopCooldowns, stopState,
 } from './MapClearing';
 import { readMapState } from './MapState';
 
@@ -58,6 +58,18 @@ describe('reading what runs cleared', () => {
 	])('refuses %s', (_label, stops, message) => {
 		expect(() => readStopStates(stops, 'map.stops')).toThrow(message);
 		expect(() => readMapState({ stops }, 'map')).toThrow(message);
+	});
+
+	it('refuses an empty list, which is the field left out, and the POI stock clearing replaced', () => {
+		expect(() => readMapState({ stops: [] }, 'map')).toThrow("map.stops is empty; with nothing in it, it's left out");
+		expect(() => readMapState({ clearedPois: [] }, 'map')).toThrow("map.clearedPois is empty; with nothing in it, it's left out");
+		expect(() => readMapState({ pois: [{ poi: 1, left: 0, nights: 0 }] }, 'map')).toThrow('map.pois is the POI stock version 12 replaced with clearedPois');
+	});
+
+	it('finds a stop cleared after a day, which no run could have done by then', () => {
+		const map = { stops: [{ stop: 1, roll: 0, cleared: 3 }, { stop: 2, roll: 0, cleared: 6 }] };
+		expect(clearedAfter({ map, day: 6 })).toBeNull();
+		expect(clearedAfter({ map, day: 5 })).toEqual({ stop: 2, roll: 0, cleared: 6 });
 	});
 
 	it('refuses cleared POIs out of order or twice', () => {
