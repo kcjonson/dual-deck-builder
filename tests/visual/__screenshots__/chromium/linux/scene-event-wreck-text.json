@@ -1,0 +1,20 @@
+[
+{"path":"eventScreen/event_top/event_plate/Text[0]","text":"PLATE · AN ARMORED CAR ON ITS ROOF IN THE DITCH","rect":[60,592,557.14,14]},
+{"path":"eventScreen/event_top/event_journal/event_head/event_title","text":"Overturned armored car","rect":[637.14,60,389.88,36]},
+{"path":"eventScreen/event_top/event_journal/event_head/event_kicker","text":"Wreck / stop 1 of 4","rect":[1039.02,70.08,136.8,15.84]},
+{"path":"eventScreen/event_top/event_journal/event_page/event_setup","text":"An armored car lies on its roof in the ditch, wheels in the air. The rear doors are dented but shut.","rect":[667.14,128.65,694.86,49.3]},
+{"path":"eventScreen/event_top/event_journal/event_page/event_situation","text":"It's built to keep people out. It might also be built well enough to run again.","rect":[667.14,202.6,694.86,24.65]},
+{"path":"eventScreen/event_foot/event_choices/event_choice_pry_doors/event_choice_pry_doors_key","text":"1","rect":[466,622,14,24]},
+{"path":"eventScreen/event_foot/event_choices/event_choice_pry_doors/event_choice_pry_doors_title","text":"Pry the doors","rect":[72,654,408,44]},
+{"path":"eventScreen/event_foot/event_choices/event_choice_pry_doors/event_choice_pry_doors_preview","text":"Whatever it was carrying is still inside.","rect":[72,702,408,55]},
+{"path":"eventScreen/event_foot/event_choices/event_choice_pry_doors/event_choice_pry_doors_hours","text":"1 h","rect":[93,769.2,21.6,15.84]},
+{"path":"eventScreen/event_foot/event_choices/event_choice_get_it_running/event_choice_get_it_running_need","text":"Need 8 scrap, have 5","rect":[516,622,391,24]},
+{"path":"eventScreen/event_foot/event_choices/event_choice_get_it_running/event_choice_get_it_running_key","text":"2","rect":[910,622,14,24]},
+{"path":"eventScreen/event_foot/event_choices/event_choice_get_it_running/event_choice_get_it_running_title","text":"Get it running","rect":[516,654,408,44]},
+{"path":"eventScreen/event_foot/event_choices/event_choice_get_it_running/event_choice_get_it_running_preview","text":"Right it, patch it, and it rides with you.","rect":[516,702,408,55]},
+{"path":"eventScreen/event_foot/event_choices/event_choice_get_it_running/event_choice_get_it_running_cost_scrap","text":"-8","rect":[537,769.2,14.4,15.84]},
+{"path":"eventScreen/event_foot/event_choices/event_choice_get_it_running/event_choice_get_it_running_hours","text":"2 h","rect":[580.4,769.2,21.6,15.84]},
+{"path":"eventScreen/event_foot/event_choices/event_choice_drive_on/event_choice_drive_on_key","text":"3","rect":[1354,622,14,24]},
+{"path":"eventScreen/event_foot/event_choices/event_choice_drive_on/event_choice_drive_on_title","text":"Drive on","rect":[960,654,408,44]},
+{"path":"eventScreen/event_foot/event_choices/event_choice_drive_on/event_choice_drive_on_preview","text":"Leave it to rust.","rect":[960,702,408,55]}
+]
