@@ -110,6 +110,56 @@ describe('Raider formation and stuns', () => {
 			expect(other.slot).toEqual(slot(RoadLane.ENEMY_INSIDE, RoadRow.BEHIND));
 		});
 
+		test('never moves an ambusher, which has no slot of its own to leave', () => {
+			const ambusher = createVehicle('Ambusher', 3, slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER));
+			const battle = fight([ambusher]);
+
+			battle.endPlayerTurn();
+
+			expect(ambusher.slot).toEqual(slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER));
+			expect(generalLines(battle).some(line => line.includes('closes up'))).toBe(false);
+		});
+
+		test('fills Driver 1\'s row first when one raider is nearest to both', () => {
+			rig = createVehicle('Rig', 1, slot(RoadLane.PLAYER_INSIDE, RoadRow.AHEAD));
+			bike = createVehicle('Bike', 5, slot(RoadLane.PLAYER_INSIDE, RoadRow.BEHIND));
+			const raider = createVehicle('Raider', 3, slot(RoadLane.ENEMY_INSIDE, RoadRow.CENTER));
+			const battle = fight([raider]);
+
+			battle.endPlayerTurn();
+
+			expect(raider.slot).toEqual(slot(RoadLane.ENEMY_INSIDE, RoadRow.AHEAD));
+		});
+
+		test('ignores a driven vehicle that carried on as an escort when its driver died', () => {
+			const raider = createVehicle('Raider', 3, slot(RoadLane.ENEMY_OUTSIDE, RoadRow.CENTER));
+			const behind = createVehicle('Behind', 3);
+			const battle = fight([raider, behind]);
+			// Behind opens inside center, across the Rig; the Rig's driver dies, so center is nobody's row
+			driverOf(rig).set({ hitpoints: 0 });
+			battle.playerTeam.handleDriverDeath(rig);
+			expect(rig.isEscort).toBe(true);
+			behind.set({ slot: slot(RoadLane.ENEMY_INSIDE, RoadRow.AHEAD) });
+
+			battle.endPlayerTurn();
+
+			// Only the Bike's row, behind, pulls a raider in (the two tie, inside first); the Rig's center stays empty
+			expect([raider.slot, behind.slot]).toEqual([slot(RoadLane.ENEMY_OUTSIDE, RoadRow.CENTER), slot(RoadLane.ENEMY_INSIDE, RoadRow.BEHIND)]);
+		});
+
+		test('lets the raider plan from the slot it closed up to', () => {
+			const raider = createVehicle('Raider', 3, slot(RoadLane.ENEMY_OUTSIDE, RoadRow.AHEAD));
+			const center = createVehicle('Center', 3);
+			const battle = fight([center, raider]);
+
+			battle.endPlayerTurn();
+			expect(raider.slot).toEqual(slot(RoadLane.ENEMY_INSIDE, RoadRow.BEHIND));
+			giveHand(raider, [realCard('point_blank')]);
+			battle.planEnemyTurn();
+
+			expect(battle.getIntents(raider)).toEqual([expect.objectContaining({ target: bike.id, amount: 3 })]);
+		});
+
 		test('leaves a raider already across from a driven vehicle where it is', () => {
 			const center = createVehicle('Center', 3);
 			const battle = fight([center]);
