@@ -100,7 +100,8 @@ describe('sizing up the crew', () => {
 		}
 	});
 
-	it.each(RAIDER_IDS)('gives %s less adrenaline against a lone driver than against a pair', (raider) => {
+	// The templates size a lone driver's fight by its raiders instead (sizedWaves), so only the stand-in table's raiders refill lower
+	it.each([...new Set(ENCOUNTER_IDS.flatMap(id => ENCOUNTERS[id].raiders))])('gives %s less adrenaline against a lone driver than against a pair', (raider) => {
 		expect(RAIDER_PROFILES[raider].soloAdrenaline).toBeLessThan(RAIDER_PROFILES[raider].maxAdrenaline);
 	});
 });

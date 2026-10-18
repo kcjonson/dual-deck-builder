@@ -29,6 +29,16 @@ Break-off counts quiet player turns: `damageVehicle` and `damageDriver` note a r
 
 Break-off is opt-in, through the constructor's `breakOffTurns` (`BREAK_OFF_TURNS` is 3). Battles built as test harnesses and the AI evaluators bound fights with `maxTurns` and read anything not won as lost, so a default break-off would change what they measure. The combat screen's skirmish and the raider sim turn it on. Campaign fights turn it on with the run's half of this item: until `SupplyRun.finishStopFight` and the bridge's write-back know a broken-off fight, it would read as a loss and fail the run.
 
+## Encounter templates and raider classes (DDB-328)
+
+Templates are `data/encounters.json`, read strictly by `readEncounterData` in `campaign/Encounters.ts`: per template its skulls, tiers, waves (raiders, `arriveAt`, `afterTurns`), and `grow` raider, plus a road cap per skull count. `encounterForces` picks a template on the fight's stream, forked as `encounter` so the pick moves no other draw, sizes it (`sizedWaves`: one more `grow` raider in the last wave every two stages, and a lone driver's half), builds every raider grown 5% a stage, and returns the first wave as the enemy team with the rest queued on it, each wave carrying the road cap as `maxOnRoad`, which `Battle` honors when it lands a wave.
+
+Raider profiles gain a class (mook, regular, heavy, leader); the leader is an elite and sets `Vehicle.leader`, which a rout reads. `soloAdrenaline` stays only for the stand-in table: the templates size a lone driver's fight by its raiders instead.
+
+The supply run and the combat screen's skirmish still field the stand-in table. Moving a run's stops to `encounterForces` needs the run to pass its fight stream and stage, and SupplyRun.test.ts asserts on the stand-in table (a lone raider at one skull), so it lands with the run's half of DDB-525, the one PR in this work that changes the run. The skirmish moves with it, since it fields what a run's one-skull stop fields. Until then the templates are reached through the raider sim, which uses them by default (`--table stand-in` for the old table).
+
+Tuning was raider-side only (calls 199 to 203). On the sim's aggressive stand-in at tier 1, stage 0, the Road Warrior and Interceptor and the Interceptor and Mechanic meet the per-fight home rates (98, 93, and 85% or more at one, two, and three skulls). The Road Warrior and Mechanic don't: every loss comes with the Mechanic in seat 1, where the raiders aim on ties and the Mechanic's starter has no damage, which are DDB-493 and 495's card fixes, and the fairness rule says not to tune raiders over them.
+
 ## Provisional calls
 
 Numbers 190 to 209 in [gameplay-calls.md](../gameplay-calls.md).
@@ -42,4 +52,10 @@ Numbers 190 to 209 in [gameplay-calls.md](../gameplay-calls.md).
 - 196: the Rust Buggy's threat is 2 and the Spike Buggy's 6, until calibrate.
 - 197: break-off counts damage in the player's turn only, shields aside.
 - 198: a break-off revives and picks up drivers as a win does.
+- 199: the Scav Bike mook and the Warlord leader.
+- 200: one Precision Shot a raider at most, and a lighter Spike Buggy.
+- 201: threats 1, 2, 4, and 6, replacing 196.
+- 202: one set of templates for tiers 1 to 4.
+- 203: when later waves are due, and the road cap.
+- 204: a lone driver's cut keeps the first wave.
 - 206: the leader is its vehicle; it's out when wrecked or driverless.

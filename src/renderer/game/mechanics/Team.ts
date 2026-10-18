@@ -26,6 +26,8 @@ export interface ReinforcementWave {
 	readonly raiders: readonly Vehicle[];
 	readonly arriveAt?: number;
 	readonly afterTurns?: number;
+	/** The most raiders on the road once it's in: the rest wait, still due, for room (Runs and Encounters, How big). No cap when unset. */
+	readonly maxOnRoad?: number;
 }
 
 /**

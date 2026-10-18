@@ -149,7 +149,7 @@ export interface WaveReadout {
 
 /** The queue behind the road, and what's due from it */
 interface WaveState {
-	queue: { raiders: Vehicle[]; arriveAt?: number; afterTurns?: number; started: boolean }[];
+	queue: { raiders: Vehicle[]; arriveAt?: number; afterTurns?: number; maxOnRoad?: number; started: boolean }[];
 	total: number;
 	/** Waves with at least one raider on the road, the first included */
 	started: number;
@@ -342,7 +342,7 @@ export class Battle extends Model<BattleData> {
 		Battle.deckRngs.set(this, new Map());
 		const queued = (enemyTeam.reinforcements ?? []).filter((wave: ReinforcementWave) => wave.raiders.length > 0);
 		Battle.waveStates.set(this, {
-			queue: queued.map(({ raiders, arriveAt, afterTurns }) => ({ raiders: [...raiders], arriveAt, afterTurns, started: false })),
+			queue: queued.map(({ raiders, arriveAt, afterTurns, maxOnRoad }) => ({ raiders: [...raiders], arriveAt, afterTurns, maxOnRoad, started: false })),
 			total: 1 + queued.length,
 			started: 1,
 			firstTurn: 1,
@@ -2368,7 +2368,7 @@ export class Battle extends Model<BattleData> {
 		if (!waves || !next) return;
 		if (!waves.due && this.enemyTeam.vehicles.some(vehicle => !vehicle.isOutOfFight)) return;
 
-		const slots = this.planArrivals(this.liveRoad, next.raiders.length);
+		const slots = this.planArrivals(this.liveRoad, this.roomFor(next));
 		if (slots.length === 0) return;
 		if (!next.started) {
 			next.started = true;
@@ -2414,8 +2414,15 @@ export class Battle extends Model<BattleData> {
 		const projected: RoadRead = { slotOf: vehicle => board.slotOf(vehicle), flankOf: vehicle => board.flankOf(vehicle) };
 		const moves = this.planCloseUp(projected);
 		const closedUp: RoadRead = { slotOf: vehicle => moves.get(vehicle) ?? board.slotOf(vehicle), flankOf: projected.flankOf };
-		const slots = this.planArrivals(closedUp, next.raiders.length);
+		const slots = this.planArrivals(closedUp, this.roomFor(next));
 		return { number: waves.started, total: waves.total, arriving: next.raiders.length, rows: [...new Set(slots.map(slot => slot.row))] };
+	}
+
+	/** How many of a due wave can pull in under its road cap */
+	private roomFor(wave: WaveState['queue'][number]): number {
+		if (wave.maxOnRoad === undefined) return wave.raiders.length;
+		const onRoad = this.enemyTeam.vehicles.filter(raider => !raider.isOutOfFight).length;
+		return Math.max(0, Math.min(wave.raiders.length, wave.maxOnRoad - onRoad));
 	}
 
 	/** Raiders queued off the road, in every wave still to come */
