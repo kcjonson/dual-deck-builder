@@ -7,6 +7,7 @@
 /** z for a two-sided 90% interval. */
 const Z90 = 1.6448536269514722;
 
+/** A share of something counted, with what it's a share of. */
 export interface Rate {
 	readonly count: number;
 	/** What it's a share of; 0 leaves the rate and its interval null. */
@@ -17,6 +18,7 @@ export interface Rate {
 	readonly high: number | null;
 }
 
+/** `count` out of `of`, with its 90% interval. */
 export function rate(count: number, of: number): Rate {
 	if (of === 0) return { count, of, rate: null, low: null, high: null };
 	const share = count / of;

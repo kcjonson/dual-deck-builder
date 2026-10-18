@@ -34,10 +34,14 @@ const IMPORT = /(?:^|\n)\s*(?:import|export)\s+(type\s+)?(?:[^'";]*?\s+from\s+)?
 export async function transpiled({ script, name, entries, nodeFlags = [] }) {
 	if (process.argv[2] === BUILT) return { build: process.argv[3], args: process.argv.slice(4) };
 	const build = mkdtempSync(join(tmpdir(), `${name}-`));
-	await transpileInto({ build, entries });
-	const child = spawnSync(process.execPath, [...nodeFlags, script, BUILT, build, ...process.argv.slice(2)], { stdio: 'inherit', cwd: process.cwd() });
-	rmSync(build, { recursive: true, force: true });
-	process.exit(child.status ?? 1);
+	let status = 1;
+	try {
+		await transpileInto({ build, entries });
+		status = spawnSync(process.execPath, [...nodeFlags, script, BUILT, build, ...process.argv.slice(2)], { stdio: 'inherit', cwd: process.cwd() }).status ?? 1;
+	} finally {
+		rmSync(build, { recursive: true, force: true });
+	}
+	process.exit(status);
 }
 
 /** Transpiles `entries` (paths from the repository root) and what they reach into `build`, as CommonJS. */

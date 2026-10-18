@@ -312,7 +312,8 @@ async function landImage({ terrain, size, centreX, centreY, half }) {
 }
 
 async function png() {
-	const map = generate(mapSet());
+	const set = mapSet();
+	const map = generate(set);
 	const { result, params } = map;
 	const terrain = result.products.hazards.terrain;
 	const { places } = result.products;

@@ -394,8 +394,11 @@ function vehicleOf({ record, driver }: { record: DriverRecord; driver: Driver })
 /**
  * A seat's record changes after a fight, as `writeBackFight` stores them:
  * the balance sim (src/renderer/game/sim/) writes its crews back here.
+ * Throws, as `writeBackFight` does, for a fight that isn't over or ended in a tie.
  */
 export function seatWriteBack({ battle, driver, vehicle }: { battle: Battle; driver: Driver; vehicle: Vehicle }): Partial<DriverRecordData> {
+	if (!battle.isBattleOver()) throw new Error("The fight isn't over, so there's nothing to write back yet");
+	if (battle.isBattleTied()) throw new Error('The fight ended in a tie at its turn limit; a campaign fight has none, so it ends won or lost');
 	return recordChanges({ fate: fateOf({ battle, driver, won: battle.isBattleWon() }), driver, vehicle });
 }
 

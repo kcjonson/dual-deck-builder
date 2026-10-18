@@ -17,7 +17,7 @@ export interface SimConfigInput {
 	readonly crews?: 'all' | 'pairs' | 'solo' | readonly CrewInput[];
 	/** The archetypes `all`, `pairs`, and `solo` draw from: the ones a new campaign can deal when left out. */
 	readonly archetypes?: readonly DriverArchetype[];
-	/** What each fights cell fights, in order: `[1]` one fight, `[1, 2]` a run's two, damage carried between them. */
+	/** What each fights cell fights, in order: `[1]` one fight, `[1, 2]` a run's two, damage carried between them. Never empty. */
 	readonly routes?: readonly (readonly Skulls[])[];
 	/** The player's stand-in: the aggressive AI, the floor (Balance Simulation, Player stand-ins). */
 	readonly playerAI?: AIType;
@@ -49,7 +49,7 @@ export const ROUTE_BANDS: Readonly<Record<number, TierBand>> = Object.freeze({
 	5: { stops: { min: 6, max: 7 }, fights: { min: 2, max: 3 } },
 });
 
-/** Seat 1 first. A seat is an archetype on its default deck, or one with the deck given. */
+/** Seat 1 first, one or two seats of different archetypes. A seat is an archetype on its default deck, or one with the deck given. */
 export type CrewInput = readonly (DriverArchetype | SeatInput)[];
 
 export interface SeatInput {
@@ -94,16 +94,21 @@ export function simConfig(input: SimConfigInput = {}): SimConfig {
 	const raiders = Object.fromEntries(RAIDER_IDS.map(id => [id, patched(RAIDER_PROFILES[id], input.raiders?.[id])])) as Record<RaiderId, RaiderProfile>;
 	const encounters = Object.fromEntries(ENCOUNTER_IDS.map(id => {
 		const list = input.encounters?.[id]?.raiders ?? ENCOUNTERS[id].raiders;
+		if (list.length === 0) throw new RangeError(`encounters.${id} fields no raiders`);
 		list.forEach(raider => {
 			if (!(RAIDER_IDS as readonly string[]).includes(raider)) throw new RangeError(`encounters.${id} holds ${raider}, which isn't a raider`);
 		});
 		return [id, [...list]];
 	})) as Record<EncounterId, RaiderId[]>;
+	const routes = input.routes ?? [[1], [2], [3]];
+	routes.forEach(route => {
+		if (route.length === 0) throw new RangeError('A route fights at least once');
+	});
 	return {
 		seed: input.seed ?? 1,
 		runs: input.runs ?? 150,
 		crews: crewsOf(input),
-		routes: input.routes ?? [[1], [2], [3]],
+		routes,
 		playerAI: input.playerAI ?? 'aggressive',
 		enemyAI: input.enemyAI ?? 'aggressive',
 		turns: input.turns ?? 25,
@@ -131,7 +136,15 @@ function crewsOf({ crews = 'all', archetypes = unlockedArchetypes() }: SimConfig
 		if (!known.includes(read.archetype)) throw new RangeError(`${read.archetype} isn't an archetype`);
 		return read;
 	};
-	if (typeof crews !== 'string') return crews.map(crew => crew.map(seat));
+	if (typeof crews !== 'string') {
+		return crews.map(crew => {
+			// What load out seats (getSeatBlocker): one driver, or two of different archetypes
+			if (crew.length < 1 || crew.length > 2) throw new RangeError(`A crew seats one or two drivers, not ${crew.length}`);
+			const seats = crew.map(seat);
+			if (seats.length === 2 && seats[0].archetype === seats[1].archetype) throw new RangeError(`A pair seats two different archetypes, not two ${seats[0].archetype}s`);
+			return seats;
+		});
+	}
 	const pairs = archetypes.flatMap((first, index) => archetypes.slice(index + 1).map(second => [seat(first), seat(second)]));
 	const solos = archetypes.map(archetype => [seat(archetype)]);
 	switch (crews) {

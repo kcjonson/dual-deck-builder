@@ -1,6 +1,6 @@
 # Balance Simulation
 
-Status: designed 2026-10-17, not built. The tools that say whether runs and fights hit their targets ([Runs and Encounters](./Runs%20and%20Encounters.md), Just hard enough): one deterministic simulation core, a command line tool over it for sweeps and CI, and a browser Balance Lab for trying a change and seeing what it does. It grows out of raider-sim, the fight simulator in [raider-tuning.md](../AI_TECHNICAL_DECISIONS/raider-tuning.md), and takes over from the old evalai.html harness.
+Status: designed 2026-10-17. The tools that say whether runs and fights hit their targets ([Runs and Encounters](./Runs%20and%20Encounters.md), Just hard enough): one deterministic simulation core, a command line tool over it for sweeps and CI, and a browser Balance Lab for trying a change and seeing what it does. It grows out of raider-sim, the fight simulator in [raider-tuning.md](../AI_TECHNICAL_DECISIONS/raider-tuning.md), and takes over from the old evalai.html harness.
 
 ## What it answers
 
@@ -18,11 +18,11 @@ The core lives in `src/renderer/game/sim/`, as game code under the same rules:
 - No DOM, `fetch` or `CardLoader`, localStorage, or `__DEV_TOOLS__`, so the same code runs in Node and in a Web Worker. No `const enum`, which per-file transpiling can't see through.
 - It plays everything through the game's own code: `Battle`, the AI controller, the combat bridge (`seatOf`, and the write-back with `REVIVE_HP` and `LIMP_STRUCTURE`, through `seatWriteBack`), the encounter builder, and the run. Never a copy of them, so a rule change reaches the sim without touching it.
 
-Its input is a config, plain data: the crews (archetypes, seat order, decks), the raider profiles, the encounter templates, the stop tables, the game stage, the player stand-in, the seed, and runs a cell. Tuning comes in as data rather than being patched into the shipped tables: the encounter builder and `raiderVehicle` take the config's raiders and profiles, and fall back to the shipped ones. A raider's patch merges its skills and vehicle stats and replaces its deck.
+Its input is a config, plain data: the crews (archetypes, seat order, decks; one driver, or two of different archetypes, as load out seats them), the raider profiles, the encounter templates, the stop tables, the game stage, the player stand-in, the seed, and runs a cell. Tuning comes in as data rather than being patched into the shipped tables: the encounter builder and `raiderVehicle` take the config's raiders and profiles, and fall back to the shipped ones. A raider's patch merges its skills and vehicle stats and replaces its deck.
 
 Its output is plain JSON: a row per cell with the measures below, and any fight logs asked for.
 
-It's deterministic, and no cell's numbers depend on which other cells were asked for. A `gen` map is its own `rollParams` seed. In `fights` and `runs`, a cell is named by its crew, route, and stage (`road_warrior+interceptor:1+2`), and run n of every cell draws from the seed's `fork('run', n)`, its fight f from that run's `fork('fight', f)`. Every cell plays the same fixed list of seeded runs, so two crews, two tunings, or a route fresh and the day after its neighbor's run are compared on the same draws, and a difference between them is the change rather than the luck. The cost is that cells share their luck: a lucky seed lifts every cell a little, so a figure pooled across cells needs more runs than its intervals suggest. The same config and seed give the same JSON in Node and in the browser.
+It's deterministic, and no cell's numbers depend on which other cells were asked for. A `gen` map is its own `rollParams` seed. In `fights` and `runs`, a cell is named by its crew and route, and its stage once there is one (`road_warrior+interceptor:1+2`; a crew asked for twice, on other decks, adds `#` and its place in the crews), and run n of every cell draws from the seed's `fork('run', n)`, its fight f from that run's `fork('fight', f)`. Every cell plays the same fixed list of seeded runs, so two crews, two tunings, or a route fresh and the day after its neighbor's run are compared on the same draws, and a difference between them is the change rather than the luck. The cost is that cells share their luck: a lucky seed lifts every cell a little, so a figure pooled across cells needs more runs than its intervals suggest. The same config and seed give the same JSON in Node and in the browser.
 
 ## Measures
 
@@ -32,7 +32,7 @@ For each cell, a crew against an encounter or a crew over a route:
 - stalled (still going at the turn cap), broken off, routed;
 - HP and structure lost over the runs won, as a share of the crew's maximum;
 - won runs where a driver went down;
-- turns a fight;
+- turns, over a route's fights;
 - injury days the crew brings home;
 - raiders killed, and waves seen.
 
@@ -147,7 +147,7 @@ Own road and neighbors on the same maps. A route's own road is its last leg on a
 
 The last column is over routes with a fight. Every POI shares road with another.
 
-`fights`, as `node scripts/balance-sim.mjs fights --runs 100 --routes 1,2,3,1+1,1+2 --crews pairs` (seed 1, the aggressive AI on both sides; first measured with raider-sim's `--fights 100`, on the same streams). Lost and turns are over the runs won.
+`fights`, as `node scripts/balance-sim.mjs fights --runs 100 --routes 1,2,3,1+1,1+2 --crews pairs` (seed 1, the aggressive AI on both sides). Lost and turns are over the runs won.
 
 | Crew | Route | Won | By seat | Stalled | HP lost | Structure lost | Turns |
 |---|---|---|---|---|---|---|---|

@@ -22,6 +22,7 @@ describe('balance sim fights', () => {
 		expect(run).toEqual({
 			outcome: 'home',
 			firstSeat: 'road_warrior',
+			swapped: false,
 			turns: 3,
 			down: false,
 			hpLost: 33 / 65,
@@ -46,6 +47,18 @@ describe('balance sim fights', () => {
 		expect(RAIDER_PROFILES.rust_buggy.hitpoints).not.toBe(10);
 		expect(tuned.encounters.road_gang).toHaveLength(3);
 		expect(() => simConfig({ encounters: { road_gang: { raiders: ['tank' as never] } } })).toThrow(RangeError);
+	});
+
+	test('a crew is one driver or two of different archetypes, as load out seats them', () => {
+		expect(() => simConfig({ crews: [['road_warrior', 'road_warrior']] })).toThrow(RangeError);
+		expect(() => simConfig({ crews: [[]] })).toThrow(RangeError);
+		expect(() => simConfig({ routes: [[]] })).toThrow(RangeError);
+		expect(() => simConfig({ encounters: { road_gang: { raiders: [] } } })).toThrow(RangeError);
+	});
+
+	test('the same pair on two decks gets a cell name apiece', () => {
+		const twoDecks = simConfig({ crews: [['road_warrior', 'interceptor'], [{ archetype: 'road_warrior', deck: { ramming_speed: 8 } }, 'interceptor']], routes: [[1]] });
+		expect(fightCells(twoDecks).map(cell => cell.name)).toEqual(['road_warrior+interceptor#0:1', 'road_warrior+interceptor#1:1']);
 	});
 
 	test('a rate carries its count and a 90% interval', () => {
