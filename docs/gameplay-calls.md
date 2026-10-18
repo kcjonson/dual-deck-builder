@@ -182,13 +182,13 @@ Record: places.md.
 
 Record: poi-depletion.md.
 
-102. DDB-483: a POI holds 3 runs' worth, so the third depletes it, because the spec says two or three and the yield already falls by thirds, so the third run is a small one.
-103. DDB-483: a run's yield is the POI type's scaled by shares left, each resource rounded up (full, two thirds, a third, nothing), because a POI with anything left should give some of everything it yields.
-104. DDB-483: a share comes back every third of 20 nights from the last run, full 20 nights after depletion; looted POIs refill too, and each run restarts the refill, because 20 is the spec's starting value and partial refills keep a twice-hit POI from staying low.
-105. DDB-483: the share goes when the run reaches the POI, in the step that loads its yield, so a run that fails afterwards has still emptied it, because the yield and the share can't come apart in a save. Nothing fails a run after the POI yet.
-106. DDB-483: a depleted POI stays plannable and yields nothing, its row dimmed and its state and next share shown, because its routes' fights still pay cards and no new blocker is the smallest change.
-107. DDB-483: a POI that fills up again shows as unvisited, because the view has three states and full is what unvisited means to the player.
-108. DDB-483: version 8 saves load with every POI full and keep their history, because version 8 never wrote POI state and full is exactly what it meant.
+102. DDB-483: a POI holds 3 runs' worth, so the third depletes it, because the spec says two or three and the yield already falls by thirds, so the third run is a small one. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
+103. DDB-483: a run's yield is the POI type's scaled by shares left, each resource rounded up (full, two thirds, a third, nothing), because a POI with anything left should give some of everything it yields. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
+104. DDB-483: a share comes back every third of 20 nights from the last run, full 20 nights after depletion; looted POIs refill too, and each run restarts the refill, because 20 is the spec's starting value and partial refills keep a twice-hit POI from staying low. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
+105. DDB-483: the share goes when the run reaches the POI, in the step that loads its yield, so a run that fails afterwards has still emptied it, because the yield and the share can't come apart in a save. Nothing fails a run after the POI yet. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
+106. DDB-483: a depleted POI stays plannable and yields nothing, its row dimmed and its state and next share shown, because its routes' fights still pay cards and no new blocker is the smallest change. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
+107. DDB-483: a POI that fills up again shows as unvisited, because the view has three states and full is what unvisited means to the player. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
+108. DDB-483: version 8 saves load with every POI full and keep their history, because version 8 never wrote POI state and full is exactly what it meant. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
 
 ## Day clock (109 to 115)
 
@@ -327,3 +327,15 @@ Record: load-out-screen.md.
 Record: campaign-state-model.md.
 
 182. DDB-508: a new campaign is founded with only the bunkhouse standing, and nothing builds a building yet, so the radio mast, infirmary, map room, garage, and stores show as staked-out plots on the compound plate; `Campaign.buildings` holds what stands (save format 10), founding takes it from `campaign-start.json`, and version 9 saves load with the bunkhouse standing, because the plate draws what stands and the bunkhouse's Crew screen was the only building screen in play.
+
+## Runs and encounters (183 to 189)
+
+Made writing [Runs and Encounters](./specs/Runs%20and%20Encounters.md), beyond what Kevin approved in its plan and review on 2026-10-17. The spec keeps 183 to 185 as its open questions 4 to 6; 186 is approved; 187 to 189 fill in how his clearing and spacing rule gets built. No decision record yet.
+
+183. DDB-523: the least a calm stop offers is take it, spending the stop's hours, or drive on and keep them, because it's the cheapest way to make a find a choice rather than an empty step, and it costs no new screen.
+184. DDB-525: a fight going nowhere, for a break-off, is three player turns running with no damage to any raider (armor, structure, or HP), because "neither side takes damage", as the plan had it, misses the case break-off exists for: a raider the crew can't reach that's still hitting the crew.
+185. DDB-328: every raider class carries a card that can hit each starting archetype's vehicle, because a class the bike's evade beats leaves an Interceptor pair untouched, as the Rust Buggy's old gunnery of 6 did.
+186. DDB-336: a cleared POI stays disabled for the rest of the campaign, because "disabled" with nothing said about reopening reads as for good, and the cooldown that brings stops back is for roads, not POIs. Approved by Kevin, 2026-10-17 ("no story reason for it to magically get stuff back"); now in Runs and Encounters (Kevin's rule 5, Clearing) and Compound and Supply Runs (POIs).
+187. DDB-336: the run that clears a POI takes its type's whole yield, what a full POI gives today, because there's no second run to take the rest.
+188. DDB-336: a POI is cleared when the run reaches it, in the step that loads its yield (as call 105 had the share), so a run that fails on the way home has still cleared it, because the yield and the clearing can't come apart in a save.
+189. DDB-529: each route keeps its floor fights and at least half its stop band on its own road, legs no other POI's routes use, and the POI stage seats a POI only where that fits, because it's the least that keeps a neighbor's cleared road from leaving a run fight-free or nearly empty.

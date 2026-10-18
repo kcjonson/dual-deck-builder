@@ -144,7 +144,7 @@ The map is presented as a worn, hand-drawn chart spread across a rusted metal su
 
 **Visual Presentation:** The map reads like a page of a printed road atlas (Area Map Generation, Rendering). The compound sits at the centre in the ruins of a metro area, in a region of mountain ranges, river valleys, lakes, and ruined towns, joined by highways, back roads, and trails that follow the land. Collapsed highway spans, craters, and contamination mark the wasteland, and fog covers everything not yet explored. Strongholds hide in the fog at the edges.
 
-**What it shows:** every known POI with its yields, tier, and state (unvisited, looted, depleted); roads by what you know of them (charted solid, rumored solid with unknown stops, uncharted dashed into the fog); strongholds found; explored percentage. Selecting a POI shows its details and "Plan a run here".
+**What it shows:** every known POI with its yields, tier, and state (unvisited or cleared, and a cleared one can't be planned); roads by what you know of them (charted solid, rumored solid with unknown stops, uncharted dashed into the fog); strongholds found; explored percentage. Selecting a POI shows its details and "Plan a run here".
 
 **Your convoy:** during a run, the convoy's marker shows where it is on its route and how many escorts are travelling with it, as a small count beside it. Escorts are the undriven vehicles in your convoy ([Combat Rules](./Combat%20Rules.md), Escorts).
 

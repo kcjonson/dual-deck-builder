@@ -97,7 +97,7 @@ Wear is history. Every mark needs a reason the player could guess, it grows from
 | W0, clean | Card text and numbers, button labels, the player's marks, the thing in focus, anything just acquired | It's being read now, or it's new | None: flat paper tone, full-strength ink |
 | W1, handled | The default for every UI surface: panels, lists, ledgers, tabs, button bodies | Kit the crew uses daily | Warmer paper, a soft edge tone, one smudge at the grab corner, no surface texture |
 | W2, worn | Printed reference that's old in the world: the screen sheet, the atlas, compound signage, backdrops | Printed before the end, folded, ridden on the dash | Aged paper, edge-band grime, folds, shallow tears, tape at corners, a margin stain |
-| W3, damaged | Only what a game event touched: a depleted POI, a wrecked vehicle, an injured driver's tag, a lost run, defeat | Something happened to it and the player was there | W2 plus one hero mark: a burn, a hole, a rip, or a stamp |
+| W3, damaged | Only what a game event touched: a cleared POI, a wrecked vehicle, an injured driver's tag, a lost run, defeat | Something happened to it and the player was there | W2 plus one hero mark: a burn, a hole, a rip, or a stamp |
 
 Where wear goes on a surface:
 
@@ -172,7 +172,7 @@ Compound. The left two thirds is the compound plate, an overhead view of the yar
 
 Area map and run route. The map is already in this style. Its side panel, which the atlas-style record kept dark, moves onto the sheet as a column of legend boxes, the destinations as contents rows, and Plan a run here as the primary.
 
-The rest (crew, load-out, customize, campaign history, settings, credits, results) follow the same parts: one sheet, tabs, legend boxes, contents rows, one highway button. Result screens are where W3 earns its place: a defeat is a burnt sheet, a looted POI gets its stamp.
+The rest (crew, load-out, customize, campaign history, settings, credits, results) follow the same parts: one sheet, tabs, legend boxes, contents rows, one highway button. Result screens are where W3 earns its place: a defeat is a burnt sheet, a cleared POI gets its stamp.
 
 ## Building it
 
