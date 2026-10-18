@@ -89,15 +89,14 @@ async function fights({ mode, options, input, config, workers }) {
 async function gen({ mode, options, input, config, workers }) {
 	const count = genCells(config).length;
 	print(`${count} campaign maps, rollParams seeds ${config.seed} to ${config.seed + count - 1}, every route to every POI`);
-	const maps = await playCells({ mode, input, count, workers, onRow: (map) => process.stderr.write(`map ${map.seed}: ${map.failed ? `no map (${map.failed})` : `${map.environment}, ${map.routes.length} routes`}
-`) });
+	const maps = await playCells({ mode, input, count, workers, onRow: (map) => process.stderr.write(`map ${map.seed}: ${map.failed ? `no map (${map.failed})` : `${map.environment}, ${map.routes.length} routes`}\n`) });
 	const summary = summarizeGen({ config, maps });
 	printGen(summary);
 	if (options.corpus) {
 		const corpus = { generatorVersion: maps[0]?.generatorVersion ?? null, seeds: maps.map(map => map.seed), maps: maps.map(({ seed, environment, failed, routes }) => ({ seed, environment, failed, routes })) };
 		writeFileSync(options.corpus, JSON.stringify(corpus));
 	}
-	if (options.json) writeFileSync(options.json, JSON.stringify({ mode, config, summary, maps: maps.map(({ routes, ...map }) => map) }, null, '	'));
+	if (options.json) writeFileSync(options.json, JSON.stringify({ mode, config, summary, maps: maps.map(({ routes, ...map }) => map) }, null, '\t'));
 }
 
 /** Plays every cell on the workers, and hands each row on in cell order as soon as the ones before it are in. */
@@ -205,9 +204,9 @@ function printGen(summary) {
 	}
 	print('');
 	print("own road, legs no other POI's routes use; neighbor, the POI sharing the most road, its worst run for this route");
-	print('tier  own share  own stops     floor on own  half band on own  room for half band  own room       last-leg room  last-leg stops  neighbor clears  neighbor takes every fight');
+	print('tier  own share  own stops     floor on own  half band on own  room for both  own is last leg  own room       last-leg room  no room  last-leg stops  neighbor clears  neighbor takes every fight');
 	for (const row of tiers) {
-		print(`${String(row.tier).padStart(4)}  ${percent(row.ownShare).padStart(9)}  ${spreadText(row.ownStops).padEnd(12)}  ${percent(row.floorOnOwnRoad.rate).padStart(12)}  ${percent(row.halfBandOnOwnRoad.rate).padStart(16)}  ${percent(row.ownRoomForHalfBand.rate).padStart(18)}  ${spreadText(row.ownCapacity).padEnd(13)}  ${spreadText(row.lastLegCapacity).padEnd(13)}  ${spreadText(row.lastLegStops).padEnd(14)}  ${percent(row.neighborCleared).padStart(15)}  ${percent(row.neighborTakesEveryFight.rate).padStart(26)}`);
+		print(`${String(row.tier).padStart(4)}  ${percent(row.ownShare).padStart(9)}  ${spreadText(row.ownStops).padEnd(12)}  ${percent(row.floorOnOwnRoad.rate).padStart(12)}  ${percent(row.halfBandOnOwnRoad.rate).padStart(16)}  ${percent(row.ownRoomForBoth.rate).padStart(13)}  ${percent(row.ownIsLastLeg.rate).padStart(14)}  ${spreadText(row.ownCapacity).padEnd(13)}  ${spreadText(row.lastLegCapacity).padEnd(13)}  ${percent(row.lastLegNoRoom.rate).padStart(7)}  ${spreadText(row.lastLegStops).padEnd(14)}  ${percent(row.neighborCleared).padStart(15)}  ${percent(row.neighborTakesEveryFight.rate).padStart(26)}`);
 	}
 	print('');
 	print('distributions: stops a route, fights a route, skulls');
@@ -215,8 +214,7 @@ function printGen(summary) {
 	print('');
 	print('stop types by tier, a stop on two routes counted on each');
 	for (const row of tiers) print(`${String(row.tier).padStart(4)}  ${share(row.types)}`);
-	print(`
-placed with no resolver yet (a quiet stretch on the run): ${share(summary.unresolved) || 'none'}`);
+	print(`\nplaced with no resolver yet (a quiet stretch on the run): ${share(summary.unresolved) || 'none'}`);
 }
 
 if (!isMainThread) {

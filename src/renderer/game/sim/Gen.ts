@@ -5,7 +5,7 @@ import { AREA_MAP_GENERATOR_VERSION } from '../map/GeneratorVersion';
 import { MapPipelineError } from '../map/MapPipeline';
 import { describeMap } from '../map/RouteDescriptors';
 import { rollParams } from '../map/RollParams';
-import { STOP_TUNING, StopType } from '../map/StopData';
+import { STOP_TUNING, StopTuning, StopType } from '../map/StopData';
 import { Rate, Spread, mean, rate, spread } from './Measures';
 import { SimConfig, TierBand } from './SimConfig';
 
@@ -41,6 +41,7 @@ export interface CorpusRoute extends Omit<RunRoute, 'legs'> {
 	readonly audit: RouteAudit;
 }
 
+/** What the audit found on one route. */
 export interface RouteAudit {
 	readonly stops: number;
 	readonly fights: number;
@@ -62,6 +63,7 @@ export interface RouteAudit {
 	readonly neighbor: { readonly poi: number; readonly route: string; readonly sharedLength: number; readonly cleared: readonly string[]; readonly fightsLeft: number } | null;
 }
 
+/** One seed's map, audited: its routes, or why no map came of it. */
 export interface GenMap {
 	readonly seed: number;
 	readonly generatorVersion: number;
@@ -98,12 +100,18 @@ export function playGenCell({ cell }: { config: SimConfig; cell: GenCell }): Gen
 		poiLegs[poi].add(leg);
 	}));
 	const neighbors = pois.pois.map((_, poi) => nearestNeighbor({ poi, poiLegs, legLength: (leg) => pois.legs[leg].length }));
-	const routesOf = (poi: number): RunRoute[] => offers.filter(route => route.destination.id === `poi-${poi}`);
-	const stopIds = (route: RunRoute): Set<string> => new Set(route.legs.flatMap(leg => leg.stops.map(stop => stop.id)));
+	const routesOf = new Map<string, { route: RunRoute; stops: Set<string> }[]>();
+	for (const route of offers) {
+		const list = routesOf.get(route.destination.id) ?? [];
+		list.push({ route, stops: new Set(route.legs.flatMap(leg => leg.stops.map(stop => stop.id))) });
+		routesOf.set(route.destination.id, list);
+	}
 
 	const routes = offers.map((route, index): CorpusRoute => {
+		// routeOffers is describeMap's routes in the same order, POI by POI
 		const descriptor = described[index];
 		const { poi } = descriptor;
+		if (route.destination.id !== `poi-${poi}`) throw new Error(`${route.id} isn't the route describeMap gave at ${index}`);
 		const tier = route.destination.tier;
 		const all = route.legs.flatMap(leg => leg.stops);
 		const own = route.legs.filter(leg => users[legOf(leg.id)].size === 1);
@@ -112,8 +120,8 @@ export function playGenCell({ cell }: { config: SimConfig; cell: GenCell }): Gen
 		const neighbor = neighbors[poi];
 		let worst: RouteAudit['neighbor'] = null;
 		if (neighbor !== null) {
-			for (const theirs of routesOf(neighbor.poi)) {
-				const cleared = all.filter(stop => stopIds(theirs).has(stop.id));
+			for (const { route: theirs, stops: theirStops } of routesOf.get(`poi-${neighbor.poi}`) ?? []) {
+				const cleared = all.filter(stop => theirStops.has(stop.id));
 				if (worst === null || cleared.length > worst.cleared.length) {
 					worst = {
 						poi: neighbor.poi,
@@ -142,8 +150,8 @@ export function playGenCell({ cell }: { config: SimConfig; cell: GenCell }): Gen
 				ownLength: own.reduce((sum, leg) => sum + pois.legs[legOf(leg.id)].length, 0),
 				ownStops: ownStops.length,
 				ownFights: ownStops.filter(stop => stop.kind === 'fight').length,
-				ownCapacity: own.reduce((sum, leg) => sum + legCapacity(pois.legs[legOf(leg.id)].length), 0),
-				lastLeg: { length: pois.legs[legOf(last.id)].length, stops: last.stops.length, capacity: legCapacity(pois.legs[legOf(last.id)].length) },
+				ownCapacity: own.reduce((sum, leg) => sum + legCapacity({ length: pois.legs[legOf(leg.id)].length }), 0),
+				lastLeg: { length: pois.legs[legOf(last.id)].length, stops: last.stops.length, capacity: legCapacity({ length: pois.legs[legOf(last.id)].length }) },
 				neighbor: worst,
 			},
 		};
@@ -156,7 +164,7 @@ export function playGenCell({ cell }: { config: SimConfig; cell: GenCell }): Gen
  * of its ends, `minGap` apart. A measure of room, not a rule the sim plays,
  * so it reads the stage's tuning rather than calling the stage.
  */
-export function legCapacity(length: number, { clearance, minGap } = STOP_TUNING): number {
+export function legCapacity({ length, tuning: { clearance, minGap } = STOP_TUNING }: { length: number; tuning?: Pick<StopTuning, 'clearance' | 'minGap'> }): number {
 	const ends = Math.min(clearance.ends, 0.25 * length);
 	const usable = length - 2 * ends;
 	return usable > 0 ? Math.floor(usable / minGap) : 0;
@@ -198,8 +206,12 @@ export interface GenTierRow {
 	readonly floorOnOwnRoad: Rate;
 	/** Routes whose own road holds at least half their band's minimum in stops. */
 	readonly halfBandOnOwnRoad: Rate;
-	/** Routes whose own road has room for half their band's minimum, and for their floor besides. */
-	readonly ownRoomForHalfBand: Rate;
+	/** Routes whose own road has room for half their band's minimum, their floor fights among them. */
+	readonly ownRoomForBoth: Rate;
+	/** Routes whose own road is their last leg alone. */
+	readonly ownIsLastLeg: Rate;
+	/** Routes whose last leg has no room for a stop. */
+	readonly lastLegNoRoom: Rate;
 	readonly ownCapacity: Spread;
 	readonly lastLegCapacity: Spread;
 	readonly lastLegStops: Spread;
@@ -209,6 +221,7 @@ export interface GenTierRow {
 	readonly neighborTakesEveryFight: Rate;
 }
 
+/** Every map's routes, measured by destination tier. */
 export interface GenSummary {
 	readonly maps: number;
 	readonly failedMaps: readonly number[];
@@ -219,6 +232,7 @@ export interface GenSummary {
 	readonly tiers: readonly GenTierRow[];
 }
 
+/** The gen report: every map's routes by destination tier, against the config's bands. */
 export function summarizeGen({ config, maps }: { config: SimConfig; maps: readonly GenMap[] }): GenSummary {
 	const routes = maps.flatMap(map => map.routes);
 	const tiers = [...new Set(routes.map(route => route.tier))].sort((a, b) => a - b);
@@ -241,6 +255,7 @@ function tierRow({ tier, band, routes }: { tier: number; band: TierBand; routes:
 	const count = (test: (audit: RouteAudit) => boolean, over: readonly RouteAudit[] = audits): Rate => rate(over.filter(test).length, over.length);
 	const types: Partial<Record<StopType, number>> = {};
 	for (const stop of routes.flatMap(route => route.legs.flatMap(leg => leg.stops))) types[stop.type] = (types[stop.type] ?? 0) + 1;
+	// From the config's bands, so a tuning that moves a band moves its half too
 	const halfBand = Math.ceil(band.stops.min / 2);
 	const withStops = audits.filter(audit => audit.stops > 0);
 	const withNeighbor = withStops.filter(audit => audit.neighbor !== null);
@@ -264,7 +279,9 @@ function tierRow({ tier, band, routes }: { tier: number; band: TierBand; routes:
 		ownStops: spread(audits.map(audit => audit.ownStops)),
 		floorOnOwnRoad: count(audit => audit.ownFights >= band.fights.min),
 		halfBandOnOwnRoad: count(audit => audit.ownStops >= halfBand),
-		ownRoomForHalfBand: count(audit => audit.ownCapacity >= Math.max(halfBand, band.fights.min)),
+		ownRoomForBoth: count(audit => audit.ownCapacity >= Math.max(halfBand, band.fights.min)),
+		ownIsLastLeg: rate(routes.filter(route => route.audit.ownLegs.length === 1 && route.audit.ownLegs[0] === route.legs[route.legs.length - 1].id).length, routes.length),
+		lastLegNoRoom: count(audit => audit.lastLeg.capacity === 0),
 		ownCapacity: spread(audits.map(audit => audit.ownCapacity)),
 		lastLegCapacity: spread(audits.map(audit => audit.lastLeg.capacity)),
 		lastLegStops: spread(audits.map(audit => audit.lastLeg.stops)),

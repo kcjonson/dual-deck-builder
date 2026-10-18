@@ -78,7 +78,7 @@ A pool of four played day by day: one run a day to a tier its stage reaches, cle
 ### Options
 
 - `--config <file>`: the tuning to try, as JSON. The Balance Lab exports the same format.
-- `--seed`, `--runs` (a cell), `--maps` (for `gen`), `--crews` (`all`, `pairs`, `solo`, or a list like `road_warrior+interceptor,mechanic`), `--routes` (for `fights`: `1,2,1+2`), `--turns` (the stall cap), `--stage`, `--player aggressive|intent`, `--workers` (2).
+- `--seed`, `--runs` (a cell), `--maps` and `--corpus <file>` (for `gen`), `--crews` (`all`, `pairs`, `solo`, or a list like `road_warrior+interceptor,mechanic`), `--routes` (for `fights`: `1,2,1+2`), `--turns` (the stall cap), `--stage`, `--player aggressive|intent`, `--workers` (2).
 - `--json <file>`: write the rows.
 - `--check`: compare every row with the targets and exit non-zero on a miss, naming it. The fairness spreads are reported and don't fail a check until DDB-492 to 495 land.
 - `--log <cell>:<run>`: print one fight's battle log.
@@ -135,9 +135,9 @@ The first version must reproduce these, and changes are measured against them. M
 
 Tier 1 fights are always 1 skull. A route's hours out and back averaged 7.1 at tier 1, 11.1 at tier 2, 14.7 at tier 3, and 19.7 at tier 4.
 
-Own road and neighbors on the same maps. A route's own road is its last leg on all but 2 of the 2,037 routes, and its room comes from that leg alone. Floor is the band's fight minimum, half band half its stop minimum, rounded up.
+Own road and neighbors on the same maps, as `gen` prints them. A route's own road is its last leg on all but 2 of the 2,037 routes (own is last leg), so its room is that leg's. Floor is the band's fight minimum, half band half its stop minimum rounded up, and room for both the larger of the two.
 
-| Tier | Own road's share of stops | Floor fights on own road | Half band on own road | Room for both on own road | Last leg with no room | Neighbor's run clears | Neighbor's run takes every fight |
+| Tier | Own share | Floor on own | Half band on own | Room for both | Last leg, no room | Neighbor clears | Neighbor takes every fight |
 |---|---|---|---|---|---|---|---|
 | 1 | 27% | 13% | 15% | 39% | 42% | 64% | 64% |
 | 2 | 23% | 18% | 28% | 46% | 37% | 67% | 63% |

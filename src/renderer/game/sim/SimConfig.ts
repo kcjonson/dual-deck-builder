@@ -30,7 +30,7 @@ export interface SimConfigInput {
 	readonly encounters?: Partial<Record<EncounterId, { readonly raiders: readonly RaiderId[] }>>;
 	/** Campaign maps `gen` makes, from `seed` up. */
 	readonly maps?: number;
-	/** What a route to each destination tier should hold, by tier; Runs and Encounters' starting values when left out. */
+	/** What a route to each destination tier should hold, by tier, a tier given replacing that tier's whole band; Runs and Encounters' starting values when left out. */
 	readonly bands?: Readonly<Record<number, TierBand>>;
 }
 
