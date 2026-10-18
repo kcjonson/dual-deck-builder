@@ -18,11 +18,21 @@ export type EncounterId = (typeof ENCOUNTER_IDS)[number];
 /** Danger, as the route screen's skulls count it (Game Flow 3.4). */
 export type Skulls = 1 | 2 | 3;
 
+/** A wave after the first: its raiders, and when it's due (ReinforcementWave). */
+export interface EncounterWave {
+	readonly raiders: readonly RaiderId[];
+	readonly arriveAt?: number;
+	readonly afterTurns?: number;
+}
+
 export interface Encounter {
 	readonly id: EncounterId;
 	readonly name: string;
 	readonly skulls: Skulls;
+	/** The first wave, on the road when the fight starts */
 	readonly raiders: readonly RaiderId[];
+	/** The waves after it, queued in order (Combat Rules, Reinforcements) */
+	readonly reinforcements?: readonly EncounterWave[];
 }
 
 export const ENCOUNTERS: Readonly<Record<EncounterId, Encounter>> = Object.freeze({
@@ -47,18 +57,21 @@ const SEAT_ROWS: readonly RoadRow[] = openingSlots(TeamType.PLAYER).slice(0, PLA
  * raider opens on the inside lane across from the vehicle with the most
  * structure, the first seat's on a tie, where a ram from either side
  * reaches; a gang fills the formation's opening order. Against one seat
- * every raider refills to its solo adrenaline. The combat screen's skirmish
- * is the one-skull encounter against its pair. Throws unless the crew is
+ * every raider refills to its solo adrenaline. Later waves are queued on
+ * the team as its reinforcements, built the same way. The combat screen's
+ * skirmish is the one-skull encounter against its pair. Throws unless the crew is
  * one or two seats, and as `raiderVehicle` does for a card the map doesn't
  * hold.
  */
-export function encounterTeam({ encounter, cards, crewStructure, raiders: raiderIds = ENCOUNTERS[encounter].raiders, profiles = RAIDER_PROFILES }: {
+export function encounterTeam({ encounter, cards, crewStructure, raiders: raiderIds = ENCOUNTERS[encounter].raiders, reinforcements = ENCOUNTERS[encounter].reinforcements ?? [], profiles = RAIDER_PROFILES }: {
 	encounter: EncounterId;
 	cards: ReadonlyMap<string, Card>;
 	/** Structure each seat's vehicle opens the fight with, Driver 1's first */
 	crewStructure: readonly number[];
 	/** The encounter's own when left out; the balance sim passes its config's. */
 	raiders?: readonly RaiderId[];
+	/** The encounter's own later waves when left out. */
+	reinforcements?: readonly EncounterWave[];
 	/** The shipped profiles when left out; the balance sim passes its config's. */
 	profiles?: Readonly<Record<RaiderId, Readonly<RaiderProfile>>>;
 }): Team {
@@ -71,5 +84,13 @@ export function encounterTeam({ encounter, cards, crewStructure, raiders: raider
 		const toughest = crewStructure.indexOf(Math.max(...crewStructure));
 		raiders[0].slot = { lane: RoadLane.ENEMY_INSIDE, row: SEAT_ROWS[toughest] };
 	}
-	return new Team({ type: TeamType.ENEMY, vehicles: raiders });
+	return new Team({
+		type: TeamType.ENEMY,
+		vehicles: raiders,
+		reinforcements: reinforcements.map(({ raiders: queued, arriveAt, afterTurns }) => ({
+			raiders: queued.map(raider => raiderVehicle({ raider, cards, solo, profiles })),
+			arriveAt,
+			afterTurns
+		}))
+	});
 }

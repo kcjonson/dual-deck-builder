@@ -6,7 +6,7 @@ import { Button } from '../../../engine/ui/Button';
 import { Dialog } from '../../../engine/ui/Dialog';
 import { RoadView, EnemyIntent } from './RoadView';
 import { PlayerHandLayer } from './PlayerHandLayer';
-import { LOG_KEY, TopBarLayer, WaveStatus } from './TopBarLayer';
+import { LOG_KEY, TopBarLayer } from './TopBarLayer';
 import { EndTurnColumn } from './EndTurnColumn';
 import { CombatLogLayer } from './CombatLogLayer';
 import { TURN_BANNER_LIFETIME, TurnBanner } from './TurnBanner';
@@ -69,7 +69,6 @@ function isHandCardDrag(data: unknown): data is HandCardDrag {
  */
 export interface PreparedCombat {
 	battle: Battle;
-	wave?: WaveStatus;
 	scrap?: number;
 	fuel?: number;
 	/** Log lines after the matchup, oldest first; the last is the top bar's ticker. */
@@ -105,8 +104,6 @@ export interface DriversCombatMount {
 	rng?: Rng;
 }
 
-/** One wave until the game has reinforcements (Combat Rules: "once there is one"). */
-const SINGLE_WAVE: WaveStatus = { number: 1, total: 1, incoming: 0 };
 
 /** The battle result's line for a fight the crew gave up from the menu. */
 const ABANDONED_SUBTITLE = 'The crew abandoned the fight.';
@@ -160,7 +157,6 @@ export class CombatScreen extends Screen {
 	private combatLog: CombatLog;
 	private fuel = 5;
 	private scrap = 150;
-	private wave: WaveStatus = SINGLE_WAVE;
 	/** The prepared fight's end hook, if it brought one. */
 	private onEnded: PreparedCombat['onEnded'] = undefined;
 	/** The menu's abandon confirm while it's open. */
@@ -251,7 +247,7 @@ export class CombatScreen extends Screen {
 	}
 
 	/** Show a started battle: subscribe to it, announce the turn, log the matchup, and draw it. */
-	private beginCombat({ battle, wave = SINGLE_WAVE, scrap, fuel, log = [], onEnded, abandonWarning }: PreparedCombat): void {
+	private beginCombat({ battle, scrap, fuel, log = [], onEnded, abandonWarning }: PreparedCombat): void {
 		// One seat, or two held to the same pair rule as the default fight
 		const drivers = battle.playerSeats;
 		assertDriverSeats(drivers);
@@ -260,7 +256,6 @@ export class CombatScreen extends Screen {
 		this.battle = battle;
 		this.playerTeam = battle.playerTeam;
 		this.enemyTeam = battle.enemyTeam;
-		this.wave = wave;
 		this.onEnded = onEnded;
 		if (abandonWarning !== undefined) this.offerAbandon(abandonWarning);
 		if (scrap !== undefined) this.scrap = scrap;
@@ -500,7 +495,9 @@ export class CombatScreen extends Screen {
 			});
 		});
 		this.shownTurn = battle.turn;
-		this.topBar.wave = this.wave;
+		const waves = battle.waves;
+		this.topBar.wave = waves;
+		this.road.arrivalRows = waves.rows;
 		this.topBar.turn = battle.turn;
 		this.topBar.scrap = this.scrap;
 		this.topBar.fuel = this.fuel;

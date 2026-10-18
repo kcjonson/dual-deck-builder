@@ -10,9 +10,24 @@ Options for shake-off were a hidden counter on the vehicle, a rule in the EMP ca
 
 Measured with `scripts/raider-sim.mjs` (seed 1, 100 runs, pairs): close-up alone lifts the Road Warrior and Interceptor from 50% to 84% at 3 skulls, where the second Rust Buggy used to sit out of the Rig's reach. Shake-off ends the EMP lock the Mechanic held on the lone Spike Buggy (99% won with 1% HP lost becomes 0%), which is the unfair fight the rule is for; one-raider encounters go with the encounter templates (DDB-328).
 
+## Waves (DDB-46)
+
+Waves ride on the enemy `Team` as `reinforcements` (each a list of raider vehicles with an `arriveAt` and an `afterTurns`), and `Battle` copies them into its own queue when it's built. The other option was a `Battle` constructor argument. The team won because the combat bridge takes its raiders as a function returning a `Team`, and the supply run (which this work doesn't own) calls `encounterTeam` through it; carrying the waves on the team lets an encounter's later waves reach the battle with no change to the run, the bridge's signature, or the gallery's plumbing.
+
+- Due is checked at the start of the player's turn, after the raiders plan (`checkWaveDue`), and when the player empties the road during their turn (`checkBattleStatus`, which no longer calls a fight won while a wave is queued). Either announces the wave in the log.
+- Arrival (`landReinforcements`) runs in `finishEnemyTurn` after close-up. Slots come from `openingSlots(ENEMY, lastWreckRow)`, the opening order with each lane started from the row the latest raider to go out left, skipping held and reserved slots. Arrivals join the team, which gives each driver a new seat, and so its own `deck:enemy:<n>` stream through `seatOf`, and their decks shuffle on it before the first draw. The seats already in the fight draw exactly as they would without the wave (tested).
+- `Battle.waves` is the top bar's readout. While a wave is due it projects the end of the enemy turn (`projectEnemyTurnStart`, then close-up planned on that projection) to mark the rows arrivals will take. Close-up and arrivals share one planner over a `RoadRead`, so the marks and the arrival can't disagree on the rule, only on kills the player hasn't made yet.
+- The combat screen reads `battle.waves` every update instead of the `SINGLE_WAVE` a prepared fight could override; the gallery's fit scenarios now queue real waves to show the readout.
+
+The encounter table keeps one wave per encounter until the templates (DDB-328), so play is unchanged except for the readout. raider-sim's `--set` takes waves (`road_gang=rust_buggy|rust_buggy@1`) to measure them.
+
 ## Provisional calls
 
 Numbers 190 to 209 in [gameplay-calls.md](../gameplay-calls.md).
 
 - 190: across from means the inside slot in a driven vehicle's row, Driver 1's row first.
 - 191: Steady's chip is a green check.
+- 192: a driven vehicle flanking on the raiders' shoulder isn't across from anything.
+- 193: a wave's turn count runs from the first turn the last wave played.
+- 194: "+N arriving" is the whole wave; the row marks are the rows with room.
+- 195: the top bar shows "+N arriving" only, not the raiders still queued.

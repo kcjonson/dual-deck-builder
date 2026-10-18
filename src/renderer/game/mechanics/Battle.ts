@@ -1,7 +1,8 @@
-import { Team, TeamType } from './Team';
+import { ReinforcementWave, Team, TeamType } from './Team';
 import { Driver, DrawResult } from './Driver';
-import { STEADY, Vehicle } from './Vehicle';
+import { FlankState, STEADY, Vehicle } from './Vehicle';
 import {
+	RoadRow,
 	RoadSlot,
 	SHOULDER_CAPACITY,
 	describeLane,
@@ -135,6 +136,38 @@ interface EnemyTurnQueue {
 }
 
 /**
+ * The waves as the top bar reads them: which wave of how many is on the
+ * road, and, when the next is due, how many of it will pull in at the end
+ * of the enemy turn and the rows they'll take as the road stands.
+ */
+export interface WaveReadout {
+	number: number;
+	total: number;
+	arriving: number;
+	rows: readonly RoadRow[];
+}
+
+/** The queue behind the road, and what's due from it */
+interface WaveState {
+	queue: { raiders: Vehicle[]; arriveAt?: number; afterTurns?: number; started: boolean }[];
+	total: number;
+	/** Waves with at least one raider on the road, the first included */
+	started: number;
+	/** The player turn the last wave to arrive first played, 1 for the opening wave */
+	firstTurn: number;
+	due: boolean;
+	/** The row the latest raider to go out of the fight left, where arrivals fill from */
+	lastWreckRow: RoadRow | null;
+	wrecks: Set<Vehicle>;
+}
+
+/** How a road reads for close-up and arrivals: the live one, or a projection of the end of the enemy turn */
+interface RoadRead {
+	slotOf: (vehicle: Vehicle) => RoadSlot | null;
+	flankOf: (vehicle: Vehicle) => FlankState | null;
+}
+
+/**
  * Cards each driver draws at the start of every turn
  */
 export const TURN_DRAW = 5;
@@ -218,6 +251,9 @@ export class Battle extends Model<BattleData> {
 	// What the fight did to the convoy, once it has ended
 	private static afterFights = new WeakMap<Battle, AfterFight>();
 
+	// Reinforcement waves still to come (stored separately due to Model freezing)
+	private static waveStates = new WeakMap<Battle, WaveState>();
+
 	// Static flag to control console logging
 	public static suppressConsoleLog = false;
 
@@ -227,7 +263,8 @@ export class Battle extends Model<BattleData> {
 	 * driver's deck shuffles (before the opening deal, and whenever it runs
 	 * dry) from `deck:<team>:<seat index>` (`deck:player:0`), and each team's
 	 * AI from `ai` forked again by the team's type. A fight given no stream
-	 * roots its own with freshSeed.
+	 * roots its own with freshSeed. The enemy team's vehicles are the first
+	 * wave, and its `reinforcements` the rest, queued off the road in order.
 	 */
 	constructor({
 		playerTeam,
@@ -268,6 +305,16 @@ export class Battle extends Model<BattleData> {
 		Battle.convoyEscorts.set(this, playerTeam.convoyEscorts);
 		Battle.fightRngs.set(this, rng);
 		Battle.deckRngs.set(this, new Map());
+		const queued = (enemyTeam.reinforcements ?? []).filter((wave: ReinforcementWave) => wave.raiders.length > 0);
+		Battle.waveStates.set(this, {
+			queue: queued.map(({ raiders, arriveAt, afterTurns }) => ({ raiders: [...raiders], arriveAt, afterTurns, started: false })),
+			total: 1 + queued.length,
+			started: 1,
+			firstTurn: 1,
+			due: false,
+			lastWreckRow: null,
+			wrecks: new Set()
+		});
 
 		// Initialize AI controller (stored in WeakMap to avoid Model freezing issues)
 		Battle.aiControllers.set(this, new AIController({ battle: this, rng: rng.fork('ai') }));
@@ -375,7 +422,8 @@ export class Battle extends Model<BattleData> {
 	 * team, wherever it is in that row. The row check applies only on
 	 * arrival; once there, an ambusher keeps its slot even if the vehicle
 	 * beside it is wrecked. Opening placement uses this, and a reinforcement
-	 * wave arriving mid-fight should too (no wave code exists yet). A vehicle
+	 * wave would too, but no wave lands on the shoulder for now (Combat
+	 * Rules, Reinforcements). A vehicle
 	 * already on a team must be checked for that team; one still arriving
 	 * goes by the team passed in.
 	 */
@@ -546,6 +594,7 @@ export class Battle extends Model<BattleData> {
 		this.clearShields();
 
 		this.planEnemyTurn();
+		this.checkWaveDue();
 
 		this.log('battle_start', 'Battle started!');
 		this.log('debug', `Fight seed ${this.seed}`);
@@ -1176,6 +1225,7 @@ export class Battle extends Model<BattleData> {
 		this.dropBackFlankers();
 		this.clearWrecks();
 		this.closeUpFormation();
+		this.landReinforcements();
 
 		// Draw Fire lasts until the end of the next enemy turn, which is this one
 		Battle.drawFireCovers.delete(this);
@@ -1359,8 +1409,9 @@ export class Battle extends Model<BattleData> {
 		this.isPlayerTurn = true;
 
 		this.planEnemyTurn();
+		this.checkWaveDue();
 
-		this.log('turn_start', `Player turn ${this.turn} started`, { turn: this.turn });
+		this.log('turn_start',`Player turn ${this.turn} started`, { turn: this.turn });
 		
 		// Log hands for all drivers
 		this.logAllHands();
@@ -1910,6 +1961,16 @@ export class Battle extends Model<BattleData> {
 			return;
 		}
 
+		this.noteWrecks();
+
+		// The road is clear but a wave is still queued: it's announced now
+		// and pulls in at the end of this enemy turn
+		const waves = Battle.waveStates.get(this);
+		if (this.enemyTeam.isDefeated() && waves && waves.queue.length > 0) {
+			this.announceWave(waves);
+			return;
+		}
+
 		// Check if enemy team is defeated
 		if (this.enemyTeam.isDefeated()) {
 			this.battleOver = true;
@@ -2058,24 +2119,159 @@ export class Battle extends Model<BattleData> {
 	 * from where they'll fight.
 	 */
 	private closeUpFormation(): void {
+		for (const [raider, slot] of this.planCloseUp(this.liveRoad)) {
+			raider.set({ slot });
+			this.log('general', `${raider.name} closes up to ${describeSlot(slot)}`, { vehicle: raider.name });
+		}
+	}
+
+	/** The road as it stands, for close-up and arrivals, with anything out of the fight already off it */
+	private get liveRoad(): RoadRead {
+		return {
+			slotOf: vehicle => vehicle.isOutOfFight ? null : vehicle.slot,
+			flankOf: vehicle => vehicle.isOutOfFight ? null : vehicle.flank
+		};
+	}
+
+	/** Where close-up moves raiders on this road, in the order it moves them */
+	private planCloseUp(road: RoadRead): Map<Vehicle, RoadSlot> {
 		const insideLane = formationLanes(TeamType.ENEMY)[0];
-		const rows = this.playerTeam.vehicles
-			.flatMap(vehicle => !vehicle.isEscort && !vehicle.isOutOfFight && vehicle.slot ? [vehicle.slot.row] : []);
+		const rows = this.playerTeam.vehicles.flatMap(vehicle => {
+			const slot = road.slotOf(vehicle);
+			// A flanker on the raiders' shoulder is beside them, not across
+			return !vehicle.isEscort && slot && !isShoulder(slot.lane) ? [slot.row] : [];
+		});
 		const targets: RoadSlot[] = [...new Set(rows)].map(row => ({ lane: insideLane, row }));
+		const moves = new Map<Vehicle, RoadSlot>();
+		const slotOf = (vehicle: Vehicle): RoadSlot | null => moves.get(vehicle) ?? road.slotOf(vehicle);
 		const isTarget = (slot: RoadSlot | null): boolean => targets.some(target => sameSlot(target, slot));
 
 		for (const target of targets) {
-			const held = this.getAllVehicles().some(vehicle => sameSlot(vehicle.slot, target) || sameSlot(vehicle.flank?.reservedSlot ?? null, target));
+			const held = this.getAllVehicles().some(vehicle =>
+				sameSlot(slotOf(vehicle), target) || sameSlot(road.flankOf(vehicle)?.reservedSlot ?? null, target));
 			if (held) continue;
 			const raider = nearestTo({
 				to: target,
-				candidates: this.enemyTeam.vehicles.filter(vehicle => !vehicle.isOutOfFight && !vehicle.flank && !isTarget(vehicle.slot)),
-				slotOf: vehicle => vehicle.slot
+				candidates: this.enemyTeam.vehicles.filter(vehicle => !road.flankOf(vehicle) && !isTarget(slotOf(vehicle))),
+				slotOf
 			});
-			if (!raider) continue;
-			raider.set({ slot: target });
-			this.log('general', `${raider.name} closes up to ${describeSlot(target)}`, { vehicle: raider.name });
+			if (raider) moves.set(raider, target);
 		}
+		return moves;
+	}
+
+	/**
+	 * The formation slots a wave's raiders take on this road, in the order
+	 * they take them: the opening order, inside lane first, each lane from
+	 * the row the latest wreck left. A slot held or reserved is skipped, so
+	 * with the formation full the rest stay queued.
+	 */
+	private planArrivals(road: RoadRead, count: number): RoadSlot[] {
+		const firstRow = Battle.waveStates.get(this)?.lastWreckRow ?? null;
+		const taken = (slot: RoadSlot): boolean => this.getAllVehicles().some(vehicle =>
+			sameSlot(road.slotOf(vehicle), slot) || sameSlot(road.flankOf(vehicle)?.reservedSlot ?? null, slot));
+		return openingSlots(TeamType.ENEMY, firstRow).filter(slot => !taken(slot)).slice(0, count);
+	}
+
+	/**
+	 * Mark the next wave due if the road has thinned to its arrival count, its
+	 * turn count has passed, or the road is empty. Checked at the start of
+	 * the player's turn, after the raiders plan.
+	 */
+	private checkWaveDue(): void {
+		const waves = Battle.waveStates.get(this);
+		const next = waves?.queue[0];
+		if (!waves || !next || waves.due) return;
+		const onRoad = this.enemyTeam.vehicles.filter(vehicle => !vehicle.isOutOfFight).length;
+		const thinned = next.arriveAt !== undefined && onRoad <= next.arriveAt;
+		const waited = next.afterTurns !== undefined && this.turn - waves.firstTurn >= next.afterTurns;
+		if (thinned || waited || onRoad === 0) this.announceWave(waves);
+	}
+
+	private announceWave(waves: WaveState): void {
+		if (waves.due) return;
+		waves.due = true;
+		const count = waves.queue[0]?.raiders.length ?? 0;
+		this.log('general', `${count} raider${count === 1 ? '' : 's'} arriving`, { value: count });
+	}
+
+	/**
+	 * Record the row each raider that has just gone out of the fight left,
+	 * so the next wave fills from the latest. Called after every card and
+	 * enemy action, which is where raiders go out.
+	 */
+	private noteWrecks(): void {
+		const waves = Battle.waveStates.get(this);
+		if (!waves) return;
+		for (const raider of this.enemyTeam.vehicles) {
+			if (!raider.isOutOfFight || waves.wrecks.has(raider)) continue;
+			waves.wrecks.add(raider);
+			const slot = raider.flank?.reservedSlot ?? raider.slot;
+			if (slot) waves.lastWreckRow = slot.row;
+		}
+	}
+
+	/**
+	 * The due wave pulls in at the end of the enemy turn, after close-up:
+	 * each raider takes the next slot planArrivals finds and joins the enemy
+	 * team, seated with its own deck stream (a new seat, so no other seat's
+	 * draws move) and its deck shuffled from it. They draw and plan at the
+	 * start of the player's turn with everyone else. A wave the formation
+	 * can't hold leaves the rest queued, still due. An empty road brings the
+	 * next wave whether it was due or not.
+	 */
+	private landReinforcements(): void {
+		const waves = Battle.waveStates.get(this);
+		const next = waves?.queue[0];
+		if (!waves || !next) return;
+		if (!waves.due && this.enemyTeam.vehicles.some(vehicle => !vehicle.isOutOfFight)) return;
+
+		const slots = this.planArrivals(this.liveRoad, next.raiders.length);
+		if (slots.length === 0) return;
+		if (!next.started) {
+			next.started = true;
+			waves.started += 1;
+		}
+		for (const slot of slots) {
+			const raider = next.raiders.shift();
+			if (!raider) break;
+			raider.set({ slot, flank: null });
+			this.enemyTeam.addVehicle(raider);
+			for (const driver of [raider.driver, raider.passenger]) {
+				if (driver?.isAlive()) driver.deck?.shuffle(this.deckRngOf(driver));
+			}
+			this.log('general', `${raider.name} pulls in to ${describeSlot(slot)}`, { vehicle: raider.name });
+		}
+		if (next.raiders.length > 0) return;
+		waves.queue.shift();
+		waves.due = false;
+		waves.firstTurn = this.turn + 1;
+	}
+
+	/**
+	 * Which wave is on the road, of how many, and what's arriving: while the
+	 * next is due, its raiders, and the rows those with room will pull into
+	 * at the end of the enemy turn, judged from the road the enemy turn will end on as it
+	 * stands (wrecks cleared, flankers dropped back, close-up done). Kills can
+	 * still change the slots, so the rows are a mark, not a promise.
+	 */
+	public get waves(): WaveReadout {
+		const waves = Battle.waveStates.get(this);
+		const next = waves?.queue[0];
+		if (!waves) return { number: 1, total: 1, arriving: 0, rows: [] };
+		if (!waves.due || !next) return { number: waves.started, total: waves.total, arriving: 0, rows: [] };
+
+		const board = this.projectEnemyTurnStart();
+		const projected: RoadRead = { slotOf: vehicle => board.slotOf(vehicle), flankOf: vehicle => board.flankOf(vehicle) };
+		const moves = this.planCloseUp(projected);
+		const closedUp: RoadRead = { slotOf: vehicle => moves.get(vehicle) ?? board.slotOf(vehicle), flankOf: projected.flankOf };
+		const slots = this.planArrivals(closedUp, next.raiders.length);
+		return { number: waves.started, total: waves.total, arriving: next.raiders.length, rows: [...new Set(slots.map(slot => slot.row))] };
+	}
+
+	/** Raiders queued off the road, in every wave still to come */
+	public get queuedRaiders(): readonly Vehicle[] {
+		return Battle.waveStates.get(this)?.queue.flatMap(wave => wave.raiders) ?? [];
 	}
 
 	/**

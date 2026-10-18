@@ -164,12 +164,17 @@ export function canTeamUseLane(team: TeamType, lane: RoadLane): boolean {
 }
 
 /**
- * The team's six formation slots in the order an opening fills them.
+ * The team's six formation slots in the order an opening fills them: the
+ * inside lane, then the outside, each center, behind, ahead. With
+ * `firstRow`, each lane starts from that row instead (a reinforcement wave
+ * fills from the row the latest wreck left), the others following in the
+ * usual order.
  */
-export function openingSlots(team: TeamType): RoadSlot[] {
+export function openingSlots(team: TeamType, firstRow: RoadRow | null = null): RoadSlot[] {
+	const rows = firstRow ? [firstRow, ...FORMATION_ROW_FILL.filter(row => row !== firstRow)] : FORMATION_ROW_FILL;
 	const slots: RoadSlot[] = [];
 	for (const lane of formationLanes(team)) {
-		for (const row of FORMATION_ROW_FILL) {
+		for (const row of rows) {
 			slots.push({ lane, row });
 		}
 	}

@@ -17,11 +17,25 @@ export const PLAYER_DRIVEN_VEHICLES = 2;
 export const MAX_CONVOY_ESCORTS = 4;
 
 /**
+ * A reinforcement wave (Combat Rules, Reinforcements): raiders queued off
+ * the road, due when the road thins to `arriveAt` raiders or `afterTurns`
+ * player turns have passed since the last wave first played, whichever
+ * comes first. A wave with neither is due only when the road is cleared.
+ */
+export interface ReinforcementWave {
+	readonly raiders: readonly Vehicle[];
+	readonly arriveAt?: number;
+	readonly afterTurns?: number;
+}
+
+/**
  * Team data interface - used throughout the app
  */
 export interface TeamData {
 	type: TeamType;
 	vehicles: Vehicle[];
+	/** An enemy team's later waves, queued behind the road in order; its vehicles are the first. Battle takes them when the fight is built. */
+	reinforcements?: readonly ReinforcementWave[];
 }
 
 /**
@@ -53,7 +67,8 @@ export class Team extends Model<TeamData> {
 	// Runtime property list - MUST match TeamData interface
 	static properties = new Set<keyof TeamData>([
 		'type',
-		'vehicles'
+		'vehicles',
+		'reinforcements'
 	]);
 
 	// Who got out of each wreck alive, kept after the wreck leaves its team so

@@ -10,7 +10,6 @@ import { TeamType } from '../../renderer/game/mechanics/TeamType';
 import { Vehicle, VehicleMod, createDrivenVehicle } from '../../renderer/game/mechanics/Vehicle';
 import { Battle } from '../../renderer/game/mechanics/Battle';
 import type { PreparedCombat } from '../../renderer/game/screens/combat/CombatScreen';
-import type { WaveStatus } from '../../renderer/game/screens/combat/TopBarLayer';
 
 /**
  * The battle screen mock's six fit scenarios (docs/design/battle-screen,
@@ -62,7 +61,8 @@ interface EscortSpec {
 interface RaiderSpec {
 	id: string;
 	name: string;
-	slot: RoadSlot;
+	/** Left out for a raider queued in a reinforcement wave, which takes its slot when it arrives. */
+	slot?: RoadSlot;
 	structure?: [number, number];
 	armor?: number;
 	hp?: [number, number];
@@ -75,7 +75,8 @@ interface RaiderSpec {
 
 interface ScenarioBase {
 	turn: number;
-	wave: WaveStatus;
+	/** Waves queued behind the road; each is due at the start once the road holds `arriveAt` raiders or fewer, so the top bar announces it. */
+	reinforcements?: { raiders: RaiderSpec[]; arriveAt?: number }[];
 	scrap: number;
 	fuel: number;
 	log: string[];
@@ -150,7 +151,13 @@ const LONG_TICKER = 'Scrapyard Juggernaut rammed Apocalypse Rig for 24 (18 block
 function typical(): PairSpec {
 	return {
 		turn: 3,
-		wave: { number: 1, total: 2, incoming: 2 },
+		reinforcements: [{
+			raiders: [
+				{ id: 'r1', name: 'Rust Buggy', deck: BUGGY_DECK },
+				{ id: 'r2', name: 'Dust Crawler', structure: [25, 25], armor: 0, hp: [20, 20], speed: 4, deck: CRAWLER_DECK },
+			],
+			arriveAt: 3,
+		}],
 		scrap: 150,
 		fuel: 7,
 		log: ['Rust Buggy rammed Apocalypse Rig for 6 (4 blocked by Armor)'],
@@ -173,7 +180,10 @@ function typical(): PairSpec {
 function fullRoad(): PairSpec {
 	return {
 		...typical(),
-		wave: { number: 3, total: 3, incoming: 4 },
+		reinforcements: [
+			{ raiders: ['r1', 'r2', 'r3', 'r4'].map((id) => ({ id, name: 'Rust Buggy', deck: BUGGY_DECK })), arriveAt: 9 },
+			{ raiders: ['r5', 'r6'].map((id) => ({ id, name: 'Spike Runner', speed: 5, deck: BUGGY_DECK })) },
+		],
 		scrap: 12450,
 		fuel: 10,
 		log: [LONG_TICKER],
@@ -201,7 +211,7 @@ const SCENARIOS: Record<BattleFitScenario, () => ScenarioSpec> = {
 	opening: () => ({
 		...typical(),
 		turn: 1,
-		wave: { number: 1, total: 1, incoming: 0 },
+		reinforcements: [],
 		log: [],
 		seats: [
 			{ adrenaline: 5, draw: 5, discard: 0, hand: ['point_blank', 'point_blank', 'armor_plating', 'repair_kit', 'ram'], mods: [MODS.reactiveArmor, MODS.autoRepair] },
@@ -255,7 +265,7 @@ const SCENARIOS: Record<BattleFitScenario, () => ScenarioSpec> = {
 	solo: () => ({
 		...typical(),
 		turn: 2,
-		wave: { number: 1, total: 1, incoming: 0 },
+		reinforcements: [],
 		log: ['Dust Crawler fired on Fuel Hauler for 2 (2 blocked by Armor)'],
 		seats: [{ adrenaline: 5, draw: 9, discard: 3, hand: ['headshot', 'covering_fire', 'coordinated_attack', 'nitro_boost', 'far_shoot'], mods: [MODS.nitrous] }],
 		rig: null,
@@ -322,7 +332,7 @@ function raiderVehicle(spec: RaiderSpec, templates: Map<string, Card>): Vehicle 
 	driver.createStartingDeck(templates);
 	const vehicle = createDrivenVehicle({ driver, name: spec.name });
 	applyVehicleSpec(vehicle, { structure: spec.structure ?? [22, 30], armor: spec.armor ?? 5, statuses: spec.statuses });
-	vehicle.set({ slot: spec.slot, intentTier: spec.tier ?? IntentTier.BASIC });
+	vehicle.set({ slot: spec.slot ?? null, intentTier: spec.tier ?? IntentTier.BASIC });
 	return vehicle;
 }
 
@@ -388,7 +398,8 @@ export async function prepareBattleFit(scenario: BattleFitScenario): Promise<Pre
 
 	const raiders = spec.raiders.map((raider) => raiderVehicle(raider, templates));
 	const playerTeam = new Team({ type: TeamType.PLAYER, vehicles: [...driven, ...escorts.filter((escort) => escort !== borrowed)] });
-	const enemyTeam = new Team({ type: TeamType.ENEMY, vehicles: raiders });
+	const reinforcements = (spec.reinforcements ?? []).map(({ raiders: queued, arriveAt }) => ({ raiders: queued.map((raider) => raiderVehicle(raider, templates)), arriveAt }));
+	const enemyTeam = new Team({ type: TeamType.ENEMY, vehicles: raiders, reinforcements });
 	const battle = new Battle({ playerTeam, enemyTeam });
 	battle.aiController.setEnemyAI('aggressive');
 
@@ -423,5 +434,5 @@ export async function prepareBattleFit(scenario: BattleFitScenario): Promise<Pre
 	// The board has changed since the battle planned at its start
 	battle.planEnemyTurn();
 
-	return { battle, wave: spec.wave, scrap: spec.scrap, fuel: spec.fuel, log: spec.log };
+	return { battle, scrap: spec.scrap, fuel: spec.fuel, log: spec.log };
 }
