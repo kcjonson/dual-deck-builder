@@ -330,12 +330,12 @@ Record: campaign-state-model.md.
 
 ## Runs and encounters (183 to 189)
 
-Made writing [Runs and Encounters](./specs/Runs%20and%20Encounters.md), beyond what Kevin approved in its plan and review on 2026-10-17. The spec keeps 183 to 185 as its open questions 5 to 7 and 186 as open question 4; 187 to 189 fill in how his clearing and spacing rule gets built. No decision record yet.
+Made writing [Runs and Encounters](./specs/Runs%20and%20Encounters.md), beyond what Kevin approved in its plan and review on 2026-10-17. The spec keeps 183 to 185 as its open questions 4 to 6; 186 is approved; 187 to 189 fill in how his clearing and spacing rule gets built. No decision record yet.
 
 183. DDB-523: the least a calm stop offers is take it, spending the stop's hours, or drive on and keep them, because it's the cheapest way to make a find a choice rather than an empty step, and it costs no new screen.
 184. DDB-525: a fight going nowhere, for a break-off, is three player turns running with no damage to any raider (armor, structure, or HP), because "neither side takes damage", as the plan had it, misses the case break-off exists for: a raider the crew can't reach that's still hitting the crew.
 185. DDB-328: every raider class carries a card that can hit each starting archetype's vehicle, because a class the bike's evade beats leaves an Interceptor pair untouched, as the Rust Buggy's old gunnery of 6 did.
-186. DDB-336: a cleared POI stays disabled for the rest of the campaign, because "disabled" with nothing said about reopening reads as for good, and the cooldown that brings stops back is for roads, not POIs (open question 4).
+186. DDB-336: a cleared POI stays disabled for the rest of the campaign, because "disabled" with nothing said about reopening reads as for good, and the cooldown that brings stops back is for roads, not POIs. Approved by Kevin, 2026-10-17 ("no story reason for it to magically get stuff back"); now in Runs and Encounters (Kevin's rule 5, Clearing) and Compound and Supply Runs (POIs).
 187. DDB-336: the run that clears a POI takes its type's whole yield, what a full POI gives today, because there's no second run to take the rest.
 188. DDB-336: a POI is cleared when the run reaches it, in the step that loads its yield (as call 105 had the share), so a run that fails on the way home has still cleared it, because the yield and the clearing can't come apart in a save.
 189. DDB-529: each route keeps its floor fights and at least half its stop band on its own road, legs no other POI's routes use, and the POI stage seats a POI only where that fits, because it's the least that keeps a neighbor's cleared road from leaving a run fight-free or nearly empty.

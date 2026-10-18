@@ -159,7 +159,7 @@ Selecting a POI shows its yields, objective, tier, and how many routes are known
 ### POIs
 
 - Each POI has a yield table (meds and scrap for a hospital, water for a water plant) and an objective: a fight, an elite fight, an event, or for a stronghold a boss.
-- A run clears its POI: it takes the POI's yield, and the POI is disabled, so there's no reason to go back (Kevin, 2026-10-17). That's what pushes the compound outward. POIs are spaced out so clearing one doesn't make its neighbor's run too easy ([Runs and Encounters](./Runs%20and%20Encounters.md), Clearing).
+- A run clears its POI: it takes the POI's yield, and the POI is disabled for the rest of the campaign, so there's no reason to go back; nothing refills a looted building (Kevin, 2026-10-17). That's what pushes the compound outward. POIs are spaced out so clearing one doesn't make its neighbor's run too easy ([Runs and Encounters](./Runs%20and%20Encounters.md), Clearing).
 - New POIs come from exploring (the fog lifts over them), the radio mast, and events.
 
 ## The run route screen

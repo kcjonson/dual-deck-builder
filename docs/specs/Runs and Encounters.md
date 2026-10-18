@@ -10,7 +10,7 @@ Decided by Kevin, 2026-10-17. Everything below serves these.
 2. No empty steps. Every stop on a run is something to play or decide.
 3. Runs are a similar length: 3 to 4 stops early in a campaign, longer as it goes on. Distance (the destination's tier) sets the base, and game stage adds a stop or two late.
 4. A fight is a group, 4 to 20 raiders to kill, reinforced partway through. Never a single vehicle.
-5. A run clears its POI, so there's no reason to go back: a cleared POI is disabled. Cleared ground doesn't come back right away, and POIs are spaced out enough that clearing one doesn't make its neighbor too easy.
+5. A run clears its POI, so there's no reason to go back: a cleared POI is disabled for the rest of the campaign, since nothing refills a looted building. Cleared ground doesn't come back right away, and POIs are spaced out enough that clearing one doesn't make its neighbor too easy.
 
 Also decided by Kevin that day:
 
@@ -48,7 +48,7 @@ How the stops stage meets the bands on a route tree whose legs are shared is in 
 
 Every stop is a fight or a stop with a choice in it. A stop type goes on the map only once the run has a screen that resolves it; until then its weight in the stop tables is 0, so a quiet stretch, a stop where nothing happens, never appears.
 
-- What the least a calm stop can be is open question 5.
+- What the least a calm stop can be is open question 4.
 - The first calm stops are the cheapest to build:
   - Find: cards, through the reward picker a fight already uses.
   - Find: supplies, the haul the stop's contents already roll.
@@ -61,7 +61,7 @@ While few calm types exist, the tables lean on those, and a route's calm stops m
 ### Clearing
 
 - A run clears every stop it resolves. A cleared stop stays cleared for a cooldown (starting value: 5 days), then comes back with its contents rerolled; its type is fixed with the map. A later run down that road drives past a stop still cleared: it isn't a step, so it isn't an empty one, and the route card shows it as cleared.
-- A run that reaches its POI clears it, taking its yield, and a cleared POI is disabled: the area map shows it cleared, and it can't be planned (Kevin, 2026-10-17).
+- A run that reaches its POI clears it, taking its yield, and a cleared POI is disabled for good: the area map shows it cleared, and it can't be planned. Stops come back because raiders and scavengers move around; a looted building has no story reason to fill up again (Kevin, 2026-10-17).
 - A run sharing road with a POI cleared in the last few days is shorter than its band, by the shared stops still cleared. Its own road still holds its floor fights and at least half its band (How many stops), so it's never fight-free and never a free ride.
 
 ## Fights
@@ -101,7 +101,7 @@ Groups expose the gaps in the starting cards, and these rules work around them f
 - Close-up keeps the slot across from each driven vehicle filled, so a crew whose damage reaches one slot (the Rig's rams) keeps finding targets. It brings raiders into ram range as well, which raises their damage a little.
 - Shake-off: a raider can't be stunned two enemy turns running, which halves EMP Blast's lock without touching the card.
 - Rout: the rest flee when a warband's leader falls, or when the threat left is at or under a quarter of the start. It cuts a fight's long tail, the last raider alone, and ends one the crew has all but won. Threat is nominal (Encounters, below), so spreading damage around can't set it off early.
-- Break-off: a fight going nowhere for three player turns ends with no reward. It's the backstop for a fight a crew can't finish, like a Mechanic facing a raider the Rig can't reach. What counts as going nowhere is open question 6.
+- Break-off: a fight going nowhere for three player turns ends with no reward. It's the backstop for a fight a crew can't finish, like a Mechanic facing a raider the Rig can't reach. What counts as going nowhere is open question 5.
 
 ### Winning and losing
 
@@ -200,7 +200,6 @@ The sim's player plays worse than a person: the aggressive AI plays every card i
 1. When POI objectives become encounters (Compound and Supply Runs, The loop, step 6), does a route's band come down by one, since every run would then end on a fight?
 2. Should a bigger fight pay more: scrap a raider, or a better card pick?
 3. Ambush waves onto the player's shoulder, once the Rig can reach it (DDB-494).
-4. Does a cleared POI ever reopen, late in a campaign, or is it gone for good?
-5. What's the least a calm stop can be? It has to be a choice (rule 2), and a find on its own is a gift, not a choice.
-6. What counts as a fight going nowhere, for a break-off?
-7. Does every raider class need a card that can hit every starting archetype's vehicle, so no crew is immune to a whole class?
+4. What's the least a calm stop can be? It has to be a choice (rule 2), and a find on its own is a gift, not a choice.
+5. What counts as a fight going nowhere, for a break-off?
+6. Does every raider class need a card that can hit every starting archetype's vehicle, so no crew is immune to a whole class?

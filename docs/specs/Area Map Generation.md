@@ -290,7 +290,7 @@ Reveal rules:
 
 - Never changes: terrain, water, the road network and its geometry, classes, the route tree and its legs, POIs, tiers, territories, stop types, dressing.
 - Saved state: land fog, leg knowledge, each stop's state (cleared on which day, roll count, rolled contents once revealed), cleared POIs, strongholds taken.
-- Cleared stops come back after a cooldown (5 days), rerolled. A POI a run reaches is cleared and stays disabled (Runs and Encounters, Clearing). Taking a stronghold reweights its territory's stop tables (fewer checkpoints and warbands).
+- Cleared stops come back after a cooldown (5 days), rerolled. A POI a run reaches is cleared and stays disabled for the rest of the campaign (Runs and Encounters, Clearing). Taking a stronghold reweights its territory's stop tables (fewer checkpoints and warbands).
 
 ## Validation and retries
 
