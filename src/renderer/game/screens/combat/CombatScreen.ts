@@ -104,7 +104,6 @@ export interface DriversCombatMount {
 	rng?: Rng;
 }
 
-
 /** The battle result's line for a fight the crew gave up from the menu. */
 const ABANDONED_SUBTITLE = 'The crew abandoned the fight.';
 

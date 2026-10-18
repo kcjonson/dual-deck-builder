@@ -423,9 +423,8 @@ export class Battle extends Model<BattleData> {
 	 * arrival; once there, an ambusher keeps its slot even if the vehicle
 	 * beside it is wrecked. Opening placement uses this, and a reinforcement
 	 * wave would too, but no wave lands on the shoulder for now (Combat
-	 * Rules, Reinforcements). A vehicle
-	 * already on a team must be checked for that team; one still arriving
-	 * goes by the team passed in.
+	 * Rules, Reinforcements). A vehicle already on a team must be checked
+	 * for that team; one still arriving goes by the team passed in.
 	 */
 	public getAmbushBlocker({ vehicle, teamType, slot }: { vehicle: Vehicle; teamType: TeamType; slot: RoadSlot }): string | null {
 		return this.ambushBlocker({
@@ -999,6 +998,15 @@ export class Battle extends Model<BattleData> {
 	 * its turn, has no entry, and its cards change nothing on the board.
 	 */
 	private projectEnemyTurn(): Map<Vehicle, ProjectedAction[]> {
+		return this.playProjectedEnemyTurn().projected;
+	}
+
+	/**
+	 * projectEnemyTurn's replay, with the board it leaves: where every
+	 * vehicle stands once the raiders' plans have played, flanks and speed
+	 * changes included.
+	 */
+	private playProjectedEnemyTurn(): { projected: Map<Vehicle, ProjectedAction[]>; board: BoardProjection } {
 		const board = this.projectEnemyTurnStart();
 		const projected = new Map<Vehicle, ProjectedAction[]>();
 		for (const [raider, plan] of Battle.enemyPlans.get(this) ?? []) {
@@ -1021,7 +1029,7 @@ export class Battle extends Model<BattleData> {
 			}
 			if (actions.length > 0) projected.set(raider, actions);
 		}
-		return projected;
+		return { projected, board };
 	}
 
 	/**
@@ -1411,7 +1419,7 @@ export class Battle extends Model<BattleData> {
 		this.planEnemyTurn();
 		this.checkWaveDue();
 
-		this.log('turn_start',`Player turn ${this.turn} started`, { turn: this.turn });
+		this.log('turn_start', `Player turn ${this.turn} started`, { turn: this.turn });
 		
 		// Log hands for all drivers
 		this.logAllHands();
@@ -2261,7 +2269,14 @@ export class Battle extends Model<BattleData> {
 		if (!waves) return { number: 1, total: 1, arriving: 0, rows: [] };
 		if (!waves.due || !next) return { number: waves.started, total: waves.total, arriving: 0, rows: [] };
 
-		const board = this.projectEnemyTurnStart();
+		// The board once the raiders' plans have played, then the end of the
+		// turn's drop-backs: a raider that flanks this turn holds the shoulder
+		// and its reserved slot, so close-up and arrivals skip it as they will
+		const { board } = this.playProjectedEnemyTurn();
+		for (const vehicle of this.getAllVehicles()) {
+			const outran = board.flankOf(vehicle)?.outran;
+			if (outran && board.slotOf(outran) && board.speedOf(vehicle) <= board.speedOf(outran)) board.dropBack(vehicle);
+		}
 		const projected: RoadRead = { slotOf: vehicle => board.slotOf(vehicle), flankOf: vehicle => board.flankOf(vehicle) };
 		const moves = this.planCloseUp(projected);
 		const closedUp: RoadRead = { slotOf: vehicle => moves.get(vehicle) ?? board.slotOf(vehicle), flankOf: projected.flankOf };

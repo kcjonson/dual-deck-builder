@@ -160,6 +160,20 @@ describe('Raider formation and stuns', () => {
 			expect(battle.getIntents(raider)).toEqual([expect.objectContaining({ target: bike.id, amount: 3 })]);
 		});
 
+		test('doesn\'t count a driven vehicle flanking on the raiders\' shoulder as across from anything (call 192)', () => {
+			const center = createVehicle('Center', 3);
+			const outside = createVehicle('Outside', 3, slot(RoadLane.ENEMY_OUTSIDE, RoadRow.AHEAD));
+			const battle = fight([center, outside]);
+			// The Bike opened inside behind and outran Outside onto the raiders' shoulder
+			bike.set({ slot: slot(RoadLane.ENEMY_SHOULDER, RoadRow.AHEAD), flank: { reservedSlot: slot(RoadLane.PLAYER_INSIDE, RoadRow.BEHIND), outran: outside } });
+
+			battle.endPlayerTurn();
+
+			// The Bike holds the shoulder ahead (still faster), so nothing is pulled into inside ahead
+			expect(bike.slot).toEqual(slot(RoadLane.ENEMY_SHOULDER, RoadRow.AHEAD));
+			expect(outside.slot).toEqual(slot(RoadLane.ENEMY_OUTSIDE, RoadRow.AHEAD));
+		});
+
 		test('leaves a raider already across from a driven vehicle where it is', () => {
 			const center = createVehicle('Center', 3);
 			const battle = fight([center]);

@@ -193,6 +193,52 @@ describe('Reinforcement waves', () => {
 			expect(queued.every(raider => battle.getIntents(raider).length > 0)).toBe(true);
 		});
 
+		test('marks the rows arrivals will really take when a raider plans to flank this turn', () => {
+			// Rig inside center, Bike inside behind; Flanker plans to outrun the Rig, which keeps its slot reserved
+			const center = createVehicle('Center');
+			const behind = createVehicle('Behind');
+			const flanker = createVehicle('Flanker', slot(RoadLane.ENEMY_OUTSIDE, RoadRow.CENTER));
+			flanker.set({ baseSpeed: 9 });
+			const queued = createVehicle('Queued');
+			const battle = fight({ raiders: [center, behind, flanker], reinforcements: [{ raiders: [queued], arriveAt: 3 }] });
+			battle.start();
+			const flank = new Card({
+				type: 'flank', name: 'Flank', summary: 'Flank', description: 'Flank', rarity: 'common', cost: 1,
+				targetType: 'enemy_single', effects: [{ type: 'change_position', position: 'flanking', target: 'self' }], tags: []
+			});
+			giveHand(flanker, [flank]);
+			driverOf(center).set({ hand: [] });
+			driverOf(behind).set({ hand: [] });
+			battle.planEnemyTurn();
+			expect(battle.getPlan(flanker).map(action => action.card)).toEqual([flank]);
+			kill(battle, behind);
+			const marked = battle.waves.rows;
+
+			battle.endPlayerTurn();
+
+			expect(flanker.isFlanking).toBe(true);
+			expect(queued.slot).not.toBeNull();
+			expect(marked).toEqual([queued.slot?.row]);
+		});
+
+		test('lands the next wave at the end of an enemy turn that empties the road itself', () => {
+			const first = createVehicle('First');
+			driverOf(first).set({ hitpoints: 3, maxHitpoints: 3 });
+			const queued = createVehicle('Queued');
+			const battle = fight({ raiders: [first], reinforcements: [{ raiders: [queued] }] });
+			battle.start();
+			// Berserker costs its own driver 3 HP
+			giveHand(first, [realCard('berserker')]);
+			battle.planEnemyTurn();
+
+			battle.endPlayerTurn();
+
+			expect(first.isOutOfFight).toBe(true);
+			expect(battle.battleOver).toBe(false);
+			expect(battle.enemyTeam.vehicles).toEqual([queued]);
+			expect(generalLines(battle)).toContain('1 raider arriving');
+		});
+
 		test('leaves the rest queued, still due, when the formation is full', () => {
 			const raiders = [
 				...[RoadRow.CENTER, RoadRow.BEHIND, RoadRow.AHEAD].map(row => createVehicle(`In ${row}`, slot(RoadLane.ENEMY_INSIDE, row))),
