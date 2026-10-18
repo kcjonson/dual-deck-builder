@@ -54,6 +54,14 @@ describe('BattleResultScreen', () => {
 		expect((screen.root.findById('result_subtitle') as Text).text).toBe('Your vehicles have been destroyed!');
 	});
 
+	it('says a broken-off fight was broken off, neither won nor lost, with no defeat stamp', () => {
+		screen.mount(context, { victory: false, brokenOff: true });
+		expect((screen.root.findById('result_kicker') as Text).text).toBe('Fight broken off');
+		expect((screen.root.findById('result_title') as Text).text).toBe('BROKEN OFF');
+		expect((screen.root.findById('result_subtitle') as Text).text).toBe('The raiders broke off. Nothing won, nothing lost.');
+		expect(screen.root.findById('result_stamp')).toBeNull();
+	});
+
 	it('shows the line the fight sent in place of the stock one, so a fight given up says so (DDB-454)', () => {
 		screen.mount(context, { victory: false, subtitle: 'The crew abandoned the fight.' });
 		expect((screen.root.findById('result_title') as Text).text).toBe('DEFEAT!');

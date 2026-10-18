@@ -42,3 +42,4 @@ Numbers 190 to 209 in [gameplay-calls.md](../gameplay-calls.md).
 - 196: the Rust Buggy's threat is 2 and the Spike Buggy's 6, until calibrate.
 - 197: break-off counts damage in the player's turn only, shields aside.
 - 198: a break-off revives and picks up drivers as a win does.
+- 206: the leader is its vehicle; it's out when wrecked or driverless.

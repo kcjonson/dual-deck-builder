@@ -104,6 +104,29 @@ describe('How a fight ends', () => {
 			expect(battle.routed).toBe(true);
 		});
 
+		test('routs with the road clear and a wave still queued, which never pulls in', () => {
+			const first = ['A', 'B', 'C'].map(name => createVehicle(name, { threat: 2 }));
+			const queued = createVehicle('D', { threat: 2 });
+			const battle = fight(first, [{ raiders: [queued] }]);
+			first.forEach(raider => play(battle, killShot(), raider));
+
+			expect(battle.isBattleWon()).toBe(true);
+			expect(battle.routed).toBe(true);
+			expect(battle.queuedRaiders).toEqual([]);
+			expect(queued.slot).toBeNull();
+			expect(battle.getMessages().map(message => message.message)).toContain('The raiders rout, since too few are left to fight on');
+		});
+
+		test('routs when the leader loses its driver, not only its vehicle', () => {
+			const leader = createVehicle('Boss', { threat: 10, leader: true });
+			const battle = fight([leader, createVehicle('A', { threat: 2 })]);
+
+			play(battle, killShot(), leader);
+
+			expect(leader.isAlive()).toBe(true);
+			expect(battle.routed).toBe(true);
+		});
+
 		test('is threat, not damage: hurting every raider doesn\'t rout them', () => {
 			const raiders = ['A', 'B', 'C', 'D'].map(name => createVehicle(name, { threat: 2 }));
 			const battle = fight(raiders);
@@ -162,6 +185,19 @@ describe('How a fight ends', () => {
 			battle.endPlayerTurn();
 			battle.endPlayerTurn();
 			expect(battle.battleOver).toBe(false);
+
+			battle.endPlayerTurn();
+			expect(battle.isBattleBrokenOff()).toBe(true);
+		});
+
+		test('a hit a shield takes all of doesn\'t count, so the fight still breaks off (call 197)', () => {
+			const raider = createVehicle('Raider', { threat: 2 });
+			const battle = fight([raider]);
+			battle.endPlayerTurn();
+			battle.endPlayerTurn();
+			raider.set({ shield: 10 });
+			play(battle, scratch(), raider);
+			expect(raider.structure).toBe(50);
 
 			battle.endPlayerTurn();
 			expect(battle.isBattleBrokenOff()).toBe(true);

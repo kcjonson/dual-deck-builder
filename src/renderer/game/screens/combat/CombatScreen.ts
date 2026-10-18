@@ -361,12 +361,10 @@ export class CombatScreen extends Screen {
 				// game's own screen navigates: the gallery mounts this one with
 				// no screen manager, and its fight just stays at its end
 				if (!this.battle) return;
-				const settled: BattleResultData = this.onEnded?.(event) ?? {
-					victory: event.won,
-					...(event.brokenOff ? { brokenOff: true } : {}),
-					...(event.routed ? { subtitle: ROUTED_SUBTITLE } : {}),
-				};
-				const resultData = this.abandoned ? { ...settled, subtitle: ABANDONED_SUBTITLE } : settled;
+				const settled: BattleResultData = this.onEnded?.(event) ?? { victory: event.won, ...(event.brokenOff ? { brokenOff: true } : {}) };
+				// A rout's line holds whoever settled the fight, unless they sent their own
+				const routed = event.routed && settled.subtitle === undefined ? { ...settled, subtitle: ROUTED_SUBTITLE } : settled;
+				const resultData = this.abandoned ? { ...routed, subtitle: ABANDONED_SUBTITLE } : routed;
 				if (ScreenManager.activeScreen === this) ScreenManager.navigate('battleResultScreen', resultData);
 			})
 		);
