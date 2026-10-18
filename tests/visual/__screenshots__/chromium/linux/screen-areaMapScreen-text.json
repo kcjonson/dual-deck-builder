@@ -28,6 +28,6 @@
 {"path":"areaMapScreen/area_map_side/area_map_destinations_box/area_map_destinations_scroll/area_map_destinations_page/area_map_destinations/area_map_poi_5/area_map_poi_5_value","text":"tier 2","rect":[1290,474,44,16]},
 {"path":"areaMapScreen/area_map_side/area_map_destinations_box/area_map_destinations_scroll/area_map_destinations_page/area_map_destinations/area_map_poi_25/area_map_poi_25_label","text":"Pineburg Water Plant","rect":[1078,515,135,22]},
 {"path":"areaMapScreen/area_map_side/area_map_destinations_box/area_map_destinations_scroll/area_map_destinations_page/area_map_destinations/area_map_poi_25/area_map_poi_25_value","text":"tier 2","rect":[1290,518,44,16]},
-{"path":"areaMapScreen/area_map_side/area_map_details/area_map_selected_name_head/area_map_selected_name","text":"No destination chosen","rect":[1034,587,332,26.4]},
+{"path":"areaMapScreen/area_map_side/area_map_details/area_map_selected_name_head/area_map_selected_name","text":"No destination chosen","rect":[1034,566.2,332,26.4]},
 {"path":"areaMapScreen/area_map_side/area_map_plan/area_map_plan_button","text":"Plan a run here","rect":[1020,726.4,360,56]}
 ]

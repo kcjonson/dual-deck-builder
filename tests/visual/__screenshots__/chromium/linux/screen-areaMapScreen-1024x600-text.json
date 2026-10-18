@@ -14,8 +14,6 @@
 {"path":"areaMapScreen/area_map_side/area_map_destinations_box/area_map_destinations_scroll/area_map_destinations_page/area_map_destinations/area_map_poi_15/area_map_poi_15_value","text":"tier 1","rect":[874,166,44,16]},
 {"path":"areaMapScreen/area_map_side/area_map_destinations_box/area_map_destinations_scroll/area_map_destinations_page/area_map_destinations/area_map_poi_16/area_map_poi_16_label","text":"Brightville Clinic","rect":[662,207,104,22]},
 {"path":"areaMapScreen/area_map_side/area_map_destinations_box/area_map_destinations_scroll/area_map_destinations_page/area_map_destinations/area_map_poi_16/area_map_poi_16_value","text":"tier 1","rect":[874,210,44,16]},
-{"path":"areaMapScreen/area_map_side/area_map_destinations_box/area_map_destinations_scroll/area_map_destinations_page/area_map_destinations/area_map_poi_7/area_map_poi_7_label","text":"Iron Hollow School","rect":[662,251,118,22]},
-{"path":"areaMapScreen/area_map_side/area_map_destinations_box/area_map_destinations_scroll/area_map_destinations_page/area_map_destinations/area_map_poi_7/area_map_poi_7_value","text":"tier 1","rect":[874,254,44,16]},
-{"path":"areaMapScreen/area_map_side/area_map_details/area_map_selected_name_head/area_map_selected_name","text":"No destination chosen","rect":[618,305,332,26.4]},
+{"path":"areaMapScreen/area_map_side/area_map_details/area_map_selected_name_head/area_map_selected_name","text":"No destination chosen","rect":[618,284.2,332,26.4]},
 {"path":"areaMapScreen/area_map_side/area_map_plan/area_map_plan_button","text":"Plan a run here","rect":[604,444.4,360,56]}
 ]
