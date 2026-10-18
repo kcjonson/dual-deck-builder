@@ -55,8 +55,11 @@ async function main() {
 	const cells = MODES[mode].cells(config);
 
 	if (options.log) {
-		const [crew, route, index] = options.log.split(':');
-		const cell = MODES[mode].cells(simConfig({ ...input, crews: [crew.split('+')], routes: [route.split('+').map(Number)] }))[0];
+		const [crew, route, index, ...extra] = options.log.split(':');
+		if (!crew || !route || !/^\d+$/.test(index ?? '') || extra.length > 0) throw new Error(`balance-sim: --log takes crew:route:run, like road_warrior+interceptor:2:7, got ${options.log}`);
+		// The config's own cell when it asks for one, so its decks come along; otherwise that crew on its default decks
+		const cell = cells.find(({ name }) => name === `${crew}:${route}`)
+			?? fightCells(simConfig({ ...input, crews: [crew.split('+')], routes: [route.split('+').map(Number)] }))[0];
 		const { lines, run } = await fightLog({ config, cell, index: Number(index) });
 		lines.forEach(line => print(line));
 		print(`\n${run.outcome === 'home' ? `won, HP lost ${percent(run.hpLost)}, structure lost ${percent(run.structureLost)}` : run.outcome}`);
@@ -67,7 +70,7 @@ async function main() {
 	print('Encounters: ' + Object.entries(config.encounters).map(([id, raiders]) => `${id} ${raiders.join(' + ')}`).join('; '));
 	print('');
 	print('crew          route   won  by seat  stall  HP lost  struct lost  down  turns  inj days  killed   (lost, down, turns, and injury days over runs won)');
-	const rows = await playCells({ mode, input, count: cells.length, workers: Number(options.workers ?? 2), onRow: printRow });
+	const rows = await playCells({ mode, input, count: cells.length, workers: whole(options, 'workers', 2), onRow: printRow });
 	printFairness(rows);
 	if (options.json) writeFileSync(options.json, JSON.stringify({ mode, config, rows }, null, '\t'));
 }
@@ -78,13 +81,21 @@ function playCells({ mode, input, count, workers, onRow }) {
 		const rows = new Array(count);
 		let next = 0;
 		let shown = 0;
+		// Workers let go once the cells ran out; any other exit is a crash
+		const done = new Set();
 		const pool = Array.from({ length: Math.max(1, Math.min(workers, count)) }, () => new Worker(script, { workerData: { build, mode, input } }));
 		const give = (worker) => {
 			if (next < count) worker.postMessage(next++);
-			else worker.terminate();
+			else {
+				done.add(worker);
+				worker.terminate();
+			}
 		};
 		for (const worker of pool) {
 			worker.on('error', reject);
+			worker.on('exit', (code) => {
+				if (!done.has(worker)) reject(new Error(`balance-sim: a worker exited (${code}) with cells still to play`));
+			});
 			worker.on('message', ({ index, row }) => {
 				rows[index] = row;
 				while (shown < count && rows[shown]) onRow(rows[shown++]);
@@ -99,7 +110,7 @@ function playCells({ mode, input, count, workers, onRow }) {
 
 function configInput(options) {
 	const input = options.config ? JSON.parse(readFileSync(options.config, 'utf8')) : {};
-	const number = (key) => (options[key] === undefined ? {} : { [key]: Number(options[key]) });
+	const number = (key) => (options[key] === undefined ? {} : { [key]: whole(options, key) });
 	return {
 		...input,
 		...number('seed'),
@@ -111,11 +122,20 @@ function configInput(options) {
 	};
 }
 
+/** A whole-number option of 1 or more, or `fallback` when it's left out; `seed` may be 0. */
+function whole(options, key, fallback) {
+	if (options[key] === undefined) return fallback;
+	const value = Number(options[key]);
+	if (!Number.isInteger(value) || value < (key === 'seed' ? 0 : 1)) throw new Error(`balance-sim: --${key} takes a whole number${key === 'seed' ? '' : ' of 1 or more'}, got ${options[key]}`);
+	return value;
+}
+
 function readOptions(list, known) {
 	const options = {};
 	for (let index = 0; index < list.length; index += 2) {
 		const key = list[index].replace(/^--/, '');
 		if (!known.includes(key)) throw new Error(`balance-sim: unknown option ${list[index]}`);
+		if (list[index + 1] === undefined || list[index + 1].startsWith('--')) throw new Error(`balance-sim: ${list[index]} needs a value`);
 		options[key] = list[index + 1];
 	}
 	return options;

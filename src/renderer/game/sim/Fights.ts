@@ -34,7 +34,7 @@ export const SIM_CARDS: ReadonlyMap<string, Card> = new Map(
 );
 
 export interface FightCell {
-	/** `<crew>:<route>`, archetypes and skulls joined by `+`: `road_warrior+interceptor:1+2`. */
+	/** `<crew>:<route>`, archetypes and skulls joined by `+`: `road_warrior+interceptor:1+2`; a crew asked for twice, on other decks, adds `#<its place in the crews>`. */
 	readonly name: string;
 	readonly crew: readonly SeatInput[];
 	readonly route: readonly Skulls[];
@@ -42,9 +42,14 @@ export interface FightCell {
 
 /** Every crew against every route, crew by crew. */
 export function fightCells(config: SimConfig): FightCell[] {
-	return config.crews.flatMap(crew => config.routes.map(route => ({ name: `${crewName(crew)}:${route.join('+')}`, crew, route })));
+	const names = config.crews.map(crewName);
+	return config.crews.flatMap((crew, index) => {
+		const name = names.indexOf(names[index]) === names.lastIndexOf(names[index]) ? names[index] : `${names[index]}#${index}`;
+		return config.routes.map(route => ({ name: `${name}:${route.join('+')}`, crew, route }));
+	});
 }
 
+/** A crew's archetypes in seat order, joined by `+`. */
 export function crewName(crew: readonly SeatInput[]): string {
 	return crew.map(seat => seat.archetype).join('+');
 }
@@ -56,8 +61,11 @@ export interface FightRun {
 	readonly outcome: RunOutcome;
 	/** Who drove seat 1. */
 	readonly firstSeat: string;
+	/** Whether a pair drove in the crew's seat order (even runs) or swapped (odd runs). */
+	readonly swapped: boolean;
 	/** The last fight played, for its log. */
 	readonly battle: Battle;
+	/** Turns over every fight the run played. */
 	readonly turns: number;
 	/** Whether a driver went down in any fight. */
 	readonly down: boolean;
@@ -72,7 +80,8 @@ export interface FightRun {
 /** Run `index` of a crew through its route's fights. */
 export async function playRun({ config, cell, index }: { config: SimConfig; cell: FightCell; index: number }): Promise<FightRun> {
 	const { crew, route } = cell;
-	const seated = crew.length === 2 && index % 2 === 1 ? [crew[1], crew[0]] : crew;
+	const swapped = crew.length === 2 && index % 2 === 1;
+	const seated = swapped ? [crew[1], crew[0]] : crew;
 	const records = seated.map(({ archetype }, seat) => new DriverRecord({ id: `driver-${seat + 1}`, archetype, name: placeholderName({ archetype, ordinal: 1 }) }));
 	const decks = seated.map(({ deck }, seat) => deck ?? records[seat].defaultDeck);
 	const stream = new Rng({ seed: config.seed }).fork('run', index);
@@ -102,6 +111,7 @@ export async function playRun({ config, cell, index }: { config: SimConfig; cell
 	return {
 		outcome,
 		firstSeat: seated[0].archetype,
+		swapped,
 		battle: battle as Battle,
 		turns,
 		down,
@@ -143,13 +153,14 @@ export interface FightRow {
 	readonly route: readonly number[];
 	readonly runs: number;
 	readonly won: Rate;
-	/** For a pair, won by who drove seat 1, in the crew's order. */
+	/** For a pair, won as seated in the crew's order, then swapped. */
 	readonly bySeat: readonly Rate[] | null;
 	readonly stalled: Rate;
 	readonly lost: Rate;
 	readonly hpLost: number | null;
 	readonly structureLost: number | null;
 	readonly down: Rate;
+	/** A run's turns, over every fight it played. */
 	readonly turns: number | null;
 	readonly injuryDays: number | null;
 	/** Over every run. */
@@ -162,8 +173,8 @@ export async function playFightCell({ config, cell }: { config: SimConfig; cell:
 	for (let index = 0; index < config.runs; index += 1) results.push(await playRun({ config, cell, index }));
 	const home = results.filter(result => result.outcome === 'home');
 	const count = (outcome: RunOutcome): Rate => rate(results.filter(result => result.outcome === outcome).length, results.length);
-	const wonSeated = (archetype: string): Rate => {
-		const seated = results.filter(result => result.firstSeat === archetype);
+	const wonSeated = (swapped: boolean): Rate => {
+		const seated = results.filter(result => result.swapped === swapped);
 		return rate(seated.filter(result => result.outcome === 'home').length, seated.length);
 	};
 	return {
@@ -172,7 +183,7 @@ export async function playFightCell({ config, cell }: { config: SimConfig; cell:
 		route: [...cell.route],
 		runs: results.length,
 		won: count('home'),
-		bySeat: cell.crew.length === 2 ? cell.crew.map(seat => wonSeated(seat.archetype)) : null,
+		bySeat: cell.crew.length === 2 ? [wonSeated(false), wonSeated(true)] : null,
 		stalled: count('stalled'),
 		lost: count('lost'),
 		hpLost: mean(home.map(result => result.hpLost)),
