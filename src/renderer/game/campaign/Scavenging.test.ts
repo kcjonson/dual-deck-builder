@@ -213,9 +213,9 @@ describe('scavenge', () => {
 			const changes: string[] = [];
 			campaign.on('change', () => changes.push('campaign'));
 			campaign.drivers.forEach(driver => driver.on('change', () => changes.push(driver.id)));
-			const hooks: DayEndHooks = { ...DAY_END_HOOKS, poiRefills: () => { throw new Error('no POI table'); } };
+			const hooks: DayEndHooks = { ...DAY_END_HOOKS, stopCooldowns: () => { throw new Error('no stop table'); } };
 
-			expect(() => scavenge({ campaign, hooks })).toThrow('no POI table');
+			expect(() => scavenge({ campaign, hooks })).toThrow('no stop table');
 			expect(savedText(campaign)).toBe(before);
 			expect(changes).toEqual([]);
 		});

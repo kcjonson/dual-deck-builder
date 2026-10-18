@@ -5,7 +5,7 @@ import { Campaign, isAtCompound } from '../../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
 import type { CheckpointResult } from '../../campaign/CampaignStore';
 import type { CampaignFight } from '../../campaign/CombatBridge';
-import { RunRoute, routeStops } from '../../campaign/SupplyRoutes';
+import { RunRoute, everyStop, routeStops } from '../../campaign/SupplyRoutes';
 import {
 	Arrival, StopFightResult, arriveHome, atDestination, cargoText, currentStop, finishStopFight, foundDriver, leaveFind, listText, passQuietStop, rewardOffer, startStopFight,
 	takeFind, takeReward,
@@ -13,9 +13,8 @@ import {
 import type { SupplyRun } from '../../campaign/SupplyRunState';
 import { NO_RESOURCES, RESOURCE_NAMES } from '../../campaign/Campaign';
 import type { DriverRecord } from '../../campaign/DriverRecord';
+import { isPoiCleared } from '../../campaign/MapClearing';
 import { poiOf } from '../../campaign/MapRoutes';
-import { poiState, sharesLeft } from '../../campaign/PoiStock';
-import type { PoiState } from '../../map/PoiData';
 import type { Card } from '../../mechanics/Card';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
@@ -236,12 +235,11 @@ export class RunScreen extends Screen {
 		return bar;
 	}
 
-	/** The destination's state on the campaign's map now, or null for a destination off the map's POIs. */
-	private destinationState(route: RunRoute): PoiState | null {
+	/** Whether the run cleared its destination, false for a destination off the map's POIs. */
+	private destinationCleared(route: RunRoute): boolean {
 		const poi = poiOf(route.destination.id);
 		const campaign = this.campaign;
-		if (poi === null || !campaign) return null;
-		return poiState(sharesLeft({ map: campaign.map, poi }));
+		return poi !== null && campaign !== null && isPoiCleared({ map: campaign.map, poi });
 	}
 
 	/** The campaign handed over or loaded, then the cards, then the run as it stands. */
@@ -303,7 +301,7 @@ export class RunScreen extends Screen {
 		}
 		// The run's one hero mark (UI Art Direction, Wear): LOST for a failed run, home the destination's stamp or a driver's tear (`debriefMark`)
 		const mark = shown.kind === 'home'
-			? debriefMark({ destination: this.destinationState(shown.route), injured: injuredOf(shown.arrival).length > 0 })
+			? debriefMark({ cleared: this.destinationCleared(shown.route), injured: injuredOf(shown.arrival).length > 0 })
 			: shown.kind === 'failed' ? 'lost' : null;
 		const stamp = mark === 'tear' ? null : mark;
 		if (shown.kind === 'road') this.showRoad({ route: shown.run.route, at: shown.run.stop, mode: shown.run.phase, stamp });
@@ -329,7 +327,9 @@ export class RunScreen extends Screen {
 	 * the run was lost when it failed, and home is reached once it's home.
 	 * Each leads with its map symbol: a fight still ahead is hostile, a
 	 * quiet stretch pending, a cleared stop nothing to report, home the star.
-	 * Once the run is over its stamp is struck under the list, at full size.
+	 * A stop an earlier run cleared shows too, cleared, though the run drives
+	 * past it and `at` doesn't count it. Once the run is over its stamp is
+	 * struck under the list, at full size.
 	 */
 	private showRoad({ route, at, mode, stamp }: { route: RunRoute; at: number; mode: SupplyRun['phase'] | 'home' | 'failed'; stamp: DamageMarkKind | null }): void {
 		const road = this.road;
@@ -337,8 +337,11 @@ export class RunScreen extends Screen {
 		road.clearChildren();
 		const stops = routeStops(route);
 		const atStop: Record<typeof mode, string> = { driving: 'Next', reward: 'Here', failed: 'Lost', home: '' };
-		stops.forEach((stop, index) => {
-			const state = index < at ? 'Cleared' : index === at ? atStop[mode] : '';
+		let step = 0;
+		everyStop(route).forEach((stop, index) => {
+			const passed = stop.cleared === true;
+			const place = passed ? -1 : step++;
+			const state = passed || place < at ? 'Cleared' : place === at ? atStop[mode] : '';
 			const symbol: LegendSymbol = state === 'Cleared' ? 'dash' : stop.kind === 'fight' ? 'diamond' : 'ring';
 			road.addChild(roadRow({ id: `run_stop_${index}`, label: `${index + 1}. ${stopTitle(stop)}`, state, symbol }));
 		});

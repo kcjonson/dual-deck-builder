@@ -23,6 +23,14 @@ describe('save upgrades', () => {
 		expect(upgradeCampaignJson({ campaign: { day: 3, map: {}, supplyRun: null }, version: 9 })).toEqual({ day: 3, map: {}, supplyRun: null, buildings: ['bunkhouse'] });
 	});
 
+	it('clears each POI a version 11 campaign took stock from, once, in order, and drops the stock', () => {
+		const map = { fog: [1], pois: [{ poi: 5, left: 0, nights: 2 }, { poi: 3, left: 1, nights: 4 }, { poi: 5, left: 2, nights: 0 }] };
+		expect(upgradeCampaignJson({ campaign: { day: 3, map }, version: 11 })).toEqual({ day: 3, map: { fog: [1], clearedPois: [3, 5] } });
+		expect(upgradeCampaignJson({ campaign: { day: 3, map: { pois: [] } }, version: 11 })).toEqual({ day: 3, map: {} });
+		expect(upgradeCampaignJson({ campaign: { day: 3, map: { pois: [{ poi: 'x' }, 7] } }, version: 11 })).toEqual({ day: 3, map: {} });
+		expect(upgradeCampaignJson({ campaign: { day: 3, map: [] }, version: 11 })).toEqual({ day: 3, map: [] });
+	});
+
 	it('gives a version 10 run out no recruits, since nothing found anyone new then', () => {
 		expect(upgradeCampaignJson({ campaign: { day: 3, supplyRun: { stop: 1 } }, version: 10 })).toEqual({ day: 3, supplyRun: { stop: 1, recruits: [] } });
 		expect(upgradeCampaignJson({ campaign: { day: 3, supplyRun: null }, version: 10 })).toEqual({ day: 3, supplyRun: null });
@@ -36,6 +44,7 @@ describe('save upgrades', () => {
 		expect(upgradeCampaignJson({ campaign, version: 8 })).toEqual(campaign);
 		expect(upgradeCampaignJson({ campaign, version: 9 })).toEqual(campaign);
 		expect(upgradeCampaignJson({ campaign, version: 10 })).toEqual(campaign);
+		expect(upgradeCampaignJson({ campaign, version: 11 })).toEqual(campaign);
 	});
 
 	it.each([

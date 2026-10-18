@@ -73,7 +73,7 @@ const SAVE_FORMAT = {
 		'day', 'drivers', 'drivers[]', 'drivers[].archetype', 'drivers[].defaultDeck', 'drivers[].defaultDeck.<card type>',
 		'drivers[].handLimit', 'drivers[].hitpoints', 'drivers[].id', 'drivers[].injuredDays', 'drivers[].maxHitpoints', 'drivers[].name',
 		'drivers[].runsCompleted', 'drivers[].status', 'drivers[].vehicle', 'drivers[].vehicle.armor', 'drivers[].vehicle.structure', 'end', 'foundOnRun', 'foundOnRun[]', 'generatorVersion', 'locker', 'locker.<card type>', 'log', 'log[]', 'log[].day', 'log[].message', 'map',
-		'map.pois', 'map.pois[]', 'map.pois[].left', 'map.pois[].nights', 'map.pois[].poi',
+		'map.clearedPois', 'map.clearedPois[]', 'map.stops', 'map.stops[]', 'map.stops[].cleared', 'map.stops[].roll', 'map.stops[].stop',
 		'mapAttempts', 'mapAttempts.map', 'mapAttempts.stages', 'mapAttempts.stages.<stage>',
 		'mapParams', 'mapParams.<map parameter>', 'nextDriverNumber', 'nextRunNumber', 'resources', 'resources.food', 'resources.fuel', 'resources.meds', 'resources.people',
 		'resources.scrap', 'resources.water', 'runDecks', 'runDecks[]', 'runDecks[].borrowed', 'runDecks[].borrowed.<card type>', 'runDecks[].driver',
@@ -904,7 +904,7 @@ describe('Campaign', () => {
 				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
 			};
 
-			expect(CAMPAIGN_SCHEMA_VERSION).toBe(11);
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(12);
 			try {
 				expect(format).toEqual(SAVE_FORMAT);
 			} catch (error) {

@@ -5,7 +5,7 @@ import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES, UpkeepResource, readCo
 import { DriverRecord } from './DriverRecord';
 import { healingChanges } from './Infirmary';
 import { MapState, readMapState } from './MapState';
-import { refillPois } from './PoiStock';
+import { stopCooldowns } from './MapClearing';
 
 /** An amount of each resource the compound eats. */
 export type Upkeep = Readonly<Record<UpkeepResource, number>>;
@@ -20,19 +20,16 @@ export type DuskState = Readonly<Omit<CampaignData, 'map'>>;
  */
 export type MapDayStep = (context: { readonly campaign: DuskState; readonly map: MapState }) => MapState;
 
-/** The area map's part in the end of a day, in the order the steps run. */
+/** The area map's part in the end of a day. A cleared POI never comes back, so stops are all it has. */
 export interface DayEndHooks {
 	/** Cleared stops coming back once their cooldown is up, rerolled (Area Map Generation, What changes after generation). */
 	readonly stopCooldowns: MapDayStep;
-	/** Depleted POIs refilling over the days (Compound and Supply Runs, POIs). */
-	readonly poiRefills: MapDayStep;
 }
 
-const keepMap: MapDayStep = ({ map }) => map;
-const refill: MapDayStep = ({ map }) => refillPois(map);
+const cooldowns: MapDayStep = ({ campaign, map }) => stopCooldowns({ map, day: campaign.day });
 
-/** Overnight, POIs refill (`refillPois`); stops have no cooldowns until the map keeps their state. */
-export const DAY_END_HOOKS: DayEndHooks = Object.freeze({ stopCooldowns: keepMap, poiRefills: refill });
+/** Overnight, cleared stops whose cooldown is up come back (`stopCooldowns`). */
+export const DAY_END_HOOKS: DayEndHooks = Object.freeze({ stopCooldowns: cooldowns });
 
 /** What happened overnight, for the debrief, the compound screen, and whatever ends the campaign. */
 export interface DayEnd {
@@ -94,7 +91,7 @@ export interface DayEndOptions {
  * 2. Shortfalls: whatever the stores couldn't cover costs people and raises unrest.
  * 3. Healing: each injured driver is a day closer to fit, and one who gets
  *    there is ready again at full HP, as meds would leave them (Infirmary).
- * 4. Stop cooldowns, then POI refills, on the map (`hooks`).
+ * 4. Stop cooldowns on the map (`hooks`).
  * 5. The day turns, and a shortfall goes in the log, dated the day it happened.
  * 6. A night that leaves no People, with no run out, loses the campaign
  *    (`end`, cause `no_people`): the compound falls as `fallOf` reads its
@@ -133,8 +130,7 @@ export function endDay({ campaign, rules = COMPOUND_RULES, hooks = DAY_END_HOOKS
 	const healing = dusk.drivers
 		.filter(driver => driver.status === 'injured')
 		.map(driver => ({ driver, changes: healingChanges({ driver, days: 1 }) }));
-	const afterCooldowns = readMapState(hooks.stopCooldowns({ campaign: dusk, map: duskMap }), 'DayEndHooks.stopCooldowns');
-	const map = readMapState(hooks.poiRefills({ campaign: dusk, map: afterCooldowns }), 'DayEndHooks.poiRefills');
+	const map = readMapState(hooks.stopCooldowns({ campaign: dusk, map: duskMap }), 'DayEndHooks.stopCooldowns');
 	const stores: Resources = { ...resources, people };
 	for (const resource of UPKEEP_RESOURCES) stores[resource] = Math.max(0, resources[resource] - upkeep[resource]);
 	// Fallen with the haul in and the night eaten

@@ -5,6 +5,7 @@ import { Campaign, MAX_DAY, Resources } from './Campaign';
 import { CAMPAIGN_START } from './CampaignStart';
 import { COMPOUND_RULES, CompoundRules, UPKEEP_RESOURCES } from './CompoundRules';
 import { DAY_END_HOOKS, DayEnd, DayEndHooks, DayHaul, DuskState, MapDayStep, NeedsForecast, endDay, forecastNeeds } from './DayClock';
+import { STOP_COOLDOWN_DAYS } from './MapClearing';
 import { DriverRecord, DriverStatus } from './DriverRecord';
 import { foundTestCampaign } from './__fixtures__/mapFixtures';
 import { MapState } from './MapState';
@@ -380,7 +381,7 @@ describe('endDay', () => {
 		it('is in the state at dusk the map\'s steps see', () => {
 			const campaign = newCampaign({ fuel: 0 });
 			const seen: number[] = [];
-			const hooks: DayEndHooks = { ...DAY_END_HOOKS, poiRefills: ({ campaign: atDusk, map }) => { seen.push(atDusk.resources.fuel); return map; } };
+			const hooks: DayEndHooks = { ...DAY_END_HOOKS, stopCooldowns: ({ campaign: atDusk, map }) => { seen.push(atDusk.resources.fuel); return map; } };
 
 			endDay({ campaign, hooks, haul: haul({ fuel: 2 }) });
 
@@ -425,10 +426,10 @@ describe('endDay', () => {
 		});
 	});
 
-	describe('stop cooldowns and POI refills', () => {
-		it('runs stop cooldowns, then POI refills, each once, on the campaign\'s state at dusk and the map so far, and keeps the map the last returns', () => {
+	describe('stop cooldowns', () => {
+		it('runs stop cooldowns once, on the campaign\'s state at dusk and the map at dusk, and keeps the map it returns', () => {
 			const campaign = newCampaign();
-			campaign.set({ map: { stops: { 's-1': { clearedOn: 1 } }, fog: {} } });
+			campaign.set({ map: { stops: [{ stop: 1, roll: 0, cleared: 1 }], fog: {} } });
 			const driver = campaign.recruitDriver({ archetype: 'mechanic' });
 			injure(driver, 1);
 			const calls: { step: string; map: MapState; day: number; food: number; status: DriverStatus }[] = [];
@@ -438,34 +439,41 @@ describe('endDay', () => {
 				states.push(atDusk);
 				return next;
 			};
-			const cooled = { stops: { 's-1': { clearedOn: 1, rolls: 1 } }, fog: {} };
-			const refilled = { stops: { 's-1': { clearedOn: 1, rolls: 1 } }, fog: { 'p-1': { stock: 3 } } };
-			const hooks: DayEndHooks = { stopCooldowns: step('stopCooldowns', cooled), poiRefills: step('poiRefills', refilled) };
+			const cooled = { stops: [{ stop: 1, roll: 1, cleared: null }], fog: {} };
+			const hooks: DayEndHooks = { stopCooldowns: step('stopCooldowns', cooled) };
 			const mapAtDusk = campaign.map;
 
 			endDay({ campaign, hooks });
 
-			expect(calls).toEqual([
-				{ step: 'stopCooldowns', map: mapAtDusk, day: 1, food: 21, status: 'injured' },
-				{ step: 'poiRefills', map: cooled, day: 1, food: 21, status: 'injured' }
-			]);
-			expect(campaign.map).toEqual(refilled);
+			expect(calls).toEqual([{ step: 'stopCooldowns', map: mapAtDusk, day: 1, food: 21, status: 'injured' }]);
+			expect(campaign.map).toEqual(cooled);
 			expect(Object.isFrozen(campaign.map)).toBe(true);
 			// A frozen snapshot, not the live campaign: a step can't set anything through it, or read the map anywhere but `map`.
-			expect(states[0]).toBe(states[1]);
 			expect(states[0]).not.toBeInstanceOf(Campaign);
 			expect(Object.isFrozen(states[0])).toBe(true);
 			expect('map' in states[0]).toBe(false);
 		});
 
-		it('keeps the map as it is with the shipped hooks', () => {
+		it('keeps the map as it is with the shipped hooks while nothing\'s cooldown is up', () => {
 			const campaign = newCampaign();
-			campaign.set({ map: { fog: [1, 2, 3] } });
+			campaign.set({ map: { fog: [1, 2, 3], stops: [{ stop: 4, roll: 0, cleared: 1 }] } });
 			const map = campaign.map;
 
 			endDay({ campaign, hooks: DAY_END_HOOKS });
 
 			expect(campaign.map).toBe(map);
+		});
+
+		it('brings a cleared stop back, rerolled, at the dawn its cooldown is up, with the shipped hooks (DDB-336)', () => {
+			const campaign = newCampaign({ food: 200, water: 200 });
+			campaign.set({ map: { stops: [{ stop: 4, roll: 0, cleared: 1 }, { stop: 7, roll: 2, cleared: 2 }] } });
+
+			for (let night = 1; night < STOP_COOLDOWN_DAYS; night += 1) endDay({ campaign });
+			expect(campaign.map).toEqual({ stops: [{ stop: 4, roll: 0, cleared: 1 }, { stop: 7, roll: 2, cleared: 2 }] });
+			endDay({ campaign });
+			expect([campaign.day, campaign.map]).toEqual([1 + STOP_COOLDOWN_DAYS, { stops: [{ stop: 4, roll: 1, cleared: null }, { stop: 7, roll: 2, cleared: 2 }] }]);
+			endDay({ campaign });
+			expect(campaign.map).toEqual({ stops: [{ stop: 4, roll: 1, cleared: null }, { stop: 7, roll: 3, cleared: null }] });
 		});
 
 		it('changes nothing when a hook throws', () => {
@@ -477,10 +485,10 @@ describe('endDay', () => {
 			campaign.drivers.forEach(driver => driver.on('change', () => changes.push(driver.id)));
 			const hooks: DayEndHooks = {
 				...DAY_END_HOOKS,
-				poiRefills: () => { throw new Error('no POI table'); }
+				stopCooldowns: () => { throw new Error('no stop table'); }
 			};
 
-			expect(() => endDay({ campaign, hooks })).toThrow('no POI table');
+			expect(() => endDay({ campaign, hooks })).toThrow('no stop table');
 			expect(savedText(campaign)).toBe(before);
 			expect(changes).toEqual([]);
 		});
@@ -488,9 +496,11 @@ describe('endDay', () => {
 		it('refuses a map a save couldn\'t hold, naming the hook, and changes nothing', () => {
 			const campaign = newCampaign();
 			const before = savedText(campaign);
-			const hooks: DayEndHooks = { ...DAY_END_HOOKS, stopCooldowns: () => ({ stops: { 's-1': { clearedOn: NaN } } }) };
+			const hooks: DayEndHooks = { ...DAY_END_HOOKS, stopCooldowns: () => ({ fog: { 's-1': NaN } }) };
 
-			expect(() => endDay({ campaign, hooks })).toThrow('DayEndHooks.stopCooldowns.stops.s-1.clearedOn must be a finite number, got NaN');
+			expect(() => endDay({ campaign, hooks })).toThrow('DayEndHooks.stopCooldowns.fog.s-1 must be a finite number, got NaN');
+			const unsorted: DayEndHooks = { ...DAY_END_HOOKS, stopCooldowns: () => ({ stops: [{ stop: 3, roll: 1, cleared: null }, { stop: 1, roll: 1, cleared: null }] }) };
+			expect(() => endDay({ campaign, hooks: unsorted })).toThrow('DayEndHooks.stopCooldowns.stops[1].stop must come after the entry above it (3), got 1');
 			expect(savedText(campaign)).toBe(before);
 		});
 	});

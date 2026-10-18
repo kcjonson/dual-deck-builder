@@ -76,16 +76,15 @@ function stressMap(rng: Rng): JsonObject {
 		stock: { food: rng.int(0, 9), scrap: rng.int(0, 9) },
 		depleted: rng.float() < 0.2
 	}));
-	const stops = Array.from({ length: STOPS }, (_, index) => ({
+	const stopSites = Array.from({ length: STOPS }, (_, index) => ({
 		id: `stop-${index}`,
 		road: `road-${rng.int(0, ROADS - 1)}`,
 		at: Math.round(rng.float() * 1000) / 1000,
-		type: rng.pick(['raider_ambush', 'checkpoint', 'hazard', 'find', 'event']),
-		clearedDay: rng.float() < 0.5 ? rng.int(1, 400) : null,
-		rolls: rng.int(0, 9)
+		type: rng.pick(['raider_ambush', 'checkpoint', 'hazard', 'find', 'event'])
 	}));
 	const fog = Array.from({ length: 128 }, () => rng.next());
-	// Its POI stock in the save's own format (PoiStock.ts): every third POI taken from.
-	const stock = Array.from({ length: Math.ceil(POIS / 3) }, (_, index) => ({ poi: index * 3, left: rng.int(0, 2), nights: rng.int(0, 6) }));
-	return { roads, sites: pois, stops, fog, pois: stock };
+	// What runs have cleared, in the save's own format (MapClearing.ts): every stop with a state, the most there can be, and every third POI.
+	const stops = Array.from({ length: STOPS }, (_, stop) => ({ stop, roll: rng.int(1, 9), cleared: rng.float() < 0.5 ? rng.int(1, 400) : null }));
+	const clearedPois = Array.from({ length: Math.ceil(POIS / 3) }, (_, index) => index * 3);
+	return { roads, sites: pois, stopSites, fog, stops, clearedPois };
 }

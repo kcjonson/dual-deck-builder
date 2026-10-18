@@ -180,7 +180,7 @@ Record: places.md.
 
 ## POI depletion (102 to 108)
 
-Record: poi-depletion.md.
+Record: poi-depletion.md, since replaced by stop-clearing.md.
 
 102. DDB-483: a POI holds 3 runs' worth, so the third depletes it, because the spec says two or three and the yield already falls by thirds, so the third run is a small one. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
 103. DDB-483: a run's yield is the POI type's scaled by shares left, each resource rounded up (full, two thirds, a third, nothing), because a POI with anything left should give some of everything it yields. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
@@ -350,3 +350,13 @@ Record: find-stops.md.
 213. DDB-523: a Find: cards is the fight reward's picker and pool, three cards at the drop rates, the one picked riding home as cargo, because the spec names that picker and a find's cards shouldn't be safer than a fight's.
 214. DDB-523: a Find: supplies haul is the stop's rolled contents, one resource in the stop tuning's range, meds included, because the cargo and the stores carry meds though POI yields don't.
 220. DDB-523: a calm stop type the run can't resolve yet (wreck, distress, garage, hazard, Find: settlers, Find: vehicle) still runs as a quiet stretch, rather than the stops stage giving it weight 0 as Runs and Encounters asks, because zeroing it is a stops-stage change that reshapes every map's stops, and finds are what this batch could resolve; the stops stage drops the quiet stretch once it zeroes those weights.
+
+## Clearing (215 to 219)
+
+Record: stop-clearing.md. Calls 186 to 188 are the clearing rule itself.
+
+215. DDB-336: a run clears a stop when it moves past it, a find left by the road and a won fight included, on the day of the run, and a fight it loses isn't cleared, because the spec's "every stop it resolves" covers a choice declined, and a lost fight's raiders are still there.
+216. DDB-336: a cleared stop is back at the dawn five days after the day it was cleared (cleared on day 3, back on day 8), its roll up one, because the cooldown is the spec's 5 days counted the way the day clock counts nights.
+217. DDB-336: a route with stops cleared keeps the map's fuel and hours, which then overestimate a little, and takes its risk from the fights it still meets, because the run keeps no clock on the road yet and the daylight estimate should err safe.
+218. DDB-336: a cleared POI draws with the map's depleted marker and a dimmed row, its details say cleared, and its Plan is off with the reason; the debrief stamps the POI the run cleared LOOTED, after an injured driver's tear, because every run that gets there clears its POI now, and the struck-through marker already means nothing left.
+219. DDB-336: version 11 saves load with every POI that had stock taken cleared, and no stop cleared, because a POI with stock taken is one a run reached, and nothing kept stop state.

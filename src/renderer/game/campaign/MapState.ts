@@ -1,12 +1,12 @@
 import type { JsonObject } from '../core/Json';
 import { ReaderRangeError, freezeJson, readFields, readInteger, readObject, readValueAt } from '../core/JsonReader';
-import { readPoiStocks } from './PoiStock';
+import { readClearedPois, readStopStates } from './MapClearing';
 
 /**
  * What's changed on the area map since it was made (Area Map Generation,
- * What changes after generation, and Saving): stop state, POI stock, fog.
- * Frozen JSON all the way down; the POI stock is its `pois` (PoiStock.ts),
- * and the rest stays opaque until stop state and fog exist. The map itself
+ * What changes after generation, and Saving): stop state, cleared POIs, fog.
+ * Frozen JSON all the way down; what runs have cleared is its `stops` and
+ * `clearedPois` (MapClearing.ts), and the rest stays opaque until fog exists. The map itself
  * isn't saved yet: a load makes it again from the seed, the params, and the
  * campaign's `MapAttempts`, until saves keep its lines (DDB-436).
  */
@@ -58,9 +58,10 @@ export function readMapAttempts(value: unknown, path: string): Readonly<MapAttem
 	return attempts;
 }
 
-/** The map state as a frozen copy: any JSON object, whose `pois`, when it has them, are the POI stock (`readPoiStocks`). */
+/** The map state as a frozen copy: any JSON object, whose `stops` and `clearedPois`, when it has them, are what runs have cleared (MapClearing.ts). */
 export function readMapState(value: unknown, path: string): MapState {
 	const map = readObject(freezeJson(value, path), path) as MapState;
-	if (map.pois !== undefined) readPoiStocks(map.pois, `${path}.pois`);
+	if (map.stops !== undefined) readStopStates(map.stops, `${path}.stops`);
+	if (map.clearedPois !== undefined) readClearedPois(map.clearedPois, `${path}.clearedPois`);
 	return map;
 }

@@ -12,9 +12,10 @@ import { CAMPAIGN_SCHEMA_VERSION } from './Campaign';
  * Versions upgraded on load, oldest first. Version 8 has no POI stock: every
  * POI is full. Version 9 has no buildings: only the bunkhouse, which every
  * campaign was founded with, stands. Version 10's run out has no recruits:
- * nothing found anyone new before Find: driver stops.
+ * nothing found anyone new before Find: driver stops. Version 11 has POI
+ * stock where clearing is now: a POI a run took from is cleared.
  */
-export const UPGRADABLE_SCHEMA_VERSIONS: readonly number[] = Object.freeze([8, 9, 10]);
+export const UPGRADABLE_SCHEMA_VERSIONS: readonly number[] = Object.freeze([8, 9, 10, 11]);
 
 /**
  * A campaign as a save of `version` held it, in the current format. Each
@@ -52,9 +53,25 @@ function fromVersion10(campaign: unknown): unknown {
 	return { ...campaign, supplyRun: { recruits: [], ...campaign.supplyRun } };
 }
 
+/**
+ * Version 11 to 12: a POI with stock taken (an entry in the map state's
+ * `pois`) had a run reach it, which clears it now, so its index goes into
+ * `clearedPois` and the stock goes. No stop was cleared, since nothing kept
+ * stop state. A stock entry with no whole POI index is dropped for the
+ * campaign reader to pass, as it never read one.
+ */
+function fromVersion11(campaign: unknown): unknown {
+	if (!isObject(campaign) || !isObject(campaign.map)) return campaign;
+	const { pois, ...map } = campaign.map;
+	const cleared = Array.isArray(pois)
+		? [...new Set(pois.flatMap(entry => (isObject(entry) && Number.isInteger(entry.poi) && (entry.poi as number) >= 0 ? [entry.poi as number] : [])))].sort((a, b) => a - b)
+		: [];
+	return { ...campaign, map: cleared.length === 0 ? map : { ...map, clearedPois: cleared } };
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** Each version's step to the next, by the version it upgrades from. Every version from the oldest listed up to the current one needs one. */
-export const UPGRADE_STEPS: Readonly<Record<number, (campaign: unknown) => unknown>> = Object.freeze({ 8: fromVersion8, 9: fromVersion9, 10: fromVersion10 });
+export const UPGRADE_STEPS: Readonly<Record<number, (campaign: unknown) => unknown>> = Object.freeze({ 8: fromVersion8, 9: fromVersion9, 10: fromVersion10, 11: fromVersion11 });
