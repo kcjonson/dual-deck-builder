@@ -41,6 +41,7 @@ const STATUS_LOOKS: Readonly<Record<string, StatusLook>> = {
 	nitro_boost: { icon: 'keyboard_double_arrow_right', tone: 'buff', title: 'Nitro', detail: 'Speed is raised.' },
 	burn: { icon: 'local_fire_department', tone: 'debuff', title: 'Burning', detail: 'Takes damage each turn.' },
 	stunned: { icon: 'flash_on', tone: 'debuff', title: 'Stunned', detail: 'Skips its next action.' },
+	steady: { icon: 'check', tone: 'buff', title: 'Steady', detail: "Shook off a stun: can't be stunned this turn." },
 	death_mark: { icon: 'my_location', tone: 'debuff', title: 'Marked', detail: 'Marked for a heavy hit.' },
 	damage_bonus: { icon: 'gps_fixed', tone: 'buff', title: 'Damage up', detail: 'The next attack hits harder.' },
 	triple_damage: { icon: 'gps_fixed', tone: 'buff', title: 'Triple damage', detail: 'The next attack deals triple damage.' },

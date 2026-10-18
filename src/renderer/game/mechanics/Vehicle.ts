@@ -69,6 +69,9 @@ export interface VehicleData {
 	mods?: VehicleMod[];
 }
 
+/** A raider that shook off a stun this turn and can't be stunned again yet (Vehicle.isSteady). */
+export const STEADY = 'steady';
+
 /**
  * Speed a status adds or takes away. Oil Slick and Caltrops carry their own
  * values; these defaults cover statuses applied without one.
@@ -414,6 +417,15 @@ export class Vehicle extends Model<VehicleData> {
 	 */
 	public get isStunned(): boolean {
 		return this.hasStatusEffect('stunned');
+	}
+
+	/**
+	 * Steady (shake-off): a raider whose stun just wore off can't be stunned
+	 * again until the next player turn starts (Combat Rules, Raider formation
+	 * and stuns).
+	 */
+	public get isSteady(): boolean {
+		return this.hasStatusEffect(STEADY);
 	}
 
 	/**

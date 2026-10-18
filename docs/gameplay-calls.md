@@ -372,3 +372,10 @@ Record: intent-aware-stand-in.md. Numbered from 240, the range set aside for thi
 242. DDB-528: non-lethal damage counts for half a turn of the hurt raider's harm, times the share of its toughness it removes, because weighted higher it outbid Flanking Maneuver, and one step can't see that the flank boosts the rest of the turn's hits.
 243. DDB-528: what the harm count doesn't cover (flanking, draws, adrenaline, cards with no effect) is scored as the aggressive AI scores it, so the ceiling keeps the floor's priorities whenever no intent is at stake.
 244. DDB-528: a flanker the play outpaces is taken to lose its flank bonus whole (its hits divided by 1.5, rounded up) and to stay in range, because re-deriving range from the reserved slot needs Battle's enemy-turn preview, which projects only from the board as it stands.
+
+## Combat run pacing (190 to 209)
+
+Made building the combat side of [Runs and Encounters](./specs/Runs%20and%20Encounters.md) (epic DDB-519). Record: raider-waves-and-fight-ends.md.
+
+190. DDB-522: "across from" a driven vehicle, for close-up, is the enemy inside slot in its row, whatever lane it's in, and when one raider is nearest to two such slots Driver 1's row is filled first, because the row is what range reads and seat order is how every other tie on the player's side goes.
+191. DDB-522: Steady shows as a green check chip, because the icon atlas has no better glyph and adding one means rebuilding the font; the chip's title and detail say what it is.

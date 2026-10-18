@@ -1,14 +1,16 @@
 import { Team, TeamType } from './Team';
 import { Driver, DrawResult } from './Driver';
-import { Vehicle } from './Vehicle';
+import { STEADY, Vehicle } from './Vehicle';
 import {
 	RoadSlot,
 	SHOULDER_CAPACITY,
 	describeLane,
 	describeSlot,
 	flankLane,
+	formationLanes,
 	isFormationLane,
 	isShoulder,
+	nearestTo,
 	openingSlots,
 	resolveFormationSlot,
 	sameSlot,
@@ -1173,6 +1175,7 @@ export class Battle extends Model<BattleData> {
 
 		this.dropBackFlankers();
 		this.clearWrecks();
+		this.closeUpFormation();
 
 		// Draw Fire lasts until the end of the next enemy turn, which is this one
 		Battle.drawFireCovers.delete(this);
@@ -1334,9 +1337,11 @@ export class Battle extends Model<BattleData> {
 		}
 
 		// Process status effects for all vehicles
+		const stunned = this.enemyTeam.vehicles.filter(raider => raider.isStunned);
 		this.playerTeam.processStatusEffects();
 		this.enemyTeam.processStatusEffects();
-		
+		this.shakeOffStuns(stunned);
+
 		// Discard remaining cards before drawing new ones
 		this.playerTeam.discardAllHands();
 		this.enemyTeam.discardAllHands();
@@ -1724,6 +1729,10 @@ export class Battle extends Model<BattleData> {
 		if (effect.condition === 'target_flanking' && !recipient.isFlanking) {
 			return false;
 		}
+		if (effect.status === 'stunned' && recipient.isSteady) {
+			this.log('general', `${recipient.name} is steady and shakes off ${card.displayName}`, { card: card.displayName, target: recipient.name });
+			return false;
+		}
 		if (rollsToHit({ effect, card }) && !this.checkHit({ attacker: casterVehicle, caster, defender: recipient })) {
 			this.log('miss',
 				`${card.displayName} misses ${recipient.name}`,
@@ -2036,6 +2045,48 @@ export class Battle extends Model<BattleData> {
 				const reason = vehicle.isAlive() ? 'has nobody aboard' : 'is wrecked';
 				this.log('general', `${vehicle.name} ${reason} and leaves the road`, { vehicle: vehicle.name });
 			}
+		}
+	}
+
+	/**
+	 * Close-up (Combat Rules, Raider formation and stuns): each empty enemy
+	 * inside-lane slot across from one of the player's driven vehicles is
+	 * filled by the nearest raider in formation that isn't across from one
+	 * already, ties broken as for attack orders, Driver 1's row first. A
+	 * flanker or an ambusher never moves, and a reserved slot is never taken.
+	 * Runs at the end of every enemy turn, after wrecks clear, so raiders plan
+	 * from where they'll fight.
+	 */
+	private closeUpFormation(): void {
+		const insideLane = formationLanes(TeamType.ENEMY)[0];
+		const rows = this.playerTeam.vehicles
+			.flatMap(vehicle => !vehicle.isEscort && !vehicle.isOutOfFight && vehicle.slot ? [vehicle.slot.row] : []);
+		const targets: RoadSlot[] = [...new Set(rows)].map(row => ({ lane: insideLane, row }));
+		const isTarget = (slot: RoadSlot | null): boolean => targets.some(target => sameSlot(target, slot));
+
+		for (const target of targets) {
+			const held = this.getAllVehicles().some(vehicle => sameSlot(vehicle.slot, target) || sameSlot(vehicle.flank?.reservedSlot ?? null, target));
+			if (held) continue;
+			const raider = nearestTo({
+				to: target,
+				candidates: this.enemyTeam.vehicles.filter(vehicle => !vehicle.isOutOfFight && !vehicle.flank && !isTarget(vehicle.slot)),
+				slotOf: vehicle => vehicle.slot
+			});
+			if (!raider) continue;
+			raider.set({ slot: target });
+			this.log('general', `${raider.name} closes up to ${describeSlot(target)}`, { vehicle: raider.name });
+		}
+	}
+
+	/**
+	 * Shake-off: a raider can't be stunned two enemy turns running. Each
+	 * raider whose stun just wore off is Steady through the player's turn
+	 * that follows, so an EMP Blast played then passes it by.
+	 */
+	private shakeOffStuns(wereStunned: readonly Vehicle[]): void {
+		for (const raider of wereStunned) {
+			if (raider.isStunned || raider.isOutOfFight) continue;
+			raider.applyStatusEffect({ name: STEADY, duration: 1, value: 0, description: "Shook off a stun: can't be stunned this turn." });
 		}
 	}
 
