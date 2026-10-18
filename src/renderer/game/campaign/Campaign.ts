@@ -30,7 +30,7 @@ import { SupplyRun, SupplyRunJson, readSupplyRun, readSupplyRunJson, readSupplyR
  * loaded, so a bump invalidates every existing save of that build, unless
  * its version is one `UPGRADABLE_SCHEMA_VERSIONS` (SaveUpgrades.ts) lists.
  */
-export const CAMPAIGN_SCHEMA_VERSION = 10;
+export const CAMPAIGN_SCHEMA_VERSION = 11;
 
 /** Structure a missing driver's vehicle comes home with once they're found. A tuning value. */
 export const RETURN_STRUCTURE = 1;

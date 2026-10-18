@@ -6,7 +6,7 @@ import { Card, CardData } from '../mechanics/Card';
 import type { DriverArchetype } from '../mechanics/Driver';
 import { createEscort } from '../mechanics/Escort';
 import { RAIDER_PROFILES } from '../mechanics/Raiders';
-import { Campaign, CampaignJson, Resources } from './Campaign';
+import { Campaign, CampaignJson, NO_RESOURCES, Resources } from './Campaign';
 import { CampaignOverError } from './CampaignEnd';
 import { CAMPAIGN_START } from './CampaignStart';
 import { CampaignStore } from './CampaignStore';
@@ -19,11 +19,11 @@ import { endDay } from './DayClock';
 import { destinationId, poiOf, routeOffers } from './MapRoutes';
 import { POI_REFILL_DAYS, POI_SHARES, sharesLeft, takeShare } from './PoiStock';
 import { MemorySaveStorage } from './SaveStorage';
-import { RunRoute, readRunRoute, routeStops } from './SupplyRoutes';
+import { FindStop, RunRoute, readRunRoute, routeStops } from './SupplyRoutes';
 import type { SupplyRun } from './SupplyRunState';
 import {
-	DepartRuleError, arriveHome, atDestination, currentStop, departRun, finishStopFight, getDepartBlocker, getPlanBlocker, passQuietStop, quickLoadOut,
-	cargoText, rewardOffer, routesOnOffer, runParty, startStopFight, takeReward, yieldResources
+	DepartRuleError, arriveHome, atDestination, currentStop, departRun, finishStopFight, foundDriver, getDepartBlocker, getPlanBlocker, leaveFind, passQuietStop,
+	quickLoadOut, cargoText, rewardOffer, routesOnOffer, runParty, startStopFight, takeFind, takeReward, yieldResources
 } from './SupplyRun';
 import { fightOut, pushovers, snipers } from './__fixtures__/runFixtures';
 import { CAMPAIGN_FIXTURE } from './__fixtures__/storeFixtures';
@@ -134,7 +134,7 @@ describe('the routes on offer (DDB-479)', () => {
 	it.each([
 		['no legs', (route: Record<string, unknown>) => { route.legs = []; }, 'route.legs is empty; a route has a leg at least'],
 		['a stop of no kind it knows', (route: Record<string, unknown>) => { (route.legs as { stops: unknown[] }[])[1].stops = [{ id: 's', kind: 'garage', at: 0.5 }]; },
-			'route.legs[1].stops[0].kind must be one of fight, quiet, got "garage"'],
+			'route.legs[1].stops[0].kind must be one of fight, quiet, find, got "garage"'],
 		['a fight past three skulls', (route: Record<string, unknown>) => { (route.legs as { stops: unknown[] }[])[1].stops = [{ id: 's', kind: 'fight', at: 0.5, skulls: 4 }]; },
 			'route.legs[1].stops[0].skulls must be an integer from 1 to 3, got 4'],
 		['stops out of driving order', (route: Record<string, unknown>) => {
@@ -351,7 +351,7 @@ describe('departing', () => {
 		const run = departRun({ campaign, map: MAP, route, escorts });
 
 		expect(campaign.resources.fuel).toBe(20 - route.fuel);
-		expect(run).toEqual({ route, stop: 0, phase: 'driving', escorts: [hauler], cargo: { food: 0, water: 0, fuel: 0, meds: 0, scrap: 0, people: 0 }, cargoCards: {} });
+		expect(run).toEqual({ route, stop: 0, phase: 'driving', escorts: [hauler], cargo: { food: 0, water: 0, fuel: 0, meds: 0, scrap: 0, people: 0 }, cargoCards: {}, recruits: [] });
 		expect(campaign.supplyRun).toBe(run);
 		expect(runParty({ campaign })).toEqual({ seats, escorts: [hauler], cargo: run.cargo, cargoCards: {}, run: 'run-1' });
 	});
@@ -731,6 +731,113 @@ describe('a failed run', () => {
 	});
 });
 
+describe('finds (DDB-523)', () => {
+	const SUPPLIES: FindStop = { id: 'stop-a', kind: 'find', at: 0.2, find: 'supplies', supplies: { resource: 'water', amount: 6 } };
+	const CARDS_FOUND: FindStop = { id: 'stop-b', kind: 'find', at: 0.4, find: 'cards' };
+	const DRIVER: FindStop = { id: 'stop-c', kind: 'find', at: 0.6, find: 'driver' };
+
+	/** The compound's run on the road, loaded out, its route the test route's first leg holding only `finds`. */
+	function onFinds(campaign: Campaign, finds: readonly FindStop[]): void {
+		quickLoadOut({ campaign });
+		const base = testRoute();
+		const route: RunRoute = { ...base, legs: [{ ...base.legs[0], stops: finds }] };
+		campaign.set({ supplyRun: { route, stop: 0, phase: 'driving', escorts: [], cargo: NO_RESOURCES, cargoCards: {}, recruits: [] } });
+	}
+
+	it('names every map find the run resolves, and leaves the other calm types quiet', () => {
+		const kinds = new Set(routeOffers(MAP).flatMap(route => routeStops(route).map(stop => (stop.kind === 'find' ? stop.find : stop.kind))));
+		expect(kinds).toEqual(new Set(['fight', 'quiet', 'cards', 'supplies', 'driver']));
+	});
+
+	it('loads a Find: supplies haul into the cargo when taken, and drives on', async () => {
+		const store = newStore();
+		let campaign = newCampaign();
+		onFinds(campaign, [SUPPLIES, CARDS_FOUND]);
+		takeFind({ campaign });
+		expect(onRoad(campaign)).toMatchObject({ stop: 1, phase: 'driving', cargo: { ...NO_RESOURCES, water: 6 } });
+		campaign = await reload(store, campaign);
+		expect(onRoad(campaign).cargo.water).toBe(6);
+	});
+
+	it('leaves a find by the road, taking nothing, when the run drives on', () => {
+		const campaign = newCampaign();
+		onFinds(campaign, [SUPPLIES, DRIVER]);
+		leaveFind({ campaign });
+		leaveFind({ campaign });
+		// Only the POI's yield, loaded at the destination
+		expect(onRoad(campaign)).toMatchObject({ stop: 2, phase: 'driving', cargo: yieldResources(onRoad(campaign).route.destination.yield), recruits: [] });
+		expect(atDestination(onRoad(campaign))).toBe(true);
+	});
+
+	it('opens the reward picker for a Find: cards, the same cards after a load, and drives on once one is picked or they\'re left', async () => {
+		const store = newStore();
+		let campaign = newCampaign();
+		onFinds(campaign, [CARDS_FOUND, CARDS_FOUND]);
+		takeFind({ campaign });
+		expect(onRoad(campaign)).toMatchObject({ stop: 0, phase: 'reward' });
+		const offer = rewardOffer({ campaign });
+		expect(offer).toHaveLength(REWARD_CHOICES);
+		campaign = await reload(store, campaign);
+		expect(rewardOffer({ campaign })).toEqual(offer);
+		takeReward({ campaign, cardType: offer[1] });
+		expect(onRoad(campaign)).toMatchObject({ stop: 1, phase: 'driving', cargoCards: { [offer[1]]: 1 } });
+		takeFind({ campaign });
+		takeReward({ campaign, cardType: null });
+		expect(onRoad(campaign)).toMatchObject({ stop: 2, cargoCards: { [offer[1]]: 1 } });
+	});
+
+	it('turns up someone new when nobody is missing, and they join the pool when the run gets home', async () => {
+		const store = newStore();
+		let campaign = newCampaign(['road_warrior', 'mechanic']);
+		onFinds(campaign, [DRIVER]);
+		const found = foundDriver({ campaign });
+		expect(found.kind).toBe('recruit');
+		// An unlocked archetype the pool doesn't have yet
+		const archetype = (found as { archetype: DriverArchetype }).archetype;
+		expect(['road_warrior', 'mechanic']).not.toContain(archetype);
+		campaign = await reload(store, campaign);
+		expect(foundDriver({ campaign })).toEqual(found);
+		takeFind({ campaign });
+		expect(onRoad(campaign).recruits).toEqual([archetype]);
+		campaign = await reload(store, campaign);
+		const pool = campaign.drivers.length;
+
+		const arrival = arriveHome({ campaign });
+		expect(arrival.recruits.map(driver => driver.archetype)).toEqual([archetype]);
+		expect(campaign.drivers).toHaveLength(pool + 1);
+		expect(campaign.drivers[pool]).toBe(arrival.recruits[0]);
+		expect(campaign.drivers[pool].status).toBe('ready');
+		expect(campaign.log.map(entry => entry.message)).toContain(`${arrival.recruits[0].name} joined the compound, found on the road.`);
+	});
+
+	it('turns up the first missing driver, who rides home with the run and is back in the pool there', () => {
+		const campaign = newCampaign();
+		const missing = campaign.drivers[2];
+		missing.set({ status: 'missing' });
+		onFinds(campaign, [DRIVER, DRIVER]);
+		expect(foundDriver({ campaign })).toEqual({ kind: 'missing', driver: missing });
+		takeFind({ campaign });
+		expect(campaign.foundOnRun).toEqual([missing]);
+		// Nobody else is missing, so the next one is someone new
+		expect(foundDriver({ campaign }).kind).toBe('recruit');
+		leaveFind({ campaign });
+		const arrival = arriveHome({ campaign });
+		expect(arrival.cargo.found).toEqual([missing]);
+		expect(arrival.recruits).toEqual([]);
+		expect(missing.status).toBe('ready');
+	});
+
+	it('refuses a find step anywhere but at its find', () => {
+		const campaign = newCampaign();
+		onFinds(campaign, [SUPPLIES]);
+		expect(() => passQuietStop({ campaign })).toThrow("The run isn't driving to a quiet stop");
+		expect(() => foundDriver({ campaign })).toThrow('The run is driving to a Find: supplies, not a Find: driver');
+		takeFind({ campaign });
+		expect(() => takeFind({ campaign })).toThrow("The run isn't driving to a find stop");
+		expect(() => leaveFind({ campaign })).toThrow("The run isn't driving to a find stop");
+	});
+});
+
 describe('the saved run', () => {
 	/** The fixture, its run on the road, as a save holds it, changed first. */
 	const fixtureWith = (change: (run: NonNullable<CampaignJson['supplyRun']>, save: CampaignJson) => void): CampaignJson => {
@@ -751,7 +858,7 @@ describe('the saved run', () => {
 		['a run on the road with no run decks', (_run: NonNullable<CampaignJson['supplyRun']>, save: CampaignJson) => { save.runDecks = []; save.foundOnRun = []; },
 			"Campaign.supplyRun is on the road with no run out; the run's end clears it with the run decks"],
 		['a reward at a quiet stop', (run: NonNullable<CampaignJson['supplyRun']>) => { run.stop = 1; },
-			"Campaign.supplyRun.phase is reward, and stop 1 isn't a fight"],
+			"Campaign.supplyRun.phase is reward, and stop 1 is neither a fight nor a Find: cards"],
 		['a stop past the route', (run: NonNullable<CampaignJson['supplyRun']>) => { run.stop = 4; },
 			"Campaign.supplyRun.stop must be an integer from 0 to the route's 3 stops, got 4"],
 		['an escort the convoy doesn\'t have', (run: NonNullable<CampaignJson['supplyRun']>) => { run.escorts = ['escort-2']; },

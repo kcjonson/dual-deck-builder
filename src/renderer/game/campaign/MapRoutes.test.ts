@@ -3,6 +3,7 @@ import { POI_TUNING } from '../map/PoiData';
 import { ROAD_CLASSES } from '../map/RoadNetwork';
 import { describeMap } from '../map/RouteDescriptors';
 import { isFight } from '../map/StopData';
+import { rollStop } from '../map/Stops';
 import { destinationId, routeId, routeOffers } from './MapRoutes';
 import { RunRoute, readRunRoute } from './SupplyRoutes';
 
@@ -28,7 +29,8 @@ function expectRunRoute(route: RunRoute): void {
 		expect(leg.length).toBeGreaterThanOrEqual(0);
 		expect(leg.hours).toBeGreaterThanOrEqual(0);
 		leg.stops.forEach((stop, index) => {
-			expect(Object.keys(stop).sort()).toEqual(stop.kind === 'fight' ? ['at', 'id', 'kind', 'skulls'] : ['at', 'id', 'kind']);
+			const fields = { fight: ['at', 'id', 'kind', 'skulls'], quiet: ['at', 'id', 'kind'], find: ['at', 'find', 'id', 'kind'] }[stop.kind];
+			expect(Object.keys(stop).sort()).toEqual(stop.kind === 'find' && stop.find === 'supplies' ? [...fields, 'supplies'] : fields);
 			if (stop.kind === 'fight') expect([1, 2, 3]).toContain(stop.skulls);
 			expect(stop.at).toBeGreaterThanOrEqual(0);
 			expect(stop.at).toBeLessThanOrEqual(1);
@@ -57,7 +59,7 @@ describe('routeOffers', () => {
 		}
 	});
 
-	it('carries each route\'s descriptor and every stop it will meet, fights as fights and the rest as quiet stretches', () => {
+	it('carries each route\'s descriptor and every stop it will meet, fights as fights, finds as finds, and the rest as quiet stretches', () => {
 		const map = maps[0];
 		const { stops, pois } = map.products;
 		const described = describeMap(map).flat();
@@ -78,13 +80,18 @@ describe('routeOffers', () => {
 			expect(along.map(({ id }) => id)).toEqual(descriptor.stops.map(({ id }) => `stop-${id}`));
 			along.forEach((stop) => {
 				const real = stops.stops[Number(stop.id.slice('stop-'.length))];
-				expect(stop.kind).toBe(isFight(real.type) ? 'fight' : 'quiet');
+				const find = ({ findCards: 'cards', findSupplies: 'supplies', findDriver: 'driver' } as Partial<Record<string, string>>)[real.type];
+				expect(stop.kind).toBe(isFight(real.type) ? 'fight' : find ? 'find' : 'quiet');
 				if (stop.kind === 'fight') expect(stop.skulls).toBe(real.skulls);
+				if (stop.kind === 'find') expect(stop.find).toBe(find);
+				// A haul is the stop's contents at its first roll.
+				if (stop.kind === 'find' && stop.find === 'supplies') expect(stop.supplies).toEqual(rollStop(map, Number(stop.id.slice('stop-'.length)), 0).supplies);
 			});
 		});
-		// Both kinds turn up.
-		const kinds = new Set(routeOffers(map).flatMap(({ legs }) => legs.flatMap(({ stops: on }) => on.map(({ kind }) => kind))));
-		expect(kinds).toEqual(new Set(['fight', 'quiet']));
+		// Every kind turns up, and every find.
+		const along = routeOffers(map).flatMap(({ legs }) => legs.flatMap(({ stops: on }) => on));
+		expect(new Set(along.map(({ kind }) => kind))).toEqual(new Set(['fight', 'quiet', 'find']));
+		expect(new Set(along.flatMap(stop => (stop.kind === 'find' ? [stop.find] : [])))).toEqual(new Set(['cards', 'supplies', 'driver']));
 	});
 
 	it('gives the same routes however often it\'s asked', () => {
