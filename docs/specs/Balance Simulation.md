@@ -1,6 +1,6 @@
 # Balance Simulation
 
-Status: designed 2026-10-17, not built. The tools that say whether runs and fights hit their targets ([Runs and Encounters](./Runs%20and%20Encounters.md), Just hard enough): one deterministic simulation core, a command line tool over it for sweeps and CI, and a browser Balance Lab for trying a change and seeing what it does. It grows out of `scripts/raider-sim.mjs` ([raider-tuning.md](../AI_TECHNICAL_DECISIONS/raider-tuning.md)) and takes over from the old evalai.html harness.
+Status: designed 2026-10-17, not built. The tools that say whether runs and fights hit their targets ([Runs and Encounters](./Runs%20and%20Encounters.md), Just hard enough): one deterministic simulation core, a command line tool over it for sweeps and CI, and a browser Balance Lab for trying a change and seeing what it does. It grows out of raider-sim, the fight simulator in [raider-tuning.md](../AI_TECHNICAL_DECISIONS/raider-tuning.md), and takes over from the old evalai.html harness.
 
 ## What it answers
 
@@ -16,13 +16,13 @@ The core lives in `src/renderer/game/sim/`, as game code under the same rules:
 
 - Relative imports only, since the build scripts resolve `./` paths, and JSON through imports.
 - No DOM, `fetch` or `CardLoader`, localStorage, or `__DEV_TOOLS__`, so the same code runs in Node and in a Web Worker. No `const enum`, which per-file transpiling can't see through.
-- It plays everything through the game's own code: `Battle`, the AI controller, the combat bridge (`seatOf`, and the write-back with `REVIVE_HP` and `LIMP_STRUCTURE`), the encounter builder, and the run. Never a copy of them, so a rule change reaches the sim without touching it.
+- It plays everything through the game's own code: `Battle`, the AI controller, the combat bridge (`seatOf`, and the write-back with `REVIVE_HP` and `LIMP_STRUCTURE`, through `seatWriteBack`), the encounter builder, and the run. Never a copy of them, so a rule change reaches the sim without touching it.
 
-Its input is a config, plain data: the crews (archetypes, seat order, decks), the raider profiles, the encounter templates, the stop tables, the game stage, the player stand-in, the seed, and runs a cell. Tuning comes in as data rather than being patched into the shipped tables (raider-sim's `--set` mutates `RAIDER_PROFILES` in place).
+Its input is a config, plain data: the crews (archetypes, seat order, decks), the raider profiles, the encounter templates, the stop tables, the game stage, the player stand-in, the seed, and runs a cell. Tuning comes in as data rather than being patched into the shipped tables: the encounter builder and `raiderVehicle` take the config's raiders and profiles, and fall back to the shipped ones. A raider's patch merges its skills and vehicle stats and replaces its deck.
 
 Its output is plain JSON: a row per cell with the measures below, and any fight logs asked for.
 
-It's deterministic. Each cell's stream forks from the seed by the cell's name (its crew, encounter or route, and stage), so adding a cell moves no other cell's numbers. The same config and seed give the same JSON in Node and in the browser.
+It's deterministic, and no cell's numbers depend on which other cells were asked for. A `gen` map is its own `rollParams` seed. A `runs` cell's stream forks from the seed by the cell's name (its crew, route, and stage). A `fights` cell is named the same way (`road_warrior+interceptor:1+2`), but run n of every cell draws from the seed's `fork('run', n)`, and its fight f from that run's `fork('fight', f)`: every crew meets the same draws, so two crews' rates differ by the crews and not by the luck. The same config and seed give the same JSON in Node and in the browser.
 
 ## Measures
 
@@ -40,7 +40,7 @@ Every rate carries its count and a 90% interval, so a 3-point move on 100 runs i
 
 ## The command line tool
 
-`node scripts/balance-sim.mjs <mode> [options]` transpiles the code it reaches into a temporary folder and runs it in a child process, the way raider-sim does. The transpile walker becomes one shared helper under `scripts/` that raider-sim's successor, road-network, terrain-bench, and area-map-bake-bench all use, instead of four copies. Cells run in parallel in `worker_threads`, two by default to keep the machine responsive.
+`node scripts/balance-sim.mjs <mode> [options]` transpiles the code it reaches into a temporary folder and runs it in a child process, clear of Jest. The transpile walker is one shared helper, `scripts/transpiled.mjs`, that balance-sim, road-network, terrain-bench, and area-map-bake-bench all use. Cells run in parallel in `worker_threads`, two by default to keep the machine responsive.
 
 ### gen
 
@@ -76,7 +76,7 @@ A pool of four played day by day: one run a day to a tier its stage reaches, cle
 ### Options
 
 - `--config <file>`: the tuning to try, as JSON. The Balance Lab exports the same format.
-- `--seed`, `--runs` (a cell), `--maps` (for `gen`), `--crews`, `--stage`, `--player aggressive|intent`.
+- `--seed`, `--runs` (a cell), `--maps` (for `gen`), `--crews` (`all`, `pairs`, `solo`, or a list like `road_warrior+interceptor,mechanic`), `--routes` (for `fights`: `1,2,1+2`), `--turns` (the stall cap), `--stage`, `--player aggressive|intent`, `--workers` (2).
 - `--json <file>`: write the rows.
 - `--check`: compare every row with the targets and exit non-zero on a miss, naming it. The fairness spreads are reported and don't fail a check until DDB-492 to 495 land.
 - `--log <cell>:<run>`: print one fight's battle log.
@@ -133,7 +133,7 @@ The first version must reproduce these, and changes are measured against them. M
 
 Tier 1 fights are always 1 skull. A route's hours out and back averaged 7.1 at tier 1, 11.1 at tier 2, 14.7 at tier 3, and 19.7 at tier 4.
 
-`fights`, as `node scripts/raider-sim.mjs --fights 100 --routes 1,2,3,1+1,1+2 --crews pairs` (seed 1, the aggressive AI on both sides). Lost and turns are over the runs won.
+`fights`, as `node scripts/balance-sim.mjs fights --runs 100 --routes 1,2,3,1+1,1+2 --crews pairs` (seed 1, the aggressive AI on both sides; first measured with raider-sim's `--fights 100`, on the same streams). Lost and turns are over the runs won.
 
 | Crew | Route | Won | By seat | Stalled | HP lost | Structure lost | Turns |
 |---|---|---|---|---|---|---|---|
@@ -153,4 +153,4 @@ Tier 1 fights are always 1 skull. A route's hours out and back averaged 7.1 at t
 | Int + Mech | 1+1 | 100% | 100/100 | 0% | 2% | 1% | 4.4 |
 | Int + Mech | 1+2 | 98% | 100/96 | 0% | 1% | 1% | 7.4 |
 
-A first look at groups, through raider-sim's `--set` (60 runs a cell, a pack of light Rust Buggies at 10 structure, 0 armor, 10 HP, refill 2, all on the road at once): against 4, RW + Int won 95% losing 34% of its HP in 2.8 turns, Int + Mech 100% losing 2%, and RW + Mech stalled 95%. Against 6, RW + Int won 48% (97/0 by seat), Int + Mech 98%, and RW + Mech stalled. The stun lock, the Rig's reach, and seat order are what the raider-side rules in Runs and Encounters answer.
+A first look at groups, with the raiders retuned by hand (60 runs a cell, a pack of light Rust Buggies at 10 structure, 0 armor, 10 HP, refill 2, all on the road at once): against 4, RW + Int won 95% losing 34% of its HP in 2.8 turns, Int + Mech 100% losing 2%, and RW + Mech stalled 95%. Against 6, RW + Int won 48% (97/0 by seat), Int + Mech 98%, and RW + Mech stalled. The stun lock, the Rig's reach, and seat order are what the raider-side rules in Runs and Encounters answer.

@@ -7,7 +7,7 @@ import { Vehicle, createDrivenVehicle } from './Vehicle';
 /**
  * The raiders fights are built from, one profile each, so the combat
  * screen's own fight and a supply run's encounters field the same buggy.
- * Tuned with scripts/raider-sim.mjs; the values and why are in
+ * Tuned with scripts/balance-sim.mjs; the values and why are in
  * docs/AI_TECHNICAL_DECISIONS/raider-tuning.md.
  */
 
@@ -77,8 +77,14 @@ export const RAIDER_PROFILES: Readonly<Record<RaiderId, Readonly<RaiderProfile>>
  * map doesn't hold, since a raider dealt short would be an easier fight
  * than the one it stands for.
  */
-export function raiderVehicle({ raider, cards, solo = false }: { raider: RaiderId; cards: ReadonlyMap<string, Card>; solo?: boolean }): Vehicle {
-	const profile = RAIDER_PROFILES[raider];
+export function raiderVehicle({ raider, cards, solo = false, profiles = RAIDER_PROFILES }: {
+	raider: RaiderId;
+	cards: ReadonlyMap<string, Card>;
+	solo?: boolean;
+	/** The shipped profiles when left out; the balance sim passes its config's. */
+	profiles?: Readonly<Record<RaiderId, Readonly<RaiderProfile>>>;
+}): Vehicle {
+	const profile = profiles[raider];
 	const adrenaline = solo ? profile.soloAdrenaline : profile.maxAdrenaline;
 	const deck = Object.entries(profile.deck).flatMap(([type, count]) => {
 		const template = cards.get(type);

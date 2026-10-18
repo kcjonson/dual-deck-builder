@@ -1,10 +1,8 @@
 /**
  * Times the area map view's bakes (DDB-298): the terrain texture as the view
  * bakes it, the land with its water and hazards and the places' ruins, at
- * each radius and environment, and the fog texture. Like terrain-bench.mjs, it
- * transpiles the modules it needs (its entries and their relative imports)
- * into a temporary folder and runs them in a fresh child process, clear of
- * Jest's coverage and the TypeScript compiler's heap.
+ * each radius and environment, and the fog texture. It runs
+ * outside Jest, on modules transpiled by scripts/transpiled.mjs.
  *
  *   node scripts/area-map-bake-bench.mjs [--seeds 3] [--repeat 3] [--radii 600,1000,1600]
  *
@@ -16,57 +14,22 @@
  * seeds, each map's time the fastest of its runs, since other work on the
  * machine only ever adds time.
  */
-import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join, posix } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { transpiled } from './transpiled.mjs';
 
-const script = fileURLToPath(import.meta.url);
-const ENTRIES = ['game/map/MapParams', 'game/map/ParamValidator', 'game/map/AreaMapPipeline', 'game/map/Places', 'game/ui/areaMap/terrainBake', 'game/ui/areaMap/fogBake'];
-// Type-only imports are left out: the transpiler drops them.
-const IMPORT = /^(?:import|export)\s(?!type\s)[^;]*?from\s+'(\.[^']+)'/gms;
-
-/** The entries and every module they import by relative path, JSON files included, as paths under src/renderer. */
-function sourcesOf(root) {
-	const found = new Set();
-	const visit = (path) => {
-		const source = path.endsWith('.json') || existsSync(join(root, 'src/renderer', `${path}.ts`)) ? path : `${path}/index`;
-		if (found.has(source)) return;
-		found.add(source);
-		if (source.endsWith('.json')) return;
-		const text = readFileSync(join(root, 'src/renderer', `${source}.ts`), 'utf8');
-		for (const [, path] of text.matchAll(IMPORT)) visit(posix.normalize(posix.join(posix.dirname(source), path)));
-	};
-	ENTRIES.forEach(visit);
-	return [...found];
-}
-
-if (process.argv[2] !== '--built') {
-	const { default: ts } = await import('typescript');
-	const root = join(dirname(script), '..');
-	const build = mkdtempSync(join(tmpdir(), 'area-map-bake-'));
-	for (const source of sourcesOf(root)) {
-		const json = source.endsWith('.json');
-		const text = readFileSync(join(root, 'src/renderer', json ? source : `${source}.ts`), 'utf8');
-		const outputText = json ? text : ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } }).outputText;
-		const target = join(build, json ? source : `${source}.js`);
-		mkdirSync(dirname(target), { recursive: true });
-		writeFileSync(target, outputText);
-	}
-	const child = spawnSync(process.execPath, [script, '--built', build, ...process.argv.slice(2)], { stdio: 'inherit', cwd: process.cwd() });
-	rmSync(build, { recursive: true, force: true });
-	process.exit(child.status ?? 1);
-}
-
-const build = process.argv[3];
+const { build, args } = await transpiled({
+	script: fileURLToPath(import.meta.url),
+	name: 'area-map-bake',
+	entries: ['game/map/MapParams', 'game/map/ParamValidator', 'game/map/AreaMapPipeline', 'game/map/Places', 'game/ui/areaMap/terrainBake', 'game/ui/areaMap/fogBake'].map(module => `src/renderer/${module}.ts`),
+});
 const options = {};
-for (let index = 4; index < process.argv.length; index += 2) options[process.argv[index].replace(/^--/, '')] = process.argv[index + 1];
+for (let index = 0; index < args.length; index += 2) options[args[index].replace(/^--/, '')] = args[index + 1];
 
 // The build's define, off: no dev tools in a timing.
 globalThis.__DEV_TOOLS__ = false;
-const load = createRequire(join(build, 'index.js'));
+const load = createRequire(join(build, 'src/renderer/index.js'));
 const { resolveMapParams } = load('./game/map/MapParams.js');
 const { validateMapParams } = load('./game/map/ParamValidator.js');
 const { generateAreaMap } = load('./game/map/AreaMapPipeline.js');

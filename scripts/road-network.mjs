@@ -1,9 +1,8 @@
 /**
  * The area map's places and road network (Maps 6 to 8) outside Jest:
  * timings, a sweep of the stages' first-attempt health over sampled
- * parameters, and a picture of one map's roads and places over its land. Like terrain-bench.mjs, it transpiles the
- * map modules into a temporary folder and runs them in a fresh child process,
- * clear of Jest's coverage and the TypeScript compiler's heap.
+ * parameters, and a picture of one map's roads and places over its land.
+ * The map modules are transpiled by scripts/transpiled.mjs.
  *
  *   node scripts/road-network.mjs bench [--seeds 3] [--repeat 1] [--radii 1000,1200]
  *   node scripts/road-network.mjs check [--maps 30] [--from 0]
@@ -28,47 +27,27 @@
  * made and how long it took. Any command takes --profile <folder> for a CPU
  * profile of the run.
  */
-import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { transpiled } from './transpiled.mjs';
 
 const script = fileURLToPath(import.meta.url);
-
-if (process.argv[2] !== '--built') {
-	const { default: ts } = await import('typescript');
-	const root = join(dirname(script), '..');
-	const build = mkdtempSync(join(tmpdir(), 'road-network-'));
-	for (const folder of ['core', 'map']) {
-		const source = join(root, 'src/renderer/game', folder);
-		for (const name of readdirSync(source)) {
-			if (!name.endsWith('.ts') || name.endsWith('.test.ts')) continue;
-			const text = readFileSync(join(source, name), 'utf8');
-			const { outputText } = ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } });
-			const target = join(build, folder, name.replace(/\.ts$/, '.js'));
-			mkdirSync(dirname(target), { recursive: true });
-			writeFileSync(target, outputText);
-		}
-	}
-	mkdirSync(join(build, 'data'), { recursive: true });
-	const data = join(root, 'src/renderer/game/data');
-	for (const name of readdirSync(data)) if (name.endsWith('.json')) writeFileSync(join(build, 'data', name), readFileSync(join(data, name)));
-	const profile = process.argv.indexOf('--profile');
-	const flags = profile >= 0 ? ['--cpu-prof', '--cpu-prof-dir', process.argv[profile + 1]] : [];
-	const child = spawnSync(process.execPath, [...flags, script, '--built', build, ...process.argv.slice(2)], { stdio: 'inherit', cwd: process.cwd() });
-	rmSync(build, { recursive: true, force: true });
-	process.exit(child.status ?? 1);
-}
-
-const build = process.argv[3];
-const command = process.argv[4];
+const profile = process.argv.indexOf('--profile');
+const { build, args } = await transpiled({
+	script,
+	name: 'road-network',
+	entries: ['core/Rng', 'map/AreaMapPipeline', 'map/Geometry', 'map/MapParams', 'map/MapPipeline', 'map/ParamValidator', 'map/RoadChecks', 'map/Roads', 'map/Terrain']
+		.map(module => `src/renderer/game/${module}.ts`),
+	nodeFlags: profile >= 0 ? ['--cpu-prof', '--cpu-prof-dir', process.argv[profile + 1]] : [],
+});
+const command = args[0];
 const options = {};
-for (let index = 5; index < process.argv.length; index += 2) options[process.argv[index].replace(/^--/, '')] = process.argv[index + 1];
+for (let index = 1; index < args.length; index += 2) options[args[index].replace(/^--/, '')] = args[index + 1];
 
-const load = createRequire(join(build, 'index.js'));
+const load = createRequire(join(build, 'src/renderer/game/index.js'));
 const { Rng } = load('./core/Rng.js');
 const { MAP_PARAMETERS, NUMBER_PARAMS, resolveMapParams } = load('./map/MapParams.js');
 const { validateMapParams } = load('./map/ParamValidator.js');
