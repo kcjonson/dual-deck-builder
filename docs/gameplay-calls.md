@@ -339,3 +339,13 @@ Made writing [Runs and Encounters](./specs/Runs%20and%20Encounters.md), beyond w
 187. DDB-336: the run that clears a POI takes its type's whole yield, what a full POI gives today, because there's no second run to take the rest.
 188. DDB-336: a POI is cleared when the run reaches it, in the step that loads its yield (as call 105 had the share), so a run that fails on the way home has still cleared it, because the yield and the clearing can't come apart in a save.
 189. DDB-529: each route keeps its floor fights and at least half its stop band on its own road, legs no other POI's routes use, and the POI stage seats a POI only where that fits, because it's the least that keeps a neighbor's cleared road from leaving a run fight-free or nearly empty.
+
+## Player stand-ins (240 to 244)
+
+The reasoning is in AI_TECHNICAL_DECISIONS/intent-aware-stand-in.md.
+
+240. DDB-528: the intent-aware stand-in reads an elite's hidden attack values from the printed card in that slot of its plan, because the ceiling should know at least what a careful player could work out, and today's encounters are all basic anyway.
+241. DDB-528: the harm it weighs is structure plus occupant hitpoints lost next enemy turn, split as a hit splits, with a wreck or a dead driver counting 20 more, because either costs a run far more than its points.
+242. DDB-528: non-lethal damage counts for half a turn of the hurt raider's harm, times the share of its toughness it removes, because weighted higher it outbid Flanking Maneuver, and one step can't see that the flank boosts the rest of the turn's hits.
+243. DDB-528: what the harm count doesn't cover (flanking, draws, adrenaline, cards with no effect) is scored as the aggressive AI scores it, so the ceiling keeps the floor's priorities whenever no intent is at stake.
+244. DDB-528: a flanker the play outpaces is taken to lose its flank bonus whole (its hits divided by 1.5, rounded up) and to stay in range, because re-deriving range from the reserved slot needs the battle's own preview, which only reads the live board.
