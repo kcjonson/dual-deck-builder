@@ -78,7 +78,8 @@ interface ScreenCase {
  * a heading and summary but no route, so START RUN says there's no route
  * to run (DDB-320). The compound, the area map, and the run route screen
  * make the save's map again in the worker as they would on Continue, and
- * the capture waits for it (`assetsReady`).
+ * the capture waits for it (`assetsReady`). The event screen is opened with
+ * nothing, so it shows the first event with its stand-in party (DDB-45).
  */
 const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'splashScreen' },
@@ -117,6 +118,7 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'loadOutScreen', storage: AT_HOME, data: { trip: { destination: 'Elk Creek Clinic', routeName: 'Back roads', stops: 2, fuel: 3, homeBy: '16:30', pastDark: false } } },
 	{ screen: 'runScreen', storage: IN_PROGRESS },
 	{ screen: 'runScreen', variant: 'road', storage: ON_THE_ROAD },
+	{ screen: 'eventScreen' },
 ];
 
 function caseName({ screen, variant }: ScreenCase): string {
@@ -218,6 +220,11 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'ui-art-marks' },
 	// The full-screen sheet, gated at both sizes since it fills the window (DDB-504)
 	{ scene: 'ui-art-sheet', shortViewport: true },
+	// The event screen whole, its choices and two outcomes, at both sizes as a screen is (DDB-45)
+	{ scene: 'event-wreck', shortViewport: true },
+	{ scene: 'event-distress', shortViewport: true },
+	{ scene: 'event-outcome', shortViewport: true },
+	{ scene: 'event-fight', shortViewport: true },
 ];
 
 /** A scene at one window size, and the name its golden and text record go by there. */

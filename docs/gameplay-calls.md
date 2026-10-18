@@ -339,3 +339,17 @@ Made writing [Runs and Encounters](./specs/Runs%20and%20Encounters.md), beyond w
 187. DDB-336: the run that clears a POI takes its type's whole yield, what a full POI gives today, because there's no second run to take the rest.
 188. DDB-336: a POI is cleared when the run reaches it, in the step that loads its yield (as call 105 had the share), so a run that fails on the way home has still cleared it, because the yield and the clearing can't come apart in a save.
 189. DDB-529: each route keeps its floor fights and at least half its stop band on its own road, legs no other POI's routes use, and the POI stage seats a POI only where that fits, because it's the least that keeps a neighbor's cleared road from leaving a run fight-free or nearly empty.
+
+## Event stops (250 to 258)
+
+Record: event-screen.md.
+
+250. DDB-45: a choice at an event is taken when it's pressed (a click, Enter, or its number key), with no confirm step, because its card already shows the risks and nothing on the screen can be undone anyway.
+251. DDB-45: an event's costs are paid from the stores and the run's cargo together, and a choice is locked when the two hold less, because cargo alone is empty at a run's first stop and would lock nearly every cost there.
+252. DDB-45: an outcome's structure and HP apply to every seated driver's vehicle and every seated driver alike, because an event has no picker for whose, and a run has at most two of each.
+253. DDB-45: the number an event's outcome is drawn from is rolled from the run's stream when the stop opens and saved with the step, so a reload can't roll the outcome again.
+254. DDB-45: every event has a choice that needs nothing and costs nothing (usually Drive on), and the content reader refuses one without, because a party that meets nothing must never be stuck at a stop.
+255. DDB-45: a fight hand-off's own gains apply before the fight and its win's gains only on a win, and losing it is settled as any stop fight's loss is, because an event shouldn't carry loss rules of its own.
+256. DDB-45: settlers an event gives ride home in the cargo as people, and drivers it gives join the pool when the run gets home, as a Find: driver's do, because both reach the compound only on a run that gets home.
+257. DDB-45: a choice card shows the most hours any of its outcomes takes, and its skulls are written per choice rather than worked out from the outcomes, because the card hints at the risk without saying which outcome lands.
+258. DDB-45: an event stop picks its event evenly among its stop type's events, with no weights or repeat rule yet, because five events can't carry a weighting worth tuning.

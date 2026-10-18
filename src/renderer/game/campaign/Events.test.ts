@@ -8,6 +8,7 @@ import {
 	EVENTS,
 	EVENT_LIMITS,
 	EVENT_STOP_TYPES,
+	EventChoice,
 	EventParty,
 	GameEvent,
 	choiceLock,
@@ -38,6 +39,18 @@ function event(id: string): GameEvent {
 	const found = eventById(id);
 	if (!found) throw new Error(`no event ${id}`);
 	return found;
+}
+
+function choiceOf(eventId: string, id: string): EventChoice {
+	const found = event(eventId).choices.find((candidate) => candidate.id === id);
+	if (!found) throw new Error(`no choice ${id} in ${eventId}`);
+	return found;
+}
+
+/** Throws on null, so a test reads on without an assertion operator. */
+function present<T>(value: T | null | undefined): T {
+	if (value === null || value === undefined) throw new Error('expected a value');
+	return value;
 }
 
 /** The file loosely typed, so a test can break it. */
@@ -155,8 +168,7 @@ describe('events.json, the schema over the content (DDB-45)', () => {
 });
 
 describe('choiceLock', () => {
-	const family = event('family_under_fire');
-	const choice = (id: string) => family.choices.find((candidate) => candidate.id === id)!;
+	const choice = (id: string) => choiceOf('family_under_fire', id);
 
 	it('says what the party lacks: the archetype, the card, the escort, or enough to pay', () => {
 		expect(choiceLock({ choice: event('jackknifed_tanker').choices[1], party: BARE })).toEqual({ reason: 'archetype', archetype: 'mechanic' });
@@ -168,7 +180,7 @@ describe('choiceLock', () => {
 	});
 
 	it('checks a need before a cost', () => {
-		const armored = event('armored_car').choices.find(({ id }) => id === 'get_it_running')!;
+		const armored = choiceOf('armored_car', 'get_it_running');
 		expect(choiceLock({ choice: armored, party: BARE })).toEqual({ reason: 'archetype', archetype: 'mechanic' });
 		expect(choiceLock({ choice: armored, party: { ...BARE, archetypes: ['mechanic'] } })).toEqual({ reason: 'cost', resource: 'scrap', needed: 8, held: 0 });
 	});
@@ -205,7 +217,7 @@ describe('choicePreview', () => {
 	it('shows swords for a fight anywhere in the outcomes, the danger, costs, the most hours, and every reward', () => {
 		const search = event('burned_bus').choices[0];
 		expect(choicePreview(search)).toEqual({ combat: true, danger: 1, costs: [], hours: 0.5, rewards: ['scrap', 'cards'] });
-		const pay = event('family_under_fire').choices.find(({ id }) => id === 'pay_them_off')!;
+		const pay = choiceOf('family_under_fire', 'pay_them_off');
 		expect(choicePreview(pay)).toEqual({ combat: false, danger: 1, costs: [{ resource: 'fuel', amount: 3 }], hours: 0.5, rewards: ['settlers'] });
 		const treat = event('mayday_channel_nine').choices[1];
 		expect(choicePreview(treat).rewards).toEqual(['drivers', 'heal']);
@@ -224,8 +236,8 @@ describe('pickEvent and eventParty', () => {
 
 	it('puts the party together from the run out: seats, run decks with escort cards, escorts, and stores plus cargo', () => {
 		const campaign = Campaign.fromJSON(copy(CAMPAIGN_FIXTURE), { onWarning: () => undefined });
-		const run = campaign.supplyRun!;
-		const party = eventParty({ campaign })!;
+		const run = present(campaign.supplyRun);
+		const party = present(eventParty({ campaign }));
 		expect(party.archetypes).toEqual(campaign.runDecks.map(({ driver }) => driver.archetype));
 		for (const deck of campaign.runDecks) {
 			for (const [cardType, count] of Object.entries(deck.cards)) expect(party.cards[cardType]).toBeGreaterThanOrEqual(count);
