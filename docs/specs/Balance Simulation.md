@@ -22,7 +22,7 @@ Its input is a config, plain data: the crews (archetypes, seat order, decks), th
 
 Its output is plain JSON: a row per cell with the measures below, and any fight logs asked for.
 
-It's deterministic, and no cell's numbers depend on which other cells were asked for. A `gen` map is its own `rollParams` seed. A `runs` cell's stream forks from the seed by the cell's name (its crew, route, and stage). A `fights` cell is named the same way (`road_warrior+interceptor:1+2`), but run n of every cell draws from the seed's `fork('run', n)`, and its fight f from that run's `fork('fight', f)`: every crew meets the same draws, so two crews' rates differ by the crews and not by the luck. The same config and seed give the same JSON in Node and in the browser.
+It's deterministic, and no cell's numbers depend on which other cells were asked for. A `gen` map is its own `rollParams` seed. In `fights` and `runs`, a cell is named by its crew, route, and stage (`road_warrior+interceptor:1+2`), and run n of every cell draws from the seed's `fork('run', n)`, its fight f from that run's `fork('fight', f)`. Every cell plays the same fixed list of seeded runs, so two crews, two tunings, or a route fresh and the day after its neighbor's run are compared on the same draws, and a difference between them is the change rather than the luck. The cost is that cells share their luck: a lucky seed lifts every cell a little, so a figure pooled across cells needs more runs than its intervals suggest. The same config and seed give the same JSON in Node and in the browser.
 
 ## Measures
 
