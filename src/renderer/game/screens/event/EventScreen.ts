@@ -40,14 +40,15 @@ const CHOICE_KEYS = ['1', '2', '3', '4'] as const;
 
 /**
  * What opens the event screen: the event at the stop, the party it checks
- * choices against, and the draw the outcome lands on, from the run's stream.
- * The run rolls the draw when the stop opens and saves it with the step, so
- * a reload can't roll the outcome again. With `result`, a choice already
- * made (a saved step reopening mid-event), the screen opens on its outcome.
+ * choices against, and the draw the outcome lands on, from the run's stream
+ * for the stop, so a reload lands the same outcome (call 253). With
+ * `result`, a choice already made (a saved step reopening mid-event, rebuilt
+ * with `landOutcome`), the screen opens on its outcome and needs no party.
  */
 export interface EventScreenData {
 	event: GameEvent;
-	party: EventParty;
+	/** Default: the stand-in party. Not read when `result` is given. */
+	party?: EventParty;
 	/** Mono beside the kicker: "stop 2 of 5". */
 	where?: string;
 	/** In [0, 1). Default 0. */
@@ -66,12 +67,12 @@ export interface EventScreenOptions {
 
 /**
  * The party the screen checks against when it's opened with no data, by the
- * dev navigate hook or the screen capture: a Road Warrior and a Mechanic,
- * no escort, a little fuel and scrap, so the first event shows a choice
- * open to the Mechanic, one any party can take, and one that's locked.
+ * dev navigate hook or the screen capture: a Road Warrior and an
+ * Interceptor, no escort, a little fuel and scrap, so the first event (the
+ * tanker) shows its Mechanic's choice locked beside the ones anyone can take.
  */
 export const STAND_IN_PARTY: EventParty = Object.freeze<EventParty>({
-	archetypes: ['road_warrior', 'mechanic'],
+	archetypes: ['road_warrior', 'interceptor'],
 	cards: { ram: 2, repair_kit: 2 },
 	escorts: [],
 	resources: { ...NO_RESOURCES, fuel: 2, scrap: 5 },
@@ -149,7 +150,11 @@ export class EventScreen extends Screen {
 		this.sheet.addChild(this.foot);
 
 		const hotkeys = this.rootLayer.hotkeys;
-		CHOICE_KEYS.forEach((key, place) => hotkeys.register(key, () => this.takeAt(place)));
+		CHOICE_KEYS.forEach((key, place) => hotkeys.register(key, ({ repeat, modifiers }) => {
+			// A held key or a chord isn't a choice.
+			if (repeat || modifiers.ctrl || modifiers.alt || modifiers.meta) return;
+			this.takeAt(place);
+		}));
 		for (const key of INSPECT_KEYS) hotkeys.register(key, () => inspectHotkey(this.context));
 
 		if (handed?.result) this.showOutcome(handed.result);
@@ -215,10 +220,11 @@ export class EventScreen extends Screen {
 		top.addChild(plate);
 
 		const journal = new Stack({ id: 'event_journal', widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch', gap: space.space_2 });
-		const head = new Stack({ id: 'event_head', direction: 'horizontal', widthMode: 'fill', crossAlign: 'center', gap: space.space_3 });
-		head.addChild(screenTitle({ id: 'event_title', text: event.title }));
+		// The kicker over the title, so a long title never crowds out where the stop is.
+		const head = new Stack({ id: 'event_head', widthMode: 'fill', crossAlign: 'stretch', gap: space.space_0_5 });
 		const kicker = [eventKicker(event.stopType), where].filter((part) => part !== null && part !== '').join(' / ');
 		head.addChild(titleNote({ id: 'event_kicker', text: kicker }));
+		head.addChild(screenTitle({ id: 'event_title', text: event.title }));
 		journal.addChild(head);
 		const page = new JournalPage({ id: 'event_page', pitch: JOURNAL_SIZE * JOURNAL_LINE, widthMode: 'fill', heightMode: 'fill' });
 		this.page = page;
@@ -279,7 +285,9 @@ export class EventScreen extends Screen {
 		if (lines.length > 0) box.addChild(ledger);
 		foot.addChild(box);
 
+		// Hidden until the cards are in and there's something to show, so the outcome box never takes a gap for nothing.
 		this.rewardRow = new Stack({ id: 'event_rewards', direction: 'horizontal', heightMode: 'fill', crossAlign: 'center', gap: space.space_3 });
+		this.rewardRow.visible = false;
 		inspectOnContextMenu(this.rewardRow);
 		foot.addChild(this.rewardRow);
 		this.fillRewards(result);
@@ -287,7 +295,7 @@ export class EventScreen extends Screen {
 		const go = new Stack({ id: 'event_go', width: GO_WIDTH, heightMode: 'fill', distribution: 'end', crossAlign: 'stretch' });
 		this.goButton = new AtlasButton({
 			id: 'event_go_button',
-			label: goLabel({ fight: outcome.fight !== null }),
+			label: goLabel({ fight: outcome.fight !== null, cardPick: outcome.cardPick }),
 			variant: 'highway',
 			shield: true,
 			labelSize: PRIMARY_LABEL,

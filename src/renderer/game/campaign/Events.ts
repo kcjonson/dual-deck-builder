@@ -5,8 +5,8 @@ import type { DriverArchetype } from '../mechanics/Driver';
 import { ESCORT_CONFIGS, EscortType } from '../mechanics/Escort';
 import type { Campaign, Resources } from './Campaign';
 import { NO_RESOURCES } from './Campaign';
-import { CardCounts, NO_CARDS, addCounts, cardCount } from './CardCounts';
-import { readNewCards } from './DeckRules';
+import { CardCounts, NO_CARDS, addCounts, cardCount, readCardType } from './CardCounts';
+import { isKnownCard, readNewCards } from './DeckRules';
 import { DRIVER_ARCHETYPES } from './DriverRecord';
 import type { Skulls } from './Encounters';
 
@@ -24,8 +24,8 @@ import type { Skulls } from './Encounters';
  * as the module loads.
  */
 
-/** The stop types an event can resolve: every one that isn't a fight. A checkpoint is one, though it can hand off to a fight. */
-export const EVENT_STOP_TYPES: readonly StopType[] = STOP_TYPES.filter((type) => !isFight(type));
+/** The stop types an event can resolve (Game Flow 5): every one that isn't a fight or the roadside garage, which is a shop. A checkpoint is one, though it can hand off to a fight. */
+export const EVENT_STOP_TYPES: readonly StopType[] = STOP_TYPES.filter((type) => !isFight(type) && type !== 'garage');
 
 /** Resources an event can give, take, or cost, by name: the compound's stores less people, which an event gives as settlers. */
 export const EVENT_RESOURCES = ['food', 'water', 'fuel', 'meds', 'scrap'] as const;
@@ -52,13 +52,17 @@ export const EVENT_LIMITS = {
 	damage: 20,
 	hours: 6,
 	danger: 3,
+	/** Most copies of one card an outcome gives. */
+	cardCopies: 3,
+	/** An outcome's weight against its choice's others, a whole number. */
+	weight: 100,
 } as const;
 
 /** What a choice needs of the party. Every field given must hold; a choice with none needs nothing. */
 export interface EventRequirement {
 	/** A seated driver of this archetype: "(Mechanic only)". */
 	readonly archetype: DriverArchetype | null;
-	/** A copy of this card in a seated driver's run deck: "(Requires: EMP Blast)". */
+	/** A copy of this card in a seated driver's run deck, an escort's signature card included: "(Requires: EMP Blast)". */
 	readonly card: string | null;
 	/** An escort of this type with the run: "(Med Truck)". */
 	readonly escort: EscortType | null;
@@ -69,9 +73,10 @@ const NO_REQUIREMENT: EventRequirement = Object.freeze({ archetype: null, card: 
 /**
  * What an outcome gives or takes, every field present. `resources` are
  * signed, gains positive, its `people` the settlers who join; the run puts
- * gains in the cargo and takes losses from the cargo, then the stores.
- * `structure` and `hp` are signed too, applied to every seated driver's
- * vehicle and every seated driver alike.
+ * gains in the cargo and takes losses from the cargo, then the stores, never
+ * below 0. `structure` and `hp` are signed too, applied to every seated
+ * driver's vehicle and every seated driver alike, and a loss never takes
+ * either below 1 (call 259).
  */
 export interface EventGains {
 	readonly resources: Readonly<Resources>;
@@ -185,6 +190,7 @@ const GAIN_FIELDS = ['resources', 'settlers', 'cards', 'cardPick', 'escort', 'dr
 
 function readResources(value: unknown, path: string, { signed }: { signed: boolean }): Readonly<Resources> {
 	const fields = readFields(value, path, [], EVENT_RESOURCES);
+	if (EVENT_RESOURCES.every((resource) => fields[resource] === undefined)) throw new ReaderRangeError(`${path} must name a resource; leave it out otherwise`);
 	const resources: Resources = { ...NO_RESOURCES };
 	const max = EVENT_LIMITS.resource;
 	for (const resource of EVENT_RESOURCES) {
@@ -220,7 +226,7 @@ function readGains(fields: Partial<Record<(typeof GAIN_FIELDS)[number], unknown>
 	if (fields.cardPick !== undefined && fields.cardPick !== true) throw new ReaderRangeError(`${path}.cardPick must be true when given; leave it out otherwise`);
 	return {
 		resources,
-		cards: fields.cards === undefined ? NO_CARDS : readNewCards(fields.cards, `${path}.cards`),
+		cards: fields.cards === undefined ? NO_CARDS : readOutcomeCards(fields.cards, `${path}.cards`),
 		cardPick: fields.cardPick === true,
 		escort: fields.escort === undefined ? null : readOneOf(fields.escort, `${path}.escort`, ESCORT_TYPES),
 		drivers: fields.drivers === undefined ? 0 : readInteger(fields.drivers, `${path}.drivers`, { min: 1, max: EVENT_LIMITS.drivers }),
@@ -229,8 +235,20 @@ function readGains(fields: Partial<Record<(typeof GAIN_FIELDS)[number], unknown>
 	};
 }
 
+/** Cards an outcome gives: real, never a signature card, at least one and a few copies at most. */
+function readOutcomeCards(value: unknown, path: string): CardCounts {
+	const cards = readNewCards(value, path);
+	const types = Object.keys(cards);
+	if (types.length === 0) throw new ReaderRangeError(`${path} must name a card; leave it out otherwise`);
+	for (const cardType of types) readInteger(cards[cardType], `${path}.${cardType}`, { min: 1, max: EVENT_LIMITS.cardCopies });
+	return cards;
+}
+
+/** A fight's win can't offer the reward picker: winning a stop fight already does. */
+const FIGHT_GAIN_FIELDS = GAIN_FIELDS.filter((field) => field !== 'cardPick');
+
 function readFight(value: unknown, path: string): EventFight {
-	const fields = readFields(value, path, ['skulls', 'text'], GAIN_FIELDS);
+	const fields = readFields(value, path, ['skulls', 'text'], FIGHT_GAIN_FIELDS);
 	return {
 		skulls: readInteger(fields.skulls, `${path}.skulls`, { min: 1, max: 3 }) as Skulls,
 		text: readCapped(fields.text, `${path}.text`, EVENT_LIMITS.outcomeLength),
@@ -240,8 +258,7 @@ function readFight(value: unknown, path: string): EventFight {
 
 function readOutcome(value: unknown, path: string): WeightedOutcome {
 	const fields = readFields(value, path, ['text'], ['weight', 'hours', 'fight', ...GAIN_FIELDS]);
-	const weight = fields.weight === undefined ? 1 : readNumber(fields.weight, `${path}.weight`);
-	if (!(weight > 0)) throw new ReaderRangeError(`${path}.weight must be above 0, got ${weight}`);
+	const weight = fields.weight === undefined ? 1 : readInteger(fields.weight, `${path}.weight`, { min: 1, max: EVENT_LIMITS.weight });
 	let hours = 0;
 	if (fields.hours !== undefined) {
 		hours = readNumber(fields.hours, `${path}.hours`);
@@ -265,7 +282,8 @@ function readRequirement(value: unknown, path: string): EventRequirement {
 	if (fields.archetype === undefined && fields.card === undefined && fields.escort === undefined) {
 		throw new ReaderRangeError(`${path} must need something: an archetype, a card, or an escort; leave it out otherwise`);
 	}
-	const card = fields.card === undefined ? null : Object.keys(readNewCards({ [readId(fields.card, `${path}.card`)]: 1 }, path))[0];
+	const card = fields.card === undefined ? null : readCardType(fields.card, `${path}.card`);
+	if (card !== null && !isKnownCard(card)) throw new ReaderRangeError(`${path}.card "${card}" isn't a card in cards.json`);
 	return {
 		archetype: fields.archetype === undefined ? null : readOneOf(fields.archetype, `${path}.archetype`, DRIVER_ARCHETYPES),
 		card,
@@ -295,7 +313,7 @@ export function isFreeChoice(choice: EventChoice): boolean {
 	return archetype === null && card === null && escort === null && EVENT_RESOURCES.every((resource) => choice.cost[resource] === 0);
 }
 
-export function readEvent(value: unknown, path: string): GameEvent {
+function readEventFields(value: unknown, path: string): GameEvent {
 	const fields = readFields(value, path, ['id', 'stopType', 'title', 'illustration', 'setup', 'situation', 'choices']);
 	const illustration = readFields(fields.illustration, `${path}.illustration`, ['art', 'caption']);
 	const choiceValues = readArray(fields.choices, `${path}.choices`);
@@ -323,10 +341,15 @@ export function readEvent(value: unknown, path: string): GameEvent {
 	};
 }
 
+/** One event, checked and frozen. */
+export function readEvent(value: unknown, path: string): GameEvent {
+	return freezeJson(readEventFields(value, path), path) as unknown as GameEvent;
+}
+
 /** The events file whole: every event, ids unique across it. */
 export function readEvents(value: unknown, path: string): readonly GameEvent[] {
 	const fields = readFields(value, path, ['events']);
-	const events = Array.from(readArray(fields.events, `${path}.events`), (event, index) => readEvent(event, `${path}.events[${index}]`));
+	const events = Array.from(readArray(fields.events, `${path}.events`), (event, index) => readEventFields(event, `${path}.events[${index}]`));
 	const seen = new Set<string>();
 	events.forEach(({ id }, index) => {
 		if (seen.has(id)) throw new ReaderRangeError(`${path}.events[${index}].id "${id}" is used twice`);
@@ -349,6 +372,7 @@ export function eventsFor(stopType: StopType, events: readonly GameEvent[] = EVE
 
 /** One of a stop type's events, evenly, for a draw in [0, 1) from the run's stream; null for a type with none. */
 export function pickEvent({ stopType, draw, events = EVENTS }: { stopType: StopType; draw: number; events?: readonly GameEvent[] }): GameEvent | null {
+	if (!(draw >= 0 && draw < 1)) throw new RangeError(`pickEvent: draw must be in [0, 1), got ${draw}`);
 	const offered = eventsFor(stopType, events);
 	if (offered.length === 0) return null;
 	return offered[Math.min(offered.length - 1, Math.floor(draw * offered.length))];
@@ -407,11 +431,20 @@ export class ChoiceLockedError extends RangeError {
  * have, or one the party can't take.
  */
 export function resolveChoice({ event, choice, party, draw }: { event: GameEvent; choice: string; party: EventParty; draw: number }): EventResult {
-	const taken = event.choices.find(({ id }) => id === choice);
-	if (!taken) throw new RangeError(`event ${event.id} has no choice "${choice}"`);
+	const taken = choiceOf(event, choice);
 	const lock = choiceLock({ choice: taken, party });
 	if (lock) throw new ChoiceLockedError({ message: `event ${event.id}: the party can't take "${choice}" (${lock.reason})`, lock });
-	if (!(draw >= 0 && draw < 1)) throw new RangeError(`resolveChoice: draw must be in [0, 1), got ${draw}`);
+	return landOutcome({ event, choice, draw });
+}
+
+/**
+ * The same result with no lock check: what a saved step rebuilds from its
+ * event, choice, and draw once the cost is paid, when the party may no
+ * longer afford the choice it already took.
+ */
+export function landOutcome({ event, choice, draw }: { event: GameEvent; choice: string; draw: number }): EventResult {
+	const taken = choiceOf(event, choice);
+	if (!(draw >= 0 && draw < 1)) throw new RangeError(`landOutcome: draw must be in [0, 1), got ${draw}`);
 	const total = taken.outcomes.reduce((sum, { weight }) => sum + weight, 0);
 	let target = draw * total;
 	let landed = taken.outcomes[taken.outcomes.length - 1].outcome;
@@ -423,6 +456,12 @@ export function resolveChoice({ event, choice, party, draw }: { event: GameEvent
 		target -= weight;
 	}
 	return { event: event.id, choice: taken.id, cost: taken.cost, outcome: landed };
+}
+
+function choiceOf(event: GameEvent, choice: string): EventChoice {
+	const taken = event.choices.find(({ id }) => id === choice);
+	if (!taken) throw new RangeError(`event ${event.id} has no choice "${choice}"`);
+	return taken;
 }
 
 function rewardsOf(gains: EventGains, into: Set<EventReward>): void {

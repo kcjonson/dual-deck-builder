@@ -9,9 +9,9 @@ import type { Theme } from '../../../engine/theme/tokens';
 import { Pressable } from '../../../engine/ui/Pressable';
 import { ChoiceLock, EventChoice, choicePreview } from '../../campaign/Events';
 import { ATLAS, AtlasInks, atlasInks } from '../../ui/atlas/atlasStyle';
-import { dashedOutlineTriangles } from '../../ui/stripes';
+import { dashedOutlineTriangles, hatchPolygonTriangles, roundedRectPolygon } from '../../ui/stripes';
 import { EVENT_ICON_SIZE, EventIconKind, EventIconTone, drawEventIcon, rewardIcon, toneInk } from './EventIcon';
-import { hoursText, lockText, needText } from './eventText';
+import { bandText, hoursText } from './eventText';
 
 export interface ChoiceCardOptions extends Omit<ComponentOptions, 'style' | 'height'> {
 	choice: EventChoice;
@@ -42,6 +42,8 @@ const ICON_GAP = 3;
 const ITEM_GAP = 8;
 const ROW_GAP = 6;
 const CLEAR: RGBA = [0, 0, 0, 0];
+/** The rust hatch over a card whose need the party lacks (UI Art Direction: locked), as the compound's unbuilt plots carry it. */
+const HATCH = { period: 11 * Math.SQRT2, stripe: 2 * Math.SQRT2, alpha: 0.32 };
 
 interface IconItem {
 	kind: EventIconKind;
@@ -72,9 +74,11 @@ function cardLayers(inks: AtlasInks): LookLayers {
  * hours) and what it can give, in sage.
  *
  * It's pressed like a button and taken when pressed, so a locked card is
- * disabled: faded print with a dashed border, still readable, its title
- * struck through when it's the stores that lock it. Its height is fixed, so
- * a row of cards lines up.
+ * disabled, and reads one of the art direction's two ways. A need the party
+ * lacks (an archetype, a card, an escort) is locked: the rust hatch over it,
+ * its label clean. A shortfall in the stores is unavailable: faded print
+ * with a dashed border, its title struck through. Its height is fixed, so a
+ * row of cards lines up.
  */
 export class ChoiceCard extends Pressable {
 	public readonly choice: EventChoice;
@@ -85,6 +89,15 @@ export class ChoiceCard extends Pressable {
 	private readonly preview: Text;
 	private readonly risks: IconItem[];
 	private readonly gains: IconItem[];
+	/** Risks then gains, built once so a frame walks one list. */
+	private readonly allIcons: IconItem[];
+	/** Every text part, which a hover's lift and a press's nudge move with the face. */
+	private readonly texts: Text[] = [];
+	/** Locked for a need the party lacks, rather than short of stores. */
+	private readonly needLocked: boolean;
+	private hatchInk: RGBA = CLEAR;
+	private hatch: Vec2[] = [];
+	private nudge = 0;
 	private inks: AtlasInks;
 	private palette: Theme;
 	private layers: LookLayers;
@@ -100,15 +113,17 @@ export class ChoiceCard extends Pressable {
 		this.componentType = 'ChoiceCard';
 		this.choice = choice;
 		this.lock = lock;
+		this.needLocked = lock !== null && lock.reason !== 'cost';
 		this.palette = this.themeTokens;
 		this.inks = atlasInks(this.palette);
+		this.hatchInk = hatchInkOf(this.palette);
 		this.layers = cardLayers(this.inks);
 		if (onClick) this.onClick = onClick;
 
 		const id = options.id ?? 'choice';
 		this.tag = new Text({
 			id: `${id}_need`,
-			text: lock ? lockText(lock) : needText(choice.requires),
+			text: bandText({ requirement: choice.requires, lock }),
 			style: { fontRole: 'mono', fontSize: TAG_SIZE, letterSpacing: ATLAS.captionTracking, textTransform: 'uppercase', color: lock ? 'status_crit' : 'text_dim' },
 			wrap: 'none',
 			textOverflow: 'ellipsis',
@@ -147,6 +162,9 @@ export class ChoiceCard extends Pressable {
 			...(shown.hours > 0 ? [item('clock', 'ink', hoursText(shown.hours), 'hours')] : []),
 		];
 		this.gains = shown.rewards.map((reward) => item(rewardIcon(reward), 'gain', null, `gain_${reward}`));
+		this.allIcons = [...this.risks, ...this.gains];
+		this.texts.push(this.tag, this.title, this.preview, ...(this.key ? [this.key] : []));
+		for (const { value } of this.allIcons) if (value) this.texts.push(value);
 
 		this.transition = new LookTransition({ owner: this, look: this.targetLook, onChange: (look) => this.followLook(look) });
 		this.followLook(this.transition.look);
@@ -164,6 +182,11 @@ export class ChoiceCard extends Pressable {
 
 	public get titleText(): string {
 		return this.title.text;
+	}
+
+	/** The parts' styles, for tests: the title's carries the strike. */
+	public get style(): { title: Text['style'] } {
+		return { title: this.title.style };
 	}
 
 	/** A card spans its share of the row unless it is given a width. */
@@ -199,6 +222,7 @@ export class ChoiceCard extends Pressable {
 	protected onThemeChange(theme: Theme): void {
 		this.palette = theme;
 		this.inks = atlasInks(theme);
+		this.hatchInk = hatchInkOf(theme);
 		this.layers = cardLayers(this.inks);
 		this.transition.moveTo(this.targetLook, null);
 		this.followLook(this.transition.look);
@@ -223,10 +247,11 @@ export class ChoiceCard extends Pressable {
 		draw.drawRect({ id: this.id ?? undefined, rect: this.face, fill: look.fill, radius: CORNER });
 		draw.drawRect({ rect: this.band, fill: inks.index, radius: [CORNER, CORNER, 0, 0] });
 		draw.drawRect({ rect: this.rule, fill: inks.hairline });
-		if (enabled) draw.drawRect({ rect: this.face, fill: CLEAR, radius: CORNER, border: { color: look.border, width: look.borderWidth, position: 'inside' } });
+		if (this.needLocked) draw.drawPolygon({ points: this.hatch, fill: this.hatchInk });
+		if (enabled || this.needLocked) draw.drawRect({ rect: this.face, fill: CLEAR, radius: CORNER, border: { color: look.border, width: look.borderWidth, position: 'inside' } });
 		else draw.drawPolygon({ points: this.dashes, fill: look.border });
-		const faded = enabled ? null : inks.fadedPrint;
-		for (const icon of [...this.risks, ...this.gains]) drawEventIcon(draw, { kind: icon.kind, rect: icon.rect, tint: faded ?? toneInk(this.palette, icon.tone) });
+		const faded = enabled || this.needLocked ? null : inks.fadedPrint;
+		for (const icon of this.allIcons) drawEventIcon(draw, { kind: icon.kind, rect: icon.rect, tint: faded ?? toneInk(this.palette, icon.tone) });
 		if (look.focusRing) draw.drawRect({ rect: this.ring, fill: CLEAR, radius: CORNER + ATLAS.focusRingGap, border: { color: look.focusRing, width: ATLAS.focusRingWidth, position: 'outside' } });
 		if (moved) draw.popTransform();
 	}
@@ -235,11 +260,18 @@ export class ChoiceCard extends Pressable {
 		return resolveLook(this.layers, this.stateFlags);
 	}
 
+	/** Text colours for the state, and the parts moved with the face's lift or press, as Button's label is. */
 	private followLook(look: Look): void {
-		const text: RGBA = [...look.text] as RGBA;
+		// A locked card's label stays clean: only a stores shortfall fades it.
+		const clean = this.effectivelyEnabled || this.needLocked;
+		const text: RGBA = clean ? this.inks.ink : [...look.text] as RGBA;
 		this.title.color = text;
-		this.preview.color = this.effectivelyEnabled ? 'text_dim' : text;
-		for (const { value, tone } of [...this.risks, ...this.gains]) if (value) value.color = this.effectivelyEnabled ? toneInk(this.palette, tone) : text;
+		this.preview.color = clean ? 'text_dim' : text;
+		for (const { value, tone } of this.allIcons) if (value) value.color = clean ? toneInk(this.palette, tone) : text;
+		if (look.offsetY !== this.nudge) {
+			this.nudge = look.offsetY;
+			for (const part of this.texts) part.transform = { translate: [0, look.offsetY] };
+		}
 	}
 
 	/** The band, title, preview, and the two icon rows pinned to the foot. */
@@ -251,6 +283,7 @@ export class ChoiceCard extends Pressable {
 		const gap = ATLAS.focusRingGap;
 		setRect(this.ring, -gap, -gap, width + gap * 2, height + gap * 2);
 		dashedOutlineTriangles(this.face, { width: ATLAS.backRoadBorder, dash: ATLAS.dash, gap: ATLAS.dashGap, corner: CORNER }, this.dashes);
+		if (this.needLocked) this.hatch = hatchPolygonTriangles(roundedRectPolygon(this.face, [CORNER, CORNER, CORNER, CORNER]), HATCH);
 
 		const keySpace = this.key ? KEY_WIDTH + ICON_GAP : 0;
 		this.tag.setPosition(PAD, 0);
@@ -296,4 +329,9 @@ function setRect(rect: Rect, x: number, y: number, width: number, height: number
 	rect.y = y;
 	rect.width = Math.max(0, width);
 	rect.height = Math.max(0, height);
+}
+
+function hatchInkOf(theme: Theme): RGBA {
+	const [r, g, b] = theme.color.hatch_rust;
+	return [r, g, b, HATCH.alpha];
 }

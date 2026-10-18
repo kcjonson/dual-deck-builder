@@ -6,18 +6,19 @@ import { createTestContext } from '../../../engine/components/testing';
 import type { MountContext } from '../../../engine/components/MountContext';
 import type { Text } from '../../../engine/components/Text';
 import { click, key, send } from '../../../engine/services/testing';
+import { NO_MODIFIERS } from '../../../engine/input/events';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
 import { ScreenManager } from '../../core/ScreenManager';
 import { NO_RESOURCES } from '../../campaign/Campaign';
-import { EVENTS, EventParty, EventResult, GameEvent, eventById, resolveChoice } from '../../campaign/Events';
+import { EVENTS, EventParty, EventResult, GameEvent, eventById, landOutcome, resolveChoice } from '../../campaign/Events';
 import type { AtlasButton } from '../../ui/atlas/AtlasButton';
 import type { CardLookup } from '../../ui/DriverDetailView';
 import { sampleCard } from '../developer/CardDetailSection';
 import { ChoiceCard } from './ChoiceCard';
 import { EventScreen, EventScreenData, STAND_IN_PARTY } from './EventScreen';
-import { fightText, lockText, needText } from './eventText';
+import type { JournalPage } from './JournalPage';
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -34,6 +35,13 @@ function event(id: string): GameEvent {
 
 const FAMILY = event('family_under_fire');
 const BUS = event('burned_bus');
+/** Meets every need the content has and pays any cost, so every choice can be taken. */
+const EVERYTHING: EventParty = {
+	archetypes: ['road_warrior', 'interceptor', 'mechanic', 'raider'],
+	cards: { emp_blast: 1 },
+	escorts: ['outrider', 'pilot_car', 'fuel_hauler', 'med_truck'],
+	resources: { food: 30, water: 30, fuel: 30, meds: 30, scrap: 30, people: 30 },
+};
 /** Enough fuel to pay them off; no EMP Blast. */
 const CONVOY: EventParty = { archetypes: ['road_warrior', 'interceptor'], cards: { ram: 1 }, escorts: ['med_truck'], resources: { ...NO_RESOURCES, fuel: 3 } };
 
@@ -90,22 +98,33 @@ describe('EventScreen (DDB-45)', () => {
 		expect(card('charge').enabled).toBe(true);
 		const emp = card('kill_engines');
 		expect(emp.enabled).toBe(false);
-		expect(emp.needText).toBe(lockText({ reason: 'card', cardType: 'emp_blast' }));
+		expect(emp.needText).toBe('Requires: EMP Blast');
+		// Locked for a need: the label stays clean, not struck through.
+		expect(emp.style.title.textDecoration).toBeUndefined();
 		const pay = card('pay_them_off');
 		expect(pay.enabled).toBe(false);
 		expect(pay.needText).toBe('Need 3 fuel, have 2');
+		// Short of stores: struck through, as Game Flow 5.2 has it.
+		expect(pay.style.title.textDecoration).toBe('strike');
 		expect(pay.icons.risks).toEqual(['skull:cost', 'fuel:cost', 'clock:ink']);
 		expect(card('drive_on').icons).toEqual({ risks: [], gains: [] });
-		// A need the party meets still shows, so the player sees why it's there.
-		await open({ event: event('jackknifed_tanker'), party: STAND_IN_PARTY });
+		// A need the party meets still shows, so the player sees why it's there, and stays beside a shortfall.
+		screen.unmount();
+		await open({ event: event('armored_car'), party: { ...CONVOY, archetypes: ['mechanic'], resources: { ...NO_RESOURCES, scrap: 5 } } });
+		expect(card('get_it_running').needText).toBe('Mechanic / Need 8 scrap, have 5');
+		screen.unmount();
+		await open({ event: event('jackknifed_tanker'), party: { ...CONVOY, archetypes: ['mechanic'] } });
 		expect(card('crack_valve').enabled).toBe(true);
-		expect(card('crack_valve').needText).toBe(needText({ archetype: 'mechanic', card: null, escort: null }));
+		expect(card('crack_valve').needText).toBe('Mechanic only');
 	});
 
 	it('opens on the first event with the stand-in party when handed nothing, as the dev hook and capture open it', async () => {
 		await open();
 		expect(screen.shownEvent).toBe(EVENTS[0]);
-		expect(card('crack_valve').enabled).toBe(true);
+		// The stand-in has no Mechanic, so the capture shows an archetype lock.
+		expect(card('crack_valve').enabled).toBe(false);
+		expect(card('crack_valve').needText).toBe('Mechanic only');
+		expect(STAND_IN_PARTY.archetypes).not.toContain('mechanic');
 		expect(context.focus.focused?.id).toBe(`event_choice_${EVENTS[0].choices[0].id}`);
 	});
 
@@ -121,6 +140,7 @@ describe('EventScreen (DDB-45)', () => {
 		expect(screen.root.findById('event_choices')).toBeNull();
 		expect(text('event_outcome_text')).toBe(expected.outcome.text);
 		expect(text('event_outcome_line_0_text')).toBe('+3 scrap');
+		expect(find<{ tone: string }>('event_outcome_line_0_icon').tone).toBe('gain');
 		expect(text('event_outcome_line_1_text')).toBe('+0.5 h at the stop');
 		expect(screen.root.findById('event_reward_medical_kit')).not.toBeNull();
 		expect(find<AtlasButton>('event_go_button').label).toBe('Drive on');
@@ -135,24 +155,87 @@ describe('EventScreen (DDB-45)', () => {
 		expect(screen.result).toBeNull();
 	});
 
-	it('takes a choice by its number key, and hands off a fight on Fight them', async () => {
+	it('takes a choice by its number key once, and hands off a fight on Fight them', async () => {
+		const chosen: EventResult[] = [];
 		const done: EventResult[] = [];
-		await open({ event: FAMILY, party: CONVOY, onDone: (result) => done.push(result) });
+		await open({ event: FAMILY, party: EVERYTHING, onChoose: (result) => chosen.push(result), onDone: (result) => done.push(result) });
 		send(context, [key('1'), key('1', 'up')]);
 		context.frame.layout();
-		const fight = screen.result?.outcome.fight;
-		if (!fight) throw new Error('charging should hand off a fight');
-		expect(text('event_outcome_line_0_text')).toBe(fightText(fight));
+		expect(screen.result?.outcome.fight).not.toBeNull();
+		expect(text('event_outcome_line_0_text')).toBe('Raiders, 2 skulls. Win, and: +2 food; 3 settlers join you.');
 		expect(find<AtlasButton>('event_go_button').label).toBe('Fight them');
-		send(context, [key('2'), key('2', 'up')]);
-		expect(screen.result?.choice).toBe('charge');
+		// Every choice is open to this party, so only the guard stops a second one.
+		send(context, [key('4'), key('4', 'up')]);
+		expect(chosen.map(({ choice }) => choice)).toEqual(['charge']);
 		clickOn('event_go_button');
 		expect(done).toEqual([screen.result]);
 	});
 
+	it('ignores a held number key and a chord', async () => {
+		await open({ event: FAMILY, party: EVERYTHING });
+		const held = { kind: 'key', phase: 'down', key: '4', repeat: true, modifiers: NO_MODIFIERS } as const;
+		const chord = { kind: 'key', phase: 'down', key: '4', repeat: false, modifiers: { ...NO_MODIFIERS, ctrl: true } } as const;
+		send(context, [held, chord]);
+		expect(screen.result).toBeNull();
+	});
+
+	it('moves between the cards it can take with the arrows, and takes the focused one with Enter', async () => {
+		await open({ event: FAMILY, party: { ...CONVOY, cards: { emp_blast: 1 } } });
+		expect(context.focus.focused?.id).toBe('event_choice_charge');
+		send(context, [key('ArrowRight'), key('ArrowRight', 'up')]);
+		expect(context.focus.focused?.id).toBe('event_choice_kill_engines');
+		send(context, [key('Enter'), key('Enter', 'up')]);
+		expect(screen.result?.choice).toBe('kill_engines');
+	});
+
+	it('sets the journal in larger type on a tall window, its rules following', async () => {
+		await open({ event: FAMILY, party: CONVOY });
+		expect(find<Text>('event_setup').fontSize).toBe(17);
+		expect(find<JournalPage>('event_page').pitch).toBeCloseTo(17 * 1.45);
+		viewport.logical = { width: 1024, height: 600 };
+		screen.resize(1024, 600);
+		expect(find<Text>('event_setup').fontSize).toBe(14);
+		expect(find<JournalPage>('event_page').pitch).toBeCloseTo(14 * 1.45);
+	});
+
+	it('drops cards that load after the screen has gone, and fills the next mount from its own load', async () => {
+		const pending: ((lookup: CardLookup) => void)[] = [];
+		screen = new EventScreen({ cards: () => new Promise((resolve) => pending.push(resolve)) });
+		const result = landOutcome({ event: BUS, choice: 'search_bus', draw: 0 });
+		screen.mount(context, { event: BUS, result });
+		const first = screen.cardsLoaded;
+		expect(find<{ visible: boolean }>('event_rewards').visible).toBe(false);
+		screen.unmount();
+		screen.mount(context, { event: BUS, result });
+		const second = screen.cardsLoaded;
+		pending[0]((type) => sampleCard(type));
+		await first;
+		expect(screen.root.findById('event_reward_medical_kit')).toBeNull();
+		pending[1]((type) => sampleCard(type));
+		await second;
+		expect(screen.root.findById('event_reward_medical_kit')).not.toBeNull();
+		expect(find<{ visible: boolean }>('event_rewards').visible).toBe(true);
+	});
+
+	it('shows no rewards, and no gap for them, when the cards fail to load', async () => {
+		const error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+		screen = new EventScreen({ cards: () => Promise.reject(new Error('offline')) });
+		screen.mount(context, { event: BUS, result: landOutcome({ event: BUS, choice: 'search_bus', draw: 0 }) });
+		await screen.cardsLoaded;
+		expect(find<{ visible: boolean }>('event_rewards').visible).toBe(false);
+		expect(error).toHaveBeenCalled();
+		error.mockRestore();
+	});
+
+	it('labels the highway Pick a card for an outcome with the reward picker', async () => {
+		await open({ event: BUS, result: landOutcome({ event: BUS, choice: 'follow_tracks', draw: 0 }) });
+		expect(find<AtlasButton>('event_go_button').label).toBe('Pick a card');
+	});
+
 	it('reopens on a result a saved step holds, and with nothing hooked up Drive on goes to the menu', async () => {
-		const result = resolveChoice({ event: event('armored_car'), choice: 'get_it_running', party: { ...CONVOY, archetypes: ['mechanic'], resources: { ...NO_RESOURCES, scrap: 8 } }, draw: 0 });
-		await open({ event: event('armored_car'), party: CONVOY, result });
+		// Rebuilt with no lock check: the scrap is already paid.
+		const result = landOutcome({ event: event('armored_car'), choice: 'get_it_running', draw: 0 });
+		await open({ event: event('armored_car'), result });
 		expect(screen.root.findById('event_choices')).toBeNull();
 		expect(text('event_outcome_line_0_text')).toBe('Paid 8 scrap');
 		expect(screen.root.findById('event_reward_outrider')).not.toBeNull();
@@ -167,17 +250,15 @@ describe('EventScreen (DDB-45)', () => {
 		});
 
 		it.each(EVENTS.map((shown) => [shown.id, shown] as const))('lays out %s with no lint, before and after every choice', async (_id, shown) => {
-			const everything: EventParty = { archetypes: ['mechanic'], cards: {}, escorts: [], resources: { ...NO_RESOURCES, fuel: 1 } };
-			await open({ event: shown, party: everything });
+			await open({ event: shown, party: { ...CONVOY, resources: { ...NO_RESOURCES, fuel: 1 } } });
 			expect(layoutLint(treeSnapshot([screen.root], size)).violations).toEqual([]);
 			for (const choice of shown.choices) {
 				for (let outcome = 0; outcome < choice.outcomes.length; outcome += 1) {
 					const total = choice.outcomes.reduce((sum, { weight }) => sum + weight, 0);
 					const before = choice.outcomes.slice(0, outcome).reduce((sum, { weight }) => sum + weight, 0);
-					const party: EventParty = { archetypes: ['mechanic', 'interceptor'], cards: { emp_blast: 1 }, escorts: ['med_truck'], resources: { ...NO_RESOURCES, fuel: 9, scrap: 9 } };
-					const result = resolveChoice({ event: shown, choice: choice.id, party, draw: before / total });
+					const result = landOutcome({ event: shown, choice: choice.id, draw: before / total });
 					screen.unmount();
-					await open({ event: shown, party, result });
+					await open({ event: shown, result });
 					expect({ choice: choice.id, outcome, violations: layoutLint(treeSnapshot([screen.root], size)).violations }).toEqual({ choice: choice.id, outcome, violations: [] });
 				}
 			}

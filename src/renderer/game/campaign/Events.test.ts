@@ -17,6 +17,7 @@ import {
 	eventParty,
 	eventsFor,
 	isFreeChoice,
+	landOutcome,
 	pickEvent,
 	readEvents,
 	resolveChoice,
@@ -159,6 +160,63 @@ describe('events.json, the schema over the content (DDB-45)', () => {
 		})).toThrow(/used twice in the event/);
 	});
 
+	// One case per reader rule, on the first event's first choice and outcome unless the rule is elsewhere.
+	const outcomeOf = (file: LooseFile) => file.events[0].choices[0].outcomes[0];
+	const BROKEN: readonly [string, (file: LooseFile) => void, RegExp][] = [
+		['one choice', (file) => { file.events[0].choices = file.events[0].choices.slice(3); }, /2 to 4 choices/],
+		['five choices', (file) => { file.events[0].choices.push(copy({ ...file.events[0].choices[0], id: 'fifth' })); }, /2 to 4 choices/],
+		['no outcomes', (file) => { file.events[0].choices[0].outcomes = []; }, /1 to 4 outcomes/],
+		['five outcomes', (file) => { file.events[0].choices[0].outcomes = Array.from({ length: 5 }, () => copy(outcomeOf(file))); }, /1 to 4 outcomes/],
+		['an id not in snake case', (file) => { file.events[0].id = 'Jackknifed-Tanker'; }, /lower snake case/],
+		['a choice id not in snake case', (file) => { file.events[0].choices[0].id = 'Siphon'; }, /lower snake case/],
+		['an art key not in snake case', (file) => { (file.events[0].illustration as Record<string, unknown>).art = 'event tanker'; }, /lower snake case/],
+		['a long title', (file) => { file.events[0].title = 'x'.repeat(41); }, /title must be at most 40/],
+		['a long setup', (file) => { file.events[0].setup = 'x'.repeat(241); }, /setup must be at most 240/],
+		['a long situation', (file) => { file.events[0].situation = 'x'.repeat(241); }, /situation must be at most 240/],
+		['a long preview', (file) => { file.events[0].choices[0].preview = 'x'.repeat(91); }, /preview must be at most 90/],
+		['a long outcome', (file) => { outcomeOf(file).text = 'x'.repeat(201); }, /text must be at most 200/],
+		['a long fight text', (file) => { (file.events[1].choices[0].outcomes[1].fight as Record<string, unknown>).text = 'x'.repeat(201); }, /fight.text must be at most 200/],
+		['an unknown choice field', (file) => { file.events[0].choices[0].mood = 'grim'; }, /choices\[0\] has an unknown field "mood"/],
+		['an unknown outcome field', (file) => { outcomeOf(file).mood = 'grim'; }, /outcomes\[0\] has an unknown field "mood"/],
+		['a negative cost', (file) => { file.events[0].choices[0].cost = { fuel: -1 }; }, /cost.fuel must be an integer from 1/],
+		['an empty cost', (file) => { file.events[0].choices[0].cost = {}; }, /cost must name a resource/],
+		['a resource over the cap', (file) => { outcomeOf(file).resources = { fuel: 31 }; }, /resources.fuel must be an integer from -30 to 30/],
+		['people as a resource', (file) => { outcomeOf(file).resources = { people: 1 }; }, /unknown field "people"/],
+		['no settlers', (file) => { outcomeOf(file).settlers = 0; }, /settlers must be an integer from 1 to 8/],
+		['nine settlers', (file) => { outcomeOf(file).settlers = 9; }, /settlers must be an integer from 1 to 8/],
+		['three drivers', (file) => { outcomeOf(file).drivers = 3; }, /drivers must be an integer from 1 to 2/],
+		['no structure', (file) => { outcomeOf(file).structure = 0; }, /structure must not be 0/],
+		['too much damage', (file) => { outcomeOf(file).hp = -21; }, /hp must be an integer from -20 to 20/],
+		['the picker turned off', (file) => { outcomeOf(file).cardPick = false; }, /cardPick must be true/],
+		['a made-up escort', (file) => { outcomeOf(file).escort = 'tank'; }, /escort must be one of/],
+		['too many copies of a card', (file) => { outcomeOf(file).cards = { medical_kit: 4 }; }, /cards.medical_kit must be an integer from 1 to 3/],
+		['no cards', (file) => { outcomeOf(file).cards = {}; }, /cards must name a card/],
+		['a requirement for nothing', (file) => { file.events[0].choices[1].requires = {}; }, /must need something/],
+		['a made-up archetype', (file) => { file.events[0].choices[1].requires = { archetype: 'pilot' }; }, /archetype must be one of/],
+		['no skulls', (file) => { (file.events[1].choices[0].outcomes[1].fight as Record<string, unknown>).skulls = 0; }, /skulls must be an integer from 1 to 3/],
+		['hours on a fight', (file) => { (file.events[1].choices[0].outcomes[1].fight as Record<string, unknown>).hours = 1; }, /unknown field "hours"/],
+		['a picker on a fight', (file) => { (file.events[1].choices[0].outcomes[1].fight as Record<string, unknown>).cardPick = true; }, /unknown field "cardPick"/],
+		['no weight', (file) => { outcomeOf(file).weight = 0; }, /weight must be an integer from 1 to 100/],
+		['a fractional weight', (file) => { outcomeOf(file).weight = 1.5; }, /weight must be an integer/],
+		['no hours', (file) => { outcomeOf(file).hours = 0; }, /whole number of half hours/],
+		['too many hours', (file) => { outcomeOf(file).hours = 6.5; }, /whole number of half hours/],
+		['a garage event', (file) => { file.events[0].stopType = 'garage'; }, /stopType must be one of/],
+	];
+
+	it.each(BROKEN)('refuses %s, naming its path', (_case, change, message) => {
+		expect(readChanged(change)).toThrow(message);
+	});
+
+	it('takes an escort\'s signature card as a requirement, met by the escort card in a run deck', () => {
+		const file = copy(eventsFile) as unknown as LooseFile;
+		file.events[4].choices[1].requires = { card: 'triage' };
+		const mayday = readEvents(file, 'events')[4];
+		const treat = mayday.choices[1];
+		expect(treat.requires.card).toBe('triage');
+		expect(choiceLock({ choice: treat, party: BARE })).toEqual({ reason: 'card', cardType: 'triage' });
+		expect(choiceLock({ choice: treat, party: { ...BARE, cards: { triage: 1 } } })).toBeNull();
+	});
+
 	it('refuses an event with no free choice, so no party is ever stuck at a stop', () => {
 		expect(readChanged((file) => {
 			file.events[2].choices = file.events[2].choices.filter(({ id }) => id !== 'drive_on' && id !== 'pry_doors');
@@ -206,6 +264,15 @@ describe('resolveChoice', () => {
 		expect(charged.fight).toMatchObject({ skulls: 2, resources: { food: 2, people: 3 } });
 	});
 
+	it('lands a choice already paid for with no lock check, as a saved step rebuilds it', () => {
+		// The party can no longer afford it once the fuel is paid, so the locked path would refuse it.
+		const family = event('family_under_fire');
+		expect(() => resolveChoice({ event: family, choice: 'pay_them_off', party: BARE, draw: 0.9 })).toThrow(ChoiceLockedError);
+		const paid = resolveChoice({ event: family, choice: 'pay_them_off', party: EVERYTHING, draw: 0.9 });
+		expect(landOutcome({ event: family, choice: 'pay_them_off', draw: 0.9 })).toEqual(paid);
+		expect(() => landOutcome({ event: family, choice: 'pay_them_off', draw: -0.1 })).toThrow(/draw/);
+	});
+
 	it('refuses a locked choice, one the event lacks, or a draw out of range', () => {
 		expect(() => resolveChoice({ event: tanker, choice: 'crack_valve', party: BARE, draw: 0 })).toThrow(ChoiceLockedError);
 		expect(() => resolveChoice({ event: tanker, choice: 'fly_over', party: BARE, draw: 0 })).toThrow(/no choice "fly_over"/);
@@ -231,7 +298,9 @@ describe('pickEvent and eventParty', () => {
 		const wrecks = eventsFor('wreck');
 		expect(pickEvent({ stopType: 'wreck', draw: 0 })).toBe(wrecks[0]);
 		expect(pickEvent({ stopType: 'wreck', draw: 0.9999 })).toBe(wrecks[wrecks.length - 1]);
-		expect(pickEvent({ stopType: 'garage', draw: 0.5 })).toBeNull();
+		expect(pickEvent({ stopType: 'checkpoint', draw: 0.5 })).toBeNull();
+		expect(() => pickEvent({ stopType: 'wreck', draw: 1 })).toThrow(/draw/);
+		expect(() => pickEvent({ stopType: 'wreck', draw: Number.NaN })).toThrow(/draw/);
 	});
 
 	it('puts the party together from the run out: seats, run decks with escort cards, escorts, and stores plus cargo', () => {

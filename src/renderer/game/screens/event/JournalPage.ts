@@ -21,7 +21,7 @@ const RULE_DROP = 0.82;
 /**
  * The event's journal (Game Flow 5.2: "a weathered journal style, as if
  * written by someone chronicling their journey"): a ruled page of W1
- * paper in an ink border, a margin rule in grease pencil, and the rules in
+ * paper in an ink border, a printed margin rule in stronghold red, and the rules in
  * river blue at the text's own pitch, so the setup and situation read as
  * written on it. Paragraphs are a line apart, which keeps every line after
  * the first paragraph on a rule too. It fills its column; the rules run on
@@ -30,6 +30,8 @@ const RULE_DROP = 0.82;
 export class JournalPage extends Stack {
 	private pitchValue: number;
 	private inks: AtlasInks;
+	private ruleInk: RGBA = CLEAR;
+	private marginInk: RGBA = CLEAR;
 	private readonly box: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly rules: Rect[] = [];
 	private ruleCount = 0;
@@ -41,6 +43,7 @@ export class JournalPage extends Stack {
 		this.componentType = 'JournalPage';
 		this.pitchValue = pitch;
 		this.inks = atlasInks(this.themeTokens);
+		this.followInks();
 	}
 
 	public get pitch(): number {
@@ -61,6 +64,13 @@ export class JournalPage extends Stack {
 
 	protected onThemeChange(theme: Theme): void {
 		this.inks = atlasInks(theme);
+		this.followInks();
+	}
+
+	private followInks(): void {
+		const { river, stronghold } = this.inks;
+		this.ruleInk = [river[0], river[1], river[2], 0.28];
+		this.marginInk = [stronghold[0], stronghold[1], stronghold[2], 0.5];
 	}
 
 	protected layoutChildren(): void {
@@ -82,9 +92,8 @@ export class JournalPage extends Stack {
 	public render(draw: DrawApi): void {
 		const inks = this.inks;
 		drawAtlasArt(draw, { id: this.id ?? undefined, name: this.surface, rect: this.box, tint: inks.paper });
-		const rule: RGBA = [inks.river[0], inks.river[1], inks.river[2], 0.28];
-		for (let index = 0; index < this.ruleCount; index++) draw.drawRect({ rect: this.rules[index], fill: rule });
-		draw.drawRect({ rect: this.marginRule, fill: [inks.grease[0], inks.grease[1], inks.grease[2], 0.55] });
+		for (let index = 0; index < this.ruleCount; index++) draw.drawRect({ rect: this.rules[index], fill: this.ruleInk });
+		draw.drawRect({ rect: this.marginRule, fill: this.marginInk });
 		draw.drawRect({ rect: this.box, fill: CLEAR, border: { color: inks.ink, width: ATLAS.legendBorder } });
 	}
 }

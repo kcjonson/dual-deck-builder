@@ -12,8 +12,10 @@ import { AtlasInks, atlasInks } from '../../ui/atlas/atlasStyle';
  * the north-west like the map, so a placeholder still reads as a plate. A
  * road crosses the plate on its casing, and on it the stop's scene: a wreck
  * across the lanes, or for a distress signal a vehicle on its side off the
- * road with people by it and the signal's rings. Contour lines fill the
- * ground. Everything is placed from the plate's size, so it fits any crop.
+ * road with people by it and the signal's rings in stronghold red. Contour
+ * lines fill the ground. Everything is placed from the plate's size, so it
+ * fits any crop. Grease pencil stays the player's (UI Art Direction, The
+ * hand), so nothing here is drawn in it.
  */
 
 const CONTOURS = 7;
@@ -30,13 +32,15 @@ const DESIGN_SIDE = 320;
 interface Shape {
 	points: Vec2[];
 	closed: boolean;
-	color: 'ink' | 'faint' | 'grease';
+	color: 'ink' | 'faint' | 'signal';
 	width: number;
 }
 
 export class EventPlate extends Component {
 	public readonly stopType: StopType;
 	private inks: AtlasInks;
+	private colors: Record<Shape['color'], RGBA>;
+	private readonly box = { x: 0, y: 0, width: 0, height: 0 };
 	private shapes: Shape[] = [];
 	private circles: { center: Vec2; radius: number; fill: boolean }[] = [];
 	/** The road's casing and fill as triangle lists, cut at the plate's sides so nothing draws past it. */
@@ -48,6 +52,7 @@ export class EventPlate extends Component {
 		this.componentType = 'EventPlate';
 		this.stopType = stopType;
 		this.inks = atlasInks(this.themeTokens);
+		this.colors = colorsOf(this.inks);
 	}
 
 	protected defaultSizeMode(size: number | undefined): SizeMode {
@@ -61,6 +66,7 @@ export class EventPlate extends Component {
 
 	protected onThemeChange(theme: Theme): void {
 		this.inks = atlasInks(theme);
+		this.colors = colorsOf(this.inks);
 	}
 
 	protected layoutChildren(): void {
@@ -68,24 +74,20 @@ export class EventPlate extends Component {
 	}
 
 	public render(draw: DrawApi): void {
-		const { width, height } = this;
 		const inks = this.inks;
-		draw.drawRect({ id: this.id ?? undefined, rect: { x: 0, y: 0, width, height }, fill: inks.paper });
-		const colors: Record<Shape['color'], RGBA> = {
-			ink: inks.ink,
-			faint: [inks.ink[0], inks.ink[1], inks.ink[2], 0.14],
-			grease: inks.grease,
-		};
+		draw.drawRect({ id: this.id ?? undefined, rect: this.box, fill: inks.paper });
 		draw.drawPolygon({ points: this.casing, fill: inks.casing });
 		draw.drawPolygon({ points: this.road, fill: inks.highway });
-		for (const shape of this.shapes) draw.drawPolyline({ points: shape.points, closed: shape.closed, color: colors[shape.color], width: shape.width, cap: 'round' });
+		for (const shape of this.shapes) draw.drawPolyline({ points: shape.points, closed: shape.closed, color: this.colors[shape.color], width: shape.width, cap: 'round' });
 		for (const { center, radius, fill } of this.circles) {
-			draw.drawCircle({ center, radius, fill: fill ? inks.ink : [0, 0, 0, 0], border: { color: inks.ink, width: 1.4, position: 'center' } });
+			draw.drawCircle({ center, radius, fill: fill ? inks.ink : CLEAR, border: { color: inks.ink, width: 1.4, position: 'center' } });
 		}
 	}
 
 	private build(): void {
 		const { width, height } = this;
+		this.box.width = width;
+		this.box.height = height;
 		this.shapes = [];
 		this.circles = [];
 		if (width <= 0 || height <= 0) return;
@@ -116,8 +118,6 @@ export class EventPlate extends Component {
 		this.shapes.push({ points: body, closed: true, color: 'ink', width: 2.4 });
 		this.shapes.push({ points: [body[0], body[2]], closed: false, color: 'ink', width: 1.2 });
 		this.shapes.push({ points: [body[1], body[3]], closed: false, color: 'ink', width: 1.2 });
-		// Where the crew would look: the grease pencil's loop round it.
-		this.shapes.push({ points: ring({ x: at.x, y: at.y }, VEHICLE.length * 0.75 * scale, 28), closed: true, color: 'grease', width: 2 });
 	}
 
 	/** On its side off the road, its people beside it, and the signal going out. */
@@ -130,7 +130,7 @@ export class EventPlate extends Component {
 		for (let person = 0; person < PEOPLE; person += 1) {
 			this.circles.push({ center: { x: at.x + (person * 14 - 30) * scale, y: at.y + VEHICLE.width * 0.9 * scale }, radius: 4 * scale, fill: true });
 		}
-		for (const radius of RINGS) this.shapes.push({ points: arc(at, (radius + VEHICLE.length * 0.4) * scale, -2.4, -0.8), closed: false, color: 'grease', width: 1.8 });
+		for (const radius of RINGS) this.shapes.push({ points: arc(at, (radius + VEHICLE.length * 0.4) * scale, -2.4, -0.8), closed: false, color: 'signal', width: 1.8 });
 	}
 }
 
@@ -154,19 +154,16 @@ function box(center: Vec2, angle: number, length: number, width: number): Vec2[]
 	}));
 }
 
-/** A slightly uneven loop, as a hand draws one. */
-function ring(center: Vec2, radius: number, steps: number): Vec2[] {
-	return Array.from({ length: steps }, (_unused, step) => {
-		const turn = (step / steps) * Math.PI * 2;
-		const wobble = 1 + Math.sin(turn * 3) * 0.04;
-		return { x: center.x + Math.cos(turn) * radius * wobble, y: center.y + Math.sin(turn) * radius * 0.6 * wobble };
-	});
-}
-
 function arc(center: Vec2, radius: number, start: number, end: number): Vec2[] {
 	const steps = 12;
 	return Array.from({ length: steps + 1 }, (_unused, step) => {
 		const turn = start + ((end - start) * step) / steps;
 		return { x: center.x + Math.cos(turn) * radius, y: center.y + Math.sin(turn) * radius };
 	});
+}
+
+const CLEAR: RGBA = [0, 0, 0, 0];
+
+function colorsOf(inks: AtlasInks): Record<Shape['color'], RGBA> {
+	return { ink: inks.ink, faint: [inks.ink[0], inks.ink[1], inks.ink[2], 0.14], signal: inks.stronghold };
 }

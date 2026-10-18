@@ -220,10 +220,12 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'ui-art-marks' },
 	// The full-screen sheet, gated at both sizes since it fills the window (DDB-504)
 	{ scene: 'ui-art-sheet', shortViewport: true },
-	// The event screen whole, its choices and two outcomes, at both sizes as a screen is (DDB-45)
+	// The event screen whole, its choices, locks, and outcomes, at both sizes as a screen is (DDB-45)
 	{ scene: 'event-wreck', shortViewport: true },
 	{ scene: 'event-distress', shortViewport: true },
+	{ scene: 'event-locks', shortViewport: true },
 	{ scene: 'event-outcome', shortViewport: true },
+	{ scene: 'event-escort', shortViewport: true },
 	{ scene: 'event-fight', shortViewport: true },
 ];
 
