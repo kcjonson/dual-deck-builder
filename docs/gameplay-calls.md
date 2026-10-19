@@ -410,3 +410,9 @@ Made building the combat side of [Runs and Encounters](./specs/Runs%20and%20Enco
 205. DDB-525: a stop's fight draws its template at the run's destination tier, not a tier of its own, because a route's stops don't carry one and skulls already rise with tier.
 206. DDB-525: a warband's leader is its vehicle, so the leader is out, and the rest rout, when that vehicle is wrecked or loses its driver, even if the driver jumps to another raider, because the leader is the War Rig the warband rides behind, and a driver riding as a passenger can't lead it.
 207. DDB-328: the top bar's "+N arriving" and the log's "N raiders arriving" count only the raiders that will pull in at the end of this enemy turn, under the road cap and into free slots, replacing 194, because with road caps a whole wave rarely lands at once, and the readout should promise what the player will see.
+
+## Fight floor on every route (261 to 269)
+
+Records: route-tree-and-pois.md (Own road) and stops-and-routes.md.
+
+261. DDB-529: a POI whose ring puts it in tiers 1 to 3 is tier 4 when its quickest route can't be home by dark carrying only its fight floor, each fight counted at a warband's 1.5 hours, because stage 8 puts the tier 3 to 4 boundary where a run stops fitting in daylight, and with the floor hard, 53 of 564 such POIs over 30 maps could never be home by dark otherwise. Tiers from hours (DDB-292) replace it.

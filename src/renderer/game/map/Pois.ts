@@ -7,7 +7,7 @@ import type { RoadNetwork } from './RoadNetwork';
 import { Arrival, Destination, Leg, MeetingPoint, RouteTree, buildLegs, routesTo } from './RouteTree';
 import { SegmentIndex } from './SegmentIndex';
 import { STOP_TUNING, StopTuning } from './StopData';
-import { nodeDegrees, ownRoadNeed, ownRoadRoom } from './StopRoom';
+import { DAYLIGHT_TIERS, floorRunHours, nodeDegrees, ownRoadNeed, ownRoadRoom } from './StopRoom';
 import type { Terrain } from './Terrain';
 
 /**
@@ -26,7 +26,10 @@ import type { Terrain } from './Terrain';
  * where each of its routes, and every route already seated, keeps own road
  * (legs no other POI's routes use) with room for its need (`ownRoadNeed`),
  * so the stops stage can put each route's floor fights and half its band
- * there (guarantee 11). Every decision is
+ * there (guarantee 11). A POI is tier 4 where its ring would put it in tiers
+ * 1 to 3 but its quickest route can't be home by dark carrying only its
+ * fight floor, as stage 8's tier 3 to 4 boundary would, until tiers come
+ * from hours (DDB-292). Every decision is
  * plain arithmetic, sectors included (see Geometry). The decision record is
  * docs/AI_TECHNICAL_DECISIONS/route-tree-and-pois.md.
  */
@@ -66,7 +69,11 @@ export interface Poi {
 	readonly type: string;
 	/** Its ring from the metro's edge out, a stronghold's by where it stands. */
 	readonly ring: number;
-	/** A stand-in until tiers (stage 8): the ring plus one, and 5 for a stronghold. */
+	/**
+	 * A stand-in until tiers (stage 8): the ring plus one, and 5 for a
+	 * stronghold, or 4 where tiers 1 to 3 would leave its quickest route
+	 * past dark with only its fight floor.
+	 */
 	readonly tier: number;
 }
 
@@ -83,6 +90,8 @@ export interface RingCount {
 	/** What the ring aimed for: its base target times poiDensity, rounded. */
 	readonly target: number;
 	readonly placed: number;
+	/** Of those seated, how many its tier would leave past dark, so they're tier 4. */
+	readonly promoted: number;
 }
 
 /** The stage's product: plain data, which crosses the worker boundary by structured clone. */
@@ -108,7 +117,7 @@ export interface PoiOptions {
 	readonly tree: RouteTree;
 	readonly ground: PoiGround;
 	/** Validated. */
-	readonly params: Pick<MapParams, 'strongholds' | 'poiDensity'>;
+	readonly params: Pick<MapParams, 'strongholds' | 'poiDensity' | 'daylightHours'>;
 	/** The stage's stream; each part forks its own from it by name. */
 	readonly rng: Rng;
 	/** The shipped tuning when left out. */
@@ -167,6 +176,7 @@ interface Placement {
 	readonly candidate: number;
 	readonly type: string;
 	readonly ring: number;
+	readonly tier: number;
 	/** A stronghold's faction and sector; '' and -1 for a POI. */
 	readonly faction: string;
 	readonly sector: number;
@@ -239,7 +249,7 @@ class PoiPlacer {
 				arrivals: destinations[index].arrivals.map((arrival, place) => ({ ...arrival, leg: lastLegs[index][place] })),
 				type: types[index],
 				ring,
-				tier: tierOf(types[index], ring),
+				tier: this.placements[index].tier,
 			};
 		});
 		const strongholds = this.placements
@@ -373,7 +383,7 @@ class PoiPlacer {
 				continue;
 			}
 			taken[best.faction] = 1;
-			this.take(best.candidate, { type: STRONGHOLD_TYPE, ring: this.ringOf(this.siteRadius[best.candidate]), faction: names[best.faction], sector });
+			this.take(best.candidate, { type: STRONGHOLD_TYPE, ring: this.ringOf(this.siteRadius[best.candidate]), tier: STRONGHOLD_TIER, faction: names[best.faction], sector });
 		}
 		return missing;
 	}
@@ -423,6 +433,7 @@ class PoiPlacer {
 		const { targets } = this.tuning.rings;
 		const aims = targets.map((base) => round(base * this.params.poiDensity));
 		const placed = aims.map(() => 0);
+		const promoted = aims.map(() => 0);
 		const order = Array.from({ length: this.count }, (_, candidate) => candidate);
 		order.sort((a, b) => this.siteScore[b] - this.siteScore[a] || a - b);
 		const start = this.ground.metro.radius;
@@ -431,11 +442,22 @@ class PoiPlacer {
 			const distance = this.siteRadius[candidate];
 			if (distance < start || distance > end) continue;
 			const ring = this.ringOf(distance);
-			if (placed[ring] >= aims[ring] || !this.free(candidate, false) || !this.keepsOwnRoad(candidate, ring + 1)) continue;
+			if (placed[ring] >= aims[ring] || !this.free(candidate, false)) continue;
+			const tier = this.tierAt(candidate, ring);
+			if (!this.keepsOwnRoad(candidate, tier)) continue;
 			placed[ring] += 1;
-			this.take(candidate, { type: '', ring, faction: '', sector: -1 });
+			if (tier !== ring + 1) promoted[ring] += 1;
+			this.take(candidate, { type: '', ring, tier, faction: '', sector: -1 });
 		}
-		return aims.map((target, ring) => ({ target, placed: placed[ring] }));
+		return aims.map((target, ring) => ({ target, placed: placed[ring], promoted: promoted[ring] }));
+	}
+
+	/** A POI's tier on a candidate: its ring plus one, or 4 where that's in tiers 1 to 3 and its quickest route can't be home by dark with only its fight floor. */
+	private tierAt(candidate: number, ring: number): number {
+		const tier = ring + 1;
+		if (tier > DAYLIGHT_TIERS) return tier;
+		const hours = floorRunHours({ routeHours: this.quickest(candidate), tier, objectiveHours: this.stopTuning.objectiveHours.poi, tuning: this.stopTuning });
+		return hours > this.params.daylightHours ? DAYLIGHT_TIERS + 1 : tier;
 	}
 
 	private ringOf(distance: number): number {
@@ -473,7 +495,7 @@ class PoiPlacer {
 		this.placedX.push(this.siteX[candidate]);
 		this.placedY.push(this.siteY[candidate]);
 		this.placements.push({ candidate, ...placement });
-		this.destinations.push({ arrivals: this.arrivalsAt(candidate), tier: tierOf(placement.type, placement.ring) });
+		this.destinations.push({ arrivals: this.arrivalsAt(candidate), tier: placement.tier });
 	}
 
 	/**
@@ -584,11 +606,6 @@ class PoiPlacer {
 	private quickest(candidate: number): number {
 		return this.arrivalsAt(candidate)[0].hours;
 	}
-}
-
-/** Tiers until stage 8 works them out from hours: a POI's ring plus one, and a stronghold's 5. */
-function tierOf(type: string, ring: number): number {
-	return type === STRONGHOLD_TYPE ? STRONGHOLD_TIER : ring + 1;
 }
 
 /** World units a site keeps from either end of a stretch this long. */

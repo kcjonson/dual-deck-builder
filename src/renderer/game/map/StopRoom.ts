@@ -1,6 +1,6 @@
 import type { RoadNetwork } from './RoadNetwork';
 import type { Leg, Route } from './RouteTree';
-import { STOP_TIERS, StopTuning, TierBand } from './StopData';
+import { FIGHT_TYPES, STOP_TIERS, StopTuning, TierBand } from './StopData';
 
 /**
  * How many stops a stretch of route tree has room for, as the stops stage
@@ -29,6 +29,25 @@ export function ownRoadNeed(tier: number, tuning: Pick<StopTuning, 'bands'>): nu
 	const { stops, fights } = bandFor(tier, tuning);
 	const half = ceil(stops.min / 2);
 	return fights.min > half ? fights.min : half;
+}
+
+/** POIs in tiers up to this have to be reachable and left in daylight (guarantee 10). */
+export const DAYLIGHT_TIERS = 3;
+
+/** An estimated run, as the daylight check (guarantee 10) counts it: out and home along the route, its stops, and the objective. */
+export function runHours({ routeHours, stopHours, objectiveHours }: { routeHours: number; stopHours: number; objectiveHours: number }): number {
+	return 2 * routeHours + stopHours + objectiveHours;
+}
+
+/**
+ * The least run a route of this tier can have once the daylight check has
+ * shed all it may: its fight floor and nothing else, each fight the
+ * costliest a fight can be, so the stops stage can always thin to it.
+ */
+export function floorRunHours({ routeHours, tier, objectiveHours, tuning }: { routeHours: number; tier: number; objectiveHours: number; tuning: Pick<StopTuning, 'bands' | 'types'> }): number {
+	let fightHours = 0;
+	for (const type of FIGHT_TYPES) if (tuning.types[type].hours > fightHours) fightHours = tuning.types[type].hours;
+	return runHours({ routeHours, stopHours: bandFor(tier, tuning).fights.min * fightHours, objectiveHours });
 }
 
 /** World units a stop keeps from either end of a leg this long: the clearance, or a quarter of a short leg. */

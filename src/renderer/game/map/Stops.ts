@@ -6,7 +6,7 @@ import type { PoiLayer } from './Pois';
 import { ROAD_CLASSES, RoadClass, RoadNetwork } from './RoadNetwork';
 import { Route, legPoints, routesTo } from './RouteTree';
 import { CompiledStopTables, NO_TERRITORY, STOP_TUNING, StopTuning, StopType, isCalm, isFight, stopTablesFor } from './StopData';
-import { junctionsAlong, nearestClear, nodeDegrees } from './StopRoom';
+import { DAYLIGHT_TIERS, junctionsAlong, nearestClear, nodeDegrees, runHours } from './StopRoom';
 import type { Terrain } from './Terrain';
 
 /**
@@ -34,8 +34,6 @@ const floor = Math.floor;
 const ceil = Math.ceil;
 const round = Math.round;
 
-/** POIs in tiers up to this have to be reachable and left in daylight (guarantee 10). */
-export const DAYLIGHT_TIERS = 3;
 /** A stronghold's tier, and any leg's before a POI's route claims it. */
 const STRONGHOLD_TIER = 5;
 /** Passes of the daylight check at most, each over every POI it covers. */
@@ -524,7 +522,7 @@ class StopPlacer {
 	private estimate(poi: number, route: Route): number {
 		let stops = 0;
 		for (const leg of route.legs) for (const { type } of this.placed[leg]) stops += this.tuning.types[type].hours;
-		return 2 * route.hours + stops + this.objectiveHours(poi);
+		return runHours({ routeHours: route.hours, stopHours: stops, objectiveHours: this.objectiveHours(poi) });
 	}
 
 	private objectiveHours(poi: number): number {

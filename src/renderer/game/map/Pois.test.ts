@@ -6,12 +6,12 @@ import { MapPipeline } from './MapPipeline';
 import { FakeGroundOptions, fakeGround, meshFrom, randomMesh } from './meshTesting';
 import { checkPoiLayer } from './PoiChecks';
 import { FACTIONS, POI_TUNING, PoiResource, PoiTuning, STRONGHOLD_TYPE } from './PoiData';
-import { PoiGround, PoiLayer, Sectors, placePois } from './Pois';
+import { Poi, PoiGround, PoiLayer, Sectors, placePois } from './Pois';
 import type { RoadNetwork } from './RoadNetwork';
 import { RouteTree, buildRouteTree, routesTo } from './RouteTree';
 import { paramsFor } from './roadTesting';
 import { STOP_TUNING, StopTuning } from './StopData';
-import { nodeDegrees, ownRoadNeed, ownRoadRoom } from './StopRoom';
+import { floorRunHours, nodeDegrees, ownRoadNeed, ownRoadRoom } from './StopRoom';
 
 interface PlaceOptions {
 	seed?: number;
@@ -21,11 +21,12 @@ interface PlaceOptions {
 	routeSplit?: number;
 	tuning?: PoiTuning;
 	stopTuning?: StopTuning;
+	daylightHours?: number;
 }
 
-function place(network: RoadNetwork, { seed = 1, ground = fakeGround(), strongholds = 4, poiDensity = 1, routeSplit = 0.5, tuning, stopTuning }: PlaceOptions = {}): { tree: RouteTree; layer: PoiLayer } {
+function place(network: RoadNetwork, { seed = 1, ground = fakeGround(), strongholds = 4, poiDensity = 1, routeSplit = 0.5, tuning, stopTuning, daylightHours = 14 }: PlaceOptions = {}): { tree: RouteTree; layer: PoiLayer } {
 	const tree = buildRouteTree({ network, travelPace: 1, routeSplit });
-	return { tree, layer: placePois({ network, tree, ground, params: { strongholds, poiDensity }, rng: new Rng({ seed }), tuning, stopTuning }) };
+	return { tree, layer: placePois({ network, tree, ground, params: { strongholds, poiDensity, daylightHours }, rng: new Rng({ seed }), tuning, stopTuning }) };
 }
 
 /** Each route's own-road room and need, by POI. */
@@ -101,7 +102,7 @@ describe('POIs and strongholds on the route tree', () => {
 			const network = meshes[0];
 			const tree = buildRouteTree({ network, travelPace: 1, routeSplit: 0.5 });
 			const factions = { mireCrawlers: FACTIONS.mireCrawlers, sunChasers: FACTIONS.sunChasers };
-			expect(() => placePois({ network, tree, ground: fakeGround(), params: { strongholds: 3, poiDensity: 1 }, rng: new Rng({ seed: 1 }), factions }))
+			expect(() => placePois({ network, tree, ground: fakeGround(), params: { strongholds: 3, poiDensity: 1, daylightHours: 14 }, rng: new Rng({ seed: 1 }), factions }))
 				.toThrow('placePois: 3 strongholds need as many factions, got 2');
 		});
 	});
@@ -146,8 +147,9 @@ describe('POIs and strongholds on the route tree', () => {
 				for (const { site, ring, tier } of pois) {
 					const share = (distance(site) - 150) / (0.95 * 1000 - 150);
 					expect(ring).toBe(Math.min(3, Math.floor(share * 4)));
-					expect(tier).toBe(ring + 1);
+					expect(tier === ring + 1 || (tier === 4 && ring < 3)).toBe(true);
 				}
+				expect(pois.filter(({ ring, tier }) => tier !== ring + 1)).toHaveLength(layer.rings.reduce((sum, { promoted }) => sum + promoted, 0));
 			}
 		});
 
@@ -240,6 +242,26 @@ describe('POIs and strongholds on the route tree', () => {
 			expect(hard.pois.length).toBeLessThan(easy.pois.length);
 			for (const { room, need } of ownRoad(network, hard, needy)) expect(room).toBeGreaterThanOrEqual(need);
 			expect(ownRoad(network, easy, needy).some(({ room, need }) => room < need)).toBe(true);
+		});
+	});
+
+	describe('tiers for daylight', () => {
+		it('make a POI tier 4 where tiers 1 to 3 would leave its quickest route past dark with only its fight floor, and never a stronghold', () => {
+			const network = meshes[2];
+			const floorRun = (layer: PoiLayer, poi: Poi, tier: number) => floorRunHours({ routeHours: routesTo(layer, poi)[0].hours, tier, objectiveHours: STOP_TUNING.objectiveHours.poi, tuning: STOP_TUNING });
+			for (const daylightHours of [6, 9, 14]) {
+				const { layer } = place(network, { daylightHours });
+				for (const poi of layer.pois) {
+					if (poi.type === STRONGHOLD_TYPE) {
+						expect(poi.tier).toBe(5);
+						continue;
+					}
+					const promoted = poi.ring < 3 && floorRun(layer, poi, poi.ring + 1) > daylightHours;
+					expect(poi.tier).toBe(promoted ? 4 : poi.ring + 1);
+				}
+				if (daylightHours === 6) expect(layer.rings.reduce((sum, { promoted }) => sum + promoted, 0)).toBeGreaterThan(0);
+				for (const { room, need } of ownRoad(network, layer)) expect(room).toBeGreaterThanOrEqual(need);
+			}
 		});
 	});
 

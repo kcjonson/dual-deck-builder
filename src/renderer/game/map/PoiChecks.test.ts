@@ -8,7 +8,7 @@ import { STOP_TUNING } from './StopData';
 describe('checkPoiLayer', () => {
 	const network = randomMesh({ seed: 41 });
 	const tree = buildRouteTree({ network, travelPace: 1, routeSplit: 0.5 });
-	const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 4, poiDensity: 1 }, rng: new Rng({ seed: 41 }) });
+	const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 4, poiDensity: 1, daylightHours: 14 }, rng: new Rng({ seed: 41 }) });
 	const check = (changed: PoiLayer, changedTree: RouteTree = tree) => checkPoiLayer({ network, tree: changedTree, layer: changed, params: { strongholds: 4, routeSplit: 0.5 }, radius: 1000 });
 	const rules = (changed: PoiLayer, changedTree?: RouteTree): PoiRule[] => [...new Set(check(changed, changedTree).map(({ rule }) => rule))];
 	const withPoi = (index: number, poi: Poi): PoiLayer => ({ ...layer, pois: layer.pois.map((each, at) => (at === index ? poi : each)) });

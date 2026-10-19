@@ -228,8 +228,8 @@ function printGen(summary) {
 	print(`\nplaced with no resolver yet (a quiet stretch on the run): ${share(summary.unresolved) || 'none'}`);
 	print('');
 	print('POIs by ring, strongholds not counted: aimed for and seated over every map, and seated a map');
-	print('ring  tier  aimed  seated  share  a map');
-	for (const row of summary.rings) print(`${String(row.ring).padStart(4)}  ${String(row.ring + 1).padStart(4)}  ${String(row.target).padStart(5)}  ${String(row.placed).padStart(6)}  ${percent(row.target ? row.placed / row.target : null).padStart(5)}  ${spreadText(row.perMap)}`);
+	print('ring  tier  aimed  seated  share  tier 4 for daylight  a map');
+	for (const row of summary.rings) print(`${String(row.ring).padStart(4)}  ${String(row.ring + 1).padStart(4)}  ${String(row.target).padStart(5)}  ${String(row.placed).padStart(6)}  ${percent(row.target ? row.placed / row.target : null).padStart(5)}  ${String(row.promoted).padStart(19)}  ${spreadText(row.perMap)}`);
 }
 
 if (!isMainThread) {

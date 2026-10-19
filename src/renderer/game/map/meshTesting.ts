@@ -143,6 +143,8 @@ export interface MeshMapOptions {
 	readonly dangerCurve?: number;
 	readonly driverFinds?: number;
 	readonly daylightHours?: number;
+	/** The day the POIs are tiered by, which can tier a far POI 4; `daylightHours` when left out. */
+	readonly seatedDaylightHours?: number;
 	/** World units: what POI names' reach scales by (PoiNames.ts); `randomMesh`'s default. */
 	readonly radius?: number;
 	readonly stopTables?: StopTables;
@@ -164,11 +166,11 @@ export interface MeshMap {
  */
 export function meshMap(network: RoadNetwork, {
 	seed = 1, ground = fakeGround(), strongholds = 4, poiDensity = 1, routeSplit = 0.5, travelPace = 1,
-	stopDensity = 1, dangerCurve = 1, driverFinds = 2, daylightHours = 14, radius = 1000, stopTables, stopTuning,
+	stopDensity = 1, dangerCurve = 1, driverFinds = 2, daylightHours = 14, seatedDaylightHours = daylightHours, radius = 1000, stopTables, stopTuning,
 }: MeshMapOptions = {}): MeshMap {
 	const tree = buildRouteTree({ network, travelPace, routeSplit });
 	const root = new Rng({ seed });
-	const pois = placePois({ network, tree, ground, params: { strongholds, poiDensity }, rng: root.fork('pois') });
+	const pois = placePois({ network, tree, ground, params: { strongholds, poiDensity, daylightHours: seatedDaylightHours }, rng: root.fork('pois') });
 	const params = { stopDensity, dangerCurve, driverFinds, daylightHours, radius, ...(stopTables === undefined ? {} : { stopTables }) };
 	const stops = placeStops({ network, layer: pois, ground, params, rng: root.fork('stops'), tuning: stopTuning });
 	return { network, tree, params, products: { pois, stops } };

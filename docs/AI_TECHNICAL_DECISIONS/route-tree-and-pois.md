@@ -62,7 +62,9 @@ A site is taken only where every route keeps own road, legs no other POI's route
 
 - Room is `StopRoom.ts`'s, which the stops stage places on: a leg's stops `tightGap` (12) apart, clear of junctions, half a gap in from its ends' clearance, so `usable / gap` rounded down where no junction is in the way. One module for both stages, so the POI stage can never seat a POI the stops stage then can't fill. The bands moved into `stops.json` for the same reason, and the balance sim reads them from there.
 - Seating cuts the legs other routes branch from, so a site can shrink a seated POI's own road as well as have too little of its own. The check cuts the whole layer's legs again with the candidate in (`buildLegs`), and checks every route. Seating more only takes road away, so a candidate that fails once is skipped for the rest of the attempt.
-- Measured over the balance sim's 30 `gen` maps: every route has room for its need, and the rings seat 151, 184, 229, and 177 POIs where they seated 153, 199, 255, and 247; the outer ring loses most, its routes running past strongholds and each other. The stage stays at about 10 seconds for the 30 maps on two workers.
+- Measured over the balance sim's 30 `gen` maps: every route has room for its need, and the rings seat 151, 184, 225, and 177 POIs where they seated 153, 199, 255, and 247; the outer ring loses most, its routes running past strongholds and each other. The stage stays at about 10 seconds for the 30 maps on two workers.
+
+The fight floor is hard, so a POI in tiers 1 to 3 whose quickest route can't be home by dark with only its floor fights would fail the stops stage on every attempt (on the ring+1 stand-in, 53 of 564 over the 30 maps). The stage tiers such a POI 4 instead, by `floorRunHours`, the daylight check's own estimate with every fight a warband, the costliest, so the stops stage can always thin to it (call 261). It's stage 8's boundary in miniature, until tiers come from hours (DDB-292). A promoted POI's routes need three stops of own road, which seating checks at the promoted tier. Over the 30 maps it promoted 1 POI in ring 1 and 75 in ring 2; `gen` reports them by ring.
 
 `checkPoiLayer` checks the same (`ownRoad`), so a loaded map is held to it too.
 
@@ -117,5 +119,5 @@ Calls the spec left open, made the simplest way consistent with it, for Kevin to
 8. Types and yields: the placement rules and yield table in `pois.json`, which add schools, general stores, clinics, truck stops, quarries, and mines to #177's.
 9. The first ring covers food, water, and fuel, quickest first, keeping a location's type where it already yields something needed.
 10. A POI's arrivals, and so its routes, are listed quickest first, ties to the lower node.
-11. Tier stand-in: ring plus one.
+11. Tier stand-in: ring plus one, or 4 where tiers 1 to 3 would leave the quickest route past dark with only its fight floor (call 261, until DDB-292).
 12. The POI stage ran lenient until Map 8; the game's pipeline runs it strict, bar maps whose places cap the loops the roads need and whose roads close fewer than the POIs want, which it holds leniently.

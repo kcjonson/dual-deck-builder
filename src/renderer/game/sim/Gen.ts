@@ -240,6 +240,8 @@ export interface GenRingRow {
 	readonly ring: number;
 	readonly target: number;
 	readonly placed: number;
+	/** Seated POIs tier 4 since tiers 1 to 3 would leave them past dark with only their fight floor. */
+	readonly promoted: number;
 	readonly perMap: Spread;
 }
 
@@ -268,6 +270,7 @@ function ringRows(maps: readonly GenMap[]): GenRingRow[] {
 		ring,
 		target: maps.reduce((sum, map) => sum + (map.rings[ring]?.target ?? 0), 0),
 		placed: maps.reduce((sum, map) => sum + (map.rings[ring]?.placed ?? 0), 0),
+		promoted: maps.reduce((sum, map) => sum + (map.rings[ring]?.promoted ?? 0), 0),
 		perMap: spread(maps.map(map => map.rings[ring]?.placed ?? 0)),
 	}));
 }

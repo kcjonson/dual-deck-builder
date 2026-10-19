@@ -12,8 +12,8 @@ import { paramsFor } from './roadTesting';
 import { checkStopLayer, typesAlong } from './StopChecks';
 import stopTablesFile from '../data/stopTables.json';
 import { STOP_TUNING, STOP_TYPES, StopTuning, StopType, isCalm, isFight } from './StopData';
-import { junctionsAlong, nearestClear, nodeDegrees } from './StopRoom';
-import { DAYLIGHT_TIERS, StopLayer, keepsRules, placeStops, pointsAlong, rollStop } from './Stops';
+import { DAYLIGHT_TIERS, junctionsAlong, nearestClear, nodeDegrees } from './StopRoom';
+import { StopLayer, keepsRules, placeStops, pointsAlong, rollStop } from './Stops';
 
 /** The shipped tables with some types' class weights replaced, everywhere. */
 function tablesWith(weights: Partial<Record<StopType, number>>): StopTables {
@@ -55,7 +55,7 @@ describe('stops on legs', () => {
 		const network = meshFrom({ nodes: [[0, 0], [300, 250], [300, -250], [600, 0], [300, 400]], edges: [[0, 1], [0, 2], [1, 3], [2, 3], [1, 4]] });
 		const poiTuning: PoiTuning = { ...POI_TUNING, rings: { ...POI_TUNING.rings, targets: [0, 1, 1, 1] }, cover: [] };
 		const tree = buildRouteTree({ network, travelPace: 1, routeSplit: 0.5 });
-		const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
+		const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1, daylightHours: 14 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
 		const params = { stopDensity: 1, dangerCurve: 1, driverFinds: 0, daylightHours: 16 };
 
 		it('count a leg\'s stops by its length by class over the class\'s spacing, rounded up or down by a draw', () => {
@@ -272,15 +272,16 @@ describe('stops on legs', () => {
 		};
 
 		it('leaves every POI in tiers 1 to 3 a route home by dark, thinning the quickest where none is', () => {
+			// POIs tiered on a long day, so the short one has tier 1 to 3 POIs to bring home.
 			for (const daylightHours of [10, 14]) {
 				meshes.forEach((_, index) => {
-					const map = mapOn(index, { daylightHours });
+					const map = mapOn(index, { daylightHours, seatedDaylightHours: 24 });
 					fits(map, daylightHours);
 					expect(checkStopLayer({ network: map.network, layer: map.products.pois, stops: map.products.stops, params: map.params })).toEqual([]);
 				});
 			}
-			const short = mapOn(0, { daylightHours: 10 });
-			const long = mapOn(0, { daylightHours: 16 });
+			const short = mapOn(0, { daylightHours: 10, seatedDaylightHours: 24 });
+			const long = mapOn(0, { daylightHours: 16, seatedDaylightHours: 24 });
 			expect(short.products.stops.thinned).toBeGreaterThan(long.products.stops.thinned);
 		});
 
@@ -288,7 +289,7 @@ describe('stops on legs', () => {
 			const network = meshFrom({ nodes: [[0, 0], [300, 250], [300, -250], [600, 0]], edges: [[0, 1], [0, 2], [1, 3], [2, 3]] });
 			const poiTuning: PoiTuning = { ...POI_TUNING, rings: { ...POI_TUNING.rings, targets: [0, 1, 1, 1] }, cover: [] };
 			const tree = buildRouteTree({ network, travelPace: 1, routeSplit: 0.5 });
-			const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
+			const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1, daylightHours: 14 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
 			const [poi] = layer.pois;
 			const routes = routesTo(layer, poi);
 			const bare = 2 * routes[0].hours + STOP_TUNING.objectiveHours.poi;
@@ -357,8 +358,10 @@ describe('stops on legs', () => {
 		});
 
 		it('lists a POI whose quickest route runs past dark with no stops at all, and goes on', () => {
-			const map = mapOn(1, { daylightHours: 10, travelPace: 2 });
+			// Tiered on a long day: on its own, the POI stage tiers such a POI 4.
+			const map = mapOn(1, { daylightHours: 10, seatedDaylightHours: 24, travelPace: 2 });
 			expect(map.products.stops.failures.length).toBeGreaterThan(0);
+			expect(mapOn(1, { daylightHours: 10, travelPace: 2 }).products.stops.failures).toEqual([]);
 			for (const failure of map.products.stops.failures) expect(failure).toMatch(/^poi \d+ \(tier [1-3]\): its quickest route takes [\d.]+ hours with no stops/);
 			expect(checkStopLayer({ network: map.network, layer: map.products.pois, stops: map.products.stops, params: map.params })).toEqual([]);
 		});
