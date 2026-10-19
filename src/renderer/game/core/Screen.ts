@@ -85,18 +85,10 @@ export abstract class Screen {
 		}
 		this.rootLayer.mount(context);
 
-		// Call onMount - handle both sync and async versions
-		try {
-			const mountResult = this.onMount(data);
-			// Check if it's a promise
-			if (mountResult && typeof mountResult === 'object' && 'then' in mountResult) {
-				(mountResult as Promise<void>).catch(err => {
-					console.error(`Error in onMount for screen ${this.id}:`, err);
-				});
-			}
-		} catch (err) {
-			console.error(`Error in onMount for screen ${this.id}:`, err);
-		}
+		// Neither a throw nor an async onMount's rejection is caught here: both
+		// reach the page's error overlay (DDB-538) rather than leaving a
+		// half-built screen up with only a console line to say so.
+		void this.onMount(data);
 	}
 
 	/**

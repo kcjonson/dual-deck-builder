@@ -62,6 +62,29 @@ describe('FrameLoop', () => {
 		expect(tick).toHaveBeenCalledTimes(1);
 	});
 
+	it('halts for good when a frame\'s tick throws (DDB-538)', () => {
+		const frames = scheduler();
+		let fail = true;
+		const tick = jest.fn(() => {
+			if (fail) throw new Error('boom');
+		});
+		const loop = new FrameLoop({ tick, ...frames });
+		loop.start();
+		expect(() => frames.runFrame()).toThrow('boom');
+		expect(loop.running).toBe(false);
+		expect(loop.failed).toBe(true);
+		expect(frames.pending()).toBe(0);
+
+		// A restored context or a released frame hold starts it; neither revives it.
+		fail = false;
+		loop.start();
+		loop.step();
+		loop.runNow();
+		frames.runFrame();
+		expect(tick).toHaveBeenCalledTimes(1);
+		expect(frames.pending()).toBe(0);
+	});
+
 	it('does not re-request when the tick stops the loop', () => {
 		const frames = scheduler();
 		const loop: FrameLoop = new FrameLoop({ tick: () => loop.stop(), ...frames });
@@ -97,6 +120,19 @@ describe('FrameLoop.runNow', () => {
 		loop.start();
 		expect(() => loop.runNow()).toThrow('boom');
 		expect(loop.running).toBe(false);
+		expect(loop.failed).toBe(true);
+	});
+
+	it('halts when a stepped tick throws', () => {
+		const tick = jest.fn(() => {
+			throw new Error('boom');
+		});
+		const frames = scheduler();
+		const loop = new FrameLoop({ tick, ...frames });
+		expect(() => loop.step()).toThrow('boom');
+		expect(loop.failed).toBe(true);
+		loop.start();
+		expect(frames.pending()).toBe(0);
 	});
 
 	it('steps one tick while stopped, without scheduling a frame (DDB-532)', () => {

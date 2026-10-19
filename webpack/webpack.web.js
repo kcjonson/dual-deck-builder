@@ -67,6 +67,12 @@ module.exports = merge(common, {
 		hot: true,
 		compress: true,
 		port: 9000,
+		// Runtime errors go to the game's own error overlay (DDB-538), the one
+		// playtesters see; the dev server's would sit on top of it. Its
+		// overlay still reports compile errors and warnings.
+		client: {
+			overlay: { errors: true, warnings: true, runtimeErrors: false },
+		},
 		// Cross-origin isolation, which buys two measurements that are otherwise
 		// unavailable to chapter 13: performance.now() is coarsened to 100
 		// microseconds without it, which is why every figure in the phase 0

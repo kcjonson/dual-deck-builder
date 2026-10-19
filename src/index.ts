@@ -1,4 +1,6 @@
-import { Renderer, showStatusLine } from './renderer/engine/rendering/Renderer';
+// First, so the overlay is listening before any other module evaluates.
+import { errorOverlay } from './errorOverlay';
+import { Renderer } from './renderer/engine/rendering/Renderer';
 import { loadUiArt } from './renderer/game/art/uiArt';
 import { createDrawApi } from './renderer/engine/rendering/WebGL2Backend';
 import { FrameLoop } from './renderer/engine/rendering/FrameLoop';
@@ -10,13 +12,7 @@ import { PointerAdapter } from './renderer/engine/input/PointerAdapter';
 import { detectClipboard } from './renderer/engine/services/ClipboardService';
 import { imageUrlLoader } from './renderer/engine/services/AssetService';
 import type { GpuTimer } from './renderer/engine/rendering/GpuTimer';
-import { FontAtlasError } from './renderer/engine/text/FontAtlas';
-import {
-	LoadedFontAtlas,
-	fontLoadFailureMessage,
-	loadFontAtlases,
-	loadImageElement,
-} from './renderer/engine/text/loadFontAtlases';
+import { LoadedFontAtlas, loadFontAtlases, loadImageElement } from './renderer/engine/text/loadFontAtlases';
 
 /**
  * Main entry point for the application
@@ -147,8 +143,9 @@ class Application {
 
 			console.log('Initialization complete!');
 		} catch (error) {
+			// Logged as well as shown: the boot smoke fails on the console.
 			console.error('Failed to initialize application:', error);
-			if (error instanceof FontAtlasError) showStatusLine(fontLoadFailureMessage(error));
+			errorOverlay.report({ error, source: 'startup' });
 		}
 	}
 
@@ -237,4 +234,5 @@ class Application {
 const app = new Application();
 app.init().catch((error) => {
 	console.error('Application failed to start:', error);
+	errorOverlay.report({ error, source: 'startup' });
 });

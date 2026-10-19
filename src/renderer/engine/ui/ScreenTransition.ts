@@ -5,6 +5,7 @@ import type { DrawApi } from '../draw/DrawApi';
 import type { RGBA } from '../draw/geometry';
 import type { OverlayHandle } from '../services/OverlayService';
 import { tokens } from '../theme/tokens';
+import { reportToPage } from '../errors/reportToPage';
 
 interface Waiter {
 	resolve: () => void;
@@ -146,6 +147,7 @@ export class ScreenTransition extends Component {
 		} catch (error) {
 			this.failure = { error };
 			console.error('ScreenTransition: the swap threw; the transition ends uncovered', error);
+			reportToPage(error);
 		} finally {
 			this.swapping = false;
 		}
