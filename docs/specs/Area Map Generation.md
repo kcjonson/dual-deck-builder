@@ -80,7 +80,7 @@ Each parameter has a tuning range (what the Map Lab allows, and what the guarant
 | `routesTarget` | 2 or 3 | 3 | 3 | routes to aim for per POI (2 is always required) |
 | `routeSplit` | 0.3 to 0.7 | 0.5 | 0.5 | how far along the shorter of two routes to a POI they may still share road |
 | `startingReveal` | 1 to 2 tiers | 1 | 1 | how much starts charted |
-| `stopDensity` | 0.5 to 2 | 1 | 0.8 to 1.2 | multiplies stop counts per leg |
+| `stopDensity` | 0.5 to 2 | 1 | 0.8 to 1.2 | multiplies the count each leg's road earns, which the route bands then clamp (stage 9) |
 | `dangerCurve` | 0.5 to 2 | 1 | 0.9 to 1.1 | how fast encounters scale with tier |
 | `driverFinds` | 1 to 4 | 2 | 2 | Find: driver floor within tiers 1 and 2 |
 | `daylightHours` | 10 to 16 | 14 | 13 to 15 | dawn to dark; how long a run has before night |
@@ -214,22 +214,32 @@ POIs go where two or three ways home meet.
 - At most one POI on a stretch, and none on a junction, so no route passes a POI, and every road into a POI is one of its routes (guarantee 4).
 - Strongholds first, `strongholds` of them, one per sector in the outer band (0.72 to 0.97 of `radius`), each the best fit for its faction (Mire-Crawlers want mire, Dune Striders desert) among its sector's meeting points. The sectors' rotation is drawn, then stepped by an eighth of a sector, up to 8 steps, until one seats a stronghold in every sector; if none does, the POIs stage fails and escalates to the roads, which rerun.
 - Then POIs by ring: four rings from the metro's edge out to 0.95 of the radius, with targets 5, 7, 9, and 9 times `poiDensity`, the best meeting points by geography first, kept a spacing apart. Targets are aims, not promises: over 20 prototype maps the median map placed all 30 it aimed for and the leanest half of them.
+- Kept apart along the roads too: a POI is seated only where each of its routes has enough road of its own, legs no other POI's routes use, to hold its fight floor and at least half its stop band ([Runs and Encounters](./Runs%20and%20Encounters.md), How many stops). A run clears its POI and the stops it drives (Runs and Encounters, Clearing), so this is what keeps a neighbor's run from coming out too easy.
 - Type comes from where a POI lands: hospitals, malls, and schools in towns; stores and clinics in villages; a dam and pump house at a reservoir's dam; water plants by rivers; fuel depots and truck stops on highways; quarries and mines in the ranges; farms and silos in open lowland; salvage yards anywhere. Type sets the yield table. Inside the starting reveal, the first POIs are typed to cover food, water, and fuel before location does (guarantee 7).
 
 ### 8. Tiers and territories
 
-- Tier: travel time in hours from the compound along the route tree, banded into tiers 1 to 5. A leg's tier is its far end's; a POI's is its quickest route's. The tier 3 to 4 boundary sits where an estimated run (out, typical stops, objective, home) stops fitting in `daylightHours`, so tiers 4 and 5 are night country. Strongholds are always tier 5. Stops are placed in stage 9, after tiers, so the daylight check (guarantee 10) runs in stage 9: a POI with no route home by dark sheds stops from its quickest route until it has one, before anything earlier reruns. Tier sets encounter pools and skull counts, scaled by `dangerCurve`.
+- Tier: travel time in hours from the compound along the route tree, banded into tiers 1 to 5. A leg's tier is its far end's; a POI's is its quickest route's. The tier 3 to 4 boundary sits where an estimated run (out, typical stops, objective, home) stops fitting in `daylightHours`, so tiers 4 and 5 are night country. Strongholds are always tier 5. Stops are placed in stage 9, after tiers, so the daylight check (guarantee 10) runs in stage 9: a POI with no route home by dark sheds stops from its quickest route until it has one, before anything earlier reruns, and never its last fight (stage 9). Tier sets encounter pools and skull counts, scaled by `dangerCurve`.
 - Territory: each stronghold claims the legs and POIs nearest to it in travel time over the road network. Tier 1 is no one's ground, worked by scavengers. Territory sets checkpoint owners, raider rosters, stop weights, and place names.
 
 ### 9. Stops
 
 - Stops sit only on legs, never on roads no route uses.
-- Count per leg: for each class along the leg, its length over the class's stop spacing, times `stopDensity`, rounded up or down by a draw, so a map's count is what its road earns and a short leg seldom gets one; no more than the leg holds at the least gap between stops.
+- Count: each route's stops come to a band set by its destination's tier, and its fights to a fight band, both from [Runs and Encounters](./Runs%20and%20Encounters.md) (Run shape). Legs are shared, so the count is allocated over the route tree parents first; every leg has one parent, so the stops behind a leg are the same on every route through it. On each leg:
+  - It starts from what its road earns: for each class along the leg, its length over the class's stop spacing, times `stopDensity`, rounded up or down by a draw.
+  - That's clamped from above by the room left on the tightest route through the leg, holding back a reserve of up to two stops for each of those routes' own last legs (a route's last leg, into its POI, is on no other route).
+  - And from below by what the loosest route through the leg still needs, given the room left on that route's legs past this one.
+  - On a short leg the gap between stops can close from 40 units to about 12 before the leg counts as full.
+  - A route's floor fights, and at least half its band, go on its own road, the legs no other POI's routes use, so another run's clearing never takes them.
+  - Where no count fits, the leg takes the upper bound and the shortfall goes in the layer's failures, which the balance sim's `gen` audit reports ([Balance Simulation](./Balance%20Simulation.md)). It isn't a stage failure.
+- Fights are allocated the same way, against each route's fight band, before any type is drawn.
 - Positions: spread evenly along the leg with jitter, kept clear of both ends and of junctions.
-- Type: a weighted draw from `stopTables`, keyed by road class, the biome at that point, tier, and territory: a weight per type for each class, times a multiplier per type for each biome, tier, and territory. The tables are checked whole when they're read, so a key with nothing to draw fails before any map. Highways favour raider ambushes and checkpoints, towns favour wrecks, finds, and distress signals, mire favours hazards, and a bridge is a candidate for a "bridge out" hazard.
-- Per route rules, checked on every route to every POI: no more than two fights in a row, at least one non-fight stop in any three.
-- Map rules: `driverFinds` Find: driver stops within tiers 1 and 2, then a soft rate per tier so the pool can be refilled through the campaign without counting on luck.
-- A stop's type is fixed at generation, and so is a fight's skull count, which the route card shows before the stop is revealed. Its exact contents are rolled when first revealed, from a stream keyed by the stop's id (its place in the map's stops) and its roll count, and the save keeps a revealed stop's rolled contents. When a cleared leg's stops come back, the roll count goes up and they reroll.
+- Type, in two draws: the allocation says which stops are fights, then `stopTables` picks ambush or warband for a fight, or among the calm types for the rest, keyed by road class, the biome at that point, tier, and territory: a weight per type for each class, times a multiplier per type for each biome, tier, and territory. A type the run can't resolve yet has weight 0, so a stop that does nothing is never placed (Runs and Encounters, What a stop can be). The tables are checked whole when they're read, so a key with nothing to draw fails before any map. Highways favour raider ambushes and checkpoints, towns favour wrecks, finds, and distress signals, mire favours hazards, and a bridge is a candidate for a "bridge out" hazard.
+- Per route rules, checked on every route to every POI: its stops in its band, its fights in its fight band and never none, no more than two fights in a row, at least one non-fight stop in any three.
+- Game-stage extras: each route also carries up to two dormant calm stops on its own last leg, one active from game stage 2 and one from stage 4 (Runs and Encounters, Game stage). Turning on a calm stop breaks no per-route rule, the daylight check runs with every extra on, and the route card and departure read a route at the campaign's current stage.
+- Home by dark against the bands: the daylight check sheds a POI's extras first, then its calm stops, and never a route's last fight. A route it takes below its band's minimum is reported, not failed.
+- Map rules: `driverFinds` Find: driver stops within tiers 1 and 2, then a soft rate per tier so the pool can be refilled through the campaign without counting on luck. Find: driver turns calm stops only, never a fight, and adds a stop only where every route through the leg has room for it.
+- A stop's type is fixed at generation, and so is a fight's skull count, which the route card shows before the stop is revealed. Its exact contents are rolled when first revealed, from a stream keyed by the stop's id (its place in the map's stops) and its roll count, and the save keeps a revealed stop's rolled contents. When a cleared stop comes back after its cooldown, the roll count goes up and it rerolls (Runs and Encounters, Clearing). A fight's raiders are the exception: they're picked when the fight starts, from the run's own fight stream (Runs and Encounters, Encounter data).
 
 ### 10. Starting knowledge
 
@@ -279,8 +289,8 @@ Reveal rules:
 ## What changes after generation
 
 - Never changes: terrain, water, the road network and its geometry, classes, the route tree and its legs, POIs, tiers, territories, stop types, dressing.
-- Saved state: land fog, leg knowledge, each stop's state (cleared on which day, roll count, rolled contents once revealed), POI stock and depletion, strongholds taken.
-- Cleared stops come back after a cooldown (5 days), rerolled. Taking a stronghold reweights its territory's stop tables (fewer checkpoints and warbands).
+- Saved state: land fog, leg knowledge, each stop's state (cleared on which day, roll count, rolled contents once revealed), cleared POIs, strongholds taken.
+- Cleared stops come back after a cooldown (5 days), rerolled. A POI a run reaches is cleared and stays disabled for the rest of the campaign (Runs and Encounters, Clearing). Taking a stronghold reweights its territory's stop tables (fewer checkpoints and warbands).
 
 ## Validation and retries
 
@@ -297,7 +307,7 @@ Reveal rules:
 - The graph stages (route tree, POIs, tiers, stops, knowledge, the validator) keep the 200 ms budget, on the same machines; the prototype's take under 30 ms. A stage that reruns reuses everything its upstream built once (the route tree, meeting points, spatial indexes) and allocates nothing per candidate.
 - The Map Lab caches each stage's output by its inputs, so a gameplay parameter reruns only the graph stages, live, and a world parameter regenerates everything, with a progress readout.
 - Rendering: the land bakes into one image per map when the map is generated or loaded, in the same worker; fog draws over it; roads, routes, and markers draw live, since their state and highlighting change.
-- Expected sizes at radius 1000: 450 to 600 nodes, 560 to 770 stretches, about 40,000 units of road, about 30 POIs, about 150 to 200 stops.
+- Expected sizes at radius 1000: 450 to 600 nodes, 560 to 770 stretches, about 40,000 units of road, about 30 POIs, and their routes' stops by the bands in stage 9.
 
 ## Saving
 

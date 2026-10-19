@@ -19,7 +19,7 @@ Choices made, with what lost:
 
 - Numeric value first, css beside it. R11.1 says the file holds the renderer's form. Worldsim went the other way (prototype CSS first, floats derived), which suits a repo whose source of truth is a web prototype; ours is not. The cost is that a colour is written twice, so the generator parses the css form and rejects a pair more than half an 8-bit step apart. Same for an easing's `cubic-bezier()`. The floats are rounded to four places.
 - Aliases are fully qualified (`radius.r_sm`, never `r_sm`) so a cross-category alias reads the same as a same-category one. Leaf names are unique across the whole file anyway (R11.4), enforced by the generator, so the qualification is for the reader.
-- The generated module carries resolved values, with `// = radius.r_sm` beside an alias. It exports no alias table; nothing needs one until a theme switch exists.
+- The generated module carries resolved values, with `// = radius.r_sm` beside an alias. It exports no alias table. Themes beyond the base came later and resolve their aliases in the generator too ([theme-selection.md](./theme-selection.md)).
 - `cssOnly` tokens (the three font stacks) are kept for the design mocks and skipped by the generator, which 11.6 requires a test for; the test also asserts at least one exists so that skip path can't go untested by accident.
 - The drift test spawns the real script rather than importing it. Jest here is ts-jest over CommonJS, which can't load an `.mjs` without `--experimental-vm-modules`; spawning costs about 80 ms and tests the actual CLI CI would run.
 - Validation lives in the generator (categories, shapes, colour ranges, cycles, duplicate leaves), so a bad edit fails at `npm run tokens` with the token's path in the message. The one check that needs TypeScript, that `layer` tokens name exactly the chapter 3 ladder in `draw/layers.ts`, is in the test.
@@ -69,7 +69,7 @@ Departures from worldsim's defaults, all allowed by 11.2 ("values are its defaul
 ## Not in this file yet
 
 - Game identity colours: the driver amber and teal, raider red, structure, armor, and HP hues from Battle Screen Design section 7. They are content colours, not UI accents, and R11.6 keeps the UI to two accents plus ok and crit, none of which reuses them. They land when the combat screen migrates, as their own names in the `color` category.
-- Type role faces match what DDB-69 ships: Barlow Condensed 600 for display, Open Sans 400 for body, JetBrains Mono 400 for mono. With no body bold face loaded, `role_body.boldRole: 'display'` sends `bold` on body to the display face (R11.8); a weight no role has falls to the nearest loaded one.
+- Type role faces match what the font pipeline ships: Barlow Condensed 600 and 700 for display, Open Sans 400 and 600 for body (the second weights since DDB-503), JetBrains Mono 400 for mono. With no body bold face loaded, `role_body.boldRole: 'display'` sends `bold` on body to the display face (R11.8); a weight no role has falls to the nearest loaded one.
 - Card-specific text sizes (16 and 14 px card names in the battle screen text budget) are not on the scale; add them as named tokens when the card is migrated rather than widening the general scale.
 
 ## Map for DDB-84

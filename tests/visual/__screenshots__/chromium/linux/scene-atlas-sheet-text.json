@@ -1,0 +1,22 @@
+[
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/atlas_sheet_tabs/atlas_sheet_tabs.menu","text":"Menu","rect":[527,40,68,32]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/atlas_sheet_tabs/atlas_sheet_tabs.compound","text":"Compound","rect":[601,40,105,36]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/atlas_sheet_tabs/atlas_sheet_tabs.area_map","text":"Area map","rect":[712,40,100,32]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/atlas_sheet_tabs/atlas_sheet_tabs.crew","text":"Crew","rect":[818,40,95,32]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/Stack[1]/Text[0]","text":"The compound","rect":[100,100,213.78,36]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/Stack[1]/Text[1]","text":"day 9, dawn","rect":[329.78,115.57,83.61,20.43]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/atlas_sheet_resources/FlowWrap[0]/atlas_sheet_resources_food/Text[1]","text":"food","rect":[125,150,33.6,18.48]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/atlas_sheet_resources/FlowWrap[0]/atlas_sheet_resources_food/atlas_sheet_resources_food_value","text":"14","rect":[165.6,150,16.8,18.48]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/atlas_sheet_resources/FlowWrap[0]/atlas_sheet_resources_water/Text[1]","text":"water","rect":[229.4,150,42,18.48]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/atlas_sheet_resources/FlowWrap[0]/atlas_sheet_resources_water/atlas_sheet_resources_water_value","text":"11","rect":[278.4,150,16.8,18.48]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/atlas_sheet_resources/FlowWrap[0]/atlas_sheet_resources_fuel/Text[1]","text":"fuel","rect":[342.2,150,33.6,18.48]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/atlas_sheet_resources/FlowWrap[0]/atlas_sheet_resources_fuel/atlas_sheet_resources_fuel_value","text":"06","rect":[382.8,150,16.8,18.48]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/atlas_sheet_resources/FlowWrap[0]/atlas_sheet_resources_scrap/Text[1]","text":"scrap","rect":[446.6,150,42,18.48]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/atlas_sheet_resources/FlowWrap[0]/atlas_sheet_resources_scrap/atlas_sheet_resources_scrap_value","text":"35","rect":[495.6,150,16.8,18.48]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/Stack[3]/atlas_sheet_needs/Text[0]","text":"Needs","rect":[116,198.48,888,24]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/Stack[3]/atlas_sheet_needs/LegendRow[1]/Text[1]","text":"Water runs out in 2 days","rect":[140,230.48,864,19.07]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/Stack[3]/atlas_sheet_needs/LegendRow[2]/Text[1]","text":"Mechanic 1 is injured, fit in 2 days","rect":[140,257.55,864,19.07]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/Stack[3]/atlas_sheet_needs/LegendRow[3]/Text[1]","text":"Radio: no new rumors","rect":[140,284.61,864,19.07]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/Stack[3]/Stack[1]/atlas_sheet_rest","text":"Rest a day","rect":[1040,182.48,300,46]},
+{"path":"gallery_root/gallery_scene_atlas_sheet/atlas_sheet/Stack[3]/Stack[1]/atlas_sheet_plan","text":"Plan a supply run","rect":[1040,240.48,300,60]}
+]

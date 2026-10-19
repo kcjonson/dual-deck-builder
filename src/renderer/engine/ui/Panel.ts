@@ -16,7 +16,7 @@ import {
 	resolveShadow,
 	validateStyle,
 } from '../style/styleObject';
-import { tokens } from '../theme/tokens';
+import { BASE_THEME, Theme, themes, tokens } from '../theme/tokens';
 
 export type PanelVariant = 'panel' | 'raised' | 'inset';
 export type PanelAccent = 'accent' | 'data' | 'none';
@@ -59,7 +59,6 @@ const PANEL_STYLE: StyleAcceptance = {
 	states: new Set(),
 };
 
-const { color } = tokens;
 const CLEAR: RGBA = [0, 0, 0, 0];
 /** A corner tick's arm length. */
 const TICK = tokens.space.space_2;
@@ -94,6 +93,7 @@ interface PanelBox {
  */
 export class Panel extends Stack {
 	private box: PanelBox;
+	private readonly styleObject: StyleObject;
 	private readonly panelVariant: PanelVariant;
 	private readonly panelAccent: PanelAccent;
 	private readonly showCorners: boolean;
@@ -123,7 +123,7 @@ export class Panel extends Stack {
 		...options
 	}: PanelOptions = {}) {
 		validateStyle(style, PANEL_STYLE);
-		const box = panelBox(variant, style);
+		const box = panelBox(variant, style, themes[options.theme ?? BASE_THEME]);
 		const inset = flush ? 0 : compact ? tokens.space.space_2 : tokens.space.space_4;
 		const requested = style.padding !== undefined
 			? resolvePadding(style.padding, { top: inset, right: inset, bottom: inset, left: inset })
@@ -150,6 +150,7 @@ export class Panel extends Stack {
 		this.headerHeight = headerHeight;
 		this.freeLayout = layout === 'free';
 		this.box = box;
+		this.styleObject = style;
 		if (style.opacity !== undefined) this.opacity = style.opacity;
 
 		this.kickerText = kicker !== undefined
@@ -158,7 +159,7 @@ export class Panel extends Stack {
 				style: {
 					fontRole: 'mono',
 					fontSize: tokens.fontSize.fs_xs,
-					color: [...(accent === 'none' ? color.text_dim : this.accentColor)] as [number, number, number, number],
+					color: accent === 'none' ? 'text_dim' : accent,
 					textTransform: 'uppercase',
 					letterSpacing: tokens.letterSpacing.ls_wide,
 				},
@@ -172,7 +173,7 @@ export class Panel extends Stack {
 				style: {
 					fontRole: 'display',
 					fontSize: tokens.fontSize.fs_md,
-					color: [...color.text_bright] as [number, number, number, number],
+					color: 'text_bright',
 					textTransform: 'uppercase',
 					letterSpacing: tokens.letterSpacing.ls_wide,
 				},
@@ -188,6 +189,17 @@ export class Panel extends Stack {
 
 	protected get defaultPointerEvents(): PointerEvents {
 		return 'auto';
+	}
+
+	/** The box, and the content inset that clears its corner, follow the theme; the header's text follows by itself. */
+	protected onThemeChange(theme: Theme): void {
+		this.box = panelBox(this.panelVariant, this.styleObject, theme);
+		const inset = contentInsetFor(this.requestedPadding, this.box, this.overflow === 'hidden');
+		if (!sameSides(inset, this.contentPadding)) {
+			this.contentPadding = inset;
+			this.padding = { ...inset, top: inset.top + this.headerHeight };
+		}
+		this.invalidateInk();
 	}
 
 	public get variant(): PanelVariant {
@@ -315,17 +327,19 @@ export class Panel extends Stack {
 			const hairline = tokens.borderWidth.bw_hair;
 			draw.drawRect({
 				rect: { x: box.borderWidth, y: this.headerHeight - hairline, width: width - box.borderWidth * 2, height: hairline },
-				fill: color.line_hairline,
+				fill: this.themeTokens.color.line_hairline,
 			});
 		}
 		if (this.showCorners && this.panelAccent !== 'none') this.drawCorners(draw);
 	}
 
 	private get accentColor(): RGBA {
+		const { color } = this.themeTokens;
 		return this.panelAccent === 'data' ? color.data : color.accent;
 	}
 
 	private get glowColor(): RGBA {
+		const { color } = this.themeTokens;
 		return this.panelAccent === 'data' ? color.data_glow : color.accent_glow;
 	}
 
@@ -374,15 +388,18 @@ export class Panel extends Stack {
 	}
 }
 
-/** The variant's box from tokens, with the instance style replacing what it names (R11.15). */
-function panelBox(variant: PanelVariant, style: StyleObject): PanelBox {
+/** The variant's box from `theme`, with the instance style replacing what it names (R11.15). */
+function panelBox(variant: PanelVariant, style: StyleObject, theme: Theme): PanelBox {
+	const { color } = theme;
 	const fill = variant === 'raised' ? color.bg_panel_raised : variant === 'inset' ? color.bg_inset : color.bg_panel;
 	return {
-		fill: style.backgroundColor !== undefined ? resolveColor(style.backgroundColor) : fill,
-		border: style.borderColor !== undefined ? resolveColor(style.borderColor) : color.line_edge,
-		borderWidth: style.borderWidth !== undefined ? resolveLength(style.borderWidth, 'borderWidth') : tokens.borderWidth.bw,
-		radius: style.borderRadius !== undefined ? resolveLength(style.borderRadius, 'borderRadius') : tokens.radius.radius_panel,
-		shadow: style.shadow !== undefined ? resolveShadow(style.shadow) : variant === 'raised' ? resolveShadow('shadow_raised') : null,
+		fill: style.backgroundColor !== undefined ? resolveColor(style.backgroundColor, theme) : fill,
+		border: style.borderColor !== undefined ? resolveColor(style.borderColor, theme) : color.line_edge,
+		borderWidth: style.borderWidth !== undefined ? resolveLength(style.borderWidth, 'borderWidth', theme) : theme.borderWidth.bw,
+		radius: style.borderRadius !== undefined ? resolveLength(style.borderRadius, 'borderRadius', theme) : theme.radius.radius_panel,
+		shadow: style.shadow !== undefined
+			? resolveShadow(style.shadow, theme)
+			: variant === 'raised' ? resolveShadow('shadow_raised', theme) : null,
 	};
 }
 

@@ -1,6 +1,6 @@
 # Battle Screen Design
 
-Status: decided 2026-09-25. Replaces the combat screen layout in Game Flow and UI Specification section 2.2 and the positioning half of `docs/AI_TECHNICAL_DECISIONS/VEHICLE_POSITIONING_AND_WAVE_SYSTEM.md`. The reasoning and the options that lost are in [battle-screen-road-model.md](../AI_TECHNICAL_DECISIONS/battle-screen-road-model.md). The interactive mock, with the fit matrix that checks every number below, is [docs/design/battle-screen/index.html](../design/battle-screen/index.html); open it through any static server (`python3 -m http.server -d docs/design/battle-screen`).
+Status: decided 2026-09-25. Replaces the combat screen layout in Game Flow and UI Specification section 2.2 and the old three-lane positioning design (its wave half is now Reinforcements in [Combat Rules](./Combat%20Rules.md)). The reasoning and the options that lost are in [battle-screen-road-model.md](../AI_TECHNICAL_DECISIONS/battle-screen-road-model.md). The interactive mock, with the fit matrix that checks every number below, is [docs/design/battle-screen/index.html](../design/battle-screen/index.html); open it through any static server (`python3 -m http.server -d docs/design/battle-screen`).
 
 ![A typical turn](../design/battle-screen/proposed/typical-turn.png)
 
@@ -51,7 +51,7 @@ Everything is laid out in logical pixels on a 1280x720 reference and scaled by o
 
 | Band | Height (logical) | Contents |
 |---|---|---|
-| Top bar | 36 | menu, wave and reinforcements, turn, a one-line ticker of the last log entry, scrap, fuel, log toggle |
+| Top bar | 36 | menu, wave and reinforcements ("Wave 2 of 3", "+3 arriving"), turn, a one-line ticker of the last log entry, scrap, fuel, log toggle |
 | Road | everything left, at least 456 | 26px lane header, an 18px row gutter on the left, then the 6x3 slot grid |
 | Dock | 228 | a tab and a fanned hand per driver, End Turn column on the right |
 
@@ -136,6 +136,7 @@ These are decided and recorded in Combat Rules; they're listed here because the 
 - Two driven vehicles at most. A bigger convoy grows through escorts: vehicles with slots and plates but no hand, ordered with cards. A third human player is co-op, not a third hand.
 - Up to four escorts in formation. Each acts only when ordered, once per turn. An attack order is dropped on a raider, and the nearest ready escort in range carries it out; that escort lights up during the drag. A buff order is dropped on the escort itself, spent or not. Attack orders and Draw Fire spend the escort; Close Ranks and Triage don't. When Draw Fire redirects an intent, its target mark moves to the escort's square, so the end-turn preview shows it.
 - Raiders can start on your shoulder, at the start of a fight or when their wave arrives, and a set-piece escort can start on theirs (ambush starts). With no reserved slot to drop back to, they hold it.
+- Raiders come in waves ([Combat Rules](./Combat%20Rules.md), Reinforcements). A wave is announced the turn before it pulls in: the top bar shows "+N arriving", and the row gutter marks each row it will take. It pulls in at the end of the enemy turn, after the last raider's beat, with a beat of its own.
 - Each driver has their own deck, hand, discard, and adrenaline pool.
 - Each driver has their own hand limit, 7 for every archetype to start; draws past it go straight to discard. The dock is laid out for 7 cards a driver, so a limit past 7 means revisiting section 4.
 - Every vehicle, escorts included, has one passenger seat. A wreck's occupants jump, driver first, to the partner's vehicle or the nearest escort with a free seat. A passenger keeps their hand, can't play attack cards, and can play order cards. A driver with no free seat crashes out of the fight, alive, and their half of the dock has no hand.

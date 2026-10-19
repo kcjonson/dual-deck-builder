@@ -117,7 +117,7 @@ Record: mvp-supply-run.md.
 64. DDB-454: a failed run ends the day too, unless it ends the campaign.
 65. DDB-454: a fight in progress isn't saved. Quitting mid-fight resumes at the stop before it, and the fight replays from the same seed.
 66. DDB-454: the reward offers 3 cards, pick one or skip: rarity at Card System Design's drop rates, no duplicates, no signature cards, order cards only while the convoy has an escort, and the same three after a reload.
-67. DDB-454: the quick load out (a stub) seats the first legal pair in pool order on their default decks, and takes every escort, their cards in Driver 1's deck.
+67. DDB-454: the quick load out (a stub) seats the first legal pair in pool order on their default decks, and takes every escort, their cards in Driver 1's deck. Replaced by 177.
 68. DDB-454: arrival is summed up in one line. Cards won stay in the locker, with no per-card debrief offer.
 69. DDB-454: a load out that never set off is given up on Continue, its run decks unwound.
 70. DDB-454: a "Quiet stretch" is a stop where nothing happens, standing in for the other stop kinds.
@@ -157,7 +157,7 @@ Record: area-map-route-pick.md.
 89. DDB-43: any known POI can be picked from the area map; the day offers (71, 81) no longer gate it, and a departure accepts any route the map offers. With fog deferred, every POI is known.
 90. DDB-43: strongholds show on the map, but Plan a run here is off for them ("Not yet") until assaults exist.
 91. DDB-319: a route that runs past dark warns and can still go. There's no night penalty yet.
-92. DDB-43: Plan a supply run opens the area map; on the run route screen, Load out the crew runs the quick load out stub (67, 85) and departs.
+92. DDB-43: Plan a supply run opens the area map; on the run route screen, Load out the crew runs the quick load out stub (67, 85) and departs. Replaced by 177: it opens load out, which departs.
 93. DDB-43: POI state isn't tracked: every POI shows as unvisited, and yields don't deplete. Replaced by 102 to 108.
 
 ## Raider tuning (94 to 100)
@@ -180,15 +180,15 @@ Record: places.md.
 
 ## POI depletion (102 to 108)
 
-Record: poi-depletion.md.
+Record: poi-depletion.md, since replaced by stop-clearing.md.
 
-102. DDB-483: a POI holds 3 runs' worth, so the third depletes it, because the spec says two or three and the yield already falls by thirds, so the third run is a small one.
-103. DDB-483: a run's yield is the POI type's scaled by shares left, each resource rounded up (full, two thirds, a third, nothing), because a POI with anything left should give some of everything it yields.
-104. DDB-483: a share comes back every third of 20 nights from the last run, full 20 nights after depletion; looted POIs refill too, and each run restarts the refill, because 20 is the spec's starting value and partial refills keep a twice-hit POI from staying low.
-105. DDB-483: the share goes when the run reaches the POI, in the step that loads its yield, so a run that fails afterwards has still emptied it, because the yield and the share can't come apart in a save. Nothing fails a run after the POI yet.
-106. DDB-483: a depleted POI stays plannable and yields nothing, its row dimmed and its state and next share shown, because its routes' fights still pay cards and no new blocker is the smallest change.
-107. DDB-483: a POI that fills up again shows as unvisited, because the view has three states and full is what unvisited means to the player.
-108. DDB-483: version 8 saves load with every POI full and keep their history, because version 8 never wrote POI state and full is exactly what it meant.
+102. DDB-483: a POI holds 3 runs' worth, so the third depletes it, because the spec says two or three and the yield already falls by thirds, so the third run is a small one. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
+103. DDB-483: a run's yield is the POI type's scaled by shares left, each resource rounded up (full, two thirds, a third, nothing), because a POI with anything left should give some of everything it yields. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
+104. DDB-483: a share comes back every third of 20 nights from the last run, full 20 nights after depletion; looted POIs refill too, and each run restarts the refill, because 20 is the spec's starting value and partial refills keep a twice-hit POI from staying low. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
+105. DDB-483: the share goes when the run reaches the POI, in the step that loads its yield, so a run that fails afterwards has still emptied it, because the yield and the share can't come apart in a save. Nothing fails a run after the POI yet. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
+106. DDB-483: a depleted POI stays plannable and yields nothing, its row dimmed and its state and next share shown, because its routes' fights still pay cards and no new blocker is the smallest change. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
+107. DDB-483: a POI that fills up again shows as unvisited, because the view has three states and full is what unvisited means to the player. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
+108. DDB-483: version 8 saves load with every POI full and keep their history, because version 8 never wrote POI state and full is exactly what it meant. Replaced by Kevin's rule of 2026-10-17, a run clears its POI and a cleared POI is disabled (186 to 188).
 
 ## Day clock (109 to 115)
 
@@ -209,7 +209,7 @@ Records: locker-and-deck-rules.md, main-menu-campaigns.md.
 116. DDB-310: scrapping a locker card pays 5 scrap a copy, at every rarity.
 117. DDB-310: when a move breaks more than one rule, "card for another archetype" is the reason shown, ahead of "deck full".
 118. DDB-310: cards can move straight from one driver's default deck to another's, with the rules checked at both ends.
-119. DDB-283: until load out replaces driver selection, the main menu keeps a Skirmish entry to driver selection and a quick fight, so playtesters can still play fights.
+119. DDB-283: until load out replaces driver selection, the main menu keeps a Skirmish entry to driver selection and a quick fight, so playtesters can still play fights. Retired by 181.
 
 ## Damage and the fight log (120)
 
@@ -274,7 +274,7 @@ Record: area-map-route-pick.md.
 151. DDB-319: the run route frame spans at least 800 world units, so a near POI's baked land isn't drawn blurry.
 152. DDB-43: on the planning screens a town or village name steps to the left of its dot, or is left out, rather than cover a POI marker.
 
-## Generation and visual calls (153 on)
+## Generation and visual calls (153 to 176)
 
 Tuning for how the map is made and drawn rather than how the game plays. Two records keep theirs as lists without numbers here: realistic-map.md (22 calls: the route split, the quickest-time route tree, POIs only where routes meet, class speeds, the land grid, worker budgets, what saves keep, and the rest) and road-network.md (15 calls: highways through towns, back road links and detours, trails through rough country, spurs and passes, broken spans, the loops check).
 
@@ -307,3 +307,106 @@ Record for 165 to 175: area-map-atlas-style.md (its Visual calls).
 173. DDB-498: POI glyphs are letters (hospital H, clinic C, school S, store G, mall M, water plant W, fuel depot F, truck stop T, quarry Q, mine X, farm B, silo O, salvage yard J), because the target uses letters and the icon atlas can't gain glyphs without msdf-atlas-gen.
 174. DDB-498: names in the condensed bold face (towns 14 px; POIs, strongholds, and Home 13 px), villages in the body face at 10.5 px, the metro at 17 px spaced capitals, all on a 2.2 px paper halo.
 175. DDB-498: tier numbers leave the map (POIs show their type's glyph) and stay in the destinations list and the run route panel, because the target has no tier badges.
+
+Record for 176: stops-and-routes.md.
+
+176. DDB-499: a highway route's name takes the route number on its highway's shields ("Route 47 highway"), the main highway of the route's own leg with the most highway, instead of that highway's index plus one, because the run route card and the shields (drawn once DDB-447 lands) should say the same number; two routes on one highway share it and are told apart by side, then letter, as before.
+
+## Load out (177 to 181)
+
+Record: load-out-screen.md.
+
+177. DDB-320: load out opens on the crew the quick load out would send (67) and every escort up to four, and the player changes seats, decks, and escorts from there, because the default should be a run that can go.
+178. DDB-320: a seat change or Swap seats after the run decks are out deals them fresh from the default decks, losing any customizing, because the campaign has no move for a customized run deck between seats and escort cards are dealt to Driver 1.
+179. DDB-320: Back from load out gives up its run decks, customizing and all, and returns to the run route screen, because a started run must never be stranded.
+180. DDB-320: a solo run (35) shows the second seat empty with "Solo run: nobody else is fit to go", and the synergy line says there's no partner, because the pair hints have nothing to compare.
+181. DDB-320: the main menu's Skirmish entry and its quick fight go with driver selection, because 119 kept them only until load out replaced it.
+
+## Compound buildings (182)
+
+Record: campaign-state-model.md.
+
+182. DDB-508: a new campaign is founded with only the bunkhouse standing, and nothing builds a building yet, so the radio mast, infirmary, map room, garage, and stores show as staked-out plots on the compound plate; `Campaign.buildings` holds what stands (save format 10), founding takes it from `campaign-start.json`, and version 9 saves load with the bunkhouse standing, because the plate draws what stands and the bunkhouse's Crew screen was the only building screen in play.
+
+## Runs and encounters (183 to 189)
+
+Made writing [Runs and Encounters](./specs/Runs%20and%20Encounters.md), beyond what Kevin approved in its plan and review on 2026-10-17. The spec keeps 183 to 185 as its open questions 4 to 6; 186 is approved; 187 to 189 fill in how his clearing and spacing rule gets built. Records: find-stops.md (183), stop-clearing.md (186 to 188); 184, 185, and 189 have none yet.
+
+183. DDB-523: the least a calm stop offers is take it, spending the stop's hours, or drive on and keep them, because it's the cheapest way to make a find a choice rather than an empty step, and it costs no new screen.
+184. DDB-525: a fight going nowhere, for a break-off, is three player turns running with no damage to any raider (armor, structure, or HP), because "neither side takes damage", as the plan had it, misses the case break-off exists for: a raider the crew can't reach that's still hitting the crew.
+185. DDB-328: every raider class carries a card that can hit each starting archetype's vehicle, because a class the bike's evade beats leaves an Interceptor pair untouched, as the Rust Buggy's old gunnery of 6 did.
+186. DDB-336: a cleared POI stays disabled for the rest of the campaign, because "disabled" with nothing said about reopening reads as for good, and the cooldown that brings stops back is for roads, not POIs. Approved by Kevin, 2026-10-17 ("no story reason for it to magically get stuff back"); now in Runs and Encounters (Kevin's rule 5, Clearing) and Compound and Supply Runs (POIs).
+187. DDB-336: the run that clears a POI takes its type's whole yield, what a full POI gives today, because there's no second run to take the rest.
+188. DDB-336: a POI is cleared when the run reaches it, in the step that loads its yield (as call 105 had the share), so a run that fails on the way home has still cleared it, because the yield and the clearing can't come apart in a save.
+189. DDB-529: each route keeps its floor fights and at least half its stop band on its own road, legs no other POI's routes use, and the POI stage seats a POI only where that fits, because it's the least that keeps a neighbor's cleared road from leaving a run fight-free or nearly empty.
+
+## Finds (210 to 214, 220)
+
+Record: find-stops.md.
+
+210. DDB-523: taking a find costs nothing yet, because call 183 makes the stop's hours its price and the run doesn't keep its clock on the road yet; until it does a find is a gift, and Runs and Encounters' open question 4 stays open.
+211. DDB-523: a Find: driver turns up the pool's first missing driver who can be found, and only with nobody missing someone new, of the unlocked archetype the compound has fewest living drivers of, because the missing are the compound's own and the spec's "a new archetype" reads as filling the pool out.
+212. DDB-523: someone new found on the road rides home with the run and joins the pool there, lost with the run if it fails, because a found missing driver already does, and the convoy is what brings them in.
+213. DDB-523: a Find: cards is the fight reward's picker and pool, three cards at the drop rates, the one picked riding home as cargo, because the spec names that picker and a find's cards shouldn't be safer than a fight's.
+214. DDB-523: a Find: supplies haul is the stop's rolled contents, one resource in the stop tuning's range, meds included, because the cargo and the stores carry meds though POI yields don't.
+220. DDB-523: a calm stop type the run can't resolve yet (wreck, distress, garage, hazard, Find: settlers, Find: vehicle) still runs as a quiet stretch, rather than the stops stage giving it weight 0 as Runs and Encounters asks, because zeroing it is a stops-stage change that reshapes every map's stops, and finds are what this batch could resolve; the stops stage drops the quiet stretch once it zeroes those weights.
+
+## Clearing (215 to 219, 221, 222)
+
+Record: stop-clearing.md. Calls 186 to 188 are the clearing rule itself.
+
+215. DDB-336: a run clears a stop when it moves past it, a find left by the road and a won fight included, on the day of the run, and a fight it loses isn't cleared, because the spec's "every stop it resolves" covers a choice declined, and a lost fight's raiders are still there.
+216. DDB-336: a cleared stop is back at the dawn five days after the day it was cleared (cleared on day 3, back on day 8), its roll up one, and only a Find: supplies haul rerolls yet, since a fight's raiders and a find's cards and driver come from the run's own stream, because the cooldown is the spec's 5 days counted the way the day clock counts nights.
+217. DDB-336: a route with stops cleared keeps the map's fuel and hours, which then overestimate a little, and takes its risk from the fights it still meets, because the run keeps no clock on the road yet and the daylight estimate should err safe.
+218. DDB-336: a cleared POI draws with the map's depleted marker and a dimmed row, its details say cleared, and its Plan is off with the reason, because the struck-through marker already means nothing left and the view has no fourth state to draw.
+222. DDB-336: the debrief stamps the POI the run cleared LOOTED, after an injured driver's tear, and DEPLETED is no longer struck, because every run that gets there clears its POI now, so the stamp says what happened rather than marking a rare state.
+219. DDB-336: version 11 saves load with every POI that still had stock taken cleared, a POI that had refilled reading as never reached (as call 107 had it), and no stop cleared, because a POI with stock taken is one a run reached, a refilled one left no trace to tell it from an unvisited one, and nothing kept stop state.
+221. DDB-336: the save keeps a stop's roll and the day it was cleared, not its rolled contents, where Area Map Generation lists the contents too, because `rollStop` gives the same contents for the same stop and roll, and a run on the road carries what it rolled in its saved route.
+
+## Player stand-ins (240 to 244)
+
+Record: intent-aware-stand-in.md. Numbered from 240, the range set aside for this work.
+
+240. DDB-528: the intent-aware stand-in reads an elite's hidden attacks from its plan, the card and its damage worked out on the board as it stands, which is more than a player sees (the card is hidden too), because the ceiling should not be capped by a tier rule, and today's encounters are all basic anyway.
+241. DDB-528: the harm it weighs is structure plus occupant hitpoints lost next enemy turn, split as a hit splits, with a wreck or a dead driver counting 20 more, because either costs a run far more than its points.
+242. DDB-528: non-lethal damage counts for half a turn of the hurt raider's harm, times the share of its toughness it removes, because weighted higher it outbid Flanking Maneuver, and one step can't see that the flank boosts the rest of the turn's hits.
+243. DDB-528: what the harm count doesn't cover (flanking, draws, adrenaline, cards with no effect) is scored as the aggressive AI scores it, so the ceiling keeps the floor's priorities whenever no intent is at stake.
+244. DDB-528: a flanker the play outpaces is taken to lose its flank bonus whole (its hits divided by 1.5, rounded up) and to stay in range, because re-deriving range from the reserved slot needs Battle's enemy-turn preview, which projects only from the board as it stands.
+
+## Event stops (250 to 259)
+
+Record: event-screen.md.
+
+250. DDB-45: a choice at an event is taken when it's pressed (a click, Enter, or its number key), with no confirm step, because its card already shows the risks and nothing on the screen can be undone anyway.
+251. DDB-45: an event's costs are paid from the stores and the run's cargo together, the cargo first, and a choice is locked when the two hold less, because cargo alone is empty at a run's first stop and would lock nearly every cost there.
+252. DDB-45: an outcome's structure and HP apply to every seated driver's vehicle and every seated driver alike, because an event has no picker for whose, and a run has at most two of each.
+253. DDB-45: an event's outcome lands on a draw from the run's stream for that stop, so a reload lands the same outcome, because otherwise reloading would be a free reroll.
+254. DDB-45: every event has a choice that needs nothing and costs nothing (usually Drive on), and the content reader refuses one without, because a party that meets nothing must never be stuck at a stop.
+255. DDB-45: a fight hand-off's outcome gains apply before the fight and the gains written on its fight only on a win, and losing it is settled as any stop fight's loss is, because an event shouldn't carry loss rules of its own.
+256. DDB-45: settlers an event gives ride home in the cargo as people, and drivers it gives are new recruits who join the pool when the run gets home, because both reach the compound only on a run that gets home.
+257. DDB-45: a card requirement is met by a copy in either seated driver's run deck, an escort's signature card included, and never by the locker, because the choice is what the crew on the road can do with what they brought.
+258. DDB-45: an event stop picks its event evenly among its stop type's events, with no weights or repeat rule yet, because five events can't carry a weighting worth tuning.
+259. DDB-45: an event's HP and structure losses stop at 1 and its resource losses stop at 0, taken from the cargo first and then the stores, because an event that kills a driver or wrecks a vehicle outright would be a fight with no chance to fight back.
+
+## Combat run pacing (190 to 209)
+
+Made building the combat side of [Runs and Encounters](./specs/Runs%20and%20Encounters.md) (epic DDB-519). Record: raider-waves-and-fight-ends.md.
+
+190. DDB-522: "across from" a driven vehicle, for close-up, is the enemy inside slot in its row, whatever lane it's in, and when one raider is nearest to two such slots Driver 1's row is filled first, because the row is what range reads and seat order is how every other tie on the player's side goes.
+191. DDB-522: Steady shows as a green check chip, because the icon atlas has no better glyph and adding one means rebuilding the font; the chip's title and detail say what it is.
+192. DDB-46: a driven vehicle flanking on the raiders' shoulder isn't across from any slot, for close-up, because it's beside the raiders' outside lane, and pulling the raider there into the inside lane would move it away from the flanker instead of toward it.
+193. DDB-46: a wave's turn count runs from the first player turn the last wave played (the fight's turn 1 for the first), so a wave with a turn count of 2 is due at the start of turn 3, because "has passed" means two whole turns of the last wave on the road.
+194. DDB-46: the top bar's "+N arriving" counts the whole due wave even when the formation can only take some of it, and the row marks show only the rows those with room will take, because the announcement promises the raiders and the marks promise the road. Replaced by 207.
+195. DDB-46: the top bar drops the "+N incoming" count of every raider still queued and shows only "+N arriving" while a wave is due, because section 9 reserves the one readout, and a count of raiders that may never come (a rout, DDB-525) tells the player nothing to act on.
+196. DDB-525: the Rust Buggy's nominal threat is 2 and the Spike Buggy's 6, until the balance sim's calibrate fits them (DDB-526), because that's about each one's toughness (60 HP and structure against 170) times what it plays in a turn (5 adrenaline against 7).
+197. DDB-525: for a break-off, only damage during the player's turn counts, and a hit a shield takes all of doesn't, because call 184 names armor, structure, and HP, and the break-off is checked at the end of the player's turn.
+198. DDB-525: after a break-off, a driver who went down is revived and one who crashed out is picked up, as after a win, because the run goes on and the partner is still standing (Kevin's rule from 2026-10-08 for a won fight).
+199. DDB-328: the mook is the Scav Bike (5 HP, 12 structure, no armor, 1 adrenaline, gunnery 9, Point Blank 3 and Far Shoot 2) and the leader the Warlord (elite, 70 structure, armor 6, 50 HP, 6 adrenaline), because those are about the least that meet the class rules: one starter attack takes the mook out, it plays one card a turn, and both can hit every starting vehicle (call 185).
+200. DDB-328: every raider carries one Precision Shot at most (Rust Buggy: Ramming Speed 2, Precision Shot 1, Point Blank 2; Spike Buggy: Ramming Speed 3, Precision Shot 1, Armor Plating 2; Warlord: Ramming Speed 2, Precision Shot 1, Point Blank 2, Armor Plating 1), and the Spike Buggy drops to 55 structure, armor 6, 50 HP, and 5 adrenaline, because in a group two Precision Shots a raider take the Interceptor's 25 HP in a turn, and the heavy at its lone-fight numbers left its templates near 20% won.
+201. DDB-328: nominal threat is Scav Bike 1, Rust Buggy 2, Spike Buggy 4 (replacing call 196's 6), and Warlord 6, until calibrate (DDB-526), because that's toughness times damage after call 200.
+202. DDB-328: tiers 1 to 4 field the same nine scavenger templates, and a stronghold's tier 5 borrows them, because skulls already rise with tier, a template's tiers only pick its roster, and there's one roster until the factions (DDB-142).
+203. DDB-328: a later wave is due at 1 or 2 raiders left on the road, or after 2 or 3 turns, as each template sets, with the skull count's road cap holding back whatever doesn't fit, because that keeps How big's "on the road at once" and gives a crew a turn or two to finish one wave before the next.
+204. DDB-328: cutting a fight to a lone driver's size never empties the first wave, because the fight has to open with a raider on the road.
+205. DDB-525: a stop's fight draws its template at the run's destination tier, not a tier of its own, because a route's stops don't carry one and skulls already rise with tier.
+206. DDB-525: a warband's leader is its vehicle, so the leader is out, and the rest rout, when that vehicle is wrecked or loses its driver, even if the driver jumps to another raider, because the leader is the War Rig the warband rides behind, and a driver riding as a passenger can't lead it.
+207. DDB-328: the top bar's "+N arriving" and the log's "N raiders arriving" count only the raiders that will pull in at the end of this enemy turn, under the road cap and into free slots, replacing 194, because with road caps a whole wave rarely lands at once, and the readout should promise what the player will see.

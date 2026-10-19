@@ -1,5 +1,6 @@
 import { mat4 } from 'gl-matrix';
 import {
+	ArtAtlasOptions,
 	BlendMode,
 	DrawApi,
 	DrawBackend,
@@ -125,6 +126,15 @@ export interface CreateDrawApiOptions {
 	gpuTimer?: GpuTimer | null;
 	/** The font role atlases, loaded and validated, given to the backend before the first frame (R2.18). */
 	fontAtlases?: readonly LoadedFontAtlas[];
+	/** R5.31's offline UI art atlas pages, decoded and size-checked, made resident beside the fonts (R5.20). */
+	artAtlases?: readonly LoadedArtAtlas[];
+}
+
+export interface LoadedArtAtlas {
+	name: string;
+	image: TexImageSource;
+	width: number;
+	height: number;
 }
 
 /**
@@ -155,19 +165,21 @@ const UNIFORM_SLOTS = 12;
  * Each font atlas is uploaded raw (R6.4b) as an immediate texture that keeps
  * its image for a context restore, then handed to the backend under its role,
  * all before the draw API exists, so no frame can precede an atlas (R2.18).
+ * The UI art pages (R5.31) follow the same path as colour textures and join
+ * the resident set after the fonts (R5.20).
  *
  * Diagnostics go to `console.error` in a development build, which turns any
  * R2.1 finding into a red screenshot spec through the harness's
  * `expectCleanConsole`.
  */
-export function createDrawApi({ renderer, frameTimer, gpuTimer, fontAtlases = [] }: CreateDrawApiOptions): DrawApi {
+export function createDrawApi({ renderer, frameTimer, gpuTimer, fontAtlases = [], artAtlases = [] }: CreateDrawApiOptions): DrawApi {
 	// Small text draws from the distance field until its face loads (R6.4a).
 	const rasterFaces = new PlatformFaces({
 		load: documentFaceLoader(),
 		onError: (face, error) => console.error(`draw: the ${face} font file failed to load, so its small text stays soft:`, error),
 	});
 	const backend = new WebGL2Backend({ renderer, frameTimer, gpuTimer, rasterFaces });
-	for (const { role, face, atlas, image } of fontAtlases) {
+	for (const { font, face, atlas, image } of fontAtlases) {
 		const texture = renderer.textures.create({
 			width: atlas.width,
 			height: atlas.height,
@@ -177,15 +189,21 @@ export function createDrawApi({ renderer, frameTimer, gpuTimer, fontAtlases = []
 			keepSource: true,
 			immediate: true,
 		});
-		backend.loadFontAtlas({ name: role, atlas, texture });
+		backend.loadFontAtlas({ name: font, atlas, texture });
 	}
-	return new DrawApi({
+	const api = new DrawApi({
 		backend,
 		development: __DEV_TOOLS__,
 		onDiagnostic: (diagnostic) => {
 			console.error(`draw: ${diagnostic.code}: ${diagnostic.message}`);
 		},
 	});
+	for (const { name, image, width, height } of artAtlases) {
+		// Colour art, premultiplied on upload (R5.18), kept for a restore like the fonts.
+		const texture = renderer.textures.create({ width, height, label: `art atlas ${name}`, source: image, content: 'color', keepSource: true, immediate: true });
+		api.loadArtAtlas({ name, texture });
+	}
+	return api;
 }
 
 /** Everything a lost context takes with it, rebuilt together on restore. */
@@ -208,6 +226,8 @@ export class WebGL2Backend implements DrawBackend {
 	private readonly text = new TextMetricsService();
 	/** Font role to atlas texture, in load order; the resident set is these (R6.4). */
 	private readonly fontTextures = new Map<string, TextureHandle>();
+	/** R5.31's UI art pages by name, resident after the fonts (R5.20). */
+	private readonly artTextures = new Map<string, TextureHandle>();
 	private readonly encoder: UberGeometryEncoder;
 	/** R6.4a's raster atlases, or null without platform faces. */
 	private readonly smallText: RasterGlyphPage | null;
@@ -408,9 +428,19 @@ export class WebGL2Backend implements DrawBackend {
 		this.text.addAtlas({ name, atlas });
 		this.fontTextures.set(name, texture);
 		this.encoder.registerFontTexture(name, texture);
-		this.residentTextures.resident = [...this.fontTextures.values()];
-		this.boundUnits.fill(null);
+		this.refreshResident();
 		return { id: texture.id, name };
+	}
+
+	/** An art atlas page joins the resident set after the fonts, so a piece between a rect and a label is the same GPU draw (R5.20). */
+	loadArtAtlas({ name, texture }: ArtAtlasOptions): void {
+		this.artTextures.set(name, texture);
+		this.refreshResident();
+	}
+
+	private refreshResident(): void {
+		this.residentTextures.resident = [...this.fontTextures.values(), ...this.artTextures.values()];
+		this.boundUnits.fill(null);
 	}
 
 	// -- resources ----------------------------------------------------------

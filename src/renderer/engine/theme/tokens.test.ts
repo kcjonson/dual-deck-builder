@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'f
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 import { LAYER_NAMES } from '../draw/layers';
-import { tokens } from './tokens';
+import { themes, tokens } from './tokens';
 
 type TokenEntry = {
 	value?: unknown;
@@ -13,6 +13,7 @@ type TokenEntry = {
 	description?: string;
 };
 type TokenSource = Record<string, Record<string, TokenEntry>>;
+type ThemeFile = TokenSource & { themes?: Record<string, TokenSource> };
 type RGBA = readonly [number, number, number, number];
 
 const repoRoot = resolve(__dirname, '../../../..');
@@ -20,13 +21,23 @@ const generatorPath = join(repoRoot, 'scripts/generate-tokens.mjs');
 const sourcePath = join(__dirname, 'tokens.json');
 const modulePath = join(__dirname, 'tokens.ts');
 
+/** The base theme's categories, without metadata or the themes object. */
 function readSource(): TokenSource {
-	const parsed = JSON.parse(readFileSync(sourcePath, 'utf8')) as Record<string, unknown>;
+	const parsed = readFile();
 	const categories: TokenSource = {};
 	for (const [key, value] of Object.entries(parsed)) {
-		if (!key.startsWith('$')) categories[key] = value as Record<string, TokenEntry>;
+		if (!key.startsWith('$') && key !== 'themes') categories[key] = value as Record<string, TokenEntry>;
 	}
 	return categories;
+}
+
+function readFile(): ThemeFile {
+	return JSON.parse(readFileSync(sourcePath, 'utf8')) as ThemeFile;
+}
+
+function themesOf(source: ThemeFile): Record<string, TokenSource> {
+	if (!source.themes) throw new Error('tokens.json has no themes');
+	return source.themes;
 }
 
 function runGenerator(args: string[]) {
@@ -130,15 +141,15 @@ describe('generator rejects a bad token file', () => {
 		rmSync(directory, { recursive: true, force: true });
 	});
 
-	function generateFrom(mutate: (source: TokenSource) => void) {
-		const source = readSource();
+	function generateFrom(mutate: (source: ThemeFile) => void) {
+		const source = readFile();
 		mutate(source);
 		const path = join(directory, 'tokens.json');
 		writeFileSync(path, JSON.stringify(source));
 		return runGenerator(['--input', path, '--stdout']);
 	}
 
-	const cases: Array<[string, (source: TokenSource) => void, RegExp]> = [
+	const cases: Array<[string, (source: ThemeFile) => void, RegExp]> = [
 		[
 			'a colour whose floats disagree with its css form',
 			(source) => {
@@ -209,6 +220,34 @@ describe('generator rejects a bad token file', () => {
 				source.space.space_1 = { value: '4px' };
 			},
 			/space\.space_1: expected a number/,
+		],
+		[
+			'a theme token the base does not have',
+			(source) => {
+				themesOf(source).atlas.color.sepia = { value: [0.5, 0.4, 0.3, 1] };
+			},
+			/themes\.atlas\.color\.sepia: the base has no token "sepia"/,
+		],
+		[
+			'a theme re-valuing measurement',
+			(source) => {
+				themesOf(source).atlas.space = { space_1: { value: 5 } };
+			},
+			/themes\.atlas\.space: a theme re-values paint/,
+		],
+		[
+			'a theme colour whose floats disagree with its css form',
+			(source) => {
+				themesOf(source).atlas.color.accent.value = [1, 0, 0, 1];
+			},
+			/color\.accent: value .* does not match css/,
+		],
+		[
+			'a theme named after the base',
+			(source) => {
+				themesOf(source).dark = {};
+			},
+			/themes\.dark: "dark" is the base theme/,
 		],
 	];
 
@@ -326,5 +365,126 @@ describe('starting theme (11.2)', () => {
 
 	it('names every layer of the chapter 3 ladder, in order', () => {
 		expect(Object.values(layer)).toEqual([...LAYER_NAMES]);
+	});
+});
+
+describe('atlas theme (UI Art Direction, Tokens)', () => {
+	const { atlas, dark } = themes;
+	const hex = (value: string, alpha = 1): RGBA => {
+		const [red, green, blue] = hexToRgba(value);
+		return [red, green, blue, alpha];
+	};
+	const near = (actual: readonly number[], expected: RGBA) => {
+		expect(actual).toHaveLength(4);
+		actual.forEach((channel, index) => expect(channel).toBeCloseTo(expected[index], 3));
+	};
+	const INK = '#23221F';
+	const HIGHLIGHTER = '#F4DA4C';
+	const TABLE = '#24211C';
+
+	it('is the base theme under its own name, and the base is dark', () => {
+		expect(dark).toBe(tokens);
+	});
+
+	it('has exactly the leaf names of the base in every category (R11.4)', () => {
+		for (const category of Object.keys(dark) as Array<keyof typeof dark>) {
+			expect(Object.keys(atlas[category])).toEqual(Object.keys(dark[category]));
+		}
+	});
+
+	it('takes its surfaces and lines from the palette', () => {
+		const { color } = atlas;
+		near(color.bg_void, hex(TABLE));
+		near(color.bg_base, hex('#EEE7D2'));
+		near(color.bg_inset, hex('#E4DCC4'));
+		near(color.bg_panel, hex('#F4EEDD'));
+		near(color.bg_panel_raised, hex('#F6F1E4'));
+		near(color.bg_hover, hex(INK, 0.045));
+		near(color.bg_active, hex(HIGHLIGHTER, 0.35));
+		near(color.bg_selection, hex(HIGHLIGHTER, 0.55));
+		near(color.bg_pressed, hex(INK, 0.1));
+		near(color.line_hairline, hex(INK, 0.14));
+		near(color.line_edge, hex(INK, 0.4));
+		near(color.line_strong, hex(INK, 0.9));
+		near(color.scrim, hex(TABLE, 0.6));
+		near(color.shadow, hex('#140F0A', 0.5));
+		near(color.shadow_strong, hex('#140F0A', 0.75));
+	});
+
+	it('takes its accents, text, and status from the palette', () => {
+		const { color } = atlas;
+		near(color.accent, hex('#D86036'));
+		near(color.accent_bright, hex('#E8703F'));
+		near(color.accent_dim, hex('#682C1E'));
+		near(color.accent_contrast, hex('#FFF8EE'));
+		near(color.data, hex('#3E6F98'));
+		near(color.data_bright, hex('#86AED3'));
+		near(color.data_dim, hex('#AFCDE1'));
+		near(color.text_bright, hex('#141311'));
+		near(color.text, hex(INK));
+		near(color.text_dim, hex('#5D5A52'));
+		near(color.text_faint, hex('#6E6A61'));
+		near(color.text_disabled, hex('#8E8778'));
+		near(color.status_ok, hex('#4F6B3A'));
+		near(color.status_crit, hex('#A3221B'));
+	});
+
+	it('keeps warn and info as aliases, so they follow the atlas accents (R11.6)', () => {
+		expect(atlas.color.status_warn).toEqual(atlas.color.accent);
+		expect(atlas.color.status_info).toEqual(atlas.color.data);
+	});
+
+	it('marks active things without light: both glows and the glow presets are transparent', () => {
+		expect(atlas.color.accent_glow[3]).toBe(0);
+		expect(atlas.color.data_glow[3]).toBe(0);
+		expect(atlas.elevation.glow_accent.color[3]).toBe(0);
+		expect(atlas.elevation.glow_data.color[3]).toBe(0);
+	});
+
+	it('is square-cornered by re-aliasing radius_ui and radius_panel to r_0 (R11.7)', () => {
+		expect(atlas.radius.radius_ui).toBe(0);
+		expect(atlas.radius.radius_panel).toBe(0);
+		expect(dark.radius.radius_ui).toBe(dark.radius.r_sm);
+	});
+
+	it('carries the additions in both themes', () => {
+		for (const theme of [atlas, dark]) {
+			near(theme.color.driver_a, hex('#D86036'));
+			near(theme.color.driver_a_casing, hex('#682C1E'));
+			near(theme.color.driver_b, hex('#4FA6A3'));
+			near(theme.color.driver_b_casing, hex('#1F6E6A'));
+			near(theme.color.hand_highlighter, hex(HIGHLIGHTER));
+			near(theme.color.hand_grease, hex('#C8372D'));
+			near(theme.color.hatch_rust, hex('#B5643C'));
+			near(theme.color.built_up, hex('#E5D4CC'));
+			expect(theme.space.sheet_margin).toBe(14);
+		}
+	});
+
+	it('leaves the dark theme as it was', () => {
+		near(dark.color.bg_base, hex('#1A1C1E'));
+		near(dark.color.accent, hex('#EFD25A'));
+		expect(dark.color.accent_glow[3]).toBe(0.45);
+	});
+
+	it('re-values paint only, so layout is the same in both themes', () => {
+		for (const category of ['space', 'borderWidth', 'fontSize', 'lineHeight', 'letterSpacing', 'motion', 'layer', 'typography', 'control'] as const) {
+			expect(atlas[category]).toEqual(dark[category]);
+		}
+	});
+
+	it('holds the measured contrasts: ink on paper, and paper text on highway for large text only', () => {
+		const relative = (rgba: readonly number[]) => {
+			const linear = (value: number) => (value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+			return 0.2126 * linear(rgba[0]) + 0.7152 * linear(rgba[1]) + 0.0722 * linear(rgba[2]);
+		};
+		const contrast = (a: readonly number[], b: readonly number[]) => {
+			const [light, deep] = [relative(a), relative(b)].sort((x, y) => y - x);
+			return (light + 0.05) / (deep + 0.05);
+		};
+		expect(contrast(atlas.color.text, atlas.color.bg_panel)).toBeGreaterThan(13);
+		expect(contrast(atlas.color.text_faint, atlas.color.bg_panel)).toBeGreaterThanOrEqual(4.5);
+		expect(contrast(atlas.color.status_crit, atlas.color.bg_panel)).toBeGreaterThan(6);
+		expect(contrast(atlas.color.accent_contrast, atlas.color.accent)).toBeGreaterThanOrEqual(3);
 	});
 });

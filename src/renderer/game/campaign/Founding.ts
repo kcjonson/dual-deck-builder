@@ -118,6 +118,7 @@ export function foundCampaign({ map, ...options }: FoundingOptions): Campaign {
 		// The clock only runs on the road, and it's one run a day, so the compound is always at the dawn of its day.
 		day: 1,
 		resources: startingValues.resources,
+		buildings: startingValues.buildings,
 		convoy: new Convoy({ escorts: startingValues.escorts.map(type => createEscort({ type })) })
 	});
 	pool.forEach(archetype => campaign.recruitDriver({ archetype }));

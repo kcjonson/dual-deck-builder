@@ -76,7 +76,7 @@ Card types are checked for shape (lower snake case), not against `cards.json`, s
 
 `toSaveText` writes the save's plain JSON, which `JSON.stringify(campaign)` also writes, and `toJSON` parses back as a copy. `Campaign.fromJSON` takes the parsed value:
 
-- The campaign's JSON carries no version. `CampaignStore` stamps every save with the save format version, `CAMPAIGN_SCHEMA_VERSION`, and only hands `fromJSON` a save of this build's version, or one of the older versions it upgrades first ([campaign-save-and-load.md](./campaign-save-and-load.md), [poi-depletion.md](./poi-depletion.md)).
+- The campaign's JSON carries no version. `CampaignStore` stamps every save with the save format version, `CAMPAIGN_SCHEMA_VERSION`, and only hands `fromJSON` a save of this build's version, or one of the older versions it upgrades first ([campaign-save-and-load.md](./campaign-save-and-load.md), [stop-clearing.md](./stop-clearing.md)).
 - Every object must be a plain object with exactly its fields. Missing and unknown fields both throw, as map presets do, so a renamed field can't vanish quietly; map params are the one exception (below). An object made on another, whose values it would inherit, isn't a plain object, nor is a class instance; another realm's plain object is (`isPlainObject` in `core/Json.ts`, which `copyJson` uses as well), and what the readers keep of it, arrays included, is built in this realm.
 - Every array must hold a value at every index. JSON never makes a hole, but a `set` could pass one, and `map` and `forEach` would skip it unchecked.
 - Errors name where: `Campaign.drivers[1].status must be one of ready, injured, dead, missing, got "sleeping"`. A `ReaderTypeError` for the wrong kind of value, a `ReaderRangeError` for a value out of range: still a TypeError and a RangeError, but classes of their own, so a load can tell a damaged save from a bug in the code reading it, and log the bug (it still treats the save as damaged).
@@ -127,11 +127,17 @@ Each repair, and each value kept outside today's ranges, is a warning worded wit
 
 ## Map state is a stand-in; the map's attempts aren't
 
-What's changed on the map since founding (DDB-275), `map`, is opaque JSON, copied and frozen, and nested at most 100 levels, until stops and POIs define it. `strongholdsTaken` holds ids as strings until the map defines its ids.
+What's changed on the map since founding (DDB-275), `map`, is opaque JSON, copied and frozen, and nested at most 100 levels, until stops and POIs define it. `strongholdsTaken` holds ids as strings until the map defines its ids. `buildings` lists the buildings standing at the compound (`BUILDING_IDS` in `Buildings.ts`, in the order the compound numbers them); founding stands the start's (`campaign-start.json`, the bunkhouse), and nothing builds one yet (DDB-508).
 
 The map itself isn't saved yet (DDB-436). The campaign keeps what makes it again: `mapAttempts`, the map attempt and each stage's winning attempt, fixed at founding with the seed, the generator version, and the params, and null for a campaign built without a map ([campaign-save-and-load.md](./campaign-save-and-load.md), The area map).
 
 The log is `{ day, message }` lines, dated by `addLogEntry` with the current day, in day order, none after today. Plain text for now; campaign history may want structured entries later, which is a schema bump.
+
+## Buildings standing
+
+`buildings` lists the compound's buildings that stand, in `BUILDING_IDS` order (`Buildings.ts`), each once (DDB-508). The compound plate draws a roof for each and stakes out the rest, so the list has to be the campaign's, not the screen's.
+
+Provisional calls (gameplay-calls.md, 182): a new campaign is founded with only the bunkhouse standing (`campaign-start.json`), and nothing builds a building yet. The bunkhouse's Crew screen was the only building screen in play, and every version 9 campaign could open it, so version 9 saves load with the bunkhouse standing (save format 10).
 
 ## Consequences
 

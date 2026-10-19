@@ -2,32 +2,33 @@ import type { AIType } from '../ai/AIController';
 import { Rng } from '../core/Rng';
 import type { RouteMap } from '../map/RouteDescriptors';
 import type { Card } from '../mechanics/Card';
+import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
 import { MAX_CONVOY_ESCORTS, Team } from '../mechanics/Team';
 import type { Vehicle } from '../mechanics/Vehicle';
 import { Campaign, CampaignData, NO_RESOURCES, RESOURCE_NAMES, Resources, UnloadedCargo, resourceAmount } from './Campaign';
 import { CampaignEnd, refuseOver, refuseOverBlocker } from './CampaignEnd';
 import { CardCounts, NO_CARDS } from './CardCounts';
 import { addCardsWon } from './CardsWon';
-import { CampaignFight, FailedRun, RunParty, WonFight, startCampaignFight, writeBackFight } from './CombatBridge';
+import { BrokenOffFight, CampaignFight, FailedRun, RunParty, WonFight, startCampaignFight, writeBackFight } from './CombatBridge';
 import { DayEnd, endDay } from './DayClock';
 import { cardName } from './DeckRules';
-import type { DriverRecord } from './DriverRecord';
-import { EncounterId, encounterFor, encounterTeam } from './Encounters';
+import { DRIVER_ARCHETYPES, DriverRecord } from './DriverRecord';
+import { encounterForces } from './Encounters';
 import { Injury, injureOnArrival } from './Infirmary';
 import type { RunDeck } from './RunDeck';
 import { rollRewardCards } from './RunRewards';
 import { getCrewRule, getSeatBlocker } from './Seating';
-import { destinationId, poiOf, routeOffers } from './MapRoutes';
+import { clearPoi, clearStop, clearedPois, stopStates } from './MapClearing';
+import { destinationId, poiOf, routeOffers, routeStop, stopOf } from './MapRoutes';
 import type { MapState } from './MapState';
-import { poiStocks, scaledYield, sharesLeft, takeShare } from './PoiStock';
-import { RouteStop, RouteYield, RunRoute, YIELD_RESOURCES, routeStops } from './SupplyRoutes';
+import { FindKind, FindStop, RouteLeg, RouteStop, RouteYield, RunRoute, YIELD_RESOURCES, routeStops } from './SupplyRoutes';
 import type { SupplyRun } from './SupplyRunState';
 
 /**
  * The MVP supply run (DDB-454): depart on a route the area map offers
  * (`routesOnOffer`), take its stops in order, a fight through the combat
- * bridge with a card reward after each win, load the destination's yield,
- * and come home, or lose the run. A stand-in for the full run controller
+ * bridge with a card reward after each win, a find taken or left (DDB-523),
+ * load the destination's yield, and come home, or lose the run. A stand-in for the full run controller
  * (DDB-322), which keeps this state machine. Decision records:
  * docs/AI_TECHNICAL_DECISIONS/mvp-supply-run.md and area-map-route-pick.md.
  *
@@ -66,9 +67,10 @@ export class DepartRuleError extends RangeError {
 	}
 }
 
-/** How a stop's fight ended: the run goes on to a reward, or it failed. */
+/** How a stop's fight ended: the run goes on to a reward, goes on with nothing won when the raiders broke off, or it failed. */
 export type StopFightResult =
 	| { readonly outcome: 'won'; readonly fight: WonFight }
+	| { readonly outcome: 'broken_off'; readonly fight: BrokenOffFight }
 	| {
 		readonly outcome: 'run_failed';
 		readonly fight: FailedRun;
@@ -84,24 +86,33 @@ export interface Arrival {
 	readonly seats: readonly DriverRecord[];
 	readonly cargo: UnloadedCargo;
 	readonly injuries: readonly Injury[];
+	/** Drivers found on the road who joined the pool on getting home (`SupplyRun.recruits`). */
+	readonly recruits: readonly DriverRecord[];
 	readonly dayEnd: DayEnd;
 }
 
-/** Each map's offer as it'd be with every POI full, worked out once: the compound asks on every refresh. */
+/** Who a Find: driver turns up: one of the compound's own missing, or someone new of an archetype. */
+export type FoundDriver =
+	| { readonly kind: 'missing'; readonly driver: DriverRecord }
+	| { readonly kind: 'recruit'; readonly archetype: DriverArchetype };
+
+/** Each map's offer with nothing cleared, worked out once: the compound asks on every refresh. */
 const offers = new WeakMap<RouteMap, readonly RunRoute[]>();
 
-/** Each map's offer for the last map state asked about, which a campaign replaces whole when a POI's stock changes. */
-const stocked = new WeakMap<RouteMap, { readonly state: MapState; readonly routes: readonly RunRoute[] }>();
+/** Each map's offer for the last map state asked about, which a campaign replaces whole when a run clears something. */
+const cleared = new WeakMap<RouteMap, { readonly state: MapState; readonly routes: readonly RunRoute[] }>();
 
 /**
  * The routes a run can set off on: every route the area map has
  * (`routeOffers`), POI by POI, each POI's quickest first, but a
- * stronghold's, which waits for assaults, each destination yielding what
- * the campaign's POI stock has left (`scaledYield`), nothing at a depleted
- * one. Every POI is known until fog (DDB-294), and none is gated by the
- * day or its stock. The one place the run's routes come from, and every
- * caller passes the campaign and its own map (`getAreaMap`), so what the
- * screens show is what `departRun` checks.
+ * stronghold's, which waits for assaults, and a cleared POI's, which no run
+ * goes back to (Runs and Encounters, Clearing). A stop still in its
+ * cooldown is `cleared`, so the run drives past it, and one that's come
+ * back holds its contents at its roll now; a route with a stop cleared
+ * takes its risk from the fights it still meets. Every POI is known until
+ * fog (DDB-294). The one place the run's routes come from, and every caller
+ * passes the campaign and its own map (`getAreaMap`), so what the screens
+ * show is what `departRun` checks.
  */
 export function routesOnOffer({ map, campaign }: { map: RouteMap; campaign: Campaign }): readonly RunRoute[] {
 	let full = offers.get(map);
@@ -111,24 +122,39 @@ export function routesOnOffer({ map, campaign }: { map: RouteMap; campaign: Camp
 		offers.set(map, full);
 	}
 	const state = campaign.map;
-	const stocks = poiStocks(state);
-	if (stocks.length === 0) return full;
-	const kept = stocked.get(map);
+	if (clearedPois(state).length === 0 && stopStates(state).length === 0) return full;
+	const kept = cleared.get(map);
 	if (kept?.state === state) return kept.routes;
-	const shares = new Map(stocks.map(({ poi }) => [destinationId(poi), sharesLeft({ map: state, poi })]));
-	const destinations = new Map<string, RunRoute['destination']>();
-	const routes = Object.freeze(full.map((route) => {
-		const left = shares.get(route.destination.id);
-		if (left === undefined) return route;
-		let destination = destinations.get(route.destination.id);
-		if (!destination) {
-			destination = Object.freeze({ ...route.destination, yield: scaledYield({ yields: route.destination.yield, shares: left }) });
-			destinations.set(route.destination.id, destination);
-		}
-		return Object.freeze({ ...route, destination });
+	const closed = new Set(clearedPois(state).map(destinationId));
+	const states = new Map(stopStates(state).map(entry => [entry.stop, entry]));
+	const legs = new Map<RouteLeg, RouteLeg>();
+	const legNow = (leg: RouteLeg): RouteLeg => {
+		let now = legs.get(leg);
+		if (now) return now;
+		const stops = leg.stops.map((stop) => {
+			const id = stopOf(stop.id);
+			const entry = id === null ? undefined : states.get(id);
+			if (id === null || !entry) return stop;
+			const rolled = entry.roll > 0 ? routeStop({ map, id, roll: entry.roll }) : stop;
+			return entry.cleared === null ? rolled : Object.freeze({ ...rolled, cleared: true as const });
+		});
+		now = stops.every((stop, index) => stop === leg.stops[index]) ? leg : Object.freeze({ ...leg, stops: Object.freeze(stops) });
+		legs.set(leg, now);
+		return now;
+	};
+	const routes = Object.freeze(full.filter(route => !closed.has(route.destination.id)).map((route) => {
+		const now = route.legs.map(legNow);
+		if (now.every((leg, index) => leg === route.legs[index])) return route;
+		const changed: RunRoute = Object.freeze({ ...route, legs: Object.freeze(now) });
+		return Object.freeze({ ...changed, risk: riskOf(changed) });
 	}));
-	stocked.set(map, { state, routes });
+	cleared.set(map, { state, routes });
 	return routes;
+}
+
+/** A route's worst fight still on it, in skulls, or 1, the objective's, with none. */
+function riskOf(route: RunRoute): RunRoute['risk'] {
+	return routeStops(route).reduce<RunRoute['risk']>((worst, stop) => (stop.kind === 'fight' && stop.skulls > worst ? stop.skulls : worst), 1);
 }
 
 /**
@@ -148,12 +174,13 @@ export function seatableCrew({ campaign }: { campaign: Campaign }): readonly Dri
 }
 
 /**
- * Load out, stubbed until its screen exists (DDB-320): the crew a run can
- * seat (`seatableCrew`: a pair, a same-archetype pair, or one driver alone),
- * on their default decks, and every escort in the convoy, up to
- * `MAX_CONVOY_ESCORTS` in roster order, their cards to Driver 1, through
- * `startRunDecks`. The one call a load out screen replaces. Throws with
- * nobody to send, and as `startRunDecks` does.
+ * Load out with nothing changed, as the load out screen opens (DDB-320):
+ * the crew a run can seat (`seatableCrew`: a pair, a same-archetype pair,
+ * or one driver alone), on their default decks, and every escort in the
+ * convoy, up to `MAX_CONVOY_ESCORTS` in roster order, their cards to
+ * Driver 1, through `startRunDecks`. For setting a run off without the
+ * screen, as the tests do. Throws with nobody to send, and as
+ * `startRunDecks` does.
  */
 export function quickLoadOut({ campaign }: { campaign: Campaign }): { seats: readonly DriverRecord[]; escorts: readonly Vehicle[] } {
 	const seats = seatableCrew({ campaign });
@@ -215,7 +242,7 @@ export function departRun({ campaign, map, route, escorts }: { campaign: Campaig
 	checkEscorts({ campaign, escorts });
 	campaign.set({
 		resources: { ...campaign.resources, fuel: campaign.resources.fuel - offered.fuel },
-		...arrivedAt({ campaign, run: { route: offered, stop: 0, phase: 'driving', escorts, cargo: NO_RESOURCES, cargoCards: NO_CARDS } }),
+		...arrivedAt({ campaign, run: { route: offered, stop: 0, phase: 'driving', escorts, cargo: NO_RESOURCES, cargoCards: NO_CARDS, recruits: [] } }),
 	});
 	return requireRun(campaign);
 }
@@ -239,15 +266,78 @@ export function atDestination(run: SupplyRun): boolean {
 /** A quiet stretch passes: on to the next stop, or the destination. Throws unless the run is driving to a quiet stop. */
 export function passQuietStop({ campaign }: { campaign: Campaign }): void {
 	const run = drivingTo({ campaign, kind: 'quiet' });
-	campaign.set(arrivedAt({ campaign, run: { ...run, stop: run.stop + 1 } }));
+	campaign.set(arrivedAt({ campaign, run: { ...run, stop: run.stop + 1 }, passed: currentStop(run) }));
+}
+
+/**
+ * Who the Find: driver the run is driving to turns up: the first of the
+ * pool's missing drivers who can be found (`Campaign.findMissingDriver`),
+ * or else someone new, of an unlocked archetype the compound has fewest
+ * living drivers of, counting recruits riding home, drawn on the run's
+ * stream for the stop, `fork('find', stop)`, so a load finds the same one.
+ * Throws unless the run is driving to a Find: driver.
+ */
+export function foundDriver({ campaign }: { campaign: Campaign }): FoundDriver {
+	const run = drivingToFind({ campaign, find: 'driver' });
+	const missing = campaign.drivers.find(driver => driver.status === 'missing' && !campaign.foundOnRun.includes(driver) && campaign.runDeckOf(driver) === null);
+	if (missing) return Object.freeze({ kind: 'missing', driver: missing });
+	const unlocked = DRIVER_ARCHETYPES.filter(archetype => DRIVER_CONFIGS[archetype].metadata.unlocked);
+	const living = (archetype: DriverArchetype): number =>
+		campaign.drivers.filter(driver => driver.archetype === archetype && driver.status !== 'dead').length
+		+ run.recruits.filter(recruit => recruit === archetype).length;
+	const fewest = Math.min(...unlocked.map(living));
+	const archetype = runStream({ campaign }).fork('find', run.stop).pick(unlocked.filter(candidate => living(candidate) === fewest));
+	return Object.freeze({ kind: 'recruit', archetype });
+}
+
+/**
+ * The find the run is driving to, taken (Runs and Encounters, What a stop
+ * can be): Find: cards opens the card picker at the stop (`rewardOffer`,
+ * `takeReward`); Find: supplies loads its haul into the cargo; Find: driver
+ * takes on who it turns up (`foundDriver`), a missing driver riding home
+ * with the run (`Campaign.findMissingDriver`) and someone new as one of its
+ * `recruits`. Then on to the next stop, or the destination, but for the
+ * cards, which move on once picked. Throws unless the run is driving to a
+ * find, and as `findMissingDriver` does.
+ */
+export function takeFind({ campaign }: { campaign: Campaign }): void {
+	const run = drivingTo({ campaign, kind: 'find' });
+	const stop = currentStop(run) as FindStop;
+	switch (stop.find) {
+		case 'cards':
+			campaign.set({ supplyRun: { ...run, phase: 'reward' } });
+			return;
+		case 'supplies': {
+			const { resource, amount } = stop.supplies;
+			const cargo = { ...run.cargo, [resource]: run.cargo[resource] + amount };
+			campaign.set(arrivedAt({ campaign, run: { ...run, cargo, stop: run.stop + 1 }, passed: stop }));
+			return;
+		}
+		case 'driver': {
+			const found = foundDriver({ campaign });
+			if (found.kind === 'missing') {
+				campaign.findMissingDriver({ driver: found.driver });
+				campaign.set(arrivedAt({ campaign, run: { ...run, stop: run.stop + 1 }, passed: stop }));
+			} else {
+				campaign.set(arrivedAt({ campaign, run: { ...run, recruits: [...run.recruits, found.archetype], stop: run.stop + 1 }, passed: stop }));
+			}
+			return;
+		}
+	}
+}
+
+/** The find the run is driving to, left by the road: on to the next stop, or the destination. Throws unless the run is driving to a find. */
+export function leaveFind({ campaign }: { campaign: Campaign }): void {
+	const run = drivingTo({ campaign, kind: 'find' });
+	campaign.set(arrivedAt({ campaign, run: { ...run, stop: run.stop + 1 }, passed: currentStop(run) }));
 }
 
 export interface StopFightOptions {
 	campaign: Campaign;
 	/** Card templates by type, as `CardLoader.getAllCardsAsMap` hands them out. */
 	cards: ReadonlyMap<string, Card>;
-	/** The raiders for an encounter: the encounter table's when left out. */
-	raiders?: (encounter: EncounterId) => Team;
+	/** The fight's raiders: an encounter template's (`encounterForces`) when left out. */
+	raiders?: () => Team;
 	/** The raiders' AI, the bridge's aggressive when left out. */
 	enemyAI?: AIType | null;
 }
@@ -255,20 +345,23 @@ export interface StopFightOptions {
 /**
  * The fight at the run's stop, started through the combat bridge on the
  * run's stream for that stop, `fork('fight', stop)` off the run's own
- * (`runStream`). The encounter's raiders size up the seats' vehicles as
- * the bridge builds them (`encounterTeam`). Nothing is saved: a load finds
- * the run driving to this stop, and the fight replays from the same stream.
- * Throws unless the run is driving to a fight, and as `startCampaignFight`
- * does.
+ * (`runStream`). Its raiders are an encounter template for the stop's
+ * skulls at the destination's tier, picked on that stream and sized for
+ * the seats (`encounterForces`); game stage isn't kept yet (DDB-339), so
+ * every fight is stage 0's. Nothing is saved: a load finds the run driving
+ * to this stop, and the fight replays from the same stream, template and
+ * all. Throws unless the run is driving to a fight, and as
+ * `startCampaignFight` does.
  */
 export function startStopFight({ campaign, cards, raiders, enemyAI }: StopFightOptions): CampaignFight {
 	const run = drivingTo({ campaign, kind: 'fight' });
-	const encounter = encounterFor((currentStop(run) as Extract<RouteStop, { kind: 'fight' }>).skulls);
+	const { skulls } = currentStop(run) as Extract<RouteStop, { kind: 'fight' }>;
+	const rng = runStream({ campaign }).fork('fight', run.stop);
 	return startCampaignFight({
 		campaign,
 		party: runParty({ campaign }),
-		raiders: vehicles => raiders ? raiders(encounter) : encounterTeam({ encounter, cards, crewStructure: vehicles.map(vehicle => vehicle.structure) }),
-		rng: runStream({ campaign }).fork('fight', run.stop),
+		raiders: vehicles => raiders ? raiders() : encounterForces({ skulls, tier: run.route.destination.tier, cards, seats: vehicles.length, rng }).team,
+		rng,
 		cards,
 		...(enemyAI === undefined ? {} : { enemyAI }),
 	});
@@ -276,7 +369,8 @@ export function startStopFight({ campaign, cards, raiders, enemyAI }: StopFightO
 
 /**
  * A stop's fight written back. A win carries the write-back's party on,
- * its escorts and cargo, to the stop's reward. A loss, a fight given up
+ * its escorts and cargo, to the stop's reward. A break-off carries it on
+ * past the stop with no reward, and the log says so. A loss, a fight given up
  * included (`Battle.forfeit`), fails the run: the log names who died and
  * who went missing, `loseRun` loses the run and logs its cargo, and the day
  * ends unless the campaign is over, as a run getting home does. Throws as
@@ -290,6 +384,12 @@ export function finishStopFight({ campaign, fight }: { campaign: Campaign; fight
 		campaign.set({ supplyRun: { ...run, escorts, cargo, cargoCards, phase: 'reward' } });
 		return Object.freeze({ outcome: 'won', fight: result });
 	}
+	if (result.outcome === 'broken_off') {
+		const { escorts, cargo, cargoCards } = result.party;
+		campaign.addLogEntry({ message: `The raiders broke off at stop ${run.stop + 1} on the run to ${run.route.destination.name}.` });
+		campaign.set(arrivedAt({ campaign, run: { ...run, escorts, cargo, cargoCards, stop: run.stop + 1, phase: 'driving' }, passed: currentStop(run) }));
+		return Object.freeze({ outcome: 'broken_off', fight: result });
+	}
 	campaign.addLogEntry({ message: fallenMessage({ route: run.route, dead: result.dead, missing: result.missing }) });
 	const { lost } = campaign.loseRun({ result });
 	const dayEnd = campaign.isOver ? null : endDay({ campaign });
@@ -297,9 +397,9 @@ export function finishStopFight({ campaign, fight }: { campaign: Campaign; fight
 }
 
 /**
- * The cards on offer after the fight at the run's stop: drawn from the
- * run's stream for that stop, `fork('reward', stop)`, so a load offers the
- * same ones. Throws unless the run is at a reward.
+ * The cards on offer at the run's stop, after its fight or at its Find:
+ * cards: drawn from the run's stream for that stop, `fork('reward', stop)`,
+ * so a load offers the same ones. Throws unless the run is at a reward.
  */
 export function rewardOffer({ campaign }: { campaign: Campaign }): readonly string[] {
 	const run = atReward({ campaign });
@@ -316,15 +416,16 @@ export function takeReward({ campaign, cardType }: { campaign: Campaign; cardTyp
 	const run = atReward({ campaign });
 	if (cardType !== null && !rewardOffer({ campaign }).includes(cardType)) throw new RangeError(`${cardType} isn't on offer at stop ${run.stop}`);
 	const cargoCards = cardType === null ? run.cargoCards : addCardsWon({ party: runParty({ campaign }), cardsWon: { [cardType]: 1 } }).cargoCards;
-	campaign.set(arrivedAt({ campaign, run: { ...run, cargoCards, stop: run.stop + 1, phase: 'driving' } }));
+	campaign.set(arrivedAt({ campaign, run: { ...run, cargoCards, stop: run.stop + 1, phase: 'driving' }, passed: currentStop(run) }));
 }
 
 /**
  * Home from the destination (Compound and Supply Runs, Return): the log says
  * what the run brought, the run is unloaded (`unloadRun`, which unwinds its
- * run decks and clears it), its drivers hurt are injured, each seat has a
- * run more, and the day ends. Throws unless the run is heading home, and as
- * each of those does.
+ * run decks and clears it), anyone new it found joins the pool
+ * (`recruitDriver`) and the log says so, its drivers hurt are injured, each
+ * seat has a run more, and the day ends. Throws unless the run is heading
+ * home, and as each of those does.
  */
 export function arriveHome({ campaign }: { campaign: Campaign }): Arrival {
 	const run = requireRun(campaign);
@@ -335,10 +436,12 @@ export function arriveHome({ campaign }: { campaign: Campaign }): Arrival {
 	const brought = cargoText({ cargo: party.cargo, cards: party.cargoCards }) ?? 'nothing';
 	campaign.addLogEntry({ message: `Home from ${run.route.destination.name} with ${brought}.` });
 	const cargo = campaign.unloadRun({ party });
+	const recruits = run.recruits.map(archetype => campaign.recruitDriver({ archetype }));
+	if (recruits.length > 0) campaign.addLogEntry({ message: `${listText(recruits.map(driver => driver.name))} joined the compound, found on the road.` });
 	const injuries = injureOnArrival({ campaign, drivers: party.seats });
 	party.seats.forEach(seat => seat.set({ runsCompleted: seat.runsCompleted + 1 }));
 	const dayEnd = endDay({ campaign });
-	return Object.freeze({ seats: party.seats, cargo, injuries, dayEnd });
+	return Object.freeze({ seats: party.seats, cargo, injuries, recruits, dayEnd });
 }
 
 /**
@@ -373,19 +476,27 @@ export function cargoText({ cargo, cards = NO_CARDS }: { cargo: Readonly<Resourc
 }
 
 /**
- * The campaign's changes for the run as it stands at `stop`: once that's
- * past the last stop it has reached its destination, so the destination's
- * yield is in its cargo, where a failed run still loses it until it gets
- * home, and the POI has a share less (`takeShare`). The yield is the
- * route's, scaled to the POI's stock when the run set off, and nothing
- * else takes from the POI while the run is out.
+ * The campaign's changes for the run as it stands at `stop`, having
+ * resolved `passed` on the way, which is cleared from today (`clearStop`).
+ * Once the run is past its last stop it has reached its destination, so
+ * the POI's whole yield is in its cargo, where a failed run still loses it
+ * until it gets home, and the POI is cleared for the rest of the campaign
+ * (`clearPoi`), in the same `set`. A stop or POI whose id isn't the map's,
+ * as in a run saved before the real map, clears nothing.
  */
-function arrivedAt({ campaign, run }: { campaign: Campaign; run: SupplyRun }): Pick<CampaignData, 'supplyRun'> & Partial<Pick<CampaignData, 'map'>> {
-	if (!atDestination(run)) return { supplyRun: run };
-	const cargo: Resources = { ...run.cargo };
-	for (const resource of YIELD_RESOURCES) cargo[resource] += run.route.destination.yield[resource];
-	const poi = poiOf(run.route.destination.id);
-	return { supplyRun: { ...run, cargo }, ...(poi === null ? {} : { map: takeShare({ map: campaign.map, poi }) }) };
+function arrivedAt({ campaign, run, passed = null }: { campaign: Campaign; run: SupplyRun; passed?: RouteStop | null }): Pick<CampaignData, 'supplyRun'> & Partial<Pick<CampaignData, 'map'>> {
+	let map = campaign.map;
+	const stop = passed === null ? null : stopOf(passed.id);
+	if (stop !== null) map = clearStop({ map, stop, day: campaign.day });
+	let supplyRun = run;
+	if (atDestination(run)) {
+		const cargo: Resources = { ...run.cargo };
+		for (const resource of YIELD_RESOURCES) cargo[resource] += run.route.destination.yield[resource];
+		supplyRun = { ...run, cargo };
+		const poi = poiOf(run.route.destination.id);
+		if (poi !== null) map = clearPoi({ map, poi });
+	}
+	return map === campaign.map ? { supplyRun } : { supplyRun, map };
 }
 
 /** "Road Warrior 1 died and Interceptor 2 went missing when the run to Red Mesa Silos failed." */
@@ -410,6 +521,13 @@ function drivingTo({ campaign, kind }: { campaign: Campaign; kind: RouteStop['ki
 	if (run.phase !== 'driving' || stop?.kind !== kind) {
 		throw new Error(`The run isn't driving to a ${kind} stop: it's ${run.phase} at stop ${run.stop + 1} of ${routeStops(run.route).length}`);
 	}
+	return run;
+}
+
+function drivingToFind({ campaign, find }: { campaign: Campaign; find: FindKind }): SupplyRun {
+	const run = drivingTo({ campaign, kind: 'find' });
+	const stop = currentStop(run) as FindStop;
+	if (stop.find !== find) throw new Error(`The run is driving to a Find: ${stop.find}, not a Find: ${find}`);
 	return run;
 }
 

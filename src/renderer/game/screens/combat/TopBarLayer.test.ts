@@ -10,7 +10,7 @@ import { tokens } from '../../../engine/theme/tokens';
 import { CombatLog } from '../../mechanics/CombatLog';
 import { TopBarLayer } from './TopBarLayer';
 
-/** DDB-140: the top bar's menu, wave and incoming count, and the ticker of the newest log line. */
+/** DDB-140: the top bar's menu, wave and arriving count, and the ticker of the newest log line. */
 
 function mounted(): { log: CombatLog; bar: TopBarLayer; text: (id: string) => Text } {
 	const context = createTestContext({ draw: createMeasuringDrawApi().api, clock: new Clock() });
@@ -24,15 +24,15 @@ function mounted(): { log: CombatLog; bar: TopBarLayer; text: (id: string) => Te
 }
 
 describe('TopBarLayer', () => {
-	it('shows the wave, and the raiders still to come only while there are some', () => {
+	it('shows the wave, and the raiders arriving only while a wave is due', () => {
 		const { bar, text } = mounted();
-		bar.wave = { number: 1, total: 2, incoming: 3 };
+		bar.wave = { number: 1, total: 2, arriving: 3 };
 		expect(text('combat_wave').text).toBe('Wave 1 of 2');
-		expect(text('combat_incoming').text).toBe('+3 incoming');
-		expect(text('combat_incoming').visible).toBe(true);
-		bar.wave = { number: 2, total: 2, incoming: 0 };
+		expect(text('combat_arriving').text).toBe('+3 arriving');
+		expect(text('combat_arriving').visible).toBe(true);
+		bar.wave = { number: 2, total: 2, arriving: 0 };
 		expect(text('combat_wave').text).toBe('Wave 2 of 2');
-		expect(text('combat_incoming').visible).toBe(false);
+		expect(text('combat_arriving').visible).toBe(false);
 	});
 
 	it('draws the menu button disabled, since there is no pause menu yet', () => {

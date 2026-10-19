@@ -5,25 +5,27 @@ import { Clock } from '../../../engine/animation/Clock';
 import { createTestContext } from '../../../engine/components/testing';
 import type { MountContext } from '../../../engine/components/MountContext';
 import type { Text } from '../../../engine/components/Text';
-import type { Button } from '../../../engine/ui/Button';
 import { click, key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
 import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
-import { tokens } from '../../../engine/theme/tokens';
+import { themes } from '../../../engine/theme/tokens';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
 import type { CampaignStore } from '../../campaign/CampaignStore';
 import { routeId } from '../../campaign/MapRoutes';
 import { MemorySaveStorage } from '../../campaign/SaveStorage';
-import { routesOnOffer } from '../../campaign/SupplyRun';
 import { FaultyStorage, atHomeText, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
 import type { AreaMapView } from '../../ui/areaMap/AreaMapView';
+import type { AtlasButton } from '../../ui/atlas/AtlasButton';
+import type { SectionTabs } from '../../ui/atlas/SectionTabs';
 import type { RouteCard } from '../../ui/RouteCard';
-import { STRONGHOLD_NOT_YET, homeByText, poiKindText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
+import { countOf } from '../main-menu/campaignText';
+import { STOP_COOLDOWN_DAYS } from '../../campaign/MapClearing';
+import { POI_CLEARED, STRONGHOLD_NOT_YET, clockText, homeByText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
 import { PlannedPoi, byDistance, plannedPois, routePoints } from '../area-map/planningMap';
 import { TestMaps, meshPlanningMap, testMaps } from '../area-map/testing';
-import { RunRouteScreen, STRANDED_RUN_ROUTE } from './RunRouteScreen';
+import { RunRouteScreen } from './RunRouteScreen';
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -55,12 +57,15 @@ describe('RunRouteScreen (DDB-319)', () => {
 	let storage: FaultyStorage;
 	let planning: TestMaps;
 
-	/** Mounts the screen for a POI over the fixture home from its run, changed first if asked, and waits for the save and the map. */
-	async function open(poi: PlannedPoi | number, change: (campaign: Campaign) => void = () => undefined): Promise<void> {
-		storage = storageWith(atHomeText(change));
+	/** Mounts the screen for a POI over the fixture home from its run, nothing on its map cleared, changed first if asked, and waits for the save and the map. */
+	async function open(poi: PlannedPoi | number | null, change: (campaign: Campaign) => void = () => undefined): Promise<void> {
+		storage = storageWith(atHomeText((campaign) => {
+			campaign.set({ map: {} });
+			change(campaign);
+		}));
 		store = storeOver(storage);
 		screen = new RunRouteScreen({ store, maps: planning.maps });
-		screen.mount(context, { poi: typeof poi === 'number' ? poi : poi.poi });
+		screen.mount(context, poi === null ? {} : { poi: typeof poi === 'number' ? poi : poi.poi });
 		await screen.campaignLoaded;
 		context.frame.layout();
 	}
@@ -115,11 +120,26 @@ describe('RunRouteScreen (DDB-319)', () => {
 		expect(text('run_route_name')).toBe(NEAR.name);
 	});
 
-	it('says when the POI is depleted, on its marker and in its line, and still lets a run go (DDB-483)', async () => {
-		await open(NEAR, (campaign) => campaign.set({ map: { pois: [{ poi: NEAR.poi, left: 0, nights: 0 }] } }));
-		expect(view().markers).toEqual([expect.objectContaining({ id: NEAR.id, state: 'depleted' })]);
-		expect(text('run_route_kind')).toBe(`${poiKindText(NEAR)}, depleted. Nothing left to take until it refills.`);
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(true);
+	it('won\'t plan a run to a cleared POI, and opens on the nearest one not cleared (DDB-336)', async () => {
+		await open(NEAR, (campaign) => campaign.set({ map: { clearedPois: [NEAR.poi] } }));
+		expect(text('run_route_status')).toBe(POI_CLEARED);
+		screen.unmount();
+		const [nearest, next] = byDistance(POIS).filter(({ stronghold }) => !stronghold);
+		await open(null, (campaign) => campaign.set({ map: { clearedPois: [nearest.poi] } }));
+		expect(text('run_route_name')).toBe(next.name);
+	});
+
+	it('marks the stops a run would drive past, cleared, with when they\'re back, and counts them apart on the card (DDB-336)', async () => {
+		const poi = poiWhere((candidate) => candidate.routes.every(({ stops }) => stops.length > 1));
+		await open(poi);
+		const picked = screen.pickedRoute;
+		const route = poi.routes[picked];
+		const [first, ...rest] = route.stops;
+		screen.unmount();
+		await open(poi, (campaign) => campaign.set({ map: { stops: [{ stop: first.id, roll: 0, cleared: campaign.day }] } }));
+		expect(text('run_route_stop_0_text')).toBe(`${stopText(first)}: cleared, back in ${countOf(STOP_COOLDOWN_DAYS, 'day')}`);
+		rest.forEach((stop, index) => expect(text(`run_route_stop_${index + 1}_text`)).toBe(stopText(stop)));
+		expect(card(picked).detailText.replace(/\u00a0/g, ' ')).toContain(`${countOf(route.stops.length - 1, 'stop')}, 1 cleared`);
 	});
 
 	it('shows a card for each route from its descriptor, and the picked one\'s stops in order and when it\'d be home', async () => {
@@ -158,8 +178,8 @@ describe('RunRouteScreen (DDB-319)', () => {
 		expect(card(late).noteText).toBe('Back after dark.');
 		clickOn(`run_route_card_${late}`);
 		expect(text('run_route_home_by')).toMatch(/^Home by \d\d:\d\d, [\d.]+ h after dark\.$/);
-		expect(find<Text>('run_route_home_by').color).toEqual(tokens.color.status_warn);
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(true);
+		expect(find<Text>('run_route_home_by').color).toEqual(themes.atlas.color.status_crit);
+		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(true);
 	});
 
 	it('dims a route the stores can\'t fuel with the reason, picks one they can, and keeps Load out off while the other is picked', async () => {
@@ -170,52 +190,36 @@ describe('RunRouteScreen (DDB-319)', () => {
 		expect(card(dear).dim).toBe(true);
 		expect(card(dear).noteText).toBe(`Takes ${fuels[dear]} fuel, and the stores hold ${fuel}.`);
 		expect(card(screen.pickedRoute).dim).toBe(false);
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(true);
+		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(true);
 
 		clickOn(`run_route_card_${dear}`);
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(false);
+		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(false);
 		expect(text('run_route_load_out_reason')).toBe(`Takes ${fuels[dear]} fuel, and the stores hold ${fuel}.`);
-		find<Button>('run_route_load_out_button').onClick?.({} as never);
+		find<AtlasButton>('run_route_load_out_button').onClick?.({} as never);
 		await flush();
 		expect(navigate).not.toHaveBeenCalled();
 	});
 
-	it('loads out the crew on the picked route: pays the fuel, saves the run, and opens the run screen', async () => {
+	it('opens load out on the picked route, with the POI to come back to, leaving the campaign as it was', async () => {
 		await open(NEAR, withFuel(20));
 		const campaign = screen.shown as Campaign;
 		clickOn('run_route_card_1');
-		const route = routesOnOffer({ map: MAP, campaign }).find(({ id }) => id === routeId(NEAR.poi, 1));
-		if (!route) throw new Error('the route should be on offer');
-		find<Button>('run_route_load_out_button').onClick?.({} as never);
-		await flush();
+		const route = NEAR.routes[1];
+		find<AtlasButton>('run_route_load_out_button').onClick?.({} as never);
 
-		expect(campaign.supplyRun?.route).toEqual(route);
-		expect(campaign.resources.fuel).toBe(20 - route.fuel);
-		expect(navigate).toHaveBeenLastCalledWith('runScreen', { campaign, saved: expect.any(Promise) });
-		const saved = await storeOver(storage).load();
-		expect([saved?.supplyRun?.route.id, saved?.supplyRun?.stop, saved?.resources.fuel]).toEqual([route.id, 0, 20 - route.fuel]);
+		expect(navigate).toHaveBeenLastCalledWith('loadOutScreen', {
+			campaign,
+			poi: NEAR.poi,
+			route: routeId(NEAR.poi, 1),
+			trip: { destination: NEAR.name, routeName: route.name, stops: route.stops.length, fuel: route.fuel, homeBy: clockText(route.back), pastDark: route.spare < 0 },
+		});
+		expect([campaign.runDecks.length, campaign.supplyRun, campaign.resources.fuel]).toEqual([0, null, 20]);
 	});
 
 	it('keeps Load out off with nobody fit to go, saying why', async () => {
 		await open(NEAR, (campaign) => [campaign.drivers[0], campaign.drivers[4]].forEach((driver) => driver.set({ status: 'injured', injuredDays: 1, hitpoints: 20 })));
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(false);
+		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(false);
 		expect(text('run_route_load_out_reason')).toBe('Nobody at the compound is fit to go out.');
-	});
-
-	it('says nothing more is saved when the store has moved on from this campaign, with Load out off and Back to the menu', async () => {
-		await open(NEAR);
-		await store.load();
-		find<Button>('run_route_load_out_button').onClick?.({} as never);
-		await flush();
-		expect(text('run_route_status')).toBe(STRANDED_RUN_ROUTE);
-		expect(navigate).not.toHaveBeenCalled();
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(false);
-		expect(text('run_route_load_out_reason')).toBe(STRANDED_RUN_ROUTE);
-		// Not stuck: Back and Escape go to the menu, where Continue picks up the save
-		send(context, [key('Escape')]);
-		expect(navigate).toHaveBeenLastCalledWith('mainMenuScreen', undefined, { restoreFocus: true });
-		find<Button>('run_route_back_button').onClick?.({} as never);
-		expect(navigate).toHaveBeenCalledTimes(2);
 	});
 
 	it('picks the quickest route the stores can fuel, by hours out with its stops, or the quickest of all when none can be', async () => {
@@ -226,7 +230,7 @@ describe('RunRouteScreen (DDB-319)', () => {
 		screen.unmount();
 		await open(poi, withFuel(0));
 		expect(screen.pickedRoute).toBe(quickest);
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(false);
+		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(false);
 	});
 
 	it.each([
@@ -235,7 +239,7 @@ describe('RunRouteScreen (DDB-319)', () => {
 	])('offers only Back for %s, saying why', async (_name, poi, reason) => {
 		await open(poi());
 		expect(text('run_route_status')).toBe(reason);
-		expect(find<Button>('run_route_load_out_button').enabled).toBe(false);
+		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(false);
 		expect(view().routes).toEqual([]);
 	});
 
@@ -243,7 +247,7 @@ describe('RunRouteScreen (DDB-319)', () => {
 		await open(NEAR);
 		send(context, [key('Escape')]);
 		expect(navigate).toHaveBeenLastCalledWith('areaMapScreen', { campaign: screen.shown, poi: NEAR.poi }, { restoreFocus: true });
-		find<Button>('run_route_back_button').onClick?.({} as never);
+		find<AtlasButton>('run_route_back_button').onClick?.({} as never);
 		expect(navigate).toHaveBeenCalledTimes(2);
 	});
 
@@ -272,6 +276,15 @@ describe('RunRouteScreen (DDB-319)', () => {
 		screen.mount(context, { poi: NEAR.poi });
 		await screen.campaignLoaded;
 		expect(text('run_route_status')).toBe('No campaign in progress.');
+		expect(find<SectionTabs>('run_route_tabs').tabs.map(({ tabId, enabled }) => [tabId, enabled])).toEqual([['menu', true], ['compound', false], ['area_map', true], ['crew', false]]);
+	});
+
+	it('hangs the area map section tabs, open at the area map, gated by the campaign and its map (DDB-509)', async () => {
+		await open(NEAR);
+		const tabs = find<SectionTabs>('run_route_tabs');
+		expect(tabs.selectedId).toBe('area_map');
+		expect(tabs.tabs.every(({ enabled }) => enabled)).toBe(true);
+		expect(context.focus.focused?.id).toBe('run_route_back_button');
 	});
 
 	it.each([{ width: 1440, height: 882 }, { width: 1024, height: 600 }])('lays out with no lint at $width x $height, measured in the real faces', async (size) => {

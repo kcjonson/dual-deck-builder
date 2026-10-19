@@ -7,6 +7,7 @@ import { Look, LookLayers, resolveLook } from '../../engine/style/look';
 import { LookTransition } from '../../engine/style/LookTransition';
 import { rowLayers } from '../../engine/style/variants';
 import { tokens } from '../../engine/theme/tokens';
+import type { ColorToken, Theme } from '../../engine/theme/tokens';
 import { Pressable } from '../../engine/ui/Pressable';
 
 export interface RouteCardOptions extends Omit<ComponentOptions, 'style'> {
@@ -16,6 +17,8 @@ export interface RouteCardOptions extends Omit<ComponentOptions, 'style'> {
 	detail: string;
 	/** A line under the detail in the warning colour (past dark, or fuel the stores can't pay); none when null. */
 	note?: string | null;
+	/** The note's colour. Default `status_warn`; a screen on paper passes `status_crit`, since the highway orange is too light for small text there. */
+	noteColor?: ColorToken;
 	/** The parent list's pick, shown with the selected wash and the accent bar. */
 	selected?: boolean;
 	/** The unavailable look: the route can't be taken now, though it can still be picked and read. */
@@ -23,7 +26,7 @@ export interface RouteCardOptions extends Omit<ComponentOptions, 'style'> {
 	onClick?: ClickCallback;
 }
 
-const { space, fontSize, lineHeight, color, borderWidth, control } = tokens;
+const { space, fontSize, lineHeight, borderWidth, control } = tokens;
 const PAD_X = space.space_3;
 const PAD_Y = space.space_2;
 const GAP = space.space_0_5;
@@ -40,7 +43,8 @@ const DETAIL_LINES = 2;
  * wash with a 2 px accent bar, the focus ring inside), pressed like a
  * button, and picked by its focus group (R12.34), which owns the selection.
  * Its height is fixed by what it holds, so picking one never moves the
- * others.
+ * others. Colours follow the theme it is under (on the atlas, the selected
+ * wash is the highlighter and the bar the highway).
  */
 export class RouteCard extends Pressable {
 	private readonly title: Text;
@@ -50,11 +54,11 @@ export class RouteCard extends Pressable {
 	private layers: LookLayers;
 	private readonly transition: LookTransition;
 
-	constructor({ title, detail, note = null, selected = false, dim = false, onClick, ...options }: RouteCardOptions) {
+	constructor({ title, detail, note = null, noteColor = 'status_warn', selected = false, dim = false, onClick, ...options }: RouteCardOptions) {
 		super({ focusable: true, ...options, height: options.height ?? cardHeight(note !== null) });
 		this.componentType = 'RouteCard';
 		this.isDim = dim;
-		this.layers = rowLayers({ dim });
+		this.layers = rowLayers({ dim, theme: this.themeTokens });
 		this.selected = selected;
 		if (onClick) this.onClick = onClick;
 
@@ -62,7 +66,7 @@ export class RouteCard extends Pressable {
 		this.addPart(this.title);
 		this.detail = new Text({ text: detail, style: { fontRole: 'mono', fontSize: 'fs_xs', color: 'text_dim' }, lineHeight: lineHeight.lh, textOverflow: 'ellipsis' });
 		this.addPart(this.detail);
-		this.note = note === null ? null : new Text({ text: note, style: { fontSize: 'fs_xs', color: 'status_warn' }, wrap: 'none', textOverflow: 'ellipsis' });
+		this.note = note === null ? null : new Text({ text: note, style: { fontSize: 'fs_xs', color: noteColor }, wrap: 'none', textOverflow: 'ellipsis' });
 		if (this.note) this.addPart(this.note);
 
 		this.transition = new LookTransition({ owner: this, look: this.targetLook, onChange: (look) => this.followLook(look) });
@@ -112,6 +116,12 @@ export class RouteCard extends Pressable {
 		this.transition.moveTo(this.targetLook, null);
 	}
 
+	protected onThemeChange(theme: Theme): void {
+		this.layers = rowLayers({ dim: this.isDim, theme });
+		this.transition.moveTo(this.targetLook, null);
+		this.followLook(this.transition.look);
+	}
+
 	protected onUnmount(): void {
 		super.onUnmount();
 		this.transition.moveTo(this.targetLook, null);
@@ -125,6 +135,7 @@ export class RouteCard extends Pressable {
 
 	public render(draw: DrawApi): void {
 		const look = this.transition.look;
+		const { color } = this.themeTokens;
 		const { width, height } = this;
 		const box = { x: 0, y: 0, width, height };
 		if (look.fill[3] > 0) draw.drawRect({ id: this.id ?? undefined, rect: box, fill: look.fill });
@@ -141,7 +152,7 @@ export class RouteCard extends Pressable {
 
 	private followLook(look: Look): void {
 		this.title.color = [...look.text] as [number, number, number, number];
-		this.detail.color = this.isDim ? color.text_faint : color.text_dim;
+		this.detail.color = this.isDim ? 'text_faint' : 'text_dim';
 	}
 
 	/** The title, the detail's two lines, and the note, top to bottom inside the padding. */

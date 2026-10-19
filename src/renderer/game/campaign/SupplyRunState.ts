@@ -1,11 +1,13 @@
 import { describeValue } from '../core/Json';
 import { ReaderRangeError, ReaderTypeError, readArray, readFields, readInteger, readOneOf, readText } from '../core/JsonReader';
 import type { Convoy } from '../mechanics/Convoy';
+import type { DriverArchetype } from '../mechanics/Driver';
 import { MAX_CONVOY_ESCORTS } from '../mechanics/Team';
 import { Vehicle } from '../mechanics/Vehicle';
 import type { Resources } from './Campaign';
 import { CardCounts, readCardCounts } from './CardCounts';
-import { RunRoute, readRunRoute, routeStops } from './SupplyRoutes';
+import { DRIVER_ARCHETYPES } from './DriverRecord';
+import { RouteStop, RunRoute, readRunRoute, routeStops } from './SupplyRoutes';
 
 /**
  * A supply run on the road, as the campaign holds and saves it (DDB-454).
@@ -14,7 +16,8 @@ import { RunRoute, readRunRoute, routeStops } from './SupplyRoutes';
 
 /**
  * Where the run stands at its stop: driving to it (or home, once every stop
- * is behind it), or there with a won fight's reward to pick. A fight under
+ * is behind it), or there with cards to pick, a won fight's reward or a
+ * Find: cards the run stopped for. A fight under
  * way isn't saved: a load finds the run driving to that stop, and the fight
  * replays from its seed.
  */
@@ -38,6 +41,12 @@ export interface SupplyRun {
 	readonly cargo: Readonly<Resources>;
 	/** Cards won so far, bound for the locker. */
 	readonly cargoCards: CardCounts;
+	/**
+	 * Drivers a Find: driver turned up who aren't the compound's own yet, by
+	 * archetype, in the order they were found: they join the pool when the
+	 * run gets home (`arriveHome`), and are lost with it if it fails.
+	 */
+	readonly recruits: readonly DriverArchetype[];
 }
 
 /** A supply run as a save holds it, its escorts by their `escort-<n>`. */
@@ -48,16 +57,17 @@ export interface SupplyRunJson {
 	escorts: string[];
 	cargo: Resources;
 	cargoCards: Record<string, number>;
+	recruits: DriverArchetype[];
 }
 
 /** The campaign's own reader for the stores, handed in so this module needn't import the campaign. */
 export type CargoReader = (value: unknown, path: string) => Readonly<Resources>;
 
-const FIELDS = ['route', 'stop', 'phase', 'escorts', 'cargo', 'cargoCards'] as const;
+const FIELDS = ['route', 'stop', 'phase', 'escorts', 'cargo', 'cargoCards', 'recruits'] as const;
 
 /**
  * A supply run checked whole and frozen: a route, a stop from 0 to its
- * stop count, a reward only at a fight, at most `MAX_CONVOY_ESCORTS` of the
+ * stop count, cards to pick only at a fight or a Find: cards, at most `MAX_CONVOY_ESCORTS` of the
  * convoy's escorts, each once, and cargo the stores and the locker could
  * count.
  */
@@ -91,6 +101,7 @@ export function supplyRunToJson(run: SupplyRun): SupplyRunJson {
 		escorts: run.escorts.map(escort => escort.convoyId as string),
 		cargo: run.cargo,
 		cargoCards: run.cargoCards,
+		recruits: [...run.recruits],
 	};
 }
 
@@ -112,8 +123,8 @@ function checkedRun({ fields, escorts, path, convoy, readCargo }: {
 	const stops = routeStops(route);
 	const stop = readInteger(fields.stop, `${path}.stop`, { min: 0, max: stops.length, maxLabel: `the route's ${stops.length} stops` });
 	const phase = readOneOf(fields.phase, `${path}.phase`, RUN_PHASES);
-	if (phase === 'reward' && stops[stop]?.kind !== 'fight') {
-		throw new ReaderRangeError(`${path}.phase is reward, and stop ${stop} isn't a fight`);
+	if (phase === 'reward' && !offersCards(stops[stop])) {
+		throw new ReaderRangeError(`${path}.phase is reward, and stop ${stop} is neither a fight nor a Find: cards`);
 	}
 	if (escorts.length > MAX_CONVOY_ESCORTS) throw new ReaderRangeError(`${path}.escorts holds ${escorts.length}; a run takes ${MAX_CONVOY_ESCORTS} at most`);
 	return Object.freeze({
@@ -123,7 +134,13 @@ function checkedRun({ fields, escorts, path, convoy, readCargo }: {
 		escorts: inRosterOrder({ escorts, convoy, path }),
 		cargo: readCargo(fields.cargo, `${path}.cargo`),
 		cargoCards: readCardCounts(fields.cargoCards, `${path}.cargoCards`),
+		recruits: Object.freeze(readArray(fields.recruits, `${path}.recruits`).map((archetype, index) => readOneOf(archetype, `${path}.recruits[${index}]`, DRIVER_ARCHETYPES))),
 	});
+}
+
+/** Whether a stop ends in the card picker: a fight's reward, or a Find: cards. */
+export function offersCards(stop: RouteStop | undefined): boolean {
+	return stop?.kind === 'fight' || (stop?.kind === 'find' && stop.find === 'cards');
 }
 
 /** The escorts, each the convoy's and listed once, in the convoy's roster order. */

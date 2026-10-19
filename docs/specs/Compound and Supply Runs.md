@@ -14,7 +14,7 @@ This replaces the single long run up a map to a region boss. The player runs a c
 - Roads: a real road network across the region: highways out of the ruined metro the compound sits in, back roads joining the towns and crossroads, and trails into rough country, with loops the way real roads have them. See Area Map Generation.
 - Route tree: from every place on the roads there's one way home. Routes follow ways home, so they branch outward from the compound like a tree and never rejoin until a POI.
 - Route: the road path from the compound to a POI. Each POI offers 2 or 3 routes, arriving by different roads; they split before halfway and share nothing after.
-- Stop: something waiting on a road (a fight, an event, a find, a hazard). A run resolves its route's stops in order.
+- Stop: something waiting on a road (a fight, an event, a find, a hazard). A run resolves its route's stops in order. How many a route holds, what they can be, and how hard its fights are: [Runs and Encounters](./Runs%20and%20Encounters.md).
 - Stronghold: a POI whose objective is a boss fight, the seat of a faction.
 
 ## The loop
@@ -147,19 +147,19 @@ Open at any time outside a fight or an event: from the compound's top bar, the m
 It shows:
 
 - The region drawn like a page of a road atlas: the compound at the centre in the ruins of a metro, ranges, rivers, lakes, towns, and the roads between them (Area Map Generation, Rendering).
-- Every known POI, with what it yields, its tier, and its state (unvisited, looted, depleted).
+- Every known POI, with what it yields, its tier, and its state (unvisited or cleared).
 - Roads by class, and on the legs routes use, what you know of them: charted legs with their stops, rumored legs with "?" stops, uncharted legs as dashed stubs fading into fog. Roads no route uses are plain roads on the map; runs never use them.
 - Dressing: street grids, rail lines, labels, and contamination, which make the region look real and carry no gameplay.
 - Fog over everything not yet uncovered.
 - Strongholds you've found. Others are hidden in the fog in every direction.
 - Explored percentage and strongholds found.
 
-Selecting a POI shows its yields, objective, tier, and how many routes are known, with "Plan a run here", which opens the run route screen for it.
+Selecting a POI shows its yields, objective, tier, and how many routes are known, with "Plan a run here", which opens the run route screen for it. A cleared POI's is off.
 
 ### POIs
 
 - Each POI has a yield table (meds and scrap for a hospital, water for a water plant) and an objective: a fight, an elite fight, an event, or for a stronghold a boss.
-- A POI holds a limited amount. Each successful run takes a share, and after two or three it's depleted, which pushes the compound outward. A depleted POI can refill over many days (starting value: 20).
+- A run clears its POI: it takes the POI's yield, and the POI is disabled for the rest of the campaign, so there's no reason to go back; nothing refills a looted building (Kevin, 2026-10-17). That's what pushes the compound outward. POIs are spaced out so clearing one doesn't make its neighbor's run too easy ([Runs and Encounters](./Runs%20and%20Encounters.md), Clearing).
 - New POIs come from exploring (the fog lifts over them), the radio mast, and events.
 
 ## The run route screen
@@ -180,7 +180,7 @@ Routes to a POI split before halfway and share nothing after, so picking one is 
 
 ## The drive
 
-- Stops resolve in order. Each opens its screen (combat, event, garage) and comes back to the route view, which shows progress and the next stop. A fight is built from the seated drivers and the escorts that came along, and what it did is carried back to them when it ends ([combat-bridge.md](../AI_TECHNICAL_DECISIONS/combat-bridge.md)).
+- Stops resolve in order. Each opens its screen (combat, event, garage) and comes back to the route view, which shows progress and the next stop. Every run meets at least one fight, and no stop is empty: each is a fight or a choice (Kevin, 2026-10-17; [Runs and Encounters](./Runs%20and%20Encounters.md)). A fight is built from the seated drivers and the escorts that came along, and what it did is carried back to them when it ends ([combat-bridge.md](../AI_TECHNICAL_DECISIONS/combat-bridge.md)).
 - No branching mid-route in the first version: the route is fixed at departure.
 - The area map is open between stops.
 - A fight's scrap, the haulers' fuel and scrap, resources found, and (provisionally) the cards a fight wins are cargo until you get home (Resources); cards go to the locker then (Decks and the locker).
@@ -188,7 +188,7 @@ Routes to a POI split before halfway and share nothing after, so picking one is 
 ### Return
 
 - Runs are one way. After the objective, the convoy comes home down the road it took, which is safe because you cleared it on the way out.
-- From the middle of the game on, a return can roll a rare ambush: one fight on the way home, with cargo at stake. Its chance scales with game stage (starting values: 0 early, rising to about 15% late). It's meant to be memorable, not routine.
+- From the middle of the game on, a return can roll a rare ambush: one fight on the way home, with cargo at stake. Its chance scales with game stage (starting values: 0 before stage 2, rising to 15% at stage 6; Runs and Encounters, Game stage). It's meant to be memorable, not routine.
 - Arriving home unloads the cargo, charts every road driven, and ends the day.
 
 ### Racing the dark
@@ -218,14 +218,14 @@ Until night rules exist, a run that slips past dark rolls the return ambush at f
 
 ## Stops
 
-Each stop type has a map shape, and resolves through an existing screen where possible.
+Each stop type has a map shape, and resolves through an existing screen where possible. A route's stop count is a band set by its destination's tier and the game stage, every route holds at least one fight, a fight is a group of raiders arriving in waves, and a stop type goes on the map only once the run can resolve it: all of that is in [Runs and Encounters](./Runs%20and%20Encounters.md).
 
 ![Route stop types](../design/supply-runs/route-stops.png)
 
 | Stop | What it is | Screen |
 | --- | --- | --- |
-| Raider ambush | a fight, 1 to 3 skulls | combat |
-| Warband | an elite fight with a mod or rare card | combat |
+| Raider ambush | a fight against a group in waves, 1 to 3 skulls | combat |
+| Warband | an elite fight, a group with a leader, paying a mod or rare card | combat |
 | Wreck | pick over a wreck or cache; some are bait | event |
 | Distress signal | help, rob, or drive past | event |
 | Roadside garage | repairs, cards, mods, escorts for scrap | garage |
@@ -252,7 +252,7 @@ Every leg of road a route uses is in one of three states, and what you see depen
 - Rumored: the road and how many stops, not what they are. From the radio mast, a trader's tip, or an event.
 - Uncharted: a direction and the next stop. Each stop reveals the one after it as you drive.
 
-Charting is permanent, but stops aren't: a cleared road is safe for that run's return, and its stops come back over the following days (starting value: a re-roll after 5 days), with the road still charted so you see what's there.
+Charting is permanent, but stops aren't: a cleared road is safe for that run's return, and its stops come back over the following days (starting value: a re-roll after 5 days), with the road still charted so you see what's there. Until then a run down that road drives past them ([Runs and Encounters](./Runs%20and%20Encounters.md), Clearing).
 
 Fog over land lifts around every road you drive and every POI you reach (see Area Map Generation, Knowledge and fog). Ways to see further: drive it; the radio mast; a scout escort that shows two stops ahead instead of one; event tips.
 
@@ -266,7 +266,8 @@ Fog over land lifts around every road you drive and every POI you reach (see Are
 ## Game stage and difficulty
 
 - Difficulty comes from two things: the tier of the roads and POI (distance from the compound, set at generation) and the game stage (strongholds taken and days passed).
-- Tier sets the encounter pool and skull counts. Game stage scales enemies within it and turns on the rare return ambush.
+- Tier sets the encounter pool, skull counts, and a route's base stop count. Game stage grows the fights within it, adds a stop or two to a route late, and turns on the rare return ambush.
+- The stage formula, the encounter sizes, and the targets runs are tuned to ("just hard enough") are in [Runs and Encounters](./Runs%20and%20Encounters.md), and how they're measured in [Balance Simulation](./Balance%20Simulation.md).
 
 ## Co-op
 

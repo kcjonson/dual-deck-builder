@@ -4,7 +4,6 @@ import type { MountContext } from '../../engine/components/MountContext';
 import { SplashScreen } from '../screens/splash/SplashScreen';
 import { MainMenuScreen } from '../screens/main-menu/MainMenuScreen';
 import { CardShowcaseScreen } from '../screens/card-showcase/CardShowcaseScreen';
-import { DriverSelectionScreen } from '../screens/driver-selection/DriverSelectionScreen';
 import { CombatScreen } from '../screens/combat/CombatScreen';
 import { BattleResultScreen } from '../screens/battleResult/BattleResultScreen';
 import { SettingsScreen } from '../screens/settings/SettingsScreen';
@@ -17,6 +16,8 @@ import { DefeatScreen } from '../screens/defeat/DefeatScreen';
 import { AreaMapScreen } from '../screens/area-map/AreaMapScreen';
 import { RunRouteScreen } from '../screens/run-route/RunRouteScreen';
 import { RunScreen } from '../screens/run/RunScreen';
+import { LoadOutScreen } from '../screens/load-out/LoadOutScreen';
+import { EventScreen } from '../screens/event/EventScreen';
 import { ScreenTransition } from '../../engine/ui/ScreenTransition';
 
 /**
@@ -27,7 +28,6 @@ export type ScreenName =
 	| 'mainMenuScreen'
 	| 'developerScreen'
 	| 'cardShowcaseScreen'
-	| 'driverSelectionScreen'
 	| 'combatScreen'
 	| 'battleResultScreen'
 	| 'settingsScreen'
@@ -39,7 +39,9 @@ export type ScreenName =
 	| 'defeatScreen'
 	| 'areaMapScreen'
 	| 'runRouteScreen'
-	| 'runScreen';
+	| 'loadOutScreen'
+	| 'runScreen'
+	| 'eventScreen';
 
 /**
  * Screen constructor type
@@ -65,7 +67,6 @@ function buildScreenConstructors(): Map<ScreenName, ScreenConstructor> {
 	}
 	entries.push(
 		['cardShowcaseScreen', CardShowcaseScreen],
-		['driverSelectionScreen', DriverSelectionScreen],
 		['combatScreen', CombatScreen],
 		['battleResultScreen', BattleResultScreen],
 		['settingsScreen', SettingsScreen],
@@ -77,7 +78,9 @@ function buildScreenConstructors(): Map<ScreenName, ScreenConstructor> {
 		['defeatScreen', DefeatScreen],
 		['areaMapScreen', AreaMapScreen],
 		['runRouteScreen', RunRouteScreen],
+		['loadOutScreen', LoadOutScreen],
 		['runScreen', RunScreen],
+		['eventScreen', EventScreen],
 	);
 	return new Map(entries);
 }

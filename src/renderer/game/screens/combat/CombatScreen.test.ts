@@ -3,7 +3,6 @@
  */
 import cardsFile from '../../data/cards.json';
 import { CombatScreen } from './CombatScreen';
-import { DriverSelectionScreen } from '../driver-selection/DriverSelectionScreen';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
 import { Driver } from '../../mechanics/Driver';
@@ -21,6 +20,8 @@ import { PointerAdapter } from '../../../engine/input/PointerAdapter';
  * started with the first run's damage, hand, and discard.
  */
 
+// The dev fight's one raider, so both mounts field the same team
+jest.mock('../../campaign/Encounters', () => jest.requireActual('./__fixtures__/loneRaider').loneRaiderEncounters());
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
 }));
@@ -94,18 +95,10 @@ async function startCombat(drivers: Driver[]): Promise<CombatScreen> {
 	return combat;
 }
 
-/**
- * The drivers START RUN sends to combat from a freshly mounted selection screen
- */
+/** A fresh pair of drivers, the first two unlocked, as the loader hands out copies of its templates. */
 async function selectDrivers(): Promise<Driver[]> {
-	const selection = new DriverSelectionScreen();
-	selection.mount(context);
-	await flushPromises();
-	const { driver1, driver2 } = selection.selectedDrivers;
-	selection.unmount();
-	if (!driver1 || !driver2) {
-		throw new Error('driver selection should open with both slots filled');
-	}
+	await loader.loadDrivers();
+	const [driver1, driver2] = loader.getUnlockedDrivers();
 	return [driver1, driver2];
 }
 

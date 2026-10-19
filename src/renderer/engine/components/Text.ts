@@ -13,8 +13,8 @@ import type { DrawApi } from '../draw/DrawApi';
 import type { MountContext } from './MountContext';
 import { Axis, Size, SizeMode, authoredSizeMode } from './layoutTypes';
 import type { Rect } from '../draw/geometry';
-import type { FontRole } from '../text/fontFaces';
-import { resolveFontRole } from '../text/fontRoles';
+import type { FontName } from '../text/fontFaces';
+import { resolveFont } from '../text/fontRoles';
 import type { RGBA } from '../draw/geometry';
 import {
 	ColorValue,
@@ -26,6 +26,7 @@ import {
 	resolveLetterSpacing,
 	validateStyle,
 } from '../style/styleObject';
+import type { Theme } from '../theme/tokens';
 
 const DEFAULT_FONT_SIZE = 16;
 const WHITE: RGBA = [1, 1, 1, 1];
@@ -115,9 +116,11 @@ export class Text extends Component {
 	private content: string;
 	private ownFontSize = DEFAULT_FONT_SIZE;
 	private styleObject: TextStyleObject = {};
-	/** R11.8's role, from the style's `fontFamily` and `fontWeight` through the theme table. */
-	private fontRole: FontRole = 'body';
+	/** The face, from the style's role or `fontFamily` and its `fontWeight` through R11.8's theme table. */
+	private fontName: FontName = 'body';
 	private ownColor: RGBA = WHITE;
+	/** The colour as authored, a token name included, for a theme change to resolve again. */
+	private colorSource: ColorValue = WHITE;
 	private ownAlign: TextAlign = 'left';
 	private ownVerticalAlign: TextVerticalAlign = 'top';
 	/** A multiple of `fontSize`; null is the face's own (R6.10). */
@@ -168,10 +171,11 @@ export class Text extends Component {
 		validateStyle(style, TEXT_STYLE);
 		this.styleObject = style;
 		this.ownFontSize = style.fontSize !== undefined ? resolveLength(style.fontSize, 'fontSize') : DEFAULT_FONT_SIZE;
-		this.fontRole = style.fontRole !== undefined || style.fontFamily !== undefined || style.fontWeight !== undefined
-			? resolveFontRole({ family: style.fontRole ?? style.fontFamily, weight: style.fontWeight })
+		this.fontName = style.fontRole !== undefined || style.fontFamily !== undefined || style.fontWeight !== undefined
+			? resolveFont({ family: style.fontRole ?? style.fontFamily, weight: style.fontWeight })
 			: 'body';
-		this.ownColor = style.color !== undefined ? resolveColor(style.color) : WHITE;
+		this.colorSource = style.color ?? WHITE;
+		this.ownColor = resolveColor(this.colorSource, this.themeTokens);
 		this.ownAlign = style.textAlign ?? 'left';
 		this.letterSpacing = style.letterSpacing !== undefined ? resolveLetterSpacing(style.letterSpacing) : 0;
 		this.textTransform = style.textTransform ?? 'none';
@@ -237,7 +241,13 @@ export class Text extends Component {
 	}
 
 	public set color(color: ColorValue) {
-		this.ownColor = resolveColor(color);
+		this.colorSource = color;
+		this.ownColor = resolveColor(color, this.themeTokens);
+	}
+
+	/** Colour is the only thing a theme moves here: themes re-value paint, never measurement. */
+	protected onThemeChange(theme: Theme): void {
+		this.ownColor = resolveColor(this.colorSource, theme);
 	}
 
 	public get align(): TextAlign {
@@ -312,9 +322,9 @@ export class Text extends Component {
 		return this;
 	}
 
-	/** The font role this text draws with (R11.8). */
-	get font(): FontRole {
-		return this.fontRole;
+	/** The face this text draws with (R11.8), by its draw API name. */
+	get font(): FontName {
+		return this.fontName;
 	}
 
 	/**
@@ -512,10 +522,10 @@ export class Text extends Component {
 	/** A layout of this text, or null when nothing can measure it. Writes nothing. */
 	private metricsFor(maxWidth: number | undefined, wrap: TextWrap): TextMetrics | null {
 		const draw = this.context?.draw;
-		if (!draw || !draw.canMeasureText(this.fontRole)) return null;
+		if (!draw || !draw.canMeasureText(this.fontName)) return null;
 		return draw.measureText({
 			text: this.content,
-			font: this.fontRole,
+			font: this.fontName,
 			size: this.ownFontSize,
 			letterSpacing: this.letterSpacing,
 			textTransform: this.textTransform,
@@ -534,7 +544,7 @@ export class Text extends Component {
 	 * wrapped height at that width. Unmeasurable text reports its current size.
 	 */
 	public measure(availableWidth: number, availableHeight: number, definite: Axis | null = null): Size {
-		if (!this.context?.draw.canMeasureText(this.fontRole)) return { width: this.width, height: this.height };
+		if (!this.context?.draw.canMeasureText(this.fontName)) return { width: this.width, height: this.height };
 		let width: number;
 		if (this.widthMode === 'fixed') {
 			width = this.authoredWidth;
@@ -613,7 +623,7 @@ export class Text extends Component {
 			id: this.id ?? undefined,
 			text: this.content,
 			box: { x: 0, y: 0, width: this.width, height: this.height },
-			font: this.fontRole,
+			font: this.fontName,
 			size: this.ownFontSize,
 			color: this.ownColor,
 			align: this.ownAlign,

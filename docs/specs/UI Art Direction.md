@@ -68,7 +68,7 @@ The palette lands in `tokens.json` (R11.1) as a second theme, `atlas`, beside th
 | `shadow`, `shadow_strong` | `#140F0A` at 50% and 75% |
 | `radius_ui`, `radius_panel` | `r_0`: the atlas is square-cornered |
 
-Additions: `driver_a`, `driver_a_casing`, `driver_b`, `driver_b_casing`, `hand_highlighter`, `hand_grease`, `hatch_rust`, `built_up`, and `sheet_margin` (14 px).
+Additions: `driver_a`, `driver_a_casing`, `driver_b`, `driver_b_casing`, `hand_highlighter`, `hand_grease`, `hatch_rust`, `built_up`, `back_road`, `duct_tape`, and `sheet_margin` (14 px); and `accent_edge` (Casing) and `focus_ring` (Ink), which the dark theme aliases to its accent.
 
 ## Type
 
@@ -97,7 +97,7 @@ Wear is history. Every mark needs a reason the player could guess, it grows from
 | W0, clean | Card text and numbers, button labels, the player's marks, the thing in focus, anything just acquired | It's being read now, or it's new | None: flat paper tone, full-strength ink |
 | W1, handled | The default for every UI surface: panels, lists, ledgers, tabs, button bodies | Kit the crew uses daily | Warmer paper, a soft edge tone, one smudge at the grab corner, no surface texture |
 | W2, worn | Printed reference that's old in the world: the screen sheet, the atlas, compound signage, backdrops | Printed before the end, folded, ridden on the dash | Aged paper, edge-band grime, folds, shallow tears, tape at corners, a margin stain |
-| W3, damaged | Only what a game event touched: a depleted POI, a wrecked vehicle, an injured driver's tag, a lost run, defeat | Something happened to it and the player was there | W2 plus one hero mark: a burn, a hole, a rip, or a stamp |
+| W3, damaged | Only what a game event touched: a cleared POI, a wrecked vehicle, an injured driver's tag, a lost run, defeat | Something happened to it and the player was there | W2 plus one hero mark: a burn, a hole, a rip, or a stamp |
 
 Where wear goes on a surface:
 
@@ -137,7 +137,7 @@ Buttons.
 - Hover: the border goes to ink and the button lifts 1 px. Pressed: the offset collapses and it sits 3 px lower. Focus visible: a 2 px ink outline 3 px out. Disabled: faded print and a dashed border.
 - Minimum hit size 44 px.
 
-Resource strip. Stores read like a map's legend key: an 18 px stroke icon, the name in mono capitals, the value in mono 500. A shortfall turns the item stronghold red, with a body line under the strip naming it ("Water and food run out in 2 days"). The stroke icons are new entries in the icon atlas.
+Resource strip. Stores read like a map's legend key: an 18 px stroke icon, the name in mono capitals, the value in mono 500. A shortfall turns the item stronghold red, with a body line under the strip naming it ("Water and food run out in 2 days"). The stroke icons are baked into the UI art atlas at 1x and 2x and tinted ink, since the MSDF icon atlas builds from a font ([ui-art-atlas.md](../AI_TECHNICAL_DECISIONS/ui-art-atlas.md)).
 
 Contents rows. Lists of destinations, menu entries, and history use the atlas's contents page: a leading glyph, the label in display 700, dotted leaders, and a mono value at the right. Numbered things use the map's circled glyph, ink on white; the primary row's glyph is a highway shield.
 
@@ -153,7 +153,7 @@ Card hints. It's a card game, and the UI says so quietly in many places rather t
 
 - The card back is atlas stock at 5:7 with 7 px corners: an ink edge, a band in the driver's colour on its casing (Highway for deck A, Route teal for deck B), a fine inner rule, faint contour lines, and the small mark's W in a shield at the centre. It's a back only; card faces stay with the card spec.
 - Decks appear as physical objects where the scene has room for them: two small stacks set down on the menu cover, two decks on the table beside the atlas on the splash. A stack shows three or four card edges under its top card, with the sheet's drop shadow.
-- The deck glyph, two overlapping card outlines in the two casing colours, marks anything about decks: the Crew tab, the bunkhouse's "3 drivers · 3 default decks" line, the Card showcase entry. It's an icon-atlas entry at 18 to 20 px.
+- The deck glyph, two overlapping card outlines in the two casing colours, marks anything about decks: the Crew tab, the bunkhouse's "3 drivers · 3 default decks" line, the Card showcase entry. It's a UI art atlas entry at 20 by 18 px, baked in its two colours.
 - Rules: at most two deck objects on a screen, never over a reading window or a control; deck objects are W1 (handled, never damaged); A is always orange and B always teal, so the pair reads as the two drivers wherever it shows up.
 
 Logo. `docs/design/ui-art-direction/logo.svg`: "Wasteland" in a broad-nib ink script over "WHEELS" in sign-painted brush capitals (Highway on a Casing outline with a drop shadow and chipped paint), two tire tracks beneath, and a large inked wheel behind the right half. It's hand-drawn letterwork with no font in it. It ships as a baked texture in the UI atlas at 1x and 2x, not as runtime SVG. Use it on the menu cover and the splash; on dark grounds use the reversed variant on the logo sheet. The small mark, the painted W in a highway shield, is the app icon and favicon.
@@ -166,24 +166,24 @@ Launch splash. The closed atlas lies on the table: the cover sheet (W2) with its
 
 ![Launch splash](../design/ui-art-direction/splash.png)
 
-Main menu. The left half is the atlas cover: a relief map with the logo in a cartouche ("A road atlas of the Halcyon region"). The right half is the contents page. When a campaign is in progress Continue is the primary row, a highway shield with the day number in it and the save's summary in its subtitle. Otherwise New campaign is primary and Continue stays in its place as faded print, its subtitle saying why there's nothing to continue (no campaign, a damaged save, an older save format), as [Game Flow and UI Specification](./Game%20Flow%20and%20UI%20Specification.md) 1.1 describes. Campaign history follows, then the appendices (skirmish, settings, card showcase, credits, developer tools) in a two-column list. The two decks sit on the cover's lower right, set down on the map.
+Main menu. The left half is the atlas cover: a relief map with the logo in a cartouche ("A road atlas of the Halcyon region"). The right half is the contents page. When a campaign is in progress Continue is the primary row, a highway shield with the day number in it and the save's summary in its subtitle. Otherwise New campaign is primary and Continue stays in its place as faded print, its subtitle saying why there's nothing to continue (no campaign, a damaged save, an older save format), as [Game Flow and UI Specification](./Game%20Flow%20and%20UI%20Specification.md) 1.1 describes. Campaign history follows, then the appendices (settings, card showcase, credits, developer tools in dev builds, and Exit game in Electron) in a two-column list. The two decks sit on the cover's lower right, set down on the map.
 
 Compound. The left two thirds is the compound plate, an overhead view of the yard. The right column holds, top to bottom, the selected building's legend box (name, state, description, its action), Needs, The day (rest or scavenge, with what each costs), and the primary action, Plan a supply run, pinned to the bottom. The title, the day, and the resource strip sit above the plate.
 
 Area map and run route. The map is already in this style. Its side panel, which the atlas-style record kept dark, moves onto the sheet as a column of legend boxes, the destinations as contents rows, and Plan a run here as the primary.
 
-The rest (crew, load-out, customize, campaign history, settings, credits, results) follow the same parts: one sheet, tabs, legend boxes, contents rows, one highway button. Result screens are where W3 earns its place: a defeat is a burnt sheet, a looted POI gets its stamp.
+The rest (crew, load-out, customize, campaign history, settings, credits, results) follow the same parts: one sheet, tabs, legend boxes, contents rows, one highway button. Result screens are where W3 earns its place: a defeat is a burnt sheet, a cleared POI gets its stamp.
 
 ## Building it
 
 - All texture is baked. The canvas mocks use SVG turbulence filters to stand in for paper, grime, relief, and brush edges; in game those are nine-sliced paper textures in the UI art atlas (R5.19, R5.31), one set per wear level with the wear in the corner and edge slices and a flat centre the shader tints. Wear is seeded per object and never animates or reshuffles between frames.
-- New art in the UI atlas: paper nine-slices for W1, W2, and W3 in two or three variants each, tape strips, hand marks, stamps, the compound plate, the logo and small mark, the two card backs and a card edge, the closed-atlas cover for the splash, and the resource, section, and deck icons.
+- New art in the UI atlas ([ui-art-atlas.md](../AI_TECHNICAL_DECISIONS/ui-art-atlas.md)): paper nine-slices for W1, W2, and W3 in two or three variants each, tape strips, hand marks, stamps, the compound plate, the logo and small mark, the two card backs and a card edge, the closed-atlas cover for the splash, and the resource, section, and deck icons.
 - Keep one GPU draw per flush (R5.20). Highlighter is baked as a normal-blend tone, not drawn with the `multiply` blend mode, because every multiply draw is a blend change and splits the submission.
 - Square corners everywhere: the theme re-aliases `radius_ui` and `radius_panel` to zero (R11.7), no component edits.
-- The combat screen keeps the current dark theme until its own pass. Tokens are global today, so the `atlas` theme needs per-screen selection (see open question 1).
+- The combat screen keeps the current dark theme until its own pass. Each screen selects its theme (open question 1): a meta screen opts into `atlas`, and a screen that doesn't stays dark. The mechanism is in [theme-selection.md](../AI_TECHNICAL_DECISIONS/theme-selection.md).
 
 ## Open questions
 
-1. Theme scope. Per-screen theme selection lets the meta screens go atlas while combat stays dark; the alternative is re-theming globally and accepting that combat changes before its pass. Per-screen selection is the recommendation.
-2. The compound plate: a painted bitmap per compound state, or vector shapes built in engine (flat, rect, and circle draws plus a corrugated-metal texture) that can show buildings appearing as they're built. Vector is the recommendation, since the plate has to change as the compound grows.
+1. Theme scope. Decided: per-screen theme selection, so the meta screens go atlas while combat stays dark, rather than re-theming globally and changing combat before its pass.
+2. The compound plate. Decided: vector shapes built in engine (flat, rect, and circle draws, with the corrugated roofs as stripes rather than a texture), drawn from the buildings the campaign holds, so a building appears on the plate the day it's built. A painted bitmap per compound state was the alternative.
 3. When the `serif` and `hand` roles land, and whether the game writes its own hand notes (rumors, warnings) or leaves the hand layer to the player's choices only.

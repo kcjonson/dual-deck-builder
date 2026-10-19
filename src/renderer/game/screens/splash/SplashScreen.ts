@@ -1,26 +1,27 @@
 import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import { Stack } from '../../../engine/components/Stack';
-import { Text } from '../../../engine/components/Text';
-import { Rectangle } from '../../../engine/components/Rectangle';
 import { linear } from '../../../engine/animation/easing';
-import { tokens } from '../../../engine/theme/tokens';
+import { buildLine } from '../main-menu/buildLabel';
+import { SplashScene } from './SplashScene';
 
 /** Milliseconds on the mount context's clock (R8.28). */
 const FADE_IN_MS = 1000;
 const HOLD_MS = 2000;
-const LOGO_SIZE = 240;
 /** Any of these leaves the splash before the hold is up. */
 const SKIP_KEYS = ['Enter', 'Escape', ' '];
 
 /**
- * Splash screen displayed when the game launches: a root stack centring the
- * logo over the title, faded in through the root's opacity (R3.25 multiplies
- * it down the tree), held, then handed to the main menu through the screen
- * transition. Enter, Escape, or Space skips the wait.
+ * Splash screen displayed when the game launches: the closed atlas on the
+ * table (UI Art Direction, Launch splash), on the atlas theme, faded in
+ * through the root's opacity (R3.25 multiplies it down the tree), held, then
+ * handed to the main menu through the screen transition. Everything loads
+ * before the splash mounts, so the scale-bar loader runs on the fade and the
+ * hold. Enter, Escape, or Space skips the wait.
  */
 export class SplashScreen extends Screen {
 	private readonly stack: Stack;
+	private scene: SplashScene | null = null;
 	/** Clock time the fade-in finished, null before then. */
 	private shownAt: number | null = null;
 	private leaving = false;
@@ -30,57 +31,30 @@ export class SplashScreen extends Screen {
 			id: 'splashScreen',
 			widthMode: 'fill',
 			heightMode: 'fill',
-			distribution: 'center',
-			crossAlign: 'center',
 			style: { backgroundColor: 'bg_void' },
 		});
-		super('splashScreen', { root });
+		super('splashScreen', { root, theme: 'atlas' });
 		this.stack = root;
+	}
+
+	/** The table, the book, the decks, and the loader; null while unmounted. */
+	public get splash(): SplashScene | null {
+		return this.scene;
 	}
 
 	/**
 	 * Faded in once mounted. The tween belongs to the root, so leaving early
 	 * cancels it; the hold is timed in `onUpdate`, which a paused page never
 	 * runs, so the screenshot harness settles the fade-in and captures the
-	 * screen at full opacity.
+	 * screen at full opacity with the loader at the fade's share.
 	 */
 	protected onMount(): void {
 		this.shownAt = null;
 		this.leaving = false;
 
-		this.stack.addChild(new Rectangle({
-			id: 'splash_logo',
-			width: LOGO_SIZE,
-			height: LOGO_SIZE,
-			margin: { bottom: tokens.space.space_8 },
-			style: {
-				backgroundColor: 'accent_dim',
-				borderColor: 'accent',
-				borderWidth: 'bw_thick',
-				borderRadius: 'r_xl',
-			},
-		}));
-		this.stack.addChild(new Text({
-			text: 'Dual Deckbuilder',
-			id: 'splash_title',
-			style: {
-				fontRole: 'display',
-				fontSize: 'fs_4xl',
-				color: 'text_bright',
-				textAlign: 'center',
-			},
-			wrap: 'none',
-		}));
-		this.stack.addChild(new Text({
-			text: 'A Roguelike Card Game',
-			id: 'splash_subtitle',
-			style: {
-				fontSize: 'fs_xl',
-				color: 'text_dim',
-				textAlign: 'center',
-			},
-			wrap: 'none',
-		}));
+		const scene = new SplashScene({ id: 'splash_scene', buildLine: buildLine({ sha: __BUILD_SHA__, number: __BUILD_NUMBER__ }) });
+		this.scene = scene;
+		this.stack.addChild(scene);
 
 		for (const key of SKIP_KEYS) this.rootLayer.hotkeys.register(key, () => this.leave());
 
@@ -93,9 +67,11 @@ export class SplashScreen extends Screen {
 			owner: this.rootLayer,
 			onUpdate: (opacity) => {
 				this.rootLayer.opacity = opacity;
+				scene.progress = (opacity * FADE_IN_MS) / (FADE_IN_MS + HOLD_MS);
 			},
 			onComplete: () => {
 				this.shownAt = this.context.clock.now;
+				scene.progress = FADE_IN_MS / (FADE_IN_MS + HOLD_MS);
 			},
 		});
 	}
@@ -103,17 +79,21 @@ export class SplashScreen extends Screen {
 	protected onUnmount(): void {
 		for (const key of SKIP_KEYS) this.rootLayer.hotkeys.unregister(key);
 		this.stack.clearChildren();
+		this.scene = null;
 	}
 
 	protected onUpdate(): void {
 		if (this.shownAt === null || this.leaving) return;
-		if (this.context.clock.now - this.shownAt < HOLD_MS) return;
+		const held = this.context.clock.now - this.shownAt;
+		if (this.scene) this.scene.progress = (FADE_IN_MS + Math.min(held, HOLD_MS)) / (FADE_IN_MS + HOLD_MS);
+		if (held < HOLD_MS) return;
 		this.leave();
 	}
 
 	private leave(): void {
 		if (this.leaving) return;
 		this.leaving = true;
+		if (this.scene) this.scene.progress = 1;
 		ScreenManager.navigate('mainMenuScreen');
 	}
 }

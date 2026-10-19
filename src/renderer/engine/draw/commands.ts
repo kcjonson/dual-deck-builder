@@ -115,6 +115,8 @@ export interface NineSlice {
 	right: number;
 	bottom: number;
 	left: number;
+	/** Texels per logical pixel in the corners: 2 for a 2x raster, so its corners keep their 1x size. Default 1. */
+	scale?: number;
 }
 
 interface CommonOptions {

@@ -9,6 +9,7 @@ import { PLAYER_DRIVEN_VEHICLES } from '../mechanics/Team';
 import type { Vehicle } from '../mechanics/Vehicle';
 import { CampaignEnd, CampaignOverError, CampaignTally, NO_TALLY, checkTallyGrows, fallOf, readCampaignEnd, readTally, refuseOver, refuseOverBlocker, stepLog } from './CampaignEnd';
 import { CardCounts, NO_CARDS, addCards, addCounts, cardCount, readCardCounts, readCardType, removeCards, totalCards } from './CardCounts';
+import { BuildingId, readBuildings } from './Buildings';
 import type { FailedRun, RunParty } from './CombatBridge';
 import { COMPOUND_RULES, CompoundRules, readCompoundRules } from './CompoundRules';
 import { ConvoyJson, convoyToJson, readConvoy } from './ConvoyJson';
@@ -17,6 +18,7 @@ import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordData, DriverRecordJson, de
 import { injuryDays } from './Infirmary';
 import { readMapParams, repairMapParams } from './MapParamsJson';
 import { EMPTY_MAP, MapAttempts, MapState, readMapAttempts, readMapState } from './MapState';
+import { clearedAfter } from './MapClearing';
 import { hasOpenFight } from './OpenFights';
 import { EscortCard, RunDeck, RunDeckJson, readRunDeckJson } from './RunDeck';
 import { SeatBlocker, getCrewRule, getSeatBlocker } from './Seating';
@@ -29,7 +31,7 @@ import { SupplyRun, SupplyRunJson, readSupplyRun, readSupplyRunJson, readSupplyR
  * loaded, so a bump invalidates every existing save of that build, unless
  * its version is one `UPGRADABLE_SCHEMA_VERSIONS` (SaveUpgrades.ts) lists.
  */
-export const CAMPAIGN_SCHEMA_VERSION = 9;
+export const CAMPAIGN_SCHEMA_VERSION = 12;
 
 /** Structure a missing driver's vehicle comes home with once they're found. A tuning value. */
 export const RETURN_STRUCTURE = 1;
@@ -184,6 +186,8 @@ export interface CampaignData {
 	supplyRun: SupplyRun | null;
 	/** Ids of the strongholds taken, in the order they fell. */
 	strongholdsTaken: readonly string[];
+	/** The buildings standing at the compound, in `BUILDING_IDS` order (Compound and Supply Runs, Buildings). */
+	buildings: readonly BuildingId[];
 	log: readonly Readonly<CampaignLogEntry>[];
 	/** Runs and fights counted for the defeat screen, which nothing else here can tell. Counts only go up. */
 	tally: Readonly<CampaignTally>;
@@ -211,6 +215,7 @@ export interface CampaignJson {
 	foundOnRun: string[];
 	supplyRun: SupplyRunJson | null;
 	strongholdsTaken: string[];
+	buildings: string[];
 	log: CampaignLogEntry[];
 	tally: CampaignTally;
 	end: CampaignEnd | null;
@@ -245,6 +250,7 @@ const FIELDS: readonly (keyof CampaignData)[] = [
 	'foundOnRun',
 	'supplyRun',
 	'strongholdsTaken',
+	'buildings',
 	'log',
 	'tally',
 	'end'
@@ -265,6 +271,7 @@ const JSON_FIELDS: readonly (keyof CampaignJson)[] = [
 	'foundOnRun',
 	'supplyRun',
 	'strongholdsTaken',
+	'buildings',
 	'log',
 	'tally',
 	'end',
@@ -361,6 +368,7 @@ export class Campaign extends Model<CampaignData> {
 		foundOnRun = [],
 		supplyRun = null,
 		strongholdsTaken = [],
+		buildings = [],
 		log = [],
 		tally = NO_TALLY,
 		end = null
@@ -383,6 +391,7 @@ export class Campaign extends Model<CampaignData> {
 			foundOnRun,
 			supplyRun,
 			strongholdsTaken,
+			buildings,
 			log,
 			tally,
 			end
@@ -421,6 +430,7 @@ export class Campaign extends Model<CampaignData> {
 			foundOnRun: readArray(save.foundOnRun, `${path}.foundOnRun`).map((id, index) => readPoolDriver(id, `${path}.foundOnRun[${index}]`, drivers)),
 			supplyRun: readNullable(save.supplyRun, `${path}.supplyRun`, (run, at) => readSupplyRunJson(run, at, { convoy, readCargo: readResources })),
 			strongholdsTaken: save.strongholdsTaken,
+			buildings: save.buildings,
 			log: save.log,
 			tally: save.tally,
 			end: save.end
@@ -488,6 +498,11 @@ export class Campaign extends Model<CampaignData> {
 	public get isOver(): boolean {
 		// Undefined only while the constructor sets the first state
 		return Boolean(this.end);
+	}
+
+	/** Whether `building` stands at the compound. */
+	public isBuilt(building: BuildingId): boolean {
+		return this.buildings.includes(building);
 	}
 
 	/**
@@ -1065,6 +1080,7 @@ export class Campaign extends Model<CampaignData> {
 			foundOnRun: this.foundOnRun.map(driver => driver.id),
 			supplyRun: this.supplyRun === null ? null : supplyRunToJson(this.supplyRun),
 			strongholdsTaken: this.strongholdsTaken,
+			buildings: this.buildings,
 			log: this.log,
 			tally: this.tally,
 			end: this.end,
@@ -1492,7 +1508,7 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 		seed,
 		generatorVersion: readInteger(fields.generatorVersion, `${path}.generatorVersion`, { min: 1 }),
 		mapParams,
-		map: readMapState(fields.map, `${path}.map`),
+		map: readMapStateOn(fields.map, `${path}.map`, day),
 		mapAttempts: readMapAttempts(fields.mapAttempts, `${path}.mapAttempts`),
 		day,
 		resources,
@@ -1506,6 +1522,7 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 		foundOnRun,
 		supplyRun,
 		strongholdsTaken: readStrongholds(fields.strongholdsTaken, `${path}.strongholdsTaken`),
+		buildings: readBuildings(fields.buildings, `${path}.buildings`),
 		log: readLog(fields.log, `${path}.log`, day, previous.log),
 		tally,
 		end
@@ -1752,6 +1769,14 @@ function driverNumber(id: string): number | null {
 }
 
 /** One past the highest `driver-<n>` among these, for a campaign built without a counter. */
+/** The map state, its stops cleared no later than today: a run clears a stop on its own day. */
+function readMapStateOn(value: unknown, path: string, day: number): MapState {
+	const map = readMapState(value, path);
+	const early = clearedAfter({ map, day });
+	if (early) throw new ReaderRangeError(`${path}.stops has stop ${early.stop} cleared on day ${early.cleared}, after today (${day})`);
+	return map;
+}
+
 function firstFreeDriverNumber(drivers: readonly DriverRecord[]): number {
 	return drivers.reduce((highest, driver) => Math.max(highest, driverNumber(driver.id) ?? 0), 0) + 1;
 }

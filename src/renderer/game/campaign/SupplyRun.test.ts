@@ -5,25 +5,25 @@ import { STRONGHOLD_TYPE } from '../map/PoiData';
 import { Card, CardData } from '../mechanics/Card';
 import type { DriverArchetype } from '../mechanics/Driver';
 import { createEscort } from '../mechanics/Escort';
-import { RAIDER_PROFILES } from '../mechanics/Raiders';
-import { Campaign, CampaignJson, Resources } from './Campaign';
+import { Campaign, CampaignJson, NO_RESOURCES } from './Campaign';
 import { CampaignOverError } from './CampaignEnd';
 import { CAMPAIGN_START } from './CampaignStart';
 import { CampaignStore } from './CampaignStore';
-import { ENCOUNTER_IDS, ENCOUNTERS, encounterFor, encounterTeam } from './Encounters';
+import { encounterForces } from './Encounters';
 import { foundTestCampaign } from './__fixtures__/mapFixtures';
 import type { DriverRecord } from './DriverRecord';
 import { getCrewRule, getSeatBlocker } from './Seating';
 import { REWARD_CHOICES, rollRewardCards } from './RunRewards';
 import { endDay } from './DayClock';
-import { destinationId, poiOf, routeOffers } from './MapRoutes';
-import { POI_REFILL_DAYS, POI_SHARES, sharesLeft, takeShare } from './PoiStock';
+import { destinationId, poiOf, routeOffers, routeStop, stopOf } from './MapRoutes';
+import { STOP_COOLDOWN_DAYS, clearPoi, clearStop, clearedPois, stopState, stopStates } from './MapClearing';
+import { rollStop } from '../map/Stops';
 import { MemorySaveStorage } from './SaveStorage';
-import { RunRoute, readRunRoute, routeStops } from './SupplyRoutes';
+import { FindStop, RouteStop, RunRoute, everyStop, readRunRoute, routeStops } from './SupplyRoutes';
 import type { SupplyRun } from './SupplyRunState';
 import {
-	DepartRuleError, arriveHome, atDestination, currentStop, departRun, finishStopFight, getDepartBlocker, getPlanBlocker, passQuietStop, quickLoadOut,
-	cargoText, rewardOffer, routesOnOffer, runParty, startStopFight, takeReward, yieldResources
+	DepartRuleError, arriveHome, atDestination, currentStop, departRun, finishStopFight, foundDriver, getDepartBlocker, getPlanBlocker, leaveFind, passQuietStop,
+	quickLoadOut, cargoText, rewardOffer, routesOnOffer, runParty, runStream, startStopFight, takeFind, takeReward, yieldResources
 } from './SupplyRun';
 import { fightOut, pushovers, snipers } from './__fixtures__/runFixtures';
 import { CAMPAIGN_FIXTURE } from './__fixtures__/storeFixtures';
@@ -134,7 +134,7 @@ describe('the routes on offer (DDB-479)', () => {
 	it.each([
 		['no legs', (route: Record<string, unknown>) => { route.legs = []; }, 'route.legs is empty; a route has a leg at least'],
 		['a stop of no kind it knows', (route: Record<string, unknown>) => { (route.legs as { stops: unknown[] }[])[1].stops = [{ id: 's', kind: 'garage', at: 0.5 }]; },
-			'route.legs[1].stops[0].kind must be one of fight, quiet, got "garage"'],
+			'route.legs[1].stops[0].kind must be one of fight, quiet, find, got "garage"'],
 		['a fight past three skulls', (route: Record<string, unknown>) => { (route.legs as { stops: unknown[] }[])[1].stops = [{ id: 's', kind: 'fight', at: 0.5, skulls: 4 }]; },
 			'route.legs[1].stops[0].skulls must be an integer from 1 to 3, got 4'],
 		['stops out of driving order', (route: Record<string, unknown>) => {
@@ -154,48 +154,58 @@ describe('the routes on offer (DDB-479)', () => {
 });
 
 describe('the raider encounters', () => {
-	it('fields the combat screen\'s own Rust Buggy, one shared profile, refilling to 5 adrenaline a turn against a pair', () => {
-		const [buggy] = encounterTeam({ encounter: 'scavengers', cards: CARDS, crewStructure: [80, 50] }).vehicles;
-		expect([buggy.name, buggy.driver?.metadata.name, buggy.driver?.adrenaline, buggy.driver?.maxAdrenaline, buggy.raiderArchetype])
-			.toEqual(['Rust Buggy', 'Wasteland Raider', 5, 5, 'looter']);
-		expect(RAIDER_PROFILES.rust_buggy.maxAdrenaline).toBe(5);
-	});
-
-	it('sizes the stop\'s raiders up against the seats as they\'ll open the fight', () => {
+	it('fields an encounter template for the stop\'s skulls at the destination\'s tier, picked on the stop\'s fight stream', () => {
 		const campaign = newCampaign();
-		const { seats } = quickLoadOut({ campaign });
-		const firstFightIsLone = (route: RunRoute): boolean => {
-			const fight = routeStops(route).find(stop => stop.kind === 'fight');
-			return fight?.kind === 'fight' && ENCOUNTERS[encounterFor(fight.skulls)].raiders.length === 1;
-		};
-		const [route] = routesOnOffer({ map: MAP, campaign: newCampaign() }).filter(firstFightIsLone).sort((a, b) => a.fuel - b.fuel);
-		if (!route) throw new Error('the map should offer a route whose first fight is a lone raider');
+		quickLoadOut({ campaign });
+		const route = testRoute();
 		departRun({ campaign, map: MAP, route, escorts: [] });
 		toNextFight(campaign);
-		// Driver 1 limps in, so Driver 2's vehicle carries the most structure
-		seats[0].set({ vehicle: { ...seats[0].vehicle, structure: 1 } });
+		const run = onRoad(campaign);
+		const stop = currentStop(run);
+		if (stop?.kind !== 'fight') throw new Error('the run should be driving to a fight');
+		const expected = encounterForces({ skulls: stop.skulls, tier: route.destination.tier, cards: CARDS, seats: 2, rng: runStream({ campaign }).fork('fight', run.stop) });
 
 		const fight = startStopFight({ campaign, cards: CARDS });
 
-		const raiders = fight.battle.enemyTeam.vehicles;
-		expect(raiders).toHaveLength(1);
-		expect(raiders[0].slot?.row).toBe(fight.vehicles[1].slot?.row);
+		expect(fight.battle.enemyTeam.vehicles.map(raider => raider.name)).toEqual(expected.team.vehicles.map(raider => raider.name));
+		expect(fight.battle.waves).toMatchObject({ number: 1, total: expected.template.waves.length });
 	});
 
-	it('rolls one encounter for each skull count', () => {
-		expect([1, 2, 3].map(skulls => encounterFor(skulls as 1 | 2 | 3))).toEqual(ENCOUNTER_IDS);
-	});
-
-	it.each(ENCOUNTER_IDS)('builds %s as a fight the bridge starts', (encounter) => {
+	it('takes the raiders a caller hands it instead', () => {
 		const campaign = newCampaign();
-		const { seats } = quickLoadOut({ campaign });
+		quickLoadOut({ campaign });
 		departRun({ campaign, map: MAP, route: testRoute(), escorts: [] });
 		toNextFight(campaign);
-		const team = encounterTeam({ encounter, cards: CARDS, crewStructure: seats.map(seat => seat.vehicle.structure) });
-		expect(team.vehicles).toHaveLength(ENCOUNTERS[encounter].raiders.length);
+		const team = pushovers();
 		const fight = startStopFight({ campaign, cards: CARDS, raiders: () => team });
 		expect(fight.battle.enemyTeam).toBe(team);
 		expect(fight.battle.turn).toBe(1);
+	});
+});
+
+describe('a fight the raiders break off', () => {
+	it('carries the run on past the stop with no reward, and counts no fight won', () => {
+		const campaign = newCampaign();
+		quickLoadOut({ campaign });
+		departRun({ campaign, map: MAP, route: testRoute(), escorts: [] });
+		toNextFight(campaign);
+		const before = onRoad(campaign);
+		const clearedBefore = stopStates(campaign.map).length;
+		const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+		// Nobody fires: three quiet turns break it off
+		for (let turn = 0; turn < 3; turn += 1) fight.battle.endPlayerTurn();
+		expect(fight.battle.isBattleBrokenOff()).toBe(true);
+
+		const result = finishStopFight({ campaign, fight });
+
+		expect(result.outcome).toBe('broken_off');
+		const run = onRoad(campaign);
+		expect([run.stop, run.phase]).toEqual([before.stop + 1, 'driving']);
+		expect(run.cargo).toEqual(before.cargo);
+		expect(campaign.tally.fightsWon).toBe(0);
+		// The stop is resolved, so it's cleared like any other
+		expect(stopStates(campaign.map).length).toBe(clearedBefore + 1);
+		expect(campaign.log.map(entry => entry.message)).toContain(`The raiders broke off at stop ${before.stop + 1} on the run to ${before.route.destination.name}.`);
 	});
 });
 
@@ -351,7 +361,7 @@ describe('departing', () => {
 		const run = departRun({ campaign, map: MAP, route, escorts });
 
 		expect(campaign.resources.fuel).toBe(20 - route.fuel);
-		expect(run).toEqual({ route, stop: 0, phase: 'driving', escorts: [hauler], cargo: { food: 0, water: 0, fuel: 0, meds: 0, scrap: 0, people: 0 }, cargoCards: {} });
+		expect(run).toEqual({ route, stop: 0, phase: 'driving', escorts: [hauler], cargo: { food: 0, water: 0, fuel: 0, meds: 0, scrap: 0, people: 0 }, cargoCards: {}, recruits: [] });
 		expect(campaign.supplyRun).toBe(run);
 		expect(runParty({ campaign })).toEqual({ seats, escorts: [hauler], cargo: run.cargo, cargoCards: {}, run: 'run-1' });
 	});
@@ -542,25 +552,25 @@ describe('a whole run, scripted through the real APIs and saved after every step
 	});
 });
 
-describe('a POI\'s stock (DDB-483)', () => {
-	/** The run to `route`'s POI driven out and home, fights won and rewards skipped; what it unloaded. */
-	function runTo(campaign: Campaign, route: RunRoute): Resources {
+describe('clearing (DDB-336)', () => {
+	/** The run to `route`'s POI driven out to the destination, fights won and rewards skipped, finds left. */
+	function driveOut(campaign: Campaign, route: RunRoute): void {
 		quickLoadOut({ campaign });
 		departRun({ campaign, map: MAP, route: offerFor(campaign, route), escorts: [] });
 		while (!atDestination(onRoad(campaign))) {
-			if (currentStop(onRoad(campaign))?.kind === 'quiet') {
-				passQuietStop({ campaign });
-				continue;
+			const stop = currentStop(onRoad(campaign));
+			if (stop?.kind === 'quiet') passQuietStop({ campaign });
+			else if (stop?.kind === 'find') leaveFind({ campaign });
+			else {
+				const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+				fightOut(fight);
+				finishStopFight({ campaign, fight });
+				takeReward({ campaign, cardType: null });
 			}
-			const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
-			fightOut(fight);
-			finishStopFight({ campaign, fight });
-			takeReward({ campaign, cardType: null });
 		}
-		return arriveHome({ campaign }).cargo.resources;
 	}
 
-	/** The route as the campaign's offer has it now, its yield scaled to the POI's stock. */
+	/** The route as the campaign's offer has it now. */
 	function offerFor(campaign: Campaign, route: RunRoute): RunRoute {
 		return routesOnOffer({ map: MAP, campaign }).find(offered => offered.id === route.id) as RunRoute;
 	}
@@ -573,79 +583,131 @@ describe('a POI\'s stock (DDB-483)', () => {
 		return campaign;
 	}
 
-	const scaled = (route: RunRoute, shares: number): Resources => {
-		const full = yieldResources(route.destination.yield);
-		return Object.fromEntries(Object.entries(full).map(([resource, amount]) => [resource, Math.ceil((amount * shares) / POI_SHARES)])) as unknown as Resources;
-	};
+	const mapStop = (stop: RouteStop): number => stopOf(stop.id) as number;
 
-	it('takes a share on each run that reaches the POI, the yield scaled by what was left, and nothing once it\'s depleted', () => {
+	it('clears every stop the run resolves, on the day, and its POI on reaching it, the whole yield in the cargo in the same step', () => {
 		const campaign = stocked();
 		const route = testRoute();
 		const poi = poiOf(route.destination.id) as number;
-		expect(yieldResources(route.destination.yield).food + yieldResources(route.destination.yield).scrap).toBeGreaterThan(0);
+		driveOut(campaign, route);
 
-		const brought = [3, 2, 1, 0].map((shares) => {
-			expect(sharesLeft({ map: campaign.map, poi })).toBe(shares);
-			expect(yieldResources(offerFor(campaign, route).destination.yield)).toEqual(scaled(route, shares));
-			return runTo(campaign, route);
-		});
-
-		expect(brought).toEqual([3, 2, 1, 0].map(shares => scaled(route, shares)));
-		expect(sharesLeft({ map: campaign.map, poi })).toBe(0);
-		// Every other POI's routes still yield in full
-		const others = routesOnOffer({ map: MAP, campaign }).filter(offered => offered.destination.id !== route.destination.id);
-		const full = new Map(routesOnOffer({ map: MAP, campaign: newCampaign() }).map(offered => [offered.id, offered]));
-		others.forEach(offered => expect(offered).toBe(full.get(offered.id)));
+		expect(onRoad(campaign).cargo).toEqual(yieldResources(route.destination.yield));
+		expect(clearedPois(campaign.map)).toEqual([poi]);
+		expect(stopStates(campaign.map)).toEqual(routeStops(route).map(stop => ({ stop: mapStop(stop), roll: 0, cleared: campaign.day })).sort((a, b) => a.stop - b.stop));
 	});
 
-	it('loads the scaled yield into the cargo on reaching the POI, and takes the share in the same step', () => {
+	it('clears each kind of stop as the run moves past it: a find taken or left, a quiet stretch, and a won fight once its reward is picked', () => {
 		const campaign = stocked();
-		const route = testRoute();
-		const poi = poiOf(route.destination.id) as number;
-		campaign.set({ map: takeShare({ map: campaign.map, poi }) });
 		quickLoadOut({ campaign });
-		departRun({ campaign, map: MAP, route: offerFor(campaign, route), escorts: [] });
-		expect(onRoad(campaign).route.destination.yield).toEqual(offerFor(campaign, route).destination.yield);
-		while (!atDestination(onRoad(campaign))) {
-			if (currentStop(onRoad(campaign))?.kind === 'quiet') passQuietStop({ campaign });
-			else {
-				const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
-				fightOut(fight);
-				finishStopFight({ campaign, fight });
-				expect(sharesLeft({ map: campaign.map, poi })).toBe(2);
-				takeReward({ campaign, cardType: null });
-			}
-		}
-		expect(onRoad(campaign).cargo).toEqual(scaled(route, 2));
-		expect(sharesLeft({ map: campaign.map, poi })).toBe(1);
+		const base = testRoute();
+		const stops: RouteStop[] = [
+			{ id: 'stop-1', kind: 'find', at: 0.1, find: 'supplies', supplies: { resource: 'food', amount: 2 } },
+			{ id: 'stop-2', kind: 'find', at: 0.2, find: 'cards' },
+			{ id: 'stop-3', kind: 'quiet', at: 0.3 },
+			{ id: 'stop-4', kind: 'find', at: 0.4, find: 'driver' },
+			{ id: 'stop-5', kind: 'fight', at: 0.5, skulls: 1 },
+		];
+		const route: RunRoute = { ...base, legs: [{ ...base.legs[0], stops }] };
+		campaign.set({ supplyRun: { route, stop: 0, phase: 'driving', escorts: [], cargo: NO_RESOURCES, cargoCards: {}, recruits: [] } });
+		const clearedNow = (): number[] => stopStates(campaign.map).filter(({ cleared }) => cleared === campaign.day).map(({ stop }) => stop);
+
+		takeFind({ campaign });
+		expect(clearedNow()).toEqual([1]);
+		takeFind({ campaign });
+		// The cards are cleared once picked, not when the picker opens
+		expect(clearedNow()).toEqual([1]);
+		takeReward({ campaign, cardType: null });
+		passQuietStop({ campaign });
+		leaveFind({ campaign });
+		expect(clearedNow()).toEqual([1, 2, 3, 4]);
+		const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+		fightOut(fight);
+		finishStopFight({ campaign, fight });
+		expect(clearedNow()).toEqual([1, 2, 3, 4]);
+		takeReward({ campaign, cardType: null });
+		expect(clearedNow()).toEqual([1, 2, 3, 4, 5]);
 	});
 
-	it('refills overnight, a share every third of 20 nights, through the day end\'s own hooks', () => {
+	it('clears neither the stop of a fight the run loses nor its POI, and keeps what it cleared before', () => {
+		const campaign = stocked();
+		quickLoadOut({ campaign });
+		const base = testRoute();
+		const stops: RouteStop[] = [{ id: 'stop-1', kind: 'quiet', at: 0.2 }, { id: 'stop-2', kind: 'fight', at: 0.6, skulls: 1 }];
+		const route: RunRoute = { ...base, legs: [{ ...base.legs[0], stops }] };
+		campaign.set({ supplyRun: { route, stop: 0, phase: 'driving', escorts: [], cargo: NO_RESOURCES, cargoCards: {}, recruits: [] } });
+		const day = campaign.day;
+		passQuietStop({ campaign });
+		const fight = startStopFight({ campaign, cards: CARDS, raiders: snipers, enemyAI: null });
+		fightOut(fight, { shoot: false });
+		expect(finishStopFight({ campaign, fight }).outcome).toBe('run_failed');
+		expect(stopStates(campaign.map)).toEqual([{ stop: 1, roll: 0, cleared: day }]);
+		expect(clearedPois(campaign.map)).toEqual([]);
+	});
+
+	it('takes a cleared POI off the offer for good, and leaves every other POI\'s routes as they were', () => {
 		const campaign = stocked();
 		const route = testRoute();
-		const poi = poiOf(route.destination.id) as number;
-		for (let run = 0; run < POI_SHARES; run += 1) runTo(campaign, route);
-		// Each run's arrival ended its day, so the last one has had a night already
-		expect(campaign.map).toEqual({ pois: [{ poi, left: 0, nights: 1 }] });
-		for (let night = 1; night < POI_REFILL_DAYS; night += 1) {
-			campaign.set({ resources: { ...campaign.resources, food: 200, water: 200 } });
-			endDay({ campaign });
-		}
-		expect(campaign.map).toEqual({});
-		expect(offerFor(campaign, route)).toEqual(route);
+		campaign.set({ map: clearPoi({ map: campaign.map, poi: poiOf(route.destination.id) as number }) });
+		const full = new Map(routesOnOffer({ map: MAP, campaign: newCampaign() }).map(offered => [offered.id, offered]));
+
+		const offered = routesOnOffer({ map: MAP, campaign });
+		expect(offered.some(each => each.destination.id === route.destination.id)).toBe(false);
+		offered.forEach(each => expect(each).toBe(full.get(each.id)));
+		expect(() => departRun({ campaign, map: MAP, route, escorts: [] })).toThrow(`${route.id} isn't a route the area map offers`);
+		for (let night = 0; night < 30; night += 1) endDay({ campaign });
+		expect(offerFor(campaign, route)).toBeUndefined();
+	});
+
+	it('drives past a stop still cleared, and its route\'s risk is the fights it still meets', () => {
+		const campaign = stocked();
+		const route = testRoute();
+		const fights = routeStops(route).filter(stop => stop.kind === 'fight');
+		const cleared = fights.map(mapStop).reduce((map, stop) => clearStop({ map, stop, day: campaign.day }), campaign.map);
+		campaign.set({ map: cleared });
+
+		const offered = offerFor(campaign, route);
+		expect(routeStops(offered)).toEqual(routeStops(route).filter(stop => stop.kind !== 'fight'));
+		expect(everyStop(offered).filter(stop => stop.cleared).map(stop => stop.id)).toEqual(fights.map(stop => stop.id));
+		expect(offered.risk).toBe(1);
+
+		// Out on the cleared road, the run never meets those fights
+		driveOut(campaign, route);
+		expect(onRoad(campaign).route).toEqual(offered);
+	});
+
+	it('brings the stops back after their cooldown, rerolled, through the day end\'s own hook', () => {
+		const campaign = stocked();
+		const route = testRoute();
+		const stop = mapStop(routeStops(route)[0]);
+		campaign.set({ map: clearStop({ map: campaign.map, stop, day: campaign.day }) });
+		for (let night = 1; night < STOP_COOLDOWN_DAYS; night += 1) endDay({ campaign });
+		expect(routeStops(offerFor(campaign, route))).toHaveLength(routeStops(route).length - 1);
+		endDay({ campaign });
+		expect(stopState({ map: campaign.map, stop })).toEqual({ stop, roll: 1, cleared: null });
+		expect(routeStops(offerFor(campaign, route))).toHaveLength(routeStops(route).length);
+	});
+
+	it('rolls a Find: supplies that came back at its new roll', () => {
+		const supplies = routeOffers(MAP).flatMap(offered => routeStops(offered)).find(stop => stop.kind === 'find' && stop.find === 'supplies') as RouteStop;
+		const id = mapStop(supplies);
+		const campaign = stocked();
+		campaign.set({ map: { stops: [{ stop: id, roll: 3, cleared: null }] } });
+		const back = routesOnOffer({ map: MAP, campaign }).flatMap(offered => routeStops(offered)).find(stop => stop.id === supplies.id);
+		expect(back).toEqual(routeStop({ map: MAP, id, roll: 3 }));
+		expect(back).toMatchObject({ supplies: rollStop(MAP, id, 3).supplies });
 	});
 
 	it('works the offer out once for each map state', () => {
 		const campaign = stocked();
 		const route = testRoute();
-		campaign.set({ map: takeShare({ map: campaign.map, poi: poiOf(route.destination.id) as number }) });
+		campaign.set({ map: clearPoi({ map: campaign.map, poi: poiOf(route.destination.id) as number }) });
 		const offered = routesOnOffer({ map: MAP, campaign });
 		expect(routesOnOffer({ map: MAP, campaign })).toBe(offered);
-		campaign.set({ map: takeShare({ map: campaign.map, poi: poiOf(route.destination.id) as number }) });
+		campaign.set({ map: clearStop({ map: campaign.map, stop: 0, day: 1 }) });
 		expect(routesOnOffer({ map: MAP, campaign })).not.toBe(offered);
 	});
 
-	it('takes nothing from a POI whose id the map doesn\'t name, as a run saved before the real map had', () => {
+	it('clears nothing whose id the map doesn\'t name, as in a run saved before the real map', () => {
 		const campaign = Campaign.fromJSON(CAMPAIGN_FIXTURE);
 		const before = campaign.map;
 		takeReward({ campaign, cardType: null });
@@ -731,6 +793,129 @@ describe('a failed run', () => {
 	});
 });
 
+describe('finds (DDB-523)', () => {
+	const SUPPLIES: FindStop = { id: 'stop-a', kind: 'find', at: 0.2, find: 'supplies', supplies: { resource: 'water', amount: 6 } };
+	const CARDS_FOUND: FindStop = { id: 'stop-b', kind: 'find', at: 0.4, find: 'cards' };
+	const DRIVER: FindStop = { id: 'stop-c', kind: 'find', at: 0.6, find: 'driver' };
+
+	/** The compound's run on the road, loaded out, its route the test route's first leg holding only `finds` (and any other stops given). */
+	function onFinds(campaign: Campaign, finds: readonly RouteStop[]): void {
+		quickLoadOut({ campaign });
+		const base = testRoute();
+		const route: RunRoute = { ...base, legs: [{ ...base.legs[0], stops: finds }] };
+		campaign.set({ supplyRun: { route, stop: 0, phase: 'driving', escorts: [], cargo: NO_RESOURCES, cargoCards: {}, recruits: [] } });
+	}
+
+	it('names every map find the run resolves, and leaves the other calm types quiet', () => {
+		const kinds = new Set(routeOffers(MAP).flatMap(route => routeStops(route).map(stop => (stop.kind === 'find' ? stop.find : stop.kind))));
+		expect(kinds).toEqual(new Set(['fight', 'quiet', 'cards', 'supplies', 'driver']));
+	});
+
+	it('loads a Find: supplies haul into the cargo when taken, and drives on', async () => {
+		const store = newStore();
+		let campaign = newCampaign();
+		onFinds(campaign, [SUPPLIES, CARDS_FOUND]);
+		takeFind({ campaign });
+		expect(onRoad(campaign)).toMatchObject({ stop: 1, phase: 'driving', cargo: { ...NO_RESOURCES, water: 6 } });
+		campaign = await reload(store, campaign);
+		expect(onRoad(campaign).cargo.water).toBe(6);
+	});
+
+	it('leaves a find by the road, taking nothing, when the run drives on', () => {
+		const campaign = newCampaign();
+		onFinds(campaign, [SUPPLIES, DRIVER]);
+		leaveFind({ campaign });
+		leaveFind({ campaign });
+		// Only the POI's yield, loaded at the destination
+		expect(onRoad(campaign)).toMatchObject({ stop: 2, phase: 'driving', cargo: yieldResources(onRoad(campaign).route.destination.yield), recruits: [] });
+		expect(atDestination(onRoad(campaign))).toBe(true);
+	});
+
+	it('opens the reward picker for a Find: cards, the same cards after a load, and drives on once one is picked or they\'re left', async () => {
+		const store = newStore();
+		let campaign = newCampaign();
+		onFinds(campaign, [CARDS_FOUND, CARDS_FOUND]);
+		takeFind({ campaign });
+		expect(onRoad(campaign)).toMatchObject({ stop: 0, phase: 'reward' });
+		const offer = rewardOffer({ campaign });
+		expect(offer).toHaveLength(REWARD_CHOICES);
+		campaign = await reload(store, campaign);
+		expect(rewardOffer({ campaign })).toEqual(offer);
+		takeReward({ campaign, cardType: offer[1] });
+		expect(onRoad(campaign)).toMatchObject({ stop: 1, phase: 'driving', cargoCards: { [offer[1]]: 1 } });
+		takeFind({ campaign });
+		takeReward({ campaign, cardType: null });
+		expect(onRoad(campaign)).toMatchObject({ stop: 2, cargoCards: { [offer[1]]: 1 } });
+	});
+
+	it('turns up someone new when nobody is missing, and they join the pool when the run gets home', async () => {
+		const store = newStore();
+		let campaign = newCampaign(['road_warrior', 'mechanic']);
+		onFinds(campaign, [DRIVER]);
+		const found = foundDriver({ campaign });
+		expect(found.kind).toBe('recruit');
+		// An unlocked archetype the pool doesn't have yet
+		const archetype = (found as { archetype: DriverArchetype }).archetype;
+		expect(['road_warrior', 'mechanic']).not.toContain(archetype);
+		campaign = await reload(store, campaign);
+		expect(foundDriver({ campaign })).toEqual(found);
+		takeFind({ campaign });
+		expect(onRoad(campaign).recruits).toEqual([archetype]);
+		campaign = await reload(store, campaign);
+		const pool = campaign.drivers.length;
+
+		const arrival = arriveHome({ campaign });
+		expect(arrival.recruits.map(driver => driver.archetype)).toEqual([archetype]);
+		expect(campaign.drivers).toHaveLength(pool + 1);
+		expect(campaign.drivers[pool]).toBe(arrival.recruits[0]);
+		expect(campaign.drivers[pool].status).toBe('ready');
+		expect(campaign.log.map(entry => entry.message)).toContain(`${arrival.recruits[0].name} joined the compound, found on the road.`);
+	});
+
+	it('loses someone new with the run when it fails, so they never join the pool', async () => {
+		const store = newStore();
+		let campaign = newCampaign();
+		const fight: RouteStop = { id: 'stop-d', kind: 'fight', at: 0.8, skulls: 1 };
+		onFinds(campaign, [DRIVER, fight]);
+		const pool = campaign.drivers.map(driver => driver.id);
+		takeFind({ campaign });
+		expect(onRoad(campaign).recruits).toHaveLength(1);
+
+		const lost = startStopFight({ campaign, cards: CARDS, raiders: snipers, enemyAI: null });
+		fightOut(lost, { shoot: false });
+		expect(finishStopFight({ campaign, fight: lost }).outcome).toBe('run_failed');
+		campaign = await reload(store, campaign);
+		expect(campaign.drivers.map(driver => driver.id)).toEqual(pool);
+	});
+
+	it('turns up the first missing driver, who rides home with the run and is back in the pool there', () => {
+		const campaign = newCampaign();
+		const missing = campaign.drivers[2];
+		missing.set({ status: 'missing' });
+		onFinds(campaign, [DRIVER, DRIVER]);
+		expect(foundDriver({ campaign })).toEqual({ kind: 'missing', driver: missing });
+		takeFind({ campaign });
+		expect(campaign.foundOnRun).toEqual([missing]);
+		// Nobody else is missing, so the next one is someone new
+		expect(foundDriver({ campaign }).kind).toBe('recruit');
+		leaveFind({ campaign });
+		const arrival = arriveHome({ campaign });
+		expect(arrival.cargo.found).toEqual([missing]);
+		expect(arrival.recruits).toEqual([]);
+		expect(missing.status).toBe('ready');
+	});
+
+	it('refuses a find step anywhere but at its find', () => {
+		const campaign = newCampaign();
+		onFinds(campaign, [SUPPLIES]);
+		expect(() => passQuietStop({ campaign })).toThrow("The run isn't driving to a quiet stop");
+		expect(() => foundDriver({ campaign })).toThrow('The run is driving to a Find: supplies, not a Find: driver');
+		takeFind({ campaign });
+		expect(() => takeFind({ campaign })).toThrow("The run isn't driving to a find stop");
+		expect(() => leaveFind({ campaign })).toThrow("The run isn't driving to a find stop");
+	});
+});
+
 describe('the saved run', () => {
 	/** The fixture, its run on the road, as a save holds it, changed first. */
 	const fixtureWith = (change: (run: NonNullable<CampaignJson['supplyRun']>, save: CampaignJson) => void): CampaignJson => {
@@ -751,7 +936,7 @@ describe('the saved run', () => {
 		['a run on the road with no run decks', (_run: NonNullable<CampaignJson['supplyRun']>, save: CampaignJson) => { save.runDecks = []; save.foundOnRun = []; },
 			"Campaign.supplyRun is on the road with no run out; the run's end clears it with the run decks"],
 		['a reward at a quiet stop', (run: NonNullable<CampaignJson['supplyRun']>) => { run.stop = 1; },
-			"Campaign.supplyRun.phase is reward, and stop 1 isn't a fight"],
+			"Campaign.supplyRun.phase is reward, and stop 1 is neither a fight nor a Find: cards"],
 		['a stop past the route', (run: NonNullable<CampaignJson['supplyRun']>) => { run.stop = 4; },
 			"Campaign.supplyRun.stop must be an integer from 0 to the route's 3 stops, got 4"],
 		['an escort the convoy doesn\'t have', (run: NonNullable<CampaignJson['supplyRun']>) => { run.escorts = ['escort-2']; },

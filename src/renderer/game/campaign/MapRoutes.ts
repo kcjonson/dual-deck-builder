@@ -3,17 +3,18 @@ import type { RoadClass } from '../map/RoadNetwork';
 import { mapPoiNames } from '../map/PoiNames';
 import { DescribeOptions, RouteDescriptor, RouteMap, describeMap } from '../map/RouteDescriptors';
 import { ROAD_CLASSES } from '../map/RoadNetwork';
-import { isFight } from '../map/StopData';
-import type { LegProfile } from '../map/Stops';
+import { StopType, isFight } from '../map/StopData';
+import { LegProfile, rollStop } from '../map/Stops';
 import type { Skulls } from './Encounters';
-import { RouteDestination, RouteLeg, RouteStop, RunRoute, YIELD_RESOURCES, YieldResource } from './SupplyRoutes';
+import { FindKind, RouteDestination, RouteLeg, RouteStop, RunRoute, YIELD_RESOURCES, YieldResource } from './SupplyRoutes';
 
 /**
  * The area map's routes in the run loop's route model (SupplyRoutes.ts):
  * every route to every POI, with its legs, their stops, and its
- * descriptor's fuel, hours, and risk. Fights stay fights with their skulls;
- * every other stop is a quiet stretch until the run has screens for events,
- * finds, garages, and hazards. A destination yields what its POI type does,
+ * descriptor's fuel, hours, and risk. Fights stay fights with their skulls,
+ * and Find: cards, supplies, and driver are finds, a haul rolled from the
+ * stop's contents at roll 0; every other stop is a quiet stretch until the
+ * run has screens for events, garages, and hazards. A destination yields what its POI type does,
  * meds aside until a run can carry them. `routesOnOffer` (SupplyRun.ts)
  * reads them. The decision records are
  * docs/AI_TECHNICAL_DECISIONS/stops-and-routes.md and area-map-route-pick.md.
@@ -27,6 +28,17 @@ export function destinationId(poi: number): string {
 /** The POI a destination id names, its index in the POI layer, or null for an id that isn't one (`destinationId`). */
 export function poiOf(id: string): number | null {
 	const match = /^poi-(0|[1-9]\d*)$/.exec(id);
+	return match ? Number(match[1]) : null;
+}
+
+/** A map stop's id in the route model, `stop-<stop>`. */
+export function stopId(stop: number): string {
+	return `stop-${stop}`;
+}
+
+/** The map stop a route stop's id names, its index in the map's stops, or null for an id that isn't one (`stop-<stop>`). */
+export function stopOf(id: string): number | null {
+	const match = /^stop-(0|[1-9]\d*)$/.exec(id);
 	return match ? Number(match[1]) : null;
 }
 
@@ -83,12 +95,7 @@ function runRoute({ descriptor, destination, map }: { descriptor: RouteDescripto
 			roadClass: dominantClass(profile),
 			length: Math.round(length),
 			hours: tenths(hours),
-			stops: Object.freeze(profile.stops.map((id): RouteStop => {
-				const { type, at, skulls } = stops.stops[id];
-				return Object.freeze(isFight(type)
-					? { id: `stop-${id}`, kind: 'fight' as const, at: hundredths(at), skulls: skulls as Skulls }
-					: { id: `stop-${id}`, kind: 'quiet' as const, at: hundredths(at) });
-			})),
+			stops: Object.freeze(profile.stops.map(id => routeStop({ map, id }))),
 		});
 	});
 	return Object.freeze({
@@ -100,6 +107,22 @@ function runRoute({ descriptor, destination, map }: { descriptor: RouteDescripto
 		hours: Object.freeze({ out: tenths(descriptor.hours.out), objective: tenths(descriptor.hours.objective), home: tenths(descriptor.hours.home) }),
 		risk: (descriptor.risk < 1 ? 1 : descriptor.risk) as Skulls,
 	});
+}
+
+/** The map's find types the run resolves, by what they find. */
+const FINDS: Readonly<Partial<Record<StopType, FindKind>>> = { findCards: 'cards', findSupplies: 'supplies', findDriver: 'driver' };
+
+/** A map stop as the run takes it, its contents rolled at `roll`. */
+export function routeStop({ map, id, roll = 0 }: { map: RouteMap; id: number; roll?: number }): RouteStop {
+	const { type, at, skulls } = map.products.stops.stops[id];
+	const base = { id: stopId(id), at: hundredths(at) };
+	if (isFight(type)) return Object.freeze({ ...base, kind: 'fight', skulls: skulls as Skulls });
+	const find = FINDS[type];
+	if (find === undefined) return Object.freeze({ ...base, kind: 'quiet' });
+	if (find !== 'supplies') return Object.freeze({ ...base, kind: 'find', find });
+	const haul = rollStop(map, id, roll).supplies;
+	if (!haul) throw new Error(`Stop ${id} is a Find: supplies, and its contents rolled no haul`);
+	return Object.freeze({ ...base, kind: 'find', find, supplies: Object.freeze({ ...haul }) });
 }
 
 function dominantClass({ classLengths }: LegProfile): RoadClass {

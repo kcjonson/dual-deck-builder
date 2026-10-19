@@ -29,6 +29,8 @@ export interface ScreenScenario {
 export interface SceneScenario {
 	scene: string;
 	blockedBy?: string;
+	/** The Electron shell's golden alone can't be owned yet, and why; the chromium golden and the lint still hold. */
+	electronBlockedBy?: string;
 	/** Also linted at the short viewport, for a scene that lays out to the window's width. */
 	lintShort?: boolean;
 	/**
@@ -57,9 +59,8 @@ interface ScreenCase {
  *
  * Each spec arrives at its screen the same way every time: a fresh page, the
  * splash screen the app boots into, then exactly one `window.__app.navigate`.
- * That matters for driver selection specifically (DDB-106: 49 GPU calls on the
- * first mount and 33 on every mount after it, so the screen is not the same
- * drawing twice), and it costs nothing to hold every other screen to it too.
+ * A screen can draw its first mount differently from a later one (DDB-106
+ * found one that did), and one path holds every screen to the same drawing.
  *
  * Two properties of that path are worth stating, because they decide what
  * these goldens are pictures of. `openScreen` pauses before it navigates, so
@@ -71,13 +72,16 @@ interface ScreenCase {
  *
  * The screens that read the campaign store mount over the saves a case puts
  * in local storage first, the way a player's page holds them, and every other
- * case over none. The compound, Crew, Customize, area map, run route, and
- * run screens are opened with no campaign handed over, so each loads the
- * save as Continue would, Customize shows the first seat's run deck, and
- * the run route screen the nearest destination (DDB-283, DDB-301, DDB-314,
- * DDB-321, DDB-454, DDB-43, DDB-319). The compound, the area map, and the
- * run route screen make the save's map again in the worker as they would
- * on Continue, and the capture waits for it (`assetsReady`).
+ * case over none. The compound, Crew, Customize, area map, run route, load
+ * out, and run screens are opened with no campaign handed over, so each
+ * loads the save as Continue would, Customize shows the first seat's run
+ * deck, and the run route screen the nearest destination (DDB-283,
+ * DDB-301, DDB-314, DDB-321, DDB-454, DDB-43, DDB-319). Load out is handed
+ * a heading and summary but no route, so START RUN says there's no route
+ * to run (DDB-320). The compound, the area map, and the run route screen
+ * make the save's map again in the worker as they would on Continue, and
+ * the capture waits for it (`assetsReady`). The event screen is opened with
+ * nothing, so it shows the first event with its stand-in party (DDB-45).
  */
 const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'splashScreen' },
@@ -90,7 +94,6 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	{ screen: 'creditsScreen' },
 	{ screen: 'developerScreen' },
 	{ screen: 'cardShowcaseScreen' },
-	{ screen: 'driverSelectionScreen' },
 	{ screen: 'combatScreen' },
 	// The log drawer open over the road, at both sizes: never over the dock or End Turn (DDB-140)
 	{ screen: 'combatScreen', variant: 'log', data: { openLog: true } },
@@ -110,11 +113,14 @@ const SCREEN_CASES: readonly ScreenCase[] = [
 	// A save already lost, which the defeat screen shows as the compound hands it one (DDB-305)
 	{ screen: 'defeatScreen', storage: LOST },
 	// The area map from the compound between runs, and the nearest destination's routes (DDB-43, DDB-319);
+	// load out with the crew that can go seated (DDB-320);
 	// then the run on the road: the fixture's at its last fight's reward, and a step earlier with the fight ahead (DDB-454)
 	{ screen: 'areaMapScreen', storage: AT_HOME },
 	{ screen: 'runRouteScreen', storage: AT_HOME },
+	{ screen: 'loadOutScreen', storage: AT_HOME, data: { trip: { destination: 'Elk Creek Clinic', routeName: 'Back roads', stops: 2, fuel: 3, homeBy: '16:30', pastDark: false } } },
 	{ screen: 'runScreen', storage: IN_PROGRESS },
 	{ screen: 'runScreen', variant: 'road', storage: ON_THE_ROAD },
+	{ screen: 'eventScreen' },
 ];
 
 function caseName({ screen, variant }: ScreenCase): string {
@@ -134,6 +140,14 @@ export const SCREEN_SCENARIOS: readonly ScreenScenario[] = [
 		viewport: SHORT_VIEWPORT,
 	})),
 ];
+
+/**
+ * DDB-45's two newest event scenes: on the CI runner the Electron shell's
+ * second capture of each never returns within the 15 s screenshot timeout,
+ * across two mints, while every other event scene and both of these in a
+ * local Electron run settle in about 6 s. Followed up on Specboard.
+ */
+const ELECTRON_EVENT_CAPTURE = 'Electron capture never settles on the CI runner for this scene (DDB-45 follow-up)';
 
 /** Every gallery scene, `?scene=` names. */
 export const SCENE_SCENARIOS: readonly SceneScenario[] = [
@@ -188,6 +202,14 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'screen-transition' },
 	{ scene: 'scroll-hug' },
 	{ scene: 'rounded-clip' },
+	// The atlas parts (DDB-505), gated at both sizes as the meta screens they're for will be
+	{ scene: 'atlas-sheet', lintShort: true },
+	{ scene: 'atlas-buttons', lintShort: true },
+	{ scene: 'atlas-legend', lintShort: true },
+	{ scene: 'atlas-contents', lintShort: true },
+	{ scene: 'atlas-gauges', lintShort: true },
+	{ scene: 'atlas-glyphs', lintShort: true },
+	{ scene: 'atlas-plate', lintShort: true },
 	// Gated at both sizes, as the combat screen is: the intent pills' heavy tier, multi-hit, and "+N" (DDB-139)
 	{ scene: 'combat-road', lintShort: true },
 	{ scene: 'vehicle-tokens' },
@@ -200,6 +222,21 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'combat-dock-crashed-out', lintShort: true },
 	// The developer way into Customize (DDB-321)
 	{ scene: 'customize' },
+	// The developer way into load out (DDB-320)
+	{ scene: 'load-out' },
+	// The UI art atlas, every piece drawn from the resident page (DDB-504)
+	{ scene: 'ui-art-paper' },
+	{ scene: 'ui-art-cover' },
+	{ scene: 'ui-art-marks' },
+	// The full-screen sheet, gated at both sizes since it fills the window (DDB-504)
+	{ scene: 'ui-art-sheet', shortViewport: true },
+	// The event screen whole, its choices, locks, and outcomes, at both sizes as a screen is (DDB-45)
+	{ scene: 'event-wreck', shortViewport: true },
+	{ scene: 'event-distress', shortViewport: true },
+	{ scene: 'event-locks', shortViewport: true, electronBlockedBy: ELECTRON_EVENT_CAPTURE },
+	{ scene: 'event-outcome', shortViewport: true },
+	{ scene: 'event-escort', shortViewport: true, electronBlockedBy: ELECTRON_EVENT_CAPTURE },
+	{ scene: 'event-fight', shortViewport: true },
 ];
 
 /** A scene at one window size, and the name its golden and text record go by there. */

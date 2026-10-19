@@ -8,6 +8,9 @@ import type { Component } from '../../../engine/components/Component';
 import type { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { key, send } from '../../../engine/services/testing';
 import { createMeasuringDrawApi } from '../../../engine/text/testing';
+import { layoutLint } from '../../../engine/debug/layoutLint';
+import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
+import { atlasScreenParts } from '../../ui/atlas/testing';
 import { ScreenManager } from '../../core/ScreenManager';
 import { CAMPAIGN_SCHEMA_VERSION } from '../../campaign/Campaign';
 import type { CampaignHistoryEntry } from '../../campaign/CampaignHistory';
@@ -35,8 +38,8 @@ describe('CampaignHistoryScreen', () => {
 	let context: MountContext;
 	let screen: CampaignHistoryScreen;
 
-	async function open(storage: MemorySaveStorage, height = 600): Promise<void> {
-		context = createTestContext({ viewport: { logical: { width: 1024, height } }, draw: createMeasuringDrawApi().api });
+	async function open(storage: MemorySaveStorage, height = 600, width = 1024): Promise<void> {
+		context = createTestContext({ viewport: { logical: { width, height } }, draw: createMeasuringDrawApi().api });
 		screen = new CampaignHistoryScreen({ store: storeOver(storage) });
 		screen.mount(context);
 		await screen.historyShown;
@@ -66,7 +69,8 @@ describe('CampaignHistoryScreen', () => {
 		const shown = texts();
 		const order = ['Starved', 'Abandoned', 'Won'].map((ending) => shown.indexOf(ending));
 		expect(order.every((at, index) => at >= 0 && (index === 0 || at > order[index - 1]))).toBe(true);
-		expect(shown).toEqual(expect.arrayContaining(['34 days', '2 strongholds taken', 'Seed 20261006', '1 day', '0 strongholds taken', '61 days', 'Seed 4000000000']));
+		expect(shown).toEqual(expect.arrayContaining(['34 days', '2 strongholds taken / Seed 20261006', '1 day', '0 strongholds taken / Seed 77', '61 days', '5 strongholds taken / Seed 4000000000']));
+		expect(shown).toContain('3 campaigns ended');
 		expect(screen.root.findById('history_empty')).toBeNull();
 	});
 
@@ -80,7 +84,7 @@ describe('CampaignHistoryScreen', () => {
 		screen = new CampaignHistoryScreen({ store });
 		screen.mount(context);
 		await screen.historyShown;
-		expect(texts()).toEqual(expect.arrayContaining(['Abandoned', '1 day', '0 strongholds taken']));
+		expect(texts()).toEqual(expect.arrayContaining(['Abandoned', '1 day', expect.stringMatching(/^0 strongholds taken \/ Seed /)]));
 	});
 
 	it('says so when no campaign has ended', async () => {
@@ -112,6 +116,15 @@ describe('CampaignHistoryScreen', () => {
 		expect(scroller.scrollPosition).toBe(scroller.maxScroll);
 		send(context, [key('Home')]);
 		expect(scroller.scrollPosition).toBe(0);
+	});
+
+	it.each([{ width: 1440, height: 882 }, { width: 1024, height: 600 }])('is one atlas sheet with no highway, its rows out of the focus order, with no lint at $width x $height', async (size) => {
+		await open(new MemorySaveStorage({ items: { [KEYS.history]: historyText(ENTRIES) } }), size.height, size.width);
+		const parts = atlasScreenParts(screen.root);
+		expect(screen.theme).toBe('atlas');
+		expect([parts.sheets.length, parts.highways.length, parts.tabs.length]).toEqual([1, 0, 0]);
+		expect(screen.root.findById('history_row_0')?.focusable).toBe(false);
+		expect(layoutLint(treeSnapshot([screen.root], size)).violations).toEqual([]);
 	});
 
 	it('hugs a short history rather than filling the screen', async () => {

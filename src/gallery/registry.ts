@@ -3,15 +3,26 @@ import type { DeveloperSectionOptions } from '../renderer/game/screens/developer
 import type { Screen } from '../renderer/game/core/Screen';
 import { developerSections } from '../renderer/game/screens/developer/sections';
 import { AreaMapScene } from './scenes/AreaMapScene';
+import {
+	AtlasButtonsScene,
+	AtlasContentsScene,
+	AtlasGaugesScene,
+	AtlasGlyphsScene,
+	AtlasLegendScene,
+	AtlasPlateScene,
+	AtlasSheetScene,
+} from './scenes/AtlasScenes';
 import { CardPileScene } from './scenes/CardPileScene';
 import { DialogScene } from './scenes/DialogScene';
 import { EscortCardScene } from './scenes/EscortCardScene';
+import { EVENT_SCENES } from './scenes/EventScenes';
 import { OverlaysScene } from './scenes/OverlaysScene';
 import { PopoverScene } from './scenes/PopoverScene';
 import { RoundedClipScene } from './scenes/RoundedClipScene';
 import { ScrollHugScene } from './scenes/ScrollHugScene';
 import { ToastScene } from './scenes/ToastScene';
 import { TransitionScene } from './scenes/TransitionScene';
+import { UiArtSheetScreen } from './scenes/UiArtSheetScene';
 import { BATTLE_FIT_SCENARIOS, prepareBattleFit } from './scenes/battleFitScenarios';
 import { CombatScreen } from '../renderer/game/screens/combat/CombatScreen';
 
@@ -90,6 +101,18 @@ export const galleryOnlyScenes: readonly GalleryScene[] = [
 	// `area-map` reads its map and framing from the URL too (`readAreaMapQuery`), for before and after shots.
 	{ name: 'area-map', factory: (options) => new AreaMapScene({ ...options, mode: 'whole', search: globalThis.location?.search ?? '' }) },
 	{ name: 'area-map-fog', factory: (options) => new AreaMapScene({ ...options, mode: 'fog' }) },
+	// The atlas parts under the atlas theme, one group a scene (DDB-505)
+	{ name: 'atlas-sheet', factory: (options) => new AtlasSheetScene(options) },
+	{ name: 'atlas-buttons', factory: (options) => new AtlasButtonsScene(options) },
+	{ name: 'atlas-legend', factory: (options) => new AtlasLegendScene(options) },
+	{ name: 'atlas-contents', factory: (options) => new AtlasContentsScene(options) },
+	{ name: 'atlas-gauges', factory: (options) => new AtlasGaugesScene(options) },
+	{ name: 'atlas-glyphs', factory: (options) => new AtlasGlyphsScene(options) },
+	{ name: 'atlas-plate', factory: (options) => new AtlasPlateScene(options) },
+	// A full-screen W2 sheet, the paper pieces' main use, at the window's size and ratio (DDB-504)
+	{ name: 'ui-art-sheet', screen: () => ({ screen: new UiArtSheetScreen() }) },
+	// The event screen whole: choices, locks, an outcome with a card, a fight hand-off (DDB-45)
+	...EVENT_SCENES,
 	// The battle screen whole, at the mock's six fit scenarios (DDB-141)
 	...BATTLE_FIT_SCENARIOS.map((scenario): ScreenScene => ({
 		name: `battle-${scenario}`,

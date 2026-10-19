@@ -59,6 +59,10 @@ export interface VehicleData {
 	intentTier?: IntentTier;
 	/** Who this vehicle goes for when it's a raider: haulers, driven vehicles, or unset for no preference */
 	raiderArchetype?: RaiderArchetype | null;
+	/** A raider's nominal threat, its profile's number, which a rout counts (Combat Rules, How a fight ends). None counts as 0. */
+	threat?: number;
+	/** A warband's leader: its fall routs the rest. */
+	leader?: boolean;
 	/** Set on an escort, which has no driver by design. Unset means a driven vehicle. */
 	escort?: EscortProfile | null;
 	/** An escort that has acted this turn. Every escort is ready again at the start of the player's turn. */
@@ -68,6 +72,9 @@ export interface VehicleData {
 	/** Permanent upgrades fitted to it; none when unset. They go down with the vehicle. */
 	mods?: VehicleMod[];
 }
+
+/** A raider that shook off a stun this turn and can't be stunned again yet (Vehicle.isSteady). */
+export const STEADY = 'steady';
 
 /**
  * Speed a status adds or takes away. Oil Slick and Caltrops carry their own
@@ -152,6 +159,8 @@ export class Vehicle extends Model<VehicleData> {
 		'statusEffects',
 		'intentTier',
 		'raiderArchetype',
+		'threat',
+		'leader',
 		'escort',
 		'spent',
 		'shield',
@@ -414,6 +423,15 @@ export class Vehicle extends Model<VehicleData> {
 	 */
 	public get isStunned(): boolean {
 		return this.hasStatusEffect('stunned');
+	}
+
+	/**
+	 * Steady (shake-off): a raider whose stun just wore off can't be stunned
+	 * again until the next player turn starts (Combat Rules, Raider formation
+	 * and stuns).
+	 */
+	public get isSteady(): boolean {
+		return this.hasStatusEffect(STEADY);
 	}
 
 	/**

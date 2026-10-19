@@ -175,7 +175,7 @@ describe('the generation worker\'s transfer format', () => {
 		expect(products.pois).toEqual(mesh.products.pois);
 		expect(products.stops).toEqual(mesh.products.stops);
 		const decoded = { params: { ...params, daylightHours: 14, stopDensity: 1 }, products };
-		expect(describeMap(decoded)).toEqual(describeMap({ ...decoded, products: mesh.products }));
+		expect(describeMap(decoded)).toEqual(describeMap({ ...decoded, products: { ...mesh.products, dressing: products.dressing } }));
 		expect(rollStop({ products }, 5, 2)).toEqual(rollStop(mesh, 5, 2));
 	});
 

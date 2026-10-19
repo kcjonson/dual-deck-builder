@@ -6,6 +6,7 @@ import type { DrawApi } from '../draw/DrawApi';
 import { LayerName, layerOrdinal } from '../draw/layers';
 import type { InputObserver, PointerPress } from '../input/Dispatcher';
 import type { HotkeyTable, KeyStroke } from '../input/HotkeyTable';
+import type { ThemeName } from '../theme/tokens';
 
 export type OverlayDismissReason = 'outside-press' | 'escape';
 
@@ -41,6 +42,11 @@ export interface OverlayOptions {
 	onClose?: () => void;
 	/** Names the root in the tree snapshot. */
 	id?: string;
+	/**
+	 * The root's theme, inherited by the content: the opener's, so a surface
+	 * opened from an atlas screen is atlas. Absent is the base theme.
+	 */
+	theme?: ThemeName;
 	/**
 	 * The content takes the viewport's size, at open and on every resize: a
 	 * dialog whose own box is its scrim, a screen transition's quad. A
@@ -173,6 +179,7 @@ export class OverlayService implements InputObserver {
 			width,
 			height,
 			layer: options.layer,
+			theme: options.theme ?? null,
 		});
 		if (options.fill) content.setSize(width, height);
 		root.addChild(content);

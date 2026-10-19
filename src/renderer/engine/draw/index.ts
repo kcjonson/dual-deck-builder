@@ -9,11 +9,15 @@
 export { DrawApi, TEXT_MEASUREMENT_UNAVAILABLE } from './DrawApi';
 export type { BeginFrameOptions, Diagnostic, DiagnosticCode, DrawApiOptions } from './DrawApi';
 
+export { ArtAtlasError, artSize, drawArt, loadArtAtlasImage, validateArtAtlas } from './artAtlas';
+export type { ArtAtlasImage, ArtAtlasManifest, ArtPiece, ArtSlice, ArtTint, DrawArtOptions, LoadArtAtlasOptions } from './artAtlas';
+
 export { NullBackend } from './NullBackend';
 export { RecordingBackend } from './RecordingBackend';
 export type { RecordedBatch, RecordedFrame, RecordingBackendOptions } from './RecordingBackend';
 
 export type {
+	ArtAtlasOptions,
 	DrawBackend,
 	DrawBatch,
 	FontAtlasOptions,

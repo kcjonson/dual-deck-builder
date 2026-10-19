@@ -5,9 +5,9 @@
  * then building a map's terrain with its water and sampling each query over
  * a grid of the disc's bounding square. It runs outside Jest,
  * whose coverage instrumentation and vm context slow the per-sample code
- * several times over: it transpiles the stage's modules into a temporary
- * folder, then times them in a fresh child process, since the TypeScript
- * compiler's heap left in the same process slows sampling about twofold.
+ * several times over, on modules transpiled by scripts/transpiled.mjs,
+ * in a fresh child process, since the TypeScript compiler's heap left in
+ * the same process slows sampling about twofold.
  *
  *   node scripts/terrain-bench.mjs
  *   node scripts/terrain-bench.mjs --radii 800,1000,1200 --runs 3 --grid 512 --seeds 5
@@ -26,44 +26,24 @@
  * median, over environments and seeds, of one grid's time, then that per
  * sample.
  */
-import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { transpiled } from './transpiled.mjs';
 
-const script = fileURLToPath(import.meta.url);
-const SOURCES = [
-	'core/Json', 'core/Rng', 'map/MapParams', 'map/ParamValidator', 'map/Noise', 'map/Biome', 'map/TerrainSites', 'map/Geometry',
-	'map/LandGrid', 'map/MapMath', 'map/Drainage', 'map/Erosion', 'map/Uplift', 'map/Land', 'map/Terrain', 'map/Rivers', 'map/Lakes', 'map/Water',
-];
-
-if (process.argv[2] !== '--built') {
-	const { default: ts } = await import('typescript');
-	const root = join(dirname(script), '..');
-	const build = mkdtempSync(join(tmpdir(), 'terrain-bench-'));
-	for (const source of SOURCES) {
-		const text = readFileSync(join(root, 'src/renderer/game', `${source}.ts`), 'utf8');
-		const { outputText } = ts.transpileModule(text, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } });
-		const target = join(build, `${source}.js`);
-		mkdirSync(dirname(target), { recursive: true });
-		writeFileSync(target, outputText);
-	}
-	const child = spawnSync(process.execPath, [script, '--built', build, ...process.argv.slice(2)], { stdio: 'inherit' });
-	rmSync(build, { recursive: true, force: true });
-	process.exit(child.status ?? 1);
-}
-
-const build = process.argv[3];
+const { build, args } = await transpiled({
+	script: fileURLToPath(import.meta.url),
+	name: 'terrain-bench',
+	entries: ['core/Rng', 'map/MapParams', 'map/ParamValidator', 'map/Drainage', 'map/LandGrid', 'map/Land', 'map/Uplift', 'map/Terrain', 'map/Water'].map(module => `src/renderer/game/${module}.ts`),
+});
 const options = { grid: 256, seeds: 3, runs: 3, radii: '800,1000,1200' };
-for (let index = 4; index < process.argv.length; index += 2) {
-	const key = process.argv[index].replace(/^--/, '');
+for (let index = 0; index < args.length; index += 2) {
+	const key = args[index].replace(/^--/, '');
 	if (!(key in options)) throw new Error(`unknown option --${key}`);
-	options[key] = key === 'radii' ? process.argv[index + 1] : Number(process.argv[index + 1]);
+	options[key] = key === 'radii' ? args[index + 1] : Number(args[index + 1]);
 }
 
-const load = createRequire(join(build, 'index.js'));
+const load = createRequire(join(build, 'src/renderer/game/index.js'));
 const { Rng } = load('./core/Rng.js');
 const { resolveMapParams } = load('./map/MapParams.js');
 const { validateMapParams } = load('./map/ParamValidator.js');

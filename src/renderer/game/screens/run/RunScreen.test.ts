@@ -22,7 +22,12 @@ import { cardData } from '../../ui/testing';
 import { CAMPAIGN_FIXTURE, FaultyStorage, fixtureText, newCampaign, saveText, storageWith, storeOver } from '../../campaign/__fixtures__/storeFixtures';
 import type { PreparedCombatMount } from '../combat/CombatScreen';
 import { NOT_THE_SAVE } from '../compound/compoundText';
-import { RunScreen, RunScreenData, STEP_NOT_SAVED, stopFightMount } from './RunScreen';
+import type { AtlasSheet } from '../../ui/atlas/AtlasSheet';
+import type { AtlasTag } from '../../ui/atlas/AtlasTag';
+import type { DamageMark } from '../../ui/atlas/DamageMark';
+import type { LegendBox } from '../../ui/atlas/LegendBox';
+import type { ResourceStrip } from '../../ui/atlas/ResourceStrip';
+import { BROKEN_OFF_LINE, RunScreen, RunScreenData, STEP_NOT_SAVED, stopFightMount } from './RunScreen';
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -45,6 +50,28 @@ function drivingText(stop: number): string {
 		if (stop < 3) return;
 		for (const [resource, amount] of Object.entries(run.route.destination.yield)) run.cargo[resource] += amount;
 	});
+}
+
+/** The fixture's run driving to its second stop, made a find (DDB-523). */
+function findText(find: Record<string, unknown>): string {
+	return fixtureText((campaign) => {
+		const run = campaign.supplyRun as { stop: number; phase: string; route: { legs: { stops: Record<string, unknown>[] }[] } };
+		run.stop = 1;
+		run.phase = 'driving';
+		const stops = run.route.legs[1].stops;
+		stops[1] = { id: stops[1].id, kind: 'find', at: stops[1].at, ...find };
+	});
+}
+
+/** The fixture's run driving to its last fight, lost to snipers, as the combat screen's end hook hands it over. */
+async function failedData(): Promise<RunScreenData> {
+	const campaign = Campaign.fromJSON(JSON.parse(drivingText(2)).campaign);
+	const route = campaign.supplyRun?.route as RunRoute;
+	const fight = startStopFight({ campaign, cards: CARDS, raiders: snipers, enemyAI: null });
+	fightOut(fight, { shoot: false });
+	const result = finishStopFight({ campaign, fight }) as Extract<StopFightResult, { outcome: 'run_failed' }>;
+	const done: Promise<CheckpointResult> = Promise.resolve('saved');
+	return { campaign, failed: { result, route, stop: 2 }, saved: done };
 }
 
 describe('RunScreen', () => {
@@ -167,6 +194,81 @@ describe('RunScreen', () => {
 			expect((await saved())?.supplyRun?.stop).toBe(2);
 		});
 
+		it('offers a Find: supplies to load or drive past, and loads it into the cargo, saved (DDB-523)', async () => {
+			await open(findText({ find: 'supplies', supplies: { resource: 'water', amount: 6 } }));
+			expect(text('run_action_title')).toBe('Find: supplies');
+			expect(text('run_action_line')).toBe('6 water stashed by the road. Load it, or drive on.');
+			expect(find<Button>('run_drive_button')).toBeTruthy();
+			await press('run_take_button');
+			expect(text('run_report')).toBe('Loaded into the cargo.');
+			expect(text('run_action_title')).toBe('Next: Raider ambush, 2 skulls');
+			const run = (await saved())?.supplyRun;
+			expect([run?.stop, run?.cargo.water]).toEqual([2, 6]);
+		});
+
+		it('drives past a find with Drive on, taking nothing (DDB-523)', async () => {
+			await open(findText({ find: 'driver' }));
+			expect(text('run_action_line')).toMatch(/^An? [A-Za-z ]+ flags the convoy down, looking for a compound to join\. Take them on, or drive on\.$/);
+			await press('run_drive_button');
+			expect(text('run_report')).toBe('Left it behind.');
+			const run = (await saved())?.supplyRun;
+			expect([run?.stop, run?.recruits]).toEqual([2, []]);
+		});
+
+		it('opens the card picker for a Find: cards, with Leave them to pass them up (DDB-523)', async () => {
+			await open(findText({ find: 'cards' }));
+			await press('run_take_button');
+			expect(find<CardPileView>('run_reward')).toBeTruthy();
+			expect(find<Button>('run_skip_button').label).toBe('Leave them');
+			expect((await saved())?.supplyRun?.phase).toBe('reward');
+			await press('run_skip_button');
+			expect((await saved())?.supplyRun?.stop).toBe(2);
+		});
+
+		it('lists a stop an earlier run cleared as cleared, and drives past it (DDB-336)', async () => {
+			await open(fixtureText((campaign) => {
+				const run = campaign.supplyRun as { stop: number; phase: string; route: { legs: { stops: Record<string, unknown>[] }[] } };
+				run.route.legs[1].stops[1].cleared = true;
+				run.stop = 1;
+				run.phase = 'driving';
+			}));
+			expect(text('run_stop_1_state')).toBe('Cleared');
+			expect(text('run_stop_2_state')).toBe('Next');
+			expect(text('run_action_title')).toBe('Next: Raider ambush, 2 skulls');
+		});
+
+		it('says the raiders broke off when the fight that sent it here was broken off, until the next step', async () => {
+			await open(drivingText(1), { campaign: Campaign.fromJSON(JSON.parse(drivingText(1)).campaign), brokenOff: true });
+			expect(text('run_report')).toBe(BROKEN_OFF_LINE);
+			await press('run_drive_button');
+			expect(text('run_report')).not.toContain('broke off');
+		});
+
+		it('ends a broken-off last fight at the destination, its yield loaded, and the battle result says broken off', async () => {
+			storage = storageWith(drivingText(2));
+			store = storeOver(storage);
+			const campaign = await store.load() as Campaign;
+			const before = campaign.supplyRun;
+			if (!before) throw new Error('the run should be on the road');
+			const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+			const prepared = await stopFightMount({ campaign, fight, store }).prepare();
+			fightOut(fight, { shoot: false });
+			expect(fight.battle.isBattleBrokenOff()).toBe(true);
+
+			const result = prepared.onEnded?.({ won: false, brokenOff: true });
+
+			expect(result).toEqual({ victory: false, brokenOff: true, next: { screen: 'runScreen', data: { campaign, saved: expect.any(Promise), brokenOff: true } } });
+			expect(await (result?.next?.data as RunScreenData).saved).toBe('saved');
+			const run = campaign.supplyRun;
+			expect([run?.stop, run?.phase]).toEqual([before.stop + 1, 'driving']);
+			for (const [resource, amount] of Object.entries(before.route.destination.yield)) {
+				expect(run?.cargo[resource as keyof typeof run.cargo]).toBe(before.cargo[resource as keyof typeof before.cargo] + amount);
+			}
+
+			await open(drivingText(3), result?.next?.data as RunScreenData);
+			expect(text('run_report')).toBe(`${BROKEN_OFF_LINE} Reached ${before.route.destination.name}.`);
+		});
+
 		it('opens a fight on the combat screen with Drive on, whose end comes back here', async () => {
 			await open(drivingText(2));
 			expect(text('run_action_line')).toBe('Raiders hold the road ahead, 2 skulls of danger. Driving on starts the fight.');
@@ -174,7 +276,9 @@ describe('RunScreen', () => {
 			const [name, mount] = navigate.mock.calls[navigate.mock.calls.length - 1] as [string, PreparedCombatMount];
 			expect(name).toBe('combatScreen');
 			const prepared = await mount.prepare();
-			expect(prepared.battle.enemyTeam.vehicles.map((vehicle) => vehicle.name)).toEqual(['Spike Buggy']);
+			// A group in waves, never a lone raider (Runs and Encounters, Kevin's rule 4)
+			expect(prepared.battle.enemyTeam.vehicles.length).toBeGreaterThan(1);
+			expect(prepared.battle.waves.total).toBeGreaterThan(1);
 			expect([prepared.fuel, prepared.scrap]).toEqual([2, 0]);
 			expect(typeof prepared.onEnded).toBe('function');
 		});
@@ -191,20 +295,26 @@ describe('RunScreen', () => {
 			await press('run_compound_button');
 			expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign: screen.campaignShown });
 		});
+
+		it('debriefs in legend boxes, the stores unloaded and the crew a tag each, and stamps the looted destination on a W2 sheet (DDB-511)', async () => {
+			// Driven on from the reward, the run reaches its destination, here one of the map's POIs, and takes a share of it
+			await open(fixtureText((campaign) => {
+				(campaign.supplyRun as { route: { destination: { id: string } } }).route.destination.id = 'poi-9';
+			}));
+			const sheet = screen.root as AtlasSheet;
+			expect([sheet.wear, screen.root.findById('run_stamp')]).toEqual([2, null]);
+			await press('run_skip_button');
+			await press('run_home_button');
+			expect(find<ResourceStrip>('run_unloaded_stores').items.map((item) => [item.kind, item.value])).toEqual([['food', 6], ['water', 5], ['fuel', 5], ['scrap', 15]]);
+			expect(text('run_unloaded_cards')).toBe('To the locker: Caltrops');
+			expect([text('run_crew_0_name'), text('run_crew_0_state')]).toEqual(['Road Warrior 1', 'Fit']);
+			// Nobody came home hurt, so the looted destination's stamp is the screen's one hero mark
+			expect([sheet.wear, find<DamageMark>('run_stamp').kind]).toEqual([2, 'looted']);
+			expect(find<AtlasTag>('run_crew_0').torn).toBe(false);
+		});
 	});
 
 	describe('a run its last fight failed', () => {
-		/** The fixture's run driving to its last fight, lost to snipers, as the combat screen's end hook hands it over. */
-		async function failedData(): Promise<RunScreenData> {
-			const campaign = Campaign.fromJSON(JSON.parse(drivingText(2)).campaign);
-			const route = campaign.supplyRun?.route as RunRoute;
-			const fight = startStopFight({ campaign, cards: CARDS, raiders: snipers, enemyAI: null });
-			fightOut(fight, { shoot: false });
-			const result = finishStopFight({ campaign, fight }) as Extract<StopFightResult, { outcome: 'run_failed' }>;
-			const done: Promise<CheckpointResult> = Promise.resolve('saved');
-			return { campaign, failed: { result, route, stop: 2 }, saved: done };
-		}
-
 		it('says what the run lost and where, and goes back to the compound', async () => {
 			const data = await failedData();
 			await open(saveText({ campaign: data.campaign.toSaveText() }), data);
@@ -212,6 +322,9 @@ describe('RunScreen', () => {
 			expect(text('run_summary')).toMatch(/^Road Warrior 1 is (dead|missing) and Interceptor 2 is (dead|missing)\. Lost with it: 2 fuel and Caltrops\. .*Day 9 ended\./);
 			expect(routeStops(data.failed?.route as RunRoute).map((_stop, index) => text(`run_stop_${index}_state`))).toEqual(['Cleared', 'Cleared', 'Lost']);
 			expect(text('run_subtitle')).toBe('Day 10 / failed / Back roads');
+			// A lost run's one hero mark is LOST, under the road on W2 paper, and the losses go in a legend box (DDB-511)
+			expect([(screen.root as AtlasSheet).wear, find<DamageMark>('run_stamp').kind]).toEqual([2, 'lost']);
+			expect(find<LegendBox>('run_lost').children.filter((child) => child.id?.startsWith('run_lost_')).map((child) => child.id)).toEqual(expect.arrayContaining(['run_lost_cargo']));
 			await press('run_compound_button');
 			expect(navigate).toHaveBeenLastCalledWith('compoundScreen', { campaign: data.campaign });
 		});
@@ -359,6 +472,23 @@ describe('RunScreen', () => {
 			mount: async () => {
 				await open(drivingText(3));
 				await press('run_home_button');
+			},
+		},
+		{
+			name: 'home, the destination stamped',
+			mount: async () => {
+				await open(fixtureText((campaign) => {
+					(campaign.supplyRun as { route: { destination: { id: string } } }).route.destination.id = 'poi-9';
+				}));
+				await press('run_skip_button');
+				await press('run_home_button');
+			},
+		},
+		{
+			name: 'a failed run',
+			mount: async () => {
+				const data = await failedData();
+				await open(saveText({ campaign: data.campaign.toSaveText() }), data);
 			},
 		},
 	];

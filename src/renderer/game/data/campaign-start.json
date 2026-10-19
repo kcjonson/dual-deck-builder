@@ -8,5 +8,6 @@
 		"scrap": 150,
 		"people": 12
 	},
-	"escorts": []
+	"escorts": [],
+	"buildings": ["bunkhouse"]
 }

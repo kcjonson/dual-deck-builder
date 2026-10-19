@@ -32,7 +32,6 @@ export function stressCampaign(): Campaign {
 		seed,
 		generatorVersion: AREA_MAP_GENERATOR_VERSION,
 		mapParams: resolveMapParams({ seed, environment: 'rustBelt' }).params,
-		map: stressMap(rng.fork('map')),
 		mapAttempts: { map: 3, stages: { terrain: 0, water: 1, places: 0, roads: 2, routeTree: 0, pois: 5, stops: 7, dressing: 1 } },
 		resources: { food: 1240, water: 980, fuel: 312, meds: 87, scrap: 4310, people: 260 },
 		unrest: 12,
@@ -46,7 +45,7 @@ export function stressCampaign(): Campaign {
 			? { status: 'dead', hitpoints: 0, defaultDeck: {}, runsCompleted: rng.int(1, 40) }
 			: { defaultDeck: deck, runsCompleted: rng.int(0, 40) });
 	}
-	campaign.set({ day: 400, strongholdsTaken: Array.from({ length: 8 }, (_, index) => `stronghold-${index + 1}`) });
+	campaign.set({ day: 400, map: stressMap(rng.fork('map')), strongholdsTaken: Array.from({ length: 8 }, (_, index) => `stronghold-${index + 1}`) });
 	campaign.set({
 		log: Array.from({ length: 2000 }, (_, index) => ({
 			day: Math.floor(index / 5) + 1,
@@ -76,16 +75,15 @@ function stressMap(rng: Rng): JsonObject {
 		stock: { food: rng.int(0, 9), scrap: rng.int(0, 9) },
 		depleted: rng.float() < 0.2
 	}));
-	const stops = Array.from({ length: STOPS }, (_, index) => ({
+	const stopSites = Array.from({ length: STOPS }, (_, index) => ({
 		id: `stop-${index}`,
 		road: `road-${rng.int(0, ROADS - 1)}`,
 		at: Math.round(rng.float() * 1000) / 1000,
-		type: rng.pick(['raider_ambush', 'checkpoint', 'hazard', 'find', 'event']),
-		clearedDay: rng.float() < 0.5 ? rng.int(1, 400) : null,
-		rolls: rng.int(0, 9)
+		type: rng.pick(['raider_ambush', 'checkpoint', 'hazard', 'find', 'event'])
 	}));
 	const fog = Array.from({ length: 128 }, () => rng.next());
-	// Its POI stock in the save's own format (PoiStock.ts): every third POI taken from.
-	const stock = Array.from({ length: Math.ceil(POIS / 3) }, (_, index) => ({ poi: index * 3, left: rng.int(0, 2), nights: rng.int(0, 6) }));
-	return { roads, sites: pois, stops, fog, pois: stock };
+	// What runs have cleared, in the save's own format (MapClearing.ts): every stop with a state, the most there can be, those still cleared cleared in the last five days, and every third POI.
+	const stops = Array.from({ length: STOPS }, (_, stop) => ({ stop, roll: rng.int(1, 9), cleared: rng.float() < 0.5 ? rng.int(396, 400) : null }));
+	const clearedPois = Array.from({ length: Math.ceil(POIS / 3) }, (_, index) => index * 3);
+	return { roads, sites: pois, stopSites, fog, stops, clearedPois };
 }

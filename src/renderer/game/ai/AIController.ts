@@ -9,10 +9,11 @@ import { MCTSAI } from './MCTSAI';
 import { SalvageAI } from './SalvageAI';
 import { RammingAI } from './RammingAI';
 import { FirstPlayableAI } from './FirstPlayableAI';
+import { IntentAwareAI } from './IntentAwareAI';
 import { AIDecision } from './types';
 import type { Rng } from '../core/Rng';
 
-export type AIType = 'random' | 'aggressive' | 'defensive' | 'balanced' | 'mcts' | 'salvage' | 'ramming';
+export type AIType = 'random' | 'aggressive' | 'intent' | 'defensive' | 'balanced' | 'mcts' | 'salvage' | 'ramming';
 
 export class AIController {
 	private battle: Battle;
@@ -58,6 +59,8 @@ export class AIController {
 				return new RandomAI({ team, battle: this.battle, rng });
 			case 'aggressive':
 				return new AggressiveFlankerAI(team, this.battle);
+			case 'intent':
+				return new IntentAwareAI(team, this.battle);
 			case 'mcts':
 				return new MCTSAI({ team, battle: this.battle });
 			case 'salvage':

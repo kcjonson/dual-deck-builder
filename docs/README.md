@@ -10,15 +10,17 @@ The specs in [specs/](./specs/) are the source of truth for how the game plays a
 
 1. [Compound and Supply Runs](./specs/Compound%20and%20Supply%20Runs.md)
 2. [Area Map Generation](./specs/Area%20Map%20Generation.md)
-3. [Battle Screen Design](./specs/Battle%20Screen%20Design.md)
-4. [Combat Rules](./specs/Combat%20Rules.md)
-5. [Card System Design](./specs/Card%20System%20Design.md)
-6. [Game Flow and UI Specification](./specs/Game%20Flow%20and%20UI%20Specification.md)
-7. [Gameplay Mechanics and Style](./specs/Gameplay%20Mechanics%20and%20Style.md)
-8. [AI System Technical Design](./specs/AI%20System%20Technical%20Design.md)
-9. [Faction Concepts](./specs/Faction%20Concepts.md)
-10. [UI rendering engine implementation](./specs/ui-rendering-engine-implementation.md)
-11. [UI Art Direction](./specs/UI%20Art%20Direction.md)
+3. [Runs and Encounters](./specs/Runs%20and%20Encounters.md)
+4. [Balance Simulation](./specs/Balance%20Simulation.md)
+5. [Battle Screen Design](./specs/Battle%20Screen%20Design.md)
+6. [Combat Rules](./specs/Combat%20Rules.md)
+7. [Card System Design](./specs/Card%20System%20Design.md)
+8. [Game Flow and UI Specification](./specs/Game%20Flow%20and%20UI%20Specification.md)
+9. [Gameplay Mechanics and Style](./specs/Gameplay%20Mechanics%20and%20Style.md)
+10. [AI System Technical Design](./specs/AI%20System%20Technical%20Design.md)
+11. [Faction Concepts](./specs/Faction%20Concepts.md)
+12. [UI rendering engine implementation](./specs/ui-rendering-engine-implementation.md)
+13. [UI Art Direction](./specs/UI%20Art%20Direction.md)
 
 ## Everything else
 

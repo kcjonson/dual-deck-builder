@@ -2,28 +2,27 @@ import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
-import { POI_SHARES } from '../../campaign/PoiStock';
 import { getPlanBlocker, routesOnOffer } from '../../campaign/SupplyRun';
 import { Stack } from '../../../engine/components/Stack';
-import { Text } from '../../../engine/components/Text';
-import { Button } from '../../../engine/ui/Button';
-import { Divider } from '../../../engine/ui/Divider';
+import type { Text } from '../../../engine/components/Text';
 import { FocusGroup } from '../../../engine/ui/FocusGroup';
-import { ListRow } from '../../../engine/ui/ListRow';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
-import { ColorToken, tokens } from '../../../engine/theme/tokens';
+import type { ColorToken } from '../../../engine/theme/tokens';
 import { AreaMapView } from '../../ui/areaMap/AreaMapView';
 import type { AreaMapSelection } from '../../ui/areaMap/layers';
+import { AtlasButton } from '../../ui/atlas/AtlasButton';
+import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
+import { ContentsRow } from '../../ui/atlas/ContentsRow';
+import { HandMarkLayer, HandMarkVariant } from '../../ui/atlas/HandMarkLayer';
+import { LegendBox } from '../../ui/atlas/LegendBox';
+import { PlateFrame } from '../../ui/atlas/PlateFrame';
 import { mapProgressText } from '../main-menu/campaignText';
+import { gateSectionTabs, metaSectionTabs } from '../metaSections';
 import { planRefusal } from '../run/runText';
-import { STRONGHOLD_NOT_YET, darkText, poiKindText, poiStockText, poiYieldText, routesText } from './areaMapText';
-import { PlannedPoi, PlanningMap, PlanningMaps, PoiStockView, byDistance, plannedPois, poiMarkers, poiStock, viewData } from './planningMap';
+import { POI_CLEARED, STRONGHOLD_NOT_YET, darkText, poiKindText, poiYieldText, routesText } from './areaMapText';
+import { COLUMN_GAP, PRIMARY_HEIGHT, PRIMARY_LABEL, PoiHead, SHEET_GAP, SIDE_WIDTH, caption, detailLine, poiLead, screenTitle, titleNote } from './atlasPanel';
+import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, plannedPois, poiCleared, poiMarkers, viewData } from './planningMap';
 
-const { space } = tokens;
-const SIDE_WIDTH = 340;
-const BACK_WIDTH = 96;
-/** A detail line's height, one line of caption, so the details never change height and the list above them never moves. */
-const LINE_HEIGHT = tokens.fontSize.fs_sm * tokens.lineHeight.lh;
 /** Plan's reason holds two lines, the most any takes. */
 const REASON_LINES = 2;
 const NOTHING_CHOSEN = 'No destination chosen';
@@ -53,20 +52,29 @@ export interface AreaMapScreenOptions {
  *
  * A POI is chosen by a click on its marker (the view picks in world space
  * through its camera) or from the list, which is the keyboard's way to the
- * POIs: Tab goes Back, the list, Plan a run here, then the map, and the
- * arrows choose as they move through the list. Picking on the map scrolls
- * the list to it; picking in the list brings it into view on the map. A
- * click anywhere else on the map clears the choice.
+ * POIs: Tab goes the section tabs, the map, the list, then Plan a run
+ * here, and the arrows choose as they move through the list. Picking on the
+ * map scrolls the list to it; picking in the list brings it into view on
+ * the map. A click anywhere else on the map clears the choice.
+ *
+ * It's an atlas sheet (UI Art Direction, Screens; DDB-509): the map as a
+ * plate under the title, and beside it a column of legend boxes, the
+ * destinations as contents rows with the chosen one's highlighted by hand,
+ * the chosen POI's box, and Plan a run here as the highway. The map draws
+ * its own paper and is unchanged.
  *
  * The map is the campaign's own (`getAreaMap`), made again on Continue, so
  * the screen says how far that's got while it waits, and drops the answer
- * if it has gone by then. Back and Escape return to the compound. Opened
+ * if it has gone by then. The section tabs go to the compound, the crew, or
+ * the menu, and Escape returns to the compound. Opened
  * with no campaign, as a capture or the dev navigate hook does, it loads
  * the save as Continue would. The decision record is
  * docs/AI_TECHNICAL_DECISIONS/area-map-route-pick.md.
  */
 export class AreaMapScreen extends Screen {
-	private readonly stack: Stack;
+	private readonly sheet: AtlasSheet;
+	private main: Stack | null = null;
+	private side: Stack | null = null;
 	private readonly store: CampaignStore;
 	private readonly maps: PlanningMaps;
 	private campaign: Campaign | null = null;
@@ -78,15 +86,14 @@ export class AreaMapScreen extends Screen {
 	private status: Text | null = null;
 	private listScroll: ScrollContainer | null = null;
 	private list: FocusGroup | null = null;
-	private readonly rows = new Map<number, ListRow>();
-	private details: Stack | null = null;
-	private nameLine: Text | null = null;
+	private marks: HandMarkLayer | null = null;
+	private readonly rows = new Map<number, ContentsRow>();
+	private nameHead: PoiHead | null = null;
 	private kindLine: Text | null = null;
 	private yieldLine: Text | null = null;
-	private stockLine: Text | null = null;
 	private routesLine: Text | null = null;
 	private darkLine: Text | null = null;
-	private planButton: Button | null = null;
+	private planButton: AtlasButton | null = null;
 	private planReason: Text | null = null;
 	/** Counts mounts and unmounts, so a map or save that arrives after the screen has gone changes nothing. */
 	private visit = 0;
@@ -96,16 +103,21 @@ export class AreaMapScreen extends Screen {
 	private loaded: Promise<void> = Promise.resolve();
 
 	constructor({ store = CampaignStore.shared, maps = PlanningMaps.shared }: AreaMapScreenOptions = {}) {
-		const root = new Stack({
+		// The tabs are the sheet's, built with it; they read the campaign the screen holds when pressed.
+		let shown: () => Campaign | null = () => null;
+		const tabs = metaSectionTabs({ id: 'area_map_tabs', open: 'area_map', campaignOf: () => shown() });
+		const root = new AtlasSheet({
 			id: 'areaMapScreen',
+			tabs,
 			direction: 'horizontal',
 			widthMode: 'fill',
 			heightMode: 'fill',
 			crossAlign: 'stretch',
-			style: { backgroundColor: 'bg_base' },
+			gap: SHEET_GAP,
 		});
-		super('areaMapScreen', { root });
-		this.stack = root;
+		super('areaMapScreen', { root, theme: 'atlas' });
+		shown = () => this.campaign;
+		this.sheet = root;
 		this.store = store;
 		this.maps = maps;
 	}
@@ -134,14 +146,17 @@ export class AreaMapScreen extends Screen {
 			heightMode: 'fill',
 			onSelect: (selection) => this.pickedOnMap(selection),
 		});
-		this.stack.addChild(this.view);
-		const back = new Button({ label: 'Back', id: 'area_map_back_button', icon: 'arrow_back', size: 'sm', width: BACK_WIDTH, onClick: () => this.back() });
-		this.stack.addChild(this.createSide(back));
+		this.main = this.createMain(this.view);
+		this.sheet.addChild(this.main);
+		this.side = this.createSide();
+		this.sheet.addChild(this.side);
 
 		this.rootLayer.hotkeys.register('Escape', () => this.back());
 		// Focus moving onto a destination's row chooses it, so the arrows choose as they move.
 		this.stopHearingFocus = this.context.focus.onFocusChange((focused) => this.focusedRow(focused));
-		this.context.focus.focus(back);
+		this.gateTabs();
+		const open = this.sheet.tabs?.tabs.find(({ selected }) => selected);
+		if (open) this.context.focus.focus(open);
 
 		const handed = data as Partial<AreaMapScreenData> | undefined;
 		if (handed?.campaign) this.loaded = this.show(handed.campaign, handed.poi);
@@ -155,7 +170,10 @@ export class AreaMapScreen extends Screen {
 		this.stopHearingFocus?.();
 		this.stopHearingFocus = null;
 		this.rootLayer.hotkeys.unregister('Escape');
-		this.stack.clearChildren();
+		if (this.main) this.sheet.removeChild(this.main);
+		if (this.side) this.sheet.removeChild(this.side);
+		this.main = null;
+		this.side = null;
 		this.campaign = null;
 		this.map = null;
 		this.pois = [];
@@ -165,48 +183,42 @@ export class AreaMapScreen extends Screen {
 		this.status = null;
 		this.listScroll = null;
 		this.list = null;
+		this.marks = null;
 		this.rows.clear();
-		this.details = null;
-		this.nameLine = null;
+		this.nameHead = null;
 		this.kindLine = null;
 		this.yieldLine = null;
-		this.stockLine = null;
 		this.routesLine = null;
 		this.darkLine = null;
 		this.planButton = null;
 		this.planReason = null;
 	}
 
-	/** The side panel: Back and the heading, the status line, the destinations, and the chosen one's details over Plan a run here. */
-	private createSide(back: Button): Stack {
-		const side = new Stack({
-			id: 'area_map_side',
-			width: SIDE_WIDTH,
-			heightMode: 'fill',
-			crossAlign: 'stretch',
-			padding: space.space_4,
-			gap: space.space_3,
-			style: { backgroundColor: 'bg_panel' },
-		});
-		const head = new Stack({ id: 'area_map_head', direction: 'horizontal', crossAlign: 'center', gap: space.space_3 });
-		head.addChild(back);
-		const heading = new Stack({ id: 'area_map_heading', crossAlign: 'start' });
-		heading.addChild(new Text({
-			text: 'Area map',
-			id: 'area_map_title',
-			style: { fontRole: 'display', fontSize: 'fs_xl', color: 'text_bright', textTransform: 'uppercase', letterSpacing: 'ls_wide' },
-			wrap: 'none',
-		}));
-		this.dayLine = new Text({ id: 'area_map_day', text: '', style: { fontRole: 'mono', fontSize: 'fs_sm', color: 'text_dim' }, wrap: 'none' });
-		heading.addChild(this.dayLine);
-		head.addChild(heading);
-		side.addChild(head);
-
+	/** The title and the day over the map's plate, and the status line under it. */
+	private createMain(view: AreaMapView): Stack {
+		const main = new Stack({ id: 'area_map_main', widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch', gap: 10 });
+		const head = new Stack({ id: 'area_map_head', direction: 'horizontal', widthMode: 'fill', crossAlign: 'end', gap: 16 });
+		head.addChild(screenTitle({ id: 'area_map_title', text: 'Area map' }));
+		this.dayLine = titleNote({ id: 'area_map_day' });
+		head.addChild(this.dayLine);
+		main.addChild(head);
+		const plate = new PlateFrame({ id: 'area_map_plate', widthMode: 'fill', heightMode: 'fill' });
+		plate.art.addChild(view);
+		main.addChild(plate);
 		this.status = caption({ id: 'area_map_status', text: 'Looking for the saved campaign.' });
-		side.addChild(this.status);
+		main.addChild(this.status);
+		return main;
+	}
 
-		side.addChild(kicker({ id: 'area_map_destinations_kicker', text: 'Destinations' }));
+	/** The column beside the map: the destinations, the chosen one's box, and Plan a run here with its reason under it. */
+	private createSide(): Stack {
+		const side = new Stack({ id: 'area_map_side', width: SIDE_WIDTH, heightMode: 'fill', crossAlign: 'stretch', gap: COLUMN_GAP });
+		const destinations = new LegendBox({ id: 'area_map_destinations_box', title: 'Destinations', widthMode: 'fill', heightMode: 'fill' });
 		this.listScroll = new ScrollContainer({ id: 'area_map_destinations_scroll', widthMode: 'fill', heightMode: 'fill' });
+		const page = new Stack({ id: 'area_map_destinations_page', widthMode: 'fill', crossAlign: 'stretch' });
+		// The highlighter goes down under the rows, so their ink stays at full strength.
+		this.marks = new HandMarkLayer({ id: 'area_map_destinations_marks', place: 'under' });
+		page.addChild(this.marks);
 		this.list = new FocusGroup({
 			id: 'area_map_destinations',
 			selection: 'single',
@@ -217,52 +229,48 @@ export class AreaMapScreen extends Screen {
 				if (poi) this.choose(poi, { from: 'list' });
 			},
 		});
-		this.listScroll.addChild(this.list);
-		side.addChild(this.listScroll);
-		side.addChild(new Divider({ id: 'area_map_details_rule' }));
+		page.addChild(this.list);
+		this.listScroll.addChild(page);
+		destinations.addChild(this.listScroll);
+		side.addChild(destinations);
 		side.addChild(this.createDetails());
+
+		const plan = new Stack({ id: 'area_map_plan', widthMode: 'fill', crossAlign: 'stretch', gap: 6 });
+		this.planButton = new AtlasButton({
+			label: 'Plan a run here',
+			id: 'area_map_plan_button',
+			variant: 'highway',
+			shield: true,
+			labelSize: PRIMARY_LABEL,
+			height: PRIMARY_HEIGHT,
+			block: true,
+			disabled: true,
+			onClick: () => this.plan(),
+		});
+		plan.addChild(this.planButton);
+		this.planReason = detailLine({ id: 'area_map_plan_reason', color: 'status_crit', lines: REASON_LINES });
+		plan.addChild(this.planReason);
+		side.addChild(plan);
 		return side;
 	}
 
 	/**
-	 * The chosen POI, every line a fixed height, so choosing one, or a
-	 * stronghold with its reason, never moves the list above it.
+	 * The chosen POI's box, fresh paper as the thing in focus, every line a
+	 * fixed height, so choosing one, or a stronghold with its reason, never
+	 * moves the list above it.
 	 */
-	private createDetails(): Stack {
-		const details = new Stack({ id: 'area_map_details', crossAlign: 'stretch', gap: space.space_1 });
-		details.addChild(kicker({ id: 'area_map_selected_kicker', text: 'Selected' }));
-		this.nameLine = new Text({
-			id: 'area_map_selected_name',
-			text: NOTHING_CHOSEN,
-			widthMode: 'fill',
-			style: { fontRole: 'display', fontSize: 'fs_lg', color: 'text_bright' },
-			wrap: 'none',
-			textOverflow: 'ellipsis',
-		});
-		details.addChild(this.nameLine);
+	private createDetails(): LegendBox {
+		const details = new LegendBox({ id: 'area_map_details', fresh: true, widthMode: 'fill', gap: 4, padding: 14 });
+		this.nameHead = new PoiHead({ id: 'area_map_selected_name', empty: NOTHING_CHOSEN });
+		details.addChild(this.nameHead);
 		this.kindLine = detailLine({ id: 'area_map_selected_kind', color: 'text' });
 		details.addChild(this.kindLine);
 		this.yieldLine = detailLine({ id: 'area_map_selected_yield', color: 'text' });
 		details.addChild(this.yieldLine);
-		this.stockLine = detailLine({ id: 'area_map_selected_stock' });
-		details.addChild(this.stockLine);
 		this.routesLine = detailLine({ id: 'area_map_selected_routes' });
 		details.addChild(this.routesLine);
 		this.darkLine = detailLine({ id: 'area_map_selected_dark' });
 		details.addChild(this.darkLine);
-		this.planButton = new Button({
-			label: 'Plan a run here',
-			id: 'area_map_plan_button',
-			tone: 'accent',
-			block: true,
-			disabled: true,
-			margin: { top: space.space_2 },
-			onClick: () => this.plan(),
-		});
-		details.addChild(this.planButton);
-		this.planReason = detailLine({ id: 'area_map_plan_reason', color: 'status_warn', lines: REASON_LINES });
-		details.addChild(this.planReason);
-		this.details = details;
 		return details;
 	}
 
@@ -278,12 +286,13 @@ export class AreaMapScreen extends Screen {
 		}
 		if (visit !== this.visit) return;
 		if (campaign) await this.show(campaign, poi);
-		else this.say({ text: trouble, color: 'status_warn' });
+		else this.say({ text: trouble, color: 'status_crit' });
 	}
 
 	/** The campaign, then its map: at once when it's been made this session, or once it has, saying how far that's got. */
 	private async show(campaign: Campaign, poi: number | undefined): Promise<void> {
 		this.campaign = campaign;
+		this.gateTabs();
 		if (this.dayLine) this.dayLine.text = `Day ${campaign.day} / Fuel ${campaign.resources.fuel}`;
 		const known = this.maps.known(campaign);
 		if (known) {
@@ -312,20 +321,29 @@ export class AreaMapScreen extends Screen {
 
 	private showMap(map: PlanningMap, poi: number | undefined): void {
 		this.map = map;
+		this.gateTabs();
 		this.pois = plannedPois(map);
 		const view = this.view;
-		const stockOf = (planned: PlannedPoi): PoiStockView => this.stockOf(planned);
+		const cleared = (planned: PlannedPoi): boolean => this.isCleared(planned);
 		if (view) {
 			view.map = viewData(map);
-			view.markers = poiMarkers({ pois: this.pois, stateOf: (planned) => stockOf(planned).state });
+			view.markers = poiMarkers({ pois: this.pois, stateOf: (planned) => (cleared(planned) ? 'depleted' : 'unvisited') });
 		}
 		const list = this.list;
 		if (list) {
 			list.clearChildren();
+			this.marks?.clear();
 			this.rows.clear();
 			for (const planned of byDistance(this.pois)) {
-				// A depleted POI is dimmed rather than named in the trailing text, which would squeeze the names out of the list.
-				const row = new ListRow({ id: `area_map_poi_${planned.poi}`, label: planned.name, trailing: rowTrailing(planned), dim: planned.stronghold || stockOf(planned).state === 'depleted' });
+				// A cleared POI is dimmed rather than named in the value, which would squeeze the names out of the list.
+				const row = new ContentsRow({
+					id: `area_map_poi_${planned.poi}`,
+					variant: 'list',
+					lead: poiLead(planned),
+					label: planned.name,
+					value: rowValue(planned),
+					dim: planned.stronghold || cleared(planned),
+				});
 				this.rows.set(planned.poi, row);
 				list.addChild(row);
 			}
@@ -355,6 +373,7 @@ export class AreaMapScreen extends Screen {
 		this.chosen = null;
 		if (this.view) this.view.selection = null;
 		this.list?.select([]);
+		this.marks?.clear();
 		this.refreshDetails();
 	}
 
@@ -376,6 +395,12 @@ export class AreaMapScreen extends Screen {
 			if (!row.selected) this.list.select([row]);
 			if (from !== 'list') this.listScroll?.scrollIntoView(row);
 		}
+		const marks = this.marks;
+		if (marks) {
+			marks.clear();
+			// The swipe varies by POI, so the same choice always gets the same mark.
+			if (row) marks.highlight(row, { variant: (poi.poi % 4) as HandMarkVariant });
+		}
 		this.refreshDetails();
 	}
 
@@ -389,33 +414,29 @@ export class AreaMapScreen extends Screen {
 		const poi = this.chosen;
 		const { campaign, map } = this;
 		if (!poi || !campaign || !map) {
-			if (this.nameLine) this.nameLine.text = NOTHING_CHOSEN;
-			for (const line of [this.kindLine, this.yieldLine, this.stockLine, this.routesLine, this.darkLine, this.planReason]) if (line) line.text = '';
+			this.nameHead?.show(null, NOTHING_CHOSEN);
+			for (const line of [this.kindLine, this.yieldLine, this.routesLine, this.darkLine, this.planReason]) if (line) line.text = '';
 			if (this.planButton) this.planButton.enabled = false;
 			return;
 		}
 		const destination = routesOnOffer({ map, campaign }).find((route) => route.destination.id === poi.id)?.destination ?? null;
-		const stock = this.stockOf(poi);
-		if (this.nameLine) this.nameLine.text = poi.name;
-		if (this.kindLine) this.kindLine.text = poiKindText({ ...poi, state: stock.state });
-		if (this.yieldLine) this.yieldLine.text = poiYieldText({ stronghold: poi.stronghold, yields: destination?.yield ?? null, state: stock.state });
-		if (this.stockLine) {
-			this.stockLine.text = poi.stronghold ? '' : poiStockText(stock);
-			this.stockLine.color = stock.state === 'depleted' ? 'status_warn' : 'text_dim';
-		}
+		const cleared = this.isCleared(poi);
+		this.nameHead?.show(poi);
+		if (this.kindLine) this.kindLine.text = poiKindText({ ...poi, cleared });
+		if (this.yieldLine) this.yieldLine.text = poiYieldText({ stronghold: poi.stronghold, yields: destination?.yield ?? null, cleared });
 		if (this.routesLine) this.routesLine.text = routesText(poi);
 		if (this.darkLine) {
 			this.darkLine.text = darkText(poi);
-			this.darkLine.color = poi.pastDark ? 'status_warn' : 'text_dim';
+			this.darkLine.color = poi.pastDark ? 'status_crit' : 'text_dim';
 		}
 		const reason = this.planBlocked(poi);
 		if (this.planButton) this.planButton.enabled = reason === null;
 		if (this.planReason) this.planReason.text = reason ?? '';
 	}
 
-	/** What's left at a POI on the campaign's map, full until there's a campaign. */
-	private stockOf(poi: PlannedPoi): PoiStockView {
-		return this.campaign ? poiStock({ campaign: this.campaign, poi }) : { shares: POI_SHARES, state: 'unvisited', nextShare: null };
+	/** Whether a run has cleared the POI, which nothing has until there's a campaign. */
+	private isCleared(poi: PlannedPoi): boolean {
+		return this.campaign ? poiCleared({ campaign: this.campaign, poi }) : false;
 	}
 
 	/** Why Plan a run here is off for this POI, or null. */
@@ -423,9 +444,18 @@ export class AreaMapScreen extends Screen {
 		const { campaign, map } = this;
 		if (!campaign || !map) return null;
 		if (poi.stronghold) return STRONGHOLD_NOT_YET;
+		if (this.isCleared(poi)) return POI_CLEARED;
 		if (poi.routes.length === 0) return 'No road reaches it.';
 		const blocker = getPlanBlocker({ campaign, map });
 		return blocker === null || blocker.reason === 'too_little_fuel' ? null : planRefusal(blocker);
+	}
+
+	/** The section tabs this screen can take now (`sectionAvailability`). */
+	private gateTabs(): void {
+		const { campaign, map } = this;
+		const tabs = this.sheet.tabs;
+		if (!tabs) return;
+		gateSectionTabs(tabs, { campaign, mapKnown: map !== null, planBlocked: campaign !== null && map !== null && getPlanBlocker({ campaign, map }) !== null, busy: false });
 	}
 
 	/** The run route screen for the chosen POI. */
@@ -448,8 +478,8 @@ export class AreaMapScreen extends Screen {
 	}
 }
 
-/** A destination row's trailing text: its tier, and when no route gets home by dark; a stronghold says so. */
-function rowTrailing(poi: PlannedPoi): string {
+/** A destination row's value: its tier, and when no route gets home by dark; a stronghold says so. */
+function rowValue(poi: PlannedPoi): string {
 	if (poi.stronghold) return 'stronghold';
 	return poi.pastDark ? `tier ${poi.tier}, past dark` : `tier ${poi.tier}`;
 }
@@ -458,26 +488,4 @@ function rowTrailing(poi: PlannedPoi): string {
 function inView(view: AreaMapView, { x, y }: { x: number; y: number }): boolean {
 	const shown = view.camera.visibleWorld;
 	return x >= shown.x && x <= shown.x + shown.width && y >= shown.y && y <= shown.y + shown.height;
-}
-
-function caption({ id, text, color = 'text_dim' }: { id: string; text: string; color?: ColorToken }): Text {
-	return new Text({ text, id, widthMode: 'fill', style: { fontSize: 'fs_sm', color } });
-}
-
-/** A detail line held at `lines` lines of caption, a longer one ending in an ellipsis. */
-function detailLine({ id, color = 'text_dim', lines = 1 }: { id: string; color?: ColorToken; lines?: number }): Text {
-	return new Text({
-		text: '',
-		id,
-		widthMode: 'fill',
-		height: LINE_HEIGHT * lines,
-		lineHeight: tokens.lineHeight.lh,
-		wrap: lines === 1 ? 'none' : undefined,
-		textOverflow: 'ellipsis',
-		style: { fontSize: 'fs_sm', color },
-	});
-}
-
-function kicker({ id, text }: { id: string; text: string }): Text {
-	return new Text({ text, id, style: { fontRole: 'mono', fontSize: 'fs_xs', color: 'text_dim', textTransform: 'uppercase', letterSpacing: 'ls_wide' }, wrap: 'none' });
 }

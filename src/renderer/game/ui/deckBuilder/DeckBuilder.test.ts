@@ -91,7 +91,7 @@ describe('DeckBuilder', () => {
 	it('changes the pool\'s kicker in place', () => {
 		const builder = mount([own]);
 		builder.poolKicker = 'Spare copies';
-		expect([builder.poolKicker, (builder.findById('builder_pool_panel') as unknown as { kicker: string }).kicker]).toEqual(['Spare copies', 'Spare copies']);
+		expect([builder.poolKicker, (builder.findById('builder_pool_kicker') as unknown as { text: string }).text]).toEqual(['Spare copies', 'Spare copies']);
 	});
 
 	describe('when the entry with focus goes', () => {

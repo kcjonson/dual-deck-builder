@@ -342,6 +342,7 @@ describe('foundCampaign', () => {
 
 			expect(campaign.resources).toEqual(CAMPAIGN_START.resources);
 			expect(campaign.convoy.escorts.map(escort => escort.escort?.type)).toEqual(CAMPAIGN_START.escorts);
+			expect(campaign.buildings).toEqual(['bunkhouse']);
 			expect(campaign.locker).toEqual({});
 			expect(campaign.unrest).toBe(0);
 			expect(campaign.strongholdsTaken).toEqual([]);

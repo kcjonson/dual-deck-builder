@@ -2,26 +2,31 @@ import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
-import { routeId } from '../../campaign/MapRoutes';
-import type { RunRoute } from '../../campaign/SupplyRoutes';
-import { DepartBlocker, departRun, getDepartBlocker, getPlanBlocker, quickLoadOut, routesOnOffer } from '../../campaign/SupplyRun';
+import { daysUntilBack } from '../../campaign/MapClearing';
+import { routeId, stopId } from '../../campaign/MapRoutes';
+import { RunRoute, routeStops } from '../../campaign/SupplyRoutes';
+import { DepartBlocker, getDepartBlocker, getPlanBlocker, routesOnOffer } from '../../campaign/SupplyRun';
 import type { RouteDescriptor } from '../../map/RouteDescriptors';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
-import { Button } from '../../../engine/ui/Button';
 import { FocusGroup } from '../../../engine/ui/FocusGroup';
 import { ScrollContainer } from '../../../engine/ui/ScrollContainer';
 import { ColorToken, tokens } from '../../../engine/theme/tokens';
 import { AreaMapView } from '../../ui/areaMap/AreaMapView';
+import { AtlasButton } from '../../ui/atlas/AtlasButton';
+import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
+import { LegendBox } from '../../ui/atlas/LegendBox';
+import { PlateFrame } from '../../ui/atlas/PlateFrame';
 import { RouteCard } from '../../ui/RouteCard';
-import { STRONGHOLD_NOT_YET, QUIET_STOPS, clockText, homeByText, poiKindText, poiYieldText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
-import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, poiStock, quickestOf, routesBounds, viewData } from '../area-map/planningMap';
-import { mapProgressText } from '../main-menu/campaignText';
+import { POI_CLEARED, STRONGHOLD_NOT_YET, QUIET_STOPS, clockText, homeByText, poiKindText, poiYieldText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
+import { COLUMN_GAP, PRIMARY_HEIGHT, PRIMARY_LABEL, PoiHead, SHEET_GAP, SIDE_WIDTH, caption, screenTitle } from '../area-map/atlasPanel';
+import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, poiCleared, quickestOf, routesBounds, viewData } from '../area-map/planningMap';
+import { countOf, mapProgressText } from '../main-menu/campaignText';
+import type { LoadOutScreenData } from '../load-out/LoadOutScreen';
+import { gateSectionTabs, metaSectionTabs } from '../metaSections';
 import { departRefusal, planRefusal } from '../run/runText';
 
 const { space } = tokens;
-const SIDE_WIDTH = 360;
-const BACK_WIDTH = 96;
 /** World units round the compound, the POI, and its routes, past the camera's own fit margin. */
 const FRAME_MARGIN = 60;
 /**
@@ -29,8 +34,6 @@ const FRAME_MARGIN = 60;
  * isn't drawn so close that the baked land shows its texels.
  */
 const MIN_FRAME = 800;
-/** What the status line says once the store has moved on from this campaign; Back then goes to the menu. */
-export const STRANDED_RUN_ROUTE = "This campaign isn't the save any more, so nothing more is saved here. Back goes to the menu to pick up the save.";
 /** A stop's tag holds the longest, CHECKPOINT, so the rows' text lines up. */
 const TAG_WIDTH = 92;
 
@@ -59,16 +62,23 @@ export interface RunRouteScreenOptions {
  * can't fuel is dimmed with the reason, and Load out the crew is off while
  * it's picked.
  *
- * Load out the crew is the quick load out until load out's screen exists
- * (DDB-320): it seats the crew, departs on the route against the same map
- * the cards came from, checkpoints, and opens the run screen. Back and
+ * Load out the crew opens load out (DDB-320) with the POI and the picked
+ * route, and it sets off from there. Back and
  * Escape return to the area map with the POI still chosen. Opened with no
  * campaign it loads the save as Continue would, and with no POI it shows
  * the nearest destination (`byDistance`). The decision record is
  * docs/AI_TECHNICAL_DECISIONS/area-map-route-pick.md.
+ *
+ * It's an atlas sheet like the area map's (DDB-509): Back and the title over
+ * the map's plate, and beside it a column of legend boxes, the destination,
+ * the routes, and the stops, with Load out the crew as the highway. It's a
+ * step under the area map rather than its sibling, so it has a back link
+ * as well as the area map's section tabs, open at the area map.
  */
 export class RunRouteScreen extends Screen {
-	private readonly stack: Stack;
+	private readonly sheet: AtlasSheet;
+	private main: Stack | null = null;
+	private side: Stack | null = null;
 	private readonly store: CampaignStore;
 	private readonly maps: PlanningMaps;
 	private campaign: Campaign | null = null;
@@ -78,36 +88,36 @@ export class RunRouteScreen extends Screen {
 	private poi: PlannedPoi | null = null;
 	private picked = -1;
 	private view: AreaMapView | null = null;
-	private nameLine: Text | null = null;
+	private nameHead: PoiHead | null = null;
 	private dayLine: Text | null = null;
 	private kindLine: Text | null = null;
 	private status: Text | null = null;
 	private cards: FocusGroup | null = null;
 	private stopsList: Stack | null = null;
 	private homeLine: Text | null = null;
-	private loadOutButton: Button | null = null;
+	private loadOutButton: AtlasButton | null = null;
 	private loadOutReason: Text | null = null;
-	/** The run is setting off, so another press waits for it. */
-	private departing = false;
-	/** The store has moved on from this campaign: nothing here is saved, and Back goes to the menu. */
-	private stranded = false;
-	private unsubscribe: (() => void) | null = null;
 	private visit = 0;
 	/** Stops waiting for the map once the screen has gone. */
 	private waiting: AbortController | null = null;
 	private loaded: Promise<void> = Promise.resolve();
 
 	constructor({ store = CampaignStore.shared, maps = PlanningMaps.shared }: RunRouteScreenOptions = {}) {
-		const root = new Stack({
+		// The area map's tabs, open at the area map, since this is a step under it; they read the campaign the screen holds when pressed.
+		let shown: () => Campaign | null = () => null;
+		const tabs = metaSectionTabs({ id: 'run_route_tabs', open: 'area_map', campaignOf: () => shown() });
+		const root = new AtlasSheet({
 			id: 'runRouteScreen',
+			tabs,
 			direction: 'horizontal',
 			widthMode: 'fill',
 			heightMode: 'fill',
 			crossAlign: 'stretch',
-			style: { backgroundColor: 'bg_base' },
+			gap: SHEET_GAP,
 		});
-		super('runRouteScreen', { root });
-		this.stack = root;
+		super('runRouteScreen', { root, theme: 'atlas' });
+		shown = () => this.campaign;
+		this.sheet = root;
 		this.store = store;
 		this.maps = maps;
 	}
@@ -136,12 +146,14 @@ export class RunRouteScreen extends Screen {
 		this.visit += 1;
 		this.waiting = new AbortController();
 		this.view = new AreaMapView({ id: 'run_route_view', widthMode: 'fill', heightMode: 'fill' });
-		this.stack.addChild(this.view);
-		const back = new Button({ label: 'Back', id: 'run_route_back_button', icon: 'arrow_back', size: 'sm', width: BACK_WIDTH, onClick: () => this.back() });
-		this.stack.addChild(this.createSide(back));
+		const back = new AtlasButton({ label: 'Back to the area map', id: 'run_route_back_button', onClick: () => this.back() });
+		this.main = this.createMain(back, this.view);
+		this.sheet.addChild(this.main);
+		this.side = this.createSide();
+		this.sheet.addChild(this.side);
 
 		this.rootLayer.hotkeys.register('Escape', () => this.back());
-		this.unsubscribe = this.store.onSaveFailed((error) => this.say({ text: error.message, color: 'status_crit' }));
+		this.gateTabs();
 		this.context.focus.focus(back);
 
 		const handed = data as Partial<RunRouteScreenData> | undefined;
@@ -155,16 +167,17 @@ export class RunRouteScreen extends Screen {
 		this.waiting?.abort();
 		this.waiting = null;
 		this.rootLayer.hotkeys.unregister('Escape');
-		this.unsubscribe?.();
-		this.unsubscribe = null;
-		this.stack.clearChildren();
+		if (this.main) this.sheet.removeChild(this.main);
+		if (this.side) this.sheet.removeChild(this.side);
+		this.main = null;
+		this.side = null;
 		this.campaign = null;
 		this.map = null;
 		this.poiIndex = null;
 		this.poi = null;
 		this.picked = -1;
 		this.view = null;
-		this.nameLine = null;
+		this.nameHead = null;
 		this.dayLine = null;
 		this.kindLine = null;
 		this.status = null;
@@ -173,47 +186,38 @@ export class RunRouteScreen extends Screen {
 		this.homeLine = null;
 		this.loadOutButton = null;
 		this.loadOutReason = null;
-		this.departing = false;
-		this.stranded = false;
 	}
 
-	/** Back and the heading, the POI, the status line, the route cards and the picked route's stops, and Load out the crew at the foot. */
-	private createSide(back: Button): Stack {
-		const side = new Stack({
-			id: 'run_route_side',
-			width: SIDE_WIDTH,
-			heightMode: 'fill',
-			crossAlign: 'stretch',
-			padding: space.space_4,
-			gap: space.space_3,
-			style: { backgroundColor: 'bg_panel' },
-		});
-		const head = new Stack({ id: 'run_route_head', direction: 'horizontal', crossAlign: 'center', gap: space.space_3 });
+	/** Back and the title over the map's plate, and the status line under it, hidden with nothing to say. */
+	private createMain(back: AtlasButton, view: AreaMapView): Stack {
+		const main = new Stack({ id: 'run_route_main', widthMode: 'fill', heightMode: 'fill', crossAlign: 'stretch', gap: 10 });
+		const head = new Stack({ id: 'run_route_head', direction: 'horizontal', widthMode: 'fill', crossAlign: 'center', gap: 20 });
 		head.addChild(back);
-		const heading = new Stack({ id: 'run_route_heading', widthMode: 'fill', crossAlign: 'stretch' });
-		heading.addChild(kicker({ id: 'run_route_kicker', text: 'Run route to' }));
-		this.nameLine = new Text({
-			id: 'run_route_name',
-			text: '',
-			widthMode: 'fill',
-			style: { fontRole: 'display', fontSize: 'fs_lg', color: 'text_bright' },
-			wrap: 'none',
-			textOverflow: 'ellipsis',
-		});
-		heading.addChild(this.nameLine);
-		head.addChild(heading);
-		side.addChild(head);
-
-		this.dayLine = new Text({ id: 'run_route_day', text: '', style: { fontRole: 'mono', fontSize: 'fs_xs', color: 'text_dim' }, wrap: 'none' });
-		side.addChild(this.dayLine);
-		this.kindLine = caption({ id: 'run_route_kind', text: '', color: 'text' });
-		side.addChild(this.kindLine);
+		head.addChild(screenTitle({ id: 'run_route_title', text: 'Run route' }));
+		main.addChild(head);
+		const plate = new PlateFrame({ id: 'run_route_plate', widthMode: 'fill', heightMode: 'fill' });
+		plate.art.addChild(view);
+		main.addChild(plate);
 		this.status = caption({ id: 'run_route_status', text: 'Looking for the saved campaign.' });
-		side.addChild(this.status);
+		main.addChild(this.status);
+		return main;
+	}
+
+	/** The destination's box, the routes and their stops (scrolling together), and Load out the crew at the foot. */
+	private createSide(): Stack {
+		const side = new Stack({ id: 'run_route_side', width: SIDE_WIDTH, heightMode: 'fill', crossAlign: 'stretch', gap: COLUMN_GAP });
+		const destination = new LegendBox({ id: 'run_route_destination', fresh: true, widthMode: 'fill', gap: 4, padding: 14 });
+		this.nameHead = new PoiHead({ id: 'run_route_name' });
+		destination.addChild(this.nameHead);
+		this.dayLine = new Text({ id: 'run_route_day', text: '', widthMode: 'fill', style: { fontRole: 'mono', fontSize: 'fs_xs', color: 'text_dim' }, wrap: 'none', textOverflow: 'ellipsis' });
+		destination.addChild(this.dayLine);
+		this.kindLine = caption({ id: 'run_route_kind', text: '', color: 'text' });
+		destination.addChild(this.kindLine);
+		side.addChild(destination);
 
 		const scroll = new ScrollContainer({ id: 'run_route_scroll', widthMode: 'fill', heightMode: 'fill' });
-		const body = new Stack({ id: 'run_route_body', widthMode: 'fill', crossAlign: 'stretch', gap: space.space_2 });
-		body.addChild(kicker({ id: 'run_route_routes_kicker', text: 'Routes' }));
+		const body = new Stack({ id: 'run_route_body', widthMode: 'fill', crossAlign: 'stretch', gap: COLUMN_GAP });
+		const routes = new LegendBox({ id: 'run_route_routes', title: 'Routes', widthMode: 'fill' });
 		this.cards = new FocusGroup({
 			id: 'run_route_cards',
 			selection: 'single',
@@ -225,29 +229,35 @@ export class RunRouteScreen extends Screen {
 				if (index >= 0) this.pick(index);
 			},
 		});
-		body.addChild(this.cards);
-		body.addChild(kicker({ id: 'run_route_stops_kicker', text: 'Stops in order' }));
+		routes.addChild(this.cards);
+		body.addChild(routes);
+		const stops = new LegendBox({ id: 'run_route_stops_box', title: 'Stops in order', widthMode: 'fill' });
 		this.stopsList = new Stack({ id: 'run_route_stops', widthMode: 'fill', crossAlign: 'stretch', gap: space.space_1 });
-		body.addChild(this.stopsList);
-		body.addChild(caption({ id: 'run_route_quiet_note', text: QUIET_STOPS }));
+		stops.addChild(this.stopsList);
+		stops.addChild(caption({ id: 'run_route_quiet_note', text: QUIET_STOPS }));
+		body.addChild(stops);
 		scroll.addChild(body);
 		side.addChild(scroll);
 
-		this.homeLine = new Text({ id: 'run_route_home_by', text: '', widthMode: 'fill', style: { fontSize: 'fs_sm', fontWeight: 'bold', color: 'text' } });
-		side.addChild(this.homeLine);
-		this.loadOutButton = new Button({
+		const go = new Stack({ id: 'run_route_go', widthMode: 'fill', crossAlign: 'stretch', gap: 6 });
+		this.homeLine = new Text({ id: 'run_route_home_by', text: '', widthMode: 'fill', wrap: 'word', style: { fontSize: 14, color: 'text' } });
+		go.addChild(this.homeLine);
+		this.loadOutButton = new AtlasButton({
 			label: 'Load out the crew',
 			id: 'run_route_load_out_button',
-			tone: 'accent',
-			size: 'lg',
+			variant: 'highway',
+			shield: true,
+			labelSize: PRIMARY_LABEL,
+			height: PRIMARY_HEIGHT,
 			block: true,
 			disabled: true,
-			onClick: () => { void this.loadOut(); },
+			onClick: () => this.loadOut(),
 		});
-		side.addChild(this.loadOutButton);
-		this.loadOutReason = caption({ id: 'run_route_load_out_reason', text: '', color: 'status_warn' });
+		go.addChild(this.loadOutButton);
+		this.loadOutReason = caption({ id: 'run_route_load_out_reason', text: '', color: 'status_crit' });
 		this.loadOutReason.visible = false;
-		side.addChild(this.loadOutReason);
+		go.addChild(this.loadOutReason);
+		side.addChild(go);
 		return side;
 	}
 
@@ -263,12 +273,13 @@ export class RunRouteScreen extends Screen {
 		}
 		if (visit !== this.visit) return;
 		if (campaign) await this.show(campaign);
-		else this.say({ text: trouble, color: 'status_warn' });
+		else this.say({ text: trouble, color: 'status_crit' });
 	}
 
 	/** The campaign, then its map, at once when it's been made this session, or once it has, saying how far that's got. */
 	private async show(campaign: Campaign): Promise<void> {
 		this.campaign = campaign;
+		this.gateTabs();
 		const known = this.maps.known(campaign);
 		if (known) {
 			this.showMap(known);
@@ -305,28 +316,31 @@ export class RunRouteScreen extends Screen {
 		const campaign = this.campaign;
 		if (!campaign) return;
 		this.map = map;
+		this.gateTabs();
 		const pois = plannedPois(map);
-		const poi = (this.poiIndex === null ? byDistance(pois).find(({ stronghold }) => !stronghold) : pois[this.poiIndex]) ?? null;
-		const trouble = poi === null ? "That destination isn't on the area map." : poi.stronghold ? STRONGHOLD_NOT_YET : poi.routes.length === 0 ? 'No road reaches it.' : null;
+		const open = (planned: PlannedPoi): boolean => !planned.stronghold && !poiCleared({ campaign, poi: planned });
+		const poi = (this.poiIndex === null ? byDistance(pois).find(open) : pois[this.poiIndex]) ?? null;
+		const trouble = poi === null
+			? this.poiIndex === null ? 'Every destination in reach has been cleared.' : "That destination isn't on the area map."
+			: poi.stronghold ? STRONGHOLD_NOT_YET : poiCleared({ campaign, poi }) ? POI_CLEARED : poi.routes.length === 0 ? 'No road reaches it.' : null;
 		if (poi === null || trouble !== null) {
-			this.say({ text: trouble ?? '', color: 'status_warn' });
+			this.say({ text: trouble ?? '', color: 'status_crit' });
 			return;
 		}
 		this.poi = poi;
 		this.poiIndex = poi.poi;
 		const dark = poi.routes[0].dark;
-		if (this.nameLine) this.nameLine.text = poi.name;
+		this.nameHead?.show(poi);
 		if (this.dayLine) this.dayLine.text = `Day ${campaign.day} / dawn ${clockText(dark - map.params.daylightHours)} / dark ${clockText(dark)} / fuel ${campaign.resources.fuel}`;
 		const destination = this.runRoute(poi.routes[0])?.destination ?? null;
-		const { state } = poiStock({ campaign, poi });
-		if (this.kindLine) this.kindLine.text = `${poiKindText({ ...poi, state })}. ${poiYieldText({ stronghold: false, yields: destination?.yield ?? null, state })}`;
+		if (this.kindLine) this.kindLine.text = `${poiKindText(poi)}. ${poiYieldText({ stronghold: false, yields: destination?.yield ?? null })}`;
 		// Nothing to wait for or warn of: the cards say the rest.
 		this.say({ text: '', color: 'text_dim' });
 
 		const view = this.view;
 		if (view) {
 			view.map = viewData(map);
-			view.markers = [{ id: poi.id, kind: 'poi', x: poi.x, y: poi.y, label: poi.name, type: poi.type, pastDark: poi.pastDark, ...(state === 'unvisited' ? {} : { state }) }];
+			view.markers = [{ id: poi.id, kind: 'poi', x: poi.x, y: poi.y, label: poi.name, type: poi.type, pastDark: poi.pastDark }];
 			view.selection = { kind: 'marker', id: poi.id };
 			view.camera.fit(frameOf(routesBounds({ map, poi })));
 		}
@@ -335,11 +349,14 @@ export class RunRouteScreen extends Screen {
 			cards.clearChildren();
 			poi.routes.forEach((route) => {
 				const blocker = this.departBlocker(route);
+				const offered = this.runRoute(route);
+				const cleared = this.clearedStops(route).size;
 				cards.addChild(new RouteCard({
 					id: `run_route_card_${route.route}`,
 					title: route.name,
-					detail: routeDetail(route),
+					detail: routeDetail(route, { cleared, risk: cleared > 0 && offered ? riskLeft(offered) : route.risk }),
 					note: blocker !== null ? departRefusal(blocker) : route.spare < 0 ? 'Back after dark.' : null,
+					noteColor: 'status_crit',
 					dim: blocker !== null,
 				}));
 			});
@@ -364,19 +381,31 @@ export class RunRouteScreen extends Screen {
 		const list = this.stopsList;
 		if (list) {
 			list.clearChildren();
-			route.stops.forEach((stop, place) => list.addChild(stopRow({ id: `run_route_stop_${place}`, tag: stopTag(stop), text: stopText(stop) })));
+			const cleared = this.clearedStops(route);
+			const day = this.campaign?.day ?? 1;
+			route.stops.forEach((stop, place) => {
+				const back = cleared.has(stopId(stop.id)) && this.campaign ? daysUntilBack({ map: this.campaign.map, stop: stop.id, day }) : null;
+				const text = back === null ? stopText(stop) : `${stopText(stop)}: cleared, back in ${countOf(back, 'day')}`;
+				list.addChild(stopRow({ id: `run_route_stop_${place}`, tag: stopTag(stop), text, cleared: back !== null }));
+			});
 			if (route.stops.length === 0) list.addChild(caption({ id: 'run_route_stop_none', text: 'No stops: a clear road all the way.' }));
 		}
 		if (this.homeLine) {
 			this.homeLine.text = homeByText(route);
-			this.homeLine.color = route.spare < 0 ? 'status_warn' : 'text';
+			this.homeLine.color = route.spare < 0 ? 'status_crit' : 'text';
 		}
 		const reason = this.loadOutBlocked(route);
-		if (this.loadOutButton) this.loadOutButton.enabled = reason === null && !this.departing;
+		if (this.loadOutButton) this.loadOutButton.enabled = reason === null;
 		if (this.loadOutReason) {
 			this.loadOutReason.text = reason ?? '';
 			this.loadOutReason.visible = reason !== null;
 		}
+	}
+
+	/** The ids of the route's stops a run would drive past, cleared and still in their cooldown. */
+	private clearedStops(route: RouteDescriptor): ReadonlySet<string> {
+		const offered = this.runRoute(route);
+		return new Set(offered ? offered.legs.flatMap((leg) => leg.stops.filter((stop) => stop.cleared).map((stop) => stop.id)) : []);
 	}
 
 	/** The run loop's route for a descriptor: the one `departRun` will check it against. */
@@ -397,55 +426,33 @@ export class RunRouteScreen extends Screen {
 	private loadOutBlocked(route: RouteDescriptor): string | null {
 		const { campaign, map } = this;
 		if (!campaign || !map) return null;
-		if (this.stranded) return STRANDED_RUN_ROUTE;
 		const plan = getPlanBlocker({ campaign, map });
 		if (plan !== null && plan.reason !== 'too_little_fuel') return planRefusal(plan);
 		const blocker = this.departBlocker(route);
 		return blocker === null ? null : departRefusal(blocker);
 	}
 
-	/**
-	 * The quick load out, then the departure on the picked route against
-	 * this map, and the checkpoint, then the run screen, handed the save's
-	 * result so it can say a save failed. A load out that can't seat anyone,
-	 * or a departure that's refused, says why here, giving up any run decks
-	 * it started, and nothing is saved. A save the store has moved on from
-	 * stays here, saying nothing more is saved, with Load out off and Back
-	 * going to the menu, where Continue picks up the save.
-	 */
-	private async loadOut(): Promise<void> {
+	/** Load out on the picked route, which sets off from there; Back there comes back here with this POI. */
+	private loadOut(): void {
 		const { campaign, map, poi } = this;
 		const route = poi?.routes[this.picked];
 		const offered = route ? this.runRoute(route) : null;
-		if (!campaign || !map || !offered || this.departing || (route && this.loadOutBlocked(route) !== null)) return;
-		this.departing = true;
-		if (this.loadOutButton) this.loadOutButton.enabled = false;
-		const visit = this.visit;
-		try {
-			const { escorts } = quickLoadOut({ campaign });
-			try {
-				departRun({ campaign, map, route: offered, escorts });
-			} catch (error) {
-				campaign.unwindRunDecks();
-				throw error;
-			}
-		} catch (error) {
-			console.error('RunRouteScreen: the run could not set off', error);
-			this.say({ text: error instanceof Error ? error.message : "The run couldn't set off.", color: 'status_crit' });
-			this.departing = false;
-			this.pick(this.picked);
-			return;
-		}
-		const result = await this.store.checkpoint(campaign);
-		if (visit !== this.visit) return;
-		if (result === 'retired') {
-			this.departing = false;
-			this.stranded = true;
-			this.say({ text: STRANDED_RUN_ROUTE, color: 'status_warn' });
-			this.pick(this.picked);
-			return;
-		}
-		ScreenManager.navigate('runScreen', { campaign, saved: Promise.resolve(result) });
+		if (!campaign || !map || !poi || !route || !offered || this.loadOutBlocked(route) !== null) return;
+		const data: LoadOutScreenData = {
+			campaign,
+			poi: poi.poi,
+			route: offered.id,
+			trip: { destination: poi.name, routeName: route.name, stops: routeStops(offered).length, fuel: route.fuel, homeBy: clockText(route.back), pastDark: route.spare < 0 },
+		};
+		ScreenManager.navigate('loadOutScreen', data);
+	}
+
+	/** The section tabs this screen can take now (`sectionAvailability`). */
+	private gateTabs(): void {
+		const { campaign, map } = this;
+		const tabs = this.sheet.tabs;
+		if (!tabs) return;
+		gateSectionTabs(tabs, { campaign, mapKnown: map !== null, planBlocked: campaign !== null && map !== null && getPlanBlocker({ campaign, map }) !== null, busy: false });
 	}
 
 	/** The status line, hidden with nothing to say. */
@@ -456,10 +463,9 @@ export class RunRouteScreen extends Screen {
 		this.status.visible = text !== '';
 	}
 
-	/** To the area map with this POI still chosen, or the menu with no campaign to show or once it isn't the save. */
+	/** To the area map with this POI still chosen, or the menu with no campaign to show. */
 	private back(): void {
-		if (this.departing) return;
-		if (this.campaign && !this.stranded) ScreenManager.navigate('areaMapScreen', { campaign: this.campaign, poi: this.poiIndex ?? undefined }, { restoreFocus: true });
+		if (this.campaign) ScreenManager.navigate('areaMapScreen', { campaign: this.campaign, poi: this.poiIndex ?? undefined }, { restoreFocus: true });
 		else ScreenManager.navigate('mainMenuScreen', undefined, { restoreFocus: true });
 	}
 }
@@ -471,8 +477,13 @@ function frameOf(bounds: { x: number; y: number; width: number; height: number }
 	return { x: bounds.x + bounds.width / 2 - width / 2, y: bounds.y + bounds.height / 2 - height / 2, width, height };
 }
 
-/** A stop in order: its tag, boxed, and what it is. */
-function stopRow({ id, tag, text }: { id: string; tag: string; text: string }): Stack {
+/** The worst fight a route still meets, in skulls, 0 with none, as a descriptor counts risk: the run model's floors it at 1. */
+function riskLeft(route: RunRoute): number {
+	return routeStops(route).reduce((worst, stop) => (stop.kind === 'fight' ? Math.max(worst, stop.skulls) : worst), 0);
+}
+
+/** A stop in order: its tag, boxed, and what it is, dimmed when a run would drive past it, cleared. */
+function stopRow({ id, tag, text, cleared = false }: { id: string; tag: string; text: string; cleared?: boolean }): Stack {
 	const row = new Stack({ id, direction: 'horizontal', widthMode: 'fill', crossAlign: 'center', gap: space.space_2 });
 	const chip = new Stack({
 		id: `${id}_tag`,
@@ -483,14 +494,6 @@ function stopRow({ id, tag, text }: { id: string; tag: string; text: string }): 
 	});
 	chip.addChild(new Text({ id: `${id}_tag_text`, text: tag, style: { fontRole: 'mono', fontSize: 'fs_xs', color: 'text' }, wrap: 'none' }));
 	row.addChild(chip);
-	row.addChild(new Text({ id: `${id}_text`, text, widthMode: 'fill', style: { fontSize: 'fs_sm', color: 'text' }, wrap: 'none', textOverflow: 'ellipsis' }));
+	row.addChild(new Text({ id: `${id}_text`, text, widthMode: 'fill', style: { fontSize: 'fs_sm', color: cleared ? 'text_dim' : 'text' }, wrap: 'none', textOverflow: 'ellipsis' }));
 	return row;
-}
-
-function caption({ id, text, color = 'text_dim' }: { id: string; text: string; color?: ColorToken }): Text {
-	return new Text({ text, id, widthMode: 'fill', style: { fontSize: 'fs_sm', color } });
-}
-
-function kicker({ id, text }: { id: string; text: string }): Text {
-	return new Text({ text, id, style: { fontRole: 'mono', fontSize: 'fs_xs', color: 'text_dim', textTransform: 'uppercase', letterSpacing: 'ls_wide' }, wrap: 'none' });
 }
