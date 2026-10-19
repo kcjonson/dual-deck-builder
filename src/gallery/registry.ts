@@ -15,6 +15,7 @@ import {
 import { CardPileScene } from './scenes/CardPileScene';
 import { DialogScene } from './scenes/DialogScene';
 import { EscortCardScene } from './scenes/EscortCardScene';
+import { EVENT_SCENES } from './scenes/EventScenes';
 import { OverlaysScene } from './scenes/OverlaysScene';
 import { PopoverScene } from './scenes/PopoverScene';
 import { RoundedClipScene } from './scenes/RoundedClipScene';
@@ -110,6 +111,8 @@ export const galleryOnlyScenes: readonly GalleryScene[] = [
 	{ name: 'atlas-plate', factory: (options) => new AtlasPlateScene(options) },
 	// A full-screen W2 sheet, the paper pieces' main use, at the window's size and ratio (DDB-504)
 	{ name: 'ui-art-sheet', screen: () => ({ screen: new UiArtSheetScreen() }) },
+	// The event screen whole: choices, locks, an outcome with a card, a fight hand-off (DDB-45)
+	...EVENT_SCENES,
 	// The battle screen whole, at the mock's six fit scenarios (DDB-141)
 	...BATTLE_FIT_SCENARIOS.map((scenario): ScreenScene => ({
 		name: `battle-${scenario}`,
