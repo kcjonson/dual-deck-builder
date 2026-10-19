@@ -257,6 +257,7 @@ describe('RunScreen', () => {
 			const [, data] = navigate.mock.calls[navigate.mock.calls.length - 1] as [string, EventScreenData];
 			data.onChoose?.({ choice: 'drive_on' } as EventResult);
 			data.onDone?.({ choice: 'drive_on' } as EventResult);
+			for (let turn = 0; turn < 4; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
 			const [name, next] = navigate.mock.calls[navigate.mock.calls.length - 1] as [string, RunScreenData];
 			expect(name).toBe('runScreen');
 			expect(next.campaign).toBe(screen.campaignShown);
@@ -270,9 +271,23 @@ describe('RunScreen', () => {
 			const [, data] = navigate.mock.calls[navigate.mock.calls.length - 1] as [string, EventScreenData];
 			data.onChoose?.({ choice: 'charge' } as EventResult);
 			data.onDone?.({ choice: 'charge' } as EventResult);
-			expect(navigate.mock.calls[navigate.mock.calls.length - 1][0]).toBe('combatScreen');
 			for (let turn = 0; turn < 4; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(navigate.mock.calls[navigate.mock.calls.length - 1][0]).toBe('combatScreen');
 			expect((await saved())?.supplyRun).toMatchObject({ stop: 1, phase: 'hand_off', handOff: { event: 'family_under_fire', choice: 'charge' } });
+		});
+
+		it('holds the event\'s fight back for the run screen when its hand-off couldn\'t be saved (DDB-535)', async () => {
+			await open(eventText({ stopType: 'distress' }));
+			await press('run_event_button');
+			const [, data] = navigate.mock.calls[navigate.mock.calls.length - 1] as [string, EventScreenData];
+			storage.fault = { method: 'setItem' };
+			data.onChoose?.({ choice: 'charge' } as EventResult);
+			data.onDone?.({ choice: 'charge' } as EventResult);
+			for (let turn = 0; turn < 4; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+			const [name, next] = navigate.mock.calls[navigate.mock.calls.length - 1] as [string, RunScreenData];
+			expect(name).toBe('runScreen');
+			expect(await next.saved).toBe('failed');
+			expect(next.campaign.supplyRun?.phase).toBe('hand_off');
 		});
 
 		it('holds a hand-off saved before its fight, and Fight them opens it (DDB-535)', async () => {

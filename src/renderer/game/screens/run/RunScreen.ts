@@ -731,10 +731,11 @@ export function stopFightMount({ campaign, fight, store }: { campaign: Campaign;
  * The event the run is driving to as the event screen opens it, with its
  * hooks: the choice is taken and the step saved as it's made
  * (`takeEventChoice`), so what the screen shows next is what the save
- * holds; then the highway goes into the fight an outcome handed off to, or
- * back to the run screen with the checkpoint. With no cards to fight with,
- * the run screen holds the hand-off until they load. Throws as `stopEvent`
- * does.
+ * holds; then the highway goes into the fight an outcome handed off to,
+ * once that save has landed, or back to the run screen with the
+ * checkpoint. With no cards to fight with, or a hand-off that couldn't be
+ * saved, the run screen holds the hand-off and says why. Throws as
+ * `stopEvent` does.
  */
 export function eventMount({ campaign, store, cards, where }: { campaign: Campaign; store: CampaignStore; cards: ReadonlyMap<string, Card> | null; where: string }): EventScreenData {
 	const { event, draw } = stopEvent({ campaign });
@@ -756,16 +757,19 @@ export function eventMount({ campaign, store, cards, where }: { campaign: Campai
 			return true;
 		},
 		onDone: () => {
-			if (campaign.supplyRun?.phase === 'hand_off' && cards) {
-				try {
-					const fight = startStopFight({ campaign, cards });
-					ScreenManager.navigate('combatScreen', stopFightMount({ campaign, fight, store }));
-					return;
-				} catch (error) {
-					console.error('RunScreen: the event\'s fight could not start', error);
+			void (async () => {
+				// Into the fight only once the hand-off is saved; otherwise the run screen says why and strands as after any step
+				if (campaign.supplyRun?.phase === 'hand_off' && cards && saved && await saved === 'saved') {
+					try {
+						const fight = startStopFight({ campaign, cards });
+						ScreenManager.navigate('combatScreen', stopFightMount({ campaign, fight, store }));
+						return;
+					} catch (error) {
+						console.error('RunScreen: the event\'s fight could not start', error);
+					}
 				}
-			}
-			ScreenManager.navigate('runScreen', { campaign, ...(saved ? { saved } : {}) });
+				ScreenManager.navigate('runScreen', { campaign, ...(saved ? { saved } : {}) });
+			})();
 		},
 	};
 }

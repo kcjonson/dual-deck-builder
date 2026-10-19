@@ -639,8 +639,8 @@ function clearedByRun({ map, run, day }: { map: MapState; run: SupplyRun; day: n
 
 /** A hand-off's win: "The last buggy runs. ... The run took 3 people and 2 food." */
 function handOffText(fight: EventFight): string {
-	const gained = Object.fromEntries(RESOURCE_NAMES.map(name => [name, Math.max(0, fight.resources[name])])) as unknown as Resources;
-	const loot = cargoText({ cargo: gained, cards: fight.cards });
+	// The content reader holds a fight's gains to gains, so there's no loss to say
+	const loot = cargoText({ cargo: fight.resources, cards: fight.cards });
 	const escort = fight.escort === null ? null : ESCORT_CONFIGS[fight.escort].name;
 	const items = [
 		...(loot === null ? [] : [loot]),

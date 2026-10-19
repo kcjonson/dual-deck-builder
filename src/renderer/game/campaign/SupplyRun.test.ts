@@ -493,12 +493,13 @@ describe('a whole run, scripted through the real APIs and saved after every step
 		const locker = campaign.locker;
 		const scrap = campaign.resources.scrap;
 
+		const carried = onRoad(campaign).cargoCards;
 		const arrival = arriveHome({ campaign });
 
 		expect(arrival.cargo.cards).toEqual(won);
 		expect(arrival.cargo.resources).toEqual(loaded);
 		expect(campaign.resources.scrap).toBe(scrap + loaded.scrap);
-		expect(campaign.log.map(entry => entry.message)).toContain(`Home from ${route.destination.name} with ${cargoText({ cargo: loaded, cards: won })}.`);
+		expect(campaign.log.map(entry => entry.message)).toContain(`Home from ${route.destination.name} with ${cargoText({ cargo: loaded, cards: carried })}.`);
 		expect(arrival.seats.map(seat => seat.id)).toEqual(seats.map(seat => seat.id));
 		expect(campaign.supplyRun).toBeNull();
 		expect(campaign.currentRun).toBeNull();
