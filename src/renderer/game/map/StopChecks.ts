@@ -109,9 +109,9 @@ export function checkStopLayer({ network, layer, stops, params, tuning = STOP_TU
 		});
 		if (poi.tier > DAYLIGHT_TIERS || routes[index].length === 0) return;
 		const objective = poi.type === STRONGHOLD_TYPE ? tuning.objectiveHours.stronghold : tuning.objectiveHours.poi;
-		const estimates = routes[index].map((route) => runHours({ routeHours: route.hours, objectiveHours: objective, stopHours: typesAlong(stops, route, { extras: true }).reduce((sum, type) => sum + tuning.types[type].hours, 0) }));
+		const estimates = routes[index].map((route, place) => runHours({ routeHours: poi.arrivals[place].hours, objectiveHours: objective, stopHours: typesAlong(stops, route, { extras: true }).reduce((sum, type) => sum + tuning.types[type].hours, 0) }));
 		if (estimates.some((hours) => hours <= params.daylightHours)) return;
-		const bare = 2 * routes[index][0].hours + objective;
+		const bare = runHours({ routeHours: poi.arrivals[0].hours, stopHours: 0, objectiveHours: objective });
 		if (bare > params.daylightHours && stops.failures.some((failure) => failure.startsWith(`poi ${index} `))) return;
 		report('daylight', `poi ${index} (tier ${poi.tier}): its best route's estimated run takes ${Math.min(...estimates).toFixed(2)} hours, past daylightHours ${params.daylightHours}`);
 	});

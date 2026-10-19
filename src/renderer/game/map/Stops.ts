@@ -28,7 +28,7 @@ import type { Terrain } from './Terrain';
  * estimated run fits in daylight, never below a route's fight floor.
  *
  * Tier and territory are stand-ins until stage 8 (DDB-292): a leg's tier is
- * the lowest of the POIs whose routes use it, by the POI layer's ring + 1,
+ * the lowest of the POIs whose routes use it, by the POI layer's stand-in,
  * and every stop is on no one's ground. A stop's contents aren't rolled
  * here: `rollStop` rolls them when the run reveals it. The decision record
  * is docs/AI_TECHNICAL_DECISIONS/stops-and-routes.md.
@@ -670,7 +670,7 @@ class StopPlacer {
 				const routes = this.routes[index];
 				if (routes.length === 0 || routes.some((route) => this.estimate(index, route) <= daylightHours)) return;
 				const [quickest] = routes;
-				const bare = 2 * quickest.hours + this.objectiveHours(index);
+				const bare = runHours({ routeHours: poi.arrivals[0].hours, stopHours: 0, objectiveHours: this.objectiveHours(index) });
 				if (bare > daylightHours) {
 					unmendable.add(index);
 					this.failures.push(`poi ${index} (tier ${poi.tier}): its quickest route takes ${bare.toFixed(2)} hours with no stops, past daylightHours ${daylightHours}`);
@@ -788,7 +788,9 @@ class StopPlacer {
 	private estimate(poi: number, route: Route): number {
 		let stops = 0;
 		for (const leg of route.legs) for (const { type } of this.placed[leg]) stops += this.tuning.types[type].hours;
-		return runHours({ routeHours: route.hours, stopHours: stops, objectiveHours: this.objectiveHours(poi) });
+		// The arrival's hours, which the POI stage tiers by, rather than the legs' summed in another order.
+		const { hours } = this.layer.pois[poi].arrivals[this.routes[poi].indexOf(route)];
+		return runHours({ routeHours: hours, stopHours: stops, objectiveHours: this.objectiveHours(poi) });
 	}
 
 	private objectiveHours(poi: number): number {
