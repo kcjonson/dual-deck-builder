@@ -184,7 +184,16 @@ export function typesAlong({ stops, legs }: StopLayer, route: Route, { extras = 
 	return types;
 }
 
-/** Whether a failing stops attempt may be kept past the cap: never with a route under its fight floor. */
-export function keepableStops(problems: readonly string[]): boolean {
-	return !problems.some((problem) => problem.startsWith('floor: '));
+/** The stage's problems: the hard rules broken, each as `rule: detail`. */
+export function stopProblems(violations: readonly StopViolation[]): string[] {
+	return violations.filter(({ hard }) => hard).map(({ rule, detail }) => `${rule}${RULE_MARK}${detail}`);
 }
+
+/** Whether a failing stops attempt, its problems as `stopProblems` gives them, may be kept past the cap: never with a route under its fight floor. */
+export function keepableStops(problems: readonly string[]): boolean {
+	const floor: StopRule = 'floor';
+	return !problems.some((problem) => problem.startsWith(`${floor}${RULE_MARK}`));
+}
+
+/** What parts a problem's rule from its detail. */
+const RULE_MARK = ': ';

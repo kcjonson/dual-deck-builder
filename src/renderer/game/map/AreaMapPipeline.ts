@@ -10,7 +10,7 @@ import type { RoadNetwork } from './RoadNetwork';
 import { RoadStats, Roads, generateRoads, loopsNeeded, loopsWanted, roadsProblems } from './Roads';
 import { poiNames } from './PoiNames';
 import { RouteTree, buildRouteTree } from './RouteTree';
-import { checkStopLayer, keepableStops } from './StopChecks';
+import { checkStopLayer, keepableStops, stopProblems } from './StopChecks';
 import { StopGround, StopLayer, placeStops } from './Stops';
 import { Terrain, generateTerrain } from './Terrain';
 import { Water, generateWater } from './Water';
@@ -183,9 +183,7 @@ export const STOPS_STAGE: MapStage<MapParams, StopsUpstream, 'stops', StopLayer>
 	localRetry: true,
 	keepable: keepableStops,
 	run: ({ input, products, rng }) => placeStops({ network: products.roads.network, layer: products.pois, ground: products.hazards.terrain, params: input, rng }),
-	check: (stops, { input, products }) => checkStopLayer({ network: products.roads.network, layer: products.pois, stops, params: input })
-		.filter(({ hard }) => hard)
-		.map(({ rule, detail }) => `${rule}: ${detail}`),
+	check: (stops, { input, products }) => stopProblems(checkStopLayer({ network: products.roads.network, layer: products.pois, stops, params: input })),
 };
 
 /** What the dressing reads: the water, the land with its hazards, the places, the roads, and the POIs. */

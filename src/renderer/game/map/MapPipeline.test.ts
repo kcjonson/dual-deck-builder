@@ -316,6 +316,10 @@ describe('MapPipeline', () => {
 			expect([kept.attempts.c, kept.mapAttempt, kept.keptFailing]).toEqual([6, 0, ['c']]);
 			const never = harness({ stages: abc({ c: { localRetry: true, fails: fewest, keepable: () => false } }) }).run({ debug: false });
 			expect([never.attempts.c, never.mapAttempt, never.keptFailing]).toEqual([0, 1, []]);
+			// A debug build throws past the cap only with an attempt it could keep; with none, it restarts the map too.
+			const debug = harness({ stages: abc({ c: { localRetry: true, fails: fewest, keepable: () => false } }) }).run({ debug: true });
+			expect([debug.attempts.c, debug.mapAttempt, debug.keptFailing]).toEqual([0, 1, []]);
+			expect(() => new MapPipeline<null>().stage({ name: 'a', keepable: () => true, run: () => null })).toThrow(/only a local-retry stage keeps one/);
 		});
 
 		it('keeps a local-retry stage\'s best attempt in a release build, and later stages nest in it', () => {

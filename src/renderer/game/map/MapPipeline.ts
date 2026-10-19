@@ -224,8 +224,9 @@ export class MapPipeline<Input, Products extends object = EmptyProducts> {
 
 	/** This pipeline with `stage` after its last. Throws on a repeated name, a bad attempt count, or an escalation it can't make. */
 	public stage<Name extends string, Product>(stage: MapStage<Input, Products, Name, Product>): MapPipeline<Input, Products & { readonly [Key in Name]: Product }> {
-		const { name, attempts, escalate, localRetry, inert } = stage;
+		const { name, attempts, escalate, localRetry, inert, keepable } = stage;
 		if (this.list.some((earlier) => earlier.name === name)) throw new RangeError(`MapPipeline: a stage named ${name} is already in the pipeline`);
+		if (keepable && !localRetry) throw new RangeError(`MapPipeline: ${name} says which failing attempts it may keep, but only a local-retry stage keeps one`);
 		if (inert && !localRetry) throw new RangeError(`MapPipeline: ${name} is inert, so it retries only itself; a map restart would move the gameplay map`);
 		if (!inert && this.list.some((earlier) => earlier.inert)) throw new RangeError(`MapPipeline: ${name} carries gameplay, so it can't follow an inert stage`);
 		if (attempts !== undefined && !(Number.isInteger(attempts) && attempts >= 1)) throw new RangeError(`MapPipeline: ${name} needs at least one attempt, got ${attempts}`);
