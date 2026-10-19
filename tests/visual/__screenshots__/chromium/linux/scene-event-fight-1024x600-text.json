@@ -1,9 +1,9 @@
 [
 {"path":"eventScreen/event_top/event_plate/Text[0]","text":"PLATE · A FAMILY CAR ON ITS SIDE, BUGGIES CIRCLING","rect":[60,310,378.86,14]},
-{"path":"eventScreen/event_top/event_journal/event_head/event_title","text":"Family under fire","rect":[458.86,60,276.54,36]},
-{"path":"eventScreen/event_top/event_journal/event_head/event_kicker","text":"Distress signal / stop 2 of 4","rect":[747.4,70.08,208.8,15.84]},
-{"path":"eventScreen/event_top/event_journal/event_page/event_setup","text":"Your convoy crests a ridge to find a family's car on its side below, smoke pouring from the engine.","rect":[488.86,124.3,457.14,40.6]},
-{"path":"eventScreen/event_top/event_journal/event_page/event_situation","text":"Three raider buggies circle the wreck, firing into the air. The family huddles behind the car. You have moments to decide.","rect":[488.86,185.2,457.14,40.6]},
+{"path":"eventScreen/event_top/event_journal/event_head/event_kicker","text":"Distress signal / stop 2 of 4","rect":[458.86,60,505.14,15.84]},
+{"path":"eventScreen/event_top/event_journal/event_head/event_title","text":"Family under fire","rect":[458.86,77.84,505.14,36]},
+{"path":"eventScreen/event_top/event_journal/event_page/event_setup","text":"Your convoy crests a ridge to find a family's car on its side below, smoke pouring from the engine.","rect":[488.86,142.14,457.14,40.6]},
+{"path":"eventScreen/event_top/event_journal/event_page/event_situation","text":"Three raider buggies circle the wreck, firing into the air. The family huddles behind the car. You have moments to decide.","rect":[488.86,203.04,457.14,40.6]},
 {"path":"eventScreen/event_foot/event_outcome/Text[0]","text":"Charge the raiders","rect":[76,356,612,24]},
 {"path":"eventScreen/event_foot/event_outcome/event_outcome_text","text":"You come down the ridge at full throttle. The buggies break off the circle and turn on you.","rect":[76,386,612,20.3]},
 {"path":"eventScreen/event_foot/event_outcome/event_outcome_ledger/event_outcome_line_0/event_outcome_line_0_text","text":"Raiders, 2 skulls. Win, and: +2 food; 3 settlers join you.","rect":[102,413.13,586,16.34]},

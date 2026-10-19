@@ -1,9 +1,9 @@
 [
 {"path":"eventScreen/event_top/event_plate/Text[0]","text":"PLATE · A SCHOOL BUS ON ITS RIMS","rect":[60,310,378.86,14]},
-{"path":"eventScreen/event_top/event_journal/event_head/event_title","text":"Burned-out school bus","rect":[458.86,60,365.1,36]},
-{"path":"eventScreen/event_top/event_journal/event_head/event_kicker","text":"Wreck / stop 2 of 4","rect":[835.96,70.08,128.04,15.84]},
-{"path":"eventScreen/event_top/event_journal/event_page/event_setup","text":"A school bus sits on its rims in the middle of the road, every window black with old smoke. The luggage racks look full.","rect":[488.86,124.3,457.14,40.6]},
-{"path":"eventScreen/event_top/event_journal/event_page/event_situation","text":"Fresh tire tracks circle it twice and head off into the scrub. Someone wants you to stop here.","rect":[488.86,185.2,457.14,40.6]},
+{"path":"eventScreen/event_top/event_journal/event_head/event_kicker","text":"Wreck / stop 2 of 4","rect":[458.86,60,505.14,15.84]},
+{"path":"eventScreen/event_top/event_journal/event_head/event_title","text":"Burned-out school bus","rect":[458.86,77.84,505.14,36]},
+{"path":"eventScreen/event_top/event_journal/event_page/event_setup","text":"A school bus sits on its rims in the middle of the road, every window black with old smoke. The luggage racks look full.","rect":[488.86,142.14,457.14,40.6]},
+{"path":"eventScreen/event_top/event_journal/event_page/event_situation","text":"Fresh tire tracks circle it twice and head off into the scrub. Someone wants you to stop here.","rect":[488.86,203.04,457.14,40.6]},
 {"path":"eventScreen/event_foot/event_outcome/Text[0]","text":"Search the bus","rect":[76,356,512,24]},
 {"path":"eventScreen/event_foot/event_outcome/event_outcome_text","text":"Whoever left the tracks is long gone. The racks hold a med kit and a bag of bolts.","rect":[76,386,512,40.6]},
 {"path":"eventScreen/event_foot/event_outcome/event_outcome_ledger/event_outcome_line_0/event_outcome_line_0_text","text":"+3 scrap","rect":[102,433.43,486,16.34]},

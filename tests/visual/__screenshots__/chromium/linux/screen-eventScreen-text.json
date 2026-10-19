@@ -1,9 +1,9 @@
 [
 {"path":"eventScreen/event_top/event_plate/Text[0]","text":"PLATE · A FUEL TANKER ACROSS BOTH LANES","rect":[60,592,557.14,14]},
-{"path":"eventScreen/event_top/event_journal/event_head/event_title","text":"Jackknifed tanker","rect":[637.14,60,294.21,36]},
-{"path":"eventScreen/event_top/event_journal/event_head/event_kicker","text":"Wreck","rect":[943.35,70.08,36,15.84]},
-{"path":"eventScreen/event_top/event_journal/event_page/event_setup","text":"A fuel tanker lies across both lanes, its cab folded into the guardrail. Nobody's touched it; the dust on the tank is unbroken.","rect":[667.14,128.65,694.86,49.3]},
-{"path":"eventScreen/event_top/event_journal/event_page/event_situation","text":"The tank still sloshes when the wind leans on it. The valve's rusted shut, and siphoning through the hatch takes hours.","rect":[667.14,202.6,694.86,49.3]},
+{"path":"eventScreen/event_top/event_journal/event_head/event_kicker","text":"Wreck","rect":[637.14,60,742.86,15.84]},
+{"path":"eventScreen/event_top/event_journal/event_head/event_title","text":"Jackknifed tanker","rect":[637.14,77.84,742.86,36]},
+{"path":"eventScreen/event_top/event_journal/event_page/event_setup","text":"A fuel tanker lies across both lanes, its cab folded into the guardrail. Nobody's touched it; the dust on the tank is unbroken.","rect":[667.14,146.49,694.86,49.3]},
+{"path":"eventScreen/event_top/event_journal/event_page/event_situation","text":"The tank still sloshes when the wind leans on it. The valve's rusted shut, and siphoning through the hatch takes hours.","rect":[667.14,220.44,694.86,49.3]},
 {"path":"eventScreen/event_foot/event_choices/event_choice_siphon/event_choice_siphon_key","text":"1","rect":[355,622,14,24]},
 {"path":"eventScreen/event_foot/event_choices/event_choice_siphon/event_choice_siphon_title","text":"Siphon the tank","rect":[72,654,297,44]},
 {"path":"eventScreen/event_foot/event_choices/event_choice_siphon/event_choice_siphon_preview","text":"Slow work through the hatch.","rect":[72,702,297,55]},
