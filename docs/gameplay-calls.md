@@ -372,3 +372,18 @@ Record: intent-aware-stand-in.md. Numbered from 240, the range set aside for thi
 242. DDB-528: non-lethal damage counts for half a turn of the hurt raider's harm, times the share of its toughness it removes, because weighted higher it outbid Flanking Maneuver, and one step can't see that the flank boosts the rest of the turn's hits.
 243. DDB-528: what the harm count doesn't cover (flanking, draws, adrenaline, cards with no effect) is scored as the aggressive AI scores it, so the ceiling keeps the floor's priorities whenever no intent is at stake.
 244. DDB-528: a flanker the play outpaces is taken to lose its flank bonus whole (its hits divided by 1.5, rounded up) and to stay in range, because re-deriving range from the reserved slot needs Battle's enemy-turn preview, which projects only from the board as it stands.
+
+## Event stops (250 to 259)
+
+Record: event-screen.md.
+
+250. DDB-45: a choice at an event is taken when it's pressed (a click, Enter, or its number key), with no confirm step, because its card already shows the risks and nothing on the screen can be undone anyway.
+251. DDB-45: an event's costs are paid from the stores and the run's cargo together, the cargo first, and a choice is locked when the two hold less, because cargo alone is empty at a run's first stop and would lock nearly every cost there.
+252. DDB-45: an outcome's structure and HP apply to every seated driver's vehicle and every seated driver alike, because an event has no picker for whose, and a run has at most two of each.
+253. DDB-45: an event's outcome lands on a draw from the run's stream for that stop, so a reload lands the same outcome, because otherwise reloading would be a free reroll.
+254. DDB-45: every event has a choice that needs nothing and costs nothing (usually Drive on), and the content reader refuses one without, because a party that meets nothing must never be stuck at a stop.
+255. DDB-45: a fight hand-off's outcome gains apply before the fight and the gains written on its fight only on a win, and losing it is settled as any stop fight's loss is, because an event shouldn't carry loss rules of its own.
+256. DDB-45: settlers an event gives ride home in the cargo as people, and drivers it gives are new recruits who join the pool when the run gets home, because both reach the compound only on a run that gets home.
+257. DDB-45: a card requirement is met by a copy in either seated driver's run deck, an escort's signature card included, and never by the locker, because the choice is what the crew on the road can do with what they brought.
+258. DDB-45: an event stop picks its event evenly among its stop type's events, with no weights or repeat rule yet, because five events can't carry a weighting worth tuning.
+259. DDB-45: an event's HP and structure losses stop at 1 and its resource losses stop at 0, taken from the cargo first and then the stores, because an event that kills a driver or wrecks a vehicle outright would be a fight with no chance to fight back.
