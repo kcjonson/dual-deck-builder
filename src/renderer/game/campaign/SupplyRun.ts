@@ -242,7 +242,7 @@ export function departRun({ campaign, map, route, escorts }: { campaign: Campaig
 	checkEscorts({ campaign, escorts });
 	campaign.set({
 		resources: { ...campaign.resources, fuel: campaign.resources.fuel - offered.fuel },
-		...arrivedAt({ campaign, run: { route: offered, stop: 0, phase: 'driving', escorts, cargo: NO_RESOURCES, cargoCards: NO_CARDS, recruits: [] } }),
+		...withYieldAtDestination({ route: offered, stop: 0, phase: 'driving', escorts, cargo: NO_RESOURCES, cargoCards: NO_CARDS, recruits: [] }),
 	});
 	return requireRun(campaign);
 }
@@ -266,7 +266,7 @@ export function atDestination(run: SupplyRun): boolean {
 /** A quiet stretch passes: on to the next stop, or the destination. Throws unless the run is driving to a quiet stop. */
 export function passQuietStop({ campaign }: { campaign: Campaign }): void {
 	const run = drivingTo({ campaign, kind: 'quiet' });
-	campaign.set(arrivedAt({ campaign, run: { ...run, stop: run.stop + 1 }, passed: currentStop(run) }));
+	campaign.set(withYieldAtDestination({ ...run, stop: run.stop + 1 }));
 }
 
 /**
@@ -310,16 +310,16 @@ export function takeFind({ campaign }: { campaign: Campaign }): void {
 		case 'supplies': {
 			const { resource, amount } = stop.supplies;
 			const cargo = { ...run.cargo, [resource]: run.cargo[resource] + amount };
-			campaign.set(arrivedAt({ campaign, run: { ...run, cargo, stop: run.stop + 1 }, passed: stop }));
+			campaign.set(withYieldAtDestination({ ...run, cargo, stop: run.stop + 1 }));
 			return;
 		}
 		case 'driver': {
 			const found = foundDriver({ campaign });
 			if (found.kind === 'missing') {
 				campaign.findMissingDriver({ driver: found.driver });
-				campaign.set(arrivedAt({ campaign, run: { ...run, stop: run.stop + 1 }, passed: stop }));
+				campaign.set(withYieldAtDestination({ ...run, stop: run.stop + 1 }));
 			} else {
-				campaign.set(arrivedAt({ campaign, run: { ...run, recruits: [...run.recruits, found.archetype], stop: run.stop + 1 }, passed: stop }));
+				campaign.set(withYieldAtDestination({ ...run, recruits: [...run.recruits, found.archetype], stop: run.stop + 1 }));
 			}
 			return;
 		}
@@ -329,7 +329,7 @@ export function takeFind({ campaign }: { campaign: Campaign }): void {
 /** The find the run is driving to, left by the road: on to the next stop, or the destination. Throws unless the run is driving to a find. */
 export function leaveFind({ campaign }: { campaign: Campaign }): void {
 	const run = drivingTo({ campaign, kind: 'find' });
-	campaign.set(arrivedAt({ campaign, run: { ...run, stop: run.stop + 1 }, passed: currentStop(run) }));
+	campaign.set(withYieldAtDestination({ ...run, stop: run.stop + 1 }));
 }
 
 export interface StopFightOptions {
@@ -387,7 +387,7 @@ export function finishStopFight({ campaign, fight }: { campaign: Campaign; fight
 	if (result.outcome === 'broken_off') {
 		const { escorts, cargo, cargoCards } = result.party;
 		campaign.addLogEntry({ message: `The raiders broke off at stop ${run.stop + 1} on the run to ${run.route.destination.name}.` });
-		campaign.set(arrivedAt({ campaign, run: { ...run, escorts, cargo, cargoCards, stop: run.stop + 1, phase: 'driving' }, passed: currentStop(run) }));
+		campaign.set(withYieldAtDestination({ ...run, escorts, cargo, cargoCards, stop: run.stop + 1, phase: 'driving' }));
 		return Object.freeze({ outcome: 'broken_off', fight: result });
 	}
 	campaign.addLogEntry({ message: fallenMessage({ route: run.route, dead: result.dead, missing: result.missing }) });
@@ -416,13 +416,14 @@ export function takeReward({ campaign, cardType }: { campaign: Campaign; cardTyp
 	const run = atReward({ campaign });
 	if (cardType !== null && !rewardOffer({ campaign }).includes(cardType)) throw new RangeError(`${cardType} isn't on offer at stop ${run.stop}`);
 	const cargoCards = cardType === null ? run.cargoCards : addCardsWon({ party: runParty({ campaign }), cardsWon: { [cardType]: 1 } }).cargoCards;
-	campaign.set(arrivedAt({ campaign, run: { ...run, cargoCards, stop: run.stop + 1, phase: 'driving' }, passed: currentStop(run) }));
+	campaign.set(withYieldAtDestination({ ...run, cargoCards, stop: run.stop + 1, phase: 'driving' }));
 }
 
 /**
  * Home from the destination (Compound and Supply Runs, Return): the log says
  * what the run brought, the run is unloaded (`unloadRun`, which unwinds its
- * run decks and clears it), anyone new it found joins the pool
+ * run decks and clears it), the stops it got past and its POI are cleared
+ * (`clearedByRun`), anyone new it found joins the pool
  * (`recruitDriver`) and the log says so, its drivers hurt are injured, each
  * seat has a run more, and the day ends. Throws unless the run is heading
  * home, and as each of those does.
@@ -436,6 +437,8 @@ export function arriveHome({ campaign }: { campaign: Campaign }): Arrival {
 	const brought = cargoText({ cargo: party.cargo, cards: party.cargoCards }) ?? 'nothing';
 	campaign.addLogEntry({ message: `Home from ${run.route.destination.name} with ${brought}.` });
 	const cargo = campaign.unloadRun({ party });
+	const map = clearedByRun({ map: campaign.map, run, day: campaign.day });
+	if (map !== campaign.map) campaign.set({ map });
 	const recruits = run.recruits.map(archetype => campaign.recruitDriver({ archetype }));
 	if (recruits.length > 0) campaign.addLogEntry({ message: `${listText(recruits.map(driver => driver.name))} joined the compound, found on the road.` });
 	const injuries = injureOnArrival({ campaign, drivers: party.seats });
@@ -476,27 +479,34 @@ export function cargoText({ cargo, cards = NO_CARDS }: { cargo: Readonly<Resourc
 }
 
 /**
- * The campaign's changes for the run as it stands at `stop`, having
- * resolved `passed` on the way, which is cleared from today (`clearStop`).
- * Once the run is past its last stop it has reached its destination, so
- * the POI's whole yield is in its cargo, where a failed run still loses it
- * until it gets home, and the POI is cleared for the rest of the campaign
- * (`clearPoi`), in the same `set`. A stop or POI whose id isn't the map's,
- * as in a run saved before the real map, clears nothing.
+ * The run as it stands at `stop`: once it's past its last stop it has
+ * reached its destination, so the POI's whole yield is in its cargo, where
+ * a failed run still loses it until it gets home. Nothing clears on the
+ * road; what the run resolved clears when it's home (`clearedByRun`), so a
+ * failed run leaves the map as it found it (call 260).
  */
-function arrivedAt({ campaign, run, passed = null }: { campaign: Campaign; run: SupplyRun; passed?: RouteStop | null }): Pick<CampaignData, 'supplyRun'> & Partial<Pick<CampaignData, 'map'>> {
-	let map = campaign.map;
-	const stop = passed === null ? null : stopOf(passed.id);
-	if (stop !== null) map = clearStop({ map, stop, day: campaign.day });
-	let supplyRun = run;
-	if (atDestination(run)) {
-		const cargo: Resources = { ...run.cargo };
-		for (const resource of YIELD_RESOURCES) cargo[resource] += run.route.destination.yield[resource];
-		supplyRun = { ...run, cargo };
-		const poi = poiOf(run.route.destination.id);
-		if (poi !== null) map = clearPoi({ map, poi });
+function withYieldAtDestination(run: SupplyRun): Pick<CampaignData, 'supplyRun'> {
+	if (!atDestination(run)) return { supplyRun: run };
+	const cargo: Resources = { ...run.cargo };
+	for (const resource of YIELD_RESOURCES) cargo[resource] += run.route.destination.yield[resource];
+	return { supplyRun: { ...run, cargo } };
+}
+
+/**
+ * The map state once a run that got home clears what it resolved: every
+ * stop on its road from `day` (`clearStop`), and its POI for the rest of
+ * the campaign (`clearPoi`). The saved route says which stops those are,
+ * so a run loaded mid-road clears the same. A stop or POI whose id isn't
+ * the map's, as in a run saved before the real map, clears nothing.
+ */
+function clearedByRun({ map, run, day }: { map: MapState; run: SupplyRun; day: number }): MapState {
+	let cleared = map;
+	for (const passed of routeStops(run.route)) {
+		const stop = stopOf(passed.id);
+		if (stop !== null) cleared = clearStop({ map: cleared, stop, day });
 	}
-	return map === campaign.map ? { supplyRun } : { supplyRun, map };
+	const poi = poiOf(run.route.destination.id);
+	return poi === null ? cleared : clearPoi({ map: cleared, poi });
 }
 
 /** "Road Warrior 1 died and Interceptor 2 went missing when the run to Red Mesa Silos failed." */
