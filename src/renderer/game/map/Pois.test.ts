@@ -1,5 +1,5 @@
 import { Rng } from '../core/Rng';
-import { ROUTE_TREE_STAGE, generateAreaMap, poisStage } from './AreaMapPipeline';
+import { ROUTE_TREE_STAGE, generateAreaMap, poiGround, poisStage } from './AreaMapPipeline';
 import type { Biome } from './Biome';
 import type { MapParams } from './MapParams';
 import { MapPipeline } from './MapPipeline';
@@ -10,6 +10,7 @@ import { Poi, PoiGround, PoiLayer, Sectors, placePois } from './Pois';
 import type { RoadNetwork } from './RoadNetwork';
 import { RouteTree, buildRouteTree, routesTo } from './RouteTree';
 import { paramsFor } from './roadTesting';
+import { rollParams } from './RollParams';
 import { STOP_TUNING, StopTuning } from './StopData';
 import { floorRunHours, nodeDegrees, ownRoadNeed, ownRoadRoom } from './StopRoom';
 
@@ -95,7 +96,7 @@ describe('POIs and strongholds on the route tree', () => {
 		it('fails a sector with no meeting point in the outer band', () => {
 			const { layer } = place(randomMesh({ seed: 7, radius: 600 }));
 			expect(layer.strongholds).toEqual([]);
-			expect(layer.failures).toEqual([0, 1, 2, 3].map((sector) => `sector ${sector} has no free meeting point in the outer band`));
+			expect(layer.failures).toEqual([0, 1, 2, 3].map((sector) => `sector ${sector} has no free meeting point in the outer band whose routes all keep their own road`));
 		});
 
 		it('refuses more strongholds than there are factions', () => {
@@ -227,6 +228,28 @@ describe('POIs and strongholds on the route tree', () => {
 	});
 
 	describe('own road', () => {
+		it('seats a stronghold on its sector\'s next best site where the best would leave a route short of own road', () => {
+			// No need at all, past what the reader allows, puts each stronghold on its sector's best fit.
+			// Seed 1 seats one stronghold a site further along for it.
+			const free: StopTuning = { ...STOP_TUNING, bands: STOP_TUNING.bands.map(() => ({ stops: { min: 0, max: 7 }, fights: { min: 0, max: 3 } })) };
+			const sites = (layer: PoiLayer) => layer.strongholds.map(({ poi }) => `${layer.pois[poi].site.x},${layer.pois[poi].site.y}`);
+			let gaveWay = 0;
+			for (const seed of [1]) {
+				const params = rollParams(seed);
+				const { products } = generateAreaMap({ params, debug: false });
+				const { network } = products.roads;
+				const ground = poiGround({ terrain: products.hazards.terrain, places: products.places });
+				const seat = (stopTuning: StopTuning) => placePois({ network, tree: products.routeTree, ground, params, rng: new Rng({ seed }), stopTuning });
+				const best = seat(free);
+				const held = seat(STOP_TUNING);
+				expect(held.strongholds).toHaveLength(best.strongholds.length);
+				for (const { room, need } of ownRoad(network, held)) expect(room).toBeGreaterThanOrEqual(need);
+				const bestSites = sites(best);
+				gaveWay += sites(held).filter((site, index) => site !== bestSites[index]).length;
+			}
+			expect(gaveWay).toBeGreaterThan(0);
+		});
+
 		it('leaves every route, strongholds included, room on legs no other POI uses for its floor fights and half its band', () => {
 			for (const network of meshes.slice(0, 10)) {
 				const { layer } = place(network, { poiDensity: 2 });
@@ -293,7 +316,7 @@ describe('the POI stage in the pipeline', () => {
 		expect(result.attempts).toEqual({ hazards: 0, places: 0, roads: 1, routeTree: 0, pois: 0 });
 		expect(result.timings.pois.runs).toBe(9);
 		expect(result.failures.filter(({ stage }) => stage === 'pois')).toHaveLength(8);
-		expect(result.failures[0].problems).toContain('sector 0 has no free meeting point in the outer band');
+		expect(result.failures[0].problems).toContain('sector 0 has no free meeting point in the outer band whose routes all keep their own road');
 		expect(result.products.pois.strongholds).toHaveLength(4);
 	});
 
@@ -336,7 +359,7 @@ describe('the POI stage in the pipeline', () => {
 		expect(tree.parentStretch[3]).toBe(2);
 		expect(tree.meetingPoints).toEqual([{ stretch: 3, node: -1, from: [2, 3], via: [3, 3] }]);
 		// Nothing reaches the outer band, so neither sector seats a stronghold.
-		expect(layer.failures).toEqual(['sector 0 has no free meeting point in the outer band', 'sector 1 has no free meeting point in the outer band']);
+		expect(layer.failures).toEqual(['sector 0 has no free meeting point in the outer band whose routes all keep their own road', 'sector 1 has no free meeting point in the outer band whose routes all keep their own road']);
 		expect(layer.pois).toHaveLength(1);
 		const [poi] = layer.pois;
 		expect(poi.site.stretch).toBe(3);

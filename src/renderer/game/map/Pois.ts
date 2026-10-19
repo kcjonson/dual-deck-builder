@@ -42,7 +42,7 @@ const round = Math.round;
 /** Directions around a stronghold's site its faction fit samples, besides the site itself. */
 const FIT_DIRECTIONS = 6;
 /** An owner no segment has, so a nearest-highway query skips nothing. */
-const NO_OWNER = -2;
+const SKIPS_NO_SEGMENT = -2;
 /** A stronghold's tier. */
 const STRONGHOLD_TIER = 5;
 
@@ -211,8 +211,6 @@ class PoiPlacer {
 	private readonly destinations: (Destination & { readonly tier: number })[] = [];
 	private readonly stopTuning: StopTuning;
 	private readonly degrees: Int32Array;
-	/** Candidates whose seating would leave a route short of own road; seating more only takes road away, so it stays so. */
-	private roomless = new Uint8Array(0);
 	private readonly failures: string[] = [];
 	private readonly direction: Vector = { x: 0, y: 0 };
 
@@ -233,20 +231,18 @@ class PoiPlacer {
 		}
 		this.highways = this.indexHighways();
 		this.listCandidates();
-		this.roomless = new Uint8Array(this.count);
 	}
 
 	public place(): PoiLayer {
 		const sectorRotation = this.seatStrongholds();
 		const rings = this.placeRings();
 		const types = this.typePois();
-		const destinations = this.destinations;
-		const { legs, lastLegs } = buildLegs({ network: this.network, tree: this.tree, destinations });
+		const { legs, lastLegs } = buildLegs({ network: this.network, tree: this.tree, destinations: this.destinations });
 		const pois: Poi[] = this.placements.map(({ candidate, ring }, index) => {
 			const point = this.tree.meetingPoints[this.sitePoint[candidate]];
 			return {
 				site: { x: this.siteX[candidate], y: this.siteY[candidate], stretch: point.stretch, along: this.siteAlong[candidate], node: point.node },
-				arrivals: destinations[index].arrivals.map((arrival, place) => ({ ...arrival, leg: lastLegs[index][place] })),
+				arrivals: this.destinations[index].arrivals.map((arrival, place) => ({ ...arrival, leg: lastLegs[index][place] })),
 				type: types[index],
 				ring,
 				tier: this.placements[index].tier,
@@ -269,7 +265,7 @@ class PoiPlacer {
 	}
 
 	private highwayWithin(x: number, y: number, reach: number): boolean {
-		return this.highways.nearest(x, y, reach, NO_OWNER) < reach;
+		return this.highways.nearest(x, y, reach, SKIPS_NO_SEGMENT) < reach;
 	}
 
 	/** Lists and scores the candidate sites, one draw each from the `sites` fork in the order they're listed. */
@@ -353,10 +349,9 @@ class PoiPlacer {
 			this.placedY.length = 0;
 			this.placements.length = 0;
 			this.destinations.length = 0;
-			this.roomless.fill(0);
 		}
 		for (const sector of this.seatAt({ sectors: new Sectors({ rotation: drawn, count }), count, inBand, names, jitter, lands })) {
-			this.failures.push(`sector ${sector} has no free meeting point in the outer band`);
+			this.failures.push(`sector ${sector} has no free meeting point in the outer band whose routes all keep their own road`);
 		}
 		return drawn;
 	}
@@ -503,19 +498,19 @@ class PoiPlacer {
 	 * its own and those already seated, own road with room for its need at
 	 * the stops stage's tight gap. Seating cuts the legs other routes branch
 	 * from, so the whole layer's legs are cut again with the candidate in.
+	 * Nothing is cached between candidates: seating more can split a leg at
+	 * a junction and give it room, and a site that failed as a stronghold
+	 * may pass as a POI needing less.
 	 */
 	private keepsOwnRoad(candidate: number, tier: number): boolean {
-		if (this.roomless[candidate] === 1) return false;
 		const destinations = [...this.destinations, { arrivals: this.arrivalsAt(candidate), tier }];
 		const { legs, lastLegs } = buildLegs({ network: this.network, tree: this.tree, destinations });
 		const routes = lastLegs.map((last) => routesTo({ legs }, { arrivals: last.map((leg) => ({ leg })) }));
 		const { room } = ownRoadRoom({ network: this.network, legs, routes, degrees: this.degrees, tuning: this.stopTuning });
-		const keeps = room.every((rooms, poi) => {
+		return room.every((rooms, poi) => {
 			const need = ownRoadNeed(destinations[poi].tier, this.stopTuning);
 			return rooms.every((held) => held >= need);
 		});
-		if (!keeps) this.roomless[candidate] = 1;
-		return keeps;
 	}
 
 	/**
@@ -531,7 +526,7 @@ class PoiPlacer {
 		const needed = new Set<PoiResource>(this.tuning.cover);
 		const first = this.placements
 			.map((placement, index) => ({ placement, index, hours: this.quickest(placement.candidate) }))
-			.filter(({ placement }) => placement.type === '' && placement.ring === 0)
+			.filter(({ placement }) => placement.type === '' && placement.tier === 1)
 			.sort((a, b) => a.hours - b.hours || a.index - b.index);
 		for (const { placement, index } of first) {
 			if (needed.size === 0) break;
