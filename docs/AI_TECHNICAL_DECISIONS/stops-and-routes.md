@@ -31,7 +31,7 @@ Room and spacing are `StopRoom.ts`'s, which the POI stage seats on: a leg's stop
 
 ## Dormant extras
 
-Each route's own last leg also carries up to two dormant calm stops, one on from game stage 2 and one from 4 (`stops.json`'s `extras`), where the leg has room past its stops at `tightGap`. They take slots spread among the leg's stops, are listed apart in the leg's `extras` with each stop's `stage`, and no route reads them until game stage is kept (DDB-339), so the route card, departure, and the run all see stage 0 today. A calm stop added never breaks a per-route rule, so the rules that hold at stage 0 hold at every stage; the daylight check counts the extras on.
+Each route's own last leg also carries up to two dormant calm stops, one on from game stage 2 and one from 4 (`stops.json`'s `extras`). The allocator keeps room for them back on that leg from everything but the route's own-road need, so a band minimum it can't meet there falls to the legs behind it or goes short, and the extras take what room is left past the leg's stops at `tightGap`. The POI stage seats on the need alone, so a last leg with room for only its need gets no extras: over 30 maps, 21, 23, 33, 7, and 4% of routes by tier have none, and 10, 8, 15, 5, and 4% one, nearly all on last legs whose room is the need or one more, the rest thinned by daylight at tiers 2 and 3. Seating for the extras too would leave them on every such route at the cost of about a fifth of the POIs (586 seated over the 30 maps against 734). They take slots spread among the leg's stops, are listed apart in the leg's `extras` with each stop's `stage`, and no route reads them until game stage is kept (DDB-339), so the route card, departure, and the run all see stage 0 today. A calm stop added never breaks a per-route rule, so the rules that hold at stage 0 hold at every stage; the daylight check counts the extras on.
 
 ## Types and the stop tables
 
@@ -65,7 +65,7 @@ The spec has a failure rerun the stage with fewer stops on the offending routes.
 
 A POI that can't get home by dark carrying only its fight floor can't be mended by stops, and the floor is hard. The POI stage tiers such a POI 4 by the same estimate (call 261), so on a real map it doesn't come up; a layer built some other way still lists a POI past dark with no stops at all in its failures, and the check lets it through. Anything else the check finds fails the stage, which retries on its next stream.
 
-Thinning shared road can leave other routes under their band. After the daylight check, a route under its band's minimum takes calm stops back on its own road, drawn on `fork('fill')`, where its own legs have room at `tightGap` and the stop tips no POI home by dark past it; where they have no room, its latest dormant extra turns on from the start instead, which the daylight check already counted. Over the 30 `gen` maps it leaves 0, 0, 3, 1, and 0% of routes under their band by tier, where thinning alone left about a fifth to two fifths; the 3% left at tier 3 are the ones daylight holds down.
+Thinning shared road can leave other routes under their band. After the daylight check, a route under its band's minimum takes calm stops back on its own road, drawn on `fork('fill')`, where its own legs have room at `tightGap` and the stop tips no POI home by dark past it; where they have no room, or the stop would tip one past dark, its latest dormant extra turns on from the start instead, which the daylight check already counted, on a leg where every route is under its band's most. Over the 30 `gen` maps it leaves 0, 0, 3, 1, and 0% of routes under their band by tier, where thinning alone left about a fifth to two fifths; the 3% left at tier 3 are the ones daylight holds down.
 
 ## Contents
 
@@ -133,7 +133,7 @@ Calls the spec left open, made the simplest way consistent with it, for Kevin to
 18. A highway route is numbered by its highway's shields, the dressing's route number for the main highway of its own leg with the most highway; a map with no dressing, only a test's mesh, keeps index + 1 (DDB-499).
 19. A leg earns fights at its routes' bands' share of fights, the least of the routes through it, rounded by a draw; the floor goes on a route's own road, and a leg no POI owns keeps a calm stop (calls 262, 263).
 20. A route left under its band's minimum after the daylight check takes calm stops back on its own road, or turns on its latest dormant extra (call 265).
-21. Dormant extras go only where a route's own last leg has room past its stops at 12 units, spread among them, the first on at game stage 2 and the second at 4 (call 266).
+21. A route's own last leg keeps room for its dormant extras back from everything but its own-road need; they're spread among its stops, the first on at game stage 2 and the second at 4 (call 266).
 
 ## Consequences
 

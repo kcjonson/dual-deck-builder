@@ -19,8 +19,8 @@ describe('balance sim gen', () => {
 		expect(map.failed).toBeNull();
 		// Seed 1 on today's generator; a generator change that moves these moves the Baseline too
 		expect(map.routes).toHaveLength(55);
-		expect(map.routes.reduce((sum, { audit }) => sum + audit.stops, 0)).toBe(261);
-		expect(map.routes.reduce((sum, { audit }) => sum + audit.fights, 0)).toBe(96);
+		expect(map.routes.reduce((sum, { audit }) => sum + audit.stops, 0)).toBe(264);
+		expect(map.routes.reduce((sum, { audit }) => sum + audit.fights, 0)).toBe(102);
 		expect(map.routes.reduce((sum, { audit }) => sum + audit.ownStops, 0)).toBe(133);
 		for (const { legs, audit, poi, destination } of map.routes) {
 			expect(destination.id).toBe(`poi-${poi}`);

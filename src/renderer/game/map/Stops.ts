@@ -185,6 +185,8 @@ class StopPlacer {
 	private readonly joins: number[][];
 	/** Each leg's room at the tight gap. */
 	private readonly rooms: Int32Array;
+	/** Each leg's room for its band's stops: a route's own last leg keeps room for its dormant extras back. */
+	private readonly bandRooms: Int32Array;
 	/** Each leg's stops, extras among them, in driving order. */
 	private readonly placed: Placed[][];
 	private readonly profiles: Omit<LegProfile, 'stops' | 'extras'>[] = [];
@@ -218,6 +220,8 @@ class StopPlacer {
 		this.degrees = nodeDegrees(network);
 		this.joins = layer.legs.map((leg) => junctionsAlong({ network, leg, degrees: this.degrees }));
 		this.rooms = Int32Array.from(layer.legs, (leg, id) => legRoom({ length: leg.length, joins: this.joins[id], gap: tuning.tightGap, tuning }));
+		const lastLegs = new Set(layer.pois.flatMap(({ arrivals }) => arrivals.map(({ leg }) => leg)));
+		this.bandRooms = this.rooms.map((room, leg) => (lastLegs.has(leg) ? (room > tuning.extras.length ? room - tuning.extras.length : 0) : room));
 	}
 
 	public place(): StopLayer {
@@ -290,9 +294,10 @@ class StopPlacer {
 	 * the tight gap and by the tightest route through it, which keeps back
 	 * the stops its own road still has to hold, and from below by the loosest
 	 * route's band minimum, less the room past this leg, and on a route's own
-	 * road by its need, less the own road past it. Where the two cross, the
-	 * upper bound wins and the route falls short of its band, which the
-	 * shortfalls report.
+	 * road by its need, less the own road past it. A route's own last leg
+	 * keeps room for its dormant extras back from everything but that need.
+	 * Where the bounds cross, the upper wins and the route falls short of its
+	 * band, which the shortfalls report.
 	 */
 	private allocateCounts(draws: readonly LegDraws[]): number[] {
 		const { spacing } = this.tuning;
@@ -307,13 +312,14 @@ class StopPlacer {
 			const earned = floor(expected * this.params.stopDensity + draws[id].count);
 			let upper = this.rooms[id];
 			let lower = 0;
+			let ownLower = 0;
 			for (const { poi, route, place } of this.routesOn[id]) {
 				const { stops } = this.bands[poi];
 				let roomAfter = 0;
 				let ownRoomAfter = 0;
 				let ownBehind = 0;
 				for (let at = place + 1; at < route.legs.length; at += 1) {
-					roomAfter += this.rooms[route.legs[at]];
+					roomAfter += this.bandRooms[route.legs[at]];
 					if (this.owners[route.legs[at]] === poi) ownRoomAfter += this.rooms[route.legs[at]];
 				}
 				for (let at = 0; at < place; at += 1) if (this.owners[route.legs[at]] === poi) ownBehind += counts[route.legs[at]];
@@ -322,8 +328,11 @@ class StopPlacer {
 				if (most < upper) upper = most;
 				const least = stops.min - behind[id] - roomAfter;
 				if (least > lower) lower = least;
-				if (this.owners[id] === poi && ownLeft - ownRoomAfter > lower) lower = ownLeft - ownRoomAfter;
+				if (this.owners[id] === poi && ownLeft - ownRoomAfter > ownLower) ownLower = ownLeft - ownRoomAfter;
 			}
+			const kept = this.bandRooms[id] > ownLower ? this.bandRooms[id] : ownLower;
+			if (kept < upper) upper = kept;
+			if (ownLower > lower) lower = ownLower;
 			if (upper < 0) upper = 0;
 			counts[id] = lower > upper ? upper : earned < lower ? lower : earned > upper ? upper : earned;
 		});
@@ -618,7 +627,12 @@ class StopPlacer {
 					}
 					const { tier, territory } = this.profiles[gap.leg];
 					const type = this.tables.draw({ row: this.tables.rowOf({ ...this.whereAt(gap.leg, gap.along), tier, territory }), draw, fight: false });
-					if (!this.roomFor(gap.leg, this.tuning.types[type].hours)) break;
+					if (!this.roomFor(gap.leg, this.tuning.types[type].hours)) {
+						const extra = this.latestExtra(own);
+						if (!extra) break;
+						extra.stage = 0;
+						continue;
+					}
 					this.insert(gap.leg, gap.along, () => type);
 				}
 			}
@@ -628,7 +642,10 @@ class StopPlacer {
 	/** The dormant extra on these legs that turns on latest, the furthest out on a tie. */
 	private latestExtra(legs: ReadonlySet<number>): Placed | null {
 		let latest: Placed | null = null;
-		for (const leg of legs) for (const stop of this.placed[leg]) if (stop.stage > 0 && (latest === null || stop.stage >= latest.stage)) latest = stop;
+		for (const leg of legs) {
+			if (!this.underBands(leg)) continue;
+			for (const stop of this.placed[leg]) if (stop.stage > 0 && (latest === null || stop.stage >= latest.stage)) latest = stop;
+		}
 		return latest;
 	}
 
