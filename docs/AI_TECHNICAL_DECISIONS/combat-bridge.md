@@ -50,7 +50,7 @@ It throws, building nothing, while the campaign's last fight hasn't been written
 
 `writeBackFight({ fight })` reads the ended battle and writes to the campaign the fight was built from. Each seat's driver ends the fight still in it, at 0 HP, or crashed out:
 
-| Driver | Won | Lost, so the run fails |
+| Driver | Won, or broken off | Lost, so the run fails |
 | --- | --- | --- |
 | Still in the fight | HP and vehicle written back | missing: only a fight given up (`Battle.forfeit`, [mvp-supply-run.md](./mvp-supply-run.md)) is lost with a driver in it, and they fled |
 | At 0 HP | revived: REVIVE_HP, run deck untouched, vehicle written back | dead: status dead, 0 HP, and an empty default deck, in one `set` |
@@ -63,7 +63,7 @@ A seat's default deck is in their run deck while the run is out, so the dead's i
 - **Cargo.** After a win, the next party's cargo is this one's plus the haulers' fuel and scrap, and its cards won go on as they were. A lost fight pays nothing, and the result's `cargoLost` and `cargoCardsLost` are what the run was carrying. The bridge never touches the compound's stores or the locker.
 - **Escorts.** Wrecked ones leave the convoy, and the cards they brought leave the run decks; the rest keep their structure, their armor back to full (`endCombat`). A failed run loses every escort that came along, wrecked or not.
 
-The result is `{ outcome: 'won', party, revived, pickedUp, escortsLost }` or `{ outcome: 'run_failed', party: null, dead, missing, escortsLost, cargoLost, cargoCardsLost, run }`. A won fight always leaves every seat it started with.
+The result is `{ outcome: 'won', party, revived, pickedUp, escortsLost }`, `{ outcome: 'broken_off', party, revived, pickedUp, escortsLost }`, or `{ outcome: 'run_failed', party: null, dead, missing, escortsLost, cargoLost, cargoCardsLost, run }`. A won or broken-off fight always leaves every seat it started with. A fight the raiders broke off ([raider-waves-and-fight-ends.md](./raider-waves-and-fight-ends.md)) carries the run on as a win does, but nothing is won: no hauler pays (`endCombat` pays only a win), so the cargo goes on as it was, and no fight is counted.
 
 ### One order
 
@@ -84,7 +84,7 @@ Closing the fight first would let a listener start the next one partway through,
 
 ### Refusals
 
-It refuses a fight that's still on, a tie, a fight it has already written back, and a result its records no longer fit (a record changed under the fight), storing nothing. A campaign fight has no turn limit, so it ends won or lost; a tie needs a turn limit set by hand, and nothing says what one would mean for a driver who crashed out.
+It refuses a fight that's still on, a tie, a fight it has already written back, and a result its records no longer fit (a record changed under the fight), storing nothing. A campaign fight has no turn limit, so it ends won, broken off, or lost; a tie needs a turn limit set by hand, and nothing says what one would mean for a driver who crashed out.
 
 ## Provisional calls
 

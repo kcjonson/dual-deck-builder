@@ -20,6 +20,8 @@ import { PointerAdapter } from '../../../engine/input/PointerAdapter';
  * started with the first run's damage, hand, and discard.
  */
 
+// The dev fight's one raider, so both mounts field the same team
+jest.mock('../../campaign/Encounters', () => jest.requireActual('./__fixtures__/loneRaider').loneRaiderEncounters());
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
 }));

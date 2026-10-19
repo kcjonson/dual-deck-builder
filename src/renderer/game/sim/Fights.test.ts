@@ -1,3 +1,4 @@
+import encountersFile from '../data/encounters.json';
 import { RAIDER_PROFILES } from '../mechanics/Raiders';
 import { fightCells, playFightCell, playRun } from './Fights';
 import { rate } from './Measures';
@@ -23,37 +24,45 @@ describe('balance sim fights', () => {
 			outcome: 'home',
 			firstSeat: 'road_warrior',
 			swapped: false,
-			turns: 2,
+			turns: 3,
 			down: false,
 			hpLost: 9 / 65,
 			structureLost: 9 / 130,
 			injuryDays: 1,
-			raidersKilled: 1,
+			raidersKilled: 4,
+			routed: true,
+			brokenOff: false,
 		});
 	});
 
 	test('a pair swaps seats on the odd run, and the cell measures both', async () => {
 		const row = await playFightCell({ config, cell: fightCells(config)[0] });
-		expect(row).toMatchObject({ cell: 'road_warrior+interceptor:2', runs: 2, turns: 2.5, injuryDays: 2, raidersKilled: 1 });
+		expect(row).toMatchObject({ cell: 'road_warrior+interceptor:2', runs: 2, turns: 4.5, injuryDays: 3, raidersKilled: 4 });
 		expect(row.won).toMatchObject({ count: 2, of: 2, rate: 1, high: 1 });
 		expect(row.bySeat?.map(seat => seat.of)).toEqual([1, 1]);
-		expect(row.down).toMatchObject({ count: 0, of: 2 });
+		expect(row.down).toMatchObject({ count: 1, of: 2 });
 	});
 
 	test('tuning comes in through the config and leaves the shipped profiles alone', () => {
-		const tuned = simConfig({ raiders: { rust_buggy: { hitpoints: 10, vehicleStats: { armor: 0 } } }, encounters: { road_gang: { raiders: ['rust_buggy', 'rust_buggy', 'rust_buggy'] } } });
+		const shipped = JSON.parse(JSON.stringify(encountersFile));
+		shipped.templates[0].waves[0].raiders = ['rust_buggy', 'rust_buggy'];
+		const tuned = simConfig({ raiders: { rust_buggy: { hitpoints: 10, vehicleStats: { armor: 0 } } }, encounters: shipped, tier: 3, stage: 2 });
 		expect(tuned.raiders.rust_buggy.hitpoints).toBe(10);
 		expect(tuned.raiders.rust_buggy.vehicleStats).toEqual({ ...RAIDER_PROFILES.rust_buggy.vehicleStats, armor: 0 });
 		expect(RAIDER_PROFILES.rust_buggy.hitpoints).not.toBe(10);
-		expect(tuned.encounters.road_gang).toHaveLength(3);
-		expect(() => simConfig({ encounters: { road_gang: { raiders: ['tank' as never] } } })).toThrow(RangeError);
+		expect(tuned.encounters.templates[0].waves[0].raiders).toEqual(['rust_buggy', 'rust_buggy']);
+		expect([tuned.tier, tuned.stage]).toEqual([3, 2]);
+		const tank = JSON.parse(JSON.stringify(encountersFile));
+		tank.templates[0].waves[0].raiders = ['tank'];
+		expect(() => simConfig({ encounters: tank })).toThrow(RangeError);
+		expect(() => simConfig({ tier: 6 })).toThrow(RangeError);
+		expect(() => simConfig({ stage: -1 })).toThrow(RangeError);
 	});
 
 	test('a crew is one driver or two of different archetypes, as load out seats them', () => {
 		expect(() => simConfig({ crews: [['road_warrior', 'road_warrior']] })).toThrow(RangeError);
 		expect(() => simConfig({ crews: [[]] })).toThrow(RangeError);
 		expect(() => simConfig({ routes: [[]] })).toThrow(RangeError);
-		expect(() => simConfig({ encounters: { road_gang: { raiders: [] } } })).toThrow(RangeError);
 	});
 
 	test('the same pair on two decks gets a cell name apiece', () => {

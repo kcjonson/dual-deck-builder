@@ -13,13 +13,13 @@ Routes take the shape the map will hand over, so swapping the source is a data c
 - `RouteDestination`: the POI a route arrives at, with an id, a name, a tier, and a yield of food, water, fuel, and scrap (Map 10's POI types and yield tables replace the yield).
 - `RunRoute`: one of a POI's routes, its descriptor (Map 14): a name from its dominant class, its fuel, its hours (out, at the objective, home), and its risk, the worst fight in skulls, over an ordered list of legs.
 - `RouteLeg`: a piece of the route tree between places where routes split or end, driven outward (Map 9), with its road class, length, driving hours, and stops in the order a run meets them.
-- `RouteStop`: a kind (`fight` with its skulls, or `quiet`; events, finds, garages, and hazards later) and `at`, its position along the leg from 0 to 1 (Map 12). A fight's raiders are its contents, rolled when the run reaches it (`encounterFor`); its kind and skulls are fixed with the map.
+- `RouteStop`: a kind (`fight` with its skulls, or `quiet`; events, finds, garages, and hazards later) and `at`, its position along the leg from 0 to 1 (Map 12). A fight's raiders are an encounter template picked when the run reaches it (`encounterForces`, [raider-waves-and-fight-ends.md](./raider-waves-and-fight-ends.md)); its kind and skulls are fixed with the map.
 
 A run counts its place along `routeStops(route)`, every stop on every leg in driving order, so a leg boundary changes nothing in the state machine.
 
 The routes came from a seeded mock (`supplyRoutes`) until the area map's own replaced it: `routesOnOffer({ map })` now offers every route the campaign's map has but a stronghold's, and the area map and run route screens replace the route pick ([area-map-route-pick.md](./area-map-route-pick.md)). A destination yields what its POI type does, and a route's fuel, hours, and risk are its descriptor's ([stops-and-routes.md](./stops-and-routes.md)).
 
-`Encounters.ts` is the stand-in encounter table, one per skull count. The raiders are profiles in `mechanics/Raiders.ts`, which the combat screen's own skirmish raider shares, so the two can't drift. The table, the profiles' numbers, and where a lone raider opens are [raider-tuning.md](./raider-tuning.md)'s, which superseded this record's first table: one Rust Buggy, two of them, and a Rust Buggy beside the Raider archetype's Spike Buggy, the Rust Buggy refilling to 10.
+`Encounters.ts` held a stand-in encounter table, one per skull count, which [raider-tuning.md](./raider-tuning.md) retuned and encounter templates later replaced ([raider-waves-and-fight-ends.md](./raider-waves-and-fight-ends.md)). The raiders are profiles in `mechanics/Raiders.ts`, which the combat screen's skirmish shares.
 
 ## The run's state
 
@@ -54,7 +54,7 @@ One run a day holds without a counter: a run sets off only with none out, and ev
 
 DDB-322 keeps the state machine, `departRun`, the fights through the bridge, the end hook and the abandon menu, arrival, failure, and Continue mid-run. It replaces:
 
-- `encounterFor` and the encounter table: stops' contents rolled from `stop:<id>` and the map's stop tables;
+- the stand-in encounter table, since replaced by encounter templates (`encounterForces`);
 - `quickLoadOut`: the load out screen;
 - the run screen's road list: the run route view's progress (the area map and run route screens took the route pick's place, area-map-route-pick.md);
 - the run screen's one-line arrival summary: the debrief;

@@ -1,6 +1,6 @@
 # Raider encounter tuning (DDB-462)
 
-The Rust Buggy's deck and the Spike Buggy's numbers have since moved for raider groups (DDB-328); see [raider-waves-and-fight-ends.md](./raider-waves-and-fight-ends.md).
+Superseded: encounter templates replaced this table, and the solo adrenaline and lone-raider placement went with it (DDB-328, DDB-525); see [raider-waves-and-fight-ends.md](./raider-waves-and-fight-ends.md). Kept for the history of the profiles.
 
 Date: 2026-10-10. Code: `src/renderer/game/mechanics/Raiders.ts` (the profiles, `soloAdrenaline`), `campaign/Encounters.ts` (the table, where a lone raider opens, sizing up the crew), `campaign/SupplyRun.ts` (`startStopFight` hands over the seats' structure), `campaign/CombatBridge.ts` (`seatOf`, and the raiders built against the seats), `screens/combat/CombatScreen.ts` (the skirmish), and `scripts/balance-sim.mjs fights`, the fight simulator (it began as `scripts/raider-sim.mjs`, which the balance sim replaced). Replaces the encounter table in [mvp-supply-run.md](./mvp-supply-run.md), and leans on [combat-bridge.md](./combat-bridge.md), [solo-driver-fights.md](./solo-driver-fights.md), and [stops-and-routes.md](./stops-and-routes.md). Rules it works inside: Combat Rules, The road (an encounter may give a raider its opening slot), Enemy intents (raider archetypes), and the hit rule.
 

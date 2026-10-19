@@ -8,18 +8,18 @@ Close-up runs in `finishEnemyTurn`, after `dropBackFlankers` and `clearWrecks` a
 
 Options for shake-off were a hidden counter on the vehicle, a rule in the EMP card, or a status. A status (`steady`, duration 1) won: it ticks with every other status, shows as a chip without new UI, and the preview needs nothing new, since a Steady raider never gets `stunned` and the preview already drops a stunned raider's intents. It's applied in `startPlayerTurn` to each raider whose stun wore off in that tick, and `applyStatus` refuses `stunned` on a Steady vehicle with a log line.
 
-Measured with `scripts/raider-sim.mjs` (seed 1, 100 runs, pairs): close-up alone lifts the Road Warrior and Interceptor from 50% to 84% at 3 skulls, where the second Rust Buggy used to sit out of the Rig's reach. Shake-off ends the EMP lock the Mechanic held on the lone Spike Buggy (99% won with 1% HP lost becomes 0%), which is the unfair fight the rule is for; one-raider encounters go with the encounter templates (DDB-328).
+Measured with `scripts/raider-sim.mjs` (seed 1, 100 runs, pairs; the balance sim has since replaced it): close-up alone lifts the Road Warrior and Interceptor from 50% to 84% at 3 skulls, where the second Rust Buggy used to sit out of the Rig's reach. Shake-off ends the EMP lock the Mechanic held on the lone Spike Buggy (99% won with 1% HP lost becomes 0%), which is the unfair fight the rule is for; one-raider encounters go with the encounter templates (DDB-328).
 
 ## Waves (DDB-46)
 
-Waves ride on the enemy `Team` as `reinforcements` (each a list of raider vehicles with an `arriveAt` and an `afterTurns`), and `Battle` copies them into its own queue when it's built. The other option was a `Battle` constructor argument. The team won because the combat bridge takes its raiders as a function returning a `Team`, and the supply run (which this work doesn't own) calls `encounterTeam` through it; carrying the waves on the team lets an encounter's later waves reach the battle with no change to the run, the bridge's signature, or the gallery's plumbing.
+Waves ride on the enemy `Team` as `reinforcements` (each a list of raider vehicles with an `arriveAt` and an `afterTurns`), and `Battle` copies them into its own queue when it's built. The other option was a `Battle` constructor argument. The team won because the combat bridge takes its raiders as a function returning a `Team`, and the supply run calls the encounter builder through it; carrying the waves on the team lets an encounter's later waves reach the battle with no change to the run, the bridge's signature, or the gallery's plumbing.
 
 - Due is checked at the start of the player's turn, after the raiders plan (`checkWaveDue`), and when the player empties the road during their turn (`checkBattleStatus`, which no longer calls a fight won while a wave is queued). Either announces the wave in the log.
 - Arrival (`landReinforcements`) runs in `finishEnemyTurn` after close-up. Slots come from `openingSlots(ENEMY, lastWreckRow)`, the opening order with each lane started from the row the latest raider to go out left, skipping held and reserved slots. Arrivals join the team, which gives each driver a new seat, and so its own `deck:enemy:<n>` stream through `seatOf`, and their decks shuffle on it before the first draw. The seats already in the fight draw exactly as they would without the wave (tested).
 - `Battle.waves` is the top bar's readout. While a wave is due it projects the end of the enemy turn (`projectEnemyTurnStart`, then close-up planned on that projection) to mark the rows arrivals will take. Close-up and arrivals share one planner over a `RoadRead`, so the marks and the arrival can't disagree on the rule, only on kills the player hasn't made yet.
 - The combat screen reads `battle.waves` every update instead of the `SINGLE_WAVE` a prepared fight could override; the gallery's fit scenarios now queue real waves to show the readout.
 
-The encounter table keeps one wave per encounter until the templates (DDB-328), so play is unchanged except for the readout. raider-sim's `--set` takes waves (`road_gang=rust_buggy|rust_buggy@1`) to measure them.
+The balance sim (`scripts/balance-sim.mjs`, `sim/Fights.ts`) plays fights against templates as a run's stop picks them, at the config's `tier` and `stage`, with waves, rout, and break-off (a broken-off fight carries the run on, as the bridge does), and its `encounters` config takes templates in the shape of data/encounters.json.
 
 ## Rout and break-off (DDB-525)
 
@@ -27,15 +27,15 @@ Each raider vehicle carries its profile's nominal `threat` and a `leader` flag (
 
 Break-off counts quiet player turns: `damageVehicle` and `damageDriver` note a raider losing armor, structure, or HP during the player's turn, and `endPlayerTurn` checks the count before the enemy turn starts, so a broken-off fight has no enemy turn. It ends with `battleOver`, not `battleWon`, and `brokenOff` set; `battleEnded` says `{ won: false, brokenOff: true }`, and the battle result reads "Broken off" with no defeat stamp.
 
-Break-off is opt-in, through the constructor's `breakOffTurns` (`BREAK_OFF_TURNS` is 3). Battles built as test harnesses and the AI evaluators bound fights with `maxTurns` and read anything not won as lost, so a default break-off would change what they measure. The combat screen's skirmish and the raider sim turn it on. Campaign fights turn it on with the run's half of this item: until `SupplyRun.finishStopFight` and the bridge's write-back know a broken-off fight, it would read as a loss and fail the run.
+Break-off is opt-in, through the constructor's `breakOffTurns` (`BREAK_OFF_TURNS` is 3). Battles built as test harnesses and the AI evaluators bound fights with `maxTurns` and read anything not won as lost, so a default break-off would change what they measure. The combat screen's skirmish and the raider sim turn it on. Campaign fights have it on too. The bridge's write-back returns a `broken_off` outcome: every driver goes on as after a win (call 198), escorts and cargo carry, no hauler pays and no fight is counted, and `SupplyRun.finishStopFight` logs it and drives the run on past the stop with no reward. The battle result reads "Broken off" and the run screen says the raiders broke off.
 
 ## Encounter templates and raider classes (DDB-328)
 
 Templates are `data/encounters.json`, read strictly by `readEncounterData` in `campaign/Encounters.ts`: per template its skulls, tiers, waves (raiders, `arriveAt`, `afterTurns`), and `grow` raider, plus a road cap per skull count. `encounterForces` picks a template on the fight's stream, forked as `encounter` so the pick moves no other draw, sizes it (`sizedWaves`: one more `grow` raider in the last wave every two stages, and a lone driver's half), builds every raider grown 5% a stage, and returns the first wave as the enemy team with the rest queued on it, each wave carrying the road cap as `maxOnRoad`, which `Battle` honors when it lands a wave.
 
-Raider profiles gain a class (mook, regular, heavy, leader); the leader is an elite and sets `Vehicle.leader`, which a rout reads. `soloAdrenaline` stays only for the stand-in table: the templates size a lone driver's fight by its raiders instead.
+Raider profiles gain a class (mook, regular, heavy, leader); the leader is an elite and sets `Vehicle.leader`, which a rout reads.
 
-The supply run and the combat screen's skirmish still field the stand-in table. Moving a run's stops to `encounterForces` needs the run to pass its fight stream and stage, and SupplyRun.test.ts asserts on the stand-in table (a lone raider at one skull), so it lands with the run's half of DDB-525, the one PR in this work that changes the run. The skirmish moves with it, since it fields what a run's one-skull stop fields. Until then the templates are reached through the raider sim, which uses them by default (`--table stand-in` for the old table).
+Supply-run stops field the templates through `startStopFight`, which picks on the stop's fight stream (`runStream().fork('fight', stop)`, the stream the fight's shuffles come from, so a reload replays the same fight) at the destination's tier (call 205). Game stage isn't kept yet (DDB-339), so every fight is stage 0's until it is. The combat screen's skirmish fields a one-skull template at tier 1, as a run's first fight would. The stand-in table (`ENCOUNTERS`, `encounterTeam`) and the raiders' `soloAdrenaline` are gone: the templates size a lone driver's fight by its raiders.
 
 The spec says game stage grows a late warband to 20, but with one `grow` raider every two stages and stage capped at 6, the largest warband (10) reaches 13. That's a spec question for Kevin, not changed here; the growth rate is a starting value.
 
@@ -60,5 +60,6 @@ Numbers 190 to 209 in [gameplay-calls.md](../gameplay-calls.md).
 - 202: one set of templates for tiers 1 to 4.
 - 203: when later waves are due, and the road cap.
 - 204: a lone driver's cut keeps the first wave.
-- 207: "+N arriving" counts only those that will pull in, replacing 194.
+- 205: a stop's fight draws its template at the destination's tier.
 - 206: the leader is its vehicle; it's out when wrecked or driverless.
+- 207: "+N arriving" counts only those that will pull in, replacing 194.

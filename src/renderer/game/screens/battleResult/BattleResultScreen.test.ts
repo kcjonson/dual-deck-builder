@@ -58,7 +58,7 @@ describe('BattleResultScreen', () => {
 		screen.mount(context, { victory: false, brokenOff: true });
 		expect((screen.root.findById('result_kicker') as Text).text).toBe('Fight broken off');
 		expect((screen.root.findById('result_title') as Text).text).toBe('BROKEN OFF');
-		expect((screen.root.findById('result_subtitle') as Text).text).toBe('The raiders broke off. Nothing won, nothing lost.');
+		expect((screen.root.findById('result_subtitle') as Text).text).toBe('The raiders broke off. Nothing won; the damage stays with you.');
 		expect(screen.root.findById('result_stamp')).toBeNull();
 	});
 

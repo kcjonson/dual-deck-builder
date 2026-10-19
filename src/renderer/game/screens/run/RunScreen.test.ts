@@ -27,7 +27,7 @@ import type { AtlasTag } from '../../ui/atlas/AtlasTag';
 import type { DamageMark } from '../../ui/atlas/DamageMark';
 import type { LegendBox } from '../../ui/atlas/LegendBox';
 import type { ResourceStrip } from '../../ui/atlas/ResourceStrip';
-import { RunScreen, RunScreenData, STEP_NOT_SAVED, stopFightMount } from './RunScreen';
+import { BROKEN_OFF_LINE, RunScreen, RunScreenData, STEP_NOT_SAVED, stopFightMount } from './RunScreen';
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -237,6 +237,38 @@ describe('RunScreen', () => {
 			expect(text('run_action_title')).toBe('Next: Raider ambush, 2 skulls');
 		});
 
+		it('says the raiders broke off when the fight that sent it here was broken off, until the next step', async () => {
+			await open(drivingText(1), { campaign: Campaign.fromJSON(JSON.parse(drivingText(1)).campaign), brokenOff: true });
+			expect(text('run_report')).toBe(BROKEN_OFF_LINE);
+			await press('run_drive_button');
+			expect(text('run_report')).not.toContain('broke off');
+		});
+
+		it('ends a broken-off last fight at the destination, its yield loaded, and the battle result says broken off', async () => {
+			storage = storageWith(drivingText(2));
+			store = storeOver(storage);
+			const campaign = await store.load() as Campaign;
+			const before = campaign.supplyRun;
+			if (!before) throw new Error('the run should be on the road');
+			const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+			const prepared = await stopFightMount({ campaign, fight, store }).prepare();
+			fightOut(fight, { shoot: false });
+			expect(fight.battle.isBattleBrokenOff()).toBe(true);
+
+			const result = prepared.onEnded?.({ won: false, brokenOff: true });
+
+			expect(result).toEqual({ victory: false, brokenOff: true, next: { screen: 'runScreen', data: { campaign, saved: expect.any(Promise), brokenOff: true } } });
+			expect(await (result?.next?.data as RunScreenData).saved).toBe('saved');
+			const run = campaign.supplyRun;
+			expect([run?.stop, run?.phase]).toEqual([before.stop + 1, 'driving']);
+			for (const [resource, amount] of Object.entries(before.route.destination.yield)) {
+				expect(run?.cargo[resource as keyof typeof run.cargo]).toBe(before.cargo[resource as keyof typeof before.cargo] + amount);
+			}
+
+			await open(drivingText(3), result?.next?.data as RunScreenData);
+			expect(text('run_report')).toBe(`${BROKEN_OFF_LINE} Reached ${before.route.destination.name}.`);
+		});
+
 		it('opens a fight on the combat screen with Drive on, whose end comes back here', async () => {
 			await open(drivingText(2));
 			expect(text('run_action_line')).toBe('Raiders hold the road ahead, 2 skulls of danger. Driving on starts the fight.');
@@ -244,7 +276,9 @@ describe('RunScreen', () => {
 			const [name, mount] = navigate.mock.calls[navigate.mock.calls.length - 1] as [string, PreparedCombatMount];
 			expect(name).toBe('combatScreen');
 			const prepared = await mount.prepare();
-			expect(prepared.battle.enemyTeam.vehicles.map((vehicle) => vehicle.name)).toEqual(['Spike Buggy']);
+			// A group in waves, never a lone raider (Runs and Encounters, Kevin's rule 4)
+			expect(prepared.battle.enemyTeam.vehicles.length).toBeGreaterThan(1);
+			expect(prepared.battle.waves.total).toBeGreaterThan(1);
 			expect([prepared.fuel, prepared.scrap]).toEqual([2, 0]);
 			expect(typeof prepared.onEnded).toBe('function');
 		});

@@ -32,7 +32,7 @@ import { assertDriverPair, assertDriverSeats } from '../../mechanics/DriverPair'
 import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
 import { Vehicle, createDrivenVehicle } from '../../mechanics/Vehicle';
 import { Team, TeamType } from '../../mechanics/Team';
-import { encounterFor, encounterTeam } from '../../campaign/Encounters';
+import { encounterForces } from '../../campaign/Encounters';
 import { BREAK_OFF_TURNS, Battle, BattleState, BattleMessage, EnemyTurnStep, HitEvent } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { AimPreview, previewAim } from '../../mechanics/AimPreview';
@@ -40,7 +40,7 @@ import type { RangeLabel } from '../../ui/RangeChip';
 import { Intent, IntentType, formatIntentValue } from '../../mechanics/Intent';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
-import type { Rng } from '../../core/Rng';
+import { Rng, freshSeed } from '../../core/Rng';
 import { BattleResultData } from '../battleResult/BattleResultScreen';
 import type { Component } from '../../../engine/components/Component';
 import type { UiPointerEvent } from '../../../engine/input/events';
@@ -240,9 +240,10 @@ export class CombatScreen extends Screen {
 				vehicles: [vehicle1, vehicle2]
 			});
 
-			const enemyTeam = this.createTestEnemyTeam([vehicle1, vehicle2]);
+			const stream = rng ?? new Rng({ seed: freshSeed() });
+			const enemyTeam = this.createTestEnemyTeam([vehicle1, vehicle2], stream);
 
-			const battle = new Battle({ playerTeam, enemyTeam, rng, breakOffTurns: BREAK_OFF_TURNS });
+			const battle = new Battle({ playerTeam, enemyTeam, rng: stream, breakOffTurns: BREAK_OFF_TURNS });
 
 			// Enable AI for enemy team - using aggressive AI as default
 			// Other options: 'random', 'mcts', 'salvage', 'ramming'
@@ -463,15 +464,12 @@ export class CombatScreen extends Screen {
 	}
 
 	/**
-	 * The skirmish's raiders: a supply run's one-skull encounter, its Rust
-	 * Buggy opening across from the pair's tougher vehicle as a run's would.
+	 * The skirmish's raiders: a one-skull encounter template at tier 1, as a
+	 * run's first fight fields, picked on the fight's own stream so a seeded
+	 * skirmish replays.
 	 */
-	private createTestEnemyTeam(vehicles: readonly Vehicle[]): Team {
-		return encounterTeam({
-			encounter: encounterFor(1),
-			cards: CardLoader.getInstance().getAllCardsAsMap(),
-			crewStructure: vehicles.map(vehicle => vehicle.structure),
-		});
+	private createTestEnemyTeam(vehicles: readonly Vehicle[], rng: Rng): Team {
+		return encounterForces({ skulls: 1, tier: 1, cards: CardLoader.getInstance().getAllCardsAsMap(), seats: vehicles.length, rng }).team;
 	}
 
 	/**

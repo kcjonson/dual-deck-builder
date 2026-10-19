@@ -1,7 +1,7 @@
 import type { AIType } from '../ai/AIController';
 import { describeValue } from '../core/Json';
 import type { Rng } from '../core/Rng';
-import { Battle } from '../mechanics/Battle';
+import { BREAK_OFF_TURNS, Battle } from '../mechanics/Battle';
 import { Card } from '../mechanics/Card';
 import type { DividendPayout } from '../mechanics/Convoy';
 import { Deck } from '../mechanics/Deck';
@@ -104,6 +104,19 @@ export interface WonFight {
 	readonly escortsLost: readonly Vehicle[];
 }
 
+/**
+ * A fight the raiders broke off (Combat Rules, How a fight ends): neither
+ * won nor lost. The run goes on with every driver it seated, as after a
+ * win, but nothing is won: no hauler pays out and no fight is counted.
+ */
+export interface BrokenOffFight {
+	readonly outcome: 'broken_off';
+	readonly party: RunParty;
+	readonly revived: readonly DriverRecord[];
+	readonly pickedUp: readonly DriverRecord[];
+	readonly escortsLost: readonly Vehicle[];
+}
+
 /** A lost fight: nobody was left in it, so the run has failed. */
 export interface FailedRun {
 	readonly outcome: 'run_failed';
@@ -121,7 +134,7 @@ export interface FailedRun {
 	readonly run: string;
 }
 
-export type FightWriteBack = WonFight | FailedRun;
+export type FightWriteBack = WonFight | BrokenOffFight | FailedRun;
 
 /** What became of a seated driver: still in the fight at its end, down, or crashed out, and what the outcome makes of that. */
 type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
@@ -199,7 +212,7 @@ export function startCampaignFight({ campaign, party, raiders, rng, cards, enemy
 	const vehicles = seats.map(({ vehicle }) => vehicle);
 	const enemyTeam = raiders(vehicles);
 	const playerTeam = new Team({ type: TeamType.PLAYER, vehicles: [...vehicles, ...escorts] });
-	const battle = new Battle({ playerTeam, enemyTeam, rng });
+	const battle = new Battle({ playerTeam, enemyTeam, rng, breakOffTurns: BREAK_OFF_TURNS });
 	battle.aiController.setEnemyAI(enemyAI);
 	battle.start();
 	const fight: CampaignFight = {
@@ -223,7 +236,8 @@ export function startCampaignFight({ campaign, party, raiders, rng, cards, enemy
  * wreck limps on at LIMP_STRUCTURE. Wrecked escorts leave the convoy and
  * the rest keep their structure. The haulers' fuel and scrap go into the
  * party's cargo; the Med Truck's heal is already in the drivers' HP. A
- * lost fight fails the run: the drivers who went down are dead, the ones
+ * fight the raiders broke off carries the run on the same way, with no
+ * hauler pay and no fight counted. A lost fight fails the run: the drivers who went down are dead, the ones
  * who crashed out are missing, and the cargo, cards won included, and every
  * escort that came along are lost. The cards a lost escort brought leave
  * the run decks; the rest of a run deck, the dead's included, waits for
@@ -255,17 +269,21 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
 	if (openFightOf(campaign) !== fight) throw new Error('This fight has already been written back');
 	refuseOver({ campaign, action: 'write a fight back' });
 	const won = battle.isBattleWon();
+	// A break-off carries the run on as a win does, with nothing won
+	const brokenOff = battle.isBattleBrokenOff();
+	const carriesOn = won || brokenOff;
 
 	const seats = party.seats.map((record, index) => {
-		const fate = fateOf({ battle, driver: drivers[index], won });
+		const fate = fateOf({ battle, driver: drivers[index], carriesOn });
 		const changes = recordChanges({ fate, driver: drivers[index], vehicle: vehicles[index] });
 		// As the record's own set checks it, so a death stored under the fight refuses the result before anything is stored
 		refuseRevival({ driver: record, changes });
 		readDriverRecordData({ ...record.getState(), ...changes }, describeDriver(record));
 		return { record, fate, changes };
 	});
-	const escortsLost = won ? afterFight.lost : party.escorts;
-	const cargo = won ? readResources(withDividends({ cargo: party.cargo, dividends: afterFight.dividends }), 'RunParty.cargo') : NO_RESOURCES;
+	const escortsLost = carriesOn ? afterFight.lost : party.escorts;
+	// A broken-off fight paid no dividends (Battle.endCombat pays only a win)
+	const cargo = carriesOn ? readResources(withDividends({ cargo: party.cargo, dividends: afterFight.dividends }), 'RunParty.cargo') : NO_RESOURCES;
 
 	// Closed before storing, so a write-back started from a listener partway through is refused
 	setOpenFight({ campaign, fight: null });
@@ -286,7 +304,7 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
 	}
 
 	const recordsFated = (fate: Fate): DriverRecord[] => seats.filter(seat => seat.fate === fate).map(({ record }) => record);
-	if (!won) {
+	if (!carriesOn) {
 		return {
 			outcome: 'run_failed',
 			party: null,
@@ -299,7 +317,7 @@ export function writeBackFight({ fight }: { fight: CampaignFight }): FightWriteB
 		};
 	}
 	return {
-		outcome: 'won',
+		outcome: brokenOff ? 'broken_off' : 'won',
 		party: { seats: party.seats, escorts: party.escorts.filter(escort => !escortsLost.includes(escort)), cargo, cargoCards: party.cargoCards, run: party.run },
 		revived: recordsFated('revived'),
 		pickedUp: recordsFated('picked_up'),
@@ -399,7 +417,7 @@ function vehicleOf({ record, driver }: { record: DriverRecord; driver: Driver })
 export function seatWriteBack({ battle, driver, vehicle }: { battle: Battle; driver: Driver; vehicle: Vehicle }): Partial<DriverRecordData> {
 	if (!battle.isBattleOver()) throw new Error("The fight isn't over, so there's nothing to write back yet");
 	if (battle.isBattleTied()) throw new Error('The fight ended in a tie at its turn limit; a campaign fight has none, so it ends won or lost');
-	return recordChanges({ fate: fateOf({ battle, driver, won: battle.isBattleWon() }), driver, vehicle });
+	return recordChanges({ fate: fateOf({ battle, driver, carriesOn: battle.isBattleWon() || battle.isBattleBrokenOff() }), driver, vehicle });
 }
 
 /**
@@ -408,10 +426,10 @@ export function seatWriteBack({ battle, driver, vehicle }: { battle: Battle; dri
  * was abandoned (`Battle.forfeit`): they fled, so they're missing, as one
  * who crashed out with nobody to pick them up is.
  */
-function fateOf({ battle, driver, won }: { battle: Battle; driver: Driver; won: boolean }): Fate {
-	if (!driver.isAlive()) return won ? 'revived' : 'dead';
-	if (battle.playerTeam.isAboard(driver)) return won ? 'aboard' : 'missing';
-	return won ? 'picked_up' : 'missing';
+function fateOf({ battle, driver, carriesOn }: { battle: Battle; driver: Driver; carriesOn: boolean }): Fate {
+	if (!driver.isAlive()) return carriesOn ? 'revived' : 'dead';
+	if (battle.playerTeam.isAboard(driver)) return carriesOn ? 'aboard' : 'missing';
+	return carriesOn ? 'picked_up' : 'missing';
 }
 
 /**

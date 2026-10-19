@@ -40,10 +40,8 @@ export interface RaiderProfile {
 	skills: DriverSkills;
 	vehicleStats: VehicleStats;
 	hitpoints: number;
-	/** Adrenaline it refills to every turn, the first included, against a pair. */
+	/** Adrenaline it refills to every turn, the first included. */
 	maxAdrenaline: number;
-	/** Adrenaline it refills to against a lone driver, who brings half a pair's guns and so gives it about twice the turns. */
-	soloAdrenaline: number;
 	deck: Readonly<Record<string, number>>;
 }
 
@@ -69,7 +67,6 @@ export const RAIDER_PROFILES: Readonly<Record<RaiderId, Readonly<RaiderProfile>>
 		vehicleStats: { maxStructure: 12, weight: 1, armor: 0, speed: 4, gunnery: 4, evade: 4 },
 		hitpoints: 5,
 		maxAdrenaline: 1,
-		soloAdrenaline: 1,
 		deck: { point_blank: 3, far_shoot: 2 },
 	},
 	// The combat screen's default raider, a scavenger's buggy that goes for haulers (escorts.md decision 30)
@@ -86,7 +83,6 @@ export const RAIDER_PROFILES: Readonly<Record<RaiderId, Readonly<RaiderProfile>>
 		vehicleStats: { maxStructure: 30, weight: 2, armor: 5, speed: 3, gunnery: 6, evade: 4 },
 		hitpoints: 30,
 		maxAdrenaline: 5,
-		soloAdrenaline: 3,
 		deck: { ramming_speed: 2, precision_shot: 1, point_blank: 2 },
 	},
 	// The Raider archetype's Spike Buggy, going for the drivers. Its own
@@ -105,7 +101,6 @@ export const RAIDER_PROFILES: Readonly<Record<RaiderId, Readonly<RaiderProfile>>
 		vehicleStats: { ...spike.vehicleStats, maxStructure: 55, armor: 6 },
 		hitpoints: 50,
 		maxAdrenaline: 5,
-		soloAdrenaline: 3,
 		deck: { ramming_speed: 3, precision_shot: 1, armor_plating: 2 },
 	},
 	// A warband's leader: an elite, so its intents hide their values and
@@ -124,29 +119,28 @@ export const RAIDER_PROFILES: Readonly<Record<RaiderId, Readonly<RaiderProfile>>
 		vehicleStats: { maxStructure: 70, weight: 4, armor: 6, speed: 3, gunnery: 3, evade: 3 },
 		hitpoints: 50,
 		maxAdrenaline: 6,
-		soloAdrenaline: 6,
 		deck: { ramming_speed: 2, precision_shot: 1, point_blank: 2, armor_plating: 1 },
 	},
 });
 
 /**
  * A raider at the wheel of its vehicle, with a fresh copy of its deck from
- * `cards` in the profile's order, for an enemy team, refilling to its
- * `soloAdrenaline` when it faces a lone driver. Throws for a card the
+ * `cards` in the profile's order, for an enemy team, grown for the game
+ * stage. A lone driver's fight is sized by its raiders (sizedWaves), not
+ * their adrenaline. Throws for a card the
  * map doesn't hold, since a raider dealt short would be an easier fight
  * than the one it stands for.
  */
-export function raiderVehicle({ raider, cards, solo = false, stage = 0, profiles = RAIDER_PROFILES }: {
+export function raiderVehicle({ raider, cards, stage = 0, profiles = RAIDER_PROFILES }: {
 	raider: RaiderId;
 	cards: ReadonlyMap<string, Card>;
-	solo?: boolean;
 	/** Game stage: structure and HP grow by STAGE_GROWTH a stage (Runs and Encounters, Encounters) */
 	stage?: number;
 	/** The shipped profiles when left out; the balance sim passes its config's. */
 	profiles?: Readonly<Record<RaiderId, Readonly<RaiderProfile>>>;
 }): Vehicle {
 	const profile = profiles[raider];
-	const adrenaline = solo ? profile.soloAdrenaline : profile.maxAdrenaline;
+	const adrenaline = profile.maxAdrenaline;
 	const grown = (value: number): number => Math.round(value * (1 + STAGE_GROWTH * stage));
 	// A mook's HP doesn't grow: one starter attack has to take it out at any stage
 	const hitpoints = profile.class === 'mook' ? profile.hitpoints : grown(profile.hitpoints);

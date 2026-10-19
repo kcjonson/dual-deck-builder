@@ -5,12 +5,11 @@ import { STRONGHOLD_TYPE } from '../map/PoiData';
 import { Card, CardData } from '../mechanics/Card';
 import type { DriverArchetype } from '../mechanics/Driver';
 import { createEscort } from '../mechanics/Escort';
-import { RAIDER_PROFILES } from '../mechanics/Raiders';
 import { Campaign, CampaignJson, NO_RESOURCES } from './Campaign';
 import { CampaignOverError } from './CampaignEnd';
 import { CAMPAIGN_START } from './CampaignStart';
 import { CampaignStore } from './CampaignStore';
-import { ENCOUNTER_IDS, ENCOUNTERS, encounterFor, encounterTeam } from './Encounters';
+import { encounterForces } from './Encounters';
 import { foundTestCampaign } from './__fixtures__/mapFixtures';
 import type { DriverRecord } from './DriverRecord';
 import { getCrewRule, getSeatBlocker } from './Seating';
@@ -24,7 +23,7 @@ import { FindStop, RouteStop, RunRoute, everyStop, readRunRoute, routeStops } fr
 import type { SupplyRun } from './SupplyRunState';
 import {
 	DepartRuleError, arriveHome, atDestination, currentStop, departRun, finishStopFight, foundDriver, getDepartBlocker, getPlanBlocker, leaveFind, passQuietStop,
-	quickLoadOut, cargoText, rewardOffer, routesOnOffer, runParty, startStopFight, takeFind, takeReward, yieldResources
+	quickLoadOut, cargoText, rewardOffer, routesOnOffer, runParty, runStream, startStopFight, takeFind, takeReward, yieldResources
 } from './SupplyRun';
 import { fightOut, pushovers, snipers } from './__fixtures__/runFixtures';
 import { CAMPAIGN_FIXTURE } from './__fixtures__/storeFixtures';
@@ -155,48 +154,58 @@ describe('the routes on offer (DDB-479)', () => {
 });
 
 describe('the raider encounters', () => {
-	it('fields the combat screen\'s own Rust Buggy, one shared profile, refilling to 5 adrenaline a turn against a pair', () => {
-		const [buggy] = encounterTeam({ encounter: 'scavengers', cards: CARDS, crewStructure: [80, 50] }).vehicles;
-		expect([buggy.name, buggy.driver?.metadata.name, buggy.driver?.adrenaline, buggy.driver?.maxAdrenaline, buggy.raiderArchetype])
-			.toEqual(['Rust Buggy', 'Wasteland Raider', 5, 5, 'looter']);
-		expect(RAIDER_PROFILES.rust_buggy.maxAdrenaline).toBe(5);
-	});
-
-	it('sizes the stop\'s raiders up against the seats as they\'ll open the fight', () => {
+	it('fields an encounter template for the stop\'s skulls at the destination\'s tier, picked on the stop\'s fight stream', () => {
 		const campaign = newCampaign();
-		const { seats } = quickLoadOut({ campaign });
-		const firstFightIsLone = (route: RunRoute): boolean => {
-			const fight = routeStops(route).find(stop => stop.kind === 'fight');
-			return fight?.kind === 'fight' && ENCOUNTERS[encounterFor(fight.skulls)].raiders.length === 1;
-		};
-		const [route] = routesOnOffer({ map: MAP, campaign: newCampaign() }).filter(firstFightIsLone).sort((a, b) => a.fuel - b.fuel);
-		if (!route) throw new Error('the map should offer a route whose first fight is a lone raider');
+		quickLoadOut({ campaign });
+		const route = testRoute();
 		departRun({ campaign, map: MAP, route, escorts: [] });
 		toNextFight(campaign);
-		// Driver 1 limps in, so Driver 2's vehicle carries the most structure
-		seats[0].set({ vehicle: { ...seats[0].vehicle, structure: 1 } });
+		const run = onRoad(campaign);
+		const stop = currentStop(run);
+		if (stop?.kind !== 'fight') throw new Error('the run should be driving to a fight');
+		const expected = encounterForces({ skulls: stop.skulls, tier: route.destination.tier, cards: CARDS, seats: 2, rng: runStream({ campaign }).fork('fight', run.stop) });
 
 		const fight = startStopFight({ campaign, cards: CARDS });
 
-		const raiders = fight.battle.enemyTeam.vehicles;
-		expect(raiders).toHaveLength(1);
-		expect(raiders[0].slot?.row).toBe(fight.vehicles[1].slot?.row);
+		expect(fight.battle.enemyTeam.vehicles.map(raider => raider.name)).toEqual(expected.team.vehicles.map(raider => raider.name));
+		expect(fight.battle.waves).toMatchObject({ number: 1, total: expected.template.waves.length });
 	});
 
-	it('rolls one encounter for each skull count', () => {
-		expect([1, 2, 3].map(skulls => encounterFor(skulls as 1 | 2 | 3))).toEqual(ENCOUNTER_IDS);
-	});
-
-	it.each(ENCOUNTER_IDS)('builds %s as a fight the bridge starts', (encounter) => {
+	it('takes the raiders a caller hands it instead', () => {
 		const campaign = newCampaign();
-		const { seats } = quickLoadOut({ campaign });
+		quickLoadOut({ campaign });
 		departRun({ campaign, map: MAP, route: testRoute(), escorts: [] });
 		toNextFight(campaign);
-		const team = encounterTeam({ encounter, cards: CARDS, crewStructure: seats.map(seat => seat.vehicle.structure) });
-		expect(team.vehicles).toHaveLength(ENCOUNTERS[encounter].raiders.length);
+		const team = pushovers();
 		const fight = startStopFight({ campaign, cards: CARDS, raiders: () => team });
 		expect(fight.battle.enemyTeam).toBe(team);
 		expect(fight.battle.turn).toBe(1);
+	});
+});
+
+describe('a fight the raiders break off', () => {
+	it('carries the run on past the stop with no reward, and counts no fight won', () => {
+		const campaign = newCampaign();
+		quickLoadOut({ campaign });
+		departRun({ campaign, map: MAP, route: testRoute(), escorts: [] });
+		toNextFight(campaign);
+		const before = onRoad(campaign);
+		const clearedBefore = stopStates(campaign.map).length;
+		const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+		// Nobody fires: three quiet turns break it off
+		for (let turn = 0; turn < 3; turn += 1) fight.battle.endPlayerTurn();
+		expect(fight.battle.isBattleBrokenOff()).toBe(true);
+
+		const result = finishStopFight({ campaign, fight });
+
+		expect(result.outcome).toBe('broken_off');
+		const run = onRoad(campaign);
+		expect([run.stop, run.phase]).toEqual([before.stop + 1, 'driving']);
+		expect(run.cargo).toEqual(before.cargo);
+		expect(campaign.tally.fightsWon).toBe(0);
+		// The stop is resolved, so it's cleared like any other
+		expect(stopStates(campaign.map).length).toBe(clearedBefore + 1);
+		expect(campaign.log.map(entry => entry.message)).toContain(`The raiders broke off at stop ${before.stop + 1} on the run to ${before.route.destination.name}.`);
 	});
 });
 

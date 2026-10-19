@@ -99,7 +99,7 @@ export class BattleResultScreen extends Screen {
 			wrap: 'none',
 		}));
 		panel.addChild(new Text({
-			text: data.subtitle ?? (victory ? 'All enemies have been defeated!' : brokenOff ? 'The raiders broke off. Nothing won, nothing lost.' : 'Your vehicles have been destroyed!'),
+			text: data.subtitle ?? (victory ? 'All enemies have been defeated!' : brokenOff ? 'The raiders broke off. Nothing won; the damage stays with you.' : 'Your vehicles have been destroyed!'),
 			id: 'result_subtitle',
 			widthMode: 'fill',
 			style: { fontSize: 16, color: 'text_dim', textAlign: 'center' },
