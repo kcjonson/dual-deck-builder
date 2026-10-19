@@ -379,9 +379,9 @@ Record: intent-aware-stand-in.md. Numbered from 240, the range set aside for thi
 243. DDB-528: what the harm count doesn't cover (flanking, draws, adrenaline, cards with no effect) is scored as the aggressive AI scores it, so the ceiling keeps the floor's priorities whenever no intent is at stake.
 244. DDB-528: a flanker the play outpaces is taken to lose its flank bonus whole (its hits divided by 1.5, rounded up) and to stay in range, because re-deriving range from the reserved slot needs Battle's enemy-turn preview, which projects only from the board as it stands.
 
-## Event stops (250 to 259)
+## Event stops (250 to 259, 270 to 275)
 
-Record: event-screen.md.
+Record: event-screen.md; 270 to 275, event-stops-on-a-run.md.
 
 250. DDB-45: a choice at an event is taken when it's pressed (a click, Enter, or its number key), with no confirm step, because its card already shows the risks and nothing on the screen can be undone anyway.
 251. DDB-45: an event's costs are paid from the stores and the run's cargo together, the cargo first, and a choice is locked when the two hold less, because cargo alone is empty at a run's first stop and would lock nearly every cost there.
@@ -393,6 +393,12 @@ Record: event-screen.md.
 257. DDB-45: a card requirement is met by a copy in either seated driver's run deck, an escort's signature card included, and never by the locker, because the choice is what the crew on the road can do with what they brought.
 258. DDB-45: an event stop picks its event evenly among its stop type's events, with no weights or repeat rule yet, because five events can't carry a weighting worth tuning.
 259. DDB-45: an event's HP and structure losses stop at 1 and its resource losses stop at 0, taken from the cargo first and then the stores, because an event that kills a driver or wrecks a vehicle outright would be a fight with no chance to fight back.
+270. DDB-535: an escort an event gives rides home with the run and joins the convoy when it gets home, is lost if the run fails, and is left on the road with the convoy already at four, departing from Game Flow 5, where the player dismisses one to take it, because joining mid-run needs its signature card dealt into a run deck and Game Flow 5's dismiss step, and the run has neither yet.
+271. DDB-535: an event's extra hours do nothing yet, because the run keeps no clock on the road (as call 217 has it for cleared stops).
+272. DDB-535: a hand-off's fight is fought as a stop fight at its skulls, a win gives its fight's gains and then the reward picker as any won stop fight does, and a break-off drives on with nothing more, because the picker is what winning a stop fight already gives and a break-off is no win.
+273. DDB-535: drivers an event gives are someone new of the unlocked archetype the compound has fewest living drivers of, counting recruits riding home, and never one of its missing, because call 256 makes them new recruits and that's the rule a Find: driver's someone new already follows.
+274. DDB-535: the run screen offers only Pull over at a wreck or distress stop, with no drive past, because every event has a free choice (call 254), so passing one up is made on the event itself.
+275. DDB-535: HP and structure an event gives stop at the driver's and the vehicle's most, as its losses stop at 1 (call 259), because a repair past full has nowhere to go.
 
 ## Combat run pacing (190 to 209)
 

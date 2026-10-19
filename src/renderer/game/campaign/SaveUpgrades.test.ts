@@ -42,7 +42,7 @@ describe('save upgrades', () => {
 	});
 
 	it('gives a version 10 run out no recruits, since nothing found anyone new then', () => {
-		expect(upgradeCampaignJson({ campaign: { day: 3, supplyRun: { stop: 1 } }, version: 10 })).toEqual({ day: 3, supplyRun: { stop: 1, recruits: [] } });
+		expect(upgradeCampaignJson({ campaign: { day: 3, supplyRun: { stop: 1 } }, version: 10 })).toEqual({ day: 3, supplyRun: { stop: 1, recruits: [], escortsFound: [], handOff: null } });
 		expect(upgradeCampaignJson({ campaign: { day: 3, supplyRun: null }, version: 10 })).toEqual({ day: 3, supplyRun: null });
 	});
 
@@ -55,6 +55,13 @@ describe('save upgrades', () => {
 		expect(upgradeCampaignJson({ campaign, version: 9 })).toEqual(campaign);
 		expect(upgradeCampaignJson({ campaign, version: 10 })).toEqual(campaign);
 		expect(upgradeCampaignJson({ campaign, version: 11 })).toEqual(campaign);
+		expect(upgradeCampaignJson({ campaign, version: 12 })).toEqual(campaign);
+	});
+
+	it('gives a version 12 run out no escorts found and no hand-off, since no stop was an event then', () => {
+		expect(upgradeCampaignJson({ campaign: { day: 3, supplyRun: { stop: 1, recruits: [] } }, version: 12 })).toEqual({ day: 3, supplyRun: { stop: 1, recruits: [], escortsFound: [], handOff: null } });
+		expect(upgradeCampaignJson({ campaign: { day: 3, supplyRun: null }, version: 12 })).toEqual({ day: 3, supplyRun: null });
+		expect(upgradeCampaignJson({ campaign: { day: 3, supplyRun: { escortsFound: 'x' } }, version: 12 })).toEqual({ day: 3, supplyRun: { escortsFound: 'x', handOff: null } });
 	});
 
 	it.each([

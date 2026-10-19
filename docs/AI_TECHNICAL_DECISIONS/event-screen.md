@@ -57,7 +57,7 @@ None of these is in a spec. They're calls 250 to 259 in [gameplay-calls.md](../g
 
 ## What the run's hook-up has to add
 
-These sit in the run loop's files, which this item doesn't touch.
+These sit in the run loop's files, which this item doesn't touch. DDB-535 added them for wrecks and distress signals ([event-stops-on-a-run.md](./event-stops-on-a-run.md)), the escort's mid-run join aside.
 
 - A `RouteStop` keeps only fight or quiet today, so the run has no stop type to hand `pickEvent`. It needs the map's type, which the strict stop reader makes a save change.
 - An escort gain needs the convoy's add (`createEscort`, `Convoy.add`), its signature card dealt into a run deck's escort cards, and, with four already, a step to dismiss one (Game Flow 5) before driving on.
