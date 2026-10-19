@@ -60,7 +60,7 @@ Each phase lists its deliverables as the checkboxes that become board tasks. The
   and committed as `670350c` (twenty-six PNGs, thirteen per project). `continue-on-error` came off the screenshots job in the same change, so it is a
   gate rather than a report. Two scenarios stay `test.fixme` with their reasons attached rather than being deleted from the list: `primitive-shapes`
   (DDB-103, a vertex-buffer overflow whose golden would define corrupt circles as correct) and `battleResultScreen` (the R13.32 control surface carries
-  no `BattleResultData`, so a capture gets the missing-data fallback). See [visual-golden-harness.md](../AI_TECHNICAL_DECISIONS/visual-golden-harness.md).
+  no `BattleResultData`, so a capture gets the missing-data fallback). The suite was retired on 2026-10-19 for the prototype's boot smoke; see [prototype-ci.md](../AI_TECHNICAL_DECISIONS/prototype-ci.md).
 - [x] Input injection hook (`window.__dev.input(...)`) feeding the existing input path in logical coordinates (R13.35).
 - [x] Frame timer with disjoint sections and window statistics (R13.7 to R13.11) replacing the frame-interval-only monitor; batcher counters arrive with phase 1.
 - [x] Baseline table recorded and committed under `perf-results/`.

@@ -52,7 +52,7 @@ module.exports = {
 		{
 			// R8.17 and R8.28: UI code takes time from the mount context's
 			// clock and animator, never a platform timer or a wall-clock read,
-			// so pause, tests and the screenshot harness control all of it.
+			// so pause and tests control all of it.
 			// The platform side is left out on purpose: engine/rendering
 			// (FrameLoop's rAF, FrameTimer and GpuTimer's clocks), engine/debug
 			// (perf capture, hitch observer), the entry points, and game

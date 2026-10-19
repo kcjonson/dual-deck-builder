@@ -10,6 +10,16 @@
 
 **Wasteland Wheels** is a deckbuilder roguelike game set in a post-apocalyptic world featuring vehicular combat with a unique "Symbiotic Driver System" where players control two drivers/vehicles simultaneously. Built with TypeScript, WebGL rendering, and designed for both web and desktop (Electron) platforms.
 
+## Move fast, fail loud
+
+**IMPORTANT**: this is an early prototype for playtesting. Speed beats stability, and the emphasis is on failing loud.
+
+- Main is allowed to break, as long as it breaks loudly and the next session fixes it. Don't hold work back to make main bulletproof.
+- Playtesting happens on the SFTP deploy of main (bearcavinteractive.com/playtest/dual-deckbuilder/) and locally. The Electron builds and other channels exist only so we don't fall too far behind on them.
+- Fail loud in code. Throw, or log an error the console and the boot smoke will see, rather than catching and carrying on, returning a quiet default, or adding a fallback that hides a broken state. A crash we can see beats a game that silently plays wrong.
+- Fail loud in CI. `.github/workflows/main.yml` runs every check after merge, and each failing one opens a `main is broken: <check>` issue under the `main-broken` label (a failed playtest deploy does too). At the start of a session, run `gh issue list --label main-broken`; fixing an open one comes before new work.
+- The UI changes daily, so there are no screenshot baselines or pixel comparisons. Don't add them. See `docs/AI_TECHNICAL_DECISIONS/prototype-ci.md`.
+
 ## Project Structure
 
 ```
@@ -53,6 +63,9 @@ src/
 - Use the existing test setup with Jest
 - Test UI components with the InputSystem mock
 - Ensure cross-platform compatibility
+- Test like a developer with a day's work in front of them: while iterating, run only the tests for what you touched (`npx jest <path>`, or `npm run test:changed` for everything that imports a changed file), then run the full `npm test` once when a block of related work is done, not after every edit or commit
+- `npm test` skips the slow map-generation tests; run `npm run test:slow` when you change map generation (`src/renderer/game/map/`), and nightly CI runs them regardless
+- `npm run test:smoke` builds the web bundle and boots it, then opens every game screen in a browser and fails on any console error; run it after changing boot, loading, or a screen's mount
 
 ### 4. Performance Considerations
 
@@ -67,7 +80,7 @@ src/
 
 1. Create a new class extending `Screen` in `src/renderer/game/screens/<screen-name>/`
 2. Implement lifecycle methods as needed: `onMount()`, `onUnmount()`, `onUpdate()`, `onRender()`, `onResized()`
-3. Register the screen in `ScreenManager.screenConstructors` (`src/renderer/game/core/ScreenManager.ts`)
+3. Register the screen in `ScreenManager.screenConstructors` (`src/renderer/game/core/ScreenManager.ts`), and add it to `SCREENS` in `tests/smoke/screens/screens.spec.ts` so the boot smoke opens it
 4. Navigate with `ScreenManager.navigate(screenName, data?)`; do not create UI in constructors — build it in `onMount()`
 
 ### Creating UI Components
@@ -110,7 +123,7 @@ src/
 
 6. **Test your changes** - ensure the game still builds and runs
 
-7. **Consider both platforms** - web and Electron (mac and windows) versions should work seamlessly
+7. **Consider both platforms** - web is where playtesting happens, and Electron (mac and windows) has to keep building and booting; main's CI packages and smokes it nightly
 
 8. **Performance first** - this is a game that needs smooth performance
 
@@ -124,11 +137,16 @@ npm start              # Start web dev server
 npm run start:electron # Start Electron version
 
 # Testing
-npm test              # Run tests
+npx jest <path>       # Run the tests for what you're working on
+npm run test:changed  # Run the tests that import anything changed since main
+npm test              # Run every test but the slow map-generation ones
+npm run test:slow     # Run the slow map-generation tests
+npm run test:smoke    # Build and boot the game, then open every screen in a browser
 npm run test:watch    # Run tests in watch mode
 
-# Linting
+# Linting and types
 npm run lint          # Check for linting errors
+npm run typecheck     # Typecheck the game and the tests
 
 # Building
 npm run build:web     # Build for web
@@ -143,17 +161,12 @@ npm run build:electron # Build for Electron
 
 ## Creating Pull Requests
 
-**IMPORTANT**: Before creating a pull request, ALWAYS:
-1. Run `npm test` to ensure all tests pass
-2. Run `npm run lint` to check for any linting errors
-3. Fix any failures before proceeding with the PR
+**IMPORTANT**: the merge bar is local, and nothing waits on CI.
 
-When creating a PR:
-1. Create a new branch with a descriptive name (e.g., `feat/ai-system`, `fix/battle-logic`)
-2. Make your changes and commit them with clear, descriptive messages
-3. Run tests and lint checks
-4. Push your branch and create the PR with a comprehensive description
-5. Include a summary of changes, test plan, and any breaking changes
+1. Before merging a block of work, run `npm run lint`, `npm run typecheck`, and `npm test` locally (plus `npm run test:slow` or `npm run test:smoke` when the work touches what they cover), and fix what fails.
+2. Push at the end of a block of work, not after every commit.
+3. Don't wait for CI, and don't poll it. The PR workflow (`pr.yml`: lint, typecheck, tests for what changed) is advisory; merge once the local checks pass. Main runs everything after merge and opens a `main-broken` issue if something fails.
+4. Use a descriptive branch name (`feat/ai-system`, `fix/battle-logic`, or `<type>/DDB-123-title` for a Specboard item), commit with clear messages, and describe the change, how it was tested, and anything it breaks in the PR.
 
 ## References
 

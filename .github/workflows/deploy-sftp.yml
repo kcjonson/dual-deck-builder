@@ -11,6 +11,10 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # The playtest site is where the game gets played, so a failed deploy is loud too (DDB-536)
+    permissions:
+      contents: read
+      issues: write
     
     steps:
     - uses: actions/checkout@v4
@@ -54,3 +58,11 @@ jobs:
         mirror -R --delete --verbose dist/web/ bearcavinteractive.com/playtest/dual-deckbuilder/
         quit
         EOF
+
+    - name: Report
+      if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
+      uses: ./.github/actions/report-main
+      with:
+        check: playtest deploy
+        result: ${{ job.status }}
+        token: ${{ github.token }}

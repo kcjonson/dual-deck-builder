@@ -1,7 +1,0 @@
-[
-{"path":"splashScreen/splash_scene/splash_book/splash_cover_kicker","text":"A road atlas of the Halcyon region","rect":[361.32,168.56,742.84,17.64]},
-{"path":"splashScreen/splash_scene/splash_book/splash_cover_edition","text":"fourth edition, revised after","rect":[361.32,597.8,742.84,23.52]},
-{"path":"splashScreen/splash_scene/splash_loader/Stack[1]/splash_loader_caption","text":"UNFOLDING THE MAP","rect":[510,753,149.28,15.84]},
-{"path":"splashScreen/splash_scene/splash_loader/Stack[1]/splash_loader_percent","text":"33%","rect":[905.04,753,24.96,15.84]},
-{"path":"splashScreen/splash_scene/splash_build","text":"DEVELOPMENT BUILD","rect":[0,842,1440,14]}
-]

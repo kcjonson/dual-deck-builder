@@ -3,6 +3,8 @@
 ## Date
 2026-10-02
 
+Retired 2026-10-19: `battleFit.spec.ts` and `battleFit.ts` went with the screenshot suite ([prototype-ci.md](./prototype-ci.md)). The gallery's battle scenes, `ScreenScene`, and `CombatScreen`'s prepared-fight seam below are still in use.
+
 ## Context
 
 DDB-141. The battle screen mock (docs/design/battle-screen/index.html) carries a fit matrix: six scenarios at six viewports in five states, each run through a `lint` that reports overflowing text, things off the frame, colliding tokens and chips, tokens scaled under x1, and broken slot rules. With the road, token, dock, card face, targeting, intents, and top bar all built, the same matrix has to hold on the real screen, and stay held in CI.

@@ -27,9 +27,9 @@
  * effective `layer` on every node since DDB-80, so R13.25.1's exemption now
  * applies as written wherever a component sets either.
  *
- * R13.29 makes `count: 0` the merge gate. Per the implementation spec's ground
- * rules that gate applies to the gallery first and to each screen as it
- * migrates; `tests/visual/web/lint.spec.ts` holds the gallery to it.
+ * R13.29 makes `count: 0` the merge gate. The prototype runs without it
+ * (docs/AI_TECHNICAL_DECISIONS/prototype-ci.md): `window.__ui.lint()` is there
+ * to call on any page, and nothing in CI holds a scene or screen to zero.
  */
 
 export interface LintRect {

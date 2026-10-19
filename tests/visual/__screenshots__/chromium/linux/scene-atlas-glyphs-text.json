@@ -1,9 +1,0 @@
-[
-{"path":"gallery_root/gallery_scene_atlas_glyphs/Text[0]","text":"Map glyphs and decks","rect":[56,48,1328,21]},
-{"path":"gallery_root/gallery_scene_atlas_glyphs/gallery_scene_atlas_glyphs_rows/Stack[0]/Text[0]","text":"circled numbers and letters, the highway shield, the stronghold diamond, the star, the legend's ring and dash","rect":[56,93,861.96,14.52]},
-{"path":"gallery_root/gallery_scene_atlas_glyphs/gallery_scene_atlas_glyphs_rows/Stack[0]/Stack[1]/MapGlyph[0]","text":"1","rect":[56,119.52,32,32]},
-{"path":"gallery_root/gallery_scene_atlas_glyphs/gallery_scene_atlas_glyphs_rows/Stack[0]/Stack[1]/MapGlyph[1]","text":"H","rect":[104,119.52,32,32]},
-{"path":"gallery_root/gallery_scene_atlas_glyphs/gallery_scene_atlas_glyphs_rows/Stack[0]/Stack[1]/MapGlyph[2]","text":"9","rect":[152,115.52,33,40]},
-{"path":"gallery_root/gallery_scene_atlas_glyphs/gallery_scene_atlas_glyphs_rows/Stack[0]/Stack[1]/MapGlyph[8]","text":"2","rect":[402,119.52,32,32]},
-{"path":"gallery_root/gallery_scene_atlas_glyphs/gallery_scene_atlas_glyphs_rows/Stack[1]/Text[0]","text":"the deck glyph, and the two decks set down: A always orange, B always teal","rect":[56,171.52,584.76,14.52]}
-]

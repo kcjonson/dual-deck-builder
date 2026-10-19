@@ -22,7 +22,8 @@ import {
 /**
  * The CPU half of chapter 5: what `UberGeometryEncoder` writes for each
  * command. The shader's half (coverage, compositing, the clip test) runs on a
- * GPU and is checked by `tests/visual/web/uberShader.spec.ts`.
+ * GPU, and the shading and clipping fixtures in the gallery are where a person
+ * checks it.
  */
 
 const RED: RGBA = [1, 0, 0, 1];

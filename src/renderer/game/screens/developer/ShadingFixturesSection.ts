@@ -48,8 +48,7 @@ interface Row {
  * position, gradients including to transparent, shadows at blur 0, 8 and 24
  * with both spreads, a glow, bordered circles, 1 and 3 px lines, text over
  * every one of them, the four blend modes over a photograph, and a
- * nine-sliced image. The pixel tests in `tests/visual/web/uberShader.spec.ts`
- * check the same rules as numbers; this is the picture a person reviews.
+ * nine-sliced image: the picture a person reviews the rules against.
  *
  * Each group is a fixture tile carrying its own pitch, five rows of them,
  * each row wrapping at the section's width. In the gallery every row fits on
