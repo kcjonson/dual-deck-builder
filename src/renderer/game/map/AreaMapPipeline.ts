@@ -10,7 +10,7 @@ import type { RoadNetwork } from './RoadNetwork';
 import { RoadStats, Roads, generateRoads, loopsNeeded, loopsWanted, roadsProblems } from './Roads';
 import { poiNames } from './PoiNames';
 import { RouteTree, buildRouteTree } from './RouteTree';
-import { checkStopLayer } from './StopChecks';
+import { checkStopLayer, keepableStops } from './StopChecks';
 import { StopGround, StopLayer, placeStops } from './Stops';
 import { Terrain, generateTerrain } from './Terrain';
 import { Water, generateWater } from './Water';
@@ -171,15 +171,21 @@ interface StopsUpstream extends RoadsProduct {
 }
 
 /**
- * Stage 9, stops on the legs, checked by the checks the map validator will
- * run. It retries only itself and never restarts the map; on a map with no
- * POIs it places nothing and passes.
+ * Stage 9, stops on the legs, checked by the hard rules the map validator
+ * will run; the soft ones, a route's band, are in the layer's failures. It
+ * retries only itself, and past its cap keeps its best attempt, except that
+ * an attempt with a route under its fight floor is never kept: with only
+ * those, the map restarts. On a map with no POIs it places nothing and
+ * passes.
  */
 export const STOPS_STAGE: MapStage<MapParams, StopsUpstream, 'stops', StopLayer> = {
 	name: 'stops',
 	localRetry: true,
+	keepable: keepableStops,
 	run: ({ input, products, rng }) => placeStops({ network: products.roads.network, layer: products.pois, ground: products.hazards.terrain, params: input, rng }),
-	check: (stops, { input, products }) => checkStopLayer({ network: products.roads.network, layer: products.pois, stops, params: input }).map(({ rule, detail }) => `${rule}: ${detail}`),
+	check: (stops, { input, products }) => checkStopLayer({ network: products.roads.network, layer: products.pois, stops, params: input })
+		.filter(({ hard }) => hard)
+		.map(({ rule, detail }) => `${rule}: ${detail}`),
 };
 
 /** What the dressing reads: the water, the land with its hazards, the places, the roads, and the POIs. */

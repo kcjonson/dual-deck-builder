@@ -26,6 +26,7 @@
 		"4": { "stops": { "min": 5, "max": 6 }, "fights": { "min": 2, "max": 3 } },
 		"5": { "stops": { "min": 6, "max": 7 }, "fights": { "min": 2, "max": 3 } }
 	},
+	"extras": [2, 4],
 	"objectiveHours": { "poi": 1.5, "stronghold": 2 },
 	"skulls": { "step": 0.5, "warband": 1 },
 	"driverFinds": { "floorTiers": 2, "rates": [0, 0, 0.04, 0.04, 0.04] },

@@ -8,7 +8,7 @@ import { rollParams } from '../map/RollParams';
 import type { RingCount } from '../map/Pois';
 import type { RoadNetwork } from '../map/RoadNetwork';
 import type { Leg } from '../map/RouteTree';
-import { STOP_TUNING, StopTuning, StopType, TierBand } from '../map/StopData';
+import { STOP_TUNING, StopTuning, StopType, TierBand, isResolvable } from '../map/StopData';
 import { junctionsAlong, legRoom, nodeDegrees } from '../map/StopRoom';
 import { Rate, Spread, mean, rate, spread } from './Measures';
 import type { SimConfig } from './SimConfig';
@@ -49,7 +49,7 @@ export interface CorpusRoute extends Omit<RunRoute, 'legs'> {
 export interface RouteAudit {
 	readonly stops: number;
 	readonly fights: number;
-	/** Stops no run resolves yet: a quiet stretch where nothing happens. */
+	/** Stops of a type no run resolves yet (`RESOLVABLE_STOP_TYPES`): a quiet stretch where nothing happens. */
 	readonly empty: number;
 	readonly skulls: readonly number[];
 	/** Out (driving and stops), at the objective, and home. */
@@ -150,7 +150,7 @@ export function playGenCell({ cell }: { config: SimConfig; cell: GenCell }): Gen
 			audit: {
 				stops: all.length,
 				fights: all.filter(stop => stop.kind === 'fight').length,
-				empty: all.filter(stop => stop.kind === 'quiet').length,
+				empty: all.filter(stop => !isResolvable(stops.stops[stopOf(stop.id)].type)).length,
 				skulls: all.flatMap(stop => (stop.kind === 'fight' ? [stop.skulls] : [])),
 				hours: route.hours.out + route.hours.objective + route.hours.home,
 				pastDark: descriptor.spare < 0,
@@ -251,7 +251,7 @@ export function summarizeGen({ config, maps }: { config: SimConfig; maps: readon
 	const tiers = [...new Set(routes.map(route => route.tier))].sort((a, b) => a - b);
 	const unresolved: Partial<Record<StopType, number>> = {};
 	for (const route of routes) {
-		for (const stop of route.legs.flatMap(leg => leg.stops)) if (stop.kind === 'quiet') unresolved[stop.type] = (unresolved[stop.type] ?? 0) + 1;
+		for (const stop of route.legs.flatMap(leg => leg.stops)) if (!isResolvable(stop.type)) unresolved[stop.type] = (unresolved[stop.type] ?? 0) + 1;
 	}
 	return {
 		maps: maps.length,

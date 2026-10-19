@@ -5,21 +5,27 @@ import { POI_RESOURCES, PoiResource, STRONGHOLD_TYPE } from './PoiData';
 import type { PoiLayer } from './Pois';
 import { ROAD_CLASSES, RoadClass, RoadNetwork } from './RoadNetwork';
 import { Route, legPoints, routesTo } from './RouteTree';
-import { CompiledStopTables, NO_TERRITORY, STOP_TUNING, StopTuning, StopType, isCalm, isFight, stopTablesFor } from './StopData';
-import { DAYLIGHT_TIERS, junctionsAlong, nearestClear, nodeDegrees, runHours } from './StopRoom';
+import { CompiledStopTables, NO_TERRITORY, STOP_TUNING, StopTuning, StopType, TierBand, isCalm, isFight, stopTablesFor } from './StopData';
+import { DAYLIGHT_TIERS, bandFor, junctionsAlong, legEnds, legOwners, legRoom, legSpan, nearestClear, nodeDegrees, ownRoadNeed, packAlong, runHours } from './StopRoom';
 import type { Terrain } from './Terrain';
 
 /**
  * Stage 9 of area map generation, stops (Area Map Generation, 9. Stops), on
  * the `stops` stream: stops on the legs of the route tree and nowhere else.
- * Each leg gets a count from its road by class, spread evenly along it by
- * arc length with jitter, clear of its ends and of junctions, and a type
- * drawn from the stop tables by the class and biome where it stands, its
- * leg's tier, and territory. Types are drawn leg by leg from the compound
- * out, carrying the stops behind each leg, so no route ever has three fights
- * or checkpoints in a row. Then the Find: driver floor and rates, and the
- * daylight check (guarantee 10), which thins a POI's quickest route until an
- * estimated run fits in daylight.
+ * Each route's stops come to its destination tier's band and its fights to
+ * the band's fights, allocated over the route tree parents first, since a
+ * leg's stops are on every route through it. A leg starts from what its road
+ * earns and is clamped by the tightest route through it and lifted by the
+ * loosest; each route's need, its fight floor and half its band's minimum,
+ * goes on its own road (legs no other POI's routes use), which the POI stage
+ * left room for. Fights are allocated the same way, then each leg's stops
+ * are ordered so no route has three fights in a row, spread along the leg by
+ * arc length with jitter, clear of its ends and junctions, and typed from
+ * the stop tables: ambush or warband for a fight, a calm type for the rest.
+ * Each route's own last leg also carries up to two dormant calm stops for
+ * later game stages. Then the Find: driver floor and rates, and the daylight
+ * check (guarantee 10), which thins a POI's quickest route until an
+ * estimated run fits in daylight, never below a route's fight floor.
  *
  * Tier and territory are stand-ins until stage 8 (DDB-292): a leg's tier is
  * the lowest of the POIs whose routes use it, by the POI layer's ring + 1,
@@ -33,11 +39,16 @@ const sqrt = Math.sqrt;
 const floor = Math.floor;
 const ceil = Math.ceil;
 const round = Math.round;
+const abs = Math.abs;
 
 /** A stronghold's tier, and any leg's before a POI's route claims it. */
 const STRONGHOLD_TIER = 5;
 /** Passes of the daylight check at most, each over every POI it covers. */
 const DAYLIGHT_PASSES = 4;
+/** Halvings the search for a leg's gap takes between `tightGap` and `minGap`. */
+const GAP_STEPS = 16;
+/** Past this many stops on a leg, its fights are ordered by a pattern rather than every arrangement tried. */
+const ARRANGE_LIMIT = 12;
 
 export interface Stop {
 	/** Its place in the layer's `stops`: stable for a given map, and what its contents' stream is keyed by. */
@@ -56,12 +67,16 @@ export interface Stop {
 	/** What its type was drawn by: the class and the biome where it stands. */
 	readonly roadClass: RoadClass;
 	readonly biome: Biome;
+	/** The game stage it's on the road from: 0 for a stop that always is, or a dormant calm extra's stage (Runs and Encounters, Game stage). */
+	readonly stage: number;
 }
 
 /** What a leg is made of, for the stops and the route descriptors. */
 export interface LegProfile {
-	/** Its stops' ids, in driving order. */
+	/** Its stops' ids from game stage 0, in driving order. */
 	readonly stops: readonly number[];
+	/** Its dormant calm extras' ids, in driving order: only a route's own last leg has any, each on from its `stage`. */
+	readonly extras: readonly number[];
 	/** A stand-in until stage 8: the lowest tier of the POIs whose routes use it. */
 	readonly tier: number;
 	/** No one's until stage 8. */
@@ -79,7 +94,7 @@ export interface LegProfile {
 
 /** The stage's product: plain data, which crosses the worker boundary by structured clone. */
 export interface StopLayer {
-	/** By leg, each leg's in driving order. */
+	/** By leg, each leg's in driving order, its extras among them. */
 	readonly stops: readonly Stop[];
 	/** By leg id, one for each of the POI layer's legs. */
 	readonly legs: readonly LegProfile[];
@@ -88,9 +103,11 @@ export interface StopLayer {
 	/** How many stops the daylight check took off routes that ran past dark. */
 	readonly thinned: number;
 	/**
-	 * What the stage couldn't keep, which no rerun of it could: a tier 1 to 3
-	 * POI whose quickest route runs past dark with no stops at all (the tiers'
-	 * to fix, DDB-292), or a Find: driver floor with no leg in its tiers.
+	 * What the stage couldn't keep and only reports: a route outside its band
+	 * or short of half its band's minimum on its own road, a tier 1 to 3 POI
+	 * whose quickest route runs past dark with no stops at all (the tiers' to
+	 * fix, DDB-292), or a Find: driver floor with no leg in its tiers. A
+	 * route under its fight floor is never here: that fails the stage.
 	 */
 	readonly failures: readonly string[];
 }
@@ -126,12 +143,21 @@ interface Placed {
 	skulls: number;
 	roadClass: RoadClass;
 	biome: Biome;
+	stage: number;
 }
 
-/** A route with the POI it goes to, as the daylight check and the rules walk it. */
+/** A route through a leg: the POI it goes to, the route, and the leg's place along it. */
 interface PoiRoute {
 	readonly poi: number;
 	readonly route: Route;
+	readonly place: number;
+}
+
+/** A leg's draws, taken before the allocation so its order never moves them. */
+interface LegDraws {
+	readonly stream: Rng;
+	readonly count: number;
+	readonly fights: number;
 }
 
 /** One run of the stage; `place` runs it. */
@@ -148,13 +174,20 @@ class StopPlacer {
 	/** Each leg's routes, by POI. */
 	private readonly routesOn: PoiRoute[][];
 	private readonly tiers: Int32Array;
+	/** Each leg's POI where it's one POI's own road, else `NO_OWNER` or `SHARED`. */
+	private readonly owners: Int32Array;
+	/** Each POI's band, by its tier, and what its routes' own road has to hold. */
+	private readonly bands: readonly TierBand[];
+	private readonly needs: readonly number[];
 	/** Each node's roads, which say where roads meet. */
 	private readonly degrees: Int32Array;
 	/** Each leg's junctions, as world units along it. */
 	private readonly joins: number[][];
-	/** Each leg's stops, in driving order. */
+	/** Each leg's room at the tight gap. */
+	private readonly rooms: Int32Array;
+	/** Each leg's stops, extras among them, in driving order. */
 	private readonly placed: Placed[][];
-	private readonly profiles: Omit<LegProfile, 'stops'>[] = [];
+	private readonly profiles: Omit<LegProfile, 'stops' | 'extras'>[] = [];
 	private readonly failures: string[] = [];
 	private thinned = 0;
 
@@ -172,43 +205,58 @@ class StopPlacer {
 		this.routes.forEach((routes, poi) => {
 			const { tier } = layer.pois[poi];
 			for (const route of routes) {
-				for (const leg of route.legs) {
-					this.routesOn[leg].push({ poi, route });
+				route.legs.forEach((leg, place) => {
+					this.routesOn[leg].push({ poi, route, place });
 					if (tier < this.tiers[leg]) this.tiers[leg] = tier;
-				}
+				});
 			}
 		});
+		this.owners = legOwners(layer.legs.length, this.routes);
+		this.bands = layer.pois.map(({ tier }) => bandFor(tier, tuning));
+		this.needs = layer.pois.map(({ tier }) => ownRoadNeed(tier, tuning));
 		this.placed = layer.legs.map(() => []);
 		this.degrees = nodeDegrees(network);
 		this.joins = layer.legs.map((leg) => junctionsAlong({ network, leg, degrees: this.degrees }));
+		this.rooms = Int32Array.from(layer.legs, (leg, id) => legRoom({ length: leg.length, joins: this.joins[id], gap: tuning.tightGap, tuning }));
 	}
 
 	public place(): StopLayer {
+		const draws: LegDraws[] = this.layer.legs.map((_leg, id) => {
+			const stream = this.rng.fork('leg', id);
+			return { stream, count: stream.float(), fights: stream.float() };
+		});
+		const lines = this.layer.legs.map((leg) => legPoints(this.network, leg));
+		lines.forEach((line, id) => this.profiles.push(this.profile(id, line)));
+		const counts = this.allocateCounts(draws);
+		const extras = this.allocateExtras(counts);
+		const fights = this.allocateFights(counts, draws);
 		const tails: StopType[][] = [];
 		this.layer.legs.forEach((leg, id) => {
-			const stream = this.rng.fork('leg', id);
-			const line = legPoints(this.network, leg);
-			this.profiles.push(this.profile(id, line));
-			this.placeOnLeg(id, line, stream, leg.parent < 0 ? [] : tails[leg.parent]);
-			tails.push(lastTwo(leg.parent < 0 ? [] : tails[leg.parent], this.placed[id]));
+			const behind = leg.parent < 0 ? [] : tails[leg.parent];
+			this.placeOnLeg({ id, line: lines[id], stream: draws[id].stream, behind, count: counts[id], fights: fights[id], extras: extras[id] });
+			tails.push(lastTwo(behind, this.placed[id].filter(({ stage }) => stage === 0)));
 		});
 		this.findDrivers();
 		this.daylight();
+		this.topUp();
+		this.keepRates(this.rng.fork('rates'));
+		this.reportShortfalls();
 		const stops: Stop[] = [];
 		const legs: LegProfile[] = this.profiles.map((profile, leg) => {
 			const ids: number[] = [];
+			const extraIds: number[] = [];
 			const length = this.layer.legs[leg].length;
-			for (const { along, x, y, type, skulls, roadClass, biome } of this.placed[leg]) {
-				ids.push(stops.length);
-				stops.push({ id: stops.length, leg, along, at: length > 0 ? along / length : 0, x, y, type, skulls, roadClass, biome });
+			for (const { along, x, y, type, skulls, roadClass, biome, stage } of this.placed[leg]) {
+				(stage === 0 ? ids : extraIds).push(stops.length);
+				stops.push({ id: stops.length, leg, along, at: length > 0 ? along / length : 0, x, y, type, skulls, roadClass, biome, stage });
 			}
-			return { ...profile, stops: ids };
+			return { ...profile, stops: ids, extras: extraIds };
 		});
 		return { stops, legs, contentSeed: this.rng.fork('contents').seed, thinned: this.thinned, failures: this.failures };
 	}
 
 	/** A leg's classes and biomes by length, its main highway, and its middle. */
-	private profile(id: number, line: readonly number[]): Omit<LegProfile, 'stops'> {
+	private profile(id: number, line: readonly number[]): Omit<LegProfile, 'stops' | 'extras'> {
 		const leg = this.layer.legs[id];
 		const classLengths = Object.fromEntries(ROAD_CLASSES.map((roadClass) => [roadClass, 0])) as Record<RoadClass, number>;
 		const highways = new Map<number, number>();
@@ -236,57 +284,174 @@ class StopPlacer {
 	}
 
 	/**
-	 * A leg's stops: its count, its length by class over the class's spacing
-	 * times stopDensity, rounded up or down by a draw so the map's count is
-	 * what its road earns; then each in a slot of its own along the leg, clear
-	 * of the ends and of junctions and `minGap` past the one before, at the
-	 * nearest point to where its draw puts it, or dropped where the slot has no
-	 * such point; then each one's type, carrying on from the stops behind the
-	 * leg so no route has three fights or checkpoints in a row. One draw for
-	 * the count, and three a stop, kept or dropped.
+	 * Each leg's stops, parents first. A leg starts from what its road earns:
+	 * its length by class over the class's spacing, times stopDensity,
+	 * rounded up or down by its draw. That's clamped from above by its room at
+	 * the tight gap and by the tightest route through it, which keeps back
+	 * the stops its own road still has to hold, and from below by the loosest
+	 * route's band minimum, less the room past this leg, and on a route's own
+	 * road by its need, less the own road past it. Where the two cross, the
+	 * upper bound wins and the route falls short of its band, which the
+	 * shortfalls report.
 	 */
-	private placeOnLeg(id: number, line: readonly number[], stream: Rng, behind: readonly StopType[]): void {
+	private allocateCounts(draws: readonly LegDraws[]): number[] {
+		const { spacing } = this.tuning;
+		const legs = this.layer.legs;
+		const counts = new Array<number>(legs.length).fill(0);
+		const behind = new Array<number>(legs.length).fill(0);
+		legs.forEach((leg, id) => {
+			behind[id] = leg.parent < 0 ? 0 : behind[leg.parent] + counts[leg.parent];
+			const { classLengths } = this.profiles[id];
+			let expected = 0;
+			for (const roadClass of ROAD_CLASSES) expected += classLengths[roadClass] / spacing[roadClass];
+			const earned = floor(expected * this.params.stopDensity + draws[id].count);
+			let upper = this.rooms[id];
+			let lower = 0;
+			for (const { poi, route, place } of this.routesOn[id]) {
+				const { stops } = this.bands[poi];
+				let roomAfter = 0;
+				let ownRoomAfter = 0;
+				let ownBehind = 0;
+				for (let at = place + 1; at < route.legs.length; at += 1) {
+					roomAfter += this.rooms[route.legs[at]];
+					if (this.owners[route.legs[at]] === poi) ownRoomAfter += this.rooms[route.legs[at]];
+				}
+				for (let at = 0; at < place; at += 1) if (this.owners[route.legs[at]] === poi) ownBehind += counts[route.legs[at]];
+				const ownLeft = this.needs[poi] > ownBehind ? this.needs[poi] - ownBehind : 0;
+				const most = stops.max - behind[id] - (this.owners[id] === poi ? 0 : ownLeft < ownRoomAfter ? ownLeft : ownRoomAfter);
+				if (most < upper) upper = most;
+				const least = stops.min - behind[id] - roomAfter;
+				if (least > lower) lower = least;
+				if (this.owners[id] === poi && ownLeft - ownRoomAfter > lower) lower = ownLeft - ownRoomAfter;
+			}
+			if (upper < 0) upper = 0;
+			counts[id] = lower > upper ? upper : earned < lower ? lower : earned > upper ? upper : earned;
+		});
+		return counts;
+	}
+
+	/** Each route's dormant calm extras: up to one a game stage in the tuning's `extras`, on its own last leg where the leg has room past its stops. */
+	private allocateExtras(counts: readonly number[]): number[] {
+		const extras = new Array<number>(counts.length).fill(0);
+		this.layer.pois.forEach(({ arrivals }) => {
+			for (const { leg } of arrivals) {
+				const room = this.rooms[leg] - counts[leg];
+				extras[leg] = room < this.tuning.extras.length ? (room > 0 ? room : 0) : this.tuning.extras.length;
+			}
+		});
+		return extras;
+	}
+
+	/**
+	 * Each leg's fights, the same way as its stops: what the leg earns, its
+	 * stops times the share of fights in its routes' bands (the least of the
+	 * routes through it), rounded by its draw, clamped from above by the
+	 * tightest route's fight ceiling, keeping back its floor for its own
+	 * road, and from below on a route's own road by the floor it still needs.
+	 * A leg no POI owns keeps a calm stop, so a route's floor fights can follow
+	 * it without three in a row.
+	 */
+	private allocateFights(counts: readonly number[], draws: readonly LegDraws[]): number[] {
+		const legs = this.layer.legs;
+		const fights = new Array<number>(legs.length).fill(0);
+		const behind = new Array<number>(legs.length).fill(0);
+		legs.forEach((leg, id) => {
+			behind[id] = leg.parent < 0 ? 0 : behind[leg.parent] + fights[leg.parent];
+			const count = counts[id];
+			if (count === 0) return;
+			const shared = this.routesOn[id].some(({ poi }) => this.owners[id] !== poi);
+			let upper = shared ? count - 1 : count - floor(count / 3);
+			let lower = 0;
+			let share = 1;
+			for (const { poi, route, place } of this.routesOn[id]) {
+				const { stops, fights: band } = this.bands[poi];
+				const routeShare = (band.min + band.max) / (stops.min + stops.max);
+				if (routeShare < share) share = routeShare;
+				let ownStopsAfter = 0;
+				let ownBehind = 0;
+				for (let at = place + 1; at < route.legs.length; at += 1) if (this.owners[route.legs[at]] === poi) ownStopsAfter += fightRoom(counts[route.legs[at]]);
+				for (let at = 0; at < place; at += 1) if (this.owners[route.legs[at]] === poi) ownBehind += fights[route.legs[at]];
+				const floorLeft = band.min > ownBehind ? band.min - ownBehind : 0;
+				const own = this.owners[id] === poi;
+				const most = band.max - behind[id] - (own ? 0 : floorLeft < ownStopsAfter ? floorLeft : ownStopsAfter);
+				if (most < upper) upper = most;
+				if (own && floorLeft - ownStopsAfter > lower) lower = floorLeft - ownStopsAfter;
+			}
+			if (upper < 0) upper = 0;
+			const earned = floor(count * share + draws[id].fights);
+			fights[id] = lower > upper ? upper : earned < lower ? lower : earned > upper ? upper : earned;
+		});
+		return fights;
+	}
+
+	/**
+	 * A leg's stops: which are fights (`arrange`), where they stand, each in
+	 * a slot of its own along the leg, clear of the ends and junctions and a
+	 * gap apart, the widest gap from `minGap` down to `tightGap` the leg has
+	 * room for, at the nearest point to where its draw puts it, or packed
+	 * from the inner end where a slot has no such point; then each one's
+	 * type. Its extras take slots spread among the rest. Three draws a stop.
+	 */
+	private placeOnLeg({ id, line, stream, behind, count, fights, extras }: {
+		id: number; line: readonly number[]; stream: Rng; behind: readonly StopType[]; count: number; fights: number; extras: number;
+	}): void {
+		const total = count + extras;
+		if (total === 0) return;
 		const leg = this.layer.legs[id];
-		const { spacing, clearance, minGap, jitter } = this.tuning;
-		const { classLengths, tier, territory } = this.profiles[id];
+		const { clearance, jitter } = this.tuning;
+		const { tier, territory } = this.profiles[id];
 		const length = leg.length;
-		const ends = clearance.ends < 0.25 * length ? clearance.ends : 0.25 * length;
-		const usable = length - 2 * ends;
-		const most = usable > 0 ? floor(usable / minGap) : 0;
-		let expected = 0;
-		for (const roadClass of ROAD_CLASSES) expected += classLengths[roadClass] / spacing[roadClass];
-		const drawn = floor(expected * this.params.stopDensity + stream.float());
-		const count = drawn < most ? drawn : most;
-		if (count === 0) return;
+		const gap = this.gapFor(id, total);
+		const ends = legEnds(length, this.tuning);
+		const slot = (length - 2 * ends) / total;
 		const joins = this.joins[id];
-		const slot = usable / count;
-		const alongs: number[] = [];
-		const draws: { type: number; skulls: number }[] = [];
-		for (let index = 0; index < count; index += 1) {
+		const draws: { target: number; type: number; skulls: number }[] = [];
+		for (let index = 0; index < total; index += 1) draws.push({ target: stream.float(), type: stream.float(), skulls: stream.float() });
+		let alongs: number[] = [];
+		for (let index = 0; index < total; index += 1) {
 			const start = ends + index * slot;
-			const target = start + (0.5 + (stream.float() - 0.5) * jitter) * slot;
-			const draw = { type: stream.float(), skulls: stream.float() };
-			// A slot is at least minGap wide, so the one before always leaves this one room.
-			const from = alongs.length > 0 && alongs[alongs.length - 1] + minGap > start ? alongs[alongs.length - 1] + minGap : start;
+			const target = start + (0.5 + (draws[index].target - 0.5) * jitter) * slot;
+			const from = alongs.length > 0 && alongs[alongs.length - 1] + gap > start ? alongs[alongs.length - 1] + gap : start;
 			const along = nearestClear({ target, from, to: start + slot, joins, clear: clearance.junctions });
-			if (along === null) continue;
+			if (along === null) break;
 			alongs.push(along);
-			draws.push(draw);
 		}
-		if (alongs.length === 0) return;
+		if (alongs.length < total) alongs = packAlong({ ...legSpan(length, gap, this.tuning), gap, joins, clear: clearance.junctions, limit: total });
+		const extraSlots = new Set<number>();
+		for (let extra = 0; extra < extras; extra += 1) extraSlots.add(floor((extra + 1) * total / (extras + 1)));
+		const pattern = arrange({ behind, count, fights, shared: this.routesOn[id].some(({ poi }) => this.owners[id] !== poi) });
 		const points = pointsAlong(line, alongs);
-		const tail = [...behind];
+		let active = 0;
+		let extra = 0;
 		alongs.forEach((along, index) => {
 			const x = points[2 * index];
 			const y = points[2 * index + 1];
 			const roadClass = this.classAt(id, along);
 			const biome = this.ground.biome(x, y);
-			const calmOnly = tail.length === 2 && !isCalm(tail[0]) && !isCalm(tail[1]);
-			const type = this.tables.draw({ row: this.tables.rowOf({ roadClass, biome, tier, territory }), draw: draws[index].type, calmOnly });
-			tail.push(type);
-			if (tail.length > 2) tail.shift();
-			this.placed[id].push({ along, x, y, type, skulls: this.skulls(type, tier, draws[index].skulls), roadClass, biome });
+			const isExtra = extraSlots.has(index);
+			const fight = !isExtra && pattern[active];
+			const type = this.tables.draw({ row: this.tables.rowOf({ roadClass, biome, tier, territory }), draw: draws[index].type, fight });
+			const stage = isExtra ? this.tuning.extras[extra] : 0;
+			if (isExtra) extra += 1;
+			else active += 1;
+			this.placed[id].push({ along, x, y, type, skulls: this.skulls(type, tier, draws[index].skulls), roadClass, biome, stage });
 		});
+	}
+
+	/** The widest gap from `minGap` down to `tightGap` at which a leg has room for this many stops. */
+	private gapFor(id: number, count: number): number {
+		const { minGap, tightGap } = this.tuning;
+		const { length } = this.layer.legs[id];
+		const fits = (gap: number) => legRoom({ length, joins: this.joins[id], gap, tuning: this.tuning }) >= count;
+		if (fits(minGap)) return minGap;
+		let low = tightGap;
+		let high = minGap;
+		for (let step = 0; step < GAP_STEPS; step += 1) {
+			const middle = (low + high) / 2;
+			if (fits(middle)) low = middle;
+			else high = middle;
+		}
+		return low;
 	}
 
 	private classAt(id: number, along: number): RoadClass {
@@ -310,19 +475,15 @@ class StopPlacer {
 	/**
 	 * Find: driver stops: in every tier, at least its rate of the tier's stops,
 	 * rounded down; and across the floor's tiers, at least driverFinds, adding
-	 * stops where the legs there hold too few to turn. Each is a stop turned
-	 * into a Find: driver, a calm one first and on a leg with none yet, by
-	 * draws on the `finds` fork. Turning a stop calm never breaks the
-	 * per-route rules, and neither does adding one.
+	 * stops where the legs there hold too few calm stops to turn. Each is a
+	 * calm stop turned into a Find: driver, on a leg with none yet first, by
+	 * draws on the `finds` fork; never a fight, nor a dormant extra. Turning a
+	 * calm stop never breaks the per-route rules, and neither does adding one.
 	 */
 	private findDrivers(): void {
 		const stream = this.rng.fork('finds');
-		const { floorTiers, rates } = this.tuning.driverFinds;
-		for (let tier = 1; tier <= rates.length; tier += 1) {
-			const stops = this.stopsIn((legTier) => legTier === tier);
-			const want = floor(rates[tier - 1] * stops.length);
-			this.turnToFinds({ stops, need: want - countFinds(stops), stream });
-		}
+		const { floorTiers } = this.tuning.driverFinds;
+		this.keepRates(stream);
 		if (this.layer.legs.length === 0) return;
 		const inFloor = (legTier: number) => legTier <= floorTiers;
 		let need = this.params.driverFinds - countFinds(this.stopsIn(inFloor));
@@ -335,15 +496,26 @@ class StopPlacer {
 		}
 	}
 
+	/** Turns calm stops into Find: driver until every tier holds its rate, again after the top-up adds stops. */
+	private keepRates(stream: Rng): void {
+		const { rates } = this.tuning.driverFinds;
+		for (let tier = 1; tier <= rates.length; tier += 1) {
+			const stops = this.stopsIn((legTier) => legTier === tier);
+			const want = floor(rates[tier - 1] * stops.length);
+			this.turnToFinds({ stops, need: want - countFinds(stops), stream });
+		}
+	}
+
+	/** The stops on the road from game stage 0 on legs of these tiers. */
 	private stopsIn(tierHolds: (tier: number) => boolean): { leg: number; stop: Placed }[] {
 		const stops: { leg: number; stop: Placed }[] = [];
 		this.placed.forEach((placed, leg) => {
-			if (tierHolds(this.tiers[leg])) for (const stop of placed) stops.push({ leg, stop });
+			if (tierHolds(this.tiers[leg])) for (const stop of placed) if (stop.stage === 0) stops.push({ leg, stop });
 		});
 		return stops;
 	}
 
-	/** Turns up to `need` of these stops into Find: driver, returning how many it turned. */
+	/** Turns up to `need` of these stops' calm ones into Find: driver, returning how many it turned. */
 	private turnToFinds({ stops, need, stream }: { stops: { leg: number; stop: Placed }[]; need: number; stream: Rng }): number {
 		let turned = 0;
 		for (; turned < need; turned += 1) {
@@ -351,7 +523,7 @@ class StopPlacer {
 			let best: { leg: number; stop: Placed }[] = [];
 			let bestRank = Infinity;
 			for (const candidate of stops) {
-				if (candidate.stop.type === 'findDriver') continue;
+				if (candidate.stop.type === 'findDriver' || !isCalm(candidate.stop.type)) continue;
 				const rank = TURN_ORDER[candidate.stop.type] + (withFind.has(candidate.leg) ? TURN_GROUPS : 0);
 				if (rank < bestRank) {
 					best = [];
@@ -369,23 +541,32 @@ class StopPlacer {
 
 	/**
 	 * Adds a Find: driver stop on a leg in these tiers that `allowed` lets it
-	 * onto: in the gap between stops (or a stop and the clearance at a leg's
-	 * end) where it can stand furthest from both sides, clear of junctions, as
-	 * near the gap's middle as junctions let it. False when no gap has room.
+	 * onto, where every route through the leg is under its band's most stops:
+	 * in the gap between stops (or a stop and the clearance at a leg's end)
+	 * where it can stand furthest from both sides, at least `tightGap` from a
+	 * stop, clear of junctions, as near the gap's middle as junctions let it.
+	 * False when no gap has room.
 	 */
 	private addFind(tierHolds: (tier: number) => boolean, allowed: (leg: number) => boolean = () => true): boolean {
-		const { clearance } = this.tuning;
+		const gap = this.widestGap((leg) => tierHolds(this.tiers[leg]) && allowed(leg));
+		if (!gap) return false;
+		this.insert(gap.leg, gap.along, () => 'findDriver');
+		return true;
+	}
+
+	/** The gap where a stop added on a leg `allowed` lets it onto, under every route's band there, stands furthest from both sides, at least `tightGap` from a stop and clear of junctions; null with none. */
+	private widestGap(allowed: (leg: number) => boolean): { leg: number; along: number } | null {
+		const { clearance, tightGap } = this.tuning;
 		let bestLeg = -1;
 		let bestAlong = 0;
 		let widest = 0;
 		this.layer.legs.forEach(({ length }, leg) => {
-			if (!tierHolds(this.tiers[leg]) || length <= 0 || !allowed(leg)) return;
-			const ends = clearance.ends < 0.25 * length ? clearance.ends : 0.25 * length;
+			if (length <= 0 || !allowed(leg) || !this.underBands(leg)) return;
+			const ends = legEnds(length, this.tuning);
 			const marks = [ends, ...this.placed[leg].map(({ along }) => along), length - ends];
 			for (let index = 1; index < marks.length; index += 1) {
-				// Strictly between two stops, so the leg's stops stay in order; up to the end's clearance itself.
-				const from = index === 1 ? marks[0] : marks[index - 1] + GAP_EDGE;
-				const to = index === marks.length - 1 ? marks[index] : marks[index] - GAP_EDGE;
+				const from = index === 1 ? marks[0] : marks[index - 1] + tightGap;
+				const to = index === marks.length - 1 ? marks[index] : marks[index] - tightGap;
 				if (!(from <= to)) continue;
 				const along = nearestClear({ target: (marks[index - 1] + marks[index]) / 2, from, to, joins: this.joins[leg], clear: clearance.junctions });
 				if (along === null) continue;
@@ -397,23 +578,86 @@ class StopPlacer {
 				}
 			}
 		});
-		if (bestLeg < 0) return false;
-		const [x, y] = pointsAlong(legPoints(this.network, this.layer.legs[bestLeg]), [bestAlong]);
-		const stop: Placed = { along: bestAlong, x, y, type: 'findDriver', skulls: 0, roadClass: this.classAt(bestLeg, bestAlong), biome: this.ground.biome(x, y) };
-		const stops = this.placed[bestLeg];
-		const at = stops.findIndex(({ along }) => along > bestAlong);
+		return bestLeg < 0 ? null : { leg: bestLeg, along: bestAlong };
+	}
+
+	/** A stop from game stage 0 added at a point along a leg, its type picked by the class and biome there. */
+	private insert(leg: number, along: number, pick: (where: { roadClass: RoadClass; biome: Biome }) => StopType): Placed {
+		const [x, y] = pointsAlong(legPoints(this.network, this.layer.legs[leg]), [along]);
+		const roadClass = this.classAt(leg, along);
+		const biome = this.ground.biome(x, y);
+		const stop: Placed = { along, x, y, type: pick({ roadClass, biome }), skulls: 0, roadClass, biome, stage: 0 };
+		const stops = this.placed[leg];
+		const at = stops.findIndex((other) => other.along > along);
 		stops.splice(at < 0 ? stops.length : at, 0, stop);
-		return true;
+		return stop;
+	}
+
+	/**
+	 * A route the daylight check left under its band's minimum, most often
+	 * by thinning road it shares, takes calm stops back on its own road, by
+	 * draws on the `fill` fork, where its own legs have room and the stop
+	 * tips no POI home by dark past it. Where they have no room, a dormant
+	 * extra there turns on from the start instead, the latest first, which
+	 * the daylight check already counted. A calm stop added breaks no rule.
+	 */
+	private topUp(): void {
+		const stream = this.rng.fork('fill');
+		this.routes.forEach((routes, poi) => {
+			const { min } = this.bands[poi].stops;
+			for (const route of routes) {
+				const own = new Set(route.legs.filter((leg) => this.owners[leg] === poi));
+				while (this.activeOn(route).length < min) {
+					const draw = stream.float();
+					const gap = this.widestGap((leg) => own.has(leg));
+					if (!gap) {
+						const extra = this.latestExtra(own);
+						if (!extra) break;
+						extra.stage = 0;
+						continue;
+					}
+					const { tier, territory } = this.profiles[gap.leg];
+					const type = this.tables.draw({ row: this.tables.rowOf({ ...this.whereAt(gap.leg, gap.along), tier, territory }), draw, fight: false });
+					if (!this.roomFor(gap.leg, this.tuning.types[type].hours)) break;
+					this.insert(gap.leg, gap.along, () => type);
+				}
+			}
+		});
+	}
+
+	/** The dormant extra on these legs that turns on latest, the furthest out on a tie. */
+	private latestExtra(legs: ReadonlySet<number>): Placed | null {
+		let latest: Placed | null = null;
+		for (const leg of legs) for (const stop of this.placed[leg]) if (stop.stage > 0 && (latest === null || stop.stage >= latest.stage)) latest = stop;
+		return latest;
+	}
+
+	/** The class and biome at a point along a leg. */
+	private whereAt(leg: number, along: number): { roadClass: RoadClass; biome: Biome } {
+		const [x, y] = pointsAlong(legPoints(this.network, this.layer.legs[leg]), [along]);
+		return { roadClass: this.classAt(leg, along), biome: this.ground.biome(x, y) };
+	}
+
+	/** Whether every route through a leg holds fewer stops from game stage 0 than its band's most. */
+	private underBands(leg: number): boolean {
+		return this.routesOn[leg].every(({ poi, route }) => this.activeOn(route).length < this.bands[poi].stops.max);
+	}
+
+	/** A route's stops from game stage 0, in driving order. */
+	private activeOn(route: Route): StopType[] {
+		const types: StopType[] = [];
+		for (const leg of route.legs) for (const { type, stage } of this.placed[leg]) if (stage === 0) types.push(type);
+		return types;
 	}
 
 	/**
 	 * Guarantee 10: every POI in tiers 1 to 3 has a route whose estimated run
-	 * (out with its stops, the objective, and home) fits in daylightHours.
-	 * Where none does, its quickest route sheds stops, on legs fewer routes
-	 * share first, then the costliest in hours, the furthest out first, never a
-	 * Find: driver and never one whose going breaks a route's rules, until it
-	 * fits. A POI whose quickest route runs past dark with no stops at all is
-	 * a failure no thinning can mend.
+	 * (out with its stops, every extra on, the objective, and home) fits in
+	 * daylightHours. Where none does, its quickest route sheds stops until it
+	 * fits (`thin`). A POI whose quickest route runs past dark with no stops
+	 * at all is a failure no thinning can mend; one that can't get home in
+	 * daylight without going under a fight floor stays past dark, which the
+	 * checks fail.
 	 */
 	private daylight(): void {
 		const { daylightHours } = this.params;
@@ -436,7 +680,6 @@ class StopPlacer {
 				while (this.estimate(index, quickest) > daylightHours) {
 					if (!this.thin(quickest)) {
 						unmendable.add(index);
-						this.failures.push(`poi ${index} (tier ${poi.tier}): no stop on its quickest route can go without breaking a route's rules or the Find: driver floor`);
 						return;
 					}
 				}
@@ -445,11 +688,14 @@ class StopPlacer {
 	}
 
 	/**
-	 * Takes the best stop to lose off a route, false when none can go: on
-	 * legs fewer routes share first, then the costliest, the furthest out
-	 * first, and a Find: driver last. A fight or checkpoint can always go;
-	 * any other stop only where every route through its leg keeps the rules
-	 * without it. A Find: driver the floor or its tier's rate still needs
+	 * Takes the best stop to lose off a route, false when none can go: its
+	 * extras first, then its calm stops, then a Find: driver, then a fight
+	 * above every route's floor; within each, one whose going leaves every
+	 * route through its leg in its band first, then on legs fewer routes
+	 * share, then the costliest, the furthest out first. A calm stop goes only
+	 * where every route through its leg keeps the rules without it, and a
+	 * fight only where every route through its leg keeps its floor, on its
+	 * own road too. A Find: driver the floor or its tier's rate still needs
 	 * moves to the widest gap on a leg of its tiers off this route, and only
 	 * onto a leg where its half hour tips no POI that's home by dark past it,
 	 * so two POIs can't hand one find back and forth.
@@ -459,16 +705,19 @@ class StopPlacer {
 		const candidates: { leg: number; index: number; rank: number[] }[] = [];
 		route.legs.forEach((leg, place) => {
 			this.placed[leg].forEach((stop, index) => {
-				candidates.push({ leg, index, rank: [stop.type === 'findDriver' ? 1 : 0, this.routesOn[leg].length, -types[stop.type].hours, -place, -stop.along] });
+				const order = stop.stage > 0 ? 0 : isFight(stop.type) ? 3 : stop.type === 'findDriver' ? 2 : 1;
+				const underBand = stop.stage === 0 && this.routesOn[leg].some(({ poi, route: through }) => this.activeOn(through).length <= this.bands[poi].stops.min) ? 1 : 0;
+				candidates.push({ leg, index, rank: [order, underBand, this.routesOn[leg].length, -types[stop.type].hours, -place, -stop.along] });
 			});
 		});
 		candidates.sort((a, b) => (before(a.rank, b.rank) ? -1 : before(b.rank, a.rank) ? 1 : 0));
 		const onRoute = new Set(route.legs);
 		for (const { leg, index } of candidates) {
 			const stop = this.placed[leg][index];
-			if (isCalm(stop.type) && !this.canLose(leg, index)) continue;
+			if (stop.stage === 0 && isFight(stop.type) && !this.keepsFloors(leg)) continue;
+			if (stop.stage === 0 && isCalm(stop.type) && !this.canLose(leg, index)) continue;
 			this.placed[leg].splice(index, 1);
-			if (stop.type === 'findDriver' && !this.findsHold(this.tiers[leg])) {
+			if (stop.stage === 0 && stop.type === 'findDriver' && !this.findsHold(this.tiers[leg])) {
 				const tier = this.tiers[leg];
 				const { floorTiers } = this.tuning.driverFinds;
 				const sameTiers = tier <= floorTiers ? (legTier: number) => legTier <= floorTiers : (legTier: number) => legTier === tier;
@@ -482,6 +731,23 @@ class StopPlacer {
 			return true;
 		}
 		return false;
+	}
+
+	/** Whether every route through a leg keeps its fight floor, on its own road too, with one fight fewer on the leg. */
+	private keepsFloors(leg: number): boolean {
+		return this.routesOn[leg].every(({ poi, route }) => {
+			let fights = 0;
+			let own = 0;
+			for (const on of route.legs) {
+				for (const { type, stage } of this.placed[on]) {
+					if (stage > 0 || !isFight(type)) continue;
+					fights += 1;
+					if (this.owners[on] === poi) own += 1;
+				}
+			}
+			const { min } = this.bands[poi].fights;
+			return fights - 1 >= min && (this.owners[leg] === poi ? own - 1 : own) >= min;
+		});
 	}
 
 	/**
@@ -513,12 +779,12 @@ class StopPlacer {
 		const lost = this.placed[leg][index];
 		return this.routesOn[leg].every(({ route }) => {
 			const types: StopType[] = [];
-			for (const on of route.legs) for (const stop of this.placed[on]) if (stop !== lost) types.push(stop.type);
+			for (const on of route.legs) for (const stop of this.placed[on]) if (stop !== lost && stop.stage === 0) types.push(stop.type);
 			return keepsRules(types);
 		});
 	}
 
-	/** An estimated run along a route: out with its stops, the objective, and home. */
+	/** An estimated run along a route, every extra on: out with its stops, the objective, and home. */
 	private estimate(poi: number, route: Route): number {
 		let stops = 0;
 		for (const leg of route.legs) for (const { type } of this.placed[leg]) stops += this.tuning.types[type].hours;
@@ -529,9 +795,24 @@ class StopPlacer {
 		const { objectiveHours } = this.tuning;
 		return this.layer.pois[poi].type === STRONGHOLD_TYPE ? objectiveHours.stronghold : objectiveHours.poi;
 	}
+
+	/** What the band's soft rules missed, into the failures: a route outside its band, or short of half its minimum on its own road. */
+	private reportShortfalls(): void {
+		this.routes.forEach((routes, poi) => {
+			const { stops } = this.bands[poi];
+			const half = ceil(stops.min / 2);
+			routes.forEach((route, place) => {
+				const count = this.activeOn(route).length;
+				if (count < stops.min || count > stops.max) this.failures.push(`poi ${poi} route ${place}: ${count} stops, outside its band of ${stops.min} to ${stops.max}`);
+				let own = 0;
+				for (const leg of route.legs) if (this.owners[leg] === poi) for (const { stage } of this.placed[leg]) if (stage === 0) own += 1;
+				if (own < half) this.failures.push(`poi ${poi} route ${place}: ${own} stops on its own road, under half its band's ${stops.min}`);
+			});
+		});
+	}
 }
 
-/** Which stops turn into a Find: driver first: events, then hazards, garages, checkpoints, other finds, and fights last. */
+/** Which calm stops turn into a Find: driver first: events, then hazards and garages, then other finds. */
 const TURN_ORDER: { readonly [Type in StopType]: number } = {
 	wreck: 0,
 	distress: 0,
@@ -547,6 +828,72 @@ const TURN_ORDER: { readonly [Type in StopType]: number } = {
 	findDriver: 6,
 };
 const TURN_GROUPS = 7;
+
+/** How many fights a run of stops can hold with a non-fight in every three. */
+function fightRoom(count: number): number {
+	return count - floor(count / 3);
+}
+
+/**
+ * Which of a leg's stops are fights, in driving order: `fights` of `count`,
+ * keeping the per-route rules after the two stops behind the leg, ending on
+ * as few fights as it can so the legs past it have room, then spread as
+ * evenly as it can, the earliest arrangement on a tie. A leg no POI owns
+ * ends on a calm stop wherever it has one. With no arrangement that keeps
+ * the rules it takes one fight fewer.
+ */
+export function arrange({ behind, count, fights, shared }: { behind: readonly StopType[]; count: number; fights: number; shared: boolean }): boolean[] {
+	for (let want = fights < count ? fights : count; want >= 0; want -= 1) {
+		const best = count > ARRANGE_LIMIT ? spreadPattern(count, want) : bestPattern({ behind, count, fights: want, shared });
+		if (best && keepsRules([...behind, ...best.map((fight) => (fight ? 'ambush' : 'wreck') as StopType)])) return best;
+	}
+	return new Array<boolean>(count).fill(false);
+}
+
+function bestPattern({ behind, count, fights, shared }: { behind: readonly StopType[]; count: number; fights: number; shared: boolean }): boolean[] | null {
+	let best: boolean[] | null = null;
+	let bestScore: number[] = [];
+	const pattern = new Array<boolean>(count).fill(false);
+	const tail = behind.map(isCalm);
+	const visit = (at: number, left: number): void => {
+		if (left > count - at) return;
+		if (at === count) {
+			if (left > 0) return;
+			const calm = [...tail, ...pattern.map((fight) => !fight)];
+			for (let index = 2; index < calm.length; index += 1) if (!calm[index] && !calm[index - 1] && !calm[index - 2]) return;
+			let trailing = 0;
+			for (let index = count - 1; index >= 0 && pattern[index]; index -= 1) trailing += 1;
+			let spread = 0;
+			let seen = 0;
+			pattern.forEach((fight, index) => {
+				if (!fight) return;
+				spread += abs(index - ((seen + 0.5) * count / fights - 0.5));
+				seen += 1;
+			});
+			const score = [shared && count > fights && pattern[count - 1] ? 1 : 0, trailing, spread];
+			if (best === null || before(score, bestScore)) {
+				best = [...pattern];
+				bestScore = score;
+			}
+			return;
+		}
+		if (left > 0) {
+			pattern[at] = true;
+			visit(at + 1, left - 1);
+			pattern[at] = false;
+		}
+		visit(at + 1, left);
+	};
+	visit(0, fights);
+	return best;
+}
+
+/** Fights spread evenly through a long leg, the last stop calm. */
+function spreadPattern(count: number, fights: number): boolean[] {
+	const pattern = new Array<boolean>(count).fill(false);
+	for (let fight = 0; fight < fights; fight += 1) pattern[floor(fight * count / fights)] = true;
+	return pattern;
+}
 
 /**
  * Whether a route's stops keep the per-route rules: no more than two fights
@@ -578,8 +925,6 @@ function before(a: readonly number[], b: readonly number[]): boolean {
 	return false;
 }
 
-/** World units a Find: driver added for the floor keeps from the stops either side of it, at the least. */
-const GAP_EDGE = 1;
 /** The points at increasing distances along a polyline, flat x0, y0, x1, y1, ..., in one walk; its end past its length. */
 export function pointsAlong(points: readonly number[], distances: readonly number[]): number[] {
 	const out: number[] = [];

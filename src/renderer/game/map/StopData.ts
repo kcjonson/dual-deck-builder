@@ -48,6 +48,17 @@ export function isFight(type: StopType): boolean {
 	return FIGHT_TYPES.includes(type);
 }
 
+/**
+ * The stop types a run resolves (Runs and Encounters, What a stop can be).
+ * Every other type has weight 0 in the stop tables, so a stop that does
+ * nothing is never placed; a type joins once its screen exists.
+ */
+export const RESOLVABLE_STOP_TYPES: readonly StopType[] = ['ambush', 'warband', 'findCards', 'findSupplies', 'findDriver', 'wreck', 'distress'];
+
+export function isResolvable(type: StopType): boolean {
+	return RESOLVABLE_STOP_TYPES.includes(type);
+}
+
 /** Tiers the tables key on, 1 to 5. */
 export const STOP_TIERS = 5;
 const TIER_KEYS = ['1', '2', '3', '4', '5'] as const;
@@ -97,6 +108,8 @@ export interface StopTuning {
 	readonly types: { readonly [Type in StopType]: StopTypeSpec };
 	/** By destination tier from 1, the stronghold's as tier 5; its boss isn't counted. */
 	readonly bands: readonly TierBand[];
+	/** The game stage each of a route's dormant calm stops turns on at, in order along its own last leg's extras. */
+	readonly extras: readonly number[];
 	/** Hours at the objective, for the daylight estimate. */
 	readonly objectiveHours: { readonly poi: number; readonly stronghold: number };
 	readonly skulls: {
@@ -154,39 +167,40 @@ export interface StopWeights {
 
 /**
  * Stop tables ready to draw from: per class, biome, tier, and territory, the
- * cumulative weights over every type and over the calm ones alone, built
- * once, in type order, so a draw is a search.
+ * cumulative weights over the fights and over the calm types, built once, in
+ * type order, so a draw is a search. A type the run can't resolve weighs 0
+ * whatever the tables give it.
  */
 export class CompiledStopTables {
 	public readonly territories: readonly string[];
-	private readonly all: Float64Array;
+	private readonly fight: Float64Array;
 	private readonly calm: Float64Array;
 
-	constructor({ tables, path }: { tables: StopWeights; path: string }) {
+	constructor({ tables, path, resolvable = RESOLVABLE_STOP_TYPES }: { tables: StopWeights; path: string; resolvable?: readonly StopType[] }) {
 		this.territories = Object.keys(tables.territories);
 		const rows = ROAD_CLASSES.length * BIOMES.length * STOP_TIERS * this.territories.length;
-		this.all = new Float64Array(rows * STOP_TYPES.length);
+		this.fight = new Float64Array(rows * STOP_TYPES.length);
 		this.calm = new Float64Array(rows * STOP_TYPES.length);
 		ROAD_CLASSES.forEach((roadClass) => {
 			BIOMES.forEach((biome) => {
 				for (let tier = 1; tier <= STOP_TIERS; tier += 1) {
 					this.territories.forEach((territory) => {
 						const row = this.rowOf({ roadClass, biome, tier, territory });
-						let all = 0;
+						let fight = 0;
 						let calm = 0;
 						STOP_TYPES.forEach((type, index) => {
-							const weight = (tables.classes[roadClass][type] ?? 0)
+							const weight = !resolvable.includes(type) ? 0 : (tables.classes[roadClass][type] ?? 0)
 								* (tables.biomes[biome]?.[type] ?? 1)
 								* (tables.tiers[String(tier)]?.[type] ?? 1)
 								* (tables.territories[territory][type] ?? 1);
-							all += weight;
-							if (isCalm(type)) calm += weight;
-							this.all[row + index] = all;
+							if (isFight(type)) fight += weight;
+							else if (isCalm(type)) calm += weight;
+							this.fight[row + index] = fight;
 							this.calm[row + index] = calm;
 						});
 						const where = `${path}: ${roadClass} in ${biome} at tier ${tier} in territory ${territory}`;
-						if (!(all > 0 && all < Infinity)) throw new ReaderRangeError(`${where} weighs nothing, so no stop type can be drawn there`);
-						if (!(calm > 0)) throw new ReaderRangeError(`${where} weighs no non-fight, which the per-route rules need after two fights`);
+						if (!(fight > 0 && fight < Infinity)) throw new ReaderRangeError(`${where} weighs no fight the run resolves, so a fight stop has nothing to be`);
+						if (!(calm > 0 && calm < Infinity)) throw new ReaderRangeError(`${where} weighs no non-fight the run resolves, so a calm stop has nothing to be`);
 					});
 				}
 			});
@@ -202,9 +216,9 @@ export class CompiledStopTables {
 		return row * STOP_TYPES.length;
 	}
 
-	/** The type a draw in [0, 1) picks from a row (`rowOf`), from every type or the calm ones alone. */
-	public draw({ row, draw, calmOnly }: { row: number; draw: number; calmOnly: boolean }): StopType {
-		const sums = calmOnly ? this.calm : this.all;
+	/** The type a draw in [0, 1) picks from a row (`rowOf`): a fight, or a calm type. */
+	public draw({ row, draw, fight }: { row: number; draw: number; fight: boolean }): StopType {
+		const sums = fight ? this.fight : this.calm;
 		const total = sums[row + STOP_TYPES.length - 1];
 		const target = draw * total;
 		let last = -1;
@@ -219,11 +233,15 @@ export class CompiledStopTables {
 }
 
 export function readStopTuning(value: unknown, path: string): StopTuning {
-	const fields = readFields(value, path, ['spacing', 'clearance', 'minGap', 'tightGap', 'jitter', 'biomeStep', 'types', 'bands', 'objectiveHours', 'skulls', 'driverFinds', 'contents']);
+	const fields = readFields(value, path, ['spacing', 'clearance', 'minGap', 'tightGap', 'jitter', 'biomeStep', 'types', 'bands', 'extras', 'objectiveHours', 'skulls', 'driverFinds', 'contents']);
 	const spacing = readFields(fields.spacing, `${path}.spacing`, ROAD_CLASSES);
 	const clearance = readFields(fields.clearance, `${path}.clearance`, ['ends', 'junctions']);
 	const typeFields = readFields(fields.types, `${path}.types`, STOP_TYPES);
 	const bandFields = readFields(fields.bands, `${path}.bands`, TIER_KEYS);
+	const extras = readArray(fields.extras, `${path}.extras`).map((stage, index) => readInteger(stage, `${path}.extras[${index}]`, { min: 1 }));
+	extras.forEach((stage, index) => {
+		if (index > 0 && stage <= extras[index - 1]) throw new ReaderRangeError(`${path}.extras must rise, stage by stage; ${stage} follows ${extras[index - 1]}`);
+	});
 	const objective = readFields(fields.objectiveHours, `${path}.objectiveHours`, ['poi', 'stronghold']);
 	const skulls = readFields(fields.skulls, `${path}.skulls`, ['step', 'warband']);
 	const finds = readFields(fields.driverFinds, `${path}.driverFinds`, ['floorTiers', 'rates']);
@@ -252,6 +270,7 @@ export function readStopTuning(value: unknown, path: string): StopTuning {
 			return { label: readText(spec.label, `${path}.types.${type}.label`), hours: readAtLeast(spec.hours, `${path}.types.${type}.hours`, 0) };
 		}),
 		bands: TIER_KEYS.map((tier) => readBand(bandFields[tier], `${path}.bands.${tier}`)),
+		extras,
 		objectiveHours: {
 			poi: readAtLeast(objective.poi, `${path}.objectiveHours.poi`, 0),
 			stronghold: readAtLeast(objective.stronghold, `${path}.objectiveHours.stronghold`, 0),

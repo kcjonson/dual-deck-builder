@@ -76,9 +76,12 @@ function onRoad(campaign: Campaign): SupplyRun {
 	return run;
 }
 
-/** Quiet stretches passed until the run is driving to a fight. */
+/** Quiet stretches passed, and finds left, until the run is driving to a fight. */
 function toNextFight(campaign: Campaign): void {
-	while (currentStop(onRoad(campaign))?.kind === 'quiet') passQuietStop({ campaign });
+	for (let stop = currentStop(onRoad(campaign)); stop?.kind === 'quiet' || stop?.kind === 'find'; stop = currentStop(onRoad(campaign))) {
+		if (stop.kind === 'quiet') passQuietStop({ campaign });
+		else leaveFind({ campaign });
+	}
 }
 
 /** A save and a load through the store, as quitting and Continue would. */
@@ -314,8 +317,10 @@ describe('the crew rule (gameplay call 35)', () => {
 		const route = testRoute();
 		departRun({ campaign, map: MAP, route, escorts });
 		while (!atDestination(onRoad(campaign))) {
-			if (currentStop(onRoad(campaign))?.kind === 'quiet') {
-				passQuietStop({ campaign });
+			const kind = currentStop(onRoad(campaign))?.kind;
+			if (kind === 'quiet' || kind === 'find') {
+				if (kind === 'quiet') passQuietStop({ campaign });
+				else leaveFind({ campaign });
 				continue;
 			}
 			const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
@@ -455,8 +460,10 @@ describe('a whole run, scripted through the real APIs and saved after every step
 
 		for (let stop = 0; stop < stops.length; stop += 1) {
 			expect([onRoad(campaign).stop, onRoad(campaign).phase]).toEqual([stop, 'driving']);
-			if (currentStop(onRoad(campaign))?.kind === 'quiet') {
-				passQuietStop({ campaign });
+			const kind = currentStop(onRoad(campaign))?.kind;
+			if (kind === 'quiet' || kind === 'find') {
+				if (kind === 'quiet') passQuietStop({ campaign });
+				else leaveFind({ campaign });
 				campaign = await reload(store, campaign);
 				continue;
 			}

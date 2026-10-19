@@ -19,6 +19,7 @@ interface Spec {
 	readonly attempts?: number;
 	readonly escalate?: string;
 	readonly inert?: boolean;
+	readonly keepable?: (problems: Problems) => boolean;
 }
 
 interface Run {
@@ -41,10 +42,11 @@ function harness({ stages = abc(), extraDraws = 0 }: { stages?: Spec[]; extraDra
 	const runs: Run[] = [];
 	const progress: StageAttempt[] = [];
 	let pipeline = new MapPipeline<null, Drawns>();
-	for (const { name, fails, localRetry, attempts, escalate, inert } of stages) {
+	for (const { name, fails, localRetry, attempts, escalate, inert, keepable } of stages) {
 		const stage: MapStage<null, Drawns, string, Drawn> = {
 			name,
 			localRetry,
+			keepable,
 			attempts,
 			escalate,
 			inert,
@@ -305,6 +307,15 @@ describe('MapPipeline', () => {
 			expect((error as MapPipelineError).exhausted).toBe('stage');
 			expect((error as Error).message).toMatch(/c \(attempt 7, map attempt 0\): always fails after 8 attempts/);
 			expect(runsOf('a')).toHaveLength(1);
+		});
+
+		it('keeps only an attempt its stage may keep, and restarts the map when it may keep none', () => {
+			// Attempt 5 has the fewest problems, but one no attempt may be kept with.
+			const fewest: Script = ({ attempt, mapAttempt }) => (mapAttempt > 0 ? [] : attempt === 5 ? ['floor'] : attempt === 6 ? ['one', 'two'] : ['one', 'two', 'three']);
+			const kept = harness({ stages: abc({ c: { localRetry: true, fails: fewest, keepable: (problems) => !problems.includes('floor') } }) }).run({ debug: false });
+			expect([kept.attempts.c, kept.mapAttempt, kept.keptFailing]).toEqual([6, 0, ['c']]);
+			const never = harness({ stages: abc({ c: { localRetry: true, fails: fewest, keepable: () => false } }) }).run({ debug: false });
+			expect([never.attempts.c, never.mapAttempt, never.keptFailing]).toEqual([0, 1, []]);
 		});
 
 		it('keeps a local-retry stage\'s best attempt in a release build, and later stages nest in it', () => {

@@ -78,6 +78,13 @@ export interface MapStage<Input, Upstream, Name extends string, Product> {
 	 */
 	readonly localRetry?: boolean;
 	/**
+	 * For a local-retry stage: whether a failing attempt with these problems
+	 * may be kept past the cap. When none may, the map restarts on its next
+	 * attempt instead, as any other stage out of attempts does. Any may when
+	 * left out.
+	 */
+	keepable?(problems: Problems): boolean;
+	/**
 	 * Carries no gameplay (dressing): no gameplay stage reads it, so only
 	 * other inert stages follow it, and it retries only itself, since a map
 	 * restart would move the gameplay map. A replay without its attempt runs
@@ -308,7 +315,7 @@ class PipelineRun<Input> {
 				continue;
 			}
 			next[index] = attemptsOf(stage);
-			if (stage.localRetry) {
+			if (stage.localRetry && best) {
 				const message = `MapPipeline: ${describeFailure(last)} after ${attemptsOf(stage)} attempts`;
 				if (this.debug) throw new MapPipelineError({ message, failure: last, exhausted: 'stage' });
 				this.warn(`${message}; keeping attempt ${best.attempt}`);
@@ -364,7 +371,8 @@ class PipelineRun<Input> {
 	/** A stage's attempts from `from` until one passes or it's out of them, keeping the best failure for a local-retry stage. */
 	private runStage({ index, upstream, products, from, mapAttempt }: { index: number; upstream: Rng; products: AnyProducts; from: number; mapAttempt: number }): {
 		winner: Winner | null;
-		best: Winner;
+		/** The failure a local-retry stage may keep, the fewest problems first; null when none may be. */
+		best: Winner | null;
 		last: StageFailure;
 	} {
 		const stage = this.stages[index];
@@ -376,13 +384,14 @@ class PipelineRun<Input> {
 			// fork reads only the parent's seed, so the draws a stage made from its stream never move its children's.
 			const rng = upstream.fork(stage.name, attempt);
 			const { product, problems } = this.attempt({ stage, rng, products, progress });
-			if (problems.length === 0) return { winner: { attempt, rng, product, kept: false }, best: best as Winner, last: last as StageFailure };
+			if (problems.length === 0) return { winner: { attempt, rng, product, kept: false }, best, last: last as StageFailure };
 			last = { ...progress, problems };
 			this.failures.push(last);
-			if (best === null || problems.length < best.problems.length) best = { attempt, rng, product, kept: false, problems };
+			const keepable = stage.keepable?.(problems) ?? true;
+			if (keepable && (best === null || problems.length < best.problems.length)) best = { attempt, rng, product, kept: false, problems };
 		}
 		// A stage is only run with an attempt left, so at least one failed here.
-		return { winner: null, best: best as Winner, last: last as StageFailure };
+		return { winner: null, best, last: last as StageFailure };
 	}
 
 	/** One attempt at one stage: its run, then its checks, then the accept hook if they passed, each timed. */

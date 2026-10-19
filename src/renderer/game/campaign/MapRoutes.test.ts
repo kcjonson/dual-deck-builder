@@ -51,8 +51,8 @@ describe('routeOffers', () => {
 			routes.forEach((route, index) => expect(readRunRoute(JSON.parse(JSON.stringify(route)), `routes[${index}]`)).toEqual(route));
 			expect(new Set(routes.map(({ id }) => id)).size).toBe(routes.length);
 			const stopIds = routes.flatMap(({ legs }) => legs.flatMap(({ stops }) => stops.map(({ id }) => id)));
-			// A stop on a shared leg is the same stop on every route over it.
-			expect(new Set(stopIds).size).toBe(map.products.stops.stops.length);
+			// A stop on a shared leg is the same stop on every route over it; a dormant extra is on none until its game stage.
+			expect(new Set(stopIds).size).toBe(map.products.stops.stops.filter(({ stage }) => stage === 0).length);
 			// Plain JSON, so the run's save keeps a route as it was rolled.
 			expect(JSON.parse(JSON.stringify(routes))).toEqual(routes);
 			expect(Object.isFrozen(routes[0].legs[0])).toBe(true);

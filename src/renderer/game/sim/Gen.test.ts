@@ -19,9 +19,9 @@ describe('balance sim gen', () => {
 		expect(map.failed).toBeNull();
 		// Seed 1 on today's generator; a generator change that moves these moves the Baseline too
 		expect(map.routes).toHaveLength(55);
-		expect(map.routes.reduce((sum, { audit }) => sum + audit.stops, 0)).toBe(305);
-		expect(map.routes.reduce((sum, { audit }) => sum + audit.fights, 0)).toBe(58);
-		expect(map.routes.reduce((sum, { audit }) => sum + audit.ownStops, 0)).toBe(72);
+		expect(map.routes.reduce((sum, { audit }) => sum + audit.stops, 0)).toBe(261);
+		expect(map.routes.reduce((sum, { audit }) => sum + audit.fights, 0)).toBe(96);
+		expect(map.routes.reduce((sum, { audit }) => sum + audit.ownStops, 0)).toBe(133);
 		for (const { legs, audit, poi, destination } of map.routes) {
 			expect(destination.id).toBe(`poi-${poi}`);
 			const stops = legs.flatMap(leg => leg.stops);
@@ -29,6 +29,10 @@ describe('balance sim gen', () => {
 			expect(audit.ownStops).toBeLessThanOrEqual(audit.stops);
 			expect(audit.ownFights).toBeLessThanOrEqual(audit.fights);
 			if (audit.neighbor) expect(audit.neighbor.cleared.length).toBeLessThanOrEqual(audit.stops);
+			// Every route has a fight, its floor on its own road, and no stop the run can't resolve.
+			expect(audit.fights).toBeGreaterThan(0);
+			expect(audit.ownFights).toBeGreaterThan(0);
+			expect(audit.empty).toBe(0);
 		}
 		const summary = summarizeGen({ config, maps: [map] });
 		expect(summary.tiers.reduce((sum, tier) => sum + tier.routes, 0)).toBe(map.routes.length);
