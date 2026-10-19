@@ -330,8 +330,8 @@ export interface Seat {
 
 /**
  * A seat as a fight builds it from the seat's record and run deck. The
- * raider sim (scripts/raider-sim.mjs) builds its seats here too, so it deals
- * what a run deals. Throws for a card in the run deck with no template.
+ * balance sim (src/renderer/game/sim/) builds its seats here too, so it
+ * deals what a run deals. Throws for a card in the run deck with no template.
  */
 export function seatOf({ record, runDeck, cards }: { record: DriverRecord; runDeck: RunDeck; cards: ReadonlyMap<string, Card> }): Seat {
 	const driver = combatDriverOf({ record, runDeck, cards });
@@ -389,6 +389,17 @@ function vehicleOf({ record, driver }: { record: DriverRecord; driver: Driver })
 		structure: Math.min(record.vehicle.structure, driver.vehicleStats.maxStructure),
 		armor: Math.min(record.vehicle.armor, driver.vehicleStats.armor)
 	});
+}
+
+/**
+ * A seat's record changes after a fight, as `writeBackFight` stores them:
+ * the balance sim (src/renderer/game/sim/) writes its crews back here.
+ * Throws, as `writeBackFight` does, for a fight that isn't over or ended in a tie.
+ */
+export function seatWriteBack({ battle, driver, vehicle }: { battle: Battle; driver: Driver; vehicle: Vehicle }): Partial<DriverRecordData> {
+	if (!battle.isBattleOver()) throw new Error("The fight isn't over, so there's nothing to write back yet");
+	if (battle.isBattleTied()) throw new Error('The fight ended in a tie at its turn limit; a campaign fight has none, so it ends won or lost');
+	return recordChanges({ fate: fateOf({ battle, driver, won: battle.isBattleWon() }), driver, vehicle });
 }
 
 /**
