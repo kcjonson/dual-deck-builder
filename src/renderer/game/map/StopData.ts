@@ -346,6 +346,7 @@ function readBand(value: unknown, path: string): TierBand {
 	const stops = readIntRange(fields.stops, `${path}.stops`);
 	const fights = readIntRange(fields.fights, `${path}.fights`);
 	if (fights.min < 1) throw new ReaderRangeError(`${path}.fights.min is the fight floor, which is never 0`);
+	if (fights.min > stops.min) throw new ReaderRangeError(`${path}.fights.min ${fights.min} is more than the band's least ${stops.min} stops`);
 	if (fights.max > stops.max) throw new ReaderRangeError(`${path}.fights.max ${fights.max} is more than the band's ${stops.max} stops`);
 	return { stops, fights };
 }

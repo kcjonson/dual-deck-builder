@@ -415,4 +415,4 @@ Made building the combat side of [Runs and Encounters](./specs/Runs%20and%20Enco
 
 Records: route-tree-and-pois.md (Own road) and stops-and-routes.md.
 
-261. DDB-529: a POI whose ring puts it in tiers 1 to 3 is tier 4 when its quickest route can't be home by dark carrying only its fight floor, each fight counted at a warband's 1.5 hours, because stage 8 puts the tier 3 to 4 boundary where a run stops fitting in daylight, and with the floor hard, 53 of 564 such POIs over 30 maps could never be home by dark otherwise. Tiers from hours (DDB-292) replace it.
+261. DDB-529: a POI whose ring puts it in tiers 1 to 3 is tier 4 when its quickest route can't be home by dark carrying its fight floor, each fight counted at a warband's 1.5 hours, and one Find: driver, which the find floor can pin to a route, because stage 8 puts the tier 3 to 4 boundary where a run stops fitting in daylight, and with the floor hard, 53 of 564 such POIs over 30 maps could never be home by dark otherwise. Tiers from hours (DDB-292) replace it.
