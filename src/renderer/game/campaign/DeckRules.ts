@@ -102,6 +102,11 @@ export function isForOtherArchetype({ cardType, archetype }: { cardType: string;
 	return marked !== null && marked !== archetype;
 }
 
+/** Whether cards.json lists the card, an escort's signature card included. */
+export function isKnownCard(cardType: string): boolean {
+	return CARD_CATALOGUE.has(cardType);
+}
+
 /** What the log calls a card: its name in cards.json, or its card type for one the file no longer lists. */
 export function cardName(cardType: string): string {
 	return CARD_CATALOGUE.get(cardType)?.name ?? cardType;

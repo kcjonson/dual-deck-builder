@@ -1,0 +1,229 @@
+{
+	"events": [
+		{
+			"id": "jackknifed_tanker",
+			"stopType": "wreck",
+			"title": "Jackknifed tanker",
+			"illustration": { "art": "event_tanker", "caption": "A fuel tanker across both lanes" },
+			"setup": "A fuel tanker lies across both lanes, its cab folded into the guardrail. Nobody's touched it; the dust on the tank is unbroken.",
+			"situation": "The tank still sloshes when the wind leans on it. The valve's rusted shut, and siphoning through the hatch takes hours.",
+			"choices": [
+				{
+					"id": "siphon",
+					"title": "Siphon the tank",
+					"preview": "Slow work through the hatch.",
+					"danger": 0,
+					"outcomes": [
+						{ "text": "You run hose through the hatch and fill every can you brought. It takes most of the morning.", "hours": 1.5, "resources": { "fuel": 3 } }
+					]
+				},
+				{
+					"id": "crack_valve",
+					"title": "Crack the valve clean",
+					"preview": "Someone who knows valves could drain it fast.",
+					"requires": { "archetype": "mechanic" },
+					"danger": 0,
+					"outcomes": [
+						{ "text": "Ten minutes with a pipe wrench and penetrating oil, and the valve gives. The tank drains into your cans like it was waiting to.", "hours": 0.5, "resources": { "fuel": 5 } }
+					]
+				},
+				{
+					"id": "strip_cab",
+					"title": "Strip the cab",
+					"preview": "Good metal in it, if the tank stays put.",
+					"danger": 1,
+					"outcomes": [
+						{ "weight": 3, "text": "You cut the doors, the bumper, and the seat frames free and stack them in the back.", "hours": 1, "resources": { "scrap": 6 } },
+						{ "weight": 1, "text": "The tank shifts as you pry at the cab and rolls into your lead vehicle. You get some metal, and a dented hood.", "hours": 1, "resources": { "scrap": 4 }, "structure": -3, "hp": -2 }
+					]
+				},
+				{
+					"id": "drive_on",
+					"title": "Drive on",
+					"preview": "Squeeze past on the shoulder.",
+					"danger": 0,
+					"outcomes": [
+						{ "text": "You ease past the tanker on the gravel and leave it to the next convoy." }
+					]
+				}
+			]
+		},
+		{
+			"id": "burned_bus",
+			"stopType": "wreck",
+			"title": "Burned-out school bus",
+			"illustration": { "art": "event_bus", "caption": "A school bus on its rims" },
+			"setup": "A school bus sits on its rims in the middle of the road, every window black with old smoke. The luggage racks look full.",
+			"situation": "Fresh tire tracks circle it twice and head off into the scrub. Someone wants you to stop here.",
+			"choices": [
+				{
+					"id": "search_bus",
+					"title": "Search the bus",
+					"preview": "Quick, and maybe exactly what they want.",
+					"danger": 1,
+					"outcomes": [
+						{ "text": "Whoever left the tracks is long gone. The racks hold a med kit and a bag of bolts.", "hours": 0.5, "resources": { "scrap": 3 }, "cards": { "medical_kit": 1 } },
+						{
+							"text": "Engines start up in the scrub before you're through the door. It was bait.",
+							"fight": { "skulls": 1, "text": "With the raiders gone, you strip their buggies along with the bus.", "resources": { "scrap": 6 } }
+						}
+					]
+				},
+				{
+					"id": "follow_tracks",
+					"title": "Follow the tracks",
+					"preview": "Find where they're waiting before they find you.",
+					"requires": { "archetype": "interceptor" },
+					"danger": 0,
+					"outcomes": [
+						{ "text": "The tracks end at a camouflaged dugout, empty. Their stash is still in it.", "hours": 1, "resources": { "food": 3, "water": 2, "meds": 1 }, "cardPick": true }
+					]
+				},
+				{
+					"id": "drive_on",
+					"title": "Drive on",
+					"preview": "Not your bait to take.",
+					"danger": 0,
+					"outcomes": [
+						{ "text": "You go round the bus wide and don't slow down. Nothing follows." }
+					]
+				}
+			]
+		},
+		{
+			"id": "armored_car",
+			"stopType": "wreck",
+			"title": "Overturned armored car",
+			"illustration": { "art": "event_armored_car", "caption": "An armored car on its roof in the ditch" },
+			"setup": "An armored car lies on its roof in the ditch, wheels in the air. The rear doors are dented but shut.",
+			"situation": "It's built to keep people out. It might also be built well enough to run again.",
+			"choices": [
+				{
+					"id": "pry_doors",
+					"title": "Pry the doors",
+					"preview": "Whatever it was carrying is still inside.",
+					"danger": 0,
+					"outcomes": [
+						{ "text": "The doors give after an hour on the bar. Inside: spare plating, still in its crate.", "hours": 1, "resources": { "scrap": 4 }, "cards": { "armor_plating": 1 } }
+					]
+				},
+				{
+					"id": "get_it_running",
+					"title": "Get it running",
+					"preview": "Right it, patch it, and it rides with you.",
+					"requires": { "archetype": "mechanic" },
+					"cost": { "scrap": 8 },
+					"danger": 0,
+					"outcomes": [
+						{ "text": "You winch it upright, swap the fouled plugs, and patch the fuel line. It coughs, then idles. It's riding with you now.", "hours": 2, "escort": "outrider" }
+					]
+				},
+				{
+					"id": "drive_on",
+					"title": "Drive on",
+					"preview": "Leave it to rust.",
+					"danger": 0,
+					"outcomes": [
+						{ "text": "You leave it on its roof. Somebody else can have the doors." }
+					]
+				}
+			]
+		},
+		{
+			"id": "family_under_fire",
+			"stopType": "distress",
+			"title": "Family under fire",
+			"illustration": { "art": "event_family", "caption": "A family car on its side, buggies circling" },
+			"setup": "Your convoy crests a ridge to find a family's car on its side below, smoke pouring from the engine.",
+			"situation": "Three raider buggies circle the wreck, firing into the air. The family huddles behind the car. You have moments to decide.",
+			"choices": [
+				{
+					"id": "charge",
+					"title": "Charge the raiders",
+					"preview": "They'll fight for it.",
+					"danger": 2,
+					"outcomes": [
+						{
+							"text": "You come down the ridge at full throttle. The buggies break off the circle and turn on you.",
+							"fight": { "skulls": 2, "text": "The last buggy runs. The family climbs out from behind the car and asks to ride with you.", "settlers": 3, "resources": { "food": 2 } }
+						}
+					]
+				},
+				{
+					"id": "kill_engines",
+					"title": "Kill their engines",
+					"preview": "Stop all three buggies at once.",
+					"requires": { "card": "emp_blast" },
+					"danger": 0,
+					"outcomes": [
+						{ "text": "The pulse kills every engine in the hollow. The raiders run for it on foot, and the family rides out with you.", "hours": 0.5, "settlers": 3 }
+					]
+				},
+				{
+					"id": "pay_them_off",
+					"title": "Pay them off",
+					"preview": "Fuel's worth more to them than a family.",
+					"cost": { "fuel": 3 },
+					"danger": 1,
+					"outcomes": [
+						{ "weight": 3, "text": "They take the cans and go. The family rides out with you.", "hours": 0.5, "settlers": 3 },
+						{ "weight": 1, "text": "They take the cans, then take a few shots at you on the way out. The family rides out with you anyway.", "hours": 0.5, "settlers": 3, "structure": -2 }
+					]
+				},
+				{
+					"id": "drive_on",
+					"title": "Drive on",
+					"preview": "Not your fight.",
+					"danger": 0,
+					"outcomes": [
+						{ "text": "You drop back behind the ridge. The shots fade behind you." }
+					]
+				}
+			]
+		},
+		{
+			"id": "mayday_channel_nine",
+			"stopType": "distress",
+			"title": "Mayday on channel nine",
+			"illustration": { "art": "event_mayday", "caption": "A rig nose-down in a ditch" },
+			"setup": "The radio crackles with a voice a mile ahead: a driver, her rig nose-down in a ditch, her leg pinned under the dash.",
+			"situation": "She says the road gang that ran her off is still about. She can drive, if somebody gets her out.",
+			"choices": [
+				{
+					"id": "pull_her_out",
+					"title": "Pull her out",
+					"preview": "Cut her free and hope the gang stays away.",
+					"danger": 1,
+					"outcomes": [
+						{ "weight": 2, "text": "You cut the dash away and lift her out. She's hurt, but she can drive, and she'd rather drive for you.", "hours": 1, "drivers": 1 },
+						{
+							"weight": 1,
+							"text": "The gang hears the saw and comes back for her.",
+							"hours": 1,
+							"fight": { "skulls": 1, "text": "Once the gang's gone, you lift her out of the cab. She'd rather drive for you than wait for the next one.", "drivers": 1 }
+						}
+					]
+				},
+				{
+					"id": "treat_on_the_spot",
+					"title": "Treat her on the spot",
+					"preview": "The med truck can do more than a saw.",
+					"requires": { "escort": "med_truck" },
+					"danger": 0,
+					"outcomes": [
+						{ "text": "The med truck's crew frees her leg and splints it in the cab, then patches up your own while they're at it. She's driving for you now.", "hours": 0.5, "drivers": 1, "hp": 4 }
+					]
+				},
+				{
+					"id": "drive_on",
+					"title": "Drive on",
+					"preview": "Not on this run.",
+					"danger": 0,
+					"outcomes": [
+						{ "text": "You switch the radio off and take the next turn." }
+					]
+				}
+			]
+		}
+	]
+}
