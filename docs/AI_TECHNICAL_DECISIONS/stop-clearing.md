@@ -42,17 +42,17 @@ Options considered for driving past a cleared stop: taking it off the route alto
 
 - Area map: a cleared POI draws with the view's depleted marker, grey and struck through, its row dimmed, its details "General store, tier 1, cleared" and "Picked clean, and nothing fills a looted building again.", and Plan a run here is off with the reason. The shares line is gone.
 - Run route screen: a stop the run would drive past reads "Raider ambush, 2 skulls: cleared, back in 3 days", dimmed, and the card's line counts them apart ("2 stops, 1 cleared") with the risk of what's left. With no POI handed over it opens on the nearest one not cleared, and a cleared one says why it can't be planned.
-- Run screen: the road lists a stop cleared before the run as Cleared, numbered in place. The debrief's stamp is LOOTED for the POI the run cleared, unless a driver came home hurt, whose tear takes the one hero mark; DEPLETED is no longer struck.
+- Run screen: the road lists a stop cleared before the run as Cleared, numbered in place. A stop this run got past reads Passed on the road and in a failed run's debrief, since nothing clears until the run is home, and Cleared on the debrief once it's home. The debrief's stamp is LOOTED for the POI the run cleared, unless a driver came home hurt, whose tear takes the one hero mark; DEPLETED is no longer struck.
 
 ## Version 11 saves load
 
-The map state changed shape, so the save format goes to version 12. Version 11 saves load (`SaveUpgrades.ts`): a POI with an entry in the old `pois` stock had a run reach it, which clears it now, so its index goes into `clearedPois` and the stock goes; no stop is cleared, since nothing kept stop state. A POI that had refilled had dropped its entry, so it reads as never reached; nothing in the save tells it apart. The old stock is held to version 11's own reader first, so a damaged one is damage, not a guess. A run out keeps its route as saved; its POI clears when it gets there.
+The map state changed shape, so the save format goes to version 12. Version 11 saves load (`SaveUpgrades.ts`): a POI with an entry in the old `pois` stock had a run reach it, which clears it now, so its index goes into `clearedPois` and the stock goes; no stop is cleared, since nothing kept stop state. A POI that had refilled had dropped its entry, so it reads as never reached; nothing in the save tells it apart. The old stock is held to version 11's own reader first, so a damaged one is damage, not a guess. A run out keeps its route as saved; its POI clears when it gets home.
 
 ## Provisional calls
 
 None of these is in a spec. They're calls 215 to 219, 221, 222, and 260 in [gameplay-calls.md](../gameplay-calls.md); 186 to 188 are the clearing rule itself.
 
-1. A run clears a stop when it moves past it, a find left by the road and a fight won included, on the day of the run; a fight it loses isn't cleared.
+1. A run clears every stop it resolved, a find left by the road and a fight won or broken off included, when it gets home, on the day of the run, and its POI with them; a run that loses a fight fails, and clears nothing. Call 215 had a stop cleared as the run moved past it; call 260 moved the clearing to getting home.
 2. A cleared stop is back at the dawn five days after the day it was cleared, its roll up one, and only a haul rerolls yet, since a fight's raiders and a find's cards and driver come from the run's own stream.
 3. A route with stops cleared keeps the map's fuel and hours, which then overestimate a little, and takes its risk from the fights it still meets.
 4. A cleared POI draws with the map's depleted marker and dimmed row, its details say cleared, and its Plan is off.
@@ -65,4 +65,4 @@ None of these is in a spec. They're calls 215 to 219, 221, 222, and 260 in [game
 
 - The POI stage's spacing (DDB-529) is what keeps a neighbor's cleared road from emptying a route; until it lands, a route that shares most of its road with a run from the day before can be short.
 - The run's clock (Racing the dark) should take hours off a route for the stops it drives past, which call 3 leaves for then.
-- The objective (Compound and Supply Runs, The loop, step 6) moves the yield and the clearing from reaching the POI to winning it, together.
+- The objective (Compound and Supply Runs, The loop, step 6) moves the yield from reaching the POI to winning it; the clearing stays at getting home.

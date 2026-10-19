@@ -242,7 +242,7 @@ export function departRun({ campaign, map, route, escorts }: { campaign: Campaig
 	checkEscorts({ campaign, escorts });
 	campaign.set({
 		resources: { ...campaign.resources, fuel: campaign.resources.fuel - offered.fuel },
-		...arrivedAt({ route: offered, stop: 0, phase: 'driving', escorts, cargo: NO_RESOURCES, cargoCards: NO_CARDS, recruits: [] }),
+		...withYieldAtDestination({ route: offered, stop: 0, phase: 'driving', escorts, cargo: NO_RESOURCES, cargoCards: NO_CARDS, recruits: [] }),
 	});
 	return requireRun(campaign);
 }
@@ -266,7 +266,7 @@ export function atDestination(run: SupplyRun): boolean {
 /** A quiet stretch passes: on to the next stop, or the destination. Throws unless the run is driving to a quiet stop. */
 export function passQuietStop({ campaign }: { campaign: Campaign }): void {
 	const run = drivingTo({ campaign, kind: 'quiet' });
-	campaign.set(arrivedAt({ ...run, stop: run.stop + 1 }));
+	campaign.set(withYieldAtDestination({ ...run, stop: run.stop + 1 }));
 }
 
 /**
@@ -310,16 +310,16 @@ export function takeFind({ campaign }: { campaign: Campaign }): void {
 		case 'supplies': {
 			const { resource, amount } = stop.supplies;
 			const cargo = { ...run.cargo, [resource]: run.cargo[resource] + amount };
-			campaign.set(arrivedAt({ ...run, cargo, stop: run.stop + 1 }));
+			campaign.set(withYieldAtDestination({ ...run, cargo, stop: run.stop + 1 }));
 			return;
 		}
 		case 'driver': {
 			const found = foundDriver({ campaign });
 			if (found.kind === 'missing') {
 				campaign.findMissingDriver({ driver: found.driver });
-				campaign.set(arrivedAt({ ...run, stop: run.stop + 1 }));
+				campaign.set(withYieldAtDestination({ ...run, stop: run.stop + 1 }));
 			} else {
-				campaign.set(arrivedAt({ ...run, recruits: [...run.recruits, found.archetype], stop: run.stop + 1 }));
+				campaign.set(withYieldAtDestination({ ...run, recruits: [...run.recruits, found.archetype], stop: run.stop + 1 }));
 			}
 			return;
 		}
@@ -329,7 +329,7 @@ export function takeFind({ campaign }: { campaign: Campaign }): void {
 /** The find the run is driving to, left by the road: on to the next stop, or the destination. Throws unless the run is driving to a find. */
 export function leaveFind({ campaign }: { campaign: Campaign }): void {
 	const run = drivingTo({ campaign, kind: 'find' });
-	campaign.set(arrivedAt({ ...run, stop: run.stop + 1 }));
+	campaign.set(withYieldAtDestination({ ...run, stop: run.stop + 1 }));
 }
 
 export interface StopFightOptions {
@@ -387,7 +387,7 @@ export function finishStopFight({ campaign, fight }: { campaign: Campaign; fight
 	if (result.outcome === 'broken_off') {
 		const { escorts, cargo, cargoCards } = result.party;
 		campaign.addLogEntry({ message: `The raiders broke off at stop ${run.stop + 1} on the run to ${run.route.destination.name}.` });
-		campaign.set(arrivedAt({ ...run, escorts, cargo, cargoCards, stop: run.stop + 1, phase: 'driving' }));
+		campaign.set(withYieldAtDestination({ ...run, escorts, cargo, cargoCards, stop: run.stop + 1, phase: 'driving' }));
 		return Object.freeze({ outcome: 'broken_off', fight: result });
 	}
 	campaign.addLogEntry({ message: fallenMessage({ route: run.route, dead: result.dead, missing: result.missing }) });
@@ -416,7 +416,7 @@ export function takeReward({ campaign, cardType }: { campaign: Campaign; cardTyp
 	const run = atReward({ campaign });
 	if (cardType !== null && !rewardOffer({ campaign }).includes(cardType)) throw new RangeError(`${cardType} isn't on offer at stop ${run.stop}`);
 	const cargoCards = cardType === null ? run.cargoCards : addCardsWon({ party: runParty({ campaign }), cardsWon: { [cardType]: 1 } }).cargoCards;
-	campaign.set(arrivedAt({ ...run, cargoCards, stop: run.stop + 1, phase: 'driving' }));
+	campaign.set(withYieldAtDestination({ ...run, cargoCards, stop: run.stop + 1, phase: 'driving' }));
 }
 
 /**
@@ -437,7 +437,8 @@ export function arriveHome({ campaign }: { campaign: Campaign }): Arrival {
 	const brought = cargoText({ cargo: party.cargo, cards: party.cargoCards }) ?? 'nothing';
 	campaign.addLogEntry({ message: `Home from ${run.route.destination.name} with ${brought}.` });
 	const cargo = campaign.unloadRun({ party });
-	campaign.set({ map: clearedByRun({ map: campaign.map, run, day: campaign.day }) });
+	const map = clearedByRun({ map: campaign.map, run, day: campaign.day });
+	if (map !== campaign.map) campaign.set({ map });
 	const recruits = run.recruits.map(archetype => campaign.recruitDriver({ archetype }));
 	if (recruits.length > 0) campaign.addLogEntry({ message: `${listText(recruits.map(driver => driver.name))} joined the compound, found on the road.` });
 	const injuries = injureOnArrival({ campaign, drivers: party.seats });
@@ -484,7 +485,7 @@ export function cargoText({ cargo, cards = NO_CARDS }: { cargo: Readonly<Resourc
  * road; what the run resolved clears when it's home (`clearedByRun`), so a
  * failed run leaves the map as it found it (call 260).
  */
-function arrivedAt(run: SupplyRun): Pick<CampaignData, 'supplyRun'> {
+function withYieldAtDestination(run: SupplyRun): Pick<CampaignData, 'supplyRun'> {
 	if (!atDestination(run)) return { supplyRun: run };
 	const cargo: Resources = { ...run.cargo };
 	for (const resource of YIELD_RESOURCES) cargo[resource] += run.route.destination.yield[resource];
