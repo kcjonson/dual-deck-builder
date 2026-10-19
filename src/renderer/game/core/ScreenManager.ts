@@ -17,6 +17,7 @@ import { AreaMapScreen } from '../screens/area-map/AreaMapScreen';
 import { RunRouteScreen } from '../screens/run-route/RunRouteScreen';
 import { RunScreen } from '../screens/run/RunScreen';
 import { LoadOutScreen } from '../screens/load-out/LoadOutScreen';
+import { EventScreen } from '../screens/event/EventScreen';
 import { ScreenTransition } from '../../engine/ui/ScreenTransition';
 
 /**
@@ -39,7 +40,8 @@ export type ScreenName =
 	| 'areaMapScreen'
 	| 'runRouteScreen'
 	| 'loadOutScreen'
-	| 'runScreen';
+	| 'runScreen'
+	| 'eventScreen';
 
 /**
  * Screen constructor type
@@ -78,6 +80,7 @@ function buildScreenConstructors(): Map<ScreenName, ScreenConstructor> {
 		['runRouteScreen', RunRouteScreen],
 		['loadOutScreen', LoadOutScreen],
 		['runScreen', RunScreen],
+		['eventScreen', EventScreen],
 	);
 	return new Map(entries);
 }
