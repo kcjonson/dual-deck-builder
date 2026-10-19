@@ -29,8 +29,6 @@ export interface ScreenScenario {
 export interface SceneScenario {
 	scene: string;
 	blockedBy?: string;
-	/** The Electron shell's golden alone can't be owned yet, and why; the chromium golden and the lint still hold. */
-	electronBlockedBy?: string;
 	/** Also linted at the short viewport, for a scene that lays out to the window's width. */
 	lintShort?: boolean;
 	/**
@@ -141,14 +139,6 @@ export const SCREEN_SCENARIOS: readonly ScreenScenario[] = [
 	})),
 ];
 
-/**
- * DDB-45's two newest event scenes: on the CI runner the Electron shell's
- * second capture of each never returns within the 15 s screenshot timeout,
- * across two mints, while every other event scene and both of these in a
- * local Electron run settle in about 6 s. Followed up on Specboard.
- */
-const ELECTRON_EVENT_CAPTURE = 'Electron capture never settles on the CI runner for this scene (DDB-45 follow-up)';
-
 /** Every gallery scene, `?scene=` names. */
 export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	{ scene: 'interactive-controls' },
@@ -233,9 +223,9 @@ export const SCENE_SCENARIOS: readonly SceneScenario[] = [
 	// The event screen whole, its choices, locks, and outcomes, at both sizes as a screen is (DDB-45)
 	{ scene: 'event-wreck', shortViewport: true },
 	{ scene: 'event-distress', shortViewport: true },
-	{ scene: 'event-locks', shortViewport: true, electronBlockedBy: ELECTRON_EVENT_CAPTURE },
+	{ scene: 'event-locks', shortViewport: true },
 	{ scene: 'event-outcome', shortViewport: true },
-	{ scene: 'event-escort', shortViewport: true, electronBlockedBy: ELECTRON_EVENT_CAPTURE },
+	{ scene: 'event-escort', shortViewport: true },
 	{ scene: 'event-fight', shortViewport: true },
 ];
 

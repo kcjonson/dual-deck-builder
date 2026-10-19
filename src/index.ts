@@ -138,6 +138,11 @@ class Application {
 				lost: () => this.frameLoop.stop(),
 				restored: () => this.frameLoop.start(),
 			});
+			if (__DEV_TOOLS__) {
+				// eslint-disable-next-line @typescript-eslint/no-var-requires
+				const { frameHoldHooks, installAppHooks } = require('./renderer/engine/debug/hooks') as typeof import('./renderer/engine/debug/hooks');
+				installAppHooks(frameHoldHooks(this.frameLoop));
+			}
 			this.frameLoop.start();
 
 			console.log('Initialization complete!');

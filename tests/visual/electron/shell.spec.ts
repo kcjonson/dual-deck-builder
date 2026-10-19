@@ -129,7 +129,6 @@ test.describe('electron shell', () => {
 	for (const scenario of SCENE_SCENARIOS) {
 		test(`scene ${scenario.scene}`, async ({}, testInfo) => {
 			if (scenario.blockedBy) test.fixme(true, scenario.blockedBy);
-			if (scenario.electronBlockedBy) test.fixme(true, scenario.electronBlockedBy);
 
 			const log = captureConsole(page);
 			await prepare(page);

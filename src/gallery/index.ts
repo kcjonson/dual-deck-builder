@@ -12,7 +12,7 @@ import { createDevToolsTracks } from '../renderer/engine/debug/devtoolsTracks';
 import { createHitchObserver } from '../renderer/engine/debug/hitchObserver';
 import { FontAtlasError } from '../renderer/engine/text/FontAtlas';
 import { fontLoadFailureMessage, loadFontAtlases, loadImageElement } from '../renderer/engine/text/loadFontAtlases';
-import { installDebugHooks, installAppHooks, installInputHooks, installPerfHooks } from '../renderer/engine/debug/hooks';
+import { frameHoldHooks, installDebugHooks, installAppHooks, installInputHooks, installPerfHooks } from '../renderer/engine/debug/hooks';
 import { CardLoader } from '../renderer/game/core/CardLoader';
 import { gallerySceneRegistry } from './registry';
 import { SceneHost } from './SceneHost';
@@ -105,6 +105,7 @@ class GalleryApplication {
 				lost: () => this.frameLoop.stop(),
 				restored: () => this.frameLoop.start(),
 			});
+			installAppHooks(frameHoldHooks(this.frameLoop));
 			this.frameLoop.start();
 		} catch (error) {
 			console.error('Gallery failed to start:', error);

@@ -107,6 +107,19 @@ Nothing the phase 0 goldens capture reads `Date`, so the freeze loses nothing. T
 necessary for a state behind a timer, `PlayerHandLayer`'s 300 ms discard being the first, and
 whoever needs it has to solve the `performance` collision.
 
+The free-running render loop has a cost, though, and DDB-532 is where it came due. Under
+SwiftShader a full-window atlas sheet costs about 130 ms a frame on a 32-thread desktop and about
+1.2 s pinned to two cores, and a screenshot of a page that is redrawing waits behind several of
+those frames: ten seconds a capture at two cores. On the four-vCPU runner the Electron shell's
+`toHaveScreenshot` for `event-locks` and `event-escort`, the slowest two of the event scenes, ran
+out of its 15 s before its second capture came back, in two mints. So `expectGolden` holds the
+frame loop for the capture, through `window.__app.holdFrames()` and `releaseFrames()` on both
+entry points: once the settle gate has passed, the canvas keeps presenting the frame it last drew,
+and a capture reads it in under 100 ms. This is not the page-that-stopped-drawing problem above,
+since the hold starts only after the settle gate has seen the layout hold over drawn frames, and the
+cluster rule's second capture is of one more frame drawn on purpose (`stepFrame()`), so a
+frame-to-frame difference still has a capture to show up in.
+
 ## Decision 3: seed the random source from the harness, not the engine
 
 `Math.random` is replaced with a seeded mulberry32 by `page.addInitScript` before any application

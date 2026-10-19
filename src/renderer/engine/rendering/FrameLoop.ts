@@ -60,6 +60,16 @@ export class FrameLoop {
 		}
 	}
 
+	/**
+	 * One tick while the loop is stopped, for a caller that has stopped it to
+	 * hold the presented frame and still wants a fresh one drawn on demand.
+	 * Does nothing while the loop runs, since the next rAF frame is coming.
+	 */
+	step(): void {
+		if (this.active) return;
+		this.tick();
+	}
+
 	private frame = (): void => {
 		if (!this.active) return;
 		this.tick();

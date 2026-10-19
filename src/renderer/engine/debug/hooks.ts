@@ -8,6 +8,7 @@ import { injectInput } from './inputInjection';
 import type { ScenarioCapture } from './perfCapture';
 import { capturePerfSamples } from './perfCapture';
 import type { PerfSnapshot } from '../rendering/FrameTimer';
+import type { FrameLoop } from '../rendering/FrameLoop';
 
 /**
  * Installs the development-only `window.__ui` surface (R13.2, R15.37).
@@ -78,6 +79,26 @@ export interface AppControlApi {
 	settleAnimations?(): number;
 	/** Machine-readable control state, including the pause evidence counters. */
 	status?(): unknown;
+	/**
+	 * Stops the frame loop, so the canvas keeps presenting the last frame it
+	 * drew until `releaseFrames` (DDB-532). Pausing stops update and keeps
+	 * rendering, and under software GL a full-window atlas sheet costs a
+	 * second a frame on a small runner; a screenshot waits behind that work,
+	 * so a capture holds the loop while it reads the canvas.
+	 */
+	holdFrames?(): void;
+	/** While held, draws one frame, so a capture can check a fresh frame against one it took. */
+	stepFrame?(): void;
+	releaseFrames?(): void;
+}
+
+/** R13.32's hold hooks over an entry point's frame loop, the same on both pages. */
+export function frameHoldHooks(loop: FrameLoop): Pick<AppControlApi, 'holdFrames' | 'stepFrame' | 'releaseFrames'> {
+	return {
+		holdFrames: () => loop.stop(),
+		stepFrame: () => loop.step(),
+		releaseFrames: () => loop.start(),
+	};
 }
 
 /**
