@@ -340,6 +340,17 @@ Made writing [Runs and Encounters](./specs/Runs%20and%20Encounters.md), beyond w
 188. DDB-336: a POI is cleared when the run reaches it, in the step that loads its yield (as call 105 had the share), so a run that fails on the way home has still cleared it, because the yield and the clearing can't come apart in a save.
 189. DDB-529: each route keeps its floor fights and at least half its stop band on its own road, legs no other POI's routes use, and the POI stage seats a POI only where that fits, because it's the least that keeps a neighbor's cleared road from leaving a run fight-free or nearly empty.
 
+## Finds (210 to 214, 220)
+
+Record: find-stops.md.
+
+210. DDB-523: taking a find costs nothing yet, because call 183 makes the stop's hours its price and the run doesn't keep its clock on the road yet; until it does a find is a gift, and Runs and Encounters' open question 4 stays open.
+211. DDB-523: a Find: driver turns up the pool's first missing driver who can be found, and only with nobody missing someone new, of the unlocked archetype the compound has fewest living drivers of, because the missing are the compound's own and the spec's "a new archetype" reads as filling the pool out.
+212. DDB-523: someone new found on the road rides home with the run and joins the pool there, lost with the run if it fails, because a found missing driver already does, and the convoy is what brings them in.
+213. DDB-523: a Find: cards is the fight reward's picker and pool, three cards at the drop rates, the one picked riding home as cargo, because the spec names that picker and a find's cards shouldn't be safer than a fight's.
+214. DDB-523: a Find: supplies haul is the stop's rolled contents, one resource in the stop tuning's range, meds included, because the cargo and the stores carry meds though POI yields don't.
+220. DDB-523: a calm stop type the run can't resolve yet (wreck, distress, garage, hazard, Find: settlers, Find: vehicle) still runs as a quiet stretch, rather than the stops stage giving it weight 0 as Runs and Encounters asks, because zeroing it is a stops-stage change that reshapes every map's stops, and finds are what this batch could resolve; the stops stage drops the quiet stretch once it zeroes those weights.
+
 ## Player stand-ins (240 to 244)
 
 Record: intent-aware-stand-in.md. Numbered from 240, the range set aside for this work.

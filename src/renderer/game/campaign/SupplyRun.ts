@@ -2,6 +2,7 @@ import type { AIType } from '../ai/AIController';
 import { Rng } from '../core/Rng';
 import type { RouteMap } from '../map/RouteDescriptors';
 import type { Card } from '../mechanics/Card';
+import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
 import { MAX_CONVOY_ESCORTS, Team } from '../mechanics/Team';
 import type { Vehicle } from '../mechanics/Vehicle';
 import { Campaign, CampaignData, NO_RESOURCES, RESOURCE_NAMES, Resources, UnloadedCargo, resourceAmount } from './Campaign';
@@ -11,7 +12,7 @@ import { addCardsWon } from './CardsWon';
 import { CampaignFight, FailedRun, RunParty, WonFight, startCampaignFight, writeBackFight } from './CombatBridge';
 import { DayEnd, endDay } from './DayClock';
 import { cardName } from './DeckRules';
-import type { DriverRecord } from './DriverRecord';
+import { DRIVER_ARCHETYPES, DriverRecord } from './DriverRecord';
 import { EncounterId, encounterFor, encounterTeam } from './Encounters';
 import { Injury, injureOnArrival } from './Infirmary';
 import type { RunDeck } from './RunDeck';
@@ -20,14 +21,14 @@ import { getCrewRule, getSeatBlocker } from './Seating';
 import { destinationId, poiOf, routeOffers } from './MapRoutes';
 import type { MapState } from './MapState';
 import { poiStocks, scaledYield, sharesLeft, takeShare } from './PoiStock';
-import { RouteStop, RouteYield, RunRoute, YIELD_RESOURCES, routeStops } from './SupplyRoutes';
+import { FindKind, FindStop, RouteStop, RouteYield, RunRoute, YIELD_RESOURCES, routeStops } from './SupplyRoutes';
 import type { SupplyRun } from './SupplyRunState';
 
 /**
  * The MVP supply run (DDB-454): depart on a route the area map offers
  * (`routesOnOffer`), take its stops in order, a fight through the combat
- * bridge with a card reward after each win, load the destination's yield,
- * and come home, or lose the run. A stand-in for the full run controller
+ * bridge with a card reward after each win, a find taken or left (DDB-523),
+ * load the destination's yield, and come home, or lose the run. A stand-in for the full run controller
  * (DDB-322), which keeps this state machine. Decision records:
  * docs/AI_TECHNICAL_DECISIONS/mvp-supply-run.md and area-map-route-pick.md.
  *
@@ -84,8 +85,15 @@ export interface Arrival {
 	readonly seats: readonly DriverRecord[];
 	readonly cargo: UnloadedCargo;
 	readonly injuries: readonly Injury[];
+	/** Drivers found on the road who joined the pool on getting home (`SupplyRun.recruits`). */
+	readonly recruits: readonly DriverRecord[];
 	readonly dayEnd: DayEnd;
 }
+
+/** Who a Find: driver turns up: one of the compound's own missing, or someone new of an archetype. */
+export type FoundDriver =
+	| { readonly kind: 'missing'; readonly driver: DriverRecord }
+	| { readonly kind: 'recruit'; readonly archetype: DriverArchetype };
 
 /** Each map's offer as it'd be with every POI full, worked out once: the compound asks on every refresh. */
 const offers = new WeakMap<RouteMap, readonly RunRoute[]>();
@@ -216,7 +224,7 @@ export function departRun({ campaign, map, route, escorts }: { campaign: Campaig
 	checkEscorts({ campaign, escorts });
 	campaign.set({
 		resources: { ...campaign.resources, fuel: campaign.resources.fuel - offered.fuel },
-		...arrivedAt({ campaign, run: { route: offered, stop: 0, phase: 'driving', escorts, cargo: NO_RESOURCES, cargoCards: NO_CARDS } }),
+		...arrivedAt({ campaign, run: { route: offered, stop: 0, phase: 'driving', escorts, cargo: NO_RESOURCES, cargoCards: NO_CARDS, recruits: [] } }),
 	});
 	return requireRun(campaign);
 }
@@ -240,6 +248,69 @@ export function atDestination(run: SupplyRun): boolean {
 /** A quiet stretch passes: on to the next stop, or the destination. Throws unless the run is driving to a quiet stop. */
 export function passQuietStop({ campaign }: { campaign: Campaign }): void {
 	const run = drivingTo({ campaign, kind: 'quiet' });
+	campaign.set(arrivedAt({ campaign, run: { ...run, stop: run.stop + 1 } }));
+}
+
+/**
+ * Who the Find: driver the run is driving to turns up: the first of the
+ * pool's missing drivers who can be found (`Campaign.findMissingDriver`),
+ * or else someone new, of an unlocked archetype the compound has fewest
+ * living drivers of, counting recruits riding home, drawn on the run's
+ * stream for the stop, `fork('find', stop)`, so a load finds the same one.
+ * Throws unless the run is driving to a Find: driver.
+ */
+export function foundDriver({ campaign }: { campaign: Campaign }): FoundDriver {
+	const run = drivingToFind({ campaign, find: 'driver' });
+	const missing = campaign.drivers.find(driver => driver.status === 'missing' && !campaign.foundOnRun.includes(driver) && campaign.runDeckOf(driver) === null);
+	if (missing) return Object.freeze({ kind: 'missing', driver: missing });
+	const unlocked = DRIVER_ARCHETYPES.filter(archetype => DRIVER_CONFIGS[archetype].metadata.unlocked);
+	const living = (archetype: DriverArchetype): number =>
+		campaign.drivers.filter(driver => driver.archetype === archetype && driver.status !== 'dead').length
+		+ run.recruits.filter(recruit => recruit === archetype).length;
+	const fewest = Math.min(...unlocked.map(living));
+	const archetype = runStream({ campaign }).fork('find', run.stop).pick(unlocked.filter(candidate => living(candidate) === fewest));
+	return Object.freeze({ kind: 'recruit', archetype });
+}
+
+/**
+ * The find the run is driving to, taken (Runs and Encounters, What a stop
+ * can be): Find: cards opens the card picker at the stop (`rewardOffer`,
+ * `takeReward`); Find: supplies loads its haul into the cargo; Find: driver
+ * takes on who it turns up (`foundDriver`), a missing driver riding home
+ * with the run (`Campaign.findMissingDriver`) and someone new as one of its
+ * `recruits`. Then on to the next stop, or the destination, but for the
+ * cards, which move on once picked. Throws unless the run is driving to a
+ * find, and as `findMissingDriver` does.
+ */
+export function takeFind({ campaign }: { campaign: Campaign }): void {
+	const run = drivingTo({ campaign, kind: 'find' });
+	const stop = currentStop(run) as FindStop;
+	switch (stop.find) {
+		case 'cards':
+			campaign.set({ supplyRun: { ...run, phase: 'reward' } });
+			return;
+		case 'supplies': {
+			const { resource, amount } = stop.supplies;
+			const cargo = { ...run.cargo, [resource]: run.cargo[resource] + amount };
+			campaign.set(arrivedAt({ campaign, run: { ...run, cargo, stop: run.stop + 1 } }));
+			return;
+		}
+		case 'driver': {
+			const found = foundDriver({ campaign });
+			if (found.kind === 'missing') {
+				campaign.findMissingDriver({ driver: found.driver });
+				campaign.set(arrivedAt({ campaign, run: { ...run, stop: run.stop + 1 } }));
+			} else {
+				campaign.set(arrivedAt({ campaign, run: { ...run, recruits: [...run.recruits, found.archetype], stop: run.stop + 1 } }));
+			}
+			return;
+		}
+	}
+}
+
+/** The find the run is driving to, left by the road: on to the next stop, or the destination. Throws unless the run is driving to a find. */
+export function leaveFind({ campaign }: { campaign: Campaign }): void {
+	const run = drivingTo({ campaign, kind: 'find' });
 	campaign.set(arrivedAt({ campaign, run: { ...run, stop: run.stop + 1 } }));
 }
 
@@ -298,9 +369,9 @@ export function finishStopFight({ campaign, fight }: { campaign: Campaign; fight
 }
 
 /**
- * The cards on offer after the fight at the run's stop: drawn from the
- * run's stream for that stop, `fork('reward', stop)`, so a load offers the
- * same ones. Throws unless the run is at a reward.
+ * The cards on offer at the run's stop, after its fight or at its Find:
+ * cards: drawn from the run's stream for that stop, `fork('reward', stop)`,
+ * so a load offers the same ones. Throws unless the run is at a reward.
  */
 export function rewardOffer({ campaign }: { campaign: Campaign }): readonly string[] {
 	const run = atReward({ campaign });
@@ -323,9 +394,10 @@ export function takeReward({ campaign, cardType }: { campaign: Campaign; cardTyp
 /**
  * Home from the destination (Compound and Supply Runs, Return): the log says
  * what the run brought, the run is unloaded (`unloadRun`, which unwinds its
- * run decks and clears it), its drivers hurt are injured, each seat has a
- * run more, and the day ends. Throws unless the run is heading home, and as
- * each of those does.
+ * run decks and clears it), anyone new it found joins the pool
+ * (`recruitDriver`) and the log says so, its drivers hurt are injured, each
+ * seat has a run more, and the day ends. Throws unless the run is heading
+ * home, and as each of those does.
  */
 export function arriveHome({ campaign }: { campaign: Campaign }): Arrival {
 	const run = requireRun(campaign);
@@ -336,10 +408,12 @@ export function arriveHome({ campaign }: { campaign: Campaign }): Arrival {
 	const brought = cargoText({ cargo: party.cargo, cards: party.cargoCards }) ?? 'nothing';
 	campaign.addLogEntry({ message: `Home from ${run.route.destination.name} with ${brought}.` });
 	const cargo = campaign.unloadRun({ party });
+	const recruits = run.recruits.map(archetype => campaign.recruitDriver({ archetype }));
+	if (recruits.length > 0) campaign.addLogEntry({ message: `${listText(recruits.map(driver => driver.name))} joined the compound, found on the road.` });
 	const injuries = injureOnArrival({ campaign, drivers: party.seats });
 	party.seats.forEach(seat => seat.set({ runsCompleted: seat.runsCompleted + 1 }));
 	const dayEnd = endDay({ campaign });
-	return Object.freeze({ seats: party.seats, cargo, injuries, dayEnd });
+	return Object.freeze({ seats: party.seats, cargo, injuries, recruits, dayEnd });
 }
 
 /**
@@ -411,6 +485,13 @@ function drivingTo({ campaign, kind }: { campaign: Campaign; kind: RouteStop['ki
 	if (run.phase !== 'driving' || stop?.kind !== kind) {
 		throw new Error(`The run isn't driving to a ${kind} stop: it's ${run.phase} at stop ${run.stop + 1} of ${routeStops(run.route).length}`);
 	}
+	return run;
+}
+
+function drivingToFind({ campaign, find }: { campaign: Campaign; find: FindKind }): SupplyRun {
+	const run = drivingTo({ campaign, kind: 'find' });
+	const stop = currentStop(run) as FindStop;
+	if (stop.find !== find) throw new Error(`The run is driving to a Find: ${stop.find}, not a Find: ${find}`);
 	return run;
 }
 

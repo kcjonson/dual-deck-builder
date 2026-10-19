@@ -7,7 +7,8 @@ import type { CheckpointResult } from '../../campaign/CampaignStore';
 import type { CampaignFight } from '../../campaign/CombatBridge';
 import { RunRoute, routeStops } from '../../campaign/SupplyRoutes';
 import {
-	Arrival, StopFightResult, arriveHome, atDestination, cargoText, currentStop, finishStopFight, listText, passQuietStop, rewardOffer, startStopFight, takeReward,
+	Arrival, StopFightResult, arriveHome, atDestination, cargoText, currentStop, finishStopFight, foundDriver, leaveFind, listText, passQuietStop, rewardOffer, startStopFight,
+	takeFind, takeReward,
 } from '../../campaign/SupplyRun';
 import type { SupplyRun } from '../../campaign/SupplyRunState';
 import { NO_RESOURCES, RESOURCE_NAMES } from '../../campaign/Campaign';
@@ -30,7 +31,7 @@ import { LegendBox, LegendRow, LegendSymbol } from '../../ui/atlas/LegendBox';
 import { ResourceStrip } from '../../ui/atlas/ResourceStrip';
 import type { PreparedCombatMount } from '../combat/CombatScreen';
 import { NOT_THE_SAVE } from '../compound/compoundText';
-import { arrivalSummary, crewState, debriefMark, failureSummary, skullsText, stopTitle, yieldText } from './runText';
+import { arrivalSummary, crewState, debriefMark, failureSummary, findStep, skullsText, stopTitle, yieldText } from './runText';
 
 const BACK_WIDTH = 160;
 const ROAD_WIDTH = 320;
@@ -81,7 +82,8 @@ type Shown =
  * view's progress (DDB-319): the route's stops in order, cleared, next, and
  * ahead, the seats' HP and the cargo so far, and beside them the next step.
  * Drive on takes a quiet stretch or opens the fight (the combat screen, whose
- * end writes the fight back and comes back here); a won fight offers its
+ * end writes the fight back and comes back here); a find is taken or driven
+ * past, a Find: cards opening the card picker; a won fight offers its
  * reward, picked or skipped; Head home unloads the run and ends the day, and
  * a one-line summary goes back to the compound. A failed run says what it
  * lost, then the compound, or the defeat screen once nobody is left. Every
@@ -392,7 +394,17 @@ export class RunScreen extends Screen {
 			box.addChild(caption({ id: 'run_action_line', text: line }));
 			return this.addButton({ box, id: 'run_home_button', label: 'Head home', onClick: () => { void this.headHome(); } });
 		}
-		box.addChild(heading({ id: 'run_action_title', text: `Next: ${stopTitle(stop)}` }));
+		// "Find: supplies" carries its own colon, so a find's heading goes without "Next:"
+		box.addChild(heading({ id: 'run_action_title', text: stop.kind === 'find' ? stopTitle(stop) : `Next: ${stopTitle(stop)}` }));
+		if (stop.kind === 'find') {
+			const campaign = this.campaign;
+			const found = stop.find === 'driver' && campaign ? foundDriver({ campaign }) : null;
+			const { line, take } = findStep({ stop, found });
+			box.addChild(caption({ id: 'run_action_line', text: line }));
+			const button = this.addButton({ box, id: 'run_take_button', label: take, onClick: () => { void this.takeFind(); } });
+			this.addButton({ box, id: 'run_drive_button', label: 'Drive on', variant: 'backRoad', onClick: () => { void this.driveOn(); } });
+			return button;
+		}
 		const line = stop.kind === 'fight'
 			? `Raiders hold the road ahead, ${skullsText(stop.skulls)} of danger. Driving on starts the fight.`
 			: 'Nothing on this stretch but wind.';
@@ -401,7 +413,7 @@ export class RunScreen extends Screen {
 	}
 
 	/**
-	 * A won fight's cards, picked by clicking one, or skipped. With no cards
+	 * A won fight's cards, or a Find: cards', picked by clicking one, or skipped. With no cards
 	 * loaded the reward waits, saved, rather than being lost: the cards can
 	 * be loaded again here, or by Continue. Picking a card is the step, so
 	 * Skip is the back road.
@@ -411,8 +423,9 @@ export class RunScreen extends Screen {
 		if (!campaign) return null;
 		const box = stepBox(action);
 		const cards = this.cards;
+		const found = campaign.supplyRun ? currentStop(campaign.supplyRun)?.kind === 'find' : false;
 		if (!cards) {
-			box.addChild(heading({ id: 'run_action_title', text: 'Fight won' }));
+			box.addChild(heading({ id: 'run_action_title', text: found ? 'Cards found' : 'Fight won' }));
 			box.addChild(caption({ id: 'run_action_line', text: "The cards couldn't be loaded, so the reward waits for them." }));
 			return this.addButton({ box, id: 'run_cards_button', label: 'Load the cards again', onClick: () => { void this.reloadCards(); } });
 		}
@@ -422,13 +435,13 @@ export class RunScreen extends Screen {
 		});
 		box.addChild(new CardPileView({
 			id: 'run_reward',
-			title: 'Fight won: pick a card',
+			title: found ? 'Cards found: pick one' : 'Fight won: pick a card',
 			note: 'It rides home as cargo, and reaches the locker if the run gets home.',
 			cards: offer,
 			ink: 'theme',
 			onPick: (card) => { void this.pick(card.type); },
 		}));
-		return this.addButton({ box, id: 'run_skip_button', label: 'Skip the card', variant: 'backRoad', onClick: () => { void this.pick(null); } });
+		return this.addButton({ box, id: 'run_skip_button', label: found ? 'Leave them' : 'Skip the card', variant: 'backRoad', onClick: () => { void this.pick(null); } });
 	}
 
 	/** The step's button: the highway, the screen's one primary, or the back road for a step that passes something up. */
@@ -450,13 +463,17 @@ export class RunScreen extends Screen {
 		return button;
 	}
 
-	/** The next stop: a quiet stretch passes and saves; a fight opens on the combat screen. */
+	/** The next stop: a quiet stretch passes and saves, a find is left behind; a fight opens on the combat screen. */
 	private async driveOn(): Promise<void> {
 		const campaign = this.campaign;
 		if (!campaign || this.shown.kind !== 'road') return;
 		const stop = currentStop(this.shown.run);
 		if (stop?.kind === 'quiet') {
 			await this.step(() => passQuietStop({ campaign }), 'The road was quiet.');
+			return;
+		}
+		if (stop?.kind === 'find') {
+			await this.step(() => leaveFind({ campaign }), 'Left it behind.');
 			return;
 		}
 		if (this.busy || this.stranded) return;
@@ -475,6 +492,16 @@ export class RunScreen extends Screen {
 			return;
 		}
 		ScreenManager.navigate('combatScreen', stopFightMount({ campaign, fight, store: this.store }));
+	}
+
+	/** The find ahead, taken: the haul or the driver comes along and saves; cards open the picker. */
+	private async takeFind(): Promise<void> {
+		const campaign = this.campaign;
+		if (!campaign || this.shown.kind !== 'road') return;
+		const stop = currentStop(this.shown.run);
+		if (stop?.kind !== 'find') return;
+		const said = stop.find === 'cards' ? null : stop.find === 'supplies' ? 'Loaded into the cargo.' : 'They ride with the run.';
+		await this.step(() => takeFind({ campaign }), said);
 	}
 
 	private async pick(cardType: string | null): Promise<void> {
@@ -692,7 +719,9 @@ function debriefLedgers({ arrival, torn }: { arrival: Arrival; torn: boolean }):
 	const carded = cargoText({ cargo: NO_RESOURCES, cards });
 	if (carded) unloaded.addChild(new LegendRow({ id: 'run_unloaded_cards', text: `To the locker: ${carded}`, symbol: 'ring' }));
 	if (found.length > 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_found', text: `${listText(found.map((driver) => driver.name))} found`, symbol: 'ring' }));
-	if (stores.length === 0 && !carded && found.length === 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_none', text: 'Nothing to unload', symbol: 'dash' }));
+	const { recruits } = arrival;
+	if (recruits.length > 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_recruits', text: `${listText(recruits.map((driver) => driver.name))} joined`, symbol: 'ring' }));
+	if (stores.length === 0 && !carded && found.length === 0 && recruits.length === 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_none', text: 'Nothing to unload', symbol: 'dash' }));
 	row.addChild(unloaded);
 
 	const crew = new LegendBox({ id: 'run_crew', title: 'The crew', width: TAG_WIDTH + ATLAS.legendPadding * 2, crossAlign: 'stretch' });

@@ -81,7 +81,7 @@ const SAVE_FORMAT = {
 		'runDecks[].leftHome', 'runDecks[].leftHome.<card type>', 'runDecks[].own', 'runDecks[].own.<card type>',
 		'seed', 'strongholdsTaken', 'strongholdsTaken[]', 'supplyRun', 'supplyRun.cargo', 'supplyRun.cargo.food', 'supplyRun.cargo.fuel',
 		'supplyRun.cargo.meds', 'supplyRun.cargo.people', 'supplyRun.cargo.scrap', 'supplyRun.cargo.water', 'supplyRun.cargoCards',
-		'supplyRun.cargoCards.<card type>', 'supplyRun.escorts', 'supplyRun.escorts[]', 'supplyRun.phase', 'supplyRun.route',
+		'supplyRun.cargoCards.<card type>', 'supplyRun.escorts', 'supplyRun.escorts[]', 'supplyRun.phase', 'supplyRun.recruits', 'supplyRun.route',
 		'supplyRun.route.destination', 'supplyRun.route.destination.id', 'supplyRun.route.destination.name', 'supplyRun.route.destination.tier',
 		'supplyRun.route.destination.yield', 'supplyRun.route.destination.yield.food', 'supplyRun.route.destination.yield.fuel',
 		'supplyRun.route.destination.yield.scrap', 'supplyRun.route.destination.yield.water',
@@ -904,7 +904,7 @@ describe('Campaign', () => {
 				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
 			};
 
-			expect(CAMPAIGN_SCHEMA_VERSION).toBe(10);
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(11);
 			try {
 				expect(format).toEqual(SAVE_FORMAT);
 			} catch (error) {

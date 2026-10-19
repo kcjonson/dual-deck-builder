@@ -52,6 +52,17 @@ function drivingText(stop: number): string {
 	});
 }
 
+/** The fixture's run driving to its second stop, made a find (DDB-523). */
+function findText(find: Record<string, unknown>): string {
+	return fixtureText((campaign) => {
+		const run = campaign.supplyRun as { stop: number; phase: string; route: { legs: { stops: Record<string, unknown>[] }[] } };
+		run.stop = 1;
+		run.phase = 'driving';
+		const stops = run.route.legs[1].stops;
+		stops[1] = { id: stops[1].id, kind: 'find', at: stops[1].at, ...find };
+	});
+}
+
 /** The fixture's run driving to its last fight, lost to snipers, as the combat screen's end hook hands it over. */
 async function failedData(): Promise<RunScreenData> {
 	const campaign = Campaign.fromJSON(JSON.parse(drivingText(2)).campaign);
@@ -180,6 +191,37 @@ describe('RunScreen', () => {
 			await press('run_drive_button');
 			expect(text('run_report')).toBe('The road was quiet.');
 			expect(text('run_action_title')).toBe('Next: Raider ambush, 2 skulls');
+			expect((await saved())?.supplyRun?.stop).toBe(2);
+		});
+
+		it('offers a Find: supplies to load or drive past, and loads it into the cargo, saved (DDB-523)', async () => {
+			await open(findText({ find: 'supplies', supplies: { resource: 'water', amount: 6 } }));
+			expect(text('run_action_title')).toBe('Find: supplies');
+			expect(text('run_action_line')).toBe('6 water stashed by the road. Load it, or drive on.');
+			expect(find<Button>('run_drive_button')).toBeTruthy();
+			await press('run_take_button');
+			expect(text('run_report')).toBe('Loaded into the cargo.');
+			expect(text('run_action_title')).toBe('Next: Raider ambush, 2 skulls');
+			const run = (await saved())?.supplyRun;
+			expect([run?.stop, run?.cargo.water]).toEqual([2, 6]);
+		});
+
+		it('drives past a find with Drive on, taking nothing (DDB-523)', async () => {
+			await open(findText({ find: 'driver' }));
+			expect(text('run_action_line')).toMatch(/^An? [A-Za-z ]+ flags the convoy down, looking for a compound to join\. Take them on, or drive on\.$/);
+			await press('run_drive_button');
+			expect(text('run_report')).toBe('Left it behind.');
+			const run = (await saved())?.supplyRun;
+			expect([run?.stop, run?.recruits]).toEqual([2, []]);
+		});
+
+		it('opens the card picker for a Find: cards, with Leave them to pass them up (DDB-523)', async () => {
+			await open(findText({ find: 'cards' }));
+			await press('run_take_button');
+			expect(find<CardPileView>('run_reward')).toBeTruthy();
+			expect(find<Button>('run_skip_button').label).toBe('Leave them');
+			expect((await saved())?.supplyRun?.phase).toBe('reward');
+			await press('run_skip_button');
 			expect((await saved())?.supplyRun?.stop).toBe(2);
 		});
 

@@ -20,7 +20,12 @@ describe('save upgrades', () => {
 	});
 
 	it('stands the bunkhouse in a version 9 campaign, which every one was founded with', () => {
-		expect(upgradeCampaignJson({ campaign: { day: 3, map: {} }, version: 9 })).toEqual({ day: 3, map: {}, buildings: ['bunkhouse'] });
+		expect(upgradeCampaignJson({ campaign: { day: 3, map: {}, supplyRun: null }, version: 9 })).toEqual({ day: 3, map: {}, supplyRun: null, buildings: ['bunkhouse'] });
+	});
+
+	it('gives a version 10 run out no recruits, since nothing found anyone new then', () => {
+		expect(upgradeCampaignJson({ campaign: { day: 3, supplyRun: { stop: 1 } }, version: 10 })).toEqual({ day: 3, supplyRun: { stop: 1, recruits: [] } });
+		expect(upgradeCampaignJson({ campaign: { day: 3, supplyRun: null }, version: 10 })).toEqual({ day: 3, supplyRun: null });
 	});
 
 	it.each([
@@ -30,6 +35,7 @@ describe('save upgrades', () => {
 	])('passes %s through for the campaign reader to refuse', (_label, campaign) => {
 		expect(upgradeCampaignJson({ campaign, version: 8 })).toEqual(campaign);
 		expect(upgradeCampaignJson({ campaign, version: 9 })).toEqual(campaign);
+		expect(upgradeCampaignJson({ campaign, version: 10 })).toEqual(campaign);
 	});
 
 	it.each([

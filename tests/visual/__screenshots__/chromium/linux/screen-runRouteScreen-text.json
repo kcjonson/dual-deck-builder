@@ -18,7 +18,7 @@
 {"path":"runRouteScreen/run_route_side/run_route_scroll/run_route_body/run_route_stops_box/Text[0]","text":"Stops in order","rect":[1036,404.86,328,24]},
 {"path":"runRouteScreen/run_route_side/run_route_scroll/run_route_body/run_route_stops_box/run_route_stops/run_route_stop_0/run_route_stop_0_tag/run_route_stop_0_tag_text","text":"DISTRESS","rect":[1055.6,438.86,52.8,14.52]},
 {"path":"runRouteScreen/run_route_side/run_route_scroll/run_route_body/run_route_stops_box/run_route_stops/run_route_stop_0/run_route_stop_0_text","text":"Distress signal","rect":[1136,437.95,228,16.34]},
-{"path":"runRouteScreen/run_route_side/run_route_scroll/run_route_body/run_route_stops_box/run_route_quiet_note","text":"Only fights stop the convoy for now; the rest pass as quiet stretches.","rect":[1036,463.38,328,32.68]},
+{"path":"runRouteScreen/run_route_side/run_route_scroll/run_route_body/run_route_stops_box/run_route_quiet_note","text":"Fights, and finds of cards, supplies, or a driver, stop the convoy for now; the rest pass as quiet stretches.","rect":[1036,463.38,328,32.68]},
 {"path":"runRouteScreen/run_route_side/run_route_go/run_route_home_by","text":"Home by 11:21, 8.7 h before dark.","rect":[1020,740.93,360,19.07]},
 {"path":"runRouteScreen/run_route_side/run_route_go/run_route_load_out_button","text":"Load out the crew","rect":[1020,766,360,56]}
 ]

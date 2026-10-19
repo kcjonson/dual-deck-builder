@@ -11,9 +11,10 @@ import { CAMPAIGN_SCHEMA_VERSION } from './Campaign';
 /**
  * Versions upgraded on load, oldest first. Version 8 has no POI stock: every
  * POI is full. Version 9 has no buildings: only the bunkhouse, which every
- * campaign was founded with, stands.
+ * campaign was founded with, stands. Version 10's run out has no recruits:
+ * nothing found anyone new before Find: driver stops.
  */
-export const UPGRADABLE_SCHEMA_VERSIONS: readonly number[] = Object.freeze([8, 9]);
+export const UPGRADABLE_SCHEMA_VERSIONS: readonly number[] = Object.freeze([8, 9, 10]);
 
 /**
  * A campaign as a save of `version` held it, in the current format. Each
@@ -45,9 +46,15 @@ function fromVersion9(campaign: unknown): unknown {
 	return { ...campaign, buildings: ['bunkhouse'] };
 }
 
+/** Version 10 to 11: a run out has found nobody new, since version 10 had no Find: driver stops. Recruits already there are left for the reader to refuse. */
+function fromVersion10(campaign: unknown): unknown {
+	if (!isObject(campaign) || !isObject(campaign.supplyRun)) return campaign;
+	return { ...campaign, supplyRun: { recruits: [], ...campaign.supplyRun } };
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** Each version's step to the next, by the version it upgrades from. Every version from the oldest listed up to the current one needs one. */
-export const UPGRADE_STEPS: Readonly<Record<number, (campaign: unknown) => unknown>> = Object.freeze({ 8: fromVersion8, 9: fromVersion9 });
+export const UPGRADE_STEPS: Readonly<Record<number, (campaign: unknown) => unknown>> = Object.freeze({ 8: fromVersion8, 9: fromVersion9, 10: fromVersion10 });

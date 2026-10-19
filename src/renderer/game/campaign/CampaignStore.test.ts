@@ -8,7 +8,7 @@ import { UPGRADABLE_SCHEMA_VERSIONS } from './SaveUpgrades';
 import { LocalSaveStorage, MemorySaveStorage, WebStorage } from './SaveStorage';
 import { stressCampaign } from './__fixtures__/stressCampaign';
 import {
-	CAMPAIGN_FIXTURE, CAMPAIGN_V8_FIXTURE, CAMPAIGN_V9_FIXTURE, FaultyStorage, HeldStorage, KEYS, NAMESPACE, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
+	CAMPAIGN_FIXTURE, CAMPAIGN_V8_FIXTURE, CAMPAIGN_V9_FIXTURE, CAMPAIGN_V10_FIXTURE, FaultyStorage, HeldStorage, KEYS, NAMESPACE, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
 	saveText, securityError, settle, storageWith, storeOver
 } from './__fixtures__/storeFixtures';
 
@@ -369,7 +369,7 @@ describe('CampaignStore', () => {
 			const storage = storageWith(text);
 			const store = storeOver(storage);
 
-			expect(UPGRADABLE_SCHEMA_VERSIONS).toEqual([8, 9]);
+			expect(UPGRADABLE_SCHEMA_VERSIONS).toEqual([8, 9, 10]);
 			expect(await store.saveStatus()).toBe('saved');
 			const loaded = await store.load();
 			expect(loaded?.map).toEqual({});
@@ -389,6 +389,13 @@ describe('CampaignStore', () => {
 			const storage = storageWith(saveText({ campaign: JSON.stringify(CAMPAIGN_V9_FIXTURE), version: 9 }));
 			const loaded = await storeOver(storage).load();
 			expect(loaded?.buildings).toEqual(['bunkhouse']);
+			expect(loaded?.toJSON()).toEqual(CAMPAIGN_FIXTURE);
+		});
+
+		it('loads a version 10 save, from before Find: driver, its run out with nobody new riding home (DDB-523)', async () => {
+			const storage = storageWith(saveText({ campaign: JSON.stringify(CAMPAIGN_V10_FIXTURE), version: 10 }));
+			const loaded = await storeOver(storage).load();
+			expect(loaded?.supplyRun?.recruits).toEqual([]);
 			expect(loaded?.toJSON()).toEqual(CAMPAIGN_FIXTURE);
 		});
 
