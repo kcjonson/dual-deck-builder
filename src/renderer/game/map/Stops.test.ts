@@ -12,7 +12,8 @@ import { paramsFor } from './roadTesting';
 import { checkStopLayer, typesAlong } from './StopChecks';
 import stopTablesFile from '../data/stopTables.json';
 import { STOP_TUNING, STOP_TYPES, StopTuning, StopType, isCalm, isFight } from './StopData';
-import { DAYLIGHT_TIERS, StopLayer, junctionsAlong, keepsRules, nearestClear, nodeDegrees, placeStops, pointsAlong, rollStop } from './Stops';
+import { junctionsAlong, nearestClear, nodeDegrees } from './StopRoom';
+import { DAYLIGHT_TIERS, StopLayer, keepsRules, placeStops, pointsAlong, rollStop } from './Stops';
 
 /** The shipped tables with some types' class weights replaced, everywhere. */
 function tablesWith(weights: Partial<Record<StopType, number>>): StopTables {

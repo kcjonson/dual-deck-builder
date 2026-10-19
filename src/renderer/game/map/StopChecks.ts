@@ -4,7 +4,8 @@ import type { PoiLayer } from './Pois';
 import type { RoadNetwork } from './RoadNetwork';
 import { Route, routesTo } from './RouteTree';
 import { STOP_TUNING, StopTuning, StopType, isCalm, isFight } from './StopData';
-import { DAYLIGHT_TIERS, StopLayer, junctionsAlong, nodeDegrees } from './Stops';
+import { junctionsAlong, nodeDegrees } from './StopRoom';
+import { DAYLIGHT_TIERS, StopLayer } from './Stops';
 
 /**
  * Checks a map's stops against the rules they keep (Area Map Generation, 9.

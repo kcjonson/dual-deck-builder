@@ -1,11 +1,16 @@
+import type { RoadNetwork } from '../map/RoadNetwork';
 import { legCapacity, playGenCell, summarizeGen } from './Gen';
 import { simConfig } from './SimConfig';
 
 describe('balance sim gen', () => {
-	test('a leg holds the stops its length leaves room for, clear of its ends', () => {
-		expect(legCapacity({ length: 10 })).toBe(0);
-		expect(legCapacity({ length: 70 })).toBe(1);
-		expect(legCapacity({ length: 200 })).toBe(4);
+	test('a leg holds the stops its length leaves room for at the tight gap, clear of its ends', () => {
+		const network = { nodes: [{ x: 0, y: 0 }, { x: 200, y: 0 }], stretches: [] } as unknown as RoadNetwork;
+		const leg = (length: number) => ({ length, pieces: [{ stretch: 0, forward: true, length }] });
+		// 12 apart, half a gap in from 15 units at each end
+		expect(legCapacity({ network, leg: leg(10) })).toBe(0);
+		expect(legCapacity({ network, leg: leg(42) })).toBe(1);
+		expect(legCapacity({ network, leg: leg(54) })).toBe(2);
+		expect(legCapacity({ network, leg: leg(200) })).toBe(14);
 	});
 
 	test('a map audits every route to every POI, and the summary counts them by tier', () => {
@@ -13,10 +18,10 @@ describe('balance sim gen', () => {
 		const map = playGenCell({ config, cell: { name: 'map-1', seed: 1 } });
 		expect(map.failed).toBeNull();
 		// Seed 1 on today's generator; a generator change that moves these moves the Baseline too
-		expect(map.routes).toHaveLength(75);
-		expect(map.routes.reduce((sum, { audit }) => sum + audit.stops, 0)).toBe(411);
-		expect(map.routes.reduce((sum, { audit }) => sum + audit.fights, 0)).toBe(95);
-		expect(map.routes.reduce((sum, { audit }) => sum + audit.ownStops, 0)).toBe(76);
+		expect(map.routes).toHaveLength(55);
+		expect(map.routes.reduce((sum, { audit }) => sum + audit.stops, 0)).toBe(295);
+		expect(map.routes.reduce((sum, { audit }) => sum + audit.fights, 0)).toBe(52);
+		expect(map.routes.reduce((sum, { audit }) => sum + audit.ownStops, 0)).toBe(68);
 		for (const { legs, audit, poi, destination } of map.routes) {
 			expect(destination.id).toBe(`poi-${poi}`);
 			const stops = legs.flatMap(leg => leg.stops);

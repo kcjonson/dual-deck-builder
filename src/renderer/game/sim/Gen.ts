@@ -5,9 +5,13 @@ import { AREA_MAP_GENERATOR_VERSION } from '../map/GeneratorVersion';
 import { MapPipelineError } from '../map/MapPipeline';
 import { describeMap } from '../map/RouteDescriptors';
 import { rollParams } from '../map/RollParams';
-import { STOP_TUNING, StopTuning, StopType } from '../map/StopData';
+import type { RingCount } from '../map/Pois';
+import type { RoadNetwork } from '../map/RoadNetwork';
+import type { Leg } from '../map/RouteTree';
+import { STOP_TUNING, StopTuning, StopType, TierBand } from '../map/StopData';
+import { junctionsAlong, legRoom, nodeDegrees } from '../map/StopRoom';
 import { Rate, Spread, mean, rate, spread } from './Measures';
-import { SimConfig, TierBand } from './SimConfig';
+import type { SimConfig } from './SimConfig';
 
 /**
  * The balance sim's generator audit (Balance Simulation, gen): campaign maps
@@ -56,7 +60,7 @@ export interface RouteAudit {
 	readonly ownLength: number;
 	readonly ownStops: number;
 	readonly ownFights: number;
-	/** The stops its own road could hold at most, leg by leg, as the stops stage caps a leg. */
+	/** The stops its own road has room for, leg by leg, at the stops stage's tight gap. */
 	readonly ownCapacity: number;
 	readonly lastLeg: { readonly length: number; readonly stops: number; readonly capacity: number };
 	/** The POI whose routes share the most road with this POI's, and the worst one of its routes' runs for this route. */
@@ -73,6 +77,8 @@ export interface GenMap {
 	/** What the stops stage couldn't keep, and the stops the daylight check took off. */
 	readonly stopFailures: readonly string[];
 	readonly thinned: number;
+	/** POIs each ring aimed for and seated, strongholds not counted. */
+	readonly rings: readonly RingCount[];
 	readonly routes: readonly CorpusRoute[];
 }
 
@@ -84,12 +90,14 @@ export function playGenCell({ cell }: { config: SimConfig; cell: GenCell }): Gen
 		map = generateAreaMap({ params, debug: false });
 	} catch (error) {
 		if (!(error instanceof MapPipelineError)) throw error;
-		return { seed: cell.seed, generatorVersion: AREA_MAP_GENERATOR_VERSION, failed: error.message, environment: params.environment, stopFailures: [], thinned: 0, routes: [] };
+		return { seed: cell.seed, generatorVersion: AREA_MAP_GENERATOR_VERSION, failed: error.message, environment: params.environment, stopFailures: [], thinned: 0, rings: [], routes: [] };
 	}
 	const { pois, stops } = map.products;
 	const described = describeMap(map).flat();
 	const offers = routeOffers(map);
 	const legOf = (id: string): number => Number(id.slice('leg-'.length));
+	const degrees = nodeDegrees(map.products.roads.network);
+	const roomOf = (id: string): number => legCapacity({ network: map.products.roads.network, leg: pois.legs[legOf(id)], degrees });
 	const stopOf = (id: string): number => Number(id.slice('stop-'.length));
 
 	// Which POIs' routes use each leg, and each POI's legs.
@@ -150,24 +158,18 @@ export function playGenCell({ cell }: { config: SimConfig; cell: GenCell }): Gen
 				ownLength: own.reduce((sum, leg) => sum + pois.legs[legOf(leg.id)].length, 0),
 				ownStops: ownStops.length,
 				ownFights: ownStops.filter(stop => stop.kind === 'fight').length,
-				ownCapacity: own.reduce((sum, leg) => sum + legCapacity({ length: pois.legs[legOf(leg.id)].length }), 0),
-				lastLeg: { length: pois.legs[legOf(last.id)].length, stops: last.stops.length, capacity: legCapacity({ length: pois.legs[legOf(last.id)].length }) },
+				ownCapacity: own.reduce((sum, leg) => sum + roomOf(leg.id), 0),
+				lastLeg: { length: pois.legs[legOf(last.id)].length, stops: last.stops.length, capacity: roomOf(last.id) },
 				neighbor: worst,
 			},
 		};
 	});
-	return { seed: cell.seed, generatorVersion: AREA_MAP_GENERATOR_VERSION, failed: null, environment: params.environment, stopFailures: stops.failures, thinned: stops.thinned, routes };
+	return { seed: cell.seed, generatorVersion: AREA_MAP_GENERATOR_VERSION, failed: null, environment: params.environment, stopFailures: stops.failures, thinned: stops.thinned, rings: pois.rings, routes };
 }
 
-/**
- * The most stops a leg this long is dealt, as the stops stage caps it: clear
- * of its ends, `minGap` apart. A measure of room, not a rule the sim plays,
- * so it reads the stage's tuning rather than calling the stage.
- */
-export function legCapacity({ length, tuning: { clearance, minGap } = STOP_TUNING }: { length: number; tuning?: Pick<StopTuning, 'clearance' | 'minGap'> }): number {
-	const ends = Math.min(clearance.ends, 0.25 * length);
-	const usable = length - 2 * ends;
-	return usable > 0 ? Math.floor(usable / minGap) : 0;
+/** The stops a leg has room for at the stops stage's tight gap, clear of its ends and junctions, by the room math the POI and stops stages share. */
+export function legCapacity({ network, leg, degrees = nodeDegrees(network), tuning = STOP_TUNING }: { network: RoadNetwork; leg: Pick<Leg, 'pieces' | 'length'>; degrees?: Int32Array; tuning?: Pick<StopTuning, 'clearance' | 'tightGap'> }): number {
+	return legRoom({ length: leg.length, joins: junctionsAlong({ network, leg, degrees }), gap: tuning.tightGap, tuning });
 }
 
 /** The other POI whose routes share the most road with this one's, the lower index on a tie; null with none sharing any. */
@@ -229,7 +231,16 @@ export interface GenSummary {
 	readonly thinned: number;
 	/** Placed types no run can resolve yet, by type, over every map's routes. */
 	readonly unresolved: Readonly<Partial<Record<StopType, number>>>;
+	/** By ring, the POIs every map aimed for and seated, and the fewest and most a map seated. */
+	readonly rings: readonly GenRingRow[];
 	readonly tiers: readonly GenTierRow[];
+}
+
+export interface GenRingRow {
+	readonly ring: number;
+	readonly target: number;
+	readonly placed: number;
+	readonly perMap: Spread;
 }
 
 /** The gen report: every map's routes by destination tier, against the config's bands. */
@@ -246,8 +257,19 @@ export function summarizeGen({ config, maps }: { config: SimConfig; maps: readon
 		stopFailures: maps.reduce((sum, map) => sum + map.stopFailures.length, 0),
 		thinned: maps.reduce((sum, map) => sum + map.thinned, 0),
 		unresolved,
+		rings: ringRows(maps.filter(map => map.failed === null)),
 		tiers: tiers.map(tier => tierRow({ tier, band: config.bands[tier], routes: routes.filter(route => route.tier === tier) })),
 	};
+}
+
+function ringRows(maps: readonly GenMap[]): GenRingRow[] {
+	const count = maps.reduce((most, map) => Math.max(most, map.rings.length), 0);
+	return Array.from({ length: count }, (_, ring) => ({
+		ring,
+		target: maps.reduce((sum, map) => sum + (map.rings[ring]?.target ?? 0), 0),
+		placed: maps.reduce((sum, map) => sum + (map.rings[ring]?.placed ?? 0), 0),
+		perMap: spread(maps.map(map => map.rings[ring]?.placed ?? 0)),
+	}));
 }
 
 function tierRow({ tier, band, routes }: { tier: number; band: TierBand; routes: readonly CorpusRoute[] }): GenTierRow {

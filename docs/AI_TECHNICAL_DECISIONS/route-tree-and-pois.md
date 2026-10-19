@@ -56,6 +56,16 @@ How they're cut:
 - Type by location: the first placement rule in `pois.json` whose conditions hold, one of its types picked by a draw on the `types` fork, one draw per POI whether it's used or not. The rules are #177's, extended with schools, general stores, clinics, truck stops, quarries, and mines.
 - Then the first ring is typed to cover food, water, and fuel, quickest POI first: a POI keeps its location's type if that yields something still needed, or else takes the type yielding the most of what's still needed, preferring one whose placement rule holds there. A resource still missing after the first ring is a failure.
 
+### Own road (DDB-529)
+
+A site is taken only where every route keeps own road, legs no other POI's routes use, with room for its need: its band's fight floor or half its stop minimum, rounded up, whichever is more (2 at tiers 1 to 3, 3 at 4 and 5 on today's bands). Strongholds are held to it too, so a sector's best-fitting site can give way to the next.
+
+- Room is `StopRoom.ts`'s, which the stops stage places on: a leg's stops `tightGap` (12) apart, clear of junctions, half a gap in from its ends' clearance, so `usable / gap` rounded down where no junction is in the way. One module for both stages, so the POI stage can never seat a POI the stops stage then can't fill. The bands moved into `stops.json` for the same reason, and the balance sim reads them from there.
+- Seating cuts the legs other routes branch from, so a site can shrink a seated POI's own road as well as have too little of its own. The check cuts the whole layer's legs again with the candidate in (`buildLegs`), and checks every route. Seating more only takes road away, so a candidate that fails once is skipped for the rest of the attempt.
+- Measured over the balance sim's 30 `gen` maps: every route has room for its need, and the rings seat 151, 184, 229, and 177 POIs where they seated 153, 199, 255, and 247; the outer ring loses most, its routes running past strongholds and each other. The stage stays at about 10 seconds for the 30 maps on two workers.
+
+`checkPoiLayer` checks the same (`ownRoad`), so a loaded map is held to it too.
+
 The stage reads the land through `water.terrain`, the land with its water, as every stage after the water does, and only through `PoiGround`: radius, metro, biome, ruin, elevation, and moisture.
 
 Every draw comes from a fork of the stage's stream named for its use (`sectors`, `factions`, `sites`, `types`), so adding draws to one never moves another.

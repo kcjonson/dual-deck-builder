@@ -3,20 +3,23 @@ import { POI_TUNING, PoiTuning, STRONGHOLD_TYPE } from './PoiData';
 import { PoiLayer, Sectors } from './Pois';
 import type { RoadNetwork } from './RoadNetwork';
 import { RouteTree, routesTo, splitsInTime } from './RouteTree';
+import { STOP_TUNING, StopTuning } from './StopData';
+import { nodeDegrees, ownRoadNeed, ownRoadRoom } from './StopRoom';
 
 // Globals read once, at load: under Jest's vm context each read costs about 0.15 us (seeded-prng.md).
 const sqrt = Math.sqrt;
 
 /**
  * Checks the route tree and the POIs over a road network against the
- * guarantees they keep (Area Map Generation, Guarantees 2, 4, 5, 6, and 8),
+ * guarantees they keep (Area Map Generation, Guarantees 2, 4, 5, 6, 8, and the own road
+ * guarantee 11 needs),
  * from the map's data alone, so a loaded map checks the way a fresh one does.
  * Placement keeps every rule as it goes; this looks again from the other
  * side, walking every route, which is what the tests and the map validator
  * lean on.
  */
 
-export type PoiRule = 'tree' | 'destination' | 'choice' | 'legs' | 'spacing' | 'sectors';
+export type PoiRule = 'tree' | 'destination' | 'choice' | 'legs' | 'spacing' | 'sectors' | 'ownRoad';
 
 export interface PoiViolation {
 	readonly rule: PoiRule;
@@ -30,6 +33,8 @@ export interface PoiCheckOptions {
 	readonly params: Pick<MapParams, 'strongholds' | 'routeSplit'>;
 	readonly radius: number;
 	readonly tuning?: PoiTuning;
+	/** The stops stage's, whose bands and spacing say how much own road a route needs. */
+	readonly stopTuning?: StopTuning;
 	/** Stops after this many. */
 	readonly limit?: number;
 }
@@ -51,8 +56,11 @@ export interface PoiCheckOptions {
  * - spacing: POIs keep the sites' spacing, and strongholds theirs (guarantee 8).
  * - sectors: one stronghold in each sector of the saved rotation, in the
  *   outer band (guarantee 6).
+ * - ownRoad: each route's own road, legs no other POI's routes use, has
+ *   room at the stops stage's tight gap for its need, its fight floor and
+ *   half its band's minimum (stage 7).
  */
-export function checkPoiLayer({ network, tree, layer, params, radius, tuning = POI_TUNING, limit = 20 }: PoiCheckOptions): PoiViolation[] {
+export function checkPoiLayer({ network, tree, layer, params, radius, tuning = POI_TUNING, stopTuning = STOP_TUNING, limit = 20 }: PoiCheckOptions): PoiViolation[] {
 	const violations: PoiViolation[] = [];
 	const report = (rule: PoiRule, detail: string) => {
 		if (violations.length < limit) violations.push({ rule, detail });
@@ -61,9 +69,22 @@ export function checkPoiLayer({ network, tree, layer, params, radius, tuning = P
 	if (violations.length > 0) return violations;
 	checkDestinations(network, tree, layer, params.routeSplit, report);
 	checkLegs(network, layer, report);
+	const legsSound = violations.length === 0;
 	checkSpacing(layer, radius, tuning, report);
 	checkSectors(layer, params.strongholds, radius, tuning, report);
+	if (legsSound) checkOwnRoad(network, layer, stopTuning, report);
 	return violations;
+}
+
+function checkOwnRoad(network: RoadNetwork, layer: PoiLayer, tuning: StopTuning, report: Report): void {
+	const routes = layer.pois.map((poi) => routesTo(layer, poi));
+	const { room } = ownRoadRoom({ network, legs: layer.legs, routes, degrees: nodeDegrees(network), tuning });
+	room.forEach((rooms, poi) => {
+		const need = ownRoadNeed(layer.pois[poi].tier, tuning);
+		rooms.forEach((held, route) => {
+			if (held < need) report('ownRoad', `poi ${poi} route ${route}: its own road has room for ${held} stops, under the ${need} its tier ${layer.pois[poi].tier} needs`);
+		});
+	});
 }
 
 type Report = (rule: PoiRule, detail: string) => void;

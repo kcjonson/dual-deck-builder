@@ -4,8 +4,9 @@ import type { MapParams } from './MapParams';
 import { POI_RESOURCES, PoiResource, STRONGHOLD_TYPE } from './PoiData';
 import type { PoiLayer } from './Pois';
 import { ROAD_CLASSES, RoadClass, RoadNetwork } from './RoadNetwork';
-import { Leg, Route, legPoints, routesTo } from './RouteTree';
+import { Route, legPoints, routesTo } from './RouteTree';
 import { CompiledStopTables, NO_TERRITORY, STOP_TUNING, StopTuning, StopType, isCalm, isFight, stopTablesFor } from './StopData';
+import { junctionsAlong, nearestClear, nodeDegrees } from './StopRoom';
 import type { Terrain } from './Terrain';
 
 /**
@@ -581,59 +582,6 @@ function before(a: readonly number[], b: readonly number[]): boolean {
 
 /** World units a Find: driver added for the floor keeps from the stops either side of it, at the least. */
 const GAP_EDGE = 1;
-/** Slack for a junction's clearance, which `join + clear` can miss by a rounding. */
-const CLEAR_SLACK = 1e-9;
-
-/**
- * The point of [from, to] nearest `target` that keeps `clear` from every
- * junction, the lower of two as near; null when there's none. The nearest
- * such point is the target itself, an end of the range, or a junction's
- * clearance either side, so those are all it tries.
- */
-export function nearestClear({ target, from, to, joins, clear }: { target: number; from: number; to: number; joins: readonly number[]; clear: number }): number | null {
-	const clears = (along: number) => along >= from && along <= to && joins.every((join) => (along - join) * (along - join) >= (clear - CLEAR_SLACK) * (clear - CLEAR_SLACK));
-	const aim = target < from ? from : target > to ? to : target;
-	let best: number | null = null;
-	let bestOff = Infinity;
-	for (const along of [aim, from, to, ...joins.flatMap((join) => [join - clear, join + clear])]) {
-		if (!clears(along)) continue;
-		const off = along < aim ? aim - along : along - aim;
-		if (off < bestOff || (off === bestOff && best !== null && along < best)) {
-			best = along;
-			bestOff = off;
-		}
-	}
-	return best;
-}
-
-/** How many roads meet at each node: a stretch from a node to itself is no road. */
-export function nodeDegrees({ nodes, stretches }: RoadNetwork): Int32Array {
-	const degrees = new Int32Array(nodes.length);
-	for (const { from, to } of stretches) {
-		if (from === to) continue;
-		degrees[from] += 1;
-		degrees[to] += 1;
-	}
-	return degrees;
-}
-
-/**
- * World units along a leg of each junction partway along it: a node between
- * two of its pieces where three or more roads meet. A node where a leg only
- * changes stretch, at a class change or a roadside point, isn't one.
- */
-export function junctionsAlong({ network, leg, degrees }: { network: RoadNetwork; leg: Pick<Leg, 'pieces'>; degrees: Int32Array }): number[] {
-	const joins: number[] = [];
-	let along = 0;
-	const { pieces } = leg;
-	for (let piece = 0; piece + 1 < pieces.length; piece += 1) {
-		along += pieces[piece].length;
-		const { from, to } = network.stretches[pieces[piece].stretch];
-		if (degrees[pieces[piece].forward ? to : from] >= 3) joins.push(along);
-	}
-	return joins;
-}
-
 /** The points at increasing distances along a polyline, flat x0, y0, x1, y1, ..., in one walk; its end past its length. */
 export function pointsAlong(points: readonly number[], distances: readonly number[]): number[] {
 	const out: number[] = [];

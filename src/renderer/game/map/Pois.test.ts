@@ -10,6 +10,8 @@ import { PoiGround, PoiLayer, Sectors, placePois } from './Pois';
 import type { RoadNetwork } from './RoadNetwork';
 import { RouteTree, buildRouteTree, routesTo } from './RouteTree';
 import { paramsFor } from './roadTesting';
+import { STOP_TUNING, StopTuning } from './StopData';
+import { nodeDegrees, ownRoadNeed, ownRoadRoom } from './StopRoom';
 
 interface PlaceOptions {
 	seed?: number;
@@ -18,11 +20,18 @@ interface PlaceOptions {
 	poiDensity?: number;
 	routeSplit?: number;
 	tuning?: PoiTuning;
+	stopTuning?: StopTuning;
 }
 
-function place(network: RoadNetwork, { seed = 1, ground = fakeGround(), strongholds = 4, poiDensity = 1, routeSplit = 0.5, tuning }: PlaceOptions = {}): { tree: RouteTree; layer: PoiLayer } {
+function place(network: RoadNetwork, { seed = 1, ground = fakeGround(), strongholds = 4, poiDensity = 1, routeSplit = 0.5, tuning, stopTuning }: PlaceOptions = {}): { tree: RouteTree; layer: PoiLayer } {
 	const tree = buildRouteTree({ network, travelPace: 1, routeSplit });
-	return { tree, layer: placePois({ network, tree, ground, params: { strongholds, poiDensity }, rng: new Rng({ seed }), tuning }) };
+	return { tree, layer: placePois({ network, tree, ground, params: { strongholds, poiDensity }, rng: new Rng({ seed }), tuning, stopTuning }) };
+}
+
+/** Each route's own-road room and need, by POI. */
+function ownRoad(network: RoadNetwork, layer: PoiLayer, stopTuning: StopTuning = STOP_TUNING): { room: number; need: number }[] {
+	const { room } = ownRoadRoom({ network, legs: layer.legs, routes: layer.pois.map((poi) => routesTo(layer, poi)), degrees: nodeDegrees(network), tuning: stopTuning });
+	return room.flatMap((rooms, poi) => rooms.map((held) => ({ room: held, need: ownRoadNeed(layer.pois[poi].tier, stopTuning) })));
 }
 
 /** Land of one biome everywhere. */
@@ -212,6 +221,25 @@ describe('POIs and strongholds on the route tree', () => {
 			// A type yielding two of the three wins over a mine's one, so only one is missing.
 			expect(missing).toHaveLength(1);
 			expect(layer.failures).toEqual([`the first ring's POIs yield no ${missing.join(', ')}`]);
+		});
+	});
+
+	describe('own road', () => {
+		it('leaves every route, strongholds included, room on legs no other POI uses for its floor fights and half its band', () => {
+			for (const network of meshes.slice(0, 10)) {
+				const { layer } = place(network, { poiDensity: 2 });
+				for (const { room, need } of ownRoad(network, layer)) expect(room).toBeGreaterThanOrEqual(need);
+			}
+		});
+
+		it('seats fewer POIs where routes need more own road, and still leaves each its room', () => {
+			const network = meshes[3];
+			const needy: StopTuning = { ...STOP_TUNING, bands: STOP_TUNING.bands.map((band) => ({ ...band, stops: { min: 8, max: 9 } })) };
+			const easy = place(network, { poiDensity: 2 }).layer;
+			const hard = place(network, { poiDensity: 2, stopTuning: needy }).layer;
+			expect(hard.pois.length).toBeLessThan(easy.pois.length);
+			for (const { room, need } of ownRoad(network, hard, needy)) expect(room).toBeGreaterThanOrEqual(need);
+			expect(ownRoad(network, easy, needy).some(({ room, need }) => room < need)).toBe(true);
 		});
 	});
 
