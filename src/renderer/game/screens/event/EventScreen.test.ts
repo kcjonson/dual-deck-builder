@@ -130,7 +130,7 @@ describe('EventScreen (DDB-45)', () => {
 
 	it('takes a choice on a click, tells the run, and shows what happened with the cards it gave as cards', async () => {
 		const chosen: EventResult[] = [];
-		await open({ event: BUS, party: CONVOY, draw: 0, onChoose: (result) => chosen.push(result) });
+		await open({ event: BUS, party: CONVOY, draw: 0, onChoose: (result) => { chosen.push(result); } });
 		clickOn('event_choice_search_bus');
 		await screen.cardsLoaded;
 		context.frame.layout();
@@ -147,9 +147,17 @@ describe('EventScreen (DDB-45)', () => {
 		expect(context.focus.focused?.id).toBe('event_go_button');
 	});
 
+	it('keeps the choices up when the run couldn\'t take the choice', async () => {
+		await open({ event: BUS, party: CONVOY, draw: 0, onChoose: () => false });
+		clickOn('event_choice_search_bus');
+		expect(screen.result).toBeNull();
+		expect(screen.root.findById('event_choices')).not.toBeNull();
+		expect(screen.root.findById('event_outcome')).toBeNull();
+	});
+
 	it('ignores a click on a locked choice', async () => {
 		const chosen: EventResult[] = [];
-		await open({ event: FAMILY, party: CONVOY, onChoose: (result) => chosen.push(result) });
+		await open({ event: FAMILY, party: CONVOY, onChoose: (result) => { chosen.push(result); } });
 		clickOn('event_choice_kill_engines');
 		expect(chosen).toEqual([]);
 		expect(screen.result).toBeNull();
@@ -158,7 +166,7 @@ describe('EventScreen (DDB-45)', () => {
 	it('takes a choice by its number key once, and hands off a fight on Fight them', async () => {
 		const chosen: EventResult[] = [];
 		const done: EventResult[] = [];
-		await open({ event: FAMILY, party: EVERYTHING, onChoose: (result) => chosen.push(result), onDone: (result) => done.push(result) });
+		await open({ event: FAMILY, party: EVERYTHING, onChoose: (result) => { chosen.push(result); }, onDone: (result) => { done.push(result); } });
 		send(context, [key('1'), key('1', 'up')]);
 		context.frame.layout();
 		expect(screen.result?.outcome.fight).not.toBeNull();

@@ -1,6 +1,7 @@
 import { DriverRecord, archetypeTitle } from '../../campaign/DriverRecord';
 import type { Skulls } from '../../campaign/Encounters';
-import type { FindStop, RouteStop, RouteYield, RunRoute } from '../../campaign/SupplyRoutes';
+import type { EventStop, FindStop, RouteStop, RouteYield, RunRoute } from '../../campaign/SupplyRoutes';
+import { eventKicker } from '../event/eventText';
 import { Arrival, DepartBlocker, FoundDriver, PlanBlocker, StopFightResult, cargoText, listText, yieldResources } from '../../campaign/SupplyRun';
 import { resourceAmount } from '../../campaign/Campaign';
 import { dayEndReport, injuredLine } from '../compound/compoundText';
@@ -12,16 +13,25 @@ export function skullsText(skulls: Skulls): string {
 	return countOf(skulls, 'skull');
 }
 
-/** "Raider ambush, 2 skulls", "Find: supplies", "Quiet stretch". */
+/** "Raider ambush, 2 skulls", "Find: supplies", "Wreck", "Quiet stretch". */
 export function stopTitle(stop: RouteStop): string {
 	switch (stop.kind) {
 		case 'fight':
 			return `Raider ambush, ${skullsText(stop.skulls)}`;
 		case 'find':
 			return `Find: ${stop.find}`;
+		case 'event':
+			return eventKicker(stop.stopType);
 		case 'quiet':
 			return 'Quiet stretch';
 	}
+}
+
+/** What the run screen says of the event ahead: what the crew sees from the road. */
+export function eventStepLine(stop: EventStop): string {
+	return stop.stopType === 'wreck'
+		? 'Something wrecked on the shoulder up ahead. Pull over and see what it is.'
+		: 'A distress call crackles over the radio, close by. Pull over and see who it is.';
 }
 
 /** What the run screen says of the find ahead, and what taking it is called; `found` is who a Find: driver turns up. */
@@ -83,6 +93,8 @@ export function arrivalSummary({ arrival, route }: { arrival: Arrival; route: Ru
 	if (found.length > 0) parts.push(`${listText(found)} ${found.length === 1 ? 'is' : 'are'} back with the run.`);
 	const recruits = arrival.recruits.map(driver => driver.name);
 	if (recruits.length > 0) parts.push(`${listText(recruits)} joined the compound.`);
+	const escorts = arrival.escorts.map(escort => escort.name);
+	if (escorts.length > 0) parts.push(`${listText(escorts)} joined the convoy.`);
 	for (const { driver } of arrival.injuries) {
 		if (driver.status === 'injured') parts.push(`${injuredLine(driver)}.`);
 	}
