@@ -27,7 +27,7 @@ import type { AtlasTag } from '../../ui/atlas/AtlasTag';
 import type { DamageMark } from '../../ui/atlas/DamageMark';
 import type { LegendBox } from '../../ui/atlas/LegendBox';
 import type { ResourceStrip } from '../../ui/atlas/ResourceStrip';
-import { BROKEN_OFF_LINE, RunScreen, RunScreenData, STEP_NOT_SAVED, stopFightMount } from './RunScreen';
+import { BROKEN_OFF_LINE, HAND_OFF_GONE, RunScreen, RunScreenData, STEP_NOT_SAVED, stopFightMount } from './RunScreen';
 import type { EventResult } from '../../campaign/Events';
 import type { EventScreenData } from '../event/EventScreen';
 import { eventKicker } from '../event/eventText';
@@ -282,6 +282,24 @@ describe('RunScreen', () => {
 			expect(text('run_stop_1_state')).toBe('Here');
 			await press('run_fight_button');
 			expect(navigate.mock.calls[navigate.mock.calls.length - 1][0]).toBe('combatScreen');
+		});
+
+		it('drives on from a hand-off whose fight left the game\'s content (DDB-535)', async () => {
+			await open(eventText({ stopType: 'distress', handOff: { event: 'family_under_fire', choice: 'gone' } }));
+			expect(text('run_action_line')).toBe(HAND_OFF_GONE);
+			await press('run_drive_button');
+			expect((await saved())?.supplyRun).toMatchObject({ stop: 2, phase: 'driving', handOff: null });
+		});
+
+		it('says what a won hand-off gave as the reward opens (DDB-535)', async () => {
+			const campaign = Campaign.fromJSON(JSON.parse(eventText({ stopType: 'distress', handOff: { event: 'family_under_fire', choice: 'charge' } })).campaign);
+			const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+			fightOut(fight);
+			const prepared = await stopFightMount({ campaign, fight, store: storeOver(storageWith(fixtureText())) }).prepare();
+			const ended = prepared.onEnded?.({ won: true }) as { next: { data: RunScreenData } };
+			await open(fixtureText(), ended.next.data);
+			expect(text('run_report')).toBe('The last buggy runs. The family climbs out from behind the car and asks to ride with you. The run took 2 food and 3 people.');
+			expect(find<CardPileView>('run_reward')).toBeTruthy();
 		});
 
 		it('lists a stop an earlier run cleared as cleared, and drives past it (DDB-336)', async () => {

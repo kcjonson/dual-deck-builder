@@ -7,12 +7,13 @@ import type { CheckpointResult } from '../../campaign/CampaignStore';
 import type { CampaignFight } from '../../campaign/CombatBridge';
 import { RunRoute, everyStop, routeStops } from '../../campaign/SupplyRoutes';
 import {
-	Arrival, StopFightResult, arriveHome, atDestination, cargoText, currentStop, finishStopFight, foundDriver, handOffFight, leaveFind, listText, passQuietStop, rewardOffer, startStopFight,
+	Arrival, StopFightResult, abandonHandOff, arriveHome, atDestination, cargoText, currentStop, finishStopFight, foundDriver, handOffFight, handOffStands, leaveFind, listText, passQuietStop, rewardOffer, startStopFight,
 	stopEvent, takeEventChoice, takeFind, takeReward,
 } from '../../campaign/SupplyRun';
 import type { SupplyRun } from '../../campaign/SupplyRunState';
 import { NO_RESOURCES, RESOURCE_NAMES } from '../../campaign/Campaign';
 import type { DriverRecord } from '../../campaign/DriverRecord';
+import { eventParty } from '../../campaign/Events';
 import { isPoiCleared } from '../../campaign/MapClearing';
 import { poiOf } from '../../campaign/MapRoutes';
 import type { Card } from '../../mechanics/Card';
@@ -29,10 +30,9 @@ import { DamageMark, DamageMarkKind } from '../../ui/atlas/DamageMark';
 import { LegendBox, LegendRow, LegendSymbol } from '../../ui/atlas/LegendBox';
 import { ResourceStrip } from '../../ui/atlas/ResourceStrip';
 import type { PreparedCombatMount } from '../combat/CombatScreen';
+import type { EventScreenData } from '../event/EventScreen';
 import { NOT_THE_SAVE } from '../compound/compoundText';
 import { arrivalSummary, crewState, debriefMark, eventStepLine, failureSummary, findStep, skullsText, stopTitle, yieldText } from './runText';
-import type { EventScreenData } from '../event/EventScreen';
-import { eventParty } from '../../campaign/Events';
 
 const BACK_WIDTH = 160;
 const ROAD_WIDTH = 320;
@@ -54,11 +54,16 @@ export interface RunScreenData {
 	failed?: { result: FailedStopFight; route: RunRoute; stop: number };
 	/** The last fight's raiders broke off: the run goes on, and the screen says so. */
 	brokenOff?: boolean;
+	/** The last fight was an event's hand-off, won: its text and what it gave, as the log has it. */
+	handOffWon?: string;
 	saved?: Promise<CheckpointResult>;
 }
 
 /** On the run screen after a fight the raiders broke off. */
 export const BROKEN_OFF_LINE = 'The raiders broke off. The run goes on, with nothing won.';
+
+/** At a hand-off saved before its event or choice left the game's content. */
+export const HAND_OFF_GONE = "This event's fight is no longer in the game, so the run drives on.";
 
 /** On the run screen when the step that opened it couldn't be saved. */
 export const STEP_NOT_SAVED = "The last step couldn't be saved. The next one tries again.";
@@ -279,6 +284,7 @@ export class RunScreen extends Screen {
 			const reached = campaign.supplyRun && atDestination(campaign.supplyRun) ? ` Reached ${campaign.supplyRun.route.destination.name}.` : '';
 			this.showLine({ line: this.report, text: `${BROKEN_OFF_LINE}${reached}`, color: 'text_dim' });
 		}
+		if (given?.handOffWon && !failed) this.showLine({ line: this.report, text: given.handOffWon, color: 'text' });
 		const saved = given?.saved;
 		if (saved) {
 			this.lastSave = saved;
@@ -403,8 +409,14 @@ export class RunScreen extends Screen {
 		const box = stepBox(action);
 		const stop = currentStop(run);
 		if (run.phase === 'hand_off' && stop?.kind === 'event') {
-			const skulls = this.campaign ? handOffFight({ campaign: this.campaign }).skulls : 1;
+			const campaign = this.campaign;
+			if (!campaign) return null;
 			box.addChild(heading({ id: 'run_action_title', text: `${stopTitle(stop)}: raiders` }));
+			if (!handOffStands({ campaign })) {
+				box.addChild(caption({ id: 'run_action_line', text: HAND_OFF_GONE }));
+				return this.addButton({ box, id: 'run_drive_button', label: 'Drive on', onClick: () => { void this.step(() => abandonHandOff({ campaign }), null); } });
+			}
+			const { skulls } = handOffFight({ campaign });
 			box.addChild(caption({ id: 'run_action_line', text: `Raiders came out of it, ${skullsText(skulls)} of danger. Fighting them is the only way on.` }));
 			return this.addButton({ box, id: 'run_fight_button', label: 'Fight them', onClick: () => { void this.startFight(); } });
 		}
@@ -706,6 +718,7 @@ export function stopFightMount({ campaign, fight, store }: { campaign: Campaign;
 				}
 				const saved = store.checkpoint(campaign);
 				if (result.outcome === 'broken_off') return { victory: false, brokenOff: true, next: { screen: 'runScreen', data: { campaign, saved, brokenOff: true } } };
+				if (result.outcome === 'won' && result.handOff !== null) return { victory: won, next: { screen: 'runScreen', data: { campaign, saved, handOffWon: result.handOff } } };
 				if (result.outcome === 'won' || run === null) return { victory: won, next: { screen: 'runScreen', data: { campaign, saved } } };
 				const data: RunScreenData = { campaign, failed: { result, route: run.route, stop: run.stop }, saved };
 				return { victory: false, next: { screen: 'runScreen', data } };
@@ -737,9 +750,10 @@ export function eventMount({ campaign, store, cards, where }: { campaign: Campai
 				takeEventChoice({ campaign, choice: result.choice });
 			} catch (error) {
 				console.error('RunScreen: taking the event choice failed', error);
-				return;
+				return false;
 			}
 			saved = store.checkpoint(campaign);
+			return true;
 		},
 		onDone: () => {
 			if (campaign.supplyRun?.phase === 'hand_off' && cards) {

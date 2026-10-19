@@ -24,8 +24,8 @@ import { MemorySaveStorage } from './SaveStorage';
 import { FindStop, RouteStop, RunRoute, everyStop, readRunRoute, routeStops } from './SupplyRoutes';
 import type { SupplyRun } from './SupplyRunState';
 import {
-	DepartRuleError, arriveHome, atDestination, currentStop, departRun, finishStopFight, foundDriver, getDepartBlocker, getPlanBlocker, leaveFind, passQuietStop,
-	quickLoadOut, cargoText, handOffFight, rewardOffer, routesOnOffer, runParty, runStream, startStopFight, stopEvent, takeEventChoice, takeFind, takeReward, yieldResources
+	DepartRuleError, StopEvent, abandonHandOff, arriveHome, atDestination, currentStop, departRun, finishStopFight, foundDriver, getDepartBlocker, getPlanBlocker, leaveFind, passQuietStop,
+	quickLoadOut, cargoText, handOffFight, handOffStands, rewardOffer, routesOnOffer, runParty, runStream, startStopFight, stopEvent, takeEventChoice, takeFind, takeReward, yieldResources
 } from './SupplyRun';
 import { fightOut, pushovers, snipers } from './__fixtures__/runFixtures';
 import { CAMPAIGN_FIXTURE } from './__fixtures__/storeFixtures';
@@ -968,25 +968,27 @@ describe('finds (DDB-523)', () => {
 });
 
 describe('event stops (DDB-535)', () => {
-	const EVENT_STOPS = 12;
+	const EVENT_STOPS = 40;
 
 	/**
-	 * A run on the road at the first of a dozen `stopType` events, then a
-	 * quiet stretch, whose stream picks `eventId`, with `stores` in the stores.
+	 * A run on the road at the first of a road of `stopType` events, then a
+	 * quiet stretch, whose stream picks `eventId` and, given `lands`, a draw
+	 * it accepts.
 	 */
-	function atEvent({ campaign, stopType, eventId }: { campaign: Campaign; stopType: 'wreck' | 'distress'; eventId: string }): void {
+	function atEvent({ campaign, stopType, eventId, lands = () => true }: { campaign: Campaign; stopType: 'wreck' | 'distress'; eventId: string; lands?: (opened: StopEvent) => boolean }): void {
 		quickLoadOut({ campaign });
 		const base = testRoute();
 		const stops: RouteStop[] = [
-			...Array.from({ length: EVENT_STOPS }, (_, index): RouteStop => ({ id: `stop-${index + 1}`, kind: 'event', at: (index + 1) / 20, stopType })),
-			{ id: `stop-${EVENT_STOPS + 1}`, kind: 'quiet', at: 0.9 },
+			...Array.from({ length: EVENT_STOPS }, (_, index): RouteStop => ({ id: `stop-${index + 1}`, kind: 'event', at: (index + 1) / (EVENT_STOPS + 2), stopType })),
+			{ id: `stop-${EVENT_STOPS + 1}`, kind: 'quiet', at: 0.99 },
 		];
 		const route: RunRoute = { ...base, legs: [{ ...base.legs[0], stops }] };
 		for (let stop = 0; stop < EVENT_STOPS; stop += 1) {
 			campaign.set({ supplyRun: { route, stop, phase: 'driving', escorts: [], cargo: NO_RESOURCES, cargoCards: {}, recruits: [], escortsFound: [], handOff: null } });
-			if (stopEvent({ campaign }).event.id === eventId) return;
+			const opened = stopEvent({ campaign });
+			if (opened.event.id === eventId && lands(opened)) return;
 		}
-		throw new Error(`no stop on the test road opens ${eventId}`);
+		throw new Error(`no stop on the test road opens ${eventId} as asked`);
 	}
 
 	/** The run past every event left on its road, by each one's Drive on, and the quiet stretch, to its destination. */
@@ -1076,11 +1078,81 @@ describe('event stops (DDB-535)', () => {
 		const campaign = newCampaign();
 		sharpshooters(campaign);
 		atEvent({ campaign, stopType: 'distress', eventId: 'family_under_fire' });
+		campaign.set({ supplyRun: { ...onRoad(campaign), escortsFound: ['outrider'], recruits: ['mechanic'] } });
+		const map = campaign.map;
+		const pool = campaign.drivers.length;
 		takeEventChoice({ campaign, choice: 'charge' });
 		const fight = startStopFight({ campaign, cards: CARDS, raiders: snipers, enemyAI: null });
 		fightOut(fight, { shoot: false });
 		expect(finishStopFight({ campaign, fight }).outcome).toBe('run_failed');
 		expect(campaign.supplyRun).toBeNull();
+		// Nothing clears, and what the run found is lost with it
+		expect(campaign.map).toBe(map);
+		expect(campaign.convoy.escorts).toEqual([]);
+		expect(campaign.drivers).toHaveLength(pool);
+	});
+
+	it('drives on from a hand-off the raiders break off, with nothing more given', () => {
+		const campaign = newCampaign();
+		atEvent({ campaign, stopType: 'distress', eventId: 'family_under_fire' });
+		const stop = onRoad(campaign).stop;
+		takeEventChoice({ campaign, choice: 'charge' });
+		const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+		for (let turn = 0; turn < 3; turn += 1) fight.battle.endPlayerTurn();
+		const result = finishStopFight({ campaign, fight });
+		expect(result.outcome).toBe('broken_off');
+		expect(onRoad(campaign)).toMatchObject({ stop: stop + 1, phase: 'driving', handOff: null, cargo: NO_RESOURCES });
+	});
+
+	it('logs a won hand-off\'s text and what it gave, and says so in the result', () => {
+		const campaign = newCampaign();
+		sharpshooters(campaign);
+		atEvent({ campaign, stopType: 'distress', eventId: 'family_under_fire' });
+		takeEventChoice({ campaign, choice: 'charge' });
+		const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+		fightOut(fight);
+		const result = finishStopFight({ campaign, fight });
+		const said = 'The last buggy runs. The family climbs out from behind the car and asks to ride with you. The run took 2 food and 3 people.';
+		expect(result).toMatchObject({ outcome: 'won', handOff: said });
+		expect(campaign.log.map(entry => entry.message)).toContain(said);
+	});
+
+	it('hurts the seats and their vehicles when an outcome costs HP and structure, down to 1 at worst', () => {
+		const campaign = newCampaign();
+		atEvent({ campaign, stopType: 'wreck', eventId: 'jackknifed_tanker', lands: ({ event, draw }) => landOutcome({ event, choice: 'strip_cab', draw }).outcome.hp < 0 });
+		const seats = runParty({ campaign }).seats;
+		const before = seats.map(seat => [seat.hitpoints, seat.vehicle.structure]);
+		const result = takeEventChoice({ campaign, choice: 'strip_cab' });
+		expect([result.outcome.hp, result.outcome.structure]).toEqual([-2, -3]);
+		expect(seats.map(seat => [seat.hitpoints, seat.vehicle.structure])).toEqual(before.map(([hp, structure]) => [hp - 2, structure - 3]));
+		expect(onRoad(campaign).cargo.scrap).toBe(4);
+	});
+
+	it('heals the seats when an outcome gives HP, up to their most', () => {
+		const campaign = newCampaign();
+		const medTruck = createEscort({ type: 'med_truck' });
+		campaign.convoy.add(medTruck);
+		atEvent({ campaign, stopType: 'distress', eventId: 'mayday_channel_nine' });
+		campaign.set({ supplyRun: { ...onRoad(campaign), escorts: [medTruck] } });
+		const [first, second] = runParty({ campaign }).seats;
+		first.set({ hitpoints: first.maxHitpoints - 10 });
+		second.set({ hitpoints: second.maxHitpoints - 1 });
+		takeEventChoice({ campaign, choice: 'treat_on_the_spot' });
+		expect([first.hitpoints, second.hitpoints]).toEqual([first.maxHitpoints - 6, second.maxHitpoints]);
+		expect(onRoad(campaign).recruits).toHaveLength(1);
+	});
+
+	it('drives on from a hand-off whose choice the content no longer has', () => {
+		const campaign = newCampaign();
+		atEvent({ campaign, stopType: 'distress', eventId: 'family_under_fire' });
+		const run = onRoad(campaign);
+		takeEventChoice({ campaign, choice: 'charge' });
+		expect(handOffStands({ campaign })).toBe(true);
+		expect(() => abandonHandOff({ campaign })).toThrow('The event fight still stands, so the run fights it');
+		campaign.set({ supplyRun: { ...onRoad(campaign), handOff: { event: 'family_under_fire', choice: 'gone' } } });
+		expect(handOffStands({ campaign })).toBe(false);
+		abandonHandOff({ campaign });
+		expect(onRoad(campaign)).toMatchObject({ stop: run.stop + 1, phase: 'driving', handOff: null });
 	});
 
 	it('brings an escort an event gave home into the convoy, or leaves it behind with the convoy full', () => {

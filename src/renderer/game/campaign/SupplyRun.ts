@@ -73,7 +73,12 @@ export class DepartRuleError extends RangeError {
 
 /** How a stop's fight ended: the run goes on to a reward, goes on with nothing won when the raiders broke off, or it failed. */
 export type StopFightResult =
-	| { readonly outcome: 'won'; readonly fight: WonFight }
+	| {
+		readonly outcome: 'won';
+		readonly fight: WonFight;
+		/** An event hand-off's win as the log has it, its fight's text and what it gave; null for a stop fight. */
+		readonly handOff: string | null;
+	}
 	| { readonly outcome: 'broken_off'; readonly fight: BrokenOffFight }
 	| {
 		readonly outcome: 'run_failed';
@@ -374,7 +379,9 @@ export function stopEvent({ campaign }: { campaign: Campaign }): StopEvent {
 export function takeEventChoice({ campaign, choice }: { campaign: Campaign; choice: string }): EventResult {
 	const run = drivingTo({ campaign, kind: 'event' });
 	const { event, draw } = stopEvent({ campaign });
-	const result = resolveChoice({ event, choice, party: eventParty({ campaign }) as NonNullable<ReturnType<typeof eventParty>>, draw });
+	const party = eventParty({ campaign });
+	if (party === null) throw new Error('No run is out, so no party can take an event choice');
+	const result = resolveChoice({ event, choice, party, draw });
 	const paid = payEventCost({ campaign, run, cost: result.cost });
 	const gained = applyEventGains({ campaign, run: paid.run, stores: paid.resources, party: runParty({ campaign }), gains: result.outcome, rng: runStream({ campaign }).fork('event-recruit', run.stop) });
 	const { outcome } = result;
@@ -398,6 +405,29 @@ export function handOffFight({ campaign }: { campaign: Campaign }): EventFight {
 	const { fight } = landOutcome({ event, choice: run.handOff.choice, draw }).outcome;
 	if (fight === null) throw new Error(`${event.id}'s choice ${run.handOff.choice} doesn't hand off to a fight`);
 	return fight;
+}
+
+/**
+ * A hand-off whose fight can't be worked out any more, its event or choice
+ * gone from the content since it was saved, given up: the run drives on
+ * past the stop with nothing more, so a content change never strands it.
+ * Throws unless the run is at a hand-off, and when its fight still stands.
+ */
+export function abandonHandOff({ campaign }: { campaign: Campaign }): void {
+	const run = requireRun(campaign);
+	if (run.phase !== 'hand_off') throw new Error(`The run is ${run.phase}, with no event fight to give up`);
+	if (handOffStands({ campaign })) throw new Error('The event fight still stands, so the run fights it');
+	campaign.set(withYieldAtDestination({ ...run, stop: run.stop + 1, phase: 'driving', handOff: null }));
+}
+
+/** Whether the run's hand-off can still be fought: its event and choice are in the content, and the choice still turns into a fight. */
+export function handOffStands({ campaign }: { campaign: Campaign }): boolean {
+	try {
+		handOffFight({ campaign });
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 export interface StopFightOptions {
@@ -457,7 +487,9 @@ export function finishStopFight({ campaign, fight }: { campaign: Campaign; fight
 			? { run: won, resources: campaign.resources }
 			: applyEventGains({ campaign, run: won, stores: campaign.resources, party: result.party, gains, rng: runStream({ campaign }).fork('event-fight-recruit', run.stop) });
 		campaign.set({ resources: gained.resources, supplyRun: gained.run });
-		return Object.freeze({ outcome: 'won', fight: result });
+		const handOff = gains === null ? null : handOffText(gains);
+		if (handOff !== null) campaign.addLogEntry({ message: handOff });
+		return Object.freeze({ outcome: 'won', fight: result, handOff });
 	}
 	if (result.outcome === 'broken_off') {
 		const { escorts, cargo, cargoCards } = result.party;
@@ -603,6 +635,21 @@ function clearedByRun({ map, run, day }: { map: MapState; run: SupplyRun; day: n
 	}
 	const poi = poiOf(run.route.destination.id);
 	return poi === null ? cleared : clearPoi({ map: cleared, poi });
+}
+
+/** A hand-off's win: "The last buggy runs. ... The run took 3 people and 2 food." */
+function handOffText(fight: EventFight): string {
+	const gained = Object.fromEntries(RESOURCE_NAMES.map(name => [name, Math.max(0, fight.resources[name])])) as unknown as Resources;
+	const loot = cargoText({ cargo: gained, cards: fight.cards });
+	const escort = fight.escort === null ? null : ESCORT_CONFIGS[fight.escort].name;
+	const items = [
+		...(loot === null ? [] : [loot]),
+		...(escort === null ? [] : [`${/^[AEIOU]/.test(escort) ? 'an' : 'a'} ${escort} for the convoy`]),
+		...(fight.drivers > 0 ? [fight.drivers === 1 ? 'a new driver' : `${fight.drivers} new drivers`] : []),
+		...(fight.hp > 0 ? [`${fight.hp} HP back`] : []),
+		...(fight.structure > 0 ? [`${fight.structure} structure repaired`] : []),
+	];
+	return items.length === 0 ? fight.text : `${fight.text} The run took ${listText(items)}.`;
 }
 
 /** "Road Warrior 1 died and Interceptor 2 went missing when the run to Red Mesa Silos failed." */

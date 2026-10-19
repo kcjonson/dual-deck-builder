@@ -1,6 +1,6 @@
 # Event stops on a run: wrecks and distress signals (DDB-535)
 
-Date: 2026-10-19. Code: `src/renderer/game/campaign/SupplyRun.ts` (`stopEvent`, `takeEventChoice`, `handOffFight`, and the hand-off in `startStopFight` and `finishStopFight`), `RunEvents.ts` (paying and applying an outcome), `SupplyRoutes.ts` (the `event` stop kind, `RUN_EVENT_TYPES`), `MapRoutes.ts` (`routeStop`, `RESOLVED_STOP_TYPES`), `SupplyRunState.ts` (the `hand_off` phase, `handOff`, `escortsFound`), `SaveUpgrades.ts` (version 12), and `screens/run/RunScreen.ts` (`eventMount`). Specs: [Runs and Encounters](../specs/Runs%20and%20Encounters.md) (What a stop can be), [Game Flow and UI](../specs/Game%20Flow%20and%20UI%20Specification.md) 5. Builds on [event-screen.md](./event-screen.md), whose "What the run's hook-up has to add" this answers, [find-stops.md](./find-stops.md), and [stop-clearing.md](./stop-clearing.md).
+Date: 2026-10-19. Code: `src/renderer/game/campaign/SupplyRun.ts` (`stopEvent`, `takeEventChoice`, `handOffFight`, `abandonHandOff`, and the hand-off in `startStopFight` and `finishStopFight`), `RunEvents.ts` (paying and applying an outcome), `SupplyRoutes.ts` (the `event` stop kind, `RUN_EVENT_TYPES`), `MapRoutes.ts` (`routeStop`, `RESOLVED_STOP_TYPES`), `SupplyRunState.ts` (the `hand_off` phase, `handOff`, `escortsFound`), `SaveUpgrades.ts` (version 12), and `screens/run/RunScreen.ts` (`eventMount`). Specs: [Runs and Encounters](../specs/Runs%20and%20Encounters.md) (What a stop can be), [Game Flow and UI](../specs/Game%20Flow%20and%20UI%20Specification.md) 5. Builds on [event-screen.md](./event-screen.md), whose "What the run's hook-up has to add" this answers, [find-stops.md](./find-stops.md), and [stop-clearing.md](./stop-clearing.md).
 
 ## Context
 
@@ -20,11 +20,13 @@ A wreck or distress stop is a `RouteStop` of kind `event` carrying its map stop 
 - An outcome with the card picker opens the reward phase at the stop, the same picker a won fight or a Find: cards opens.
 - Anything else drives on.
 
-The event screen calls this from `onChoose`, and the run screen's hook saves at once, so what the screen shows next is what the save holds. A reload mid-event, before a choice, finds the run still driving to the stop, and the screen opens on the same event.
+The event screen calls this from `onChoose`, and the run screen's hook saves at once, so what the screen shows next is what the save holds. When the step throws, the hook returns false and the screen keeps its choices up rather than showing an outcome the run never took. A reload mid-event, before a choice, finds the run still driving to the stop, and the screen opens on the same event.
 
 ## The hand-off
 
-`handOff` is the event's id and the choice, from which `handOffFight` works the fight out again: its skulls and what winning gives. `startStopFight` fights it like a stop fight at those skulls, on the stop's fight stream. A win applies the fight's gains to the write-back's party, then opens the reward picker, as every won stop fight does (call 255; the content reader keeps the picker off an event fight's gains). A break-off drives on with nothing more given. A loss fails the run as any stop fight's does. Like any fight, the fight under way isn't saved: a load finds the run at its hand-off, and the run screen offers Fight them.
+`handOff` is the event's id and the choice, from which `handOffFight` works the fight out again: its skulls and what winning gives. `startStopFight` fights it like a stop fight at those skulls, on the stop's fight stream. A win applies the fight's gains to the write-back's party, then opens the reward picker, as every won stop fight does (call 255; the content reader keeps the picker off an event fight's gains); the log and the run screen's report line carry the fight's text and what it gave. A break-off drives on with nothing more given. A loss fails the run as any stop fight's does. Like any fight, the fight under way isn't saved: a load finds the run at its hand-off, and the run screen offers Fight them.
+
+A hand-off saved before its event or choice left events.json can't be fought. The save reader can't check it, since the run state module would have to import the event content, which imports the campaign; and refusing the save at load would cost the player the whole campaign for a content edit. So the run screen asks `handOffStands`, and when it doesn't, says so and offers Drive on (`abandonHandOff`), which drives past the stop with nothing more.
 
 Options considered for the hand-off's state:
 
