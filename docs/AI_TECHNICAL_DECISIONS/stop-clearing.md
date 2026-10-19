@@ -1,6 +1,6 @@
 # Clearing: stop cooldowns and cleared POIs (DDB-336)
 
-Date: 2026-10-18. Code: `src/renderer/game/campaign/MapClearing.ts` (the state and its rules), `MapState.ts` (its reader), `SupplyRun.ts` (`routesOnOffer`, `arrivedAt`), `SupplyRoutes.ts` (a stop's `cleared`, `routeStops`, `everyStop`), `MapRoutes.ts` (`stopOf`, `routeStop`), `DayClock.ts` (`DAY_END_HOOKS.stopCooldowns`), `SaveUpgrades.ts` (version 11), and the screens: `screens/area-map/` (`planningMap.ts`, `areaMapText.ts`, `AreaMapScreen.ts`), `screens/run-route/RunRouteScreen.ts`, and `screens/run/RunScreen.ts` with `runText.ts`. Specs: [Runs and Encounters](../specs/Runs%20and%20Encounters.md) (Kevin's rule 5, Clearing), [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (POIs, Fog of war), and [Area Map Generation](../specs/Area%20Map%20Generation.md) (What changes after generation, Saving). Replaces poi-depletion.md (DDB-483), whose shares and refills are gone; builds on [find-stops.md](./find-stops.md), [day-clock.md](./day-clock.md), and [campaign-save-and-load.md](./campaign-save-and-load.md).
+Date: 2026-10-18. Code: `src/renderer/game/campaign/MapClearing.ts` (the state and its rules), `MapState.ts` (its reader), `SupplyRun.ts` (`routesOnOffer`, `arriveHome`, `clearedByRun`), `SupplyRoutes.ts` (a stop's `cleared`, `routeStops`, `everyStop`), `MapRoutes.ts` (`stopOf`, `routeStop`), `DayClock.ts` (`DAY_END_HOOKS.stopCooldowns`), `SaveUpgrades.ts` (version 11), and the screens: `screens/area-map/` (`planningMap.ts`, `areaMapText.ts`, `AreaMapScreen.ts`), `screens/run-route/RunRouteScreen.ts`, and `screens/run/RunScreen.ts` with `runText.ts`. Specs: [Runs and Encounters](../specs/Runs%20and%20Encounters.md) (Kevin's rule 5, Clearing), [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (POIs, Fog of war), and [Area Map Generation](../specs/Area%20Map%20Generation.md) (What changes after generation, Saving). Replaces poi-depletion.md (DDB-483), whose shares and refills are gone; builds on [find-stops.md](./find-stops.md), [day-clock.md](./day-clock.md), and [campaign-save-and-load.md](./campaign-save-and-load.md).
 
 ## Context
 
@@ -17,9 +17,14 @@ The reader refuses an entry out of order or twice, one that's neither cleared no
 
 ## Clearing
 
-A run clears a stop when it moves past it, in the same `set` that moves it on (`arrivedAt` with the stop passed): a quiet stretch driven, a find taken or left, a fight's reward picked or skipped, which is the end of a won fight. It's cleared on the campaign's day, the day the run is out. A fight the run loses isn't cleared, since its raiders are still there.
+A run resolves a stop when it moves past it: a quiet stretch driven, a find taken or left, a fight's reward picked or skipped (the end of a won fight), or a fight the raiders broke off. Reaching the POI loads its type's whole yield into the cargo (call 187). Nothing is cleared on the road, though. Getting home (`arriveHome`, through `clearedByRun`) clears every stop the run resolved, on the campaign's day, the day the run was out, and its POI for good, after the run is unloaded and before the night. A failed run clears nothing (call 260): the raiders still hold the road, so a retry within the cooldown meets the same fights, and the cargo it lost held the POI's yield, so the POI is still there to loot.
 
-Reaching the POI loads its type's whole yield into the cargo and clears the POI in the same step, as call 105 had the share, so a run that fails on the way home has still cleared it (calls 187, 188).
+Options considered for the failed run:
+
+- Clear as the run goes and undo on failure. The undo needs the map state from before the run, or a list of what this run cleared, saved in the run out, and every stop step changes the map state, so the offer's cache is worked out again for nothing.
+- Clear on getting home (chosen). The run's saved route and step already say what it resolved, since every stop on `routeStops` up to its step is behind it and only a run at its destination gets home, so the save format doesn't change and a run loaded mid-road clears the same as one that never stopped. The map state doesn't move until the run's end, so the area map and run route screen, which read it, show nothing of the run under way; the run screen's road list counts the stops behind it from the run's step, as it did.
+
+A version 12 save made mid-road by the build before this keeps what that run had already cleared; getting home clears the same stops on the same day again, and only a failed end differs, keeping the old clearing. That's one run in one save, so the version stays 12.
 
 A stop or POI whose id isn't the map's (a run saved before the real map, as the fixture's is) clears nothing.
 
