@@ -1,6 +1,5 @@
-import { POI_SHARES } from '../../campaign/PoiStock';
 import type { RouteYield } from '../../campaign/SupplyRoutes';
-import { POI_TUNING, PoiState, STRONGHOLD_TYPE } from '../../map/PoiData';
+import { POI_TUNING, STRONGHOLD_TYPE } from '../../map/PoiData';
 import type { KnownStop, RouteDescriptor } from '../../map/RouteDescriptors';
 import { STOP_TUNING, StopType, isFight } from '../../map/StopData';
 import { countOf } from '../main-menu/campaignText';
@@ -12,6 +11,9 @@ import type { PlannedPoi } from './planningMap';
 /** Why a stronghold's Plan a run here is off. */
 export const STRONGHOLD_NOT_YET = 'Not yet. Taking a stronghold needs an assault, and none can be planned yet.';
 
+/** Why a cleared POI's Plan a run here is off. */
+export const POI_CLEARED = 'A run cleared it, so there is nothing to go back for.';
+
 /** Under the stops in order: the run treats every stop but a fight or a find of cards, supplies, or a driver as a quiet stretch for now. */
 export const QUIET_STOPS = 'Fights, and finds of cards, supplies, or a driver, stop the convoy for now; the rest pass as quiet stretches.';
 
@@ -21,23 +23,17 @@ export function poiTypeText(type: string): string {
 	return POI_TUNING.types[type]?.label ?? type;
 }
 
-/** "General store, tier 1", and "General store, tier 1, looted" or "..., depleted" once runs have taken from it. */
-export function poiKindText({ type, tier, state = 'unvisited' }: Pick<PlannedPoi, 'type' | 'tier'> & { state?: PoiState }): string {
+/** "General store, tier 1", and "General store, tier 1, cleared" once a run has reached it. */
+export function poiKindText({ type, tier, cleared = false }: Pick<PlannedPoi, 'type' | 'tier'> & { cleared?: boolean }): string {
 	const kind = `${poiTypeText(type)}, tier ${tier}`;
-	return state === 'unvisited' ? kind : `${kind}, ${state}`;
+	return cleared ? `${kind}, cleared` : kind;
 }
 
-/** "Yields 6 food and 4 water.", what's left of it once looted, a depleted POI's line, or a stronghold's. */
-export function poiYieldText({ stronghold, yields, state = 'unvisited' }: { stronghold: boolean; yields: RouteYield | null; state?: PoiState }): string {
-	if (stronghold || !yields) return 'Its stores go to whoever takes it.';
-	if (state === 'depleted') return 'Nothing left to take until it refills.';
-	return `Yields ${yieldText(yields)}.`;
-}
-
-/** "3 of 3 shares left.", "2 of 3 shares left, the next back in 4 days.", or "No shares left, the next back in 7 days." */
-export function poiStockText({ shares, nextShare }: { shares: number; nextShare: number | null }): string {
-	const left = shares <= 0 ? 'No shares left' : `${shares} of ${POI_SHARES} shares left`;
-	return nextShare === null ? `${left}.` : `${left}, the next back in ${countOf(nextShare, 'day')}.`;
+/** "Yields 6 food and 4 water.", a cleared POI's line, or a stronghold's. */
+export function poiYieldText({ stronghold, yields, cleared = false }: { stronghold: boolean; yields: RouteYield | null; cleared?: boolean }): string {
+	if (stronghold) return 'Its stores go to whoever takes it.';
+	if (cleared) return 'Picked clean, and nothing fills a looted building again.';
+	return yields ? `Yields ${yieldText(yields)}.` : 'Its stores go to whoever takes it.';
 }
 
 /** Hours to a tenth: "5.2 h". */
@@ -91,10 +87,17 @@ function dayAfter(hours: number): string {
  */
 const NO_BREAK = '\u00a0';
 
-/** The route card's mono line: "charted / 4 stops / 5.2 h out / fuel 4 / risk 2 of 3", the hours marked as estimates off charted road, wrapping only between parts. */
-export function routeDetail(route: Pick<RouteDescriptor, 'knowledge' | 'stops' | 'hours' | 'fuel' | 'risk' | 'estimated'>): string {
+/**
+ * The route card's mono line: "charted / 4 stops / 5.2 h out / fuel 4 / risk
+ * 2 of 3", the hours marked as estimates off charted road, wrapping only
+ * between parts. `cleared` stops are ones a run drives past, so they're
+ * named apart ("3 stops, 1 cleared"), and `risk`, when given, is what the
+ * route still holds.
+ */
+export function routeDetail(route: Pick<RouteDescriptor, 'knowledge' | 'stops' | 'hours' | 'fuel' | 'risk' | 'estimated'>, { cleared = 0, risk = route.risk }: { cleared?: number; risk?: number } = {}): string {
 	const hours = `${route.estimated ? 'about ' : ''}${hoursText(route.hours.out)} out`;
-	const parts = [route.knowledge, countOf(route.stops.length, 'stop'), hours, `fuel ${route.fuel}`, `risk ${route.risk} of 3`];
+	const stops = countOf(route.stops.length - cleared, 'stop') + (cleared > 0 ? `, ${cleared} cleared` : '');
+	const parts = [route.knowledge, stops, hours, `fuel ${route.fuel}`, `risk ${risk} of 3`];
 	return parts.map((part) => part.replace(/ /g, NO_BREAK)).join(' / ');
 }
 

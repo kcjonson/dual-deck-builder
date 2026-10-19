@@ -39,17 +39,19 @@ export interface SupplyHaul {
  * Something waiting on a leg: a raider fight of 1 to 3 skulls, whose raiders
  * are rolled when the run gets there, a find, or a quiet stretch where
  * nothing happens. `at` is how far along the leg it sits, 0 at its inner
- * end to 1 at its outer.
+ * end to 1 at its outer. A stop an earlier run cleared, still in its
+ * cooldown when the route was offered, is `cleared`: the run drives past
+ * it, so it isn't one of the route's steps (`routeStops`).
  */
 export type RouteStop =
-	| { readonly id: string; readonly kind: 'fight'; readonly at: number; readonly skulls: Skulls }
-	| { readonly id: string; readonly kind: 'quiet'; readonly at: number }
+	| { readonly id: string; readonly kind: 'fight'; readonly at: number; readonly skulls: Skulls; readonly cleared?: true }
+	| { readonly id: string; readonly kind: 'quiet'; readonly at: number; readonly cleared?: true }
 	| FindStop;
 
 /** A find: cards and drivers are drawn when the run takes it, a haul when the route is offered. */
 export type FindStop =
-	| { readonly id: string; readonly kind: 'find'; readonly at: number; readonly find: 'cards' | 'driver' }
-	| { readonly id: string; readonly kind: 'find'; readonly at: number; readonly find: 'supplies'; readonly supplies: SupplyHaul };
+	| { readonly id: string; readonly kind: 'find'; readonly at: number; readonly find: 'cards' | 'driver'; readonly cleared?: true }
+	| { readonly id: string; readonly kind: 'find'; readonly at: number; readonly find: 'supplies'; readonly supplies: SupplyHaul; readonly cleared?: true };
 
 /** A piece of the route tree between places where routes split or end, driven outward, its stops in the order a run meets them. */
 export interface RouteLeg {
@@ -100,8 +102,13 @@ export interface RunRoute {
 	readonly risk: Skulls;
 }
 
-/** Every stop on a route, in the order the run meets them. A run's `stop` counts along this. */
+/** Every step on a route, the stops it doesn't drive past, in the order the run meets them. A run's `stop` counts along this. */
 export function routeStops(route: RunRoute): readonly RouteStop[] {
+	return route.legs.flatMap(leg => leg.stops.filter(stop => !stop.cleared));
+}
+
+/** Every stop on a route, the cleared ones it drives past included, in the order the run meets them. */
+export function everyStop(route: RunRoute): readonly RouteStop[] {
 	return route.legs.flatMap(leg => leg.stops);
 }
 
@@ -154,26 +161,34 @@ function readLeg(value: unknown, path: string): RouteLeg {
 function readStop(value: unknown, path: string): RouteStop {
 	const kind = readOneOf(readObject(value, path).kind, `${path}.kind`, STOP_KINDS);
 	if (kind === 'quiet') {
-		const fields = readFields(value, path, ['id', 'kind', 'at']);
-		return Object.freeze({ id: readText(fields.id, `${path}.id`), kind, at: readFraction(fields.at, `${path}.at`) });
+		const fields = readFields(value, path, ['id', 'kind', 'at'], ['cleared']);
+		return Object.freeze({ id: readText(fields.id, `${path}.id`), kind, at: readFraction(fields.at, `${path}.at`), ...readCleared(fields.cleared, path) });
 	}
 	if (kind === 'find') return readFind(value, path);
-	const fields = readFields(value, path, ['id', 'kind', 'at', 'skulls']);
+	const fields = readFields(value, path, ['id', 'kind', 'at', 'skulls'], ['cleared']);
 	return Object.freeze({
 		id: readText(fields.id, `${path}.id`),
 		kind,
 		at: readFraction(fields.at, `${path}.at`),
 		skulls: readInteger(fields.skulls, `${path}.skulls`, { min: 1, max: 3 }) as Skulls,
+		...readCleared(fields.cleared, path),
 	});
+}
+
+/** `cleared`, which a stop has only when it's true. */
+function readCleared(value: unknown, path: string): { cleared?: true } {
+	if (value === undefined) return {};
+	if (value !== true) throw new ReaderRangeError(`${path}.cleared must be true when it's there, got ${describeValue(value)}`);
+	return { cleared: true };
 }
 
 function readFind(value: unknown, path: string): FindStop {
 	const find = readOneOf(readObject(value, path).find, `${path}.find`, FIND_KINDS);
 	if (find !== 'supplies') {
-		const fields = readFields(value, path, ['id', 'kind', 'at', 'find']);
-		return Object.freeze({ id: readText(fields.id, `${path}.id`), kind: 'find', at: readFraction(fields.at, `${path}.at`), find });
+		const fields = readFields(value, path, ['id', 'kind', 'at', 'find'], ['cleared']);
+		return Object.freeze({ id: readText(fields.id, `${path}.id`), kind: 'find', at: readFraction(fields.at, `${path}.at`), find, ...readCleared(fields.cleared, path) });
 	}
-	const fields = readFields(value, path, ['id', 'kind', 'at', 'find', 'supplies']);
+	const fields = readFields(value, path, ['id', 'kind', 'at', 'find', 'supplies'], ['cleared']);
 	const haul = readFields(fields.supplies, `${path}.supplies`, ['resource', 'amount']);
 	return Object.freeze({
 		id: readText(fields.id, `${path}.id`),
@@ -184,6 +199,7 @@ function readFind(value: unknown, path: string): FindStop {
 			resource: readOneOf(haul.resource, `${path}.supplies.resource`, SUPPLY_RESOURCES),
 			amount: readInteger(haul.amount, `${path}.supplies.amount`, { min: 1 }),
 		}),
+		...readCleared(fields.cleared, path),
 	});
 }
 

@@ -20,7 +20,9 @@ import type { AreaMapView } from '../../ui/areaMap/AreaMapView';
 import type { AtlasButton } from '../../ui/atlas/AtlasButton';
 import type { SectionTabs } from '../../ui/atlas/SectionTabs';
 import type { RouteCard } from '../../ui/RouteCard';
-import { STRONGHOLD_NOT_YET, clockText, homeByText, poiKindText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
+import { countOf } from '../main-menu/campaignText';
+import { STOP_COOLDOWN_DAYS } from '../../campaign/MapClearing';
+import { POI_CLEARED, STRONGHOLD_NOT_YET, clockText, homeByText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
 import { PlannedPoi, byDistance, plannedPois, routePoints } from '../area-map/planningMap';
 import { TestMaps, meshPlanningMap, testMaps } from '../area-map/testing';
 import { RunRouteScreen } from './RunRouteScreen';
@@ -55,12 +57,15 @@ describe('RunRouteScreen (DDB-319)', () => {
 	let storage: FaultyStorage;
 	let planning: TestMaps;
 
-	/** Mounts the screen for a POI over the fixture home from its run, changed first if asked, and waits for the save and the map. */
-	async function open(poi: PlannedPoi | number, change: (campaign: Campaign) => void = () => undefined): Promise<void> {
-		storage = storageWith(atHomeText(change));
+	/** Mounts the screen for a POI over the fixture home from its run, nothing on its map cleared, changed first if asked, and waits for the save and the map. */
+	async function open(poi: PlannedPoi | number | null, change: (campaign: Campaign) => void = () => undefined): Promise<void> {
+		storage = storageWith(atHomeText((campaign) => {
+			campaign.set({ map: {} });
+			change(campaign);
+		}));
 		store = storeOver(storage);
 		screen = new RunRouteScreen({ store, maps: planning.maps });
-		screen.mount(context, { poi: typeof poi === 'number' ? poi : poi.poi });
+		screen.mount(context, poi === null ? {} : { poi: typeof poi === 'number' ? poi : poi.poi });
 		await screen.campaignLoaded;
 		context.frame.layout();
 	}
@@ -115,11 +120,26 @@ describe('RunRouteScreen (DDB-319)', () => {
 		expect(text('run_route_name')).toBe(NEAR.name);
 	});
 
-	it('says when the POI is depleted, on its marker and in its line, and still lets a run go (DDB-483)', async () => {
-		await open(NEAR, (campaign) => campaign.set({ map: { pois: [{ poi: NEAR.poi, left: 0, nights: 0 }] } }));
-		expect(view().markers).toEqual([expect.objectContaining({ id: NEAR.id, state: 'depleted' })]);
-		expect(text('run_route_kind')).toBe(`${poiKindText(NEAR)}, depleted. Nothing left to take until it refills.`);
-		expect(find<AtlasButton>('run_route_load_out_button').enabled).toBe(true);
+	it('won\'t plan a run to a cleared POI, and opens on the nearest one not cleared (DDB-336)', async () => {
+		await open(NEAR, (campaign) => campaign.set({ map: { clearedPois: [NEAR.poi] } }));
+		expect(text('run_route_status')).toBe(POI_CLEARED);
+		screen.unmount();
+		const [nearest, next] = byDistance(POIS).filter(({ stronghold }) => !stronghold);
+		await open(null, (campaign) => campaign.set({ map: { clearedPois: [nearest.poi] } }));
+		expect(text('run_route_name')).toBe(next.name);
+	});
+
+	it('marks the stops a run would drive past, cleared, with when they\'re back, and counts them apart on the card (DDB-336)', async () => {
+		const poi = poiWhere((candidate) => candidate.routes.every(({ stops }) => stops.length > 1));
+		await open(poi);
+		const picked = screen.pickedRoute;
+		const route = poi.routes[picked];
+		const [first, ...rest] = route.stops;
+		screen.unmount();
+		await open(poi, (campaign) => campaign.set({ map: { stops: [{ stop: first.id, roll: 0, cleared: campaign.day }] } }));
+		expect(text('run_route_stop_0_text')).toBe(`${stopText(first)}: cleared, back in ${countOf(STOP_COOLDOWN_DAYS, 'day')}`);
+		rest.forEach((stop, index) => expect(text(`run_route_stop_${index + 1}_text`)).toBe(stopText(stop)));
+		expect(card(picked).detailText.replace(/\u00a0/g, ' ')).toContain(`${countOf(route.stops.length - 1, 'stop')}, 1 cleared`);
 	});
 
 	it('shows a card for each route from its descriptor, and the picked one\'s stops in order and when it\'d be home', async () => {

@@ -18,6 +18,7 @@ import { DRIVER_ARCHETYPES, DriverRecord, DriverRecordData, DriverRecordJson, de
 import { injuryDays } from './Infirmary';
 import { readMapParams, repairMapParams } from './MapParamsJson';
 import { EMPTY_MAP, MapAttempts, MapState, readMapAttempts, readMapState } from './MapState';
+import { clearedAfter } from './MapClearing';
 import { hasOpenFight } from './OpenFights';
 import { EscortCard, RunDeck, RunDeckJson, readRunDeckJson } from './RunDeck';
 import { SeatBlocker, getCrewRule, getSeatBlocker } from './Seating';
@@ -30,7 +31,7 @@ import { SupplyRun, SupplyRunJson, readSupplyRun, readSupplyRunJson, readSupplyR
  * loaded, so a bump invalidates every existing save of that build, unless
  * its version is one `UPGRADABLE_SCHEMA_VERSIONS` (SaveUpgrades.ts) lists.
  */
-export const CAMPAIGN_SCHEMA_VERSION = 11;
+export const CAMPAIGN_SCHEMA_VERSION = 12;
 
 /** Structure a missing driver's vehicle comes home with once they're found. A tuning value. */
 export const RETURN_STRUCTURE = 1;
@@ -1507,7 +1508,7 @@ function readCampaignData(value: unknown, path: string, previous: Partial<Campai
 		seed,
 		generatorVersion: readInteger(fields.generatorVersion, `${path}.generatorVersion`, { min: 1 }),
 		mapParams,
-		map: readMapState(fields.map, `${path}.map`),
+		map: readMapStateOn(fields.map, `${path}.map`, day),
 		mapAttempts: readMapAttempts(fields.mapAttempts, `${path}.mapAttempts`),
 		day,
 		resources,
@@ -1768,6 +1769,14 @@ function driverNumber(id: string): number | null {
 }
 
 /** One past the highest `driver-<n>` among these, for a campaign built without a counter. */
+/** The map state, its stops cleared no later than today: a run clears a stop on its own day. */
+function readMapStateOn(value: unknown, path: string, day: number): MapState {
+	const map = readMapState(value, path);
+	const early = clearedAfter({ map, day });
+	if (early) throw new ReaderRangeError(`${path}.stops has stop ${early.stop} cleared on day ${early.cleared}, after today (${day})`);
+	return map;
+}
+
 function firstFreeDriverNumber(drivers: readonly DriverRecord[]): number {
 	return drivers.reduce((highest, driver) => Math.max(highest, driverNumber(driver.id) ?? 0), 0) + 1;
 }

@@ -3,14 +3,18 @@ import { CAMPAIGN_SCHEMA_VERSION, Campaign } from './Campaign';
 import { CampaignEnding, CampaignHistoryEntry, historyToJson } from './CampaignHistory';
 import { CampaignStore, CampaignStoreError, CheckpointResult, campaignKeys, pageNamespace } from './CampaignStore';
 import { cardCount } from './CardCounts';
-import { sharesLeft, takeShare } from './PoiStock';
+import { clearPoi, clearStop, isPoiCleared, stopState } from './MapClearing';
 import { UPGRADABLE_SCHEMA_VERSIONS } from './SaveUpgrades';
 import { LocalSaveStorage, MemorySaveStorage, WebStorage } from './SaveStorage';
 import { stressCampaign } from './__fixtures__/stressCampaign';
 import {
-	CAMPAIGN_FIXTURE, CAMPAIGN_V8_FIXTURE, CAMPAIGN_V9_FIXTURE, CAMPAIGN_V10_FIXTURE, FaultyStorage, HeldStorage, KEYS, NAMESPACE, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
+	CAMPAIGN_FIXTURE, CAMPAIGN_V8_FIXTURE, CAMPAIGN_V9_FIXTURE, CAMPAIGN_V10_FIXTURE, CAMPAIGN_V11_FIXTURE, FaultyStorage, HeldStorage, KEYS, NAMESPACE, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
 	saveText, securityError, settle, storageWith, storeOver
 } from './__fixtures__/storeFixtures';
+
+
+/** The fixture as an older save upgrades to: no stop has a state, since nothing before version 12 kept one. */
+const UPGRADED_FIXTURE = { ...CAMPAIGN_FIXTURE, map: { clearedPois: CAMPAIGN_FIXTURE.map.clearedPois } };
 
 /**
  * The most a save may hold. Local storage keeps about 5 MiB an origin; the
@@ -369,17 +373,17 @@ describe('CampaignStore', () => {
 			const storage = storageWith(text);
 			const store = storeOver(storage);
 
-			expect(UPGRADABLE_SCHEMA_VERSIONS).toEqual([8, 9, 10]);
+			expect(UPGRADABLE_SCHEMA_VERSIONS).toEqual([8, 9, 10, 11]);
 			expect(await store.saveStatus()).toBe('saved');
 			const loaded = await store.load();
 			expect(loaded?.map).toEqual({});
 			expect(loaded?.toJSON()).toEqual({ ...CAMPAIGN_FIXTURE, map: {} });
 			expect(storage.writes).toEqual([]);
 
-			loaded?.set({ map: takeShare({ map: (loaded as Campaign).map, poi: 2 }) });
+			loaded?.set({ map: clearPoi({ map: (loaded as Campaign).map, poi: 2 }) });
 			expect(await store.checkpoint(loaded as Campaign)).toBe('saved');
 			const saved = JSON.parse(await storage.getItem(KEYS.slots.b) ?? '') as { version: number; campaign: { map: unknown } };
-			expect([saved.version, saved.campaign.map]).toEqual([CAMPAIGN_SCHEMA_VERSION, { pois: [{ poi: 2, left: 2, nights: 0 }] }]);
+			expect([saved.version, saved.campaign.map]).toEqual([CAMPAIGN_SCHEMA_VERSION, { clearedPois: [2] }]);
 			// The version 8 save is the save before, and nothing went to recovery
 			expect(await storage.getItem(KEYS.slots.a)).toBe(text);
 			expect(await storage.getItem(KEYS.recovery)).toBeNull();
@@ -389,14 +393,14 @@ describe('CampaignStore', () => {
 			const storage = storageWith(saveText({ campaign: JSON.stringify(CAMPAIGN_V9_FIXTURE), version: 9 }));
 			const loaded = await storeOver(storage).load();
 			expect(loaded?.buildings).toEqual(['bunkhouse']);
-			expect(loaded?.toJSON()).toEqual(CAMPAIGN_FIXTURE);
+			expect(loaded?.toJSON()).toEqual(UPGRADED_FIXTURE);
 		});
 
 		it('loads a version 10 save, from before Find: driver, its run out with nobody new riding home (DDB-523)', async () => {
 			const storage = storageWith(saveText({ campaign: JSON.stringify(CAMPAIGN_V10_FIXTURE), version: 10 }));
 			const loaded = await storeOver(storage).load();
 			expect(loaded?.supplyRun?.recruits).toEqual([]);
-			expect(loaded?.toJSON()).toEqual(CAMPAIGN_FIXTURE);
+			expect(loaded?.toJSON()).toEqual(UPGRADED_FIXTURE);
 		});
 
 		it('upgrades only from the versions it lists, and a store at another version from none', async () => {
@@ -424,6 +428,14 @@ describe('CampaignStore', () => {
 			expect(await storeOver(storageWith(text)).load()).toBeNull();
 		});
 
+		it('loads a version 11 save, from before clearing, with each POI a run took from cleared (DDB-336)', async () => {
+			expect(CAMPAIGN_V11_FIXTURE.map).toEqual({ pois: [{ poi: 3, left: 1, nights: 4 }, { poi: 5, left: 0, nights: 2 }] });
+			const storage = storageWith(saveText({ campaign: JSON.stringify(CAMPAIGN_V11_FIXTURE), version: 11 }));
+			const loaded = await storeOver(storage).load();
+			expect(loaded?.map).toEqual({ clearedPois: [3, 5] });
+			expect(loaded?.toJSON()).toEqual(UPGRADED_FIXTURE);
+		});
+
 		it('keeps the history a version 8 build wrote, and adds to it', async () => {
 			const older = stampedHistory([{ seed: 1, day: 3, strongholdsTaken: 0, ending: 'won' }], 8);
 			const storage = storageWith(fixtureText(), { [KEYS.history]: older });
@@ -436,16 +448,17 @@ describe('CampaignStore', () => {
 			expect(JSON.parse(await storage.getItem(KEYS.history) ?? '').version).toBe(CAMPAIGN_SCHEMA_VERSION);
 		});
 
-		it('saves and loads each POI\'s stock as it was', async () => {
+		it('saves and loads what runs have cleared as it was', async () => {
 			const storage = new MemorySaveStorage();
 			const campaign = newCampaign();
-			campaign.set({ map: { pois: [{ poi: 1, left: 0, nights: 12 }, { poi: 6, left: 2, nights: 3 }] } });
+			campaign.set({ map: clearStop({ map: clearPoi({ map: { stops: [{ stop: 2, roll: 1, cleared: null }] }, poi: 6 }), stop: 9, day: 1 }) });
 
 			await storeOver(storage).save(campaign);
 			const loaded = await storeOver(storage).load();
 
 			expect(loaded?.map).toEqual(campaign.map);
-			expect(sharesLeft({ map: (loaded as Campaign).map, poi: 1 })).toBe(1);
+			expect(isPoiCleared({ map: (loaded as Campaign).map, poi: 6 })).toBe(true);
+			expect(stopState({ map: (loaded as Campaign).map, stop: 9 })).toEqual({ stop: 9, roll: 0, cleared: 1 });
 			expect(loaded?.toSaveText()).toBe(campaign.toSaveText());
 		});
 	});

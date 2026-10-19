@@ -1,7 +1,7 @@
 import type { Campaign } from '../../campaign/Campaign';
 import { AreaMapProgress, CampaignMaps } from '../../campaign/CampaignMaps';
 import { destinationId } from '../../campaign/MapRoutes';
-import { POI_SHARES, nightsToNextShare, poiState, sharesLeft } from '../../campaign/PoiStock';
+import { isPoiCleared } from '../../campaign/MapClearing';
 import type { Lake } from '../../map/Lakes';
 import { PoiState, STRONGHOLD_TYPE } from '../../map/PoiData';
 import type { Places } from '../../map/Places';
@@ -157,23 +157,14 @@ export function byDistance(pois: readonly PlannedPoi[]): PlannedPoi[] {
 	return [...pois].sort((a, b) => rank(a) - rank(b) || hours(a) - hours(b) || a.poi - b.poi);
 }
 
-/** What's left at a POI on the campaign's map: its shares, its state, and the nights until a share more, null when full. */
-export interface PoiStockView {
-	readonly shares: number;
-	readonly state: PoiState;
-	readonly nextShare: number | null;
-}
-
-/** A POI's stock as the campaign has it (PoiStock.ts). A stronghold's is always full: it yields by its own rules. */
-export function poiStock({ campaign, poi }: { campaign: Campaign; poi: PlannedPoi }): PoiStockView {
-	if (poi.stronghold) return { shares: POI_SHARES, state: 'unvisited', nextShare: null };
-	const shares = sharesLeft({ map: campaign.map, poi: poi.poi });
-	return { shares, state: poiState(shares), nextShare: nightsToNextShare({ map: campaign.map, poi: poi.poi }) };
+/** Whether a run has cleared the POI on the campaign's map (MapClearing.ts). A stronghold never is: it falls to an assault. */
+export function poiCleared({ campaign, poi }: { campaign: Campaign; poi: PlannedPoi }): boolean {
+	return !poi.stronghold && isPoiCleared({ map: campaign.map, poi: poi.poi });
 }
 
 /**
  * The map's markers: every POI with its type, which picks its glyph, its
- * state (looted or depleted) when `stateOf` gives one, a night ring when
+ * state when `stateOf` gives one (a cleared POI is drawn depleted), a night ring when
  * no route gets home by dark, and its name, the nearest placed first; the
  * strongholds with theirs, placed last.
  */

@@ -1,7 +1,6 @@
 import { DriverRecord, archetypeTitle } from '../../campaign/DriverRecord';
 import type { Skulls } from '../../campaign/Encounters';
 import type { FindStop, RouteStop, RouteYield, RunRoute } from '../../campaign/SupplyRoutes';
-import type { PoiState } from '../../map/PoiData';
 import { Arrival, DepartBlocker, FoundDriver, PlanBlocker, StopFightResult, cargoText, listText, yieldResources } from '../../campaign/SupplyRun';
 import { resourceAmount } from '../../campaign/Campaign';
 import { dayEndReport, injuredLine } from '../compound/compoundText';
@@ -108,14 +107,12 @@ export function failureSummary(result: Extract<StopFightResult, { outcome: 'run_
 
 /**
  * The debrief's one hero damage mark (UI Art Direction, Wear: one at a
- * time): a destination left depleted is stamped DEPLETED, since nothing
- * comes from it until it refills; otherwise an injured driver's tag takes a
- * tear; otherwise a looted destination is stamped LOOTED. Null for none.
+ * time): an injured driver's tag takes a tear; otherwise the destination
+ * the run cleared is stamped LOOTED. Null for none.
  */
-export function debriefMark({ destination, injured }: { destination: PoiState | null; injured: boolean }): 'depleted' | 'tear' | 'looted' | null {
-	if (destination === 'depleted') return 'depleted';
+export function debriefMark({ cleared, injured }: { cleared: boolean; injured: boolean }): 'tear' | 'looted' | null {
 	if (injured) return 'tear';
-	return destination === 'looted' ? 'looted' : null;
+	return cleared ? 'looted' : null;
 }
 
 /** A driver's tag line on the debrief: "Injured, fit in 2 days", or "Fit". */

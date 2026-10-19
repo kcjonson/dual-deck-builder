@@ -2,8 +2,9 @@ import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
-import { routeId } from '../../campaign/MapRoutes';
-import type { RunRoute } from '../../campaign/SupplyRoutes';
+import { daysUntilBack } from '../../campaign/MapClearing';
+import { routeId, stopId } from '../../campaign/MapRoutes';
+import { RunRoute, routeStops } from '../../campaign/SupplyRoutes';
 import { DepartBlocker, getDepartBlocker, getPlanBlocker, routesOnOffer } from '../../campaign/SupplyRun';
 import type { RouteDescriptor } from '../../map/RouteDescriptors';
 import { Stack } from '../../../engine/components/Stack';
@@ -17,10 +18,10 @@ import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
 import { LegendBox } from '../../ui/atlas/LegendBox';
 import { PlateFrame } from '../../ui/atlas/PlateFrame';
 import { RouteCard } from '../../ui/RouteCard';
-import { STRONGHOLD_NOT_YET, QUIET_STOPS, clockText, homeByText, poiKindText, poiYieldText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
+import { POI_CLEARED, STRONGHOLD_NOT_YET, QUIET_STOPS, clockText, homeByText, poiKindText, poiYieldText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
 import { COLUMN_GAP, PRIMARY_HEIGHT, PRIMARY_LABEL, PoiHead, SHEET_GAP, SIDE_WIDTH, caption, screenTitle } from '../area-map/atlasPanel';
-import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, poiStock, quickestOf, routesBounds, viewData } from '../area-map/planningMap';
-import { mapProgressText } from '../main-menu/campaignText';
+import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, poiCleared, quickestOf, routesBounds, viewData } from '../area-map/planningMap';
+import { countOf, mapProgressText } from '../main-menu/campaignText';
 import type { LoadOutScreenData } from '../load-out/LoadOutScreen';
 import { gateSectionTabs, metaSectionTabs } from '../metaSections';
 import { departRefusal, planRefusal } from '../run/runText';
@@ -317,8 +318,11 @@ export class RunRouteScreen extends Screen {
 		this.map = map;
 		this.gateTabs();
 		const pois = plannedPois(map);
-		const poi = (this.poiIndex === null ? byDistance(pois).find(({ stronghold }) => !stronghold) : pois[this.poiIndex]) ?? null;
-		const trouble = poi === null ? "That destination isn't on the area map." : poi.stronghold ? STRONGHOLD_NOT_YET : poi.routes.length === 0 ? 'No road reaches it.' : null;
+		const open = (planned: PlannedPoi): boolean => !planned.stronghold && !poiCleared({ campaign, poi: planned });
+		const poi = (this.poiIndex === null ? byDistance(pois).find(open) : pois[this.poiIndex]) ?? null;
+		const trouble = poi === null
+			? this.poiIndex === null ? 'Every destination in reach has been cleared.' : "That destination isn't on the area map."
+			: poi.stronghold ? STRONGHOLD_NOT_YET : poiCleared({ campaign, poi }) ? POI_CLEARED : poi.routes.length === 0 ? 'No road reaches it.' : null;
 		if (poi === null || trouble !== null) {
 			this.say({ text: trouble ?? '', color: 'status_crit' });
 			return;
@@ -329,15 +333,14 @@ export class RunRouteScreen extends Screen {
 		this.nameHead?.show(poi);
 		if (this.dayLine) this.dayLine.text = `Day ${campaign.day} / dawn ${clockText(dark - map.params.daylightHours)} / dark ${clockText(dark)} / fuel ${campaign.resources.fuel}`;
 		const destination = this.runRoute(poi.routes[0])?.destination ?? null;
-		const { state } = poiStock({ campaign, poi });
-		if (this.kindLine) this.kindLine.text = `${poiKindText({ ...poi, state })}. ${poiYieldText({ stronghold: false, yields: destination?.yield ?? null, state })}`;
+		if (this.kindLine) this.kindLine.text = `${poiKindText(poi)}. ${poiYieldText({ stronghold: false, yields: destination?.yield ?? null })}`;
 		// Nothing to wait for or warn of: the cards say the rest.
 		this.say({ text: '', color: 'text_dim' });
 
 		const view = this.view;
 		if (view) {
 			view.map = viewData(map);
-			view.markers = [{ id: poi.id, kind: 'poi', x: poi.x, y: poi.y, label: poi.name, type: poi.type, pastDark: poi.pastDark, ...(state === 'unvisited' ? {} : { state }) }];
+			view.markers = [{ id: poi.id, kind: 'poi', x: poi.x, y: poi.y, label: poi.name, type: poi.type, pastDark: poi.pastDark }];
 			view.selection = { kind: 'marker', id: poi.id };
 			view.camera.fit(frameOf(routesBounds({ map, poi })));
 		}
@@ -346,10 +349,12 @@ export class RunRouteScreen extends Screen {
 			cards.clearChildren();
 			poi.routes.forEach((route) => {
 				const blocker = this.departBlocker(route);
+				const offered = this.runRoute(route);
+				const cleared = this.clearedStops(route).size;
 				cards.addChild(new RouteCard({
 					id: `run_route_card_${route.route}`,
 					title: route.name,
-					detail: routeDetail(route),
+					detail: routeDetail(route, { cleared, risk: cleared > 0 && offered ? riskLeft(offered) : route.risk }),
 					note: blocker !== null ? departRefusal(blocker) : route.spare < 0 ? 'Back after dark.' : null,
 					noteColor: 'status_crit',
 					dim: blocker !== null,
@@ -376,7 +381,13 @@ export class RunRouteScreen extends Screen {
 		const list = this.stopsList;
 		if (list) {
 			list.clearChildren();
-			route.stops.forEach((stop, place) => list.addChild(stopRow({ id: `run_route_stop_${place}`, tag: stopTag(stop), text: stopText(stop) })));
+			const cleared = this.clearedStops(route);
+			const day = this.campaign?.day ?? 1;
+			route.stops.forEach((stop, place) => {
+				const back = cleared.has(stopId(stop.id)) && this.campaign ? daysUntilBack({ map: this.campaign.map, stop: stop.id, day }) : null;
+				const text = back === null ? stopText(stop) : `${stopText(stop)}: cleared, back in ${countOf(back, 'day')}`;
+				list.addChild(stopRow({ id: `run_route_stop_${place}`, tag: stopTag(stop), text, cleared: back !== null }));
+			});
 			if (route.stops.length === 0) list.addChild(caption({ id: 'run_route_stop_none', text: 'No stops: a clear road all the way.' }));
 		}
 		if (this.homeLine) {
@@ -389,6 +400,12 @@ export class RunRouteScreen extends Screen {
 			this.loadOutReason.text = reason ?? '';
 			this.loadOutReason.visible = reason !== null;
 		}
+	}
+
+	/** The ids of the route's stops a run would drive past, cleared and still in their cooldown. */
+	private clearedStops(route: RouteDescriptor): ReadonlySet<string> {
+		const offered = this.runRoute(route);
+		return new Set(offered ? offered.legs.flatMap((leg) => leg.stops.filter((stop) => stop.cleared).map((stop) => stop.id)) : []);
 	}
 
 	/** The run loop's route for a descriptor: the one `departRun` will check it against. */
@@ -425,7 +442,7 @@ export class RunRouteScreen extends Screen {
 			campaign,
 			poi: poi.poi,
 			route: offered.id,
-			trip: { destination: poi.name, routeName: route.name, stops: route.stops.length, fuel: route.fuel, homeBy: clockText(route.back), pastDark: route.spare < 0 },
+			trip: { destination: poi.name, routeName: route.name, stops: routeStops(offered).length, fuel: route.fuel, homeBy: clockText(route.back), pastDark: route.spare < 0 },
 		};
 		ScreenManager.navigate('loadOutScreen', data);
 	}
@@ -460,8 +477,13 @@ function frameOf(bounds: { x: number; y: number; width: number; height: number }
 	return { x: bounds.x + bounds.width / 2 - width / 2, y: bounds.y + bounds.height / 2 - height / 2, width, height };
 }
 
-/** A stop in order: its tag, boxed, and what it is. */
-function stopRow({ id, tag, text }: { id: string; tag: string; text: string }): Stack {
+/** The worst fight a route still meets, in skulls, 0 with none, as a descriptor counts risk: the run model's floors it at 1. */
+function riskLeft(route: RunRoute): number {
+	return routeStops(route).reduce((worst, stop) => (stop.kind === 'fight' ? Math.max(worst, stop.skulls) : worst), 0);
+}
+
+/** A stop in order: its tag, boxed, and what it is, dimmed when a run would drive past it, cleared. */
+function stopRow({ id, tag, text, cleared = false }: { id: string; tag: string; text: string; cleared?: boolean }): Stack {
 	const row = new Stack({ id, direction: 'horizontal', widthMode: 'fill', crossAlign: 'center', gap: space.space_2 });
 	const chip = new Stack({
 		id: `${id}_tag`,
@@ -472,6 +494,6 @@ function stopRow({ id, tag, text }: { id: string; tag: string; text: string }): 
 	});
 	chip.addChild(new Text({ id: `${id}_tag_text`, text: tag, style: { fontRole: 'mono', fontSize: 'fs_xs', color: 'text' }, wrap: 'none' }));
 	row.addChild(chip);
-	row.addChild(new Text({ id: `${id}_text`, text, widthMode: 'fill', style: { fontSize: 'fs_sm', color: 'text' }, wrap: 'none', textOverflow: 'ellipsis' }));
+	row.addChild(new Text({ id: `${id}_text`, text, widthMode: 'fill', style: { fontSize: 'fs_sm', color: cleared ? 'text_dim' : 'text' }, wrap: 'none', textOverflow: 'ellipsis' }));
 	return row;
 }

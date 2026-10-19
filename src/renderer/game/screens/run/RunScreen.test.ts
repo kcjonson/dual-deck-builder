@@ -225,6 +225,18 @@ describe('RunScreen', () => {
 			expect((await saved())?.supplyRun?.stop).toBe(2);
 		});
 
+		it('lists a stop an earlier run cleared as cleared, and drives past it (DDB-336)', async () => {
+			await open(fixtureText((campaign) => {
+				const run = campaign.supplyRun as { stop: number; phase: string; route: { legs: { stops: Record<string, unknown>[] }[] } };
+				run.route.legs[1].stops[1].cleared = true;
+				run.stop = 1;
+				run.phase = 'driving';
+			}));
+			expect(text('run_stop_1_state')).toBe('Cleared');
+			expect(text('run_stop_2_state')).toBe('Next');
+			expect(text('run_action_title')).toBe('Next: Raider ambush, 2 skulls');
+		});
+
 		it('opens a fight on the combat screen with Drive on, whose end comes back here', async () => {
 			await open(drivingText(2));
 			expect(text('run_action_line')).toBe('Raiders hold the road ahead, 2 skulls of danger. Driving on starts the fight.');

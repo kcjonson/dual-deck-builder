@@ -62,7 +62,7 @@ None of these is in a spec. They're calls 89 to 93 in [gameplay-calls.md](../gam
 - 90: strongholds are shown, but Plan a run here is off for them ("Not yet") until assaults exist, and their routes aren't offered.
 - 91: a route past dark warns and can still go; there's no night penalty yet.
 - 92: Plan a supply run opens the area map; Load out the crew runs the quick load out stub and departs.
-- 93: POI state isn't tracked yet: every POI shows as unvisited, and yields don't deplete. Superseded by [poi-depletion.md](./poi-depletion.md): POIs deplete over three runs and refill over 20 nights.
+- 93: POI state isn't tracked yet: every POI shows as unvisited, and yields don't deplete. Superseded by poi-depletion.md (POIs depleting over three runs and refilling over 20 nights), itself replaced by [stop-clearing.md](./stop-clearing.md): a run clears its POI for good.
 
 Made here, within those:
 
@@ -74,7 +74,7 @@ Made here, within those:
 ## Consequences
 
 - Fog and knowledge (DDB-294) change what the descriptors and `routeOffers` are given (`knowledge`), what the markers and the list show, and the area map's frame (`revealedBounds`); the screens already pass every leg as charted, and the cards already show rumored and uncharted routes.
-- POI states (looted, depleted) go on the markers (`MapMarker.state`) and the details, and the yield in the details reads the state: done in [poi-depletion.md](./poi-depletion.md), where `routesOnOffer` takes the campaign as well as its map.
+- POI states (looted, depleted) go on the markers (`MapMarker.state`) and the details, and the yield in the details reads the state: done in poi-depletion.md, where `routesOnOffer` takes the campaign as well as its map, and since [stop-clearing.md](./stop-clearing.md) a cleared POI is the one state.
 - The atlas styling (DDB-447) restyles the bands, badges, and rings in `areaMapStyle.ts`; the spec's side-by-side bands where routes share road and lettered routes are part of it.
 - The load out screen (DDB-320) takes Load out the crew's place after the run route screen, as the quick load out did.
 - The full run controller (DDB-322) shows the run's progress on the run route view; the run screen still stands in for it.

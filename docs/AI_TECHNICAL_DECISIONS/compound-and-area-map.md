@@ -46,7 +46,7 @@ Consequences:
 
 ## Decision 3: saves store the gameplay map
 
-The save holds the generated gameplay map (drivable roads, POIs, stops, tiers, territories) plus the resolved parameters and the mutable state (fog, road knowledge, stop state, POI stock), not just the seed. Generator changes can't alter a campaign in progress, and floating-point differences between JS engines don't matter for loading. Terrain and scenery are only pictures once the gameplay map exists, so they're regenerated on load.
+The save holds the generated gameplay map (drivable roads, POIs, stops, tiers, territories) plus the resolved parameters and the mutable state (fog, road knowledge, stop state, cleared POIs), not just the seed. Generator changes can't alter a campaign in progress, and floating-point differences between JS engines don't matter for loading. Terrain and scenery are only pictures once the gameplay map exists, so they're regenerated on load.
 
 ## Decision 4: drivable roads and scenery are separate layers
 

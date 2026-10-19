@@ -2,7 +2,6 @@ import { Screen } from '../../core/Screen';
 import { ScreenManager } from '../../core/ScreenManager';
 import type { Campaign } from '../../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
-import { POI_SHARES } from '../../campaign/PoiStock';
 import { getPlanBlocker, routesOnOffer } from '../../campaign/SupplyRun';
 import { Stack } from '../../../engine/components/Stack';
 import type { Text } from '../../../engine/components/Text';
@@ -20,9 +19,9 @@ import { PlateFrame } from '../../ui/atlas/PlateFrame';
 import { mapProgressText } from '../main-menu/campaignText';
 import { gateSectionTabs, metaSectionTabs } from '../metaSections';
 import { planRefusal } from '../run/runText';
-import { STRONGHOLD_NOT_YET, darkText, poiKindText, poiStockText, poiYieldText, routesText } from './areaMapText';
+import { POI_CLEARED, STRONGHOLD_NOT_YET, darkText, poiKindText, poiYieldText, routesText } from './areaMapText';
 import { COLUMN_GAP, PRIMARY_HEIGHT, PRIMARY_LABEL, PoiHead, SHEET_GAP, SIDE_WIDTH, caption, detailLine, poiLead, screenTitle, titleNote } from './atlasPanel';
-import { PlannedPoi, PlanningMap, PlanningMaps, PoiStockView, byDistance, plannedPois, poiMarkers, poiStock, viewData } from './planningMap';
+import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, plannedPois, poiCleared, poiMarkers, viewData } from './planningMap';
 
 /** Plan's reason holds two lines, the most any takes. */
 const REASON_LINES = 2;
@@ -92,7 +91,6 @@ export class AreaMapScreen extends Screen {
 	private nameHead: PoiHead | null = null;
 	private kindLine: Text | null = null;
 	private yieldLine: Text | null = null;
-	private stockLine: Text | null = null;
 	private routesLine: Text | null = null;
 	private darkLine: Text | null = null;
 	private planButton: AtlasButton | null = null;
@@ -190,7 +188,6 @@ export class AreaMapScreen extends Screen {
 		this.nameHead = null;
 		this.kindLine = null;
 		this.yieldLine = null;
-		this.stockLine = null;
 		this.routesLine = null;
 		this.darkLine = null;
 		this.planButton = null;
@@ -270,8 +267,6 @@ export class AreaMapScreen extends Screen {
 		details.addChild(this.kindLine);
 		this.yieldLine = detailLine({ id: 'area_map_selected_yield', color: 'text' });
 		details.addChild(this.yieldLine);
-		this.stockLine = detailLine({ id: 'area_map_selected_stock' });
-		details.addChild(this.stockLine);
 		this.routesLine = detailLine({ id: 'area_map_selected_routes' });
 		details.addChild(this.routesLine);
 		this.darkLine = detailLine({ id: 'area_map_selected_dark' });
@@ -329,10 +324,10 @@ export class AreaMapScreen extends Screen {
 		this.gateTabs();
 		this.pois = plannedPois(map);
 		const view = this.view;
-		const stockOf = (planned: PlannedPoi): PoiStockView => this.stockOf(planned);
+		const cleared = (planned: PlannedPoi): boolean => this.isCleared(planned);
 		if (view) {
 			view.map = viewData(map);
-			view.markers = poiMarkers({ pois: this.pois, stateOf: (planned) => stockOf(planned).state });
+			view.markers = poiMarkers({ pois: this.pois, stateOf: (planned) => (cleared(planned) ? 'depleted' : 'unvisited') });
 		}
 		const list = this.list;
 		if (list) {
@@ -340,14 +335,14 @@ export class AreaMapScreen extends Screen {
 			this.marks?.clear();
 			this.rows.clear();
 			for (const planned of byDistance(this.pois)) {
-				// A depleted POI is dimmed rather than named in the value, which would squeeze the names out of the list.
+				// A cleared POI is dimmed rather than named in the value, which would squeeze the names out of the list.
 				const row = new ContentsRow({
 					id: `area_map_poi_${planned.poi}`,
 					variant: 'list',
 					lead: poiLead(planned),
 					label: planned.name,
 					value: rowValue(planned),
-					dim: planned.stronghold || stockOf(planned).state === 'depleted',
+					dim: planned.stronghold || cleared(planned),
 				});
 				this.rows.set(planned.poi, row);
 				list.addChild(row);
@@ -420,19 +415,15 @@ export class AreaMapScreen extends Screen {
 		const { campaign, map } = this;
 		if (!poi || !campaign || !map) {
 			this.nameHead?.show(null, NOTHING_CHOSEN);
-			for (const line of [this.kindLine, this.yieldLine, this.stockLine, this.routesLine, this.darkLine, this.planReason]) if (line) line.text = '';
+			for (const line of [this.kindLine, this.yieldLine, this.routesLine, this.darkLine, this.planReason]) if (line) line.text = '';
 			if (this.planButton) this.planButton.enabled = false;
 			return;
 		}
 		const destination = routesOnOffer({ map, campaign }).find((route) => route.destination.id === poi.id)?.destination ?? null;
-		const stock = this.stockOf(poi);
+		const cleared = this.isCleared(poi);
 		this.nameHead?.show(poi);
-		if (this.kindLine) this.kindLine.text = poiKindText({ ...poi, state: stock.state });
-		if (this.yieldLine) this.yieldLine.text = poiYieldText({ stronghold: poi.stronghold, yields: destination?.yield ?? null, state: stock.state });
-		if (this.stockLine) {
-			this.stockLine.text = poi.stronghold ? '' : poiStockText(stock);
-			this.stockLine.color = stock.state === 'depleted' ? 'status_crit' : 'text_dim';
-		}
+		if (this.kindLine) this.kindLine.text = poiKindText({ ...poi, cleared });
+		if (this.yieldLine) this.yieldLine.text = poiYieldText({ stronghold: poi.stronghold, yields: destination?.yield ?? null, cleared });
 		if (this.routesLine) this.routesLine.text = routesText(poi);
 		if (this.darkLine) {
 			this.darkLine.text = darkText(poi);
@@ -443,9 +434,9 @@ export class AreaMapScreen extends Screen {
 		if (this.planReason) this.planReason.text = reason ?? '';
 	}
 
-	/** What's left at a POI on the campaign's map, full until there's a campaign. */
-	private stockOf(poi: PlannedPoi): PoiStockView {
-		return this.campaign ? poiStock({ campaign: this.campaign, poi }) : { shares: POI_SHARES, state: 'unvisited', nextShare: null };
+	/** Whether a run has cleared the POI, which nothing has until there's a campaign. */
+	private isCleared(poi: PlannedPoi): boolean {
+		return this.campaign ? poiCleared({ campaign: this.campaign, poi }) : false;
 	}
 
 	/** Why Plan a run here is off for this POI, or null. */
@@ -453,6 +444,7 @@ export class AreaMapScreen extends Screen {
 		const { campaign, map } = this;
 		if (!campaign || !map) return null;
 		if (poi.stronghold) return STRONGHOLD_NOT_YET;
+		if (this.isCleared(poi)) return POI_CLEARED;
 		if (poi.routes.length === 0) return 'No road reaches it.';
 		const blocker = getPlanBlocker({ campaign, map });
 		return blocker === null || blocker.reason === 'too_little_fuel' ? null : planRefusal(blocker);

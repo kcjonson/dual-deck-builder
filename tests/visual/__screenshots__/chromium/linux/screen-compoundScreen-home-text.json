@@ -42,5 +42,5 @@
 {"path":"compoundScreen/compound_sheet/compound_body/compound_side/compound_side_top/compound_day_box/compound_day_lines/compound_rest_line","text":"Ends day 9. The compound eats 5 food and 5 water.","rect":[948,559.99,412,16.8]},
 {"path":"compoundScreen/compound_sheet/compound_body/compound_side/compound_side_top/compound_day_box/compound_day_lines/compound_scavenge_line","text":"Scavenging ends it too, with 2 fuel and 12 scrap.","rect":[948,578.79,412,16.8]},
 {"path":"compoundScreen/compound_sheet/compound_body/compound_side/compound_plan/compound_plan_button","text":"Plan a supply run","rect":[932,716.4,444,64]},
-{"path":"compoundScreen/compound_sheet/compound_body/compound_side/compound_plan/compound_plan_reason","text":"30 destinations on the area map","rect":[932,788.4,444,33.6]}
+{"path":"compoundScreen/compound_sheet/compound_body/compound_side/compound_plan/compound_plan_reason","text":"29 destinations on the area map","rect":[932,788.4,444,33.6]}
 ]
