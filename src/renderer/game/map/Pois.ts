@@ -27,9 +27,9 @@ import type { Terrain } from './Terrain';
  * (legs no other POI's routes use) with room for its need (`ownRoadNeed`),
  * so the stops stage can put each route's floor fights and half its band
  * there (guarantee 11). A POI is tier 4 where its ring would put it in tiers
- * 1 to 3 but its quickest route can't be home by dark carrying only its
- * fight floor, as stage 8's tier 3 to 4 boundary would, until tiers come
- * from hours (DDB-292). Every decision is
+ * 1 to 3 but its quickest route can't be home by dark carrying its fight
+ * floor and a Find: driver, as stage 8's tier 3 to 4 boundary would, until
+ * tiers come from hours (DDB-292). Every decision is
  * plain arithmetic, sectors included (see Geometry). The decision record is
  * docs/AI_TECHNICAL_DECISIONS/route-tree-and-pois.md.
  */
@@ -72,7 +72,7 @@ export interface Poi {
 	/**
 	 * A stand-in until tiers (stage 8): the ring plus one, and 5 for a
 	 * stronghold, or 4 where tiers 1 to 3 would leave its quickest route
-	 * past dark with only its fight floor.
+	 * past dark with its fight floor and a Find: driver (`floorRunHours`).
 	 */
 	readonly tier: number;
 }
@@ -447,7 +447,7 @@ class PoiPlacer {
 		return aims.map((target, ring) => ({ target, placed: placed[ring], promoted: promoted[ring] }));
 	}
 
-	/** A POI's tier on a candidate: its ring plus one, or 4 where that's in tiers 1 to 3 and its quickest route can't be home by dark with only its fight floor. */
+	/** A POI's tier on a candidate: its ring plus one, or 4 where that's in tiers 1 to 3 and its quickest route can't be home by dark with its fight floor and a Find: driver. */
 	private tierAt(candidate: number, ring: number): number {
 		const tier = ring + 1;
 		if (tier > DAYLIGHT_TIERS) return tier;

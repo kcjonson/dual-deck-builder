@@ -269,9 +269,9 @@ describe('POIs and strongholds on the route tree', () => {
 	});
 
 	describe('tiers for daylight', () => {
-		it('make a POI tier 4 where tiers 1 to 3 would leave its quickest route past dark with only its fight floor, and never a stronghold', () => {
+		it('make a POI tier 4 where tiers 1 to 3 would leave its quickest route past dark with its fight floor and a Find: driver, and never a stronghold', () => {
 			const network = meshes[2];
-			const floorRun = (layer: PoiLayer, poi: Poi, tier: number) => floorRunHours({ routeHours: routesTo(layer, poi)[0].hours, tier, objectiveHours: STOP_TUNING.objectiveHours.poi, tuning: STOP_TUNING });
+			const floorRun = (layer: PoiLayer, poi: Poi, tier: number) => floorRunHours({ routeHours: poi.arrivals[0].hours, tier, objectiveHours: STOP_TUNING.objectiveHours.poi, tuning: STOP_TUNING });
 			for (const daylightHours of [6, 9, 14]) {
 				const { layer } = place(network, { daylightHours });
 				for (const poi of layer.pois) {

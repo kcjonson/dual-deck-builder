@@ -8,8 +8,9 @@ import { FIGHT_TYPES, STOP_TIERS, StopTuning, TierBand } from './StopData';
  * junctions partway along it, `gap` apart, and half a gap in from the ends'
  * clearance, so a leg of `usable` road holds `usable / gap` rounded down
  * where no junction is in the way. The POI stage seats a POI only where each
- * of its routes' own road has room for its need at `tightGap` (stage 7), and
- * the stops stage places on the same room, so the two can't disagree.
+ * of its routes' own road has room for its need at `tightGap` (stage 7);
+ * the stops stage is to allocate on the same room, so the two can't
+ * disagree.
  */
 
 // Globals read once, at load: under Jest's vm context each read costs about 0.15 us (seeded-prng.md).
@@ -40,14 +41,15 @@ export function runHours({ routeHours, stopHours, objectiveHours }: { routeHours
 }
 
 /**
- * The least run a route of this tier can have once the daylight check has
- * shed all it may: its fight floor and nothing else, each fight the
- * costliest a fight can be, so the stops stage can always thin to it.
+ * The most a route of this tier can be left with once the daylight check
+ * has shed all it may: its fight floor, each fight the costliest a fight
+ * can be, and one Find: driver, which the driverFinds floor or a tier's rate
+ * can pin to a route when no other leg has room for it.
  */
 export function floorRunHours({ routeHours, tier, objectiveHours, tuning }: { routeHours: number; tier: number; objectiveHours: number; tuning: Pick<StopTuning, 'bands' | 'types'> }): number {
 	let fightHours = 0;
 	for (const type of FIGHT_TYPES) if (tuning.types[type].hours > fightHours) fightHours = tuning.types[type].hours;
-	return runHours({ routeHours, stopHours: bandFor(tier, tuning).fights.min * fightHours, objectiveHours });
+	return runHours({ routeHours, stopHours: bandFor(tier, tuning).fights.min * fightHours + tuning.types.findDriver.hours, objectiveHours });
 }
 
 /** World units a stop keeps from either end of a leg this long: the clearance, or a quarter of a short leg. */
