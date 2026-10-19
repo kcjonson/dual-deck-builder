@@ -611,6 +611,54 @@ describe('the combat bridge', () => {
 		});
 	});
 
+	describe('a fight the raiders broke off, written back (DDB-525)', () => {
+		it('carries the run on with every driver and the cargo it had, with no hauler pay and no fight counted', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			const escorts = [createEscort({ type: 'fuel_hauler' })];
+			escorts.forEach(escort => campaign.convoy.add(escort));
+			const cargo = { ...NO_RESOURCES, fuel: 2 };
+			const fight = startFight({ campaign, party: loadOut({ campaign, seats: [warrior, interceptor], escorts, cargo }), enemy: idle() });
+
+			// Nobody fires, so the fight goes nowhere and breaks off
+			fightOut(fight);
+			expect(fight.battle.isBattleBrokenOff()).toBe(true);
+			const result = writeBackFight({ fight });
+
+			expect(result.outcome).toBe('broken_off');
+			if (result.outcome !== 'broken_off') return;
+			expect(result.party.seats).toEqual([warrior, interceptor]);
+			expect(result.party.escorts).toEqual(escorts);
+			expect(result.party.cargo).toEqual(cargo);
+			expect(campaign.tally.fightsWon).toBe(0);
+			expect([warrior.status, interceptor.status]).toEqual(['ready', 'ready']);
+		});
+
+		it('revives a driver who went down and loses an escort wrecked in it, its card leaving the run deck', () => {
+			const { campaign, warrior, interceptor } = newCampaign();
+			const escort = createEscort({ type: 'outrider' });
+			campaign.convoy.add(escort);
+			const fight = startFight({ campaign, party: loadOut({ campaign, seats: [warrior, interceptor], escorts: [escort] }), enemy: idle() });
+			const signature = escort.escort?.signatureCard;
+			expect(signature).toBeTruthy();
+			const [rigDriver] = fight.drivers;
+			rigDriver.set({ hitpoints: 0 });
+			fight.battle.playerTeam.handleDriverDeath(fight.vehicles[0]);
+			escort.set({ structure: 0 });
+
+			fightOut(fight);
+			const result = writeBackFight({ fight });
+
+			expect(result.outcome).toBe('broken_off');
+			if (result.outcome !== 'broken_off') return;
+			expect(result.revived).toEqual([warrior]);
+			expect(warrior.hitpoints).toBe(REVIVE_HP);
+			expect(result.escortsLost).toEqual([escort]);
+			expect(result.party.escorts).toEqual([]);
+			expect(campaign.convoy.escorts).not.toContain(escort);
+			expect([...runDeckOf(campaign, warrior).escortCards, ...runDeckOf(campaign, interceptor).escortCards]).toEqual([]);
+		});
+	});
+
 	describe('coming home hurt (DDB-304)', () => {
 		it('injures each driver by the HP written back, keeps the hurt one out of the next fight until fit, and sends them out at full HP', () => {
 			const { campaign, warrior, interceptor } = newCampaign();

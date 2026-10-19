@@ -4,7 +4,7 @@
  * run outside Jest, its cells spread over worker threads.
  *
  *   node scripts/balance-sim.mjs fights [--routes 1,2,3,1+2] [--crews all|pairs|solo|road_warrior+interceptor,mechanic]
- *     [--seed 1] [--runs 150] [--turns 25] [--player aggressive|intent] [--config tuning.json] [--json rows.json]
+ *     [--seed 1] [--runs 150] [--turns 25] [--tier 1] [--stage 0] [--player aggressive|intent] [--config tuning.json] [--json rows.json]
  *     [--workers 2] [--log road_warrior+interceptor:2:7]
  *   node scripts/balance-sim.mjs gen [--maps 30] [--seed 1] [--corpus routes.json] [--json gen.json] [--config tuning.json] [--workers 2]
  *
@@ -79,9 +79,13 @@ async function fights({ mode, options, input, config, workers }) {
 	}
 
 	print(`${config.runs} runs a cell, seed ${config.seed}, player AI ${config.playerAI}, stall after turn ${config.turns}`);
-	print('Encounters: ' + Object.entries(config.encounters).map(([id, raiders]) => `${id} ${raiders.join(' + ')}`).join('; '));
+	const waveName = ({ raiders, arriveAt, afterTurns }) => raiders.join(' + ') + (arriveAt === undefined ? '' : ` @${arriveAt}`) + (afterTurns === undefined ? '' : ` ~${afterTurns}`);
+	print(`Encounter templates at tier ${config.tier}, stage ${config.stage}:`);
+	for (const template of config.encounters.templates) {
+		if (template.tiers.includes(Math.min(config.tier, 4)) || template.tiers.includes(config.tier)) print(`  ${template.skulls} ${template.id}: ${template.waves.map(waveName).join(' | ')}`);
+	}
 	print('');
-	print('crew          route   won  by seat  stall  HP lost  struct lost  down  turns  inj days  killed   (lost, down, turns, and injury days over runs won)');
+	print('crew          route   won  by seat  stall  rout  broke  HP lost  struct lost  down  turns  inj days  killed   (rout and broke over all runs; lost, down, turns, and injury days over runs won)');
 	const rows = await playCells({ mode, input, count: fightCells(config).length, workers, onRow: printRow });
 	printFairness(rows);
 	if (options.json) writeFileSync(options.json, JSON.stringify({ mode, config, rows }, null, '\t'));
@@ -146,6 +150,8 @@ function configInput(options) {
 		...number('runs'),
 		...number('turns'),
 		...number('maps'),
+		...number('tier'),
+		...number('stage'),
 		...(options.player ? { playerAI: options.player } : {}),
 		...(options.routes ? { routes: options.routes.split(',').map(route => route.split('+').map(Number)) } : {}),
 		...(options.crews ? { crews: ['all', 'pairs', 'solo'].includes(options.crews) ? options.crews : options.crews.split(',').map(crew => crew.split('+')) } : {}),
@@ -156,7 +162,7 @@ function configInput(options) {
 function whole(options, key, fallback) {
 	if (options[key] === undefined) return fallback;
 	const value = Number(options[key]);
-	if (!Number.isInteger(value) || value < (key === 'seed' ? 0 : 1)) throw new Error(`balance-sim: --${key} takes a whole number${key === 'seed' ? '' : ' of 1 or more'}, got ${options[key]}`);
+	if (!Number.isInteger(value) || value < (key === 'seed' || key === 'stage' ? 0 : 1)) throw new Error(`balance-sim: --${key} takes a whole number${key === 'seed' || key === 'stage' ? '' : ' of 1 or more'}, got ${options[key]}`);
 	return value;
 }
 
@@ -178,7 +184,7 @@ const fixed = (value, digits = 1) => (value === null ? '-' : value.toFixed(digit
 
 function printRow(row) {
 	const bySeat = row.bySeat ? row.bySeat.map(({ rate }) => (rate === null ? '-' : String(Math.round(rate * 100)))).join('/') : '';
-	print(`${crewLabel(row.crew).padEnd(14)}${row.route.join('+').padStart(5)}  ${percent(row.won.rate)}  ${bySeat.padStart(7)}  ${percent(row.stalled.rate).padStart(5)}  ${percent(row.hpLost).padStart(7)}  ${percent(row.structureLost).padStart(11)}  ${percent(row.down.rate)}  ${fixed(row.turns).padStart(5)}  ${fixed(row.injuryDays).padStart(8)}  ${fixed(row.raidersKilled).padStart(6)}`);
+	print(`${crewLabel(row.crew).padEnd(14)}${row.route.join('+').padStart(5)}  ${percent(row.won.rate)}  ${bySeat.padStart(7)}  ${percent(row.stalled.rate).padStart(5)}  ${percent(row.routed.rate)}  ${percent(row.brokenOff.rate).padStart(5)}  ${percent(row.hpLost).padStart(7)}  ${percent(row.structureLost).padStart(11)}  ${percent(row.down.rate)}  ${fixed(row.turns).padStart(5)}  ${fixed(row.injuryDays).padStart(8)}  ${fixed(row.raidersKilled).padStart(6)}`);
 }
 
 /** Runs and Encounters, Fairness: the spread between the best and worst pair on a route, and each pair's seat gap. */

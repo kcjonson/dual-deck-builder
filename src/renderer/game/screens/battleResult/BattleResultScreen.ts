@@ -16,6 +16,8 @@ import { LegendBox } from '../../ui/atlas/LegendBox';
  */
 export interface BattleResultData {
 	victory: boolean;
+	/** The raiders broke off: neither won nor lost (Combat Rules, How a fight ends). `victory` is false. */
+	brokenOff?: boolean;
 	/** The line under the outcome, when the stock one is wrong: a fight given up wasn't lost to wrecks. */
 	subtitle?: string;
 	/** Where Continue goes, with what: a supply run's fight goes back to its run. The menu when left out. */
@@ -65,9 +67,11 @@ export class BattleResultScreen extends Screen {
 			return;
 		}
 		const { victory } = data;
+		const brokenOff = !victory && data.brokenOff === true;
+		const lost = !victory && !brokenOff;
 		this.next = data.next;
 
-		if (!victory) this.sheet.addChild(new DamageMark({ id: 'result_stamp', kind: 'lost' }));
+		if (lost) this.sheet.addChild(new DamageMark({ id: 'result_stamp', kind: 'lost' }));
 		const panel = new LegendBox({
 			id: 'result_panel',
 			width: PANEL_WIDTH,
@@ -76,26 +80,26 @@ export class BattleResultScreen extends Screen {
 			padding: 32,
 		});
 		panel.addChild(new Text({
-			text: victory ? 'Fight won' : 'Fight lost',
+			text: victory ? 'Fight won' : brokenOff ? 'Fight broken off' : 'Fight lost',
 			id: 'result_kicker',
 			style: { fontRole: 'mono', fontWeight: 500, fontSize: KICKER_SIZE, letterSpacing: 0.14, textTransform: 'uppercase', color: 'text_dim', textAlign: 'center' },
 			wrap: 'none',
 		}));
 		panel.addChild(new Text({
-			text: victory ? 'VICTORY!' : 'DEFEAT!',
+			text: victory ? 'VICTORY!' : brokenOff ? 'BROKEN OFF' : 'DEFEAT!',
 			id: 'result_title',
 			style: {
 				fontRole: 'display',
 				fontWeight: 700,
 				fontSize: TITLE_SIZE,
 				letterSpacing: ATLAS.headTracking,
-				color: victory ? 'text' : 'status_crit',
+				color: lost ? 'status_crit' : 'text',
 				textAlign: 'center',
 			},
 			wrap: 'none',
 		}));
 		panel.addChild(new Text({
-			text: data.subtitle ?? (victory ? 'All enemies have been defeated!' : 'Your vehicles have been destroyed!'),
+			text: data.subtitle ?? (victory ? 'All enemies have been defeated!' : brokenOff ? 'The raiders broke off. Nothing won; the damage stays with you.' : 'Your vehicles have been destroyed!'),
 			id: 'result_subtitle',
 			widthMode: 'fill',
 			style: { fontSize: 16, color: 'text_dim', textAlign: 'center' },

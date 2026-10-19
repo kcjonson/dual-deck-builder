@@ -11,7 +11,7 @@ import { Team } from '../mechanics/Team';
 import { TeamType } from '../mechanics/TeamType';
 import { Vehicle } from '../mechanics/Vehicle';
 import { Rng } from '../core/Rng';
-import { encounterFor, encounterTeam, Skulls } from '../campaign/Encounters';
+import { encounterForces, Skulls } from '../campaign/Encounters';
 import { seatOf } from '../campaign/CombatBridge';
 import { DriverRecord, placeholderName } from '../campaign/DriverRecord';
 import { RunDeck } from '../campaign/RunDeck';
@@ -220,10 +220,11 @@ describe('the intent-aware stand-in on today\'s encounters', () => {
 			return seatOf({ record, runDeck: new RunDeck({ driver: record, own: record.defaultDeck }), cards: CARDS });
 		});
 		const vehicles = seats.map(seat => seat.vehicle);
+		const rng = new Rng({ seed }).fork('fight', skulls);
 		const battle = new Battle({
 			playerTeam: new Team({ type: TeamType.PLAYER, vehicles }),
-			enemyTeam: encounterTeam({ encounter: encounterFor(skulls), cards: CARDS, crewStructure: vehicles.map(seated => seated.structure) }),
-			rng: new Rng({ seed }).fork('fight', skulls)
+			enemyTeam: encounterForces({ skulls, tier: 1, cards: CARDS, seats: vehicles.length, rng }).team,
+			rng
 		});
 		battle.aiController.setEnemyAI('aggressive');
 		battle.aiController.setPlayerAI(playerAI);

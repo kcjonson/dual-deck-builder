@@ -349,4 +349,15 @@ describe('RoadView', () => {
 			expect(road.intentRowOf(late.id)?.intents.map((shown) => shown.type)).toEqual(['defend']);
 		});
 	});
+	it("marks the rows a due wave will take in the gutter, in the raiders' red, and unmarks them when it has landed", () => {
+		const label = (row: RoadRow): Text => road.findById(`road_row_${row}`) as Text;
+		road.arrivalRows = [RoadRow.AHEAD];
+		expect([label(RoadRow.AHEAD).text, label(RoadRow.CENTER).text]).toEqual(['+ AHEAD', 'CENTER']);
+		// #d4513f, resolved
+		expect(label(RoadRow.AHEAD).color).toEqual([0xd4 / 255, 0x51 / 255, 0x3f / 255, 1]);
+
+		road.arrivalRows = [];
+		expect(label(RoadRow.AHEAD).text).toBe('AHEAD');
+		expect(label(RoadRow.AHEAD).color).toEqual(label(RoadRow.CENTER).color);
+	});
 });

@@ -29,7 +29,7 @@ const LINES: readonly [number, string, CombatLogType][] = [
 
 /**
  * The battle screen's top bar and its open log drawer held still for a
- * golden (DDB-140): the menu, wave 1 of 2 with raiders incoming, the turn,
+ * golden (DDB-140): the menu, wave 1 of 2 with raiders arriving, the turn,
  * the ticker of the newest line, and the drawer over the right of a road
  * stand-in, its lines wrapping and scrolled to the newest. It takes the
  * column's width at x1 rather than scaling the 1280 reference down, so its
@@ -54,7 +54,7 @@ export class CombatLogSection extends CatalogSection {
 		drawer.openDrawer();
 
 		const topBar = new TopBarLayer({ id: 'dev_combat_top_bar', combatLog: log, onToggleLog: () => drawer.toggle() });
-		topBar.wave = { number: 1, total: 2, incoming: 2 };
+		topBar.wave = { number: 1, total: 2, arriving: 2 };
 		topBar.turn = 3;
 		topBar.scrap = 150;
 		topBar.fuel = 7;
@@ -66,6 +66,6 @@ export class CombatLogSection extends CatalogSection {
 		frame.addChild(topBar);
 		frame.addChild(road);
 
-		this.addRow('top bar with menu, wave and incoming; the log drawer open, long lines wrapped and scrolled to the newest', frame, { fill: true });
+		this.addRow('top bar with menu, wave and arriving; the log drawer open, long lines wrapped and scrolled to the newest', frame, { fill: true });
 	}
 }

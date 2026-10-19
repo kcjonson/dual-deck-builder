@@ -855,7 +855,10 @@ describe('Order cards', () => {
 				expect(intent).toMatchObject({ target: rig.id, amount: 3 });
 				await battle.endPlayerTurn();
 
-				expect(buggy.slot).toEqual(slot(E_OUTSIDE, CENTER));
+				// Dropped back, before close-up moved it in across from a driven vehicle
+				expect(logLines(battle, 'general')).toEqual(expect.arrayContaining([expect.stringMatching(/drops back to enemy outside, center$/)]));
+				// then closed up across from a driven vehicle
+				expect(buggy.slot).toEqual(slot(E_INSIDE, CENTER));
 				expect(logLines(battle, 'general').filter(line => line.includes('draws Buggy'))).toEqual([]);
 				expect(logLines(battle, 'damage_dealt').filter(line => line.startsWith('Pot Shot'))).toEqual([
 					expect.stringMatching(/^Pot Shot deals 3 total .*damage to Rig /)

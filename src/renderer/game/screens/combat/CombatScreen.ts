@@ -6,7 +6,7 @@ import { Button } from '../../../engine/ui/Button';
 import { Dialog } from '../../../engine/ui/Dialog';
 import { RoadView, EnemyIntent } from './RoadView';
 import { PlayerHandLayer } from './PlayerHandLayer';
-import { LOG_KEY, TopBarLayer, WaveStatus } from './TopBarLayer';
+import { LOG_KEY, TopBarLayer } from './TopBarLayer';
 import { EndTurnColumn } from './EndTurnColumn';
 import { CombatLogLayer } from './CombatLogLayer';
 import { TURN_BANNER_LIFETIME, TurnBanner } from './TurnBanner';
@@ -32,15 +32,15 @@ import { assertDriverPair, assertDriverSeats } from '../../mechanics/DriverPair'
 import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
 import { Vehicle, createDrivenVehicle } from '../../mechanics/Vehicle';
 import { Team, TeamType } from '../../mechanics/Team';
-import { encounterFor, encounterTeam } from '../../campaign/Encounters';
-import { Battle, BattleState, BattleMessage, EnemyTurnStep, HitEvent } from '../../mechanics/Battle';
+import { encounterForces } from '../../campaign/Encounters';
+import { BREAK_OFF_TURNS, Battle, BattleState, BattleMessage, EnemyTurnStep, HitEvent } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { AimPreview, previewAim } from '../../mechanics/AimPreview';
 import type { RangeLabel } from '../../ui/RangeChip';
 import { Intent, IntentType, formatIntentValue } from '../../mechanics/Intent';
 import { CardLoader } from '../../core/CardLoader';
 import { DriverLoader } from '../../core/DriverLoader';
-import type { Rng } from '../../core/Rng';
+import { Rng, freshSeed } from '../../core/Rng';
 import { BattleResultData } from '../battleResult/BattleResultScreen';
 import type { Component } from '../../../engine/components/Component';
 import type { UiPointerEvent } from '../../../engine/input/events';
@@ -69,7 +69,6 @@ function isHandCardDrag(data: unknown): data is HandCardDrag {
  */
 export interface PreparedCombat {
 	battle: Battle;
-	wave?: WaveStatus;
 	scrap?: number;
 	fuel?: number;
 	/** Log lines after the matchup, oldest first; the last is the top bar's ticker. */
@@ -80,7 +79,7 @@ export interface PreparedCombat {
 	 * sends Continue back to the run. Left out, the result is the outcome
 	 * alone, and Continue goes to the menu.
 	 */
-	onEnded?: (event: { won: boolean }) => BattleResultData;
+	onEnded?: (event: BattleEndEvent) => BattleResultData;
 	/**
 	 * A fight that can be given up: what giving it up costs, which the
 	 * menu's confirm says. The menu then offers "Abandon the run", which
@@ -105,8 +104,15 @@ export interface DriversCombatMount {
 	rng?: Rng;
 }
 
-/** One wave until the game has reinforcements (Combat Rules: "once there is one"). */
-const SINGLE_WAVE: WaveStatus = { number: 1, total: 1, incoming: 0 };
+/** How a battle's end reads (Battle's `battleEnded`): won, a rout among wins, or broken off, neither won nor lost. */
+export interface BattleEndEvent {
+	won: boolean;
+	routed?: boolean;
+	brokenOff?: boolean;
+}
+
+/** The battle result's line for a fight won by a rout. */
+const ROUTED_SUBTITLE = 'The raiders routed and fled.';
 
 /** The battle result's line for a fight the crew gave up from the menu. */
 const ABANDONED_SUBTITLE = 'The crew abandoned the fight.';
@@ -160,7 +166,6 @@ export class CombatScreen extends Screen {
 	private combatLog: CombatLog;
 	private fuel = 5;
 	private scrap = 150;
-	private wave: WaveStatus = SINGLE_WAVE;
 	/** The prepared fight's end hook, if it brought one. */
 	private onEnded: PreparedCombat['onEnded'] = undefined;
 	/** The menu's abandon confirm while it's open. */
@@ -235,9 +240,10 @@ export class CombatScreen extends Screen {
 				vehicles: [vehicle1, vehicle2]
 			});
 
-			const enemyTeam = this.createTestEnemyTeam([vehicle1, vehicle2]);
+			const stream = rng ?? new Rng({ seed: freshSeed() });
+			const enemyTeam = this.createTestEnemyTeam([vehicle1, vehicle2], stream);
 
-			const battle = new Battle({ playerTeam, enemyTeam, rng });
+			const battle = new Battle({ playerTeam, enemyTeam, rng: stream, breakOffTurns: BREAK_OFF_TURNS });
 
 			// Enable AI for enemy team - using aggressive AI as default
 			// Other options: 'random', 'mcts', 'salvage', 'ramming'
@@ -251,7 +257,7 @@ export class CombatScreen extends Screen {
 	}
 
 	/** Show a started battle: subscribe to it, announce the turn, log the matchup, and draw it. */
-	private beginCombat({ battle, wave = SINGLE_WAVE, scrap, fuel, log = [], onEnded, abandonWarning }: PreparedCombat): void {
+	private beginCombat({ battle, scrap, fuel, log = [], onEnded, abandonWarning }: PreparedCombat): void {
 		// One seat, or two held to the same pair rule as the default fight
 		const drivers = battle.playerSeats;
 		assertDriverSeats(drivers);
@@ -260,7 +266,6 @@ export class CombatScreen extends Screen {
 		this.battle = battle;
 		this.playerTeam = battle.playerTeam;
 		this.enemyTeam = battle.enemyTeam;
-		this.wave = wave;
 		this.onEnded = onEnded;
 		if (abandonWarning !== undefined) this.offerAbandon(abandonWarning);
 		if (scrap !== undefined) this.scrap = scrap;
@@ -351,14 +356,16 @@ export class CombatScreen extends Screen {
 		);
 
 		this.unsubscribers.push(
-			this.battle.on('battleEnded', (event: { won: boolean }) => {
+			this.battle.on('battleEnded', (event: BattleEndEvent) => {
 				// The battle logs its own end. A fight that brought an end hook
 				// settles itself here, then the result screen follows. Only the
 				// game's own screen navigates: the gallery mounts this one with
 				// no screen manager, and its fight just stays at its end
 				if (!this.battle) return;
-				const settled: BattleResultData = this.onEnded?.(event) ?? { victory: event.won };
-				const resultData = this.abandoned ? { ...settled, subtitle: ABANDONED_SUBTITLE } : settled;
+				const settled: BattleResultData = this.onEnded?.(event) ?? { victory: event.won, ...(event.brokenOff ? { brokenOff: true } : {}) };
+				// A rout's line holds whoever settled the fight, unless they sent their own
+				const routed = event.routed && settled.subtitle === undefined ? { ...settled, subtitle: ROUTED_SUBTITLE } : settled;
+				const resultData = this.abandoned ? { ...routed, subtitle: ABANDONED_SUBTITLE } : routed;
 				if (ScreenManager.activeScreen === this) ScreenManager.navigate('battleResultScreen', resultData);
 			})
 		);
@@ -457,15 +464,12 @@ export class CombatScreen extends Screen {
 	}
 
 	/**
-	 * The skirmish's raiders: a supply run's one-skull encounter, its Rust
-	 * Buggy opening across from the pair's tougher vehicle as a run's would.
+	 * The skirmish's raiders: a one-skull encounter template at tier 1, as a
+	 * run's first fight fields, picked on the fight's own stream so a seeded
+	 * skirmish replays.
 	 */
-	private createTestEnemyTeam(vehicles: readonly Vehicle[]): Team {
-		return encounterTeam({
-			encounter: encounterFor(1),
-			cards: CardLoader.getInstance().getAllCardsAsMap(),
-			crewStructure: vehicles.map(vehicle => vehicle.structure),
-		});
+	private createTestEnemyTeam(vehicles: readonly Vehicle[], rng: Rng): Team {
+		return encounterForces({ skulls: 1, tier: 1, cards: CardLoader.getInstance().getAllCardsAsMap(), seats: vehicles.length, rng }).team;
 	}
 
 	/**
@@ -500,7 +504,9 @@ export class CombatScreen extends Screen {
 			});
 		});
 		this.shownTurn = battle.turn;
-		this.topBar.wave = this.wave;
+		const waves = battle.waves;
+		this.topBar.wave = waves;
+		this.road.arrivalRows = waves.rows;
 		this.topBar.turn = battle.turn;
 		this.topBar.scrap = this.scrap;
 		this.topBar.fuel = this.fuel;

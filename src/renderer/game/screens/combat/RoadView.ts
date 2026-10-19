@@ -8,7 +8,7 @@ import type { DrawPolygonOptions, DrawRectOptions } from '../../../engine/draw/c
 import type { Rect, Vec2 } from '../../../engine/draw/geometry';
 import { tokens } from '../../../engine/theme/tokens';
 import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
-import { LANE_ORDER, RoadLane, RoadSlot, isShoulder, sameSlot } from '../../mechanics/Road';
+import { LANE_ORDER, RoadLane, RoadRow, RoadSlot, isShoulder, sameSlot } from '../../mechanics/Road';
 import { Vehicle as VehicleUI } from '../../ui/Vehicle';
 import type { EnemyIntent, IntentRow } from '../../ui/IntentPill';
 import type { Driver } from '../../mechanics/Driver';
@@ -110,6 +110,7 @@ export class RoadView extends Component {
 	private readonly raiders: VehicleUI[] = [];
 	private readonly laneHeads: Text[];
 	private readonly rowLabels: Text[];
+	private arrivals: readonly RoadRow[] = [];
 	private readonly fixedChildren: number;
 
 	// The ground, rebuilt on resize
@@ -169,6 +170,26 @@ export class RoadView extends Component {
 		});
 		this.fixedChildren = this.children.length;
 		this.layoutRoad();
+	}
+
+	/**
+	 * The rows a due wave will pull into at the end of the enemy turn
+	 * (Battle Screen Design, section 9): each marked in the gutter as
+	 * "+ ROW" in the raiders' red. Empty when no wave is due.
+	 */
+	public get arrivalRows(): readonly RoadRow[] {
+		return this.arrivals;
+	}
+
+	public set arrivalRows(rows: readonly RoadRow[]) {
+		if (rows.length === this.arrivals.length && rows.every((row) => this.arrivals.includes(row))) return;
+		this.arrivals = [...rows];
+		this.currentLayout.rows.forEach(({ row }, index) => {
+			const label = this.rowLabels[index];
+			const marked = this.arrivals.includes(row);
+			label.text = marked ? `+ ${row.toUpperCase()}` : row.toUpperCase();
+			label.color = marked ? ROAD_STYLE.arrivalRowLabel : rgba('text_faint');
+		});
 	}
 
 	/** The road's geometry now: lanes, rows, and every slot's size. */

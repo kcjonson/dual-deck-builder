@@ -15,6 +15,9 @@ import type { Component } from '../../../engine/components/Component';
 import { createTestContext, injectNow } from '../../../engine/components/testing';
 import { PointerAdapter } from '../../../engine/input/PointerAdapter';
 
+// The dev fight's one raider, which these tests rig
+jest.mock('../../campaign/Encounters', () => jest.requireActual('./__fixtures__/loneRaider').loneRaiderEncounters());
+
 /**
  * The play that ends a fight navigates to the result screen through the
  * screen transition, so combat stays mounted under the fade out and unmounts

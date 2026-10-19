@@ -327,7 +327,10 @@ describe('Enemy intents', () => {
 			expect(battle.getIntents(buggy)).toEqual([]);
 			await battle.endPlayerTurn();
 
-			expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_OUTSIDE, RoadRow.AHEAD));
+			// Dropped back, before close-up moved it in across from a driven vehicle
+			expect(logLines(battle, 'general')).toEqual(expect.arrayContaining([expect.stringMatching(/drops back to enemy outside, ahead$/)]));
+			// then closed up across from a driven vehicle
+			expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_INSIDE, RoadRow.CENTER));
 			expect(rig.structure).toBe(20);
 			expect(logLines(battle, 'fizzle')).toEqual(["Buggy's Far Shot fizzles: Rig is out of range (3 away, needs 2)"]);
 		});
@@ -404,7 +407,10 @@ describe('Enemy intents', () => {
 			expect(battle.getIntents(buggy)[0]).toMatchObject({ amount: 4, target: rig.id });
 			await battle.endPlayerTurn();
 
-			expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_OUTSIDE, RoadRow.CENTER));
+			// Dropped back, before close-up moved it in across from a driven vehicle
+			expect(logLines(battle, 'general')).toEqual(expect.arrayContaining([expect.stringMatching(/drops back to enemy outside, center$/)]));
+			// then closed up across from a driven vehicle
+			expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_INSIDE, RoadRow.CENTER));
 			expect(logLines(battle, 'damage_dealt')).toEqual([expect.stringMatching(/^Far Shot deals 4 total .*damage to Rig /)]);
 		});
 
@@ -442,7 +448,10 @@ describe('Enemy intents', () => {
 				expect(battle.getIntents(buggy)).toEqual([expect.objectContaining({ description: 'Long Shot', amount: 4, target: bike.id })]);
 				await battle.endPlayerTurn();
 
-				expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_OUTSIDE, RoadRow.CENTER));
+				// Dropped back, before close-up moved it in across from a driven vehicle
+				expect(logLines(battle, 'general')).toEqual(expect.arrayContaining([expect.stringMatching(/drops back to enemy outside, center$/)]));
+				// then closed up across from a driven vehicle
+				expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_INSIDE, RoadRow.BEHIND));
 				expect(logLines(battle, 'fizzle')).toEqual(["Buggy's Flank fizzles: Buggy is not faster than Bike"]);
 				expect(logLines(battle, 'damage_dealt')).toEqual([expect.stringMatching(/^Long Shot deals 4 total .*damage to Bike /)]);
 			});
@@ -528,7 +537,10 @@ describe('Enemy intents', () => {
 			expect(battle.getPlan(buggy)).toEqual([]);
 			await battle.endPlayerTurn();
 
-			expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_OUTSIDE, RoadRow.AHEAD));
+			// Dropped back, before close-up moved it in across from a driven vehicle
+			expect(logLines(battle, 'general')).toEqual(expect.arrayContaining([expect.stringMatching(/drops back to enemy outside, ahead$/)]));
+			// then closed up across from a driven vehicle
+			expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_INSIDE, RoadRow.CENTER));
 			expect(logLines(battle, 'fizzle')).toEqual([]);
 		});
 	});
@@ -799,7 +811,10 @@ describe('Enemy intents', () => {
 			expect(battle.playCard({ driver: driverOf(rig), cardIndex: 0 })).toBe(true);
 			await battle.endPlayerTurn();
 
-			expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_OUTSIDE, RoadRow.CENTER));
+			// Dropped back, before close-up moved it in across from a driven vehicle
+			expect(logLines(battle, 'general')).toEqual(expect.arrayContaining([expect.stringMatching(/drops back to enemy outside, center$/)]));
+			// then closed up across from a driven vehicle
+			expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_INSIDE, RoadRow.CENTER));
 			expect(buggy.flank).toBeNull();
 			expect(rig.structure).toBe(20);
 			expect(logLines(battle, 'general')).toContain('Buggy is stunned and skips its turn');

@@ -74,4 +74,6 @@ export const ROAD_STYLE = {
 	raiderSlotOutline: hexRgba('#d4513f', 0.09),
 	headerLabel: '#8b8373',
 	raiderHeaderLabel: '#b0685c',
+	/** A row a due wave will pull into (section 9): the gutter label in the raiders' red. */
+	arrivalRowLabel: '#d4513f',
 } as const;

@@ -9,11 +9,11 @@ import { Campaign, CampaignData, NO_RESOURCES, RESOURCE_NAMES, Resources, Unload
 import { CampaignEnd, refuseOver, refuseOverBlocker } from './CampaignEnd';
 import { CardCounts, NO_CARDS } from './CardCounts';
 import { addCardsWon } from './CardsWon';
-import { CampaignFight, FailedRun, RunParty, WonFight, startCampaignFight, writeBackFight } from './CombatBridge';
+import { BrokenOffFight, CampaignFight, FailedRun, RunParty, WonFight, startCampaignFight, writeBackFight } from './CombatBridge';
 import { DayEnd, endDay } from './DayClock';
 import { cardName } from './DeckRules';
 import { DRIVER_ARCHETYPES, DriverRecord } from './DriverRecord';
-import { EncounterId, encounterFor, encounterTeam } from './Encounters';
+import { encounterForces } from './Encounters';
 import { Injury, injureOnArrival } from './Infirmary';
 import type { RunDeck } from './RunDeck';
 import { rollRewardCards } from './RunRewards';
@@ -67,9 +67,10 @@ export class DepartRuleError extends RangeError {
 	}
 }
 
-/** How a stop's fight ended: the run goes on to a reward, or it failed. */
+/** How a stop's fight ended: the run goes on to a reward, goes on with nothing won when the raiders broke off, or it failed. */
 export type StopFightResult =
 	| { readonly outcome: 'won'; readonly fight: WonFight }
+	| { readonly outcome: 'broken_off'; readonly fight: BrokenOffFight }
 	| {
 		readonly outcome: 'run_failed';
 		readonly fight: FailedRun;
@@ -335,8 +336,8 @@ export interface StopFightOptions {
 	campaign: Campaign;
 	/** Card templates by type, as `CardLoader.getAllCardsAsMap` hands them out. */
 	cards: ReadonlyMap<string, Card>;
-	/** The raiders for an encounter: the encounter table's when left out. */
-	raiders?: (encounter: EncounterId) => Team;
+	/** The fight's raiders: an encounter template's (`encounterForces`) when left out. */
+	raiders?: () => Team;
 	/** The raiders' AI, the bridge's aggressive when left out. */
 	enemyAI?: AIType | null;
 }
@@ -344,20 +345,23 @@ export interface StopFightOptions {
 /**
  * The fight at the run's stop, started through the combat bridge on the
  * run's stream for that stop, `fork('fight', stop)` off the run's own
- * (`runStream`). The encounter's raiders size up the seats' vehicles as
- * the bridge builds them (`encounterTeam`). Nothing is saved: a load finds
- * the run driving to this stop, and the fight replays from the same stream.
- * Throws unless the run is driving to a fight, and as `startCampaignFight`
- * does.
+ * (`runStream`). Its raiders are an encounter template for the stop's
+ * skulls at the destination's tier, picked on that stream and sized for
+ * the seats (`encounterForces`); game stage isn't kept yet (DDB-339), so
+ * every fight is stage 0's. Nothing is saved: a load finds the run driving
+ * to this stop, and the fight replays from the same stream, template and
+ * all. Throws unless the run is driving to a fight, and as
+ * `startCampaignFight` does.
  */
 export function startStopFight({ campaign, cards, raiders, enemyAI }: StopFightOptions): CampaignFight {
 	const run = drivingTo({ campaign, kind: 'fight' });
-	const encounter = encounterFor((currentStop(run) as Extract<RouteStop, { kind: 'fight' }>).skulls);
+	const { skulls } = currentStop(run) as Extract<RouteStop, { kind: 'fight' }>;
+	const rng = runStream({ campaign }).fork('fight', run.stop);
 	return startCampaignFight({
 		campaign,
 		party: runParty({ campaign }),
-		raiders: vehicles => raiders ? raiders(encounter) : encounterTeam({ encounter, cards, crewStructure: vehicles.map(vehicle => vehicle.structure) }),
-		rng: runStream({ campaign }).fork('fight', run.stop),
+		raiders: vehicles => raiders ? raiders() : encounterForces({ skulls, tier: run.route.destination.tier, cards, seats: vehicles.length, rng }).team,
+		rng,
 		cards,
 		...(enemyAI === undefined ? {} : { enemyAI }),
 	});
@@ -365,7 +369,8 @@ export function startStopFight({ campaign, cards, raiders, enemyAI }: StopFightO
 
 /**
  * A stop's fight written back. A win carries the write-back's party on,
- * its escorts and cargo, to the stop's reward. A loss, a fight given up
+ * its escorts and cargo, to the stop's reward. A break-off carries it on
+ * past the stop with no reward, and the log says so. A loss, a fight given up
  * included (`Battle.forfeit`), fails the run: the log names who died and
  * who went missing, `loseRun` loses the run and logs its cargo, and the day
  * ends unless the campaign is over, as a run getting home does. Throws as
@@ -378,6 +383,12 @@ export function finishStopFight({ campaign, fight }: { campaign: Campaign; fight
 		const { escorts, cargo, cargoCards } = result.party;
 		campaign.set({ supplyRun: { ...run, escorts, cargo, cargoCards, phase: 'reward' } });
 		return Object.freeze({ outcome: 'won', fight: result });
+	}
+	if (result.outcome === 'broken_off') {
+		const { escorts, cargo, cargoCards } = result.party;
+		campaign.addLogEntry({ message: `The raiders broke off at stop ${run.stop + 1} on the run to ${run.route.destination.name}.` });
+		campaign.set(arrivedAt({ campaign, run: { ...run, escorts, cargo, cargoCards, stop: run.stop + 1, phase: 'driving' }, passed: currentStop(run) }));
+		return Object.freeze({ outcome: 'broken_off', fight: result });
 	}
 	campaign.addLogEntry({ message: fallenMessage({ route: run.route, dead: result.dead, missing: result.missing }) });
 	const { lost } = campaign.loseRun({ result });

@@ -154,7 +154,7 @@ Decided 2026-10-17: a raider encounter is a group that arrives in waves (Kevin's
 - Due: at the start of the player's turn, after the raiders plan, the next wave is due if the raiders on the road are at or below its arrival count, or its turn count has passed since the last wave arrived (or the fight began). The encounter sets both.
 - Announced: a due wave shows in the top bar ("+3 arriving") and marks the rows it will pull into. Kills during the player's turn can change which slots are free, so the marks name rows, not slots.
 - Arrival: at the end of the enemy turn, after flankers drop back, wrecks clear, and the formation closes up. Arrivals fill the enemy formation in the opening order, inside lane first, starting with the row the latest wreck left; with the formation full, the rest stay queued. Each is seated with its deck shuffled from its own seat's stream, and they draw, refill, and plan at the start of the player's turn with every other raider, so every raider on the road shows its intents before the player acts.
-- An empty road: if the player clears the road during their turn, the next wave is announced then and arrives at the end of that enemy turn.
+- An empty road: if the player clears the road during their turn, the next wave is announced then and arrives at the end of that enemy turn. A road the raiders empty themselves during their turn (a raider wrecked by its own card) brings the next wave in at the end of that turn the same way.
 - No wave arrives as ambushers on the player's shoulder for now, though The road allows it: the Rig can't reach the shoulder (DDB-494).
 - A wave that arrives after an EMP Blast isn't stunned by it.
 

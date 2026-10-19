@@ -1,11 +1,11 @@
 import { seatOf, seatWriteBack } from '../campaign/CombatBridge';
 import { DriverRecord, placeholderName } from '../campaign/DriverRecord';
-import { encounterFor, encounterTeam, Skulls } from '../campaign/Encounters';
+import { encounterForces, Skulls } from '../campaign/Encounters';
 import { injuryDays } from '../campaign/Infirmary';
 import { RunDeck } from '../campaign/RunDeck';
 import { Rng } from '../core/Rng';
 import cardsFile from '../data/cards.json';
-import { Battle } from '../mechanics/Battle';
+import { BREAK_OFF_TURNS, Battle } from '../mechanics/Battle';
 import { Card, CardData } from '../mechanics/Card';
 import { DRIVER_CONFIGS } from '../mechanics/Driver';
 import { Team } from '../mechanics/Team';
@@ -18,9 +18,11 @@ import { SeatInput, SimConfig } from './SimConfig';
  * The balance sim's fights (Balance Simulation, fights): a crew, fresh and on
  * its decks, through a route's fights in order, played by the game's own
  * Battle and AI controller, seated and written back by the combat bridge
- * (`seatOf`, `seatWriteBack`), against the encounters' teams
- * (`encounterTeam`). Nothing here copies a rule, so a rule change reaches the
- * sim without touching it.
+ * (`seatOf`, `seatWriteBack`), against encounter templates picked and sized
+ * as a run's stop does it (`encounterForces`), waves, rout, and break-off
+ * included. A broken-off fight carries the run on, as the bridge does.
+ * Nothing here copies a rule, so a rule change reaches the sim without
+ * touching it.
  *
  * Streams: run n of every cell draws from `fork('run', n)` off the seed, and
  * its fight f from that run's `fork('fight', f)`, so every crew meets the
@@ -75,6 +77,9 @@ export interface FightRun {
 	/** Injury days the crew brings home; 0 off a run that didn't get home. */
 	readonly injuryDays: number;
 	readonly raidersKilled: number;
+	/** Whether any fight the run played ended in a rout, or broken off. */
+	readonly routed: boolean;
+	readonly brokenOff: boolean;
 }
 
 /** Run `index` of a crew through its route's fights. */
@@ -88,6 +93,8 @@ export async function playRun({ config, cell, index }: { config: SimConfig; cell
 	let down = false;
 	let turns = 0;
 	let raidersKilled = 0;
+	let routed = false;
+	let brokenOff = false;
 	let battle: Battle | null = null;
 	let outcome: RunOutcome = 'home';
 	for (const [stop, skulls] of route.entries()) {
@@ -96,7 +103,9 @@ export async function playRun({ config, cell, index }: { config: SimConfig; cell
 		battle = fought.battle;
 		turns += battle.turn;
 		raidersKilled += fought.raidersKilled;
-		if (fought.outcome !== 'won') {
+		routed ||= battle.routed ?? false;
+		brokenOff ||= fought.outcome === 'broken';
+		if (fought.outcome !== 'won' && fought.outcome !== 'broken') {
 			outcome = fought.outcome;
 			break;
 		}
@@ -119,22 +128,26 @@ export async function playRun({ config, cell, index }: { config: SimConfig; cell
 		structureLost: share(record => maxStructure(record) - record.vehicle.structure, maxStructure),
 		injuryDays: outcome === 'home' ? records.reduce((sum, record) => sum + injuryDays(record), 0) : 0,
 		raidersKilled,
+		routed,
+		brokenOff,
 	};
 }
 
-/** One fight, the AIs on both sides, against the skull count's encounter as the config fields it. */
-async function playFight({ config, vehicles, skulls, rng }: { config: SimConfig; vehicles: Vehicle[]; skulls: Skulls; rng: Rng }): Promise<{ battle: Battle; outcome: 'won' | 'lost' | 'stalled'; raidersKilled: number }> {
-	const encounter = encounterFor(skulls);
-	const enemyTeam = encounterTeam({
-		encounter,
+/** One fight, the AIs on both sides, against a template for the skull count at the config's tier and stage, as a run's stop fields it. */
+async function playFight({ config, vehicles, skulls, rng }: { config: SimConfig; vehicles: Vehicle[]; skulls: Skulls; rng: Rng }): Promise<{ battle: Battle; outcome: 'won' | 'lost' | 'stalled' | 'broken'; raidersKilled: number }> {
+	const { team: enemyTeam } = encounterForces({
+		skulls,
+		tier: config.tier,
 		cards: SIM_CARDS,
-		crewStructure: vehicles.map(vehicle => vehicle.structure),
-		raiders: config.encounters[encounter],
+		seats: vehicles.length,
+		rng,
+		stage: config.stage,
+		data: config.encounters,
 		profiles: config.raiders,
 	});
-	// Each raider with the driver it opened with, since a raider is out when either is
-	const raiders = enemyTeam.vehicles.map(vehicle => ({ vehicle, driver: vehicle.driver }));
-	const battle = new Battle({ playerTeam: new Team({ type: TeamType.PLAYER, vehicles }), enemyTeam, rng });
+	// Each raider with the driver it opened with, since a raider is out when either is; the queued waves too
+	const raiders = [...enemyTeam.vehicles, ...(enemyTeam.reinforcements ?? []).flatMap(wave => wave.raiders)].map(vehicle => ({ vehicle, driver: vehicle.driver }));
+	const battle = new Battle({ playerTeam: new Team({ type: TeamType.PLAYER, vehicles }), enemyTeam, rng, breakOffTurns: BREAK_OFF_TURNS });
 	battle.aiController.setEnemyAI(config.enemyAI);
 	battle.aiController.setPlayerAI(config.playerAI);
 	battle.start();
@@ -142,7 +155,7 @@ async function playFight({ config, vehicles, skulls, rng }: { config: SimConfig;
 		await battle.aiController.playPlayerCards();
 		battle.endPlayerTurn();
 	}
-	const outcome = !battle.isBattleOver() ? 'stalled' : battle.isBattleWon() ? 'won' : 'lost';
+	const outcome = !battle.isBattleOver() ? 'stalled' : battle.isBattleWon() ? 'won' : battle.isBattleBrokenOff() ? 'broken' : 'lost';
 	return { battle, outcome, raidersKilled: raiders.filter(({ vehicle, driver }) => !vehicle.isAlive() || !(driver?.isAlive() ?? false)).length };
 }
 
@@ -165,6 +178,9 @@ export interface FightRow {
 	readonly injuryDays: number | null;
 	/** Over every run. */
 	readonly raidersKilled: number | null;
+	/** Runs with a fight that ended in a rout, or broken off, over every run. */
+	readonly routed: Rate;
+	readonly brokenOff: Rate;
 }
 
 /** Every run of a cell, measured. */
@@ -192,6 +208,8 @@ export async function playFightCell({ config, cell }: { config: SimConfig; cell:
 		turns: mean(home.map(result => result.turns)),
 		injuryDays: mean(home.map(result => result.injuryDays)),
 		raidersKilled: mean(results.map(result => result.raidersKilled)),
+		routed: rate(results.filter(result => result.routed).length, results.length),
+		brokenOff: rate(results.filter(result => result.brokenOff).length, results.length),
 	};
 }
 

@@ -46,14 +46,14 @@ const MENU_BARS = [3.5, 8, 12.5].map((y) => ({ x: 2, y: y - 0.9, width: 12, heig
 /** The mock's scrap and fuel tints (`.g-top .grp`). */
 const SCRAP_COLOR = hexRgba('#c9b27a');
 const FUEL_COLOR = hexRgba('#c9a36a');
-/** Raiders still to come, in the raiders' red (the mock's `--enemy`). */
-const INCOMING_COLOR = hexRgba('#d4513f');
+/** Raiders arriving, in the raiders' red (the mock's `--enemy`). */
+const ARRIVING_COLOR = hexRgba('#d4513f');
 
-/** The wave, as the top bar shows it: which wave of how many, and the raiders still to come. */
+/** The wave, as the top bar shows it: which wave of how many, and the raiders arriving at the end of this turn (Battle.waves). */
 export interface WaveStatus {
 	number: number;
 	total: number;
-	incoming: number;
+	arriving: number;
 }
 
 /** The mock's `i-menu`: three 1.8 px bars in a 16 px box, dimmed with its button. */
@@ -81,7 +81,7 @@ export class TopBarLayer extends ChromeStack {
 	private readonly combatLog: CombatLog;
 	private readonly menuButton: Button;
 	private readonly waveLabel: Text;
-	private readonly incomingLabel: Text;
+	private readonly arrivingLabel: Text;
 	private readonly turnLabel: Text;
 	private readonly ticker: Text;
 	private readonly scrapValue: Text;
@@ -117,15 +117,15 @@ export class TopBarLayer extends ChromeStack {
 
 		const wave = new Stack({ direction: 'horizontal', gap: 8, crossAlign: 'center' });
 		this.waveLabel = new Text({ text: '', id: 'combat_wave', style: LABEL_STYLE, wrap: 'none' });
-		this.incomingLabel = new Text({
+		this.arrivingLabel = new Text({
 			text: '',
-			id: 'combat_incoming',
-			style: { ...LABEL_STYLE, color: INCOMING_COLOR },
+			id: 'combat_arriving',
+			style: { ...LABEL_STYLE, color: ARRIVING_COLOR },
 			wrap: 'none',
 			visible: false,
 		});
 		wave.addChild(this.waveLabel);
-		wave.addChild(this.incomingLabel);
+		wave.addChild(this.arrivingLabel);
 		this.addChild(wave);
 
 		this.turnLabel = new Text({ text: '', id: 'combat_turn', style: { ...LABEL_STYLE, color: rgba('text_dim') }, wrap: 'none' });
@@ -200,10 +200,10 @@ export class TopBarLayer extends ChromeStack {
 		return this.menuButton;
 	}
 
-	public set wave({ number, total, incoming }: WaveStatus) {
+	public set wave({ number, total, arriving }: WaveStatus) {
 		this.waveLabel.text = `Wave ${number} of ${total}`;
-		this.incomingLabel.text = `+${incoming} incoming`;
-		this.incomingLabel.visible = incoming > 0;
+		this.arrivingLabel.text = `+${arriving} arriving`;
+		this.arrivingLabel.visible = arriving > 0;
 	}
 
 	public set turn(turn: number) {

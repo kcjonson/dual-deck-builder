@@ -25,6 +25,8 @@ import { roadRowsCenter } from './CombatLayout';
  * animator, so each holds under reduced motion.
  */
 
+// The dev fight's one raider, which these tests rig
+jest.mock('../../campaign/Encounters', () => jest.requireActual('./__fixtures__/loneRaider').loneRaiderEncounters());
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
 }));

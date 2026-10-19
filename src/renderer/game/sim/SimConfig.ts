@@ -1,5 +1,5 @@
 import type { AIType } from '../ai/AIController';
-import { ENCOUNTERS, ENCOUNTER_IDS, EncounterId, Skulls } from '../campaign/Encounters';
+import { ENCOUNTER_DATA, EncounterData, Skulls, readEncounterData } from '../campaign/Encounters';
 import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
 import { RAIDER_IDS, RAIDER_PROFILES, RaiderId, RaiderProfile } from '../mechanics/Raiders';
 
@@ -26,8 +26,12 @@ export interface SimConfigInput {
 	readonly turns?: number;
 	/** Fields over the shipped profile's, by raider; `skills` and `vehicleStats` merge, `deck` replaces. */
 	readonly raiders?: Partial<Record<RaiderId, RaiderPatch>>;
-	/** An encounter's raiders, by encounter. */
-	readonly encounters?: Partial<Record<EncounterId, { readonly raiders: readonly RaiderId[] }>>;
+	/** The encounter templates and road caps, as data/encounters.json holds them; the shipped ones when left out. */
+	readonly encounters?: unknown;
+	/** The destination tier whose templates a fight draws from, 1 to 5. */
+	readonly tier?: number;
+	/** Game stage, 0 to 6: it grows each template and every raider (Runs and Encounters, Encounters). */
+	readonly stage?: number;
 	/** Campaign maps `gen` makes, from `seed` up. */
 	readonly maps?: number;
 	/** What a route to each destination tier should hold, by tier, a tier given replacing that tier's whole band; Runs and Encounters' starting values when left out. */
@@ -73,7 +77,9 @@ export interface SimConfig {
 	readonly enemyAI: AIType;
 	readonly turns: number;
 	readonly raiders: Readonly<Record<RaiderId, Readonly<RaiderProfile>>>;
-	readonly encounters: Readonly<Record<EncounterId, readonly RaiderId[]>>;
+	readonly encounters: EncounterData;
+	readonly tier: number;
+	readonly stage: number;
 	readonly maps: number;
 	readonly bands: Readonly<Record<number, TierBand>>;
 }
@@ -83,23 +89,17 @@ export function unlockedArchetypes(): DriverArchetype[] {
 	return (Object.keys(DRIVER_CONFIGS) as DriverArchetype[]).filter(archetype => DRIVER_CONFIGS[archetype].metadata.unlocked);
 }
 
-/** The config filled out from the shipped values. Throws for a raider, encounter, or archetype the game doesn't have. */
+/** The config filled out from the shipped values. Throws for a raider, template, or archetype the game doesn't have, and a tier or stage out of range. */
 export function simConfig(input: SimConfigInput = {}): SimConfig {
 	for (const id of Object.keys(input.raiders ?? {})) {
 		if (!(RAIDER_IDS as readonly string[]).includes(id)) throw new RangeError(`raiders.${id} isn't a raider`);
 	}
-	for (const id of Object.keys(input.encounters ?? {})) {
-		if (!(ENCOUNTER_IDS as readonly string[]).includes(id)) throw new RangeError(`encounters.${id} isn't an encounter`);
-	}
 	const raiders = Object.fromEntries(RAIDER_IDS.map(id => [id, patched(RAIDER_PROFILES[id], input.raiders?.[id])])) as Record<RaiderId, RaiderProfile>;
-	const encounters = Object.fromEntries(ENCOUNTER_IDS.map(id => {
-		const list = input.encounters?.[id]?.raiders ?? ENCOUNTERS[id].raiders;
-		if (list.length === 0) throw new RangeError(`encounters.${id} fields no raiders`);
-		list.forEach(raider => {
-			if (!(RAIDER_IDS as readonly string[]).includes(raider)) throw new RangeError(`encounters.${id} holds ${raider}, which isn't a raider`);
-		});
-		return [id, [...list]];
-	})) as Record<EncounterId, RaiderId[]>;
+	const encounters = input.encounters === undefined ? ENCOUNTER_DATA : readEncounterData(input.encounters, 'encounters');
+	const tier = input.tier ?? 1;
+	if (!Number.isInteger(tier) || tier < 1 || tier > 5) throw new RangeError(`tier must be a whole number from 1 to 5, not ${tier}`);
+	const stage = input.stage ?? 0;
+	if (!Number.isInteger(stage) || stage < 0 || stage > 6) throw new RangeError(`stage must be a whole number from 0 to 6, not ${stage}`);
 	const routes = input.routes ?? [[1], [2], [3]];
 	routes.forEach(route => {
 		if (route.length === 0) throw new RangeError('A route fights at least once');
@@ -114,6 +114,8 @@ export function simConfig(input: SimConfigInput = {}): SimConfig {
 		turns: input.turns ?? 25,
 		raiders,
 		encounters,
+		tier,
+		stage,
 		maps: input.maps ?? 30,
 		bands: { ...ROUTE_BANDS, ...input.bands },
 	};

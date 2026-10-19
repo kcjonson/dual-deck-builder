@@ -50,8 +50,13 @@ type FailedStopFight = Extract<StopFightResult, { outcome: 'run_failed' }>;
 export interface RunScreenData {
 	campaign: Campaign;
 	failed?: { result: FailedStopFight; route: RunRoute; stop: number };
+	/** The last fight's raiders broke off: the run goes on, and the screen says so. */
+	brokenOff?: boolean;
 	saved?: Promise<CheckpointResult>;
 }
+
+/** On the run screen after a fight the raiders broke off. */
+export const BROKEN_OFF_LINE = 'The raiders broke off. The run goes on, with nothing won.';
 
 /** On the run screen when the step that opened it couldn't be saved. */
 export const STEP_NOT_SAVED = "The last step couldn't be saved. The next one tries again.";
@@ -267,6 +272,11 @@ export class RunScreen extends Screen {
 		if (failed) this.shown = { kind: 'failed', ...failed };
 		else this.shown = campaign.supplyRun ? { kind: 'road', run: campaign.supplyRun } : { kind: 'none' };
 		this.refresh();
+		if (given?.brokenOff && !failed) {
+			// A break-off at the last stop drove on to the destination, as a reward taken would
+			const reached = campaign.supplyRun && atDestination(campaign.supplyRun) ? ` Reached ${campaign.supplyRun.route.destination.name}.` : '';
+			this.showLine({ line: this.report, text: `${BROKEN_OFF_LINE}${reached}`, color: 'text_dim' });
+		}
 		const saved = given?.saved;
 		if (saved) {
 			this.lastSave = saved;
@@ -655,6 +665,7 @@ export function stopFightMount({ campaign, fight, store }: { campaign: Campaign;
 					return { victory: won, next: { screen: 'runScreen', data: { campaign } } };
 				}
 				const saved = store.checkpoint(campaign);
+				if (result.outcome === 'broken_off') return { victory: false, brokenOff: true, next: { screen: 'runScreen', data: { campaign, saved, brokenOff: true } } };
 				if (result.outcome === 'won' || run === null) return { victory: won, next: { screen: 'runScreen', data: { campaign, saved } } };
 				const data: RunScreenData = { campaign, failed: { result, route: run.route, stop: run.stop }, saved };
 				return { victory: false, next: { screen: 'runScreen', data } };
