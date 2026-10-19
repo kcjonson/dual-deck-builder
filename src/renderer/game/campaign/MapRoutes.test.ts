@@ -2,10 +2,11 @@ import { meshMap, randomMesh } from '../map/meshTesting';
 import { POI_TUNING } from '../map/PoiData';
 import { ROAD_CLASSES } from '../map/RoadNetwork';
 import { describeMap } from '../map/RouteDescriptors';
-import { isFight } from '../map/StopData';
+import { STOP_TYPES, isFight, isResolvable } from '../map/StopData';
 import { rollStop } from '../map/Stops';
-import { destinationId, routeId, routeOffers } from './MapRoutes';
-import { RunRoute, readRunRoute } from './SupplyRoutes';
+import { eventsFor } from './Events';
+import { destinationId, routeId, routeOffers, stopKind } from './MapRoutes';
+import { RUN_EVENT_TYPES, RunRoute, readRunRoute } from './SupplyRoutes';
 
 const maps = Array.from({ length: 3 }, (_, index) => meshMap(randomMesh({ seed: 900 + index, spacing: 85 + index }), { seed: index }));
 
@@ -29,7 +30,7 @@ function expectRunRoute(route: RunRoute): void {
 		expect(leg.length).toBeGreaterThanOrEqual(0);
 		expect(leg.hours).toBeGreaterThanOrEqual(0);
 		leg.stops.forEach((stop, index) => {
-			const fields = { fight: ['at', 'id', 'kind', 'skulls'], quiet: ['at', 'id', 'kind'], find: ['at', 'find', 'id', 'kind'] }[stop.kind];
+			const fields = { fight: ['at', 'id', 'kind', 'skulls'], quiet: ['at', 'id', 'kind'], find: ['at', 'find', 'id', 'kind'], event: ['at', 'id', 'kind', 'stopType'] }[stop.kind];
 			expect(Object.keys(stop).sort()).toEqual(stop.kind === 'find' && stop.find === 'supplies' ? [...fields, 'supplies'] : fields);
 			if (stop.kind === 'fight') expect([1, 2, 3]).toContain(stop.skulls);
 			expect(stop.at).toBeGreaterThanOrEqual(0);
@@ -59,7 +60,7 @@ describe('routeOffers', () => {
 		}
 	});
 
-	it('carries each route\'s descriptor and every stop it will meet, fights as fights, finds as finds, and the rest as quiet stretches', () => {
+	it('carries each route\'s descriptor and every stop it will meet, fights as fights, finds as finds, wrecks and distress signals as events, and the rest as quiet stretches', () => {
 		const map = maps[0];
 		const { stops, pois } = map.products;
 		const described = describeMap(map).flat();
@@ -81,8 +82,10 @@ describe('routeOffers', () => {
 			along.forEach((stop) => {
 				const real = stops.stops[Number(stop.id.slice('stop-'.length))];
 				const find = ({ findCards: 'cards', findSupplies: 'supplies', findDriver: 'driver' } as Partial<Record<string, string>>)[real.type];
-				expect(stop.kind).toBe(isFight(real.type) ? 'fight' : find ? 'find' : 'quiet');
+				const event = real.type === 'wreck' || real.type === 'distress';
+				expect(stop.kind).toBe(isFight(real.type) ? 'fight' : find ? 'find' : event ? 'event' : 'quiet');
 				if (stop.kind === 'fight') expect(stop.skulls).toBe(real.skulls);
+				if (stop.kind === 'event') expect(stop.stopType).toBe(real.type);
 				if (stop.kind === 'find') expect(stop.find).toBe(find);
 				// A haul is the stop's contents at its first roll.
 				if (stop.kind === 'find' && stop.find === 'supplies') expect(stop.supplies).toEqual(rollStop(map, Number(stop.id.slice('stop-'.length)), 0).supplies);
@@ -90,8 +93,14 @@ describe('routeOffers', () => {
 		});
 		// Every kind turns up, and every find.
 		const along = routeOffers(map).flatMap(({ legs }) => legs.flatMap(({ stops: on }) => on));
-		expect(new Set(along.map(({ kind }) => kind))).toEqual(new Set(['fight', 'quiet', 'find']));
+		expect(new Set(along.map(({ kind }) => kind))).toEqual(new Set(['fight', 'find', 'event']));
 		expect(new Set(along.flatMap(stop => (stop.kind === 'find' ? [stop.find] : [])))).toEqual(new Set(['cards', 'supplies', 'driver']));
+		expect(new Set(along.flatMap(stop => (stop.kind === 'event' ? [stop.stopType] : [])))).toEqual(new Set(['wreck', 'distress']));
+	});
+
+	it('takes every type the stops stage may place as a stop it resolves, and no other, each event type with events to open', () => {
+		expect(STOP_TYPES.filter((type) => stopKind(type) !== 'quiet')).toEqual(STOP_TYPES.filter(isResolvable));
+		for (const type of RUN_EVENT_TYPES) expect(eventsFor(type).length).toBeGreaterThan(0);
 	});
 
 	it('gives the same routes however often it\'s asked', () => {
