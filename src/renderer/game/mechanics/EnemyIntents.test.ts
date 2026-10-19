@@ -414,47 +414,13 @@ describe('Enemy intents', () => {
 			expect(logLines(battle, 'damage_dealt')).toEqual([expect.stringMatching(/^Far Shot deals 4 total .*damage to Rig /)]);
 		});
 
-		describe('when its plan starts with its own flank', () => {
-			// The Bike (speed 3) is first in the roster, so the Buggy plans to
-			// flank it from the shoulder onto the behind row, then shoot it from
-			// there with the bonus: range 2, where its reserved slot is range 3.
-			const longShot = () => card('Long Shot', 'enemy_single', [{ type: 'damage', value: 4, range: 3, always_hits: true }]);
+		test('it plans no flank while it holds the shoulder', () => {
+			flankRig();
+			giveHand(buggy, [flank(), farShot()]);
+			battle.planEnemyTurn();
 
-			beforeEach(() => {
-				rig = createVehicle('Rig', 1, slot(RoadLane.PLAYER_INSIDE, RoadRow.CENTER));
-				bike = createVehicle('Bike', 1, slot(RoadLane.PLAYER_INSIDE, RoadRow.BEHIND));
-				buggy = createVehicle('Buggy', 3);
-				battle = createBattle([bike, rig], [buggy]);
-				flankRig();
-				giveHand(buggy, [flank(), longShot()]);
-				battle.planEnemyTurn();
-				expect(battle.getPlan(buggy).map(action => [action.card.name, action.target])).toEqual([['Flank', bike], ['Long Shot', bike]]);
-				expect(battle.getIntents(buggy)[1]).toMatchObject({ amount: 6, target: bike.id });
-			});
-
-			test('it drops back, flanks again, and shoots from where the flank takes it', async () => {
-				boost(rig);
-				expect(battle.getIntents(buggy)[1]).toMatchObject({ amount: 6, target: bike.id });
-				await battle.endPlayerTurn();
-
-				expect(buggy.slot).toEqual(slot(RoadLane.PLAYER_SHOULDER, RoadRow.BEHIND));
-				expect(logLines(battle, 'fizzle')).toEqual([]);
-				expect(logLines(battle, 'damage_dealt')).toEqual([expect.stringMatching(/^Long Shot deals 6 total .*damage to Bike /)]);
-			});
-
-			test('a flank the player outpaces too drops out of the preview and leaves it shooting from its reserved slot', async () => {
-				boost(rig);
-				boost(bike);
-				expect(battle.getIntents(buggy)).toEqual([expect.objectContaining({ description: 'Long Shot', amount: 4, target: bike.id })]);
-				await battle.endPlayerTurn();
-
-				// Dropped back, before close-up moved it in across from a driven vehicle
-				expect(logLines(battle, 'general')).toEqual(expect.arrayContaining([expect.stringMatching(/drops back to enemy outside, center$/)]));
-				// then closed up across from a driven vehicle
-				expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_INSIDE, RoadRow.BEHIND));
-				expect(logLines(battle, 'fizzle')).toEqual(["Buggy's Flank fizzles: Buggy is not faster than Bike"]);
-				expect(logLines(battle, 'damage_dealt')).toEqual([expect.stringMatching(/^Long Shot deals 4 total .*damage to Bike /)]);
-			});
+			expect(battle.getPlan(buggy).map(action => action.card.name)).toEqual(['Far Shot']);
+			expect(battle.getFlankBlocker(buggy, bike)).toBe('Buggy is already flanking');
 		});
 	});
 
@@ -543,6 +509,28 @@ describe('Enemy intents', () => {
 			expect(buggy.slot).toEqual(slot(RoadLane.ENEMY_INSIDE, RoadRow.CENTER));
 			expect(logLines(battle, 'fizzle')).toEqual([]);
 		});
+
+		test('a flanker that will drop back can plan a flank from its reserved slot', async () => {
+			// Same Buggy, but the Bike (2) is slower than it will be once the
+			// boost wears off, so it drops back and flanks the Bike
+			bike = createVehicle('Bike', 0, slot(RoadLane.PLAYER_INSIDE, RoadRow.BEHIND));
+			buggy = createVehicle('Buggy', 1, slot(RoadLane.ENEMY_OUTSIDE, RoadRow.AHEAD));
+			battle = createBattle([rig, bike], [buggy]);
+			buggy.set({
+				slot: slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER),
+				flank: { reservedSlot: slot(RoadLane.ENEMY_OUTSIDE, RoadRow.AHEAD), outran: rig }
+			});
+			buggy.applyStatusEffect({ name: 'speed_boost', duration: 1, value: 3 });
+			giveHand(buggy, []);
+			driverOf(buggy).deck?.addCards([flank()]);
+			await battle.endPlayerTurn();
+
+			expect(battle.getPlan(buggy).map(action => [action.card.name, action.target])).toEqual([['Flank', bike]]);
+			await battle.endPlayerTurn();
+
+			expect(buggy.slot).toEqual(slot(RoadLane.PLAYER_SHOULDER, RoadRow.BEHIND));
+			expect(buggy.flank).toEqual({ reservedSlot: slot(RoadLane.ENEMY_OUTSIDE, RoadRow.AHEAD), outran: bike });
+		});
 	});
 
 	describe('ambushers', () => {
@@ -563,22 +551,13 @@ describe('Enemy intents', () => {
 			]);
 		});
 
-		test('a planned swerve keeps it without a reserved slot, so it holds the shoulder once outpaced', async () => {
-			// Ambusher 53 outruns Rig 51 from the behind row onto the center shoulder slot
+		test('an ambusher is already flanking, so it plans no flank', () => {
 			const ambusher = ambushAt(RoadRow.BEHIND);
 			giveHand(ambusher, [flank()]);
 			battle.planEnemyTurn();
-			expect(battle.getPlan(ambusher)[0].target).toBe(rig);
 
-			await battle.endPlayerTurn();
-
-			expect(ambusher.slot).toEqual(slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER));
-			expect(ambusher.flank).toEqual({ reservedSlot: null, outran: rig });
-
-			ambusher.applyStatusEffect({ name: 'oil_slick', duration: 2, value: -40 });
-			await battle.endPlayerTurn();
-
-			expect(ambusher.slot).toEqual(slot(RoadLane.PLAYER_SHOULDER, RoadRow.CENTER));
+			expect(battle.getPlan(ambusher)).toEqual([]);
+			expect(battle.getFlankBlocker(ambusher, rig)).toBe('Ambusher is already flanking');
 		});
 
 		test("another raider can't plan a flank into the ambusher's slot", () => {

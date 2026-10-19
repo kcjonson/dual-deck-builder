@@ -789,9 +789,18 @@ export class Battle extends Model<BattleData> {
 	 * null if it can. The driver's own checks (life, cost, the passenger
 	 * gate) are Driver.getPlayBlocker; these need the convoy. A signature
 	 * card needs a living escort of its type, and Rally the Convoy a ready
-	 * escort to fire.
+	 * escort to fire. A flank card can't move a vehicle already on the
+	 * shoulder. Planning passes its projection so the flank check reads the
+	 * board the plan expects; the player's play reads the live one.
 	 */
-	public getCardBlocker({ driver, card }: { driver: Driver; card: Card }): string | null {
+	public getCardBlocker({ driver, card, board }: { driver: Driver; card: Card; board?: BoardProjection }): string | null {
+		if (!card.isOrder && cardFlanks(card)) {
+			const projection = board ?? new BoardProjection({ battle: this });
+			const vehicle = projection.vehicleOf(driver);
+			if (vehicle && projection.isFlanking(vehicle)) {
+				return `${vehicle.name} is already flanking`;
+			}
+		}
 		const escorts = this.getTeamForDriver(driver)?.escorts ?? [];
 		const signatureOf = card.signatureOf;
 		if (signatureOf && !escorts.some(escort => !escort.isOutOfFight && escort.escort?.type === signatureOf)) {
@@ -2174,8 +2183,7 @@ export class Battle extends Model<BattleData> {
 
 	/**
 	 * Swerve onto the other team's shoulder in the row of the vehicle it
-	 * outran. Its formation slot stays empty and reserved; an existing
-	 * flanker keeps its original reservation, and an ambusher still has none.
+	 * outran. Its formation slot stays empty and reserved.
 	 */
 	private flankVehicle(flanker: Vehicle, target: Vehicle | null): boolean {
 		if (!target) {
@@ -2190,8 +2198,7 @@ export class Battle extends Model<BattleData> {
 		}
 
 		const destination = { lane: flankLane(flankerTeam.type), row: target.slot.row };
-		const reservedSlot = flanker.flank ? flanker.flank.reservedSlot : flanker.slot;
-		flanker.set({ slot: destination, flank: { reservedSlot, outran: target } });
+		flanker.set({ slot: destination, flank: { reservedSlot: flanker.slot, outran: target } });
 		this.log('general',
 			`${flanker.name} outruns ${target.name} and swerves onto ${describeSlot(destination)}`,
 			{ vehicle: flanker.name, target: target.name }
