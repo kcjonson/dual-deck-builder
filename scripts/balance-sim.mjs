@@ -4,14 +4,15 @@
  * run outside Jest, its cells spread over worker threads.
  *
  *   node scripts/balance-sim.mjs fights [--routes 1,2,3,1+2] [--crews all|pairs|solo|road_warrior+interceptor,mechanic]
- *     [--seed 1] [--runs 150] [--turns 25] [--player aggressive] [--config tuning.json] [--json rows.json]
+ *     [--seed 1] [--runs 150] [--turns 25] [--player aggressive|intent] [--config tuning.json] [--json rows.json]
  *     [--workers 2] [--log road_warrior+interceptor:2:7]
  *   node scripts/balance-sim.mjs gen [--maps 30] [--seed 1] [--corpus routes.json] [--json gen.json] [--config tuning.json] [--workers 2]
  *
  * fights: every crew, fresh and on its default decks, through every route's
  * fights in order (`1+2` is a run's two fights, damage carried between them
- * as the combat bridge writes it back), with the aggressive AI on both
- * sides. Lost, down, turns, and injury days are over the runs that got
+ * as the combat bridge writes it back), with the aggressive AI on the
+ * raiders and the --player stand-in on the crew: aggressive, the floor, or
+ * intent, the ceiling. Lost, down, turns, and injury days are over the runs that got
  * home; the by-seat column splits a pair's runs by who drives seat 1.
  *
  * gen: campaign maps from `rollParams` seeds `--seed` up, made as founding
@@ -132,7 +133,11 @@ function playCells({ mode, input, count, workers, onRow }) {
 	});
 }
 
+/** The player stand-ins (Balance Simulation, Player stand-ins) */
+const PLAYER_AIS = ['aggressive', 'intent'];
+
 function configInput(options) {
+	if (options.player && !PLAYER_AIS.includes(options.player)) throw new Error(`balance-sim: --player takes ${PLAYER_AIS.join(' or ')}, got ${options.player}`);
 	const input = options.config ? JSON.parse(readFileSync(options.config, 'utf8')) : {};
 	const number = (key) => (options[key] === undefined ? {} : { [key]: whole(options, key) });
 	return {
