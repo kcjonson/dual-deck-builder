@@ -84,13 +84,23 @@ export class ResourceIcon extends Component {
 	}
 
 	public render(draw: DrawApi): void {
-		const tint = this.tint;
-		if (drawAtlasArt(draw, { name: ICON_PIECES[this.kind], rect: this.rect, tint })) return;
-		const strokes = STROKES[this.kind];
-		for (const line of strokes.lines) draw.drawPolyline({ points: line.points, closed: line.closed, color: tint, width: ICON_STROKE, cap: 'round' });
-		for (const circle of strokes.circles) draw.drawCircle({ center: circle, radius: circle.r, fill: CLEAR, border: { color: tint, width: ICON_STROKE, position: 'center' } });
+		drawResourceIcon(draw, { kind: this.kind, rect: this.rect, tint: this.tint });
 	}
 }
+
+/** A store's 18 px stroke icon at `rect`'s corner in any tint, for a part that draws its own icons (the event screen's choice cards). */
+export function drawResourceIcon(draw: DrawApi, { kind, rect, tint }: { kind: ResourceKind; rect: Rect; tint: RGBA }): void {
+	if (drawAtlasArt(draw, { name: ICON_PIECES[kind], rect, tint })) return;
+	const strokes = STROKES[kind];
+	const moved = rect.x !== 0 || rect.y !== 0;
+	if (moved) draw.pushTranslate(rect.x, rect.y);
+	for (const line of strokes.lines) draw.drawPolyline({ points: line.points, closed: line.closed, color: tint, width: ICON_STROKE, cap: 'round' });
+	for (const circle of strokes.circles) draw.drawCircle({ center: circle, radius: circle.r, fill: CLEAR, border: { color: tint, width: ICON_STROKE, position: 'center' } });
+	if (moved) draw.popTransform();
+}
+
+/** The resource icons' size, square. */
+export const RESOURCE_ICON_SIZE = ICON_SIZE;
 
 export interface ResourceSpec {
 	kind: ResourceKind;

@@ -1,0 +1,15 @@
+[
+{"path":"eventScreen/event_top/event_plate/Text[0]","text":"PLATE · AN ARMORED CAR ON ITS ROOF IN THE DITCH","rect":[60,310,378.86,14]},
+{"path":"eventScreen/event_top/event_journal/event_head/event_kicker","text":"Wreck / stop 2 of 4","rect":[458.86,60,505.14,15.84]},
+{"path":"eventScreen/event_top/event_journal/event_head/event_title","text":"Overturned armored car","rect":[458.86,77.84,505.14,36]},
+{"path":"eventScreen/event_top/event_journal/event_page/event_setup","text":"An armored car lies on its roof in the ditch, wheels in the air. The rear doors are dented but shut.","rect":[488.86,142.14,457.14,40.6]},
+{"path":"eventScreen/event_top/event_journal/event_page/event_situation","text":"It's built to keep people out. It might also be built well enough to run again.","rect":[488.86,203.04,457.14,40.6]},
+{"path":"eventScreen/event_foot/event_outcome/Text[0]","text":"Get it running","rect":[76,356,512,24]},
+{"path":"eventScreen/event_foot/event_outcome/event_outcome_text","text":"You winch it upright, swap the fouled plugs, and patch the fuel line. It coughs, then idles. It's riding with you now.","rect":[76,386,512,40.6]},
+{"path":"eventScreen/event_foot/event_outcome/event_outcome_ledger/event_outcome_line_0/event_outcome_line_0_text","text":"Paid 8 scrap","rect":[102,433.43,486,16.34]},
+{"path":"eventScreen/event_foot/event_outcome/event_outcome_ledger/event_outcome_line_1/event_outcome_line_1_text","text":"+2 h at the stop","rect":[102,455.43,486,16.34]},
+{"path":"eventScreen/event_foot/event_rewards/event_reward_outrider/event_reward_outrider_name","text":"Outrider","rect":[630,435,68,27.3]},
+{"path":"eventScreen/event_foot/event_rewards/event_reward_outrider/event_reward_outrider_structure","text":"25/25","rect":[670,465,28,11]},
+{"path":"eventScreen/event_foot/event_rewards/event_reward_outrider/event_reward_outrider_signature","text":"+ Run Ahead","rect":[630,477,68,11]},
+{"path":"eventScreen/event_foot/event_go/event_go_button","text":"Drive on","rect":[724,484,240,56]}
+]
