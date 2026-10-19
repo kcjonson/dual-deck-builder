@@ -4,7 +4,8 @@ import { stepLog } from '../CampaignEnd';
 import { CampaignStore, CampaignStoreError, campaignKeys } from '../CampaignStore';
 import { MemorySaveStorage, SaveStorage } from '../SaveStorage';
 import cardsFile from '../../data/cards.json';
-import campaignFixture from './campaign-v12.json';
+import campaignFixture from './campaign-v13.json';
+import campaignV12Fixture from './campaign-v12.json';
 import campaignV11Fixture from './campaign-v11.json';
 import campaignV10Fixture from './campaign-v10.json';
 import campaignV9Fixture from './campaign-v9.json';
@@ -18,6 +19,9 @@ export const SEED = 20261006;
  * renames the file in one place.
  */
 export const CAMPAIGN_FIXTURE = campaignFixture;
+
+/** The same campaign as version 12 saved it, before event stops: it loads upgraded (SaveUpgrades.ts), its run out with no escorts found and no hand-off. */
+export const CAMPAIGN_V12_FIXTURE = campaignV12Fixture;
 
 /** The same campaign as version 11 saved it, with POI stock: it loads upgraded (SaveUpgrades.ts), the POIs taken from cleared. */
 export const CAMPAIGN_V11_FIXTURE = campaignV11Fixture;

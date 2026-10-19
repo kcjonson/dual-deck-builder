@@ -14,9 +14,11 @@ import { CAMPAIGN_SCHEMA_VERSION } from './Campaign';
  * POI is full. Version 9 has no buildings: only the bunkhouse, which every
  * campaign was founded with, stands. Version 10's run out has no recruits:
  * nothing found anyone new before Find: driver stops. Version 11 has POI
- * stock where clearing is now: a POI a run took from is cleared.
+ * stock where clearing is now: a POI a run took from is cleared. Version
+ * 12's run out has found no escorts and has no hand-off: nothing on a run
+ * was an event.
  */
-export const UPGRADABLE_SCHEMA_VERSIONS: readonly number[] = Object.freeze([8, 9, 10, 11]);
+export const UPGRADABLE_SCHEMA_VERSIONS: readonly number[] = Object.freeze([8, 9, 10, 11, 12]);
 
 /**
  * A campaign as a save of `version` held it, in the current format. Each
@@ -70,6 +72,12 @@ function fromVersion11(campaign: unknown): unknown {
 	return { ...campaign, map: cleared.length === 0 ? map : { ...map, clearedPois: cleared } };
 }
 
+/** Version 12 to 13: a run out has found no escorts and waits on no hand-off, since no version 12 stop was an event. Fields already there are left for the reader to refuse. */
+function fromVersion12(campaign: unknown): unknown {
+	if (!isObject(campaign) || !isObject(campaign.supplyRun)) return campaign;
+	return { ...campaign, supplyRun: { escortsFound: [], handOff: null, ...campaign.supplyRun } };
+}
+
 /** Version 11's POI stock as its reader took it, each POI once and in order with its shares short of full; the POIs in it. */
 function readVersion11Stock(value: unknown, path: string): number[] {
 	let previous = -1;
@@ -90,4 +98,4 @@ function isObject(value: unknown): value is Record<string, unknown> {
 }
 
 /** Each version's step to the next, by the version it upgrades from. Every version from the oldest listed up to the current one needs one. */
-export const UPGRADE_STEPS: Readonly<Record<number, (campaign: unknown) => unknown>> = Object.freeze({ 8: fromVersion8, 9: fromVersion9, 10: fromVersion10, 11: fromVersion11 });
+export const UPGRADE_STEPS: Readonly<Record<number, (campaign: unknown) => unknown>> = Object.freeze({ 8: fromVersion8, 9: fromVersion9, 10: fromVersion10, 11: fromVersion11, 12: fromVersion12 });

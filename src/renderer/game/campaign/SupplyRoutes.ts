@@ -1,6 +1,7 @@
 import { describeValue } from '../core/Json';
 import { ReaderRangeError, readArray, readFields, readInteger, readNumber, readObject, readOneOf, readText } from '../core/JsonReader';
 import { ROAD_CLASSES, RoadClass } from '../map/RoadNetwork';
+import type { StopType } from '../map/StopData';
 import type { Skulls } from './Encounters';
 
 /**
@@ -16,10 +17,15 @@ import type { Skulls } from './Encounters';
 
 /**
  * What a stop is, fixed when the map is made. A quiet stretch stands in for
- * every calm type the run can't resolve yet (events, garages, hazards).
+ * every calm type the run can't resolve yet (garages, hazards, and the
+ * events with no content).
  */
-export const STOP_KINDS = ['fight', 'quiet', 'find'] as const;
+export const STOP_KINDS = ['fight', 'quiet', 'find', 'event'] as const;
 export type StopKind = (typeof STOP_KINDS)[number];
+
+/** The map's stop types a run resolves as an event, through the event screen (DDB-535). */
+export const RUN_EVENT_TYPES = ['wreck', 'distress'] as const satisfies readonly StopType[];
+export type RunEventType = (typeof RUN_EVENT_TYPES)[number];
 
 /** What a find stop holds: cards for the reward picker, a haul of supplies, or a driver for the pool (Runs and Encounters, What a stop can be). */
 export const FIND_KINDS = ['cards', 'supplies', 'driver'] as const;
@@ -37,8 +43,8 @@ export interface SupplyHaul {
 
 /**
  * Something waiting on a leg: a raider fight of 1 to 3 skulls, whose raiders
- * are rolled when the run gets there, a find, or a quiet stretch where
- * nothing happens. `at` is how far along the leg it sits, 0 at its inner
+ * are rolled when the run gets there, a find, an event of its stop type,
+ * picked when the run gets there, or a quiet stretch where nothing happens. `at` is how far along the leg it sits, 0 at its inner
  * end to 1 at its outer. A stop an earlier run cleared, still in its
  * cooldown when the route was offered, is `cleared`: the run drives past
  * it, so it isn't one of the route's steps (`routeStops`).
@@ -46,7 +52,16 @@ export interface SupplyHaul {
 export type RouteStop =
 	| { readonly id: string; readonly kind: 'fight'; readonly at: number; readonly skulls: Skulls; readonly cleared?: true }
 	| { readonly id: string; readonly kind: 'quiet'; readonly at: number; readonly cleared?: true }
-	| FindStop;
+	| FindStop
+	| EventStop;
+
+export interface EventStop {
+	readonly id: string;
+	readonly kind: 'event';
+	readonly at: number;
+	readonly stopType: RunEventType;
+	readonly cleared?: true;
+}
 
 /** A find: cards and drivers are drawn when the run takes it, a haul when the route is offered. */
 export type FindStop =
@@ -165,6 +180,16 @@ function readStop(value: unknown, path: string): RouteStop {
 		return Object.freeze({ id: readText(fields.id, `${path}.id`), kind, at: readFraction(fields.at, `${path}.at`), ...readCleared(fields.cleared, path) });
 	}
 	if (kind === 'find') return readFind(value, path);
+	if (kind === 'event') {
+		const fields = readFields(value, path, ['id', 'kind', 'at', 'stopType'], ['cleared']);
+		return Object.freeze({
+			id: readText(fields.id, `${path}.id`),
+			kind,
+			at: readFraction(fields.at, `${path}.at`),
+			stopType: readOneOf(fields.stopType, `${path}.stopType`, RUN_EVENT_TYPES),
+			...readCleared(fields.cleared, path),
+		});
+	}
 	const fields = readFields(value, path, ['id', 'kind', 'at', 'skulls'], ['cleared']);
 	return Object.freeze({
 		id: readText(fields.id, `${path}.id`),

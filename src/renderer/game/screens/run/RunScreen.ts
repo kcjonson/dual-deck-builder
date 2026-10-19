@@ -7,8 +7,8 @@ import type { CheckpointResult } from '../../campaign/CampaignStore';
 import type { CampaignFight } from '../../campaign/CombatBridge';
 import { RunRoute, everyStop, routeStops } from '../../campaign/SupplyRoutes';
 import {
-	Arrival, StopFightResult, arriveHome, atDestination, cargoText, currentStop, finishStopFight, foundDriver, leaveFind, listText, passQuietStop, rewardOffer, startStopFight,
-	takeFind, takeReward,
+	Arrival, StopFightResult, arriveHome, atDestination, cargoText, currentStop, finishStopFight, foundDriver, handOffFight, leaveFind, listText, passQuietStop, rewardOffer, startStopFight,
+	stopEvent, takeEventChoice, takeFind, takeReward,
 } from '../../campaign/SupplyRun';
 import type { SupplyRun } from '../../campaign/SupplyRunState';
 import { NO_RESOURCES, RESOURCE_NAMES } from '../../campaign/Campaign';
@@ -30,7 +30,9 @@ import { LegendBox, LegendRow, LegendSymbol } from '../../ui/atlas/LegendBox';
 import { ResourceStrip } from '../../ui/atlas/ResourceStrip';
 import type { PreparedCombatMount } from '../combat/CombatScreen';
 import { NOT_THE_SAVE } from '../compound/compoundText';
-import { arrivalSummary, crewState, debriefMark, failureSummary, findStep, skullsText, stopTitle, yieldText } from './runText';
+import { arrivalSummary, crewState, debriefMark, eventStepLine, failureSummary, findStep, skullsText, stopTitle, yieldText } from './runText';
+import type { EventScreenData } from '../event/EventScreen';
+import { eventParty } from '../../campaign/Events';
 
 const BACK_WIDTH = 160;
 const ROAD_WIDTH = 320;
@@ -346,7 +348,7 @@ export class RunScreen extends Screen {
 		if (!road) return;
 		road.clearChildren();
 		const stops = routeStops(route);
-		const atStop: Record<typeof mode, string> = { driving: 'Next', reward: 'Here', failed: 'Lost', home: '' };
+		const atStop: Record<typeof mode, string> = { driving: 'Next', reward: 'Here', hand_off: 'Here', failed: 'Lost', home: '' };
 		let step = 0;
 		everyStop(route).forEach((stop, index) => {
 			const passed = stop.cleared === true;
@@ -397,6 +399,17 @@ export class RunScreen extends Screen {
 		if (run.phase === 'reward') return this.buildReward({ action });
 		const box = stepBox(action);
 		const stop = currentStop(run);
+		if (run.phase === 'hand_off' && stop?.kind === 'event') {
+			const skulls = this.campaign ? handOffFight({ campaign: this.campaign }).skulls : 1;
+			box.addChild(heading({ id: 'run_action_title', text: `${stopTitle(stop)}: raiders` }));
+			box.addChild(caption({ id: 'run_action_line', text: `Raiders came out of it, ${skullsText(skulls)} of danger. Fighting them is the only way on.` }));
+			return this.addButton({ box, id: 'run_fight_button', label: 'Fight them', onClick: () => { void this.startFight(); } });
+		}
+		if (stop?.kind === 'event') {
+			box.addChild(heading({ id: 'run_action_title', text: `Next: ${stopTitle(stop)}` }));
+			box.addChild(caption({ id: 'run_action_line', text: eventStepLine(stop) }));
+			return this.addButton({ box, id: 'run_event_button', label: 'Pull over', onClick: () => this.openEvent() });
+		}
 		if (stop === null) {
 			const { name, yield: yields } = run.route.destination;
 			box.addChild(heading({ id: 'run_action_title', text: `${name} reached` }));
@@ -436,9 +449,11 @@ export class RunScreen extends Screen {
 		if (!campaign) return null;
 		const box = stepBox(action);
 		const cards = this.cards;
-		const found = campaign.supplyRun ? currentStop(campaign.supplyRun)?.kind === 'find' : false;
+		const kind = campaign.supplyRun ? currentStop(campaign.supplyRun)?.kind : undefined;
+		const found = kind === 'find';
+		const words = kind === 'event' ? { heading: 'Cards to pick', title: 'Pick a card' } : found ? { heading: 'Cards found', title: 'Cards found: pick one' } : { heading: 'Fight won', title: 'Fight won: pick a card' };
 		if (!cards) {
-			box.addChild(heading({ id: 'run_action_title', text: found ? 'Cards found' : 'Fight won' }));
+			box.addChild(heading({ id: 'run_action_title', text: words.heading }));
 			box.addChild(caption({ id: 'run_action_line', text: "The cards couldn't be loaded, so the reward waits for them." }));
 			return this.addButton({ box, id: 'run_cards_button', label: 'Load the cards again', onClick: () => { void this.reloadCards(); } });
 		}
@@ -448,7 +463,7 @@ export class RunScreen extends Screen {
 		});
 		box.addChild(new CardPileView({
 			id: 'run_reward',
-			title: found ? 'Cards found: pick one' : 'Fight won: pick a card',
+			title: words.title,
 			note: 'It rides home as cargo, and reaches the locker if the run gets home.',
 			cards: offer,
 			ink: 'theme',
@@ -489,7 +504,13 @@ export class RunScreen extends Screen {
 			await this.step(() => leaveFind({ campaign }), 'Left it behind.');
 			return;
 		}
-		if (this.busy || this.stranded) return;
+		await this.startFight();
+	}
+
+	/** The fight at the stop, a fight stop's or an event's hand-off, opened on the combat screen. */
+	private async startFight(): Promise<void> {
+		const campaign = this.campaign;
+		if (!campaign || this.shown.kind !== 'road' || this.busy || this.stranded) return;
 		if (!this.cards) {
 			this.showLine({ line: this.report, text: "The cards couldn't be loaded, so the fight can't start.", color: 'status_crit' });
 			return;
@@ -505,6 +526,22 @@ export class RunScreen extends Screen {
 			return;
 		}
 		ScreenManager.navigate('combatScreen', stopFightMount({ campaign, fight, store: this.store }));
+	}
+
+	/** The event ahead, opened on the event screen, which takes the choice and comes back here or goes on into its fight. */
+	private openEvent(): void {
+		const campaign = this.campaign;
+		if (!campaign || this.shown.kind !== 'road' || this.busy || this.stranded) return;
+		const run = this.shown.run;
+		let data: EventScreenData;
+		try {
+			data = eventMount({ campaign, store: this.store, cards: this.cards, where: `stop ${run.stop + 1} of ${routeStops(run.route).length}` });
+		} catch (error) {
+			console.error('RunScreen: the event could not open', error);
+			this.showLine({ line: this.report, text: "The event couldn't open.", color: 'status_crit' });
+			return;
+		}
+		ScreenManager.navigate('eventScreen', data);
 	}
 
 	/** The find ahead, taken: the haul or the driver comes along and saves; cards open the picker. */
@@ -674,6 +711,48 @@ export function stopFightMount({ campaign, fight, store }: { campaign: Campaign;
 	};
 }
 
+/**
+ * The event the run is driving to as the event screen opens it, with its
+ * hooks: the choice is taken and the step saved as it's made
+ * (`takeEventChoice`), so what the screen shows next is what the save
+ * holds; then the highway goes into the fight an outcome handed off to, or
+ * back to the run screen with the checkpoint. With no cards to fight with,
+ * the run screen holds the hand-off until they load. Throws as `stopEvent`
+ * does.
+ */
+export function eventMount({ campaign, store, cards, where }: { campaign: Campaign; store: CampaignStore; cards: ReadonlyMap<string, Card> | null; where: string }): EventScreenData {
+	const { event, draw } = stopEvent({ campaign });
+	const party = eventParty({ campaign });
+	let saved: Promise<CheckpointResult> | undefined;
+	return {
+		event,
+		draw,
+		where,
+		...(party ? { party } : {}),
+		onChoose: (result) => {
+			try {
+				takeEventChoice({ campaign, choice: result.choice });
+			} catch (error) {
+				console.error('RunScreen: taking the event choice failed', error);
+				return;
+			}
+			saved = store.checkpoint(campaign);
+		},
+		onDone: () => {
+			if (campaign.supplyRun?.phase === 'hand_off' && cards) {
+				try {
+					const fight = startStopFight({ campaign, cards });
+					ScreenManager.navigate('combatScreen', stopFightMount({ campaign, fight, store }));
+					return;
+				} catch (error) {
+					console.error('RunScreen: the event\'s fight could not start', error);
+				}
+			}
+			ScreenManager.navigate('runScreen', { campaign, ...(saved ? { saved } : {}) });
+		},
+	};
+}
+
 /** What abandoning a run's fight costs, as the combat menu's confirm says it. */
 /** Who flees and what's lost; and, when they're the last drivers the compound has, that the campaign ends with them. */
 function abandonWarning({ campaign, fight }: { campaign: Campaign; fight: CampaignFight }): string {
@@ -735,7 +814,9 @@ function debriefLedgers({ arrival, torn }: { arrival: Arrival; torn: boolean }):
 	if (found.length > 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_found', text: `${listText(found.map((driver) => driver.name))} found`, symbol: 'ring' }));
 	const { recruits } = arrival;
 	if (recruits.length > 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_recruits', text: `${listText(recruits.map((driver) => driver.name))} joined`, symbol: 'ring' }));
-	if (stores.length === 0 && !carded && found.length === 0 && recruits.length === 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_none', text: 'Nothing to unload', symbol: 'dash' }));
+	const { escorts } = arrival;
+	if (escorts.length > 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_escorts', text: `${listText(escorts.map((escort) => escort.name))} joined the convoy`, symbol: 'ring' }));
+	if (stores.length === 0 && !carded && found.length === 0 && recruits.length === 0 && escorts.length === 0) unloaded.addChild(new LegendRow({ id: 'run_unloaded_none', text: 'Nothing to unload', symbol: 'dash' }));
 	row.addChild(unloaded);
 
 	const crew = new LegendBox({ id: 'run_crew', title: 'The crew', width: TAG_WIDTH + ATLAS.legendPadding * 2, crossAlign: 'stretch' });
