@@ -45,7 +45,7 @@ The map state changed shape, so the save format goes to version 12. Version 11 s
 
 ## Provisional calls
 
-None of these is in a spec. They're calls 215 to 219, 221, and 222 in [gameplay-calls.md](../gameplay-calls.md); 186 to 188 are the clearing rule itself.
+None of these is in a spec. They're calls 215 to 219, 221, 222, and 260 in [gameplay-calls.md](../gameplay-calls.md); 186 to 188 are the clearing rule itself.
 
 1. A run clears a stop when it moves past it, a find left by the road and a fight won included, on the day of the run; a fight it loses isn't cleared.
 2. A cleared stop is back at the dawn five days after the day it was cleared, its roll up one, and only a haul rerolls yet, since a fight's raiders and a find's cards and driver come from the run's own stream.
@@ -54,6 +54,7 @@ None of these is in a spec. They're calls 215 to 219, 221, and 222 in [gameplay-
 5. Version 11 saves load with every POI that still had stock taken cleared, a refilled one reading as never reached, and no stop cleared.
 6. The save keeps a stop's roll and cleared day, not its rolled contents, which `rollStop` gives again from the roll (call 221).
 7. The debrief stamps the POI the run cleared LOOTED, after an injured driver's tear (call 222).
+8. A failed run clears nothing, neither its stops nor its POI, so a retry within the cooldown meets the same fight stops (call 260, replacing 188's failed run clearing its POI). The raiders still hold the road, and the failed run lost its cargo, so the POI's yield is still there; the yield and the clearing stay together.
 
 ## Consequences
 

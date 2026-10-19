@@ -35,10 +35,10 @@ A route's stop count comes from a band set by its destination's tier, not from t
 | Stronghold | 6-7 | 2-3, then the boss |
 
 - Game stage adds calm stops on top: one from stage 2, two from stage 4 (see Game stage). Fights don't grow in number with the stage, they grow in size.
-- The fight floor is never 0, so every route keeps rule 1. The per-route rules still hold: no more than two fights in a row, and a non-fight in any three.
+- The fight floor is never 0, so every route keeps rule 1, and it's a hard rule: a map with a route below its fight floor fails the stops stage and is placed again (Area Map Generation, stage 9). Nothing at run time makes up a missing fight. The per-route rules still hold: no more than two fights in a row, and a non-fight in any three.
 - A checkpoint, once there is one, counts toward a route's fight ceiling, since it can turn into a fight, and not toward its floor.
 - Inside its band a route still leans on its road: a long route sits at the top of its band, a short one at the bottom.
-- When the clock and the band disagree, home by dark wins (Area Map Generation, guarantee 10), then the fight floor, then the band's minimum. A route can lose a calm stop to get home in daylight; it never loses its last fight.
+- When the clock and the band disagree, the band's minimum gives. Home by dark (Area Map Generation, guarantee 10) and the fight floor are both hard: a route can lose calm stops to get home in daylight, and that's reported, but it never drops below its fight floor.
 - Stops are fixed with the map, so the route card shows what a charted route holds. The route card and departure read a route at today's game stage, and a run keeps the route it left with.
 - Every route keeps its fight floor, and at least half its band (starting value), on its own road: legs no other POI's routes use. That's what spacing POIs out buys (rule 5): a run never loses its floor fights to stops another run cleared.
 
@@ -62,6 +62,8 @@ While few calm types exist, the tables lean on those, and a route's calm stops m
 
 - A run clears every stop it resolves. A cleared stop stays cleared for a cooldown (starting value: 5 days), then comes back with its contents rerolled; its type is fixed with the map. A later run down that road drives past a stop still cleared: it isn't a step, so it isn't an empty one, and the route card shows it as cleared.
 - A run that reaches its POI clears it, taking its yield, and a cleared POI is disabled for good: the area map shows it cleared, and it can't be planned. Stops come back because raiders and scavengers move around; a looted building has no story reason to fill up again (Kevin, 2026-10-17).
+- A failed run clears nothing, neither the stops it got past nor its POI. The raiders still hold the road, so a retry within the cooldown meets the same fight stops (provisional, call 260 in [gameplay-calls.md](../gameplay-calls.md)).
+- A failed run clears nothing, neither the stops it got past nor its POI. The raiders still hold the road, so a retry within the cooldown meets the same fight stops (provisional, call 260 in [gameplay-calls.md](../gameplay-calls.md)).
 - A run sharing road with a POI cleared in the last few days is shorter than its band, by the shared stops still cleared. Its own road still holds its floor fights and at least half its band (How many stops), so it's never fight-free and never a free ride.
 
 ## Fights
