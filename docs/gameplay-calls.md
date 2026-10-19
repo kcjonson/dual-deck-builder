@@ -367,7 +367,7 @@ Record: stop-clearing.md. Calls 186 to 188 are the clearing rule itself.
 
 Record: stop-clearing.md.
 
-260. DDB-524: a failed run clears nothing, neither the stops it got past nor its POI, so a retry within the 5-day cooldown meets the same fight stops, replacing the part of 188 that has a run failing on the way home clear its POI, because the raiders still hold the road, and a failed run loses its cargo, so the POI's yield is still there.
+260. DDB-519: a failed run clears nothing, neither the stops it got past nor its POI, so a retry within the 5-day cooldown meets the same fight stops, replacing the part of 188 that has a run failing on the way home clear its POI, because the raiders still hold the road, and a failed run loses its cargo, so the POI's yield is still there.
 
 ## Player stand-ins (240 to 244)
 

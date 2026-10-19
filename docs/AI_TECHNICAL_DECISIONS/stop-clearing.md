@@ -19,7 +19,7 @@ The reader refuses an entry out of order or twice, one that's neither cleared no
 
 A run clears a stop when it moves past it, in the same `set` that moves it on (`arrivedAt` with the stop passed): a quiet stretch driven, a find taken or left, a fight's reward picked or skipped, which is the end of a won fight. It's cleared on the campaign's day, the day the run is out. A fight the run loses isn't cleared, since its raiders are still there.
 
-Reaching the POI loads its type's whole yield into the cargo and clears the POI in the same step, as call 105 had the share, so a run that fails on the way home has still cleared it (calls 187, 188).
+Reaching the POI loads its type's whole yield into the cargo and clears the POI in the same step, as call 105 had the share, a run that then fails loses its cargo and clears nothing, so the POI stays as it was (calls 187, 188, 260).
 
 A stop or POI whose id isn't the map's (a run saved before the real map, as the fixture's is) clears nothing.
 

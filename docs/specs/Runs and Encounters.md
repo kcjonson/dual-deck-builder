@@ -63,7 +63,6 @@ While few calm types exist, the tables lean on those, and a route's calm stops m
 - A run clears every stop it resolves. A cleared stop stays cleared for a cooldown (starting value: 5 days), then comes back with its contents rerolled; its type is fixed with the map. A later run down that road drives past a stop still cleared: it isn't a step, so it isn't an empty one, and the route card shows it as cleared.
 - A run that reaches its POI clears it, taking its yield, and a cleared POI is disabled for good: the area map shows it cleared, and it can't be planned. Stops come back because raiders and scavengers move around; a looted building has no story reason to fill up again (Kevin, 2026-10-17).
 - A failed run clears nothing, neither the stops it got past nor its POI. The raiders still hold the road, so a retry within the cooldown meets the same fight stops (provisional, call 260 in [gameplay-calls.md](../gameplay-calls.md)).
-- A failed run clears nothing, neither the stops it got past nor its POI. The raiders still hold the road, so a retry within the cooldown meets the same fight stops (provisional, call 260 in [gameplay-calls.md](../gameplay-calls.md)).
 - A run sharing road with a POI cleared in the last few days is shorter than its band, by the shared stops still cleared. Its own road still holds its floor fights and at least half its band (How many stops), so it's never fight-free and never a free ride.
 
 ## Fights
