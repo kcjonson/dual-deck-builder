@@ -141,13 +141,13 @@ describe('RunScreen', () => {
 	describe('Continue on the fixture, at the last fight\'s reward', () => {
 		beforeEach(() => open());
 
-		it('names the destination and the route, lists the stops with the cleared ones marked, and shows the cargo and the seats', () => {
+		it('names the destination and the route, lists the stops with the ones behind it passed, and shows the cargo and the seats', () => {
 			expect(text('run_title')).toBe('Run to Red Mesa Silos');
 			expect(text('run_subtitle')).toBe('Day 9 / on the road / Back roads');
 			expect(text('run_cargo')).toBe('Cargo: 2 fuel and Caltrops');
 			expect([0, 1, 2].map((index) => [text(`run_stop_${index}_label`), text(`run_stop_${index}_state`)])).toEqual([
-				['1. Raider ambush, 1 skull', 'Cleared'],
-				['2. Quiet stretch', 'Cleared'],
+				['1. Raider ambush, 1 skull', 'Passed'],
+				['2. Quiet stretch', 'Passed'],
 				['3. Raider ambush, 2 skulls', 'Here'],
 			]);
 			expect(text('run_stop_home_label')).toBe('Home, from Red Mesa Silos');
@@ -379,7 +379,7 @@ describe('RunScreen', () => {
 			await open(saveText({ campaign: data.campaign.toSaveText() }), data);
 			expect(text('run_action_title')).toBe('The run failed');
 			expect(text('run_summary')).toMatch(/^Road Warrior 1 is (dead|missing) and Interceptor 2 is (dead|missing)\. Lost with it: 2 fuel and Caltrops\. .*Day 9 ended\./);
-			expect(routeStops(data.failed?.route as RunRoute).map((_stop, index) => text(`run_stop_${index}_state`))).toEqual(['Cleared', 'Cleared', 'Lost']);
+			expect(routeStops(data.failed?.route as RunRoute).map((_stop, index) => text(`run_stop_${index}_state`))).toEqual(['Passed', 'Passed', 'Lost']);
 			expect(text('run_subtitle')).toBe('Day 10 / failed / Back roads');
 			// A lost run's one hero mark is LOST, under the road on W2 paper, and the losses go in a legend box (DDB-511)
 			expect([(screen.root as AtlasSheet).wear, find<DamageMark>('run_stamp').kind]).toEqual([2, 'lost']);

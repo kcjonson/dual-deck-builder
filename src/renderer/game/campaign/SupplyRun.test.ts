@@ -763,7 +763,7 @@ describe('clearing (DDB-336)', () => {
 		takeReward({ campaign, cardType: null });
 		expect(atDestination(onRoad(campaign))).toBe(true);
 		arriveHome({ campaign });
-		expect(campaign.map).toEqual(before);
+		expect(campaign.map).toBe(before);
 	});
 });
 

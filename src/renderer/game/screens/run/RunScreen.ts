@@ -334,13 +334,15 @@ export class RunScreen extends Screen {
 	}
 
 	/**
-	 * The route's stops, each cleared, next, or ahead, and home at the end:
+	 * The route's stops, each passed, next, or ahead, and home at the end:
 	 * the stop at `at` is next while driving, here at its reward, and where
 	 * the run was lost when it failed, and home is reached once it's home.
 	 * Each leads with its map symbol: a fight still ahead is hostile, a
 	 * quiet stretch pending, a cleared stop nothing to report, home the star.
-	 * A stop an earlier run cleared shows too, cleared, though the run drives
-	 * past it and `at` doesn't count it. Once the run is over its stamp is
+	 * A stop behind the run reads Passed on the road and in a failed run's
+	 * debrief, since nothing clears until the run is home (call 260), and
+	 * Cleared once it's home. A stop an earlier run cleared shows too,
+	 * Cleared, though the run drives past it and `at` doesn't count it. Once the run is over its stamp is
 	 * struck under the list, at full size.
 	 */
 	private showRoad({ route, at, mode, stamp }: { route: RunRoute; at: number; mode: SupplyRun['phase'] | 'home' | 'failed'; stamp: DamageMarkKind | null }): void {
@@ -351,10 +353,11 @@ export class RunScreen extends Screen {
 		const atStop: Record<typeof mode, string> = { driving: 'Next', reward: 'Here', hand_off: 'Here', failed: 'Lost', home: '' };
 		let step = 0;
 		everyStop(route).forEach((stop, index) => {
-			const passed = stop.cleared === true;
-			const place = passed ? -1 : step++;
-			const state = passed || place < at ? 'Cleared' : place === at ? atStop[mode] : '';
-			const symbol: LegendSymbol = state === 'Cleared' ? 'dash' : stop.kind === 'fight' ? 'diamond' : 'ring';
+			const clearedBefore = stop.cleared === true;
+			const place = clearedBefore ? -1 : step++;
+			const behind = mode === 'home' ? 'Cleared' : 'Passed';
+			const state = clearedBefore ? 'Cleared' : place < at ? behind : place === at ? atStop[mode] : '';
+			const symbol: LegendSymbol = isBehind(state) ? 'dash' : stop.kind === 'fight' ? 'diamond' : 'ring';
 			road.addChild(roadRow({ id: `run_stop_${index}`, label: `${index + 1}. ${stopTitle(stop)}`, state, symbol }));
 		});
 		const homeState = mode === 'home' ? 'Reached' : at >= stops.length && mode === 'driving' ? 'Next' : '';
@@ -779,13 +782,18 @@ function stepBox(action: Stack): LegendBox {
 	return box;
 }
 
-/** A stop on the road list: its map symbol, its name, and Cleared, Next, or Here at the right in mono. */
+/** Whether a road row's state is a stop behind the run: cleared, or passed on this run. */
+function isBehind(state: string): boolean {
+	return state === 'Cleared' || state === 'Passed';
+}
+
+/** A stop on the road list: its map symbol, its name, and Cleared, Passed, Next, or Here at the right in mono. */
 function roadRow({ id, label, state, symbol }: { id: string; label: string; state: string; symbol: LegendSymbol }): LegendRow {
 	return new LegendRow({
 		id,
 		text: label,
 		symbol,
-		faint: state === 'Cleared',
+		faint: isBehind(state),
 		textId: `${id}_label`,
 		value: state === '' ? undefined : state,
 		valueId: `${id}_state`,

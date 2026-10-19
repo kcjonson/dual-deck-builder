@@ -337,7 +337,7 @@ Made writing [Runs and Encounters](./specs/Runs%20and%20Encounters.md), beyond w
 185. DDB-328: every raider class carries a card that can hit each starting archetype's vehicle, because a class the bike's evade beats leaves an Interceptor pair untouched, as the Rust Buggy's old gunnery of 6 did.
 186. DDB-336: a cleared POI stays disabled for the rest of the campaign, because "disabled" with nothing said about reopening reads as for good, and the cooldown that brings stops back is for roads, not POIs. Approved by Kevin, 2026-10-17 ("no story reason for it to magically get stuff back"); now in Runs and Encounters (Kevin's rule 5, Clearing) and Compound and Supply Runs (POIs).
 187. DDB-336: the run that clears a POI takes its type's whole yield, what a full POI gives today, because there's no second run to take the rest.
-188. DDB-336: a POI is cleared when the run reaches it, in the step that loads its yield (as call 105 had the share), so a run that fails on the way home has still cleared it, because the yield and the clearing can't come apart in a save.
+188. DDB-336: a POI is cleared when the run reaches it, in the step that loads its yield (as call 105 had the share), so a run that fails on the way home has still cleared it, because the yield and the clearing can't come apart in a save. Replaced in part by 260: a failed run no longer clears its POI.
 189. DDB-529: each route keeps its floor fights and at least half its stop band on its own road, legs no other POI's routes use, and the POI stage seats a POI only where that fits, because it's the least that keeps a neighbor's cleared road from leaving a run fight-free or nearly empty.
 
 ## Finds (210 to 214, 220)
@@ -362,6 +362,12 @@ Record: stop-clearing.md. Calls 186 to 188 are the clearing rule itself.
 222. DDB-336: the debrief stamps the POI the run cleared LOOTED, after an injured driver's tear, and DEPLETED is no longer struck, because every run that gets there clears its POI now, so the stamp says what happened rather than marking a rare state.
 219. DDB-336: version 11 saves load with every POI that still had stock taken cleared, a POI that had refilled reading as never reached (as call 107 had it), and no stop cleared, because a POI with stock taken is one a run reached, a refilled one left no trace to tell it from an unvisited one, and nothing kept stop state.
 221. DDB-336: the save keeps a stop's roll and the day it was cleared, not its rolled contents, where Area Map Generation lists the contents too, because `rollStop` gives the same contents for the same stop and roll, and a run on the road carries what it rolled in its saved route.
+
+## Fight guarantee (260)
+
+Record: stop-clearing.md.
+
+260. DDB-519: a failed run clears nothing, neither the stops it got past nor its POI, so a retry within the 5-day cooldown meets the same fight stops, replacing the part of 188 that has a run failing on the way home clear its POI, because the raiders still hold the road, and a failed run loses its cargo, so the POI's yield is still there.
 
 ## Player stand-ins (240 to 244)
 
