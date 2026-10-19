@@ -350,3 +350,13 @@ Record: find-stops.md.
 213. DDB-523: a Find: cards is the fight reward's picker and pool, three cards at the drop rates, the one picked riding home as cargo, because the spec names that picker and a find's cards shouldn't be safer than a fight's.
 214. DDB-523: a Find: supplies haul is the stop's rolled contents, one resource in the stop tuning's range, meds included, because the cargo and the stores carry meds though POI yields don't.
 220. DDB-523: a calm stop type the run can't resolve yet (wreck, distress, garage, hazard, Find: settlers, Find: vehicle) still runs as a quiet stretch, rather than the stops stage giving it weight 0 as Runs and Encounters asks, because zeroing it is a stops-stage change that reshapes every map's stops, and finds are what this batch could resolve; the stops stage drops the quiet stretch once it zeroes those weights.
+
+## Player stand-ins (240 to 244)
+
+Record: intent-aware-stand-in.md. Numbered from 240, the range set aside for this work.
+
+240. DDB-528: the intent-aware stand-in reads an elite's hidden attacks from its plan, the card and its damage worked out on the board as it stands, which is more than a player sees (the card is hidden too), because the ceiling should not be capped by a tier rule, and today's encounters are all basic anyway.
+241. DDB-528: the harm it weighs is structure plus occupant hitpoints lost next enemy turn, split as a hit splits, with a wreck or a dead driver counting 20 more, because either costs a run far more than its points.
+242. DDB-528: non-lethal damage counts for half a turn of the hurt raider's harm, times the share of its toughness it removes, because weighted higher it outbid Flanking Maneuver, and one step can't see that the flank boosts the rest of the turn's hits.
+243. DDB-528: what the harm count doesn't cover (flanking, draws, adrenaline, cards with no effect) is scored as the aggressive AI scores it, so the ceiling keeps the floor's priorities whenever no intent is at stake.
+244. DDB-528: a flanker the play outpaces is taken to lose its flank bonus whole (its hits divided by 1.5, rounded up) and to stay in range, because re-deriving range from the reserved slot needs Battle's enemy-turn preview, which projects only from the board as it stands.

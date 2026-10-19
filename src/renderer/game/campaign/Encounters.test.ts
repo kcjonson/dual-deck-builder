@@ -104,3 +104,14 @@ describe('sizing up the crew', () => {
 		expect(RAIDER_PROFILES[raider].soloAdrenaline).toBeLessThan(RAIDER_PROFILES[raider].maxAdrenaline);
 	});
 });
+
+describe('raiders and profiles given', () => {
+	it('fields the raiders given, built from the profiles given, a lone one placed as the encounter would place it', () => {
+		const profiles = { ...RAIDER_PROFILES, rust_buggy: { ...RAIDER_PROFILES.rust_buggy, hitpoints: 10 } };
+		const team = encounterTeam({ encounter: 'road_gang', cards: CARDS, crewStructure: [40, 60], raiders: ['rust_buggy'], profiles });
+		expect(team.vehicles).toHaveLength(1);
+		expect(team.vehicles[0].driver?.hitpoints).toBe(10);
+		expect(slotOf(team.vehicles[0]).lane).toBe(RoadLane.ENEMY_INSIDE);
+		expect(RAIDER_PROFILES.rust_buggy.hitpoints).not.toBe(10);
+	});
+});
