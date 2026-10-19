@@ -98,4 +98,25 @@ describe('FrameLoop.runNow', () => {
 		expect(() => loop.runNow()).toThrow('boom');
 		expect(loop.running).toBe(false);
 	});
+
+	it('steps one tick while stopped, without scheduling a frame (DDB-532)', () => {
+		const frames = scheduler();
+		const tick = jest.fn();
+		const loop = new FrameLoop({ tick, ...frames });
+		loop.start();
+		loop.stop();
+		loop.step();
+		expect(tick).toHaveBeenCalledTimes(1);
+		expect(frames.pending()).toBe(0);
+		expect(loop.running).toBe(false);
+	});
+
+	it('does not step while running, since the scheduled frame is coming', () => {
+		const frames = scheduler();
+		const tick = jest.fn();
+		const loop = new FrameLoop({ tick, ...frames });
+		loop.start();
+		loop.step();
+		expect(tick).not.toHaveBeenCalled();
+	});
 });

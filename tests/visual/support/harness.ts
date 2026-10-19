@@ -97,6 +97,9 @@ export interface DevSurface {
 		navigate(screen: string, data?: unknown): boolean;
 		pause(): void;
 		settleAnimations(): number;
+		holdFrames(): void;
+		stepFrame(): void;
+		releaseFrames(): void;
 		status(): {
 			screen?: string;
 			scene?: string;
@@ -501,8 +504,18 @@ export async function attachTree(page: Page, testInfo: TestInfo): Promise<void> 
  * on both measures. That file is the cross-runner variance measurement the
  * budgets are justified against, taken on every run rather than once.
  *
- * The comparison runs against a second capture, which is the same frame:
- * the page is paused and settled, and consecutive captures are bit-exact.
+ * The frame loop is held for the whole of it (DDB-532). Paused, the page
+ * still draws every frame, and under SwiftShader a full-window atlas sheet
+ * costs about a second a frame on a two-core machine; a screenshot waits
+ * behind that work, and on the four-vCPU runner the Electron shell's
+ * `toHaveScreenshot` ran out of its 15 s before its second capture came back.
+ * Held, the canvas keeps presenting the frame it last drew and a capture
+ * reads it without queueing behind a redraw.
+ *
+ * The comparison runs against a second capture, of one more frame drawn
+ * after `toHaveScreenshot`'s: the page is paused and settled, so it is the
+ * same picture, and drawing it again keeps a frame-to-frame difference
+ * visible that two reads of one held frame could not show.
  *
  * On a mint, a golden the cluster rule rejects is rewritten here, because
  * `--update-snapshots=changed` only rewrites what `toHaveScreenshot` itself
@@ -510,6 +523,16 @@ export async function attachTree(page: Page, testInfo: TestInfo): Promise<void> 
  * was run to replace it. `all` has already rewritten it and compares clean.
  */
 export async function expectGolden(page: Page, testInfo: TestInfo, kind: 'screen' | 'scene', name: string): Promise<void> {
+	await page.evaluate(() => (window as unknown as DevSurface).__app.holdFrames());
+	try {
+		await compareGolden(page, testInfo, kind, name);
+	} finally {
+		// A page that died mid-capture has nothing to release, and its error is the one to report.
+		await page.evaluate(() => (window as unknown as DevSurface).__app.releaseFrames()).catch(() => undefined);
+	}
+}
+
+async function compareGolden(page: Page, testInfo: TestInfo, kind: 'screen' | 'scene', name: string): Promise<void> {
 	const file = goldenName(kind, name);
 	const areaFailure = await expect(page).toHaveScreenshot(file).then(() => null, (error: unknown) => error);
 
@@ -517,6 +540,7 @@ export async function expectGolden(page: Page, testInfo: TestInfo, kind: 'screen
 	const expected = await readFile(goldenPath).catch(() => null);
 	if (!expected) throw areaFailure ?? new Error(`${goldenPath} is missing after toHaveScreenshot`);
 
+	await page.evaluate(() => (window as unknown as DevSurface).__app.stepFrame());
 	const actual = await page.screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' });
 	let report: DiffReport;
 	try {
