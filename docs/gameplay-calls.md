@@ -416,3 +416,9 @@ Made building the combat side of [Runs and Encounters](./specs/Runs%20and%20Enco
 205. DDB-525: a stop's fight draws its template at the run's destination tier, not a tier of its own, because a route's stops don't carry one and skulls already rise with tier.
 206. DDB-525: a warband's leader is its vehicle, so the leader is out, and the rest rout, when that vehicle is wrecked or loses its driver, even if the driver jumps to another raider, because the leader is the War Rig the warband rides behind, and a driver riding as a passenger can't lead it.
 207. DDB-328: the top bar's "+N arriving" and the log's "N raiders arriving" count only the raiders that will pull in at the end of this enemy turn, under the road cap and into free slots, replacing 194, because with road caps a whole wave rarely lands at once, and the readout should promise what the player will see.
+
+## Same-archetype fights (261)
+
+Record: mvp-supply-run.md.
+
+261. DDB-539: combat seats whatever pair the crew rule sends, so two drivers of one archetype fight together when call 35 lets them go, and combat's own check is only that one driver can't fill both seats, because the archetype rule is load out's (call 35), two Mechanics are two people with their own decks, and a fight refusing a pair load out allowed left the run stuck at its fight.

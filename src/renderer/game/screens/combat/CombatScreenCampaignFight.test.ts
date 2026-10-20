@@ -209,4 +209,65 @@ describe('CombatScreen: a campaign fight (DDB-286)', () => {
 		expect(combat['topBar'].menu.enabled).toBe(false);
 		combat.unmount();
 	});
+
+	it("seats two Mechanics when they're the only drivers fit, as load out sends them (DDB-539)", async () => {
+		const campaign = foundTestCampaign({ seed: SEED, unlockedArchetypes: ['road_warrior', 'interceptor', 'mechanic'] });
+		campaign.recruitDriver({ archetype: 'mechanic' });
+		const byArchetype = (archetype: DriverArchetype): DriverRecord => campaign.drivers.find(driver => driver.archetype === archetype) as DriverRecord;
+		byArchetype('interceptor').set({ status: 'injured', injuredDays: 2, hitpoints: 5 });
+		byArchetype('road_warrior').set({ status: 'injured', injuredDays: 2, hitpoints: 5 });
+		const seats = campaign.drivers.filter(driver => driver.archetype === 'mechanic');
+		campaign.startRunDecks({ seats });
+		const fight = startCampaignFight({
+			campaign,
+			party: { seats, escorts: [], cargo: NO_RESOURCES, cargoCards: NO_CARDS, run: campaign.currentRun ?? 'none' },
+			raiders: raiderTeam,
+			rng: new Rng({ seed: SEED }),
+			cards: CardLoader.getInstance().getAllCardsAsMap()
+		});
+
+		const combat = new CombatScreen();
+		const context = createTestContext();
+		combat.mount(context, { prepare: async () => ({ ...fight, abandonWarning: 'Both flee.' }) } as PreparedCombatMount);
+		await flushPromises();
+
+		expect(combat['playerDrivers']).toEqual(fight.drivers);
+		expect(texts(combat['handLayer'].tabOf(1))).toContain('Mechanic 1');
+		expect(texts(combat['handLayer'].tabOf(2))).toContain('Mechanic 2');
+		expect(combat['topBar'].menu.enabled).toBe(true);
+		expect(context.overlays.roots.map(root => root.findById('combat_failed_dialog')).find(Boolean)).toBeUndefined();
+		combat.unmount();
+	});
+
+	it("says a fight that couldn't start couldn't, and Back goes where the mount says (DDB-539)", async () => {
+		jest.spyOn(console, 'error').mockImplementation(() => undefined);
+		const back = jest.fn(() => ({ screen: 'runScreen' as const, data: { from: 'test' } }));
+		const context = createTestContext();
+		const combat = new CombatScreen();
+		combat.mount(context, { prepare: async () => { throw new Error('no fight'); }, back });
+		await flushPromises();
+		const find = (id: string): unknown => context.overlays.roots.map(root => root.findById(id)).find(Boolean);
+
+		expect((find('combat_failed_body') as Text).text).toMatch(/go back and try again/);
+		expect(back).not.toHaveBeenCalled();
+		(find('combat_failed_back') as { onClick: () => void }).onClick();
+		(find('combat_failed_back') as { onClick: () => void } | undefined)?.onClick();
+
+		expect(back).toHaveBeenCalledTimes(1);
+		expect(ScreenManager.navigate).toHaveBeenLastCalledWith('runScreen', { from: 'test' });
+		combat.unmount();
+	});
+
+	it("goes back to the menu from a fight that couldn't start when the mount names nowhere (DDB-539)", async () => {
+		jest.spyOn(console, 'error').mockImplementation(() => undefined);
+		const context = createTestContext();
+		const combat = new CombatScreen();
+		combat.mount(context, { prepare: async () => { throw new Error('no fight'); } });
+		await flushPromises();
+
+		(context.overlays.roots.map(root => root.findById('combat_failed_back')).find(Boolean) as unknown as { onClick: () => void }).onClick();
+
+		expect(ScreenManager.navigate).toHaveBeenLastCalledWith('mainMenuScreen', undefined);
+		combat.unmount();
+	});
 });

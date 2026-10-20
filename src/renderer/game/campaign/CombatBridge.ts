@@ -156,8 +156,8 @@ type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
  * card move, or a run starting or ending), and unless the party seats one
  * or two drivers load out's own check (`getSeatBlocker`) seats, a
  * `CampaignOverError` once the campaign is over: each from the campaign's
- * pool and ready, checked in seat order, then two different drivers of
- * different archetypes when there are two. So does a party whose cargo
+ * pool and ready, checked in seat order, then, when there are two, a pair
+ * the crew rule lets go together (`getCrewRule`). So does a party whose cargo
  * doesn't check out, an escort that isn't the campaign's, a seat with no
  * run deck or one holding the card of an escort that isn't in the party, a
  * party that doesn't seat every driver on the run out and nobody else, an
@@ -226,6 +226,20 @@ export function startCampaignFight({ campaign, party, raiders, rng, cards, enemy
 	};
 	setOpenFight({ campaign, fight });
 	return fight;
+}
+
+/**
+ * Gives up a fight that never got going, as the combat screen's Back does
+ * when it couldn't show it (DDB-539): the fight stops being open, with
+ * nothing stored, so the run can start it again, as a fight quit partway
+ * replays (gameplay call 65). Only for a fight nobody has seen: one on
+ * screen is fought or abandoned. Throws for a fight that isn't the
+ * campaign's open one, or that's over.
+ */
+export function withdrawFight({ fight }: { fight: CampaignFight }): void {
+	if (openFightOf(fight.campaign) !== fight) throw new Error("This fight isn't the campaign's open one");
+	if (fight.battle.isBattleOver()) throw new Error("This fight is over, so it's written back, not withdrawn");
+	setOpenFight({ campaign: fight.campaign, fight: null });
 }
 
 /**

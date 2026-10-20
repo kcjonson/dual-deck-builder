@@ -35,6 +35,8 @@ Options considered for where the state lives: a second storage key beside the ca
 
 `getCrewRule` (Seating.ts) reads who's ready at the compound, after call 35 in [gameplay-calls.md](../gameplay-calls.md): a pair of different archetypes while two such are ready, the no-duplicate pair rule as before; a pair of one archetype when every ready driver shares it; one driver alone when only one is ready; nobody otherwise. `getSeatBlocker` refuses a same-archetype pair only under the first, and `startRunDecks` takes one seat only under the third, so the bridge's one-seat fights (solo-driver-fights.md) are reachable. A pool that only grows on runs can no longer lock itself out.
 
+Combat agrees with it (DDB-539, call 261). The combat screen held two seats to the skirmish's pairing rule (`assertDriverPair`, one archetype each), so a same-archetype pair that load out seated and the bridge started came up as an empty road with the menu off, and a save at that fight came back to it. `assertDriverSeats` now asks only that two seats aren't one driver; whether a pair may go is `getSeatBlocker`'s, which the bridge already checks. The skirmish's driver select keeps `assertDriverPair`. Nothing in a saved run changes, so the stuck saves play on with no format bump. A fight that still can't start says so on the combat screen with one Back, which the run's mount points at the run after `withdrawFight` closes the fight it opened, storing nothing, as a fight quit partway replays.
+
 ## The loop
 
 - **Plan.** The compound's Plan a supply run opens the area map, off with its reason (`getPlanBlocker`) once the campaign is over, while a run is out, when nobody at the compound can go, when the map offers no route, or when the stores hold less fuel than its cheapest route.
@@ -72,6 +74,7 @@ None of these is in a spec.
 - Each destination yields food, water, fuel, and scrap, loaded into the cargo on reaching it, before the drive home, so a failed run would lose it. The mock drew them from its tier's ranges; the area map's routes yield their POI type's (stops-and-routes.md, call 17), which superseded the ranges, the whole of it to the run that clears the POI ([stop-clearing.md](./stop-clearing.md)).
 - Abandoning a fight fails the run: the crew flees and goes missing, as a driver who crashes out with nobody to pick them up does, and the cargo and the escorts that came along are lost. It's behind a confirm on the combat menu.
 - The crew rule reads "at home" in call 35 as ready: an injured driver doesn't count toward a pair until fit, so two ready drivers of one archetype go together, and a lone ready driver goes solo, while a third heals.
+- Combat seats any pair the crew rule sends, two of one archetype included, and only refuses one driver in both seats (call 261).
 - The quick load out seats the crew the rule allows, in pool order, on their default decks, and takes every escort, their cards to Driver 1.
 - The arrival summary is one line: what was unloaded, who came back with the run, who's still injured after the night, and the night itself. Cards won stay in the locker for the Crew screen, with no per-card offer.
 - The log says "Home from X with Y." on arrival, and names who died and who went missing when a run fails.
