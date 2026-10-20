@@ -1,5 +1,5 @@
 import { Screen } from '../../core/Screen';
-import { ScreenManager } from '../../core/ScreenManager';
+import { ScreenManager, type ScreenName } from '../../core/ScreenManager';
 import { Stack } from '../../../engine/components/Stack';
 import { Text } from '../../../engine/components/Text';
 import { Button } from '../../../engine/ui/Button';
@@ -91,6 +91,13 @@ export interface PreparedCombat {
 /** Mount data that prepares its own fight, awaited before the screen shows it. */
 export interface PreparedCombatMount {
 	prepare: () => Promise<PreparedCombat>;
+	/**
+	 * Where the screen's Back goes when the fight can't start (`prepare`
+	 * throws, or the screen refuses what it brought), worked out as it's
+	 * pressed: a run's fight gives its start up and goes back to the run.
+	 * The menu when left out.
+	 */
+	back?: () => { screen: ScreenName; data?: unknown };
 }
 
 function isPreparedCombatMount(data: unknown): data is PreparedCombatMount {
@@ -170,6 +177,8 @@ export class CombatScreen extends Screen {
 	private onEnded: PreparedCombat['onEnded'] = undefined;
 	/** The menu's abandon confirm while it's open. */
 	private abandonDialog: Dialog | null = null;
+	/** The notice that the fight couldn't start, while it's up. */
+	private failedDialog: Dialog | null = null;
 	/** The crew gave the fight up from the menu, so the result says so. */
 	private abandoned = false;
 	
@@ -324,6 +333,40 @@ export class CombatScreen extends Screen {
 			},
 		});
 		this.abandonDialog = dialog;
+		dialog.show(this.context);
+	}
+
+	/**
+	 * A fight that couldn't start says so, rather than leaving an empty road
+	 * with the menu off: one Back, to where the mount's `back` says, or the menu.
+	 */
+	private showStartFailure(back: PreparedCombatMount['back']): void {
+		if (this.failedDialog) return;
+		// Back and the X both leave, once: there's no fight behind the notice
+		const leave = (): void => {
+			if (this.failedDialog !== dialog) return;
+			this.failedDialog = null;
+			let target: ReturnType<NonNullable<typeof back>> = { screen: 'mainMenuScreen' };
+			try {
+				target = back?.() ?? target;
+			} catch (error) {
+				console.error('Going back from a fight that could not start failed, so it goes to the menu:', error);
+			}
+			ScreenManager.navigate(target.screen, target.data);
+		};
+		const backButton = new Button({ label: 'Back', id: 'combat_failed_back', width: 150, onClick: leave });
+		const dialog: Dialog = new Dialog({
+			id: 'combat_failed_dialog',
+			title: "The fight couldn't start",
+			size: 'sm',
+			content: new Text({ text: 'Something went wrong setting this fight up. Nothing was lost; go back and try again.', id: 'combat_failed_body', widthMode: 'fill', style: { fontSize: 'fs_base', color: 'text' } }),
+			footer: [backButton],
+			initialFocus: backButton,
+			dismissOnOutsidePress: false,
+			closeOnEscape: false,
+			onClose: leave,
+		});
+		this.failedDialog = dialog;
 		dialog.show(this.context);
 	}
 
@@ -1252,6 +1295,7 @@ export class CombatScreen extends Screen {
 				this.beginCombat(prepared);
 			} catch (error) {
 				console.error('Failed to prepare combat:', error);
+				if (generation === this.mountGeneration) this.showStartFailure(data.back);
 			}
 		} else if (data && typeof data === 'object' && 'drivers' in data) {
 			const { drivers, rng } = data as DriversCombatMount;
@@ -1286,6 +1330,9 @@ export class CombatScreen extends Screen {
 		this.mountGeneration++;
 		this.abandonDialog?.close();
 		this.abandonDialog = null;
+		const failedDialog = this.failedDialog;
+		this.failedDialog = null;
+		failedDialog?.close();
 		this.abandoned = false;
 		this.onEnded = undefined;
 

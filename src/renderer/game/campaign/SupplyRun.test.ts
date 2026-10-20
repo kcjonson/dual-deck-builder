@@ -4,11 +4,13 @@ import { meshMap, randomMesh } from '../map/meshTesting';
 import { STRONGHOLD_TYPE } from '../map/PoiData';
 import { Card, CardData } from '../mechanics/Card';
 import type { DriverArchetype } from '../mechanics/Driver';
+import { assertDriverSeats } from '../mechanics/DriverPair';
 import { createEscort } from '../mechanics/Escort';
 import { Campaign, CampaignJson, NO_RESOURCES } from './Campaign';
 import { CampaignOverError } from './CampaignEnd';
 import { CAMPAIGN_START } from './CampaignStart';
 import { CampaignStore } from './CampaignStore';
+import { withdrawFight } from './CombatBridge';
 import { encounterForces } from './Encounters';
 import { landOutcome } from './Events';
 import { MAX_CONVOY_ESCORTS } from '../mechanics/Team';
@@ -338,6 +340,67 @@ describe('the crew rule (gameplay call 35)', () => {
 		expect(arrival.seats).toEqual([first]);
 		expect(first.runsCompleted).toBe(1);
 		expect(campaign.supplyRun).toBeNull();
+	});
+});
+
+describe('a run of two drivers of one archetype (DDB-539)', () => {
+	/**
+	 * The playtest's third run: the Interceptor comes home hurt, then the
+	 * Road Warrior does, and the two Mechanics are all that's fit.
+	 */
+	function mechanicsOnly(): Campaign {
+		const campaign = newCampaign();
+		campaign.recruitDriver({ archetype: 'mechanic' });
+		const byArchetype = (archetype: DriverArchetype): DriverRecord => campaign.drivers.find(driver => driver.archetype === archetype) as DriverRecord;
+		byArchetype('interceptor').set({ status: 'injured', injuredDays: 2, hitpoints: 5 });
+		byArchetype('road_warrior').set({ status: 'injured', injuredDays: 3, hitpoints: 5 });
+		return campaign;
+	}
+
+	it('seats Mechanic 1 and Mechanic 2, departs, and starts the fight with both in the seats', () => {
+		const campaign = mechanicsOnly();
+		expect(getCrewRule({ campaign })).toBe('same_archetype');
+
+		const { seats } = quickLoadOut({ campaign });
+		expect(seats.map(seat => seat.name)).toEqual(['Mechanic 1', 'Mechanic 2']);
+		departRun({ campaign, map: MAP, route: testRoute(), escorts: [] });
+		toNextFight(campaign);
+		const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+
+		expect(fight.party.seats).toEqual(seats);
+		expect(() => assertDriverSeats(fight.battle.playerSeats)).not.toThrow();
+		expect(fight.battle.playerSeats.map(driver => driver.metadata.name)).toEqual(['Mechanic 1', 'Mechanic 2']);
+	});
+
+	it('starts the fight from a save made at it, as the stuck saves were', async () => {
+		const campaign = mechanicsOnly();
+		quickLoadOut({ campaign });
+		departRun({ campaign, map: MAP, route: testRoute(), escorts: [] });
+		toNextFight(campaign);
+		const loaded = await reload(newStore(), campaign);
+
+		const fight = startStopFight({ campaign: loaded, cards: CARDS, raiders: pushovers, enemyAI: null });
+
+		expect(() => assertDriverSeats(fight.battle.playerSeats)).not.toThrow();
+		expect(fight.party.seats.map(seat => seat.name)).toEqual(['Mechanic 1', 'Mechanic 2']);
+	});
+
+	it('gives up a fight that never showed, so the run can start it again, and refuses one already over', () => {
+		const campaign = mechanicsOnly();
+		quickLoadOut({ campaign });
+		departRun({ campaign, map: MAP, route: testRoute(), escorts: [] });
+		toNextFight(campaign);
+		const before = campaign.toSaveText();
+		const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+		expect(() => startStopFight({ campaign, cards: CARDS })).toThrow("This campaign's last fight hasn't been written back");
+
+		withdrawFight({ fight });
+
+		expect(campaign.toSaveText()).toBe(before);
+		expect(() => withdrawFight({ fight })).toThrow("This fight isn't the campaign's open one");
+		const again = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+		for (let turn = 0; turn < 3; turn += 1) again.battle.endPlayerTurn();
+		expect(() => withdrawFight({ fight: again })).toThrow("This fight is over, so it's written back, not withdrawn");
 	});
 });
 

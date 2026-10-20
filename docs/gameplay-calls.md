@@ -433,3 +433,9 @@ Records: route-tree-and-pois.md (Own road) and stops-and-routes.md.
 264. DDB-524: the daylight check sheds a stop whose going leaves every route through its leg in its band before one that doesn't, within extras, calm stops, finds, and fights in that order, because thinning road a tier 1 route shares otherwise took tier 4 and 5 routes under their bands on 37 to 43% of routes.
 265. DDB-524: a route the daylight check left under its band's minimum takes calm stops back on its own road where there's room and no POI home by dark tips past it, or turns on its latest dormant extra from the start, because the band's minimum gives only to the clock, and its own road is where adding a stop costs no other route anything.
 266. DDB-524: a route's own last leg keeps room for its two dormant extras back from everything but its own-road need, spread among its stops, the first on at game stage 2 and the second at 4, and a route whose own last leg has no spare room past that need gets fewer or none: over 30 maps, routes with 0, 1, and 2 extras are 21, 10, and 69% at tier 1, 23, 8, and 68% at tier 2, 33, 15, and 52% at tier 3, 7, 5, and 88% at tier 4, and 4, 4, and 92% at tier 5, because the spec asks for up to two, and seating POIs on room for the need plus both extras would cost about a fifth of them (586 seated against 734), some maps losing ring 1 entirely.
+
+## Same-archetype fights (276)
+
+Record: mvp-supply-run.md.
+
+276. DDB-539: combat seats whatever pair the crew rule sends, so two drivers of one archetype fight together when call 35 lets them go, and combat's own check is only that one driver can't fill both seats, because the archetype rule is load out's (call 35), two Mechanics are two people with their own decks, and a fight refusing a pair load out allowed left the run stuck at its fight.

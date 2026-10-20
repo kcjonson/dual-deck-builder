@@ -156,8 +156,8 @@ type Fate = 'aboard' | 'revived' | 'picked_up' | 'dead' | 'missing';
  * card move, or a run starting or ending), and unless the party seats one
  * or two drivers load out's own check (`getSeatBlocker`) seats, a
  * `CampaignOverError` once the campaign is over: each from the campaign's
- * pool and ready, checked in seat order, then two different drivers of
- * different archetypes when there are two. So does a party whose cargo
+ * pool and ready, checked in seat order, then, when there are two, a pair
+ * the crew rule lets go together (`getCrewRule`). So does a party whose cargo
  * doesn't check out, an escort that isn't the campaign's, a seat with no
  * run deck or one holding the card of an escort that isn't in the party, a
  * party that doesn't seat every driver on the run out and nobody else, an
@@ -207,7 +207,8 @@ export function startCampaignFight({ campaign, party, raiders, rng, cards, enemy
 	});
 	if (party.run !== campaign.currentRun) throw new RangeError(`This party set off on ${describeValue(party.run)}, and the run out is ${campaign.currentRun}`);
 
-	const seats = party.seats.map((record, seat) => seatOf({ record, runDeck: runDecks[seat], cards }));
+	const partners = seatPartners(party.seats);
+	const seats = party.seats.map((record, seat) => seatOf({ record, runDeck: runDecks[seat], cards, partner: partners[seat] }));
 	const drivers = seats.map(({ driver }) => driver);
 	const vehicles = seats.map(({ vehicle }) => vehicle);
 	const enemyTeam = raiders(vehicles);
@@ -226,6 +227,20 @@ export function startCampaignFight({ campaign, party, raiders, rng, cards, enemy
 	};
 	setOpenFight({ campaign, fight });
 	return fight;
+}
+
+/**
+ * Gives up a fight that never got going, as the combat screen's Back does
+ * when it couldn't show it (DDB-539): the fight stops being open, with
+ * nothing stored, so the run can start it again, as a fight quit partway
+ * replays (gameplay call 65). Only for a fight nobody has seen: one on
+ * screen is fought or abandoned. Throws for a fight that isn't the
+ * campaign's open one, or that's over.
+ */
+export function withdrawFight({ fight }: { fight: CampaignFight }): void {
+	if (openFightOf(fight.campaign) !== fight) throw new Error("This fight isn't the campaign's open one");
+	if (fight.battle.isBattleOver()) throw new Error("This fight is over, so it's written back, not withdrawn");
+	setOpenFight({ campaign: fight.campaign, fight: null });
 }
 
 /**
@@ -349,11 +364,21 @@ export interface Seat {
 /**
  * A seat as a fight builds it from the seat's record and run deck. The
  * balance sim (src/renderer/game/sim/) builds its seats here too, so it
- * deals what a run deals. Throws for a card in the run deck with no template.
+ * deals what a run deals. A `partner` whose vehicle has the same name, two
+ * of one archetype (DDB-539), puts the driver's name on it, first, so a
+ * plate cut short still tells them apart. Throws for a card in the run deck
+ * with no template.
  */
-export function seatOf({ record, runDeck, cards }: { record: DriverRecord; runDeck: RunDeck; cards: ReadonlyMap<string, Card> }): Seat {
+export function seatOf({ record, runDeck, cards, partner = null }: { record: DriverRecord; runDeck: RunDeck; cards: ReadonlyMap<string, Card>; partner?: DriverRecord | null }): Seat {
 	const driver = combatDriverOf({ record, runDeck, cards });
-	return { driver, vehicle: vehicleOf({ record, driver }) };
+	const vehicleName = driver.metadata.vehicleName;
+	const shared = partner !== null && DRIVER_CONFIGS[partner.archetype].metadata.vehicleName === vehicleName;
+	return { driver, vehicle: vehicleOf({ record, driver, name: shared ? `${record.name}'s ${vehicleName}` : vehicleName }) };
+}
+
+/** Each seat's partner, the other seat, or null for a lone seat. */
+export function seatPartners(records: readonly DriverRecord[]): (DriverRecord | null)[] {
+	return records.map((_record, seat) => (records.length === 2 ? records[1 - seat] : null));
 }
 
 /**
@@ -401,9 +426,10 @@ function combatDriverOf({ record, runDeck, cards }: { record: DriverRecord; runD
  * the archetype's maximums as they stand: a retune since the record was
  * saved lowers them, and the next write-back stores the clamped values.
  */
-function vehicleOf({ record, driver }: { record: DriverRecord; driver: Driver }): Vehicle {
+function vehicleOf({ record, driver, name }: { record: DriverRecord; driver: Driver; name: string }): Vehicle {
 	return createDrivenVehicle({
 		driver,
+		name,
 		structure: Math.min(record.vehicle.structure, driver.vehicleStats.maxStructure),
 		armor: Math.min(record.vehicle.armor, driver.vehicleStats.armor)
 	});

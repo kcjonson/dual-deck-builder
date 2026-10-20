@@ -1,4 +1,4 @@
-import { seatOf, seatWriteBack } from '../campaign/CombatBridge';
+import { seatOf, seatPartners, seatWriteBack } from '../campaign/CombatBridge';
 import { DriverRecord, placeholderName } from '../campaign/DriverRecord';
 import { encounterForces, Skulls } from '../campaign/Encounters';
 import { injuryDays } from '../campaign/Infirmary';
@@ -98,7 +98,8 @@ export async function playRun({ config, cell, index }: { config: SimConfig; cell
 	let battle: Battle | null = null;
 	let outcome: RunOutcome = 'home';
 	for (const [stop, skulls] of route.entries()) {
-		const seats = records.map((record, seat) => seatOf({ record, runDeck: new RunDeck({ driver: record, own: decks[seat] }), cards: SIM_CARDS }));
+		const partners = seatPartners(records);
+		const seats = records.map((record, seat) => seatOf({ record, runDeck: new RunDeck({ driver: record, own: decks[seat] }), cards: SIM_CARDS, partner: partners[seat] }));
 		const fought = await playFight({ config, vehicles: seats.map(seat => seat.vehicle), skulls, rng: stream.fork('fight', stop) });
 		battle = fought.battle;
 		turns += battle.turn;

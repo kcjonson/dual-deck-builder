@@ -64,8 +64,12 @@ describe('DriverPair (Combat Rules: one driver per slot)', () => {
 			expect(() => assertDriverSeats([warrior, interceptor])).not.toThrow();
 		});
 
-		it('holds two seats to the pair rule', () => {
-			expect(() => assertDriverSeats([warrior, warrior.copy()])).toThrow(/same driver/);
+		it('seats two drivers of one archetype, which load out allows when only they are ready (DDB-539)', () => {
+			expect(() => assertDriverSeats([mechanic, mechanic.copy()])).not.toThrow();
+		});
+
+		it('refuses one driver in both seats', () => {
+			expect(() => assertDriverSeats([warrior, warrior])).toThrow(/both seats/);
 		});
 
 		it('rejects no driver, or more than two', () => {

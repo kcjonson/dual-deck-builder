@@ -4,7 +4,7 @@ import { CardLoader } from '../../core/CardLoader';
 import { Campaign, isAtCompound } from '../../campaign/Campaign';
 import { CampaignStore, CampaignStoreError } from '../../campaign/CampaignStore';
 import type { CheckpointResult } from '../../campaign/CampaignStore';
-import type { CampaignFight } from '../../campaign/CombatBridge';
+import { type CampaignFight, withdrawFight } from '../../campaign/CombatBridge';
 import { RunRoute, everyStop, routeStops } from '../../campaign/SupplyRoutes';
 import {
 	Arrival, StopFightResult, abandonHandOff, arriveHome, atDestination, cargoText, currentStop, finishStopFight, foundDriver, handOffFight, handOffStands, leaveFind, listText, passQuietStop, rewardOffer, startStopFight,
@@ -703,6 +703,15 @@ export class RunScreen extends Screen {
 export function stopFightMount({ campaign, fight, store }: { campaign: Campaign; fight: CampaignFight; store: CampaignStore }): PreparedCombatMount {
 	const run = campaign.supplyRun;
 	return {
+		back: () => {
+			// Back always leaves: a fight that can't be withdrawn is left for the run screen to refuse
+			try {
+				withdrawFight({ fight });
+			} catch (error) {
+				console.error('RunScreen: giving up the fight that never started failed', error);
+			}
+			return { screen: 'runScreen', data: { campaign } };
+		},
 		prepare: async () => ({
 			battle: fight.battle,
 			scrap: fight.scrap,
