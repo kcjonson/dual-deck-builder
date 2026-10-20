@@ -1,3 +1,4 @@
+import stopTablesFile from '../data/stopTables.json';
 import { runInNewContext } from 'vm';
 import { DriverLoader } from '../core/DriverLoader';
 import { ReaderTypeError } from '../core/JsonReader';
@@ -108,15 +109,17 @@ describe('foundCampaign', () => {
 		});
 
 		it('founds on a set with stop tables, holding a frozen copy that saves and loads back the same', () => {
-			const stopTables = { highway: { raider_ambush: 2 } };
+			const stopTables = JSON.parse(JSON.stringify(stopTablesFile)) as typeof stopTablesFile;
+			stopTables.classes.highway.ambush = 2;
+			const kept = JSON.parse(JSON.stringify(stopTables)) as typeof stopTablesFile;
 			const campaign = found({ mapParams: { seed: SEED, stopTables } });
-			stopTables.highway.raider_ambush = 9;
+			stopTables.classes.highway.ambush = 9;
 
-			expect(campaign.mapParams.stopTables).toStrictEqual({ highway: { raider_ambush: 2 } });
+			expect(campaign.mapParams.stopTables).toStrictEqual(kept);
 			expect(Object.isFrozen(campaign.mapParams.stopTables)).toBe(true);
 			const onWarning = jest.fn();
 			const loaded = Campaign.fromJSON(JSON.parse(JSON.stringify(campaign)), { onWarning });
-			expect(loaded.mapParams.stopTables).toStrictEqual({ highway: { raider_ambush: 2 } });
+			expect(loaded.mapParams.stopTables).toStrictEqual(kept);
 			expect(onWarning).not.toHaveBeenCalled();
 		});
 
@@ -213,12 +216,12 @@ describe('foundCampaign', () => {
 		});
 
 		it('founds on another realm\'s plain object, holding stop tables built in this one', () => {
-			const foreign = runInNewContext(`({ seed: ${SEED}, environment: 'rustBelt', stopTables: { highway: { raider_ambush: 2 } } })`) as MapParamSet;
+			const foreign = runInNewContext(`({ seed: ${SEED}, environment: 'rustBelt', stopTables: ${JSON.stringify(stopTablesFile)} })`) as MapParamSet;
 			const { mapParams } = found({ mapParams: foreign });
 
 			expect(mapParams.environment).toBe('rustBelt');
 			expect(Object.getPrototypeOf(mapParams.stopTables)).toBe(Object.prototype);
-			expect(mapParams.stopTables).toStrictEqual({ highway: { raider_ambush: 2 } });
+			expect(mapParams.stopTables).toStrictEqual(stopTablesFile);
 		});
 	});
 

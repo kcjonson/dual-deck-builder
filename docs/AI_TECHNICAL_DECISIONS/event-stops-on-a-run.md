@@ -1,6 +1,6 @@
 # Event stops on a run: wrecks and distress signals (DDB-535)
 
-Date: 2026-10-19. Code: `src/renderer/game/campaign/SupplyRun.ts` (`stopEvent`, `takeEventChoice`, `handOffFight`, `abandonHandOff`, and the hand-off in `startStopFight` and `finishStopFight`), `RunEvents.ts` (paying and applying an outcome), `SupplyRoutes.ts` (the `event` stop kind, `RUN_EVENT_TYPES`), `MapRoutes.ts` (`routeStop`, `RESOLVED_STOP_TYPES`), `SupplyRunState.ts` (the `hand_off` phase, `handOff`, `escortsFound`), `SaveUpgrades.ts` (version 12), and `screens/run/RunScreen.ts` (`eventMount`). Specs: [Runs and Encounters](../specs/Runs%20and%20Encounters.md) (What a stop can be), [Game Flow and UI](../specs/Game%20Flow%20and%20UI%20Specification.md) 5. Builds on [event-screen.md](./event-screen.md), whose "What the run's hook-up has to add" this answers, [find-stops.md](./find-stops.md), and [stop-clearing.md](./stop-clearing.md).
+Date: 2026-10-19. Code: `src/renderer/game/campaign/SupplyRun.ts` (`stopEvent`, `takeEventChoice`, `handOffFight`, `abandonHandOff`, and the hand-off in `startStopFight` and `finishStopFight`), `RunEvents.ts` (paying and applying an outcome), `SupplyRoutes.ts` (the `event` stop kind, `RUN_EVENT_TYPES`), `MapRoutes.ts` (`routeStop`, `stopKind`), `SupplyRunState.ts` (the `hand_off` phase, `handOff`, `escortsFound`), `SaveUpgrades.ts` (version 12), and `screens/run/RunScreen.ts` (`eventMount`). Specs: [Runs and Encounters](../specs/Runs%20and%20Encounters.md) (What a stop can be), [Game Flow and UI](../specs/Game%20Flow%20and%20UI%20Specification.md) 5. Builds on [event-screen.md](./event-screen.md), whose "What the run's hook-up has to add" this answers, [find-stops.md](./find-stops.md), and [stop-clearing.md](./stop-clearing.md).
 
 ## Context
 
@@ -10,7 +10,7 @@ DDB-45 landed the event content, the pure event model (`Events.ts`), and the eve
 
 A wreck or distress stop is a `RouteStop` of kind `event` carrying its map stop type (`RUN_EVENT_TYPES`). Its event isn't fixed on the route: `stopEvent` picks it when the run gets there, on the run's stream for the stop (`fork('event', stop)`), then draws the outcome's landing on the same stream, so a load meets the same event and lands the same outcome (calls 253, 258). Picking at the stop rather than at departure keeps the saved route free of content ids, so editing events.json doesn't strand a run on the road.
 
-`RESOLVED_STOP_TYPES` (MapRoutes.ts) lists every map stop type the run resolves: the fights, the three finds, and wreck and distress. Every other type is still a quiet stretch. The map PR (DDB-524) moves the set to map/StopData.ts, which owns it from then and MapRoutes imports; until it lands, the stop tables still give weight to types the run can't resolve, which run as quiet stretches.
+`RESOLVABLE_STOP_TYPES` (map/StopData.ts) lists every map stop type the run resolves: the fights, the three finds, and wreck and distress; the stop tables weigh every other type at 0, so none is placed (DDB-524). `stopKind` (MapRoutes.ts) says how the run takes each type, a quiet stretch for any it has no screen for, and a test holds the types it doesn't take as quiet to the resolvable list.
 
 ## Taking a choice
 

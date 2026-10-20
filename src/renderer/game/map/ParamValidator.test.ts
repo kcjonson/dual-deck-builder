@@ -1,3 +1,4 @@
+import stopTablesFile from '../data/stopTables.json';
 import { ENVIRONMENTS, ENVIRONMENT_PRESETS, Environment, MAP_PARAMETERS, MapParamSet, MapParams, NUMBER_PARAMS, resolveMapParams } from './MapParams';
 import { describeClamp, validateMapParamSet, validateMapParams } from './ParamValidator';
 
@@ -174,18 +175,24 @@ describe('validateMapParams', () => {
 	});
 
 	it('leaves its input alone and copies stop tables through', () => {
-		const stopTables = { trail: { hazard: 2 } };
+		const stopTables = JSON.parse(JSON.stringify(stopTablesFile)) as typeof stopTablesFile;
 		const input = params({ radius: 5000, stopTables });
 		const result = validateMapParams(input);
-		stopTables.trail.hazard = 7;
+		stopTables.classes.trail.hazard = 7;
 		expect(input.radius).toBe(5000);
-		expect(result.params.stopTables).toStrictEqual({ trail: { hazard: 2 } });
+		expect(result.params.stopTables).toStrictEqual(stopTablesFile);
 	});
 
 	it('throws on stop tables JSON can\'t hold, naming the path, since there\'s nothing to clamp them to', () => {
 		expect(() => validateMapParams(params({ stopTables: { trail: { hazard: NaN } } }))).toThrow(
 			new RangeError('stopTables.trail.hazard must be a finite number, got NaN'),
 		);
+	});
+
+	it('reads stop tables whole, so a row with nothing the run resolves fails before any map', () => {
+		const stopTables = JSON.parse(JSON.stringify(stopTablesFile)) as { classes: Record<string, Record<string, number>> };
+		stopTables.classes.trail = { ambush: 1, hazard: 5, garage: 5 };
+		expect(() => validateMapParams(params({ stopTables }))).toThrow(/stopTables: trail in scrub at tier 1 in territory none weighs no non-fight the run resolves/);
 	});
 });
 

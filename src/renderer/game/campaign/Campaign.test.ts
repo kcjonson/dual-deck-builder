@@ -1,3 +1,4 @@
+import stopTablesFile from '../data/stopTables.json';
 import { runInNewContext } from 'vm';
 import { MapParams, resolveMapParams } from '../map/MapParams';
 import { Convoy } from '../mechanics/Convoy';
@@ -189,11 +190,12 @@ describe('Campaign', () => {
 		});
 
 		it('keeps stop tables, frozen, through a save', () => {
-			const stopTables = { highway: { raider_ambush: 3, checkpoint: 2 }, trail: { hazard: [1, 2] } };
+			// Tables the validator reads whole, so they have to be ones it can draw from.
+			const stopTables = { ...stopTablesFile, classes: { ...stopTablesFile.classes, highway: { ...stopTablesFile.classes.highway, ambush: 3 } } };
 			const campaign = newCampaign({ mapParams: { ...mapParamsFor(SEED), stopTables } });
 
 			expect(reload(campaign).mapParams.stopTables).toEqual(stopTables);
-			expect(Object.isFrozen((campaign.mapParams.stopTables as { trail: { hazard: number[] } }).trail.hazard)).toBe(true);
+			expect(Object.isFrozen((campaign.mapParams.stopTables as typeof stopTables).classes.highway)).toBe(true);
 		});
 
 		it('rejects a generator version below 1', () => {

@@ -54,15 +54,15 @@ function newCampaign(archetypes: DriverArchetype[] = ['road_warrior', 'intercept
 
 /**
  * The route these runs take: the shortest on offer, by stops, with a fight
- * and a quiet stretch on it and no event, so a run meets both and stays quick to drive.
+ * and a find on it and no event, so a run meets both and stays quick to drive.
  */
 function testRoute(): RunRoute {
 	const mixed = routesOnOffer({ map: MAP, campaign: newCampaign() }).filter(route => {
 		const kinds = routeStops(route).map(stop => stop.kind);
-		return kinds.includes('fight') && kinds.includes('quiet') && !kinds.includes('event');
+		return kinds.includes('fight') && kinds.includes('find') && !kinds.includes('event');
 	});
 	const route = [...mixed].sort((a, b) => routeStops(a).length - routeStops(b).length)[0];
-	if (!route) throw new Error('the map should offer a route with a fight and a quiet stretch');
+	if (!route) throw new Error('the map should offer a route with a fight and a find and no event');
 	return route;
 }
 
@@ -87,9 +87,9 @@ function passCalmStop(campaign: Campaign): boolean {
 	return true;
 }
 
-/** Quiet stretches passed until the run is driving to a fight. */
+/** Calm stops passed or left until the run is driving to a fight. */
 function toNextFight(campaign: Campaign): void {
-	while (currentStop(onRoad(campaign))?.kind === 'quiet') passQuietStop({ campaign });
+	while (passCalmStop(campaign));
 }
 
 /** A save and a load through the store, as quitting and Continue would. */
@@ -858,9 +858,9 @@ describe('finds (DDB-523)', () => {
 		campaign.set({ supplyRun: { route, stop: 0, phase: 'driving', escorts: [], cargo: NO_RESOURCES, cargoCards: {}, recruits: [], escortsFound: [], handOff: null } });
 	}
 
-	it('names every map find and event the run resolves, and leaves the other calm types quiet', () => {
+	it('names every map find and event the run resolves, with no quiet stretch left on the map', () => {
 		const kinds = new Set(routeOffers(MAP).flatMap(route => routeStops(route).map(stop => (stop.kind === 'find' ? stop.find : stop.kind))));
-		expect(kinds).toEqual(new Set(['fight', 'quiet', 'cards', 'supplies', 'driver', 'event']));
+		expect(kinds).toEqual(new Set(['fight', 'cards', 'supplies', 'driver', 'event']));
 	});
 
 	it('loads a Find: supplies haul into the cargo when taken, and drives on', async () => {

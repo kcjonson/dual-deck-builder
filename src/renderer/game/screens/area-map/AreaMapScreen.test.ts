@@ -180,7 +180,9 @@ describe('AreaMapScreen (DDB-43)', () => {
 	});
 
 	it('chooses from the list by keyboard, the tabs, the map, the list, then Plan in the focus order, and brings the POI into view', async () => {
-		await open();
+		// The fixture's cleared POIs are ids on another map; only the furthest is cleared here, so Plan takes the focus.
+		const furthest = byDistance(POIS).filter(({ stronghold }) => !stronghold).pop() as PlannedPoi;
+		await open({ change: (campaign) => campaign.set({ map: { clearedPois: [furthest.poi] } }) });
 		expect(context.focus.focused?.id).toBe('area_map_tabs.area_map');
 		send(context, [key('Tab')]);
 		expect(context.focus.focused?.id).toBe('area_map_view');

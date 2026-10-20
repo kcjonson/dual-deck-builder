@@ -48,8 +48,20 @@ export function isFight(type: StopType): boolean {
 	return FIGHT_TYPES.includes(type);
 }
 
+/**
+ * The stop types a run resolves (Runs and Encounters, What a stop can be).
+ * Every other type has weight 0 in the stop tables, so a stop that does
+ * nothing is never placed; a type joins once its screen exists.
+ */
+export const RESOLVABLE_STOP_TYPES: readonly StopType[] = ['ambush', 'warband', 'findCards', 'findSupplies', 'findDriver', 'wreck', 'distress'];
+
+export function isResolvable(type: StopType): boolean {
+	return RESOLVABLE_STOP_TYPES.includes(type);
+}
+
 /** Tiers the tables key on, 1 to 5. */
 export const STOP_TIERS = 5;
+const TIER_KEYS = ['1', '2', '3', '4', '5'] as const;
 
 /** Territory before any stronghold claims ground (DDB-292): every stop is on no one's ground. */
 export const NO_TERRITORY = 'none';
@@ -63,6 +75,13 @@ export interface StopTypeSpec {
 export interface IntRange {
 	readonly min: number;
 	readonly max: number;
+}
+
+/** A route's stops and fights at game stage 0, its least and most (Runs and Encounters, How many stops). */
+export interface TierBand {
+	readonly stops: IntRange;
+	/** The least is the route's fight floor, never 0. */
+	readonly fights: IntRange;
 }
 
 export interface StopTuning {
@@ -80,11 +99,17 @@ export interface StopTuning {
 	 * legs have room, and may sit closer where they don't.
 	 */
 	readonly minGap: number;
+	/** How close `minGap` closes on a short leg before the leg counts as full. */
+	readonly tightGap: number;
 	/** Share of its slot a stop moves at most, either way about the slot's middle. */
 	readonly jitter: number;
 	/** World units between the points a leg's biomes are sampled at. */
 	readonly biomeStep: number;
 	readonly types: { readonly [Type in StopType]: StopTypeSpec };
+	/** By destination tier from 1, the stronghold's as tier 5; its boss isn't counted. */
+	readonly bands: readonly TierBand[];
+	/** The game stage each of a route's dormant calm stops turns on at, in order along its own last leg's extras. */
+	readonly extras: readonly number[];
 	/** Hours at the objective, for the daylight estimate. */
 	readonly objectiveHours: { readonly poi: number; readonly stronghold: number };
 	readonly skulls: {
@@ -142,39 +167,40 @@ export interface StopWeights {
 
 /**
  * Stop tables ready to draw from: per class, biome, tier, and territory, the
- * cumulative weights over every type and over the calm ones alone, built
- * once, in type order, so a draw is a search.
+ * cumulative weights over the fights and over the calm types, built once, in
+ * type order, so a draw is a search. A type the run can't resolve weighs 0
+ * whatever the tables give it.
  */
 export class CompiledStopTables {
 	public readonly territories: readonly string[];
-	private readonly all: Float64Array;
+	private readonly fight: Float64Array;
 	private readonly calm: Float64Array;
 
-	constructor({ tables, path }: { tables: StopWeights; path: string }) {
+	constructor({ tables, path, resolvable = RESOLVABLE_STOP_TYPES }: { tables: StopWeights; path: string; resolvable?: readonly StopType[] }) {
 		this.territories = Object.keys(tables.territories);
 		const rows = ROAD_CLASSES.length * BIOMES.length * STOP_TIERS * this.territories.length;
-		this.all = new Float64Array(rows * STOP_TYPES.length);
+		this.fight = new Float64Array(rows * STOP_TYPES.length);
 		this.calm = new Float64Array(rows * STOP_TYPES.length);
 		ROAD_CLASSES.forEach((roadClass) => {
 			BIOMES.forEach((biome) => {
 				for (let tier = 1; tier <= STOP_TIERS; tier += 1) {
 					this.territories.forEach((territory) => {
 						const row = this.rowOf({ roadClass, biome, tier, territory });
-						let all = 0;
+						let fight = 0;
 						let calm = 0;
 						STOP_TYPES.forEach((type, index) => {
-							const weight = (tables.classes[roadClass][type] ?? 0)
+							const weight = !resolvable.includes(type) ? 0 : (tables.classes[roadClass][type] ?? 0)
 								* (tables.biomes[biome]?.[type] ?? 1)
 								* (tables.tiers[String(tier)]?.[type] ?? 1)
 								* (tables.territories[territory][type] ?? 1);
-							all += weight;
-							if (isCalm(type)) calm += weight;
-							this.all[row + index] = all;
+							if (isFight(type)) fight += weight;
+							else if (isCalm(type)) calm += weight;
+							this.fight[row + index] = fight;
 							this.calm[row + index] = calm;
 						});
 						const where = `${path}: ${roadClass} in ${biome} at tier ${tier} in territory ${territory}`;
-						if (!(all > 0 && all < Infinity)) throw new ReaderRangeError(`${where} weighs nothing, so no stop type can be drawn there`);
-						if (!(calm > 0)) throw new ReaderRangeError(`${where} weighs no non-fight, which the per-route rules need after two fights`);
+						if (!(fight > 0 && fight < Infinity)) throw new ReaderRangeError(`${where} weighs no fight the run resolves, so a fight stop has nothing to be`);
+						if (!(calm > 0 && calm < Infinity)) throw new ReaderRangeError(`${where} weighs no non-fight the run resolves, so a calm stop has nothing to be`);
 					});
 				}
 			});
@@ -190,9 +216,9 @@ export class CompiledStopTables {
 		return row * STOP_TYPES.length;
 	}
 
-	/** The type a draw in [0, 1) picks from a row (`rowOf`), from every type or the calm ones alone. */
-	public draw({ row, draw, calmOnly }: { row: number; draw: number; calmOnly: boolean }): StopType {
-		const sums = calmOnly ? this.calm : this.all;
+	/** The type a draw in [0, 1) picks from a row (`rowOf`): a fight, or a calm type. */
+	public draw({ row, draw, fight }: { row: number; draw: number; fight: boolean }): StopType {
+		const sums = fight ? this.fight : this.calm;
 		const total = sums[row + STOP_TYPES.length - 1];
 		const target = draw * total;
 		let last = -1;
@@ -207,10 +233,15 @@ export class CompiledStopTables {
 }
 
 export function readStopTuning(value: unknown, path: string): StopTuning {
-	const fields = readFields(value, path, ['spacing', 'clearance', 'minGap', 'jitter', 'biomeStep', 'types', 'objectiveHours', 'skulls', 'driverFinds', 'contents']);
+	const fields = readFields(value, path, ['spacing', 'clearance', 'minGap', 'tightGap', 'jitter', 'biomeStep', 'types', 'bands', 'extras', 'objectiveHours', 'skulls', 'driverFinds', 'contents']);
 	const spacing = readFields(fields.spacing, `${path}.spacing`, ROAD_CLASSES);
 	const clearance = readFields(fields.clearance, `${path}.clearance`, ['ends', 'junctions']);
 	const typeFields = readFields(fields.types, `${path}.types`, STOP_TYPES);
+	const bandFields = readFields(fields.bands, `${path}.bands`, TIER_KEYS);
+	const extras = readArray(fields.extras, `${path}.extras`).map((stage, index) => readInteger(stage, `${path}.extras[${index}]`, { min: 1 }));
+	extras.forEach((stage, index) => {
+		if (index > 0 && stage <= extras[index - 1]) throw new ReaderRangeError(`${path}.extras must rise, stage by stage; ${stage} follows ${extras[index - 1]}`);
+	});
 	const objective = readFields(fields.objectiveHours, `${path}.objectiveHours`, ['poi', 'stronghold']);
 	const skulls = readFields(fields.skulls, `${path}.skulls`, ['step', 'warband']);
 	const finds = readFields(fields.driverFinds, `${path}.driverFinds`, ['floorTiers', 'rates']);
@@ -221,19 +252,25 @@ export function readStopTuning(value: unknown, path: string): StopTuning {
 	if (hazards.length === 0) throw new ReaderRangeError(`${path}.contents.hazards must name at least one hazard`);
 	const hazardHours = readFields(contents.hazardHours, `${path}.contents.hazardHours`, ['min', 'max', 'step']);
 	const supplies = readFields(contents.supplies, `${path}.contents.supplies`, POI_RESOURCES);
+	const minGap = readAtLeast(fields.minGap, `${path}.minGap`, 1);
+	const tightGap = readAtLeast(fields.tightGap, `${path}.tightGap`, 1);
+	if (tightGap > minGap) throw new ReaderRangeError(`${path}.tightGap must be at most minGap ${minGap}, got ${tightGap}`);
 	const tuning: StopTuning = {
 		spacing: mapKeys(ROAD_CLASSES, (roadClass) => readAtLeast(spacing[roadClass], `${path}.spacing.${roadClass}`, 1)),
 		clearance: {
 			ends: readAtLeast(clearance.ends, `${path}.clearance.ends`, 0),
 			junctions: readAtLeast(clearance.junctions, `${path}.clearance.junctions`, 0),
 		},
-		minGap: readAtLeast(fields.minGap, `${path}.minGap`, 1),
+		minGap,
+		tightGap,
 		jitter: readShare(fields.jitter, `${path}.jitter`),
 		biomeStep: readAtLeast(fields.biomeStep, `${path}.biomeStep`, 1),
 		types: mapKeys(STOP_TYPES, (type) => {
 			const spec = readFields(typeFields[type], `${path}.types.${type}`, ['label', 'hours']);
 			return { label: readText(spec.label, `${path}.types.${type}.label`), hours: readAtLeast(spec.hours, `${path}.types.${type}.hours`, 0) };
 		}),
+		bands: TIER_KEYS.map((tier) => readBand(bandFields[tier], `${path}.bands.${tier}`)),
+		extras,
 		objectiveHours: {
 			poi: readAtLeast(objective.poi, `${path}.objectiveHours.poi`, 0),
 			stronghold: readAtLeast(objective.stronghold, `${path}.objectiveHours.stronghold`, 0),
@@ -321,6 +358,16 @@ function readHourSteps(fields: Record<'min' | 'max' | 'step', unknown>, path: st
 	const max = readAtLeast(fields.max, `${path}.max`, min);
 	const step = readAtLeast(fields.step, `${path}.step`, 0.01);
 	return { min, max, step };
+}
+
+function readBand(value: unknown, path: string): TierBand {
+	const fields = readFields(value, path, ['stops', 'fights']);
+	const stops = readIntRange(fields.stops, `${path}.stops`);
+	const fights = readIntRange(fields.fights, `${path}.fights`);
+	if (fights.min < 1) throw new ReaderRangeError(`${path}.fights.min is the fight floor, which is never 0`);
+	if (fights.min > stops.min) throw new ReaderRangeError(`${path}.fights.min ${fights.min} is more than the band's least ${stops.min} stops`);
+	if (fights.max > stops.max) throw new ReaderRangeError(`${path}.fights.max ${fights.max} is more than the band's ${stops.max} stops`);
+	return { stops, fights };
 }
 
 function readIntRange(value: unknown, path: string): IntRange {

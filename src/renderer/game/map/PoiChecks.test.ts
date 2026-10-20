@@ -3,11 +3,12 @@ import { fakeGround, randomMesh } from './meshTesting';
 import { PoiRule, checkPoiLayer } from './PoiChecks';
 import { Poi, PoiLayer, placePois } from './Pois';
 import { RouteTree, buildRouteTree, splitNode } from './RouteTree';
+import { STOP_TUNING } from './StopData';
 
 describe('checkPoiLayer', () => {
 	const network = randomMesh({ seed: 41 });
 	const tree = buildRouteTree({ network, travelPace: 1, routeSplit: 0.5 });
-	const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 4, poiDensity: 1 }, rng: new Rng({ seed: 41 }) });
+	const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 4, poiDensity: 1, daylightHours: 14 }, rng: new Rng({ seed: 41 }) });
 	const check = (changed: PoiLayer, changedTree: RouteTree = tree) => checkPoiLayer({ network, tree: changedTree, layer: changed, params: { strongholds: 4, routeSplit: 0.5 }, radius: 1000 });
 	const rules = (changed: PoiLayer, changedTree?: RouteTree): PoiRule[] => [...new Set(check(changed, changedTree).map(({ rule }) => rule))];
 	const withPoi = (index: number, poi: Poi): PoiLayer => ({ ...layer, pois: layer.pois.map((each, at) => (at === index ? poi : each)) });
@@ -48,6 +49,12 @@ describe('checkPoiLayer', () => {
 		expect(rules(withPoi(1, { ...second, site: { ...second.site, x: first.site.x + 1, y: first.site.y } }))).toContain('spacing');
 		expect(rules({ ...layer, sectorRotation: layer.sectorRotation + 45 })).toContain('sectors');
 		expect(rules({ ...layer, strongholds: layer.strongholds.slice(1) })).toEqual(['sectors']);
+	});
+
+	it('catches a route whose own road has no room for its need', () => {
+		const needy = { ...STOP_TUNING, bands: STOP_TUNING.bands.map((band) => ({ ...band, stops: { min: 40, max: 41 } })) };
+		const found = checkPoiLayer({ network, tree, layer, params: { strongholds: 4, routeSplit: 0.5 }, radius: 1000, stopTuning: needy });
+		expect(found.find(({ rule }) => rule === 'ownRoad')?.detail).toMatch(/^poi \d+ route \d+: its own road has room for \d+ stops, under the 20 its tier \d needs$/);
 	});
 
 	it('catches a leg that doesn\'t carry on from its parent', () => {

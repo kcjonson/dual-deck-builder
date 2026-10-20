@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { AreaMapGeneration, areaMapPipeline } from '../map/AreaMapPipeline';
 import { AREA_MAP_GENERATOR_VERSION } from '../map/GeneratorVersion';
 import { MapGenerationCancelled } from '../map/worker/MapGeneration';
@@ -334,12 +336,19 @@ describe('CampaignMaps', () => {
 
 	// A save names the stages (mapAttempts.stages), and one made before a gameplay stage was added, removed, or renamed can't replay.
 	// An inert stage, the dressing, can be: a replay without its attempt runs its first.
+	it('holds every campaign fixture at the generator version, so a bump can\'t leave one reading as outdated', () => {
+		const dir = join(__dirname, '__fixtures__');
+		const fixtures = readdirSync(dir).filter((file) => /^campaign-v\d+\.json$/.test(file));
+		expect(fixtures.length).toBeGreaterThan(0);
+		for (const file of fixtures) expect([file, (JSON.parse(readFileSync(join(dir, file), 'utf8')) as { generatorVersion: number }).generatorVersion]).toEqual([file, AREA_MAP_GENERATOR_VERSION]);
+	});
+
 	it('pins the pipeline\'s stages to the generator version', () => {
 		const pipeline = areaMapPipeline();
 		const pinned = { generatorVersion: AREA_MAP_GENERATOR_VERSION, stages: pipeline.stageNames, inert: pipeline.inertStageNames };
 		try {
 			expect(pinned).toEqual({
-				generatorVersion: 6, stages: ['terrain', 'water', 'hazards', 'places', 'roads', 'routeTree', 'pois', 'stops', 'dressing'], inert: ['dressing'],
+				generatorVersion: 7, stages: ['terrain', 'water', 'hazards', 'places', 'roads', 'routeTree', 'pois', 'stops', 'dressing'], inert: ['dressing'],
 			});
 		} catch (error) {
 			throw new Error(`the pipeline's stages changed: bump AREA_MAP_GENERATOR_VERSION (map/GeneratorVersion.ts), so the store reads older saves as outdated, and re-pin\n${(error as Error).message}`);

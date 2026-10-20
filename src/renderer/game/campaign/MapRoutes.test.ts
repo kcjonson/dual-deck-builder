@@ -2,10 +2,10 @@ import { meshMap, randomMesh } from '../map/meshTesting';
 import { POI_TUNING } from '../map/PoiData';
 import { ROAD_CLASSES } from '../map/RoadNetwork';
 import { describeMap } from '../map/RouteDescriptors';
-import { isFight } from '../map/StopData';
+import { STOP_TYPES, isFight, isResolvable } from '../map/StopData';
 import { rollStop } from '../map/Stops';
 import { eventsFor } from './Events';
-import { RESOLVED_STOP_TYPES, destinationId, routeId, routeOffers } from './MapRoutes';
+import { destinationId, routeId, routeOffers, stopKind } from './MapRoutes';
 import { RUN_EVENT_TYPES, RunRoute, readRunRoute } from './SupplyRoutes';
 
 const maps = Array.from({ length: 3 }, (_, index) => meshMap(randomMesh({ seed: 900 + index, spacing: 85 + index }), { seed: index }));
@@ -52,8 +52,8 @@ describe('routeOffers', () => {
 			routes.forEach((route, index) => expect(readRunRoute(JSON.parse(JSON.stringify(route)), `routes[${index}]`)).toEqual(route));
 			expect(new Set(routes.map(({ id }) => id)).size).toBe(routes.length);
 			const stopIds = routes.flatMap(({ legs }) => legs.flatMap(({ stops }) => stops.map(({ id }) => id)));
-			// A stop on a shared leg is the same stop on every route over it.
-			expect(new Set(stopIds).size).toBe(map.products.stops.stops.length);
+			// A stop on a shared leg is the same stop on every route over it; a dormant extra is on none until its game stage.
+			expect(new Set(stopIds).size).toBe(map.products.stops.stops.filter(({ stage }) => stage === 0).length);
 			// Plain JSON, so the run's save keeps a route as it was rolled.
 			expect(JSON.parse(JSON.stringify(routes))).toEqual(routes);
 			expect(Object.isFrozen(routes[0].legs[0])).toBe(true);
@@ -93,13 +93,13 @@ describe('routeOffers', () => {
 		});
 		// Every kind turns up, and every find.
 		const along = routeOffers(map).flatMap(({ legs }) => legs.flatMap(({ stops: on }) => on));
-		expect(new Set(along.map(({ kind }) => kind))).toEqual(new Set(['fight', 'quiet', 'find', 'event']));
+		expect(new Set(along.map(({ kind }) => kind))).toEqual(new Set(['fight', 'find', 'event']));
 		expect(new Set(along.flatMap(stop => (stop.kind === 'find' ? [stop.find] : [])))).toEqual(new Set(['cards', 'supplies', 'driver']));
 		expect(new Set(along.flatMap(stop => (stop.kind === 'event' ? [stop.stopType] : [])))).toEqual(new Set(['wreck', 'distress']));
 	});
 
-	it('names every stop type a run resolves, each event type with events to open', () => {
-		expect(RESOLVED_STOP_TYPES).toEqual(['ambush', 'warband', 'wreck', 'distress', 'findDriver', 'findCards', 'findSupplies']);
+	it('takes every type the stops stage may place as a stop it resolves, and no other, each event type with events to open', () => {
+		expect(STOP_TYPES.filter((type) => stopKind(type) !== 'quiet')).toEqual(STOP_TYPES.filter(isResolvable));
 		for (const type of RUN_EVENT_TYPES) expect(eventsFor(type).length).toBeGreaterThan(0);
 	});
 

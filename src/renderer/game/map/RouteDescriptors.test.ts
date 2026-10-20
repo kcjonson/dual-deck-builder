@@ -121,7 +121,7 @@ describe('route descriptors', () => {
 		const network = meshFrom({ nodes: [[0, 0], [300, 250], [300, -250], [600, 0]], edges: [[0, 1, 'highway'], [0, 2], [1, 3, 'highway'], [2, 3]] });
 		const poiTuning: PoiTuning = { ...POI_TUNING, rings: { ...POI_TUNING.rings, targets: [0, 1, 1, 1] }, cover: [] };
 		const tree = buildRouteTree({ network, travelPace: 1, routeSplit: 0.5 });
-		const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
+		const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1, daylightHours: 14 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
 		const params = { stopDensity: 1, dangerCurve: 1, driverFinds: 2, daylightHours: 14, radius: 1000 };
 		const map: RouteMap = { params, products: { pois: layer, stops: placeStops({ network, layer, ground: fakeGround(), params, rng: new Rng({ seed: 1 }) }) } };
 
@@ -141,7 +141,7 @@ describe('route descriptors', () => {
 			// The same loop, both sides highway 1, so each route's own road is highway 1's.
 			const loop = meshFrom({ nodes: [[0, 0], [300, 250], [300, -250], [600, 0]], edges: [[0, 1, 'highway', 1], [0, 2, 'highway', 1], [1, 3, 'highway', 1], [2, 3, 'highway', 1]] });
 			const loopTree = buildRouteTree({ network: loop, travelPace: 1, routeSplit: 0.5 });
-			const loopLayer = placePois({ network: loop, tree: loopTree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
+			const loopLayer = placePois({ network: loop, tree: loopTree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1, daylightHours: 14 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
 			const stops = placeStops({ network: loop, layer: loopLayer, ground: fakeGround(), params, rng: new Rng({ seed: 1 }) });
 			const routes = describeRoutes({ params, products: { pois: loopLayer, stops, dressing: { routeNumbers: [12, 47] } } }, 0);
 			expect(routes).toHaveLength(2);
