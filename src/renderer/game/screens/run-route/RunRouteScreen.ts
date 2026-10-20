@@ -18,7 +18,7 @@ import { AtlasSheet } from '../../ui/atlas/AtlasSheet';
 import { LegendBox } from '../../ui/atlas/LegendBox';
 import { PlateFrame } from '../../ui/atlas/PlateFrame';
 import { RouteCard } from '../../ui/RouteCard';
-import { POI_CLEARED, STRONGHOLD_NOT_YET, QUIET_STOPS, clockText, homeByText, poiKindText, poiYieldText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
+import { POI_CLEARED, STRONGHOLD_NOT_YET, clockText, homeByText, poiKindText, poiYieldText, routeDetail, stopTag, stopText } from '../area-map/areaMapText';
 import { COLUMN_GAP, PRIMARY_HEIGHT, PRIMARY_LABEL, PoiHead, SHEET_GAP, SIDE_WIDTH, caption, screenTitle } from '../area-map/atlasPanel';
 import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, mapRoutes, plannedPois, poiCleared, quickestOf, routesBounds, viewData } from '../area-map/planningMap';
 import { countOf, mapProgressText } from '../main-menu/campaignText';
@@ -234,7 +234,6 @@ export class RunRouteScreen extends Screen {
 		const stops = new LegendBox({ id: 'run_route_stops_box', title: 'Stops in order', widthMode: 'fill' });
 		this.stopsList = new Stack({ id: 'run_route_stops', widthMode: 'fill', crossAlign: 'stretch', gap: space.space_1 });
 		stops.addChild(this.stopsList);
-		stops.addChild(caption({ id: 'run_route_quiet_note', text: QUIET_STOPS }));
 		body.addChild(stops);
 		scroll.addChild(body);
 		side.addChild(scroll);

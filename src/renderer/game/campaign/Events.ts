@@ -247,12 +247,20 @@ function readOutcomeCards(value: unknown, path: string): CardCounts {
 /** A fight's win can't offer the reward picker: winning a stop fight already does. */
 const FIGHT_GAIN_FIELDS = GAIN_FIELDS.filter((field) => field !== 'cardPick');
 
+/** A fight's gains are what winning it gives, so none is a loss: the fight itself is the cost. */
 function readFight(value: unknown, path: string): EventFight {
 	const fields = readFields(value, path, ['skulls', 'text'], FIGHT_GAIN_FIELDS);
+	const gains = readGains(fields, path);
+	for (const resource of EVENT_RESOURCES) {
+		if (gains.resources[resource] < 0) throw new ReaderRangeError(`${path}.resources.${resource} must be a gain, since winning the fight gives it; got ${gains.resources[resource]}`);
+	}
+	for (const field of ['structure', 'hp'] as const) {
+		if (gains[field] < 0) throw new ReaderRangeError(`${path}.${field} must be a gain, since winning the fight gives it; got ${gains[field]}`);
+	}
 	return {
 		skulls: readInteger(fields.skulls, `${path}.skulls`, { min: 1, max: 3 }) as Skulls,
 		text: readCapped(fields.text, `${path}.text`, EVENT_LIMITS.outcomeLength),
-		...readGains(fields, path),
+		...gains,
 	};
 }
 
@@ -266,6 +274,8 @@ function readOutcome(value: unknown, path: string): WeightedOutcome {
 			throw new ReaderRangeError(`${path}.hours must be a whole number of half hours from 0.5 to ${EVENT_LIMITS.hours}, got ${hours}`);
 		}
 	}
+	// A fight's win already opens the reward picker, so an outcome that hands off can't offer it too
+	if (fields.fight !== undefined && fields.cardPick !== undefined) throw new ReaderRangeError(`${path} has both a fight and cardPick; the fight's win offers the picker`);
 	return {
 		weight,
 		outcome: {

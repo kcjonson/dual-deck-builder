@@ -27,7 +27,10 @@ import type { AtlasTag } from '../../ui/atlas/AtlasTag';
 import type { DamageMark } from '../../ui/atlas/DamageMark';
 import type { LegendBox } from '../../ui/atlas/LegendBox';
 import type { ResourceStrip } from '../../ui/atlas/ResourceStrip';
-import { BROKEN_OFF_LINE, RunScreen, RunScreenData, STEP_NOT_SAVED, stopFightMount } from './RunScreen';
+import { BROKEN_OFF_LINE, HAND_OFF_GONE, RunScreen, RunScreenData, STEP_NOT_SAVED, stopFightMount } from './RunScreen';
+import type { EventResult } from '../../campaign/Events';
+import type { EventScreenData } from '../event/EventScreen';
+import { eventKicker } from '../event/eventText';
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -60,6 +63,18 @@ function findText(find: Record<string, unknown>): string {
 		run.phase = 'driving';
 		const stops = run.route.legs[1].stops;
 		stops[1] = { id: stops[1].id, kind: 'find', at: stops[1].at, ...find };
+	});
+}
+
+/** The fixture's run at its second stop, made an event of `stopType` (DDB-535): driving to it, or at its hand-off when one's given. */
+function eventText({ stopType, handOff = null }: { stopType: string; handOff?: { event: string; choice: string } | null }): string {
+	return fixtureText((campaign) => {
+		const run = campaign.supplyRun as { stop: number; phase: string; handOff: unknown; route: { legs: { stops: Record<string, unknown>[] }[] } };
+		run.stop = 1;
+		run.phase = handOff === null ? 'driving' : 'hand_off';
+		run.handOff = handOff;
+		const stops = run.route.legs[1].stops;
+		stops[1] = { id: stops[1].id, kind: 'event', at: stops[1].at, stopType };
 	});
 }
 
@@ -223,6 +238,83 @@ describe('RunScreen', () => {
 			expect((await saved())?.supplyRun?.phase).toBe('reward');
 			await press('run_skip_button');
 			expect((await saved())?.supplyRun?.stop).toBe(2);
+		});
+
+		it('offers an event to pull over for, and opens it on the event screen with the crew it checks (DDB-535)', async () => {
+			await open(eventText({ stopType: 'distress' }));
+			expect(text('run_action_title')).toBe(`Next: ${eventKicker('distress')}`);
+			expect(text('run_action_line')).toBe('A distress call crackles over the radio, close by. Pull over and see who it is.');
+			await press('run_event_button');
+			const [name, data] = navigate.mock.calls[navigate.mock.calls.length - 1] as [string, EventScreenData];
+			expect(name).toBe('eventScreen');
+			expect([data.event.id, data.where]).toEqual(['family_under_fire', 'stop 2 of 3']);
+			expect(data.party?.archetypes).toEqual(screen.campaignShown?.runDecks.map(({ driver }) => driver.archetype));
+		});
+
+		it('takes the event\'s choice as it\'s made, saved, and drives back to the run on the highway (DDB-535)', async () => {
+			await open(eventText({ stopType: 'distress' }));
+			await press('run_event_button');
+			const [, data] = navigate.mock.calls[navigate.mock.calls.length - 1] as [string, EventScreenData];
+			data.onChoose?.({ choice: 'drive_on' } as EventResult);
+			data.onDone?.({ choice: 'drive_on' } as EventResult);
+			for (let turn = 0; turn < 4; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+			const [name, next] = navigate.mock.calls[navigate.mock.calls.length - 1] as [string, RunScreenData];
+			expect(name).toBe('runScreen');
+			expect(next.campaign).toBe(screen.campaignShown);
+			expect(await next.saved).toBe('saved');
+			expect((await saved())?.supplyRun?.stop).toBe(2);
+		});
+
+		it('goes on from the event into the fight its outcome hands off to (DDB-535)', async () => {
+			await open(eventText({ stopType: 'distress' }));
+			await press('run_event_button');
+			const [, data] = navigate.mock.calls[navigate.mock.calls.length - 1] as [string, EventScreenData];
+			data.onChoose?.({ choice: 'charge' } as EventResult);
+			data.onDone?.({ choice: 'charge' } as EventResult);
+			for (let turn = 0; turn < 4; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+			expect(navigate.mock.calls[navigate.mock.calls.length - 1][0]).toBe('combatScreen');
+			expect((await saved())?.supplyRun).toMatchObject({ stop: 1, phase: 'hand_off', handOff: { event: 'family_under_fire', choice: 'charge' } });
+		});
+
+		it('holds the event\'s fight back for the run screen when its hand-off couldn\'t be saved (DDB-535)', async () => {
+			await open(eventText({ stopType: 'distress' }));
+			await press('run_event_button');
+			const [, data] = navigate.mock.calls[navigate.mock.calls.length - 1] as [string, EventScreenData];
+			storage.fault = { method: 'setItem' };
+			data.onChoose?.({ choice: 'charge' } as EventResult);
+			data.onDone?.({ choice: 'charge' } as EventResult);
+			for (let turn = 0; turn < 4; turn += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+			const [name, next] = navigate.mock.calls[navigate.mock.calls.length - 1] as [string, RunScreenData];
+			expect(name).toBe('runScreen');
+			expect(await next.saved).toBe('failed');
+			expect(next.campaign.supplyRun?.phase).toBe('hand_off');
+		});
+
+		it('holds a hand-off saved before its fight, and Fight them opens it (DDB-535)', async () => {
+			await open(eventText({ stopType: 'distress', handOff: { event: 'family_under_fire', choice: 'charge' } }));
+			expect(text('run_action_title')).toBe(`${eventKicker('distress')}: raiders`);
+			expect(text('run_action_line')).toBe('Raiders came out of it, 2 skulls of danger. Fighting them is the only way on.');
+			expect(text('run_stop_1_state')).toBe('Here');
+			await press('run_fight_button');
+			expect(navigate.mock.calls[navigate.mock.calls.length - 1][0]).toBe('combatScreen');
+		});
+
+		it('drives on from a hand-off whose fight left the game\'s content (DDB-535)', async () => {
+			await open(eventText({ stopType: 'distress', handOff: { event: 'family_under_fire', choice: 'gone' } }));
+			expect(text('run_action_line')).toBe(HAND_OFF_GONE);
+			await press('run_drive_button');
+			expect((await saved())?.supplyRun).toMatchObject({ stop: 2, phase: 'driving', handOff: null });
+		});
+
+		it('says what a won hand-off gave as the reward opens (DDB-535)', async () => {
+			const campaign = Campaign.fromJSON(JSON.parse(eventText({ stopType: 'distress', handOff: { event: 'family_under_fire', choice: 'charge' } })).campaign);
+			const fight = startStopFight({ campaign, cards: CARDS, raiders: pushovers, enemyAI: null });
+			fightOut(fight);
+			const prepared = await stopFightMount({ campaign, fight, store: storeOver(storageWith(fixtureText())) }).prepare();
+			const ended = prepared.onEnded?.({ won: true }) as { next: { data: RunScreenData } };
+			await open(fixtureText(), ended.next.data);
+			expect(text('run_report')).toBe('The last buggy runs. The family climbs out from behind the car and asks to ride with you. The run took 2 food and 3 people.');
+			expect(find<CardPileView>('run_reward')).toBeTruthy();
 		});
 
 		it('lists a stop an earlier run cleared as cleared, and drives past it (DDB-336)', async () => {

@@ -57,7 +57,7 @@ Generates campaign maps (`rollParams` seeds, `--maps` of them), reads every rout
 
 It also writes a route corpus (`--corpus <file>`), those maps' routes as JSON with each stop's type and each route's audit, its neighbor's run among it, so `runs` doesn't have to regenerate maps.
 
-A leg's room is the most stops the stops stage would deal it: clear of its ends, `minGap` apart. A POI's nearest neighbor is the other POI whose routes share the most road with its routes, by length, and its run is whichever of the neighbor's routes clears the most of this route's stops.
+A leg's room is the most stops the stops stage could deal it: clear of its ends and junctions, the tight gap apart, by the room math the POI and stops stages share. It also reports the POIs each ring aimed for and seated. A POI's nearest neighbor is the other POI whose routes share the most road with its routes, by length, and its run is whichever of the neighbor's routes clears the most of this route's stops.
 
 ### fights
 

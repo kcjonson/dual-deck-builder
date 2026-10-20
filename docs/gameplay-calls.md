@@ -379,9 +379,9 @@ Record: intent-aware-stand-in.md. Numbered from 240, the range set aside for thi
 243. DDB-528: what the harm count doesn't cover (flanking, draws, adrenaline, cards with no effect) is scored as the aggressive AI scores it, so the ceiling keeps the floor's priorities whenever no intent is at stake.
 244. DDB-528: a flanker the play outpaces is taken to lose its flank bonus whole (its hits divided by 1.5, rounded up) and to stay in range, because re-deriving range from the reserved slot needs Battle's enemy-turn preview, which projects only from the board as it stands.
 
-## Event stops (250 to 259)
+## Event stops (250 to 259, 270 to 275)
 
-Record: event-screen.md.
+Record: event-screen.md; 270 to 275, event-stops-on-a-run.md.
 
 250. DDB-45: a choice at an event is taken when it's pressed (a click, Enter, or its number key), with no confirm step, because its card already shows the risks and nothing on the screen can be undone anyway.
 251. DDB-45: an event's costs are paid from the stores and the run's cargo together, the cargo first, and a choice is locked when the two hold less, because cargo alone is empty at a run's first stop and would lock nearly every cost there.
@@ -393,6 +393,12 @@ Record: event-screen.md.
 257. DDB-45: a card requirement is met by a copy in either seated driver's run deck, an escort's signature card included, and never by the locker, because the choice is what the crew on the road can do with what they brought.
 258. DDB-45: an event stop picks its event evenly among its stop type's events, with no weights or repeat rule yet, because five events can't carry a weighting worth tuning.
 259. DDB-45: an event's HP and structure losses stop at 1 and its resource losses stop at 0, taken from the cargo first and then the stores, because an event that kills a driver or wrecks a vehicle outright would be a fight with no chance to fight back.
+270. DDB-535: an escort an event gives rides home with the run and joins the convoy when it gets home, is lost if the run fails, and is left on the road with the convoy already at four, departing from Game Flow 5, where the player dismisses one to take it, because joining mid-run needs its signature card dealt into a run deck and Game Flow 5's dismiss step, and the run has neither yet.
+271. DDB-535: an event's extra hours do nothing yet, because the run keeps no clock on the road (as call 217 has it for cleared stops).
+272. DDB-535: a hand-off's fight is fought as a stop fight at its skulls, a win gives its fight's gains and then the reward picker as any won stop fight does, and a break-off drives on with nothing more, because the picker is what winning a stop fight already gives and a break-off is no win.
+273. DDB-535: drivers an event gives are someone new of the unlocked archetype the compound has fewest living drivers of, counting recruits riding home, and never one of its missing, because call 256 makes them new recruits and that's the rule a Find: driver's someone new already follows.
+274. DDB-535: the run screen offers only Pull over at a wreck or distress stop, with no drive past, because every event has a free choice (call 254), so passing one up is made on the event itself.
+275. DDB-535: HP and structure an event gives stop at the driver's and the vehicle's most, as its losses stop at 1 (call 259), because a repair past full has nowhere to go.
 
 ## Combat run pacing (190 to 209)
 
@@ -417,8 +423,19 @@ Made building the combat side of [Runs and Encounters](./specs/Runs%20and%20Enco
 206. DDB-525: a warband's leader is its vehicle, so the leader is out, and the rest rout, when that vehicle is wrecked or loses its driver, even if the driver jumps to another raider, because the leader is the War Rig the warband rides behind, and a driver riding as a passenger can't lead it.
 207. DDB-328: the top bar's "+N arriving" and the log's "N raiders arriving" count only the raiders that will pull in at the end of this enemy turn, under the road cap and into free slots, replacing 194, because with road caps a whole wave rarely lands at once, and the readout should promise what the player will see.
 
-## Same-archetype fights (261)
+## Fight floor on every route (261 to 269)
+
+Records: route-tree-and-pois.md (Own road) and stops-and-routes.md.
+
+261. DDB-529: a POI whose ring puts it in tiers 1 to 3 is tier 4 when its quickest route can't be home by dark carrying its fight floor, each fight counted at a warband's 1.5 hours, and one Find: driver, which the find floor can pin to a route, because stage 8 puts the tier 3 to 4 boundary where a run stops fitting in daylight, and with the floor hard, 53 of 564 such POIs over 30 maps could never be home by dark otherwise. Tiers from hours (DDB-292) replace it.
+262. DDB-524: a leg earns fights at its stops times the share of fights in its routes' bands (the middle of the fights over the middle of the stops, the least of the routes through it), rounded by a draw, the floor going on a route's own road first, because the spec allocates fights "the same way" as stops and gives no rate of its own.
+263. DDB-524: a leg no single POI owns keeps at least one calm stop, and ends on one where it can, because a route's floor fights come after it on its own road, and two of them behind a shared fight would be three in a row.
+264. DDB-524: the daylight check sheds a stop whose going leaves every route through its leg in its band before one that doesn't, within extras, calm stops, finds, and fights in that order, because thinning road a tier 1 route shares otherwise took tier 4 and 5 routes under their bands on 37 to 43% of routes.
+265. DDB-524: a route the daylight check left under its band's minimum takes calm stops back on its own road where there's room and no POI home by dark tips past it, or turns on its latest dormant extra from the start, because the band's minimum gives only to the clock, and its own road is where adding a stop costs no other route anything.
+266. DDB-524: a route's own last leg keeps room for its two dormant extras back from everything but its own-road need, spread among its stops, the first on at game stage 2 and the second at 4, and a route whose own last leg has no spare room past that need gets fewer or none: over 30 maps, routes with 0, 1, and 2 extras are 21, 10, and 69% at tier 1, 23, 8, and 68% at tier 2, 33, 15, and 52% at tier 3, 7, 5, and 88% at tier 4, and 4, 4, and 92% at tier 5, because the spec asks for up to two, and seating POIs on room for the need plus both extras would cost about a fifth of them (586 seated against 734), some maps losing ring 1 entirely.
+
+## Same-archetype fights (276)
 
 Record: mvp-supply-run.md.
 
-261. DDB-539: combat seats whatever pair the crew rule sends, so two drivers of one archetype fight together when call 35 lets them go, and combat's own check is only that one driver can't fill both seats, because the archetype rule is load out's (call 35), two Mechanics are two people with their own decks, and a fight refusing a pair load out allowed left the run stuck at its fight.
+276. DDB-539: combat seats whatever pair the crew rule sends, so two drivers of one archetype fight together when call 35 lets them go, and combat's own check is only that one driver can't fill both seats, because the archetype rule is load out's (call 35), two Mechanics are two people with their own decks, and a fight refusing a pair load out allowed left the run stuck at its fight.

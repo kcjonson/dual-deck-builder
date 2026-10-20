@@ -1,5 +1,6 @@
 import type { AIType } from '../ai/AIController';
 import { ENCOUNTER_DATA, EncounterData, Skulls, readEncounterData } from '../campaign/Encounters';
+import { STOP_TUNING, TierBand } from '../map/StopData';
 import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
 import { RAIDER_IDS, RAIDER_PROFILES, RaiderId, RaiderProfile } from '../mechanics/Raiders';
 
@@ -38,20 +39,8 @@ export interface SimConfigInput {
 	readonly bands?: Readonly<Record<number, TierBand>>;
 }
 
-/** A route's stops and fights at game stage 0, its least and most (Runs and Encounters, How many stops). */
-export interface TierBand {
-	readonly stops: { readonly min: number; readonly max: number };
-	readonly fights: { readonly min: number; readonly max: number };
-}
-
-/** Runs and Encounters' starting bands by destination tier, the stronghold's as tier 5; its boss isn't counted. */
-export const ROUTE_BANDS: Readonly<Record<number, TierBand>> = Object.freeze({
-	1: { stops: { min: 3, max: 4 }, fights: { min: 1, max: 2 } },
-	2: { stops: { min: 3, max: 4 }, fights: { min: 1, max: 2 } },
-	3: { stops: { min: 4, max: 5 }, fights: { min: 2, max: 3 } },
-	4: { stops: { min: 5, max: 6 }, fights: { min: 2, max: 3 } },
-	5: { stops: { min: 6, max: 7 }, fights: { min: 2, max: 3 } },
-});
+/** The stops stage's bands by destination tier, the stronghold's as tier 5, from its tuning. */
+export const ROUTE_BANDS: Readonly<Record<number, TierBand>> = Object.freeze(Object.fromEntries(STOP_TUNING.bands.map((band, index) => [index + 1, band])));
 
 /** Seat 1 first, one or two seats of different archetypes. A seat is an archetype on its default deck, or one with the deck given. */
 export type CrewInput = readonly (DriverArchetype | SeatInput)[];

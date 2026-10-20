@@ -1,15 +1,18 @@
 import { Rng } from '../core/Rng';
-import { ROUTE_TREE_STAGE, generateAreaMap, poisStage } from './AreaMapPipeline';
+import { ROUTE_TREE_STAGE, generateAreaMap, poiGround, poisStage } from './AreaMapPipeline';
 import type { Biome } from './Biome';
 import type { MapParams } from './MapParams';
 import { MapPipeline } from './MapPipeline';
 import { FakeGroundOptions, fakeGround, meshFrom, randomMesh } from './meshTesting';
 import { checkPoiLayer } from './PoiChecks';
 import { FACTIONS, POI_TUNING, PoiResource, PoiTuning, STRONGHOLD_TYPE } from './PoiData';
-import { PoiGround, PoiLayer, Sectors, placePois } from './Pois';
+import { Poi, PoiGround, PoiLayer, Sectors, placePois } from './Pois';
 import type { RoadNetwork } from './RoadNetwork';
 import { RouteTree, buildRouteTree, routesTo } from './RouteTree';
 import { paramsFor } from './roadTesting';
+import { rollParams } from './RollParams';
+import { STOP_TUNING, StopTuning } from './StopData';
+import { floorRunHours, nodeDegrees, ownRoadNeed, ownRoadRoom } from './StopRoom';
 
 interface PlaceOptions {
 	seed?: number;
@@ -18,11 +21,19 @@ interface PlaceOptions {
 	poiDensity?: number;
 	routeSplit?: number;
 	tuning?: PoiTuning;
+	stopTuning?: StopTuning;
+	daylightHours?: number;
 }
 
-function place(network: RoadNetwork, { seed = 1, ground = fakeGround(), strongholds = 4, poiDensity = 1, routeSplit = 0.5, tuning }: PlaceOptions = {}): { tree: RouteTree; layer: PoiLayer } {
+function place(network: RoadNetwork, { seed = 1, ground = fakeGround(), strongholds = 4, poiDensity = 1, routeSplit = 0.5, tuning, stopTuning, daylightHours = 14 }: PlaceOptions = {}): { tree: RouteTree; layer: PoiLayer } {
 	const tree = buildRouteTree({ network, travelPace: 1, routeSplit });
-	return { tree, layer: placePois({ network, tree, ground, params: { strongholds, poiDensity }, rng: new Rng({ seed }), tuning }) };
+	return { tree, layer: placePois({ network, tree, ground, params: { strongholds, poiDensity, daylightHours }, rng: new Rng({ seed }), tuning, stopTuning }) };
+}
+
+/** Each route's own-road room and need, by POI. */
+function ownRoad(network: RoadNetwork, layer: PoiLayer, stopTuning: StopTuning = STOP_TUNING): { room: number; need: number }[] {
+	const { room } = ownRoadRoom({ network, legs: layer.legs, routes: layer.pois.map((poi) => routesTo(layer, poi)), degrees: nodeDegrees(network), tuning: stopTuning });
+	return room.flatMap((rooms, poi) => rooms.map((held) => ({ room: held, need: ownRoadNeed(layer.pois[poi].tier, stopTuning) })));
 }
 
 /** Land of one biome everywhere. */
@@ -85,14 +96,14 @@ describe('POIs and strongholds on the route tree', () => {
 		it('fails a sector with no meeting point in the outer band', () => {
 			const { layer } = place(randomMesh({ seed: 7, radius: 600 }));
 			expect(layer.strongholds).toEqual([]);
-			expect(layer.failures).toEqual([0, 1, 2, 3].map((sector) => `sector ${sector} has no free meeting point in the outer band`));
+			expect(layer.failures).toEqual([0, 1, 2, 3].map((sector) => `sector ${sector} has no free meeting point in the outer band whose routes all keep their own road`));
 		});
 
 		it('refuses more strongholds than there are factions', () => {
 			const network = meshes[0];
 			const tree = buildRouteTree({ network, travelPace: 1, routeSplit: 0.5 });
 			const factions = { mireCrawlers: FACTIONS.mireCrawlers, sunChasers: FACTIONS.sunChasers };
-			expect(() => placePois({ network, tree, ground: fakeGround(), params: { strongholds: 3, poiDensity: 1 }, rng: new Rng({ seed: 1 }), factions }))
+			expect(() => placePois({ network, tree, ground: fakeGround(), params: { strongholds: 3, poiDensity: 1, daylightHours: 14 }, rng: new Rng({ seed: 1 }), factions }))
 				.toThrow('placePois: 3 strongholds need as many factions, got 2');
 		});
 	});
@@ -137,8 +148,9 @@ describe('POIs and strongholds on the route tree', () => {
 				for (const { site, ring, tier } of pois) {
 					const share = (distance(site) - 150) / (0.95 * 1000 - 150);
 					expect(ring).toBe(Math.min(3, Math.floor(share * 4)));
-					expect(tier).toBe(ring + 1);
+					expect(tier === ring + 1 || (tier === 4 && ring < 3)).toBe(true);
 				}
+				expect(pois.filter(({ ring, tier }) => tier !== ring + 1)).toHaveLength(layer.rings.reduce((sum, { promoted }) => sum + promoted, 0));
 			}
 		});
 
@@ -215,6 +227,67 @@ describe('POIs and strongholds on the route tree', () => {
 		});
 	});
 
+	describe('own road', () => {
+		it('seats a stronghold on its sector\'s next best site where the best would leave a route short of own road', () => {
+			// No need at all, past what the reader allows, puts each stronghold on its sector's best fit.
+			// Seed 1 seats one stronghold a site further along for it.
+			const free: StopTuning = { ...STOP_TUNING, bands: STOP_TUNING.bands.map(() => ({ stops: { min: 0, max: 7 }, fights: { min: 0, max: 3 } })) };
+			const sites = (layer: PoiLayer) => layer.strongholds.map(({ poi }) => `${layer.pois[poi].site.x},${layer.pois[poi].site.y}`);
+			let gaveWay = 0;
+			for (const seed of [1]) {
+				const params = rollParams(seed);
+				const { products } = generateAreaMap({ params, debug: false });
+				const { network } = products.roads;
+				const ground = poiGround({ terrain: products.hazards.terrain, places: products.places });
+				const seat = (stopTuning: StopTuning) => placePois({ network, tree: products.routeTree, ground, params, rng: new Rng({ seed }), stopTuning });
+				const best = seat(free);
+				const held = seat(STOP_TUNING);
+				expect(held.strongholds).toHaveLength(best.strongholds.length);
+				for (const { room, need } of ownRoad(network, held)) expect(room).toBeGreaterThanOrEqual(need);
+				const bestSites = sites(best);
+				gaveWay += sites(held).filter((site, index) => site !== bestSites[index]).length;
+			}
+			expect(gaveWay).toBeGreaterThan(0);
+		});
+
+		it('leaves every route, strongholds included, room on legs no other POI uses for its floor fights and half its band', () => {
+			for (const network of meshes.slice(0, 10)) {
+				const { layer } = place(network, { poiDensity: 2 });
+				for (const { room, need } of ownRoad(network, layer)) expect(room).toBeGreaterThanOrEqual(need);
+			}
+		});
+
+		it('seats fewer POIs where routes need more own road, and still leaves each its room', () => {
+			const network = meshes[3];
+			const needy: StopTuning = { ...STOP_TUNING, bands: STOP_TUNING.bands.map((band) => ({ ...band, stops: { min: 8, max: 9 } })) };
+			const easy = place(network, { poiDensity: 2 }).layer;
+			const hard = place(network, { poiDensity: 2, stopTuning: needy }).layer;
+			expect(hard.pois.length).toBeLessThan(easy.pois.length);
+			for (const { room, need } of ownRoad(network, hard, needy)) expect(room).toBeGreaterThanOrEqual(need);
+			expect(ownRoad(network, easy, needy).some(({ room, need }) => room < need)).toBe(true);
+		});
+	});
+
+	describe('tiers for daylight', () => {
+		it('make a POI tier 4 where tiers 1 to 3 would leave its quickest route past dark with its fight floor and a Find: driver, and never a stronghold', () => {
+			const network = meshes[2];
+			const floorRun = (layer: PoiLayer, poi: Poi, tier: number) => floorRunHours({ routeHours: poi.arrivals[0].hours, tier, objectiveHours: STOP_TUNING.objectiveHours.poi, tuning: STOP_TUNING });
+			for (const daylightHours of [6, 9, 14]) {
+				const { layer } = place(network, { daylightHours });
+				for (const poi of layer.pois) {
+					if (poi.type === STRONGHOLD_TYPE) {
+						expect(poi.tier).toBe(5);
+						continue;
+					}
+					const promoted = poi.ring < 3 && floorRun(layer, poi, poi.ring + 1) > daylightHours;
+					expect(poi.tier).toBe(promoted ? 4 : poi.ring + 1);
+				}
+				if (daylightHours === 6) expect(layer.rings.reduce((sum, { promoted }) => sum + promoted, 0)).toBeGreaterThan(0);
+				for (const { room, need } of ownRoad(network, layer)) expect(room).toBeGreaterThanOrEqual(need);
+			}
+		});
+	});
+
 	it('is deterministic from its stream, and a different stream places differently', () => {
 		const network = meshes[8];
 		expect(place(network, { seed: 4 }).layer).toEqual(place(network, { seed: 4 }).layer);
@@ -243,7 +316,7 @@ describe('the POI stage in the pipeline', () => {
 		expect(result.attempts).toEqual({ hazards: 0, places: 0, roads: 1, routeTree: 0, pois: 0 });
 		expect(result.timings.pois.runs).toBe(9);
 		expect(result.failures.filter(({ stage }) => stage === 'pois')).toHaveLength(8);
-		expect(result.failures[0].problems).toContain('sector 0 has no free meeting point in the outer band');
+		expect(result.failures[0].problems).toContain('sector 0 has no free meeting point in the outer band whose routes all keep their own road');
 		expect(result.products.pois.strongholds).toHaveLength(4);
 	});
 
@@ -286,7 +359,7 @@ describe('the POI stage in the pipeline', () => {
 		expect(tree.parentStretch[3]).toBe(2);
 		expect(tree.meetingPoints).toEqual([{ stretch: 3, node: -1, from: [2, 3], via: [3, 3] }]);
 		// Nothing reaches the outer band, so neither sector seats a stronghold.
-		expect(layer.failures).toEqual(['sector 0 has no free meeting point in the outer band', 'sector 1 has no free meeting point in the outer band']);
+		expect(layer.failures).toEqual(['sector 0 has no free meeting point in the outer band whose routes all keep their own road', 'sector 1 has no free meeting point in the outer band whose routes all keep their own road']);
 		expect(layer.pois).toHaveLength(1);
 		const [poi] = layer.pois;
 		expect(poi.site.stretch).toBe(3);

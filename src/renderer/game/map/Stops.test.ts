@@ -1,5 +1,6 @@
 import { Rng } from '../core/Rng';
-import { STOPS_STAGE, ROUTE_TREE_STAGE, poisStage } from './AreaMapPipeline';
+import { STOPS_STAGE, ROUTE_TREE_STAGE, generateAreaMap, poisStage } from './AreaMapPipeline';
+import { rollParams } from './RollParams';
 import type { MapParams, StopTables } from './MapParams';
 import { MapPipeline, MapPipelineError } from './MapPipeline';
 import { MeshMapOptions, fakeGround, meshFrom, meshMap, randomMesh } from './meshTesting';
@@ -9,10 +10,12 @@ import type { RoadNetwork } from './RoadNetwork';
 import { pointAlong } from './Geometry';
 import { Route, buildLegs, buildRouteTree, legPoints, routesTo } from './RouteTree';
 import { paramsFor } from './roadTesting';
-import { checkStopLayer, typesAlong } from './StopChecks';
+import { StopViolation, checkStopLayer, keepableStops, typesAlong } from './StopChecks';
 import stopTablesFile from '../data/stopTables.json';
 import { STOP_TUNING, STOP_TYPES, StopTuning, StopType, isCalm, isFight } from './StopData';
-import { DAYLIGHT_TIERS, StopLayer, junctionsAlong, keepsRules, nearestClear, nodeDegrees, placeStops, pointsAlong, rollStop } from './Stops';
+import { bandFor, legOwners } from './StopRoom';
+import { DAYLIGHT_TIERS, junctionsAlong, nearestClear, nodeDegrees } from './StopRoom';
+import { StopLayer, keepsRules, placeStops, pointsAlong, rollStop } from './Stops';
 
 /** The shipped tables with some types' class weights replaced, everywhere. */
 function tablesWith(weights: Partial<Record<StopType, number>>): StopTables {
@@ -22,6 +25,12 @@ function tablesWith(weights: Partial<Record<StopType, number>>): StopTables {
 
 /** A tuning with some fields replaced. */
 const tuned = (fields: Partial<StopTuning>): StopTuning => ({ ...STOP_TUNING, ...fields });
+
+/** Every band the same, past what the reader allows, so a test can take the floor or the band out of play. */
+const banded = (band: StopTuning['bands'][number]): StopTuning['bands'] => STOP_TUNING.bands.map(() => band);
+
+/** The rules that fail the stage; the soft ones are the layer's failures. */
+const hardOf = (violations: readonly StopViolation[]): StopViolation[] => violations.filter(({ hard }) => hard);
 
 const meshes = Array.from({ length: 8 }, (_, index) => randomMesh({ seed: 500 + index, spacing: 80 + 3 * index }));
 
@@ -33,10 +42,12 @@ function routeTypes(layer: ReturnType<typeof mapOn>['products']): StopType[][] {
 }
 
 describe('stops on legs', () => {
-	it('keep every rule the checks know, on random meshes', () => {
+	it('keep every rule the checks know, on random meshes, the soft ones missed only as the layer reports', () => {
 		meshes.forEach((_, index) => {
 			const { network, params, products } = mapOn(index);
-			expect(checkStopLayer({ network, layer: products.pois, stops: products.stops, params })).toEqual([]);
+			const violations = checkStopLayer({ network, layer: products.pois, stops: products.stops, params });
+			expect(hardOf(violations)).toEqual([]);
+			for (const { detail } of violations) expect(products.stops.failures).toContain(detail);
 			expect(products.stops.legs).toHaveLength(products.pois.legs.length);
 			expect(products.stops.stops.length).toBeGreaterThan(products.pois.legs.length / 2);
 		});
@@ -54,24 +65,59 @@ describe('stops on legs', () => {
 		const network = meshFrom({ nodes: [[0, 0], [300, 250], [300, -250], [600, 0], [300, 400]], edges: [[0, 1], [0, 2], [1, 3], [2, 3], [1, 4]] });
 		const poiTuning: PoiTuning = { ...POI_TUNING, rings: { ...POI_TUNING.rings, targets: [0, 1, 1, 1] }, cover: [] };
 		const tree = buildRouteTree({ network, travelPace: 1, routeSplit: 0.5 });
-		const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
+		const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1, daylightHours: 14 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
 		const params = { stopDensity: 1, dangerCurve: 1, driverFinds: 0, daylightHours: 16 };
 
-		it('count a leg\'s stops by its length by class over the class\'s spacing, rounded up or down by a draw', () => {
-			const spacing = { highway: 150, backRoad: 100, trail: 100 };
-			const counts = layer.legs.map(() => new Set<number>());
-			let total = 0;
-			for (let seed = 0; seed < 40; seed += 1) {
-				const stops = placeStops({ network, layer, ground: fakeGround(), params, rng: new Rng({ seed }), tuning: tuned({ spacing }) });
-				stops.legs.forEach(({ stops: ids }, leg) => counts[leg].add(ids.length));
-				total += stops.stops.length;
+		it('deal each route its band, the floor in fights, leaning on what its road earns', () => {
+			const [poi] = layer.pois;
+			const { stops: band, fights } = bandFor(poi.tier, STOP_TUNING);
+			const routes = routesTo(layer, poi);
+			const count = (stops: StopLayer, route: Route) => typesAlong(stops, route).length;
+			const fightsOn = (stops: StopLayer, route: Route) => typesAlong(stops, route).filter(isFight).length;
+			// A road that earns nothing sits at the bottom of the band, one that earns plenty at the top, and the fights in their band either way.
+			const bare = placeStops({ network, layer, ground: fakeGround(), params, rng: new Rng({ seed: 1 }), tuning: tuned({ spacing: { highway: 1e9, backRoad: 1e9, trail: 1e9 } }) });
+			const busy = placeStops({ network, layer, ground: fakeGround(), params, rng: new Rng({ seed: 1 }), tuning: tuned({ spacing: { highway: 10, backRoad: 10, trail: 10 } }) });
+			for (const route of routes) {
+				expect(count(bare, route)).toBe(band.min);
+				expect(count(busy, route)).toBe(band.max);
+				for (const stops of [bare, busy]) {
+					expect(fightsOn(stops, route)).toBeGreaterThanOrEqual(fights.min);
+					expect(fightsOn(stops, route)).toBeLessThanOrEqual(fights.max);
+				}
 			}
-			const expected = layer.legs.map(({ length }) => length / 100);
-			counts.forEach((seen, leg) => expect([...seen].every((count) => count === Math.floor(expected[leg]) || count === Math.ceil(expected[leg]))).toBe(true));
-			// Over many streams the mean comes to what the road earns.
-			expect(total / 40).toBeCloseTo(expected[0] + expected[1], 0);
-			const doubled = placeStops({ network, layer, ground: fakeGround(), params: { ...params, stopDensity: 2 }, rng: new Rng({ seed: 1 }), tuning: tuned({ spacing }) });
-			expect(doubled.stops.length).toBeGreaterThanOrEqual(2 * Math.floor(expected[0] + expected[1]) - 2);
+			// In between, the band holds on every stream.
+			for (let seed = 0; seed < 20; seed += 1) {
+				const stops = placeStops({ network, layer, ground: fakeGround(), params, rng: new Rng({ seed }), tuning: tuned({ spacing: { highway: 150, backRoad: 150, trail: 150 } }) });
+				for (const route of routes) {
+					expect(count(stops, route)).toBeGreaterThanOrEqual(band.min);
+					expect(count(stops, route)).toBeLessThanOrEqual(band.max);
+				}
+			}
+		});
+
+		it('put a route\'s floor fights and half its band on its own road, and up to two dormant calm extras on its own last leg', () => {
+			meshes.forEach((_, index) => {
+				const { products } = mapOn(index, { daylightHours: 100 });
+				const { pois, stops } = products;
+				const routes = pois.pois.map((poi) => routesTo(pois, poi));
+				const owners = legOwners(pois.legs.length, routes);
+				routes.forEach((poiRoutes, poi) => {
+					const { stops: band, fights } = bandFor(pois.pois[poi].tier, STOP_TUNING);
+					for (const route of poiRoutes) {
+						const own = route.legs.filter((leg) => owners[leg] === poi).flatMap((leg) => stops.legs[leg].stops.map((id) => stops.stops[id].type));
+						expect(own.filter(isFight).length).toBeGreaterThanOrEqual(fights.min);
+						expect(own.length).toBeGreaterThanOrEqual(Math.ceil(band.min / 2));
+						const last = route.legs[route.legs.length - 1];
+						const extras = stops.legs[last].extras.map((id) => stops.stops[id]);
+						expect(extras.length).toBeLessThanOrEqual(2);
+						expect(extras.map(({ stage }) => stage)).toEqual(STOP_TUNING.extras.slice(0, extras.length));
+						for (const extra of extras) expect(isCalm(extra.type)).toBe(true);
+					}
+				});
+				stops.legs.forEach(({ extras }, leg) => {
+					if (extras.length > 0) expect(pois.pois.some(({ arrivals }) => arrivals.some((arrival) => arrival.leg === leg))).toBe(true);
+				});
+			});
 		});
 
 		it('spread them evenly along the leg by arc length, each in its own slot, clear of the ends and of junctions, and minGap apart', () => {
@@ -83,11 +129,12 @@ describe('stops on legs', () => {
 			expect(junctionsAlong({ network, leg: layer.legs[0], degrees })).toEqual([layer.legs[0].pieces[0].length]);
 			expect(layer.legs[0].pieces).toHaveLength(3);
 			layer.legs.forEach((leg, id) => {
-				const ids = stops.legs[id].stops;
+				// Its extras take slots among its stops.
+				const ids = [...stops.legs[id].stops, ...stops.legs[id].extras].sort((a, b) => a - b);
 				const ends = Math.min(tuning.clearance.ends, 0.25 * leg.length);
 				const usable = leg.length - 2 * ends;
 				const dealt = ids.length;
-				expect([Math.floor(leg.length / 45), Math.ceil(leg.length / 45)].map((count) => Math.min(count, Math.floor(usable / tuning.minGap)))).toContain(dealt);
+				expect(dealt).toBeGreaterThan(0);
 				const slot = usable / dealt;
 				const joins = junctionsAlong({ network, leg, degrees });
 				const line = legPoints(network, leg);
@@ -156,15 +203,15 @@ describe('stops on legs', () => {
 
 	describe('types', () => {
 		it('come from the tables by the class and biome where a stop stands', () => {
-			const mire = mapOn(1, { ground: fakeGround({ biome: () => 'mire' }) }).products.stops.stops;
-			const scrub = mapOn(1).products.stops.stops;
-			const share = (stops: StopLayer['stops'], type: StopType) => stops.filter((stop) => stop.type === type).length / stops.length;
-			// Mire triples hazards and nearly rules out garages.
-			expect(share(mire, 'hazard')).toBeGreaterThan(1.5 * share(scrub, 'hazard'));
+			const wreckyMire = { ...stopTablesFile, biomes: { ...stopTablesFile.biomes, mire: { wreck: 4 } } };
+			const mire = mapOn(1, { ground: fakeGround({ biome: () => 'mire' }), stopTables: wreckyMire }).products.stops.stops;
+			const scrub = mapOn(1, { stopTables: wreckyMire }).products.stops.stops;
+			const share = (stops: StopLayer['stops'], type: StopType) => stops.filter((stop) => stop.type === type).length / stops.filter((stop) => isCalm(stop.type)).length;
+			expect(share(mire, 'wreck')).toBeGreaterThan(1.3 * share(scrub, 'wreck'));
 			for (const stop of mire) expect(stop.biome).toBe('mire');
-			// Only the types the tables weigh.
-			const only = mapOn(2, { stopTables: tablesWith(Object.fromEntries(STOP_TYPES.map((type) => [type, type === 'wreck' ? 1 : 0]))) }).products.stops.stops;
-			expect(new Set(only.map(({ type }) => type))).toEqual(new Set(['wreck', 'findDriver']));
+			// Only the types the tables weigh, and never one the run can't resolve, however the tables weigh it.
+			const only = mapOn(2, { stopTables: tablesWith(Object.fromEntries(STOP_TYPES.map((type) => [type, type === 'wreck' || type === 'ambush' || type === 'garage' ? 1 : 0]))) }).products.stops.stops;
+			expect(new Set(only.map(({ type }) => type))).toEqual(new Set(['wreck', 'ambush', 'findDriver']));
 		});
 
 		it('never put three fights in a row, nor three stops without a non-fight, on any route, however the tables lean', () => {
@@ -192,7 +239,8 @@ describe('stops on legs', () => {
 				...map.products.stops,
 				stops: map.products.stops.stops.map((stop) => (ids.includes(stop.id) ? { ...stop, type: types[ids.indexOf(stop.id)], skulls: 1 } : stop)),
 			});
-			const rules = (types: StopType[]) => new Set(checkStopLayer({ network: map.network, layer: map.products.pois, stops: doctor(types), params: { ...map.params, driverFinds: 0, daylightHours: 100 } }).map(({ rule }) => rule));
+			const rules = (types: StopType[]) => new Set(checkStopLayer({ network: map.network, layer: map.products.pois, stops: doctor(types), params: { ...map.params, driverFinds: 0, daylightHours: 100 } })
+				.map(({ rule }) => rule).filter((rule) => rule === 'fights' || rule === 'calm'));
 			expect(rules(['ambush', 'warband', 'ambush'])).toEqual(new Set(['fights', 'calm']));
 			expect(rules(['ambush', 'checkpoint', 'ambush'])).toEqual(new Set(['calm']));
 			expect(rules(['ambush', 'wreck', 'ambush'])).toEqual(new Set());
@@ -224,24 +272,30 @@ describe('stops on legs', () => {
 
 	describe('Find: driver', () => {
 		const noFinds = tablesWith({ findDriver: 0 });
-		const findsIn = ({ products }: ReturnType<typeof mapOn>, tiers: (tier: number) => boolean) => products.stops.stops.filter((stop) => stop.type === 'findDriver' && tiers(products.stops.legs[stop.leg].tier)).length;
+		const findsIn = ({ products }: ReturnType<typeof mapOn>, tiers: (tier: number) => boolean) => products.stops.stops.filter((stop) => stop.stage === 0 && stop.type === 'findDriver' && tiers(products.stops.legs[stop.leg].tier)).length;
 
 		it('meets the driverFinds floor in tiers 1 and 2 even when the tables never draw one', () => {
 			for (const driverFinds of [1, 2, 3, 4]) {
 				meshes.slice(0, 4).forEach((_, index) => {
 					const map = mapOn(index, { stopTables: noFinds, driverFinds });
 					expect(findsIn(map, (tier) => tier <= 2)).toBeGreaterThanOrEqual(driverFinds);
-					expect(checkStopLayer({ network: map.network, layer: map.products.pois, stops: map.products.stops, params: map.params })).toEqual([]);
+					expect(hardOf(checkStopLayer({ network: map.network, layer: map.products.pois, stops: map.products.stops, params: map.params }))).toEqual([]);
 				});
 			}
 		});
 
-		it('adds stops for the floor where the legs in its tiers hold too few to turn', () => {
-			const sparse = tuned({ spacing: { highway: 1e6, backRoad: 1e6, trail: 1e6 } });
-			const map = mapOn(5, { stopTables: noFinds, stopTuning: sparse, driverFinds: 3 });
-			const { stops, legs } = map.products.stops;
-			expect(stops.filter((stop) => legs[stop.leg].tier <= 2).map(({ type }) => type)).toEqual(['findDriver', 'findDriver', 'findDriver']);
-			expect(map.products.stops.failures.filter((failure) => failure.includes('Find: driver'))).toEqual([]);
+		it('turns calm stops only, never a fight, and adds stops for the floor where the legs in its tiers hold too few calm ones to turn', () => {
+			const inFloor = ({ products }: ReturnType<typeof mapOn>) => products.stops.legs.flatMap(({ tier, stops: ids }) => (tier <= 2 ? ids.map((id) => products.stops.stops[id]) : []));
+			// Daylight to spare, so nothing's thinned or topped up after the finds.
+			const base = mapOn(5, { stopTables: noFinds, driverFinds: 0, daylightHours: 100 });
+			const many = mapOn(5, { stopTables: noFinds, driverFinds: 40, daylightHours: 100 });
+			const fights = (map: ReturnType<typeof mapOn>) => inFloor(map).filter(({ type }) => isFight(type)).length;
+			expect(fights(many)).toBe(fights(base));
+			expect(inFloor(many).filter(({ type }) => type !== 'findDriver' && !isFight(type)).map(({ type }) => type)).toEqual([]);
+			expect(inFloor(many).length).toBeGreaterThan(inFloor(base).length);
+			// Never past a route's band to do it.
+			const { pois, stops } = many.products;
+			for (const poi of pois.pois) for (const route of routesTo(pois, poi)) expect(typesAlong(stops, route).length).toBeLessThanOrEqual(bandFor(poi.tier, STOP_TUNING).stops.max);
 		});
 
 		it('keeps a soft rate in the outer tiers, never a failure', () => {
@@ -249,7 +303,7 @@ describe('stops on legs', () => {
 			meshes.slice(0, 4).forEach((_, index) => {
 				const map = mapOn(index, { stopTables: noFinds, stopTuning: rates });
 				for (const tier of [3, 4, 5]) {
-					const onTier = map.products.stops.stops.filter((stop) => map.products.stops.legs[stop.leg].tier === tier).length;
+					const onTier = map.products.stops.stops.filter((stop) => stop.stage === 0 && map.products.stops.legs[stop.leg].tier === tier).length;
 					expect(findsIn(map, (legTier) => legTier === tier)).toBeGreaterThanOrEqual(Math.floor(0.2 * onTier));
 				}
 			});
@@ -262,7 +316,7 @@ describe('stops on legs', () => {
 			pois.pois.forEach((poi, index) => {
 				if (poi.tier > DAYLIGHT_TIERS) return;
 				const routes = routesTo(pois, poi);
-				const estimate = (route: (typeof routes)[number]) => 2 * route.hours + STOP_TUNING.objectiveHours.poi + typesAlong(stops, route).reduce((sum, type) => sum + STOP_TUNING.types[type].hours, 0);
+				const estimate = (route: (typeof routes)[number]) => 2 * route.hours + STOP_TUNING.objectiveHours.poi + typesAlong(stops, route, { extras: true }).reduce((sum, type) => sum + STOP_TUNING.types[type].hours, 0);
 				if (routes.some((route) => estimate(route) <= daylightHours)) return;
 				// Only a POI no stops could mend is let through, and it's listed.
 				expect(2 * routes[0].hours + STOP_TUNING.objectiveHours.poi).toBeGreaterThan(daylightHours);
@@ -275,10 +329,10 @@ describe('stops on legs', () => {
 				meshes.forEach((_, index) => {
 					const map = mapOn(index, { daylightHours });
 					fits(map, daylightHours);
-					expect(checkStopLayer({ network: map.network, layer: map.products.pois, stops: map.products.stops, params: map.params })).toEqual([]);
+					expect(hardOf(checkStopLayer({ network: map.network, layer: map.products.pois, stops: map.products.stops, params: map.params }))).toEqual([]);
 				});
 			}
-			const short = mapOn(0, { daylightHours: 10 });
+			const short = mapOn(0, { daylightHours: 10, seatedDaylightHours: 16 });
 			const long = mapOn(0, { daylightHours: 16 });
 			expect(short.products.stops.thinned).toBeGreaterThan(long.products.stops.thinned);
 		});
@@ -287,13 +341,13 @@ describe('stops on legs', () => {
 			const network = meshFrom({ nodes: [[0, 0], [300, 250], [300, -250], [600, 0]], edges: [[0, 1], [0, 2], [1, 3], [2, 3]] });
 			const poiTuning: PoiTuning = { ...POI_TUNING, rings: { ...POI_TUNING.rings, targets: [0, 1, 1, 1] }, cover: [] };
 			const tree = buildRouteTree({ network, travelPace: 1, routeSplit: 0.5 });
-			const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
+			const layer = placePois({ network, tree, ground: fakeGround(), params: { strongholds: 2, poiDensity: 1, daylightHours: 14 }, rng: new Rng({ seed: 1 }), tuning: poiTuning });
 			const [poi] = layer.pois;
 			const routes = routesTo(layer, poi);
 			const bare = 2 * routes[0].hours + STOP_TUNING.objectiveHours.poi;
-			// Every stop a one-hour ambush, dense enough that both routes run past dark.
-			const tuning = tuned({ spacing: { highway: 40, backRoad: 40, trail: 40 }, driverFinds: { floorTiers: 2, rates: [0, 0, 0, 0, 0] } });
-			const params = { stopDensity: 1, dangerCurve: 1, driverFinds: 0, daylightHours: Math.ceil(bare) + 2, stopTables: tablesWith(Object.fromEntries(STOP_TYPES.map((type) => [type, type === 'ambush' ? 1 : type === 'wreck' ? 1e-9 : 0]))) };
+			// Ambushes and wrecks, dense enough that both routes run past dark, with no floor or band to hold any.
+			const tuning = tuned({ spacing: { highway: 40, backRoad: 40, trail: 40 }, driverFinds: { floorTiers: 2, rates: [0, 0, 0, 0, 0] }, bands: banded({ stops: { min: 0, max: 30 }, fights: { min: 0, max: 30 } }), extras: [] });
+			const params = { stopDensity: 1, dangerCurve: 1, driverFinds: 0, daylightHours: Math.ceil(bare) + 2, stopTables: tablesWith(Object.fromEntries(STOP_TYPES.map((type) => [type, type === 'ambush' || type === 'wreck' ? 1 : 0]))) };
 			const loose = placeStops({ network, layer, ground: fakeGround(), params: { ...params, daylightHours: 100 }, rng: new Rng({ seed: 2 }), tuning });
 			const thinned = placeStops({ network, layer, ground: fakeGround(), params, rng: new Rng({ seed: 2 }), tuning });
 			const hours = (stops: StopLayer, route: number) => 2 * routes[route].hours + STOP_TUNING.objectiveHours.poi + typesAlong(stops, routes[route]).reduce((sum, type) => sum + STOP_TUNING.types[type].hours, 0);
@@ -330,8 +384,11 @@ describe('stops on legs', () => {
 			});
 			const layer: PoiLayer = { pois, strongholds: [], sectorRotation: 0, legs, rings: [], failures: [] };
 			const [near, far] = pois.map((poi) => routesTo(layer, poi));
-			// No stops drawn, so the floor's one find is the only stop, on the widest leg: the near POI's quickest.
-			const tuning = tuned({ spacing: { highway: 1e9, backRoad: 1e9, trail: 1e9 }, driverFinds: { floorTiers: 2, rates: [0, 0, 0, 0, 0] } });
+			// No stops drawn, nor a band or floor to hold any, so the floor's one find is the only stop, on the widest leg: the near POI's quickest.
+			const tuning = tuned({
+				spacing: { highway: 1e9, backRoad: 1e9, trail: 1e9 }, driverFinds: { floorTiers: 2, rates: [0, 0, 0, 0, 0] },
+				bands: banded({ stops: { min: 0, max: 1 }, fights: { min: 0, max: 0 } }), extras: [],
+			});
 			const params = { stopDensity: 1, dangerCurve: 1, driverFinds: 1, daylightHours };
 			const findLeg = (stops: StopLayer) => stops.stops.filter(({ type }) => type === 'findDriver').map(({ leg }) => leg);
 			const loose = placeStops({ network, layer, ground: fakeGround(), params: { ...params, daylightHours: 100 }, rng: new Rng({ seed: 1 }), tuning });
@@ -347,7 +404,7 @@ describe('stops on legs', () => {
 			const stops = placeStops({ network, layer, ground: fakeGround(), params, rng: new Rng({ seed: 1 }), tuning });
 			// The stage's own check, so it passes on its first attempt.
 			expect(stops.failures).toEqual([]);
-			expect(checkStopLayer({ network, layer, stops, params })).toEqual([]);
+			expect(checkStopLayer({ network, layer, stops, params, tuning })).toEqual([]);
 			const hours = (route: Route) => 2 * route.hours + STOP_TUNING.objectiveHours.poi + typesAlong(stops, route).reduce((sum, type) => sum + STOP_TUNING.types[type].hours, 0);
 			for (const routes of [near, far]) expect(hours(routes[0])).toBeLessThanOrEqual(daylightHours);
 			// One move, onto the far POI's slower route, the widest gap left that tips no one; never back and forth.
@@ -356,10 +413,17 @@ describe('stops on legs', () => {
 		});
 
 		it('lists a POI whose quickest route runs past dark with no stops at all, and goes on', () => {
-			const map = mapOn(1, { daylightHours: 10, travelPace: 2 });
-			expect(map.products.stops.failures.length).toBeGreaterThan(0);
-			for (const failure of map.products.stops.failures) expect(failure).toMatch(/^poi \d+ \(tier [1-3]\): its quickest route takes [\d.]+ hours with no stops/);
-			expect(checkStopLayer({ network: map.network, layer: map.products.pois, stops: map.products.stops, params: map.params })).toEqual([]);
+			// Tiered on a long day: on its own, the POI stage tiers such a POI 4.
+			const map = mapOn(1, { daylightHours: 10, seatedDaylightHours: 24, travelPace: 2 });
+			const dark = (failures: readonly string[]) => failures.filter((failure) => /^poi \d+ \(tier [1-3]\): its quickest route takes [\d.]+ hours with no stops/.test(failure));
+			expect(dark(map.products.stops.failures).length).toBeGreaterThan(0);
+			expect(dark(mapOn(1, { daylightHours: 10, travelPace: 2 }).products.stops.failures)).toEqual([]);
+			// Listed, it's no violation; the floor can still keep other POIs tiered on the long day out past dark, which the stage would fail.
+			const listed = dark(map.products.stops.failures).map((failure) => failure.split(' (')[0]);
+			for (const { rule, detail } of hardOf(checkStopLayer({ network: map.network, layer: map.products.pois, stops: map.products.stops, params: map.params }))) {
+				expect(rule).toBe('daylight');
+				expect(listed).not.toContain(detail.split(' (')[0]);
+			}
 		});
 	});
 
@@ -370,6 +434,52 @@ describe('stops on legs', () => {
 		const { network, products } = mapOn(7);
 		const again = placeStops({ network, layer: products.pois, ground: fakeGround(), params: { stopDensity: 1, dangerCurve: 1, driverFinds: 2, daylightHours: 14 }, rng: new Rng({ seed: 7 }).fork('stops') });
 		expect(again).toEqual(products.stops);
+	});
+});
+
+describe('the band and floor rules', () => {
+	const map = mapOn(3, { daylightHours: 100 });
+	const { pois, stops } = map.products;
+	const routes = pois.pois.map((poi) => routesTo(pois, poi));
+	const owners = legOwners(pois.legs.length, routes);
+	const check = (layer: StopLayer) => checkStopLayer({ network: map.network, layer: pois, stops: layer, params: { ...map.params, driverFinds: 0 } });
+	const retyped = (ids: readonly number[], type: StopType): StopLayer => ({
+		...stops,
+		stops: stops.stops.map((stop) => (ids.includes(stop.id) ? { ...stop, type, skulls: isFight(type) ? 1 : 0 } : stop)),
+	});
+	const [poi, route] = [0, routes[0][0]];
+	const own = route.legs.filter((leg) => owners[leg] === poi).flatMap((leg) => stops.legs[leg].stops);
+	const shared = route.legs.filter((leg) => owners[leg] !== poi).flatMap((leg) => stops.legs[leg].stops);
+
+	it('pass a placed map', () => {
+		expect(hardOf(check(stops))).toEqual([]);
+	});
+
+	it('fail a route under its fight floor, or with its floor fights off its own road, and nothing else so hard a kept attempt may miss it', () => {
+		const calmed = check(retyped(own.filter((id) => isFight(stops.stops[id].type)), 'wreck'));
+		const floor = calmed.filter(({ rule }) => rule === 'floor');
+		expect(floor.length).toBeGreaterThan(0);
+		expect(floor.every(({ hard }) => hard)).toBe(true);
+		expect(floor.map(({ detail }) => detail)).toContainEqual(expect.stringMatching(/^poi 0 route 0: \d+ fights( on its own road)?, under its floor of \d$/));
+		expect(keepableStops(calmed.filter(({ hard }) => hard).map(({ rule, detail }) => `${rule}: ${detail}`))).toBe(false);
+		expect(keepableStops(['daylight: poi 3 is past dark'])).toBe(true);
+	});
+
+	it('report a route outside its band, or short of half its band on its own road, as soft', () => {
+		const trimmed: StopLayer = { ...stops, legs: stops.legs.map((leg) => ({ ...leg, stops: leg.stops.filter((id) => !own.includes(id)) })) };
+		const found = check(trimmed).filter(({ rule }) => rule === 'band' || rule === 'ownRoad');
+		expect(found.map(({ detail }) => detail)).toContain(`poi 0 route 0: 0 stops on its own road, under half its band's ${bandFor(pois.pois[poi].tier, STOP_TUNING).stops.min}`);
+		for (const { hard } of found) expect(hard).toBe(false);
+	});
+
+	it('fail a dormant extra that isn\'t calm or isn\'t on a route\'s own last leg', () => {
+		const extra = stops.legs.flatMap(({ extras }) => extras)[0];
+		expect(extra).toBeDefined();
+		const rules = (layer: StopLayer) => check(layer).filter(({ rule }) => rule === 'extras').map(({ detail }) => detail);
+		expect(rules(retyped([extra], 'ambush'))).toEqual([`stop ${extra}, a dormant extra, is a ambush`]);
+		const moved: StopLayer = { ...stops, stops: stops.stops.map((stop) => (stop.id === extra ? { ...stop, stage: 3 } : stop)) };
+		expect(rules(moved)).toEqual([`stop ${extra}, a dormant extra, turns on at game stage 3, which the tuning doesn't have`]);
+		expect(shared.length + own.length).toBeGreaterThan(0);
 	});
 });
 
@@ -440,7 +550,7 @@ describe('the stops stage in the pipeline', () => {
 		expect(result.attempts).toEqual({ hazards: 0, places: 0, roads: 0, routeTree: 0, pois: 0, stops: 0 });
 		const { pois, stops } = result.products;
 		expect(stops.stops.length).toBeGreaterThan(0);
-		expect(checkStopLayer({ network: looped, layer: pois, stops, params })).toEqual([]);
+		expect(hardOf(checkStopLayer({ network: looped, layer: pois, stops, params }))).toEqual([]);
 		// Its contents hang from its own winning stream.
 		expect(stops.contentSeed).toBe(new Rng({ seed: result.streams.stops }).fork('contents').seed);
 	});
@@ -466,6 +576,15 @@ describe('the stops stage in the pipeline', () => {
 		expect(kept.mapAttempt).toBe(0);
 		expect(warnings).toHaveLength(1);
 		expect(() => pipeline(looped).run({ seed: params.seed, input: params, debug: true, accept })).toThrow(MapPipelineError);
+	});
+
+	it('makes campaign maps whose tier 1 to 3 POIs were past dark with only their floor, in a debug build, on the first stops attempt', () => {
+		// Seeds where tiering by ring alone left a POI no stops attempt could bring home by dark.
+		for (const seed of [3, 6]) {
+			const map = generateAreaMap({ params: rollParams(seed), debug: true });
+			expect(map.failures.filter(({ stage }) => stage === 'stops')).toEqual([]);
+			expect(map.keptFailing).toEqual([]);
+		}
 	});
 
 	it('places nothing, and passes, on roads with no meeting points', () => {

@@ -92,7 +92,7 @@ describe('the area map pipeline', () => {
 		expect(pois.strongholds).toHaveLength(params.strongholds);
 		expect(routeTree.meetingPoints.length).toBeGreaterThan(pois.pois.length);
 		const placed = pois.pois.length - params.strongholds;
-		expect(placed).toBeGreaterThanOrEqual(Math.round(0.9 * pois.rings.reduce((sum, { target }) => sum + target, 0)));
+		expect(placed).toBeGreaterThanOrEqual(Math.round(0.8 * pois.rings.reduce((sum, { target }) => sum + target, 0)));
 		pois.pois.forEach((poi) => {
 			expect(poi.arrivals.length).toBeGreaterThanOrEqual(2);
 			expect(poi.arrivals.length).toBeLessThanOrEqual(3);

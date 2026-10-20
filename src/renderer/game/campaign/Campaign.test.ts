@@ -1,3 +1,4 @@
+import stopTablesFile from '../data/stopTables.json';
 import { runInNewContext } from 'vm';
 import { MapParams, resolveMapParams } from '../map/MapParams';
 import { Convoy } from '../mechanics/Convoy';
@@ -81,7 +82,7 @@ const SAVE_FORMAT = {
 		'runDecks[].leftHome', 'runDecks[].leftHome.<card type>', 'runDecks[].own', 'runDecks[].own.<card type>',
 		'seed', 'strongholdsTaken', 'strongholdsTaken[]', 'supplyRun', 'supplyRun.cargo', 'supplyRun.cargo.food', 'supplyRun.cargo.fuel',
 		'supplyRun.cargo.meds', 'supplyRun.cargo.people', 'supplyRun.cargo.scrap', 'supplyRun.cargo.water', 'supplyRun.cargoCards',
-		'supplyRun.cargoCards.<card type>', 'supplyRun.escorts', 'supplyRun.escorts[]', 'supplyRun.phase', 'supplyRun.recruits', 'supplyRun.route',
+		'supplyRun.cargoCards.<card type>', 'supplyRun.escorts', 'supplyRun.escortsFound', 'supplyRun.escorts[]', 'supplyRun.handOff', 'supplyRun.phase', 'supplyRun.recruits', 'supplyRun.route',
 		'supplyRun.route.destination', 'supplyRun.route.destination.id', 'supplyRun.route.destination.name', 'supplyRun.route.destination.tier',
 		'supplyRun.route.destination.yield', 'supplyRun.route.destination.yield.food', 'supplyRun.route.destination.yield.fuel',
 		'supplyRun.route.destination.yield.scrap', 'supplyRun.route.destination.yield.water',
@@ -189,11 +190,12 @@ describe('Campaign', () => {
 		});
 
 		it('keeps stop tables, frozen, through a save', () => {
-			const stopTables = { highway: { raider_ambush: 3, checkpoint: 2 }, trail: { hazard: [1, 2] } };
+			// Tables the validator reads whole, so they have to be ones it can draw from.
+			const stopTables = { ...stopTablesFile, classes: { ...stopTablesFile.classes, highway: { ...stopTablesFile.classes.highway, ambush: 3 } } };
 			const campaign = newCampaign({ mapParams: { ...mapParamsFor(SEED), stopTables } });
 
 			expect(reload(campaign).mapParams.stopTables).toEqual(stopTables);
-			expect(Object.isFrozen((campaign.mapParams.stopTables as { trail: { hazard: number[] } }).trail.hazard)).toBe(true);
+			expect(Object.isFrozen((campaign.mapParams.stopTables as typeof stopTables).classes.highway)).toBe(true);
 		});
 
 		it('rejects a generator version below 1', () => {
@@ -904,7 +906,7 @@ describe('Campaign', () => {
 				history: Object.keys(historyToJson({ version: CAMPAIGN_SCHEMA_VERSION, entries: [] })).sort()
 			};
 
-			expect(CAMPAIGN_SCHEMA_VERSION).toBe(12);
+			expect(CAMPAIGN_SCHEMA_VERSION).toBe(13);
 			try {
 				expect(format).toEqual(SAVE_FORMAT);
 			} catch (error) {

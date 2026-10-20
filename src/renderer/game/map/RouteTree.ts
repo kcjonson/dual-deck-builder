@@ -356,7 +356,7 @@ export interface Route {
  * Each of a POI's routes as its legs from the compound, in its arrivals'
  * order, quickest first: walk parent legs from each arrival's last leg.
  */
-export function routesTo({ legs }: { readonly legs: readonly Leg[] }, { arrivals }: { readonly arrivals: readonly Arrival[] }): Route[] {
+export function routesTo({ legs }: { readonly legs: readonly Leg[] }, { arrivals }: { readonly arrivals: readonly Pick<Arrival, 'leg'>[] }): Route[] {
 	return arrivals.map(({ leg }) => {
 		const chain: number[] = [];
 		let length = 0;

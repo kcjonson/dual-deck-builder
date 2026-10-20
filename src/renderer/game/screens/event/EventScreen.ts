@@ -54,8 +54,8 @@ export interface EventScreenData {
 	/** In [0, 1). Default 0. */
 	draw?: number;
 	result?: EventResult;
-	/** Hears the choice as it's made, before the outcome shows, so the run can apply and save it. */
-	onChoose?: (result: EventResult) => void;
+	/** Hears the choice as it's made, before the outcome shows, so the run can apply and save it; false when it couldn't, and the choices stay. */
+	onChoose?: (result: EventResult) => boolean | void;
 	/** Drive on, or into the fight the outcome hands off to. Default: back to the main menu, as nothing hooks the screen up yet. */
 	onDone?: (result: EventResult) => void;
 }
@@ -100,7 +100,7 @@ export class EventScreen extends Screen {
 	private event: GameEvent = EVENTS[0];
 	private party: EventParty = STAND_IN_PARTY;
 	private draw = 0;
-	private onChoose: ((result: EventResult) => void) | null = null;
+	private onChoose: ((result: EventResult) => boolean | void) | null = null;
 	private onDone: ((result: EventResult) => void) | null = null;
 	private taken: EventResult | null = null;
 	private top: Stack | null = null;
@@ -257,13 +257,13 @@ export class EventScreen extends Screen {
 		return this.take(choice.id);
 	}
 
-	/** Resolves a choice the party can take, tells the run, and shows what happened. */
+	/** Resolves a choice the party can take, tells the run, and shows what happened, unless the run couldn't take it. */
 	private take(choice: string): boolean {
 		if (this.taken) return false;
 		const offered = this.event.choices.find(({ id }) => id === choice);
 		if (!offered || choiceLock({ choice: offered, party: this.party }) !== null) return false;
 		const result = resolveChoice({ event: this.event, choice, party: this.party, draw: this.draw });
-		this.onChoose?.(result);
+		if (this.onChoose?.(result) === false) return false;
 		this.showOutcome(result);
 		return true;
 	}

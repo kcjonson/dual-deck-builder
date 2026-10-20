@@ -6,16 +6,18 @@ import { ROAD_CLASSES } from '../map/RoadNetwork';
 import { StopType, isFight } from '../map/StopData';
 import { LegProfile, rollStop } from '../map/Stops';
 import type { Skulls } from './Encounters';
-import { FindKind, RouteDestination, RouteLeg, RouteStop, RunRoute, YIELD_RESOURCES, YieldResource } from './SupplyRoutes';
+import { FindKind, RUN_EVENT_TYPES, RouteDestination, RouteLeg, RouteStop, RunEventType, RunRoute, YIELD_RESOURCES, YieldResource } from './SupplyRoutes';
 
 /**
  * The area map's routes in the run loop's route model (SupplyRoutes.ts):
  * every route to every POI, with its legs, their stops, and its
  * descriptor's fuel, hours, and risk. Fights stay fights with their skulls,
  * and Find: cards, supplies, and driver are finds, a haul rolled from the
- * stop's contents at roll 0; every other stop is a quiet stretch until the
- * run has screens for events, garages, and hazards. A destination yields what its POI type does,
- * meds aside until a run can carry them. `routesOnOffer` (SupplyRun.ts)
+ * stop's contents at roll 0; a wreck or a distress signal is an event of
+ * its type (`stopKind`). The stops stage places only the types the run
+ * resolves (`RESOLVABLE_STOP_TYPES`), so no other type reaches a route; a
+ * test holds the two lists together. A destination yields what its POI type
+ * does, meds aside until a run can carry them. `routesOnOffer` (SupplyRun.ts)
  * reads them. The decision records are
  * docs/AI_TECHNICAL_DECISIONS/stops-and-routes.md and area-map-route-pick.md.
  */
@@ -112,11 +114,24 @@ function runRoute({ descriptor, destination, map }: { descriptor: RouteDescripto
 /** The map's find types the run resolves, by what they find. */
 const FINDS: Readonly<Partial<Record<StopType, FindKind>>> = { findCards: 'cards', findSupplies: 'supplies', findDriver: 'driver' };
 
+/** How a run takes a stop of a type: a fight, an event (`RUN_EVENT_TYPES`), a find, or, for a type it has no screen for, a quiet stretch. */
+export function stopKind(type: StopType): RouteStop['kind'] {
+	if (isFight(type)) return 'fight';
+	if (isRunEvent(type)) return 'event';
+	return FINDS[type] === undefined ? 'quiet' : 'find';
+}
+
+function isRunEvent(type: StopType): type is RunEventType {
+	return (RUN_EVENT_TYPES as readonly StopType[]).includes(type);
+}
+
 /** A map stop as the run takes it, its contents rolled at `roll`. */
 export function routeStop({ map, id, roll = 0 }: { map: RouteMap; id: number; roll?: number }): RouteStop {
 	const { type, at, skulls } = map.products.stops.stops[id];
 	const base = { id: stopId(id), at: hundredths(at) };
-	if (isFight(type)) return Object.freeze({ ...base, kind: 'fight', skulls: skulls as Skulls });
+	const kind = stopKind(type);
+	if (kind === 'fight') return Object.freeze({ ...base, kind, skulls: skulls as Skulls });
+	if (kind === 'event') return Object.freeze({ ...base, kind, stopType: type as RunEventType });
 	const find = FINDS[type];
 	if (find === undefined) return Object.freeze({ ...base, kind: 'quiet' });
 	if (find !== 'supplies') return Object.freeze({ ...base, kind: 'find', find });
