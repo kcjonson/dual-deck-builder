@@ -346,7 +346,12 @@ export class CombatScreen extends Screen {
 		const leave = (): void => {
 			if (this.failedDialog !== dialog) return;
 			this.failedDialog = null;
-			const target = back?.() ?? { screen: 'mainMenuScreen' as const };
+			let target: ReturnType<NonNullable<typeof back>> = { screen: 'mainMenuScreen' };
+			try {
+				target = back?.() ?? target;
+			} catch (error) {
+				console.error('Going back from a fight that could not start failed, so it goes to the menu:', error);
+			}
 			ScreenManager.navigate(target.screen, target.data);
 		};
 		const backButton = new Button({ label: 'Back', id: 'combat_failed_back', width: 150, onClick: leave });

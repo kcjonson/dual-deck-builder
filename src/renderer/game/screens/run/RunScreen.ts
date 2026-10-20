@@ -704,7 +704,12 @@ export function stopFightMount({ campaign, fight, store }: { campaign: Campaign;
 	const run = campaign.supplyRun;
 	return {
 		back: () => {
-			withdrawFight({ fight });
+			// Back always leaves: a fight that can't be withdrawn is left for the run screen to refuse
+			try {
+				withdrawFight({ fight });
+			} catch (error) {
+				console.error('RunScreen: giving up the fight that never started failed', error);
+			}
 			return { screen: 'runScreen', data: { campaign } };
 		},
 		prepare: async () => ({
