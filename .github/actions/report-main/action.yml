@@ -1,0 +1,58 @@
+name: Report main
+description: >
+  Fail loud (DDB-536). A failing check on main opens an issue titled
+  "main is broken: <check>" under the main-broken label, or comments on the one
+  already open; a passing check closes it. Skipped and cancelled checks leave it alone.
+
+inputs:
+  check:
+    description: The check's name, which is also the issue's suffix
+    required: true
+  result:
+    description: The check's result (success, failure, cancelled or skipped)
+    required: true
+  token:
+    description: A token with issues write
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        GH_REPO: ${{ github.repository }}
+        CHECK: ${{ inputs.check }}
+        RESULT: ${{ inputs.result }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        SHA: ${{ github.sha }}
+        EVENT: ${{ github.event_name }}
+      run: |
+        case "$RESULT" in
+          success|failure) ;;
+          *) echo "$CHECK was $RESULT; leaving its issue alone."; exit 0;;
+        esac
+
+        title="main is broken: $CHECK"
+        gh label create main-broken --color B60205 --description "A check on main is failing" --force >/dev/null
+        # Listed rather than searched: the search index lags, and a lagging
+        # search would open a second issue for the same check.
+        number=$(gh issue list --label main-broken --state open --limit 100 --json number,title \
+          --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+        subject=$(git log -1 --format=%s "$SHA" 2>/dev/null || echo "$SHA")
+
+        if [ "$RESULT" = failure ]; then
+          body="$CHECK failed on main at $SHA ($EVENT): $subject
+
+        $RUN_URL
+
+        Fix this before starting new work."
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$title" --label main-broken --body "$body"
+          fi
+          echo "::error::$title ($RUN_URL)"
+        elif [ -n "$number" ]; then
+          gh issue close "$number" --comment "$CHECK is green again at $SHA: $RUN_URL"
+        fi

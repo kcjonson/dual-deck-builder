@@ -1,0 +1,271 @@
+name: Main
+
+# Move fast, fail loud (DDB-536, docs/AI_TECHNICAL_DECISIONS/prototype-ci.md).
+# Nothing waits on this: changes merge on local checks and main runs the whole
+# set afterwards. Each check that fails opens a "main is broken: <check>" issue
+# (or comments on the open one), and passing closes it. The playtest deploy
+# (deploy-sftp.yml) waits for none of it.
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Nightly. Skipped when main hasn't moved since the last nightly that passed.
+    - cron: '0 10 * * *'
+  workflow_dispatch:
+
+# A newer push carries everything an older one did, so its verdict replaces the older one's.
+concurrency:
+  group: main-${{ github.event_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  scope:
+    name: Scope
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+      since: ${{ steps.scope.outputs.since }}
+      electron: ${{ steps.scope.outputs.electron }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # A push is measured against what main was before it. The nightly, a
+      # dispatch, and a push whose before isn't in history (a force push) run
+      # everything.
+      - name: Decide what runs
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = schedule ]; then
+            last=$(gh run list --workflow main.yml --event schedule --branch main --status success --limit 1 --json headSha --jq '.[0].headSha // empty')
+            if [ "$last" = "$GITHUB_SHA" ]; then
+              echo "Main hasn't moved since the last nightly that passed ($last): nothing to run."
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+
+          if [ "$EVENT" = push ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "since=$BEFORE" >> "$GITHUB_OUTPUT"
+            # What the packaged app is built from beyond the renderer bundle
+            if git diff --name-only "$BEFORE" HEAD | grep -qE '^(electron/|webpack/|build/|src/assets/fonts/|scripts/smoke-electron-package\.mjs$|package(-lock)?\.json$|\.github/workflows/main\.yml$)'; then
+              echo "electron=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "electron=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "since=" >> "$GITHUB_OUTPUT"
+            echo "electron=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  checks:
+    name: Checks
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        id: install
+        run: npm ci
+
+      # Every step runs whatever the one before it did, so one run reports every failure at once.
+      - name: Lint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run lint
+
+      - name: Typecheck
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run typecheck
+
+      - name: Tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm test
+
+  slow:
+    name: Slow tests
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      ran: ${{ steps.pick.outputs.run }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      # All of the slow project or none of it: a pass on part of it would close an issue a failure elsewhere in it opened.
+      - name: Decide whether the slow tests run
+        id: pick
+        env:
+          SINCE: ${{ needs.scope.outputs.since }}
+        run: |
+          if [ -z "$SINCE" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          elif npx jest --selectProjects slow --changedSince="$SINCE" --listTests 2>/dev/null | grep -q '\.test\.ts$'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing the slow tests import changed."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Slow tests
+        if: steps.pick.outputs.run == 'true'
+        run: npm run test:slow
+
+  smoke:
+    name: Boot smoke
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build and boot
+        run: npm run test:smoke
+
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  electron:
+    name: Electron package (${{ matrix.os }})
+    needs: scope
+    if: needs.scope.outputs.run == 'true' && needs.scope.outputs.electron == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            package: package:win
+          - os: macos-latest
+            package: package:mac
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Electron App
+        run: npm run build:electron
+
+      - name: Package
+        run: npm run ${{ matrix.package }}
+
+      # R15.34: the packaged renderer runs from file:// out of the asar; check the
+      # font atlases and the map worker load there.
+      - name: Smoke Test Packaged App
+        run: node scripts/smoke-electron-package.mjs
+
+      - name: Upload Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-build
+          path: release
+          retention-days: 7
+
+  report:
+    name: Report
+    needs: [scope, checks, slow, smoke, electron]
+    if: ${{ !cancelled() && needs.scope.outputs.run != 'false' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Workflow
+        uses: ./.github/actions/report-main
+        with:
+          check: workflow
+          result: ${{ needs.scope.result }}
+          token: ${{ github.token }}
+
+      - name: Checks
+        uses: ./.github/actions/report-main
+        with:
+          check: checks
+          result: ${{ needs.checks.result }}
+          token: ${{ github.token }}
+
+      - name: Slow tests
+        uses: ./.github/actions/report-main
+        with:
+          check: slow tests
+          # A job that passed without running the tests says nothing about them
+          result: ${{ needs.slow.result == 'failure' && 'failure' || (needs.slow.outputs.ran == 'true' && needs.slow.result || 'skipped') }}
+          token: ${{ github.token }}
+
+      - name: Boot smoke
+        uses: ./.github/actions/report-main
+        with:
+          check: boot smoke
+          result: ${{ needs.smoke.result }}
+          token: ${{ github.token }}
+
+      - name: Electron package
+        uses: ./.github/actions/report-main
+        with:
+          check: electron package
+          result: ${{ needs.electron.result }}
+          token: ${{ github.token }}

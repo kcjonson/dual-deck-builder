@@ -1,6 +1,0 @@
-[
-{"path":"battleResultScreen/result_panel/result_kicker","text":"Fight won","rect":[472.88,193.59,78.24,15.84]},
-{"path":"battleResultScreen/result_panel/result_title","text":"VICTORY!","rect":[393.08,221.43,237.83,67.2]},
-{"path":"battleResultScreen/result_panel/result_subtitle","text":"All enemies have been defeated!","rect":[244,300.63,536,21.79]},
-{"path":"battleResultScreen/result_panel/result_continue_button","text":"Continue","rect":[382,350.41,260,56]}
-]

@@ -36,8 +36,7 @@ type Cell = (draw: DrawApi, left: number, top: number) => void;
  * narrow window.
  *
  * Nested rounded clips are not here: the draw API's once-a-frame warning for
- * them is a console error in the gallery, and the pixel half of that case is
- * in `tests/visual/web/uberShader.spec.ts`. The stencil clip and the oriented
+ * them is a console error in the gallery. The stencil clip and the oriented
  * clip for rotated containers are optional and not implemented.
  * The overflowing text field is the real TextInput (R12.10), laid over its
  * cell where the drawing leaves room for it: its value is scrolled to the

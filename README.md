@@ -35,8 +35,17 @@ The project was developed on macOS first; two things bite on Windows and both ar
 #### Testing & Linting
 
 ```bash
-# Run tests
+# Run tests (all but the slow map-generation ones)
 npm test
+
+# Run the slow map-generation tests
+npm run test:slow
+
+# Run the tests that import anything changed since main
+npm run test:changed
+
+# Build and boot the game, then open every screen in a browser
+npm run test:smoke
 
 # Run tests with watch mode
 npm run test:watch
@@ -87,19 +96,11 @@ npm run package:mac
 
 ## CI/CD Pipeline
 
-This project uses GitHub Actions for Continuous Integration and Deployment:
+The game is a prototype, so CI moves fast and fails loud ([prototype-ci.md](docs/AI_TECHNICAL_DECISIONS/prototype-ci.md)):
 
-- **CI Workflow**: Runs tests and linting on all PRs and pushes to main/master
-- **Web Build**: Builds and verifies the web version of the application
-- **Electron Build**: Builds and packages the desktop version for Windows and macOS
-
-Branch protection rules are set up to ensure that PRs can only be merged if:
-
-- All tests pass
-- Code passes linting
-- Builds succeed for all target platforms
-
-See [.github/BRANCH_PROTECTION.md](.github/BRANCH_PROTECTION.md) for details on the branch protection configuration.
+- **PR**: lint, typecheck, and the tests for what changed. Advisory; nothing waits on it.
+- **Main**: after every merge, lint, typecheck, the tests, the boot smoke, and the slow tests when they're affected; nightly, the slow tests and the Windows and macOS packages. A failing check opens a `main is broken` issue under the `main-broken` label, and passing again closes it.
+- **Deploy to SFTP**: every push to main publishes the web build to the playtest site, whatever the checks say.
 
 ### Deployment
 

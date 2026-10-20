@@ -1,0 +1,56 @@
+name: PR
+
+# The fast lane (DDB-536, docs/AI_TECHNICAL_DECISIONS/prototype-ci.md). Advisory:
+# nothing waits on it and changes merge on local checks. Main runs the whole
+# set after merge and fails loudly (main.yml).
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - '.claude/**'
+
+# A new push to the pull request replaces the run for the last one.
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  fast:
+    name: Fast checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # The base commit has to be in history for --changedSince
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        id: install
+        run: npm ci
+
+      # Every step runs whatever the one before it did, so one push reports every failure at once.
+      - name: Lint
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run lint
+
+      - name: Typecheck
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run typecheck
+
+      # Only the tests whose imports the change touches, slow ones included
+      - name: Tests for what changed
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: npx jest --changedSince="$BASE_SHA" --passWithNoTests
