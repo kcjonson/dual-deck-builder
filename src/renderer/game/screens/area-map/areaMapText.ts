@@ -14,9 +14,6 @@ export const STRONGHOLD_NOT_YET = 'Not yet. Taking a stronghold needs an assault
 /** Why a cleared POI's Plan a run here is off. */
 export const POI_CLEARED = 'A run cleared it, so there is nothing to go back for.';
 
-/** Under the stops in order: the run treats every stop but a fight or a find of cards, supplies, or a driver as a quiet stretch for now. */
-export const QUIET_STOPS = 'Fights, and finds of cards, supplies, or a driver, stop the convoy for now; the rest pass as quiet stretches.';
-
 /** "General store", "Stronghold". */
 export function poiTypeText(type: string): string {
 	if (type === STRONGHOLD_TYPE) return 'Stronghold';

@@ -2,6 +2,7 @@ import { describeValue } from '../core/Json';
 import { ReaderRangeError, ReaderTypeError, readArray, readFields, readInteger, readOneOf, readText } from '../core/JsonReader';
 import type { Convoy } from '../mechanics/Convoy';
 import type { DriverArchetype } from '../mechanics/Driver';
+import { ESCORT_CONFIGS, EscortType } from '../mechanics/Escort';
 import { MAX_CONVOY_ESCORTS } from '../mechanics/Team';
 import { Vehicle } from '../mechanics/Vehicle';
 import type { Resources } from './Campaign';
@@ -16,13 +17,21 @@ import { RouteStop, RunRoute, readRunRoute, routeStops } from './SupplyRoutes';
 
 /**
  * Where the run stands at its stop: driving to it (or home, once every stop
- * is behind it), or there with cards to pick, a won fight's reward or a
- * Find: cards the run stopped for. A fight under
- * way isn't saved: a load finds the run driving to that stop, and the fight
- * replays from its seed.
+ * is behind it), there with cards to pick, a won fight's reward or a
+ * Find: cards or an event's card pick the run stopped for, or at an event
+ * whose outcome turned into a fight (`handOff`), the fight still to come. A
+ * fight under way isn't saved: a load finds the run driving to that stop,
+ * or at its hand-off, and the fight replays from its seed.
  */
-export const RUN_PHASES = ['driving', 'reward'] as const;
+export const RUN_PHASES = ['driving', 'reward', 'hand_off'] as const;
 export type RunPhase = (typeof RUN_PHASES)[number];
+
+/** The choice taken at an event whose outcome hands off to a fight, which the fight's raiders and its win's gains are worked out from again. */
+export interface HandOff {
+	/** The event's id in the event content. */
+	readonly event: string;
+	readonly choice: string;
+}
 
 /**
  * The run's own state beside its run decks. The seats are the run decks'
@@ -47,6 +56,10 @@ export interface SupplyRun {
 	 * run gets home (`arriveHome`), and are lost with it if it fails.
 	 */
 	readonly recruits: readonly DriverArchetype[];
+	/** Escorts an event gave, by type, in the order given: they join the convoy when the run gets home, and are lost with it if it fails. */
+	readonly escortsFound: readonly EscortType[];
+	/** The event choice whose fight is still to come, in the `hand_off` phase only; null otherwise. */
+	readonly handOff: HandOff | null;
 }
 
 /** A supply run as a save holds it, its escorts by their `escort-<n>`. */
@@ -58,16 +71,21 @@ export interface SupplyRunJson {
 	cargo: Resources;
 	cargoCards: Record<string, number>;
 	recruits: DriverArchetype[];
+	escortsFound: EscortType[];
+	handOff: HandOff | null;
 }
+
+const ESCORT_TYPES = Object.keys(ESCORT_CONFIGS) as readonly EscortType[];
 
 /** The campaign's own reader for the stores, handed in so this module needn't import the campaign. */
 export type CargoReader = (value: unknown, path: string) => Readonly<Resources>;
 
-const FIELDS = ['route', 'stop', 'phase', 'escorts', 'cargo', 'cargoCards', 'recruits'] as const;
+const FIELDS = ['route', 'stop', 'phase', 'escorts', 'cargo', 'cargoCards', 'recruits', 'escortsFound', 'handOff'] as const;
 
 /**
  * A supply run checked whole and frozen: a route, a stop from 0 to its
- * stop count, cards to pick only at a fight or a Find: cards, at most `MAX_CONVOY_ESCORTS` of the
+ * stop count, cards to pick only at a fight, a Find: cards, or an event, a
+ * hand-off only at an event and only in its phase, at most `MAX_CONVOY_ESCORTS` of the
  * convoy's escorts, each once, and cargo the stores and the locker could
  * count.
  */
@@ -102,6 +120,8 @@ export function supplyRunToJson(run: SupplyRun): SupplyRunJson {
 		cargo: run.cargo,
 		cargoCards: run.cargoCards,
 		recruits: [...run.recruits],
+		escortsFound: [...run.escortsFound],
+		handOff: run.handOff === null ? null : { ...run.handOff },
 	};
 }
 
@@ -124,8 +144,13 @@ function checkedRun({ fields, escorts, path, convoy, readCargo }: {
 	const stop = readInteger(fields.stop, `${path}.stop`, { min: 0, max: stops.length, maxLabel: `the route's ${stops.length} stops` });
 	const phase = readOneOf(fields.phase, `${path}.phase`, RUN_PHASES);
 	if (phase === 'reward' && !offersCards(stops[stop])) {
-		throw new ReaderRangeError(`${path}.phase is reward, and stop ${stop} is neither a fight nor a Find: cards`);
+		throw new ReaderRangeError(`${path}.phase is reward, and stop ${stop} is neither a fight, a Find: cards, nor an event`);
 	}
+	const handOff = fields.handOff === null ? null : readHandOff(fields.handOff, `${path}.handOff`);
+	if ((phase === 'hand_off') !== (handOff !== null)) {
+		throw new ReaderRangeError(phase === 'hand_off' ? `${path}.handOff is null, and the run is at a hand-off` : `${path}.handOff is set, and the run is ${phase}, not at a hand-off`);
+	}
+	if (phase === 'hand_off' && stops[stop]?.kind !== 'event') throw new ReaderRangeError(`${path}.phase is hand_off, and stop ${stop} isn't an event`);
 	if (escorts.length > MAX_CONVOY_ESCORTS) throw new ReaderRangeError(`${path}.escorts holds ${escorts.length}; a run takes ${MAX_CONVOY_ESCORTS} at most`);
 	return Object.freeze({
 		route,
@@ -135,12 +160,19 @@ function checkedRun({ fields, escorts, path, convoy, readCargo }: {
 		cargo: readCargo(fields.cargo, `${path}.cargo`),
 		cargoCards: readCardCounts(fields.cargoCards, `${path}.cargoCards`),
 		recruits: Object.freeze(readArray(fields.recruits, `${path}.recruits`).map((archetype, index) => readOneOf(archetype, `${path}.recruits[${index}]`, DRIVER_ARCHETYPES))),
+		escortsFound: Object.freeze(readArray(fields.escortsFound, `${path}.escortsFound`).map((type, index) => readOneOf(type, `${path}.escortsFound[${index}]`, ESCORT_TYPES))),
+		handOff,
 	});
 }
 
-/** Whether a stop ends in the card picker: a fight's reward, or a Find: cards. */
+/** Whether a stop can end in the card picker: a fight's reward, a Find: cards, or an event's card pick or its fight's reward. */
 export function offersCards(stop: RouteStop | undefined): boolean {
-	return stop?.kind === 'fight' || (stop?.kind === 'find' && stop.find === 'cards');
+	return stop?.kind === 'fight' || stop?.kind === 'event' || (stop?.kind === 'find' && stop.find === 'cards');
+}
+
+function readHandOff(value: unknown, path: string): HandOff {
+	const fields = readFields(value, path, ['event', 'choice']);
+	return Object.freeze({ event: readText(fields.event, `${path}.event`), choice: readText(fields.choice, `${path}.choice`) });
 }
 
 /** The escorts, each the convoy's and listed once, in the convoy's roster order. */

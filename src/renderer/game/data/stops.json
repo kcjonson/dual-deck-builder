@@ -2,6 +2,7 @@
 	"spacing": { "highway": 150, "backRoad": 120, "trail": 100 },
 	"clearance": { "ends": 15, "junctions": 8 },
 	"minGap": 40,
+	"tightGap": 12,
 	"jitter": 0.5,
 	"biomeStep": 12,
 	"types": {
@@ -18,6 +19,14 @@
 		"findCards": { "label": "Find: cards", "hours": 0.5 },
 		"findSupplies": { "label": "Find: supplies", "hours": 0.5 }
 	},
+	"bands": {
+		"1": { "stops": { "min": 3, "max": 4 }, "fights": { "min": 1, "max": 2 } },
+		"2": { "stops": { "min": 3, "max": 4 }, "fights": { "min": 1, "max": 2 } },
+		"3": { "stops": { "min": 4, "max": 5 }, "fights": { "min": 2, "max": 3 } },
+		"4": { "stops": { "min": 5, "max": 6 }, "fights": { "min": 2, "max": 3 } },
+		"5": { "stops": { "min": 6, "max": 7 }, "fights": { "min": 2, "max": 3 } }
+	},
+	"extras": [2, 4],
 	"objectiveHours": { "poi": 1.5, "stronghold": 2 },
 	"skulls": { "step": 0.5, "warband": 1 },
 	"driverFinds": { "floorTiers": 2, "rates": [0, 0, 0.04, 0.04, 0.04] },

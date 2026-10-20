@@ -1,4 +1,5 @@
 import { copyJson } from '../core/Json';
+import { stopTablesFor } from './StopData';
 import {
 	ENVIRONMENTS,
 	MAP_PARAMETERS,
@@ -39,7 +40,11 @@ export interface ValidatedMapParams {
  */
 export function validateMapParams(params: MapParams): ValidatedMapParams {
 	const valid: MapParams = { ...params };
-	if (params.stopTables !== undefined) valid.stopTables = copyJson(params.stopTables, 'stopTables');
+	if (params.stopTables !== undefined) {
+		valid.stopTables = copyJson(params.stopTables, 'stopTables');
+		// Compiled here, whole, so a row with nothing the run resolves fails before any map; the stops stage reuses the compiled tables.
+		stopTablesFor(valid.stopTables);
+	}
 	const clamps: ParamClamp[] = [];
 	const change = <Name extends ParamClamp['param']>(param: Name, to: MapParams[Name], reason: string) => {
 		clamps.push({ param, from: valid[param], to, reason });

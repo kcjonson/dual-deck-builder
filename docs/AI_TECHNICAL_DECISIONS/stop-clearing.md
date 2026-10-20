@@ -1,6 +1,6 @@
 # Clearing: stop cooldowns and cleared POIs (DDB-336)
 
-Date: 2026-10-18. Code: `src/renderer/game/campaign/MapClearing.ts` (the state and its rules), `MapState.ts` (its reader), `SupplyRun.ts` (`routesOnOffer`, `arrivedAt`), `SupplyRoutes.ts` (a stop's `cleared`, `routeStops`, `everyStop`), `MapRoutes.ts` (`stopOf`, `routeStop`), `DayClock.ts` (`DAY_END_HOOKS.stopCooldowns`), `SaveUpgrades.ts` (version 11), and the screens: `screens/area-map/` (`planningMap.ts`, `areaMapText.ts`, `AreaMapScreen.ts`), `screens/run-route/RunRouteScreen.ts`, and `screens/run/RunScreen.ts` with `runText.ts`. Specs: [Runs and Encounters](../specs/Runs%20and%20Encounters.md) (Kevin's rule 5, Clearing), [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (POIs, Fog of war), and [Area Map Generation](../specs/Area%20Map%20Generation.md) (What changes after generation, Saving). Replaces poi-depletion.md (DDB-483), whose shares and refills are gone; builds on [find-stops.md](./find-stops.md), [day-clock.md](./day-clock.md), and [campaign-save-and-load.md](./campaign-save-and-load.md).
+Date: 2026-10-18. Code: `src/renderer/game/campaign/MapClearing.ts` (the state and its rules), `MapState.ts` (its reader), `SupplyRun.ts` (`routesOnOffer`, `arriveHome`, `clearedByRun`), `SupplyRoutes.ts` (a stop's `cleared`, `routeStops`, `everyStop`), `MapRoutes.ts` (`stopOf`, `routeStop`), `DayClock.ts` (`DAY_END_HOOKS.stopCooldowns`), `SaveUpgrades.ts` (version 11), and the screens: `screens/area-map/` (`planningMap.ts`, `areaMapText.ts`, `AreaMapScreen.ts`), `screens/run-route/RunRouteScreen.ts`, and `screens/run/RunScreen.ts` with `runText.ts`. Specs: [Runs and Encounters](../specs/Runs%20and%20Encounters.md) (Kevin's rule 5, Clearing), [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (POIs, Fog of war), and [Area Map Generation](../specs/Area%20Map%20Generation.md) (What changes after generation, Saving). Replaces poi-depletion.md (DDB-483), whose shares and refills are gone; builds on [find-stops.md](./find-stops.md), [day-clock.md](./day-clock.md), and [campaign-save-and-load.md](./campaign-save-and-load.md).
 
 ## Context
 
@@ -17,9 +17,14 @@ The reader refuses an entry out of order or twice, one that's neither cleared no
 
 ## Clearing
 
-A run clears a stop when it moves past it, in the same `set` that moves it on (`arrivedAt` with the stop passed): a quiet stretch driven, a find taken or left, a fight's reward picked or skipped, which is the end of a won fight. It's cleared on the campaign's day, the day the run is out. A fight the run loses isn't cleared, since its raiders are still there.
+A run resolves a stop when it moves past it: a quiet stretch driven, a find taken or left, a fight's reward picked or skipped (the end of a won fight), or a fight the raiders broke off. Reaching the POI loads its type's whole yield into the cargo (call 187). Nothing is cleared on the road, though. Getting home (`arriveHome`, through `clearedByRun`) clears every stop the run resolved, on the campaign's day, the day the run was out, and its POI for good, after the run is unloaded and before the night. A failed run clears nothing (call 260): the raiders still hold the road, so a retry within the cooldown meets the same fights, and the cargo it lost held the POI's yield, so the POI is still there to loot.
 
-Reaching the POI loads its type's whole yield into the cargo and clears the POI in the same step, as call 105 had the share, so a run that fails on the way home has still cleared it (calls 187, 188).
+Options considered for the failed run:
+
+- Clear as the run goes and undo on failure. The undo needs the map state from before the run, or a list of what this run cleared, saved in the run out, and every stop step changes the map state, so the offer's cache is worked out again for nothing.
+- Clear on getting home (chosen). The run's saved route and step already say what it resolved, since every stop on `routeStops` up to its step is behind it and only a run at its destination gets home, so the save format doesn't change and a run loaded mid-road clears the same as one that never stopped. The map state doesn't move until the run's end, so the area map and run route screen, which read it, show nothing of the run under way; the run screen's road list counts the stops behind it from the run's step, as it did.
+
+A version 12 save made mid-road by the build before this keeps what that run had already cleared; getting home clears the same stops on the same day again, and only a failed end differs, keeping the old clearing. That's one run in one save, so the version stays 12.
 
 A stop or POI whose id isn't the map's (a run saved before the real map, as the fixture's is) clears nothing.
 
@@ -37,26 +42,27 @@ Options considered for driving past a cleared stop: taking it off the route alto
 
 - Area map: a cleared POI draws with the view's depleted marker, grey and struck through, its row dimmed, its details "General store, tier 1, cleared" and "Picked clean, and nothing fills a looted building again.", and Plan a run here is off with the reason. The shares line is gone.
 - Run route screen: a stop the run would drive past reads "Raider ambush, 2 skulls: cleared, back in 3 days", dimmed, and the card's line counts them apart ("2 stops, 1 cleared") with the risk of what's left. With no POI handed over it opens on the nearest one not cleared, and a cleared one says why it can't be planned.
-- Run screen: the road lists a stop cleared before the run as Cleared, numbered in place. The debrief's stamp is LOOTED for the POI the run cleared, unless a driver came home hurt, whose tear takes the one hero mark; DEPLETED is no longer struck.
+- Run screen: the road lists a stop cleared before the run as Cleared, numbered in place. A stop this run got past reads Passed on the road and in a failed run's debrief, since nothing clears until the run is home, and Cleared on the debrief once it's home. The debrief's stamp is LOOTED for the POI the run cleared, unless a driver came home hurt, whose tear takes the one hero mark; DEPLETED is no longer struck.
 
 ## Version 11 saves load
 
-The map state changed shape, so the save format goes to version 12. Version 11 saves load (`SaveUpgrades.ts`): a POI with an entry in the old `pois` stock had a run reach it, which clears it now, so its index goes into `clearedPois` and the stock goes; no stop is cleared, since nothing kept stop state. A POI that had refilled had dropped its entry, so it reads as never reached; nothing in the save tells it apart. The old stock is held to version 11's own reader first, so a damaged one is damage, not a guess. A run out keeps its route as saved; its POI clears when it gets there.
+The map state changed shape, so the save format goes to version 12. Version 11 saves load (`SaveUpgrades.ts`): a POI with an entry in the old `pois` stock had a run reach it, which clears it now, so its index goes into `clearedPois` and the stock goes; no stop is cleared, since nothing kept stop state. A POI that had refilled had dropped its entry, so it reads as never reached; nothing in the save tells it apart. The old stock is held to version 11's own reader first, so a damaged one is damage, not a guess. A run out keeps its route as saved; its POI clears when it gets home.
 
 ## Provisional calls
 
-None of these is in a spec. They're calls 215 to 219, 221, and 222 in [gameplay-calls.md](../gameplay-calls.md); 186 to 188 are the clearing rule itself.
+None of these is in a spec. They're calls 215 to 219, 221, 222, and 260 in [gameplay-calls.md](../gameplay-calls.md); 186 to 188 are the clearing rule itself.
 
-1. A run clears a stop when it moves past it, a find left by the road and a fight won included, on the day of the run; a fight it loses isn't cleared.
+1. A run clears every stop it resolved, a find left by the road and a fight won or broken off included, when it gets home, on the day of the run, and its POI with them; a run that loses a fight fails, and clears nothing. Call 215 had a stop cleared as the run moved past it; call 260 moved the clearing to getting home.
 2. A cleared stop is back at the dawn five days after the day it was cleared, its roll up one, and only a haul rerolls yet, since a fight's raiders and a find's cards and driver come from the run's own stream.
 3. A route with stops cleared keeps the map's fuel and hours, which then overestimate a little, and takes its risk from the fights it still meets.
 4. A cleared POI draws with the map's depleted marker and dimmed row, its details say cleared, and its Plan is off.
 5. Version 11 saves load with every POI that still had stock taken cleared, a refilled one reading as never reached, and no stop cleared.
 6. The save keeps a stop's roll and cleared day, not its rolled contents, which `rollStop` gives again from the roll (call 221).
 7. The debrief stamps the POI the run cleared LOOTED, after an injured driver's tear (call 222).
+8. A failed run clears nothing, neither its stops nor its POI, so a retry within the cooldown meets the same fight stops (call 260, replacing 188's failed run clearing its POI). The raiders still hold the road, and the failed run lost its cargo, so the POI's yield is still there; the yield and the clearing stay together.
 
 ## Consequences
 
 - The POI stage's spacing (DDB-529) is what keeps a neighbor's cleared road from emptying a route; until it lands, a route that shares most of its road with a run from the day before can be short.
 - The run's clock (Racing the dark) should take hours off a route for the stops it drives past, which call 3 leaves for then.
-- The objective (Compound and Supply Runs, The loop, step 6) moves the yield and the clearing from reaching the POI to winning it, together.
+- The objective (Compound and Supply Runs, The loop, step 6) moves the yield from reaching the POI to winning it; the clearing stays at getting home.

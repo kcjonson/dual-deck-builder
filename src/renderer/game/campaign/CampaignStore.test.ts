@@ -8,7 +8,7 @@ import { UPGRADABLE_SCHEMA_VERSIONS } from './SaveUpgrades';
 import { LocalSaveStorage, MemorySaveStorage, WebStorage } from './SaveStorage';
 import { stressCampaign } from './__fixtures__/stressCampaign';
 import {
-	CAMPAIGN_FIXTURE, CAMPAIGN_V8_FIXTURE, CAMPAIGN_V9_FIXTURE, CAMPAIGN_V10_FIXTURE, CAMPAIGN_V11_FIXTURE, FaultyStorage, HeldStorage, KEYS, NAMESPACE, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
+	CAMPAIGN_FIXTURE, CAMPAIGN_V8_FIXTURE, CAMPAIGN_V9_FIXTURE, CAMPAIGN_V10_FIXTURE, CAMPAIGN_V11_FIXTURE, CAMPAIGN_V12_FIXTURE, FaultyStorage, HeldStorage, KEYS, NAMESPACE, SEED, everyInterleaving, failure, fixtureText, damagedText, newCampaign, outdatedText, quotaError,
 	saveText, securityError, settle, storageWith, storeOver
 } from './__fixtures__/storeFixtures';
 
@@ -373,7 +373,7 @@ describe('CampaignStore', () => {
 			const storage = storageWith(text);
 			const store = storeOver(storage);
 
-			expect(UPGRADABLE_SCHEMA_VERSIONS).toEqual([8, 9, 10, 11]);
+			expect(UPGRADABLE_SCHEMA_VERSIONS).toEqual([8, 9, 10, 11, 12]);
 			expect(await store.saveStatus()).toBe('saved');
 			const loaded = await store.load();
 			expect(loaded?.map).toEqual({});
@@ -434,6 +434,13 @@ describe('CampaignStore', () => {
 			const loaded = await storeOver(storage).load();
 			expect(loaded?.map).toEqual({ clearedPois: [3, 5] });
 			expect(loaded?.toJSON()).toEqual(UPGRADED_FIXTURE);
+		});
+
+		it('loads a version 12 save, from before event stops, its run out with no escorts found and no hand-off (DDB-535)', async () => {
+			const storage = storageWith(saveText({ campaign: JSON.stringify(CAMPAIGN_V12_FIXTURE), version: 12 }));
+			const loaded = await storeOver(storage).load();
+			expect(loaded?.supplyRun).toMatchObject({ escortsFound: [], handOff: null });
+			expect(loaded?.toJSON()).toEqual(CAMPAIGN_FIXTURE);
 		});
 
 		it('keeps the history a version 8 build wrote, and adds to it', async () => {
