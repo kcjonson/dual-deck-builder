@@ -356,6 +356,13 @@ describe('AggressiveFlankerAI', () => {
 			expect((await ai.makeDecision())?.card).toBe(nitro);
 		});
 
+		test('a Heavy raider gets nothing from a boost toward a flank', () => {
+			const { battle, raider } = setup([6, 8]);
+			raider.addArmor(1);
+
+			expect(new BoardProjection({ battle }).canFlankAnyone(raider, 3)).toBe(false);
+		});
+
 		test('an unmanned raider isn\'t someone to flank', () => {
 			// The player's 8 outruns the Buggy's 5 until nobody is left aboard it
 			const { battle, raider, players } = setup([8, 8]);

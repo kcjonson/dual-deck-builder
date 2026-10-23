@@ -270,15 +270,54 @@ describe('Vehicle', () => {
 			expect(vehicle.armor).toBe(5); // 5 overflow to armor
 		});
 
-		test('should cap armor at max when overflow healing', () => {
+		test('overflow healing past max armor welds on plating', () => {
 			vehicle.structure = 25;
 			vehicle.armor = 0;
-			
-			// Heal way more than needed
-			vehicle.repair(20, true); // true enables overflow to armor
-			
+
+			vehicle.repair(20, true);
+
 			expect(vehicle.structure).toBe(30);
-			expect(vehicle.armor).toBe(10); // Capped at max
+			expect(vehicle.armor).toBe(15);
+			expect(vehicle.isHeavy).toBe(true);
+		});
+	});
+
+	describe('Heavy (armor past base)', () => {
+		test('armor gains go past max armor', () => {
+			vehicle.addArmor(8);
+
+			expect(vehicle.armor).toBe(18);
+			expect(vehicle.isHeavy).toBe(true);
+		});
+
+		test('a Heavy vehicle takes no speed boost, but slows still land', () => {
+			const unboosted = vehicle.speed;
+			vehicle.applyStatusEffect({ name: 'nitro_boost', duration: 1, value: 3 });
+			expect(vehicle.speed).toBe(unboosted + 3);
+
+			vehicle.addArmor(1);
+			expect(vehicle.speed).toBe(unboosted);
+
+			vehicle.applyStatusEffect({ name: 'caltrops', duration: 1, value: -2 });
+			expect(vehicle.speed).toBe(Math.max(0, unboosted - 2));
+		});
+
+		test('hits strip the plating first, and it stops being Heavy back at base', () => {
+			vehicle.addArmor(4);
+			vehicle.takeDamage(4);
+
+			expect(vehicle.armor).toBe(vehicle.maxArmor);
+			expect(vehicle.isHeavy).toBe(false);
+		});
+
+		test('plating past base comes off when it leaves the road, and damaged armor stays damaged', () => {
+			vehicle.addArmor(6);
+			vehicle.leaveRoad();
+			expect(vehicle.armor).toBe(vehicle.maxArmor);
+
+			vehicle.takeDamage(3);
+			vehicle.leaveRoad();
+			expect(vehicle.armor).toBe(vehicle.maxArmor - 3);
 		});
 	});
 

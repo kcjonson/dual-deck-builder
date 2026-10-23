@@ -385,50 +385,6 @@ describe('RammingAI', () => {
 			expect(decision?.type).toBe('playCard');
 			expect(decision?.card).toBe(attackCard); // Should prefer attack over useless heal
 		});
-
-		it('should not play armor cards when at full armor', async () => {
-			const enemyVehicle = battle.enemyTeam.vehicles[0];
-			const enemyDriver = driverOf(enemyVehicle);
-
-			// Ensure vehicle is at full armor
-			enemyVehicle.armor = enemyVehicle.maxArmor;
-
-			const armorCard = new Card({
-				type: 'armor_plating',
-				name: 'Armor Plating',
-				summary: 'Add armor',
-				description: 'Add armor',
-				cost: 1,
-				rarity: 'common',
-				targetType: 'self',
-				effects: [
-					{ type: 'gain_armor', value: 10 }
-				],
-				tags: ['defense']
-			});
-
-			const attackCard = new Card({
-				type: 'gun_attack',
-				name: 'Gun Attack',
-				summary: 'Shoot an enemy',
-				description: 'Shoot an enemy',
-				cost: 2,
-				rarity: 'common',
-				targetType: 'enemy_single',
-				effects: [
-					{ type: 'damage', value: 10 }
-				],
-				tags: ['ranged', 'attack']
-			});
-
-			enemyDriver.hand = [armorCard, attackCard];
-			enemyDriver.adrenaline = 5;
-
-			const decision = await ai.makeDecision();
-
-			expect(decision?.type).toBe('playCard');
-			expect(decision?.card).toBe(attackCard); // Should prefer attack over useless armor
-		});
 	});
 
 	describe('values a draw by the cards that fit under the drawer\'s hand limit', () => {

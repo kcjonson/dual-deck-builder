@@ -439,3 +439,12 @@ Records: route-tree-and-pois.md (Own road) and stops-and-routes.md.
 Record: mvp-supply-run.md.
 
 276. DDB-539: combat seats whatever pair the crew rule sends, so two drivers of one archetype fight together when call 35 lets them go, and combat's own check is only that one driver can't fill both seats, because the archetype rule is load out's (call 35), two Mechanics are two people with their own decks, and a fight refusing a pair load out allowed left the run stuck at its fight.
+
+## Heavy armor (277 to 280)
+
+Record: heavy-armor.md.
+
+277. DDB-164: armor isn't capped in a fight, so Armor Plating and Repair Kit's overflow add past the vehicle's base armor (`maxArmor`), because extra armor is plating welded on over the car, and a cap at starting armor made Armor Plating do nothing on a vehicle at full armor. Approved by Kevin 2026-10-23; in Combat Rules (Vehicle properties) and Card System Design.
+278. DDB-164: a vehicle carrying armor past its base is Heavy, and speed boosts (Nitro Boost, Run Ahead's) don't count while it is, though slows still do, because the weight is what the plating costs. Approved by Kevin 2026-10-23; in Combat Rules.
+279. DDB-164: armor past base comes off at the end of the fight, for driven vehicles and escorts alike, because plating that carried over would stack across a run. Approved by Kevin 2026-10-23; in Combat Rules.
+280. DDB-164: Heavy shows as a chip in the vehicle's status row, after Shield, counting the armor past base, and the plate's armor shield turns amber while it's Heavy, because the status row is where the speed statuses it cancels already sit.

@@ -327,18 +327,14 @@ describe('MCTSAI', () => {
 			});
 		});
 
-		test('Armor Plating is worth only the armor that fits', () => {
+		test('Armor Plating is worth its armor at full armor, since armor has no cap', () => {
 			const { raider, ai } = setup([2, 4]);
 			const plating = realCard('armor_plating');
 			const control = withEffects('armor_plating', []);
 			driverOf(raider).set({ hand: [plating, control] });
-			const gain = (): number => ai.score(ai.legalPlay(plating)) - ai.score(ai.legalPlay(control));
 
 			expect(raider.armor).toBe(raider.maxArmor);
-			expect(gain()).toBe(0);
-
-			raider.set({ armor: 0 });
-			expect(gain()).toBeGreaterThan(0);
+			expect(ai.score(ai.legalPlay(plating))).toBeGreaterThan(ai.score(ai.legalPlay(control)));
 		});
 	});
 
@@ -393,8 +389,8 @@ describe('MCTSAI', () => {
 
 		test('plays something useful over a draw it would burn', async () => {
 			const draw = createDrawCard(2);
-			const plating = realCard('armor_plating');
-			enemyTeam.vehicles[0].set({ armor: 0 });
+			// Worth less than a draw with room for it
+			const plating = withEffects('armor_plating', [{ type: 'gain_armor', value: 5, target: 'self' }]);
 			// Four cards, three once the draw has left the hand
 			enemyDriver1.set({ hand: [draw, plating, ...createFillerCards(2)], adrenaline: 5 });
 

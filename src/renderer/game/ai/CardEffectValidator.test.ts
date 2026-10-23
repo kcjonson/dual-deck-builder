@@ -51,11 +51,11 @@ describe('CardEffectValidator', () => {
 		});
 
 		test('with effects it judges useless doesn\'t help when its draw would burn', () => {
-			const armorAndDraw = drawWith({ type: 'gain_armor', value: 3 });
-			driver.set({ hand: [armorAndDraw, ...createFillerCards(3)], handLimit: 3 });
+			const repairAndDraw = drawWith({ type: 'heal', value: 3 });
+			driver.set({ hand: [repairAndDraw, ...createFillerCards(3)], handLimit: 3 });
 
-			expect(rig.armor).toBe(rig.maxArmor);
-			expect(hasEffect(armorAndDraw)).toBe(false);
+			expect(rig.structure).toBe(rig.maxStructure);
+			expect(hasEffect(repairAndDraw)).toBe(false);
 		});
 	});
 });

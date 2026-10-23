@@ -446,12 +446,10 @@ export class MCTSAI extends AIPlayer {
 		}
 		
 		const targetVehicle = target as Vehicle;
-		// Armor past the vehicle's max is lost
-		const armorGained = Math.min(armor, targetVehicle.maxArmor - targetVehicle.armor);
-		if (armorGained <= 0) {
+		if (armor <= 0) {
 			return 0;
 		}
-		let score = armorGained * this.ARMOR_WEIGHT;
+		let score = armor * this.ARMOR_WEIGHT;
 		
 		// Armor is more valuable on healthy vehicles
 		const healthPercent = targetVehicle.structure / targetVehicle.maxStructure;
@@ -476,7 +474,7 @@ export class MCTSAI extends AIPlayer {
 		if (!actor) {
 			return 0;
 		}
-		const speedBonus = selfSpeedBonus(card);
+		const speedBonus = actor.speedChange(selfSpeedBonus(card));
 		if (cardFlanks(card)) {
 			return !this.board.isFlanking(actor) && this.board.canFlankAnyone(actor, speedBonus) ? this.FLANK_WEIGHT : 0;
 		}

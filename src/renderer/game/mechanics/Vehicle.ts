@@ -42,7 +42,9 @@ export interface FlankState {
  */
 export interface VehicleData {
 	name: string;
+	/** Can go past maxArmor in a fight: plating welded on, which makes it Heavy (isHeavy). */
 	armor: number;
+	/** The armor the vehicle leaves the garage with. Not a cap: armor past it comes off at the end of the fight. */
 	maxArmor: number;
 	structure: number;
 	maxStructure: number;
@@ -342,10 +344,24 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
-	 * Add armor to vehicle
+	 * Armor isn't capped: past maxArmor it's plating welded on for the fight
 	 */
 	public addArmor(amount: number): void {
-		this.armor = Math.min(this.maxArmor, this.armor + amount);
+		this.armor += amount;
+	}
+
+	/**
+	 * Carrying armor past its base (maxArmor). A Heavy vehicle's speed boosts
+	 * don't count; slows still do. Hits strip armor first, so it stops being
+	 * Heavy once it's back down to base.
+	 */
+	public get isHeavy(): boolean {
+		return this.armor > this.maxArmor;
+	}
+
+	/** A speed change as it lands on this vehicle: a Heavy one takes no boost. */
+	public speedChange(modifier: number): number {
+		return this.isHeavy ? Math.min(0, modifier) : modifier;
 	}
 
 	/**
@@ -389,8 +405,9 @@ export class Vehicle extends Model<VehicleData> {
 
 	/**
 	 * Speed on the road, which flanking and ramming read: base speed, plus
-	 * the speed skill of whoever is at the wheel, plus statuses. An escort
-	 * has nobody at the wheel, so its speed is its base speed.
+	 * the speed skill of whoever is at the wheel, plus statuses (no boosts
+	 * while Heavy). An escort has nobody at the wheel, so its speed is its
+	 * base speed.
 	 */
 	public get speed(): number {
 		return floorSpeed(this.speedSum);
@@ -404,7 +421,7 @@ export class Vehicle extends Model<VehicleData> {
 	 */
 	public get speedSum(): number {
 		const driverSpeed = this.driver?.skills.speed ?? 0;
-		const statusModifier = this.statusEffects.reduce((sum, effect) => sum + statusSpeedModifier(effect), 0);
+		const statusModifier = this.statusEffects.reduce((sum, effect) => sum + this.speedChange(statusSpeedModifier(effect)), 0);
 		return this.baseSpeed + driverSpeed + statusModifier;
 	}
 
@@ -506,10 +523,10 @@ export class Vehicle extends Model<VehicleData> {
 	}
 
 	/**
-	 * Off the road at the end of a fight. Slot, flank, statuses, Shield, and
-	 * spent are the fight's; armor, structure, and seats stay as they are.
-	 * A Battle reads a preset slot as the encounter's, so nothing may carry
-	 * one out of a fight.
+	 * Off the road at the end of a fight. Slot, flank, statuses, Shield,
+	 * spent, and armor past base are the fight's; the rest of the armor,
+	 * structure, and seats stay as they are. A Battle reads a preset slot as
+	 * the encounter's, so nothing may carry one out of a fight.
 	 */
 	public leaveRoad(): void {
 		this.set({
@@ -517,7 +534,8 @@ export class Vehicle extends Model<VehicleData> {
 			flank: null,
 			statusEffects: [],
 			shield: 0,
-			spent: false
+			spent: false,
+			armor: Math.min(this.armor, this.maxArmor)
 		});
 	}
 

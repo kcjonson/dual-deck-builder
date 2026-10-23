@@ -134,6 +134,20 @@ describe('Vehicle token content', () => {
 		expect(second.chip).toMatchObject({ kind: 'status', icon: 'gpp_bad', count: 2 });
 	});
 
+	test('armor past base shows a Heavy chip counting the plating, gone once stripped', () => {
+		const rig = createDrivenVehicle({ driver: createTestDriver('Rig Driver'), name: 'Rig' });
+		const token = new Vehicle({ id: 'token', vehicleData: rig });
+		expect(chips(token)).toEqual([]);
+
+		rig.addArmor(8);
+		token.data = rig;
+		expect(chips(token)[0].chip).toMatchObject({ kind: 'status', icon: 'build', count: 8 });
+
+		rig.takeDamage(8);
+		token.data = rig;
+		expect(chips(token)).toEqual([]);
+	});
+
 	test('a driver who dies leaves a player vehicle as an escort, with the same parts', () => {
 		const rig = createDrivenVehicle({ driver: createTestDriver('Rig Driver'), name: 'Rig' });
 		const team = new Team({ type: TeamType.PLAYER, vehicles: [rig, createDrivenVehicle({ driver: createTestDriver('Bike Driver'), name: 'Bike' })] });

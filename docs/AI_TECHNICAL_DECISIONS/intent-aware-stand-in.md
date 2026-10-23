@@ -15,7 +15,7 @@ The balance sim (docs/specs/Balance Simulation.md, Player stand-ins) wants two p
 `IntentAwareAI` (src/renderer/game/ai/IntentAwareAI.ts), registered as player AI type `intent`. Before each card it reads `getAllIntents` once, matches each intent to its card in the raider's plan (`getPlan`), runs the raider's hit check, and turns every attack that will land into a hit on a player vehicle. Each legal play (`generatePossibleActions`, the same set every AI draws from) is scored by the harm it keeps off the convoy, where harm is what those hits do to structure and occupant hitpoints through Shield and armor (`splitDamage`, the battle's own rule):
 
 - a kill (wreck, or the driver dead) or a stun drops that raider's hits, judged from the vehicle Battle resolves the card from (the caster, an attack order's carrier escort, or each escort Rally the Convoy fires), with the battle's deterministic `checkHit`;
-- Shield, armor (capped at max), repair, and driver heals change what the hits find;
+- Shield, armor (uncapped), repair, and driver heals change what the hits find;
 - a speed change that leaves a flanker no faster than the vehicle it outran, checked on a `BoardProjection` with the card applied, takes the flank bonus off its hits;
 - non-lethal damage gets a share of the hurt raider's harm, so the target with the most harm per point of toughness is preferred.
 
