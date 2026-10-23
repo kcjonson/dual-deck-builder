@@ -78,14 +78,38 @@ if (!executablePath || !existsSync(executablePath)) {
 }
 
 console.log(`Launching ${executablePath}`);
+const launchedAt = Date.now();
 const application = await electron.launch({
 	executablePath,
 	args: process.platform === 'linux' ? ['--no-sandbox'] : [],
 	timeout: TIMEOUT_MS,
 });
 
+// What the app did, printed only on failure: the main process's output (the
+// renderer's console reaches it through main.ts) and the window and process
+// lifecycle. A window that closes under the check otherwise says only
+// "Target page, context or browser has been closed".
+const timeline = [];
+const record = (line) => timeline.push(`[${((Date.now() - launchedAt) / 1000).toFixed(1)}s] ${line}`);
+const appProcess = application.process();
+appProcess.stdout?.on('data', (chunk) => record(`stdout: ${String(chunk).trimEnd()}`));
+appProcess.stderr?.on('data', (chunk) => record(`stderr: ${String(chunk).trimEnd()}`));
+appProcess.on('exit', (code, signal) => record(`process exited, code ${code}, signal ${signal}`));
+application.on('close', () => record('app closed'));
+const watched = new Set();
+const watchWindow = (window) => {
+	if (watched.has(window)) return;
+	watched.add(window);
+	record(`window: ${window.url()}`);
+	window.on('crash', () => record(`window crashed: ${window.url()}`));
+	window.on('close', () => record(`window closed: ${window.url()}`));
+};
+application.on('window', watchWindow);
+application.windows().forEach(watchWindow);
+
 try {
 	const page = await application.firstWindow({ timeout: TIMEOUT_MS });
+	watchWindow(page);
 	const consoleErrors = [];
 	page.on('console', (message) => {
 		if (message.type() === 'error') consoleErrors.push(message.text());
@@ -130,5 +154,6 @@ try {
 } catch (error) {
 	fail(error instanceof Error ? error.message : String(error));
 } finally {
-	await application.close();
+	await application.close().catch((error) => fail(`closing the app: ${error instanceof Error ? error.message : String(error)}`));
+	if (process.exitCode) console.error(`What the app did:\n${timeline.join('\n')}`);
 }
