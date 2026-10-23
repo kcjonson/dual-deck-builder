@@ -19,6 +19,7 @@ import { HitTestOptions, hitTest } from './hitTest';
 import { layerOrdinal } from '../draw/layers';
 import { HotkeyTable, KeyStroke } from './HotkeyTable';
 import { DragService, dragThreshold } from './DragService';
+import { reportToPage } from '../errors/reportToPage';
 
 /** R9.32: a wheel event within this long of the last stays with the latched scroller. */
 export const WHEEL_LATCH_MS = 150;
@@ -446,6 +447,7 @@ export class Dispatcher {
 					this.dispatchInput(input);
 				} catch (error) {
 					console.error('Dispatcher: a handler threw while dispatching', input, error);
+					reportToPage(error);
 				}
 			}
 			this.refreshHover();

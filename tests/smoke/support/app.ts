@@ -35,7 +35,7 @@ export interface ConsoleLog {
 /**
  * Every console message and uncaught error on the page. A failed boot is not
  * an exception the test sees: `src/index.ts` catches it into console.error and
- * the canvas stays black, so the console is where it shows.
+ * the error overlay (error-overlay.md), so the console is where it shows.
  */
 export function captureConsole(page: Page): ConsoleLog {
 	const log: ConsoleLog = { messages: [], errors: [] };

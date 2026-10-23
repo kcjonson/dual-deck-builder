@@ -3,6 +3,7 @@ import type { Component } from '../components/Component';
 import { tokens } from '../theme/tokens';
 import { DragEventType, PointerType, UiDragEvent, UiPointerEvent } from './events';
 import type { HitTestOptions } from './hitTest';
+import { reportToPage } from '../errors/reportToPage';
 
 /**
  * R9.12a: how far a press moves, in logical pixels, before it stops being a
@@ -428,6 +429,7 @@ export class DragService {
 				listener(dragging);
 			} catch (error) {
 				console.error('DragService: a dragging listener threw', error);
+				reportToPage(error);
 			}
 		}
 	}
