@@ -124,13 +124,14 @@ app.whenReady().then(() => {
 		}
 	});
 
-	// Check for updates; without an error listener a failed check (e.g. no
-	// published releases yet) becomes an unhandled rejection in main
+	// The error event and the returned promise both carry a failed check (no
+	// published releases yet, offline); the listener logs it, and the catch
+	// keeps the same failure from also landing as an unhandled rejection.
 	if (app.isPackaged) {
 		autoUpdater.on('error', (error) => {
 			console.error('Update check failed:', error);
 		});
-		autoUpdater.checkForUpdatesAndNotify();
+		autoUpdater.checkForUpdatesAndNotify().catch(() => undefined);
 	}
 });
 

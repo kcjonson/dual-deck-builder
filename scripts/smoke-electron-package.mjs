@@ -77,15 +77,48 @@ if (!executablePath || !existsSync(executablePath)) {
 	process.exit();
 }
 
-console.log(`Launching ${executablePath}`);
+// Electron 25's sandbox doesn't run on the Windows Server 2025 runner images
+// from mid-October 2026 on: the sandboxed GPU process crashes on start
+// (0xC0000005) until Chromium gives up ("GPU process isn't usable. Goodbye.")
+// and takes the app down mid-check, and with only the GPU sandbox off the
+// page never loads. Locally on Windows 11 the sandboxed app runs, so only CI
+// drops it.
+const launchArgs = [];
+if (process.platform === 'linux' || (process.platform === 'win32' && process.env.CI)) launchArgs.push('--no-sandbox');
+
+console.log(`Launching ${executablePath} ${launchArgs.join(' ')}`.trimEnd());
+const launchedAt = Date.now();
 const application = await electron.launch({
 	executablePath,
-	args: process.platform === 'linux' ? ['--no-sandbox'] : [],
+	args: launchArgs,
 	timeout: TIMEOUT_MS,
 });
 
+// What the app did, printed only on failure: the main process's output (the
+// renderer's console reaches it through main.ts) and the window and process
+// lifecycle. A window that closes under the check otherwise says only
+// "Target page, context or browser has been closed".
+const timeline = [];
+const record = (line) => timeline.push(`[${((Date.now() - launchedAt) / 1000).toFixed(1)}s] ${line}`);
+const appProcess = application.process();
+appProcess.stdout?.on('data', (chunk) => record(`stdout: ${String(chunk).trimEnd()}`));
+appProcess.stderr?.on('data', (chunk) => record(`stderr: ${String(chunk).trimEnd()}`));
+appProcess.on('exit', (code, signal) => record(`process exited, code ${code}, signal ${signal}`));
+application.on('close', () => record('app closed'));
+const watched = new Set();
+const watchWindow = (window) => {
+	if (watched.has(window)) return;
+	watched.add(window);
+	record(`window: ${window.url()}`);
+	window.on('crash', () => record(`window crashed: ${window.url()}`));
+	window.on('close', () => record(`window closed: ${window.url()}`));
+};
+application.on('window', watchWindow);
+application.windows().forEach(watchWindow);
+
 try {
 	const page = await application.firstWindow({ timeout: TIMEOUT_MS });
+	watchWindow(page);
 	const consoleErrors = [];
 	page.on('console', (message) => {
 		if (message.type() === 'error') consoleErrors.push(message.text());
@@ -130,5 +163,8 @@ try {
 } catch (error) {
 	fail(error instanceof Error ? error.message : String(error));
 } finally {
-	await application.close();
+	await application.close().catch((error) => fail(`closing the app: ${error instanceof Error ? error.message : String(error)}`));
+	const gpuCrashes = timeline.filter((line) => line.includes('GPU process exited unexpectedly')).length;
+	if (gpuCrashes > 0) console.warn(`The GPU process crashed ${gpuCrashes} time(s) during the check`);
+	if (process.exitCode) console.error(`What the app did:\n${timeline.join('\n')}`);
 }
