@@ -126,8 +126,12 @@ describe('LoadOutScreen (DDB-320)', () => {
 
 	it('says why a refused departure didn\'t set off, starting no run decks and leaving START RUN live', async () => {
 		const campaign = await open(withFuel(0));
+		const errors = jest.spyOn(console, 'error');
 		press('load_out_start_button');
 		await flush();
+		// A refusal is the player's to hear, not a bug for the error overlay (DDB-543)
+		expect(errors).not.toHaveBeenCalled();
+		errors.mockRestore();
 		expect(text('load_out_summary_line')).toBe(departRefusal({ reason: 'too_little_fuel', needed: ROUTE.fuel, held: 0 }));
 		expect(campaign.supplyRun).toBeNull();
 		expect(campaign.runDecks).toHaveLength(0);

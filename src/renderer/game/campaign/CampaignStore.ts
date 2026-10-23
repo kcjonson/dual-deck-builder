@@ -6,6 +6,7 @@ import { CAMPAIGN_SCHEMA_VERSION, Campaign, LoadOptions, logWarning } from './Ca
 import { UPGRADABLE_SCHEMA_VERSIONS, upgradeCampaignJson } from './SaveUpgrades';
 import { CampaignEnding, CampaignHistoryEntry, historyEntry, historyToJson, readHistory, sameEntry } from './CampaignHistory';
 import { LocalSaveStorage, SaveStorage, isQuotaError, storageTrouble } from './SaveStorage';
+import { reportToPage } from '../../engine/errors/reportToPage';
 
 type Slot = 'a' | 'b';
 
@@ -115,7 +116,7 @@ export interface CampaignStoreOptions {
 	/**
 	 * Hears map param repairs on load, a history set aside or started over,
 	 * and a copy too big for full storage. Logs them by default. A callback
-	 * that throws or rejects is logged and changes nothing.
+	 * that throws or rejects is reported to the page and changes nothing.
 	 */
 	onWarning?: (warning: string) => void;
 }
@@ -293,7 +294,7 @@ export class CampaignStore extends EventEmitter {
 	 * (`saveStatus` says which). Rejects with a `CampaignStoreError` when
 	 * storage fails or the save is damaged; a damaged save is copied to the
 	 * recovery key and left where it was. A throw that isn't a reader's is
-	 * taken as damage too, and logged as an error, since it's likely a bug.
+	 * taken as damage too, and reported to the page, since it's likely a bug.
 	 */
 	public load({ onWarning = this.onWarning }: LoadOptions = {}): Promise<Campaign | null> {
 		return this.enqueue(async () => {
@@ -310,7 +311,10 @@ export class CampaignStore extends EventEmitter {
 					campaign = this.readSave(text, warning => { warnings.push(warning); });
 				} catch (error) {
 					// Anything that throws on a save of this version is damage, so one bad save can't lock the player out.
-					if (!isDamage(error)) console.error('CampaignStore: reading the save threw something other than a reader error; kept it as damaged', error);
+					if (!isDamage(error)) {
+						console.error('CampaignStore: reading the save threw something other than a reader error; kept it as damaged', error);
+						reportToPage(error);
+					}
 					await this.keepAside({ slot, text, action: LOADING }).catch(logKeepAsideFailure);
 					throw new CampaignStoreError({ reason: 'damaged', message: DAMAGED.campaign, cause: error });
 				}
@@ -428,6 +432,9 @@ export class CampaignStore extends EventEmitter {
 		try {
 			entry = historyEntry({ campaign, ending });
 		} catch (error) {
+			// The caller's bug, which its CampaignStoreError handling would otherwise keep quiet
+			console.error('CampaignStore: a campaign was ended without an ending', error);
+			reportToPage(error);
 			return Promise.reject(new CampaignStoreError({ reason: 'unsavable', message: `${ENDING}: a campaign still standing is won or abandoned, not ${describeValue(ending)}.`, cause: error }));
 		}
 		return this.enqueue(() => this.close({ campaign, entry }));
@@ -764,11 +771,16 @@ export class CampaignStore extends EventEmitter {
 	/**
 	 * A checkpoint that didn't save: a retired campaign's, told to nobody,
 	 * ended when its lineage's end is in the history; or a failure, told to
-	 * listeners, or logged with none listening. Never throws, so a checkpoint
-	 * never rejects.
+	 * listeners, or logged with none listening. A throw that isn't the
+	 * store's is reported to the page too, as a bug. Never throws, so a
+	 * checkpoint never rejects.
 	 */
 	private checkpointFailed({ campaign, error }: { campaign: Campaign; error: unknown }): CheckpointResult {
 		try {
+			if (!(error instanceof CampaignStoreError)) {
+				console.error('CampaignStore: a checkpoint threw something other than a store error', error);
+				reportToPage(error);
+			}
 			const failure = error instanceof CampaignStoreError
 				? error
 				: new CampaignStoreError({ reason: 'unsavable', message: `${SAVING}.`, cause: error });
@@ -777,6 +789,7 @@ export class CampaignStore extends EventEmitter {
 			this.emit('saveFailed', failure);
 		} catch (unexpected) {
 			console.error('CampaignStore: could not report a failed checkpoint', unexpected);
+			reportToPage(unexpected);
 		}
 		return 'failed';
 	}
@@ -816,6 +829,9 @@ class Snapshot {
 		try {
 			this.text = this.campaign.toSaveText();
 		} catch (error) {
+			// A campaign that breaks its own invariants is a bug, never the player's storage or save
+			console.error('CampaignStore: the campaign could not be written', error);
+			reportToPage(error);
 			this.failure = error;
 		}
 	}
@@ -876,21 +892,25 @@ function otherSlot(slot: Slot): Slot {
 	return slot === 'a' ? 'b' : 'a';
 }
 
-/** Hands warnings over once the store has decided what to do, so a callback that throws or rejects is logged and changes nothing. */
+/** Hands warnings over once the store has decided what to do, so a callback that throws or rejects is reported and changes nothing. */
 function deliver(warnings: readonly string[], onWarning: (warning: string) => void): void {
 	for (const warning of warnings) {
 		try {
 			catchRejection(onWarning(warning), 'a warning callback');
 		} catch (error) {
 			console.error('CampaignStore: a warning callback threw', error);
+			reportToPage(error);
 		}
 	}
 }
 
-/** Logs a callback's rejection, when it returned a promise; an async callback can't reject unheard. */
+/** Reports a callback's rejection, when it returned a promise; an async callback can't reject unheard. */
 function catchRejection(result: unknown, who: string): void {
 	if (typeof result !== 'object' || result === null || typeof (result as PromiseLike<unknown>).then !== 'function') return;
-	(result as PromiseLike<unknown>).then(undefined, error => console.error(`CampaignStore: ${who} rejected`, error));
+	(result as PromiseLike<unknown>).then(undefined, error => {
+		console.error(`CampaignStore: ${who} rejected`, error);
+		reportToPage(error);
+	});
 }
 
 /** An error's message. Read by shape, since a DOMException from another realm (a test's, a frame's) isn't `instanceof Error` here. */
@@ -899,9 +919,15 @@ function describeError(error: unknown): string {
 	return typeof message === 'string' ? message : String(error);
 }
 
-/** A failed copy to recovery doesn't stop a read reporting the damage; the text stays where it was, and a write tries the copy again before replacing it. */
+/**
+ * A failed copy to recovery doesn't stop a read reporting the damage; the
+ * text stays where it was, and a write tries the copy again before replacing
+ * it. Storage too full or blocked for the copy stays off the page; anything
+ * else is a bug and goes to it.
+ */
 function logKeepAsideFailure(error: unknown): void {
 	console.warn('CampaignStore: could not set damaged text aside', error);
+	if (!(error instanceof CampaignStoreError)) reportToPage(error);
 }
 
 function settled(): void {

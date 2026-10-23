@@ -25,6 +25,7 @@ import { countOf, mapProgressText } from '../main-menu/campaignText';
 import type { LoadOutScreenData } from '../load-out/LoadOutScreen';
 import { gateSectionTabs, metaSectionTabs } from '../metaSections';
 import { departRefusal, planRefusal } from '../run/runText';
+import { reportToPage } from '../../../engine/errors/reportToPage';
 
 const { space } = tokens;
 /** World units round the compound, the POI, and its routes, past the camera's own fit margin. */
@@ -267,7 +268,10 @@ export class RunRouteScreen extends Screen {
 		try {
 			campaign = await this.store.load();
 		} catch (error) {
-			if (!(error instanceof CampaignStoreError)) console.error('RunRouteScreen: loading the save failed', error);
+			if (!(error instanceof CampaignStoreError)) {
+				console.error('RunRouteScreen: loading the save failed', error);
+				reportToPage(error);
+			}
 			trouble = error instanceof CampaignStoreError ? error.message : "The saved campaign couldn't be read.";
 		}
 		if (visit !== this.visit) return;
@@ -297,6 +301,7 @@ export class RunRouteScreen extends Screen {
 		} catch (error) {
 			if (visit !== this.visit) return;
 			console.error('RunRouteScreen: the area map could not be made', error);
+			reportToPage(error);
 			this.say({ text: `The area map couldn't be made. ${error instanceof Error ? error.message : ''}`.trim(), color: 'status_crit' });
 			return;
 		}

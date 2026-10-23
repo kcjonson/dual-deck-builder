@@ -45,6 +45,7 @@ import { BattleResultData } from '../battleResult/BattleResultScreen';
 import type { Component } from '../../../engine/components/Component';
 import type { UiPointerEvent } from '../../../engine/input/events';
 import { tokens } from '../../../engine/theme/tokens';
+import { reportToPage } from '../../../engine/errors/reportToPage';
 
 /** Behind the stage, to the screen's edges (the mock's `.g-bg`). */
 const SCREEN_BACKGROUND: Rgba = [0.0824, 0.0863, 0.0941, 1];
@@ -262,6 +263,7 @@ export class CombatScreen extends Screen {
 			this.beginCombat({ battle });
 		} catch (error) {
 			console.error('Failed to initialize combat:', error);
+			reportToPage(error);
 		}
 	}
 
@@ -351,6 +353,7 @@ export class CombatScreen extends Screen {
 				target = back?.() ?? target;
 			} catch (error) {
 				console.error('Going back from a fight that could not start failed, so it goes to the menu:', error);
+				reportToPage(error);
 			}
 			ScreenManager.navigate(target.screen, target.data);
 		};
@@ -1295,6 +1298,7 @@ export class CombatScreen extends Screen {
 				this.beginCombat(prepared);
 			} catch (error) {
 				console.error('Failed to prepare combat:', error);
+				reportToPage(error);
 				if (generation === this.mountGeneration) this.showStartFailure(data.back);
 			}
 		} else if (data && typeof data === 'object' && 'drivers' in data) {
@@ -1303,6 +1307,7 @@ export class CombatScreen extends Screen {
 				await this.initializeCombat({ drivers, rng, generation });
 			} catch (error) {
 				console.error('Failed to initialize combat:', error);
+				reportToPage(error);
 			}
 		} else {
 			// For development - create default drivers if none provided
@@ -1318,6 +1323,7 @@ export class CombatScreen extends Screen {
 				}
 			} catch (error) {
 				console.error('Failed to create default combat:', error);
+				reportToPage(error);
 			}
 		}
 	}

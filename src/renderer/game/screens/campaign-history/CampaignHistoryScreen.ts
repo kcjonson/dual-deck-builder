@@ -11,6 +11,7 @@ import { ContentsRow } from '../../ui/atlas/ContentsRow';
 import { LegendBox, LegendRow } from '../../ui/atlas/LegendBox';
 import { PageTitle } from '../../ui/atlas/PageTitle';
 import { countOf, historyColumns } from '../main-menu/campaignText';
+import { reportToPage } from '../../../engine/errors/reportToPage';
 
 const { space } = tokens;
 const PANEL_WIDTH = 600;
@@ -111,6 +112,7 @@ export class CampaignHistoryScreen extends Screen {
 		} catch (error) {
 			if (error instanceof CampaignStoreError) return error.message;
 			console.error('CampaignHistoryScreen: reading the history failed', error);
+			reportToPage(error);
 			return "Campaign history couldn't be read.";
 		}
 	}

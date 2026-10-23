@@ -10,6 +10,7 @@ import { INSPECT_KEYS, inspectHotkey, inspectOnContextMenu, makeInspectable } fr
 import { FlowWrap } from '../../ui/FlowWrap';
 import { CardLoader } from '../../core/CardLoader';
 import { CARD_RARITIES, Card as GameCard } from '../../mechanics/Card';
+import { reportToPage } from '../../../engine/errors/reportToPage';
 
 const CARD_GAP = 20;
 const BACK_WIDTH = 200;
@@ -102,6 +103,7 @@ export class CardShowcaseScreen extends Screen {
 			this.showCards(this.cardLoader.getAllCards());
 		} catch (error) {
 			console.error('Failed to load cards:', error);
+			reportToPage(error);
 			if (generation !== this.generation) return;
 			this.list?.addChild(new Text({
 				text: 'Failed to load cards. Check console for details.',

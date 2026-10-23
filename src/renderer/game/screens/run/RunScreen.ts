@@ -33,6 +33,7 @@ import type { PreparedCombatMount } from '../combat/CombatScreen';
 import type { EventScreenData } from '../event/EventScreen';
 import { NOT_THE_SAVE } from '../compound/compoundText';
 import { arrivalSummary, crewState, debriefMark, eventStepLine, failureSummary, findStep, skullsText, stopTitle, yieldText } from './runText';
+import { reportToPage } from '../../../engine/errors/reportToPage';
 
 const BACK_WIDTH = 160;
 const ROAD_WIDTH = 320;
@@ -197,6 +198,7 @@ export class RunScreen extends Screen {
 			(found) => found,
 			(error: unknown) => {
 				console.error('RunScreen: loading the cards failed', error);
+				reportToPage(error);
 				return null;
 			},
 		);
@@ -263,7 +265,10 @@ export class RunScreen extends Screen {
 			try {
 				campaign = await this.store.load();
 			} catch (error) {
-				if (!(error instanceof CampaignStoreError)) console.error('RunScreen: loading the save failed', error);
+				if (!(error instanceof CampaignStoreError)) {
+					console.error('RunScreen: loading the save failed', error);
+					reportToPage(error);
+				}
 				trouble = error instanceof CampaignStoreError ? error.message : "The saved campaign couldn't be read.";
 			}
 		}
@@ -536,6 +541,7 @@ export class RunScreen extends Screen {
 			fight = startStopFight({ campaign, cards: this.cards });
 		} catch (error) {
 			console.error('RunScreen: the fight could not start', error);
+			reportToPage(error);
 			this.showLine({ line: this.report, text: "The fight couldn't start.", color: 'status_crit' });
 			this.busy = false;
 			return;
@@ -553,6 +559,7 @@ export class RunScreen extends Screen {
 			data = eventMount({ campaign, store: this.store, cards: this.cards, where: `stop ${run.stop + 1} of ${routeStops(run.route).length}` });
 		} catch (error) {
 			console.error('RunScreen: the event could not open', error);
+			reportToPage(error);
 			this.showLine({ line: this.report, text: "The event couldn't open.", color: 'status_crit' });
 			return;
 		}
@@ -585,6 +592,7 @@ export class RunScreen extends Screen {
 			cards = await this.loadCards();
 		} catch (error) {
 			console.error('RunScreen: loading the cards failed', error);
+			reportToPage(error);
 		}
 		if (visit !== this.visit) return;
 		this.busy = false;
@@ -602,6 +610,7 @@ export class RunScreen extends Screen {
 			arrival = arriveHome({ campaign });
 		} catch (error) {
 			console.error('RunScreen: getting home failed', error);
+			reportToPage(error);
 			this.showLine({ line: this.report, text: "The run couldn't get home.", color: 'status_crit' });
 			return;
 		}
@@ -623,6 +632,7 @@ export class RunScreen extends Screen {
 			change();
 		} catch (error) {
 			console.error('RunScreen: the step failed', error);
+			reportToPage(error);
 			this.showLine({ line: this.report, text: "That couldn't be done.", color: 'status_crit' });
 			this.busy = false;
 			return;
@@ -709,6 +719,7 @@ export function stopFightMount({ campaign, fight, store }: { campaign: Campaign;
 				withdrawFight({ fight });
 			} catch (error) {
 				console.error('RunScreen: giving up the fight that never started failed', error);
+				reportToPage(error);
 			}
 			return { screen: 'runScreen', data: { campaign } };
 		},
@@ -723,6 +734,7 @@ export function stopFightMount({ campaign, fight, store }: { campaign: Campaign;
 					result = finishStopFight({ campaign, fight });
 				} catch (error) {
 					console.error('RunScreen: writing the fight back failed', error);
+					reportToPage(error);
 					return { victory: won, next: { screen: 'runScreen', data: { campaign } } };
 				}
 				const saved = store.checkpoint(campaign);
@@ -760,6 +772,7 @@ export function eventMount({ campaign, store, cards, where }: { campaign: Campai
 				takeEventChoice({ campaign, choice: result.choice });
 			} catch (error) {
 				console.error('RunScreen: taking the event choice failed', error);
+				reportToPage(error);
 				return false;
 			}
 			saved = store.checkpoint(campaign);
@@ -775,6 +788,7 @@ export function eventMount({ campaign, store, cards, where }: { campaign: Campai
 						return;
 					} catch (error) {
 						console.error('RunScreen: the event\'s fight could not start', error);
+						reportToPage(error);
 					}
 				}
 				ScreenManager.navigate('runScreen', { campaign, ...(saved ? { saved } : {}) });

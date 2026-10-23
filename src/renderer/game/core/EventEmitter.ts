@@ -1,3 +1,5 @@
+import { reportToPage } from '../../engine/errors/reportToPage';
+
 /**
  * Simple EventEmitter base class for change tracking
  * Provides event emission capabilities to game mechanics classes
@@ -63,6 +65,7 @@ export class EventEmitter {
 					listener(...args);
 				} catch (error) {
 					console.error(`Error in event listener for "${event}":`, error);
+					reportToPage(error);
 				}
 			});
 		}

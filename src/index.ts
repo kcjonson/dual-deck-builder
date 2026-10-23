@@ -13,6 +13,7 @@ import { detectClipboard } from './renderer/engine/services/ClipboardService';
 import { imageUrlLoader } from './renderer/engine/services/AssetService';
 import type { GpuTimer } from './renderer/engine/rendering/GpuTimer';
 import { LoadedFontAtlas, loadFontAtlases, loadImageElement } from './renderer/engine/text/loadFontAtlases';
+import { reportToPage } from './renderer/engine/errors/reportToPage';
 
 /**
  * Main entry point for the application
@@ -47,6 +48,7 @@ class Application {
 			// and the screens draw without their paper art.
 			const uiArt = loadUiArt({ loadImage: loadImageElement }).catch((error: unknown) => {
 				console.error('UI art atlas failed to load:', error);
+				reportToPage(error);
 				return null;
 			});
 
