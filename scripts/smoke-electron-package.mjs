@@ -77,13 +77,14 @@ if (!executablePath || !existsSync(executablePath)) {
 	process.exit();
 }
 
-// The Windows runners have no GPU. There the GPU process often crashes on
-// start (0xC0000005) until Chromium gives up ("GPU process isn't usable.
-// Goodbye.") and takes the app down mid-check. This check is about asset
-// paths, not GL, so on CI it runs without the GPU.
+// Electron 25's sandbox doesn't run on the Windows Server 2025 runner images
+// from mid-October 2026 on: the sandboxed GPU process crashes on start
+// (0xC0000005) until Chromium gives up ("GPU process isn't usable. Goodbye.")
+// and takes the app down mid-check, and with only the GPU sandbox off the
+// page never loads. Locally on Windows 11 the sandboxed app runs, so only CI
+// drops it.
 const launchArgs = [];
-if (process.platform === 'linux') launchArgs.push('--no-sandbox');
-if (process.platform === 'win32' && process.env.CI) launchArgs.push('--disable-gpu');
+if (process.platform === 'linux' || (process.platform === 'win32' && process.env.CI)) launchArgs.push('--no-sandbox');
 
 console.log(`Launching ${executablePath} ${launchArgs.join(' ')}`.trimEnd());
 const launchedAt = Date.now();

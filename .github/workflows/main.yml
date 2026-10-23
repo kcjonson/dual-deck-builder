@@ -212,11 +212,6 @@ jobs:
 
       # R15.34: the packaged renderer runs from file:// out of the asar; check the
       # font atlases and the map worker load there.
-      - name: Probe GPU flags
-        if: runner.os == 'Windows'
-        continue-on-error: true
-        run: node scripts/probe-gpu.mjs
-
       - name: Smoke Test Packaged App
         run: node scripts/smoke-electron-package.mjs
 
