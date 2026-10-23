@@ -20,6 +20,7 @@ import { DeckStack } from '../../ui/atlas/deck';
 import { buildLine } from './buildLabel';
 import { campaignSummary, foundingText } from './campaignText';
 import { MenuCover } from './MenuCover';
+import { reportToPage } from '../../../engine/errors/reportToPage';
 
 /** Between the cover and the contents page, the canvas's. */
 const COLUMN_GAP = 46;
@@ -393,6 +394,7 @@ export class MainMenuScreen extends Screen {
 		} catch (error) {
 			if (error instanceof CampaignStoreError) return { kind: 'unreadable', reason: error.reason, message: error.message };
 			console.error('MainMenuScreen: reading the save failed', error);
+			reportToPage(error);
 			return { kind: 'unreadable', reason: 'storage', message: "The saved campaign couldn't be read." };
 		}
 	}
@@ -570,7 +572,10 @@ export class MainMenuScreen extends Screen {
 		} catch (error) {
 			// The player left, which cancelled the founding.
 			if (error instanceof MapGenerationCancelled) return;
-			if (!(error instanceof CampaignStoreError)) console.error('MainMenuScreen: starting a campaign failed', error);
+			if (!(error instanceof CampaignStoreError)) {
+				console.error('MainMenuScreen: starting a campaign failed', error);
+				reportToPage(error);
+			}
 			if (visit !== this.visit) return;
 			this.showNotice(error instanceof CampaignStoreError ? error.message : "The new campaign couldn't be started.");
 			this.showSave({ kind: 'checking' });

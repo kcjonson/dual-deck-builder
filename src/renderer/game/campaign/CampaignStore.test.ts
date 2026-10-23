@@ -1400,6 +1400,68 @@ describe('CampaignStore', () => {
 		});
 	});
 
+	describe('what reaches the error overlay (DDB-543)', () => {
+		const page = globalThis as { reportError?: (error: unknown) => void };
+		let reported: jest.Mock;
+
+		beforeEach(() => {
+			reported = jest.fn();
+			page.reportError = reported;
+			jest.spyOn(console, 'error').mockImplementation(() => undefined);
+			jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+		});
+
+		afterEach(() => {
+			delete page.reportError;
+		});
+
+		it('reports a campaign that breaks its own invariants, so can\'t be written', async () => {
+			const campaign = Campaign.fromJSON(CAMPAIGN_FIXTURE);
+			campaign.convoy.escorts[0].set({ structure: 41 });
+
+			expect((await failure(storeOver(new MemorySaveStorage()).save(campaign))).reason).toBe('unsavable');
+
+			expect(reported).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('escorts[0].structure') }));
+		});
+
+		it('reports a reader that threw something other than a reader error, and still keeps the save as damaged', async () => {
+			const bug = new TypeError("Cannot read properties of undefined (reading 'day')");
+			jest.spyOn(Campaign, 'fromJSON').mockImplementation(() => { throw bug; });
+
+			expect((await failure(storeOver(storageWith(fixtureText())).load())).reason).toBe('damaged');
+
+			expect(reported).toHaveBeenCalledWith(bug);
+		});
+
+		it('reports an ending that doesn\'t exist', async () => {
+			await failure(storeOver(new MemorySaveStorage()).end({ campaign: newCampaign(), ending: 'exploded' as CampaignEnding }));
+
+			expect(reported).toHaveBeenCalledTimes(1);
+		});
+
+		it('reports a save-failed listener that throws', async () => {
+			const storage = new FaultyStorage();
+			const store = storeOver(storage);
+			const bug = new Error('listener bug');
+			store.onSaveFailed(() => { throw bug; });
+			storage.fault = { method: 'setItem', error: quotaError() };
+
+			expect(await store.checkpoint(newCampaign())).toBe('failed');
+
+			expect(reported.mock.calls).toEqual([[bug]]);
+		});
+
+		it('keeps full storage and a damaged save off it, since the screens say so themselves', async () => {
+			const storage = new FaultyStorage();
+			storage.fault = { method: 'setItem', error: quotaError() };
+
+			expect(await storeOver(storage).checkpoint(newCampaign())).toBe('failed');
+			expect((await failure(storeOver(storageWith(damagedText())).load())).reason).toBe('damaged');
+
+			expect(reported).not.toHaveBeenCalled();
+		});
+	});
+
 	describe('delete', () => {
 		it('removes the save from both slots, leaving the history', async () => {
 			const storage = new MemorySaveStorage();

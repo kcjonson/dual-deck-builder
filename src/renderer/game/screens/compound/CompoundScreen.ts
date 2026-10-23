@@ -51,6 +51,7 @@ import {
 } from './compoundText';
 import { CompoundYard } from './CompoundYard';
 import { planRefusal } from '../run/runText';
+import { reportToPage } from '../../../engine/errors/reportToPage';
 
 const PLATE_CAPTION = 'Plate 1 · the compound from above, at dawn';
 const GATE = { name: 'Gate', road: 'to the area map' };
@@ -455,7 +456,10 @@ export class CompoundScreen extends Screen {
 		try {
 			campaign = await this.store.load();
 		} catch (error) {
-			if (!(error instanceof CampaignStoreError)) console.error('CompoundScreen: loading the save failed', error);
+			if (!(error instanceof CampaignStoreError)) {
+				console.error('CompoundScreen: loading the save failed', error);
+				reportToPage(error);
+			}
 			trouble = error instanceof CampaignStoreError ? error.message : "The saved campaign couldn't be read.";
 		}
 		if (visit !== this.visit) return;
@@ -496,6 +500,7 @@ export class CompoundScreen extends Screen {
 		} catch (error) {
 			if (visit !== this.visit) return;
 			console.error('CompoundScreen: the area map could not be made', error);
+			reportToPage(error);
 			waiting("The area map couldn't be made, so no run can be planned.");
 		}
 	}
@@ -739,6 +744,7 @@ export class CompoundScreen extends Screen {
 				report = step(campaign);
 			} catch (error) {
 				console.error('CompoundScreen: ending the day failed', error);
+				reportToPage(error);
 				this.showLine({ line: this.report, text: "The day couldn't end.", color: 'status_crit' });
 				this.passingDay = false;
 				return;

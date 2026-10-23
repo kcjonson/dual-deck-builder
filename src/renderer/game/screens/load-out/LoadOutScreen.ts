@@ -34,6 +34,7 @@ import { PRIMARY_LABEL } from '../area-map/atlasPanel';
 import { PlanningMaps } from '../area-map/planningMap';
 import { departRefusal } from '../run/runText';
 import { LoadOutPlan, SEAT_COUNT } from './LoadOutPlan';
+import { reportToPage } from '../../../engine/errors/reportToPage';
 import {
 	ESCORT_CAPTION,
 	ESCORT_COMING,
@@ -850,19 +851,27 @@ export class LoadOutScreen extends Screen {
 		this.departed = true;
 		this.refusal = null;
 		this.refresh();
+		let refusal: string | null = null;
 		try {
 			const map = this.maps.known(campaign) ?? await this.maps.load(campaign);
 			if (visit !== this.visit) return;
 			const route = routesOnOffer({ map, campaign }).find((offered) => offered.id === id);
-			if (!route) throw new RangeError("That route isn't on the area map any more. Back to pick another.");
-			const blocker = getDepartBlocker({ campaign, route });
-			if (blocker) throw new Error(departRefusal(blocker));
-			plan.start();
-			departRun({ campaign, map, route, escorts: plan.escorts });
+			const blocker = route ? getDepartBlocker({ campaign, route }) : null;
+			if (!route) refusal = "That route isn't on the area map any more. Back to pick another.";
+			else if (blocker) refusal = departRefusal(blocker);
+			else {
+				plan.start();
+				departRun({ campaign, map, route, escorts: plan.escorts });
+			}
 		} catch (error) {
 			if (visit !== this.visit) return;
+			// A refusal is the player's to hear; a throw is a bug, and the page hears it too
 			console.error('LoadOutScreen: the run could not set off', error);
-			this.refusal = error instanceof Error ? error.message : "The run couldn't set off.";
+			reportToPage(error);
+			refusal = error instanceof Error ? error.message : "The run couldn't set off.";
+		}
+		if (refusal !== null) {
+			this.refusal = refusal;
 			this.departed = false;
 			this.refresh();
 			return;

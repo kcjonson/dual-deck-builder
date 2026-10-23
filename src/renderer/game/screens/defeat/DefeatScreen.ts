@@ -13,6 +13,7 @@ import { DamageMark } from '../../ui/atlas/DamageMark';
 import { LegendBox, LegendRow } from '../../ui/atlas/LegendBox';
 import { fellOnText } from '../main-menu/campaignText';
 import { FALL_TITLES, NO_FALL, fallStory, lastDayLines, recordRows } from './defeatText';
+import { reportToPage } from '../../../engine/errors/reportToPage';
 
 const STORY_WIDTH = 560;
 /** The last day beside the record, with the gap between, fits inside the sheet's neatline at 1024 wide. */
@@ -151,7 +152,10 @@ export class DefeatScreen extends Screen {
 		try {
 			campaign = await this.store.load();
 		} catch (error) {
-			if (!(error instanceof CampaignStoreError)) console.error('DefeatScreen: loading the save failed', error);
+			if (!(error instanceof CampaignStoreError)) {
+				console.error('DefeatScreen: loading the save failed', error);
+				reportToPage(error);
+			}
 			trouble = error instanceof CampaignStoreError ? error.message : "The saved campaign couldn't be read.";
 		}
 		if (visit !== this.visit) return;

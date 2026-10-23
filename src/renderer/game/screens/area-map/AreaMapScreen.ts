@@ -22,6 +22,7 @@ import { planRefusal } from '../run/runText';
 import { POI_CLEARED, STRONGHOLD_NOT_YET, darkText, poiKindText, poiYieldText, routesText } from './areaMapText';
 import { COLUMN_GAP, PRIMARY_HEIGHT, PRIMARY_LABEL, PoiHead, SHEET_GAP, SIDE_WIDTH, caption, detailLine, poiLead, screenTitle, titleNote } from './atlasPanel';
 import { PlannedPoi, PlanningMap, PlanningMaps, byDistance, plannedPois, poiCleared, poiMarkers, viewData } from './planningMap';
+import { reportToPage } from '../../../engine/errors/reportToPage';
 
 /** Plan's reason holds two lines, the most any takes. */
 const REASON_LINES = 2;
@@ -281,7 +282,10 @@ export class AreaMapScreen extends Screen {
 		try {
 			campaign = await this.store.load();
 		} catch (error) {
-			if (!(error instanceof CampaignStoreError)) console.error('AreaMapScreen: loading the save failed', error);
+			if (!(error instanceof CampaignStoreError)) {
+				console.error('AreaMapScreen: loading the save failed', error);
+				reportToPage(error);
+			}
 			trouble = error instanceof CampaignStoreError ? error.message : "The saved campaign couldn't be read.";
 		}
 		if (visit !== this.visit) return;
@@ -312,6 +316,7 @@ export class AreaMapScreen extends Screen {
 		} catch (error) {
 			if (visit !== this.visit) return;
 			console.error('AreaMapScreen: the area map could not be made', error);
+			reportToPage(error);
 			this.say({ text: `The area map couldn't be made. ${error instanceof Error ? error.message : ''}`.trim(), color: 'status_crit' });
 			return;
 		}

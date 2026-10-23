@@ -110,6 +110,7 @@ function save(storage: SettingsStorage | null, record: Record<string, unknown>):
 	try {
 		storage?.setItem(STORAGE_KEY, JSON.stringify(record));
 	} catch (error) {
+		// Off the error overlay: blocked or full storage is the browser's, and the setting still holds for this visit
 		console.warn('GameSettings: could not save settings', error);
 	}
 }
