@@ -165,10 +165,8 @@ export class SalvageAIStrategy implements AIStrategy {
 							needsHealing = true;
 							healingValue = vehicle.maxStructure - vehicle.structure;
 						}
-						// Check if armor is below max (for overflow healing)
-						if (vehicle.armor < vehicle.maxArmor) {
-							canUseArmor = true;
-						}
+						// Overflow healing becomes armor, which isn't capped
+						canUseArmor = true;
 						break;
 					}
 				}

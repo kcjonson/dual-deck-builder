@@ -64,6 +64,11 @@ export function shieldChipContent(shield: number): StatusChipContent {
 	return { kind: 'status', icon: 'shield', tone: 'buff', count: shield, title: `Shield ${shield}`, detail: 'Soaks damage before armor. Clears at the start of your turn.' };
 }
 
+/** Heavy (armor past base) as a chip, its count the plating welded on: no speed boosts until hits strip it. */
+export function heavyChipContent(plating: number): StatusChipContent {
+	return { kind: 'status', icon: 'build', tone: 'neutral', count: plating, title: `Heavy, +${plating} armor`, detail: 'Armor welded on past its base. Speed boosts do nothing until hits strip it back to base. Comes off after the fight.' };
+}
+
 export const STATUS_CHIP_SIZE = 20;
 /** "+N" and "SPENT" are as wide as they read, inside the row's height. */
 const MORE_WIDTH = 24;

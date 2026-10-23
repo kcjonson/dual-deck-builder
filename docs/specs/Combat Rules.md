@@ -16,7 +16,7 @@
 ### Vehicle
 
 - Properties
-  - Armor: 0 - infinite
+  - Armor: 0 - infinite. Not capped in a fight: armor gained past the vehicle's base armor is plating welded on over the car. A vehicle carrying armor past its base is Heavy: speed boosts don't count while it is, and slows still do. Hits take armor before structure, so the plating comes off first and the vehicle stops being Heavy once it's back to base. Armor past base comes off at the end of the fight. Decided by Kevin 2026-10-23 (DDB-164).
   - Shield: 0 - infinite. Temporary armor: absorbs damage before Armor, isn't capped by the vehicle's armor, stacks, and clears from every vehicle at the start of the player's turn (and when a fight starts). Decided 2026-09-26; see [escorts.md](../AI_TECHNICAL_DECISIONS/escorts.md) decision 28.
   - Structure: 0 - infinite
   - Base Speed: 1-5
@@ -320,7 +320,7 @@ Specific Cards
   - Rarity Common
   - Adrenaline 1
   - Can only target the vehicle the driver is in
-  - Increases structure by 8.  If this exceeds the max structure it heals armor up to its max
+  - Increases structure by 8. What would go past max structure becomes armor, which isn't capped (see Armor)
   - Upgraded adds +4 to the healing
 - Medical Kit: Utility
   - Rarity Uncommon

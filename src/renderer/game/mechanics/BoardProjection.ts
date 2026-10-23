@@ -134,7 +134,8 @@ export class BoardProjection {
 	 * can't already be on the shoulder. The target is the vehicle to outrun:
 	 * it must be in the other team's formation and slower than the flanker,
 	 * and the shoulder slot in its row must be free.
-	 * A speed bonus counts a boost the flanking card gives first.
+	 * A speed bonus counts a boost the flanking card gives first, unless the
+	 * flanker is Heavy.
 	 */
 	public flankBlocker(flanker: Vehicle, target: Vehicle, speedBonus = 0): string | null {
 		const flankerState = this.vehicles.get(flanker);
@@ -151,7 +152,7 @@ export class BoardProjection {
 		if (!target.isAlive() || !targetState.slot || !isFormationLane(targetState.team, targetState.slot.lane)) {
 			return `${target.name} is not in formation`;
 		}
-		if (floorSpeed(flankerState.speedSum + speedBonus) <= floorSpeed(targetState.speedSum)) {
+		if (floorSpeed(flankerState.speedSum + flanker.speedChange(speedBonus)) <= floorSpeed(targetState.speedSum)) {
 			return `${flanker.name} is not faster than ${target.name}`;
 		}
 		const destination = this.flankDestination(flanker, target);
@@ -412,8 +413,7 @@ export class BoardProjection {
 						if (rolls && !this.battle.checkHit({ attacker: caster, caster: driver, defender: recipient })) continue;
 						const state = this.vehicles.get(recipient);
 						if (state) {
-							const modifier = statusSpeedModifier({ name: status, duration: 1, value: effect.value });
-							state.speedSum += modifier;
+							state.speedSum += recipient.speedChange(statusSpeedModifier({ name: status, duration: 1, value: effect.value }));
 						}
 					}
 					break;

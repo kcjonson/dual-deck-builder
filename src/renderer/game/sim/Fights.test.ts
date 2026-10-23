@@ -26,8 +26,8 @@ describe('balance sim fights', () => {
 			swapped: false,
 			turns: 3,
 			down: false,
-			hpLost: 9 / 65,
-			structureLost: 9 / 130,
+			hpLost: 5 / 65,
+			structureLost: 5 / 130,
 			injuryDays: 1,
 			raidersKilled: 4,
 			routed: true,
@@ -37,10 +37,10 @@ describe('balance sim fights', () => {
 
 	test('a pair swaps seats on the odd run, and the cell measures both', async () => {
 		const row = await playFightCell({ config, cell: fightCells(config)[0] });
-		expect(row).toMatchObject({ cell: 'road_warrior+interceptor:2', runs: 2, turns: 4.5, injuryDays: 3, raidersKilled: 4 });
+		expect(row).toMatchObject({ cell: 'road_warrior+interceptor:2', runs: 2, turns: 3.5, injuryDays: 1.5, raidersKilled: 4 });
 		expect(row.won).toMatchObject({ count: 2, of: 2, rate: 1, high: 1 });
 		expect(row.bySeat?.map(seat => seat.of)).toEqual([1, 1]);
-		expect(row.down).toMatchObject({ count: 1, of: 2 });
+		expect(row.down).toMatchObject({ count: 0, of: 2 });
 	});
 
 	test('tuning comes in through the config and leaves the shipped profiles alone', () => {

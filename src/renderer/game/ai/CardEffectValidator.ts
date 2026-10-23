@@ -40,9 +40,8 @@ export class CardEffectValidator {
 					// Check if target vehicle needs healing
 					if (target) {
 						const structureMissing = target.maxStructure - target.structure;
-						const armorMissing = target.maxArmor - target.armor;
-						// Only beneficial if vehicle is damaged
-						if (structureMissing > 0 || (effect.overflow_to_armor && armorMissing > 0)) {
+						// Beneficial if the vehicle is damaged, or the overflow becomes armor, which isn't capped
+						if (structureMissing > 0 || effect.overflow_to_armor) {
 							return true;
 						}
 					}
@@ -68,12 +67,9 @@ export class CardEffectValidator {
 					break;
 
 				case 'gain_armor':
-					// Check if target vehicle needs armor
+					// Armor isn't capped, so it always lands
 					if (target) {
-						const armorMissing = target.maxArmor - target.armor;
-						if (armorMissing > 0) {
-							return true;
-						}
+						return true;
 					}
 					break;
 
@@ -153,10 +149,8 @@ export class CardEffectValidator {
 				effectiveHealing += structureHealed;
 				
 				// Check overflow to armor
-				if (effect.overflow_to_armor && structureHealed < healAmount) {
-					const armorMissing = target.maxArmor - target.armor;
-					const armorHealed = Math.min(healAmount - structureHealed, armorMissing);
-					effectiveHealing += armorHealed;
+				if (effect.overflow_to_armor) {
+					effectiveHealing += healAmount - structureHealed;
 				}
 			}
 		}
@@ -177,9 +171,7 @@ export class CardEffectValidator {
 
 		for (const effect of card.effects) {
 			if (effect.type === 'gain_armor') {
-				const armorAmount = effect.value || 0;
-				const armorMissing = target.maxArmor - target.armor;
-				effectiveArmor += Math.min(armorAmount, armorMissing);
+				effectiveArmor += effect.value || 0;
 			}
 		}
 

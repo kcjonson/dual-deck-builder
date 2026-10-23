@@ -16,7 +16,7 @@ import { Vehicle as VehicleData } from '../mechanics/Vehicle';
 import { CombatModel } from '../screens/combat/CombatModel';
 import { DRIVER_HP_COLOR, STRUCTURE_COLOR } from '../screens/combat/combatStyle';
 import { EnemyIntent, INTENT_PILL_HEIGHT, IntentRow } from './IntentPill';
-import { StatusChip, StatusChipContent, STATUS_CHIP_SIZE, shieldChipContent, statusChipContent } from './StatusChip';
+import { StatusChip, StatusChipContent, STATUS_CHIP_SIZE, heavyChipContent, shieldChipContent, statusChipContent } from './StatusChip';
 import { MARK_COLORS, TargetMark, TargetMarkDraw, seatMark } from './targetMarks';
 import { VehicleSprite, spriteKindOf } from './vehicleSprites';
 import { RangeChip, RangeLabel } from './RangeChip';
@@ -109,6 +109,8 @@ const PLATE_EDGE = tokens.color.line_edge;
 const BAR_TRACK = resolveColor('#26292b');
 const STRUCTURE_FILL = resolveColor(STRUCTURE_COLOR);
 const ARMOR_FILL = resolveColor('#a9bccd');
+/** Armor past base (Heavy) reads warmer, welded plate over the steel. */
+const HEAVY_ARMOR_FILL = resolveColor('#d9b26a');
 const HP_FILL = resolveColor(DRIVER_HP_COLOR);
 const PASSENGER_FILL = resolveColor('#c9656c');
 const SPEED_COLOR = tokens.color.text_dim;
@@ -574,7 +576,7 @@ export class Vehicle extends Component {
 			points[index].y = y + py;
 		});
 		// The mock fades a shield at zero; a wreck's goes grey
-		const fill = this.wrecked ? WRECK_DIM : ARMOR_FILL;
+		const fill = this.wrecked ? WRECK_DIM : data.armor > data.maxArmor ? HEAVY_ARMOR_FILL : ARMOR_FILL;
 		this.armorDraw.fill = data.armor > 0 || this.wrecked ? fill : [fill[0], fill[1], fill[2], 0.35];
 		this.armorText.text = `${data.armor}`;
 		this.armorText.setPosition(x, y);
@@ -642,7 +644,7 @@ export class Vehicle extends Component {
 	}
 
 	/**
-	 * SPENT first on an escort that has acted, then Shield, then statuses
+	 * SPENT first on an escort that has acted, then Shield, Heavy, then statuses
 	 * in the order they landed: as many as the row holds, at most five, with
 	 * the last place given to "+N" when there are more.
 	 */
@@ -653,6 +655,7 @@ export class Vehicle extends Component {
 			contents.push({ kind: 'label', text: 'SPENT', title: 'Spent', detail: 'Acted this turn. Ready again at the start of your turn.' });
 		}
 		if ((data.shield ?? 0) > 0) contents.push(shieldChipContent(data.shield ?? 0));
+		if (data.armor > data.maxArmor) contents.push(heavyChipContent(data.armor - data.maxArmor));
 		for (const effect of data.statusEffects) contents.push(statusChipContent(effect));
 
 		const shown: StatusChipContent[] = [];

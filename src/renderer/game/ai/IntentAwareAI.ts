@@ -180,7 +180,7 @@ export class IntentAwareAI extends AIPlayer {
 			if (vehicle.isOutOfFight) continue;
 			const added = protection.get(vehicle);
 			let shield = (vehicle.shield ?? 0) + (added?.shield ?? 0);
-			let armor = Math.min(vehicle.maxArmor, vehicle.armor + (added?.armor ?? 0));
+			let armor = vehicle.armor + (added?.armor ?? 0);
 			let structure = Math.min(vehicle.maxStructure, vehicle.structure + (added?.structure ?? 0));
 			const occupants = [vehicle.driver, vehicle.passenger].filter((occupant): occupant is Driver => occupant?.isAlive() ?? false);
 			const hitpoints = new Map(occupants.map(occupant =>
