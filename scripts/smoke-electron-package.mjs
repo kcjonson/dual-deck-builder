@@ -77,11 +77,19 @@ if (!executablePath || !existsSync(executablePath)) {
 	process.exit();
 }
 
-console.log(`Launching ${executablePath}`);
+// The Windows runners have no GPU. There the GPU process often crashes on
+// start (0xC0000005) until Chromium gives up ("GPU process isn't usable.
+// Goodbye.") and takes the app down mid-check. This check is about asset
+// paths, not GL, so on CI it runs without the GPU.
+const launchArgs = [];
+if (process.platform === 'linux') launchArgs.push('--no-sandbox');
+if (process.platform === 'win32' && process.env.CI) launchArgs.push('--disable-gpu');
+
+console.log(`Launching ${executablePath} ${launchArgs.join(' ')}`.trimEnd());
 const launchedAt = Date.now();
 const application = await electron.launch({
 	executablePath,
-	args: process.platform === 'linux' ? ['--no-sandbox'] : [],
+	args: launchArgs,
 	timeout: TIMEOUT_MS,
 });
 
@@ -155,5 +163,7 @@ try {
 	fail(error instanceof Error ? error.message : String(error));
 } finally {
 	await application.close().catch((error) => fail(`closing the app: ${error instanceof Error ? error.message : String(error)}`));
+	const gpuCrashes = timeline.filter((line) => line.includes('GPU process exited unexpectedly')).length;
+	if (gpuCrashes > 0) console.warn(`The GPU process crashed ${gpuCrashes} time(s) during the check`);
 	if (process.exitCode) console.error(`What the app did:\n${timeline.join('\n')}`);
 }
