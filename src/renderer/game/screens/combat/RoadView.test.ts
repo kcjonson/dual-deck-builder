@@ -1,7 +1,7 @@
 /**
  * @jest-environment jsdom
  */
-import { DrawApi, TextCommand } from '../../../engine/draw';
+import { DrawApi, RectCommand, TextCommand } from '../../../engine/draw';
 import type { Text } from '../../../engine/components/Text';
 import { ICON_ATLAS_ROLE } from '../../../engine/text/fontFaces';
 import { createMeasuringDrawApi, MeasuringRecordingBackend } from '../../../engine/text/testing';
@@ -393,6 +393,50 @@ describe('RoadView', () => {
 			road.setVehicleIntents(late.id, [intent('defend', 6)]);
 			road.showVehicles({ player: [], enemy: [raider, late] });
 			expect(road.intentRowOf(late.id)?.intents.map((shown) => shown.type)).toEqual(['defend']);
+		});
+	});
+
+	describe('a planned swerve (DDB-546, call 288)', () => {
+		const DESTINATION: RoadSlot = { lane: RoadLane.ENEMY_OUTSIDE, row: RoadRow.CENTER };
+		const swerve: EnemyIntent = { type: 'move', description: 'Lane Change', destination: DESTINATION };
+
+		/** The rects drawn in a frame exactly over a slot's outline, inset as the empty-slot dashes are */
+		function outlinesOver(slot: RoadSlot): RectCommand[] {
+			frame();
+			const cell = road.slotRect(slot);
+			return backend.commands.filter((command): command is RectCommand => command.kind === 'rect' &&
+				command.rect.x === cell.x + 6 && command.rect.y === cell.y + 4 &&
+				command.rect.width === cell.width - 12 && command.rect.height === cell.height - 8);
+		}
+
+		it('outlines where it lands in the raiders\' red while the plan stands, with the swerve icon in it', () => {
+			road.setVehicleIntents(raider.id, [swerve, { type: 'attack', value: 4, description: 'Point Blank' }]);
+			expect(road.plannedDestinations).toEqual([DESTINATION]);
+			const [outline] = outlinesOver(DESTINATION);
+			expect(outline.border?.color).toEqual([0xd4 / 255, 0x51 / 255, 0x3f / 255, 0.8]);
+			expect(backend.commands.some((command) => command.kind === 'text' && command.font === ICON_ATLAS_ROLE &&
+				command.text === String.fromCodePoint(ICON_CODE_POINTS.alt_route) && command.size === 28)).toBe(true);
+		});
+
+		it('outlines a slot once however many plans swerve there, and clears it with the plan', () => {
+			const other = vehicle('Scrap Hauler', { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.AHEAD });
+			road.showVehicles({ player: [rig], enemy: [raider, other] });
+			road.setVehicleIntents(raider.id, [swerve]);
+			road.setVehicleIntents(other.id, [{ type: 'attack', value: 4, description: 'Strafe', destination: DESTINATION }]);
+			expect(road.plannedDestinations).toEqual([DESTINATION]);
+			expect(outlinesOver(DESTINATION)).toHaveLength(1);
+
+			road.setVehicleIntents(raider.id, []);
+			expect(road.plannedDestinations).toEqual([DESTINATION]);
+			road.setVehicleIntents(other.id, []);
+			expect(road.plannedDestinations).toEqual([]);
+			expect(outlinesOver(DESTINATION)).toEqual([]);
+		});
+
+		it('keeps the outline on its slot when the road is resized', () => {
+			road.setVehicleIntents(raider.id, [swerve]);
+			road.setSize(1600, 600);
+			expect(outlinesOver(DESTINATION)).toHaveLength(1);
 		});
 	});
 	it("marks the rows a due wave will take in the gutter, in the raiders' red, and unmarks them when it has landed", () => {

@@ -9,7 +9,8 @@ import type { Component } from '../../engine/components/Component';
 import type { MountContext } from '../../engine/components/MountContext';
 import { renderTree } from '../../engine/components/renderTree';
 import { createTestContext } from '../../engine/components/testing';
-import { EnemyIntent, IntentPill, IntentRow } from './IntentPill';
+import { EnemyIntent, IntentPill, IntentRow, SWERVE_ICON } from './IntentPill';
+import { RoadLane, RoadRow } from '../mechanics/Road';
 import { resolveColor } from '../../engine/style/styleObject';
 
 let backend: MeasuringRecordingBackend;
@@ -43,7 +44,7 @@ describe('IntentPill', () => {
 	};
 	const rects = (): RectCommand[] => backend.commands.filter((command): command is RectCommand => command.kind === 'rect');
 
-	it.each([['attack', 'gps_fixed'], ['defend', 'shield'], ['repair', 'build'], ['debuff', 'expand_more'], ['buff', 'expand_less']] as const)('leads %s with the %s icon', (type, glyph) => {
+	it.each([['attack', 'gps_fixed'], ['defend', 'shield'], ['repair', 'build'], ['debuff', 'expand_more'], ['buff', 'expand_less'], ['move', 'alt_route']] as const)('leads %s with the %s icon', (type, glyph) => {
 		pill({ type, value: 4, description: type });
 		const [icon] = texts();
 		expect(icon.font).toBe(ICON_ATLAS_ROLE);
@@ -96,6 +97,28 @@ describe('IntentPill', () => {
 		expect(marked.width - plain.width).toBe(4 + 24);
 		expect(multi.width).toBeGreaterThan(marked.width);
 		expect(rects()[0].rect).toEqual({ x: 0, y: 0, width: multi.width, height: 24 });
+	});
+
+	it('prints what else a move does, or nothing, after the swerve icon (DDB-546)', () => {
+		const destination = { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER };
+		expect(pill({ type: 'move', description: 'Lane Change', destination }).label).toBeNull();
+		expect(pill({ type: 'move', valueText: 'Fast', description: 'Floor It', destination }).label).toBe('Fast');
+		// A move pill's own icon is the swerve, so it doesn't lead with a second
+		expect(texts().filter((text) => text.font === ICON_ATLAS_ROLE)).toHaveLength(1);
+	});
+
+	it('leads a card that swerves first with the swerve icon before its own, and is that much wider', () => {
+		const destination = { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER };
+		const plain = pill({ type: 'attack', value: 4, description: 'Point Blank', target: 'driver1' });
+		expect(plain.leadsWithSwerve).toBe(false);
+		const swerving = pill({ type: 'attack', value: 4, description: 'Strafe', target: 'driver1', destination });
+		expect(swerving.leadsWithSwerve).toBe(true);
+		expect(swerving.width - plain.width).toBe(16 + 4);
+		const [swerve, own] = texts().filter((text) => text.font === ICON_ATLAS_ROLE);
+		expect(swerve.text).toBe(String.fromCodePoint(ICON_CODE_POINTS[SWERVE_ICON]));
+		expect(swerve.box).toEqual({ x: 6, y: 0, width: 16, height: 24 });
+		expect(own.text).toBe(String.fromCodePoint(ICON_CODE_POINTS.gps_fixed));
+		expect(own.box).toEqual({ x: 26, y: 0, width: 16, height: 24 });
 	});
 
 	it('is hidden without an intent', () => {

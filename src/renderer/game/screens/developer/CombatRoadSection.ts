@@ -10,11 +10,11 @@ import { COMBAT_REFERENCE_HEIGHT, COMBAT_REFERENCE_WIDTH, DOCK_HEIGHT, TOP_BAR_H
 import { RoadView } from '../combat/RoadView';
 
 /** The road band at the 1280x720 reference. */
-const ROAD_WIDTH = COMBAT_REFERENCE_WIDTH;
-const ROAD_HEIGHT = COMBAT_REFERENCE_HEIGHT - TOP_BAR_HEIGHT - DOCK_HEIGHT;
+export const ROAD_WIDTH = COMBAT_REFERENCE_WIDTH;
+export const ROAD_HEIGHT = COMBAT_REFERENCE_HEIGHT - TOP_BAR_HEIGHT - DOCK_HEIGHT;
 
 /** A driven vehicle; its driver's name is the vehicle's, which only the tooltip shows. */
-function vehicle(name: string, slot: RoadSlot, structure: number): Vehicle {
+export function roadVehicle(name: string, slot: RoadSlot, structure: number): Vehicle {
 	return new Vehicle({
 		name,
 		structure,
@@ -44,7 +44,7 @@ function escort(name: string, slot: RoadSlot): Vehicle {
  * screen: the gallery shows it at x1, the developer screen's narrower
  * column shrinks it whole rather than squeezing its slots.
  */
-class ScaledRoad extends Component {
+export class ScaledRoad extends Component {
 	private readonly road: RoadView;
 
 	constructor({ road, ...options }: ComponentOptions & { road: RoadView }) {
@@ -72,13 +72,13 @@ export class CombatRoadSection extends CatalogSection {
 
 		const seats = new Map<Driver, 1 | 2>();
 		const road = new RoadView({ id: 'dev_combat_road', width: ROAD_WIDTH, height: ROAD_HEIGHT, seatOf: (driver) => seats.get(driver) ?? null });
-		const rig = vehicle('Apocalypse Rig', { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.CENTER }, 40);
-		const bike = vehicle('Lightning Bike', { lane: RoadLane.ENEMY_SHOULDER, row: RoadRow.CENTER }, 25);
+		const rig = roadVehicle('Apocalypse Rig', { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.CENTER }, 40);
+		const bike = roadVehicle('Lightning Bike', { lane: RoadLane.ENEMY_SHOULDER, row: RoadRow.CENTER }, 25);
 		if (rig.driver) seats.set(rig.driver, 1);
 		if (bike.driver) seats.set(bike.driver, 2);
-		const looter = vehicle('Rust Buggy', { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER }, 30);
-		const brute = vehicle('Scrap Hauler', { lane: RoadLane.ENEMY_OUTSIDE, row: RoadRow.AHEAD }, 40);
-		const flanker = vehicle('Dust Crawler', { lane: RoadLane.PLAYER_SHOULDER, row: RoadRow.BEHIND }, 22);
+		const looter = roadVehicle('Rust Buggy', { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER }, 30);
+		const brute = roadVehicle('Scrap Hauler', { lane: RoadLane.ENEMY_OUTSIDE, row: RoadRow.AHEAD }, 40);
+		const flanker = roadVehicle('Dust Crawler', { lane: RoadLane.PLAYER_SHOULDER, row: RoadRow.BEHIND }, 22);
 		road.showVehicles({
 			player: [rig, escort('Convoy Truck', { lane: RoadLane.PLAYER_OUTSIDE, row: RoadRow.BEHIND }), bike],
 			enemy: [looter, brute, flanker],
