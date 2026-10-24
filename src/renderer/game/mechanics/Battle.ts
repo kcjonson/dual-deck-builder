@@ -119,6 +119,8 @@ interface ProjectedAction {
 	target: Vehicle | null;
 	/** The target's projected speed when the card plays */
 	targetSpeed: number;
+	/** Whether the target is Vulnerable when the card plays, a raider's Cut Off earlier in the turn included */
+	targetVulnerable: boolean;
 }
 
 /**
@@ -1109,13 +1111,13 @@ export class Battle extends Model<BattleData> {
 		return this.getAllIntents().get(raider) ?? [];
 	}
 
-	private intentOf({ raider, reveal, action, target, targetSpeed }: { raider: Vehicle; reveal: boolean } & ProjectedAction): Intent {
+	private intentOf({ raider, reveal, action, target, targetSpeed, targetVulnerable }: { raider: Vehicle; reveal: boolean } & ProjectedAction): Intent {
 		const hidden = !reveal && (raider.intentTier ?? IntentTier.BASIC) !== IntentTier.BASIC;
 		const type = intentTypeOf(action.card);
 		let amount: number | null = null;
 		let label: string | null = null;
 		if (type === IntentType.ATTACK) {
-			amount = this.previewDamage({ raider, action, target, targetSpeed });
+			amount = this.previewDamage({ raider, action, target, targetSpeed, targetVulnerable });
 		} else if (type === IntentType.DEFEND) {
 			amount = defendAmountOf(action.card);
 		} else if (type === IntentType.DEBUFF) {
@@ -1212,7 +1214,7 @@ export class Battle extends Model<BattleData> {
 					? this.plannedCardFizzles({ raider, card, target, board, destination })
 					: board.plannedMoveBlocker({ card, caster: raider, destination }) !== null;
 				if (fizzles) continue;
-				actions.push({ action, target, targetSpeed: target ? board.speedOf(target) : 0 });
+				actions.push({ action, target, targetSpeed: target ? board.speedOf(target) : 0, targetVulnerable: target ? board.isVulnerable(target) : false });
 				board.apply({ card, driver, target, destination });
 			}
 			if (actions.length > 0) projected.set(raider, actions);
@@ -1293,19 +1295,22 @@ export class Battle extends Model<BattleData> {
 
 	/**
 	 * Damage per hit a planned attack deals if it lands, from the raider's
-	 * flank state and speed and the target's speed when the card plays
-	 * (projectEnemyTurn). Vulnerable is read from the target as it is now.
+	 * flank state and speed and the target's speed and Vulnerable when the
+	 * card plays (projectEnemyTurn): a Vulnerable the player picks up this
+	 * turn, or one a raider's Cut Off lands earlier in the enemy turn.
 	 */
 	private previewDamage({
 		raider,
 		action,
 		target,
-		targetSpeed
+		targetSpeed,
+		targetVulnerable
 	}: {
 		raider: Vehicle;
 		action: PlannedAction;
 		target: Vehicle | null;
 		targetSpeed: number;
+		targetVulnerable: boolean;
 	}): number {
 		const effect = attackEffectOf(action.card);
 		if (!effect) return 0;
@@ -1317,7 +1322,7 @@ export class Battle extends Model<BattleData> {
 				speedDiff: action.speed - targetSpeed
 			});
 		}
-		return this.applyDamageModifiers(damage, action.flanking, target);
+		return this.applyDamageModifiers(damage, action.flanking, targetVulnerable);
 	}
 
 	/**
@@ -2772,19 +2777,19 @@ export class Battle extends Model<BattleData> {
 	 * Calculate damage with modifiers
 	 */
 	public calculateDamage(baseDamage: number, attacker: Vehicle, target: Vehicle): number {
-		return this.applyDamageModifiers(baseDamage, attacker.isFlanking, target);
+		return this.applyDamageModifiers(baseDamage, attacker.isFlanking, target.hasStatusEffect('vulnerable'));
 	}
 
 	/**
 	 * Flanking and Vulnerable each add 50%. An area hit has no single target
 	 * to be Vulnerable.
 	 */
-	private applyDamageModifiers(baseDamage: number, attackerFlanking: boolean, target: Vehicle | null): number {
+	private applyDamageModifiers(baseDamage: number, attackerFlanking: boolean, targetVulnerable: boolean): number {
 		let damage = baseDamage;
 		if (attackerFlanking) {
 			damage = Math.floor(damage * 1.5);
 		}
-		if (target?.hasStatusEffect('vulnerable')) {
+		if (targetVulnerable) {
 			damage = Math.floor(damage * 1.5);
 		}
 		return damage;

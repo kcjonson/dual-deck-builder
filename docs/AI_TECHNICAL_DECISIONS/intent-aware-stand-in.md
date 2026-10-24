@@ -17,7 +17,7 @@ The balance sim (docs/specs/Balance Simulation.md, Player stand-ins) wants two p
 - a kill (wreck, or the driver dead) or a stun drops that raider's hits, judged from the vehicle Battle resolves the card from (the caster, an attack order's carrier escort, or each escort Rally the Convoy fires), with the battle's deterministic `checkHit`;
 - Shield, armor (uncapped), repair, and driver heals change what the hits find;
 - a play that changes the board (a swerve, shove, swap, drop-back, or flank, a speed change, Box In, Evade) is scored against `getAllIntents({ preview })` for that play, Battle's own projection of the enemy turn with the card landed, and each hit's check is rerun with the Evade the preview board has, so a hit that would fizzle, lose its flank bonus (a flanker outpaced so it drops back), or miss is off (DDB-553, [movement-cards.md](./movement-cards.md));
-- Vulnerable is worth half the damage the rest of the turn's hands can still deal its raider;
+- Vulnerable is the floor's `vulnerableSetup`, half the damage the rest of the turn's hands can still deal its raider, scored through the floor's score below;
 - non-lethal damage gets a share of the hurt raider's harm, so the target with the most harm per point of toughness is preferred.
 
 The aggressive strategy's score is added on top, so with no threat at stake it plays as the floor does, except that damage whose hit check fails scores nothing, and a move that does nothing or does harm, or a guard (Weave, a bare Shield) that keeps nothing off, scores under ending the turn.
@@ -26,7 +26,7 @@ The attack-type rule (`attack_type`, else ramming scaling, else ranged) is a thi
 
 ## Trade-offs and consequences
 
-On the jest sample (six crews on their starting decks, three skull counts, two seeds, 36 fights a side; `IntentAwareAI.test.ts`), after DDB-553, it wins 27 and stalls 6 and loses 23.0% of the crews' HP, against the floor's 25 won, 5 stalled, and 38.2%. When DDB-528 built it, on the encounters of the day, the two tied at 20 won and 8 stalled, 29.2% HP lost to 28.9%. Most outcomes are still fixed by crew against encounter: solo drivers lose damage races at 2 and 3 skulls that no card order wins, and a Mechanic's EMP stalls fights against raiders nobody can reach. The unit tests pin the choices where it does differ from the floor: the kill on the bigger intent, armor before chip damage, a stun, outpacing a flanker, and no credit for a shot that misses.
+On the jest sample (six crews on their starting decks, three skull counts, two seeds, 36 fights a side; `IntentAwareAI.test.ts`), after DDB-553, it wins 27 and stalls 6 and loses 23.5% of the crews' HP, against the floor's 25 won, 5 stalled, and 38.5%, on DDB-552's raider decks. When DDB-528 built it, on the encounters of the day, the two tied at 20 won and 8 stalled, 29.2% HP lost to 28.9%. Most outcomes are still fixed by crew against encounter: solo drivers lose damage races at 2 and 3 skulls that no card order wins, and a Mechanic's EMP stalls fights against raiders nobody can reach. The unit tests pin the choices where it does differ from the floor: the kill on the bigger intent, armor before chip damage, a stun, outpacing a flanker, and no credit for a shot that misses.
 
 It still can't value a flank's boost to the rest of its own turn. DDB-553 moved it onto Battle's preview of a hypothetical board, which replaced a drop-back model that couldn't tell when a dropped flanker fell out of range (call 244, retired with it).
 

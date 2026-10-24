@@ -7,11 +7,10 @@ import { cardMovesSlots, onlyMoves } from './SwerveEstimate';
 import { BOXED_IN, EVADE_BOOST, Vehicle, splitDamage, statusEvadeModifier, statusSpeedModifier } from '../mechanics/Vehicle';
 import { Card, CardEffect } from '../mechanics/Card';
 import { Driver } from '../mechanics/Driver';
-import { attackEffectOf, movesCaster } from '../mechanics/Intent';
-import { BoardProjection, cardRange } from '../mechanics/BoardProjection';
+import { cardRange } from '../mechanics/BoardProjection';
 import { ConditionBoard, effectValue } from '../mechanics/EffectConditions';
 import { EffectRecipient, attackTypeOf, effectRecipientOf, effectRecipients, rollsToHit } from '../mechanics/EffectTargets';
-import { sameSlot, slotRange } from '../mechanics/Road';
+import { sameSlot } from '../mechanics/Road';
 
 /**
  * Shield, armor, structure, and occupant hitpoints added to one player
@@ -28,8 +27,6 @@ interface Protection {
 interface Landing {
 	damage: Map<DamageKind, number>;
 	stuns: boolean;
-	/** Vulnerable lands on a raider that isn't already */
-	exposes: boolean;
 }
 
 /** What a decision reads once, before it scores each play */
@@ -71,10 +68,6 @@ export class IntentAwareAI extends AIPlayer {
 	private static readonly RESTORE_WEIGHT = 15;
 	/** Harm a wrecked vehicle or a dead driver counts for past the points it took, since either costs the run far more */
 	private static readonly LOSS_HARM = 20;
-	/** Score for each point of damage Vulnerable adds to the rest of the turn's hands, as the floor scores a point of damage */
-	private static readonly SETUP_WEIGHT = 10;
-	/** Vulnerable adds half again to a hit */
-	private static readonly VULNERABLE_SHARE = 0.5;
 	/** Ending the turn, as the floor scores it */
 	private static readonly END_TURN = -1000;
 
@@ -108,9 +101,9 @@ export class IntentAwareAI extends AIPlayer {
 
 	/**
 	 * What one play is worth: the harm it keeps off the convoy, its progress
-	 * on the raiders it hurts, hitpoints it restores, the damage its
-	 * Vulnerable adds to the rest of the turn, and the floor's score for the
-	 * rest, its damage left out when the hit check misses. Under ending the
+	 * on the raiders it hurts, hitpoints it restores, and the floor's score
+	 * for the rest (a Vulnerable's setup among it, SetupEstimate.ts), its
+	 * damage left out when the hit check misses. Under ending the
 	 * turn (calls 361, 362): a play that moves someone (anything but a flank)
 	 * and comes out worse than nothing, or that only moves and comes out at
 	 * nothing, which is the floor's aimless-swerve rule with the enemy turn
@@ -133,15 +126,12 @@ export class IntentAwareAI extends AIPlayer {
 		const harmKept = harmNow - this.convoyHarm({ incoming: remaining, protection });
 		const progressHarm = this.progress({ landings, removed, raiderHarm });
 		const restored = this.restoredHitpoints({ protection, incoming: threat.incoming, harmNow });
-		const exposed = [...landings].filter(([raider, landing]) => landing.exposes && !removed.has(raider)).map(([raider]) => raider);
-		const setUp = exposed.length > 0 ? this.followUpDamage({ play, raiders: exposed }) * IntentAwareAI.VULNERABLE_SHARE : 0;
 		// Hit checks are deterministic, so damage that can't land is worth nothing, however the floor scores it
 		const aimed = target ? landings.get(target) : undefined;
 		const misses = Boolean(aimed && aimed.damage.size === 0 && card?.effects.some(effect => effect.type === 'damage'));
 		const offense = this.offense.scorePlay(play, gameState, { damageLands: !misses });
 		const score = (harmKept + progressHarm * IntentAwareAI.PROGRESS_TURNS) * IntentAwareAI.HARM_WEIGHT +
 			restored * IntentAwareAI.RESTORE_WEIGHT +
-			setUp * IntentAwareAI.SETUP_WEIGHT +
 			offense;
 		if (card && driver && cardMovesSlots(card) && (score < 0 || score === 0 && onlyMoves({ board: this.board, card, driver }))) {
 			return IntentAwareAI.END_TURN * 2;
@@ -257,7 +247,7 @@ export class IntentAwareAI extends AIPlayer {
 	 * the card's own move puts the caster, with any row bonus there.
 	 */
 	private landing({ play, raider }: { play: AIDecision; raider: Vehicle }): Landing {
-		const landing: Landing = { damage: new Map(), stuns: false, exposes: false };
+		const landing: Landing = { damage: new Map(), stuns: false };
 		const { card, driver } = play;
 		const caster = driver ? this.board.vehicleOf(driver) : null;
 		if (!card || !driver || !caster) return landing;
@@ -290,7 +280,6 @@ export class IntentAwareAI extends AIPlayer {
 					...(isDamage ? { attackType: attackTypeOf(effect), modifier: typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0 } : {})
 				})) continue;
 				if (effect.type === 'apply_status' && effect.status === 'stunned' && !raider.isSteady) landing.stuns = true;
-				if (effect.type === 'apply_status' && effect.status === 'vulnerable' && !raider.hasStatusEffect('vulnerable')) landing.exposes = true;
 				if (isDamage) {
 					const kind = effectDamageKind(effect);
 					landing.damage.set(kind, (landing.damage.get(kind) ?? 0) + this.damageOf({ effect, actor, raider, conditions }));
@@ -323,59 +312,6 @@ export class IntentAwareAI extends AIPlayer {
 			damage = this.battle.calculateFormulaDamage(effect.formula, { base: damage, armor: actor.armor, speedDiff: actor.speed - raider.speed });
 		}
 		return this.battle.calculateDamage(damage, actor, raider);
-	}
-
-	/**
-	 * Damage the rest of the turn's hands could still deal these raiders
-	 * once the play lands: from each hand on the team, the cards that aim at
-	 * one raider and reach it from where their player then stands, at their
-	 * damage with any bonus that holds there, the biggest first, as many as
-	 * that player's own adrenaline pays for. Vulnerable on them adds half of
-	 * it (call 360).
-	 */
-	private followUpDamage({ play, raiders }: { play: AIDecision; raiders: Vehicle[] }): number {
-		const { card, driver } = play;
-		if (!card || !driver) return 0;
-		const after = this.boardAfter(play);
-		let damage = 0;
-		for (const vehicle of this.team.vehicles) {
-			const slot = vehicle.isOutOfFight ? null : after.slotOf(vehicle);
-			if (!slot) continue;
-			for (const occupant of this.actingOccupants(vehicle)) {
-				const shots: { cost: number; damage: number }[] = [];
-				for (const other of after.handOf(occupant)) {
-					const effect = attackEffectOf(other);
-					const range = cardRange(other);
-					if (!effect || other.isOrder || other.targetType !== 'enemy_single' || movesCaster(other)) continue;
-					if (other.isAttack && !occupant.canPlayAttackCards()) continue;
-					let best = 0;
-					for (const raider of raiders) {
-						const raiderSlot = after.slotOf(raider);
-						if (!raiderSlot || range !== null && slotRange(slot, raiderSlot) > range) continue;
-						best = Math.max(best, effectValue(effect, { casterSlot: slot, targetSlot: raiderSlot, casterSwerved: after.swervedThisTurn(vehicle) }));
-					}
-					if (best > 0) shots.push({ cost: other.cost, damage: best });
-				}
-				let adrenaline = after.adrenalineOf(occupant);
-				for (const shot of shots.sort((a, b) => b.damage - a.damage)) {
-					if (shot.cost > adrenaline) continue;
-					adrenaline -= shot.cost;
-					damage += shot.damage;
-				}
-			}
-		}
-		return damage;
-	}
-
-	/** The board once the play lands, moves and all, from the vehicle that carries it out */
-	private boardAfter(play: AIDecision): BoardProjection {
-		const after = this.board.copy();
-		const { card, driver } = play;
-		if (!card || !driver) return after;
-		const target = play.target instanceof Vehicle ? play.target : null;
-		const actor = this.battle.isAttackOrder(card) ? (target ? this.board.orderCarrier({ card, target }) : null) : undefined;
-		if (actor !== null) after.apply({ card, driver, target, destination: play.destination ?? null, actor });
-		return after;
 	}
 
 	/**

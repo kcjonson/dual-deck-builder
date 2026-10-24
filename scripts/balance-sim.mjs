@@ -13,7 +13,9 @@
  * as the combat bridge writes it back), with the aggressive AI on the
  * raiders and the --player stand-in on the crew: aggressive, the floor, or
  * intent, the ceiling. Lost, down, turns, and injury days are over the runs that got
- * home; the by-seat column splits a pair's runs by who drives seat 1.
+ * home; the by-seat column splits a pair's runs by who drives seat 1. After
+ * the fairness spreads it lists what the raiders played a fight, by raider
+ * and card, with how much of it fizzled.
  * --cards counts each player card's draws and plays and the raider intents
  * each play makes fizzle, and prints a line for every card a crew's seats
  * add to their decks (a seat's `add` in the config), with the cell's won
@@ -96,6 +98,7 @@ async function fights({ mode, options, input, config, workers }) {
 	print(`${'crew'.padEnd(width)}route   won  by seat  stall  rout  broke  HP lost  struct lost  down  turns  inj days  killed   (rout and broke over all runs; lost, down, turns, and injury days over runs won)`);
 	const rows = await playCells({ mode, input, count: fightCells(config).length, workers, onRow: row => printRow(row, width) });
 	printFairness(rows);
+	printRaiderPlays(rows);
 	if (config.cardStats) printCards(rows);
 	if (options.json) writeFileSync(options.json, JSON.stringify({ mode, config, rows }, null, '\t'));
 }
@@ -225,6 +228,19 @@ function printFairness(rows) {
 		const gaps = onRoute.map(row => ({ row, gap: Math.abs((row.bySeat[0].rate ?? 0) - (row.bySeat[1].rate ?? 0)) }));
 		const widest = gaps.reduce((best, next) => (next.gap > best.gap ? next : best));
 		print(`${route.padStart(5)}  pairs ${String(Math.round((Math.max(...rates) - Math.min(...rates)) * 100)).padStart(3)}  seats ${String(Math.round(widest.gap * 100)).padStart(3)} (${crewLabel(widest.row.crew)})`);
+	}
+}
+
+/** What the raiders played, a fight, by raider and card, the most played first, fizzles in brackets. */
+function printRaiderPlays(rows) {
+	print('\nraider plays a fight, by raider and card; of those, fizzled in brackets');
+	const width = Math.max(14, ...rows.map(row => cellLabel(row).length + 2));
+	for (const row of rows) {
+		const raiders = Object.entries(row.raiderPlays).map(([raider, cards]) => `${raider}: ${Object.entries(cards)
+			.sort(([, a], [, b]) => b.played + b.fizzled - a.played - a.fizzled)
+			.map(([card, { played, fizzled }]) => `${card} ${fixed(played + fizzled, 2)}${fizzled > 0 ? ` (${fixed(fizzled, 2)})` : ''}`)
+			.join(', ')}`);
+		print(`${cellLabel(row).padEnd(width)}${row.route.join('+').padStart(5)}  ${raiders.join(' | ')}`);
 	}
 }
 
