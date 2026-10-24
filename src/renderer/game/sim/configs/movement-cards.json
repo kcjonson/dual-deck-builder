@@ -23,6 +23,10 @@
 		[{ "archetype": "road_warrior", "add": { "fall_in": 2 } }, { "archetype": "interceptor", "add": { "fall_in": 2 } }],
 		[{ "archetype": "road_warrior", "add": { "leapfrog": 2 } }, { "archetype": "interceptor", "add": { "leapfrog": 2 } }],
 		[{ "archetype": "road_warrior", "add": { "formation_shift": 2 } }, { "archetype": "interceptor", "add": { "formation_shift": 2 } }],
-		[{ "archetype": "road_warrior", "add": { "weave": 2 } }, { "archetype": "interceptor", "add": { "weave": 2 } }]
+		[{ "archetype": "road_warrior", "add": { "weave": 2 } }, { "archetype": "interceptor", "add": { "weave": 2 } }],
+		[{ "archetype": "road_warrior", "add": { "weave": 2 } }, "interceptor"],
+		["road_warrior", { "archetype": "interceptor", "add": { "weave": 2 } }],
+		[{ "archetype": "road_warrior", "add": { "lay_on_the_horn": 2 } }, "interceptor"],
+		["road_warrior", { "archetype": "interceptor", "add": { "lay_on_the_horn": 2 } }]
 	]
 }

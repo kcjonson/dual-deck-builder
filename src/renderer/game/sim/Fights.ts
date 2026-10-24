@@ -176,6 +176,8 @@ export interface FightRow {
 	readonly crew: readonly string[];
 	/** Cards the crew's seats add to their decks (SeatInput.add), all seats together, or null for none. */
 	readonly added: Readonly<Record<string, number>> | null;
+	/** Each seat's added cards, in the crew's seat order. */
+	readonly seatAdds: readonly Readonly<Record<string, number>>[];
 	/** Whether a seat plays a deck the config gives in place of its starting deck. */
 	readonly customDeck: boolean;
 	readonly route: readonly number[];
@@ -215,6 +217,7 @@ export async function playFightCell({ config, cell }: { config: SimConfig; cell:
 		cell: cell.name,
 		crew: cell.crew.map(seat => seat.archetype),
 		added: Object.keys(added).length > 0 ? added : null,
+		seatAdds: cell.crew.map(seat => seat.add ?? NO_CARDS),
 		customDeck: cell.crew.some(seat => seat.deck !== undefined),
 		route: [...cell.route],
 		runs: results.length,

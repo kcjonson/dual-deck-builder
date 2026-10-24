@@ -229,13 +229,16 @@ function printCards(rows) {
 	if (variants.length === 0) return;
 	const points = (value) => (value === null || Number.isNaN(value) ? '-' : `${value > 0 ? '+' : ''}${Math.round(value * 100)}`).padStart(5);
 	print("\ncards added to a crew's decks: won and HP lost against the crew on its starting decks (vs base, points), draws, plays, and per play the intents it fizzled and planned damage it blanked");
-	print('card                 crew          route   won  vs base  HP lost  vs base   seen  played  play rate  fizzled  blanked');
+	print('card                    crew          route   won  vs base  HP lost  vs base   seen  played  play rate  fizzled  blanked');
 	for (const row of variants) {
 		const base = rows.find(other => !other.added && !other.customDeck && other.crew.join('+') === row.crew.join('+') && other.route.join('+') === row.route.join('+'));
 		for (const type of Object.keys(row.added)) {
 			const stats = row.cards?.[type] ?? { seen: 0, played: 0, fizzled: 0, damageBlanked: 0 };
+			// A card only some seats add names them
+			const adders = row.crew.filter((_, seat) => row.seatAdds[seat]?.[type]);
+			const label = adders.length < row.crew.length ? `${type} (${crewLabel(adders)})` : type;
 			const perPlay = (value) => (stats.played === 0 ? '-' : (value / stats.played).toFixed(2));
-			print(`${type.padEnd(21)}${crewLabel(row.crew).padEnd(14)}${row.route.join('+').padStart(5)}  ${percent(row.won.rate)}  ${points(base ? row.won.rate - base.won.rate : null).padStart(7)}  ${percent(row.hpLost).padStart(7)}  ${points(base && row.hpLost !== null && base.hpLost !== null ? row.hpLost - base.hpLost : null).padStart(7)}  ${String(stats.seen).padStart(5)}  ${String(stats.played).padStart(6)}  ${percent(stats.seen === 0 ? null : stats.played / stats.seen).padStart(9)}  ${perPlay(stats.fizzled).padStart(7)}  ${perPlay(stats.damageBlanked).padStart(7)}`);
+			print(`${label.padEnd(24)}${crewLabel(row.crew).padEnd(14)}${row.route.join('+').padStart(5)}  ${percent(row.won.rate)}  ${points(base ? row.won.rate - base.won.rate : null).padStart(7)}  ${percent(row.hpLost).padStart(7)}  ${points(base && row.hpLost !== null && base.hpLost !== null ? row.hpLost - base.hpLost : null).padStart(7)}  ${String(stats.seen).padStart(5)}  ${String(stats.played).padStart(6)}  ${percent(stats.seen === 0 ? null : stats.played / stats.seen).padStart(9)}  ${perPlay(stats.fizzled).padStart(7)}  ${perPlay(stats.damageBlanked).padStart(7)}`);
 		}
 	}
 }
