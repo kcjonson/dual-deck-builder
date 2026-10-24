@@ -1,5 +1,5 @@
 import { Battle } from './Battle';
-import { Card, CardEffect } from './Card';
+import { Card, CardData, CardEffect } from './Card';
 import { Driver } from './Driver';
 import { RoadLane, RoadRow } from './Road';
 import { Team, TeamType } from './Team';
@@ -7,7 +7,8 @@ import { Vehicle } from './Vehicle';
 import { LONGEST_REACH, previewAim, previewDestination } from './AimPreview';
 import { createEscort } from './Escort';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
-import { cutOff, fallIn, juke, shoulderCheck, strafe } from '../screens/combat/__fixtures__/movementCards';
+import { fallIn, juke, shoulderCheck, strafe } from '../screens/combat/__fixtures__/movementCards';
+import cardsFile from '../data/cards.json';
 
 /**
  * DDB-138: what the targeting state shows for a card aimed at a vehicle,
@@ -44,6 +45,11 @@ const attack = (name: string, effects: CardEffect[]): Card => new Card({
 	effects,
 	tags: ['attack']
 });
+
+/** Cut Off as cards.json has it: a swerve ahead, then Range 1 statuses on the target. */
+const cutOffData = (cardsFile as unknown as { cards: CardData[] }).cards.find(candidate => candidate.type === 'cut_off');
+if (!cutOffData) throw new Error('No cut_off in cards.json');
+const cutOff = new Card({ ...cutOffData });
 
 const driverOf = (vehicle: Vehicle): Driver => {
 	if (!vehicle.driver) throw new Error(`${vehicle.name} has no driver`);
@@ -155,7 +161,7 @@ describe('previewAim', () => {
 
 		test('reads Cut Off\'s range from the row ahead it swerves into', () => {
 			buggy.set({ slot: { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.AHEAD } });
-			expect(previewAim({ battle, driver: driverOf(rig), card: cutOff(), target: buggy }).range).toBe(1);
+			expect(previewAim({ battle, driver: driverOf(rig), card: cutOff, target: buggy }).range).toBe(1);
 		});
 	});
 });
@@ -214,7 +220,7 @@ describe('previewDestination (DDB-548)', () => {
 
 	test('is null for a card that picks no slot, or a shove with no target yet', () => {
 		const destination = { lane: RoadLane.PLAYER_OUTSIDE, row: RoadRow.CENTER };
-		expect(previewDestination({ battle, driver: driverOf(rig), card: cutOff(), destination })).toBeNull();
+		expect(previewDestination({ battle, driver: driverOf(rig), card: cutOff, destination })).toBeNull();
 		expect(previewDestination({ battle, driver: driverOf(rig), card: shoulderCheck(), destination })).toBeNull();
 	});
 });

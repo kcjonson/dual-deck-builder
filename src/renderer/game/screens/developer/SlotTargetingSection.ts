@@ -24,7 +24,7 @@ const CARD_Y = ROAD_HEIGHT - CARD_HEIGHT - 12;
 /** Room past the card for the hit check, which is wider than it. */
 const FRAME_WIDTH = CARD_X + CARD_WIDTH + 64;
 const FRAME_HEIGHT = ROAD_HEIGHT;
-const { PLAYER_OUTSIDE, PLAYER_INSIDE, ENEMY_INSIDE, ENEMY_OUTSIDE } = RoadLane;
+const { PLAYER_SHOULDER, PLAYER_OUTSIDE, PLAYER_INSIDE, ENEMY_INSIDE, ENEMY_OUTSIDE } = RoadLane;
 const { AHEAD, CENTER, BEHIND } = RoadRow;
 
 export type SlotTargetingMode = 'move' | 'shove';
@@ -40,12 +40,14 @@ function readout(from: RoadSlot, at: RoadSlot, reach: number, legal: boolean): R
  * one step a scene so each fits 1024x600:
  *
  * - `move`: Strafe dragged over the road, waiting for its slot. The Rig's
- *   two legal swerves are dashed in your yellow, the hovered one solid with
- *   the line and the reticle on it; the slot behind it (the Bike's) and the
- *   diagonals show nothing. Every raider reads its range from the hovered
- *   slot against Strafe's Range 1, red-edged where it could then be shot,
- *   and the Buggy's Ram, out of reach from there, has dropped out of its
- *   pills.
+ *   two swerves that put a raider at Range 1 (the ambusher on your
+ *   shoulder from outside center, the Crawler from inside ahead) are
+ *   dashed in your yellow, the hovered one solid with the line and the
+ *   reticle on it; the slot behind it (the Bike's) and the diagonals show
+ *   nothing. Every raider reads its range from the hovered slot against
+ *   Strafe's Range 1, red-edged where it could then be shot. The Buggy's
+ *   pills are empty: the Ram it planned at the Rig can't reach the hovered
+ *   slot, so the preview has dropped it.
  * - `shove`: Shoulder Check's second step. The Buggy it rams holds its
  *   solid outline and damage ghost, the hit check rides with the card,
  *   and the two rows it can be shoved into are dashed in the raiders' red,
@@ -74,6 +76,8 @@ export class SlotTargetingSection extends CatalogSection {
 		const crawler = targetingVehicle('Dust Crawler', mode === 'move' ? { lane: ENEMY_INSIDE, row: AHEAD } : { lane: ENEMY_OUTSIDE, row: AHEAD }, [22, 25], [20, 20]);
 		const hauler = targetingVehicle('Scrap Hauler', { lane: ENEMY_OUTSIDE, row: BEHIND }, [40, 40], [35, 35]);
 		const raiders = [buggy, crawler, hauler];
+		// An ambusher on your shoulder, in reach of Strafe from outside center
+		if (mode === 'move') raiders.push(targetingVehicle('Chain Hauler', { lane: PLAYER_SHOULDER, row: CENTER }, [28, 30], [22, 22]));
 		road.showVehicles({ player: [rig, bike], enemy: raiders });
 		road.setVehicleIntents(crawler.id, [{ type: 'attack', value: 6, description: 'Point Blank', target: 'driver1' }]);
 		road.setVehicleIntents(hauler.id, [{ type: 'buff', valueText: 'Fast', description: 'Nitro' }]);
@@ -97,7 +101,7 @@ export class SlotTargetingSection extends CatalogSection {
 
 		this.addRow(
 			mode === 'move'
-				? 'Strafe waiting for its slot: legal swerves dashed, the hovered one solid, each raider\'s range from there, and the Buggy\'s Ram dropped from its pills'
+				? 'Strafe waiting for its slot: the swerves that put a raider in reach dashed, the hovered one solid, each raider\'s range from there, and the Buggy\'s pills empty, its Ram out of reach of that slot'
 				: 'Shoulder Check\'s second step: the Buggy held with its ghost, the hit check on the card, and the two rows it can be shoved into',
 			new ScaledFrame({ id: `dev_slot_${mode}_scaled`, widthMode: 'fill', content: frame, frameWidth: FRAME_WIDTH, frameHeight: FRAME_HEIGHT }),
 			{ fill: true },

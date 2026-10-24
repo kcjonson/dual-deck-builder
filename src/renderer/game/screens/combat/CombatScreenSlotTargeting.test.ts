@@ -338,6 +338,8 @@ describe('CombatScreen slot targeting (DDB-548)', () => {
 			click(grabPoint(card));
 			expect(model.isPickingSlot).toBe(true);
 			expect(model.targetableVehicleIds).toEqual([]);
+			// Outside center puts no raider at Range 1, so it's too far for the card and isn't offered
+			expect(targetSlots(combat)).toEqual([slot(PLAYER_INSIDE, AHEAD)]);
 			inject(`move,${slotPoint(combat, slot(PLAYER_INSIDE, AHEAD)).join(',')}`);
 			expect(token(combat, ahead).rangeLabel).toEqual({ text: 'R1', legal: true });
 			expect(token(combat, across).rangeLabel).toEqual({ text: 'OUT', legal: false });
@@ -411,6 +413,57 @@ describe('CombatScreen slot targeting (DDB-548)', () => {
 
 			playCard.mockRestore();
 		});
+
+		it('drops the held slot\'s preview while END TURN is hovered or focused, since ending the turn puts the card back', async () => {
+			const fight = slotFight({ raiders: [slot(ENEMY_INSIDE, CENTER), slot(ENEMY_INSIDE, AHEAD)], plan: true });
+			const [across] = fight.raiders;
+			const combat = await startCombat(fight);
+			const card = deal(combat, fight, strafe());
+			const preview = combat['intentPreview'];
+			const endTurn = combat['endTurnColumn'].endTurn;
+			const playCard = jest.spyOn(Battle.prototype, 'playCard');
+
+			click(grabPoint(card));
+			click(slotPoint(combat, slot(PLAYER_INSIDE, AHEAD)));
+			// Held at inside ahead, the Rig is two from the raider across: its Point Blank drops out
+			expect(token(combat, across).intents).toHaveLength(0);
+			expect(preview.incoming.get(fight.rig.id)).toBeUndefined();
+
+			// END TURN would put Strafe back, so what it previews is the plan without it
+			inject(`move,${centreOf(endTurn.screenBounds).join(',')}`);
+			expect(preview.showing).toBe(true);
+			expect(token(combat, across).intents).toHaveLength(1);
+			expect(preview.incoming.get(fight.rig.id)).toBe('-3');
+			inject('move,1,1');
+			expect(token(combat, across).intents).toHaveLength(0);
+
+			// From the keyboard too, and END TURN then plays the plan it showed
+			context.focus.focus(endTurn, 'keyboard');
+			context.frame.layout();
+			expect(preview.showing).toBe(true);
+			expect(token(combat, across).intents).toHaveLength(1);
+			expect(combat['combatModel'].selectedCard).toBe(card.data);
+			press('Enter');
+			expect(combat['battle']?.enemyTurnInProgress).toBe(true);
+			expect(combat['combatModel'].selectedCard).toBeNull();
+			expect(fight.rig.slot).toEqual(slot(PLAYER_INSIDE, CENTER));
+			expect(playCard).not.toHaveBeenCalled();
+
+			playCard.mockRestore();
+		});
+
+		it('goes back to the hand when no slot it could swerve to puts a raider in reach', async () => {
+			// Three lanes from the Rig wherever it swerves
+			const fight = slotFight({ raiders: [slot(ENEMY_OUTSIDE, CENTER)] });
+			const combat = await startCombat(fight);
+			const card = deal(combat, fight, strafe());
+
+			click(grabPoint(card));
+			expect(combat['combatModel'].isTargeting).toBe(false);
+			expect(combat['combatModel'].selectedCard).toBeNull();
+			expect(combat['road'].slotTargetViews).toHaveLength(0);
+			expect(card.selected).toBe(false);
+		});
 	});
 
 	it('Fall In takes an escort, then any empty slot in your formation, and holds the escort solid between', async () => {
@@ -477,6 +530,29 @@ describe('CombatScreen slot targeting (DDB-548)', () => {
 			playCard.mockRestore();
 		});
 
+		it('takes its raider by a drop, then its shove by a click', async () => {
+			const fight = slotFight();
+			const [raider] = fight.raiders;
+			const combat = await startCombat(fight);
+			const card = deal(combat, fight, shoulderCheck());
+			const playCard = jest.spyOn(Battle.prototype, 'playCard');
+			const model = combat['combatModel'];
+
+			drag(grabPoint(card), platePoint(combat, raider));
+			expect(model.isPickingSlot).toBe(true);
+			expect(model.pickedVehicleId).toBe(raider.id);
+			expect(targetSlots(combat)).toHaveLength(2);
+			expect(combat['fx'].aiming).toBe(false);
+			expect(playCard).not.toHaveBeenCalled();
+
+			click(slotPoint(combat, slot(ENEMY_INSIDE, BEHIND)));
+			expect(playCard).toHaveBeenCalledTimes(1);
+			expect(playCard.mock.calls[0][0].destination).toEqual(slot(ENEMY_INSIDE, BEHIND));
+			expect(raider.slot).toEqual(slot(ENEMY_INSIDE, BEHIND));
+
+			playCard.mockRestore();
+		});
+
 		it('plays at once on a raider boxed in ahead and behind, with no slot to pick', async () => {
 			const fight = slotFight({ raiders: [slot(ENEMY_INSIDE, CENTER), slot(ENEMY_INSIDE, AHEAD), slot(ENEMY_INSIDE, BEHIND)] });
 			const [raider] = fight.raiders;
@@ -519,7 +595,7 @@ describe('CombatScreen slot targeting (DDB-548)', () => {
 		playCard.mockRestore();
 	});
 
-	it('plays both steps from the keyboard: focus goes to the slots, the arrows move between them, then to the raiders', async () => {
+	it('plays a slot, then a raider, from the keyboard: focus goes to the slot, then to the raider in reach of it', async () => {
 		const fight = slotFight({ raiders: [slot(ENEMY_INSIDE, CENTER), slot(ENEMY_INSIDE, AHEAD)] });
 		const [, ahead] = fight.raiders;
 		const combat = await startCombat(fight);
@@ -534,16 +610,6 @@ describe('CombatScreen slot targeting (DDB-548)', () => {
 		expect(model.isPickingSlot).toBe(true);
 		expect(focus.focused).toBeInstanceOf(SlotTarget);
 		expect(focus.focused?.focusVisible).toBe(true);
-		const first = focus.focused as SlotTarget;
-		expect(model.focusedSlot).toEqual(first.slot);
-
-		// The arrows go between the two slots, outside center and inside
-		// ahead; no vehicle on the road takes focus now
-		press(first.slot.row === AHEAD ? 'ArrowLeft' : 'ArrowRight');
-		expect(focus.focused).toBeInstanceOf(SlotTarget);
-		expect(focus.focused).not.toBe(first);
-		expect(model.focusedSlot).toEqual((focus.focused as SlotTarget).slot);
-		if (model.focusedSlot?.row !== AHEAD) press('ArrowRight');
 		expect(model.focusedSlot).toEqual(slot(PLAYER_INSIDE, AHEAD));
 
 		press('Enter');
@@ -559,10 +625,44 @@ describe('CombatScreen slot targeting (DDB-548)', () => {
 		playCard.mockRestore();
 	});
 
+	it('plays a raider, then its shove, from the keyboard: focus goes to the raider, then the arrows move between its two rows', async () => {
+		const fight = slotFight();
+		const [raider] = fight.raiders;
+		const combat = await startCombat(fight);
+		const card = deal(combat, fight, shoulderCheck());
+		const playCard = jest.spyOn(Battle.prototype, 'playCard');
+		const focus = context.focus;
+		const model = combat['combatModel'];
+
+		press('Tab');
+		expect(focus.focused).toBe(card);
+		press('Enter');
+		expect(focus.focused).toBeInstanceOf(UIVehicle);
+		expect((focus.focused as UIVehicle).vehicleId).toBe(raider.id);
+		press('Enter');
+		expect(model.isPickingSlot).toBe(true);
+		expect(focus.focused).toBeInstanceOf(SlotTarget);
+		const first = focus.focused as SlotTarget;
+
+		// No vehicle on the road takes focus now, so the arrows go between the two rows
+		press(first.slot.row === AHEAD ? 'ArrowDown' : 'ArrowUp');
+		expect(focus.focused).toBeInstanceOf(SlotTarget);
+		const second = focus.focused as SlotTarget;
+		expect(second).not.toBe(first);
+		expect(model.focusedSlot).toEqual(second.slot);
+
+		press('Enter');
+		expect(playCard).toHaveBeenCalledTimes(1);
+		expect(playCard.mock.calls[0][0].targetVehicle).toBe(raider);
+		expect(playCard.mock.calls[0][0].destination).toEqual(second.slot);
+		expect(raider.slot).toEqual(second.slot);
+
+		playCard.mockRestore();
+	});
+
 	it('lays the slot targets out inside their slots, clear of the vehicles, with a slot hovered and one already chosen', async () => {
 		const fight = slotFight({ raiders: [slot(ENEMY_INSIDE, CENTER), slot(ENEMY_INSIDE, AHEAD)] });
 		const combat = await startCombat(fight);
-		const card = deal(combat, fight, strafe());
 		const viewport = { width: 1280, height: 720 };
 		// The placement rules; this context measures no text, so the text and size rules don't apply here
 		const placement = new Set(['sibling-overlap', 'child-outside-parent', 'outside-viewport']);
@@ -570,11 +670,17 @@ describe('CombatScreen slot targeting (DDB-548)', () => {
 			.filter((violation) => placement.has(violation.rule) && /slot_target/.test(violation.path))
 			.map((violation) => `${violation.rule}: ${violation.path}`);
 
-		click(grabPoint(card));
+		// Juke's two slots side by side, one hovered
+		const jukeCard = deal(combat, fight, juke());
+		click(grabPoint(jukeCard));
 		inject(`move,${slotPoint(combat, slot(PLAYER_OUTSIDE, CENTER)).join(',')}`);
 		expect(combat['road'].slotTargetViews).toHaveLength(2);
 		expect(roadViolations()).toEqual([]);
+		press('Escape');
 
+		// Strafe's slot held while it waits for its raider
+		const strafeCard = deal(combat, fight, strafe());
+		click(grabPoint(strafeCard));
 		click(slotPoint(combat, slot(PLAYER_INSIDE, AHEAD)));
 		expect(combat['road'].slotTargetViews).toHaveLength(1);
 		expect(roadViolations()).toEqual([]);

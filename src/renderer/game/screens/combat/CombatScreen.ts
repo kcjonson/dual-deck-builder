@@ -36,6 +36,7 @@ import { encounterForces } from '../../campaign/Encounters';
 import { BREAK_OFF_TURNS, Battle, BattleState, BattleMessage, EnemyTurnStep, HitEvent, PlayPreview } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { AimPreview, previewAim, previewDestination } from '../../mechanics/AimPreview';
+import { BoardProjection } from '../../mechanics/BoardProjection';
 import type { RoadSlot } from '../../mechanics/Road';
 import type { RangeLabel } from '../../ui/RangeChip';
 import { Intent, IntentType, formatIntentValue } from '../../mechanics/Intent';
@@ -217,6 +218,8 @@ export class CombatScreen extends Screen {
 	// doesn't bubble on to the stage and put the card back
 	private aimPicks = 0;
 	private aimPicksAtPress = 0;
+	// While a step is being set up, so the hovered slot it clears doesn't preview on its way out
+	private enteringAimStep = false;
 	// Whether the raiders' pills show a hovered or chosen destination's
 	// preview, so going back to the plain plan is only worked out when needed
 	private intentsPreviewed = false;
@@ -641,13 +644,15 @@ export class CombatScreen extends Screen {
 	 * under the pointer or focus, else the one an earlier step chose, with
 	 * the vehicle chosen so far. Null with no destination, or once the card
 	 * has left the hand (a play in progress emits before the screen clears
-	 * its aim).
+	 * its aim). Null too while END TURN has the pointer or keyboard focus:
+	 * ending the turn puts an aimed card back, so the plan END TURN previews
+	 * is the one without it.
 	 */
 	private aimPlayPreview(): PlayPreview | null {
 		const aim = this.aim;
 		const card = this.combatModel.selectedCard;
 		const driver = this.combatModel.selectedDriver;
-		if (!aim || !card || !driver || !driver.hand.includes(card)) return null;
+		if (!aim || !card || !driver || !driver.hand.includes(card) || this.endTurnColumn.previewing) return null;
 		const destination = this.combatModel.focusedSlot ?? aim.destination;
 		return destination ? { driver, card, target: aim.target, destination } : null;
 	}
@@ -812,6 +817,8 @@ export class CombatScreen extends Screen {
 		});
 		this.handLayer = dock.hand;
 		this.endTurnColumn = dock.endTurnColumn;
+		// The pills drop an aimed card's preview while END TURN, which would put the card back, is previewing
+		this.endTurnColumn.onPreviewingChange = () => this.refreshIntentPreview();
 		return dock;
 	}
 
@@ -929,13 +936,14 @@ export class CombatScreen extends Screen {
 			this.combatModel.on('targetedVehicle', (vehicle: Vehicle | null) => {
 				const card = this.combatModel.selectedCard;
 				if (!vehicle || !card || !this.combatModel.selectedDriver) return;
-				if (this.combatModel.isTargeting && this.aim) {
-					this.aim.target = vehicle;
-					this.nextAimStep();
-				} else {
+				if (!this.combatModel.isTargeting) {
 					// A card with no target was dropped on a vehicle it acts on; it still plays untargeted
 					this.playCardWithTarget(card, undefined);
+					return;
 				}
+				if (!this.aim) throw new Error(`${card.name} took a target with no aim waiting for one`);
+				this.aim.target = vehicle;
+				this.nextAimStep();
 			}),
 
 			// A destination chosen for the waiting card's move
@@ -989,21 +997,46 @@ export class CombatScreen extends Screen {
 	 * and no vehicle, with the vehicle an earlier step chose held solid. A
 	 * slot step the battle says isn't needed (an optional shove with nowhere
 	 * to go, call 293) is skipped, and once nothing is left the card plays.
-	 * A keyboard player's focus goes to the step's first target.
+	 * When a vehicle step follows (Strafe), only the slots it could then
+	 * land from are offered, since a slot too far for the card is one it
+	 * can't use. A keyboard player's focus goes to the step's first target.
+	 * False when the card went back to the hand instead, having nothing it
+	 * could pick.
 	 */
-	private enterAimStep({ focusTargets }: { focusTargets: boolean }): void {
+	private enterAimStep({ focusTargets }: { focusTargets: boolean }): boolean {
 		const aim = this.aim;
 		const card = this.combatModel.selectedCard;
 		const driver = this.combatModel.selectedDriver;
 		const battle = this.battle;
-		if (!aim || !card || !driver || !battle) return;
+		if (!aim || !card || !driver || !battle) return false;
 		while (aim.steps[aim.step] === 'slot' && !battle.needsDestination({ driver, card, target: aim.target })) aim.step++;
 		if (aim.step >= aim.steps.length) {
 			this.playCardWithTarget(card, aim.target ?? undefined, aim.destination ?? undefined);
-			return;
+			return true;
+		}
+
+		const slotStep = aim.steps[aim.step] === 'slot';
+		let slots: RoadSlot[] = [];
+		if (slotStep) {
+			const destinations = battle.moveDestinations({ driver, card, target: aim.target });
+			if (destinations.length === 0) {
+				// The battle said it needs a slot and offers none: a rule mismatch, not a choice to wait on
+				console.error(`${card.name} needs a slot to move to, but the battle offers none`);
+				this.putCardBack();
+				return false;
+			}
+			const targetsNext = aim.steps.slice(aim.step + 1).includes('vehicle');
+			slots = targetsNext ? destinations.filter(slot => this.determineTargetableVehicles(card, slot).length > 0) : destinations;
+			if (slots.length === 0) {
+				console.log(`${driver.metadata.name}: ${card.name} has no slot that puts a target in reach`);
+				this.putCardBack();
+				return false;
+			}
 		}
 
 		const model = this.combatModel;
+		// Step setup clears the hovered slot; the step's own refresh follows, so its preview isn't worked out twice
+		this.enteringAimStep = true;
 		model.set({
 			focusedVehicleId: null,
 			carrierVehicleId: null,
@@ -1013,14 +1046,8 @@ export class CombatScreen extends Screen {
 			pickedSlot: aim.destination,
 			pickedVehicleId: aim.target?.id ?? null,
 		});
-		if (aim.steps[aim.step] === 'slot') {
-			const slots = battle.moveDestinations({ driver, card, target: aim.target });
-			if (slots.length === 0) {
-				// The battle said it needs a slot and offers none: a rule mismatch, not a choice to wait on
-				console.error(`${card.name} needs a slot to move to, but the battle offers none`);
-				this.putCardBack();
-				return;
-			}
+		this.enteringAimStep = false;
+		if (slotStep) {
 			model.targetableVehicleIds = [];
 			model.targetableSlots = slots;
 			// The readouts come back when a slot is hovered
@@ -1028,7 +1055,7 @@ export class CombatScreen extends Screen {
 			this.road.showRanges(new Map());
 		} else {
 			model.targetableSlots = [];
-			model.targetableVehicleIds = this.determineTargetableVehicles(card);
+			model.targetableVehicleIds = this.determineTargetableVehicles(card, aim.destination);
 			this.showRanges(card);
 		}
 		this.road.showSlotTargets({ slots: model.targetableSlots, picked: aim.destination });
@@ -1038,6 +1065,7 @@ export class CombatScreen extends Screen {
 		// The step's targets are the only focusable things on the road now
 		// (R9.23: programmatic focus keeps the keyboard's visible ring)
 		if (focusTargets) this.context.focus.focusFirst(this.road);
+		return true;
 	}
 
 	/**
@@ -1051,7 +1079,7 @@ export class CombatScreen extends Screen {
 		const card = this.combatModel.selectedCard;
 		const driver = this.combatModel.selectedDriver;
 		const battle = this.battle;
-		if (!aim || !card || !driver || !battle || !this.combatModel.isPickingSlot) return;
+		if (!aim || !card || !driver || !battle || !this.combatModel.isPickingSlot || this.enteringAimStep) return;
 		const labels = new Map<string, RangeLabel>();
 		const preview = slot ? previewDestination({ battle, driver, card, target: aim.target, destination: slot }) : null;
 		if (slot && preview) {
@@ -1081,9 +1109,10 @@ export class CombatScreen extends Screen {
 		const driver = this.combatModel.selectedDriver;
 		const destination = this.aim?.destination ?? null;
 		if (battle && driver && this.enemyTeam && (card.targetType === 'enemy_single' || card.targetType === 'any')) {
+			const board = new BoardProjection({ battle });
 			for (const raider of this.enemyTeam.vehicles) {
 				if (raider.isOutOfFight || !raider.slot) continue;
-				const preview = previewAim({ battle, driver, card, target: raider, destination });
+				const preview = previewAim({ battle, driver, card, target: raider, destination, board });
 				this.aimPreviews.set(raider.id, preview);
 				if (preview.range === null) continue;
 				const inReach = preview.reach === null || preview.range <= preview.reach;
@@ -1238,8 +1267,7 @@ export class CombatScreen extends Screen {
 		// A vehicle, a slot, or one then the other (DDB-548); a keyboard
 		// player goes straight to the first target
 		this.aim = { steps: aimStepsOf(card), step: 0, target: null, destination: null };
-		this.enterAimStep({ focusTargets: via === 'click' && this.context.focus.focusVisible });
-		return true;
+		return this.enterAimStep({ focusTargets: via === 'click' && this.context.focus.focusVisible });
 	}
 
 	/**
@@ -1353,13 +1381,12 @@ export class CombatScreen extends Screen {
 	 * target rule, the one playCard checks (range, flanking, nobody aboard,
 	 * an order's carrier, a swap's partner or neighbouring escort). A drop,
 	 * a click, or the keyboard can't offer anything playCard would refuse.
-	 * Range for a card that moves first is judged from the slot an earlier
-	 * step chose (Strafe).
+	 * Range for a card that moves first is judged from `destination`, the
+	 * slot an earlier step chose or one it's offering (Strafe).
 	 */
-	private determineTargetableVehicles(card: Card): string[] {
+	private determineTargetableVehicles(card: Card, destination: RoadSlot | null = null): string[] {
 		const battle = this.battle;
 		const driver = this.combatModel.selectedDriver;
-		const destination = this.aim?.destination ?? null;
 		if (!this.playerTeam || !this.enemyTeam || !battle || !driver) return [];
 
 		// A wreck, or a vehicle with nobody aboard, still on the road for the

@@ -69,16 +69,20 @@ const NO_LOSSES: AimLosses = { structure: 0, driver: 0, passenger: 0 };
  * (BoardProjection.landingSlots): the picked `destination`, the one slot
  * a fixed move goes to, or until a slot is picked the nearest of the slots
  * the card could pick.
+ *
+ * `board` is the live board's projection, built here unless one is passed
+ * in: previewing a card on every raider at once shares one.
  */
-export function previewAim({ battle, driver, card, target, destination = null }: {
+export function previewAim({ battle, driver, card, target, destination = null, board = new BoardProjection({ battle }) }: {
 	battle: Battle;
 	driver: Driver;
 	card: Card;
 	target: Vehicle;
 	destination?: RoadSlot | null;
+	board?: BoardProjection;
 }): AimPreview {
 	const actor = aimActor({ battle, driver, card, target });
-	const range = actor && target.slot ? landingRange({ battle, card, actor, target: target.slot, destination }) : null;
+	const range = actor && target.slot ? landingRange({ board, card, actor, target: target.slot, destination }) : null;
 	const reach = cardRange(card);
 	const lands = landsOnTarget(card);
 
@@ -92,7 +96,7 @@ export function previewAim({ battle, driver, card, target, destination = null }:
 	}) ?? { skill: attackTypeOf(rolled) === 'ramming' ? 'ramming' : 'gunnery', attack: 0, evade: 0, modifier: 0, hits: false } : null;
 
 	if (check && !check.hits) return { actor, range, reach, lands, check, losses: { ...NO_LOSSES } };
-	return { actor, range, reach, lands, check, losses: projectLosses({ battle, card, actor, target, range }) };
+	return { actor, range, reach, lands, check, losses: projectLosses({ battle, board, card, actor, target, range }) };
 }
 
 /**
@@ -111,14 +115,14 @@ function aimActor({ battle, driver, card, target }: { battle: Battle; driver: Dr
 }
 
 /** The range the target rule measures: from the nearest slot the actor lands in, or null when it's off the road. */
-function landingRange({ battle, card, actor, target, destination }: {
-	battle: Battle;
+function landingRange({ board, card, actor, target, destination }: {
+	board: BoardProjection;
 	card: Card;
 	actor: Vehicle;
 	target: RoadSlot;
 	destination: RoadSlot | null;
 }): number | null {
-	const slots = new BoardProjection({ battle }).landingSlots({ card, caster: actor, destination });
+	const slots = board.landingSlots({ card, caster: actor, destination });
 	return slots.length > 0 ? Math.min(...slots.map(slot => slotRange(slot, target))) : null;
 }
 
@@ -141,7 +145,14 @@ function attackTypeOf(effect: CardEffect): string {
  * Vehicle.takeDamage uses (`splitDamage`) after Battle.applyDamage's
  * modifiers. An effect past its own range does nothing.
  */
-function projectLosses({ battle, card, actor, target, range }: { battle: Battle; card: Card; actor: Vehicle | null; target: Vehicle; range: number | null }): AimLosses {
+function projectLosses({ battle, board, card, actor, target, range }: {
+	battle: Battle;
+	board: BoardProjection;
+	card: Card;
+	actor: Vehicle | null;
+	target: Vehicle;
+	range: number | null;
+}): AimLosses {
 	let shield = target.shield ?? 0;
 	let armor = target.armor;
 	let structure = target.structure;
@@ -150,7 +161,6 @@ function projectLosses({ battle, card, actor, target, range }: { battle: Battle;
 	let driverHp = driver?.isAlive() ? driver.hitpoints : 0;
 	let passengerHp = passenger?.isAlive() ? passenger.hitpoints : 0;
 
-	const board = new BoardProjection({ battle });
 	for (const effect of card.effects) {
 		if (effect.type !== 'damage' || !landsOnTargetEffect(effect, card)) continue;
 		if (typeof effect.range === 'number' && range !== null && range > effect.range) continue;

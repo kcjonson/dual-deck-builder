@@ -71,6 +71,11 @@ export class EndTurnColumn extends Stack {
 			style: END_TURN_STYLE,
 		});
 		this.endTurnButton.onClick = onEndTurn;
+		const notice = (): void => this.noticePreviewing();
+		this.endTurnButton.onPointerEnter = notice;
+		this.endTurnButton.onPointerLeave = notice;
+		this.endTurnButton.onFocus = notice;
+		this.endTurnButton.onBlur = notice;
 		this.addChild(this.endTurnButton);
 
 		// The mock's `.warn`: 12 on 15, wrapping inside the column, since two
@@ -97,6 +102,21 @@ export class EndTurnColumn extends Stack {
 	 */
 	public get previewing(): boolean {
 		return this.endTurnButton.hovered || this.endTurnButton.focusVisible;
+	}
+
+	/**
+	 * Told when `previewing` turns on or off, so the screen can show the plan
+	 * END TURN would play: with a card still aimed, END TURN puts it back,
+	 * so the preview shouldn't count it (DDB-548).
+	 */
+	public onPreviewingChange: ((previewing: boolean) => void) | null = null;
+	private wasPreviewing = false;
+
+	private noticePreviewing(): void {
+		const previewing = this.previewing;
+		if (previewing === this.wasPreviewing) return;
+		this.wasPreviewing = previewing;
+		this.onPreviewingChange?.(previewing);
 	}
 
 	/**

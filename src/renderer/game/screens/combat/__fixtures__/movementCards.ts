@@ -86,15 +86,3 @@ export const shoulderCheck = (): Card => movementCard({
 	],
 	tags: ['attack', 'physical'],
 });
-
-/** Swerve one row ahead, then a raider at Range 1 of the new slot is 2 slower (Cut Off, trimmed to what range needs). */
-export const cutOff = (): Card => movementCard({
-	name: 'Cut Off',
-	targetType: 'enemy_single',
-	cost: 2,
-	effects: [
-		{ type: 'change_position', position: 'swerve', to: 'ahead', target: 'self' },
-		{ type: 'apply_status', status: 'speed_reduction', value: -2, duration: 1, range: 1, target: 'target', always_hits: true },
-	],
-	tags: ['utility'],
-});
