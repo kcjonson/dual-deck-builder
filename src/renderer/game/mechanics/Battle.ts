@@ -19,7 +19,8 @@ import {
 } from './Road';
 import { Card, CardEffect } from './Card';
 import type { HitCheck } from './AimPreview';
-import { BoardProjection, cardFlanks, cardRange } from './BoardProjection';
+import { BoardProjection, cardFlanks, cardRange, selfSpeedBonus } from './BoardProjection';
+import { MoveSpec, cardPicksSlot, moveSpecOf, movesOf, pickedMoveOf } from './Movement';
 import { ESCORT_CONFIGS } from './Escort';
 import type { AfterFight, DividendPayout } from './Convoy';
 import { EffectRecipient, effectRecipientOf, effectRecipients, isCasterAction, landsOnTarget, rollsToHit } from './EffectTargets';
@@ -131,6 +132,18 @@ export interface EnemyTurnStep {
 	card: Card | null;
 	target: Vehicle | null;
 	outcome: 'played' | 'fizzled' | 'dropped';
+}
+
+/**
+ * A card the player is aiming but hasn't played: who plays it, at what, and
+ * the slot picked for its move. The enemy-turn preview can judge the board
+ * as if it had landed (getAllIntents), for slot targeting's hover.
+ */
+export interface PlayPreview {
+	driver: Driver;
+	card: Card;
+	target?: Vehicle | null;
+	destination?: RoadSlot | null;
 }
 
 /**
@@ -287,6 +300,10 @@ export class Battle extends Model<BattleData> {
 
 	// Rout and break-off bookkeeping (stored separately due to Model freezing)
 	private static fightEnds = new WeakMap<Battle, FightEndState>();
+
+	// Vehicles a card moved to another slot this turn, for Weave (stored
+	// separately due to Model freezing). Cleared as each turn starts.
+	private static slotChanges = new WeakMap<Battle, Set<Vehicle>>();
 
 	// Static flag to control console logging
 	public static suppressConsoleLog = false;
@@ -701,13 +718,20 @@ export class Battle extends Model<BattleData> {
 		driver,
 		cardIndex,
 		targetVehicle,
-		targetOccupant
+		targetOccupant,
+		destination
 	}: {
 		driver: Driver;
 		cardIndex: number;
 		targetVehicle?: Vehicle;
 		/** For a card that lands on one person aboard (Triage, Top Off, Medical Kit): who. Defaults to the driver, or an escort's passenger. */
 		targetOccupant?: Driver;
+		/**
+		 * For a card whose move picks a slot (Juke, Strafe, Bootlegger Turn,
+		 * Fall In, Shoulder Check): where the mover goes. Required for those,
+		 * refused for any other card.
+		 */
+		destination?: RoadSlot;
 	}): boolean {
 		if (!this.isPlayerTurn) {
 			this.log('general', "Cannot play card: not player's turn");
@@ -736,9 +760,17 @@ export class Battle extends Model<BattleData> {
 			this.log('general', `Cannot play card: ${cardBlocker}`);
 			return false;
 		}
-		if (!this.validateTarget(card, driver, targetVehicle)) {
+		if (!this.validateTarget(card, driver, targetVehicle, destination ?? null)) {
 			this.log('general', `Invalid target for card "${card.name}" (type: ${card.targetType}). Driver: ${this.getDriverDisplayName(driver)}, Target: ${targetVehicle ? targetVehicle.name : 'undefined'}`,
 				undefined, targetVehicle ? `${card.displayName} can't target ${targetVehicle.name}` : `${card.displayName} needs a target`);
+			return false;
+		}
+		const target = targetVehicle ?? null;
+		const destinationBlocker = destination
+			? (cardPicksSlot(card) ? this.getDestinationBlocker({ driver, card, target, destination }) : `${card.displayName} doesn't pick a slot`)
+			: (this.needsDestination({ driver, card, target }) ? `${card.displayName} needs a slot to move to` : null);
+		if (destinationBlocker) {
+			this.log('general', `Cannot play card: ${destinationBlocker}`);
 			return false;
 		}
 		if (targetOccupant && !(targetVehicle && [targetVehicle.driver, targetVehicle.passenger].includes(targetOccupant))) {
@@ -763,7 +795,7 @@ export class Battle extends Model<BattleData> {
 			metadata: { driver: driver.metadata.name, card: card.displayName, adrenalineBefore, adrenalineAfter: driver.adrenaline },
 		});
 
-		this.resolvePlayedCard({ card, caster: driver, target: targetVehicle ?? null, occupant: targetOccupant ?? null, carrier });
+		this.resolvePlayedCard({ card, caster: driver, target: targetVehicle ?? null, occupant: targetOccupant ?? null, carrier, destination: destination ?? null });
 
 		// Emit card played event
 		this.emit('cardPlayed', Object.freeze({
@@ -797,15 +829,23 @@ export class Battle extends Model<BattleData> {
 	 * gate) are Driver.getPlayBlocker; these need the convoy. A signature
 	 * card needs a living escort of its type, and Rally the Convoy a ready
 	 * escort to fire. A flank card can't move a vehicle already on the
-	 * shoulder. Planning passes its projection so the flank check reads the
+	 * shoulder, a card that swerves its caster can't be played by a flanker
+	 * or when the swerve has nowhere legal to go, and Peel Off needs a
+	 * flanker with a reserved slot (BoardProjection.moveBlocker), so the hand
+	 * greys each out. Planning passes its projection so these read the
 	 * board the plan expects; the player's play reads the live one.
 	 */
 	public getCardBlocker({ driver, card, board }: { driver: Driver; card: Card; board?: BoardProjection }): string | null {
-		if (!card.isOrder && cardFlanks(card)) {
+		if (!card.isOrder && movesOf(card).length > 0) {
 			const projection = board ?? new BoardProjection({ battle: this });
 			const vehicle = projection.vehicleOf(driver);
-			if (vehicle && projection.isFlanking(vehicle)) {
+			if (vehicle && cardFlanks(card) && projection.isFlanking(vehicle)) {
 				return `${vehicle.name} is already flanking`;
+			}
+			// A flanker can't swerve, and a swerve with nowhere to go is unplayable (Combat Rules, Swerving)
+			const moveBlocker = vehicle ? projection.moveBlocker({ card, caster: vehicle }) : null;
+			if (moveBlocker) {
+				return moveBlocker;
 			}
 		}
 		const escorts = this.getTeamForDriver(driver)?.escorts ?? [];
@@ -828,12 +868,69 @@ export class Battle extends Model<BattleData> {
 
 	/**
 	 * Why this driver's card can't go on this target, or null if it can:
-	 * the same rule playCard checks, for the combat screen's highlights
+	 * the same rule playCard checks, for the combat screen's highlights. For
+	 * a card that moves its caster first (Strafe, Cut Off), range counts from
+	 * where the move lands: the picked `destination`, or until one is picked
+	 * any slot the card could pick.
 	 */
-	public getTargetBlocker({ driver, card, target }: { driver: Driver; card: Card; target: Vehicle }): string | null {
+	public getTargetBlocker({ driver, card, target, destination = null }: { driver: Driver; card: Card; target: Vehicle; destination?: RoadSlot | null }): string | null {
 		const casterVehicle = this.getVehicleForDriver(driver);
 		if (!casterVehicle) return `${driver.metadata.name} is not in a vehicle`;
-		return new BoardProjection({ battle: this }).targetBlocker({ card, caster: casterVehicle, target });
+		return new BoardProjection({ battle: this }).targetBlocker({ card, caster: casterVehicle, target, destination });
+	}
+
+	/**
+	 * The slots a card's picked move can go to now, for slot targeting to
+	 * outline (Juke, Strafe, Bootlegger Turn; Fall In and Shoulder Check once
+	 * their vehicle `target` is known). Empty for a card that picks no slot,
+	 * or one whose mover has nowhere legal to go.
+	 */
+	public moveDestinations({ driver, card, target = null }: { driver: Driver; card: Card; target?: Vehicle | null }): RoadSlot[] {
+		const move = pickedMoveOf(card);
+		const mover = move?.mover === 'target' ? target : this.getVehicleForDriver(driver);
+		if (!move || !mover) return [];
+		return new BoardProjection({ battle: this }).moveDestinations({ move, mover });
+	}
+
+	/**
+	 * Whether playing this card needs a slot picked, so slot targeting knows
+	 * when to ask: it has a picked move, and that move either isn't optional
+	 * or has somewhere legal to go. An optional move with nowhere to go
+	 * (Shoulder Check on a flanker, or on a raider boxed in ahead and behind)
+	 * is skipped, so the card plays without a slot (call 293). Pass the
+	 * card's `target` once it's known, for a move that moves the target.
+	 */
+	public needsDestination({ driver, card, target = null }: { driver: Driver; card: Card; target?: Vehicle | null }): boolean {
+		const move = pickedMoveOf(card);
+		if (!move) return false;
+		return !move.optional || this.moveDestinations({ driver, card, target }).length > 0;
+	}
+
+	/**
+	 * Why a slot can't be the destination of a card's picked move, or null
+	 * if it can: the same check playCard makes on its `destination`.
+	 */
+	public getDestinationBlocker({ driver, card, target = null, destination }: {
+		driver: Driver;
+		card: Card;
+		target?: Vehicle | null;
+		destination: RoadSlot;
+	}): string | null {
+		const move = pickedMoveOf(card);
+		if (!move) return `${card.name} doesn't pick a slot`;
+		const mover = move.mover === 'target' ? target : this.getVehicleForDriver(driver);
+		if (!mover) return move.mover === 'target' ? `${card.name} needs its target before its slot` : `${driver.metadata.name} is not in a vehicle`;
+		return new BoardProjection({ battle: this }).destinationBlocker({ move, mover, destination });
+	}
+
+	/**
+	 * Whether this vehicle has changed slot this turn: any card's move, one
+	 * step or further, flanking and being moved included (call 290). The
+	 * end-of-turn drop-back and close-up happen between turns, so they don't
+	 * count. Weave reads it.
+	 */
+	public swervedThisTurn(vehicle: Vehicle): boolean {
+		return Battle.slotChanges.get(this)?.has(vehicle) ?? false;
 	}
 
 	/**
@@ -863,13 +960,15 @@ export class Battle extends Model<BattleData> {
 		caster,
 		target,
 		occupant,
-		carrier
+		carrier,
+		destination
 	}: {
 		card: Card;
 		caster: Driver;
 		target: Vehicle | null;
 		occupant: Driver | null;
 		carrier: Vehicle | null;
+		destination: RoadSlot | null;
 	}): void {
 		if (carrier && target) {
 			this.log('general', `${carrier.name} carries out ${card.displayName} on ${target.name}`,
@@ -882,7 +981,7 @@ export class Battle extends Model<BattleData> {
 			this.rallyConvoy({ card, caster });
 			return;
 		}
-		this.applyCardEffects({ card, caster, target, occupant });
+		this.applyCardEffects({ card, caster, target, occupant, destination });
 		if (card.isOrder && card.spendsEscort && target?.isEscort) {
 			target.spent = true;
 		}
@@ -983,11 +1082,12 @@ export class Battle extends Model<BattleData> {
 	 * Vulnerable the player picks up this turn shows in the number. Elites
 	 * and bosses hide the value and the card. A card that will fizzle shows
 	 * nothing, and neither does a raider that will drop its plan or is
-	 * stunned. Read this once when showing several raiders.
+	 * stunned. Read this once when showing several raiders. With `preview`,
+	 * as the intents will be once that card lands (projectEnemyTurnStart).
 	 */
-	public getAllIntents(): Map<Vehicle, Intent[]> {
+	public getAllIntents({ preview = null }: { preview?: PlayPreview | null } = {}): Map<Vehicle, Intent[]> {
 		const intents = new Map<Vehicle, Intent[]>();
-		for (const [raider, actions] of this.projectEnemyTurn()) {
+		for (const [raider, actions] of this.projectEnemyTurn(preview)) {
 			intents.set(raider, actions.map(projected => this.intentOf({ raider, ...projected })));
 		}
 		return intents;
@@ -1027,18 +1127,31 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * A projection of the board as the enemy turn will find it before any
 	 * raider acts, if the player's turn ended now: flankers that will drop
-	 * back are in their reserved slots (dropBackSlotOf, which
-	 * dropBackFlankers uses too), and wrecks are off the road. Planning and
+	 * back are in their reserved slots (BoardProjection.wouldDropBack, the
+	 * projected reading of dropBackSlotOf, which dropBackFlankers uses), and
+	 * wrecks are off the road. Planning and
 	 * the preview both start from it, so a raider doesn't plan from a
 	 * shoulder it's expected to lose as the board stands. The player can
 	 * still change that before the turn ends.
+	 *
+	 * With `preview`, a card the player is aiming lands on the board first,
+	 * its moves and speed changes included, as if played now (the slot
+	 * targeting hover), so a swerve out of a planned card's range shows its
+	 * fizzle before the card is played.
 	 */
-	public projectEnemyTurnStart(): BoardProjection {
+	public projectEnemyTurnStart({ preview = null }: { preview?: PlayPreview | null } = {}): BoardProjection {
 		const board = new BoardProjection({ battle: this });
+		if (preview) {
+			const { card, driver } = preview;
+			const target = preview.target ?? null;
+			// An attack order acts through the escort that carries it out, as play does; one nobody can carry out lands nothing
+			const actor = this.isAttackOrder(card) ? (target ? this.orderCarrier({ card, target }) : null) : undefined;
+			if (actor !== null) board.apply({ card, driver, target, destination: preview.destination ?? null, actor });
+		}
 		for (const vehicle of this.getAllVehicles()) {
 			if (vehicle.isOutOfFight) {
 				board.leaveRoad(vehicle);
-			} else if (this.dropBackSlotOf(vehicle)) {
+			} else if (board.wouldDropBack(vehicle)) {
 				board.dropBack(vehicle);
 			}
 		}
@@ -1057,8 +1170,8 @@ export class Battle extends Model<BattleData> {
 	 * the board. A raider that will drop its plan, or is stunned and skips
 	 * its turn, has no entry, and its cards change nothing on the board.
 	 */
-	private projectEnemyTurn(): Map<Vehicle, ProjectedAction[]> {
-		return this.playProjectedEnemyTurn().projected;
+	private projectEnemyTurn(preview: PlayPreview | null = null): Map<Vehicle, ProjectedAction[]> {
+		return this.playProjectedEnemyTurn(preview).projected;
 	}
 
 	/**
@@ -1066,8 +1179,8 @@ export class Battle extends Model<BattleData> {
 	 * vehicle stands once the raiders' plans have played, flanks and speed
 	 * changes included.
 	 */
-	private playProjectedEnemyTurn(): { projected: Map<Vehicle, ProjectedAction[]>; board: BoardProjection } {
-		const board = this.projectEnemyTurnStart();
+	private playProjectedEnemyTurn(preview: PlayPreview | null = null): { projected: Map<Vehicle, ProjectedAction[]>; board: BoardProjection } {
+		const board = this.projectEnemyTurnStart({ preview });
 		const projected = new Map<Vehicle, ProjectedAction[]>();
 		for (const [raider, plan] of Battle.enemyPlans.get(this) ?? []) {
 			if (raider.isStunned) continue;
@@ -1082,10 +1195,11 @@ export class Battle extends Model<BattleData> {
 					flanking: board.isFlanking(raider),
 					speed: board.speedOf(raider)
 				};
+				const destination = action.destination ?? null;
 				const target = this.plannedTarget({ raider, action, board });
-				if (target && card.targetType !== 'enemy_all' && this.plannedCardFizzles({ raider, card, target, board })) continue;
+				if (target && card.targetType !== 'enemy_all' && this.plannedCardFizzles({ raider, card, target, board, destination })) continue;
 				actions.push({ action, target, targetSpeed: target ? board.speedOf(target) : 0 });
-				board.apply({ card, driver, target });
+				board.apply({ card, driver, target, destination });
 			}
 			if (actions.length > 0) projected.set(raider, actions);
 		}
@@ -1103,7 +1217,7 @@ export class Battle extends Model<BattleData> {
 	private plannedTarget({ raider, action, board }: { raider: Vehicle; action: PlannedAction; board: BoardProjection }): Vehicle | null {
 		if (!action.target) return null;
 		const target = action.target.isAlive() ? action.target : this.followWreck(action.target) ?? action.target;
-		return this.drawFireRedirect({ raider, card: action.card, target, board }) ?? target;
+		return this.drawFireRedirect({ raider, card: action.card, target, board, destination: action.destination ?? null }) ?? target;
 	}
 
 	/**
@@ -1111,8 +1225,14 @@ export class Battle extends Model<BattleData> {
 	 * by the checks playPlannedAction makes: a wreck nobody rode away from,
 	 * nobody aboard, or getPlannedCardBlocker on the projected board.
 	 */
-	private plannedCardFizzles({ raider, card, target, board }: { raider: Vehicle; card: Card; target: Vehicle; board: BoardProjection }): boolean {
-		return target.isUnmanned() || this.getPlannedCardBlocker({ card, caster: raider, target, board }) !== null;
+	private plannedCardFizzles({ raider, card, target, board, destination }: {
+		raider: Vehicle;
+		card: Card;
+		target: Vehicle;
+		board: BoardProjection;
+		destination: RoadSlot | null;
+	}): boolean {
+		return target.isUnmanned() || this.getPlannedCardBlocker({ card, caster: raider, target, board, destination }) !== null;
 	}
 
 	/**
@@ -1131,12 +1251,14 @@ export class Battle extends Model<BattleData> {
 		raider,
 		card,
 		target,
-		board = new BoardProjection({ battle: this })
+		board = new BoardProjection({ battle: this }),
+		destination = null
 	}: {
 		raider: Vehicle;
 		card: Card;
 		target: Vehicle;
 		board?: BoardProjection;
+		destination?: RoadSlot | null;
 	}): Vehicle | null {
 		// Aimed fire only, never a blast
 		if (card.targetType === 'enemy_all' || !landsOnTarget(card)) return null;
@@ -1152,7 +1274,7 @@ export class Battle extends Model<BattleData> {
 		const escort = [...covers].reverse().find(cover =>
 			!cover.isOutOfFight && board.slotOf(cover)?.row === row && this.playerTeam.vehicles.includes(cover));
 		if (!escort || escort === target) return null;
-		return this.getPlannedCardBlocker({ card, caster: raider, target: escort, board }) === null ? escort : null;
+		return this.getPlannedCardBlocker({ card, caster: raider, target: escort, board, destination }) === null ? escort : null;
 	}
 
 	/**
@@ -1189,6 +1311,7 @@ export class Battle extends Model<BattleData> {
 	 * another, in plan order
 	 */
 	private beginEnemyTurn(): void {
+		Battle.slotChanges.delete(this);
 		const plans = Battle.enemyPlans.get(this) ?? new Map<Vehicle, PlannedAction[]>();
 		Battle.enemyPlans.delete(this);
 		const actions: EnemyTurnQueue['actions'] = [];
@@ -1326,8 +1449,9 @@ export class Battle extends Model<BattleData> {
 		);
 
 		// An area hit lands as planned; Draw Fire never pulls it
+		const destination = action.destination ?? null;
 		if (card.targetType === 'enemy_all' || !action.target) {
-			this.applyCardEffects({ card, caster: driver, target: null });
+			this.applyCardEffects({ card, caster: driver, target: null, destination });
 			return step('played', null);
 		}
 
@@ -1350,21 +1474,21 @@ export class Battle extends Model<BattleData> {
 			return step('fizzled', target);
 		}
 
-		const cover = this.drawFireRedirect({ raider, card, target });
+		const cover = this.drawFireRedirect({ raider, card, target, destination });
 		if (cover) {
 			this.log('general', `${cover.name} draws ${raider.name}'s ${card.displayName} away from ${target.name}`,
 				{ vehicle: raider.name, card: card.displayName, target: cover.name });
 			target = cover;
 		}
 
-		const reason = this.getPlannedCardBlocker({ card, caster: raider, target });
+		const reason = this.getPlannedCardBlocker({ card, caster: raider, target, destination });
 		if (reason) {
 			this.log('fizzle', `${raider.name}'s ${card.displayName} fizzles: ${reason}`,
 				{ vehicle: raider.name, card: card.displayName, target: target.name });
 			return step('fizzled', target);
 		}
 
-		this.applyCardEffects({ card, caster: driver, target });
+		this.applyCardEffects({ card, caster: driver, target, destination });
 		return step('played', target);
 	}
 
@@ -1401,17 +1525,26 @@ export class Battle extends Model<BattleData> {
 		card,
 		caster,
 		target,
-		board = new BoardProjection({ battle: this })
+		board = new BoardProjection({ battle: this }),
+		destination = null
 	}: {
 		card: Card;
 		caster: Vehicle;
 		target: Vehicle;
 		board?: BoardProjection;
+		/** The slot the plan picked for the card's own move, if it picks one */
+		destination?: RoadSlot | null;
 	}): string | null {
 		if (target.isOutOfFight) {
 			return `${target.name} is out of the fight`;
 		}
-		const casterSlot = board.slotOf(caster);
+		// A planned move whose slot has gone (taken since, or the raider shoved) is stale
+		const moveBlocker = board.moveBlocker({ card, caster, target, destination });
+		if (moveBlocker) {
+			return moveBlocker;
+		}
+		// Range counts from where the card's own move lands (Strafe, Cut Off)
+		const [casterSlot = null] = board.landingSlots({ card, caster, destination });
 		const targetSlot = board.slotOf(target);
 		for (const effect of card.effects) {
 			if (typeof effect.range === 'number') {
@@ -1427,7 +1560,8 @@ export class Battle extends Model<BattleData> {
 				return `${target.name} is no longer flanking`;
 			}
 		}
-		const flankBlocker = cardFlanks(card) ? board.flankBlocker(caster, target) : null;
+		// The card's own boost lands before its flank (Overtake)
+		const flankBlocker = cardFlanks(card) ? board.flankBlocker(caster, target, selfSpeedBonus(card)) : null;
 		if (flankBlocker) {
 			return flankBlocker;
 		}
@@ -1453,6 +1587,8 @@ export class Battle extends Model<BattleData> {
 			this.emit('battleEnded', Object.freeze({ winner: 'tie', reason: 'maxTurns' }));
 			return;
 		}
+
+		Battle.slotChanges.delete(this);
 
 		// Process status effects for all vehicles
 		const stunned = this.enemyTeam.vehicles.filter(raider => raider.isStunned);
@@ -1501,20 +1637,23 @@ export class Battle extends Model<BattleData> {
 	 * The actor is the vehicle doing it: the caster's own, or the escort
 	 * carrying out an order, whose slot, speed, and skills the card then
 	 * uses. An `on_hit` effect (Ramming Run's self damage) happens only if an
-	 * earlier effect landed on someone else.
+	 * earlier effect landed on someone else. `destination` is the slot picked
+	 * for a move that picks one.
 	 */
 	private applyCardEffects({
 		card,
 		caster,
 		target,
 		actor = this.getVehicleForDriver(caster),
-		occupant = null
+		occupant = null,
+		destination = null
 	}: {
 		card: Card;
 		caster: Driver;
 		target: Vehicle | null;
 		actor?: Vehicle | null;
 		occupant?: Driver | null;
+		destination?: RoadSlot | null;
 	}): void {
 		const casterTeam = this.getTeamForDriver(caster);
 		const enemies = casterTeam === this.playerTeam ? this.enemyTeam.vehicles : this.playerTeam.vehicles;
@@ -1523,7 +1662,7 @@ export class Battle extends Model<BattleData> {
 		for (const effect of card.effects) {
 			if (effect.on_hit && !landed) continue;
 			if (isCasterAction(effect)) {
-				if (!this.applyCasterAction({ card, effect, caster, casterVehicle: actor, target })) return;
+				if (!this.applyCasterAction({ card, effect, caster, casterVehicle: actor, target, destination })) return;
 				continue;
 			}
 			const onCaster = effectRecipientOf({ effect, card }) === EffectRecipient.CASTER;
@@ -1545,21 +1684,23 @@ export class Battle extends Model<BattleData> {
 	}
 
 	/**
-	 * A draw, adrenaline gain, or move: once per card, by the caster. False
-	 * when the rest of the card is cancelled (a failed flank).
+	 * A draw, adrenaline gain, or move: once per card. False when the rest of
+	 * the card is cancelled (a failed flank, or a move that can't happen).
 	 */
 	private applyCasterAction({
 		card,
 		effect,
 		caster,
 		casterVehicle,
-		target
+		target,
+		destination
 	}: {
 		card: Card;
 		effect: CardEffect;
 		caster: Driver;
 		casterVehicle: Vehicle | null;
 		target: Vehicle | null;
+		destination: RoadSlot | null;
 	}): boolean {
 		switch (effect.type) {
 			case 'draw':
@@ -1586,14 +1727,77 @@ export class Battle extends Model<BattleData> {
 				break;
 			}
 
-			case 'change_position':
-				// A failed flank cancels the rest of the card, so no bonus without the swerve
-				if (casterVehicle && effect.position === 'flanking' && !this.flankVehicle(casterVehicle, target)) {
-					return false;
+			case 'change_position': {
+				const move = moveSpecOf(effect);
+				// A failed flank cancels the rest of the card, so no bonus without the flank
+				if (move.kind === 'flanking') {
+					return !casterVehicle || this.flankVehicle(casterVehicle, target);
 				}
-				break;
+				return this.applyMove({ card, move, casterVehicle, target, destination });
+			}
 		}
 		return true;
+	}
+
+	/**
+	 * A swerve, move, swap, drop-back, or formation shift (Combat Rules,
+	 * Swerving), resolved on the board as it stands by
+	 * BoardProjection.resolveMove, so the slot rules live in one place, then
+	 * put on the live vehicles here. Moving never spends an escort. False
+	 * when a move that isn't optional can't happen, which cancels the rest of
+	 * the card as a failed flank does; play checks first, so only a stale
+	 * plan or an earlier effect of the same card gets here. An optional move
+	 * that can't happen (Lay on the Horn's shove into a taken slot) is
+	 * skipped and the card goes on.
+	 */
+	private applyMove({ card, move, casterVehicle, target, destination }: {
+		card: Card;
+		move: MoveSpec;
+		casterVehicle: Vehicle | null;
+		target: Vehicle | null;
+		destination: RoadSlot | null;
+	}): boolean {
+		const resolved = new BoardProjection({ battle: this }).resolveMove({ move, caster: casterVehicle, target, destination });
+		if ('blocker' in resolved) {
+			const optional = move.kind !== 'formation_shift' && move.kind !== 'flanking' && move.optional;
+			this.log(optional ? 'general' : 'fizzle', `${card.displayName} ${optional ? 'moves nobody' : 'fails'}: ${resolved.blocker}`,
+				{ card: card.displayName });
+			return optional;
+		}
+		for (const { vehicle, slot, flank } of resolved.placements) {
+			const from = vehicle.slot;
+			this.relocate({ vehicle, slot, flank });
+			if (!from || sameSlot(from, slot)) continue;
+			this.log('general', `${card.displayName}: ${vehicle.name} ${Battle.moveVerb(move)} ${describeSlot(from)} to ${describeSlot(slot)}`,
+				{ card: card.displayName, vehicle: vehicle.name });
+		}
+		if (move.kind === 'formation_shift') {
+			this.log('general', `${card.displayName}: the formation switches lanes`, { card: card.displayName });
+		}
+		return true;
+	}
+
+	/** How the log says a move went */
+	private static moveVerb(move: MoveSpec): string {
+		switch (move.kind) {
+			case 'swerve': return 'swerves from';
+			case 'drop_back': return 'drops back from';
+			case 'swap': return 'swaps from';
+			default: return 'moves from';
+		}
+	}
+
+	/**
+	 * Put a vehicle in a slot. Every card's move comes through here, so a
+	 * change of slot is noted for swervedThisTurn.
+	 */
+	private relocate({ vehicle, slot, flank }: { vehicle: Vehicle; slot: RoadSlot; flank: FlankState | null }): void {
+		if (!sameSlot(vehicle.slot, slot)) {
+			const moved = Battle.slotChanges.get(this) ?? new Set<Vehicle>();
+			moved.add(vehicle);
+			Battle.slotChanges.set(this, moved);
+		}
+		vehicle.set({ slot, flank });
 	}
 
 	/**
@@ -2211,7 +2415,7 @@ export class Battle extends Model<BattleData> {
 		}
 
 		const destination = { lane: flankLane(flankerTeam.type), row: target.slot.row };
-		flanker.set({ slot: destination, flank: { reservedSlot: flanker.slot, outran: target } });
+		this.relocate({ vehicle: flanker, slot: destination, flank: { reservedSlot: flanker.slot, outran: target } });
 		this.log('general',
 			`${flanker.name} outruns ${target.name} and swerves onto ${describeSlot(destination)}`,
 			{ vehicle: flanker.name, target: target.name }
@@ -2561,7 +2765,7 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * Validate if a target is valid for a card
 	 */
-	private validateTarget(card: Card, caster: Driver, target: Vehicle | undefined): boolean {
+	private validateTarget(card: Card, caster: Driver, target: Vehicle | undefined, destination: RoadSlot | null): boolean {
 		// Check if card needs a target
 		if (card.targetType === 'self' || card.targetType === 'both_drivers' || card.targetType === 'enemy_all') {
 			return true; // No external target needed
@@ -2574,7 +2778,7 @@ export class Battle extends Model<BattleData> {
 		const casterVehicle = this.getVehicleForDriver(caster);
 		if (!casterVehicle) return false;
 
-		const blocker = new BoardProjection({ battle: this }).targetBlocker({ card, caster: casterVehicle, target });
+		const blocker = new BoardProjection({ battle: this }).targetBlocker({ card, caster: casterVehicle, target, destination });
 		if (blocker) {
 			this.log('general', blocker);
 			return false;

@@ -164,6 +164,106 @@ export function canTeamUseLane(team: TeamType, lane: RoadLane): boolean {
 }
 
 /**
+ * A direction a one-step swerve takes, read from the mover's own side: its
+ * other formation lane, its outside lane (a shove off the inside), or one
+ * row ahead or behind in the same lane.
+ */
+export type SwerveDirection = 'other_lane' | 'outside' | 'ahead' | 'behind';
+
+/** The row one step ahead, or null from the ahead row. */
+export function rowAhead(row: RoadRow): RoadRow | null {
+	return ROW_ORDER[ROW_ORDER.indexOf(row) - 1] ?? null;
+}
+
+/** The row one step behind, or null from the behind row. */
+export function rowBehind(row: RoadRow): RoadRow | null {
+	return ROW_ORDER[ROW_ORDER.indexOf(row) + 1] ?? null;
+}
+
+/** The other lane of the same formation, or null for a shoulder. */
+export function otherFormationLane(lane: RoadLane): RoadLane | null {
+	switch (lane) {
+		case RoadLane.PLAYER_INSIDE: return RoadLane.PLAYER_OUTSIDE;
+		case RoadLane.PLAYER_OUTSIDE: return RoadLane.PLAYER_INSIDE;
+		case RoadLane.ENEMY_INSIDE: return RoadLane.ENEMY_OUTSIDE;
+		case RoadLane.ENEMY_OUTSIDE: return RoadLane.ENEMY_INSIDE;
+		default: return null;
+	}
+}
+
+/**
+ * The formation slot one step from `from` in a direction, or null when the
+ * step runs off the formation (ahead of the ahead row, out past the outside
+ * lane). A shoulder slot has none: shoulders are left only by dropping back.
+ */
+export function swerveSlot(from: RoadSlot, direction: SwerveDirection): RoadSlot | null {
+	if (isShoulder(from.lane)) return null;
+	switch (direction) {
+		case 'other_lane': {
+			const lane = otherFormationLane(from.lane);
+			return lane ? { lane, row: from.row } : null;
+		}
+		case 'outside': {
+			const lane = otherFormationLane(from.lane);
+			return lane && laneKind(from.lane) === 'inside' ? { lane, row: from.row } : null;
+		}
+		case 'ahead': {
+			const row = rowAhead(from.row);
+			return row ? { lane: from.lane, row } : null;
+		}
+		case 'behind': {
+			const row = rowBehind(from.row);
+			return row ? { lane: from.lane, row } : null;
+		}
+	}
+}
+
+/**
+ * The formation slots one step from `from`: the other lane in its row, then
+ * its own lane a row ahead and behind. Never diagonal, never a shoulder, and
+ * none from a shoulder. Whether they're free is the board's question.
+ */
+export function adjacentFormationSlots(from: RoadSlot): RoadSlot[] {
+	return (['other_lane', 'ahead', 'behind'] as const)
+		.map(direction => swerveSlot(from, direction))
+		.filter((slot): slot is RoadSlot => slot !== null);
+}
+
+/**
+ * The team's six formation slots, inside lane first, each ahead to behind.
+ */
+export function formationSlots(team: TeamType): RoadSlot[] {
+	return formationLanes(team).flatMap(lane => ROW_ORDER.map(row => ({ lane, row })));
+}
+
+/**
+ * Whether a move between two slots stays inside one team's formation: both
+ * slots in its lanes, so never onto, off, or along a shoulder. Shoulders are
+ * entered only by flanking and left only by dropping back.
+ */
+export function isFormationMove(team: TeamType, from: RoadSlot, to: RoadSlot): boolean {
+	return isFormationLane(team, from.lane) && isFormationLane(team, to.lane);
+}
+
+/**
+ * Whether a move is one swerve step: inside the team's formation and to an
+ * adjacent slot, one lane over or one row ahead or behind. Range 1, so never
+ * diagonal (a diagonal is range 2). Occupied and reserved slots are the
+ * board's to check (BoardProjection.slotMoveBlocker).
+ */
+export function isSwerveStep(team: TeamType, from: RoadSlot, to: RoadSlot): boolean {
+	return isFormationMove(team, from, to) && slotRange(from, to) === 1;
+}
+
+/**
+ * The slot directly behind another in its lane (Slipstream's), or null from
+ * the behind row or a shoulder.
+ */
+export function slotBehind(slot: RoadSlot): RoadSlot | null {
+	return swerveSlot(slot, 'behind');
+}
+
+/**
  * The team's six formation slots in the order an opening fills them: the
  * inside lane, then the outside, each center, behind, ahead. With
  * `firstRow`, each lane starts from that row instead (a reinforcement wave

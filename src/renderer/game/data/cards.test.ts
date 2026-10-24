@@ -1,5 +1,6 @@
 import { Card, CardData, CardEffect } from '../mechanics/Card';
 import { EFFECT_TARGETS } from '../mechanics/EffectTargets';
+import { moveSpecOf } from '../mechanics/Movement';
 import cardsFile from './cards.json';
 import { createMeasuringDrawApi } from '../../engine/text/testing';
 import { createTestContext } from '../../engine/components/testing';
@@ -134,6 +135,13 @@ describe('card data check', () => {
 	it.each(cards.map((data) => ({ label: data.type, effects: [...data.effects, ...upgradeEffects(data)] })))('$label effects each name a target the battle knows', ({ effects }) => {
 		for (const effect of effects.flatMap(leaves)) {
 			expect(EFFECT_TARGETS).toContain(effect.target);
+		}
+	});
+
+	// Every move says one the battle knows (docs/AI_TECHNICAL_DECISIONS/movement-cards.md)
+	it.each(cards.map((data) => ({ label: data.type, effects: [...data.effects, ...upgradeEffects(data)] })))('$label moves are ones the battle knows', ({ effects }) => {
+		for (const effect of effects.flatMap(leaves).filter((leaf) => leaf.type === 'change_position')) {
+			expect(() => moveSpecOf(effect)).not.toThrow();
 		}
 	});
 

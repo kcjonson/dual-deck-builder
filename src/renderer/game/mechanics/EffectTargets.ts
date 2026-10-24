@@ -32,8 +32,10 @@ export const EFFECT_TARGETS: readonly string[] = Object.keys(RECIPIENT_BY_TARGET
 
 /**
  * Effects that are the caster's own doing: drawing, gaining adrenaline,
- * moving. They happen once per card, to the caster, whatever the effect's
- * target says and whatever happened to the card's target.
+ * moving. They happen once per card, whatever happened to the card's
+ * target. A move's own target field says who it moves, the caster or the
+ * card's target (Movement.moveSpecOf), and it never rolls to hit: a move
+ * that should only follow a hit says `on_hit`.
  */
 const CASTER_ACTIONS = new Set(['draw', 'draw_cards', 'adrenaline', 'gain_resource', 'change_position']);
 

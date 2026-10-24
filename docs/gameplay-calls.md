@@ -445,10 +445,14 @@ Record: heavy-armor.md. Calls 277 to 279 are settled and in Combat Rules.
 
 280. DDB-164: Heavy shows as a chip in the vehicle's status row, after Shield, counting the armor past base, and the plate's armor shield turns amber while it's Heavy, because the status row is where the speed statuses it cancels already sit.
 
-## Movement cards (287 to 289)
+## Movement cards (287 to 293)
 
-Record: none yet; DDB-545 writes it when the cards are built, and until then each call carries its own reason. The draft is in Combat Rules (Swerving, and Movement cards under Cards), whose open questions these answer. Calls 281 to 286 are settled and in Combat Rules.
+Record: movement-cards.md. The draft is in Combat Rules (Swerving, and Movement cards under Cards), whose open questions these answer. Calls 281 to 286 are settled and in Combat Rules.
 
 287. DDB-552: raiders get the movement cards that move only themselves (Lane Change, Floor It, Hard Brake, Juke, Strafe, Cut Off), never one that moves a player's vehicle (the shoves, Brake Check) or needs a partner or escorts (Slipstream, Leapfrog, Fall In, Formation Shift), because the road model's rule is that nothing on your side moves that you didn't move, and the convoy cards mean nothing to a raider.
 288. DDB-546: a planned raider swerve shows as a move intent, a swerve icon in the intent row with its destination slot outlined in raider red while the plan stands, because the player has to read the raider's new range off the road before acting, as target marks already let them.
 289. DDB-546: a planned raider swerve names its destination slot, and if that slot isn't adjacent and empty when the swerve plays (a shove moved the raider, say), the swerve fizzles under the usual rule and the cards after it are judged from where the raider really is, because that's how every other planned card that goes stale is handled.
+290. DDB-545: every change of slot a card makes during a turn counts as swerving for Weave, a flank, Peel Off, and being moved by your partner's Leapfrog or a Formation Shift included, while the end-of-turn drop-back and close-up don't, because call 284 says any change of slot counts and those two happen between turns, not in the one Weave asks about.
+291. DDB-545: Formation Shift is playable while its caster is flanking, its reservation switching with its row like every flanker's, and wrecks still on the road switch with their rows, because the card moves the formation rather than swerving the caster, and rows trading lanes whole means nobody lands on a wreck.
+292. DDB-545: your partner's vehicle (Slipstream, Leapfrog) is whichever vehicle your partner is in, driving or riding, at any distance, and only Leapfrog's escort has to be next to you, because the card says "your partner's vehicle or an escort adjacent to you", which puts the adjacency on the escort.
+293. DDB-545: a shove or drop-back of a raider that can't happen leaves its card playable and does nothing (Lay on the Horn into a taken slot still slows, Shoulder Check on a flanker still hits, Brake Check on an ambusher deals its damage instead), because call 285 is about your own swerve and the spec writes those three with "if that slot is empty", "if the target is in its formation", and an ambusher alternative.
