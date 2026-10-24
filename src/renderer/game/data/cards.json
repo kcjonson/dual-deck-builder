@@ -322,6 +322,343 @@
       "image": "cards/nitro_boost.png"
     },
     {
+      "type": "lane_change",
+      "name": "Lane Change",
+      "summary": "[Swerve] to your other lane, same row.",
+      "description": "Swerve to the other lane of your formation, in the same row. Unplayable while flanking, or if that slot is taken or reserved.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "self",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "swerve",
+          "to": "other_lane",
+          "target": "self"
+        }
+      ],
+      "upgrades": {
+        "cost": 0
+      },
+      "tags": ["utility", "positioning"],
+      "image": "cards/lane_change.png"
+    },
+    {
+      "type": "floor_it",
+      "name": "Floor It",
+      "summary": "[Swerve] ahead. +2 Speed until the next enemy turn ends.",
+      "description": "Swerve one row ahead in your lane, then gain 2 speed until the end of the next enemy turn. Unplayable while flanking, or if that slot is taken or reserved. While Heavy the speed doesn't count, but the swerve still happens.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "self",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "swerve",
+          "to": "ahead",
+          "target": "self"
+        },
+        {
+          "type": "apply_status",
+          "status": "speed_boost",
+          "value": 2,
+          "duration": 1,
+          "target": "self"
+        }
+      ],
+      "variables": {
+        "turns": { "base": 1, "upgraded": 2 }
+      },
+      "upgrades": {
+        "summary": "[Swerve] ahead. +2 Speed for {turns} turns.",
+        "description": "Swerve one row ahead in your lane, then gain 2 speed for {turns} turns. Unplayable while flanking, or if that slot is taken or reserved. While Heavy the speed doesn't count, but the swerve still happens.",
+        "effects": [
+          {
+            "type": "change_position",
+            "position": "swerve",
+            "to": "ahead",
+            "target": "self"
+          },
+          {
+            "type": "apply_status",
+            "status": "speed_boost",
+            "value": 2,
+            "duration": 2,
+            "target": "self"
+          }
+        ]
+      },
+      "tags": ["utility", "positioning"],
+      "image": "cards/floor_it.png"
+    },
+    {
+      "type": "hard_brake",
+      "name": "Hard Brake",
+      "summary": "[Swerve] one row behind. +{shield} [Shield].",
+      "description": "Swerve one row behind in your lane and gain {shield} Shield. Unplayable while flanking, or if that slot is taken or reserved.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "self",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "swerve",
+          "to": "behind",
+          "target": "self"
+        },
+        {
+          "type": "gain_shield",
+          "value": 4,
+          "target": "self"
+        }
+      ],
+      "variables": {
+        "shield": { "base": 4, "upgraded": 6 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "change_position",
+            "position": "swerve",
+            "to": "behind",
+            "target": "self"
+          },
+          {
+            "type": "gain_shield",
+            "value": 6,
+            "target": "self"
+          }
+        ]
+      },
+      "tags": ["utility", "positioning", "shield"],
+      "image": "cards/hard_brake.png"
+    },
+    {
+      "type": "slipstream",
+      "name": "Slipstream",
+      "summary": "Move behind your [Partner]. +3 Speed for 2 turns.",
+      "description": "Move to the empty slot directly behind your partner's vehicle: same lane, one row back. Gain 3 speed for 2 turns. Unplayable while you or your partner is flanking, or if that slot isn't free.",
+      "rarity": "uncommon",
+      "cost": 1,
+      "targetType": "self",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "move",
+          "to": "behind_partner",
+          "target": "self"
+        },
+        {
+          "type": "apply_status",
+          "status": "speed_boost",
+          "value": 3,
+          "duration": 2,
+          "target": "self"
+        }
+      ],
+      "upgrades": {
+        "summary": "Move behind your [Partner]. +3 Speed for 2 turns. Draw 1.",
+        "description": "Move to the empty slot directly behind your partner's vehicle: same lane, one row back. Gain 3 speed for 2 turns and draw 1 card. Unplayable while you or your partner is flanking, or if that slot isn't free.",
+        "effects": [
+          {
+            "type": "change_position",
+            "position": "move",
+            "to": "behind_partner",
+            "target": "self"
+          },
+          {
+            "type": "apply_status",
+            "status": "speed_boost",
+            "value": 3,
+            "duration": 2,
+            "target": "self"
+          },
+          {
+            "type": "draw_cards",
+            "value": 1,
+            "target": "self"
+          }
+        ]
+      },
+      "tags": ["utility", "positioning"],
+      "image": "cards/slipstream.png"
+    },
+    {
+      "type": "peel_off",
+      "name": "Peel Off",
+      "summary": "Flanking: drop back to your reserved slot. Draw {cards}.",
+      "description": "Only while flanking with a reserved slot: leave the shoulder and drop back to that slot now. Then draw {cards}.",
+      "rarity": "common",
+      "cost": 0,
+      "targetType": "self",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "drop_back",
+          "target": "self"
+        },
+        {
+          "type": "draw_cards",
+          "value": 1,
+          "target": "self"
+        }
+      ],
+      "variables": {
+        "cards": { "base": 1, "upgraded": 2 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "change_position",
+            "position": "drop_back",
+            "target": "self"
+          },
+          {
+            "type": "draw_cards",
+            "value": 2,
+            "target": "self"
+          }
+        ]
+      },
+      "tags": ["utility", "positioning", "draw"],
+      "image": "cards/peel_off.png"
+    },
+    {
+      "type": "formation_shift",
+      "name": "Formation Shift",
+      "summary": "Your whole formation switches lanes. [Exhaust].",
+      "description": "Every vehicle in your formation, escorts and wrecks included, switches to the other lane in its row. A flanker keeps the shoulder, and its reserved slot switches lanes with its row. No escort is spent. Exhaust.",
+      "rarity": "rare",
+      "cost": 2,
+      "targetType": "self",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "formation_shift",
+          "target": "self"
+        }
+      ],
+      "upgrades": {
+        "summary": "Your whole formation switches lanes.",
+        "description": "Every vehicle in your formation, escorts and wrecks included, switches to the other lane in its row. A flanker keeps the shoulder, and its reserved slot switches lanes with its row. No escort is spent.",
+        "tags": ["utility", "positioning"]
+      },
+      "tags": ["utility", "positioning", "exhaust"],
+      "image": "cards/formation_shift.png"
+    },
+    {
+      "type": "weave",
+      "name": "Weave",
+      "summary": "+{evade} [Evade] until the enemy turn ends. +1 if you swerved.",
+      "description": "Your vehicle gains {evade} Evade until the end of the next enemy turn, 1 more if it changed slot this turn: a swerve, a move, a flank, or being moved all count. Evade adds to what an attacker's gunnery or ramming has to beat.",
+      "rarity": "uncommon",
+      "cost": 1,
+      "targetType": "self",
+      "effects": [
+        {
+          "type": "apply_status",
+          "status": "evade_boost",
+          "value": 1,
+          "duration": 1,
+          "target": "self",
+          "bonus": 1,
+          "bonus_condition": "caster_swerved"
+        }
+      ],
+      "variables": {
+        "evade": { "base": 1, "upgraded": 2 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "apply_status",
+            "status": "evade_boost",
+            "value": 2,
+            "duration": 1,
+            "target": "self",
+            "bonus": 1,
+            "bonus_condition": "caster_swerved"
+          }
+        ]
+      },
+      "tags": ["utility", "defense"],
+      "image": "cards/weave.png"
+    },
+    {
+      "type": "point_man",
+      "name": "Point Man",
+      "summary": "Deal {damage}, +{extra} if you're in the ahead row. [Range 2].",
+      "description": "Deal {damage} damage, or {extra} more if your vehicle is in the ahead row, flanking or not. Range 2.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "damage",
+          "value": 1,
+          "range": 2,
+          "target": "target",
+          "bonus": 3,
+          "bonus_condition": "caster_row_ahead"
+        }
+      ],
+      "variables": {
+        "damage": { "base": 1, "upgraded": 2 },
+        "extra": { "base": 3 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "damage",
+            "value": 2,
+            "range": 2,
+            "target": "target",
+            "bonus": 3,
+            "bonus_condition": "caster_row_ahead"
+          }
+        ]
+      },
+      "tags": ["attack", "ranged"],
+      "image": "cards/point_man.png"
+    },
+    {
+      "type": "tail_gunner",
+      "name": "Tail Gunner",
+      "summary": "Deal {damage}, +{extra} if the target is ahead of your row. [Range 2].",
+      "description": "Deal {damage} damage, or {extra} more if the target is in a row ahead of your vehicle's. Range 2.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "damage",
+          "value": 1,
+          "range": 2,
+          "target": "target",
+          "bonus": 2,
+          "bonus_condition": "target_row_ahead"
+        }
+      ],
+      "variables": {
+        "damage": { "base": 1 },
+        "extra": { "base": 2, "upgraded": 3 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "damage",
+            "value": 1,
+            "range": 2,
+            "target": "target",
+            "bonus": 3,
+            "bonus_condition": "target_row_ahead"
+          }
+        ]
+      },
+      "tags": ["attack", "ranged"],
+      "image": "cards/tail_gunner.png"
+    },
+    {
       "type": "coordinated_attack",
       "name": "Coordinated Attack",
       "summary": "Deal {damage}. Double it if your [Partner] attacked this turn.",
