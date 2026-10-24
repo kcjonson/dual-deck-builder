@@ -22,7 +22,7 @@ import {
 	slotRange,
 	swerveSlot
 } from './Road';
-import { EffectRecipient, effectRecipientOf, effectRecipients, isCasterAction, rollsToHit } from './EffectTargets';
+import { EffectRecipient, attackTypeOf, effectRecipientOf, effectRecipients, isCasterAction, rollsToHit } from './EffectTargets';
 import { ESCORT_CONFIGS } from './Escort';
 import { MoveSpec, casterMoveOf, moveSpecOf, movesOf, picksSlot } from './Movement';
 
@@ -971,6 +971,12 @@ export class BoardProjection {
 		return [...this.vehicles].filter(([, state]) => state.team !== team).map(([other]) => other);
 	}
 
+	/** Every vehicle on this one's team, itself included */
+	public teamOf(vehicle: Vehicle): Vehicle[] {
+		const team = this.vehicles.get(vehicle)?.team;
+		return [...this.vehicles].filter(([, state]) => state.team === team).map(([other]) => other);
+	}
+
 	/**
 	 * Play a card on the projection: it leaves the hand, costs adrenaline,
 	 * and moves or changes speed as it would in the battle, each effect on
@@ -1069,7 +1075,7 @@ export class BoardProjection {
 					attacker: caster,
 					caster: driver,
 					defender: recipient,
-					attackType: typeof effect.attack_type === 'string' ? effect.attack_type : effect.scaling === 'ramming' ? 'ramming' : 'ranged',
+					attackType: attackTypeOf(effect),
 					modifier: typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0,
 					evadeBoost: this.evadeBoostOf(recipient)
 				})) continue;

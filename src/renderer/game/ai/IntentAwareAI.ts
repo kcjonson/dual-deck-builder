@@ -2,15 +2,15 @@ import { AIPlayer } from './AIPlayer';
 import { AggressiveFlankerStrategy } from './AggressiveFlankerAI';
 import { AIDecision, GameStateEvaluation } from './types';
 import { DamageKind, damageToFinish, effectDamageKind, lastingDamage } from './DamageEstimate';
-import { IncomingHit, attackTypeOf, incomingHits } from './IncomingHits';
+import { IncomingHit, incomingHits } from './IncomingHits';
 import { cardMovesSlots, onlyMoves } from './SwerveEstimate';
-import { BOXED_IN, Vehicle, splitDamage, statusEvadeModifier, statusSpeedModifier } from '../mechanics/Vehicle';
+import { BOXED_IN, EVADE_BOOST, Vehicle, splitDamage, statusEvadeModifier, statusSpeedModifier } from '../mechanics/Vehicle';
 import { Card, CardEffect } from '../mechanics/Card';
 import { Driver } from '../mechanics/Driver';
 import { attackEffectOf, movesCaster } from '../mechanics/Intent';
 import { BoardProjection, cardRange } from '../mechanics/BoardProjection';
 import { ConditionBoard, effectValue } from '../mechanics/EffectConditions';
-import { EffectRecipient, effectRecipientOf, effectRecipients, rollsToHit } from '../mechanics/EffectTargets';
+import { EffectRecipient, attackTypeOf, effectRecipientOf, effectRecipients, rollsToHit } from '../mechanics/EffectTargets';
 import { sameSlot, slotRange } from '../mechanics/Road';
 
 /**
@@ -110,11 +110,13 @@ export class IntentAwareAI extends AIPlayer {
 	 * What one play is worth: the harm it keeps off the convoy, its progress
 	 * on the raiders it hurts, hitpoints it restores, the damage its
 	 * Vulnerable adds to the rest of the turn, and the floor's score for the
-	 * rest. A play that moves someone (anything but a flank) and comes out
-	 * worse than nothing, or that only moves and comes out at nothing, scores
-	 * under ending the turn: the floor's aimless-swerve rule with the enemy
-	 * turn counted, since a swerve that makes a planned hit fizzle isn't
-	 * aimless.
+	 * rest, its damage left out when the hit check misses. Under ending the
+	 * turn (calls 361, 362): a play that moves someone (anything but a flank)
+	 * and comes out worse than nothing, or that only moves and comes out at
+	 * nothing, which is the floor's aimless-swerve rule with the enemy turn
+	 * counted, since a swerve that makes a planned hit fizzle isn't aimless;
+	 * and a card that only guards through the enemy turn (Weave's Evade,
+	 * Shield) when it keeps nothing off.
 	 */
 	private scorePlay({ play, threat }: { play: AIDecision; threat: Threat }): number {
 		const { card, driver } = play;
@@ -133,12 +135,10 @@ export class IntentAwareAI extends AIPlayer {
 		const restored = this.restoredHitpoints({ protection, incoming: threat.incoming, harmNow });
 		const exposed = [...landings].filter(([raider, landing]) => landing.exposes && !removed.has(raider)).map(([raider]) => raider);
 		const setUp = exposed.length > 0 ? this.followUpDamage({ play, raiders: exposed }) * IntentAwareAI.VULNERABLE_SHARE : 0;
-		// Hit checks are deterministic, so an attack that can't land is worth nothing, however the floor scores it
+		// Hit checks are deterministic, so damage that can't land is worth nothing, however the floor scores it
 		const aimed = target ? landings.get(target) : undefined;
-		const floor = this.offense.scorePlay(play, gameState);
-		const offense = aimed && aimed.damage.size === 0 && !aimed.stuns && card?.effects.some(effect => effect.type === 'damage')
-			? Math.min(0, floor)
-			: floor;
+		const misses = Boolean(aimed && aimed.damage.size === 0 && card?.effects.some(effect => effect.type === 'damage'));
+		const offense = this.offense.scorePlay(play, gameState, { damageLands: !misses });
 		const score = (harmKept + progressHarm * IntentAwareAI.PROGRESS_TURNS) * IntentAwareAI.HARM_WEIGHT +
 			restored * IntentAwareAI.RESTORE_WEIGHT +
 			setUp * IntentAwareAI.SETUP_WEIGHT +
@@ -146,7 +146,19 @@ export class IntentAwareAI extends AIPlayer {
 		if (card && driver && cardMovesSlots(card) && (score < 0 || score === 0 && onlyMoves({ board: this.board, card, driver }))) {
 			return IntentAwareAI.END_TURN * 2;
 		}
+		if (card && IntentAwareAI.onlyGuards(card) && harmKept <= 0) {
+			return IntentAwareAI.END_TURN * 2;
+		}
 		return score;
+	}
+
+	/**
+	 * Whether everything the card does is guard through the enemy turn:
+	 * Shield, which clears as the player's turn starts, and Evade, which ends
+	 * with the enemy turn. Worth only the planned hits it keeps off.
+	 */
+	private static onlyGuards(card: Card): boolean {
+		return card.effects.every(effect => effect.type === 'gain_shield' || effect.type === 'apply_status' && effect.status === EVADE_BOOST);
 	}
 
 	/**
@@ -315,10 +327,11 @@ export class IntentAwareAI extends AIPlayer {
 
 	/**
 	 * Damage the rest of the turn's hands could still deal these raiders
-	 * once the play lands: each card left in a hand on the team that's
-	 * affordable, aims at one raider, and reaches it from where its player
-	 * then stands, at its damage with any bonus that holds there, once for
-	 * the best raider it reaches. Vulnerable on them adds half of it.
+	 * once the play lands: from each hand on the team, the cards that aim at
+	 * one raider and reach it from where their player then stands, at their
+	 * damage with any bonus that holds there, the biggest first, as many as
+	 * that player's own adrenaline pays for. Vulnerable on them adds half of
+	 * it (call 360).
 	 */
 	private followUpDamage({ play, raiders }: { play: AIDecision; raiders: Vehicle[] }): number {
 		const { card, driver } = play;
@@ -329,11 +342,11 @@ export class IntentAwareAI extends AIPlayer {
 			const slot = vehicle.isOutOfFight ? null : after.slotOf(vehicle);
 			if (!slot) continue;
 			for (const occupant of this.actingOccupants(vehicle)) {
-				const adrenaline = after.adrenalineOf(occupant);
+				const shots: { cost: number; damage: number }[] = [];
 				for (const other of after.handOf(occupant)) {
 					const effect = attackEffectOf(other);
 					const range = cardRange(other);
-					if (!effect || other.isOrder || other.targetType !== 'enemy_single' || movesCaster(other) || other.cost > adrenaline) continue;
+					if (!effect || other.isOrder || other.targetType !== 'enemy_single' || movesCaster(other)) continue;
 					if (other.isAttack && !occupant.canPlayAttackCards()) continue;
 					let best = 0;
 					for (const raider of raiders) {
@@ -341,7 +354,13 @@ export class IntentAwareAI extends AIPlayer {
 						if (!raiderSlot || range !== null && slotRange(slot, raiderSlot) > range) continue;
 						best = Math.max(best, effectValue(effect, { casterSlot: slot, targetSlot: raiderSlot, casterSwerved: after.swervedThisTurn(vehicle) }));
 					}
-					damage += best;
+					if (best > 0) shots.push({ cost: other.cost, damage: best });
+				}
+				let adrenaline = after.adrenalineOf(occupant);
+				for (const shot of shots.sort((a, b) => b.damage - a.damage)) {
+					if (shot.cost > adrenaline) continue;
+					adrenaline -= shot.cost;
+					damage += shot.damage;
 				}
 			}
 		}

@@ -372,7 +372,7 @@ Record: stop-clearing.md.
 
 Record: intent-aware-stand-in.md. Numbered from 240, the range set aside for this work.
 
-240. DDB-528: the intent-aware stand-in reads an elite's hidden attacks from its plan, the card and its damage worked out on the board as it stands, which is more than a player sees (the card is hidden too), because the ceiling should not be capped by a tier rule, and today's encounters are all basic anyway.
+240. DDB-528: the intent-aware stand-in reads an elite's hidden attacks in full, the card and its damage worked out by the enemy-turn preview as a basic raider's are, which is more than a player sees (the card is hidden too), because the ceiling should not be capped by a tier rule, and today's encounters are all basic anyway.
 241. DDB-528: the harm it weighs is structure plus occupant hitpoints lost next enemy turn, split as a hit splits, with a wreck or a dead driver counting 20 more, because either costs a run far more than its points.
 242. DDB-528: non-lethal damage counts for half a turn of the hurt raider's harm, times the share of its toughness it removes, because weighted higher it outbid Flanking Maneuver, and one step can't see that the flank boosts the rest of the turn's hits.
 243. DDB-528: what the harm count doesn't cover (flanking, draws, adrenaline, cards with no effect) is scored as the aggressive AI scores it, so the ceiling keeps the floor's priorities whenever no intent is at stake.
@@ -444,7 +444,7 @@ Record: heavy-armor.md. Calls 277 to 279 are settled and in Combat Rules.
 
 280. DDB-164: Heavy shows as a chip in the vehicle's status row, after Shield, counting the armor past base, and the plate's armor shield turns amber while it's Heavy, because the status row is where the speed statuses it cancels already sit.
 
-## Movement cards (287 to 342)
+## Movement cards (287 to 364)
 
 Record: movement-cards.md. The draft is in Combat Rules (Swerving, and Movement cards under Cards), whose open questions these answer. Calls 281 to 286 are settled and in Combat Rules.
 
@@ -477,3 +477,8 @@ Record: movement-cards.md. The draft is in Combat Rules (Swerving, and Movement 
 340. DDB-551: a passenger's Juke, Bootlegger Turn, and Leapfrog move the vehicle they ride in, and a passenger can play Fall In like any order, while Strafe and Shoulder Check are attacks a passenger can't play, because call 315 already has every card a passenger plays on themself land on the vehicle they ride in.
 341. DDB-551: Leapfrog greys out in the hand when nobody can swap with you (your vehicle or your partner's flanking, no escort next to you), and Fall In when no escort of yours can move (none in formation, or no empty slot), because call 285 greys out a move with nowhere legal to go before you commit, and both cards only ever move vehicles on your own side, so the hand can tell.
 342. DDB-551: Strafe's attack rolls gunnery against evade like any ranged attack, and its swerve happens hit or miss, because Combat Rules lists it as a Ranged Attack without "Always hits", and the swerve comes first on the card.
+360. DDB-553: the intent-aware stand-in counts a Vulnerable it lands as half the damage the rest of the turn's hands can still deal that raider, the biggest shots each driver's adrenaline pays for, at 10 a point, because that's what Vulnerable adds before it wears off at the end of the enemy turn, and 10 is what the floor scores a point of damage.
+361. DDB-553: the intent-aware stand-in passes on a move (anything but a flank) that comes out worse than nothing, or that only moves and comes out at nothing, counting the harm it keeps off and what it puts in reach, because a move that makes a planned hit fizzle has a use and one that only shuffles the vehicle or walks into a hit doesn't, which is the floor's aimless-swerve rule with the enemy turn counted.
+362. DDB-553: the intent-aware stand-in can end its turn with cards in hand, scoring ending the turn at the floor's -1000, so what the floor would play it still plays and only a move or guard that does nothing waits, because before it always played its best card, a move that did harm included.
+363. DDB-553: both stand-ins count dropping off a shoulder the vehicle would hold past the end of the turn (Peel Off) as costing what the floor pays to get onto one, 600, and the floor never does it, while a flank about to be lost anyway costs nothing, because the flank bonus lasts as long as the shoulder and one step can't see the turns after.
+364. DDB-553: the intent-aware stand-in passes on a card that only guards through the enemy turn (Weave, a bare Shield) when it keeps no planned damage off, because both are gone before anyone can hit the vehicle again, so with nothing aimed at it they do nothing.

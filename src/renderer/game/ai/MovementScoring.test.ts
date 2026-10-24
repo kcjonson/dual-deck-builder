@@ -4,6 +4,8 @@ import { MCTSAI } from './MCTSAI';
 import { AIDecision } from './types';
 import { createTestDriver, driverOf, realCard } from './__tests__/test-helpers';
 import { Battle } from '../mechanics/Battle';
+import { createEscort } from '../mechanics/Escort';
+import { IntentTier } from '../mechanics/Intent';
 import { BoardProjection } from '../mechanics/BoardProjection';
 import { Card, CardEffect, TargetType } from '../mechanics/Card';
 import { RoadLane, RoadRow, RoadSlot } from '../mechanics/Road';
@@ -72,6 +74,25 @@ const armorUp = (): Card => card('Armor Up', 'self', [{ type: 'gain_armor', valu
 
 const giveHand = (of: Vehicle, cards: Card[]): void => {
 	driverOf(of).set({ hand: cards, adrenaline: 5 });
+};
+
+/**
+ * The card types each stand-in plays from the road in 'every movement card
+ * through the stand-ins'. Neither plays Lane Change, Floor It, or Cut Off
+ * (the Bike and the Outrider fill the slots they'd go to), Peel Off (the Rig
+ * isn't flanking), or a flank (every raider outruns the Rig). The floor
+ * reads no intents, so it never plays a move whose only use is to make a
+ * planned hit fizzle: Fall In, Leapfrog, Formation Shift, Lay on the Horn.
+ */
+const PLAYED: Record<'intent' | 'aggressive', string[]> = {
+	intent: [
+		'bootlegger_turn', 'box_in', 'brake_check', 'fall_in', 'formation_shift', 'hard_brake', 'juke', 'lay_on_the_horn', 'leapfrog',
+		'point_blank', 'point_man', 'run_ahead', 'shoulder_check', 'slipstream', 'strafe', 'tail_gunner', 'weave'
+	],
+	aggressive: [
+		'bootlegger_turn', 'box_in', 'brake_check', 'hard_brake', 'juke', 'point_blank', 'point_man', 'run_ahead', 'shoulder_check',
+		'slipstream', 'strafe', 'tail_gunner', 'weave'
+	]
 };
 
 const named = (decision: AIDecision | null): [string | undefined, string | undefined] =>
@@ -348,31 +369,88 @@ describe('movement scoring', () => {
 		});
 	});
 
-	describe('slot-pick cards', () => {
+	describe('a move counts for everyone it moves', () => {
+		test.each(['leapfrog', 'formation_shift'])('%s from the Rig brings the Bike\'s Point Blank into range, so both stand-ins play it', (type) => {
+			// The Bike, outside center, is 2 from the Buggy, inside center; swapped or shifted into the inside lane it's 1
+			const bike = vehicle({ name: 'Bike', baseSpeed: 6, at: slot(PLAYER_OUTSIDE, CENTER) });
+			const buggy = vehicle({ name: 'Buggy', baseSpeed: 10, at: slot(ENEMY_INSIDE, CENTER) });
+			fight([buggy], [rig, bike]);
+			plan([[buggy, []]]);
+			giveHand(rig, [realCard(type)]);
+			giveHand(bike, [pointBlank()]);
+
+			expect(intent()?.card?.type).toBe(type);
+			expect(aggressive()?.card?.type).toBe(type);
+		});
+	});
+
+	describe('an elite\'s hidden intents', () => {
+		test('are read through the preview, so outpacing an elite flanker takes its flank bonus off', () => {
+			// As the basic Buggy in IntentAwareAI.test.ts: Nitro Boost puts the Rig at 6, past the flanker's 5
+			const elite = vehicle({ name: 'Elite', baseSpeed: 3 });
+			elite.set({ intentTier: IntentTier.ELITE });
+			fight([elite]);
+			elite.set({
+				slot: slot(PLAYER_SHOULDER, CENTER),
+				flank: { reservedSlot: slot(ENEMY_OUTSIDE, CENTER), outran: rig }
+			});
+			plan([[elite, [shot({ range: 3 })]]]);
+			expect(battle.getIntents(elite)[0]).toMatchObject({ amount: null });
+			const nitro = card('Nitro Boost', 'self', [{ type: 'apply_status', status: 'speed_boost', value: 3, duration: 2, target: 'self' }]);
+			giveHand(rig, [card('Chip', 'enemy_single', [{ type: 'damage', value: 4, range: 3, always_hits: true }]), nitro]);
+
+			expect(named(intent())).toEqual(['Nitro Boost', undefined]);
+		});
+	});
+
+	describe('every movement card through the stand-ins', () => {
 		const CARDS = (cardsFile as { cards: { type: string; effects: { type: string }[] }[] }).cards
 			.filter(data => data.effects.some(effect => effect.type === 'change_position') || ['weave', 'point_man', 'tail_gunner', 'box_in'].includes(data.type))
 			.map(data => data.type);
 
-		test.each(['intent', 'aggressive'] as const)('the %s stand-in plays every movement card it picks with the slot it needs, and the battle takes each one', async (playerAI) => {
-			const error = jest.spyOn(console, 'error');
-			const playCard = jest.spyOn(Battle.prototype, 'playCard');
+		/**
+		 * Each card alone in the Rig's hand, then Juke and Strafe with a shot,
+		 * on a road with something for most of them to do. The Rig is inside
+		 * center (gunnery 6, so its shots land), the Bike outside center, an
+		 * Outrider escort inside ahead. Across the road the Brute plans a
+		 * Range 1 shot at the Rig, the Sniper ahead of it a Range 1 shot that
+		 * reaches only the Outrider, the Gunner sits behind with nothing
+		 * planned, and a Flanker on the Rig's shoulder plans a shot that rolls,
+		 * gunnery 6 against the Rig's evade 5. Returns the card types played.
+		 */
+		const playEach = async (playerAI: 'intent' | 'aggressive'): Promise<Set<string>> => {
+			const played = new Set<string>();
 			for (const hand of [...CARDS.map(type => [realCard(type)]), [realCard('juke'), realCard('strafe'), pointBlank()]]) {
-				rig = vehicle({ name: 'Rig' });
+				rig = vehicle({ name: 'Rig', gunnery: 6 });
 				const bike = vehicle({ name: 'Bike', baseSpeed: 6, at: slot(PLAYER_OUTSIDE, CENTER) });
-				const buggy = vehicle({ name: 'Buggy', baseSpeed: 3, at: slot(ENEMY_OUTSIDE, CENTER) });
-				const flanker = vehicle({ name: 'Flanker', baseSpeed: 10, at: slot(PLAYER_SHOULDER, CENTER) });
-				fight([buggy, flanker], [rig, bike]);
-				flanker.set({ flank: { reservedSlot: slot(ENEMY_INSIDE, AHEAD), outran: rig } });
-				plan([[buggy, [shot({ range: 2 })]], [flanker, [shot({ range: 2 })]]]);
+				const outrider = createEscort({ type: 'outrider' });
+				const brute = vehicle({ name: 'Brute', baseSpeed: 3, at: slot(ENEMY_INSIDE, CENTER) });
+				const sniper = vehicle({ name: 'Sniper', baseSpeed: 3, at: slot(ENEMY_INSIDE, AHEAD) });
+				const gunner = vehicle({ name: 'Gunner', baseSpeed: 3, at: slot(ENEMY_INSIDE, BEHIND) });
+				const flanker = vehicle({ name: 'Flanker', baseSpeed: 10, gunnery: 6, at: slot(PLAYER_SHOULDER, CENTER) });
+				fight([brute, sniper, gunner, flanker], [rig, bike, outrider]);
+				expect(outrider.slot).toEqual(slot(PLAYER_INSIDE, AHEAD));
+				flanker.set({ flank: { reservedSlot: slot(ENEMY_OUTSIDE, AHEAD), outran: rig } });
+				plan([[brute, [shot({ range: 1 })]], [sniper, [shot({ range: 1 })]], [gunner, []], [flanker, [shot({ range: 2, rolls: true })]]]);
+				expect(battle.getIntents(brute)[0]).toMatchObject({ target: rig.id });
+				expect(battle.getIntents(sniper)[0]).toMatchObject({ target: outrider.id });
 				giveHand(rig, hand);
+				battle.on('cardPlayed', ({ card: playedCard }: { card: Card }) => played.add(playedCard.type));
 				battle.aiController.setPlayerAI(playerAI);
 				await battle.aiController.playPlayerCards();
 			}
+			return played;
+		};
+
+		test.each(['intent', 'aggressive'] as const)('the %s stand-in plays each card it picks with the slot it needs, and the battle takes every one', async (playerAI) => {
+			const error = jest.spyOn(console, 'error');
+			const playCard = jest.spyOn(Battle.prototype, 'playCard');
+			const played = await playEach(playerAI);
 			expect(error).not.toHaveBeenCalled();
 			expect(playCard.mock.results.filter(({ value }) => value === false)).toHaveLength(0);
-			// The slot-pick cards were played with their slots
 			const picked = playCard.mock.calls.map(([play]) => play).filter(play => play.destination !== undefined);
 			expect(picked.length).toBeGreaterThan(0);
+			expect([...played].sort()).toEqual(PLAYED[playerAI]);
 		});
 	});
 });

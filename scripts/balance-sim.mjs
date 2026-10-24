@@ -91,8 +91,10 @@ async function fights({ mode, options, input, config, workers }) {
 		if (template.tiers.includes(Math.min(config.tier, 4)) || template.tiers.includes(config.tier)) print(`  ${template.skulls} ${template.id}: ${template.waves.map(waveName).join(' | ')}`);
 	}
 	print('');
-	print('crew          route   won  by seat  stall  rout  broke  HP lost  struct lost  down  turns  inj days  killed   (rout and broke over all runs; lost, down, turns, and injury days over runs won)');
-	const rows = await playCells({ mode, input, count: fightCells(config).length, workers, onRow: printRow });
+	// A crew on test decks is named by the cards its seats add, so the table can be wider than the crews alone
+	const width = Math.max(14, ...fightCells(config).map(cell => cellLabel({ crew: cell.crew.map(seat => seat.archetype), seatAdds: cell.crew.map(seat => seat.add ?? {}) }).length + 2));
+	print(`${'crew'.padEnd(width)}route   won  by seat  stall  rout  broke  HP lost  struct lost  down  turns  inj days  killed   (rout and broke over all runs; lost, down, turns, and injury days over runs won)`);
+	const rows = await playCells({ mode, input, count: fightCells(config).length, workers, onRow: row => printRow(row, width) });
 	printFairness(rows);
 	if (config.cardStats) printCards(rows);
 	if (options.json) writeFileSync(options.json, JSON.stringify({ mode, config, rows }, null, '\t'));
@@ -195,12 +197,21 @@ function readOptions(list, known) {
 
 const SHORT = { road_warrior: 'RW', interceptor: 'Int', mechanic: 'Mech', raider: 'Raid' };
 const crewLabel = (crew) => crew.map(archetype => SHORT[archetype] ?? archetype).join(' + ');
+/** A crew, and the cards its seats add, each card naming the seats that add it when not all do: `RW + Int +weave(Int)` */
+const cellLabel = ({ crew, seatAdds }) => {
+	const types = [...new Set(seatAdds.flatMap(add => Object.keys(add)))];
+	const cards = types.map(type => {
+		const adders = crew.filter((_, seat) => seatAdds[seat]?.[type]);
+		return adders.length < crew.length ? `${type}(${crewLabel(adders).replace(/ \+ /g, ',')})` : type;
+	});
+	return cards.length > 0 ? `${crewLabel(crew)} +${cards.join(' +')}` : crewLabel(crew);
+};
 const percent = (value) => (value === null || Number.isNaN(value) ? '-' : `${Math.round(value * 100)}%`).padStart(4);
 const fixed = (value, digits = 1) => (value === null ? '-' : value.toFixed(digits));
 
-function printRow(row) {
+function printRow(row, width = 14) {
 	const bySeat = row.bySeat ? row.bySeat.map(({ rate }) => (rate === null ? '-' : String(Math.round(rate * 100)))).join('/') : '';
-	print(`${crewLabel(row.crew).padEnd(14)}${row.route.join('+').padStart(5)}  ${percent(row.won.rate)}  ${bySeat.padStart(7)}  ${percent(row.stalled.rate).padStart(5)}  ${percent(row.routed.rate)}  ${percent(row.brokenOff.rate).padStart(5)}  ${percent(row.hpLost).padStart(7)}  ${percent(row.structureLost).padStart(11)}  ${percent(row.down.rate)}  ${fixed(row.turns).padStart(5)}  ${fixed(row.injuryDays).padStart(8)}  ${fixed(row.raidersKilled).padStart(6)}`);
+	print(`${cellLabel(row).padEnd(width)}${row.route.join('+').padStart(5)}  ${percent(row.won.rate)}  ${bySeat.padStart(7)}  ${percent(row.stalled.rate).padStart(5)}  ${percent(row.routed.rate)}  ${percent(row.brokenOff.rate).padStart(5)}  ${percent(row.hpLost).padStart(7)}  ${percent(row.structureLost).padStart(11)}  ${percent(row.down.rate)}  ${fixed(row.turns).padStart(5)}  ${fixed(row.injuryDays).padStart(8)}  ${fixed(row.raidersKilled).padStart(6)}`);
 }
 
 /** Runs and Encounters, Fairness: the spread between the best and worst pair on a route, and each pair's seat gap. */

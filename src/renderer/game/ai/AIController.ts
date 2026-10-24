@@ -190,11 +190,26 @@ export class AIController {
 			const decision = await this.getPlayerDecision();
 			if (decision?.type !== 'playCard') return;
 			if (!await this.executeAIDecision(decision, true)) {
-				const [refusal] = this.battle.getMessages().slice(-1);
-				console.error(`The player AI's ${decision.card?.name ?? 'play'} was refused: ${refusal?.message ?? 'no reason logged'}`);
+				console.error(`The player AI's ${decision.card?.name ?? 'play'} was refused: ${this.refusalOf(decision)}`);
 				return;
 			}
 		}
+	}
+
+	/** Why the battle refuses a play, by the checks playCard makes, asked again of the board it was refused on */
+	private refusalOf(decision: AIDecision): string {
+		const { card, driver } = decision;
+		if (!card || !driver) return 'it names no card or no driver';
+		const target = decision.target instanceof Vehicle ? decision.target : null;
+		const destination = decision.destination ?? null;
+		const index = driver.hand.indexOf(card);
+		if (index === -1) return `${card.name} isn't in ${driver.metadata.name}'s hand`;
+		return driver.getPlayBlocker(index)
+			?? this.battle.getCardBlocker({ driver, card })
+			?? (target ? this.battle.getTargetBlocker({ driver, card, target, destination }) : null)
+			?? (destination ? this.battle.getDestinationBlocker({ driver, card, target, destination }) : null)
+			?? (!destination && this.battle.needsDestination({ driver, card, target }) ? `${card.name} needs a slot to move to` : null)
+			?? 'every check playCard makes passes again';
 	}
 
 	/**

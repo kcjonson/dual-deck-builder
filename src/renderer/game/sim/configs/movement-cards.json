@@ -20,7 +20,6 @@
 		[{ "archetype": "road_warrior", "add": { "peel_off": 2 } }, { "archetype": "interceptor", "add": { "peel_off": 2 } }],
 		[{ "archetype": "road_warrior", "add": { "brake_check": 2 } }, { "archetype": "interceptor", "add": { "brake_check": 2 } }],
 		[{ "archetype": "road_warrior", "add": { "overtake": 2 } }, { "archetype": "interceptor", "add": { "overtake": 2 } }],
-		[{ "archetype": "road_warrior", "add": { "fall_in": 2 } }, { "archetype": "interceptor", "add": { "fall_in": 2 } }],
 		[{ "archetype": "road_warrior", "add": { "leapfrog": 2 } }, { "archetype": "interceptor", "add": { "leapfrog": 2 } }],
 		[{ "archetype": "road_warrior", "add": { "formation_shift": 2 } }, { "archetype": "interceptor", "add": { "formation_shift": 2 } }],
 		[{ "archetype": "road_warrior", "add": { "weave": 2 } }, { "archetype": "interceptor", "add": { "weave": 2 } }],

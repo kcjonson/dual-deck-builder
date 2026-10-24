@@ -65,7 +65,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		if (card && ourVehicle && this.givesUpFlank({ card, caster: ourVehicle.vehicle, board: gameState.board })) {
 			return this.END_TURN * 2;
 		}
-		return this.scorePlay(action, gameState, reach);
+		return this.scorePlay(action, gameState, { reach });
 	}
 
 	/**
@@ -99,9 +99,13 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 	/**
 	 * What a play is worth with no check for an aimless move: the
 	 * intent-aware stand-in judges that itself, since a move that makes a
-	 * planned hit fizzle isn't aimless. `reach` is reachOf's.
+	 * planned hit fizzle isn't aimless. `reach` is reachOf's, worked out when
+	 * left out. `damageLands: false` scores the play as if its damage
+	 * missed, for a caller that has run the hit check, so the rest of the
+	 * card (a Strafe's swerve) still counts.
 	 */
-	public scorePlay(action: AIDecision, gameState: GameStateEvaluation, reach: SwerveReach | null = this.reachOf(action, gameState)): number {
+	public scorePlay(action: AIDecision, gameState: GameStateEvaluation, { reach, damageLands = true }: { reach?: SwerveReach | null; damageLands?: boolean } = {}): number {
+		const moveReach = reach === undefined ? this.reachOf(action, gameState) : reach;
 		if (action.type === 'endTurn') {
 			// Only end turn if we have no other options
 			return this.END_TURN;
@@ -133,6 +137,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 			destination: action.destination ?? null,
 			board: gameState.board
 		});
+		if (!damageLands) cardEffects.damage = 0;
 
 		// Moving to the shoulder. A Flank is only offered at a target it can
 		// outrun, so every legal one gets the full priority, and dropping off
@@ -146,7 +151,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 
 		// A move is worth what it puts in range for the rest of the hand,
 		// and waits while it would take something out
-		if (reach) score += swerveScore(reach, this.DAMAGE_WEIGHT);
+		if (moveReach) score += swerveScore(moveReach, this.DAMAGE_WEIGHT);
 
 		// A speed boost is worth a lot when it's what opens a flank
 		const board = gameState.board;
