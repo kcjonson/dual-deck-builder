@@ -1112,8 +1112,9 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * A projection of the board as the enemy turn will find it before any
 	 * raider acts, if the player's turn ended now: flankers that will drop
-	 * back are in their reserved slots (dropBackSlotOf, which
-	 * dropBackFlankers uses too), and wrecks are off the road. Planning and
+	 * back are in their reserved slots (BoardProjection.wouldDropBack, the
+	 * projected reading of dropBackSlotOf, which dropBackFlankers uses), and
+	 * wrecks are off the road. Planning and
 	 * the preview both start from it, so a raider doesn't plan from a
 	 * shoulder it's expected to lose as the board stands. The player can
 	 * still change that before the turn ends.
