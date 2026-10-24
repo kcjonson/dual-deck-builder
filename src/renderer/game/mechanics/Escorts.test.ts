@@ -354,13 +354,14 @@ describe('Escorts', () => {
 					// 15 against 5 armor: all 10 past it goes to structure
 					expect(escort.armor).toBe(0);
 					expect(escort.structure).toBe(structure - 10);
+					expect(logLines(battle, 'hit')).toEqual([expect.stringMatching(new RegExp(`^Shot hits ${escort.name} \\(gunnery 5 vs evade \\d+\\)$`))]);
 					expect(logLines(battle, 'damage_dealt')).toContain(
 						`Shot deals 15 total (5 to armor, 10 to structure) damage to ${escort.name} (Structure: 40/40 -> 30/40, Armor: 5/5 -> 0/5)`
 					);
 				} else {
 					expect(escort.armor).toBe(armor);
 					expect(escort.structure).toBe(structure);
-					expect(logLines(battle, 'miss')).toContain(`Shot misses ${escort.name}`);
+					expect(logLines(battle, 'miss')).toContain(`Shot misses ${escort.name} (gunnery 5 vs evade 6)`);
 				}
 			});
 
