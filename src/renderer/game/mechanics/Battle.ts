@@ -19,7 +19,7 @@ import {
 } from './Road';
 import { Card, CardEffect } from './Card';
 import type { HitCheck } from './AimPreview';
-import { BoardProjection, cardFlanks, cardRange } from './BoardProjection';
+import { BoardProjection, cardFlanks, cardRange, selfSpeedBonus } from './BoardProjection';
 import { MoveSpec, cardPicksSlot, moveSpecOf, movesOf, pickedMoveOf } from './Movement';
 import { ESCORT_CONFIGS } from './Escort';
 import type { AfterFight, DividendPayout } from './Convoy';
@@ -765,9 +765,10 @@ export class Battle extends Model<BattleData> {
 				undefined, targetVehicle ? `${card.displayName} can't target ${targetVehicle.name}` : `${card.displayName} needs a target`);
 			return false;
 		}
-		const destinationBlocker = cardPicksSlot(card)
-			? (destination ? this.getDestinationBlocker({ driver, card, target: targetVehicle ?? null, destination }) : `${card.displayName} needs a slot to move to`)
-			: (destination ? `${card.displayName} doesn't pick a slot` : null);
+		const target = targetVehicle ?? null;
+		const destinationBlocker = destination
+			? (cardPicksSlot(card) ? this.getDestinationBlocker({ driver, card, target, destination }) : `${card.displayName} doesn't pick a slot`)
+			: (this.needsDestination({ driver, card, target }) ? `${card.displayName} needs a slot to move to` : null);
 		if (destinationBlocker) {
 			this.log('general', `Cannot play card: ${destinationBlocker}`);
 			return false;
@@ -889,6 +890,20 @@ export class Battle extends Model<BattleData> {
 		const mover = move?.mover === 'target' ? target : this.getVehicleForDriver(driver);
 		if (!move || !mover) return [];
 		return new BoardProjection({ battle: this }).moveDestinations({ move, mover });
+	}
+
+	/**
+	 * Whether playing this card needs a slot picked, so slot targeting knows
+	 * when to ask: it has a picked move, and that move either isn't optional
+	 * or has somewhere legal to go. An optional move with nowhere to go
+	 * (Shoulder Check on a flanker, or on a raider boxed in ahead and behind)
+	 * is skipped, so the card plays without a slot (call 293). Pass the
+	 * card's `target` once it's known, for a move that moves the target.
+	 */
+	public needsDestination({ driver, card, target = null }: { driver: Driver; card: Card; target?: Vehicle | null }): boolean {
+		const move = pickedMoveOf(card);
+		if (!move) return false;
+		return !move.optional || this.moveDestinations({ driver, card, target }).length > 0;
 	}
 
 	/**
@@ -1127,7 +1142,11 @@ export class Battle extends Model<BattleData> {
 	public projectEnemyTurnStart({ preview = null }: { preview?: PlayPreview | null } = {}): BoardProjection {
 		const board = new BoardProjection({ battle: this });
 		if (preview) {
-			board.apply({ card: preview.card, driver: preview.driver, target: preview.target ?? null, destination: preview.destination ?? null });
+			const { card, driver } = preview;
+			const target = preview.target ?? null;
+			// An attack order acts through the escort that carries it out, as play does; one nobody can carry out lands nothing
+			const actor = this.isAttackOrder(card) ? (target ? this.orderCarrier({ card, target }) : null) : undefined;
+			if (actor !== null) board.apply({ card, driver, target, destination: preview.destination ?? null, actor });
 		}
 		for (const vehicle of this.getAllVehicles()) {
 			if (vehicle.isOutOfFight) {
@@ -1519,6 +1538,11 @@ export class Battle extends Model<BattleData> {
 		if (target.isOutOfFight) {
 			return `${target.name} is out of the fight`;
 		}
+		// A planned move whose slot has gone (taken since, or the raider shoved) is stale
+		const moveBlocker = board.moveBlocker({ card, caster, target, destination });
+		if (moveBlocker) {
+			return moveBlocker;
+		}
 		// Range counts from where the card's own move lands (Strafe, Cut Off)
 		const [casterSlot = null] = board.landingSlots({ card, caster, destination });
 		const targetSlot = board.slotOf(target);
@@ -1536,7 +1560,8 @@ export class Battle extends Model<BattleData> {
 				return `${target.name} is no longer flanking`;
 			}
 		}
-		const flankBlocker = cardFlanks(card) ? board.flankBlocker(caster, target) : null;
+		// The card's own boost lands before its flank (Overtake)
+		const flankBlocker = cardFlanks(card) ? board.flankBlocker(caster, target, selfSpeedBonus(card)) : null;
 		if (flankBlocker) {
 			return flankBlocker;
 		}

@@ -1,5 +1,5 @@
 import type { Battle } from './Battle';
-import type { Card } from './Card';
+import type { Card, CardEffect } from './Card';
 import type { Driver } from './Driver';
 import { FlankState, Vehicle, floorSpeed, statusSpeedModifier } from './Vehicle';
 import { TeamType } from './TeamType';
@@ -21,7 +21,7 @@ import {
 	slotRange,
 	swerveSlot
 } from './Road';
-import { EffectRecipient, effectRecipientOf, effectRecipients, rollsToHit } from './EffectTargets';
+import { EffectRecipient, effectRecipientOf, effectRecipients, isCasterAction, rollsToHit } from './EffectTargets';
 import { ESCORT_CONFIGS } from './Escort';
 import { MoveSpec, casterMoveOf, moveSpecOf, movesOf, picksSlot } from './Movement';
 
@@ -264,7 +264,8 @@ export class BoardProjection {
 		}
 
 		if (cardFlanks(card)) {
-			const flankBlocker = this.flankBlocker(caster, target);
+			// Counting the card's own boost, which lands first (Overtake)
+			const flankBlocker = this.flankBlocker(caster, target, selfSpeedBonus(card));
 			if (flankBlocker) {
 				return `Cannot flank: ${flankBlocker}`;
 			}
@@ -760,10 +761,26 @@ export class BoardProjection {
 	 * Play a card on the projection: it leaves the hand, costs adrenaline,
 	 * and moves or changes speed as it would in the battle, each effect on
 	 * the recipients the battle would pick. Hit checks are deterministic, so
-	 * a status that would miss doesn't land here either. `destination` is the
-	 * slot picked for a move that picks one (Juke, Bootlegger Turn).
+	 * a status that would miss doesn't land here either, and an `on_hit`
+	 * effect (Shoulder Check's shove) happens only if an earlier effect
+	 * landed on someone else, as Battle.applyCardEffects has it.
+	 * `destination` is the slot picked for a move that picks one (Juke,
+	 * Bootlegger Turn). `actor` is whoever acts, when that isn't the
+	 * driver's own vehicle: the escort carrying out an attack order.
 	 */
-	public apply({ card, driver, target, destination = null }: { card: Card; driver: Driver; target: Vehicle | null; destination?: RoadSlot | null }): void {
+	public apply({
+		card,
+		driver,
+		target,
+		destination = null,
+		actor
+	}: {
+		card: Card;
+		driver: Driver;
+		target: Vehicle | null;
+		destination?: RoadSlot | null;
+		actor?: Vehicle;
+	}): void {
 		const hand = this.hands.get(driver);
 		const index = hand ? hand.indexOf(card) : -1;
 		if (!hand || index === -1) {
@@ -772,30 +789,15 @@ export class BoardProjection {
 		hand.splice(index, 1);
 		this.adrenaline.set(driver, this.adrenalineOf(driver) - card.cost);
 
-		const caster = this.vehicleOf(driver);
+		const caster = actor ?? this.vehicleOf(driver);
+		const enemies = caster ? this.enemiesOf(caster) : [];
+		let landed = false;
 		for (const effect of card.effects) {
+			if (effect.on_hit && !landed) continue;
 			switch (effect.type) {
 				case 'change_position': {
 					// A failed move cancels the rest of the card, as it does in the battle
 					if (!this.applyMove({ move: moveSpecOf(effect), caster, target, destination })) return;
-					break;
-				}
-				case 'apply_status':
-				case 'status': {
-					const status = effect.status;
-					if (!status) break;
-					const enemies = caster ? this.enemiesOf(caster) : [];
-					const onCaster = effectRecipientOf({ effect, card }) === EffectRecipient.CASTER;
-					const rolls = rollsToHit({ effect, card });
-					for (const recipient of effectRecipients({ effect, card, caster, target, enemies })) {
-						if (!onCaster && recipient.isOutOfFight) continue;
-						if (effect.condition === 'target_flanking' && !this.isFlanking(recipient)) continue;
-						if (rolls && !this.battle.checkHit({ attacker: caster, caster: driver, defender: recipient })) continue;
-						const state = this.vehicles.get(recipient);
-						if (state) {
-							state.speedSum += recipient.speedChange(statusSpeedModifier({ name: status, duration: 1, value: effect.value }));
-						}
-					}
 					break;
 				}
 				case 'gain_resource':
@@ -803,8 +805,57 @@ export class BoardProjection {
 					if (effect.type === 'gain_resource' && effect.resource !== 'adrenaline') break;
 					this.adrenaline.set(driver, Math.min(driver.maxAdrenaline, this.adrenalineOf(driver) + (effect.value ?? 0)));
 					break;
+				default:
+					if (isCasterAction(effect)) break;
+					if (this.applyLanding({ card, effect, driver, caster, target, enemies })) landed = true;
 			}
 		}
+	}
+
+	/**
+	 * One effect that lands on vehicles, on the projection: a speed status
+	 * changes the recipient's speed, and nothing else changes here. True
+	 * when it took hold on someone other than the caster, by the checks
+	 * Battle.applyEffect makes: in range for damage, past the hit check
+	 * unless it always hits, a flanker for target_flanking, never a Steady
+	 * raider for a stun.
+	 */
+	private applyLanding({ card, effect, driver, caster, target, enemies }: {
+		card: Card;
+		effect: CardEffect;
+		driver: Driver;
+		caster: Vehicle | null;
+		target: Vehicle | null;
+		enemies: readonly Vehicle[];
+	}): boolean {
+		const onCaster = effectRecipientOf({ effect, card }) === EffectRecipient.CASTER;
+		const isStatus = effect.type === 'apply_status' || effect.type === 'status';
+		const casterSlot = caster ? this.slotOf(caster) : null;
+		let landed = false;
+		for (const recipient of effectRecipients({ effect, card, caster, target, enemies })) {
+			if (!onCaster && recipient.isOutOfFight) continue;
+			if (isStatus) {
+				if (effect.condition === 'target_flanking' && !this.isFlanking(recipient)) continue;
+				if (effect.status === 'stunned' && recipient.isSteady) continue;
+				if (rollsToHit({ effect, card }) && !this.battle.checkHit({ attacker: caster, caster: driver, defender: recipient })) continue;
+				const state = this.vehicles.get(recipient);
+				if (state && effect.status) {
+					state.speedSum += recipient.speedChange(statusSpeedModifier({ name: effect.status, duration: 1, value: effect.value }));
+				}
+			} else if (effect.type === 'damage' && !onCaster) {
+				const recipientSlot = this.slotOf(recipient);
+				if (typeof effect.range === 'number' && casterSlot && recipientSlot && slotRange(casterSlot, recipientSlot) > effect.range) continue;
+				if (rollsToHit({ effect, card }) && !this.battle.checkHit({
+					attacker: caster,
+					caster: driver,
+					defender: recipient,
+					attackType: typeof effect.attack_type === 'string' ? effect.attack_type : effect.scaling === 'ramming' ? 'ramming' : 'ranged',
+					modifier: typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0
+				})) continue;
+			}
+			if (!onCaster) landed = true;
+		}
+		return landed;
 	}
 
 	/**

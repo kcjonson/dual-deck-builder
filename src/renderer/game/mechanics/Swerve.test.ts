@@ -1,6 +1,6 @@
 import { Battle } from './Battle';
 import { BoardProjection } from './BoardProjection';
-import { Card, CardEffect, TargetType } from './Card';
+import { Card, CardData, CardEffect, TargetType } from './Card';
 import { Driver } from './Driver';
 import { createEscort } from './Escort';
 import { moveSpecOf } from './Movement';
@@ -9,8 +9,16 @@ import { Team, TeamType } from './Team';
 import { Vehicle } from './Vehicle';
 import { buildPlayerHandView } from '../screens/combat/PlayerHandView';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
+import cardsFile from '../data/cards.json';
 
-const slot = (lane: RoadLane, row: RoadRow): RoadSlot => ({ lane, row });
+/** A fresh copy of a card as cards.json has it */
+const realCard = (type: string): Card => {
+	const data = (cardsFile as unknown as { cards: CardData[] }).cards.find(candidate => candidate.type === type);
+	if (!data) throw new Error(`No card ${type} in cards.json`);
+	return new Card({ ...data });
+};
+
+const slot =(lane: RoadLane, row: RoadRow): RoadSlot => ({ lane, row });
 const { PLAYER_SHOULDER, PLAYER_OUTSIDE, PLAYER_INSIDE, ENEMY_INSIDE, ENEMY_OUTSIDE, ENEMY_SHOULDER } = RoadLane;
 const { AHEAD, CENTER, BEHIND } = RoadRow;
 
@@ -341,14 +349,80 @@ describe('Swerving', () => {
 			expect(battle.getTargetBlocker({ driver: driverOf(bike), card: shove(), target: buggy })).toBe('Buggy is flanking and can\'t swerve');
 		});
 
+		test.each([
+			['a flanker', { reservedSlot: slot(ENEMY_INSIDE, CENTER), outran: null }],
+			['an ambusher', { reservedSlot: null, outran: null }]
+		])('an optional shove on %s plays the rest of the card and moves nobody (call 293)', (_, flankState) => {
+			play(battle, rig, laneChange());
+			buggy.set({ slot: slot(PLAYER_SHOULDER, CENTER), flank: { ...flankState, outran: flankState.outran ?? rig } });
+
+			expect(battle.getTargetBlocker({ driver: driverOf(rig), card: layOnTheHorn(), target: buggy })).toBeNull();
+			expect(play(battle, rig, layOnTheHorn(), { target: buggy })).toBe(true);
+			expect(buggy.slot).toEqual(slot(PLAYER_SHOULDER, CENTER));
+			expect(buggy.hasStatusEffect('speed_reduction')).toBe(true);
+		});
+
+		test('Formation Shift plays while its caster flanks, switching its reservation, and wrecks switch with their rows (call 291)', () => {
+			const outrider = createEscort({ type: 'outrider' });
+			const hauler = createEscort({ type: 'fuel_hauler' });
+			battle = createBattle([rig, bike, outrider, hauler], [buggy]);
+			play(battle, bike, flank(), { target: buggy });
+			outrider.structure = 0;
+
+			expect(blocker(battle, bike, formationShift())).toBeNull();
+			expect(play(battle, bike, formationShift())).toBe(true);
+			expect(bike.slot).toEqual(slot(ENEMY_SHOULDER, CENTER));
+			expect(bike.flank?.reservedSlot).toEqual(slot(PLAYER_OUTSIDE, BEHIND));
+			expect(outrider.slot).toEqual(slot(PLAYER_OUTSIDE, AHEAD));
+			expect(rig.slot).toEqual(slot(PLAYER_OUTSIDE, CENTER));
+			expect(hauler.slot).toEqual(slot(PLAYER_INSIDE, CENTER));
+		});
+
+		test('Formation Shift counts as a swerve this turn for everyone it moves', () => {
+			const hauler = createEscort({ type: 'fuel_hauler' });
+			battle = createBattle([rig, bike, hauler], [buggy]);
+			play(battle, rig, formationShift());
+			expect(battle.swervedThisTurn(rig)).toBe(true);
+			expect(battle.swervedThisTurn(bike)).toBe(true);
+			expect(battle.swervedThisTurn(hauler)).toBe(true);
+			expect(battle.swervedThisTurn(buggy)).toBe(false);
+		});
+
 		test('Shoulder Check shoves its target a picked row ahead or behind, on a hit', () => {
 			expect(battle.getDestinationBlocker({ driver: driverOf(rig), card: shoulderCheck(), target: buggy, destination: slot(ENEMY_OUTSIDE, CENTER) }))
 				.toBe('enemy outside, center is not a row ahead of or behind Buggy');
 			expect(battle.moveDestinations({ driver: driverOf(rig), card: shoulderCheck(), target: buggy }))
 				.toEqual([slot(ENEMY_INSIDE, AHEAD), slot(ENEMY_INSIDE, BEHIND)]);
 
+			expect(battle.needsDestination({ driver: driverOf(rig), card: shoulderCheck(), target: buggy })).toBe(true);
+			expect(play(battle, rig, shoulderCheck(), { target: buggy })).toBe(false);
 			expect(play(battle, rig, shoulderCheck(), { target: buggy, destination: slot(ENEMY_INSIDE, AHEAD) })).toBe(true);
 			expect(buggy.slot).toEqual(slot(ENEMY_INSIDE, AHEAD));
+		});
+
+		test('Shoulder Check on a flanker needs no slot, still hits, and shoves nobody (call 293)', () => {
+			play(battle, rig, laneChange());
+			buggy.set({ slot: slot(PLAYER_SHOULDER, CENTER), flank: { reservedSlot: slot(ENEMY_INSIDE, CENTER), outran: rig } });
+			const driver = driverOf(rig);
+
+			expect(battle.needsDestination({ driver, card: shoulderCheck(), target: buggy })).toBe(false);
+			expect(play(battle, rig, shoulderCheck(), { target: buggy, destination: slot(PLAYER_SHOULDER, AHEAD) })).toBe(false);
+			expect(play(battle, rig, shoulderCheck(), { target: buggy })).toBe(true);
+			expect(buggy.slot).toEqual(slot(PLAYER_SHOULDER, CENTER));
+			expect(battle.getMessages().some(message => message.type === 'hit' && message.message.startsWith('Shoulder Check hits Buggy'))).toBe(true);
+		});
+
+		test('Shoulder Check on a raider boxed in ahead and behind needs no slot and still hits', () => {
+			const ahead = createVehicle('Ahead', 3, slot(ENEMY_INSIDE, AHEAD));
+			const behind = createVehicle('Behind', 3, slot(ENEMY_INSIDE, BEHIND));
+			const boxed = createVehicle('Boxed', 3, slot(ENEMY_INSIDE, CENTER));
+			const shover = createVehicle('Rig', 1);
+			battle = createBattle([shover, createVehicle('Bike', 5)], [ahead, behind, boxed]);
+
+			expect(battle.needsDestination({ driver: driverOf(shover), card: shoulderCheck(), target: boxed })).toBe(false);
+			expect(play(battle, shover, shoulderCheck(), { target: boxed })).toBe(true);
+			expect(boxed.slot).toEqual(slot(ENEMY_INSIDE, CENTER));
+			expect(battle.getMessages().some(message => message.type === 'hit' && message.message.startsWith('Shoulder Check hits Boxed'))).toBe(true);
 		});
 
 		test('a drop-back puts a flanker back in its reserved slot: Peel Off for yours, Brake Check for a raider', () => {
@@ -419,6 +493,124 @@ describe('Swerving', () => {
 			// Nothing has moved yet
 			expect(battle.getIntents(buggy)).toHaveLength(1);
 			expect(rig.slot).toEqual(slot(PLAYER_INSIDE, CENTER));
+		});
+
+		test.each([
+			['hits', 5, 0],
+			['misses', 1, 1]
+		])('lands an on_hit shove only when the attack before it %s', (_, ramming, intents) => {
+			driverOf(buggy).set({ hand: [pointBlank()], adrenaline: 5 });
+			battle.planEnemyTurn();
+			const driver = driverOf(rig);
+			driver.set({ skills: { ...driver.skills, ramming } });
+			const aimed = shoulderCheck();
+			driver.set({ hand: [aimed], adrenaline: 5 });
+
+			// Shoved ahead, the Buggy is out of Point Blank's range of the Rig
+			const preview = { driver, card: aimed, target: buggy, destination: slot(ENEMY_INSIDE, AHEAD) };
+			expect(battle.getAllIntents({ preview }).get(buggy) ?? []).toHaveLength(intents);
+		});
+
+		test('lands an attack order\'s move on the escort carrying it out, not the caster', () => {
+			const outrider = createEscort({ type: 'outrider' });
+			battle = createBattle([rig, bike, outrider], [buggy]);
+			const driver = driverOf(bike);
+			const runAhead = realCard('run_ahead');
+			driver.set({ hand: [runAhead], adrenaline: 5 });
+
+			const board = battle.projectEnemyTurnStart({ preview: { driver, card: runAhead, target: buggy } });
+			expect(board.isFlanking(outrider)).toBe(true);
+			expect(board.isFlanking(bike)).toBe(false);
+		});
+	});
+
+	describe('a planned raider move that goes stale', () => {
+		// The Rig ahead, so a raider swerving ahead lines up a Range 1 shot at it
+		let blocking: Vehicle;
+
+		beforeEach(() => {
+			rig = createVehicle('Rig', 1, slot(PLAYER_INSIDE, AHEAD));
+			bike = createVehicle('Bike', 5);
+			buggy = createVehicle('Buggy', 3);
+			blocking = createVehicle('Blocker', 3, slot(ENEMY_OUTSIDE, AHEAD));
+			battle = createBattle([rig, bike], [buggy, blocking]);
+		});
+
+		const planFor = (raider: Vehicle, played: Card, target: Vehicle, destination?: RoadSlot): void => {
+			driverOf(raider).set({ hand: [played], adrenaline: 5 });
+			jest.spyOn(battle.aiController, 'planEnemyTurn').mockReturnValueOnce(new Map([[raider, [{
+				card: played,
+				driver: driverOf(raider),
+				target,
+				slot: raider.slot,
+				flanking: false,
+				speed: raider.speed,
+				...(destination ? { destination } : {})
+			}]]]));
+			battle.planEnemyTurn();
+		};
+
+		test('fizzles when its picked slot is taken before it plays, and the preview drops it', () => {
+			planFor(buggy, strafe(), rig, slot(ENEMY_INSIDE, AHEAD));
+			expect(battle.getIntents(buggy)).toHaveLength(1);
+
+			// Shoved there, say
+			blocking.set({ slot: slot(ENEMY_INSIDE, AHEAD) });
+			expect(battle.getIntents(buggy)).toEqual([]);
+
+			battle.endPlayerTurn();
+			expect(battle.getMessages().some(message => message.type === 'fizzle' &&
+				message.message === "Buggy's Strafe fizzles: enemy inside, ahead is taken by Blocker")).toBe(true);
+			expect(rig.structure).toBe(20);
+		});
+
+		test('fizzles when its fixed slot is taken, rather than reaching from where it stands', () => {
+			// Range 1 from the Buggy's own slot to the Rig in the center row, 2 from the row ahead
+			rig.set({ slot: slot(PLAYER_INSIDE, CENTER) });
+			bike.set({ slot: slot(PLAYER_INSIDE, BEHIND) });
+			const lunge = card('Lunge', 'enemy_single', [
+				{ type: 'change_position', position: 'swerve', to: 'ahead', target: 'self' },
+				{ type: 'damage', value: 4, range: 2, target: 'target', always_hits: true }
+			], ['attack']);
+			planFor(buggy, lunge, rig);
+			expect(battle.getIntents(buggy)).toHaveLength(1);
+
+			blocking.set({ slot: slot(ENEMY_INSIDE, AHEAD) });
+			expect(battle.getIntents(buggy)).toEqual([]);
+
+			battle.endPlayerTurn();
+			expect(battle.getMessages().some(message => message.type === 'fizzle' &&
+				message.message === "Buggy's Lunge fizzles: enemy inside, ahead is taken by Blocker")).toBe(true);
+			expect(rig.structure).toBe(20);
+		});
+	});
+
+	describe('a flank card with its own boost (Overtake)', () => {
+		const overtake = () => card('Overtake', 'enemy_single', [
+			{ type: 'apply_status', status: 'speed_boost', value: 2, duration: 2, target: 'self' },
+			{ type: 'change_position', position: 'flanking', target: 'self' }
+		]);
+
+		test('can target a raider only the boost outruns', () => {
+			// Rig 3 against 4: only +2 gets it past
+			const slow = createVehicle('Slow', 2);
+			battle = createBattle([rig, bike], [slow]);
+			expect(battle.getTargetBlocker({ driver: driverOf(rig), card: overtake(), target: slow })).toBeNull();
+			expect(play(battle, rig, overtake(), { target: slow })).toBe(true);
+			expect(rig.isFlanking).toBe(true);
+		});
+
+		test('a raider plans it and plays it the same way', () => {
+			// Raider 4 against a Rig of 5: only +2 gets it past
+			const fastRig = createVehicle('Rig', 3);
+			const raider = createVehicle('Raider', 2);
+			battle = createBattle([fastRig, createVehicle('Bike', 5)], [raider]);
+			driverOf(raider).set({ hand: [overtake()], adrenaline: 5 });
+			battle.planEnemyTurn();
+
+			expect(battle.getIntents(raider)).toHaveLength(1);
+			battle.endPlayerTurn();
+			expect(raider.slot).toEqual(slot(PLAYER_SHOULDER, CENTER));
 		});
 	});
 
