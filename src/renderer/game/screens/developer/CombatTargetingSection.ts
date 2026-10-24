@@ -35,7 +35,7 @@ const EDGE_CHECK_WIDTH = 280;
 /** Headshot and Far Shoot reach two. */
 const REACH = 2;
 
-function vehicle(name: string, slot: RoadSlot, structure: [number, number], hp: [number, number]): Vehicle {
+export function targetingVehicle(name: string, slot: RoadSlot, structure: [number, number], hp: [number, number]): Vehicle {
 	return new Vehicle({
 		name,
 		structure: structure[0],
@@ -57,19 +57,23 @@ function vehicle(name: string, slot: RoadSlot, structure: [number, number], hp: 
  * and never up, its height following, as the combat stage scales the whole
  * screen.
  */
-class ScaledFrame extends Component {
+export class ScaledFrame extends Component {
 	private readonly content: Component;
+	private readonly frameWidth: number;
+	private readonly frameHeight: number;
 
-	constructor({ content, ...options }: ComponentOptions & { content: Component }) {
-		super({ ...options, height: FRAME_HEIGHT, pointerEvents: 'passthrough' });
+	constructor({ content, frameWidth = FRAME_WIDTH, frameHeight = FRAME_HEIGHT, ...options }: ComponentOptions & { content: Component; frameWidth?: number; frameHeight?: number }) {
+		super({ ...options, height: frameHeight, pointerEvents: 'passthrough' });
 		this.content = content;
+		this.frameWidth = frameWidth;
+		this.frameHeight = frameHeight;
 		this.addChild(content);
 	}
 
 	protected onResized(): void {
-		const scale = Math.min(1, this.width / FRAME_WIDTH);
+		const scale = Math.min(1, this.width / this.frameWidth);
 		this.content.transform = { scale, origin: [0, 0] };
-		const height = Math.ceil(FRAME_HEIGHT * scale);
+		const height = Math.ceil(this.frameHeight * scale);
 		if (height !== this.height) this.setSize(this.width, height);
 	}
 }
@@ -94,14 +98,14 @@ export class CombatTargetingSection extends CatalogSection {
 		const model = new CombatModel();
 		const road = new RoadView({ id: 'dev_targeting_road', x: ROAD_X, width: ROAD_WIDTH, height: ROAD_HEIGHT, combatData: model, seatOf: (driver) => seats.get(driver) ?? null });
 
-		const rig = vehicle('Apocalypse Rig', { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.CENTER }, [40, 40], [30, 30]);
-		const bike = vehicle('Lightning Bike', { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.BEHIND }, [25, 25], [24, 24]);
+		const rig = targetingVehicle('Apocalypse Rig', { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.CENTER }, [40, 40], [30, 30]);
+		const bike = targetingVehicle('Lightning Bike', { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.BEHIND }, [25, 25], [24, 24]);
 		if (rig.driver) seats.set(rig.driver, 1);
 		if (bike.driver) seats.set(bike.driver, 2);
-		const buggy = vehicle('Rust Buggy', { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER }, [30, 30], [20, 20]);
-		const crawler = vehicle('Dust Crawler', { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.BEHIND }, [22, 25], [20, 20]);
-		const hauler = vehicle('Scrap Hauler', { lane: RoadLane.ENEMY_OUTSIDE, row: RoadRow.AHEAD }, [40, 40], [35, 35]);
-		const flanker = vehicle('Chain Hauler', { lane: RoadLane.PLAYER_SHOULDER, row: RoadRow.BEHIND }, [28, 30], [22, 22]);
+		const buggy = targetingVehicle('Rust Buggy', { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.CENTER }, [30, 30], [20, 20]);
+		const crawler = targetingVehicle('Dust Crawler', { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.BEHIND }, [22, 25], [20, 20]);
+		const hauler = targetingVehicle('Scrap Hauler', { lane: RoadLane.ENEMY_OUTSIDE, row: RoadRow.AHEAD }, [40, 40], [35, 35]);
+		const flanker = targetingVehicle('Chain Hauler', { lane: RoadLane.PLAYER_SHOULDER, row: RoadRow.BEHIND }, [28, 30], [22, 22]);
 		const raiders = [buggy, crawler, hauler, flanker];
 		road.showVehicles({ player: [rig, bike], enemy: raiders });
 		road.setVehicleIntents(buggy.id, [{ type: 'attack', value: 8, description: 'Ram', target: 'driver1' }]);
