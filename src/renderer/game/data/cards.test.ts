@@ -1,5 +1,6 @@
 import { Card, CardData, CardEffect } from '../mechanics/Card';
 import { EFFECT_TARGETS } from '../mechanics/EffectTargets';
+import { EFFECT_CONDITIONS } from '../mechanics/BoardProjection';
 import { moveSpecOf } from '../mechanics/Movement';
 import cardsFile from './cards.json';
 import { createMeasuringDrawApi } from '../../engine/text/testing';
@@ -148,6 +149,15 @@ describe('card data check', () => {
 	it.each(cards.map((data) => ({ label: data.type, effects: [...data.effects, ...upgradeEffects(data)] })))('$label effects each name a target the battle knows', ({ effects }) => {
 		for (const effect of effects.flatMap(leaves)) {
 			expect(EFFECT_TARGETS).toContain(effect.target);
+		}
+	});
+
+	// Every condition is one something reads, so a typo fails here, not as silently different targeting.
+	// A wrapper (conditional) has its own condition as well as the effect it wraps.
+	const withWrappers = (effect: CardEffect): CardEffect[] => [effect, ...(effect.effect ? withWrappers(effect.effect) : [])];
+	it.each(cards.map((data) => ({ label: data.type, effects: [...data.effects, ...upgradeEffects(data)] })))('$label conditions are ones the battle knows', ({ effects }) => {
+		for (const effect of effects.flatMap(withWrappers).filter((each) => each.condition !== undefined)) {
+			expect(EFFECT_CONDITIONS).toContain(effect.condition);
 		}
 	});
 

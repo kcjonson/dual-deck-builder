@@ -54,6 +54,32 @@ export function selfSpeedBonus(card: Card): number {
 }
 
 /**
+ * Every effect `condition` card data may use, and who reads it:
+ * targetConditionBlocker the target conditions, landingConditionHolds the
+ * landing ones, targetBlocker, getPlannedCardBlocker, and Battle.applyStatus
+ * Oil Slick's `target_flanking`. A `conditional` wrapper's condition
+ * (Coordinated Attack, Ramming Speed, Precision Shot) is listed so the data
+ * check knows it, though nothing resolves those wrappers yet. A name not
+ * here throws where it's read, and fails the card data check.
+ */
+export const EFFECT_CONDITIONS: readonly string[] = [
+	'target_in_formation',
+	'target_flanking_in_row',
+	'target_ambusher',
+	'driven_vehicles_within',
+	'target_flanking',
+	'partner_attacked',
+	'target_has_status',
+	'self_has_status'
+];
+
+function assertKnownCondition(condition: string): void {
+	if (!EFFECT_CONDITIONS.includes(condition)) {
+		throw new Error(`Effect condition "${condition}" is not one the battle knows`);
+	}
+}
+
+/**
  * Effects that land on one person aboard the target vehicle, the driver or
  * passenger the player picks (Triage, Top Off)
  */
@@ -310,12 +336,14 @@ export class BoardProjection {
 	 * or null: in its own formation (Lay on the Horn, which never shoves a
 	 * flanker or an ambusher), or flanking in the caster's row (Brake
 	 * Check). Targeting and a raider's planned card both ask it. Oil Slick's
-	 * `target_flanking` is checked beside it, as before.
+	 * `target_flanking` is checked beside it, as before. Throws on a
+	 * condition no one knows (EFFECT_CONDITIONS).
 	 */
 	public targetConditionBlocker({ card, caster, target }: { card: Card; caster: Vehicle; target: Vehicle }): string | null {
 		const targetState = this.vehicles.get(target);
 		const targetSlot = targetState?.slot ?? null;
 		for (const effect of card.effects) {
+			if (effect.condition === undefined) continue;
 			switch (effect.condition) {
 				case 'target_in_formation':
 					if (!targetState || !targetSlot || !isFormationLane(targetState.team, targetSlot.lane)) {
@@ -330,6 +358,8 @@ export class BoardProjection {
 						return `${target.name} is not in ${caster.name}'s row`;
 					}
 					break;
+				default:
+					assertKnownCondition(effect.condition);
 			}
 		}
 		return null;
@@ -341,9 +371,11 @@ export class BoardProjection {
 	 * (a flanker with a reserved slot dropped back instead), and every one of
 	 * the caster's driven vehicles within reach for Box In's Vulnerable. Play
 	 * asks it of a fresh projection, the live board; the projection asks its
-	 * own. Any other condition is checked where it was before.
+	 * own. Any other known condition is checked where it was before, and an
+	 * unknown one throws (EFFECT_CONDITIONS).
 	 */
 	public landingConditionHolds({ effect, caster, recipient }: { effect: CardEffect; caster: Vehicle | null; recipient: Vehicle }): boolean {
+		if (effect.condition === undefined) return true;
 		switch (effect.condition) {
 			case 'target_ambusher':
 				return this.isFlanking(recipient) && this.flankOf(recipient)?.reservedSlot === null;
@@ -352,6 +384,7 @@ export class BoardProjection {
 				return caster !== null && this.drivenVehiclesWithin({ caster, target: recipient, range: effect.within });
 			}
 			default:
+				assertKnownCondition(effect.condition);
 				return true;
 		}
 	}

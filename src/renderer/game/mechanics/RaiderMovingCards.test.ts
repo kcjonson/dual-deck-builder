@@ -1,5 +1,6 @@
 import { Battle } from './Battle';
 import { previewAim } from './AimPreview';
+import { BoardProjection } from './BoardProjection';
 import { Card, CardData } from './Card';
 import { Driver } from './Driver';
 import { RoadLane, RoadRow, RoadSlot } from './Road';
@@ -370,6 +371,31 @@ describe('Raider-moving cards', () => {
 				line: "Buggy's Point Blank fizzles: Rig is out of range (2 away, needs 1)"
 			});
 			expect(rig.structure).toBe(20);
+		});
+	});
+
+	describe('effect conditions', () => {
+		test('fail loud on a name the battle doesn\'t know, in targeting and as an effect lands', () => {
+			const typo = new Card({
+				type: 'typo',
+				name: 'Typo',
+				summary: 'Typo',
+				description: 'Typo',
+				rarity: 'common',
+				cost: 1,
+				targetType: 'enemy_single',
+				tags: [],
+				effects: [{ type: 'apply_status', status: 'vulnerable', duration: 1, range: 1, target: 'target', always_hits: true, condition: 'target_in_fromation' }]
+			});
+			const board = new BoardProjection({ battle });
+			expect(() => board.targetConditionBlocker({ card: typo, caster: rig, target: buggy })).toThrow('Effect condition "target_in_fromation" is not one the battle knows');
+			expect(() => board.landingConditionHolds({ effect: typo.effects[0], caster: rig, recipient: buggy })).toThrow('not one the battle knows');
+			expect(() => targetBlocker(battle, rig, typo, buggy)).toThrow('not one the battle knows');
+
+			// A known one read elsewhere passes through both
+			const oilSlick = realCard('oil_slick');
+			expect(board.targetConditionBlocker({ card: oilSlick, caster: rig, target: buggy })).toBeNull();
+			expect(board.landingConditionHolds({ effect: oilSlick.effects[0], caster: rig, recipient: buggy })).toBe(true);
 		});
 	});
 

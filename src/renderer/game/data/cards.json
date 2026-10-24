@@ -707,7 +707,7 @@
     {
       "type": "cut_off",
       "name": "Cut Off",
-      "summary": "[Swerve] ahead. Then a raider in reach: -{slow} Speed, [Vulnerable].",
+      "summary": "[Swerve] ahead. A raider at [Range 1]: -{slow} Speed, [Vulnerable].",
       "description": "Swerve one row ahead, then target a raider at Range 1 of your new slot: until the end of the next enemy turn it's Vulnerable and loses {slow} speed. Always hits. Unplayable while flanking or when the slot ahead isn't free.",
       "rarity": "uncommon",
       "cost": 2,
