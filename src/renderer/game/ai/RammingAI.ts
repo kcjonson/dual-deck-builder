@@ -8,7 +8,7 @@ import type { Driver } from '../mechanics/Driver';
 import { CardEffectValidator } from './CardEffectValidator';
 import { cardDamageKind, damageToFinish, lastingDamage } from './DamageEstimate';
 import { cardsKeptFromDraw } from './DrawEstimate';
-import { selfSpeedBonus } from '../mechanics/BoardProjection';
+import { cardFlanks, selfSpeedBonus } from '../mechanics/BoardProjection';
 
 /**
  * Ramming AI Strategy
@@ -265,7 +265,8 @@ export class RammingStrategy implements AIStrategy {
 			armor: 0,
 			speedBoost: selfSpeedBonus(card),
 			adrenalineGain: 0,
-			changesPosition: false,
+			// A flank; a swerve doesn't put a rammer alongside anyone
+			changesPosition: cardFlanks(card),
 			isRamming: false
 		};
 
@@ -300,9 +301,6 @@ export class RammingStrategy implements AIStrategy {
 					if (effect.resource === 'adrenaline') {
 						result.adrenalineGain += effect.value || 0;
 					}
-					break;
-				case 'change_position':
-					result.changesPosition = true;
 					break;
 			}
 		}

@@ -5,6 +5,8 @@ import { Driver } from '../mechanics/Driver';
 import { Card, TargetType } from '../mechanics/Card';
 import { BoardProjection } from '../mechanics/BoardProjection';
 import { preferredTargets } from '../mechanics/RaiderArchetype';
+import { pickedMoveOf } from '../mechanics/Movement';
+import type { RoadSlot } from '../mechanics/Road';
 import { AIDecision, GameStateEvaluation, TeamEvaluation, VehicleEvaluation } from './types';
 
 export abstract class AIPlayer {
@@ -74,11 +76,13 @@ export abstract class AIPlayer {
 	}
 
 	/**
-	 * Every play the team could make now, each card with each legal target,
-	 * then ending the turn. Each living occupant plays from the vehicle they
-	 * ride in, a passenger included, so a driver riding in an escort after
-	 * their wreck still plays their orders. A raider's plan is its driver's
-	 * alone, since the enemy turn plays it as theirs (planEnemyTurn).
+	 * Every play the team could make now, each card with each legal target
+	 * and, for a card whose move picks a slot (Juke, Strafe), each slot it
+	 * could pick from there, then ending the turn. Each living occupant
+	 * plays from the vehicle they ride in, a passenger included, so a driver
+	 * riding in an escort after their wreck still plays their orders. A
+	 * raider's plan is its driver's alone, since the enemy turn plays it as
+	 * theirs (planEnemyTurn).
 	 */
 	protected generatePossibleActions(): AIDecision[] {
 		const actions: AIDecision[] = [];
@@ -96,12 +100,16 @@ export abstract class AIPlayer {
 						continue;
 					}
 
-					if (validTargets.length > 0) {
-						for (const target of validTargets) {
-							actions.push({ type: 'playCard', card, driver, target });
+					for (const target of validTargets.length > 0 ? validTargets : [null]) {
+						for (const destination of this.destinationsFor({ card, caster: vehicle, target })) {
+							actions.push({
+								type: 'playCard',
+								card,
+								driver,
+								...(target ? { target } : {}),
+								...(destination ? { destination } : {})
+							});
 						}
-					} else {
-						actions.push({ type: 'playCard', card, driver });
 					}
 				}
 			}
@@ -110,6 +118,23 @@ export abstract class AIPlayer {
 		actions.push({ type: 'endTurn' });
 
 		return actions;
+	}
+
+	/**
+	 * The slots a card's picked move could go to on this board, from where
+	 * the target puts its range (Strafe reaches from the slot it picks), or
+	 * `[null]` for a card that picks none. An optional move with nowhere to
+	 * go plays without a slot (call 293); any other with nowhere has none.
+	 */
+	protected destinationsFor({ card, caster, target }: { card: Card; caster: Vehicle; target: Vehicle | null }): (RoadSlot | null)[] {
+		const move = pickedMoveOf(card);
+		if (!move) return [null];
+		const mover = move.mover === 'target' ? target : caster;
+		const slots = mover ? this.board.moveDestinations({ move, mover }) : [];
+		const legal = target
+			? slots.filter(destination => this.board.targetBlocker({ card, caster, target, destination }) === null)
+			: slots;
+		return legal.length === 0 && move.optional ? [null] : legal;
 	}
 
 	/**

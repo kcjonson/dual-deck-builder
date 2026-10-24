@@ -5,11 +5,12 @@ import { Team } from '../mechanics/Team';
 import { Vehicle, statusSpeedModifier } from '../mechanics/Vehicle';
 import { Driver } from '../mechanics/Driver';
 import { Card, CardEffect } from '../mechanics/Card';
-import { laneKind } from '../mechanics/Road';
+import { RoadSlot, laneKind } from '../mechanics/Road';
 import { DamageKind, damageToFinish, effectDamageKind } from './DamageEstimate';
 import { cardsKeptFromDraw } from './DrawEstimate';
 import { EffectRecipient, effectRecipientOf } from '../mechanics/EffectTargets';
 import { cardFlanks, selfSpeedBonus } from '../mechanics/BoardProjection';
+import { swerveReach, swerveScore } from './SwerveEstimate';
 
 /**
  * Monte Carlo Tree Search AI Player
@@ -204,7 +205,7 @@ export class MCTSAI extends AIPlayer {
 			
 			const actor = this.actorOf({ card, target: action.target, ourVehicle });
 			const keptCards = cardsKeptFromDraw({ board: this.board, card, player: driver });
-			let score = this.evaluateMovement(card, actor) + this.CARD_DRAW_WEIGHT * keptCards;
+			let score = this.evaluateMovement({ card, actor, driver, destination: action.destination ?? null }) + this.CARD_DRAW_WEIGHT * keptCards;
 			
 			// Evaluate card effects with context
 			if (card.effects) {
@@ -464,13 +465,20 @@ export class MCTSAI extends AIPlayer {
 	}
 	
 	/**
-	 * The card's flank and its speed boost for whoever acts, scored once for
-	 * the whole card. A card that flanks is worth the flank weight when its
-	 * boost (Run Ahead) or the actor's own speed lets it outrun someone, and
-	 * nothing otherwise; the boost counts only through the flank. A boost
-	 * alone (Nitro Boost) is worth most when it's what opens a flank.
+	 * The card's flank, swerve, and speed boost for whoever acts, scored once
+	 * for the whole card. A card that flanks is worth the flank weight when
+	 * its boost (Run Ahead) or the actor's own speed lets it outrun someone,
+	 * and nothing otherwise; the boost counts only through the flank. A
+	 * swerve is worth the damage it puts in range for the rest of the hand,
+	 * and waits while it would take some out (swerveScore). A boost alone
+	 * (Nitro Boost, Floor It) is worth most when it's what opens a flank.
 	 */
-	private evaluateMovement(card: Card, actor: Vehicle | null): number {
+	private evaluateMovement({ card, actor, driver, destination }: {
+		card: Card;
+		actor: Vehicle | null;
+		driver: Driver;
+		destination: RoadSlot | null;
+	}): number {
 		if (!actor) {
 			return 0;
 		}
@@ -478,7 +486,8 @@ export class MCTSAI extends AIPlayer {
 		if (cardFlanks(card)) {
 			return !this.board.isFlanking(actor) && this.board.canFlankAnyone(actor, speedBonus) ? this.FLANK_WEIGHT : 0;
 		}
-		return speedBonus > 0 ? this.evaluateSpeedBoost(speedBonus, actor) : 0;
+		const swerve = swerveScore(swerveReach({ board: this.board, card, driver, caster: actor, destination }), this.DAMAGE_WEIGHT);
+		return swerve + (speedBonus > 0 ? this.evaluateSpeedBoost(speedBonus, actor) : 0);
 	}
 
 	/**

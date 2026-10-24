@@ -115,6 +115,14 @@ const SWERVE_WORDS: Record<SwerveDirection, string> = {
 	behind: 'behind'
 };
 
+/** A fixed swerve's slot relative to its mover, as the log says a stale one (call 289) */
+const PLANNED_SWERVE_WORDS: Record<SwerveDirection, string> = {
+	other_lane: 'beside',
+	outside: 'outside',
+	ahead: 'ahead of',
+	behind: 'behind'
+};
+
 /**
  * A scratch copy of what a turn's plan can change on the road: every
  * vehicle's slot, flank state, and speed, plus each driver's hand and
@@ -739,6 +747,42 @@ export class BoardProjection {
 		if (this.isFlanking(mover)) return `${mover.name} is flanking and can't swerve`;
 		if (destination && picksSlot(move)) return this.destinationBlocker({ move, mover, destination });
 		return this.moveDestinations({ move, mover }).length > 0 ? null : this.nowhereReason({ move, mover });
+	}
+
+	/**
+	 * Why a raider's planned card can't make its moves as planned, or null
+	 * if it can. Its own swerve or move named its destination when planned
+	 * (call 289): a picked one has to be a slot it could still pick, and a
+	 * fixed one (Lane Change, Floor It) has to be where that direction still
+	 * goes, so a raider shoved since the plan fizzles rather than swerving
+	 * somewhere the player never saw outlined (call 330). Everything else is
+	 * moveBlocker's.
+	 */
+	public plannedMoveBlocker({
+		card,
+		caster,
+		target = null,
+		destination = null
+	}: {
+		card: Card;
+		caster: Vehicle;
+		target?: Vehicle | null;
+		destination?: RoadSlot | null;
+	}): string | null {
+		const move = card.isOrder ? null : casterMoveOf(card);
+		// picksSlot's guard would narrow a fixed move away, so its test is spelled out
+		if (move && destination && !move.optional && move.to !== 'pick' && move.to !== 'pick_row') {
+			const blocker = this.slotMoveBlocker({ mover: caster, destination, step: move.kind === 'swerve' });
+			if (blocker) return blocker;
+			const [slot = null] = this.moveDestinations({ move, mover: caster });
+			if (!sameSlot(slot, destination)) {
+				const where = move.kind === 'swerve'
+					? `${PLANNED_SWERVE_WORDS[move.to]} ${caster.name}`
+					: `where ${card.name} takes ${caster.name}`;
+				return `${describeSlot(destination)} is no longer ${where}`;
+			}
+		}
+		return this.moveBlocker({ card, caster, target, destination });
 	}
 
 	/**

@@ -12,6 +12,10 @@ import { FirstPlayableAI } from './FirstPlayableAI';
 import { IntentAwareAI } from './IntentAwareAI';
 import { AIDecision } from './types';
 import type { Rng } from '../core/Rng';
+import type { BoardProjection } from '../mechanics/BoardProjection';
+import type { Card } from '../mechanics/Card';
+import type { RoadSlot } from '../mechanics/Road';
+import { casterMoveOf, picksSlot } from '../mechanics/Movement';
 
 export type AIType = 'random' | 'aggressive' | 'intent' | 'defensive' | 'balanced' | 'mcts' | 'salvage' | 'ramming';
 
@@ -110,7 +114,7 @@ export class AIController {
 					break;
 				}
 				const target = decision.target instanceof Vehicle ? decision.target : null;
-				const destination = decision.destination ?? null;
+				const destination = AIController.plannedDestination({ board, raider, card, picked: decision.destination ?? null });
 				actions.push({
 					card,
 					driver,
@@ -128,6 +132,29 @@ export class AIController {
 		}
 
 		return plans;
+	}
+
+	/**
+	 * Where a planned card's own swerve or move takes the raider, which the
+	 * plan names (call 289) and the road outlines (call 288): the slot the
+	 * AI picked, or for a fixed direction (Lane Change, Floor It) the slot it
+	 * goes to on the board as planned. Null for a card that doesn't move the
+	 * raider. A picked move the AI left without a slot is a bug in the AI.
+	 */
+	private static plannedDestination({ board, raider, card, picked }: {
+		board: BoardProjection;
+		raider: Vehicle;
+		card: Card;
+		picked: RoadSlot | null;
+	}): RoadSlot | null {
+		if (picked) return picked;
+		const move = card.isOrder ? null : casterMoveOf(card);
+		if (!move) return null;
+		const [slot = null] = board.moveDestinations({ move, mover: raider });
+		if (picksSlot(move) && (!move.optional || slot)) {
+			throw new Error(`${raider.name} planned ${card.name} without picking the slot its move goes to`);
+		}
+		return picksSlot(move) ? null : slot;
 	}
 
 	isPlayerControlledByAI(): boolean {
