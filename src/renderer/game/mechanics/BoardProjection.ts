@@ -98,6 +98,8 @@ interface ProjectedVehicle {
 	swerved: boolean;
 	/** Can't flank (Vehicle.isBoxedIn), or a Box In applied to this projection since */
 	boxedIn: boolean;
+	/** Vulnerable now, or made so on this projection since (a raider's Cut Off), for the hits after it */
+	vulnerable: boolean;
 }
 
 /** Where a vehicle ends up after a move: its slot and its flank state (a flanker's reservation) */
@@ -151,7 +153,8 @@ export class BoardProjection {
 					evadeBoost: vehicle.evadeBoost,
 					speedSum: vehicle.speedSum,
 					swerved: battle.swervedThisTurn(vehicle),
-					boxedIn: vehicle.isBoxedIn
+					boxedIn: vehicle.isBoxedIn,
+					vulnerable: vehicle.hasStatusEffect('vulnerable')
 				});
 				for (const driver of [vehicle.driver, vehicle.passenger]) {
 					if (!driver) continue;
@@ -210,6 +213,11 @@ export class BoardProjection {
 	/** Whether the vehicle can't flank (Box In), on this board */
 	public isBoxedIn(vehicle: Vehicle): boolean {
 		return this.vehicles.get(vehicle)?.boxedIn ?? false;
+	}
+
+	/** Whether hits on the vehicle deal half again (Vulnerable), on this board */
+	public isVulnerable(vehicle: Vehicle): boolean {
+		return this.vehicles.get(vehicle)?.vulnerable ?? vehicle.hasStatusEffect('vulnerable');
 	}
 
 	/**
@@ -1012,8 +1020,9 @@ export class BoardProjection {
 
 	/**
 	 * One effect that lands on vehicles, on the projection: a speed status
-	 * changes the recipient's speed, Box In's stops it flanking, and nothing
-	 * else changes here. True when it took hold on someone other than the
+	 * changes the recipient's speed, an Evade its evade, Box In's stops it
+	 * flanking, Vulnerable marks it for the hits after, and nothing else
+	 * changes here. True when it took hold on someone other than the
 	 * caster, by the checks Battle.applyEffect makes: in range for damage,
 	 * past the hit check unless it always hits, a flanker for
 	 * target_flanking, never a Steady raider for a stun, and its landing
@@ -1045,6 +1054,7 @@ export class BoardProjection {
 					state.speedSum += recipient.speedChange(statusSpeedModifier(status));
 					state.evadeBoost += statusEvadeModifier(status);
 					if (effect.status === BOXED_IN) state.boxedIn = true;
+					if (effect.status === 'vulnerable') state.vulnerable = true;
 				}
 			} else if (effect.type === 'damage' && !onCaster) {
 				const recipientSlot = this.slotOf(recipient);

@@ -135,8 +135,8 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 					// Bonus for attacking low health targets
 					damageScore *= (2 - targetEval.healthPercent);
 					
-					// Bonus for attacking vulnerable targets
-					if (damageTarget.hasStatusEffect('vulnerable')) {
+					// Bonus for attacking vulnerable targets, a mark an earlier raider's Cut Off left on the planning board included
+					if (board.isVulnerable(damageTarget)) {
 						damageScore *= this.VULNERABLE_BONUS;
 					}
 
@@ -144,7 +144,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 					const potentialDamage = this.calculatePotentialDamage(
 						cardEffects.damage, 
 						ourVehicle.isFlanking,
-						damageTarget.hasStatusEffect('vulnerable')
+						board.isVulnerable(damageTarget)
 					);
 					
 					if (potentialDamage >= damageToFinish({ target: damageTarget, kind: damageKind })) {

@@ -16,7 +16,9 @@ const VULNERABLE_SHARE = 0.5;
  * Vulnerable lasts into the enemy turn at most, where the target's side
  * doesn't hit it, so the rest of the turn is all it sets up; raiders
  * planned after this one gain from it too, which this leaves out. Zero
- * for a target already Vulnerable or a card that doesn't make it so.
+ * for a target already Vulnerable on the board, or a card whose
+ * Vulnerable wouldn't land (a miss, or Box In without both your vehicles
+ * in reach). Either side's AI can use it.
  */
 export function vulnerableSetup({ board, card, driver, caster, target, destination = null }: {
 	board: BoardProjection;
@@ -26,10 +28,11 @@ export function vulnerableSetup({ board, card, driver, caster, target, destinati
 	target: Vehicle;
 	destination?: RoadSlot | null;
 }): number {
-	if (target.hasStatusEffect('vulnerable')) return 0;
+	if (board.isVulnerable(target)) return 0;
 	const marks = card.effects.some(effect =>
 		effect.type === 'apply_status' && effect.status === 'vulnerable' &&
 		effectRecipientOf({ effect, card }) === EffectRecipient.TARGET &&
+		board.landingConditionHolds({ effect, caster, recipient: target }) &&
 		board.effectHits({ effect, card, driver, caster, recipient: target }));
 	const [from = null] = board.landingSlots({ card, caster, destination });
 	const targetSlot = board.slotOf(target);
