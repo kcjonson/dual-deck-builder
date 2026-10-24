@@ -635,7 +635,7 @@ export class RoadView extends Component {
 		for (const outline of this.slotOutlines) {
 			if (outline.points.length > 0) draw.drawPolygon(outline);
 		}
-		this.plannedMoves.draw(draw);
+		this.plannedMoves.draw(draw, this.slotTargets.size > 0);
 		for (const strip of this.headerStrip) draw.drawRect(strip);
 	}
 }

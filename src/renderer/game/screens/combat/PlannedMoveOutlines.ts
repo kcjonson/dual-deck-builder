@@ -1,6 +1,7 @@
 import { drawIcon, DrawIconOptions } from '../../../engine/components/Icon';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 import type { DrawRectOptions } from '../../../engine/draw/commands';
+import type { RGBA } from '../../../engine/draw/geometry';
 import { RoadSlot, sameSlot } from '../../mechanics/Road';
 import { SWERVE_ICON } from '../../ui/IntentPill';
 import { RoadLayout, roadSlotRect } from './CombatLayout';
@@ -16,17 +17,26 @@ const RAIDER_RED = '#d4513f';
 const BORDER_COLOR = hexRgba(RAIDER_RED, 0.8);
 const FILL_COLOR = hexRgba(RAIDER_RED, 0.08);
 const ICON_COLOR = hexRgba(RAIDER_RED, 0.6);
+/**
+ * While a card waits for its slot, the road's slot targets are drawn over
+ * these in the raiders' red too, and a hovered one is solid; the outlines
+ * recede to a faint border and icon so none reads as a chosen target.
+ */
+const RECEDED_BORDER_COLOR = hexRgba(RAIDER_RED, 0.35);
+const RECEDED_FILL_COLOR = hexRgba(RAIDER_RED, 0);
+const RECEDED_ICON_COLOR = hexRgba(RAIDER_RED, 0.3);
 
 /**
  * Where raiders' planned swerves will take them (call 288): each
  * destination slot outlined in the raiders' red, with the swerve icon its
  * pill leads with at the middle, while the plan stands. The road draws
- * these under the tokens, after the empty slots' dashes. Geometry is built
- * only when the destinations or the layout change, and replayed each frame.
+ * these under the tokens and its slot targets, after the empty slots'
+ * dashes. Geometry is built only when the destinations or the layout
+ * change, and replayed each frame.
  */
 export class PlannedMoveOutlines {
 	private slots: RoadSlot[] = [];
-	private readonly outlines: DrawRectOptions[] = [];
+	private readonly outlines: (DrawRectOptions & { border: { color: RGBA; width: number } })[] = [];
 	private readonly icons: DrawIconOptions[] = [];
 
 	/** The slots outlined now, each once. */
@@ -57,8 +67,16 @@ export class PlannedMoveOutlines {
 		}
 	}
 
-	public draw(draw: DrawApi): void {
-		for (const outline of this.outlines) draw.drawRect(outline);
-		for (const icon of this.icons) drawIcon(draw, icon);
+	/** `receded` while the road shows slot targets over them. */
+	public draw(draw: DrawApi, receded = false): void {
+		for (const outline of this.outlines) {
+			outline.fill = receded ? RECEDED_FILL_COLOR : FILL_COLOR;
+			outline.border.color = receded ? RECEDED_BORDER_COLOR : BORDER_COLOR;
+			draw.drawRect(outline);
+		}
+		for (const icon of this.icons) {
+			icon.tint = receded ? RECEDED_ICON_COLOR : ICON_COLOR;
+			drawIcon(draw, icon);
+		}
 	}
 }

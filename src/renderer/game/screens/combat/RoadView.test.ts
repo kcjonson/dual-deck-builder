@@ -14,6 +14,8 @@ import { Vehicle } from '../../mechanics/Vehicle';
 import { RoadLane, RoadRow, RoadSlot } from '../../mechanics/Road';
 import { TOKEN_HEIGHT, TOKEN_WIDTH } from './CombatLayout';
 import { ROAD_STYLE } from './combatStyle';
+import { CombatModel } from './CombatModel';
+import { RAIDER_TARGETABLE } from '../../ui/Vehicle';
 import { EnemyIntent, RoadView, SHOULDER_HATCH, SWERVE_DURATION } from './RoadView';
 import { hatchTriangles } from '../../ui/stripes';
 
@@ -443,6 +445,25 @@ describe('RoadView', () => {
 			road.showVehicles({ player: [rig], enemy: [raider] });
 			expect(road.plannedDestinations).toEqual([]);
 			expect(road.intentRowOf(raider.id)?.intents).toEqual([]);
+		});
+
+		it('draws under the slot targets, and recedes while they show so it never reads as a chosen one', () => {
+			const model = new CombatModel();
+			road = new RoadView({ id: 'road', x: 0, y: 0, width: ROAD_WIDTH, height: ROAD_HEIGHT, combatData: model });
+			road.showVehicles({ player: [rig], enemy: [raider] });
+			road.mount(context);
+			road.setVehicleIntents(raider.id, [swerve]);
+			expect(outlinesOver(DESTINATION)[0].border?.color[3]).toBe(0.8);
+
+			road.showSlotTargets({ slots: [DESTINATION], picked: null });
+			const [planned] = outlinesOver(DESTINATION);
+			expect(planned.border?.color[3]).toBe(0.35);
+			// The slot target is a child, its dashes drawn after the road's own outline
+			const dashes = backend.commands.findIndex((command) => command.kind === 'polygon' && !!command.fill?.every((channel, index) => Math.abs(channel - RAIDER_TARGETABLE[index]) < 1e-6));
+			expect(dashes).toBeGreaterThan(backend.commands.indexOf(planned));
+
+			road.showSlotTargets({ slots: [], picked: null });
+			expect(outlinesOver(DESTINATION)[0].border?.color[3]).toBe(0.8);
 		});
 
 		it('keeps the outline on its slot when the road is resized', () => {
