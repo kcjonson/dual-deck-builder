@@ -405,11 +405,11 @@ describe('Swerving', () => {
 			buggy.set({ slot: slot(PLAYER_SHOULDER, CENTER), flank: { reservedSlot: slot(ENEMY_INSIDE, CENTER), outran: rig } });
 			const driver = driverOf(rig);
 
-			expect(battle.needsDestination({ driver, card: shoulderCheck(), target: buggy })).toBe(false);
 			expect(play(battle, rig, shoulderCheck(), { target: buggy, destination: slot(PLAYER_SHOULDER, AHEAD) })).toBe(false);
 			expect(play(battle, rig, shoulderCheck(), { target: buggy })).toBe(true);
 			expect(buggy.slot).toEqual(slot(PLAYER_SHOULDER, CENTER));
 			expect(battle.getMessages().some(message => message.type === 'hit' && message.message.startsWith('Shoulder Check hits Buggy'))).toBe(true);
+			expect(battle.needsDestination({ driver, card: shoulderCheck(), target: buggy })).toBe(false);
 		});
 
 		test('Shoulder Check on a raider boxed in ahead and behind needs no slot and still hits', () => {
@@ -419,10 +419,10 @@ describe('Swerving', () => {
 			const shover = createVehicle('Rig', 1);
 			battle = createBattle([shover, createVehicle('Bike', 5)], [ahead, behind, boxed]);
 
-			expect(battle.needsDestination({ driver: driverOf(shover), card: shoulderCheck(), target: boxed })).toBe(false);
 			expect(play(battle, shover, shoulderCheck(), { target: boxed })).toBe(true);
 			expect(boxed.slot).toEqual(slot(ENEMY_INSIDE, CENTER));
 			expect(battle.getMessages().some(message => message.type === 'hit' && message.message.startsWith('Shoulder Check hits Boxed'))).toBe(true);
+			expect(battle.needsDestination({ driver: driverOf(shover), card: shoulderCheck(), target: boxed })).toBe(false);
 		});
 
 		test('a drop-back puts a flanker back in its reserved slot: Peel Off for yours, Brake Check for a raider', () => {
