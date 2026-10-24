@@ -228,8 +228,8 @@ An escort is an undriven vehicle in your convoy: it has a slot and a plate but n
 - A signature attack order is carried out only by an escort of its type: Run Ahead by the nearest ready Outrider that can legally flank the target (range isn't a limit), Flag Down by the nearest ready Pilot Car within range 2.
 - Ramming Run's 2 structure damage to the escort lands only on a hit. A miss means no collision; the card, the adrenaline, and the escort's action are still spent (decided 2026-09-26).
 - Buff orders (Close Ranks, Draw Fire) target an escort directly, and can target a spent one. Both give Shield, not armor, so they work on an escort at full armor and on the Outrider, which has none.
-- Spending: attack orders (Covering Fire, Ramming Run, Rally the Convoy, Run Ahead, Flag Down) and Draw Fire spend the escort. Close Ranks, Triage, and Top Off don't. Triage and Top Off are the Med Truck's and Fuel Hauler's cards, not their actions, so neither needs to be ready.
-- Every order card is a single drop, the same as any other card.
+- Spending: attack orders (Covering Fire, Ramming Run, Rally the Convoy, Run Ahead, Flag Down) and Draw Fire spend the escort. Close Ranks, Fall In, Triage, and Top Off don't. Triage and Top Off are the Med Truck's and Fuel Hauler's cards, not their actions, so neither needs to be ready.
+- Every order card is a single drop, the same as any other card, except Fall In, which takes its escort and then the slot it moves to.
 
 ### Signature cards
 

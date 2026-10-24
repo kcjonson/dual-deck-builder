@@ -832,19 +832,21 @@ export class Battle extends Model<BattleData> {
 	 * card needs a living escort of its type, and Rally the Convoy a ready
 	 * escort to fire. A flank card can't move a vehicle already on the
 	 * shoulder, a card that swerves its caster can't be played by a flanker
-	 * or when the swerve has nowhere legal to go, and Peel Off needs a
-	 * flanker with a reserved slot (BoardProjection.moveBlocker), so the hand
-	 * greys each out. Planning passes its projection so these read the
-	 * board the plan expects; the player's play reads the live one.
+	 * or when the swerve has nowhere legal to go, Peel Off needs a flanker
+	 * with a reserved slot, and Leapfrog and Fall In need someone they could
+	 * move (BoardProjection.moveBlocker), so the hand greys each out. An
+	 * order's flank is its carrier's (Run Ahead), never the caster's.
+	 * Planning passes its projection so these read the board the plan
+	 * expects; the player's play reads the live one.
 	 */
 	public getCardBlocker({ driver, card, board }: { driver: Driver; card: Card; board?: BoardProjection }): string | null {
-		if (!card.isOrder && movesOf(card).length > 0) {
+		if (movesOf(card).length > 0) {
 			const projection = board ?? new BoardProjection({ battle: this });
 			const vehicle = projection.vehicleOf(driver);
-			if (vehicle && cardFlanks(card) && projection.isFlanking(vehicle)) {
+			if (vehicle && !card.isOrder && cardFlanks(card) && projection.isFlanking(vehicle)) {
 				return `${vehicle.name} is already flanking`;
 			}
-			if (vehicle && cardFlanks(card) && projection.isBoxedIn(vehicle)) {
+			if (vehicle && !card.isOrder && cardFlanks(card) && projection.isBoxedIn(vehicle)) {
 				return `${vehicle.name} is boxed in and can't flank`;
 			}
 			// A flanker can't swerve, and a swerve with nowhere to go is unplayable (Combat Rules, Swerving)
