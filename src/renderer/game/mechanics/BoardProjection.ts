@@ -3,9 +3,27 @@ import type { Card } from './Card';
 import type { Driver } from './Driver';
 import { FlankState, Vehicle, floorSpeed, statusSpeedModifier } from './Vehicle';
 import { TeamType } from './TeamType';
-import { RoadSlot, describeSlot, flankLane, isFormationLane, isShoulder, nearestTo, sameSlot, slotRange } from './Road';
+import {
+	RoadSlot,
+	SwerveDirection,
+	adjacentFormationSlots,
+	describeSlot,
+	flankLane,
+	formationSlots,
+	isFormationLane,
+	isFormationMove,
+	isShoulder,
+	isSwerveStep,
+	nearestTo,
+	otherFormationLane,
+	sameSlot,
+	slotBehind,
+	slotRange,
+	swerveSlot
+} from './Road';
 import { EffectRecipient, effectRecipientOf, effectRecipients, rollsToHit } from './EffectTargets';
 import { ESCORT_CONFIGS } from './Escort';
+import { MoveSpec, casterMoveOf, moveSpecOf, movesOf, picksSlot } from './Movement';
 
 /**
  * The longest range any of a card's effects reaches, or null when none has one
@@ -21,7 +39,7 @@ export function cardRange(card: Card): number | null {
  * Whether the card moves whoever acts onto the shoulder (Flank, Run Ahead)
  */
 export function cardFlanks(card: Card): boolean {
-	return card.effects.some(effect => effect.type === 'change_position' && effect.position === 'flanking');
+	return movesOf(card).some(move => move.kind === 'flanking');
 }
 
 /**
@@ -47,7 +65,24 @@ interface ProjectedVehicle {
 	flank: FlankState | null;
 	/** Vehicle.speedSum, floored only when read, as play floors it */
 	speedSum: number;
+	/** Changed slot this turn (Battle.swervedThisTurn), for Weave */
+	swerved: boolean;
 }
+
+/** Where a vehicle ends up after a move: its slot and its flank state (a flanker's reservation) */
+export interface Placement {
+	vehicle: Vehicle;
+	slot: RoadSlot;
+	flank: FlankState | null;
+}
+
+/** A fixed swerve direction with no slot that way, as the log says it */
+const SWERVE_WORDS: Record<SwerveDirection, string> = {
+	other_lane: 'in another lane',
+	outside: 'further out',
+	ahead: 'ahead',
+	behind: 'behind'
+};
 
 /**
  * A scratch copy of what a turn's plan can change on the road: every
@@ -74,7 +109,8 @@ export class BoardProjection {
 					team: team.type,
 					slot: vehicle.slot,
 					flank: vehicle.flank,
-					speedSum: vehicle.speedSum
+					speedSum: vehicle.speedSum,
+					swerved: battle.swervedThisTurn(vehicle)
 				});
 				for (const driver of [vehicle.driver, vehicle.passenger]) {
 					if (!driver) continue;
@@ -115,6 +151,14 @@ export class BoardProjection {
 			if (vehicle.driver === driver || vehicle.passenger === driver) return vehicle;
 		}
 		return null;
+	}
+
+	/**
+	 * Whether the vehicle has changed slot this turn: Battle.swervedThisTurn,
+	 * plus any move applied to this projection since (Weave reads it)
+	 */
+	public swervedThisTurn(vehicle: Vehicle): boolean {
+		return this.vehicles.get(vehicle)?.swerved ?? false;
 	}
 
 	/**
@@ -169,7 +213,18 @@ export class BoardProjection {
 	 * projection it's planning on, so a raider's earlier planned flank counts.
 	 * Only for cards that take a target.
 	 */
-	public targetBlocker({ card, caster, target }: { card: Card; caster: Vehicle; target: Vehicle }): string | null {
+	public targetBlocker({
+		card,
+		caster,
+		target,
+		destination = null
+	}: {
+		card: Card;
+		caster: Vehicle;
+		target: Vehicle;
+		/** The slot picked for the card's move, if it picks one and it's been picked */
+		destination?: RoadSlot | null;
+	}): string | null {
 		const casterState = this.vehicles.get(caster);
 		const targetState = this.vehicles.get(target);
 		if (!target.isAlive() || !targetState?.slot) {
@@ -189,13 +244,20 @@ export class BoardProjection {
 		if (needsOccupant && ![target.driver, target.passenger].some(occupant => occupant?.isAlive())) {
 			return `${target.name} has nobody aboard`;
 		}
+		const moveBlocker = this.moveBlocker({ card, caster, target, destination });
+		if (moveBlocker) {
+			return moveBlocker;
+		}
 		if (card.isOrder) {
 			return this.orderTargetBlocker({ card, casterTeam: casterState.team, target, targetTeam: targetState.team });
 		}
 
 		const maxRange = cardRange(card);
 		if (maxRange !== null) {
-			const range = this.range(caster, target);
+			// From where the card's own move lands (Strafe, Cut Off): the nearest
+			// of the slots it could pick, until one is picked
+			const targetSlot = targetState.slot;
+			const range = Math.min(...this.landingSlots({ card, caster, destination }).map(slot => slotRange(slot, targetSlot)));
 			if (range > maxRange) {
 				return `Target out of range: ${range} > ${maxRange}`;
 			}
@@ -339,11 +401,333 @@ export class BoardProjection {
 	 * holding it as its reserved formation slot.
 	 */
 	private isSlotTaken(slot: RoadSlot, ignoring: Vehicle): boolean {
+		return this.slotHolder(slot, ignoring) !== null;
+	}
+
+	/** Who holds a slot, in it or keeping it reserved, other than `ignoring` */
+	private slotHolder(slot: RoadSlot, ignoring: Vehicle): { vehicle: Vehicle; reserved: boolean } | null {
 		for (const [vehicle, state] of this.vehicles) {
 			if (vehicle === ignoring) continue;
-			if (sameSlot(state.slot, slot) || sameSlot(state.flank?.reservedSlot ?? null, slot)) return true;
+			if (sameSlot(state.slot, slot)) return { vehicle, reserved: false };
+			if (sameSlot(state.flank?.reservedSlot ?? null, slot)) return { vehicle, reserved: true };
 		}
-		return false;
+		return null;
+	}
+
+	/**
+	 * Why a vehicle can't move to a slot under the swerve rules (Combat Rules,
+	 * Swerving), or null if it can: it's on the road and not flanking (a
+	 * flanker can't swerve, and shoves never move a flanker or an ambusher),
+	 * the slot is in its own formation (never onto, off, or along a shoulder),
+	 * and nobody is in it or holds it reserved. With `step`, a swerve, the
+	 * slot also has to be adjacent: range 1, so never diagonal.
+	 */
+	public slotMoveBlocker({ mover, destination, step }: { mover: Vehicle; destination: RoadSlot; step: boolean }): string | null {
+		const state = this.vehicles.get(mover);
+		if (!state?.slot || mover.isOutOfFight) {
+			return `${mover.name} is not on the road`;
+		}
+		if (isShoulder(state.slot.lane)) {
+			return `${mover.name} is flanking and can't swerve`;
+		}
+		if (!isFormationMove(state.team, state.slot, destination)) {
+			return `${describeSlot(destination)} is not in ${mover.name}'s formation`;
+		}
+		if (sameSlot(state.slot, destination)) {
+			return `${mover.name} is already in ${describeSlot(destination)}`;
+		}
+		if (step && !isSwerveStep(state.team, state.slot, destination)) {
+			return `${describeSlot(destination)} is not next to ${mover.name}`;
+		}
+		const holder = this.slotHolder(destination, mover);
+		if (holder) {
+			return holder.reserved
+				? `${describeSlot(destination)} is reserved for ${holder.vehicle.name}`
+				: `${describeSlot(destination)} is taken by ${holder.vehicle.name}`;
+		}
+		return null;
+	}
+
+	/**
+	 * The other vehicle on this one's team carrying a living driver: the
+	 * partner's vehicle, driven or ridden in (Slipstream, Leapfrog). Null when
+	 * there's none, or more than one, as on a raider team, which never gets
+	 * the partner cards (call 287).
+	 */
+	public partnerVehicleOf(vehicle: Vehicle): Vehicle | null {
+		const team = this.vehicles.get(vehicle)?.team;
+		const others = [...this.vehicles].filter(([other, state]) =>
+			other !== vehicle && state.team === team && state.slot !== null && !other.isOutOfFight &&
+			[other.driver, other.passenger].some(occupant => occupant?.isAlive())
+		).map(([other]) => other);
+		return others.length === 1 ? others[0] : null;
+	}
+
+	/**
+	 * Every slot a swerve, move, or drop-back can put its mover in on this
+	 * board, legal ones only: the one slot for a fixed direction, the choices
+	 * for a picked one. Empty when it has nowhere to go. A swap, a formation
+	 * shift, and a flank have no destination list.
+	 */
+	public moveDestinations({ move, mover }: { move: MoveSpec; mover: Vehicle }): RoadSlot[] {
+		const state = this.vehicles.get(mover);
+		const from = state?.slot;
+		if (!state || !from || mover.isOutOfFight) return [];
+		const legal = (step: boolean) => (slot: RoadSlot | null): slot is RoadSlot =>
+			slot !== null && this.slotMoveBlocker({ mover, destination: slot, step }) === null;
+		switch (move.kind) {
+			case 'swerve': {
+				const candidates = move.to === 'pick' ? adjacentFormationSlots(from)
+					: move.to === 'pick_row' ? [swerveSlot(from, 'ahead'), swerveSlot(from, 'behind')]
+					: [swerveSlot(from, move.to)];
+				return candidates.filter(legal(true));
+			}
+			case 'move': {
+				if (move.to === 'pick') return formationSlots(state.team).filter(legal(false));
+				const behind = this.slotBehindPartner(mover);
+				return legal(false)(behind) ? [behind] : [];
+			}
+			case 'drop_back': {
+				const reserved = state.flank?.reservedSlot ?? null;
+				return reserved && isShoulder(from.lane) ? [reserved] : [];
+			}
+			default:
+				return [];
+		}
+	}
+
+	/** The slot behind the partner's vehicle in its lane, or null if it has no partner in formation or nothing behind it */
+	private slotBehindPartner(mover: Vehicle): RoadSlot | null {
+		const partner = this.partnerVehicleOf(mover);
+		const partnerSlot = partner ? this.slotOf(partner) : null;
+		return partnerSlot && !isShoulder(partnerSlot.lane) ? slotBehind(partnerSlot) : null;
+	}
+
+	/**
+	 * Why a picked destination isn't one this move can take its mover to, or
+	 * null if it is: an adjacent slot for a picked swerve, the slot a row
+	 * ahead or behind for a picked row, any formation slot for a picked move,
+	 * and every slot rule on top.
+	 */
+	public destinationBlocker({ move, mover, destination }: { move: MoveSpec; mover: Vehicle; destination: RoadSlot }): string | null {
+		if (!picksSlot(move)) {
+			return 'This move goes where the card says; it takes no picked slot';
+		}
+		const from = this.slotOf(mover);
+		if (move.kind === 'swerve' && move.to === 'pick_row' && from &&
+			!sameSlot(destination, swerveSlot(from, 'ahead')) && !sameSlot(destination, swerveSlot(from, 'behind'))) {
+			return `${describeSlot(destination)} is not a row ahead of or behind ${mover.name}`;
+		}
+		return this.slotMoveBlocker({ mover, destination, step: move.kind === 'swerve' });
+	}
+
+	/** Why a move with no legal destination has none, in words for the log and the hand */
+	private nowhereReason({ move, mover }: { move: MoveSpec; mover: Vehicle }): string {
+		const from = this.slotOf(mover);
+		if (!from) return `${mover.name} is not on the road`;
+		if (move.kind === 'swerve' && move.to !== 'pick' && move.to !== 'pick_row') {
+			const slot = swerveSlot(from, move.to);
+			if (!slot) return `${mover.name} has no slot ${SWERVE_WORDS[move.to]}`;
+			return this.slotMoveBlocker({ mover, destination: slot, step: true }) ?? `${mover.name} has nowhere to swerve`;
+		}
+		if (move.kind === 'move' && move.to === 'behind_partner') {
+			const partner = this.partnerVehicleOf(mover);
+			if (!partner) return `${mover.name} has no partner to slip in behind`;
+			if (this.isFlanking(partner)) return `${partner.name} is flanking`;
+			const behind = this.slotBehindPartner(mover);
+			if (!behind) return `There is no slot behind ${partner.name}`;
+			return this.slotMoveBlocker({ mover, destination: behind, step: false }) ?? `${mover.name} has nowhere to move`;
+		}
+		return move.kind === 'move' ? `${mover.name} has no empty slot to move to` : `${mover.name} has nowhere to swerve`;
+	}
+
+	/**
+	 * Why two vehicles can't swap slots (Leapfrog), or null if they can: both
+	 * on the road in their own formation, neither flanking, and the target is
+	 * the partner's vehicle or an escort next to the caster.
+	 */
+	public swapBlocker({ caster, target }: { caster: Vehicle; target: Vehicle }): string | null {
+		const casterState = this.vehicles.get(caster);
+		const targetState = this.vehicles.get(target);
+		if (!casterState?.slot || caster.isOutOfFight) return `${caster.name} is not on the road`;
+		if (!targetState?.slot || target.isOutOfFight) return `${target.name} is not on the road`;
+		if (target === caster) return `${caster.name} can't swap with itself`;
+		if (targetState.team !== casterState.team) return `${target.name} is not in ${caster.name}'s convoy`;
+		if (isShoulder(casterState.slot.lane)) return `${caster.name} is flanking and can't swerve`;
+		if (isShoulder(targetState.slot.lane)) return `${target.name} is flanking and can't swerve`;
+		const partner = this.partnerVehicleOf(caster) === target;
+		const escortBeside = target.isEscort && slotRange(casterState.slot, targetState.slot) === 1;
+		if (!partner && !escortBeside) return `${target.name} is neither the partner's vehicle nor an escort next to ${caster.name}`;
+		return null;
+	}
+
+	/**
+	 * Why a card's moves can't happen on this board, or null if they can
+	 * (Combat Rules, Swerving). A swerve, move, or swap is unplayable while
+	 * its caster is flanking; a swerve or move with nowhere legal to go is
+	 * unplayable (call 285); a drop-back needs a flanker with a reserved slot.
+	 * Optional moves never block: they're skipped when they can't happen.
+	 * With no target, only the caster's own moves are judged (the hand's
+	 * check); a target's are judged once it's known. A picked destination,
+	 * once given, has to be one the move can take. An order is carried out
+	 * by an escort, so its caster's own moves aren't judged here.
+	 */
+	public moveBlocker({
+		card,
+		caster,
+		target = null,
+		destination = null
+	}: {
+		card: Card;
+		caster: Vehicle;
+		target?: Vehicle | null;
+		destination?: RoadSlot | null;
+	}): string | null {
+		for (const move of movesOf(card)) {
+			const blocker = this.oneMoveBlocker({ card, move, caster, target, destination });
+			if (blocker) return blocker;
+		}
+		return null;
+	}
+
+	private oneMoveBlocker({ card, move, caster, target, destination }: {
+		card: Card;
+		move: MoveSpec;
+		caster: Vehicle;
+		target: Vehicle | null;
+		destination: RoadSlot | null;
+	}): string | null {
+		if (move.kind === 'flanking' || move.kind === 'formation_shift' || card.isOrder && move.kind === 'swap') {
+			return null;
+		}
+		if (move.kind === 'swap') {
+			if (this.isFlanking(caster)) return `${caster.name} is flanking and can't swerve`;
+			return target && !move.optional ? this.swapBlocker({ caster, target }) : null;
+		}
+		const mover = move.mover === 'caster' ? (card.isOrder ? null : caster) : target;
+		if (!mover || move.optional) return null;
+		if (move.kind === 'drop_back') {
+			const state = this.vehicles.get(mover);
+			if (!state?.slot || !isShoulder(state.slot.lane)) return `${mover.name} isn't flanking`;
+			return state.flank?.reservedSlot ? null : `${mover.name} has no reserved slot to drop back to`;
+		}
+		if (this.isFlanking(mover)) return `${mover.name} is flanking and can't swerve`;
+		if (destination && picksSlot(move)) return this.destinationBlocker({ move, mover, destination });
+		return this.moveDestinations({ move, mover }).length > 0 ? null : this.nowhereReason({ move, mover });
+	}
+
+	/**
+	 * Where the caster stands when the card's other effects reach out: where
+	 * its own swerve or move lands (Strafe, Cut Off), or where it is. With a
+	 * picked move and no slot picked yet, every slot it could pick, so a
+	 * target is in reach if any of them reaches it.
+	 */
+	public landingSlots({ card, caster, destination = null }: { card: Card; caster: Vehicle; destination?: RoadSlot | null }): RoadSlot[] {
+		const slot = this.slotOf(caster);
+		if (!slot) return [];
+		const move = card.isOrder ? null : casterMoveOf(card);
+		if (!move) return [slot];
+		if (destination && picksSlot(move)) return [destination];
+		const destinations = this.moveDestinations({ move, mover: caster });
+		return destinations.length > 0 ? destinations : [slot];
+	}
+
+	/**
+	 * Where a move puts everyone it moves on this board, or why it can't
+	 * happen. The one set of move rules: the battle applies the placements
+	 * to the live vehicles, and the projection to its own copy. A flank isn't
+	 * resolved here (flankBlocker and flankDestination). `caster` is whoever
+	 * acts, `target` the card's target, and `destination` the picked slot for
+	 * a move that picks one.
+	 */
+	public resolveMove({
+		move,
+		caster,
+		target,
+		destination = null
+	}: {
+		move: MoveSpec;
+		caster: Vehicle | null;
+		target: Vehicle | null;
+		destination?: RoadSlot | null;
+	}): { placements: Placement[] } | { blocker: string } {
+		switch (move.kind) {
+			case 'flanking':
+				throw new Error('A flank resolves through flankBlocker and flankDestination');
+			case 'formation_shift':
+				return caster ? { placements: this.formationShift(caster) } : { blocker: 'Nobody to shift the formation' };
+			case 'swap': {
+				if (!caster || !target) return { blocker: 'A swap needs a vehicle to swap with' };
+				const blocker = this.swapBlocker({ caster, target });
+				const casterSlot = this.slotOf(caster);
+				const targetSlot = this.slotOf(target);
+				if (blocker || !casterSlot || !targetSlot) return { blocker: blocker ?? 'Both vehicles have to be on the road' };
+				return { placements: [{ vehicle: caster, slot: targetSlot, flank: null }, { vehicle: target, slot: casterSlot, flank: null }] };
+			}
+		}
+		const mover = move.mover === 'caster' ? caster : target;
+		if (!mover) return { blocker: move.mover === 'caster' ? 'Nobody to move' : 'This move needs a target' };
+		if (move.kind !== 'drop_back' && this.isFlanking(mover)) return { blocker: `${mover.name} is flanking and can't swerve` };
+		if (picksSlot(move)) {
+			if (!destination) return { blocker: `${mover.name} needs a slot picked to move to` };
+			const blocker = this.destinationBlocker({ move, mover, destination });
+			return blocker ? { blocker } : { placements: [{ vehicle: mover, slot: destination, flank: null }] };
+		}
+		const [slot] = this.moveDestinations({ move, mover });
+		if (!slot) {
+			if (move.kind === 'drop_back') {
+				return { blocker: this.isFlanking(mover) ? `${mover.name} has no reserved slot to drop back to` : `${mover.name} isn't flanking` };
+			}
+			return { blocker: this.nowhereReason({ move, mover }) };
+		}
+		return { placements: [{ vehicle: mover, slot, flank: null }] };
+	}
+
+	/**
+	 * Formation Shift: every vehicle in the caster's formation, wrecks still
+	 * on the road included, goes to the other lane in its row, and each of
+	 * its team's flankers keeps the shoulder with its reservation switched
+	 * to the other lane. Rows trade lanes whole, so nobody lands on anyone.
+	 */
+	private formationShift(caster: Vehicle): Placement[] {
+		const team = this.vehicles.get(caster)?.team;
+		const placements: Placement[] = [];
+		for (const [vehicle, state] of this.vehicles) {
+			if (state.team !== team || !state.slot) continue;
+			const switched = (slot: RoadSlot): RoadSlot => {
+				const lane = otherFormationLane(slot.lane);
+				if (!lane) throw new Error(`${describeSlot(slot)} has no other formation lane`);
+				return { lane, row: slot.row };
+			};
+			if (isFormationLane(state.team, state.slot.lane)) {
+				placements.push({ vehicle, slot: switched(state.slot), flank: state.flank });
+			} else if (state.flank?.reservedSlot) {
+				placements.push({ vehicle, slot: state.slot, flank: { ...state.flank, reservedSlot: switched(state.flank.reservedSlot) } });
+			}
+		}
+		return placements;
+	}
+
+	/**
+	 * Whether a flanker drops back at the end of the turn as this board
+	 * stands: no faster than the vehicle it outran, with a reserved slot to
+	 * go to, and that vehicle still in the fight (Battle.dropBackSlotOf on
+	 * the live board).
+	 */
+	public wouldDropBack(vehicle: Vehicle): boolean {
+		const flank = this.flankOf(vehicle);
+		const outran = flank?.outran;
+		if (!flank?.reservedSlot || !outran || vehicle.isOutOfFight || outran.isOutOfFight || !this.slotOf(outran)) return false;
+		return this.speedOf(vehicle) <= this.speedOf(outran);
+	}
+
+	/** Put a vehicle in a slot on the projection, as a move does; a change of slot counts as a swerve this turn. */
+	private place({ vehicle, slot, flank }: Placement): void {
+		const state = this.vehicles.get(vehicle);
+		if (!state) return;
+		if (!sameSlot(state.slot, slot)) state.swerved = true;
+		state.slot = slot;
+		state.flank = flank;
 	}
 
 	/**
@@ -376,9 +760,10 @@ export class BoardProjection {
 	 * Play a card on the projection: it leaves the hand, costs adrenaline,
 	 * and moves or changes speed as it would in the battle, each effect on
 	 * the recipients the battle would pick. Hit checks are deterministic, so
-	 * a status that would miss doesn't land here either.
+	 * a status that would miss doesn't land here either. `destination` is the
+	 * slot picked for a move that picks one (Juke, Bootlegger Turn).
 	 */
-	public apply({ card, driver, target }: { card: Card; driver: Driver; target: Vehicle | null }): void {
+	public apply({ card, driver, target, destination = null }: { card: Card; driver: Driver; target: Vehicle | null; destination?: RoadSlot | null }): void {
 		const hand = this.hands.get(driver);
 		const index = hand ? hand.indexOf(card) : -1;
 		if (!hand || index === -1) {
@@ -391,13 +776,8 @@ export class BoardProjection {
 		for (const effect of card.effects) {
 			switch (effect.type) {
 				case 'change_position': {
-					if (effect.position !== 'flanking') break;
-					// A failed flank cancels the rest of the card, as it does in the battle
-					if (!caster || !target || !this.canFlank(caster, target)) return;
-					const casterState = this.vehicles.get(caster);
-					if (!casterState?.slot) return;
-					casterState.flank = { reservedSlot: casterState.slot, outran: target };
-					casterState.slot = this.flankDestination(caster, target);
+					// A failed move cancels the rest of the card, as it does in the battle
+					if (!this.applyMove({ move: moveSpecOf(effect), caster, target, destination })) return;
 					break;
 				}
 				case 'apply_status':
@@ -425,5 +805,28 @@ export class BoardProjection {
 					break;
 			}
 		}
+	}
+
+	/**
+	 * One move on the projection. False when a move that isn't optional
+	 * can't happen, which cancels the rest of the card; an optional one that
+	 * can't is skipped.
+	 */
+	private applyMove({ move, caster, target, destination }: {
+		move: MoveSpec;
+		caster: Vehicle | null;
+		target: Vehicle | null;
+		destination: RoadSlot | null;
+	}): boolean {
+		if (move.kind === 'flanking') {
+			const casterSlot = caster ? this.slotOf(caster) : null;
+			if (!caster || !target || !casterSlot || !this.canFlank(caster, target)) return false;
+			this.place({ vehicle: caster, slot: this.flankDestination(caster, target), flank: { reservedSlot: casterSlot, outran: target } });
+			return true;
+		}
+		const resolved = this.resolveMove({ move, caster, target, destination });
+		if ('blocker' in resolved) return move.kind !== 'formation_shift' && move.optional;
+		resolved.placements.forEach(placement => this.place(placement));
+		return true;
 	}
 }

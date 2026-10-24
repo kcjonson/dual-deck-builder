@@ -2,12 +2,15 @@ import { Card } from '../mechanics/Card';
 import { Driver } from '../mechanics/Driver';
 import { Vehicle } from '../mechanics/Vehicle';
 import { BoardProjection } from '../mechanics/BoardProjection';
+import type { RoadSlot } from '../mechanics/Road';
 
 export interface AIDecision {
 	type: 'playCard' | 'endTurn';
 	card?: Card;
 	driver?: Driver;
 	target?: Vehicle | Driver;
+	/** The slot picked for the card's move, when it picks one (Juke, Strafe) */
+	destination?: RoadSlot;
 }
 
 export interface GameStateEvaluation {

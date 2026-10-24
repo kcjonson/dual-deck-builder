@@ -197,6 +197,52 @@ describe('RoadView', () => {
 			expect(tokenCentre(rig.id).y).toBeCloseTo(end.y);
 		});
 
+		it('swerves one step and a named-slot move further the same way', () => {
+			const oneStep: RoadSlot = { lane: RoadLane.PLAYER_OUTSIDE, row: RoadRow.CENTER };
+			rig.set({ slot: oneStep });
+			road.showVehicles({ player: [rig], enemy: [raider] });
+			expect(road.isSwerving(rig.id)).toBe(true);
+			advance(context, SWERVE_DURATION + 16);
+			expect(tokenCentre(rig.id).x).toBeCloseTo(slotCentre(oneStep).x);
+
+			const farEnd: RoadSlot = { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.BEHIND };
+			rig.set({ slot: farEnd });
+			road.showVehicles({ player: [rig], enemy: [raider] });
+			expect(road.isSwerving(rig.id)).toBe(true);
+			advance(context, SWERVE_DURATION + 16);
+			expect(tokenCentre(rig.id).x).toBeCloseTo(slotCentre(farEnd).x);
+			expect(tokenCentre(rig.id).y).toBeCloseTo(slotCentre(farEnd).y);
+		});
+
+		it('swerves both vehicles of a swap at once, each into the other\'s slot, and outlines neither', () => {
+			const partnerSlot: RoadSlot = { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.BEHIND };
+			const partner = vehicle('Lightning Bike', partnerSlot);
+			road.showVehicles({ player: [rig, partner], enemy: [raider] });
+			frame();
+			expect(isOutlined(RIG_SLOT)).toBe(false);
+			expect(isOutlined(partnerSlot)).toBe(false);
+
+			rig.set({ slot: partnerSlot });
+			partner.set({ slot: RIG_SLOT });
+			road.showVehicles({ player: [rig, partner], enemy: [raider] });
+			expect(road.isSwerving(rig.id)).toBe(true);
+			expect(road.isSwerving(partner.id)).toBe(true);
+
+			advance(context, SWERVE_DURATION / 2);
+			frame();
+			expect(isOutlined(RIG_SLOT)).toBe(false);
+			expect(isOutlined(partnerSlot)).toBe(false);
+
+			advance(context, SWERVE_DURATION);
+			frame();
+			expect(road.isSwerving(rig.id)).toBe(false);
+			expect(road.isSwerving(partner.id)).toBe(false);
+			expect(tokenCentre(rig.id).y).toBeCloseTo(slotCentre(partnerSlot).y);
+			expect(tokenCentre(partner.id).y).toBeCloseTo(slotCentre(RIG_SLOT).y);
+			expect(isOutlined(RIG_SLOT)).toBe(false);
+			expect(isOutlined(partnerSlot)).toBe(false);
+		});
+
 		it('lands in the new slot when the road is resized mid-swerve', () => {
 			move();
 			advance(context, SWERVE_DURATION / 3);

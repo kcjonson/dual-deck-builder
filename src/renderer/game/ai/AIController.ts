@@ -110,15 +110,17 @@ export class AIController {
 					break;
 				}
 				const target = decision.target instanceof Vehicle ? decision.target : null;
+				const destination = decision.destination ?? null;
 				actions.push({
 					card,
 					driver,
 					target,
 					slot: board.slotOf(raider),
 					flanking: board.isFlanking(raider),
-					speed: board.speedOf(raider)
+					speed: board.speedOf(raider),
+					...(destination ? { destination } : {})
 				});
-				board.apply({ card, driver, target });
+				board.apply({ card, driver, target, destination });
 			}
 			if (actions.length > 0) {
 				plans.set(raider, actions);
@@ -184,7 +186,8 @@ export class AIController {
 				return this.battle.playCard({
 					driver: decision.driver,
 					cardIndex,
-					targetVehicle
+					targetVehicle,
+					destination: decision.destination
 				});
 			}
 			// The enemy team plays its planned turn inside Battle, never through here

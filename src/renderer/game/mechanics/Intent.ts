@@ -49,6 +49,11 @@ export interface PlannedAction {
 	slot: RoadSlot | null;
 	flanking: boolean;
 	speed: number;
+	/**
+	 * The slot planning picked for the card's own move, when the card picks
+	 * one (a raider's Juke or Strafe). Unset for every other card.
+	 */
+	destination?: RoadSlot | null;
 }
 
 export interface Intent {
