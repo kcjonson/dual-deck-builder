@@ -1,6 +1,7 @@
 import { ReinforcementWave, Team, TeamType } from './Team';
 import { Driver, DrawResult } from './Driver';
-import { FlankState, STEADY, Vehicle } from './Vehicle';
+import { EVADE_BOOST, FlankState, STEADY, Vehicle } from './Vehicle';
+import { ConditionBoard, effectValue } from './EffectConditions';
 import {
 	RoadRow,
 	RoadSlot,
@@ -1958,7 +1959,7 @@ export class Battle extends Model<BattleData> {
 		recipient: Vehicle;
 		onCaster: boolean;
 	}): boolean {
-		let damage = typeof effect.value === 'number' ? effect.value : 0;
+		let damage = effectValue(effect, this.conditionBoard({ casterVehicle, recipient }));
 
 		if (onCaster) {
 			if (effect.target === 'self_driver') {
@@ -2089,22 +2090,33 @@ export class Battle extends Model<BattleData> {
 
 		const statusName = effect.status || (effect.description || 'unknown').toLowerCase();
 		const speedBefore = recipient.speed;
+		const value = effectValue(effect, this.conditionBoard({ casterVehicle, recipient }));
 
 		recipient.applyStatusEffect({
 			name: statusName,
 			duration: typeof effect.duration === 'number' ? effect.duration : 1,
-			value: typeof effect.value === 'number' ? effect.value : 0,
+			value,
 			description: effect.description
 		});
 
 		const line = `${card.displayName} applies ${statusName} to ${recipient.name}`;
 		const speedText = SPEED_STATUSES.includes(statusName) ? ` (Speed: ${speedBefore} -> ${recipient.speed})` : '';
+		const evadeText = statusName === EVADE_BOOST ? ` (Evade +${value})` : '';
 		this.log('status_applied',
-			line + speedText,
+			line + speedText + evadeText,
 			{ card: card.displayName, target: recipient.name, status: statusName },
 			line
 		);
 		return true;
+	}
+
+	/** What an effect's bonus condition reads as the live board stands (EffectConditions) */
+	private conditionBoard({ casterVehicle, recipient }: { casterVehicle: Vehicle | null; recipient: Vehicle }): ConditionBoard {
+		return {
+			casterSlot: casterVehicle?.slot ?? null,
+			targetSlot: recipient.slot,
+			casterSwerved: casterVehicle ? this.swervedThisTurn(casterVehicle) : false
+		};
 	}
 
 	/**
@@ -2691,7 +2703,9 @@ export class Battle extends Model<BattleData> {
 	 * play and raider planning both call it. Each side's skills come from its
 	 * vehicle (`Vehicle.crewSkills`): an escort's own, otherwise the caster's
 	 * when attacking and the driver's when defending. A ram hits on ramming
-	 * >= evade, anything else on gunnery > evade + modifier. A driven
+	 * >= evade, anything else on gunnery > evade + modifier. The defender's
+	 * evade includes its Evade statuses (Vehicle.evadeBoost), or the
+	 * `evadeBoost` a projection passes for its own board. A driven
 	 * defender with nobody at the wheel has no skills and is never hit. A
 	 * wrecked escort still has its profile, so callers skip wrecks first.
 	 */
@@ -2701,6 +2715,7 @@ export class Battle extends Model<BattleData> {
 		defender: Vehicle;
 		attackType?: string;
 		modifier?: number;
+		evadeBoost?: number;
 	}): boolean {
 		return this.hitCheck(options)?.hits ?? false;
 	}
@@ -2715,23 +2730,26 @@ export class Battle extends Model<BattleData> {
 		caster,
 		defender,
 		attackType = 'ranged',
-		modifier = 0
+		modifier = 0,
+		evadeBoost = defender.evadeBoost
 	}: {
 		attacker: Vehicle | null;
 		caster: Driver;
 		defender: Vehicle;
 		attackType?: string;
 		modifier?: number;
+		evadeBoost?: number;
 	}): HitCheck | null {
 		const attack = attacker ? attacker.crewSkills(caster) : caster.skills;
 		const defense = defender.crewSkills();
 		if (!attack || !defense) {
 			return null;
 		}
+		const evade = defense.evade + evadeBoost;
 		if (attackType === 'ramming') {
-			return { skill: 'ramming', attack: attack.ramming, evade: defense.evade, modifier: 0, hits: attack.ramming >= defense.evade };
+			return { skill: 'ramming', attack: attack.ramming, evade, modifier: 0, hits: attack.ramming >= evade };
 		}
-		return { skill: 'gunnery', attack: attack.gunnery, evade: defense.evade, modifier, hits: attack.gunnery > defense.evade + modifier };
+		return { skill: 'gunnery', attack: attack.gunnery, evade, modifier, hits: attack.gunnery > evade + modifier };
 	}
 
 	/**

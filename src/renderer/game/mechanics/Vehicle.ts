@@ -100,6 +100,14 @@ export function statusSpeedModifier(effect: VehicleStatusEffect): number {
 	}
 }
 
+/** The status Weave and Bootlegger Turn give: its value is added to the vehicle's evade in every hit check against it. */
+export const EVADE_BOOST = 'evade_boost';
+
+/** Evade a status adds: an evade_boost's value, nothing for any other status. */
+export function statusEvadeModifier(effect: VehicleStatusEffect): number {
+	return effect.name === EVADE_BOOST ? effect.value ?? 0 : 0;
+}
+
 /**
  * Speed on the road from a speed sum: never below 0
  */
@@ -426,6 +434,14 @@ export class Vehicle extends Model<VehicleData> {
 		const driverSpeed = this.driver?.skills.speed ?? 0;
 		const statusModifier = this.statusEffects.reduce((sum, effect) => sum + this.speedChange(statusSpeedModifier(effect)), 0);
 		return this.baseSpeed + driverSpeed + statusModifier;
+	}
+
+	/**
+	 * Evade its statuses add (evade_boost), stacked, which Battle.hitCheck
+	 * adds to the defender's evade, rams included
+	 */
+	public get evadeBoost(): number {
+		return this.statusEffects.reduce((sum, effect) => sum + statusEvadeModifier(effect), 0);
 	}
 
 	/**

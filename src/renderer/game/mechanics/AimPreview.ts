@@ -6,6 +6,7 @@ import type { Vehicle } from './Vehicle';
 import { BoardProjection, cardRange } from './BoardProjection';
 import { EffectRecipient, effectRecipientOf, isCasterAction, landsOnTarget, rollsToHit } from './EffectTargets';
 import { nearestTo, slotRange } from './Road';
+import { effectBonus } from './EffectConditions';
 
 /**
  * The one hit rule's numbers (Battle.checkHit): gunnery against evade plus
@@ -127,6 +128,8 @@ function projectLosses({ battle, card, actor, target, range }: { battle: Battle;
 		// Brake Check's damage, only on an ambusher
 		if (!board.landingConditionHolds({ effect, caster: actor, recipient: target })) continue;
 		let damage = typeof effect.value === 'number' ? effect.value : 0;
+		// Point Man's ahead row, Tail Gunner's target ahead, as play adds them
+		damage += effectBonus(effect, { casterSlot: actor?.slot ?? null, targetSlot: target.slot, casterSwerved: actor ? battle.swervedThisTurn(actor) : false });
 		if (actor) {
 			if (typeof effect.formula === 'string') {
 				damage = battle.calculateFormulaDamage(effect.formula, { base: damage, armor: actor.armor, speedDiff: actor.speed - target.speed });

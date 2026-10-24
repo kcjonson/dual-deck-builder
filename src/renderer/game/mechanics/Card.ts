@@ -46,7 +46,10 @@ export interface CardEffect {
  * Upgrade data structure for card improvements
  */
 export interface UpgradeData {
-	[key: string]: number | string | CardEffect[];
+	[key: string]: number | string | string[] | CardEffect[] | undefined;
+	effects?: CardEffect[];
+	/** Replaces the card's tags: an upgrade that drops Exhaust (Formation Shift) */
+	tags?: string[];
 }
 
 /**
@@ -114,7 +117,8 @@ export class Card extends Model<CardData> {
 
 	/**
 	 * Create a new card from data configuration. Built upgraded, it takes its
-	 * upgrade block's cost and effects, the same card upgrade() makes.
+	 * upgrade block's cost, effects, texts, and tags, the same card upgrade()
+	 * makes.
 	 */
 	constructor(data: Omit<CardData, 'upgraded'> & { upgraded?: boolean }) {
 		super({
@@ -207,8 +211,9 @@ export class Card extends Model<CardData> {
 
 	/**
 	 * What an upgrade block changes: the cost, the whole effects list, or
-	 * both, and for an upgrade that adds an effect (Lay on the Horn's slow)
-	 * the summary and description that say so
+	 * both. An upgrade the base text can't say (Lay on the Horn's added slow,
+	 * Floor It's longer boost) carries the summary and description that say
+	 * so, and one that drops Exhaust (Formation Shift) replaces the tags.
 	 */
 	private static upgradedFields(upgrades: UpgradeData | undefined): Partial<CardData> {
 		const fields: Partial<CardData> = {};
@@ -219,6 +224,8 @@ export class Card extends Model<CardData> {
 				fields.effects = [...value as CardEffect[]];
 			} else if ((key === 'summary' || key === 'description') && typeof value === 'string') {
 				fields[key] = value;
+			} else if (key === 'tags' && Array.isArray(value)) {
+				fields.tags = [...value as string[]];
 			}
 			// Additional upgrade types can be easily added here
 		}

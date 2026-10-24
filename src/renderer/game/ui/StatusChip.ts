@@ -6,7 +6,7 @@ import type { RGBA } from '../../engine/draw/geometry';
 import type { IconName } from '../../engine/text/icons';
 import { resolveColor } from '../../engine/style/styleObject';
 import { tokens } from '../../engine/theme/tokens';
-import { BOXED_IN, STEADY, VehicleStatusEffect } from '../mechanics/Vehicle';
+import { BOXED_IN, EVADE_BOOST, STEADY, VehicleStatusEffect } from '../mechanics/Vehicle';
 
 /** A buff is structure green, a debuff the mock's purple, anything else neutral. */
 export type StatusKind = 'buff' | 'debuff' | 'neutral';
@@ -22,6 +22,8 @@ interface StatusLook {
 	tone: StatusKind;
 	title: string;
 	detail: string;
+	/** The title carries the status's value ("Evade +2"), since the count is its turns left */
+	showsValue?: boolean;
 }
 
 /**
@@ -46,6 +48,8 @@ const STATUS_LOOKS: Readonly<Record<string, StatusLook>> = {
 	death_mark: { icon: 'my_location', tone: 'debuff', title: 'Marked', detail: 'Marked for a heavy hit.' },
 	damage_bonus: { icon: 'gps_fixed', tone: 'buff', title: 'Damage up', detail: 'The next attack hits harder.' },
 	triple_damage: { icon: 'gps_fixed', tone: 'buff', title: 'Triple damage', detail: 'The next attack deals triple damage.' },
+	// No dodge glyph in the atlas yet (call 313)
+	[EVADE_BOOST]: { icon: 'exit_to_app', tone: 'buff', title: 'Evade', detail: 'Harder to hit: added to evade against every attack.', showsValue: true },
 };
 
 /** A status as its chip shows it; the count is its turns left, none when permanent. */
@@ -57,7 +61,8 @@ export function statusChipContent(effect: VehicleStatusEffect): StatusChipConten
 		const title = effect.name.replace(/_/g, ' ');
 		return { kind: 'status', icon: 'info', tone: 'neutral', count: turns, title: title.charAt(0).toUpperCase() + title.slice(1), detail: `${effect.description ?? ''} ${remaining}`.trim() };
 	}
-	return { kind: 'status', icon: look.icon, tone: look.tone, count: turns, title: look.title, detail: `${effect.description ?? look.detail} ${remaining}` };
+	const title = look.showsValue ? `${look.title} +${effect.value ?? 0}` : look.title;
+	return { kind: 'status', icon: look.icon, tone: look.tone, count: turns, title, detail: `${effect.description ?? look.detail} ${remaining}` };
 }
 
 /** Shield (temporary armor) as a chip: it soaks hits before armor and clears at the start of your turn. */
