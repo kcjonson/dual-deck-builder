@@ -33,6 +33,7 @@ import { DriverCardsSection, DriverDetailPinnedSection, DriverDetailSection } fr
 import { SliderTabsSection } from './SliderTabsSection';
 import { VehicleTokensSection } from './VehicleTokensSection';
 import { CombatTargetingSection } from './CombatTargetingSection';
+import { SlotTargetingSection } from './SlotTargetingSection';
 import { CombatDockCrashedOutSection, CombatDockSection } from './CombatDockSection';
 import { CustomizeLauncherSection } from './CustomizeLauncherSection';
 import { LoadOutLauncherSection } from './LoadOutLauncherSection';
@@ -237,6 +238,15 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'combat-targeting',
 		build: (options) => new CombatTargetingSection(options),
+	},
+	// A card waiting for its slot, and a shove's second step (DDB-548), one step a scene so each fits 1024x600
+	{
+		name: 'slot-targeting',
+		build: (options) => new SlotTargetingSection({ ...options, mode: 'move' }),
+	},
+	{
+		name: 'slot-targeting-shove',
+		build: (options) => new SlotTargetingSection({ ...options, mode: 'shove' }),
 	},
 	// The battle screen's dock at its worst cases (DDB-136, DDB-167)
 	{

@@ -10,6 +10,7 @@ import { tokens } from '../../../engine/theme/tokens';
 import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
 import { LANE_ORDER, RoadLane, RoadRow, RoadSlot, isShoulder, sameSlot } from '../../mechanics/Road';
 import { Vehicle as VehicleUI } from '../../ui/Vehicle';
+import { SlotTarget } from '../../ui/SlotTarget';
 import type { EnemyIntent, IntentRow } from '../../ui/IntentPill';
 import type { Driver } from '../../mechanics/Driver';
 import { CombatModel } from './CombatModel';
@@ -44,6 +45,10 @@ const LANE_EASE = resolveEase(tokens.motion.ease_standard);
 const ROW_EASE = resolveEase(tokens.motion.ease_emphasized);
 
 type Side = 'player' | 'enemy';
+
+function slotKey(slot: RoadSlot): string {
+	return `${slot.lane}:${slot.row}`;
+}
 
 interface LaneLook {
 	label: string;
@@ -105,6 +110,8 @@ export class RoadView extends Component {
 	private currentLayout: RoadLayout;
 	private sideBleed = 0;
 	private readonly roadTokens = new Map<string, RoadToken>();
+	/** The slots a waiting move can go to, and one already chosen, by `lane:row` (slot targeting). */
+	private readonly slotTargets = new Map<string, SlotTarget>();
 	private readonly plannedIntents = new Map<string, readonly EnemyIntent[]>();
 	private actingId: string | null = null;
 	private readonly raiders: VehicleUI[] = [];
@@ -309,6 +316,57 @@ export class RoadView extends Component {
 		for (const [vehicleId, token] of this.roadTokens) token.view.rangeLabel = labels.get(vehicleId) ?? null;
 	}
 
+	/**
+	 * The slots a card's move can go to while it waits for its slot (Battle
+	 * Screen Design section 6, DDB-548), each a target over its empty slot,
+	 * and `picked`, a destination an earlier step chose, drawn solid while
+	 * the card waits for its vehicle. Any other slot shows nothing. Empty
+	 * and null clear them. Targets that stay keep their element, so focus
+	 * and hover survive a refresh.
+	 */
+	public showSlotTargets({ slots, picked }: { slots: readonly RoadSlot[]; picked: RoadSlot | null }): void {
+		const wanted = new Map<string, { slot: RoadSlot; picked: boolean }>();
+		for (const slot of slots) wanted.set(slotKey(slot), { slot, picked: false });
+		if (picked) wanted.set(slotKey(picked), { slot: picked, picked: true });
+		if (wanted.size > 0 && !this.combatData) throw new Error('RoadView needs a combat model to show slot targets');
+
+		for (const [key, target] of this.slotTargets) {
+			if (wanted.get(key)?.picked === target.picked) continue;
+			this.removeChild(target);
+			this.slotTargets.delete(key);
+		}
+		for (const [key, { slot, picked: chosen }] of wanted) {
+			if (this.slotTargets.has(key) || !this.combatData) continue;
+			const target = new SlotTarget({
+				id: this.partId(`slot_target_${slot.lane}_${slot.row}`),
+				slot,
+				side: LANE_LOOKS[slot.lane].side === 'enemy' ? 'raider' : 'player',
+				combatData: this.combatData,
+				picked: chosen,
+			});
+			this.slotTargets.set(key, target);
+			this.addChild(target);
+			this.placeSlotTarget(target);
+		}
+	}
+
+	/** The target over a slot while the card waits for one, or a slot already chosen; null otherwise. */
+	public slotTargetAt(slot: RoadSlot): SlotTarget | null {
+		return this.slotTargets.get(slotKey(slot)) ?? null;
+	}
+
+	/** Every slot target showing now, in the order they were added. */
+	public get slotTargetViews(): readonly SlotTarget[] {
+		return [...this.slotTargets.values()];
+	}
+
+	/** Over the slot's empty-slot outline, so the target's dashes sit on the faint ones. */
+	private placeSlotTarget(target: SlotTarget): void {
+		const cell = roadSlotRect(this.currentLayout, target.slot);
+		target.setPosition(cell.x + SLOT_OUTLINE_INSET_X, cell.y + SLOT_OUTLINE_INSET_Y);
+		target.setSize(Math.max(0, cell.width - SLOT_OUTLINE_INSET_X * 2), Math.max(0, cell.height - SLOT_OUTLINE_INSET_Y * 2));
+	}
+
 	/** The damage ghost on one vehicle, clearing it everywhere else; null clears them all. */
 	public showDamageGhost(vehicleId: string | null, losses: AimLosses | null): void {
 		for (const [id, token] of this.roadTokens) token.view.damageGhost = id === vehicleId ? losses : null;
@@ -449,6 +507,7 @@ export class RoadView extends Component {
 			label.setPosition(layout.gutterX + ROAD_ROW_GUTTER / 2 - row.height / 2, row.y + row.height / 2 - ROAD_ROW_GUTTER / 2);
 		});
 		for (const token of this.roadTokens.values()) this.land(token);
+		for (const target of this.slotTargets.values()) this.placeSlotTarget(target);
 		this.buildGround();
 		this.buildSlotOutlines();
 	}

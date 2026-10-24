@@ -1,11 +1,14 @@
 import { Battle } from './Battle';
-import { Card, CardEffect } from './Card';
+import { Card, CardData, CardEffect } from './Card';
 import { Driver } from './Driver';
 import { RoadLane, RoadRow } from './Road';
 import { Team, TeamType } from './Team';
 import { Vehicle } from './Vehicle';
-import { previewAim } from './AimPreview';
+import { LONGEST_REACH, previewAim, previewDestination } from './AimPreview';
+import { createEscort } from './Escort';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
+import { fallIn, juke, shoulderCheck, strafe } from '../screens/combat/__fixtures__/movementCards';
+import cardsFile from '../data/cards.json';
 
 /**
  * DDB-138: what the targeting state shows for a card aimed at a vehicle,
@@ -42,6 +45,11 @@ const attack = (name: string, effects: CardEffect[]): Card => new Card({
 	effects,
 	tags: ['attack']
 });
+
+/** Cut Off as cards.json has it: a swerve ahead, then Range 1 statuses on the target. */
+const cutOffData = (cardsFile as unknown as { cards: CardData[] }).cards.find(candidate => candidate.type === 'cut_off');
+if (!cutOffData) throw new Error('No cut_off in cards.json');
+const cutOff = new Card({ ...cutOffData });
 
 const driverOf = (vehicle: Vehicle): Driver => {
 	if (!vehicle.driver) throw new Error(`${vehicle.name} has no driver`);
@@ -131,5 +139,88 @@ describe('previewAim', () => {
 		const flanking = previewAim({ battle, driver: driverOf(rig), card: shot, target: buggy });
 		expect(level.losses.structure).toBe(5);
 		expect(flanking.losses.structure).toBe(8);
+	});
+
+	describe('a card that moves before it reaches (DDB-548)', () => {
+		const ahead = { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.AHEAD };
+		const outside = { lane: RoadLane.PLAYER_OUTSIDE, row: RoadRow.CENTER };
+
+		test('reads Strafe\'s range from the slot it picks, and its damage only lands from there', () => {
+			buggy.set({ slot: { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.AHEAD } });
+			const card = strafe();
+			// Two from where the Rig is; one from inside ahead, three from outside center
+			const fromAhead = previewAim({ battle, driver: driverOf(rig), card, target: buggy, destination: ahead });
+			expect(fromAhead.range).toBe(1);
+			expect(fromAhead.losses.structure).toBeGreaterThan(0);
+			const fromOutside = previewAim({ battle, driver: driverOf(rig), card, target: buggy, destination: outside });
+			expect(fromOutside.range).toBe(3);
+			expect(fromOutside.losses).toEqual({ structure: 0, driver: 0, passenger: 0 });
+			// Before a slot is picked, the nearest it could pick, as the target rule has it
+			expect(previewAim({ battle, driver: driverOf(rig), card, target: buggy }).range).toBe(1);
+		});
+
+		test('reads Cut Off\'s range from the row ahead it swerves into', () => {
+			buggy.set({ slot: { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.AHEAD } });
+			expect(previewAim({ battle, driver: driverOf(rig), card: cutOff, target: buggy }).range).toBe(1);
+		});
+	});
+});
+
+describe('previewDestination (DDB-548)', () => {
+	// Rig inside center, Bike inside behind, an Outrider placed after them;
+	// Buggy across from the Rig, Hauler behind it
+	let rig: Vehicle;
+	let bike: Vehicle;
+	let outrider: Vehicle;
+	let buggy: Vehicle;
+	let hauler: Vehicle;
+	let battle: Battle;
+
+	beforeEach(() => {
+		rig = createVehicle('Rig');
+		bike = createVehicle('Bike');
+		outrider = createEscort({ type: 'outrider' });
+		buggy = createVehicle('Buggy');
+		hauler = createVehicle('Hauler');
+		battle = new Battle({
+			playerTeam: new Team({ type: TeamType.PLAYER, vehicles: [rig, bike, outrider] }),
+			enemyTeam: new Team({ type: TeamType.ENEMY, vehicles: [buggy, hauler] })
+		});
+	});
+
+	test('reads a swerve of yours from where it lands, against Range 2 for a card with no range', () => {
+		const destination = { lane: RoadLane.PLAYER_OUTSIDE, row: RoadRow.CENTER };
+		const preview = previewDestination({ battle, driver: driverOf(rig), card: juke(), destination });
+		expect(preview?.from).toEqual(destination);
+		expect(preview?.ranges.get(buggy)).toBe(2);
+		expect(preview?.ranges.get(hauler)).toBe(3);
+		expect(preview?.reach).toBe(LONGEST_REACH);
+	});
+
+	test('reads against the card\'s own range when it has one', () => {
+		const destination = { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.AHEAD };
+		expect(previewDestination({ battle, driver: driverOf(rig), card: strafe(), destination })?.reach).toBe(1);
+	});
+
+	test('reads Fall In from the slot its escort lands in', () => {
+		const destination = { lane: RoadLane.PLAYER_INSIDE, row: RoadRow.AHEAD };
+		const preview = previewDestination({ battle, driver: driverOf(rig), card: fallIn(), target: outrider, destination });
+		expect(preview?.from).toEqual(destination);
+		expect(preview?.ranges.get(buggy)).toBe(2);
+	});
+
+	test('reads a shove from the caster, with the shoved raider at the destination', () => {
+		const destination = { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.AHEAD };
+		const preview = previewDestination({ battle, driver: driverOf(rig), card: shoulderCheck(), target: buggy, destination });
+		expect(preview?.from).toEqual(rig.slot);
+		expect(preview?.ranges.get(buggy)).toBe(2);
+		expect(preview?.ranges.get(hauler)).toBe(2);
+		expect(preview?.reach).toBe(1);
+	});
+
+	test('is null for a card that picks no slot, or a shove with no target yet', () => {
+		const destination = { lane: RoadLane.PLAYER_OUTSIDE, row: RoadRow.CENTER };
+		expect(previewDestination({ battle, driver: driverOf(rig), card: cutOff, destination })).toBeNull();
+		expect(previewDestination({ battle, driver: driverOf(rig), card: shoulderCheck(), destination })).toBeNull();
 	});
 });

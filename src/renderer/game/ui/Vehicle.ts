@@ -115,11 +115,11 @@ const HP_FILL = resolveColor(DRIVER_HP_COLOR);
 const PASSENGER_FILL = resolveColor('#c9656c');
 const SPEED_COLOR = tokens.color.text_dim;
 /** A targetable raider, and the one the pointer is on (the mock's `.valid` and `.targeted`). */
-const RAIDER_TARGET = resolveColor('#ff6a55');
-const RAIDER_TARGETABLE: RGBA = [1, 0.431, 0.353, 0.8];
+export const RAIDER_TARGET = resolveColor('#ff6a55');
+export const RAIDER_TARGETABLE: RGBA = [1, 0.431, 0.353, 0.8];
 /** Your own vehicles light in the interaction yellow when a card can land on them. */
-const OWN_TARGET = tokens.color.accent;
-const OWN_TARGETABLE = tokens.color.accent_glow;
+export const OWN_TARGET = tokens.color.accent;
+export const OWN_TARGETABLE = tokens.color.accent_glow;
 const SPRITE_TINTS: Readonly<Record<'driver1' | 'driver2' | 'escort' | 'raider', RGBA>> = {
 	driver1: resolveColor('#8a7b63'),
 	driver2: resolveColor('#5f7f82'),
@@ -134,11 +134,11 @@ const STAMP_COLOR = resolveColor('#ff8a78');
 /** The mock's `.dimmed`: an out-of-reach vehicle while a card is aimed. */
 const DIMMED_OPACITY = 0.35;
 /** The mock's `.valid` outline: 2 px dashes; `.targeted` is 3 px solid with a 22 px glow. */
-const LEGAL_OUTLINE = { width: 2, dash: 6, gap: 4 };
-const TARGET_OUTLINE_WIDTH = 3;
-const TARGET_GLOW_BLUR = 22;
-const RAIDER_GLOW: RGBA = [1, 0.353, 0.275, 0.45];
-const OWN_GLOW = tokens.color.accent_glow;
+export const LEGAL_OUTLINE = { width: 2, dash: 6, gap: 4 };
+export const TARGET_OUTLINE_WIDTH = 3;
+export const TARGET_GLOW_BLUR = 22;
+export const RAIDER_GLOW: RGBA = [1, 0.353, 0.275, 0.45];
+export const OWN_GLOW = tokens.color.accent_glow;
 /** The range chip at the token's top left (the mock's `.veh.grid .slotchip`). */
 const RANGE_CHIP_Y = 2;
 /** The mock's `i.ghost`: amber stripes 4 px wide at 135 degrees over a darker amber. */
@@ -891,6 +891,9 @@ export class Vehicle extends Component {
 			// The escort an attack order would use
 			model.on('carrierVehicleId', refresh),
 			model.on('isTargeting', refresh),
+			// A slot step, and the vehicle a two-step card chose before it
+			model.on('targetableSlots', refresh),
+			model.on('pickedVehicleId', refresh),
 		);
 		this.updateVisualState();
 	}
@@ -916,19 +919,26 @@ export class Vehicle extends Component {
 		return this.combatData?.carrierVehicleId === this.vehicleData.id;
 	}
 
+	/** The vehicle a two-step card already chose, held while it waits for its slot (DDB-548). */
+	private isPickedTarget(): boolean {
+		return this.combatData?.pickedVehicleId === this.vehicleData.id;
+	}
+
 	/**
 	 * While a card is aimed, a vehicle it can land on gets a dashed outline,
 	 * the one under the pointer (or the escort that would carry an attack
-	 * order out) a heavy solid one with a glow, and the rest dim (section 6,
-	 * Targeting). Raiders outline in red, your own vehicles in the
-	 * interaction yellow. The dashes are one triangle list, built when the
-	 * plate's height changes.
+	 * order out, or the one a two-step card already chose) a heavy solid one
+	 * with a glow, and the rest dim (section 6, Targeting). Raiders outline
+	 * in red, your own vehicles in the interaction yellow. While the card
+	 * waits for a slot, the slots are the targets and no vehicle dims, so the
+	 * range readouts stay legible. The dashes are one triangle list, built
+	 * when the plate's height changes.
 	 */
 	private updateVisualState(): void {
-		const carrier = this.isOrderCarrier();
-		const targetable = this.isTargetable() || carrier;
-		const focused = this.isFocusedTarget() || carrier || this.dropActive;
-		const targeting = this.combatData?.isTargeting ?? false;
+		const held = this.isOrderCarrier() || this.isPickedTarget();
+		const targetable = this.isTargetable() || held;
+		const focused = this.isFocusedTarget() || held || this.dropActive;
+		const targeting = (this.combatData?.isTargeting ?? false) && !(this.combatData?.isPickingSlot ?? false);
 		this.focusable = targeting && this.onClickCallback !== null && this.isTargetable();
 		this.opacity = targeting && !targetable ? DIMMED_OPACITY : 1;
 
