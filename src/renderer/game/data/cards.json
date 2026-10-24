@@ -1294,7 +1294,7 @@
       "type": "strafe",
       "name": "Strafe",
       "summary": "[Swerve], then deal {damage} at [Range 1] of your new slot.",
-      "description": "Swerve to any empty slot next to you in your formation, then deal {damage} damage to a raider at Range 1 of that slot. Only a slot that puts a raider in reach can be picked. Unplayable while flanking.",
+      "description": "Swerve to any empty slot next to you in your formation, then deal {damage} damage to a raider at Range 1 of that slot. Only a slot that puts a raider in reach can be picked, and the swerve happens even if the shot misses. Unplayable while flanking.",
       "rarity": "uncommon",
       "cost": 2,
       "targetType": "enemy_single",

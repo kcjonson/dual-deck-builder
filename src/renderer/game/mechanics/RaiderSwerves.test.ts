@@ -62,21 +62,13 @@ const realCard = (type: string): Card => {
 	return new Card({ ...data });
 };
 
-// Four of the six raider movement cards (call 287) are in cards.json; Juke
-// and Strafe are test-only stand-ins in the change_position shape their
-// batch will use (movement-cards.md's table)
+// The six raider movement cards (call 287), as cards.json has them
 const laneChange = () => realCard('lane_change');
 const floorIt = () => realCard('floor_it');
 const hardBrake = () => realCard('hard_brake');
 const cutOff = () => realCard('cut_off');
-const juke = () => card('Juke', 'self', [
-	{ type: 'change_position', position: 'swerve', to: 'pick', target: 'self' },
-	{ type: 'draw_cards', value: 1, target: 'self' }
-]);
-const strafe = () => card('Strafe', 'enemy_single', [
-	{ type: 'change_position', position: 'swerve', to: 'pick', target: 'self' },
-	{ type: 'damage', value: 4, range: 1, target: 'target', always_hits: true }
-], ['attack']);
+const juke = () => realCard('juke');
+const strafe = () => realCard('strafe');
 const flank = () => card('Flank', 'enemy_single', [{ type: 'change_position', position: 'flanking', target: 'self' }]);
 const pointBlank = () => card('Point Blank', 'enemy_single', [{ type: 'damage', value: 4, range: 1, always_hits: true }], ['attack']);
 
@@ -87,6 +79,11 @@ const driverOf = (vehicle: Vehicle): Driver => {
 
 const giveHand = (vehicle: Vehicle, cards: Card[]): void => {
 	driverOf(vehicle).set({ hand: cards, adrenaline: 5 });
+};
+
+/** Gunnery 6, past the test drivers' evade 5, since Strafe's shot rolls (call 342) */
+const sharpshooter = (vehicle: Vehicle): void => {
+	driverOf(vehicle).set({ skills: { ...driverOf(vehicle).skills, gunnery: 6 } });
 };
 
 const fizzles = (battle: Battle): string[] =>
@@ -228,7 +225,8 @@ describe('Raider swerves', () => {
 			expect(battle.getPlan(buggy).map(action => action.card.name)).toEqual(['Lane Change', 'Point Blank']);
 		});
 
-		test('a Strafe carries the slot its shot reaches from', () => {
+		test('a Strafe carries the slot its shot reaches from, and plays from there', () => {
+			sharpshooter(buggy);
 			useAggressive(battle);
 			giveHand(buggy, [strafe()]);
 			battle.planEnemyTurn();
@@ -236,6 +234,11 @@ describe('Raider swerves', () => {
 			const [planned] = battle.getPlan(buggy);
 			expect(planned.target).toBe(rig);
 			expect(planned.destination).toEqual(slot(ENEMY_INSIDE, CENTER));
+
+			playPlans(battle, 1);
+			expect(buggy.slot).toEqual(slot(ENEMY_INSIDE, CENTER));
+			// 4 past no armor, split between structure and the driver
+			expect(rig.structure).toBe(18);
 		});
 
 		test('offers a picked swerve at each slot it could take, and a Strafe only where its shot reaches', () => {
@@ -352,6 +355,21 @@ describe('Raider swerves', () => {
 			expect(buggy.speed).toBe(speed);
 		});
 
+		test('a Strafe whose slot is taken fizzles, swerve and shot both', () => {
+			sharpshooter(buggy);
+			giveHand(buggy, [strafe()]);
+			battle.planEnemyTurn();
+			expect(battle.getPlan(buggy)[0].destination).toEqual(slot(ENEMY_INSIDE, CENTER));
+
+			battle.enemyTeam.addVehicle(createVehicle('Blocker', 3, slot(ENEMY_INSIDE, CENTER)));
+			expect(battle.getIntents(buggy)).toEqual([]);
+
+			playPlans(battle, 1);
+			expect(fizzles(battle)).toEqual(["Buggy's Strafe fizzles: enemy inside, center is taken by Blocker"]);
+			expect(buggy.slot).toEqual(slot(ENEMY_OUTSIDE, CENTER));
+			expect(rig.structure).toBe(20);
+		});
+
 		test('a fizzled Hard Brake gains no Shield', () => {
 			giveHand(buggy, [hardBrake()]);
 			battle.planEnemyTurn();
@@ -446,6 +464,7 @@ describe('Raider swerves', () => {
 		});
 
 		test('a swerve that attacks or defends keeps that type and still names where it lands (call 331)', () => {
+			sharpshooter(buggy);
 			useAggressive(battle);
 			giveHand(buggy, [strafe()]);
 			battle.planEnemyTurn();

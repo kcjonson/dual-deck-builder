@@ -2,11 +2,9 @@ import { Battle } from './Battle';
 import { Card, CardData } from './Card';
 import { Driver } from './Driver';
 import { createEscort } from './Escort';
-import { IntentType } from './Intent';
 import { RoadLane, RoadRow, RoadSlot } from './Road';
 import { Team, TeamType } from './Team';
 import { EVADE_BOOST, Vehicle } from './Vehicle';
-import { MCTSAI } from '../ai/MCTSAI';
 import { rollRewardCards } from '../campaign/RunRewards';
 import { Rng } from '../core/Rng';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
@@ -593,83 +591,6 @@ describe('slot-pick movement cards', () => {
 			const aimed = realCard('shoulder_check');
 			driver.set({ hand: [aimed], adrenaline: 5 });
 			expect(battle.getAllIntents({ preview: { driver, card: aimed, target: buggy, destination: slot(ENEMY_INSIDE, AHEAD) } }).get(buggy)).toHaveLength(1);
-		});
-	});
-
-	describe('in a raider\'s hand (Juke and Strafe, call 287)', () => {
-		// The Buggy in the raiders' outside lane, center, 2 from the Rig, so
-		// a Range 1 shot needs a swerve into the inside lane first
-		beforeEach(() => {
-			buggy.set({ slot: slot(ENEMY_OUTSIDE, CENTER) });
-		});
-
-		const useMcts = (): void => {
-			battle.aiController['enemyAI'] = new MCTSAI({ team: battle.enemyTeam, battle, iterations: 60 });
-		};
-		const useAggressive = (): void => battle.aiController.setEnemyAI('aggressive');
-
-		/** End the player's turn and play this many raider actions, stopping before close-up moves anyone */
-		const playPlans = (count: number): void => {
-			battle.endPlayerTurn({ stepEnemyTurn: true });
-			for (let index = 0; index < count; index++) {
-				if (!battle.stepEnemyTurn()) throw new Error(`the enemy turn ran out after ${index} actions`);
-			}
-		};
-
-		test.each([
-			['the aggressive AI', useAggressive],
-			['MCTS', useMcts]
-		])('%s plans Juke to the slot that lines up its shot, then plays both', (_, useAI) => {
-			// From the inside lane, ahead: the slot behind lines up the Rig
-			buggy.set({ slot: slot(ENEMY_INSIDE, AHEAD) });
-			useAI();
-			planWith(battle, buggy, [realCard('juke'), realCard('point_blank')]);
-
-			const plan = battle.getPlan(buggy);
-			expect(plan.map(action => action.card.type)).toEqual(['juke', 'point_blank']);
-			expect(plan[0].destination).toEqual(slot(ENEMY_INSIDE, CENTER));
-			expect(plan[1].target).toBe(rig);
-			expect(battle.getIntents(buggy)[0]).toEqual(expect.objectContaining({ type: IntentType.MOVE, label: 'draw', destination: slot(ENEMY_INSIDE, CENTER) }));
-
-			playPlans(2);
-			expect(buggy.slot).toEqual(slot(ENEMY_INSIDE, CENTER));
-			expect(rig.structure).toBeLessThan(20);
-		});
-
-		test('plans Strafe with the slot its shot reaches from, shows it as an attack that swerves, and plays it', () => {
-			// Gunnery 6 beats the Rig's evade 5; Strafe rolls like any shot (call 342)
-			withSkill(buggy, 'gunnery', 6);
-			useAggressive();
-			planWith(battle, buggy, [realCard('strafe')]);
-
-			const [planned] = battle.getPlan(buggy);
-			expect(planned.target).toBe(rig);
-			expect(planned.destination).toEqual(slot(ENEMY_INSIDE, CENTER));
-			expect(battle.getIntents(buggy)).toEqual([expect.objectContaining({
-				type: IntentType.ATTACK,
-				amount: 4,
-				target: rig.id,
-				destination: slot(ENEMY_INSIDE, CENTER)
-			})]);
-
-			playPlans(1);
-			expect(buggy.slot).toEqual(slot(ENEMY_INSIDE, CENTER));
-			expect(rig.structure).toBe(18);
-		});
-
-		test('a planned Strafe whose slot is taken by then fizzles, swerve and shot both', () => {
-			withSkill(buggy, 'gunnery', 6);
-			useAggressive();
-			planWith(battle, buggy, [realCard('strafe')]);
-			const blocking = createVehicle('Blocking', 3, slot(ENEMY_INSIDE, CENTER));
-			battle.enemyTeam.addVehicle(blocking);
-
-			expect(battle.getIntents(buggy)).toEqual([]);
-			playPlans(1);
-			expect(battle.getMessages().filter(message => message.type === 'fizzle').map(message => message.message))
-				.toContain('Buggy\'s Strafe fizzles: enemy inside, center is taken by Blocking');
-			expect(buggy.slot).toEqual(slot(ENEMY_OUTSIDE, CENTER));
-			expect(rig.structure).toBe(20);
 		});
 	});
 
