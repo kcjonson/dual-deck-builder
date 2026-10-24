@@ -180,12 +180,18 @@ export class AIController {
 	/**
 	 * Let the player AI play cards until it chooses to end the turn or picks
 	 * a play the battle refuses. Stopping on a refusal keeps a bad pick from
-	 * being offered forever. Doesn't end the turn itself.
+	 * being offered forever, and it's logged as an error, since every play an
+	 * AI is offered should be one the battle takes (a slot-pick card with its
+	 * slot, say), and a stand-in that quietly gives up its turn skews the
+	 * balance sim. Doesn't end the turn itself.
 	 */
 	async playPlayerCards(): Promise<void> {
 		while (!this.battle.isBattleOver()) {
 			const decision = await this.getPlayerDecision();
-			if (decision?.type !== 'playCard' || !await this.executeAIDecision(decision, true)) {
+			if (decision?.type !== 'playCard') return;
+			if (!await this.executeAIDecision(decision, true)) {
+				const [refusal] = this.battle.getMessages().slice(-1);
+				console.error(`The player AI's ${decision.card?.name ?? 'play'} was refused: ${refusal?.message ?? 'no reason logged'}`);
 				return;
 			}
 		}

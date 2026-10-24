@@ -7,8 +7,11 @@ import { Card } from '../mechanics/Card';
 import type { Driver } from '../mechanics/Driver';
 import { CardEffectValidator } from './CardEffectValidator';
 import { cardDamageKind, damageToFinish, lastingDamage } from './DamageEstimate';
-import { cardFlanks, selfSpeedBonus } from '../mechanics/BoardProjection';
-import { aimlessSwerve, swerveReach, swerveScore } from './SwerveEstimate';
+import { BoardProjection, cardFlanks, selfSpeedBonus } from '../mechanics/BoardProjection';
+import { effectValue } from '../mechanics/EffectConditions';
+import { EffectRecipient, effectRecipientOf } from '../mechanics/EffectTargets';
+import { RoadSlot, sameSlot } from '../mechanics/Road';
+import { SwerveReach, aimlessSwerve, swerveReach, swerveScore } from './SwerveEstimate';
 
 /**
  * Aggressive Flanker AI Strategy
@@ -46,9 +49,41 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 	}
 
 	/**
-	 * Public so tests can read what a play is worth
+	 * Public so tests can read what a play is worth. A move that would do
+	 * nothing else scores under ending the turn, so it isn't played.
 	 */
 	public scoreAction(action: AIDecision, gameState: GameStateEvaluation): number {
+		const reach = this.reachOf(action, gameState);
+		if (reach && action.card && action.driver && aimlessSwerve({ board: gameState.board, card: action.card, driver: action.driver, reach })) {
+			return this.END_TURN * 2;
+		}
+		return this.scorePlay(action, gameState, reach);
+	}
+
+	/**
+	 * What the play's own moves do for the rest of the hand (swerveReach),
+	 * or null for a play that isn't a card from a vehicle on the road
+	 */
+	public reachOf(action: AIDecision, gameState: GameStateEvaluation): SwerveReach | null {
+		const { card, driver } = action;
+		const ourVehicle = driver ? this.getVehicleForDriver(driver, gameState) : null;
+		if (!card || !driver || !ourVehicle) return null;
+		return swerveReach({
+			board: gameState.board,
+			card,
+			driver,
+			caster: ourVehicle.vehicle,
+			target: action.target instanceof Vehicle ? action.target : null,
+			destination: action.destination ?? null
+		});
+	}
+
+	/**
+	 * What a play is worth with no check for an aimless move: the
+	 * intent-aware stand-in judges that itself, since a move that makes a
+	 * planned hit fizzle isn't aimless. `reach` is reachOf's.
+	 */
+	public scorePlay(action: AIDecision, gameState: GameStateEvaluation, reach: SwerveReach | null = this.reachOf(action, gameState)): number {
 		if (action.type === 'endTurn') {
 			// Only end turn if we have no other options
 			return this.END_TURN;
@@ -73,7 +108,13 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		}
 
 		// Get card effects
-		const cardEffects = this.analyzeCardEffects(card);
+		const cardEffects = this.analyzeCardEffects({
+			card,
+			caster: ourVehicle.vehicle,
+			target: action.target instanceof Vehicle ? action.target : null,
+			destination: action.destination ?? null,
+			board: gameState.board
+		});
 
 		// Moving to the shoulder. A Flank is only offered at a target it can
 		// outrun, so every legal one gets the full priority.
@@ -81,20 +122,9 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 			score += this.POSITION_WEIGHT * 3;
 		}
 
-		// A swerve is worth what it puts in range for the rest of the hand,
-		// and waits while it would take something out. One that would do
-		// nothing else scores under ending the turn, so it isn't played.
-		const reach = swerveReach({
-			board: gameState.board,
-			card,
-			driver,
-			caster: ourVehicle.vehicle,
-			destination: action.destination ?? null
-		});
-		if (aimlessSwerve({ board: gameState.board, card, driver, reach })) {
-			return this.END_TURN * 2;
-		}
-		score += swerveScore(reach, this.DAMAGE_WEIGHT);
+		// A move is worth what it puts in range for the rest of the hand,
+		// and waits while it would take something out
+		if (reach) score += swerveScore(reach, this.DAMAGE_WEIGHT);
 
 		// A speed boost is worth a lot when it's what opens a flank
 		const board = gameState.board;
@@ -178,7 +208,20 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		return score;
 	}
 
-	private analyzeCardEffects(card: Card): {
+	/**
+	 * What a play's effects add up to. Damage on the other side counts from
+	 * where the card's own move lands (Strafe), with any row bonus that holds
+	 * there (Point Man, Tail Gunner), and only where its landing condition
+	 * holds (Brake Check's 4 on an ambusher); damage the caster takes isn't
+	 * the target's.
+	 */
+	private analyzeCardEffects({ card, caster, target, destination, board }: {
+		card: Card;
+		caster: Vehicle;
+		target: Vehicle | null;
+		destination: RoadSlot | null;
+		board: BoardProjection;
+	}): {
 		damage: number;
 		heal: number;
 		armor: number;
@@ -192,28 +235,29 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 			speedBoost: selfSpeedBonus(card),
 			flanks: cardFlanks(card)
 		};
+		const standing = board.slotOf(caster);
+		const [casterSlot = standing] = board.landingSlots({ card, caster, destination });
+		const conditions = {
+			casterSlot,
+			targetSlot: target ? board.slotOf(target) : null,
+			casterSwerved: board.swervedThisTurn(caster) || !sameSlot(casterSlot, standing)
+		};
 
 		for (const effect of card.effects) {
 			switch (effect.type) {
 				case 'damage':
-					result.damage += effect.value || 0;
+					if (effectRecipientOf({ effect, card }) === EffectRecipient.CASTER) break;
+					if (target && !board.landingConditionHolds({ effect, caster, recipient: target })) break;
+					result.damage += effectValue(effect, conditions);
 					break;
 				case 'heal':
-					result.heal += effect.value || 0;
+					result.heal += effectValue(effect, conditions);
 					break;
 				case 'gain_armor':
-					result.armor += effect.value || 0;
+					result.armor += effectValue(effect, conditions);
 					break;
 			}
 		}
-
-		// Check for variable damage
-		if (card.variables?.damage) {
-			result.damage = card.upgraded && card.variables.damage.upgraded 
-				? card.variables.damage.upgraded 
-				: card.variables.damage.base;
-		}
-
 		return result;
 	}
 
