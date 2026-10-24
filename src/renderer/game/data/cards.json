@@ -346,7 +346,7 @@
     {
       "type": "floor_it",
       "name": "Floor It",
-      "summary": "[Swerve] ahead. +2 Speed until the next enemy turn ends.",
+      "summary": "[Swerve] ahead. +2 Speed until the enemy turn ends.",
       "description": "Swerve one row ahead in your lane, then gain 2 speed until the end of the next enemy turn. Unplayable while flanking, or if that slot is taken or reserved. While Heavy the speed doesn't count, but the swerve still happens.",
       "rarity": "common",
       "cost": 1,
@@ -437,7 +437,7 @@
       "type": "slipstream",
       "name": "Slipstream",
       "summary": "Move behind your [Partner]. +3 Speed for 2 turns.",
-      "description": "Move to the empty slot directly behind your partner's vehicle: same lane, one row back. Gain 3 speed for 2 turns. Unplayable while you or your partner is flanking, or if that slot isn't free.",
+      "description": "Move to the empty slot directly behind your partner's vehicle: same lane, one row back. Gain 3 speed for 2 turns. Unplayable while you or your partner is flanking, or if that slot isn't free. While Heavy the speed doesn't count, but the move still happens.",
       "rarity": "uncommon",
       "cost": 1,
       "targetType": "self",
@@ -458,7 +458,7 @@
       ],
       "upgrades": {
         "summary": "Move behind your [Partner]. +3 Speed for 2 turns. Draw 1.",
-        "description": "Move to the empty slot directly behind your partner's vehicle: same lane, one row back. Gain 3 speed for 2 turns and draw 1 card. Unplayable while you or your partner is flanking, or if that slot isn't free.",
+        "description": "Move to the empty slot directly behind your partner's vehicle: same lane, one row back. Gain 3 speed for 2 turns and draw 1 card. Unplayable while you or your partner is flanking, or if that slot isn't free. While Heavy the speed doesn't count, but the move still happens.",
         "effects": [
           {
             "type": "change_position",

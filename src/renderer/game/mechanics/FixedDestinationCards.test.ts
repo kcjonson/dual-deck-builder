@@ -1,5 +1,5 @@
 import { Battle } from './Battle';
-import { Card, CardData } from './Card';
+import { Card, CardData, CardEffect } from './Card';
 import { Driver } from './Driver';
 import { createEscort } from './Escort';
 import { previewAim } from './AimPreview';
@@ -314,11 +314,19 @@ describe('fixed-destination movement cards', () => {
 		});
 
 		test('counts any change of slot this turn, a flank or being moved included (call 290)', () => {
+			// The Bike (7) outruns the Buggy (5) onto its shoulder
+			expect(play(battle, bike, realCard('flank'), buggy)).toBe(true);
+			expect(play(battle, bike, realCard('weave'))).toBe(true);
+			expect(bike.evadeBoost).toBe(2);
+
+			// Moved by its partner's Formation Shift, the Rig never played a move itself
 			const outrider = createEscort({ type: 'outrider' });
-			battle = createBattle([rig, bike, outrider], [buggy]);
-			play(battle, bike, realCard('formation_shift'));
-			expect(play(battle, rig, realCard('weave'))).toBe(true);
-			expect(rig.evadeBoost).toBe(2);
+			const fresh = createVehicle('Rig', 1);
+			battle = createBattle([fresh, createVehicle('Bike', 5), outrider], [createVehicle('Buggy', 3)]);
+			const [, partner] = battle.playerTeam.vehicles;
+			play(battle, partner, realCard('formation_shift'));
+			expect(play(battle, fresh, realCard('weave'))).toBe(true);
+			expect(fresh.evadeBoost).toBe(2);
 		});
 
 		test('stacks with another Evade (call 312)', () => {
@@ -352,7 +360,7 @@ describe('fixed-destination movement cards', () => {
 			expect(battle.checkHit({ attacker: buggy, caster: driverOf(buggy), defender: rig, attackType: 'ramming' })).toBe(false);
 		});
 
-		test('lands in the preview while only aimed, so the projection\'s hit checks count it', () => {
+		test('lands in the preview while only aimed, swerve bonus included', () => {
 			const driver = driverOf(rig);
 			const aimed = realCard('weave');
 			driver.set({ hand: [aimed], adrenaline: 5 });
@@ -362,6 +370,36 @@ describe('fixed-destination movement cards', () => {
 			play(battle, rig, realCard('lane_change'));
 			driver.set({ hand: [aimed], adrenaline: 5 });
 			expect(battle.projectEnemyTurnStart({ preview: { driver, card: aimed } }).evadeBoostOf(rig)).toBe(2);
+		});
+
+		// Gunnery 6 beats the Rig's evade 5, and not 6 once an aimed Weave lands
+		// on the projection. Each raider card's slow lands only past a roll: on
+		// the status's own roll, or on_hit after a damage roll.
+		test.each([
+			['a rolled status', [
+				{ type: 'apply_status', status: 'speed_reduction', value: -2, duration: 1, target: 'target' }
+			]],
+			['a status after a rolled hit', [
+				{ type: 'damage', value: 1, target: 'target' },
+				{ type: 'apply_status', status: 'speed_reduction', value: -2, duration: 1, target: 'target', always_hits: true, on_hit: true }
+			]]
+		] as [string, CardEffect[]][])('makes %s from a raider miss on the projection', (_, effects) => {
+			const raiderDriver = driverOf(buggy);
+			raiderDriver.set({ skills: { ...raiderDriver.skills, gunnery: 6 } });
+			const sideswipe = (): Card => new Card({ type: 'sideswipe', name: 'Sideswipe', summary: 'Sideswipe', description: 'Sideswipe', rarity: 'common', cost: 1, targetType: 'enemy_single', effects, tags: ['attack'] });
+			const driver = driverOf(rig);
+			const aimed = realCard('weave');
+
+			const landedOn = (preview: boolean): number => {
+				const raiderCard = sideswipe();
+				raiderDriver.set({ hand: [raiderCard], adrenaline: 5 });
+				driver.set({ hand: [aimed], adrenaline: 5 });
+				const board = battle.projectEnemyTurnStart({ preview: preview ? { driver, card: aimed } : null });
+				board.apply({ card: raiderCard, driver: raiderDriver, target: rig });
+				return board.speedOf(rig);
+			};
+			expect(landedOn(false)).toBe(1);
+			expect(landedOn(true)).toBe(3);
 		});
 
 		test('shows on the status row as a buff chip that names its value', () => {
