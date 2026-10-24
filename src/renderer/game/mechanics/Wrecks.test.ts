@@ -615,18 +615,20 @@ describe('Driver death', () => {
 			}
 		);
 
-		test('stops playing cards the first time the battle refuses one', async () => {
+		test('stops playing cards the first time the battle refuses one, and says so', async () => {
 			emptyBuggy();
 			giveHand(rigDriver, [pointBlank()]);
 			battle.aiController.setPlayerAI('aggressive');
 			const refused = { type: 'playCard' as const, card: rigDriver.hand[0], driver: rigDriver, target: buggy };
 			const decide = jest.spyOn(battle.aiController, 'getPlayerDecision').mockResolvedValue(refused);
+			const error = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 
 			expect(await battle.aiController.executeAIDecision(refused, true)).toBe(false);
 			await battle.aiController.playPlayerCards();
 
 			expect(decide).toHaveBeenCalledTimes(1);
 			expect(rigDriver.hand.map(c => c.name)).toEqual(['Point Blank']);
+			expect(error).toHaveBeenCalledWith(expect.stringContaining('Point Blank was refused'));
 		});
 
 		test('only offers targets the battle accepts, so a card it can\'t play doesn\'t cost it the turn', async () => {

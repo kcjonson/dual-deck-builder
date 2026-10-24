@@ -22,7 +22,7 @@ import {
 	slotRange,
 	swerveSlot
 } from './Road';
-import { EffectRecipient, effectRecipientOf, effectRecipients, isCasterAction, rollsToHit } from './EffectTargets';
+import { EffectRecipient, attackTypeOf, effectRecipientOf, effectRecipients, isCasterAction, rollsToHit } from './EffectTargets';
 import { ESCORT_CONFIGS } from './Escort';
 import { MoveSpec, casterMoveOf, moveSpecOf, movesOf, picksSlot } from './Movement';
 
@@ -142,8 +142,16 @@ export class BoardProjection {
 	/** When set, only this vehicle's driver acts. Planning runs one raider at a time. */
 	public actor: Vehicle | null = null;
 
-	constructor({ battle }: { battle: Battle }) {
+	/** `from`: a projection to copy (copy()), instead of the live board */
+	constructor({ battle, from = null }: { battle: Battle; from?: BoardProjection | null }) {
 		this.battle = battle;
+		if (from) {
+			for (const [vehicle, state] of from.vehicles) this.vehicles.set(vehicle, { ...state });
+			for (const [driver, hand] of from.hands) this.hands.set(driver, [...hand]);
+			for (const [driver, adrenaline] of from.adrenaline) this.adrenaline.set(driver, adrenaline);
+			this.actor = from.actor;
+			return;
+		}
 		for (const team of [battle.playerTeam, battle.enemyTeam]) {
 			for (const vehicle of team.vehicles) {
 				this.vehicles.set(vehicle, {
@@ -163,6 +171,14 @@ export class BoardProjection {
 				}
 			}
 		}
+	}
+
+	/**
+	 * This board as it stands, to try a play on (apply) without touching
+	 * this one: the AIs' move estimates compare the two
+	 */
+	public copy(): BoardProjection {
+		return new BoardProjection({ battle: this.battle, from: this });
 	}
 
 	public slotOf(vehicle: Vehicle): RoadSlot | null {
@@ -963,6 +979,12 @@ export class BoardProjection {
 		return [...this.vehicles].filter(([, state]) => state.team !== team).map(([other]) => other);
 	}
 
+	/** Every vehicle on this one's team, itself included */
+	public teamOf(vehicle: Vehicle): Vehicle[] {
+		const team = this.vehicles.get(vehicle)?.team;
+		return [...this.vehicles].filter(([, state]) => state.team === team).map(([other]) => other);
+	}
+
 	/**
 	 * Play a card on the projection: it leaves the hand, costs adrenaline,
 	 * and moves or changes speed as it would in the battle, each effect on
@@ -1081,7 +1103,7 @@ export class BoardProjection {
 	}): boolean {
 		if (!rollsToHit({ effect, card })) return true;
 		const damage = effect.type === 'damage' ? {
-			attackType: typeof effect.attack_type === 'string' ? effect.attack_type : effect.scaling === 'ramming' ? 'ramming' : 'ranged',
+			attackType: attackTypeOf(effect),
 			modifier: typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0
 		} : {};
 		return this.battle.checkHit({ attacker: caster, caster: driver, defender: recipient, ...damage, evadeBoost: this.evadeBoostOf(recipient) });

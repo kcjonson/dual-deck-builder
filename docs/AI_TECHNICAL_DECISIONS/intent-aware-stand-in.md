@@ -16,25 +16,25 @@ The balance sim (docs/specs/Balance Simulation.md, Player stand-ins) wants two p
 
 - a kill (wreck, or the driver dead) or a stun drops that raider's hits, judged from the vehicle Battle resolves the card from (the caster, an attack order's carrier escort, or each escort Rally the Convoy fires), with the battle's deterministic `checkHit`;
 - Shield, armor (uncapped), repair, and driver heals change what the hits find;
-- a speed change that leaves a flanker no faster than the vehicle it outran, checked on a `BoardProjection` with the card applied, takes the flank bonus off its hits;
+- a play that changes the board (a swerve, shove, swap, drop-back, or flank, a speed change, Box In, Evade) is scored against `getAllIntents({ preview })` for that play, Battle's own projection of the enemy turn with the card landed, and each hit's check is rerun with the Evade the preview board has, so a hit that would fizzle, lose its flank bonus (a flanker outpaced so it drops back), or miss is off (DDB-553, [movement-cards.md](./movement-cards.md));
+- Vulnerable is the floor's `vulnerableSetup`, half the damage the rest of the turn's hands can still deal its raider, scored through the floor's score below;
 - non-lethal damage gets a share of the hurt raider's harm, so the target with the most harm per point of toughness is preferred.
 
-The aggressive strategy's score is added on top, so with no threat at stake it plays as the floor does, except that an attack whose hit check fails scores nothing.
+The aggressive strategy's score is added on top, so with no threat at stake it plays as the floor does, except that damage whose hit check fails scores nothing, and a move that does nothing or does harm, or a guard (Weave, a bare Shield) that keeps nothing off, scores under ending the turn.
 
 The attack-type rule (`attack_type`, else ramming scaling, else ranged) is a third copy, after Battle's damage path and the aim preview's; sharing it means an export from mechanics/, left for whoever next owns that code.
 
 ## Trade-offs and consequences
 
-On today's encounters (six crews, three skull counts, two seeds, 36 fights a side) it ties the aggressive AI on outcomes, 20 won and 8 stalled each, and loses 29.2% of the crews' HP to the floor's 28.9%: on a few fights it plays armor before damage that would have ended the fight sooner, which one step can't weigh. The outcomes are fixed by crew against encounter: solo Road Warrior and Interceptor lose damage races at 2 and 3 skulls that no card order wins, and every Mechanic loss is a stall where EMP keeps a raider stunned that nobody can reach. The unit tests pin the choices where it does differ from the floor: the kill on the bigger intent, armor before chip damage, a stun, outpacing a flanker, and no credit for a shot that misses.
+On the jest sample (six crews on their starting decks, three skull counts, two seeds, 36 fights a side; `IntentAwareAI.test.ts`), after DDB-553, it wins 27 and stalls 6 and loses 23.5% of the crews' HP, against the floor's 25 won, 5 stalled, and 38.5%, on DDB-552's raider decks. When DDB-528 built it, on the encounters of the day, the two tied at 20 won and 8 stalled, 29.2% HP lost to 28.9%. Most outcomes are still fixed by crew against encounter: solo drivers lose damage races at 2 and 3 skulls that no card order wins, and a Mechanic's EMP stalls fights against raiders nobody can reach. The unit tests pin the choices where it does differ from the floor: the kill on the bigger intent, armor before chip damage, a stun, outpacing a flanker, and no credit for a shot that misses.
 
-Until Battle can preview a hypothetical board, the drop-back model can't tell when the dropped flanker falls out of range, and the stand-in can't value a flank's boost to the rest of its own turn.
+It still can't value a flank's boost to the rest of its own turn. DDB-553 moved it onto Battle's preview of a hypothetical board, which replaced a drop-back model that couldn't tell when a dropped flanker fell out of range (call 244, retired with it).
 
 ## Provisional calls
 
-Logged in docs/gameplay-calls.md as 240 to 244, for Kevin to approve or change.
+Logged in docs/gameplay-calls.md as 240 to 243, for Kevin to approve or change.
 
 240. Hidden elite intents are read from the plan, card and damage, which is more than a player sees.
 241. Harm is structure plus occupant hitpoints, with a wreck or a dead driver counting 20 more.
 242. Non-lethal damage counts for half a turn of the raider's harm per share of its toughness; weighted higher it outbid Flanking Maneuver.
 243. Everything the harm count doesn't cover is scored as the aggressive AI scores it.
-244. An outpaced flanker loses its whole flank bonus (hits divided by 1.5, rounded up) and stays in range.

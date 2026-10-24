@@ -368,15 +368,14 @@ Record: stop-clearing.md.
 
 260. DDB-519: a failed run clears nothing, neither the stops it got past nor its POI, so a retry within the 5-day cooldown meets the same fight stops, replacing the part of 188 that has a run failing on the way home clear its POI, because the raiders still hold the road, and a failed run loses its cargo, so the POI's yield is still there.
 
-## Player stand-ins (240 to 244)
+## Player stand-ins (240 to 243)
 
 Record: intent-aware-stand-in.md. Numbered from 240, the range set aside for this work.
 
-240. DDB-528: the intent-aware stand-in reads an elite's hidden attacks from its plan, the card and its damage worked out on the board as it stands, which is more than a player sees (the card is hidden too), because the ceiling should not be capped by a tier rule, and today's encounters are all basic anyway.
+240. DDB-528: the intent-aware stand-in reads an elite's hidden attacks in full, the card and its damage worked out by the enemy-turn preview as a basic raider's are, which is more than a player sees (the card is hidden too), because the ceiling should not be capped by a tier rule, and today's encounters are all basic anyway.
 241. DDB-528: the harm it weighs is structure plus occupant hitpoints lost next enemy turn, split as a hit splits, with a wreck or a dead driver counting 20 more, because either costs a run far more than its points.
 242. DDB-528: non-lethal damage counts for half a turn of the hurt raider's harm, times the share of its toughness it removes, because weighted higher it outbid Flanking Maneuver, and one step can't see that the flank boosts the rest of the turn's hits.
 243. DDB-528: what the harm count doesn't cover (flanking, draws, adrenaline, cards with no effect) is scored as the aggressive AI scores it, so the ceiling keeps the floor's priorities whenever no intent is at stake.
-244. DDB-528: a flanker the play outpaces is taken to lose its flank bonus whole (its hits divided by 1.5, rounded up) and to stay in range, because re-deriving range from the reserved slot needs Battle's enemy-turn preview, which projects only from the board as it stands.
 
 ## Event stops (250 to 259, 270 to 275)
 
@@ -445,7 +444,7 @@ Record: heavy-armor.md. Calls 277 to 279 are settled and in Combat Rules.
 
 280. DDB-164: Heavy shows as a chip in the vehicle's status row, after Shield, counting the armor past base, and the plate's armor shield turns amber while it's Heavy, because the status row is where the speed statuses it cancels already sit.
 
-## Movement cards (287 to 357)
+## Movement cards (287 to 364)
 
 Record: movement-cards.md. The draft is in Combat Rules (Swerving, and Movement cards under Cards), whose open questions these answer. Calls 281 to 286 are settled and in Combat Rules.
 
@@ -486,3 +485,8 @@ Record: movement-cards.md. The draft is in Combat Rules (Swerving, and Movement 
 355. DDB-552: a raider's plan counts its own Shield, its draws, and a one-turn status on itself as worth nothing, except a speed boost that would leave a flanker that outran it no faster at the end-of-turn drop-back, so it plays Hard Brake or Juke only when the swerve lines up a shot, and Floor It also when it knocks a flanker off, because the card plays on the enemy turn: Shield clears and one-turn statuses tick off as the player's turn starts, before anyone can shoot it, a drawn card arrives after the plan was made and is discarded then, and the drop-back comes just before the tick.
 356. DDB-552: a raider never plans a Strafe at a target its shot would miss, and no AI counts a swerve as lining up a shot that would miss, because Strafe swerves hit or miss (call 342) and hit checks are deterministic, so the raider would give up its slot for a pill the player can see does nothing.
 357. DDB-552: a raider plays Cut Off before the shots its Vulnerable sets up, scoring it at half the damage the rest of its hand would then deal the mark, because a raider's Vulnerable lasts only the rest of the enemy turn, and played after its shots it would set up nothing of its own.
+360. DDB-553: the player stand-ins value a Vulnerable they land by call 357's estimate, counting every hand on the convoy, both drivers', each card from where its player stands once the card lands, the biggest first, as many as that driver's own adrenaline pays for, because the partner's shots gain from the mark as much as the caster's, and a hand plays only what its adrenaline pays for.
+361. DDB-553: the intent-aware stand-in passes on a move (anything but a flank) that comes out worse than nothing, or that only moves and comes out at nothing, counting the harm it keeps off and what it puts in reach, because a move that makes a planned hit fizzle has a use and one that only shuffles the vehicle or walks into a hit doesn't, which is the floor's aimless-swerve rule with the enemy turn counted.
+362. DDB-553: the intent-aware stand-in can end its turn with cards in hand, scoring ending the turn at the floor's -1000, so what the floor would play it still plays and only a move or guard that does nothing waits, because before it always played its best card, a move that did harm included.
+363. DDB-553: both stand-ins count dropping off a shoulder the vehicle would hold past the end of the turn (Peel Off) as costing what the floor pays to get onto one, 600, and the floor never does it, while a flank about to be lost anyway costs nothing, because the flank bonus lasts as long as the shoulder and one step can't see the turns after.
+364. DDB-553: the intent-aware stand-in passes on a card that only guards through the enemy turn (Weave, a bare Shield) when it keeps no planned damage off, because both are gone before anyone can hit the vehicle again, so with nothing aimed at it they do nothing.

@@ -5,7 +5,7 @@
  *
  *   node scripts/balance-sim.mjs fights [--routes 1,2,3,1+2] [--crews all|pairs|solo|road_warrior+interceptor,mechanic]
  *     [--seed 1] [--runs 150] [--turns 25] [--tier 1] [--stage 0] [--player aggressive|intent] [--config tuning.json] [--json rows.json]
- *     [--workers 2] [--log road_warrior+interceptor:2:7]
+ *     [--workers 2] [--log road_warrior+interceptor:2:7] [--cards]
  *   node scripts/balance-sim.mjs gen [--maps 30] [--seed 1] [--corpus routes.json] [--json gen.json] [--config tuning.json] [--workers 2]
  *
  * fights: every crew, fresh and on its default decks, through every route's
@@ -16,6 +16,12 @@
  * home; the by-seat column splits a pair's runs by who drives seat 1. After
  * the fairness spreads it lists what the raiders played a fight, by raider
  * and card, with how much of it fizzled.
+ * --cards counts each player card's draws and plays and the raider intents
+ * each play makes fizzle, and prints a line for every card a crew's seats
+ * add to their decks (a seat's `add` in the config), with the cell's won
+ * and HP lost against the same crew on its starting decks, on the same
+ * route, when the config has that cell too. It projects the enemy turn
+ * twice a play, so it's off unless asked for.
  *
  * gen: campaign maps from `rollParams` seeds `--seed` up, made as founding
  * makes them, and every route to every POI as a run gets it, measured by
@@ -55,7 +61,7 @@ const { genCells, playGenCell, summarizeGen } = load('./sim/Gen.js');
 const { simConfig } = load('./sim/SimConfig.js');
 
 const MODES = {
-	fights: { cells: fightCells, play: playFightCell, run: fights, options: ['runs', 'crews', 'routes', 'turns', 'player', 'log'] },
+	fights: { cells: fightCells, play: playFightCell, run: fights, options: ['runs', 'crews', 'routes', 'turns', 'player', 'log', 'cards'] },
 	gen: { cells: genCells, play: playGenCell, run: gen, options: ['maps', 'corpus'] },
 };
 
@@ -87,10 +93,13 @@ async function fights({ mode, options, input, config, workers }) {
 		if (template.tiers.includes(Math.min(config.tier, 4)) || template.tiers.includes(config.tier)) print(`  ${template.skulls} ${template.id}: ${template.waves.map(waveName).join(' | ')}`);
 	}
 	print('');
-	print('crew          route   won  by seat  stall  rout  broke  HP lost  struct lost  down  turns  inj days  killed   (rout and broke over all runs; lost, down, turns, and injury days over runs won)');
-	const rows = await playCells({ mode, input, count: fightCells(config).length, workers, onRow: printRow });
+	// A crew on test decks is named by the cards its seats add, so the table can be wider than the crews alone
+	const width = Math.max(14, ...fightCells(config).map(cell => cellLabel({ crew: cell.crew.map(seat => seat.archetype), seatAdds: cell.crew.map(seat => seat.add ?? {}) }).length + 2));
+	print(`${'crew'.padEnd(width)}route   won  by seat  stall  rout  broke  HP lost  struct lost  down  turns  inj days  killed   (rout and broke over all runs; lost, down, turns, and injury days over runs won)`);
+	const rows = await playCells({ mode, input, count: fightCells(config).length, workers, onRow: row => printRow(row, width) });
 	printFairness(rows);
 	printRaiderPlays(rows);
+	if (config.cardStats) printCards(rows);
 	if (options.json) writeFileSync(options.json, JSON.stringify({ mode, config, rows }, null, '\t'));
 }
 
@@ -156,6 +165,7 @@ function configInput(options) {
 		...number('tier'),
 		...number('stage'),
 		...(options.player ? { playerAI: options.player } : {}),
+		...(options.cards ? { cardStats: true } : {}),
 		...(options.routes ? { routes: options.routes.split(',').map(route => route.split('+').map(Number)) } : {}),
 		...(options.crews ? { crews: ['all', 'pairs', 'solo'].includes(options.crews) ? options.crews : options.crews.split(',').map(crew => crew.split('+')) } : {}),
 	};
@@ -169,25 +179,42 @@ function whole(options, key, fallback) {
 	return value;
 }
 
+/** Options that take no value */
+const FLAGS = ['cards'];
+
 function readOptions(list, known) {
 	const options = {};
-	for (let index = 0; index < list.length; index += 2) {
+	for (let index = 0; index < list.length; index += 1) {
 		const key = list[index].replace(/^--/, '');
 		if (!known.includes(key)) throw new Error(`balance-sim: unknown option ${list[index]}`);
+		if (FLAGS.includes(key)) {
+			options[key] = true;
+			continue;
+		}
 		if (list[index + 1] === undefined || list[index + 1].startsWith('--')) throw new Error(`balance-sim: ${list[index]} needs a value`);
 		options[key] = list[index + 1];
+		index += 1;
 	}
 	return options;
 }
 
 const SHORT = { road_warrior: 'RW', interceptor: 'Int', mechanic: 'Mech', raider: 'Raid' };
 const crewLabel = (crew) => crew.map(archetype => SHORT[archetype] ?? archetype).join(' + ');
+/** A crew, and the cards its seats add, each card naming the seats that add it when not all do: `RW + Int +weave(Int)` */
+const cellLabel = ({ crew, seatAdds }) => {
+	const types = [...new Set(seatAdds.flatMap(add => Object.keys(add)))];
+	const cards = types.map(type => {
+		const adders = crew.filter((_, seat) => seatAdds[seat]?.[type]);
+		return adders.length < crew.length ? `${type}(${crewLabel(adders).replace(/ \+ /g, ',')})` : type;
+	});
+	return cards.length > 0 ? `${crewLabel(crew)} +${cards.join(' +')}` : crewLabel(crew);
+};
 const percent = (value) => (value === null || Number.isNaN(value) ? '-' : `${Math.round(value * 100)}%`).padStart(4);
 const fixed = (value, digits = 1) => (value === null ? '-' : value.toFixed(digits));
 
-function printRow(row) {
+function printRow(row, width = 14) {
 	const bySeat = row.bySeat ? row.bySeat.map(({ rate }) => (rate === null ? '-' : String(Math.round(rate * 100)))).join('/') : '';
-	print(`${crewLabel(row.crew).padEnd(14)}${row.route.join('+').padStart(5)}  ${percent(row.won.rate)}  ${bySeat.padStart(7)}  ${percent(row.stalled.rate).padStart(5)}  ${percent(row.routed.rate)}  ${percent(row.brokenOff.rate).padStart(5)}  ${percent(row.hpLost).padStart(7)}  ${percent(row.structureLost).padStart(11)}  ${percent(row.down.rate)}  ${fixed(row.turns).padStart(5)}  ${fixed(row.injuryDays).padStart(8)}  ${fixed(row.raidersKilled).padStart(6)}`);
+	print(`${cellLabel(row).padEnd(width)}${row.route.join('+').padStart(5)}  ${percent(row.won.rate)}  ${bySeat.padStart(7)}  ${percent(row.stalled.rate).padStart(5)}  ${percent(row.routed.rate)}  ${percent(row.brokenOff.rate).padStart(5)}  ${percent(row.hpLost).padStart(7)}  ${percent(row.structureLost).padStart(11)}  ${percent(row.down.rate)}  ${fixed(row.turns).padStart(5)}  ${fixed(row.injuryDays).padStart(8)}  ${fixed(row.raidersKilled).padStart(6)}`);
 }
 
 /** Runs and Encounters, Fairness: the spread between the best and worst pair on a route, and each pair's seat gap. */
@@ -207,12 +234,39 @@ function printFairness(rows) {
 /** What the raiders played, a fight, by raider and card, the most played first, fizzles in brackets. */
 function printRaiderPlays(rows) {
 	print('\nraider plays a fight, by raider and card; of those, fizzled in brackets');
+	const width = Math.max(14, ...rows.map(row => cellLabel(row).length + 2));
 	for (const row of rows) {
 		const raiders = Object.entries(row.raiderPlays).map(([raider, cards]) => `${raider}: ${Object.entries(cards)
 			.sort(([, a], [, b]) => b.played + b.fizzled - a.played - a.fizzled)
 			.map(([card, { played, fizzled }]) => `${card} ${fixed(played + fizzled, 2)}${fizzled > 0 ? ` (${fixed(fizzled, 2)})` : ''}`)
 			.join(', ')}`);
-		print(`${crewLabel(row.crew).padEnd(14)}${row.route.join('+').padStart(5)}  ${raiders.join(' | ')}`);
+		print(`${cellLabel(row).padEnd(width)}${row.route.join('+').padStart(5)}  ${raiders.join(' | ')}`);
+	}
+}
+
+/**
+ * A line for each card a cell's crew adds to its decks: its cell's won and HP
+ * lost, each against the same crew on its starting decks on the same route
+ * when the config has that cell, then how often the card was drawn and
+ * played, and per play, the planned raider intents it made fizzle and the
+ * planned damage it took off the convoy
+ */
+function printCards(rows) {
+	const variants = rows.filter(row => row.added);
+	if (variants.length === 0) return;
+	const points = (value) => (value === null || Number.isNaN(value) ? '-' : `${value > 0 ? '+' : ''}${Math.round(value * 100)}`).padStart(5);
+	print("\ncards added to a crew's decks: won and HP lost against the crew on its starting decks (vs base, points), draws, plays, and per play the intents it fizzled and planned damage it blanked");
+	print('card                    crew          route   won  vs base  HP lost  vs base   seen  played  play rate  fizzled  blanked');
+	for (const row of variants) {
+		const base = rows.find(other => !other.added && !other.customDeck && other.crew.join('+') === row.crew.join('+') && other.route.join('+') === row.route.join('+'));
+		for (const type of Object.keys(row.added)) {
+			const stats = row.cards?.[type] ?? { seen: 0, played: 0, fizzled: 0, damageBlanked: 0 };
+			// A card only some seats add names them
+			const adders = row.crew.filter((_, seat) => row.seatAdds[seat]?.[type]);
+			const label = adders.length < row.crew.length ? `${type} (${crewLabel(adders)})` : type;
+			const perPlay = (value) => (stats.played === 0 ? '-' : (value / stats.played).toFixed(2));
+			print(`${label.padEnd(24)}${crewLabel(row.crew).padEnd(14)}${row.route.join('+').padStart(5)}  ${percent(row.won.rate)}  ${points(base ? row.won.rate - base.won.rate : null).padStart(7)}  ${percent(row.hpLost).padStart(7)}  ${points(base && row.hpLost !== null && base.hpLost !== null ? row.hpLost - base.hpLost : null).padStart(7)}  ${String(stats.seen).padStart(5)}  ${String(stats.played).padStart(6)}  ${percent(stats.seen === 0 ? null : stats.played / stats.seen).padStart(9)}  ${perPlay(stats.fizzled).padStart(7)}  ${perPlay(stats.damageBlanked).padStart(7)}`);
+		}
 	}
 }
 

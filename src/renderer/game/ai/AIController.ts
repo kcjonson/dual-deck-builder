@@ -180,15 +180,36 @@ export class AIController {
 	/**
 	 * Let the player AI play cards until it chooses to end the turn or picks
 	 * a play the battle refuses. Stopping on a refusal keeps a bad pick from
-	 * being offered forever. Doesn't end the turn itself.
+	 * being offered forever, and it's logged as an error, since every play an
+	 * AI is offered should be one the battle takes (a slot-pick card with its
+	 * slot, say), and a stand-in that quietly gives up its turn skews the
+	 * balance sim. Doesn't end the turn itself.
 	 */
 	async playPlayerCards(): Promise<void> {
 		while (!this.battle.isBattleOver()) {
 			const decision = await this.getPlayerDecision();
-			if (decision?.type !== 'playCard' || !await this.executeAIDecision(decision, true)) {
+			if (decision?.type !== 'playCard') return;
+			if (!await this.executeAIDecision(decision, true)) {
+				console.error(`The player AI's ${decision.card?.name ?? 'play'} was refused: ${this.refusalOf(decision)}`);
 				return;
 			}
 		}
+	}
+
+	/** Why the battle refuses a play, by the checks playCard makes, asked again of the board it was refused on */
+	private refusalOf(decision: AIDecision): string {
+		const { card, driver } = decision;
+		if (!card || !driver) return 'it names no card or no driver';
+		const target = decision.target instanceof Vehicle ? decision.target : null;
+		const destination = decision.destination ?? null;
+		const index = driver.hand.indexOf(card);
+		if (index === -1) return `${card.name} isn't in ${driver.metadata.name}'s hand`;
+		return driver.getPlayBlocker(index)
+			?? this.battle.getCardBlocker({ driver, card })
+			?? (target ? this.battle.getTargetBlocker({ driver, card, target, destination }) : null)
+			?? (destination ? this.battle.getDestinationBlocker({ driver, card, target, destination }) : null)
+			?? (!destination && this.battle.needsDestination({ driver, card, target }) ? `${card.name} needs a slot to move to` : null)
+			?? 'every check playCard makes passes again';
 	}
 
 	/**

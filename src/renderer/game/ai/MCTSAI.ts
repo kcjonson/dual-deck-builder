@@ -5,7 +5,8 @@ import { Team } from '../mechanics/Team';
 import { Vehicle, statusSpeedModifier } from '../mechanics/Vehicle';
 import { Driver } from '../mechanics/Driver';
 import { Card, CardEffect } from '../mechanics/Card';
-import { laneKind } from '../mechanics/Road';
+import { RoadSlot, laneKind, sameSlot } from '../mechanics/Road';
+import { effectValue } from '../mechanics/EffectConditions';
 import { DamageKind, damageToFinish, effectDamageKind } from './DamageEstimate';
 import { cardsKeptFromDraw } from './DrawEstimate';
 import { EffectRecipient, effectRecipientOf } from '../mechanics/EffectTargets';
@@ -205,7 +206,14 @@ export class MCTSAI extends AIPlayer {
 			
 			const actor = this.actorOf({ card, target: action.target, ourVehicle });
 			// A swerve that would do nothing else scores under ending the turn either way
-			const reach = actor ? swerveReach({ board: this.board, card, driver, caster: actor, destination: action.destination ?? null }) : null;
+			const reach = actor ? swerveReach({
+				board: this.board,
+				card,
+				driver,
+				caster: actor,
+				target: action.target instanceof Vehicle ? action.target : null,
+				destination: action.destination ?? null
+			}) : null;
 			if (reach && aimlessSwerve({ board: this.board, card, driver, reach })) return -10;
 			const keptCards = cardsKeptFromDraw({ board: this.board, card, player: driver });
 			let score = this.evaluateMovement({ card, actor, reach }) + this.CARD_DRAW_WEIGHT * keptCards;
@@ -215,7 +223,7 @@ export class MCTSAI extends AIPlayer {
 				for (const effect of card.effects) {
 					// Self damage (Ramming Run's cost) lands on us, not the target
 					if (effect.type === 'damage' && effectRecipientOf({ effect, card }) === EffectRecipient.CASTER) continue;
-					score += this.evaluateEffectWithContext({ effect, card, target: action.target, ourVehicle, actor });
+					score += this.evaluateEffectWithContext({ effect, card, target: action.target, ourVehicle, actor, destination: action.destination ?? null });
 				}
 			}
 			
@@ -319,25 +327,39 @@ export class MCTSAI extends AIPlayer {
 	/**
 	 * Evaluate effect with full context. The card's flank and its own speed
 	 * are scored once for the whole card in evaluateMovement, and its draws
-	 * once in evaluateActionWithContext.
+	 * once in evaluateActionWithContext. An effect whose landing condition
+	 * won't hold is worth nothing (Brake Check's 4 on a flanker with a slot
+	 * to drop back to, Box In's Vulnerable out of the driven vehicles' reach),
+	 * and damage counts any row bonus from where the card's own move lands.
 	 */
 	private evaluateEffectWithContext({
 		effect,
 		card,
 		target,
 		ourVehicle,
-		actor
+		actor,
+		destination
 	}: {
 		effect: CardEffect;
 		card: Card;
 		target: Vehicle | Driver | undefined;
 		ourVehicle: Vehicle;
 		actor: Vehicle | null;
+		destination: RoadSlot | null;
 	}): number {
 		const onActor = effectRecipientOf({ effect, card }) === EffectRecipient.CASTER;
+		const recipient = onActor ? actor : target instanceof Vehicle ? target : null;
+		if (recipient && !this.board.landingConditionHolds({ effect, caster: actor, recipient })) {
+			return 0;
+		}
 		switch (effect.type) {
 			case 'damage':
-				return this.evaluateDamageWithContext({ damage: effect.value || 0, kind: effectDamageKind(effect), target, ourVehicle });
+				return this.evaluateDamageWithContext({
+					damage: this.effectValueFrom({ effect, card, actor, target, destination }),
+					kind: effectDamageKind(effect),
+					target,
+					ourVehicle
+				});
 			case 'heal':
 				return this.evaluateHealWithContext(effect.value || 0, target, ourVehicle);
 			case 'gain_armor':
@@ -354,6 +376,27 @@ export class MCTSAI extends AIPlayer {
 		}
 	}
 	
+	/**
+	 * An effect's value with any bonus that holds (Point Man from the ahead
+	 * row, Tail Gunner on a target ahead), read from where the card's own
+	 * move puts whoever acts
+	 */
+	private effectValueFrom({ effect, card, actor, target, destination }: {
+		effect: CardEffect;
+		card: Card;
+		actor: Vehicle | null;
+		target: Vehicle | Driver | undefined;
+		destination: RoadSlot | null;
+	}): number {
+		const standing = actor ? this.board.slotOf(actor) : null;
+		const [casterSlot = standing] = actor ? this.board.landingSlots({ card, caster: actor, destination }) : [];
+		return effectValue(effect, {
+			casterSlot,
+			targetSlot: target instanceof Vehicle ? this.board.slotOf(target) : null,
+			casterSwerved: (actor ? this.board.swervedThisTurn(actor) : false) || !sameSlot(casterSlot, standing)
+		});
+	}
+
 	/**
 	 * Evaluate damage with flanking bonus and target priority
 	 */

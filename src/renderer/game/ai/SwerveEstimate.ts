@@ -1,13 +1,15 @@
 import { BoardProjection, cardRange } from '../mechanics/BoardProjection';
 import type { Card, CardEffect } from '../mechanics/Card';
 import type { Driver } from '../mechanics/Driver';
+import { effectValue } from '../mechanics/EffectConditions';
 import { EffectRecipient, effectRecipientOf, isCasterAction } from '../mechanics/EffectTargets';
 import { attackEffectOf, movesCaster } from '../mechanics/Intent';
-import { RoadSlot, sameSlot, slotRange } from '../mechanics/Road';
+import { movesOf } from '../mechanics/Movement';
+import { RoadSlot, slotRange } from '../mechanics/Road';
 import { Vehicle, statusSpeedModifier } from '../mechanics/Vehicle';
 import { cardsKeptFromDraw } from './DrawEstimate';
 
-/** What a swerve does to the rest of the hand: damage it puts in range, and damage it takes out */
+/** What a move does to the rest of the hand: damage it puts in range, and damage it takes out */
 export interface SwerveReach {
 	gained: number;
 	lost: number;
@@ -16,60 +18,109 @@ export interface SwerveReach {
 const NO_REACH: SwerveReach = { gained: 0, lost: 0 };
 
 /**
- * What a card's own swerve or move does for the cards still to play after
- * it, scored like a flank (DDB-546): what it puts in range, and what it
- * takes out. Each other card in hand that's affordable once this one is
- * paid for and reaches out from where its player stands (a Range attack or
- * debuff aimed at the other side) counts its damage, or 1 for a debuff, if
- * anyone it could hit is in range from one slot and not the other. Hit
- * checks are deterministic, so someone the card would miss doesn't count:
- * a swerve to line up a ram the bike's evade beats lines up nothing
- * (DDB-552). Cards that make their own move first (Strafe) are left out,
- * since they reach from wherever they land. The one swerve estimate every
- * AI shares.
+ * Whether a card changes anyone's slot other than by flanking: a swerve,
+ * move, swap, shove, drop-back, or formation shift. A flank is worth the
+ * flank priority instead.
  */
-export function swerveReach({ board, card, driver, caster, destination = null }: {
+export function cardMovesSlots(card: Card): boolean {
+	return movesOf(card).some(move => move.kind !== 'flanking');
+}
+
+/**
+ * What a card's moves do for the cards still to play after it, scored like
+ * a flank (DDB-546, DDB-553): what they put in range, and what they take
+ * out. The play is tried on a copy of the board, so the caster's own swerve,
+ * a shove or drop-back of the target, a swap, and a formation shift are all
+ * judged by the battle's own move rules. Every card still in the hand of
+ * everyone who acts from the caster's side (the caster, a partner a swap or
+ * formation shift moves too, the driver of a vehicle a passenger swerves)
+ * that's affordable from their own adrenaline once this card is paid for
+ * and reaches out from where its player stands (a Range attack or debuff
+ * aimed at the other side) counts its damage, or 1 for a debuff, at the
+ * best target it reaches and would hit, row bonuses included (Point Man
+ * from the ahead row), and the difference between the two boards is what
+ * the move gains or loses. Hit checks are deterministic, so someone the
+ * card would miss doesn't count: a swerve to line up a ram the bike's evade
+ * beats lines up nothing (DDB-552). Cards that make their own move first
+ * (Strafe) are left out, since they reach from wherever they land. The one
+ * move estimate every AI shares.
+ */
+export function swerveReach({ board, card, driver, caster, target = null, destination = null }: {
 	board: BoardProjection;
 	card: Card;
 	driver: Driver;
 	caster: Vehicle;
+	target?: Vehicle | null;
 	destination?: RoadSlot | null;
 }): SwerveReach {
-	if (!movesCaster(card)) return NO_REACH;
-	const from = board.slotOf(caster);
-	const [to = null] = board.landingSlots({ card, caster, destination });
-	if (!from || !to || sameSlot(from, to)) return NO_REACH;
-
-	const hand = [...board.handOf(driver)];
-	const own = hand.indexOf(card);
-	if (own !== -1) hand.splice(own, 1);
-	const adrenaline = board.adrenalineOf(driver) - card.cost;
-	const targets = board.enemiesOf(caster)
-		.filter(enemy => !enemy.isOutOfFight && !enemy.isUnmanned())
-		.map(enemy => ({ enemy, slot: board.slotOf(enemy) }))
-		.filter((target): target is { enemy: Vehicle; slot: RoadSlot } => target.slot !== null);
+	if (!cardMovesSlots(card) || !board.slotOf(caster)) return NO_REACH;
+	const after = board.copy();
+	after.apply({ card, driver, target, destination, actor: caster });
 
 	const reach: SwerveReach = { gained: 0, lost: 0 };
-	for (const other of hand) {
-		const range = cardRange(other);
-		if (range === null || other.cost > adrenaline || other.isOrder || other.targetType !== 'enemy_single' || movesCaster(other)) continue;
-		const shot = other.effects.find(effect => !isCasterAction(effect) && effectRecipientOf({ effect, card: other }) === EffectRecipient.TARGET);
-		const hittable = targets.filter(({ enemy }) => !shot || board.effectHits({ effect: shot, card: other, driver, caster, recipient: enemy }));
-		const reaches = (slot: RoadSlot): boolean => hittable.some(target => slotRange(slot, target.slot) <= range);
-		const value = attackEffectOf(other)?.value;
-		const worth = typeof value === 'number' ? value : 1;
-		const before = reaches(from);
-		const after = reaches(to);
-		if (after && !before) reach.gained += worth;
-		if (before && !after) reach.lost += worth;
+	// A shove moves a raider, so a vehicle that stays put can gain or lose a target too
+	for (const vehicle of board.teamOf(caster)) {
+		const from = vehicle.isOutOfFight ? null : board.slotOf(vehicle);
+		const to = after.slotOf(vehicle);
+		if (!from || !to) continue;
+		for (const occupant of actingOccupants({ board, vehicle })) {
+			const adrenaline = after.adrenalineOf(occupant);
+			for (const other of after.handOf(occupant)) {
+				const range = cardRange(other);
+				if (range === null || other.cost > adrenaline || other.isOrder || other.targetType !== 'enemy_single' || movesCaster(other)) continue;
+				if (other.isAttack && !occupant.canPlayAttackCards()) continue;
+				const change = worthFrom({ board: after, vehicle, occupant, slot: to, card: other, range }) -
+					worthFrom({ board, vehicle, occupant, slot: from, card: other, range });
+				if (change > 0) reach.gained += change;
+				if (change < 0) reach.lost -= change;
+			}
+		}
 	}
 	return reach;
 }
 
 /**
- * A swerve's reach as one score at a weight per point of damage: what it
+ * Who plays cards from a vehicle on this board: its living driver and
+ * passenger, or while a raider plans (`board.actor`), that raider's driver
+ * alone, as AIPlayer.actingOccupants has it
+ */
+export function actingOccupants({ board, vehicle }: { board: BoardProjection; vehicle: Vehicle }): Driver[] {
+	const occupants = board.actor ? (vehicle === board.actor ? [vehicle.driver] : []) : [vehicle.driver, vehicle.passenger];
+	return occupants.filter((occupant): occupant is Driver => occupant?.isAlive() ?? false);
+}
+
+/**
+ * What a card in hand is worth from a slot on this board: its damage at the
+ * best target in range that it would hit, a bonus that holds there
+ * included, or 1 for a debuff, and 0 with nobody it reaches and hits
+ */
+function worthFrom({ board, vehicle, occupant, slot, card, range }: {
+	board: BoardProjection;
+	vehicle: Vehicle;
+	occupant: Driver;
+	slot: RoadSlot;
+	card: Card;
+	range: number;
+}): number {
+	const effect = attackEffectOf(card);
+	const shot = card.effects.find(candidate => !isCasterAction(candidate) && effectRecipientOf({ effect: candidate, card }) === EffectRecipient.TARGET);
+	let best = 0;
+	for (const enemy of board.enemiesOf(vehicle)) {
+		const enemySlot = enemy.isOutOfFight || enemy.isUnmanned() ? null : board.slotOf(enemy);
+		if (!enemySlot || slotRange(slot, enemySlot) > range) continue;
+		if (shot && !board.effectHits({ effect: shot, card, driver: occupant, caster: vehicle, recipient: enemy })) continue;
+		const worth = effect && typeof effect.value === 'number'
+			? effectValue(effect, { casterSlot: slot, targetSlot: enemySlot, casterSwerved: board.swervedThisTurn(vehicle) })
+			: 1;
+		best = Math.max(best, worth);
+	}
+	return best;
+}
+
+/**
+ * A move's reach as one score at a weight per point of damage: what it
  * puts in range when it takes nothing out, and otherwise minus what it
- * takes out, so a swerve waits until the cards it would strand are played
+ * takes out, so a move waits until the cards it would strand are played
  * and only then counts for what it opens.
  */
 export function swerveScore(reach: SwerveReach, weight: number): number {
@@ -77,11 +128,25 @@ export function swerveScore(reach: SwerveReach, weight: number): number {
 }
 
 /**
- * Whether playing the card would only swerve: its swerve opens nothing for
- * the rest of the hand, and the card has nothing else worth playing for
- * (damage, a status, Shield, armor, a repair, adrenaline, or a draw that
- * keeps a card). An AI ends its turn rather than play one, so a raider
- * with nothing to line up doesn't swerve out and back again.
+ * Whether playing the card would only move someone: its moves open nothing
+ * for the rest of the hand, and the card has nothing else worth playing for
+ * (onlyMoves). An AI that doesn't read intents ends its turn rather than
+ * play one, so a raider with nothing to line up doesn't swerve out and back
+ * again, and the aggressive stand-in doesn't shove a raider for nothing.
+ */
+export function aimlessSwerve({ board, card, driver, reach }: {
+	board: BoardProjection;
+	card: Card;
+	driver: Driver;
+	reach: SwerveReach;
+}): boolean {
+	if (!cardMovesSlots(card) || reach.gained > 0) return false;
+	return onlyMoves({ board, card, driver });
+}
+
+/**
+ * Whether the card does nothing worth playing for but move: no damage,
+ * status, Shield, armor, repair, adrenaline, or draw that keeps a card.
  *
  * A raider's plan (`board.actor`) plays on the enemy turn, and some riders
  * end with that turn: its Shield and a one-turn status on itself are gone
@@ -92,13 +157,7 @@ export function swerveScore(reach: SwerveReach, weight: number): number {
  * drop-back at the end of the enemy turn comes before statuses tick, so
  * Floor It also counts when it would knock a flanker off the shoulder.
  */
-export function aimlessSwerve({ board, card, driver, reach }: {
-	board: BoardProjection;
-	card: Card;
-	driver: Driver;
-	reach: SwerveReach;
-}): boolean {
-	if (!movesCaster(card) || reach.gained > 0) return false;
+export function onlyMoves({ board, card, driver }: { board: BoardProjection; card: Card; driver: Driver }): boolean {
 	const raider = board.actor;
 	return card.effects.every(effect => effect.type === 'change_position' ||
 		effect.type === 'draw_cards' && (raider !== null || cardsKeptFromDraw({ board, card, player: driver }) === 0) ||

@@ -24,7 +24,7 @@ import { BoardProjection, cardFlanks, cardRange, selfSpeedBonus } from './BoardP
 import { MoveSpec, cardPicksSlot, moveSpecOf, movesOf, pickedMoveOf } from './Movement';
 import { ESCORT_CONFIGS } from './Escort';
 import type { AfterFight, DividendPayout } from './Convoy';
-import { EffectRecipient, effectRecipientOf, effectRecipients, isCasterAction, landsOnTarget, rollsToHit } from './EffectTargets';
+import { EffectRecipient, attackTypeOf, effectRecipientOf, effectRecipients, isCasterAction, landsOnTarget, rollsToHit } from './EffectTargets';
 import {
 	Intent,
 	IntentTier,
@@ -1093,11 +1093,13 @@ export class Battle extends Model<BattleData> {
 	 * nothing, and neither does a raider that will drop its plan or is
 	 * stunned. Read this once when showing several raiders. With `preview`,
 	 * as the intents will be once that card lands (projectEnemyTurnStart).
+	 * With `reveal`, an elite's or boss's too are shown in full: the balance
+	 * sim's intent-aware stand-in reads them (call 240), never the screen.
 	 */
-	public getAllIntents({ preview = null }: { preview?: PlayPreview | null } = {}): Map<Vehicle, Intent[]> {
+	public getAllIntents({ preview = null, reveal = false }: { preview?: PlayPreview | null; reveal?: boolean } = {}): Map<Vehicle, Intent[]> {
 		const intents = new Map<Vehicle, Intent[]>();
 		for (const [raider, actions] of this.projectEnemyTurn(preview)) {
-			intents.set(raider, actions.map(projected => this.intentOf({ raider, ...projected })));
+			intents.set(raider, actions.map(projected => this.intentOf({ raider, reveal, ...projected })));
 		}
 		return intents;
 	}
@@ -1109,8 +1111,8 @@ export class Battle extends Model<BattleData> {
 		return this.getAllIntents().get(raider) ?? [];
 	}
 
-	private intentOf({ raider, action, target, targetSpeed, targetVulnerable }: { raider: Vehicle } & ProjectedAction): Intent {
-		const hidden = (raider.intentTier ?? IntentTier.BASIC) !== IntentTier.BASIC;
+	private intentOf({ raider, reveal, action, target, targetSpeed, targetVulnerable }: { raider: Vehicle; reveal: boolean } & ProjectedAction): Intent {
+		const hidden = !reveal && (raider.intentTier ?? IntentTier.BASIC) !== IntentTier.BASIC;
 		const type = intentTypeOf(action.card);
 		let amount: number | null = null;
 		let label: string | null = null;
@@ -2004,8 +2006,7 @@ export class Battle extends Model<BattleData> {
 			}
 
 			if (rollsToHit({ effect, card })) {
-				const attackType = (typeof effect.attack_type === 'string' ? effect.attack_type : null) ||
-					(effect.scaling === 'ramming' ? 'ramming' : 'ranged');
+				const attackType = attackTypeOf(effect);
 				const modifier = typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0;
 				if (!this.rollToHit({ card, recipient, check: this.hitCheck({ attacker: casterVehicle, caster, defender: recipient, attackType, modifier }) })) {
 					return false;
