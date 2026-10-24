@@ -238,6 +238,41 @@ describe('movement scoring', () => {
 		});
 	});
 
+	describe('dropping off a shoulder', () => {
+		// The Rig outran the Buggy onto the raiders' shoulder, center, 1 from
+		// the Buggy in its outside lane; back in its reserved slot it's 2 away
+		const flankingRig = ({ buggySpeed }: { buggySpeed: number }): Vehicle => {
+			rig = vehicle({ name: 'Rig', baseSpeed: 5 });
+			const buggy = vehicle({ name: 'Buggy', baseSpeed: buggySpeed, at: slot(ENEMY_OUTSIDE, CENTER) });
+			fight([buggy]);
+			rig.set({ slot: slot(RoadLane.ENEMY_SHOULDER, CENTER), flank: { reservedSlot: slot(PLAYER_INSIDE, CENTER), outran: buggy } });
+			return buggy;
+		};
+
+		test('Peel Off waits while the flank would hold, unless dropping back blanks a planned hit', () => {
+			const buggy = flankingRig({ buggySpeed: 1 });
+			plan([[buggy, []]]);
+			giveHand(rig, [realCard('peel_off')]);
+			expect(intent()).toEqual({ type: 'endTurn' });
+			expect(aggressive()).toEqual({ type: 'endTurn' });
+
+			plan([[buggy, [shot({ range: 1, damage: 15 })]]]);
+			giveHand(rig, [realCard('peel_off')]);
+			expect(named(intent())).toEqual(['Peel Off', undefined]);
+			expect(aggressive()).toEqual({ type: 'endTurn' });
+		});
+
+		test('Peel Off is a free draw once the flank is lost anyway', () => {
+			// The Buggy is as fast as the Rig now, so the Rig drops back at the end of the turn
+			const buggy = flankingRig({ buggySpeed: 5 });
+			plan([[buggy, []]]);
+			giveHand(rig, [realCard('peel_off')]);
+
+			expect(named(aggressive())).toEqual(['Peel Off', undefined]);
+			expect(named(intent())).toEqual(['Peel Off', undefined]);
+		});
+	});
+
 	describe('Evade is protection', () => {
 		test('Weave that makes a planned shot miss beats armor that only soaks it', () => {
 			// Gunnery 6 beats the Rig's evade 5, and Weave's +1 makes it 6

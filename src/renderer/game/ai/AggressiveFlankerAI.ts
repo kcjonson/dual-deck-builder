@@ -10,6 +10,7 @@ import { cardDamageKind, damageToFinish, lastingDamage } from './DamageEstimate'
 import { BoardProjection, cardFlanks, selfSpeedBonus } from '../mechanics/BoardProjection';
 import { effectValue } from '../mechanics/EffectConditions';
 import { EffectRecipient, effectRecipientOf } from '../mechanics/EffectTargets';
+import { movesOf } from '../mechanics/Movement';
 import { RoadSlot, sameSlot } from '../mechanics/Road';
 import { SwerveReach, aimlessSwerve, swerveReach, swerveScore } from './SwerveEstimate';
 
@@ -50,14 +51,31 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 
 	/**
 	 * Public so tests can read what a play is worth. A move that would do
-	 * nothing else scores under ending the turn, so it isn't played.
+	 * nothing else scores under ending the turn, so it isn't played, and so
+	 * does dropping off a shoulder it would hold: this AI never reads
+	 * intents, so it never has a reason to give up a flank.
 	 */
 	public scoreAction(action: AIDecision, gameState: GameStateEvaluation): number {
 		const reach = this.reachOf(action, gameState);
-		if (reach && action.card && action.driver && aimlessSwerve({ board: gameState.board, card: action.card, driver: action.driver, reach })) {
+		const { card, driver } = action;
+		const ourVehicle = driver ? this.getVehicleForDriver(driver, gameState) : null;
+		if (card && driver && reach && aimlessSwerve({ board: gameState.board, card, driver, reach })) {
+			return this.END_TURN * 2;
+		}
+		if (card && ourVehicle && this.givesUpFlank({ card, caster: ourVehicle.vehicle, board: gameState.board })) {
 			return this.END_TURN * 2;
 		}
 		return this.scorePlay(action, gameState, reach);
+	}
+
+	/**
+	 * Whether the play drops the caster off a shoulder it would otherwise
+	 * hold past the end of the turn (Peel Off). One it's about to lose anyway,
+	 * the vehicle it outran now as fast, costs nothing.
+	 */
+	private givesUpFlank({ card, caster, board }: { card: Card; caster: Vehicle; board: BoardProjection }): boolean {
+		return board.isFlanking(caster) && !board.wouldDropBack(caster) &&
+			movesOf(card).some(move => move.kind === 'drop_back' && move.mover === 'caster');
 	}
 
 	/**
@@ -117,9 +135,13 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		});
 
 		// Moving to the shoulder. A Flank is only offered at a target it can
-		// outrun, so every legal one gets the full priority.
+		// outrun, so every legal one gets the full priority, and dropping off
+		// one it would hold costs as much.
 		if (cardEffects.flanks && !ourVehicle.isFlanking) {
 			score += this.POSITION_WEIGHT * 3;
+		}
+		if (this.givesUpFlank({ card, caster: ourVehicle.vehicle, board: gameState.board })) {
+			score -= this.POSITION_WEIGHT * 3;
 		}
 
 		// A move is worth what it puts in range for the rest of the hand,
