@@ -1,15 +1,16 @@
 import { Battle, EnemyTurnStep } from './Battle';
-import { Card, CardEffect, TargetType } from './Card';
+import { Card, CardData, CardEffect, TargetType } from './Card';
 import { Driver } from './Driver';
 import { IntentTier, IntentType, buffLabelOf, intentTypeOf } from './Intent';
 import { RoadLane, RoadRow, RoadSlot } from './Road';
 import { Team, TeamType } from './Team';
-import { Vehicle } from './Vehicle';
+import { BOXED_IN, Vehicle } from './Vehicle';
 import { AIPlayer } from '../ai/AIPlayer';
 import { MCTSAI } from '../ai/MCTSAI';
 import { AggressiveFlankerAI } from '../ai/AggressiveFlankerAI';
 import { AIDecision } from '../ai/types';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
+import cardsFile from '../data/cards.json';
 
 /**
  * DDB-546: raiders swerve from movement cards in their own decks. Planning
@@ -19,7 +20,7 @@ import { createTestDriver } from '../ai/__tests__/test-helpers';
  */
 
 const slot = (lane: RoadLane, row: RoadRow): RoadSlot => ({ lane, row });
-const { PLAYER_SHOULDER, ENEMY_INSIDE, ENEMY_OUTSIDE } = RoadLane;
+const { PLAYER_SHOULDER, PLAYER_INSIDE, ENEMY_INSIDE, ENEMY_OUTSIDE } = RoadLane;
 const { AHEAD, CENTER, BEHIND } = RoadRow;
 
 // Total speed is baseSpeed plus the test driver's speed skill of 2
@@ -54,17 +55,20 @@ const card = (name: string, targetType: TargetType, effects: CardEffect[], tags:
 	tags
 });
 
-// Test-only stand-ins for the six raider movement cards (call 287), in the
-// change_position shape the card batches use (movement-cards.md's table)
-const laneChange = () => card('Lane Change', 'self', [{ type: 'change_position', position: 'swerve', to: 'other_lane', target: 'self' }]);
-const floorIt = () => card('Floor It', 'self', [
-	{ type: 'change_position', position: 'swerve', to: 'ahead', target: 'self' },
-	{ type: 'apply_status', status: 'speed_boost', value: 2, duration: 1, target: 'self' }
-]);
-const hardBrake = () => card('Hard Brake', 'self', [
-	{ type: 'change_position', position: 'swerve', to: 'behind', target: 'self' },
-	{ type: 'gain_shield', value: 4, target: 'self' }
-]);
+/** A fresh copy of a card as cards.json has it */
+const realCard = (type: string): Card => {
+	const data = (cardsFile as unknown as { cards: CardData[] }).cards.find(candidate => candidate.type === type);
+	if (!data) throw new Error(`No card ${type} in cards.json`);
+	return new Card({ ...data });
+};
+
+// Four of the six raider movement cards (call 287) are in cards.json; Juke
+// and Strafe are test-only stand-ins in the change_position shape their
+// batch will use (movement-cards.md's table)
+const laneChange = () => realCard('lane_change');
+const floorIt = () => realCard('floor_it');
+const hardBrake = () => realCard('hard_brake');
+const cutOff = () => realCard('cut_off');
 const juke = () => card('Juke', 'self', [
 	{ type: 'change_position', position: 'swerve', to: 'pick', target: 'self' },
 	{ type: 'draw_cards', value: 1, target: 'self' }
@@ -164,17 +168,45 @@ describe('Raider swerves', () => {
 		test.each([
 			['the aggressive AI', useAggressive],
 			['MCTS', useMcts]
-		])('%s holds a swerve that would take a shot out of range until the shot is planned', (_, useAI) => {
+		])('%s won\'t swerve a shot out of range, nor swerve afterwards for nothing', (_, useAI) => {
 			buggy.set({ slot: slot(ENEMY_INSIDE, CENTER) });
 			useAI(battle);
 			giveHand(buggy, [laneChange(), pointBlank()]);
 			battle.planEnemyTurn();
 
-			expect(battle.getPlan(buggy).map(action => action.card.name)).toEqual(['Point Blank', 'Lane Change']);
+			expect(battle.getPlan(buggy).map(action => action.card.name)).toEqual(['Point Blank']);
 		});
 
-		test('picks the slot a picked swerve goes to by what it puts in range', () => {
-			useAggressive(battle);
+		test.each([
+			['the aggressive AI', useAggressive],
+			['MCTS', useMcts]
+		])('%s ends its turn rather than swerve out and back with nothing to line up', (_, useAI) => {
+			useAI(battle);
+			giveHand(buggy, [laneChange(), laneChange()]);
+			battle.planEnemyTurn();
+
+			expect(battle.getPlan(buggy)).toEqual([]);
+			expect(battle.getIntents(buggy)).toEqual([]);
+		});
+
+		test.each([
+			['the aggressive AI', useAggressive],
+			['MCTS', useMcts]
+		])('%s still plays a swerve on a card with more to it', (_, useAI) => {
+			useAI(battle);
+			giveHand(buggy, [hardBrake()]);
+			battle.planEnemyTurn();
+
+			expect(battle.getPlan(buggy).map(action => action.card.name)).toEqual(['Hard Brake']);
+		});
+
+		test.each([
+			['the aggressive AI', useAggressive],
+			['MCTS', useMcts]
+		])('%s picks the slot a picked swerve goes to by what it puts in range, not by the order slots come in', (_, useAI) => {
+			// From the inside lane, ahead: the slot behind lines up the Rig, and the outside lane comes first
+			buggy.set({ slot: slot(ENEMY_INSIDE, AHEAD) });
+			useAI(battle);
 			giveHand(buggy, [juke(), pointBlank()]);
 			battle.planEnemyTurn();
 
@@ -182,6 +214,18 @@ describe('Raider swerves', () => {
 			expect(plan.map(action => action.card.name)).toEqual(['Juke', 'Point Blank']);
 			expect(plan[0].destination).toEqual(slot(ENEMY_INSIDE, CENTER));
 			expect(plan[1].target).toBe(rig);
+		});
+
+		test('a boxed-in raider can\'t flank, so it swerves into range instead', () => {
+			useAggressive(battle);
+			giveHand(buggy, [flank(), laneChange(), pointBlank()]);
+			battle.planEnemyTurn();
+			expect(battle.getPlan(buggy)[0].card.name).toBe('Flank');
+
+			giveHand(buggy, [flank(), laneChange(), pointBlank()]);
+			buggy.applyStatusEffect({ name: BOXED_IN, duration: 1, value: 0 });
+			battle.planEnemyTurn();
+			expect(battle.getPlan(buggy).map(action => action.card.name)).toEqual(['Lane Change', 'Point Blank']);
 		});
 
 		test('a Strafe carries the slot its shot reaches from', () => {
@@ -240,6 +284,17 @@ describe('Raider swerves', () => {
 
 			expect(() => battle.planEnemyTurn()).toThrow('Buggy planned Juke without picking the slot its move goes to');
 		});
+
+		test('an AI that plans a picked swerve to a slot it can\'t take fails loudly', () => {
+			const picked = juke();
+			giveHand(buggy, [picked]);
+			const careless: Pick<AIPlayer, 'makeDecision'> = {
+				makeDecision: () => ({ type: 'playCard', card: picked, driver: driverOf(buggy), destination: slot(PLAYER_INSIDE, AHEAD) })
+			};
+			battle.aiController['enemyAI'] = careless as AIPlayer;
+
+			expect(() => battle.planEnemyTurn()).toThrow("Buggy planned Juke to player inside, ahead, which it can't take: player inside, ahead is not in Buggy's formation");
+		});
 	});
 
 	describe('a planned swerve that goes stale (call 289)', () => {
@@ -266,7 +321,7 @@ describe('Raider swerves', () => {
 		});
 
 		test('a fixed swerve fizzles rather than going some way the player never saw outlined (call 330)', () => {
-			giveHand(buggy, [laneChange()]);
+			giveHand(buggy, [pointBlank(), laneChange()]);
 			battle.planEnemyTurn();
 
 			// Next to the planned slot, but Lane Change from here goes across, not back
@@ -351,12 +406,13 @@ describe('Raider swerves', () => {
 		});
 
 		test('a swerve whose slot still stands plays and moves the raider', () => {
-			giveHand(buggy, [laneChange()]);
+			giveHand(buggy, [pointBlank(), laneChange()]);
 			battle.planEnemyTurn();
 
-			playPlans(battle, 1);
+			playPlans(battle, 2);
 			expect(fizzles(battle)).toEqual([]);
 			expect(buggy.slot).toEqual(slot(ENEMY_INSIDE, CENTER));
+			expect(rig.structure).toBeLessThan(20);
 		});
 	});
 
@@ -406,6 +462,17 @@ describe('Raider swerves', () => {
 				type: IntentType.DEFEND,
 				amount: 4,
 				destination: slot(ENEMY_OUTSIDE, BEHIND)
+			})]);
+
+			// Cut Off from the inside lane, behind, lines up the Rig from the row ahead
+			buggy.set({ slot: slot(ENEMY_INSIDE, BEHIND) });
+			giveHand(buggy, [cutOff()]);
+			battle.planEnemyTurn();
+			expect(battle.getIntents(buggy)).toEqual([expect.objectContaining({
+				type: IntentType.DEBUFF,
+				label: 'vulnerable',
+				target: rig.id,
+				destination: slot(ENEMY_INSIDE, CENTER)
 			})]);
 		});
 

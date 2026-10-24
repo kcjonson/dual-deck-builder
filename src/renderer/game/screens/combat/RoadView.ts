@@ -302,6 +302,15 @@ export class RoadView extends Component {
 			this.roadTokens.delete(vehicleId);
 			occupancyChanged = true;
 		}
+		// A plan belongs to a vehicle still in the fight; one no longer passed drops it and its outline
+		const passed = new Set([...enemy, ...player].map((vehicle) => vehicle.id));
+		let plansDropped = false;
+		for (const vehicleId of this.plannedIntents.keys()) {
+			if (passed.has(vehicleId)) continue;
+			this.plannedIntents.delete(vehicleId);
+			plansDropped = true;
+		}
+		if (plansDropped) this.showPlannedMoves();
 		if (created) this.orderTokens(enemy, player);
 		if (occupancyChanged) {
 			this.buildSlotOutlines();
@@ -383,6 +392,11 @@ export class RoadView extends Component {
 		else this.plannedIntents.set(vehicleId, intents);
 		const token = this.roadTokens.get(vehicleId);
 		if (token) token.view.intents = intents;
+		this.showPlannedMoves();
+	}
+
+	/** Outline where every stored plan's swerves land. */
+	private showPlannedMoves(): void {
 		const destinations: RoadSlot[] = [];
 		for (const plan of this.plannedIntents.values()) {
 			for (const intent of plan) if (intent.destination) destinations.push(intent.destination);

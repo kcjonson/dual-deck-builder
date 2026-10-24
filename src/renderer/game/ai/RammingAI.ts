@@ -265,7 +265,8 @@ export class RammingStrategy implements AIStrategy {
 			armor: 0,
 			speedBoost: selfSpeedBonus(card),
 			adrenalineGain: 0,
-			// A flank; a swerve doesn't put a rammer alongside anyone
+			// Only a flank earns the position priority; a swerve can line up
+			// a ram too, but what it puts in range isn't scored by this AI
 			changesPosition: cardFlanks(card),
 			isRamming: false
 		};

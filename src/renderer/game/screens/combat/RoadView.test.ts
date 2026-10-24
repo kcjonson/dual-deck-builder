@@ -433,6 +433,18 @@ describe('RoadView', () => {
 			expect(outlinesOver(DESTINATION)).toEqual([]);
 		});
 
+		it('drops a plan and its outline once its raider is no longer passed', () => {
+			road.setVehicleIntents(raider.id, [swerve]);
+			road.showVehicles({ player: [rig], enemy: [] });
+			expect(road.plannedDestinations).toEqual([]);
+			expect(outlinesOver(DESTINATION)).toEqual([]);
+
+			// Back on the road, it doesn't bring the old plan with it
+			road.showVehicles({ player: [rig], enemy: [raider] });
+			expect(road.plannedDestinations).toEqual([]);
+			expect(road.intentRowOf(raider.id)?.intents).toEqual([]);
+		});
+
 		it('keeps the outline on its slot when the road is resized', () => {
 			road.setVehicleIntents(raider.id, [swerve]);
 			road.setSize(1600, 600);

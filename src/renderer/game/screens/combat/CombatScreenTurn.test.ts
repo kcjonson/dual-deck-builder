@@ -220,7 +220,10 @@ describe('CombatScreen intents', () => {
 			rarity: 'common',
 			cost: 1,
 			targetType: 'self',
-			effects: [{ type: 'change_position', position: 'swerve', to: 'pick', target: 'self' }],
+			effects: [
+				{ type: 'change_position', position: 'swerve', to: 'pick', target: 'self' },
+				{ type: 'draw_cards', value: 1, target: 'self' },
+			],
 			tags: [],
 		});
 		raider.driver.set({ hand: [juke], adrenaline: raider.driver.maxAdrenaline });

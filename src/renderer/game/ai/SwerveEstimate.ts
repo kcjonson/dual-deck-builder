@@ -4,6 +4,7 @@ import type { Driver } from '../mechanics/Driver';
 import { attackEffectOf, movesCaster } from '../mechanics/Intent';
 import { RoadSlot, sameSlot, slotRange } from '../mechanics/Road';
 import type { Vehicle } from '../mechanics/Vehicle';
+import { cardsKeptFromDraw } from './DrawEstimate';
 
 /** What a swerve does to the rest of the hand: damage it puts in range, and damage it takes out */
 export interface SwerveReach {
@@ -66,4 +67,38 @@ export function swerveReach({ board, card, driver, caster, destination = null }:
  */
 export function swerveScore(reach: SwerveReach, weight: number): number {
 	return reach.lost > 0 ? -reach.lost * weight : reach.gained * weight;
+}
+
+/**
+ * Whether playing the card would only swerve: its swerve opens nothing for
+ * the rest of the hand, and the card has nothing else worth playing for
+ * (damage, a status, Shield, armor, a repair, adrenaline, or a draw that
+ * keeps a card). An AI ends its turn rather than play one, so a raider
+ * with nothing to line up doesn't swerve out and back again.
+ */
+export function aimlessSwerve({ board, card, driver, reach }: {
+	board: BoardProjection;
+	card: Card;
+	driver: Driver;
+	reach: SwerveReach;
+}): boolean {
+	if (!movesCaster(card) || reach.gained > 0) return false;
+	return card.effects.every(effect => effect.type === 'change_position' ||
+		effect.type === 'draw_cards' && cardsKeptFromDraw({ board, card, player: driver }) === 0);
+}
+
+/**
+ * The most a card's swerve could put in range from any slot it could land
+ * in: its one slot for a fixed direction, the best of its slots for a
+ * picked one
+ */
+export function bestSwerveGain({ board, card, driver, caster }: {
+	board: BoardProjection;
+	card: Card;
+	driver: Driver;
+	caster: Vehicle;
+}): number {
+	if (!movesCaster(card)) return 0;
+	return Math.max(0, ...board.landingSlots({ card, caster })
+		.map(destination => swerveReach({ board, card, driver, caster, destination }).gained));
 }

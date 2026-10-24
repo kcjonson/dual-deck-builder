@@ -14,8 +14,8 @@ import { AIDecision } from './types';
 import type { Rng } from '../core/Rng';
 import type { BoardProjection } from '../mechanics/BoardProjection';
 import type { Card } from '../mechanics/Card';
-import type { RoadSlot } from '../mechanics/Road';
-import { casterMoveOf, picksSlot } from '../mechanics/Movement';
+import { RoadSlot, describeSlot } from '../mechanics/Road';
+import { casterMoveOf, pickedMoveOf, picksSlot } from '../mechanics/Movement';
 
 export type AIType = 'random' | 'aggressive' | 'intent' | 'defensive' | 'balanced' | 'mcts' | 'salvage' | 'ramming';
 
@@ -114,7 +114,7 @@ export class AIController {
 					break;
 				}
 				const target = decision.target instanceof Vehicle ? decision.target : null;
-				const destination = AIController.plannedDestination({ board, raider, card, picked: decision.destination ?? null });
+				const destination = AIController.plannedDestination({ board, raider, card, target, picked: decision.destination ?? null });
 				actions.push({
 					card,
 					driver,
@@ -139,15 +139,27 @@ export class AIController {
 	 * plan names (call 289) and the road outlines (call 288): the slot the
 	 * AI picked, or for a fixed direction (Lane Change, Floor It) the slot it
 	 * goes to on the board as planned. Null for a card that doesn't move the
-	 * raider. A picked move the AI left without a slot is a bug in the AI.
+	 * raider. A picked move left without a slot, or given one it can't take,
+	 * is a bug in the AI.
 	 */
-	private static plannedDestination({ board, raider, card, picked }: {
+	private static plannedDestination({ board, raider, card, target, picked }: {
 		board: BoardProjection;
 		raider: Vehicle;
 		card: Card;
+		target: Vehicle | null;
 		picked: RoadSlot | null;
 	}): RoadSlot | null {
-		if (picked) return picked;
+		if (picked) {
+			const pickedMove = pickedMoveOf(card);
+			const mover = pickedMove?.mover === 'target' ? target : raider;
+			const blocker = !pickedMove ? `${card.name} doesn't pick a slot`
+				: !mover ? `${card.name} needs its target before its slot`
+				: board.destinationBlocker({ move: pickedMove, mover, destination: picked });
+			if (blocker) {
+				throw new Error(`${raider.name} planned ${card.name} to ${describeSlot(picked)}, which it can't take: ${blocker}`);
+			}
+			return picked;
+		}
 		const move = card.isOrder ? null : casterMoveOf(card);
 		if (!move) return null;
 		const [slot = null] = board.moveDestinations({ move, mover: raider });

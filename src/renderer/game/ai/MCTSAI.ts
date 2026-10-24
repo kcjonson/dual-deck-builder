@@ -5,12 +5,12 @@ import { Team } from '../mechanics/Team';
 import { Vehicle, statusSpeedModifier } from '../mechanics/Vehicle';
 import { Driver } from '../mechanics/Driver';
 import { Card, CardEffect } from '../mechanics/Card';
-import { RoadSlot, laneKind } from '../mechanics/Road';
+import { laneKind } from '../mechanics/Road';
 import { DamageKind, damageToFinish, effectDamageKind } from './DamageEstimate';
 import { cardsKeptFromDraw } from './DrawEstimate';
 import { EffectRecipient, effectRecipientOf } from '../mechanics/EffectTargets';
 import { cardFlanks, selfSpeedBonus } from '../mechanics/BoardProjection';
-import { swerveReach, swerveScore } from './SwerveEstimate';
+import { SwerveReach, aimlessSwerve, bestSwerveGain, swerveReach, swerveScore } from './SwerveEstimate';
 
 /**
  * Monte Carlo Tree Search AI Player
@@ -204,8 +204,11 @@ export class MCTSAI extends AIPlayer {
 			if (!ourVehicle) return -10;
 			
 			const actor = this.actorOf({ card, target: action.target, ourVehicle });
+			// A swerve that would do nothing else scores under ending the turn either way
+			const reach = actor ? swerveReach({ board: this.board, card, driver, caster: actor, destination: action.destination ?? null }) : null;
+			if (reach && aimlessSwerve({ board: this.board, card, driver, reach })) return -10;
 			const keptCards = cardsKeptFromDraw({ board: this.board, card, player: driver });
-			let score = this.evaluateMovement({ card, actor, driver, destination: action.destination ?? null }) + this.CARD_DRAW_WEIGHT * keptCards;
+			let score = this.evaluateMovement({ card, actor, reach }) + this.CARD_DRAW_WEIGHT * keptCards;
 			
 			// Evaluate card effects with context
 			if (card.effects) {
@@ -259,7 +262,7 @@ export class MCTSAI extends AIPlayer {
 			if (vehicle.isOutOfFight) continue;
 			for (const driver of this.actingOccupants(vehicle)) {
 				for (const card of this.board.handOf(driver)) {
-					if (this.canPlay({ driver, card }) && this.isValuablePlay({ card, driver })) {
+					if (this.canPlay({ driver, card }) && this.isValuablePlay({ card, driver, vehicle })) {
 						count++;
 					}
 				}
@@ -270,13 +273,18 @@ export class MCTSAI extends AIPlayer {
 
 	/**
 	 * Whether a card in hand is worth holding the turn open for: a real hit
-	 * or heal, a move, adrenaline, a speed boost, or a draw that keeps a card
+	 * or heal, a move that does something (a flank, a swerve that opens a
+	 * card in hand, or one on a card with more to it), adrenaline, a speed
+	 * boost, or a draw that keeps a card
 	 */
-	private isValuablePlay({ card, driver }: { card: Card; driver: Driver }): boolean {
+	private isValuablePlay({ card, driver, vehicle }: { card: Card; driver: Driver; vehicle: Vehicle }): boolean {
+		const valuableMove = cardFlanks(card) ||
+			card.effects.some(e => e.type !== 'change_position') ||
+			bestSwerveGain({ board: this.board, card, driver, caster: vehicle }) > 0;
 		const valuableEffect = card.effects.some(e =>
 			e.type === 'damage' && (e.value || 0) >= 3 || // Lowered threshold
 			e.type === 'heal' && (e.value || 0) >= 3 ||
-			e.type === 'change_position' ||
+			e.type === 'change_position' && valuableMove ||
 			e.type === 'gain_resource' && e.resource === 'adrenaline'
 		);
 		if (valuableEffect) return true;
@@ -473,11 +481,10 @@ export class MCTSAI extends AIPlayer {
 	 * and waits while it would take some out (swerveScore). A boost alone
 	 * (Nitro Boost, Floor It) is worth most when it's what opens a flank.
 	 */
-	private evaluateMovement({ card, actor, driver, destination }: {
+	private evaluateMovement({ card, actor, reach }: {
 		card: Card;
 		actor: Vehicle | null;
-		driver: Driver;
-		destination: RoadSlot | null;
+		reach: SwerveReach | null;
 	}): number {
 		if (!actor) {
 			return 0;
@@ -486,7 +493,7 @@ export class MCTSAI extends AIPlayer {
 		if (cardFlanks(card)) {
 			return !this.board.isFlanking(actor) && this.board.canFlankAnyone(actor, speedBonus) ? this.FLANK_WEIGHT : 0;
 		}
-		const swerve = swerveScore(swerveReach({ board: this.board, card, driver, caster: actor, destination }), this.DAMAGE_WEIGHT);
+		const swerve = reach ? swerveScore(reach, this.DAMAGE_WEIGHT) : 0;
 		return swerve + (speedBonus > 0 ? this.evaluateSpeedBoost(speedBonus, actor) : 0);
 	}
 
