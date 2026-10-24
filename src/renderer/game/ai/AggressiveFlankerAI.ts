@@ -9,6 +9,7 @@ import { CardEffectValidator } from './CardEffectValidator';
 import { cardDamageKind, damageToFinish, lastingDamage } from './DamageEstimate';
 import { cardFlanks, selfSpeedBonus } from '../mechanics/BoardProjection';
 import { aimlessSwerve, swerveReach, swerveScore } from './SwerveEstimate';
+import { vulnerableSetup } from './SetupEstimate';
 
 /**
  * Aggressive Flanker AI Strategy
@@ -103,6 +104,14 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 			score += this.POSITION_WEIGHT * 2;
 		}
 
+		// A Vulnerable that sets up shots still in hand (Cut Off) is worth what
+		// it adds to them, and goes first, as a boost that opens a flank does
+		const marked = action.target instanceof Vehicle ? action.target : null;
+		const setup = marked ? vulnerableSetup({ board, card, driver, caster: ourVehicle.vehicle, target: marked, destination: action.destination ?? null }) : 0;
+		if (setup > 0) {
+			score += this.POSITION_WEIGHT * 2 + setup * this.DAMAGE_WEIGHT;
+		}
+
 		// Score damage effects
 		if (cardEffects.damage > 0 && card.targetType === 'enemy_single') {
 			const damageKind = cardDamageKind(card);
@@ -126,8 +135,8 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 					// Bonus for attacking low health targets
 					damageScore *= (2 - targetEval.healthPercent);
 					
-					// Bonus for attacking vulnerable targets
-					if (damageTarget.hasStatusEffect('vulnerable')) {
+					// Bonus for attacking vulnerable targets, a mark an earlier raider's Cut Off left on the planning board included
+					if (board.isVulnerable(damageTarget)) {
 						damageScore *= this.VULNERABLE_BONUS;
 					}
 
@@ -135,7 +144,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 					const potentialDamage = this.calculatePotentialDamage(
 						cardEffects.damage, 
 						ourVehicle.isFlanking,
-						damageTarget.hasStatusEffect('vulnerable')
+						board.isVulnerable(damageTarget)
 					);
 					
 					if (potentialDamage >= damageToFinish({ target: damageTarget, kind: damageKind })) {

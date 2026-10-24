@@ -32,6 +32,15 @@ describe('balance sim fights', () => {
 			raidersKilled: 4,
 			routed: true,
 			brokenOff: false,
+			fights: 1,
+			// The Spike Buggy plays three cards before the rout; the Scav Bikes never get a turn
+			raiderPlays: {
+				'Spike Buggy': {
+					'Precision Shot': { played: 1, fizzled: 0 },
+					'Ramming Speed': { played: 1, fizzled: 0 },
+					'Armor Plating': { played: 1, fizzled: 0 },
+				},
+			},
 		});
 	});
 
@@ -41,6 +50,9 @@ describe('balance sim fights', () => {
 		expect(row.won).toMatchObject({ count: 2, of: 2, rate: 1, high: 1 });
 		expect(row.bySeat?.map(seat => seat.of)).toEqual([1, 1]);
 		expect(row.down).toMatchObject({ count: 0, of: 2 });
+		// Two runs of one fight each, so each play counts half: two Ramming Speeds played over the runs and one fizzled
+		expect(row.raiderPlays['Spike Buggy']['Ramming Speed']).toEqual({ played: 1, fizzled: 0.5 });
+		expect(row.raiderPlays['Scav Bike']).toEqual({ 'Far Shoot': { played: 1, fizzled: 0 } });
 	});
 
 	test('tuning comes in through the config and leaves the shipped profiles alone', () => {

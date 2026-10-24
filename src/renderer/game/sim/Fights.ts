@@ -80,7 +80,20 @@ export interface FightRun {
 	/** Whether any fight the run played ended in a rout, or broken off. */
 	readonly routed: boolean;
 	readonly brokenOff: boolean;
+	/** Fights the run played. */
+	readonly fights: number;
+	/** The raiders' cards over every fight the run played. */
+	readonly raiderPlays: RaiderPlays;
 }
+
+/** A raider card's plays as the enemy turn plays them: resolved, hit or miss, and fizzled. */
+export interface CardPlays {
+	readonly played: number;
+	readonly fizzled: number;
+}
+
+/** Card plays by raider vehicle, then card. */
+export type RaiderPlays = Readonly<Record<string, Readonly<Record<string, CardPlays>>>>;
 
 /** Run `index` of a crew through its route's fights. */
 export async function playRun({ config, cell, index }: { config: SimConfig; cell: FightCell; index: number }): Promise<FightRun> {
@@ -97,11 +110,14 @@ export async function playRun({ config, cell, index }: { config: SimConfig; cell
 	let brokenOff = false;
 	let battle: Battle | null = null;
 	let outcome: RunOutcome = 'home';
+	let fights = 0;
+	const raiderPlays: PlayTally = {};
 	for (const [stop, skulls] of route.entries()) {
 		const partners = seatPartners(records);
 		const seats = records.map((record, seat) => seatOf({ record, runDeck: new RunDeck({ driver: record, own: decks[seat] }), cards: SIM_CARDS, partner: partners[seat] }));
-		const fought = await playFight({ config, vehicles: seats.map(seat => seat.vehicle), skulls, rng: stream.fork('fight', stop) });
+		const fought = await playFight({ config, vehicles: seats.map(seat => seat.vehicle), skulls, rng: stream.fork('fight', stop), raiderPlays });
 		battle = fought.battle;
+		fights += 1;
 		turns += battle.turn;
 		raidersKilled += fought.raidersKilled;
 		routed ||= battle.routed ?? false;
@@ -131,11 +147,15 @@ export async function playRun({ config, cell, index }: { config: SimConfig; cell
 		raidersKilled,
 		routed,
 		brokenOff,
+		fights,
+		raiderPlays,
 	};
 }
 
+type PlayTally = Record<string, Record<string, { played: number; fizzled: number }>>;
+
 /** One fight, the AIs on both sides, against a template for the skull count at the config's tier and stage, as a run's stop fields it. */
-async function playFight({ config, vehicles, skulls, rng }: { config: SimConfig; vehicles: Vehicle[]; skulls: Skulls; rng: Rng }): Promise<{ battle: Battle; outcome: 'won' | 'lost' | 'stalled' | 'broken'; raidersKilled: number }> {
+async function playFight({ config, vehicles, skulls, rng, raiderPlays }: { config: SimConfig; vehicles: Vehicle[]; skulls: Skulls; rng: Rng; raiderPlays: PlayTally }): Promise<{ battle: Battle; outcome: 'won' | 'lost' | 'stalled' | 'broken'; raidersKilled: number }> {
 	const { team: enemyTeam } = encounterForces({
 		skulls,
 		tier: config.tier,
@@ -154,7 +174,14 @@ async function playFight({ config, vehicles, skulls, rng }: { config: SimConfig;
 	battle.start();
 	while (!battle.isBattleOver() && battle.turn <= config.turns) {
 		await battle.aiController.playPlayerCards();
-		battle.endPlayerTurn();
+		// Stepped rather than run whole, the same play, so each raider card is counted as it resolves or fizzles
+		battle.endPlayerTurn({ stepEnemyTurn: true });
+		for (let step = battle.stepEnemyTurn(); step; step = battle.stepEnemyTurn()) {
+			if (!step.card || step.outcome === 'dropped') continue;
+			const cards = raiderPlays[step.raider.name] ??= {};
+			const plays = cards[step.card.name] ??= { played: 0, fizzled: 0 };
+			plays[step.outcome] += 1;
+		}
 	}
 	const outcome = !battle.isBattleOver() ? 'stalled' : battle.isBattleWon() ? 'won' : battle.isBattleBrokenOff() ? 'broken' : 'lost';
 	return { battle, outcome, raidersKilled: raiders.filter(({ vehicle, driver }) => !vehicle.isAlive() || !(driver?.isAlive() ?? false)).length };
@@ -182,6 +209,8 @@ export interface FightRow {
 	/** Runs with a fight that ended in a rout, or broken off, over every run. */
 	readonly routed: Rate;
 	readonly brokenOff: Rate;
+	/** The raiders' cards a fight, over every fight of every run. */
+	readonly raiderPlays: RaiderPlays;
 }
 
 /** Every run of a cell, measured. */
@@ -211,7 +240,24 @@ export async function playFightCell({ config, cell }: { config: SimConfig; cell:
 		raidersKilled: mean(results.map(result => result.raidersKilled)),
 		routed: rate(results.filter(result => result.routed).length, results.length),
 		brokenOff: rate(results.filter(result => result.brokenOff).length, results.length),
+		raiderPlays: playsAFight(results),
 	};
+}
+
+/** Every run's raider plays summed, a fight. */
+function playsAFight(results: readonly FightRun[]): RaiderPlays {
+	const fights = results.reduce((sum, result) => sum + result.fights, 0);
+	const total: PlayTally = {};
+	for (const result of results) {
+		for (const [raider, cards] of Object.entries(result.raiderPlays)) {
+			for (const [card, { played, fizzled }] of Object.entries(cards)) {
+				const sum = (total[raider] ??= {})[card] ??= { played: 0, fizzled: 0 };
+				sum.played += played / fights;
+				sum.fizzled += fizzled / fights;
+			}
+		}
+	}
+	return total;
 }
 
 /** One run's last fight as its battle log, with how the run came out. */

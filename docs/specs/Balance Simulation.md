@@ -34,7 +34,8 @@ For each cell, a crew against an encounter or a crew over a route:
 - won runs where a driver went down;
 - turns, over a route's fights;
 - injury days the crew brings home;
-- raiders killed, and waves seen.
+- raiders killed, and waves seen;
+- in `fights`, what the raiders played, a fight, by raider and card, and how much of it fizzled.
 
 Every rate carries its count and a 90% interval, so a 3-point move on 100 runs isn't read as a change.
 

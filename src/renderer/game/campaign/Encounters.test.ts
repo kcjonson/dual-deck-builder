@@ -170,6 +170,15 @@ describe('Raider classes', () => {
 		expect(mook.isOutOfFight).toBe(true);
 	});
 
+	it('deals raiders only the movement cards that move the raider itself, and the mook none (calls 287, 350)', () => {
+		const ownMoves = ['lane_change', 'floor_it', 'hard_brake', 'juke', 'strafe', 'cut_off'];
+		for (const [id, profile] of Object.entries(RAIDER_PROFILES)) {
+			const moves = Object.keys(profile.deck).filter(type => CARDS.get(type)?.effects.some(effect => effect.type === 'change_position'));
+			expect([id, moves.filter(type => !ownMoves.includes(type))]).toEqual([id, []]);
+			if (profile.class === 'mook') expect([id, moves]).toEqual([id, []]);
+		}
+	});
+
 	it.each(['road_warrior', 'interceptor', 'mechanic'] as const)('arms every class with a card that can hit the %s', (archetype) => {
 		const config = DRIVER_CONFIGS[archetype];
 		for (const profile of Object.values(RAIDER_PROFILES)) {
