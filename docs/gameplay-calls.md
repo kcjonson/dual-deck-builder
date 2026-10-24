@@ -445,7 +445,7 @@ Record: heavy-armor.md. Calls 277 to 279 are settled and in Combat Rules.
 
 280. DDB-164: Heavy shows as a chip in the vehicle's status row, after Shield, counting the armor past base, and the plate's armor shield turns amber while it's Heavy, because the status row is where the speed statuses it cancels already sit.
 
-## Movement cards (287 to 324)
+## Movement cards (287 to 333)
 
 Record: movement-cards.md. The draft is in Combat Rules (Swerving, and Movement cards under Cards), whose open questions these answer. Calls 281 to 286 are settled and in Combat Rules.
 
@@ -471,3 +471,7 @@ Record: movement-cards.md. The draft is in Combat Rules (Swerving, and Movement 
 322. DDB-550: Box In's "can't flank" stops a new flank and nothing else: a boxed-in flanker keeps its shoulder, and one that drops back at the end of your turn can't flank again from its reserved slot that enemy turn, because the card says "can't flank", and knocking a flanker off the shoulder is Brake Check's job.
 323. DDB-550: Brake Check's 4 damage to an ambusher is a hit like any card's damage, so Vulnerable and a flanking caster raise it and it goes through Shield and Armor, with no roll since the card always hits, because the card says "takes 4 damage", which every other card's damage means that way, and Caltrops is the card that says structure.
 324. DDB-550: Box In's Vulnerable is judged once, from where your driven vehicles stand as the card lands, and doesn't come or go as they move afterwards, because every status lands once and lasts its turns.
+330. DDB-546: a raider's fixed swerve (Lane Change, Floor It, Hard Brake) names its slot when planned too, and fizzles if that slot isn't where its direction goes when it plays, even when that direction would still have somewhere to go, while a picked one (Juke, Strafe) plays as long as its slot is next to the raider and empty, because call 289 has the swerve name its destination, the outline the player read is that slot, and a fixed card can't go anywhere but its direction.
+331. DDB-546: a raider card that swerves and also attacks, debuffs, or defends (Strafe, Cut Off, Hard Brake) keeps that intent, its pill led by the swerve icon, and only a card whose swerve is the strongest thing it does (Lane Change, Floor It, Juke) is a move intent, because the pill's number is what the player plans around and the outline already shows where the raider goes.
+332. DDB-546: elites and bosses show a planned swerve's icon and its outlined slot, hiding only the card and its label as for any intent, because where a raider is going is like a target mark, which elites show.
+333. DDB-546: a stale swerve fizzles its whole card, so a fizzled Floor It gains no speed, Hard Brake no Shield, and Juke draws nothing, because a fizzled planned card is spent and does nothing.

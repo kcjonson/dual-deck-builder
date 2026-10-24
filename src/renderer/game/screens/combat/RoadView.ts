@@ -25,6 +25,7 @@ import { ROAD_STYLE, Rgba, rgba } from './combatStyle';
 import { DashOptions, HatchOptions, dashedOutlineTriangles, hatchTriangles } from '../../ui/stripes';
 import type { RangeLabel } from '../../ui/RangeChip';
 import type { AimLosses } from '../../mechanics/AimPreview';
+import { PlannedMoveOutlines } from './PlannedMoveOutlines';
 
 export type { EnemyIntent, IntentType } from '../../ui/IntentPill';
 
@@ -132,6 +133,7 @@ export class RoadView extends Component {
 		{ points: [], fill: ROAD_STYLE.raiderSlotOutline },
 	];
 	private readonly dashScratch: Vec2[] = [];
+	private readonly plannedMoves = new PlannedMoveOutlines();
 
 	constructor({ combatData, seatOf, ...options }: RoadViewOptions) {
 		super(options);
@@ -300,6 +302,15 @@ export class RoadView extends Component {
 			this.roadTokens.delete(vehicleId);
 			occupancyChanged = true;
 		}
+		// A plan belongs to a vehicle still in the fight; one no longer passed drops it and its outline
+		const passed = new Set([...enemy, ...player].map((vehicle) => vehicle.id));
+		let plansDropped = false;
+		for (const vehicleId of this.plannedIntents.keys()) {
+			if (passed.has(vehicleId)) continue;
+			this.plannedIntents.delete(vehicleId);
+			plansDropped = true;
+		}
+		if (plansDropped) this.showPlannedMoves();
 		if (created) this.orderTokens(enemy, player);
 		if (occupancyChanged) {
 			this.buildSlotOutlines();
@@ -372,12 +383,30 @@ export class RoadView extends Component {
 		for (const [id, token] of this.roadTokens) token.view.damageGhost = id === vehicleId ? losses : null;
 	}
 
-	/** A raider's plan for the enemy turn, in order; empty clears it. */
+	/**
+	 * A raider's plan for the enemy turn, in order; empty clears it. Where
+	 * any planned swerve lands is outlined on the road (call 288).
+	 */
 	public setVehicleIntents(vehicleId: string, intents: readonly EnemyIntent[]): void {
 		if (intents.length === 0) this.plannedIntents.delete(vehicleId);
 		else this.plannedIntents.set(vehicleId, intents);
 		const token = this.roadTokens.get(vehicleId);
 		if (token) token.view.intents = intents;
+		this.showPlannedMoves();
+	}
+
+	/** Outline where every stored plan's swerves land. */
+	private showPlannedMoves(): void {
+		const destinations: RoadSlot[] = [];
+		for (const plan of this.plannedIntents.values()) {
+			for (const intent of plan) if (intent.destination) destinations.push(intent.destination);
+		}
+		this.plannedMoves.show(destinations, this.currentLayout);
+	}
+
+	/** The slots outlined as where raiders' planned swerves land. */
+	public get plannedDestinations(): readonly RoadSlot[] {
+		return this.plannedMoves.destinations;
 	}
 
 	protected onResized(): void {
@@ -510,6 +539,7 @@ export class RoadView extends Component {
 		for (const target of this.slotTargets.values()) this.placeSlotTarget(target);
 		this.buildGround();
 		this.buildSlotOutlines();
+		this.plannedMoves.build(layout);
 	}
 
 	private buildGround(): void {
@@ -605,6 +635,7 @@ export class RoadView extends Component {
 		for (const outline of this.slotOutlines) {
 			if (outline.points.length > 0) draw.drawPolygon(outline);
 		}
+		this.plannedMoves.draw(draw, this.slotTargets.size > 0);
 		for (const strip of this.headerStrip) draw.drawRect(strip);
 	}
 }

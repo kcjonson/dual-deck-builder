@@ -3,6 +3,7 @@ import type { Driver } from './Driver';
 import type { Vehicle } from './Vehicle';
 import type { RoadSlot } from './Road';
 import { EffectRecipient, effectRecipientOf } from './EffectTargets';
+import { casterMoveOf, moveSpecOf } from './Movement';
 
 /**
  * What a raider is about to do, as the player sees it.
@@ -13,6 +14,8 @@ export enum IntentType {
 	DEFEND = 'defend',
 	BUFF = 'buff',
 	DEBUFF = 'debuff',
+	/** The raider swerving or moving itself, and nothing stronger (call 288) */
+	MOVE = 'move',
 	UNKNOWN = 'unknown'
 }
 
@@ -50,8 +53,11 @@ export interface PlannedAction {
 	flanking: boolean;
 	speed: number;
 	/**
-	 * The slot planning picked for the card's own move, when the card picks
-	 * one (a raider's Juke or Strafe). Unset for every other card.
+	 * Where the card's own swerve or move takes the raider, as planned: the
+	 * slot planning picked (a raider's Juke or Strafe) or the one its fixed
+	 * direction gave (Lane Change, Floor It). The card fizzles if that slot
+	 * isn't where its move goes when it plays (call 289). Unset for a card
+	 * that doesn't move the raider.
 	 */
 	destination?: RoadSlot | null;
 }
@@ -65,6 +71,12 @@ export interface Intent {
 	/** The status or move a buff or debuff applies ("speed_reduction", "flank"). Null when hidden. */
 	label: string | null;
 	target: IntentTarget;
+	/**
+	 * Where the raider's own swerve or move lands, which the road outlines
+	 * while the plan stands (call 288), or null for a card that doesn't
+	 * move it
+	 */
+	destination: RoadSlot | null;
 	/** The card name, or "???" when the tier hides it. */
 	description: string;
 }
@@ -84,10 +96,19 @@ export function attackEffectOf(card: Card): CardEffect | null {
 }
 
 /**
+ * Whether the card swerves or moves the raider playing it (Lane Change,
+ * Juke, Strafe), so its intent names a destination
+ */
+export function movesCaster(card: Card): boolean {
+	return !card.isOrder && casterMoveOf(card) !== null;
+}
+
+/**
  * Classify a card by what it does to the board, strongest first: any damage
  * to the other side is an attack, a status on the other side is a debuff,
- * armor or repair is defend, anything else the raider does for itself is a
- * buff.
+ * armor or repair is defend, the raider's own swerve or move is a move, and
+ * anything else it does for itself is a buff. A swerve that attacks,
+ * debuffs, or defends keeps that type (call 331).
  */
 export function intentTypeOf(card: Card): IntentType {
 	if (attackEffectOf(card)) return IntentType.ATTACK;
@@ -97,6 +118,7 @@ export function intentTypeOf(card: Card): IntentType {
 	if (card.effects.some(effect => ['gain_armor', 'armor', 'gain_shield', 'heal', 'heal_driver'].includes(effect.type))) {
 		return IntentType.DEFEND;
 	}
+	if (movesCaster(card)) return IntentType.MOVE;
 	if (buffLabelOf(card)) return IntentType.BUFF;
 	return IntentType.UNKNOWN;
 }
@@ -114,9 +136,17 @@ export function debuffLabelOf(card: Card): string | null {
 	return effect?.status ?? null;
 }
 
+/**
+ * What a buff does for the raider: a flank, its first status, adrenaline,
+ * or a draw. A swerve or other move isn't a buff; a move intent prints
+ * whatever else its card does (Floor It's speed, Juke's draw).
+ */
 export function buffLabelOf(card: Card): string | null {
 	for (const effect of card.effects) {
-		if (effect.type === 'change_position') return 'flank';
+		if (effect.type === 'change_position') {
+			if (moveSpecOf(effect).kind === 'flanking') return 'flank';
+			continue;
+		}
 		if (isStatusEffect(effect)) return effect.status ?? null;
 		if (effect.type === 'gain_resource' || effect.type === 'adrenaline') return effect.resource ?? 'adrenaline';
 		if (effect.type === 'draw_cards' || effect.type === 'draw') return 'draw';

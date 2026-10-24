@@ -34,7 +34,8 @@ import {
 	buffLabelOf,
 	debuffLabelOf,
 	defendAmountOf,
-	intentTypeOf
+	intentTypeOf,
+	movesCaster
 } from './Intent';
 import { Model } from '../core/Model';
 import { Rng, freshSeed } from '../core/Rng';
@@ -1115,7 +1116,7 @@ export class Battle extends Model<BattleData> {
 			amount = defendAmountOf(action.card);
 		} else if (type === IntentType.DEBUFF) {
 			label = debuffLabelOf(action.card);
-		} else if (type === IntentType.BUFF) {
+		} else if (type === IntentType.BUFF || type === IntentType.MOVE) {
 			label = buffLabelOf(action.card);
 		}
 		return {
@@ -1124,6 +1125,8 @@ export class Battle extends Model<BattleData> {
 			hits: 1,
 			label: hidden ? null : label,
 			target: action.card.targetType === 'enemy_all' ? 'both' : target?.id ?? null,
+			// Where it's going shows whatever the tier, as its target does (call 332)
+			destination: movesCaster(action.card) ? action.destination ?? null : null,
 			description: hidden ? '???' : action.card.displayName
 		};
 	}
@@ -1201,7 +1204,10 @@ export class Battle extends Model<BattleData> {
 				};
 				const destination = action.destination ?? null;
 				const target = this.plannedTarget({ raider, action, board });
-				if (target && card.targetType !== 'enemy_all' && this.plannedCardFizzles({ raider, card, target, board, destination })) continue;
+				const fizzles = target && card.targetType !== 'enemy_all'
+					? this.plannedCardFizzles({ raider, card, target, board, destination })
+					: board.plannedMoveBlocker({ card, caster: raider, destination }) !== null;
+				if (fizzles) continue;
 				actions.push({ action, target, targetSpeed: target ? board.speedOf(target) : 0 });
 				board.apply({ card, driver, target, destination });
 			}
@@ -1452,9 +1458,16 @@ export class Battle extends Model<BattleData> {
 			`${raider.name} plays ${card.displayName}`
 		);
 
-		// An area hit lands as planned; Draw Fire never pulls it
+		// An area hit lands as planned; Draw Fire never pulls it. A card with
+		// no target still fizzles when its own move has gone stale (call 289).
 		const destination = action.destination ?? null;
 		if (card.targetType === 'enemy_all' || !action.target) {
+			const moveBlocker = new BoardProjection({ battle: this }).plannedMoveBlocker({ card, caster: raider, destination });
+			if (moveBlocker) {
+				this.log('fizzle', `${raider.name}'s ${card.displayName} fizzles: ${moveBlocker}`,
+					{ vehicle: raider.name, card: card.displayName });
+				return step('fizzled', null);
+			}
 			this.applyCardEffects({ card, caster: driver, target: null, destination });
 			return step('played', null);
 		}
@@ -1543,7 +1556,7 @@ export class Battle extends Model<BattleData> {
 			return `${target.name} is out of the fight`;
 		}
 		// A planned move whose slot has gone (taken since, or the raider shoved) is stale
-		const moveBlocker = board.moveBlocker({ card, caster, target, destination });
+		const moveBlocker = board.plannedMoveBlocker({ card, caster, target, destination });
 		if (moveBlocker) {
 			return moveBlocker;
 		}

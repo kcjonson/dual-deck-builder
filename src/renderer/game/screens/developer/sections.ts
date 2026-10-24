@@ -27,6 +27,7 @@ import { TreeExamplesSection } from './TreeExamplesSection';
 import { CombatFxSection } from './CombatFxSection';
 import { CombatLogSection } from './CombatLogSection';
 import { CombatRoadSection } from './CombatRoadSection';
+import { CombatMoveIntentSection } from './CombatMoveIntentSection';
 import { CardDetailCapSection, CardDetailPinnedSection, CardDetailSection, CardFacesSection } from './CardDetailSection';
 import { CardMinisSection } from './CardMinisSection';
 import { DriverCardsSection, DriverDetailPinnedSection, DriverDetailSection } from './DriverCardSection';
@@ -193,6 +194,11 @@ export const developerSections: readonly DeveloperSection[] = [
 	{
 		name: 'combat-road',
 		build: (options) => new CombatRoadSection(options),
+	},
+	// A raider's planned swerve: the move pill and its outlined destination (DDB-546)
+	{
+		name: 'combat-move-intent',
+		build: (options) => new CombatMoveIntentSection(options),
 	},
 	// The battle screen's vehicle token in every state (DDB-135)
 	{

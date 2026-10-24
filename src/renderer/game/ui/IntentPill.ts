@@ -9,13 +9,14 @@ import { tokens } from '../../engine/theme/tokens';
 import { resolveColor } from '../../engine/style/styleObject';
 import type { DrawRectOptions, DrawTextOptions } from '../../engine/draw/commands';
 import { TargetMark, TargetMarkDraw } from './targetMarks';
+import type { RoadSlot } from '../mechanics/Road';
 
 /**
  * What a pill shows: the battle's intent types (`mechanics/Intent.ts`),
  * with `special` for one the raider keeps to itself, and `overflow` for
  * the "+N" after the first two.
  */
-export type IntentType = 'attack' | 'defend' | 'repair' | 'buff' | 'debuff' | 'special' | 'overflow';
+export type IntentType = 'attack' | 'defend' | 'repair' | 'buff' | 'debuff' | 'move' | 'special' | 'overflow';
 
 export interface EnemyIntent {
 	type: IntentType;
@@ -33,7 +34,15 @@ export interface EnemyIntent {
 	target?: TargetMark;
 	/** The vehicles it will land on, by id, for the end-turn preview's lines and totals. */
 	targetIds?: readonly string[];
+	/**
+	 * Where the raider's own swerve takes it, which the road outlines (call
+	 * 288). A pill of another type leads with the swerve icon when it's set.
+	 */
+	destination?: RoadSlot;
 }
+
+/** The swerve icon: a move pill's own, and the lead of any other pill whose card swerves first. */
+export const SWERVE_ICON: IconName = 'alt_route';
 
 /** An attack this big or bigger, all hits together, takes the heavy tier's colour (section 3). */
 export const HEAVY_ATTACK = 12;
@@ -46,6 +55,11 @@ export function intentDamage(intent: EnemyIntent): number | null {
 	if (intent.type !== 'attack') return 0;
 	if (intent.value === undefined) return null;
 	return intent.value * (intent.hits ?? 1);
+}
+
+/** Whether a pill leads with the swerve icon before its own: any but a move pill, whose icon it already is. */
+function leadsWithSwerve(intent: EnemyIntent): boolean {
+	return intent.destination !== undefined && intent.type !== 'move' && intent.type !== 'overflow';
 }
 
 /** The pill's height, and the intents row's (Battle Screen Design, section 3). */
@@ -82,6 +96,8 @@ const LOOKS: Readonly<Record<IntentType, PillLook>> = {
 	repair: { border: resolveColor('rgba(169, 188, 205, 0.6)'), fill: GROUND, ink: resolveColor('#a9bccd'), icon: 'build' },
 	debuff: { border: resolveColor('rgba(190, 120, 230, 0.6)'), fill: GROUND, ink: resolveColor('#d3a6f0'), icon: 'expand_more' },
 	buff: { border: resolveColor('rgba(143, 191, 92, 0.6)'), fill: GROUND, ink: resolveColor('#8fbf5c'), icon: 'expand_less' },
+	// The raiders' red, muted below an attack's, as the road outlines where it goes
+	move: { border: resolveColor('rgba(212, 81, 63, 0.5)'), fill: GROUND, ink: resolveColor('#dc9a8e'), icon: SWERVE_ICON },
 	special: { border: tokens.color.line_edge, fill: GROUND, ink: tokens.color.text_dim, icon: null },
 	overflow: { border: tokens.color.line_edge, fill: GROUND, ink: tokens.color.text_dim, icon: null },
 };
@@ -164,6 +180,8 @@ export class IntentPill extends Component {
 		border: { color: LOOKS.special.border, width: BORDER },
 	};
 	private readonly iconDraw: DrawIconOptions = { glyph: 'gps_fixed', size: ICON_SIZE, tint: LOOKS.attack.ink, box: { x: 0, y: 0, width: ICON_SIZE, height: INTENT_PILL_HEIGHT } };
+	private readonly swerveDraw: DrawIconOptions = { glyph: SWERVE_ICON, size: ICON_SIZE, tint: LOOKS.move.ink, box: { x: 0, y: 0, width: ICON_SIZE, height: INTENT_PILL_HEIGHT } };
+	private swerves = false;
 	private readonly valueDraw: DrawTextOptions & { box: { x: number; y: number; width: number; height: number } } = {
 		text: '',
 		box: { x: 0, y: 0, width: 0, height: INTENT_PILL_HEIGHT },
@@ -190,6 +208,7 @@ export class IntentPill extends Component {
 		const label = labelOf(intent);
 		if (intent.type === 'overflow') return BORDER * 2 + MORE_PAD * 2 + Math.ceil((label ?? '').length * MORE_SIZE * MORE_ADVANCE);
 		const items: number[] = [];
+		if (leadsWithSwerve(intent)) items.push(ICON_SIZE);
 		if (LOOKS[intent.type].icon) items.push(ICON_SIZE);
 		if (label !== null) items.push(Math.ceil(label.length * VALUE_SIZE * VALUE_ADVANCE));
 		if (intent.target) items.push(TargetMarkDraw.widthOf(intent.target, MARK_SIZE));
@@ -245,6 +264,11 @@ export class IntentPill extends Component {
 		return this.printed;
 	}
 
+	/** Whether it leads with the swerve icon, its card swerving first (call 288). */
+	get leadsWithSwerve(): boolean {
+		return this.swerves;
+	}
+
 	/** Whether it wears the heavy tier's colour. */
 	get heavy(): boolean {
 		return this.look === HEAVY;
@@ -261,6 +285,12 @@ export class IntentPill extends Component {
 		if (this.bodyDraw.border) this.bodyDraw.border.color = look.border;
 		const overflow = intent.type === 'overflow';
 		let x = BORDER + (overflow ? MORE_PAD : PAD_LEFT);
+		this.swerves = leadsWithSwerve(intent);
+		if (this.swerves) {
+			this.swerveDraw.tint = look.ink;
+			this.swerveDraw.box = { x, y: 0, width: ICON_SIZE, height: INTENT_PILL_HEIGHT };
+			x += ICON_SIZE + ITEM_GAP;
+		}
 		if (look.icon && !overflow) {
 			this.iconDraw.glyph = look.icon;
 			this.iconDraw.tint = look.ink;
@@ -323,6 +353,7 @@ export class IntentPill extends Component {
 		if (!this.current) return;
 		this.bodyDraw.id = this.id ?? undefined;
 		draw.drawRect(this.bodyDraw);
+		if (this.swerves) drawIcon(draw, this.swerveDraw);
 		if (this.look.icon && this.current.type !== 'overflow') drawIcon(draw, this.iconDraw);
 		if (this.printed !== null) draw.drawText(this.valueDraw);
 		this.targetMark.draw(draw);

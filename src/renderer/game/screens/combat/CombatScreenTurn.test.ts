@@ -17,6 +17,7 @@ import type { Component } from '../../../engine/components/Component';
 import { tokens } from '../../../engine/theme/tokens';
 import { TURN_BANNER_LIFETIME } from './TurnBanner';
 import { roadRowsCenter } from './CombatLayout';
+import { describeSlot } from '../../mechanics/Road';
 
 /**
  * DDB-88's last part: the turn banner (DDB-30), every planned intent over
@@ -202,6 +203,42 @@ describe('CombatScreen intents', () => {
 		send(context, [pointer('move', 1, 1)]);
 		context.tooltips.hide();
 		context.animator.settle();
+		combat.unmount();
+	});
+
+	it('shows a planned swerve as a move pill and outlines where it lands (DDB-546)', async () => {
+		const combat = await startCombat();
+		const battle = combat['battle'];
+		const raider = combat['enemyTeam']?.vehicles[0];
+		if (!battle || !raider?.driver) throw new Error('the dev fight should field a driven raider');
+		// A test-only Juke, in the shape the movement card batches use
+		const juke = new Card({
+			type: 'test_juke',
+			name: 'Juke',
+			summary: 'Juke',
+			description: 'Juke',
+			rarity: 'common',
+			cost: 1,
+			targetType: 'self',
+			effects: [
+				{ type: 'change_position', position: 'swerve', to: 'pick', target: 'self' },
+				{ type: 'draw_cards', value: 1, target: 'self' },
+			],
+			tags: [],
+		});
+		raider.driver.set({ hand: [juke], adrenaline: raider.driver.maxAdrenaline });
+		battle.planEnemyTurn();
+		const destination = battle.getPlan(raider)[0]?.destination;
+		if (!destination) throw new Error('the raider should plan its Juke with a slot');
+		combat['updateUIFromBattle']();
+
+		expect(combat['road'].intentRowOf(raider.id)?.intents[0]).toMatchObject({
+			type: 'move',
+			description: 'Juke',
+			destination,
+			detail: `Swerves to ${describeSlot(destination)}`,
+		});
+		expect(combat['road'].plannedDestinations).toContainEqual(destination);
 		combat.unmount();
 	});
 });

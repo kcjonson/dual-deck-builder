@@ -125,8 +125,8 @@ describe('Enemy intents', () => {
 			battle.planEnemyTurn();
 
 			expect(battle.getIntents(buggy)).toEqual([
-				{ type: IntentType.ATTACK, amount: 4, hits: 1, label: null, target: rig.id, description: 'Point Blank' },
-				{ type: IntentType.DEFEND, amount: 3, hits: 1, label: null, target: null, description: 'Armor Up' }
+				{ type: IntentType.ATTACK, amount: 4, hits: 1, label: null, target: rig.id, destination: null, description: 'Point Blank' },
+				{ type: IntentType.DEFEND, amount: 3, hits: 1, label: null, target: null, destination: null, description: 'Armor Up' }
 			]);
 		});
 
@@ -164,12 +164,12 @@ describe('Enemy intents', () => {
 			battle.planEnemyTurn();
 
 			const [intent] = battle.getIntents(buggy);
-			expect(intent).toEqual({ type: IntentType.ATTACK, amount: null, hits: 1, label: null, target: rig.id, description: '???' });
+			expect(intent).toEqual({ type: IntentType.ATTACK, amount: null, hits: 1, label: null, target: rig.id, destination: null, description: '???' });
 			expect(formatIntentValue(intent)).toBe('?');
 		});
 
 		test('values print as the pill shows them', () => {
-			const attack: Intent = { type: IntentType.ATTACK, amount: 6, hits: 3, label: null, target: 'both', description: 'Chain Gun' };
+			const attack: Intent = { type: IntentType.ATTACK, amount: 6, hits: 3, label: null, target: 'both', destination: null, description: 'Chain Gun' };
 			expect(formatIntentValue(attack)).toBe('6x3');
 			expect(formatIntentValue({ ...attack, hits: 1 })).toBe('6');
 			expect(formatIntentValue({ ...attack, type: IntentType.DEBUFF, amount: null, label: 'speed_reduction' })).toBe('speed_reduction');

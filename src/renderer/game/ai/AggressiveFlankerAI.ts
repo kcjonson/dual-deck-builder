@@ -7,7 +7,8 @@ import { Card } from '../mechanics/Card';
 import type { Driver } from '../mechanics/Driver';
 import { CardEffectValidator } from './CardEffectValidator';
 import { cardDamageKind, damageToFinish, lastingDamage } from './DamageEstimate';
-import { selfSpeedBonus } from '../mechanics/BoardProjection';
+import { cardFlanks, selfSpeedBonus } from '../mechanics/BoardProjection';
+import { aimlessSwerve, swerveReach, swerveScore } from './SwerveEstimate';
 
 /**
  * Aggressive Flanker AI Strategy
@@ -20,6 +21,8 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 	private readonly POSITION_WEIGHT = 200;
 	private readonly DAMAGE_WEIGHT = 10;
 	private readonly HEAL_WEIGHT = 50;
+	/** Ending the turn, the floor every play that does anything beats */
+	private readonly END_TURN = -1000;
 
 	chooseBestAction(
 		possibleActions: AIDecision[],
@@ -48,7 +51,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 	public scoreAction(action: AIDecision, gameState: GameStateEvaluation): number {
 		if (action.type === 'endTurn') {
 			// Only end turn if we have no other options
-			return -1000;
+			return this.END_TURN;
 		}
 
 		let score = 0;
@@ -74,9 +77,24 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 
 		// Moving to the shoulder. A Flank is only offered at a target it can
 		// outrun, so every legal one gets the full priority.
-		if (cardEffects.changesPosition && !ourVehicle.isFlanking) {
+		if (cardEffects.flanks && !ourVehicle.isFlanking) {
 			score += this.POSITION_WEIGHT * 3;
 		}
+
+		// A swerve is worth what it puts in range for the rest of the hand,
+		// and waits while it would take something out. One that would do
+		// nothing else scores under ending the turn, so it isn't played.
+		const reach = swerveReach({
+			board: gameState.board,
+			card,
+			driver,
+			caster: ourVehicle.vehicle,
+			destination: action.destination ?? null
+		});
+		if (aimlessSwerve({ board: gameState.board, card, driver, reach })) {
+			return this.END_TURN * 2;
+		}
+		score += swerveScore(reach, this.DAMAGE_WEIGHT);
 
 		// A speed boost is worth a lot when it's what opens a flank
 		const board = gameState.board;
@@ -165,14 +183,14 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		heal: number;
 		armor: number;
 		speedBoost: number;
-		changesPosition: boolean;
+		flanks: boolean;
 	} {
 		const result = {
 			damage: 0,
 			heal: 0,
 			armor: 0,
 			speedBoost: selfSpeedBonus(card),
-			changesPosition: false
+			flanks: cardFlanks(card)
 		};
 
 		for (const effect of card.effects) {
@@ -185,9 +203,6 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 					break;
 				case 'gain_armor':
 					result.armor += effect.value || 0;
-					break;
-				case 'change_position':
-					result.changesPosition = true;
 					break;
 			}
 		}

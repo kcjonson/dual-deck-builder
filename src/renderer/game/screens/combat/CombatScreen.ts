@@ -27,6 +27,7 @@ import { INSPECT_KEYS, inspectHotkey } from '../../ui/cardInspect';
 import { buildPlayerHandView } from './PlayerHandView';
 import { TargetMark, seatMark } from '../../ui/targetMarks';
 import { statusLabel } from '../../ui/IntentPill';
+import { describeSlot } from '../../mechanics/Road';
 import { Driver, DriverRole } from '../../mechanics/Driver';
 import { assertDriverPair, assertDriverSeats } from '../../mechanics/DriverPair';
 import { CombatLog, CombatLogType } from '../../mechanics/CombatLog';
@@ -665,9 +666,19 @@ export class CombatScreen extends Screen {
 	/**
 	 * A planned intent as its pill shows it, with the tooltip's line and the
 	 * vehicles it lands on: an area hit reaches every vehicle of yours
-	 * still in the fight (`effectRecipients`).
+	 * still in the fight (`effectRecipients`). A card that swerves the
+	 * raider first carries where it lands, for the road's outline and the
+	 * pill's swerve icon (call 288).
 	 */
 	private intentPillOf(intent: Intent): EnemyIntent {
+		const pill = this.intentPillBody(intent);
+		if (!intent.destination) return pill;
+		const to = describeSlot(intent.destination);
+		const detail = pill.type === 'move' ? `Swerves to ${to}` : `${pill.detail}, after it swerves to ${to}`;
+		return { ...pill, destination: intent.destination, detail };
+	}
+
+	private intentPillBody(intent: Intent): EnemyIntent {
 		const value = formatIntentValue(intent);
 		const target = intent.target === 'both'
 			? 'both of your vehicles'
@@ -686,6 +697,8 @@ export class CombatScreen extends Screen {
 				return { type: 'debuff', valueText: statusLabel(intent.label), description: intent.description, detail: `${value}${on}`, target: mark, targetIds };
 			case IntentType.BUFF:
 				return { type: 'buff', valueText: statusLabel(intent.label), description: intent.description, detail: value };
+			case IntentType.MOVE:
+				return { type: 'move', valueText: statusLabel(intent.label), description: intent.description };
 			default:
 				return { type: 'special', description: intent.description, detail: 'Hidden' };
 		}

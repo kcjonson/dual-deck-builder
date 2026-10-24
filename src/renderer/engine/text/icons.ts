@@ -2,6 +2,7 @@
 
 /** Each icon in the icon atlas by name, and the code point `drawText` draws it with (R12.6). */
 export const ICON_CODE_POINTS = {
+	alt_route: 0xF184,
 	arrow_back: 0xE5C4,
 	build: 0xE869,
 	check: 0xE5CA,
