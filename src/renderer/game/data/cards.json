@@ -660,6 +660,229 @@
       "image": "cards/flanking_maneuver.png"
     },
     {
+      "type": "lay_on_the_horn",
+      "name": "Lay on the Horn",
+      "summary": "Shove a raider in [Range 1] out a lane. [Sure-hit].",
+      "description": "Target a raider in its formation at Range 1, in your row. It's shoved to its outside lane, same row, if that slot is empty. Always hits.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "swerve",
+          "to": "outside",
+          "target": "target",
+          "optional": true,
+          "range": 1,
+          "condition": "target_in_formation"
+        }
+      ],
+      "upgrades": {
+        "summary": "Shove a raider in [Range 1] out a lane, -1 Speed. [Sure-hit].",
+        "description": "Target a raider in its formation at Range 1, in your row. It's shoved to its outside lane, same row, if that slot is empty, and either way it loses 1 speed until the end of the next enemy turn. Always hits.",
+        "effects": [
+          {
+            "type": "change_position",
+            "position": "swerve",
+            "to": "outside",
+            "target": "target",
+            "optional": true,
+            "range": 1,
+            "condition": "target_in_formation"
+          },
+          {
+            "type": "apply_status",
+            "status": "speed_reduction",
+            "value": -1,
+            "duration": 1,
+            "target": "target",
+            "always_hits": true
+          }
+        ]
+      },
+      "tags": ["utility", "control", "positioning"],
+      "image": "cards/lay_on_the_horn.png"
+    },
+    {
+      "type": "cut_off",
+      "name": "Cut Off",
+      "summary": "[Swerve] ahead. Then a raider in reach: -{slow} Speed, [Vulnerable].",
+      "description": "Swerve one row ahead, then target a raider at Range 1 of your new slot: until the end of the next enemy turn it's Vulnerable and loses {slow} speed. Always hits. Unplayable while flanking or when the slot ahead isn't free.",
+      "rarity": "uncommon",
+      "cost": 2,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "swerve",
+          "to": "ahead",
+          "target": "self"
+        },
+        {
+          "type": "apply_status",
+          "status": "vulnerable",
+          "duration": 1,
+          "range": 1,
+          "target": "target",
+          "always_hits": true
+        },
+        {
+          "type": "apply_status",
+          "status": "speed_reduction",
+          "value": -2,
+          "duration": 1,
+          "range": 1,
+          "target": "target",
+          "always_hits": true
+        }
+      ],
+      "variables": {
+        "slow": { "base": 2 }
+      },
+      "upgrades": {
+        "cost": 1
+      },
+      "tags": ["utility", "control", "positioning"],
+      "image": "cards/cut_off.png"
+    },
+    {
+      "type": "box_in",
+      "name": "Box In",
+      "summary": "[Range 1] raider can't [Flank]. Both in [Range 2]: [Vulnerable].",
+      "description": "Target a raider at Range 1. Until the end of the next enemy turn it can't flank, so any flank it planned fizzles. If both your driven vehicles are within Range 2 of it, it's also Vulnerable until then. Always hits.",
+      "rarity": "rare",
+      "cost": 2,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "apply_status",
+          "status": "boxed_in",
+          "duration": 1,
+          "range": 1,
+          "target": "target",
+          "always_hits": true
+        },
+        {
+          "type": "apply_status",
+          "status": "vulnerable",
+          "duration": 1,
+          "target": "target",
+          "always_hits": true,
+          "condition": "driven_vehicles_within",
+          "within": 2
+        }
+      ],
+      "upgrades": {
+        "cost": 1
+      },
+      "tags": ["utility", "control"],
+      "image": "cards/box_in.png"
+    },
+    {
+      "type": "brake_check",
+      "name": "Brake Check",
+      "summary": "Flanker in your row drops back or takes {damage}. You -{slow} Speed.",
+      "description": "Target a raider flanking on your shoulder, in your vehicle's row. It overshoots, losing flanking and dropping back to its reserved slot; an ambusher, with no slot, takes {damage} damage instead. Always hits. Your vehicle loses {slow} speed until the end of the next enemy turn.",
+      "rarity": "uncommon",
+      "cost": 1,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "drop_back",
+          "target": "target",
+          "optional": true,
+          "condition": "target_flanking_in_row"
+        },
+        {
+          "type": "damage",
+          "value": 4,
+          "target": "target",
+          "always_hits": true,
+          "condition": "target_ambusher"
+        },
+        {
+          "type": "apply_status",
+          "status": "speed_reduction",
+          "value": -1,
+          "duration": 1,
+          "target": "self"
+        }
+      ],
+      "variables": {
+        "damage": { "base": 4 },
+        "slow": { "base": 1 }
+      },
+      "upgrades": {
+        "summary": "Flanker drops back, [Vulnerable]. You -{slow} Speed.",
+        "description": "Target a raider flanking on your shoulder, in your vehicle's row. It overshoots, losing flanking and dropping back to its reserved slot; an ambusher, with no slot, takes {damage} damage instead. Either way it's Vulnerable, and your vehicle loses {slow} speed, until the end of the next enemy turn. Always hits.",
+        "effects": [
+          {
+            "type": "change_position",
+            "position": "drop_back",
+            "target": "target",
+            "optional": true,
+            "condition": "target_flanking_in_row"
+          },
+          {
+            "type": "damage",
+            "value": 4,
+            "target": "target",
+            "always_hits": true,
+            "condition": "target_ambusher"
+          },
+          {
+            "type": "apply_status",
+            "status": "speed_reduction",
+            "value": -1,
+            "duration": 1,
+            "target": "self"
+          },
+          {
+            "type": "apply_status",
+            "status": "vulnerable",
+            "duration": 1,
+            "target": "target",
+            "always_hits": true
+          }
+        ]
+      },
+      "tags": ["utility", "control", "positioning"],
+      "image": "cards/brake_check.png"
+    },
+    {
+      "type": "overtake",
+      "name": "Overtake",
+      "summary": "+{speed} Speed for 2 turns, then [Flank] a slower raider.",
+      "description": "Gain {speed} speed for 2 turns, then outrun a slower raider and pull onto its shoulder in its row. It must be in formation and slower than your boosted speed, and that shoulder slot free. While flanking, attack cards do 50% more damage.",
+      "rarity": "uncommon",
+      "cost": 3,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "apply_status",
+          "status": "speed_boost",
+          "value": 2,
+          "duration": 2,
+          "target": "self"
+        },
+        {
+          "type": "change_position",
+          "position": "flanking",
+          "target": "self"
+        }
+      ],
+      "variables": {
+        "speed": { "base": 2 }
+      },
+      "upgrades": {
+        "cost": 2
+      },
+      "tags": ["utility", "positioning"],
+      "image": "cards/overtake.png"
+    },
+    {
       "type": "covering_fire",
       "name": "Covering Fire",
       "summary": "Nearest [Escort] in [Range 2] of target deals {damage}.",

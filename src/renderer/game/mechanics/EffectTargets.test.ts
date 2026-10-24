@@ -2,7 +2,7 @@ import { Battle } from './Battle';
 import { BoardProjection } from './BoardProjection';
 import { Card, CardData, CardEffect, TargetType } from './Card';
 import { Driver } from './Driver';
-import { EffectRecipient, effectRecipientOf } from './EffectTargets';
+import { EffectRecipient, effectRecipientOf, landsOnTarget, rollsToHit } from './EffectTargets';
 import { Team, TeamType } from './Team';
 import { Vehicle } from './Vehicle';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
@@ -114,6 +114,22 @@ describe('Effect targets', () => {
 			expect(effectRecipientOf({ effect: emp.effects[0], card: emp })).toBe(EffectRecipient.ENEMIES);
 			expect(effectRecipientOf({ effect: headshot.effects[0], card: headshot })).toBe(EffectRecipient.TARGET);
 			expect(effectRecipientOf({ effect: selfDraw.effects[0], card: selfDraw })).toBe(EffectRecipient.CASTER);
+		});
+
+		test('a move lands on whoever it moves: a shove or drop-back on the target, your own swerve or flank on you, and none rolls to hit', () => {
+			const horn = realCard('lay_on_the_horn');
+			const brake = realCard('brake_check');
+			const cut = realCard('cut_off');
+			const flank = realCard('flank');
+
+			expect(effectRecipientOf({ effect: horn.effects[0], card: horn })).toBe(EffectRecipient.TARGET);
+			expect(effectRecipientOf({ effect: brake.effects[0], card: brake })).toBe(EffectRecipient.TARGET);
+			expect(effectRecipientOf({ effect: cut.effects[0], card: cut })).toBe(EffectRecipient.CASTER);
+			expect(effectRecipientOf({ effect: flank.effects[0], card: flank })).toBe(EffectRecipient.CASTER);
+			// Base Lay on the Horn's only effect is the shove, so it still lands on its target
+			expect(landsOnTarget(horn)).toBe(true);
+			expect(landsOnTarget(flank)).toBe(false);
+			expect(rollsToHit({ effect: horn.effects[0], card: horn })).toBe(false);
 		});
 	});
 

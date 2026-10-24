@@ -80,14 +80,27 @@ const variablesOf = (data: CardData) => Object.entries(data.variables ?? {}).map
 	return { name, base, upgraded, printed };
 });
 
-/** The effects an upgraded copy should play: the base ones, each printed number at its upgraded value. */
+/**
+ * Effects an upgrade adds after the base ones (Lay on the Horn's slow, Brake
+ * Check's Vulnerable). Only an upgrade that rewrites the card's text may add
+ * one, since nothing else can say so.
+ */
+const addedOnUpgrade = (data: CardData): CardEffect[] => {
+	const effects = data.upgrades?.effects;
+	return Array.isArray(effects) && typeof data.upgrades?.description === 'string' ? effects.slice(data.effects.length) : [];
+};
+
+/**
+ * The effects an upgraded copy should play: the base ones, each printed
+ * number at its upgraded value, then any the rewritten text adds.
+ */
 const upgradedEffects = (data: CardData): CardEffect[] => {
 	const effects: CardEffect[] = JSON.parse(JSON.stringify(data.effects));
 	const effectLeaves = effects.flatMap(leaves);
 	for (const { upgraded, printed } of variablesOf(data)) {
 		for (const { leaf, field, sign } of printed) effectLeaves[leaf][field] = sign * upgraded;
 	}
-	return effects;
+	return [...effects, ...addedOnUpgrade(data)];
 };
 
 // Upgrades still out of step with their text, left for a design call.
@@ -161,6 +174,13 @@ describe('card data check', () => {
 	};
 	it.each(upgradeCases.filter(({ data }) => !OUT_OF_STEP.has(data.type)))('$label upgraded plays the numbers its upgraded text prints', playsItsUpgradedText);
 	it.failing.each(upgradeCases.filter(({ data }) => OUT_OF_STEP.has(data.type)))('$label upgraded still plays what its text doesn\'t say', playsItsUpgradedText);
+
+	// The face and the detail view change together, and only for an upgrade that adds an effect to say
+	it.each(upgradeCases.filter(({ data }) => data.upgrades?.summary !== undefined || data.upgrades?.description !== undefined))('$label upgrade rewrites both texts for the effects it adds', ({ data }) => {
+		expect(typeof data.upgrades?.summary).toBe('string');
+		expect(typeof data.upgrades?.description).toBe('string');
+		expect(addedOnUpgrade(data)).not.toHaveLength(0);
+	});
 
 	// Battle.checkHit adds hit_modifier to the defender's evade, so positive is harder
 	it('Headshot raises the defender\'s evade by 2, and by 1 once upgraded', () => {

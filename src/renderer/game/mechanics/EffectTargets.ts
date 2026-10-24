@@ -46,9 +46,13 @@ export function isCasterAction(effect: CardEffect): boolean {
 /**
  * No spec says what a both_drivers card does to the partner, so it lands
  * on the caster, as it did when the caster's vehicle stood in for the
- * target. An `any` card always has a target.
+ * target. An `any` card always has a target. A move lands on whoever it
+ * moves: a shove or a drop-back of the card's target (Lay on the Horn,
+ * Brake Check) lands on the target, though it's still resolved once as the
+ * caster's action.
  */
 export function effectRecipientOf({ effect, card }: { effect: CardEffect; card: Card }): EffectRecipient {
+	if (effect.type === 'change_position') return effect.target === 'target' ? EffectRecipient.TARGET : EffectRecipient.CASTER;
 	if (isCasterAction(effect)) return EffectRecipient.CASTER;
 	const recipient = effect.target ? RECIPIENT_BY_TARGET[effect.target] : undefined;
 	if (recipient) return recipient;
@@ -68,10 +72,11 @@ export function landsOnTarget(card: Card): boolean {
 /**
  * Whether a damage or status effect rolls the hit check against each
  * recipient. The caster never rolls against itself; anyone else is rolled
- * against unless the effect always hits.
+ * against unless the effect always hits. A caster action never rolls, a
+ * shove included: one that should follow a hit says `on_hit`.
  */
 export function rollsToHit({ effect, card }: { effect: CardEffect; card: Card }): boolean {
-	return effectRecipientOf({ effect, card }) !== EffectRecipient.CASTER && !effect.always_hits;
+	return !isCasterAction(effect) && effectRecipientOf({ effect, card }) !== EffectRecipient.CASTER && !effect.always_hits;
 }
 
 /**

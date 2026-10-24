@@ -842,6 +842,9 @@ export class Battle extends Model<BattleData> {
 			if (vehicle && cardFlanks(card) && projection.isFlanking(vehicle)) {
 				return `${vehicle.name} is already flanking`;
 			}
+			if (vehicle && cardFlanks(card) && projection.isBoxedIn(vehicle)) {
+				return `${vehicle.name} is boxed in and can't flank`;
+			}
 			// A flanker can't swerve, and a swerve with nowhere to go is unplayable (Combat Rules, Swerving)
 			const moveBlocker = vehicle ? projection.moveBlocker({ card, caster: vehicle }) : null;
 			if (moveBlocker) {
@@ -1560,6 +1563,10 @@ export class Battle extends Model<BattleData> {
 				return `${target.name} is no longer flanking`;
 			}
 		}
+		const conditionBlocker = board.targetConditionBlocker({ card, caster, target });
+		if (conditionBlocker) {
+			return conditionBlocker;
+		}
 		// The card's own boost lands before its flank (Overtake)
 		const flankBlocker = cardFlanks(card) ? board.flankBlocker(caster, target, selfSpeedBonus(card)) : null;
 		if (flankBlocker) {
@@ -1960,6 +1967,10 @@ export class Battle extends Model<BattleData> {
 				this.damageVehicle({ vehicle: recipient, damage, card, structureOnly: effect.structure_only === true });
 			}
 		} else {
+			// Brake Check's damage lands only on an ambusher, which had no slot to drop back to
+			if (effect.condition && !new BoardProjection({ battle: this }).landingConditionHolds({ effect, caster: casterVehicle, recipient })) {
+				return false;
+			}
 			if (typeof effect.range === 'number' && casterVehicle) {
 				const range = this.calculateRange(casterVehicle, recipient);
 				if (range > effect.range) {
@@ -2062,6 +2073,10 @@ export class Battle extends Model<BattleData> {
 		recipient: Vehicle;
 	}): boolean {
 		if (effect.condition === 'target_flanking' && !recipient.isFlanking) {
+			return false;
+		}
+		// Box In's Vulnerable, judged from where the caster's driven vehicles are as it lands
+		if (effect.condition && !new BoardProjection({ battle: this }).landingConditionHolds({ effect, caster: casterVehicle, recipient })) {
 			return false;
 		}
 		if (effect.status === 'stunned' && recipient.isSteady) {
