@@ -69,15 +69,6 @@ const shot = ({ range, damage = 12, rolls = false }: { range: number; damage?: n
 const pointBlank = (): Card => card('Point Blank', 'enemy_single', [{ type: 'damage', value: 3, range: 1, always_hits: true }]);
 const jab = (): Card => card('Jab', 'enemy_single', [{ type: 'damage', value: 2, range: 2, always_hits: true }]);
 const armorUp = (): Card => card('Armor Up', 'self', [{ type: 'gain_armor', value: 8, target: 'self' }]);
-// Juke and Strafe are in movement-cards.md's table and land with DDB-551; these stand-ins have their shapes
-const juke = (): Card => card('Juke', 'self', [
-	{ type: 'change_position', position: 'swerve', to: 'pick', target: 'self' },
-	{ type: 'draw_cards', value: 1, target: 'self' }
-]);
-const strafe = (): Card => card('Strafe', 'enemy_single', [
-	{ type: 'change_position', position: 'swerve', to: 'pick', target: 'self' },
-	{ type: 'damage', value: 4, range: 1, target: 'target' }
-], 2);
 
 const giveHand = (of: Vehicle, cards: Card[]): void => {
 	driverOf(of).set({ hand: cards, adrenaline: 5 });
@@ -135,12 +126,25 @@ describe('movement scoring', () => {
 			expect(named(aggressive())).toEqual(['Floor It', undefined]);
 		});
 
-		test('a picked swerve goes to a slot the shot can\'t reach', () => {
-			giveHand(rig, [juke()]);
+		test.each(['juke', 'bootlegger_turn'])('%s picks a slot the shot can\'t reach', (type) => {
+			giveHand(rig, [realCard(type)]);
 
 			const decision = intent();
-			expect(decision?.card?.name).toBe('Juke');
-			expect([slot(PLAYER_OUTSIDE, CENTER), slot(PLAYER_INSIDE, BEHIND)]).toContainEqual(decision?.destination);
+			expect(decision?.card?.type).toBe(type);
+			// Inside ahead and outside ahead keep the Rig in the shot's Range 2
+			expect([slot(PLAYER_OUTSIDE, CENTER), slot(PLAYER_INSIDE, BEHIND), slot(PLAYER_OUTSIDE, BEHIND)]).toContainEqual(decision?.destination);
+		});
+
+		test('Leapfrog swaps the Rig out of the shot\'s reach, and the Bike it trades with isn\'t its target', () => {
+			// The Bike, outside center, is 3 from the Buggy; once they swap the
+			// Rig is too, and the shot planned at it fizzles
+			const bike = vehicle({ name: 'Bike', baseSpeed: 6, at: slot(PLAYER_OUTSIDE, CENTER) });
+			fight([buggy], [rig, bike]);
+			plan([[buggy, [shot({ range: 2 })]]]);
+			expect(battle.getIntents(buggy)[0]).toMatchObject({ target: rig.id });
+			giveHand(rig, [armorUp(), realCard('leapfrog')]);
+
+			expect(named(intent())).toEqual(['Leapfrog', 'Bike']);
 		});
 
 		test('Cut Off\'s swerve counts for the shot it leaves behind', () => {
@@ -209,6 +213,16 @@ describe('movement scoring', () => {
 			giveHand(rig, [realCard('lay_on_the_horn')]);
 			expect(named(intent())).toEqual(['Lay on the Horn', 'Buggy']);
 			expect(aggressive()).toEqual({ type: 'endTurn' });
+		});
+
+		test('Shoulder Check shoves a raider a row away, out of its planned hit\'s reach', () => {
+			// Ramming 5 meets the Buggy's evade 5, so it hits and the shove happens
+			plan([[buggy, [shot({ range: 1 })]]]);
+			giveHand(rig, [pointBlank(), realCard('shoulder_check')]);
+
+			const decision = intent();
+			expect(named(decision)).toEqual(['Shoulder Check', 'Buggy']);
+			expect([slot(ENEMY_INSIDE, AHEAD), slot(ENEMY_INSIDE, BEHIND)]).toContainEqual(decision?.destination);
 		});
 
 		test('won\'t swerve back into a planned hit for a smaller shot of its own', () => {
@@ -307,7 +321,7 @@ describe('movement scoring', () => {
 		test.each(['intent', 'aggressive'] as const)('the %s stand-in plays every movement card it picks with the slot it needs, and the battle takes each one', async (playerAI) => {
 			const error = jest.spyOn(console, 'error');
 			const playCard = jest.spyOn(Battle.prototype, 'playCard');
-			for (const hand of [...CARDS.map(type => [realCard(type)]), [juke()], [strafe()], [juke(), strafe(), pointBlank()]]) {
+			for (const hand of [...CARDS.map(type => [realCard(type)]), [realCard('juke'), realCard('strafe'), pointBlank()]]) {
 				rig = vehicle({ name: 'Rig' });
 				const bike = vehicle({ name: 'Bike', baseSpeed: 6, at: slot(PLAYER_OUTSIDE, CENTER) });
 				const buggy = vehicle({ name: 'Buggy', baseSpeed: 3, at: slot(ENEMY_OUTSIDE, CENTER) });
@@ -321,7 +335,7 @@ describe('movement scoring', () => {
 			}
 			expect(error).not.toHaveBeenCalled();
 			expect(playCard.mock.results.filter(({ value }) => value === false)).toHaveLength(0);
-			// Juke and Strafe were played, each with its slot
+			// The slot-pick cards were played with their slots
 			const picked = playCard.mock.calls.map(([play]) => play).filter(play => play.destination !== undefined);
 			expect(picked.length).toBeGreaterThan(0);
 		});

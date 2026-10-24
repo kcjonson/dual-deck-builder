@@ -18,7 +18,7 @@ The core lives in `src/renderer/game/sim/`, as game code under the same rules:
 - No DOM, `fetch` or `CardLoader`, localStorage, or `__DEV_TOOLS__`, so the same code runs in Node and in a Web Worker. No `const enum`, which per-file transpiling can't see through.
 - It plays everything through the game's own code: `Battle`, the AI controller, the combat bridge (`seatOf`, and the write-back with `REVIVE_HP` and `LIMP_STRUCTURE`, through `seatWriteBack`), the encounter builder, and the run. Never a copy of them, so a rule change reaches the sim without touching it.
 
-Its input is a config, plain data: the crews (archetypes, seat order, decks; one driver, or two of different archetypes, as load out seats them), the raider profiles, the encounter templates, the stop tables, the game stage, the player stand-in, the seed, and runs a cell. Tuning comes in as data rather than being patched into the shipped tables: the encounter builder and `raiderVehicle` take the config's raiders and profiles, and fall back to the shipped ones. A raider's patch merges its skills and vehicle stats and replaces its deck.
+Its input is a config, plain data: the crews (archetypes, seat order, decks, or cards added to a starting deck; one driver, or two of different archetypes, as load out seats them), the raider profiles, the encounter templates, the stop tables, the game stage, the player stand-in, the seed, and runs a cell. Tuning comes in as data rather than being patched into the shipped tables: the encounter builder and `raiderVehicle` take the config's raiders and profiles, and fall back to the shipped ones. A raider's patch merges its skills and vehicle stats and replaces its deck.
 
 Its output is plain JSON: a row per cell with the measures below, and any fight logs asked for.
 
@@ -79,6 +79,7 @@ A pool of four played day by day: one run a day to a tier its stage reaches, cle
 
 - `--config <file>`: the tuning to try, as JSON. The Balance Lab exports the same format.
 - `--seed`, `--runs` (a cell), `--maps` and `--corpus <file>` (for `gen`), `--crews` (`all`, `pairs`, `solo`, or a list like `road_warrior+interceptor,mechanic`), `--routes` (for `fights`: `1,2,1+2`), `--turns` (the stall cap), `--stage`, `--player aggressive|intent`, `--workers` (2).
+- `--cards` (for `fights`): count each player card's draws and plays, and per play the planned raider intents it made fizzle and the planned damage it took off the crew, from the preview before and after it. Prints a line for each card a crew adds to its decks, with its cell's won and HP lost against the same crew on its starting decks on the same route. It projects the enemy turn twice a play, so it's off unless asked for.
 - `--json <file>`: write the rows.
 - `--check`: compare every row with the targets and exit non-zero on a miss, naming it. The fairness spreads are reported and don't fail a check until DDB-492 to 495 land.
 - `--log <cell>:<run>`: print one fight's battle log.

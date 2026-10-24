@@ -5,7 +5,7 @@
  *
  *   node scripts/balance-sim.mjs fights [--routes 1,2,3,1+2] [--crews all|pairs|solo|road_warrior+interceptor,mechanic]
  *     [--seed 1] [--runs 150] [--turns 25] [--tier 1] [--stage 0] [--player aggressive|intent] [--config tuning.json] [--json rows.json]
- *     [--workers 2] [--log road_warrior+interceptor:2:7]
+ *     [--workers 2] [--log road_warrior+interceptor:2:7] [--cards]
  *   node scripts/balance-sim.mjs gen [--maps 30] [--seed 1] [--corpus routes.json] [--json gen.json] [--config tuning.json] [--workers 2]
  *
  * fights: every crew, fresh and on its default decks, through every route's
@@ -14,6 +14,12 @@
  * raiders and the --player stand-in on the crew: aggressive, the floor, or
  * intent, the ceiling. Lost, down, turns, and injury days are over the runs that got
  * home; the by-seat column splits a pair's runs by who drives seat 1.
+ * --cards counts each player card's draws and plays and the raider intents
+ * each play makes fizzle, and prints a line for every card a crew's seats
+ * add to their decks (a seat's `add` in the config), with the cell's won
+ * and HP lost against the same crew on its starting decks, on the same
+ * route, when the config has that cell too. It projects the enemy turn
+ * twice a play, so it's off unless asked for.
  *
  * gen: campaign maps from `rollParams` seeds `--seed` up, made as founding
  * makes them, and every route to every POI as a run gets it, measured by
@@ -53,7 +59,7 @@ const { genCells, playGenCell, summarizeGen } = load('./sim/Gen.js');
 const { simConfig } = load('./sim/SimConfig.js');
 
 const MODES = {
-	fights: { cells: fightCells, play: playFightCell, run: fights, options: ['runs', 'crews', 'routes', 'turns', 'player', 'log'] },
+	fights: { cells: fightCells, play: playFightCell, run: fights, options: ['runs', 'crews', 'routes', 'turns', 'player', 'log', 'cards'] },
 	gen: { cells: genCells, play: playGenCell, run: gen, options: ['maps', 'corpus'] },
 };
 
@@ -88,6 +94,7 @@ async function fights({ mode, options, input, config, workers }) {
 	print('crew          route   won  by seat  stall  rout  broke  HP lost  struct lost  down  turns  inj days  killed   (rout and broke over all runs; lost, down, turns, and injury days over runs won)');
 	const rows = await playCells({ mode, input, count: fightCells(config).length, workers, onRow: printRow });
 	printFairness(rows);
+	if (config.cardStats) printCards(rows);
 	if (options.json) writeFileSync(options.json, JSON.stringify({ mode, config, rows }, null, '\t'));
 }
 
@@ -153,6 +160,7 @@ function configInput(options) {
 		...number('tier'),
 		...number('stage'),
 		...(options.player ? { playerAI: options.player } : {}),
+		...(options.cards ? { cardStats: true } : {}),
 		...(options.routes ? { routes: options.routes.split(',').map(route => route.split('+').map(Number)) } : {}),
 		...(options.crews ? { crews: ['all', 'pairs', 'solo'].includes(options.crews) ? options.crews : options.crews.split(',').map(crew => crew.split('+')) } : {}),
 	};
@@ -166,13 +174,21 @@ function whole(options, key, fallback) {
 	return value;
 }
 
+/** Options that take no value */
+const FLAGS = ['cards'];
+
 function readOptions(list, known) {
 	const options = {};
-	for (let index = 0; index < list.length; index += 2) {
+	for (let index = 0; index < list.length; index += 1) {
 		const key = list[index].replace(/^--/, '');
 		if (!known.includes(key)) throw new Error(`balance-sim: unknown option ${list[index]}`);
+		if (FLAGS.includes(key)) {
+			options[key] = true;
+			continue;
+		}
 		if (list[index + 1] === undefined || list[index + 1].startsWith('--')) throw new Error(`balance-sim: ${list[index]} needs a value`);
 		options[key] = list[index + 1];
+		index += 1;
 	}
 	return options;
 }
@@ -198,6 +214,29 @@ function printFairness(rows) {
 		const gaps = onRoute.map(row => ({ row, gap: Math.abs((row.bySeat[0].rate ?? 0) - (row.bySeat[1].rate ?? 0)) }));
 		const widest = gaps.reduce((best, next) => (next.gap > best.gap ? next : best));
 		print(`${route.padStart(5)}  pairs ${String(Math.round((Math.max(...rates) - Math.min(...rates)) * 100)).padStart(3)}  seats ${String(Math.round(widest.gap * 100)).padStart(3)} (${crewLabel(widest.row.crew)})`);
+	}
+}
+
+/**
+ * A line for each card a cell's crew adds to its decks: its cell's won and HP
+ * lost, each against the same crew on its starting decks on the same route
+ * when the config has that cell, then how often the card was drawn and
+ * played, and per play, the planned raider intents it made fizzle and the
+ * planned damage it took off the convoy
+ */
+function printCards(rows) {
+	const variants = rows.filter(row => row.added);
+	if (variants.length === 0) return;
+	const points = (value) => (value === null || Number.isNaN(value) ? '-' : `${value > 0 ? '+' : ''}${Math.round(value * 100)}`).padStart(5);
+	print("\ncards added to a crew's decks: won and HP lost against the crew on its starting decks (vs base, points), draws, plays, and per play the intents it fizzled and planned damage it blanked");
+	print('card                 crew          route   won  vs base  HP lost  vs base   seen  played  play rate  fizzled  blanked');
+	for (const row of variants) {
+		const base = rows.find(other => !other.added && !other.customDeck && other.crew.join('+') === row.crew.join('+') && other.route.join('+') === row.route.join('+'));
+		for (const type of Object.keys(row.added)) {
+			const stats = row.cards?.[type] ?? { seen: 0, played: 0, fizzled: 0, damageBlanked: 0 };
+			const perPlay = (value) => (stats.played === 0 ? '-' : (value / stats.played).toFixed(2));
+			print(`${type.padEnd(21)}${crewLabel(row.crew).padEnd(14)}${row.route.join('+').padStart(5)}  ${percent(row.won.rate)}  ${points(base ? row.won.rate - base.won.rate : null).padStart(7)}  ${percent(row.hpLost).padStart(7)}  ${points(base && row.hpLost !== null && base.hpLost !== null ? row.hpLost - base.hpLost : null).padStart(7)}  ${String(stats.seen).padStart(5)}  ${String(stats.played).padStart(6)}  ${percent(stats.seen === 0 ? null : stats.played / stats.seen).padStart(9)}  ${perPlay(stats.fizzled).padStart(7)}  ${perPlay(stats.damageBlanked).padStart(7)}`);
+		}
 	}
 }
 
