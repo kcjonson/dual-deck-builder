@@ -6,6 +6,8 @@ import { Card, TargetType } from '../mechanics/Card';
 import { BoardProjection } from '../mechanics/BoardProjection';
 import { preferredTargets } from '../mechanics/RaiderArchetype';
 import { pickedMoveOf } from '../mechanics/Movement';
+import { movesCaster } from '../mechanics/Intent';
+import { EffectRecipient, effectRecipientOf } from '../mechanics/EffectTargets';
 import type { RoadSlot } from '../mechanics/Road';
 import { AIDecision, GameStateEvaluation, TeamEvaluation, VehicleEvaluation } from './types';
 
@@ -186,11 +188,27 @@ export abstract class AIPlayer {
 		}
 
 		const legalTargets = potentialTargets.filter(target =>
-			this.board.targetBlocker({ card, caster: sourceVehicle, target }) === null);
+			this.board.targetBlocker({ card, caster: sourceVehicle, target }) === null &&
+			!this.missesOnTheMove({ card, caster: sourceVehicle, target }));
 
 		// Archetypes are a raider's; a player vehicle carrying one plans without it
 		const archetype = this.team === this.battle.enemyTeam ? sourceVehicle.raiderArchetype : null;
 		return preferredTargets({ archetype, card, targets: legalTargets });
+	}
+
+	/**
+	 * Whether a raider would plan a sure miss on a card that moves it
+	 * (Strafe): the swerve happens hit or miss (call 342), so it would give
+	 * up its slot for a shot the player can see does nothing. Hit checks
+	 * are deterministic, so the board can tell. A raider's other shots
+	 * plan as they always have.
+	 */
+	private missesOnTheMove({ card, caster, target }: { card: Card; caster: Vehicle; target: Vehicle }): boolean {
+		const driver = caster.driver;
+		if (!this.board.actor || !driver || !movesCaster(card)) return false;
+		return card.effects.some(effect => effect.type === 'damage' &&
+			effectRecipientOf({ effect, card }) === EffectRecipient.TARGET &&
+			!this.board.effectHits({ effect, card, driver, caster, recipient: target }));
 	}
 
 	/**

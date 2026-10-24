@@ -187,14 +187,61 @@ describe('Raider swerves', () => {
 		});
 
 		test.each([
-			['the aggressive AI', useAggressive],
-			['MCTS', useMcts]
-		])('%s still plays a swerve on a card with more to it', (_, useAI) => {
+			['the aggressive AI', 'Hard Brake', useAggressive, hardBrake],
+			['the aggressive AI', 'Floor It', useAggressive, floorIt],
+			['the aggressive AI', 'Juke', useAggressive, juke],
+			['MCTS', 'Hard Brake', useMcts, hardBrake],
+			['MCTS', 'Floor It', useMcts, floorIt],
+			['MCTS', 'Juke', useMcts, juke]
+		])("%s won't play a %s for a rider that ends with the enemy turn", (_ai, _card, useAI, rider) => {
+			// Shield and a one-turn boost are gone as the player's turn starts, and a raider's draw comes after its plan (DDB-552)
 			useAI(battle);
-			giveHand(buggy, [hardBrake()]);
+			giveHand(buggy, [rider()]);
 			battle.planEnemyTurn();
 
-			expect(battle.getPlan(buggy).map(action => action.card.name)).toEqual(['Hard Brake']);
+			expect(battle.getPlan(buggy)).toEqual([]);
+		});
+
+		test.each([
+			['the aggressive AI', useAggressive],
+			['MCTS', useMcts]
+		])('%s still plays one whose swerve lines up a shot', (_, useAI) => {
+			// From the inside lane, ahead: braking puts the Rig at Range 1
+			buggy.set({ slot: slot(ENEMY_INSIDE, AHEAD) });
+			useAI(battle);
+			giveHand(buggy, [hardBrake(), pointBlank()]);
+			battle.planEnemyTurn();
+
+			const plan = battle.getPlan(buggy);
+			expect(plan.map(action => action.card.name)).toEqual(['Hard Brake', 'Point Blank']);
+			expect(plan[0].destination).toEqual(slot(ENEMY_INSIDE, CENTER));
+			expect(plan[1].target).toBe(rig);
+		});
+
+		test("the aggressive AI won't swerve to line up a shot that would miss", () => {
+			const ram = card('Ram', 'enemy_single', [{ type: 'damage', value: 4, range: 1, attack_type: 'ramming' }], ['attack']);
+			useAggressive(battle);
+			giveHand(buggy, [laneChange(), ram]);
+			battle.planEnemyTurn();
+			expect(battle.getPlan(buggy).map(action => action.card.name)).toEqual(['Lane Change', 'Ram']);
+
+			// Ramming 5 against evade 6 misses, so the swerve lines up nothing
+			driverOf(rig).set({ skills: { ...driverOf(rig).skills, evade: 6 } });
+			giveHand(buggy, [laneChange(), ram]);
+			battle.planEnemyTurn();
+			expect(battle.getPlan(buggy)).toEqual([]);
+		});
+
+		test('the aggressive AI plays Cut Off before the shot it sets up', () => {
+			// From the inside lane, behind: Point Blank reaches the Bike from here, and the Rig from the row ahead Cut Off swerves to
+			buggy.set({ slot: slot(ENEMY_INSIDE, BEHIND) });
+			useAggressive(battle);
+			giveHand(buggy, [pointBlank(), cutOff()]);
+			battle.planEnemyTurn();
+
+			const plan = battle.getPlan(buggy);
+			expect(plan.map(action => action.card.name)).toEqual(['Cut Off', 'Point Blank']);
+			expect(plan.map(action => action.target)).toEqual([rig, rig]);
 		});
 
 		test.each([
@@ -251,8 +298,23 @@ describe('Raider swerves', () => {
 			]));
 			expect(ai.offered(buggy)).toHaveLength(3);
 
+			sharpshooter(buggy);
 			giveHand(buggy, [strafe()]);
 			expect(ai.offered(buggy).map(action => [action.target, action.destination])).toEqual([[rig, slot(ENEMY_INSIDE, CENTER)]]);
+		});
+
+		test('offers no Strafe at a target its shot would miss, since it swerves hit or miss', () => {
+			const ai = new OfferingAI(battle.enemyTeam, battle);
+			// Gunnery 5 against the Rig's evade 5
+			giveHand(buggy, [strafe()]);
+			expect(ai.offered(buggy)).toEqual([]);
+
+			sharpshooter(buggy);
+			expect(ai.offered(buggy)).toHaveLength(1);
+
+			// An Evade the Rig has picked up counts too
+			rig.applyStatusEffect({ name: 'evade_boost', duration: 1, value: 1 });
+			expect(ai.offered(buggy)).toEqual([]);
 		});
 
 		test('a flanker plans no swerve', () => {
@@ -371,13 +433,14 @@ describe('Raider swerves', () => {
 		});
 
 		test('a fizzled Hard Brake gains no Shield', () => {
-			giveHand(buggy, [hardBrake()]);
+			buggy.set({ slot: slot(ENEMY_INSIDE, AHEAD) });
+			giveHand(buggy, [hardBrake(), pointBlank()]);
 			battle.planEnemyTurn();
-			expect(battle.getPlan(buggy)[0].destination).toEqual(slot(ENEMY_OUTSIDE, BEHIND));
+			expect(battle.getPlan(buggy)[0].destination).toEqual(slot(ENEMY_INSIDE, CENTER));
 
-			buggy.set({ slot: slot(ENEMY_INSIDE, CENTER) });
+			buggy.set({ slot: slot(ENEMY_OUTSIDE, AHEAD) });
 			playPlans(battle, 1);
-			expect(fizzles(battle)).toEqual(["Buggy's Hard Brake fizzles: enemy outside, behind is not next to Buggy"]);
+			expect(fizzles(battle)).toEqual(["Buggy's Hard Brake fizzles: enemy inside, center is not next to Buggy"]);
 			expect(buggy.shield ?? 0).toBe(0);
 		});
 
@@ -475,13 +538,15 @@ describe('Raider swerves', () => {
 				destination: slot(ENEMY_INSIDE, CENTER)
 			})]);
 
-			giveHand(buggy, [hardBrake()]);
+			// Braking from the inside lane, ahead, lines up the Rig
+			buggy.set({ slot: slot(ENEMY_INSIDE, AHEAD) });
+			giveHand(buggy, [hardBrake(), pointBlank()]);
 			battle.planEnemyTurn();
-			expect(battle.getIntents(buggy)).toEqual([expect.objectContaining({
+			expect(battle.getIntents(buggy)[0]).toEqual(expect.objectContaining({
 				type: IntentType.DEFEND,
 				amount: 4,
-				destination: slot(ENEMY_OUTSIDE, BEHIND)
-			})]);
+				destination: slot(ENEMY_INSIDE, CENTER)
+			}));
 
 			// Cut Off from the inside lane, behind, lines up the Rig from the row ahead
 			buggy.set({ slot: slot(ENEMY_INSIDE, BEHIND) });

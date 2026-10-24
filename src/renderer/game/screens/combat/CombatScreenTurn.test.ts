@@ -227,6 +227,8 @@ describe('CombatScreen intents', () => {
 			tags: [],
 		});
 		raider.driver.set({ hand: [juke], adrenaline: raider.driver.maxAdrenaline });
+		// The aggressive AI won't play a raider's Juke that lines up nothing (call 355), so the first-playable stand-in plans it
+		battle.aiController.setEnemyAI(null);
 		battle.planEnemyTurn();
 		const destination = battle.getPlan(raider)[0]?.destination;
 		if (!destination) throw new Error('the raider should plan its Juke with a slot');

@@ -9,6 +9,7 @@ import { CardEffectValidator } from './CardEffectValidator';
 import { cardDamageKind, damageToFinish, lastingDamage } from './DamageEstimate';
 import { cardFlanks, selfSpeedBonus } from '../mechanics/BoardProjection';
 import { aimlessSwerve, swerveReach, swerveScore } from './SwerveEstimate';
+import { vulnerableSetup } from './SetupEstimate';
 
 /**
  * Aggressive Flanker AI Strategy
@@ -101,6 +102,14 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		if (cardEffects.speedBoost > 0 && !ourVehicle.isFlanking &&
 			!board.canFlankAnyone(ourVehicle.vehicle) && board.canFlankAnyone(ourVehicle.vehicle, cardEffects.speedBoost)) {
 			score += this.POSITION_WEIGHT * 2;
+		}
+
+		// A Vulnerable that sets up shots still in hand (Cut Off) is worth what
+		// it adds to them, and goes first, as a boost that opens a flank does
+		const marked = action.target instanceof Vehicle ? action.target : null;
+		const setup = marked ? vulnerableSetup({ board, card, driver, caster: ourVehicle.vehicle, target: marked, destination: action.destination ?? null }) : 0;
+		if (setup > 0) {
+			score += this.POSITION_WEIGHT * 2 + setup * this.DAMAGE_WEIGHT;
 		}
 
 		// Score damage effects

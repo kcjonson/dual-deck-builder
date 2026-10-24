@@ -1037,7 +1037,7 @@ export class BoardProjection {
 			if (isStatus) {
 				if (effect.condition === 'target_flanking' && !this.isFlanking(recipient)) continue;
 				if (effect.status === 'stunned' && recipient.isSteady) continue;
-				if (rollsToHit({ effect, card }) && !this.battle.checkHit({ attacker: caster, caster: driver, defender: recipient, evadeBoost: this.evadeBoostOf(recipient) })) continue;
+				if (!this.effectHits({ effect, card, driver, caster, recipient })) continue;
 				const state = this.vehicles.get(recipient);
 				if (state && effect.status) {
 					const value = effectValue(effect, { casterSlot, targetSlot: state.slot, casterSwerved: caster ? this.swervedThisTurn(caster) : false });
@@ -1049,18 +1049,32 @@ export class BoardProjection {
 			} else if (effect.type === 'damage' && !onCaster) {
 				const recipientSlot = this.slotOf(recipient);
 				if (typeof effect.range === 'number' && casterSlot && recipientSlot && slotRange(casterSlot, recipientSlot) > effect.range) continue;
-				if (rollsToHit({ effect, card }) && !this.battle.checkHit({
-					attacker: caster,
-					caster: driver,
-					defender: recipient,
-					attackType: typeof effect.attack_type === 'string' ? effect.attack_type : effect.scaling === 'ramming' ? 'ramming' : 'ranged',
-					modifier: typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0,
-					evadeBoost: this.evadeBoostOf(recipient)
-				})) continue;
+				if (!this.effectHits({ effect, card, driver, caster, recipient })) continue;
 			}
 			if (!onCaster) landed = true;
 		}
 		return landed;
+	}
+
+	/**
+	 * Whether an effect lands its hit on this board, by the check play makes:
+	 * damage rolls its attack type and hit modifier, a status the plain
+	 * gunnery check, both against the recipient's evade with any Evade
+	 * landed here. True for one that doesn't roll. Range is targeting's.
+	 */
+	public effectHits({ effect, card, driver, caster, recipient }: {
+		effect: CardEffect;
+		card: Card;
+		driver: Driver;
+		caster: Vehicle | null;
+		recipient: Vehicle;
+	}): boolean {
+		if (!rollsToHit({ effect, card })) return true;
+		const damage = effect.type === 'damage' ? {
+			attackType: typeof effect.attack_type === 'string' ? effect.attack_type : effect.scaling === 'ramming' ? 'ramming' : 'ranged',
+			modifier: typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0
+		} : {};
+		return this.battle.checkHit({ attacker: caster, caster: driver, defender: recipient, ...damage, evadeBoost: this.evadeBoostOf(recipient) });
 	}
 
 	/**
