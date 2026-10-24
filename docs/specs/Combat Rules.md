@@ -97,9 +97,32 @@ An ambusher has no reserved formation slot and no outran vehicle. It counts as f
 - A flank card targets the vehicle to outrun. The target must be in the other team's formation (not itself flanking) and slower than the flanker.
 - A vehicle already on the shoulder can't flank again, so a flank card (Flank, Flanking Maneuver) is unplayable while its driver's vehicle is flanking. To flank a different row it has to drop back first.
 - The flanker moves to the far shoulder, in the row of the vehicle it outran. If that shoulder slot is taken, the flank fails and the card goes back to the hand.
-- Its old formation slot stays empty and reserved; the rest of the convoy doesn't shift. Swerving again from the shoulder keeps the original reservation.
+- Its old formation slot stays empty and reserved; the rest of the convoy doesn't shift. A flanker can't flank again, so the reservation holds until it drops back.
 - At the end of every turn (yours and the enemy's), a flanker that is no longer faster than the vehicle it outran loses flanking and returns to its reserved slot. If the vehicle it outran is wrecked, it holds the shoulder. A flanker with no reserved slot (an ambush start) holds the shoulder too, for the same reason: there's nowhere to drop back to.
 - Flanking works the same for both sides: raiders flank onto the player's shoulder, up to three at a time.
+
+### Swerving
+
+Draft, 2026-10-24. The cards that use it are in Movement cards, under Cards.
+
+Before this, the only way to change slots was flanking, so the rows had no job. Swerving lets you pull ahead of a rammer, drop behind to line up a shot, or move out of range of a planned attack. Slots still never move or resize; a vehicle swerves from one to another.
+
+- Swerve: move a vehicle to an adjacent empty slot in its own formation, one lane over or one row ahead or behind, never diagonally. Keyword: `[Swerve]`.
+- A card that moves a vehicle further than one step says where it can go ("any empty slot in your formation"). Every change of slot counts as swerving for cards that ask whether you swerved this turn.
+- Never into a reserved slot or an occupied one, and never onto, off, or along a shoulder. Shoulders are entered only by flanking and left only by dropping back; Peel Off is how you drop back on purpose.
+- A flanker can't swerve, so a card that swerves is unplayable while its driver's vehicle is flanking.
+- A card that swerves is unplayable if its swerve has nowhere legal to go.
+- A swerve that takes you out of a planned raider card's range makes that card fizzle (Enemy intents), and the preview drops the intent as the swerve lands.
+- Speed on a movement card is a speed boost, so it doesn't count while the vehicle is Heavy. The swerve still happens.
+- Escorts change slots only when a card moves them (Fall In, Leapfrog, Formation Shift). Being moved doesn't spend an escort.
+- Shoves (Lay on the Horn, Shoulder Check) move a raider within its own formation under the same slot rules. They never move a flanker or an ambusher; Brake Check is the card for those.
+- Raiders swerve too, under the same rules, from movement cards in their own decks. A raider's planned swerve is part of its committed turn, so the player sees it before acting.
+
+Open questions, each with a provisional call in [gameplay-calls.md](../gameplay-calls.md) (Movement cards):
+
+- Which movement cards do raiders get?
+- How does a planned raider swerve show on the road?
+- What happens to a planned raider swerve whose destination is no longer legal when it plays?
 
 ### Losing vehicles and drivers
 
@@ -353,6 +376,152 @@ Specific Cards
   - Gain 3 Adrenaline
   - Vehicle gains Vulnerable
   - Upgraded damage -1, Adrenaline +1
+
+### Movement cards
+
+Draft, 2026-10-24. Not playtested; the numbers are a first pass against today's costs (5 Adrenaline a turn, Point Blank's 3 damage for 1, Armor Plating's 8 Armor for 1, Close Ranks' 4 Shield for 1). Swerving rules are under Game State. Nine common, eight uncommon, three rare.
+
+Ones to watch when they're tested: Lay on the Horn blanks a raider's Range 1 intents for 1 Adrenaline, though close-up pulls a raider back across from you at the end of the enemy turn; Weave's Evade raises a hard threshold, so +2 can shut out a low-gunnery raider entirely.
+
+Basic moves
+
+- Lane Change: Utility
+  - Rarity Common
+  - Adrenaline 1
+  - Swerve to your other lane, same row
+  - Upgraded Adrenaline 0
+- Floor It: Utility
+  - Rarity Common
+  - Adrenaline 1
+  - Swerve one row ahead
+  - +2 Speed until the end of the next enemy turn
+  - Upgraded: the speed lasts 2 turns
+- Hard Brake: Utility
+  - Rarity Common
+  - Adrenaline 1
+  - Swerve one row behind
+  - Gain 4 Shield
+  - Upgraded 6 Shield
+- Juke: Utility
+  - Rarity Common
+  - Adrenaline 1
+  - Swerve to any adjacent slot
+  - Draw 1 card
+  - Upgraded draw 2
+- Bootlegger Turn: Utility
+  - Rarity Rare
+  - Adrenaline 2
+  - Move to any empty slot in your formation
+  - +1 Evade until the end of the next enemy turn
+  - Upgraded Adrenaline 1
+
+Positional payoffs
+
+- Strafe: Ranged Attack
+  - Rarity Uncommon
+  - Adrenaline 2
+  - Swerve (you pick the slot), then attack a raider at Range 1 of the new slot
+  - Damage 4
+  - Upgraded damage 6
+- Point Man: Ranged Attack
+  - Rarity Common
+  - Adrenaline 1
+  - Range 2
+  - Damage 1, or 4 if your vehicle is in the ahead row
+  - Upgraded damage 2, or 5
+- Tail Gunner: Ranged Attack
+  - Rarity Common
+  - Adrenaline 1
+  - Range 2
+  - Damage 1, +2 if the target is in a row ahead of yours
+  - Upgraded +3
+- Slipstream: Utility
+  - Rarity Uncommon
+  - Adrenaline 1
+  - Move to the empty slot directly behind your partner's vehicle (same lane, one row behind). Unplayable if your partner is flanking or that slot isn't free
+  - +3 Speed for 2 turns
+  - Upgraded also draws 1 card
+
+Moving raiders
+
+- Lay on the Horn: Utility
+  - Rarity Common
+  - Adrenaline 1
+  - Target: a raider in its formation, at Range 1, in your row
+  - Always hits
+  - It moves to its outside lane, same row, if that slot is empty
+  - Upgraded: it's also 1 slower until the end of the next enemy turn
+- Shoulder Check: Physical Attack
+  - Rarity Uncommon
+  - Adrenaline 2
+  - Range 1
+  - Hits if attacking driver's ramming >= the defending driver's evade, as Ram
+  - Damage 3
+  - On a hit, if the target is in its formation, shove it one row ahead or behind (your pick) into an empty slot
+  - Upgraded damage 5
+- Cut Off: Utility
+  - Rarity Uncommon
+  - Adrenaline 2
+  - Swerve one row ahead
+  - Target: a raider at Range 1 of your new slot
+  - Always hits
+  - It's Vulnerable and 2 slower until the end of the next enemy turn
+  - Upgraded Adrenaline 1
+- Box In: Utility
+  - Rarity Rare
+  - Adrenaline 2
+  - Target: a raider at Range 1
+  - Always hits
+  - It can't flank until the end of the next enemy turn, so its planned flanks fizzle
+  - If both your driven vehicles are within Range 2 of it, it's also Vulnerable until the end of the next enemy turn
+  - Upgraded Adrenaline 1
+
+Flank interplay
+
+- Peel Off: Utility
+  - Rarity Common
+  - Adrenaline 0
+  - Only while flanking with a reserved slot: drop back to it now
+  - Draw 1 card
+  - Upgraded draw 2
+- Brake Check: Utility
+  - Rarity Uncommon
+  - Adrenaline 1
+  - Target: a raider flanking on your shoulder, in your vehicle's row
+  - Always hits
+  - It overshoots: it loses flanking and drops back to its reserved slot. An ambusher, with no slot to drop back to, takes 4 damage instead
+  - Your vehicle is 1 slower until the end of the next enemy turn
+  - Upgraded: the target is also Vulnerable until the end of the next enemy turn
+- Overtake: Utility
+  - Rarity Uncommon
+  - Adrenaline 3
+  - Gain +2 Speed for 2 turns, then Flank a slower raider, as Flank
+  - Upgraded Adrenaline 2
+
+Convoy and defense
+
+- Fall In: Order
+  - Rarity Common
+  - Adrenaline 1
+  - Target: an escort, ready or spent
+  - Move it to any empty slot in your formation. Doesn't spend it
+  - Upgraded: it also gains 3 Shield
+- Leapfrog: Utility
+  - Rarity Uncommon
+  - Adrenaline 1
+  - Swap slots with your partner's vehicle or an escort adjacent to you. Neither vehicle may be flanking, and the escort isn't spent
+  - Upgraded Adrenaline 0
+- Formation Shift: Utility
+  - Rarity Rare
+  - Adrenaline 2
+  - Exhaust
+  - Every vehicle in your formation switches to the other lane in its row. A flanker's reserved slot switches lanes with its row, and no escort is spent
+  - Upgraded: no Exhaust
+- Weave: Utility
+  - Rarity Uncommon
+  - Adrenaline 1
+  - +1 Evade until the end of the next enemy turn, +2 if your vehicle swerved this turn
+  - Upgraded +2, or +3
 
 ## Ideas from the original draft
 

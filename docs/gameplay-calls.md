@@ -2,9 +2,9 @@
 
 Calls made during the build so work isn't blocked on a design question. They're temporary unblockers, not decisions: none is written into a spec, and a spec keeps its open question until Kevin approves or changes the call. This file is where they live and where they're approved.
 
-Every entry is pending unless it says otherwise. To settle one, mark it approved or changed (with what it becomes); an approved call that answers a spec's open question goes into the spec then, and the entry says so. The reasoning for each call is in the decision record named in its section, under its provisional calls.
+Every entry here is pending. When Kevin approves or changes one, what he decided goes into the spec it answers and the entry comes out of this file; the decision record keeps the history. The reasoning for each call is in the decision record named in its section, under its provisional calls.
 
-New calls take the next number, one a line in the form "the item that made it: the call, because why", and go in the decision record too. Numbers never change or get reused; a call that's replaced says what replaced it.
+New calls take the next number, one a line in the form "the item that made it: the call, because why", and go in the decision record too. Numbers never change or get reused, so a missing number is a settled call; a call that's replaced says what replaced it.
 
 Kevin's own rules from 2026-10-08 aren't here, because they're his and final: run cargo, damage carried, limping, the Med Truck cap, and revival in a won fight.
 
@@ -330,12 +330,11 @@ Record: campaign-state-model.md.
 
 ## Runs and encounters (183 to 189)
 
-Made writing [Runs and Encounters](./specs/Runs%20and%20Encounters.md), beyond what Kevin approved in its plan and review on 2026-10-17. The spec keeps 183 to 185 as its open questions 4 to 6; 186 is approved; 187 to 189 fill in how his clearing and spacing rule gets built. Records: find-stops.md (183), stop-clearing.md (186 to 188); 184, 185, and 189 have none yet.
+Made writing [Runs and Encounters](./specs/Runs%20and%20Encounters.md), beyond what Kevin approved in its plan and review on 2026-10-17. The spec keeps 183 to 185 as its open questions 4 to 6; 186 is settled and in the spec; 187 to 189 fill in how his clearing and spacing rule gets built. Records: find-stops.md (183), stop-clearing.md (186 to 188); 184, 185, and 189 have none yet.
 
 183. DDB-523: the least a calm stop offers is take it, spending the stop's hours, or drive on and keep them, because it's the cheapest way to make a find a choice rather than an empty step, and it costs no new screen.
 184. DDB-525: a fight going nowhere, for a break-off, is three player turns running with no damage to any raider (armor, structure, or HP), because "neither side takes damage", as the plan had it, misses the case break-off exists for: a raider the crew can't reach that's still hitting the crew.
 185. DDB-328: every raider class carries a card that can hit each starting archetype's vehicle, because a class the bike's evade beats leaves an Interceptor pair untouched, as the Rust Buggy's old gunnery of 6 did.
-186. DDB-336: a cleared POI stays disabled for the rest of the campaign, because "disabled" with nothing said about reopening reads as for good, and the cooldown that brings stops back is for roads, not POIs. Approved by Kevin, 2026-10-17 ("no story reason for it to magically get stuff back"); now in Runs and Encounters (Kevin's rule 5, Clearing) and Compound and Supply Runs (POIs).
 187. DDB-336: the run that clears a POI takes its type's whole yield, what a full POI gives today, because there's no second run to take the rest.
 188. DDB-336: a POI is cleared when the run reaches it, in the step that loads its yield (as call 105 had the share), so a run that fails on the way home has still cleared it, because the yield and the clearing can't come apart in a save. Replaced in part by 260: a failed run no longer clears its POI.
 189. DDB-529: each route keeps its floor fights and at least half its stop band on its own road, legs no other POI's routes use, and the POI stage seats a POI only where that fits, because it's the least that keeps a neighbor's cleared road from leaving a run fight-free or nearly empty.
@@ -353,7 +352,7 @@ Record: find-stops.md.
 
 ## Clearing (215 to 219, 221, 222)
 
-Record: stop-clearing.md. Calls 186 to 188 are the clearing rule itself.
+Record: stop-clearing.md. Calls 187 and 188, with the settled 186, are the clearing rule itself.
 
 215. DDB-336: a run clears a stop when it moves past it, a find left by the road and a won fight included, on the day of the run, and a fight it loses isn't cleared, because the spec's "every stop it resolves" covers a choice declined, and a lost fight's raiders are still there.
 216. DDB-336: a cleared stop is back at the dawn five days after the day it was cleared (cleared on day 3, back on day 8), its roll up one, and only a Find: supplies haul rerolls yet, since a fight's raiders and a find's cards and driver come from the run's own stream, because the cooldown is the spec's 5 days counted the way the day clock counts nights.
@@ -440,11 +439,16 @@ Record: mvp-supply-run.md.
 
 276. DDB-539: combat seats whatever pair the crew rule sends, so two drivers of one archetype fight together when call 35 lets them go, and combat's own check is only that one driver can't fill both seats, because the archetype rule is load out's (call 35), two Mechanics are two people with their own decks, and a fight refusing a pair load out allowed left the run stuck at its fight.
 
-## Heavy armor (277 to 280)
+## Heavy armor (280)
 
-Record: heavy-armor.md.
+Record: heavy-armor.md. Calls 277 to 279 are settled and in Combat Rules.
 
-277. DDB-164: armor isn't capped in a fight, so Armor Plating and Repair Kit's overflow add past the vehicle's base armor (`maxArmor`), because extra armor is plating welded on over the car, and a cap at starting armor made Armor Plating do nothing on a vehicle at full armor. Approved by Kevin 2026-10-23; in Combat Rules (Vehicle properties) and Card System Design.
-278. DDB-164: a vehicle carrying armor past its base is Heavy, and speed boosts (Nitro Boost, Run Ahead's) don't count while it is, though slows still do, because the weight is what the plating costs. Approved by Kevin 2026-10-23; in Combat Rules.
-279. DDB-164: armor past base comes off at the end of the fight, for driven vehicles and escorts alike, because plating that carried over would stack across a run. Approved by Kevin 2026-10-23; in Combat Rules.
 280. DDB-164: Heavy shows as a chip in the vehicle's status row, after Shield, counting the armor past base, and the plate's armor shield turns amber while it's Heavy, because the status row is where the speed statuses it cancels already sit.
+
+## Movement cards (287 to 289)
+
+Record: none yet; DDB-545 writes it when the cards are built, and until then each call carries its own reason. The draft is in Combat Rules (Swerving, and Movement cards under Cards), whose open questions these answer. Calls 281 to 286 are settled and in Combat Rules.
+
+287. DDB-552: raiders get the movement cards that move only themselves (Lane Change, Floor It, Hard Brake, Juke, Strafe, Cut Off), never one that moves a player's vehicle (the shoves, Brake Check) or needs a partner or escorts (Slipstream, Leapfrog, Fall In, Formation Shift), because the road model's rule is that nothing on your side moves that you didn't move, and the convoy cards mean nothing to a raider.
+288. DDB-546: a planned raider swerve shows as a move intent, a swerve icon in the intent row with its destination slot outlined in raider red while the plan stands, because the player has to read the raider's new range off the road before acting, as target marks already let them.
+289. DDB-546: a planned raider swerve names its destination slot, and if that slot isn't adjacent and empty when the swerve plays (a shove moved the raider, say), the swerve fizzles under the usual rule and the cards after it are judged from where the raider really is, because that's how every other planned card that goes stale is handled.
