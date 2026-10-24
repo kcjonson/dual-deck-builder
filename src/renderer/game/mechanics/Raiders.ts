@@ -53,7 +53,8 @@ export const STAGE_GROWTH = 0.05;
 export const RAIDER_PROFILES: Readonly<Record<RaiderId, Readonly<RaiderProfile>>> = Object.freeze({
 	// The mook: one starter attack takes it out (a ram's 6 to its driver, a
 	// Precision Shot's 8, a Headshot's 5 against 5 HP), it plays one card a
-	// turn, and gunnery 9 reaches the Lightning Bike's evade of 8 (call 185)
+	// turn, and gunnery 9 reaches the Lightning Bike's evade of 8 (call 185).
+	// No movement card: a swerve would be its whole turn (call 350)
 	scav_bike: {
 		archetype: 'interceptor',
 		class: 'mook',
@@ -69,7 +70,8 @@ export const RAIDER_PROFILES: Readonly<Record<RaiderId, Readonly<RaiderProfile>>
 		maxAdrenaline: 1,
 		deck: { point_blank: 3, far_shoot: 2 },
 	},
-	// The combat screen's default raider, a scavenger's buggy that goes for haulers (escorts.md decision 30)
+	// The combat screen's default raider, a scavenger's buggy that goes for haulers (escorts.md decision 30).
+	// Strafe in a Point Blank's place: a looter's pot shot at whatever close-up doesn't line it up with (call 351)
 	rust_buggy: {
 		archetype: 'mechanic',
 		class: 'regular',
@@ -83,11 +85,13 @@ export const RAIDER_PROFILES: Readonly<Record<RaiderId, Readonly<RaiderProfile>>
 		vehicleStats: { maxStructure: 30, weight: 2, armor: 5, speed: 3, gunnery: 6, evade: 4 },
 		hitpoints: 30,
 		maxAdrenaline: 5,
-		deck: { ramming_speed: 2, precision_shot: 1, point_blank: 2 },
+		deck: { ramming_speed: 2, precision_shot: 1, point_blank: 1, strafe: 1 },
 	},
 	// The Raider archetype's Spike Buggy, going for the drivers. Its own
 	// numbers and deck, not the archetype's: under the AI, Berserker burns
 	// the raider's own HP and a flank carries it out of its rams' reach.
+	// Strafe in its third Ramming Speed's place reaches a flanking bike its
+	// rams can't (call 352); it holds the third ram's place in the deck order.
 	spike_buggy: {
 		archetype: 'raider',
 		class: 'heavy',
@@ -101,10 +105,11 @@ export const RAIDER_PROFILES: Readonly<Record<RaiderId, Readonly<RaiderProfile>>
 		vehicleStats: { ...spike.vehicleStats, maxStructure: 55, armor: 6 },
 		hitpoints: 50,
 		maxAdrenaline: 5,
-		deck: { ramming_speed: 3, precision_shot: 1, armor_plating: 2 },
+		deck: { ramming_speed: 2, strafe: 1, precision_shot: 1, armor_plating: 2 },
 	},
 	// A warband's leader: an elite, so its intents hide their values and
-	// cards, and its fall routs the rest
+	// cards, and its fall routs the rest. Cut Off in its Armor Plating's
+	// place marks the driver who gets ahead of it (call 353)
 	warlord: {
 		archetype: 'raider',
 		class: 'leader',
@@ -119,7 +124,7 @@ export const RAIDER_PROFILES: Readonly<Record<RaiderId, Readonly<RaiderProfile>>
 		vehicleStats: { maxStructure: 70, weight: 4, armor: 6, speed: 3, gunnery: 3, evade: 3 },
 		hitpoints: 50,
 		maxAdrenaline: 6,
-		deck: { ramming_speed: 2, precision_shot: 1, point_blank: 2, armor_plating: 1 },
+		deck: { ramming_speed: 2, precision_shot: 1, point_blank: 2, cut_off: 1 },
 	},
 });
 
