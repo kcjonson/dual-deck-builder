@@ -53,6 +53,7 @@ const BATTLE_MESSAGE_TYPES: Readonly<Record<BattleMessageType, CombatLogType | n
 	heal_applied: CombatLogType.HEAL,
 	armor_gained: CombatLogType.ARMOR,
 	status_applied: CombatLogType.STATUS,
+	hit: CombatLogType.ACTION,
 	miss: CombatLogType.MISS,
 	out_of_range: CombatLogType.MISS,
 	fizzle: CombatLogType.MISS,

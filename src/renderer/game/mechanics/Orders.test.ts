@@ -324,7 +324,7 @@ describe('Order cards', () => {
 			expect(play({ battle, driver: driverOf(rig), card: realCard('covering_fire'), target: buggy })).toBe(true);
 
 			expect(buggy.structure).toBe(20);
-			expect(logLines(battle, 'miss')).toEqual(['Covering Fire misses Buggy']);
+			expect(logLines(battle, 'miss')).toEqual(['Covering Fire misses Buggy (gunnery 5 vs evade 5)']);
 			expect(pilotCar.spent).toBe(true);
 		});
 	});
@@ -358,7 +358,7 @@ describe('Order cards', () => {
 
 			expect(play({ battle, driver: driverOf(rig), card: realCard('ramming_run'), target: buggy })).toBe(true);
 
-			expect(logLines(battle, 'miss')).toEqual(['Ramming Run misses Buggy']);
+			expect(logLines(battle, 'miss')).toEqual(['Ramming Run misses Buggy (ramming 4 vs evade 5)']);
 			expect(buggy.structure).toBe(20);
 			expect(pilotCar.structure).toBe(30);
 			expect(pilotCar.spent).toBe(true);

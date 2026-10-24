@@ -38,6 +38,12 @@ import { Model } from '../core/Model';
 import { Rng, freshSeed } from '../core/Rng';
 import { AIController } from '../ai/AIController';
 
+/** A hit check's numbers as the log shows them: "gunnery 5 vs evade 3 + 1". */
+function hitCheckText({ skill, attack, evade, modifier }: HitCheck): string {
+	const bonus = modifier > 0 ? ` + ${modifier}` : modifier < 0 ? ` - ${-modifier}` : '';
+	return `${skill} ${attack} vs evade ${evade}${bonus}`;
+}
+
 /**
  * Battle log message types
  */
@@ -50,6 +56,7 @@ export type BattleMessageType =
 	| 'heal_applied'
 	| 'armor_gained'
 	| 'status_applied'
+	| 'hit'
 	| 'miss'
 	| 'out_of_range'
 	| 'fizzle'
@@ -1764,12 +1771,7 @@ export class Battle extends Model<BattleData> {
 				const attackType = (typeof effect.attack_type === 'string' ? effect.attack_type : null) ||
 					(effect.scaling === 'ramming' ? 'ramming' : 'ranged');
 				const modifier = typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0;
-				if (!this.checkHit({ attacker: casterVehicle, caster, defender: recipient, attackType, modifier })) {
-					this.log('miss',
-						`${card.displayName} misses ${recipient.name}`,
-						{ card: card.displayName, target: recipient.name }
-					);
-					this.emitHit('hitMissed', recipient, null);
+				if (!this.rollToHit({ card, recipient, check: this.hitCheck({ attacker: casterVehicle, caster, defender: recipient, attackType, modifier }) })) {
 					return false;
 				}
 			}
@@ -1805,6 +1807,22 @@ export class Battle extends Model<BattleData> {
 			this.handleWreck(recipient);
 		}
 		return true;
+	}
+
+	/**
+	 * Log a hit check's outcome with its numbers, so the player can see why
+	 * a card landed or missed. A null check (nobody to act) is a miss.
+	 */
+	private rollToHit({ card, recipient, check }: { card: Card; recipient: Vehicle; check: HitCheck | null }): boolean {
+		const metadata = { card: card.displayName, target: recipient.name };
+		if (check?.hits) {
+			this.log('hit', `${card.displayName} hits ${recipient.name} (${hitCheckText(check)})`, metadata);
+			return true;
+		}
+		const why = check ? hitCheckText(check) : 'nobody to act';
+		this.log('miss', `${card.displayName} misses ${recipient.name} (${why})`, metadata);
+		this.emitHit('hitMissed', recipient, null);
+		return false;
 	}
 
 	/**
@@ -1846,12 +1864,7 @@ export class Battle extends Model<BattleData> {
 			this.log('general', `${recipient.name} is steady and shakes off ${card.displayName}`, { card: card.displayName, target: recipient.name });
 			return false;
 		}
-		if (rollsToHit({ effect, card }) && !this.checkHit({ attacker: casterVehicle, caster, defender: recipient })) {
-			this.log('miss',
-				`${card.displayName} misses ${recipient.name}`,
-				{ card: card.displayName, target: recipient.name }
-			);
-			this.emitHit('hitMissed', recipient, null);
+		if (rollsToHit({ effect, card }) && !this.rollToHit({ card, recipient, check: this.hitCheck({ attacker: casterVehicle, caster, defender: recipient }) })) {
 			return false;
 		}
 

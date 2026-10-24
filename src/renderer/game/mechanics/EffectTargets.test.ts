@@ -269,7 +269,7 @@ describe('Effect targets', () => {
 
 		expect(statusNames(buggy)).toEqual(['speed_reduction']);
 		expect(statusNames(truck)).toEqual([]);
-		expect(logLines(battle, 'miss')).toEqual(['Tar Spray misses Truck']);
+		expect(logLines(battle, 'miss')).toEqual(['Tar Spray misses Truck (gunnery 6 vs evade 9)']);
 	});
 
 	describe('a card with a self effect and a target effect', () => {
@@ -303,7 +303,7 @@ describe('Effect targets', () => {
 
 			battle.playCard({ driver: driverOf(rig), cardIndex: 0, targetVehicle: buggy });
 
-			expect(logLines(battle, 'miss')).toEqual(['Reckless Shot misses Buggy']);
+			expect(logLines(battle, 'miss')).toEqual(['Reckless Shot misses Buggy (gunnery 5 vs evade 5)']);
 			expect(buggy.structure).toBe(20);
 			expect(driverOf(rig).hitpoints).toBe(98);
 		});
@@ -386,7 +386,7 @@ describe('Effect targets', () => {
 			await battle.endPlayerTurn();
 
 			expect(logLines(battle, 'status_applied')).toEqual(['Tar Spray applies speed_reduction to Rig (Speed: 7 -> 5)']);
-			expect(logLines(battle, 'miss')).toEqual(['Tar Spray misses Bike']);
+			expect(logLines(battle, 'miss')).toEqual(['Tar Spray misses Bike (gunnery 6 vs evade 9)']);
 		});
 	});
 });
