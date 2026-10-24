@@ -3,7 +3,7 @@ import type { Card, CardEffect } from './Card';
 import type { Driver } from './Driver';
 import { splitDamage } from './Vehicle';
 import type { Vehicle } from './Vehicle';
-import { cardRange } from './BoardProjection';
+import { BoardProjection, cardRange } from './BoardProjection';
 import { EffectRecipient, effectRecipientOf, isCasterAction, landsOnTarget, rollsToHit } from './EffectTargets';
 import { nearestTo, slotRange } from './Road';
 
@@ -120,9 +120,12 @@ function projectLosses({ battle, card, actor, target, range }: { battle: Battle;
 	let driverHp = driver?.isAlive() ? driver.hitpoints : 0;
 	let passengerHp = passenger?.isAlive() ? passenger.hitpoints : 0;
 
+	const board = new BoardProjection({ battle });
 	for (const effect of card.effects) {
 		if (effect.type !== 'damage' || !landsOnTargetEffect(effect, card)) continue;
 		if (typeof effect.range === 'number' && range !== null && range > effect.range) continue;
+		// Brake Check's damage, only on an ambusher
+		if (!board.landingConditionHolds({ effect, caster: actor, recipient: target })) continue;
 		let damage = typeof effect.value === 'number' ? effect.value : 0;
 		if (actor) {
 			if (typeof effect.formula === 'string') {

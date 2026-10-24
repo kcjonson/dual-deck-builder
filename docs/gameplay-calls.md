@@ -445,7 +445,7 @@ Record: heavy-armor.md. Calls 277 to 279 are settled and in Combat Rules.
 
 280. DDB-164: Heavy shows as a chip in the vehicle's status row, after Shield, counting the armor past base, and the plate's armor shield turns amber while it's Heavy, because the status row is where the speed statuses it cancels already sit.
 
-## Movement cards (287 to 293)
+## Movement cards (287 to 324)
 
 Record: movement-cards.md. The draft is in Combat Rules (Swerving, and Movement cards under Cards), whose open questions these answer. Calls 281 to 286 are settled and in Combat Rules.
 
@@ -456,3 +456,8 @@ Record: movement-cards.md. The draft is in Combat Rules (Swerving, and Movement 
 291. DDB-545: Formation Shift is playable while its caster is flanking, its reservation switching with its row like every flanker's, and wrecks still on the road switch with their rows, because the card moves the formation rather than swerving the caster, and rows trading lanes whole means nobody lands on a wreck.
 292. DDB-545: your partner's vehicle (Slipstream, Leapfrog) is whichever vehicle your partner is in, driving or riding, at any distance, and only Leapfrog's escort has to be next to you, because the card says "your partner's vehicle or an escort adjacent to you", which puts the adjacency on the escort.
 293. DDB-545: a shove or drop-back of a raider that can't happen leaves its card playable and does nothing (Lay on the Horn into a taken slot still slows, Shoulder Check on a flanker still hits, Brake Check on an ambusher deals its damage instead), because call 285 is about your own swerve and the spec writes those three with "if that slot is empty", "if the target is in its formation", and an ambusher alternative.
+320. DDB-550: Lay on the Horn checks Range 1 and "in its formation", and Range 1 to a raider in its formation is always in your row, so from your outside lane it has no target (Range 1 there is only your shoulder), and from the raiders' shoulder its one target is the raider beside you, already in its outside lane, which the shove leaves where it is, because the spec's three target conditions all hold there and call 293 keeps a shove that can't happen playable.
+321. DDB-550: Box In's Vulnerable needs two driven vehicles in the fight, both within Range 2 of the raider, so once one is wrecked or carries on as an escort the raider is only boxed in, because "both your driven vehicles" names two and the card is about pinning a raider between them.
+322. DDB-550: Box In's "can't flank" stops a new flank and nothing else: a boxed-in flanker keeps its shoulder, and one that drops back at the end of your turn can't flank again from its reserved slot that enemy turn, because the card says "can't flank", and knocking a flanker off the shoulder is Brake Check's job.
+323. DDB-550: Brake Check's 4 damage to an ambusher is a hit like any card's damage, so Vulnerable and a flanking caster raise it and it goes through Shield and Armor, with no roll since the card always hits, because the card says "takes 4 damage", which every other card's damage means that way, and Caltrops is the card that says structure.
+324. DDB-550: Box In's Vulnerable is judged once, from where your driven vehicles stand as the card lands, and doesn't come or go as they move afterwards, because every status lands once and lasts its turns.

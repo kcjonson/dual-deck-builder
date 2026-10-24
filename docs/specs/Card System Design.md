@@ -91,6 +91,8 @@ Every card carries two texts, both required, both templated with the same `{vari
 
 A summary that wraps past three lines, or a description past 330 characters, fails the card data check; the fix is rewriting, never smaller type. Layout and budgets: [Battle Screen Design](./Battle%20Screen%20Design.md) section 5.
 
+An upgrade that only changes numbers prints them through `{variables}`. One that adds an effect (Lay on the Horn's slow, Brake Check's Vulnerable) can't, so its `upgrades` block carries its own `summary` and `description`, which replace the base texts on the upgraded card and are held to the same budgets. Only an upgrade that rewrites its texts may add effects, after the base ones.
+
 ### 1.2 Card Types & Rarities
 
 #### Card Types
@@ -224,6 +226,7 @@ Starting Deck:
 6. **Fuel Efficient** - Gain 1 Fuel
 7. **Lucky Find** - Gain 10-30 Scrap (random)
 8. **Patch Up** - Heal 4 HP
+9. **Lay on the Horn** (1 Adrenaline) - Shove a raider in its formation at Range 1, in your row, to its outside lane. Always hits. Upgraded: it's also 1 slower until the end of the next enemy turn
 
 ### 4.2 Uncommon Cards
 
@@ -232,6 +235,9 @@ Starting Deck:
 3. **Explosive Rounds** - Next 3 attacks deal splash damage
 4. **Reinforced Chassis** - Gain 15 Armor, heal 5 HP
 5. **Ambush** - If enemy has Speed-, deal triple damage
+6. **Cut Off** (2 Adrenaline) - Swerve one row ahead, then a raider at Range 1 of the new slot is Vulnerable and 2 slower until the end of the next enemy turn. Always hits. Upgraded: 1 Adrenaline
+7. **Brake Check** (1 Adrenaline) - A raider flanking on your shoulder in your row drops back to its reserved slot; an ambusher takes 4 instead. Your vehicle is 1 slower until the end of the next enemy turn. Upgraded: the target is also Vulnerable
+8. **Overtake** (3 Adrenaline) - +2 Speed for 2 turns, then Flank a slower raider, as Flank. Upgraded: 2 Adrenaline
 
 ### 4.3 Rare Cards
 
@@ -239,6 +245,7 @@ Starting Deck:
 2. **EMP Mine** - Stun target for 2 turns
 3. **Scrap Tornado** - Deal 5 damage 5 times to random enemies
 4. **Phoenix Protocol** - If you would die, heal to 15 HP instead (Exhaust)
+5. **Box In** (2 Adrenaline) - A raider at Range 1 can't flank until the end of the next enemy turn, so its planned flanks fizzle; Vulnerable too if both your driven vehicles are within Range 2 of it. Always hits. Upgraded: 1 Adrenaline
 
 ### 4.4 Legendary Cards
 

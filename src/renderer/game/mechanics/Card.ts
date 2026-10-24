@@ -206,7 +206,9 @@ export class Card extends Model<CardData> {
 	}
 
 	/**
-	 * What an upgrade block changes: the cost, the whole effects list, or both
+	 * What an upgrade block changes: the cost, the whole effects list, or
+	 * both, and for an upgrade that adds an effect (Lay on the Horn's slow)
+	 * the summary and description that say so
 	 */
 	private static upgradedFields(upgrades: UpgradeData | undefined): Partial<CardData> {
 		const fields: Partial<CardData> = {};
@@ -215,6 +217,8 @@ export class Card extends Model<CardData> {
 				fields.cost = value;
 			} else if (key === 'effects' && Array.isArray(value)) {
 				fields.effects = [...value as CardEffect[]];
+			} else if ((key === 'summary' || key === 'description') && typeof value === 'string') {
+				fields[key] = value;
 			}
 			// Additional upgrade types can be easily added here
 		}

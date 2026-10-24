@@ -6,7 +6,7 @@ import type { RGBA } from '../../engine/draw/geometry';
 import type { IconName } from '../../engine/text/icons';
 import { resolveColor } from '../../engine/style/styleObject';
 import { tokens } from '../../engine/theme/tokens';
-import { STEADY, VehicleStatusEffect } from '../mechanics/Vehicle';
+import { BOXED_IN, STEADY, VehicleStatusEffect } from '../mechanics/Vehicle';
 
 /** A buff is structure green, a debuff the mock's purple, anything else neutral. */
 export type StatusKind = 'buff' | 'debuff' | 'neutral';
@@ -42,6 +42,7 @@ const STATUS_LOOKS: Readonly<Record<string, StatusLook>> = {
 	burn: { icon: 'local_fire_department', tone: 'debuff', title: 'Burning', detail: 'Takes damage each turn.' },
 	stunned: { icon: 'flash_on', tone: 'debuff', title: 'Stunned', detail: 'Skips its next action.' },
 	[STEADY]: { icon: 'check', tone: 'buff', title: 'Steady', detail: "Shook off a stun: can't be stunned this turn." },
+	[BOXED_IN]: { icon: 'close', tone: 'debuff', title: 'Boxed in', detail: "Can't flank." },
 	death_mark: { icon: 'my_location', tone: 'debuff', title: 'Marked', detail: 'Marked for a heavy hit.' },
 	damage_bonus: { icon: 'gps_fixed', tone: 'buff', title: 'Damage up', detail: 'The next attack hits harder.' },
 	triple_damage: { icon: 'gps_fixed', tone: 'buff', title: 'Triple damage', detail: 'The next attack deals triple damage.' },

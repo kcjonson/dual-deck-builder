@@ -78,6 +78,9 @@ export interface VehicleData {
 /** A raider that shook off a stun this turn and can't be stunned again yet (Vehicle.isSteady). */
 export const STEADY = 'steady';
 
+/** Can't flank (Box In), so a planned flank fizzles (Vehicle.isBoxedIn). */
+export const BOXED_IN = 'boxed_in';
+
 /**
  * Speed a status adds or takes away. Oil Slick and Caltrops carry their own
  * values; these defaults cover statuses applied without one.
@@ -449,6 +452,17 @@ export class Vehicle extends Model<VehicleData> {
 	 */
 	public get isSteady(): boolean {
 		return this.hasStatusEffect(STEADY);
+	}
+
+	/**
+	 * Boxed in (Box In): can't flank until the status ticks off at the start
+	 * of the player's turn, so it covers the enemy turn after the card. It
+	 * stops a new flank only; a flanker keeps its shoulder.
+	 * BoardProjection.flankBlocker reads it, so play, planning, and the
+	 * preview all do.
+	 */
+	public get isBoxedIn(): boolean {
+		return this.hasStatusEffect(BOXED_IN);
 	}
 
 	/**

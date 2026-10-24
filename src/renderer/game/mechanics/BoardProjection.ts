@@ -1,7 +1,7 @@
 import type { Battle } from './Battle';
 import type { Card, CardEffect } from './Card';
 import type { Driver } from './Driver';
-import { FlankState, Vehicle, floorSpeed, statusSpeedModifier } from './Vehicle';
+import { BOXED_IN, FlankState, Vehicle, floorSpeed, statusSpeedModifier } from './Vehicle';
 import { TeamType } from './TeamType';
 import {
 	RoadSlot,
@@ -54,6 +54,32 @@ export function selfSpeedBonus(card: Card): number {
 }
 
 /**
+ * Every effect `condition` card data may use, and who reads it:
+ * targetConditionBlocker the target conditions, landingConditionHolds the
+ * landing ones, targetBlocker, getPlannedCardBlocker, and Battle.applyStatus
+ * Oil Slick's `target_flanking`. A `conditional` wrapper's condition
+ * (Coordinated Attack, Ramming Speed, Precision Shot) is listed so the data
+ * check knows it, though nothing resolves those wrappers yet. A name not
+ * here throws where it's read, and fails the card data check.
+ */
+export const EFFECT_CONDITIONS: readonly string[] = [
+	'target_in_formation',
+	'target_flanking_in_row',
+	'target_ambusher',
+	'driven_vehicles_within',
+	'target_flanking',
+	'partner_attacked',
+	'target_has_status',
+	'self_has_status'
+];
+
+function assertKnownCondition(condition: string): void {
+	if (!EFFECT_CONDITIONS.includes(condition)) {
+		throw new Error(`Effect condition "${condition}" is not one the battle knows`);
+	}
+}
+
+/**
  * Effects that land on one person aboard the target vehicle, the driver or
  * passenger the player picks (Triage, Top Off)
  */
@@ -67,6 +93,8 @@ interface ProjectedVehicle {
 	speedSum: number;
 	/** Changed slot this turn (Battle.swervedThisTurn), for Weave */
 	swerved: boolean;
+	/** Can't flank (Vehicle.isBoxedIn), or a Box In applied to this projection since */
+	boxedIn: boolean;
 }
 
 /** Where a vehicle ends up after a move: its slot and its flank state (a flanker's reservation) */
@@ -110,7 +138,8 @@ export class BoardProjection {
 					slot: vehicle.slot,
 					flank: vehicle.flank,
 					speedSum: vehicle.speedSum,
-					swerved: battle.swervedThisTurn(vehicle)
+					swerved: battle.swervedThisTurn(vehicle),
+					boxedIn: vehicle.isBoxedIn
 				});
 				for (const driver of [vehicle.driver, vehicle.passenger]) {
 					if (!driver) continue;
@@ -161,6 +190,11 @@ export class BoardProjection {
 		return this.vehicles.get(vehicle)?.swerved ?? false;
 	}
 
+	/** Whether the vehicle can't flank (Box In), on this board */
+	public isBoxedIn(vehicle: Vehicle): boolean {
+		return this.vehicles.get(vehicle)?.boxedIn ?? false;
+	}
+
 	/**
 	 * Range between two vehicles: lanes apart plus rows apart on the road.
 	 */
@@ -177,7 +211,8 @@ export class BoardProjection {
 	 * Why a vehicle can't flank a target, or null if it can. The flanker
 	 * can't already be on the shoulder. The target is the vehicle to outrun:
 	 * it must be in the other team's formation and slower than the flanker,
-	 * and the shoulder slot in its row must be free.
+	 * and the shoulder slot in its row must be free. A boxed-in vehicle (Box
+	 * In) can't flank at all.
 	 * A speed bonus counts a boost the flanking card gives first, unless the
 	 * flanker is Heavy.
 	 */
@@ -192,6 +227,9 @@ export class BoardProjection {
 		}
 		if (isShoulder(flankerState.slot.lane)) {
 			return `${flanker.name} is already flanking`;
+		}
+		if (flankerState.boxedIn) {
+			return `${flanker.name} is boxed in and can't flank`;
 		}
 		if (!target.isAlive() || !targetState.slot || !isFormationLane(targetState.team, targetState.slot.lane)) {
 			return `${target.name} is not in formation`;
@@ -279,6 +317,10 @@ export class BoardProjection {
 				return 'Can only heal drivers in same vehicle';
 			}
 		}
+		const conditionBlocker = this.targetConditionBlocker({ card, caster, target });
+		if (conditionBlocker) {
+			return conditionBlocker;
+		}
 
 		if (card.targetType === 'enemy_single' && targetState.team === casterState.team) {
 			return `${target.name} is not an enemy`;
@@ -287,6 +329,79 @@ export class BoardProjection {
 			return `${target.name} is not an ally`;
 		}
 		return null;
+	}
+
+	/**
+	 * Why the target fails a condition one of the card's effects puts on it,
+	 * or null: in its own formation (Lay on the Horn, which never shoves a
+	 * flanker or an ambusher), or flanking in the caster's row (Brake
+	 * Check). Targeting and a raider's planned card both ask it. Oil Slick's
+	 * `target_flanking` is checked beside it, as before. Throws on a
+	 * condition no one knows (EFFECT_CONDITIONS).
+	 */
+	public targetConditionBlocker({ card, caster, target }: { card: Card; caster: Vehicle; target: Vehicle }): string | null {
+		const targetState = this.vehicles.get(target);
+		const targetSlot = targetState?.slot ?? null;
+		for (const effect of card.effects) {
+			if (effect.condition === undefined) continue;
+			switch (effect.condition) {
+				case 'target_in_formation':
+					if (!targetState || !targetSlot || !isFormationLane(targetState.team, targetSlot.lane)) {
+						return `${target.name} is not in its formation`;
+					}
+					break;
+				case 'target_flanking_in_row':
+					if (!this.isFlanking(target)) {
+						return `${target.name} is not flanking`;
+					}
+					if (targetSlot?.row !== this.slotOf(caster)?.row) {
+						return `${target.name} is not in ${caster.name}'s row`;
+					}
+					break;
+				default:
+					assertKnownCondition(effect.condition);
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Whether an effect's landing condition holds for this recipient on this
+	 * board, judged as the effect lands: an ambusher for Brake Check's damage
+	 * (a flanker with a reserved slot dropped back instead), and every one of
+	 * the caster's driven vehicles within reach for Box In's Vulnerable. Play
+	 * asks it of a fresh projection, the live board; the projection asks its
+	 * own. Any other known condition is checked where it was before, and an
+	 * unknown one throws (EFFECT_CONDITIONS).
+	 */
+	public landingConditionHolds({ effect, caster, recipient }: { effect: CardEffect; caster: Vehicle | null; recipient: Vehicle }): boolean {
+		if (effect.condition === undefined) return true;
+		switch (effect.condition) {
+			case 'target_ambusher':
+				return this.isFlanking(recipient) && this.flankOf(recipient)?.reservedSlot === null;
+			case 'driven_vehicles_within': {
+				if (typeof effect.within !== 'number') throw new Error('driven_vehicles_within needs a number "within"');
+				return caster !== null && this.drivenVehiclesWithin({ caster, target: recipient, range: effect.within });
+			}
+			default:
+				assertKnownCondition(effect.condition);
+				return true;
+		}
+	}
+
+	/**
+	 * Whether both driven vehicles on the caster's side are within range of
+	 * the target (Box In): there have to be two, so once one is wrecked or
+	 * carries on as an escort, this never holds (call 321).
+	 */
+	private drivenVehiclesWithin({ caster, target, range }: { caster: Vehicle; target: Vehicle; range: number }): boolean {
+		const side = this.vehicles.get(caster)?.team;
+		const targetSlot = this.slotOf(target);
+		if (side === undefined || !targetSlot) return false;
+		const driven = [...this.vehicles]
+			.filter(([vehicle, state]) => state.team === side && state.slot !== null && !vehicle.isEscort && !vehicle.isOutOfFight)
+			.map(([, state]) => state.slot as RoadSlot);
+		return driven.length >= 2 && driven.every(slot => slotRange(slot, targetSlot) <= range);
 	}
 
 	/**
@@ -814,11 +929,12 @@ export class BoardProjection {
 
 	/**
 	 * One effect that lands on vehicles, on the projection: a speed status
-	 * changes the recipient's speed, and nothing else changes here. True
-	 * when it took hold on someone other than the caster, by the checks
-	 * Battle.applyEffect makes: in range for damage, past the hit check
-	 * unless it always hits, a flanker for target_flanking, never a Steady
-	 * raider for a stun.
+	 * changes the recipient's speed, Box In's stops it flanking, and nothing
+	 * else changes here. True when it took hold on someone other than the
+	 * caster, by the checks Battle.applyEffect makes: in range for damage,
+	 * past the hit check unless it always hits, a flanker for
+	 * target_flanking, never a Steady raider for a stun, and its landing
+	 * condition (landingConditionHolds).
 	 */
 	private applyLanding({ card, effect, driver, caster, target, enemies }: {
 		card: Card;
@@ -834,6 +950,7 @@ export class BoardProjection {
 		let landed = false;
 		for (const recipient of effectRecipients({ effect, card, caster, target, enemies })) {
 			if (!onCaster && recipient.isOutOfFight) continue;
+			if (!this.landingConditionHolds({ effect, caster, recipient })) continue;
 			if (isStatus) {
 				if (effect.condition === 'target_flanking' && !this.isFlanking(recipient)) continue;
 				if (effect.status === 'stunned' && recipient.isSteady) continue;
@@ -841,6 +958,7 @@ export class BoardProjection {
 				const state = this.vehicles.get(recipient);
 				if (state && effect.status) {
 					state.speedSum += recipient.speedChange(statusSpeedModifier({ name: effect.status, duration: 1, value: effect.value }));
+					if (effect.status === BOXED_IN) state.boxedIn = true;
 				}
 			} else if (effect.type === 'damage' && !onCaster) {
 				const recipientSlot = this.slotOf(recipient);
