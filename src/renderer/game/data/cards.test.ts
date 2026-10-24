@@ -2,6 +2,7 @@ import { Card, CardData, CardEffect } from '../mechanics/Card';
 import { EFFECT_TARGETS } from '../mechanics/EffectTargets';
 import { EFFECT_CONDITIONS } from '../mechanics/BoardProjection';
 import { moveSpecOf } from '../mechanics/Movement';
+import { effectBonusOf } from '../mechanics/EffectConditions';
 import cardsFile from './cards.json';
 import { createMeasuringDrawApi } from '../../engine/text/testing';
 import { createTestContext } from '../../engine/components/testing';
@@ -50,7 +51,7 @@ const texts = cards.flatMap((data) =>
 // A wrapper (conditional) carries its target and its numbers in the effect it wraps
 const leaves = (effect: CardEffect): CardEffect[] => effect.effect ? leaves(effect.effect) : [effect];
 
-type PrintedField = 'value' | 'hit_modifier';
+type PrintedField = 'value' | 'hit_modifier' | 'bonus' | 'duration';
 
 /**
  * Which effects a text variable can print its number from, by the variable's
@@ -70,6 +71,11 @@ const PRINTED_FROM: Record<string, { from: (effect: CardEffect) => boolean; fiel
 	adrenaline: { from: (effect) => effect.resource === 'adrenaline' || effect.type === 'grant_adrenaline', field: 'value', sign: 1 },
 	speed: { from: (effect) => effect.status === 'speed_boost', field: 'value', sign: 1 },
 	slow: { from: (effect) => effect.status === 'speed_reduction', field: 'value', sign: -1 },
+	evade: { from: (effect) => effect.status === 'evade_boost', field: 'value', sign: 1 },
+	// A conditional bonus on top of the value (Point Man, Tail Gunner)
+	extra: { from: (effect) => typeof effect.bonus === 'number', field: 'bonus', sign: 1 },
+	// How many turns a status lasts (Floor It's upgrade)
+	turns: { from: (effect) => typeof effect.duration === 'number', field: 'duration', sign: 1 },
 };
 
 /** Each of a card's text variables, with where its number sits among the card's leaf effects. */
@@ -168,6 +174,13 @@ describe('card data check', () => {
 		}
 	});
 
+	// Every conditional bonus names a condition the battle knows (EffectConditions)
+	it.each(cards.map((data) => ({ label: data.type, effects: [...data.effects, ...upgradeEffects(data)] })))('$label bonuses name conditions the battle knows', ({ effects }) => {
+		for (const effect of effects.flatMap(leaves)) {
+			expect(() => effectBonusOf(effect)).not.toThrow();
+		}
+	});
+
 	// The text and the effects agree on every number the text prints
 	it.each(cards.flatMap((data) => variablesOf(data).map(({ name, printed }) => ({ label: `${data.type} {${name}}`, printed }))))('$label prints a number its effects carry', ({ printed }) => {
 		expect(printed).not.toHaveLength(0);
@@ -185,11 +198,14 @@ describe('card data check', () => {
 	it.each(upgradeCases.filter(({ data }) => !OUT_OF_STEP.has(data.type)))('$label upgraded plays the numbers its upgraded text prints', playsItsUpgradedText);
 	it.failing.each(upgradeCases.filter(({ data }) => OUT_OF_STEP.has(data.type)))('$label upgraded still plays what its text doesn\'t say', playsItsUpgradedText);
 
-	// The face and the detail view change together, and only for an upgrade that adds an effect to say
-	it.each(upgradeCases.filter(({ data }) => data.upgrades?.summary !== undefined || data.upgrades?.description !== undefined))('$label upgrade rewrites both texts for the effects it adds', ({ data }) => {
+	// The face and the detail view change together, for an upgrade the base
+	// text can't say: an effect it adds, a status that lasts longer (Floor It),
+	// or Exhaust it drops (Formation Shift)
+	it.each(upgradeCases.filter(({ data }) => data.upgrades?.summary !== undefined || data.upgrades?.description !== undefined))('$label upgrade rewrites both texts', ({ data }) => {
 		expect(typeof data.upgrades?.summary).toBe('string');
 		expect(typeof data.upgrades?.description).toBe('string');
-		expect(addedOnUpgrade(data)).not.toHaveLength(0);
+		expect(new Card({ ...data, upgraded: true }).displaySummary).not.toBe(new Card({ ...data }).displaySummary);
+		expect(new Card({ ...data, upgraded: true }).displayDescription).not.toBe(new Card({ ...data }).displayDescription);
 	});
 
 	// Battle.checkHit adds hit_modifier to the defender's evade, so positive is harder

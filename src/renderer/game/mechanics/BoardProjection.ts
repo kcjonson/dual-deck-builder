@@ -1,7 +1,8 @@
 import type { Battle } from './Battle';
 import type { Card, CardEffect } from './Card';
 import type { Driver } from './Driver';
-import { BOXED_IN, FlankState, Vehicle, floorSpeed, statusSpeedModifier } from './Vehicle';
+import { BOXED_IN, FlankState, Vehicle, floorSpeed, statusEvadeModifier, statusSpeedModifier } from './Vehicle';
+import { effectValue } from './EffectConditions';
 import { TeamType } from './TeamType';
 import {
 	RoadSlot,
@@ -89,6 +90,8 @@ interface ProjectedVehicle {
 	team: TeamType;
 	slot: RoadSlot | null;
 	flank: FlankState | null;
+	/** Vehicle.evadeBoost, plus Evade landed on the projection, for its hit checks */
+	evadeBoost: number;
 	/** Vehicle.speedSum, floored only when read, as play floors it */
 	speedSum: number;
 	/** Changed slot this turn (Battle.swervedThisTurn), for Weave */
@@ -137,6 +140,7 @@ export class BoardProjection {
 					team: team.type,
 					slot: vehicle.slot,
 					flank: vehicle.flank,
+					evadeBoost: vehicle.evadeBoost,
 					speedSum: vehicle.speedSum,
 					swerved: battle.swervedThisTurn(vehicle),
 					boxedIn: vehicle.isBoxedIn
@@ -165,6 +169,11 @@ export class BoardProjection {
 
 	public speedOf(vehicle: Vehicle): number {
 		return floorSpeed(this.vehicles.get(vehicle)?.speedSum ?? 0);
+	}
+
+	/** Evade the vehicle's statuses add on this board: Vehicle.evadeBoost, plus any Evade landed here since */
+	public evadeBoostOf(vehicle: Vehicle): number {
+		return this.vehicles.get(vehicle)?.evadeBoost ?? vehicle.evadeBoost;
 	}
 
 	public handOf(driver: Driver): readonly Card[] {
@@ -954,10 +963,13 @@ export class BoardProjection {
 			if (isStatus) {
 				if (effect.condition === 'target_flanking' && !this.isFlanking(recipient)) continue;
 				if (effect.status === 'stunned' && recipient.isSteady) continue;
-				if (rollsToHit({ effect, card }) && !this.battle.checkHit({ attacker: caster, caster: driver, defender: recipient })) continue;
+				if (rollsToHit({ effect, card }) && !this.battle.checkHit({ attacker: caster, caster: driver, defender: recipient, evadeBoost: this.evadeBoostOf(recipient) })) continue;
 				const state = this.vehicles.get(recipient);
 				if (state && effect.status) {
-					state.speedSum += recipient.speedChange(statusSpeedModifier({ name: effect.status, duration: 1, value: effect.value }));
+					const value = effectValue(effect, { casterSlot, targetSlot: state.slot, casterSwerved: caster ? this.swervedThisTurn(caster) : false });
+					const status = { name: effect.status, duration: 1, value };
+					state.speedSum += recipient.speedChange(statusSpeedModifier(status));
+					state.evadeBoost += statusEvadeModifier(status);
 					if (effect.status === BOXED_IN) state.boxedIn = true;
 				}
 			} else if (effect.type === 'damage' && !onCaster) {
@@ -968,7 +980,8 @@ export class BoardProjection {
 					caster: driver,
 					defender: recipient,
 					attackType: typeof effect.attack_type === 'string' ? effect.attack_type : effect.scaling === 'ramming' ? 'ramming' : 'ranged',
-					modifier: typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0
+					modifier: typeof effect.hit_modifier === 'number' ? effect.hit_modifier : 0,
+					evadeBoost: this.evadeBoostOf(recipient)
 				})) continue;
 			}
 			if (!onCaster) landed = true;
