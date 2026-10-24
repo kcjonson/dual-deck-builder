@@ -20,7 +20,7 @@ import cardsFile from '../data/cards.json';
  */
 
 const slot = (lane: RoadLane, row: RoadRow): RoadSlot => ({ lane, row });
-const { PLAYER_SHOULDER, PLAYER_INSIDE, ENEMY_INSIDE, ENEMY_OUTSIDE } = RoadLane;
+const { PLAYER_SHOULDER, PLAYER_INSIDE, ENEMY_INSIDE, ENEMY_OUTSIDE, ENEMY_SHOULDER } = RoadLane;
 const { AHEAD, CENTER, BEHIND } = RoadRow;
 
 // Total speed is baseSpeed plus the test driver's speed skill of 2
@@ -197,6 +197,30 @@ describe('Raider swerves', () => {
 			// Shield and a one-turn boost are gone as the player's turn starts, and a raider's draw comes after its plan (DDB-552)
 			useAI(battle);
 			giveHand(buggy, [rider()]);
+			battle.planEnemyTurn();
+
+			expect(battle.getPlan(buggy)).toEqual([]);
+		});
+
+		test('the aggressive AI plays a Floor It whose boost knocks a flanker off at the end of the enemy turn', () => {
+			// The Bike (7) outran the Buggy (5) onto the raiders' shoulder; the drop-back comes before the boost ticks off
+			bike.set({ slot: slot(ENEMY_SHOULDER, CENTER), flank: { reservedSlot: slot(PLAYER_INSIDE, BEHIND), outran: buggy } });
+			useAggressive(battle);
+			giveHand(buggy, [floorIt()]);
+			battle.planEnemyTurn();
+			expect(battle.getPlan(buggy).map(action => action.card.name)).toEqual(['Floor It']);
+
+			battle.endPlayerTurn();
+			expect(bike.slot).toEqual(slot(PLAYER_INSIDE, BEHIND));
+			expect(bike.flank).toBeNull();
+		});
+
+		test('the aggressive AI won\'t play a Floor It whose boost leaves the flanker faster', () => {
+			bike = createVehicle('Bike', 6);
+			battle = build([buggy]);
+			bike.set({ slot: slot(ENEMY_SHOULDER, CENTER), flank: { reservedSlot: slot(PLAYER_INSIDE, BEHIND), outran: buggy } });
+			useAggressive(battle);
+			giveHand(buggy, [floorIt()]);
 			battle.planEnemyTurn();
 
 			expect(battle.getPlan(buggy)).toEqual([]);

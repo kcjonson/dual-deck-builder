@@ -50,10 +50,9 @@ describe('balance sim fights', () => {
 		expect(row.won).toMatchObject({ count: 2, of: 2, rate: 1, high: 1 });
 		expect(row.bySeat?.map(seat => seat.of)).toEqual([1, 1]);
 		expect(row.down).toMatchObject({ count: 0, of: 2 });
-		// Two runs of one fight each, so a raider's plays a fight are the two runs' plays halved
-		const runs = await Promise.all([0, 1].map(index => playRun({ config, cell: fightCells(config)[0], index })));
-		const rams = runs.map(run => run.raiderPlays['Spike Buggy']?.['Ramming Speed']?.played ?? 0);
-		expect(row.raiderPlays['Spike Buggy']['Ramming Speed'].played).toBe((rams[0] + rams[1]) / 2);
+		// Two runs of one fight each, so each play counts half: two Ramming Speeds played over the runs and one fizzled
+		expect(row.raiderPlays['Spike Buggy']['Ramming Speed']).toEqual({ played: 1, fizzled: 0.5 });
+		expect(row.raiderPlays['Scav Bike']).toEqual({ 'Far Shoot': { played: 1, fizzled: 0 } });
 	});
 
 	test('tuning comes in through the config and leaves the shipped profiles alone', () => {

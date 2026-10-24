@@ -4,7 +4,7 @@ import type { Driver } from '../mechanics/Driver';
 import { EffectRecipient, effectRecipientOf, isCasterAction } from '../mechanics/EffectTargets';
 import { attackEffectOf, movesCaster } from '../mechanics/Intent';
 import { RoadSlot, sameSlot, slotRange } from '../mechanics/Road';
-import type { Vehicle } from '../mechanics/Vehicle';
+import { Vehicle, statusSpeedModifier } from '../mechanics/Vehicle';
 import { cardsKeptFromDraw } from './DrawEstimate';
 
 /** What a swerve does to the rest of the hand: damage it puts in range, and damage it takes out */
@@ -87,8 +87,10 @@ export function swerveScore(reach: SwerveReach, weight: number): number {
  * end with that turn: its Shield and a one-turn status on itself are gone
  * as the player's turn starts, before anyone can shoot it, and a card it
  * draws arrives after the plan was made and is discarded then. Those count
- * for nothing, so a raider's Floor It, Hard Brake, or Juke is worth only
- * what its swerve lines up (DDB-552).
+ * for nothing, so a raider's Hard Brake or Juke is worth only what its
+ * swerve lines up (DDB-552). A one-turn boost is the exception: the
+ * drop-back at the end of the enemy turn comes before statuses tick, so
+ * Floor It also counts when it would knock a flanker off the shoulder.
  */
 export function aimlessSwerve({ board, card, driver, reach }: {
 	board: BoardProjection;
@@ -97,17 +99,38 @@ export function aimlessSwerve({ board, card, driver, reach }: {
 	reach: SwerveReach;
 }): boolean {
 	if (!movesCaster(card) || reach.gained > 0) return false;
-	const raider = board.actor !== null;
+	const raider = board.actor;
 	return card.effects.every(effect => effect.type === 'change_position' ||
-		effect.type === 'draw_cards' && (raider || cardsKeptFromDraw({ board, card, player: driver }) === 0) ||
-		raider && endsWithEnemyTurn({ effect, card }));
+		effect.type === 'draw_cards' && (raider !== null || cardsKeptFromDraw({ board, card, player: driver }) === 0) ||
+		raider !== null && endsWithEnemyTurn({ board, effect, card, raider }));
 }
 
-/** Shield, or a status of one turn on the caster: what a card played on the enemy turn loses as the player's turn starts */
-function endsWithEnemyTurn({ effect, card }: { effect: CardEffect; card: Card }): boolean {
+/**
+ * Shield, or a status of one turn on the caster: what a card played on the
+ * enemy turn loses as the player's turn starts. Not a boost that knocks a
+ * flanker off at the drop-back before then.
+ */
+function endsWithEnemyTurn({ board, effect, card, raider }: { board: BoardProjection; effect: CardEffect; card: Card; raider: Vehicle }): boolean {
 	if (effect.type === 'gain_shield') return true;
 	const turns = typeof effect.duration === 'number' ? effect.duration : 1;
-	return effect.type === 'apply_status' && effectRecipientOf({ effect, card }) === EffectRecipient.CASTER && turns === 1;
+	if (effect.type !== 'apply_status' || effectRecipientOf({ effect, card }) !== EffectRecipient.CASTER || turns !== 1) return false;
+	const boost = raider.speedChange(statusSpeedModifier({ name: effect.status ?? '', duration: 1, value: effect.value }));
+	return boost <= 0 || !knocksFlankerOff({ board, raider, boost });
+}
+
+/**
+ * Whether a speed boost on the raider would drop a flanker back at the end
+ * of the enemy turn: one that outran the raider and is faster than it
+ * now, but no faster once it's boosted (Battle.dropBackFlankers, which
+ * runs before statuses tick)
+ */
+function knocksFlankerOff({ board, raider, boost }: { board: BoardProjection; raider: Vehicle; boost: number }): boolean {
+	const speed = board.speedOf(raider);
+	return board.enemiesOf(raider).some(flanker => {
+		const flank = board.flankOf(flanker);
+		if (flank?.outran !== raider || !flank.reservedSlot || flanker.isOutOfFight) return false;
+		return board.speedOf(flanker) > speed && board.speedOf(flanker) <= speed + boost;
+	});
 }
 
 /**
