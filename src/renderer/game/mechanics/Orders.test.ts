@@ -107,7 +107,7 @@ describe('Order cards', () => {
 			const orders = cardData.filter(data => data.tags.includes('order'));
 
 			expect(orders.map(data => data.type).sort()).toEqual([
-				'close_ranks', 'covering_fire', 'draw_fire', 'flag_down', 'rally_the_convoy',
+				'close_ranks', 'covering_fire', 'draw_fire', 'fall_in', 'flag_down', 'rally_the_convoy',
 				'ramming_run', 'run_ahead', 'top_off', 'triage'
 			]);
 			expect(orders.filter(data => data.tags.includes('attack'))).toEqual([]);

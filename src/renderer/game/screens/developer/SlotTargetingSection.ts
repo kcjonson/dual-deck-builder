@@ -1,23 +1,24 @@
 import { CatalogSection } from './CatalogSection';
 import type { DeveloperSectionOptions } from './DeveloperSectionPanel';
 import { Container } from '../../../engine/components/Container';
-import { Rectangle } from '../../../engine/components/Rectangle';
 import type { Driver } from '../../mechanics/Driver';
 import type { Vehicle } from '../../mechanics/Vehicle';
 import { RoadLane, RoadRow, RoadSlot, slotRange } from '../../mechanics/Road';
 import type { AimPreview } from '../../mechanics/AimPreview';
+import { cardRange } from '../../mechanics/BoardProjection';
+import { Card as UICard } from '../../ui/Card';
 import type { RangeLabel } from '../../ui/RangeChip';
 import { COMBAT_REFERENCE_HEIGHT, COMBAT_REFERENCE_WIDTH, DOCK_HEIGHT, TOP_BAR_HEIGHT } from '../combat/CombatLayout';
 import { CombatModel } from '../combat/CombatModel';
 import { RoadView } from '../combat/RoadView';
 import { AimReticle, HitCheckChip, TargetingArrow, hitCheckText } from '../combat/CombatFxLayer';
 import { ScaledFrame, targetingVehicle } from './CombatTargetingSection';
+import { sampleCard } from './CardDetailSection';
 
 /** The road band at the 1280x720 reference, with the aimed card standing past its right end. */
 const ROAD_WIDTH = COMBAT_REFERENCE_WIDTH;
 const ROAD_HEIGHT = COMBAT_REFERENCE_HEIGHT - TOP_BAR_HEIGHT - DOCK_HEIGHT;
-const CARD_WIDTH = 128;
-const CARD_HEIGHT = 180;
+const { width: CARD_WIDTH, height: CARD_HEIGHT } = UICard.getDimensions();
 const CARD_GAP = 32;
 const CARD_X = ROAD_WIDTH + CARD_GAP;
 const CARD_Y = ROAD_HEIGHT - CARD_HEIGHT - 12;
@@ -53,8 +54,9 @@ function readout(from: RoadSlot, at: RoadSlot, reach: number, legal: boolean): R
  *   and the two rows it can be shoved into are dashed in the raiders' red,
  *   the hovered one solid and the Buggy's readout taken from there.
  *
- * Model state is set by hand, as the targeting scene's is; the readouts
- * come from the road's own `slotRange`.
+ * The aimed card is the real one from cards.json (DDB-551), and its range
+ * sets the readouts' reach. Model state is set by hand, as the targeting
+ * scene's is; the readouts come from the road's own `slotRange`.
  */
 export class SlotTargetingSection extends CatalogSection {
 	constructor({ mode = 'move', ...options }: DeveloperSectionOptions & { mode?: SlotTargetingMode } = {}) {
@@ -84,20 +86,16 @@ export class SlotTargetingSection extends CatalogSection {
 
 		const frame = new Container({ id: `dev_slot_${mode}_frame`, width: FRAME_WIDTH, height: FRAME_HEIGHT });
 		frame.addChild(road);
-		const card = new Rectangle({
-			id: `dev_slot_${mode}_card`,
-			x: CARD_X,
-			y: CARD_Y,
-			width: CARD_WIDTH,
-			height: CARD_HEIGHT,
-			style: { backgroundColor: '#1d1f22', borderColor: '#f2a33a', borderWidth: 2, borderRadius: 6 },
-		});
+		const aimed = sampleCard(mode === 'move' ? 'strafe' : 'shoulder_check');
+		const reach = cardRange(aimed);
+		if (reach === null) throw new Error(`${aimed.name} has no range for its readouts`);
+		const card = new UICard({ id: `dev_slot_${mode}_card`, x: CARD_X, y: CARD_Y, data: aimed, driverNumber: 1 });
 		frame.addChild(card);
 		const layer = new Container({ id: `dev_slot_${mode}_fx`, width: FRAME_WIDTH, height: FRAME_HEIGHT, pointerEvents: 'none', zIndex: 1 });
 		frame.addChild(layer);
 
-		if (mode === 'move') this.aimMove({ model, road, raiders, card, layer });
-		else this.aimShove({ model, road, rig, buggy, raiders, card, layer });
+		if (mode === 'move') this.aimMove({ model, road, raiders, card, reach, layer });
+		else this.aimShove({ model, road, rig, buggy, raiders, card, reach, layer });
 
 		this.addRow(
 			mode === 'move'
@@ -108,11 +106,12 @@ export class SlotTargetingSection extends CatalogSection {
 		);
 	}
 
-	private aimMove({ model, road, raiders, card, layer }: {
+	private aimMove({ model, road, raiders, card, reach, layer }: {
 		model: CombatModel;
 		road: RoadView;
 		raiders: Vehicle[];
-		card: Rectangle;
+		card: UICard;
+		reach: number;
 		layer: Container;
 	}): void {
 		const hovered: RoadSlot = { lane: PLAYER_INSIDE, row: AHEAD };
@@ -124,7 +123,7 @@ export class SlotTargetingSection extends CatalogSection {
 
 		// Strafe reaches one from where it lands; only the Crawler, a row ahead across, is in reach
 		const labels = new Map<string, RangeLabel>();
-		for (const raider of raiders) labels.set(raider.id, readout(hovered, raider.slot as RoadSlot, 1, true));
+		for (const raider of raiders) labels.set(raider.id, readout(hovered, raider.slot as RoadSlot, reach, true));
 		road.showRanges(labels);
 
 		// The drag's line and reticle, the reticle in the hovered slot's middle
@@ -139,13 +138,14 @@ export class SlotTargetingSection extends CatalogSection {
 		layer.addChild(reticle);
 	}
 
-	private aimShove({ model, road, rig, buggy, raiders, card, layer }: {
+	private aimShove({ model, road, rig, buggy, raiders, card, reach, layer }: {
 		model: CombatModel;
 		road: RoadView;
 		rig: Vehicle;
 		buggy: Vehicle;
 		raiders: Vehicle[];
-		card: Rectangle;
+		card: UICard;
+		reach: number;
 		layer: Container;
 	}): void {
 		const hovered: RoadSlot = { lane: ENEMY_INSIDE, row: BEHIND };
@@ -159,14 +159,14 @@ export class SlotTargetingSection extends CatalogSection {
 		// Read from the Rig, with the Buggy where the shove would put it
 		const from = rig.slot as RoadSlot;
 		const labels = new Map<string, RangeLabel>();
-		for (const raider of raiders) labels.set(raider.id, readout(from, raider === buggy ? hovered : raider.slot as RoadSlot, 1, false));
+		for (const raider of raiders) labels.set(raider.id, readout(from, raider === buggy ? hovered : raider.slot as RoadSlot, reach, false));
 		road.showRanges(labels);
 
 		// Ramming 5 against Evade 4: the ram lands, so the shove follows
 		const preview: AimPreview = {
 			actor: rig,
 			range: slotRange(from, buggy.slot as RoadSlot),
-			reach: 1,
+			reach,
 			lands: true,
 			check: { skill: 'ramming', attack: 5, evade: 4, modifier: 0, hits: true },
 			losses: { structure: 2, driver: 1, passenger: 0 },

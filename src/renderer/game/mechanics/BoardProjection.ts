@@ -695,15 +695,37 @@ export class BoardProjection {
 	}
 
 	/**
+	 * Every vehicle on the road a card that moves its target could name, by
+	 * its target type, before one is picked: an escort on the caster's side
+	 * for Fall In, any vehicle on its side for an ally card, any on the other
+	 * side for one aimed at an enemy
+	 */
+	private moveCandidates({ card, caster }: { card: Card; caster: Vehicle }): Vehicle[] {
+		const side = this.vehicles.get(caster)?.team;
+		return [...this.vehicles].filter(([vehicle, state]) => {
+			if (vehicle.isOutOfFight || !state.slot) return false;
+			switch (card.targetType) {
+				case 'escort': return state.team === side && vehicle.isEscort;
+				case 'ally': return state.team === side;
+				case 'enemy_single': return state.team !== side;
+				default: return true;
+			}
+		}).map(([vehicle]) => vehicle);
+	}
+
+	/**
 	 * Why a card's moves can't happen on this board, or null if they can
 	 * (Combat Rules, Swerving). A swerve, move, or swap is unplayable while
 	 * its caster is flanking; a swerve or move with nowhere legal to go is
 	 * unplayable (call 285); a drop-back needs a flanker with a reserved slot.
 	 * Optional moves never block: they're skipped when they can't happen.
-	 * With no target, only the caster's own moves are judged (the hand's
-	 * check); a target's are judged once it's known. A picked destination,
-	 * once given, has to be one the move can take. An order is carried out
-	 * by an escort, so its caster's own moves aren't judged here.
+	 * With no target (the hand's check), a swap or a move of the card's
+	 * target blocks only when nobody the card could name could make it:
+	 * Leapfrog with nobody to swap with, Fall In with no escort that can
+	 * move (call 341). Once the target is known, its own move is judged. A
+	 * picked destination, once given, has to be one the move can take. An
+	 * order is carried out by an escort, so its caster's own moves aren't
+	 * judged here.
 	 */
 	public moveBlocker({
 		card,
@@ -735,10 +757,18 @@ export class BoardProjection {
 		}
 		if (move.kind === 'swap') {
 			if (this.isFlanking(caster)) return `${caster.name} is flanking and can't swerve`;
-			return target && !move.optional ? this.swapBlocker({ caster, target }) : null;
+			if (move.optional) return null;
+			if (target) return this.swapBlocker({ caster, target });
+			const swappable = [...this.vehicles.keys()].some(other => this.swapBlocker({ caster, target: other }) === null);
+			return swappable ? null : `${caster.name} has nobody to swap with`;
+		}
+		if (move.optional) return null;
+		if (move.mover === 'target' && !target) {
+			const movable = this.moveCandidates({ card, caster }).some(mover => this.moveDestinations({ move, mover }).length > 0);
+			return movable ? null : `${card.name} has no ${card.targetType === 'escort' ? 'escort' : 'target'} that can move`;
 		}
 		const mover = move.mover === 'caster' ? (card.isOrder ? null : caster) : target;
-		if (!mover || move.optional) return null;
+		if (!mover) return null;
 		if (move.kind === 'drop_back') {
 			const state = this.vehicles.get(mover);
 			if (!state?.slot || !isShoulder(state.slot.lane)) return `${mover.name} isn't flanking`;

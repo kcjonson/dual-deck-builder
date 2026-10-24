@@ -9,7 +9,7 @@ import type { Rect } from '../../../engine/draw/geometry';
 import { layoutLint } from '../../../engine/debug/layoutLint';
 import { treeSnapshot } from '../../../engine/debug/treeSnapshot';
 import { Battle } from '../../mechanics/Battle';
-import { Card } from '../../mechanics/Card';
+import { Card, CardData } from '../../mechanics/Card';
 import type { Driver } from '../../mechanics/Driver';
 import { createEscort } from '../../mechanics/Escort';
 import { RoadLane, RoadRow, RoadSlot } from '../../mechanics/Road';
@@ -19,15 +19,28 @@ import { Card as UICard } from '../../ui/Card';
 import { SlotTarget } from '../../ui/SlotTarget';
 import { Vehicle as UIVehicle } from '../../ui/Vehicle';
 import { createTestDriver } from '../../ai/__tests__/test-helpers';
-import { fallIn, juke, leapfrog, shoulderCheck, strafe } from './__fixtures__/movementCards';
+import cardsFile from '../../data/cards.json';
 
 /**
  * DDB-548: slot targeting. A card whose move goes where the player picks
  * offers the legal slots as targets, previews the board from the one under
  * the pointer, and plays with it; Strafe, Fall In, and Shoulder Check take
  * a vehicle and a slot, in the order their effects need them. Played by
- * drag, click, and keyboard, with the movement cards' test stand-ins.
+ * drag, click, and keyboard, with the movement cards as cards.json has them
+ * (DDB-551).
  */
+
+/** A fresh copy of a card as cards.json has it */
+const realCard = (type: string) => (): Card => {
+	const data = (cardsFile as unknown as { cards: CardData[] }).cards.find(candidate => candidate.type === type);
+	if (!data) throw new Error(`No card ${type} in cards.json`);
+	return new Card({ ...data });
+};
+const juke = realCard('juke');
+const strafe = realCard('strafe');
+const fallIn = realCard('fall_in');
+const leapfrog = realCard('leapfrog');
+const shoulderCheck = realCard('shoulder_check');
 
 jest.mock('../../core/ScreenManager', () => ({
 	ScreenManager: { navigate: jest.fn() },
@@ -330,6 +343,8 @@ describe('CombatScreen slot targeting (DDB-548)', () => {
 		it('reads the hovered slot\'s readout against the card\'s reach, then offers only the raiders in reach of the slot picked', async () => {
 			const fight = strafeFight();
 			const [across, ahead] = fight.raiders;
+			// Strafe rolls gunnery against evade 5, so a sharper eye than the test driver's 5
+			driverOf(fight.rig).set({ skills: { ...driverOf(fight.rig).skills, gunnery: 9 } });
 			const combat = await startCombat(fight);
 			const card = deal(combat, fight, strafe());
 			const playCard = jest.spyOn(Battle.prototype, 'playCard');

@@ -5,7 +5,7 @@
 
 ## Context
 
-Targeting picked vehicles and nothing else. Six movement cards move a vehicle to a slot the player picks (Juke, Bootlegger Turn, Strafe, Fall In, Shoulder Check; Leapfrog's swap picks a vehicle), and DDB-545 left the model ready for them: `Battle.moveDestinations`, `getDestinationBlocker`, `needsDestination`, `playCard({ destination })`, and `getAllIntents({ preview })` with a `PlayPreview` carrying the slot. Three of the cards take a vehicle and a slot, in different orders: Strafe swerves and then shoots from the new slot, Fall In picks the escort before where it goes, and Shoulder Check rams a raider before it's shoved. The cards themselves are DDB-551's, so this was built and tested against test-only stand-ins (`screens/combat/__fixtures__/movementCards.ts`) shaped as movement-cards.md's table has them.
+Targeting picked vehicles and nothing else. Six movement cards move a vehicle to a slot the player picks (Juke, Bootlegger Turn, Strafe, Fall In, Shoulder Check; Leapfrog's swap picks a vehicle), and DDB-545 left the model ready for them: `Battle.moveDestinations`, `getDestinationBlocker`, `needsDestination`, `playCard({ destination })`, and `getAllIntents({ preview })` with a `PlayPreview` carrying the slot. Three of the cards take a vehicle and a slot, in different orders: Strafe swerves and then shoots from the new slot, Fall In picks the escort before where it goes, and Shoulder Check rams a raider before it's shoved. The cards themselves are DDB-551's, so this was built against test-only stand-ins shaped as movement-cards.md's table has them; DDB-551 replaced them with the cards from cards.json, and the screen needed no change for them.
 
 ## Decisions
 
@@ -54,11 +54,11 @@ Considered: hit-testing slots by geometry inside `RoadView`. It would need its o
 
 ## Consequences
 
-- A slot pick reaches `playCard({ destination })`, and the battle checks it again, so nothing the screen offers can play illegally; the screen tests play each stand-in through the real battle.
+- A slot pick reaches `playCard({ destination })`, and the battle checks it again, so nothing the screen offers can play illegally; the screen tests play each card from cards.json through the real battle.
 - `CombatModel` gains `targetableSlots`, `focusedSlot`, `targetedSlot`, `pickedSlot`, `pickedVehicleId`, `isPickingSlot`, `isSlotTargetable`, `focusSlot`, and `targetSlot`; `selectCard` now clears every pick from the card before it.
 - DDB-551 only adds card data: a card shaped as movement-cards.md's table gets the right steps, slots, readouts, and preview with no screen change. A card with a picked move and an unusual target type would take the table above; one that picks two slots is refused by `pickedMoveOf`.
 - Shoulder Check still asks which way to shove when its hit check shows a miss (call 303).
-- Gallery scenes `slot-targeting` (Strafe waiting for its slot, hovered) and `slot-targeting-shove` (Shoulder Check's second step) hold both steps still; the developer screen shows them, so the boot smoke opens them.
+- Gallery scenes `slot-targeting` (Strafe waiting for its slot, hovered) and `slot-targeting-shove` (Shoulder Check's second step) hold both steps still, with each card's real face and its range setting the readouts' reach; the developer screen shows them, so the boot smoke opens them.
 
 ## Provisional calls
 

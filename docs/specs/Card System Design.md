@@ -121,8 +121,9 @@ Escorts are vehicles in your convoy with a slot and a plate but no driver and no
 - **Order** is its own card type, tagged `order` in card data and never `attack`. Any driver can play one, active or passenger, paying from their own adrenaline.
 - **Attack orders** target a raider (`enemy_single`). The nearest ready escort within the card's range of that raider carries it out and is spent; ties go to the inside lane, then the outside lane, then the enemy shoulder, and within a lane to ahead, center, behind. The drag lights up that escort. A raider with no ready escort in range isn't a legal target. A signature attack order (Run Ahead, Flag Down) only goes to an escort of its type, and a flanking one (Run Ahead) only to an escort that could legally flank the target after the card's own boost. The escort acts with its own slot, speed, and skills, not the ordering driver's.
 - **Buff orders** target an escort directly, with the new `escort` target type, and can target a spent one. Close Ranks and Draw Fire are buff orders, and both give `[Shield]`.
-- **Spending.** Attack orders and Draw Fire spend the escort. Close Ranks, Triage, and Top Off don't; Triage and Top Off are the Med Truck's and Fuel Hauler's cards, not their actions. Card data marks a spending order with `spendsEscort`.
-- Every order card is a single drop, the same as any other card. No order asks for two targets.
+- **Move orders.** Fall In targets an escort directly, as a buff order does, ready or spent, and moves it to a slot you pick (Combat Rules, Movement cards).
+- **Spending.** Attack orders and Draw Fire spend the escort. Close Ranks, Fall In, Triage, and Top Off don't; Triage and Top Off are the Med Truck's and Fuel Hauler's cards, not their actions. Card data marks a spending order with `spendsEscort`.
+- Every order card is a single drop, the same as any other card, except Fall In, which takes its escort and then the slot it moves to (Battle Screen Design section 6). No order asks for two vehicles.
 - **`[Escort]`**: "An undriven vehicle in your convoy. Acts only when ordered, once per turn."
 - **`[Shield]`**: "Temporary armor. Absorbs damage before Armor. Clears at the start of your next turn." Not capped by the vehicle's armor, and it stacks. Card data grants it with a `gain_shield` effect. Close Ranks and Draw Fire give it. Armor Plating and Repair Kit stay on Armor, which isn't capped (Combat Rules, Vehicle properties; Kevin, 2026-10-23, DDB-164).
 - **Signature cards.** Each escort type has one signature order card, and each escort brings its own copy into a driver's deck when it joins; the player picks which driver. Card data names the type with `signatureOf` (the escort type's id) and gives it `signature` rarity, and each copy remembers the escort that brought it (`broughtBy`, the escort's id). A signature card is never in the reward pool or the shop. It's playable while any living escort of its type is in the convoy. The copy an escort brought leaves the deck at the end of the fight it's wrecked in, or when it's dismissed.
@@ -233,6 +234,8 @@ Starting Deck:
 13. **Peel Off** (0 Adrenaline) - While flanking with a reserved slot, drop back to it, and draw 1. Upgraded: draw 2
 14. **Point Man** (1 Adrenaline) - Deal 1 at Range 2, or 4 if your vehicle is in the ahead row. Upgraded: 2, or 5
 15. **Tail Gunner** (1 Adrenaline) - Deal 1 at Range 2, +2 if the target is in a row ahead of yours. Upgraded: +3
+16. **Juke** (1 Adrenaline) - Swerve to any adjacent slot you pick, and draw 1. Upgraded: draw 2
+17. **Fall In** (1 Adrenaline, order) - Move an escort, ready or spent, to any empty slot in your formation, without spending it. Upgraded: it also gains 3 Shield. In the reward pool only while you own an escort (1.3)
 
 ### 4.2 Uncommon Cards
 
@@ -246,6 +249,9 @@ Starting Deck:
 8. **Overtake** (3 Adrenaline) - +2 Speed for 2 turns, then Flank a slower raider, as Flank. Upgraded: 2 Adrenaline
 9. **Slipstream** (1 Adrenaline) - Move to the empty slot behind your partner's vehicle, +3 Speed for 2 turns. Upgraded: also draws 1
 10. **Weave** (1 Adrenaline) - +1 Evade until the end of the next enemy turn, +2 if your vehicle swerved this turn. Upgraded: +2, or +3
+11. **Strafe** (2 Adrenaline) - Swerve to a slot you pick, then deal 4 to a raider at Range 1 of the new slot. Upgraded: 6
+12. **Leapfrog** (1 Adrenaline) - Swap slots with your partner's vehicle or an escort next to you; neither may be flanking, and the escort isn't spent. Upgraded: 0 Adrenaline
+13. **Shoulder Check** (2 Adrenaline) - Ram a raider at Range 1 for 3, hitting as Ram does; on a hit, shove it one row ahead or behind, your pick, into an empty slot in its formation. Upgraded: 5
 
 ### 4.3 Rare Cards
 
@@ -255,6 +261,7 @@ Starting Deck:
 4. **Phoenix Protocol** - If you would die, heal to 15 HP instead (Exhaust)
 5. **Box In** (2 Adrenaline) - A raider at Range 1 can't flank until the end of the next enemy turn, so its planned flanks fizzle; Vulnerable too if both your driven vehicles are within Range 2 of it. Always hits. Upgraded: 1 Adrenaline
 6. **Formation Shift** (2 Adrenaline) - Every vehicle in your formation switches to the other lane in its row; flankers' reserved slots switch with their rows. Exhaust. Upgraded: no Exhaust
+7. **Bootlegger Turn** (2 Adrenaline) - Move to any empty slot in your formation, and +1 Evade until the end of the next enemy turn. Upgraded: 1 Adrenaline
 
 ### 4.4 Legendary Cards
 

@@ -1220,6 +1220,192 @@
       "image": "cards/overtake.png"
     },
     {
+      "type": "juke",
+      "name": "Juke",
+      "summary": "[Swerve] to any slot next to you. Draw {cards}.",
+      "description": "Swerve to any empty slot next to you in your formation: one lane over, or one row ahead or behind, never diagonal. Then draw {cards}. Unplayable while flanking, or if every slot next to you is taken or reserved.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "self",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "swerve",
+          "to": "pick",
+          "target": "self"
+        },
+        {
+          "type": "draw_cards",
+          "value": 1,
+          "target": "self"
+        }
+      ],
+      "variables": {
+        "cards": { "base": 1, "upgraded": 2 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "change_position",
+            "position": "swerve",
+            "to": "pick",
+            "target": "self"
+          },
+          {
+            "type": "draw_cards",
+            "value": 2,
+            "target": "self"
+          }
+        ]
+      },
+      "tags": ["utility", "positioning", "draw"],
+      "image": "cards/juke.png"
+    },
+    {
+      "type": "bootlegger_turn",
+      "name": "Bootlegger Turn",
+      "summary": "Move to any empty slot in formation. +1 [Evade].",
+      "description": "Move to any empty slot in your formation, however far, but never a reserved one or a shoulder. Then gain 1 Evade until the end of the next enemy turn, which adds to what an attacker's gunnery or ramming has to beat. Unplayable while flanking.",
+      "rarity": "rare",
+      "cost": 2,
+      "targetType": "self",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "move",
+          "to": "pick",
+          "target": "self"
+        },
+        {
+          "type": "apply_status",
+          "status": "evade_boost",
+          "value": 1,
+          "duration": 1,
+          "target": "self"
+        }
+      ],
+      "upgrades": {
+        "cost": 1
+      },
+      "tags": ["utility", "positioning", "defense"],
+      "image": "cards/bootlegger_turn.png"
+    },
+    {
+      "type": "strafe",
+      "name": "Strafe",
+      "summary": "[Swerve], then deal {damage} at [Range 1] of your new slot.",
+      "description": "Swerve to any empty slot next to you in your formation, then deal {damage} damage to a raider at Range 1 of that slot. Only a slot that puts a raider in reach can be picked, and the swerve happens even if the shot misses. Unplayable while flanking.",
+      "rarity": "uncommon",
+      "cost": 2,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "swerve",
+          "to": "pick",
+          "target": "self"
+        },
+        {
+          "type": "damage",
+          "value": 4,
+          "range": 1,
+          "target": "target"
+        }
+      ],
+      "variables": {
+        "damage": { "base": 4, "upgraded": 6 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "change_position",
+            "position": "swerve",
+            "to": "pick",
+            "target": "self"
+          },
+          {
+            "type": "damage",
+            "value": 6,
+            "range": 1,
+            "target": "target"
+          }
+        ]
+      },
+      "tags": ["attack", "ranged", "positioning"],
+      "image": "cards/strafe.png"
+    },
+    {
+      "type": "leapfrog",
+      "name": "Leapfrog",
+      "summary": "Swap slots with your [Partner] or an [Escort] next to you.",
+      "description": "Swap slots with your partner's vehicle, wherever it is in your formation, or with an escort next to you. Neither vehicle may be flanking, and the escort isn't spent. Both vehicles count as having swerved this turn.",
+      "rarity": "uncommon",
+      "cost": 1,
+      "targetType": "ally",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "swap",
+          "target": "target"
+        }
+      ],
+      "upgrades": {
+        "cost": 0
+      },
+      "tags": ["utility", "positioning"],
+      "image": "cards/leapfrog.png"
+    },
+    {
+      "type": "shoulder_check",
+      "name": "Shoulder Check",
+      "summary": "Ram for {damage}. [Range 1]. A hit shoves it a row ahead or behind.",
+      "description": "Ram a raider at Range 1 for {damage} damage: it hits if your ramming is at least its evade. On a hit, if it's in its formation, shove it one row ahead or behind, your pick, into an empty slot. A flanker, or a raider with no empty slot either way, just takes the hit.",
+      "rarity": "uncommon",
+      "cost": 2,
+      "targetType": "enemy_single",
+      "effects": [
+        {
+          "type": "damage",
+          "value": 3,
+          "range": 1,
+          "attack_type": "ramming",
+          "target": "target"
+        },
+        {
+          "type": "change_position",
+          "position": "swerve",
+          "to": "pick_row",
+          "target": "target",
+          "on_hit": true,
+          "optional": true
+        }
+      ],
+      "variables": {
+        "damage": { "base": 3, "upgraded": 5 }
+      },
+      "upgrades": {
+        "effects": [
+          {
+            "type": "damage",
+            "value": 5,
+            "range": 1,
+            "attack_type": "ramming",
+            "target": "target"
+          },
+          {
+            "type": "change_position",
+            "position": "swerve",
+            "to": "pick_row",
+            "target": "target",
+            "on_hit": true,
+            "optional": true
+          }
+        ]
+      },
+      "tags": ["attack", "physical", "control"],
+      "image": "cards/shoulder_check.png"
+    },
+    {
       "type": "covering_fire",
       "name": "Covering Fire",
       "summary": "Nearest [Escort] in [Range 2] of target deals {damage}.",
@@ -1320,6 +1506,42 @@
       },
       "tags": ["order", "defense", "shield"],
       "image": "cards/close_ranks.png"
+    },
+    {
+      "type": "fall_in",
+      "name": "Fall In",
+      "summary": "Move an [Escort] to any empty slot. Doesn't spend it.",
+      "description": "Target escort in your convoy, ready or spent, moves to any empty slot in your formation, however far, but never a reserved one or a shoulder. It isn't spent and can still act this turn. A flanking escort can't be moved.",
+      "rarity": "common",
+      "cost": 1,
+      "targetType": "escort",
+      "effects": [
+        {
+          "type": "change_position",
+          "position": "move",
+          "to": "pick",
+          "target": "target"
+        }
+      ],
+      "upgrades": {
+        "summary": "Move an [Escort] to any empty slot. +3 [Shield]. Not spent.",
+        "description": "Target escort in your convoy, ready or spent, moves to any empty slot in your formation, however far, but never a reserved one or a shoulder, then gains 3 Shield. It isn't spent and can still act this turn. A flanking escort can't be moved.",
+        "effects": [
+          {
+            "type": "change_position",
+            "position": "move",
+            "to": "pick",
+            "target": "target"
+          },
+          {
+            "type": "gain_shield",
+            "value": 3,
+            "target": "target"
+          }
+        ]
+      },
+      "tags": ["order", "positioning"],
+      "image": "cards/fall_in.png"
     },
     {
       "type": "triage",

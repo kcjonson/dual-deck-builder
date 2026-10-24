@@ -445,7 +445,7 @@ Record: heavy-armor.md. Calls 277 to 279 are settled and in Combat Rules.
 
 280. DDB-164: Heavy shows as a chip in the vehicle's status row, after Shield, counting the armor past base, and the plate's armor shield turns amber while it's Heavy, because the status row is where the speed statuses it cancels already sit.
 
-## Movement cards (287 to 333)
+## Movement cards (287 to 342)
 
 Record: movement-cards.md. The draft is in Combat Rules (Swerving, and Movement cards under Cards), whose open questions these answer. Calls 281 to 286 are settled and in Combat Rules.
 
@@ -475,3 +475,6 @@ Record: movement-cards.md. The draft is in Combat Rules (Swerving, and Movement 
 331. DDB-546: a raider card that swerves and also attacks, debuffs, or defends (Strafe, Cut Off, Hard Brake) keeps that intent, its pill led by the swerve icon, and only a card whose swerve is the strongest thing it does (Lane Change, Floor It, Juke) is a move intent, because the pill's number is what the player plans around and the outline already shows where the raider goes.
 332. DDB-546: elites and bosses show a planned swerve's icon and its outlined slot, hiding only the card and its label as for any intent, because where a raider is going is like a target mark, which elites show.
 333. DDB-546: a stale swerve fizzles its whole card, so a fizzled Floor It gains no speed, Hard Brake no Shield, and Juke draws nothing, because a fizzled planned card is spent and does nothing.
+340. DDB-551: a passenger's Juke, Bootlegger Turn, and Leapfrog move the vehicle they ride in, and a passenger can play Fall In like any order, while Strafe and Shoulder Check are attacks a passenger can't play, because call 315 already has every card a passenger plays on themself land on the vehicle they ride in.
+341. DDB-551: Leapfrog greys out in the hand when nobody can swap with you (your vehicle or your partner's flanking, no escort next to you), and Fall In when no escort of yours can move (none in formation, or no empty slot), because call 285 greys out a move with nowhere legal to go before you commit, and both cards only ever move vehicles on your own side, so the hand can tell.
+342. DDB-551: Strafe's attack rolls gunnery against evade like any ranged attack, and its swerve happens hit or miss, because Combat Rules lists it as a Ranged Attack without "Always hits", and the swerve comes first on the card.

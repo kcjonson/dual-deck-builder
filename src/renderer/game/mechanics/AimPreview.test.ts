@@ -7,7 +7,6 @@ import { Vehicle } from './Vehicle';
 import { LONGEST_REACH, previewAim, previewDestination } from './AimPreview';
 import { createEscort } from './Escort';
 import { createTestDriver } from '../ai/__tests__/test-helpers';
-import { fallIn, juke, shoulderCheck, strafe } from '../screens/combat/__fixtures__/movementCards';
 import cardsFile from '../data/cards.json';
 
 /**
@@ -46,10 +45,18 @@ const attack = (name: string, effects: CardEffect[]): Card => new Card({
 	tags: ['attack']
 });
 
-/** Cut Off as cards.json has it: a swerve ahead, then Range 1 statuses on the target. */
-const cutOffData = (cardsFile as unknown as { cards: CardData[] }).cards.find(candidate => candidate.type === 'cut_off');
-if (!cutOffData) throw new Error('No cut_off in cards.json');
-const cutOff = new Card({ ...cutOffData });
+/** A fresh copy of a card as cards.json has it */
+const realCard = (type: string) => (): Card => {
+	const data = (cardsFile as unknown as { cards: CardData[] }).cards.find(candidate => candidate.type === type);
+	if (!data) throw new Error(`No ${type} in cards.json`);
+	return new Card({ ...data });
+};
+/** A swerve ahead, then Range 1 statuses on the target */
+const cutOff = realCard('cut_off')();
+const juke = realCard('juke');
+const strafe = realCard('strafe');
+const fallIn = realCard('fall_in');
+const shoulderCheck = realCard('shoulder_check');
 
 const driverOf = (vehicle: Vehicle): Driver => {
 	if (!vehicle.driver) throw new Error(`${vehicle.name} has no driver`);
@@ -147,6 +154,8 @@ describe('previewAim', () => {
 
 		test('reads Strafe\'s range from the slot it picks, and its damage only lands from there', () => {
 			buggy.set({ slot: { lane: RoadLane.ENEMY_INSIDE, row: RoadRow.AHEAD } });
+			// Strafe rolls gunnery against evade 5
+			driverOf(rig).set({ skills: { ...driverOf(rig).skills, gunnery: 9 } });
 			const card = strafe();
 			// Two from where the Rig is; one from inside ahead, three from outside center
 			const fromAhead = previewAim({ battle, driver: driverOf(rig), card, target: buggy, destination: ahead });
