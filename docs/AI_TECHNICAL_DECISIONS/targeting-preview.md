@@ -16,7 +16,7 @@ The screen works out a preview per raider once, when the card is picked, and rea
 
 ### Only legal targets
 
-`CombatScreen.determineTargetableVehicles` picks the card's side of the road by target type, then keeps only the vehicles `Battle.getTargetBlocker` passes, the same rule `playCard` checks. Drag, click, and keyboard all read `targetableVehicleIds`, so none can offer a target play would refuse. DDB-114's engine half was fixed earlier (74b81a3, the target is checked before the card is spent); this closes the screen half.
+`targetableVehicleIds` (`screens/combat/cardTargets.ts`) picks the card's side of the road by target type, then keeps only the vehicles `Battle.getTargetBlocker` passes, the same rule `playCard` checks. Drag, click, and keyboard all read `targetableVehicleIds`, so none can offer a target play would refuse. DDB-114's engine half was fixed earlier (74b81a3, the target is checked before the card is spent); this closes the screen half.
 
 ### Range chips live in the token
 
