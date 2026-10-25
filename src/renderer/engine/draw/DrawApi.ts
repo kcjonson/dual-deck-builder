@@ -29,6 +29,7 @@ import {
 	BoxShadow,
 	CornerColors,
 	CornerRadii,
+	Dash,
 	DrawCircleOptions,
 	DrawCommand,
 	DrawGroupRole,
@@ -41,6 +42,7 @@ import {
 	FontAtlasHandle,
 	MeasureTextOptions,
 	NineSlice,
+	ResolvedDash,
 	ResolvedState,
 	TextMetrics,
 	TextureHandle,
@@ -693,6 +695,7 @@ export class DrawApi {
 			color: copyColor(options.color),
 			width: options.width,
 			cap: options.cap ?? 'butt',
+			dash: copyDash(options.dash),
 		});
 	}
 
@@ -707,7 +710,8 @@ export class DrawApi {
 			id: options.id,
 			blend: options.blend,
 			group: 'primary',
-			ink: pointsInk(options.points, options.width),
+			// R5.16a: a dashed line's joint is mitered up to a right angle, its tip half the width times root 2 out
+			ink: pointsInk(options.points, options.dash ? options.width * Math.SQRT2 : options.width),
 		});
 		if (!state) return;
 		this.emit({
@@ -718,6 +722,7 @@ export class DrawApi {
 			width: options.width,
 			closed: options.closed ?? false,
 			cap: options.cap ?? 'butt',
+			dash: copyDash(options.dash),
 		});
 	}
 
@@ -1097,6 +1102,11 @@ function copyBorder(border: Border | undefined): Border | null {
 	// R5.7: `inside` is the default because nearly every component in this
 	// codebase overrides worldsim's `center` to it.
 	return { color: copyColor(border.color), width: border.width, position: border.position ?? 'inside' };
+}
+
+function copyDash(dash: Dash | undefined): ResolvedDash | null {
+	if (!dash) return null;
+	return { length: dash.length, gap: dash.gap, offset: dash.offset ?? 0 };
 }
 
 function copyGradient(gradient: CornerColors | undefined): CornerColors | null {

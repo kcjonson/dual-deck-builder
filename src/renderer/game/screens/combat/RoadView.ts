@@ -9,7 +9,7 @@ import type { Rect, Vec2 } from '../../../engine/draw/geometry';
 import { tokens } from '../../../engine/theme/tokens';
 import { Vehicle as VehicleData } from '../../mechanics/Vehicle';
 import { LANE_ORDER, RoadLane, RoadRow, RoadSlot, isShoulder, sameSlot } from '../../mechanics/Road';
-import { Vehicle as VehicleUI } from '../../ui/Vehicle';
+import { Vehicle as VehicleUI, VehicleSide } from '../../ui/Vehicle';
 import { SlotTarget } from '../../ui/SlotTarget';
 import type { EnemyIntent, IntentRow } from '../../ui/IntentPill';
 import type { Driver } from '../../mechanics/Driver';
@@ -211,6 +211,11 @@ export class RoadView extends Component {
 		return roadSlotRect(this.currentLayout, slot, out);
 	}
 
+	/** Whose formation a slot is in, which colours it as that side's vehicles are while a card is aimed. */
+	private slotSide(slot: RoadSlot): VehicleSide {
+		return LANE_LOOKS[slot.lane].side === 'enemy' ? 'raider' : 'player';
+	}
+
 	/** How far the road art runs past each side of the view, to the screen's edges. */
 	public get bleed(): number {
 		return this.sideBleed;
@@ -351,7 +356,7 @@ export class RoadView extends Component {
 			const target = new SlotTarget({
 				id: this.partId(`slot_target_${slot.lane}_${slot.row}`),
 				slot,
-				side: LANE_LOOKS[slot.lane].side === 'enemy' ? 'raider' : 'player',
+				side: this.slotSide(slot),
 				combatData: this.combatData,
 				picked: chosen,
 			});

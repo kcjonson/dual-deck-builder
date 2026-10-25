@@ -34,6 +34,9 @@ export class PlayerHandLayer extends Stack {
 	private builtElements = 0;
 	private playableCardIds: Set<string> = new Set();
 	private unaffordableCardIds: Set<string> = new Set();
+	private blockLabels: Map<string, string> = new Map();
+	/** The card most recently presented (pointed at or focused while playable), while it still is. */
+	private presentedElement: UICard | null = null;
 	private readonly halves: Record<DriverSeat, HandHalf>;
 
 	// Callbacks
@@ -48,6 +51,8 @@ export class PlayerHandLayer extends Stack {
 	public onOpenPiles: ((seat: DriverSeat) => void) | null = null;
 	/** Cards gone from the hand since the last deal, told before the hand deals again. */
 	public onCardsLeave: ((leaving: LeavingCard[]) => void) | null = null;
+	/** The presented card (`presentedCard`) may have changed. */
+	public onPresentedChange: (() => void) | null = null;
 
 	// Selection state
 	private heldCard: Card | null = null; // The card player has selected to play (waiting for target)
@@ -92,7 +97,7 @@ export class PlayerHandLayer extends Stack {
 	 * Show both drivers' cards, each in its driver's half, with the
 	 * unplayable ones disabled
 	 */
-	public set hand({ cards, seatOf, playable, unaffordable }: PlayerHandView) {
+	public set hand({ cards, seatOf, playable, unaffordable, blocked }: PlayerHandView) {
 		// Cards that left since the last deal, while their elements still sit
 		// in the fan, so whoever listens can see where they were
 		if (this.onCardsLeave) {
@@ -108,6 +113,7 @@ export class PlayerHandLayer extends Stack {
 		this.cardDriverMap = seatOf;
 		this.playableCardIds = playable;
 		this.unaffordableCardIds = unaffordable;
+		this.blockLabels = blocked;
 		this.createCardElements();
 	}
 
@@ -240,6 +246,11 @@ export class PlayerHandLayer extends Stack {
 			if (event.button > 0) this.onOtherButton?.();
 		};
 		cardElement.onDragEnd = (event) => this.onCardDragEnd?.(card, event);
+		cardElement.onPresentedChange = (presented) => {
+			if (presented) this.presentedElement = cardElement;
+			else if (this.presentedElement === cardElement) this.presentedElement = this.cardElements.find(element => element.presented) ?? null;
+			this.onPresentedChange?.();
+		};
 		cardElement.onSelect = () => {
 			if (this.canPlayCard(card) && this.onCardSelect) {
 				this.onCardSelect(card);
@@ -273,7 +284,20 @@ export class PlayerHandLayer extends Stack {
 			cardElement.selected = selected;
 			cardElement.enabled = this.targeting ? selected : this.canPlayCard(card);
 			cardElement.unaffordable = this.unaffordableCardIds.has(card.id);
+			cardElement.blockLabel = this.blockLabels.get(card.id) ?? null;
 		});
+	}
+
+	/**
+	 * The card pointed at or keyboard-focused while it can be played, whose
+	 * targets the screen previews (section 6); the latest one when the
+	 * pointer and focus are on two. Null when there's none.
+	 */
+	public get presentedCard(): Card | null {
+		const element = this.presentedElement;
+		if (!element?.presented) return null;
+		const index = this.cardElements.indexOf(element);
+		return index >= 0 ? this.dealtCards[index] : null;
 	}
 
 	/** The slot `card` holds in the hand, or -1. */

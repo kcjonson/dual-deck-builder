@@ -831,9 +831,10 @@ export class Battle extends Model<BattleData> {
 	 * Why a card can't be played at all right now, whatever its target, or
 	 * null if it can. The driver's own checks (life, cost, the passenger
 	 * gate) are Driver.getPlayBlocker; these need the convoy. A signature
-	 * card needs a living escort of its type, and Rally the Convoy a ready
-	 * escort to fire. A flank card can't move a vehicle already on the
-	 * shoulder, a card that swerves its caster can't be played by a flanker
+	 * card needs a living escort of its type, Rally the Convoy a ready escort
+	 * to fire, and an attack order a ready one (of its type, for a signature
+	 * order) to carry it out. A flank card can't move a vehicle already on
+	 * the shoulder, a card that swerves its caster can't be played by a flanker
 	 * or when the swerve has nowhere legal to go, Peel Off needs a flanker
 	 * with a reserved slot, and Leapfrog and Fall In need someone they could
 	 * move (BoardProjection.moveBlocker), so the hand greys each out. An
@@ -862,8 +863,10 @@ export class Battle extends Model<BattleData> {
 		if (signatureOf && !escorts.some(escort => !escort.isOutOfFight && escort.escort?.type === signatureOf)) {
 			return `${card.name} needs a living ${ESCORT_CONFIGS[signatureOf].name} in the convoy`;
 		}
-		if (card.isOrder && card.targetType === 'enemy_all' && !escorts.some(escort => escort.isReady)) {
-			return `${card.name} needs a ready escort`;
+		// Rally the Convoy fires every ready escort, and an attack order needs one to carry it out
+		if ((card.isOrder && card.targetType === 'enemy_all') || this.isAttackOrder(card)) {
+			const carriers = escorts.filter(escort => escort.isReady && (!signatureOf || escort.escort?.type === signatureOf));
+			if (carriers.length === 0) return `${card.name} needs a ready ${signatureOf ? ESCORT_CONFIGS[signatureOf].name : 'escort'}`;
 		}
 		return null;
 	}
@@ -871,8 +874,8 @@ export class Battle extends Model<BattleData> {
 	/**
 	 * Whether a driver could play this card now, given a legal target
 	 */
-	public canPlayCard({ driver, card }: { driver: Driver; card: Card }): boolean {
-		return driver.canPlayCard(card) && this.getCardBlocker({ driver, card }) === null;
+	public canPlayCard({ driver, card, board }: { driver: Driver; card: Card; board?: BoardProjection }): boolean {
+		return driver.canPlayCard(card) && this.getCardBlocker({ driver, card, board }) === null;
 	}
 
 	/**
@@ -880,12 +883,13 @@ export class Battle extends Model<BattleData> {
 	 * the same rule playCard checks, for the combat screen's highlights. For
 	 * a card that moves its caster first (Strafe, Cut Off), range counts from
 	 * where the move lands: the picked `destination`, or until one is picked
-	 * any slot the card could pick.
+	 * any slot the card could pick. A caller asking about many targets at
+	 * once passes one `board` for them all.
 	 */
-	public getTargetBlocker({ driver, card, target, destination = null }: { driver: Driver; card: Card; target: Vehicle; destination?: RoadSlot | null }): string | null {
+	public getTargetBlocker({ driver, card, target, destination = null, board }: { driver: Driver; card: Card; target: Vehicle; destination?: RoadSlot | null; board?: BoardProjection }): string | null {
 		const casterVehicle = this.getVehicleForDriver(driver);
 		if (!casterVehicle) return `${driver.metadata.name} is not in a vehicle`;
-		return new BoardProjection({ battle: this }).targetBlocker({ card, caster: casterVehicle, target, destination });
+		return (board ?? new BoardProjection({ battle: this })).targetBlocker({ card, caster: casterVehicle, target, destination });
 	}
 
 	/**
@@ -894,11 +898,11 @@ export class Battle extends Model<BattleData> {
 	 * their vehicle `target` is known). Empty for a card that picks no slot,
 	 * or one whose mover has nowhere legal to go.
 	 */
-	public moveDestinations({ driver, card, target = null }: { driver: Driver; card: Card; target?: Vehicle | null }): RoadSlot[] {
+	public moveDestinations({ driver, card, target = null, board }: { driver: Driver; card: Card; target?: Vehicle | null; board?: BoardProjection }): RoadSlot[] {
 		const move = pickedMoveOf(card);
 		const mover = move?.mover === 'target' ? target : this.getVehicleForDriver(driver);
 		if (!move || !mover) return [];
-		return new BoardProjection({ battle: this }).moveDestinations({ move, mover });
+		return (board ?? new BoardProjection({ battle: this })).moveDestinations({ move, mover });
 	}
 
 	/**
@@ -909,10 +913,10 @@ export class Battle extends Model<BattleData> {
 	 * is skipped, so the card plays without a slot (call 293). Pass the
 	 * card's `target` once it's known, for a move that moves the target.
 	 */
-	public needsDestination({ driver, card, target = null }: { driver: Driver; card: Card; target?: Vehicle | null }): boolean {
+	public needsDestination({ driver, card, target = null, board }: { driver: Driver; card: Card; target?: Vehicle | null; board?: BoardProjection }): boolean {
 		const move = pickedMoveOf(card);
 		if (!move) return false;
-		return !move.optional || this.moveDestinations({ driver, card, target }).length > 0;
+		return !move.optional || this.moveDestinations({ driver, card, target, board }).length > 0;
 	}
 
 	/**

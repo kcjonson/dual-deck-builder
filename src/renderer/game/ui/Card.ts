@@ -16,6 +16,7 @@ import { KeywordText } from './KeywordText';
 import { dashedOutlineTriangles } from './stripes';
 import { STATUS_TAG_HEIGHT, StatusTagDraw } from './statusTag';
 import { CardBase } from './CardBase';
+import { BLOCK_STRIP, CardBlockStrip } from './CardBlockStrip';
 import {
 	CARD_DIM,
 	CARD_DIM_FILLS,
@@ -424,6 +425,10 @@ export class Card extends CardBase<GameCard> {
 
 	private dimmed = false;
 	private cannotPay = false;
+	private blockStrip: CardBlockStrip | null = null;
+	private presentedState = false;
+	/** Told when `presented` changes. */
+	public onPresentedChange: ((presented: boolean) => void) | null = null;
 	private rises: boolean;
 
 	private pose: FanPose = UNFANNED;
@@ -701,6 +706,7 @@ export class Card extends CardBase<GameCard> {
 	protected onStateChange(): void {
 		super.onStateChange();
 		this.liftTo(this.liftTarget);
+		this.present((this.hovered || this.focusVisible) && this.effectivelyEnabled);
 	}
 
 	/**
@@ -816,6 +822,36 @@ export class Card extends CardBase<GameCard> {
 	public set unaffordable(unaffordable: boolean) {
 		this.cannotPay = unaffordable;
 		this.digitsDraw.color = resolveColor(unaffordable ? COST_DIGITS_UNPAYABLE : COST_DIGITS);
+	}
+
+	/** Why the card can't be played now, on a strip across its art ("NO TARGET"); null for none. A face only. */
+	public get blockLabel(): string | null {
+		return this.blockStrip?.text ?? null;
+	}
+
+	public set blockLabel(label: string | null) {
+		if (label === this.blockLabel) return;
+		if (label !== null && !this.blockStrip) {
+			if (this.cardSize === CardSize.MINI) throw new Error('only a card face shows why it is blocked');
+			// Built the first time a card is blocked, after the art icon so it covers it
+			this.blockStrip = new CardBlockStrip({ id: this.childId('block'), x: BLOCK_STRIP.x, y: BLOCK_STRIP.y, width: this.width - BLOCK_STRIP.x * 2 });
+			this.addChild(this.blockStrip);
+		}
+		if (this.blockStrip) this.blockStrip.text = label;
+	}
+
+	/**
+	 * Pointed at or keyboard-focused while it can be used: the card a hand
+	 * shows its targets for (section 6). `onPresentedChange` hears it change.
+	 */
+	public get presented(): boolean {
+		return this.presentedState;
+	}
+
+	private present(presented: boolean): void {
+		if (presented === this.presentedState) return;
+		this.presentedState = presented;
+		this.onPresentedChange?.(presented);
 	}
 
 	/**
@@ -1001,9 +1037,10 @@ export class Card extends CardBase<GameCard> {
 		return this.mini?.contains(localX, localY) ?? false;
 	}
 
-	/** Drops the lift tween with the card: the base cancels it on unmount. */
+	/** Drops the lift tween with the card: the base cancels it on unmount, and clears hover and focus without a state change. */
 	protected onUnmount(): void {
 		this.liftTween = null;
+		this.present(false);
 		super.onUnmount();
 	}
 

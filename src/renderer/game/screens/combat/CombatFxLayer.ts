@@ -4,7 +4,7 @@ import { Text } from '../../../engine/components/Text';
 import type { MountContext } from '../../../engine/components/MountContext';
 import { linear } from '../../../engine/animation/easing';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
-import type { DrawCircleOptions, DrawPolygonOptions, DrawRectOptions, DrawTextOptions } from '../../../engine/draw/commands';
+import type { Dash, DrawCircleOptions, DrawPolygonOptions, DrawPolylineOptions, DrawRectOptions, DrawTextOptions } from '../../../engine/draw/commands';
 import type { RGBA, Rect, Vec2 } from '../../../engine/draw/geometry';
 import { resolveColor } from '../../../engine/style/styleObject';
 import { tokens } from '../../../engine/theme/tokens';
@@ -14,19 +14,29 @@ import { DiscardFlight } from './DiscardFlight';
 import type { Card as UICard } from '../../ui/Card';
 
 /** The mock's targeting line: round dots 5 across every 12, and a head 16 long. */
-const DOT_RADIUS = 2.5;
-const DOT_SPACING = 12;
-const HEAD_LENGTH = 16;
+export const DOT_RADIUS = 2.5;
+export const DOT_SPACING = 12;
+export const HEAD_LENGTH = 16;
+/**
+ * The dots as a line style (R2.10a): zero-length dashes with round caps,
+ * the line's width across, the first half a space in.
+ */
+export const DOTTED: Dash = { length: 0, gap: DOT_SPACING, offset: DOT_SPACING / 2 };
+/**
+ * An unbroken line through the dash style (R2.10a), for a translucent line
+ * of many segments: its joints never overlap, so it doesn't darken at them.
+ */
+export const UNBROKEN: Dash = { length: 1, gap: 0 };
 const HEAD_HALF_WIDTH = 10;
 const RETICLE_SIZE = 20;
 const RETICLE_RING = 2;
-/** Samples along the curve for spacing its dots evenly. */
+/** Samples along the curve for the line its dots are drawn on. */
 const CURVE_SAMPLES = 48;
 /** Over a target that accepts the card, the mock's `#ff6a55`; anywhere else, bone at 60%. */
 const ON_TARGET: RGBA = resolveColor('#ff6a55');
 const OFF_TARGET: RGBA = resolveColor('rgba(233, 228, 214, 0.6)');
 const CLEAR: RGBA = [0, 0, 0, 0];
-const HEAD_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
+export const HEAD_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
 
 /**
  * The mock's `.dmgpop`: 30 px display type with a hard drop shadow. The
@@ -125,12 +135,13 @@ export class TargetingArrow extends Component {
 	private reticle: AimReticle;
 	private readonly curve: MutableCurve = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
 	private readonly path = new CurvePath();
-	private readonly dots: Vec2[] = [];
+	private readonly points: Vec2[] = [];
+	private readonly lineLists: Vec2[][] = [];
 	private readonly head: [Vec2, Vec2, Vec2] = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
 	private readonly cardTop: Vec2 = { x: 0, y: 0 };
 	private readonly from: Vec2 = { x: 0, y: 0 };
 	private readonly to: Vec2 = { x: 0, y: 0 };
-	private readonly dot: DrawCircleOptions & { center: Vec2; fill: RGBA } = { center: { x: 0, y: 0 }, radius: DOT_RADIUS, fill: OFF_TARGET };
+	private readonly line: DrawPolylineOptions & { color: RGBA } = { points: [], color: OFF_TARGET, width: DOT_RADIUS * 2, cap: 'round', dash: DOTTED };
 	private readonly headShape: DrawPolygonOptions & { points: Vec2[] };
 
 	constructor({ reticle, ...options }: ComponentOptions & { reticle: AimReticle }) {
@@ -178,17 +189,29 @@ export class TargetingArrow extends Component {
 		const color = aimColor(this, this.pinnedOnTarget);
 		targetingCurve(from, to, this.curve);
 
-		const count = this.path.dotsAlong(this.curve, HEAD_LENGTH, this.dots);
-		this.dot.fill = color;
-		for (let index = 0; index < count; index++) {
-			this.dot.center.x = this.dots[index].x;
-			this.dot.center.y = this.dots[index].y;
-			draw.drawCircle(this.dot);
+		// The curve as one dotted polyline, up to the head
+		const count = this.path.pointsAlong(this.curve, HEAD_LENGTH, this.points);
+		if (count > 1) {
+			this.line.points = leading(this.points, count, this.lineLists);
+			this.line.color = color;
+			draw.drawPolyline(this.line);
 		}
 		arrowHead(this.curve, this.head);
 		this.headShape.fill = color;
 		draw.drawPolygon(this.headShape);
 	}
+}
+
+/**
+ * The first `count` of `buffer`, as a list exactly that long for a draw that
+ * reads a whole list (`drawPolyline`): the list for each length is built
+ * once, in `lists`, and refilled, so a frame allocates nothing once every
+ * length has been seen.
+ */
+export function leading<T>(buffer: readonly T[], count: number, lists: T[][]): T[] {
+	const list = lists[count] ??= new Array<T>(count);
+	for (let index = 0; index < count; index++) list[index] = buffer[index];
+	return list;
 }
 
 /**
@@ -231,18 +254,19 @@ export function pointOnCurve([p0, p1, p2]: Curve, t: number, out: Vec2 = { x: 0,
 	return out;
 }
 
-/** The arc-length table a curve's dots are spaced by, kept between frames. */
+/** The samples a curve's line is drawn through, and their arc lengths, kept between frames. */
 class CurvePath {
 	private readonly points: Vec2[] = Array.from({ length: CURVE_SAMPLES + 1 }, () => ({ x: 0, y: 0 }));
 	private readonly distances = new Float64Array(CURVE_SAMPLES + 1);
 
 	/**
-	 * Dot centres every `DOT_SPACING` along the curve by arc length, starting
-	 * half a space in and stopping `clearance` short of the end, where the
-	 * head is. Writes them into `out`, growing it only past its longest
-	 * line so far, and returns how many it wrote.
+	 * The curve as a line of points from its start to `clearance` short of
+	 * its end, where the head is: every sample before that, then the point
+	 * there. Writes them into `out`, growing it only past its longest line
+	 * so far, and returns how many it wrote; none when the curve is no
+	 * longer than the clearance.
 	 */
-	public dotsAlong(curve: Curve, clearance: number, out: Vec2[]): number {
+	public pointsAlong(curve: Curve, clearance: number, out: Vec2[]): number {
 		const { points, distances } = this;
 		pointOnCurve(curve, 0, points[0]);
 		distances[0] = 0;
@@ -251,28 +275,32 @@ class CurvePath {
 			const previous = points[step - 1];
 			distances[step] = distances[step - 1] + Math.hypot(point.x - previous.x, point.y - previous.y);
 		}
-		const length = distances[CURVE_SAMPLES];
+		const end = distances[CURVE_SAMPLES] - clearance;
+		if (end <= 0) return 0;
 		let count = 0;
-		let segment = 1;
-		for (let distance = DOT_SPACING / 2; distance <= length - clearance; distance += DOT_SPACING) {
-			while (segment < CURVE_SAMPLES && distances[segment] < distance) segment++;
-			const a = points[segment - 1];
-			const b = points[segment];
-			const span = distances[segment] - distances[segment - 1];
-			const t = span > 0 ? (distance - distances[segment - 1]) / span : 0;
+		let segment = 0;
+		while (segment < CURVE_SAMPLES && distances[segment] < end) {
 			if (count === out.length) out.push({ x: 0, y: 0 });
-			out[count].x = a.x + (b.x - a.x) * t;
-			out[count].y = a.y + (b.y - a.y) * t;
+			out[count].x = points[segment].x;
+			out[count].y = points[segment].y;
 			count++;
+			segment++;
 		}
-		return count;
+		const a = points[segment - 1];
+		const b = points[segment];
+		const span = distances[segment] - distances[segment - 1];
+		const t = span > 0 ? (end - distances[segment - 1]) / span : 0;
+		if (count === out.length) out.push({ x: 0, y: 0 });
+		out[count].x = a.x + (b.x - a.x) * t;
+		out[count].y = a.y + (b.y - a.y) * t;
+		return count + 1;
 	}
 }
 
-/** The dots along `curve`, as a fresh list: `CurvePath.dotsAlong` for callers that keep no buffers. */
-export function dotsAlong(curve: Curve, clearance: number): Vec2[] {
+/** The line along `curve` to `clearance` short of its end, as a fresh list: `CurvePath.pointsAlong` for callers that keep no buffers. */
+export function pointsAlong(curve: Curve, clearance: number): Vec2[] {
 	const out: Vec2[] = [];
-	out.length = new CurvePath().dotsAlong(curve, clearance, out);
+	out.length = new CurvePath().pointsAlong(curve, clearance, out);
 	return out;
 }
 

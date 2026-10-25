@@ -8,6 +8,7 @@ import { committedFontAtlas, syntheticFontAtlas } from '../text/testing';
 import { RasterGlyphPage } from './RasterGlyphPage';
 import { fromHalf, toUnorm8 } from './packing';
 import {
+	DASH_FLAGS,
 	UBER_ATTRIBUTES,
 	UBER_FLAGS,
 	UBER_INSTANCE,
@@ -398,6 +399,115 @@ describe('UberGeometryEncoder: circle and lines (R5.15, R5.16)', () => {
 		expect(first.outset).toBe(1);
 		expect(first.local(0)).toEqual([-12, -12]);
 		expect(first.corners[0]).toEqual([38, 48]);
+	});
+
+	it('writes a dashed polyline as one group of dash-mode segments, each with its phase, its joints, and the dashes on it (R5.16a)', () => {
+		const { draw } = setup();
+		// 10 along, then 15 down, then 7 along: a 4 on, 3 off pattern, 2 into it at the start
+		const points = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 15 }, { x: 17, y: 15 }];
+		const upload = draw((api) => api.drawPolyline({ points, color: RED, width: 2, cap: 'round', dash: { length: 4, gap: 3, offset: 2 } }));
+		expect(upload.upload.groups).toBe(1);
+		expect(upload.count).toBe(3);
+		const segments = [0, 1, 2].map((index) => instance(upload, index));
+		for (const segment of segments) expect(segment.mode).toBe(UBER_MODE.dash);
+		// Half the segment's length, and how far into its first period it starts: 2, 12 mod 7, 27 mod 7
+		expect(segments.map((segment) => segment.halfSize)).toEqual([[5, 2], [7.5, 5], [3.5, 6]]);
+		// Each first period's dash started before the segment; the second's and third's ended before it too
+		const { round, openStart, openEnd, startedBefore, endedBefore } = DASH_FLAGS;
+		expect(segments.map((segment) => segment.radii)).toEqual([
+			[4, 3, 1, round + openStart + startedBefore],
+			[4, 3, 1, round + startedBefore + endedBefore],
+			[4, 3, 1, round + openEnd + startedBefore + endedBefore],
+		]);
+		// The joints' half-turn tangents, a right angle each way, and the last dash to start on each
+		expect(segments.map((segment) => [segment.borderWidth, segment.outset, segment.sigma])).toEqual([[0, 1, 1], [-1, -1, 2], [1, 0, 1]]);
+		// The quad reaches a cap past each end, and a device pixel more
+		expect(segments[0].local(0)).toEqual([-(5 + 1 + 1), -(1 + 1)]);
+		expect(segments[0].colors[0]).toEqual(pm(RED));
+	});
+
+	it('writes a dashed line as one segment open at both ends, its first dash cut where the offset starts it', () => {
+		const { draw } = setup();
+		const first = instance(draw((api) => {
+			api.drawLine({ from: { x: 0, y: 0 }, to: { x: 30, y: 0 }, color: RED, width: 4, dash: { length: 6, gap: 5, offset: 13 } });
+		}), 0);
+		expect(first.mode).toBe(UBER_MODE.dash);
+		expect(first.halfSize).toEqual([15, 2]);
+		expect(first.radii).toEqual([6, 5, 2, DASH_FLAGS.openStart + DASH_FLAGS.openEnd + DASH_FLAGS.startedBefore]);
+		// Dashes 0 to 2 of its first period start on it; 3 would start at 31
+		expect(first.sigma).toBe(2);
+	});
+
+	it('gives a dash across a joint its start on the segment it starts on and its end on the next', () => {
+		const { draw } = setup();
+		// 6 on, 4 off, 3 in: the dash from 7 to 13 crosses the joint at 10
+		const upload = draw((api) => api.drawPolyline({ points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 }], color: RED, width: 2, dash: { length: 6, gap: 4, offset: 3 } }));
+		const [first, second] = [0, 1].map((index) => instance(upload, index));
+		const { openStart, openEnd, startedBefore, runsOn } = DASH_FLAGS;
+		expect(first.radii[3]).toBe(openStart + startedBefore + runsOn);
+		expect(second.radii[3]).toBe(openEnd + startedBefore + runsOn);
+		expect([first.sigma, second.sigma]).toEqual([1, 1]);
+		// Straight on: the joint's bisector is square to both
+		expect([first.outset, second.borderWidth]).toEqual([0, 0]);
+	});
+
+	it('caps a closed dashed line where its pattern starts, and joins an unbroken one there', () => {
+		const { draw } = setup();
+		const points = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 10 }];
+		const flagsOf = (dash: { length: number; gap: number }) => {
+			const upload = draw((api) => api.drawPolyline({ points, closed: true, color: RED, width: 2, dash }));
+			expect(upload.count).toBe(4);
+			return [0, 1, 2, 3].map((index) => instance(upload, index));
+		};
+		const has = (flags: number, flag: number) => (flags & flag) !== 0;
+		const dashed = flagsOf({ length: 4, gap: 3 });
+		expect(dashed.map((segment) => has(segment.radii[3], DASH_FLAGS.openStart))).toEqual([true, false, false, false]);
+		expect(dashed.map((segment) => has(segment.radii[3], DASH_FLAGS.openEnd))).toEqual([false, false, false, true]);
+		const unbroken = flagsOf({ length: 1, gap: 0 });
+		for (const segment of unbroken) {
+			expect(has(segment.radii[3], DASH_FLAGS.unbroken)).toBe(true);
+			expect(has(segment.radii[3], DASH_FLAGS.openStart) || has(segment.radii[3], DASH_FLAGS.openEnd)).toBe(false);
+		}
+		// The corner the line closes on is joined at its bisector from both sides
+		expect([unbroken[3].outset, unbroken[0].borderWidth]).toEqual([1, -1]);
+	});
+
+	it('rounds a joint sharper than a right angle from the segment before it', () => {
+		const { draw } = setup();
+		const upload = draw((api) => api.drawPolyline({ points: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 2 }], color: RED, width: 2, dash: { length: 1, gap: 0 } }));
+		const [first, second] = [0, 1].map((index) => instance(upload, index));
+		expect(first.radii[3] & DASH_FLAGS.joinDisc).toBe(DASH_FLAGS.joinDisc);
+		expect(second.radii[3] & DASH_FLAGS.joinDisc).toBe(0);
+		expect([first.outset, second.borderWidth]).toEqual([0, 0]);
+	});
+
+	it('lays a dash out in the line\'s own units under a transform, its quad padded by a device pixel', () => {
+		const { draw } = setup();
+		const first = instance(draw((api) => {
+			api.pushTransform([2, 0, 0, 2, 0, 0]);
+			api.drawLine({ from: { x: 0, y: 0 }, to: { x: 10, y: 0 }, color: RED, width: 2, dash: { length: 3, gap: 2 } });
+			api.popTransform();
+		}), 0);
+		expect(first.halfSize).toEqual([5, 0]);
+		expect(first.local(0)).toEqual([-(5 + 1 + 0.5), -(1 + 0.5)]);
+		expect(first.corners[0]).toEqual([-3, -3]);
+	});
+
+	it('paints nothing for a dash the shader can\'t draw, and says why', () => {
+		const { encode, unpaintable } = setup();
+		const line = (width: number, to: number, dash: { length: number; gap: number }) => encode(record((api) => {
+			api.drawPolyline({ points: [{ x: 0, y: 0 }, { x: to, y: 0 }], color: RED, width, dash });
+		})).uploads;
+		expect(line(2, 10, { length: 0, gap: 0 })).toEqual([]);
+		expect(line(2, 10, { length: 100, gap: 1e6 })).toEqual([]);
+		expect(line(10, 10, { length: 1, gap: 2 })).toEqual([]);
+		expect(line(1, 5000, { length: 1, gap: 1 })).toEqual([]);
+		expect(unpaintable).toEqual([
+			"polyline: a dash of 0 with a gap of 0 doesn't repeat",
+			"polyline: a dash of 100 with a gap of 1000000 and an offset of 0 is past what the shader's lanes hold",
+			"polyline: a dash period of 3 is shorter than half the line's width, 5",
+			'polyline: a segment 5000 long holds more than 2048 periods of 2',
+		]);
 	});
 
 	it('writes a line as a rect-mode quad along it, with round caps as radii', () => {

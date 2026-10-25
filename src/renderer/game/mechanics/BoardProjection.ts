@@ -514,14 +514,14 @@ export class BoardProjection {
 
 	/**
 	 * The nearest vehicle on the other team still in the fight within range
-	 * of this one, ties broken the same way as orderCarrier (Rally the
-	 * Convoy's pick for each escort)
+	 * of this one, leaving out any in `excluding`, ties broken the same way
+	 * as orderCarrier (Rally the Convoy's pick for each escort)
 	 */
-	public nearestEnemyInRange({ from, range }: { from: Vehicle; range: number }): Vehicle | null {
+	public nearestEnemyInRange({ from, range, excluding }: { from: Vehicle; range: number; excluding?: ReadonlySet<Vehicle> }): Vehicle | null {
 		const fromSlot = this.slotOf(from);
 		if (!fromSlot) return null;
 		const candidates = this.enemiesOf(from).filter(enemy =>
-			!enemy.isOutOfFight && this.slotOf(enemy) !== null && this.range(from, enemy) <= range);
+			!enemy.isOutOfFight && !excluding?.has(enemy) && this.slotOf(enemy) !== null && this.range(from, enemy) <= range);
 		return nearestTo({ to: fromSlot, candidates, slotOf: enemy => this.slotOf(enemy) });
 	}
 

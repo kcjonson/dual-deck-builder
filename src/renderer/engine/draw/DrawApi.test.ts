@@ -292,6 +292,7 @@ describe('the four stacks are captured into each draw (R2.4 to R2.7)', () => {
 		api.beginFrame({ viewport: VIEWPORT });
 		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE });
 		api.drawCircle({ center: { x: 5, y: 5 }, radius: 4, fill: BLUE });
+		api.drawPolyline({ points: [{ x: 0, y: 0 }, { x: 4, y: 0 }], color: RED, width: 2, cap: 'round', dash: { length: 0, gap: 3 } });
 		api.drawText({ text: 'x', position: { x: 0, y: 0 }, font: 'body', size: 12, color: RED });
 		api.drawPolyline({ points: [{ x: 0, y: 0 }, { x: 4, y: 4 }], color: RED, width: 1 });
 		api.endFrame();
@@ -704,6 +705,20 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 
 			expect(backend.ids).toEqual(['inside', 'straddles']);
 			expect(api.getStats().culled).toBe(1);
+		});
+
+		it('keeps a dashed polyline whose mitered joint can reach the clip, where a solid one would be culled (R5.16a)', () => {
+			const { api, backend } = inkHarness();
+			api.beginFrame({ viewport: VIEWPORT, ratio: 1 });
+			api.pushClip(rect(0, 0, 100, 100));
+			// 6.5 below the clip, 5 across either side: a round join stops short of it, a right-angled miter doesn't
+			const points = [{ x: 20, y: 120 }, { x: 40, y: 106.5 }, { x: 60, y: 120 }];
+			api.drawPolyline({ id: 'solid', points, color: RED, width: 10 });
+			api.drawPolyline({ id: 'dashed', points, color: RED, width: 10, dash: { length: 6, gap: 5 } });
+			api.popClip();
+			api.endFrame();
+
+			expect(backend.ids).toEqual(['dashed']);
 		});
 
 		it('tests the shadow run at its own offset', () => {

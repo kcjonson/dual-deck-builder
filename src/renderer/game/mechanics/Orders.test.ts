@@ -226,6 +226,26 @@ describe('Order cards', () => {
 			expect(pilotCar.spent).toBe(false);
 		});
 
+		test("with no ready escort, an attack order can't be played at all, whatever it's aimed at", () => {
+			const rig = createDriven('Rig');
+			const outrider = escortAt('outrider');
+			const battle = createBattle([rig, createDriven('Bike'), outrider], [buggy]);
+			outrider.spent = true;
+			const card = realCard('covering_fire');
+
+			expect(battle.getCardBlocker({ driver: driverOf(rig), card })).toBe('Covering Fire needs a ready escort');
+			expect(play({ battle, driver: driverOf(rig), card, target: buggy })).toBe(false);
+		});
+
+		test('a signature attack order needs a ready escort of its own type', () => {
+			const rig = createDriven('Rig');
+			const outrider = escortAt('outrider');
+			const battle = createBattle([rig, createDriven('Bike'), outrider, escortAt('pilot_car')], [buggy]);
+			outrider.spent = true;
+
+			expect(battle.getCardBlocker({ driver: driverOf(rig), card: realCard('run_ahead') })).toBe('Run Ahead needs a ready Outrider');
+		});
+
 		test('with no escorts at all, an attack order has no legal target', () => {
 			const rig = createDriven('Rig');
 			const battle = createBattle([rig, createDriven('Bike')], [buggy]);

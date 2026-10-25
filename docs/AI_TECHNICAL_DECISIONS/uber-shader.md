@@ -41,8 +41,10 @@ the two axes under a non-uniform scale.
 **Lines and polygon strokes (R5.16).** Each segment is a `rect`-mode quad oriented along it, so
 it gets the rectangle's coverage ramp with no new mode. Round caps and interior joints are per
 corner radii on the segment's ends (R5.7a), so a polyline joint is a round join. Joints overlap,
-which darkens a translucent stroke at its corners; nothing draws a translucent stroke. A capsule
-mode was not added since `rect` with radii already is one.
+which darkens a translucent stroke at its corners; a translucent polyline draws through the dash
+mode with a gap of 0 instead ([dashed-strokes.md](./dashed-strokes.md)). A capsule
+mode was not added since `rect` with radii already is one. Dashed and dotted strokes have their
+own `dash` mode ([dashed-strokes.md](./dashed-strokes.md)).
 
 **What `text` mode means before chapter 6.** The atlas is still a canvas-rasterised bitmap, so
 the glyph path is a temporary `mask` mode: coverage from the red channel, times the premultiplied
