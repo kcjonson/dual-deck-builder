@@ -32,6 +32,16 @@ describe('balance sim fights', () => {
 			raidersKilled: 4,
 			routed: true,
 			brokenOff: false,
+			fights: 1,
+			// The Spike Buggy plays three cards before the rout; the Scav Bikes never get a turn
+			raiderPlays: {
+				'Spike Buggy': {
+					'Precision Shot': { played: 1, fizzled: 0 },
+					'Ramming Speed': { played: 1, fizzled: 0 },
+					'Armor Plating': { played: 1, fizzled: 0 },
+				},
+			},
+			cards: null,
 		});
 	});
 
@@ -41,6 +51,9 @@ describe('balance sim fights', () => {
 		expect(row.won).toMatchObject({ count: 2, of: 2, rate: 1, high: 1 });
 		expect(row.bySeat?.map(seat => seat.of)).toEqual([1, 1]);
 		expect(row.down).toMatchObject({ count: 0, of: 2 });
+		// Two runs of one fight each, so each play counts half: two Ramming Speeds played over the runs and one fizzled
+		expect(row.raiderPlays['Spike Buggy']['Ramming Speed']).toEqual({ played: 1, fizzled: 0.5 });
+		expect(row.raiderPlays['Scav Bike']).toEqual({ 'Far Shoot': { played: 1, fizzled: 0 } });
 	});
 
 	test('tuning comes in through the config and leaves the shipped profiles alone', () => {
@@ -68,6 +81,30 @@ describe('balance sim fights', () => {
 	test('the same pair on two decks gets a cell name apiece', () => {
 		const twoDecks = simConfig({ crews: [['road_warrior', 'interceptor'], [{ archetype: 'road_warrior', deck: { ramming_speed: 8 } }, 'interceptor']], routes: [[1]] });
 		expect(fightCells(twoDecks).map(cell => cell.name)).toEqual(['road_warrior+interceptor#0:1', 'road_warrior+interceptor#1:1']);
+	});
+
+	test('a seat adds cards to its starting deck as data, and only cards the game has', () => {
+		const added = simConfig({ crews: [[{ archetype: 'road_warrior', add: { weave: 2 } }, 'interceptor']], routes: [[1]] });
+		expect(added.crews[0][0].add).toEqual({ weave: 2 });
+		expect(() => simConfig({ crews: [[{ archetype: 'road_warrior', add: { warp_drive: 1 } }]] })).toThrow(RangeError);
+		expect(() => simConfig({ crews: [[{ archetype: 'road_warrior', add: { weave: 0 } }]] })).toThrow();
+	});
+
+	test('counts each player card\'s draws, plays, and fizzles only when asked', async () => {
+		const crew = [{ archetype: 'road_warrior' as const, add: { weave: 2, lane_change: 2 } }, { archetype: 'interceptor' as const }];
+		const plain = await playFightCell({ config: simConfig({ seed: 7, runs: 1, crews: [crew], routes: [[2]] }), cell: fightCells(simConfig({ seed: 7, runs: 1, crews: [crew], routes: [[2]] }))[0] });
+		expect(plain.cards).toBeNull();
+		expect(plain.added).toEqual({ lane_change: 2, weave: 2 });
+
+		const counted = simConfig({ seed: 7, runs: 1, crews: [crew], routes: [[2]], cardStats: true });
+		const row = await playFightCell({ config: counted, cell: fightCells(counted)[0] });
+		expect(row.won).toEqual(plain.won);
+		const cards = row.cards ?? {};
+		expect(cards.weave?.seen).toBeGreaterThan(0);
+		for (const stats of Object.values(cards)) {
+			expect(stats.played).toBeLessThanOrEqual(stats.seen);
+			expect(stats.fizzled).toBeGreaterThanOrEqual(0);
+		}
 	});
 
 	test('a rate carries its count and a 90% interval', () => {

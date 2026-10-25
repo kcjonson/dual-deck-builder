@@ -1,4 +1,5 @@
 import { Battle } from './Battle';
+import { BoardProjection } from './BoardProjection';
 import { Card, CardData, CardEffect, TargetType } from './Card';
 import { Driver } from './Driver';
 import { Intent, IntentTier, IntentType, formatIntentValue } from './Intent';
@@ -156,6 +157,12 @@ describe('Enemy intents', () => {
 			rig.applyStatusEffect({ name: 'vulnerable', duration: 1 });
 
 			expect(battle.getIntents(buggy)[0].amount).toBe(6);
+		});
+
+		test('a projection starts from the Vulnerable on the board, a mark the player landed on a raider this turn included', () => {
+			expect(new BoardProjection({ battle }).isVulnerable(buggy)).toBe(false);
+			buggy.applyStatusEffect({ name: 'vulnerable', duration: 1 });
+			expect(new BoardProjection({ battle }).isVulnerable(buggy)).toBe(true);
 		});
 
 		test.each([IntentTier.ELITE, IntentTier.BOSS])('a %s raider hides the value and the card but not the type or target', tier => {
@@ -478,6 +485,23 @@ describe('Enemy intents', () => {
 			await battle.endPlayerTurn();
 
 			expect(logLines(battle, 'damage_dealt')).toEqual([expect.stringMatching(/^Ram deals 7 total .*damage to Rig /)]);
+		});
+
+		test('a shot after another raider\'s Cut Off previews the Vulnerable it lands, and lands it (DDB-552)', async () => {
+			// The Cutter swerves up from behind and marks the Rig across from it; the Shooter fires after it, from 2 away
+			rig = createVehicle('Rig', 3, slot(RoadLane.PLAYER_INSIDE, RoadRow.CENTER));
+			const cutter = createVehicle('Cutter', 1, slot(RoadLane.ENEMY_INSIDE, RoadRow.BEHIND));
+			const shooter = createVehicle('Shooter', 1, slot(RoadLane.ENEMY_OUTSIDE, RoadRow.CENTER));
+			battle = createBattle([rig, bike], [cutter, shooter]);
+			giveHand(cutter, [realCard('cut_off')]);
+			giveHand(shooter, [farShot()]);
+			battle.planEnemyTurn();
+
+			expect(battle.getIntents(cutter)).toEqual([expect.objectContaining({ description: 'Cut Off', target: rig.id })]);
+			expect(battle.getIntents(shooter)).toEqual([expect.objectContaining({ description: 'Far Shot', amount: 6, target: rig.id })]);
+			await battle.endPlayerTurn();
+
+			expect(logLines(battle, 'damage_dealt')).toEqual([expect.stringMatching(/^Far Shot deals 6 total .*damage to Rig /)]);
 		});
 	});
 

@@ -7,8 +7,13 @@ import { Card } from '../mechanics/Card';
 import type { Driver } from '../mechanics/Driver';
 import { CardEffectValidator } from './CardEffectValidator';
 import { cardDamageKind, damageToFinish, lastingDamage } from './DamageEstimate';
-import { cardFlanks, selfSpeedBonus } from '../mechanics/BoardProjection';
-import { aimlessSwerve, swerveReach, swerveScore } from './SwerveEstimate';
+import { BoardProjection, cardFlanks, selfSpeedBonus } from '../mechanics/BoardProjection';
+import { effectValue } from '../mechanics/EffectConditions';
+import { EffectRecipient, effectRecipientOf } from '../mechanics/EffectTargets';
+import { movesOf } from '../mechanics/Movement';
+import { RoadSlot, sameSlot } from '../mechanics/Road';
+import { SwerveReach, aimlessSwerve, swerveReach, swerveScore } from './SwerveEstimate';
+import { vulnerableSetup } from './SetupEstimate';
 
 /**
  * Aggressive Flanker AI Strategy
@@ -46,9 +51,62 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 	}
 
 	/**
-	 * Public so tests can read what a play is worth
+	 * Public so tests can read what a play is worth. A move that would do
+	 * nothing else scores under ending the turn, so it isn't played, and so
+	 * does dropping off a shoulder it would hold: this AI never reads
+	 * intents, so it never has a reason to give up a flank.
 	 */
 	public scoreAction(action: AIDecision, gameState: GameStateEvaluation): number {
+		const reach = this.reachOf(action, gameState);
+		const { card, driver } = action;
+		const ourVehicle = driver ? this.getVehicleForDriver(driver, gameState) : null;
+		if (card && driver && reach && aimlessSwerve({ board: gameState.board, card, driver, reach })) {
+			return this.END_TURN * 2;
+		}
+		if (card && ourVehicle && this.givesUpFlank({ card, caster: ourVehicle.vehicle, board: gameState.board })) {
+			return this.END_TURN * 2;
+		}
+		return this.scorePlay(action, gameState, { reach });
+	}
+
+	/**
+	 * Whether the play drops the caster off a shoulder it would otherwise
+	 * hold past the end of the turn (Peel Off). One it's about to lose anyway,
+	 * the vehicle it outran now as fast, costs nothing.
+	 */
+	private givesUpFlank({ card, caster, board }: { card: Card; caster: Vehicle; board: BoardProjection }): boolean {
+		return board.isFlanking(caster) && !board.wouldDropBack(caster) &&
+			movesOf(card).some(move => move.kind === 'drop_back' && move.mover === 'caster');
+	}
+
+	/**
+	 * What the play's own moves do for the rest of the hand (swerveReach),
+	 * or null for a play that isn't a card from a vehicle on the road
+	 */
+	public reachOf(action: AIDecision, gameState: GameStateEvaluation): SwerveReach | null {
+		const { card, driver } = action;
+		const ourVehicle = driver ? this.getVehicleForDriver(driver, gameState) : null;
+		if (!card || !driver || !ourVehicle) return null;
+		return swerveReach({
+			board: gameState.board,
+			card,
+			driver,
+			caster: ourVehicle.vehicle,
+			target: action.target instanceof Vehicle ? action.target : null,
+			destination: action.destination ?? null
+		});
+	}
+
+	/**
+	 * What a play is worth with no check for an aimless move: the
+	 * intent-aware stand-in judges that itself, since a move that makes a
+	 * planned hit fizzle isn't aimless. `reach` is reachOf's, worked out when
+	 * left out. `damageLands: false` scores the play as if its damage
+	 * missed, for a caller that has run the hit check, so the rest of the
+	 * card (a Strafe's swerve) still counts.
+	 */
+	public scorePlay(action: AIDecision, gameState: GameStateEvaluation, { reach, damageLands = true }: { reach?: SwerveReach | null; damageLands?: boolean } = {}): number {
+		const moveReach = reach === undefined ? this.reachOf(action, gameState) : reach;
 		if (action.type === 'endTurn') {
 			// Only end turn if we have no other options
 			return this.END_TURN;
@@ -73,34 +131,42 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		}
 
 		// Get card effects
-		const cardEffects = this.analyzeCardEffects(card);
+		const cardEffects = this.analyzeCardEffects({
+			card,
+			caster: ourVehicle.vehicle,
+			target: action.target instanceof Vehicle ? action.target : null,
+			destination: action.destination ?? null,
+			board: gameState.board
+		});
+		if (!damageLands) cardEffects.damage = 0;
 
 		// Moving to the shoulder. A Flank is only offered at a target it can
-		// outrun, so every legal one gets the full priority.
+		// outrun, so every legal one gets the full priority, and dropping off
+		// one it would hold costs as much.
 		if (cardEffects.flanks && !ourVehicle.isFlanking) {
 			score += this.POSITION_WEIGHT * 3;
 		}
-
-		// A swerve is worth what it puts in range for the rest of the hand,
-		// and waits while it would take something out. One that would do
-		// nothing else scores under ending the turn, so it isn't played.
-		const reach = swerveReach({
-			board: gameState.board,
-			card,
-			driver,
-			caster: ourVehicle.vehicle,
-			destination: action.destination ?? null
-		});
-		if (aimlessSwerve({ board: gameState.board, card, driver, reach })) {
-			return this.END_TURN * 2;
+		if (this.givesUpFlank({ card, caster: ourVehicle.vehicle, board: gameState.board })) {
+			score -= this.POSITION_WEIGHT * 3;
 		}
-		score += swerveScore(reach, this.DAMAGE_WEIGHT);
+
+		// A move is worth what it puts in range for the rest of the hand,
+		// and waits while it would take something out
+		if (moveReach) score += swerveScore(moveReach, this.DAMAGE_WEIGHT);
 
 		// A speed boost is worth a lot when it's what opens a flank
 		const board = gameState.board;
 		if (cardEffects.speedBoost > 0 && !ourVehicle.isFlanking &&
 			!board.canFlankAnyone(ourVehicle.vehicle) && board.canFlankAnyone(ourVehicle.vehicle, cardEffects.speedBoost)) {
 			score += this.POSITION_WEIGHT * 2;
+		}
+
+		// A Vulnerable that sets up shots still in hand (Cut Off) is worth what
+		// it adds to them, and goes first, as a boost that opens a flank does
+		const marked = action.target instanceof Vehicle ? action.target : null;
+		const setup = marked ? vulnerableSetup({ board, card, driver, caster: ourVehicle.vehicle, target: marked, destination: action.destination ?? null }) : 0;
+		if (setup > 0) {
+			score += this.POSITION_WEIGHT * 2 + setup * this.DAMAGE_WEIGHT;
 		}
 
 		// Score damage effects
@@ -126,8 +192,8 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 					// Bonus for attacking low health targets
 					damageScore *= (2 - targetEval.healthPercent);
 					
-					// Bonus for attacking vulnerable targets
-					if (damageTarget.hasStatusEffect('vulnerable')) {
+					// Bonus for attacking vulnerable targets, a mark an earlier raider's Cut Off left on the planning board included
+					if (board.isVulnerable(damageTarget)) {
 						damageScore *= this.VULNERABLE_BONUS;
 					}
 
@@ -135,7 +201,7 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 					const potentialDamage = this.calculatePotentialDamage(
 						cardEffects.damage, 
 						ourVehicle.isFlanking,
-						damageTarget.hasStatusEffect('vulnerable')
+						board.isVulnerable(damageTarget)
 					);
 					
 					if (potentialDamage >= damageToFinish({ target: damageTarget, kind: damageKind })) {
@@ -178,7 +244,20 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 		return score;
 	}
 
-	private analyzeCardEffects(card: Card): {
+	/**
+	 * What a play's effects add up to. Damage on the other side counts from
+	 * where the card's own move lands (Strafe), with any row bonus that holds
+	 * there (Point Man, Tail Gunner), and only where its landing condition
+	 * holds (Brake Check's 4 on an ambusher); damage the caster takes isn't
+	 * the target's.
+	 */
+	private analyzeCardEffects({ card, caster, target, destination, board }: {
+		card: Card;
+		caster: Vehicle;
+		target: Vehicle | null;
+		destination: RoadSlot | null;
+		board: BoardProjection;
+	}): {
 		damage: number;
 		heal: number;
 		armor: number;
@@ -192,28 +271,29 @@ export class AggressiveFlankerStrategy implements AIStrategy {
 			speedBoost: selfSpeedBonus(card),
 			flanks: cardFlanks(card)
 		};
+		const standing = board.slotOf(caster);
+		const [casterSlot = standing] = board.landingSlots({ card, caster, destination });
+		const conditions = {
+			casterSlot,
+			targetSlot: target ? board.slotOf(target) : null,
+			casterSwerved: board.swervedThisTurn(caster) || !sameSlot(casterSlot, standing)
+		};
 
 		for (const effect of card.effects) {
 			switch (effect.type) {
 				case 'damage':
-					result.damage += effect.value || 0;
+					if (effectRecipientOf({ effect, card }) === EffectRecipient.CASTER) break;
+					if (target && !board.landingConditionHolds({ effect, caster, recipient: target })) break;
+					result.damage += effectValue(effect, conditions);
 					break;
 				case 'heal':
-					result.heal += effect.value || 0;
+					result.heal += effectValue(effect, conditions);
 					break;
 				case 'gain_armor':
-					result.armor += effect.value || 0;
+					result.armor += effectValue(effect, conditions);
 					break;
 			}
 		}
-
-		// Check for variable damage
-		if (card.variables?.damage) {
-			result.damage = card.upgraded && card.variables.damage.upgraded 
-				? card.variables.damage.upgraded 
-				: card.variables.damage.base;
-		}
-
 		return result;
 	}
 

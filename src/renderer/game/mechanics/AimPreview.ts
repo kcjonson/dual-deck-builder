@@ -4,7 +4,7 @@ import type { Driver } from './Driver';
 import { splitDamage } from './Vehicle';
 import type { Vehicle } from './Vehicle';
 import { BoardProjection, cardRange } from './BoardProjection';
-import { EffectRecipient, effectRecipientOf, isCasterAction, landsOnTarget, rollsToHit } from './EffectTargets';
+import { EffectRecipient, attackTypeOf, effectRecipientOf, isCasterAction, landsOnTarget, rollsToHit } from './EffectTargets';
 import { pickedMoveOf } from './Movement';
 import { RoadSlot, nearestTo, slotRange } from './Road';
 import { effectBonus } from './EffectConditions';
@@ -132,11 +132,6 @@ function landsOnTargetEffect(effect: CardEffect, card: Card): boolean {
 
 function isHitEffect(effect: CardEffect): boolean {
 	return effect.type === 'damage' || effect.type === 'apply_status' || effect.type === 'status';
-}
-
-function attackTypeOf(effect: CardEffect): string {
-	if (typeof effect.attack_type === 'string') return effect.attack_type;
-	return effect.scaling === 'ramming' ? 'ramming' : 'ranged';
 }
 
 /**

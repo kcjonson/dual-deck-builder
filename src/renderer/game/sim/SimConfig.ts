@@ -1,4 +1,6 @@
 import type { AIType } from '../ai/AIController';
+import { CardCounts, readCardCounts } from '../campaign/CardCounts';
+import cardsFile from '../data/cards.json';
 import { ENCOUNTER_DATA, EncounterData, Skulls, readEncounterData } from '../campaign/Encounters';
 import { STOP_TUNING, TierBand } from '../map/StopData';
 import { DRIVER_CONFIGS, DriverArchetype } from '../mechanics/Driver';
@@ -37,6 +39,8 @@ export interface SimConfigInput {
 	readonly maps?: number;
 	/** What a route to each destination tier should hold, by tier, a tier given replacing that tier's whole band; Runs and Encounters' starting values when left out. */
 	readonly bands?: Readonly<Record<number, TierBand>>;
+	/** Count each player card's draws, plays, and the raider intents it makes fizzle (sim/CardTally.ts); off when left out, since it projects the enemy turn twice a play. */
+	readonly cardStats?: boolean;
 }
 
 /** The stops stage's bands by destination tier, the stronghold's as tier 5, from its tuning. */
@@ -49,6 +53,8 @@ export interface SeatInput {
 	readonly archetype: DriverArchetype;
 	/** Card counts by type; the archetype's starting deck when left out. */
 	readonly deck?: Readonly<Record<string, number>>;
+	/** Card counts by type added to the deck, so a test deck is the starting deck and a card or two without restating the rest. */
+	readonly add?: Readonly<Record<string, number>>;
 }
 
 export type RaiderPatch = Partial<Omit<RaiderProfile, 'skills' | 'vehicleStats'>> & {
@@ -71,6 +77,7 @@ export interface SimConfig {
 	readonly stage: number;
 	readonly maps: number;
 	readonly bands: Readonly<Record<number, TierBand>>;
+	readonly cardStats: boolean;
 }
 
 /** The archetypes a new campaign can deal. */
@@ -107,6 +114,7 @@ export function simConfig(input: SimConfigInput = {}): SimConfig {
 		stage,
 		maps: input.maps ?? 30,
 		bands: { ...ROUTE_BANDS, ...input.bands },
+		cardStats: input.cardStats ?? false,
 	};
 }
 
@@ -120,11 +128,24 @@ function patched(profile: Readonly<RaiderProfile>, patch: RaiderPatch | undefine
 	};
 }
 
+const CARD_TYPES = new Set((cardsFile as { cards: { type: string }[] }).cards.map(card => card.type));
+
+/** Card counts whose every type is a card the game has. */
+function knownCards(counts: Readonly<Record<string, number>>, path: string): CardCounts {
+	const read = readCardCounts(counts, path);
+	for (const type of Object.keys(read)) {
+		if (!CARD_TYPES.has(type)) throw new RangeError(`${path}.${type} isn't a card`);
+	}
+	return read;
+}
+
 function crewsOf({ crews = 'all', archetypes = unlockedArchetypes() }: SimConfigInput): SeatInput[][] {
 	const known = Object.keys(DRIVER_CONFIGS);
 	const seat = (value: DriverArchetype | SeatInput): SeatInput => {
 		const read = typeof value === 'string' ? { archetype: value } : value;
 		if (!known.includes(read.archetype)) throw new RangeError(`${read.archetype} isn't an archetype`);
+		if (read.deck !== undefined) knownCards(read.deck, `${read.archetype}.deck`);
+		if (read.add !== undefined) return { ...read, add: knownCards(read.add, `${read.archetype}.add`) };
 		return read;
 	};
 	if (typeof crews !== 'string') {

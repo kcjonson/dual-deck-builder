@@ -80,6 +80,16 @@ export function rollsToHit({ effect, card }: { effect: CardEffect; card: Card })
 }
 
 /**
+ * The hit check a damage effect rolls: its `attack_type`, else ramming for
+ * a ramming-scaled hit, else ranged. Play, the projection, the aim
+ * preview, and the AIs all read it here.
+ */
+export function attackTypeOf(effect: CardEffect): string {
+	if (typeof effect.attack_type === 'string') return effect.attack_type;
+	return effect.scaling === 'ramming' ? 'ramming' : 'ranged';
+}
+
+/**
  * The vehicles one effect lands on. The one rule for play, the enemy turn,
  * and the planning projection; each passes its own view of the enemies.
  */
