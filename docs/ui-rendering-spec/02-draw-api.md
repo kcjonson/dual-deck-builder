@@ -26,7 +26,7 @@ Four stacks, all saved and restored with push and pop, all captured into each dr
 Argument shapes are given as named fields; an implementation exposes them as an options object (TypeScript) or a designated-initialiser struct (C++). Every call accepts an optional `id` for inspection and produces one draw group (two for a shadowed rectangle).
 
 - R2.8 `drawRect({ rect, fill, border, gradient, shadow, id })`: `fill` RGBA; `border` `{ color, width, radius, position }` with `position` in `inside`, `center`, `outside`; `gradient` four corner colours; `shadow` `{ color, blur, spread, offset }`. Chapter 5, R5.5 to R5.13.
-- R2.9 `drawCircle({ center, radius, fill, border, id })`.
+- R2.9 `drawCircle({ center, radius, fill, border, id })`. `drawCircles({ centers, radius, fill, id })` MAY be provided as a convenience: circles of one radius and fill in one draw group, each shaded as `drawCircle` shades one (a dotted line's dots).
 - R2.10 `drawLine({ from, to, color, width, cap, id })`; `cap` is `butt` or `round`. `drawPolyline({ points, color, width, closed, id })` MAY be provided as a convenience over capsule segments.
 - R2.11 `drawPolygon({ points, indices, fill, colors, id })`: pre-tessellated triangles in `flat` mode with optional per-vertex colours (icons, vector art, animated meshes).
 - R2.12 `drawImage({ rect, texture, sourceRect, tint, slice, id })`: `sourceRect` in texture pixels or UV; `slice` optional nine-slice insets. Chapter 5, R5.18 to R5.20.

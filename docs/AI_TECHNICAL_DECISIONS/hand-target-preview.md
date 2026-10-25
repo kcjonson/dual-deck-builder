@@ -44,7 +44,7 @@ Kevin's call: the arrows run from the vehicle on the road the card acts from to 
 
 - Across the road a link arcs as the intent lines do (`RoadArc.trace`), up from the top of the acting vehicle's plate and down onto the top of the target's token, over the band a raider's pills take. Its last control sits 40 above the target (`trace`'s `drop`), so the head comes down onto it rather than in from the side.
 - Between two vehicles in one lane, where that arc would run straight through the target (the opening formation's two drivers, Leapfrog, Triage, an escort order), it goes the short way between the plates' facing edges, bowed (`RoadArc.traceMove`).
-- Solid when there's nothing to choose: one target, or a card that lands on every one it lists. Dotted, with the aiming line's dots and head, when the player picks one of several. Red to a raider, the interaction yellow to your convoy, as their outlines light while aimed, at the intent lines' 80%. No arrow from a vehicle to itself (call 368).
+- Solid when there's nothing to choose: one target, or a card that lands on every one it lists. Dotted, with the aiming line's dots and head, when the player picks one of several; each arrow's dots are one `drawCircles` group ([draw-circles.md](./draw-circles.md)). Red to a raider, the interaction yellow to your convoy, as their outlines light while aimed, at the intent lines' 80%. No arrow from a vehicle to itself (call 368).
 
 `RoadArc` is the arc `EndTurnPreview` drew, lifted out so both previews share it; with no `drop` it traces exactly what the end-turn preview drew before. The target preview is an absolute, road-sized child of the road band: the end-turn preview at `zIndex` 1, the target preview at 2, the log drawer at 3, the turn banner on `overlay`.
 

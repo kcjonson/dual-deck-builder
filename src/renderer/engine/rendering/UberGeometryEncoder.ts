@@ -2,6 +2,7 @@ import {
 	Border,
 	BorderPosition,
 	CircleCommand,
+	CirclesCommand,
 	CornerColors,
 	CornerRadii,
 	DrawCommand,
@@ -326,6 +327,10 @@ export class UberGeometryEncoder implements GeometryEncoder {
 				if (isDegenerate(command.transform)) return true;
 				out.instances = 1;
 				return true;
+			case 'circles':
+				if (command.centers.length === 0 || command.radius <= 0 || isDegenerate(command.transform)) return true;
+				out.instances = command.centers.length;
+				return true;
 			case 'line':
 				if (command.width <= 0 || isDegenerate(command.transform)) return true;
 				out.instances = 1;
@@ -355,6 +360,9 @@ export class UberGeometryEncoder implements GeometryEncoder {
 				return;
 			case 'circle':
 				this.encodeCircle(command, sink);
+				return;
+			case 'circles':
+				this.encodeCircles(command, sink);
 				return;
 			case 'line':
 				this.begin(command, UBER_MODE.rect, -1);
@@ -472,6 +480,19 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		const fill = premultiply(command.fill ?? WHITE, this.fillScratch);
 		this.quad(sink, command.transform, command.center.x, command.center.y, radius + outset, radius + outset,
 			fill, null, radius, radius);
+	}
+
+	/** R2.9's convenience: one borderless circle quad per centre, sharing the template, in one group. */
+	private encodeCircles(command: CirclesCommand, sink: GeometrySink): void {
+		const { radius } = command;
+		this.begin(command, UBER_MODE.circle, -1);
+		this.setHalfSize(radius, radius);
+		this.setBorder(TRANSPARENT, 0, 0);
+		const fill = premultiply(command.fill, this.fillScratch);
+		const centers = command.centers;
+		for (let index = 0; index < centers.length; index++) {
+			this.quad(sink, command.transform, centers[index].x, centers[index].y, radius, radius, fill, null, radius, radius, index);
+		}
 	}
 
 	// -- lines ------------------------------------------------------------
@@ -1089,7 +1110,8 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	 * covering `extentX` by `extentY` either side of it plus R5.7's device
 	 * pixel, with local coordinates measured from the centre. A gradient's
 	 * corner colours sit on the shape's own corners (`halfWidth`,
-	 * `halfHeight`) and are extrapolated out to the inflated ones.
+	 * `halfHeight`) and are extrapolated out to the inflated ones. `index` is
+	 * the instance within the group, for a command that writes several.
 	 */
 	private quad(
 		sink: GeometrySink,
@@ -1102,10 +1124,11 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		gradient: number[] | null,
 		halfWidth: number,
 		halfHeight: number,
+		index = 0,
 	): void {
 		const outerX = extentX + this.devicePixel / Math.hypot(transform[0], transform[1]);
 		const outerY = extentY + this.devicePixel / Math.hypot(transform[2], transform[3]);
-		const base = this.instance(sink, 0);
+		const base = this.instance(sink, index);
 		this.setExtent(sink, base, outerX, outerY);
 		for (let corner = 0; corner < 4; corner++) {
 			const localX = CORNER_X[corner] * outerX;

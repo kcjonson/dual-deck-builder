@@ -30,6 +30,7 @@ import {
 	CornerColors,
 	CornerRadii,
 	DrawCircleOptions,
+	DrawCirclesOptions,
 	DrawCommand,
 	DrawGroupRole,
 	DrawImageOptions,
@@ -673,6 +674,30 @@ export class DrawApi {
 			radius: options.radius,
 			fill: options.fill ? copyColor(options.fill) : null,
 			border: copyBorder(options.border),
+		});
+	}
+
+	/**
+	 * R2.9's convenience over `drawCircle`: circles of one radius and fill,
+	 * each shaded as one, in ONE group, as `drawPolyline` is one group of
+	 * segments. A dotted line is dozens of dots, and a group each would
+	 * spend a capture and a command on every dot. No circle draws nothing.
+	 */
+	drawCircles(options: DrawCirclesOptions): void {
+		if (!this.ensureFrame('drawCircles')) return;
+		const state = this.capture({
+			id: options.id,
+			blend: options.blend,
+			group: 'primary',
+			ink: pointsInk(options.centers, options.radius * 2),
+		});
+		if (!state) return;
+		this.emit({
+			...state,
+			kind: 'circles',
+			centers: options.centers.map(copyVec2),
+			radius: options.radius,
+			fill: copyColor(options.fill),
 		});
 	}
 

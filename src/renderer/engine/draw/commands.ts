@@ -142,6 +142,13 @@ export interface DrawCircleOptions extends CommonOptions {
 	border?: Border;
 }
 
+/** R2.9's convenience: circles of one radius and fill, as one draw group (a dotted line's dots). */
+export interface DrawCirclesOptions extends CommonOptions {
+	centers: readonly Vec2[];
+	radius: number;
+	fill: RGBA;
+}
+
 export interface DrawLineOptions extends CommonOptions {
 	from: Vec2;
 	to: Vec2;
@@ -260,6 +267,7 @@ export type DrawCommandKind =
 	| 'rect'
 	| 'shadow'
 	| 'circle'
+	| 'circles'
 	| 'line'
 	| 'polyline'
 	| 'polygon'
@@ -312,6 +320,13 @@ export interface CircleCommand extends ResolvedState {
 	readonly radius: number;
 	readonly fill: RGBA | null;
 	readonly border: Border | null;
+}
+
+export interface CirclesCommand extends ResolvedState {
+	readonly kind: 'circles';
+	readonly centers: readonly Vec2[];
+	readonly radius: number;
+	readonly fill: RGBA;
 }
 
 export interface LineCommand extends ResolvedState {
@@ -375,6 +390,7 @@ export type DrawCommand =
 	| RectCommand
 	| ShadowCommand
 	| CircleCommand
+	| CirclesCommand
 	| LineCommand
 	| PolylineCommand
 	| PolygonCommand

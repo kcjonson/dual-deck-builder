@@ -1,12 +1,12 @@
 import { Component, ComponentOptions, ResolvedColors } from '../../../engine/components/Component';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
-import type { DrawCircleOptions, DrawPolygonOptions, DrawPolylineOptions } from '../../../engine/draw/commands';
+import type { DrawCirclesOptions, DrawPolygonOptions, DrawPolylineOptions } from '../../../engine/draw/commands';
 import type { RGBA, Rect, Vec2 } from '../../../engine/draw/geometry';
 import { resolveColor } from '../../../engine/style/styleObject';
 import { tokens } from '../../../engine/theme/tokens';
 import type { Vehicle as VehicleUI } from '../../ui/Vehicle';
 import type { CardTargets } from './cardTargets';
-import { DOT_RADIUS, DOT_SPACING, HEAD_INDICES, HEAD_LENGTH, arrowHead } from './CombatFxLayer';
+import { DOT_RADIUS, DOT_SPACING, HEAD_INDICES, HEAD_LENGTH, arrowHead, leading } from './CombatFxLayer';
 import type { RoadRect } from './CombatLayout';
 import { RoadArc } from './RoadArc';
 import type { RoadView } from './RoadView';
@@ -62,12 +62,14 @@ export class TargetPreview extends Component {
 	private readonly tokenBox: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly sourcePlate: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly targetPlate: Rect = { x: 0, y: 0, width: 0, height: 0 };
-	/** The solid line's points, and for each length a list of exactly that many, built once, for the draw. */
+	/** The solid line's points and the dots' centres, and for each length a list of exactly that many, for the draw (`leading`). */
 	private readonly linePoints: Vec2[] = [];
 	private readonly lineLists: Vec2[][] = [];
+	private readonly dotPoints: Vec2[] = [];
+	private readonly dotLists: Vec2[][] = [];
 	private readonly tangent: [Vec2, Vec2, Vec2] = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
 	private readonly head: [Vec2, Vec2, Vec2] = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
-	private readonly dot: DrawCircleOptions & { center: Vec2; fill: RGBA } = { center: { x: 0, y: 0 }, radius: DOT_RADIUS, fill: RAIDER_LINE };
+	private readonly dots: DrawCirclesOptions & { fill: RGBA } = { centers: [], radius: DOT_RADIUS, fill: RAIDER_LINE };
 	private readonly line: DrawPolylineOptions & { color: RGBA } = { points: [], color: RAIDER_LINE, width: SOLID_WIDTH, cap: 'round' };
 	private readonly headShape: DrawPolygonOptions & { fill: RGBA };
 
@@ -166,18 +168,20 @@ export class TargetPreview extends Component {
 		if (neck <= start) return;
 		if (solid) {
 			const count = this.arc.pointsBetween(start, neck, this.linePoints);
-			const list = this.lineLists[count] ??= new Array<Vec2>(count);
-			for (let index = 0; index < count; index++) list[index] = this.linePoints[index];
-			this.line.points = list;
+			this.line.points = leading(this.linePoints, count, this.lineLists);
 			this.line.color = color;
 			draw.drawPolyline(this.line);
 		} else {
-			this.dot.fill = color;
+			// Every dot in one draw group (R2.9's drawCircles)
+			let count = 0;
 			let segment = 1;
 			for (let distance = start + DOT_SPACING / 2; distance <= neck; distance += DOT_SPACING) {
-				segment = this.arc.pointAt(distance, segment, this.dot.center);
-				draw.drawCircle(this.dot);
+				if (count === this.dotPoints.length) this.dotPoints.push({ x: 0, y: 0 });
+				segment = this.arc.pointAt(distance, segment, this.dotPoints[count++]);
 			}
+			this.dots.centers = leading(this.dotPoints, count, this.dotLists);
+			this.dots.fill = color;
+			if (count > 0) draw.drawCircles(this.dots);
 		}
 		// The head points from the neck to the tip, as the aiming line's points from its control
 		this.arc.pointAt(neck, 1, this.tangent[1]);

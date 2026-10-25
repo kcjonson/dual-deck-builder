@@ -6,7 +6,7 @@ import { createTestContext, injectNow } from '../../../engine/components/testing
 import { Clock } from '../../../engine/animation/Clock';
 import { PointerAdapter } from '../../../engine/input/PointerAdapter';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
-import type { DrawPolygonOptions, DrawPolylineOptions, DrawCircleOptions } from '../../../engine/draw/commands';
+import type { DrawCirclesOptions, DrawPolygonOptions, DrawPolylineOptions } from '../../../engine/draw/commands';
 import type { RGBA, Vec2 } from '../../../engine/draw/geometry';
 import { Battle } from '../../mechanics/Battle';
 import { Card, CardData } from '../../mechanics/Card';
@@ -184,9 +184,13 @@ interface Arrow {
 	solid: boolean;
 }
 
-/** What the preview draws: each arrow, from the line or dots before its head, and the draws counted by kind. */
-function record(combat: CombatScreen): { lines: number; dots: number; heads: number; arrows: Arrow[] } {
-	const counts = { lines: 0, dots: 0, heads: 0 };
+/**
+ * What the preview draws: each arrow, from the line or dots before its
+ * head, and the draws counted by kind; `dots` counts the dots, and
+ * `dotGroups` the draws that carry them, one an arrow.
+ */
+function record(combat: CombatScreen): { lines: number; dots: number; dotGroups: number; heads: number; arrows: Arrow[] } {
+	const counts = { lines: 0, dots: 0, dotGroups: 0, heads: 0 };
 	const arrows: Arrow[] = [];
 	const target = preview(combat);
 	const screen = (point: Vec2): Vec2 => target.localToScreen({ x: point.x, y: point.y });
@@ -198,9 +202,10 @@ function record(combat: CombatScreen): { lines: number; dots: number; heads: num
 			start ??= screen(options.points[0]);
 			solid = true;
 		},
-		drawCircle: (options: DrawCircleOptions) => {
-			counts.dots++;
-			start ??= screen(options.center);
+		drawCircles: (options: DrawCirclesOptions) => {
+			counts.dotGroups++;
+			counts.dots += options.centers.length;
+			start ??= screen(options.centers[0]);
 		},
 		drawPolygon: (options: DrawPolygonOptions) => {
 			counts.heads++;
@@ -371,10 +376,12 @@ describe('the target preview', () => {
 
 		expect(preview(combat).showing?.vehicleIds).toEqual(two.raiders.map(raider => raider.id));
 		expect(preview(combat).solid).toBe(false);
-		const counts = drawn(combat);
+		const counts = record(combat);
 		expect(counts.lines).toBe(0);
 		expect(counts.heads).toBe(2);
-		expect(counts.dots).toBeGreaterThan(0);
+		expect(counts.dots).toBeGreaterThan(2);
+		// Each arrow's dots go in one draw group
+		expect(counts.dotGroups).toBe(2);
 	});
 
 	it('draws solid arrows to every raider for a card that lands on all of them', async () => {

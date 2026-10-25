@@ -4,7 +4,7 @@ import { Text } from '../../../engine/components/Text';
 import type { MountContext } from '../../../engine/components/MountContext';
 import { linear } from '../../../engine/animation/easing';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
-import type { DrawCircleOptions, DrawPolygonOptions, DrawRectOptions, DrawTextOptions } from '../../../engine/draw/commands';
+import type { DrawCircleOptions, DrawCirclesOptions, DrawPolygonOptions, DrawRectOptions, DrawTextOptions } from '../../../engine/draw/commands';
 import type { RGBA, Rect, Vec2 } from '../../../engine/draw/geometry';
 import { resolveColor } from '../../../engine/style/styleObject';
 import { tokens } from '../../../engine/theme/tokens';
@@ -126,11 +126,12 @@ export class TargetingArrow extends Component {
 	private readonly curve: MutableCurve = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
 	private readonly path = new CurvePath();
 	private readonly dots: Vec2[] = [];
+	private readonly dotLists: Vec2[][] = [];
 	private readonly head: [Vec2, Vec2, Vec2] = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
 	private readonly cardTop: Vec2 = { x: 0, y: 0 };
 	private readonly from: Vec2 = { x: 0, y: 0 };
 	private readonly to: Vec2 = { x: 0, y: 0 };
-	private readonly dot: DrawCircleOptions & { center: Vec2; fill: RGBA } = { center: { x: 0, y: 0 }, radius: DOT_RADIUS, fill: OFF_TARGET };
+	private readonly dotsDraw: DrawCirclesOptions & { fill: RGBA } = { centers: [], radius: DOT_RADIUS, fill: OFF_TARGET };
 	private readonly headShape: DrawPolygonOptions & { points: Vec2[] };
 
 	constructor({ reticle, ...options }: ComponentOptions & { reticle: AimReticle }) {
@@ -178,17 +179,27 @@ export class TargetingArrow extends Component {
 		const color = aimColor(this, this.pinnedOnTarget);
 		targetingCurve(from, to, this.curve);
 
+		// Every dot in one draw group (R2.9's drawCircles)
 		const count = this.path.dotsAlong(this.curve, HEAD_LENGTH, this.dots);
-		this.dot.fill = color;
-		for (let index = 0; index < count; index++) {
-			this.dot.center.x = this.dots[index].x;
-			this.dot.center.y = this.dots[index].y;
-			draw.drawCircle(this.dot);
-		}
+		this.dotsDraw.centers = leading(this.dots, count, this.dotLists);
+		this.dotsDraw.fill = color;
+		if (count > 0) draw.drawCircles(this.dotsDraw);
 		arrowHead(this.curve, this.head);
 		this.headShape.fill = color;
 		draw.drawPolygon(this.headShape);
 	}
+}
+
+/**
+ * The first `count` of `buffer`, as a list exactly that long for a draw that
+ * reads a whole list (`drawCircles`, `drawPolyline`): the list for each
+ * length is built once, in `lists`, and refilled, so a frame allocates
+ * nothing once every length has been seen.
+ */
+export function leading<T>(buffer: readonly T[], count: number, lists: T[][]): T[] {
+	const list = lists[count] ??= new Array<T>(count);
+	for (let index = 0; index < count; index++) list[index] = buffer[index];
+	return list;
 }
 
 /**

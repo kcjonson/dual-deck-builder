@@ -421,7 +421,7 @@ describe('CombatScreen drag to play', () => {
 		// The arrow reuses its option objects, so copy what each call saw
 		const dots: { x: number; y: number }[] = [];
 		const draw = {
-			drawCircle: jest.fn(({ center }: { center: { x: number; y: number } }) => dots.push({ ...center })),
+			drawCircles: jest.fn(({ centers }: { centers: readonly { x: number; y: number }[] }) => dots.push(...centers.map(center => ({ ...center })))),
 			drawPolygon: jest.fn(),
 		};
 		const screenQuad = jest.spyOn(Component.prototype, 'screenQuad', 'get');

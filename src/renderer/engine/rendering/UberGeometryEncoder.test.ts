@@ -400,6 +400,29 @@ describe('UberGeometryEncoder: circle and lines (R5.15, R5.16)', () => {
 		expect(first.corners[0]).toEqual([38, 48]);
 	});
 
+	it('writes circles as one group: a borderless circle quad at each centre (R2.9)', () => {
+		const { draw } = setup();
+		const centers = [{ x: 10, y: 20 }, { x: 30, y: 20 }, { x: 50, y: 25 }];
+		const upload = draw((api) => api.drawCircles({ centers, radius: 2.5, fill: RED }));
+		expect(upload.upload.groups).toBe(1);
+		expect(upload.count).toBe(3);
+		centers.forEach((center, index) => {
+			const dot = instance(upload, index);
+			expect(dot.mode).toBe(UBER_MODE.circle);
+			expect(dot.halfSize).toEqual([2.5, 2.5]);
+			expect(dot.outset).toBe(0);
+			// The device pixel past the radius, as a single circle's quad has
+			expect(dot.local(0)).toEqual([-3.5, -3.5]);
+			expect(dot.corners[0]).toEqual([center.x - 3.5, center.y - 3.5]);
+		});
+	});
+
+	it('draws nothing for no circles, or for a radius that isn\'t positive', () => {
+		const { encode } = setup();
+		expect(encode(record((api) => api.drawCircles({ centers: [], radius: 3, fill: RED }))).uploads).toEqual([]);
+		expect(encode(record((api) => api.drawCircles({ centers: [{ x: 0, y: 0 }], radius: 0, fill: RED }))).uploads).toEqual([]);
+	});
+
 	it('writes a line as a rect-mode quad along it, with round caps as radii', () => {
 		const { draw } = setup();
 		const first = instance(draw((api) => {
