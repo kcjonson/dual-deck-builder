@@ -2,13 +2,13 @@ import {
 	Border,
 	BorderPosition,
 	CircleCommand,
-	CirclesCommand,
 	CornerColors,
 	CornerRadii,
 	DrawCommand,
 	DrawCommandKind,
 	DrawTextOptions,
 	ImageCommand,
+	LineCommand,
 	Mat2D,
 	NineSlice,
 	PolygonCommand,
@@ -16,6 +16,7 @@ import {
 	RGBA,
 	Rect,
 	RectCommand,
+	ResolvedDash,
 	ShadowCommand,
 	TextCommand,
 	Vec2,
@@ -128,6 +129,13 @@ export const UBER_MODE = {
 	circle: 3,
 	image: 4,
 	text: 5,
+	dash: 6,
+} as const;
+
+/** R5.16a: a dash-mode segment's flags, summed into its fourth radius lane, a half float that holds them exactly. */
+export const DASH_FLAGS = {
+	round: 1,
+	last: 2,
 } as const;
 
 /** Bits of the instance's flags byte. */
@@ -327,17 +335,13 @@ export class UberGeometryEncoder implements GeometryEncoder {
 				if (isDegenerate(command.transform)) return true;
 				out.instances = 1;
 				return true;
-			case 'circles':
-				if (command.centers.length === 0 || command.radius <= 0 || isDegenerate(command.transform)) return true;
-				out.instances = command.centers.length;
-				return true;
 			case 'line':
-				if (command.width <= 0 || isDegenerate(command.transform)) return true;
+				if (command.width <= 0 || isDegenerate(command.transform) || !this.dashPaints(command)) return true;
 				out.instances = 1;
 				return true;
 			case 'polyline': {
 				const segments = polylineSegments(command);
-				if (segments === 0 || command.width <= 0 || isDegenerate(command.transform)) return true;
+				if (segments === 0 || command.width <= 0 || isDegenerate(command.transform) || !this.dashPaints(command)) return true;
 				out.instances = segments;
 				return true;
 			}
@@ -361,10 +365,13 @@ export class UberGeometryEncoder implements GeometryEncoder {
 			case 'circle':
 				this.encodeCircle(command, sink);
 				return;
-			case 'circles':
-				this.encodeCircles(command, sink);
-				return;
 			case 'line':
+				if (command.dash) {
+					this.begin(command, UBER_MODE.dash, -1);
+					this.dashSegment(sink, 0, command.transform, command.from, command.to, command.width / 2,
+						command.cap === 'round', true, command.color, command.dash, command.dash.offset);
+					return;
+				}
 				this.begin(command, UBER_MODE.rect, -1);
 				this.segment(sink, 0, command.transform, command.from, command.to, command.width / 2,
 					command.cap === 'round', command.cap === 'round', command.color);
@@ -482,19 +489,6 @@ export class UberGeometryEncoder implements GeometryEncoder {
 			fill, null, radius, radius);
 	}
 
-	/** R2.9's convenience: one borderless circle quad per centre, sharing the template, in one group. */
-	private encodeCircles(command: CirclesCommand, sink: GeometrySink): void {
-		const { radius } = command;
-		this.begin(command, UBER_MODE.circle, -1);
-		this.setHalfSize(radius, radius);
-		this.setBorder(TRANSPARENT, 0, 0);
-		const fill = premultiply(command.fill, this.fillScratch);
-		const centers = command.centers;
-		for (let index = 0; index < centers.length; index++) {
-			this.quad(sink, command.transform, centers[index].x, centers[index].y, radius, radius, fill, null, radius, radius, index);
-		}
-	}
-
 	// -- lines ------------------------------------------------------------
 
 	/**
@@ -506,6 +500,10 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	 * at its joints.
 	 */
 	private encodePolyline(command: PolylineCommand, sink: GeometrySink): void {
+		if (command.dash) {
+			this.encodeDashedPolyline(command, command.dash, sink);
+			return;
+		}
 		this.begin(command, UBER_MODE.rect, -1);
 		const points = command.points;
 		const segments = polylineSegments(command);
@@ -568,6 +566,104 @@ export class UberGeometryEncoder implements GeometryEncoder {
 			const localX = CORNER_X[corner] * extentX;
 			const localY = CORNER_Y[corner] * extentY;
 			// Local x along the segment, local y along its normal (-dirY, dirX).
+			const x = centerX + dirX * localX - dirY * localY;
+			const y = centerY + dirY * localX + dirX * localY;
+			this.corner(sink, base, corner, transform, x, y);
+			this.color(sink, base, corner, fill);
+		}
+	}
+
+	/**
+	 * R2.10a: a dashed line or polyline needs a pattern that repeats, so a
+	 * dash length and gap that add up to nothing paint nothing, reported.
+	 */
+	private dashPaints(command: LineCommand | PolylineCommand): boolean {
+		const dash = command.dash;
+		if (!dash) return true;
+		if (dash.length >= 0 && dash.gap >= 0 && dash.length + dash.gap > 0) return true;
+		this.onUnpaintable(command.kind, `a dash of ${dash.length} with a gap of ${dash.gap} doesn't repeat`);
+		return false;
+	}
+
+	/**
+	 * R5.16a: a dashed polyline is one dash-mode segment per edge, the
+	 * pattern laid along the whole line: each segment carries how far into
+	 * the pattern it starts, the distance along the line so far plus the
+	 * dash's offset, so the dashes run on across the joints.
+	 */
+	private encodeDashedPolyline(command: PolylineCommand, dash: ResolvedDash, sink: GeometrySink): void {
+		this.begin(command, UBER_MODE.dash, -1);
+		const points = command.points;
+		const segments = polylineSegments(command);
+		const round = command.cap === 'round';
+		const halfWidth = command.width / 2;
+		let along = dash.offset;
+		for (let index = 0; index < segments; index++) {
+			const from = points[index];
+			const to = points[(index + 1) % points.length];
+			const last = !command.closed && index === segments - 1;
+			this.dashSegment(sink, index, command.transform, from, to, halfWidth, round, last, command.color, dash, along);
+			along += Math.hypot(to.x - from.x, to.y - from.y);
+		}
+	}
+
+	/**
+	 * R5.16a: one segment of a dashed stroke, a dash-mode quad along it. The
+	 * fragment stage draws the dashes that start on this segment, each as a
+	 * capsule (round caps) or a box (butt caps), and leaves the ones that
+	 * start on the next segment to it, so a dash across a joint is drawn
+	 * once. The last segment of an open line ends its last dash where the
+	 * line ends, as SVG's dashes do. Its lanes: half its length and how far
+	 * into the pattern it starts (`phase`, float32, so neighbouring segments
+	 * agree on where a dash starts to well under a pixel), then the dash
+	 * length, the gap, the half width, and flags (1 round caps, 2 last).
+	 * The quad reaches a dash and a cap past either end, so a dash that
+	 * starts near the end is drawn whole.
+	 */
+	private dashSegment(
+		sink: GeometrySink,
+		segmentIndex: number,
+		transform: Mat2D,
+		from: Vec2,
+		to: Vec2,
+		halfWidth: number,
+		round: boolean,
+		last: boolean,
+		color: RGBA,
+		dash: ResolvedDash,
+		along: number,
+	): void {
+		let dirX = to.x - from.x;
+		let dirY = to.y - from.y;
+		const length = Math.hypot(dirX, dirY);
+		if (length > 1e-9) {
+			dirX /= length;
+			dirY /= length;
+		} else {
+			dirX = 1;
+			dirY = 0;
+		}
+		const period = dash.length + dash.gap;
+		const phase = ((along % period) + period) % period;
+		const halfLength = length / 2;
+		const centerX = (from.x + to.x) / 2;
+		const centerY = (from.y + to.y) / 2;
+
+		this.setHalfSize(halfLength, phase);
+		this.setRadius(0, dash.length);
+		this.setRadius(1, dash.gap);
+		this.setRadius(2, halfWidth);
+		this.setRadius(3, (round ? DASH_FLAGS.round : 0) + (last ? DASH_FLAGS.last : 0));
+
+		const pad = this.localPixel(transform);
+		const extentX = halfLength + dash.length + halfWidth + pad;
+		const extentY = halfWidth + pad;
+		const fill = premultiply(color, this.fillScratch);
+		const base = this.instance(sink, segmentIndex);
+		this.setExtent(sink, base, extentX, extentY);
+		for (let corner = 0; corner < 4; corner++) {
+			const localX = CORNER_X[corner] * extentX;
+			const localY = CORNER_Y[corner] * extentY;
 			const x = centerX + dirX * localX - dirY * localY;
 			const y = centerY + dirY * localX + dirX * localY;
 			this.corner(sink, base, corner, transform, x, y);
@@ -1110,8 +1206,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	 * covering `extentX` by `extentY` either side of it plus R5.7's device
 	 * pixel, with local coordinates measured from the centre. A gradient's
 	 * corner colours sit on the shape's own corners (`halfWidth`,
-	 * `halfHeight`) and are extrapolated out to the inflated ones. `index` is
-	 * the instance within the group, for a command that writes several.
+	 * `halfHeight`) and are extrapolated out to the inflated ones.
 	 */
 	private quad(
 		sink: GeometrySink,
@@ -1124,11 +1219,10 @@ export class UberGeometryEncoder implements GeometryEncoder {
 		gradient: number[] | null,
 		halfWidth: number,
 		halfHeight: number,
-		index = 0,
 	): void {
 		const outerX = extentX + this.devicePixel / Math.hypot(transform[0], transform[1]);
 		const outerY = extentY + this.devicePixel / Math.hypot(transform[2], transform[3]);
-		const base = this.instance(sink, index);
+		const base = this.instance(sink, 0);
 		this.setExtent(sink, base, outerX, outerY);
 		for (let corner = 0; corner < 4; corner++) {
 			const localX = CORNER_X[corner] * outerX;

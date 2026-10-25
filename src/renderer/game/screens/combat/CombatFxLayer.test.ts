@@ -1,4 +1,4 @@
-import { arrowHead, dotsAlong, hitCheckText, pointOnCurve, targetingCurve } from './CombatFxLayer';
+import { arrowHead, hitCheckText, pointOnCurve, pointsAlong, targetingCurve } from './CombatFxLayer';
 import type { AimPreview } from '../../mechanics/AimPreview';
 
 describe('the targeting line', () => {
@@ -10,13 +10,12 @@ describe('the targeting line', () => {
 		expect(Math.abs(early.x - 100)).toBeLessThan(Math.abs(early.y - 500));
 	});
 
-	it('spaces its dots 12 apart and stops short of the head', () => {
-		const dots = dotsAlong(targetingCurve({ x: 0, y: 200 }, { x: 0, y: 0 }), 16);
-		expect(dots[0].y).toBeCloseTo(194, 6);
-		for (let index = 1; index < dots.length; index++) {
-			expect(dots[index - 1].y - dots[index].y).toBeCloseTo(12, 6);
-		}
-		expect(dots[dots.length - 1].y).toBeGreaterThanOrEqual(16);
+	it('runs its line from the card to the head\'s base, short of the pointer', () => {
+		const points = pointsAlong(targetingCurve({ x: 0, y: 200 }, { x: 0, y: 0 }), 16);
+		expect(points[0]).toEqual({ x: 0, y: 200 });
+		expect(points[points.length - 1].y).toBeCloseTo(16, 6);
+		for (let index = 1; index < points.length; index++) expect(points[index].y).toBeLessThan(points[index - 1].y);
+		expect(pointsAlong(targetingCurve({ x: 0, y: 10 }, { x: 0, y: 0 }), 16)).toEqual([]);
 	});
 
 	it('points its head along the curve at the pointer, and up when the curve has no length', () => {

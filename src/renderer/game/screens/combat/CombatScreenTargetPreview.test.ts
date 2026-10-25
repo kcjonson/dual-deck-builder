@@ -6,7 +6,7 @@ import { createTestContext, injectNow } from '../../../engine/components/testing
 import { Clock } from '../../../engine/animation/Clock';
 import { PointerAdapter } from '../../../engine/input/PointerAdapter';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
-import type { DrawCirclesOptions, DrawPolygonOptions, DrawPolylineOptions } from '../../../engine/draw/commands';
+import type { DrawPolygonOptions, DrawPolylineOptions } from '../../../engine/draw/commands';
 import type { RGBA, Vec2 } from '../../../engine/draw/geometry';
 import { Battle } from '../../mechanics/Battle';
 import { Card, CardData } from '../../mechanics/Card';
@@ -18,6 +18,7 @@ import { Card as UICard } from '../../ui/Card';
 import { Vehicle as UIVehicle } from '../../ui/Vehicle';
 import { createTestDriver } from '../../ai/__tests__/test-helpers';
 import { BLOCK_LABELS } from './PlayerHandView';
+import { DOTTED } from './CombatFxLayer';
 import cardsFile from '../../data/cards.json';
 
 /**
@@ -185,12 +186,11 @@ interface Arrow {
 }
 
 /**
- * What the preview draws: each arrow, from the line or dots before its
- * head, and the draws counted by kind; `dots` counts the dots, and
- * `dotGroups` the draws that carry them, one an arrow.
+ * What the preview draws: each arrow, from the line before its head, and
+ * the draws counted: solid `lines`, dotted lines (`dots`, R2.10a), heads.
  */
-function record(combat: CombatScreen): { lines: number; dots: number; dotGroups: number; heads: number; arrows: Arrow[] } {
-	const counts = { lines: 0, dots: 0, dotGroups: 0, heads: 0 };
+function record(combat: CombatScreen): { lines: number; dots: number; heads: number; arrows: Arrow[] } {
+	const counts = { lines: 0, dots: 0, heads: 0 };
 	const arrows: Arrow[] = [];
 	const target = preview(combat);
 	const screen = (point: Vec2): Vec2 => target.localToScreen({ x: point.x, y: point.y });
@@ -198,14 +198,15 @@ function record(combat: CombatScreen): { lines: number; dots: number; dotGroups:
 	let solid = false;
 	const draw = {
 		drawPolyline: (options: DrawPolylineOptions) => {
-			counts.lines++;
+			if (options.dash) {
+				expect(options.dash).toEqual(DOTTED);
+				expect(options.cap).toBe('round');
+				counts.dots++;
+			} else {
+				counts.lines++;
+				solid = true;
+			}
 			start ??= screen(options.points[0]);
-			solid = true;
-		},
-		drawCircles: (options: DrawCirclesOptions) => {
-			counts.dotGroups++;
-			counts.dots += options.centers.length;
-			start ??= screen(options.centers[0]);
 		},
 		drawPolygon: (options: DrawPolygonOptions) => {
 			counts.heads++;
@@ -379,9 +380,8 @@ describe('the target preview', () => {
 		const counts = record(combat);
 		expect(counts.lines).toBe(0);
 		expect(counts.heads).toBe(2);
-		expect(counts.dots).toBeGreaterThan(2);
-		// Each arrow's dots go in one draw group
-		expect(counts.dotGroups).toBe(2);
+		// One dotted line an arrow, its dots drawn by the line style
+		expect(counts.dots).toBe(2);
 	});
 
 	it('draws solid arrows to every raider for a card that lands on all of them', async () => {

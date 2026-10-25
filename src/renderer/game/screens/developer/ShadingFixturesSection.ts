@@ -46,7 +46,8 @@ interface Row {
 /**
  * Chapter 5's visual fixture (5.10): corner radii, border widths in each
  * position, gradients including to transparent, shadows at blur 0, 8 and 24
- * with both spreads, a glow, bordered circles, 1 and 3 px lines, text over
+ * with both spreads, a glow, bordered circles, 1 and 3 px lines, dotted and
+ * dashed lines round a bend, text over
  * every one of them, the four blend modes over a photograph, and a
  * nine-sliced image: the picture a person reviews the rules against.
  *
@@ -67,6 +68,7 @@ export class ShadingFixturesSection extends DeveloperSectionPanel {
 			{ height: 120, tiles: [
 				{ name: 'radii', width: 700, paint: radii },
 				{ name: 'circles', width: 380, paint: circles },
+				{ name: 'dashes', width: 200, paint: dashes },
 			] },
 			{ height: 120, tiles: [1, 2, 6].map((width, index) => ({
 				name: `borders_${width}`,
@@ -206,6 +208,14 @@ function lines(draw: DrawApi): void {
 	draw.drawLine({ from: { x: 230, y }, to: { x: 330, y: y + 70 }, color: WHITE, width: 1 });
 	draw.drawLine({ from: { x: 260, y }, to: { x: 360, y: y + 70 }, color: WHITE, width: 3 });
 	fixtureLabel(draw, { text: 'text over lines', box: { x: 220, y: y + 20, width: 160, height: 20 } });
+}
+
+/** R5.16a: the pattern runs on round a polyline's bends, and the open end's last dash stops at the end. */
+function dashes(draw: DrawApi): void {
+	fixtureHeading(draw, 'Dotted and dashed', 0, 0);
+	const bend = (y: number) => [{ x: 0, y }, { x: 70, y }, { x: 110, y: y + 30 }, { x: 190, y: y + 30 }];
+	draw.drawPolyline({ points: bend(34), color: WHITE, width: 5, cap: 'round', dash: { length: 0, gap: 12, offset: 6 } });
+	draw.drawPolyline({ points: bend(62), color: AMBER, width: 3, dash: { length: 9, gap: 6 } });
 }
 
 function shadows(draw: DrawApi): void {

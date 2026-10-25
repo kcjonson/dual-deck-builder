@@ -1,17 +1,17 @@
 import { Component, ComponentOptions, ResolvedColors } from '../../../engine/components/Component';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
-import type { DrawCirclesOptions, DrawPolygonOptions, DrawPolylineOptions } from '../../../engine/draw/commands';
+import type { DrawPolygonOptions, DrawPolylineOptions } from '../../../engine/draw/commands';
 import type { RGBA, Rect, Vec2 } from '../../../engine/draw/geometry';
 import { resolveColor } from '../../../engine/style/styleObject';
 import { tokens } from '../../../engine/theme/tokens';
 import type { Vehicle as VehicleUI } from '../../ui/Vehicle';
 import type { CardTargets } from './cardTargets';
-import { DOT_RADIUS, DOT_SPACING, HEAD_INDICES, HEAD_LENGTH, arrowHead, leading } from './CombatFxLayer';
+import { DOTTED, DOT_RADIUS, HEAD_INDICES, HEAD_LENGTH, arrowHead, leading } from './CombatFxLayer';
 import type { RoadRect } from './CombatLayout';
 import { RoadArc } from './RoadArc';
 import type { RoadView } from './RoadView';
 
-/** A solid arrow's line, as wide as the dotted one's dots. */
+/** A solid arrow's line; a dotted one is the aiming line's dots, 5 across. */
 const SOLID_WIDTH = 3;
 /** How far above a target an arrow's arc turns down onto it, so the head points down rather than in from the side. */
 const LANDING_DROP = 40;
@@ -62,14 +62,11 @@ export class TargetPreview extends Component {
 	private readonly tokenBox: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly sourcePlate: Rect = { x: 0, y: 0, width: 0, height: 0 };
 	private readonly targetPlate: Rect = { x: 0, y: 0, width: 0, height: 0 };
-	/** The solid line's points and the dots' centres, and for each length a list of exactly that many, for the draw (`leading`). */
+	/** The line's points, and for each length a list of exactly that many, for the draw (`leading`). */
 	private readonly linePoints: Vec2[] = [];
 	private readonly lineLists: Vec2[][] = [];
-	private readonly dotPoints: Vec2[] = [];
-	private readonly dotLists: Vec2[][] = [];
 	private readonly tangent: [Vec2, Vec2, Vec2] = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
 	private readonly head: [Vec2, Vec2, Vec2] = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
-	private readonly dots: DrawCirclesOptions & { fill: RGBA } = { centers: [], radius: DOT_RADIUS, fill: RAIDER_LINE };
 	private readonly line: DrawPolylineOptions & { color: RGBA } = { points: [], color: RAIDER_LINE, width: SOLID_WIDTH, cap: 'round' };
 	private readonly headShape: DrawPolygonOptions & { fill: RGBA };
 
@@ -159,30 +156,20 @@ export class TargetPreview extends Component {
 	}
 
 	/**
-	 * Along the traced arc, `length` long, from `start` along it: a line or
-	 * dots up to the head, then the head pointing along the arc's end at
-	 * `to`. Nothing when the head wouldn't fit past the start.
+	 * Along the traced arc, `length` long, from `start` along it: a line up
+	 * to the head, solid or in the aiming line's dots (a dotted line style,
+	 * R2.10a), then the head pointing along the arc's end at `to`. Nothing
+	 * when the head wouldn't fit past the start.
 	 */
 	private drawArrow(draw: DrawApi, start: number, length: number, solid: boolean, color: RGBA): void {
 		const neck = length - HEAD_LENGTH;
 		if (neck <= start) return;
-		if (solid) {
-			const count = this.arc.pointsBetween(start, neck, this.linePoints);
-			this.line.points = leading(this.linePoints, count, this.lineLists);
-			this.line.color = color;
-			draw.drawPolyline(this.line);
-		} else {
-			// Every dot in one draw group (R2.9's drawCircles)
-			let count = 0;
-			let segment = 1;
-			for (let distance = start + DOT_SPACING / 2; distance <= neck; distance += DOT_SPACING) {
-				if (count === this.dotPoints.length) this.dotPoints.push({ x: 0, y: 0 });
-				segment = this.arc.pointAt(distance, segment, this.dotPoints[count++]);
-			}
-			this.dots.centers = leading(this.dotPoints, count, this.dotLists);
-			this.dots.fill = color;
-			if (count > 0) draw.drawCircles(this.dots);
-		}
+		const count = this.arc.pointsBetween(start, neck, this.linePoints);
+		this.line.points = leading(this.linePoints, count, this.lineLists);
+		this.line.color = color;
+		this.line.width = solid ? SOLID_WIDTH : DOT_RADIUS * 2;
+		this.line.dash = solid ? undefined : DOTTED;
+		draw.drawPolyline(this.line);
 		// The head points from the neck to the tip, as the aiming line's points from its control
 		this.arc.pointAt(neck, 1, this.tangent[1]);
 		this.tangent[2].x = this.to.x;

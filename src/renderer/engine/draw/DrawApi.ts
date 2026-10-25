@@ -29,8 +29,8 @@ import {
 	BoxShadow,
 	CornerColors,
 	CornerRadii,
+	Dash,
 	DrawCircleOptions,
-	DrawCirclesOptions,
 	DrawCommand,
 	DrawGroupRole,
 	DrawImageOptions,
@@ -42,6 +42,7 @@ import {
 	FontAtlasHandle,
 	MeasureTextOptions,
 	NineSlice,
+	ResolvedDash,
 	ResolvedState,
 	TextMetrics,
 	TextureHandle,
@@ -677,30 +678,6 @@ export class DrawApi {
 		});
 	}
 
-	/**
-	 * R2.9's convenience over `drawCircle`: circles of one radius and fill,
-	 * each shaded as one, in ONE group, as `drawPolyline` is one group of
-	 * segments. A dotted line is dozens of dots, and a group each would
-	 * spend a capture and a command on every dot. No circle draws nothing.
-	 */
-	drawCircles(options: DrawCirclesOptions): void {
-		if (!this.ensureFrame('drawCircles')) return;
-		const state = this.capture({
-			id: options.id,
-			blend: options.blend,
-			group: 'primary',
-			ink: pointsInk(options.centers, options.radius * 2),
-		});
-		if (!state) return;
-		this.emit({
-			...state,
-			kind: 'circles',
-			centers: options.centers.map(copyVec2),
-			radius: options.radius,
-			fill: copyColor(options.fill),
-		});
-	}
-
 	drawLine(options: DrawLineOptions): void {
 		if (!this.ensureFrame('drawLine')) return;
 		const state = this.capture({
@@ -718,6 +695,7 @@ export class DrawApi {
 			color: copyColor(options.color),
 			width: options.width,
 			cap: options.cap ?? 'butt',
+			dash: copyDash(options.dash),
 		});
 	}
 
@@ -743,6 +721,7 @@ export class DrawApi {
 			width: options.width,
 			closed: options.closed ?? false,
 			cap: options.cap ?? 'butt',
+			dash: copyDash(options.dash),
 		});
 	}
 
@@ -1122,6 +1101,11 @@ function copyBorder(border: Border | undefined): Border | null {
 	// R5.7: `inside` is the default because nearly every component in this
 	// codebase overrides worldsim's `center` to it.
 	return { color: copyColor(border.color), width: border.width, position: border.position ?? 'inside' };
+}
+
+function copyDash(dash: Dash | undefined): ResolvedDash | null {
+	if (!dash) return null;
+	return { length: dash.length, gap: dash.gap, offset: dash.offset ?? 0 };
 }
 
 function copyGradient(gradient: CornerColors | undefined): CornerColors | null {

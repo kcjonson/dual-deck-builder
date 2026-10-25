@@ -128,7 +128,10 @@ describe('CombatScreen end-turn preview', () => {
 		api.endFrame();
 		const targeted = [...intents.values()].flat().filter((intent) => intent.target !== null).length;
 		expect(targeted).toBeGreaterThan(0);
-		expect(backend.commands.filter((command) => command.kind === 'line').length).toBeGreaterThan(targeted);
+		// One dashed line each (R2.10a), and a dot where it lands
+		const lines = backend.commands.filter((command) => command.kind === 'polyline');
+		expect(lines).toHaveLength(targeted);
+		for (const line of lines) expect(line.kind === 'polyline' && line.dash).toEqual({ length: 6, gap: 5, offset: 0 });
 		expect(backend.commands.filter((command) => command.kind === 'circle')).toHaveLength(targeted);
 
 		send(context, [pointer('move', 1, 1)]);

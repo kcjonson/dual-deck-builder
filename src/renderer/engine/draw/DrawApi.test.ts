@@ -117,7 +117,6 @@ describe('R2.1 out-of-frame policy, one rule for every entry point', () => {
 		['popLayer', (api) => api.popLayer()],
 		['drawRect', (api) => api.drawRect({ rect: rect(0, 0, 1, 1), fill: BLUE })],
 		['drawCircle', (api) => api.drawCircle({ center: { x: 0, y: 0 }, radius: 1, fill: BLUE })],
-		['drawCircles', (api) => api.drawCircles({ centers: [{ x: 0, y: 0 }], radius: 1, fill: BLUE })],
 		['drawLine', (api) => api.drawLine({ from: { x: 0, y: 0 }, to: { x: 1, y: 1 }, color: RED, width: 1 })],
 		['drawPolyline', (api) => api.drawPolyline({ points: [{ x: 0, y: 0 }], color: RED, width: 1 })],
 		['drawPolygon', (api) => api.drawPolygon({ points: [{ x: 0, y: 0 }], fill: BLUE })],
@@ -293,7 +292,7 @@ describe('the four stacks are captured into each draw (R2.4 to R2.7)', () => {
 		api.beginFrame({ viewport: VIEWPORT });
 		api.drawRect({ rect: rect(0, 0, 10, 10), fill: BLUE });
 		api.drawCircle({ center: { x: 5, y: 5 }, radius: 4, fill: BLUE });
-		api.drawCircles({ centers: [{ x: 1, y: 1 }, { x: 3, y: 3 }], radius: 1, fill: BLUE });
+		api.drawPolyline({ points: [{ x: 0, y: 0 }, { x: 4, y: 0 }], color: RED, width: 2, cap: 'round', dash: { length: 0, gap: 3 } });
 		api.drawText({ text: 'x', position: { x: 0, y: 0 }, font: 'body', size: 12, color: RED });
 		api.drawPolyline({ points: [{ x: 0, y: 0 }, { x: 4, y: 4 }], color: RED, width: 1 });
 		api.endFrame();

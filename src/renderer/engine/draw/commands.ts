@@ -142,11 +142,17 @@ export interface DrawCircleOptions extends CommonOptions {
 	border?: Border;
 }
 
-/** R2.9's convenience: circles of one radius and fill, as one draw group (a dotted line's dots). */
-export interface DrawCirclesOptions extends CommonOptions {
-	centers: readonly Vec2[];
-	radius: number;
-	fill: RGBA;
+/**
+ * R2.10a: a stroke drawn in dashes, `length` drawn then `gap` skipped,
+ * repeating along the line's length, `offset` into the pattern where the
+ * line starts (SVG's `stroke-dasharray` of two lengths, and its
+ * `stroke-dashoffset`). Each dash takes the line's `cap`, so a zero
+ * `length` with round caps is a dotted line, a dot the line's width across.
+ */
+export interface Dash {
+	length: number;
+	gap: number;
+	offset?: number;
 }
 
 export interface DrawLineOptions extends CommonOptions {
@@ -155,6 +161,7 @@ export interface DrawLineOptions extends CommonOptions {
 	color: RGBA;
 	width: number;
 	cap?: LineCap;
+	dash?: Dash;
 }
 
 export interface DrawPolylineOptions extends CommonOptions {
@@ -163,6 +170,8 @@ export interface DrawPolylineOptions extends CommonOptions {
 	width: number;
 	closed?: boolean;
 	cap?: LineCap;
+	/** Laid along the whole polyline, so the pattern runs on across its joints. */
+	dash?: Dash;
 }
 
 /**
@@ -267,7 +276,6 @@ export type DrawCommandKind =
 	| 'rect'
 	| 'shadow'
 	| 'circle'
-	| 'circles'
 	| 'line'
 	| 'polyline'
 	| 'polygon'
@@ -322,11 +330,11 @@ export interface CircleCommand extends ResolvedState {
 	readonly border: Border | null;
 }
 
-export interface CirclesCommand extends ResolvedState {
-	readonly kind: 'circles';
-	readonly centers: readonly Vec2[];
-	readonly radius: number;
-	readonly fill: RGBA;
+/** R2.10a's pattern with its offset resolved. */
+export interface ResolvedDash {
+	readonly length: number;
+	readonly gap: number;
+	readonly offset: number;
 }
 
 export interface LineCommand extends ResolvedState {
@@ -336,6 +344,7 @@ export interface LineCommand extends ResolvedState {
 	readonly color: RGBA;
 	readonly width: number;
 	readonly cap: LineCap;
+	readonly dash: ResolvedDash | null;
 }
 
 export interface PolylineCommand extends ResolvedState {
@@ -345,6 +354,7 @@ export interface PolylineCommand extends ResolvedState {
 	readonly width: number;
 	readonly closed: boolean;
 	readonly cap: LineCap;
+	readonly dash: ResolvedDash | null;
 }
 
 export interface PolygonCommand extends ResolvedState {
@@ -390,7 +400,6 @@ export type DrawCommand =
 	| RectCommand
 	| ShadowCommand
 	| CircleCommand
-	| CirclesCommand
 	| LineCommand
 	| PolylineCommand
 	| PolygonCommand

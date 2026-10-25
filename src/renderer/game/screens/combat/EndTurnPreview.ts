@@ -1,10 +1,11 @@
 import { Component, ComponentOptions, ResolvedColors } from '../../../engine/components/Component';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
-import type { DrawCircleOptions, DrawLineOptions, DrawRectOptions, DrawTextOptions } from '../../../engine/draw/commands';
+import type { DrawCircleOptions, DrawPolylineOptions, DrawRectOptions, DrawTextOptions } from '../../../engine/draw/commands';
 import type { RGBA, Vec2 } from '../../../engine/draw/geometry';
 import { resolveColor } from '../../../engine/style/styleObject';
 import { EnemyIntent, IntentPill, intentDamage } from '../../ui/IntentPill';
 import { TOKEN_WIDTH, Vehicle as VehicleUI } from '../../ui/Vehicle';
+import { leading } from './CombatFxLayer';
 import { RoadArc } from './RoadArc';
 import type { RoadView } from './RoadView';
 
@@ -94,7 +95,9 @@ export class EndTurnPreview extends Component {
 	private readonly local: Vec2 = { x: 0, y: 0 };
 	private readonly corner: Vec2 = { x: 0, y: 0 };
 	private readonly arc = new RoadArc();
-	private readonly dash: DrawLineOptions & { from: Vec2; to: Vec2 } = { from: { x: 0, y: 0 }, to: { x: 0, y: 0 }, color: ATTACK_LINE, width: LINE_WIDTH, cap: 'butt' };
+	private readonly linePoints: Vec2[] = [];
+	private readonly lineLists: Vec2[][] = [];
+	private readonly line: DrawPolylineOptions & { color: RGBA } = { points: [], color: ATTACK_LINE, width: LINE_WIDTH, cap: 'butt', dash: { length: DASH, gap: DASH_GAP } };
 	private readonly end: DrawCircleOptions & { center: Vec2 } = { center: { x: 0, y: 0 }, radius: END_RADIUS, fill: ATTACK_LINE };
 	private readonly chip: DrawRectOptions & { rect: { x: number; y: number; width: number; height: number } } = { rect: { x: 0, y: 0, width: 0, height: 0 }, fill: TOTAL_FILL, radius: 2 };
 	private readonly chipText: DrawTextOptions & { box: { x: number; y: number; width: number; height: number } } = {
@@ -177,16 +180,13 @@ export class EndTurnPreview extends Component {
 		}
 	}
 
-	/** Up from the pill, across, and down onto the plate (`RoadArc`), dashed along its length. */
+	/** Up from the pill, across, and down onto the plate (`RoadArc`), one dashed line along its length (R2.10a). */
 	private drawCurve(draw: DrawApi, color: RGBA): void {
 		const length = this.arc.trace(this.from, this.to);
-		this.dash.color = color;
-		let segment = 1;
-		for (let start = 0; start < length; start += DASH + DASH_GAP) {
-			segment = this.arc.pointAt(start, segment, this.dash.from);
-			segment = this.arc.pointAt(Math.min(length, start + DASH), segment, this.dash.to);
-			draw.drawLine(this.dash);
-		}
+		const count = this.arc.pointsBetween(0, length, this.linePoints);
+		this.line.points = leading(this.linePoints, count, this.lineLists);
+		this.line.color = color;
+		if (count > 1) draw.drawPolyline(this.line);
 		this.end.center.x = this.to.x;
 		this.end.center.y = this.to.y;
 		this.end.fill = color;

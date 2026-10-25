@@ -120,10 +120,6 @@ export function drawnInk(component: Component, api: DrawApi): DrawnInk[] {
 			note('circle', options.id, circleInk(options.center, options.radius, options.border));
 			api.drawCircle(options);
 		},
-		drawCircles: (options) => {
-			note('circles', options.id, pointsInk(options.centers, options.radius * 2));
-			api.drawCircles(options);
-		},
 		drawLine: (options) => {
 			note('line', options.id, lineInk(options.from, options.to, options.width));
 			api.drawLine(options);

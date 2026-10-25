@@ -18,7 +18,8 @@ import { Battle } from '../../mechanics/Battle';
 import { Card } from '../../mechanics/Card';
 import { RoadLane, RoadRow } from '../../mechanics/Road';
 import type { Rect } from '../../../engine/draw/geometry';
-import { NUMBER_LIFETIME } from './CombatFxLayer';
+import { DOTTED, NUMBER_LIFETIME } from './CombatFxLayer';
+import type { DrawPolylineOptions } from '../../../engine/draw/commands';
 import { BLOCK_LABELS } from './PlayerHandView';
 import { Component } from '../../../engine/components/Component';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
@@ -419,9 +420,9 @@ describe('CombatScreen drag to play', () => {
 		// The line runs from the lifted card's top edge to the pointer, found
 		// without the screen round trip (no screenQuad, no inverted matrices)
 		// The arrow reuses its option objects, so copy what each call saw
-		const dots: { x: number; y: number }[] = [];
+		const lines: DrawPolylineOptions[] = [];
 		const draw = {
-			drawCircles: jest.fn(({ centers }: { centers: readonly { x: number; y: number }[] }) => dots.push(...centers.map(center => ({ ...center })))),
+			drawPolyline: jest.fn((options: DrawPolylineOptions) => lines.push({ ...options, points: options.points.map(point => ({ ...point })) })),
 			drawPolygon: jest.fn(),
 		};
 		const screenQuad = jest.spyOn(Component.prototype, 'screenQuad', 'get');
@@ -434,9 +435,13 @@ describe('CombatScreen drag to play', () => {
 		const [tip] = draw.drawPolygon.mock.calls[0][0].points;
 		expect(tip.x).toBeCloseTo(target[0], 6);
 		expect(tip.y).toBeCloseTo(target[1], 6);
+		// One dotted line (R2.10a), starting at the middle of the card's top edge
 		const [topLeft, topRight] = card.screenQuad;
-		const [firstDot] = dots;
-		expect(Math.hypot(firstDot.x - (topLeft.x + topRight.x) / 2, firstDot.y - (topLeft.y + topRight.y) / 2)).toBeLessThan(12);
+		expect(lines).toHaveLength(1);
+		const [line] = lines;
+		expect(line.dash).toEqual(DOTTED);
+		expect(line.cap).toBe('round');
+		expect(Math.hypot(line.points[0].x - (topLeft.x + topRight.x) / 2, line.points[0].y - (topLeft.y + topRight.y) / 2)).toBeLessThan(1e-6);
 
 		inject(`up,${target[0]},${target[1]}`);
 

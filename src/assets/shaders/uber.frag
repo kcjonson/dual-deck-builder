@@ -10,6 +10,7 @@ const int MODE_SHADOW = 2;
 const int MODE_CIRCLE = 3;
 const int MODE_IMAGE = 4;
 const int MODE_TEXT = 5;
+const int MODE_DASH = 6;
 
 // R5.20: a fixed set of units, selected per draw by slot. GLSL ES 3.00 cannot
 // index a sampler array dynamically, hence the switch in `sampleSlot`.
@@ -71,6 +72,17 @@ float sdRoundedBox(vec2 p, vec2 halfSize, vec4 radii) {
 // R5.6: the linear one-pixel ramp, the box-filter coverage of a straight edge.
 float coverage(float d, float w) {
 	return clamp(0.5 - d / w, 0.0, 1.0);
+}
+
+// R5.16a: the signed distance from `along` (along the segment from its
+// start) and `across` to the dash that starts at `start` and runs `run`: a
+// capsule of half width `halfWidth` with round caps, a box with butt ones.
+float sdDash(float along, float across, float start, float run, float halfWidth, bool roundCaps) {
+	if (roundCaps) {
+		return length(vec2(along - clamp(along, start, start + run), across)) - halfWidth;
+	}
+	vec2 q = abs(vec2(along - (start + 0.5 * run), across)) - vec2(0.5 * run, halfWidth);
+	return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
 }
 
 // R5.12: Evan Wallace's rounded-box shadow. Closed form (erf) across x, four
@@ -178,6 +190,32 @@ void main() {
 		float alpha = sigma < 0.5 * w
 			? coverage(sdRoundedBox(vLocal, vHalfSize, vRadii), w)
 			: roundedBoxShadow(vLocal, vHalfSize, sigma, cornerRadius(vLocal, vRadii));
+		color = vFill * alpha;
+		covered = alpha;
+	} else if (mode == MODE_DASH) {
+		// R5.16a: one segment of a dashed stroke. Local x runs along the
+		// segment from its middle, y across it. vHalfSize is (half the
+		// segment's length, how far into the pattern it starts); vRadii is
+		// (dash length, gap, half width, flags: 1 round caps, 2 the last
+		// segment of an open line). The segment draws the dashes that start
+		// on it, this period's and the next, and leaves a dash that starts
+		// on its neighbour to that neighbour, so a dash across a joint is
+		// drawn once; the last segment ends its dashes where the line ends.
+		float dashLength = vRadii.x;
+		float period = vRadii.x + vRadii.y;
+		float halfWidth = vRadii.z;
+		bool roundCaps = mod(vRadii.w, 2.0) > 0.5;
+		bool lastSegment = vRadii.w > 1.5;
+		float segmentLength = 2.0 * vHalfSize.x;
+		float along = vLocal.x + vHalfSize.x;
+		float first = floor((along + vHalfSize.y) / period) * period - vHalfSize.y;
+		float alpha = 0.0;
+		for (int k = 0; k < 2; k++) {
+			float start = first + float(k) * period;
+			if (start < 0.0 || start >= segmentLength) continue;
+			float run = lastSegment ? min(dashLength, segmentLength - start) : dashLength;
+			alpha = max(alpha, coverage(sdDash(along, vLocal.y, start, run, halfWidth, roundCaps), w));
+		}
 		color = vFill * alpha;
 		covered = alpha;
 	} else if (mode == MODE_IMAGE) {

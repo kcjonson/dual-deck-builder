@@ -8,6 +8,7 @@ import { committedFontAtlas, syntheticFontAtlas } from '../text/testing';
 import { RasterGlyphPage } from './RasterGlyphPage';
 import { fromHalf, toUnorm8 } from './packing';
 import {
+	DASH_FLAGS,
 	UBER_ATTRIBUTES,
 	UBER_FLAGS,
 	UBER_INSTANCE,
@@ -400,27 +401,40 @@ describe('UberGeometryEncoder: circle and lines (R5.15, R5.16)', () => {
 		expect(first.corners[0]).toEqual([38, 48]);
 	});
 
-	it('writes circles as one group: a borderless circle quad at each centre (R2.9)', () => {
+	it('writes a dashed polyline as one group of dash-mode segments, the pattern running on across the joints (R5.16a)', () => {
 		const { draw } = setup();
-		const centers = [{ x: 10, y: 20 }, { x: 30, y: 20 }, { x: 50, y: 25 }];
-		const upload = draw((api) => api.drawCircles({ centers, radius: 2.5, fill: RED }));
+		// 10 along, then 15 down, then 7 along: a 4 on, 3 off pattern, 2 into it at the start
+		const points = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 15 }, { x: 17, y: 15 }];
+		const upload = draw((api) => api.drawPolyline({ points, color: RED, width: 2, cap: 'round', dash: { length: 4, gap: 3, offset: 2 } }));
 		expect(upload.upload.groups).toBe(1);
 		expect(upload.count).toBe(3);
-		centers.forEach((center, index) => {
-			const dot = instance(upload, index);
-			expect(dot.mode).toBe(UBER_MODE.circle);
-			expect(dot.halfSize).toEqual([2.5, 2.5]);
-			expect(dot.outset).toBe(0);
-			// The device pixel past the radius, as a single circle's quad has
-			expect(dot.local(0)).toEqual([-3.5, -3.5]);
-			expect(dot.corners[0]).toEqual([center.x - 3.5, center.y - 3.5]);
-		});
+		const segments = [0, 1, 2].map((index) => instance(upload, index));
+		for (const segment of segments) expect(segment.mode).toBe(UBER_MODE.dash);
+		// Half the segment's length, and how far into the pattern it starts: 2, 12, 27 mod 7
+		expect(segments.map((segment) => segment.halfSize)).toEqual([[5, 2], [7.5, 5], [3.5, 6]]);
+		// Dash length, gap, half width, flags: round on every segment, last on the last
+		expect(segments.map((segment) => segment.radii)).toEqual([[4, 3, 1, DASH_FLAGS.round], [4, 3, 1, DASH_FLAGS.round], [4, 3, 1, DASH_FLAGS.round + DASH_FLAGS.last]]);
+		// The quad reaches a dash and a cap past each end, and a device pixel more
+		expect(segments[0].local(0)).toEqual([-(5 + 4 + 1 + 1), -(1 + 1)]);
+		expect(segments[0].colors[0]).toEqual(pm(RED));
 	});
 
-	it('draws nothing for no circles, or for a radius that isn\'t positive', () => {
-		const { encode } = setup();
-		expect(encode(record((api) => api.drawCircles({ centers: [], radius: 3, fill: RED }))).uploads).toEqual([]);
-		expect(encode(record((api) => api.drawCircles({ centers: [{ x: 0, y: 0 }], radius: 0, fill: RED }))).uploads).toEqual([]);
+	it('writes a dashed line as one last segment, its pattern starting at its offset', () => {
+		const { draw } = setup();
+		const first = instance(draw((api) => {
+			api.drawLine({ from: { x: 0, y: 0 }, to: { x: 30, y: 0 }, color: RED, width: 4, dash: { length: 6, gap: 5, offset: 13 } });
+		}), 0);
+		expect(first.mode).toBe(UBER_MODE.dash);
+		expect(first.halfSize).toEqual([15, 2]);
+		expect(first.radii).toEqual([6, 5, 2, DASH_FLAGS.last]);
+	});
+
+	it('paints nothing for a dash that doesn\'t repeat, and says so', () => {
+		const { encode, unpaintable } = setup();
+		expect(encode(record((api) => {
+			api.drawPolyline({ points: [{ x: 0, y: 0 }, { x: 10, y: 0 }], color: RED, width: 2, dash: { length: 0, gap: 0 } });
+		})).uploads).toEqual([]);
+		expect(unpaintable).toEqual(["polyline: a dash of 0 with a gap of 0 doesn't repeat"]);
 	});
 
 	it('writes a line as a rect-mode quad along it, with round caps as radii', () => {
