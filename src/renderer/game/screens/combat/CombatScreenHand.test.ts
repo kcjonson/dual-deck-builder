@@ -19,6 +19,7 @@ import { Card } from '../../mechanics/Card';
 import { RoadLane, RoadRow } from '../../mechanics/Road';
 import type { Rect } from '../../../engine/draw/geometry';
 import { NUMBER_LIFETIME } from './CombatFxLayer';
+import { BLOCK_LABELS } from './PlayerHandView';
 import { Component } from '../../../engine/components/Component';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
 
@@ -751,17 +752,15 @@ describe('CombatScreen targeting (DDB-138)', () => {
 		inject('keydown,Escape', 'keyup,Escape');
 		expect(token.rangeLabel).toBeNull();
 
-		// From the Bike, inside behind, it's two away: out of reach, dimmed,
-		// and a drop on it plays nothing
+		// From the Bike, inside behind, it's two away: with nothing in reach
+		// the card is disabled and says so, so a drag picks nothing up and
+		// a release on the raider plays nothing
 		const far = dealTo(combat, 2, 'point_blank');
-		drag(grabPoint(far), centreOf(vehicleBounds(combat, 'enemyTeam')), { release: false });
-		expect(combat['combatModel'].isTargeting).toBe(true);
-		expect(combat['combatModel'].targetableVehicleIds).toEqual([]);
-		expect(token.rangeLabel).toEqual({ text: 'OUT', legal: false });
-		expect(token.opacity).toBeLessThan(1);
-		expect(context.drag.canDrop).toBe(false);
-		const [tx, ty] = centreOf(vehicleBounds(combat, 'enemyTeam'));
-		inject(`up,${tx},${ty}`);
+		expect(far.enabled).toBe(false);
+		expect(far.blockLabel).toBe(BLOCK_LABELS.noTarget);
+		drag(grabPoint(far), centreOf(vehicleBounds(combat, 'enemyTeam')));
+		expect(combat['combatModel'].isTargeting).toBe(false);
+		expect(context.drag.isDragging).toBe(false);
 		expect(playCard).not.toHaveBeenCalled();
 		expect(combat['combatModel'].selectedCard).toBeNull();
 		expect(token.rangeLabel).toBeNull();

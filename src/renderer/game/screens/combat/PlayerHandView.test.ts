@@ -1,7 +1,7 @@
 import { Card, CardEffect } from '../../mechanics/Card';
 import { Driver, DriverRole } from '../../mechanics/Driver';
 import { createTestDriver } from '../../ai/__tests__/test-helpers';
-import { buildPlayerHandView } from './PlayerHandView';
+import { BLOCK_LABELS, buildPlayerHandView } from './PlayerHandView';
 
 const card = (name: string, effects: CardEffect[], cost = 1, tags: string[] = []): Card => new Card({
 	type: name.toLowerCase().replace(/ /g, '_'),
@@ -67,6 +67,36 @@ describe('buildPlayerHandView', () => {
 		expect(view.playable.has(shot.id)).toBe(false);
 		expect(view.unaffordable.has(shot.id)).toBe(false);
 		expect(view.unaffordable.has(dear.id)).toBe(true);
+	});
+
+	test("says why each card its driver can pay for can't be played, and asks about targets only past the rules", () => {
+		const [shot, armor, stuck, open] = [farShot(), armorUp(), armorUp(), farShot()];
+		first.set({ hand: [shot, armor], adrenaline: 3, role: DriverRole.PASSENGER });
+		second.set({ hand: [stuck, open], adrenaline: 3 });
+		const hasTarget = jest.fn((_driver: Driver, card: Card) => card !== open);
+
+		const view = buildPlayerHandView({
+			drivers: [first, second],
+			canPlay: (driver, card) => driver.canPlayCard(card) && card !== stuck,
+			hasTarget,
+		});
+
+		expect(view.blocked.get(shot.id)).toBe(BLOCK_LABELS.passenger);
+		expect(view.blocked.get(stuck.id)).toBe(BLOCK_LABELS.rule);
+		expect(view.blocked.get(open.id)).toBe(BLOCK_LABELS.noTarget);
+		expect(view.blocked.has(armor.id)).toBe(false);
+		expect([...view.playable]).toEqual([armor.id]);
+		expect(hasTarget.mock.calls.map(([, card]) => card)).toEqual([armor, open]);
+	});
+
+	test('gives an unaffordable card no strip: its cost says so', () => {
+		const dear = card('Big Armor', [{ type: 'gain_armor', value: 9 }], 4);
+		first.set({ hand: [dear], adrenaline: 1 });
+
+		const view = buildPlayerHandView({ drivers: [first, second], hasTarget: () => false });
+
+		expect(view.unaffordable.has(dear.id)).toBe(true);
+		expect(view.blocked.has(dear.id)).toBe(false);
 	});
 
 	test('a dead driver has no hand to show, and the other keeps their seat', () => {

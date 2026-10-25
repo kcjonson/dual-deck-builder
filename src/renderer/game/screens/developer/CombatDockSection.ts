@@ -6,7 +6,7 @@ import type { VehicleMod } from '../../mechanics/Vehicle';
 import { COMBAT_REFERENCE_WIDTH } from '../combat/CombatLayout';
 import { CombatDock } from '../combat/CombatDock';
 import type { DriverResourceData } from '../combat/DriverTab';
-import type { DriverSeat } from '../combat/PlayerHandView';
+import { BLOCK_LABELS, DriverSeat } from '../combat/PlayerHandView';
 
 const SIX_MODS: VehicleMod[] = [
 	{ name: 'Reactive Armor', kind: 'defense' },
@@ -29,6 +29,8 @@ interface GalleryHalf {
 	tab: Partial<DriverResourceData>;
 	/** Card types its driver can't play now: a passenger's attacks. */
 	blocked?: string[];
+	/** Card types with nothing to land on now: every raider out of reach. */
+	noTarget?: string[];
 }
 
 /**
@@ -42,9 +44,10 @@ function galleryDock({ id, halves, turn }: { id: string; halves: Record<DriverSe
 	const seatOf = new Map<string, DriverSeat>();
 	const playable = new Set<string>();
 	const unaffordable = new Set<string>();
+	const blockedBy = new Map<string, string>();
 	let unspent = 0;
 	for (const seat of [1, 2] as const) {
-		const { cards: types, tab, blocked = [] } = halves[seat];
+		const { cards: types, tab, blocked = [], noTarget = [] } = halves[seat];
 		const adrenaline = tab.adrenaline ?? 0;
 		if (!tab.crashedOut) unspent += adrenaline;
 		for (const type of types) {
@@ -52,11 +55,13 @@ function galleryDock({ id, halves, turn }: { id: string; halves: Record<DriverSe
 			cards.push(card);
 			seatOf.set(card.id, seat);
 			if (card.cost > adrenaline) unaffordable.add(card.id);
-			else if (!blocked.includes(type)) playable.add(card.id);
+			else if (blocked.includes(type)) blockedBy.set(card.id, BLOCK_LABELS.passenger);
+			else if (noTarget.includes(type)) blockedBy.set(card.id, BLOCK_LABELS.noTarget);
+			else playable.add(card.id);
 		}
 		dock.hand.setDriverData(seat, tab);
 	}
-	dock.hand.hand = { cards, seatOf, playable, unaffordable };
+	dock.hand.hand = { cards, seatOf, playable, unaffordable, blocked: blockedBy };
 	dock.endTurnColumn.show({ turn, playerTurn: true, waiting: false, unspentAdrenaline: unspent });
 	return dock;
 }
@@ -76,6 +81,7 @@ export class CombatDockSection extends CatalogSection {
 			halves: {
 				1: {
 					cards: ['coordinated_attack', 'point_blank', 'headshot', 'armor_plating', 'nitro_boost', 'ramming_speed', 'precision_shot'],
+					noTarget: ['point_blank'],
 					tab: { name: 'The Road Warrior', adrenaline: 7, maxAdrenaline: 8, drawPileCount: 24, discardPileCount: 17, mods: SIX_MODS },
 				},
 				2: {
@@ -84,7 +90,7 @@ export class CombatDockSection extends CatalogSection {
 				},
 			},
 		});
-		this.addRow('both hands at the cap of seven; six mods as three and +3, adrenaline past six as one bolt; four mods, two of five bolts lit', dock, { fill: true });
+		this.addRow('both hands at the cap of seven, one card with no raider in reach; six mods as three and +3, adrenaline past six as one bolt; four mods, two of five bolts lit', dock, { fill: true });
 	}
 }
 

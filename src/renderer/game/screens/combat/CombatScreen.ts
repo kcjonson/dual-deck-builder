@@ -12,6 +12,7 @@ import { CombatLogLayer } from './CombatLogLayer';
 import { TURN_BANNER_LIFETIME, TurnBanner } from './TurnBanner';
 import { EnemyTurnPacer } from './EnemyTurnPacer';
 import { EndTurnPreview } from './EndTurnPreview';
+import { TargetPreview } from './TargetPreview';
 import { AimStep, CombatModel, aimStepsOf } from './CombatModel';
 import {
 	LOG_DRAWER_WIDTH,
@@ -25,6 +26,7 @@ import { Rgba } from './combatStyle';
 import { openPileDialog } from '../../ui/CardPileView';
 import { INSPECT_KEYS, inspectHotkey } from '../../ui/cardInspect';
 import { buildPlayerHandView } from './PlayerHandView';
+import { CardTargets, aimSlots, cardTargets, hasTargets, targetableVehicleIds } from './cardTargets';
 import { TargetMark, seatMark } from '../../ui/targetMarks';
 import { statusLabel } from '../../ui/IntentPill';
 import { describeSlot } from '../../mechanics/Road';
@@ -175,6 +177,7 @@ export class CombatScreen extends Screen {
 	private fx!: CombatFxLayer;
 	private dock!: CombatDock;
 	private intentPreview!: EndTurnPreview;
+	private targetPreview!: TargetPreview;
 	private enemyTurnPacer: EnemyTurnPacer | null = null;
 	/** The raider whose action is on screen during the enemy turn (DDB-139 glows it), or null. */
 	private enemyActing: Vehicle | null = null;
@@ -224,8 +227,10 @@ export class CombatScreen extends Screen {
 	// Whether the raiders' pills show a hovered or chosen destination's
 	// preview, so going back to the plain plan is only worked out when needed
 	private intentsPreviewed = false;
+	// What each playable hand card would offer if picked, from the last deal
+	private readonly handTargets = new Map<Card, CardTargets>();
 
-	
+
 	// Event unsubscribe functions: battle and team events, and the combat model's
 	private unsubscribers: (() => void)[] = [];
 	private modelUnsubscribers: (() => void)[] = [];
@@ -557,9 +562,19 @@ export class CombatScreen extends Screen {
 		const battle = this.battle;
 		const playerTeam = this.playerTeam;
 		const crashedOut = (driver: Driver): boolean => driver.isAlive() && !playerTeam.isAboard(driver);
+		// What each playable card would offer if picked: a card with nothing
+		// to pick is disabled, and the rest preview their targets on hover or
+		// focus. One projection for the whole hand
+		const board = new BoardProjection({ battle });
+		this.handTargets.clear();
 		this.handLayer.hand = buildPlayerHandView({
 			drivers: this.playerDrivers,
-			canPlay: (driver, card) => battle.canPlayCard({ driver, card }),
+			canPlay: (driver, card) => battle.canPlayCard({ driver, card, board }),
+			hasTarget: (driver, card) => {
+				const targets = cardTargets({ battle, driver, card, board });
+				this.handTargets.set(card, targets);
+				return hasTargets(targets);
+			},
 			crashedOut,
 		});
 
@@ -607,6 +622,27 @@ export class CombatScreen extends Screen {
 		this.road.actingVehicleId = battle.enemyTurnInProgress ? this.enemyActing?.id ?? null : null;
 		this.intentPreview.turnOpen = battle.isPlayerTurn && !waiting;
 		this.intentPreview.refresh();
+		this.refreshTargetPreview();
+	}
+
+	/**
+	 * The presented hand card's targets, drawn as arrows over the road from
+	 * the vehicle it would act from (section 6, planning): while a playable
+	 * card has the pointer or keyboard focus on your turn, with nothing
+	 * aimed or dragged. One target, or a card that lands on all of them,
+	 * gets solid arrows; a choice between several gets the aiming line's
+	 * dots, one to each. Read from the targets the deal worked out, so
+	 * hovering computes nothing.
+	 */
+	private refreshTargetPreview(): void {
+		// Unmounting takes the hand's cards down, each telling the hand it's no longer presented
+		if (!this.isActive) return;
+		const battle = this.battle;
+		const card = this.handLayer.presentedCard;
+		const targets = card ? this.handTargets.get(card) : undefined;
+		const open = !!battle && battle.isPlayerTurn && !battle.enemyTurnInProgress && !battle.battleOver
+			&& !this.combatModel.isTargeting && !this.context.drag.isDragging;
+		this.targetPreview.showing = open && targets ? targets : null;
 	}
 
 	/**
@@ -799,7 +835,8 @@ export class CombatScreen extends Screen {
 			anchor: 'topRight',
 			width: LOG_DRAWER_WIDTH,
 			heightMode: 'fill',
-			zIndex: 2,
+			// Over both previews below
+			zIndex: 3,
 			combatLog: this.combatLog,
 			onFocusLost: () => this.restoreKeyboardFocus(),
 		});
@@ -818,6 +855,20 @@ export class CombatScreen extends Screen {
 			isPreviewing: () => this.endTurnColumn?.previewing ?? false,
 		});
 		road.addChild(this.intentPreview);
+
+		// From a hand card's hover or keyboard focus, arrows from the vehicle
+		// it acts from to what it would target (section 6); laid out as the
+		// end-turn preview is, and never up at the same time, over it so the
+		// two declare their order, and under the log drawer
+		this.targetPreview = new TargetPreview({
+			id: 'combat_target_preview',
+			positioned: 'absolute',
+			widthMode: 'fill',
+			heightMode: 'fill',
+			zIndex: 2,
+			road: this.road,
+		});
+		road.addChild(this.targetPreview);
 
 		return road;
 	}
@@ -877,6 +928,8 @@ export class CombatScreen extends Screen {
 			},
 		});
 		this.dragUnsubscribe = this.context.drag.onDraggingChange((dragging) => this.dragChanged(dragging));
+		// A card pointed at or focused shows where it would go (section 6)
+		this.handLayer.onPresentedChange = () => this.refreshTargetPreview();
 
 		// A driver's tab opens their draw and discard piles, each card
 		// inspectable with the hand's detail view (section 5)
@@ -969,6 +1022,9 @@ export class CombatScreen extends Screen {
 			// A destination under the pointer or focus previews the board from there
 			this.combatModel.on('focusedSlot', (slot: RoadSlot | null) => this.previewSlot(slot)),
 
+			// An aimed card has its own line and outlines; the hand's preview comes back once it's put back
+			this.combatModel.on('isTargeting', () => this.refreshTargetPreview()),
+
 			// Over a raider, an attack order lights up the escort that would
 			// carry it out; over any target, the hit check rides with the card
 			// and a ghost shows what it takes off the bar it hits
@@ -1031,15 +1087,14 @@ export class CombatScreen extends Screen {
 		const slotStep = aim.steps[aim.step] === 'slot';
 		let slots: RoadSlot[] = [];
 		if (slotStep) {
-			const destinations = battle.moveDestinations({ driver, card, target: aim.target });
-			if (destinations.length === 0) {
+			const board = new BoardProjection({ battle });
+			if (battle.moveDestinations({ driver, card, target: aim.target, board }).length === 0) {
 				// The battle said it needs a slot and offers none: a rule mismatch, not a choice to wait on
 				console.error(`${card.name} needs a slot to move to, but the battle offers none`);
 				this.putCardBack();
 				return false;
 			}
-			const targetsNext = aim.steps.slice(aim.step + 1).includes('vehicle');
-			slots = targetsNext ? destinations.filter(slot => this.determineTargetableVehicles(card, slot).length > 0) : destinations;
+			slots = aimSlots({ battle, driver, card, target: aim.target, vehicleStepNext: aim.steps.slice(aim.step + 1).includes('vehicle'), board });
 			if (slots.length === 0) {
 				console.log(`${driver.metadata.name}: ${card.name} has no slot that puts a target in reach`);
 				this.putCardBack();
@@ -1201,6 +1256,7 @@ export class CombatScreen extends Screen {
 	 * ends, the line goes.
 	 */
 	private dragChanged(dragging: boolean): void {
+		this.refreshTargetPreview();
 		if (!dragging) {
 			this.fx.hideAim();
 			return;
@@ -1389,55 +1445,18 @@ export class CombatScreen extends Screen {
 	}
 	
 	/**
-	 * The vehicles a card can land on now, and only those (section 6): the
-	 * card's side of the road by its target type, then the battle's own
-	 * target rule, the one playCard checks (range, flanking, nobody aboard,
-	 * an order's carrier, a swap's partner or neighbouring escort). A drop,
-	 * a click, or the keyboard can't offer anything playCard would refuse.
-	 * Range for a card that moves first is judged from `destination`, the
-	 * slot an earlier step chose or one it's offering (Strafe).
+	 * The vehicles the waiting card can land on now, and only those
+	 * (`targetableVehicleIds`, section 6), so a drop, a click, or the
+	 * keyboard can't offer anything playCard would refuse. Range for a card
+	 * that moves first is judged from `destination`, the slot an earlier
+	 * step chose.
 	 */
 	private determineTargetableVehicles(card: Card, destination: RoadSlot | null = null): string[] {
 		const battle = this.battle;
 		const driver = this.combatModel.selectedDriver;
-		if (!this.playerTeam || !this.enemyTeam || !battle || !driver) return [];
-
-		// A wreck, or a vehicle with nobody aboard, still on the road for the
-		// rest of the turn is never a target
-		const players = this.playerTeam.vehicles.filter(vehicle => !vehicle.isOutOfFight);
-		const enemies = this.enemyTeam.vehicles.filter(vehicle => !vehicle.isOutOfFight);
-
-		let candidates: Vehicle[];
-		if (card.isOrder) {
-			// An order's targets depend on the convoy, so its rule picks the side
-			candidates = [...players, ...enemies];
-		} else {
-			switch (card.targetType) {
-				case 'enemy_single':
-					candidates = enemies;
-					break;
-				case 'self':
-					// Only the vehicle the playing driver is in, driving or riding
-					candidates = players.filter(vehicle => vehicle.driver === driver || vehicle.passenger === driver);
-					break;
-				case 'ally':
-					candidates = players;
-					break;
-				case 'any':
-					candidates = [...players, ...enemies];
-					break;
-				default:
-					candidates = [];
-			}
-		}
-		return candidates
-			.filter(target => battle.getTargetBlocker({ driver, card, target, destination }) === null)
-			.map(vehicle => vehicle.id);
+		if (!battle || !driver) return [];
+		return targetableVehicleIds({ battle, driver, card, destination });
 	}
-
-
-
-
 
 	// Removed deprecated methods - now handled by Battle system
 

@@ -14,9 +14,9 @@ import { DiscardFlight } from './DiscardFlight';
 import type { Card as UICard } from '../../ui/Card';
 
 /** The mock's targeting line: round dots 5 across every 12, and a head 16 long. */
-const DOT_RADIUS = 2.5;
-const DOT_SPACING = 12;
-const HEAD_LENGTH = 16;
+export const DOT_RADIUS = 2.5;
+export const DOT_SPACING = 12;
+export const HEAD_LENGTH = 16;
 const HEAD_HALF_WIDTH = 10;
 const RETICLE_SIZE = 20;
 const RETICLE_RING = 2;
@@ -26,7 +26,7 @@ const CURVE_SAMPLES = 48;
 const ON_TARGET: RGBA = resolveColor('#ff6a55');
 const OFF_TARGET: RGBA = resolveColor('rgba(233, 228, 214, 0.6)');
 const CLEAR: RGBA = [0, 0, 0, 0];
-const HEAD_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
+export const HEAD_INDICES: readonly number[] = [0, 1, 2, 0, 2, 3];
 
 /**
  * The mock's `.dmgpop`: 30 px display type with a hard drop shadow. The
