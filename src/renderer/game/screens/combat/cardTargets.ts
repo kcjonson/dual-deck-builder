@@ -1,5 +1,5 @@
 import type { Battle } from '../../mechanics/Battle';
-import { previewAim } from '../../mechanics/AimPreview';
+import { TargetPools, poolsOf, previewAim, previewShot } from '../../mechanics/AimPreview';
 import { BoardProjection, cardRange } from '../../mechanics/BoardProjection';
 import type { Card, CardEffect } from '../../mechanics/Card';
 import type { Driver } from '../../mechanics/Driver';
@@ -149,8 +149,21 @@ export function cardHasTargets({ battle, driver, card, board = new BoardProjecti
 			return destinations.some(destination => candidates.some(lands(destination)));
 		}
 		default:
-			return true;
+			return landsOnSomeone({ battle, driver, card, board });
 	}
+}
+
+/**
+ * Whether a card that takes no pick does anything when played: one on
+ * every raider needs a raider it takes hold on (EMP Blast on a road of
+ * Steady raiders does nothing), and Rally the Convoy a ready escort with a
+ * raider in range. Anything else acts on your own side (call 370).
+ */
+function landsOnSomeone({ battle, driver, card, board }: { battle: Battle; driver: Driver; card: Card; board: BoardProjection }): boolean {
+	if (ralliesConvoy(card)) {
+		return battle.playerTeam.escorts.some(escort => escort.isReady && board.nearestEnemyInRange({ from: escort, range: cardRange(card) ?? 0 }) !== null);
+	}
+	return card.targetType !== 'enemy_all' || actsOn({ battle, driver, card }).length > 0;
 }
 
 /** Rally the Convoy's shape: an order on every raider, carried out by each ready escort (Battle.rallyConvoy). */
@@ -159,19 +172,24 @@ function ralliesConvoy(card: Card): boolean {
 }
 
 /**
- * Who Rally the Convoy would hit: each ready escort on the nearest raider
- * within the card's range, as Battle.rallyConvoy picks them. The battle
- * picks again after each shot, so a raider an earlier escort wrecks isn't
- * shot twice; the preview can't know who a shot wrecks, so it shows each
- * escort's pick on the board as it stands.
+ * Who Rally the Convoy would hit: each ready escort, in roster order, on
+ * the nearest raider within the card's range that the escorts before it
+ * haven't taken out, as Battle.rallyConvoy picks them. Hits don't roll, so
+ * each shot is worked out on what the ones before it left (`previewShot`).
  */
-function rallyLinks({ battle, card, board }: { battle: Battle; card: Card; board: BoardProjection }): TargetLink[] {
+function rallyLinks({ battle, driver, card, board }: { battle: Battle; driver: Driver; card: Card; board: BoardProjection }): TargetLink[] {
 	const range = cardRange(card) ?? 0;
 	const links: TargetLink[] = [];
+	const worn = new Map<Vehicle, TargetPools>();
+	const out = new Set<Vehicle>();
 	for (const escort of battle.playerTeam.escorts) {
 		if (!escort.isReady) continue;
-		const raider = board.nearestEnemyInRange({ from: escort, range });
-		if (raider) links.push({ sourceId: escort.id, targetId: raider.id });
+		const raider = board.nearestEnemyInRange({ from: escort, range, excluding: out });
+		if (!raider) continue;
+		links.push({ sourceId: escort.id, targetId: raider.id });
+		const pools = previewShot({ battle, driver, card, actor: escort, target: raider, pools: worn.get(raider) ?? poolsOf(raider), board });
+		worn.set(raider, pools);
+		if (downed(raider, pools)) out.add(raider);
 	}
 	return links;
 }
@@ -242,7 +260,7 @@ export function cardTargets({ battle, driver, card, board = new BoardProjection(
 			break;
 		default:
 			if (ralliesConvoy(card)) {
-				links = rallyLinks({ battle, card, board });
+				links = rallyLinks({ battle, driver, card, board });
 				vehicleIds = [...new Set(links.map(link => link.targetId))];
 			} else {
 				vehicleIds = actsOn({ battle, driver, card }).map(vehicle => vehicle.id);
@@ -343,7 +361,11 @@ function playMoves({ battle, driver, card, board, vehicles, play: { target, dest
 	return moves;
 }
 
-/** Whether the card's hit would take `target` out of the fight: its structure gone, or the driver of a driven vehicle killed. */
+/**
+ * Whether the card's hit would take `target` out of the fight: its
+ * structure gone, or the driver of a driven vehicle killed with nobody
+ * left aboard to take the wheel (Vehicle.handleDriverDeath).
+ */
 function takesOut({ battle, driver, card, target, destination, board }: {
 	battle: Battle;
 	driver: Driver;
@@ -353,8 +375,19 @@ function takesOut({ battle, driver, card, target, destination, board }: {
 	board: BoardProjection;
 }): boolean {
 	const { losses } = previewAim({ battle, driver, card, target, destination, board });
-	if (losses.structure > 0 && losses.structure >= target.structure) return true;
-	return !target.isEscort && target.driver !== null && losses.driver > 0 && losses.driver >= target.driver.hitpoints;
+	const before = poolsOf(target);
+	return downed(target, {
+		...before,
+		structure: before.structure - losses.structure,
+		driverHp: before.driverHp - losses.driver,
+		passengerHp: before.passengerHp - losses.passenger,
+	});
+}
+
+/** Whether `target` with its bars at `pools` is out of the fight: wrecked, or a driven vehicle with nobody aboard alive to drive it. */
+function downed(target: Vehicle, pools: TargetPools): boolean {
+	if (pools.structure <= 0) return true;
+	return !target.isEscort && target.driver !== null && pools.driverHp <= 0 && pools.passengerHp <= 0;
 }
 
 /** For an attack order, the escort that would carry it out on each of `vehicleIds`; empty for any other card. */
@@ -369,7 +402,7 @@ function carriersOf({ battle, card, vehicleIds, board }: { battle: Battle; card:
 	return carriers;
 }
 
-/** Whether a card has anything to land on now: anything it acts on, or something to pick. */
+/** Whether a card has anything to land on now: something to pick, or anything it acts on. */
 export function hasTargets(targets: CardTargets): boolean {
-	return !targets.picks || targets.vehicleIds.length > 0 || targets.slots.length > 0;
+	return targets.vehicleIds.length > 0 || targets.slots.length > 0;
 }

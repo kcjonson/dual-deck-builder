@@ -1,4 +1,4 @@
-import { RoadArc } from './RoadArc';
+import { BOW, MAX_BOW, RoadArc, headroom } from './RoadArc';
 import { ROAD_HEADER_HEIGHT } from './CombatLayout';
 
 describe('RoadArc', () => {
@@ -63,10 +63,44 @@ describe('RoadArc', () => {
 		const middle = { x: 0, y: 0 };
 		const short = arc.traceMove({ x: 0, y: 100 }, { x: 60, y: 100 });
 		arc.pointAt(short / 2, 1, middle);
-		expect(100 - middle.y).toBeCloseTo(12, 0);
+		expect(100 - middle.y).toBeCloseTo(60 * BOW, 0);
 		const long = arc.traceMove({ x: 0, y: 100 }, { x: 600, y: 100 });
 		arc.pointAt(long / 2, 1, middle);
-		expect(100 - middle.y).toBeCloseTo(28, 0);
+		expect(100 - middle.y).toBeCloseTo(MAX_BOW, 0);
+	});
+
+	it('comes in level onto the side of a point from the side it starts on, under the lane header', () => {
+		const arc = new RoadArc();
+		const length = arc.traceSide({ x: 100, y: 300 }, { x: 500, y: ROAD_HEADER_HEIGHT + 20 }, 40);
+		const end = { x: 0, y: 0 };
+		const neck = { x: 0, y: 0 };
+		arc.pointAt(length, 1, end);
+		arc.pointAt(length - 16, 1, neck);
+		expect(end).toEqual({ x: 500, y: ROAD_HEADER_HEIGHT + 20 });
+		// Its last stretch runs left to right, nearly level
+		expect(end.x - neck.x).toBeGreaterThan(4 * Math.abs(end.y - neck.y));
+		for (let along = 0; along <= length; along += 4) {
+			arc.pointAt(along, 1, end);
+			expect(headroom(end.y)).toBeGreaterThanOrEqual(0);
+		}
+		expect(headroom(ROAD_HEADER_HEIGHT + 20)).toBe(16);
+	});
+
+	it('gives the stretch of an arc between two distances along it, its first point the one at the start', () => {
+		const arc = new RoadArc();
+		const length = arc.trace({ x: 100, y: 300 }, { x: 400, y: 120 });
+		const out: { x: number; y: number }[] = [];
+		const count = arc.pointsBetween(30, length - 30, out);
+		const first = { x: 0, y: 0 };
+		const last = { x: 0, y: 0 };
+		arc.pointAt(30, 1, first);
+		arc.pointAt(length - 30, 1, last);
+		expect(out[0]).toEqual(first);
+		expect(out[count - 1]).toEqual(last);
+		let along = 0;
+		for (let index = 1; index < count; index++) along += Math.hypot(out[index].x - out[index - 1].x, out[index].y - out[index - 1].y);
+		expect(along).toBeCloseTo(length - 60, 0);
+		expect(arc.pointsBetween(50, 50, out)).toBe(0);
 	});
 
 	it('says how far along a move comes out from under the box it starts in', () => {

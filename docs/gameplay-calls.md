@@ -491,7 +491,7 @@ Record: movement-cards.md. The draft is in Combat Rules (Swerving, and Movement 
 363. DDB-553: both stand-ins count dropping off a shoulder the vehicle would hold past the end of the turn (Peel Off) as costing what the floor pays to get onto one, 600, and the floor never does it, while a flank about to be lost anyway costs nothing, because the flank bonus lasts as long as the shoulder and one step can't see the turns after.
 364. DDB-553: the intent-aware stand-in passes on a card that only guards through the enemy turn (Weave, a bare Shield) when it keeps no planned damage off, because both are gone before anyone can hit the vehicle again, so with nothing aimed at it they do nothing.
 
-## Hand target preview (365 to 369)
+## Hand target preview (365 to 371)
 
 Decision record: [hand-target-preview.md](AI_TECHNICAL_DECISIONS/hand-target-preview.md).
 
@@ -500,3 +500,5 @@ Decision record: [hand-target-preview.md](AI_TECHNICAL_DECISIONS/hand-target-pre
 367. DDB-554: the strip draws at full strength over the dimmed card and starts its words at the left, where the mock dims it with the card and centres them, because it's the one thing on a dimmed card to read and a fanned card at the hand's cap shows only its left side.
 368. DDB-554: a card on the vehicle it acts from (Armor Plating, Nitro Boost) draws no target arrow, because an arrow needs two ends; its moves still draw.
 369. DDB-554: a hand card's target preview and END TURN's preview never draw together; whichever was asked for last has the road, because both draw lines over the same tokens.
+370. DDB-554: a card that takes no pick and lands only on raiders is disabled with NO TARGET when it would land on nobody (EMP Blast with every raider Steady, Rally the Convoy with no raider in range of a ready escort), because playing it would spend its adrenaline, and for Rally every escort, on nothing.
+371. DDB-554: an attack order with no ready escort to carry it out reads CAN'T PLAY, as Rally the Convoy does, leaving NO TARGET for one whose ready escorts have no raider in reach, because no ready escort is a rule of the convoy, not of where the raiders are.

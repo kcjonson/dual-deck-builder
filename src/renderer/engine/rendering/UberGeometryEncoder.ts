@@ -39,7 +39,7 @@ import {
 	rasterPixelSize,
 	wantsRasterGlyphs,
 } from '../text/rasterGlyphs';
-import { toHalf, toUnorm8 } from './packing';
+import { fromHalf, toHalf, toUnorm8 } from './packing';
 import { ROUNDED_CLIP_CAPACITY, ROUNDED_CLIP_FLOATS, RoundedClipTable } from './RoundedClipTable';
 
 /**
@@ -132,11 +132,41 @@ export const UBER_MODE = {
 	dash: 6,
 } as const;
 
-/** R5.16a: a dash-mode segment's flags, summed into its fourth radius lane, a half float that holds them exactly. */
+/**
+ * R5.16a: a dash-mode segment's flags, summed into its fourth radius lane, a
+ * half float that holds them exactly: round caps; the open start or end of
+ * the line; one unbroken stroke (a gap of 0); a joint at its end too sharp
+ * to split at the bisector, which it rounds; and where its dashes start and
+ * end (`DashBoundary`): its first period's dash started before it, or ended
+ * before it, and the last dash to start on it runs on past it.
+ */
 export const DASH_FLAGS = {
 	round: 1,
-	last: 2,
+	openStart: 2,
+	openEnd: 4,
+	unbroken: 8,
+	joinDisc: 16,
+	startedBefore: 32,
+	endedBefore: 64,
+	runsOn: 128,
 } as const;
+
+/** The largest finite half float, the most a dash's length or gap lane holds. */
+const MAX_HALF = 65504;
+/** The most periods one segment holds, the integers a half float counts exactly. */
+const MAX_DASHES_PER_SEGMENT = 2048;
+
+/**
+ * Where a point along a dashed line falls in its pattern: the period it
+ * falls in (`base`), how far into it (`phase`), and whether that period's
+ * dash starts before the point and whether it ends before it.
+ */
+interface DashBoundary {
+	base: number;
+	phase: number;
+	startsBefore: boolean;
+	endsBefore: boolean;
+}
 
 /** Bits of the instance's flags byte. */
 export const UBER_FLAGS = {
@@ -247,6 +277,11 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	private readonly templateBytes = new Uint8Array(this.template);
 	/** Premultiplied scratch colours, read before the next call overwrites them. */
 	private readonly fillScratch: [number, number, number, number] = [0, 0, 0, 0];
+	private readonly lineScratch: Vec2[] = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
+	private readonly boundaryScratch: [DashBoundary, DashBoundary] = [
+		{ base: 0, phase: 0, startsBefore: false, endsBefore: false },
+		{ base: 0, phase: 0, startsBefore: false, endsBefore: false },
+	];
 	private readonly cornerScratch: [number, number, number, number] = [0, 0, 0, 0];
 	private readonly gradientScratch: number[] = new Array(16).fill(0);
 	private readonly originScratch: LineOrigin = { x: 0, y: 0 };
@@ -367,9 +402,7 @@ export class UberGeometryEncoder implements GeometryEncoder {
 				return;
 			case 'line':
 				if (command.dash) {
-					this.begin(command, UBER_MODE.dash, -1);
-					this.dashSegment(sink, 0, command.transform, command.from, command.to, command.width / 2,
-						command.cap === 'round', true, command.color, command.dash, command.dash.offset);
+					this.encodeDashed(command, command.dash, sink);
 					return;
 				}
 				this.begin(command, UBER_MODE.rect, -1);
@@ -497,11 +530,11 @@ export class UberGeometryEncoder implements GeometryEncoder {
 	 * are round (each segment's end at a joint has a radius of half the width,
 	 * which fills the wedge between segments); the two ends of an open
 	 * polyline take its cap. Joints overlap, so a translucent stroke is darker
-	 * at its joints.
+	 * at its joints; one drawn with a dash of no gap (R5.16a) isn't.
 	 */
 	private encodePolyline(command: PolylineCommand, sink: GeometrySink): void {
 		if (command.dash) {
-			this.encodeDashedPolyline(command, command.dash, sink);
+			this.encodeDashed(command, command.dash, sink);
 			return;
 		}
 		this.begin(command, UBER_MODE.rect, -1);
@@ -575,98 +608,173 @@ export class UberGeometryEncoder implements GeometryEncoder {
 
 	/**
 	 * R2.10a: a dashed line or polyline needs a pattern that repeats, so a
-	 * dash length and gap that add up to nothing paint nothing, reported.
+	 * negative length or gap, or both zero, paints nothing, reported. So does
+	 * one the shader can't draw: a length or gap past the largest a half
+	 * float holds, which it would read as infinite; a period shorter than
+	 * half the line's width, whose caps would reach past the dashes either
+	 * side that it looks at; and a segment longer than the periods a half
+	 * float counts exactly.
 	 */
 	private dashPaints(command: LineCommand | PolylineCommand): boolean {
 		const dash = command.dash;
 		if (!dash) return true;
-		if (dash.length >= 0 && dash.gap >= 0 && dash.length + dash.gap > 0) return true;
-		this.onUnpaintable(command.kind, `a dash of ${dash.length} with a gap of ${dash.gap} doesn't repeat`);
+		if (!(dash.length >= 0 && dash.gap >= 0 && dash.length + dash.gap > 0)) {
+			return this.cannotDash(command, `a dash of ${dash.length} with a gap of ${dash.gap} doesn't repeat`);
+		}
+		if (dash.length > MAX_HALF || dash.gap > MAX_HALF || !Number.isFinite(dash.offset)) {
+			return this.cannotDash(command, `a dash of ${dash.length} with a gap of ${dash.gap} and an offset of ${dash.offset} is past what the shader's lanes hold`);
+		}
+		if (dash.gap === 0) return true;
+		const period = halfPeriod(dash);
+		if (period < command.width / 2) {
+			return this.cannotDash(command, `a dash period of ${period} is shorter than half the line's width, ${command.width / 2}`);
+		}
+		const longest = command.kind === 'line' ? Math.hypot(command.to.x - command.from.x, command.to.y - command.from.y) : longestSegment(command);
+		if (longest / period > MAX_DASHES_PER_SEGMENT) {
+			return this.cannotDash(command, `a segment ${longest} long holds more than ${MAX_DASHES_PER_SEGMENT} periods of ${period}`);
+		}
+		return true;
+	}
+
+	private cannotDash(command: LineCommand | PolylineCommand, why: string): false {
+		this.onUnpaintable(command.kind, why);
 		return false;
 	}
 
 	/**
-	 * R5.16a: a dashed polyline is one dash-mode segment per edge, the
-	 * pattern laid along the whole line: each segment carries how far into
-	 * the pattern it starts, the distance along the line so far plus the
-	 * dash's offset, so the dashes run on across the joints.
+	 * R5.16a: a dashed line or polyline is one dash-mode segment per edge,
+	 * the pattern laid along the whole line from the dash's offset, so the
+	 * dashes run on across the joints. Where each joint falls in the pattern
+	 * (`DashBoundary`) is worked out once, in double precision, and both
+	 * segments either side read it, so which segment a dash starts or ends
+	 * on is decided once: neither side drops it and neither draws it twice.
+	 * The period is the one the shader reads back from the half-float lanes,
+	 * so the two agree however the lengths round. A closed line's pattern
+	 * starts and ends at its first point, where its dashes are capped as an
+	 * open line's are; an unbroken one (a gap of 0) is joined there too.
 	 */
-	private encodeDashedPolyline(command: PolylineCommand, dash: ResolvedDash, sink: GeometrySink): void {
+	private encodeDashed(command: LineCommand | PolylineCommand, dash: ResolvedDash, sink: GeometrySink): void {
 		this.begin(command, UBER_MODE.dash, -1);
-		const points = command.points;
-		const segments = polylineSegments(command);
-		const round = command.cap === 'round';
-		const halfWidth = command.width / 2;
+		const points = command.kind === 'line' ? this.linePoints(command) : command.points;
+		const closed = command.kind === 'polyline' && command.closed;
+		const segments = command.kind === 'line' ? 1 : polylineSegments(command);
+		const unbroken = dash.gap === 0;
+		const period = halfPeriod(dash);
+		const dashLength = fromHalf(toHalf(dash.length));
+		const count = points.length;
+		let [startBoundary, endBoundary] = this.boundaryScratch;
 		let along = dash.offset;
+		dashBoundary(along, period, dashLength, startBoundary);
 		for (let index = 0; index < segments; index++) {
 			const from = points[index];
-			const to = points[(index + 1) % points.length];
-			const last = !command.closed && index === segments - 1;
-			this.dashSegment(sink, index, command.transform, from, to, halfWidth, round, last, command.color, dash, along);
-			along += Math.hypot(to.x - from.x, to.y - from.y);
+			const to = points[(index + 1) % count];
+			const next = along + Math.hypot(to.x - from.x, to.y - from.y);
+			dashBoundary(next, period, dashLength, endBoundary);
+			this.dashSegment({
+				sink,
+				index,
+				command,
+				dash,
+				from,
+				to,
+				before: closed || index > 0 ? points[(index - 1 + count) % count] : null,
+				after: closed || index < segments - 1 ? points[(index + 2) % count] : null,
+				openStart: index === 0 && (!closed || !unbroken),
+				openEnd: index === segments - 1 && (!closed || !unbroken),
+				start: startBoundary,
+				end: endBoundary,
+			});
+			[startBoundary, endBoundary] = [endBoundary, startBoundary];
+			along = next;
 		}
+	}
+
+	/** A line's two ends, as the two points of a one-segment polyline, in scratch. */
+	private linePoints(command: LineCommand): Vec2[] {
+		const [first, second] = this.lineScratch;
+		first.x = command.from.x;
+		first.y = command.from.y;
+		second.x = command.to.x;
+		second.y = command.to.y;
+		return this.lineScratch;
 	}
 
 	/**
 	 * R5.16a: one segment of a dashed stroke, a dash-mode quad along it. The
-	 * fragment stage draws the dashes that start on this segment, each as a
-	 * capsule (round caps) or a box (butt caps), and leaves the ones that
-	 * start on the next segment to it, so a dash across a joint is drawn
-	 * once. The last segment of an open line ends its last dash where the
-	 * line ends, as SVG's dashes do. Its lanes: half its length and how far
-	 * into the pattern it starts (`phase`, float32, so neighbouring segments
-	 * agree on where a dash starts to well under a pixel), then the dash
-	 * length, the gap, the half width, and flags (1 round caps, 2 last).
-	 * The quad reaches a dash and a cap past either end, so a dash that
-	 * starts near the end is drawn whole.
+	 * fragment stage draws the part of each dash that lies on this segment,
+	 * capped only where the dash itself starts or ends (or the open line
+	 * does), and cut at each joint's bisector, which the neighbour cuts too,
+	 * so a dash across a joint is drawn once and bends with the line. A gap
+	 * of 0 is one unbroken stroke drawn the same way, whose joints never
+	 * overlap. A joint that turns more than a right angle is cut square on
+	 * both sides instead, and the segment before it rounds it with a disc
+	 * (`DASH_FLAGS.joinDisc`). Its lanes: half its length and its phase, how
+	 * far into its first period it starts (float32); the dash length, gap,
+	 * half width, and flags, which say whether that period's dash started
+	 * and ended before the segment and whether the last dash to start on it
+	 * runs on past it; and in the shape lanes the two joints' tangents and
+	 * the index, from that first period, of the last dash to start on it. A
+	 * degenerate segment draws nothing.
 	 */
-	private dashSegment(
-		sink: GeometrySink,
-		segmentIndex: number,
-		transform: Mat2D,
-		from: Vec2,
-		to: Vec2,
-		halfWidth: number,
-		round: boolean,
-		last: boolean,
-		color: RGBA,
-		dash: ResolvedDash,
-		along: number,
-	): void {
-		let dirX = to.x - from.x;
-		let dirY = to.y - from.y;
+	private dashSegment({ sink, index, command, dash, from, to, before, after, openStart, openEnd, start, end }: {
+		sink: GeometrySink;
+		index: number;
+		command: LineCommand | PolylineCommand;
+		dash: ResolvedDash;
+		from: Vec2;
+		to: Vec2;
+		before: Vec2 | null;
+		after: Vec2 | null;
+		openStart: boolean;
+		openEnd: boolean;
+		start: DashBoundary;
+		end: DashBoundary;
+	}): void {
+		const halfWidth = command.width / 2;
+		const dirX = to.x - from.x;
+		const dirY = to.y - from.y;
 		const length = Math.hypot(dirX, dirY);
-		if (length > 1e-9) {
-			dirX /= length;
-			dirY /= length;
-		} else {
-			dirX = 1;
-			dirY = 0;
-		}
-		const period = dash.length + dash.gap;
-		const phase = ((along % period) + period) % period;
-		const halfLength = length / 2;
-		const centerX = (from.x + to.x) / 2;
-		const centerY = (from.y + to.y) / 2;
+		const degenerate = length <= 1e-9;
+		const startTurn = before ? halfTurn(before, from, to) : 0;
+		const endTurn = after ? halfTurn(from, to, after) : 0;
+		const unbroken = dash.gap === 0;
+		const flags = (command.cap === 'round' ? DASH_FLAGS.round : 0)
+			+ (openStart ? DASH_FLAGS.openStart : 0)
+			+ (openEnd ? DASH_FLAGS.openEnd : 0)
+			+ (unbroken ? DASH_FLAGS.unbroken : 0)
+			+ (endTurn === null ? DASH_FLAGS.joinDisc : 0)
+			+ (!unbroken && start.startsBefore ? DASH_FLAGS.startedBefore : 0)
+			+ (!unbroken && start.endsBefore ? DASH_FLAGS.endedBefore : 0)
+			+ (!unbroken && end.startsBefore && !end.endsBefore ? DASH_FLAGS.runsOn : 0);
+		const lastStart = unbroken ? 0 : end.base + (end.startsBefore ? 1 : 0) - 1 - start.base;
 
-		this.setHalfSize(halfLength, phase);
+		this.setHalfSize(length / 2, unbroken ? 0 : start.phase);
 		this.setRadius(0, dash.length);
 		this.setRadius(1, dash.gap);
 		this.setRadius(2, halfWidth);
-		this.setRadius(3, (round ? DASH_FLAGS.round : 0) + (last ? DASH_FLAGS.last : 0));
+		this.setRadius(3, flags);
+		// The start's bisector keeps along + across * t >= 0, the end's (along - length) + across * t <= 0
+		this.templateHalves[SHAPE_HALF] = toHalf(startTurn ? -startTurn : 0);
+		this.templateHalves[SHAPE_HALF + 1] = toHalf(endTurn ?? 0);
+		this.templateHalves[SHAPE_HALF + 2] = toHalf(lastStart);
 
-		const pad = this.localPixel(transform);
-		const extentX = halfLength + dash.length + halfWidth + pad;
-		const extentY = halfWidth + pad;
-		const fill = premultiply(color, this.fillScratch);
-		const base = this.instance(sink, segmentIndex);
+		// A cap, a round join, or a miter of at most a right angle reaches half the width past either end
+		const pad = this.localPixel(command.transform);
+		const extentX = degenerate ? 0 : length / 2 + halfWidth + pad;
+		const extentY = degenerate ? 0 : halfWidth + pad;
+		const unitX = degenerate ? 1 : dirX / length;
+		const unitY = degenerate ? 0 : dirY / length;
+		const centerX = (from.x + to.x) / 2;
+		const centerY = (from.y + to.y) / 2;
+		const fill = premultiply(command.color, this.fillScratch);
+		const base = this.instance(sink, index);
 		this.setExtent(sink, base, extentX, extentY);
 		for (let corner = 0; corner < 4; corner++) {
 			const localX = CORNER_X[corner] * extentX;
 			const localY = CORNER_Y[corner] * extentY;
-			const x = centerX + dirX * localX - dirY * localY;
-			const y = centerY + dirY * localX + dirX * localY;
-			this.corner(sink, base, corner, transform, x, y);
+			const x = centerX + unitX * localX - unitY * localY;
+			const y = centerY + unitY * localX + unitX * localY;
+			this.corner(sink, base, corner, command.transform, x, y);
 			this.color(sink, base, corner, fill);
 		}
 	}
@@ -1377,6 +1485,50 @@ function hasRadius(radius: CornerRadii | null): boolean {
 /** A transform that collapses an axis draws nothing, and would divide by zero in the inflation. */
 function isDegenerate(transform: Mat2D): boolean {
 	return transform[0] * transform[3] - transform[1] * transform[2] === 0;
+}
+
+/** A dash's period as the shader reads it back from the half-float lanes. */
+function halfPeriod(dash: ResolvedDash): number {
+	return fromHalf(toHalf(dash.length)) + fromHalf(toHalf(dash.gap));
+}
+
+/** Where `along` falls in a pattern of `dashLength` in every `period`, into `out`. */
+function dashBoundary(along: number, period: number, dashLength: number, out: DashBoundary): DashBoundary {
+	out.base = Math.floor(along / period);
+	out.phase = along - out.base * period;
+	out.startsBefore = out.phase > 0;
+	out.endsBefore = dashLength < out.phase;
+	return out;
+}
+
+/** The longest of a polyline's segments. */
+function longestSegment(command: PolylineCommand): number {
+	const points = command.points;
+	let longest = 0;
+	for (let index = 0; index < polylineSegments(command); index++) {
+		const from = points[index];
+		const to = points[(index + 1) % points.length];
+		longest = Math.max(longest, Math.hypot(to.x - from.x, to.y - from.y));
+	}
+	return longest;
+}
+
+/**
+ * R5.16a: the tangent of half the turn at `joint` from the way `before`
+ * comes in to the way `after` goes out, positive turning toward the
+ * segment's local +y; 0 beside a degenerate segment, and null past a right
+ * angle, where a bisector cut would reach too far along either segment.
+ */
+function halfTurn(before: Vec2, joint: Vec2, after: Vec2): number | null {
+	const inX = joint.x - before.x;
+	const inY = joint.y - before.y;
+	const outX = after.x - joint.x;
+	const outY = after.y - joint.y;
+	const scale = Math.hypot(inX, inY) * Math.hypot(outX, outY);
+	if (scale <= 1e-18) return 0;
+	const cross = (inX * outY - inY * outX) / scale;
+	const dot = (inX * outX + inY * outY) / scale;
+	return dot < 0 ? null : cross / (1 + dot);
 }
 
 function polylineSegments(command: PolylineCommand): number {

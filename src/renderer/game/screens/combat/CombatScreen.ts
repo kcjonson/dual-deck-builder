@@ -1414,9 +1414,19 @@ export class CombatScreen extends Screen {
 
 	/** Targeting ends with nothing played: the card goes back to the hand. */
 	private putCardBack(): void {
-		this.combatModel.cancelSelection();
-		this.handLayer.clearCardSelection();
+		this.dropSelection();
 		this.restoreKeyboardFocus();
+	}
+
+	/**
+	 * The hand lets go of its held card before the model stops targeting:
+	 * the model's isTargeting event refreshes the hand's preview, which
+	 * trusts that an enabled card is one the last deal found playable, and
+	 * a held card is enabled whether or not it still is.
+	 */
+	private dropSelection(): void {
+		this.handLayer.clearCardSelection();
+		this.combatModel.cancelSelection();
 	}
 
 	/**
@@ -1428,8 +1438,7 @@ export class CombatScreen extends Screen {
 		this.aim = null;
 		if (!this.battle || !this.combatModel.selectedDriver) {
 			console.warn('Cannot play card: no battle or driver');
-			this.combatModel.cancelSelection();
-			this.handLayer.clearCardSelection();
+			this.dropSelection();
 			return;
 		}
 
@@ -1440,8 +1449,7 @@ export class CombatScreen extends Screen {
 
 		if (cardIndex === -1) {
 			console.warn('Card not found in driver hand');
-			this.combatModel.cancelSelection();
-			this.handLayer.clearCardSelection();
+			this.dropSelection();
 			return;
 		}
 
@@ -1463,13 +1471,11 @@ export class CombatScreen extends Screen {
 			// Clear selection state immediately after successful play. The
 			// battle's stateChanged dealt the hand as the card resolved, and
 			// clearing the selection enables the cards it dealt
-			this.combatModel.cancelSelection();
-			this.handLayer.clearCardSelection();
+			this.dropSelection();
 		} else {
 			console.warn('Failed to play card');
 			// Still clear selection state on failure
-			this.combatModel.cancelSelection();
-			this.handLayer.clearCardSelection();
+			this.dropSelection();
 		}
 		this.restoreKeyboardFocus();
 	}
@@ -1633,8 +1639,7 @@ export class CombatScreen extends Screen {
 
 		// Cancel any active targeting
 		if (this.combatModel.isTargeting) {
-			this.combatModel.cancelSelection();
-			this.handLayer.clearCardSelection();
+			this.dropSelection();
 		}
 
 		// Remove every layer so a remount builds them fresh; removeChild

@@ -78,6 +78,24 @@ function hold(driver: Driver, card: Card): Card {
 	return card;
 }
 
+/**
+ * Whether Shoulder Check from the Rig shows a shove on `raider`, the one
+ * raider on the road, in reach in your row; it checks first that the hit
+ * lands and does some damage, to the driver too when it has one aboard.
+ */
+function shoulderCheck(raider: Vehicle): boolean {
+	const { battle, rig } = board({ raiders: [raider] });
+	const driver = driverOf(rig);
+	const card = hold(driver, realCard('shoulder_check'));
+	const { check, losses } = previewAim({ battle, driver, card, target: raider });
+	expect(check?.hits).toBe(true);
+	expect(losses.structure).toBeGreaterThan(0);
+	expect(losses.driver).toBeGreaterThan(0);
+	const targets = cardTargets({ battle, driver, card });
+	expect(targets.vehicleIds).toEqual([raider.id]);
+	return targets.moves.some(move => move.vehicleId === raider.id);
+}
+
 describe('cardHasTargets', () => {
 	it('agrees with cardTargets for every card in cards.json, for both drivers, on boards near and far', () => {
 		const boards = [
@@ -107,6 +125,25 @@ describe('cardHasTargets', () => {
 		expect(cardHasTargets({ battle, driver, card: strafe })).toBe(false);
 		expect(cardTargets({ battle, driver, card: strafe }).slots).toEqual([]);
 	});
+
+	it('says a card on every raider has nothing to land on when it would take hold on none (call 370)', () => {
+		const { battle, rig } = board({ raiders: [vehicle('Steady', { at: slot(ENEMY_INSIDE, CENTER), steady: true })] });
+		const driver = driverOf(rig);
+		const emp = hold(driver, realCard('emp_blast'));
+		expect(battle.canPlayCard({ driver, card: emp })).toBe(true);
+		expect(cardHasTargets({ battle, driver, card: emp })).toBe(false);
+		expect(hasTargets(cardTargets({ battle, driver, card: emp }))).toBe(false);
+	});
+
+	it('says Rally the Convoy has nothing to land on when no ready escort has a raider in range (call 370)', () => {
+		const { battle, rig, escorts } = board({ raiders: [vehicle('Far', { at: slot(ENEMY_OUTSIDE, BEHIND) })], escorts: ['outrider'] });
+		const driver = driverOf(rig);
+		const rally = hold(driver, realCard('rally_the_convoy'));
+		escorts[0].slot = slot(RoadLane.PLAYER_OUTSIDE, AHEAD);
+		expect(battle.canPlayCard({ driver, card: rally })).toBe(true);
+		expect(cardHasTargets({ battle, driver, card: rally })).toBe(false);
+		expect(hasTargets(cardTargets({ battle, driver, card: rally }))).toBe(false);
+	});
 });
 
 describe('cardTargets links', () => {
@@ -129,6 +166,30 @@ describe('cardTargets links', () => {
 		battle.on('hitMissed', ({ vehicle: struck }: { vehicle: Vehicle }) => hit.add(struck.id));
 		expect(battle.playCard({ driver, cardIndex: 0 })).toBe(true);
 		expect([...hit].sort()).toEqual([...new Set(targets.links.map(link => link.targetId))].sort());
+	});
+
+	it("draws Rally the Convoy's later escorts past a raider an earlier one takes out, as the battle picks again", () => {
+		// Both escorts are nearest the Fragile raider, which the first one's shot wrecks
+		const fragile = vehicle('Fragile', { at: slot(ENEMY_INSIDE, AHEAD), structure: 1 });
+		const other = vehicle('Other', { at: slot(ENEMY_INSIDE, BEHIND) });
+		const { battle, rig, bike, escorts } = board({ raiders: [fragile, other], escorts: ['outrider', 'pilot_car'] });
+		const [outrider, pilotCar] = escorts;
+		rig.slot = slot(RoadLane.PLAYER_OUTSIDE, CENTER);
+		bike.slot = slot(RoadLane.PLAYER_OUTSIDE, BEHIND);
+		outrider.slot = slot(PLAYER_INSIDE, AHEAD);
+		pilotCar.slot = slot(PLAYER_INSIDE, CENTER);
+		const driver = driverOf(rig);
+		const rally = hold(driver, realCard('rally_the_convoy'));
+
+		expect(cardTargets({ battle, driver, card: rally }).links).toEqual([
+			{ sourceId: outrider.id, targetId: fragile.id },
+			{ sourceId: pilotCar.id, targetId: other.id },
+		]);
+		const shots: string[] = [];
+		for (const event of ['hitLanded', 'hitMissed']) battle.on(event, ({ vehicle: struck }: { vehicle: Vehicle }) => shots.push(struck.id));
+		expect(battle.playCard({ driver, cardIndex: 0 })).toBe(true);
+		expect(shots).toEqual([fragile.id, other.id]);
+		expect(fragile.isOutOfFight).toBe(true);
 	});
 
 	it('draws an attack order from the escort that would carry it out', () => {
@@ -191,19 +252,23 @@ describe('cardTargets moves', () => {
 		expect(new Set(targets.moves.map(move => move.vehicleId))).toEqual(new Set(escorts.map(escort => escort.id)));
 	});
 
-	it('shows Shoulder Check\'s shove only on a raider the hit leaves on the road', () => {
-		const sturdy = vehicle('Sturdy', { at: slot(ENEMY_INSIDE, CENTER) });
-		const fragile = vehicle('Fragile', { at: slot(ENEMY_INSIDE, BEHIND), structure: 1 });
-		const { battle, rig } = board({ raiders: [sturdy, fragile] });
-		const driver = driverOf(rig);
-		const check = hold(driver, realCard('shoulder_check'));
-		for (const raider of [sturdy, fragile]) {
-			expect(previewAim({ battle, driver, card: check, target: raider }).check?.hits).toBe(true);
-		}
+	it("shows Shoulder Check's shove only on a raider the hit leaves on the road", () => {
+		expect(shoulderCheck(vehicle('Sturdy', { at: slot(ENEMY_INSIDE, CENTER) }))).toBe(true);
+		expect(shoulderCheck(vehicle('Fragile', { at: slot(ENEMY_INSIDE, CENTER), structure: 1 }))).toBe(false);
+	});
 
-		const moves = cardTargets({ battle, driver, card: check }).moves;
-		expect(moves.some(move => move.vehicleId === sturdy.id)).toBe(true);
-		expect(moves.some(move => move.vehicleId === fragile.id)).toBe(false);
+	it('shows the shove on a raider whose driver the hit kills only when someone aboard takes the wheel', () => {
+		const lone = vehicle('Lone', { at: slot(ENEMY_INSIDE, CENTER) });
+		driverOf(lone).set({ hitpoints: 1 });
+		expect(shoulderCheck(lone)).toBe(false);
+
+		const crewed = vehicle('Crewed', { at: slot(ENEMY_INSIDE, CENTER) });
+		driverOf(crewed).set({ hitpoints: 1 });
+		const rider = createTestDriver('Rider');
+		rider.set({ hitpoints: 100, maxHitpoints: 100 });
+		rider.role = DriverRole.PASSENGER;
+		crewed.passenger = rider;
+		expect(shoulderCheck(crewed)).toBe(true);
 	});
 
 	it('draws a flank solid when every raider it could outrun puts it on the same shoulder slot', () => {

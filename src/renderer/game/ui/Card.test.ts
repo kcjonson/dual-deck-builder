@@ -815,7 +815,8 @@ describe('Card in the hand: presented and blocked (DDB-554)', () => {
 		expect(strip.resolvedColors?.fill).toBeDefined();
 		expect({ x: strip.x, y: strip.y, width: strip.width }).toEqual({ x: BLOCK_STRIP.x, y: BLOCK_STRIP.y, width: card.width - BLOCK_STRIP.x * 2 });
 		const icon = card.children.find((child) => child instanceof Icon);
-		expect(strip.zIndex).toBeGreaterThan(icon?.zIndex ?? 0);
+		if (!icon) throw new Error('the card should show its art icon');
+		expect(strip.zIndex).toBeGreaterThan(icon.zIndex);
 
 		card.blockLabel = null;
 		expect(card.blockLabel).toBeNull();

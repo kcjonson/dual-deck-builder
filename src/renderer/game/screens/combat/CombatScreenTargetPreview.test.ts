@@ -18,7 +18,9 @@ import { Card as UICard } from '../../ui/Card';
 import { Vehicle as UIVehicle } from '../../ui/Vehicle';
 import { createTestDriver } from '../../ai/__tests__/test-helpers';
 import { BLOCK_LABELS } from './PlayerHandView';
-import { DOTTED } from './CombatFxLayer';
+import * as targetsModule from './cardTargets';
+import { DOTTED, UNBROKEN } from './CombatFxLayer';
+import { ROAD_HEADER_HEIGHT } from './CombatLayout';
 import cardsFile from '../../data/cards.json';
 
 /**
@@ -176,11 +178,12 @@ function preview(combat: CombatScreen) {
 	return combat['targetPreview'];
 }
 
-/** One arrow the preview draws, on screen: where its line starts, its head's base and tip, its colour, and whether it's solid. */
+/** One arrow the preview draws, on screen: where its line starts, its head's base, tip, and wings, its colour, and whether it's solid. */
 interface Arrow {
 	start: Vec2;
 	base: Vec2;
 	tip: Vec2;
+	wings: [Vec2, Vec2];
 	color: RGBA;
 	solid: boolean;
 }
@@ -198,20 +201,20 @@ function record(combat: CombatScreen): { lines: number; dots: number; heads: num
 	let solid = false;
 	const draw = {
 		drawPolyline: (options: DrawPolylineOptions) => {
-			if (options.dash) {
-				expect(options.dash).toEqual(DOTTED);
-				expect(options.cap).toBe('round');
-				counts.dots++;
-			} else {
+			expect(options.cap).toBe('round');
+			if (options.dash === UNBROKEN) {
 				counts.lines++;
 				solid = true;
+			} else {
+				expect(options.dash).toEqual(DOTTED);
+				counts.dots++;
 			}
 			start ??= screen(options.points[0]);
 		},
 		drawPolygon: (options: DrawPolygonOptions) => {
 			counts.heads++;
 			const tip = screen(options.points[0]);
-			arrows.push({ start: start ?? tip, base: screen(options.points[2]), tip, color: options.fill as RGBA, solid });
+			arrows.push({ start: start ?? tip, base: screen(options.points[2]), tip, wings: [screen(options.points[1]), screen(options.points[3])], color: options.fill as RGBA, solid });
 			start = null;
 			solid = false;
 		},
@@ -333,6 +336,7 @@ describe('the target preview', () => {
 
 		// Up from the top of the Rig's plate, down onto the top of the raider's token, in the raiders' red
 		const [arrow] = arrows;
+		expect(arrow.solid).toBe(true);
 		expectNear(arrow.start, plateEdge(combat, one.rig, 'top'));
 		expectNear(arrow.tip, tokenTop(combat, one.raiders[0]));
 		expect(arrow.color[0]).toBeCloseTo(1, 2);
@@ -340,6 +344,21 @@ describe('the target preview', () => {
 		// It comes down onto the target, not in from the side
 		expect(arrow.tip.y - arrow.base.y).toBeGreaterThan(Math.abs(arrow.tip.x - arrow.base.x));
 		expect(preview(combat).resolvedColors?.fill).toEqual(arrow.color);
+	});
+
+	it('comes in level onto the near side of a raider in the row ahead, with no room under the lane header to come down', async () => {
+		const ahead = fight([slot(ENEMY_INSIDE, AHEAD)]);
+		const combat = await startCombat(ahead);
+		const [card] = deal(combat, ahead, shot(2));
+		hover(card);
+
+		const [arrow] = record(combat).arrows;
+		const raider = token(combat, ahead.raiders[0]);
+		const plate = raider.plateScreenBounds;
+		expectNear(arrow.tip, { x: raider.screenBounds.x, y: plate.y + plate.height / 2 });
+		expect(arrow.tip.x - arrow.base.x).toBeGreaterThan(Math.abs(arrow.tip.y - arrow.base.y));
+		const header = preview(combat).localToScreen({ x: 0, y: ROAD_HEADER_HEIGHT }).y;
+		for (const point of [arrow.start, arrow.base, arrow.tip, ...arrow.wings]) expect(point.y).toBeGreaterThan(header);
 	});
 
 	it('goes the short way between two vehicles in one lane, never through the target', async () => {
@@ -382,6 +401,7 @@ describe('the target preview', () => {
 		expect(counts.heads).toBe(2);
 		// One dotted line an arrow, its dots drawn by the line style
 		expect(counts.dots).toBe(2);
+		expect(counts.arrows.map(arrow => arrow.solid)).toEqual([false, false]);
 	});
 
 	it('draws solid arrows to every raider for a card that lands on all of them', async () => {
@@ -408,10 +428,24 @@ describe('the target preview', () => {
 		expect(preview(combat).showing?.slots).toEqual(slots);
 		// A dotted move from the Rig to each, and no target arrow
 		expect(preview(combat).showing?.moves).toEqual(slots.map(to => ({ vehicleId: near.rig.id, to, choice: true })));
-		const counts = drawn(combat);
-		expect(counts.lines).toBe(0);
-		expect(counts.heads).toBe(slots.length);
-		expect(counts.dots).toBeGreaterThan(0);
+		const { lines, heads, dots, arrows } = record(combat);
+		expect(lines).toBe(0);
+		expect(heads).toBe(slots.length);
+		expect(dots).toBe(slots.length);
+
+		// Each comes out from under the Rig's token and ends in the middle of its slot, in your convoy's yellow
+		const road = combat['road'];
+		const rig = token(combat, near.rig).screenBounds;
+		arrows.forEach((arrow, index) => {
+			const box = road.slotRect(slots[index]);
+			expectNear(arrow.tip, road.localToScreen({ x: box.x + box.width / 2, y: box.y + box.height / 2 }));
+			const outside = Math.max(rig.x - arrow.start.x, arrow.start.x - (rig.x + rig.width), rig.y - arrow.start.y, arrow.start.y - (rig.y + rig.height));
+			expect(outside).toBeGreaterThan(0);
+			expect(outside).toBeLessThan(12);
+			expect(arrow.solid).toBe(false);
+			expect(arrow.color).toEqual(preview(combat).resolvedColors?.fill);
+			expect(arrow.color[2]).toBeLessThan(0.5);
+		});
 	});
 
 	it('draws a solid move for a card that moves you one fixed way', async () => {
@@ -421,7 +455,9 @@ describe('the target preview', () => {
 		hover(card);
 
 		expect(preview(combat).showing?.moves).toEqual([{ vehicleId: near.rig.id, to: { lane: RoadLane.PLAYER_OUTSIDE, row: CENTER }, choice: false }]);
-		expect(drawn(combat)).toEqual({ lines: 1, dots: 0, heads: 1 });
+		const { lines, dots, heads, arrows } = record(combat);
+		expect({ lines, dots, heads }).toEqual({ lines: 1, dots: 0, heads: 1 });
+		expect(arrows[0].solid).toBe(true);
 	});
 
 	it('moves every vehicle a card moves: a formation shift sends each to the other lane in its row', async () => {
@@ -439,7 +475,7 @@ describe('the target preview', () => {
 		expect(drawn(combat)).toEqual({ lines: 2, dots: 0, heads: 2 });
 	});
 
-	it('shows where a card moves the raider it targets, and what moves hang on a pick', async () => {
+	it('shows where a card moves the raider it targets, certain with only the one raider to target', async () => {
 		const one = fight([slot(ENEMY_INSIDE, CENTER)]);
 		const combat = await startCombat(one);
 		const [card] = deal(combat, one, layOnTheHorn());
@@ -478,15 +514,42 @@ describe('the target preview', () => {
 		expect(preview(combat).showing?.vehicleIds).toEqual([one.raiders[0].id]);
 	});
 
+	it('stays quiet when a card played from under the pointer comes back to the hand unplayable', async () => {
+		const near = fight([slot(ENEMY_INSIDE, CENTER)]);
+		const combat = await startCombat(near);
+		const card = juke();
+		const [element] = deal(combat, near, card);
+		// Its one adrenaline, and nothing to draw but itself once it's discarded
+		driverOf(near.rig).set({ adrenaline: card.cost });
+		combat['updateUIFromBattle']();
+		hover(element);
+		const errors = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+		press('Tab', 'Enter', 'Enter');
+		expect(driverOf(near.rig).hand).toEqual([card]);
+		expect(element.enabled).toBe(false);
+		expect(errors).not.toHaveBeenCalled();
+		expect(preview(combat).showing).toBeNull();
+		errors.mockRestore();
+	});
+
 	it('works out a card\'s targets the first time it\'s previewed, not on every deal', async () => {
 		const one = fight([slot(ENEMY_INSIDE, CENTER)]);
 		const combat = await startCombat(one);
 		const [card] = deal(combat, one, shot(1), volley());
+		const worked = jest.spyOn(targetsModule, 'cardTargets');
 		expect(combat['handTargets'].size).toBe(0);
 		hover(card);
-		expect(combat['handTargets'].size).toBe(1);
+		expect(worked).toHaveBeenCalledTimes(1);
+		// Presented again with no deal between: the kept answer
+		inject('move,1,1');
+		hover(card);
+		expect(worked).toHaveBeenCalledTimes(1);
+		// A deal throws it away, and the next preview works it out again
 		combat['updateUIFromBattle']();
-		expect(combat['handTargets'].size).toBe(1);
+		inject('move,1,1');
+		hover(card);
+		expect(worked).toHaveBeenCalledTimes(2);
+		worked.mockRestore();
 	});
 
 	it('falls back to the keyboard\'s card when the pointer leaves the one it was on', async () => {
@@ -530,6 +593,16 @@ describe('the target preview', () => {
 		expect(preview(combat).showing).toBeNull();
 		press('Escape');
 		inject(`up,1,1`);
+
+		// A drag that isn't aiming a card hides it too
+		hover(card);
+		expect(preview(combat).showing).not.toBeNull();
+		const dragging = jest.spyOn(context.drag, 'isDragging', 'get').mockReturnValue(true);
+		expect(combat['combatModel'].isTargeting).toBe(false);
+		combat['refreshTargetPreview']();
+		expect(preview(combat).showing).toBeNull();
+		dragging.mockRestore();
+		inject('move,1,1');
 
 		hover(card);
 		expect(preview(combat).showing).not.toBeNull();

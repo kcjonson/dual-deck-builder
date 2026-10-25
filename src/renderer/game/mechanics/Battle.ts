@@ -831,9 +831,10 @@ export class Battle extends Model<BattleData> {
 	 * Why a card can't be played at all right now, whatever its target, or
 	 * null if it can. The driver's own checks (life, cost, the passenger
 	 * gate) are Driver.getPlayBlocker; these need the convoy. A signature
-	 * card needs a living escort of its type, and Rally the Convoy a ready
-	 * escort to fire. A flank card can't move a vehicle already on the
-	 * shoulder, a card that swerves its caster can't be played by a flanker
+	 * card needs a living escort of its type, Rally the Convoy a ready escort
+	 * to fire, and an attack order a ready one (of its type, for a signature
+	 * order) to carry it out. A flank card can't move a vehicle already on
+	 * the shoulder, a card that swerves its caster can't be played by a flanker
 	 * or when the swerve has nowhere legal to go, Peel Off needs a flanker
 	 * with a reserved slot, and Leapfrog and Fall In need someone they could
 	 * move (BoardProjection.moveBlocker), so the hand greys each out. An
@@ -862,8 +863,10 @@ export class Battle extends Model<BattleData> {
 		if (signatureOf && !escorts.some(escort => !escort.isOutOfFight && escort.escort?.type === signatureOf)) {
 			return `${card.name} needs a living ${ESCORT_CONFIGS[signatureOf].name} in the convoy`;
 		}
-		if (card.isOrder && card.targetType === 'enemy_all' && !escorts.some(escort => escort.isReady)) {
-			return `${card.name} needs a ready escort`;
+		// Rally the Convoy fires every ready escort, and an attack order needs one to carry it out
+		if ((card.isOrder && card.targetType === 'enemy_all') || this.isAttackOrder(card)) {
+			const carriers = escorts.filter(escort => escort.isReady && (!signatureOf || escort.escort?.type === signatureOf));
+			if (carriers.length === 0) return `${card.name} needs a ready ${signatureOf ? ESCORT_CONFIGS[signatureOf].name : 'escort'}`;
 		}
 		return null;
 	}

@@ -6,14 +6,19 @@ import { resolveColor } from '../../../engine/style/styleObject';
 import { tokens } from '../../../engine/theme/tokens';
 import type { Vehicle as VehicleUI } from '../../ui/Vehicle';
 import type { CardTargets } from './cardTargets';
-import { DOTTED, DOT_RADIUS, HEAD_INDICES, HEAD_LENGTH, arrowHead, leading } from './CombatFxLayer';
+import { DOTTED, DOT_RADIUS, HEAD_INDICES, HEAD_LENGTH, UNBROKEN, arrowHead, leading } from './CombatFxLayer';
 import type { RoadRect } from './CombatLayout';
-import { RoadArc } from './RoadArc';
+import { RoadArc, headroom } from './RoadArc';
 import type { RoadView } from './RoadView';
 
 /** A solid arrow's line; a dotted one is the aiming line's dots, 5 across. */
 const SOLID_WIDTH = 3;
-/** How far above a target an arrow's arc turns down onto it, so the head points down rather than in from the side. */
+/**
+ * How far above a target an arrow's arc turns down onto it, so the head
+ * points down rather than in from the side; with less room than this under
+ * the lane header (the row ahead), it comes in level onto the target's
+ * side, its last control this far short of it.
+ */
 const LANDING_DROP = 40;
 /** At the raiders' intent lines' 80%, in the colour each side lights in while aimed. */
 const RAIDER_LINE: RGBA = resolveColor('rgba(255, 106, 85, 0.8)');
@@ -28,7 +33,9 @@ const OWN_LINE: RGBA = [tokens.color.accent[0], tokens.color.accent[1], tokens.c
  *   escort) to the vehicle it would act on. Across the road it arcs as the
  *   raiders' intent lines do (`RoadArc.trace`): up from the top of the
  *   acting vehicle's plate, and down onto the top of the target's token,
- *   over a raider's intent pills. Between two vehicles in one lane, where
+ *   over a raider's intent pills; onto a token too close under the lane
+ *   header for that, in level onto its near side, at its plate's middle
+ *   (`RoadArc.traceSide`). Between two vehicles in one lane, where
  *   that arc would run through the target, it goes the short way between
  *   the plates' facing edges, bowed (`RoadArc.traceMove`). Solid when
  *   there's nothing to choose, one target or a card that lands on all of
@@ -133,8 +140,10 @@ export class TargetPreview extends Component {
 	 * Traces the arc from `source` to `target` into `this.arc` and its ends
 	 * into `from` and `to`; returns its length, or null when either can't be
 	 * placed. Across the road, from the top of the source's plate over the
-	 * road onto the top of the target's token. Within one lane (the plates
-	 * overlap across), the short way between the plates' facing edges.
+	 * road onto the top of the target's token, or onto its near side when
+	 * the lane header leaves no room to come down. Within one lane (the
+	 * plates overlap across), the short way between the plates' facing
+	 * edges.
 	 */
 	private traceLink(source: VehicleUI, target: VehicleUI, space: Component): number | null {
 		if (!this.box(source, source.plateRect, space, this.sourcePlate) || !this.box(target, target.plateRect, space, this.targetPlate)) return null;
@@ -152,14 +161,20 @@ export class TargetPreview extends Component {
 		this.local.x = target.plateRect.x + target.plateRect.width / 2;
 		this.local.y = 0;
 		if (!this.mapIn(target, this.local, space, this.to)) return null;
-		return this.arc.trace(this.from, this.to, LANDING_DROP);
+		if (headroom(this.to.y) >= LANDING_DROP) return this.arc.trace(this.from, this.to, LANDING_DROP);
+		if (!this.box(target, null, space, this.tokenBox)) return null;
+		const box = this.tokenBox;
+		this.to.x = this.from.x < box.x ? box.x : box.x + box.width;
+		this.to.y = b.y + b.height / 2;
+		return this.arc.traceSide(this.from, this.to, LANDING_DROP);
 	}
 
 	/**
 	 * Along the traced arc, `length` long, from `start` along it: a line up
-	 * to the head, solid or in the aiming line's dots (a dotted line style,
-	 * R2.10a), then the head pointing along the arc's end at `to`. Nothing
-	 * when the head wouldn't fit past the start.
+	 * to the head, solid or in the aiming line's dots, both through the dash
+	 * style (R2.10a) so a translucent line doesn't darken at its joints, then
+	 * the head pointing along the arc's end at `to`. Nothing when the head
+	 * wouldn't fit past the start.
 	 */
 	private drawArrow(draw: DrawApi, start: number, length: number, solid: boolean, color: RGBA): void {
 		const neck = length - HEAD_LENGTH;
@@ -168,7 +183,7 @@ export class TargetPreview extends Component {
 		this.line.points = leading(this.linePoints, count, this.lineLists);
 		this.line.color = color;
 		this.line.width = solid ? SOLID_WIDTH : DOT_RADIUS * 2;
-		this.line.dash = solid ? undefined : DOTTED;
+		this.line.dash = solid ? UNBROKEN : DOTTED;
 		draw.drawPolyline(this.line);
 		// The head points from the neck to the tip, as the aiming line's points from its control
 		this.arc.pointAt(neck, 1, this.tangent[1]);

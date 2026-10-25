@@ -56,6 +56,26 @@ export interface AimPreview {
 
 const NO_LOSSES: AimLosses = { structure: 0, driver: 0, passenger: 0 };
 
+/** What a vehicle's bars hold: its shield, armor, and structure, and the HP of whoever is aboard and alive. */
+export interface TargetPools {
+	shield: number;
+	armor: number;
+	structure: number;
+	driverHp: number;
+	passengerHp: number;
+}
+
+/** The bars `target` holds now. */
+export function poolsOf(target: Vehicle): TargetPools {
+	return {
+		shield: target.shield ?? 0,
+		armor: target.armor,
+		structure: target.structure,
+		driverHp: target.driver?.isAlive() ? target.driver.hitpoints : 0,
+		passengerHp: target.passenger?.isAlive() ? target.passenger.hitpoints : 0,
+	};
+}
+
 /**
  * The preview of `card` from `driver` on `target`, by the rules play
  * resolves it with: the same actor, the same hit check, the same damage
@@ -96,7 +116,42 @@ export function previewAim({ battle, driver, card, target, destination = null, b
 	}) ?? { skill: attackTypeOf(rolled) === 'ramming' ? 'ramming' : 'gunnery', attack: 0, evade: 0, modifier: 0, hits: false } : null;
 
 	if (check && !check.hits) return { actor, range, reach, lands, check, losses: { ...NO_LOSSES } };
-	return { actor, range, reach, lands, check, losses: projectLosses({ battle, board, card, actor, target, range }) };
+	const before = poolsOf(target);
+	const after = projectPools({ battle, board, card, actor, target, range, pools: before });
+	return {
+		actor, range, reach, lands, check,
+		losses: { structure: before.structure - after.structure, driver: before.driverHp - after.driverHp, passenger: before.passengerHp - after.passengerHp },
+	};
+}
+
+/**
+ * One shot of `card` from `actor` on `target`, its bars already worn down
+ * to `pools`: the bars after it, the same ones when it misses. Rally the
+ * Convoy's escorts fire one after another (Battle.rallyConvoy), each on
+ * what the ones before it left.
+ */
+export function previewShot({ battle, driver, card, actor, target, pools, board = new BoardProjection({ battle }) }: {
+	battle: Battle;
+	driver: Driver;
+	card: Card;
+	actor: Vehicle;
+	target: Vehicle;
+	pools: TargetPools;
+	board?: BoardProjection;
+}): TargetPools {
+	const range = target.slot ? landingRange({ board, card, actor, target: target.slot, destination: null }) : null;
+	const rolled = card.effects.find(effect => landsOnTargetEffect(effect, card) && isHitEffect(effect) && rollsToHit({ effect, card }));
+	if (rolled) {
+		const check = battle.hitCheck({
+			attacker: actor,
+			caster: driver,
+			defender: target,
+			attackType: attackTypeOf(rolled),
+			modifier: typeof rolled.hit_modifier === 'number' ? rolled.hit_modifier : 0,
+		});
+		if (!check?.hits) return pools;
+	}
+	return projectPools({ battle, board, card, actor, target, range, pools });
 }
 
 /**
@@ -136,25 +191,22 @@ function isHitEffect(effect: CardEffect): boolean {
 
 /**
  * Each damage effect that lands on the target, in card order, on a scratch
- * copy of its shield, armor, structure, and crew's HP, split by the rule
- * Vehicle.takeDamage uses (`splitDamage`) after Battle.applyDamage's
- * modifiers. An effect past its own range does nothing.
+ * copy of its bars (`pools`), split by the rule Vehicle.takeDamage uses
+ * (`splitDamage`) after Battle.applyDamage's modifiers. An effect past its
+ * own range does nothing.
  */
-function projectLosses({ battle, board, card, actor, target, range }: {
+function projectPools({ battle, board, card, actor, target, range, pools }: {
 	battle: Battle;
 	board: BoardProjection;
 	card: Card;
 	actor: Vehicle | null;
 	target: Vehicle;
 	range: number | null;
-}): AimLosses {
-	let shield = target.shield ?? 0;
-	let armor = target.armor;
-	let structure = target.structure;
+	pools: TargetPools;
+}): TargetPools {
+	let { shield, armor, structure, driverHp, passengerHp } = pools;
 	const driver = target.driver;
 	const passenger = target.passenger;
-	let driverHp = driver?.isAlive() ? driver.hitpoints : 0;
-	let passengerHp = passenger?.isAlive() ? passenger.hitpoints : 0;
 
 	for (const effect of card.effects) {
 		if (effect.type !== 'damage' || !landsOnTargetEffect(effect, card)) continue;
@@ -186,11 +238,7 @@ function projectLosses({ battle, board, card, actor, target, range }: {
 		if (passengerHp > 0) passengerHp = Math.max(0, passengerHp - split.perOccupant);
 	}
 
-	return {
-		structure: target.structure - structure,
-		driver: (driver?.isAlive() ? driver.hitpoints : 0) - driverHp,
-		passenger: (passenger?.isAlive() ? passenger.hitpoints : 0) - passengerHp,
-	};
+	return { shield, armor, structure, driverHp, passengerHp };
 }
 
 /**

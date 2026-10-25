@@ -74,17 +74,6 @@ float coverage(float d, float w) {
 	return clamp(0.5 - d / w, 0.0, 1.0);
 }
 
-// R5.16a: the signed distance from `along` (along the segment from its
-// start) and `across` to the dash that starts at `start` and runs `run`: a
-// capsule of half width `halfWidth` with round caps, a box with butt ones.
-float sdDash(float along, float across, float start, float run, float halfWidth, bool roundCaps) {
-	if (roundCaps) {
-		return length(vec2(along - clamp(along, start, start + run), across)) - halfWidth;
-	}
-	vec2 q = abs(vec2(along - (start + 0.5 * run), across)) - vec2(0.5 * run, halfWidth);
-	return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
-}
-
 // R5.12: Evan Wallace's rounded-box shadow. Closed form (erf) across x, four
 // samples of the Gaussian along y, sigma = blur / 2.
 vec2 erf2(vec2 x) {
@@ -195,27 +184,79 @@ void main() {
 	} else if (mode == MODE_DASH) {
 		// R5.16a: one segment of a dashed stroke. Local x runs along the
 		// segment from its middle, y across it. vHalfSize is (half the
-		// segment's length, how far into the pattern it starts); vRadii is
-		// (dash length, gap, half width, flags: 1 round caps, 2 the last
-		// segment of an open line). The segment draws the dashes that start
-		// on it, this period's and the next, and leaves a dash that starts
-		// on its neighbour to that neighbour, so a dash across a joint is
-		// drawn once; the last segment ends its dashes where the line ends.
+		// segment's length, how far into its first period it starts); vRadii
+		// is (dash length, gap, half width, flags); vShape.xyz are the
+		// tangents of half the turn at its start and end joints and the
+		// index, from its first period, of the last dash to start on it. The
+		// flags: 1 round caps, 2 the line's open start, 4 its open end, 8
+		// unbroken, 16 a joint at the end too sharp to split, rounded here,
+		// 32 the first period's dash started before the segment, 64 it ended
+		// before it, 128 the last dash to start here runs on past it. The
+		// encoder decides which segment each dash starts and ends on, so
+		// neighbours never both draw a cap or both drop one. Each dash is cut
+		// to the open line's ends and capped where it, or the line, starts and
+		// ends; at a joint it runs on to the bisector, which the neighbour cuts
+		// too, a hard cut so the two share no pixel and leave none between
+		// them, each reaching `tie` past it so a pixel centre on the bisector
+		// isn't left to neither by the two sides' rounding.
+		const float tie = 0.001;
+		float segmentLength = 2.0 * vHalfSize.x;
+		float phase = vHalfSize.y;
+		float along = vLocal.x + vHalfSize.x;
+		float across = vLocal.y;
 		float dashLength = vRadii.x;
 		float period = vRadii.x + vRadii.y;
 		float halfWidth = vRadii.z;
-		bool roundCaps = mod(vRadii.w, 2.0) > 0.5;
-		bool lastSegment = vRadii.w > 1.5;
-		float segmentLength = 2.0 * vHalfSize.x;
-		float along = vLocal.x + vHalfSize.x;
-		float first = floor((along + vHalfSize.y) / period) * period - vHalfSize.y;
-		float alpha = 0.0;
-		for (int k = 0; k < 2; k++) {
-			float start = first + float(k) * period;
-			if (start < 0.0 || start >= segmentLength) continue;
-			float run = lastSegment ? min(dashLength, segmentLength - start) : dashLength;
-			alpha = max(alpha, coverage(sdDash(along, vLocal.y, start, run, halfWidth, roundCaps), w));
+		float flags = vRadii.w;
+		bool roundCaps = mod(flags, 2.0) >= 1.0;
+		bool openStart = mod(flags, 4.0) >= 2.0;
+		bool openEnd = mod(flags, 8.0) >= 4.0;
+		bool unbroken = mod(flags, 16.0) >= 8.0;
+		bool joinDisc = mod(flags, 32.0) >= 16.0;
+		float firstStart = mod(flags, 64.0) >= 32.0 ? 1.0 : 0.0;
+		float firstEnd = mod(flags, 128.0) >= 64.0 ? 1.0 : 0.0;
+		float lastStart = vShape.z;
+		float lastEnd = flags >= 128.0 ? lastStart - 1.0 : lastStart;
+		bool beforeStart = along + across * vShape.x < -tie;
+		bool pastEnd = along - segmentLength + across * vShape.y > tie;
+		float joinDistance = length(vec2(along - segmentLength, across)) - halfWidth;
+		float nearest = unbroken ? 0.0 : floor((along + phase) / period);
+		float d = 1.0e9;
+		// The dash whose period this fragment falls in, and the ones either
+		// side, whose caps can reach it while the period is at least the half
+		// width (R2.10a)
+		for (int k = -1; k <= 1; k++) {
+			float start;
+			float end;
+			bool startsHere;
+			bool endsHere;
+			if (unbroken) {
+				if (k != 0) continue;
+				start = openStart ? 0.0 : -1.0e9;
+				end = openEnd ? segmentLength : 1.0e9;
+				startsHere = openStart;
+				endsHere = openEnd;
+			} else {
+				float index = nearest + float(k);
+				// Ended before this segment, or starts after it
+				if (index < firstEnd || index > lastStart) continue;
+				start = index * period - phase;
+				end = start + dashLength;
+				startsHere = index >= firstStart || openStart;
+				endsHere = index <= lastEnd || openEnd;
+				if (openStart) start = max(start, 0.0);
+				if (openEnd) end = min(end, segmentLength);
+				if (!roundCaps && end <= start) continue;
+			}
+			if (!endsHere && joinDisc) d = min(d, joinDistance);
+			if ((!startsHere && beforeStart) || (!endsHere && pastEnd)) continue;
+			float low = startsHere ? start : -1.0e9;
+			float high = endsHere ? end : 1.0e9;
+			d = min(d, roundCaps
+				? length(vec2(along - clamp(along, low, high), across)) - halfWidth
+				: max(max(low - along, along - high), abs(across) - halfWidth));
 		}
+		float alpha = coverage(d, w);
 		color = vFill * alpha;
 		covered = alpha;
 	} else if (mode == MODE_IMAGE) {

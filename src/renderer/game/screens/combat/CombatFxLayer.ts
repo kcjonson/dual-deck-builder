@@ -22,6 +22,11 @@ export const HEAD_LENGTH = 16;
  * the line's width across, the first half a space in.
  */
 export const DOTTED: Dash = { length: 0, gap: DOT_SPACING, offset: DOT_SPACING / 2 };
+/**
+ * An unbroken line through the dash style (R2.10a), for a translucent line
+ * of many segments: its joints never overlap, so it doesn't darken at them.
+ */
+export const UNBROKEN: Dash = { length: 1, gap: 0 };
 const HEAD_HALF_WIDTH = 10;
 const RETICLE_SIZE = 20;
 const RETICLE_RING = 2;

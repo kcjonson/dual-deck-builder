@@ -710,7 +710,8 @@ export class DrawApi {
 			id: options.id,
 			blend: options.blend,
 			group: 'primary',
-			ink: pointsInk(options.points, options.width),
+			// R5.16a: a dashed line's joint is mitered up to a right angle, its tip half the width times root 2 out
+			ink: pointsInk(options.points, options.dash ? options.width * Math.SQRT2 : options.width),
 		});
 		if (!state) return;
 		this.emit({

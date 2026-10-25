@@ -707,6 +707,20 @@ describe('clip stack (R2.5, R4.2, R4.7) and chapter 4.7 required tests', () => {
 			expect(api.getStats().culled).toBe(1);
 		});
 
+		it('keeps a dashed polyline whose mitered joint can reach the clip, where a solid one would be culled (R5.16a)', () => {
+			const { api, backend } = inkHarness();
+			api.beginFrame({ viewport: VIEWPORT, ratio: 1 });
+			api.pushClip(rect(0, 0, 100, 100));
+			// 6.5 below the clip, 5 across either side: a round join stops short of it, a right-angled miter doesn't
+			const points = [{ x: 20, y: 120 }, { x: 40, y: 106.5 }, { x: 60, y: 120 }];
+			api.drawPolyline({ id: 'solid', points, color: RED, width: 10 });
+			api.drawPolyline({ id: 'dashed', points, color: RED, width: 10, dash: { length: 6, gap: 5 } });
+			api.popClip();
+			api.endFrame();
+
+			expect(backend.ids).toEqual(['dashed']);
+		});
+
 		it('tests the shadow run at its own offset', () => {
 			const { api, backend } = inkHarness();
 			api.beginFrame({ viewport: VIEWPORT, ratio: 1 });
