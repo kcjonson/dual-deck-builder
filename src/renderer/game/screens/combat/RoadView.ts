@@ -212,7 +212,7 @@ export class RoadView extends Component {
 	}
 
 	/** Whose formation a slot is in, which colours it as that side's vehicles are while a card is aimed. */
-	public slotSide(slot: RoadSlot): VehicleSide {
+	private slotSide(slot: RoadSlot): VehicleSide {
 		return LANE_LOOKS[slot.lane].side === 'enemy' ? 'raider' : 'player';
 	}
 

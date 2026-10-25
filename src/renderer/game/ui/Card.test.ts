@@ -21,6 +21,7 @@ import { CARD_DIM_FILLS, GEM_FILLS, scale } from './cardStyle';
 import { CardInspectSurface, inspectOnContextMenu, makeInspectable } from './cardInspect';
 import { Container } from '../../engine/components/Container';
 import { RecordedDraw as Recorded, cardData, part, recordFrame } from './testing';
+import { BLOCK_STRIP, CardBlockStrip } from './CardBlockStrip';
 
 // Lays out every card face at both sizes; the 5 s default fails under a loaded machine.
 jest.setTimeout(30_000);
@@ -773,5 +774,60 @@ describe('Mini card (Game Flow 7.0)', () => {
 			const result = layoutLint(treeSnapshot([card], { width: 80, height: 112 }));
 			expect({ card: data.name, violations: result.violations }).toEqual({ card: data.name, violations: [] });
 		}
+	});
+});
+
+describe('Card in the hand: presented and blocked (DDB-554)', () => {
+	beforeEach(() => {
+		context = createTestContext({ draw: createMeasuringDrawApi().api });
+	});
+
+	it('is presented while pointed at or keyboard-focused and enabled, and says so each time it changes', () => {
+		const card = build(cardData[0], 1);
+		const heard: boolean[] = [];
+		card.onPresentedChange = (presented) => heard.push(presented);
+		card.hovered = true;
+		expect(card.presented).toBe(true);
+		card.enabled = false;
+		expect(card.presented).toBe(false);
+		card.enabled = true;
+		card.hovered = false;
+		expect(card.presented).toBe(false);
+		card.setFocusState(true, true);
+		expect(card.presented).toBe(true);
+		// Unmounting clears focus without a state change, so it says so itself
+		card.unmount();
+		expect(card.presented).toBe(false);
+		expect(heard).toEqual([true, false, true, false, true, false]);
+	});
+
+	it('shows why it is blocked on a strip across its art, over the art icon, and takes it away', () => {
+		const card = build(cardData[0], 1);
+		expect(card.blockLabel).toBeNull();
+		expect(card.children.some((child) => child instanceof CardBlockStrip)).toBe(false);
+
+		card.blockLabel = 'NO TARGET';
+		const strip = card.children.find((child): child is CardBlockStrip => child instanceof CardBlockStrip);
+		if (!strip) throw new Error('the strip should be built');
+		expect(card.blockLabel).toBe('NO TARGET');
+		expect(strip.visible).toBe(true);
+		expect(strip.drawnText).toEqual(['NO TARGET']);
+		expect(strip.resolvedColors?.fill).toBeDefined();
+		expect({ x: strip.x, y: strip.y, width: strip.width }).toEqual({ x: BLOCK_STRIP.x, y: BLOCK_STRIP.y, width: card.width - BLOCK_STRIP.x * 2 });
+		const icon = card.children.find((child) => child instanceof Icon);
+		expect(strip.zIndex).toBeGreaterThan(icon?.zIndex ?? 0);
+
+		card.blockLabel = null;
+		expect(card.blockLabel).toBeNull();
+		expect(strip.visible).toBe(false);
+		expect(strip.drawnText).toBeNull();
+		expect(strip.resolvedColors).toBeNull();
+	});
+
+	it("throws when a mini is told it is blocked: only the hand's faces are", () => {
+		const mini = build(cardData[0], 1, false, CardSize.MINI);
+		expect(() => { mini.blockLabel = 'NO TARGET'; }).toThrow('only a card face');
+		mini.blockLabel = null;
+		expect(mini.blockLabel).toBeNull();
 	});
 });

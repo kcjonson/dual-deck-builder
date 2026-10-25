@@ -6,6 +6,8 @@ import { createTestContext, injectNow } from '../../../engine/components/testing
 import { Clock } from '../../../engine/animation/Clock';
 import { PointerAdapter } from '../../../engine/input/PointerAdapter';
 import type { DrawApi } from '../../../engine/draw/DrawApi';
+import type { DrawPolygonOptions, DrawPolylineOptions, DrawCircleOptions } from '../../../engine/draw/commands';
+import type { RGBA, Vec2 } from '../../../engine/draw/geometry';
 import { Battle } from '../../mechanics/Battle';
 import { Card, CardData } from '../../mechanics/Card';
 import type { Driver } from '../../mechanics/Driver';
@@ -13,15 +15,16 @@ import { RoadLane, RoadRow, RoadSlot } from '../../mechanics/Road';
 import { Team, TeamType } from '../../mechanics/Team';
 import { Vehicle } from '../../mechanics/Vehicle';
 import { Card as UICard } from '../../ui/Card';
+import { Vehicle as UIVehicle } from '../../ui/Vehicle';
 import { createTestDriver } from '../../ai/__tests__/test-helpers';
 import { BLOCK_LABELS } from './PlayerHandView';
 import cardsFile from '../../data/cards.json';
 
 /**
- * A card with nothing to land on is disabled in the hand, with a strip
- * saying so, and a playable card pointed at or focused shows its targets:
- * arrows over the road from the vehicle it acts from, solid for one
- * target, dotted for a choice of several.
+ * DDB-554: a card with nothing to land on is disabled in the hand, with a
+ * strip saying so, and a playable card pointed at or focused shows its
+ * targets and moves: arrows over the road from the vehicle it acts from,
+ * solid for one target, dotted for a choice of several.
  */
 
 jest.mock('../../core/ScreenManager', () => ({
@@ -76,6 +79,8 @@ const laneChange = realCard('lane_change');
 const formationShift = realCard('formation_shift');
 /** A sure-hit shove of a raider at Range 1 in your row to its outside lane. */
 const layOnTheHorn = realCard('lay_on_the_horn');
+/** A swap with your partner or an escort beside you. */
+const leapfrog = realCard('leapfrog');
 
 /** A sure-hit shot on one raider, reaching `range`. */
 const shot = (range: number): Card => new Card({
@@ -170,16 +175,85 @@ function preview(combat: CombatScreen) {
 	return combat['targetPreview'];
 }
 
-/** What the preview draws, counted by kind. */
-function drawn(combat: CombatScreen): { lines: number; dots: number; heads: number } {
+/** One arrow the preview draws, on screen: where its line starts, its head's base and tip, its colour, and whether it's solid. */
+interface Arrow {
+	start: Vec2;
+	base: Vec2;
+	tip: Vec2;
+	color: RGBA;
+	solid: boolean;
+}
+
+/** What the preview draws: each arrow, from the line or dots before its head, and the draws counted by kind. */
+function record(combat: CombatScreen): { lines: number; dots: number; heads: number; arrows: Arrow[] } {
 	const counts = { lines: 0, dots: 0, heads: 0 };
+	const arrows: Arrow[] = [];
+	const target = preview(combat);
+	const screen = (point: Vec2): Vec2 => target.localToScreen({ x: point.x, y: point.y });
+	let start: Vec2 | null = null;
+	let solid = false;
 	const draw = {
-		drawPolyline: () => counts.lines++,
-		drawCircle: () => counts.dots++,
-		drawPolygon: () => counts.heads++,
+		drawPolyline: (options: DrawPolylineOptions) => {
+			counts.lines++;
+			start ??= screen(options.points[0]);
+			solid = true;
+		},
+		drawCircle: (options: DrawCircleOptions) => {
+			counts.dots++;
+			start ??= screen(options.center);
+		},
+		drawPolygon: (options: DrawPolygonOptions) => {
+			counts.heads++;
+			const tip = screen(options.points[0]);
+			arrows.push({ start: start ?? tip, base: screen(options.points[2]), tip, color: options.fill as RGBA, solid });
+			start = null;
+			solid = false;
+		},
 	} as unknown as DrawApi;
-	preview(combat).render(draw);
-	return counts;
+	target.render(draw);
+	return { ...counts, arrows };
+}
+
+function drawn(combat: CombatScreen): { lines: number; dots: number; heads: number } {
+	const { lines, dots, heads } = record(combat);
+	return { lines, dots, heads };
+}
+
+function token(combat: CombatScreen, of: Vehicle): UIVehicle {
+	const view = combat['road'].vehicleView(of.id);
+	if (!view) throw new Error(`${of.name} should be on the road`);
+	return view;
+}
+
+/** The middle of a vehicle's plate's top or bottom edge on screen. */
+function plateEdge(combat: CombatScreen, of: Vehicle, edge: 'top' | 'bottom'): Vec2 {
+	const { x, y, width, height } = token(combat, of).plateScreenBounds;
+	return { x: x + width / 2, y: edge === 'top' ? y : y + height };
+}
+
+/** The top of a vehicle's token over the middle of its plate, on screen: where a target arrow lands. */
+function tokenTop(combat: CombatScreen, of: Vehicle): Vec2 {
+	const view = token(combat, of);
+	return view.localToScreen({ x: view.plateRect.x + view.plateRect.width / 2, y: 0 });
+}
+
+function expectNear(actual: Vec2, expected: Vec2): void {
+	expect(actual.x).toBeCloseTo(expected.x, 3);
+	expect(actual.y).toBeCloseTo(expected.y, 3);
+}
+
+function drag(from: [number, number], to: [number, number], { release = true } = {}): void {
+	inject(`move,${from[0]},${from[1]}`, `down,${from[0]},${from[1]}`);
+	for (let step = 1; step <= 6; step++) {
+		const x = Math.round(from[0] + ((to[0] - from[0]) * step) / 6);
+		const y = Math.round(from[1] + ((to[1] - from[1]) * step) / 6);
+		inject(`move,${x},${y}`);
+	}
+	if (release) inject(`up,${to[0]},${to[1]}`);
+}
+
+function centreOf({ x, y, width, height }: { x: number; y: number; width: number; height: number }): [number, number] {
+	return [Math.round(x + width / 2), Math.round(y + height / 2)];
 }
 
 beforeAll(() => {
@@ -245,10 +319,48 @@ describe('the target preview', () => {
 		hover(card);
 
 		const targets = preview(combat).showing;
-		expect(targets?.sourceId).toBe(one.rig.id);
+		expect(targets?.links).toEqual([{ sourceId: one.rig.id, targetId: one.raiders[0].id }]);
 		expect(targets?.vehicleIds).toEqual([one.raiders[0].id]);
 		expect(preview(combat).solid).toBe(true);
-		expect(drawn(combat)).toEqual({ lines: 1, dots: 0, heads: 1 });
+		const { lines, dots, heads, arrows } = record(combat);
+		expect({ lines, dots, heads }).toEqual({ lines: 1, dots: 0, heads: 1 });
+
+		// Up from the top of the Rig's plate, down onto the top of the raider's token, in the raiders' red
+		const [arrow] = arrows;
+		expectNear(arrow.start, plateEdge(combat, one.rig, 'top'));
+		expectNear(arrow.tip, tokenTop(combat, one.raiders[0]));
+		expect(arrow.color[0]).toBeCloseTo(1, 2);
+		expect(arrow.color[1]).toBeLessThan(0.5);
+		// It comes down onto the target, not in from the side
+		expect(arrow.tip.y - arrow.base.y).toBeGreaterThan(Math.abs(arrow.tip.x - arrow.base.x));
+		expect(preview(combat).resolvedColors?.fill).toEqual(arrow.color);
+	});
+
+	it('goes the short way between two vehicles in one lane, never through the target', async () => {
+		const near = fight([slot(ENEMY_INSIDE, CENTER)]);
+		const combat = await startCombat(near);
+		// The Rig's driver swaps with the Bike, behind it in the inside lane
+		const [down] = deal(combat, near, leapfrog());
+		hover(down);
+		expect(preview(combat).showing?.links).toEqual([{ sourceId: near.rig.id, targetId: near.bike.id }]);
+		const [toBike] = record(combat).arrows;
+		expectNear(toBike.start, plateEdge(combat, near.rig, 'bottom'));
+		expectNear(toBike.tip, plateEdge(combat, near.bike, 'top'));
+		expect(toBike.color[2]).toBeLessThan(0.5);
+
+		// The Bike's driver's swap goes up to the bottom of the Rig's plate
+		inject('move,1,1');
+		const swap = leapfrog();
+		driverOf(near.rig).set({ hand: [] });
+		driverOf(near.bike).set({ hand: [swap], adrenaline: 5 });
+		combat['updateUIFromBattle']();
+		context.frame.layout();
+		const up = combat['handLayer'].getCardElementByCard(swap);
+		if (!up) throw new Error('Leapfrog should be dealt to the Bike');
+		hover(up);
+		const [toRig] = record(combat).arrows;
+		expectNear(toRig.start, plateEdge(combat, near.bike, 'top'));
+		expectNear(toRig.tip, plateEdge(combat, near.rig, 'bottom'));
 	});
 
 	it('draws a dotted arrow to each raider when the player picks one of several', async () => {
@@ -357,6 +469,94 @@ describe('the target preview', () => {
 		press('Escape');
 		expect(combat['combatModel'].isTargeting).toBe(false);
 		expect(preview(combat).showing?.vehicleIds).toEqual([one.raiders[0].id]);
+	});
+
+	it('works out a card\'s targets the first time it\'s previewed, not on every deal', async () => {
+		const one = fight([slot(ENEMY_INSIDE, CENTER)]);
+		const combat = await startCombat(one);
+		const [card] = deal(combat, one, shot(1), volley());
+		expect(combat['handTargets'].size).toBe(0);
+		hover(card);
+		expect(combat['handTargets'].size).toBe(1);
+		combat['updateUIFromBattle']();
+		expect(combat['handTargets'].size).toBe(1);
+	});
+
+	it('falls back to the keyboard\'s card when the pointer leaves the one it was on', async () => {
+		const one = fight([slot(ENEMY_INSIDE, CENTER)]);
+		const combat = await startCombat(one);
+		const [focused, pointed] = deal(combat, one, shot(1), volley());
+		press('Tab');
+		expect(context.focus.focused).toBe(focused);
+		hover(pointed);
+		expect(preview(combat).showing?.picks).toBe(false);
+		inject('move,1,1');
+		expect(preview(combat).showing?.picks).toBe(true);
+	});
+
+	it('gives the road to whichever was asked for last, a hand card or END TURN, and never both', async () => {
+		const one = fight([slot(ENEMY_INSIDE, CENTER)]);
+		const combat = await startCombat(one);
+		const [card] = deal(combat, one, shot(1));
+		const intents = combat['intentPreview'];
+		press('Tab', 'Tab');
+		expect(context.focus.focused?.id).toBe('end_turn_button');
+		expect(intents.showing).toBe(true);
+		expect(preview(combat).showing).toBeNull();
+
+		hover(card);
+		expect(preview(combat).showing).not.toBeNull();
+		expect(intents.showing).toBe(false);
+
+		inject('move,1,1');
+		expect(preview(combat).showing).toBeNull();
+		expect(intents.showing).toBe(true);
+	});
+
+	it('shows nothing while a card is dragged, through the enemy turn, or once the battle is over', async () => {
+		const one = fight([slot(ENEMY_INSIDE, CENTER)]);
+		const combat = await startCombat(one);
+		const [card] = deal(combat, one, shot(1));
+		const { x, y, height } = card.screenBounds;
+		drag([Math.round(x + 12), Math.round(y + height / 2)], centreOf(token(combat, one.raiders[0]).screenBounds), { release: false });
+		expect(context.drag.isDragging).toBe(true);
+		expect(preview(combat).showing).toBeNull();
+		press('Escape');
+		inject(`up,1,1`);
+
+		hover(card);
+		expect(preview(combat).showing).not.toBeNull();
+		combat['endPlayerTurn']();
+		expect(preview(combat).showing).toBeNull();
+
+		const over = fight([slot(ENEMY_INSIDE, CENTER)]);
+		const ended = await startCombat(over);
+		const [last] = deal(ended, over, shot(1));
+		hover(last);
+		expect(preview(ended).showing).not.toBeNull();
+		(ended['battle'] as Battle).battleOver = true;
+		ended['refreshTargetPreview']();
+		expect(preview(ended).showing).toBeNull();
+	});
+
+	it('refuses a drop on a raider out of reach, which aiming dims and marks OUT (DDB-114)', async () => {
+		const mixed = fight([slot(ENEMY_INSIDE, CENTER), slot(ENEMY_OUTSIDE, AHEAD)]);
+		const combat = await startCombat(mixed);
+		const playCard = jest.spyOn(Battle.prototype, 'playCard');
+		const [card] = deal(combat, mixed, shot(1));
+		const far = token(combat, mixed.raiders[1]);
+		const { x, y, height } = card.screenBounds;
+		const target = centreOf(far.screenBounds);
+		drag([Math.round(x + 12), Math.round(y + height / 2)], target, { release: false });
+		expect(combat['combatModel'].isTargeting).toBe(true);
+		expect(combat['combatModel'].targetableVehicleIds).toEqual([mixed.raiders[0].id]);
+		expect(far.rangeLabel).toEqual({ text: 'OUT', legal: false });
+		expect(far.opacity).toBeLessThan(1);
+		expect(context.drag.canDrop).toBe(false);
+		inject(`up,${target[0]},${target[1]}`);
+		expect(playCard).not.toHaveBeenCalled();
+		expect(combat['combatModel'].selectedCard).toBeNull();
+		playCard.mockRestore();
 	});
 
 	it('goes when the pointer leaves the card', async () => {

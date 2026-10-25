@@ -5,7 +5,7 @@ import { ROAD_HEADER_HEIGHT } from './CombatLayout';
 const LIFT = 20;
 const HEADER_CLEARANCE = 4;
 const SAMPLES = 48;
-/** How far a move's arc bows out of a straight line, as a share of its length, and at most. */
+/** How far a move's arc bows out of a straight line at its middle, as a share of its length, and at most. */
 const BOW = 0.2;
 const MAX_BOW = 28;
 
@@ -14,7 +14,8 @@ const MAX_BOW = 28;
  * goes up from the first, across, and down onto the second, a cubic rising
  * over the higher end and never into the lane header: the raiders' intent
  * lines (EndTurnPreview) and a hand card's target arrows (TargetPreview)
- * run along it. `traceMove` goes the short way from slot to slot, bowed to
+ * run along it, the arrows with a `drop` so they come down steeply enough
+ * for a head. `traceMove` goes the short way from slot to slot, bowed to
  * the left of the way it goes, so two vehicles trading slots draw two arcs
  * rather than one line: a card's moves. Traced into an arc-length table it
  * keeps, so a frame of arcs allocates nothing.
@@ -23,10 +24,17 @@ export class RoadArc {
 	private readonly points: Vec2[] = Array.from({ length: SAMPLES + 1 }, () => ({ x: 0, y: 0 }));
 	private readonly distances = new Float64Array(SAMPLES + 1);
 
-	/** Traces the arc from `from` to `to`, in the road band's space; returns its length. */
-	public trace(from: Vec2, to: Vec2): number {
+	/**
+	 * Traces the arc from `from` to `to`, in the road band's space; returns
+	 * its length. With a `drop`, the arc's last control sits at least that
+	 * far above `to`, so its end comes down onto `to` rather than in from the
+	 * side.
+	 */
+	public trace(from: Vec2, to: Vec2, drop = 0): number {
 		const { points, distances } = this;
-		const lift = Math.max(ROAD_HEADER_HEIGHT + HEADER_CLEARANCE, Math.min(from.y, to.y) - LIFT);
+		const ceiling = ROAD_HEADER_HEIGHT + HEADER_CLEARANCE;
+		const lift = Math.max(ceiling, Math.min(from.y, to.y) - LIFT);
+		const landing = Math.max(ceiling, Math.min(lift, to.y - drop));
 		for (let step = 0; step <= SAMPLES; step++) {
 			const t = step / SAMPLES;
 			const u = 1 - t;
@@ -35,7 +43,7 @@ export class RoadArc {
 			const c = 3 * u * t * t;
 			const d = t * t * t;
 			points[step].x = (a + b) * from.x + (c + d) * to.x;
-			points[step].y = a * from.y + (b + c) * lift + d * to.y;
+			points[step].y = a * from.y + b * lift + c * landing + d * to.y;
 			distances[step] = step === 0 ? 0 : distances[step - 1] + Math.hypot(points[step].x - points[step - 1].x, points[step].y - points[step - 1].y);
 		}
 		return distances[SAMPLES];
@@ -47,7 +55,8 @@ export class RoadArc {
 		const dx = to.x - from.x;
 		const dy = to.y - from.y;
 		const span = Math.hypot(dx, dy);
-		const bow = span > 0 ? Math.min(MAX_BOW, span * BOW) / span : 0;
+		// A quadratic reaches half its control's offset at its middle
+		const bow = span > 0 ? (2 * Math.min(MAX_BOW, span * BOW)) / span : 0;
 		// Left of the way it goes, on a screen whose y runs down
 		const controlX = (from.x + to.x) / 2 + dy * bow;
 		const controlY = (from.y + to.y) / 2 - dx * bow;
@@ -93,9 +102,10 @@ export class RoadArc {
 	 * The traced arc as a line of points from `start` to `end` along it:
 	 * the point at `start`, every sample between, then the point at `end`.
 	 * Written into `out`, which grows only past its longest line so far;
-	 * returns how many.
+	 * returns how many, none when `end` isn't past `start`.
 	 */
 	public pointsBetween(start: number, end: number, out: Vec2[]): number {
+		if (end <= start) return 0;
 		const { points, distances } = this;
 		let count = 0;
 		let segment = this.pointAt(start, 1, slotOf(out, count++));

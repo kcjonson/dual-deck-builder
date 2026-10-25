@@ -737,7 +737,7 @@ function raiderToken(combat: CombatScreen) {
 describe('CombatScreen targeting (DDB-138)', () => {
 	beforeEach(() => setViewport(1280, 720));
 
-	it('labels each raider with its range from the slot the card acts from, and offers only the ones in reach', async () => {
+	it('labels the raider with its range from the slot the card acts from, and disables a card with no raider in reach', async () => {
 		const combat = await startCombat();
 		const { raider, token } = raiderToken(combat);
 		const playCard = jest.spyOn(Battle.prototype, 'playCard');

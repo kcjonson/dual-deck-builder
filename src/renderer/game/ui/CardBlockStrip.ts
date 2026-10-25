@@ -53,8 +53,8 @@ export class CardBlockStrip extends Component {
 		if (text !== null) this.label.text = text;
 	}
 
-	public get resolvedColors(): ResolvedColors {
-		return { fill: BACKGROUND };
+	public get resolvedColors(): ResolvedColors | null {
+		return this.visible ? { fill: BACKGROUND, text: INK } : null;
 	}
 
 	public get drawnText(): readonly string[] | null {

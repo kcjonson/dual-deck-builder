@@ -26,7 +26,7 @@ import { Rgba } from './combatStyle';
 import { openPileDialog } from '../../ui/CardPileView';
 import { INSPECT_KEYS, inspectHotkey } from '../../ui/cardInspect';
 import { buildPlayerHandView } from './PlayerHandView';
-import { CardTargets, aimSlots, cardTargets, hasTargets, targetableVehicleIds } from './cardTargets';
+import { CardTargets, aimSlots, cardHasTargets, cardTargets, targetableVehicleIds } from './cardTargets';
 import { TargetMark, seatMark } from '../../ui/targetMarks';
 import { statusLabel } from '../../ui/IntentPill';
 import { describeSlot } from '../../mechanics/Road';
@@ -227,9 +227,16 @@ export class CombatScreen extends Screen {
 	// Whether the raiders' pills show a hovered or chosen destination's
 	// preview, so going back to the plain plan is only worked out when needed
 	private intentsPreviewed = false;
-	// What each playable hand card would offer if picked, from the last deal
+	// The driver of each card the last deal found playable, and what each
+	// would offer if picked, worked out the first time it's previewed
+	private readonly handDrivers = new Map<Card, Driver>();
 	private readonly handTargets = new Map<Card, CardTargets>();
-
+	// While the hand is being dealt, when a card leaving can present another
+	// whose new state isn't dealt yet; the deal's own refresh follows
+	private dealing = false;
+	// Which preview has the road: the presented hand card's or END TURN's,
+	// whichever came last, so the two never draw over each other
+	private previewOwner: 'card' | 'endTurn' | null = null;
 
 	// Event unsubscribe functions: battle and team events, and the combat model's
 	private unsubscribers: (() => void)[] = [];
@@ -562,21 +569,27 @@ export class CombatScreen extends Screen {
 		const battle = this.battle;
 		const playerTeam = this.playerTeam;
 		const crashedOut = (driver: Driver): boolean => driver.isAlive() && !playerTeam.isAboard(driver);
-		// What each playable card would offer if picked: a card with nothing
-		// to pick is disabled, and the rest preview their targets on hover or
-		// focus. One projection for the whole hand
+		// A card with nothing to pick is disabled; whether it has anything is
+		// all the deal asks, on one projection for the whole hand, and what a
+		// playable card would target is worked out when it's previewed
 		const board = new BoardProjection({ battle });
+		this.handDrivers.clear();
 		this.handTargets.clear();
-		this.handLayer.hand = buildPlayerHandView({
-			drivers: this.playerDrivers,
-			canPlay: (driver, card) => battle.canPlayCard({ driver, card, board }),
-			hasTarget: (driver, card) => {
-				const targets = cardTargets({ battle, driver, card, board });
-				this.handTargets.set(card, targets);
-				return hasTargets(targets);
-			},
-			crashedOut,
-		});
+		this.dealing = true;
+		try {
+			this.handLayer.hand = buildPlayerHandView({
+				drivers: this.playerDrivers,
+				canPlay: (driver, card) => battle.canPlayCard({ driver, card, board }),
+				hasTarget: (driver, card) => {
+					const has = cardHasTargets({ battle, driver, card, board });
+					if (has) this.handDrivers.set(card, driver);
+					return has;
+				},
+				crashedOut,
+			});
+		} finally {
+			this.dealing = false;
+		}
 
 		this.playerDrivers.forEach((driver, index) => {
 			this.handLayer.setDriverData((index + 1) as 1 | 2, {
@@ -626,23 +639,48 @@ export class CombatScreen extends Screen {
 	}
 
 	/**
-	 * The presented hand card's targets, drawn as arrows over the road from
-	 * the vehicle it would act from (section 6, planning): while a playable
-	 * card has the pointer or keyboard focus on your turn, with nothing
-	 * aimed or dragged. One target, or a card that lands on all of them,
-	 * gets solid arrows; a choice between several gets the aiming line's
-	 * dots, one to each. Read from the targets the deal worked out, so
-	 * hovering computes nothing.
+	 * The presented hand card's targets and moves, drawn as arrows over the
+	 * road (section 6, planning): while a playable card has the pointer or
+	 * keyboard focus on your turn, with nothing aimed or dragged, and END
+	 * TURN's preview hasn't taken the road since. Worked out the first time
+	 * a card is previewed after a deal, and kept until the next.
 	 */
 	private refreshTargetPreview(): void {
-		// Unmounting takes the hand's cards down, each telling the hand it's no longer presented
-		if (!this.isActive) return;
+		// Unmounting takes the hand's cards down, each telling the hand it's
+		// no longer presented; a deal refreshes once it's done
+		if (!this.isActive || this.dealing) return;
 		const battle = this.battle;
 		const card = this.handLayer.presentedCard;
-		const targets = card ? this.handTargets.get(card) : undefined;
-		const open = !!battle && battle.isPlayerTurn && !battle.enemyTurnInProgress && !battle.battleOver
-			&& !this.combatModel.isTargeting && !this.context.drag.isDragging;
-		this.targetPreview.showing = open && targets ? targets : null;
+		const open = card !== null && !!battle && battle.isPlayerTurn && !battle.enemyTurnInProgress && !battle.battleOver
+			&& !this.combatModel.isTargeting && !this.context.drag.isDragging && this.previewOwner === 'card';
+		this.targetPreview.showing = open && battle ? this.targetsOf(battle, card) : null;
+	}
+
+	/** What a playable hand card would offer, from the cache or worked out now. */
+	private targetsOf(battle: Battle, card: Card): CardTargets {
+		const cached = this.handTargets.get(card);
+		if (cached) return cached;
+		// Presented means enabled, and outside targeting enabled means the deal found it playable
+		const driver = this.handDrivers.get(card);
+		if (!driver) throw new Error(`${card.name} is presented in the hand, but the last deal didn't find it playable`);
+		const targets = cardTargets({ battle, driver, card });
+		this.handTargets.set(card, targets);
+		return targets;
+	}
+
+	/**
+	 * A hand card or END TURN started or stopped previewing: the one that
+	 * started last has the road, and when it stops the other has it back if
+	 * it's still previewing.
+	 */
+	private previewChanged(by: 'card' | 'endTurn', previewing: boolean): void {
+		if (previewing) {
+			this.previewOwner = by;
+		} else if (this.previewOwner === by) {
+			const other = by === 'card' ? this.endTurnColumn.previewing : this.handLayer.presentedCard !== null;
+			this.previewOwner = other ? (by === 'card' ? 'endTurn' : 'card') : null;
+		}
+		this.refreshTargetPreview();
 	}
 
 	/**
@@ -852,14 +890,15 @@ export class CombatScreen extends Screen {
 			heightMode: 'fill',
 			zIndex: 1,
 			road: this.road,
-			isPreviewing: () => this.endTurnColumn?.previewing ?? false,
+			isPreviewing: () => (this.endTurnColumn?.previewing ?? false) && this.previewOwner !== 'card',
 		});
 		road.addChild(this.intentPreview);
 
 		// From a hand card's hover or keyboard focus, arrows from the vehicle
 		// it acts from to what it would target (section 6); laid out as the
-		// end-turn preview is, and never up at the same time, over it so the
-		// two declare their order, and under the log drawer
+		// end-turn preview is, and never up at the same time (whichever was
+		// asked for last has the road), over it so the two declare their
+		// order, and under the log drawer
 		this.targetPreview = new TargetPreview({
 			id: 'combat_target_preview',
 			positioned: 'absolute',
@@ -881,8 +920,13 @@ export class CombatScreen extends Screen {
 		});
 		this.handLayer = dock.hand;
 		this.endTurnColumn = dock.endTurnColumn;
-		// The pills drop an aimed card's preview while END TURN, which would put the card back, is previewing
-		this.endTurnColumn.onPreviewingChange = () => this.refreshIntentPreview();
+		// The pills drop an aimed card's preview while END TURN, which would
+		// put the card back, is previewing; and END TURN's preview takes the
+		// road from a hand card's
+		this.endTurnColumn.onPreviewingChange = () => {
+			this.previewChanged('endTurn', this.endTurnColumn.previewing);
+			this.refreshIntentPreview();
+		};
 		return dock;
 	}
 
@@ -929,7 +973,7 @@ export class CombatScreen extends Screen {
 		});
 		this.dragUnsubscribe = this.context.drag.onDraggingChange((dragging) => this.dragChanged(dragging));
 		// A card pointed at or focused shows where it would go (section 6)
-		this.handLayer.onPresentedChange = () => this.refreshTargetPreview();
+		this.handLayer.onPresentedChange = () => this.previewChanged('card', this.handLayer.presentedCard !== null);
 
 		// A driver's tab opens their draw and discard piles, each card
 		// inspectable with the hand's detail view (section 5)
@@ -1123,7 +1167,7 @@ export class CombatScreen extends Screen {
 			this.road.showRanges(new Map());
 		} else {
 			model.targetableSlots = [];
-			model.targetableVehicleIds = this.determineTargetableVehicles(card, aim.destination);
+			model.targetableVehicleIds = targetableVehicleIds({ battle, driver, card, destination: aim.destination });
 			this.showRanges(card);
 		}
 		this.road.showSlotTargets({ slots: model.targetableSlots, picked: aim.destination });
@@ -1416,12 +1460,11 @@ export class CombatScreen extends Screen {
 		if (success) {
 			console.log(`${driver.metadata.name} played ${card.displayName}`);
 			
-			// Clear selection state immediately after successful play
+			// Clear selection state immediately after successful play. The
+			// battle's stateChanged dealt the hand as the card resolved, and
+			// clearing the selection enables the cards it dealt
 			this.combatModel.cancelSelection();
 			this.handLayer.clearCardSelection();
-			
-			// Update UI to reflect new state (this will refresh the hand)
-			this.updateUIFromBattle();
 		} else {
 			console.warn('Failed to play card');
 			// Still clear selection state on failure
@@ -1444,20 +1487,6 @@ export class CombatScreen extends Screen {
 		focus.focus(this.endTurnColumn.endTurn);
 	}
 	
-	/**
-	 * The vehicles the waiting card can land on now, and only those
-	 * (`targetableVehicleIds`, section 6), so a drop, a click, or the
-	 * keyboard can't offer anything playCard would refuse. Range for a card
-	 * that moves first is judged from `destination`, the slot an earlier
-	 * step chose.
-	 */
-	private determineTargetableVehicles(card: Card, destination: RoadSlot | null = null): string[] {
-		const battle = this.battle;
-		const driver = this.combatModel.selectedDriver;
-		if (!battle || !driver) return [];
-		return targetableVehicleIds({ battle, driver, card, destination });
-	}
-
 	// Removed deprecated methods - now handled by Battle system
 
 	/**
@@ -1498,7 +1527,8 @@ export class CombatScreen extends Screen {
 
 		this.enemyActing = step?.raider ?? null;
 		if (step?.outcome === 'fizzled' && step.target) this.popHitNumber({ vehicle: step.target, damage: null });
-		this.updateUIFromBattle();
+		// The player's turn starting deals through the battle's stateChanged
+		if (step || battle.battleOver) this.updateUIFromBattle();
 		// A loss ends the battle, which navigates away through the transition;
 		// the screen stays up, locked, under the fade and takes no more beats
 		if (battle.battleOver) return null;

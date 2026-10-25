@@ -834,7 +834,7 @@ export class Card extends CardBase<GameCard> {
 		if (label !== null && !this.blockStrip) {
 			if (this.cardSize === CardSize.MINI) throw new Error('only a card face shows why it is blocked');
 			// Built the first time a card is blocked, after the art icon so it covers it
-			this.blockStrip = new CardBlockStrip({ id: this.childId('block'), x: FACE.art.x, y: BLOCK_STRIP.y, width: FACE.art.width });
+			this.blockStrip = new CardBlockStrip({ id: this.childId('block'), x: BLOCK_STRIP.x, y: BLOCK_STRIP.y, width: this.width - BLOCK_STRIP.x * 2 });
 			this.addChild(this.blockStrip);
 		}
 		if (this.blockStrip) this.blockStrip.text = label;
