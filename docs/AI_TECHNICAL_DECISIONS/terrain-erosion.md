@@ -1,12 +1,12 @@
 # Terrain from uplift and erosion (DDB-441)
 
-Date: 2026-10-09. Code: `_legacy/src/renderer/game/map/` (`LandGrid.ts`, `Uplift.ts`, `Drainage.ts`, `Erosion.ts`, `Land.ts`, `MapMath.ts`, and `Terrain.ts` reading them; `worker/mapGenerationProtocol.ts` carries the land across the worker boundary), timed by `_legacy/scripts/terrain-bench.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 1. Terrain. Builds decision 1 of [realistic-map.md](./realistic-map.md), and replaces the relief half of [terrain-fields.md](./terrain-fields.md)'s field model: its plains, ranges, ridges, canyons, and badlands layers.
+Date: 2026-10-09. Code: `_legacy/src/renderer/game/map/` (`LandGrid.ts`, `Uplift.ts`, `Drainage.ts`, `Erosion.ts`, `Land.ts`, `MapMath.ts`, and `Terrain.ts` reading them). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 1. Terrain. Builds decision 1 of [realistic-map.md](./realistic-map.md), and replaces the relief half of [terrain-fields.md](./terrain-fields.md)'s field model: its plains, ranges, ridges, canyons, and badlands layers.
 
 ## Context
 
 Realistic-map decision 1 picked the method: an uplift field cut down by stream-power erosion, so ranges, valleys, and a drainage network that runs downhill everywhere come out of one process. Its offline prototype showed the look and gave the numbers. This stage builds it in the game: the land on a grid a fifth wider than the disc, outlets on the grid's edge, dry terraces, elevation sampled bicubic, and the drainage kept as plain data for the water stage (Map 5, DDB-289).
 
-The constraints were the spec's. The land is regenerated on load rather than saved, so it has to come out to the same bits in every engine, which rules out `Math.sin`, `exp`, `pow`, `hypot`, and `**` anywhere a value branches or feeds the grid. The `Terrain` interface (`sample`, `elevation`, `slope`, `obstacle`, and then `travelCost`, which the water stage replaced with `moveCost`) keeps its shape, since road growth, its checks, and the area map's bake all read it. And the grid stages share a budget of 1 second on a mid-range laptop, against the prototype's 460 to 550 ms for erosion alone.
+The constraints were the spec's. The land is regenerated on load rather than saved, so it has to come out to the same bits on every platform, which rules out sin, exp, pow, hypot, and the other libm transcendentals anywhere a value branches or feeds the grid. The `Terrain` interface (`sample`, `elevation`, `slope`, `obstacle`, and then `travelCost`, which the water stage replaced with `moveCost`) keeps its shape, since road growth, its checks, and the area map's bake all read it. And erosion is the expensive part of the grid stages: the prototype's alone took 460 to 550 ms in JavaScript.
 
 ## The grid
 
@@ -18,7 +18,7 @@ The constraints were the spec's. The land is regenerated on load rather than sav
 
 - Hills: a 450-unit, 3-octave layer, 0.04 to 0.12 of lift by ruggedness, varying 80% either way. The prototype set this per environment; there's no parameter for it, so ruggedness carries it.
 - Ranges: a 3-octave layer, gain 0.45, with 1500-unit wavelength along the map's grain and 520 across it, sampled at points bent by a 160-unit warp. A 500-unit, 2-octave breaks layer is added at a quarter weight. Range country is where the sum passes the quantile of itself over the cells inside the disc past the relief radius that `mountainCoverage` asks for, ramping over 0.26 of it, so the mask is half at the threshold and exactly `mountainCoverage` of that land is range country on every map, gaps included. Ranges lift 0.7 to 1.8 by ruggedness.
-- The grain is `unitVector(180 * draw)`, Geometry.ts's polynomial sine and cosine, not `Math.cos` and `Math.sin` as the prototype had it.
+- The grain is `unitVector(180 * draw)`, Geometry.ts's polynomial sine and cosine, not the library cos and sin the prototype used.
 
 The prototype multiplied each range's lift by its breaks layer instead (down to 0.45 in a gap) and calibrated coverage on the belt layer alone, so its gaps sat inside "range country" and its mask's share drifted from the parameter. Adding the breaks before the quantile keeps the share exact: the test holds it to within one cell's share over six seeds and four coverages. The cost is gaps that cut a belt rather than notch it, which a quarter weight keeps rare.
 
@@ -99,51 +99,25 @@ Measured by sampling the terrain on polar grids of the metro, its steepest grade
 
 ## What the water stage gets
 
-`terrain.surface` is a frozen `LandSurface`: the grid, the finished elevation and the range mask per cell, `closedBasin`, and `drainage`, the finished land's drainage as plain typed arrays: `receivers` (-1 at an outlet), `levels`, `area` (one unit of rain a cell), `order` (downstream first), and `outlets`. The arrays are read-only by contract, since typed arrays can't be frozen. `terrainFromSurface({ params, rng, surface })` builds the rest of the terrain over a surface grown elsewhere, refusing one whose grid isn't `landGridFor(params.radius)` or whose arrays don't fit it.
+`terrain.surface` is an immutable `LandSurface`: the grid, the finished elevation and the range mask per cell, `closedBasin`, and `drainage`, the finished land's drainage as plain typed arrays: `receivers` (-1 at an outlet), `levels`, `area` (one unit of rain a cell), `order` (downstream first), and `outlets`. The arrays are read-only by contract. `terrainFromSurface({ params, rng, surface })` builds the rest of the terrain over a surface grown elsewhere, refusing one whose grid isn't `landGridFor(params.radius)` or whose arrays don't fit it.
 
-Water stands where a level is above the land. Over 90 maps, five environments by six seeds at radius 800, 1000, and 1200, that's a median 0.57% of the grid and at most 8.5%, 2% or more on 19 maps; inside the disc the median is 0.03% and the most 5.6%, since most of it lies in the grid's margin past the rim. The tests hold it under 10% on every map and 2% at the median over the five environments. They're the coarse pass's last pits, which more coarse iterations drain, but 40 and 10 already take the land to 350 ms at radius 1200, so they stay, for the water stage as lake sites.
+Water stands where a level is above the land. Over 90 maps, five environments by six seeds at radius 800, 1000, and 1200, that's a median 0.57% of the grid and at most 8.5%, 2% or more on 19 maps; inside the disc the median is 0.03% and the most 5.6%, since most of it lies in the grid's margin past the rim. The tests hold it under 10% on every map and 2% at the median over the five environments. They're the coarse pass's last pits, which more coarse iterations drain at a cost in time, so they stay, for the water stage as lake sites.
 
-The water stage ([water-and-biomes.md](./water-and-biomes.md)) routes the finished land again with noise of under a hundredth of grade added, which breaks up the metro's filled flats and the eight-direction runs on gentle slopes that the land's own drainage crosses in ruler-straight lines; weights the rain by moisture and the ranges; takes the pits as natural lake sites where the country is wet; and sends its own arrays across the worker boundary beside the land's.
-
-## Crossing the worker boundary
-
-The generation worker ([map-pipeline-worker.md](./map-pipeline-worker.md)) used to send no terrain, the client running the terrain stage again on the winning stream, which cost 2 ms for the analytic fields and would cost the whole erosion now. Instead `encodeAreaMap` puts `terrain.surface` in the transfer, its seven typed arrays in the transfer list beside the road network's two, and `decodeAreaMap` rebuilds the terrain with `terrainFromSurface` on the winning terrain stream, refreezing the surface. Transferring detaches the arrays from the worker's terrain, so the worker encodes after its last stage, and is terminated once it has replied.
-
-Over five environments by three seeds, a decode takes 11 ms median at radius 1000 and 28 ms at 1600 in Node 24, and about 20 ms and 60 to 130 ms on Chromium's main thread, sending 2.6 MB and 6.6 MB, against 236 and 670 ms in Node to grow the land again.
+The water stage ([water-and-biomes.md](./water-and-biomes.md)) routes the finished land again with noise of under a hundredth of grade added, which breaks up the metro's filled flats and the eight-direction runs on gentle slopes that the land's own drainage crosses in ruler-straight lines; weights the rain by moisture and the ranges; and takes the pits as natural lake sites where the country is wet.
 
 ## What the field model lost
 
-The plains, ranges, ridges, canyons, badlands, and gully layers are gone, with the derivative bookkeeping that carried their gradients and the canyon wall profile. Canyons, badlands, low ground, moisture, rough country, and cliffs now come from the water and the eroded slope ([water-and-biomes.md](./water-and-biomes.md)), which replaced the stand-ins this stage kept them working with.
+The field model's relief layers are gone; [terrain-fields.md](./terrain-fields.md) has what of it still holds and where the rest went.
 
 ## Determinism
 
-The land is built from adds, multiplies, divides, compares, square roots, and floors, which ECMAScript gives exactly, and from noise and draws that are too. ESLint holds generation to that: under `_legacy/src/renderer/game/map/`, tests aside, it rejects `Math.sin`, `cos`, `tan` and their inverses, `exp` and `log` in all their forms, `pow`, `hypot`, `cbrt`, the hyperbolics, and `**`. The road tests' fixtures, which place a test's own departures and measure what growth made, disable it line by line with their reasons. The tests pin a hash of the eroded grid and its receivers for two maps, a Mixed map at radius 800 and a High Desert closed basin, computed in a separate Node process from the Jest run that checks them, and a fresh copy of the module erodes the same bits.
+The land is built from adds, multiplies, divides, compares, square roots, and floors, which IEEE arithmetic gives exactly, and from noise and draws that are too. Map generation, tests aside, uses no libm transcendentals: no sin, cos, tan or their inverses, no exp or log in any form, no pow, hypot, cbrt, or the hyperbolics (the TypeScript held its map code to that with a lint rule). It builds with floating-point contraction off (`-ffp-contract=off`, which salal's foundation sets for GCC and Clang), so no multiply and add fuse, and the same seed and params erode the same bits on every platform. The tests pin a hash of the eroded grid and its receivers for two maps, a Mixed map at radius 800 and a High Desert closed basin.
 
 The terrain stream forks by feature: `hills`, `ranges`, `rangeWarp`, `rangeBreaks`, `grain`, `outlets`, and `initial` for the land, and `detail`, `roughness`, `contamination`, `hotspots`, and `towns` for the rest; moisture's noise moved to the water stream. So towns, hotspots, contamination, and anything past the terrain stage never move the land; a test changes six such parameters and gets the same grid.
 
-## Performance
-
-`node _legacy/scripts/terrain-bench.mjs --radii 800,1000,1200,1600`, Node 24 (V8 13.6), the same shared desktop, the median of three seeds per radius and environment. Other work on the desktop slows every column alike, by half again in a busy spell, the uplift's included, so these are from a quiet one:
-
-| Radius | Grid | Mixed | High Desert | Rust Belt | Floodlands | Badlands | Uplift | Erosion | Drainage |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 800 | 204 x 204 | 78 ms | 76 | 74 | 77 | 77 | 16 | 59 | 2.1 |
-| 1000 | 256 x 256 | 126 | 131 | 156 | 133 | 127 | 27 | 98 | 3.4 |
-| 1200 | 308 x 308 | 188 | 193 | 188 | 187 | 192 | 38 | 145 | 4.8 |
-| 1600 | 410 x 410 | 347 | 346 | 348 | 352 | 355 | 69 | 271 | 8.8 |
-
-Erosion is the land's time less the uplift's and the final drainage's; it includes elevation and the metro's routing and flattening, a few milliseconds. The whole terrain build, the land and the terrain's fields over it, is 89 ms at radius 800, 150 at 1000, 212 at 1200, and 400 at 1600, and the water stage adds 18 to 66. Sampling at radius 1000: a full sample 432 ns, elevation 142, slope 142, a 9-unit move's cost 648.
-
-Routing is about three quarters of erosion's time: 52 routings a land, 40 at half size, 10 at full, and the final two, at under 60 ns a cell. The scan for local receivers takes about 30% of it, labelling basins and finding their passes and spills a third, the flood and its candidates a fifth, most of that the coarse pass's lakes, which hold 14% of its grid, and listing the order an eighth. The scan costs about 14 ns a cell even unrolled, most of it the branch on which neighbour falls furthest, which no ordering of the work makes predictable. The rest of erosion is diffusion, the area, and the implicit solve's square root and divide per cell.
-
-The spec gives the grid stages a second on a mid-range laptop. At radius 1200 the land takes 190 ms here and the water about 30; with roads (Maps 7 and 8) estimated at 140 to 210 ms, the grid stages come to 0.36 to 0.43 s on this desktop, or 0.6 to 0.95 s on a mid-range laptop taking 1.6 to 2.2 times as long. At radius 1600 the land alone takes 350 ms. Whenever the pipeline goes back to the terrain stage, a map restart or a retry escalated up to it, the land grows again, erosion and all; retries of the stages after it reuse it.
-
-Under Jest a terrain at radius 1000 takes about 0.3 s to build, and 0.8 s with coverage on, which CI runs. So the terrain tests build each parameter set once a file, and the sweeps stay at 15 sets.
-
 ## Consequences
 
-- The area map gallery scene's land and roads move, and its goldens re-baseline with this change.
-- Every generated map moves. Nothing saved holds the land (it regenerates on load), but saves made before this load onto a different picture under the same roads, and DDB-296's generator version should count this change.
+- Every generated map moves. Nothing saved holds the land; it regenerates on load.
 - The field model's records stay in terrain-fields.md where they still hold: the noise, contamination, the start's blends, and sites. Rough country, cliffs, cost, and the water are water-and-biomes.md's.
 
 ## Provisional calls

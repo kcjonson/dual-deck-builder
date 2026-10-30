@@ -1,22 +1,10 @@
 # AI System Technical Design
 
-## 1\. AI Architecture Overview
+## 1. AI Architecture Overview
 
 ### 1.1 Core Components
 
-interface AIController {
-
-personality: AIPersonality;
-
-decisionEngine: DecisionEngine;
-
-boardEvaluator: BoardEvaluator;
-
-moveSelector: MoveSelector;
-
-difficultyModifier: DifficultyModifier;
-
-}
+An AI controller has five parts: a personality, a decision engine, a board evaluator, a move selector, and a difficulty modifier.
 
 ### 1.2 AI Decision Pipeline
 
@@ -26,7 +14,9 @@ difficultyModifier: DifficultyModifier;
 4. **Select Best Move** → Modified by difficulty
 5. **Execute Action** → With appropriate delays for readability
 
-## 2\. Enemy Types & Personalities
+Raiders run the pipeline when they plan, at the start of the player's turn: each commits its whole coming turn, one card at a time, against a projection of the road, and the enemy turn plays the plan without choosing again ([Combat Rules](./Combat%20Rules.md), Enemy intents).
+
+## 2. Enemy Types & Personalities
 
 ### 2.1 Base Enemy Archetypes
 
@@ -34,635 +24,111 @@ difficultyModifier: DifficultyModifier;
 
 #### Aggressive Raider
 
-{
-
-personality: {
-
-aggressionWeight: 0.8,
-
-defenseWeight: 0.2,
-
-targetPriority: "lowest_hp",
-
-riskTolerance: 0.7
-
-},
-
-movePreferences: {
-
-attack: 0.7,
-
-defend: 0.1,
-
-utility: 0.2
-
-}
-
-}
+- Personality: `aggressionWeight` 0.8, `defenseWeight` 0.2, `targetPriority` lowest_hp, `riskTolerance` 0.7
+- Move preferences: attack 0.7, defend 0.1, utility 0.2
 
 #### Defensive Convoy
 
-{
-
-personality: {
-
-aggressionWeight: 0.3,
-
-defenseWeight: 0.7,
-
-targetPriority: "highest_threat",
-
-riskTolerance: 0.3
-
-},
-
-movePreferences: {
-
-attack: 0.3,
-
-defend: 0.5,
-
-utility: 0.2
-
-}
-
-}
+- Personality: `aggressionWeight` 0.3, `defenseWeight` 0.7, `targetPriority` highest_threat, `riskTolerance` 0.3
+- Move preferences: attack 0.3, defend 0.5, utility 0.2
 
 #### Tactical Warlord
 
-{
+- Personality: `aggressionWeight` 0.5, `defenseWeight` 0.5, `targetPriority` optimal, `riskTolerance` 0.5
+- Move preferences: attack 0.4, defend 0.3, utility 0.3
 
-personality: {
+### 2.2 Strategies
 
-aggressionWeight: 0.5,
+What plans for a team is one of these strategies, set per fight. Raiders in campaign fights and the balance sim plan with the aggressive flanker.
 
-defenseWeight: 0.5,
+- Aggressive flanker: takes the flank for its damage bonus and favours its highest-damage plays. It never reads intents, so it never gives up a flank it would hold, and a move that does nothing else scores under ending the turn. The player stand-ins' floor ([Balance Simulation](./Balance%20Simulation.md), Player stand-ins).
+- Intent-aware: a player stand-in, the ceiling. Before each card it reads the raiders' committed plans and plays whatever most cuts the harm coming next enemy turn, one step and no search (Balance Simulation, Player stand-ins).
+- Ramming: builds speed and armor and closes in for ramming hits.
+- Salvage: tries to win while sparing the vehicles it fights, going for their drivers with headshots, so the vehicles are left to salvage.
+- Monte Carlo tree search: tries each play many times, picked by UCB1, and keeps the one that scores best.
+- Random: picks evenly among every play on offer, ending the turn included, drawing from its team's stream.
+- First playable: the first affordable card in hand order at its first legal target. Raiders plan with it when a fight sets no strategy.
 
-targetPriority: "optimal",
-
-riskTolerance: 0.5
-
-},
-
-movePreferences: {
-
-attack: 0.4,
-
-defend: 0.3,
-
-utility: 0.3
-
-}
-
-}
-
-## 3\. Board State Evaluation
+## 3. Board State Evaluation
 
 ### 3.1 Threat Assessment
 
-class ThreatCalculator {
+An entity's threat is its damage potential, scaled up by its buffs and down by its wounds, plus a flat amount for each special ability:
 
-calculateThreat(entity: CombatEntity): number {
-
-let threat = 0;
-
-// Base threat from damage potential
-
-threat += entity.averageDamagePerTurn \* 10;
-
-// Modifier for current buffs
-
-threat \*= (1 + entity.buffs.length \* 0.1);
-
-// Modifier for HP ratio
-
-threat \*= (entity.currentHP / entity.maxHP);
-
-// Special ability threats
-
-if (entity.hasStunAbility) threat += 20;
-
-if (entity.hasAOEDamage) threat += 15;
-
-return threat;
-
-}
-
-}
+`threat = averageDamagePerTurn * 10 * (1 + 0.1 * buffCount) * (currentHP / maxHP) + (20 if it can stun) + (15 if it deals area damage)`
 
 ### 3.2 Value Calculation
 
-interface MoveValue {
+A move's value has five parts:
 
-damageValue: number; // Raw damage dealt
+- damage value: raw damage dealt
+- defensive value: armor gained plus damage prevented
+- utility value: card draw, resource gain
+- tempo value: board control impact
+- synergy value: combo potential
 
-defensiveValue: number; // Armor gained + damage prevented
-
-utilityValue: number; // Card draw, resource gain
-
-tempoValue: number; // Board control impact
-
-synergyValue: number; // Combo potential
-
-}
-
-calculateMoveValue(move: AIMove, gameState: GameState): number {
-
-const values = evaluateMove(move, gameState);
-
-// Weight based on personality
-
-return (
-
-values.damageValue \* this.personality.aggressionWeight +
-
-values.defensiveValue \* this.personality.defenseWeight +
-
-values.utilityValue \* this.personality.utilityWeight +
-
-values.tempoValue \* this.personality.tempoWeight +
-
-values.synergyValue \* this.personality.synergyWeight
-
-);
-
-}
+The personality weights them, and the move's value is the sum: damage by `aggressionWeight`, defensive by `defenseWeight`, utility by `utilityWeight`, tempo by `tempoWeight`, and synergy by `synergyWeight`.
 
 Card draw is worth only the cards that stay in hand. A draw fills the drawer's hand up to their hand limit and burns the rest ([Combat Rules](./Combat%20Rules.md), Driver), and a burned card is worth nothing, so a draw at the limit adds no utility value. The hand counts as the draw will find it: without the card being played, which leaves its player's hand first, and after a plan's earlier plays. The strategies that value draws read it from one shared estimate; see [ai-draw-value.md](../AI_TECHNICAL_DECISIONS/ai-draw-value.md).
 
-## 4\. Move Generation & Selection
+## 4. Move Generation & Selection
 
 ### 4.1 Move Generator
 
-class MoveGenerator {
-
-generateMoves(aiState: AIState): AIMove\[\] {
-
-const moves: AIMove\[\] = \[\];
-
-// Single action moves
-
-for (const action of aiState.availableActions) {
-
-moves.push({
-
-actions: \[action\],
-
-value: 0 // To be calculated
-
-});
-
-}
-
-// Multi-action sequences (if AI has multiple units)
-
-if (aiState.units.length > 1) {
-
-moves.push(...generateCombinations(aiState));
-
-}
-
-return moves;
-
-}
-
-}
+Every legal action is a move of its own. When the AI has more than one unit, combinations of actions across them are moves too. A move's value is worked out after generation, by section 3.
 
 ### 4.2 Minimax with Alpha-Beta Pruning (Bosses only)
 
-class MinimaxEvaluator {
+Bosses search: minimax with alpha-beta pruning over the moves above, to a fixed depth or the end of the fight, scoring each leaf with the board evaluation (section 3). A boss searches when it plans its turn, at the start of the player's turn, against the projected road. Bosses aren't designed yet, and until they are they plan and show their intents like elites ([Combat Rules](./Combat%20Rules.md), Enemy intents).
 
-evaluate(
-
-gameState: GameState,
-
-depth: number,
-
-alpha: number,
-
-beta: number,
-
-maximizing: boolean
-
-): number {
-
-if (depth === 0 || gameState.isTerminal()) {
-
-return this.evaluatePosition(gameState);
-
-}
-
-if (maximizing) {
-
-let maxEval = -Infinity;
-
-for (const move of this.getPossibleMoves(gameState)) {
-
-const newState = this.applyMove(gameState, move);
-
-const eval = this.evaluate(newState, depth - 1, alpha, beta, false);
-
-maxEval = Math.max(maxEval, eval);
-
-alpha = Math.max(alpha, eval);
-
-if (beta <= alpha) break; // Pruning
-
-}
-
-return maxEval;
-
-} else {
-
-// Minimizing logic...
-
-}
-
-}
-
-}
-
-## 5\. Difficulty Scaling
+## 5. Difficulty Scaling
 
 ### 5.1 Difficulty Modifiers
 
-enum Difficulty {
+Four difficulties, which change how the AI picks among its scored moves:
 
-EASY = 0,
-
-NORMAL = 1,
-
-HARD = 2,
-
-NIGHTMARE = 3
-
-}
-
-class DifficultyModifier {
-
-modifyMoveSelection(moves: AIMove\[\], difficulty: Difficulty): AIMove {
-
-switch(difficulty) {
-
-case Difficulty.EASY:
-
-// 30% chance to pick suboptimal move
-
-if (this.rng.float() < 0.3) {
-
-return this.pickRandomMove(moves);
-
-}
-
-break;
-
-case Difficulty.HARD:
-
-// Always pick optimal, with 10% bonus evaluation
-
-moves.forEach(m => m.value \*= 1.1);
-
-break;
-
-case Difficulty.NIGHTMARE:
-
-// Perfect play + knows player's hand
-
-return this.pickWithForesight(moves);
-
-}
-
-return this.pickBestMove(moves);
-
-}
-
-}
+- Easy: 30% of the time it picks a random move instead of the best, drawing from the AI's own stream.
+- Normal: the best move.
+- Hard: always the best move, with a 10% bonus to every move's value.
+- Nightmare: perfect play, and it knows the player's hand.
 
 ### 5.2 Adaptive Difficulty
 
-class AdaptiveDifficulty {
+The game tracks the player's recent win rate. Above 80% the player is doing too well and the threat level goes up; below 30% they're struggling and it eases.
 
-playerStats: PlayerStats;
-
-adjustDifficulty(): void {
-
-const winRate = this.playerStats.getRecentWinRate();
-
-if (winRate > 0.8) {
-
-// Player is doing too well, increase challenge
-
-this.increaseThreatLevel();
-
-} else if (winRate < 0.3) {
-
-// Player is struggling, ease up
-
-this.decreaseThreatLevel();
-
-}
-
-}
-
-}
-
-## 6\. Intent System
+## 6. Intent System
 
 ### 6.1 Intent Display
 
-enum IntentType {
-
-ATTACK = "attack",
-
-DEFEND = "defend",
-
-BUFF = "buff",
-
-DEBUFF = "debuff",
-
-UNKNOWN = "unknown"
-
-}
-
-interface Intent {
-
-type: IntentType;
-
-value?: number; // Damage amount or armor gain
-
-target?: Target;
-
-description: string;
-
-}
+An intent has a type (attack, defend, buff, debuff, or unknown), a value where it has one (the damage amount, or the armor gained), a target where it has one, and a description.
 
 ### 6.2 Intent Calculation
 
-class IntentCalculator {
+How much of its plan a raider shows depends on its tier ([Combat Rules](./Combat%20Rules.md), Enemy intents). Basic enemies show their intent exactly. Elites show the type and target but hide the value and the card. Bosses can show misleading intents; until bosses are designed they show their intents as elites do.
 
-calculateIntent(enemy: Enemy, gameState: GameState): Intent {
-
-const selectedMove = enemy.getSelectedMove();
-
-// Basic enemies show exact intent
-
-if (enemy.tier === EnemyTier.BASIC) {
-
-return {
-
-type: selectedMove.type,
-
-value: selectedMove.value,
-
-description: this.getIntentDescription(selectedMove)
-
-};
-
-}
-
-// Elite enemies show partial intent
-
-if (enemy.tier === EnemyTier.ELITE) {
-
-return {
-
-type: selectedMove.type,
-
-value: this.obscureValue(selectedMove.value),
-
-description: "???"
-
-};
-
-}
-
-// Bosses can have misleading intent
-
-if (enemy.tier === EnemyTier.BOSS) {
-
-return this.generateBossIntent(enemy, selectedMove);
-
-}
-
-}
-
-}
-
-## 7\. Specific AI Behaviors
+## 7. Specific AI Behaviors
 
 ### 7.1 Raider Gang AI
 
-class RaiderAI extends BaseAI {
-
-selectMove(gameState: GameState): AIMove {
-
-// Raiders focus fire on weakest target
-
-const weakestPlayer = this.findWeakestTarget(gameState.players);
-
-// But switch targets if someone is about to die
-
-const lowHealthTarget = gameState.players.find(p => p.hp < 10);
-
-const target = lowHealthTarget || weakestPlayer;
-
-// Prefer high damage moves
-
-const attacks = this.moves.filter(m => m.type === 'attack');
-
-return this.selectHighestDamage(attacks, target);
-
-}
-
-}
+Raiders focus fire on the weakest target, but switch to anyone about to die (under 10 HP). Among their attacks, they pick the highest damage against that target.
 
 ### 7.2 Convoy Defender AI
 
-class ConvoyAI extends BaseAI {
-
-private cargoHP: number = 50;
-
-selectMove(gameState: GameState): AIMove {
-
-// Protect the cargo vehicle at all costs
-
-if (this.cargoHP < 20) {
-
-return this.selectDefensiveMove();
-
-}
-
-// Otherwise, eliminate highest threat
-
-const threat = this.calculateThreats(gameState.players);
-
-return this.selectCounterMove(threat.highest);
-
-}
-
-}
+The convoy protects its cargo vehicle at all costs. The cargo has 50 HP; under 20 the convoy picks a defensive move. Otherwise it works out the players' threats and counters the highest.
 
 ### 7.3 Boss AI - Warlord
 
-class WarlordAI extends BossAI {
+The warlord fights in three phases. In phase 1, dropping under 66% of its maximum HP moves it to phase 2, and that turn it summons reinforcements. In phase 2, dropping under 33% moves it to phase 3, and that turn it goes berserk. Otherwise each phase has its own behaviour: a tactical assault in phase 1, a coordinated strike in phase 2, and a desperate gambit in phase 3.
 
-private phase: number = 1;
+## 8. Thinking Time
 
-selectMove(gameState: GameState): AIMove {
+The AI takes 0.5 to 2 seconds to think, for readability, drawn from its own stream, `fork('thinking')` off the AI's stream. The delay is cosmetic, so a headless run that skips it picks the same moves from the same seed.
 
-// Phase transitions
+## 9. Testing & Tuning
 
-if (this.hp < this.maxHP \* 0.66 && this.phase === 1) {
+### 9.1 Measuring the AI
 
-this.phase = 2;
-
-return this.summonReinforcements();
-
-}
-
-if (this.hp < this.maxHP \* 0.33 && this.phase === 2) {
-
-this.phase = 3;
-
-return this.activateBerserkMode();
-
-}
-
-// Phase-specific behavior
-
-switch(this.phase) {
-
-case 1: return this.tacticalAssault(gameState);
-
-case 2: return this.coordinatedStrike(gameState);
-
-case 3: return this.desperateGambit(gameState);
-
-}
-
-}
-
-}
-
-## 8\. Performance Optimization
-
-### 8.1 Move Caching
-
-class MoveCache {
-
-private cache: Map&lt;string, AIMove&gt; = new Map();
-
-getCachedMove(gameStateHash: string): AIMove | null {
-
-return this.cache.get(gameStateHash) || null;
-
-}
-
-cacheMove(gameStateHash: string, move: AIMove): void {
-
-// Limit cache size
-
-if (this.cache.size > 1000) {
-
-const firstKey = this.cache.keys().next().value;
-
-this.cache.delete(firstKey);
-
-}
-
-this.cache.set(gameStateHash, move);
-
-}
-
-}
-
-### 8.2 Async Decision Making
-
-class AsyncAI {
-
-// The delay is cosmetic, so it draws from its own fork: a headless run that skips it picks the same moves from the same seed
-
-private readonly thinkingRng = this.rng.fork('thinking');
-
-async selectMove(gameState: GameState): Promise&lt;AIMove&gt; {
-
-// Start thinking immediately when player turn begins
-
-const thinkingTime = this.calculateThinkingTime();
-
-// Run AI calculations
-
-const movePromise = this.calculateBestMove(gameState);
-
-// Ensure minimum thinking time for readability
-
-const \[move\] = await Promise.all(\[
-
-movePromise,
-
-this.delay(thinkingTime)
-
-\]);
-
-return move;
-
-}
-
-private calculateThinkingTime(): number {
-
-// 0.5s - 2s based on complexity
-
-return this.thinkingRng.int(500, 2000);
-
-}
-
-}
-
-## 9\. Testing & Tuning
-
-### 9.1 AI Test Framework
-
-class AITester {
-
-runScenario(scenario: TestScenario): TestResult {
-
-const results = {
-
-moveChosen: null,
-
-timeToDecide: 0,
-
-optimalityScore: 0
-
-};
-
-// Set up game state
-
-const gameState = scenario.setupGameState();
-
-// Run AI
-
-const start = performance.now();
-
-results.moveChosen = this.ai.selectMove(gameState);
-
-results.timeToDecide = performance.now() - start;
-
-// Compare to optimal move
-
-results.optimalityScore = this.compareToOptimal(
-
-results.moveChosen,
-
-scenario.optimalMove
-
-);
-
-return results;
-
-}
-
-}
+The balance sim plays fights headlessly with player stand-ins, the aggressive flanker as the floor and the intent-aware AI as the ceiling, and that's where AI changes are measured ([Balance Simulation](./Balance%20Simulation.md), Player stand-ins).
 
 ### 9.2 Balance Metrics
 
@@ -670,26 +136,3 @@ return results;
 - **Average Combat Duration**: Ensure fights aren't too long/short
 - **Move Diversity**: AI should use variety of strategies
 - **Player Engagement**: Track if players find AI predictable
-
-## 10\. Implementation Priority
-
-### Phase 1: Basic AI (MVP)
-
-1. Simple threat assessment
-2. Basic move selection (highest value)
-3. Intent system
-4. Easy/Normal difficulty only
-
-### Phase 2: Enhanced AI
-
-1. Multi-unit coordination
-2. Combo recognition
-3. Adaptive difficulty
-4. Elite enemy behaviors
-
-### Phase 3: Advanced AI
-
-1. Boss AI with phases
-2. Minimax for critical decisions
-3. Player pattern recognition
-4. Nightmare difficulty

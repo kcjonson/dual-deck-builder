@@ -154,7 +154,7 @@ The lint checks the invariants that HTML flow layout gives for free and a hand-p
 | Benchmarks | Google Benchmark `*.bench.cpp`, excluded from ctest gate | tinybench run by a script (`_legacy/scripts/bench.mjs`) over `*.bench.ts` files outside the unit runner's match pattern, excluded from the CI gate; fits Jest and vitest alike |
 | Dev-only exclusion | `DEVELOPMENT_BUILD` compile definition | a bundler `DefinePlugin` constant (`__DEV_TOOLS__`, declared for the type checker and set in the test setup); dev code wrapped in `if (__DEV_TOOLS__)` so production tree-shakes it; the gallery is a separate bundle entry emitted in development builds only |
 | Runtime floor | GL 3.3 | Chromium 134 or newer for the six-argument `console.timeStamp` (`long-animation-frame` needs 123); older runtimes use `performance.measure` with `detail.devtools` (Chromium 128) or feature-detect (`PerformanceObserver.supportedEntryTypes`, `console.timeStamp.length`) and report `null`; verified 2026-09 |
-| Perf capture | `_legacy/scripts/perf-capture.ps1` polling `/api/metrics`, writes `perf-results/*.json` | a Playwright script sampling `window.__perf.snapshot()`, same JSON schema |
+| Perf capture | `scripts/perf-capture.ps1` polling `/api/metrics`, writes `perf-results/*.json` | a Playwright script sampling `window.__perf.snapshot()`, same JSON schema |
 
 Things that exist in worldsim only because it is a native process and have no browser equivalent worth building: the HTTP server, SSE streams, lock-free ring buffers, port-conflict detection, the separate dashboard build pipeline, CPU percentage sampling. Keep the dashboard's content (frame budget bar with a "biggest offender" line, histogram, per-scene sessions), not its plumbing.
 

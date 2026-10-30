@@ -58,7 +58,7 @@ Once it's set, nothing changes the campaign:
 
 ## Saved, and ended in the store once
 
-The save keeps `end`, `tally`, and `foundOnRun`, so the format went to version 6 and the fixture to `campaign-v6.json` (since `campaign-v7.json`, [mvp-supply-run.md](./mvp-supply-run.md)), a standing campaign with a run out, a tally, and a driver found on it. A campaign that's over saves and loads as it is, and still refuses every change.
+The save keeps `end`, `tally`, and `foundOnRun`. A campaign that's over saves and loads as it is, and still refuses every change.
 
 The store never writes one as the save, though. A `checkpoint` or `save` of a campaign that's over ends it in the store instead, as `end` does: its line goes into the history and its save is removed. So the checkpoint the screens already make after the step that lost the campaign writes the history line, once, and the main menu has no lost campaign to Continue.
 
@@ -66,11 +66,11 @@ The store never writes one as the save, though. A `checkpoint` or `save` of a ca
 - Every later checkpoint resolves `ended`, recording nothing more, and `end` and `save` reject as `retired`.
 - A removal that fails part way is owed, and the next checkpoint finishes it with no second line.
 - A crash between the line and the removal leaves the save from before the losing step, and the next session plays that step again. If it ends the same way, the history's newest-entry check adds nothing. A replay can go another way (a fight's draws, a different choice): a campaign that survives it plays on with its fall already in the history, and one that falls another way gets a second line, as the store's crash note already allows.
-- A save that holds a campaign already over (another tab, or a hand-made save) loads, and its next checkpoint or save ends it.
+- A save that holds a campaign already over (a hand-made save) loads, and its next checkpoint or save ends it.
 
 `CampaignStore.end` records a campaign that's over with its own ending, whatever it's given, so the menu's `abandoned` can't relabel a fall. A campaign still standing ends there as won or abandoned only, since a fall comes from the campaign's state.
 
-The history entry is unchanged (`seed`, `day`, `strongholdsTaken`, `ending`). The bump to version 6 starts every build's history over, as every bump does.
+The history entry keeps `seed`, `day`, `strongholdsTaken`, and `ending`.
 
 Considered: keeping the lost campaign as the save until the defeat screen closes. Continue would then offer a campaign that can't be played, and a quit on the defeat screen would leave the history without its line. The defeat screen gets the campaign from the step that lost it.
 

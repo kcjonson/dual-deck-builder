@@ -1,18 +1,18 @@
 # Water, biomes, hazards, and the cost of a move (DDB-289)
 
-Date: 2026-10-09. Code: `_legacy/src/renderer/game/map/` (`Water.ts`, `Rivers.ts`, `Lakes.ts`, and `Terrain.ts` laying them over the land; `AreaMapPipeline.ts` runs the stage; `worker/mapGenerationProtocol.ts` carries it across the worker boundary), and `ui/areaMap/` (`terrainBake.ts`, `riverGeometry.ts`, `AreaMapView.ts`), timed by `_legacy/scripts/terrain-bench.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 2. Water and 3. Biomes, hazards, and cost. Builds Map 5 of [realistic-map.md](./realistic-map.md) on the land of [terrain-erosion.md](./terrain-erosion.md), and replaces its canyon, badlands, and lowland stand-ins and terrain-fields.md's moisture layer, rough-country lattice, and biome costs.
+Date: 2026-10-09. Code: `_legacy/src/renderer/game/map/` (`Water.ts`, `Rivers.ts`, `Lakes.ts`, and `Terrain.ts` laying them over the land; `AreaMapPipeline.ts` runs the stage). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 2. Water and 3. Biomes, hazards, and cost. Builds Map 5 of [realistic-map.md](./realistic-map.md) on the land of [terrain-erosion.md](./terrain-erosion.md), and replaces its canyon, badlands, and lowland stand-ins and terrain-fields.md's moisture layer, rough-country lattice, and biome costs.
 
 ## Context
 
-Map 4 left the water stage a frozen `LandSurface`: the eroded grid, its range mask, and the finished land's drainage as typed arrays, plus a list of what it wanted done (terrain-erosion.md, What the water stage gets). The spec's sections 2 and 3 say what to build: drainage with rain weighted by moisture and the ranges, rivers traced from a stream threshold set by `riverDensity` and given a meander by `riverMeander`, width by drainage area, `lakes` reservoirs dammed in valleys, natural lakes where the land holds water, moisture from `aridity`, noise, the rivers, and height, biomes as categories the game reads with the colour a blend, hotspots, cliffs only in rough country, and a cost of moving along the land rather than of standing on it.
+Map 4 left the water stage an immutable `LandSurface`: the eroded grid, its range mask, and the finished land's drainage as typed arrays, plus a list of what it wanted done (terrain-erosion.md, What the water stage gets). The spec's sections 2 and 3 say what to build: drainage with rain weighted by moisture and the ranges, rivers traced from a stream threshold set by `riverDensity` and given a meander by `riverMeander`, width by drainage area, `lakes` reservoirs dammed in valleys, natural lakes where the land holds water, moisture from `aridity`, noise, the rivers, and height, biomes as categories the game reads with the colour a blend, hotspots, cliffs only in rough country, and a cost of moving along the land rather than of standing on it.
 
-The constraints were Map 4's. Everything that feeds the gameplay map is exactly rounded arithmetic, so a seed's water is the same in every engine and regenerates on load; the map folder's lint holds that. The old outward growth keeps running until Map 7 replaces it, on the new costs. And the water has to cross the worker boundary as plain arrays, the way the land does.
+The constraints were Map 4's. Everything that feeds the gameplay map is exactly rounded arithmetic, so a seed's water is the same on every platform and regenerates on load. And the water is plain data, the way the land is.
 
 ## The stage
 
 The pipeline runs terrain, water, highways, growth. Water draws from `root.fork('map', m).fork('terrain', t).fork('water', w)`, forked by feature: `moisture`, `flats`, `reservoirs`, and `meander`. It never draws from the stream itself, so a reservoir's draws never move a meander.
 
-`generateWater({ params, terrain, rng })` returns a `Water`: its `surface`, a frozen `WaterSurface` of plain data, and `water.terrain`, the land with the water laid over it through `terrain.withWater(water)`. The terrain stage's own product stays the land alone, and every stage after water reads `water.terrain`. `Water` is the real `WaterLayer`; a test can stand in its own.
+`generateWater({ params, terrain, rng })` returns a `Water`: its `surface`, an immutable `WaterSurface` of plain data, and `water.terrain`, the land with the water laid over it through `terrain.withWater(water)`. The terrain stage's own product stays the land alone, and every stage after water reads `water.terrain`. `Water` is the real `WaterLayer`; a test can stand in its own.
 
 Until water is laid, a terrain's moisture is the map's level by `aridity`, its low ground and canyons are nothing, and so it has no mire and no canyons. Nothing after the water stage reads that land-only terrain except to build on it.
 
@@ -107,7 +107,7 @@ Rough country was terrain-fields.md's 16-unit lattice of noise islands, unrelate
 
 Cliffs are the steepest of the rough country by the same averaged grade, unswayed, read bilinear: 5% times ruggedness squared of the land past the relief radius, calibrated by quantile over the rough cells, and none where the averaged grade is under 0.5, so a gentle map's quota doesn't put cliffs on mild slopes. That's main's share by its grade rule, which past the relief radius at radius 1000, seed 7, was 0% at ruggedness 0, 1.2% at 0.5, 3.2% at the High Desert's 0.65, 4.0% at the Badlands' 0.8, and 5.2% at 1. These come out at 0%, 0.8%, 1.5%, 2.6%, and 4.3%: the calibration counts cell centres, and a point needs both its bilinear fields past their thresholds, which the corners of a band undercut.
 
-The first cut stood cliffs wherever rough country's grade at a point reached 1, as the lattice had. Eroded land is a run of gullies, each side steep at a point, so that drew a stripe of cliff along every gully side, a barcode across each escarpment; and with rough country following the steep ground, 65% to 100% of the ground graded 1 or more was cliff by map, 5.1% of the disc on Mixed, 7.2% on the High Desert, and 10.1% on the Badlands at seed 7, radius 1000. Now an escarpment is one band, 4% to 28% of the ground graded 1 or more is cliff by map, and over QA's sweep cliffs cover 0.1% to 2.3% of the disc by environment at the median, against main's 0.1% to 3.6%. A cliff reads no elevation, only two bilinear lookups, so `impassable` costs 55 ns a sample, not 136.
+The first cut stood cliffs wherever rough country's grade at a point reached 1, as the lattice had. Eroded land is a run of gullies, each side steep at a point, so that drew a stripe of cliff along every gully side, a barcode across each escarpment; and with rough country following the steep ground, 65% to 100% of the ground graded 1 or more was cliff by map, 5.1% of the disc on Mixed, 7.2% on the High Desert, and 10.1% on the Badlands at seed 7, radius 1000. Now an escarpment is one band, 4% to 28% of the ground graded 1 or more is cliff by map, and over QA's sweep cliffs cover 0.1% to 2.3% of the disc by environment at the median, against main's 0.1% to 3.6%. A cliff reads no elevation, only two bilinear lookups.
 
 The land grid's cells carry the measure, read bilinear, and the cliffs' too. A bilinear value can't pass its corners, so a square between four cell centres all under the threshold has no rough point in it, and the flood fill from the metro over those squares, wholly inside the disc and clear of craters, is exact: `surelyReachable` is as sufficient as the lattice's was, on 9.4-unit squares instead of 16-unit cells. Towns take candidates only from reached squares whose eight neighbours are reached too, a square clear of rough ground, since a town's centre a unit from a cliff passed the old test and failed the 4-unit flood fill's.
 
@@ -140,60 +140,15 @@ Hotspots keep the terrain stage's placement, but a crater now keeps off the land
 - `bridgeSpans` gives the stretches of a move on its bridges: the bridge's span either side of where it crosses and a unit past that. Inside the metro every crossing 30 degrees or more off the river's line is a bridge, however long.
 - A move of no length costs nothing. One whose length isn't a finite positive number, from a NaN coordinate say, is Infinity, never a free move.
 
-There's no biome term. The spec's cost has none, and `BIOME_COSTS`, the per-point `travelCost`, and `TerrainSample.cost` are gone: a cost of standing on a point can't follow contours, and two cost models would disagree. A full move costs about 0.9 microseconds.
+There's no biome term. The spec's cost has none, and `BIOME_COSTS`, the per-point `travelCost`, and `TerrainSample.cost` are gone: a cost of standing on a point can't follow contours, and two cost models would disagree.
 
-## The old growth on the new costs
+## Drawing it
 
-Outward growth stays until Map 7, adapted only where the water and the move cost made it:
-
-- A step's cost is `moveCost` per world unit, and the lookahead is the land's cost on from the step's end along its heading, bridges aside: the step that crosses pays for its bridge. The first cut counted the bridge ahead too, which scored a river ahead worse than a wall.
-- A step that would end in a river stretches on to the far bank, by up to a longest bridge more, looked for every 2 units. Growth steps 20 units at a time, so a road meeting a river a step short of it found every heading ending in the water and stopped there.
-- The passable rule lets a step through river water where it's on one of its bridges (`isPassable`, read by `checkRoadNetwork` too, which finds the step's bridges once, at its first sample on a river), and nowhere else; lakes, craters, and cliffs never.
-- Rivers aren't walls for the wall lookahead or the branch room probes, since a road can bridge them.
-- A back road degrades on its running cost over the land, bridges aside, so crossing a river doesn't turn it into a trail.
-
-`node _legacy/scripts/road-growth.mjs check --maps 100` finds no map failing a first attempt across the tuning ranges, and the property tests pass. Over five environments by three seeds at radius 1000 (`road-growth.mjs bench`):
-
-| | main | first cut | this |
-| --- | --- | --- | --- |
-| Steps, median | 1,508 | 1,161 | 1,334 |
-| Stretches, median | 214 | 168 | 189 |
-| Road, units, median | 30,731 | 23,766 | 27,118 |
-| Highways reaching the rim | 82% | 53% | 72% |
-| Stretches that kept their steps | 16 of 2,922 | 309 of 2,270 | 461 of 2,785 |
-
-By QA's count of what lies nearest ahead of a highway that stops short, main's 16 stopped at cliffs 14 times; the first cut's 42 at cliffs 32 times, rivers 5, and lakes 4; and these 25 at cliffs 15 times, lakes 2, and a river once, with nothing within 60 units of 7. The cliffs' share is main's again, and the stretched steps cross the rivers. Growth's checks don't cover how far roads reach, nothing else was tuned, and Map 7's least-cost links route through the passes instead.
-
-## Crossing the worker boundary
-
-`WaterSurface` is plain data: the routing's `receivers` and `area`, `moisture`, `lowland`, `canyons`, and `lakeDepth` as Float32Array, `lakeOf` as Int16Array, the rivers' `lines` packed end to end (points, a width per point, and offsets), and small lists of rivers and lakes. Its ten arrays go in the transfer list beside the land's seven, the terrain's badlands, and the network's two, and `decodeAreaMap` rebuilds the terrain over the land and the badlands it was sent, then `waterFromSurface({ terrain, surface })` the water over that, refreezing it and filing the river index, 0.3 ms at radius 1000. It refuses a surface for another grid or with arrays that don't fit. `encodeAreaMap` used to refuse a terrain with water; that refusal is gone.
-
-The water adds about 30 bytes a cell: 2 MB at radius 1000 and 5 MB at 1600, beside the land's 2.6 and 6.6. The badlands cross too, a Float32Array of 4 bytes a cell, since working them out takes a contamination sample a cell: the client rebuilds the terrain's fields in 11 ms at radius 1000 with them, against 18 without, where Map 4's whole decode took 11.
-
-## Rendering
-
-- The bake blends the land's colour (above), fills lakes from the depth field, a bilinear lookup per texel, with a darker shore where a texel beside one is dry, and draws craters as before. Cliffs are `cliffDepth` every second texel, closed (each node takes the most round it, then the least of that, which fills a gap or notch a node or two wide), and read bilinear with the edge anti-aliased over a texel by the field's own gradient. `_legacy/scripts/area-map-bake-bench.mjs` now bakes the land with its water: a median of 68 ms at radius 1000 and 119 ms at 1600, over five environments by two seeds on the same shared desktop.
-- Rivers draw live, under the fog and the roads, as runs of one width each, widths rounded to 0.75 units so a river widens in a few steps, at their world width but never under a pixel, simplified by zoom as the roads are, and fainter past the rim, where the land fades but the rivers go on. A `water` layer toggle turns them off.
-- Dam marks, river names, and the atlas palette are Map 19's.
-
-The gallery's two area map scenes re-baseline. The `area-map` scene reads `seed`, `environment`, `radius`, and a frame, `x`, `y`, and `span` in world units, from its URL (`readAreaMapQuery`), so before and after shots can show the same ground; without them it draws the golden's map.
+The area map's look for the land, water, and cliffs is [area-map-atlas-style.md](./area-map-atlas-style.md)'s; how the TypeScript bake and view drew them (provisional calls 18 to 20) is in [area-map-view.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/area-map-view.md). Dam marks, river names, and the atlas palette are Map 19's.
 
 ## Determinism
 
-Everything on the gameplay path is adds, multiplies, divides, compares, square roots, and floors; the bake and the view aren't on it. Float32 fields are rounded to nearest by IEEE in every engine. The tests pin two maps' water, a Mixed map at radius 800 and a Floodlands closed basin, as hashes of moisture, the lake depth field, and the river points, with their river and lake counts, computed in a separate Node process from the Jest run that checks them, and three terrains' samples with a move's cost each. The terrain's pins move with this change: towns sit on new squares, hotspots keep off the drainage, and badlands read the slope.
-
-## Performance
-
-`node _legacy/scripts/terrain-bench.mjs --radii 800,1000,1200,1600 --runs 3 --seeds 3`, Node 24, the same shared desktop as Map 4's figures, busy enough that runs of the same code differ by a fifth or more; Mixed at radius 1600 is one slow run. Medians of three seeds, with the rivers and lakes a map makes:
-
-| Radius | Water stage, ms: Mixed | High Desert | Rust Belt | Floodlands | Badlands | Fields, ms: worker | client | Water rebuild, ms | Rivers | Lakes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 800 | 19 | 17 | 17 | 20 | 20 | 10.3 | 6.3 | 0.2 | 27 | 2 |
-| 1000 | 30 | 25 | 28 | 26 | 40 | 17.6 | 10.6 | 0.3 | 41 | 2 |
-| 1200 | 52 | 52 | 52 | 44 | 50 | 32.1 | 18.5 | 0.6 | 59 | 2 |
-| 1600 | 114 | 68 | 68 | 72 | 76 | 42.4 | 26.4 | 0.7 | 111 | 2 |
-
-The water stage compares with the prototype's 40 to 50 ms at radius 1000 and the first cut's 22 to 32. Fields is `terrainFromSurface`: the worker builds the badlands, and the client, sent them, doesn't. The water's rebuild is `waterFromSurface`. Routing again, a priority flood, is about two fifths of the stage, and it's O(n log n) like erosion's; DDB-448's O(n) routing would speed both. Sampling at radius 1000, with water: a full sample 430 ns (455 on Map 4), elevation 137, slope 135, biome 313, impassable 55, and a 9-unit move's cost 617.
+Everything on the gameplay path is adds, multiplies, divides, compares, square roots, and floors, with no trig or other libm transcendentals; the bake and the view aren't on it. Float32 fields round to nearest under IEEE, and with floating-point contraction off (`-ffp-contract=off`, which salal's foundation sets for GCC and Clang) no multiply and add fuse, so the same seed and params give the same water on every platform. The tests pin two maps' water, a Mixed map at radius 800 and a Floodlands closed basin, as hashes of moisture, the lake depth field, and the river points, with their river and lake counts, and three terrains' samples with a move's cost each.
 
 ## What Maps 6 to 8 get
 
@@ -203,7 +158,7 @@ The water stage compares with the prototype's 40 to 50 ms at radius 1000 and the
 
 ## Consequences
 
-- Every map moves: its moisture, biomes, rough country, cliffs, towns, and hotspots, and so its roads. Saves keep resolved params and regenerate the land, so a save made before this loads onto different water and biomes under the same roads, and DDB-296's generator version should count this change.
+- Every map moves: its moisture, biomes, rough country, cliffs, towns, and hotspots, and so its roads. Saves keep resolved params and regenerate the land.
 - `Terrain.travelCost`, `TerrainSample.cost`, and `BIOME_COSTS` are gone; `moveCost` replaces them. `Obstacle` is `crater`, `lake`, `river`, or `cliff`.
 - Rough country follows the steep ground, and cliffs stand on its averaged grade at about main's share, a band per escarpment; the start reaches as much of the edge as on main or more (above).
 - On a closed basin, rivers running along the inside of the rim wander a little into the grid's outermost cells, past the disc: 191 points on the `rivers` 0 map of QA's sweep, against 108 for the first cut, where nothing leaves the map either way.
@@ -229,7 +184,6 @@ Calls the spec and realistic-map.md left to the build, made the simplest way con
 15. Craters keep off cells with 40 cells' drainage within two cells of their rim.
 16. Move cost: grade weights 26, 10, and 3.5 by class times 0.2 to 1.8 by `curviness`; side-slope weights 3, 1.2, and 0.3; no highway or back road on a climb past 1.1; bridges 130, 210, and 280 units of flat road by class for an 8-unit bridge, times one plus its length over 8; no bridge longer than 24 units; a bridge's deck a unit past the water either side; no biome term.
 17. The metro's rivers are bridged everywhere, out to a unit past its edge.
-18. Growth on the new costs: steps scored per unit of `moveCost`, the lookahead without bridges, a step that would end in a river stretched to the far bank by up to 24 units, looked for every 2, rivers bridged where crossed and no wall, back roads degrading on their cost over the land without bridges.
-19. The land's colour: dry (226, 208, 160), middling (200, 194, 152), wet (150, 172, 128) by moisture; grey-brown (160, 146, 128) from elevation 0.2 to 0.6; rust (176, 112, 80) up to 0.2 by contamination. Lakes (96, 138, 186) with a (52, 86, 140) shore.
-20. Rivers drawn at their world width, at least a pixel, widths rounded to 0.75 units, at 0.35 alpha past the rim.
-21. The bake's cliffs closed over a node, two texels, and anti-aliased over a texel.
+18. The land's colour: dry (226, 208, 160), middling (200, 194, 152), wet (150, 172, 128) by moisture; grey-brown (160, 146, 128) from elevation 0.2 to 0.6; rust (176, 112, 80) up to 0.2 by contamination. Lakes (96, 138, 186) with a (52, 86, 140) shore.
+19. Rivers drawn at their world width, at least a pixel, widths rounded to 0.75 units, at 0.35 alpha past the rim.
+20. The bake's cliffs closed over a node, two texels, and anti-aliased over a texel.

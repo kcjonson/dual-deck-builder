@@ -7,25 +7,25 @@
 
 The playtest look ([UI Art Direction](../specs/UI%20Art%20Direction.md), [ui-art-direction.md](./ui-art-direction.md)) needs baked art: paper at three wear levels, tape, hand marks, stamps, card backs, the splash's closed atlas, the logo and small mark, and stroke icons. The canvas mocks fake all of it with SVG filters, and the engine draws none of that at runtime, so it has to be rasterised once and drawn as images.
 
-What the engine had: `drawImage` with a source rect, a multiplied tint and nine-slice insets (R5.18, R5.19, `draw/nineSlice.ts`); a resident texture set that keeps textures on fixed units for the whole frame (R5.20, `ResidentTextureSet`) holding only the three font atlases and the icon atlas; and dynamic units for everything else. There was no UI art atlas, so an art draw would have taken a dynamic unit, and the R5.31 card-art array is still deferred.
+Drawing it takes an image draw with a source rect, a multiplied tint, and nine-slice insets (R5.18, R5.19).
 
 ## Decisions
 
-### One offline page, resident beside the fonts
+### One page, built offline
 
-R5.31 says UI atlases are built offline and never evicted, and R5.20 names the UI art atlas as one of the resident units. The art is one 2048x2048 RGBA PNG, `_legacy/src/assets/ui-art/ui-art.png`, imported as a bundler asset like the font pages (R15.34), decoded at startup, uploaded as an immediate colour texture that keeps its image for a context restore, and handed to the backend with `DrawApi.loadArtAtlas`. The WebGL2 backend appends it to the resident set after the font atlases, so a list row of paper, icon and label is still one GPU draw. The image mode already samples any unit by slot; the shader's unit count went from 8 to WebGL2's guaranteed 16 (R5.20), because the page is a fifth resident texture and the area map already takes three dynamic units (terrain, fog, small text), so with 8 a fourth image would have split a submission.
+The art is one 2048x2048 RGBA PNG, `_legacy/src/assets/ui-art/ui-art.png`, built offline, loaded at startup, and kept for the whole run beside the font atlases.
 
-A failed load is not fatal, unlike the fonts: it is logged, `DrawApi.artAtlas('ui')` stays null, and `drawUiArt` returns false. A paper piece then draws a flat rect of its tint, and a baked surface piece (the cover, card stock) its `ground` colour, so ink laid on paper never lands on the dark table; marks and icons draw nothing.
+A failed load is not fatal, unlike the fonts: it is logged, and the art draws fall back. A paper piece draws a flat rect of its tint, and a baked surface piece (the cover, card stock) its `ground` colour, so ink laid on paper never lands on the dark table; marks and icons draw nothing.
 
-No mipmaps. The pieces are drawn near their native size, and the 1x/2x pairs cover device pixel ratio. A downscaled piece (a stamp at 0.5) aliases a little; mips arrive with the R5.31 texture array.
+No mipmaps. The pieces are drawn near their native size, and the 1x/2x pairs cover device pixel ratio. A downscaled piece (a stamp at 0.5) aliases a little.
 
-Every sliced piece (paper, cover, card edge, highlighter) has a 2x raster beside its 1x one, and `drawUiArt` picks it when the frame's ratio is above 1. Its insets are in 2x texels and carry `scale: 2`, which `NineSlice` now takes: the corners draw at one logical pixel per `scale` texels, so a 2x corner is the 1x corner's size, only sharper.
+Every sliced piece (paper, cover, card edge, highlighter) has a 2x raster beside its 1x one, drawn when the frame's pixel ratio is above 1. Its insets are in 2x texels at a scale of 2: the corners draw at one logical pixel per two texels, so a 2x corner is the 1x corner's size, only sharper.
 
 Size: 67 pieces on one 2048x2048 page (the result screens added the LOST and FALLEN stamps and a tag's tear, DDB-511). The logo at 2x (1400x686) is a third of it; the 2x paper about another quarter. Shelf packing no longer fit once the 2x paper arrived, so pieces are packed with MaxRects (best short side fit). A rebuild pins every piece the committed manifest already places at its size and packs only new or resized pieces round them, so adding art never moves existing pieces (DDB-511).
 
 ### Built by a script, from SVG
 
-`_legacy/scripts/build-ui-art.mjs` rasterises every piece in `_legacy/scripts/ui-art/pieces.mjs` with Playwright's Chromium, which `npm ci` already installs, and the canvases already render in. Each piece is SVG with geometry and colours lifted from the canvas sources; texture comes from `feTurbulence` with fixed seeds, and every other random choice from a PRNG seeded by the piece's name. Pieces are packed by MaxRects (largest first, ties by name) with a 4 px gutter their edge texels are extruded into, so linear filtering never reads a neighbour. The script writes the page and a generated, typed manifest (`_legacy/src/renderer/game/art/uiArtManifest.ts`). `--check` rebuilds in memory and compares bytes; it is stable on one machine, but another Chromium or OS can anti-alias a stroke differently, so it is not a CI gate. It ignores line endings in the manifest, so a Windows checkout with autocrlf does not read as stale.
+`_legacy/scripts/build-ui-art.mjs` rasterises every piece in `_legacy/scripts/ui-art/pieces.mjs` with Playwright's Chromium. Each piece is SVG with geometry and colours lifted from the canvas sources; texture comes from `feTurbulence` with fixed seeds, and every other random choice from a PRNG seeded by the piece's name. Pieces are packed by MaxRects (largest first, ties by name) with a 4 px gutter their edge texels are extruded into, so linear filtering never reads a neighbour. The script writes the page and a generated, typed manifest (`_legacy/src/renderer/game/art/uiArtManifest.ts`). `--check` rebuilds in memory and compares bytes; it is stable on one machine, but another Chromium or OS can anti-alias a stroke differently, so it is not a CI gate. It ignores line endings in the manifest, so a Windows checkout with autocrlf does not read as stale.
 
 ### Paper is white, wear is multiplied, the tint is the paper
 
@@ -47,18 +47,9 @@ The icon atlas is Material Icons through `msdf-atlas-gen`, which builds from a f
 
 R5.20 and the spec: no `multiply`. Each swipe is baked in Highlighter yellow at about 0.6 to 0.75 alpha with streaks and a darker start, drawn at normal blend before the label it marks, so ink sits on top at full strength. Swipes are three-sliced: the chisel ends keep their shape and the middle stretches to the row.
 
-## How components use it
+## Drawing a piece
 
-```ts
-import { drawUiArt, uiArtSize } from '../art/uiArt';
-
-drawUiArt(draw, { name: 'paper_w2_a', rect, tint: sheetColour });   // nine-sliced, tinted
-drawUiArt(draw, { name: 'icon_water', rect: { x, y, ...uiArtSize('icon_water') }, tint: inkColour });
-```
-
-`UiArtName` is the union of piece names, so a typo is a compile error. Pass the 1x name; `drawUiArt` draws the `*_2x` raster itself when the ratio is above 1. Tape is drawn level; rotate it onto a corner with `pushTransform`.
-
-The gallery scenes `ui-art-paper`, `ui-art-cover` and `ui-art-marks` (developer sections of the same names) draw every piece through the engine, and `ui-art-sheet` is the screen sheet whole at the window's size: W2 under the margin, neatline, fold and tape, with a W1 legend box.
+A piece is drawn by its 1x name at a rect with a tint, paper nine-sliced, and the 2x raster stands in above a pixel ratio of 1. The TypeScript did this in `drawUiArt` (`_legacy/src/renderer/game/art/uiArt.ts`). Tape is drawn level; the component placing it rotates it onto a corner.
 
 ## Deferred
 

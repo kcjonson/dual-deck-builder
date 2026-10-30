@@ -5,11 +5,11 @@
 
 ## Context
 
-The area map, the run route screen, and the gallery scenes draw the generated map through one component, `AreaMapView`, over a terrain bake (area-map-view.md). Until now they drew it functionally: saturated yellow-khaki land, hard dark-red cliff streaks, every road class a thin dark line, a dark background past the disc, towns as black dots, POI names in white boxes, POIs as numbered tier badges, and the compound as a black square.
+The area map and run route screens draw the generated map through one map view, over a terrain bake (the TypeScript view's record is `_legacy/docs/AI_TECHNICAL_DECISIONS/area-map-view.md`). Until now they drew it functionally: saturated yellow-khaki land, hard dark-red cliff streaks, every road class a thin dark line, a dark background past the disc, towns as black dots, POI names in white boxes, POIs as numbered tier badges, and the compound as a black square.
 
 The target is Area Map Generation's "Rendering: the road atlas" and Decision 4 of realistic-map.md, with the renders in `docs/design/realistic-map/` (mixed-seed-7.png first). This change restyles everything the map already carries. The dressing's output (street grids with missing blocks, rail, river and range and pass names, highway shields) waits on the dressing stage and comes after it; so do the lettered side-by-side route bands and a finer close-zoom bake.
 
-Constraints: one uber shader, no new pipeline; style constants in `areaMapStyle.ts`; the land bakes once a map, everything else draws live; the 1024x600 layout lint-clean; frame time smooth.
+Constraints: style constants in one place; the land bakes once a map, everything else draws live; the layout clean at 1024x600; frame time smooth.
 
 ## Before and after
 
@@ -19,7 +19,7 @@ Constraints: one uber shader, no new pipeline; style constants in `areaMapStyle.
 | Area map, 1024x600 | ![](../design/area-map-atlas-style/before-areaMapScreen-1024x600.png) | ![](../design/area-map-atlas-style/after-areaMapScreen-1024x600.png) |
 | Run route, 1280x720 | ![](../design/area-map-atlas-style/before-runRouteScreen-1280x720.png) | ![](../design/area-map-atlas-style/after-runRouteScreen-1280x720.png) |
 
-The gallery's fog scene, with stand-in knowledge, every marker state, and a metro name: `../design/area-map-atlas-style/after-area-map-fog.png`.
+The fog, with stand-in knowledge, every marker state, and a metro name: `../design/area-map-atlas-style/after-area-map-fog.png`.
 
 ## Decisions
 
@@ -40,22 +40,22 @@ The view's ground is the paper colour. Rivers past the rim are still drawn, fain
 
 ### Roads
 
-Each class draws its casings under its fills, trails then back roads then highways, so a highway's dark casing runs over the back roads it meets and the junctions read as one line. Highways are an orange-red fill in a dark casing, back roads a thin grey on a pale edge, trails thin and dashed along their whole length. Rumored roads mix fill and casing toward paper, still opaque; uncharted stubs are fading dashes in the class's fill, as before. Junction dots are gone, with the layer toggle: round caps already join the lines, and the atlas has none.
+Each class draws its casings under its fills, trails then back roads then highways, so a highway's dark casing runs over the back roads it meets and the junctions read as one line. Highways are an orange-red fill in a dark casing, back roads a thin grey on a pale edge, trails thin and dashed along their whole length. Rumored roads mix fill and casing toward paper, still opaque; uncharted stubs are fading dashes in the class's fill, as before. Junction dots are gone: round caps already join the lines, and the atlas has none.
 
 - Bridges: two parapets either side of each deck (`stretch.bridges`, sliced from the polyline), just outside the road's widest line, flared out at both ends.
 - Collapsed spans (`network.broken`): casing and fill either side of a gap at the span's middle, with a red cross over the gap. Hidden where its middle is fogged.
 - Passes (`network.passes`): a dark chevron. Labels come with the dressing.
-- Dams: a dark bar square across the river at each reservoir's outlet, from `water.lakes`, which the view now gets as `AreaMapData.dams`.
+- Dams: a dark bar square across the river at each reservoir's outlet, from `water.lakes`.
 
 ### Places and labels
 
-Towns and villages no longer draw dots; their patches are in the bake and their names sit beside them. Crossroads and exits draw nothing. The metro's name is set in spaced capitals above Home when the map has one (`AreaMapData.metroName`). Nothing names the metro yet, so the game's maps show none until the dressing does; the gallery passes a stand-in.
+Towns and villages no longer draw dots; their patches are in the bake and their names sit beside them. Crossroads and exits draw nothing. The metro's name is set in spaced capitals above Home when the map has one. Nothing names the metro yet, so the game's maps show none until the dressing does.
 
-Every label is dark type on a paper halo, the blurred shadow run the text path already has (R6.6) in paper at zero offset, so no shader change. Labels are placed by priority through `LabelLayout` (mapLabels.ts): Home's star, the picked route's stops, and every marker are blocked first; then Home's label, the markers' labels in priority order (the selected one placed whatever's there if it has no clear spot), the metro's name, towns biggest first, then villages. Each tries right, left, above, then below its symbol (Home's label below first, the metro's name only above or below), inside the view and clear of everything already placed by a 1.5 px pad, and is dropped when none fits. The layout keeps its boxes from frame to frame, so placing allocates nothing once a map has been drawn. The village zoom gate is gone: decluttering decides.
+Every label is dark type on a paper halo, a blurred paper shadow at zero offset. Labels are placed by priority: Home's star, the picked route's stops, and every marker are blocked first; then Home's label, the markers' labels in priority order (the selected one placed whatever's there if it has no clear spot), the metro's name, towns biggest first, then villages. Each tries right, left, above, then below its symbol (Home's label below first, the metro's name only above or below), inside the view and clear of everything already placed by a 1.5 px pad, and is dropped when none fits. The layout keeps its boxes from frame to frame, so placing allocates nothing once a map has been drawn. The village zoom gate is gone: decluttering decides.
 
 ### Gameplay on top
 
-- POIs are circled glyphs by type: a letter in the condensed bold face (`POI_GLYPHS`), ink while unvisited, grey once looted, paper on a grey disc and struck through once depleted. Markers carry `type` instead of `badge`, so the tier numbers leave the map; the destinations list and the run route panel still show tiers.
+- POIs are circled glyphs by type: a letter in the condensed bold face (`POI_GLYPHS`), ink while unvisited, grey once looted, paper on a grey disc and struck through once depleted. Markers carry the POI's type instead of a tier badge, so the tier numbers leave the map; the destinations list and the run route panel still show tiers.
 - Strongholds are red diamonds on a paper edge, their names in the same red.
 - Home is a five-pointed star in ink on a paper halo.
 - Night rings and the selection ring are kept.
@@ -72,8 +72,8 @@ From 0.3 screen pixels a world unit in. A 1600-radius map fitted whole sits near
 
 ## Options considered
 
-- Halos: an outline term in the uber shader's text mode (crisper, but a shader and command change for one consumer) or the existing blurred shadow run in paper. Took the shadow run; at 2.2 px it reads as a halo on the light page.
-- POI glyphs: Material icons from the icon atlas (needs new glyphs, which needs `msdf-atlas-gen`, not on this machine), vector pictograms (a dozen hand-drawn shapes, more draws a marker), or letters. Took letters, which is also what the target renders show, one per type and unique case-insensitively.
+- Halos: an outline drawn with the text (crisper, but a change to how all text draws, for one consumer) or a blurred paper shadow under it. Took the shadow; at 2.2 px it reads as a halo on the light page.
+- POI glyphs: icons (a new one for every type), vector pictograms (a dozen hand-drawn shapes, more draws a marker), or letters. Took letters, which is also what the target renders show, one per type and unique case-insensitively.
 - Built-up patches live (polygons per place, a draw each, retriangulated per edge) or baked. Baked: they're land, they never change, and the street grid would be hundreds of lines live.
 - Paper outside the disc: extend the bake past the rim and fade it, or leave the bake transparent there over a paper ground. The latter, as above.
 - Label candidates: two sides (as before), four, or eight. Four: two drop a label wherever both sides of its symbol are crowded though above or below is often clear, and the diagonals can wait until a crowded map shows they're needed.
@@ -94,36 +94,8 @@ Calls the target doesn't settle, made here and listed for Kevin:
 10. Labels: towns, POIs, strongholds, and Home in the condensed bold face at 14 and 13 px, villages in the body face at 10.5 px, the metro at 17 px with 0.16 em spacing; halo a 2.2 px paper blur.
 11. Tier badges off the map; tiers stay in the lists.
 
-## Measurements
-
-Bake, `node _legacy/scripts/area-map-bake-bench.mjs --seeds 3 --repeat 5` (Node 24, the five environments, the fastest of five runs each, main and this branch back to back). The bench now bakes what the view bakes, the land with its water and hazards and the places' ruins, and finds its modules by following imports, since its hand list had gone stale.
-
-| Radius | Texels | Before median | After median |
-| --- | --- | --- | --- |
-| 600 | 480 | 28.0 ms | 32.5 ms |
-| 1000 | 800 | 75.0 ms | 86.1 ms |
-| 1600 | 1024 | 130.1 ms | 140.4 ms |
-
-About 15% more at the common radius, for the hatch, the patches, the craters, and the bicubic read. A first cut was 55% more; a plume test per texel was most of it, and testing only the hotspots whose plumes reach the row brought it back.
-
-Frame, `_legacy/scripts/perf-capture.mjs` on the gallery scenes at 1440x882, unthrottled (perf-results/ddb-498-before.md and ddb-498-after.md):
-
-| Scene | Before median / p99 | After median / p99 | API draws | Triangles |
-| --- | --- | --- | --- | --- |
-| area-map (radius 1600, whole) | 2.89 / 5.47 ms | 4.92 / 6.80 ms | 2304 -> 3036 | 10440 -> 18414 |
-| area-map-fog (radius 1000) | 1.03 / 1.75 ms | 1.16 / 1.71 ms | 364 -> 465 | 4160 -> 5174 |
-
-The cost is the casings, a second line under every back road and highway, on the largest map at its widest. It stays one GPU draw a frame.
-
-## Carried over from the view's first PR
-
-- #176's QA probes are tests now: a click pressed inside and released outside the box selects nothing; drawn and self-culled road groups add up wherever the camera is, a group a dash for a stub; dashes are rebuilt only when the zoom crosses one of `DASH_ZOOM_STEPS`; `0` calls `restoreFit` and returns to a framed rect; and the zero-area guards hold at zooms under 0.75.
-- The gallery hands a scene the height it leaves it (`fillHeight`, not `height`, which the sections that pass their options to their frame would take as fixed). The area map scenes fill it, so they lint clean at 1024x600 and 640x480, and both are linted at the short size now.
-- The area map scenes were already in `SCENE_SCENARIOS`, so the electron shell spec has goldens for them.
-
 ## Consequences
 
-- `MapMarker.badge` is gone; markers carry `type`. `AreaMapData` gains `dams` and `metroName`. The `junctions` layer toggle and `PLACE_STYLE` are gone.
-- Text halos double the label text runs (a shadow run before each).
-- The bake is about 15% slower at the common radius and still runs once a map.
-- When the dressing lands, its street grids replace the patches' plain grids, and its labels go through `LabelLayout` after the places' names.
+- Text halos double the label text draws (a shadow under each).
+- The bake does more (the hatch, the patches, the craters, the bicubic read) and still runs once a map. Casings draw a second line under every back road and highway.
+- When the dressing lands, its street grids replace the patches' plain grids, and its labels go through the label layout after the places' names.

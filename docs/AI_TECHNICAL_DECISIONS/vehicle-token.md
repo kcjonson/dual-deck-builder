@@ -8,13 +8,13 @@ The old plate was a portrait panel sized by whatever the battlefield layer gave 
 
 ## Decisions
 
-**Fixed geometry, one scale.** The token lays itself out once at x1 (196x117, 135 with a passenger) and every part is placed from constants when the data changes. The host never sizes it; `fitToSlot(rect, scale?)` sets a transform scale between 1 and 1.25 and centres it, which is the mock's `min((w - 6) / 196, (h - 4) / H)`. It copies the rect and reuses its transform object, so DDB-134 can call it every frame of a swerve. The token remembers its slot and refits when a passenger changes its height. The road picks one scale for every token, as the mock does, and passes it in; it acts as a cap, so a passenger's taller token that it would push out of its slot takes less. The size constants and `slotScale` (raw, neither capped nor floored) live in `ui/tokenGeometry.ts`, and `CombatLayout` re-exports them, so there is one copy.
+**Fixed geometry, one scale.** The token lays itself out once at x1 (196x117, 135 with a passenger) and every part is placed from constants when the data changes. The host never sizes it: fitting it to a slot sets a scale between 1 and 1.25 and centres it, which is the mock's `min((w - 6) / 196, (h - 4) / H)`. The token remembers its slot and refits when a passenger changes its height. The road picks one scale for every token, as the mock does, and passes it in; it acts as a cap, so a passenger's taller token that it would push out of its slot takes less. The size constants and the raw slot scale (neither capped nor floored) live in one place, `_legacy/src/renderer/game/ui/tokenGeometry.ts` in the TypeScript.
 
 Options considered: laying parts out from the token's size (what the old plate did) would have meant a second set of proportions to keep in step with the mock and text that shrinks with the slot; scaling keeps text at its design size times one number.
 
-**Intents live in the token.** The old plate was a `unit` target, so the intent discs had to be siblings to get hovered. The token is `auto` instead: its own box takes clicks and drops, its text is `pointerEvents: 'none'`, and only intents and status chips, which have tooltips, are hit inside it. Their drag events bubble to the token, so the explicit drop forwarding the enemy layer did is gone. The row keeps today's discs (DDB-139 draws the pills) at 24 px, right-aligned in a 24 px strip over the full width.
+**Intents live in the token.** The old plate took the pointer as one target, so the intent discs had to be siblings to get hovered. Now the token's own box takes clicks and drops, its text takes no pointer, and only intents and status chips, which have tooltips, are hit inside it. The row keeps today's discs (DDB-139 draws the pills) at 24 px, right-aligned in a 24 px strip over the full width.
 
-**Target marks are shapes.** `targetMarks.ts` holds the triangle, diamond, both, and square as polygons and a rect, moved in place, shared with the driver tab. Intent discs draw one in the lower right on a dark backing; player plates draw their driver's mark and stripe, escorts the square. Seats come from a `seatOf(driver)` the host passes (the combat screen's driver order), since the model has no seat on a driver.
+**Target marks are shapes.** The triangle, diamond, both, and square, shared with the driver tab. Intent discs draw one in the lower right on a dark backing; player plates draw their driver's mark and stripe, escorts the square. A driver's seat comes from the combat screen's driver order, since the model has no seat on a driver.
 
 **The armor shield is a polygon (DDB-165).** DDB-165 was fixed on main before this by the icon atlas (DDB-72 drew the shield from Material Icons). The token draws the mock's `i-armor` outline itself, with the armor value on it, so nothing about it depends on an atlas. Shield (temporary armor) moves to a status chip with its value rather than "SH12" in the badge.
 
@@ -22,7 +22,7 @@ Options considered: laying parts out from the token's size (what the old plate d
 
 **Wrecks.** A vehicle out of the fight (structure 0, or a raider with nobody alive aboard) greys out: bars, sprite, mark, and text swap to greys and the stamp reads WRECKED, or NO DRIVER for an unmanned raider. The stamp has the plate's ground under it so the text below doesn't show through.
 
-**Icons.** The heart, speed chevrons, and status icons are Material glyphs added to the icon atlas; the atlas build is deterministic, so the existing icons are unchanged.
+**Icons.** The heart, speed chevrons, and status icons are icons from the game's set, which salal builds from filled, single-colour SVGs (salal's `docs/ui-design.md`, "Icons"). The TypeScript drew them as Material glyphs.
 
 ## Departures from the spec
 
@@ -32,6 +32,4 @@ Options considered: laying parts out from the token's size (what the old plate d
 
 ## Consequences
 
-- `ArmorBadge` is deleted; `IntentRow` is owned by the token, and `RoadView.intentRowOf` reads it from there.
-- Hit numbers pop from `plateScreenBounds`, not the whole token.
-- The combat goldens move (the plate is new); the `icons` scene moves (eight icons, status chips instead of the armor badge); `vehicle-tokens` is new.
+- Hit numbers pop from the plate, not the whole token.

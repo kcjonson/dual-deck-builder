@@ -1,6 +1,6 @@
 # Load out: the screen between the run route and the road (DDB-320)
 
-Date: 2026-10-16. Code: `_legacy/src/renderer/game/screens/load-out/` (`LoadOutScreen.ts`, `LoadOutPlan.ts`, `loadOutText.ts`), `screens/run-route/RunRouteScreen.ts` (Load out the crew), `screens/developer/LoadOutLauncherSection.ts`, and `core/CampaignVisit.ts` (`checkpoint` now settles with the store's result). Specs: [Game Flow and UI](../specs/Game%20Flow%20and%20UI%20Specification.md) 1.2 and 3.4, [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (At load out: run decks). Builds on [area-map-route-pick.md](./area-map-route-pick.md) and [mvp-supply-run.md](./mvp-supply-run.md). Replaces the driver selection screen, which is deleted with its panels and goldens.
+Date: 2026-10-16. Code: `_legacy/src/renderer/game/screens/load-out/` (`LoadOutScreen.ts`, `LoadOutPlan.ts`, `loadOutText.ts`), `screens/run-route/RunRouteScreen.ts` (Load out the crew), `screens/developer/LoadOutLauncherSection.ts`, and `core/CampaignVisit.ts` (`checkpoint` now settles with the store's result). Specs: [Game Flow and UI](../specs/Game%20Flow%20and%20UI%20Specification.md) 1.2 and 3.4, [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (At load out: run decks). Builds on [area-map-route-pick.md](./area-map-route-pick.md) and [mvp-supply-run.md](./mvp-supply-run.md). Replaces the driver selection screen, which is deleted with its panels.
 
 ## Context
 
@@ -14,7 +14,7 @@ Run route, Load out the crew, load out, START RUN, the run screen. Load out the 
 
 Options considered:
 
-- Callbacks (`onDepart`, `onBack`), the first pass's contract. Load out stays ignorant of routes and maps, but Customize has to carry functions through `returnData`, a screen capture can't hand them over (so START RUN could never be live in a golden), and a load out left mid-way can't be described in data.
+- Callbacks (`onDepart`, `onBack`), the first pass's contract. Load out stays ignorant of routes and maps, but Customize has to carry the functions through its round trip, and a load out left mid-way can't be described in data.
 - The route and POI as data, load out departing itself. Load out needs `PlanningMaps` and `departRun`, the same two things the run route screen already used to depart, and everything it's handed survives a Customize round trip.
 
 Load out takes data. The run route screen keeps the route pick and fuel gate; load out keeps the crew, decks, and escorts, and owns the departure, since it's the last screen before the road. A departure that's refused anyway (the fuel changed, or the route left the map) says why beside START RUN and starts no run decks.
@@ -45,5 +45,4 @@ None of these is in a spec. They're calls 177 to 181 in [gameplay-calls.md](../g
 ## Trade-offs
 
 - Losing customizing on a seat change is blunt, but it's honest about what the campaign can do and is a click away from being redone. Moving a run deck between seats would need a campaign operation of its own.
-- Load out depends on the area map being made. The run route screen only opens it with the map in hand, so `PlanningMaps.known` answers at once; a capture or the developer launcher opens it with no route, and START RUN says so.
-- New goldens (the load out screen and the developer section) come from the Visual workflow's mint, as every baseline does.
+- Load out depends on the area map being made. The run route screen only opens it with the map in hand, so `PlanningMaps.known` answers at once; the developer launcher opens it with no route, and START RUN says so.
