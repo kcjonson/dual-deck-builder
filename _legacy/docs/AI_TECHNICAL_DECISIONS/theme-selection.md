@@ -1,6 +1,6 @@
 # Atlas theme tokens and per-screen theme selection
 
-Date: 2026-10-16, with DDB-502 (epic DDB-500). Spec: [UI Art Direction](../specs/UI%20Art%20Direction.md), Palette and Tokens, and its open question 1. Rules: R11.1, R11.2, R11.4, R11.7, R11.15 in [chapter 11](../ui-rendering-spec/11-style-and-theme.md); propagated properties in [chapter 8](../ui-rendering-spec/08-object-model.md). The atlas is the playtest direction, not the final UI.
+Date: 2026-10-16, with DDB-502 (epic DDB-500). Spec: [UI Art Direction](../../../docs/specs/UI%20Art%20Direction.md), Palette and Tokens, and its open question 1. Rules: R11.1, R11.2, R11.4, R11.7, R11.15 in [chapter 11](../../../docs/ui-rendering-spec/11-style-and-theme.md); propagated properties in [chapter 8](../../../docs/ui-rendering-spec/08-object-model.md). The atlas is the playtest direction, not the final UI.
 
 ## Context
 

@@ -19,7 +19,7 @@ The specs in [specs/](./specs/) are the source of truth for how the game plays a
 9. [Gameplay Mechanics and Style](./specs/Gameplay%20Mechanics%20and%20Style.md)
 10. [AI System Technical Design](./specs/AI%20System%20Technical%20Design.md)
 11. [Faction Concepts](./specs/Faction%20Concepts.md)
-12. [UI rendering engine implementation](./specs/ui-rendering-engine-implementation.md)
+12. [UI rendering engine implementation](../_legacy/docs/specs/ui-rendering-engine-implementation.md)
 13. [UI Art Direction](./specs/UI%20Art%20Direction.md)
 
 ## Everything else
@@ -29,4 +29,4 @@ The specs in [specs/](./specs/) are the source of truth for how the game plays a
 - [ui-rendering-spec/](./ui-rendering-spec/README.md): the backend-agnostic UI rendering specification the engine implements (rules cited as R3.14).
 - [design/](./design/): mocks and wireframe screenshots the specs embed.
 - [research/](./research/README.md): genre research, comparable games, naming, and the first spec draft.
-- [AI_DEVELOPMENT_LOG.md](./AI_DEVELOPMENT_LOG.md) and [AI_DEVELOPMENT_HUB.md](./AI_DEVELOPMENT_HUB.md): deprecated and frozen. The old in-repo work log and status hub, kept for history; Specboard replaced both.
+- [AI_DEVELOPMENT_LOG.md](../_legacy/docs/AI_DEVELOPMENT_LOG.md) and [AI_DEVELOPMENT_HUB.md](../_legacy/docs/AI_DEVELOPMENT_HUB.md): deprecated and frozen. The old in-repo work log and status hub, kept for history; Specboard replaced both.

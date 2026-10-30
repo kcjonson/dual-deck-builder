@@ -1,6 +1,6 @@
 # Panel, ScrollContainer, and Scrollbar
 
-Status: decided 2026-09-28 with DDB-85's second PR (DDB-55 phase 5, Wave A). Rules R12.18 to R12.20 and R12.37 in [chapter 12](../ui-rendering-spec/12-component-catalog.md); R9.32's wheel latching from [input-dispatcher.md](./input-dispatcher.md); the clip and offset rules of chapter 4; the caches of [subtree-ink-cull.md](./subtree-ink-cull.md). Supersedes the scrolling half of [panel-padding.md](./panel-padding.md). Closes DDB-32 and DDB-210.
+Status: decided 2026-09-28 with DDB-85's second PR (DDB-55 phase 5, Wave A). Rules R12.18 to R12.20 and R12.37 in [chapter 12](../../../docs/ui-rendering-spec/12-component-catalog.md); R9.32's wheel latching from [input-dispatcher.md](./input-dispatcher.md); the clip and offset rules of chapter 4; the caches of [subtree-ink-cull.md](./subtree-ink-cull.md). Supersedes the scrolling half of [panel-padding.md](./panel-padding.md). Closes DDB-32 and DDB-210.
 
 ## What exists
 

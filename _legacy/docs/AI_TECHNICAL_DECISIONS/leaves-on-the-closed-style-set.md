@@ -1,6 +1,6 @@
 # Leaves on the closed style set, and Container
 
-Status: decided 2026-09-28 with DDB-85's third PR (DDB-55 phase 5, Wave A), which closes DDB-209. Rules R11.14 to R11.16 in [chapter 11](../ui-rendering-spec/11-style-and-theme.md) and R12.1 to R12.5 and R12.18 in [chapter 12](../ui-rendering-spec/12-component-catalog.md). Follows [style-states-and-variants.md](./style-states-and-variants.md), which put Button and Input on the closed set and left the rest for this.
+Status: decided 2026-09-28 with DDB-85's third PR (DDB-55 phase 5, Wave A), which closes DDB-209. Rules R11.14 to R11.16 in [chapter 11](../../../docs/ui-rendering-spec/11-style-and-theme.md) and R12.1 to R12.5 and R12.18 in [chapter 12](../../../docs/ui-rendering-spec/12-component-catalog.md). Follows [style-states-and-variants.md](./style-states-and-variants.md), which put Button and Input on the closed set and left the rest for this.
 
 ## What changed
 

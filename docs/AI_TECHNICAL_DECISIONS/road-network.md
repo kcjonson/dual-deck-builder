@@ -1,12 +1,12 @@
 # The road network: links and the graph (DDB-443, DDB-444)
 
-Date: 2026-10-10. Code: `src/renderer/game/map/` (`RoadCost.ts`, the edge cost field; `RoadLinks.ts`, the links; `RoadGraph.ts`, the graph; `Roads.ts`, the stage, the loops it asks for, and broken highways; `RoadChecks.ts`; `RoadNetwork.ts`, the plain data), wired in `AreaMapPipeline.ts`, timed, swept, and drawn by `scripts/road-network.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), 5. Roads, Guarantees 3, Validation and retries, and Performance. Builds Maps 7 and 8 of [realistic-map.md](./realistic-map.md), decision 2, between the places of [places.md](./places.md) over the land, water, and hazards of [water-and-biomes.md](./water-and-biomes.md) and places.md, and replaces road-growth.md's outward growth, whose `Highways.ts`, `RoadGrowth.ts`, step rules, tests, and script are gone.
+Date: 2026-10-10. Code: `_legacy/src/renderer/game/map/` (`RoadCost.ts`, the edge cost field; `RoadLinks.ts`, the links; `RoadGraph.ts`, the graph; `Roads.ts`, the stage, the loops it asks for, and broken highways; `RoadChecks.ts`; `RoadNetwork.ts`, the plain data), wired in `AreaMapPipeline.ts`, timed, swept, and drawn by `_legacy/scripts/road-network.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), 5. Roads, Guarantees 3, Validation and retries, and Performance. Builds Maps 7 and 8 of [realistic-map.md](./realistic-map.md), decision 2, between the places of [places.md](./places.md) over the land, water, and hazards of [water-and-biomes.md](./water-and-biomes.md) and places.md, and replaces road-growth.md's outward growth, whose `Highways.ts`, `RoadGrowth.ts`, step rules, tests, and script are gone.
 
 ## Context
 
 The spec's roads are least-cost links between places with a detour test for loops (Galin et al.), and the prototype showed the shape: 36,000 to 47,000 units of road at radius 1000, 450 to 600 nodes, 110 to 190 loops. The route tree and POIs (route-tree-and-pois.md) were built against synthetic meshes and waited on a real network with loops, so this is what turns their strict mode on. Map 5 left four notes for it: hold both ends of a bridge step when smoothing, find bridges over the whole polyline, use a per-map edge cost field rather than `moveCost` in the search's inner loop, and test that field against `moveCost`.
 
-Two maps at radius 1000, drawn by `scripts/road-network.mjs png`: highways red, back roads grey, trails dashed brown, broken highway spans dashed white, towns and villages black in a white ring, crossroads small and grey, exits ringed, red on a highway, dead ends blue, passes white, and POIs green (three routes yellow, strongholds purple).
+Two maps at radius 1000, drawn by `_legacy/scripts/road-network.mjs png`: highways red, back roads grey, trails dashed brown, broken highway spans dashed white, towns and villages black in a white ring, crossroads small and grey, exits ringed, red on a highway, dead ends blue, passes white, and POIs green (three routes yellow, strongholds purple).
 
 ![Mixed, seed 7](../design/road-network/mixed-seed-7.png)
 
@@ -87,7 +87,7 @@ The loops the POIs want are `poiDensity` times 30 plus `strongholds`, rounded up
 
 ## Measured
 
-`node scripts/road-network.mjs bench --radii 1000,1200`: five environments by three seeds, the whole pipeline, strict POIs, on the shared development desktop (Node 24), busy with other work:
+`node _legacy/scripts/road-network.mjs bench --radii 1000,1200`: five environments by three seeds, the whole pipeline, strict POIs, on the shared development desktop (Node 24), busy with other work:
 
 | Radius | Roads, ms median (slowest) | Terrain | Water | Nodes | Stretches | Road, units | Loops (least) | Bridges | POIs placed | Three-route POIs | Retries |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

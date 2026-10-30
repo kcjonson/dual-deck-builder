@@ -55,7 +55,7 @@ Option 4, specified in [docs/specs/Battle Screen Design.md](../specs/Battle%20Sc
 
 ## Consequences
 
-- Combat Rules changes shape: positions become slots, range becomes a formula, and `VehiclePosition` in `mechanics/Vehicle.ts` becomes a lane and a row. Everything that reads positions moves with it: `Battle.ts`, `AIEvaluator.ts`, `AggressiveFlankerAI.ts`, `MCTSAI.ts`, `src/battle-simulator.ts`, and the three battlefield layers.
+- Combat Rules changes shape: positions become slots, range becomes a formula, and `VehiclePosition` in `mechanics/Vehicle.ts` becomes a lane and a row. Everything that reads positions moves with it: `Battle.ts`, `AIEvaluator.ts`, `AggressiveFlankerAI.ts`, `MCTSAI.ts`, `_legacy/src/battle-simulator.ts`, and the three battlefield layers.
 - `cards.json` gains a required short-text field, and every existing card needs one written. Eleven of today's eighteen descriptions don't fit three lines; the mock has rewrites for all of them.
 - Enemy intents need to be planned in the model with a target before the player's turn, not hardcoded (DDB-33).
 - The enemy turn needs pacing (DDB-112) before the enemy-turn state means anything.

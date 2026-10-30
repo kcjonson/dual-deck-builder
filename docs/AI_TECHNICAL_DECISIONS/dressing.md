@@ -1,6 +1,6 @@
 # The dressing stage
 
-Date: 2026-10-16. Code: `src/renderer/game/map/` (`Dressing.ts`, the stage's output and its hatching, stipple, and route numbers; `StreetGrids.ts`; `RailLines.ts`; `MapLabels.ts`, label candidates and the land's named features; `PlaceNames.ts`, feature roots; `NodeHeap.ts`, moved out of `RouteTree.ts` for the rail search), wired in `AreaMapPipeline.ts` (`DRESSING_STAGE`), carried by `worker/mapGenerationProtocol.ts`, timed and drawn by `scripts/road-network.mjs dressing` and `bench`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), 11. Dressing, Saving, Seeds and determinism, and Guarantee 9. Builds Map 15 of [realistic-map.md](./realistic-map.md) over the places of [places.md](./places.md) and the roads of [road-network.md](./road-network.md), on the runner of [map-pipeline-worker.md](./map-pipeline-worker.md).
+Date: 2026-10-16. Code: `_legacy/src/renderer/game/map/` (`Dressing.ts`, the stage's output and its hatching, stipple, and route numbers; `StreetGrids.ts`; `RailLines.ts`; `MapLabels.ts`, label candidates and the land's named features; `PlaceNames.ts`, feature roots; `NodeHeap.ts`, moved out of `RouteTree.ts` for the rail search), wired in `AreaMapPipeline.ts` (`DRESSING_STAGE`), carried by `worker/mapGenerationProtocol.ts`, timed and drawn by `_legacy/scripts/road-network.mjs dressing` and `bench`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), 11. Dressing, Saving, Seeds and determinism, and Guarantee 9. Builds Map 15 of [realistic-map.md](./realistic-map.md) over the places of [places.md](./places.md) and the roads of [road-network.md](./road-network.md), on the runner of [map-pipeline-worker.md](./map-pipeline-worker.md).
 
 ## Context
 
@@ -10,7 +10,7 @@ The item's first description had county roads, farm tracks, and broken highways 
 
 This stage generates; it draws nothing. Drawing it in the atlas style comes with the view's restyle.
 
-Rust Belt seed 11 and Mixed seed 7 at radius 1000, and Rust Belt 11's metro close up, drawn by `node scripts/road-network.mjs dressing`. The labels there are set by the script's own greedy placement, not the view's:
+Rust Belt seed 11 and Mixed seed 7 at radius 1000, and Rust Belt 11's metro close up, drawn by `node _legacy/scripts/road-network.mjs dressing`. The labels there are set by the script's own greedy placement, not the view's:
 
 ![Rust Belt, seed 11](../design/dressing/rust-belt-seed-11.png)
 
@@ -121,7 +121,7 @@ Within a kind, a label gains under 1 by size: a town's or village's ruins, a lak
 
 ## Performance
 
-`node scripts/road-network.mjs bench --radii 1000,1200 --seeds 3 --repeat 2`, Node 24 on the shared development desktop, five environments by three seeds, each map's fastest of two runs:
+`node _legacy/scripts/road-network.mjs bench --radii 1000,1200 --seeds 3 --repeat 2`, Node 24 on the shared development desktop, five environments by three seeds, each map's fastest of two runs:
 
 | Radius | Dressing, ms median (slowest) | Stops | Terrain | Roads |
 | --- | --- | --- | --- | --- |

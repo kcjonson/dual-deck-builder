@@ -96,7 +96,7 @@ Calls the target doesn't settle, made here and listed for Kevin:
 
 ## Measurements
 
-Bake, `node scripts/area-map-bake-bench.mjs --seeds 3 --repeat 5` (Node 24, the five environments, the fastest of five runs each, main and this branch back to back). The bench now bakes what the view bakes, the land with its water and hazards and the places' ruins, and finds its modules by following imports, since its hand list had gone stale.
+Bake, `node _legacy/scripts/area-map-bake-bench.mjs --seeds 3 --repeat 5` (Node 24, the five environments, the fastest of five runs each, main and this branch back to back). The bench now bakes what the view bakes, the land with its water and hazards and the places' ruins, and finds its modules by following imports, since its hand list had gone stale.
 
 | Radius | Texels | Before median | After median |
 | --- | --- | --- | --- |
@@ -106,7 +106,7 @@ Bake, `node scripts/area-map-bake-bench.mjs --seeds 3 --repeat 5` (Node 24, the 
 
 About 15% more at the common radius, for the hatch, the patches, the craters, and the bicubic read. A first cut was 55% more; a plume test per texel was most of it, and testing only the hotspots whose plumes reach the row brought it back.
 
-Frame, `scripts/perf-capture.mjs` on the gallery scenes at 1440x882, unthrottled (perf-results/ddb-498-before.md and ddb-498-after.md):
+Frame, `_legacy/scripts/perf-capture.mjs` on the gallery scenes at 1440x882, unthrottled (perf-results/ddb-498-before.md and ddb-498-after.md):
 
 | Scene | Before median / p99 | After median / p99 | API draws | Triangles |
 | --- | --- | --- | --- | --- |

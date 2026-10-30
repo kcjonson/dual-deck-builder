@@ -1,6 +1,6 @@
 # Load out: the screen between the run route and the road (DDB-320)
 
-Date: 2026-10-16. Code: `src/renderer/game/screens/load-out/` (`LoadOutScreen.ts`, `LoadOutPlan.ts`, `loadOutText.ts`), `screens/run-route/RunRouteScreen.ts` (Load out the crew), `screens/developer/LoadOutLauncherSection.ts`, and `core/CampaignVisit.ts` (`checkpoint` now settles with the store's result). Specs: [Game Flow and UI](../specs/Game%20Flow%20and%20UI%20Specification.md) 1.2 and 3.4, [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (At load out: run decks). Builds on [area-map-route-pick.md](./area-map-route-pick.md) and [mvp-supply-run.md](./mvp-supply-run.md). Replaces the driver selection screen, which is deleted with its panels and goldens.
+Date: 2026-10-16. Code: `_legacy/src/renderer/game/screens/load-out/` (`LoadOutScreen.ts`, `LoadOutPlan.ts`, `loadOutText.ts`), `screens/run-route/RunRouteScreen.ts` (Load out the crew), `screens/developer/LoadOutLauncherSection.ts`, and `core/CampaignVisit.ts` (`checkpoint` now settles with the store's result). Specs: [Game Flow and UI](../specs/Game%20Flow%20and%20UI%20Specification.md) 1.2 and 3.4, [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (At load out: run decks). Builds on [area-map-route-pick.md](./area-map-route-pick.md) and [mvp-supply-run.md](./mvp-supply-run.md). Replaces the driver selection screen, which is deleted with its panels and goldens.
 
 ## Context
 

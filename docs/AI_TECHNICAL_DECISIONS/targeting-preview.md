@@ -1,6 +1,6 @@
 # Targeting preview: ranges, outlines, damage ghost, hit check
 
-Status: decided 2026-10-02, DDB-138 (DDB-127). Design source: [Battle Screen Design](../specs/Battle%20Screen%20Design.md) section 6 (Targeting) and the mock's targeting state (`docs/design/battle-screen/index.html`, `.slotchip`, `.valid`, `.targeted`, `i.ghost`, `.hitchip`). Builds on DDB-88's drag-to-target ([combat-hand-and-targeting.md](./combat-hand-and-targeting.md)).
+Status: decided 2026-10-02, DDB-138 (DDB-127). Design source: [Battle Screen Design](../specs/Battle%20Screen%20Design.md) section 6 (Targeting) and the mock's targeting state (`docs/design/battle-screen/index.html`, `.slotchip`, `.valid`, `.targeted`, `i.ghost`, `.hitchip`). Builds on DDB-88's drag-to-target ([combat-hand-and-targeting.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/combat-hand-and-targeting.md)).
 
 ## Context
 

@@ -1,6 +1,6 @@
 # The area map and run route panels on the atlas sheet
 
-Date: 2026-10-17, with DDB-509 (epic DDB-500). Spec: [UI Art Direction](../specs/UI%20Art%20Direction.md), Screens: area map and run route. Builds on [atlas-components.md](./atlas-components.md) and [theme-selection.md](./theme-selection.md), and supersedes the point in [area-map-atlas-style.md](./area-map-atlas-style.md) that kept the side panels dark. The atlas is the playtest direction, not the final UI.
+Date: 2026-10-17, with DDB-509 (epic DDB-500). Spec: [UI Art Direction](../specs/UI%20Art%20Direction.md), Screens: area map and run route. Builds on [atlas-components.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/atlas-components.md) and [theme-selection.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/theme-selection.md), and supersedes the point in [area-map-atlas-style.md](./area-map-atlas-style.md) that kept the side panels dark. The atlas is the playtest direction, not the final UI.
 
 ## Context
 

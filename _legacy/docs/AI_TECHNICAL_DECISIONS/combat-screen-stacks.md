@@ -1,7 +1,7 @@
 # The combat screen on stacks
 
 Status: implemented (DDB-82, DDB-55 phase 4), 2026-09-28. Also closes DDB-183.
-Spec: [Battle Screen Design](../specs/Battle%20Screen%20Design.md) sections 2 and 4, chapter 10 of the [UI rendering spec](../ui-rendering-spec/10-layout.md), R4.7
+Spec: [Battle Screen Design](../../../docs/specs/Battle%20Screen%20Design.md) sections 2 and 4, chapter 10 of the [UI rendering spec](../../../docs/ui-rendering-spec/10-layout.md), R4.7
 Builds on: [stack-layout.md](./stack-layout.md), [game-code-on-the-tree.md](./game-code-on-the-tree.md)
 
 ## Problem

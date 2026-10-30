@@ -8,7 +8,7 @@ Close-up runs in `finishEnemyTurn`, after `dropBackFlankers` and `clearWrecks` a
 
 Options for shake-off were a hidden counter on the vehicle, a rule in the EMP card, or a status. A status (`steady`, duration 1) won: it ticks with every other status, shows as a chip without new UI, and the preview needs nothing new, since a Steady raider never gets `stunned` and the preview already drops a stunned raider's intents. It's applied in `startPlayerTurn` to each raider whose stun wore off in that tick, and `applyStatus` refuses `stunned` on a Steady vehicle with a log line.
 
-Measured with `scripts/raider-sim.mjs` (seed 1, 100 runs, pairs; the balance sim has since replaced it): close-up alone lifts the Road Warrior and Interceptor from 50% to 84% at 3 skulls, where the second Rust Buggy used to sit out of the Rig's reach. Shake-off ends the EMP lock the Mechanic held on the lone Spike Buggy (99% won with 1% HP lost becomes 0%), which is the unfair fight the rule is for; one-raider encounters go with the encounter templates (DDB-328).
+Measured with `_legacy/scripts/raider-sim.mjs` (seed 1, 100 runs, pairs; the balance sim has since replaced it): close-up alone lifts the Road Warrior and Interceptor from 50% to 84% at 3 skulls, where the second Rust Buggy used to sit out of the Rig's reach. Shake-off ends the EMP lock the Mechanic held on the lone Spike Buggy (99% won with 1% HP lost becomes 0%), which is the unfair fight the rule is for; one-raider encounters go with the encounter templates (DDB-328).
 
 ## Waves (DDB-46)
 
@@ -19,7 +19,7 @@ Waves ride on the enemy `Team` as `reinforcements` (each a list of raider vehicl
 - `Battle.waves` is the top bar's readout. While a wave is due it projects the end of the enemy turn (`projectEnemyTurnStart`, then close-up planned on that projection) to mark the rows arrivals will take. Close-up and arrivals share one planner over a `RoadRead`, so the marks and the arrival can't disagree on the rule, only on kills the player hasn't made yet.
 - The combat screen reads `battle.waves` every update instead of the `SINGLE_WAVE` a prepared fight could override; the gallery's fit scenarios now queue real waves to show the readout.
 
-The balance sim (`scripts/balance-sim.mjs`, `sim/Fights.ts`) plays fights against templates as a run's stop picks them, at the config's `tier` and `stage`, with waves, rout, and break-off (a broken-off fight carries the run on, as the bridge does), and its `encounters` config takes templates in the shape of data/encounters.json.
+The balance sim (`_legacy/scripts/balance-sim.mjs`, `sim/Fights.ts`) plays fights against templates as a run's stop picks them, at the config's `tier` and `stage`, with waves, rout, and break-off (a broken-off fight carries the run on, as the bridge does), and its `encounters` config takes templates in the shape of data/encounters.json.
 
 ## Rout and break-off (DDB-525)
 

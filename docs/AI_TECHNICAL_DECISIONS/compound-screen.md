@@ -1,6 +1,6 @@
 # The compound screen, the campaign's hub (DDB-301)
 
-Date: 2026-10-09, Scavenge added the same day (DDB-303). Code: `src/renderer/game/screens/compound/CompoundScreen.ts` and `compoundText.ts`. Specs: [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 3.1, [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (The compound, The driver pool), and the wireframe `docs/design/supply-runs/compound.png`. Registered as `compoundScreen` with the `{ campaign }` contract the main menu hands it ([main-menu-campaigns.md](./main-menu-campaigns.md)), and uses [day-clock.md](./day-clock.md), [scavenging-party.md](./scavenging-party.md), and [campaign-save-and-load.md](./campaign-save-and-load.md) as built.
+Date: 2026-10-09, Scavenge added the same day (DDB-303). Code: `_legacy/src/renderer/game/screens/compound/CompoundScreen.ts` and `compoundText.ts`. Specs: [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 3.1, [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (The compound, The driver pool), and the wireframe `docs/design/supply-runs/compound.png`. Registered as `compoundScreen` with the `{ campaign }` contract the main menu hands it ([main-menu-campaigns.md](./main-menu-campaigns.md)), and uses [day-clock.md](./day-clock.md), [scavenging-party.md](./scavenging-party.md), and [campaign-save-and-load.md](./campaign-save-and-load.md) as built.
 
 ## Context
 

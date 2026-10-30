@@ -1,6 +1,6 @@
 # The route tree, legs, meeting points, POIs, and strongholds (DDB-445, DDB-291)
 
-Date: 2026-10-10. Code: `src/renderer/game/map/RouteTree.ts` (the tree, meeting points, legs, and `routesTo`), `Pois.ts` (strongholds, POIs, typing), `PoiData.ts` with `data/pois.json` and `data/factions.json`, `PoiChecks.ts`, and the two stages in `AreaMapPipeline.ts`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), guarantees 2 and 4 to 8, stages 6 and 7, Routes, Validation and retries. Follows [realistic-map.md](./realistic-map.md), decision 3, which defines the tree, legs, and meeting points, and runs on [map-pipeline-worker.md](./map-pipeline-worker.md)'s runner. Carries over the data files and readers from the closed #177.
+Date: 2026-10-10. Code: `_legacy/src/renderer/game/map/RouteTree.ts` (the tree, meeting points, legs, and `routesTo`), `Pois.ts` (strongholds, POIs, typing), `PoiData.ts` with `data/pois.json` and `data/factions.json`, `PoiChecks.ts`, and the two stages in `AreaMapPipeline.ts`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), guarantees 2 and 4 to 8, stages 6 and 7, Routes, Validation and retries. Follows [realistic-map.md](./realistic-map.md), decision 3, which defines the tree, legs, and meeting points, and runs on [map-pipeline-worker.md](./map-pipeline-worker.md)'s runner. Carries over the data files and readers from the closed #177.
 
 ## Context
 

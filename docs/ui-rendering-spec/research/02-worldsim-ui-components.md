@@ -387,7 +387,7 @@ Content coordinates: the child is authored at `position {0,0}` and the container
 
 ### 5.1 Pipeline: prototype -> tokens.json -> Tokens.h
 
-The look ("Salvage") was designed in a React/Vite prototype under `docs/ui-prototype/` whose `src/design-system/tokens.css` is the single source of truth (`docs/ui-prototype/README.md:39-42, 53-56`). Three scripts in `docs/ui-prototype/scripts/` extract it:
+The look ("Salvage") was designed in a React/Vite prototype under `docs/ui-prototype/` whose `_legacy/src/design-system/tokens.css` is the single source of truth (`docs/ui-prototype/README.md:39-42, 53-56`). Three scripts in `docs/ui-prototype/scripts/` extract it:
 
 1. `extract-tokens.mjs` parses `tokens.css`, resolves `var()` aliases, converts every color format to normalized rgba floats, and writes `docs/design/ui/design-system/tokens.json` plus `palette.svg` (dev-log 2026-06-15).
 2. `gen-cpp-theme.mjs` (`docs/ui-prototype/scripts/gen-cpp-theme.mjs`) reads `tokens.json` and writes `libs/ui/theme/Tokens.h`: a flat `namespace UI` of `inline constexpr` values, snake_case names mirroring the CSS custom properties (`--space-3 -> UI::space_3`), colors as `Foundation::Color{r,g,b,a}`, z-index as `int`, everything else `float`; entries flagged `cssOnly` or `alias` are skipped (`gen-cpp-theme.mjs:44-56`). Categories emitted in order: color, spacing, radius, border, fontSize, lineHeight, letterSpacing, motion, zIndex, texture, typography.

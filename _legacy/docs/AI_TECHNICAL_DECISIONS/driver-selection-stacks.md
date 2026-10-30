@@ -1,7 +1,7 @@
 # Driver selection on stacks
 
 Status: implemented (DDB-89, DDB-55 phase 6), 2026-10-01. Closes DDB-31, DDB-101, DDB-102, DDB-108.
-Spec: [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) section 1.2, chapter 10 of the [UI rendering spec](../ui-rendering-spec/10-layout.md), R12.12, R12.20, R12.26
+Spec: [Game Flow and UI Specification](../../../docs/specs/Game%20Flow%20and%20UI%20Specification.md) section 1.2, chapter 10 of the [UI rendering spec](../../../docs/ui-rendering-spec/10-layout.md), R12.12, R12.20, R12.26
 Builds on: [stack-layout.md](./stack-layout.md), [game-code-on-the-tree.md](./game-code-on-the-tree.md), [combat-screen-stacks.md](./combat-screen-stacks.md)
 
 ## Problem
@@ -28,7 +28,7 @@ Options considered for the panel:
 
 The mini cards need rows, and wrap is out of the engine's scope (R10.4: "Wrap (multi-line flex) and grid are out of scope"). `game/ui/FlowWrap.ts` is a small container that takes part in stack layout like a wrapping text: a stack assigns its width, it measures its rows' height at that width, and each item keeps its own measured size. Two rows of the game use it, the deck preview and the synergy tags. It stays in game code until the engine adopts wrap, at which point it should be deleted for that.
 
-Each deck entry is one 80x112 mini card stacked to its quantity, the count on the stack itself ([mini-card.md](./mini-card.md), DDB-311). The grid is spaced by `MINI_GRID` and takes two rows' height whatever the deck holds: a six-card deck wraps to two rows below about 1650 wide while a four-card one fits in one, and two hugging decks of different heights would put one panel's portrait and name higher than the other's. Two rows is the most an unlocked driver's deck needs from 1024 wide up, so both decks take the same height for any pair. The flavour text can still run a line longer for one driver than the other and move that panel's name; load out (DDB-320) replaces the screen, so that's left. The portrait gives way first, down to 8 px (it was 40 before the minis grew), so both decks' two rows still fit at 1280x720 without scrolling.
+Each deck entry is one 80x112 mini card stacked to its quantity, the count on the stack itself ([mini-card.md](../../../docs/AI_TECHNICAL_DECISIONS/mini-card.md), DDB-311). The grid is spaced by `MINI_GRID` and takes two rows' height whatever the deck holds: a six-card deck wraps to two rows below about 1650 wide while a four-card one fits in one, and two hugging decks of different heights would put one panel's portrait and name higher than the other's. Two rows is the most an unlocked driver's deck needs from 1024 wide up, so both decks take the same height for any pair. The flavour text can still run a line longer for one driver than the other and move that panel's name; load out (DDB-320) replaces the screen, so that's left. The portrait gives way first, down to 8 px (it was 40 before the minis grew), so both decks' two rows still fit at 1280x720 without scrolling.
 
 The `Select` lists every unlocked driver with the partner's driver `enabled: false`, so a conflicting pick can't be made from the UI; `DriverPanel.selectDriver` still moves on to the next open driver if one arrives. The panels' public surface is `select`, `deckPreview`, and `selectDriver(archetype)`; `cycleDriver` is deleted.
 

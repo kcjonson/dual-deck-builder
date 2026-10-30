@@ -59,7 +59,7 @@ src/
 
 ### 3. Testing Guidelines
 
-- [docs/testing/README.md](docs/testing/README.md) is the strategy. Look for actual regressions, never pixel changes: no golden images or screenshot diffs
+- [docs/testing/README.md](../docs/testing/README.md) is the strategy. Look for actual regressions, never pixel changes: no golden images or screenshot diffs
 - Before committing, run the relevant happy-path scripts (`docs/testing/happy-path/`) as a manual regression pass with the cheapest subagent fleet that can, and add lines when a feature lands
 - Performance is strict: rendering or hot-path changes run `scripts/perf-capture.mjs` against `main`
 - Keep unit tests bounded: look for a test covering the same path before adding one

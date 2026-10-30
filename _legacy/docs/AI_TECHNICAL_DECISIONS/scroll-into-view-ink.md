@@ -1,6 +1,6 @@
 # Scrolling what a component draws into view
 
-Date: 2026-10-07. Task: DDB-406 (DDB-256). Spec: R4.8, R8.8, R9.9, R9.23, R11.12, R12.20, R12.22. Builds on [panel-and-scroll-container.md](./panel-and-scroll-container.md), [focus-manager.md](./focus-manager.md), [subtree-ink-cull.md](./subtree-ink-cull.md), and [mini-card.md](./mini-card.md).
+Date: 2026-10-07. Task: DDB-406 (DDB-256). Spec: R4.8, R8.8, R9.9, R9.23, R11.12, R12.20, R12.22. Builds on [panel-and-scroll-container.md](./panel-and-scroll-container.md), [focus-manager.md](./focus-manager.md), [subtree-ink-cull.md](./subtree-ink-cull.md), and [mini-card.md](../../../docs/AI_TECHNICAL_DECISIONS/mini-card.md).
 
 ## Context
 

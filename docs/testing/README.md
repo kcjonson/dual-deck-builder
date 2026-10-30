@@ -9,9 +9,9 @@ C++ port.
 | Layer | Where | When |
 |---|---|---|
 | Unit tests | Jest (`npm test`, `npm run test:slow`) | while iterating, and CI |
-| Boot smoke | `tests/smoke/` (`npm run test:smoke`) | after changing boot, loading or a screen's mount |
+| Boot smoke | `_legacy/tests/smoke/` (`npm run test:smoke`) | after changing boot, loading or a screen's mount |
 | Happy-path scripts | `docs/testing/happy-path/*.md` | before every commit that touches what they cover |
-| Perf capture | `scripts/perf-capture.mjs`, `perf-results/` | before committing rendering or hot-path changes |
+| Perf capture | `_legacy/scripts/perf-capture.mjs`, `perf-results/` | before committing rendering or hot-path changes |
 
 ## Happy-path scripts
 

@@ -1,6 +1,6 @@
 # The main menu's campaign entries (DDB-283)
 
-Date: 2026-10-08. Code: `src/renderer/game/screens/main-menu/MainMenuScreen.ts` and `campaignText.ts`, `screens/campaign-history/CampaignHistoryScreen.ts`, `screens/compound/CompoundScreen.ts`, and the harness's `tests/visual/support/campaignSaves.ts`. Spec: [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 1.1. Builds on [campaign-save-and-load.md](./campaign-save-and-load.md) and [campaign-founding.md](./campaign-founding.md), whose APIs it uses as built.
+Date: 2026-10-08. Code: `_legacy/src/renderer/game/screens/main-menu/MainMenuScreen.ts` and `campaignText.ts`, `screens/campaign-history/CampaignHistoryScreen.ts`, `screens/compound/CompoundScreen.ts`, and the harness's `_legacy/tests/visual/support/campaignSaves.ts`. Spec: [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 1.1. Builds on [campaign-save-and-load.md](./campaign-save-and-load.md) and [campaign-founding.md](./campaign-founding.md), whose APIs it uses as built.
 
 ## Context
 

@@ -1,6 +1,6 @@
 # Saving and loading a campaign (DDB-49)
 
-Date: 2026-10-07, revised 2026-10-08 for per-build saves (DDB-413), and 2026-10-10 for the area map (DDB-467) and two tabs (DDB-490). Code: `src/renderer/game/campaign/CampaignStore.ts`, `SaveStorage.ts`, `CampaignHistory.ts`, `CampaignMaps.ts`, and `Campaign.toSaveText`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Terms), [Area Map Generation](../specs/Area%20Map%20Generation.md) (Saving), [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) (1.1). Builds on [campaign-state-model.md](./campaign-state-model.md), and follows the persistence pattern of [settings-store-and-screens.md](./settings-store-and-screens.md).
+Date: 2026-10-07, revised 2026-10-08 for per-build saves (DDB-413), and 2026-10-10 for the area map (DDB-467) and two tabs (DDB-490). Code: `_legacy/src/renderer/game/campaign/CampaignStore.ts`, `SaveStorage.ts`, `CampaignHistory.ts`, `CampaignMaps.ts`, and `Campaign.toSaveText`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Terms), [Area Map Generation](../specs/Area%20Map%20Generation.md) (Saving), [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) (1.1). Builds on [campaign-state-model.md](./campaign-state-model.md), and follows the persistence pattern of [settings-store-and-screens.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/settings-store-and-screens.md).
 
 ## Context
 

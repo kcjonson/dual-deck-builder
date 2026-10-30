@@ -1,6 +1,6 @@
 # Realistic geography, a real road network, and tree-shaped routes (DDB-438)
 
-Date: 2026-10-08. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), rewritten, and the terms, area map, run route, and fog sections of [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md). Replaces decisions 2 and 4 of [compound-and-area-map.md](./compound-and-area-map.md). Builds on [terrain-fields.md](./terrain-fields.md), [road-growth.md](./road-growth.md), [map-params.md](./map-params.md), and [seeded-prng.md](./seeded-prng.md), and on the open PRs' area-map-view.md (#176) and pois-and-strongholds.md (#177).
+Date: 2026-10-08. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), rewritten, and the terms, area map, run route, and fog sections of [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md). Replaces decisions 2 and 4 of [compound-and-area-map.md](./compound-and-area-map.md). Builds on [terrain-fields.md](./terrain-fields.md), [road-growth.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/road-growth.md), [map-params.md](./map-params.md), and [seeded-prng.md](./seeded-prng.md), and on the open PRs' area-map-view.md (#176) and pois-and-strongholds.md (#177).
 
 ## Context
 

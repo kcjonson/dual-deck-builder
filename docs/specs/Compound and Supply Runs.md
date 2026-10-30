@@ -38,7 +38,7 @@ A campaign is founded from a seed and the archetypes unlocked so far, and the sa
 - The stores start with a week of food and water for the starting settlers, fuel for a few runs, a few meds, and some scrap. The locker and the convoy start empty; a starter escort is a tuning option.
 - It's day 1, at dawn. The clock only runs on the road, so while it's one run a day (open question 8), the compound between runs is always at the dawn of its day.
 
-The pool size, the stores, and any starter escorts are starting values, kept for tuning in `src/renderer/game/data/campaign-start.json`.
+The pool size, the stores, and any starter escorts are starting values, kept for tuning in `_legacy/src/renderer/game/data/campaign-start.json`.
 
 ## The compound
 

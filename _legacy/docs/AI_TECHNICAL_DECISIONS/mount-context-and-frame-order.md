@@ -1,7 +1,7 @@
 # Mount context, lifecycle, and frame order
 
 Status: implemented (DDB-73, second of two PRs), 2026-09-28
-Spec: R1.6, R8.14 to R8.18, R8.21, R8.22, R8.28 of the [UI rendering spec](../ui-rendering-spec/08-object-model.md)
+Spec: R1.6, R8.14 to R8.18, R8.21, R8.22, R8.28 of the [UI rendering spec](../../../docs/ui-rendering-spec/08-object-model.md)
 Builds on: [component-base-and-render-walk.md](./component-base-and-render-walk.md)
 
 ## Problem

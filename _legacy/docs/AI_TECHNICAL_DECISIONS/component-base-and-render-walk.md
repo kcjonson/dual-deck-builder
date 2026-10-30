@@ -1,7 +1,7 @@
 # Component base and the framework render walk
 
 Status: implemented (DDB-73, first of two PRs), 2026-09-28
-Spec: chapter 8 of the [UI rendering spec](../ui-rendering-spec/08-object-model.md), R3.11 to R3.13, R3.25 to R3.27, R4.8 to R4.12
+Spec: chapter 8 of the [UI rendering spec](../../../docs/ui-rendering-spec/08-object-model.md), R3.11 to R3.13, R3.25 to R3.27, R4.8 to R4.12
 
 ## Problem
 

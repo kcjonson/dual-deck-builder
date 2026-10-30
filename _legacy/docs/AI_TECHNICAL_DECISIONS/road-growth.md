@@ -1,6 +1,6 @@
 # Road growth (DDB-290), retired
 
-Date: 2026-10-08, retired 2026-10-10. Outward growth, highways leaving the metro and roads grown a step at a time into trees, was the area map's network until the road links and graph (Maps 7 and 8) replaced it; [road-network.md](./road-network.md) has what replaced it and why, and [realistic-map.md](./realistic-map.md), decision 2, why trees of roads had to go. `Highways.ts`, `RoadGrowth.ts` with its step rules, their tests, and `scripts/road-growth.mjs` are gone. What survives:
+Date: 2026-10-08, retired 2026-10-10. Outward growth, highways leaving the metro and roads grown a step at a time into trees, was the area map's network until the road links and graph (Maps 7 and 8) replaced it; [road-network.md](../../../docs/AI_TECHNICAL_DECISIONS/road-network.md) has what replaced it and why, and [realistic-map.md](../../../docs/AI_TECHNICAL_DECISIONS/realistic-map.md), decision 2, why trees of roads had to go. `Highways.ts`, `RoadGrowth.ts` with its step rules, their tests, and `scripts/road-growth.mjs` are gone. What survives:
 
 - `Geometry.ts`: segment distances, crossings, and Chaikin's corner cutting, which the road graph smooths with and the checks sweep with.
 - `SegmentIndex.ts`: the spatial hash of segments, now the POI stage's index of highways.

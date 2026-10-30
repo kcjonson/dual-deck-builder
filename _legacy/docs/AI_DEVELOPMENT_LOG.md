@@ -1,6 +1,6 @@
 # AI Development Log (deprecated)
 
-> **DEPRECATED (2026-10-06, DDB-342).** This file is frozen and kept for history only. Don't add to it or update it. Work, status, and progress are tracked on Specboard: https://specboard.io/projects/6b4e4cdd-15bc-4001-8280-706838168f2e. Technical decisions live in [AI_TECHNICAL_DECISIONS/](./AI_TECHNICAL_DECISIONS/); the docs index is [README.md](./README.md). Content below may be stale.
+> **DEPRECATED (2026-10-06, DDB-342).** This file is frozen and kept for history only. Don't add to it or update it. Work, status, and progress are tracked on Specboard: https://specboard.io/projects/6b4e4cdd-15bc-4001-8280-706838168f2e. Technical decisions live in [AI_TECHNICAL_DECISIONS/](../../docs/AI_TECHNICAL_DECISIONS/); the docs index is [README.md](../../docs/README.md). Content below may be stale.
 
 This document contains the chronological log of completed development tasks for Wasteland Wheels. Most recent entries are at the top.
 
@@ -85,7 +85,7 @@ This document contains the chronological log of completed development tasks for 
 - End Turn: the warning at the mock's 12 on 15, wrapping inside the column; the label keeps "Raiders", since the mock's "raiders acting" overflows 148 px.
 - `Vehicle.mods` (`{ name, kind }`), and two icons in the atlas.
 - Goldens: new `combat-dock` and `combat-dock-crashed-out`, in the lint gate at both sizes; the combat screens and the icons scene move.
-- Decision record: [split-dock.md](./AI_TECHNICAL_DECISIONS/split-dock.md).
+- Decision record: [split-dock.md](../../docs/AI_TECHNICAL_DECISIONS/split-dock.md).
 
 **How:** unit tests for the tab, the fan's reconcile, the hand view, and the screen's dock (both hands at the cap with six mods and adrenaline past six, a passenger, a crash-out, and a pin across a deal, lint zero at 1024x600 and 1440x882); played turns at 1280x720 and 1024x600 through `__dev.input` by click-then-target, drag, keyboard, and END TURN, lint zero throughout.
 ## Intent pills, the end-turn preview, and the enemy turn on screen (2026-10-02)
@@ -106,7 +106,7 @@ This document contains the chronological log of completed development tasks for 
 - `RoadView`'s empty-slot outlines go through `dashedOutlineTriangles` (the legal-target dashes from DDB-138) into one triangle list per side's colour. The view's own draws at 1280x720 with five vehicles went from 765 `drawRect` + 2 `drawPolygon` to 37 + 4; at 1600x700, 1063 + 2 to 49 + 4. The side dashes now start one gap below the corner dash (7 px, was 6), as the targeting outline's do.
 - A swerving token's outlines switch when it lands: tokens keep the slot they last landed in, and `land` rebuilds the lists when it changes.
 - Shoulder headers spaced 0.12em like the other lanes, as the mock renders them.
-- [road-view.md](./AI_TECHNICAL_DECISIONS/road-view.md) corrected: commands copy their geometry each frame, polygon points included, so the lists still cost a copy; what went was the per-call cost.
+- [road-view.md](../../docs/AI_TECHNICAL_DECISIONS/road-view.md) corrected: commands copy their geometry each frame, polygon points included, so the lists still cost a copy; what went was the per-call cost.
 
 **How:** RoadView unit tests for the two-list outlines, the swerve timing, and the header spacing; draw calls counted by spying on `DrawApi` over one `RoadView.render`; road-bearing goldens re-minted for the header spacing and dash phase.
 
@@ -119,7 +119,7 @@ This document contains the chronological log of completed development tasks for 
 - `ui/RangeChip.ts` in the token; `Vehicle.rangeLabel`, `Vehicle.damageGhost`; dashed legal outline as one triangle list, solid hovered outline with a 22 px glow, dimming at 35%. `ui/stripes.ts` holds the hatch (moved from `RoadView`) and the dashes.
 - `HitCheckChip` and `hitCheckText` in `CombatFxLayer`; `AimReticle` and `TargetingArrow` take `pinnedOnTarget` for the gallery.
 - Cancel: the stage takes clicks, so one that lands on no target, or a right-click anywhere, puts a waiting card back; so does a second click on the card.
-- Gallery scene `combat-targeting`, golden and lint at 1440x882 and 1024x600 (`SceneScenario.shortViewport`). Record: [targeting-preview.md](./AI_TECHNICAL_DECISIONS/targeting-preview.md).
+- Gallery scene `combat-targeting`, golden and lint at 1440x882 and 1024x600 (`SceneScenario.shortViewport`). Record: [targeting-preview.md](../../docs/AI_TECHNICAL_DECISIONS/targeting-preview.md).
 
 **How:** unit tests for the preview (checked against play), the token's dashes, glow, chip, and ghost, the hit check text, and the screen's ranges, legal targets, hit check, ghost, and cancels; played the combat screen through `__dev.input` at 1280x720 and 1024x600 (drag, click-then-target, keyboard, every cancel).
 ## Card face and pinnable detail view (2026-10-02)
@@ -148,7 +148,7 @@ This document contains the chronological log of completed development tasks for 
 - `CombatLog` holds player-facing lines only, keeps 100, and takes `{ message, type, turn }`. Its `addBattleMessage` drops Battle's debug dumps, turn bookkeeping, opening, and leftover adrenaline, and reads a message's `line` when it has one. The `[D1]` and `[Turn N] [Driver N]` prefixes are gone; the turn tag is the one prefix.
 - `Battle` keeps its record unchanged for the simulator and tests, adds a `debug` message type for the team status and hand dumps, and gives messages with seat tags or before-and-after numbers a `line` without them. The screen logs the matchup, "Your turn", and "The raiders' turn" itself, and no longer logs card plays twice.
 - Review fixes: the disabled menu dims its edge and glyph and explains itself in a tooltip; scrap and fuel take the mock's tints; a reader scrolled up in a full log keeps their line as old ones drop; closing the drawer never leaves focus on it; no allocations in the new draw code; driver-named lines come from one sentence through `Battle.logAbout`.
-- New gallery scene `combat-log`, linted at both gate sizes, and a `combatScreen-log` screen case (the drawer open via `navigate('combatScreen', { openLog: true })`) captured and linted at both. Decision record: [combat-log-content.md](./AI_TECHNICAL_DECISIONS/combat-log-content.md).
+- New gallery scene `combat-log`, linted at both gate sizes, and a `combatScreen-log` screen case (the drawer open via `navigate('combatScreen', { openLog: true })`) captured and linted at both. Decision record: [combat-log-content.md](../../docs/AI_TECHNICAL_DECISIONS/combat-log-content.md).
 
 **How:** unit tests for the log model (filtering, lines, a played turn with no dumps), the drawer (wrapping, scrolling, focus in and back, Escape), the top bar, and L through the combat screen's keyboard path; played click, drag, END TURN, L, the LOG key, and keyboard scrolling through `__dev.input` at 1280x720 and 1024x600; goldens minted by CI.
 
@@ -160,7 +160,7 @@ This document contains the chronological log of completed development tasks for 
 - `CombatScreen`: END TURN starts `EnemyTurnPacer` (a frame ticker on the mount context's clock), which steps one action per beat; the dock is disabled and End Turn says WAIT until the player's draw, and the intents shown at END TURN stay up; a fizzle pops MISS; `actingRaider` names the raider on screen. `EndTurnColumn.show` takes `waiting`.
 - Tests: Battle steps in plan order with the draw after the last step, a dropped raider is one step, a fizzle is its own, a loss ends the turn; the screen holds each beat, locks the dock, and draws after the last beat, under reduced motion too. New Playwright spec `enemyTurn.spec.ts` captures and lints the mid-turn screen at 1440x882 and 1024x600.
 - Review round: `CombatFxLayer.popNumber` gives each number the lowest free stack slot on its vehicle and an id from a counter that only goes up (three hits a beat apart used to share a slot and an id); the lead-in counts from when ENEMY TURN shows (`TurnBanner.timeToNext`); the dock stays locked once the fight is over; the 900 and 700 ms timings are in Battle Screen Design section 6; the headless callers no longer await `endPlayerTurn`.
-- Decision record: [enemy-turn-pacing.md](./AI_TECHNICAL_DECISIONS/enemy-turn-pacing.md).
+- Decision record: [enemy-turn-pacing.md](../../docs/AI_TECHNICAL_DECISIONS/enemy-turn-pacing.md).
 ## The vehicle token (2026-10-02)
 
 **What landed:** DDB-135 (DDB-127), folding in DDB-165.
@@ -171,7 +171,7 @@ This document contains the chronological log of completed development tasks for 
 - New `StatusChip` (buff, debuff, SPENT, Shield, "+N", each with a tooltip). Eight Material icons added to the icon atlas (heart, double chevrons, broken shield, fire, bolt, two crosshairs); the icons scene wraps its grid at twelve so it fits 1024.
 - `ArmorBadge` deleted. DDB-165 was already fixed on main by the icon atlas (DDB-72); the shield is now a polygon the token draws.
 - Merged after DDB-134: `RoadView.placeToken` is `fitToSlot(token.at, layout.tokenScale)`, its plate subclasses and IntentRow bookkeeping are gone (`setVehicleIntents` and `intentRowOf` go through the token), and it passes the combat screen's `seatOf` to every token.
-- Gallery scene `vehicle-tokens`. Record: [vehicle-token.md](./AI_TECHNICAL_DECISIONS/vehicle-token.md).
+- Gallery scene `vehicle-tokens`. Record: [vehicle-token.md](../../docs/AI_TECHNICAL_DECISIONS/vehicle-token.md).
 
 **How:** unit tests for geometry, fit, chips, wreck states, marks, ellipsis, lint per state, targeting; played the combat screen through `__dev.input` at 1280x720 and 1024x600 (drag, click-then-target, keyboard, end turn).
 ## The road view: lanes, rows, shoulders, and fixed slots (2026-10-02)
@@ -183,7 +183,7 @@ This document contains the chronological log of completed development tasks for 
 - A slot change swerves: progress on the animator, lanes on `ease_standard` and rows on `ease_emphasized`, the token raised while it moves. Reduced motion lands it at once; a resize lands it.
 - The turn banner centres on the rows below the header (a header-high top margin), 13 px lower than before, as the mock has it.
 - Until DDB-135's token, the old plate sits where the token's plate would, under a 24 px strip holding the raider's intents.
-- New gallery scene `combat-road`. Decision record: [road-view.md](./AI_TECHNICAL_DECISIONS/road-view.md).
+- New gallery scene `combat-road`. Decision record: [road-view.md](../../docs/AI_TECHNICAL_DECISIONS/road-view.md).
 
 **How:** unit tests for the layout and the view (slot geometry at every gate size, swerve path, reduced motion, outlines, tints, bleed); played drag, click-then-target, keyboard, Flanking Maneuver's swerve, and END TURN through `__dev.input` at 1280x720 and 1024x600; goldens minted by CI.
 
@@ -909,7 +909,7 @@ This document contains the chronological log of completed development tasks for 
 
 **Why:** no OFL Open Sans has kerning (3.000 and 3.003, static and variable, carry GPOS `mark` and `mkmk` only; upstream issue googlefonts/opensans#4 is still open), and the woff2 Google Fonts serves the mock is 3.003 with identical outlines and advances for every atlas glyph it holds, so unkerned is the mock's look. Open Sans 1.10 kerns but is Apache 2.0 and a different drawing (214 of 225 outlines differ); Noto Sans kerns but sets 1.1% wider with every advance different. Measured on all card text at 13 px, 1.10's kerning would move 26 of 4468 pairs by 0.5 px or more (largest 1.69 px): small, not zero, so the reason is mock fidelity.
 
-**How:** fontkit inspection and shaping of each candidate, recorded in [font-pipeline.md](./AI_TECHNICAL_DECISIONS/font-pipeline.md#body-text-stays-unkerned-ddb-189). `src/assets/fonts/README.md` and the zero-pairs test in `fontAssets.test.ts` point at the decision. No pixel moves.
+**How:** fontkit inspection and shaping of each candidate, recorded in [font-pipeline.md](../../docs/AI_TECHNICAL_DECISIONS/font-pipeline.md#body-text-stays-unkerned-ddb-189). `src/assets/fonts/README.md` and the zero-pairs test in `fontAssets.test.ts` point at the decision. No pixel moves.
 
 ## GPOS kerning in the font atlases (2026-09-28)
 
@@ -917,7 +917,7 @@ This document contains the chronological log of completed development tasks for 
 
 **Result:** `barlow-condensed-semibold.json` has 4982 pairs (`AV` -0.047 em, `Ta` -0.068, `LT` -0.067). Open Sans 3.000 has neither a `kern` table nor a GPOS `kern` feature, so it has none; follow-up DDB-189. JetBrains Mono has none, being monospaced. A full rebuild reproduced every PNG and the other two JSON files byte for byte. No pixel moves: the atlases are not drawn until DDB-70.
 
-**How:** synthetic-table unit tests for each resolution rule (format 1 miss falling through, class 0, lookups summing, extension, mark filtering, unsupported values failing, DFLT fallback, determinism), a cross-check against fontkit's shaper over all 2704 Barlow letter pairs, and a test that each committed `kerning[]` equals a fresh extraction from its face. Decisions in [font-pipeline.md](./AI_TECHNICAL_DECISIONS/font-pipeline.md#kerning).
+**How:** synthetic-table unit tests for each resolution rule (format 1 miss falling through, class 0, lookups summing, extension, mark filtering, unsupported values failing, DFLT fallback, determinism), a cross-check against fontkit's shaper over all 2704 Barlow letter pairs, and a test that each committed `kerning[]` equals a fresh extraction from its face. Decisions in [font-pipeline.md](../../docs/AI_TECHNICAL_DECISIONS/font-pipeline.md#kerning).
 
 ## Textures get an owner and the canvas a single viewport (2026-09-28)
 
@@ -981,7 +981,7 @@ This document contains the chronological log of completed development tasks for 
 
 ## Theme token file, generator, and drift test (2026-09-28)
 
-**What landed:** DDB-83, phase 4 of DDB-55. `src/renderer/engine/theme/tokens.json` holds every R11.3 category (colour, space, radius, border width, font size, line height, letter spacing, motion, layer, elevation, typography, control); `npm run tokens` runs `scripts/generate-tokens.mjs` to write the committed `tokens.ts`; `tokens.test.ts` fails when the committed module differs from a fresh generation. The starting theme is the battle screen mock's palette: five asphalt surfaces, bone text and lines, yellow as the warm accent (the drivers own amber and teal). Data, ok, and crit are new hues (periwinkle, mint, pink), since every hue in the mock's "one hue, one meaning" legend already has a job; Battle Screen Design section 7 and the mock legend list them now. Aliases (`status_warn` is `accent`, `radius_ui` is `r_sm`, glow colours, role sizes) resolve in the generator. Nothing reads the tokens yet, so no pixel moved; DDB-84 migrates components. Format choices, palette sources, departures from worldsim's defaults, and a literal-to-token map for DDB-84 are in [theme-tokens.md](./AI_TECHNICAL_DECISIONS/theme-tokens.md).
+**What landed:** DDB-83, phase 4 of DDB-55. `src/renderer/engine/theme/tokens.json` holds every R11.3 category (colour, space, radius, border width, font size, line height, letter spacing, motion, layer, elevation, typography, control); `npm run tokens` runs `scripts/generate-tokens.mjs` to write the committed `tokens.ts`; `tokens.test.ts` fails when the committed module differs from a fresh generation. The starting theme is the battle screen mock's palette: five asphalt surfaces, bone text and lines, yellow as the warm accent (the drivers own amber and teal). Data, ok, and crit are new hues (periwinkle, mint, pink), since every hue in the mock's "one hue, one meaning" legend already has a job; Battle Screen Design section 7 and the mock legend list them now. Aliases (`status_warn` is `accent`, `radius_ui` is `r_sm`, glow colours, role sizes) resolve in the generator. Nothing reads the tokens yet, so no pixel moved; DDB-84 migrates components. Format choices, palette sources, departures from worldsim's defaults, and a literal-to-token map for DDB-84 are in [theme-tokens.md](../../docs/AI_TECHNICAL_DECISIONS/theme-tokens.md).
 
 **How:** 25 tests: the byte-for-byte drift check (line endings ignored, for Windows checkouts); the 11.6 round trip (every token with the file's value, the three css-only font stacks absent, nothing extra); ten generator rejections (colour or easing disagreeing with its css form, unknown or missing category, duplicate leaf name, dangling alias, alias to an inherited property, alias cycle, value plus alias, a string in a numeric category); the script run through a symlink; and the 11.2 structure as assertions (surface ordering by luminance with inset below panel, line alphas in one tint, warm and cool accents with warn and info aliased, data, ok, and crit off the legend, the radius scale, the three roles, control heights and fonts, nothing below 11 px, the motion values, the layer ladder in order). Hand-editing a value in `tokens.ts` fails the drift test and `--check`.
 
@@ -1491,7 +1491,7 @@ The mechanism is recorded as unexplained in `.claude/notes/ddb55-phase1-recon.md
 **What changed:**
 - Twenty-six Linux baselines committed to `main` as `670350c`, thirteen per project, by the `update-baselines` dispatch job in [run 34310762573](https://github.com/kcjonson/dual-deck-builder/actions/runs/34310762573). That job is the only writer R14.5 permits, and it was unreachable until `visual.yml` reached the default branch, which is why DDB-59 shipped a harness with no pictures in it.
 - `continue-on-error` removed from the `visual` job and its name changed from "Screenshots (unbaselined, non-blocking)" to "Screenshots". The suite is now a merge gate.
-- The bootstrap section of [visual-golden-harness.md](./AI_TECHNICAL_DECISIONS/visual-golden-harness.md) gained a "what the bootstrap actually did" subsection recording the three things the dispatch settled, and the phase 0 checklist item in the implementation spec is ticked. Phase 0 is eight of eight.
+- The bootstrap section of [visual-golden-harness.md](../../docs/AI_TECHNICAL_DECISIONS/visual-golden-harness.md) gained a "what the bootstrap actually did" subsection recording the three things the dispatch settled, and the phase 0 checklist item in the implementation spec is ticked. Phase 0 is eight of eight.
 
 **The mint was verified before it was trusted, which was the whole point of the ordering.** A mint runs `--update-snapshots` once and has no second run to disagree with it, so whatever it captures becomes the definition of correct by default. Three checks, none of which assume the run was fine because it was green.
 
@@ -2365,7 +2365,7 @@ Unthrottled, so these say how much of a 16.67 ms budget each screen costs, not w
 - Maintained 30px spacing between stacked vehicles
 
 **Technical Decision:**
-- See [Vehicle Positioning and Wave System Design](./AI_TECHNICAL_DECISIONS/VEHICLE_POSITIONING_AND_WAVE_SYSTEM.md)
+- See [Vehicle Positioning and Wave System Design](../../docs/AI_TECHNICAL_DECISIONS/VEHICLE_POSITIONING_AND_WAVE_SYSTEM.md)
 
 =========================================
 
@@ -2487,7 +2487,7 @@ Unthrottled, so these say how much of a 16.67 ms budget each screen costs, not w
 - Component-aware coordinate transformation for input events
 
 **Technical Decision:**
-- See [Scrollable Panel Architecture](./AI_TECHNICAL_DECISIONS/scrollable-panel-architecture.md)
+- See [Scrollable Panel Architecture](../../docs/AI_TECHNICAL_DECISIONS/scrollable-panel-architecture.md)
 
 =========================================
 

@@ -1,6 +1,6 @@
 # Combat hand, targeting, and turn feedback
 
-Status: decided 2026-09-28 (fan, previews), 2026-10-01 (targeting, damage numbers), 2026-10-02 (banner, intents, discard flights), DDB-88 (DDB-55 phase 6). Design source: [Battle Screen Design](../specs/Battle%20Screen%20Design.md) sections 4 to 6 and the mock at `docs/design/battle-screen/index.html`.
+Status: decided 2026-09-28 (fan, previews), 2026-10-01 (targeting, damage numbers), 2026-10-02 (banner, intents, discard flights), DDB-88 (DDB-55 phase 6). Design source: [Battle Screen Design](../../../docs/specs/Battle%20Screen%20Design.md) sections 4 to 6 and the mock at `docs/design/battle-screen/index.html`.
 
 ## Context
 

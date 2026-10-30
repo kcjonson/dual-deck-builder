@@ -1,6 +1,6 @@
 # Component catalog, Wave B
 
-Status: in progress, 2026-09-28, DDB-86 (DDB-55 phase 5). Chapter 12 of the [UI rendering spec](../ui-rendering-spec/12-component-catalog.md), building on [component-catalog-wave-a.md](./component-catalog-wave-a.md).
+Status: in progress, 2026-09-28, DDB-86 (DDB-55 phase 5). Chapter 12 of the [UI rendering spec](../../../docs/ui-rendering-spec/12-component-catalog.md), building on [component-catalog-wave-a.md](./component-catalog-wave-a.md).
 
 Wave B lands as sequential pull requests by component group:
 

@@ -1,7 +1,7 @@
 # Stack container and the layout protocol
 
 Status: implemented (DDB-81, DDB-55 phase 4), 2026-09-28
-Spec: chapter 10 of the [UI rendering spec](../ui-rendering-spec/10-layout.md) (R10.1 to R10.18), R8.1's `measure` and `assignSize`, R8.18, R8.21, R13.25.1
+Spec: chapter 10 of the [UI rendering spec](../../../docs/ui-rendering-spec/10-layout.md) (R10.1 to R10.18), R8.1's `measure` and `assignSize`, R8.18, R8.21, R13.25.1
 Builds on: [mount-context-and-frame-order.md](./mount-context-and-frame-order.md) (the layout phase, relayout boundaries, upward invalidation) and [text-component-metrics.md](./text-component-metrics.md) (Text's hug sizing)
 
 ## Problem

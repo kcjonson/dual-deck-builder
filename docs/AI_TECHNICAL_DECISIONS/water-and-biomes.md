@@ -1,6 +1,6 @@
 # Water, biomes, hazards, and the cost of a move (DDB-289)
 
-Date: 2026-10-09. Code: `src/renderer/game/map/` (`Water.ts`, `Rivers.ts`, `Lakes.ts`, and `Terrain.ts` laying them over the land; `AreaMapPipeline.ts` runs the stage; `worker/mapGenerationProtocol.ts` carries it across the worker boundary), and `ui/areaMap/` (`terrainBake.ts`, `riverGeometry.ts`, `AreaMapView.ts`), timed by `scripts/terrain-bench.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 2. Water and 3. Biomes, hazards, and cost. Builds Map 5 of [realistic-map.md](./realistic-map.md) on the land of [terrain-erosion.md](./terrain-erosion.md), and replaces its canyon, badlands, and lowland stand-ins and terrain-fields.md's moisture layer, rough-country lattice, and biome costs.
+Date: 2026-10-09. Code: `_legacy/src/renderer/game/map/` (`Water.ts`, `Rivers.ts`, `Lakes.ts`, and `Terrain.ts` laying them over the land; `AreaMapPipeline.ts` runs the stage; `worker/mapGenerationProtocol.ts` carries it across the worker boundary), and `ui/areaMap/` (`terrainBake.ts`, `riverGeometry.ts`, `AreaMapView.ts`), timed by `_legacy/scripts/terrain-bench.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 2. Water and 3. Biomes, hazards, and cost. Builds Map 5 of [realistic-map.md](./realistic-map.md) on the land of [terrain-erosion.md](./terrain-erosion.md), and replaces its canyon, badlands, and lowland stand-ins and terrain-fields.md's moisture layer, rough-country lattice, and biome costs.
 
 ## Context
 
@@ -152,7 +152,7 @@ Outward growth stays until Map 7, adapted only where the water and the move cost
 - Rivers aren't walls for the wall lookahead or the branch room probes, since a road can bridge them.
 - A back road degrades on its running cost over the land, bridges aside, so crossing a river doesn't turn it into a trail.
 
-`node scripts/road-growth.mjs check --maps 100` finds no map failing a first attempt across the tuning ranges, and the property tests pass. Over five environments by three seeds at radius 1000 (`road-growth.mjs bench`):
+`node _legacy/scripts/road-growth.mjs check --maps 100` finds no map failing a first attempt across the tuning ranges, and the property tests pass. Over five environments by three seeds at radius 1000 (`road-growth.mjs bench`):
 
 | | main | first cut | this |
 | --- | --- | --- | --- |
@@ -172,7 +172,7 @@ The water adds about 30 bytes a cell: 2 MB at radius 1000 and 5 MB at 1600, besi
 
 ## Rendering
 
-- The bake blends the land's colour (above), fills lakes from the depth field, a bilinear lookup per texel, with a darker shore where a texel beside one is dry, and draws craters as before. Cliffs are `cliffDepth` every second texel, closed (each node takes the most round it, then the least of that, which fills a gap or notch a node or two wide), and read bilinear with the edge anti-aliased over a texel by the field's own gradient. `scripts/area-map-bake-bench.mjs` now bakes the land with its water: a median of 68 ms at radius 1000 and 119 ms at 1600, over five environments by two seeds on the same shared desktop.
+- The bake blends the land's colour (above), fills lakes from the depth field, a bilinear lookup per texel, with a darker shore where a texel beside one is dry, and draws craters as before. Cliffs are `cliffDepth` every second texel, closed (each node takes the most round it, then the least of that, which fills a gap or notch a node or two wide), and read bilinear with the edge anti-aliased over a texel by the field's own gradient. `_legacy/scripts/area-map-bake-bench.mjs` now bakes the land with its water: a median of 68 ms at radius 1000 and 119 ms at 1600, over five environments by two seeds on the same shared desktop.
 - Rivers draw live, under the fog and the roads, as runs of one width each, widths rounded to 0.75 units so a river widens in a few steps, at their world width but never under a pixel, simplified by zoom as the roads are, and fainter past the rim, where the land fades but the rivers go on. A `water` layer toggle turns them off.
 - Dam marks, river names, and the atlas palette are Map 19's.
 
@@ -184,7 +184,7 @@ Everything on the gameplay path is adds, multiplies, divides, compares, square r
 
 ## Performance
 
-`node scripts/terrain-bench.mjs --radii 800,1000,1200,1600 --runs 3 --seeds 3`, Node 24, the same shared desktop as Map 4's figures, busy enough that runs of the same code differ by a fifth or more; Mixed at radius 1600 is one slow run. Medians of three seeds, with the rivers and lakes a map makes:
+`node _legacy/scripts/terrain-bench.mjs --radii 800,1000,1200,1600 --runs 3 --seeds 3`, Node 24, the same shared desktop as Map 4's figures, busy enough that runs of the same code differ by a fifth or more; Mixed at radius 1600 is one slow run. Medians of three seeds, with the rivers and lakes a map makes:
 
 | Radius | Water stage, ms: Mixed | High Desert | Rust Belt | Floodlands | Badlands | Fields, ms: worker | client | Water rebuild, ms | Rivers | Lakes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

@@ -1,6 +1,6 @@
 # Balance Simulation
 
-Status: designed 2026-10-17. The tools that say whether runs and fights hit their targets ([Runs and Encounters](./Runs%20and%20Encounters.md), Just hard enough): one deterministic simulation core, a command line tool over it for sweeps and CI, and a browser Balance Lab for trying a change and seeing what it does. It grows out of raider-sim, the fight simulator in [raider-tuning.md](../AI_TECHNICAL_DECISIONS/raider-tuning.md), and takes over from the old evalai.html harness.
+Status: designed 2026-10-17. The tools that say whether runs and fights hit their targets ([Runs and Encounters](./Runs%20and%20Encounters.md), Just hard enough): one deterministic simulation core, a command line tool over it for sweeps and CI, and a browser Balance Lab for trying a change and seeing what it does. It grows out of raider-sim, the fight simulator in [raider-tuning.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/raider-tuning.md), and takes over from the old evalai.html harness.
 
 ## What it answers
 
@@ -12,7 +12,7 @@ Status: designed 2026-10-17. The tools that say whether runs and fights hit thei
 
 ## The core
 
-The core lives in `src/renderer/game/sim/`, as game code under the same rules:
+The core lives in `_legacy/src/renderer/game/sim/`, as game code under the same rules:
 
 - Relative imports only, since the build scripts resolve `./` paths, and JSON through imports.
 - No DOM, `fetch` or `CardLoader`, localStorage, or `__DEV_TOOLS__`, so the same code runs in Node and in a Web Worker. No `const enum`, which per-file transpiling can't see through.
@@ -41,7 +41,7 @@ Every rate carries its count and a 90% interval, so a 3-point move on 100 runs i
 
 ## The command line tool
 
-`node scripts/balance-sim.mjs <mode> [options]` transpiles the code it reaches into a temporary folder and runs it in a child process, clear of Jest. The transpile walker is one shared helper, `scripts/transpiled.mjs`, that balance-sim, road-network, terrain-bench, and area-map-bake-bench all use. Cells run in parallel in `worker_threads`, two by default to keep the machine responsive.
+`node _legacy/scripts/balance-sim.mjs <mode> [options]` transpiles the code it reaches into a temporary folder and runs it in a child process, clear of Jest. The transpile walker is one shared helper, `_legacy/scripts/transpiled.mjs`, that balance-sim, road-network, terrain-bench, and area-map-bake-bench all use. Cells run in parallel in `worker_threads`, two by default to keep the machine responsive.
 
 ### gen
 
@@ -95,7 +95,7 @@ A browser page for trying a change and seeing what it does. It takes evalai.html
 - Export: the edited tuning as JSON in the `--config` format, to try in the CLI or check into the data.
 - Play it: open any encounter in the game's own combat screen, against any crew, to play by hand.
 
-With the Lab in, evalai.html, `src/ai-evaluator.ts`, and their untyped scripts in `public/` retire, which settles DDB-40 for that harness. battle.html retires once the Lab can open an encounter in the combat screen.
+With the Lab in, evalai.html, `_legacy/src/ai-evaluator.ts`, and their untyped scripts in `public/` retire, which settles DDB-40 for that harness. battle.html retires once the Lab can open an encounter in the combat screen.
 
 ## Player stand-ins
 
@@ -149,7 +149,7 @@ Own road and neighbors on the same maps, as `gen` prints them. A route's own roa
 
 The last column is over routes with a fight. Every POI shares road with another.
 
-`fights`, as `node scripts/balance-sim.mjs fights --runs 100 --routes 1,2,3,1+1,1+2 --crews pairs` (seed 1, the aggressive AI on both sides). Lost and turns are over the runs won.
+`fights`, as `node _legacy/scripts/balance-sim.mjs fights --runs 100 --routes 1,2,3,1+1,1+2 --crews pairs` (seed 1, the aggressive AI on both sides). Lost and turns are over the runs won.
 
 | Crew | Route | Won | By seat | Stalled | HP lost | Structure lost | Turns |
 |---|---|---|---|---|---|---|---|

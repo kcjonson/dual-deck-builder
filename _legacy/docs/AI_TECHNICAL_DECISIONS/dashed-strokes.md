@@ -1,11 +1,11 @@
 # Dashed strokes: a line style the shader draws
 
 ## Date
-2026-10-25, DDB-554. Rules: [ui-rendering-spec](../ui-rendering-spec/02-draw-api.md) R2.8 (one draw group per call), R2.10 (`drawLine`, `drawPolyline`), R2.10a (`dash`), R5.16 (lines as quads), R5.16a (dashed strokes in the fragment stage), R15.8 (derivatives before the mode switch).
+2026-10-25, DDB-554. Rules: [ui-rendering-spec](../../../docs/ui-rendering-spec/02-draw-api.md) R2.8 (one draw group per call), R2.10 (`drawLine`, `drawPolyline`), R2.10a (`dash`), R5.16 (lines as quads), R5.16a (dashed strokes in the fragment stage), R15.8 (derivatives before the mode switch).
 
 ## Context
 
-Three things on the combat screen draw broken lines: the aiming line from a card to its reticle (`TargetingArrow`) and the hand's target preview (`TargetPreview`, [hand-target-preview.md](./hand-target-preview.md)) draw dotted arcs, a dot of radius 2.5 every 12 px, and the end-turn preview (`EndTurnPreview`) draws its intent lines in 6 px dashes with 5 px gaps. Each dot was a `drawCircle` and each dash a `drawLine`, so every one was a capture of the ambient state, a copied command, and a draw group. A review of PR #276 measured the preview on a board where Fall In fans out over three escorts and their empty slots at 303 draw groups, against 714 for the rest of the combat screen.
+Three things on the combat screen draw broken lines: the aiming line from a card to its reticle (`TargetingArrow`) and the hand's target preview (`TargetPreview`, [hand-target-preview.md](../../../docs/AI_TECHNICAL_DECISIONS/hand-target-preview.md)) draw dotted arcs, a dot of radius 2.5 every 12 px, and the end-turn preview (`EndTurnPreview`) draws its intent lines in 6 px dashes with 5 px gaps. Each dot was a `drawCircle` and each dash a `drawLine`, so every one was a capture of the ambient state, a copied command, and a draw group. A review of PR #276 measured the preview on a board where Fall In fans out over three escorts and their empty slots at 303 draw groups, against 714 for the rest of the combat screen.
 
 ## Options considered
 

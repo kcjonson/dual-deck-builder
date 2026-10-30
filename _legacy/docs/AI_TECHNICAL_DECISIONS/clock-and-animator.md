@@ -1,7 +1,7 @@
 # Clock and animator
 
 Status: implemented (DDB-74), 2026-09-28
-Spec: R8.28, R8.15, R8.27, R11.13, R13.37 of the [UI rendering spec](../ui-rendering-spec/08-object-model.md)
+Spec: R8.28, R8.15, R8.27, R11.13, R13.37 of the [UI rendering spec](../../../docs/ui-rendering-spec/08-object-model.md)
 Builds on: [mount-context-and-frame-order.md](./mount-context-and-frame-order.md)
 
 ## Problem

@@ -5,7 +5,7 @@
 
 ## Context
 
-Playtesting happens on the web build of main, mirrored to bearcavinteractive.com/playtest/dual-deckbuilder/ on every push ([prototype-ci.md](./prototype-ci.md), `deploy-sftp.yml`). The game is migrating to C++ on the salal engine, and Kevin has decided WebAssembly is not an engine target, so there will be no browser build of the ported game. The channel playtesters use has to change before the port lands, or the port lands with no way to play it.
+Playtesting happens on the web build of main, mirrored to bearcavinteractive.com/playtest/dual-deckbuilder/ on every push ([prototype-ci.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/prototype-ci.md), `deploy-sftp.yml`). The game is migrating to C++ on the salal engine, and Kevin has decided WebAssembly is not an engine target, so there will be no browser build of the ported game. The channel playtesters use has to change before the port lands, or the port lands with no way to play it.
 
 CI already packages Electron for Windows and macOS (`main.yml`, the `electron` job), nightly and when packaging files change, and keeps the result as a 7-day workflow artifact nobody downloads. Nothing is signed. Spec: [playtest-distribution.md](../specs/playtest-distribution.md).
 

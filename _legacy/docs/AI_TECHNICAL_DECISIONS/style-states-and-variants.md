@@ -1,6 +1,6 @@
 # State flags, layered style resolution, and the closed style set
 
-Status: decided 2026-09-28 with DDB-84 (phase 4 of DDB-55). Rules R11.10 to R11.16 in [chapter 11](../ui-rendering-spec/11-style-and-theme.md); tokens from [theme-tokens.md](./theme-tokens.md); transitions run on the animator from [clock-and-animator.md](./clock-and-animator.md); `hovered` and focus come from the dispatcher in [input-dispatcher.md](./input-dispatcher.md).
+Status: decided 2026-09-28 with DDB-84 (phase 4 of DDB-55). Rules R11.10 to R11.16 in [chapter 11](../../../docs/ui-rendering-spec/11-style-and-theme.md); tokens from [theme-tokens.md](../../../docs/AI_TECHNICAL_DECISIONS/theme-tokens.md); transitions run on the animator from [clock-and-animator.md](./clock-and-animator.md); `hovered` and focus come from the dispatcher in [input-dispatcher.md](./input-dispatcher.md).
 
 ## What exists
 

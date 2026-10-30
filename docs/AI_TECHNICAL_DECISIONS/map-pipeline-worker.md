@@ -1,12 +1,12 @@
 # The map pipeline runner and its worker (DDB-446)
 
-Date: 2026-10-09, revised 2026-10-10 for founding and loading (DDB-467). Code: `src/renderer/game/map/MapPipeline.ts` (the runner), `AreaMapPipeline.ts` (the stages), `map/worker/` (the worker, its client, the transfer format, and the dev hook), and `campaign/CampaignFounding.ts` and `campaign/CampaignMaps.ts` (founding on a generated map, and the session's map). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, Validation and retries, Performance, and Saving. Follows [realistic-map.md](./realistic-map.md), decision 5, and builds on [seeded-prng.md](./seeded-prng.md), [map-params.md](./map-params.md), and [campaign-founding.md](./campaign-founding.md).
+Date: 2026-10-09, revised 2026-10-10 for founding and loading (DDB-467). Code: `_legacy/src/renderer/game/map/MapPipeline.ts` (the runner), `AreaMapPipeline.ts` (the stages), `map/worker/` (the worker, its client, the transfer format, and the dev hook), and `campaign/CampaignFounding.ts` and `campaign/CampaignMaps.ts` (founding on a generated map, and the session's map). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, Validation and retries, Performance, and Saving. Follows [realistic-map.md](./realistic-map.md), decision 5, and builds on [seeded-prng.md](./seeded-prng.md), [map-params.md](./map-params.md), and [campaign-founding.md](./campaign-founding.md).
 
 ## Context
 
 The spec runs generation as a pipeline: each stage on a stream forked from its upstream's winning stream with its own name and attempt, each with its own checks and an optional `accept(map, stage)` hook after them, a local-retry stage's optional `keepable(problems)` saying which failing attempts it may keep, 8 attempts a stage and then a whole-map restart up to 32, stops and dressing retrying only themselves, and debug and release builds parting ways past each cap. It runs once, at founding, in a Web Worker in the web build and the Electron renderer alike.
 
-Before the runner, three places chained terrain, highways, and growth by hand on flat streams, `root.fork('map', 0).fork(stage, attempt)`, with no checks and no retries: `roadTesting.growMap`, `scripts/road-growth.mjs`, and the gallery's area map fixture.
+Before the runner, three places chained terrain, highways, and growth by hand on flat streams, `root.fork('map', 0).fork(stage, attempt)`, with no checks and no retries: `roadTesting.growMap`, `_legacy/scripts/road-growth.mjs`, and the gallery's area map fixture.
 
 What the worker had to fit:
 
@@ -47,7 +47,7 @@ An escalation could instead have been a failure a stage returns naming the stage
 
 Terrain, water (water-and-biomes.md), hazards and places (places.md), the roads (road-network.md), then the route tree and the POIs (route-tree-and-pois.md). The highways and growth stages this record started with were stand-ins until the places and the road links and graph (Maps 6 to 8) replaced them. The roads' check is too few loops, a place no road reaches, and `checkRoadNetwork`, the network checks the map validator will run, worded `rule: detail`.
 
-Terrain is the first stage, so its stream is `root.fork('map', m).fork('terrain', t)`, and every stage after nests under the one before. `roadTesting.roadMap`, `scripts/road-network.mjs`, and the gallery's `fixtureAreaMap` all run the runner.
+Terrain is the first stage, so its stream is `root.fork('map', m).fork('terrain', t)`, and every stage after nests under the one before. `roadTesting.roadMap`, `_legacy/scripts/road-network.mjs`, and the gallery's `fixtureAreaMap` all run the runner.
 
 Retries can hide a regression from a test: a network that breaks a road rule is retried, and the test sees the attempt that passed. So `roadMap` throws on any failure but too few loops, which the spec retries on purpose, naming what failed. `road-network.mjs check` reports each stage's first-attempt pass rate, the spec's health metric.
 
@@ -86,13 +86,13 @@ Options:
 
 The cost of option 1 is the `import.meta` that CommonJS can't type. TypeScript still emits it untouched, so one `@ts-expect-error` on the `new URL(...)` argument in `spawnMapWorker.ts` covers it, leaving the Worker's options type-checked, and webpack resolves it at build time; the directive turns into an error of its own if the project moves to ES modules. Jest runs the CommonJS as it is, so `jest.config.js` maps that module to a stub that spawns nothing, beside the asset and shader stubs, and the client runs in-process there. Nothing else in the client knows about webpack.
 
-Neither build sets a Content-Security-Policy (no meta tag in `public/`, no header handler in `electron/main.ts`), so nothing restricts workers. A CSP needs `worker-src 'self'`. The web dev server's cross-origin isolation is satisfied as is: the worker's scripts come from the same server, with the same headers.
+Neither build sets a Content-Security-Policy (no meta tag in `public/`, no header handler in `_legacy/electron/main.ts`), so nothing restricts workers. A CSP needs `worker-src 'self'`. The web dev server's cross-origin isolation is satisfied as is: the worker's scripts come from the same server, with the same headers.
 
 The client starts a worker wherever `Worker` exists. It generates in-process instead, after a warning, if the platform refuses one or the worker fails before its first reply, which is how a chunk that didn't load shows up; a failure after a reply rejects. It reports progress, resolves with the decoded map and its wall and decode times, and `cancel()` terminates the worker and rejects with `MapGenerationCancelled`, the way an aborted fetch rejects, without leaving an unhandled rejection when nothing awaits it.
 
 ### Showing it
 
-Development builds have `window.__map.generate(set?, { inProcess? })`, installed from Game's `__DEV_TOOLS__` branch beside the other debug hooks. It makes the map in a worker (or on the page's thread, for comparison), logs one line of where the time went, and resolves with the same numbers for a script to read; `__map.start(set?)` hands back the `MapGeneration` itself, to watch or cancel. With no map section on the Developer screen, a hook leaves `sections.ts` untouched. A production bundle never carries the hook. It carries the worker chunk, since founding imports the client, and the packaged-build smoke test (`scripts/smoke-electron-package.mjs`, which CI runs on Windows and macOS) starts that chunk from inside the asar, the one path no development run covers: a reply, even to a request it can't use, means the chunk and the chunks it shares with the page loaded.
+Development builds have `window.__map.generate(set?, { inProcess? })`, installed from Game's `__DEV_TOOLS__` branch beside the other debug hooks. It makes the map in a worker (or on the page's thread, for comparison), logs one line of where the time went, and resolves with the same numbers for a script to read; `__map.start(set?)` hands back the `MapGeneration` itself, to watch or cancel. With no map section on the Developer screen, a hook leaves `sections.ts` untouched. A production bundle never carries the hook. It carries the worker chunk, since founding imports the client, and the packaged-build smoke test (`_legacy/scripts/smoke-electron-package.mjs`, which CI runs on Windows and macOS) starts that chunk from inside the asar, the one path no development run covers: a reply, even to a request it can't use, means the chunk and the chunks it shares with the page loaded.
 
 ## Timings
 

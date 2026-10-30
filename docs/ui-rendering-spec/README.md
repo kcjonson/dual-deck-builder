@@ -33,11 +33,11 @@ Read chapters 0 to 3 in order; they define the vocabulary, the layers, the draw 
 | [12](12-component-catalog.md) | Required components and their behaviour contracts |
 | [13](13-observability-and-performance.md) | Frame timer, batcher counters, GPU timer, tree snapshot, lint, gallery, screenshots, injection, perf capture |
 | [14](14-testing-and-conformance.md) | Test layers, gates, conformance scoring of both reference implementations |
-| [15](15-backend-webgl2.md) | WebGL2 and Electron specifics, port risks |
+| [15](../../_legacy/docs/ui-rendering-spec/15-backend-webgl2.md) | WebGL2 and Electron specifics, port risks |
 | [16](16-backend-opengl.md) | OpenGL mapping and the worldsim gap list |
-| [17](17-review-log.md) | Review findings and their resolutions |
+| [17](../../_legacy/docs/ui-rendering-spec/17-review-log.md) | Review findings and their resolutions |
 | [research/](research/README.md) | The five research reports the specification was abstracted from (worldsim's draw core, components, and tooling; the sibling engine audit; web prior art with sources) |
-| [review/](review/README.md) | The independent review reports that challenged the first draft |
+| [review/](../../_legacy/docs/ui-rendering-spec/review/README.md) | The independent review reports that challenged the first draft |
 
 ## Conformance levels
 

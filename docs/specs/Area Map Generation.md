@@ -342,7 +342,7 @@ A section of the Developer screen for generating maps and tuning the parameters 
 - Regeneration on change, debounced and cached by stage. A step-through for erosion and for road links (play, pause, step) to watch the land and the network form.
 - "Roll campaign params" previews what the finished game would roll for the current seed.
 - Readout: each guarantee pass or fail, attempts per stage, milliseconds per stage, any parameter clamps, and counts (nodes, stretches, loops, road length by class, meeting points, POIs per ring against their targets, three-route POIs, stops by type).
-- Presets: save and load parameter sets as JSON, kept in the repo (`src/renderer/game/data/mapPresets/`), and copy the current parameters to the clipboard. A preset holds the seed, the environment, and only the values that override the environment; a complete parameter set is a preset with every value overridden. An unknown parameter in a preset is an error, so a misspelling can't be dropped silently. Seed plus parameters reproduces a map exactly, though a preset that leaves values to its environment follows that environment's tuning.
+- Presets: save and load parameter sets as JSON, kept in the repo (`_legacy/src/renderer/game/data/mapPresets/`), and copy the current parameters to the clipboard. A preset holds the seed, the environment, and only the values that override the environment; a complete parameter set is a preset with every value overridden. An unknown parameter in a preset is an error, so a misspelling can't be dropped silently. Seed plus parameters reproduces a map exactly, though a preset that leaves values to its environment follows that environment's tuning.
 - "Start a campaign here" founds a compound on the current map, for playtesting.
 
 ## Testing

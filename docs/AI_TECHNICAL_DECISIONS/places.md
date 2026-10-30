@@ -1,6 +1,6 @@
 # Places and hazards (DDB-442)
 
-Date: 2026-10-10. Code: `src/renderer/game/map/` (`Hazards.ts`, `Places.ts`, `PlaceNames.ts`, `Terrain.ts` laying the hazards over the land; `AreaMapPipeline.ts` runs the stages; `worker/mapGenerationProtocol.ts` carries them across the worker boundary), and `ui/areaMap/` (`AreaMapView.ts`, `terrainBake.ts`), timed and drawn by `scripts/road-network.mjs places` and `png`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, 3. Biomes, hazards, and cost, and 4. Settlements. Builds Map 6 of [realistic-map.md](./realistic-map.md) on the water of [water-and-biomes.md](./water-and-biomes.md), and replaces terrain-fields.md's town placement and the old `highways` stand-in stage.
+Date: 2026-10-10. Code: `_legacy/src/renderer/game/map/` (`Hazards.ts`, `Places.ts`, `PlaceNames.ts`, `Terrain.ts` laying the hazards over the land; `AreaMapPipeline.ts` runs the stages; `worker/mapGenerationProtocol.ts` carries them across the worker boundary), and `ui/areaMap/` (`AreaMapView.ts`, `terrainBake.ts`), timed and drawn by `_legacy/scripts/road-network.mjs places` and `png`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, 3. Biomes, hazards, and cost, and 4. Settlements. Builds Map 6 of [realistic-map.md](./realistic-map.md) on the water of [water-and-biomes.md](./water-and-biomes.md), and replaces terrain-fields.md's town placement and the old `highways` stand-in stage.
 
 ## Context
 
@@ -100,7 +100,7 @@ Everything on the gameplay path is adds, multiplies, divides, compares, and squa
 
 ## Performance
 
-`node scripts/road-network.mjs places --seeds 3 --repeat 2`, Node 24 on the shared desktop, medians over five environments by three seeds, each map's fastest of two runs:
+`node _legacy/scripts/road-network.mjs places --seeds 3 --repeat 2`, Node 24 on the shared desktop, medians over five environments by three seeds, each map's fastest of two runs:
 
 | Radius | Hazards, ms | Places, ms | Slowest places, ms | Crossroads |
 | --- | --- | --- | --- | --- |

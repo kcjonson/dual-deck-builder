@@ -25,4 +25,4 @@ The game follows a run-based roguelike structure. Players embark on perilous jou
    - **Defeat (Lose Scenarios):**
       - **One Driver Down:** If one driver's vehicle is destroyed, they are incapacitated. The remaining driver might receive a temporary
 
-_The original document ends here, mid-sentence. Its content was carried forward and expanded in [Gameplay Mechanics and Style](../specs/Gameplay%20Mechanics%20and%20Style.md)._
+_The original document ends here, mid-sentence. Its content was carried forward and expanded in [Gameplay Mechanics and Style](../../../docs/specs/Gameplay%20Mechanics%20and%20Style.md)._

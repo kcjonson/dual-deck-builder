@@ -1,15 +1,15 @@
 # Theme tokens: file format, generator, starting palette
 
-Status: decided 2026-09-28 with DDB-83 (phase 4 of DDB-55). Rules R11.1 to R11.9 in [chapter 11](../ui-rendering-spec/11-style-and-theme.md); the toolchain line in the [implementation spec](../specs/ui-rendering-engine-implementation.md) section 5.
+Status: decided 2026-09-28 with DDB-83 (phase 4 of DDB-55). Rules R11.1 to R11.9 in [chapter 11](../ui-rendering-spec/11-style-and-theme.md); the toolchain line in the [implementation spec](../../_legacy/docs/specs/ui-rendering-engine-implementation.md) section 5.
 
 ## What exists
 
-- `src/renderer/engine/theme/tokens.json`: the only place a theme value is written.
-- `scripts/generate-tokens.mjs`: plain Node, no dependencies. `npm run tokens` writes `tokens.ts`; `--check` exits 1 when it is stale; `--stdout` prints it; `--input <file>` reads another source (the tests use it).
-- `src/renderer/engine/theme/tokens.ts`: generated, committed, `as const`. Consumers read `tokens.color.accent`, `tokens.control.control_h_md`, and so on (R11.4's namespacing).
-- `src/renderer/engine/theme/tokens.test.ts`: the drift test (spawns the generator and compares its output to the committed file byte for byte), the round trip of 11.6 (every token present with the file's value, css-only tokens absent, nothing extra), the generator's rejections, and the 11.2 structure rules as assertions.
+- `_legacy/src/renderer/engine/theme/tokens.json`: the only place a theme value is written.
+- `_legacy/scripts/generate-tokens.mjs`: plain Node, no dependencies. `npm run tokens` writes `tokens.ts`; `--check` exits 1 when it is stale; `--stdout` prints it; `--input <file>` reads another source (the tests use it).
+- `_legacy/src/renderer/engine/theme/tokens.ts`: generated, committed, `as const`. Consumers read `tokens.color.accent`, `tokens.control.control_h_md`, and so on (R11.4's namespacing).
+- `_legacy/src/renderer/engine/theme/tokens.test.ts`: the drift test (spawns the generator and compares its output to the committed file byte for byte), the round trip of 11.6 (every token present with the file's value, css-only tokens absent, nothing extra), the generator's rejections, and the 11.2 structure rules as assertions.
 
-Button and Input consume them since DDB-84 ([style-states-and-variants.md](./style-states-and-variants.md)), which also added `bg_pressed`.
+Button and Input consume them since DDB-84 ([style-states-and-variants.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/style-states-and-variants.md)), which also added `bg_pressed`.
 
 ## File format
 
@@ -19,14 +19,14 @@ Choices made, with what lost:
 
 - Numeric value first, css beside it. R11.1 says the file holds the renderer's form. Worldsim went the other way (prototype CSS first, floats derived), which suits a repo whose source of truth is a web prototype; ours is not. The cost is that a colour is written twice, so the generator parses the css form and rejects a pair more than half an 8-bit step apart. Same for an easing's `cubic-bezier()`. The floats are rounded to four places.
 - Aliases are fully qualified (`radius.r_sm`, never `r_sm`) so a cross-category alias reads the same as a same-category one. Leaf names are unique across the whole file anyway (R11.4), enforced by the generator, so the qualification is for the reader.
-- The generated module carries resolved values, with `// = radius.r_sm` beside an alias. It exports no alias table. Themes beyond the base came later and resolve their aliases in the generator too ([theme-selection.md](./theme-selection.md)).
+- The generated module carries resolved values, with `// = radius.r_sm` beside an alias. It exports no alias table. Themes beyond the base came later and resolve their aliases in the generator too ([theme-selection.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/theme-selection.md)).
 - `cssOnly` tokens (the three font stacks) are kept for the design mocks and skipped by the generator, which 11.6 requires a test for; the test also asserts at least one exists so that skip path can't go untested by accident.
 - The drift test spawns the real script rather than importing it. Jest here is ts-jest over CommonJS, which can't load an `.mjs` without `--experimental-vm-modules`; spawning costs about 80 ms and tests the actual CLI CI would run.
 - Validation lives in the generator (categories, shapes, colour ranges, cycles, duplicate leaves), so a bad edit fails at `npm run tokens` with the token's path in the message. The one check that needs TypeScript, that `layer` tokens name exactly the chapter 3 ladder in `draw/layers.ts`, is in the test.
 
 ## Starting palette
 
-The colours in today's screens are not a theme: about 130 distinct colour literals under `src/renderer`, several blue-purple panel greys (`#2a2a3a`, `#4a4a5a`, `#1a1a33`), a developer style guide of saturated primaries (`#3366ff`, `#ff6600`), and nothing resembling two accents over five surfaces. The decided visual direction is the battle screen mock (`docs/design/battle-screen/index.html`, linked from [Battle Screen Design](../specs/Battle%20Screen%20Design.md)), whose `:root` already is most of a token set. The theme takes its values from there and fills what the mock lacks.
+The colours in today's screens are not a theme: about 130 distinct colour literals under `_legacy/src/renderer`, several blue-purple panel greys (`#2a2a3a`, `#4a4a5a`, `#1a1a33`), a developer style guide of saturated primaries (`#3366ff`, `#ff6600`), and nothing resembling two accents over five surfaces. The decided visual direction is the battle screen mock (`docs/design/battle-screen/index.html`, linked from [Battle Screen Design](../specs/Battle%20Screen%20Design.md)), whose `:root` already is most of a token set. The theme takes its values from there and fills what the mock lacks.
 
 | Token | Value | From |
 |---|---|---|

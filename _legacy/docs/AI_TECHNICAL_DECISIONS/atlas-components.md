@@ -1,6 +1,6 @@
 # The atlas components
 
-Date: 2026-10-16, with DDB-505 (epic DDB-500). Spec: [UI Art Direction](../specs/UI%20Art%20Direction.md), Components and Card hints. Rules: R11.7, R11.9, R11.12, R11.13, R12.7, R12.16, R12.18, R12.19, R5.17, R10.15, R3.28. Builds on [theme-selection.md](./theme-selection.md). The atlas is the playtest direction, not the final UI.
+Date: 2026-10-16, with DDB-505 (epic DDB-500). Spec: [UI Art Direction](../../../docs/specs/UI%20Art%20Direction.md), Components and Card hints. Rules: R11.7, R11.9, R11.12, R11.13, R12.7, R12.16, R12.18, R12.19, R5.17, R10.15, R3.28. Builds on [theme-selection.md](./theme-selection.md). The atlas is the playtest direction, not the final UI.
 
 ## Context
 
@@ -41,7 +41,7 @@ The catalog Button still can't be the highway: border width and label size aren'
 
 ## The art
 
-Every baked piece goes through `drawAtlasArt(draw, { name, rect, tint })` in `atlasArt.ts`, which is `drawUiArt` from the UI art atlas ([ui-art-atlas.md](./ui-art-atlas.md)): the 2x raster by the frame's ratio, nine-slicing where a piece has insets. The sheet, legend boxes, tape, card backs and edges, resource icons, the deck glyph, the highlighter, and the grease loops all draw from it. With the page not resident a surface draws as a flat tint and the rest return false, and each part keeps a flat stand-in for that case (and for tests, which have no page).
+Every baked piece goes through `drawAtlasArt(draw, { name, rect, tint })` in `atlasArt.ts`, which is `drawUiArt` from the UI art atlas ([ui-art-atlas.md](../../../docs/AI_TECHNICAL_DECISIONS/ui-art-atlas.md)): the 2x raster by the frame's ratio, nine-slicing where a piece has insets. The sheet, legend boxes, tape, card backs and edges, resource icons, the deck glyph, the highlighter, and the grease loops all draw from it. With the page not resident a surface draws as a flat tint and the rest return false, and each part keeps a flat stand-in for that case (and for tests, which have no page).
 
 Surfaces take their wear by size: `paperPiece` gives W2 only to a surface at least 288 px on its short side and W3 at 352, W1 below, so a small panel never squeezes a worn piece's corners. The fresh (W0) legend box is a flat fill, never art, per the wear standards. The loop's stroke sits inside its piece, so the piece is drawn further out (20 px) than the flat loop (12 px).
 

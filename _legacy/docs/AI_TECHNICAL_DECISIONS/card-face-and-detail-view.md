@@ -1,6 +1,6 @@
 # Card face and pinnable detail view
 
-Status: decided 2026-10-02, DDB-137 (DDB-127), with DDB-204 and DDB-172. Design source: [Battle Screen Design](../specs/Battle%20Screen%20Design.md) sections 4 to 8 and the mock's `.card`, `.cdetail` and `.kwpanel` at `docs/design/battle-screen/index.html`.
+Status: decided 2026-10-02, DDB-137 (DDB-127), with DDB-204 and DDB-172. Design source: [Battle Screen Design](../../../docs/specs/Battle%20Screen%20Design.md) sections 4 to 8 and the mock's `.card`, `.cdetail` and `.kwpanel` at `docs/design/battle-screen/index.html`.
 
 ## Context
 

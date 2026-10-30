@@ -1,6 +1,6 @@
 # Terrain fields (DDB-288)
 
-Date: 2026-10-07. Code: `src/renderer/game/map/` (`Noise.ts`, `Terrain.ts`, `Biome.ts`, `TerrainSites.ts`), timed by `scripts/terrain-bench.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 1. Terrain. Follows [seeded-prng.md](./seeded-prng.md) and [map-params.md](./map-params.md).
+Date: 2026-10-07. Code: `_legacy/src/renderer/game/map/` (`Noise.ts`, `Terrain.ts`, `Biome.ts`, `TerrainSites.ts`), timed by `_legacy/scripts/terrain-bench.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 1. Terrain. Follows [seeded-prng.md](./seeded-prng.md) and [map-params.md](./map-params.md).
 
 The land's relief, the plains, ranges, ridges, canyons, and badlands layers this record built elevation from, gave way to uplift and erosion: [terrain-erosion.md](./terrain-erosion.md). Moisture, rough country, cliffs, cost, and the water then went to the water stage: [water-and-biomes.md](./water-and-biomes.md). What's here still holds for the noise, contamination, the biome thresholds, the start's blends, hotspots, and towns, as noted where the later stages changed them.
 
@@ -84,7 +84,7 @@ The stage forks its stream by feature: for the land `hills`, `ranges`, `rangeWar
 
 ## Performance
 
-`scripts/terrain-bench.mjs` times the stage; terrain-erosion.md has the eroded land's figures, building and sampling both. Sampling allocates nothing, though `SimplexNoise.sample` is past V8's 460-byte inlining limit, so each octave is a call that boxes its doubles; the scavenges that leaves cost about 5% of sampling time. A smaller kernel, or octave loops with the kernel written in, is the lever if a consumer needs more.
+`_legacy/scripts/terrain-bench.mjs` times the stage; terrain-erosion.md has the eroded land's figures, building and sampling both. Sampling allocates nothing, though `SimplexNoise.sample` is past V8's 460-byte inlining limit, so each octave is a call that boxes its doubles; the scavenges that leaves cost about 5% of sampling time. A smaller kernel, or octave loops with the kernel written in, is the lever if a consumer needs more.
 
 ## Consequences
 

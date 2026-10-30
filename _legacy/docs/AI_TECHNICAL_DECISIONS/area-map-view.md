@@ -1,14 +1,14 @@
 # Area map view (DDB-298)
 
-Date: 2026-10-08. Code: `src/renderer/game/ui/areaMap/` (`AreaMapView.ts`, `MapCamera.ts`, `terrainBake.ts`, `fogBake.ts`, `roadGeometry.ts`, `layers.ts`, `areaMapStyle.ts`), the gallery's `area-map` and `area-map-fog` scenes, and `scripts/area-map-bake-bench.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md) (Performance, Fog), [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (The area map, Fog of war), Game Flow 3.3. Follows [terrain-fields.md](./terrain-fields.md) and [road-growth.md](./road-growth.md).
+Date: 2026-10-08. Code: `src/renderer/game/ui/areaMap/` (`AreaMapView.ts`, `MapCamera.ts`, `terrainBake.ts`, `fogBake.ts`, `roadGeometry.ts`, `layers.ts`, `areaMapStyle.ts`), the gallery's `area-map` and `area-map-fog` scenes, and `scripts/area-map-bake-bench.mjs`. Spec: [Area Map Generation](../../../docs/specs/Area%20Map%20Generation.md) (Performance, Fog), [Compound and Supply Runs](../../../docs/specs/Compound%20and%20Supply%20Runs.md) (The area map, Fog of war), Game Flow 3.3. Follows [terrain-fields.md](../../../docs/AI_TECHNICAL_DECISIONS/terrain-fields.md) and [road-growth.md](./road-growth.md).
 
 ## Context
 
 The Map Lab (DDB-299) and the area map screen (DDB-43) both draw a generated map: terrain, the drivable roads by class and by what's known of them, junctions, the compound, POIs and strongholds, and fog, with pan, zoom, and selection. The spec fixes the shape of it: terrain and scenery bake into one image per map, rebaked only when the map is generated or loaded, fog draws over it, and roads draw live because their state and highlighting change. The terrain costs about 600 ns a full sample, so a bake at the resolution a zoomed-in view would like (a texel a world unit or less) is seconds, not milliseconds. And half the inputs don't exist yet: POIs and strongholds (DDB-291), tiers (DDB-292), stops (DDB-293), knowledge and fog (DDB-294), scenery (DDB-297).
 
-![Mixed, seed 7, radius 1600](../design/area-map-view/mixed-seed-7-radius-1600.png)
+![Mixed, seed 7, radius 1600](../../../docs/design/area-map-view/mixed-seed-7-radius-1600.png)
 
-![Stand-in knowledge, fog, and markers, seed 3, radius 1000](../design/area-map-view/fog-and-markers-seed-3.png)
+![Stand-in knowledge, fog, and markers, seed 3, radius 1000](../../../docs/design/area-map-view/fog-and-markers-seed-3.png)
 
 ## One component, drawing through the draw API
 

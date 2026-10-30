@@ -1,7 +1,7 @@
 # Overlay, popup, tooltip, placement, clipboard and asset services
 
 Status: implemented (DDB-78), 2026-09-28
-Spec: R12.30 to R12.32, R12.22, R8.21, R3.6a, R3.15, R3.28, R9.13 to R9.15, R9.12e of the [UI rendering spec](../ui-rendering-spec/12-component-catalog.md)
+Spec: R12.30 to R12.32, R12.22, R8.21, R3.6a, R3.15, R3.28, R9.13 to R9.15, R9.12e of the [UI rendering spec](../../../docs/ui-rendering-spec/12-component-catalog.md)
 Builds on: [input-dispatcher.md](./input-dispatcher.md), [focus-manager.md](./focus-manager.md), [clock-and-animator.md](./clock-and-animator.md), [mount-context-and-frame-order.md](./mount-context-and-frame-order.md)
 
 ## Problem

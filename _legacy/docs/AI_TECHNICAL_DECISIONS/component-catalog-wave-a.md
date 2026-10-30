@@ -1,6 +1,6 @@
 # Component catalog, Wave A
 
-Status: in progress, 2026-09-28, DDB-85 (DDB-55 phase 5). Chapter 12 of the [UI rendering spec](../ui-rendering-spec/12-component-catalog.md); styles through [style-states-and-variants.md](./style-states-and-variants.md); focus through [focus-manager.md](./focus-manager.md).
+Status: in progress, 2026-09-28, DDB-85 (DDB-55 phase 5). Chapter 12 of the [UI rendering spec](../../../docs/ui-rendering-spec/12-component-catalog.md); styles through [style-states-and-variants.md](./style-states-and-variants.md); focus through [focus-manager.md](./focus-manager.md).
 
 Wave A lands as sequential pull requests by component group:
 

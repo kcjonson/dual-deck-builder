@@ -1,6 +1,6 @@
 # Component catalog, Wave C
 
-Status: implemented across three PRs, 2026-09-28, DDB-87 (DDB-55 phase 5). Chapter 12 of the [UI rendering spec](../ui-rendering-spec/12-component-catalog.md); built on [overlay-and-popup-services.md](./overlay-and-popup-services.md), [focus-manager.md](./focus-manager.md), [clock-and-animator.md](./clock-and-animator.md), and [component-catalog-wave-a.md](./component-catalog-wave-a.md).
+Status: implemented across three PRs, 2026-09-28, DDB-87 (DDB-55 phase 5). Chapter 12 of the [UI rendering spec](../../../docs/ui-rendering-spec/12-component-catalog.md); built on [overlay-and-popup-services.md](./overlay-and-popup-services.md), [focus-manager.md](./focus-manager.md), [clock-and-animator.md](./clock-and-animator.md), and [component-catalog-wave-a.md](./component-catalog-wave-a.md).
 
 Wave C lands as sequential pull requests by group:
 

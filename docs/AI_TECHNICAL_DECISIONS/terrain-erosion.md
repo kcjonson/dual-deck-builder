@@ -1,6 +1,6 @@
 # Terrain from uplift and erosion (DDB-441)
 
-Date: 2026-10-09. Code: `src/renderer/game/map/` (`LandGrid.ts`, `Uplift.ts`, `Drainage.ts`, `Erosion.ts`, `Land.ts`, `MapMath.ts`, and `Terrain.ts` reading them; `worker/mapGenerationProtocol.ts` carries the land across the worker boundary), timed by `scripts/terrain-bench.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 1. Terrain. Builds decision 1 of [realistic-map.md](./realistic-map.md), and replaces the relief half of [terrain-fields.md](./terrain-fields.md)'s field model: its plains, ranges, ridges, canyons, and badlands layers.
+Date: 2026-10-09. Code: `_legacy/src/renderer/game/map/` (`LandGrid.ts`, `Uplift.ts`, `Drainage.ts`, `Erosion.ts`, `Land.ts`, `MapMath.ts`, and `Terrain.ts` reading them; `worker/mapGenerationProtocol.ts` carries the land across the worker boundary), timed by `_legacy/scripts/terrain-bench.mjs`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 1. Terrain. Builds decision 1 of [realistic-map.md](./realistic-map.md), and replaces the relief half of [terrain-fields.md](./terrain-fields.md)'s field model: its plains, ranges, ridges, canyons, and badlands layers.
 
 ## Context
 
@@ -117,13 +117,13 @@ The plains, ranges, ridges, canyons, badlands, and gully layers are gone, with t
 
 ## Determinism
 
-The land is built from adds, multiplies, divides, compares, square roots, and floors, which ECMAScript gives exactly, and from noise and draws that are too. ESLint holds generation to that: under `src/renderer/game/map/`, tests aside, it rejects `Math.sin`, `cos`, `tan` and their inverses, `exp` and `log` in all their forms, `pow`, `hypot`, `cbrt`, the hyperbolics, and `**`. The road tests' fixtures, which place a test's own departures and measure what growth made, disable it line by line with their reasons. The tests pin a hash of the eroded grid and its receivers for two maps, a Mixed map at radius 800 and a High Desert closed basin, computed in a separate Node process from the Jest run that checks them, and a fresh copy of the module erodes the same bits.
+The land is built from adds, multiplies, divides, compares, square roots, and floors, which ECMAScript gives exactly, and from noise and draws that are too. ESLint holds generation to that: under `_legacy/src/renderer/game/map/`, tests aside, it rejects `Math.sin`, `cos`, `tan` and their inverses, `exp` and `log` in all their forms, `pow`, `hypot`, `cbrt`, the hyperbolics, and `**`. The road tests' fixtures, which place a test's own departures and measure what growth made, disable it line by line with their reasons. The tests pin a hash of the eroded grid and its receivers for two maps, a Mixed map at radius 800 and a High Desert closed basin, computed in a separate Node process from the Jest run that checks them, and a fresh copy of the module erodes the same bits.
 
 The terrain stream forks by feature: `hills`, `ranges`, `rangeWarp`, `rangeBreaks`, `grain`, `outlets`, and `initial` for the land, and `detail`, `roughness`, `contamination`, `hotspots`, and `towns` for the rest; moisture's noise moved to the water stream. So towns, hotspots, contamination, and anything past the terrain stage never move the land; a test changes six such parameters and gets the same grid.
 
 ## Performance
 
-`node scripts/terrain-bench.mjs --radii 800,1000,1200,1600`, Node 24 (V8 13.6), the same shared desktop, the median of three seeds per radius and environment. Other work on the desktop slows every column alike, by half again in a busy spell, the uplift's included, so these are from a quiet one:
+`node _legacy/scripts/terrain-bench.mjs --radii 800,1000,1200,1600`, Node 24 (V8 13.6), the same shared desktop, the median of three seeds per radius and environment. Other work on the desktop slows every column alike, by half again in a busy spell, the uplift's included, so these are from a quiet one:
 
 | Radius | Grid | Mixed | High Desert | Rust Belt | Floodlands | Badlands | Uplift | Erosion | Drainage |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
