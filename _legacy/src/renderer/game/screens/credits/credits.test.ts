@@ -4,7 +4,7 @@ import * as fontkit from 'fontkit';
 import { CREDITS } from './credits';
 
 const FONTS = join(__dirname, '../../../../assets/fonts');
-const ROOT = join(__dirname, '../../../../..');
+const REPO = join(__dirname, '../../../../../..');
 
 const credited = CREDITS.flatMap((section) => section.entries).filter((entry) => entry.asset !== undefined);
 
@@ -40,7 +40,7 @@ describe('credits', () => {
 	it('names the licence the game itself ships under', () => {
 		const line = CREDITS[0].entries.flatMap((entry) => entry.lines).find((text) => text.startsWith('Released under the '));
 		const named = line?.match(/^Released under the (.+)\.$/)?.[1];
-		const heading = readFileSync(join(ROOT, 'LICENSE'), 'utf8').split(/\r?\n/)[0];
+		const heading = readFileSync(join(REPO, 'LICENSE'), 'utf8').split(/\r?\n/)[0];
 		expect(named).toBeTruthy();
 		expect(heading).toBe(`# ${named}`);
 	});
