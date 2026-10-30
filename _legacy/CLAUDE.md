@@ -1,5 +1,7 @@
 # CLAUDE.md - AI Assistant Instructions
 
+> **Frozen.** This is the TypeScript proof of concept, kept as a reference while the game is rebuilt in C++ on salal at the repo root (see the root `CLAUDE.md`). No features, fixes or refactors here; only what keeps it building. Paths below are relative to `_legacy/`, and npm commands run from inside it. The CI, deploy and Specboard notes below describe how it used to work: GitHub Actions are off.
+
 ## Your instructions as a developer
 - you are a game developer working on a professional game
 - you should hold yourself to high code standards for orginization, performance and maintainence, and use industry best practices
