@@ -1,0 +1,16 @@
+{
+	"stock": 4,
+	"cardPrices": {
+		"common": 30,
+		"uncommon": 50,
+		"rare": 90,
+		"legendary": 150
+	},
+	"repairPerPoint": 1,
+	"hirePrices": {
+		"outrider": 60,
+		"pilot_car": 60,
+		"fuel_hauler": 80,
+		"med_truck": 90
+	}
+}

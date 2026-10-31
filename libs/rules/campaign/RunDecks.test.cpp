@@ -136,6 +136,46 @@ namespace {
 		EXPECT_EQ(cardsOwned(campaign), owned);
 	}
 
+	TEST(RunDecks, AMoveNamingItsStackTakesThoseCopiesWhileTheOrderStillHolds) {
+		Campaign		campaign = onARun();
+		const RunDeckOf warrior{crewOf(campaign, "road_warrior")};
+		campaign.locker = {{card("repair_kit"), 3}};
+		const CardCounts owned = cardsOwned(campaign);
+		const RunDeck&	 deck = *campaign.runDeckOf(warrior.driver);
+		const auto		 kits = [&](int count, CardPlace from, CardPlace to, RunDeckCopies copies) {
+			  return CardMove{.card = card("repair_kit"), .count = count, .from = from, .to = to, .copies = copies};
+		};
+		const auto blocked = [&](const CardMove& move) {
+			return cardMoveBlocker(campaign, testContent(), testRules().deck, move);
+		};
+		const auto moved = [&](const CardMove& move) {
+			moveCards(campaign, testContent(), testRules().deck, move);
+		};
+
+		moved(kits(1, warrior, Locker{}, RunDeckCopies::Own));
+		EXPECT_EQ(countOf(deck.leftHome, card("repair_kit")), 1);
+		EXPECT_EQ(blocked(kits(1, Locker{}, warrior, RunDeckCopies::Borrowed)), (CardBlocker{.reason = CardRefusal::OwnAtHome, .count = 1}))
+			<< "call 54";
+		EXPECT_EQ(blocked(kits(2, Locker{}, warrior, RunDeckCopies::Home)), (CardBlocker{.reason = CardRefusal::TooFew, .count = 1}));
+		moved(kits(1, Locker{}, warrior, RunDeckCopies::Home));
+		moved(kits(2, Locker{}, warrior, RunDeckCopies::Borrowed));
+		EXPECT_EQ(countOf(deck.own, card("repair_kit")), 2);
+		EXPECT_EQ(countOf(deck.borrowed, card("repair_kit")), 2);
+		EXPECT_EQ(blocked(kits(1, warrior, Locker{}, RunDeckCopies::Own)), (CardBlocker{.reason = CardRefusal::BorrowedFirst, .count = 2}))
+			<< "call 53";
+		EXPECT_EQ(blocked(kits(3, warrior, Locker{}, RunDeckCopies::Borrowed)), (CardBlocker{.reason = CardRefusal::TooFew, .count = 2}));
+		moved(kits(1, warrior, Locker{}, RunDeckCopies::Borrowed));
+		EXPECT_EQ(countOf(deck.borrowed, card("repair_kit")), 1);
+		EXPECT_EQ(countOf(campaign.locker, card("repair_kit")), 2);
+		EXPECT_EQ(cardsOwned(campaign), owned);
+
+		EXPECT_THROW((void)blocked(kits(1, Locker{}, warrior, RunDeckCopies::Own)), std::invalid_argument);
+		EXPECT_THROW((void)blocked(kits(1, warrior, Locker{}, RunDeckCopies::Home)), std::invalid_argument);
+		EXPECT_THROW(
+			(void)blocked(kits(1, Locker{}, DefaultDeck{crewOf(campaign, "mechanic")}, RunDeckCopies::Borrowed)), std::invalid_argument
+		) << "no run deck at either end";
+	}
+
 	TEST(RunDecks, AGivenUpLoadOutPutsEveryDeckBackAndARunHomeUnloadsItsCargo) {
 		Campaign campaign = foundTestCampaign({"fuel_hauler"});
 		campaign.locker = {{card("ram"), 1}};

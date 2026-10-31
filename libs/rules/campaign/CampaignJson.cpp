@@ -1,6 +1,7 @@
 #include "CampaignJson.h"
 
 #include "CampaignEnd.h"
+#include "CardOffers.h"
 
 #include <rules/battle/Battle.h>
 #include <rules/core/ContentError.h>
@@ -48,6 +49,33 @@ namespace rules::campaign {
 				json[card.value] = count;
 			}
 			return json;
+		}
+
+		template <typename Tag>
+		nlohmann::json idsJson(const std::vector<Id<Tag>>& ids) {
+			nlohmann::json json = nlohmann::json::array();
+			for (const Id<Tag>& id : ids) {
+				json.push_back(id.value);
+			}
+			return json;
+		}
+
+		// Today's stock: each a card a shop sells, once.
+		std::vector<GarageOffer> readGarage(JsonReader& reader, const Content& content) {
+			std::vector<GarageOffer> stock;
+			for (JsonReader& object : reader.requireObjects("garage")) {
+				GarageOffer offer{.card = CardId{object.requireString("card")}, .sold = object.requireBool("sold")};
+				object.finish();
+				const auto card = content.cards.find(offer.card);
+				if (card == content.cards.end() || !isOffered(card->second)) {
+					object.failAt("card", "names " + offer.card.value + ", which no loaded pack defines as a card a shop sells");
+				}
+				if (std::ranges::find(stock, offer.card, &GarageOffer::card) != stock.end()) {
+					object.failAt("card", "names " + offer.card.value + ", which an earlier offer is");
+				}
+				stock.push_back(std::move(offer));
+			}
+			return stock;
 		}
 
 		nlohmann::json resourcesJson(const Resources& resources) {
@@ -204,8 +232,28 @@ namespace rules::campaign {
 				.escorts = {},
 				.cargo = readResources(reader.requireObject("cargo")),
 				.cargoCards = readCounts(reader, "cargoCards", content),
+				.found = {},
+				.recruits = {},
 				.fights = requireIntIn(reader, "fights", 0),
 			};
+			for (std::string& name : reader.requireStrings("found")) {
+				const CrewId		found{std::move(name)};
+				const DriverRecord* driver = campaign.findDriver(found);
+				if (driver == nullptr || driver->status != DriverStatus::Missing) {
+					reader.failAt("found", "names " + found.value + ", who isn't one of the pool's missing");
+				}
+				if (std::ranges::find(run.found, found) != run.found.end()) {
+					reader.failAt("found", "names " + found.value + " twice");
+				}
+				run.found.push_back(found);
+			}
+			for (std::string& name : reader.requireStrings("recruits")) {
+				DriverId recruit{std::move(name)};
+				if (!content.drivers.contains(recruit)) {
+					reader.failAt("recruits", "names driver " + recruit.value + ", which no loaded pack defines");
+				}
+				run.recruits.push_back(std::move(recruit));
+			}
 			const std::optional<int> number = idNumber(run.id.value, kRunPrefix);
 			if (!number || *number >= campaign.nextRunNumber) {
 				reader.failAt("id", "must be run-1 or the like, under the counter that hands ids out");
@@ -280,17 +328,15 @@ namespace rules::campaign {
 					{"escortCards", std::move(escortCards)},
 				});
 			}
-			nlohmann::json escorts = nlohmann::json::array();
-			for (const ConvoyId& escort : run.escorts) {
-				escorts.push_back(escort.value);
-			}
 			return {
 				{"id", run.id.value},
 				{"stage", run.stage},
 				{"seats", std::move(seats)},
-				{"escorts", std::move(escorts)},
+				{"escorts", idsJson(run.escorts)},
 				{"cargo", resourcesJson(run.cargo)},
 				{"cargoCards", countsJson(run.cargoCards)},
+				{"found", idsJson(run.found)},
+				{"recruits", idsJson(run.recruits)},
 				{"fights", run.fights},
 			};
 		}
@@ -349,6 +395,7 @@ namespace rules::campaign {
 			.drivers = {},
 			.nextDriverNumber = requireIntIn(reader, "nextDriverNumber", 1),
 			.locker = readCounts(reader, "locker", content),
+			.garage = readGarage(reader, content),
 			.convoy = {},
 			.nextEscortNumber = requireIntIn(reader, "nextEscortNumber", 1),
 			.run = std::nullopt,
@@ -422,6 +469,10 @@ namespace rules::campaign {
 		for (const ConvoyEscort& escort : campaign.convoy) {
 			convoy.push_back({{"id", escort.id.value}, {"type", escort.type.value}, {"structure", escort.structure}});
 		}
+		nlohmann::json garage = nlohmann::json::array();
+		for (const GarageOffer& offer : campaign.garage) {
+			garage.push_back({{"card", offer.card.value}, {"sold", offer.sold}});
+		}
 		nlohmann::json log = nlohmann::json::array();
 		for (const LogEntry& line : campaign.log) {
 			log.push_back({{"day", line.day}, {"text", line.text}});
@@ -441,6 +492,7 @@ namespace rules::campaign {
 			{"drivers", std::move(drivers)},
 			{"nextDriverNumber", campaign.nextDriverNumber},
 			{"locker", countsJson(campaign.locker)},
+			{"garage", std::move(garage)},
 			{"convoy", std::move(convoy)},
 			{"nextEscortNumber", campaign.nextEscortNumber},
 			{"run", campaign.run ? runJson(*campaign.run) : nlohmann::json(nullptr)},

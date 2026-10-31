@@ -1,6 +1,8 @@
 #include <rules/campaign/CampaignJson.h>
 #include <rules/campaign/CampaignTesting.h>
+#include <rules/campaign/Garage.h>
 #include <rules/campaign/Locker.h>
+#include <rules/campaign/Recruits.h>
 #include <rules/campaign/RunDecks.h>
 #include <rules/core/ContentError.h>
 
@@ -13,8 +15,9 @@ namespace {
 	using namespace rules;
 	using namespace rules::campaigns;
 
-	// A campaign partway through a run, so every part of the save is in it: the Mechanic home injured, two escorts and
-	// one of them along, a borrowed card, one left at home, and cargo picked up.
+	// A campaign partway through a run, so every part of the save is in it: the Mechanic home injured, a card bought in
+	// the garage, two escorts and one of them along, a borrowed card, one left at home, cargo picked up, a missing Raider
+	// found on the road, and someone new riding home.
 	Campaign campaignOnARun() {
 		Campaign	  campaign = foundTestCampaign({"fuel_hauler", "outrider"});
 		DriverRecord& mechanic = campaign.driver(crewOf(campaign, "mechanic"));
@@ -22,9 +25,14 @@ namespace {
 		mechanic.injuredDays = 2;
 		mechanic.hitpoints = 12;
 		campaign.locker = {{card("repair_kit"), 2}};
+		buyCard(campaign, testContent(), testRules().garage, campaign.garage[2].card);
+		const CrewId raider = recruitDriver(campaign, testContent(), DriverId{"raider"});
+		campaign.driver(raider).status = DriverStatus::Missing;
 		const CrewId warrior = crewOf(campaign, "road_warrior");
 		const CrewId interceptor = crewOf(campaign, "interceptor");
 		startRun(campaign, testContent(), RunStart{.seats = {warrior, interceptor}, .escorts = {ConvoyId{"escort-2"}}, .stage = 1});
+		takeFoundDriver(campaign, testContent(), raider);
+		takeFoundDriver(campaign, testContent(), DriverId{"mechanic"});
 		moveCards(
 			campaign, testContent(), testRules().deck, {.card = card("repair_kit"), .count = 1, .from = Locker{}, .to = RunDeckOf{warrior}}
 		);
@@ -81,7 +89,10 @@ namespace {
 
 		nlohmann::json later = save;
 		later["version"] = kSaveVersion + 1;
-		EXPECT_TRUE(mentions(errorOf(later), "campaign.version is 3, and this build reads version 2"));
+		EXPECT_TRUE(mentions(
+			errorOf(later),
+			"campaign.version is " + std::to_string(kSaveVersion + 1) + ", and this build reads version " + std::to_string(kSaveVersion)
+		));
 	}
 
 	TEST(CampaignJson, ASaveFailsLoudWhenItBreaksTheCampaignsRules) {
@@ -113,6 +124,18 @@ namespace {
 			broken([](nlohmann::json& json) { json["end"] = {{"ending", "starved"}, {"cause", "no_people"}}; }), "is set with a run out"
 		));
 		EXPECT_TRUE(mentions(broken([](nlohmann::json& json) { json["tally"]["runsHome"] = 1; }), "counts more runs ended"));
+		EXPECT_TRUE(mentions(
+			broken([](nlohmann::json& json) { json["garage"][0]["card"] = "top_off"; }),
+			"which no loaded pack defines as a card a shop sells"
+		));
+		EXPECT_TRUE(mentions(
+			broken([](nlohmann::json& json) { json["run"]["found"][0] = "driver-3"; }),
+			"names driver-3, who isn't one of the pool's missing"
+		));
+		EXPECT_TRUE(mentions(
+			broken([](nlohmann::json& json) { json["run"]["recruits"][0] = "war_boy"; }),
+			"names driver war_boy, which no loaded pack defines"
+		));
 	}
 
 	TEST(CampaignJson, WritingACampaignItsOwnSaveCantHoldThrows) {

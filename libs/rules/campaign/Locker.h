@@ -34,20 +34,31 @@ namespace rules::campaign {
 
 	using CardPlace = std::variant<Locker, DefaultDeck, RunDeckOf>;
 
+	// Which of a run deck's copies a move is for, the stack a Customize control sits under (calls 53 and 54): coming
+	// out, the driver's own, to stay home (`Own`), or borrowed ones, back to the locker (`Borrowed`); going in, the
+	// driver's own back from home (`Home`), or new ones borrowed from the locker (`Borrowed`).
+	enum class RunDeckCopies { Own, Borrowed, Home };
+
 	struct CardMove {
 		CardId	  card;
 		int		  count{1};
 		CardPlace from;
 		CardPlace to;
+		// None for the rules' own order (call 136), or the copies asked for, which that order still holds to.
+		std::optional<RunDeckCopies> copies;
 	};
 
 	// Why the rules refuse a move, in the order they're checked:
 	//   CampaignOver     the campaign is over
 	//   DriverAway       a driver at either end is dead or missing (`driver`)
 	//   OnRun            a default deck at either end is out on the run, in its driver's run deck (`driver`)
-	//   TooFew           the giving end holds fewer copies than the move takes (`count`, the copies there are)
+	//   OwnAtHome        borrowing a card while some of the driver's own wait at home, which come back first (`count`,
+	//                    those at home)
+	//   TooFew           the giving end holds fewer of the copies asked for than the move takes (`count`, those there)
 	//   AlreadyBorrowed  the locker is short, and the other seat borrowed enough to make it up (`driver`)
 	//   CardLocked       what the run deck holds of the card are escort cards, which nothing takes out (`escort`)
+	//   BorrowedFirst    leaving the driver's own at home while copies of the card are borrowed, which go back first
+	//                    (`count`, those borrowed)
 	//   OtherArchetype   the card is marked for another archetype than the receiving driver's (`archetype`)
 	//   DeckFull         the receiving deck would hold more than the most a deck takes (`count`, the most)
 	//   DeckAtMinimum    the giving deck would hold fewer than the fewest (`count`, the fewest)
@@ -56,9 +67,11 @@ namespace rules::campaign {
 		CampaignOver,
 		DriverAway,
 		OnRun,
+		OwnAtHome,
 		TooFew,
 		AlreadyBorrowed,
 		CardLocked,
+		BorrowedFirst,
 		OtherArchetype,
 		DeckFull,
 		DeckAtMinimum
@@ -77,13 +90,14 @@ namespace rules::campaign {
 	// Why the rules refuse a move, or nullopt when they allow it. A screen asks it to grey an action out, and moveCards
 	// asks it again, so the two can't disagree. A move no rule covers is a bug rather than a refusal, and throws
 	// std::invalid_argument: a count under 1, a driver outside the pool, a run deck with no run out or of a driver not
-	// on it, a run deck trading with anything but the locker, and a place moving to itself.
+	// on it, a run deck trading with anything but the locker, a place moving to itself, copies named with no run deck at
+	// either end, and `Own` going into a run deck or `Home` coming out of one.
 	[[nodiscard]] std::optional<CardBlocker>
 	cardMoveBlocker(const Campaign& campaign, const Content& content, const DeckRules& rules, const CardMove& move);
 
 	// Into a run deck, the driver's own left at home come back before anything is borrowed; out of one, borrowed copies
-	// go back to the locker before the driver's own stay home (call 136). Throws std::invalid_argument for a move the
-	// rules refuse, as cardMoveBlocker says.
+	// go back to the locker before the driver's own stay home (call 136), and a move naming its copies moves those.
+	// Throws std::invalid_argument for a move the rules refuse, as cardMoveBlocker says.
 	void moveCards(Campaign& campaign, const Content& content, const DeckRules& rules, const CardMove& move);
 
 	// Why the locker can't scrap that many copies (CampaignOver or TooFew), or nullopt when it can.

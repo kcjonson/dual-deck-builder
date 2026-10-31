@@ -52,28 +52,63 @@ namespace rules::campaign {
 			return nullptr;
 		}
 
-		std::optional<CardBlocker> shortBlocker(const Campaign& campaign, const CardMove& move, const End& from, const End& to) {
-			if (from.isLocker() && to.runDeck != nullptr) {
-				const int available = countOf(to.runDeck->leftHome, move.card) + countOf(campaign.locker, move.card);
-				if (available >= move.count) {
-					return std::nullopt;
-				}
-				const RunDeck* other = otherSeat(campaign, *to.runDeck);
-				if (other != nullptr && available + countOf(other->borrowed, move.card) >= move.count) {
-					return CardBlocker{.reason = CardRefusal::AlreadyBorrowed, .count = available, .driver = other->driver};
-				}
-				return CardBlocker{.reason = CardRefusal::TooFew, .count = available};
+		// The copies a move into a run deck takes from the driver's own left at home, the rest being borrowed.
+		int fromHome(const CardMove& move, const RunDeck& deck) {
+			return move.copies == RunDeckCopies::Borrowed ? 0 : std::min(move.count, countOf(deck.leftHome, move.card));
+		}
+
+		// The copies a move out of a run deck puts back in the locker, the rest of the driver's own staying home.
+		int toLocker(const CardMove& move, const RunDeck& deck) {
+			return move.copies == RunDeckCopies::Own ? 0 : std::min(move.count, countOf(deck.borrowed, move.card));
+		}
+
+		std::optional<CardBlocker> intoRunDeckBlocker(const Campaign& campaign, const CardMove& move, const RunDeck& deck) {
+			const int home = countOf(deck.leftHome, move.card);
+			if (move.copies == RunDeckCopies::Borrowed && home > 0) {
+				return CardBlocker{.reason = CardRefusal::OwnAtHome, .count = home};
 			}
-			if (from.runDeck != nullptr) {
-				const int held = countOf(runDeckCards(*from.runDeck), move.card);
-				if (held >= move.count) {
-					return std::nullopt;
-				}
-				const auto escortCard = std::ranges::find(from.runDeck->escortCards, move.card, &EscortCard::card);
-				if (escortCard != from.runDeck->escortCards.end()) {
+			if (move.copies == RunDeckCopies::Home) {
+				return home >= move.count ? std::nullopt : std::optional(CardBlocker{.reason = CardRefusal::TooFew, .count = home});
+			}
+			const int borrowing = move.count - fromHome(move, deck);
+			const int inLocker = countOf(campaign.locker, move.card);
+			if (inLocker >= borrowing) {
+				return std::nullopt;
+			}
+			const int	   available = move.count - borrowing + inLocker;
+			const RunDeck* other = otherSeat(campaign, deck);
+			if (other != nullptr && inLocker + countOf(other->borrowed, move.card) >= borrowing) {
+				return CardBlocker{.reason = CardRefusal::AlreadyBorrowed, .count = available, .driver = other->driver};
+			}
+			return CardBlocker{.reason = CardRefusal::TooFew, .count = available};
+		}
+
+		std::optional<CardBlocker> outOfRunDeckBlocker(const CardMove& move, const RunDeck& deck) {
+			const int borrowed = countOf(deck.borrowed, move.card);
+			int		  held = countOf(runDeckCards(deck), move.card);
+			if (move.copies) {
+				held = *move.copies == RunDeckCopies::Own ? countOf(deck.own, move.card) : borrowed;
+			}
+			if (held < move.count) {
+				// Escort cards are neither the driver's own nor borrowed, so only a move naming no copies is after one.
+				const auto escortCard = std::ranges::find(deck.escortCards, move.card, &EscortCard::card);
+				if (!move.copies && escortCard != deck.escortCards.end()) {
 					return CardBlocker{.reason = CardRefusal::CardLocked, .count = held, .escort = escortCard->broughtBy};
 				}
 				return CardBlocker{.reason = CardRefusal::TooFew, .count = held};
+			}
+			if (move.copies == RunDeckCopies::Own && borrowed > 0) {
+				return CardBlocker{.reason = CardRefusal::BorrowedFirst, .count = borrowed};
+			}
+			return std::nullopt;
+		}
+
+		std::optional<CardBlocker> shortBlocker(const Campaign& campaign, const CardMove& move, const End& from, const End& to) {
+			if (to.runDeck != nullptr) {
+				return intoRunDeckBlocker(campaign, move, *to.runDeck);
+			}
+			if (from.runDeck != nullptr) {
+				return outOfRunDeckBlocker(move, *from.runDeck);
 			}
 			const int held = countOf(from.isLocker() ? campaign.locker : from.driver->defaultDeck, move.card);
 			if (held < move.count) {
@@ -90,12 +125,16 @@ namespace rules::campaign {
 					return blocker.driver->value + " is dead or missing";
 				case CardRefusal::OnRun:
 					return blocker.driver->value + "'s default deck is out on the run";
+				case CardRefusal::OwnAtHome:
+					return "the driver's own " + std::to_string(blocker.count) + " at home come back first";
 				case CardRefusal::TooFew:
 					return "there are only " + std::to_string(blocker.count) + " to take";
 				case CardRefusal::AlreadyBorrowed:
 					return blocker.driver->value + " borrowed the rest";
 				case CardRefusal::CardLocked:
 					return "it's the card " + blocker.escort->value + " brought, which stays in the run deck";
+				case CardRefusal::BorrowedFirst:
+					return "the " + std::to_string(blocker.count) + " borrowed go back first";
 				case CardRefusal::OtherArchetype:
 					return "the card is " + blocker.archetype->value + "'s";
 				case CardRefusal::DeckFull:
@@ -127,6 +166,15 @@ namespace rules::campaign {
 		const End to = endOf(campaign, move.to);
 		if ((from.runDeck != nullptr && !to.isLocker()) || (to.runDeck != nullptr && !from.isLocker())) {
 			throw std::invalid_argument("cardMoveBlocker: a run deck trades with the locker only (call 137)");
+		}
+		if (move.copies && from.runDeck == nullptr && to.runDeck == nullptr) {
+			throw std::invalid_argument("cardMoveBlocker: copies name a run deck's, and neither end is a run deck");
+		}
+		if ((move.copies == RunDeckCopies::Own && to.runDeck != nullptr) ||
+			(move.copies == RunDeckCopies::Home && from.runDeck != nullptr)) {
+			throw std::invalid_argument(
+				"cardMoveBlocker: into a run deck come copies from home or borrowed, and out of one own or borrowed"
+			);
 		}
 
 		if (campaign.end) {
@@ -167,16 +215,16 @@ namespace rules::campaign {
 		const CardId& card = move.card;
 		if (std::holds_alternative<RunDeckOf>(move.to)) {
 			RunDeck&  deck = *campaign.runDeckOf(std::get<RunDeckOf>(move.to).driver);
-			const int fromHome = std::min(move.count, countOf(deck.leftHome, card));
-			takeCards(deck.leftHome, card, fromHome);
-			addCards(deck.own, card, fromHome);
-			takeCards(campaign.locker, card, move.count - fromHome);
-			addCards(deck.borrowed, card, move.count - fromHome);
+			const int home = fromHome(move, deck);
+			takeCards(deck.leftHome, card, home);
+			addCards(deck.own, card, home);
+			takeCards(campaign.locker, card, move.count - home);
+			addCards(deck.borrowed, card, move.count - home);
 			return;
 		}
 		if (std::holds_alternative<RunDeckOf>(move.from)) {
 			RunDeck&  deck = *campaign.runDeckOf(std::get<RunDeckOf>(move.from).driver);
-			const int returned = std::min(move.count, countOf(deck.borrowed, card));
+			const int returned = toLocker(move, deck);
 			takeCards(deck.borrowed, card, returned);
 			addCards(campaign.locker, card, returned);
 			takeCards(deck.own, card, move.count - returned);

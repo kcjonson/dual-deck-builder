@@ -64,7 +64,7 @@ namespace rules::campaign {
 
 	// A load out given up before the run leaves: everyone's default deck back as it was, what they borrowed back in the
 	// locker, the escort cards gone, and no run out. Throws std::invalid_argument with no run out, or for one that has
-	// fought or picked anything up, which only coming home or failing ends.
+	// fought or picked anything or anyone up, which only coming home or failing ends.
 	void giveUpLoadOut(Campaign& campaign);
 
 	// Adds cards won on the road (a fight's reward, a find, a roadside garage) to the run's cargo, bound for the locker
@@ -79,16 +79,20 @@ namespace rules::campaign {
 	CardCounts unwindRunDeck(Campaign& campaign, const RunDeck& deck);
 
 	struct Unloaded {
-		Resources			resources;
-		CardCounts			cards;
+		Resources  resources;
+		CardCounts cards;
+		// The missing found on the road, back in the pool, and someone new who joined it.
+		std::vector<CrewId> found;
+		std::vector<CrewId> recruited;
 		std::vector<Injury> injuries;
 	};
 
 	// A run home: each seat's run deck unwinds, their own cards and those they left at home back in their default deck
 	// and what they borrowed back in the locker, the escort cards gone; then the cargo goes into the stores and the cards
-	// won into the locker, the run is counted home, and each seat home hurt goes into the infirmary (injureOnArrival). It
-	// returns what came home for the debrief. The day ends after it, with endDay. Throws std::invalid_argument with no run
-	// out.
+	// won into the locker, and the run is counted home. The missing it found are back, their vehicle at kLimpStructure
+	// with the armor the crash left it (call 41), and someone new it found joins the pool (recruitDriver), with a log
+	// line. Then each seat and each driver found who's home hurt goes into the infirmary (injureOnArrival). It returns
+	// what came home for the debrief. The day ends after it, with endDay. Throws std::invalid_argument with no run out.
 	Unloaded unloadRun(Campaign& campaign, const Content& content, const CampaignRules& rules);
 
 } // namespace rules::campaign
