@@ -74,6 +74,7 @@ The trade-offs: what gets easier, what gets harder, what it risks.
 
 ### Combat
 
+- [The battle state, its actions, and its events](./battle-state.md)
 - [Battle screen road model](./battle-screen-road-model.md)
 - [Combat bridge: fights from the campaign, results written back](./combat-bridge.md)
 - [Combat log content: the record and the player's line](./combat-log-content.md)

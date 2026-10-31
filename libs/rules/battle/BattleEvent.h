@@ -1,0 +1,228 @@
+#pragma once
+
+#include "BattleState.h"
+
+#include <rules/core/Effect.h>
+
+#include <optional>
+#include <variant>
+
+namespace rules {
+
+	// What happened, in order, for the combat log to word and a renderer to animate. Each says what changed
+	// and by how much; anything else it needs is in the state.
+	namespace event {
+		// A side's turn begins. The player's turn number counts from 1; the enemy turn after it shares it.
+		struct TurnStarted {
+			int	 turn{1};
+			Side side{Side::Player};
+
+			bool operator==(const TurnStarted&) const = default;
+		};
+		// The enemy turn moves on to this raider.
+		struct RaiderActing {
+			DriverIndex raider;
+
+			bool operator==(const RaiderActing&) const = default;
+		};
+		// Before the opening deal, or when a deck runs dry mid-draw and takes its discard back.
+		struct DeckShuffled {
+			DriverIndex driver;
+			bool		fromDiscard{false};
+
+			bool operator==(const DeckShuffled&) const = default;
+		};
+		struct CardDrawn {
+			DriverIndex driver;
+			BattleCard	card;
+
+			bool operator==(const CardDrawn&) const = default;
+		};
+		// Drawn past the hand limit, so it went straight to discard.
+		struct CardBurned {
+			DriverIndex driver;
+			BattleCard	card;
+
+			bool operator==(const CardBurned&) const = default;
+		};
+		struct HandDiscarded {
+			DriverIndex driver;
+			int			cards{0};
+
+			bool operator==(const HandDiscarded&) const = default;
+		};
+		struct AdrenalineRefilled {
+			DriverIndex driver;
+			int			adrenaline{0};
+
+			bool operator==(const AdrenalineRefilled&) const = default;
+		};
+		struct ShieldCleared {
+			VehicleIndex vehicle;
+			int			 shield{0};
+
+			bool operator==(const ShieldCleared&) const = default;
+		};
+		struct CardPlayed {
+			DriverIndex					driver;
+			BattleCard					card;
+			std::optional<VehicleIndex> target;
+			int							cost{0};
+			// It went to the exhausted pile for the rest of the fight, not to discard.
+			bool exhausted{false};
+
+			bool operator==(const CardPlayed&) const = default;
+		};
+		// An attack's hit check: `skill` (gunnery or ramming) against `evade`, the hit modifier included.
+		struct HitChecked {
+			VehicleIndex attacker;
+			VehicleIndex defender;
+			AttackType	 attackType{AttackType::Ranged};
+			int			 skill{0};
+			int			 evade{0};
+			bool		 hit{false};
+
+			bool operator==(const HitChecked&) const = default;
+		};
+		// An area hit that doesn't reach one of the vehicles it would land on.
+		struct OutOfRange {
+			VehicleIndex attacker;
+			VehicleIndex defender;
+			int			 range{0};
+			int			 reach{0};
+
+			bool operator==(const OutOfRange&) const = default;
+		};
+		// A hit on a vehicle and where it went; what its occupants took follows as DriverDamaged.
+		struct VehicleDamaged {
+			VehicleIndex vehicle;
+			int			 damage{0};
+			int			 shield{0};
+			int			 armor{0};
+			int			 structure{0};
+
+			bool operator==(const VehicleDamaged&) const = default;
+		};
+		struct DriverDamaged {
+			DriverIndex driver;
+			int			hitpoints{0};
+
+			bool operator==(const DriverDamaged&) const = default;
+		};
+		// At 0 HP: a player's driver is down, a raider is dead. Either way they've left their seat.
+		struct DriverDown {
+			DriverIndex driver;
+
+			bool operator==(const DriverDown&) const = default;
+		};
+		// A passenger moves to the wheel of the vehicle they ride in.
+		struct TookTheWheel {
+			DriverIndex	 driver;
+			VehicleIndex vehicle;
+
+			bool operator==(const TookTheWheel&) const = default;
+		};
+		// A player's vehicle with nobody left to drive it carries on as an escort.
+		struct CarriesOnAsEscort {
+			VehicleIndex vehicle;
+
+			bool operator==(const CarriesOnAsEscort&) const = default;
+		};
+		// A raider with nobody left at the wheel is out of the fight.
+		struct Unmanned {
+			VehicleIndex vehicle;
+
+			bool operator==(const Unmanned&) const = default;
+		};
+		struct VehicleWrecked {
+			VehicleIndex vehicle;
+
+			bool operator==(const VehicleWrecked&) const = default;
+		};
+		// A wreck's survivor takes a free passenger seat.
+		struct JumpedAboard {
+			DriverIndex	 driver;
+			VehicleIndex vehicle;
+
+			bool operator==(const JumpedAboard&) const = default;
+		};
+		struct CrashedOut {
+			DriverIndex driver;
+
+			bool operator==(const CrashedOut&) const = default;
+		};
+		// A vehicle out of the fight leaves the road at the end of the turn it went out in.
+		struct LeftRoad {
+			VehicleIndex vehicle;
+
+			bool operator==(const LeftRoad&) const = default;
+		};
+		struct ShieldGained {
+			VehicleIndex vehicle;
+			int			 shield{0};
+
+			bool operator==(const ShieldGained&) const = default;
+		};
+		struct ArmorGained {
+			VehicleIndex vehicle;
+			int			 armor{0};
+
+			bool operator==(const ArmorGained&) const = default;
+		};
+		// Structure restored, and armor from what went past max structure.
+		struct Repaired {
+			VehicleIndex vehicle;
+			int			 structure{0};
+			int			 armor{0};
+
+			bool operator==(const Repaired&) const = default;
+		};
+		struct DriverHealed {
+			DriverIndex driver;
+			int			hitpoints{0};
+
+			bool operator==(const DriverHealed&) const = default;
+		};
+		struct AdrenalineGained {
+			DriverIndex driver;
+			int			adrenaline{0};
+
+			bool operator==(const AdrenalineGained&) const = default;
+		};
+		struct FightEnded {
+			Outcome outcome{Outcome::Won};
+
+			bool operator==(const FightEnded&) const = default;
+		};
+	} // namespace event
+
+	using Event = std::variant<
+		event::TurnStarted,
+		event::RaiderActing,
+		event::DeckShuffled,
+		event::CardDrawn,
+		event::CardBurned,
+		event::HandDiscarded,
+		event::AdrenalineRefilled,
+		event::ShieldCleared,
+		event::CardPlayed,
+		event::HitChecked,
+		event::OutOfRange,
+		event::VehicleDamaged,
+		event::DriverDamaged,
+		event::DriverDown,
+		event::TookTheWheel,
+		event::CarriesOnAsEscort,
+		event::Unmanned,
+		event::VehicleWrecked,
+		event::JumpedAboard,
+		event::CrashedOut,
+		event::LeftRoad,
+		event::ShieldGained,
+		event::ArmorGained,
+		event::Repaired,
+		event::DriverHealed,
+		event::AdrenalineGained,
+		event::FightEnded>;
+
+} // namespace rules
