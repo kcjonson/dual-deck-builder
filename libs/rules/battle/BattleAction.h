@@ -15,6 +15,8 @@ namespace rules {
 			std::optional<VehicleIndex> target;
 			// For a card that lands on one person aboard (Medical Kit): which of the driver and passenger.
 			std::optional<DriverIndex> occupant;
+			// For a card whose move goes to a slot the player picks (Juke, Strafe, Shoulder Check): which.
+			std::optional<RoadSlot> destination;
 
 			bool operator==(const PlayCard&) const = default;
 		};

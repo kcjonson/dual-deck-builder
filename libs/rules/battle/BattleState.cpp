@@ -95,7 +95,14 @@ namespace rules {
 	}
 
 	bool isFlanking(const BattleVehicle& vehicle) {
-		return isShoulder(vehicle.slot.lane);
+		assert(vehicle.flank.has_value() == isShoulder(vehicle.slot.lane) && "isFlanking: a vehicle has flank state exactly on a shoulder");
+		return vehicle.flank.has_value();
+	}
+
+	bool slotTaken(const BattleState& state, RoadSlot slot) {
+		return std::ranges::any_of(state.vehicles, [&](const BattleVehicle& vehicle) {
+			return vehicle.onRoad && (vehicle.slot == slot || (vehicle.flank && vehicle.flank->reservedSlot == slot));
+		});
 	}
 
 } // namespace rules

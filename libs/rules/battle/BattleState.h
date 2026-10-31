@@ -79,6 +79,16 @@ namespace rules {
 		bool operator==(const VehicleStatus&) const = default;
 	};
 
+	// A vehicle on the other side's shoulder (Combat Rules, Flanking). An ambusher started there and has neither.
+	struct FlankState {
+		// The formation slot it left, which nobody else can take while it's out.
+		std::optional<RoadSlot> reservedSlot;
+		// It holds the shoulder while it's faster than this vehicle, or while this one is out of the fight.
+		std::optional<VehicleIndex> outran;
+
+		bool operator==(const FlankState&) const = default;
+	};
+
 	struct BattleVehicle {
 		Side side{Side::Player};
 		// The driver whose vehicle it is, whoever rides in it now.
@@ -96,6 +106,10 @@ namespace rules {
 		// Set once it carries on as an escort: no driver, and these skills in every hit check.
 		std::optional<CrewSkills> crew;
 		RoadSlot				  slot;
+		// Set exactly while it's on a shoulder.
+		std::optional<FlankState> flank;
+		// A card changed its slot this turn, which Weave reads; the end-of-turn drop-back and close-up don't count.
+		bool swervedThisTurn{false};
 		// A wreck, or a raider left with nobody at the wheel, stays on the road until the end of the turn.
 		bool					   onRoad{true};
 		std::vector<VehicleStatus> statuses;
@@ -162,5 +176,8 @@ namespace rules {
 	[[nodiscard]] int evadeOf(const BattleState& state, VehicleIndex vehicle);
 
 	[[nodiscard]] bool isFlanking(const BattleVehicle& vehicle);
+
+	// A vehicle on the road is in it, a wreck included, or a flanker holds it reserved.
+	[[nodiscard]] bool slotTaken(const BattleState& state, RoadSlot slot);
 
 } // namespace rules

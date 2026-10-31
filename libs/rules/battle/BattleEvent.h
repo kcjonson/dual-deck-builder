@@ -9,6 +9,10 @@
 
 namespace rules {
 
+	// Why a vehicle changed slot. The first six are a card's moves, which count as swerving this turn; losing the
+	// flank (the end-of-turn drop-back) and the raiders' close-up happen between turns.
+	enum class MoveCause { Flank, Swerve, Relocate, Swap, DropBack, FormationShift, LostTheFlank, CloseUp };
+
 	// What happened, in order, for the combat log to word and a renderer to animate. Each says what changed
 	// and by how much; anything else it needs is in the state.
 	namespace event {
@@ -189,6 +193,22 @@ namespace rules {
 
 			bool operator==(const AdrenalineGained&) const = default;
 		};
+		struct VehicleMoved {
+			VehicleIndex vehicle;
+			RoadSlot	 from;
+			RoadSlot	 to;
+			MoveCause	 cause{MoveCause::Swerve};
+
+			bool operator==(const VehicleMoved&) const = default;
+		};
+		// A move that can't happen. An optional one is skipped and the card plays on; any other cancels the
+		// rest of the card.
+		struct MoveBlocked {
+			VehicleIndex vehicle;
+			bool		 cancelsCard{false};
+
+			bool operator==(const MoveBlocked&) const = default;
+		};
 		struct StatusApplied {
 			VehicleIndex	   vehicle;
 			Status			   status{Status::Vulnerable};
@@ -263,6 +283,8 @@ namespace rules {
 		event::Repaired,
 		event::DriverHealed,
 		event::AdrenalineGained,
+		event::VehicleMoved,
+		event::MoveBlocked,
 		event::StatusApplied,
 		event::StatusEnded,
 		event::BecameSteady,
