@@ -3,6 +3,7 @@
 // The maps the map tests share, each built once a run. Tests only: nothing in the library includes it.
 
 #include "AreaMapPipeline.h"
+#include "Dressing.h"
 #include "Ground.h"
 #include "Hazards.h"
 #include "Lakes.h"
@@ -11,6 +12,7 @@
 #include "ParamValidator.h"
 #include "PlaceNames.h"
 #include "Places.h"
+#include "PoiNames.h"
 #include "RoadChecks.h"
 #include "Roads.h"
 #include "Terrain.h"
@@ -29,6 +31,7 @@
 #include <initializer_list>
 #include <memory>
 #include <span>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -278,6 +281,41 @@ namespace rules::map::fixtures {
 			}
 		}
 		built.emplace_back(params, std::make_unique<StopLayer>(stopsOn(params, 0)));
+		return *built.back().second;
+	}
+
+	// The dressing stage's stream over stopsStream(params).
+	inline foundation::Rng dressingStream(const MapParams& params, uint32_t attempt = 0) {
+		return foundation::Rng(stopsStream(params).seed()).fork("dressing", attempt);
+	}
+
+	// The dressing over the fixture's layers for `land`, with params that may differ from the land's in what only the
+	// dressing reads, on dressingStream(land).
+	inline Dressing dressingOver(const MapParams& land, const MapParams& params) {
+		const Ground				   ground(terrainFor(land), waterFor(land), hazardsFor(land));
+		const std::vector<std::string> names = poiNames(poisFor(land), placesFor(land), content().pois, content().factions, land.radius);
+		return generateDressing({
+			.params = params,
+			.ground = ground,
+			.places = placesFor(land),
+			.network = roadsFor(land).network(),
+			.pois = poisFor(land),
+			.poiNames = names,
+			.placeNames = content().placeNames,
+			.featureNames = content().featureNames,
+			.stream = dressingStream(land),
+		});
+	}
+
+	// The dressing over the fixture's layers on dressingStream(params), built the first time it's asked for.
+	inline const Dressing& dressingFor(const MapParams& params) {
+		static std::vector<std::pair<MapParams, std::unique_ptr<Dressing>>> built;
+		for (const auto& [key, dressing] : built) {
+			if (key == params) {
+				return *dressing;
+			}
+		}
+		built.emplace_back(params, std::make_unique<Dressing>(dressingOver(params, params)));
 		return *built.back().second;
 	}
 

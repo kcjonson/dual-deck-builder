@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -296,6 +297,95 @@ namespace {
 		EXPECT_THROW((replayWith({.mapAttempt = kMapAttempts, .attempts = {{"first", 0}, {"second", 0}}})), std::invalid_argument);
 		// Before any stage runs, the last stage's attempt included.
 		EXPECT_EQ(started, 0);
+	}
+
+	// An inert stage, its runs failing with the problems the script lists, run by run, and passing once it runs out.
+	MapStage<Script, Draws> inertStage(std::string name, int* runs, std::vector<Problems> failing = {}) {
+		return {
+			.name = std::move(name),
+			.run = [](const Script&, Draws& draws, foundation::Rng& stream) { draws.third = stream.nextUInt32(); },
+			.check =
+				[runs, failing = std::move(failing)](const Script&, const Draws&) {
+					const auto run = static_cast<size_t>((*runs)++);
+					return run < failing.size() ? failing[run] : Problems{};
+				},
+			.inert = true,
+		};
+	}
+
+	TEST(MapPipeline, RetriesAnInertStageAloneAndPastItsCapKeepsItsBestInAReleaseRunAndThrowsInADebugOne) {
+		int							firstRuns = 0;
+		int							secondRuns = 0;
+		int							thirdRuns = 0;
+		const PipelineResult<Draws> retried =
+			standIns(&firstRuns, &secondRuns).then(inertStage("third", &thirdRuns, {{"third: not yet"}})).run(9, Script{});
+		EXPECT_EQ(firstRuns, 1);
+		EXPECT_EQ(secondRuns, 1);
+		EXPECT_EQ(retried.stages[2].attempt, 1U);
+		EXPECT_EQ(retried.stages[2].stream, foundation::Rng(retried.stages[1].stream).fork("third", 1).seed());
+		const Problems				one{"third: no"};
+		const Problems				two{"third: no", "third: nor that"};
+		const std::vector<Problems> script{two, one, two, two, two, two, two, two};
+		thirdRuns = 0;
+		const PipelineResult<Draws> kept =
+			standIns(&firstRuns, &secondRuns).then(inertStage("third", &thirdRuns, script)).run(9, Script{}, {.debug = false});
+		EXPECT_EQ(kept.mapAttempt, 0U);
+		EXPECT_EQ(kept.stages[2].attempt, 1U);
+		EXPECT_TRUE(kept.stages[2].kept);
+		thirdRuns = 0;
+		EXPECT_THROW(
+			(void)standIns(&firstRuns, &secondRuns).then(inertStage("third", &thirdRuns, script)).run(9, Script{}, {.debug = true}),
+			MapPipelineError
+		);
+	}
+
+	// So a save made before an inert stage existed, or one that leaves it out, makes the same map with it.
+	TEST(MapPipeline, ReplaysAnInertStageTheReplayNamesNoAttemptForOnItsFirst) {
+		int							firstRuns = 0;
+		int							secondRuns = 0;
+		int							thirdRuns = 0;
+		const Pipeline				pipeline = standIns(&firstRuns, &secondRuns).then(inertStage("third", &thirdRuns, {{"no"}, {"no"}}));
+		const PipelineResult<Draws> original = pipeline.run(9, Script{.firstFailures = 1});
+		ASSERT_EQ(original.stages[2].attempt, 2U);
+		const std::map<std::string, uint32_t, std::less<>> gameplay{
+			{"first", original.stages[0].attempt},
+			{"second", original.stages[1].attempt},
+		};
+		const PipelineResult<Draws> unnamed = pipeline.run(9, Script{}, {.replay = PipelineReplay{.mapAttempt = 0, .attempts = gameplay}});
+		EXPECT_EQ(unnamed.products.first, original.products.first);
+		EXPECT_EQ(unnamed.products.second, original.products.second);
+		EXPECT_EQ(unnamed.stages[2].attempt, 0U);
+		EXPECT_EQ(unnamed.stages[2].stream, foundation::Rng(original.stages[1].stream).fork("third", 0).seed());
+		std::map<std::string, uint32_t, std::less<>> named = gameplay;
+		named["third"] = 2;
+		const PipelineResult<Draws> again = pipeline.run(9, Script{}, {.replay = PipelineReplay{.mapAttempt = 0, .attempts = named}});
+		EXPECT_EQ(again.products.third, original.products.third);
+		// A gameplay stage it leaves out is still refused.
+		EXPECT_THROW(
+			(void)pipeline.run(9, Script{}, {.replay = PipelineReplay{.mapAttempt = 0, .attempts = {{"first", 0}, {"third", 0}}}}),
+			std::invalid_argument
+		);
+	}
+
+	TEST(MapPipeline, LetsOnlyAnInertStageFollowAnInertOneNestingEachInTheOneBefore) {
+		int			   firstRuns = 0;
+		int			   secondRuns = 0;
+		int			   inertRuns = 0;
+		const Pipeline dressed =
+			standIns(&firstRuns, &secondRuns).then(inertStage("third", &inertRuns)).then(inertStage("fourth", &inertRuns));
+		EXPECT_EQ(dressed.stageCount(), 4U);
+		const PipelineResult<Draws> result = dressed.run(9, Script{});
+		EXPECT_EQ(result.stages[3].stream, foundation::Rng(result.stages[2].stream).fork("fourth", 0).seed());
+		const MapStage<Script, Draws> gameplay{.name = "fifth", .run = [](const Script&, Draws&, foundation::Rng&) {}};
+		EXPECT_DEBUG_DEATH((void)dressed.then(gameplay), "only an inert stage follows an inert one");
+		MapStage<Script, Draws> keeping = inertStage("fifth", &inertRuns);
+		keeping.keepable = [](const Problems&) {
+			return true;
+		};
+		EXPECT_DEBUG_DEATH((void)dressed.then(keeping), "an inert stage may keep any attempt");
+		MapStage<Script, Draws> escalating = inertStage("fifth", &inertRuns);
+		escalating.escalate = "first";
+		EXPECT_DEBUG_DEATH((void)dressed.then(escalating), "retries only itself");
 	}
 
 } // namespace

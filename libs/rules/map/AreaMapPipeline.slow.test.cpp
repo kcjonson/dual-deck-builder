@@ -12,20 +12,28 @@
 namespace {
 
 	using namespace rules::map;
-	TEST(AreaMapPipeline, RunsTheWaterOnAStreamNestedInTheTerrainsAndMakesTheSameMapToTheBit) {
-		const MapParams&			  params = fixtures::mixed();
+
+	// Run with the dressing's params at the other end of their ranges, against the fixture's layers, which the gameplay
+	// stages made alone at the defaults: every gameplay product comes out the same to the bit, so neither the dressing
+	// stage nor its params reach play (Guarantee 9).
+	TEST(AreaMapPipeline, NestsEveryStageInItsUpstreamsWinnerAndMakesTheGameplayMapToTheBitWhateverTheDressing) {
+		const MapParams& params = fixtures::mixed();
+		MapParams		 dressed = fixtures::with(fixtures::with(params, &MapParams::dressing, 1), &MapParams::streetGrids, 0);
+		dressed.railLines = 0;
 		std::vector<std::string>	  started;
 		const PipelineResult<AreaMap> result = generateAreaMap(
-			params, fixtures::content(), {.onProgress = [&](const StageAttempt& attempt) { started.emplace_back(attempt.stage); }}
+			dressed, fixtures::content(), {.onProgress = [&](const StageAttempt& attempt) { started.emplace_back(attempt.stage); }}
 		);
-		EXPECT_EQ(started, (std::vector<std::string>{"terrain", "water", "hazards", "places", "roads", "routeTree", "pois", "stops"}));
+		EXPECT_EQ(
+			started, (std::vector<std::string>{"terrain", "water", "hazards", "places", "roads", "routeTree", "pois", "stops", "dressing"})
+		);
 		EXPECT_EQ(result.mapAttempt, 0U);
 		EXPECT_TRUE(result.failures.empty());
-		ASSERT_EQ(result.stages.size(), 8U);
+		ASSERT_EQ(result.stages.size(), 9U);
 		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
 		EXPECT_EQ(result.stages[1].name, "water");
 		EXPECT_EQ(result.stages[1].stream, fixtures::waterStream(params).seed());
-		ASSERT_TRUE(result.products.terrain.has_value() && result.products.water.has_value());
+		ASSERT_TRUE(result.products.terrain.has_value() && result.products.water.has_value() && result.products.hazards.has_value());
 		EXPECT_EQ(result.products.terrain->surface().elevation, fixtures::terrainFor(params).surface().elevation);
 		EXPECT_EQ(result.products.terrain->surface().drainage.levels, fixtures::terrainFor(params).surface().drainage.levels);
 		const Water& water = *result.products.water;
@@ -41,6 +49,19 @@ namespace {
 				EXPECT_EQ(water.rivers()[id].line[index].x, direct.rivers()[id].line[index].x);
 				EXPECT_EQ(water.rivers()[id].line[index].y, direct.rivers()[id].line[index].y);
 			}
+		}
+		const auto& hotspots = result.products.hazards->hotspots();
+		ASSERT_EQ(hotspots.size(), fixtures::hazardsFor(params).hotspots().size());
+		for (size_t index = 0; index < hotspots.size(); ++index) {
+			EXPECT_EQ(hotspots[index].x, fixtures::hazardsFor(params).hotspots()[index].x);
+			EXPECT_EQ(hotspots[index].plumeRadius, fixtures::hazardsFor(params).hotspots()[index].plumeRadius);
+		}
+		ASSERT_TRUE(result.products.places.has_value());
+		const Places& places = fixtures::placesFor(params);
+		ASSERT_EQ(result.products.places->villages().size(), places.villages().size());
+		for (size_t index = 0; index < places.villages().size(); ++index) {
+			EXPECT_EQ(result.products.places->villages()[index].name, places.villages()[index].name);
+			EXPECT_EQ(result.products.places->villages()[index].x, places.villages()[index].x);
 		}
 		ASSERT_TRUE(result.products.roads.has_value());
 		EXPECT_TRUE(fixtures::sameRoads(*result.products.roads, fixtures::roadsFor(params)));
@@ -69,6 +90,11 @@ namespace {
 		EXPECT_FALSE(result.stages[7].kept);
 		ASSERT_TRUE(result.products.stops.has_value());
 		EXPECT_TRUE(fixtures::sameStops(*result.products.stops, fixtures::stopsFor(params)));
+		// The dressing nests in the stops' winning stream, at its own params: no rails, and the widest streets.
+		EXPECT_EQ(result.stages[8].stream, fixtures::dressingStream(params).seed());
+		ASSERT_TRUE(result.products.dressing.has_value());
+		EXPECT_TRUE(result.products.dressing->rails.empty());
+		EXPECT_NEAR(result.products.dressing->districts.front().spacing, 14, 1e-9);
 	}
 
 	// One attempt, since another would only repeat it: a route tree the map can't use restarts the map.
@@ -82,7 +108,7 @@ namespace {
 		ASSERT_EQ(result.failures.size(), 1U);
 		EXPECT_EQ(result.failures[0].stage, "routeTree");
 		EXPECT_EQ(result.failures[0].attempt, 0U);
-		ASSERT_EQ(result.stages.size(), 8U);
+		ASSERT_EQ(result.stages.size(), 9U);
 		EXPECT_EQ(result.stages[0].stream, foundation::Rng(params.seed).fork("map", 1).fork("terrain", 0).seed());
 		for (const StageRecord& stage : result.stages) {
 			EXPECT_EQ(stage.attempt, 0U) << stage.name;
@@ -97,7 +123,7 @@ namespace {
 								return attempt.stage == "hazards" && attempt.attempt == 0 ? Problems{"no craters there"} : Problems{};
 							}});
 		EXPECT_EQ(result.mapAttempt, 0U);
-		ASSERT_EQ(result.stages.size(), 8U);
+		ASSERT_EQ(result.stages.size(), 9U);
 		EXPECT_EQ(result.stages[0].attempt, 0U);
 		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
 		EXPECT_EQ(result.stages[1].attempt, 0U);
@@ -125,7 +151,7 @@ namespace {
 			generateAreaMap(params, fixtures::content(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
 								return attempt.stage == "places" && attempt.attempt == 0 ? Problems{"no towns there"} : Problems{};
 							}});
-		ASSERT_EQ(result.stages.size(), 8U);
+		ASSERT_EQ(result.stages.size(), 9U);
 		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
 		EXPECT_EQ(result.stages[1].stream, fixtures::waterStream(params).seed());
 		EXPECT_EQ(result.stages[2].stream, fixtures::hazardsStream(params).seed());
@@ -155,7 +181,7 @@ namespace {
 			generateAreaMap(params, fixtures::content(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
 								return attempt.stage == "roads" && attempt.attempt == 0 ? Problems{"no roads there"} : Problems{};
 							}});
-		ASSERT_EQ(result.stages.size(), 8U);
+		ASSERT_EQ(result.stages.size(), 9U);
 		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
 		EXPECT_EQ(result.stages[1].stream, fixtures::waterStream(params).seed());
 		EXPECT_EQ(result.stages[2].stream, fixtures::hazardsStream(params).seed());

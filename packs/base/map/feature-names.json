@@ -1,0 +1,14 @@
+{
+	"roots": [
+		"Mercer", "Corbin", "Harlan", "Tull", "Ennis", "Lyle", "Gail", "Mason", "Kettle", "Crow", "Bitter", "Sweetwater", "Powder", "Medicine", "Bear", "Buffalo", "Antelope", "Wind", "Smoke", "Thunder", "Lost", "Muddy", "Clearwater", "Sulphur", "Rattlesnake", "Coyote", "Badger", "Beaver", "Otter", "Cottonwood", "Willow", "Juniper", "Sage", "Granger", "Pryor", "Absalom", "Dutchman", "Owl", "Hatchet", "Raven"
+	],
+	"patterns": {
+		"river": "{root} River",
+		"creek": "{root} Creek",
+		"lake": "Lake {root}",
+		"reservoir": "{root} Reservoir",
+		"mountains": "{root} Mountains",
+		"hills": "{root} Hills",
+		"pass": "{root} Pass"
+	}
+}

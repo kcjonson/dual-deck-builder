@@ -2,6 +2,7 @@
 
 #include "Ground.h"
 #include "PoiChecks.h"
+#include "PoiNames.h"
 #include "StopChecks.h"
 
 #include <cstddef>
@@ -128,11 +129,31 @@ namespace rules::map {
 			}));
 		}
 
+		// No check: what it makes is only ever drawn, and it writes nothing the stages before it made.
+		void runDressing(const AreaMapInput& input, AreaMap& map, foundation::Rng& stream) {
+			const AreaMap&				   made = map;
+			const Ground				   ground(*made.terrain, *made.water, *made.hazards);
+			const std::vector<std::string> names =
+				poiNames(*made.pois, *made.places, input.content.pois, input.content.factions, input.params.radius);
+			map.dressing = generateDressing({
+				.params = input.params,
+				.ground = ground,
+				.places = *made.places,
+				.network = made.roads->network(),
+				.pois = *made.pois,
+				.poiNames = names,
+				.placeNames = input.content.placeNames,
+				.featureNames = input.content.featureNames,
+				.stream = foundation::Rng(stream.seed()),
+			});
+		}
+
 	} // namespace
 
 	MapContent readMapContent(const std::filesystem::path& pack) {
 		return {
 			.placeNames = readPlaceNames(pack / "map" / "place-names.json"),
+			.featureNames = readFeatureNames(pack / "map" / "feature-names.json"),
 			.pois = readPoiTuning(pack / "map" / "pois.json"),
 			.factions = readFactions(pack / "factions" / "factions.json"),
 			.stops = readStopTuning(pack / "map" / "stops.json"),
@@ -154,7 +175,8 @@ namespace rules::map {
 			.then({.name = "roads", .run = runRoads, .check = checkRoadsStage})
 			.then({.name = "routeTree", .attempts = 1, .run = runRouteTree})
 			.then({.name = "pois", .run = runPois, .check = checkPoisStage, .escalate = "roads"})
-			.then({.name = "stops", .run = runStops, .check = checkStopsStage, .localRetry = true, .keepable = keepableStops});
+			.then({.name = "stops", .run = runStops, .check = checkStopsStage, .localRetry = true, .keepable = keepableStops})
+			.then({.name = "dressing", .run = runDressing, .inert = true});
 	}
 
 	PipelineResult<AreaMap> generateAreaMap(const MapParams& params, const MapContent& content, const PipelineOptions<AreaMap>& options) {

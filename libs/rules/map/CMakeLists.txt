@@ -3,14 +3,18 @@ target_sources(ddb_rules PRIVATE
     Biome.cpp
     ContentReading.cpp
     Drainage.cpp
+    Dressing.cpp
     EdgeCostField.cpp
     Erosion.cpp
+    FeatureNames.cpp
     Ground.cpp
     Hazards.cpp
+    LabelLayout.cpp
     Lakes.cpp
     Land.cpp
     LandFields.cpp
     LandGrid.cpp
+    MapLabels.cpp
     MapMath.cpp
     MapParams.cpp
     MapPresets.cpp
@@ -23,6 +27,7 @@ target_sources(ddb_rules PRIVATE
     PoiNames.cpp
     Pois.cpp
     Polyline.cpp
+    RailLines.cpp
     RiverIndex.cpp
     Rivers.cpp
     RoadChecks.cpp
@@ -44,6 +49,7 @@ target_sources(ddb_rules PRIVATE
     StopRules.cpp
     StopTables.cpp
     Stops.cpp
+    StreetGrids.cpp
     Terrain.cpp
     Uplift.cpp
     Water.cpp

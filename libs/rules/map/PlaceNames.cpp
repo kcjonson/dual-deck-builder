@@ -39,10 +39,18 @@ namespace rules::map {
 		return pool;
 	}
 
-	PlaceNamer::PlaceNamer(const PlaceNamePool& pool, foundation::Rng&& rng)
+	PlaceNamer::PlaceNamer(const PlaceNamePool& pool, foundation::Rng&& rng, std::span<const std::string> taken)
 		: pool(&pool),
 		  rng(std::move(rng)) {
 		assert(!pool.starts.empty() && !pool.endings.empty() && "PlaceNamer: a pool has words");
+		for (const std::string& name : taken) {
+			used.insert(name);
+			for (size_t start = 0; start < pool.starts.size(); ++start) {
+				if (name.starts_with(pool.starts[start])) {
+					startsUsed.insert(start);
+				}
+			}
+		}
 	}
 
 	std::string PlaceNamer::next() {

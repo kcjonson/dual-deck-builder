@@ -4,15 +4,12 @@
 
 #include <rules/core/ContentError.h>
 
-#include <math/DeterministicMath.h>
-
 #include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <numbers>
 #include <set>
 #include <string>
 #include <utility>
@@ -26,11 +23,6 @@ namespace rules::map {
 		constexpr int kStrongholdTier = 5;
 		// World units across the highway index's buckets.
 		constexpr double kBucket = 64;
-
-		Point unitVector(double degrees) {
-			const double radians = degrees * (std::numbers::pi / 180);
-			return {.x = foundation::det_math::cos(radians), .y = foundation::det_math::sin(radians)};
-		}
 
 		// Every highway segment in square buckets, for the nearness the scores and placement rules ask.
 		class HighwayIndex {

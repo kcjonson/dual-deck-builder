@@ -2,9 +2,12 @@
 
 #include "MapMath.h"
 
+#include <math/DeterministicMath.h>
+
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <numbers>
 #include <utility>
 
 namespace rules::map {
@@ -57,6 +60,31 @@ namespace rules::map {
 			travelled += segment;
 		}
 		return line.back();
+	}
+
+	std::vector<Point> sliceAlong(std::span<const Point> line, double start, double end) {
+		const double	   from = start < 0 ? 0 : start;
+		std::vector<Point> slice{pointAlong(line, from)};
+		double			   travelled = 0;
+		for (size_t index = 1; index < line.size(); ++index) {
+			const double dx = line[index].x - line[index - 1].x;
+			const double dy = line[index].y - line[index - 1].y;
+			travelled += std::sqrt(dx * dx + dy * dy);
+			if (travelled <= from) {
+				continue;
+			}
+			if (travelled >= end) {
+				break;
+			}
+			slice.push_back(line[index]);
+		}
+		slice.push_back(pointAlong(line, end));
+		return slice;
+	}
+
+	Point unitVector(double degrees) {
+		const double radians = degrees * (std::numbers::pi / 180);
+		return {.x = foundation::det_math::cos(radians), .y = foundation::det_math::sin(radians)};
 	}
 
 	std::vector<Point> chaikin(std::span<const Point> line) {

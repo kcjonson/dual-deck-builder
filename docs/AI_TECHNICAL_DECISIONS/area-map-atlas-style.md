@@ -78,6 +78,14 @@ From 0.3 screen pixels a world unit in. A 1600-radius map fitted whole sits near
 - Paper outside the disc: extend the bake past the rim and fade it, or leave the bake transparent there over a paper ground. The latter, as above.
 - Label candidates: two sides (as before), four, or eight. Four: two drop a label wherever both sides of its symbol are crowded though above or below is often clear, and the diagonals can wait until a crowded map shows they're needed.
 
+## In the C++ alpha
+
+Nothing draws yet; the view comes with the screens. What it will draw from (2026-10-31, DDB-571, dressing.md, The dressing in the C++ alpha):
+
+- The dressing's street grids, the metro's districts and each town's and village's grid with its rubble, take the place of the bake's plain street grids, as Consequences planned. The fill and the ragged edge are still the view's.
+- Labels are set by the rules' `placeLabels`, which works as the layout above does: the view hands it each label's size at its zoom and its markers as boxes it keeps clear, Home's star and the stops included, and a pad, and it tries right, left, above, then below a point label's anchor, sets river and range names along their paths, and drops what has no room. The metro's name is the dressing's, so the game's maps show one.
+- The shields carry the roads' route numbers, the contamination hatching has the dressing's crater regions beside the bake's own, and mire has its stipple.
+
 ## Visual calls
 
 Calls the target doesn't settle, made here and listed for Kevin:

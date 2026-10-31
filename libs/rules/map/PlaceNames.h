@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <set>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -25,8 +26,9 @@ namespace rules::map {
 	// them rather than looping.
 	class PlaceNamer {
 	  public:
-		// The pool has to outlive the namer; `rng` is the places stream's `names` fork.
-		PlaceNamer(const PlaceNamePool& pool, foundation::Rng&& rng);
+		// The pool has to outlive the namer; `rng` is the places stream's `names` fork, or the dressing's for the
+		// metro. Names `taken` already, and their first parts, count as used.
+		PlaceNamer(const PlaceNamePool& pool, foundation::Rng&& rng, std::span<const std::string> taken = {});
 
 		[[nodiscard]] std::string next();
 
