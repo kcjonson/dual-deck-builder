@@ -31,6 +31,8 @@ namespace rules::map {
 		RiverIndex(std::span<const River> rivers, double halfExtent);
 
 		[[nodiscard]] bool contains(double x, double y) const;
+		// True within `reach` of a river's water: within half its width there plus `reach` of its centreline.
+		[[nodiscard]] bool near(double x, double y, double reach) const;
 
 		// Calls `visit` with each river centreline the move from (x0, y0) to (x1, y1) crosses, once each. A move
 		// that only touches a centreline, or runs along one, crosses nothing.

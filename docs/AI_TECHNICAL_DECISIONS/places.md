@@ -105,6 +105,16 @@ Everything on the gameplay path is adds, multiplies, divides, compares, and squa
 
 Tests hold the spacing and the ring, craters off the drainage, the lakes, and every river line, plumes raising contamination only under themselves and never in the metro, craters only inside their radius, and a hazards retry leaving the terrain and the water as they were, each on its first attempt's stream.
 
+## Places in the C++ alpha
+
+`libs/rules/map/Places` (2026-10-30, DDB-571) is the pipeline's fourth stage, on `...fork("hazards", h).fork("places", p)`, forked `suitability`, `towns`, `villages`, `names`, `exits` (and under it `bearings` and `back`), and `crossroads`, with this record's rules and numbers, provisional calls 3 to 8. Its check is `checkPlaces`, so a place off the reached squares or in a river reruns the stage on its next attempt, as above. What differs:
+
+- The name pools are content: `packs/base/map/place-names.json`, `starts` and `endings`, read strictly (each word distinct and non-empty), so a pack can replace them. Generation's input carries the pool beside the params (`AreaMapInput`); which pack's file it is, and overriding one pack's with another's, waits on a map content loader with the packs' own override rules.
+- The suitability and the crossroads read the per-cell grade `LandFields` already works out, `cellGrades`, rather than a copy of it.
+- A river's clearance reads `RiverIndex::near`, exact by its buckets, as the TypeScript's did.
+- The places are plain data: the metro's radius, towns and villages with their ruins, names, and scores, crossroads, and exits with their bearings, numbered in that order from 1, the metro 0. A list of them all, the ruins, and `ruinAt` come with the roads and POIs that read them.
+- Street grids are the dressing's, as the spec has them (Pipeline, 11), and so are the feature names rivers and ranges are labelled with.
+
 ## Consequences
 
 - Every map moves: its hotspots, its lakes (which no longer keep off towns and craters), its badlands near the old plumes, its towns, and with the departures its roads.

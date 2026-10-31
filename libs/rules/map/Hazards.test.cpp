@@ -128,11 +128,11 @@ namespace {
 	TEST(AreaMapPipeline, RetriesTheHazardsAloneLeavingTheTerrainAndTheWaterAsTheyWere) {
 		const MapParams&			  params = fixtures::mixed();
 		const PipelineResult<AreaMap> result =
-			generateAreaMap(params, {.accept = [](const AreaMap&, const StageAttempt& attempt) {
+			generateAreaMap(params, fixtures::placeNames(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
 								return attempt.stage == "hazards" && attempt.attempt == 0 ? Problems{"no craters there"} : Problems{};
 							}});
 		EXPECT_EQ(result.mapAttempt, 0U);
-		ASSERT_EQ(result.stages.size(), 3U);
+		ASSERT_EQ(result.stages.size(), 4U);
 		EXPECT_EQ(result.stages[0].attempt, 0U);
 		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
 		EXPECT_EQ(result.stages[1].attempt, 0U);

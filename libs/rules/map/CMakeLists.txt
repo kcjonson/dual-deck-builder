@@ -14,6 +14,8 @@ target_sources(ddb_rules PRIVATE
     MapPresets.cpp
     MoveCost.cpp
     ParamValidator.cpp
+    PlaceNames.cpp
+    Places.cpp
     RiverIndex.cpp
     Rivers.cpp
     RollParams.cpp
