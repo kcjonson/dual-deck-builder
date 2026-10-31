@@ -1,5 +1,8 @@
 #include "AreaMapPipeline.h"
 
+#include "Ground.h"
+#include "PoiChecks.h"
+
 #include <cstddef>
 #include <string>
 
@@ -29,7 +32,7 @@ namespace rules::map {
 		}
 
 		void runPlaces(const AreaMapInput& input, AreaMap& map, foundation::Rng& stream) {
-			map.places.emplace(input.params, *map.terrain, *map.water, *map.hazards, input.placeNames, stream);
+			map.places.emplace(input.params, *map.terrain, *map.water, *map.hazards, input.content.placeNames, stream);
 		}
 
 		// An exit with no reachable ground near any turn of its bearings fails here, and the stage draws again.
@@ -55,7 +58,62 @@ namespace rules::map {
 			});
 		}
 
+		void runPois(const AreaMapInput& input, AreaMap& map, foundation::Rng& stream) {
+			const PoiGround ground = poiGround(Ground(*map.terrain, *map.water, *map.hazards), *map.places, input.params.radius);
+			map.pois = placePois({
+				.network = map.roads->network(),
+				.tree = *map.routeTree,
+				.ground = ground,
+				.params = input.params,
+				.tuning = input.content.pois,
+				.factions = input.content.factions,
+				.stops = input.content.stops,
+				.stream = foundation::Rng(stream.seed()),
+			});
+		}
+
+		// Every rule checkPoiLayer has, and, held strictly, every hard guarantee the layer missed.
+		Problems checkPoisStage(const AreaMapInput& input, const AreaMap& map) {
+			const bool lenient = poisHeldLeniently(input.params, *map.roads);
+			Problems   problems;
+			for (const PoiViolation& violation : checkPoiLayer({
+					 .network = map.roads->network(),
+					 .tree = *map.routeTree,
+					 .layer = *map.pois,
+					 .params = input.params,
+					 .tuning = input.content.pois,
+					 .stops = input.content.stops,
+					 .sectors = !lenient,
+				 })) {
+				for (const auto& [name, rule] : kPoiRuleNames) {
+					if (rule == violation.rule) {
+						problems.push_back(std::string(name) + ": " + violation.detail);
+					}
+				}
+			}
+			if (!lenient) {
+				for (const std::string& failure : map.pois->failures) {
+					problems.push_back("guarantee: " + failure);
+				}
+			}
+			return problems;
+		}
+
 	} // namespace
+
+	MapContent readMapContent(const std::filesystem::path& pack) {
+		return {
+			.placeNames = readPlaceNames(pack / "map" / "place-names.json"),
+			.pois = readPoiTuning(pack / "map" / "pois.json"),
+			.factions = readFactions(pack / "factions" / "factions.json"),
+			.stops = readStopTuning(pack / "map" / "stops.json"),
+		};
+	}
+
+	bool poisHeldLeniently(const MapParams& params, const Roads& roads) {
+		const int wanted = loopsWanted(params);
+		return loopsNeeded(params, roads.inland()) < wanted && roads.loops() < wanted;
+	}
 
 	MapPipeline<AreaMapInput, AreaMap> areaMapPipeline() {
 		return MapPipeline<AreaMapInput, AreaMap>{}
@@ -64,12 +122,12 @@ namespace rules::map {
 			.then({.name = "hazards", .run = runHazards, .check = checkHazards})
 			.then({.name = "places", .run = runPlaces, .check = checkPlacesStage})
 			.then({.name = "roads", .run = runRoads, .check = checkRoadsStage})
-			.then({.name = "routeTree", .attempts = 1, .run = runRouteTree});
+			.then({.name = "routeTree", .attempts = 1, .run = runRouteTree})
+			.then({.name = "pois", .run = runPois, .check = checkPoisStage, .escalate = "roads"});
 	}
 
-	PipelineResult<AreaMap>
-	generateAreaMap(const MapParams& params, const PlaceNamePool& placeNames, const PipelineOptions<AreaMap>& options) {
-		const AreaMapInput input{.params = params, .placeNames = placeNames};
+	PipelineResult<AreaMap> generateAreaMap(const MapParams& params, const MapContent& content, const PipelineOptions<AreaMap>& options) {
+		const AreaMapInput input{.params = params, .content = content};
 		return areaMapPipeline().run(params.seed, input, options);
 	}
 
