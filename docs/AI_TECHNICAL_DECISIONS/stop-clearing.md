@@ -48,6 +48,10 @@ Options considered for driving past a cleared stop: taking it off the route alto
 
 The map state changed shape, so the save format goes to version 12. Version 11 saves load (`SaveUpgrades.ts`): a POI with an entry in the old `pois` stock had a run reach it, which clears it now, so its index goes into `clearedPois` and the stock goes; no stop is cleared, since nothing kept stop state. A POI that had refilled had dropped its entry, so it reads as never reached; nothing in the save tells it apart. The old stock is held to version 11's own reader first, so a damaged one is damage, not a guess. A run out keeps its route as saved; its POI clears when it gets home.
 
+## In the C++ alpha
+
+The map's half is in `libs/rules/map/` (2026-10-31, DDB-571): a stop's id is its index in the stop layer, fixed for a given map, and `rollStop(layer, stop, roll, tuning)` gives the same contents for the same stop and roll, which is all the state above needs from it: a stop's index, its roll, and the day it was cleared. A POI is its index in the POI layer. The state, and the run that clears it, come with the map on the campaign ([campaign.md](./campaign.md)).
+
 ## Provisional calls
 
 None of these is in a spec. They're calls 215 to 219, 221, 222, and 260 in [gameplay-calls.md](../gameplay-calls.md); 186 to 188 are the clearing rule itself.

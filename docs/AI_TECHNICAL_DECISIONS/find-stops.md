@@ -32,7 +32,7 @@ Options considered for someone new: recruiting them on the spot, which needs not
 
 ## In the C++ alpha
 
-`libs/rules/campaign/Recruits.h` (2026-10-31, DDB-573) has Find: driver's campaign side, and [campaign.md](./campaign.md), The garage, finds, and escorts on the road, has how. The stop itself waits for the map's stops. What differs:
+`libs/rules/campaign/Recruits.h` (2026-10-31, DDB-573) has Find: driver's campaign side, and [campaign.md](./campaign.md), The garage, finds, and escorts on the road, has how. The stop itself is the map's: the stops stage places Find: driver stops, at least `driverFinds` in tiers 1 and 2, and `rollStop` gives each, at its roll, the `seed` that `whoIsFound` takes (stops-and-routes.md, Stops in the C++ alpha). What differs:
 
 - `whoIsFound` takes the stop's seed from its caller, the map's stop, rather than reading the run's route, and the unlocked archetypes as founding does.
 - A missing driver found rides home in the run's `found` and someone new in its `recruits`, both on `Campaign::run`, and `unloadRun` brings both in, where the TypeScript split them between the campaign's `foundOnRun` and the supply run's `recruits`.

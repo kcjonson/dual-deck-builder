@@ -3,6 +3,7 @@
 #include <rules/map/PoiData.h>
 #include <rules/map/StopData.h>
 #include <rules/map/StopRoom.h>
+#include <rules/map/StopTables.h>
 
 #include <gtest/gtest.h>
 
@@ -10,6 +11,7 @@
 #include <fstream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -103,6 +105,78 @@ namespace {
 		);
 		EXPECT_NE(stopsWith("\"dawn\": 6", "\"dusk\": 20").find("dawn is required"), std::string::npos);
 		fs::remove_all(fs::temp_directory_path() / "ddb-map-content");
+	}
+
+	TEST(StopTables, DrawByTheirWeightsOnlyTypesTheRunResolves) {
+		const StopTables& tables = base().stopTables;
+		EXPECT_EQ(tables.territories().size(), 1U);
+		const int none = tables.territory(kNoTerritory);
+		// A highway at tier 3: ambushes 7 to a warband's 1, and the calm types the run resolves, wrecks 3, distress 2, Find:
+		// driver 0.2, cards 1, and supplies 2, in type order; checkpoints, garages, and the rest weigh nothing.
+		EXPECT_EQ(tables.draw(RoadClass::Highway, Biome::Scrub, 3, none, 0.874, true), StopType::Ambush);
+		EXPECT_EQ(tables.draw(RoadClass::Highway, Biome::Scrub, 3, none, 0.876, true), StopType::Warband);
+		EXPECT_EQ(tables.draw(RoadClass::Highway, Biome::Scrub, 3, none, 0.36, false), StopType::Wreck);
+		EXPECT_EQ(tables.draw(RoadClass::Highway, Biome::Scrub, 3, none, 0.37, false), StopType::Distress);
+		EXPECT_EQ(tables.draw(RoadClass::Highway, Biome::Scrub, 3, none, 0.999, false), StopType::FindSupplies);
+		// No warbands at tier 1.
+		EXPECT_EQ(tables.draw(RoadClass::Trail, Biome::Mire, 1, none, 0.999, true), StopType::Ambush);
+		for (int step = 0; step < 100; ++step) {
+			for (const auto& [name, road] : kRoadClassNames) {
+				for (const auto& [biomeName, biome] : kBiomeNames) {
+					EXPECT_TRUE(isFight(tables.draw(road, biome, 5, none, step / 100.0, true)));
+					const StopType calm = tables.draw(road, biome, 5, none, step / 100.0, false);
+					EXPECT_TRUE(isCalm(calm) && isResolvable(calm)) << kStopTypeNames[static_cast<size_t>(calm)].first;
+				}
+			}
+		}
+	}
+
+	TEST(MapContent, ReadsTheStopTablesStrictlyAndFailsARowWithNothingToDraw) {
+		const auto read = [](const fs::path& file) {
+			return readStopTables(file);
+		};
+		const auto tablesWith = [&](std::string_view from, std::string_view to) {
+			return errorFrom("stop-tables.json", edited("stop-tables.json", from, to), read);
+		};
+		EXPECT_EQ(tablesWith("\"scrub\": {}", "\"scrub\": {}"), "");
+		EXPECT_NE(
+			tablesWith("\"scrub\": {}", "\"scrub\": { \"ambushes\": 2 }").find("biomes.scrub has fields nothing reads: ambushes"),
+			std::string::npos
+		);
+		EXPECT_NE(tablesWith("\"scrub\": {}", "\"swamp\": {}").find("\"swamp\" is not one of"), std::string::npos);
+		EXPECT_NE(tablesWith("\"3\": {}", "\"6\": {}").find("\"6\" is not a tier from 1 to 5"), std::string::npos);
+		EXPECT_NE(tablesWith("\"none\": {", "\"scavengers\": {").find("must hold \"none\""), std::string::npos);
+		EXPECT_NE(tablesWith("\"3\": {}", "\"3\": { \"wreck\": -1 }").find("tiers.3.wreck must be at least 0"), std::string::npos);
+		// Tier 1 already weighs no warband, so no ambush leaves a tier 1 fight nothing to be.
+		EXPECT_NE(
+			tablesWith("\"ambush\": 0.8, \"findSupplies\": 1.3", "\"ambush\": 0, \"findSupplies\": 1.3")
+				.find("highway in scrub at tier 1 in territory none weighs no fight"),
+			std::string::npos
+		);
+		EXPECT_NE(
+			tablesWith(
+				"\"checkpoint\": 1.5, \"findSupplies\": 0.6",
+				"\"wreck\": 0, \"distress\": 0, \"findDriver\": 0, \"findCards\": 0, \"findSupplies\": 0"
+			)
+				.find("highway in scrub at tier 5 in territory none weighs no calm stop"),
+			std::string::npos
+		);
+		fs::remove_all(fs::temp_directory_path() / "ddb-map-content");
+	}
+
+	TEST(StopRoom, PicksTheNearestPointClearOfEveryJunctionTheLowerOfTwo) {
+		const std::vector<double> joins{50};
+		EXPECT_EQ(nearestClear(30, 0, 100, joins, 8), 30);
+		// 48 is inside the junction's clearance: 42 is two off, 58 ten.
+		EXPECT_EQ(nearestClear(44, 0, 100, joins, 8), 42);
+		EXPECT_EQ(nearestClear(50, 0, 100, joins, 8), 42);
+		EXPECT_EQ(nearestClear(56, 0, 100, joins, 8), 58);
+		// A target outside the range aims at its end.
+		EXPECT_EQ(nearestClear(120, 0, 100, joins, 8), 100);
+		EXPECT_FALSE(nearestClear(50, 45, 55, joins, 8).has_value());
+		const LegSpan span = legSpan(100, 12, base().stops);
+		EXPECT_EQ(span.from, 21);
+		EXPECT_EQ(span.to, 79);
 	}
 
 	TEST(StopRoom, NeedsTheFightFloorOrHalfTheBandsLeastStopsOnARoutesOwnRoad) {

@@ -2,6 +2,7 @@
 
 #include "Ground.h"
 #include "PoiChecks.h"
+#include "StopChecks.h"
 
 #include <cstddef>
 #include <string>
@@ -99,6 +100,34 @@ namespace rules::map {
 			return problems;
 		}
 
+		void runStops(const AreaMapInput& input, AreaMap& map, foundation::Rng& stream) {
+			const Ground  ground(*map.terrain, *map.water, *map.hazards);
+			const BiomeAt biomeAt = [ground](Point at) {
+				return ground.biome(at.x, at.y);
+			};
+			map.stops = placeStops({
+				.network = map.roads->network(),
+				.pois = *map.pois,
+				.biomeAt = biomeAt,
+				.params = input.params,
+				.tuning = input.content.stops,
+				.tables = input.content.stopTables,
+				.stream = foundation::Rng(stream.seed()),
+			});
+		}
+
+		// The hard rules alone: a route outside its band, or short on its own road, is in the layer's failures.
+		Problems checkStopsStage(const AreaMapInput& input, const AreaMap& map) {
+			return stopProblems(checkStopLayer({
+				.network = map.roads->network(),
+				.pois = *map.pois,
+				.stops = *map.stops,
+				.params = input.params,
+				.tuning = input.content.stops,
+				.tables = input.content.stopTables,
+			}));
+		}
+
 	} // namespace
 
 	MapContent readMapContent(const std::filesystem::path& pack) {
@@ -107,6 +136,7 @@ namespace rules::map {
 			.pois = readPoiTuning(pack / "map" / "pois.json"),
 			.factions = readFactions(pack / "factions" / "factions.json"),
 			.stops = readStopTuning(pack / "map" / "stops.json"),
+			.stopTables = readStopTables(pack / "map" / "stop-tables.json"),
 		};
 	}
 
@@ -123,7 +153,8 @@ namespace rules::map {
 			.then({.name = "places", .run = runPlaces, .check = checkPlacesStage})
 			.then({.name = "roads", .run = runRoads, .check = checkRoadsStage})
 			.then({.name = "routeTree", .attempts = 1, .run = runRouteTree})
-			.then({.name = "pois", .run = runPois, .check = checkPoisStage, .escalate = "roads"});
+			.then({.name = "pois", .run = runPois, .check = checkPoisStage, .escalate = "roads"})
+			.then({.name = "stops", .run = runStops, .check = checkStopsStage, .localRetry = true, .keepable = keepableStops});
 	}
 
 	PipelineResult<AreaMap> generateAreaMap(const MapParams& params, const MapContent& content, const PipelineOptions<AreaMap>& options) {

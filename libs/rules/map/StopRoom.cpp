@@ -1,5 +1,6 @@
 #include "StopRoom.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <map>
@@ -86,6 +87,37 @@ namespace rules::map {
 		return tuning.clearance.ends < 0.25 * length ? tuning.clearance.ends : 0.25 * length;
 	}
 
+	LegSpan legSpan(double length, double gap, const StopTuning& tuning) {
+		const double ends = legEnds(length, tuning);
+		return {.from = ends + gap / 2, .to = length - ends - gap / 2};
+	}
+
+	std::optional<double> nearestClear(double target, double from, double to, std::span<const double> joins, double clear) {
+		const auto clears = [&](double along) {
+			return along >= from && along <= to &&
+				   std::ranges::all_of(joins, [&](double join) { return std::abs(along - join) >= clear - kClearSlack; });
+		};
+		const double		  aim = target < from ? from : target > to ? to : target;
+		std::optional<double> best;
+		const auto			  consider = [&](double along) {
+			   if (!clears(along)) {
+				   return;
+			   }
+			   const double off = std::abs(along - aim);
+			   if (!best || off < std::abs(*best - aim) || (off == std::abs(*best - aim) && along < *best)) {
+				   best = along;
+			   }
+		};
+		consider(aim);
+		consider(from);
+		consider(to);
+		for (const double join : joins) {
+			consider(join - clear);
+			consider(join + clear);
+		}
+		return best;
+	}
+
 	std::vector<double> packAlong(double from, double to, double gap, std::span<const double> joins, double clear, size_t limit) {
 		std::vector<double> out;
 		double				at = from;
@@ -104,13 +136,11 @@ namespace rules::map {
 		if (!(length > 0)) {
 			return 0;
 		}
-		const double ends = legEnds(length, tuning);
-		const double from = ends + gap / 2;
-		const double to = length - ends - gap / 2;
-		if (from > to) {
+		const LegSpan span = legSpan(length, gap, tuning);
+		if (span.from > span.to) {
 			return 0;
 		}
-		return static_cast<int>(packAlong(from, to, gap, joins, tuning.clearance.junctions).size());
+		return static_cast<int>(packAlong(span.from, span.to, gap, joins, tuning.clearance.junctions).size());
 	}
 
 	std::vector<int> legOwners(size_t legs, std::span<const std::vector<Route>> routes) {

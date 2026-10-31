@@ -48,7 +48,7 @@ The run out has two new fields, so the save format goes to version 13. Version 1
 
 ## In the C++ alpha
 
-Event stops wait for the map's stops. The campaign side of what they give is in `libs/rules/campaign/` (2026-10-31, DDB-573), and [campaign.md](./campaign.md) has how. What differs:
+The stops stage places wreck and distress stops, the event types the run resolves, and `rollStop` gives each, at its roll, a seed of its own for the run to draw on (stops-and-routes.md, Stops in the C++ alpha); the run's side of them comes with the supply runs. The campaign side of what they give is in `libs/rules/campaign/` (2026-10-31, DDB-573), and [campaign.md](./campaign.md) has how. What differs:
 
 - An escort an event gives joins the convoy and the run at once through `joinConvoy`, its signature card in Driver 1's run deck, and with four in the convoy the player dismisses one along first (calls 402 and 403, replacing 270). So there's no `escortsFound` riding home.
 - Drivers an event gives are `recruitArchetype`'s, riding home in the run's `recruits` as a Find: driver's someone new does.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <random/Rng.h>
+#include <utils/Log.h>
 
 #include <algorithm>
 #include <cassert>
@@ -22,6 +23,13 @@ namespace rules::map {
 	inline constexpr uint32_t kStageAttempts = 8;
 	// Map attempts on one seed before the run throws; founding answers that with the next seed.
 	inline constexpr uint32_t kMapAttempts = 32;
+
+	// Debug and RelWithDebInfo, where a run is a debug run unless told otherwise.
+#ifdef DEVELOPMENT_BUILD
+	inline constexpr bool kDevelopmentBuild = true;
+#else
+	inline constexpr bool kDevelopmentBuild = false;
+#endif
 
 	// What a stage's check or the accept hook found wrong with its output. Empty passes.
 	using Problems = std::vector<std::string>;
@@ -46,18 +54,31 @@ namespace rules::map {
 		Problems	problems;
 	};
 
-	// Every map attempt on the seed failed. The runner never moves to another seed itself.
+	// What a run gave up on: every map attempt on the seed, in any build, or, in a debug run, a local-retry stage's
+	// attempts when it had one it could have kept.
+	enum class Exhausted { Map, Stage };
+
+	// The runner never moves to another seed itself; founding answers an exhausted map with the next one.
 	class MapPipelineError : public std::runtime_error {
 	  public:
-		MapPipelineError(uint32_t seed, StageFailure last)
-			: std::runtime_error(
-				  "MapPipeline: seed " + std::to_string(seed) + " failed " + std::to_string(kMapAttempts) +
-				  " map attempts; the last ran out on " + last.stage + " attempt " + std::to_string(last.attempt) + ": " +
-				  (last.problems.empty() ? "" : last.problems.front())
-			  ),
+		MapPipelineError(uint32_t seed, Exhausted what, StageFailure last)
+			: std::runtime_error(message(seed, what, last)),
+			  exhausted(what),
 			  failure(std::move(last)) {}
 
+		Exhausted	 exhausted;
 		StageFailure failure;
+
+	  private:
+		static std::string message(uint32_t seed, Exhausted what, const StageFailure& last) {
+			const std::string problem = last.problems.empty() ? "" : last.problems.front();
+			if (what == Exhausted::Map) {
+				return "MapPipeline: seed " + std::to_string(seed) + " failed " + std::to_string(kMapAttempts) +
+					   " map attempts; the last ran out on " + last.stage + " attempt " + std::to_string(last.attempt) + ": " + problem;
+			}
+			return "MapPipeline: seed " + std::to_string(seed) + " map attempt " + std::to_string(last.mapAttempt) + ": " + last.stage +
+				   " failed every attempt, the last with " + std::to_string(last.problems.size()) + " problems, first " + problem;
+		}
 	};
 
 	// A stage: it fills its product in from its upstream's and its own stream, and its check says what's
@@ -74,8 +95,16 @@ namespace rules::map {
 		std::function<Problems(const Input&, const Products&)>		   check{};
 		// A stage upstream of it to rerun, on its next attempt, once this one is out of attempts, instead of
 		// restarting the map; empty for none. Everything after the upstream stage reruns on fresh streams, this one
-		// counting from 0 again.
+		// counting from 0 again. Never to or from a local-retry stage.
 		std::string escalate{};
+		// Retries only itself and never restarts the map for failing (the stops, and the dressing to come). Past its
+		// cap a debug run throws and a release run logs and keeps its best attempt, the fewest problems, the earliest
+		// on a tie. So its check reports every problem it finds: one that stopped at a limit couldn't rank two
+		// attempts past it.
+		bool localRetry{false};
+		// For a local-retry stage: whether a failing attempt with these problems may be kept past the cap. When none
+		// may, the map restarts on its next attempt, in any build. Any may when empty.
+		std::function<bool(const Problems&)> keepable{};
 	};
 
 	// The map so far, with the stage that just passed its own check in it; anything returned rejects that
@@ -97,6 +126,9 @@ namespace rules::map {
 		std::function<void(const StageAttempt&)> onProgress{};
 		// Make an earlier run's map again: each stage runs once on its winning attempt, nothing checked.
 		std::optional<PipelineReplay> replay{};
+		// Past a local-retry stage's cap with an attempt it may keep: throw a MapPipelineError (debug) or log and keep
+		// it (release).
+		bool debug{kDevelopmentBuild};
 	};
 
 	struct StageRecord {
@@ -107,6 +139,8 @@ namespace rules::map {
 		// Every attempt run, across every map attempt, and the time they took, checks included.
 		uint32_t				 runs{0};
 		std::chrono::nanoseconds time{0};
+		// A local-retry stage's best failing attempt, kept past its cap by a release run.
+		bool kept{false};
 	};
 
 	template <typename Products>
@@ -123,8 +157,9 @@ namespace rules::map {
 	// retries; map-pipeline-worker.md): stages in order, each on a stream nested in its upstream's winning
 	// stream, root.fork("map", m).fork(first, a).fork(second, b) and so on, each checked and retried. A
 	// stage out of attempts restarts the map on its next attempt, up to kMapAttempts, then the run throws
-	// a MapPipelineError. fork reads only its parent's seed, so how many draws a stage made never moves its
-	// children, and a failed attempt leaves nothing behind.
+	// a MapPipelineError; a local-retry stage reruns alone, and past its cap throws or keeps its best attempt.
+	// fork reads only its parent's seed, so how many draws a stage made never moves its children, and a failed
+	// attempt leaves nothing behind.
 	template <typename Input, typename Products>
 	class MapPipeline {
 	  public:
@@ -136,10 +171,14 @@ namespace rules::map {
 				assert(earlier.name != stage.name && "MapPipeline: stage names are unique");
 			}
 			assert(
-				(stage.escalate.empty() ||
-				 std::ranges::any_of(stages, [&](const Stage& earlier) { return earlier.name == stage.escalate; })) &&
-				"MapPipeline: a stage escalates only to one upstream of it"
+				(
+					stage.escalate.empty() ||
+					std::ranges::any_of(stages, [&](const Stage& earlier) { return earlier.name == stage.escalate && !earlier.localRetry; })
+				) &&
+				"MapPipeline: a stage escalates only to one upstream of it, never a local-retry stage"
 			);
+			assert(!(stage.localRetry && !stage.escalate.empty()) && "MapPipeline: a local-retry stage retries only itself");
+			assert((stage.localRetry || !stage.keepable) && "MapPipeline: only a local-retry stage keeps a failing attempt");
 			MapPipeline next = *this;
 			next.stages.push_back(std::move(stage));
 			return next;
@@ -176,12 +215,18 @@ namespace rules::map {
 						return std::move(result);
 					}
 				}
-				throw MapPipelineError(seed, result.failures.back());
+				throw MapPipelineError(seed, Exhausted::Map, result.failures.back());
 			}
 
+			// A local-retry stage's failing attempt it may keep.
+			struct Keepable {
+				uint32_t attempt{0};
+				size_t	 problems{0};
+			};
+
 			// Each stage forks from its upstream's winning stream and counts its attempts from 0 whenever that changes.
-			// One out of attempts escalates to the stage it names, which goes on from its next attempt, or with none
-			// restarts the map.
+			// One out of attempts escalates to the stage it names, which goes on from its next attempt; keeps its best,
+			// if it's a local-retry stage with one it may keep; or restarts the map.
 			bool runMap(uint32_t mapStream, uint32_t mapAttempt) {
 				const size_t		  count = pipeline.stages.size();
 				std::vector<uint32_t> upstreams(count, mapStream);
@@ -190,27 +235,42 @@ namespace rules::map {
 				while (index < count) {
 					const Stage&			stage = pipeline.stages[index];
 					std::optional<uint32_t> winner;
+					std::optional<Keepable> best;
 					while (nextAttempt[index] < stage.attempts && !winner) {
 						const uint32_t	   attempt = nextAttempt[index]++;
 						foundation::Rng	   stream = foundation::Rng(upstreams[index]).fork(stage.name, attempt);
-						const StageAttempt at{
-							.stage = stage.name,
-							.index = index,
-							.count = pipeline.stages.size(),
-							.attempt = attempt,
-							.mapAttempt = mapAttempt,
-							.seed = seed,
-						};
-						Problems problems = attemptStage(index, at, stream, true);
+						const StageAttempt at = attemptAt(index, attempt, mapAttempt);
+						Problems		   problems = attemptStage(index, at, stream, true);
 						if (problems.empty()) {
 							winner = stream.seed();
 							result.stages[index].attempt = attempt;
 							result.stages[index].stream = stream.seed();
-						} else {
-							result.failures.push_back(
-								{.stage = stage.name, .attempt = attempt, .mapAttempt = mapAttempt, .problems = std::move(problems)}
-							);
+							result.stages[index].kept = false;
+							continue;
 						}
+						const bool keepable = stage.localRetry && (!stage.keepable || stage.keepable(problems));
+						if (keepable && (!best || problems.size() < best->problems)) {
+							best = Keepable{.attempt = attempt, .problems = problems.size()};
+						}
+						result.failures.push_back(
+							{.stage = stage.name, .attempt = attempt, .mapAttempt = mapAttempt, .problems = std::move(problems)}
+						);
+					}
+					if (!winner && best) {
+						if (options.debug) {
+							throw MapPipelineError(seed, Exhausted::Stage, result.failures.back());
+						}
+						LOG_ERROR(
+							Game,
+							"MapPipeline: seed %u map attempt %u: %s failed all %u attempts; keeping attempt %u, with %zu problems",
+							seed,
+							mapAttempt,
+							stage.name.c_str(),
+							stage.attempts,
+							best->attempt,
+							best->problems
+						);
+						winner = keep(index, upstreams[index], attemptAt(index, best->attempt, mapAttempt));
 					}
 					if (winner) {
 						if (index + 1 < count) {
@@ -227,6 +287,29 @@ namespace rules::map {
 					index = static_cast<size_t>(std::ranges::find(pipeline.stages, stage.escalate, &Stage::name) - pipeline.stages.begin());
 				}
 				return true;
+			}
+
+			[[nodiscard]] StageAttempt attemptAt(size_t index, uint32_t attempt, uint32_t mapAttempt) const {
+				return {
+					.stage = pipeline.stages[index].name,
+					.index = index,
+					.count = pipeline.stages.size(),
+					.attempt = attempt,
+					.mapAttempt = mapAttempt,
+					.seed = seed,
+				};
+			}
+
+			// A stage writes its product into the one products struct, which each later attempt overwrites, so the
+			// attempt kept runs again on its stream, unchecked, and makes what it made before.
+			uint32_t keep(size_t index, uint32_t upstream, const StageAttempt& at) {
+				foundation::Rng stream = foundation::Rng(upstream).fork(pipeline.stages[index].name, at.attempt);
+				(void)attemptStage(index, at, stream, false);
+				StageRecord& record = result.stages[index];
+				record.attempt = at.attempt;
+				record.stream = stream.seed();
+				record.kept = true;
+				return stream.seed();
 			}
 
 			// Runs one attempt and, when `checked`, its check and then the accept hook.
@@ -282,14 +365,7 @@ namespace rules::map {
 					const Stage&	   stage = pipeline.stages[index];
 					const uint32_t	   attempt = replay.attempts.find(stage.name)->second;
 					foundation::Rng	   stream = foundation::Rng(upstream).fork(stage.name, attempt);
-					const StageAttempt at{
-						.stage = stage.name,
-						.index = index,
-						.count = pipeline.stages.size(),
-						.attempt = attempt,
-						.mapAttempt = replay.mapAttempt,
-						.seed = seed,
-					};
+					const StageAttempt at = attemptAt(index, attempt, replay.mapAttempt);
 					(void)attemptStage(index, at, stream, false);
 					result.stages[index].attempt = attempt;
 					result.stages[index].stream = stream.seed();
