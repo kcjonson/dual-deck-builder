@@ -586,3 +586,11 @@ Decision record: [map-knowledge.md](AI_TECHNICAL_DECISIONS/map-knowledge.md), ca
 433. DDB-571: driving a leg reveals the land within 0.06 of the radius of its road and reaching a POI within 0.12 of it, a fog cell revealed when its centre is, because the spec names a sight radius and a larger one at a POI without numbers, and two and four of the 64 cells across keep a run's clearing narrow enough that exploring still means something.
 434. DDB-571: reaching a POI reveals a disc round it that takes in the last stretch of each of its other routes, reading "the ends of its other routes' last legs" as their ends at the POI, because a disc out to a long last leg's far end could uncover a quarter of the map.
 435. DDB-571: every POI is found by the stronghold's rule, its land revealed or a leg into it (one of its last legs) rumored or charted, because Compound and Supply Runs has new POIs come from the fog lifting and from the radio, and every route's first legs are charted from the start.
+
+## The C++ balance sim's run mode (440 to 442)
+
+Decision record: [balance-sim.md](AI_TECHNICAL_DECISIONS/balance-sim.md), Run mode.
+
+440. DDB-574: run mode's stand-in takes, at an event, the first choice its party can take in the event's order, because the spec gives the stand-in no rule for events, the base pack's events list their bold choice first and Drive on last, so the sim meets the fights an event can turn into rather than driving past them, and a rule weighing outcomes would be a second reading of the events' content with weights of its own to tune.
+441. DDB-574: run mode's stand-in takes the first card of every reward on offer, a won fight's, a Find: cards's, or an event's, because a card won rides home in the cargo and never into the run's decks, so which one changes only the cards won, and the spec's rule for calm stops is to take every find.
+442. DDB-574: the per-run targets' "crew HP and structure lost" reads as the mean of two shares over the runs home, the crew's HP lost of its most and its driven vehicles' structure lost of theirs, because the target names both, and pooling the points would let structure, about twice a pair's HP, outweigh it.

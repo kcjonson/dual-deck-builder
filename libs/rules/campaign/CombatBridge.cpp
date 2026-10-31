@@ -193,7 +193,7 @@ namespace rules::campaign {
 		fieldEncounter(setup, content, encounter, run.stage);
 		BattleStart start = startBattle(setup, content);
 		return CampaignFightStart{
-			.fight = CampaignFight{.run = run.id, .number = run.fights, .state = std::move(start.state)},
+			.fight = CampaignFight{.run = run.id, .number = run.fights, .encounter = encounter, .state = std::move(start.state)},
 			.events = std::move(start.events),
 		};
 	}

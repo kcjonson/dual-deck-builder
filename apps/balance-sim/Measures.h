@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <span>
+#include <vector>
 
 namespace sim {
 
@@ -25,5 +26,36 @@ namespace sim {
 
 	// The mean, or none with nothing to average.
 	[[nodiscard]] std::optional<double> meanOf(std::span<const double> values);
+
+	// `part` of `whole`, 0 of nothing.
+	[[nodiscard]] inline double share(int part, int whole) {
+		return whole == 0 ? 0.0 : static_cast<double>(part) / whole;
+	}
+
+	// Of the records `among` keeps, the share `counted` holds.
+	template <typename Record>
+	[[nodiscard]] Rate rateWhere(std::span<const Record> records, auto&& among, auto&& counted) {
+		int of = 0;
+		int count = 0;
+		for (const Record& record : records) {
+			if (among(record)) {
+				++of;
+				count += counted(record) ? 1 : 0;
+			}
+		}
+		return rateOf(count, of);
+	}
+
+	// The mean of `value` over the records `keep` keeps.
+	template <typename Record>
+	[[nodiscard]] std::optional<double> meanWhere(std::span<const Record> records, auto&& keep, auto&& value) {
+		std::vector<double> values;
+		for (const Record& record : records) {
+			if (keep(record)) {
+				values.push_back(static_cast<double>(value(record)));
+			}
+		}
+		return meanOf(values);
+	}
 
 } // namespace sim

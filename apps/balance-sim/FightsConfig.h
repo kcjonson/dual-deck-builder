@@ -1,6 +1,7 @@
 #pragma once
 
-#include <rules/campaign/Campaign.h>
+#include "ConfigFields.h"
+
 #include <rules/core/Ids.h>
 #include <rules/core/Opponent.h>
 #include <rules/packs/Pack.h>
@@ -16,18 +17,6 @@ namespace sim {
 
 	// What `balance-sim fights` plays (Balance Simulation, The core and fights), read strictly from the config's JSON. The
 	// tuning to try isn't in it: that's packs loaded over the base pack, as the game loads them.
-
-	// One seat of a crew: an archetype on its starting deck, on a deck given in its place, or with cards added to it.
-	struct SeatConfig {
-		rules::DriverId							   archetype;
-		std::optional<rules::campaign::CardCounts> deck;
-		rules::campaign::CardCounts				   add;
-
-		bool operator==(const SeatConfig&) const = default;
-	};
-
-	// Seat 1 first: one driver, or two of different archetypes, as load out seats them.
-	using CrewConfig = std::vector<SeatConfig>;
 
 	// One fight of a route: a skull count, its encounter picked on the fight's seed at the config's tier as a run's stop
 	// picks it, or an encounter named by id, at its own skulls.
@@ -79,11 +68,7 @@ namespace sim {
 	// The config as JSON readFightsConfig reads back the same, its crews listed out.
 	[[nodiscard]] nlohmann::json fightsConfigJson(const FightsConfig& config);
 
-	// A crew and a route as the config writes them.
-	[[nodiscard]] nlohmann::json crewJson(const CrewConfig& crew);
+	// A route as the config writes it.
 	[[nodiscard]] nlohmann::json routeJson(const RouteConfig& route);
-
-	// The cards a seat brings to its run: its own deck or its archetype's starting deck, with what it adds.
-	[[nodiscard]] rules::campaign::CardCounts deckOf(const SeatConfig& seat, const rules::Content& content);
 
 } // namespace sim

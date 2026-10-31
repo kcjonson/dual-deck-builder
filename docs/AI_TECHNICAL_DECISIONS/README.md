@@ -97,7 +97,7 @@ The trade-offs: what gets easier, what gets harder, what it risks.
 
 - [AI draw value and the hand limit](./ai-draw-value.md)
 - [Intent-aware player stand-in](./intent-aware-stand-in.md)
-- [The balance sim's fight mode in the C++ alpha, and its first numbers](./balance-sim.md)
+- [The balance sim's fight and run modes in the C++ alpha, and their first numbers](./balance-sim.md)
 
 ### Area map generation
 
