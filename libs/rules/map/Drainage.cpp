@@ -180,6 +180,21 @@ namespace rules::map {
 		}
 	}
 
+	void DrainageRouter::accumulate(std::span<const double> rain) {
+		assert(rain.size() == areaOf.size() && "DrainageRouter::accumulate: rain for every cell");
+		// Every cell's level is above its receiver's, so highest level first is upstream first, and walking it
+		// adds each cell's donors to it in that order.
+		std::vector<int> byLevel(downstreamFirst);
+		std::ranges::sort(byLevel, [&](int a, int b) { return levelOf[a] > levelOf[b] || (levelOf[a] == levelOf[b] && a > b); });
+		std::ranges::copy(rain, areaOf.begin());
+		for (const int cell : byLevel) {
+			const int receiver = receiverOf[cell];
+			if (receiver >= 0) {
+				areaOf[receiver] += areaOf[cell];
+			}
+		}
+	}
+
 	Drainage DrainageRouter::drainage() const {
 		return {
 			.size = gridSize,

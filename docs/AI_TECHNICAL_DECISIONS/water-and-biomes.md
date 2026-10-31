@@ -156,6 +156,21 @@ Everything on the gameplay path is adds, multiplies, divides, compares, square r
 - Road links (Maps 7 and 8): `moveCost` is the reference definition of what a move costs a class, which charges climbs, side slopes, and bridges and is Infinity on impassable ground. Map 7 builds a per-map edge cost field for its search from the same parts, class-independent per edge (the grade squared, the slope across squared, the bridge factor, whether it's blocked, rough squares sampled every half unit), weighted by class at search time, and tests that field against `moveCost`. `bridgeSpans` and `riverCrossings` say where a road crosses water, the spec's bridges and candidate "bridge out" spots. Growth's bridges aren't recorded on the network; Map 7's are.
 - The save (Map 18) keeps `lines` and the lakes' shores; the depth field is regenerated, since the land is.
 
+## In the C++ alpha
+
+`libs/rules/map/` (`Water`, `Rivers`, `Lakes`, and `DrainageRouter::accumulate` with rain; 2026-10-30, DDB-571) builds stage 2 with this record's numbers, provisional calls 1 to 9, on `root.fork("map", m).fork("terrain", t).fork("water", w)`, forked by `moisture`, `flats`, `reservoirs`, and `meander`. The noise is salal's (terrain-fields.md, Noise is the engine's), and the meander reads one row of its layer per river, 13.7 units apart, as the simplex did.
+
+What differs:
+
+- `Water` is its own product beside the terrain's, plain data on the land grid: its routing with the rain-weighted area, moisture, the lake depth field and `lakeOf`, the rivers (each its chain of cells and its line, a width per point), and the lakes with their dams. There's no `terrain.withWater`; whatever reads both reads both.
+- Rain-weighted area sums each cell's donors highest level first, ties highest index first, the rule above, done by walking the cells in that order rather than by the router's own. Unit rain still sums whole numbers in the router's order.
+- Lakes keep off the blend radius, the grid's outermost cells, and each other by a cell of land (provisional call 8). They no longer keep off towns and craters: those come after the water now, in the hazards and places stages, and keep off the lakes themselves.
+- Not here yet, all stage 3's: low ground, canyons, the river index (`waterAt`, crossings, bridge spans), sampling the fields between cells, biomes, rough country and cliffs, badlands, and the cost of a move. Hotspots are the hazards stage's.
+
+The base contamination field, the calibrated noise under the plumes, stays on the terrain stream's `contamination` fork, as it was, and comes with the terrain's other land-only fields (rough country, cliffs, badlands) in stage 3; the hazards stage lays its plumes over it. The other way was to fork it from the hazards stream, since contamination is hazard country. But the base field depends on the seed and `contamination` alone, not on where the water or the craters go, so on the terrain stream a retry of the water or the hazards never moves it, and the badlands, which read it before the plumes, stay with the land they're cut from. On the hazards stream every hazards retry would redraw the toxic ground under the whole map, and with it the badlands and the mire, when all a retry needs is somewhere else for the craters.
+
+The tests pin behaviour, not bits: the rain sums against a sum written by its definition, every cell draining to the land's outlets and never more than twice the noise uphill on the land's levels, every river following its drainage to an outlet through its confluences and lakes, tributaries ending on the river they join, widths in range, no river ruler-straight for five cells, reservoirs as many as asked, each held behind its dam with its cells draining through it, lakes apart and off the start, moisture in range and wetter beside rivers and with aridity, and the pipeline's water the one built straight from its stream. Natural lakes and reservoirs are each checked on a hand-built grid too.
+
 ## Consequences
 
 - Every map moves: its moisture, biomes, rough country, cliffs, towns, and hotspots, and so its roads. Saves keep resolved params and regenerate the land.
@@ -174,7 +189,7 @@ Calls the spec and realistic-map.md left to the build, made the simplest way con
 5. Width: 1.2 units at the threshold, plus 0.75 a step of the square root of the area's multiple of it, up to 9; widening from 1.2 over a source's first 40 units.
 6. Reservoirs: dams on rivers 3 to 80 times the threshold, in valleys 0.8 units deep three cells either side, past the relief radius and inside 0.88 of the radius, 0.25 of the radius apart; a wall three cells each side of the dam, square to the outflow; lakes joined side by side, or across a corner whose four cells average under the level, held below the lowest saddle; 30 to 220 cells, 0.5 to 30 units deep at the dam; 120 floods tried at most.
 7. Natural lakes: the land's pits 0.01 units wet, joined side by side, at least 4 cells and 0.25 units deep, in country of moisture 0.55 or more before the rivers. `lakes` 0 turns them off with the reservoirs.
-8. Lakes keep off the blend radius, a cell and 20 units past towns and craters, the grid's outermost cells, and a cell of land from each other.
+8. Lakes keep off the blend radius, the grid's outermost cells, and a cell of land from each other. Towns and craters, which come after the water, keep off the lakes.
 9. Wetness beside water: 0.5 for a creek, 0.1 more a step of the square root of the area's multiple, up to 1, and 1 beside a lake; fading out 120 units along the drainage and 12 units above the water; 0.35 of it added to moisture.
 10. Low ground: 1 on the water, 0.5 at the height above it that 45% of the land outside the ranges lies under, never under a unit, 0 at twice that.
 11. Canyons: river valleys cut three cells either side, spread 24 units along the drainage and up to the rim, 10% of the land outside the ranges from dryness 0.55, none at 0.45, only where badlands have room.

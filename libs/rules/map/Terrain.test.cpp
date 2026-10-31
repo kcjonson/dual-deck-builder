@@ -1,5 +1,4 @@
-#include <rules/map/AreaMapPipeline.h>
-#include <rules/map/ParamValidator.h>
+#include <rules/map/MapTesting.h>
 #include <rules/map/Terrain.h>
 
 #include <random/Rng.h>
@@ -7,10 +6,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <cassert>
 #include <cmath>
-#include <initializer_list>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -18,48 +14,9 @@ namespace {
 
 	using namespace rules::map;
 
-	// The smallest radius the tuning range allows keeps these quick; each is built once.
-	MapParams paramsFor(uint32_t seed, Environment environment, std::initializer_list<std::pair<NumberParam, double>> overrides) {
-		MapParamSet set{.seed = seed, .environment = environment, .overrides = {}};
-		set.overrides[static_cast<size_t>(NumberParam::Radius)] = 600;
-		for (const auto& [param, value] : overrides) {
-			set.overrides[static_cast<size_t>(param)] = value;
-		}
-		const ValidatedMapParams validated = validateMapParams(resolveMapParams(set));
-		assert(validated.clamps.empty() && "the test maps are valid as written");
-		return validated.params;
-	}
-
-	const MapParams kMixed = paramsFor(2183746551, Environment::Mixed, {});
-	// A dry closed basin, terraced.
-	const MapParams kBasin = paramsFor(17, Environment::HighDesert, {{NumberParam::Rivers, 0}});
-	// Ranges all round the smallest metro, at the tuning range's hardest corner for it.
-	const MapParams kRugged = paramsFor(
-		19,
-		Environment::Mixed,
-		{{NumberParam::MountainCoverage, 1},
-		 {NumberParam::Ruggedness, 1},
-		 {NumberParam::Aridity, 0},
-		 {NumberParam::MetroSize, 0.08},
-		 {NumberParam::Rivers, 6}}
-	);
-
-	foundation::Rng terrainStream(const MapParams& params, uint32_t attempt) {
-		return foundation::Rng(params.seed).fork("map", 0).fork("terrain", attempt);
-	}
-
-	const Terrain& built(const MapParams& params) {
-		if (params == kMixed) {
-			static const Terrain mixed(kMixed, terrainStream(kMixed, 0));
-			return mixed;
-		}
-		if (params == kBasin) {
-			static const Terrain basin(kBasin, terrainStream(kBasin, 0));
-			return basin;
-		}
-		static const Terrain rugged(kRugged, terrainStream(kRugged, 0));
-		return rugged;
-	}
+	const MapParams& kMixed = fixtures::mixed();
+	const MapParams& kBasin = fixtures::basin();
+	const MapParams& kRugged = fixtures::rugged();
 
 	double distanceSquared(const LandGrid& grid, size_t cell) {
 		const double x = cellCentre(grid, static_cast<int>(cell) % grid.size);
@@ -72,7 +29,7 @@ namespace {
 	INSTANTIATE_TEST_SUITE_P(Terrain, EveryMap, ::testing::Values(&kMixed, &kBasin, &kRugged));
 
 	TEST_P(EveryMap, DrainsEveryCellDownhillOnTheWaterLevelsToAnOutlet) {
-		const LandSurface& land = built(*GetParam()).surface();
+		const LandSurface& land = fixtures::terrainFor(*GetParam()).surface();
 		const Drainage&	   drainage = land.drainage;
 		ASSERT_EQ(drainage.size, land.grid.size);
 		std::vector<int> reached(drainage.receivers.size(), -1);
@@ -94,7 +51,7 @@ namespace {
 	}
 
 	TEST_P(EveryMap, StandsWaterInFewCells) {
-		const LandSurface& land = built(*GetParam()).surface();
+		const LandSurface& land = fixtures::terrainFor(*GetParam()).surface();
 		double			   standing = 0;
 		for (size_t cell = 0; cell < land.elevation.size(); ++cell) {
 			standing += land.drainage.levels[cell] > land.elevation[cell] ? 1 : 0;
@@ -103,7 +60,7 @@ namespace {
 	}
 
 	TEST_P(EveryMap, KeepsTheMetroFlatAndDry) {
-		const Terrain&	   terrain = built(*GetParam());
+		const Terrain&	   terrain = fixtures::terrainFor(*GetParam());
 		const LandSurface& land = terrain.surface();
 		const LandGrid&	   grid = land.grid;
 		const StartRadii&  radii = terrain.start();
@@ -130,7 +87,7 @@ namespace {
 	}
 
 	TEST_P(EveryMap, SamplesASlopeThatIsElevationsGradient) {
-		const Terrain& terrain = built(*GetParam());
+		const Terrain& terrain = fixtures::terrainFor(*GetParam());
 		const double   step = 1e-4;
 		for (double x = -500; x <= 500; x += 83.3) {
 			for (double y = -500; y <= 500; y += 91.7) {
@@ -147,7 +104,7 @@ namespace {
 
 	TEST(Terrain, LeavesByRiversOutletsOnTheGridsEdgeOrAClosedBasinsOneSinkInsideTheDisc) {
 		for (const MapParams* params : {&kMixed, &kRugged}) {
-			const LandSurface& land = built(*params).surface();
+			const LandSurface& land = fixtures::terrainFor(*params).surface();
 			const int		   size = land.grid.size;
 			EXPECT_FALSE(land.closedBasin);
 			std::vector<int> outlets = land.drainage.outlets;
@@ -160,7 +117,7 @@ namespace {
 			std::ranges::sort(outlets);
 			EXPECT_EQ(std::ranges::adjacent_find(outlets), outlets.end());
 		}
-		const Terrain&	   basin = built(kBasin);
+		const Terrain&	   basin = fixtures::terrainFor(kBasin);
 		const LandSurface& land = basin.surface();
 		EXPECT_TRUE(land.closedBasin);
 		ASSERT_EQ(land.drainage.outlets.size(), 1U);
@@ -170,7 +127,7 @@ namespace {
 	}
 
 	TEST(Terrain, SamplesTheErodedGridAtItsCellCentresOnAWetMap) {
-		const Terrain&	   terrain = built(kMixed);
+		const Terrain&	   terrain = fixtures::terrainFor(kMixed);
 		const LandSurface& land = terrain.surface();
 		for (int row = 2; row < land.grid.size - 2; row += 13) {
 			for (int column = 2; column < land.grid.size - 2; column += 11) {
@@ -181,7 +138,7 @@ namespace {
 	}
 
 	TEST(Terrain, TerracesADryMapAsItSamplesItPastTheBlendRingAndNotInTheMetro) {
-		const Terrain&	   terrain = built(kBasin);
+		const Terrain&	   terrain = fixtures::terrainFor(kBasin);
 		const LandSurface& land = terrain.surface();
 		const GridSampler  grid(land.grid, land.elevation);
 		const double	   pull = terracePull(moistureLevel(kBasin.aridity));
@@ -212,7 +169,7 @@ namespace {
 	}
 
 	TEST(Terrain, ReadsOnlyTheParametersThatShapeTheLand) {
-		const MapParams elsewhere = paramsFor(
+		const MapParams elsewhere = fixtures::paramsFor(
 			kMixed.seed,
 			Environment::Mixed,
 			{{NumberParam::Towns, 11},
@@ -223,33 +180,14 @@ namespace {
 			 {NumberParam::Dressing, 0.1},
 			 {NumberParam::Aridity, 0.2}}
 		);
-		const Terrain terrain(elsewhere, terrainStream(elsewhere, 0));
-		EXPECT_EQ(terrain.surface().elevation, built(kMixed).surface().elevation);
-		EXPECT_EQ(terrain.surface().drainage.receivers, built(kMixed).surface().drainage.receivers);
+		const Terrain terrain(elsewhere, fixtures::terrainStream(elsewhere, 0));
+		EXPECT_EQ(terrain.surface().elevation, fixtures::terrainFor(kMixed).surface().elevation);
+		EXPECT_EQ(terrain.surface().drainage.receivers, fixtures::terrainFor(kMixed).surface().drainage.receivers);
 	}
 
 	TEST(Terrain, BuildsOtherLandOnAnotherStageAttempt) {
-		const Terrain other(kMixed, terrainStream(kMixed, 1));
-		EXPECT_NE(other.surface().elevation, built(kMixed).surface().elevation);
-	}
-
-	TEST(AreaMapPipeline, RunsTheTerrainOnItsStreamAndMakesTheSameLandToTheBit) {
-		std::vector<std::string>	  started;
-		const PipelineResult<AreaMap> result =
-			generateAreaMap(kMixed, {.onProgress = [&](const StageAttempt& attempt) { started.emplace_back(attempt.stage); }});
-		EXPECT_EQ(started, std::vector<std::string>{"terrain"});
-		EXPECT_EQ(result.mapAttempt, 0U);
-		EXPECT_TRUE(result.failures.empty());
-		ASSERT_EQ(result.stages.size(), 1U);
-		EXPECT_EQ(result.stages[0].name, "terrain");
-		EXPECT_EQ(result.stages[0].attempt, 0U);
-		EXPECT_EQ(result.stages[0].stream, terrainStream(kMixed, 0).seed());
-		ASSERT_TRUE(result.products.terrain.has_value());
-		const LandSurface& land = result.products.terrain->surface();
-		EXPECT_EQ(land.elevation, built(kMixed).surface().elevation);
-		EXPECT_EQ(land.mountains, built(kMixed).surface().mountains);
-		EXPECT_EQ(land.drainage.receivers, built(kMixed).surface().drainage.receivers);
-		EXPECT_EQ(land.drainage.levels, built(kMixed).surface().drainage.levels);
+		const Terrain other(kMixed, fixtures::terrainStream(kMixed, 1));
+		EXPECT_NE(other.surface().elevation, fixtures::terrainFor(kMixed).surface().elevation);
 	}
 
 } // namespace

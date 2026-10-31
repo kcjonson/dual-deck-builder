@@ -3,6 +3,7 @@
 #include "MapParams.h"
 #include "MapPipeline.h"
 #include "Terrain.h"
+#include "Water.h"
 
 #include <optional>
 
@@ -11,10 +12,11 @@ namespace rules::map {
 	// The area map's products, each its stage's, filled in pipeline order. A finished run fills every one.
 	struct AreaMap {
 		std::optional<Terrain> terrain;
+		std::optional<Water>   water;
 	};
 
-	// The area map's stages: terrain, so far. Each runs on the stream the runner nests for it, so the
-	// terrain draws from root.fork("map", m).fork("terrain", t).
+	// The area map's stages: terrain and water, so far. Each runs on the stream the runner nests for it, so
+	// the water draws from root.fork("map", m).fork("terrain", t).fork("water", w).
 	[[nodiscard]] MapPipeline<MapParams, AreaMap> areaMapPipeline();
 
 	// The area map for validated params, on their seed.
