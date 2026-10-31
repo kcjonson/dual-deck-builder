@@ -4,6 +4,6 @@
 
 #include <cstdint>
 
-namespace sim {
+namespace rules {
 	uint32_t firstDraw(uint32_t seed);
 }

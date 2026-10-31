@@ -1,9 +1,9 @@
 # Wasteland Wheels in C++ on salal. The TypeScript version it ports from is frozen
 # under _legacy/ and has nothing to do with this build.
 #
-# The dependency rule, salal's (salal/docs/architecture.md): the game's simulation,
-# libs/sim, links salal::foundation and nothing above it, so it stays deterministic
-# and testable headless. ddb_check_layering() at the bottom holds it.
+# The dependency rule, salal's (salal/docs/architecture.md): the game's rules,
+# libs/rules, link salal::foundation and nothing above it, so they stay deterministic
+# and testable headless. ddb_check_layering() at the bottom holds that.
 
 # 3.25 for CMAKE_MSVC_DEBUG_INFORMATION_FORMAT (CMP0141): the Windows preset
 # selects /Z7 embedded debug info, which ccache requires to cache MSVC objects.
@@ -67,14 +67,14 @@ set(SALAL_BUILD_SANDBOX OFF)
 set(SALAL_BUILD_TESTS OFF)
 FetchContent_MakeAvailable(salal)
 
-add_subdirectory(libs/sim)
+add_subdirectory(libs/rules)
 
 function(ddb_check_layering)
-    get_target_property(direct ddb_sim LINK_LIBRARIES)
-    get_target_property(iface ddb_sim INTERFACE_LINK_LIBRARIES)
+    get_target_property(direct ddb_rules LINK_LIBRARIES)
+    get_target_property(iface ddb_rules INTERFACE_LINK_LIBRARIES)
     foreach(dep IN LISTS direct iface)
         if(dep MATCHES "(^|[:<])salal(_|::)(renderer|ui|app)>?$" OR dep MATCHES "(^|[:<])(OpenGL::|GLEW::|glfw>?$)")
-            message(FATAL_ERROR "Dependency rule: ddb_sim links ${dep}; the simulation links salal::foundation only (salal/docs/architecture.md).")
+            message(FATAL_ERROR "Dependency rule: ddb_rules links ${dep}; the rules link salal::foundation only (salal/docs/architecture.md).")
         endif()
     endforeach()
 endfunction()
