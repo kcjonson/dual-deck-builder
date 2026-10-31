@@ -3,6 +3,7 @@
 #include "Campaign.h"
 
 #include <rules/map/AreaMapPipeline.h>
+#include <rules/map/RouteDescriptors.h>
 #include <rules/map/RouteOutlook.h>
 #include <rules/packs/Pack.h>
 
@@ -49,7 +50,8 @@ namespace rules::campaign {
 
 	// Throws a ContentError naming the path in the save when `map` isn't the one the campaign's origin makes, by its
 	// fingerprint, or an id the map state holds isn't on it: a POI, leg, or stop past the map's, or a stronghold taken
-	// that isn't a stronghold.
+	// that isn't a stronghold. A run on the road has to be on a route the map has, with that route's legs and its POI's
+	// tier, every stop on those legs, and the leg it's on the next stop's.
 	void checkCampaignMap(const Campaign& campaign, const map::AreaMap& map);
 
 	// A save loaded, and its map made again beside it, which the game holds for the campaign's screens.
@@ -70,5 +72,27 @@ namespace rules::campaign {
 	// the game stage. Every leg reads as charted, as the map stands until it has its starting knowledge and fog, which
 	// the charted legs will go over.
 	[[nodiscard]] map::MapToday mapToday(const Campaign& campaign);
+
+	// What a run reads of a made map, by reference: an AreaMap's through layersOf, or a test's put together from the map
+	// tests' fixtures. The map and the content outlive it.
+	struct MapLayers {
+		const map::RoadNetwork& network;
+		const map::Places&		places;
+		const map::PoiLayer&	pois;
+		const map::StopLayer&	stops;
+		map::BiomeAt			biomeAt;
+		// The validated params the map was made on.
+		const map::MapParams&	params;
+		const map::MapContent&	content;
+		const map::RouteTuning& routes;
+	};
+
+	// A made map's layers, its biomes read off its ground.
+	[[nodiscard]] MapLayers
+	layersOf(const map::AreaMap& map, const MapOrigin& origin, const map::MapContent& content, const map::RouteTuning& routes);
+
+	// A stop cleared on `day`, at the roll it has, and a leg charted, each list kept in id order.
+	void clearStop(MapState& state, int stop, int day);
+	void chartLeg(MapState& state, int leg);
 
 } // namespace rules::campaign
