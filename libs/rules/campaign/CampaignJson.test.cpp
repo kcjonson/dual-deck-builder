@@ -17,7 +17,7 @@ namespace {
 
 	// A campaign partway through a run, so every part of the save is in it: the Mechanic home injured, a card bought in
 	// the garage, two escorts and one of them along, a borrowed card, one left at home, cargo picked up, a missing Raider
-	// found on the road, and someone new riding home.
+	// found on the road, someone new riding home, and the map changed since founding.
 	Campaign campaignOnARun() {
 		Campaign	  campaign = foundTestCampaign({"fuel_hauler", "outrider"});
 		DriverRecord& mechanic = campaign.driver(crewOf(campaign, "mechanic"));
@@ -42,6 +42,12 @@ namespace {
 		addCardsWon(campaign, testContent(), {{card("ram"), 1}});
 		campaign.run->cargo.fuel = 2;
 		campaign.day = 4;
+		campaign.mapState = MapState{
+			.clearedPois = {3},
+			.chartedLegs = {0, 1, 4},
+			.stops = {StopState{.stop = 2, .roll = 1, .cleared = {}}, StopState{.stop = 5, .roll = 0, .cleared = 3}},
+			.strongholdsTaken = {0},
+		};
 		return campaign;
 	}
 
@@ -136,6 +142,48 @@ namespace {
 			broken([](nlohmann::json& json) { json["run"]["recruits"][0] = "war_boy"; }),
 			"names driver war_boy, which no loaded pack defines"
 		));
+	}
+
+	TEST(CampaignJson, ASaveFailsLoudOnAMapOriginNoMapWasMadeFromOrAMapStateOutOfOrder) {
+		const nlohmann::json save = writeCampaign(campaignOnARun(), testContent());
+		EXPECT_EQ(
+			save["mapState"]["stops"],
+			nlohmann::json::parse(R"([{"stop": 2, "roll": 1, "cleared": null}, {"stop": 5, "roll": 0, "cleared": 3}])")
+		);
+		const auto broken = [&](const auto& change) {
+			nlohmann::json copy = save;
+			change(copy);
+			return errorOf(copy);
+		};
+
+		EXPECT_TRUE(mentions(
+			broken([](nlohmann::json& json) { json["mapOrigin"]["params"].erase("radius"); }),
+			"campaign.mapOrigin.params.radius is missing, and the map was made on every parameter"
+		));
+		EXPECT_TRUE(mentions(
+			broken([](nlohmann::json& json) { json["mapOrigin"]["params"]["radius"] = 5000; }),
+			"campaign.mapOrigin.params.radius isn't one a map is made on: radius lowered to 1600"
+		));
+		EXPECT_TRUE(
+			mentions(broken([](nlohmann::json& json) { json["mapOrigin"]["params"]["seed"] = 8U; }), "is 8, and the campaign's is 7")
+		);
+		EXPECT_TRUE(mentions(
+			broken([](nlohmann::json& json) { json["mapOrigin"]["attempts"]["map"] = 32; }),
+			"campaign.mapOrigin.attempts.map must be a whole number from 0 to 31"
+		));
+		EXPECT_TRUE(mentions(
+			broken([](nlohmann::json& json) { json["mapOrigin"]["fingerprint"] = "00000000000000AB"; }), "must be 16 lowercase hex digits"
+		));
+		EXPECT_TRUE(
+			mentions(broken([](nlohmann::json& json) { json["mapState"]["chartedLegs"] = {4, 1}; }), "lists 1 after 4; it runs in id order")
+		);
+		EXPECT_TRUE(mentions(
+			broken([](nlohmann::json& json) { json["mapState"]["stops"][1]["cleared"] = 5; }),
+			"campaign.mapState.stops[1].cleared must be null or a day from 1 to today, 4"
+		));
+		EXPECT_TRUE(
+			mentions(broken([](nlohmann::json& json) { json["mapState"]["stops"][0]["roll"] = 0; }), "is neither cleared nor back")
+		);
 	}
 
 	TEST(CampaignJson, WritingACampaignItsOwnSaveCantHoldThrows) {

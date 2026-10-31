@@ -41,6 +41,9 @@ namespace {
 		EXPECT_FALSE(campaign.run.has_value());
 		EXPECT_EQ(campaign.log, (std::vector{LogEntry{.day = 1, .text = "Founded the compound."}}));
 		EXPECT_EQ(campaign.packs, (std::vector{PackRef{.id = PackId{"base"}, .version = "0.1.0"}}));
+		EXPECT_EQ(campaign.seed, 7U) << "the map's";
+		EXPECT_EQ(campaign.mapOrigin, stubOrigin(7));
+		EXPECT_EQ(campaign.mapState, MapState{});
 
 		// The deal is the seed's: pinned, so moving its stream, sort, or shuffle shows up here.
 		EXPECT_EQ(foundTestCampaign(), campaign);
@@ -56,14 +59,14 @@ namespace {
 		EXPECT_EQ(firsts.size(), 3U) << "any of them can be dealt first";
 	}
 
-	TEST(Founding, ThePoolSizeCutsTheDealStarterEscortsJoinTheConvoyAndTwoArchetypesAreTheLeast) {
+	TEST(Founding, ThePoolSizeCutsTheDealStarterEscortsJoinTheConvoyAndItTakesTwoArchetypesAndAMapsOrigin) {
 		CampaignRules rules = testRules();
 		rules.start.poolSize = 2;
 		rules.start.escorts = {EscortId{"fuel_hauler"}, EscortId{"med_truck"}};
 		const std::vector<DriverId> unlocked{
 			DriverId{"road_warrior"}, DriverId{"mechanic"}, DriverId{"road_warrior"}, DriverId{"interceptor"}
 		};
-		const Campaign campaign = foundCampaign(testContent(), rules, Founding{.seed = 3, .unlocked = unlocked});
+		const Campaign campaign = foundCampaign(testContent(), rules, Founding{.map = stubOrigin(3), .unlocked = unlocked});
 		EXPECT_EQ(campaign.drivers.size(), 2U);
 		EXPECT_NE(campaign.drivers[0].archetype, campaign.drivers[1].archetype);
 		EXPECT_EQ(
@@ -76,10 +79,19 @@ namespace {
 		EXPECT_EQ(campaign.nextEscortNumber, 3);
 
 		const auto found = [&](std::vector<DriverId> archetypes) {
-			return foundCampaign(testContent(), rules, Founding{.seed = 3, .unlocked = std::move(archetypes)});
+			return foundCampaign(testContent(), rules, Founding{.map = stubOrigin(3), .unlocked = std::move(archetypes)});
 		};
 		EXPECT_THROW((void)found({DriverId{"mechanic"}, DriverId{"mechanic"}}), std::invalid_argument);
 		EXPECT_THROW((void)found({DriverId{"mechanic"}, DriverId{"war_boy"}}), std::invalid_argument);
+
+		// A map is made on validated params, and its origin says where among the seed's attempts.
+		const std::vector<DriverId> pair{DriverId{"mechanic"}, DriverId{"interceptor"}};
+		MapOrigin					unvalidated = stubOrigin(3);
+		unvalidated.params.radius = 5000;
+		EXPECT_THROW((void)foundCampaign(testContent(), rules, Founding{.map = unvalidated, .unlocked = pair}), std::invalid_argument);
+		MapOrigin nowhere = stubOrigin(3);
+		nowhere.stageAttempts.clear();
+		EXPECT_THROW((void)foundCampaign(testContent(), rules, Founding{.map = nowhere, .unlocked = pair}), std::invalid_argument);
 	}
 
 } // namespace

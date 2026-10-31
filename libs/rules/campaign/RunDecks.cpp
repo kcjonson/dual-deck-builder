@@ -49,8 +49,9 @@ namespace rules::campaign {
 
 	} // namespace
 
-	int gameStage(int day, int strongholdsTaken) {
-		return std::min(day / kDaysPerStage + kStagesPerStronghold * strongholdsTaken, kMostStage);
+	int gameStage(const Campaign& campaign) {
+		const int strongholds = static_cast<int>(campaign.mapState.strongholdsTaken.size());
+		return std::min(campaign.day / kDaysPerStage + kStagesPerStronghold * strongholds, kMostStage);
 	}
 
 	std::optional<SeatBlocker> seatBlocker(const Campaign& campaign, const CrewId& driver, const std::optional<CrewId>& partner) {

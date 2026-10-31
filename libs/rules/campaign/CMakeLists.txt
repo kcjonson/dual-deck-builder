@@ -3,6 +3,7 @@ target_sources(ddb_rules
         Campaign.cpp
         CampaignEnd.cpp
         CampaignJson.cpp
+        CampaignMap.cpp
         CampaignRules.cpp
         CardOffers.cpp
         CombatBridge.cpp

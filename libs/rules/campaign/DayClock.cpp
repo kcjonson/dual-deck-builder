@@ -14,6 +14,19 @@ namespace rules::campaign {
 
 	namespace {
 
+		// At the dawn of `day`, each stop cleared `cooldown` days or more before it is back, its roll up one.
+		std::vector<int> stopsComeBack(MapState& map, int day, int cooldown) {
+			std::vector<int> back;
+			for (StopState& stop : map.stops) {
+				if (stop.cleared && day >= *stop.cleared + cooldown) {
+					stop.cleared.reset();
+					stop.roll += 1;
+					back.push_back(stop.stop);
+				}
+			}
+			return back;
+		}
+
 		DayEnd nightFall(Campaign& campaign, const Content& content, const CampaignRules& rules, const Resources& haul) {
 			refuseOver(campaign, "endDay");
 			const CompoundRules& compound = rules.compound;
@@ -54,6 +67,7 @@ namespace rules::campaign {
 				endCampaign(campaign, compound, EndCause::NoPeople);
 			} else {
 				++campaign.day;
+				night.stopsBack = stopsComeBack(campaign.mapState, campaign.day, compound.stopCooldownDays);
 				campaign.garage = rollGarageStock(campaign, content, rules.garage);
 			}
 			return night;

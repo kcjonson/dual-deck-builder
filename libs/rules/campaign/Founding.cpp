@@ -4,9 +4,12 @@
 #include "Garage.h"
 #include "Recruits.h"
 
+#include <rules/map/ParamValidator.h>
+
 #include <random/Rng.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <stdexcept>
 #include <string>
 
@@ -23,6 +26,9 @@ namespace rules::campaign {
 	}
 
 	Campaign foundCampaign(const Content& content, const CampaignRules& rules, const Founding& founding) {
+		if (!map::validateMapParams(founding.map.params).clamps.empty() || founding.map.stageAttempts.empty()) {
+			throw std::invalid_argument("foundCampaign: a map is made on validated params, and its origin names each stage's attempt");
+		}
 		std::vector<DriverId> archetypes = founding.unlocked;
 		std::ranges::sort(archetypes);
 		const auto repeats = std::ranges::unique(archetypes);
@@ -36,19 +42,22 @@ namespace rules::campaign {
 			throw std::invalid_argument("foundCampaign: a run takes two drivers, so two different archetypes have to be unlocked");
 		}
 
-		Campaign campaign{
-			.packs = {},
-			.seed = founding.seed,
-			.day = 1,
-			.stores = rules.start.stores,
-			.unrest = 0,
-			.buildings = rules.start.buildings,
-		};
+		const uint32_t seed = founding.map.params.seed;
+		Campaign	   campaign{
+				  .packs = {},
+				  .seed = seed,
+				  .mapOrigin = founding.map,
+				  .mapState = {},
+				  .day = 1,
+				  .stores = rules.start.stores,
+				  .unrest = 0,
+				  .buildings = rules.start.buildings,
+		  };
 		for (const PackManifest& pack : content.packs) {
 			campaign.packs.push_back(PackRef{.id = pack.id, .version = pack.version});
 		}
 		// Sorted first, so neither the order they come in nor the order a pack lists them moves a seed's deal.
-		foundation::Rng deal = foundation::Rng(founding.seed).fork("founding").fork("pool");
+		foundation::Rng deal = foundation::Rng(seed).fork("founding").fork("pool");
 		deal.shuffle(archetypes);
 		archetypes.resize(std::min(archetypes.size(), static_cast<size_t>(rules.start.poolSize)));
 		for (const DriverId& archetype : archetypes) {

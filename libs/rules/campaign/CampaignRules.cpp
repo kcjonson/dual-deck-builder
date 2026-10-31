@@ -76,6 +76,7 @@ namespace rules::campaign {
 			JsonReader	  infirmary = reader.requireObject("infirmary");
 			JsonReader	  scavenging = reader.requireObject("scavenging");
 			JsonReader	  fall = reader.requireObject("fall");
+			JsonReader	  clearing = reader.requireObject("clearing");
 			CompoundRules rules{
 				.peoplePerFood = requireIntIn(perUnit, "food", 1, kMostRule),
 				.peoplePerWater = requireIntIn(perUnit, "water", 1, kMostRule),
@@ -87,8 +88,9 @@ namespace rules::campaign {
 				.scavengedScrap = readHaul(scavenging.requireObject("scrap"), 0),
 				.starveAtFood = requireIntIn(fall, "starveAtFood", 0, kMostRule),
 				.riotAtUnrest = requireIntIn(fall, "riotAtUnrest", 1, kMostRule),
+				.stopCooldownDays = requireIntIn(clearing, "stopCooldownDays", 1, kMostRule),
 			};
-			for (const JsonReader* object : {&perUnit, &upkeep, &shortfall, &infirmary, &scavenging, &fall, &reader}) {
+			for (const JsonReader* object : {&perUnit, &upkeep, &shortfall, &infirmary, &scavenging, &fall, &clearing, &reader}) {
 				object->finish();
 			}
 			return rules;

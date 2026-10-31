@@ -2,8 +2,10 @@
 
 #include <rules/core/Ids.h>
 #include <rules/core/JsonReader.h>
+#include <rules/map/MapParams.h>
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <optional>
 #include <string>
@@ -14,7 +16,7 @@ namespace rules::campaign {
 
 	// The campaign as a plain value (campaign.md): everything a save keeps, from founding to the run out. The functions
 	// beside it (Founding.h, Locker.h, RunDecks.h, CombatBridge.h, Garage.h, Convoy.h, Recruits.h) are how play changes
-	// it, and CampaignJson.h reads and writes it.
+	// it, CampaignJson.h reads and writes it, and CampaignMap.h makes the area map it's played on.
 
 	// The campaign's own ids, each handed out once from a counter the save keeps, so none is ever reused: a driver in
 	// the pool is "driver-3", an escort in the convoy "escort-2", a run "run-5".
@@ -219,11 +221,54 @@ namespace rules::campaign {
 		bool operator==(const CampaignEnd&) const = default;
 	};
 
+	// What makes the campaign's area map again (CampaignMap.h), fixed at founding: the params rolled from the seed, where
+	// the map sat among the seed's attempts, the map attempt and each stage's winning attempt by name (each stage's stream
+	// nests in the one before it, so every one is needed), and the map's fingerprint, so a load that makes any other map
+	// fails rather than plays on it.
+	struct MapOrigin {
+		map::MapParams								 params;
+		uint32_t									 mapAttempt{0};
+		std::map<std::string, uint32_t, std::less<>> stageAttempts;
+		uint64_t									 fingerprint{0};
+
+		bool operator==(const MapOrigin&) const = default;
+	};
+
+	// A stop runs have cleared (stop-clearing.md): cleared since the day `cleared`, or back with none.
+	struct StopState {
+		// The map's id for it, its place in the map's stops.
+		int stop{0};
+		// How many times it has come back, which its contents roll at (map::rollStop).
+		int				   roll{0};
+		std::optional<int> cleared;
+
+		bool operator==(const StopState&) const = default;
+	};
+
+	// What's changed on the area map since founding (Area Map Generation, What changes after generation), by the map's
+	// ids: a POI's place in the POI layer, a leg's in its legs, a stop's in the stops. Each list runs in id order, each
+	// id once.
+	struct MapState {
+		// For good: nothing refills a looted building.
+		std::vector<int> clearedPois;
+		// Charted by the runs that drove them. What starts charted is the map's own starting knowledge.
+		std::vector<int> chartedLegs;
+		// Every stop cleared now or back since. A stop with none has never been cleared, and rolls at 0.
+		std::vector<StopState> stops;
+		// By their POIs.
+		std::vector<int> strongholdsTaken;
+
+		bool operator==(const MapState&) const = default;
+	};
+
 	struct Campaign {
 		// In load order.
 		std::vector<PackRef> packs;
-		// Every draw the campaign makes forks from it, by a name and a saved counter, so nothing is saved mid-stream.
-		uint32_t seed{0};
+		// Every draw the campaign makes forks from it, by a name and a saved counter, so nothing is saved mid-stream. The
+		// map's params roll from it too, so it's their seed.
+		uint32_t  seed{0};
+		MapOrigin mapOrigin;
+		MapState  mapState;
 		// The day it is, or the day the compound fell on once it's over.
 		int		  day{1};
 		Resources stores;

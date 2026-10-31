@@ -15,9 +15,9 @@ namespace rules::campaign {
 	// default deck into their run deck, escort cards ride along locked, and the run ends coming home (unloadRun), failing
 	// (the combat bridge's write-back of a lost fight), or given up before it leaves (giveUpLoadOut).
 
-	// Game stage, how far into the campaign it is: a stage every eight days and two a stronghold taken, at most 6 (Runs
-	// and Encounters, Game stage). The strongholds are the map's to count.
-	[[nodiscard]] int gameStage(int day, int strongholdsTaken);
+	// Game stage, how far into the campaign it is: a stage every eight days and two a stronghold taken on the map, at
+	// most 6 (Runs and Encounters, Game stage).
+	[[nodiscard]] int gameStage(const Campaign& campaign);
 
 	// Why load out won't seat a driver beside whoever holds the other seat (injuries.md, Seating), in the order checked:
 	//   CampaignOver   the campaign is over

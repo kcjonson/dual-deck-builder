@@ -31,7 +31,8 @@ namespace rules::campaign {
 		int most{0};
 	};
 
-	// What the day clock, the infirmary, scavenging, and the compound's fall read: campaign/compound-rules.json.
+	// What the day clock, the infirmary, scavenging, the compound's fall, and the stops' cooldowns read:
+	// campaign/compound-rules.json.
 	struct CompoundRules {
 		// People one unit of food, and of water, feeds a day.
 		int peoplePerFood{0};
@@ -47,6 +48,8 @@ namespace rules::campaign {
 		// The compound starves at or below this much food, and riots at or above this much unrest.
 		int starveAtFood{0};
 		int riotAtUnrest{0};
+		// Days a stop a run cleared stays cleared: one cleared on day 3 is back at the dawn of day 8 at 5.
+		int stopCooldownDays{0};
 	};
 
 	// What the garage stocks and charges, in scrap (Game Flow 4): campaign/garage-rules.json.
