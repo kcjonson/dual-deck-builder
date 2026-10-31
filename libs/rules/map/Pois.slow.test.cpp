@@ -62,7 +62,7 @@ namespace {
 		const MapParams&			  params = fixtures::badlands();
 		const PipelineResult<AreaMap> result = generateAreaMap(params, fixtures::content());
 		EXPECT_EQ(result.mapAttempt, 0U);
-		ASSERT_EQ(result.stages.size(), 8U);
+		ASSERT_EQ(result.stages.size(), 9U);
 		EXPECT_EQ(result.stages[3].attempt, 0U);
 		EXPECT_GT(result.stages[4].attempt, 0U);
 		EXPECT_EQ(result.stages[4].runs, result.stages[4].attempt + 1);

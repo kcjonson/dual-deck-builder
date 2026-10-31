@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Dressing.h"
+#include "FeatureNames.h"
 #include "Hazards.h"
 #include "MapParams.h"
 #include "MapPipeline.h"
@@ -24,14 +26,15 @@ namespace rules::map {
 	// The packs' content generation reads.
 	struct MapContent {
 		PlaceNamePool		 placeNames;
+		FeatureNamePool		 featureNames;
 		PoiTuning			 pois;
 		std::vector<Faction> factions;
 		StopTuning			 stops;
 		StopTables			 stopTables;
 	};
 
-	// One pack's: its map/place-names.json, map/pois.json, map/stops.json, map/stop-tables.json, and
-	// factions/factions.json, each read strictly, the stop tables compiled.
+	// One pack's: its map/place-names.json, map/feature-names.json, map/pois.json, map/stops.json,
+	// map/stop-tables.json, and factions/factions.json, each read strictly, the stop tables compiled.
 	[[nodiscard]] MapContent readMapContent(const std::filesystem::path& pack);
 
 	// What generation reads: the validated params, and the content from the packs.
@@ -50,14 +53,16 @@ namespace rules::map {
 		std::optional<RouteTree> routeTree;
 		std::optional<PoiLayer>	 pois;
 		std::optional<StopLayer> stops;
+		std::optional<Dressing>	 dressing;
 	};
 
-	// The area map's stages: terrain, water, hazards, places, roads, the route tree, the POIs, and the stops, so far.
-	// Each runs on the stream the runner nests for it, so the stops draw from root.fork("map", m).fork("terrain", t)
-	// .fork("water", w).fork("hazards", h).fork("places", p).fork("roads", r).fork("routeTree", 0).fork("pois", q)
-	// .fork("stops", s). The route tree takes no draws, and so gets one attempt, but it's a link in the chain all the
-	// same. The POIs escalate to the roads once their attempts run out. The stops retry only themselves, and keep
-	// their best attempt past their cap in a release run, never one with a route under its fight floor.
+	// The area map's stages: terrain, water, hazards, places, roads, the route tree, the POIs, the stops, and the
+	// dressing. Each runs on the stream the runner nests for it, so the stops draw from root.fork("map", m)
+	// .fork("terrain", t).fork("water", w).fork("hazards", h).fork("places", p).fork("roads", r).fork("routeTree", 0)
+	// .fork("pois", q).fork("stops", s), and the dressing from that forked ("dressing", d). The route tree takes no
+	// draws, and so gets one attempt, but it's a link in the chain all the same. The POIs escalate to the roads once
+	// their attempts run out. The stops retry only themselves, and keep their best attempt past their cap in a release
+	// run, never one with a route under its fight floor. The dressing is inert, the one stage a replay may leave out.
 	[[nodiscard]] MapPipeline<AreaMapInput, AreaMap> areaMapPipeline();
 
 	// Whether the POI stage holds a map leniently, its failures kept in the layer rather than failing it: where the

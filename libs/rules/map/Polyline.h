@@ -3,9 +3,9 @@
 #include <span>
 #include <vector>
 
-// Plane geometry the rivers and the roads share. Everything here is adds, multiplies, divides, square roots, and
-// compares, which IEEE doubles round exactly, so a result is the same on every platform and generation can branch
-// on it.
+// Plane geometry the rivers, the roads, and the dressing share. Everything here is adds, multiplies, divides, square
+// roots, and compares, which IEEE doubles round exactly, so a result is the same on every platform and generation can
+// branch on it.
 namespace rules::map {
 
 	struct Point {
@@ -20,6 +20,10 @@ namespace rules::map {
 	[[nodiscard]] double			  polylineLength(std::span<const Point> line);
 	// The point `distance` along the line from its first; its last past its length.
 	[[nodiscard]] Point pointAlong(std::span<const Point> line, double distance);
+	// The part of the line from `start` to `end` world units along it, its ends held to the line's.
+	[[nodiscard]] std::vector<Point> sliceAlong(std::span<const Point> line, double start, double end);
+	// The unit vector `degrees` counterclockwise from east, by salal's deterministic sine and cosine, polynomials.
+	[[nodiscard]] Point unitVector(double degrees);
 
 	// Chaikin's corner cutting on an open line: each segment's inner quarter points replace its corners, and the
 	// ends stay put. A line of one segment comes back as it was.

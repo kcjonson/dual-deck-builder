@@ -57,7 +57,7 @@ namespace {
 			}
 		);
 		EXPECT_EQ(result.mapAttempt, 0U);
-		ASSERT_EQ(result.stages.size(), 8U);
+		ASSERT_EQ(result.stages.size(), 9U);
 		for (size_t stage = 0; stage < 7; ++stage) {
 			EXPECT_EQ(result.stages[stage].attempt, 0U) << result.stages[stage].name;
 			EXPECT_EQ(result.stages[stage].runs, 1U) << result.stages[stage].name;
@@ -70,6 +70,8 @@ namespace {
 		// Its eight, and the one kept made again.
 		EXPECT_EQ(stops.runs, kStageAttempts + 1);
 		EXPECT_EQ(result.failures.size(), kStageAttempts);
+		// The dressing nests in the kept attempt's stream.
+		EXPECT_EQ(result.stages[8].stream, foundation::Rng(stops.stream).fork("dressing", 0).seed());
 		ASSERT_TRUE(result.products.stops.has_value());
 		EXPECT_TRUE(fixtures::sameStops(*result.products.stops, fixtures::stopsOn(params, 5)));
 		EXPECT_FALSE(fixtures::sameStops(*result.products.stops, fixtures::stopsFor(params)));
