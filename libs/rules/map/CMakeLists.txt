@@ -34,6 +34,8 @@ target_sources(ddb_rules PRIVATE
     RollParams.cpp
     RouteDescriptors.cpp
     RouteLegs.cpp
+    RouteOffers.cpp
+    RouteOutlook.cpp
     RouteTree.cpp
     StopChecks.cpp
     StopContents.cpp

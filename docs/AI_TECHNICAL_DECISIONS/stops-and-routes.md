@@ -109,7 +109,11 @@ Generation doesn't change, since the descriptors only read what the dressing alr
 
 `stops.json` is read whole and strictly by `readStopTuning` (`StopData`), and the room a leg has for stops is `StopRoom`'s, both landing with the POI stage, which seats on that room (route-tree-and-pois.md, POIs and strongholds in the C++ alpha). A band's fight floor is at least 1 and no more than its least stops, its most fights no more than its most stops, `tightGap` at most `minGap`, and the extras' game stages rise.
 
-The rest of a descriptor reads the stop layer (Stops in the C++ alpha, below) on top of these: knowledge, stops as far as known, hours out, at the objective, and home, the return against dark, risk, and whether it's estimated, as Route descriptors above has them, and `routeOffers` over all of it. They depend on what's known of each leg, which is saved state, where these depend on the map alone, so they're a reading of their own rather than more fields on `RouteDescriptor`.
+The rest of a descriptor is `RouteOutlook`, by `outlookOf` (2026-10-31, DDB-571): knowledge (the least known leg), the stops as far as known, the hours out, at the objective, and home, the return against dark (`back`, `dark`, and `spare`), risk, and whether it's estimated, as Route descriptors above has them, over the stop layer (Stops in the C++ alpha, below). It depends on what's changed on the map since it was made, saved state, where `RouteDescriptor` depends on the map alone, so it's a reading of its own: a descriptor can be worked out once a map, and an outlook again whenever the fog lifts. What's changed comes in as `MapToday`, plain data the campaign fills from its own: each leg's knowledge (none for every leg charted), the stops cleared and not back, each stop's roll count, and the game stage. What differs:
+
+- A route's dormant extras are on at the game stage given, among its stops in driving order and counted in its hours, where the TypeScript read stage 0 until game stage was kept. The daylight check counted every extra on, so turning them on never takes a route past dark.
+- A stop cleared and not back is shown cleared and counts in the hours (call 217); its fight comes out of the risk.
+- An uncharted leg's stops count what its road earns, `legEarns`, the stage's own count before its draw.
 
 ## Stops in the C++ alpha
 
@@ -132,6 +136,18 @@ Measured on the test maps at radius 600 (mixed, floodlands, and badlands' first 
 `routeOffers(map)` gives every route on the map in the run loop's route model (`RunRoute`, with its `RouteDestination`, `RouteLeg`, and `RouteStop`), POI by POI. Ids come from the map's own (`poi-3`, `route-3-1`, `leg-12`, `stop-40`), so a map gives the same routes however often it's asked, which `departRun`'s check that a route is on offer needs. A run carries every stop on its legs, whatever the route card knows. Fights are fights with their skulls, and every other stop is a quiet stretch (call 70) until the run has screens for events, finds, garages, and hazards. Hours are rounded to tenths and lengths to whole units, as the run shows them. Risk is the route card's, with 1 for a route with no fight, since the model's risk runs 1 to 3. A destination yields what its POI's type does (`data/pois.json`), in place of #201's tier ranges; meds aren't among the run's yields yet, so they're left out, and a stronghold yields nothing until it has rules of its own.
 
 The area map screen (DDB-43) picks the POI, and the run loop's `routesOnOffer({ map })` offers every route `routeOffers` gives on the campaign's map but a stronghold's ([area-map-route-pick.md](./area-map-route-pick.md)). `offersForDay`, which stood in for the screen with a day's two or three destinations, went with it.
+
+## The run loop's routes in the C++ alpha
+
+`libs/rules/map/RouteOffers` (2026-10-31, DDB-571) is `routeOffers`, every route to every POI, POI by POI and each POI's quickest first, read from a finished map's layers (the network, places, POIs, and stops, and the biomes) and its `MapToday`, with calls 13 and 14. Each `RouteOffer` holds its destination (the POI, its name from `poiNames`, its tier, whether it's a stronghold, and its yields), its `RouteDescriptor`, its `RouteOutlook` today, every leg it drives with every stop on it at today's game stage, and the run's risk. What differs:
+
+- Ids are the map's indices, not strings: a POI is its index in the POI layer, a route its POI and its place among the POI's routes, a leg its id, and a stop its id, with its roll count. Those are what the campaign keeps a run's route and its stops' state by.
+- The input is plain: `MapToday`, which the campaign fills, never a campaign type, so the map knows nothing of the campaign.
+- A stop is its type, skulls, roll, haul, and whether it's cleared. There's no quiet stretch: the stage places only the types the run resolves (call 14), so the run reads a fight, a find, or an event off the type.
+- A Find: supplies stop carries its haul at its roll, so one that's come back after its cooldown carries a new one (stop-clearing.md).
+- Hours and lengths aren't rounded; the screens round what they show.
+- A destination yields every resource its POI type does, meds included, since the C++ run's cargo carries meds (call 22, replacing the meds part of 17); a stronghold still yields nothing.
+- Strongholds' routes and cleared POIs' are among the offers. Which to offer is the campaign's, as `routesOnOffer` was the run loop's.
 
 ## Measured
 
@@ -162,6 +178,7 @@ Calls the spec left open, made the simplest way consistent with it, for Kevin to
 19. A leg earns fights at its routes' bands' share of fights, the least of the routes through it, rounded by a draw; the floor goes on a route's own road, and a leg no POI owns keeps a calm stop (calls 262, 263).
 20. A route left under its band's minimum after the daylight check takes calm stops back on its own road, or turns on its latest dormant extra (call 265).
 21. A route's own last leg keeps room for its dormant extras back from everything but its own-road need; they're spread among its stops, the first on at game stage 2 and the second at 4 (call 266).
+22. In the C++ alpha a destination yields every resource its POI type does, meds included, since the run's cargo carries meds; a stronghold yields nothing yet (call 404, replacing the meds part of 17).
 
 ## Consequences
 
