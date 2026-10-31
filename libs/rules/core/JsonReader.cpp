@@ -174,7 +174,8 @@ namespace rules {
 		}
 		try {
 			return nlohmann::json::parse(stream);
-		} catch (const nlohmann::json::parse_error& error) {
+		} catch (const nlohmann::json::exception& error) {
+			// Not only parse_error: a number too big for a double, 1e999, is out_of_range.
 			throw ContentError(file.generic_string() + " isn't valid JSON: " + error.what());
 		}
 	}

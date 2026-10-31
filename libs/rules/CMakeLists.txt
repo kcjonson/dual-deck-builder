@@ -15,6 +15,7 @@ add_library(ddb_rules STATIC
     packs/Pack.cpp
 )
 add_library(ddb::rules ALIAS ddb_rules)
+add_subdirectory(map)
 
 target_compile_features(ddb_rules PUBLIC cxx_std_20)
 
