@@ -90,6 +90,10 @@ Kevin, 2026-10-06: this is a card game, so cards are never shown as rows or text
 
 Option rejected: per-driver card ownership with no shared locker. Cards would be stuck with whoever earned them, and losing a driver would lose cards nobody chose to risk.
 
+## In the C++ alpha
+
+Decision 3 isn't built (2026-10-31, DDB-573). The save keeps the resolved params, where the map sat among its seed's attempts, a fingerprint of the gameplay map, and the mutable state, and a load makes the whole map again and fails if the fingerprint differs, so a generator change ends saves in progress the way a save format change does, rather than moving a campaign's map under it. While saves have no compatibility to keep, that's simpler than a format for the map's lines; [campaign.md](./campaign.md), The map on the campaign, has the options.
+
 ## Open
 
 Listed in the specs' open questions: what wins the campaign, whether shortages alone can end it, deck size limits, driver names, night rules, found vehicles, mid-route branching, starting pool size, map size, and rivers. The noise dependency is settled in [terrain-fields.md](./terrain-fields.md).

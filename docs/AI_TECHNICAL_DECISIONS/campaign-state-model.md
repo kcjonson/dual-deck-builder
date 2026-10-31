@@ -141,7 +141,7 @@ Provisional calls (gameplay-calls.md, 182): a new campaign is founded with only 
 - A driver's record keeps what play changes, with no max HP, hand limit, name, or `runsCompleted`: max HP and the hand limit are the archetype's (call 394), and "Road Warrior 2" is read off the pool's order.
 - An escort keeps its type and structure rather than a stat block (call 395), and the convoy's ids and their counter sit on the campaign beside the drivers'.
 - The run out, with its run decks, cargo, and cards won, is part of the campaign, where the TypeScript split it between the campaign and a run party.
-- The map's params, attempts, and state, strongholds, the log, and the tally aren't in it yet.
+- The log and the tally came with the second slice. The map's params and attempts are its `MapOrigin`, with a fingerprint of the map, and what's changed on the map is a typed `MapState`, not opaque JSON: the POIs cleared, the legs charted, the stops cleared or back, and the strongholds taken, each by the map's id and checked against the map at load ([campaign.md](./campaign.md), The map on the campaign). The params are read whole and must be valid as they stand, with no repair, since `repairMapParams` went with save compatibility.
 
 ## Consequences
 

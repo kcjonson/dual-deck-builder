@@ -260,7 +260,7 @@ Generated last, from the `dressing` stream, reading everything before it and wri
 - Contamination: plumes hatched round each crater, and mire stippled.
 - Labels: place names by size (the metro in capitals), river names along their courses, range names spaced along each range's long axis, lake and reservoir names, pass names, highway shields with the roads' route numbers, POI and stronghold names. Placed by priority with collision boxes, so a label that can't fit is dropped rather than overlapping.
 
-Dressing isn't saved; it's regenerated on load from the seed, the parameters, and the saved map.
+Dressing isn't saved; it's regenerated on load with the rest of the map.
 
 ## Routes
 
@@ -304,7 +304,7 @@ Reveal rules:
 
 ## Performance
 
-- Generation runs once, at founding, off the frame: on a worker thread, behind the founding screen. Loading a campaign never reruns a gameplay stage.
+- Generation runs at founding and again at each load, off the frame: on a worker thread, behind the founding screen or the load. A load runs each stage once, on its winning attempt, with no checks.
 - The grid stages (terrain, water, settlements, roads) are the heavy ones. Budget, provisional: 1 second on a mid-range laptop. The TypeScript prototype, on a desktop, took 0.75 to 1 second for them at 256 cells a side, most of it erosion (about 550 ms) and road paths (140 to 210 ms); those are JavaScript timings. Running erosion coarse first (128 cells, then a few iterations at 256) and bounding each path search to an ellipse round its two ends are the planned levers.
 - The graph stages (route tree, POIs, tiers, stops, knowledge, the validator) keep the 200 ms budget, on the same machines; the prototype's took under 30 ms. A stage that reruns reuses everything its upstream built once (the route tree, meeting points, spatial indexes) and allocates nothing per candidate.
 - The Map Lab caches each stage's output by its inputs, so a gameplay parameter reruns only the graph stages, live, and a world parameter regenerates everything, with a progress readout.
@@ -313,9 +313,8 @@ Reveal rules:
 
 ## Saving
 
-- The save holds the resolved parameters, the seed, the generator version, the map attempt and each stage's winning attempt (streams nest, so the land's stream and the dressing's hang from every attempt above them), and the gameplay map: every line the map draws, as it was generated, so roads, water, and the land always agree; and the route layer. Concretely: the road network (nodes, stretches with class, length, and polyline, and each highway's route number), rivers (polylines and widths), lake shores, crater circles, place names and positions, the route tree (each node's parent stretch), legs, POIs (site, arrivals, type, ring), strongholds (site, faction, sector) and the sector rotation, tiers, territories, stops, and the saved state above.
-- Polylines are stored simplified (Douglas-Peucker at about one world unit) as fixed-point deltas, nodes and polyline ends on the same grid so junctions still match exactly (DDB-436). Estimated at radius 1000 from the prototype: roads 1,900 to 2,700 points, about 10,000 to 14,000 characters; rivers and shores about 7,000; everything else about 20,000. So about 40,000 characters for the map.
-- The land under those lines (elevation, moisture, hillshade) is regenerated on load from the seed, the parameters, and the attempts, on the worker thread, since it's only a picture once the map exists. Because erosion is plain arithmetic it regenerates bit-identically on every platform; a generator change can only shift the shading under the saved lines, never play.
+- The save holds the resolved parameters, the seed, the map attempt and each stage's winning attempt by the stage's name (streams nest, so every stage's stream hangs from every attempt above it), a fingerprint of the gameplay map, and the saved state above. The fingerprint covers what the saved state names: the POIs (type, ring, tier, arrivals), the strongholds, the legs and the routes they make, and the stops (leg, type, skulls, stage) with their contents' seed. Nothing the map draws is saved.
+- A load makes the whole map again from the parameters and the attempts, each stage once on its winning attempt, off the frame, and fails if the map comes out with another fingerprint, so a campaign is never played on a map other than its own. A generator change that moves a POI, a leg, or a stop ends the saves made before it, as a save format change does; one that only moves the land under the roads, or the dressing, doesn't.
 - Saves go through salal app's `SaveStore` ([campaign-save-and-load.md](../AI_TECHNICAL_DECISIONS/campaign-save-and-load.md)), which writes a temp file and renames it over the save, keeping the previous save as a backup.
 
 ## Rendering: the road atlas

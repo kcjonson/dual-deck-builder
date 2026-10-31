@@ -104,8 +104,10 @@ A save names the pipeline's stages in `mapAttempts.stages`, so adding, removing,
 
 `libs/rules/campaign/CampaignJson.h` (2026-10-31, DDB-573) reads and writes the campaign's JSON, and [campaign.md](./campaign.md) has how. Storing it in a slot, the history, and checkpoints are the game app's, over salal's `SaveStore`, and aren't built. What differs:
 
-- The JSON carries its version, `kSaveVersion`, 3 since the garage's stock and a run's finds, which the game hands salal's `SaveFormat` too, so the rules refuse a save of another version without seeing the envelope.
+- The JSON carries its version, `kSaveVersion`, 4 since the map's origin and state, which the game hands salal's `SaveFormat` too, so the rules refuse a save of another version without seeing the envelope.
 - It names the packs it was made with and loads only with all of them loaded. Every card, archetype, and escort type it holds has to resolve in the loaded packs, where this record let a dropped card load.
+- There's no generator version. The save keeps the map's origin, its params, the map attempt, each stage's winning attempt by name, and a fingerprint of what the campaign's ids name on the map, and `loadCampaign` (`CampaignMap.h`) makes the map again and checks it: attempts that don't fit the pipeline fail before any stage runs, and a map with another fingerprint fails after, so a generator change that moves a POI, leg, or stop fails the load by itself, where this record had its author bump a version or load old saves onto a new map. Every id the map state holds is checked against the made map too.
+- A load returns the map beside the campaign, made in the same call, for the game to hold, rather than started on Continue and waited for where it's needed. Making it again runs no checks, as above, and takes a whole generation, so the game loads off the frame. The session's cache of one campaign's map is the game app's, with the store.
 
 ## Provisional calls
 
