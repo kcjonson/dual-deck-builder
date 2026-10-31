@@ -46,13 +46,13 @@ Everything but the last row is the game's rules and runs headless on `salal::fou
 3. **Campaign** (`libs/rules/campaign`), once both tracks are in: the campaign model and its JSON, founding, the day clock, the compound, supply runs and stops, the combat bridge. The rules produce the state; writing it to a save slot is the game app's job through salal's `app`, since the rules can't depend on it. The save format starts at version 1 and names the packs it was made with.
 4. **Balance sim** (`apps/balance-sim`): the command line tool over the rules, loading packs as the game does, for tuning. Balance Simulation is the spec.
 5. **Scripting** (`libs/scripting`): the Lua host, sol2 on Lua 5.4, sandboxed, behind the interfaces the rules define. Lands when the first card or opponent needs logic data can't express, or before mod support, whichever comes first; it doesn't wait on steps 3 and 4.
-6. **Presentation** (`apps/<game>`): the screens as salal scenes, the game ui on salal's `ui`, the area map view and the battle screen, animated from the events `apply` returns. Starts when salal's phase 3 has its controls and popups in (ui-plan PRs 13 and 14). Needs the UI art decision below first.
+6. **Presentation** (`apps/<game>`): the screens as salal scenes, the game ui on salal's `ui`, the area map view and the battle screen, animated from the events `apply` returns. Starts when salal's phase 3 has its controls and popups in (ui-plan PRs 13 and 14). The paper needs salal's fill hooks first ([procedural-paper.md](../AI_TECHNICAL_DECISIONS/procedural-paper.md)).
 7. **Cutover**: playtest builds from the C++ game, then `_legacy/` is deleted whole.
 
 Each step is PRs of a size someone can review in a sitting, each building, passing `ctest`, and formatted. Tests come with the code they test: port a TypeScript test when what it pins is still what the alpha wants, and write a new one when the alpha changes the rule.
 
 ## Decisions for Kevin
 
-- **UI art.** UI Art Direction and the ui-art-atlas record build the playtest look from a raster atlas with nine-sliced paper and stroke icons. salal's `ui-design.md` decided against raster images, nine-slice and stroke icons. One of them has to give before step 6.
+- **UI art.** Decided 2026-10-31: the raster atlas gives, salal's rules hold. The paper is computed in the base shader as a fill hook, the rest of the art is flat-fill vector, and the icons are filled SVG ([procedural-paper.md](../AI_TECHNICAL_DECISIONS/procedural-paper.md)).
 - **The game's executable and folder name**, for step 6: `apps/wasteland-wheels` or something else.
 - **Playtest distribution.** The playtest-distribution spec moves playtesting to downloadable builds before the port lands, by way of the Electron build. With the TypeScript frozen and CI off, it may be simpler to go straight to C++ builds at cutover.

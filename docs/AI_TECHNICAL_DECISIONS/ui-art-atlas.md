@@ -59,3 +59,7 @@ A piece is drawn by its 1x name at a rect with a tint, paper nine-sliced, and th
 - Section-tab icons other than the deck glyph; the spec's tabs are text.
 - Wear that accrues over a campaign (yellowing, tears per injury).
 - Folds are a separate strip (`paper_fold`) a component draws across a W2 sheet, since a crease crosses the reading window and the centre slice has to stay flat.
+
+## In the C++ alpha
+
+None of this ports (2026-10-31, [procedural-paper.md](./procedural-paper.md)). salal draws no raster art and has no nine-slice, so the alpha computes its paper in the base shader, a fill hook seeded per surface, and draws the stamps, tape, logo, card backs and cover as flat-fill vector, with the icons through salal's icon pipeline. The page, its build script and its pieces stay in `_legacy/` until cutover deletes them.
