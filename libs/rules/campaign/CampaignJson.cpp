@@ -5,12 +5,17 @@
 
 #include <rules/battle/Battle.h>
 #include <rules/core/ContentError.h>
+#include <rules/map/MapPipeline.h>
+#include <rules/map/MapPresets.h>
+#include <rules/map/ParamValidator.h>
 
 #include <algorithm>
+#include <charconv>
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <variant>
 
 namespace rules::campaign {
 
@@ -92,6 +97,151 @@ namespace rules::campaign {
 		template <typename Enum, std::size_t Count>
 		std::string_view nameOf(Enum value, const EnumNames<Enum, Count>& names) {
 			return std::ranges::find(names, value, &std::pair<std::string_view, Enum>::second)->first;
+		}
+
+		// Every parameter on the campaign's seed, valid as they stand, since the map was made on them once the validator
+		// had been over them.
+		map::MapParams readMapParams(JsonReader params, uint32_t seed) {
+			const map::MapParamSet set = map::readMapParamSet(params);
+			for (const map::NumberParamSpec& spec : map::kNumberParams) {
+				if (!set.overrides.at(static_cast<size_t>(spec.param))) {
+					params.failAt(spec.key, "is missing, and the map was made on every parameter");
+				}
+			}
+			if (set.seed != seed) {
+				params.failAt("seed", "is " + std::to_string(set.seed) + ", and the campaign's is " + std::to_string(seed));
+			}
+			const map::MapParams			   resolved = map::resolveMapParams(set);
+			const std::vector<map::ParamClamp> clamps = map::validateMapParams(resolved).clamps;
+			if (!clamps.empty()) {
+				params.failAt(clamps.front().param, "isn't one a map is made on: " + map::describeClamp(clamps.front()));
+			}
+			return resolved;
+		}
+
+		nlohmann::json paramsJson(const map::MapParams& params) {
+			nlohmann::json json = {{"seed", params.seed}, {"environment", std::string(nameOf(params.environment, map::kEnvironmentNames))}};
+			for (const map::NumberParamSpec& spec : map::kNumberParams) {
+				std::visit([&](auto field) { json[std::string(spec.key)] = params.*field; }, spec.field);
+			}
+			return json;
+		}
+
+		uint64_t readFingerprint(JsonReader& reader) {
+			const std::string text = reader.requireString("fingerprint");
+			uint64_t		  fingerprint = 0;
+			const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), fingerprint, 16);
+			if (error != std::errc{} || end != text.data() + text.size() || fingerprintText(fingerprint) != text) {
+				reader.failAt("fingerprint", "must be 16 lowercase hex digits, got \"" + text + "\"");
+			}
+			return fingerprint;
+		}
+
+		// Each stage's attempt by its name, which is all the shape there is to read: whether they fit the pipeline is
+		// the pipeline's to say, as loadCampaign makes the map.
+		MapOrigin readMapOrigin(JsonReader reader, uint32_t seed) {
+			JsonReader attempts = reader.requireObject("attempts");
+			MapOrigin  origin{
+				 .params = readMapParams(reader.requireObject("params"), seed),
+				 .mapAttempt = static_cast<uint32_t>(requireIntIn(attempts, "map", 0, static_cast<int>(map::kMapAttempts) - 1)),
+				 .stageAttempts = {},
+				 .fingerprint = readFingerprint(reader),
+			 };
+			const nlohmann::json& stages = attempts.requireValue("stages");
+			if (!stages.is_object() || stages.empty()) {
+				attempts.failAt("stages", "must be an object of each stage's winning attempt, by its name");
+			}
+			for (const auto& [name, attempt] : stages.items()) {
+				if (!attempt.is_number_integer() || attempt < 0 || attempt >= map::kStageAttempts) {
+					attempts.failAt("stages." + name, "must be a whole number from 0 to " + std::to_string(map::kStageAttempts - 1));
+				}
+				origin.stageAttempts.emplace(name, attempt.get<uint32_t>());
+			}
+			attempts.finish();
+			reader.finish();
+			return origin;
+		}
+
+		nlohmann::json originJson(const MapOrigin& origin) {
+			nlohmann::json stages = nlohmann::json::object();
+			for (const auto& [name, attempt] : origin.stageAttempts) {
+				stages[name] = attempt;
+			}
+			return {
+				{"params", paramsJson(origin.params)},
+				{"attempts", {{"map", origin.mapAttempt}, {"stages", std::move(stages)}}},
+				{"fingerprint", fingerprintText(origin.fingerprint)},
+			};
+		}
+
+		// Map ids, each from 0, in id order and once.
+		std::vector<int> readIds(JsonReader& reader, std::string_view key) {
+			std::vector<int> ids = reader.requireInts(key);
+			for (size_t index = 0; index < ids.size(); ++index) {
+				if (ids[index] < 0) {
+					reader.failAt(key, "lists " + std::to_string(ids[index]) + ", and the map's ids run from 0");
+				}
+				if (index > 0 && ids[index] <= ids[index - 1]) {
+					reader.failAt(
+						key,
+						"lists " + std::to_string(ids[index]) + " after " + std::to_string(ids[index - 1]) +
+							"; it runs in id order, each id once"
+					);
+				}
+			}
+			return ids;
+		}
+
+		// Each stop once, in id order, cleared no later than today, and none neither cleared nor back, which is a stop
+		// with no entry.
+		MapState readMapState(JsonReader reader, int day) {
+			MapState state{
+				.clearedPois = readIds(reader, "clearedPois"),
+				.chartedLegs = readIds(reader, "chartedLegs"),
+				.stops = {},
+				.strongholdsTaken = readIds(reader, "strongholdsTaken"),
+			};
+			for (JsonReader& entry : reader.requireObjects("stops")) {
+				StopState			  stop{.stop = requireIntIn(entry, "stop", 0), .roll = requireIntIn(entry, "roll", 0), .cleared = {}};
+				const nlohmann::json& cleared = entry.requireValue("cleared");
+				if (!cleared.is_null()) {
+					if (!cleared.is_number_integer() || cleared < 1 || cleared > day) {
+						entry.failAt(
+							"cleared", "must be null or a day from 1 to today, " + std::to_string(day) + ", since no run clears one later"
+						);
+					}
+					stop.cleared = cleared.get<int>();
+				}
+				entry.finish();
+				if (!state.stops.empty() && stop.stop <= state.stops.back().stop) {
+					entry.failAt(
+						"stop", "comes after stop " + std::to_string(state.stops.back().stop) + "; the stops run in id order, each once"
+					);
+				}
+				if (stop.roll == 0 && !stop.cleared) {
+					entry.fail("is neither cleared nor back, which is a stop with no entry");
+				}
+				state.stops.push_back(stop);
+			}
+			reader.finish();
+			return state;
+		}
+
+		nlohmann::json stateJson(const MapState& state) {
+			nlohmann::json stops = nlohmann::json::array();
+			for (const StopState& stop : state.stops) {
+				stops.push_back({
+					{"stop", stop.stop},
+					{"roll", stop.roll},
+					{"cleared", stop.cleared ? nlohmann::json(*stop.cleared) : nlohmann::json(nullptr)},
+				});
+			}
+			return {
+				{"clearedPois", state.clearedPois},
+				{"chartedLegs", state.chartedLegs},
+				{"stops", std::move(stops)},
+				{"strongholdsTaken", state.strongholdsTaken},
+			};
 		}
 
 		std::vector<PackRef> readPacks(JsonReader& reader, const Content& content) {
@@ -379,6 +529,15 @@ namespace rules::campaign {
 		return buildings;
 	}
 
+	std::string fingerprintText(uint64_t fingerprint) {
+		constexpr std::string_view kDigits = "0123456789abcdef";
+		std::string				   text(16, '0');
+		for (size_t digit = 0; digit < text.size(); ++digit) {
+			text[text.size() - 1 - digit] = kDigits[(fingerprint >> (4 * digit)) & 0xFU];
+		}
+		return text;
+	}
+
 	Campaign readCampaign(const nlohmann::json& json, const Content& content) {
 		JsonReader reader(json, "campaign");
 		const int  version = reader.requireInt("version");
@@ -401,6 +560,8 @@ namespace rules::campaign {
 			.run = std::nullopt,
 			.nextRunNumber = requireIntIn(reader, "nextRunNumber", 1),
 		};
+		campaign.mapOrigin = readMapOrigin(reader.requireObject("mapOrigin"), campaign.seed);
+		campaign.mapState = readMapState(reader.requireObject("mapState"), campaign.day);
 		for (JsonReader& driver : reader.requireObjects("drivers")) {
 			campaign.drivers.push_back(readDriver(driver, campaign, content));
 		}
@@ -485,6 +646,8 @@ namespace rules::campaign {
 			{"version", kSaveVersion},
 			{"packs", std::move(packs)},
 			{"seed", campaign.seed},
+			{"mapOrigin", originJson(campaign.mapOrigin)},
+			{"mapState", stateJson(campaign.mapState)},
 			{"day", campaign.day},
 			{"stores", resourcesJson(campaign.stores)},
 			{"unrest", campaign.unrest},

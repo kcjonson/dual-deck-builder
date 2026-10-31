@@ -26,5 +26,8 @@
 	"fall": {
 		"starveAtFood": 0,
 		"riotAtUnrest": 10
+	},
+	"clearing": {
+		"stopCooldownDays": 5
 	}
 }

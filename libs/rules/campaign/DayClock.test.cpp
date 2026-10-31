@@ -60,6 +60,31 @@ namespace {
 		EXPECT_EQ(campaign.driver(hurt.id).hitpoints, 40);
 	}
 
+	TEST(DayClock, AClearedStopIsBackAtTheDawnItsCooldownIsUpWithItsRollUpOne) {
+		Campaign campaign = foundTestCampaign();
+		campaign.day = 3;
+		campaign.mapState.stops = {
+			StopState{.stop = 4, .roll = 0, .cleared = 1},
+			StopState{.stop = 7, .roll = 1, .cleared = 3},
+			StopState{.stop = 9, .roll = 2, .cleared = {}},
+		};
+		EXPECT_TRUE(rest(campaign).stopsBack.empty());
+		EXPECT_TRUE(rest(campaign).stopsBack.empty());
+		EXPECT_EQ(rest(campaign).stopsBack, std::vector{4}) << "cleared on day 1, back at the dawn of day 6, 5 days on";
+		EXPECT_EQ(campaign.day, 6);
+		EXPECT_EQ(campaign.mapState.stops[0], (StopState{.stop = 4, .roll = 1, .cleared = {}}));
+		EXPECT_TRUE(rest(campaign).stopsBack.empty());
+		EXPECT_EQ(rest(campaign).stopsBack, std::vector{7});
+		EXPECT_EQ(
+			campaign.mapState.stops,
+			(std::vector{
+				StopState{.stop = 4, .roll = 1, .cleared = {}},
+				StopState{.stop = 7, .roll = 2, .cleared = {}},
+				StopState{.stop = 9, .roll = 2, .cleared = {}},
+			})
+		);
+	}
+
 	TEST(DayClock, ANightThatLeavesNoPeopleEndsTheCampaignOnTheDayItFellAndNothingChangesItAfter) {
 		Campaign campaign = foundTestCampaign();
 		campaign.stores = Resources{.food = 0, .water = 0, .people = 1};

@@ -51,7 +51,7 @@ Nothing here draws randomness. A later step that needs a draw forks a stream per
 
 ## In the C++ alpha
 
-`endDay` and `forecastNeeds` in `libs/rules/campaign/DayClock.h` (2026-10-31, DDB-573) keep these steps and calls, and [campaign.md](./campaign.md), The day, the infirmary, and the end, has how. The day-end hooks wait for the map: stop cooldowns are the only one left, and they'll be a step over the map's state. The rules are pack content, `packs/base/campaign/compound-rules.json`.
+`endDay` and `forecastNeeds` in `libs/rules/campaign/DayClock.h` (2026-10-31, DDB-573) keep these steps and calls, and [campaign.md](./campaign.md), The day, the infirmary, and the end, has how. There are no hooks: stop cooldowns, the one left, are a step of `endDay`'s over the campaign's map state, taken as the day turns, so a night that ends the campaign brings nothing back, and `DayEnd::stopsBack` names what came back ([campaign.md](./campaign.md), The map on the campaign). The rules are pack content, `packs/base/campaign/compound-rules.json`, the cooldown's 5 days among them.
 
 ## Provisional calls
 

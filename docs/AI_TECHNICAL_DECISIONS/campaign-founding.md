@@ -100,9 +100,11 @@ Founding reads no randomness at all but the seed's own streams. The params and t
 
 ## In the C++ alpha
 
-`foundCampaign` in `libs/rules/campaign/Founding.h` (2026-10-31, DDB-573) deals the pool as this record has it, on the same streams, and [campaign.md](./campaign.md) has how. What differs:
+`foundCampaign` in `libs/rules/campaign/Founding.h` (2026-10-31, DDB-573) deals the pool as this record has it, on the same streams, and [campaign.md](./campaign.md) has how, the map in The map on the campaign. What differs:
 
-- There's no map yet, so founding takes no params and generates nothing. Its draws are the deal and the garage's first stock, on `fork("garage", 1)`, which moves no seed's deal.
+- The map is made first, by `makeCampaignMap(seed, mapContent)` in `CampaignMap.h`: the params rolled from the seed, the map made on them, and its origin, the params, the map attempt, each stage's winning attempt, and a fingerprint of the map. Past a seed's map attempts a release build goes on to the next seed, up to 4, and a debug build throws, as above. Nothing takes params given rather than rolled yet; the Map Lab would found on a `MapOrigin` of its own.
+- `foundCampaign` takes the origin and takes its seed from the map's params, so the campaign and its map can't be on different seeds and there's no check to make; it refuses an origin on params the validator would change. The game keeps the map that came back beside it.
+- Founding's own draws are the deal and the garage's first stock, on `fork("garage", 1)`, which moves no seed's deal. The tests found on a stub origin that makes no map, as `foundTestCampaign` did.
 - The starting values are pack content, `packs/base/campaign/start.json`, which a pack requiring the one that set them can override whole. A starter escort is a type there, as before.
 - The unlocked archetypes still come in; `unlockedAtStart` reads the packs' own `unlocked` flags until meta-progression keeps unlocks.
 
