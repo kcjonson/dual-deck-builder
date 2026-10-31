@@ -21,7 +21,7 @@ Its input is a config, plain data: the crews (archetypes, seat order, decks, or 
 
 Its output is plain JSON: the packs it loaded, the config as read, a row per cell with the measures below, and any fight logs asked for.
 
-It's deterministic, and no cell's numbers depend on which other cells were asked for. A `gen` map is its own `rollParams` seed. In `fights` and `runs`, a cell is named by its crew, route, and stage (`road_warrior+interceptor:1+2@0`; a crew asked for twice, on other decks, adds `#` and its place in the crews, counting from 1), and run n of every cell, counting from 1, draws from the seed's `fork('run', n)`, its fight f from that run's `fork('fight', f)`: the crew is recruited into a campaign of its own on the seed and sent out as its run n, so the combat bridge's own fight seed is that stream. A pair sits in its crew's seat order on odd runs and the other way round on even ones. Every cell plays the same fixed list of seeded runs, so two crews, two tunings, or a route fresh and the day after its neighbor's run are compared on the same draws, and a difference between them is the change rather than the luck. The cost is that cells share their luck: a lucky seed lifts every cell a little, so a figure pooled across cells needs more runs than its intervals suggest. The same config and seed give the same JSON from the command line, the Lab, and the tests, on every platform: the streams are salal's `Rng` (`foundation/random/Rng.h`), and the game builds with floating-point contraction off (`-ffp-contract=off`, which salal's foundation sets for GCC and Clang), so no multiply and add fuse on one platform and not another.
+It's deterministic, and no cell's numbers depend on which other cells were asked for. A `gen` or `runs` map is its own `rollParams` seed. In `fights` and `runs`, a cell is named by its crew, route, and stage (`road_warrior+interceptor:1+2@0`; a crew asked for twice, on other decks, adds `#` and its place in the crews, counting from 1), and run n of every cell, counting from 1, draws from the seed's `fork('run', n)`, its fight f from that run's `fork('fight', f)`: the crew is recruited into a campaign of its own on the seed and sent out as its run n, so the combat bridge's own fight seed is that stream. In `runs` the route is the map's seed, the POI, and the route's place among the POI's (`3/12.0`), or `3/7.1>12.0` behind its neighbor's run, and the campaign is founded on the map, so its seed is the map's and everything a stop draws is on run n's `fork('stop', s)`. A pair sits in its crew's seat order on odd runs and the other way round on even ones. Every cell plays the same fixed list of seeded runs, so two crews, two tunings, or a route fresh and the day after its neighbor's run are compared on the same draws, and a difference between them is the change rather than the luck. The cost is that cells share their luck: a lucky seed lifts every cell a little, so a figure pooled across cells needs more runs than its intervals suggest. The same config and seed give the same JSON from the command line, the Lab, and the tests, on every platform: the streams are salal's `Rng` (`foundation/random/Rng.h`), and the game builds with floating-point contraction off (`-ffp-contract=off`, which salal's foundation sets for GCC and Clang), so no multiply and add fuse on one platform and not another.
 
 ## Measures
 
@@ -38,7 +38,7 @@ For each cell, a crew against an encounter or a crew over a route:
 - in `fights`, each place on a route on its own: won, lost, broken off, stalled, and routed, and over the fights won its turns, HP and structure lost, and drivers down;
 - in `fights`, the fights a fresh crew opens a route with, by skull count and stage, pairs and lone drivers apart, with the crew that won least, against the per-fight targets.
 
-A run comes home when every fight on it is won or broken off, since the run carries on past a break-off as the bridge writes it back. Every rate carries its count and a 90% interval (Wilson's), so a 3-point move on 100 runs isn't read as a change.
+In `fights` a run comes home when every fight on it is won or broken off, since the run carries on past a break-off as the bridge writes it back. In `runs` it comes home past its objective and the road home; it fails at a fight lost, and it's abandoned at a fight still on at the turn cap, which the sim leaves there. `runs` also measures the fuel a run paid, what it brought home (resources, cards won, and drivers found), each kind of stop it met (a fight's by skull count, an event's choices), and all of it by destination tier and by route risk. Every rate carries its count and a 90% interval (Wilson's), so a 3-point move on 100 runs isn't read as a change.
 
 ## The command line tool
 
@@ -57,7 +57,7 @@ Generates campaign maps (`rollParams` seeds, `--maps` of them), reads every rout
 - each route's own road (legs no other POI's routes use): its share of the route's stops, and whether the route's floor fights are on it;
 - for each POI, its nearest neighbor by shared road, and how many of its stops a run to that neighbor would leave cleared.
 
-It also writes a route corpus (`--corpus <file>`), those maps' routes as JSON with each stop's type and each route's audit, its neighbor's run among it, so `runs` doesn't have to regenerate maps.
+It also writes a route corpus (`--corpus <file>`), those maps' routes as JSON with each stop's type and each route's audit, its neighbor's run among it, to read without generating the maps again. `runs` makes its own, since a map takes under a second.
 
 A leg's room is the most stops the stops stage could deal it: clear of its ends and junctions, the tight gap apart, by the room math the POI and stops stages share. It also reports the POIs each ring aimed for and seated. A POI's nearest neighbor is the other POI whose routes share the most road with its routes, by length, and its run is whichever of the neighbor's routes clears the most of this route's stops.
 
@@ -91,7 +91,33 @@ Every field is optional, and the JSON the tool writes carries the config it read
 
 ### runs
 
-Every crew over routes from the corpus, each stop in order: fights played, calm stops resolved by a stand-in rule (take every find; at a garage, repair what the scrap buys), damage carried from stop to stop as the combat bridge writes it back. Reports by tier against the per-run targets. Each route runs fresh and again the day after a run to its nearest neighbor, with that run's stops still cleared, so the gap shows whether spacing keeps a neighbor's run from getting too easy.
+Every crew over the routes of maps it makes from `rollParams` seeds, as founding makes them, each stop in order through the campaign's own run: fights played, calm stops resolved by a stand-in rule (take every find and a card from every reward; at an event, a choice the party can take; at a garage, repair what the scrap buys), damage carried from stop to stop as the combat bridge writes it back, then the objective, the return ambush if it comes, and home. A map's routes are every one to every POI a run can leave for, or a sample of them, drawn on the map's seed. Reports by tier against the per-run targets, and by route risk, by stop, and by pair. Each route runs fresh and again the day after a run to its nearest neighbor, with that run's stops still cleared, so the gap shows whether spacing keeps a neighbor's run from getting too easy; a route its neighbor's run clears none of runs only fresh. A POI's nearest neighbor and its run are `gen`'s.
+
+The stores are topped up to a route's fuel when they hold less, so a cell measures its route and not the compound's stores, and the fuel it paid is reported beside what it brought home.
+
+#### The runs config
+
+Every field is optional, read as strictly as the fights config, and written back in the same shape with the maps and crews listed out.
+
+```json
+{
+	"maps": [1, 2, 3],
+	"runs": 20,
+	"crews": "pairs",
+	"routes": "all",
+	"tiers": [1, 2, 3, 4],
+	"stages": [0],
+	"turns": 25,
+	"standIn": { "policy": "aggressive_flanker" },
+	"neighbor": true
+}
+```
+
+- `maps`: a count, seeds 1 to it, or a list of seeds; 1. `runs` a cell, 20.
+- `crews`, `archetypes`, `stages`, `turns`, and `standIn` as the fights config's, but `crews` is `"pairs"` when left out, since the per-run targets are for pairs.
+- `routes`: `"all"`, or how many of each map's routes to run.
+- `tiers`: the destination tiers to run, 1 to 4; a stronghold's routes wait on its boss fight.
+- `neighbor`: whether each route also runs behind its neighbor's run.
 
 ### calibrate
 
@@ -105,7 +131,7 @@ A pool of four played day by day: one run a day to a tier its stage reaches, cle
 
 - `--config <file>`: what to play, as JSON. The Balance Lab exports the same format. Options on the command line win over its fields.
 - `--pack <dir>`, as often as needed: a pack loaded over the base pack, in order, holding the tuning to try.
-- `--seed`, `--runs` (a cell), `--maps` and `--corpus <file>` (for `gen`), `--crews` (`all`, `pairs`, `solo`, or a list like `road_warrior+interceptor,mechanic`), `--routes` (for `fights`: `1,2,1+2,spike_raid`), `--turns` (the stall cap), `--stage` (a list, `0,2`), `--tier`, `--player <policy>` (the stand-in: `aggressive_flanker`, the floor and the default, `intent_aware`, the ceiling, or any other player policy, `mcts` or `random`), `--workers` (2).
+- `--seed`, `--runs` (a cell), `--maps` (for `gen` and `runs`: a count, or seeds like `4,7`), `--corpus <file>` (for `gen`), `--crews` (`all`, `pairs`, `solo`, or a list like `road_warrior+interceptor,mechanic`), `--routes` (for `fights`: `1,2,1+2,spike_raid`; for `runs`: `all` or a count a map), `--turns` (the stall cap), `--stage` (a list, `0,2`), `--tier` (for `runs`, a list), `--neighbor on|off` (for `runs`), `--player <policy>` (the stand-in: `aggressive_flanker`, the floor and the default, `intent_aware`, the ceiling, or any other player policy, `mcts` or `random`), `--workers` (2).
 - `--cards` (for `fights`): count each player card's draws and plays, and per play the planned raider intents it made fizzle and the planned damage it took off the crew, from the preview before and after it. Prints a line for each card a crew adds to its decks, with its cell's won and HP lost against the same crew on its starting decks on the same route. It projects the enemy turn twice a play, so it's off unless asked for.
 - `--json <file>`: write the rows.
 - `--check`: compare every row with the targets and exit non-zero on a miss, naming it. The fairness spreads are reported and don't fail a check until DDB-492 to 495 land.
