@@ -27,6 +27,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <charconv>
 #include <chrono>
 #include <filesystem>
@@ -37,6 +38,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -63,6 +65,8 @@ namespace {
 		std::vector<std::filesystem::path>	 packs;
 		std::optional<std::filesystem::path> json;
 		int									 workers{2};
+		// One run of one cell to play and print in words, `cell:run`, in place of the sweep.
+		std::optional<std::string> log;
 		// The config's fields the command line sets, as the config would hold them.
 		nlohmann::json overrides = nlohmann::json::object();
 	};
@@ -102,6 +106,19 @@ namespace {
 		return numbers;
 	}
 
+	// `--log`'s cell and run: the cell's name up to the last colon, and a run from 1 after it.
+	std::pair<std::string, int> logged(std::string_view text) {
+		const size_t colon = text.rfind(':');
+		if (colon == std::string_view::npos || colon == 0) {
+			throw UsageError("--log takes a cell and a run, road_warrior+interceptor:1+2@0:3");
+		}
+		const int run = wholeNumber("--log", text.substr(colon + 1));
+		if (run < 1) {
+			throw UsageError("--log counts runs from 1");
+		}
+		return {std::string(text.substr(0, colon)), run};
+	}
+
 	Options readOptions(int argc, char** argv) {
 		const std::vector<std::string_view> args(argv + 1, argv + argc);
 		if (args.empty() || args.front() == "--help" || args.front() == "-h") {
@@ -114,12 +131,18 @@ namespace {
 		const bool runs = options.mode == Mode::Runs;
 		for (size_t index = 1; index < args.size(); ++index) {
 			const std::string_view option = args[index];
+			if (!runs && option == "--cards") {
+				options.overrides["cards"] = true;
+				continue;
+			}
 			if (index + 1 >= args.size()) {
 				throw UsageError(std::string(option) + " needs a value");
 			}
 			const std::string_view value = args[++index];
 			if (option == "--config") {
 				options.config = std::filesystem::path(value);
+			} else if (option == "--log") {
+				options.log = std::string(value);
 			} else if (option == "--pack") {
 				options.packs.emplace_back(value);
 			} else if (option == "--json") {
@@ -211,7 +234,19 @@ namespace {
 		};
 
 		if (options.mode == Mode::Fights) {
-			const sim::FightsReport report = sim::playFights(sim::readFightsConfig(config, where, content), shared, options.workers);
+			const sim::FightsConfig fights = sim::readFightsConfig(config, where, content);
+			if (options.log) {
+				const auto [name, run] = logged(*options.log);
+				const std::vector<sim::FightCell> cells = sim::fightCells(fights);
+				const auto						  cell = std::ranges::find(cells, name, &sim::FightCell::name);
+				if (cell == cells.end()) {
+					throw UsageError("--log names no cell the config makes: " + name);
+				}
+				const sim::RunRecord record = sim::playRun(fights, shared, *cell, run, &std::cout);
+				std::cout << std::format("{} run {}: {}\n", name, run, sim::runEndName(record.end));
+				return 0;
+			}
+			const sim::FightsReport report = sim::playFights(fights, shared, options.workers);
 			sim::printReport(std::cout, report, content.packs);
 			write(sim::reportJson(report, content.packs));
 			return 0;
@@ -225,6 +260,17 @@ namespace {
 		const sim::MadeMaps					maps = sim::makeRunMaps(read.maps, mapContent, routeTuning, options.workers);
 		const std::chrono::duration<double> making = std::chrono::steady_clock::now() - started;
 		std::cout << std::format("made {} maps in {:.1f} s on {} workers\n", maps.maps.size(), making.count(), options.workers);
+		if (options.log) {
+			const auto [name, run] = logged(*options.log);
+			const std::vector<sim::RunCell> cells = sim::runCells(read, shared, maps.maps);
+			const auto						cell = std::ranges::find(cells, name, &sim::RunCell::name);
+			if (cell == cells.end()) {
+				throw UsageError("--log names no cell the config makes: " + name);
+			}
+			const sim::RouteRunRecord record = sim::playRouteRun(read, shared, maps.maps, *cell, run, &std::cout);
+			std::cout << std::format("{} run {}: {}\n", name, run, sim::routeEndName(record.end));
+			return 0;
+		}
 		const sim::RunsReport report = sim::playRuns(read, shared, maps.maps, options.workers);
 		sim::printRunReport(std::cout, report, content.packs);
 		write(sim::runReportJson(report, content.packs));

@@ -76,6 +76,19 @@ namespace sim {
 			}
 			json["playerPlays"] = std::move(players);
 			json["decisions"] = row.decisions;
+			if (!row.cards.empty()) {
+				Json cards = Json::object();
+				for (const auto& [card, measured] : row.cards) {
+					Json one;
+					one["drawn"] = measured.drawn;
+					one["played"] = measured.played;
+					one["fizzled"] = numberJson(measured.fizzled);
+					one["blanked"] = numberJson(measured.blanked);
+					one["wonWhenPlayed"] = rateJson(measured.wonWhenPlayed);
+					cards[card.value] = std::move(one);
+				}
+				json["cards"] = std::move(cards);
+			}
 			return json;
 		}
 
@@ -302,6 +315,91 @@ namespace sim {
 			}
 		}
 
+		// The crew whose seats are this one's archetypes in its order on their starting decks, if the config has it.
+		const CellRow* startingDecksOf(const FightsReport& report, const CellRow& row) {
+			for (const CellRow& other : report.cells) {
+				const bool same = other.crew.size() == row.crew.size() && other.route == row.route && other.stage == row.stage &&
+								  std::ranges::equal(other.crew, row.crew, {}, &SeatConfig::archetype, &SeatConfig::archetype);
+				if (same && std::ranges::all_of(other.crew, [](const SeatConfig& seat) { return !seat.deck && seat.add.empty(); })) {
+					return &other;
+				}
+			}
+			return nullptr;
+		}
+
+		void printCards(std::ostream& out, const FightsReport& report, size_t width) {
+			if (!report.config.cards) {
+				return;
+			}
+			out << "\ncards by cell, the crew's, most played first: draws and plays a fight; over the plays, the raiders' planned "
+				   "intents each made fizzle and the planned damage each took off the crew; and the fights it was played in, won\n";
+			out << std::format(
+				"{:<{}}  {:<22}{:>7}{:>8}{:>10}{:>10}{:>17}\n",
+				"cell",
+				width,
+				"card",
+				"drawn",
+				"played",
+				"fizzled",
+				"blanked",
+				"won when played"
+			);
+			for (const CellRow& row : report.cells) {
+				std::vector<std::pair<rules::CardId, CardRow>> sorted(row.cards.begin(), row.cards.end());
+				std::ranges::stable_sort(sorted, [](const auto& left, const auto& right) {
+					return left.second.played > right.second.played;
+				});
+				bool first = true;
+				for (const auto& [card, measured] : sorted) {
+					out << std::format(
+						"{:<{}}  {:<22}{:>7.2f}{:>8.2f}{:>10}{:>10}{:>17}\n",
+						first ? row.cell : "",
+						width,
+						card.value,
+						measured.drawn,
+						measured.played,
+						fixed(measured.fizzled, 2),
+						fixed(measured.blanked, 2),
+						interval(measured.wonWhenPlayed)
+					);
+					first = false;
+				}
+			}
+			std::string added;
+			for (const CellRow& row : report.cells) {
+				const CellRow* starting = startingDecksOf(report, row);
+				if (starting == nullptr || starting == &row) {
+					continue;
+				}
+				for (const SeatConfig& seat : row.crew) {
+					rules::campaign::CardCounts changed = seat.add;
+					if (seat.deck) {
+						changed = *seat.deck;
+					}
+					for (const auto& [card, count] : changed) {
+						const auto played = row.cards.find(card);
+						added += std::format(
+							"{:<{}}  {:<22}{:>3}  home {} against {}, HP lost {} against {}, played {} a fight\n",
+							row.cell,
+							width,
+							card.value,
+							count,
+							percent(row.home),
+							percent(starting->home),
+							percent(row.hitpointsLost),
+							percent(starting->hitpointsLost),
+							played == row.cards.end() ? "0" : std::format("{:.2f}", played->second.played)
+						);
+					}
+				}
+			}
+			if (!added.empty()) {
+				out << "\ncards a crew adds or decks it's given, against the same crew on its starting decks on the same route: "
+					   "home, then HP lost over the runs home, the cell's then theirs\n"
+					<< added;
+			}
+		}
+
 		void printRaiderPlays(std::ostream& out, const FightsReport& report, size_t width) {
 			out << "\nraider plays a fight, by raider and card, played and fizzled together; of those, fizzled in brackets\n";
 			for (const CellRow& row : report.cells) {
@@ -412,6 +510,7 @@ namespace sim {
 		printTargets(out, report);
 		printFairness(out, report);
 		printRaiderPlays(out, report, width);
+		printCards(out, report, width);
 
 		int decisions = 0;
 		int fights = 0;

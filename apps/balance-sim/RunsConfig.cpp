@@ -3,7 +3,6 @@
 #include <rules/core/JsonReader.h>
 
 #include <algorithm>
-#include <limits>
 #include <string>
 
 namespace sim {
@@ -12,41 +11,6 @@ namespace sim {
 
 		// The tiers a run can leave for: every one but the strongholds'.
 		constexpr int kMostRunTier = 4;
-
-		std::vector<uint32_t> readMaps(rules::JsonReader& reader) {
-			if (!reader.has("maps")) {
-				return {1};
-			}
-			const nlohmann::json& maps = reader.requireValue("maps");
-			if (maps.is_number_integer()) {
-				const int64_t count = maps.get<int64_t>();
-				if (count < 1 || count > 1000) {
-					reader.failAt("maps", "must be a count of maps from 1 to 1000, or a list of seeds");
-				}
-				std::vector<uint32_t> seeds;
-				for (int64_t seed = 1; seed <= count; ++seed) {
-					seeds.push_back(static_cast<uint32_t>(seed));
-				}
-				return seeds;
-			}
-			if (!maps.is_array() || maps.empty()) {
-				reader.failAt("maps", "must be a count of maps, or a list of seeds");
-			}
-			std::vector<uint32_t> seeds;
-			for (size_t index = 0; index < maps.size(); ++index) {
-				const nlohmann::json& seed = maps[index];
-				const std::string	  path = reader.where() + ".maps[" + std::to_string(index) + "]";
-				if (!seed.is_number_integer() || seed.get<int64_t>() < 0 || seed.get<int64_t>() > std::numeric_limits<uint32_t>::max()) {
-					failAt(path, "must be a seed, a whole number from 0");
-				}
-				const auto read = static_cast<uint32_t>(seed.get<int64_t>());
-				if (std::ranges::find(seeds, read) != seeds.end()) {
-					failAt(path, "is seed " + std::to_string(read) + " again");
-				}
-				seeds.push_back(read);
-			}
-			return seeds;
-		}
 
 		std::optional<int> readRoutes(rules::JsonReader& reader) {
 			if (!reader.has("routes")) {
@@ -89,7 +53,7 @@ namespace sim {
 	RunsConfig readRunsConfig(const nlohmann::json& config, const std::string& where, const rules::Content& content) {
 		rules::JsonReader reader(config, where);
 		RunsConfig		  read;
-		read.maps = readMaps(reader);
+		read.maps = readMaps(reader, 1);
 		read.runs = readAtLeast(reader, "runs", 1, 20);
 		read.crews = readCrews(reader, content, "pairs");
 		read.routes = readRoutes(reader);

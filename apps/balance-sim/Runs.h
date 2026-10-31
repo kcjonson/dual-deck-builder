@@ -3,6 +3,7 @@
 #include "ConfigFields.h"
 #include "Fights.h"
 #include "Measures.h"
+#include "Neighbors.h"
 #include "RunsConfig.h"
 
 #include <rules/campaign/Campaign.h>
@@ -14,6 +15,7 @@
 
 #include <array>
 #include <cstdint>
+#include <iosfwd>
 #include <map>
 #include <memory>
 #include <optional>
@@ -47,17 +49,6 @@ namespace sim {
 	[[nodiscard]] MadeMaps
 	makeRunMaps(std::span<const uint32_t> seeds, const rules::map::MapContent& content, const rules::map::RouteTuning& routes, int workers);
 
-	// The run a route runs behind (Balance Simulation, runs): one to its POI's nearest neighbor, the other POI whose
-	// routes share the most road with its routes, by length, on whichever of that POI's routes clears the most of the
-	// stops this route meets, quickest first among ties. Every stop it met is cleared the day before.
-	struct NeighborRun {
-		int				 poi{0};
-		int				 route{0};
-		std::vector<int> cleared;
-
-		bool operator==(const NeighborRun&) const = default;
-	};
-
 	// A crew over a route at a game stage, fresh or behind its neighbor's run, named `road_warrior+interceptor:3/12.0@0`:
 	// the crew, as fights mode names it, then the map's seed, the POI, and the route's place among the POI's, then the
 	// stage. Behind a neighbor's run the route reads `3/7.1>12.0`.
@@ -85,6 +76,8 @@ namespace sim {
 	// How a run came out: home past its objective; failed, at a fight lost; or abandoned, at a fight still on at the turn
 	// cap, which the sim leaves there unwritten.
 	enum class RouteEnd { Home, Failed, Abandoned };
+
+	[[nodiscard]] std::string_view routeEndName(RouteEnd end);
 
 	// A stop a run met, or the return ambush on the road home, and what came of it.
 	struct StopRecord {
@@ -130,8 +123,15 @@ namespace sim {
 	// and the day ends first. The stores are topped up to the route's fuel when they hold less. Then every stop in
 	// order, the objective, the return ambush if it comes, and home: fights played by the stand-in and the raiders,
 	// each find taken, an event's first choice the party can take (call 440), and each reward's first card (call 441).
-	[[nodiscard]] RouteRunRecord
-	playRouteRun(const RunsConfig& config, const SimRules& shared, std::span<const RunMap> maps, const RunCell& cell, int run);
+	// With a `log`, each step and every fight's events are written to it in words.
+	[[nodiscard]] RouteRunRecord playRouteRun(
+		const RunsConfig&		config,
+		const SimRules&			shared,
+		std::span<const RunMap> maps,
+		const RunCell&			cell,
+		int						run,
+		std::ostream*			log = nullptr
+	);
 
 	// Means of a run's cargo, a resource at a time.
 	struct Supplies {

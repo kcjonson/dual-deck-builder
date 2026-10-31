@@ -2,9 +2,11 @@
 # over the rules and the AI and nothing else; ddb_check_layering() in the root holds it.
 add_library(ddb_balance_sim STATIC
     ConfigFields.cpp
+    FightLog.cpp
     Fights.cpp
     FightsConfig.cpp
     Measures.cpp
+    Neighbors.cpp
     Report.cpp
     ReportText.cpp
     RunReport.cpp

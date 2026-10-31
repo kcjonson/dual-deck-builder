@@ -44,6 +44,9 @@ namespace sim {
 		int turns{25};
 		// The player's stand-in on every seat: the aggressive flanker is the floor, intent_aware the ceiling.
 		rules::Behavior standIn{.policy = "aggressive_flanker"};
+		// Each crew card's draws and plays, and what each play did to the raiders' plans, at two projections of the
+		// enemy turn a play.
+		bool cards{false};
 
 		bool operator==(const FightsConfig&) const = default;
 	};
@@ -61,6 +64,7 @@ namespace sim {
 	//   stages      game stages, 0 to 6, each its own cells; [0]
 	//   turns       the stall cap, 1 or more, 25
 	//   standIn     {"policy", "weights", "difficulty"}, as an opponent's behavior names one; the aggressive flanker
+	//   cards       whether to tally each crew card's draws and plays (--cards); false
 	//
 	// Anything else, or anything the packs don't define, fails as a ContentError naming `where` and the path in it.
 	[[nodiscard]] FightsConfig readFightsConfig(const nlohmann::json& config, const std::string& where, const rules::Content& content);

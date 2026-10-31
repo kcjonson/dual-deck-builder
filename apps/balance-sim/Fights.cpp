@@ -1,21 +1,25 @@
 #include "Fights.h"
 
+#include "FightLog.h"
+#include "Workers.h"
+
 #include <ai/PlayFight.h>
 
 #include <rules/battle/Battle.h>
 #include <rules/battle/BattleEvent.h>
 #include <rules/battle/Encounters.h>
+#include <rules/battle/EnemyTurn.h>
 #include <rules/battle/Waves.h>
 #include <rules/campaign/CombatBridge.h>
 #include <rules/campaign/Founding.h>
 #include <rules/campaign/Recruits.h>
 #include <rules/campaign/RunDecks.h>
 
-#include <threading/TaskPool.h>
-
 #include <algorithm>
 #include <chrono>
+#include <format>
 #include <memory>
+#include <ostream>
 #include <stdexcept>
 
 namespace sim {
@@ -91,6 +95,72 @@ namespace sim {
 			}
 		}
 
+		// The raiders' plans as the crew sees them, raider by raider: the intents shown, and the planned damage at the crew.
+		struct Plans {
+			std::map<int, int> intents;
+			std::map<int, int> damage;
+		};
+
+		Plans plansOf(const BattleState& state, const Content& content) {
+			Plans plans;
+			if (state.phase != Phase::PlayerTurn) {
+				return plans;
+			}
+			for (const Intent& intent : intentsOf(state, content)) {
+				++plans.intents[intent.raider.value];
+				const bool atCrew = intent.area || (intent.target && state.vehicle(*intent.target).side == Side::Player);
+				if (intent.kind == IntentKind::Attack && atCrew) {
+					for (const int hit : intent.hits) {
+						plans.damage[intent.raider.value] += hit;
+					}
+				}
+			}
+			return plans;
+		}
+
+		// A raider still in the fight and not stunned, whose plan dropping out is the crew's doing short of a kill or a stun.
+		bool stillActing(const BattleState& state, int raider) {
+			for (int index = 0; index < static_cast<int>(state.vehicles.size()); ++index) {
+				const BattleVehicle& vehicle = state.vehicles[static_cast<size_t>(index)];
+				if (vehicle.owner && vehicle.owner->value == raider) {
+					return vehicleInFight(state, VehicleIndex{index}) && !hasStatus(vehicle, Status::Stunned);
+				}
+			}
+			return false;
+		}
+
+		void tallyDraws(FightRecord& record, const BattleState& state, std::span<const Event> events) {
+			for (const Event& event : events) {
+				if (const auto* drawn = std::get_if<event::CardDrawn>(&event); drawn && state.driver(drawn->driver).side == Side::Player) {
+					++record.cards[drawn->card.card].drawn;
+				}
+			}
+		}
+
+		// What a crew's play did to the plans the crew saw before it.
+		void
+		tallyPlay(FightRecord& record, const Plans& before, const Plans& after, const BattleState& state, std::span<const Event> events) {
+			const auto played = std::ranges::find_if(events, [&](const Event& event) {
+				const auto* play = std::get_if<event::CardPlayed>(&event);
+				return play != nullptr && state.driver(play->driver).side == Side::Player;
+			});
+			if (played == events.end()) {
+				return;
+			}
+			CardTally& tally = record.cards[std::get<event::CardPlayed>(*played).card.card];
+			for (const auto& [raider, intents] : before.intents) {
+				if (!stillActing(state, raider)) {
+					continue;
+				}
+				const auto now = after.intents.find(raider);
+				tally.fizzled += std::max(0, intents - (now == after.intents.end() ? 0 : now->second));
+				const auto planned = before.damage.find(raider);
+				const auto landing = after.damage.find(raider);
+				tally.blanked +=
+					(planned == before.damage.end() ? 0 : planned->second) - (landing == after.damage.end() ? 0 : landing->second);
+			}
+		}
+
 		int cardsPlayed(const FightRecord& fight) {
 			int cards = 0;
 			for (const auto& [card, plays] : fight.playerPlays) {
@@ -101,6 +171,48 @@ namespace sim {
 
 		bool won(const FightRecord& fight) {
 			return fight.outcome == Outcome::Won;
+		}
+
+		// Every crew card drawn or played over the runs' fights.
+		std::map<CardId, CardRow> measureCards(std::span<const RunRecord> runs) {
+			struct Sums {
+				int drawn{0};
+				int played{0};
+				int fizzled{0};
+				int blanked{0};
+				int fights{0};
+				int won{0};
+			};
+			std::map<CardId, Sums> sums;
+			int					   fought = 0;
+			for (const RunRecord& run : runs) {
+				for (const FightRecord& fight : run.fights) {
+					++fought;
+					for (const auto& [card, tally] : fight.cards) {
+						Sums& sum = sums[card];
+						sum.drawn += tally.drawn;
+						sum.fizzled += tally.fizzled;
+						sum.blanked += tally.blanked;
+					}
+					for (const auto& [card, plays] : fight.playerPlays) {
+						Sums& sum = sums[card];
+						sum.played += plays;
+						++sum.fights;
+						sum.won += won(fight) ? 1 : 0;
+					}
+				}
+			}
+			std::map<CardId, CardRow> rows;
+			for (const auto& [card, sum] : sums) {
+				rows[card] = CardRow{
+					.drawn = share(sum.drawn, fought),
+					.played = share(sum.played, fought),
+					.fizzled = sum.played == 0 ? std::nullopt : std::optional(share(sum.fizzled, sum.played)),
+					.blanked = sum.played == 0 ? std::nullopt : std::optional(share(sum.blanked, sum.played)),
+					.wonWhenPlayed = rateOf(sum.won, sum.fights),
+				};
+			}
+			return rows;
 		}
 
 		// The fights a route opened with, a fresh crew's, from each of `cells`' runs.
@@ -191,6 +303,18 @@ namespace sim {
 		return cells;
 	}
 
+	std::string_view runEndName(RunEnd end) {
+		switch (end) {
+			case RunEnd::Home:
+				return "home";
+			case RunEnd::Lost:
+				return "lost";
+			case RunEnd::Stalled:
+				return "stalled";
+		}
+		return "?";
+	}
+
 	SimRules::SimRules(const Content& loaded)
 		: content(loaded),
 		  campaign(loadCampaignRules(loaded)),
@@ -206,29 +330,60 @@ namespace sim {
 		return inner->choose(board, content, actions, rng);
 	}
 
-	FightRecord playCampaignFight(CampaignFight& fight, const SimRules& shared, const StandIn& standIn, int skulls, int turns) {
-		FightRecord record{
-			.skulls = skulls,
-			.encounter = fight.encounter,
-			.hitpointsAtStart = crewHitpoints(fight.state, &BattleDriver::hitpoints),
-			.mostHitpoints = crewHitpoints(fight.state, &BattleDriver::maxHitpoints),
-			.structureAtStart = crewStructure(fight.state, &BattleVehicle::structure),
-			.mostStructure = crewStructure(fight.state, &BattleVehicle::maxStructure),
-		};
+	FightRecord playCampaignFight(CampaignFight& fight, const SimRules& shared, const StandIn& standIn, const FightPlay& play) {
+		const Content& content = shared.content;
+		FightRecord	   record{
+			   .skulls = play.skulls,
+			   .encounter = fight.encounter,
+			   .hitpointsAtStart = crewHitpoints(fight.state, &BattleDriver::hitpoints),
+			   .mostHitpoints = crewHitpoints(fight.state, &BattleDriver::maxHitpoints),
+			   .structureAtStart = crewStructure(fight.state, &BattleVehicle::structure),
+			   .mostStructure = crewStructure(fight.state, &BattleVehicle::maxStructure),
+		   };
 		const PolicyFor standIns = [&](const BattleState&, DriverIndex) -> const Policy& {
 			return standIn;
 		};
+		if (play.log) {
+			writeEvents(*play.log, play.opening, fight.state, content);
+		}
+		if (play.cards) {
+			tallyDraws(record, fight.state, play.opening);
+		}
+		// The plans the crew saw before its next play.
+		Plans	  seen;
 		const int decisionsBefore = standIn.decisions();
 		ai::playFight(
 			fight.state,
-			shared.content,
+			content,
 			standIns,
 			shared.raiders.forRaiders(),
 			ai::PlayFightOptions{
-				.mostTurns = turns,
-				.onApplied = [&](const BattleState& after, const Action&, const std::vector<Event>& events) {
-					tallyPlays(record, after, events);
-				},
+				.mostTurns = play.turns,
+				.onApplied =
+					[&](const BattleState& after, const Action& action, const std::vector<Event>& events) {
+						tallyPlays(record, after, events);
+						if (play.log) {
+							writeEvents(*play.log, events, after, content);
+						}
+						if (play.cards) {
+							tallyDraws(record, after, events);
+							if (std::holds_alternative<action::PlayCard>(action)) {
+								Plans now = plansOf(after, content);
+								tallyPlay(record, seen, now, after, events);
+								seen = std::move(now);
+							}
+						}
+					},
+				.onPlanned =
+					[&](const BattleState& after, const std::vector<Event>& events) {
+						if (play.log) {
+							writeEvents(*play.log, events, after, content);
+						}
+						if (play.cards) {
+							tallyDraws(record, after, events);
+							seen = plansOf(after, content);
+						}
+					},
 			}
 		);
 		record.decisions = standIn.decisions() - decisionsBefore;
@@ -264,7 +419,7 @@ namespace sim {
 		return row;
 	}
 
-	RunRecord playRun(const FightsConfig& config, const SimRules& shared, const FightCell& cell, int run) {
+	RunRecord playRun(const FightsConfig& config, const SimRules& shared, const FightCell& cell, int run, std::ostream* log) {
 		if (run < 1) {
 			throw std::invalid_argument("playRun: runs count from 1");
 		}
@@ -289,8 +444,19 @@ namespace sim {
 		for (const FightStep& step : config.routes[cell.route]) {
 			const EncounterId encounter =
 				step.encounter ? *step.encounter : pickEncounter(content, step.skulls, config.tier, nextFightSeed(campaign));
-			CampaignFight fight = startCampaignFight(campaign, content, encounter).fight;
-			FightRecord	  fought = playCampaignFight(fight, shared, standIn, step.skulls, config.turns);
+			CampaignFightStart started = startCampaignFight(campaign, content, encounter);
+			CampaignFight&	   fight = started.fight;
+			if (log) {
+				*log << std::format(
+					"fight {}: {}, {} skull{}\n", record.fights.size() + 1, encounter.value, step.skulls, step.skulls == 1 ? "" : "s"
+				);
+			}
+			FightRecord fought = playCampaignFight(
+				fight,
+				shared,
+				standIn,
+				FightPlay{.skulls = step.skulls, .turns = config.turns, .opening = started.events, .log = log, .cards = config.cards}
+			);
 			record.fights.push_back(std::move(fought));
 			if (fight.state.phase != Phase::Over) {
 				record.end = RunEnd::Stalled;
@@ -407,6 +573,9 @@ namespace sim {
 				plays.fizzled /= fought;
 			}
 		}
+		if (config.cards) {
+			row.cards = measureCards(runs);
+		}
 		return row;
 	}
 
@@ -423,12 +592,7 @@ namespace sim {
 			  }
 		};
 		const auto started = std::chrono::steady_clock::now();
-		if (workers == 1) {
-			play(0, records.size());
-		} else {
-			foundation::TaskPool pool(static_cast<unsigned>(workers - 1));
-			pool.parallelFor(0, records.size(), 1, play);
-		}
+		inParallel(records.size(), workers, play);
 		FightsReport report{.config = config, .workers = workers};
 		report.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
 

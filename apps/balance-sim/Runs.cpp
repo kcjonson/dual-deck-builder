@@ -1,5 +1,7 @@
 #include "Runs.h"
 
+#include "Workers.h"
+
 #include <rules/battle/BattleState.h>
 #include <rules/campaign/CombatBridge.h>
 #include <rules/campaign/DayClock.h>
@@ -14,11 +16,12 @@
 #include <rules/map/Stops.h>
 
 #include <random/Rng.h>
-#include <threading/TaskPool.h>
 
 #include <algorithm>
 #include <chrono>
+#include <format>
 #include <functional>
+#include <ostream>
 #include <set>
 #include <stdexcept>
 #include <tuple>
@@ -36,33 +39,8 @@ namespace sim {
 		constexpr int kStepsAStop = 4;
 		constexpr int kStepsBeyond = 8;
 
-		void spread(size_t items, int workers, const std::function<void(size_t, size_t)>& play) {
-			if (workers < 1) {
-				throw std::invalid_argument("the balance sim takes one worker or more");
-			}
-			if (workers == 1) {
-				play(0, items);
-				return;
-			}
-			foundation::TaskPool pool(static_cast<unsigned>(workers - 1));
-			pool.parallelFor(0, items, 1, play);
-		}
-
 		Campaign foundOn(const RunMap& map, const SimRules& shared) {
 			return foundCampaign(shared.content, shared.campaign, Founding{.map = map.origin, .unlocked = shared.unlocked});
-		}
-
-		// The stops a run on these legs meets at a game stage, by id, in driving order, those cleared left out: depart's.
-		std::vector<int> stopsMet(const RunMap& map, std::span<const int> legs, int stage, std::span<const int> cleared) {
-			std::vector<int> stops;
-			for (const int leg : legs) {
-				for (const int stop : map::stopsAtStage(map.layers.stops.legs[static_cast<size_t>(leg)], map.layers.stops, stage)) {
-					if (std::ranges::find(cleared, stop) == cleared.end()) {
-						stops.push_back(stop);
-					}
-				}
-			}
-			return stops;
 		}
 
 		int riskOf(const RunMap& map, std::span<const int> stops) {
@@ -104,62 +82,6 @@ namespace sim {
 			return routes;
 		}
 
-		// Each POI's nearest neighbor by shared road, by length, the lower POI among ties; none for a POI sharing none.
-		std::map<int, int> nearestNeighbors(std::span<const map::RouteOffer> offers) {
-			std::map<int, double>		 lengths;
-			std::map<int, std::set<int>> legsOf;
-			for (const map::RouteOffer& offer : offers) {
-				for (const map::OfferedLeg& leg : offer.legs) {
-					lengths[leg.leg] = leg.length;
-					legsOf[offer.destination.poi].insert(leg.leg);
-				}
-			}
-			std::map<int, int> nearest;
-			for (const auto& [poi, legs] : legsOf) {
-				double most = 0;
-				for (const auto& [other, theirs] : legsOf) {
-					double shared = 0;
-					for (const int leg : legs) {
-						shared += theirs.contains(leg) && other != poi ? lengths.at(leg) : 0.0;
-					}
-					if (shared > most) {
-						most = shared;
-						nearest[poi] = other;
-					}
-				}
-			}
-			return nearest;
-		}
-
-		std::optional<NeighborRun> neighborRun(
-			const RunMap&					 map,
-			std::span<const map::RouteOffer> offers,
-			const std::map<int, int>&		 nearest,
-			const map::RouteOffer&			 offer,
-			int								 stage
-		) {
-			const auto near = nearest.find(offer.destination.poi);
-			if (near == nearest.end()) {
-				return std::nullopt;
-			}
-			const std::vector<int>	   mine = stopsMet(map, offer.route.legs, stage, {});
-			std::optional<NeighborRun> best;
-			size_t					   most = 0;
-			for (const map::RouteOffer& theirs : offers) {
-				if (theirs.destination.poi != near->second) {
-					continue;
-				}
-				std::vector<int> met = stopsMet(map, theirs.route.legs, stage, {});
-				const auto		 clears =
-					static_cast<size_t>(std::ranges::count_if(mine, [&](int stop) { return std::ranges::find(met, stop) != met.end(); }));
-				if (clears > most) {
-					most = clears;
-					best = NeighborRun{.poi = near->second, .route = theirs.route.route, .cleared = std::move(met)};
-				}
-			}
-			return best;
-		}
-
 		// A map's cells for no crew yet, named from the map on, and what the map offered.
 		struct MapCells {
 			std::vector<RunCell> cells;
@@ -167,18 +89,18 @@ namespace sim {
 		};
 
 		MapCells mapCells(const RunsConfig& config, const SimRules& shared, const RunMap& map, size_t index) {
-			const MapRoutes			 routes = mapRoutes(config, shared, map);
-			const std::map<int, int> nearest = nearestNeighbors(routes.offers);
-			const std::string		 seed = std::to_string(map.seed) + "/";
-			MapCells				 planned{
-								.summary = MapSummary{
-									.seed = map.seed,
-									.settled = map.origin.params.seed,
-									.fingerprint = map.origin.fingerprint,
-									.routes = routes.routes,
-									.run = static_cast<int>(routes.run.size()),
-				},
-			};
+			const MapRoutes				  routes = mapRoutes(config, shared, map);
+			const std::map<int, Neighbor> nearest = nearestNeighbors(routes.offers);
+			const std::string			  seed = std::to_string(map.seed) + "/";
+			MapCells					  planned{
+									 .summary = MapSummary{
+										 .seed = map.seed,
+										 .settled = map.origin.params.seed,
+										 .fingerprint = map.origin.fingerprint,
+										 .routes = routes.routes,
+										 .run = static_cast<int>(routes.run.size()),
+				 },
+			 };
 			std::vector<RunCell>& cells = planned.cells;
 			for (const size_t chosen : routes.run) {
 				const map::RouteOffer& offer = routes.offers[chosen];
@@ -193,18 +115,22 @@ namespace sim {
 						.routeName = offer.route.name,
 						.tier = offer.destination.tier,
 						.stage = stage,
-						.stops = stopsMet(map, offer.route.legs, stage, {}),
+						.stops = stopsMet(map.layers, offer.route.legs, stage),
 					};
 					fresh.risk = riskOf(map, fresh.stops);
 					cells.push_back(fresh);
 					if (!config.neighbor) {
 						continue;
 					}
-					if (std::optional<NeighborRun> behind = neighborRun(map, routes.offers, nearest, offer, stage)) {
+					const auto near = nearest.find(poi);
+					if (near == nearest.end()) {
+						continue;
+					}
+					if (std::optional<NeighborRun> behind = neighborRun(map.layers, routes.offers, near->second.poi, fresh.stops, stage)) {
 						RunCell after = fresh;
 						after.name =
 							seed + routeLabel(behind->poi, behind->route) + ">" + routeLabel(poi, route) + "@" + std::to_string(stage);
-						after.stops = stopsMet(map, offer.route.legs, stage, behind->cleared);
+						after.stops = stopsMet(map.layers, offer.route.legs, stage, behind->cleared);
 						after.risk = riskOf(map, after.stops);
 						after.behind = std::move(behind);
 						cells.push_back(std::move(after));
@@ -477,7 +403,7 @@ namespace sim {
 	MadeMaps makeRunMaps(std::span<const uint32_t> seeds, const map::MapContent& content, const map::RouteTuning& routes, int workers) {
 		MadeMaps made;
 		made.made.resize(seeds.size());
-		spread(seeds.size(), workers, [&](size_t begin, size_t end) {
+		inParallel(seeds.size(), workers, [&](size_t begin, size_t end) {
 			for (size_t index = begin; index < end; ++index) {
 				made.made[index] = std::make_unique<CampaignMap>(makeCampaignMap(seeds[index], content, MapMaking{.debug = false}));
 			}
@@ -495,8 +421,14 @@ namespace sim {
 		return planRuns(config, shared, maps).first;
 	}
 
-	RouteRunRecord
-	playRouteRun(const RunsConfig& config, const SimRules& shared, std::span<const RunMap> maps, const RunCell& cell, int run) {
+	RouteRunRecord playRouteRun(
+		const RunsConfig&		config,
+		const SimRules&			shared,
+		std::span<const RunMap> maps,
+		const RunCell&			cell,
+		int						run,
+		std::ostream*			log
+	) {
 		if (run < 1) {
 			throw std::invalid_argument("playRouteRun: runs count from 1");
 		}
@@ -556,13 +488,22 @@ namespace sim {
 				if (place < route.stops.size()) {
 					met.type = layers.stops.stops[static_cast<size_t>(route.stops[place])].type;
 				}
+				if (log) {
+					*log << (met.type ? std::format("stop {}: {}\n", place + 1, stopTypeName(*met.type)) : "the road home\n");
+				}
 				record.stops.push_back(std::move(met));
 			}
 			switch (next) {
 				case Ahead::Fight: {
-					CampaignFight fight = startRunFight(campaign, content, layers).fight;
-					const int	  skulls = content.encounters.at(fight.encounter).skulls;
-					record.stops[place].fight = playCampaignFight(fight, shared, standIn, skulls, config.turns);
+					CampaignFightStart started = startRunFight(campaign, content, layers);
+					CampaignFight&	   fight = started.fight;
+					const int		   skulls = content.encounters.at(fight.encounter).skulls;
+					if (log) {
+						*log << std::format("  fight: {}, {} skull{}\n", fight.encounter.value, skulls, skulls == 1 ? "" : "s");
+					}
+					record.stops[place].fight = playCampaignFight(
+						fight, shared, standIn, FightPlay{.skulls = skulls, .turns = config.turns, .opening = started.events, .log = log}
+					);
 					if (fight.state.phase != Phase::Over) {
 						record.end = RouteEnd::Abandoned;
 						return record;
@@ -580,17 +521,35 @@ namespace sim {
 					at.event = taken.event;
 					at.choice = chosen;
 					at.outcome = taken.outcome;
+					if (log) {
+						*log << std::format(
+							"  {}: {}, outcome {}{}\n", taken.event.value, chosen, taken.outcome + 1, taken.fight ? ", a fight" : ""
+						);
+					}
 					break;
 				}
-				case Ahead::Find:
-					(void)takeFind(campaign, content, rules, layers, shared.unlocked);
+				case Ahead::Find: {
+					const TakenFind found = takeFind(campaign, content, rules, layers, shared.unlocked);
+					if (log) {
+						*log
+							<< (found.haul	   ? std::format("  a haul of {}\n", found.haul->amount)
+								: found.driver ? std::string("  a driver\n")
+											   : std::format("  {} cards on offer\n", found.reward.size()));
+					}
 					break;
+				}
 				case Ahead::Reward:
+					if (log) {
+						*log << "  takes " << route.reward.front().value << "\n";
+					}
 					takeReward(campaign, content, layers, route.reward.front());
 					break;
 				case Ahead::Objective:
 					record.objective = true;
 					record.ambush = takeObjective(campaign, rules, layers).ambush;
+					if (log) {
+						*log << (record.ambush ? "the objective, and an ambush waits on the road home\n" : "the objective\n");
+					}
 					break;
 				case Ahead::Home:
 					break;
@@ -680,6 +639,18 @@ namespace sim {
 		return row;
 	}
 
+	std::string_view routeEndName(RouteEnd end) {
+		switch (end) {
+			case RouteEnd::Home:
+				return "home";
+			case RouteEnd::Failed:
+				return "failed";
+			case RouteEnd::Abandoned:
+				return "abandoned";
+		}
+		return "?";
+	}
+
 	std::string stopTypeName(map::StopType type) {
 		const auto named = std::ranges::find(map::kStopTypeNames, type, &std::pair<std::string_view, map::StopType>::second);
 		return std::string(named->first);
@@ -691,7 +662,7 @@ namespace sim {
 		const auto												 runs = static_cast<size_t>(config.runs);
 		std::vector<RouteRunRecord>								 records(cells.size() * runs);
 		const auto												 started = std::chrono::steady_clock::now();
-		spread(records.size(), workers, [&](size_t begin, size_t end) {
+		inParallel(records.size(), workers, [&](size_t begin, size_t end) {
 			for (size_t item = begin; item < end; ++item) {
 				records[item] = playRouteRun(config, shared, maps, cells[item / runs], static_cast<int>(item % runs) + 1);
 			}

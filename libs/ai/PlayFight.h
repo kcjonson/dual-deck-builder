@@ -17,8 +17,10 @@ namespace ai {
 		// the balance sim reads as stalled; none plays it to its end.
 		std::optional<int> mostTurns;
 		// Called after each action the fight applies, with the board after it and the events it returned, for whoever
-		// measures the fight. The raiders' planning isn't an action and isn't reported.
+		// measures the fight. The raiders' planning isn't an action, and onPlanned reports it.
 		std::function<void(const rules::BattleState&, const rules::Action&, const std::vector<rules::Event>&)> onApplied;
+		// Called after the raiders plan each enemy turn, with the board after it and the plans committed.
+		std::function<void(const rules::BattleState&, const std::vector<rules::Event>&)> onPlanned;
 		// No fight should stall, so one still going after this many actions throws.
 		int mostActions{5000};
 	};
