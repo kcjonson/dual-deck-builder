@@ -502,3 +502,10 @@ Decision record: [hand-target-preview.md](AI_TECHNICAL_DECISIONS/hand-target-pre
 369. DDB-554: a hand card's target preview and END TURN's preview never draw together; whichever was asked for last has the road, because both draw lines over the same tokens.
 370. DDB-554: a card that takes no pick and lands only on raiders is disabled with NO TARGET when it would land on nobody (EMP Blast with every raider Steady, Rally the Convoy with no raider in range of a ready escort), because playing it would spend its adrenaline, and for Rally every escort, on nothing.
 371. DDB-554: an attack order with no ready escort to carry it out reads CAN'T PLAY, as Rally the Convoy does, leaving NO TARGET for one whose ready escorts have no raider in reach, because no ready escort is a rule of the convoy, not of where the raiders are.
+
+## The battle state (372 to 373)
+
+Decision record: [battle-state.md](AI_TECHNICAL_DECISIONS/battle-state.md).
+
+372. DDB-572: Coordinated Attack's partner_attacked holds when the partner has played a card tagged attack this turn, whether it hit or missed, because the card says "attacked", and a miss is still the partner taking their shot.
+373. DDB-572: a raider has no partner, so partner_attacked never holds for one, because raiders each act alone and no raider deck carries the card.

@@ -1,0 +1,9 @@
+target_sources(ddb_rules
+    PRIVATE
+        Battle.cpp
+        BattleState.cpp
+        CardPlay.cpp
+        Damage.cpp
+        Hands.cpp
+        RoadGrid.cpp
+)

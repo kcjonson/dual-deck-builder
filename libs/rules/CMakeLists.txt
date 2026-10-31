@@ -17,6 +17,8 @@ add_library(ddb_rules STATIC
 add_library(ddb::rules ALIAS ddb_rules)
 add_subdirectory(map)
 
+add_subdirectory(battle)
+
 target_compile_features(ddb_rules PUBLIC cxx_std_20)
 
 # libs/ is the include root, so the game's headers read <rules/...> and can't collide
