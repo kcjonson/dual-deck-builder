@@ -95,6 +95,9 @@ namespace {
 		ASSERT_TRUE(result.products.dressing.has_value());
 		EXPECT_TRUE(result.products.dressing->rails.empty());
 		EXPECT_NEAR(result.products.dressing->districts.front().spacing, 14, 1e-9);
+		// The validator held it at every stage, and holds the whole of it as it would a loaded map.
+		const Problems problems = validateAreaMap(result.products, {.params = dressed, .content = fixtures::content()});
+		EXPECT_TRUE(problems.empty()) << problems.front();
 	}
 
 	// One attempt, since another would only repeat it: a route tree the map can't use restarts the map.

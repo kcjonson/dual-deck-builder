@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MapKnowledge.h"
 #include "MapParams.h"
 #include "RoadNetwork.h"
 #include "RouteDescriptors.h"
@@ -14,13 +15,11 @@
 
 namespace rules::map {
 
-	// What's known of a leg, least first (Compound and Supply Runs, Fog of war).
-	enum class LegKnowledge { Uncharted, Rumored, Charted };
-
 	// What's changed on the map since it was made, as plain data the campaign keeps: everything a route reads that
 	// isn't the map's own.
 	struct MapToday {
-		// By leg id, what's known of it; empty for every leg charted, as the map stands until fog.
+		// By leg id, what's known of it: a MapKnowledge's legs, startingKnowledge's with what runs and rumors added since.
+		// Empty reads every leg charted.
 		std::vector<LegKnowledge> legs;
 		// Stops a run cleared, by id, that haven't come back yet.
 		std::set<int> cleared;

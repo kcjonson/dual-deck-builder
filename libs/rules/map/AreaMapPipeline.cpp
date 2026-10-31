@@ -5,8 +5,12 @@
 #include "PoiNames.h"
 #include "StopChecks.h"
 
+#include <array>
+#include <cassert>
 #include <cstddef>
 #include <string>
+#include <string_view>
+#include <utility>
 
 namespace rules::map {
 
@@ -129,6 +133,18 @@ namespace rules::map {
 			}));
 		}
 
+		[[nodiscard]] KnowledgeArgs knowledgeOf(const AreaMapInput& input, const AreaMap& map) {
+			return {.network = map.roads->network(), .pois = *map.pois, .params = input.params, .tuning = input.content.knowledge};
+		}
+
+		// The validator's guarantees no one stage's check holds, once the stage that completes them has passed its own.
+		Problems spanningProblems(const AreaMapInput& input, const AreaMap& map, std::string_view stage) {
+			if (stage == "pois") {
+				return revealProblems(knowledgeOf(input, map));
+			}
+			return {};
+		}
+
 		// No check: what it makes is only ever drawn, and it writes nothing the stages before it made.
 		void runDressing(const AreaMapInput& input, AreaMap& map, foundation::Rng& stream) {
 			const AreaMap&				   made = map;
@@ -158,6 +174,7 @@ namespace rules::map {
 			.factions = readFactions(pack / "factions" / "factions.json"),
 			.stops = readStopTuning(pack / "map" / "stops.json"),
 			.stopTables = readStopTables(pack / "map" / "stop-tables.json"),
+			.knowledge = readKnowledgeTuning(pack / "map" / "knowledge.json"),
 		};
 	}
 
@@ -179,9 +196,46 @@ namespace rules::map {
 			.then({.name = "dressing", .run = runDressing, .inert = true});
 	}
 
+	Problems validateAreaMap(const AreaMap& map, const AreaMapInput& input) {
+		assert(map.stops && "validateAreaMap: a made map, every gameplay stage's product in it");
+		using StageCheck = Problems (*)(const AreaMapInput&, const AreaMap&);
+		const std::array<std::pair<std::string_view, StageCheck>, 5> checks{{
+			{"hazards", checkHazards},
+			{"places", checkPlacesStage},
+			{"roads", checkRoadsStage},
+			{"pois", checkPoisStage},
+			{"stops", checkStopsStage},
+		}};
+
+		Problems problems;
+		for (const auto& [stage, check] : checks) {
+			for (const Problems& found : {check(input, map), spanningProblems(input, map, stage)}) {
+				for (const std::string& problem : found) {
+					problems.push_back(std::string(stage) + ": " + problem);
+				}
+			}
+		}
+		return problems;
+	}
+
+	AcceptHook<AreaMap> mapValidator(const AreaMapInput& input) {
+		return [&input](const AreaMap& map, const StageAttempt& at) {
+			return spanningProblems(input, map, at.stage);
+		};
+	}
+
 	PipelineResult<AreaMap> generateAreaMap(const MapParams& params, const MapContent& content, const PipelineOptions<AreaMap>& options) {
-		const AreaMapInput input{.params = params, .content = content};
-		return areaMapPipeline().run(params.seed, input, options);
+		const AreaMapInput		  input{.params = params, .content = content};
+		const AcceptHook<AreaMap> validator = mapValidator(input);
+		PipelineOptions<AreaMap>  held = options;
+		held.accept = [&validator, &options](const AreaMap& map, const StageAttempt& at) {
+			Problems problems = validator(map, at);
+			if (problems.empty() && options.accept) {
+				problems = options.accept(map, at);
+			}
+			return problems;
+		};
+		return areaMapPipeline().run(params.seed, input, held);
 	}
 
 } // namespace rules::map

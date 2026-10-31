@@ -3,6 +3,7 @@
 #include "Dressing.h"
 #include "FeatureNames.h"
 #include "Hazards.h"
+#include "MapKnowledge.h"
 #include "MapParams.h"
 #include "MapPipeline.h"
 #include "PlaceNames.h"
@@ -23,7 +24,8 @@
 
 namespace rules::map {
 
-	// The packs' content generation reads.
+	// The packs' content generation reads, and the map validator: the starting knowledge's sight is what Guarantees 6
+	// holds the strongholds clear of.
 	struct MapContent {
 		PlaceNamePool		 placeNames;
 		FeatureNamePool		 featureNames;
@@ -31,10 +33,11 @@ namespace rules::map {
 		std::vector<Faction> factions;
 		StopTuning			 stops;
 		StopTables			 stopTables;
+		KnowledgeTuning		 knowledge;
 	};
 
 	// One pack's: its map/place-names.json, map/feature-names.json, map/pois.json, map/stops.json,
-	// map/stop-tables.json, and factions/factions.json, each read strictly, the stop tables compiled.
+	// map/stop-tables.json, map/knowledge.json, and factions/factions.json, each read strictly, the stop tables compiled.
 	[[nodiscard]] MapContent readMapContent(const std::filesystem::path& pack);
 
 	// What generation reads: the validated params, and the content from the packs.
@@ -70,7 +73,19 @@ namespace rules::map {
 	// No attempt there can seat a stronghold in every sector.
 	[[nodiscard]] bool poisHeldLeniently(const MapParams& params, const Roads& roads);
 
-	// The area map for validated params, on their seed.
+	// The map validator (Area Map Generation, Validation and retries): every hard guarantee a made map breaks, from its
+	// data alone, each as "stage: rule: detail". Each gameplay stage's own check is the validator's for its layer, so this
+	// is every one of those over a whole map, then the guarantees no one layer holds, which mapValidator adds. A map a load
+	// made again, its stages replayed unchecked, is held to it as a fresh one is. The dressing is held inert by reading
+	// every layer through const references, not by a check.
+	[[nodiscard]] Problems validateAreaMap(const AreaMap& map, const AreaMapInput& input);
+
+	// The map validator as the pipeline's accept hook. A stage's own check has passed when it's called, so it adds only
+	// what spans layers: past the POIs, the starting knowledge's half of Guarantees 6 (revealProblems), which reruns the
+	// POIs like any of their failures. The input outlives it.
+	[[nodiscard]] AcceptHook<AreaMap> mapValidator(const AreaMapInput& input);
+
+	// The area map for validated params, on their seed, held to mapValidator, then to the options' own hook.
 	[[nodiscard]] PipelineResult<AreaMap>
 	generateAreaMap(const MapParams& params, const MapContent& content, const PipelineOptions<AreaMap>& options = {});
 
