@@ -81,7 +81,7 @@ namespace rules::map {
 	// checked as one just made (Area Map Generation, Guarantees 3; road-network.md, The checks):
 	// - structure: node 0 is the compound at the origin and no other is; each stretch, broken spans included, runs
 	//   between two different nodes from the one to the other, with its length, its bridges in order, and a
-	//   highway's number on a highway and on nothing else.
+	//   highway's number on a highway and on nothing else; every highway has a route number in range, and no two share one.
 	// - disc: every point is inside it.
 	// - passable: impassableAlong finds nothing under the stretch's own bridges.
 	// - bridges: the stretch's bridges are polylineBridges'.

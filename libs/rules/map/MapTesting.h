@@ -192,7 +192,8 @@ namespace rules::map::fixtures {
 		return *built.back().second;
 	}
 
-	// Whether two roads stages laid the same roads, move for move, and drew the same network, point for point.
+	// Whether two roads stages laid the same roads, move for move, and drew the same network, point for point, its
+	// highways numbered alike.
 	inline bool sameRoads(const Roads& a, const Roads& b) {
 		const bool moves = std::ranges::equal(a.links().moves, b.links().moves, [](const RoadMove& left, const RoadMove& right) {
 			return left.from == right.from && left.direction == right.direction && left.roadClass == right.roadClass &&
@@ -205,7 +206,7 @@ namespace rules::map::fixtures {
 		const RoadNetwork& first = a.network();
 		const RoadNetwork& second = b.network();
 		return moves && first.nodes.size() == second.nodes.size() && std::ranges::equal(first.stretches, second.stretches, sameStretch) &&
-			   std::ranges::equal(first.broken, second.broken, sameStretch);
+			   std::ranges::equal(first.broken, second.broken, sameStretch) && first.routeNumbers == second.routeNumbers;
 	}
 	// The land and its water, before the hazards' craters and plumes.
 	inline Ground waterGroundFor(const MapParams& params) {

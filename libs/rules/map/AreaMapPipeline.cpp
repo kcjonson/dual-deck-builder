@@ -46,6 +46,15 @@ namespace rules::map {
 			return checkRoads(*map.roads, input.params, Ground(*map.terrain, *map.water, *map.hazards));
 		}
 
+		// No check: the tree is a pure function of a network the roads stage checked, every node reaching home.
+		void runRouteTree(const AreaMapInput& input, AreaMap& map, foundation::Rng&) {
+			map.routeTree = buildRouteTree({
+				.network = map.roads->network(),
+				.travelPace = input.params.travelPace,
+				.routeSplit = input.params.routeSplit,
+			});
+		}
+
 	} // namespace
 
 	MapPipeline<AreaMapInput, AreaMap> areaMapPipeline() {
@@ -54,7 +63,8 @@ namespace rules::map {
 			.then({.name = "water", .run = runWater})
 			.then({.name = "hazards", .run = runHazards, .check = checkHazards})
 			.then({.name = "places", .run = runPlaces, .check = checkPlacesStage})
-			.then({.name = "roads", .run = runRoads, .check = checkRoadsStage});
+			.then({.name = "roads", .run = runRoads, .check = checkRoadsStage})
+			.then({.name = "routeTree", .attempts = 1, .run = runRouteTree});
 	}
 
 	PipelineResult<AreaMap>

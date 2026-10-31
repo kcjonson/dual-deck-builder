@@ -77,6 +77,7 @@ namespace {
 				},
 			.broken = {},
 			.passes = {},
+			.routeNumbers = {47},
 		};
 	}
 
@@ -131,6 +132,16 @@ namespace {
 		RoadNetwork numbered = valid();
 		numbered.stretches[1].highway = 2;
 		EXPECT_EQ(rules(numbered, ground), std::vector{RoadRule::Structure});
+		// Every highway has a route number in range, and no two share one.
+		RoadNetwork routeless = valid();
+		routeless.routeNumbers.clear();
+		EXPECT_EQ(rules(routeless, ground), std::vector{RoadRule::Structure});
+		RoadNetwork shared = valid();
+		shared.routeNumbers = {47, 47};
+		EXPECT_EQ(rules(shared, ground), std::vector{RoadRule::Structure});
+		RoadNetwork past = valid();
+		past.routeNumbers = {kMostRouteNumber + 1};
+		EXPECT_EQ(rules(past, ground), std::vector{RoadRule::Structure});
 	}
 
 	TEST(RoadChecks, FindAPointOutsideTheDisc) {
