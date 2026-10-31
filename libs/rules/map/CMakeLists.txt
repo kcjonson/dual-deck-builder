@@ -1,9 +1,12 @@
 target_sources(ddb_rules PRIVATE
     AreaMapPipeline.cpp
+    Biome.cpp
     Drainage.cpp
     Erosion.cpp
+    Ground.cpp
     Lakes.cpp
     Land.cpp
+    LandFields.cpp
     LandGrid.cpp
     MapMath.cpp
     MapParams.cpp

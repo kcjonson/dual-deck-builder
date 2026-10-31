@@ -38,4 +38,9 @@ namespace rules::map {
 	// none do, and -infinity for 1 or more, so all do.
 	[[nodiscard]] double quantileAbove(std::vector<double> values, double share);
 
+	// The value `share` of `values` lie at or above, for a feature measured as a value above 0, so never 0
+	// itself: where fewer than that share are above 0, the least of those above 0, so everything that
+	// qualifies at all does. +infinity when none is above 0 or the share is 0 or less.
+	[[nodiscard]] double positiveQuantile(const std::vector<double>& values, double share);
+
 } // namespace rules::map

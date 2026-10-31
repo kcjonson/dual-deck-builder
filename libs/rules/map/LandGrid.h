@@ -40,16 +40,19 @@ namespace rules::map {
 		double gradientY{0};
 	};
 
-	// Reads a per-cell field at any point: Catmull-Rom through the cell centres, smooth in value and slope,
-	// with its exact gradient, so hill shading and slopes show no facets. It needs a centre either side of
-	// the two it runs between, so it covers the square out to the second centre from each edge and holds
-	// the value past it, flat across the edge. Sampling allocates nothing.
+	// Reads a per-cell field at any point. bicubic is Catmull-Rom through the cell centres, smooth in value
+	// and slope, with its exact gradient, so hill shading and slopes show no facets; it needs a centre either
+	// side of the two it runs between, so it covers the square out to the second centre from each edge and
+	// holds the value past it, flat across the edge. bilinear, for fields nothing differentiates, runs out to
+	// the outermost centres and holds the edge value past them, and never passes the four centres round a
+	// point. Sampling allocates nothing.
 	class GridSampler {
 	  public:
 		// `values` has one per cell and has to outlive the sampler.
 		GridSampler(const LandGrid& grid, std::span<const double> values);
 
 		[[nodiscard]] GridSample bicubic(double x, double y) const;
+		[[nodiscard]] double	 bilinear(double x, double y) const;
 
 	  private:
 		LandGrid				grid;

@@ -165,7 +165,22 @@ What differs:
 - `Water` is its own product beside the terrain's, plain data on the land grid: its routing with the rain-weighted area, moisture, the lake depth field and `lakeOf`, the rivers (each its chain of cells and its line, a width per point), and the lakes with their dams. There's no `terrain.withWater`; whatever reads both reads both.
 - Rain-weighted area sums each cell's donors highest level first, ties highest index first, the rule above, done by walking the cells in that order rather than by the router's own. Unit rain still sums whole numbers in the router's order.
 - Lakes keep off the blend radius, the grid's outermost cells, and each other by a cell of land (provisional call 8). They no longer keep off towns and craters: those come after the water now, in the hazards and places stages, and keep off the lakes themselves.
-- Not here yet, all stage 3's: low ground, canyons, the river index (`waterAt`, crossings, bridge spans), sampling the fields between cells, biomes, rough country and cliffs, badlands, and the cost of a move. Hotspots are the hazards stage's.
+- Stage 3's fields followed (2026-10-30, DDB-571), with this record's numbers, provisional calls 10 to 12 and 14. The land-only ones, contamination before the plumes, rough country, cliffs, open squares, and badlands (`LandFields`), are part of the terrain's product, built with the land on the terrain stream's `contamination` and `roughness` forks, since they read nothing but the land; they can be built over a land surface on their own, which the tests do to vary their parameters without eroding again. The ones that follow the water, height above the nearest water and distance along the drainage to it, low ground, and canyons, are the water's, per cell.
+- `Ground` is what reads them: a view over the terrain and the water (and the hazards, once they're laid), the fields of (x, y) sampled bilinear between cells, elevation and slope bicubic, and the biome from them. The metro's fields are applied there, per point: moisture eases to scrub's 0.45 and contamination to none over the blend ring.
+- `Biome` keeps the thresholds above and names its six for JSON (`scrub`, `desert`, `mire`, `badlands`, `canyons`, `mountains`), which the stop tables will key on; the Map Lab's labels wait for the Map Lab.
+- Still to come: the river index (`waterAt`, crossings, bridge spans), what's impassable, and the cost of a move; hotspots are the hazards stage's.
+
+Seed 7 at radius 1000 under salal's noise, as shares of a lattice over the disc:
+
+| Environment | Mountains | Scrub | Desert | Mire | Badlands | Canyons |
+| --- | --- | --- | --- | --- | --- | --- |
+| Mixed | 24 | 52 | 1 | 15 | 5 | 3 |
+| High Desert | 33 | 13 | 39 | 0 | 9 | 6 |
+| Rust Belt | 15 | 58 | 0 | 25 | 3 | 0 |
+| Floodlands | 9 | 51 | 0 | 39 | 0 | 0 |
+| Badlands | 33 | 23 | 17 | 3 | 18 | 6 |
+
+Close to the TypeScript's table above but for desert. Salal's gradient noise spreads less of its range than the simplex did, so moisture before the rivers swings less either side of the map's level: Mixed has almost no desert where it had a tenth, and the High Desert more. The spread (provisional call 1) is the Map Lab's to retune, not this build's.
 
 The base contamination field, the calibrated noise under the plumes, stays on the terrain stream's `contamination` fork, as it was, and comes with the terrain's other land-only fields (rough country, cliffs, badlands) in stage 3; the hazards stage lays its plumes over it. The other way was to fork it from the hazards stream, since contamination is hazard country. But the base field depends on the seed and `contamination` alone, not on where the water or the craters go, so on the terrain stream a retry of the water or the hazards never moves it, and the badlands, which read it before the plumes, stay with the land they're cut from. On the hazards stream every hazards retry would redraw the toxic ground under the whole map, and with it the badlands and the mire, when all a retry needs is somewhere else for the craters.
 

@@ -7,6 +7,7 @@
 #include "MapParams.h"
 #include "ParamValidator.h"
 #include "Terrain.h"
+#include "Water.h"
 
 #include <random/Rng.h>
 
@@ -67,6 +68,18 @@ namespace rules::map::fixtures {
 		return params;
 	}
 
+	// Rugged, toxic, and broken.
+	inline const MapParams& badlands() {
+		static const MapParams params = paramsFor(7, Environment::Badlands, {});
+		return params;
+	}
+
+	// The params with one number changed, for what only a later stage reads.
+	inline MapParams with(MapParams params, double MapParams::* field, double value) {
+		params.*field = value;
+		return params;
+	}
+
 	// The terrain stage's stream for map attempt 0.
 	inline foundation::Rng terrainStream(const MapParams& params, uint32_t attempt = 0) {
 		return foundation::Rng(params.seed).fork("map", 0).fork("terrain", attempt);
@@ -82,6 +95,28 @@ namespace rules::map::fixtures {
 		}
 		built.emplace_back(params, std::make_unique<Terrain>(params, terrainStream(params)));
 		return *built.back().second;
+	}
+
+	// The water stage's stream over terrainStream(params).
+	inline foundation::Rng waterStream(const MapParams& params, uint32_t attempt = 0) {
+		return foundation::Rng(terrainStream(params).seed()).fork("water", attempt);
+	}
+
+	// The water over `land`'s terrain for params that may differ from the terrain's in what only the water
+	// reads, built the first time it's asked for.
+	inline const Water& waterFor(const MapParams& land, const MapParams& params) {
+		static std::vector<std::pair<MapParams, std::unique_ptr<Water>>> built;
+		for (const auto& [key, water] : built) {
+			if (key == params) {
+				return *water;
+			}
+		}
+		built.emplace_back(params, std::make_unique<Water>(params, terrainFor(land), waterStream(land)));
+		return *built.back().second;
+	}
+
+	inline const Water& waterFor(const MapParams& params) {
+		return waterFor(params, params);
 	}
 
 	// What holding behind a dam means: every lake cell stands under the level and drains into the lake, the

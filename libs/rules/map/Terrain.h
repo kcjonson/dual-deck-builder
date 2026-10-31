@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Land.h"
+#include "LandFields.h"
 #include "MapParams.h"
 
 #include <random/Rng.h>
@@ -40,14 +41,19 @@ namespace rules::map {
 		// The eroded land on its grid with its drainage, for the water stage to trace rivers and fill lakes
 		// from.
 		[[nodiscard]] const LandSurface& surface() const { return land; }
+		// Contamination before the plumes, rough country, cliffs, open squares, and badlands.
+		[[nodiscard]] const LandFields& fields() const { return landFields; }
 
 		[[nodiscard]] LandSample sample(double x, double y) const;
 		[[nodiscard]] double	 elevation(double x, double y) const;
+		// Range country, 0 to 1.
+		[[nodiscard]] double mountains(double x, double y) const;
 
 	  private:
 		int			discRadius;
 		StartRadii	radii;
 		LandSurface land;
+		LandFields	landFields;
 		// How hard dry land is pulled toward terraces past the blend ring.
 		double terracing;
 	};

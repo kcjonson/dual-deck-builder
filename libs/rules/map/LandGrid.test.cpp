@@ -58,6 +58,7 @@ namespace {
 			for (int column = 1; column < grid.size - 1; column += 5) {
 				const double expected = values[static_cast<size_t>(row * grid.size + column)];
 				EXPECT_NEAR(sampler.bicubic(cellCentre(grid, column), cellCentre(grid, row)).value, expected, 1e-12);
+				EXPECT_NEAR(sampler.bilinear(cellCentre(grid, column), cellCentre(grid, row)), expected, 1e-12);
 			}
 		}
 	}
@@ -71,6 +72,7 @@ namespace {
 			EXPECT_NEAR(sample.value, plane(x, y), 1e-12);
 			EXPECT_NEAR(sample.gradientX, 0.002, 1e-12);
 			EXPECT_NEAR(sample.gradientY, -0.001, 1e-12);
+			EXPECT_NEAR(sampler.bilinear(x, y), plane(x, y), 1e-12);
 		}
 	}
 
@@ -100,6 +102,7 @@ namespace {
 		EXPECT_NEAR(past.value, inside.value, 1e-12);
 		EXPECT_EQ(past.gradientX, 0);
 		EXPECT_NEAR(past.gradientY, -0.001, 1e-12);
+		EXPECT_NEAR(sampler.bilinear(grid.halfExtent - 0.1, 0), sampler.bilinear(cellCentre(grid, grid.size - 1), 0), 1e-12);
 	}
 
 } // namespace

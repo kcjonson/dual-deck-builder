@@ -8,6 +8,7 @@ namespace rules::map {
 		: discRadius(params.radius),
 		  radii(startRadii(params.radius, params.metroSize)),
 		  land(generateLand(params, stream)),
+		  landFields(params, land, radii, stream),
 		  terracing(terracePull(moistureLevel(params.aridity))) {}
 
 	LandSample Terrain::sample(double x, double y) const {
@@ -46,6 +47,10 @@ namespace rules::map {
 
 	double Terrain::elevation(double x, double y) const {
 		return sample(x, y).elevation;
+	}
+
+	double Terrain::mountains(double x, double y) const {
+		return clamp01(GridSampler(land.grid, land.mountains).bicubic(x, y).value);
 	}
 
 } // namespace rules::map

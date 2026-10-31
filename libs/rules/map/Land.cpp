@@ -259,6 +259,18 @@ namespace rules::map {
 		return {.metro = metro, .blend = blend, .relief = blend + 0.1 * radius};
 	}
 
+	double startWeight(const StartRadii& radii, double distanceSquared) {
+		const double metroSquared = radii.metro * radii.metro;
+		const double blendSquared = radii.blend * radii.blend;
+		if (distanceSquared <= metroSquared) {
+			return 1;
+		}
+		if (distanceSquared >= blendSquared) {
+			return 0;
+		}
+		return smooth01((blendSquared - distanceSquared) / (blendSquared - metroSquared));
+	}
+
 	LandSurface generateLand(const MapParams& params, const foundation::Rng& stream) {
 		assert(validateMapParams(params).clamps.empty() && "generateLand: generation runs on validated params");
 		const LandGrid	 grid = landGridFor(params.radius);

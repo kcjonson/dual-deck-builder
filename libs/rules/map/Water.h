@@ -38,6 +38,15 @@ namespace rules::map {
 		[[nodiscard]] const Drainage& drainage() const { return routing; }
 		// Per cell, 0 dry to 1 wet.
 		[[nodiscard]] std::span<const double> moisture() const { return moistureOf; }
+		// Per cell, world units above the river or lake its drainage reaches first, height above the nearest
+		// drainage...
+		[[nodiscard]] std::span<const double> aboveWater() const { return aboveWaterOf; }
+		// ...and world units along the drainage to it.
+		[[nodiscard]] std::span<const double> alongToWater() const { return alongToWaterOf; }
+		// Per cell, 1 on the water, 0.5 at the map's lowland level above it, 0 well above it.
+		[[nodiscard]] std::span<const double> lowland() const { return lowlandOf; }
+		// Per cell, 0 to 1: deep in a river valley cut into dry country, 0.5 and up being canyons.
+		[[nodiscard]] std::span<const double> canyons() const { return canyonsOf; }
 		// Per cell, a lake's level less the land, and less than 0 away from lakes: its bilinear zero is the shore.
 		[[nodiscard]] std::span<const double> lakeDepth() const { return lakeDepthOf; }
 		// Per cell, the lake over it, an index into lakes(), or -1.
@@ -49,6 +58,10 @@ namespace rules::map {
 		double				streamThreshold{0};
 		Drainage			routing;
 		std::vector<double> moistureOf;
+		std::vector<double> aboveWaterOf;
+		std::vector<double> alongToWaterOf;
+		std::vector<double> lowlandOf;
+		std::vector<double> canyonsOf;
 		std::vector<double> lakeDepthOf;
 		std::vector<int>	lakeIndex;
 		std::vector<River>	riverList;
