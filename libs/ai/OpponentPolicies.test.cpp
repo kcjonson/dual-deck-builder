@@ -1,4 +1,5 @@
 #include <ai/AggressiveFlanker.h>
+#include <ai/Difficulty.h>
 #include <ai/OpponentPolicies.h>
 
 #include <rules/battle/BattleTesting.h>
@@ -22,23 +23,35 @@ namespace {
 		return "";
 	}
 
-	TEST(OpponentPolicies, BindsEveryBaseOpponentAndRefusesABehaviorItDoesntKnow) {
+	Behavior behaviorOf(std::string policy, std::map<std::string, double> weights = {}, std::string difficulty = "") {
+		return Behavior{.policy = std::move(policy), .weights = std::move(weights), .script = "", .difficulty = std::move(difficulty)};
+	}
+
+	TEST(OpponentPolicies, BindsEveryNamedPolicyAndRefusesWhatItDoesntKnow) {
 		const ai::OpponentPolicies policies(testContent());
 		EXPECT_NE(dynamic_cast<const ai::AggressiveFlanker*>(&policies.forOpponent(OpponentId{"scav_bike"})), nullptr);
+		for (const char* policy : {"aggressive_flanker", "ramming", "salvage", "mcts", "random", "first_playable"}) {
+			EXPECT_NO_THROW((void)ai::makePolicy(behaviorOf(policy), Side::Raiders)) << policy;
+		}
+		EXPECT_NO_THROW((void)ai::makePolicy(behaviorOf("intent_aware", {{"harm", 40}}), Side::Player));
+		EXPECT_NE(dynamic_cast<const ai::Easy*>(ai::makePolicy(behaviorOf("ramming", {}, "easy"), Side::Raiders).get()), nullptr);
+		EXPECT_THROW((void)ai::makePolicy(behaviorOf("mcts", {{"iterations", 2.5}}), Side::Raiders), std::invalid_argument);
+		EXPECT_THROW((void)ai::makePolicy(behaviorOf("salvage", {{"ram", 1}}), Side::Raiders), std::invalid_argument);
+		EXPECT_THROW((void)ai::makePolicy(behaviorOf("random", {{"damage", 1}}), Side::Raiders), std::invalid_argument);
 
-		Content	  content = testContent();
-		Behavior& behavior = content.opponents.at(OpponentId{"scav_bike"}).behavior;
-		behavior.policy = "turtle";
-		EXPECT_NE(loadError(content).find("opponent scav_bike's behavior names policy \"turtle\""), std::string::npos);
-
-		behavior.policy = "aggressive_flanker";
-		behavior.weights = {{"bravery", 1.0}};
-		EXPECT_NE(loadError(content).find("weight \"bravery\" isn't one the aggressive flanker takes"), std::string::npos);
-
-		behavior.weights.clear();
-		behavior.policy.clear();
-		behavior.script = "behavior.lua";
-		EXPECT_NE(loadError(content).find("the Lua host"), std::string::npos);
+		Content	   content = testContent();
+		Behavior&  behavior = content.opponents.at(OpponentId{"scav_bike"}).behavior;
+		const auto refused = [&](Behavior with, std::string_view part) {
+			behavior = std::move(with);
+			const std::string error = loadError(content);
+			EXPECT_NE(error.find(part), std::string::npos) << error;
+		};
+		refused(behaviorOf("turtle"), "opponent scav_bike's behavior: policy \"turtle\" isn't one the AI has");
+		refused(behaviorOf("aggressive_flanker", {{"bravery", 1.0}}), "weight \"bravery\" isn't one the aggressive flanker takes");
+		refused(behaviorOf("intent_aware"), "only the player's seats play with it");
+		refused(behaviorOf("aggressive_flanker", {}, "nightmare"), "perfect play, which isn't built");
+		refused(behaviorOf("aggressive_flanker", {}, "brutal"), "difficulty \"brutal\" isn't one the AI has");
+		refused(Behavior{.policy = "", .weights = {}, .script = "behavior.lua", .difficulty = ""}, "the Lua host");
 	}
 
 	TEST(OpponentPolicies, ARaiderArrivingInALaterWavePlansWithItsOwnOpponentsPolicy) {

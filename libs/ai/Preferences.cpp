@@ -45,7 +45,10 @@ namespace ai {
 
 	std::vector<rules::Action>
 	preferredPlays(const rules::BattleState& board, const rules::Content& content, std::span<const rules::Action> actions) {
-		std::vector<rules::Action>	  kept(actions.begin(), actions.end());
+		std::vector<rules::Action> kept(actions.begin(), actions.end());
+		if (!board.actingRaider) {
+			return kept;
+		}
 		const rules::BattleDriver&	  raider = board.driver(*board.actingRaider);
 		const rules::TargetPreference preference = content.opponents.at(std::get<rules::OpponentId>(raider.profile)).targets;
 		if (preference == rules::TargetPreference::None) {
