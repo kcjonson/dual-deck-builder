@@ -68,6 +68,14 @@ Every driver in the pool is listed, the dead and missing with `driver_away`, so 
 
 The campaign saves `nextRunNumber`, which bumped `CAMPAIGN_SCHEMA_VERSION` from 4 to 5; the format fixture (`CAMPAIGN_FIXTURE`) has a run out, so its counter is past the run's id. A load refuses a run out with no id handed out (`nextRunNumber` below 2 while run decks are saved). Cards won live on the run party, which the run controller saves with the run, its `run` included ([combat-bridge.md](./combat-bridge.md), The run party). The bump starts Campaign History over, as every bump does ([campaign-save-and-load.md](./campaign-save-and-load.md)).
 
+## In the C++ alpha
+
+`addCardsWon` and `unloadRun` in `libs/rules/campaign/RunDecks.h` (2026-10-31, DDB-573) keep cargo cards and the unload, and [campaign.md](./campaign.md) has how. What differs:
+
+- Cards won go on the run's cargo in the campaign, with no party to add them to.
+- A new card is checked against the loaded packs rather than a bundled cards.json.
+- A failed run loses its cards in the bridge's write-back, which names them. The log line (call 23), the debrief, and the garage's sales at home aren't built.
+
 ## Provisional calls
 
 None of these is in the spec; each is a line or two to change.

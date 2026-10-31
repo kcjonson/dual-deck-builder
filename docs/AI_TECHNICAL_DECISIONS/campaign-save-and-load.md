@@ -100,6 +100,13 @@ A save names the pipeline's stages in `mapAttempts.stages`, so adding, removing,
 - Bumping the generator version makes every existing save that has a map outdated, and leaves the history alone. A test pins the pipeline's stage names to it.
 - The area map screen (DDB-43) and the run loop's routes wait for the map from the session's cache, and show its progress while they wait.
 
+## In the C++ alpha
+
+`libs/rules/campaign/CampaignJson.h` (2026-10-31, DDB-573) reads and writes the campaign's JSON, and [campaign.md](./campaign.md) has how. Storing it in a slot, the history, and checkpoints are the game app's, over salal's `SaveStore`, and aren't built. What differs:
+
+- The JSON carries its version, `kSaveVersion`, 1, which the game hands salal's `SaveFormat` too, so the rules refuse a save of another version without seeing the envelope.
+- It names the packs it was made with and loads only with all of them loaded. Every card, archetype, and escort type it holds has to resolve in the loaded packs, where this record let a dropped card load.
+
 ## Provisional calls
 
 Made here, each a line or a value to change:

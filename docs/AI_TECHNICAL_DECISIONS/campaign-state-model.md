@@ -133,6 +133,16 @@ The log is `{ day, message }` lines, dated by `addLogEntry` with the current day
 
 Provisional calls (gameplay-calls.md, 182): a new campaign is founded with only the bunkhouse standing (`campaign-start.json`), and nothing builds a building yet.
 
+## In the C++ alpha
+
+`libs/rules/campaign/Campaign.h` (2026-10-31, DDB-573) is the model, and [campaign.md](./campaign.md) has how. What differs:
+
+- The campaign is a plain value with functions over it, as the fight is, so there's no checked `set`, no change events, and no listener to guard against seeing half a move. The save reader checks every rule, and writing a save reads it back.
+- A driver's record keeps what play changes, with no max HP, hand limit, name, or `runsCompleted`: max HP and the hand limit are the archetype's (call 394), and "Road Warrior 2" is read off the pool's order.
+- An escort keeps its type and structure rather than a stat block (call 395), and the convoy's ids and their counter sit on the campaign beside the drivers'.
+- The run out, with its run decks, cargo, and cards won, is part of the campaign, where the TypeScript split it between the campaign and a run party.
+- The map's params, attempts, and state, strongholds, the log, and the tally aren't in it yet.
+
 ## Consequences
 
 - Saving (DDB-49, [campaign-save-and-load.md](./campaign-save-and-load.md)) writes the campaign's JSON at checkpoints, stamped with the save format version, and loads with `Campaign.fromJSON` and its `onWarning`; a reader error means the save can't be loaded (or, on write, written), and warnings mean it loaded with its map params repaired.

@@ -25,6 +25,10 @@ Compound and Supply Runs (Decks and the locker) makes the hand limit a driver st
 - Past the dock's cap, nothing clamps. `HandFan` already overlaps any number of cards to fit its half (DDB-183), so every card stays inside the half, on screen, and clickable, with less of each showing: about 43 logical px at ten cards, against about 68 at seven. That's undesigned and unchecked, so the fit suite still fails a half over seven, and Battle Screen Design section 9 says a limit past 7 means revisiting section 4. `CombatScreenDock.test` raises a driver's limit to ten before the screen seats them, draws to it, and holds the fan inside its half at lint zero at both gate sizes.
 - Whether archetypes start at different limits is an open question (Compound and Supply Runs, open question 3; DDB-317). Every config says 7 until it's decided.
 
+## In the C++ alpha
+
+The battle copies each driver's hand limit in at setup ([battle-state.md](./battle-state.md)), and a campaign driver's is their archetype's, since nothing changes one per driver yet (call 394). The first mod or upgrade that does puts it on the record.
+
 ## Consequences
 
 - DDB-282 puts `handLimit` on `DriverRecord`, and DDB-286 passes it through as `new Driver({ ..., handLimit })`. A combat driver built without one (the gallery's player drivers, most tests) keeps their archetype's. Raiders borrow a player archetype (the live fight's is a Mechanic, the gallery's are the Raider), so they set 7 themselves and a per-archetype value can't change their draws.
