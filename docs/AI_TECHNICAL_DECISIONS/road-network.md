@@ -133,6 +133,7 @@ The tests pin two maps' networks as hashes of every node and stretch point, comp
 - Each highway's route number, the one its shields and its routes' names carry, is the network's (`routeNumbers`, by highway), drawn on the stage's `numbers` fork: 2 to 99, none twice, every number shuffled and the first taken. The TypeScript's dressing drew them; stops-and-routes.md, Route descriptors in the C++ alpha, has why they moved. The structure check holds every highway to one, in range, and no two to the same.
 - The arithmetic the rivers and the roads share is `Polyline`: Chaikin, Douglas-Peucker, and lengths along a line, moved out of `Rivers.cpp` unchanged, with points along a line and the segment distances and meetings the checks use.
 - `Places` lists every place in id order (`placeList`), the metro at the origin first, which is what the roads read.
+- The searches pop from `NodeHeap` (2026-10-31), a min-heap keyed by cost with ties to the lower cell, moved out of `RoadSearch` so the route tree and the dressing's rails pop from the same one. It pops the order `RoadSearch`'s own heap did, so no road moved.
 
 Measured in RelWithDebInfo, the whole pipeline, five environments by seeds 3, 7, and 11, on the shared development desktop busy with other work. Loops are the network's after its spans break, and the most any map needed was 34. A run is left as cells where neither a smoothed nor a simplified line would pass or keep clear:
 
