@@ -1,10 +1,10 @@
 {
-	"roadCap": { "1": 3, "2": 4, "3": 5 },
-	"templates": [
+	"encounters": [
 		{
 			"id": "scav_pack",
 			"skulls": 1,
 			"tiers": [1, 2, 3, 4],
+			"roadCap": 3,
 			"waves": [
 				{ "raiders": ["scav_bike", "scav_bike", "rust_buggy"] },
 				{ "raiders": ["scav_bike", "scav_bike"], "arriveAt": 1, "afterTurns": 3 }
@@ -15,6 +15,7 @@
 			"id": "scav_swarm",
 			"skulls": 1,
 			"tiers": [1, 2, 3, 4],
+			"roadCap": 3,
 			"waves": [
 				{ "raiders": ["scav_bike", "scav_bike", "scav_bike"] },
 				{ "raiders": ["scav_bike", "scav_bike", "scav_bike"], "arriveAt": 1, "afterTurns": 3 }
@@ -25,6 +26,7 @@
 			"id": "scav_tail",
 			"skulls": 1,
 			"tiers": [1, 2, 3, 4],
+			"roadCap": 3,
 			"waves": [
 				{ "raiders": ["rust_buggy", "scav_bike"] },
 				{ "raiders": ["scav_bike", "scav_bike"], "arriveAt": 1, "afterTurns": 2 }
@@ -35,6 +37,7 @@
 			"id": "scav_gang",
 			"skulls": 2,
 			"tiers": [1, 2, 3, 4],
+			"roadCap": 4,
 			"waves": [
 				{ "raiders": ["rust_buggy", "scav_bike", "scav_bike"] },
 				{ "raiders": ["scav_bike", "scav_bike", "rust_buggy"], "arriveAt": 1, "afterTurns": 3 }
@@ -45,6 +48,7 @@
 			"id": "spike_crew",
 			"skulls": 2,
 			"tiers": [1, 2, 3, 4],
+			"roadCap": 4,
 			"waves": [
 				{ "raiders": ["spike_buggy", "scav_bike"] },
 				{ "raiders": ["scav_bike", "scav_bike", "scav_bike", "scav_bike"], "arriveAt": 1, "afterTurns": 3 }
@@ -55,6 +59,7 @@
 			"id": "scav_mob",
 			"skulls": 2,
 			"tiers": [1, 2, 3, 4],
+			"roadCap": 4,
 			"waves": [
 				{ "raiders": ["scav_bike", "scav_bike", "scav_bike", "rust_buggy"] },
 				{ "raiders": ["scav_bike", "scav_bike"], "arriveAt": 2, "afterTurns": 3 },
@@ -66,6 +71,7 @@
 			"id": "scav_warband",
 			"skulls": 3,
 			"tiers": [1, 2, 3, 4],
+			"roadCap": 5,
 			"waves": [
 				{ "raiders": ["warlord", "scav_bike", "scav_bike", "scav_bike"] },
 				{ "raiders": ["scav_bike", "scav_bike", "rust_buggy"], "arriveAt": 2, "afterTurns": 3 },
@@ -77,6 +83,7 @@
 			"id": "spike_raid",
 			"skulls": 3,
 			"tiers": [1, 2, 3, 4],
+			"roadCap": 5,
 			"waves": [
 				{ "raiders": ["spike_buggy", "scav_bike", "scav_bike"] },
 				{ "raiders": ["scav_bike", "scav_bike", "rust_buggy"], "arriveAt": 2, "afterTurns": 3 },
@@ -88,6 +95,7 @@
 			"id": "road_gang",
 			"skulls": 3,
 			"tiers": [1, 2, 3, 4],
+			"roadCap": 5,
 			"waves": [
 				{ "raiders": ["rust_buggy", "scav_bike", "scav_bike"] },
 				{ "raiders": ["scav_bike", "scav_bike", "scav_bike"], "arriveAt": 2, "afterTurns": 3 },

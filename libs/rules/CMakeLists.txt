@@ -6,6 +6,7 @@ add_library(ddb_rules STATIC
     core/Deck.cpp
     core/Driver.cpp
     core/Effect.cpp
+    core/Encounter.cpp
     core/Escort.cpp
     core/JsonReader.cpp
     core/Opponent.cpp

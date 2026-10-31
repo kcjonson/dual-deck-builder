@@ -18,5 +18,6 @@ namespace rules {
 	using DriverId = Id<struct DriverTag>;
 	using EscortId = Id<struct EscortTag>;
 	using OpponentId = Id<struct OpponentTag>;
+	using EncounterId = Id<struct EncounterTag>;
 
 } // namespace rules
