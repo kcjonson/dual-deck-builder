@@ -38,7 +38,7 @@ The trade-offs: what gets easier, what gets harder, what it risks.
 
 ### Campaign and the compound
 
-- [The campaign in the C++ alpha: the model, its save, the run, the day, and the end](./campaign.md)
+- [The campaign in the C++ alpha: the model, its save, the run, the day, the end, the garage, and finds](./campaign.md)
 - [Founding a campaign](./campaign-founding.md)
 - [Campaign state model and its save format](./campaign-state-model.md)
 - [Saving and loading a campaign](./campaign-save-and-load.md)

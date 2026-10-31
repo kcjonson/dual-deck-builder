@@ -46,11 +46,18 @@ An event stop is one of the run's steps, so getting home clears it with the rest
 
 The run out has two new fields, so the save format goes to version 13. Version 12 saves load with `escortsFound: []` and `handOff: null`, since no version 12 stop was an event (`SaveUpgrades.ts`). Their routes keep wreck and distress stops as quiet stretches, as they were rolled.
 
+## In the C++ alpha
+
+Event stops wait for the map's stops. The campaign side of what they give is in `libs/rules/campaign/` (2026-10-31, DDB-573), and [campaign.md](./campaign.md) has how. What differs:
+
+- An escort an event gives joins the convoy and the run at once through `joinConvoy`, its signature card in Driver 1's run deck, and with four in the convoy the player dismisses one along first (calls 402 and 403, replacing 270). So there's no `escortsFound` riding home.
+- Drivers an event gives are `recruitArchetype`'s, riding home in the run's `recruits` as a Find: driver's someone new does.
+
 ## Provisional calls
 
 None of these is in a spec. They're calls 270 to 275 in [gameplay-calls.md](../gameplay-calls.md).
 
-1. An escort an event gives joins the convoy when the run gets home, is lost if it fails, and is left behind with the convoy full (call 270).
+1. An escort an event gives joins the convoy when the run gets home, is lost if it fails, and is left behind with the convoy full (call 270, replaced by 402 in the C++ alpha).
 2. An event's extra hours do nothing until the run keeps a clock (call 271).
 3. A hand-off's fight is a stop fight at its skulls, a win goes to the reward picker after its gains, and a break-off drives on with nothing more (call 272).
 4. Drivers an event gives are someone new of the archetype the compound has fewest of, never a missing driver (call 273).

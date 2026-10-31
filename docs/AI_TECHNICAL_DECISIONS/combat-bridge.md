@@ -95,6 +95,8 @@ It refuses a fight that's still on, a tie, a fight it has already written back, 
 - A lost fight ends the run in its write-back, unwinding the run decks and losing the cargo and escorts, which `loseRun` did after it.
 - A driven vehicle's armor is written back at most its base (call 393).
 - The fight seeds from the campaign by the run and its fight count, `nextFightSeed`, which the encounter pick takes too.
+- A lost run's `RunLost` names who it found on the road too, the missing who stay missing and the recruits who never join.
+- An escort that joins mid-run brings its card in with `joinConvoy` (`Convoy.h`), not a separate `addEscortCards`.
 
 ## Provisional calls
 

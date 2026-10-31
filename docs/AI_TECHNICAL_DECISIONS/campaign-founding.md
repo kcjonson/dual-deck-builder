@@ -102,7 +102,7 @@ Founding reads no randomness at all but the seed's own streams. The params and t
 
 `foundCampaign` in `libs/rules/campaign/Founding.h` (2026-10-31, DDB-573) deals the pool as this record has it, on the same streams, and [campaign.md](./campaign.md) has how. What differs:
 
-- There's no map yet, so founding takes no params and generates nothing, and the deal is its only draw.
+- There's no map yet, so founding takes no params and generates nothing. Its draws are the deal and the garage's first stock, on `fork("garage", 1)`, which moves no seed's deal.
 - The starting values are pack content, `packs/base/campaign/start.json`, which a pack requiring the one that set them can override whole. A starter escort is a type there, as before.
 - The unlocked archetypes still come in; `unlockedAtStart` reads the packs' own `unlocked` flags until meta-progression keeps unlocks.
 
