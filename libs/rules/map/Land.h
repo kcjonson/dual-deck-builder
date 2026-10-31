@@ -41,6 +41,10 @@ namespace rules::map {
 
 	[[nodiscard]] StartRadii startRadii(int radius, double metroSize);
 
+	// 1 inside the metro, easing to 0 at the blend radius: how far the metro's fields stand in for the land's.
+	// On squared distance, so no square root is taken.
+	[[nodiscard]] double startWeight(const StartRadii& radii, double distanceSquared);
+
 	// The eroded land, as plain data on the grid.
 	struct LandSurface {
 		LandGrid grid;

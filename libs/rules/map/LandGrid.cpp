@@ -31,18 +31,18 @@ namespace rules::map {
 			};
 		}
 
-		// Where a coordinate falls between centres: the centre at or before it, held a centre in from each
-		// edge, how far past it, and whether the coordinate moves the sample there.
+		// Where a coordinate falls between centres: the centre at or before it, held `margin` centres in from
+		// each edge, how far past it, and whether the coordinate moves the sample there.
 		struct Span {
 			int	   index;
 			double t;
 			bool   moving;
 		};
 
-		Span spanAt(double position, int size) {
+		Span spanAt(double position, int size, int margin) {
 			const double fraction = position - 0.5;
-			const double low = 1;
-			const double high = size - 3;
+			const double low = margin;
+			const double high = size - 2 - margin;
 			const double index = std::clamp(std::floor(fraction), low, high);
 			const double t = fraction - index;
 			if (t < 0 || t > 1) {
@@ -88,8 +88,8 @@ namespace rules::map {
 	GridSample GridSampler::bicubic(double x, double y) const {
 		assert(std::isfinite(x) && std::isfinite(y) && "GridSampler: a point is two finite numbers");
 		const int	  size = grid.size;
-		const Span	  across = spanAt((x + grid.halfExtent) / grid.cellSize, size);
-		const Span	  up = spanAt((y + grid.halfExtent) / grid.cellSize, size);
+		const Span	  across = spanAt((x + grid.halfExtent) / grid.cellSize, size, 1);
+		const Span	  up = spanAt((y + grid.halfExtent) / grid.cellSize, size, 1);
 		const Weights wx = catmullRom(across.t);
 		const Weights wy = catmullRom(up.t);
 
@@ -110,6 +110,18 @@ namespace rules::map {
 			.gradientX = across.moving ? (wy.w0 * slopes[0] + wy.w1 * slopes[1] + wy.w2 * slopes[2] + wy.w3 * slopes[3]) * rate : 0,
 			.gradientY = up.moving ? (wy.d0 * rows[0] + wy.d1 * rows[1] + wy.d2 * rows[2] + wy.d3 * rows[3]) * rate : 0,
 		};
+	}
+
+	double GridSampler::bilinear(double x, double y) const {
+		assert(std::isfinite(x) && std::isfinite(y) && "GridSampler: a point is two finite numbers");
+		const int	 size = grid.size;
+		const Span	 across = spanAt((x + grid.halfExtent) / grid.cellSize, size, 0);
+		const Span	 up = spanAt((y + grid.halfExtent) / grid.cellSize, size, 0);
+		const auto	 at = static_cast<size_t>(up.index * size + across.index);
+		const auto	 above = at + static_cast<size_t>(size);
+		const double south = values[at] + (values[at + 1] - values[at]) * across.t;
+		const double north = values[above] + (values[above + 1] - values[above]) * across.t;
+		return south + (north - south) * up.t;
 	}
 
 } // namespace rules::map

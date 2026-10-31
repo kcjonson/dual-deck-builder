@@ -1,6 +1,7 @@
 #include "Water.h"
 
 #include "Land.h"
+#include "LandFields.h"
 #include "MapMath.h"
 #include "Noise.h"
 
@@ -8,6 +9,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <numbers>
 #include <utility>
 
@@ -55,6 +57,29 @@ namespace rules::map {
 		constexpr Flats				   kFlats;
 		constexpr Wetness			   kWetness;
 
+		// Low ground: 1 on the river or lake a cell drains to, 0.5 at the map's lowland level above it, 0 at
+		// twice that. The level is the height above its water `share` of the land outside the ranges lies
+		// under, past the relief radius, so a rugged map has as much low ground as a gentle one; never under
+		// `least` world units.
+		struct Lowland {
+			double share = 0.45;
+			double least = 1;
+		};
+
+		// Canyons: river valleys cut `reach` cells across, spreading `width` world units out from the river
+		// and up to the valley's rim; `share` of the land outside the ranges at a dryness of `dryness` +
+		// `drynessRange` and more, none at `dryness` and under.
+		struct Canyons {
+			int	   reach = 3;
+			double width = 24;
+			double share = 0.1;
+			double dryness = 0.45;
+			double drynessRange = 0.1;
+		};
+
+		constexpr Lowland kLowland;
+		constexpr Canyons kCanyons;
+
 		std::vector<double> moistureBeforeRivers(const LandSurface& land, double wetness, const NoiseLayer& noise) {
 			const LandGrid&		grid = land.grid;
 			std::vector<double> moisture(land.elevation.size());
@@ -100,43 +125,103 @@ namespace rules::map {
 			return blocked;
 		}
 
-		// Each cell's wetness from the water its drainage reaches first, walking the routing downstream first
-		// so a cell's receiver is done before it: a river or lake cell, or an outlet, is its own water; anything
-		// else takes its receiver's, a step further along.
-		std::vector<double> wetnessBeside(
+		// For each cell, the water its drainage reaches first, walking the routing downstream first so a cell's
+		// receiver is done before it: a river or lake cell, or an outlet, is its own water; anything else takes
+		// its receiver's, a step further along.
+		struct NearestWater {
+			// World units along the drainage to the river or lake...
+			std::vector<double> along;
+			// ...and above its surface, never below 0: height above the nearest drainage.
+			std::vector<double> above;
+			// The river or lake cell reached.
+			std::vector<int> cell;
+			// 0 to 1: how much wetness that water spreads.
+			std::vector<double> strength;
+		};
+
+		NearestWater nearestWater(
 			const LandGrid&			grid,
 			std::span<const double> elevation,
 			const Drainage&			routing,
 			double					threshold,
 			const LakeCells&		lakes
 		) {
-			const auto			cells = elevation.size();
-			std::vector<double> along(cells);
+			const auto	 cells = elevation.size();
+			NearestWater near{
+				.along = std::vector<double>(cells),
+				.above = std::vector<double>(cells),
+				.cell = std::vector<int>(cells),
+				.strength = std::vector<double>(cells),
+			};
 			std::vector<double> surface(cells);
-			std::vector<double> strength(cells);
 			const double		diagonal = grid.cellSize * std::numbers::sqrt2;
 			for (const int index : routing.order) {
 				const auto cell = static_cast<size_t>(index);
 				const int  receiver = routing.receivers[cell];
 				const bool inLake = lakes.lakeOf[cell] >= 0;
 				if (inLake || receiver < 0 || routing.area[cell] >= threshold) {
+					near.cell[cell] = index;
 					surface[cell] = inLake ? lakes.level[cell] : elevation[cell];
-					strength[cell] = inLake ? 1 : clamp01(kWetness.creek + kWetness.gain * (std::sqrt(routing.area[cell] / threshold) - 1));
+					near.strength[cell] =
+						inLake ? 1 : clamp01(kWetness.creek + kWetness.gain * (std::sqrt(routing.area[cell] / threshold) - 1));
 					continue;
 				}
 				const int  step = receiver - index;
 				const bool square = step == 1 || step == -1 || step == grid.size || step == -grid.size;
 				const auto below = static_cast<size_t>(receiver);
-				along[cell] = along[below] + (square ? grid.cellSize : diagonal);
+				near.along[cell] = near.along[below] + (square ? grid.cellSize : diagonal);
+				near.cell[cell] = near.cell[below];
 				surface[cell] = surface[below];
-				strength[cell] = strength[below];
+				near.strength[cell] = near.strength[below];
 			}
-			std::vector<double> wetness(cells);
 			for (size_t cell = 0; cell < cells; ++cell) {
-				const double above = std::max(0.0, (elevation[cell] - surface[cell]) * kRelief);
-				wetness[cell] = strength[cell] * (1 - smooth01(along[cell] / kWetness.reach)) * (1 - smooth01(above / kWetness.height));
+				near.above[cell] = std::max(0.0, (elevation[cell] - surface[cell]) * kRelief);
 			}
-			return wetness;
+			return near;
+		}
+
+		// Canyons per cell, 0 to 1: river valleys cut deepest into dry country. A river cell's cut is how deep a
+		// valley it runs in; the cells draining to it within kCanyons.width along the drainage, and below the
+		// valley's rim, share it. 0.5 where the cut passes the quantile its share of the land outside the ranges
+		// lies above, only where features have room, and none on a map wetter than the canyons' dryness.
+		std::vector<double> canyonField(
+			const MapParams&	params,
+			const Terrain&		terrain,
+			const Drainage&		routing,
+			double				threshold,
+			const LakeCells&	lakes,
+			const NearestWater& near
+		) {
+			const LandSurface&	land = terrain.surface();
+			const auto			cells = land.elevation.size();
+			std::vector<double> field(cells);
+			const double		dryness = 1 - moistureLevel(params.aridity);
+			const double		share = kCanyons.share * smooth01((dryness - kCanyons.dryness) / kCanyons.drynessRange);
+			if (!(share > 0)) {
+				return field;
+			}
+			std::vector<double> cut(cells);
+			for (size_t cell = 0; cell < cells; ++cell) {
+				if (routing.area[cell] >= threshold && lakes.lakeOf[cell] < 0) {
+					cut[cell] = valleyDepth(land.elevation, land.grid.size, static_cast<int>(cell), kCanyons.reach);
+				}
+			}
+			const std::span<const double> room = terrain.fields().room();
+			std::vector<double>			  values(cells);
+			for (size_t cell = 0; cell < cells; ++cell) {
+				const double depth = cut[static_cast<size_t>(near.cell[cell])];
+				if (depth > 0 && room[cell] > 0 && near.along[cell] <= kCanyons.width && near.above[cell] < depth * kRelief) {
+					values[cell] = depth * room[cell];
+				}
+			}
+			const double level = positiveQuantile(landValues(land, params.radius, terrain.start().relief, values, false), share);
+			if (!(level < std::numeric_limits<double>::infinity())) {
+				return field;
+			}
+			for (size_t cell = 0; cell < cells; ++cell) {
+				field[cell] = smooth01((values[cell] / level - 1) * 2 + 0.5);
+			}
+			return field;
 		}
 
 	} // namespace
@@ -189,11 +274,22 @@ namespace rules::map {
 			NoiseLayer(stream, "meander")
 		);
 
-		const std::vector<double> wetness = wetnessBeside(grid, land.elevation, routing, streamThreshold, lakes);
+		const NearestWater near = nearestWater(grid, land.elevation, routing, streamThreshold, lakes);
+		const double	   lowLevel =
+			quantileAbove(landValues(land, params.radius, terrain.start().relief, near.above, false), 1 - kLowland.share);
+		const double twiceLow = 2 * std::max(lowLevel, kLowland.least);
 		moistureOf.resize(cells);
+		lowlandOf.resize(cells);
 		for (size_t cell = 0; cell < cells; ++cell) {
-			moistureOf[cell] = clamp01(before[cell] + kWetness.share * wetness[cell]);
+			const double above = near.above[cell];
+			const double wetness =
+				near.strength[cell] * (1 - smooth01(near.along[cell] / kWetness.reach)) * (1 - smooth01(above / kWetness.height));
+			moistureOf[cell] = clamp01(before[cell] + kWetness.share * wetness);
+			lowlandOf[cell] = 1 - smooth01(above / twiceLow);
 		}
+		canyonsOf = canyonField(params, terrain, routing, streamThreshold, lakes, near);
+		aboveWaterOf = near.above;
+		alongToWaterOf = near.along;
 		lakeDepthOf = lakeDepthField(grid, land.elevation, lakes);
 		lakeIndex = std::move(lakes.lakeOf);
 		lakeList = std::move(lakes.lakes);

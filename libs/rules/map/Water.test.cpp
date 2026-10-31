@@ -10,6 +10,7 @@
 #include <cmath>
 #include <map>
 #include <memory>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -21,39 +22,13 @@ namespace {
 	// The routing's noise, as elevation: a cell may drain to a neighbour this much higher, twice over.
 	constexpr double kFlatsAmplitude = 0.0015;
 
-	foundation::Rng waterStream(const MapParams& params, uint32_t attempt = 0) {
-		return foundation::Rng(fixtures::terrainStream(params).seed()).fork("water", attempt);
-	}
-
-	// The water over a fixture's terrain, for params that may differ from the terrain's in what only the
-	// water reads, built once a run.
-	const Water& waterFor(const MapParams& land, const MapParams& params) {
-		static std::vector<std::pair<MapParams, std::unique_ptr<Water>>> built;
-		for (const auto& [key, water] : built) {
-			if (key == params) {
-				return *water;
-			}
-		}
-		built.emplace_back(params, std::make_unique<Water>(params, fixtures::terrainFor(land), waterStream(land)));
-		return *built.back().second;
-	}
-
-	const Water& waterFor(const MapParams& params) {
-		return waterFor(params, params);
-	}
-
-	MapParams with(MapParams params, double MapParams::* field, double value) {
-		params.*field = value;
-		return params;
-	}
-
 	class EveryWater : public ::testing::TestWithParam<const MapParams*> {};
 
 	INSTANTIATE_TEST_SUITE_P(Water, EveryWater, ::testing::Values(&fixtures::mixed(), &fixtures::floodlands(), &fixtures::basin()));
 
 	TEST_P(EveryWater, DrainsEveryCellToTheLandsOutletsDownhillWithinTheRoutingsNoise) {
 		const LandSurface& land = fixtures::terrainFor(*GetParam()).surface();
-		const Drainage&	   routing = waterFor(*GetParam()).drainage();
+		const Drainage&	   routing = fixtures::waterFor(*GetParam()).drainage();
 		EXPECT_EQ(routing.outlets, land.drainage.outlets);
 		std::vector<int> outletOf(routing.receivers.size(), -1);
 		for (const int cell : routing.order) {
@@ -74,7 +49,7 @@ namespace {
 	}
 
 	TEST_P(EveryWater, TracesEveryRiverDownItsDrainageToAnOutletThroughConfluencesAndLakes) {
-		const Water&	   water = waterFor(*GetParam());
+		const Water&	   water = fixtures::waterFor(*GetParam());
 		const Drainage&	   routing = water.drainage();
 		const LandSurface& land = fixtures::terrainFor(*GetParam()).surface();
 		const auto&		   rivers = water.rivers();
@@ -113,7 +88,7 @@ namespace {
 	}
 
 	TEST_P(EveryWater, DrawsRiversThatTouchWhereTheyJoinWidenAndNeverRunRulerStraight) {
-		const Water&   water = waterFor(*GetParam());
+		const Water&   water = fixtures::waterFor(*GetParam());
 		const Terrain& terrain = fixtures::terrainFor(*GetParam());
 		const double   cell = terrain.surface().grid.cellSize;
 		const double   sineOfADegree = 0.017452406437283512;
@@ -157,7 +132,7 @@ namespace {
 	}
 
 	TEST_P(EveryWater, KeepsMoistureInRangeAndWetterBesideItsRivers) {
-		const Water& water = waterFor(*GetParam());
+		const Water& water = fixtures::waterFor(*GetParam());
 		double		 all = 0;
 		for (const double value : water.moisture()) {
 			ASSERT_GE(value, 0);
@@ -177,7 +152,7 @@ namespace {
 
 	TEST(Water, PlacesTheReservoirsAskedForEachHeldBehindItsDamApartAndOffTheStart) {
 		const MapParams&   params = fixtures::floodlands();
-		const Water&	   water = waterFor(params);
+		const Water&	   water = fixtures::waterFor(params);
 		const Terrain&	   terrain = fixtures::terrainFor(params);
 		const LandSurface& land = terrain.surface();
 		int				   reservoirs = 0;
@@ -218,8 +193,55 @@ namespace {
 		}
 	}
 
+	TEST_P(EveryWater, MeasuresHeightAboveTheNearestWaterLowGroundOnItAndCanyonsInRange) {
+		const Water&	   water = fixtures::waterFor(*GetParam());
+		const LandSurface& land = fixtures::terrainFor(*GetParam()).surface();
+		for (const River& river : water.rivers()) {
+			for (const int cell : river.chain.cells) {
+				const auto at = static_cast<size_t>(cell);
+				if (water.lakeOf()[at] >= 0) {
+					continue;
+				}
+				EXPECT_EQ(water.aboveWater()[at], 0);
+				EXPECT_EQ(water.alongToWater()[at], 0);
+				EXPECT_EQ(water.lowland()[at], 1);
+			}
+		}
+		for (size_t cell = 0; cell < land.elevation.size(); ++cell) {
+			ASSERT_GE(water.aboveWater()[cell], 0);
+			ASSERT_GE(water.lowland()[cell], 0);
+			ASSERT_LE(water.lowland()[cell], 1);
+			ASSERT_GE(water.canyons()[cell], 0);
+			ASSERT_LE(water.canyons()[cell], 1);
+		}
+		// At least the share of the land outside the ranges the lowland level is calibrated to lies under it.
+		const Terrain&			  terrain = fixtures::terrainFor(*GetParam());
+		const std::vector<double> lowland = landValues(land, GetParam()->radius, terrain.start().relief, water.lowland(), false);
+		const auto				  low = std::ranges::count_if(lowland, [](double value) { return value >= 0.5; });
+		EXPECT_GE(static_cast<double>(low) / static_cast<double>(lowland.size()), 0.45 - 0.01);
+	}
+
+	TEST(Water, CutsCanyonsOnlyOnDryMapsAndOnlyWhereFeaturesHaveRoom) {
+		const Water&			canyons = fixtures::waterFor(fixtures::basin());
+		const Terrain&			terrain = fixtures::terrainFor(fixtures::basin());
+		std::span<const double> room = terrain.fields().room();
+		double					cut = 0;
+		for (size_t cell = 0; cell < room.size(); ++cell) {
+			if (room[cell] == 0) {
+				EXPECT_EQ(canyons.canyons()[cell], 0);
+			}
+			cut += canyons.canyons()[cell] >= 0.5 ? 1 : 0;
+		}
+		EXPECT_GT(cut, 0) << "the High Desert cuts canyons";
+		const MapParams& land = fixtures::mixed();
+		for (const Water* wet :
+			 {&fixtures::waterFor(fixtures::floodlands()), &fixtures::waterFor(land, fixtures::with(land, &MapParams::aridity, 0.6))}) {
+			EXPECT_TRUE(std::ranges::all_of(wet->canyons(), [](double value) { return value == 0; }));
+		}
+	}
+
 	TEST(Water, MakesNoStandingWaterAtLakesZeroAndNoRiverLeavesAClosedBasin) {
-		const Water& water = waterFor(fixtures::basin());
+		const Water& water = fixtures::waterFor(fixtures::basin());
 		EXPECT_EQ(fixtures::basin().lakes, 0);
 		EXPECT_TRUE(water.lakes().empty());
 		EXPECT_TRUE(std::ranges::all_of(water.lakeDepth(), [](double depth) { return depth == -1; }));
@@ -238,8 +260,8 @@ namespace {
 		};
 		const MapParams& land = fixtures::mixed();
 		EXPECT_GT(
-			riverCells(waterFor(land, with(land, &MapParams::riverDensity, 0.8))),
-			riverCells(waterFor(land, with(land, &MapParams::riverDensity, 0.2)))
+			riverCells(fixtures::waterFor(land, fixtures::with(land, &MapParams::riverDensity, 0.8))),
+			riverCells(fixtures::waterFor(land, fixtures::with(land, &MapParams::riverDensity, 0.2)))
 		);
 	}
 
@@ -253,14 +275,15 @@ namespace {
 		};
 		const MapParams& land = fixtures::mixed();
 		EXPECT_GT(
-			mean(waterFor(land, with(land, &MapParams::aridity, 0.8))), mean(waterFor(land, with(land, &MapParams::aridity, 0.2))) + 0.2
+			mean(fixtures::waterFor(land, fixtures::with(land, &MapParams::aridity, 0.8))),
+			mean(fixtures::waterFor(land, fixtures::with(land, &MapParams::aridity, 0.2))) + 0.2
 		);
 	}
 
 	TEST(Water, MakesOtherWaterOnAnotherStageAttempt) {
 		const MapParams& params = fixtures::mixed();
-		const Water		 other(params, fixtures::terrainFor(params), waterStream(params, 1));
-		EXPECT_NE(other.moisture()[0], waterFor(params).moisture()[0]);
+		const Water		 other(params, fixtures::terrainFor(params), fixtures::waterStream(params, 1));
+		EXPECT_NE(other.moisture()[0], fixtures::waterFor(params).moisture()[0]);
 	}
 
 	TEST(AreaMapPipeline, RunsTheWaterOnAStreamNestedInTheTerrainsAndMakesTheSameMapToTheBit) {
@@ -274,12 +297,12 @@ namespace {
 		ASSERT_EQ(result.stages.size(), 2U);
 		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
 		EXPECT_EQ(result.stages[1].name, "water");
-		EXPECT_EQ(result.stages[1].stream, waterStream(params).seed());
+		EXPECT_EQ(result.stages[1].stream, fixtures::waterStream(params).seed());
 		ASSERT_TRUE(result.products.terrain.has_value() && result.products.water.has_value());
 		EXPECT_EQ(result.products.terrain->surface().elevation, fixtures::terrainFor(params).surface().elevation);
 		EXPECT_EQ(result.products.terrain->surface().drainage.levels, fixtures::terrainFor(params).surface().drainage.levels);
 		const Water& water = *result.products.water;
-		const Water& direct = waterFor(params);
+		const Water& direct = fixtures::waterFor(params);
 		EXPECT_EQ(water.drainage().area, direct.drainage().area);
 		EXPECT_EQ(water.moisture().size(), direct.moisture().size());
 		EXPECT_TRUE(std::ranges::equal(water.moisture(), direct.moisture()));
