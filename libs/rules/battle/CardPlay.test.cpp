@@ -182,24 +182,23 @@ namespace {
 		const DriverIndex rustBuggy{2};
 		state.vehicle(kFirstVehicle).structure = 1;
 		state.vehicle(kFirstVehicle).armor = 0;
-
-		(void)apply(state, testContent(), action::EndTurn{});
-		ASSERT_EQ(state.actingRaider, rustBuggy);
 		giveHand(state, rustBuggy, {"point_blank"});
-		std::vector<Event>		 events = apply(state, testContent(), play(2, 0, 0));
+		giveHand(state, DriverIndex{3}, {});
+		(void)replan(state, AimAt(0));
+
+		std::vector<Event>		 events = endTurn(state);
 		const std::vector<Event> wrecked{
 			event::VehicleDamaged{.vehicle = kFirstVehicle, .damage = 3, .shield = 0, .armor = 0, .structure = 1},
 			event::DriverDamaged{.driver = kFirst, .hitpoints = 2},
 			event::VehicleWrecked{.vehicle = kFirstVehicle},
 			event::JumpedAboard{.driver = kFirst, .vehicle = kSecondVehicle},
+			event::LeftRoad{.vehicle = kFirstVehicle},
 		};
-		EXPECT_TRUE(std::ranges::search(events, wrecked).begin() != events.end());
+		for (const Event& expected : wrecked) {
+			EXPECT_TRUE(std::ranges::find(events, expected) != events.end());
+		}
 		EXPECT_EQ(state.vehicle(kSecondVehicle).passenger, kFirst);
-		EXPECT_TRUE(state.vehicle(kFirstVehicle).onRoad);
-
-		(void)apply(state, testContent(), action::EndTurn{});
-		events = apply(state, testContent(), action::EndTurn{});
-		EXPECT_TRUE((eventsOf<event::LeftRoad>(events) == std::vector{event::LeftRoad{.vehicle = kFirstVehicle}}));
+		EXPECT_FALSE(state.vehicle(kFirstVehicle).onRoad);
 		EXPECT_EQ(state.phase, Phase::PlayerTurn);
 		EXPECT_EQ(state.driver(kFirst).hand.size(), 5U);
 
@@ -217,30 +216,17 @@ namespace {
 		state.driver(kFirst).hitpoints = 1;
 		state.vehicle(kFirstVehicle).armor = 0;
 		state.driver(kSecond).hitpoints = 1;
-
-		(void)apply(state, testContent(), action::EndTurn{});
 		giveHand(state, rustBuggy, {"test_slam", "test_slam", "test_slam"});
-		std::vector<Event> events = apply(state, testContent(), play(2, 0, 1));
-		EXPECT_EQ(eventsOf<event::DriverDown>(events).size(), 1U);
-		EXPECT_EQ(eventsOf<event::CarriesOnAsEscort>(events).size(), 1U);
+		// The Interceptor, then the escort its bike carries on as, then the Road Warrior.
+		(void)replan(state, AimEach({1, 1, 0}));
+
+		const std::vector<Event> events = endTurn(state);
+		EXPECT_EQ(eventsOf<event::DriverDown>(events).size(), 2U);
+		EXPECT_EQ(eventsOf<event::CarriesOnAsEscort>(events).size(), 2U);
 		EXPECT_EQ(state.vehicle(kSecondVehicle).crew, kUnmannedCrew);
 		EXPECT_TRUE(vehicleInFight(state, kSecondVehicle));
-		EXPECT_EQ(state.phase, Phase::EnemyTurn);
-
-		events = apply(state, testContent(), play(2, 0, 1));
-		EXPECT_TRUE(eventsOf<event::HitChecked>(events).empty());
-		EXPECT_TRUE(
-			(eventsOf<event::VehicleDamaged>(events) == std::vector{event::VehicleDamaged{
-															.vehicle = kSecondVehicle,
-															.damage = 10,
-															.shield = 0,
-															.armor = 0,
-															.structure = 10,
-														}})
-		);
-		EXPECT_TRUE(eventsOf<event::DriverDamaged>(events).empty());
-
-		events = apply(state, testContent(), play(2, 0, 0));
+		const event::VehicleDamaged emptyEscort{.vehicle = kSecondVehicle, .damage = 10, .shield = 0, .armor = 0, .structure = 10};
+		EXPECT_TRUE(std::ranges::find(events, Event{emptyEscort}) != events.end()) << "nobody aboard to take a share";
 		ASSERT_FALSE(events.empty());
 		EXPECT_TRUE((events.back() == Event{event::FightEnded{.outcome = Outcome::Lost}}));
 		EXPECT_EQ(state.outcome, Outcome::Lost);

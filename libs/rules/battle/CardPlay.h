@@ -54,6 +54,10 @@ namespace rules {
 	[[nodiscard]] std::optional<std::string>
 	targetBlocker(const BattleState& state, const CardDefinition& card, bool upgraded, const CardPlay& play);
 
+	// Where the card's own moves leave the caster, if they move it: what a plan names for a raider's move.
+	[[nodiscard]] std::optional<RoadSlot>
+	movesCasterTo(const BattleState& state, const CardDefinition& card, bool upgraded, const CardPlay& play);
+
 	// Carries out a paid-for card's effects in order. The play has to have passed targetBlocker, and the card
 	// unimplementedPart.
 	void resolveCard(BattleState& state, const std::vector<Effect>& effects, const CardPlay& play, std::vector<Event>& events);

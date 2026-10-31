@@ -59,7 +59,7 @@ CMakeLists.txt, CMakePresets.json, vcpkg.json   the C++ build (salal's arrangeme
 cmake/            build helpers (ddb_add_tests)
 libs/
   rules/          the game's rules: fight state, effects, packs, map, campaign; salal::foundation only
-  ai/             opponent and stand-in policies, over the rules (once ported)
+  ai/             the policies opponents plan with (and stand-ins, once ported), over the rules only
   scripting/      the Lua host for packs, over the rules (once needed)
 packs/            content: base/ is the game, expansions and mods are packs too
 apps/             executables, once there is one: the game, and the balance sim

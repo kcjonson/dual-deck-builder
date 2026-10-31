@@ -94,26 +94,34 @@ namespace {
 		reseeded.seed = 99;
 		EXPECT_FALSE(start.state == startBattle(reseeded, testContent()).state);
 
+		// The first action offered, for the raiders' plans too: plays until the adrenaline runs out, then the end of
+		// the turn.
+		const FirstOffered firstOffered;
+		const auto		   step = [&](BattleState& state, const Action& action) {
+			return state.phase == Phase::Planning ? plan(state, firstOffered) : apply(state, testContent(), action);
+		};
+		const auto next = [&](const BattleState& state) -> Action {
+			return state.phase == Phase::Planning ? Action{action::EndTurn{}} : legalActions(state, testContent()).front();
+		};
 		BattleState original = start.state;
-		for (int step = 0; step < 4; ++step) {
-			(void)apply(original, testContent(), legalActions(original, testContent()).front());
+		for (int played = 0; played < 4; ++played) {
+			(void)step(original, next(original));
 		}
 		BattleState copy = original;
 		int			reshuffles = 0;
-		for (int step = 0; step < 80 && original.phase != Phase::Over; ++step) {
-			// The first action offered: plays until the adrenaline runs out, then the end of the turn.
-			const Action			 action = legalActions(original, testContent()).front();
-			const std::vector<Event> played = apply(original, testContent(), action);
-			ASSERT_TRUE(played == apply(copy, testContent(), action)) << "step " << step;
-			ASSERT_TRUE(original == copy) << "step " << step;
-			for (const event::DeckShuffled& shuffle : eventsOf<event::DeckShuffled>(played)) {
+		for (int played = 0; played < 80 && original.phase != Phase::Over; ++played) {
+			const Action			 action = next(original);
+			const std::vector<Event> events = step(original, action);
+			ASSERT_TRUE(events == step(copy, action)) << "step " << played;
+			ASSERT_TRUE(original == copy) << "step " << played;
+			for (const event::DeckShuffled& shuffle : eventsOf<event::DeckShuffled>(events)) {
 				reshuffles += shuffle.fromDiscard ? 1 : 0;
 			}
 		}
 		EXPECT_GT(reshuffles, 0);
 	}
 
-	TEST(Battle, ThePlayersTurnThenEachRaiderInTurnThenEveryoneRefills) {
+	TEST(Battle, ThePlayersTurnThenEachRaidersPlanThenEveryoneRefillsForTheNextPlan) {
 		BattleStart	 start = fight({seat("road_warrior")}, {raider("scav_bike"), raider("rust_buggy")});
 		BattleState& state = start.state;
 		giveHand(state, DriverIndex{0}, {"armor_plating", "point_blank"});
@@ -129,31 +137,27 @@ namespace {
 		state.vehicle(VehicleIndex{0}).shield = 4;
 
 		events = apply(state, testContent(), action::EndTurn{});
-		EXPECT_EQ(state.phase, Phase::EnemyTurn);
-		EXPECT_EQ(state.actingRaider, DriverIndex{1});
-		EXPECT_TRUE(state.driver(DriverIndex{0}).hand.empty());
-		EXPECT_EQ(eventsOf<event::RaiderActing>(events).size(), 1U);
-		for (const Action& action : legalActions(state, testContent())) {
-			if (const auto* offered = std::get_if<action::PlayCard>(&action)) {
-				EXPECT_EQ(offered->driver, DriverIndex{1});
-			}
-		}
-		EXPECT_THROW((void)apply(state, testContent(), play(0, 0)), std::invalid_argument);
-
-		(void)apply(state, testContent(), action::EndTurn{});
-		EXPECT_EQ(state.actingRaider, DriverIndex{2});
-
-		events = apply(state, testContent(), action::EndTurn{});
-		EXPECT_EQ(state.phase, Phase::PlayerTurn);
+		EXPECT_TRUE(
+			(eventsOf<event::RaiderActing>(events) ==
+			 std::vector{event::RaiderActing{.raider = DriverIndex{1}}, event::RaiderActing{.raider = DriverIndex{2}}})
+		);
+		EXPECT_TRUE(
+			(eventsOf<event::TurnStarted>(events) ==
+			 std::vector{event::TurnStarted{.turn = 1, .side = Side::Raiders}, event::TurnStarted{.turn = 2, .side = Side::Player}})
+		);
+		EXPECT_EQ(state.phase, Phase::Planning);
 		EXPECT_EQ(state.turn, 2);
-		EXPECT_FALSE(state.actingRaider);
+		EXPECT_TRUE(legalActions(state, testContent()).empty()) << "nobody acts before the raiders plan";
+		EXPECT_THROW((void)apply(state, testContent(), action::EndTurn{}), std::invalid_argument);
 		EXPECT_EQ(state.vehicle(VehicleIndex{0}).shield, 0);
 		EXPECT_EQ(eventsOf<event::ShieldCleared>(events).size(), 1U);
-		EXPECT_EQ(eventsOf<event::HandDiscarded>(events).size(), 2U);
+		EXPECT_EQ(eventsOf<event::HandDiscarded>(events).size(), 3U) << "the player's at the turn's end, the raiders' at the next";
 		for (const BattleDriver& driver : state.drivers) {
 			EXPECT_EQ(driver.adrenaline, driver.maxAdrenaline);
 			EXPECT_EQ(driver.hand.size(), 5U);
 		}
+		planIdle(state);
+		EXPECT_EQ(state.phase, Phase::PlayerTurn);
 	}
 
 	TEST(Battle, ADrawPastTheHandLimitBurnsToDiscardAndADryDeckTakesItsDiscardBack) {

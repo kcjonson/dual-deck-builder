@@ -5,6 +5,7 @@
 #include <rules/core/Effect.h>
 
 #include <optional>
+#include <string>
 #include <variant>
 
 namespace rules {
@@ -242,6 +243,44 @@ namespace rules {
 
 			bool operator==(const RaiderStunned&) const = default;
 		};
+		// A raider committed its coming turn, `steps` cards long.
+		struct PlanCommitted {
+			DriverIndex raider;
+			int			steps{0};
+
+			bool operator==(const PlanCommitted&) const = default;
+		};
+		// Step `step` of a raider's plan plays as planned; what it does follows.
+		struct PlannedStepPlayed {
+			DriverIndex raider;
+			int			step{0};
+
+			bool operator==(const PlannedStepPlayed&) const = default;
+		};
+		// Step `step` fizzles: the card is spent and does nothing, for `reason`.
+		struct PlannedStepFizzled {
+			DriverIndex raider;
+			int			step{0};
+			BattleCard	card;
+			std::string reason;
+
+			bool operator==(const PlannedStepFizzled&) const = default;
+		};
+		// Step `step` was aimed at a vehicle since wrecked, so it goes to the one its survivor rides in now.
+		struct PlanRedirected {
+			DriverIndex	 raider;
+			int			 step{0};
+			VehicleIndex from;
+			VehicleIndex to;
+
+			bool operator==(const PlanRedirected&) const = default;
+		};
+		// A raider wrecked or left without its driver drops the rest of its plan.
+		struct PlanDropped {
+			DriverIndex raider;
+
+			bool operator==(const PlanDropped&) const = default;
+		};
 		// At the end of its side's turn, a death_mark takes whoever is at the wheel.
 		struct DeathMarkTaken {
 			VehicleIndex vehicle;
@@ -290,6 +329,11 @@ namespace rules {
 		event::BecameSteady,
 		event::ShookOffStun,
 		event::RaiderStunned,
+		event::PlanCommitted,
+		event::PlannedStepPlayed,
+		event::PlannedStepFizzled,
+		event::PlanRedirected,
+		event::PlanDropped,
 		event::DeathMarkTaken,
 		event::FightEnded>;
 

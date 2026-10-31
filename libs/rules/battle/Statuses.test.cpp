@@ -12,14 +12,6 @@ namespace {
 	const VehicleIndex kSecondVehicle{1};
 	const VehicleIndex kThirdVehicle{2};
 
-	// The player's turn and every raider's, back to the next player turn.
-	void passTheTurn(BattleState& state) {
-		(void)apply(state, testContent(), action::EndTurn{});
-		while (state.phase == Phase::EnemyTurn) {
-			(void)apply(state, testContent(), action::EndTurn{});
-		}
-	}
-
 	TEST(Statuses, LastTheirTurnsCountedAtThePlayersTurnAndHeavyDropsBoosts) {
 		// The Interceptor's speed 8: the Lightning Bike's 5 and the driver's 3.
 		BattleStart	 start = fight({seat("interceptor")}, {raider("rust_buggy")});
@@ -39,10 +31,9 @@ namespace {
 		(void)apply(state, testContent(), play(0, 0));
 		EXPECT_EQ(state.driver(kFirst).hitpoints, 22);
 
-		passTheTurn(state);
+		(void)endTurn(state);
 		EXPECT_EQ(speedOf(state, kFirstVehicle), 11);
-		(void)apply(state, testContent(), action::EndTurn{});
-		events = apply(state, testContent(), action::EndTurn{});
+		events = endTurn(state);
 		EXPECT_TRUE((
 			eventsOf<event::StatusEnded>(events) == std::vector{event::StatusEnded{.vehicle = kFirstVehicle, .status = Status::SpeedBoost}}
 		));
@@ -84,7 +75,7 @@ namespace {
 
 		std::vector<Event> events = apply(state, testContent(), play(0, 0));
 		EXPECT_EQ(eventsOf<event::StatusApplied>(events).size(), 2U);
-		events = apply(state, testContent(), action::EndTurn{});
+		events = endTurn(state);
 		EXPECT_TRUE(
 			(eventsOf<event::RaiderStunned>(events) ==
 			 std::vector{event::RaiderStunned{.raider = DriverIndex{1}}, event::RaiderStunned{.raider = DriverIndex{2}}})
@@ -99,15 +90,27 @@ namespace {
 		events = apply(state, testContent(), play(0, 0));
 		EXPECT_EQ(eventsOf<event::ShookOffStun>(events).size(), 2U);
 		EXPECT_TRUE(eventsOf<event::StatusApplied>(events).empty());
-		events = apply(state, testContent(), action::EndTurn{});
-		EXPECT_TRUE((eventsOf<event::RaiderActing>(events) == std::vector{event::RaiderActing{.raider = DriverIndex{1}}}));
+		events = endTurn(state);
+		EXPECT_EQ(eventsOf<event::RaiderActing>(events).size(), 2U);
 
-		// What a stun does to the player's side isn't in the rules, so a raider's EMP Blast is never legal.
+		// What a stun does to the player's side isn't in the rules, so a raider's EMP Blast is never on offer.
+		struct Watching final : Policy {
+			mutable bool offeredEmp{false};
+			[[nodiscard]] Action
+			choose(const BattleState& board, const Content&, std::span<const Action> actions, foundation::Rng&) const override {
+				for (const Action& action : actions) {
+					const auto* play = std::get_if<action::PlayCard>(&action);
+					offeredEmp = offeredEmp || (play && board.driver(play->driver).hand[static_cast<size_t>(play->handIndex)].card ==
+															CardId{"emp_blast"});
+				}
+				return action::EndTurn{};
+			}
+		} watching;
 		giveHand(state, DriverIndex{1}, {"emp_blast"});
+		state.driver(DriverIndex{1}).maxAdrenaline = 3;
 		state.driver(DriverIndex{1}).adrenaline = 3;
-		const std::optional<std::string> blocker = actionBlocker(state, testContent(), play(1, 0));
-		ASSERT_TRUE(blocker);
-		EXPECT_EQ(*blocker, "stunning the player's vehicles isn't implemented yet");
+		(void)replan(state, watching);
+		EXPECT_FALSE(watching.offeredEmp);
 	}
 
 	TEST(Statuses, WitnessMeTriplesTheTurnsDamageThenTakesItsDriver) {
@@ -126,7 +129,7 @@ namespace {
 		ASSERT_EQ(eventsOf<event::VehicleDamaged>(events).size(), 1U);
 		EXPECT_EQ(eventsOf<event::VehicleDamaged>(events)[0].damage, 13);
 
-		events = apply(state, testContent(), action::EndTurn{});
+		events = endTurn(state);
 		const std::vector<Event> taken{
 			event::DeathMarkTaken{.vehicle = kFirstVehicle, .driver = kFirst},
 			event::DriverDamaged{.driver = kFirst, .hitpoints = 25},
@@ -134,7 +137,7 @@ namespace {
 			event::CarriesOnAsEscort{.vehicle = kFirstVehicle},
 		};
 		EXPECT_TRUE(std::ranges::search(events, taken).begin() != events.end());
-		EXPECT_EQ(state.phase, Phase::EnemyTurn) << "the Road Warrior is still in the fight";
+		EXPECT_EQ(state.phase, Phase::PlayerTurn) << "the Road Warrior is still in the fight";
 	}
 
 	TEST(Statuses, ConditionalsReadTheStatusesOnTheTargetAndTheCaster) {

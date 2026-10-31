@@ -19,10 +19,10 @@ namespace rules {
 	// act can do, and apply does it and returns what happened. apply is the one place effects are carried out,
 	// so a preview, a projection, or an AI's lookahead is apply on a copy of the state.
 	//
-	// The player's turn takes plays from either driver until EndTurn. The enemy turn then goes raider by raider
-	// in seat order, and while BattleState::actingRaider names one, its own behavior picks from legalActions
-	// (libs/ai, which the rules never call); EndTurn passes to the next, and the last one's starts the player's
-	// next turn. Nothing chooses for a whole side.
+	// Each player turn opens in Planning: planEnemyTurn (EnemyTurn.h) has every raider commit its coming turn,
+	// each through its own Policy, which libs/ai implements and the rules never call on their own. The player then
+	// plays from either driver until EndTurn, which plays the raiders' plans without choosing again and opens the
+	// next player turn. Nothing chooses for a whole side.
 
 	// One of the player's drivers, the vehicle their archetype comes with, and the deck they bring.
 	struct PlayerSeat {
@@ -57,8 +57,9 @@ namespace rules {
 	// A deck list's cards, unupgraded, in the order it lists them.
 	[[nodiscard]] std::vector<BattleCard> cardsOf(std::span<const DeckEntry> deck);
 
-	// Seats everyone, puts the vehicles on the road, shuffles every deck, and starts the player's first turn:
-	// the opening deal, full adrenaline. Throws std::invalid_argument for a setup the rules refuse.
+	// Seats everyone, puts the vehicles on the road, shuffles every deck, and opens the player's first turn, the
+	// opening deal and full adrenaline, for the raiders to plan. Throws std::invalid_argument for a setup the rules
+	// refuse.
 	[[nodiscard]] BattleStart startBattle(const BattleSetup& setup, const Content& content);
 
 	// Why a card in hand can't be played at all right now, whatever it's played at: whose turn it is, the

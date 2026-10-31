@@ -593,7 +593,13 @@ namespace rules {
 		// range counts from where each effect lands (Strafe, Cut Off). Every move has to be able to happen, with
 		// its slot when it picks one, and everything that lands on the target has to reach it and find it as its
 		// conditions want.
-		Gap walkBlocker(const BattleState& state, const CardDefinition& card, const std::vector<Effect>& effects, const CardPlay& play) {
+		Gap walkBlocker(
+			const BattleState&		   state,
+			const CardDefinition&	   card,
+			const std::vector<Effect>& effects,
+			const CardPlay&			   play,
+			std::optional<RoadSlot>*   landing = nullptr
+		) {
 			const BattleVehicle&			  actor = state.vehicle(play.actor);
 			const std::optional<VehicleIndex> partner = partnerVehicleOf(state, play.caster);
 			RoadSlot						  from = actor.slot;
@@ -723,6 +729,9 @@ namespace rules {
 				if (Gap gap = check(effect)) {
 					return gap;
 				}
+			}
+			if (landing && from != actor.slot) {
+				*landing = from;
 			}
 			if (play.destination && !picked) {
 				return card.name + " doesn't pick a slot";
@@ -919,6 +928,13 @@ namespace rules {
 			return "they aren't aboard that vehicle";
 		}
 		return std::nullopt;
+	}
+
+	std::optional<RoadSlot> movesCasterTo(const BattleState& state, const CardDefinition& card, bool upgraded, const CardPlay& play) {
+		std::optional<RoadSlot>	   landing;
+		[[maybe_unused]] const Gap blocker = walkBlocker(state, card, cardEffects(card, upgraded), play, &landing);
+		assert(!blocker && "movesCasterTo: the play has to pass targetBlocker");
+		return landing;
 	}
 
 	void resolveCard(BattleState& state, const std::vector<Effect>& effects, const CardPlay& play, std::vector<Event>& events) {
