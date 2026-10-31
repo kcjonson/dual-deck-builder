@@ -109,7 +109,7 @@ A load refuses a tally that counts more runs ended than run ids handed out, less
 - A lost fight ends the run in the bridge's write-back, so that's where a run that leaves nobody at the compound ends the campaign, with the cargo's line first.
 - Nothing closes models: the campaign is a value, so every blocker gives `CampaignOver` and every action refuses once `end` is set.
 - A missing driver found on a run is `takeFoundDriver` (`Recruits.h`), and rides home in the run's `found`, which a lost fight's write-back loses with the run. `unloadRun` brings them home by the same `injureOnArrival` as the seats.
-- The store's checkpoints and history, the defeat screen, and `campaignStats` aren't built.
+- The store's checkpoints and history, and a placeholder defeat scene with the cause, the days held, and the tally, are the game app's ([game-app.md](./game-app.md)). `campaignStats` isn't built.
 
 ## Provisional calls
 

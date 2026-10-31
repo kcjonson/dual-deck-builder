@@ -35,6 +35,7 @@ The trade-offs: what gets easier, what gets harder, what it risks.
 ### Architecture
 
 - [The rules core, opponents, and content packs](./rules-ai-and-packs.md)
+- [The game app: scenes, saves, settings, and the dev server on salal's app and ui](./game-app.md)
 
 ### Campaign and the compound
 

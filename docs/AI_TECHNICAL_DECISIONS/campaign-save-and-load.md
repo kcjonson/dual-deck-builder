@@ -102,13 +102,15 @@ A save names the pipeline's stages in `mapAttempts.stages`, so adding, removing,
 
 ## In the C++ alpha
 
-`libs/rules/campaign/CampaignJson.h` (2026-10-31, DDB-573) reads and writes the campaign's JSON, and [campaign.md](./campaign.md) has how. Storing it in a slot, the history, and checkpoints are the game app's, over salal's `SaveStore`, and aren't built. What differs:
+`libs/rules/campaign/CampaignJson.h` (2026-10-31, DDB-573) reads and writes the campaign's JSON, and [campaign.md](./campaign.md) has how. Storing it in a slot, the history, and checkpoints are the game app's, over salal's `SaveStore` (`apps/wasteland-wheels/CampaignStore.h`, 2026-10-31, DDB-575), and [game-app.md](./game-app.md) has how. What differs:
 
 - The JSON carries its version, `kSaveVersion`, 6 since an event's fight and a run's progress past its stops, which the game hands salal's `SaveFormat` too, so the rules refuse a save of another version without seeing the envelope.
 - It names the packs it was made with and loads only with all of them loaded. Every card, archetype, and escort type it holds has to resolve in the loaded packs, where this record let a dropped card load.
 - There's no generator version. The save keeps the map's origin, its params, the map attempt, each stage's winning attempt by name, and a fingerprint of what the campaign's ids name on the map, and `loadCampaign` (`CampaignMap.h`) makes the map again and checks it: attempts that don't fit the pipeline fail before any stage runs, and a map with another fingerprint fails after, so a generator change that moves a POI, leg, or stop fails the load by itself, where this record had its author bump a version or load old saves onto a new map. Every id the map state holds is checked against the made map too.
 - An engine bump can be such a change. Salal v0.30's `fractalNoise2` offsets its octaves (terrain-fields.md, Noise is the engine's), so pinning v0.30.1 (2026-10-31) moved every map, and every campaign saved on v0.19.0 fails its map fingerprint on load. That's fine in the alpha, which keeps no compatibility; there's no migration, and a campaign founded since loads.
-- A load returns the map beside the campaign, made in the same call, for the game to hold, rather than started on Continue and waited for where it's needed. Making it again runs no checks, as above, and takes a whole generation, so the game loads off the frame. The session's cache of one campaign's map is the game app's, with the store.
+- A load returns the map beside the campaign, made in the same call, for the game to hold, rather than started on Continue and waited for where it's needed. Making it again runs no checks, as above, and takes a whole generation, so the game loads off the frame, on Continue, before any scene that needs the map opens. The session holds one campaign's map, the one its founding or its load made.
+- The store has no lineage. A scene saves the session's campaign at the end of each step, and only the session's, so nothing left running holds another copy to write back. The store's statuses are salal's: a newer or older format reads as another save format, a damaged file or a campaign the rules refuse as damaged, the reader's path in the line under Continue.
+- A new campaign writes its save first and puts the one it replaced into the history after, so a failed history write never costs the new campaign; the history is `{seed, day, strongholdsTaken, ending}` as above, in a slot of its own.
 
 ## Provisional calls
 

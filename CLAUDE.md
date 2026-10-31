@@ -62,18 +62,22 @@ libs/
   ai/             the policies opponents and the player stand-ins play with, and whole fights played by them, over the rules only
   scripting/      the Lua host for packs, over the rules (once needed)
 packs/            content: base/ is the game, expansions and mods are packs too
-apps/             executables: balance-sim now, the game once its screens come
+apps/
+  balance-sim/    the headless balance sim, over the rules and the AI
+  wasteland-wheels/  the game: its scenes on salal's app and ui, saves, settings, dev routes
 docs/             specs, decision records, design art, the port plan
 scripts/          Node tooling (format.mjs)
 _legacy/          the TypeScript proof of concept, frozen, with its own CLAUDE.md
 ```
 
 `libs/rules` is organised by area, `core/`, `packs/`, `map/`, `battle/`,
-`campaign/`, and included as `<rules/map/RoadNetwork.h>`. The screens and game
-ui come after salal's phase 3 lands its `ui`, in `apps/` beside the rules, as
-worldsim's `apps/world-sim/scenes/` are. How the rules, the AI, and packs fit
-together is `docs/AI_TECHNICAL_DECISIONS/rules-ai-and-packs.md`; read it before
-touching the fight state, effects, or an opponent.
+`campaign/`, and included as `<rules/map/RoadNetwork.h>`. The game's scenes are
+in `apps/wasteland-wheels/scenes/`, one folder a scene, placeholder rows and
+buttons on salal's default tokens until the UI art decision; a scene calls the
+rules and never re-implements one. `docs/AI_TECHNICAL_DECISIONS/game-app.md`
+is how the app fits together. How the rules, the AI, and packs fit together is
+`docs/AI_TECHNICAL_DECISIONS/rules-ai-and-packs.md`; read it before touching
+the fight state, effects, or an opponent.
 
 ## Hard rules
 
@@ -82,7 +86,8 @@ on `salal::foundation` and nothing above it: no renderer, no ui, no app, no GL,
 and no Lua. That keeps it deterministic and testable headless.
 `ddb_check_layering()` in the root `CMakeLists.txt` fails the configure if it
 slips. The AI, scripting, and presentation depend on the rules, never the
-other way.
+other way. Only an app links salal's renderer, ui, or app: nothing under
+`libs/` does, its tests included, and the check holds that too.
 
 **One place interprets effects.** `apply(state, action)` is it. A preview, a
 projection, or an AI estimate runs `apply` on a copy of the fight; it never
@@ -164,6 +169,18 @@ pick a lane there too). Run the slow lane when you change map generation, and
 before merging map work. Test real logic, keep tests bounded, and look for one
 covering the same path before adding another. Port a TypeScript test only when
 the behaviour it pins is still what the alpha wants.
+
+### The game
+
+`apps/wasteland-wheels` builds `build/apps/wasteland-wheels/Debug/wasteland-wheels.exe`
+(`--scene=<name>` starts in a scene, `--http-port <port>` moves the dev server
+off 127.0.0.1:8070). It reads the base pack from the source tree, as the balance
+sim does. Its tests (`ddb_game_tests`, `ddb_game_slow_tests`) run the scenes
+headless through the App's own frame and input, on salal's `HeadlessPlatform`
+and null renderer, and press components by id the way a dev-server session
+does with `/api/ui/tree` and `/api/input`; `game-app.md` lists the game's own
+routes. The fast lane plays on the map tests' fixture map; only the slow lane
+makes real ones.
 
 ### The balance sim
 
