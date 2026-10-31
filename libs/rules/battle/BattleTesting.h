@@ -22,7 +22,7 @@ namespace rules::fights {
 	inline Content loadTestContent() {
 		const std::vector<std::filesystem::path> roots{std::filesystem::path(DDB_PACKS_DIR) / "base"};
 		Content									 content = loadPacks(roots);
-		// Cards the base game doesn't have: a big free draw, and a free sure hit.
+		// Cards the base game doesn't have: a big free draw, a free sure hit, and one for both drivers.
 		const auto add = [&](std::string_view json) {
 			const nlohmann::json object = nlohmann::json::parse(json);
 			CardDefinition		 card = readCard(JsonReader(object, "test card"));
@@ -34,6 +34,10 @@ namespace rules::fights {
 		add(R"({"id": "test_slam", "name": "Test Slam", "summary": "Deal 10.", "description": "Deal 10 damage. Always hits.",
 			"rarity": "common", "cost": 0, "targetType": "enemy_single", "tags": ["attack"], "image": "",
 			"effects": [{"type": "damage", "value": 10, "alwaysHits": true, "target": "target"}]})");
+		// A target type no base card uses, which the rules don't play yet.
+		add(R"({"id": "test_pair", "name": "Test Pair", "summary": "Both gain 1.", "description": "Both drivers gain 1 armor.",
+			"rarity": "common", "cost": 0, "targetType": "both_drivers", "tags": ["utility"], "image": "",
+			"effects": [{"type": "gain_armor", "value": 1, "target": "self"}]})");
 		return content;
 	}
 
@@ -122,6 +126,19 @@ namespace rules::fights {
 	inline BattleStart fight(std::vector<PlayerSeat> players, std::vector<RaiderSeat> raiders, uint32_t seed = 7) {
 		BattleStart start =
 			startBattle(BattleSetup{.players = std::move(players), .raiders = std::move(raiders), .seed = seed}, testContent());
+		planIdle(start.state);
+		return start;
+	}
+
+	// The fight's opening with a convoy, in roster order, its raiders planning nothing.
+	inline BattleStart convoy(std::vector<PlayerSeat> players, std::vector<std::string_view> escorts, std::vector<RaiderSeat> raiders) {
+		std::vector<EscortSeat> seats;
+		for (const std::string_view escort : escorts) {
+			seats.push_back(EscortSeat{.escort = EscortId{std::string(escort)}, .structure = std::nullopt, .slot = std::nullopt});
+		}
+		BattleStart start = startBattle(
+			BattleSetup{.players = std::move(players), .escorts = std::move(seats), .raiders = std::move(raiders), .seed = 7}, testContent()
+		);
 		planIdle(start.state);
 		return start;
 	}

@@ -108,6 +108,7 @@ namespace rules {
 				events.emplace_back(event::ShieldCleared{.vehicle = VehicleIndex{index}, .shield = vehicle.shield});
 				vehicle.shield = 0;
 			}
+			vehicle.spent = false;
 		}
 		for (const DriverIndex driver : inFight) {
 			drawCards(state, driver, kTurnDraw, events);
@@ -160,6 +161,8 @@ namespace rules {
 		dropBackFlankers(state, events);
 		clearWrecks(state, events);
 		closeUpRaiders(state, events);
+		// Draw Fire lasts until the end of the next enemy turn, which this is.
+		state.drawFireCovers.clear();
 		++state.turn;
 		openPlayerTurn(state, events);
 	}
@@ -170,6 +173,16 @@ namespace rules {
 		const CardDefinition& definition = definitionOf(content, card.card);
 		const int			  cost = cardCost(definition, card.upgraded);
 		const bool			  exhausts = cardHasTag(definition, card.upgraded, "exhaust");
+		const CardPlay		  aimed{
+				   .caster = play.driver,
+				   .actor = *vehicleCarrying(state, play.driver),
+				   .target = play.target,
+				   .occupant = play.occupant,
+				   .destination = play.destination,
+		   };
+		// Chosen before anything moves, by the rule actionBlocker checked it with.
+		const std::optional<VehicleIndex> carrier =
+			isAttackOrder(definition, card.upgraded) ? orderCarrier(state, definition, card.upgraded, aimed) : std::nullopt;
 
 		caster.hand.erase(caster.hand.begin() + play.handIndex);
 		caster.adrenaline -= cost;
@@ -179,18 +192,26 @@ namespace rules {
 			event::CardPlayed{.driver = play.driver, .card = card, .target = play.target, .cost = cost, .exhausted = exhausts}
 		);
 
-		const VehicleIndex actor = *vehicleCarrying(state, play.driver);
-		const bool usesBonus = cardHasTag(definition, card.upgraded, "attack") && hasStatus(state.vehicle(actor), Status::DamageBonus);
-		resolveCard(
-			state,
-			cardEffects(definition, card.upgraded),
-			CardPlay{
-				.caster = play.driver, .actor = actor, .target = play.target, .occupant = play.occupant, .destination = play.destination
-			},
-			events
-		);
+		if (isRally(definition, card.upgraded)) {
+			resolveRally(state, definition, card.upgraded, play.driver, events);
+			return;
+		}
+		CardPlay resolved = aimed;
+		if (carrier) {
+			resolved.actor = *carrier;
+			events.emplace_back(event::OrderCarried{.escort = *carrier, .target = play.target});
+		}
+		const bool usesBonus =
+			cardHasTag(definition, card.upgraded, "attack") && hasStatus(state.vehicle(resolved.actor), Status::DamageBonus);
+		resolveCard(state, cardEffects(definition, card.upgraded), resolved, events);
 		if (usesBonus) {
-			useDamageBonus(state, actor, events);
+			useDamageBonus(state, resolved.actor, events);
+		}
+		// An attack order spends the escort that carried it out, and Draw Fire the escort it's played at.
+		const std::optional<VehicleIndex> spends = carrier ? carrier : definition.target == CardTarget::Escort ? play.target : std::nullopt;
+		if (definition.spendsEscort && spends && !state.vehicle(*spends).spent) {
+			state.vehicle(*spends).spent = true;
+			events.emplace_back(event::EscortSpent{.escort = *spends});
 		}
 	}
 

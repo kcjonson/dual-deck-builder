@@ -80,7 +80,9 @@ namespace rules {
 				vehicle.passenger.reset();
 				events.emplace_back(event::TookTheWheel{.driver = *vehicle.driver, .vehicle = index});
 			} else if (vehicle.side == Side::Player) {
+				// It only ever converts mid-turn, so it starts spent (escorts.md, decision 43).
 				vehicle.crew = kUnmannedCrew;
+				vehicle.spent = true;
 				events.emplace_back(event::CarriesOnAsEscort{.vehicle = index});
 			} else {
 				events.emplace_back(event::Unmanned{.vehicle = index});

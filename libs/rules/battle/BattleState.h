@@ -107,10 +107,13 @@ namespace rules {
 
 	struct BattleVehicle {
 		Side side{Side::Player};
-		// The driver whose vehicle it is, whoever rides in it now.
-		DriverIndex owner;
-		int			maxStructure{0};
-		int			structure{0};
+		// The driver whose vehicle it is, whoever rides in it now; none for a convoy escort.
+		std::optional<DriverIndex> owner;
+		// The convoy escort's type, which its signature card and a looter read; none for a driven vehicle,
+		// carrying on as an escort or not.
+		std::optional<EscortId> escort;
+		int						maxStructure{0};
+		int						structure{0};
 		// Armor past this is plating welded on for the fight (heavy-armor.md).
 		int baseArmor{0};
 		int armor{0};
@@ -119,9 +122,12 @@ namespace rules {
 		int						   baseSpeed{0};
 		std::optional<DriverIndex> driver;
 		std::optional<DriverIndex> passenger;
-		// Set once it carries on as an escort: no driver, and these skills in every hit check.
+		// An escort's crew, there from the start or once a driven vehicle carries on as one: no driver, and these
+		// skills in every hit check.
 		std::optional<CrewSkills> crew;
-		RoadSlot				  slot;
+		// An escort that has acted this turn, which no order can send again until the player's next turn.
+		bool	 spent{false};
+		RoadSlot slot;
 		// Set exactly while it's on a shoulder.
 		std::optional<FlankState> flank;
 		// A card changed its slot this turn, which Weave reads; the end-of-turn drop-back and close-up don't count.
@@ -160,6 +166,8 @@ namespace rules {
 		// and in the fight its plan plays.
 		std::optional<DriverIndex> actingRaider;
 		std::optional<Outcome>	   outcome;
+		// Escorts drawing fire until the end of the next enemy turn, in the order played; the last on a row covers it.
+		std::vector<VehicleIndex> drawFireCovers;
 
 		[[nodiscard]] BattleDriver&		   driver(DriverIndex index);
 		[[nodiscard]] const BattleDriver&  driver(DriverIndex index) const;

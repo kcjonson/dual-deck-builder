@@ -190,10 +190,9 @@ namespace {
 	TEST(Battle, ACardWithAPartTheRulesDontPlayYetIsNeverLegal) {
 		BattleStart	 start = fight({seat("interceptor")}, {raider("rust_buggy")});
 		BattleState& state = start.state;
-		// Orders: an escort's shield, an attack order, a signature heal, Draw Fire, and Fall In's move.
-		giveHand(state, DriverIndex{0}, {"close_ranks", "covering_fire", "triage", "draw_fire", "fall_in", "headshot"});
+		giveHand(state, DriverIndex{0}, {"test_pair", "headshot"});
 		const std::vector<Action> actions = legalActions(state, testContent());
-		for (int handIndex = 0; handIndex < 5; ++handIndex) {
+		for (int handIndex = 0; handIndex < 1; ++handIndex) {
 			const std::optional<std::string> blocker = cardBlocker(state, testContent(), DriverIndex{0}, handIndex);
 			ASSERT_TRUE(blocker) << "card " << handIndex;
 			EXPECT_NE(blocker->find("can't be played yet"), std::string::npos) << *blocker;
@@ -202,7 +201,7 @@ namespace {
 				EXPECT_THROW((void)apply(state, testContent(), play(0, handIndex, target)), std::invalid_argument);
 			}
 		}
-		EXPECT_TRUE(offers(actions, play(0, 5, 1)));
+		EXPECT_TRUE(offers(actions, play(0, 1, 1)));
 	}
 
 	TEST(Battle, AFightThatsOverOffersNothing) {
