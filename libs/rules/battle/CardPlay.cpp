@@ -2,6 +2,7 @@
 
 #include "Damage.h"
 #include "Hands.h"
+#include "Statuses.h"
 
 #include <algorithm>
 #include <cassert>
@@ -45,9 +46,6 @@ namespace rules {
 			const auto movement = [](std::string_view name) -> Gap {
 				return std::string(name) + " needs movement, which isn't implemented yet";
 			};
-			const auto statuses = [](std::string_view name) -> Gap {
-				return std::string(name) + " needs statuses, which aren't implemented yet";
-			};
 			return std::visit(
 				Overloaded{
 					[&](const condition::TargetFlanking&) { return movement("target_flanking"); },
@@ -55,15 +53,35 @@ namespace rules {
 					[&](const condition::TargetInFormation&) { return movement("target_in_formation"); },
 					[&](const condition::TargetAmbusher&) { return movement("target_ambusher"); },
 					[&](const condition::CasterSwerved&) { return movement("caster_swerved"); },
-					[](const condition::DrivenVehiclesWithin&) -> Gap { return "driven_vehicles_within isn't implemented yet"; },
-					[&](const condition::TargetHasStatus&) { return statuses("target_has_status"); },
-					[&](const condition::SelfHasStatus&) { return statuses("self_has_status"); },
+					[](const condition::DrivenVehiclesWithin&) -> Gap { return std::nullopt; },
+					[](const condition::TargetHasStatus&) -> Gap { return std::nullopt; },
+					[](const condition::SelfHasStatus&) -> Gap { return std::nullopt; },
 					[](const condition::PartnerAttacked&) -> Gap { return std::nullopt; },
 					[](const condition::CasterRow&) -> Gap { return std::nullopt; },
 					[](const condition::TargetRow&) -> Gap { return std::nullopt; },
 				},
 				condition
 			);
+		}
+
+		// A boost, a slow, or a damage bonus is a number, a slow's below 0; the rest are on or off.
+		Gap statusValueGap(const effect::ApplyStatus& apply) {
+			const std::string name = nameOf(kStatusNames, apply.status);
+			switch (apply.status) {
+				case Status::SpeedBoost:
+				case Status::EvadeBoost:
+				case Status::DamageBonus:
+					return apply.value && *apply.value > 0 ? Gap() : Gap(name + " needs a value above 0");
+				case Status::SpeedReduction:
+					return apply.value && *apply.value < 0 ? Gap() : Gap(name + " needs a value below 0");
+				case Status::Vulnerable:
+				case Status::Stunned:
+				case Status::TripleDamage:
+				case Status::DeathMark:
+				case Status::BoxedIn:
+					return apply.value || apply.bonus ? Gap(name + " takes no value") : Gap();
+			}
+			return Gap(name + " isn't a status the rules know");
 		}
 
 		Gap effectGap(const Effect& effect, CardTarget cardTarget) {
@@ -98,7 +116,22 @@ namespace rules {
 						}
 						return std::nullopt;
 					},
-					[](const effect::ApplyStatus&) -> Gap { return "statuses aren't implemented yet"; },
+					[&](const effect::ApplyStatus& apply) -> Gap {
+						if (Gap gap = lands(apply.target, {Target, Self, EnemyAll}, "apply_status")) {
+							return gap;
+						}
+						if (apply.condition) {
+							if (Gap gap = conditionGap(*apply.condition)) {
+								return gap;
+							}
+						}
+						if (apply.bonus) {
+							if (Gap gap = conditionGap(apply.bonus->condition)) {
+								return gap;
+							}
+						}
+						return statusValueGap(apply);
+					},
 					[](const effect::ChangePosition&) -> Gap { return "movement isn't implemented yet"; },
 					[&](const effect::DrawCards& draw) { return lands(draw.target, {Self}, "draw_cards"); },
 					[&](const effect::GainShield& gain) { return lands(gain.target, {Self, Target}, "gain_shield"); },
@@ -113,6 +146,9 @@ namespace rules {
 					[&](const effect::Conditional& conditional) -> Gap {
 						if (Gap gap = conditionGap(conditional.condition)) {
 							return gap;
+						}
+						if (std::holds_alternative<condition::TargetHasStatus>(conditional.condition) && !takesTarget(cardTarget)) {
+							return "target_has_status on a card that takes no target";
 						}
 						for (const Effect& inner : conditional.effects) {
 							if (Gap gap = effectGap(inner, cardTarget)) {
@@ -181,6 +217,29 @@ namespace rules {
 						}
 						return false;
 					},
+					[&](const condition::TargetHasStatus& has) {
+						assert(recipient && "conditionHolds: target_has_status needs the card's target");
+						return hasStatus(state.vehicle(*recipient), has.status);
+					},
+					[&](const condition::SelfHasStatus& has) { return hasStatus(state.vehicle(play.actor), has.status); },
+					// Two driven vehicles have to be there, so once one is wrecked or carries on as an escort it never
+					// holds (call 321).
+					[&](const condition::DrivenVehiclesWithin& within) {
+						assert(recipient && "conditionHolds: driven_vehicles_within needs a vehicle to measure");
+						const Side side = state.vehicle(play.actor).side;
+						int		   driven = 0;
+						for (int index = 0; index < static_cast<int>(state.vehicles.size()); ++index) {
+							const BattleVehicle& vehicle = state.vehicles[static_cast<size_t>(index)];
+							if (vehicle.side != side || vehicle.isEscort() || !vehicleInFight(state, VehicleIndex{index})) {
+								continue;
+							}
+							if (slotRange(vehicle.slot, state.vehicle(*recipient).slot) > within.range) {
+								return false;
+							}
+							++driven;
+						}
+						return driven >= 2;
+					},
 					[](const auto&) -> bool {
 						throw std::logic_error("conditionHolds: a condition unimplementedPart refuses reached play");
 					},
@@ -195,10 +254,78 @@ namespace rules {
 
 		void resolveEffects(BattleState& state, const std::vector<Effect>& effects, Resolution& resolution);
 
+		// The vehicles an effect on the card's target or every enemy lands on, as they stand before it lands.
+		std::vector<VehicleIndex> recipientsOf(const BattleState& state, EffectTarget target, const CardPlay& play) {
+			std::vector<VehicleIndex> recipients;
+			if (target != EffectTarget::EnemyAll) {
+				assert(play.target && "recipientsOf: targetBlocker passes a targeted card only with its target");
+				recipients.push_back(*play.target);
+				return recipients;
+			}
+			for (int index = 0; index < static_cast<int>(state.vehicles.size()); ++index) {
+				const VehicleIndex vehicle{index};
+				if (state.vehicle(vehicle).side != state.vehicle(play.actor).side && vehicleInFight(state, vehicle)) {
+					recipients.push_back(vehicle);
+				}
+			}
+			return recipients;
+		}
+
+		// Whether an effect on someone else reaches them: in range, and past the hit check unless it always hits.
+		bool reaches(
+			BattleState&			  state,
+			const CardPlay&			  play,
+			VehicleIndex			  recipient,
+			std::optional<int>		  reach,
+			std::optional<AttackType> check,
+			int						  hitModifier,
+			std::vector<Event>&		  events
+		) {
+			const BattleVehicle& attacker = state.vehicle(play.actor);
+			const int			 range = slotRange(attacker.slot, state.vehicle(recipient).slot);
+			if (reach && range > *reach) {
+				events.emplace_back(event::OutOfRange{.attacker = play.actor, .defender = recipient, .range = range, .reach = *reach});
+				return false;
+			}
+			if (!check) {
+				return true;
+			}
+			const Skills&	 casterSkills = state.driver(play.caster).skills;
+			const CrewSkills attack = attacker.crew.value_or(
+				CrewSkills{.gunnery = casterSkills.gunnery, .evade = casterSkills.evade, .ramming = casterSkills.ramming}
+			);
+			const bool ram = *check == AttackType::Ramming;
+			const int  skill = ram ? attack.ramming : attack.gunnery;
+			const int  evade = evadeOf(state, recipient) + hitModifier;
+			const bool hit = ram ? skill >= evade : skill > evade;
+			events.emplace_back(
+				event::HitChecked{
+					.attacker = play.actor, .defender = recipient, .attackType = *check, .skill = skill, .evade = evade, .hit = hit
+				}
+			);
+			return hit;
+		}
+
+		// An attack's damage once its modifiers are in, in order, each rounding down: the attacker's damage_bonus, its
+		// triple_damage, flanking, then the target's Vulnerable.
+		int modifiedDamage(const BattleState& state, VehicleIndex attackerIndex, VehicleIndex recipient, int damage) {
+			const BattleVehicle& attacker = state.vehicle(attackerIndex);
+			damage += damage * statusTotal(attacker, Status::DamageBonus) / 100;
+			if (hasStatus(attacker, Status::TripleDamage)) {
+				damage *= 3;
+			}
+			if (isFlanking(attacker)) {
+				damage = damage * 3 / 2;
+			}
+			if (hasStatus(state.vehicle(recipient), Status::Vulnerable)) {
+				damage = damage * 3 / 2;
+			}
+			return damage;
+		}
+
 		void resolveDamage(BattleState& state, const effect::Damage& damage, Resolution& resolution) {
 			const CardPlay&		play = resolution.play;
 			std::vector<Event>& events = resolution.events;
-			assert(!damage.condition && "resolveDamage: unimplementedPart refuses damage with a condition");
 			if (damage.onHit && !resolution.landed) {
 				return;
 			}
@@ -217,65 +344,26 @@ namespace rules {
 				return;
 			}
 
-			std::vector<VehicleIndex> recipients;
-			if (damage.target == EffectTarget::EnemyAll) {
-				for (int index = 0; index < static_cast<int>(state.vehicles.size()); ++index) {
-					const VehicleIndex vehicle{index};
-					if (state.vehicle(vehicle).side != state.vehicle(play.actor).side && vehicleInFight(state, vehicle)) {
-						recipients.push_back(vehicle);
-					}
-				}
-			} else {
-				assert(play.target && "resolveDamage: targetBlocker passes a targeted card only with its target");
-				recipients.push_back(*play.target);
-			}
-
-			for (const VehicleIndex recipient : recipients) {
+			for (const VehicleIndex recipient : recipientsOf(state, damage.target, play)) {
 				if (!vehicleInFight(state, play.actor) || !vehicleInFight(state, recipient)) {
 					continue;
 				}
-				const BattleVehicle& attacker = state.vehicle(play.actor);
-				const int			 range = slotRange(attacker.slot, state.vehicle(recipient).slot);
-				if (damage.range && range > *damage.range) {
-					events.emplace_back(
-						event::OutOfRange{.attacker = play.actor, .defender = recipient, .range = range, .reach = *damage.range}
-					);
+				if (damage.condition && !conditionHolds(state, *damage.condition, play, recipient)) {
 					continue;
 				}
-				if (!damage.alwaysHits) {
-					const Skills&	 casterSkills = state.driver(play.caster).skills;
-					const CrewSkills attack = attacker.crew.value_or(
-						CrewSkills{.gunnery = casterSkills.gunnery, .evade = casterSkills.evade, .ramming = casterSkills.ramming}
-					);
-					const bool ram = damage.attackType == AttackType::Ramming;
-					const int  skill = ram ? attack.ramming : attack.gunnery;
-					const int  evade = defenseOf(state, recipient).evade + damage.hitModifier;
-					const bool hit = ram ? skill >= evade : skill > evade;
-					events.emplace_back(
-						event::HitChecked{
-							.attacker = play.actor,
-							.defender = recipient,
-							.attackType = damage.attackType,
-							.skill = skill,
-							.evade = evade,
-							.hit = hit,
-						}
-					);
-					if (!hit) {
-						continue;
-					}
+				const std::optional<AttackType> check = damage.alwaysHits ? std::nullopt : std::optional(damage.attackType);
+				if (!reaches(state, play, recipient, damage.range, check, damage.hitModifier, events)) {
+					continue;
 				}
 				resolution.landed = true;
 
-				int value = damage.value + bonusOf(state, damage.bonus, play, recipient);
+				const BattleVehicle& attacker = state.vehicle(play.actor);
+				int					 value = damage.value + bonusOf(state, damage.bonus, play, recipient);
 				if (damage.formula) {
 					const int fromArmor = damage.formula->armorPer > 0 ? attacker.armor / damage.formula->armorPer : 0;
 					value += fromArmor + damage.formula->speedDiff * (speedOf(state, play.actor) - speedOf(state, recipient));
 				}
-				value = std::max(0, value);
-				if (isFlanking(attacker)) {
-					value = value * 3 / 2;
-				}
+				value = modifiedDamage(state, play.actor, recipient, std::max(0, value));
 
 				if (damage.target == EffectTarget::Driver) {
 					if (const std::optional<DriverIndex> person = personToHit(state.vehicle(recipient))) {
@@ -284,6 +372,31 @@ namespace rules {
 				} else {
 					damageVehicle(state, recipient, value, damage.structureOnly, events);
 				}
+			}
+		}
+
+		void resolveStatus(BattleState& state, const effect::ApplyStatus& apply, Resolution& resolution) {
+			const CardPlay&					play = resolution.play;
+			const bool						onCaster = apply.target == EffectTarget::Self;
+			const std::vector<VehicleIndex> recipients = onCaster ? std::vector{play.actor} : recipientsOf(state, apply.target, play);
+			for (const VehicleIndex recipient : recipients) {
+				if (!vehicleInFight(state, play.actor) || !vehicleInFight(state, recipient)) {
+					continue;
+				}
+				if (apply.condition && !conditionHolds(state, *apply.condition, play, recipient)) {
+					continue;
+				}
+				const std::optional<AttackType> check = apply.alwaysHits ? std::nullopt : std::optional(AttackType::Ranged);
+				if (!onCaster && !reaches(state, play, recipient, apply.range, check, 0, resolution.events)) {
+					continue;
+				}
+				const VehicleStatus status{
+					.status = apply.status,
+					.value = apply.value.value_or(0) + bonusOf(state, apply.bonus, play, recipient),
+					.turns = apply.duration,
+				};
+				applyStatus(state, recipient, status, resolution.events);
+				resolution.landed = resolution.landed || !onCaster;
 			}
 		}
 
@@ -327,7 +440,7 @@ namespace rules {
 			std::visit(
 				Overloaded{
 					[&](const effect::Damage& damage) { resolveDamage(state, damage, resolution); },
-					[&](const effect::ApplyStatus&) { unimplemented("apply_status"); },
+					[&](const effect::ApplyStatus& apply) { resolveStatus(state, apply, resolution); },
 					[&](const effect::ChangePosition&) { unimplemented("change_position"); },
 					[&](const effect::DrawFire&) { unimplemented("draw_fire"); },
 					[&](const effect::DrawCards& draw) {
@@ -483,22 +596,45 @@ namespace rules {
 			}
 			const int  range = slotRange(actor.slot, target.slot);
 			Gap		   blocker;
-			const auto checkReach = [&](const Effect& effect) {
-				const auto* damage = std::get_if<effect::Damage>(&effect.kind);
-				if (blocker || !damage || (damage->target != EffectTarget::Target && damage->target != EffectTarget::Driver)) {
-					return;
-				}
-				if (damage->range && range > *damage->range) {
+			const auto checkReach = [&](std::optional<int> reach) {
+				if (!blocker && reach && range > *reach) {
 					blocker = "the target is out of range (" + std::to_string(range) + " away, " + card.name + " reaches " +
-							  std::to_string(*damage->range) + ")";
-				} else if (damage->target == EffectTarget::Driver && !personToHit(target)) {
-					blocker = "the target has nobody aboard to hit";
+							  std::to_string(*reach) + ")";
 				}
 			};
-			forEachEffect(effects, checkReach);
+			forEachEffect(effects, [&](const Effect& effect) {
+				if (const auto* damage = std::get_if<effect::Damage>(&effect.kind)) {
+					if (damage->target == EffectTarget::Target || damage->target == EffectTarget::Driver) {
+						checkReach(damage->range);
+					}
+					if (!blocker && damage->target == EffectTarget::Driver && !personToHit(target)) {
+						blocker = "the target has nobody aboard to hit";
+					}
+				} else if (const auto* apply = std::get_if<effect::ApplyStatus>(&effect.kind)) {
+					if (apply->target == EffectTarget::Target) {
+						checkReach(apply->range);
+					}
+				}
+			});
 			if (blocker) {
 				return blocker;
 			}
+		}
+
+		// The rules only say what a stun does to a raider: it skips its part of the enemy turn.
+		bool stunsThePlayer = false;
+		forEachEffect(effects, [&](const Effect& effect) {
+			const auto* apply = std::get_if<effect::ApplyStatus>(&effect.kind);
+			if (!apply || apply->status != Status::Stunned) {
+				return;
+			}
+			const Side landsOn = apply->target == EffectTarget::Self	   ? actor.side
+								 : apply->target == EffectTarget::EnemyAll ? (actor.side == Side::Player ? Side::Raiders : Side::Player)
+																		   : state.vehicle(*play.target).side;
+			stunsThePlayer = stunsThePlayer || landsOn == Side::Player;
+		});
+		if (stunsThePlayer) {
+			return "stunning the player's vehicles isn't implemented yet";
 		}
 
 		if (!picksOccupant(effects)) {
