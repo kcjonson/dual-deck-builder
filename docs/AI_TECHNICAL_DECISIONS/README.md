@@ -111,6 +111,7 @@ The trade-offs: what gets easier, what gets harder, what it risks.
 - [The road network: links and the graph](./road-network.md)
 - [Realistic geography, a real road network, and tree-shaped routes](./realistic-map.md)
 - [The dressing stage](./dressing.md)
+- [Starting knowledge and the fog, the map's side](./map-knowledge.md)
 
 ### Area map screens
 
