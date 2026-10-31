@@ -119,6 +119,27 @@ The rest barely moves. `check --maps 30`: every stage's first attempt still pass
 
 The tests pin two maps' networks as hashes of every node and stretch point, computed in a separate Node process from the Jest run that checks them, and check that the same stream makes the same network and another stream another.
 
+## Roads in the C++ alpha
+
+`libs/rules/map/` (`EdgeCostField`, `RoadSearch`, `RoadLinks`, `Roads`; 2026-10-30, DDB-571) is the pipeline's fifth stage, on `...fork("places", p).fork("roads", r)`, and its first half: the edge cost field, the searches, and the links as moves on the land grid, with this record's numbers and provisional calls 1 to 10, 13, 15, 16, and 19. The graph, its geometry, the network checks, and broken highways are the next PR. Until then the stage's product is the moves (`Roads::links()`), and it checks reach and loops on them. What differs:
+
+- The field is `MoveCost`'s parts, not a copy of its arithmetic. `MoveCost` splits a move's cost into what no class changes (`parts`: the length, the grade, the slope across, the bridges, whether it's bridged, and what stands at its middle) and what a class makes of them (`weigh`), and the field calls both, so the two agree to the bit wherever the field leaves a move open, taken the way the field files it, where the TypeScript's agreed to 1e-12; a test checks every fifth cell's moves for every class. The field hands `parts` its cells' own elevations rather than sampling them again, and keeps each class's cost once a move is worked out, since the searches ask for a move about ten times over.
+- A square's flags are exact per obstacle: a cliff only where the land's open squares say one could stand (rough and steep at once, neither past its largest corner), where the TypeScript flagged any rough corner; a lake where a corner is past -0.001; rivers and craters by their boxes and a unit more. The flag for anything beside a cell that isn't open is gone. A move's two open ends lie inside the disc, which is convex, and the four flags already cover every obstacle there is, so all it did was make moves along a river bank or a cliff ask every sample everything. A bridge two cells long still asks everything. On a radius 600 map in a Debug build, the exact flags took the stage from about 430 ms to 300.
+- The Gabriel links are taken shortest first give or take a tenth of their span, drawn on the `links` fork, ties by id, so a roads retry links the places in another order, as Validation and retries says it does. The TypeScript's retry redrew only the spurs and the broken spans, so a stage short of loops failed the same way eight times over before the map restarted.
+- Dropping a diagonal that closes a triangle with two road moves, and leaving each cell beside the compound one move into it, happen as the links finish rather than in the graph, and moves between the compound's own cells go there too. So the moves are already what the graph draws from, and their cycle rank, the compound's four cells counted as one, is the network's loops before any span breaks; the stage holds that to `loopsNeeded`, and fails on any place no road reaches. With the graph, the loops check moves onto the network, after the broken spans.
+- `Places` lists every place in id order (`placeList`), the metro at the origin first, which is what the roads read.
+
+Measured in RelWithDebInfo, the whole pipeline, five environments by seeds 3, 7, and 11, on the shared development desktop busy with other work. Loops are before any span breaks, and the least any map needed was 34:
+
+| Radius | Roads, ms median (slowest) | Terrain, ms | Moves | Road, units | Loops (least) | Trails, share of road | Bridged moves | Spurs | Retries |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1000 | 113 (160) | 179 to 308 | 3,083 to 4,630 | 34,290 to 51,146 | 97 to 221 (97) | 3.5% to 8% | 41 to 76 | 1 to 6 | 0 of 15 |
+| 1200 | 153 (236) | 259 to 430 | 4,373 to 6,459 | 48,085 to 71,252 | 132 to 302 (132) | 1.8% to 10.8% | 62 to 104 | 0 to 6 | 0 of 15 |
+
+The field works out about 139,000 of a radius 1000 map's 393,000 moves, as the TypeScript did. The road comes out within a few thousand units of the prototype's 36,000 to 47,000 either way, and trails run under the prototype's 8% or 9% on most maps.
+
+Tests hold every place reached, a highway from every highway exit, and the loops the POIs need; no move over an obstacle or an unbridged river, sampled every half unit asking every sample everything, nor a highway or back road up a grade past 1.1; the moves planar on the grid, meeting only at a cell they share, each filed once, none between the compound's own cells, and one into it at most from each cell beside it; more loops at `loops` 1 and a larger share of trail at `trailShare` 1; spurs that end at dead ends; passes in the ranges and 30 apart; a highway's cheapest path from each town to the compound taking less climb than a trail's, each the cheapest for its own class; the field agreeing with `MoveCost` to the bit, bridging two cells only over a cell centre in a river, the same in whatever order it's asked, and crossing a metro river free but never along it; the pipeline's roads the ones built straight from their stream; and a roads retry leaving the earlier stages on their first streams, with other roads.
+
 ## Consequences
 
 - `RoadNetwork` is `{ nodes, stretches, broken, passes }`; a node has an optional `place`, and a stretch `length`, `bridges`, and `street`, without `road` or `parent`. The worker packs stretches' points as before and sends broken spans and passes by structured clone.
@@ -153,3 +174,4 @@ Calls the spec and realistic-map.md left to the build, made the simplest way con
 18. Where the places cap the loops (15) and the roads close fewer than the POIs want, the POI stage holds the map leniently, strict or not.
 19. No road crosses a river less than 30 degrees off its line, in the metro or out, bar on Home's own cells, where the compound's roads leave through any river on them (13).
 20. A broken highway span is never the last highway stretch ending on a highway exit.
+21. The Gabriel links taken in order of their span nudged up to a tenth either way on the roads stream's `links` fork, ties by id, so another attempt links the places in another order.
