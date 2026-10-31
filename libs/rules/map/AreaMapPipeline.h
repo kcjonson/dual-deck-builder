@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Hazards.h"
 #include "MapParams.h"
 #include "MapPipeline.h"
 #include "Terrain.h"
@@ -13,10 +14,11 @@ namespace rules::map {
 	struct AreaMap {
 		std::optional<Terrain> terrain;
 		std::optional<Water>   water;
+		std::optional<Hazards> hazards;
 	};
 
-	// The area map's stages: terrain and water, so far. Each runs on the stream the runner nests for it, so
-	// the water draws from root.fork("map", m).fork("terrain", t).fork("water", w).
+	// The area map's stages: terrain, water, and hazards, so far. Each runs on the stream the runner nests
+	// for it, so the hazards draw from root.fork("map", m).fork("terrain", t).fork("water", w).fork("hazards", h).
 	[[nodiscard]] MapPipeline<MapParams, AreaMap> areaMapPipeline();
 
 	// The area map for validated params, on their seed.

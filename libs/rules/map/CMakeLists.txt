@@ -4,6 +4,7 @@ target_sources(ddb_rules PRIVATE
     Drainage.cpp
     Erosion.cpp
     Ground.cpp
+    Hazards.cpp
     Lakes.cpp
     Land.cpp
     LandFields.cpp
