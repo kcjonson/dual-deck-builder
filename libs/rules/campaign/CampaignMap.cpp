@@ -63,6 +63,7 @@ namespace rules::campaign {
 						   content,
 						   {.onProgress = making.onProgress,
 							.replay = map::PipelineReplay{.mapAttempt = origin.mapAttempt, .attempts = origin.stageAttempts},
+							.cancel = making.cancel,
 							.debug = making.debug}
 				)
 					.products;
@@ -153,8 +154,9 @@ namespace rules::campaign {
 			const uint32_t		 onSeed = seed + static_cast<uint32_t>(tried);
 			const map::MapParams params = map::rollParams(onSeed).params;
 			try {
-				map::PipelineResult<map::AreaMap> made =
-					map::generateAreaMap(params, content, {.onProgress = making.onProgress, .debug = making.debug});
+				map::PipelineResult<map::AreaMap> made = map::generateAreaMap(
+					params, content, {.onProgress = making.onProgress, .cancel = making.cancel, .debug = making.debug}
+				);
 				MapOrigin origin{.params = params, .mapAttempt = made.mapAttempt, .stageAttempts = {}, .fingerprint = 0};
 				for (const map::StageRecord& stage : made.stages) {
 					origin.stageAttempts.emplace(stage.name, stage.attempt);

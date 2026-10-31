@@ -8,6 +8,7 @@
 
 #include <map>
 #include <set>
+#include <stop_token>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -99,6 +100,25 @@ namespace {
 		EXPECT_TRUE(misfit(loadError([](nlohmann::json& stages) { stages["routeTree"] = 1; }), "routeTree attempt 1"));
 		EXPECT_TRUE(misfit(loadError([](nlohmann::json& stages) { stages.erase("pois"); }), "pois"));
 		EXPECT_TRUE(misfit(loadError([](nlohmann::json& stages) { stages["weather"] = 0; }), "weather"));
+	}
+
+	// A stop asked for before anything runs ends the founding or the load at the first stage, and never moves the seed.
+	TEST(CampaignMap, AStopRequestedEndsAFoundingAndALoadBeforeTheFirstStage) {
+		std::stop_source stop;
+		stop.request_stop();
+		const MapMaking making{.debug = false, .cancel = stop.get_token()};
+		try {
+			(void)makeCampaignMap(7, fixtures::content(), making);
+			ADD_FAILURE() << "the founding's map was made";
+		} catch (const map::MapPipelineCancelled& cancelled) {
+			EXPECT_EQ(cancelled.before, "terrain");
+		}
+		try {
+			(void)loadCampaign(writeCampaign(foundOnTestMap(), testContent()), testContent(), fixtures::content(), making);
+			ADD_FAILURE() << "the save's map was made again";
+		} catch (const map::MapPipelineCancelled& cancelled) {
+			EXPECT_EQ(cancelled.before, "terrain");
+		}
 	}
 
 	TEST(CampaignMap, TheGameStageCountsStrongholdsTakenAndARouteReadsTheMapStateAsItStandsToday) {
