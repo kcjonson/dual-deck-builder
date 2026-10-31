@@ -61,20 +61,37 @@ namespace rules {
 		return DriverIndex{1 - index.value};
 	}
 
+	bool hasStatus(const BattleVehicle& vehicle, Status status) {
+		return std::ranges::any_of(vehicle.statuses, [&](const VehicleStatus& applied) { return applied.status == status; });
+	}
+
+	int statusTotal(const BattleVehicle& vehicle, Status status) {
+		int total = 0;
+		for (const VehicleStatus& applied : vehicle.statuses) {
+			total += applied.status == status ? applied.value : 0;
+		}
+		return total;
+	}
+
+	bool isHeavy(const BattleVehicle& vehicle) {
+		return vehicle.armor > vehicle.baseArmor;
+	}
+
 	int speedOf(const BattleState& state, VehicleIndex index) {
 		const BattleVehicle& vehicle = state.vehicle(index);
 		const int			 driverSpeed = !vehicle.isEscort() && vehicle.driver ? state.driver(*vehicle.driver).skills.speed : 0;
-		return std::max(0, vehicle.baseSpeed + driverSpeed);
+		const int			 boost = isHeavy(vehicle) ? 0 : statusTotal(vehicle, Status::SpeedBoost);
+		return std::max(0, vehicle.baseSpeed + driverSpeed + boost + statusTotal(vehicle, Status::SpeedReduction));
 	}
 
-	CrewSkills defenseOf(const BattleState& state, VehicleIndex index) {
+	int evadeOf(const BattleState& state, VehicleIndex index) {
 		const BattleVehicle& vehicle = state.vehicle(index);
+		const int			 boost = statusTotal(vehicle, Status::EvadeBoost);
 		if (vehicle.crew) {
-			return *vehicle.crew;
+			return vehicle.crew->evade + boost;
 		}
-		assert(vehicle.driver && "defenseOf: a driven vehicle with nobody at the wheel is out of the fight");
-		const Skills& skills = state.driver(*vehicle.driver).skills;
-		return {.gunnery = skills.gunnery, .evade = skills.evade, .ramming = skills.ramming};
+		assert(vehicle.driver && "evadeOf: a driven vehicle with nobody at the wheel is out of the fight");
+		return state.driver(*vehicle.driver).skills.evade + boost;
 	}
 
 	bool isFlanking(const BattleVehicle& vehicle) {

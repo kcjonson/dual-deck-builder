@@ -2,6 +2,7 @@
 
 #include "CardPlay.h"
 #include "Hands.h"
+#include "Statuses.h"
 
 #include <algorithm>
 #include <stdexcept>
@@ -95,16 +96,22 @@ namespace rules {
 			}
 		}
 
-		// A player's driver plays from wherever they ride; a raider acts only from the wheel.
+		// The raider's vehicle, if it's in the fight with the raider at the wheel, the one place a raider acts from.
+		std::optional<VehicleIndex> raiderAtTheWheel(const BattleState& state, DriverIndex raider) {
+			const std::optional<VehicleIndex> vehicle = vehicleCarrying(state, raider);
+			if (!driverInFight(state, raider) || !vehicle || state.vehicle(*vehicle).driver != raider) {
+				return std::nullopt;
+			}
+			return vehicle;
+		}
+
+		// A player's driver plays from wherever they ride; a raider from the wheel, unless it's stunned.
 		bool canAct(const BattleState& state, DriverIndex driver) {
-			if (!driverInFight(state, driver)) {
-				return false;
-			}
 			if (state.driver(driver).side == Side::Player) {
-				return true;
+				return driverInFight(state, driver);
 			}
-			const std::optional<VehicleIndex> vehicle = vehicleCarrying(state, driver);
-			return vehicle && state.vehicle(*vehicle).driver == driver;
+			const std::optional<VehicleIndex> vehicle = raiderAtTheWheel(state, driver);
+			return vehicle && !hasStatus(state.vehicle(*vehicle), Status::Stunned);
 		}
 
 		std::vector<DriverIndex> driversInFight(const BattleState& state) {
@@ -152,12 +159,14 @@ namespace rules {
 			return true;
 		}
 
-		// The raiders' hands from the enemy turn are discarded here rather than at its end, since each held the
-		// cards it was choosing from; Shield clears so a Shield given on the player's turn covers exactly the enemy
-		// turn after it.
+		// Statuses tick first, so one that lasts "until the end of the next enemy turn" is gone before anyone acts
+		// (enemy-intent-planning.md). The raiders' hands from the enemy turn are discarded here rather than at its
+		// end, since each held the cards it was choosing from; Shield clears so a Shield given on the player's turn
+		// covers exactly the enemy turn after it.
 		void openPlayerTurn(BattleState& state, std::vector<Event>& events) {
 			state.phase = Phase::PlayerTurn;
 			events.emplace_back(event::TurnStarted{.turn = state.turn, .side = Side::Player});
+			tickStatuses(state, events);
 			for (BattleDriver& driver : state.drivers) {
 				driver.attackedThisTurn = false;
 			}
@@ -184,6 +193,10 @@ namespace rules {
 
 		void finishEnemyTurn(BattleState& state, std::vector<Event>& events) {
 			state.actingRaider.reset();
+			takeDeathMarks(state, Side::Raiders, events);
+			if (endIfOver(state, events)) {
+				return;
+			}
 			clearWrecks(state, events);
 			++state.turn;
 			openPlayerTurn(state, events);
@@ -194,16 +207,25 @@ namespace rules {
 			const int first = state.actingRaider ? state.actingRaider->value + 1 : 0;
 			for (int index = first; index < static_cast<int>(state.drivers.size()); ++index) {
 				const DriverIndex raider{index};
-				if (state.driver(raider).side == Side::Raiders && canAct(state, raider)) {
-					state.actingRaider = raider;
-					events.emplace_back(event::RaiderActing{.raider = raider});
-					return;
+				if (state.driver(raider).side != Side::Raiders || !raiderAtTheWheel(state, raider)) {
+					continue;
 				}
+				if (!canAct(state, raider)) {
+					events.emplace_back(event::RaiderStunned{.raider = raider});
+					continue;
+				}
+				state.actingRaider = raider;
+				events.emplace_back(event::RaiderActing{.raider = raider});
+				return;
 			}
 			finishEnemyTurn(state, events);
 		}
 
 		void startEnemyTurn(BattleState& state, std::vector<Event>& events) {
+			takeDeathMarks(state, Side::Player, events);
+			if (endIfOver(state, events)) {
+				return;
+			}
 			for (int index = 0; index < static_cast<int>(state.drivers.size()); ++index) {
 				if (state.drivers[static_cast<size_t>(index)].side == Side::Player) {
 					discardHand(state, DriverIndex{index}, events);
@@ -234,13 +256,17 @@ namespace rules {
 				event::CardPlayed{.driver = play.driver, .card = card, .target = play.target, .cost = cost, .exhausted = exhausts}
 			);
 
-			const std::optional<VehicleIndex> actor = vehicleCarrying(state, play.driver);
+			const VehicleIndex actor = *vehicleCarrying(state, play.driver);
+			const bool usesBonus = cardHasTag(definition, card.upgraded, "attack") && hasStatus(state.vehicle(actor), Status::DamageBonus);
 			resolveCard(
 				state,
 				cardEffects(definition, card.upgraded),
-				CardPlay{.caster = play.driver, .actor = *actor, .target = play.target, .occupant = play.occupant},
+				CardPlay{.caster = play.driver, .actor = actor, .target = play.target, .occupant = play.occupant},
 				events
 			);
+			if (usesBonus) {
+				useDamageBonus(state, actor, events);
+			}
 		}
 
 	} // namespace

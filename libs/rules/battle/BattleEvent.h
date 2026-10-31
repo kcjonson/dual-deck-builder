@@ -189,6 +189,46 @@ namespace rules {
 
 			bool operator==(const AdrenalineGained&) const = default;
 		};
+		struct StatusApplied {
+			VehicleIndex	   vehicle;
+			Status			   status{Status::Vulnerable};
+			int				   value{0};
+			std::optional<int> turns;
+
+			bool operator==(const StatusApplied&) const = default;
+		};
+		// It wore off at the start of a player turn, or an attack used it up.
+		struct StatusEnded {
+			VehicleIndex vehicle;
+			Status		 status{Status::Vulnerable};
+
+			bool operator==(const StatusEnded&) const = default;
+		};
+		// A raider whose stun just wore off, so it can't be stunned again until the next player turn.
+		struct BecameSteady {
+			VehicleIndex vehicle;
+
+			bool operator==(const BecameSteady&) const = default;
+		};
+		// A stun that passes a Steady raider by.
+		struct ShookOffStun {
+			VehicleIndex vehicle;
+
+			bool operator==(const ShookOffStun&) const = default;
+		};
+		// A stunned raider skips its part of the enemy turn.
+		struct RaiderStunned {
+			DriverIndex raider;
+
+			bool operator==(const RaiderStunned&) const = default;
+		};
+		// At the end of its side's turn, a death_mark takes whoever is at the wheel.
+		struct DeathMarkTaken {
+			VehicleIndex vehicle;
+			DriverIndex	 driver;
+
+			bool operator==(const DeathMarkTaken&) const = default;
+		};
 		struct FightEnded {
 			Outcome outcome{Outcome::Won};
 
@@ -223,6 +263,12 @@ namespace rules {
 		event::Repaired,
 		event::DriverHealed,
 		event::AdrenalineGained,
+		event::StatusApplied,
+		event::StatusEnded,
+		event::BecameSteady,
+		event::ShookOffStun,
+		event::RaiderStunned,
+		event::DeathMarkTaken,
 		event::FightEnded>;
 
 } // namespace rules

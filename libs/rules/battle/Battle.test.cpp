@@ -186,7 +186,8 @@ namespace {
 	TEST(Battle, ACardWithAPartTheRulesDontPlayYetIsNeverLegal) {
 		BattleStart	 start = fight({seat("interceptor")}, {raider("rust_buggy")});
 		BattleState& state = start.state;
-		giveHand(state, DriverIndex{0}, {"nitro_boost", "flanking_maneuver", "close_ranks", "precision_shot", "ramming_speed", "headshot"});
+		// A move, an order, a flank condition, a swerve bonus, and a flank alongside a status the rules do play.
+		giveHand(state, DriverIndex{0}, {"lane_change", "close_ranks", "oil_slick", "weave", "flanking_maneuver", "headshot"});
 		const std::vector<Action> actions = legalActions(state, testContent());
 		for (int handIndex = 0; handIndex < 5; ++handIndex) {
 			const std::optional<std::string> blocker = cardBlocker(state, testContent(), DriverIndex{0}, handIndex);
