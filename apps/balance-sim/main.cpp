@@ -4,6 +4,7 @@
 //   balance-sim fights [--config <file>] [--pack <dir>]... [--seed <n>] [--runs <n>] [--crews all|pairs|solo|<a+b,c>]
 //     [--routes <1,2,1+2,spike_crew>] [--stage <0,2>] [--tier <n>] [--turns <n>] [--player <policy>] [--workers <n>]
 //     [--json <file>]
+//   balance-sim gen [--config <file>] [--maps <n>|<seed,seed>] [--workers <n>] [--json <file>]
 //   balance-sim runs [--config <file>] [--pack <dir>]... [--maps <n>|<seed,seed>] [--runs <n>] [--crews ...]
 //     [--routes all|<n>] [--tier <1,2>] [--stage <0,2>] [--turns <n>] [--player <policy>] [--neighbor on|off]
 //     [--workers <n>] [--json <file>]
@@ -14,6 +15,8 @@
 
 #include "Fights.h"
 #include "FightsConfig.h"
+#include "Gen.h"
+#include "GenReport.h"
 #include "Report.h"
 #include "RunReport.h"
 #include "Runs.h"
@@ -27,6 +30,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <charconv>
 #include <chrono>
 #include <filesystem>
@@ -37,6 +41,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -44,12 +49,15 @@ namespace {
 	constexpr std::string_view kUsage =
 		"usage: balance-sim fights [--config <file>] [--pack <dir>]... [--seed <n>] [--runs <n>]\n"
 		"         [--crews all|pairs|solo|road_warrior+interceptor,mechanic] [--routes 1,2,3,1+2,spike_crew]\n"
-		"         [--stage 0,2] [--tier <n>] [--turns <n>] [--player <policy>] [--workers <n>] [--json <file>]\n"
+		"         [--stage 0,2] [--tier <n>] [--turns <n>] [--player <policy>] [--cards] [--log <cell>:<run>]\n"
+		"         [--workers <n>] [--json <file>]\n"
+		"       balance-sim gen [--config <file>] [--maps <n>|<seed,seed>] [--workers <n>] [--json <file>]\n"
 		"       balance-sim runs [--config <file>] [--pack <dir>]... [--maps <n>|<seed,seed>] [--runs <n>]\n"
 		"         [--crews all|pairs|solo|road_warrior+interceptor,mechanic] [--routes all|<n>] [--tier 1,2]\n"
-		"         [--stage 0,2] [--turns <n>] [--player <policy>] [--neighbor on|off] [--workers <n>] [--json <file>]\n";
+		"         [--stage 0,2] [--turns <n>] [--player <policy>] [--neighbor on|off] [--log <cell>:<run>]\n"
+		"         [--workers <n>] [--json <file>]\n";
 
-	enum class Mode { Fights, Runs };
+	enum class Mode { Fights, Gen, Runs };
 
 	// A mistake on the command line, which prints the usage.
 	class UsageError : public std::runtime_error {
@@ -63,6 +71,8 @@ namespace {
 		std::vector<std::filesystem::path>	 packs;
 		std::optional<std::filesystem::path> json;
 		int									 workers{2};
+		// One run of one cell to play and print in words, `cell:run`, in place of the sweep.
+		std::optional<std::string> log;
 		// The config's fields the command line sets, as the config would hold them.
 		nlohmann::json overrides = nlohmann::json::object();
 	};
@@ -102,24 +112,47 @@ namespace {
 		return numbers;
 	}
 
+	// `--log`'s cell and run: the cell's name up to the last colon, and a run from 1 after it.
+	std::pair<std::string, int> logged(std::string_view text) {
+		const size_t colon = text.rfind(':');
+		if (colon == std::string_view::npos || colon == 0) {
+			throw UsageError("--log takes a cell and a run, road_warrior+interceptor:1+2@0:3");
+		}
+		const int run = wholeNumber("--log", text.substr(colon + 1));
+		if (run < 1) {
+			throw UsageError("--log counts runs from 1");
+		}
+		return {std::string(text.substr(0, colon)), run};
+	}
+
 	Options readOptions(int argc, char** argv) {
 		const std::vector<std::string_view> args(argv + 1, argv + argc);
 		if (args.empty() || args.front() == "--help" || args.front() == "-h") {
 			throw UsageError("");
 		}
-		if (args.front() != "fights" && args.front() != "runs") {
-			throw UsageError("the mode is fights or runs, not \"" + std::string(args.front()) + "\"; gen and calibrate aren't built yet");
+		if (args.front() != "fights" && args.front() != "gen" && args.front() != "runs") {
+			throw UsageError("the mode is fights, gen, or runs, not \"" + std::string(args.front()) + "\"; calibrate isn't built");
 		}
-		Options	   options{.mode = args.front() == "runs" ? Mode::Runs : Mode::Fights};
+		Options	   options{.mode = args.front() == "runs" ? Mode::Runs : args.front() == "gen" ? Mode::Gen : Mode::Fights};
 		const bool runs = options.mode == Mode::Runs;
+		const bool gen = options.mode == Mode::Gen;
 		for (size_t index = 1; index < args.size(); ++index) {
 			const std::string_view option = args[index];
+			if (options.mode == Mode::Fights && option == "--cards") {
+				options.overrides["cards"] = true;
+				continue;
+			}
 			if (index + 1 >= args.size()) {
 				throw UsageError(std::string(option) + " needs a value");
 			}
 			const std::string_view value = args[++index];
+			if (gen && option != "--config" && option != "--maps" && option != "--workers" && option != "--json") {
+				throw UsageError(std::string(option) + " isn't an option of gen");
+			}
 			if (option == "--config") {
 				options.config = std::filesystem::path(value);
+			} else if (option == "--log") {
+				options.log = std::string(value);
 			} else if (option == "--pack") {
 				options.packs.emplace_back(value);
 			} else if (option == "--json") {
@@ -135,7 +168,7 @@ namespace {
 				options.overrides["stages"] = wholeNumbers(option, value);
 			} else if (runs && option == "--tier") {
 				options.overrides["tiers"] = wholeNumbers(option, value);
-			} else if (runs && option == "--maps") {
+			} else if ((runs || gen) && option == "--maps") {
 				options.overrides["maps"] =
 					value.find(',') == std::string_view::npos ? nlohmann::json(wholeNumber(option, value)) : wholeNumbers(option, value);
 			} else if (runs && option == "--routes") {
@@ -210,8 +243,34 @@ namespace {
 			 std::cout << "wrote " << options.json->generic_string() << "\n";
 		};
 
+		if (options.mode == Mode::Gen) {
+			const sim::GenConfig				read = sim::readGenConfig(config, where);
+			const std::filesystem::path			base = roots.front();
+			const rules::map::MapContent		mapContent = rules::map::readMapContent(base);
+			const rules::map::RouteTuning		routeTuning = rules::map::readRouteTuning(base / "map" / "routes.json");
+			const auto							started = std::chrono::steady_clock::now();
+			const sim::MadeMaps					maps = sim::makeRunMaps(read.maps, mapContent, routeTuning, options.workers);
+			const std::chrono::duration<double> making = std::chrono::steady_clock::now() - started;
+			std::cout << std::format("made {} maps in {:.1f} s on {} workers\n", maps.maps.size(), making.count(), options.workers);
+			const sim::GenReport report = sim::auditMaps(read, shared, maps.maps, options.workers);
+			sim::printGenReport(std::cout, report, content.packs);
+			write(sim::genReportJson(report, content.packs));
+			return 0;
+		}
 		if (options.mode == Mode::Fights) {
-			const sim::FightsReport report = sim::playFights(sim::readFightsConfig(config, where, content), shared, options.workers);
+			const sim::FightsConfig fights = sim::readFightsConfig(config, where, content);
+			if (options.log) {
+				const auto [name, run] = logged(*options.log);
+				const std::vector<sim::FightCell> cells = sim::fightCells(fights);
+				const auto						  cell = std::ranges::find(cells, name, &sim::FightCell::name);
+				if (cell == cells.end()) {
+					throw UsageError("--log names no cell the config makes: " + name);
+				}
+				const sim::RunRecord record = sim::playRun(fights, shared, *cell, run, &std::cout);
+				std::cout << std::format("{} run {}: {}\n", name, run, sim::runEndName(record.end));
+				return 0;
+			}
+			const sim::FightsReport report = sim::playFights(fights, shared, options.workers);
 			sim::printReport(std::cout, report, content.packs);
 			write(sim::reportJson(report, content.packs));
 			return 0;
@@ -225,6 +284,17 @@ namespace {
 		const sim::MadeMaps					maps = sim::makeRunMaps(read.maps, mapContent, routeTuning, options.workers);
 		const std::chrono::duration<double> making = std::chrono::steady_clock::now() - started;
 		std::cout << std::format("made {} maps in {:.1f} s on {} workers\n", maps.maps.size(), making.count(), options.workers);
+		if (options.log) {
+			const auto [name, run] = logged(*options.log);
+			const std::vector<sim::RunCell> cells = sim::runCells(read, shared, maps.maps);
+			const auto						cell = std::ranges::find(cells, name, &sim::RunCell::name);
+			if (cell == cells.end()) {
+				throw UsageError("--log names no cell the config makes: " + name);
+			}
+			const sim::RouteRunRecord record = sim::playRouteRun(read, shared, maps.maps, *cell, run, &std::cout);
+			std::cout << std::format("{} run {}: {}\n", name, run, sim::routeEndName(record.end));
+			return 0;
+		}
 		const sim::RunsReport report = sim::playRuns(read, shared, maps.maps, options.workers);
 		sim::printRunReport(std::cout, report, content.packs);
 		write(sim::runReportJson(report, content.packs));

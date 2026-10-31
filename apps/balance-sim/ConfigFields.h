@@ -8,6 +8,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cstdint>
 #include <optional>
 #include <span>
 #include <string>
@@ -37,6 +38,9 @@ namespace sim {
 	// of crews, each one or two seats, a seat an archetype's id or {"archetype", "deck", "add"}; `fallback` when left out.
 	// `archetypes` says what the first three draw from, the archetypes the packs start unlocked when left out.
 	[[nodiscard]] std::vector<CrewConfig> readCrews(rules::JsonReader& reader, const rules::Content& content, std::string_view fallback);
+
+	// `maps`: a count, seeds 1 to it, or a list of seeds, each a rollParams seed once; seeds 1 to `fallback` when left out.
+	[[nodiscard]] std::vector<uint32_t> readMaps(rules::JsonReader& reader, int fallback);
 
 	// `stages`, each from 0 to 6 and once; [0] when left out.
 	[[nodiscard]] std::vector<int> readStages(rules::JsonReader& reader);

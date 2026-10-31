@@ -1,5 +1,6 @@
 #include "Measures.h"
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -41,6 +42,24 @@ namespace sim {
 			sum += value;
 		}
 		return sum / static_cast<double>(values.size());
+	}
+
+	Spread spreadOf(std::span<const int> values) {
+		Spread spread;
+		if (values.empty()) {
+			return spread;
+		}
+		double sum = 0;
+		spread.least = values.front();
+		spread.most = values.front();
+		for (const int value : values) {
+			sum += value;
+			spread.least = std::min(spread.least, value);
+			spread.most = std::max(spread.most, value);
+			++spread.counts[value];
+		}
+		spread.mean = sum / static_cast<double>(values.size());
+		return spread;
 	}
 
 } // namespace sim

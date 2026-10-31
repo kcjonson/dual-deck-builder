@@ -45,7 +45,10 @@ namespace ai {
 				if (options.mostTurns && state.turn > *options.mostTurns) {
 					return;
 				}
-				(void)rules::planEnemyTurn(state, content, raiders);
+				const std::vector<rules::Event> planned = rules::planEnemyTurn(state, content, raiders);
+				if (options.onPlanned) {
+					options.onPlanned(state, planned);
+				}
 				continue;
 			}
 			for (int seat = 0; seat < static_cast<int>(state.drivers.size()) && state.phase == rules::Phase::PlayerTurn; ++seat) {

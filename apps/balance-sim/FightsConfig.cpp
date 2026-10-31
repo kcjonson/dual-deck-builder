@@ -74,6 +74,7 @@ namespace sim {
 		read.stages = readStages(reader);
 		read.turns = readAtLeast(reader, "turns", 1, 25);
 		read.standIn = readStandIn(reader);
+		read.cards = reader.has("cards") && reader.requireBool("cards");
 		reader.finish();
 		return read;
 	}
@@ -104,6 +105,7 @@ namespace sim {
 			{"stages", config.stages},
 			{"turns", config.turns},
 			{"standIn", standInJson(config.standIn)},
+			{"cards", config.cards},
 		};
 	}
 

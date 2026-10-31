@@ -14,6 +14,7 @@
 #include <rules/packs/Pack.h>
 
 #include <array>
+#include <iosfwd>
 #include <map>
 #include <memory>
 #include <optional>
@@ -78,6 +79,17 @@ namespace sim {
 		bool operator==(const CardPlays&) const = default;
 	};
 
+	// A crew card over fights (`--cards`): copies drawn into a hand, and over its plays, the raiders' planned intents that
+	// dropped out of the preview as it landed, from raiders it neither took out nor stunned, and the planned damage on
+	// the crew it took off them, less any it brought on.
+	struct CardTally {
+		int drawn{0};
+		int fizzled{0};
+		int blanked{0};
+
+		bool operator==(const CardTally&) const = default;
+	};
+
 	// One fight of a run, as it ended.
 	struct FightRecord {
 		int				   skulls{1};
@@ -103,18 +115,36 @@ namespace sim {
 		int																decisions{0};
 		std::map<rules::CardId, int>									playerPlays;
 		std::map<rules::OpponentId, std::map<rules::CardId, CardPlays>> raiderPlays;
+		// With the cards tallied only.
+		std::map<rules::CardId, CardTally> cards;
 
 		bool operator==(const FightRecord&) const = default;
 	};
 
+	// How a fight is played and what's watched as it goes.
+	struct FightPlay {
+		int skulls{1};
+		// A fight still on as the player turn after this one opens has stalled.
+		int turns{25};
+		// What the fight's start dealt, which the log and the draws read.
+		std::span<const rules::Event> opening;
+		// Every event in words, the raiders' planning among them (`--log`).
+		std::ostream* log{nullptr};
+		// Each crew card's draws, and what each play did to the raiders' plans (`--cards`): a projection of the enemy
+		// turn after every play and every planning.
+		bool cards{false};
+	};
+
 	// A fight the combat bridge built, played by the stand-in on each of the crew's seats and each raider on its own
-	// policy, to its end or until it opens a player turn past `turns`, unfinished, which has stalled it. It's recorded as
+	// policy, to its end or until it opens a player turn past the cap, unfinished, which has stalled it. It's recorded as
 	// it ended, before the bridge writes it back.
 	[[nodiscard]] FightRecord
-	playCampaignFight(rules::campaign::CampaignFight& fight, const SimRules& shared, const StandIn& standIn, int skulls, int turns);
+	playCampaignFight(rules::campaign::CampaignFight& fight, const SimRules& shared, const StandIn& standIn, const FightPlay& play);
 
 	// How a run came out: through every fight, each won or broken off; a fight lost; or a fight stalled.
 	enum class RunEnd { Home, Lost, Stalled };
+
+	[[nodiscard]] std::string_view runEndName(RunEnd end);
 
 	struct RunRecord {
 		RunEnd end{RunEnd::Home};
@@ -134,8 +164,10 @@ namespace sim {
 	// Run `run`, counting from 1, of a cell: the crew recruited into a campaign of their own on the config's seed, their
 	// decks as the config gives them, sent out at the cell's stage as that campaign's run `run`, so the bridge's
 	// nextFightSeed is the seed's fork("run", run).fork("fight", f). Each fight's encounter is the one its step names or
-	// pickEncounter's on that seed, and a run home is unloaded for the injury days it brings.
-	[[nodiscard]] RunRecord playRun(const FightsConfig& config, const SimRules& shared, const FightCell& cell, int run);
+	// pickEncounter's on that seed, and a run home is unloaded for the injury days it brings. With a `log`, every fight's
+	// events are written to it in words.
+	[[nodiscard]] RunRecord
+	playRun(const FightsConfig& config, const SimRules& shared, const FightCell& cell, int run, std::ostream* log = nullptr);
 
 	// A raider card's plays a fight, averaged over every fight of every run.
 	struct PlaysAFight {
@@ -170,6 +202,18 @@ namespace sim {
 	// The skulls are the first's.
 	[[nodiscard]] FightRow measureFights(std::span<const FightRecord> fights);
 
+	// A crew card over a cell's fights (`--cards`): its draws and plays a fight; over its plays, the intents it made
+	// fizzle and the planned damage it took off; and the fights it was played in, won.
+	struct CardRow {
+		double				  drawn{0};
+		double				  played{0};
+		std::optional<double> fizzled;
+		std::optional<double> blanked;
+		Rate				  wonWhenPlayed;
+
+		bool operator==(const CardRow&) const = default;
+	};
+
 	// A cell's measures (Balance Simulation, Measures). What was lost, turns, injury days, and drivers down are over the
 	// runs home; the rest over every run.
 	struct CellRow {
@@ -196,6 +240,8 @@ namespace sim {
 		std::map<rules::OpponentId, std::map<rules::CardId, PlaysAFight>> raiderPlays;
 		std::map<rules::CardId, double>									  playerPlays;
 		int																  decisions{0};
+		// With the cards tallied only.
+		std::map<rules::CardId, CardRow> cards;
 
 		bool operator==(const CellRow&) const = default;
 	};

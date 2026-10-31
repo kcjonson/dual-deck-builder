@@ -1,4 +1,4 @@
-# The balance sim's fight and run modes in the C++ alpha
+# The balance sim's fight, run, and gen modes in the C++ alpha
 
 ## Date
 2026-10-31
@@ -55,7 +55,7 @@ For the stall cap and the counting:
 
 **Release.** Build and run the sim in RelWithDebInfo (`cmake --build --preset windows-relwithdebinfo --target balance-sim`). In Debug, Monte Carlo tree search took 44 ms a decision on pairs against 1.5 ms in RelWithDebInfo.
 
-**Not in this part:** `--cards`, `--check`, and `--log` (nothing words a fight's events yet); escorts in a crew; the `gen`, `runs`, and `calibrate` modes; the Balance Lab. Run mode came next, below.
+**Not in this part:** `--cards`, `--check`, and `--log` (nothing words a fight's events yet); escorts in a crew; the `gen`, `runs`, and `calibrate` modes; the Balance Lab. Run mode came next, then `gen`, `--log`, and `--cards`, below.
 
 ## Rationale
 
@@ -165,56 +165,115 @@ Pending Kevin's approval in [gameplay-calls.md](../gameplay-calls.md) (The C++ b
 - A rule change to a stop, an event, the bridge, the objective, or the return reaches run mode with nothing to update, since it plays them through the campaign's code.
 - A route's numbers fresh and behind its neighbor share their draws, so the gap is the cleared stops, not the luck.
 - Cells share their luck across crews and routes, as in fights mode, so a figure pooled across a tier needs more runs than its interval suggests.
-- What's left of the balance sim: `gen` (generation invariants by tier, the band and fight-floor audit, own road and neighbors, and the corpus), `calibrate` (raider threat by regression), `--check`, `--cards`, and `--log`, the `campaign` mode, the roadside garage once the map places one, escorts in a crew, and the Balance Lab.
+- What was left of the balance sim then: `gen`, `--cards`, and `--log`, which came next (Gen mode, the fight log, and the card tally, below), and `calibrate`, `--check`, the `campaign` mode, the roadside garage once the map places one, escorts in a crew, and the Balance Lab.
 
 ## Run mode's first numbers
 
-Seeds 1, 2, and 3, every route a run can leave on, 145 of them (27 at tier 1, 34 at tier 2, 28 at tier 3, and 56 at tier 4), the three starting pairs fresh on their starting decks, stage 0, the stall cap at 25, the base pack untuned. The floor played 40 runs a cell, fresh and behind each route's neighbor, 33,360 runs in 129 s on 2 workers; the ceiling 10, 8,340 runs in 83 s; Monte Carlo tree search 2, fresh only, 870 runs in 84 s; random 10, fresh only, 4,350 runs in 9 s. The three maps took 0.7 s to make on 2 workers. Nothing stalled, so no run was abandoned. These were salal v0.19.0's maps; pinning v0.30.1 moved every map, these three among them (terrain-fields.md, Noise is the engine's), so the same seeds now give other routes and stops.
+Seeds 1, 2, and 3 on salal v0.30.1's maps, every route a run can leave on, 148 of them (27 at tier 1, 37 at tier 2, 33 at tier 3, and 51 at tier 4), the three starting pairs fresh on their starting decks, stage 0, the stall cap at 25, the base pack untuned. The floor played 30 runs a cell, fresh and behind each route's neighbor, 25,830 runs in 69 s on 2 workers, and the three maps took 0.7 s to make. Nothing stalled, so no run was abandoned.
 
-Home by destination tier, every pair pooled, and the pair that came home least with the floor:
+Home by destination tier, every pair pooled, with what a run home cost, the crew's HP and structure shares and their mean (call 442) against the band:
 
-| Tier | Target | Floor | Ceiling | MCTS | Random | Worst pair, floor |
-|---|---|---|---|---|---|---|
-| 1 | 95% | 100% [100-100] | 100% | 100% | 90% | all 100% |
-| 2 | 88% | 99% [99-100] | 99% | 100% | 77% | Interceptor + Road Warrior, 99% |
-| 3 | 75% | 94% [93-95] | 95% | 100% | 48% | Interceptor + Road Warrior, 82% |
-| 4 | 60% | 86% [85-87] | 86% | 99% | 44% | Interceptor + Road Warrior, 62% |
+| Tier | Target | Home | Worst pair | Band | Lost | HP | Structure | Injury days | Stops met | Fights fought |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 95% | 100% [100-100] | Interceptor + Road Warrior, 100% | 20-35% | 7% | 11% | 3% | 1.0 | 3.9 | 1.9 |
+| 2 | 88% | 99% [99-100] | Interceptor + Road Warrior, 98% | 30-45% | 11% | 17% | 6% | 1.4 | 4.0 | 2.1 |
+| 3 | 75% | 92% [91-93] | Interceptor + Road Warrior, 77% | 40-55% | 25% | 33% | 17% | 2.5 | 4.8 | 3.0 |
+| 4 | 60% | 83% [82-84] | Interceptor + Road Warrior, 53% | 45-60% | 32% | 39% | 25% | 2.9 | 5.7 | 3.1 |
 
-What a run home cost with the floor, the crew's HP and structure shares and their mean (call 442) against the band:
-
-| Tier | Band | Lost | HP | Structure | Injury days | Stops met | Fights fought |
-|---|---|---|---|---|---|---|---|
-| 1 | 20-35% | 6% | 9% | 3% | 0.8 | 3.7 | 1.7 |
-| 2 | 30-45% | 10% | 14% | 5% | 1.2 | 4.0 | 1.7 |
-| 3 | 40-55% | 23% | 31% | 14% | 2.4 | 4.5 | 2.7 |
-| 4 | 45-60% | 29% | 36% | 22% | 2.7 | 5.7 | 2.8 |
-
-Each pair, home with the floor (by seat, the crew's order then swapped) and what it lost:
+Each pair, home (by seat, the crew's order then swapped) and what it lost:
 
 | Pair | Tier 1 | Tier 2 | Tier 3 | Tier 4 |
 |---|---|---|---|---|
-| Interceptor + Mechanic | 100%, 6% | 100%, 11% | 100%, 27% | 100%, 34% |
-| Interceptor + Road Warrior | 100%, 10% | 99% (97/100), 16% | 82% (68/97), 34% | 62% (43/82), 40% |
-| Mechanic + Road Warrior | 100%, 1% | 100%, 3% | 99%, 8% | 96% (92/100), 17% |
+| Interceptor + Mechanic | 100%, 7% | 100%, 12% | 100%, 29% | 100%, 36% |
+| Interceptor + Road Warrior | 100% (99/100), 12% | 98% (97/100), 18% | 77% (61/94), 38% | 53% (34/71), 43% |
+| Mechanic + Road Warrior | 100%, 2% | 100%, 3% | 99% (98/100), 10% | 96% (91/100), 20% |
 
-The fights on the way, with the floor, over the fresh runs:
+The fights on the way, over the fresh runs:
 
 | Stop | Met | Won | Lost | Broken off | HP lost when won |
 |---|---|---|---|---|---|
-| Ambush, 1 skull | 8,040 | 95% | 0% | 5% | 4% |
-| Ambush, 2 skulls | 15,303 | 79% | 2% | 19% | 13% |
-| Ambush, 3 skulls | 5,133 | 54% | 10% | 36% | 24% |
-| Warband, 3 skulls | 2,617 | 58% | 9% | 33% | 27% |
-| Wreck, the 17% that turned into a fight | 15,895 | 92% | 0% | 8% | 4% |
-| Distress, the 62% that turned into a fight | 10,780 | 88% | 1% | 11% | 11% |
+| Ambush, 1 skull | 8,730 | 94% | 0% | 6% | 4% |
+| Ambush, 2 skulls | 10,532 | 79% | 2% | 18% | 14% |
+| Ambush, 3 skulls | 4,795 | 52% | 11% | 37% | 25% |
+| Warband, 3 skulls | 1,953 | 53% | 11% | 36% | 26% |
+| Wreck, the 18% that turned into a fight | 9,169 | 91% | 0% | 9% | 4% |
+| Distress, the 66% that turned into a fight | 10,931 | 89% | 1% | 10% | 11% |
 
 What's off, against the targets. These are Kevin's calls; nothing was tuned.
 
-- **Runs cost too little.** Every tier comes home well over its target and loses 14 to 20 points under the bottom of its band: 6% at tier 1 against 20-35%, 29% at tier 4 against 45-60%. The ceiling loses one to three points less and MCTS about half as much. The 1-skull fight already cost too little in fights mode, and a calm stop costs nothing under the stand-in's rules: finds take nothing, and no event's first choice hurts but through the fight it can turn into.
-- **Fairness fails from tier 3.** The best pair less the worst is 0, 1, 18, and 37 points by tier with the floor, against 15, and the Interceptor and Road Warrior's two seatings 30 and 38 points apart at tiers 3 and 4, against 10. It's the fights-mode finding carried down a route: with the Interceptor in seat 1 the pair comes home 68% at tier 3 and 43% at tier 4, against 97% and 82% the other way round, and the ceiling is the same (74/97, 44/80).
-- **The Mechanic and Road Warrior barely get hurt:** 3% lost at tier 2 with the floor, 1% with the ceiling, under the spread's 5% floor from tier 2, and 8% at tier 3.
-- **Break-offs are a third of the 3-skull fights.** A 3-skull ambush is won 54% and broken off 36%, a warband won 58% and broken off 33%, so a run that comes home has often broken off the hardest fight on its road rather than beaten it.
-- **At stage 2 the worst pair misses.** The floor at stage 2 (10 runs a cell, fresh) brings the Interceptor and Road Warrior home 70% at tier 3 and 48% at tier 4, under 75% and 60%; the tier 4 target's 75% for a grown deck at stage 2 doesn't apply to a fresh one. Pooled, stage 2 is 100, 99, 90, and 81% home losing 9, 14, 26, and 32%, and the return ambush came on 2 to 4% of runs.
-- **A neighbor's run clears about half a route's stops.** It clears some of 133 of the 145 routes' stops, 45 to 51% of them by tier, and the route behind it meets 2.0 to 3.1 stops and 1.2 to 2.1 fights where it met 3.8 to 5.7 and 1.7 to 2.8 fresh, comes home 0 to 4 points more often, and loses 1 to 3 points less. The spec keeps half a route's band on its own road, which is about what's left.
-- **Every tier loses fuel.** A run pays 3.1, 4.7, 5.8, and 7.7 fuel by tier and brings home 1.0 to 1.4, the finds, the events, and the POI's yield in it, so it's 1.8 to 6.3 fuel down, and the starting 10 makes about four runs to tier 1 or one to tier 4 before a scavenging party has to go out.
-- **The ceiling is still level with the floor** over whole runs, as over single fights, and Monte Carlo tree search is the stand-in that shows the room: 99% home at tier 4, the Interceptor and Road Warrior 98% there. Random comes home 90, 77, 48, and 44% by tier, so the floor's numbers aren't the routes being harmless.
+- **The worst pair misses at tier 4.** The Interceptor and Road Warrior come home 53% there, under 60%, and 77% at tier 3, just over 75%. Pooled, every tier is over its target.
+- **Runs cost too little.** Lost is 13 to 19 points under the bottom of every band: 7% at tier 1 against 20-35%, 32% at tier 4 against 45-60%. Finds cost nothing, and no event's first choice hurts but through the fight it can turn into.
+- **Fairness fails from tier 3.** The best pair less the worst is 0, 2, 23, and 47 points by tier, against 15. The Interceptor and Road Warrior's seatings are 33 and 37 points apart at tiers 3 and 4 (61/94 and 34/71), against 10, the Interceptor in seat 1 losing, as fights mode found.
+- **The Mechanic and Road Warrior barely get hurt:** 3% lost at tier 2, under the 5% floor from tier 2, and 10% at tier 3.
+- **Break-offs are a third of the 3-skull fights:** an ambush is won 52% and broken off 37%, a warband 53% and 36%.
+- **A neighbor's run clears about half a route's stops.** It clears some on 139 of the 148 routes, 45 to 54% of them by tier, and the route behind it meets 2.0 to 3.1 stops and 1.2 to 2.2 fights where it met 3.9 to 5.7 and 1.9 to 3.1 fresh, comes home 0 to 4 points more often, and loses 2 to 4 points less.
+- **Every tier loses fuel:** a run pays 3.1, 4.6, 5.9, and 7.8 by tier and brings home 1.0 to 1.5, so it's 1.8 to 6.3 down.
+
+On salal v0.19.0's maps, before #310 moved every map, the same seeds held 145 routes. There the floor came home 100, 99, 94, and 86% by tier with the Interceptor and Road Warrior at 62% at tier 4, losing 6, 10, 23, and 29%; the ceiling, at 10 runs a cell, came home 100, 99, 95, and 86%; Monte Carlo tree search, 2 runs fresh, 100, 100, 100, and 99%; and random, 10 fresh, 90, 77, 48, and 44%. Those three weren't run again.
+
+## Gen mode, the fight log, and the card tally
+
+The TypeScript tool had `fights` and `gen` and the `--log` and `--cards` options; this closes the gap.
+
+### Decision
+
+**Gen** (`Gen.h`, `GenReport.h`) makes each seed's map as run mode does (`makeRunMaps`) and audits every route `offersToday` gives a fresh campaign, strongholds' among them, at game stage 0, the stage the bands are for. A route's stops are read as `depart` reads them (`stopsMet`, which run mode's cells use too, moved with the nearest neighbor and its run to `Neighbors.h` so the two modes share one definition). Its own road is the legs `legOwners` gives its POI alone, its room `ownRoadRoom`'s at the stops stage's tight gap, its last leg's room `legRoom`'s over its junctions, the room math the POI and stops stages share, so the audit can't disagree with them. Hours are the route outlook's out, objective, and home, and past dark is its spare daylight below 0, leaving at dawn; with the campaign reading every leg charted, those hours are the stops', not estimates. The POI and stops stages' own failures and the rings' counts come off the map.
+
+The config is `maps` alone, 30 seeds when left out, the baseline's count; a map takes under half a second, so 30 is a few seconds.
+
+**The corpus** isn't a file of its own. The spec had `gen` write one so `runs` wouldn't make maps again, but run mode makes its maps in under a second each and reads the routes off them, which is the only way its stops can't drift from the generator's. `gen`'s JSON lists every map's routes with their stops and audits, the neighbor's run among them, which is everything the corpus held, for anyone reading routes without making maps.
+
+**The fight log** (`--log <cell>:<run>`, `FightLog.h`) plays that one run of that cell, in `fights` or `runs`, and prints it in place of the sweep: each fight's opening deal and every event after it a line, and in `runs` each stop, the event and the choice, what a find brought, the reward taken, and the objective. The words are the app's, since only the sim reads a fight back so far and the battle scene will word its own log. A crew's driver is named by archetype and seat, a raider by name and place, and a vehicle always by its owner, so a name doesn't change when somebody else takes the wheel. `ai::playFight` gains `onPlanned`, called after the raiders plan each enemy turn, so the plans show; the default is unchanged.
+
+**The card tally** (`--cards`, the fights config's `cards`) counts each crew card's draws off the `CardDrawn` events, the opening deal's included, and reads the raiders' plans as the crew sees them (`intentsOf`) after every planning and every play: a play's fizzles are the intents that dropped out from raiders it neither took out nor stunned, and its damage blanked the planned damage at the crew those raiders lost, less any they gained. A card's fights won are over the fights it was played in. Each cell whose crew adds cards or gets a deck prints against the cell with the same archetypes in the same seats on their starting decks, on the same route at the same stage, its fights won a place at a time and HP lost. The tally reads copies of the fight, so a fight tallied plays out exactly as one not.
+
+### Consequences
+
+- Every event type has a text form in the app, which a later in-game log can take or leave.
+- `gen`'s audit and `runs`' neighbor read the same neighbor code, so the gap `runs` measures behind a neighbor is the run `gen` reports.
+- What the balance sim still lacks: `calibrate` (raider threat by regression), the `campaign` mode, and the Balance Lab, none of which the TypeScript had; `--check` against the targets; escorts in a crew; and the roadside garage once a map places one.
+
+## Gen's first numbers
+
+Seeds 1 to 30 on salal v0.30.1's maps, 1,728 routes, made in 6.9 s and audited in under 0.1 s on 2 workers. Every map settled on its own seed.
+
+| Tier | Routes | Band | Stops a route, mean (range) | Fights (range) | No fight | Hours out and back | Past dark |
+|---|---|---|---|---|---|---|---|
+| 1 | 311 | 3-4 | 3.7 (3-4) | 1.4 (1-2) | 0% | 8.1 | 0% |
+| 2 | 375 | 3-4 | 3.9 (3-4) | 1.3 (1-2) | 0% | 10.8 | 4% |
+| 3 | 281 | 4-5 | 4.7 (3-5) | 2.2 (2-3) | 0% | 13.0 | 14% |
+| 4 | 509 | 5-6 | 5.9 (5-6) | 2.3 (2-3) | 0% | 17.6 | 98% |
+| 5 | 252 | 6-7 | 6.3 (5-7) | 2.3 (2-3) | 0% | 18.8 | 100% |
+
+Every route meets its fight floor and every stop placed is one a run resolves. Two routes are under their bands, a tier 3 route at 3 stops and a stronghold's at 5, and two have one stop on their own road under half their band's 3: the four shortfalls the stops stage reported. The daylight check thinned 75 stops.
+
+Skulls by tier: all 420 of tier 1's fights are 1 skull; tier 2's are 274, 191, and 8 at 1, 2, and 3; tier 3's 63, 507, and 62; tier 4's 101, 485, and 560; the strongholds' routes 51, 25, and 494. Ambushes are 31 to 44% of a tier's stops, warbands up to 5%, wrecks and distress signals 12 to 18% each, Find: supplies 14 to 21%, Find: cards 7 to 10%, and Find: driver 3 to 5%.
+
+Own road and neighbors:
+
+| Tier | Own share | Floor on own | Half band on own | Room for both | Own is the last leg | Last leg, no room | Neighbor clears | Neighbor takes every fight |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 58% | 100% | 100% | 100% | 100% | 0% | 37% | 0% |
+| 2 | 51% | 100% | 99% | 100% | 100% | 0% | 46% | 0% |
+| 3 | 45% | 100% | 100% | 100% | 100% | 0% | 53% | 0% |
+| 4 | 52% | 100% | 100% | 100% | 100% | 0% | 43% | 0% |
+| 5 | 55% | 100% | 100% | 100% | 100% | 0% | 40% | 0% |
+
+The rings aimed for 153, 199, 256, and 256 POIs over the 30 maps and seated 151, 181, 209, and 175, 72 of ring 2's as tier 4 for daylight.
+
+Against the TypeScript's baseline of 2026-10-17, the C++ generator keeps the rules it was built to: no route without a fight where the TypeScript had 11 to 56% by tier, every route in its band where its stops ranged 0 to 15, and own road holding a route's floor fights and half its band nearly everywhere where the TypeScript managed 3 to 37%. A neighbor's run clears 37 to 53% of a route's stops, down from 64 to 78%, and takes every fight on none. What's off:
+
+- **Routes past dark.** 4% of tier 2's routes and 14% of tier 3's get home after dark leaving at dawn, though only 1 of the 469 quickest routes to a tier 1 to 3 POI does, which is what the daylight guarantee holds. Tier 4 is past dark on 98%. Night is undesigned (call 5), so it's only reported.
+- **The outer rings fall short of their aim:** ring 2 seats 82% of it and ring 3 68%.
+
+## The card tally's first numbers
+
+Fights mode, seed 1, tier 1, stage 0, the floor, 100 runs a cell over a 1, 2, and 3-skull fight, each pair on its starting decks and again with two copies of a card added, 1,800 fights in 2.8 s on 2 workers.
+
+| Pair, card added | Fights won, 1 / 2 / 3 skulls | On starting decks | HP lost at 3 skulls | Played a fight at 3 skulls |
+|---|---|---|---|---|
+| Road Warrior + Interceptor, 2 Precision Shot | 100 / 100 / 95% | 100 / 100 / 87% | 39% against 40% | 5.7 |
+| Interceptor + Mechanic, 2 Point Blank for the Mechanic | 100 / 97 / 78% | 100 / 98 / 55% | 31% against 30% | 9.6 |
+| Mechanic + Road Warrior, 2 Ram for the Mechanic | 99 / 84 / 82% | 83 / 83 / 74% | 30% against 19% | 5.7 |
+
+Two Rams fix the Mechanic and Road Warrior's 1-skull break-offs, the pair winning 99% where it won 83%, at the cost of HP: the Mechanic's starter dealing no damage, one of the card questions DDB-492 to 495 leave to Kevin, is something the tally can now put a number on. A Precision Shot takes 0.8 to 1.9 points of planned damage off the crew a play at 2 and 3 skulls, a Headshot up to 1.7, and the Repair Kit, Armor Plating, and Nitro Boost none, since they guard rather than spoil a plan.

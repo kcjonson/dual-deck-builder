@@ -168,7 +168,8 @@ the behaviour it pins is still what the alpha wants.
 ### The balance sim
 
 `apps/balance-sim` (Balance Simulation is the spec, `balance-sim.md` the record)
-plays crews through fights, and out on supply runs over generated maps, headless.
+plays crews through fights, and out on supply runs over generated maps, and
+audits the generator's routes, headless.
 Build and run it in RelWithDebInfo, never
 Debug for anything past a smoke: the stand-ins play fights out on copies, and
 Monte Carlo tree search is about 30 times slower in Debug. The Windows preset
@@ -178,6 +179,7 @@ has the configuration already, so it needs no configure of its own:
 cmake --build --preset windows-relwithdebinfo --target balance-sim
 build/apps/balance-sim/RelWithDebInfo/balance-sim.exe fights --runs 100 --routes 1,2,3,1+2 --player intent_aware --json fights.json
 build/apps/balance-sim/RelWithDebInfo/balance-sim.exe runs --maps 3 --runs 20 --json runs.json
+build/apps/balance-sim/RelWithDebInfo/balance-sim.exe gen --maps 30 --json gen.json
 ```
 
 `runs` makes its maps from `rollParams` seeds (`--maps 3` is seeds 1 to 3) and
@@ -185,7 +187,14 @@ plays every pair over every route on them, fresh and behind each route's
 neighbor's run; `--routes 12` samples a map's routes, `--tier 1,2` keeps some
 tiers, and `--neighbor off` runs them fresh only. The floor plays about 250 runs
 a second on 2 workers over every tier, the ceiling about 100, and Monte Carlo
-tree search about 10, so size `--runs` to the stand-in.
+tree search about 10, so size `--runs` to the stand-in. `gen` makes and audits 30
+maps in about 7 s.
+
+`--log <cell>:<run>` (fights and runs) plays that one run and prints it in
+words in place of the sweep, `road_warrior+interceptor:1+2@0:3` or
+`interceptor+mechanic:1/12.0@0:1`. `--cards` (fights) tallies each crew card's
+draws, plays, fizzles, and damage blanked, and costs a projection of the enemy
+turn a play.
 
 On macOS and Linux, configure the single-config tree for it with
 `cmake --preset default -DCMAKE_BUILD_TYPE=RelWithDebInfo`, then
