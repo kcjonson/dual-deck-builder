@@ -11,10 +11,12 @@ target_sources(ddb_rules PRIVATE
     Hazards.cpp
     LabelLayout.cpp
     Lakes.cpp
+    LandFog.cpp
     Land.cpp
     LandFields.cpp
     LandGrid.cpp
     MapLabels.cpp
+    MapKnowledge.cpp
     MapMath.cpp
     MapParams.cpp
     MapPresets.cpp

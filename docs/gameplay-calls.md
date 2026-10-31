@@ -575,3 +575,14 @@ Decision record: [dressing.md](AI_TECHNICAL_DECISIONS/dressing.md), calls 12 and
 
 420. DDB-571: a rail line crosses a river only where a road could (30 degrees or more off the river's line, no longer than a road's longest bridge outside the metro) and passes only where the roads' own check would pass a road under those decks, replacing the TypeScript's bridging any river water its samples found, because one rule for what crosses water keeps rails from running down a river on a long deck.
 421. DDB-571: the rules set the dressing's labels with the sizes and markers the view gives them, highest priority first, a point label right, left, above, then below its anchor, a line label along the middle of its path and dropped where it's longer than the path, and any label with no clear spot dropped, because both map screens should set labels alike and a layout in the rules can be tested headless.
+
+## The C++ map knowledge (430 to 435)
+
+Decision record: [map-knowledge.md](AI_TECHNICAL_DECISIONS/map-knowledge.md), calls 1 to 6.
+
+430. DDB-571: a leg is inside the starting reveal when its tier, the lowest of the POIs whose routes drive it, is `startingReveal` or less, and a leg wholly on city streets is charted too, out from the compound, because the stops already tier a leg that way and the metro's streets start charted.
+431. DDB-571: "each highway is charted one leg further" charts each leg off charted road that's more highway than any other class and in the next tier, one leg and never two, and never a leg toward nothing nearer than two tiers out, because everyone knows where the highways go and Guarantee 6 keeps every stronghold out of the starting reveal.
+432. DDB-571: the radio's first rumors are 2 legs, each the first leg off charted road on a route to a POI in the next tier, nearest by the route's hours, ties to the lower leg, because "one or two legs toward the next tier's POIs" needs a count and an order, and the nearest is what the radio would hear of first.
+433. DDB-571: driving a leg reveals the land within 0.06 of the radius of its road and reaching a POI within 0.12 of it, a fog cell revealed when its centre is, because the spec names a sight radius and a larger one at a POI without numbers, and two and four of the 64 cells across keep a run's clearing narrow enough that exploring still means something.
+434. DDB-571: reaching a POI reveals a disc round it that takes in the last stretch of each of its other routes, reading "the ends of its other routes' last legs" as their ends at the POI, because a disc out to a long last leg's far end could uncover a quarter of the map.
+435. DDB-571: every POI is found by the stronghold's rule, its land revealed or a leg into it (one of its last legs) rumored or charted, because Compound and Supply Runs has new POIs come from the fog lifting and from the radio, and every route's first legs are charted from the start.

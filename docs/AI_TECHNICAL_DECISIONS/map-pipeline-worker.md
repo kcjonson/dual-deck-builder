@@ -93,7 +93,11 @@ A stage can be `inert` (2026-10-31): it carries no gameplay, so nothing play rea
 - There's no generator version to keep it out of. The campaign's save keeps each stage's winning attempt by name and a fingerprint of the gameplay map ([campaign.md](./campaign.md), The map on the campaign), and the fingerprint reads no inert stage, so what the dressing makes can change under a save and the save still loads. Removing or renaming an inert stage would break a save that named it, as for any stage.
 - A save may keep an inert stage's attempt or leave it out; `makeCampaignMap` keeps every stage's, the dressing's included. Today the dressing has no check, so its winning attempt is always 0 and leaving it out loses nothing; keeping it means a check added later can reject an attempt without moving a saved map's picture. `stageCount()` says how many records a run holds, inert stages included.
 
-What it leaves: cancellation. The terrain stage has no check, since erosion always makes land; its stream is `root.fork("map", m).fork("terrain", t)`.
+A run can be cancelled (2026-10-31), as The founding contract has it. `PipelineOptions::cancel` is a `std::stop_token`, which a `std::jthread` hands its function, so the game app's worker passes its own; the default one never stops. The runner asks it before every stage attempt, a replay's and a kept attempt's rerun included, and once a stop is requested throws `MapPipelineCancelled`, naming the stage it would have run next, so nothing half-made is handed back. A stage runs to its end, so a stop waits at most one stage, the terrain's the longest. It's a type of its own rather than a `MapPipelineError`, since founding moves to the next seed on that one and must never on a cancel. Other options: a callback polled the same way, which is all a stop token is with less to get wrong across threads, and asking inside a stage's loops too, which would put the runner's business in every stage for a wait the grid stages keep under a second.
+
+The accept hook is the map validator's (map-knowledge.md, Decision): `generateAreaMap` runs `mapValidator` on every generation, then the caller's hook. Each stage's own check is already the validator's for its layer, so the hook holds only what spans layers, the starting knowledge's half of Guarantees 6 past the POIs, and `validateAreaMap` holds a whole map to all of it, as a load would.
+
+The terrain stage has no check, since erosion always makes land; its stream is `root.fork("map", m).fork("terrain", t)`.
 
 ## Provisional calls
 
