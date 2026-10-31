@@ -32,6 +32,10 @@ The trade-offs: what gets easier, what gets harder, what it risks.
 ```
 
 ## Index
+### Architecture
+
+- [The rules core, opponents, and content packs](./rules-ai-and-packs.md)
+
 ### Campaign and the compound
 
 - [Founding a campaign](./campaign-founding.md)

@@ -58,25 +58,35 @@ UUID into any other committed file, commit message or PR body.
 CMakeLists.txt, CMakePresets.json, vcpkg.json   the C++ build (salal's arrangement)
 cmake/            build helpers (ddb_add_tests)
 libs/
-  sim/            the game's rules and simulation; links salal::foundation only
+  rules/          the game's rules: fight state, effects, packs, map, campaign; salal::foundation only
+  ai/             opponent and stand-in policies, over the rules (once ported)
+  scripting/      the Lua host for packs, over the rules (once needed)
+packs/            content: base/ is the game, expansions and mods are packs too (once ported)
 apps/             executables, once there is one: the game, and the balance sim
 docs/             specs, decision records, design art, the port plan
 scripts/          Node tooling (format.mjs)
 _legacy/          the TypeScript proof of concept, frozen, with its own CLAUDE.md
 ```
 
-`libs/sim` is organised by area, `core/`, `data/`, `map/`, `mechanics/`, `ai/`,
-`campaign/`, `balance/`, and included as `<sim/map/RoadNetwork.h>`. The screens
-and game ui come after salal's phase 3 lands its `ui`, in `apps/` beside the
-sim, as worldsim's `apps/world-sim/scenes/` are.
+`libs/rules` is organised by area, `core/`, `packs/`, `map/`, `battle/`,
+`campaign/`, and included as `<rules/map/RoadNetwork.h>`. The screens and game
+ui come after salal's phase 3 lands its `ui`, in `apps/` beside the rules, as
+worldsim's `apps/world-sim/scenes/` are. How the rules, the AI, and packs fit
+together is `docs/AI_TECHNICAL_DECISIONS/rules-ai-and-packs.md`; read it before
+touching the fight state, effects, or an opponent.
 
 ## Hard rules
 
-**The dependency rule** (salal's `docs/architecture.md`). `libs/sim` depends on
-`salal::foundation` and nothing above it: no renderer, no ui, no app, no GL.
-That keeps it deterministic and testable headless. `ddb_check_layering()` in
-the root `CMakeLists.txt` fails the configure if it slips. Presentation code
-depends on the sim, never the other way.
+**The dependency rule** (salal's `docs/architecture.md`). `libs/rules` depends
+on `salal::foundation` and nothing above it: no renderer, no ui, no app, no GL,
+and no Lua. That keeps it deterministic and testable headless.
+`ddb_check_layering()` in the root `CMakeLists.txt` fails the configure if it
+slips. The AI, scripting, and presentation depend on the rules, never the
+other way.
+
+**One place interprets effects.** `apply(state, action)` is it. A preview, a
+projection, or an AI estimate runs `apply` on a copy of the fight; it never
+re-reads effect fields with its own switch.
 
 **Engine work belongs in salal.** If the game needs something generic from the
 engine, it's salal work on salal's board, not a workaround here. salal is pinned
@@ -100,7 +110,7 @@ and overrides whatever existing code does.
 | Functions and methods | `camelCase` |
 | Variables and members | `camelCase`, no prefix |
 | Constants | `k` prefix |
-| Namespaces | lowercase: `sim` |
+| Namespaces | lowercase: `rules`, `ai` |
 | Files | `PascalCase.h` and `.cpp` side by side, `#pragma once`, tests as `Name.test.cpp` beside them |
 
 Tabs, width 4, column limit 140, braces attached, designated initializers where

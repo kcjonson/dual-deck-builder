@@ -39,13 +39,13 @@ Raiders run the pipeline when they plan, at the start of the player's turn: each
 
 ### 2.2 Strategies
 
-What plans for a team is one of these strategies, set per fight. Raiders in campaign fights and the balance sim plan with the aggressive flanker.
+Each opponent plans with its own behavior, named in its folder in a pack: one of these strategies with its personality's weights, or a script for an opponent they can't express ([rules-ai-and-packs.md](../AI_TECHNICAL_DECISIONS/rules-ai-and-packs.md)). Nothing plans for a whole team. The base pack's raiders start on the aggressive flanker. The balance sim's player stand-ins are behaviors too, one per seat.
 
 - Aggressive flanker: takes the flank for its damage bonus and favours its highest-damage plays. It never reads intents, so it never gives up a flank it would hold, and a move that does nothing else scores under ending the turn. The player stand-ins' floor ([Balance Simulation](./Balance%20Simulation.md), Player stand-ins).
 - Intent-aware: a player stand-in, the ceiling. Before each card it reads the raiders' committed plans and plays whatever most cuts the harm coming next enemy turn, one step and no search (Balance Simulation, Player stand-ins).
 - Ramming: builds speed and armor and closes in for ramming hits.
 - Salvage: tries to win while sparing the vehicles it fights, going for their drivers with headshots, so the vehicles are left to salvage.
-- Monte Carlo tree search: tries each play many times, picked by UCB1, and keeps the one that scores best.
+- Monte Carlo tree search: plays candidates out on copies of the fight, picked by UCB1, and keeps the one whose playouts score best.
 - Random: picks evenly among every play on offer, ending the turn included, drawing from its team's stream.
 - First playable: the first affordable card in hand order at its first legal target. Raiders plan with it when a fight sets no strategy.
 

@@ -21,7 +21,7 @@ CI already packages Electron for Windows and macOS (`main.yml`, the `electron` j
 
 ## Decision
 
-Option 3. A build workflow packages each platform on every push to main, stamps it with the build number and SHA the web build already shows, and hands the archives to a publish step that uploads them and rewrites a `builds.json` manifest. The playtest URL becomes a static page that renders the manifest: latest build, one download per platform, how to run an unsigned build, previous builds. Per-PR builds are workflow artifacts behind the `playtest` label, and the per-PR web previews end. The web deploy keeps running, moved under `/web/`, until the C++ cutover, because the TypeScript build is the oracle the port is differential-tested against. Builds are unsigned until certificates exist, and the page says so.
+Option 3. A build workflow packages each platform on every push to main, stamps it with the build number and SHA the web build already shows, and hands the archives to a publish step that uploads them and rewrites a `builds.json` manifest. The playtest URL becomes a static page that renders the manifest: latest build, one download per platform, how to run an unsigned build, previous builds. Per-PR builds are workflow artifacts behind the `playtest` label, and the per-PR web previews end. The web deploy keeps running, moved under `/web/`, until the C++ cutover. Builds are unsigned until certificates exist, and the page says so.
 
 ## Rationale
 
