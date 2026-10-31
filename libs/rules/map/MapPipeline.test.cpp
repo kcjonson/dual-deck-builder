@@ -4,9 +4,12 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <functional>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -17,6 +20,7 @@ namespace {
 	struct Draws {
 		std::optional<uint32_t> first;
 		std::optional<uint32_t> second;
+		std::optional<uint32_t> third;
 	};
 
 	struct Script {
@@ -174,6 +178,90 @@ namespace {
 		EXPECT_EQ(result.mapAttempt, 1U);
 		EXPECT_EQ(firstRuns, static_cast<int>(kStageAttempts) + 1);
 		EXPECT_EQ(result.stages[0].attempt, 0U);
+	}
+
+	// The stand-ins and a local-retry third stage whose runs fail with the problems the script lists, run by run across
+	// map attempts, and pass once it runs out of them.
+	struct LocalRetry {
+		Pipeline			  pipeline;
+		int					  thirdRuns = 0;
+		std::vector<Problems> failing;
+
+		LocalRetry(int* firstRuns, int* secondRuns, std::vector<Problems> script, std::function<bool(const Problems&)> keepable = {})
+			: failing(std::move(script)) {
+			pipeline = standIns(firstRuns, secondRuns)
+						   .then({
+							   .name = "third",
+							   .run = [](const Script&, Draws& draws, foundation::Rng& stream) { draws.third = stream.nextUInt32(); },
+							   .check =
+								   [this](const Script&, const Draws&) {
+									   const auto run = static_cast<size_t>(thirdRuns++);
+									   return run < failing.size() ? failing[run] : Problems{};
+								   },
+							   .localRetry = true,
+							   .keepable = std::move(keepable),
+						   });
+		}
+	};
+
+	TEST(MapPipeline, RetriesALocalRetryStageAloneLeavingTheStagesBeforeItOnTheirStreams) {
+		int							firstRuns = 0;
+		int							secondRuns = 0;
+		LocalRetry					local(&firstRuns, &secondRuns, {{"third: not yet"}, {"third: not yet"}});
+		const PipelineResult<Draws> result = local.pipeline.run(9, Script{});
+		EXPECT_EQ(result.mapAttempt, 0U);
+		EXPECT_EQ(firstRuns, 1);
+		EXPECT_EQ(secondRuns, 1);
+		EXPECT_EQ(result.stages[0].attempt, 0U);
+		EXPECT_EQ(result.stages[1].attempt, 0U);
+		EXPECT_EQ(result.stages[2].attempt, 2U);
+		EXPECT_FALSE(result.stages[2].kept);
+		EXPECT_EQ(result.stages[2].stream, foundation::Rng(result.stages[1].stream).fork("third", 2).seed());
+	}
+
+	TEST(MapPipeline, PastALocalRetryStagesCapAReleaseRunKeepsItsFewestProblemsAndADebugRunThrows) {
+		int							firstRuns = 0;
+		int							secondRuns = 0;
+		const Problems				one{"third: no"};
+		const Problems				two{"third: no", "third: nor that"};
+		const std::vector<Problems> script{two, two, one, two, one, two, two, two};
+		LocalRetry					release(&firstRuns, &secondRuns, script);
+		const PipelineResult<Draws> kept = release.pipeline.run(9, Script{}, {.debug = false});
+		EXPECT_EQ(kept.mapAttempt, 0U);
+		// The earlier of the two with one problem, run again on its stream.
+		EXPECT_EQ(kept.stages[2].attempt, 2U);
+		EXPECT_TRUE(kept.stages[2].kept);
+		EXPECT_EQ(kept.stages[2].runs, kStageAttempts + 1);
+		const uint32_t stream = foundation::Rng(kept.stages[1].stream).fork("third", 2).seed();
+		EXPECT_EQ(kept.stages[2].stream, stream);
+		EXPECT_EQ(kept.products.third, firstDraw(stream));
+		EXPECT_EQ(kept.failures.size(), kStageAttempts);
+		LocalRetry debug(&firstRuns, &secondRuns, script);
+		try {
+			(void)debug.pipeline.run(9, Script{}, {.debug = true});
+			FAIL() << "expected a MapPipelineError";
+		} catch (const MapPipelineError& error) {
+			EXPECT_EQ(error.exhausted, Exhausted::Stage);
+			EXPECT_EQ(error.failure.stage, "third");
+			EXPECT_EQ(error.failure.mapAttempt, 0U);
+		}
+	}
+
+	TEST(MapPipeline, RestartsTheMapWhenALocalRetryStageMayKeepNoneOfItsAttemptsInAnyBuild) {
+		const std::vector<Problems> script(kStageAttempts, Problems{"floor: none", "band: short"});
+		const auto					keepable = [](const Problems& problems) {
+			 return std::ranges::none_of(problems, [](const std::string& problem) { return problem.starts_with("floor: "); });
+		};
+		for (const bool debug : {true, false}) {
+			int							firstRuns = 0;
+			int							secondRuns = 0;
+			LocalRetry					local(&firstRuns, &secondRuns, script, keepable);
+			const PipelineResult<Draws> result = local.pipeline.run(9, Script{}, {.debug = debug});
+			EXPECT_EQ(result.mapAttempt, 1U);
+			EXPECT_EQ(result.stages[2].attempt, 0U);
+			EXPECT_FALSE(result.stages[2].kept);
+			EXPECT_EQ(firstRuns, 2);
+		}
 	}
 
 	TEST(MapPipeline, ReplaysARunsWinnersOnTheirStreamsCheckingNothing) {
