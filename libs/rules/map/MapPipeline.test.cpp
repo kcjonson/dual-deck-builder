@@ -128,6 +128,54 @@ namespace {
 		EXPECT_EQ(result.failures[0].problems, Problems{"validator: no"});
 	}
 
+	// The stand-ins and a third stage after them, which escalates to the first and fails its first `failures` runs.
+	struct Escalating {
+		Pipeline pipeline;
+		int		 thirdRuns = 0;
+
+		Escalating(int* firstRuns, int* secondRuns, int failures) {
+			pipeline = standIns(firstRuns, secondRuns)
+						   .then({
+							   .name = "third",
+							   .run = [](const Script&, Draws&, foundation::Rng&) {},
+							   .check = [this, failures](
+											const Script&, const Draws&
+										) { return thirdRuns++ < failures ? Problems{"third: not yet"} : Problems{}; },
+							   .escalate = "first",
+						   });
+		}
+	};
+
+	TEST(MapPipeline, EscalatesToTheStageItNamesWhichGoesOnFromItsNextAttemptAndEverythingAfterOnFreshStreams) {
+		int							firstRuns = 0;
+		int							secondRuns = 0;
+		Escalating					escalating(&firstRuns, &secondRuns, static_cast<int>(kStageAttempts) + 2);
+		const PipelineResult<Draws> result = escalating.pipeline.run(9, Script{});
+		EXPECT_EQ(result.mapAttempt, 0U);
+		ASSERT_EQ(result.stages.size(), 3U);
+		// Out of its eight, it reran the first on attempt 1, then failed twice more under it.
+		EXPECT_EQ(result.stages[0].attempt, 1U);
+		EXPECT_EQ(result.stages[1].attempt, 0U);
+		EXPECT_EQ(result.stages[2].attempt, 2U);
+		EXPECT_EQ(escalating.thirdRuns, static_cast<int>(kStageAttempts) + 3);
+		const uint32_t first = foundation::Rng(9).fork("map", 0).fork("first", 1).seed();
+		EXPECT_EQ(result.stages[0].stream, first);
+		EXPECT_EQ(result.stages[1].stream, foundation::Rng(first).fork("second", 0).seed());
+		EXPECT_EQ(result.stages[2].stream, foundation::Rng(result.stages[1].stream).fork("third", 2).seed());
+		EXPECT_EQ(result.products.first, firstDraw(first));
+	}
+
+	TEST(MapPipeline, RestartsTheMapOnceAnEscalationHasSpentItsUpstreamsAttempts) {
+		int							firstRuns = 0;
+		int							secondRuns = 0;
+		const int					perMap = static_cast<int>(kStageAttempts * kStageAttempts);
+		Escalating					escalating(&firstRuns, &secondRuns, perMap);
+		const PipelineResult<Draws> result = escalating.pipeline.run(9, Script{});
+		EXPECT_EQ(result.mapAttempt, 1U);
+		EXPECT_EQ(firstRuns, static_cast<int>(kStageAttempts) + 1);
+		EXPECT_EQ(result.stages[0].attempt, 0U);
+	}
+
 	TEST(MapPipeline, ReplaysARunsWinnersOnTheirStreamsCheckingNothing) {
 		int							firstRuns = 0;
 		int							secondRuns = 0;

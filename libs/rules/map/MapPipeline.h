@@ -72,6 +72,10 @@ namespace rules::map {
 		// throws has a bug, not a failure, so the exception goes straight out.
 		std::function<void(const Input&, Products&, foundation::Rng&)> run;
 		std::function<Problems(const Input&, const Products&)>		   check{};
+		// A stage upstream of it to rerun, on its next attempt, once this one is out of attempts, instead of
+		// restarting the map; empty for none. Everything after the upstream stage reruns on fresh streams, this one
+		// counting from 0 again.
+		std::string escalate{};
 	};
 
 	// The map so far, with the stage that just passed its own check in it; anything returned rejects that
@@ -131,6 +135,11 @@ namespace rules::map {
 			for ([[maybe_unused]] const Stage& earlier : stages) {
 				assert(earlier.name != stage.name && "MapPipeline: stage names are unique");
 			}
+			assert(
+				(stage.escalate.empty() ||
+				 std::ranges::any_of(stages, [&](const Stage& earlier) { return earlier.name == stage.escalate; })) &&
+				"MapPipeline: a stage escalates only to one upstream of it"
+			);
 			MapPipeline next = *this;
 			next.stages.push_back(std::move(stage));
 			return next;
@@ -170,12 +179,20 @@ namespace rules::map {
 				throw MapPipelineError(seed, result.failures.back());
 			}
 
-			bool runMap(uint32_t upstream, uint32_t mapAttempt) {
-				for (size_t index = 0; index < pipeline.stages.size(); ++index) {
+			// Each stage forks from its upstream's winning stream and counts its attempts from 0 whenever that changes.
+			// One out of attempts escalates to the stage it names, which goes on from its next attempt, or with none
+			// restarts the map.
+			bool runMap(uint32_t mapStream, uint32_t mapAttempt) {
+				const size_t		  count = pipeline.stages.size();
+				std::vector<uint32_t> upstreams(count, mapStream);
+				std::vector<uint32_t> nextAttempt(count, 0);
+				size_t				  index = 0;
+				while (index < count) {
 					const Stage&			stage = pipeline.stages[index];
 					std::optional<uint32_t> winner;
-					for (uint32_t attempt = 0; attempt < stage.attempts && !winner; ++attempt) {
-						foundation::Rng	   stream = foundation::Rng(upstream).fork(stage.name, attempt);
+					while (nextAttempt[index] < stage.attempts && !winner) {
+						const uint32_t	   attempt = nextAttempt[index]++;
+						foundation::Rng	   stream = foundation::Rng(upstreams[index]).fork(stage.name, attempt);
 						const StageAttempt at{
 							.stage = stage.name,
 							.index = index,
@@ -195,10 +212,19 @@ namespace rules::map {
 							);
 						}
 					}
-					if (!winner) {
+					if (winner) {
+						if (index + 1 < count) {
+							upstreams[index + 1] = *winner;
+							nextAttempt[index + 1] = 0;
+						}
+						index += 1;
+						continue;
+					}
+					if (stage.escalate.empty()) {
 						return false;
 					}
-					upstream = *winner;
+					// The upstream stage's attempts are spent as its own are, so past its last its escalation applies.
+					index = static_cast<size_t>(std::ranges::find(pipeline.stages, stage.escalate, &Stage::name) - pipeline.stages.begin());
 				}
 				return true;
 			}
