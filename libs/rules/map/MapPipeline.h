@@ -237,21 +237,24 @@ namespace rules::map {
 						throw std::invalid_argument("MapPipeline: the replay names " + name + ", which isn't a stage");
 					}
 				}
-				result.mapAttempt = replay.mapAttempt;
-				uint32_t upstream = root.fork("map", replay.mapAttempt).seed();
-				for (size_t index = 0; index < pipeline.stages.size(); ++index) {
-					const Stage& stage = pipeline.stages[index];
-					const auto	 found = replay.attempts.find(stage.name);
+				// Every stage's attempt is checked before any stage runs, so a replay that doesn't fit costs nothing.
+				for (const Stage& stage : pipeline.stages) {
+					const auto found = replay.attempts.find(stage.name);
 					if (found == replay.attempts.end()) {
 						throw std::invalid_argument("MapPipeline: the replay has no attempt for " + stage.name);
 					}
-					const uint32_t attempt = found->second;
-					if (attempt >= stage.attempts) {
+					if (found->second >= stage.attempts) {
 						throw std::invalid_argument(
-							"MapPipeline: " + stage.name + " attempt " + std::to_string(attempt) + " is past the " +
+							"MapPipeline: " + stage.name + " attempt " + std::to_string(found->second) + " is past the " +
 							std::to_string(stage.attempts) + " it gets"
 						);
 					}
+				}
+				result.mapAttempt = replay.mapAttempt;
+				uint32_t upstream = root.fork("map", replay.mapAttempt).seed();
+				for (size_t index = 0; index < pipeline.stages.size(); ++index) {
+					const Stage&	   stage = pipeline.stages[index];
+					const uint32_t	   attempt = replay.attempts.find(stage.name)->second;
 					foundation::Rng	   stream = foundation::Rng(upstream).fork(stage.name, attempt);
 					const StageAttempt at{
 						.stage = stage.name,

@@ -150,13 +150,16 @@ namespace {
 		int			   firstRuns = 0;
 		int			   secondRuns = 0;
 		const Pipeline pipeline = standIns(&firstRuns, &secondRuns, 2);
+		int			   started = 0;
 		const auto	   replayWith = [&](PipelineReplay replay) {
-			(void)pipeline.run(9, Script{}, {.replay = std::move(replay)});
+			(void)pipeline.run(9, Script{}, {.onProgress = [&](const StageAttempt&) { started += 1; }, .replay = std::move(replay)});
 		};
 		EXPECT_THROW((replayWith({.mapAttempt = 0, .attempts = {{"first", 0}}})), std::invalid_argument);
 		EXPECT_THROW((replayWith({.mapAttempt = 0, .attempts = {{"first", 0}, {"second", 0}, {"third", 0}}})), std::invalid_argument);
 		EXPECT_THROW((replayWith({.mapAttempt = 0, .attempts = {{"first", 0}, {"second", 2}}})), std::invalid_argument);
 		EXPECT_THROW((replayWith({.mapAttempt = kMapAttempts, .attempts = {{"first", 0}, {"second", 0}}})), std::invalid_argument);
+		// Before any stage runs, the last stage's attempt included.
+		EXPECT_EQ(started, 0);
 	}
 
 } // namespace
