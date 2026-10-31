@@ -106,6 +106,23 @@ namespace rules {
 		return strings;
 	}
 
+	std::vector<int> JsonReader::requireInts(std::string_view key) {
+		const nlohmann::json& field = require(key);
+		if (!field.is_array()) {
+			failAt(key, "must be an array of whole numbers");
+		}
+		std::vector<int> numbers;
+		numbers.reserve(field.size());
+		for (const nlohmann::json& item : field) {
+			if (!item.is_number_integer() || item.get<int64_t>() < std::numeric_limits<int>::min() ||
+				item.get<int64_t>() > std::numeric_limits<int>::max()) {
+				failAt(key, "must be an array of whole numbers");
+			}
+			numbers.push_back(static_cast<int>(item.get<int64_t>()));
+		}
+		return numbers;
+	}
+
 	JsonReader JsonReader::requireObject(std::string_view key) {
 		return {require(key), location + "." + std::string(key)};
 	}

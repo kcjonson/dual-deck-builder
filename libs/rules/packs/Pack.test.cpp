@@ -76,6 +76,50 @@ namespace {
 		EXPECT_EQ(warlord.behavior.policy, "aggressive_flanker");
 		EXPECT_EQ(content.escorts.at(EscortId{"med_truck"}).signatureCard, CardId{"triage"});
 		EXPECT_EQ(content.cards.at(CardId{"ram"}).pack, PackId{"base"});
+
+		ASSERT_EQ(content.encounters.size(), 9U);
+		const EncounterDefinition& warband = content.encounters.at(EncounterId{"scav_warband"});
+		EXPECT_EQ(warband.skulls, 3);
+		EXPECT_EQ(warband.tiers, (std::vector{1, 2, 3, 4}));
+		EXPECT_EQ(warband.roadCap, 5);
+		ASSERT_EQ(warband.waves.size(), 3U);
+		EXPECT_EQ(warband.waves[0].raiders.front(), OpponentId{"warlord"});
+		EXPECT_EQ(warband.waves[1].arriveAt, 2);
+		EXPECT_EQ(warband.waves[1].afterTurns, 3);
+		EXPECT_EQ(warband.grow, OpponentId{"scav_bike"});
+	}
+
+	TEST_F(PackLoading, AnEncounterIsReadStrictly) {
+		const fs::path mod = pack("fights");
+		const auto	   writeEncounter = [&](std::string_view waves, std::string_view extra) {
+			write(
+				mod / "encounters" / "encounters.json",
+				std::string(R"({"encounters": [{"id": "ambush", "skulls": 1, "tiers": [1], "roadCap": 3, "grow": "scav_bike", )") +
+					std::string(extra) + R"("waves": )" + std::string(waves) + "}]}"
+			);
+		};
+		const auto refused = [&](std::string_view waves, std::string_view extra = "") {
+			writeEncounter(waves, extra);
+			return errorFrom({kBase, mod});
+		};
+		const std::string_view first = R"({"raiders": ["scav_bike", "scav_bike"]})";
+		const std::string	   later = std::string(R"([)") + std::string(first) + R"(, {"raiders": ["ghost_bike"], "arriveAt": 1}])";
+		EXPECT_TRUE(mentions(refused(later), "encounter ambush's wave 2 names opponent ghost_bike, which no pack defines"));
+		EXPECT_TRUE(mentions(refused(std::string("[") + std::string(first) + "]"), "needs a wave after the first"));
+		EXPECT_TRUE(mentions(
+			refused(R"([{"raiders": ["scav_bike", "scav_bike", "scav_bike", "scav_bike"]}, {"raiders": ["scav_bike"]}])"),
+			"waves[0] puts 4 raiders on the road, past the road cap of 3"
+		));
+		EXPECT_TRUE(mentions(
+			refused(R"([{"raiders": ["scav_bike"], "afterTurns": 2}, {"raiders": ["scav_bike"]}])"),
+			"afterTurns is for a later wave; the first is on the road when the fight starts"
+		));
+		const std::string fine = std::string("[") + std::string(first) + R"(, {"raiders": ["scav_bike"]}])";
+		EXPECT_TRUE(mentions(refused(fine, R"("boss": true, )"), "has fields nothing reads: boss"));
+
+		writeEncounter(fine, "");
+		const Content content = loadPacks(std::vector<fs::path>{kBase, mod});
+		EXPECT_EQ(content.encounters.at(EncounterId{"ambush"}).pack, PackId{"fights"});
 	}
 
 	TEST_F(PackLoading, APackOverridesWhatItRequires) {

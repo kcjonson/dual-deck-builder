@@ -37,6 +37,7 @@ namespace rules {
 		[[nodiscard]] std::string				 requireString(std::string_view key);
 		[[nodiscard]] std::optional<std::string> optionalString(std::string_view key);
 		[[nodiscard]] std::vector<std::string>	 requireStrings(std::string_view key);
+		[[nodiscard]] std::vector<int>			 requireInts(std::string_view key);
 
 		template <typename Enum, std::size_t Count>
 		[[nodiscard]] Enum requireEnum(std::string_view key, const EnumNames<Enum, Count>& names) {

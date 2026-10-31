@@ -1,5 +1,7 @@
 #include "Damage.h"
 
+#include "Waves.h"
+
 #include <algorithm>
 #include <cassert>
 #include <tuple>
@@ -70,6 +72,9 @@ namespace rules {
 			}
 			if (vehicle.structure == 0) {
 				wreck(state, index, events);
+				if (vehicle.side == Side::Raiders) {
+					noteRaiderOut(state, index);
+				}
 				return;
 			}
 			if (vehicle.driver || vehicle.isEscort()) {
@@ -86,6 +91,15 @@ namespace rules {
 				events.emplace_back(event::CarriesOnAsEscort{.vehicle = index});
 			} else {
 				events.emplace_back(event::Unmanned{.vehicle = index});
+				noteRaiderOut(state, index);
+			}
+		}
+
+		// A raider losing armor, structure, or HP in the player's turn keeps the fight from breaking off; a hit its
+		// Shield takes all of doesn't (calls 184 and 197).
+		void noteRaiderHurt(BattleState& state, Side side, int lost) {
+			if (side == Side::Raiders && state.phase == Phase::PlayerTurn && lost > 0) {
+				state.raiderHurt = true;
 			}
 		}
 
@@ -109,14 +123,17 @@ namespace rules {
 		events.emplace_back(
 			event::VehicleDamaged{.vehicle = index, .damage = damage, .shield = shield, .armor = armor, .structure = structure}
 		);
+		int lost = armor + structure;
 		if (occupantShare > 0) {
 			for (const DriverIndex occupant : aboard) {
 				BattleDriver& hurt = state.driver(occupant);
 				const int	  hitpoints = std::min(occupantShare, hurt.hitpoints);
 				hurt.hitpoints -= hitpoints;
+				lost += hitpoints;
 				events.emplace_back(event::DriverDamaged{.driver = occupant, .hitpoints = hitpoints});
 			}
 		}
+		noteRaiderHurt(state, vehicle.side, lost);
 		settleCasualties(state, index, events);
 	}
 
@@ -129,6 +146,7 @@ namespace rules {
 		const int	  hitpoints = std::min(damage, hurt.hitpoints);
 		hurt.hitpoints -= hitpoints;
 		events.emplace_back(event::DriverDamaged{.driver = index, .hitpoints = hitpoints});
+		noteRaiderHurt(state, hurt.side, hitpoints);
 		settleCasualties(state, *vehicle, events);
 	}
 

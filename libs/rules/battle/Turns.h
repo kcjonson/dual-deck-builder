@@ -19,15 +19,24 @@ namespace rules {
 	// A player's driver plays from wherever they ride; a raider from the wheel, unless it's stunned.
 	[[nodiscard]] bool canAct(const BattleState& state, DriverIndex driver);
 
-	// Lost once no player's driver is still in the fight, won once no raider is (Combat Rules, How a fight
-	// ends). A last hit that takes out both sides loses.
+	// Checked after every card and every enemy step (Combat Rules, How a fight ends). Lost once no player's driver
+	// is still in the fight, a last hit that takes out both sides included. Won once no raider is on the road or
+	// queued, or by a rout: a warband's leader out of the fight, or the nominal threat on the road and queued at or
+	// under a quarter of the fight's start. A road with no raider left on it and a wave queued isn't over; the wave
+	// is announced, to pull in at the end of the enemy turn.
 	bool endIfOver(BattleState& state, std::vector<Event>& events);
 
-	// A new player turn: statuses tick, the hands go, adrenaline refills, Shield clears, everyone draws, and the
-	// raiders are left to plan.
+	// The end of a played player turn, before the enemy turn: one that hurt no raider counts toward a break-off, and
+	// one that hurt any starts the count again. Three running and the raiders break off, so there's no enemy turn.
+	// A rehearsal never asks, since whether the turn was quiet hangs on what the player does in it.
+	bool breakOffIfQuiet(BattleState& state, std::vector<Event>& events);
+
+	// A new player turn: statuses tick, the hands go, adrenaline refills, Shield clears, everyone draws, the next
+	// wave comes due if it's time, and the raiders are left to plan.
 	void openPlayerTurn(BattleState& state, std::vector<Event>& events);
 
-	// The end of the player's turn into the enemy turn's start, with nobody acting yet.
+	// Into the enemy turn's start once the player's turn has ended and its death marks are taken, with nobody
+	// acting yet.
 	void beginEnemyTurn(BattleState& state, std::vector<Event>& events);
 
 	// The next raider in seat order that can act, or the end of the enemy turn.

@@ -116,6 +116,7 @@ namespace rules {
 			std::map<DriverId, Origin>		   driverOrigins;
 			std::map<EscortId, Origin>		   escortOrigins;
 			std::map<OpponentId, Origin>	   opponentOrigins;
+			std::map<EncounterId, Origin>	   encounterOrigins;
 
 			void loadPack(const PackManifest& manifest) {
 				forEachDefinition(manifest, "cards", [&](JsonReader reader, const std::string& file) {
@@ -138,6 +139,9 @@ namespace rules {
 					checkScript(folder, file, opponent.behavior.script);
 					define(content.opponents, opponentOrigins, std::move(opponent), "opponent", manifest, file.generic_string());
 				}
+				forEachDefinition(manifest, "encounters", [&](JsonReader reader, const std::string& file) {
+					define(content.encounters, encounterOrigins, readEncounter(std::move(reader)), "encounter", manifest, file);
+				});
 			}
 
 			// Calls `read` for every object in the `kind` array of every file in the pack's `kind` folder.
@@ -209,7 +213,22 @@ namespace rules {
 				}
 			}
 
+			void requireOpponent(const OpponentId& opponent, const Origin& origin, const std::string& what) const {
+				if (!content.opponents.contains(opponent)) {
+					throw ContentError(origin.file + ": " + what + " names opponent " + opponent.value + ", which no pack defines");
+				}
+			}
+
 			void checkReferences() const {
+				for (const auto& [id, encounter] : content.encounters) {
+					const Origin& origin = encounterOrigins.at(id);
+					for (size_t wave = 0; wave < encounter.waves.size(); ++wave) {
+						for (const OpponentId& raider : encounter.waves[wave].raiders) {
+							requireOpponent(raider, origin, "encounter " + id.value + "'s wave " + std::to_string(wave + 1));
+						}
+					}
+					requireOpponent(encounter.grow, origin, "encounter " + id.value + "'s grow");
+				}
 				for (const auto& [id, driver] : content.drivers) {
 					for (const DeckEntry& entry : driver.startingDeck) {
 						requireCard(entry.card, driverOrigins.at(id), "driver " + id.value + "'s starting deck");

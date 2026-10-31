@@ -50,14 +50,24 @@ namespace rules {
 		std::optional<FormationSlot> slot;
 	};
 
+	// Game stage runs 0 to 6, and each grows every raider's structure, and every raider's HP but a mook's, 5%
+	// (Runs and Encounters, Game stage and Encounter data).
+	inline constexpr int kMostStage = 6;
+	inline constexpr int kStageGrowthPercent = 5;
+
 	struct BattleSetup {
 		// One or two, no driver twice.
 		std::vector<PlayerSeat> players;
 		// Up to four.
 		std::vector<EscortSeat> escorts;
-		// In the order they act.
+		// The first wave, on the road when the fight starts, in the order they act.
 		std::vector<RaiderSeat> raiders;
-		uint32_t				seed{0};
+		// The waves queued behind it, each pulling into the formation as it comes due (Combat Rules, Reinforcements).
+		std::vector<EncounterWave> waves;
+		// The most raiders on the road at once, which holds the rest of a due wave back; none for no cap.
+		std::optional<int> roadCap;
+		int				   stage{0};
+		uint32_t		   seed{0};
 	};
 
 	struct BattleStart {
@@ -68,9 +78,9 @@ namespace rules {
 	// A deck list's cards, unupgraded, in the order it lists them.
 	[[nodiscard]] std::vector<BattleCard> cardsOf(std::span<const DeckEntry> deck);
 
-	// Seats everyone, puts the vehicles on the road, shuffles every deck, and opens the player's first turn, the
-	// opening deal and full adrenaline, for the raiders to plan. Throws std::invalid_argument for a setup the rules
-	// refuse.
+	// Seats everyone, puts the vehicles on the road, queues the later waves, shuffles every deck on the road, and opens
+	// the player's first turn, the opening deal and full adrenaline, for the raiders to plan. Throws
+	// std::invalid_argument for a setup the rules refuse.
 	[[nodiscard]] BattleStart startBattle(const BattleSetup& setup, const Content& content);
 
 	// Why a card in hand can't be played at all right now, whatever it's played at: whose turn it is, the

@@ -140,17 +140,64 @@ namespace rules {
 		bool steady{false};
 		// Who got out of it alive when it was wrecked, driver first, whom a card planned at it follows.
 		std::vector<DriverIndex> escaped;
+		// A raider's nominal threat, its opponent's own number, which a rout counts; 0 on the player's side.
+		int threat{0};
+		// A warband's leader, whose vehicle out of the fight routs the rest (call 206).
+		bool leads{false};
 
 		[[nodiscard]] bool isEscort() const { return crew.has_value(); }
 
 		bool operator==(const BattleVehicle&) const = default;
 	};
 
+	// A raider waiting off the road in a wave still to come, grown for the game stage, its deck in list order until it
+	// shuffles on arrival. It takes a seat, and its vehicle an index, when it pulls in.
+	struct QueuedRaider {
+		BattleDriver  driver;
+		BattleVehicle vehicle;
+
+		bool operator==(const QueuedRaider&) const = default;
+	};
+
+	struct QueuedWave {
+		// In the order they pull in.
+		std::vector<QueuedRaider> raiders;
+		// Due once the raiders in the fight are this many or fewer...
+		std::optional<int> arriveAt;
+		// ...or once this many player turns have passed since the last wave first played (call 193).
+		std::optional<int> afterTurns;
+		// Some of it has pulled in, and the rest waits on room.
+		bool started{false};
+
+		bool operator==(const QueuedWave&) const = default;
+	};
+
+	// The waves behind the road and when the next pulls in (Combat Rules, Reinforcements).
+	struct Reinforcements {
+		std::vector<QueuedWave> queue;
+		// The waves the fight has, the first included.
+		int total{1};
+		// The most raiders on the road at once; none for no cap.
+		std::optional<int> roadCap;
+		// The player turn the latest wave to arrive first played, which the next one's turn count runs from.
+		int sinceTurn{1};
+		// Announced: it pulls in at the end of this enemy turn, as many as there's room for, and stays due until it's in.
+		bool due{false};
+		// The row the latest raider to go out of the fight left, which arrivals fill from.
+		std::optional<Row> lastOutRow;
+
+		bool operator==(const Reinforcements&) const = default;
+	};
+
 	// A fight opens each player turn in Planning, which planEnemyTurn ends. EnemyTurn is the rehearsal raiders plan
 	// on: a fight itself plays its whole enemy turn inside the player's EndTurn.
 	enum class Phase { Planning, PlayerTurn, EnemyTurn, Over };
 
-	enum class Outcome { Won, Lost };
+	// How a fight ended, for the campaign to read (Combat Rules, How a fight ends). A break-off is neither won nor lost.
+	enum class Outcome { Won, Lost, BrokenOff };
+
+	// Why the raiders still in the fight fled, which wins it.
+	enum class RoutCause { LeaderOut, ThreatThinned };
 
 	// A fight, as a plain value: copy it to preview a play or look ahead, and the copy plays out exactly as the
 	// original would. Drivers and vehicles refer to each other by index, and both lists keep every entry for
@@ -166,8 +213,17 @@ namespace rules {
 		// and in the fight its plan plays.
 		std::optional<DriverIndex> actingRaider;
 		std::optional<Outcome>	   outcome;
+		// Set on a won fight the raiders fled.
+		std::optional<RoutCause> rout;
 		// Escorts drawing fire until the end of the next enemy turn, in the order played; the last on a row covers it.
 		std::vector<VehicleIndex> drawFireCovers;
+		Reinforcements			  reinforcements;
+		// The nominal threat of every raider the fight opened with, on the road and queued, which a rout measures against.
+		int startingThreat{0};
+		// Player turns running that ended with no raider losing armor, structure, or HP (calls 184 and 197).
+		int quietTurns{0};
+		// A raider has lost armor, structure, or HP this player turn.
+		bool raiderHurt{false};
 
 		[[nodiscard]] BattleDriver&		   driver(DriverIndex index);
 		[[nodiscard]] const BattleDriver&  driver(DriverIndex index) const;

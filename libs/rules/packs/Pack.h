@@ -2,6 +2,7 @@
 
 #include <rules/core/Card.h>
 #include <rules/core/Driver.h>
+#include <rules/core/Encounter.h>
 #include <rules/core/Escort.h>
 #include <rules/core/Ids.h>
 #include <rules/core/Opponent.h>
@@ -27,11 +28,12 @@ namespace rules {
 	// Everything the loaded packs define, by id, after every override.
 	struct Content {
 		// In load order.
-		std::vector<PackManifest>				 packs;
-		std::map<CardId, CardDefinition>		 cards;
-		std::map<DriverId, DriverDefinition>	 drivers;
-		std::map<EscortId, EscortDefinition>	 escorts;
-		std::map<OpponentId, OpponentDefinition> opponents;
+		std::vector<PackManifest>				   packs;
+		std::map<CardId, CardDefinition>		   cards;
+		std::map<DriverId, DriverDefinition>	   drivers;
+		std::map<EscortId, EscortDefinition>	   escorts;
+		std::map<OpponentId, OpponentDefinition>   opponents;
+		std::map<EncounterId, EncounterDefinition> encounters;
 	};
 
 	// Loads packs in the order given, each a folder holding pack.json and its content folders:
@@ -40,6 +42,7 @@ namespace rules {
 	//   drivers/*.json          {"drivers": [...]}
 	//   escorts/*.json          {"escorts": [...]}
 	//   opponents/<id>/opponent.json, plus anything its behavior names
+	//   encounters/*.json       {"encounters": [...]}
 	//
 	// A later pack adds content or overrides it by id, but only content from a pack it requires, directly or
 	// through another; two packs overriding the same id without one requiring the other fails, naming both.

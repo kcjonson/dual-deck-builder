@@ -126,13 +126,14 @@ What a fight stop fields is an encounter: authored data, picked when the fight s
 
 ### Encounter data
 
-An encounter is a JSON template: the skulls and tiers it's for, and its waves, each a list of raiders with an arrival count and a turn count. Two or three templates for each skull count and tier band, so one stop doesn't always field one fight.
+An encounter is a JSON template in a pack's `encounters` folder: the skulls and tiers it's for, the most raiders it puts on the road at once (How big's cap for its skull count), and its waves, each a list of raiders with an arrival count and a turn count. Two or three templates for each skull count and tier band, so one stop doesn't always field one fight.
 
 ```json
 {
 	"id": "scav_pack",
 	"skulls": 1,
 	"tiers": [1, 2],
+	"roadCap": 3,
 	"waves": [
 		{ "raiders": ["scav_bike", "scav_bike", "rust_buggy"] },
 		{ "raiders": ["scav_bike", "scav_bike"], "arriveAt": 1, "afterTurns": 2 }

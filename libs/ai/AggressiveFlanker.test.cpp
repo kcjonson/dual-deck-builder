@@ -27,7 +27,7 @@ namespace {
 
 	void planWithTheirPolicies(BattleState& state) {
 		state.phase = Phase::Planning;
-		(void)planEnemyTurn(state, testContent(), basePolicies().forFight(state));
+		(void)planEnemyTurn(state, testContent(), basePolicies().forRaiders());
 	}
 
 	TEST(AggressiveFlanker, FlanksFirstThenTakesTheShotItHasFromTheShoulder) {

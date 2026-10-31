@@ -4,6 +4,7 @@
 #include "Hands.h"
 #include "Movement.h"
 #include "Statuses.h"
+#include "Waves.h"
 
 namespace rules {
 
@@ -11,6 +12,11 @@ namespace rules {
 
 		// Each driver's draw at the start of every player turn (Combat Rules, Combat sequence).
 		constexpr int kTurnDraw = 5;
+
+		// The raiders rout once the threat left is at or under one part in this many of the start, and break off
+		// after this many quiet player turns running (Combat Rules, How a fight ends).
+		constexpr int kRoutParts = 4;
+		constexpr int kBreakOffTurns = 3;
 
 		std::vector<DriverIndex> driversInFight(const BattleState& state) {
 			std::vector<DriverIndex> drivers;
@@ -42,6 +48,14 @@ namespace rules {
 			}
 		}
 
+		void endFight(BattleState& state, Outcome outcome, std::optional<RoutCause> rout, std::vector<Event>& events) {
+			state.phase = Phase::Over;
+			state.actingRaider.reset();
+			state.outcome = outcome;
+			state.rout = rout;
+			events.emplace_back(event::FightEnded{.outcome = outcome, .rout = rout});
+		}
+
 	} // namespace
 
 	std::optional<VehicleIndex> raiderAtTheWheel(const BattleState& state, DriverIndex raider) {
@@ -62,24 +76,58 @@ namespace rules {
 
 	bool endIfOver(BattleState& state, std::vector<Event>& events) {
 		bool playerLeft = false;
-		bool raiderLeft = false;
 		for (int index = 0; index < static_cast<int>(state.drivers.size()); ++index) {
 			if (state.drivers[static_cast<size_t>(index)].side == Side::Player) {
 				playerLeft = playerLeft || driverInFight(state, DriverIndex{index});
 			}
 		}
+		if (!playerLeft) {
+			endFight(state, Outcome::Lost, std::nullopt, events);
+			return true;
+		}
+
+		int	 onRoad = 0;
+		int	 queued = 0;
+		int	 threatLeft = 0;
+		bool leaderOut = false;
 		for (int index = 0; index < static_cast<int>(state.vehicles.size()); ++index) {
-			if (state.vehicles[static_cast<size_t>(index)].side == Side::Raiders) {
-				raiderLeft = raiderLeft || vehicleInFight(state, VehicleIndex{index});
+			const BattleVehicle& raider = state.vehicles[static_cast<size_t>(index)];
+			if (raider.side != Side::Raiders) {
+				continue;
+			}
+			const bool inFight = vehicleInFight(state, VehicleIndex{index});
+			onRoad += inFight ? 1 : 0;
+			threatLeft += inFight ? raider.threat : 0;
+			leaderOut = leaderOut || (raider.leads && !inFight);
+		}
+		for (const QueuedWave& wave : state.reinforcements.queue) {
+			for (const QueuedRaider& raider : wave.raiders) {
+				++queued;
+				threatLeft += raider.vehicle.threat;
 			}
 		}
-		if (playerLeft && raiderLeft) {
+		if (onRoad + queued == 0) {
+			endFight(state, Outcome::Won, std::nullopt, events);
+			return true;
+		}
+		// Threat is nominal, each opponent's own number however hurt it is, so spreading damage can't set it off.
+		const bool thinned = state.startingThreat > 0 && threatLeft * kRoutParts <= state.startingThreat;
+		if (leaderOut || thinned) {
+			endFight(state, Outcome::Won, leaderOut ? RoutCause::LeaderOut : RoutCause::ThreatThinned, events);
+			return true;
+		}
+		if (onRoad == 0) {
+			announceWave(state, events);
+		}
+		return false;
+	}
+
+	bool breakOffIfQuiet(BattleState& state, std::vector<Event>& events) {
+		state.quietTurns = state.raiderHurt ? 0 : state.quietTurns + 1;
+		if (state.quietTurns < kBreakOffTurns) {
 			return false;
 		}
-		state.phase = Phase::Over;
-		state.actingRaider.reset();
-		state.outcome = playerLeft ? Outcome::Won : Outcome::Lost;
-		events.emplace_back(event::FightEnded{.outcome = *state.outcome});
+		endFight(state, Outcome::BrokenOff, std::nullopt, events);
 		return true;
 	}
 
@@ -90,6 +138,7 @@ namespace rules {
 	void openPlayerTurn(BattleState& state, std::vector<Event>& events) {
 		state.phase = Phase::Planning;
 		state.actingRaider.reset();
+		state.raiderHurt = false;
 		events.emplace_back(event::TurnStarted{.turn = state.turn, .side = Side::Player});
 		tickStatuses(state, events);
 		forgetTheLastTurn(state);
@@ -113,13 +162,10 @@ namespace rules {
 		for (const DriverIndex driver : inFight) {
 			drawCards(state, driver, kTurnDraw, events);
 		}
+		checkWaveDue(state, events);
 	}
 
 	void beginEnemyTurn(BattleState& state, std::vector<Event>& events) {
-		takeDeathMarks(state, Side::Player, events);
-		if (endIfOver(state, events)) {
-			return;
-		}
 		for (int index = 0; index < static_cast<int>(state.drivers.size()); ++index) {
 			if (state.drivers[static_cast<size_t>(index)].side == Side::Player) {
 				discardHand(state, DriverIndex{index}, events);
@@ -161,6 +207,7 @@ namespace rules {
 		dropBackFlankers(state, events);
 		clearWrecks(state, events);
 		closeUpRaiders(state, events);
+		landWave(state, events);
 		// Draw Fire lasts until the end of the next enemy turn, which this is.
 		state.drawFireCovers.clear();
 		++state.turn;

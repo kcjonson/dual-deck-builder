@@ -108,7 +108,7 @@ namespace rules::fights {
 	};
 
 	inline std::vector<Event> plan(BattleState& state, const Policy& policy) {
-		return planEnemyTurn(state, testContent(), [&](DriverIndex) -> const Policy& { return policy; });
+		return planEnemyTurn(state, testContent(), [&](const BattleState&, DriverIndex) -> const Policy& { return policy; });
 	}
 
 	// Plans again, for a test that has rigged a raider's hand since.
@@ -179,6 +179,15 @@ namespace rules::fights {
 			}
 		}
 		return found;
+	}
+
+	// The raiders that committed a plan, in the order they planned.
+	inline std::vector<DriverIndex> planners(const std::vector<Event>& events) {
+		std::vector<DriverIndex> raiders;
+		for (const event::PlanCommitted& committed : eventsOf<event::PlanCommitted>(events)) {
+			raiders.push_back(committed.raider);
+		}
+		return raiders;
 	}
 
 	inline bool offers(const std::vector<Action>& actions, const Action& action) {
