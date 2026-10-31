@@ -67,6 +67,13 @@ namespace rules::map {
 		return hazards != nullptr && hazards->crater(x, y);
 	}
 
+	std::span<const Hotspot> Ground::hotspots() const {
+		if (hazards == nullptr) {
+			return {};
+		}
+		return hazards->hotspots();
+	}
+
 	Ground Ground::withRivers(const RiverIndex& rivers) const {
 		Ground other = *this;
 		other.riverWater = &rivers;

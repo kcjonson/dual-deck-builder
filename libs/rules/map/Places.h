@@ -84,6 +84,21 @@ namespace rules::map {
 		std::vector<Exit>		exitList;
 	};
 
+	enum class PlaceKind { Metro, Town, Village, Crossroads, Exit };
+
+	// Any place, as the roads join it.
+	struct Place {
+		int		  id{0};
+		PlaceKind kind{PlaceKind::Metro};
+		double	  x{0};
+		double	  y{0};
+		// An exit a highway leaves by.
+		bool highway{false};
+	};
+
+	// Every place in id order: the metro at the origin, then the towns, villages, crossroads, and exits.
+	[[nodiscard]] std::vector<Place> placeList(const Places& places);
+
 	// Per square between cell centres (LandFields::openSquares' numbering): 1 where a flood fill from the
 	// metro reaches it over open squares, less any a crater reaches into and any with a lake cell at a
 	// corner. Rivers don't stop it, since roads bridge them. Exact for cliffs, craters, and lakes.

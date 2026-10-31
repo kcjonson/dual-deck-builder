@@ -235,7 +235,7 @@ namespace {
 			generateAreaMap(params, fixtures::placeNames(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
 								return attempt.stage == "places" && attempt.attempt == 0 ? Problems{"no towns there"} : Problems{};
 							}});
-		ASSERT_EQ(result.stages.size(), 4U);
+		ASSERT_EQ(result.stages.size(), 5U);
 		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
 		EXPECT_EQ(result.stages[1].stream, fixtures::waterStream(params).seed());
 		EXPECT_EQ(result.stages[2].stream, fixtures::hazardsStream(params).seed());

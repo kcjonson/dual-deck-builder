@@ -7,6 +7,7 @@
 #include <math/DeterministicMath.h>
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <limits>
@@ -733,6 +734,26 @@ namespace rules::map {
 		for (const ExitSite& exit : exits) {
 			exitList.push_back({.id = id++, .x = exit.point.x, .y = exit.point.y, .bearing = exit.bearing, .highway = exit.highway});
 		}
+	}
+
+	std::vector<Place> placeList(const Places& places) {
+		std::vector<Place> list{{.id = 0, .kind = PlaceKind::Metro, .x = 0, .y = 0, .highway = false}};
+		for (const Settlement& town : places.towns()) {
+			list.push_back({.id = town.id, .kind = PlaceKind::Town, .x = town.x, .y = town.y, .highway = false});
+		}
+		for (const Settlement& village : places.villages()) {
+			list.push_back({.id = village.id, .kind = PlaceKind::Village, .x = village.x, .y = village.y, .highway = false});
+		}
+		for (const Crossroads& crossroads : places.crossroads()) {
+			list.push_back({.id = crossroads.id, .kind = PlaceKind::Crossroads, .x = crossroads.x, .y = crossroads.y, .highway = false});
+		}
+		for (const Exit& exit : places.exits()) {
+			list.push_back({.id = exit.id, .kind = PlaceKind::Exit, .x = exit.x, .y = exit.y, .highway = exit.highway});
+		}
+		for ([[maybe_unused]] size_t index = 0; index < list.size(); ++index) {
+			assert(list[index].id == static_cast<int>(index) && "placeList: the places are numbered in list order");
+		}
+		return list;
 	}
 
 	Problems checkPlaces(const Places& places, const Terrain& terrain, const Water& water, const Hazards& hazards) {

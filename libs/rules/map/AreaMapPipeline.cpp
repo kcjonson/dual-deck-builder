@@ -37,6 +37,15 @@ namespace rules::map {
 			return checkPlaces(*map.places, *map.terrain, *map.water, *map.hazards);
 		}
 
+		void runRoads(const AreaMapInput& input, AreaMap& map, foundation::Rng& stream) {
+			map.roads.emplace(input.params, *map.terrain, *map.water, *map.hazards, *map.places, stream);
+		}
+
+		// The links are ordered by the stream, so another attempt links the places in another order.
+		Problems checkRoadsStage(const AreaMapInput& input, const AreaMap& map) {
+			return checkRoads(*map.roads, input.params);
+		}
+
 	} // namespace
 
 	MapPipeline<AreaMapInput, AreaMap> areaMapPipeline() {
@@ -44,7 +53,8 @@ namespace rules::map {
 			.then({.name = "terrain", .run = runTerrain})
 			.then({.name = "water", .run = runWater})
 			.then({.name = "hazards", .run = runHazards, .check = checkHazards})
-			.then({.name = "places", .run = runPlaces, .check = checkPlacesStage});
+			.then({.name = "places", .run = runPlaces, .check = checkPlacesStage})
+			.then({.name = "roads", .run = runRoads, .check = checkRoadsStage});
 	}
 
 	PipelineResult<AreaMap>

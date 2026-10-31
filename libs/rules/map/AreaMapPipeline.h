@@ -5,6 +5,7 @@
 #include "MapPipeline.h"
 #include "PlaceNames.h"
 #include "Places.h"
+#include "Roads.h"
 #include "Terrain.h"
 #include "Water.h"
 
@@ -24,11 +25,12 @@ namespace rules::map {
 		std::optional<Water>   water;
 		std::optional<Hazards> hazards;
 		std::optional<Places>  places;
+		std::optional<Roads>   roads;
 	};
 
-	// The area map's stages: terrain, water, hazards, and places, so far. Each runs on the stream the runner
-	// nests for it, so the places draw from root.fork("map", m).fork("terrain", t).fork("water", w)
-	// .fork("hazards", h).fork("places", p).
+	// The area map's stages: terrain, water, hazards, places, and roads, so far. Each runs on the stream the
+	// runner nests for it, so the roads draw from root.fork("map", m).fork("terrain", t).fork("water", w)
+	// .fork("hazards", h).fork("places", p).fork("roads", r).
 	[[nodiscard]] MapPipeline<AreaMapInput, AreaMap> areaMapPipeline();
 
 	// The area map for validated params, on their seed.

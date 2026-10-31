@@ -34,6 +34,21 @@ namespace rules::map {
 		// True within `reach` of a river's water: within half its width there plus `reach` of its centreline.
 		[[nodiscard]] bool near(double x, double y, double reach) const;
 
+		// Calls `visit(minX, minY, maxX, maxY)` with the box round each segment's water: its ends, grown by
+		// half its wider width.
+		template <typename Visit>
+		void forEachWaterBox(Visit&& visit) const {
+			for (const Segment& segment : segments) {
+				const double reach = 0.5 * std::max(segment.widthA, segment.widthB);
+				visit(
+					std::min(segment.ax, segment.bx) - reach,
+					std::min(segment.ay, segment.by) - reach,
+					std::max(segment.ax, segment.bx) + reach,
+					std::max(segment.ay, segment.by) + reach
+				);
+			}
+		}
+
 		// Calls `visit` with each river centreline the move from (x0, y0) to (x1, y1) crosses, once each. A move
 		// that only touches a centreline, or runs along one, crosses nothing.
 		template <typename Visit>
