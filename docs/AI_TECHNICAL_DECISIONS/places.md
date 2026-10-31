@@ -94,6 +94,17 @@ The area map's look for places, ruins, and the fog over them is [area-map-atlas-
 
 Everything on the gameplay path is adds, multiplies, divides, compares, and square roots, with no trig or other libm transcendentals; bearings become unit vectors through `unitVector`, a polynomial sine and cosine (`_legacy/src/renderer/game/map/Geometry.ts`). Sorting the ranked cells breaks ties by index. Those are exact in IEEE doubles, and with floating-point contraction off (`-ffp-contract=off`, which salal's foundation sets for GCC and Clang) no multiply and add fuse, so the same seed and params give the same places and hotspots on every platform. The tests pin two maps' places and hotspots as hashes of their coordinates, with their counts and town names.
 
+## Hazards in the C++ alpha
+
+`libs/rules/map/Hazards` (2026-10-30, DDB-571) is the pipeline's third stage, on `root.fork("map", m).fork("terrain", t).fork("water", w).fork("hazards", h)`, its hotspots dart-thrown on the `hotspots` fork by the rules above and terrain-fields.md's Hotspots (craters 14 to 26 units, plumes 5 to 8 times that, strength 0.75 to 1, a quarter of the radius apart, past the blend radius by the largest crater, inside 0.9 of the radius, off the land's drainage of 40 cells by two cells, and a cell and 20 units off lakes). What's new:
+
+- The stage checks it placed every hotspot asked for. One that finds no room in its 48 candidates was left out quietly; now a stage short of one fails its check and draws again on its next attempt, then the map restarts as for any stage. It's vanishingly rare, so it costs nothing, and `hotspots` means what it says.
+- A plume fades with the land's own contamination over the metro's blend ring: the plumes combine as before, 1 - (1 - a)(1 - b), but under a ceiling of what the ground there can hold, one less the metro's weight, so a plume reaching toward the start, as a 200-unit plume past the blend radius can, never contaminates the metro.
+- The craters keep off the land's own drainage and the water's lakes as read off `Water::lakeOf`, and so off the rivers: a river line passes no crater, which a test holds.
+- `Ground` takes the hazards as a third layer: `crater` and the plumes over the contamination. Badlands still read the contamination before the plumes, as provisional call 2 has it.
+
+Tests hold the spacing and the ring, craters off the drainage, the lakes, and every river line, plumes raising contamination only under themselves and never in the metro, craters only inside their radius, and a hazards retry leaving the terrain and the water as they were, each on its first attempt's stream.
+
 ## Consequences
 
 - Every map moves: its hotspots, its lakes (which no longer keep off towns and craters), its badlands near the old plumes, its towns, and with the departures its roads.
