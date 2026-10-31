@@ -19,6 +19,7 @@ add_library(ddb::rules ALIAS ddb_rules)
 add_subdirectory(map)
 
 add_subdirectory(battle)
+add_subdirectory(campaign)
 
 target_compile_features(ddb_rules PUBLIC cxx_std_20)
 

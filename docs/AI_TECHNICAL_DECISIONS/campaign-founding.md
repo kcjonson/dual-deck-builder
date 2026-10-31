@@ -98,6 +98,14 @@ Founding reads no randomness at all but the seed's own streams. The params and t
 - If the player picks the pool (DDB-391), the pick replaces the deal in `foundCampaign`, or the deal becomes the suggestion it starts from, exported for the pick screen to show. `poolSize` holds the size either way.
 - A pinned test holds what one seed deals, so changing the deal (the stream, the sort, the shuffle) shows up there, and moves every seed's pool.
 
+## In the C++ alpha
+
+`foundCampaign` in `libs/rules/campaign/Founding.h` (2026-10-31, DDB-573) deals the pool as this record has it, on the same streams, and [campaign.md](./campaign.md) has how. What differs:
+
+- There's no map yet, so founding takes no params and generates nothing, and the deal is its only draw.
+- The starting values are pack content, `packs/base/campaign/start.json`, which a pack requiring the one that set them can override whole. A starter escort is a type there, as before.
+- The unlocked archetypes still come in; `unlockedAtStart` reads the packs' own `unlocked` flags until meta-progression keeps unlocks.
+
 ## Provisional calls
 
 Made here, each a line or a value to change:

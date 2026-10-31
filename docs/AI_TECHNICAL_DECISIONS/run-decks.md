@@ -67,6 +67,15 @@ Kevin's rule (a) counts loot as cargo (combat-bridge.md, Kevin's rules), and car
 
 The campaign saves `runDecks`, each as its driver's id, `own`, `leftHome`, `borrowed`, and `escortCards`, which bumped `CAMPAIGN_SCHEMA_VERSION` from 3 to 4. The format fixture (`CAMPAIGN_FIXTURE`) is a campaign with a run out, so the run deck format is pinned with the rest. A load refuses a run deck for a driver who isn't in the pool, one run deck or more than two, two for one driver, a seated driver whose default deck holds cards, a card both left at home and borrowed, and an escort card whose escort isn't in the convoy, isn't that escort's signature card, or is in both run decks. The bump also starts Campaign History over, since the history list is stamped with the same version ([campaign-save-and-load.md](./campaign-save-and-load.md)).
 
+## In the C++ alpha
+
+`libs/rules/campaign/RunDecks.h` and `Locker.h` (2026-10-31, DDB-573) keep these rules and calls, and [campaign.md](./campaign.md) has how. What differs:
+
+- The run decks are the run's, in `Campaign::run`, beside the escorts that came along, so an escort card is checked against the run rather than a party.
+- A load out can't be given up once its run has fought or picked something up, since that run has left.
+- A move names no copies (`CardMove.copies`); Customize's choice of stack comes with the screen.
+- A missing driver's run deck unwinds in the lost fight's write-back, with the dead's.
+
 ## Provisional calls
 
 These are the simplest options where the spec leaves the rule open. Each is a small change to flip, but the first:

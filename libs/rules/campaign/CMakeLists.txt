@@ -1,0 +1,10 @@
+target_sources(ddb_rules
+    PRIVATE
+        Campaign.cpp
+        CampaignJson.cpp
+        CampaignRules.cpp
+        CombatBridge.cpp
+        Founding.cpp
+        Locker.cpp
+        RunDecks.cpp
+)

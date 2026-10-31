@@ -86,6 +86,16 @@ Closing the fight first would let a listener start the next one partway through,
 
 It refuses a fight that's still on, a tie, a fight it has already written back, and a result its records no longer fit (a record changed under the fight), storing nothing. A campaign fight has no turn limit, so it ends won, broken off, or lost; a tie needs a turn limit set by hand, and nothing says what one would mean for a driver who crashed out.
 
+## In the C++ alpha
+
+`libs/rules/campaign/CombatBridge.h` (2026-10-31, DDB-573) keeps these rules, and [campaign.md](./campaign.md) has how. What differs:
+
+- There's no run party. The run is part of the campaign, so the bridge reads the seats, escorts, and cargo off `Campaign::run`, and none of the refusals for a party out of step with it exist.
+- A fight names its run and how many fights the run had written back, which is all a write-back needs to refuse a fight twice or from another run, so there's no registry of open fights or of write-backs in progress.
+- A lost fight ends the run in its write-back, unwinding the run decks and losing the cargo and escorts, which `loseRun` did after it.
+- A driven vehicle's armor is written back at most its base (call 393).
+- The fight seeds from the campaign by the run and its fight count, `nextFightSeed`, which the encounter pick takes too.
+
 ## Provisional calls
 
 These unblock the build and aren't settled rules; the specs point here wherever they need one of them. Each is a small change to flip:

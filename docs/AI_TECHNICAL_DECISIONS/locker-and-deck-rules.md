@@ -27,6 +27,10 @@ So the limits are checked on each move, by the direction it goes: a deck can't t
 
 The campaign checks eligibility synchronously, and `CardLoader` fetches `cards.json` asynchronously, so `DeckRules` imports the file and webpack bundles it beside the copy the loader fetches: about 16.5 KB minified, 3.4 KB gzipped. It costs nothing until something outside `campaign/` imports `Campaign`, which nothing does yet. Rejected: passing a card lookup into `Campaign`, which every constructor, `fromJSON`, and founding would then need, and a registry filled when `CardLoader` finishes, which a test or an early screen could read empty. A card type the file doesn't list (dropped since a save was made) can go in any deck.
 
+## In the C++ alpha
+
+`cardMoveBlocker`, `moveCards`, and scrapping in `libs/rules/campaign/Locker.h` (2026-10-31, DDB-573) keep these rules in this order, and [campaign.md](./campaign.md) has how. The limits are pack content, `packs/base/campaign/deck-rules.json`, and the archetype marks are each card's `driverRestriction` in the loaded packs. A refusal is a typed `CardBlocker`, and `moveCards` throws `std::invalid_argument` rather than an error type of its own.
+
 ## Provisional calls
 
 - Deck size: 8 to 20, the spec's starting values, in `deck-rules.json` until the limits decision (DDB-317) settles them.
