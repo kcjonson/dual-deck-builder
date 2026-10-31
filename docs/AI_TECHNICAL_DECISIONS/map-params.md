@@ -1,6 +1,6 @@
 # Map parameters in code (DDB-287)
 
-Date: 2026-10-06, revised 2026-10-07 in DDB-404 and 2026-10-09 for the realistic map's table (DDB-440). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Map parameters. Follows [compound-and-area-map.md](./compound-and-area-map.md), decision 5, and [realistic-map.md](./realistic-map.md), which changed the table.
+Date: 2026-10-06, revised 2026-10-07 in DDB-404, 2026-10-09 for the realistic map's table (DDB-440), and 2026-10-30 for the C++ alpha (DDB-571, below). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Map parameters. Follows [compound-and-area-map.md](./compound-and-area-map.md), decision 5, and [realistic-map.md](./realistic-map.md), which changed the table.
 
 ## Context
 
@@ -75,6 +75,16 @@ Choices the spec left to the code:
 Code that the later stages replace still reads the table. Terrain reads nothing whose values moved (`ruggedness` keeps its range, default, and every environment's value), so `Terrain.test`'s pinned samples hold. `planHighways` reads `highwaySeparation` as degrees between departures from the metro, which is near enough to exits at the rim until settlements place exits. Road growth read `branchiness` and `roadClearance`; it now takes them as options of its own (`GrowthTuning`), defaulting to the old table's 0.5 and 24, so its tests and `_legacy/scripts/road-growth.mjs` can still sweep them, and they go with growth when road links replace it (Map 7). With `branchiness` gone from the environment rows, High Desert and Rust Belt grow at the shared 0.5 instead of their 0.4 and 0.6, so their networks differ from before; Mixed, Floodlands, and Badlands, which kept the default, grow the same roads from the same set. Rolled params no longer vary either knob, so every rolled map grows at 0.5 and 24.
 
 A table change is repaired on load, not a version bump. Saves keep resolved params, but `repairMapParams` exists so the table can move without refusing older saves (campaign-state-model.md), and the save format's shape doesn't change, since its pin reads map params as data. So the version stays where it was, and a campaign saved under the old table loads: the removed keys drop with a warning each, and the new parameters take its environment's values, which a test holds with a Rust Belt save. A renamed parameter isn't carried over, so a saved `sceneryDensity` drops and `dressing` takes its environment's default; nothing reads either yet. Bumping the version would have made every playtester's save outdated and restarted their history for no gain.
+
+## In the C++ alpha
+
+`libs/rules/map/` (`MapParams`, `ParamValidator`, `RollParams`, `MapPresets`) keeps the table, the environments, the split roll and the two combination rules as they are, so the values and the draws' independence hold. What changed is what the types now carry:
+
+- `MapParams` is a struct of typed fields, whole numbers as `int`, and `kNumberParams` reaches each one through a member pointer, so stages read `params.rivers` while the validator, the roll and the preset reader walk the table. A step is a count of units over a count per unit (aridity's 0.05 is 1 / 20), so a snapped value is a whole number divided once, exactly rounded, and 3 steps of 0.05 read as 0.15 without `toFixed`'s cleanup.
+- The validator only clamps. A seed is a `uint32_t`, an environment the enum, and a whole-number parameter an `int`, so there's no seed to wrap, no unknown environment to swap for Mixed, no NaN to replace, and nothing to round. Where those came from outside, a preset, the reader fails instead, naming the file and the field, as every pack reader does.
+- A preset names its environment; the TypeScript let it fall to Mixed when absent. Presets are read from a pack's `map/presets/` folder by name, sorted, with a stray file in it an error. Writing one waits on the Map Lab.
+- `rollParams` returns the clamps beside the params, which was `rollParamsWithClamps`.
+- Not yet: `stopTables`, which the stops stage will define, the per-value sources the Map Lab shows, and `repairMapParams`, which went with save compatibility.
 
 ## Consequences
 

@@ -76,6 +76,12 @@ The map is keyed by the generator version, the seed, the params, and the attempt
 
 Making the map takes as long as founding it did, less any failed attempts: the same stages, once each. A screen that needs it shows the progress the same way the menu does (`mapProgressText`).
 
+## In the C++ alpha
+
+`libs/rules/map/MapPipeline.h` (2026-10-30, DDB-571) is the runner's skeleton, with terrain as its one stage (`AreaMapPipeline`). `MapPipeline<Input, Products>` is built a stage at a time with `then`, and a stage writes its product into a products struct, `AreaMap`, a field per stage, that later stages read; a map restart starts the struct fresh. Streams nest as above, attempts and map restarts are as above, the accept hook and progress are as above, and so are failures and replay. Each stage's record keeps its winning attempt, its stream's seed, its runs, and their time, checks included. A replay that doesn't fit the pipeline throws `std::invalid_argument` before anything runs.
+
+What it leaves for the stages that need them: escalation (the POIs to the roads), local retry with `keepable` and inert stages (the stops and the dressing), the debug and release split past a local-retry stage's cap, cancellation, and the generator version a save names. The terrain stage has no check, since erosion always makes land; its stream is `root.fork("map", m).fork("terrain", t)`.
+
 ## Provisional calls
 
 Calls the spec left open, made the simplest way consistent with it (founding's and loading's are in [campaign-founding.md](./campaign-founding.md) and [campaign-save-and-load.md](./campaign-save-and-load.md)):
