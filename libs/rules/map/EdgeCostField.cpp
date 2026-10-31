@@ -200,7 +200,7 @@ namespace rules::map {
 	}
 
 	bool EdgeCostField::clear(double x0, double y0, double x1, double y1, double length, uint8_t could) const {
-		const std::vector<BridgeSpan> spans = (could & kRiver) != 0 ? costs.bridgeSpans(x0, y0, x1, y1) : std::vector<BridgeSpan>{};
+		const std::vector<BridgeSpan> spans = (could & kRiver) != 0 ? bridgeSpans(*land, x0, y0, x1, y1) : std::vector<BridgeSpan>{};
 		// From the lower-left end, so a move is sampled at the same points whichever way a road takes it.
 		const bool		  forward = x0 < x1 || (x0 == x1 && y0 <= y1);
 		const double	  startX = forward ? x0 : x1;

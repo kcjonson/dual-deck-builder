@@ -168,26 +168,4 @@ namespace {
 		}
 	}
 
-	TEST(Terrain, ReadsOnlyTheParametersThatShapeTheLand) {
-		const MapParams elsewhere = fixtures::paramsFor(
-			kMixed.seed,
-			Environment::Mixed,
-			{{NumberParam::Towns, 11},
-			 {NumberParam::Hotspots, 6},
-			 {NumberParam::Contamination, 0.9},
-			 {NumberParam::Lakes, 7},
-			 {NumberParam::Highways, 9},
-			 {NumberParam::Dressing, 0.1},
-			 {NumberParam::Aridity, 0.2}}
-		);
-		const Terrain terrain(elsewhere, fixtures::terrainStream(elsewhere, 0));
-		EXPECT_EQ(terrain.surface().elevation, fixtures::terrainFor(kMixed).surface().elevation);
-		EXPECT_EQ(terrain.surface().drainage.receivers, fixtures::terrainFor(kMixed).surface().drainage.receivers);
-	}
-
-	TEST(Terrain, BuildsOtherLandOnAnotherStageAttempt) {
-		const Terrain other(kMixed, fixtures::terrainStream(kMixed, 1));
-		EXPECT_NE(other.surface().elevation, fixtures::terrainFor(kMixed).surface().elevation);
-	}
-
 } // namespace

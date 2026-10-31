@@ -34,7 +34,4 @@ target_link_libraries(ddb_rules PUBLIC salal::foundation nlohmann_json::nlohmann
 
 set_target_properties(ddb_rules PROPERTIES FOLDER libs)
 
-ddb_add_tests(rules)
-if(TARGET ddb_rules_tests)
-    target_compile_definitions(ddb_rules_tests PRIVATE DDB_PACKS_DIR="${PROJECT_SOURCE_DIR}/packs")
-endif()
+ddb_add_tests(rules DEFINITIONS DDB_PACKS_DIR="${PROJECT_SOURCE_DIR}/packs")

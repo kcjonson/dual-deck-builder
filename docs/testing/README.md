@@ -7,7 +7,8 @@ screenshot baselines, and no pixel comparisons, in CI or locally. Decided
 
 | Layer | Where | When |
 |---|---|---|
-| Unit tests | gtest, `*.test.cpp` beside the code, run by `ctest` | while iterating, and CI |
+| Unit tests | gtest, `*.test.cpp` beside the code, `ctest --preset windows` | while iterating, and CI |
+| Slow unit tests | gtest, `*.slow.test.cpp` beside the code: whole map pipelines and anything over half a second, `ctest --preset windows-slow` | after changing map generation, and before merging map work |
 | Launch smoke | the game opened on every scene through the dev server | after changing startup, loading or a scene's mount |
 | Happy-path scripts | `docs/testing/happy-path/*.md` | before every commit that touches what they cover |
 | Perf | the dev server's `/api/metrics`, and salal's perf suite | before committing rendering or hot-path changes |

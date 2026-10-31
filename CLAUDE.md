@@ -140,7 +140,8 @@ and Linux, Ninja Multi-Config with MSVC on Windows, ccache in front of both.
 ```
 cmake --preset windows        # or: cmake --preset default -DCMAKE_BUILD_TYPE=Debug
 cmake --build --preset windows
-ctest --test-dir build -C Debug
+ctest --preset windows        # the fast lane; or: ctest --preset default
+ctest --preset windows-slow   # the slow lane; or: ctest --preset default-slow
 ```
 
 Configure from a shell with the MSVC environment (`cl` on PATH plus `INCLUDE`
@@ -150,15 +151,24 @@ configure refuses it. salal comes through FetchContent at the tag in
 `CMakeLists.txt`; to build against the sibling checkout, configure with
 `-DFETCHCONTENT_SOURCE_DIR_SALAL=C:/Users/kevin/Code/salal`.
 
-Tests are gtest, one `ddb_<lib>_tests` executable per library through
-`ddb_add_tests`. Test real logic, keep tests bounded, and look for one covering
-the same path before adding another. Port a TypeScript test only when the
-behaviour it pins is still what the alpha wants.
+Tests are gtest, in two lanes, the way the TypeScript split `npm test` from
+`npm run test:slow`. `ddb_add_tests` builds a library's `*.test.cpp` into
+`ddb_<lib>_tests`, the fast lane, and its `*.slow.test.cpp` into
+`ddb_<lib>_slow_tests`, labelled `slow`: the tests that run the whole map
+pipeline or otherwise take half a second or more, which go in a
+`Name.slow.test.cpp` beside the fast file. CTest can't leave a label out by
+default, so the lanes are test presets: `ctest --preset windows` skips the slow
+lane and takes about 10 s in Debug, `ctest --preset windows-slow` runs only it,
+and a bare `ctest --test-dir build -C Debug` runs both (`-LE slow` and `-L slow`
+pick a lane there too). Run the slow lane when you change map generation, and
+before merging map work. Test real logic, keep tests bounded, and look for one
+covering the same path before adding another. Port a TypeScript test only when
+the behaviour it pins is still what the alpha wants.
 
 ## Merging
 
-GitHub Actions are off. The merge bar is local: the build, `ctest` and
-`node scripts/format.mjs` pass. Open PRs as drafts, describe the change and how
+GitHub Actions are off. The merge bar is local: the build, both test lanes
+(the slow one for map work) and `node scripts/format.mjs` pass. Open PRs as drafts, describe the change and how
 it was checked, and commit as Kevin would, with no AI attribution.
 
 ## Debugging

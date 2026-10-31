@@ -199,19 +199,18 @@ namespace {
 		const auto [x, y] = openGround(ground, 40);
 		const RiverIndex water = straightRiver(ground, x, 4);
 		const Ground	 wet = ground.withRivers(water);
-		const MoveCost	 costs(wet, fixtures::mixed().curviness);
 		// From 10 short of the river to 10 past it: the water runs from 0.4 to 0.6 of the way, the bridge a
 		// twentieth past that.
-		const std::vector<BridgeSpan> across = costs.bridgeSpans(x - 10, y, x + 10, y);
+		const std::vector<BridgeSpan> across = bridgeSpans(wet, x - 10, y, x + 10, y);
 		ASSERT_EQ(across.size(), 1U);
 		EXPECT_NEAR(across[0].from, 0.35, 1e-12);
 		EXPECT_NEAR(across[0].to, 0.65, 1e-12);
-		EXPECT_TRUE(costs.bridgeSpans(x - 10, y, x - 30, y).empty());
+		EXPECT_TRUE(bridgeSpans(wet, x - 10, y, x - 30, y).empty());
 		// Too long a bridge isn't one: crossed at a sine of 0.1, 4 across would run 40.
-		EXPECT_TRUE(costs.bridgeSpans(x - 1, y - 10, x + 1, y + 10).empty());
+		EXPECT_TRUE(bridgeSpans(wet, x - 1, y - 10, x + 1, y + 10).empty());
 		// Nor one under 30 degrees off the river: at a sine of 0.4 it would run 10, short enough.
-		EXPECT_TRUE(costs.bridgeSpans(x - 4, y, x + 4, y + std::sqrt(20.0 * 20.0 - 8 * 8)).empty());
-		EXPECT_EQ(costs.bridgeSpans(x - 4, y, x + 4, y + std::sqrt((8 / 0.6) * (8 / 0.6) - 8 * 8)).size(), 1U);
+		EXPECT_TRUE(bridgeSpans(wet, x - 4, y, x + 4, y + std::sqrt(20.0 * 20.0 - 8 * 8)).empty());
+		EXPECT_EQ(bridgeSpans(wet, x - 4, y, x + 4, y + std::sqrt((8 / 0.6) * (8 / 0.6) - 8 * 8)).size(), 1U);
 	}
 
 	TEST(MoveCost, BridgesTheMetrosRiversEverywhereAtNoCostButNotDownTheirLine) {
@@ -223,10 +222,10 @@ namespace {
 		const RoadCost street = costs.cost(0, 0, 20, 0, RoadClass::Highway);
 		EXPECT_LT(street.cost, 20.5);
 		EXPECT_EQ(street.bridge, 0);
-		EXPECT_EQ(costs.bridgeSpans(8, 0, 12, 2).size(), 1U);
+		EXPECT_EQ(bridgeSpans(wet, 8, 0, 12, 2).size(), 1U);
 		// Down the river, 11 degrees off it.
 		EXPECT_EQ(costs.cost(8, 0, 12, 20, RoadClass::Highway).cost, kInfinity);
-		EXPECT_TRUE(costs.bridgeSpans(8, 0, 12, 20).empty());
+		EXPECT_TRUE(bridgeSpans(wet, 8, 0, 12, 20).empty());
 	}
 
 	TEST(MoveCost, StandsCratersLakesRiversAndCliffsInTheWay) {

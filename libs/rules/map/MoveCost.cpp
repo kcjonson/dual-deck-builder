@@ -124,7 +124,7 @@ namespace rules::map {
 		return {.cost = parts.length * (1 + climb + side) + bridge, .bridge = bridge};
 	}
 
-	std::vector<BridgeSpan> MoveCost::bridgeSpans(double x0, double y0, double x1, double y1) const {
+	std::vector<BridgeSpan> bridgeSpans(const Ground& ground, double x0, double y0, double x1, double y1) {
 		std::vector<BridgeSpan> spans;
 		const double			dx = x1 - x0;
 		const double			dy = y1 - y0;
@@ -132,11 +132,11 @@ namespace rules::map {
 		if (!(length > 0)) {
 			return spans;
 		}
-		ground->rivers().forEachCrossing(x0, y0, x1, y1, [&](const RiverCrossing& crossing) {
+		ground.rivers().forEachCrossing(x0, y0, x1, y1, [&](const RiverCrossing& crossing) {
 			if (!(crossing.sine >= kCosts.leastCrossing)) {
 				return;
 			}
-			const bool inMetro = ground->bridged(x0 + dx * crossing.along, y0 + dy * crossing.along);
+			const bool inMetro = ground.bridged(x0 + dx * crossing.along, y0 + dy * crossing.along);
 			if (!inMetro && !(crossing.width <= kCosts.longestBridge * crossing.sine)) {
 				return;
 			}

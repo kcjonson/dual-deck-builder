@@ -83,10 +83,6 @@ namespace rules::map {
 		// What a class pays for a move with these parts.
 		[[nodiscard]] RoadCost weigh(const MoveParts& parts, RoadClass road) const;
 
-		// The stretches of the move on a bridge: one for each river it crosses that a road could, reaching the
-		// bridge's span either side of where it crosses and a unit past that, the metro's bridges however long.
-		[[nodiscard]] std::vector<BridgeSpan> bridgeSpans(double x0, double y0, double x1, double y1) const;
-
 	  private:
 		const Ground* ground;
 		// The grade weight's scale by curviness.
@@ -96,5 +92,10 @@ namespace rules::map {
 		[[nodiscard]] MoveParts
 		partsOf(double x0, double y0, double x1, double y1, const std::optional<std::array<double, 2>>& heights) const;
 	};
+
+	// The stretches of a move from (x0, y0) to (x1, y1) on a bridge: one for each river it crosses that a road
+	// could, reaching the bridge's span either side of where it crosses and a unit past that, the metro's bridges
+	// however long. Every class bridges alike.
+	[[nodiscard]] std::vector<BridgeSpan> bridgeSpans(const Ground& ground, double x0, double y0, double x1, double y1);
 
 } // namespace rules::map

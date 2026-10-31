@@ -36,5 +36,33 @@
     { "name": "default", "configurePreset": "default" },
     { "name": "windows", "configurePreset": "windows", "configuration": "Debug" },
     { "name": "windows-relwithdebinfo", "configurePreset": "windows", "configuration": "RelWithDebInfo" }
+  ],
+  "testPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default",
+      "output": { "outputOnFailure": true },
+      "filter": { "exclude": { "label": "slow" } }
+    },
+    {
+      "name": "default-slow",
+      "configurePreset": "default",
+      "output": { "outputOnFailure": true },
+      "filter": { "include": { "label": "slow" } }
+    },
+    {
+      "name": "windows",
+      "configurePreset": "windows",
+      "configuration": "Debug",
+      "output": { "outputOnFailure": true },
+      "filter": { "exclude": { "label": "slow" } }
+    },
+    {
+      "name": "windows-slow",
+      "configurePreset": "windows",
+      "configuration": "Debug",
+      "output": { "outputOnFailure": true },
+      "filter": { "include": { "label": "slow" } }
+    }
   ]
 }

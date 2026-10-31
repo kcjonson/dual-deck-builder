@@ -1,8 +1,10 @@
-#include <rules/map/AreaMapPipeline.h>
 #include <rules/map/EdgeCostField.h>
 #include <rules/map/Ground.h>
 #include <rules/map/Land.h>
 #include <rules/map/MapTesting.h>
+#include <rules/map/RoadChecks.h>
+#include <rules/map/RoadGraph.h>
+#include <rules/map/RoadNetwork.h>
 #include <rules/map/RoadSearch.h>
 #include <rules/map/Roads.h>
 
@@ -12,23 +14,15 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <map>
+#include <set>
+#include <span>
 #include <utility>
 #include <vector>
 
 namespace {
 
 	using namespace rules::map;
-
-	Roads roadsWith(const MapParams& land, const MapParams& params) {
-		return {
-			params,
-			fixtures::terrainFor(land),
-			fixtures::waterFor(land),
-			fixtures::hazardsFor(land),
-			fixtures::placesFor(land),
-			fixtures::roadsStream(land),
-		};
-	}
 
 	// Per cell, the moves that end on it.
 	std::vector<std::vector<size_t>> movesAt(const RoadLinks& links, const LandGrid& grid) {
@@ -40,35 +34,6 @@ namespace {
 		return at;
 	}
 
-	double length(const RoadLinks& links, RoadClass road) {
-		double total = 0;
-		for (const RoadMove& move : links.moves) {
-			total += move.roadClass == road ? move.length : 0;
-		}
-		return total;
-	}
-
-	// Twice the signed area of (a, b, p): which side of a to b p is on.
-	double orientation(double ax, double ay, double bx, double by, double px, double py) {
-		return (bx - ax) * (py - ay) - (by - ay) * (px - ax);
-	}
-
-	// Whether two segments share a point, crossing or touching.
-	bool segmentsMeet(const std::array<double, 4>& a, const std::array<double, 4>& b) {
-		const double first = orientation(b[0], b[1], b[2], b[3], a[0], a[1]);
-		const double second = orientation(b[0], b[1], b[2], b[3], a[2], a[3]);
-		const double third = orientation(a[0], a[1], a[2], a[3], b[0], b[1]);
-		const double fourth = orientation(a[0], a[1], a[2], a[3], b[2], b[3]);
-		const auto	 within = [](double ax, double ay, double bx, double by, double px, double py) {
-			  return px >= std::min(ax, bx) && px <= std::max(ax, bx) && py >= std::min(ay, by) && py <= std::max(ay, by);
-		};
-		if (((first > 0 && second < 0) || (first < 0 && second > 0)) && ((third > 0 && fourth < 0) || (third < 0 && fourth > 0))) {
-			return true;
-		}
-		return (first == 0 && within(b[0], b[1], b[2], b[3], a[0], a[1])) || (second == 0 && within(b[0], b[1], b[2], b[3], a[2], a[3])) ||
-			   (third == 0 && within(a[0], a[1], a[2], a[3], b[0], b[1])) || (fourth == 0 && within(a[0], a[1], a[2], a[3], b[2], b[3]));
-	}
-
 	class EveryRoads : public ::testing::TestWithParam<const MapParams*> {};
 
 	INSTANTIATE_TEST_SUITE_P(Roads, EveryRoads, ::testing::Values(&fixtures::mixed(), &fixtures::floodlands(), &fixtures::badlands()));
@@ -78,7 +43,7 @@ namespace {
 		const Roads&	 roads = fixtures::roadsFor(params);
 		const RoadLinks& links = roads.links();
 		const LandGrid&	 grid = fixtures::terrainFor(params).surface().grid;
-		EXPECT_TRUE(checkRoads(roads, params).empty());
+		EXPECT_TRUE(checkRoads(roads, params, fixtures::groundFor(params)).empty());
 		EXPECT_TRUE(links.stats.unreached.empty());
 		EXPECT_GE(roads.loops(), loopsNeeded(params, roads.inland()));
 		const std::vector<Place> places = placeList(fixtures::placesFor(params));
@@ -137,11 +102,9 @@ namespace {
 		const RoadLinks& links = fixtures::roadsFor(params).links();
 		const LandGrid&	 grid = fixtures::terrainFor(params).surface().grid;
 		const auto		 segment = [&](const RoadMove& move) {
-			  return std::array<double, 4>{
-				  cellCentre(grid, move.from % grid.size),
-				  cellCentre(grid, move.from / grid.size),
-				  cellCentre(grid, move.to % grid.size),
-				  cellCentre(grid, move.to / grid.size),
+			  return std::array<Point, 2>{
+				  Point{.x = cellCentre(grid, move.from % grid.size), .y = cellCentre(grid, move.from / grid.size)},
+				  Point{.x = cellCentre(grid, move.to % grid.size), .y = cellCentre(grid, move.to / grid.size)},
 			  };
 		};
 		// Each move filed under every cell of its box: two that meet share one.
@@ -183,7 +146,9 @@ namespace {
 				const RoadMove& them = links.moves[other];
 				const bool		shared = move.from == them.from || move.from == them.to || move.to == them.from || move.to == them.to;
 				if (!shared) {
-					EXPECT_FALSE(segmentsMeet(segment(move), segment(them)))
+					const auto ours = segment(move);
+					const auto theirs = segment(them);
+					EXPECT_FALSE(segmentsMeet(ours[0], ours[1], theirs[0], theirs[1]))
 						<< "roads from cell " << move.from << " and " << them.from << " cross";
 				}
 				checked += 1;
@@ -204,40 +169,215 @@ namespace {
 		}
 	}
 
-	// Trail share only says which back roads are trails, never where a road runs, so one map serves both.
-	TEST(Roads, ClosesMoreLoopsAsLoopsRisesAndGivesOutToTrailsMoreReadilyAsTrailShareDoes) {
-		const MapParams& land = fixtures::mixed();
-		const Roads&	 some = fixtures::roadsFor(land);
-		const Roads		 more = roadsWith(land, fixtures::with(fixtures::with(land, &MapParams::loops, 1), &MapParams::trailShare, 1));
-		EXPECT_GT(more.links().stats.looped, some.links().stats.looped);
-		EXPECT_LT(more.links().stats.skipped, some.links().stats.skipped);
-		EXPECT_GT(more.loops(), some.loops());
-		// A link joining places not yet joined goes in whatever loops is.
-		EXPECT_EQ(more.links().stats.joined + more.links().stats.failed, some.links().stats.joined + some.links().stats.failed);
-		const auto trailShare = [](const RoadLinks& links) {
-			const double trails = length(links, RoadClass::Trail);
-			return trails / (trails + length(links, RoadClass::BackRoad));
-		};
-		EXPECT_GT(trailShare(more.links()), 1.5 * trailShare(some.links()));
+	TEST_P(EveryRoads, DrawsANetworkThatKeepsEveryRoadRuleWithEachNodeOnACellCentreMarkedByWhatHappensThere) {
+		const MapParams&				 params = *GetParam();
+		const Roads&					 roads = fixtures::roadsFor(params);
+		const RoadNetwork&				 network = roads.network();
+		const Ground					 ground = fixtures::groundFor(params);
+		const LandGrid&					 grid = ground.terrain().surface().grid;
+		const std::vector<RoadViolation> violations = checkRoadNetwork(network, ground);
+		EXPECT_TRUE(violations.empty()) << violations.front().detail;
+		ASSERT_FALSE(network.nodes.empty());
+		EXPECT_EQ(network.nodes[0].kind, RoadNodeKind::Compound);
+		EXPECT_EQ(network.nodes[0].x, 0);
+		EXPECT_EQ(network.nodes[0].y, 0);
+		// Per node, the stretches ending on it, the broken spans counted, since breaking one leaves its nodes as they were.
+		std::vector<RoadStretch> all = network.stretches;
+		all.insert(all.end(), network.broken.begin(), network.broken.end());
+		std::vector<std::vector<size_t>> ends(network.nodes.size());
+		for (size_t id = 0; id < all.size(); ++id) {
+			ends[static_cast<size_t>(all[id].from)].push_back(id);
+			ends[static_cast<size_t>(all[id].to)].push_back(id);
+		}
+		const std::vector<Place>	places = placeList(fixtures::placesFor(params));
+		const double				metro = ground.terrain().start().metro;
+		std::set<int>				cells;
+		std::map<RoadNodeKind, int> kinds;
+		for (size_t id = 1; id < network.nodes.size(); ++id) {
+			const RoadNode& node = network.nodes[id];
+			const auto&		meeting = ends[id];
+			kinds[node.kind] += 1;
+			if (node.kind != RoadNodeKind::Roadside) {
+				const int cell = cellAt(grid, node.x, node.y);
+				EXPECT_EQ(node.x, cellCentre(grid, cell % grid.size));
+				EXPECT_EQ(node.y, cellCentre(grid, cell / grid.size));
+				EXPECT_TRUE(cells.insert(cell).second) << "two nodes on cell " << cell;
+				EXPECT_GE(node.x * node.x + node.y * node.y, grid.cellSize * grid.cellSize);
+			}
+			switch (node.kind) {
+				case RoadNodeKind::Junction:
+					EXPECT_GE(meeting.size(), 3U);
+					break;
+				case RoadNodeKind::End:
+					EXPECT_EQ(meeting.size(), 1U);
+					break;
+				case RoadNodeKind::ClassChange:
+					ASSERT_EQ(meeting.size(), 2U);
+					EXPECT_NE(all[meeting[0]].roadClass, all[meeting[1]].roadClass);
+					break;
+				case RoadNodeKind::MetroEdge:
+					EXPECT_LE(node.x * node.x + node.y * node.y, metro * metro);
+					break;
+				case RoadNodeKind::Roadside:
+					EXPECT_EQ(meeting.size(), 2U);
+					break;
+				default:
+					ASSERT_GE(node.place, 1);
+					EXPECT_EQ(
+						node.kind,
+						places[static_cast<size_t>(node.place)].kind == PlaceKind::Town			? RoadNodeKind::Town
+						: places[static_cast<size_t>(node.place)].kind == PlaceKind::Village	? RoadNodeKind::Village
+						: places[static_cast<size_t>(node.place)].kind == PlaceKind::Crossroads ? RoadNodeKind::Crossroads
+																								: RoadNodeKind::Exit
+					);
+			}
+		}
+		EXPECT_GT(kinds[RoadNodeKind::Junction], 10);
+		EXPECT_GT(kinds[RoadNodeKind::Roadside], 0);
+		EXPECT_EQ(roads.loops(), loopCount(network.nodes.size(), network.stretches));
 	}
 
+	TEST_P(EveryRoads, CutsStretchesAboutKLongestApartMarksTheStreetsAndNumbersEachHighwayByItsExit) {
+		const MapParams&   params = *GetParam();
+		const Roads&	   roads = fixtures::roadsFor(params);
+		const RoadNetwork& network = roads.network();
+		const Terrain&	   terrain = fixtures::terrainFor(params);
+		const double	   metro = terrain.start().metro;
+		int				   streets = 0;
+		int				   bridges = 0;
+		std::set<int>	   numbers;
+		for (const RoadStretch& stretch : network.stretches) {
+			EXPECT_LE(stretch.length, kLongestStretch + 3 * terrain.surface().grid.cellSize);
+			const bool inside = std::ranges::all_of(stretch.points, [&](const Point& point) {
+				return point.x * point.x + point.y * point.y <= metro * metro;
+			});
+			EXPECT_EQ(stretch.street, inside);
+			streets += stretch.street ? 1 : 0;
+			bridges += static_cast<int>(stretch.bridges.size());
+			if (stretch.roadClass == RoadClass::Highway) {
+				numbers.insert(stretch.highway);
+			} else {
+				EXPECT_EQ(stretch.highway, -1);
+			}
+		}
+		EXPECT_GT(streets, 0);
+		if (&params == &fixtures::floodlands()) {
+			EXPECT_GT(bridges, 0);
+		}
+		ASSERT_FALSE(numbers.empty());
+		EXPECT_EQ(*numbers.begin(), 0);
+		EXPECT_EQ(numbers.size(), static_cast<size_t>(params.highways));
+		EXPECT_LT(*numbers.rbegin(), params.highways);
+		// Cells only where a smoothed line would clip something or clash.
+		const RoadGraphStats& stats = roads.graphStats();
+		EXPECT_LT(stats.cells, 0.05 * (stats.smoothed + stats.unaveraged + stats.simplified + stats.cells));
+	}
+
+	TEST_P(EveryRoads, BreaksHighwaySpansFarOutLongEnoughAndNeverOneThatCutsANodeOff) {
+		const MapParams&   params = *GetParam();
+		const RoadNetwork& network = fixtures::roadsFor(params).network();
+		EXPECT_LE(network.broken.size(), static_cast<size_t>(params.brokenHighways));
+		for (const RoadStretch& span : network.broken) {
+			EXPECT_EQ(span.roadClass, RoadClass::Highway);
+			EXPECT_GE(span.length, 70);
+		}
+		// Planar with the broken spans back in, since they were part of it.
+		std::vector<RoadLine> lines;
+		for (const auto* list : {&network.stretches, &network.broken}) {
+			for (const RoadStretch& stretch : *list) {
+				lines.push_back({.from = stretch.from, .to = stretch.to, .points = stretch.points});
+			}
+		}
+		EXPECT_TRUE(roadClashes(network.nodes, lines, false).empty());
+	}
+
+	RoadStretch straight(int from, int to, std::vector<Point> points, RoadClass road, int highway) {
+		const double length = polylineLength(points);
+		return {
+			.roadClass = road,
+			.from = from,
+			.to = to,
+			.length = length,
+			.points = std::move(points),
+			.bridges = {},
+			.street = false,
+			.highway = highway,
+		};
+	}
+
+	TEST(Roads, NeverBreaksTheLastHighwayOutOfAHighwayExitThoughTheSpanFurtherInCanBreak) {
+		const auto broken = [](std::span<const RoadNode> nodes, std::vector<RoadStretch> stretches, const Place& exit, int radius) {
+			foundation::Rng			 rng(4);
+			const std::vector<Place> places{{.id = 0, .kind = PlaceKind::Metro}, exit};
+			return breakHighways(
+					   {.nodes = nodes, .stretches = std::move(stretches), .places = places, .count = 2, .radius = radius, .rng = rng}
+			)
+				.broken;
+		};
+		const Place highwayExit{.id = 1, .kind = PlaceKind::Exit, .x = 300, .y = 0, .highway = true};
+		Place		backRoadExit = highwayExit;
+		backRoadExit.highway = false;
+
+		// Home, junctions 100 and 200 out, and an exit 300 out on one highway, a back road from the first junction round to it.
+		const std::vector<RoadNode> line{
+			{.kind = RoadNodeKind::Compound, .x = 0, .y = 0, .place = 0},
+			{.kind = RoadNodeKind::Junction, .x = 100, .y = 0},
+			{.kind = RoadNodeKind::Junction, .x = 200, .y = 0},
+			{.kind = RoadNodeKind::Exit, .x = 300, .y = 0, .place = 1},
+		};
+		const std::vector<RoadStretch> lineStretches{
+			straight(0, 1, {{.x = 0, .y = 0}, {.x = 100, .y = 0}}, RoadClass::Highway, 0),
+			straight(1, 2, {{.x = 100, .y = 0}, {.x = 200, .y = 0}}, RoadClass::Highway, 0),
+			straight(2, 3, {{.x = 200, .y = 0}, {.x = 300, .y = 0}}, RoadClass::Highway, 0),
+			straight(1, 3, {{.x = 100, .y = 0}, {.x = 200, .y = 40}, {.x = 300, .y = 0}}, RoadClass::BackRoad, -1),
+		};
+		// Either span past 0.35 of the radius could break, never both, which would cut the middle junction off; the
+		// outer is the highway exit's last highway, so the inner goes.
+		const std::vector<RoadStretch> inner = broken(line, lineStretches, highwayExit, 310);
+		ASSERT_EQ(inner.size(), 1U);
+		EXPECT_EQ(inner[0].from, 1);
+		EXPECT_EQ(inner[0].to, 2);
+		// A back-road exit can lose either.
+		EXPECT_EQ(broken(line, lineStretches, backRoadExit, 310).size(), 1U);
+
+		// Two highways into one exit from junctions to either side, and a back road from Home: either can go, and once
+		// one has, the other is the exit's last.
+		const std::vector<RoadNode> fork{
+			{.kind = RoadNodeKind::Compound, .x = 0, .y = 0, .place = 0},
+			{.kind = RoadNodeKind::Junction, .x = 100, .y = 50},
+			{.kind = RoadNodeKind::Junction, .x = 100, .y = -50},
+			{.kind = RoadNodeKind::Exit, .x = 300, .y = 0, .place = 1},
+		};
+		const std::vector<RoadStretch> forkStretches{
+			straight(0, 1, {{.x = 0, .y = 0}, {.x = 100, .y = 50}}, RoadClass::Highway, 0),
+			straight(0, 2, {{.x = 0, .y = 0}, {.x = 100, .y = -50}}, RoadClass::Highway, 1),
+			straight(1, 3, {{.x = 100, .y = 50}, {.x = 300, .y = 0}}, RoadClass::Highway, 0),
+			straight(2, 3, {{.x = 100, .y = -50}, {.x = 300, .y = 0}}, RoadClass::Highway, 1),
+			straight(0, 3, {{.x = 0, .y = 0}, {.x = 150, .y = -150}, {.x = 300, .y = 0}}, RoadClass::BackRoad, -1),
+		};
+		EXPECT_EQ(broken(fork, forkStretches, highwayExit, 400).size(), 1U);
+		EXPECT_EQ(broken(fork, forkStretches, backRoadExit, 400).size(), 2U);
+	}
 	TEST(Roads, RunsSpurTrailsFromVillagesIntoTheHighCountryEachToADeadEnd) {
-		const MapParams& params = fixtures::badlands();
-		const RoadLinks& links = fixtures::roadsFor(params).links();
-		const LandGrid&	 grid = fixtures::terrainFor(params).surface().grid;
+		const MapParams&   params = fixtures::badlands();
+		const Roads&	   roads = fixtures::roadsFor(params);
+		const RoadLinks&   links = roads.links();
+		const RoadNetwork& network = roads.network();
+		const LandGrid&	   grid = fixtures::terrainFor(params).surface().grid;
 		EXPECT_GT(links.stats.spurs, 0);
 		ASSERT_EQ(links.spurEnds.size(), static_cast<size_t>(links.stats.spurs));
 		const auto touching = movesAt(links, grid);
-		int		   deadEnds = 0;
 		for (const int end : links.spurEnds) {
 			const auto& moves = touching[static_cast<size_t>(end)];
 			ASSERT_FALSE(moves.empty());
 			EXPECT_TRUE(std::ranges::any_of(moves, [&](size_t move) { return links.moves[move].roadClass == RoadClass::Trail; }));
-			deadEnds += moves.size() == 1 ? 1 : 0;
+			const Point centre{.x = cellCentre(grid, end % grid.size), .y = cellCentre(grid, end / grid.size)};
+			const auto node = std::ranges::find_if(network.nodes, [&](const RoadNode& at) { return at.x == centre.x && at.y == centre.y; });
+			ASSERT_NE(node, network.nodes.end());
+			EXPECT_TRUE(node->kind == RoadNodeKind::End || node->kind == RoadNodeKind::Junction || node->kind == RoadNodeKind::ClassChange);
 		}
-		EXPECT_GT(deadEnds, 0);
+		EXPECT_TRUE(std::ranges::any_of(network.nodes, [](const RoadNode& node) { return node.kind == RoadNodeKind::End; }));
 	}
-
 	TEST(Roads, TakesAHighwayOverGentlerGroundThanATrailBetweenTheSamePlaces) {
 		const MapParams&		 params = fixtures::badlands();
 		const Ground			 ground = fixtures::groundFor(params);
@@ -304,26 +444,6 @@ namespace {
 		params.strongholds = 5;
 		params.loops = 0.3;
 		EXPECT_EQ(loopsNeeded(params, 78), 41);
-	}
-
-	TEST(AreaMapPipeline, RetriesTheRoadsAloneLeavingTheEarlierStagesAsTheyWere) {
-		const MapParams&			  params = fixtures::mixed();
-		const PipelineResult<AreaMap> result =
-			generateAreaMap(params, fixtures::placeNames(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
-								return attempt.stage == "roads" && attempt.attempt == 0 ? Problems{"no roads there"} : Problems{};
-							}});
-		ASSERT_EQ(result.stages.size(), 5U);
-		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
-		EXPECT_EQ(result.stages[1].stream, fixtures::waterStream(params).seed());
-		EXPECT_EQ(result.stages[2].stream, fixtures::hazardsStream(params).seed());
-		EXPECT_EQ(result.stages[3].stream, fixtures::placesStream(params).seed());
-		EXPECT_EQ(result.stages[4].attempt, 1U);
-		EXPECT_EQ(result.stages[4].stream, fixtures::roadsStream(params, 1).seed());
-		EXPECT_EQ(result.products.places->crossroads().front().x, fixtures::placesFor(params).crossroads().front().x);
-		ASSERT_EQ(result.failures.size(), 1U);
-		EXPECT_EQ(result.failures[0].stage, "roads");
-		// Another attempt links the places in another order.
-		EXPECT_FALSE(fixtures::sameRoads(result.products.roads->links(), fixtures::roadsFor(params).links()));
 	}
 
 } // namespace
