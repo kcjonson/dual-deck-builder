@@ -756,6 +756,23 @@ namespace rules::map {
 		return list;
 	}
 
+	double ruinAt(const Places& places, double x, double y) {
+		double	   most = 0;
+		const auto weigh = [&](double cx, double cy, double radius) {
+			const double ratio = ((x - cx) * (x - cx) + (y - cy) * (y - cy)) / (radius * radius);
+			const double weight = ratio <= 1 ? 1 : ratio >= 4 ? 0 : (4 - ratio) / 3;
+			most = weight > most ? weight : most;
+		};
+		weigh(0, 0, places.metroRadius());
+		for (const Settlement& town : places.towns()) {
+			weigh(town.x, town.y, town.radius);
+		}
+		for (const Settlement& village : places.villages()) {
+			weigh(village.x, village.y, village.radius);
+		}
+		return most;
+	}
+
 	Problems checkPlaces(const Places& places, const Terrain& terrain, const Water& water, const Hazards& hazards) {
 		const LandGrid&			   grid = terrain.surface().grid;
 		const std::vector<uint8_t> reached = reachedSquares(terrain, water, hazards);

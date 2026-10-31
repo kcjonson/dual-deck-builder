@@ -15,12 +15,12 @@ namespace {
 		const MapParams&			  params = fixtures::mixed();
 		std::vector<std::string>	  started;
 		const PipelineResult<AreaMap> result = generateAreaMap(
-			params, fixtures::placeNames(), {.onProgress = [&](const StageAttempt& attempt) { started.emplace_back(attempt.stage); }}
+			params, fixtures::content(), {.onProgress = [&](const StageAttempt& attempt) { started.emplace_back(attempt.stage); }}
 		);
-		EXPECT_EQ(started, (std::vector<std::string>{"terrain", "water", "hazards", "places", "roads", "routeTree"}));
+		EXPECT_EQ(started, (std::vector<std::string>{"terrain", "water", "hazards", "places", "roads", "routeTree", "pois"}));
 		EXPECT_EQ(result.mapAttempt, 0U);
 		EXPECT_TRUE(result.failures.empty());
-		ASSERT_EQ(result.stages.size(), 6U);
+		ASSERT_EQ(result.stages.size(), 7U);
 		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
 		EXPECT_EQ(result.stages[1].name, "water");
 		EXPECT_EQ(result.stages[1].stream, fixtures::waterStream(params).seed());
@@ -54,20 +54,29 @@ namespace {
 		EXPECT_EQ(result.products.routeTree->parentStretch, tree.parentStretch);
 		EXPECT_EQ(result.products.routeTree->hours, tree.hours);
 		EXPECT_EQ(result.products.routeTree->meetingPoints.size(), tree.meetingPoints.size());
+		// The POIs nest in the route tree's link, and seat what the stage seats straight from that stream.
+		EXPECT_EQ(result.stages[6].stream, fixtures::poisStream(params).seed());
+		ASSERT_TRUE(result.products.pois.has_value());
+		const PoiLayer& seated = fixtures::poisFor(params);
+		ASSERT_EQ(result.products.pois->pois.size(), seated.pois.size());
+		for (size_t poi = 0; poi < seated.pois.size(); ++poi) {
+			EXPECT_EQ(result.products.pois->pois[poi].site.at, seated.pois[poi].site.at);
+			EXPECT_EQ(result.products.pois->pois[poi].type, seated.pois[poi].type);
+		}
 	}
 
 	// One attempt, since another would only repeat it: a route tree the map can't use restarts the map.
 	TEST(AreaMapPipeline, RestartsTheMapWhenItRejectsTheRouteTree) {
 		const MapParams&			  params = fixtures::mixed();
 		const PipelineResult<AreaMap> result =
-			generateAreaMap(params, fixtures::placeNames(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
+			generateAreaMap(params, fixtures::content(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
 								return attempt.stage == "routeTree" && attempt.mapAttempt == 0 ? Problems{"no routes there"} : Problems{};
 							}});
 		EXPECT_EQ(result.mapAttempt, 1U);
 		ASSERT_EQ(result.failures.size(), 1U);
 		EXPECT_EQ(result.failures[0].stage, "routeTree");
 		EXPECT_EQ(result.failures[0].attempt, 0U);
-		ASSERT_EQ(result.stages.size(), 6U);
+		ASSERT_EQ(result.stages.size(), 7U);
 		EXPECT_EQ(result.stages[0].stream, foundation::Rng(params.seed).fork("map", 1).fork("terrain", 0).seed());
 		for (const StageRecord& stage : result.stages) {
 			EXPECT_EQ(stage.attempt, 0U) << stage.name;
@@ -78,11 +87,11 @@ namespace {
 	TEST(AreaMapPipeline, RetriesTheHazardsAloneLeavingTheTerrainAndTheWaterAsTheyWere) {
 		const MapParams&			  params = fixtures::mixed();
 		const PipelineResult<AreaMap> result =
-			generateAreaMap(params, fixtures::placeNames(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
+			generateAreaMap(params, fixtures::content(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
 								return attempt.stage == "hazards" && attempt.attempt == 0 ? Problems{"no craters there"} : Problems{};
 							}});
 		EXPECT_EQ(result.mapAttempt, 0U);
-		ASSERT_EQ(result.stages.size(), 6U);
+		ASSERT_EQ(result.stages.size(), 7U);
 		EXPECT_EQ(result.stages[0].attempt, 0U);
 		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
 		EXPECT_EQ(result.stages[1].attempt, 0U);
@@ -107,10 +116,10 @@ namespace {
 	TEST(AreaMapPipeline, RetriesThePlacesAloneLeavingTheEarlierStagesAsTheyWere) {
 		const MapParams&			  params = fixtures::mixed();
 		const PipelineResult<AreaMap> result =
-			generateAreaMap(params, fixtures::placeNames(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
+			generateAreaMap(params, fixtures::content(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
 								return attempt.stage == "places" && attempt.attempt == 0 ? Problems{"no towns there"} : Problems{};
 							}});
-		ASSERT_EQ(result.stages.size(), 6U);
+		ASSERT_EQ(result.stages.size(), 7U);
 		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
 		EXPECT_EQ(result.stages[1].stream, fixtures::waterStream(params).seed());
 		EXPECT_EQ(result.stages[2].stream, fixtures::hazardsStream(params).seed());
@@ -137,10 +146,10 @@ namespace {
 	TEST(AreaMapPipeline, RetriesTheRoadsAloneLeavingTheEarlierStagesAsTheyWere) {
 		const MapParams&			  params = fixtures::mixed();
 		const PipelineResult<AreaMap> result =
-			generateAreaMap(params, fixtures::placeNames(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
+			generateAreaMap(params, fixtures::content(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
 								return attempt.stage == "roads" && attempt.attempt == 0 ? Problems{"no roads there"} : Problems{};
 							}});
-		ASSERT_EQ(result.stages.size(), 6U);
+		ASSERT_EQ(result.stages.size(), 7U);
 		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
 		EXPECT_EQ(result.stages[1].stream, fixtures::waterStream(params).seed());
 		EXPECT_EQ(result.stages[2].stream, fixtures::hazardsStream(params).seed());

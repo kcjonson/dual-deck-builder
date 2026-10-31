@@ -112,7 +112,7 @@ Tests hold the spacing and the ring, craters off the drainage, the lakes, and ev
 - The name pools are content: `packs/base/map/place-names.json`, `starts` and `endings`, read strictly (each word distinct and non-empty), so a pack can replace them. Generation's input carries the pool beside the params (`AreaMapInput`); which pack's file it is, and overriding one pack's with another's, waits on a map content loader with the packs' own override rules.
 - The suitability and the crossroads read the per-cell grade `LandFields` already works out, `cellGrades`, rather than a copy of it.
 - A river's clearance reads `RiverIndex::near`, exact by its buckets, as the TypeScript's did.
-- The places are plain data: the metro's radius, towns and villages with their ruins, names, and scores, crossroads, and exits with their bearings, numbered in that order from 1, the metro 0. `placeList`, every place in id order, came with the roads (road-network.md, Roads in the C++ alpha); the ruins and `ruinAt` come with the POIs that read them.
+- The places are plain data: the metro's radius, towns and villages with their ruins, names, and scores, crossroads, and exits with their bearings, numbered in that order from 1, the metro 0. `placeList`, every place in id order, came with the roads (road-network.md, Roads in the C++ alpha); `ruinAt`, how ruined a point is, the most of any ruin over it, came with the POIs that read it (route-tree-and-pois.md, POIs and strongholds in the C++ alpha).
 - Street grids are the dressing's, as the spec has them (Pipeline, 11), and so are the feature names rivers and ranges are labelled with.
 
 ## Consequences

@@ -1,6 +1,7 @@
 target_sources(ddb_rules PRIVATE
     AreaMapPipeline.cpp
     Biome.cpp
+    ContentReading.cpp
     Drainage.cpp
     EdgeCostField.cpp
     Erosion.cpp
@@ -17,6 +18,10 @@ target_sources(ddb_rules PRIVATE
     ParamValidator.cpp
     PlaceNames.cpp
     Places.cpp
+    PoiChecks.cpp
+    PoiData.cpp
+    PoiNames.cpp
+    Pois.cpp
     Polyline.cpp
     RiverIndex.cpp
     Rivers.cpp
@@ -30,6 +35,8 @@ target_sources(ddb_rules PRIVATE
     RouteDescriptors.cpp
     RouteLegs.cpp
     RouteTree.cpp
+    StopData.cpp
+    StopRoom.cpp
     Terrain.cpp
     Uplift.cpp
     Water.cpp

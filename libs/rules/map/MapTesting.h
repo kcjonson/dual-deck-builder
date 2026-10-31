@@ -2,6 +2,7 @@
 
 // The maps the map tests share, each built once a run. Tests only: nothing in the library includes it.
 
+#include "AreaMapPipeline.h"
 #include "Ground.h"
 #include "Hazards.h"
 #include "Lakes.h"
@@ -144,10 +145,14 @@ namespace rules::map::fixtures {
 		return *built.back().second;
 	}
 
-	// The base pack's place names.
+	// The base pack's map content.
+	inline const MapContent& content() {
+		static const MapContent read = readMapContent(std::filesystem::path(DDB_PACKS_DIR) / "base");
+		return read;
+	}
+
 	inline const PlaceNamePool& placeNames() {
-		static const PlaceNamePool pool = readPlaceNames(std::filesystem::path(DDB_PACKS_DIR) / "base" / "map" / "place-names.json");
-		return pool;
+		return content().placeNames;
 	}
 
 	// The places stage's stream over hazardsStream(params).
@@ -188,6 +193,56 @@ namespace rules::map::fixtures {
 			std::make_unique<Roads>(
 				params, terrainFor(params), waterFor(params), hazardsFor(params), placesFor(params), roadsStream(params)
 			)
+		);
+		return *built.back().second;
+	}
+
+	// The route tree over the fixture's roads.
+	inline const RouteTree& treeFor(const MapParams& params) {
+		static std::vector<std::pair<MapParams, std::unique_ptr<RouteTree>>> built;
+		for (const auto& [key, tree] : built) {
+			if (key == params) {
+				return *tree;
+			}
+		}
+		built.emplace_back(
+			params,
+			std::make_unique<RouteTree>(buildRouteTree({
+				.network = roadsFor(params).network(),
+				.travelPace = params.travelPace,
+				.routeSplit = params.routeSplit,
+			}))
+		);
+		return *built.back().second;
+	}
+
+	// The POI stage's stream over the roads' and the route tree's link.
+	inline foundation::Rng poisStream(const MapParams& params, uint32_t attempt = 0) {
+		return foundation::Rng(foundation::Rng(roadsStream(params).seed()).fork("routeTree", 0).seed()).fork("pois", attempt);
+	}
+
+	// The POIs over the fixture's route tree, built the first time they're asked for.
+	inline const PoiLayer& poisFor(const MapParams& params) {
+		static std::vector<std::pair<MapParams, std::unique_ptr<PoiLayer>>> built;
+		for (const auto& [key, layer] : built) {
+			if (key == params) {
+				return *layer;
+			}
+		}
+		const PoiGround ground =
+			poiGround(Ground(terrainFor(params), waterFor(params), hazardsFor(params)), placesFor(params), params.radius);
+		built.emplace_back(
+			params,
+			std::make_unique<PoiLayer>(placePois({
+				.network = roadsFor(params).network(),
+				.tree = treeFor(params),
+				.ground = ground,
+				.params = params,
+				.tuning = content().pois,
+				.factions = content().factions,
+				.stops = content().stops,
+				.stream = poisStream(params),
+			}))
 		);
 		return *built.back().second;
 	}

@@ -99,6 +99,10 @@ namespace rules::map {
 	// Every place in id order: the metro at the origin, then the towns, villages, crossroads, and exits.
 	[[nodiscard]] std::vector<Place> placeList(const Places& places);
 
+	// How ruined (x, y) is, the most of any ruin over it, the metro's, a town's, or a village's: 1 inside it, fading
+	// to 0 at twice its radius, linearly in the squared distance.
+	[[nodiscard]] double ruinAt(const Places& places, double x, double y);
+
 	// Per square between cell centres (LandFields::openSquares' numbering): 1 where a flood fill from the
 	// metro reaches it over open squares, less any a crater reaches into and any with a lake cell at a
 	// corner. Rivers don't stop it, since roads bridge them. Exact for cliffs, craters, and lakes.

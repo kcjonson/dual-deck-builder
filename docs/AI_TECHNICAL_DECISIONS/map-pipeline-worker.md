@@ -80,7 +80,9 @@ Making the map takes as long as founding it did, less any failed attempts: the s
 
 `libs/rules/map/MapPipeline.h` (2026-10-30, DDB-571) is the runner's skeleton, under `AreaMapPipeline`'s stages: terrain, water, hazards, places, roads, and the route tree, which takes no draws and sets one attempt, so the accept hook rejecting it restarts the map. `MapPipeline<Input, Products>` is built a stage at a time with `then`, and a stage writes its product into a products struct, `AreaMap`, a field per stage, that later stages read; a map restart starts the struct fresh. Streams nest as above, attempts and map restarts are as above, the accept hook and progress are as above, and so are failures and replay. Each stage's record keeps its winning attempt, its stream's seed, its runs, and their time, checks included. A replay that doesn't fit the pipeline throws `std::invalid_argument` before anything runs.
 
-What it leaves for the stages that need them: escalation (the POIs to the roads), local retry with `keepable` and inert stages (the stops and the dressing), the debug and release split past a local-retry stage's cap, cancellation, and the generator version a save names. The terrain stage has no check, since erosion always makes land; its stream is `root.fork("map", m).fork("terrain", t)`.
+A stage can name one upstream of it to `escalate` to, as above: once it's out of attempts that stage goes on from its next attempt, everything after it reruns on fresh streams, and the escalating stage counts from 0 again; past the upstream stage's last attempt its own escalation applies, or the map restarts. The POIs escalate to the roads. A replay checks every stage's attempt before any stage runs.
+
+What it leaves for the stages that need them: local retry with `keepable` and inert stages (the stops and the dressing), the debug and release split past a local-retry stage's cap, cancellation, and the generator version a save names. The terrain stage has no check, since erosion always makes land; its stream is `root.fork("map", m).fork("terrain", t)`.
 
 ## Provisional calls
 

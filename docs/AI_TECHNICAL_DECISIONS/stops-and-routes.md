@@ -107,6 +107,8 @@ Generation doesn't change, since the descriptors only read what the dressing alr
 - `routes.json` is read strictly, and reshaped to what the descriptors read: `unitsPerFuel`, and `names` with `biomeShare`, `biomeStep`, the biome names, and the class names. `biomeStep` moved in from `stops.json`, since only the leg profiles routes are named by sample with it. `unknownStopHours` and `dawn` moved out to `stops.json`, beside the stop and objective hours a route's estimate sums them with. A biome left out never names a route; every class has a name, and the highway's holds `{number}` once and no other's does.
 - The biomes come through `biomeAt`, the ground's or a test's, and each own leg's profile is worked out on read (route-tree-and-pois.md, The route tree in the C++ alpha).
 
+`stops.json` is read whole and strictly by `readStopTuning` (`StopData`), and the room a leg has for stops is `StopRoom`'s, both landing with the POI stage, which seats on that room (route-tree-and-pois.md, POIs and strongholds in the C++ alpha). A band's fight floor is at least 1 and no more than its least stops, its most fights no more than its most stops, `tightGap` at most `minGap`, and the extras' game stages rise.
+
 What a descriptor reads from the stops comes with the stops stage: knowledge, stops as far as known, hours out, at the objective, and home, the return against dark, risk, and whether it's estimated, as Route descriptors above has them, and `routeOffers` over all of it.
 
 ## The run loop's routes
