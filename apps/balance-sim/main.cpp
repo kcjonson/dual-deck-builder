@@ -4,22 +4,33 @@
 //   balance-sim fights [--config <file>] [--pack <dir>]... [--seed <n>] [--runs <n>] [--crews all|pairs|solo|<a+b,c>]
 //     [--routes <1,2,1+2,spike_crew>] [--stage <0,2>] [--tier <n>] [--turns <n>] [--player <policy>] [--workers <n>]
 //     [--json <file>]
+//   balance-sim runs [--config <file>] [--pack <dir>]... [--maps <n>|<seed,seed>] [--runs <n>] [--crews ...]
+//     [--routes all|<n>] [--tier <1,2>] [--stage <0,2>] [--turns <n>] [--player <policy>] [--neighbor on|off]
+//     [--workers <n>] [--json <file>]
 //
 // Options on the command line win over the config's fields. Build it in RelWithDebInfo or Release: in Debug the
-// stand-ins that play the fight out on copies, and MCTS most, are many times slower.
+// stand-ins that play the fight out on copies, and MCTS most, are many times slower. Run mode's maps are made from the
+// base pack's map content, which --pack doesn't reach.
 
 #include "Fights.h"
 #include "FightsConfig.h"
 #include "Report.h"
+#include "RunReport.h"
+#include "Runs.h"
+#include "RunsConfig.h"
 
 #include <rules/core/ContentError.h>
 #include <rules/core/JsonReader.h>
+#include <rules/map/AreaMapPipeline.h>
+#include <rules/map/RouteDescriptors.h>
 #include <rules/packs/Pack.h>
 
 #include <nlohmann/json.hpp>
 
 #include <charconv>
+#include <chrono>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <iostream>
 #include <optional>
@@ -33,7 +44,12 @@ namespace {
 	constexpr std::string_view kUsage =
 		"usage: balance-sim fights [--config <file>] [--pack <dir>]... [--seed <n>] [--runs <n>]\n"
 		"         [--crews all|pairs|solo|road_warrior+interceptor,mechanic] [--routes 1,2,3,1+2,spike_crew]\n"
-		"         [--stage 0,2] [--tier <n>] [--turns <n>] [--player <policy>] [--workers <n>] [--json <file>]\n";
+		"         [--stage 0,2] [--tier <n>] [--turns <n>] [--player <policy>] [--workers <n>] [--json <file>]\n"
+		"       balance-sim runs [--config <file>] [--pack <dir>]... [--maps <n>|<seed,seed>] [--runs <n>]\n"
+		"         [--crews all|pairs|solo|road_warrior+interceptor,mechanic] [--routes all|<n>] [--tier 1,2]\n"
+		"         [--stage 0,2] [--turns <n>] [--player <policy>] [--neighbor on|off] [--workers <n>] [--json <file>]\n";
+
+	enum class Mode { Fights, Runs };
 
 	// A mistake on the command line, which prints the usage.
 	class UsageError : public std::runtime_error {
@@ -42,6 +58,7 @@ namespace {
 	};
 
 	struct Options {
+		Mode								 mode{Mode::Fights};
 		std::optional<std::filesystem::path> config;
 		std::vector<std::filesystem::path>	 packs;
 		std::optional<std::filesystem::path> json;
@@ -77,15 +94,24 @@ namespace {
 		return !text.empty() && text.find_first_not_of("0123456789") == std::string_view::npos;
 	}
 
+	nlohmann::json wholeNumbers(std::string_view option, std::string_view text) {
+		nlohmann::json numbers = nlohmann::json::array();
+		for (const std::string_view number : split(text, ',')) {
+			numbers.push_back(wholeNumber(option, number));
+		}
+		return numbers;
+	}
+
 	Options readOptions(int argc, char** argv) {
 		const std::vector<std::string_view> args(argv + 1, argv + argc);
 		if (args.empty() || args.front() == "--help" || args.front() == "-h") {
 			throw UsageError("");
 		}
-		if (args.front() != "fights") {
-			throw UsageError("the mode is fights, not \"" + std::string(args.front()) + "\"; gen, runs, and calibrate aren't built yet");
+		if (args.front() != "fights" && args.front() != "runs") {
+			throw UsageError("the mode is fights or runs, not \"" + std::string(args.front()) + "\"; gen and calibrate aren't built yet");
 		}
-		Options options;
+		Options	   options{.mode = args.front() == "runs" ? Mode::Runs : Mode::Fights};
+		const bool runs = options.mode == Mode::Runs;
 		for (size_t index = 1; index < args.size(); ++index) {
 			const std::string_view option = args[index];
 			if (index + 1 >= args.size()) {
@@ -103,14 +129,22 @@ namespace {
 				if (options.workers < 1) {
 					throw UsageError("--workers takes 1 or more");
 				}
-			} else if (option == "--seed" || option == "--runs" || option == "--tier" || option == "--turns") {
+			} else if (option == "--runs" || option == "--turns" || (!runs && (option == "--seed" || option == "--tier"))) {
 				options.overrides[std::string(option.substr(2))] = wholeNumber(option, value);
 			} else if (option == "--stage") {
-				nlohmann::json stages = nlohmann::json::array();
-				for (const std::string_view stage : split(value, ',')) {
-					stages.push_back(wholeNumber(option, stage));
+				options.overrides["stages"] = wholeNumbers(option, value);
+			} else if (runs && option == "--tier") {
+				options.overrides["tiers"] = wholeNumbers(option, value);
+			} else if (runs && option == "--maps") {
+				options.overrides["maps"] =
+					value.find(',') == std::string_view::npos ? nlohmann::json(wholeNumber(option, value)) : wholeNumbers(option, value);
+			} else if (runs && option == "--routes") {
+				options.overrides["routes"] = value == "all" ? nlohmann::json("all") : nlohmann::json(wholeNumber(option, value));
+			} else if (runs && option == "--neighbor") {
+				if (value != "on" && value != "off") {
+					throw UsageError("--neighbor takes on or off, not \"" + std::string(value) + "\"");
 				}
-				options.overrides["stages"] = std::move(stages);
+				options.overrides["neighbor"] = value == "on";
 			} else if (option == "--crews") {
 				if (value == "all" || value == "pairs" || value == "solo") {
 					options.overrides["crews"] = std::string(value);
@@ -125,7 +159,7 @@ namespace {
 					crews.push_back(std::move(seats));
 				}
 				options.overrides["crews"] = std::move(crews);
-			} else if (option == "--routes") {
+			} else if (!runs && option == "--routes") {
 				nlohmann::json routes = nlohmann::json::array();
 				for (const std::string_view route : split(value, ',')) {
 					nlohmann::json steps = nlohmann::json::array();
@@ -140,7 +174,7 @@ namespace {
 			} else if (option == "--player") {
 				options.overrides["standIn"] = nlohmann::json{{"policy", std::string(value)}};
 			} else {
-				throw UsageError("unknown option " + std::string(option));
+				throw UsageError("unknown option " + std::string(option) + " for " + std::string(args.front()));
 			}
 		}
 		return options;
@@ -162,20 +196,38 @@ namespace {
 		if (options.overrides.contains("crews") && options.overrides["crews"].is_array()) {
 			config.erase("archetypes");
 		}
-		const std::string		where = options.config ? options.config->generic_string() : "config";
-		const sim::FightsConfig read = sim::readFightsConfig(config, where, content);
+		const std::string	where = options.config ? options.config->generic_string() : "config";
+		const sim::SimRules shared(content);
+		const auto			write = [&](const nlohmann::ordered_json& json) {
+			 if (!options.json) {
+				 return;
+			 }
+			 std::ofstream file(*options.json, std::ios::binary);
+			 if (!file) {
+				 throw std::runtime_error("can't write " + options.json->generic_string());
+			 }
+			 file << json.dump(1, '\t') << "\n";
+			 std::cout << "wrote " << options.json->generic_string() << "\n";
+		};
 
-		const sim::SimRules		shared(content);
-		const sim::FightsReport report = sim::playFights(read, shared, options.workers);
-		sim::printReport(std::cout, report, content.packs);
-		if (options.json) {
-			std::ofstream file(*options.json, std::ios::binary);
-			if (!file) {
-				throw std::runtime_error("can't write " + options.json->generic_string());
-			}
-			file << sim::reportJson(report, content.packs).dump(1, '\t') << "\n";
-			std::cout << "wrote " << options.json->generic_string() << "\n";
+		if (options.mode == Mode::Fights) {
+			const sim::FightsReport report = sim::playFights(sim::readFightsConfig(config, where, content), shared, options.workers);
+			sim::printReport(std::cout, report, content.packs);
+			write(sim::reportJson(report, content.packs));
+			return 0;
 		}
+
+		const sim::RunsConfig				read = sim::readRunsConfig(config, where, content);
+		const std::filesystem::path			base = roots.front();
+		const rules::map::MapContent		mapContent = rules::map::readMapContent(base);
+		const rules::map::RouteTuning		routeTuning = rules::map::readRouteTuning(base / "map" / "routes.json");
+		const auto							started = std::chrono::steady_clock::now();
+		const sim::MadeMaps					maps = sim::makeRunMaps(read.maps, mapContent, routeTuning, options.workers);
+		const std::chrono::duration<double> making = std::chrono::steady_clock::now() - started;
+		std::cout << std::format("made {} maps in {:.1f} s on {} workers\n", maps.maps.size(), making.count(), options.workers);
+		const sim::RunsReport report = sim::playRuns(read, shared, maps.maps, options.workers);
+		sim::printRunReport(std::cout, report, content.packs);
+		write(sim::runReportJson(report, content.packs));
 		return 0;
 	}
 

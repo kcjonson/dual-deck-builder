@@ -7,6 +7,9 @@ add_library(ddb_balance_sim STATIC
     Measures.cpp
     Report.cpp
     ReportText.cpp
+    RunReport.cpp
+    Runs.cpp
+    RunsConfig.cpp
 )
 add_library(ddb::balance_sim ALIAS ddb_balance_sim)
 
