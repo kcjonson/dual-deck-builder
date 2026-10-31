@@ -46,7 +46,7 @@ In `fights` a run comes home when every fight on it is won or broken off, since 
 
 ### gen
 
-Generates campaign maps (`rollParams` seeds, `--maps` of them), reads every route to every POI the way a run gets it (`routeOffers`), and reports by destination tier:
+Generates campaign maps (`rollParams` seeds, `--maps` of them, 30 when left out), reads every route to every POI the way a run gets it (`routeOffers`, at game stage 0), and reports by destination tier:
 
 - stops a route (mean, range, distribution) against the band;
 - fights a route, and routes with none;
@@ -57,7 +57,7 @@ Generates campaign maps (`rollParams` seeds, `--maps` of them), reads every rout
 - each route's own road (legs no other POI's routes use): its share of the route's stops, and whether the route's floor fights are on it;
 - for each POI, its nearest neighbor by shared road, and how many of its stops a run to that neighbor would leave cleared.
 
-It also writes a route corpus (`--corpus <file>`), those maps' routes as JSON with each stop's type and each route's audit, its neighbor's run among it, to read without generating the maps again. `runs` makes its own, since a map takes under a second.
+Its JSON lists every map's routes, each stop's type and each route's audit, its neighbor's run among it: the route corpus, there to read without generating the maps again. `runs` doesn't read it, since it makes its own maps and a map takes under a second, so there's no corpus file of its own. Its config is `maps` alone, as the runs config reads it.
 
 A leg's room is the most stops the stops stage could deal it: clear of its ends and junctions, the tight gap apart, by the room math the POI and stops stages share. It also reports the POIs each ring aimed for and seated. A POI's nearest neighbor is the other POI whose routes share the most road with its routes, by length, and its run is whichever of the neighbor's routes clears the most of this route's stops.
 
@@ -78,7 +78,8 @@ Every field is optional, and the JSON the tool writes carries the config it read
 	"tier": 1,
 	"stages": [0, 2],
 	"turns": 25,
-	"standIn": { "policy": "intent_aware" }
+	"standIn": { "policy": "intent_aware" },
+	"cards": false
 }
 ```
 
@@ -88,6 +89,7 @@ Every field is optional, and the JSON the tool writes carries the config it read
 - `routes`: each a list of fights, a skull count from 1 to 3 or an encounter's id; `[[1], [2], [3]]`.
 - `tier` 1 to 5, 1. `stages`, each its own cells, from 0 to 6, `[0]`. `turns`, the stall cap, 25.
 - `standIn`: a behavior, as an opponent's names one, with its `policy`, `weights`, and `difficulty`, for every one of the crew's seats; any policy the AI builds for the player's side, the aggressive flanker when left out.
+- `cards`: whether to tally each crew card's plays, as `--cards` does; false.
 
 ### runs
 
@@ -131,11 +133,11 @@ A pool of four played day by day: one run a day to a tier its stage reaches, cle
 
 - `--config <file>`: what to play, as JSON. The Balance Lab exports the same format. Options on the command line win over its fields.
 - `--pack <dir>`, as often as needed: a pack loaded over the base pack, in order, holding the tuning to try.
-- `--seed`, `--runs` (a cell), `--maps` (for `gen` and `runs`: a count, or seeds like `4,7`), `--corpus <file>` (for `gen`), `--crews` (`all`, `pairs`, `solo`, or a list like `road_warrior+interceptor,mechanic`), `--routes` (for `fights`: `1,2,1+2,spike_raid`; for `runs`: `all` or a count a map), `--turns` (the stall cap), `--stage` (a list, `0,2`), `--tier` (for `runs`, a list), `--neighbor on|off` (for `runs`), `--player <policy>` (the stand-in: `aggressive_flanker`, the floor and the default, `intent_aware`, the ceiling, or any other player policy, `mcts` or `random`), `--workers` (2).
-- `--cards` (for `fights`): count each player card's draws and plays, and per play the planned raider intents it made fizzle and the planned damage it took off the crew, from the preview before and after it. Prints a line for each card a crew adds to its decks, with its cell's won and HP lost against the same crew on its starting decks on the same route. It projects the enemy turn twice a play, so it's off unless asked for.
+- `--seed`, `--runs` (a cell), `--maps` (for `gen` and `runs`: a count, or seeds like `4,7`), `--crews` (`all`, `pairs`, `solo`, or a list like `road_warrior+interceptor,mechanic`), `--routes` (for `fights`: `1,2,1+2,spike_raid`; for `runs`: `all` or a count a map), `--turns` (the stall cap), `--stage` (a list, `0,2`), `--tier` (for `runs`, a list), `--neighbor on|off` (for `runs`), `--player <policy>` (the stand-in: `aggressive_flanker`, the floor and the default, `intent_aware`, the ceiling, or any other player policy, `mcts` or `random`), `--workers` (2).
+- `--cards` (for `fights`, the fights config's `cards`): count each player card's draws and plays, per play the planned raider intents it made fizzle and the planned damage it took off the crew, from the preview before and after it, and the fights it was played in, won. Prints a line for each card a crew adds to its decks, with its cell's fights won and HP lost against the same crew on its starting decks on the same route. It projects the enemy turn after every play and every planning, so it's off unless asked for.
 - `--json <file>`: write the rows.
 - `--check`: compare every row with the targets and exit non-zero on a miss, naming it. The fairness spreads are reported and don't fail a check until DDB-492 to 495 land.
-- `--log <cell>:<run>`: print one fight's battle log.
+- `--log <cell>:<run>` (for `fights` and `runs`): play that one run of that cell and print it in words in place of the sweep, every fight's events with the raiders' plans among them, and in `runs` each stop as it comes.
 
 ## The Balance Lab
 

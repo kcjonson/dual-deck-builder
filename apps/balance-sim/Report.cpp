@@ -316,6 +316,15 @@ namespace sim {
 		}
 
 		// The crew whose seats are this one's archetypes in its order on their starting decks, if the config has it.
+		// Each place's fights won, in route order: `83%`, or `95/71%` for two.
+		std::string wonByPlace(const CellRow& row) {
+			std::string won;
+			for (const FightRow& place : row.fights) {
+				won += (won.empty() ? "" : "/") + (place.won.rate ? std::to_string(std::lround(*place.won.rate * 100)) : std::string("-"));
+			}
+			return won + "%";
+		}
+
 		const CellRow* startingDecksOf(const FightsReport& report, const CellRow& row) {
 			for (const CellRow& other : report.cells) {
 				const bool same = other.crew.size() == row.crew.size() && other.route == row.route && other.stage == row.stage &&
@@ -379,13 +388,13 @@ namespace sim {
 					for (const auto& [card, count] : changed) {
 						const auto played = row.cards.find(card);
 						added += std::format(
-							"{:<{}}  {:<22}{:>3}  home {} against {}, HP lost {} against {}, played {} a fight\n",
+							"{:<{}}  {:<22}{:>3}  won {} against {}, HP lost {} against {}, played {} a fight\n",
 							row.cell,
 							width,
 							card.value,
 							count,
-							percent(row.home),
-							percent(starting->home),
+							wonByPlace(row),
+							wonByPlace(*starting),
 							percent(row.hitpointsLost),
 							percent(starting->hitpointsLost),
 							played == row.cards.end() ? "0" : std::format("{:.2f}", played->second.played)
@@ -395,7 +404,7 @@ namespace sim {
 			}
 			if (!added.empty()) {
 				out << "\ncards a crew adds or decks it's given, against the same crew on its starting decks on the same route: "
-					   "home, then HP lost over the runs home, the cell's then theirs\n"
+					   "fights won, a place on the route at a time, then HP lost over the runs home, the cell's then theirs\n"
 					<< added;
 			}
 		}
