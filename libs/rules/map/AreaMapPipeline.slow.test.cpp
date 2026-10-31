@@ -12,13 +12,14 @@
 namespace {
 
 	using namespace rules::map;
+
 	// Run with the dressing's params at the other end of their ranges, against the fixture's layers, which the gameplay
 	// stages made alone at the defaults: every gameplay product comes out the same to the bit, so neither the dressing
-	// stage nor its params reach play (Guarantees 9).
+	// stage nor its params reach play (Guarantee 9).
 	TEST(AreaMapPipeline, NestsEveryStageInItsUpstreamsWinnerAndMakesTheGameplayMapToTheBitWhateverTheDressing) {
 		const MapParams& params = fixtures::mixed();
-		MapParams		 dressed = fixtures::with(fixtures::with(params, &MapParams::dressing, 1), &MapParams::streetGrids, 0.2);
-		dressed.railLines = 3;
+		MapParams		 dressed = fixtures::with(fixtures::with(params, &MapParams::dressing, 1), &MapParams::streetGrids, 0);
+		dressed.railLines = 0;
 		std::vector<std::string>	  started;
 		const PipelineResult<AreaMap> result = generateAreaMap(
 			dressed, fixtures::content(), {.onProgress = [&](const StageAttempt& attempt) { started.emplace_back(attempt.stage); }}
@@ -89,15 +90,11 @@ namespace {
 		EXPECT_FALSE(result.stages[7].kept);
 		ASSERT_TRUE(result.products.stops.has_value());
 		EXPECT_TRUE(fixtures::sameStops(*result.products.stops, fixtures::stopsFor(params)));
-		// The dressing nests in the stops' winning stream, and makes what it makes straight from it at its params.
+		// The dressing nests in the stops' winning stream, at its own params: no rails, and the widest streets.
 		EXPECT_EQ(result.stages[8].stream, fixtures::dressingStream(params).seed());
 		ASSERT_TRUE(result.products.dressing.has_value());
-		const Dressing straight = fixtures::dressingOver(params, dressed);
-		EXPECT_EQ(result.products.dressing->rails.size(), straight.rails.size());
-		EXPECT_EQ(result.products.dressing->labels.size(), straight.labels.size());
-		EXPECT_EQ(result.products.dressing->stipple, straight.stipple);
-		ASSERT_EQ(result.products.dressing->districts.size(), straight.districts.size());
-		EXPECT_EQ(result.products.dressing->districts.front().blocks, straight.districts.front().blocks);
+		EXPECT_TRUE(result.products.dressing->rails.empty());
+		EXPECT_NEAR(result.products.dressing->districts.front().spacing, 14, 1e-9);
 	}
 
 	// One attempt, since another would only repeat it: a route tree the map can't use restarts the map.

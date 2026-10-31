@@ -23,7 +23,7 @@ namespace {
 		const CampaignMap made = makeCampaignMap(seed, fixtures::content());
 		EXPECT_EQ(made.origin.params, map::rollParams(seed).params);
 		EXPECT_EQ(made.origin.fingerprint, mapFingerprint(made.map));
-		EXPECT_EQ(made.origin.stageAttempts.size(), 8U);
+		EXPECT_EQ(made.origin.stageAttempts.size(), map::areaMapPipeline().stageCount());
 
 		Campaign campaign =
 			foundCampaign(testContent(), testRules(), Founding{.map = made.origin, .unlocked = unlockedAtStart(testContent())});
