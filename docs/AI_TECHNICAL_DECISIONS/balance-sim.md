@@ -169,7 +169,7 @@ Pending Kevin's approval in [gameplay-calls.md](../gameplay-calls.md) (The C++ b
 
 ## Run mode's first numbers
 
-Seeds 1, 2, and 3, every route a run can leave on, 145 of them (27 at tier 1, 34 at tier 2, 28 at tier 3, and 56 at tier 4), the three starting pairs fresh on their starting decks, stage 0, the stall cap at 25, the base pack untuned. The floor played 40 runs a cell, fresh and behind each route's neighbor, 33,360 runs in 129 s on 2 workers; the ceiling 10, 8,340 runs in 83 s; Monte Carlo tree search 2, fresh only, 870 runs in 84 s; random 10, fresh only, 4,350 runs in 9 s. The three maps took 0.7 s to make on 2 workers. Nothing stalled, so no run was abandoned.
+Seeds 1, 2, and 3, every route a run can leave on, 145 of them (27 at tier 1, 34 at tier 2, 28 at tier 3, and 56 at tier 4), the three starting pairs fresh on their starting decks, stage 0, the stall cap at 25, the base pack untuned. The floor played 40 runs a cell, fresh and behind each route's neighbor, 33,360 runs in 129 s on 2 workers; the ceiling 10, 8,340 runs in 83 s; Monte Carlo tree search 2, fresh only, 870 runs in 84 s; random 10, fresh only, 4,350 runs in 9 s. The three maps took 0.7 s to make on 2 workers. Nothing stalled, so no run was abandoned. These were salal v0.19.0's maps; pinning v0.30.1 moved every map, these three among them (terrain-fields.md, Noise is the engine's), so the same seeds now give other routes and stops.
 
 Home by destination tier, every pair pooled, and the pair that came home least with the floor:
 
