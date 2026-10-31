@@ -100,6 +100,19 @@ Each is a follow-up:
 - Typing by place and water: towns and villages show only as ruin, water plants come from low or wet ground (the land with its water, so wet beside rivers), and nothing types a dam. Places (Map 6), and the water stage's rivers and reservoirs, make the spec's list possible.
 - Saves keep nothing of it; the map regenerates on load, since it's deterministic (DDB-436).
 
+## The route tree in the C++ alpha
+
+`libs/rules/map/RouteTree` and `RouteLegs` (2026-10-31, DDB-571) are stage 6 and the legs, with this record's rules and provisional calls 1, 2, and 10. The stage is `routeTree`, after the roads, on `...fork("roads", r).fork("routeTree", 0)`: it takes no draws, so it has one attempt, but it's a link in the chain, and the POIs will nest under it. Its product is `AreaMap::routeTree`, plain data: per node the parent stretch and node, depth, and hours; per stretch its hours; and the meeting points. What differs:
+
+- The stage has no check. The tree is a pure function of a network the roads stage checked, every node reaching home, so a check could only build it again. The tests hold that it's the quickest tree with the tie rule, on random meshes and on three maps' networks. A rejection by the accept hook restarts the map, since a second attempt would be the first again.
+- A stretch's length is the network's own (`RoadStretch::length`), not measured again.
+- Arrivals belong to the tree: `arrivalsAt(network, tree, point, along)` gives a POI's arrivals on a meeting point, quickest first with ties to the lower node (call 10), so the POI stage chooses sites and nothing else about its routes.
+- `buildLegs` cuts legs for any list of destinations, each a POI's arrivals, as a pure function the POI stage will call when it seats them (call 2). `routesTo` walks a destination's routes from its last legs; `legPoints` draws a leg's road outward. Legs come out parents first, each node's branches by node id and then its arrivals by destination and arrival, as above.
+- A leg's profile, its length by class and by biome, its main highway, and its middle, is `profileLeg`, worked out on read from the leg, the network, and the ground. The TypeScript's stops stage kept it; it's the route layer's, and the descriptors read it before any stop exists. The biome sample step it takes, `biomeStep`, moved from `stops.json` to `routes.json` (stops-and-routes.md, Route descriptors in the C++ alpha).
+- Not here: strongholds, sites, scores, rings, spacing, typing, own road, and tiers are the POI stage's, stage 7.
+
+Measured on the test maps at radius 600: mixed, floodlands, and badlands have 154 to 200 nodes and 46 to 73 loops, and 24 to 37 meeting points, 1 to 3 of them three-way. Only a loop whose two ends' ways home split by halfway holds one, so badlands has fewer meeting points (24) than the loops its POIs want (28); the POI stage places what it can, as the spec's targets allow. A destination at every meeting point no earlier one took a stretch of, the tests' stand-in for the POIs, makes 23 to 34 destinations and 83 to 126 legs. The tree, the legs, every destination's descriptors, and the tests' checks of them take 7 to 15 ms a map in Debug, and a millisecond or less in RelWithDebInfo, against the spec's 200 ms for all the graph stages.
+
 ## Consequences
 
 - The run loop and Map 14 read `products.pois`: `pois[i].arrivals` and `routesTo(layer, pois[i])`, legs by id from `layer.legs`, and each leg's pieces or `legPoints`.
