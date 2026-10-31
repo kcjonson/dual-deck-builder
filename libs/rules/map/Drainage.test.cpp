@@ -221,6 +221,47 @@ namespace {
 		expectDrainageShape(one, flat);
 	}
 
+	// A cell's rain by its definition: its own, then each donor's in turn, highest level first, ties highest
+	// index first.
+	double rainThrough(const Drainage& drainage, const std::vector<double>& rain, int cell) {
+		std::vector<int> donors;
+		for (int donor = 0; donor < static_cast<int>(drainage.receivers.size()); ++donor) {
+			if (drainage.receivers[static_cast<size_t>(donor)] == cell) {
+				donors.push_back(donor);
+			}
+		}
+		std::ranges::sort(donors, [&](int a, int b) {
+			const double levelA = drainage.levels[static_cast<size_t>(a)];
+			const double levelB = drainage.levels[static_cast<size_t>(b)];
+			return levelA > levelB || (levelA == levelB && a > b);
+		});
+		double area = rain[static_cast<size_t>(cell)];
+		for (const int donor : donors) {
+			area += rainThrough(drainage, rain, donor);
+		}
+		return area;
+	}
+
+	TEST(DrainageRouter, SumsRainHighestLevelFirstSoTheRoundingIsTheLevelsAlone) {
+		foundation::Rng			  rng(12);
+		const int				  size = 11;
+		const std::vector<double> terraced =
+			heightsOf(size, [&](int column, int row) { return std::floor((0.04 * (column + row) + 0.2 * rng.nextDouble()) * 5) / 5; });
+		const std::vector<double> rain = heightsOf(size, [&](int, int) { return 0.5 + 1.9 * rng.nextDouble(); });
+		const std::vector<int>	  outlets{0, size - 1};
+		DrainageRouter			  router(size);
+		router.route(terraced, outlets);
+		router.accumulate(rain);
+		const Drainage drainage = router.drainage();
+		for (int cell = 0; cell < size * size; ++cell) {
+			EXPECT_EQ(drainage.area[static_cast<size_t>(cell)], rainThrough(drainage, rain, cell)) << cell;
+		}
+		router.accumulate(std::vector<double>(rain.size(), 1.0));
+		const std::vector<double> unweighted(router.area().begin(), router.area().end());
+		router.accumulate();
+		EXPECT_EQ(unweighted, std::vector<double>(router.area().begin(), router.area().end()));
+	}
+
 	TEST(DrainageRouter, RoutesTheSameReusedAsFresh) {
 		foundation::Rng			  rng(4);
 		const int				  size = 12;

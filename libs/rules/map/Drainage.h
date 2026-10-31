@@ -19,7 +19,7 @@ namespace rules::map {
 		// The level water reaches in each cell: its height, or more in a pit or on a flat, where it stands
 		// until it spills. Always above its receiver's.
 		std::vector<double> levels;
-		// The cells that drain through each, its own included.
+		// The cells, or the rain, that drain through each, its own included.
 		std::vector<double> area;
 		// Every cell, each after the cell it drains to: downstream first.
 		std::vector<int> order;
@@ -41,8 +41,12 @@ namespace rules::map {
 		// Fills receivers, levels and order for `heights` draining to `outlets`, edge cells or not. Every
 		// height is finite and every outlet a distinct cell.
 		void route(std::span<const double> heights, std::span<const int> outlets);
-		// Fills area from the last route, one a cell.
+		// Fills area from the last route, one a cell. Whole numbers sum exactly in any order.
 		void accumulate();
+		// Fills area from the last route with `rain` a cell. Each cell sums its donors highest level first,
+		// ties highest index first, so the rounding is fixed by the levels alone, never by the order the
+		// flood happened to settle cells in.
+		void accumulate(std::span<const double> rain);
 
 		[[nodiscard]] int					  size() const { return gridSize; }
 		[[nodiscard]] std::span<const int>	  receivers() const { return receiverOf; }

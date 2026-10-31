@@ -30,6 +30,10 @@ namespace rules::map {
 		return from + (to - from) * amount;
 	}
 
+	[[nodiscard]] constexpr double clamp01(double value) {
+		return value < 0 ? 0 : (value > 1 ? 1 : value);
+	}
+
 	// The value `share` of `values` lie at or above: +infinity for a share of 0 or less, or no values, so
 	// none do, and -infinity for 1 or more, so all do.
 	[[nodiscard]] double quantileAbove(std::vector<double> values, double share);
