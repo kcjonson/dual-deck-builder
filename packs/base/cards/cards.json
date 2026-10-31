@@ -1,0 +1,2007 @@
+{
+	"cards": [
+		{
+			"id": "point_blank",
+			"name": "Point Blank",
+			"summary": "Deal {damage}. [Range 1]. +1 to hit.",
+			"description": "Deal {damage} damage. Range 1. Easier to hit (+1 to hit).",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 3,
+					"range": 1,
+					"hitModifier": -1,
+					"target": "target"
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 3,
+					"upgraded": 5
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "damage",
+						"value": 5,
+						"range": 1,
+						"hitModifier": -1,
+						"target": "target"
+					}
+				]
+			},
+			"tags": [
+				"attack",
+				"ranged"
+			],
+			"image": "cards/point_blank.png"
+		},
+		{
+			"id": "far_shoot",
+			"name": "Far Shoot",
+			"summary": "Deal {damage}. [Range 2].",
+			"description": "Deal {damage} damage. Range 2.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 1,
+					"range": 2,
+					"target": "target"
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 1,
+					"upgraded": 2
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "damage",
+						"value": 2,
+						"range": 2,
+						"target": "target"
+					}
+				]
+			},
+			"tags": [
+				"attack",
+				"ranged"
+			],
+			"image": "cards/far_shoot.png"
+		},
+		{
+			"id": "headshot",
+			"name": "Headshot",
+			"summary": "Deal {damage} to the driver only. Target gets +{hit_modifier} Evade.",
+			"description": "Deal {damage} damage to target driver. No structure damage. Harder to hit (+{hit_modifier} to defender's evade).",
+			"rarity": "rare",
+			"cost": 2,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 5,
+					"target": "driver",
+					"hitModifier": 2
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 5,
+					"upgraded": 10
+				},
+				"hit_modifier": {
+					"base": 2,
+					"upgraded": 1
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "damage",
+						"value": 2,
+						"target": "driver",
+						"hitModifier": 1
+					}
+				]
+			},
+			"tags": [
+				"attack",
+				"ranged",
+				"precision"
+			],
+			"image": "cards/headshot.png"
+		},
+		{
+			"id": "ram",
+			"name": "Ram",
+			"summary": "Deal Armor/10 + speed gap. [Range 1].",
+			"description": "Deal damage equal to your armor/10 + (your speed - target speed). Range 1.",
+			"rarity": "common",
+			"cost": 2,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 0,
+					"formula": {
+						"armorPer": 10,
+						"speedDiff": 1
+					},
+					"attackType": "ramming",
+					"range": 1,
+					"target": "target"
+				}
+			],
+			"upgrades": {
+				"effects": [
+					{
+						"type": "damage",
+						"value": 0,
+						"formula": {
+							"armorPer": 7,
+							"speedDiff": 2
+						},
+						"attackType": "ramming",
+						"range": 1,
+						"target": "target"
+					}
+				]
+			},
+			"tags": [
+				"attack",
+				"physical"
+			],
+			"image": "cards/ram.png"
+		},
+		{
+			"id": "flank",
+			"name": "Flank",
+			"summary": "[Flank] a slower raider. Your attacks deal +50%.",
+			"description": "Outrun a slower enemy and pull onto their shoulder in its row. While flanking, attack cards do 50% more damage.",
+			"rarity": "common",
+			"cost": 2,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "flanking",
+					"target": "self"
+				}
+			],
+			"upgrades": {
+				"cost": 1
+			},
+			"tags": [
+				"utility",
+				"positioning"
+			],
+			"image": "cards/flank.png"
+		},
+		{
+			"id": "oil_slick",
+			"name": "Oil Slick",
+			"summary": "Flanker: -4 Speed, 2 turns. [Vulnerable]. [Sure-hit].",
+			"description": "Target flanking vehicle loses 4 speed for 2 turns and becomes Vulnerable. Always hits.",
+			"rarity": "uncommon",
+			"cost": 1,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "apply_status",
+					"status": "speed_reduction",
+					"value": -4,
+					"duration": 2,
+					"target": "target",
+					"condition": "target_flanking",
+					"alwaysHits": true
+				},
+				{
+					"type": "apply_status",
+					"status": "vulnerable",
+					"duration": 2,
+					"target": "target",
+					"condition": "target_flanking",
+					"alwaysHits": true
+				}
+			],
+			"tags": [
+				"attack",
+				"ranged",
+				"control"
+			],
+			"image": "cards/oil_slick.png"
+		},
+		{
+			"id": "caltrops",
+			"name": "Caltrops",
+			"summary": "Flanker takes {damage} Structure, -2 Speed for good. [Sure-hit].",
+			"description": "Target flanking vehicle takes {damage} structure damage and loses 2 speed permanently. Always hits.",
+			"rarity": "rare",
+			"cost": 2,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 2,
+					"target": "target",
+					"condition": "target_flanking",
+					"alwaysHits": true
+				},
+				{
+					"type": "apply_status",
+					"status": "speed_reduction",
+					"value": -2,
+					"duration": "fight",
+					"target": "target",
+					"condition": "target_flanking",
+					"alwaysHits": true
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 2,
+					"upgraded": 2
+				}
+			},
+			"tags": [
+				"attack",
+				"ranged",
+				"control"
+			],
+			"image": "cards/caltrops.png"
+		},
+		{
+			"id": "repair_kit",
+			"name": "Repair Kit",
+			"summary": "Repair {healing}. Overflow becomes [Armor].",
+			"description": "Restore {healing} Structure to your vehicle. Excess healing converts to armor.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "self",
+			"effects": [
+				{
+					"type": "heal",
+					"value": 8,
+					"overflowToArmor": true,
+					"target": "self"
+				}
+			],
+			"variables": {
+				"healing": {
+					"base": 8,
+					"upgraded": 12
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "heal",
+						"value": 12,
+						"overflowToArmor": true,
+						"target": "self"
+					}
+				]
+			},
+			"tags": [
+				"utility",
+				"heal"
+			],
+			"image": "cards/repair_kit.png"
+		},
+		{
+			"id": "medical_kit",
+			"name": "Medical Kit",
+			"summary": "Heal {healing} HP to you or your passenger.",
+			"description": "Restore {healing} hit points to yourself or a passenger in your vehicle.",
+			"rarity": "uncommon",
+			"cost": 2,
+			"targetType": "ally",
+			"effects": [
+				{
+					"type": "heal_driver",
+					"value": 4,
+					"target": "same_vehicle"
+				}
+			],
+			"variables": {
+				"healing": {
+					"base": 4,
+					"upgraded": 6
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "heal_driver",
+						"value": 6,
+						"target": "same_vehicle"
+					}
+				]
+			},
+			"tags": [
+				"utility",
+				"heal"
+			],
+			"image": "cards/medical_kit.png"
+		},
+		{
+			"id": "nitro_boost",
+			"name": "Nitro Boost",
+			"summary": "+3 Speed for 2 turns. Draw {cards}.",
+			"description": "Gain 3 speed for 2 turns. Draw {cards} cards.",
+			"rarity": "uncommon",
+			"cost": 1,
+			"targetType": "self",
+			"effects": [
+				{
+					"type": "apply_status",
+					"status": "speed_boost",
+					"value": 3,
+					"duration": 2,
+					"target": "self"
+				},
+				{
+					"type": "draw_cards",
+					"value": 2,
+					"target": "self"
+				}
+			],
+			"variables": {
+				"cards": {
+					"base": 2,
+					"upgraded": 3
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "apply_status",
+						"status": "speed_boost",
+						"value": 3,
+						"duration": 2,
+						"target": "self"
+					},
+					{
+						"type": "draw_cards",
+						"value": 3,
+						"target": "self"
+					}
+				]
+			},
+			"tags": [
+				"utility",
+				"status",
+				"draw"
+			],
+			"image": "cards/nitro_boost.png"
+		},
+		{
+			"id": "lane_change",
+			"name": "Lane Change",
+			"summary": "[Swerve] to your other lane, same row.",
+			"description": "Swerve to the other lane of your formation, in the same row. Unplayable while flanking, or if that slot is taken or reserved.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "self",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "swerve",
+					"to": "other_lane",
+					"target": "self"
+				}
+			],
+			"upgrades": {
+				"cost": 0
+			},
+			"tags": [
+				"utility",
+				"positioning"
+			],
+			"image": "cards/lane_change.png"
+		},
+		{
+			"id": "floor_it",
+			"name": "Floor It",
+			"summary": "[Swerve] ahead. +2 Speed until the enemy turn ends.",
+			"description": "Swerve one row ahead in your lane, then gain 2 speed until the end of the next enemy turn. Unplayable while flanking, or if that slot is taken or reserved. While Heavy the speed doesn't count, but the swerve still happens.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "self",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "swerve",
+					"to": "ahead",
+					"target": "self"
+				},
+				{
+					"type": "apply_status",
+					"status": "speed_boost",
+					"value": 2,
+					"duration": 1,
+					"target": "self"
+				}
+			],
+			"variables": {
+				"turns": {
+					"base": 1,
+					"upgraded": 2
+				}
+			},
+			"upgrades": {
+				"summary": "[Swerve] ahead. +2 Speed for {turns} turns.",
+				"description": "Swerve one row ahead in your lane, then gain 2 speed for {turns} turns. Unplayable while flanking, or if that slot is taken or reserved. While Heavy the speed doesn't count, but the swerve still happens.",
+				"effects": [
+					{
+						"type": "change_position",
+						"position": "swerve",
+						"to": "ahead",
+						"target": "self"
+					},
+					{
+						"type": "apply_status",
+						"status": "speed_boost",
+						"value": 2,
+						"duration": 2,
+						"target": "self"
+					}
+				]
+			},
+			"tags": [
+				"utility",
+				"positioning"
+			],
+			"image": "cards/floor_it.png"
+		},
+		{
+			"id": "hard_brake",
+			"name": "Hard Brake",
+			"summary": "[Swerve] one row behind. +{shield} [Shield].",
+			"description": "Swerve one row behind in your lane and gain {shield} Shield. Unplayable while flanking, or if that slot is taken or reserved.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "self",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "swerve",
+					"to": "behind",
+					"target": "self"
+				},
+				{
+					"type": "gain_shield",
+					"value": 4,
+					"target": "self"
+				}
+			],
+			"variables": {
+				"shield": {
+					"base": 4,
+					"upgraded": 6
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "change_position",
+						"position": "swerve",
+						"to": "behind",
+						"target": "self"
+					},
+					{
+						"type": "gain_shield",
+						"value": 6,
+						"target": "self"
+					}
+				]
+			},
+			"tags": [
+				"utility",
+				"positioning",
+				"shield"
+			],
+			"image": "cards/hard_brake.png"
+		},
+		{
+			"id": "slipstream",
+			"name": "Slipstream",
+			"summary": "Move behind your [Partner]. +3 Speed for 2 turns.",
+			"description": "Move to the empty slot directly behind your partner's vehicle: same lane, one row back. Gain 3 speed for 2 turns. Unplayable while you or your partner is flanking, or if that slot isn't free. While Heavy the speed doesn't count, but the move still happens.",
+			"rarity": "uncommon",
+			"cost": 1,
+			"targetType": "self",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "move",
+					"to": "behind_partner",
+					"target": "self"
+				},
+				{
+					"type": "apply_status",
+					"status": "speed_boost",
+					"value": 3,
+					"duration": 2,
+					"target": "self"
+				}
+			],
+			"upgrades": {
+				"summary": "Move behind your [Partner]. +3 Speed for 2 turns. Draw 1.",
+				"description": "Move to the empty slot directly behind your partner's vehicle: same lane, one row back. Gain 3 speed for 2 turns and draw 1 card. Unplayable while you or your partner is flanking, or if that slot isn't free. While Heavy the speed doesn't count, but the move still happens.",
+				"effects": [
+					{
+						"type": "change_position",
+						"position": "move",
+						"to": "behind_partner",
+						"target": "self"
+					},
+					{
+						"type": "apply_status",
+						"status": "speed_boost",
+						"value": 3,
+						"duration": 2,
+						"target": "self"
+					},
+					{
+						"type": "draw_cards",
+						"value": 1,
+						"target": "self"
+					}
+				]
+			},
+			"tags": [
+				"utility",
+				"positioning"
+			],
+			"image": "cards/slipstream.png"
+		},
+		{
+			"id": "peel_off",
+			"name": "Peel Off",
+			"summary": "Flanking: drop back to your reserved slot. Draw {cards}.",
+			"description": "Only while flanking with a reserved slot: leave the shoulder and drop back to that slot now. Then draw {cards}.",
+			"rarity": "common",
+			"cost": 0,
+			"targetType": "self",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "drop_back",
+					"target": "self"
+				},
+				{
+					"type": "draw_cards",
+					"value": 1,
+					"target": "self"
+				}
+			],
+			"variables": {
+				"cards": {
+					"base": 1,
+					"upgraded": 2
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "change_position",
+						"position": "drop_back",
+						"target": "self"
+					},
+					{
+						"type": "draw_cards",
+						"value": 2,
+						"target": "self"
+					}
+				]
+			},
+			"tags": [
+				"utility",
+				"positioning",
+				"draw"
+			],
+			"image": "cards/peel_off.png"
+		},
+		{
+			"id": "formation_shift",
+			"name": "Formation Shift",
+			"summary": "Your whole formation switches lanes. [Exhaust].",
+			"description": "Every vehicle in your formation, escorts and wrecks included, switches to the other lane in its row. A flanker keeps the shoulder, and its reserved slot switches lanes with its row. No escort is spent. Exhaust.",
+			"rarity": "rare",
+			"cost": 2,
+			"targetType": "self",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "formation_shift",
+					"target": "self"
+				}
+			],
+			"upgrades": {
+				"summary": "Your whole formation switches lanes.",
+				"description": "Every vehicle in your formation, escorts and wrecks included, switches to the other lane in its row. A flanker keeps the shoulder, and its reserved slot switches lanes with its row. No escort is spent.",
+				"tags": [
+					"utility",
+					"positioning"
+				]
+			},
+			"tags": [
+				"utility",
+				"positioning",
+				"exhaust"
+			],
+			"image": "cards/formation_shift.png"
+		},
+		{
+			"id": "weave",
+			"name": "Weave",
+			"summary": "+{evade} [Evade] until the enemy turn ends. +1 if you swerved.",
+			"description": "Your vehicle gains {evade} Evade until the end of the next enemy turn, 1 more if it changed slot this turn: a swerve, a move, a flank, or being moved all count. Evade adds to what an attacker's gunnery or ramming has to beat.",
+			"rarity": "uncommon",
+			"cost": 1,
+			"targetType": "self",
+			"effects": [
+				{
+					"type": "apply_status",
+					"status": "evade_boost",
+					"value": 1,
+					"duration": 1,
+					"target": "self",
+					"bonus": {
+						"value": 1,
+						"condition": "caster_swerved"
+					}
+				}
+			],
+			"variables": {
+				"evade": {
+					"base": 1,
+					"upgraded": 2
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "apply_status",
+						"status": "evade_boost",
+						"value": 2,
+						"duration": 1,
+						"target": "self",
+						"bonus": {
+							"value": 1,
+							"condition": "caster_swerved"
+						}
+					}
+				]
+			},
+			"tags": [
+				"utility",
+				"defense"
+			],
+			"image": "cards/weave.png"
+		},
+		{
+			"id": "point_man",
+			"name": "Point Man",
+			"summary": "Deal {damage}, +{extra} if you're in the ahead row. [Range 2].",
+			"description": "Deal {damage} damage, or {extra} more if your vehicle is in the ahead row, flanking or not. Range 2.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 1,
+					"range": 2,
+					"target": "target",
+					"bonus": {
+						"value": 3,
+						"condition": {
+							"type": "caster_row",
+							"row": "ahead"
+						}
+					}
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 1,
+					"upgraded": 2
+				},
+				"extra": {
+					"base": 3
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "damage",
+						"value": 2,
+						"range": 2,
+						"target": "target",
+						"bonus": {
+							"value": 3,
+							"condition": {
+								"type": "caster_row",
+								"row": "ahead"
+							}
+						}
+					}
+				]
+			},
+			"tags": [
+				"attack",
+				"ranged"
+			],
+			"image": "cards/point_man.png"
+		},
+		{
+			"id": "tail_gunner",
+			"name": "Tail Gunner",
+			"summary": "Deal {damage}, +{extra} if the target is ahead of your row. [Range 2].",
+			"description": "Deal {damage} damage, or {extra} more if the target is in a row ahead of your vehicle's. Range 2.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 1,
+					"range": 2,
+					"target": "target",
+					"bonus": {
+						"value": 2,
+						"condition": {
+							"type": "target_row",
+							"relation": "ahead"
+						}
+					}
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 1
+				},
+				"extra": {
+					"base": 2,
+					"upgraded": 3
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "damage",
+						"value": 1,
+						"range": 2,
+						"target": "target",
+						"bonus": {
+							"value": 3,
+							"condition": {
+								"type": "target_row",
+								"relation": "ahead"
+							}
+						}
+					}
+				]
+			},
+			"tags": [
+				"attack",
+				"ranged"
+			],
+			"image": "cards/tail_gunner.png"
+		},
+		{
+			"id": "coordinated_attack",
+			"name": "Coordinated Attack",
+			"summary": "Deal {damage}. Double it if your [Partner] attacked this turn.",
+			"description": "Deal {damage} damage. If partner attacked this turn, double the damage.",
+			"rarity": "uncommon",
+			"cost": 3,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 3,
+					"target": "target"
+				},
+				{
+					"type": "conditional",
+					"condition": "partner_attacked",
+					"effects": [
+						{
+							"type": "damage",
+							"value": 3,
+							"target": "target"
+						}
+					]
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 3,
+					"upgraded": 5
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "damage",
+						"value": 5,
+						"target": "target"
+					},
+					{
+						"type": "conditional",
+						"condition": "partner_attacked",
+						"effects": [
+							{
+								"type": "damage",
+								"value": 5,
+								"target": "target"
+							}
+						]
+					}
+				]
+			},
+			"tags": [
+				"attack",
+				"synergy",
+				"conditional"
+			],
+			"image": "cards/coordinated_attack.png"
+		},
+		{
+			"id": "emp_blast",
+			"name": "EMP Blast",
+			"summary": "All raiders skip their next turn.",
+			"description": "All enemies skip their next turn.",
+			"rarity": "rare",
+			"cost": 3,
+			"targetType": "enemy_all",
+			"effects": [
+				{
+					"type": "apply_status",
+					"status": "stunned",
+					"duration": 1,
+					"target": "enemy_all",
+					"alwaysHits": true
+				}
+			],
+			"upgrades": {
+				"cost": 2
+			},
+			"tags": [
+				"utility",
+				"control",
+				"status"
+			],
+			"image": "cards/emp_blast.png"
+		},
+		{
+			"id": "berserker",
+			"name": "Berserker",
+			"summary": "+{adrenaline} Adrenaline. Take {damage}. You are [Vulnerable].",
+			"description": "Take {damage} damage. Gain {adrenaline} Adrenaline. Your vehicle becomes Vulnerable.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "self",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 3,
+					"target": "self_driver"
+				},
+				{
+					"type": "gain_resource",
+					"resource": "adrenaline",
+					"value": 3,
+					"target": "self"
+				},
+				{
+					"type": "apply_status",
+					"status": "vulnerable",
+					"duration": "fight",
+					"target": "self"
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 3,
+					"upgraded": 2
+				},
+				"adrenaline": {
+					"base": 3,
+					"upgraded": 4
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "damage",
+						"value": 2,
+						"target": "self_driver"
+					},
+					{
+						"type": "gain_resource",
+						"resource": "adrenaline",
+						"value": 4,
+						"target": "self"
+					},
+					{
+						"type": "apply_status",
+						"status": "vulnerable",
+						"duration": "fight",
+						"target": "self"
+					}
+				]
+			},
+			"tags": [
+				"utility",
+				"resource",
+				"self_harm"
+			],
+			"image": "cards/berserker.png"
+		},
+		{
+			"id": "armor_plating",
+			"name": "Armor Plating",
+			"summary": "Gain {armor} [Armor].",
+			"description": "Gain {armor} Armor.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "self",
+			"effects": [
+				{
+					"type": "gain_armor",
+					"value": 8,
+					"target": "self"
+				}
+			],
+			"variables": {
+				"armor": {
+					"base": 8,
+					"upgraded": 12
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "gain_armor",
+						"value": 12,
+						"target": "self"
+					}
+				]
+			},
+			"tags": [
+				"defense",
+				"armor"
+			],
+			"image": "cards/armor_plating.png"
+		},
+		{
+			"id": "ramming_speed",
+			"name": "Ramming Speed",
+			"summary": "Deal {damage}. [Range 1]. If [Vulnerable]: +{adrenaline} Adrenaline.",
+			"description": "Deal {damage} damage. If target has Vulnerable, gain {adrenaline} Adrenaline. Range 1.",
+			"rarity": "common",
+			"cost": 2,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 12,
+					"scaling": "ramming",
+					"range": 1,
+					"target": "target"
+				},
+				{
+					"type": "conditional",
+					"condition": {
+						"type": "target_has_status",
+						"status": "vulnerable"
+					},
+					"effects": [
+						{
+							"type": "gain_resource",
+							"resource": "adrenaline",
+							"value": 1,
+							"target": "self"
+						}
+					]
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 12,
+					"upgraded": 18
+				},
+				"adrenaline": {
+					"base": 1,
+					"upgraded": 2
+				}
+			},
+			"upgrades": {
+				"cost": 2,
+				"effects": [
+					{
+						"type": "damage",
+						"value": 18,
+						"scaling": "ramming",
+						"range": 1,
+						"target": "target"
+					},
+					{
+						"type": "conditional",
+						"condition": {
+							"type": "target_has_status",
+							"status": "vulnerable"
+						},
+						"effects": [
+							{
+								"type": "gain_resource",
+								"resource": "adrenaline",
+								"value": 2,
+								"target": "self"
+							}
+						]
+					}
+				]
+			},
+			"tags": [
+				"attack",
+				"physical",
+				"conditional"
+			],
+			"image": "cards/ramming_speed.png"
+		},
+		{
+			"id": "precision_shot",
+			"name": "Precision Shot",
+			"summary": "Deal {damage}. +{bonus} if you have Speed+.",
+			"description": "Deal {damage} damage. +{bonus} damage if you have Speed+.",
+			"driverRestriction": "interceptor",
+			"rarity": "common",
+			"cost": 2,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 15,
+					"scaling": "gunnery",
+					"target": "target"
+				},
+				{
+					"type": "conditional",
+					"condition": {
+						"type": "self_has_status",
+						"status": "speed_plus"
+					},
+					"effects": [
+						{
+							"type": "damage",
+							"value": 5,
+							"target": "target"
+						}
+					]
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 15,
+					"upgraded": 20
+				},
+				"bonus": {
+					"base": 5,
+					"upgraded": 8
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "damage",
+						"value": 20,
+						"scaling": "gunnery",
+						"target": "target"
+					},
+					{
+						"type": "conditional",
+						"condition": {
+							"type": "self_has_status",
+							"status": "speed_plus"
+						},
+						"effects": [
+							{
+								"type": "damage",
+								"value": 8,
+								"target": "target"
+							}
+						]
+					}
+				]
+			},
+			"tags": [
+				"attack",
+				"ranged",
+				"conditional"
+			],
+			"image": "cards/precision_shot.png"
+		},
+		{
+			"id": "witness_me",
+			"name": "Witness Me!",
+			"summary": "Triple all damage this turn. Die at end of turn.",
+			"description": "Triple all damage this turn. Die at end of turn.",
+			"rarity": "legendary",
+			"cost": 2,
+			"targetType": "self",
+			"effects": [
+				{
+					"type": "apply_status",
+					"status": "triple_damage",
+					"duration": 1,
+					"target": "self"
+				},
+				{
+					"type": "apply_status",
+					"status": "death_mark",
+					"duration": 1,
+					"target": "self"
+				}
+			],
+			"tags": [
+				"power",
+				"legendary",
+				"sacrifice"
+			],
+			"image": "cards/witness_me.png"
+		},
+		{
+			"id": "flanking_maneuver",
+			"name": "Flanking Maneuver",
+			"summary": "[Flank] a slower raider. Next attack +{bonus}%.",
+			"description": "Outrun a slower enemy and pull onto their shoulder in its row. Next attack deals +{bonus}% damage.",
+			"rarity": "uncommon",
+			"cost": 1,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "flanking",
+					"target": "self"
+				},
+				{
+					"type": "apply_status",
+					"status": "damage_bonus",
+					"value": 50,
+					"duration": 1,
+					"target": "self"
+				}
+			],
+			"variables": {
+				"bonus": {
+					"base": 50,
+					"upgraded": 75
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "change_position",
+						"position": "flanking",
+						"target": "self"
+					},
+					{
+						"type": "apply_status",
+						"status": "damage_bonus",
+						"value": 75,
+						"duration": 1,
+						"target": "self"
+					}
+				]
+			},
+			"tags": [
+				"utility",
+				"positioning",
+				"buff"
+			],
+			"image": "cards/flanking_maneuver.png"
+		},
+		{
+			"id": "lay_on_the_horn",
+			"name": "Lay on the Horn",
+			"summary": "Shove a raider in [Range 1] out a lane. [Sure-hit].",
+			"description": "Target a raider in its formation at Range 1, in your row. It's shoved to its outside lane, same row, if that slot is empty. Always hits.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "swerve",
+					"to": "outside",
+					"target": "target",
+					"optional": true,
+					"range": 1,
+					"condition": "target_in_formation"
+				}
+			],
+			"upgrades": {
+				"summary": "Shove a raider in [Range 1] out a lane, -1 Speed. [Sure-hit].",
+				"description": "Target a raider in its formation at Range 1, in your row. It's shoved to its outside lane, same row, if that slot is empty, and either way it loses 1 speed until the end of the next enemy turn. Always hits.",
+				"effects": [
+					{
+						"type": "change_position",
+						"position": "swerve",
+						"to": "outside",
+						"target": "target",
+						"optional": true,
+						"range": 1,
+						"condition": "target_in_formation"
+					},
+					{
+						"type": "apply_status",
+						"status": "speed_reduction",
+						"value": -1,
+						"duration": 1,
+						"target": "target",
+						"alwaysHits": true
+					}
+				]
+			},
+			"tags": [
+				"utility",
+				"control",
+				"positioning"
+			],
+			"image": "cards/lay_on_the_horn.png"
+		},
+		{
+			"id": "cut_off",
+			"name": "Cut Off",
+			"summary": "[Swerve] ahead. A raider at [Range 1]: -{slow} Speed, [Vulnerable].",
+			"description": "Swerve one row ahead, then target a raider at Range 1 of your new slot: until the end of the next enemy turn it's Vulnerable and loses {slow} speed. Always hits. Unplayable while flanking or when the slot ahead isn't free.",
+			"rarity": "uncommon",
+			"cost": 2,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "swerve",
+					"to": "ahead",
+					"target": "self"
+				},
+				{
+					"type": "apply_status",
+					"status": "vulnerable",
+					"duration": 1,
+					"range": 1,
+					"target": "target",
+					"alwaysHits": true
+				},
+				{
+					"type": "apply_status",
+					"status": "speed_reduction",
+					"value": -2,
+					"duration": 1,
+					"range": 1,
+					"target": "target",
+					"alwaysHits": true
+				}
+			],
+			"variables": {
+				"slow": {
+					"base": 2
+				}
+			},
+			"upgrades": {
+				"cost": 1
+			},
+			"tags": [
+				"utility",
+				"control",
+				"positioning"
+			],
+			"image": "cards/cut_off.png"
+		},
+		{
+			"id": "box_in",
+			"name": "Box In",
+			"summary": "[Range 1] raider can't [Flank]. Both in [Range 2]: [Vulnerable].",
+			"description": "Target a raider at Range 1. Until the end of the next enemy turn it can't flank, so any flank it planned fizzles. If both your driven vehicles are within Range 2 of it, it's also Vulnerable until then. Always hits.",
+			"rarity": "rare",
+			"cost": 2,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "apply_status",
+					"status": "boxed_in",
+					"duration": 1,
+					"range": 1,
+					"target": "target",
+					"alwaysHits": true
+				},
+				{
+					"type": "apply_status",
+					"status": "vulnerable",
+					"duration": 1,
+					"target": "target",
+					"alwaysHits": true,
+					"condition": {
+						"type": "driven_vehicles_within",
+						"range": 2
+					}
+				}
+			],
+			"upgrades": {
+				"cost": 1
+			},
+			"tags": [
+				"utility",
+				"control"
+			],
+			"image": "cards/box_in.png"
+		},
+		{
+			"id": "brake_check",
+			"name": "Brake Check",
+			"summary": "Flanker in your row drops back or takes {damage}. You -{slow} Speed.",
+			"description": "Target a raider flanking on your shoulder, in your vehicle's row. It overshoots, losing flanking and dropping back to its reserved slot; an ambusher, with no slot, takes {damage} damage instead. Always hits. Your vehicle loses {slow} speed until the end of the next enemy turn.",
+			"rarity": "uncommon",
+			"cost": 1,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "drop_back",
+					"target": "target",
+					"optional": true,
+					"condition": "target_flanking_in_row"
+				},
+				{
+					"type": "damage",
+					"value": 4,
+					"target": "target",
+					"alwaysHits": true,
+					"condition": "target_ambusher"
+				},
+				{
+					"type": "apply_status",
+					"status": "speed_reduction",
+					"value": -1,
+					"duration": 1,
+					"target": "self"
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 4
+				},
+				"slow": {
+					"base": 1
+				}
+			},
+			"upgrades": {
+				"summary": "Flanker drops back, [Vulnerable]. You -{slow} Speed.",
+				"description": "Target a raider flanking on your shoulder, in your vehicle's row. It overshoots, losing flanking and dropping back to its reserved slot; an ambusher, with no slot, takes {damage} damage instead. Either way it's Vulnerable, and your vehicle loses {slow} speed, until the end of the next enemy turn. Always hits.",
+				"effects": [
+					{
+						"type": "change_position",
+						"position": "drop_back",
+						"target": "target",
+						"optional": true,
+						"condition": "target_flanking_in_row"
+					},
+					{
+						"type": "damage",
+						"value": 4,
+						"target": "target",
+						"alwaysHits": true,
+						"condition": "target_ambusher"
+					},
+					{
+						"type": "apply_status",
+						"status": "speed_reduction",
+						"value": -1,
+						"duration": 1,
+						"target": "self"
+					},
+					{
+						"type": "apply_status",
+						"status": "vulnerable",
+						"duration": 1,
+						"target": "target",
+						"alwaysHits": true
+					}
+				]
+			},
+			"tags": [
+				"utility",
+				"control",
+				"positioning"
+			],
+			"image": "cards/brake_check.png"
+		},
+		{
+			"id": "overtake",
+			"name": "Overtake",
+			"summary": "+{speed} Speed for 2 turns, then [Flank] a slower raider.",
+			"description": "Gain {speed} speed for 2 turns, then outrun a slower raider and pull onto its shoulder in its row. It must be in formation and slower than your boosted speed, and that shoulder slot free. While flanking, attack cards do 50% more damage.",
+			"rarity": "uncommon",
+			"cost": 3,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "apply_status",
+					"status": "speed_boost",
+					"value": 2,
+					"duration": 2,
+					"target": "self"
+				},
+				{
+					"type": "change_position",
+					"position": "flanking",
+					"target": "self"
+				}
+			],
+			"variables": {
+				"speed": {
+					"base": 2
+				}
+			},
+			"upgrades": {
+				"cost": 2
+			},
+			"tags": [
+				"utility",
+				"positioning"
+			],
+			"image": "cards/overtake.png"
+		},
+		{
+			"id": "juke",
+			"name": "Juke",
+			"summary": "[Swerve] to any slot next to you. Draw {cards}.",
+			"description": "Swerve to any empty slot next to you in your formation: one lane over, or one row ahead or behind, never diagonal. Then draw {cards}. Unplayable while flanking, or if every slot next to you is taken or reserved.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "self",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "swerve",
+					"to": "pick",
+					"target": "self"
+				},
+				{
+					"type": "draw_cards",
+					"value": 1,
+					"target": "self"
+				}
+			],
+			"variables": {
+				"cards": {
+					"base": 1,
+					"upgraded": 2
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "change_position",
+						"position": "swerve",
+						"to": "pick",
+						"target": "self"
+					},
+					{
+						"type": "draw_cards",
+						"value": 2,
+						"target": "self"
+					}
+				]
+			},
+			"tags": [
+				"utility",
+				"positioning",
+				"draw"
+			],
+			"image": "cards/juke.png"
+		},
+		{
+			"id": "bootlegger_turn",
+			"name": "Bootlegger Turn",
+			"summary": "Move to any empty slot in formation. +1 [Evade].",
+			"description": "Move to any empty slot in your formation, however far, but never a reserved one or a shoulder. Then gain 1 Evade until the end of the next enemy turn, which adds to what an attacker's gunnery or ramming has to beat. Unplayable while flanking.",
+			"rarity": "rare",
+			"cost": 2,
+			"targetType": "self",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "move",
+					"to": "pick",
+					"target": "self"
+				},
+				{
+					"type": "apply_status",
+					"status": "evade_boost",
+					"value": 1,
+					"duration": 1,
+					"target": "self"
+				}
+			],
+			"upgrades": {
+				"cost": 1
+			},
+			"tags": [
+				"utility",
+				"positioning",
+				"defense"
+			],
+			"image": "cards/bootlegger_turn.png"
+		},
+		{
+			"id": "strafe",
+			"name": "Strafe",
+			"summary": "[Swerve], then deal {damage} at [Range 1] of your new slot.",
+			"description": "Swerve to any empty slot next to you in your formation, then deal {damage} damage to a raider at Range 1 of that slot. Only a slot that puts a raider in reach can be picked, and the swerve happens even if the shot misses. Unplayable while flanking.",
+			"rarity": "uncommon",
+			"cost": 2,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "swerve",
+					"to": "pick",
+					"target": "self"
+				},
+				{
+					"type": "damage",
+					"value": 4,
+					"range": 1,
+					"target": "target"
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 4,
+					"upgraded": 6
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "change_position",
+						"position": "swerve",
+						"to": "pick",
+						"target": "self"
+					},
+					{
+						"type": "damage",
+						"value": 6,
+						"range": 1,
+						"target": "target"
+					}
+				]
+			},
+			"tags": [
+				"attack",
+				"ranged",
+				"positioning"
+			],
+			"image": "cards/strafe.png"
+		},
+		{
+			"id": "leapfrog",
+			"name": "Leapfrog",
+			"summary": "Swap slots with your [Partner] or an [Escort] next to you.",
+			"description": "Swap slots with your partner's vehicle, wherever it is in your formation, or with an escort next to you. Neither vehicle may be flanking, and the escort isn't spent. Both vehicles count as having swerved this turn.",
+			"rarity": "uncommon",
+			"cost": 1,
+			"targetType": "ally",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "swap",
+					"target": "target"
+				}
+			],
+			"upgrades": {
+				"cost": 0
+			},
+			"tags": [
+				"utility",
+				"positioning"
+			],
+			"image": "cards/leapfrog.png"
+		},
+		{
+			"id": "shoulder_check",
+			"name": "Shoulder Check",
+			"summary": "Ram for {damage}. [Range 1]. A hit shoves it a row ahead or behind.",
+			"description": "Ram a raider at Range 1 for {damage} damage: it hits if your ramming is at least its evade. On a hit, if it's in its formation, shove it one row ahead or behind, your pick, into an empty slot. A flanker, or a raider with no empty slot either way, just takes the hit.",
+			"rarity": "uncommon",
+			"cost": 2,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 3,
+					"range": 1,
+					"attackType": "ramming",
+					"target": "target"
+				},
+				{
+					"type": "change_position",
+					"position": "swerve",
+					"to": "pick_row",
+					"target": "target",
+					"onHit": true,
+					"optional": true
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 3,
+					"upgraded": 5
+				}
+			},
+			"upgrades": {
+				"effects": [
+					{
+						"type": "damage",
+						"value": 5,
+						"range": 1,
+						"attackType": "ramming",
+						"target": "target"
+					},
+					{
+						"type": "change_position",
+						"position": "swerve",
+						"to": "pick_row",
+						"target": "target",
+						"onHit": true,
+						"optional": true
+					}
+				]
+			},
+			"tags": [
+				"attack",
+				"physical",
+				"control"
+			],
+			"image": "cards/shoulder_check.png"
+		},
+		{
+			"id": "covering_fire",
+			"name": "Covering Fire",
+			"summary": "Nearest [Escort] in [Range 2] of target deals {damage}.",
+			"description": "The nearest ready escort within range 2 of the target attacks it for {damage} damage, using the escort's gunnery against the target's evade. That escort is spent.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 3,
+					"range": 2,
+					"target": "target"
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 3
+				}
+			},
+			"spendsEscort": true,
+			"tags": [
+				"order",
+				"ranged"
+			],
+			"image": "cards/covering_fire.png"
+		},
+		{
+			"id": "ramming_run",
+			"name": "Ramming Run",
+			"summary": "[Escort] in [Range 1] rams for {damage} + speed gap. A hit costs it 2.",
+			"description": "The nearest ready escort within range 1 of the target rams it for {damage} plus the speed gap (escort speed minus target speed), using the escort's ramming against the target's evade. On a hit the escort takes 2 structure damage. Hit or miss, it's spent.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 4,
+					"formula": {
+						"speedDiff": 1
+					},
+					"attackType": "ramming",
+					"range": 1,
+					"target": "target"
+				},
+				{
+					"type": "damage",
+					"value": 2,
+					"target": "self",
+					"onHit": true,
+					"structureOnly": true
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 4
+				}
+			},
+			"spendsEscort": true,
+			"tags": [
+				"order",
+				"physical"
+			],
+			"image": "cards/ramming_run.png"
+		},
+		{
+			"id": "draw_fire",
+			"name": "Draw Fire",
+			"summary": "This [Escort] draws its row's raider fire. +{shield} [Shield].",
+			"description": "Target escort gains {shield} Shield and is spent. Until the end of the next enemy turn, each raider intent aimed at another of your vehicles in its row hits the escort instead, if the card can reach it. The rest hit their original target as planned.",
+			"rarity": "uncommon",
+			"cost": 1,
+			"targetType": "escort",
+			"effects": [
+				{
+					"type": "gain_shield",
+					"value": 4,
+					"target": "target"
+				},
+				{
+					"type": "draw_fire",
+					"target": "target"
+				}
+			],
+			"variables": {
+				"shield": {
+					"base": 4
+				}
+			},
+			"spendsEscort": true,
+			"tags": [
+				"order",
+				"defense"
+			],
+			"image": "cards/draw_fire.png"
+		},
+		{
+			"id": "close_ranks",
+			"name": "Close Ranks",
+			"summary": "This [Escort] gains {shield} [Shield]. Doesn't spend it.",
+			"description": "Target escort gains {shield} Shield. The escort isn't spent and can still act this turn.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "escort",
+			"effects": [
+				{
+					"type": "gain_shield",
+					"value": 6,
+					"target": "target"
+				}
+			],
+			"variables": {
+				"shield": {
+					"base": 6
+				}
+			},
+			"tags": [
+				"order",
+				"defense",
+				"shield"
+			],
+			"image": "cards/close_ranks.png"
+		},
+		{
+			"id": "fall_in",
+			"name": "Fall In",
+			"summary": "Move an [Escort] to any empty slot. Doesn't spend it.",
+			"description": "Target escort in your convoy, ready or spent, moves to any empty slot in your formation, however far, but never a reserved one or a shoulder. It isn't spent and can still act this turn. A flanking escort can't be moved.",
+			"rarity": "common",
+			"cost": 1,
+			"targetType": "escort",
+			"effects": [
+				{
+					"type": "change_position",
+					"position": "move",
+					"to": "pick",
+					"target": "target"
+				}
+			],
+			"upgrades": {
+				"summary": "Move an [Escort] to any empty slot. +3 [Shield]. Not spent.",
+				"description": "Target escort in your convoy, ready or spent, moves to any empty slot in your formation, however far, but never a reserved one or a shoulder, then gains 3 Shield. It isn't spent and can still act this turn. A flanking escort can't be moved.",
+				"effects": [
+					{
+						"type": "change_position",
+						"position": "move",
+						"to": "pick",
+						"target": "target"
+					},
+					{
+						"type": "gain_shield",
+						"value": 3,
+						"target": "target"
+					}
+				]
+			},
+			"tags": [
+				"order",
+				"positioning"
+			],
+			"image": "cards/fall_in.png"
+		},
+		{
+			"id": "triage",
+			"name": "Triage",
+			"summary": "Heal {healing} HP to a driver or passenger. Needs a Med Truck.",
+			"description": "Heal {healing} HP to the driver or passenger you choose in the target vehicle, up to their starting HP. Playable while any Med Truck lives, and doesn't spend it.",
+			"rarity": "signature",
+			"signatureOf": "med_truck",
+			"cost": 1,
+			"targetType": "ally",
+			"effects": [
+				{
+					"type": "heal_driver",
+					"value": 4,
+					"target": "target"
+				}
+			],
+			"variables": {
+				"healing": {
+					"base": 4
+				}
+			},
+			"tags": [
+				"order",
+				"heal"
+			],
+			"image": "cards/triage.png"
+		},
+		{
+			"id": "rally_the_convoy",
+			"name": "Rally the Convoy",
+			"summary": "Each ready [Escort] deals {damage} to its closest raider. [Exhaust].",
+			"description": "Ready escorts fire one at a time in roster order. Each deals {damage} damage to its nearest living raider within range 2, using its gunnery against that raider's evade. Then every escort is spent, including any with no raider in range. Exhaust.",
+			"rarity": "rare",
+			"cost": 2,
+			"targetType": "enemy_all",
+			"effects": [
+				{
+					"type": "damage",
+					"value": 2,
+					"range": 2,
+					"target": "target"
+				}
+			],
+			"variables": {
+				"damage": {
+					"base": 2
+				}
+			},
+			"spendsEscort": true,
+			"tags": [
+				"order",
+				"ranged",
+				"exhaust"
+			],
+			"image": "cards/rally_the_convoy.png"
+		},
+		{
+			"id": "run_ahead",
+			"name": "Run Ahead",
+			"summary": "Outrider gets +{speed} Speed for 2 turns, then [Flank]s target.",
+			"description": "The nearest ready Outrider that can outrun the target gains {speed} Speed for 2 turns, then swerves onto the raiders' shoulder in the target's row. The target must be in formation and slower than the boosted Outrider, and that shoulder slot free. The Outrider is spent. Needs a living Outrider.",
+			"rarity": "signature",
+			"signatureOf": "outrider",
+			"cost": 1,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "apply_status",
+					"status": "speed_boost",
+					"value": 2,
+					"duration": 2,
+					"target": "self"
+				},
+				{
+					"type": "change_position",
+					"position": "flanking",
+					"target": "self"
+				}
+			],
+			"variables": {
+				"speed": {
+					"base": 2
+				}
+			},
+			"spendsEscort": true,
+			"tags": [
+				"order",
+				"positioning"
+			],
+			"image": "cards/run_ahead.png"
+		},
+		{
+			"id": "flag_down",
+			"name": "Flag Down",
+			"summary": "Pilot Car in [Range 2]: [Vulnerable], -{slow} Speed. [Sure-hit].",
+			"description": "The nearest ready Pilot Car within range 2 of the target flags it down: until the end of the next enemy turn the target is Vulnerable and loses {slow} speed. Always hits. The Pilot Car is spent. Needs a living Pilot Car.",
+			"rarity": "signature",
+			"signatureOf": "pilot_car",
+			"cost": 1,
+			"targetType": "enemy_single",
+			"effects": [
+				{
+					"type": "apply_status",
+					"status": "vulnerable",
+					"duration": 1,
+					"range": 2,
+					"target": "target",
+					"alwaysHits": true
+				},
+				{
+					"type": "apply_status",
+					"status": "speed_reduction",
+					"value": -2,
+					"duration": 1,
+					"range": 2,
+					"target": "target",
+					"alwaysHits": true
+				}
+			],
+			"variables": {
+				"slow": {
+					"base": 2
+				}
+			},
+			"spendsEscort": true,
+			"tags": [
+				"order",
+				"control"
+			],
+			"image": "cards/flag_down.png"
+		},
+		{
+			"id": "top_off",
+			"name": "Top Off",
+			"summary": "Driver or passenger: +{adrenaline} Adrenaline. Fuel Hauler needed.",
+			"description": "The driver or passenger you choose in the target vehicle gains {adrenaline} Adrenaline, up to their maximum. Playable while any Fuel Hauler lives, and doesn't spend it.",
+			"rarity": "signature",
+			"signatureOf": "fuel_hauler",
+			"cost": 0,
+			"targetType": "ally",
+			"effects": [
+				{
+					"type": "grant_adrenaline",
+					"value": 1,
+					"target": "target"
+				}
+			],
+			"variables": {
+				"adrenaline": {
+					"base": 1
+				}
+			},
+			"tags": [
+				"order",
+				"resource"
+			],
+			"image": "cards/top_off.png"
+		}
+	]
+}

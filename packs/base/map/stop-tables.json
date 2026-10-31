@@ -1,0 +1,34 @@
+{
+	"classes": {
+		"highway": {
+			"ambush": 7, "warband": 1, "checkpoint": 4, "wreck": 3, "distress": 2, "garage": 2, "hazard": 1,
+			"findDriver": 0.2, "findSettlers": 0.5, "findVehicle": 1, "findCards": 1, "findSupplies": 2
+		},
+		"backRoad": {
+			"ambush": 5, "warband": 0.5, "checkpoint": 1, "wreck": 3, "distress": 3, "garage": 1, "hazard": 2,
+			"findDriver": 0.3, "findSettlers": 1, "findVehicle": 0.5, "findCards": 1.5, "findSupplies": 2.5
+		},
+		"trail": {
+			"ambush": 4, "warband": 0.5, "checkpoint": 0.5, "wreck": 2, "distress": 1.5, "garage": 0.3, "hazard": 4,
+			"findDriver": 0.2, "findSettlers": 0.5, "findVehicle": 0.5, "findCards": 1, "findSupplies": 2
+		}
+	},
+	"biomes": {
+		"scrub": {},
+		"desert": { "hazard": 1.5, "garage": 0.6, "findSupplies": 0.8 },
+		"mire": { "hazard": 3, "garage": 0.3, "ambush": 0.8 },
+		"badlands": { "ambush": 1.3, "hazard": 1.5 },
+		"canyons": { "ambush": 1.5, "hazard": 1.3, "checkpoint": 0.7 },
+		"mountains": { "hazard": 2, "garage": 0.5, "ambush": 1.2 }
+	},
+	"tiers": {
+		"1": { "warband": 0, "ambush": 0.8, "findSupplies": 1.3 },
+		"2": { "warband": 0.3 },
+		"3": {},
+		"4": { "warband": 1.5, "findSupplies": 0.8 },
+		"5": { "warband": 2, "checkpoint": 1.5, "findSupplies": 0.6 }
+	},
+	"territories": {
+		"none": { "checkpoint": 0.5 }
+	}
+}

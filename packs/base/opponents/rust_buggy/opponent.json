@@ -1,0 +1,48 @@
+{
+	"name": "Wasteland Raider",
+	"class": "regular",
+	"specialty": "AGGRESSIVE",
+	"flavorText": "A dangerous raider",
+	"targets": "looter",
+	"threat": 2,
+	"intentTier": "basic",
+	"skills": {
+		"ramming": 5,
+		"gunnery": 9,
+		"evade": 4,
+		"speed": 2
+	},
+	"vehicle": {
+		"name": "Rust Buggy",
+		"maxStructure": 30,
+		"weight": 2,
+		"armor": 5,
+		"speed": 3,
+		"gunnery": 6,
+		"evade": 4
+	},
+	"hitpoints": 30,
+	"maxAdrenaline": 5,
+	"handLimit": 7,
+	"deck": [
+		{
+			"card": "ramming_speed",
+			"count": 2
+		},
+		{
+			"card": "precision_shot",
+			"count": 1
+		},
+		{
+			"card": "point_blank",
+			"count": 1
+		},
+		{
+			"card": "strafe",
+			"count": 1
+		}
+	],
+	"behavior": {
+		"policy": "aggressive_flanker"
+	}
+}

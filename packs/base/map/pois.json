@@ -1,0 +1,51 @@
+{
+	"strongholds": {
+		"band": { "inner": 0.72, "outer": 0.97 },
+		"spacing": 0.15,
+		"rotationSteps": 8,
+		"fitRadius": 40,
+		"fitJitter": 0.1
+	},
+	"rings": {
+		"outer": 0.95,
+		"targets": [5, 7, 9, 9]
+	},
+	"sites": {
+		"spacing": 0.075,
+		"step": 12,
+		"margin": 18,
+		"marginShare": 0.3
+	},
+	"score": {
+		"noise": 0.6,
+		"ruin": 1.5,
+		"highway": 0.5,
+		"highwayWithin": 45,
+		"threeWay": 1.2
+	},
+	"cover": ["food", "water", "fuel"],
+	"placement": [
+		{ "types": ["hospital", "mall", "school"], "where": [{ "ruinAtLeast": 0.5 }] },
+		{ "types": ["store", "clinic"], "where": [{ "ruinAtLeast": 0.2 }] },
+		{ "types": ["waterPlant"], "where": [{ "elevationBelow": 0.3 }, { "moistureAtLeast": 0.8 }] },
+		{ "types": ["fuelDepot", "truckStop"], "where": [{ "highwayWithin": 45 }] },
+		{ "types": ["quarry", "mine"], "where": [{ "biomes": ["mountains"] }] },
+		{ "types": ["farm", "silo"], "where": [{ "biomes": ["scrub"] }] },
+		{ "types": ["salvageYard"], "where": [{}] }
+	],
+	"types": {
+		"hospital": { "label": "Hospital", "yields": { "meds": 3, "scrap": 10 } },
+		"mall": { "label": "Mall", "yields": { "food": 6, "scrap": 20 } },
+		"school": { "label": "School", "yields": { "food": 3, "scrap": 15 } },
+		"store": { "label": "General store", "yields": { "food": 6, "water": 4 } },
+		"clinic": { "label": "Clinic", "yields": { "meds": 2, "water": 2 } },
+		"waterPlant": { "label": "Water plant", "yields": { "water": 12 } },
+		"fuelDepot": { "label": "Fuel depot", "yields": { "fuel": 8 } },
+		"truckStop": { "label": "Truck stop", "yields": { "fuel": 5, "food": 3 } },
+		"quarry": { "label": "Quarry", "yields": { "scrap": 25 } },
+		"mine": { "label": "Mine", "yields": { "scrap": 20, "fuel": 2 } },
+		"farm": { "label": "Farm", "yields": { "food": 12 } },
+		"silo": { "label": "Grain silo", "yields": { "food": 8, "water": 4 } },
+		"salvageYard": { "label": "Salvage yard", "yields": { "scrap": 40, "fuel": 2 } }
+	}
+}

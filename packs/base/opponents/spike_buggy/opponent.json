@@ -1,0 +1,49 @@
+{
+	"name": "Spike Raider",
+	"class": "heavy",
+	"specialty": "BERSERKER",
+	"flavorText": "Driven mad by chrome and gasoline fumes, the Raider lives for chaos and violence. Their spike-covered buggy is a testament to their reckless nature - trading safety for devastating offensive power.",
+	"targets": "killer",
+	"threat": 4,
+	"intentTier": "basic",
+	"skills": {
+		"ramming": 7,
+		"gunnery": 9,
+		"evade": 4,
+		"speed": 2
+	},
+	"vehicle": {
+		"name": "Spike Buggy",
+		"image": "vehicles/spike_buggy.png",
+		"maxStructure": 55,
+		"weight": 2,
+		"armor": 6,
+		"speed": 3,
+		"gunnery": 3,
+		"evade": 3
+	},
+	"hitpoints": 50,
+	"maxAdrenaline": 5,
+	"handLimit": 7,
+	"deck": [
+		{
+			"card": "ramming_speed",
+			"count": 2
+		},
+		{
+			"card": "strafe",
+			"count": 1
+		},
+		{
+			"card": "precision_shot",
+			"count": 1
+		},
+		{
+			"card": "armor_plating",
+			"count": 2
+		}
+	],
+	"behavior": {
+		"policy": "aggressive_flanker"
+	}
+}

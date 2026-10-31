@@ -1,0 +1,40 @@
+{
+	"name": "Scavenger",
+	"class": "mook",
+	"specialty": "SWARM",
+	"flavorText": "A scavenger on a patched-up bike, one of many",
+	"targets": "looter",
+	"threat": 1,
+	"intentTier": "basic",
+	"skills": {
+		"ramming": 3,
+		"gunnery": 9,
+		"evade": 4,
+		"speed": 2
+	},
+	"vehicle": {
+		"name": "Scav Bike",
+		"maxStructure": 12,
+		"weight": 1,
+		"armor": 0,
+		"speed": 4,
+		"gunnery": 4,
+		"evade": 4
+	},
+	"hitpoints": 5,
+	"maxAdrenaline": 1,
+	"handLimit": 7,
+	"deck": [
+		{
+			"card": "point_blank",
+			"count": 3
+		},
+		{
+			"card": "far_shoot",
+			"count": 2
+		}
+	],
+	"behavior": {
+		"policy": "aggressive_flanker"
+	}
+}

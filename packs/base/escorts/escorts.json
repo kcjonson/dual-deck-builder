@@ -1,0 +1,84 @@
+{
+	"escorts": [
+		{
+			"id": "outrider",
+			"name": "Outrider",
+			"role": "gun",
+			"crew": {
+				"gunnery": 6,
+				"evade": 6,
+				"ramming": 2
+			},
+			"armor": 0,
+			"structure": 25,
+			"speed": 5,
+			"preferredSlot": {
+				"lane": "inside",
+				"row": "ahead"
+			},
+			"signatureCard": "run_ahead"
+		},
+		{
+			"id": "pilot_car",
+			"name": "Pilot Car",
+			"role": "gun",
+			"crew": {
+				"gunnery": 5,
+				"evade": 4,
+				"ramming": 4
+			},
+			"armor": 3,
+			"structure": 30,
+			"speed": 4,
+			"preferredSlot": {
+				"lane": "outside",
+				"row": "ahead"
+			},
+			"signatureCard": "flag_down"
+		},
+		{
+			"id": "fuel_hauler",
+			"name": "Fuel Hauler",
+			"role": "hauler",
+			"crew": {
+				"gunnery": 1,
+				"evade": 1,
+				"ramming": 3
+			},
+			"armor": 5,
+			"structure": 40,
+			"speed": 2,
+			"preferredSlot": {
+				"lane": "outside",
+				"row": "center"
+			},
+			"signatureCard": "top_off",
+			"dividend": {
+				"kind": "fuel",
+				"amount": 1
+			}
+		},
+		{
+			"id": "med_truck",
+			"name": "Med Truck",
+			"role": "hauler",
+			"crew": {
+				"gunnery": 1,
+				"evade": 2,
+				"ramming": 1
+			},
+			"armor": 4,
+			"structure": 35,
+			"speed": 2,
+			"preferredSlot": {
+				"lane": "outside",
+				"row": "behind"
+			},
+			"signatureCard": "triage",
+			"dividend": {
+				"kind": "heal",
+				"amount": 3
+			}
+		}
+	]
+}

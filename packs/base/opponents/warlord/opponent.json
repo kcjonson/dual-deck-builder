@@ -1,0 +1,48 @@
+{
+	"name": "Warlord",
+	"class": "leader",
+	"specialty": "WARBAND LEADER",
+	"flavorText": "The scavengers ride for whoever is meanest. Today it is this one.",
+	"targets": "killer",
+	"threat": 6,
+	"intentTier": "elite",
+	"skills": {
+		"ramming": 8,
+		"gunnery": 9,
+		"evade": 4,
+		"speed": 1
+	},
+	"vehicle": {
+		"name": "War Rig",
+		"maxStructure": 70,
+		"weight": 4,
+		"armor": 6,
+		"speed": 3,
+		"gunnery": 3,
+		"evade": 3
+	},
+	"hitpoints": 50,
+	"maxAdrenaline": 6,
+	"handLimit": 7,
+	"deck": [
+		{
+			"card": "ramming_speed",
+			"count": 2
+		},
+		{
+			"card": "precision_shot",
+			"count": 1
+		},
+		{
+			"card": "point_blank",
+			"count": 2
+		},
+		{
+			"card": "cut_off",
+			"count": 1
+		}
+	],
+	"behavior": {
+		"policy": "aggressive_flanker"
+	}
+}

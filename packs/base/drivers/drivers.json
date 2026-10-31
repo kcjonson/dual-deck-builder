@@ -1,0 +1,201 @@
+{
+	"drivers": [
+		{
+			"id": "road_warrior",
+			"name": "THE ROAD WARRIOR",
+			"specialty": "DEFENSIVE TANK",
+			"flavorText": "A weathered veteran of the wasteland, the Road Warrior's massive rig is a rolling fortress. Built to endure punishment and dish it back out, this driver excels at protecting allies while crushing enemies with overwhelming force.",
+			"portrait": "drivers/road_warrior_portrait.png",
+			"unlocked": true,
+			"skills": {
+				"ramming": 8,
+				"gunnery": 4,
+				"evade": 3,
+				"speed": 1
+			},
+			"vehicle": {
+				"name": "Apocalypse Rig",
+				"image": "vehicles/apocalypse_rig.png",
+				"maxStructure": 80,
+				"weight": 5,
+				"armor": 10,
+				"speed": 1,
+				"gunnery": 2,
+				"evade": 1
+			},
+			"startingDeck": [
+				{
+					"card": "ramming_speed",
+					"count": 5
+				},
+				{
+					"card": "armor_plating",
+					"count": 3
+				},
+				{
+					"card": "repair_kit",
+					"count": 2
+				},
+				{
+					"card": "nitro_boost",
+					"count": 2
+				}
+			],
+			"maxHitpoints": 40,
+			"maxAdrenaline": 5,
+			"handLimit": 7
+		},
+		{
+			"id": "interceptor",
+			"name": "THE INTERCEPTOR",
+			"specialty": "AGILE STRIKER",
+			"flavorText": "Swift as desert wind and twice as deadly, the Interceptor rides a souped-up motorcycle built for speed and precision. This driver strikes hard and fast, dancing around enemy attacks with supernatural grace.",
+			"portrait": "drivers/interceptor_portrait.png",
+			"unlocked": true,
+			"skills": {
+				"ramming": 3,
+				"gunnery": 9,
+				"evade": 8,
+				"speed": 3
+			},
+			"vehicle": {
+				"name": "Lightning Bike",
+				"image": "vehicles/lightning_bike.png",
+				"maxStructure": 50,
+				"weight": 1,
+				"armor": 0,
+				"speed": 5,
+				"gunnery": 4,
+				"evade": 4
+			},
+			"startingDeck": [
+				{
+					"card": "precision_shot",
+					"count": 3
+				},
+				{
+					"card": "nitro_boost",
+					"count": 2
+				},
+				{
+					"card": "flanking_maneuver",
+					"count": 2
+				},
+				{
+					"card": "armor_plating",
+					"count": 1
+				},
+				{
+					"card": "repair_kit",
+					"count": 1
+				},
+				{
+					"card": "headshot",
+					"count": 2
+				}
+			],
+			"maxHitpoints": 25,
+			"maxAdrenaline": 5,
+			"handLimit": 7
+		},
+		{
+			"id": "mechanic",
+			"name": "THE MECHANIC",
+			"specialty": "SUPPORT SPECIALIST",
+			"flavorText": "A brilliant engineer with grease-stained hands and an inventive mind, the Mechanic keeps the team running with jury-rigged repairs and devastating sabotage. Their mobile workshop is a marvel of wasteland ingenuity.",
+			"portrait": "drivers/mechanic_portrait.png",
+			"unlocked": true,
+			"skills": {
+				"ramming": 4,
+				"gunnery": 6,
+				"evade": 5,
+				"speed": 2
+			},
+			"vehicle": {
+				"name": "Mobile Workshop",
+				"image": "vehicles/mobile_workshop.png",
+				"maxStructure": 60,
+				"weight": 3,
+				"armor": 5,
+				"speed": 2,
+				"gunnery": 3,
+				"evade": 2
+			},
+			"startingDeck": [
+				{
+					"card": "emp_blast",
+					"count": 1
+				},
+				{
+					"card": "repair_kit",
+					"count": 3
+				},
+				{
+					"card": "nitro_boost",
+					"count": 2
+				},
+				{
+					"card": "armor_plating",
+					"count": 2
+				}
+			],
+			"maxHitpoints": 30,
+			"maxAdrenaline": 5,
+			"handLimit": 7
+		},
+		{
+			"id": "raider",
+			"name": "THE RAIDER",
+			"specialty": "BERSERKER",
+			"flavorText": "Driven mad by chrome and gasoline fumes, the Raider lives for chaos and violence. Their spike-covered buggy is a testament to their reckless nature - trading safety for devastating offensive power.",
+			"portrait": "drivers/raider_portrait.png",
+			"unlocked": false,
+			"unlockCondition": "Complete a run with any driver",
+			"skills": {
+				"ramming": 7,
+				"gunnery": 6,
+				"evade": 4,
+				"speed": 2
+			},
+			"vehicle": {
+				"name": "Spike Buggy",
+				"image": "vehicles/spike_buggy.png",
+				"maxStructure": 65,
+				"weight": 2,
+				"armor": 2,
+				"speed": 3,
+				"gunnery": 3,
+				"evade": 3
+			},
+			"startingDeck": [
+				{
+					"card": "berserker",
+					"count": 3
+				},
+				{
+					"card": "ramming_speed",
+					"count": 2
+				},
+				{
+					"card": "flanking_maneuver",
+					"count": 1
+				},
+				{
+					"card": "repair_kit",
+					"count": 1
+				},
+				{
+					"card": "armor_plating",
+					"count": 1
+				},
+				{
+					"card": "nitro_boost",
+					"count": 1
+				}
+			],
+			"maxHitpoints": 33,
+			"maxAdrenaline": 5,
+			"handLimit": 7
+		}
+	]
+}
