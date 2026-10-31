@@ -76,6 +76,7 @@ The campaign saves `runDecks`, each as its driver's id, `own`, `leftHome`, `borr
 - A move names its copies as `CardMove::copies`, and `own_at_home` and `borrowed_first` are `OwnAtHome` and `BorrowedFirst`, with the copies that come first as `count`.
 - An escort joining or leaving mid-run is `joinConvoy` or `dismissEscort` (`Convoy.h`), each bringing its card in or taking it out itself, so there's no `addEscortCards` or `removeEscortCards` to remember beside them. One that joins puts its card in Driver 1's run deck (call 402).
 - A missing driver's run deck unwinds in the lost fight's write-back, with the dead's.
+- A run that left on a route unwinds at home (`unloadRun`) only once it's past its objective with the road clear, since runs are one way; before that it can only fail.
 
 ## Provisional calls
 

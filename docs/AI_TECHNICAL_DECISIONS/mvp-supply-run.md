@@ -64,6 +64,15 @@ DDB-322 keeps the state machine, `departRun`, the fights through the bridge, the
 
 The objective, the POI's own encounter, and the return ambush don't fit the two phases: each is a step after the last stop, so each needs a phase of its own (say `objective` and `returning`), a reader change for it, and a save format bump. The yield then moves from reaching the destination to winning the objective.
 
+## In the C++ alpha
+
+The run on the road is the campaign's `Run::route` (`libs/rules/campaign/SupplyRun.h`, 2026-10-31, DDB-573), and [campaign.md](./campaign.md), Supply runs and Events, the objective, and the return, has how. What differs:
+
+- The steps after the last stop are two flags on the route, the objective taken and the return ambush ahead, rather than phases, beside the reward on offer that a stop and the road home share; `ahead` says which step comes next.
+- The yield moves to the objective, taken at the POI rather than on reaching it, with no fight yet (call 409), and the return ambush is rolled there (calls 411 and 412).
+- The run's end doesn't end the day itself: the caller runs `endDay` after `unloadRun`, or after a lost fight unless it ended the campaign, so one run a day still holds without a counter.
+- No run leaves for a stronghold yet (call 410), where `routesOnOffer` left strongholds out of the offer; the C++ offer keeps them, and departure says why.
+
 ## Provisional calls
 
 None of these is in a spec.
