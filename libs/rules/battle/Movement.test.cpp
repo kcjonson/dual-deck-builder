@@ -28,16 +28,6 @@ namespace {
 		return std::ranges::find(events, event) != events.end();
 	}
 
-	// The player's turn and every raider's, back to the next player turn, with everything that happened.
-	std::vector<Event> passTheTurn(BattleState& state) {
-		std::vector<Event> events = apply(state, testContent(), action::EndTurn{});
-		while (state.phase == Phase::EnemyTurn) {
-			const std::vector<Event> more = apply(state, testContent(), action::EndTurn{});
-			events.insert(events.end(), more.begin(), more.end());
-		}
-		return events;
-	}
-
 	TEST(Movement, AFlankPullsOntoTheShoulderInTheOutrunRowAndHoldsOnlyWhileFaster) {
 		// The Interceptor's speed 8 against the Rust Buggy's 5.
 		BattleStart	 start = fight({seat("interceptor")}, {raider("rust_buggy")});
@@ -64,8 +54,7 @@ namespace {
 
 		state.vehicle(kFirstVehicle).statuses.push_back({.status = Status::SpeedReduction, .value = -4, .turns = 1});
 		EXPECT_TRUE(happened(
-			apply(state, testContent(), action::EndTurn{}),
-			event::VehicleMoved{.vehicle = kFirstVehicle, .from = shoulder, .to = home, .cause = MoveCause::LostTheFlank}
+			endTurn(state), event::VehicleMoved{.vehicle = kFirstVehicle, .from = shoulder, .to = home, .cause = MoveCause::LostTheFlank}
 		));
 		EXPECT_FALSE(state.vehicle(kFirstVehicle).flank);
 	}
@@ -92,7 +81,7 @@ namespace {
 		ASSERT_EQ(eventsOf<event::VehicleDamaged>(events).size(), 1U);
 		EXPECT_EQ(eventsOf<event::VehicleDamaged>(events)[0].damage, 4);
 
-		(void)passTheTurn(state);
+		(void)endTurn(state);
 		EXPECT_EQ(state.vehicle(bike).slot, at(RoadLane::PlayerShoulder, Row::Center));
 	}
 
@@ -242,7 +231,7 @@ namespace {
 		));
 
 		// The Spike Buggy a row ahead and the shoved Scav Bike a lane out are both a range away; the inside lane wins.
-		events = passTheTurn(state);
+		events = endTurn(state);
 		EXPECT_TRUE(happened(
 			events,
 			event::VehicleMoved{

@@ -3,6 +3,8 @@
 // Shared by the battle tests: the base pack plus a few cards only tests play, and short ways to set a fight up.
 
 #include <rules/battle/Battle.h>
+#include <rules/battle/EnemyTurn.h>
+#include <rules/battle/Policy.h>
 #include <rules/core/Card.h>
 #include <rules/packs/Pack.h>
 
@@ -10,6 +12,7 @@
 #include <filesystem>
 #include <initializer_list>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -48,8 +51,88 @@ namespace rules::fights {
 		return RaiderSeat{.opponent = OpponentId{std::string(opponent)}, .slot = std::nullopt};
 	}
 
+	// Plans nothing: a raider that only ends its turn.
+	struct Idle final : Policy {
+		[[nodiscard]] Action choose(const BattleState&, const Content&, std::span<const Action>, foundation::Rng&) const override {
+			return action::EndTurn{};
+		}
+	};
+
+	// The first play on offer each time, until only the end of the turn is left.
+	struct FirstOffered final : Policy {
+		[[nodiscard]] Action choose(const BattleState&, const Content&, std::span<const Action> actions, foundation::Rng&) const override {
+			return actions.front();
+		}
+	};
+
+	// Every card it can play at `target`, or with no target, in hand order.
+	struct AimAt final : Policy {
+		std::optional<VehicleIndex> target;
+
+		explicit AimAt(std::optional<int> vehicle)
+			: target(vehicle ? std::optional(VehicleIndex{*vehicle}) : std::nullopt) {}
+
+		[[nodiscard]] Action choose(const BattleState&, const Content&, std::span<const Action> actions, foundation::Rng&) const override {
+			for (const Action& action : actions) {
+				const auto* play = std::get_if<action::PlayCard>(&action);
+				if (play && (!play->target || play->target == target)) {
+					return action;
+				}
+			}
+			return action::EndTurn{};
+		}
+	};
+
+	// A card at each of `targets` in turn, one a step, then the end of its plan.
+	struct AimEach final : Policy {
+		std::vector<int> targets;
+		mutable size_t	 next{0};
+
+		explicit AimEach(std::vector<int> aimedAt)
+			: targets(std::move(aimedAt)) {}
+
+		[[nodiscard]] Action choose(const BattleState&, const Content&, std::span<const Action> actions, foundation::Rng&) const override {
+			for (const Action& action : actions) {
+				const auto* play = std::get_if<action::PlayCard>(&action);
+				if (next < targets.size() && play && play->target == VehicleIndex{targets[next]}) {
+					++next;
+					return action;
+				}
+			}
+			return action::EndTurn{};
+		}
+	};
+
+	inline std::vector<Event> plan(BattleState& state, const Policy& policy) {
+		return planEnemyTurn(state, testContent(), [&](DriverIndex) -> const Policy& { return policy; });
+	}
+
+	// Plans again, for a test that has rigged a raider's hand since.
+	inline std::vector<Event> replan(BattleState& state, const Policy& policy) {
+		state.phase = Phase::Planning;
+		return plan(state, policy);
+	}
+
+	inline void planIdle(BattleState& state) {
+		static const Idle idle;
+		(void)plan(state, idle);
+	}
+
+	// The fight's opening, with its raiders planning nothing.
 	inline BattleStart fight(std::vector<PlayerSeat> players, std::vector<RaiderSeat> raiders, uint32_t seed = 7) {
-		return startBattle(BattleSetup{.players = std::move(players), .raiders = std::move(raiders), .seed = seed}, testContent());
+		BattleStart start =
+			startBattle(BattleSetup{.players = std::move(players), .raiders = std::move(raiders), .seed = seed}, testContent());
+		planIdle(start.state);
+		return start;
+	}
+
+	// The player's EndTurn and the enemy turn it plays, with the raiders' next turn planned idle.
+	inline std::vector<Event> endTurn(BattleState& state) {
+		std::vector<Event> events = apply(state, testContent(), action::EndTurn{});
+		if (state.phase == Phase::Planning) {
+			planIdle(state);
+		}
+		return events;
 	}
 
 	// Replaces a driver's hand, so a test plays the card it means to.

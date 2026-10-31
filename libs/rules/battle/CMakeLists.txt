@@ -4,8 +4,10 @@ target_sources(ddb_rules
         BattleState.cpp
         CardPlay.cpp
         Damage.cpp
+        EnemyTurn.cpp
         Hands.cpp
         Movement.cpp
         RoadGrid.cpp
         Statuses.cpp
+        Turns.cpp
 )

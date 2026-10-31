@@ -37,6 +37,20 @@ namespace rules {
 		bool operator==(const BattleCard&) const = default;
 	};
 
+	// One card of a raider's committed plan, as it was aimed when planned (enemy-intent-planning.md).
+	struct PlannedStep {
+		BattleCard					card;
+		std::optional<VehicleIndex> target;
+		std::optional<DriverIndex>	occupant;
+		// The slot its move picked, if it picks one.
+		std::optional<RoadSlot> destination;
+		// Where its own move takes the raider, picked or not, which its intent outlines; a fixed swerve has to
+		// still go there when it plays (call 330).
+		std::optional<RoadSlot> movesTo;
+
+		bool operator==(const PlannedStep&) const = default;
+	};
+
 	// A player's driver or a raider, each with their own deck, hand, and adrenaline (Combat Rules, Driver).
 	// The numbers are the fight's own: a campaign driver comes in hurt, and a mod can change a hand limit.
 	struct BattleDriver {
@@ -58,6 +72,8 @@ namespace rules {
 		bool crashedOut{false};
 		// Played a card tagged attack this turn, which their partner's partner_attacked reads.
 		bool attackedThisTurn{false};
+		// A raider's coming enemy turn, committed while the player's turn starts and played as it ends.
+		std::vector<PlannedStep> plan;
 
 		[[nodiscard]] bool isAlive() const { return hitpoints > 0; }
 
@@ -116,13 +132,17 @@ namespace rules {
 		// A raider whose stun just wore off can't be stunned again until the next player turn (Combat Rules,
 		// Raider formation and stuns).
 		bool steady{false};
+		// Who got out of it alive when it was wrecked, driver first, whom a card planned at it follows.
+		std::vector<DriverIndex> escaped;
 
 		[[nodiscard]] bool isEscort() const { return crew.has_value(); }
 
 		bool operator==(const BattleVehicle&) const = default;
 	};
 
-	enum class Phase { PlayerTurn, EnemyTurn, Over };
+	// A fight opens each player turn in Planning, which planEnemyTurn ends. EnemyTurn is the rehearsal raiders plan
+	// on: a fight itself plays its whole enemy turn inside the player's EndTurn.
+	enum class Phase { Planning, PlayerTurn, EnemyTurn, Over };
 
 	enum class Outcome { Won, Lost };
 
@@ -135,8 +155,9 @@ namespace rules {
 		std::vector<BattleVehicle> vehicles;
 		RandomStreams			   random{0};
 		int						   turn{1};
-		Phase					   phase{Phase::PlayerTurn};
-		// During the enemy turn, the raider whose move it is. Its behavior picks from legalActions.
+		Phase					   phase{Phase::Planning};
+		// During the enemy turn, the raider whose move it is: on a rehearsal its policy picks from legalActions,
+		// and in the fight its plan plays.
 		std::optional<DriverIndex> actingRaider;
 		std::optional<Outcome>	   outcome;
 

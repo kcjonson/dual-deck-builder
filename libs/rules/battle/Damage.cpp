@@ -45,6 +45,7 @@ namespace rules {
 			BattleVehicle& vehicle = state.vehicle(index);
 			events.emplace_back(event::VehicleWrecked{.vehicle = index});
 			const std::vector<DriverIndex> survivors = livingAboard(state, vehicle);
+			vehicle.escaped = survivors;
 			vehicle.driver.reset();
 			vehicle.passenger.reset();
 			for (const DriverIndex survivor : survivors) {

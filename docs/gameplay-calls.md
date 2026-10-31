@@ -503,7 +503,7 @@ Decision record: [hand-target-preview.md](AI_TECHNICAL_DECISIONS/hand-target-pre
 370. DDB-554: a card that takes no pick and lands only on raiders is disabled with NO TARGET when it would land on nobody (EMP Blast with every raider Steady, Rally the Convoy with no raider in range of a ready escort), because playing it would spend its adrenaline, and for Rally every escort, on nothing.
 371. DDB-554: an attack order with no ready escort to carry it out reads CAN'T PLAY, as Rally the Convoy does, leaving NO TARGET for one whose ready escorts have no raider in reach, because no ready escort is a rule of the convoy, not of where the raiders are.
 
-## The battle state (372 to 380)
+## The battle state (372 to 384)
 
 Decision record: [battle-state.md](AI_TECHNICAL_DECISIONS/battle-state.md).
 
@@ -516,3 +516,7 @@ Decision record: [battle-state.md](AI_TECHNICAL_DECISIONS/battle-state.md).
 378. DDB-572: triple_damage triples every attack from the vehicle for as long as it lasts, the rest of the turn for a player's Witness Me, while damage_bonus (Flanking Maneuver's) is used up by the vehicle's next attack card, hit or miss, because Witness Me says "all damage this turn" and Flanking Maneuver says "next attack".
 379. DDB-572: a flanker whose reserved slot trades lanes in a Formation Shift hasn't swerved, so its Weave gets no +1 for it, because its own slot on the shoulder never changed, and call 290 counts a change of slot.
 380. DDB-572: a partner riding as a passenger in your own vehicle has no vehicle of their own, so Slipstream has nobody to slip behind and Leapfrog nobody to swap with, because both cards move you against another vehicle, and call 292 makes the partner's vehicle the one they're in.
+381. DDB-572: a planned card that fizzles goes to discard and costs its adrenaline, as much as the raider has left, because "it's spent", and a raider shouldn't come out of a fizzle with adrenaline its plan never had.
+382. DDB-572: a planned flank fizzles when it would pull onto a different row of the shoulder than planned, because the plan named where it goes, and call 330 already fizzles a fixed swerve whose slot has moved.
+383. DDB-572: a raider can plan the cards its own draws bring during its plan, because the rehearsal draws exactly what the enemy turn will from the raider's own stream; no raider deck draws yet.
+384. DDB-572: a basic raider's intent shows a hit that its check will miss as a miss, with no damage, and an elite's hides it with the rest, because the checks have no dice and the projection knows, as the targeting preview already shows MISS for your own cards.
