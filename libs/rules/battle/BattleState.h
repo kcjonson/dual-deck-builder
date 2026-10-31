@@ -2,6 +2,7 @@
 
 #include "RoadGrid.h"
 
+#include <rules/core/Condition.h>
 #include <rules/core/Escort.h>
 #include <rules/core/Ids.h>
 #include <rules/core/RandomStreams.h>
@@ -67,6 +68,17 @@ namespace rules {
 	// (Combat Rules, Losing vehicles and drivers).
 	inline constexpr CrewSkills kUnmannedCrew{.gunnery = 4, .evade = 3, .ramming = 2};
 
+	// One status on a vehicle. Each application is its own, so two speed boosts add up.
+	struct VehicleStatus {
+		Status status{Status::Vulnerable};
+		// Speed or evade it adds, or a damage bonus's percent; 0 for an on-or-off status.
+		int value{0};
+		// Player turn starts left before it wears off; none for the rest of the fight.
+		std::optional<int> turns;
+
+		bool operator==(const VehicleStatus&) const = default;
+	};
+
 	struct BattleVehicle {
 		Side side{Side::Player};
 		// The driver whose vehicle it is, whoever rides in it now.
@@ -85,7 +97,11 @@ namespace rules {
 		std::optional<CrewSkills> crew;
 		RoadSlot				  slot;
 		// A wreck, or a raider left with nobody at the wheel, stays on the road until the end of the turn.
-		bool onRoad{true};
+		bool					   onRoad{true};
+		std::vector<VehicleStatus> statuses;
+		// A raider whose stun just wore off can't be stunned again until the next player turn (Combat Rules,
+		// Raider formation and stuns).
+		bool steady{false};
 
 		[[nodiscard]] bool isEscort() const { return crew.has_value(); }
 
@@ -130,11 +146,20 @@ namespace rules {
 	// The other player's seat, while there are two. A raider has no partner.
 	[[nodiscard]] std::optional<DriverIndex> partnerOf(const BattleState& state, DriverIndex driver);
 
-	// Base speed plus the speed of whoever is at the wheel; an escort's is its base speed. Never below 0.
+	[[nodiscard]] bool hasStatus(const BattleVehicle& vehicle, Status status);
+
+	// What every application of a status adds together.
+	[[nodiscard]] int statusTotal(const BattleVehicle& vehicle, Status status);
+
+	// Carrying armor past its base: speed boosts don't count, slows still do (heavy-armor.md).
+	[[nodiscard]] bool isHeavy(const BattleVehicle& vehicle);
+
+	// Base speed, plus the speed of whoever is at the wheel (an escort has nobody), plus its speed statuses.
+	// Never below 0.
 	[[nodiscard]] int speedOf(const BattleState& state, VehicleIndex vehicle);
 
-	// The skills a hit check reads when this vehicle is attacked: an escort's crew, else its driver's.
-	[[nodiscard]] CrewSkills defenseOf(const BattleState& state, VehicleIndex vehicle);
+	// What an attack on this vehicle has to beat: its escort crew's evade or its driver's, plus Evade statuses.
+	[[nodiscard]] int evadeOf(const BattleState& state, VehicleIndex vehicle);
 
 	[[nodiscard]] bool isFlanking(const BattleVehicle& vehicle);
 

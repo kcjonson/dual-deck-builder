@@ -503,9 +503,14 @@ Decision record: [hand-target-preview.md](AI_TECHNICAL_DECISIONS/hand-target-pre
 370. DDB-554: a card that takes no pick and lands only on raiders is disabled with NO TARGET when it would land on nobody (EMP Blast with every raider Steady, Rally the Convoy with no raider in range of a ready escort), because playing it would spend its adrenaline, and for Rally every escort, on nothing.
 371. DDB-554: an attack order with no ready escort to carry it out reads CAN'T PLAY, as Rally the Convoy does, leaving NO TARGET for one whose ready escorts have no raider in reach, because no ready escort is a rule of the convoy, not of where the raiders are.
 
-## The battle state (372 to 373)
+## The battle state (372 to 378)
 
 Decision record: [battle-state.md](AI_TECHNICAL_DECISIONS/battle-state.md).
 
 372. DDB-572: Coordinated Attack's partner_attacked holds when the partner has played a card tagged attack this turn, whether it hit or missed, because the card says "attacked", and a miss is still the partner taking their shot.
 373. DDB-572: a raider has no partner, so partner_attacked never holds for one, because raiders each act alone and no raider deck carries the card.
+374. DDB-572: Precision Shot's Speed+ is a speed_boost, so its data reads self_has_status speed_boost and speed_plus is gone from the rules, because Card System Design 2.2 has Nitro Boost giving Speed+ and nothing ever gave speed_plus; the bonus lands while the boost is on the vehicle, even when Heavy cancels its speed.
+375. DDB-572: each application of a status is its own and they stack, boosts, slows, Evade, and damage bonuses adding up and the rest on or off, each wearing off on its own turns, because that's how the cards read, and nothing says a second Nitro Boost refreshes the first.
+376. DDB-572: an attack's damage takes the attacker's damage_bonus, then its triple_damage, then flanking's half again, then the target's Vulnerable, rounding down at each, and none of them touch a cost a card charges its own caster, because the attacker's own modifiers come before the target's, and Combat Rules already keeps Berserker's cost flat.
+377. DDB-572: Witness Me's death_mark takes whoever is at the wheel of the marked vehicle at the end of that side's turn to 0 HP, so a player's driver is down and can still be revived if the partner wins, while a passenger who then takes the wheel rides on, because "die at end of turn" is the driver's, and Kevin's rule makes a player's death in a fight a down.
+378. DDB-572: triple_damage triples every attack from the vehicle for as long as it lasts, the rest of the turn for a player's Witness Me, while damage_bonus (Flanking Maneuver's) is used up by the vehicle's next attack card, hit or miss, because Witness Me says "all damage this turn" and Flanking Maneuver says "next attack".

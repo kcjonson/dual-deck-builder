@@ -1084,7 +1084,7 @@
 					"type": "conditional",
 					"condition": {
 						"type": "self_has_status",
-						"status": "speed_plus"
+						"status": "speed_boost"
 					},
 					"effects": [
 						{
@@ -1117,7 +1117,7 @@
 						"type": "conditional",
 						"condition": {
 							"type": "self_has_status",
-							"status": "speed_plus"
+							"status": "speed_boost"
 						},
 						"effects": [
 							{
