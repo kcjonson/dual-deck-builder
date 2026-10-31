@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <stop_token>
 
 namespace rules::campaign {
 
@@ -33,6 +34,9 @@ namespace rules::campaign {
 		// Past a seed's map attempts, throw rather than go on to the next seed, and past a local-retry stage's, throw
 		// rather than keep its best: a development build's default.
 		bool debug{map::kDevelopmentBuild};
+		// Asked before every stage attempt: once a stop is requested the making throws map::MapPipelineCancelled, never
+		// moving on to another seed, so the game's worker can drop a founding or a load part way.
+		std::stop_token cancel{};
 	};
 
 	// A new campaign's map (campaign-founding.md): its params rolled from the seed, and the map made from them, the
