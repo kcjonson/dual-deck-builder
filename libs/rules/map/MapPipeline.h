@@ -97,14 +97,18 @@ namespace rules::map {
 		// restarting the map; empty for none. Everything after the upstream stage reruns on fresh streams, this one
 		// counting from 0 again. Never to or from a local-retry stage.
 		std::string escalate{};
-		// Retries only itself and never restarts the map for failing (the stops, and the dressing to come). Past its
-		// cap a debug run throws and a release run logs and keeps its best attempt, the fewest problems, the earliest
-		// on a tie. So its check reports every problem it finds: one that stopped at a limit couldn't rank two
-		// attempts past it.
+		// Retries only itself and never restarts the map for failing (the stops, and every inert stage). Past its cap
+		// a debug run throws and a release run logs and keeps its best attempt, the fewest problems, the earliest on a
+		// tie. So its check reports every problem it finds: one that stopped at a limit couldn't rank two attempts past
+		// it.
 		bool localRetry{false};
 		// For a local-retry stage: whether a failing attempt with these problems may be kept past the cap. When none
 		// may, the map restarts on its next attempt, in any build. Any may when empty.
 		std::function<bool(const Problems&)> keepable{};
+		// Carries no gameplay (the dressing), so nothing play reads may depend on it: a local-retry stage that may keep
+		// any attempt, which only inert stages follow. A replay that names no attempt for it runs its first, so adding
+		// or changing one never breaks a save.
+		bool inert{false};
 	};
 
 	// The map so far, with the stage that just passed its own check in it; anything returned rejects that
@@ -113,7 +117,7 @@ namespace rules::map {
 	using AcceptHook = std::function<Problems(const Products&, const StageAttempt&)>;
 
 	// Where a map sits among its seed's attempts: with the seed and the input, all it takes to make it
-	// again, which is what a load does.
+	// again, which is what a load does. Every gameplay stage has an attempt; an inert stage left out runs its first.
 	struct PipelineReplay {
 		uint32_t									 mapAttempt{0};
 		std::map<std::string, uint32_t, std::less<>> attempts;
@@ -169,7 +173,10 @@ namespace rules::map {
 			assert(!stage.name.empty() && stage.attempts >= 1 && stage.run && "MapPipeline: a stage has a name, an attempt, and a run");
 			for ([[maybe_unused]] const Stage& earlier : stages) {
 				assert(earlier.name != stage.name && "MapPipeline: stage names are unique");
+				assert((stage.inert || !earlier.inert) && "MapPipeline: only an inert stage follows an inert one");
 			}
+			assert(!(stage.inert && stage.keepable) && "MapPipeline: an inert stage may keep any attempt");
+			stage.localRetry = stage.localRetry || stage.inert;
 			assert(
 				(
 					stage.escalate.empty() ||
@@ -188,6 +195,9 @@ namespace rules::map {
 			Run run{.pipeline = *this, .seed = seed, .input = input, .options = options, .result = {}};
 			return run.go();
 		}
+
+		// Its stages, inert ones included: how many records a run's result holds.
+		[[nodiscard]] size_t stageCount() const { return stages.size(); }
 
 	  private:
 		std::vector<Stage> stages;
@@ -346,10 +356,14 @@ namespace rules::map {
 						throw std::invalid_argument("MapPipeline: the replay names " + name + ", which isn't a stage");
 					}
 				}
-				// Every stage's attempt is checked before any stage runs, so a replay that doesn't fit costs nothing.
+				// Every stage's attempt is checked before any stage runs, so a replay that doesn't fit costs nothing. An inert
+				// stage it names no attempt for runs its first.
 				for (const Stage& stage : pipeline.stages) {
 					const auto found = replay.attempts.find(stage.name);
 					if (found == replay.attempts.end()) {
+						if (stage.inert) {
+							continue;
+						}
 						throw std::invalid_argument("MapPipeline: the replay has no attempt for " + stage.name);
 					}
 					if (found->second >= stage.attempts) {
@@ -363,7 +377,8 @@ namespace rules::map {
 				uint32_t upstream = root.fork("map", replay.mapAttempt).seed();
 				for (size_t index = 0; index < pipeline.stages.size(); ++index) {
 					const Stage&	   stage = pipeline.stages[index];
-					const uint32_t	   attempt = replay.attempts.find(stage.name)->second;
+					const auto		   found = replay.attempts.find(stage.name);
+					const uint32_t	   attempt = found == replay.attempts.end() ? 0 : found->second;
 					foundation::Rng	   stream = foundation::Rng(upstream).fork(stage.name, attempt);
 					const StageAttempt at = attemptAt(index, attempt, replay.mapAttempt);
 					(void)attemptStage(index, at, stream, false);

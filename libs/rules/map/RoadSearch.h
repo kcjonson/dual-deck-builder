@@ -2,12 +2,12 @@
 
 #include "EdgeCostField.h"
 #include "MoveCost.h"
+#include "NodeHeap.h"
 
 #include <cstdint>
 #include <limits>
 #include <optional>
 #include <span>
-#include <utility>
 #include <vector>
 
 namespace rules::map {
@@ -64,24 +64,22 @@ namespace rules::map {
 		[[nodiscard]] int expanded() const { return expandedCount; }
 
 	  private:
-		EdgeCostField*						field;
-		const LaidRoads*					laid;
-		int									size;
-		std::vector<double>					score;
-		std::vector<int>					came;
-		std::vector<uint32_t>				seen;
-		std::vector<uint32_t>				done;
-		std::vector<uint32_t>				goal;
-		uint32_t							lastStamp{0};
-		std::vector<std::pair<double, int>> heap;
-		int									searchCount{0};
-		int									expandedCount{0};
+		EdgeCostField*		  field;
+		const LaidRoads*	  laid;
+		int					  size;
+		std::vector<double>	  score;
+		std::vector<int>	  came;
+		std::vector<uint32_t> seen;
+		std::vector<uint32_t> done;
+		std::vector<uint32_t> goal;
+		uint32_t			  lastStamp{0};
+		NodeHeap			  heap;
+		int					  searchCount{0};
+		int					  expandedCount{0};
 
-		uint32_t			   nextStamp();
-		void				   push(double key, int cell);
-		std::pair<double, int> pop();
-		[[nodiscard]] bool	   crossesDiagonal(int cell, int direction, uint32_t current) const;
-		[[nodiscard]] bool	   closesTriangle(int cell, int direction, int next) const;
+		uint32_t		   nextStamp();
+		[[nodiscard]] bool crossesDiagonal(int cell, int direction, uint32_t current) const;
+		[[nodiscard]] bool closesTriangle(int cell, int direction, int next) const;
 	};
 
 	// The cheapest path for a class from one cell to another over open ground where no road is laid, by A*

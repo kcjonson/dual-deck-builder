@@ -1,10 +1,10 @@
 #include "RouteTree.h"
 
+#include "NodeHeap.h"
+
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <limits>
-#include <queue>
 #include <utility>
 
 namespace rules::map {
@@ -119,15 +119,13 @@ namespace rules::map {
 		tree.stretchHours.assign(stretches, 0);
 		std::vector<double>	 base(nodes, kUnreached);
 		std::vector<uint8_t> settled(nodes);
-		// Keyed by (hours, node), and a node is pushed again only for strictly fewer hours, so no two entries tie.
-		std::priority_queue<std::pair<double, int>, std::vector<std::pair<double, int>>, std::greater<>> heap;
+		NodeHeap			 heap;
 		if (nodes > 0) {
 			base[0] = 0;
-			heap.emplace(0, 0);
+			heap.push(0, 0);
 		}
 		while (!heap.empty()) {
-			const size_t node = static_cast<size_t>(heap.top().second);
-			heap.pop();
+			const auto node = static_cast<size_t>(heap.pop().second);
 			if (settled[node] == 1) {
 				continue;
 			}
@@ -142,7 +140,7 @@ namespace rules::map {
 				const double reach = base[node] + baseHours[static_cast<size_t>(stretch)];
 				if (reach < base[other] || (reach == base[other] && stretch < tree.parentStretch[other])) {
 					if (reach < base[other]) {
-						heap.emplace(reach, static_cast<int>(other));
+						heap.push(reach, static_cast<int>(other));
 					}
 					base[other] = reach;
 					tree.parentStretch[other] = stretch;

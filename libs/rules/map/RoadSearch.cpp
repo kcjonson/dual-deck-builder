@@ -4,7 +4,6 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
-#include <functional>
 
 namespace rules::map {
 
@@ -65,12 +64,12 @@ namespace rules::map {
 			seen[at(cell)] = stamp;
 			score[at(cell)] = 0;
 			came[at(cell)] = -1;
-			push(heuristic(field->x(cell), field->y(cell)), cell);
+			heap.push(heuristic(field->x(cell), field->y(cell)), cell);
 		}
 		searchCount += 1;
 		int found = -1;
 		while (!heap.empty()) {
-			const int cell = pop().second;
+			const int cell = heap.pop().second;
 			if (done[at(cell)] == stamp) {
 				continue;
 			}
@@ -131,7 +130,7 @@ namespace rules::map {
 				seen[at(next)] = stamp;
 				score[at(next)] = reached;
 				came[at(next)] = cell;
-				push(reached + heuristic(nextX, nextY), next);
+				heap.push(reached + heuristic(nextX, nextY), next);
 			}
 		}
 		std::vector<int> path;
@@ -151,10 +150,10 @@ namespace rules::map {
 		for (const int cell : from) {
 			seen[at(cell)] = stamp;
 			score[at(cell)] = 0;
-			push(0, cell);
+			heap.push(0, cell);
 		}
 		while (!heap.empty()) {
-			const auto [distance, cell] = pop();
+			const auto [distance, cell] = heap.pop();
 			if (done[at(cell)] == stamp) {
 				continue;
 			}
@@ -180,7 +179,7 @@ namespace rules::map {
 				}
 				seen[at(next)] = stamp;
 				score[at(next)] = reached;
-				push(reached, next);
+				heap.push(reached, next);
 			}
 		}
 		return kInfinity;
@@ -189,19 +188,6 @@ namespace rules::map {
 	uint32_t RoadSearch::nextStamp() {
 		lastStamp += 1;
 		return lastStamp;
-	}
-
-	// By key, then by cell, so ties never hang on the heap's own order.
-	void RoadSearch::push(double key, int cell) {
-		heap.emplace_back(key, cell);
-		std::ranges::push_heap(heap, std::greater<>{});
-	}
-
-	std::pair<double, int> RoadSearch::pop() {
-		std::ranges::pop_heap(heap, std::greater<>{});
-		const std::pair<double, int> top = heap.back();
-		heap.pop_back();
-		return top;
 	}
 
 	// Whether the diagonal move from `cell` crosses its square's other diagonal: a road's, or the path's own last
