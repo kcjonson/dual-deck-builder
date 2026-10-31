@@ -15,8 +15,9 @@
 namespace rules::campaign {
 
 	// The campaign as a plain value (campaign.md): everything a save keeps, from founding to the run out. The functions
-	// beside it (Founding.h, Locker.h, RunDecks.h, CombatBridge.h, Garage.h, Convoy.h, Recruits.h) are how play changes
-	// it, CampaignJson.h reads and writes it, and CampaignMap.h makes the area map it's played on.
+	// beside it (Founding.h, Locker.h, RunDecks.h, CombatBridge.h, Garage.h, Convoy.h, Recruits.h, SupplyRun.h,
+	// EventStops.h) are how play changes it, CampaignJson.h reads and writes it, and CampaignMap.h makes the area map it's
+	// played on.
 
 	// The campaign's own ids, each handed out once from a counter the save keeps, so none is ever reused: a driver in
 	// the pool is "driver-3", an escort in the convoy "escort-2", a run "run-5".
@@ -143,6 +144,24 @@ namespace rules::campaign {
 	// What the deck rules count and a fight deals besides the escort cards: the driver's own going, and what they borrowed.
 	[[nodiscard]] CardCounts runDeckCards(const RunDeck& deck);
 
+	// A fight an event's outcome turned into, waiting at its stop (EventStops.h, call 255): its skulls, and what winning
+	// it gives, kept as it was when the choice was taken, so an edit to the event can't change a fight the run chose.
+	struct EventHandOff {
+		int skulls{1};
+		// Into the cargo, settlers as people.
+		Resources  resources;
+		CardCounts cards;
+		// An escort joining the convoy and the run.
+		std::optional<EscortId> escort;
+		// Someone new riding home, drawn when the choice was taken (call 273).
+		std::vector<DriverId> recruits;
+		// What every seat's vehicle and driver get back, up to their most (call 275).
+		int structure{0};
+		int hp{0};
+
+		bool operator==(const EventHandOff&) const = default;
+	};
+
 	// The route a run left on and how far down it it is (SupplyRun.h), fixed at departure but for its progress.
 	struct RunRoute {
 		// Its POI, and its place among map::routesTo's routes there, quickest first.
@@ -159,8 +178,15 @@ namespace rules::campaign {
 		int leg{0};
 		// How many of its stops are behind it; the one at `next` is the stop it's at, and past the last it's at the POI.
 		int next{0};
-		// A reward on offer at the stop it's at, after a fight it won or at a Find: cards; empty otherwise.
+		// A reward on offer: at the stop it's at, after a fight it won, at a Find: cards, or from an event, or past its
+		// stops after the return ambush it won; empty otherwise.
 		std::vector<CardId> reward;
+		// A fight the event at the stop it's at turned into, waiting there.
+		std::optional<EventHandOff> handOff;
+		// Past its stops: the POI's objective taken, its yield in the cargo, and the return ambush waiting on the road
+		// home, rolled as it was taken.
+		bool objective{false};
+		bool ambush{false};
 
 		bool operator==(const RunRoute&) const = default;
 	};

@@ -17,7 +17,7 @@ namespace rules::campaign {
 
 	// The save format's version: the campaign's JSON carries it, and the game hands it to salal's SaveFormat when it
 	// writes the JSON to a slot. Any change to the JSON's shape bumps it, and a save of another version doesn't load.
-	inline constexpr int kSaveVersion = 5;
+	inline constexpr int kSaveVersion = 6;
 
 	// The campaign's save (campaign.md, The save). Writing reads the JSON back the way a load would, and throws
 	// std::logic_error when this build made a campaign its own save can't hold, so the bug fails where it happened

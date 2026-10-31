@@ -2,8 +2,10 @@
 
 #include "Campaign.h"
 
+#include <rules/battle/Battle.h>
 #include <rules/packs/Pack.h>
 
+#include <array>
 #include <map>
 #include <vector>
 
@@ -31,8 +33,8 @@ namespace rules::campaign {
 		int most{0};
 	};
 
-	// What the day clock, the infirmary, scavenging, the compound's fall, the stops' cooldowns, and a run's rewards read:
-	// campaign/compound-rules.json.
+	// What the day clock, the infirmary, scavenging, the compound's fall, the stops' cooldowns, a run's rewards, and the
+	// return ambush read: campaign/compound-rules.json.
 	struct CompoundRules {
 		// People one unit of food, and of water, feeds a day.
 		int peoplePerFood{0};
@@ -52,6 +54,8 @@ namespace rules::campaign {
 		int stopCooldownDays{0};
 		// Different cards a won fight or a Find: cards offers, one to take.
 		int rewardCards{0};
+		// The chance in a hundred that a run home meets the return ambush, by the game stage it left at, 0 to 6.
+		std::array<int, kMostStage + 1> returnAmbush{};
 	};
 
 	// What the garage stocks and charges, in scrap (Game Flow 4): campaign/garage-rules.json.

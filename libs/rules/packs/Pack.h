@@ -48,7 +48,8 @@ namespace rules {
 	// through another; two packs overriding the same id without one requiring the other fails, naming both.
 	// Once every pack is in, every reference between content has to resolve. Anything wrong throws a
 	// ContentError naming the file. Other folders are read by their own loaders, over the same override rule:
-	// campaign/ by loadCampaignRules (campaign/CampaignRules.h), and the map and events by theirs.
+	// campaign/ by loadCampaignRules (campaign/CampaignRules.h), events/ by loadEvents (campaign/Events.h), and the map
+	// by its own.
 	[[nodiscard]] Content loadPacks(std::span<const std::filesystem::path> packRoots);
 
 	// Whether `pack` requires `required` among the loaded packs, directly or through another, so it can override what

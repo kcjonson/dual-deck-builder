@@ -90,11 +90,13 @@ namespace rules::campaign {
 
 	// A run home: each seat's run deck unwinds, their own cards and those they left at home back in their default deck
 	// and what they borrowed back in the locker, the escort cards gone; then the cargo goes into the stores and the cards
-	// won into the locker, and the run is counted home. On the map, every stop it got past is cleared on the day and every
-	// leg it drove charted (call 260); a failed run clears nothing. The missing it found are back, their vehicle at kLimpStructure
-	// with the armor the crash left it (call 41), and someone new it found joins the pool (recruitDriver), with a log
-	// line. Then each seat and each driver found who's home hurt goes into the infirmary (injureOnArrival). It returns
-	// what came home for the debrief. The day ends after it, with endDay. Throws std::invalid_argument with no run out.
+	// won into the locker, and the run is counted home. On the map, a run that left on a route clears every stop it met
+	// and its POI on the day, and charts every leg it drove (call 260); a failed run clears nothing. The missing it found
+	// are back, their vehicle at kLimpStructure with the armor the crash left it (call 41), and someone new it found joins
+	// the pool (recruitDriver), with a log line. Then each seat and each driver found who's home hurt goes into the
+	// infirmary (injureOnArrival). It returns what came home for the debrief. The day ends after it, with endDay. Throws
+	// std::invalid_argument with no run out, and for one on a route that isn't past its objective with the road home
+	// clear (SupplyRun.h, Ahead::Home): runs are one way.
 	Unloaded unloadRun(Campaign& campaign, const Content& content, const CampaignRules& rules);
 
 } // namespace rules::campaign

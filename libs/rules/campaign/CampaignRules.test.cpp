@@ -3,8 +3,11 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
+#include <string>
 
 namespace {
 
@@ -77,6 +80,8 @@ namespace {
 		EXPECT_EQ(rules.compound.scavengedScrap.least, 5);
 		EXPECT_EQ(rules.compound.scavengedScrap.most, 15);
 		EXPECT_EQ(rules.compound.riotAtUnrest, 10);
+		EXPECT_EQ(rules.compound.returnAmbush, (std::array<int, kMostStage + 1>{0, 0, 3, 6, 9, 12, 15}))
+			<< "none before stage 2, then 3 in a hundred a stage";
 		EXPECT_EQ(rules.garage.stock, 4);
 		EXPECT_EQ(rules.garage.cardPrices.size(), 4U);
 		EXPECT_EQ(rules.garage.cardPrices.at(Rarity::Rare), 90);
@@ -104,6 +109,13 @@ namespace {
 		const fs::path field = pack("field", R"(["base"])");
 		write(field / "campaign" / "deck-rules.json", R"({"deckSize": {"min": 8, "max": 20}, "scrapPerCard": 5, "handLimit": 7})");
 		EXPECT_TRUE(mentions(errorFrom({kBase, field}), "handLimit"));
+
+		const fs::path odds = pack("odds", R"(["base"])");
+		std::ifstream  compound(kBase / "campaign" / "compound-rules.json", std::ios::binary);
+		std::string	   text((std::istreambuf_iterator<char>(compound)), std::istreambuf_iterator<char>());
+		text.replace(text.find("[0, 0, 3"), std::string("[0, 0, 3").size(), "[0, 3");
+		write(odds / "campaign" / "compound-rules.json", text);
+		EXPECT_TRUE(mentions(errorFrom({kBase, odds}), "returnAmbush.percentByStage must be 7 chances in a hundred"));
 
 		const fs::path notes = pack("notes", R"(["base"])");
 		write(notes / "campaign" / "notes.txt", "remember the milk");

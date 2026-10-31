@@ -32,5 +32,8 @@
 	},
 	"rewards": {
 		"cards": 3
+	},
+	"returnAmbush": {
+		"percentByStage": [0, 0, 3, 6, 9, 12, 15]
 	}
 }

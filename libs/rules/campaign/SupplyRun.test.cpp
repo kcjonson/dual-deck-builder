@@ -1,8 +1,8 @@
-#include <rules/battle/BattleState.h>
+#include <rules/battle/Encounters.h>
 #include <rules/campaign/CampaignJson.h>
-#include <rules/campaign/CampaignTesting.h>
-#include <rules/campaign/RunDecks.h>
-#include <rules/campaign/SupplyRun.h>
+#include <rules/campaign/DayClock.h>
+#include <rules/campaign/RunProgress.h>
+#include <rules/campaign/RunTesting.h>
 #include <rules/core/ContentError.h>
 #include <rules/map/StopContents.h>
 
@@ -23,59 +23,65 @@ namespace {
 		return testLayers();
 	}
 
-	// Founded on the test map with both of the first two drivers seated, at the game stage.
-	Campaign loadedOut() {
-		Campaign campaign = foundOnTestMap();
-		startRun(
-			campaign,
-			testContent(),
-			RunStart{
-				.seats = {crewOf(campaign, "road_warrior"), crewOf(campaign, "interceptor")}, .escorts = {}, .stage = gameStage(campaign)
-			}
-		);
-		campaign.stores.fuel = 100;
-		return campaign;
+	// The base pack's rules with the return ambush coming at every stage.
+	CampaignRules alwaysAmbushed() {
+		CampaignRules rules = testRules();
+		rules.compound.returnAmbush.fill(100);
+		return rules;
 	}
 
-	// The first offer with a stop of the type, and that stop's place among the stops a run on it meets.
-	std::pair<RouteChoice, size_t> routeWith(map::StopType type) {
-		for (const map::RouteOffer& offer : offersToday(foundOnTestMap(), layers())) {
-			size_t place = 0;
-			for (const map::OfferedLeg& leg : offer.legs) {
-				for (const map::OfferedStop& stop : leg.stops) {
-					if (stop.type == type) {
-						return {RouteChoice{.poi = offer.destination.poi, .route = offer.route.route}, place};
-					}
-					place += 1;
-				}
+	// The route to a POI that isn't a stronghold meeting the fewest stops, the first of those.
+	const map::RouteOffer& shortest() {
+		static const std::vector<map::RouteOffer> offers = offersToday(foundOnTestMap(), layers());
+		const map::RouteOffer*					  fewest = nullptr;
+		const auto								  stopsOn = [](const map::RouteOffer& offer) {
+			   size_t stops = 0;
+			   for (const map::OfferedLeg& leg : offer.legs) {
+				   stops += leg.stops.size();
+			   }
+			   return stops;
+		};
+		for (const map::RouteOffer& offer : offers) {
+			if (!offer.destination.stronghold && (fewest == nullptr || stopsOn(offer) < stopsOn(*fewest))) {
+				fewest = &offer;
 			}
 		}
-		ADD_FAILURE() << "no route on the test map has the stop";
-		return {};
+		return *fewest;
 	}
 
-	// On the road at the stop at `place`, the stops before it behind the run.
-	Campaign at(const RouteChoice& choice, size_t place) {
-		Campaign campaign = loadedOut();
-		depart(campaign, layers(), choice);
-		while (campaign.run->route->next < static_cast<int>(place)) {
-			const map::Stop& stop = layers().stops.stops[static_cast<size_t>(*stopAhead(campaign))];
-			if (map::isFight(stop.type)) {
-				CampaignFight fight = startStopFight(campaign, testContent(), layers()).fight;
-				fight.state.phase = Phase::Over;
-				fight.state.outcome = Outcome::BrokenOff;
-				(void)endStopFight(campaign, testContent(), testRules(), layers(), fight);
-			} else {
-				driveOn(campaign, layers());
-			}
+	RouteChoice routeChoice(const map::RouteOffer& offer) {
+		return RouteChoice{.poi = offer.destination.poi, .route = offer.route.route};
+	}
+
+	// At the POI, every stop behind the run.
+	Campaign atPoi(const RouteChoice& choice) {
+		Campaign leaving = loadedOut();
+		depart(leaving, layers(), choice);
+		return at(choice, leaving.run->route->stops.size());
+	}
+
+	Resources yieldsOf(const map::OfferedDestination& destination) {
+		const auto yield = [&](map::Resource resource) {
+			return destination.yields[static_cast<size_t>(resource)];
+		};
+		return Resources{
+			.food = yield(map::Resource::Food),
+			.water = yield(map::Resource::Water),
+			.fuel = yield(map::Resource::Fuel),
+			.meds = yield(map::Resource::Meds),
+			.scrap = yield(map::Resource::Scrap),
+			.people = 0,
+		};
+	}
+
+	// The most skulls among the fights the run meets, at least 1.
+	int riskOf(const Campaign& campaign) {
+		int risk = 1;
+		for (const int stop : campaign.run->route->stops) {
+			const map::Stop& met = layers().stops.stops[static_cast<size_t>(stop)];
+			risk = map::isFight(met.type) ? std::max(risk, met.skulls) : risk;
 		}
-		return campaign;
-	}
-
-	CampaignFight ended(CampaignFight fight, Outcome outcome) {
-		fight.state.phase = Phase::Over;
-		fight.state.outcome = outcome;
-		return fight;
+		return risk;
 	}
 
 	TEST(SupplyRun, TheRoutesOnOfferLeaveClearedPoisOutAndRollEachStopAtItsRoll) {
@@ -140,6 +146,9 @@ namespace {
 		campaign.mapState.clearedPois = {choice.poi};
 		EXPECT_EQ(departBlocker(campaign, layers(), choice), (DepartBlocker{.reason = DepartRefusal::Cleared}));
 		campaign.mapState.clearedPois.clear();
+		const int stronghold = layers().pois.strongholds.front().poi;
+		EXPECT_EQ(departBlocker(campaign, layers(), {.poi = stronghold, .route = 0}), (DepartBlocker{.reason = DepartRefusal::Stronghold}))
+			<< "its objective is a boss fight, which isn't built";
 		depart(campaign, layers(), choice);
 
 		EXPECT_EQ(campaign.stores.fuel, 0);
@@ -164,49 +173,45 @@ namespace {
 		elsewhere = campaign;
 		elsewhere.run->route->leg += 1;
 		EXPECT_THROW(checkCampaignMap(elsewhere, testMap().map), ContentError);
+		elsewhere = campaign;
+		elsewhere.run->route->poi = stronghold;
+		elsewhere.run->route->tier = layers().pois.pois[static_cast<size_t>(stronghold)].tier;
+		elsewhere.run->route->legs = map::routesTo(layers().pois.legs, stronghold).front().legs;
+		elsewhere.run->route->route = 0;
+		EXPECT_THROW(checkCampaignMap(elsewhere, testMap().map), ContentError) << "no run is out on a stronghold's road";
 	}
 
-	TEST(SupplyRun, AFightWonOpensItsRewardAndHomeClearsWhatTheRunGotPastAndChartsWhatItDrove) {
+	TEST(SupplyRun, AFightWonOpensItsRewardAndTheRunComesHomeOnlyPastItsObjective) {
 		const auto [choice, place] = routeWith(map::StopType::Ambush);
 		Campaign campaign = at(choice, place);
+		EXPECT_EQ(ahead(campaign, layers()), Ahead::Fight);
 		EXPECT_THROW(driveOn(campaign, layers()), std::invalid_argument) << "only fighting gets past a fight";
-		const CampaignFightStart first = startStopFight(campaign, testContent(), layers());
-		EXPECT_EQ(startStopFight(campaign, testContent(), layers()).fight.state.drivers, first.fight.state.drivers)
+		const CampaignFightStart first = startRunFight(campaign, testContent(), layers());
+		EXPECT_EQ(startRunFight(campaign, testContent(), layers()).fight.state.drivers, first.fight.state.drivers)
 			<< "the raiders picked on the run's stream for the stop";
-		(void)endStopFight(campaign, testContent(), testRules(), layers(), ended(first.fight, Outcome::Won));
+		(void)endRunFight(campaign, testContent(), testRules(), layers(), ended(first.fight, Outcome::Won));
 		const std::vector<CardId> reward = campaign.run->route->reward;
 		EXPECT_EQ(reward.size(), 3U);
+		EXPECT_EQ(ahead(campaign, layers()), Ahead::Reward);
 		EXPECT_EQ(readCampaign(writeCampaign(campaign, testContent()), testContent()), campaign) << "a save holds the reward on offer";
-		EXPECT_THROW((void)startStopFight(campaign, testContent(), layers()), std::invalid_argument) << "the reward's open";
+		EXPECT_NO_THROW(checkCampaignMap(campaign, testMap().map));
+		EXPECT_THROW((void)startRunFight(campaign, testContent(), layers()), std::invalid_argument) << "the reward's open";
 		EXPECT_THROW(takeReward(campaign, testContent(), layers(), card("top_off")), std::invalid_argument);
 		takeReward(campaign, testContent(), layers(), reward.front());
 		EXPECT_EQ(countOf(campaign.run->cargoCards, reward.front()), 1);
 		EXPECT_EQ(campaign.run->route->next, static_cast<int>(place) + 1);
-
-		const RunRoute driven = *campaign.run->route;
-		campaign.day = 2;
-		(void)unloadRun(campaign, testContent(), testRules());
-		for (int passed = 0; passed < driven.next; ++passed) {
-			EXPECT_TRUE(std::ranges::any_of(campaign.mapState.stops, [&](const StopState& stop) {
-				return stop.stop == driven.stops[static_cast<size_t>(passed)] && stop.cleared == 2;
-			}));
-		}
-		EXPECT_EQ(campaign.mapState.stops.size(), static_cast<size_t>(driven.next));
-		EXPECT_TRUE(std::ranges::is_sorted(campaign.mapState.stops, {}, &StopState::stop));
-		std::vector<int> charted(driven.legs.begin(), driven.legs.begin() + driven.leg);
-		std::ranges::sort(charted);
-		EXPECT_EQ(campaign.mapState.chartedLegs, charted);
+		EXPECT_THROW((void)unloadRun(campaign, testContent(), testRules()), std::invalid_argument) << "runs are one way";
 	}
 
 	TEST(SupplyRun, ALostFightFailsTheRunAndClearsNothing) {
 		const auto [choice, place] = routeWith(map::StopType::Ambush);
 		Campaign				 campaign = at(choice, place);
-		const CampaignFightStart fight = startStopFight(campaign, testContent(), layers());
+		const CampaignFightStart fight = startRunFight(campaign, testContent(), layers());
 		CampaignFight			 lost = ended(fight.fight, Outcome::Lost);
 		for (BattleDriver& driver : lost.state.drivers) {
 			driver.hitpoints = 0;
 		}
-		(void)endStopFight(campaign, testContent(), testRules(), layers(), lost);
+		(void)endRunFight(campaign, testContent(), testRules(), layers(), lost);
 		EXPECT_FALSE(campaign.run.has_value());
 		EXPECT_EQ(campaign.mapState, MapState{});
 	}
@@ -239,6 +244,174 @@ namespace {
 		campaign = at(supplied, suppliesAt);
 		driveOn(campaign, layers());
 		EXPECT_EQ(campaign.run->cargo, Resources{}) << "left by the road";
+	}
+
+	TEST(SupplyRun, TheObjectiveTakesThePoisWholeYieldAndNoAmbushComesBeforeGameStage2) {
+		const map::RouteOffer& offer = shortest();
+		Campaign			   campaign = atPoi(routeChoice(offer));
+		EXPECT_EQ(ahead(campaign, layers()), Ahead::Objective);
+		EXPECT_EQ(stopAhead(campaign), std::nullopt);
+		EXPECT_THROW((void)unloadRun(campaign, testContent(), testRules()), std::invalid_argument) << "the objective's still ahead";
+		EXPECT_THROW((void)startRunFight(campaign, testContent(), layers()), std::invalid_argument);
+		EXPECT_THROW(driveOn(campaign, layers()), std::invalid_argument);
+
+		const Resources		 before = campaign.run->cargo;
+		const ObjectiveTaken taken = takeObjective(campaign, testRules(), layers());
+		EXPECT_EQ(taken.yields, yieldsOf(offer.destination));
+		EXPECT_NE(taken.yields, Resources{});
+		EXPECT_EQ(campaign.run->cargo, before + taken.yields);
+		EXPECT_FALSE(taken.ambush) << "game stage " << campaign.run->stage;
+		EXPECT_EQ(ahead(campaign, layers()), Ahead::Home);
+		EXPECT_THROW((void)takeObjective(campaign, testRules(), layers()), std::invalid_argument) << "it's taken";
+		EXPECT_EQ(readCampaign(writeCampaign(campaign, testContent()), testContent()), campaign);
+
+		nlohmann::json save = writeCampaign(campaign, testContent());
+		save["run"]["route"]["ambush"] = true;
+		save["run"]["route"]["objective"] = false;
+		EXPECT_THROW((void)readCampaign(save, testContent()), ContentError) << "no ambush waits before the objective";
+		save["run"]["route"]["ambush"] = false;
+		save["run"]["route"]["objective"] = true;
+		save["run"]["route"]["next"] = 0;
+		save["run"]["route"]["leg"] = 0;
+		EXPECT_THROW((void)readCampaign(save, testContent()), ContentError) << "nor is the objective taken with stops ahead";
+	}
+
+	TEST(SupplyRun, TheReturnAmbushIsAFightOfTheRoutesRiskWithTheCargoAtStake) {
+		const CampaignRules	   rules = alwaysAmbushed();
+		const map::RouteOffer& offer = shortest();
+		Campaign			   ambushed = atPoi(routeChoice(offer));
+		EXPECT_TRUE(takeObjective(ambushed, rules, layers()).ambush);
+		EXPECT_EQ(ahead(ambushed, layers()), Ahead::Fight);
+		EXPECT_THROW((void)unloadRun(ambushed, testContent(), rules), std::invalid_argument) << "the ambush waits on the road";
+		EXPECT_EQ(readCampaign(writeCampaign(ambushed, testContent()), testContent()), ambushed);
+
+		const CampaignFightStart fight = startRunFight(ambushed, testContent(), layers());
+		const EncounterId encounter = pickEncounter(testContent(), riskOf(ambushed), offer.destination.tier, returnStream(ambushed).seed());
+		EXPECT_EQ(fight.fight.state.drivers, startCampaignFight(ambushed, testContent(), encounter).fight.state.drivers)
+			<< "at the route's risk and the POI's tier, on the run's stream for the road home";
+
+		Campaign brokeOff = ambushed;
+		(void)endRunFight(brokeOff, testContent(), rules, layers(), ended(fight.fight, Outcome::BrokenOff));
+		EXPECT_EQ(ahead(brokeOff, layers()), Ahead::Home) << "home with no reward";
+
+		Campaign	  failed = ambushed;
+		CampaignFight lost = ended(fight.fight, Outcome::Lost);
+		for (BattleDriver& driver : lost.state.drivers) {
+			driver.hitpoints = 0;
+		}
+		const Resources		 cargo = failed.run->cargo;
+		const FightWriteBack written = endRunFight(failed, testContent(), rules, layers(), lost);
+		ASSERT_TRUE(written.lost.has_value());
+		EXPECT_EQ(written.lost->cargo, cargo) << "the POI's yield with the rest";
+		EXPECT_EQ(failed.mapState, MapState{}) << "a failed run clears nothing";
+
+		(void)endRunFight(ambushed, testContent(), rules, layers(), ended(fight.fight, Outcome::Won));
+		const std::vector<CardId> reward = ambushed.run->route->reward;
+		EXPECT_EQ(reward.size(), 3U);
+		EXPECT_EQ(ahead(ambushed, layers()), Ahead::Reward);
+		EXPECT_EQ(readCampaign(writeCampaign(ambushed, testContent()), testContent()), ambushed);
+		takeReward(ambushed, testContent(), layers(), reward.back());
+		EXPECT_EQ(ahead(ambushed, layers()), Ahead::Home);
+		EXPECT_EQ(countOf(ambushed.run->cargoCards, reward.back()), 1);
+	}
+
+	// A whole run: every stop played as it comes, the objective, the return ambush, and home at the day's end.
+	TEST(SupplyRun, ARunPlaysEveryStopTakesItsObjectiveFightsTheAmbushAndComesHomeAtTheDayEnd) {
+		const CampaignRules				   rules = alwaysAmbushed();
+		const map::RouteOffer*			   chosen = nullptr;
+		const std::vector<map::RouteOffer> offers = offersToday(foundOnTestMap(), layers());
+		for (const map::RouteOffer& offer : offers) {
+			bool fight = false;
+			bool event = false;
+			bool find = false;
+			for (const map::OfferedLeg& leg : offer.legs) {
+				for (const map::OfferedStop& stop : leg.stops) {
+					fight = fight || map::isFight(stop.type);
+					event = event || resolvesAsEvent(stop.type);
+					find = find || stop.type == map::StopType::FindCards || stop.type == map::StopType::FindSupplies ||
+						   stop.type == map::StopType::FindDriver;
+				}
+			}
+			if (!offer.destination.stronghold && fight && event && find) {
+				chosen = &offer;
+				break;
+			}
+		}
+		ASSERT_NE(chosen, nullptr) << "a route meets a fight, an event, and a find";
+		const map::RouteOffer& offer = *chosen;
+
+		Campaign campaign = loadedOut();
+		depart(campaign, layers(), routeChoice(offer));
+		const RunRoute left = *campaign.run->route;
+		int			   fights = 0;
+		int			   events = 0;
+		for (int step = 0; ahead(campaign, layers()) != Ahead::Home; ++step) {
+			ASSERT_LT(step, 30) << "the run gets home";
+			switch (ahead(campaign, layers())) {
+				case Ahead::Fight: {
+					const CampaignFight fight = startRunFight(campaign, testContent(), layers()).fight;
+					(void)endRunFight(campaign, testContent(), rules, layers(), ended(fight, Outcome::Won));
+					++fights;
+					break;
+				}
+				case Ahead::Event: {
+					const EventDefinition& event = stopEvent(campaign, testEvents(), layers());
+					const auto			   open = std::ranges::find_if(event.choices, [&](const EventChoice& choice) {
+						return !choiceBlocker(campaign, testEvents(), layers(), choice.id);
+					});
+					(void)takeEventChoice(campaign, testContent(), rules, testEvents(), layers(), unlockedAtStart(testContent()), open->id);
+					++events;
+					break;
+				}
+				case Ahead::Find:
+					(void)takeFind(campaign, testContent(), rules, layers(), unlockedAtStart(testContent()));
+					break;
+				case Ahead::Reward:
+					takeReward(campaign, testContent(), layers(), campaign.run->route->reward.front());
+					break;
+				case Ahead::Objective:
+					EXPECT_EQ(takeObjective(campaign, rules, layers()).yields, yieldsOf(offer.destination));
+					break;
+				case Ahead::Home:
+					break;
+			}
+		}
+		EXPECT_GE(fights, 2) << "a fight stop and the return ambush";
+		EXPECT_GE(events, 1);
+		EXPECT_EQ(readCampaign(writeCampaign(campaign, testContent()), testContent()), campaign);
+
+		// Spelled out, since a test's own Run() hides the type.
+		const campaign::Run run = *campaign.run;
+		const Resources		stores = campaign.stores;
+		const CardCounts	locker = campaign.locker;
+		const Unloaded		home = unloadRun(campaign, testContent(), rules);
+		EXPECT_FALSE(campaign.run.has_value());
+		EXPECT_EQ(home.resources, run.cargo);
+		EXPECT_EQ(campaign.stores, stores + run.cargo);
+		CardCounts won = locker;
+		addCards(won, run.cargoCards);
+		EXPECT_EQ(campaign.locker, won);
+		EXPECT_EQ(campaign.tally.runsHome, 1);
+		EXPECT_EQ(campaign.tally.fightsWon, fights);
+		EXPECT_EQ(campaign.mapState.clearedPois, std::vector{offer.destination.poi});
+		ASSERT_EQ(campaign.mapState.stops.size(), left.stops.size());
+		for (const StopState& stop : campaign.mapState.stops) {
+			EXPECT_NE(std::ranges::find(left.stops, stop.stop), left.stops.end());
+			EXPECT_EQ(stop.cleared, 1);
+		}
+		std::vector<int> charted = left.legs;
+		std::ranges::sort(charted);
+		EXPECT_EQ(campaign.mapState.chartedLegs, charted);
+
+		const DayEnd night = endDay(campaign, testContent(), rules);
+		EXPECT_EQ(night.day, 1);
+		EXPECT_EQ(campaign.day, 2);
+		EXPECT_FALSE(campaign.end.has_value());
+		EXPECT_EQ(readCampaign(writeCampaign(campaign, testContent()), testContent()), campaign);
+		EXPECT_NO_THROW(checkCampaignMap(campaign, testMap().map));
+		EXPECT_TRUE(std::ranges::none_of(offersToday(campaign, layers()), [&](const map::RouteOffer& today) {
+			return today.destination.poi == offer.destination.poi;
+		})) << "a cleared POI is off the offers for good";
 	}
 
 } // namespace
