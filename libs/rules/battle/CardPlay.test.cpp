@@ -106,6 +106,7 @@ namespace {
 		BattleState& state = start.state;
 		giveHand(state, kFirst, {"headshot"});
 		state.vehicle(kFirstVehicle).slot = RoadSlot{.lane = RoadLane::RaiderShoulder, .row = Row::Center};
+		state.vehicle(kFirstVehicle).flank = FlankState{};
 		const std::vector<Event> events = apply(state, testContent(), play(0, 0, 1));
 		EXPECT_TRUE((eventsOf<event::DriverDamaged>(events) == std::vector{event::DriverDamaged{.driver = kSecond, .hitpoints = 7}}));
 	}

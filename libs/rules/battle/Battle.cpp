@@ -2,6 +2,7 @@
 
 #include "CardPlay.h"
 #include "Hands.h"
+#include "Movement.h"
 #include "Statuses.h"
 
 #include <algorithm>
@@ -64,16 +65,22 @@ namespace rules {
 			};
 		}
 
+		// Where a seat's vehicle asks to open: a slot in its formation, an ambush row, or wherever's next.
+		struct Opening {
+			std::optional<FormationSlot> slot;
+			std::optional<Row>			 ambush;
+		};
+
 		// Combat Rules, The road: a vehicle the setup places starts there; the rest fill their formation in
-		// opening order.
-		void placeVehicles(BattleState& state, const std::vector<std::optional<FormationSlot>>& wanted) {
+		// opening order. An ambusher starts flanking, in a row with one of the player's vehicles.
+		void placeVehicles(BattleState& state, const std::vector<Opening>& wanted) {
+			std::vector<RoadSlot> taken;
 			for (const Side side : {Side::Player, Side::Raiders}) {
-				std::vector<RoadSlot> taken;
 				for (size_t index = 0; index < state.vehicles.size(); ++index) {
-					if (state.vehicles[index].side != side || !wanted[index]) {
+					if (state.vehicles[index].side != side || !wanted[index].slot) {
 						continue;
 					}
-					const RoadSlot slot = roadSlotOf(side, *wanted[index]);
+					const RoadSlot slot = roadSlotOf(side, *wanted[index].slot);
 					if (std::ranges::find(taken, slot) != taken.end()) {
 						throw std::invalid_argument("startBattle: two vehicles open in the same slot");
 					}
@@ -81,7 +88,7 @@ namespace rules {
 					taken.push_back(slot);
 				}
 				for (size_t index = 0; index < state.vehicles.size(); ++index) {
-					if (state.vehicles[index].side != side || wanted[index]) {
+					if (state.vehicles[index].side != side || wanted[index].slot || wanted[index].ambush) {
 						continue;
 					}
 					const std::array<RoadSlot, 6> order = openingOrder(side);
@@ -93,6 +100,24 @@ namespace rules {
 					state.vehicles[index].slot = *free;
 					taken.push_back(*free);
 				}
+			}
+			for (size_t index = 0; index < state.vehicles.size(); ++index) {
+				if (!wanted[index].ambush) {
+					continue;
+				}
+				const RoadSlot shoulder{.lane = flankShoulderOf(Side::Raiders), .row = *wanted[index].ambush};
+				if (std::ranges::find(taken, shoulder) != taken.end()) {
+					throw std::invalid_argument("startBattle: two raiders ambush from the same row");
+				}
+				const bool opposed = std::ranges::any_of(state.vehicles, [&](const BattleVehicle& vehicle) {
+					return vehicle.side == Side::Player && vehicle.slot.row == shoulder.row;
+				});
+				if (!opposed) {
+					throw std::invalid_argument("startBattle: an ambusher starts only in a row with one of the player's vehicles");
+				}
+				state.vehicles[index].slot = shoulder;
+				state.vehicles[index].flank = FlankState{};
+				taken.push_back(shoulder);
 			}
 		}
 
@@ -134,6 +159,16 @@ namespace rules {
 			}
 		}
 
+		// What "this turn" asks about starts over with each side's turn: who attacked, and who swerved.
+		void forgetTheLastTurn(BattleState& state) {
+			for (BattleDriver& driver : state.drivers) {
+				driver.attackedThisTurn = false;
+			}
+			for (BattleVehicle& vehicle : state.vehicles) {
+				vehicle.swervedThisTurn = false;
+			}
+		}
+
 		// Lost once no player's driver is still in the fight, won once no raider is (Combat Rules, How a fight
 		// ends). A last hit that takes out both sides loses.
 		bool endIfOver(BattleState& state, std::vector<Event>& events) {
@@ -167,9 +202,7 @@ namespace rules {
 			state.phase = Phase::PlayerTurn;
 			events.emplace_back(event::TurnStarted{.turn = state.turn, .side = Side::Player});
 			tickStatuses(state, events);
-			for (BattleDriver& driver : state.drivers) {
-				driver.attackedThisTurn = false;
-			}
+			forgetTheLastTurn(state);
 			const std::vector<DriverIndex> inFight = driversInFight(state);
 			for (const DriverIndex driver : inFight) {
 				discardHand(state, driver, events);
@@ -191,13 +224,16 @@ namespace rules {
 			}
 		}
 
+		// The drop-back comes before the statuses tick at the player's turn, so a one-turn boost still counts for it.
 		void finishEnemyTurn(BattleState& state, std::vector<Event>& events) {
 			state.actingRaider.reset();
 			takeDeathMarks(state, Side::Raiders, events);
 			if (endIfOver(state, events)) {
 				return;
 			}
+			dropBackFlankers(state, events);
 			clearWrecks(state, events);
+			closeUpRaiders(state, events);
 			++state.turn;
 			openPlayerTurn(state, events);
 		}
@@ -231,10 +267,9 @@ namespace rules {
 					discardHand(state, DriverIndex{index}, events);
 				}
 			}
+			dropBackFlankers(state, events);
 			clearWrecks(state, events);
-			for (BattleDriver& driver : state.drivers) {
-				driver.attackedThisTurn = false;
-			}
+			forgetTheLastTurn(state);
 			state.phase = Phase::EnemyTurn;
 			state.actingRaider.reset();
 			events.emplace_back(event::TurnStarted{.turn = state.turn, .side = Side::Raiders});
@@ -261,7 +296,9 @@ namespace rules {
 			resolveCard(
 				state,
 				cardEffects(definition, card.upgraded),
-				CardPlay{.caster = play.driver, .actor = actor, .target = play.target, .occupant = play.occupant},
+				CardPlay{
+					.caster = play.driver, .actor = actor, .target = play.target, .occupant = play.occupant, .destination = play.destination
+				},
 				events
 			);
 			if (usesBonus) {
@@ -290,8 +327,8 @@ namespace rules {
 			throw std::invalid_argument("startBattle: a fight needs a raider");
 		}
 
-		BattleState								  state{.random = RandomStreams(setup.seed)};
-		std::vector<std::optional<FormationSlot>> slots;
+		BattleState			 state{.random = RandomStreams(setup.seed)};
+		std::vector<Opening> openings;
 		for (const PlayerSeat& seat : setup.players) {
 			const DriverDefinition& driver = driverDefinition(content, seat.driver);
 			checkDeck(content, seat.deck, driver.id.value);
@@ -310,7 +347,7 @@ namespace rules {
 				}
 			);
 			state.vehicles.push_back(vehicleFrom(Side::Player, index, driver.vehicle));
-			slots.push_back(seat.slot);
+			openings.push_back({.slot = seat.slot, .ambush = std::nullopt});
 		}
 		for (const RaiderSeat& seat : setup.raiders) {
 			const OpponentDefinition& opponent = opponentDefinition(content, seat.opponent);
@@ -331,9 +368,12 @@ namespace rules {
 				}
 			);
 			state.vehicles.push_back(vehicleFrom(Side::Raiders, index, opponent.vehicle));
-			slots.push_back(seat.slot);
+			if (seat.slot && seat.ambush) {
+				throw std::invalid_argument("startBattle: a raider opens in its formation or ambushing, not both");
+			}
+			openings.push_back({.slot = seat.slot, .ambush = seat.ambush});
 		}
-		placeVehicles(state, slots);
+		placeVehicles(state, openings);
 
 		std::vector<Event> events;
 		for (int index = 0; index < static_cast<int>(state.drivers.size()); ++index) {
@@ -381,6 +421,9 @@ namespace rules {
 		if (state.vehicle(*vehicle).driver != driver && cardHasTag(definition, card.upgraded, "attack")) {
 			return "a passenger can't play attack cards";
 		}
+		if (const std::optional<std::string> blocker = moveBlocker(state, definition, card.upgraded, driver)) {
+			return definition.name + ": " + *blocker;
+		}
 		return std::nullopt;
 	}
 
@@ -399,6 +442,7 @@ namespace rules {
 					.actor = *vehicleCarrying(state, play->driver),
 					.target = play->target,
 					.occupant = play->occupant,
+					.destination = play->destination,
 				}
 			);
 		}
@@ -443,14 +487,33 @@ namespace rules {
 						targets.push_back(VehicleIndex{vehicle});
 					}
 				}
-				const bool occupant = picksOccupant(cardEffects(definition, card.upgraded));
-				const auto offerAt = [&](std::optional<VehicleIndex> target) {
-					if (!occupant) {
-						offer({.driver = actor, .handIndex = handIndex, .target = target, .occupant = std::nullopt});
-						return;
-					}
+				std::vector<std::optional<DriverIndex>> occupants{std::nullopt};
+				if (picksOccupant(cardEffects(definition, card.upgraded))) {
+					occupants.clear();
 					for (int person = 0; person < static_cast<int>(state.drivers.size()); ++person) {
-						offer({.driver = actor, .handIndex = handIndex, .target = target, .occupant = DriverIndex{person}});
+						occupants.emplace_back(DriverIndex{person});
+					}
+				}
+				// Every formation slot for a card that picks one; targetBlocker keeps the ones its move can take.
+				std::vector<std::optional<RoadSlot>> destinations{std::nullopt};
+				if (picksSlot(cardEffects(definition, card.upgraded))) {
+					for (const Side side : {Side::Player, Side::Raiders}) {
+						for (const RoadSlot slot : openingOrder(side)) {
+							destinations.emplace_back(slot);
+						}
+					}
+				}
+				const auto offerAt = [&](std::optional<VehicleIndex> target) {
+					for (const std::optional<DriverIndex>& occupant : occupants) {
+						for (const std::optional<RoadSlot>& destination : destinations) {
+							offer(
+								{.driver = actor,
+								 .handIndex = handIndex,
+								 .target = target,
+								 .occupant = occupant,
+								 .destination = destination}
+							);
+						}
 					}
 				};
 				if (targets.empty()) {

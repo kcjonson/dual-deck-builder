@@ -36,6 +36,9 @@ namespace rules {
 	struct RaiderSeat {
 		OpponentId					 opponent;
 		std::optional<FormationSlot> slot;
+		// Starts already flanking, on the player's shoulder in this row, which needs a player's vehicle in it
+		// (Combat Rules, The road). An ambusher has no slot to drop back to.
+		std::optional<Row> ambush;
 	};
 
 	struct BattleSetup {

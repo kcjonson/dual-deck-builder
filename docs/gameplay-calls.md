@@ -503,7 +503,7 @@ Decision record: [hand-target-preview.md](AI_TECHNICAL_DECISIONS/hand-target-pre
 370. DDB-554: a card that takes no pick and lands only on raiders is disabled with NO TARGET when it would land on nobody (EMP Blast with every raider Steady, Rally the Convoy with no raider in range of a ready escort), because playing it would spend its adrenaline, and for Rally every escort, on nothing.
 371. DDB-554: an attack order with no ready escort to carry it out reads CAN'T PLAY, as Rally the Convoy does, leaving NO TARGET for one whose ready escorts have no raider in reach, because no ready escort is a rule of the convoy, not of where the raiders are.
 
-## The battle state (372 to 378)
+## The battle state (372 to 380)
 
 Decision record: [battle-state.md](AI_TECHNICAL_DECISIONS/battle-state.md).
 
@@ -514,3 +514,5 @@ Decision record: [battle-state.md](AI_TECHNICAL_DECISIONS/battle-state.md).
 376. DDB-572: an attack's damage takes the attacker's damage_bonus, then its triple_damage, then flanking's half again, then the target's Vulnerable, rounding down at each, and none of them touch a cost a card charges its own caster, because the attacker's own modifiers come before the target's, and Combat Rules already keeps Berserker's cost flat.
 377. DDB-572: Witness Me's death_mark takes whoever is at the wheel of the marked vehicle at the end of that side's turn to 0 HP, so a player's driver is down and can still be revived if the partner wins, while a passenger who then takes the wheel rides on, because "die at end of turn" is the driver's, and Kevin's rule makes a player's death in a fight a down.
 378. DDB-572: triple_damage triples every attack from the vehicle for as long as it lasts, the rest of the turn for a player's Witness Me, while damage_bonus (Flanking Maneuver's) is used up by the vehicle's next attack card, hit or miss, because Witness Me says "all damage this turn" and Flanking Maneuver says "next attack".
+379. DDB-572: a flanker whose reserved slot trades lanes in a Formation Shift hasn't swerved, so its Weave gets no +1 for it, because its own slot on the shoulder never changed, and call 290 counts a change of slot.
+380. DDB-572: a partner riding as a passenger in your own vehicle has no vehicle of their own, so Slipstream has nobody to slip behind and Leapfrog nobody to swap with, because both cards move you against another vehicle, and call 292 makes the partner's vehicle the one they're in.
