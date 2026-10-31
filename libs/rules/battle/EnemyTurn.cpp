@@ -43,6 +43,34 @@ namespace rules {
 			driver.adrenaline -= std::min(driver.adrenaline, cardCost(definitionOf(content, card.card), card.upgraded));
 		}
 
+		// The escort drawing fire across the target's row, if the card can reach it from where the raider is: the last
+		// one played that's still in the fight, and never the target itself (Combat Rules, Enemy intents). Draw Fire
+		// protects and never cancels, so a card that can't reach it keeps its target.
+		std::optional<VehicleIndex> coverFor(
+			const BattleState& state,
+			const Content&	   content,
+			DriverIndex		   raider,
+			int				   handIndex,
+			const PlannedStep& step,
+			VehicleIndex	   target
+		) {
+			const BattleVehicle& aimed = state.vehicle(target);
+			for (auto cover = state.drawFireCovers.rbegin(); cover != state.drawFireCovers.rend(); ++cover) {
+				const BattleVehicle& escort = state.vehicle(*cover);
+				if (!vehicleInFight(state, *cover) || escort.side != aimed.side || escort.slot.row != aimed.slot.row) {
+					continue;
+				}
+				if (*cover == target) {
+					return std::nullopt;
+				}
+				const action::PlayCard redirected{
+					.driver = raider, .handIndex = handIndex, .target = *cover, .occupant = step.occupant, .destination = step.destination
+				};
+				return actionBlocker(state, content, redirected) ? std::nullopt : std::optional(*cover);
+			}
+			return std::nullopt;
+		}
+
 		void playStep(
 			BattleState&		state,
 			const Content&		content,
@@ -77,6 +105,13 @@ namespace rules {
 				events.emplace_back(event::PlanRedirected{.raider = raider, .step = number, .from = *target, .to = *follow});
 				target = follow;
 			}
+			const CardDefinition& definition = definitionOf(content, step.card.card);
+			if (target && landsOnTarget(definition, step.card.upgraded)) {
+				if (const std::optional<VehicleIndex> cover = coverFor(state, content, raider, handIndex, step, *target)) {
+					events.emplace_back(event::FireDrawn{.raider = raider, .step = number, .from = *target, .to = *cover});
+					target = cover;
+				}
+			}
 
 			const action::PlayCard play{
 				.driver = raider, .handIndex = handIndex, .target = target, .occupant = step.occupant, .destination = step.destination
@@ -85,14 +120,13 @@ namespace rules {
 				fizzle(*blocker, handIndex);
 				return;
 			}
-			const CardDefinition& definition = definitionOf(content, step.card.card);
-			const CardPlay		  aimed{
-					   .caster = raider,
-					   .actor = *vehicleCarrying(state, raider),
-					   .target = target,
-					   .occupant = step.occupant,
-					   .destination = step.destination
-			   };
+			const CardPlay aimed{
+				.caster = raider,
+				.actor = *vehicleCarrying(state, raider),
+				.target = target,
+				.occupant = step.occupant,
+				.destination = step.destination
+			};
 			if (movesCasterTo(state, definition, step.card.upgraded, aimed) != step.movesTo) {
 				fizzle("its move no longer goes where it was planned", handIndex);
 				return;
@@ -263,6 +297,9 @@ namespace rules {
 			} else if (const auto* redirect = std::get_if<event::PlanRedirected>(&event)) {
 				close();
 				redirected = redirect->to;
+			} else if (const auto* drawn = std::get_if<event::FireDrawn>(&event)) {
+				close();
+				redirected = drawn->to;
 			} else if (std::holds_alternative<event::PlannedStepFizzled>(event) || std::holds_alternative<event::RaiderActing>(event) ||
 					   std::holds_alternative<event::RaiderStunned>(event) || std::holds_alternative<event::PlanDropped>(event) ||
 					   std::holds_alternative<event::DeathMarkTaken>(event) || std::holds_alternative<event::TurnStarted>(event) ||

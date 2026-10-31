@@ -11,6 +11,7 @@
 #include <initializer_list>
 #include <ranges>
 #include <stdexcept>
+#include <tuple>
 
 namespace rules {
 
@@ -109,7 +110,12 @@ namespace rules {
 					},
 					[&](const effect::Heal& heal) { return lands(heal.target, {Self, Target}, "heal"); },
 					[&](const effect::HealDriver& heal) { return lands(heal.target, {Target, SameVehicle, SelfDriver}, "heal_driver"); },
-					[](const effect::DrawFire&) -> Gap { return "draw_fire isn't implemented yet"; },
+					[&](const effect::DrawFire& draw) -> Gap {
+						if (cardTarget != CardTarget::Escort) {
+							return "draw_fire on a card that isn't played at an escort isn't implemented yet";
+						}
+						return lands(draw.target, {Target}, "draw_fire");
+					},
 					[&](const effect::Conditional& conditional) -> Gap {
 						if (std::holds_alternative<condition::TargetHasStatus>(conditional.condition) && !takesTarget(cardTarget)) {
 							return "target_has_status on a card that takes no target";
@@ -508,8 +514,13 @@ namespace rules {
 					[&](const effect::Damage& damage) { resolveDamage(state, damage, resolution); },
 					[&](const effect::ApplyStatus& apply) { resolveStatus(state, apply, resolution); },
 					[&](const effect::ChangePosition& move) { resolveMove(state, move, resolution); },
-					[&](const effect::DrawFire&) {
-						throw std::logic_error("resolveEffect: draw_fire reached play past unimplementedPart");
+					[&](const effect::DrawFire& draw) {
+						onVehicle(state, draw.target, resolution, [&](BattleVehicle&, VehicleIndex index) {
+							// The last one played covers its row, so a second goes to the back.
+							std::erase(state.drawFireCovers, index);
+							state.drawFireCovers.push_back(index);
+							events.emplace_back(event::DrawingFire{.escort = index});
+						});
 					},
 					[&](const effect::DrawCards& draw) {
 						if (driverInFight(state, play.caster)) {
@@ -763,7 +774,30 @@ namespace rules {
 	}
 
 	bool takesTarget(CardTarget target) {
-		return target == CardTarget::EnemySingle || target == CardTarget::Ally;
+		return target == CardTarget::EnemySingle || target == CardTarget::Ally || target == CardTarget::Escort;
+	}
+
+	bool landsOnTarget(const CardDefinition& card, bool upgraded) {
+		bool lands = false;
+		forEachEffect(cardEffects(card, upgraded), [&](const Effect& effect) {
+			std::visit(
+				[&](const auto& kind) {
+					if constexpr (requires { kind.target; }) {
+						lands = lands || kind.target == EffectTarget::Target || kind.target == EffectTarget::Driver;
+					}
+				},
+				effect.kind
+			);
+		});
+		return lands;
+	}
+
+	bool isAttackOrder(const CardDefinition& card, bool upgraded) {
+		return cardHasTag(card, upgraded, "order") && card.target == CardTarget::EnemySingle;
+	}
+
+	bool isRally(const CardDefinition& card, bool upgraded) {
+		return cardHasTag(card, upgraded, "order") && card.target == CardTarget::EnemyAll;
 	}
 
 	bool picksOccupant(const std::vector<Effect>& effects) {
@@ -780,15 +814,14 @@ namespace rules {
 	}
 
 	std::optional<std::string> unimplementedPart(const CardDefinition& card, bool upgraded) {
-		if (cardHasTag(card, upgraded, "order")) {
-			return "orders need escorts, which fights don't seat yet";
-		}
-		if (card.target == CardTarget::BothDrivers || card.target == CardTarget::Any || card.target == CardTarget::Escort) {
+		if (card.target == CardTarget::BothDrivers || card.target == CardTarget::Any) {
 			return "the " + nameOf(kCardTargetNames, card.target) + " target type isn't implemented yet";
 		}
+		// Each escort Rally the Convoy sends aims at a raider of its own, so its effects read as one raider's.
+		const CardTarget		   aimed = isRally(card, upgraded) ? CardTarget::EnemySingle : card.target;
 		const std::vector<Effect>& effects = cardEffects(card, upgraded);
 		for (const Effect& effect : effects) {
-			if (Gap gap = effectGap(effect, card.target)) {
+			if (Gap gap = effectGap(effect, aimed)) {
 				return gap;
 			}
 		}
@@ -813,6 +846,10 @@ namespace rules {
 	}
 
 	std::optional<std::string> moveBlocker(const BattleState& state, const CardDefinition& card, bool upgraded, DriverIndex caster) {
+		// An order's moves are its escort's (Run Ahead), never the caster's, and orderCarrier judges them.
+		if (isAttackOrder(card, upgraded)) {
+			return std::nullopt;
+		}
 		const VehicleIndex	 actor = *vehicleCarrying(state, caster);
 		const BattleVehicle& vehicle = state.vehicle(actor);
 		for (const Effect& effect : cardEffects(card, upgraded)) {
@@ -887,15 +924,21 @@ namespace rules {
 			if (card.target == CardTarget::EnemySingle && target.side == actor.side) {
 				return card.name + " targets an enemy";
 			}
-			if (card.target == CardTarget::Ally && target.side != actor.side) {
+			if ((card.target == CardTarget::Ally || card.target == CardTarget::Escort) && target.side != actor.side) {
 				return card.name + " targets a vehicle on your side";
+			}
+			if (card.target == CardTarget::Escort && !target.isEscort()) {
+				return card.name + " targets an escort";
 			}
 			if (ownVehicleOnly && *play.target != play.actor) {
 				return card.name + " only targets the vehicle you're in";
 			}
 		}
-		if (Gap blocker = walkBlocker(state, card, effects, play)) {
-			return blocker;
+		// Rally the Convoy's escorts each pick their own raider as it plays.
+		if (!isRally(card, upgraded)) {
+			if (Gap blocker = walkBlocker(state, card, effects, play)) {
+				return blocker;
+			}
 		}
 
 		// The rules only say what a stun does to a raider: it skips its part of the enemy turn.
@@ -928,6 +971,82 @@ namespace rules {
 			return "they aren't aboard that vehicle";
 		}
 		return std::nullopt;
+	}
+
+	std::optional<VehicleIndex> orderCarrier(const BattleState& state, const CardDefinition& card, bool upgraded, const CardPlay& play) {
+		const Side					side = state.driver(play.caster).side;
+		std::optional<VehicleIndex> nearest;
+		std::tuple<int, int>		nearestDistance{};
+		for (int index = 0; index < static_cast<int>(state.vehicles.size()); ++index) {
+			const VehicleIndex	 candidate{index};
+			const BattleVehicle& escort = state.vehicle(candidate);
+			if (escort.side != side || !escort.isEscort() || escort.spent || !vehicleInFight(state, candidate) ||
+				(card.signatureOf && escort.escort != card.signatureOf)) {
+				continue;
+			}
+			CardPlay carried = play;
+			carried.actor = candidate;
+			if (targetBlocker(state, card, upgraded, carried)) {
+				continue;
+			}
+			const std::tuple<int, int> distance{
+				play.target ? slotRange(escort.slot, state.vehicle(*play.target).slot) : 0, tieRank(side, escort.slot)
+			};
+			if (!nearest || distance < nearestDistance) {
+				nearest = candidate;
+				nearestDistance = distance;
+			}
+		}
+		return nearest;
+	}
+
+	std::vector<VehicleIndex> rallyingEscorts(const BattleState& state, Side side) {
+		std::vector<VehicleIndex> hired;
+		std::vector<VehicleIndex> carryingOn;
+		for (int index = 0; index < static_cast<int>(state.vehicles.size()); ++index) {
+			const BattleVehicle& escort = state.vehicles[static_cast<size_t>(index)];
+			if (escort.side == side && escort.isEscort() && !escort.spent && vehicleInFight(state, VehicleIndex{index})) {
+				(escort.escort ? hired : carryingOn).push_back(VehicleIndex{index});
+			}
+		}
+		hired.insert(hired.end(), carryingOn.begin(), carryingOn.end());
+		return hired;
+	}
+
+	void resolveRally(BattleState& state, const CardDefinition& card, bool upgraded, DriverIndex caster, std::vector<Event>& events) {
+		const Side side = state.driver(caster).side;
+		for (const VehicleIndex escort : rallyingEscorts(state, side)) {
+			if (!vehicleInFight(state, escort)) {
+				continue;
+			}
+			// Its nearest raider still in the fight that the card reaches from it, picked again for each escort.
+			std::optional<VehicleIndex> nearest;
+			std::tuple<int, int>		nearestDistance{};
+			for (int index = 0; index < static_cast<int>(state.vehicles.size()); ++index) {
+				const VehicleIndex	 raider{index};
+				const BattleVehicle& aimed = state.vehicle(raider);
+				const CardPlay		 shot{.caster = caster, .actor = escort, .target = raider};
+				if (aimed.side == side || !vehicleInFight(state, raider) || walkBlocker(state, card, cardEffects(card, upgraded), shot)) {
+					continue;
+				}
+				const std::tuple<int, int> distance{slotRange(state.vehicle(escort).slot, aimed.slot), tieRank(aimed.side, aimed.slot)};
+				if (!nearest || distance < nearestDistance) {
+					nearest = raider;
+					nearestDistance = distance;
+				}
+			}
+			events.emplace_back(event::OrderCarried{.escort = escort, .target = nearest});
+			if (nearest) {
+				resolveCard(state, cardEffects(card, upgraded), CardPlay{.caster = caster, .actor = escort, .target = nearest}, events);
+			}
+		}
+		for (int index = 0; index < static_cast<int>(state.vehicles.size()); ++index) {
+			BattleVehicle& escort = state.vehicles[static_cast<size_t>(index)];
+			if (escort.side == side && escort.isEscort() && !escort.spent && vehicleInFight(state, VehicleIndex{index})) {
+				escort.spent = true;
+				events.emplace_back(event::EscortSpent{.escort = VehicleIndex{index}});
+			}
+		}
 	}
 
 	std::optional<RoadSlot> movesCasterTo(const BattleState& state, const CardDefinition& card, bool upgraded, const CardPlay& play) {

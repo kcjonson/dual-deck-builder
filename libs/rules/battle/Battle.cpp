@@ -67,6 +67,8 @@ namespace rules {
 		struct Opening {
 			std::optional<FormationSlot> slot;
 			std::optional<Row>			 ambush;
+			// An escort's type's slot, which it takes after the driven vehicles if it's free.
+			std::optional<FormationSlot> preferred;
 		};
 
 		// Combat Rules, The road: a vehicle the setup places starts there; the rest fill their formation in
@@ -85,18 +87,29 @@ namespace rules {
 					state.vehicles[index].slot = slot;
 					taken.push_back(slot);
 				}
-				for (size_t index = 0; index < state.vehicles.size(); ++index) {
-					if (state.vehicles[index].side != side || wanted[index].slot || wanted[index].ambush) {
-						continue;
+				for (const bool escorts : {false, true}) {
+					for (size_t index = 0; index < state.vehicles.size(); ++index) {
+						if (state.vehicles[index].side != side || wanted[index].slot || wanted[index].ambush ||
+							wanted[index].preferred.has_value() != escorts) {
+							continue;
+						}
+						if (wanted[index].preferred) {
+							const RoadSlot preferred = roadSlotOf(side, *wanted[index].preferred);
+							if (std::ranges::find(taken, preferred) == taken.end()) {
+								state.vehicles[index].slot = preferred;
+								taken.push_back(preferred);
+								continue;
+							}
+						}
+						const std::array<RoadSlot, 6> order = openingOrder(side);
+						const auto					  free =
+							std::ranges::find_if(order, [&](RoadSlot slot) { return std::ranges::find(taken, slot) == taken.end(); });
+						if (free == order.end()) {
+							throw std::invalid_argument("startBattle: a formation holds six vehicles");
+						}
+						state.vehicles[index].slot = *free;
+						taken.push_back(*free);
 					}
-					const std::array<RoadSlot, 6> order = openingOrder(side);
-					const auto					  free =
-						std::ranges::find_if(order, [&](RoadSlot slot) { return std::ranges::find(taken, slot) == taken.end(); });
-					if (free == order.end()) {
-						throw std::invalid_argument("startBattle: a formation holds six vehicles");
-					}
-					state.vehicles[index].slot = *free;
-					taken.push_back(*free);
 				}
 			}
 			for (size_t index = 0; index < state.vehicles.size(); ++index) {
@@ -160,7 +173,38 @@ namespace rules {
 				}
 			);
 			state.vehicles.push_back(vehicleFrom(Side::Player, index, driver.vehicle));
-			openings.push_back({.slot = seat.slot, .ambush = std::nullopt});
+			openings.push_back({.slot = seat.slot, .ambush = std::nullopt, .preferred = std::nullopt});
+		}
+		if (setup.escorts.size() > 4) {
+			throw std::invalid_argument("startBattle: a convoy holds four escorts");
+		}
+		for (const EscortSeat& seat : setup.escorts) {
+			const auto found = content.escorts.find(seat.escort);
+			if (found == content.escorts.end()) {
+				throw std::invalid_argument("startBattle: no loaded pack defines escort " + seat.escort.value);
+			}
+			const EscortDefinition& escort = found->second;
+			const int				structure = seat.structure.value_or(escort.structure);
+			if (structure < 1 || structure > escort.structure) {
+				throw std::invalid_argument("startBattle: escort " + escort.id.value + " can't open with that structure");
+			}
+			state.vehicles.push_back(
+				BattleVehicle{
+					.side = Side::Player,
+					.owner = std::nullopt,
+					.escort = escort.id,
+					.maxStructure = escort.structure,
+					.structure = structure,
+					.baseArmor = escort.armor,
+					.armor = escort.armor,
+					.shield = 0,
+					.baseSpeed = escort.speed,
+					.driver = std::nullopt,
+					.passenger = std::nullopt,
+					.crew = escort.crew,
+				}
+			);
+			openings.push_back({.slot = seat.slot, .ambush = std::nullopt, .preferred = escort.preferredSlot});
 		}
 		for (const RaiderSeat& seat : setup.raiders) {
 			const OpponentDefinition& opponent = opponentDefinition(content, seat.opponent);
@@ -184,7 +228,7 @@ namespace rules {
 			if (seat.slot && seat.ambush) {
 				throw std::invalid_argument("startBattle: a raider opens in its formation or ambushing, not both");
 			}
-			openings.push_back({.slot = seat.slot, .ambush = seat.ambush});
+			openings.push_back({.slot = seat.slot, .ambush = seat.ambush, .preferred = std::nullopt});
 		}
 		placeVehicles(state, openings);
 
@@ -237,6 +281,23 @@ namespace rules {
 		if (state.vehicle(*vehicle).driver != driver && cardHasTag(definition, card.upgraded, "attack")) {
 			return "a passenger can't play attack cards";
 		}
+		if (definition.signatureOf) {
+			const bool living = std::ranges::any_of(state.vehicles, [&](const BattleVehicle& escort) {
+				return escort.escort == definition.signatureOf && escort.onRoad && escort.structure > 0;
+			});
+			if (!living) {
+				return definition.name + " needs a living " + content.escorts.at(*definition.signatureOf).name + " in the convoy";
+			}
+		}
+		if (isAttackOrder(definition, card.upgraded) || isRally(definition, card.upgraded)) {
+			const bool ready = std::ranges::any_of(rallyingEscorts(state, player.side), [&](VehicleIndex escort) {
+				return !definition.signatureOf || state.vehicle(escort).escort == definition.signatureOf;
+			});
+			if (!ready) {
+				const std::string who = definition.signatureOf ? content.escorts.at(*definition.signatureOf).name : "escort";
+				return definition.name + " needs a ready " + who;
+			}
+		}
 		if (const std::optional<std::string> blocker = moveBlocker(state, definition, card.upgraded, driver)) {
 			return definition.name + ": " + *blocker;
 		}
@@ -248,10 +309,28 @@ namespace rules {
 			if (std::optional<std::string> blocker = cardBlocker(state, content, play->driver, play->handIndex)) {
 				return blocker;
 			}
-			const BattleCard& card = state.driver(play->driver).hand[static_cast<size_t>(play->handIndex)];
+			const BattleCard&	  card = state.driver(play->driver).hand[static_cast<size_t>(play->handIndex)];
+			const CardDefinition& definition = definitionOf(content, card.card);
+			const CardPlay		  aimed{
+					   .caster = play->driver,
+					   .actor = *vehicleCarrying(state, play->driver),
+					   .target = play->target,
+					   .occupant = play->occupant,
+					   .destination = play->destination,
+			   };
+			// An attack order's target, range, and moves are its carrier's, so the play is judged from each escort.
+			if (isAttackOrder(definition, card.upgraded)) {
+				if (!play->target) {
+					return definition.name + " needs a target";
+				}
+				if (!orderCarrier(state, definition, card.upgraded, aimed)) {
+					return "no ready escort can carry out " + definition.name + " there";
+				}
+				return std::nullopt;
+			}
 			return targetBlocker(
 				state,
-				definitionOf(content, card.card),
+				definition,
 				card.upgraded,
 				CardPlay{
 					.caster = play->driver,

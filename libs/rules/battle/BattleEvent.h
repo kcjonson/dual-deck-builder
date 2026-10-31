@@ -243,6 +243,34 @@ namespace rules {
 
 			bool operator==(const RaiderStunned&) const = default;
 		};
+		// An escort carries out an order, at the raider it's aimed at; none for Rally the Convoy's escort with no
+		// raider in reach.
+		struct OrderCarried {
+			VehicleIndex				escort;
+			std::optional<VehicleIndex> target;
+
+			bool operator==(const OrderCarried&) const = default;
+		};
+		struct EscortSpent {
+			VehicleIndex escort;
+
+			bool operator==(const EscortSpent&) const = default;
+		};
+		// The escort draws fire across its row until the end of the next enemy turn.
+		struct DrawingFire {
+			VehicleIndex escort;
+
+			bool operator==(const DrawingFire&) const = default;
+		};
+		// Step `step` was aimed at a vehicle in a row an escort draws fire across, and can reach the escort.
+		struct FireDrawn {
+			DriverIndex	 raider;
+			int			 step{0};
+			VehicleIndex from;
+			VehicleIndex to;
+
+			bool operator==(const FireDrawn&) const = default;
+		};
 		// A raider committed its coming turn, `steps` cards long.
 		struct PlanCommitted {
 			DriverIndex raider;
@@ -329,6 +357,10 @@ namespace rules {
 		event::BecameSteady,
 		event::ShookOffStun,
 		event::RaiderStunned,
+		event::OrderCarried,
+		event::EscortSpent,
+		event::DrawingFire,
+		event::FireDrawn,
 		event::PlanCommitted,
 		event::PlannedStepPlayed,
 		event::PlannedStepFizzled,

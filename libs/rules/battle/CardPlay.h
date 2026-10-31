@@ -54,6 +54,29 @@ namespace rules {
 	[[nodiscard]] std::optional<std::string>
 	targetBlocker(const BattleState& state, const CardDefinition& card, bool upgraded, const CardPlay& play);
 
+	// Whether any of a card's effects lands on its target; a flank's target is only the vehicle it outruns.
+	[[nodiscard]] bool landsOnTarget(const CardDefinition& card, bool upgraded);
+
+	// An order at a raider, which the nearest ready escort that can carry it out does (Combat Rules, Orders).
+	[[nodiscard]] bool isAttackOrder(const CardDefinition& card, bool upgraded);
+
+	// Rally the Convoy: every ready escort fires at its own raider.
+	[[nodiscard]] bool isRally(const CardDefinition& card, bool upgraded);
+
+	// The escort that carries out an attack order at the play's target: the nearest ready one on the caster's side,
+	// of the card's type for a signature order, that the play is legal from, ties to the inside lane, the outside,
+	// then the other side's shoulder, and ahead, center, behind. None when no escort can.
+	[[nodiscard]] std::optional<VehicleIndex>
+	orderCarrier(const BattleState& state, const CardDefinition& card, bool upgraded, const CardPlay& play);
+
+	// The ready escorts on a side, in the order Rally the Convoy fires them: the convoy's in roster order, then
+	// vehicles carrying on as escorts (escorts.md, decision 42).
+	[[nodiscard]] std::vector<VehicleIndex> rallyingEscorts(const BattleState& state, Side side);
+
+	// Each ready escort fires the card at its nearest raider it reaches, picked again for each, then every escort
+	// is spent.
+	void resolveRally(BattleState& state, const CardDefinition& card, bool upgraded, DriverIndex caster, std::vector<Event>& events);
+
 	// Where the card's own moves leave the caster, if they move it: what a plan names for a raider's move.
 	[[nodiscard]] std::optional<RoadSlot>
 	movesCasterTo(const BattleState& state, const CardDefinition& card, bool upgraded, const CardPlay& play);

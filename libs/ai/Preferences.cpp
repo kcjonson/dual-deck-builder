@@ -30,9 +30,15 @@ namespace ai {
 			});
 		}
 
-		// The fight seats no hired escorts yet, so a looter has no hauler to go for.
-		bool preferred(const rules::BattleVehicle& vehicle, rules::TargetPreference preference) {
-			return preference == rules::TargetPreference::Killer && vehicle.side == rules::Side::Player && !vehicle.isEscort();
+		// A killer goes for driven vehicles, a looter for the convoy's haulers.
+		bool preferred(const rules::Content& content, const rules::BattleVehicle& vehicle, rules::TargetPreference preference) {
+			if (vehicle.side != rules::Side::Player) {
+				return false;
+			}
+			if (preference == rules::TargetPreference::Killer) {
+				return !vehicle.isEscort();
+			}
+			return vehicle.escort && content.escorts.at(*vehicle.escort).role == rules::EscortRole::Hauler;
 		}
 
 	} // namespace
@@ -50,7 +56,7 @@ namespace ai {
 		std::vector<std::pair<rules::DriverIndex, int>> narrowed;
 		for (const rules::Action& action : actions) {
 			const auto* play = std::get_if<rules::action::PlayCard>(&action);
-			if (!play || !play->target || !preferred(board.vehicle(*play->target), preference)) {
+			if (!play || !play->target || !preferred(content, board.vehicle(*play->target), preference)) {
 				continue;
 			}
 			rules::BattleState after = board;
@@ -61,7 +67,7 @@ namespace ai {
 		std::erase_if(kept, [&](const rules::Action& action) {
 			const auto* play = std::get_if<rules::action::PlayCard>(&action);
 			return play && std::ranges::find(narrowed, std::pair{play->driver, play->handIndex}) != narrowed.end() &&
-				   !(play->target && preferred(board.vehicle(*play->target), preference));
+				   !(play->target && preferred(content, board.vehicle(*play->target), preference));
 		});
 		return kept;
 	}

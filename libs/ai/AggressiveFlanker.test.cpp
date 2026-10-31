@@ -63,6 +63,16 @@ namespace {
 		EXPECT_TRUE(state.driver(kFirstRaider).plan.empty());
 	}
 
+	TEST(AggressiveFlanker, ALooterShootsAHaulerOverTheDriverBesideIt) {
+		// The Rig and the Fuel Hauler side by side, the Rust Buggy across: its Far Shoot reaches both, armor for armor.
+		BattleStart	 start = convoy({seat("road_warrior")}, {"fuel_hauler"}, {raider("rust_buggy")});
+		BattleState& state = start.state;
+		giveHand(state, kFirstRaider, {"far_shoot"});
+		planWithTheirPolicies(state);
+		ASSERT_EQ(state.driver(kFirstRaider).plan.size(), 1U);
+		EXPECT_EQ(state.driver(kFirstRaider).plan[0].target, VehicleIndex{1});
+	}
+
 	TEST(AggressiveFlanker, AKillerShootsADrivenVehicleOverAnEscortItCouldFinish) {
 		// The Rig across from the Spike Buggy, and behind it the Interceptor's bike carrying on as an escort, nearly
 		// wrecked.

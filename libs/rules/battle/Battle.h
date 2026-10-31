@@ -41,9 +41,20 @@ namespace rules {
 		std::optional<Row> ambush;
 	};
 
+	// One of the convoy's escorts, in roster order, the order they joined it.
+	struct EscortSeat {
+		EscortId escort;
+		// What it carries from earlier fights; full without one.
+		std::optional<int> structure;
+		// Where the encounter opens it; without one it takes its type's preferred slot, or the next free one.
+		std::optional<FormationSlot> slot;
+	};
+
 	struct BattleSetup {
 		// One or two, no driver twice.
 		std::vector<PlayerSeat> players;
+		// Up to four.
+		std::vector<EscortSeat> escorts;
 		// In the order they act.
 		std::vector<RaiderSeat> raiders;
 		uint32_t				seed{0};
