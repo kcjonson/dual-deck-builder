@@ -1,6 +1,6 @@
 # The compound screen, the campaign's hub (DDB-301)
 
-Date: 2026-10-09, Scavenge added the same day (DDB-303). Code: `src/renderer/game/screens/compound/CompoundScreen.ts` and `compoundText.ts`. Specs: [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 3.1, [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (The compound, The driver pool), and the wireframe `docs/design/supply-runs/compound.png`. Registered as `compoundScreen` with the `{ campaign }` contract the main menu hands it ([main-menu-campaigns.md](./main-menu-campaigns.md)), and uses [day-clock.md](./day-clock.md), [scavenging-party.md](./scavenging-party.md), and [campaign-save-and-load.md](./campaign-save-and-load.md) as built.
+Date: 2026-10-09, Scavenge added the same day (DDB-303). Code: `_legacy/src/renderer/game/screens/compound/CompoundScreen.ts` and `compoundText.ts`. Specs: [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 3.1, [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (The compound, The driver pool), and the wireframe `docs/design/supply-runs/compound.png`. Registered as `compoundScreen` with the `{ campaign }` contract the main menu hands it ([main-menu-campaigns.md](./main-menu-campaigns.md)), and uses [day-clock.md](./day-clock.md), [scavenging-party.md](./scavenging-party.md), and [campaign-save-and-load.md](./campaign-save-and-load.md) as built.
 
 ## Context
 
@@ -22,7 +22,7 @@ A building with nothing behind it and the Area map are disabled, each with a lin
 
 ### Rest and Scavenge
 
-The two ways to spend a day at home sit side by side, Rest a day and Scavenge, each half the column, with their lines under the pair. Rest calls `endDay`; Scavenge calls `scavenge`, which rolls the party's haul and ends the day with it in the same set. Either shows the new day, stores, and needs straight away, then awaits `CampaignStore.checkpoint`. They share one guard: a second press of either before the checkpoint resolves does nothing, so the next step starts after it, as the store asks, and the buildings don't open meanwhile. Nor does a press within 300 ms of a day ending, timed on the frame clock: a checkpoint to local storage lands within the frame, so without it a double-click's second half spent a second day.
+The two ways to spend a day at home sit side by side, Rest a day and Scavenge, each half the column, with their lines under the pair. Rest calls `endDay`; Scavenge calls `scavenge`, which rolls the party's haul and ends the day with it in the same set. Either shows the new day, stores, and needs straight away, then awaits `CampaignStore.checkpoint`. They share one guard: a second press of either before the checkpoint resolves does nothing, so the next step starts after it, as the store asks, and the buildings don't open meanwhile. Nor does a press within 300 ms of a day ending, timed on the frame clock: a checkpoint lands within the frame, so without it a double-click's second half spent a second day.
 
 The buttons stay where the pointer left them. The column's actions sit at its foot under the needs panel, so anything under the buttons that changes height would move them: the report and the save failure go above the buttons, where the column grows upward into the panel, and Rest's and Scavenge's lines are each held at two lines of caption, the most either takes, a longer one ending in an ellipsis.
 
@@ -36,7 +36,7 @@ Boxed lines, as the wireframe draws them: a forecast for food and for water from
 
 ### The fallen compound
 
-When a Rest's or a Scavenge's night leaves no People, the day end ends the campaign (`campaign.isOver`), and the checkpoint after it ends it in the store, writing its history line and removing the save ([campaign-end.md](./campaign-end.md)). Once that lands, the screen goes to the defeat screen, handed the campaign, once; nothing else starts on the way. A save holding a campaign already over (another tab's, or a hand-made one) is checkpointed as the screen shows it, which ends it the same way, then the defeat screen opens.
+When a Rest's or a Scavenge's night leaves no People, the day end ends the campaign (`campaign.isOver`), and the checkpoint after it ends it in the store, writing its history line and removing the save ([campaign-end.md](./campaign-end.md)). Once that lands, the screen goes to the defeat screen, handed the campaign, once; nothing else starts on the way. A save holding a campaign already over (a hand-made one) is checkpointed as the screen shows it, which ends it the same way, then the defeat screen opens.
 
 If the checkpoint fails, the screen stays: the failure shows over the buttons, Rest's own line says it saves the end again, Scavenge is disabled as over, and Rest tries the checkpoint again without ending another day. After the night, the save still holds the day before until that checkpoint lands; a save already over stays as it was.
 

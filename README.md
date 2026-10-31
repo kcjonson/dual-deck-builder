@@ -1,160 +1,33 @@
-# Dual Deckbuilder
+# Wasteland Wheels
 
-A roguelike deckbuilder game with WebGL rendering for web and desktop platforms.
+A roguelike deckbuilder with vehicular combat in a post-apocalyptic setting. You drive two vehicles at once, each with its own driver and deck.
 
-## Features
+This is the C++ early alpha, built on [salal](https://github.com/kcjonson/salal). The TypeScript proof of concept it grew from is frozen in [`_legacy/`](_legacy/).
 
-- Custom WebGL-based rendering engine
-- Component-based architecture
-- Supports both web (GitHub Pages) and desktop (Electron) deployment
-- Custom UI library for interactive elements
+## Building
 
-## Development
-
-### Prerequisites
-
-- Node.js (v16+)
-- npm or yarn
-
-### Installation
+Needs CMake 3.25+, vcpkg with `VCPKG_ROOT` set, Ninja, ccache, and MSVC on Windows or Clang/GCC elsewhere.
 
 ```bash
-npm install
+cmake --preset windows
 ```
-
-### Windows notes
-
-The project was developed on macOS first; two things bite on Windows and both are handled, but worth knowing about.
-
-**Electron binary install.** `yauzl` 2.x, which `extract-zip` uses to unpack the downloaded Electron binary, stalls mid-stream on Node 24 and leaves `node_modules/electron/dist` half-extracted, so `npm run start:electron` dies with "Electron failed to install correctly". `package.json` carries an `overrides` entry pinning `extract-zip`'s `yauzl` to 3.x, which doesn't have the bug. If you ever see that error, delete `node_modules/electron/dist` and `node_modules/electron/path.txt`, then run `node node_modules/electron/install.js`.
-
-**Packaging (`npm run package:win`).** electron-builder's `winCodeSign` archive contains macOS symlinks, and creating symlinks on Windows needs either Developer Mode or an elevated shell. Without one, extraction fails with "Cannot create symbolic link : A required privilege is not held by the client" and the build aborts. Turn on Settings > System > For developers > Developer Mode, or run the package command from an elevated terminal. This is a machine setting, not a repo problem; CI runners already have the privilege.
-
-### Development
-
-#### Testing & Linting
 
 ```bash
-# Run tests (all but the slow map-generation ones)
-npm test
-
-# Run the slow map-generation tests
-npm run test:slow
-
-# Run the tests that import anything changed since main
-npm run test:changed
-
-# Build and boot the game, then open every screen in a browser
-npm run test:smoke
-
-# Run tests with watch mode
-npm run test:watch
-
-# Generate test coverage report
-npm run test:coverage
-
-# Run linting
-npm run lint
-
-# Auto-fix linting issues
-npm run lint:fix
+cmake --build --preset windows
 ```
-
-#### Web Version
 
 ```bash
-npm start
+ctest --test-dir build -C Debug
 ```
 
-#### Electron Version
+On macOS and Linux use the `default` preset with `-DCMAKE_BUILD_TYPE=Debug`, then `cmake --build build` and `ctest --test-dir build`.
 
-```bash
-npm run build:electron
-npm run start:electron
-```
+`node scripts/format.mjs` checks formatting with clang-format 21; `--fix` applies it.
 
-### Building
+## Docs
 
-#### Web
-
-```bash
-npm run build:web
-```
-
-#### Desktop (Electron)
-
-```bash
-# For all platforms
-npm run package
-
-# For Windows
-npm run package:win
-
-# For macOS
-npm run package:mac
-```
-
-## CI/CD Pipeline
-
-The game is a prototype, so CI moves fast and fails loud ([prototype-ci.md](docs/AI_TECHNICAL_DECISIONS/prototype-ci.md)):
-
-- **PR**: lint, typecheck, and the tests for what changed. Advisory; nothing waits on it.
-- **Main**: after every merge, lint, typecheck, the tests, the boot smoke, and the slow tests when they're affected; nightly, the slow tests and the Windows and macOS packages. A failing check opens a `main is broken` issue under the `main-broken` label, and passing again closes it.
-- **Deploy to SFTP**: every push to main publishes the web build to the playtest site, whatever the checks say.
-
-### Deployment
-
-#### GitHub Pages
-
-```bash
-npm run deploy
-```
-
-## VS Code Integration
-
-This project is configured for optimal development experience in Visual Studio Code, with the following features:
-
-### Run & Debug
-
-- **Run Menu Integration**: Access all project tasks from the Terminal > Run Task... menu
-- **Quick Start**:
-  - Press `Ctrl+Shift+B` (`Cmd+Shift+B` on macOS) to run the default web server
-  - Use Terminal > Run Build Task to build the project
-
-### Debugging
-
-- Open the "Run and Debug" sidebar (`Ctrl+Shift+D`)
-- Choose a launch configuration:
-  - **Debug Web**: Launch and debug the web version
-  - **Debug Electron Main**: Debug the Electron main process
-  - **Debug Electron Renderer**: Debug the Electron renderer process
-  - **Debug Tests**: Run and debug tests
-  - **Debug Electron (Main + Renderer)**: Debug both Electron processes simultaneously
-
-### Output & Monitoring
-
-- The Problems panel (`Ctrl+Shift+M`) shows errors and warnings from ESLint, TypeScript, and webpack
-- Console logs are formatted for easy monitoring (for both Copilot monitoring and human developers)
-- Use the VS Code Output panel to view application logs
-- Terminal integration for direct console output
-
-### Testing
-
-- Run tests with the "Run Tests" task or using the Testing sidebar
-- Debug tests with the "Debug Tests" launch configuration
-- Check test coverage with `npm run test:coverage`
-
-## Project Structure
-
-- `src/renderer/game`: Game-specific logic
-- `src/renderer/engine`: Reusable game engine components
-- `src/electron`: Electron-specific code
-- `public`: Static web assets
+[docs/README.md](docs/README.md) indexes the specs, the decision records and the port plan. [CLAUDE.md](CLAUDE.md) has the conventions.
 
 ## License
 
-Copyright (c) 2025 Kevin Jonson. All rights reserved.
-
-This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify, and distribute this software for non-commercial purposes only. Attribution is required.
-
-For commercial licensing inquiries, please contact the maintainer.
+[PolyForm Noncommercial 1.0.0](LICENSE). Contributions are under the terms in [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -55,7 +55,7 @@ Option 4, specified in [docs/specs/Battle Screen Design.md](../specs/Battle%20Sc
 
 ## Consequences
 
-- Combat Rules changes shape: positions become slots, range becomes a formula, and `VehiclePosition` in `mechanics/Vehicle.ts` becomes a lane and a row. Everything that reads positions moves with it: `Battle.ts`, `AIEvaluator.ts`, `AggressiveFlankerAI.ts`, `MCTSAI.ts`, `src/battle-simulator.ts`, and the three battlefield layers.
+- Combat Rules changes shape: positions become slots, range becomes a formula, and `VehiclePosition` in `mechanics/Vehicle.ts` becomes a lane and a row. Everything that reads positions moves with it: `Battle.ts`, `AIEvaluator.ts`, `AggressiveFlankerAI.ts`, `MCTSAI.ts`, `_legacy/src/battle-simulator.ts`, and the three battlefield layers.
 - `cards.json` gains a required short-text field, and every existing card needs one written. Eleven of today's eighteen descriptions don't fit three lines; the mock has rewrites for all of them.
 - Enemy intents need to be planned in the model with a target before the player's turn, not hardcoded (DDB-33).
 - The enemy turn needs pacing (DDB-112) before the enemy-turn state means anything.
@@ -64,6 +64,6 @@ Option 4, specified in [docs/specs/Battle Screen Design.md](../specs/Battle%20Sc
 
 ## Implementation notes
 
-- The mock is `docs/design/battle-screen/index.html`: plain HTML and JavaScript, its layout function is the one described in the spec, and its `lint` function is a sketch of the checks the real screen's Playwright suite should make. It is a design artifact, not engine code.
-- The six worst-case scenarios in the spec's section 10 are the ones to port as gallery scenes.
+- The mock is `docs/design/battle-screen/index.html`: plain HTML and JavaScript, its layout function is the one described in the spec, and its `lint` function is a sketch of the layout checks the real screen should pass. It is a design artifact, not engine code.
+- The six worst-case scenarios in the spec's section 10 are the ones to check the real screen in.
 - Code shape (DDB-128/129): `mechanics/Road.ts` is pure road geometry and lane rules; `Vehicle.slot` is absolute (six named lanes) rather than team-relative, so range is a function of two slots and needs no team lookup; `Battle` is the only thing that moves a vehicle, which is where slot uniqueness and the shoulder rules are enforced. Flank drop-back runs at the end of every turn: `endCombat` only runs when the fight is over, where a positional rule does nothing.

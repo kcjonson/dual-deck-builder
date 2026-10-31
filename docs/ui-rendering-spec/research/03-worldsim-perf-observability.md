@@ -81,7 +81,7 @@ constexpr double kSpinWindowMs = 2.0;
 Consequence worth carrying into the spec: because `MetricsCollector::endFrame()` runs after the
 pacing sleep, `frameTimeMs` floors at 8.33 ms whenever the app is idle. To see real cost you read
 `sceneRenderMs`/`sceneUpdateMs`, or turn vsync off and look at the breakdown, which is exactly what
-`scripts/perf-capture.ps1` does.
+`_legacy/scripts/perf-capture.ps1` does.
 
 ### vsync and swap
 
@@ -219,7 +219,7 @@ rest."
   count, camera position/chunk, and biome (`apps/world-sim/scenes/game/ui/views/DebugOverlay.h:5-10`).
   The design principle was "Zero in-game overhead. All visualization happens in an external
   browser window" (`docs/technical/observability/INDEX.md:10`).
-- `scripts/perf-capture.ps1` polls `/api/metrics` for scripted sweeps (section 4).
+- `_legacy/scripts/perf-capture.ps1` polls `/api/metrics` for scripted sweeps (section 4).
 
 ### Overhead guards and toggles
 
@@ -328,7 +328,7 @@ Google Benchmark output:
   "drawCalls/vertexCount/triangleCount show 0 - metrics tracking needs investigation" and "vsync
   appears off for simple scenes but on for complex scenes".
 - `capture-2026-06-09-223132.json`, `capture-2026-06-10-085724.json`,
-  `capture-4x-density-final.json` are produced by `scripts/perf-capture.ps1`: an array of
+  `capture-4x-density-final.json` are produced by `_legacy/scripts/perf-capture.ps1`: an array of
   `{scenario, samples[]}` where each sample has 17 fields copied from `/api/metrics`
   (`perf-capture.ps1:28-35`: fps, frameTimeMs, frameTimeMaxMs, p99Ms, spikes16, spikes33,
   drawCalls, triangles, vertices, tileMs, entityMs, updateMs, sceneUpdateMs, sceneRenderMs, swapMs,
@@ -768,7 +768,7 @@ render. CI runners are headless, so these skip there; they run locally.
 
 ### Golden screenshots, scenarios, regression
 
-- Golden-image comparison was designed (`ui-inspection.md:104-119`: `tests/golden/`,
+- Golden-image comparison was designed (`ui-inspection.md:104-119`: `_legacy/tests/golden/`,
   `testing::captureGolden` / `compareWithGolden(threshold)`) and never built. Screenshots are
   human/agent review only.
 - Scenario tests are markdown curl scripts under `docs/testing/` run by a person or an agent, with

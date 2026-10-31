@@ -1,10 +1,12 @@
 # Layered UI rendering specification
 
-Status: draft 4, 2026-09-07. All five reviews resolved (see `17-review-log.md`).
+Status: draft 4, 2026-09-07. All five reviews resolved (see [chapter 17](../../_legacy/docs/ui-rendering-spec/17-review-log.md)).
 
-A backend-agnostic specification for a 2D game UI renderer: an immediate-mode draw API with a batching, sorting painter's renderer underneath, a retained component tree on top, and the layout, input, focus, theming, component catalog, and developer tooling that go with it. It was abstracted from worldsim (C++, OpenGL) after a year of development and written so that a second implementation (TypeScript, WebGL2, browser and Electron) can be built to it and so that both projects can be scored against it.
+A backend-agnostic specification for a 2D game UI renderer: an immediate-mode draw API with a batching, sorting painter's renderer underneath, a retained component tree on top, and the layout, input, focus, theming, component catalog, and developer tooling that go with it. It was abstracted from worldsim (C++, OpenGL) after a year of development and written so that a second implementation (TypeScript, WebGL2, browser and Electron) could be built to it and so that both projects could be scored against it.
 
-This directory is self-contained. It references the two projects for provenance only and can be moved into its own repository unchanged.
+That TypeScript implementation is the legacy one, frozen with the rest of the TypeScript game in `_legacy/`. The live one is salal's `ui` (C++), decided against this spec rule by rule: salal's `docs/ui-design.md` records each rule where salal departs and why.
+
+It references the projects for provenance only. The parts that were about the TypeScript engine alone (chapter 15, the chapter 17 review log, the reviews, and research reports 04 and 05) moved to `_legacy/docs/ui-rendering-spec/`; everything else is in this directory.
 
 ## What it is for
 
@@ -33,11 +35,11 @@ Read chapters 0 to 3 in order; they define the vocabulary, the layers, the draw 
 | [12](12-component-catalog.md) | Required components and their behaviour contracts |
 | [13](13-observability-and-performance.md) | Frame timer, batcher counters, GPU timer, tree snapshot, lint, gallery, screenshots, injection, perf capture |
 | [14](14-testing-and-conformance.md) | Test layers, gates, conformance scoring of both reference implementations |
-| [15](15-backend-webgl2.md) | WebGL2 and Electron specifics, port risks |
+| [15](../../_legacy/docs/ui-rendering-spec/15-backend-webgl2.md) | WebGL2 and Electron specifics, port risks (in `_legacy/`, with the TypeScript engine) |
 | [16](16-backend-opengl.md) | OpenGL mapping and the worldsim gap list |
-| [17](17-review-log.md) | Review findings and their resolutions |
-| [research/](research/README.md) | The five research reports the specification was abstracted from (worldsim's draw core, components, and tooling; the sibling engine audit; web prior art with sources) |
-| [review/](review/README.md) | The independent review reports that challenged the first draft |
+| [17](../../_legacy/docs/ui-rendering-spec/17-review-log.md) | Review findings and their resolutions (in `_legacy/`) |
+| [research/](research/README.md) | The research reports the specification was abstracted from: worldsim's draw core, components, and tooling (01 to 03) here; the sibling engine audit ([04](../../_legacy/docs/ui-rendering-spec/research/04-sibling-engine-audit.md)) and web prior art with sources ([05](../../_legacy/docs/ui-rendering-spec/research/05-webgl-prior-art.md)) in `_legacy/` |
+| [review/](../../_legacy/docs/ui-rendering-spec/review/README.md) | The independent review reports that challenged the first draft (in `_legacy/`) |
 
 ## Conformance levels
 
@@ -57,4 +59,4 @@ Worldsim's rendering core, layout engine, focus manager, token pipeline, tree sn
 
 ## Changing the specification
 
-Rules are numbered and stable; a new rule takes the next unused number in its chapter (or a letter suffix beside a related rule) and sits at its logical place, so numbers identify rules, not positions; withdraw rather than renumber. Record the reason for every change in the chapter's rationale section and, while the review is open, in chapter 17.
+The specification is a reference: its rules aren't edited to follow salal, whose `docs/ui-design.md` records each departure by rule number. Rules are numbered and stable; a new rule takes the next unused number in its chapter (or a letter suffix beside a related rule) and sits at its logical place, so numbers identify rules, not positions; withdraw rather than renumber. Record the reason for every change in the chapter's rationale section.

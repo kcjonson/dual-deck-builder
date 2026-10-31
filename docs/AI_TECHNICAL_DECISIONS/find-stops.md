@@ -1,6 +1,6 @@
 # Find stops: cards, supplies, and a driver (DDB-523)
 
-Date: 2026-10-18. Code: `src/renderer/game/campaign/SupplyRoutes.ts` (the `find` stop kind), `MapRoutes.ts` (`routeStop`), `SupplyRun.ts` (`takeFind`, `leaveFind`, `foundDriver`, recruits in `arriveHome`), `SupplyRunState.ts` (`recruits`, the reward phase at a Find: cards), `SaveUpgrades.ts` (version 10), and `screens/run/RunScreen.ts` and `runText.ts`. Specs: [Runs and Encounters](../specs/Runs%20and%20Encounters.md) (Kevin's rule 2, What a stop can be) and [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Stops, The driver pool). Builds on [mvp-supply-run.md](./mvp-supply-run.md), [stops-and-routes.md](./stops-and-routes.md), and [cards-won.md](./cards-won.md).
+Date: 2026-10-18. Code: `_legacy/src/renderer/game/campaign/SupplyRoutes.ts` (the `find` stop kind), `MapRoutes.ts` (`routeStop`), `SupplyRun.ts` (`takeFind`, `leaveFind`, `foundDriver`, recruits in `arriveHome`), `SupplyRunState.ts` (`recruits`, the reward phase at a Find: cards), `SaveUpgrades.ts` (version 10), and `screens/run/RunScreen.ts` and `runText.ts`. Specs: [Runs and Encounters](../specs/Runs%20and%20Encounters.md) (Kevin's rule 2, What a stop can be) and [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Stops, The driver pool). Builds on [mvp-supply-run.md](./mvp-supply-run.md), [stops-and-routes.md](./stops-and-routes.md), and [cards-won.md](./cards-won.md).
 
 ## Context
 

@@ -1,0 +1,2526 @@
+# AI Development Log (deprecated)
+
+> **DEPRECATED (2026-10-06, DDB-342).** This file is frozen and kept for history only. Don't add to it or update it. Work, status, and progress are tracked on Specboard: https://specboard.io/projects/6b4e4cdd-15bc-4001-8280-706838168f2e. Technical decisions live in [AI_TECHNICAL_DECISIONS/](../../docs/AI_TECHNICAL_DECISIONS/); the docs index is [README.md](../../docs/README.md). Content below may be stale.
+
+This document contains the chronological log of completed development tasks for Wasteland Wheels. Most recent entries are at the top.
+
+=========================================
+
+**Date correction (2026-08-22):** the repo's first commit is 2025-05-17, but many entries below carry dates in December 2024 or January 2025 — the AI that wrote them used its assumed date instead of the real one. Entries dated 2025-07-03 and 2025-07-02 have been corrected from "2025-01-03"/"2025-01-02" (verified against git history). Remaining Dec 2024 / Jan 2025 dates are wrong by roughly six months; the real work happened May–July 2025. Trust git history over these dates.
+
+## The F5 overlay and F12 developer screen leave production builds (2026-10-06)
+
+**What landed:** DDB-249, R13.2. A production bundle no longer carries `DeveloperOverlay`, `DeveloperScreen` or any gallery section, and nothing in it can navigate to the developer screen.
+
+- `Game` requires and builds the overlay inside `if (__DEV_TOOLS__)`, and mounts it and registers F5 and F12 in that branch; `developerOverlay` is nullable and the update, render, and viewport paths skip it when null.
+- `ScreenManager` registers `developerScreen` through a `require` in a folded branch, and `navigate` refuses an unregistered name before it fades or unmounts anything.
+- The main menu's Developer Tools button is built only in a development build.
+- `productionBuild.test.ts` runs the game, the screen manager, and the main menu with the flag false: no registered developer screen, a refused navigate that leaves the screen mounted, no menu button, no overlay constructed, F5 and F12 inert.
+- Verified on the bundles, not in CI: thirteen overlay, developer-screen and gallery-section strings are absent from `npm run build:web` output and present in a development build, and present again in a production build with the flag forced true (so minification is not what hides them). The frame timer, the draw counters and debug logging stay in production as recorded departures.
+- Chapter 14's "Dev-only build exclusion" row is partial for those departures (R13.42 and R13.43 are known gaps). Decision record: [gpu-timer-and-perf-capture.md](./AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
+## Canvas input hygiene (2026-10-06)
+
+**What landed:** DDB-250. The canvas `contextmenu` and `user-select` handling of R15.39, and R9.1's wheel fields.
+
+- `PointerAdapter` prevents `contextmenu` on the canvas and on its document (the Menu key and Shift+F10 target the focused element, not the canvas; a text field keeps its own menu), so no browser menu opens over the game. The dispatcher already synthesises its own `contextmenu` from a secondary press. It sets `user-select: none` and `-webkit-user-select`/`-webkit-touch-callout: none` beside the existing `touch-action: none`, and `detach` restores all of them to what the canvas had.
+- On macOS a Ctrl+click arrives as button 0 with Ctrl held; with the native menu suppressed it would complete as a primary click, so the adapter remaps that whole press (down, moves, up) to the secondary button.
+- `UiWheelEvent` stores `isPrimary`, `pressure`, `button` and `buttons`. The wheel input carries the held `buttons`; pressure is 0.5 while one is held and `button` stays -1. `pointerType` and `isPrimary` come from the hovering pointer's identity (a primary mouse, id 1, when none is hovering) instead of a hard-coded mouse.
+- Tests: new `PointerAdapter.test.ts` and wheel field cases in `Dispatcher.test.ts`.
+- Chapter 14: the "WebGL2 backend rules" row drops its canvas `contextmenu`/`user-select` gap and names the remaining `char` clause (DDB-254, with R15.34); the "Event fields" row stays partial for `char`.
+## Driver selection previews the starting deck (2026-10-06)
+
+**What landed:** DDB-226, part 1. Game Flow Spec 1.2: hovering or focusing a mini card in a driver's starting deck shows the full card. Part 2 (locked drivers greyed out in the Select) is open; `Driver` has no lock source yet.
+
+- `DriverPanel.createDeckEntry` calls `makeInspectable` on each mini card, the same detail view the hand, the piles, and the card browser use (hover after the tooltip delay, at once on keyboard focus). No second preview.
+- The mini cards were disabled (display only), which a tooltip's focus path and the dim treatment both fight. They are enabled now, `liftable = false`, with no `onSelect`, so they stay put and a click does nothing. They no longer draw dimmed.
+- The deck grid is a focus group (R9.29): one Tab stop per panel landing on its active card (the first on entry), Left and Right moving between cards. Tab order is now Back, left deck, left Select, right deck, right Select, START RUN.
+- Escape: the tooltip service hides a plain preview before the screen's Escape runs, so the screen remembers, as of the last frame, whether one of its own was up. The first Escape then only dismisses it and the second leaves the screen.
+- The preview's footer says "RMB / I: PIN", so the deck grid takes `inspectOnContextMenu` (a secondary click pins, a touch hold opens) and the screen registers the I key through `inspectHotkey`; Escape lets a pin go before it leaves the screen.
+- `DriverPanel.clearDeck` hides the tooltip when its owner is one of the cards about to go, on every rebuild and on `reset`, so a preview never outlives its card. The request counter that stops DDB-101's stacked decks is untouched.
+- Tests in `DriverSelectionScreen.test.ts`: factory and card per mini card, hover and focus show, blur and leave hide, arrow movement, on-screen at 1280x720, 1024x600, 800x450 and 640x400 for every card in both panels, teardown on driver change, pin, partner-panel rebuild, overlapping loads, and reset.
+## Component cursor (2026-10-06)
+
+**What landed:** DDB-244 (DDB-55). R8.2's `cursor`, shown on the canvas.
+
+- `Component.cursor` and the `cursor` option: `'default' | 'pointer' | 'text'`, or null to inherit; the kind's default through `defaultCursor`. `Pressable`, Select, Slider, and a live Toast say `pointer`; TextInput says `text`; menu rows and the number stepper answer per region (`default` over a separator, a disabled item, or a chevron at its limit). Setting it invalidates nothing.
+- `Dispatcher` resolves the innermost hovered component's cursor, walking outward, once at the end of each `dispatchPending`: the captor's chain while the hovering pointer is captured, hidden components skipped, `default` when the innermost visible one is disabled, when nothing sets one, after the pointer leaves, or on reset. `onCursorChange` (through `createMountContext`) fires only on a change; `src/index.ts` and the gallery set `canvas.style.cursor`.
+- Button and TextInput accept `cursor` in their base style; a later style without it resets only a cursor the last style set. The "waits for a cursor service" note is gone, and four older decision records now point at the new one.
+- Game: `Card` shows `pointer` once it has an `onSelect`; `Vehicle` while it is a choosable target. Both through `defaultCursor`.
+- `TreeView.cursor` and its row's `cursor` are now `cursorRow` and `keyboardCursor`, freeing the name.
+- Chapter 14: the "Properties of R8.2" row stays partial for two recorded departures (null inherits; a disabled component shows `default`). The hub's stale tally is corrected to 86 yes and 14 partial.
+- Decision record: [component-cursor.md](./AI_TECHNICAL_DECISIONS/component-cursor.md).
+
+**How:** Jest tests for resolution (innermost wins, inheritance, default, leave, reset, a disabled pressable and a disabled leaf, a hidden hovered component, a change under a still pointer without layout, capture during a drag, no repeated callbacks), kind defaults, style acceptance and reset, menu rows over a separator and a disabled item, the stepper at its limits, Toast, and Card and Vehicle through the dispatcher.
+## Compound campaign and area map design (2026-10-06)
+
+**What landed:** design docs only, no code.
+
+- New specs: `docs/specs/Compound and Supply Runs.md` and `docs/specs/Area Map Generation.md`.
+- New record: `docs/AI_TECHNICAL_DECISIONS/compound-and-area-map.md` (campaign structure, road trees over a Delaunay mesh, saves store the gameplay map, drivable and scenery layers, `MapParams` with a Map Lab for tuning).
+- Updated to the new structure: Game Flow and UI Specification (main menu, driver selection as load out, persistent decks, sections 3 and 6 rewritten), Gameplay Mechanics and Style (core loop, consequences), Combat Rules (run lost instead of game over, escorts lost for good).
+- Deck management: default decks, the locker, and run decks (Compound and Supply Runs, Decks and the locker); Game Flow 1.2 rewritten as load out with an optional per-driver customize mode, a new 3.2 Crew screen, the garage's paid removal retired, and 7.0 "Cards look like cards" with a new 80x112 mini card size.
+- Wireframes on the "Supply Run Map" design canvas: loop, compound, area map (with scenery), run route, stop types, fog of war, Map Lab, crew and decks, load out, customize, card sizes, and shared mini, driver, and escort card components. Screenshots of each board are in `docs/design/supply-runs/` and embedded in the specs.
+
+## The battle screen fit suite (2026-10-02)
+
+**What landed:** DDB-141 (DDB-127). The battle screen mock's fit matrix, on the real screen.
+
+- `SceneHost` mounts a second kind of scene, a whole `Screen` (`ScreenScene`), on the context as `ScreenManager` would: its root is the debug root, it updates with the frame, and it resizes in place, paused or not.
+- `CombatScreen` takes `{ prepare: () => Promise<PreparedCombat> }` as mount data: a started `Battle`, the drivers in seat order, and the top bar's wave, scrap, fuel, and log. The default fight goes through the same `beginCombat`.
+- `src/gallery/scenes/battleFitScenarios.ts`: the mock's six scenarios built from real mechanics (drivers, escorts, raiders with decks, a started battle, then hands, piles, mods, statuses, a flanking Interceptor, a wrecked Rig), registered as `battle-<scenario>`.
+- `tests/visual/web/battleFit.spec.ts` and `tests/visual/support/battleFit.ts`: every scenario at six sizes (the mock's six with 1920x1080 standing in for 1280x720, which lays out the same stage, plus 1024x600) in five states: the scenario's worst case asserted on screen, lint zero, and the mock's fit check including its four slot rules and the hand cap, with an expected-failures table keyed to bug ids (empty). Unit tests in `battleFit.test.ts` make each check fire, at stage scale 1 and 1.5.
+- `visual.yml` runs the fit suite on a pull request only when it touches `src/`, the visual tests, the design mock, the build, or the workflow; main always runs it.
+- Fix: `HandFan` pads its row by the most any posed card reaches, not just the edge cards; the cards beside the middle poked 0.4 logical pixels above the row and failed the lint at 1920x1080 and 2560x1080.
+- Goldens: new `scene-battle-typical` and `scene-battle-typical-2560x1080`; every golden with a hand moves 1 px for the fan's top padding.
+- Decision record: [battle-fit-suite.md](./AI_TECHNICAL_DECISIONS/battle-fit-suite.md).
+
+## The split dock (2026-10-02)
+
+**What landed:** DDB-136 (DDB-127), folding in DDB-167. Battle Screen Design section 4. Closes DDB-117; DDB-120 was already met by the DDB-137 face (driver-coloured frame, rarity gem, yellow hover and selection), and DDB-29 and DDB-37 were closed by DDB-88.
+
+- `CombatDock` holds the two halves and the End Turn column; the screen and the gallery build the same one. Its bottom padding is 0, so the fan is 190 tall and a six or seven card row (180 plus the edge cards' reach) no longer sits 2 px past it.
+- `DriverTab` per the mock: the name and tag fill what's left so the name ellipsizes; mod chips (18 px, a 12 px icon by kind, named on hover, three and "+N" past four, none while a passenger); `flash_on` bolts from the maximum, lit from the outer end, one bolt and the count past six; the piles as `style` and `exit_to_app` icons with counts. Only the piles open the pile dialog now, at the tab's full height so they stay a 24 px target at the 0.8 floor; the mods get their tooltips.
+- `HandFan` reconciles its row (`reconcileChildren`) and `PlayerHandLayer` keeps each card's element while the card stays, so a pinned detail view, a lift, and focus survive a deal. Ids are a build count plus type, the slot on the first deal. `HAND_CARD_SCALE` is gone (it was 1); the natural gap is the mock's 8.
+- DDB-167: `Team.isAboard`; `buildPlayerHandView({ drivers, canPlay, crashedOut })` leaves a crashed-out driver's cards out, their tab says CRASHED OUT without adrenaline or mods, their half shows a one-line note, and the unspent warning skips them.
+- End Turn: the warning at the mock's 12 on 15, wrapping inside the column; the label keeps "Raiders", since the mock's "raiders acting" overflows 148 px.
+- `Vehicle.mods` (`{ name, kind }`), and two icons in the atlas.
+- Goldens: new `combat-dock` and `combat-dock-crashed-out`, in the lint gate at both sizes; the combat screens and the icons scene move.
+- Decision record: [split-dock.md](../../docs/AI_TECHNICAL_DECISIONS/split-dock.md).
+
+**How:** unit tests for the tab, the fan's reconcile, the hand view, and the screen's dock (both hands at the cap with six mods and adrenaline past six, a passenger, a crash-out, and a pin across a deal, lint zero at 1024x600 and 1440x882); played turns at 1280x720 and 1024x600 through `__dev.input` by click-then-target, drag, keyboard, and END TURN, lint zero throughout.
+## Intent pills, the end-turn preview, and the enemy turn on screen (2026-10-02)
+
+**What landed:** DDB-139 (DDB-127), with DDB-33's display half and DDB-109.
+
+- `game/ui/IntentPill.ts` replaces `IntentMarker.ts`: pills with icon, value ("6x3" for a multi-hit, "?" when the tier hides it), and target mark, the heavy tier at 12 and up counting every hit. `IntentRow` shows two then "+N", or one then "+N" when two won't fit the token's width; "+N" has a tooltip listing what it collapses. `CombatScreen.intentPillOf` adds hits and the vehicles each intent lands on.
+- `EndTurnPreview` over the road: while End Turn has the pointer or visible keyboard focus on your turn, a dashed line from each pill to every plate it lands on and the incoming total in a chip on your tokens ("-8+?" with a hidden attack). `EndTurnColumn.previewing` is End Turn's only change.
+- Enemy turn: the hands drop 60 and grey under a scrim on the animator, snapping under reduced motion, End Turn staying put at WAIT; the acting raider's plate glows (`Vehicle.acting`, cull ink grown by the shadow's bound); the banner already crossed only the road.
+- Engine: `Component.parkOffset` (R8.30), reported by the snapshot as `parked`; the layout lint checks a parked subtree where it rests (R13.25.2, R13.25.3 amended), so the dropped dock lints clean and a real escape at rest is still caught.
+- Goldens: new `screen-combatScreen-endTurnPreview` at both gate sizes; `screen-combatScreen-enemyTurn` now captures the first raider acting under reduced motion; `vehicle-tokens`, `combat-road` and `icons` show pills; `combat-road` is also linted at 1024x600.
+- Record: [intent-pills-and-enemy-turn-presentation.md](./AI_TECHNICAL_DECISIONS/intent-pills-and-enemy-turn-presentation.md).
+- Review round: the preview sits in the road band's own layer under the log drawer by `zIndex`, so an open log covers it; a frame of the preview allocates nothing; only the hands (tabs and cards) drop and grey, End Turn and the dock's ground stay put as in the mock; debuff and buff pills print a short name (Slow, Stun, Vuln); a hit's number starts under the banner when the banner is across its plate; the gallery draws the acting glow in the open.
+## Road view polish: slot outlines, swerve timing, header spacing (2026-10-02)
+
+**What landed:** DDB-257 (DDB-127), the non-blocking findings from the #139 review.
+
+- `RoadView`'s empty-slot outlines go through `dashedOutlineTriangles` (the legal-target dashes from DDB-138) into one triangle list per side's colour. The view's own draws at 1280x720 with five vehicles went from 765 `drawRect` + 2 `drawPolygon` to 37 + 4; at 1600x700, 1063 + 2 to 49 + 4. The side dashes now start one gap below the corner dash (7 px, was 6), as the targeting outline's do.
+- A swerving token's outlines switch when it lands: tokens keep the slot they last landed in, and `land` rebuilds the lists when it changes.
+- Shoulder headers spaced 0.12em like the other lanes, as the mock renders them.
+- [road-view.md](../../docs/AI_TECHNICAL_DECISIONS/road-view.md) corrected: commands copy their geometry each frame, polygon points included, so the lists still cost a copy; what went was the per-call cost.
+
+**How:** RoadView unit tests for the two-list outlines, the swerve timing, and the header spacing; draw calls counted by spying on `DrawApi` over one `RoadView.render`; road-bearing goldens re-minted for the header spacing and dash phase.
+
+## Targeting: ranges, legal targets, outlines, ghost, hit check, cancel (2026-10-02)
+
+**What landed:** DDB-138 (DDB-127), Battle Screen Design section 6's targeting state; closes DDB-111 and the screen half of DDB-114.
+
+- `mechanics/AimPreview.ts`: `previewAim` gives the actor, range, reach, hit check, and per-bar losses for a card on one vehicle. `Battle.hitCheck` returns `checkHit`'s numbers; `calculateFormulaDamage` is public.
+- `CombatScreen.determineTargetableVehicles` keeps only what `Battle.getTargetBlocker` passes, for every card. `showRanges` labels each raider once when a card is picked; `showAimAt` puts the ghost and the hit check on the focused target.
+- `ui/RangeChip.ts` in the token; `Vehicle.rangeLabel`, `Vehicle.damageGhost`; dashed legal outline as one triangle list, solid hovered outline with a 22 px glow, dimming at 35%. `ui/stripes.ts` holds the hatch (moved from `RoadView`) and the dashes.
+- `HitCheckChip` and `hitCheckText` in `CombatFxLayer`; `AimReticle` and `TargetingArrow` take `pinnedOnTarget` for the gallery.
+- Cancel: the stage takes clicks, so one that lands on no target, or a right-click anywhere, puts a waiting card back; so does a second click on the card.
+- Gallery scene `combat-targeting`, golden and lint at 1440x882 and 1024x600 (`SceneScenario.shortViewport`). Record: [targeting-preview.md](../../docs/AI_TECHNICAL_DECISIONS/targeting-preview.md).
+
+**How:** unit tests for the preview (checked against play), the token's dashes, glow, chip, and ghost, the hit check text, and the screen's ranges, legal targets, hit check, ghost, and cancels; played the combat screen through `__dev.input` at 1280x720 and 1024x600 (drag, click-then-target, keyboard, every cancel).
+## Card face and pinnable detail view (2026-10-02)
+
+**What landed:** DDB-137 (DDB-127), folding in DDB-204 and DDB-172. Closes the card-detail part of DDB-34 (DDB-28 was already closed by DDB-88).
+
+- `Card` at `NORMAL` is the mock's 128x180 face, laid out natively (the fan's scale is now 1): cost hex hanging off the corner, type and driver mark, name shrinking 16 to 14 then ellipsis, art strip, three-line summary with keywords highlighted, and a foot with the rarity gem, rarity name, and R1/R2 chip. Rarity is no longer the rim; the frame is the driver's colour. Disabled dims through colours; `unaffordable` (from `PlayerHandView.unaffordable`) turns the cost dark red. `LARGE` and `fullText` are gone; `liftable` keeps grid cards in place.
+- `KeywordText` lays out words as hugging text parts in two colours; `data/keywords.ts` holds the definitions and finds keywords (bracketed in a summary, by name in the full text).
+- `CardDetailView`, `KeywordPanel`, `CardInspectView`: the 250 px detail view, bottom-anchored, 440 px cap, art shrinking first, boxes on the side with room. `cardInspect.ts` puts it on a card through the tooltip factory and wires the pin (secondary click, I, touch hold).
+- `TooltipService.pin`, `unpin`, `pinned`, and `TooltipSpec.pinnable`; a pin drops when its owner unmounts, checked after layout.
+- `CardPileView` and `openPileDialog`: a driver's tab opens their draw (name order) and discard piles; the card browser's cards inspect too.
+- DDB-204: ramming_run, rally_the_convoy, and top_off summaries tightened to fit three lines at 12 px in 114; `cards.test.ts` measures the face's own layout (`FACE_RULES`) and checks every bracketed word has a definition.
+- DDB-172: the y-multiple-of-10 nudge was already gone (1c2b111) and DDB-124's resize replay with it; the resting and lifted poses are explicit (`fanPose`, `LIFTED_TRANSFORM`).
+- Goldens: new `card-faces`, `card-detail`, `card-detail-pinned`, `card-detail-cap`, `card-pile-draw`, `card-pile-discard`, `card-reward`, all in the lint gate at 1440x882 and 1024x600; every screen with a card face moved.
+- Review fixes: a modal sets a pin aside and gives it back on close; the Escape that lets a pin go is consumed; a secondary press in the hand cancels click-then-target and pins nothing; the face's and view's draws are built once, not per frame; the Armor definition matches Combat Rules (here and in the mock); the hex corner is part of the card's hit area.
+- Decision record: [card-face-and-detail-view.md](./AI_TECHNICAL_DECISIONS/card-face-and-detail-view.md).
+
+**How:** unit tests for the face, the detail view, the pin, the combat inputs, and the card data; played a turn at 1280x720 and 1024x600 through `__dev.input` (hover, pin, drag, click-then-target, keyboard and I, the pile dialog, END TURN), layout lint zero throughout.
+
+## The top bar and the combat log drawer (2026-10-02)
+
+**What landed:** DDB-140 with DDB-123 folded in (DDB-127), Battle Screen Design sections 2, 6, and 8.
+
+- The top bar gains the menu key (the mock's three bars, drawn disabled: the game has no pause menu, filed as DDB-264) and the wave group, "Wave N of M" with "+N incoming" in raider red while any are coming. The combat screen shows wave 1 of 1, since there is no wave code yet.
+- `CombatLogLayer` is a `ChromeStack` on the mock's drawer: a header, then a `ScrollContainer` of `LogLine` rows, each a mono turn tag ("T3") and 13 px text wrapping beside it on 18 px leading over a hairline. `openDrawer` takes focus into the scroll container (arrows, Page Up and Down, Home, End), and closing by L, the LOG key, or Escape puts focus back where it was, or asks the screen for a place when that has gone. F6 stays as an alias.
+- `CombatLog` holds player-facing lines only, keeps 100, and takes `{ message, type, turn }`. Its `addBattleMessage` drops Battle's debug dumps, turn bookkeeping, opening, and leftover adrenaline, and reads a message's `line` when it has one. The `[D1]` and `[Turn N] [Driver N]` prefixes are gone; the turn tag is the one prefix.
+- `Battle` keeps its record unchanged for the simulator and tests, adds a `debug` message type for the team status and hand dumps, and gives messages with seat tags or before-and-after numbers a `line` without them. The screen logs the matchup, "Your turn", and "The raiders' turn" itself, and no longer logs card plays twice.
+- Review fixes: the disabled menu dims its edge and glyph and explains itself in a tooltip; scrap and fuel take the mock's tints; a reader scrolled up in a full log keeps their line as old ones drop; closing the drawer never leaves focus on it; no allocations in the new draw code; driver-named lines come from one sentence through `Battle.logAbout`.
+- New gallery scene `combat-log`, linted at both gate sizes, and a `combatScreen-log` screen case (the drawer open via `navigate('combatScreen', { openLog: true })`) captured and linted at both. Decision record: [combat-log-content.md](../../docs/AI_TECHNICAL_DECISIONS/combat-log-content.md).
+
+**How:** unit tests for the log model (filtering, lines, a played turn with no dumps), the drawer (wrapping, scrolling, focus in and back, Escape), the top bar, and L through the combat screen's keyboard path; played click, drag, END TURN, L, the LOG key, and keyboard scrolling through `__dev.input` at 1280x720 and 1024x600; goldens minted by CI.
+
+## The enemy turn as a paced phase (2026-10-02)
+
+**What landed:** DDB-112 (DDB-5), the pacing DDB-139 builds on.
+
+- `Battle`: `endPlayerTurn({ stepEnemyTurn })`, `stepEnemyTurn()` returning an `EnemyTurnStep` (raider, card, target, played, fizzled, or dropped), `runEnemyTurn()`, `enemyTurnInProgress`. `processEnemyTurns` split into `beginEnemyTurn`, the step, and `finishEnemyTurn`; `playPlannedAction` returns what it did. `endPlayerTurn` is synchronous and its default still runs the whole turn.
+- `CombatScreen`: END TURN starts `EnemyTurnPacer` (a frame ticker on the mount context's clock), which steps one action per beat; the dock is disabled and End Turn says WAIT until the player's draw, and the intents shown at END TURN stay up; a fizzle pops MISS; `actingRaider` names the raider on screen. `EndTurnColumn.show` takes `waiting`.
+- Tests: Battle steps in plan order with the draw after the last step, a dropped raider is one step, a fizzle is its own, a loss ends the turn; the screen holds each beat, locks the dock, and draws after the last beat, under reduced motion too. New Playwright spec `enemyTurn.spec.ts` captures and lints the mid-turn screen at 1440x882 and 1024x600.
+- Review round: `CombatFxLayer.popNumber` gives each number the lowest free stack slot on its vehicle and an id from a counter that only goes up (three hits a beat apart used to share a slot and an id); the lead-in counts from when ENEMY TURN shows (`TurnBanner.timeToNext`); the dock stays locked once the fight is over; the 900 and 700 ms timings are in Battle Screen Design section 6; the headless callers no longer await `endPlayerTurn`.
+- Decision record: [enemy-turn-pacing.md](../../docs/AI_TECHNICAL_DECISIONS/enemy-turn-pacing.md).
+## The vehicle token (2026-10-02)
+
+**What landed:** DDB-135 (DDB-127), folding in DDB-165.
+
+- `game/ui/Vehicle.ts` rebuilt as Battle Screen Design section 3's token: 196x117 at x1, 135 with a passenger, fixed geometry from the mock's `tokenHTML`. Intents row inside the token (IntentRow, 24 px discs, right-aligned), rear-view sprite and speed, plate with mark, stripe, ellipsized name, armor shield, structure and driver HP bars of equal weight, passenger row, status chips with "+N", WRECKED and NO DRIVER stamps, and targeting outlines and dimming.
+- `fitToSlot(rect, scale?)` scales x1 to x1.25 and centres the token in a slot, allocation-free so a swerve can call it per frame. A road-wide scale is a cap: a passenger's taller token that it would push out of its slot takes less. The token refits itself when a passenger joins. The token's size and `slotScale` live in `ui/tokenGeometry.ts`; `CombatLayout` re-exports them and builds its `tokenScaleFor` (capped, never floored, so the road can report a slot too small) on `slotScale`.
+- `IntentMarker` draws a target mark (`targetMarks.ts`, shared with the driver tab); `CombatScreen.intentMarkerOf` fills it from the intent's target and the driver seats. Hit numbers pop from `plateScreenBounds`.
+- New `StatusChip` (buff, debuff, SPENT, Shield, "+N", each with a tooltip). Eight Material icons added to the icon atlas (heart, double chevrons, broken shield, fire, bolt, two crosshairs); the icons scene wraps its grid at twelve so it fits 1024.
+- `ArmorBadge` deleted. DDB-165 was already fixed on main by the icon atlas (DDB-72); the shield is now a polygon the token draws.
+- Merged after DDB-134: `RoadView.placeToken` is `fitToSlot(token.at, layout.tokenScale)`, its plate subclasses and IntentRow bookkeeping are gone (`setVehicleIntents` and `intentRowOf` go through the token), and it passes the combat screen's `seatOf` to every token.
+- Gallery scene `vehicle-tokens`. Record: [vehicle-token.md](../../docs/AI_TECHNICAL_DECISIONS/vehicle-token.md).
+
+**How:** unit tests for geometry, fit, chips, wreck states, marks, ellipsis, lint per state, targeting; played the combat screen through `__dev.input` at 1280x720 and 1024x600 (drag, click-then-target, keyboard, end turn).
+## The road view: lanes, rows, shoulders, and fixed slots (2026-10-02)
+
+**What landed:** DDB-134 (DDB-127), Battle Screen Design sections 1 and 2.
+
+- `computeRoadLayout({ width, height })` and `roadSlotRect(layout, slot, out?)` in `CombatLayout.ts`: the one road layout, pure. A 16 px pad, the 18 px gutter, six lanes; a 26 px header and three rows. Slots are 205x141 at 1280x720 and depend only on the band's size. `tokenScale` is the mock's `k` (to x1.25, reported below 1 rather than floored); `tokenScaleFor` takes a passenger token's height.
+- `RoadView` replaces `BattlefieldLayer`, `EnemyBattlefieldLayer`, and `PlayerBattlefieldLayer`. One component holds both teams, raiders first in the tree. Its ground is built on resize and replayed: shoulder hatch and tints (red where raiders flank, bone on your flank), red raider lanes, solid shoulder edges, dashed lane lines, the 4 px yellow centre line, faint dashed outlines in empty slots, the header strip, and rotated row labels. On wide screens the art bleeds to the edges past the 1600 stage.
+- A slot change swerves: progress on the animator, lanes on `ease_standard` and rows on `ease_emphasized`, the token raised while it moves. Reduced motion lands it at once; a resize lands it.
+- The turn banner centres on the rows below the header (a header-high top margin), 13 px lower than before, as the mock has it.
+- Until DDB-135's token, the old plate sits where the token's plate would, under a 24 px strip holding the raider's intents.
+- New gallery scene `combat-road`. Decision record: [road-view.md](../../docs/AI_TECHNICAL_DECISIONS/road-view.md).
+
+**How:** unit tests for the layout and the view (slot geometry at every gate size, swerve path, reduced motion, outlines, tints, bleed); played drag, click-then-target, keyboard, Flanking Maneuver's swerve, and END TURN through `__dev.input` at 1280x720 and 1024x600; goldens minted by CI.
+
+## The accessor rename (2026-10-02)
+
+**What landed:** DDB-91's second PR and DDB-245 (DDB-55, phase 6, R8.23). Mechanical; no behaviour or pixel change.
+
+- Component: `getX/getY/getWidth/getHeight`, `setX/setY/setWidth/setHeight`, `setVisible/isVisible`, `setOverflow/getOverflow`, `setEnabled/isEnabled`, `getChildren`, `getComponentType`, `setHovered`, `setDragOffset` became the accessors `x`, `y`, `width`, `height`, `visible`, `overflow`, `enabled`, `children`, `componentType` (protected setter), `hovered`, `dragOffset`. `setPosition` and `setSize` stay: they set two values at once.
+- Leaves: a text's `text`, `fontSize`, `color`, `align`, `verticalAlign`; the shapes' `fillColor`, `strokeColor`, `radius`, `points`; a rectangle's `fillColor`, `borderColor`, `borderWidth`, `cornerRadius`; a button's `label`. `Text`, `Panel`, and `AimReticle` override the accessors where they overrode the methods.
+- Game components: `Card` (`data`, `size`, `driver`, `onSelect` as a callback property; the unused click handler deleted), the vehicle plate's and battlefield layers' template hooks as protected getters, `BattlefieldLayer.vehicles`, `HandFan.cards`, `PlayerHandLayer` (`hand`, `selectedCard`, `targetingMode`, `handCards`, callbacks as properties), `DriverPanel`, `CombatScreen.battleState`, `DriverSelectionScreen.selectedDrivers`. Three never-called getters deleted.
+- `new Text({ text })`, `new Button({ label })`, `new DropdownButton({ label })`; `ComponentOptions` takes R8.2's input and drag callbacks. The vehicle plate keeps its own `onClick` (a target choice) out of the component's.
+- Done by two TypeScript-language-service codemods (call sites by symbol, so a mechanics `getX` was never touched), then the declarations by hand.
+
+**How:** `npm test`, `npm run lint`, CI's visual suite with no golden moved.
+
+## Developer sections on stacks, reflowing on resize (2026-10-02)
+
+**What landed:** DDB-235, DDB-236, and DDB-239 (DDB-55), one PR.
+
+- `DeveloperSectionPanel` is a stack-layout Panel on named options (`id`, `title`, optional `x`, `y`, `width`) that hugs its content; the developer screen's column stretches every section, so a resize reflows them with nothing rebuilt. `fitContentHeight`, `sectionContentWidth`, and `wrappedLineCount` are deleted. Gallery-only scenes keep hand placement through `contentHeight`.
+- Interactive controls, style guide, rectangles, buttons, text, primitive shapes, nested panels, and icons rebuilt from stacks and FlowWraps; `CatalogSection.addRow` loses its height argument; every builder is `(options) => new Section(options)`.
+- Clipping and shading fixtures are fixed-size `DrawFixture` tiles in FlowWraps; shading's tiles land where the single drawing put them at 1440 and wrap at 1024.
+- `HandFan` hides its empty row and exposes `cardGap`; the fan overlap is bounded by test for 2 to 10 cards. Developer screen on `bg_base` and the display face; `Card.colorForRarity` replaces the showcase's copy of the rarity colours. The spec's combat line names zIndex as fan order and the raised layer as the lift.
+- Decision record: [developer-sections-on-stacks.md](./AI_TECHNICAL_DECISIONS/developer-sections-on-stacks.md).
+
+**How:** `DeveloperScreen.test.ts` mounts at 1440x882, resizes to 1024x600 and back, and lints zero with the same section instances; a Playwright lint test does the same live resize in the browser; the full chromium lint spec (53 tests) passes locally, every gallery scene at zero.
+## Phase 7 deferred items classified and recorded (2026-10-02)
+
+**What landed:** DDB-94 (DDB-55), docs only.
+
+- Each item on phase 7's deferred checkbox, plus IME composition and DDB-237, checked against its rule and conformance row. None is required, so none was built and no task was filed; reasons and reopening triggers are in [deferred-engine-items.md](./AI_TECHNICAL_DECISIONS/deferred-engine-items.md).
+- Spec levels made consistent with the checklists: R15.40 (gamepad adapter) is a MAY with an optional row in 15.13, R7.5 (UI scale) is a SHOULD to match its recommended row, R9.24 says the controller-mode select question waits on the gamepad adapter, and 12.10's optional row names IME composition.
+- The phase 7 checkbox in the implementation spec is ticked.
+
+**How:** read R3.26, R4.15, R7.5, R8.19, R9.24, R9.27, R12.10, R12.38, R15.39, and R15.40 against the 3.13, 4.8, 7.9, 8.10, 12.10, and 15.13 checklists and the DDB-93 re-score; confirmed in code that `DrawApi` has no non-rect clip shape (R4.15's MUST) and the context has `stencil: false` (R15.2).
+
+## Conformance re-score against chapter 14 (2026-10-02)
+
+**What landed:** DDB-93 (DDB-55), docs only.
+
+- Re-scored the sibling engine column of `docs/ui-rendering-spec/14-testing-and-conformance.md` section 14.4 against `517400c`, every cell citing the test that shows it. Before: 4 yes, 31 partial, 62 no, 3 not applicable. After: 85 yes, 15 partial; a recorded departure scores partial until the spec text allows it.
+- Added a sibling engine column to section 14.7: unit, behaviour, and pixel layers yes; the lint-zero gate and the goldens partial (not required checks); perf comparison no.
+- Filed the gaps as DDB-242 to DDB-255 under DDB-55, and pointed the chapter 15 card fetch at the existing DDB-52.
+- Corrected the input dispatcher record and the implementation spec: roots are hit-tested in paint order, not mount order.
+- Ticked phase 7's re-score checkbox in the implementation spec with the counts and task keys.
+## Popover and tooltip clip at the border, menu rows inside it (2026-10-02)
+
+**What landed:** DDB-240 (DDB-55).
+
+- Popover and Tooltip override `computeClipRect` and `clipRadius` with `borderClipRect` and `borderClipRadius` (new in `ui/surfaces.ts`): when placement shrinks either and it clips, the clip is the box inset by the border with the background's corner concentric inside it, instead of a plain rect at the box edge that let cut content paint over the border and corners.
+- Menu places its row ScrollContainer inside the 1 px side borders, so a hovered row's wash no longer tints them; `PAD` keeps rows and the scrollbar clear of the corners, so the menu needs no rounded clip of its own. Select, DropdownButton, and ContextMenu get it through Menu.
+- Decision notes added to [component-rounded-clip.md](./AI_TECHNICAL_DECISIONS/component-rounded-clip.md).
+
+**How:** Popover and Tooltip tests for the constrained clip rect, radius, and the snapshot's `roundedClip`; a menu test that the hover wash sits inside the border and below `PAD`; menus and overlays goldens re-minted.
+
+## Escape on every screen's root, focus back to the menu opener (2026-10-02)
+
+**What landed:** DDB-225 and DDB-238 (DDB-55), one PR.
+
+- `Game`'s document keydown listener is gone. Every screen already registered Escape on its root; F12 moved to the dispatcher's scene table and F5 to the developer overlay root's own table, so both come through `PointerAdapter` (a composing keydown fires neither, R15.39), pause drops them, and a transition holds F12. Held keys don't repeat the toggles.
+- The dispatcher searches diagnostic-tier roots first for hotkeys, ahead of any modal, so F5 stays live under a transition or a dialog as it did before. R9.15 says so.
+- F12 off the developer screen returns focus like Back does; Developer and Showcase Page Up and Page Down use `scrollByPages`.
+- `DriverSelectionScreen` builds its page in `onMount`, clears it and unregisters Escape in `onUnmount`, and drops a roster load that finishes after it left. Back and Escape go to the menu with `restoreFocus`.
+- Card Showcase and Developer Tools go back with `restoreFocus`, so the menu lands on the button that opened them.
+- `ScreenManager` reads and deletes a screen's remembered focus whenever it mounts that screen, so a leave the recorder skipped can't restore an older id.
+- R12.20 lists `scrollByPages(n)` and its page distance. The Settings doc comment is rewrapped.
+
+**How:** `Game.test.ts` drives F5 and F12 through the dispatcher, under a modal root, and through a real `PointerAdapter` with composing keydowns; a dispatcher test for the diagnostic root above a modal; `ScreenManager.test.ts` round trips to all four menu screens by keyboard (ring shown) and Settings by pointer (no ring), a disabled opener, and the one-shot memory; driver selection tests for the onMount build and Escape unregistering. Played every screen's Escape through `window.__dev.input` in a browser.
+## Panel and ScrollContainer clip with the rounded clip (2026-10-02)
+
+**What landed:** DDB-231 and DDB-234 (DDB-55).
+
+- `Component.clipRadius` (0 by default): `renderTree` pushes `pushClipRounded` when it is positive, `containsScreenPoint` and `hitTest` reject points in the cut corners, `treeSnapshot` reports `roundedClip`.
+- Panel clips at `borderWidth` with radius `borderRadius - borderWidth`; its content inset floor is the border when it clips and `max(borderWidth, radius)` when it does not, recomputed when `overflow` changes. ScrollContainer clips at the border (plus R8.8's ink reach) with the radius less its smallest inset.
+- `keptRoundedClip` and `roundedClipCuts` in `draw/clip.ts`: a rounded clip that takes no pixel off the merged rect is dropped on every path, and `nested-rounded-clip` fires only when both cut.
+- `WebGL2Backend` keeps uniform slots in a `StreamRing` of 12; an upload that adds rounded clips after a draw read the bound slot writes the projection and the whole table into a fresh slot and binds it, instead of appending into a bound range.
+- DDB-234: `clipsChildren` no longer answers false for a zero-sized box, on Component or ScrollContainer.
+- Gallery scene `rounded-clip`: a clipping panel filled to its corners, a rounded scroller scrolled under its corners, a rounded scroller nested clear of a rounded panel's corners (no warning), and two domains split by `flush()` that each bring a rounded clip, so the fresh slot is drawn from on real GL.
+- Decision record: [component-rounded-clip.md](./AI_TECHNICAL_DECISIONS/component-rounded-clip.md).
+
+**How:** clip tests for the drop rule (the outermost pixel centres a rect keeps, on and off the grid, ratio), DrawApi tests that a clear nesting does not warn and a real one does, backend tests for the fresh slot and for ring growth, Panel, ScrollContainer, ScrollClip and snapshot tests for the clip, its radius, corner hits in both hit walks, and the zero-sized cases; goldens re-minted with `all`.
+
+## Vehicle text on the token scale, raster weight matched to the field (2026-10-02)
+
+**What landed:** DDB-217 (DDB-55), R6.4a.
+
+- `Vehicle` draws every run at `fs_xs` on `lh_tight` lines, and `ArmorBadge` its value at `fs_xs`. Rows stack from measured heights: armor row at the bottom, the structure track with its value beside it, and the portrait above with the driver's name beside the driver portrait, the HP under it, and the vehicle's name at its foot. The driver's name drops its "Driver: " prefix; names take an ellipsis.
+- `text/fieldInk.ts` holds each face's distance-field ink of "Hamburgefonstiv" at 9 px, read by both `FONT_FACES` and the web suite that measures it. `RasterGlyphPage` measures each (role, size)'s raster ink once, from the reference word's glyphs drawn as any glyphs are (`inkSample`), and, when it is more than 2 percent off the field's, draws the glyphs through a power curve (`inkCurve`) that lands it on it. CoreText at ratio 1 was 1.26 to 1.45 times the field, FreeType on Linux up to 1.13; written glyphs are now 1.000 to 1.001 of the field on macOS.
+- R6.4a in chapter 6 now allows reshaping the raster's coverage toward the field's ink.
+- Decision record: [small-text-weight-match.md](./AI_TECHNICAL_DECISIONS/small-text-weight-match.md).
+
+**How:** Vehicle tests that every plate run is `fs_xs`, no two lines overlap on a 140x91 plate, and long names end in an ellipsis inside it; unit tests for the sample, histogram, curve and the page measuring once per size; `uberShader.spec.ts` measures the field ink through the shader for each face and scores the glyphs `rasterizeGlyphs` writes, through the curve, at 6 to 8.75 px on the running platform. Played a turn through `window.__dev.input` at 1280x720 and 1024x600.
+
+## Settings and credits polish (2026-10-02)
+
+**What landed:** DDB-232 (DDB-55), the open items from the #126 review.
+
+- `ScreenManager.navigate` notes the focused id on the screen it leaves; `{ restoreFocus: true }` focuses it again after the next mount there. Settings and Credits go back with it, so the menu lands on the button that opened them.
+- `GameSettings` keeps the stored record it read and saves its known values over it, so keys a newer build wrote survive.
+- `ScrollContainer.scrollByPages` is Page Up and Page Down's distance; the credits hotkeys use it, so the page is the same whether Back or the list has focus.
+- `credits.test.ts` checks the icon set's holder against the face's own copyright string and the game's licence line against `LICENSE`.
+- The credits-at-a-scrolling-size lint item was covered by #130.
+
+**How:** `ScreenManager.test.ts` plays menu to Settings and Credits and back by keyboard; tests for unknown keys and the paging distance.
+
+## Every screen at lint zero with a golden, at two sizes (2026-10-02)
+
+**What landed:** DDB-91's first PR (DDB-55, phase 6), closing DDB-230.
+
+- `Card` draws its rarity rim, face, and driver badge in `render()`; `Vehicle` its portrait panel and structure bar, with the value centred on the bar and rows placed below the measured row above; `BattlefieldLayer` its ground and lane dividers (now a `Component` with `passthrough` hits).
+- `FanPose.order` becomes each hand card's `zIndex`, declaring the fan's overlap; the lift no longer touches `zIndex`. `fanReach` pads the row by a turned card's reach.
+- Card showcase and developer screens rebuilt on root stacks with a fill `ScrollContainer`, Back, Escape, and Page Up/Down. The showcase flows its cards through `FlowWrap`; the developer screen is a `Stack` of `developerSections`, the gallery's scene factories.
+- Icons, stacks, paint order, scrolling, panels, and clipping sections wrap below about 1,320 px (`wrappedLineCount` predicts the height). Paint order's column gap 40 to 30.
+- `window.__app.navigate(name, data)`; `BattleResultData` is `{ victory }`.
+- Harness: `SHORT_VIEWPORT` (1024x600); every screen scenario at both sizes, the battle result per outcome; `openScreen` and `settle` take the size; the screen lint gate is every screen scenario.
+- Decision record: [screens-at-lint-zero.md](./AI_TECHNICAL_DECISIONS/screens-at-lint-zero.md).
+
+**How:** lint tests over every card at every size and over the plate at the battlefield's sizes, `fanReach` and `wrappedLineCount` tests, a `Game` test for the hook's data; the screen lint spec (20 scenarios) passes locally; the menu, showcase, developer, settings, credits, driver selection, a full fight, and the result played through `window.__dev.input` at both sizes with lint zero on each screen and a clean console.
+
+## Arrow trapping settled, hug scrolling specified (2026-10-02)
+
+**What landed:** DDB-227, DDB-228, and DDB-233 (DDB-55), one PR.
+
+- R9.24: a control consumes the arrows along its axis and leaves the two across it to directional focus (R9.26). Along the axis they're consumed even at the ends, so a held key doesn't run off a slider or a wrapping group. R12.15, R12.17, and R12.35 follow it.
+- `SegmentedControl` drops Up and Down, matching `TabBar`. `Slider` steps on Left and Right only. `RadioGroup`'s focus-group orientation and arrows follow its stack direction (Up and Down in the default column) instead of `both`.
+- R12.20 and R10.17 describe ScrollContainer's `heightMode: 'hug'`. Outside a stack it now clamps its hug height to `minSize` and `maxSize`, through a new `Component.clampToLimits` that `Stack.sizeSelf` and `FlowWrap` use too.
+- `FlowWrap` measures, wraps, and places items by their margin boxes.
+- DDB-233, from review: directional focus entering a focus group from outside lands on its active child, as Tab does (R9.26). On settings, Down, Up, Right used to move Full to Reduced; now Up returns to Full. `RadioGroup`'s direction setter keeps its focus-group orientation in step. Outside a sizing parent, `FlowWrap` reflows at its clamped width before taking its height. R9.24 names selects, dropdowns, and number inputs as consuming vertical arrows; controller mode for them is DDB-237.
+- Gallery scene `scroll-hug`: a hugging scroller in a roomy column and a short one, and two outside a stack held to `maxSize` and `minSize`.
+- Skipped DriverSelectionScreen's constructor UI and Escape unregistration; DDB-225 owns that screen's Escape.
+
+**How:** slider, segmented control, and radio tests for the cross-axis arrows reaching a neighbour; ScrollContainer and FlowWrap tests for the clamps and margins; `Game.test.ts` covers the document Escape listener stepping aside for a root that registers Escape.
+
+## The rounded clip in the uber shader (2026-10-02)
+
+**What landed:** DDB-190 (DDB-55), R4.14. `pushClipRounded` draws round instead of square.
+
+- `rendering/RoundedClipTable.ts`: the frame's rounded clips (centre, half size, radius clamped to the half extent), deduplicated against the last clip and the last entry, 255 a frame, reported once if it overflows.
+- `UberGeometryEncoder.begin` writes the draw's table index into the mode word's unused byte; the table resets at `beginFrame`. `UBER_FRAME_BLOCK` describes the frame uniform block, which is the projection and then the table.
+- `WebGL2Backend` sizes the frame slots for the block (8,448 bytes each) and appends the entries an upload added before its draws, counting them in `bytesUploaded`.
+- `uber.vert` reads the entry into flat varyings; `uber.frag` multiplies colour and coverage by a rounded-box SDF on `vPosition` ramped over one device pixel.
+- `DrawApi.pushClipRounded` scales the radius by the transform's smaller axis scale.
+- Gallery `clipping` gains three rounded-clip fixtures.
+- Decision record: [rounded-clip.md](./AI_TECHNICAL_DECISIONS/rounded-clip.md). Follow-up DDB-231 for Panel and ScrollContainer.
+
+**How:** `RoundedClipTable.test.ts`; backend tests for the table's upload order and that rounded clips split nothing; a DrawApi test for radius scaling; uber shader pixel tests for the corner cut at ratios 1 and 2, a glyph under a rounded clip, and 4.7's nested case.
+## Small-text evenness kept as a platform tolerance (2026-10-02)
+
+**What landed:** DDB-218 (DDB-55). No rendering change.
+
+- Weight at 10 to 13 px already matches the Linux runner's FreeType (0.95 to 1.0); the macOS gap is CoreText drawing heavier, so stem darkening would only make the reference platform too heavy.
+- Evenness is the lack of hinting: each glyph's stem lands at the sub-pixel phase its unhinted advances give it. Snapping each glyph to a whole pixel (R6.16's optional rule) takes stem variation to zero and placement error from 0.02 to 0.06 px up to 0.28 px; enlarged, 10 px reads "Hambur gefonstiv". Half-pixel snapping is worse at 12 px. Kept the field as it is.
+- The 6.9 test in `uberShader.spec.ts` now scores placement error too and holds the field under 0.1 px. The stem row is 34 `l`s so 12 px walks a full pixel of phase, each `l` is scored in a window centred on its stem, variation ceilings sit about 10 percent over today's, and weight on Linux is held to 0.9 to 1.05.
+- The macOS weight step between the raster fallback and the field at the switch size stays open and moves to DDB-217.
+
+**How:** measured all three variants in the encoder against the test locally (macOS Chromium; the field's scores are the same on Linux). Details in [small-text-evenness.md](./AI_TECHNICAL_DECISIONS/small-text-evenness.md).
+## IME composition scoped out, composing keys dropped (2026-10-02)
+
+**What landed:** DDB-220 (DDB-55), a scope call plus a guard.
+
+- Decided not to build composition input (a hidden editable element at the caret, preedit underlined, commit on `compositionend`). R12.10 and R15.39 put it out of scope for the baseline, and every text field today is on the developer screen.
+- `PointerAdapter` drops a keydown with `isComposing`, `keyCode` 229, or key `Process` before it is queued, so a composition never inserts raw letters (Safari reports the typed letter with 229), deletes, submits, or fires a hotkey. Keyups still go. No Dispatcher change.
+- R15.39 now states the drop as a MUST and that composed text can't be entered; R12.10 points at it.
+
+**How:** two cases in `TextInput.test.ts` dispatch real DOM keys on `window` through the adapter: composing keys shaped like Safari's (the letter with `keyCode` 229) and flagged `isComposing` (a letter, Backspace, Enter) leave the value, caret, `onSubmit`, and a bound hotkey alone and typing resumes after; Chrome's `Process` and a `Dead` key insert nothing. The first case fails with the guard removed. Not tried against a real OS input method. Decision recorded in [component-catalog-wave-b.md](./AI_TECHNICAL_DECISIONS/component-catalog-wave-b.md).
+## Combat turn banner, whole intent plans, and discard flights (2026-10-02)
+
+**What landed:** DDB-88's third and last PR (DDB-55 phase 6): the turn banner (DDB-30), every planned intent over its raider, and the discard animation (DDB-37).
+
+- `TurnBanner` replaces the phase box: the mock's band across the road only, on `overlay`, for 1100 ms on each turn change (YOUR TURN at the start, ENEMY TURN then YOUR TURN after END TURN, queued). The countdown is on the frame clock; the slide and fade are tweens, so under reduced motion it holds still for its time.
+- `IntentRow` beside each raider's plate shows the whole plan, two discs then "+N", reconciled by place, type, and value so a changed plan grows and shrinks on the animator. Buff and debuff have their own colour and chevron; each disc's tooltip says what it does to whom.
+- `PlayerHandLayer.setHand` reports cards the new deal drops; one that went to discard flies there as a `DiscardFlight` in the fx layer, from its pose in the fan to the DISCARD count. None under reduced motion.
+- After review: discs are siblings of the plates (a plate is one hit target, so its children were never hovered); the hand's end-of-turn discard flies from `Driver`'s new `handDiscarded` event, before the draw can reshuffle; a dropped card flies from the drop point; banner changes coalesce to the latest pair, and only the words slide; a card dropped on a raider's intent disc lands on that raider.
+- Re-review nits from #118: a scrolled-ancestor case for `localToAncestorInto`, and the dev log's missing blank line.
+
+**How:** `CombatScreenTurn.test.ts` (banner placement, queue, slide, reduced-motion hold; intents per raider; a played card's flight from the hand to the pile, the whole hand at END TURN, none under reduced motion), `vehicleBadges.test.ts` (two then "+N", tooltips, grow and shrink, reduced motion), `EnemyBattlefieldLayer.test.ts`, `Component.test.ts`. Played a full turn, enemy turn included, in headless Chromium through `window.__dev.input`.
+## Dialog on Panel, and the focus ring after Escape (2026-10-02)
+
+**What landed:** DDB-221 and DDB-229 (DDB-55 catalog follow-ups).
+
+- `Dialog`'s surface is now R12.19's `Panel`: `raised` with the `shadow_pop` style shadow, kicker and title in the panel header, the X in `actions`, and a zero bottom inset. A small `DialogPanel` subclass adds the hairline over the footer. The panel clips inside its border rather than the body clipping at its box, so a control on the body's edge keeps its ring (R12.21 says so now). The title is the panel's `fs_md` now (was `fs_lg`), and the header band is the panel's height, so the `dialog` golden moves.
+- The dispatcher marks focus keyboard-driven when a navigation key (Enter, Space, Escape, arrows, Home, End) is handled by the focused component (as a key, `activate`, or `cancel`, outside a text field's own keys) or closes a popup or overlay. A key that only reaches a hotkey table, like combat's Escape for a mouse player cancelling a drag, leaves it alone. Before, only Tab, arrow navigation, and `activate` did, so a Select opened by a press, driven with the arrows, and closed with Escape had focus with no ring. DropdownButton and ContextMenu's hand-back had the same gap and are fixed by the same change. R9.23 says so now.
+
+**How:** `Dialog.test.ts` gained the panel composition (variant, shadow, actions, title, insets, footer hairline) and a Select nested in a modal (Escape closes the list first and keeps the ring, then the dialog, then focus goes back to the opener). `menus.test.ts` covers the ring after Escape for Select, DropdownButton, and ContextMenu; `widgetInput.test.ts` covers a pressed button staying ringless when Escape only reaches a hotkey, its ring after Enter, and a text field staying ringless; `CombatScreenHand.test.ts` covers a mouse player's Escape cancelling a drag and targeting without a ring.
+## Settings and Credits screens (2026-10-02)
+
+**What landed:** DDB-38 (DDB-55 phase 6).
+
+- `screens/settings/SettingsScreen.ts`: a Motion panel with a `SegmentedControl` (System, Reduced, Full) and Back. Focus starts on the selected segment; the arrows change the setting, which applies and persists at once; Tab reaches Back; Escape returns to the menu.
+- `screens/credits/CreditsScreen.ts` and `credits.ts`: the licence, commit authors, typefaces, icons, and tools, all taken from the repo, in a `ScrollContainer` inside a `Panel` that fills between the title and Back. Back is focused; Page Up, Page Down, Home, and End scroll from it; Escape returns.
+- `game/core/GameSettings.ts`, the first settings store: one validated JSON record in local storage, tolerant of a missing, corrupt, or throwing storage. `engine/rendering/reducedMotion.ts` is now the `ReducedMotion` class with an `override`, which `Game` drives from the setting.
+- The main menu's Settings and Credits buttons navigate to the new screens. Both screens are in the layout lint gate and the screen goldens.
+
+**How:** `GameSettings.test.ts`, `reducedMotion.test.ts`, `SettingsScreen.test.ts`, `CreditsScreen.test.ts`, `credits.test.ts` (every bundled font and icon directory credited, copyright lines and licences checked against their files), and a `Game.test.ts` case for the wiring. Played both screens from the menu through `window.__dev.input` with keyboard and mouse in headless Chromium at 1024x600 and 1280x720: lint zero, focus on the primary control, the setting surviving a reload, credits scrolling by key and wheel, no console errors. Details in [settings-store-and-screens.md](./AI_TECHNICAL_DECISIONS/settings-store-and-screens.md).
+
+## Main menu, splash, and battle result on root stacks; screen transitions (2026-10-01)
+
+**What landed:** DDB-90 (DDB-55 phase 6).
+
+- `Screen` takes a `root` option; the main menu, splash, and battle result each pass a root `Stack` with `fill` on both axes and centre their content in it. No hand placement and no `onResized` on any of the three. They build in `onMount` and clear in `onUnmount`, on theme tokens.
+- Main menu: display-face title over a `FocusGroup` of block `lg` buttons (arrows wrap, one Tab stop), Start Game in the accent tone and focused on mount; the build stamp is an absolute child anchored bottom right.
+- Splash: logo, title, and subtitle centred; fades in over 1 s, holds 2 s, then navigates; Enter, Escape, or Space skips. Its own fade out is gone.
+- Battle result: a raised `Panel` with corner ticks, the outcome in `status_ok` or `status_crit`, Continue focused; Enter or Escape returns to the menu. Missing data logs and builds nothing.
+- `ScreenManager.navigate` runs through one `ScreenTransition`; `{ immediate: true }` is the boot and the dev `__app.navigate` hook. `ScreenManager.transitioning` gates `Game`'s document key listener (F12, Escape) while a transition runs.
+
+**How:** `ScreenManager.test.ts` (fade, swap, focus handed over after the transition, a double press swapping once, keys blocked under the fade, immediate ending a transition, reduced motion), `MainMenuScreen.test.ts`, `BattleResultScreen.test.ts`, the splash suite rewritten, and the combat teardown suite settling the transition. Played splash, menu, driver selection, Escape back, a won fight, result, and menu again through `window.__dev.input` in headless Chromium at 1024x600, 1280x720, 1920x1080, and 1280x720 with reduced motion: lint zero on all three screens, focus on the primary action after every transition, no console errors. Details in [screen-transitions-and-root-stacks.md](./AI_TECHNICAL_DECISIONS/screen-transitions-and-root-stacks.md).
+
+## Catalog Wave B, slider, tabs, and segments (2026-10-01)
+
+**What landed:** DDB-86's third PR (DDB-55 phase 5), R12.15 to R12.17. Built on 2026-09-28 before #110, merged up to main and moved onto its API.
+
+- `ui/Slider.ts`: `positionToValue`, `valueToPosition`, `snapToStep` (log with positive bounds, linear fallback, never NaN); thumb grab keeping its offset or track jump, both captured; arrows by step or 1% of the track; Home and End; silent programmatic value; label and value columns and a detent tick. The formatted value is cached per value and the value column is sized once from the formatted min, midpoint, and max, so a drag neither re-measures nor moves the track; `labelWidth` and `valueWidth` align stacked sliders. Review fix: a press on the label or value column only focuses (it used to jump to an end).
+- `ui/LabelledPressable.ts`, a Pressable drawing one measured label from look layers; `ui/TabBar.ts` (a Stack of `Tab`s, controlled or uncontrolled, underline, hairline) and `ui/SegmentedControl.ts` (equal segments in an inset well, the tone's glowing chip), both focus groups moving selection with focus, wrapping and skipping disabled items.
+- `tabLayers`, `segmentLayers`, and `toneGlow` in `style/variants.ts`; gallery scene `slider-tabs`.
+
+**How:** `ui/sliderTabs.test.ts`, 33 cases through injected input: worldsim's Slider suite (linear and log maps, round trips, geometric midpoint, invalid log bounds, snapping, clamping, keys, callbacks, re-entrancy) plus thumb grab, jump then captured drag past the ends, even log stepping, disabled and disabled mid-drag, column presses, a fixed value column through a drag, aligned columns, columns following a new label, formatter, or range; TabBar hugging measured caps labels, controlled and uncontrolled selection, release over the pressed tab, one Tab stop with Left and Right skipping disabled and wrapping, a controlled parent refusing a tab, disabled bars out of the Tab order, underline and hairline; SegmentedControl widths, heights, click selection, all four arrows and Home, disabled, tone chip and glow; and an ink audit under a clip with each control keyboard-focused and hovered (no `ink-outside-bound`).
+## Combat drag targeting and floating damage numbers (2026-10-01)
+
+**What landed:** DDB-88's second PR (DDB-55 phase 6): cards play by dragging them onto their target, as well as by click-then-target and the keyboard, and hits float their numbers up off the vehicle they landed on.
+
+- A primary press on a hand card starts a candidate drag with `CombatFxLayer`'s `AimReticle` as the ghost, so the card stays in the hand, lifted. `TargetingArrow` draws the mock's dotted line from the card's top edge to the reticle at paint time, red while the drag service's `canDrop` is true. Both ends come up the tree through the new `Component.localToAncestorInto`, which builds no matrices, and the curve, dots, and head live in reused buffers, so a frame of aiming allocates nothing on the game's side.
+- Vehicles accept in `dragenter` when they're a target (the model's focused vehicle and `dropActive` light the plate) and play on `drop`. A card that needs no target lands on the vehicles it acts on (its driver's vehicle, the raiders, or your convoy) and plays untargeted. The road takes nothing, so releasing there cancels, per section 6. Anything else puts the card back too: a release off target, Escape, or another mouse button (a chorded `pointermove` on the captured card, R9.30).
+- `CombatScreen.chooseCard` is the one path for click and drag; a dragged card with no target waits for its drop.
+- `Battle` emits `hitLanded` (vehicle and damage) and `hitMissed` from `damageVehicle`, `damageDriver`, and both miss checks. The screen reads the plate's `screenBounds` right then, before a wreck leaves the road, and `CombatFxLayer.popNumber` adds a `FloatingNumber`, the mock's `.dmgpop` as `-N` or `MISS`. Its 900 ms life counts down on the frame clock; only the rise and the fade are tweens, so under reduced motion it holds still for the 900 ms instead of vanishing. Hits on one vehicle in the same burst stack.
+- Gallery scene `combat-fx` holds the line and three numbers still for a golden.
+- Decision record: [combat-hand-and-targeting.md](./AI_TECHNICAL_DECISIONS/combat-hand-and-targeting.md), covering this and the fan PR.
+
+**How:** `CombatScreenHand.test.ts` drives drags through the injection hook (drop on a raider and the line's ends, drop on your own vehicle, a no-target card cancelled on the road and played on its driver's vehicle, Escape, right-click, click-then-target) and checks the numbers' anchor, rise, fade, stacking, the reduced-motion hold, and that a dragged card pops one per hit or miss; `Battle.test.ts` checks the hit events; `CombatFxLayer.test.ts` covers the curve, dot spacing, and head. Played a turn in headless Chromium at 1280x720 and 800x450 through `window.__dev.input`: drag, click-then-target, keyboard, END TURN.
+
+## Driver selection on stacks, with a Select and a scrolling deck preview (2026-10-01)
+
+**What landed:** DDB-89 (DDB-55 phase 6). Closes DDB-31, and with it DDB-101, DDB-102 and DDB-108.
+
+- `DriverSelectionScreen` is one page stack: header (Back, title), body (panels and the synergy column), footer (START RUN with the summary beside it). A resize sizes the page and nothing else; the stacks reflow.
+- `DriverPanel` and `SynergyPreviewPanel` extend `Stack`. The panel's elements are built once and toggled between the empty state and the driver; the deck preview and synergy tags rebuild only when the driver changes.
+- Driver choice is the catalog `Select`, the partner's driver disabled, replacing the cycle button. Mouse and keyboard (Down opens, arrows move, Enter picks, Escape closes).
+- `ScrollContainer` takes `heightMode: 'hug'`: it measures as its content plus padding and shrinks to its `minSize` in a short column, scrolling the rest. The panel's flavour text and starting deck live in one, so 1024x600 scrolls them instead of losing the preview.
+- `game/ui/FlowWrap.ts` wraps fixed or hug items into rows at the width it is given; the deck's mini cards and the synergy tags use it. Quantities are `Badge`s under each card, off the cost digit.
+- Synergy tags pick dark or white text by the fill's luma, so the yellow, green and cyan tags read.
+- `Game`'s document-level Escape listener now defers to a screen whose root registers Escape, which fixed Escape on an open Select navigating to the main menu.
+
+**How:** `DriverSelectionScreen.test.ts` (Select options and partner disabling, keyboard pick, Escape on an open Select, tab order, resize at 1024x600, 1280x720 and 1920x1080 without rebuilding, the scroller's room above the Select, scrolling at 1024x600, badges under their cards, the card-load race), `FlowWrap.test.ts`, and four hug-height cases in `ScrollContainer.test.ts`. Played in headless Chromium through `window.__dev.input` at 1024x600: picked the right driver with a click, the left with the keyboard, wheel-scrolled the deck, started a run into combat.
+
+## Combat hand fan, hover lift, and card previews (2026-09-28)
+
+**What landed:** DDB-88's first PR (DDB-55 phase 6), the hand half: closes DDB-28 and DDB-29.
+
+- `screens/combat/HandFan.ts` (out of `PlayerHandLayer`): the mock's fan. Each card turns 0.9 degrees per step from the middle (0.5 past seven) about its bottom centre and drops along an arc capped at 5 logical, through its own transform (`Card.fanPose`); the negative-gap row leaves room for the edge cards' lean, so every card stays inside its half. The row hangs at the mock's 38 below the dock edge.
+- `Card` lifts on the animator (`dur_fast`, retargeted so a sweep over the hand never snaps): hovered, keyboard-focused, or selected, it straightens, rises 14, grows 4%, and paints and hit-tests on the `raised` layer with `zIndex` 1. While lifted it keeps the strip it rose out of in `containsPoint`, so a pointer on its bottom edge doesn't flicker it.
+- Hand cards preview through the tooltip factory: the card at `LARGE` with its full rules text (`Card`'s new `fullText`), scaled by the stage scale, centred above the card where it settles once lifted, so a no-delay swap between cards never leaves the rising card under the preview. Keyboard focus shows the preview at once. `TooltipSpec.placement` (anchor `owner` or `pointer`, side, align, and `ownerRect` to place against a rect other than the owner's live bounds) and `TooltipSpec.immediateOnFocus` are new in the tooltip service; the default is still below-right of the pointer after `tooltip_delay`.
+
+**How:** `HandFan.test.ts` (poses), `Card.test.ts` (tweened lift, fan pose, raised layer, the kept strip, full text fits every `LARGE` face), `TooltipService.test.ts` (owner placement, `ownerRect`, immediate focus), `CombatScreenHand.test.ts` (the preview at 1280x720 and 800x450, a swap mid-lift, immediate focus, the fan's turns), and the seven-cards-on-screen suite passing with the lean. Hover, preview, and keyboard focus checked in headless Chromium at 1280x720 and 800x450.
+
+## Raster glyph page stops thrashing; buttons golden focus is deterministic (2026-09-28)
+
+**What landed:** DDB-223 and DDB-222 (DDB-55 follow-ups from #108 and #110).
+
+- `RasterGlyphPage` stamps each size with the frame a run last asked for it. A full page starts over only when some size has gone unused for two frames (or a reloaded role left cells behind); a page full of glyphs in use is kept, its overflow runs stay on the distance field steadily, and it warns once. Before, a live set bigger than the page cleared and refilled every frame.
+- The encoder's R6.4a hysteresis is keyed on font and raster pixel size (the quarter-pixel device size), held while that size was drawn raster this frame or the last, aged by a new `UberGeometryEncoder.beginFrame`. Runs a raster size apart no longer share state.
+- The buttons scene's focus-ring demo focuses as it mounts (press-style focus plus `showFocusVisible`, so no reveal scrolls the developer screen) instead of on its first update, which the gallery harness's pause could beat.
+
+**How:** `RasterGlyphPage.test.ts` runs the review's case (twelve sizes on a 64 px page, 1 ms a pass, 3 ms budget): it settles by the fourth frame with no reset and no run changing path after. Encoder tests cover hover at the threshold, expiry and the 1.47/1.5 pair. `ButtonExamplesSection.test.ts` checks the ring with no update and no scroll. Two `update_mode=all` mints produced byte-identical goldens.
+
+## Catalog Wave C, tree view and screen transition (2026-09-28)
+
+**What landed:** DDB-87's third PR (DDB-55 phase 5), R12.25, R12.38, R8.22's transition sequence.
+
+- `ui/TreeView.ts`: lazy flattening keyed by node id or index path, culled rows reconciled by key, wheel scrolling with `canScroll`, keyboard cursor with Up, Down, Home, End, Left, Right, Enter and Space, chevron-column toggle, optional selection, `expandAll`, `collapseAll`, `expand`, `collapse`, `select`.
+- `ui/ScreenTransition.ts`: `run(context, swap)` fades out, swaps, lays out, fades in; blocks presses and hotkeys; retargets a second run.
+- `OverlayOptions.persistent`: survives `closeAll`.
+- Scenes `tree-view` (developer section) and `screen-transition` (gallery-only).
+
+- Review fixes (#113): TreeView's rows are virtualised inside a ScrollContainer (latch, scrollbar, Page Up and Down), the cursor's row is `active`, a collapse moves the cursor to the nearest visible ancestor, and the selection survives folding. A throwing swap ends the transition uncovered and rejects its runs; a run from inside a swap is chained; `FocusManager.focus` refuses components outside the active scope and keeps them as the scope's restore target, so the incoming scene takes no keys until the fade ends.
+
+**How:** `ui/TreeView.test.ts` (13) and `ui/ScreenTransition.test.ts` (10) through the dispatcher's queue and the frame clock, including a swap that runs ScreenManager's own closes, one that throws, and a wheel overshoot inside an outer scroller. Both scenes lint clean in the browser.
+
+## Catalog Wave C, display components (2026-09-28)
+
+**What landed:** DDB-87's second PR (DDB-55 phase 5), R12.24, R12.26 to R12.29, R12.39.
+
+- `ui/ProgressBar.ts`, `ui/Counter.ts`, `ui/Badge.ts`, `ui/Avatar.ts`, `ui/Stat.ts`, `ui/Divider.ts`.
+- `TextMetrics.baseline`, filled by `metricsOf`; `Text.shadow` passed to `drawText`; `toneColor` in `style/variants.ts`; `CatalogSection.line` takes any gap.
+- Developer sections, and so gallery scenes, `meters` and `data-display`.
+
+- Review fixes (#109, #111): Counter and ProgressBar show their target when mounted again after an unmount cut a count short; `Text.shadow` is part of the text's measured ink and cull bound, so the subtree cull never drops a visible shadow; `ProgressBar.valueText` builds the value line when the bar had none; a dialog's panel is never fully transparent, so a press on it the frame it opens is inside; a hovered toast asks for no frames and a fading one takes no clicks.
+
+**How:** `ui/display.test.ts` (26) with the committed font metrics and a recording backend: auto banding, fill and counter tweens with retargeting and reduced motion, segmented cells, the badge pill and dot, FNV-1a against known hashes, mood bands, rings as ink, the unit's baseline equal to the value's, and the divider's caption break. Both scenes lint clean in the browser.
+## Catalog Wave B, menus (2026-09-28)
+
+**What landed:** DDB-86's second PR (DDB-55 phase 5), R12.11 to R12.14.
+
+- `ui/Menu.ts`: a raised surface and one `MenuRows` part that draws and hit-tests the rows (items, separators, shortcut hints, disabled items), hover on move, a press inside consumed with `preventFocus`, selection on a release whose press began inside; `moveHover`, `hoverEdge`, `selectHovered` for owners; `maxHeight`; the rows scroll in a ScrollContainer when the menu is shorter than they are, and a keyboard highlight (or the opening one) is brought into view.
+- `ui/Select.ts`, `ui/DropdownButton.ts` (a Button with a trailing caret), `ui/ContextMenu.ts` (a Menu with `openAt`, taking focus while open and giving it back), all opened through the popup service.
+- `ui/controlBox.ts`: the field box and outside ring TextInput and Select share.
+- Gallery scene `menus`.
+
+**How:** `ui/menus.test.ts`, 36 cases through injected input (worldsim's Menu, Select, DropdownButton, and ContextMenu behaviour, plus separators, shortcuts, `maxHeight`, focus kept through a press in the list, switching between selects in one press, the captured opening press, R9.13's primary and secondary outside presses, wheel scrolling of a capped menu and selection after it, keyboard reveal, a placement-shortened select list opening with its value in view). The scene lints clean in the browser with a select and a context menu open.
+
+## Catalog Wave B, text entry (2026-09-28)
+
+**What landed:** DDB-86's first PR (DDB-55 phase 5), R12.10 and R12.36.
+
+- `ui/TextInput.ts` replaces `ui/Input.ts` (deleted with its test): the value as code points, caret and selection from `measureText` advances, press to place and drag (captured) to select, Shift with arrows, Home, End, and presses to extend, Backspace and Delete taking the selection first, Cmd or Ctrl with A, C, X, V through the clipboard service, paste stripped of control characters, `maxLength`, `validator(next, inserted)`, `password` (masked, never copied), `selectAllOnFocus`, `onSubmit` on Enter, Escape and Up and Down left unconsumed, a blink from the context clock, horizontal scroll to the caret, and everything clipped to the padded content box.
+- `ui/NumberInput.ts`: a TextInput part and a stepper column part; arrows, chevron presses, and the wheel (while focused) step; typed text commits on Enter or blur, clamped and rounded to `precision`.
+- The dispatcher claims Cmd/Ctrl+A from the browser while a text field is focused.
+- Tokens `color.bg_selection` and `control.caret_blink`; icons `expand_more` and `expand_less`.
+- `input-showcase` rebuilt as a catalog section; `interactive-controls` and the tests that built an `Input` moved to TextInput; the `clipping` scene's overflowing field is the real component.
+
+**How:** `ui/TextInput.test.ts`, 32 cases through injected input with the committed font metrics (caret placement against the advances, drag selection past the edge, keyboard selection, editing, maxLength and paste truncation, the validator per code point, Enter, Escape reaching the hotkeys, printable keys consumed, clipboard round trip, control characters stripped, password refusing copy, scroll to caret and back to zero, the clip rect, the blink, and NumberInput's clamping, stepping, commit, validator, wheel, and Tab stop). In the browser the three touched scenes lint clean, and typing, selecting, and stepping were tried by hand. Details in [component-catalog-wave-b.md](AI_TECHNICAL_DECISIONS/component-catalog-wave-b.md).
+
+## Small-text raster fallback and the scored small-size gate (2026-09-28)
+
+**What landed:** DDB-199 (R6.4a, chapter 6.9, from DDB-70).
+
+- Runs whose screen-space range is under 1.5 device pixels (under 9 device px) draw from glyphs rasterised with the platform's 2D text API at their device font size, from the same TTFs the distance-field atlases were built from, as `image`-mode quads. That includes runs under a uniform scale (the combat stage, scaled cards). Placement and measurement are still the distance-field layout; each glyph is drawn from one of four quarter-pixel phase variants, box-filtered from a 4x-wide rasterisation, so spacing matches the layout to an eighth of a pixel.
+- All roles and sizes share one 1024 by 1024 page (`rendering/RasterGlyphPage.ts`), filled per glyph on demand through the texture store's new `writeRegion`, under a 3 ms per-frame budget that `DrawApi.prewarmText` lifts for the frame after a screen or scene mounts. Combat at 1000x620 stays one GPU draw with no slot split (`smallText.spec.ts`); a window drag across combat peaks at 4.7 ms render plus flush against 44.5 ms for the first cut's atlas per size. The page starts over when full. A size stays on the raster until its range passes 1.6 (hysteresis).
+- `text/rasterGlyphs.ts` boxes and rasterises glyphs, `text/platformFaces.ts` registers the faces as `FontFace`s under private names. Substitute glyphs (R6.3) carry `outlineCodePoint` so the raster draws the outline the atlas holds.
+- Chosen over moving `Vehicle`'s literal 8 and 9 px to 11 px, which needs a card re-layout (DDB-217). 9 device px sits exactly on the threshold and is unchanged.
+- 6.9's scored comparison is in `uberShader.spec.ts`: body at 10, 12, 13 px, field against platform. On the Linux runner the field has 0.95 to 1.0 of the platform's ink but its stems vary with sub-pixel phase (0.17 to 0.24 against 0); macOS CoreText is a third heavier. A ratchet for now; DDB-218.
+- DDB-219 folded in: the first cut rounded each pen to a whole pixel and read "atta ck" on the card footers; whole-pixel advances per word did not fix it (a 2.5 px `t` must alternate 2 and 3), quarter-pixel phases did.
+- Font files are asset modules (URLs on the web, about 550 KB; data URIs in Electron, about 730 KB of the renderer bundle), loaded at startup. Goldens moved for the card showcase, the combat hand's card footers and `icons`; combat's 8 px HP lands on exactly 9 device px at 1440x882 and does not.
+## Catalog Wave A, leaves on the closed style set (2026-09-28)
+
+**What landed:** DDB-85's third PR (DDB-55 phase 5), R11.14 to R11.16 for every leaf, R12.1 to R12.5, R12.18; closes DDB-209.
+
+- `engine/types/Style.ts` deleted; `ComponentOptions.style` and `Component.applyStyle` gone; colour parsing in `resolveColor`.
+- Per-component style subsets with validation: `Rectangle` (box, now with `shadow`), `Circle`/`Triangle`/`Polygon` (`components/shapeStyle.ts`), `Text` (typography); Text's `verticalAlign`, `wrap`, `textOverflow`, `lineHeight` are options, and `style`/`layoutOptions` setters replace `textStyle`.
+- New `components/Line.ts` and `components/Image.ts`.
+- `components/Layer.ts` renamed `components/Container.ts`, visuals removed; `Stack` accepts a box `style`.
+- Every call site converted (a one-off script for the moved keys, the `border` shorthand, and `px` strings; the rest by hand). Gallery scene `leaves`.
+
+**How:** `components/leaves.test.ts` (rejection per leaf, colour parsing, rectangle box and shadow, text options, container without visuals, stack box, line geometry, image fit maths, sprite frame and tint, asset cache residency and release, failed load). The whole suite passes unchanged otherwise; every gallery scene lints clean at 1440 by 882.
+
+## Catalog Wave C, overlays (2026-09-28)
+
+**What landed:** DDB-87's first PR (DDB-55 phase 5), R12.21, R12.22, R12.23, R12.29 (KeyCap), R12.33.
+
+- `ui/Dialog.ts`: `closed`, `opening`, `open`, `closing` through the animator; modal scrim drawn by the dialog itself and faded by colour so it blocks from the first frame; X, Escape (only when open), and opt-in outside-press dismissal; `initialFocus` or the first focusable in the content, footer, then the X.
+- `ui/Popover.ts`: placed against a component or a point, flip and shrink by the placement service, non-consuming outside press, Escape, focus to its first focusable with no scope, `reposition` and `anchoredTo`.
+- `ui/Tooltip.ts` replaces `services/TooltipSurface.ts` (deleted); the tooltip service's `surface` option is required and passed by `createMountContext`, and any surface is laid out on mount before placement.
+- `ui/Toast.ts`: `Toast` and `ToastStack` (corner, capacity, severity counts, age-ordered `zIndex`).
+- `ui/KeyCap.ts` on the new `ui/LabelledLeaf.ts`; `ui/surfaces.ts` for the elevation shadows.
+- `OverlayOptions.fill`: content sized to the viewport at open and on resize.
+- Icon atlas: `close`, `info`, `warning`, `error`, `chevron_right`, `expand_more`.
+- Gallery-only scenes `dialog`, `popover`, `toasts`.
+
+**How:** `Dialog.test.ts` (21), `Popover.test.ts` (10), `Toast.test.ts` (16), and `Tooltip.test.ts` (6) drive everything through the dispatcher's queue on the frame clock; the new scenes and `overlays` lint clean in the browser.
+
+## Nine-slice images (2026-09-28)
+
+**What landed:** DDB-203 (R5.19, from DDB-68).
+
+- `drawImage({ slice })` draws instead of reporting `nine-slice images are not drawn yet`. `draw/nineSlice.ts` turns the insets (texture pixels, measured in from the source rect) into four column and four row edges in destination pixels and texture coordinates; `UberGeometryEncoder` writes one `image`-mode quad per cell with area, row by row, in the image's one group, so a sliced panel costs no extra draw or split.
+- Each cell samples only its own texels: the fragment stage clamps its UV to the cell's rect inset by half a texel, from a half-texel inset the encoder puts in the image mode's unused shape lanes. Without it, linear filtering smeared the neighbouring cell's colour across stretched edges (review of #106). A negative-extent destination mirrors, like an unsliced draw.
+- Corners draw at one logical pixel per texel. Insets that cross inside the source are scaled down per axis; a destination smaller than two corners scales every corner by the smaller axis's factor, so corners keep their aspect (CSS border-image's rule). Zero insets drop their empty cells.
+- Tests: grid math in `nineSlice.test.ts`, encoder output in `UberGeometryEncoder.test.ts`, and a SwiftShader pixel test (corners stay 2x2 texels of pure colour, the pixels either side of every cell boundary are their own cell's colour, a fractional placement has no gap between cells). The `shading` gallery scene gained 5.10's nine-sliced image: a 24 px frame at one to one, sliced wide, stretched unsliced for contrast, and sliced shorter than its corners. The frame's art steps colour at the inset line, so the golden would show any bleed.
+
+## Catalog Wave A, panel and scrolling (2026-09-28)
+
+**What landed:** DDB-85's second PR (DDB-55 phase 5), R12.18 to R12.20, R12.37, R3.6a's popup close; closes DDB-32 and DDB-210.
+
+- `ui/Panel.ts` rewritten as a `Stack` on the closed style set with variants, header (kicker, title, hairline, actions), corners, glow, compact, flush, and `layout: 'stack' | 'free'`. Its scrolling is gone.
+- New `ui/ScrollContainer.ts` and `ui/Scrollbar.ts`. `Stack.flows(child)`, `Component.invalidateClip()`, `Dispatcher.contentMoved()`, `PopupService.scrolled()` with the `scroll` close reason.
+- The layout lint exempts a scroll container's direct children from rule 2.
+- Developer screen and card showcase on ScrollContainer; the combat log on ScrollContainer with reconciled lines that follow the newest entry.
+- Gallery scenes `panels` and `scrolling`.
+
+**How:** `ScrollContainer.test.ts` (worldsim's suite ported: max scroll, clamping, a resized viewport re-clamping; plus layout and the gutter, the fixed scrollbar and its thumb, the clip and ink, wheel latching, hover after a scroll by code, keys, thumb drag and track press without taking focus, `scrollIntoView` nearest and center, `scrollToBottom` across a layout, and popups closing), `Panel.test.ts`, `ScrollClip.test.ts` (the old panel clip suite on the new container), `CombatLogLayer.test.ts`, and the dispatcher, focus, snapshot, and cull suites moved onto ScrollContainer. In the browser: every existing gallery scene's text record matches its committed JSON, all scenes lint clean at 1440 by 882, and the lists scroll by wheel and thumb.
+
+## Catalog Wave A, controls (2026-09-28)
+
+**What landed:** DDB-85's first PR (DDB-55 phase 5), R12.7, R12.8, R12.9, R12.34, R12.35.
+
+- `ui/Pressable.ts`: the shared press machine (capture on press, `pressed` tracks the pointer, click only when released inside, `activate` presses, `acceptsActivation` and `onPressed` hooks, the focus group hears presses through the new `Component.memberPressed`).
+- `Button` extends it; new options `iconPosition`, `ghost` (`ghostLayers` in `style/variants.ts`), `block`, `disabled`, `onClick`.
+- New `ListRow`, `Checkbox` (and the shared `Checkable`, whose `checked` is its own field, apart from the group-owned `selected`, and is reported as `state.checked`, `mixed` when indeterminate), `Toggle`, `RadioGroup` with `Radio`, `FocusGroup` (selection `none` by default); `rowLayers` and `markLayers` in `style/variants.ts`; `drawIcon` in `components/Icon.ts`; `groupMembers` exported from the focus manager.
+- `UiActionEvent.key` carries the key behind a keyboard `activate` or `cancel`. A captured `pointercancel` bubbles from the captor (R9.10). The innermost pressable takes a press; a press that becomes a drag stops showing pressed.
+- Icon atlas: `check` and `remove` added; the five existing glyphs keep their atlas cells, so nothing already drawn moved.
+- Gallery: `CatalogSection` plus `button-variants`, `lists`, `checkboxes`, `radio-group`.
+
+**How:** `ui/controls.test.ts` drives every control through injected input on a mounted root with the committed font metrics (press machine, capture, release outside, options, list selection single, multiple, and none, Tab stops and group re-entry, Space versus Enter, controlled values, indeterminate, toggle slide and reduced motion, radio arrows skipping disabled and wrapping). All four scenes lint clean in the browser, clicked and arrowed through by hand.
+
+## Combat screen on stacks (2026-09-28)
+
+**What landed:** DDB-82 (DDB-55 phase 4), closing DDB-183 and the 800x450 resource bar note from #78.
+
+- `CombatLayout.ts` is Battle Screen Design section 2's numbers and `computeCombatStage` (`s = min(W/1280, H/720)`, held at 0.8 or above, over a `W/s` by `H/s` canvas). `CombatScreen` builds one `combat_stage` stack, sizes and scales it in `applyLayout` on mount and resize, and everything inside is placed by stacks: a column capped at 1600 and centred of the top bar (36), the road (fill), and the dock (228).
+- New: `TopBarLayer` (turn, last-log ticker, scrap, fuel, LOG button), `EndTurnColumn` (turn and whose move, END TURN, "N adrenaline unspent"), `DriverTab` (mark, name, passenger tag, adrenaline pips and count, draw and discard). Deleted: `ResourceBarLayer`, `DriverStatsDisplay`, `PlayerHandView.labels`. Fuel is shared, not per driver.
+- `PlayerHandLayer` is a row of two halves, each a tab over a fan; a fan's row is scaled to 128x180 cards and overlaps by a negative gap to fit its half (DDB-183). A lifted card takes `zIndex: 1`.
+- The raider and player battlefields share the road 23:40; the turn banner is anchored on the line between them, the log drawer `topRight` over the road, 320 wide.
+- Two side-by-side vehicles narrow to share a lane too slim for both. The turn banner shows the phase only, centred, and ignores the pointer.
+- `DrawApi.pushClip` warns under rotation or skew only (`isAxisAligned`), since an axis-aligned scale clips exactly.
+- Tab order is the hand, then END TURN; LOG is `tabIndex: -1`, and L (or F6) toggles the log.
+- Chrome from the mock after review: driver 1's mark a triangle and driver 2's a diamond (section 7), tabs capped at 470 with a 3 px driver-colour stripe, hairline edges and top radii, driver 2's tab mirrored, the dock a gradient with a top edge, the top bar a bottom hairline, LOG an outlined key with its L hint (`ChromeStack`). The banner centres on the road, independent of the band weights, and reads PLAYER TURN from the start of the fight.
+
+**How:** `CombatLayout.test.ts`; `CombatScreen.test.ts` (bands at three sizes including the 1600 cap, the drawer over the road only, END TURN after resize, seven cards a driver on screen and in their half at five sizes); `CombatScreenKeyboard.test.ts`; `DrawApi.test.ts` (quiet exact clip under a scale). A turn played through `window.__dev.input` at 1280x720 and 800x450: Headshot picked from its visible strip and aimed at the raider, END TURN, the raiders' turn, the log opened from LOG. Combat lint (with #101's interactivity rules) at 1440x882, 1280x720, 1920x1080, 1024x600 and 800x450 went from 282, 325, 258, 359, 401 to 215, 222, 230, 216, 237. Details in [combat-screen-stacks.md](AI_TECHNICAL_DECISIONS/combat-screen-stacks.md).
+
+## Honest text ink, pooled draw stacks, real pointer identity (2026-09-28)
+
+**What landed:** DDB-212, DDB-213, DDB-214, DDB-215 (DDB-55 follow-ups).
+
+- `Text.inkRect` is the box unioned with the run's ink from the layout `render` draws, through the new `DrawApi.measureTextInk` (the backend's `textInk`); `inkExtent` is its furthest side and `cullInk` reuses it, replacing DDB-184's box-plus-overrun-plus-an-em. Cached until text, style, alignment or size changes; `setAlign` and `setVerticalAlign` now invalidate ink. The em fallback stays for a backend without `textInk`.
+- `drawStacks.ts`: `TransformStack`, `ClipStack`, `NumberStack` and `ValueStack` replace the arrays of fresh entries. A push overwrites a pooled level in place; `capture` takes one immutable copy of the transform and clip per push it draws under. 500 frames of 1,000 pushes went from about 68 MB allocated to nothing measurable after warm-up.
+- `Dispatcher` remembers each live pointer's `pointerType` and `isPrimary` and uses them for `pointerenter`, `pointerleave`, `pointercancel` and `lostpointercapture`, dropping them once nothing can synthesise an event for the pointer.
+- Stack's depth-8 test drops its wall-clock bounds. The font, icon and card-face suites set a 30 s timeout of their own and the baseline provenance suite 120 s; the 5 s default stays for everything else. `intersectClipRectInto` and `snapClipRectInto` are the in-place arithmetic the clip stack and `intersectClip`/`snapClipRect` share; `resolveClip` is gone. A text's cached ink is refreshed whenever its layout changes, including a stack's `assignSize` at an unchanged size (review).
+
+**How:** sweeps in `subtreeCull.test.ts` for right-aligned, centred, tall, bottom-aligned and tight-line-height text (each fails with a box-only bound), a snapshot `inkBounds` test that follows `setAlign`, pooled-stack identity and capture tests in `DrawApi.test.ts`, and synthesised-field tests in `Dispatcher.test.ts`. No pixel moved.
+
+## Dev tooling: paint order on components, pointer injection, lint interactivity (2026-09-28)
+
+**What landed:** DDB-205, DDB-207, DDB-208 (DDB-55), one PR.
+
+- DDB-205: `PaintOrderFixturesSection` rebuilt from components (a fixture-local `FixtureBox` and `BusyGround`, `Text`, a scrollable `Panel`, `Stack` columns) with `zIndex` and `layer` doing the ordering; `DrawFixture` stays for clipping and shading. `scene-paint-order` re-minted.
+- DDB-207: `inputScript.ts` parses `[,pointerId[,pointerType]]` after each pointer verb's existing fields and `cancel[,pointerId]`; `inputInjection.ts` dispatches them (defined on the event in jsdom), derives `isPrimary` per pointer type across calls, and sends `cancel` from the pointer's last position.
+- DDB-208: `Component.handlesPointer` (overridden by `Button`, `Card`, `Vehicle`); the snapshot emits `focusable`, `pointerEvents`, `handlesPointer`; the snapshot's `scroll` (offset and range) on scroll containers only; the lint counts focusable or pointer-handling hit targets as interactive, rule 6 covers across parts and children, rules 3 and 6 let off content a scroller's range brings into view (keyed on `scroll`, never on `contentOffset`, which padded panels also carry), and rule 2 exempts a raised child only while it touches its parent. `Panel.scrollRange` is what `scroll` and `canScroll` clamp to. Injection: an omitted `pointerType` takes the pointer's own, and `cancel` for an unseen pointer is an error. Chapter 13's R13.22, R13.25 and R13.35 amended.
+
+**How:** unit tests for the grammar (pointer fields, defaults, rejections, cancel), dispatch (fields through the adapter, second-touch non-primary with no click, cancel suppresses the click and targets only its pointer, touch implicit capture), snapshot fields, the lint changes, and the scene's paint order from a recording backend. Lint measured over saved trees of all 14 scenes and 6 screens: gallery 0 (146 under the literal reading), screens 1,722 on `main` to 1,190 (developer 323 to 14; card showcase 1,020 to 797, of which 49 are DDB-216's unreachable cards). Follow-ups filed: DDB-212 (dispatcher's synthetic pointer fields), DDB-216 (card showcase scroll range). Decision record: [lint-interactivity.md](./AI_TECHNICAL_DECISIONS/lint-interactivity.md).
+
+## Culled subtrees skipped on a cached ink bound (2026-09-28)
+
+**What landed:** DDB-184 (DDB-55), R4.2a.
+
+- `Component.subtreeInk`: a conservative bound on the subtree's ink in the parent's space (own `cullInk` plus the walk's focus ring, every visible child's bound less the content offset, placed by origin and transform), cached and marked stale to the root by `invalidateInk` from every geometry setter, size change, anchor placement, `layer`, drag offset, focus-visible, `Panel`'s scroll and `invalidateLayout`. Null (never skipped) under a `layer` or a null `cullInk`.
+- `renderTree` skips a counted subtree whose bound misses the clip (grown by `SUBTREE_INK_OUTSET`, four device pixels) and adds its last walk's group count through `DrawApi.cullGroups`, so `apiDraws + culled` is unchanged.
+- `cullInk` overrides: `Text` (box plus measured overrun plus an em; null unmeasured), `Icon`, `ArmorBadge`, `IntentMarker`, `Circle` (the disc its radius draws), `DrawFixture` (null).
+- Development-only ink audit: `DrawApi.setInkBound` around each `render`, `ink-outside-bound` when a group leaves it.
+- No per-frame allocation for `clipRect`, `transformMatrix` or `Panel.contentOffset`. `MeasuringRecordingBackend` answers `textInk` through the new shared `runInk`.
+- No pixel moved (screenshot hashes against `main` at 84 screen and scroll states). Card showcase render median about 0.81 to 0.63 ms, developer 0.85 to 0.50 ms. [subtree-ink-cull.md](./AI_TECHNICAL_DECISIONS/subtree-ink-cull.md).
+
+## Game code on the tree (2026-09-28)
+
+**What landed:** DDB-79 (DDB-55 phase 3), closing DDB-41.
+
+- `Screen` no longer reads the window: its root is zero-sized until mount sizes it from `context.viewport`. Splash, main menu, developer, card showcase and driver selection place their elements from the root in `onMount` and `onResized`.
+- Driver selection stops rebuilding on resize. `DriverPanel` and `SynergyPreviewPanel` place their contents from their own size in `layoutChildren`; the confirmation line is one persistent text shown when both drivers are picked; drivers load once, on mount.
+- The deck preview clears after the card data arrives and a stale build gives way, so the left panel's deck is no longer drawn three times.
+- `Card` and `Vehicle` extend `Component`. `Card` uses the base's `enabled` and `onStateChange`, lifting by transform; the hand places cards where the old `y % 10` test left them. `Vehicle` builds every part once, hides the driver row and SPENT chip by data, places parts in `layoutChildren`, and subscribes to the combat model on mount. `EnemyVehicle` places its intent marker the same way.
+- `CombatLogLayer` holds its chrome as named fields, places it in `layoutChildren` (fixing the resize that moved the centred title to half the width), and subscribes on mount. Main menu buttons and the card showcase background are named fields.
+- The splash fades in, holds on the clock, and fades out through its root's opacity with the animator, then goes to the main menu.
+- `Component.setOverflow` accepts `hidden` before a size; `clipsChildren` still waits for one. `ArmorBadge.minWidth` is settable. Dead code: `PlayerHandLayer.getCardAtPosition`, `Vehicle.getDisplayName`/`getNameFontSize`.
+
+**How:** `SplashScreen.test.ts` (fade in, hold, fade out, navigate, settle at opacity 1, resize, unmount cancels), `Vehicle.test.ts` (parts kept across a driver's death and a resize, model subscription on mount and remount), `Card.test.ts` (lift by transform, disabled cards neither lift nor brighten), `DriverSelectionScreen.test.ts` (three resizes keep the same children and both drivers, one deck preview across overlapping loads), `Screen.test.ts`, `Component.test.ts` (overflow before size). Played in the browser: splash fade, menu to driver selection, cycling and resizing three times without losing the selection, START RUN, a self-targeted and an enemy-targeted card, END TURN, the combat log. Details in [game-code-on-the-tree.md](AI_TECHNICAL_DECISIONS/game-code-on-the-tree.md).
+
+## Overlay, popup, tooltip, placement, clipboard and asset services (2026-09-28)
+
+**What landed:** DDB-78 (DDB-55 phase 3), R12.30 to R12.32 with R12.22, R8.21, R3.6a, R3.15, R9.13 to R9.15.
+
+- `engine/services/`: `Placement.ts` (`place` and `PlacementService`), `OverlayService.ts`, `PopupService.ts`, `TooltipService.ts` with `TooltipSurface.ts` and `tooltipSpec.ts`, `ClipboardService.ts`, `AssetService.ts`, and `testing.ts` (queue-driven input helpers for tests). All six are built by `createMountContext`; the pages pass `detectClipboard(window)` and `imageUrlLoader()`.
+- Dispatcher: root tiers (`scene`, `overlay`, `diagnostic`) with `raiseRoot`; `addObserver` with `pointerDown` (can swallow), `pointerMove`, `hoverChange`, `keyDown` (before the scene hotkeys) and `focusChange`; `capturing` and `hoverPoint`. `Component.mount(context, { tier })`, `Component.tooltip`, `Component.popupTrigger`. `UiFrame.requestTick` for services.
+- Pages: both render overlay roots after the scene and report them to the tree snapshot; the F5 overlay mounts as `diagnostic`; a screen change or gallery scene switch closes popups and overlays; viewport changes resize overlay roots. Electron's preload exposes `clipboard.readText`/`writeText` over IPC.
+- On DDB-76 and DDB-77: overlay hotkeys are the root's own `hotkeys` and a modal overlay sets `root.modal` and pushes a focus scope; `FocusManager.onFocusChange` feeds the popup focus-loss close and the tooltip keyboard trigger (visible focus only); `tooltips.dragActive` reads `context.drag.isDragging`; the dispatcher's `focusChange` observer hook is gone with `Dispatcher.focus()`.
+- Review fixes: a swallowed press's release is swallowed too; placements apply a `constrained` size to popups (from `naturalSize`) and tooltips; `overlays.open` takes `inside` so a scrim press is outside a modal's panel; the Electron clipboard handlers answer only the app's own renderer frame.
+- Gallery: `overlays` scene (gallery-only, `galleryOnlyScenes`), with placement outcomes drawn against a frame and a live tooltip, card-preview tooltip and popup menu; `tests/visual/support/scenarios.ts` lists it.
+
+**How:** `Placement.test.ts`, `OverlayService.test.ts`, `PopupService.test.ts`, `TooltipService.test.ts` (state timing, tolerance, swap, fades, flips, never consumes, press suppression, capture and drag suppression, keyboard trigger, factory trees), `ClipboardService.test.ts`, `AssetService.test.ts`, `input/rootOrder.test.ts` (tiers, observers, `requestTick`); 2058 tests green. Driven in the gallery through `__dev.input`: hover swap to the card preview, outside press closing the menu, trigger reopening it, Escape closing it; `__ui.lint()` is 0 on the scene.
+
+## Packed instances for the uber shader (2026-09-28)
+
+**What landed:** DDB-191 (DDB-55), R5.4.
+
+- `UberGeometryEncoder` writes one 104-byte instance per quad (`UBER_INSTANCE`, `UBER_ATTRIBUTES`): corners, geometry and clip as float32, radii and shape as half floats, per-corner fill and border as normalised bytes, mode, slot and flags as integer bytes. Flat triangles repeat their third corner; feather-ring quads have four free corners. `rendering/packing.ts` converts to half floats and to bytes the way a framebuffer write rounds.
+- `Batcher` takes instances: `GroupShape.instances`, a four-view byte sink, instance-range `GpuDraw`s, a word fence for the contract check, and `instances`, `vertices` and `triangles` counted from instances.
+- `WebGL2Backend`: one instance ring (4 MB), divisors of one set once in the vertex array, `drawArraysInstanced`, attributes re-pointed only at a split, `WEBGL_provoking_vertex` set to the first vertex. `IndexBufferPool` and its tests are deleted.
+- `uber.vert` builds the quad from `gl_VertexID` and selects each corner's position and colour; `uber.frag` is unchanged. `uberShader.spec.ts` draws the new layout.
+
+**How:** unit tests for the packing conversions, the layout's tiling, every encoder case against the instance bytes, the batcher contract, and the backend's calls (no element buffer, divisors, split pointers, provoking vertex). Screenshots pass against `main`'s goldens with no re-mint; strict local captures differ by one level at most (four pixels by two). Perf captures interleaved with `main` in `perf-results/ddb-191-ab-*`.
+
+## Focus manager and keyboard play (2026-09-28)
+
+**What landed:** DDB-76 (DDB-55 phase 3), chapter 9's focus half: R9.15 to R9.29, R11.12's focus ring, R12.7's keyboard activation.
+
+- `input/FocusManager.ts` as `context.focus` (built by the dispatcher): tree-derived, cached Tab order; `pushScope`/`popScope`; fixup after every layout through `UiFrame.afterLayout`; focus groups with `activeChild`; directional focus with explicit neighbours; the focus-visible modality. The dispatcher's focus seam is deleted.
+- Dispatcher key order: Tab, focused component and bubble, text-field ownership, `activate`/`cancel` (`UiActionEvent`), group and directional arrows, then per-root hotkey tables from the focused root down to a `modal` root, then the scene's. A press focuses the nearest focusable ancestor after its handlers, unless one called `preventFocus()`. `inputMode`.
+- `Component`: `focusable`, `tabIndex`, `focusGroup`, `activeChild`, `focusUp/Down/Left/Right`, `handlesTab`, `modal`, `acceptsText`, `canReceiveFocus()`, `focusVisible`, lazy `hotkeys`, `onFocus`/`onBlur` callbacks with `focus`/`blur` events. `renderTree` draws the ring from the `control` and `color.accent` tokens.
+- Button focusable with `activate` as click; Input `acceptsText`; hand cards focusable in a horizontal group; vehicles focusable only as target choices; combat moves keyboard focus to the first target and back to the hand; combat hotkeys on the screen root; Escape backs out of driver selection. The snapshot reports `state.focusVisible`.
+- After #95 (DDB-84): the focus manager is the only writer of `focused` and `focusVisible` (`setFocusState`, which calls `onStateChange()`); Button and Input draw their own ring (`drawsOwnFocusRing`) and the walk rings every other focusable; Input's editing state and the developer screen's ring demo moved onto focus events and `context.focus`. Focus by keyboard or code scrolls a scrollable Panel to show the component; removing a group's active child clears it; driver selection tabs Back first (`tabIndex: 1`, so paint and tree order are untouched).
+
+**How:** `FocusManager.test.ts` (chapter 9.11's focus, directional, and keyboard cases: tree order under out-of-order inserts, positive tabIndex, wrap, disabled and hidden skipped, scope trap and restore, unmount and hide fixup without and with callbacks, focus-visible after Tab, press, and programmatic focus, a press in a select's menu, preventFocus, groups, explicit neighbours, Escape to the root table, printable keys in a field, a modal root blocking lower tables, held Enter once), a ring test in `renderTree.test.ts`, Button keyboard activation in `widgetInput.test.ts`, and `CombatScreenKeyboard.test.ts` playing a card, aiming, cancelling, and ending the turn from keys through the injection hook. Driven in the browser through `__dev.input`: main menu by Tab and arrows, driver selection to START RUN, combat Tab to END TURN and the hand, arrows along it, Enter on Headshot moving focus to the raider, Enter playing it, Tab and Enter on END TURN into turn 2; a mouse click focuses without a ring.
+
+## Stack container and the chapter 10 conformance suite (2026-09-28)
+
+**What landed:** DDB-81 (DDB-55 phase 4), R10.1 to R10.18, R8.1's layout protocol, R8.21's viewport roots.
+
+- `components/Stack.ts`: the three passes with shrink-to-fit, the leftover shared by weight with clamps and one frozen re-run, safe distribution and alignment, absolute children sized against the content box. `components/layoutTypes.ts` holds the vocabulary.
+- `Component`: sizing modes and the chapter 10 child properties as options and accessors; `measure`, `assignSize`, `automaticMinSize`, `sizesChildren`; anchor placement after `layoutChildren` (stored apart from `position`, read through `placedX`/`placedY` by the render walk, `screenMatrix`, `bounds` and the snapshot); a root's `fill` axes from the viewport; relayout boundary is now "both modes fixed".
+- `Text`: modes replace the assigned flags; a stack's assignment is its box for the pass; shrink-to-fit `measure`; longest-word automatic minimum.
+- `UiFrame.viewportChanged()`, called by `Game` and the gallery on the viewport owner's change event.
+- Snapshot reports `stack: { direction, gap }` and uses `bounds` for anchored placement; lint rule 1 exempts overlap within a negative gap.
+- `Circle.assignSize` is a no-op (draws from its radius); `ArmorBadge.measure` renamed `measureLabel` to free the protocol name.
+- Tests: `Stack.test.ts` (worldsim's suite ported with its numbers, spec 10.9's additions, anchors, viewport roots, boundaries, the negative-gap lint case) and `Stack.text.test.ts` (real-metrics text cases). Gallery scene `stack`, lint clean; its golden is minted on CI.
+- Decision record: `docs/AI_TECHNICAL_DECISIONS/stack-layout.md`.
+- After review: one placed-origin accessor (`originX`/`originY`) read by the render walk, the dispatcher's hit test, `screenMatrix` and the snapshot; shrink-to-fit for nested stacks (proportional, floored at `minContentSize`); per-constraint measure cache (255 nested stacks: 65k measures to 763); `onResized` on layout assignment; one width source on Text; authored sizes fix a Stack axis; five ported cases tightened to worldsim's.
+
+## Drag service (2026-09-28)
+
+**What landed:** DDB-77 (DDB-55 phase 3), R9.12a to R9.12e.
+
+- `input/DragService.ts`: `start`, the token threshold (`dragThreshold`), ghost promotion to the `drag` layer following the pointer by transform, targeting with the ghost excluded, `dragenter`/`dragover`/`dragleave`/`drop`/`dragend`, `accept()`, cancellation, `cancel()`, and `isDragging`/`onDraggingChange`/`current`/`canDrop` for readers such as the tooltip service. `UiDragEvent` in `input/events.ts`.
+- The dispatcher builds the service and feeds it from move, up, cancel, capture release, unmount and each frame's re-target; `MountContext.drag`. `Component` gains the five drag callbacks and `dragOffset`, and the drag service drives DDB-84's `dropActive` flag; `dragSource` and `DRAG_THRESHOLD_MOUSE`/`_TOUCH` are deleted.
+- No game code drags yet; the hand layer's comment that said it did is corrected.
+- Review round: an active drag spends its press however it ends (capture loss and ghost unmount no longer click); the release re-targets before the drag is dropped, so a release-time `cancel()` or unmount is heard; `dragover` acceptance is re-derived once a `dragover` accepted; `start` is primary-button only; a touch hold that fired `contextmenu` never drags; capture waits for activation so a candidate drag never moves a click; the ghost moves by `Component.dragOffset`, outside its transform, so transform tweens keep running, and `dragend` carries `ghostOffset`. After merging DDB-84, `pressed` comes off the press target through the source when a drag goes active and again when it ends.
+
+**How:** `DragService.test.ts` (41 tests: threshold per pointer type and given, second start refused, ghost promotion, offset and restore, a scaled parent, enter/over/leave order with bubbling, the captured enemy that hears no `pointerenter` but does hear `dragenter`, re-targeting under a still pointer, accept on enter and on over, an ancestor accepting for a child, `dropActive` moving between targets, drop and undropped ends, cancel, blur, capture release, unmount of source and target, `cancel()` before and after the threshold, the dragging listener, and a full drag through the injection hook). The dispatcher's drag-source click tests now start a real drag. Driven in the browser through `__dev.input`: menu, START RUN, a card pressed with a 30 px wander and released on itself still selected it, Headshot played on the raider, Escape cancelled targeting, END TURN into turn 2, clean console.
+
+## Style states, variants, and the closed style set (2026-09-28)
+
+**What landed:** DDB-84 (DDB-55 phase 4), R11.10 to R11.16. The third deliberate golden re-baseline.
+
+- `engine/style/`: `look.ts` (flags, `Look`, the R11.12 resolver), `styleObject.ts` (closed set, validation, value readers), `variants.ts` (`tone`, `size`, button and field layers), `LookTransition.ts` (R11.13 over the animator).
+- `Component` carries all nine R11.11 flags with `stateFlags` and `onStateChange`; `enabled` changes notify descendants; unmount clears the framework's four.
+- `Button` and `Input` take `tone`/`size`/`style`, validate the style, draw their own box, glow, and focus ring (`drawsOwnFocusRing`), report it all as `inkExtent`, and follow the look with their parts; the legacy colour setters are gone. START RUN is the accent variant; END TURN is the mock's bone button through a style object.
+- `treeSnapshot` reports the full flag set as `state` on every node.
+- `color.bg_pressed` token. The battle mock's legend gains the debuff and non-attack intent lavenders; the token hue test checks a CIE Lab distance of at least 20 against every legend colour instead of exact hex.
+
+**How:** `style/look.test.ts` (the 11.6 flag table, override semantics), `style/styleObject.test.ts`, `ui/Button.test.ts` (each accepted property changes the draw list, rejection, runtime restyle, transitions at `dur_fast` and `dur`, reversal, reduced motion, the ring), `Component.test.ts` flag tests, `widgetInput.test.ts` press tests through injected input. Goldens re-minted on CI. Details in [style-states-and-variants.md](./AI_TECHNICAL_DECISIONS/style-states-and-variants.md).
+
+## Tree snapshot schema and the text record (2026-09-28)
+
+**What landed:** DDB-80 (DDB-55 phase 3) with DDB-206, R13.21 to R13.28.
+
+- `debug/treeSnapshot.ts` walks with a matrix per node (origin, margin, transform, scroll), the clip reset at a promotion, and the effective layer and opacity, and emits margin, zIndex, layer, opacity, transform, state (plus `pressed` on Button), text, style and inkBounds.
+- `Component` gains `resolvedColors` and `inkRect`; Rectangle, Panel, Layer, Circle, Triangle, Polygon, Icon, Text, Button and Input report their colours; the three stroked shapes report half the stroke as `inkExtent`.
+- `Text` gains `currentMetrics` (never measures) and `overflowOutcome`; `Button` gains `pressed`.
+- `debug/layoutLint.ts`: rule 5 compares the measurement with the local content box; a sibling at zero opacity does not occlude for rule 6; stale phase notes updated.
+- `tests/visual/support/harness.ts`: `expectTextSnapshot`, called by the gallery and screen specs before the golden, against `<kind>-<name>-text.json` beside the PNG.
+- `perf-results/phase3-snapshot-lint.json`: per-scenario lint before and after.
+
+**How:** `treeSnapshot.test.ts` (margin box and content box, transformed bounds, agreement with every component's `screenBounds` through margins, transforms, scroll and parts, transformed clips, zIndex and promotion, R13.25.1 exemption through a real tree, opacity, text measure and outcomes, the reader not measuring, text-overflow live, style, pressed, ink) and `layoutLint.test.ts` (local content box for rule 5, zero-opacity occluder). Lint before and after captured on every scene and screen: no count moved. Five punctuation mutations run against local baselines: the text record caught all five, the pixels one.
+
+## Input dispatcher and Pointer Events adapter (2026-09-28)
+
+**What landed:** DDB-75 (DDB-55 phase 3), chapter 9's dispatch half: R9.1 to R9.11, R9.25, R9.30 to R9.32, R3.28, R4.12, R8.2's input callbacks.
+
+- `input/Dispatcher.ts` (queue, hit test, bubble, hover, click, capture, wheel latching, key routing, focus seam), `input/hitTest.ts`, `input/events.ts`, `input/HotkeyTable.ts`, `input/PointerAdapter.ts`. `InputSystem.ts` and its tests are deleted; `MountContext.input` is now `dispatcher`.
+- `Component.handleEvent` with `onPointerDown`, `onPointerUp`, `onPointerMove`, `onPointerEnter`, `onPointerLeave`, `onClick`, `onContextMenu`, `onWheel`, `onKeyDown`, `onKeyUp`; `canScroll`; roots register with the dispatcher on mount; unmount releases capture, hover and focus. `setEnabled(false)` no longer clears hover, which is the dispatcher's.
+- Button, Card, Vehicle, Input and Panel handle events in `handleEvent`; `Button.onClick` is the base property (call sites assign it); Vehicle is `unit`; a scrollable Panel is `auto` and scrolls by the normalised delta; combat's Escape and F6 are hotkeys; the F5 overlay is `pointerEvents: 'none'`.
+- Both loops drain the queue in a timed `input` section; `UiFrame.layoutVersion` lets hover follow layout. Timing reads the context clock (DDB-74): event timestamps, the 150 ms wheel latch, and R9.30's 500 ms touch-hold `contextmenu`. The injection hook dispatches pointer events at the adapter; `components/testing.ts` has `injectNow`.
+
+**How:** `Dispatcher.test.ts` (chapter 9.11's hit order including 3.12's promoted popup and 4.7's popup inside a clip, bubble, scrim, enter and leave order, hover after scroll and layout, click on the common ancestor, the threshold on drag sources only, pause abandoning a held press, Cmd and Ctrl chords through a focused field, capture and its cancellations, touch, wheel line and page modes, latching, Shift, keys and hotkeys, coalescing, pause, handler isolation), `widgetInput.test.ts` (Button, Input and the adapter through injection), and the existing screen, gallery, injection and teardown tests moved from registration maps to hit tests. An audit hit-tested every Button, Card, Vehicle, Input and scrollable Panel on six screens and found none occluded. Driven in the browser through `__dev.input` and real pointer and wheel events: menu, driver cycling, START RUN, a targeted card played on an enemy, Escape cancelling targeting, END TURN into turn 2, F6, the developer screen's inputs, Apply and scroll, the card showcase, and the gallery's input scene, with a clean console.
+
+## Clock and animator (2026-09-28)
+
+**What landed:** DDB-74 (DDB-55 phase 3), R8.28 with R8.15's tween cancellation and R11.13's reduced-motion collapse.
+
+- `engine/animation/Clock.ts`, `Animator.ts`, `easing.ts`: a frame clock in milliseconds that only moves when advanced (and not at all while frozen), tweens over numbers and number arrays with token defaults, CSS `cubic-bezier` eases, retargeting with CSS's reversing shortening factor, reduced motion, owner cancellation, `settle`, and a `done` promise that settles on completion or cancel.
+- `MountContext` gains `clock` and `animator`; `createMountContext` and `createTestContext` take an optional clock. `UiFrame.update` advances the clock and ticks the animator before component updates. `Component.unmount` cancels the tweens it owns.
+- `engine/rendering/reducedMotion.ts` follows `prefers-reduced-motion` on both pages. `window.__app.settleAnimations()` on both pages; the visual harness's `settle` calls it every pass.
+- `.eslintrc.js` forbids platform timers and wall-clock reads (`Date.now`, `performance.now`) in UI and engine-core directories, `game/*.ts` included. `PlayerHandLayer.animateCardToDiscard` (an uncalled `setTimeout`) and the empty `fanCards` are deleted.
+
+**How:** `Clock.test.ts`, `easing.test.ts` (against a bisection solve), `Animator.test.ts` (order, defaults, arrays, reduced motion in flight, retarget, same-target retargets (running, idle, and every frame for 700 frames completing once and on time), single and compounded reversals, restart from a completion, cancel, owners, `done`, settle and its runaway guard), `components/animation.test.ts` (clock and tick before component updates, no motion without an update phase, injected and frozen clocks, subtree unmount cancelling, a reconciled exit driven by `done`, a cancelled exit still detaching), `reducedMotion.test.ts`. Every chromium visual spec passes against local captures of `main` with zero differing pixels.
+
+## Developer section titles inset inside their frames (2026-09-28)
+
+**What landed:** DDB-196 (DDB-55).
+
+- `Panel` has a `padding` option, expressed as `contentOffset` (scroll position less padding), the one value DDB-73's render walk, hit test and tree snapshot read, so children are placed inside the padding everywhere and the padding scrolls with the content (R4.13: scroll extent is content plus both paddings less the box). A padded panel clips inside its border and corner radius, inset by `max(borderWidth, cornerRadius)`; unpadded panels keep the border-box clip. The departure from R4.9 is recorded in `AI_TECHNICAL_DECISIONS/panel-padding.md`. `treeSnapshot` now takes a clip from `clipRect` rather than the node's whole box, so snapshot, walk and hit test agree. `innerWidth` reports the width left for children.
+- `developer/DeveloperSectionPanel.ts` is the shared frame all twelve sections extend: transparent, `bw` border, inset `bw + space_3` (13 px), and `fitContentHeight` to size the frame around the content. Sections dropped their duplicated `super` blocks; the three draw fixtures, the text alignment columns and the nested panel use `innerWidth`.
+- `DeveloperScreen` subtracts both insets from its section spacing so the content pitch is what it was.
+- Tests: `engine/ui/PanelPadding.test.ts` (drawing, hit test, snapshot, vertical and horizontal scroll extent, radius-aware clip in walk, hit test and snapshot, default). Lint: every scene 0, developer screen 186, both as on main with the same violation paths. Goldens re-minted with `update_mode=all`.
+
+## Pixel snapping at submission: hairlines, shared edges and clips (2026-09-28)
+
+**What landed:** DDB-188 (DDB-55).
+
+- `coords/snapping.ts`: `snapHairlineRect` takes the border position and writes into an `out` object. A `center` border snaps its outer edge (the rect edge on a grid shifted by half the snapped width); a borderless rect snaps its edges and stays borderless; a rect narrower than a device pixel keeps the pixel its centre is in.
+- `UberGeometryEncoder.encodeRect`: under `translateOnly`, a rect with no radius and a hairline or no border is snapped in screen space and written back in local space; the border outset follows the snapped width. `borderOutset` now takes a position and a width.
+- `DrawApi.pushClip`: the screen-space clip goes through `snapClipRect` under a translation (R7.8a), so the cull, the snapshot and the shader agree.
+- `ClippingFixturesSection`: 4.7's snapped clip edge under an animated offset, as four frames of a viewport sliding by a quarter pixel with its content scrolling, outlined by a hairline. At the x.5 frame an unsnapped clip keeps the column over the outline and drops the last one inside it; snapped, clip and content meet the outline in every frame.
+- `treeSnapshot` snaps its clips at a `ratio` its viewport now carries (the hooks pass the committed ratio), and `Component.containsScreenPoint` snaps each clipping ancestor under a translation at the draw API's ratio, so paint, snapshot and hit test agree at fractional positions.
+- `uberShader.spec.ts`: the fractional abutting-rects case passes and lost its `test.fail`; new GPU checks for chapter 7's 1 px border at y 10.4 on device rows 21 and 22 at ratio 2, and a 1 px center border on one column. The two coverage-ramp tests moved under a scale, where nothing snaps.
+
+**How:** unit tests for the helper (center, borderless, sub-pixel, out param), the encoder (translated hairline at ratio 2, abutting pair, center border, and the three opt-outs) and the clip stack (snapped at every fractional scroll, not under a scale). Goldens re-minted on CI with `update_mode=all` and checked old against new.
+
+## Mount context, lifecycle, and frame order (2026-09-28)
+
+**What landed:** DDB-73's second PR (DDB-55 phase 3), R1.6, R8.14 to R8.18, R8.21, R8.22.
+
+- `components/MountContext.ts`: the context interface and `createMountContext`; `components/UiFrame.ts`: update requests and the layout phase; `components/testing.ts`: `createTestContext` over the null backend.
+- `Component`: `mount`, `unmount`, `onMount`, `onUnmount`, `isMounted`, `context`, `requestUpdate`, `invalidateLayout`, `layoutSubtree`, `onLayout`; size, margin, visibility and child changes invalidate; `update` no longer recurses.
+- `RendererContext.ts` deleted. `InputSystem` is an instance with the same method names, handlers bound once (so `detach` really removes them), and a `beforeHitTest` hook.
+- Button, Input, Panel, Card and Vehicle register in `onMount`; Input asks for updates while focused; CombatScreen, DeveloperScreen and the gallery host reach input through the context.
+- `Screen.mount(context, data)`, `ScreenManager.initialize(context)`, `Game` and `SceneHost` take the context; both loops run update, layout, render, flush, with the `layout` section timed.
+- `Text` measures through the context on mount and sizes both axes in one step; `text/testing.ts`'s `createMeasuringDrawApi` feeds a test context. `Card`, `DriverStatsDisplay`, `ResourceBarLayer` and `Vehicle` place what depends on a measured text in `layoutChildren`, `SplashScreen` in `onMount`; the synergy panel measures a tag's label before sizing its pill. `ShadingFixturesSection` creates its photo texture on mount. `Button` places its icon and `ArmorBadge` measures its value in `layoutChildren`, once per label.
+- Review fixes: `Text` no longer measures during render; `PlayerHandLayer` and `CardShowcaseScreen` drop manual unmounts that `removeChild`, `clearChildren` and the root's unmount already do; `lifecycle.test.ts` covers a hugging container's relayout converging in one layout call and the eight-pass limit throwing.
+
+**How:** `lifecycle.test.ts` (no service touched before mount, mount and unmount order and idempotence, mount on add, same-root moves versus cross-root re-parenting, update on request, invisible and unmounted requests, text invalidating its boundary once, transform, zIndex, opacity and colour not invalidating, `onLayout` on first layout and on change, layout before a hit test) and `Screen.test.ts` (root sized from the viewport, nothing of the old screen registered after a switch, `onLayout` before the first render). Every existing test that touched the singletons now builds a context. All chromium visual specs pass against local captures of `main`, and a scripted click-through goes menu, driver selection, combat, END TURN with a clean console.
+
+## Component base and the framework render walk (2026-09-28)
+
+**What landed:** DDB-73's first PR (DDB-55 phase 3), R8.1 to R8.13, R8.26, R8.27, R8.29 and R3.11 to R3.13.
+
+- `components/Component.ts` is the base: R8.2's properties as accessors (per-side `margin`, `transform`, `pointerEvents`, `opacity`, `layer`, `zIndex`), effective visibility, enabled, opacity and layer, `parent` and `root`, `insertChild`, `moveChild`, `clearChildren`, `reconcileChildren`, `findById`, `renderOrder`, and screen geometry. `Layer` extends it and adds a background fill.
+- `components/renderTree.ts` walks the tree; every component's `render(draw)` draws in local space and no longer loops over its children. `RenderContext.ts` is deleted.
+- `components/componentGeometry.ts` holds margin sides and the transform matrix; `draw/geometry.ts` gains `invert`.
+- `Panel` draws its own background through `Rectangle`'s `drawBox` and scrolls with `contentOffset`; `ScrollableContentLayer` and `getContentLayer` are gone, and the snapshot's Panel special case with them.
+- `InputSystem` asks `containsScreenPoint`, which skips invisible, faded and `pointerEvents: 'none'` components and inverts transforms.
+- `Card` and `Vehicle` use the base's hover state; `Card`'s `Layer.prototype.render` borrow is gone.
+- Review fixes: adding a component under itself or a descendant throws; a reconciled removal with an exit promise stays in the list, drawn, until it settles, and is not unmounted if re-added elsewhere; detaching clears the reconcile key.
+- Merged with DDB-68, DDB-71 and DDB-72 as they landed: `DrawFixture` and `Text` draw in their own space; `Icon.drawGlyph` lets `ArmorBadge` and `IntentMarker` draw their icon as one of their own draws, in the same order as before; `Button` places its icon from its `render` hook until the layout phase exists; the F5 overlay's visibility is `visible`.
+
+**How:** `Component.test.ts` (properties, effective values, children, reconciliation, screen geometry under rotation and scale) and `renderTree.test.ts` (local draws, leaf children walked by the framework, skipped subtrees, zIndex order, opacity, clip and promotion, balanced stacks) on the recording backend. Every screen and gallery scene captured locally on `main` and on the branch passes the golden tolerance; the CI goldens are unchanged.
+
+## Visual gate: cluster rule and settled-layout wait (2026-09-28)
+
+**What landed:** DDB-197 and DDB-201 (DDB-55 test harness).
+
+- `tests/visual/support/diffClusters.ts`: the pixelmatch mask at the suite's threshold, grouped into clusters by union-find with a join radius. `expectGolden` in the harness runs `toHaveScreenshot`, then fails any capture whose largest cluster exceeds `GOLDEN_CLUSTER.maxClusterPixels` (8, radius 2, in `playwright.config.ts`), writes `golden-diff.json` for every capture, and rewrites a cluster-rejected golden on a `changed` mint. All screen, scene and context-loss specs use it. `pixelmatch` 5 and `pngjs` are new dev dependencies; jest now also runs `tests/visual/support`.
+- `settle` polls inside one `page.evaluate`: the old tree comparison was an async `waitForFunction` predicate, which Playwright takes as truthy on the first poll, so it never compared anything. The new gate requires the window, the canvas box, its backing store and the committed viewport at 1440x882 and the tree unchanged for two counted frames, and `openScreen` asserts the screen root fills the viewport.
+
+**How:** 19 mutations run against local baselines (four digit changes the area budget missed are caught; the +2 background shift and in-place punctuation changes are recorded misses, DDB-206 for the latter). A 1300x800 resize just before `navigate` reproduced a screen built for a size the backing store had not reached; the new gate waits it out. On CI, 35 captures against `main`'s goldens differ by 0 pixels and three `update_mode=all` mints committed nothing. The driver-selection layout flip DDB-201 describes is not in any committed golden (checked pixel by pixel across all versions). 13 unit tests for the clustering.
+
+## Icon atlas and the six symbol sites (2026-09-28)
+
+**What landed:** DDB-72 (DDB-55 phase 2), R12.6 and R12.7's button icon.
+
+- `src/assets/fonts/material-icons/`: Material Icons Regular (Apache 2.0, licence beside it), its `.codepoints`, and `icons.txt`, the list of icons the atlas holds.
+- `scripts/generate-icons.mjs` writes `text/icons.ts` (`ICON_CODE_POINTS`, `IconName`) and the charset; `build-fonts.(sh|ps1)` builds `material-icons.{png,json}` with the same msdf-atlas-gen parameters as the faces.
+- `fontFaces.ts`: `ICON_ATLAS` under the name `icons`, loaded with the faces through `ATLAS_ASSETS`, so it is validated at startup and resident beside them.
+- `components/Icon.ts`: `glyph`, `size`, `tint`, drawn in `text` mode centred in its box. `Button` takes `icon` and centres icon and label as a group.
+- The six sites: armor shield on the vehicle badge, shield and wrench intents, the fuel pump, the scrap gear, the back arrow. The armor badge (`game/ui/ArmorBadge.ts`) sizes itself to its measured value so shield ("10 SH12") fits beside the icon; the intent disc is `game/ui/IntentMarker.ts` with its value centred.
+- Gallery scene `icons`: every icon at three sizes, bare and on a fill, the button icon, the four intents, and armor with and without shield.
+
+**How:** `iconAssets.test.ts` (atlas parameters, PNG size, exactly the listed glyphs, em box, licence, `icons.ts` drift, generator errors), `Icon.test.ts` (draw command, defaults, accessors, hidden, one em wide, the button group), `EnemyBattlefieldLayer.test.ts` (which intents draw which icon), `vehicleBadges.test.ts` (the badge grows to fit shield, measures once per value; the marker centres icon and value). `scene-icons` minted; combat and driver selection re-minted over #82's Text model (run 36445296563), nothing else moved. The Visual provenance job now judges each changed baseline by its last setter, since merging main after main gained baselines tripped the per-commit rule (`visual-golden-harness.md`). Decision record: [icon-atlas.md](./AI_TECHNICAL_DECISIONS/icon-atlas.md).
+
+## Text component on real metrics, estimate sites replaced (2026-09-28)
+
+**What landed:** DDB-71 (DDB-55 phase 2), with DDB-198 and DDB-200. The third deliberate re-baseline.
+
+- `components/Text.ts` rewritten to R12.4: position is the top-left of the line box, each axis assigned or hugged from `measureText`, one `drawText` with R2.13's box, so wrap, ellipsis and clip come from the layout. `letterSpacing`, `textTransform` and `textDecoration` in `Style`; line height defaults to the face's. `setBaseline` became `setVerticalAlign`.
+- `DrawApi.canMeasureText` and `RendererContext.hasDraw`; a text that cannot measure yet stays zero-sized and measures on its first render.
+- `text/testing.ts`: `MeasuringRecordingBackend` and `installMeasuringDrawApi` for component tests.
+- Estimate sites replaced: `Text.layout`, the synergy panel, the driver stats (`getRequiredWidth` deleted, the display hugs), the input caret. About thirty anchored labels given real boxes; main menu, splash, developer and driver-selection titles centred.
+- `Card`: the cost hugs its digits and the title runs to them, wrapping to a second line only when it must (DDB-198); the face shows the summary with brackets stripped instead of cutting rules text, in a box that ends above the rarity line. `cards.test.ts` measures summaries on the face instead of counting characters (DDB-202). `DriverSelectionScreen`: the synergy panel fits the gap between the driver panels.
+- R6.11, R12.4 and the chapter 6 checklist say ascent plus descent (DDB-200).
+- Tests: `Text.test.ts`, `Card.test.ts` (every title fits its slot, nothing on any face is cut), `Input.test.ts`; the snapshot and gallery tests that pinned the old zero-until-layout behaviour now pin measurement.
+
+**How:** every screen and scene captured locally before and after and read side by side; the three that showed problems the new metrics exposed (description over the rarity line, synergy panel over the flavour text, splash subtitle inside the title's line box) were fixed and recaptured. Decision record: [text-component-metrics.md](./AI_TECHNICAL_DECISIONS/text-component-metrics.md).
+
+## Phase 1 close-out: rendering fixtures, test gaps, perf re-capture (2026-09-28)
+
+**What landed:** DDB-68 (DDB-55 phase 1, its last task).
+
+- `screens/developer/DrawFixture.ts`: a `Layer` that paints through the draw API in its own space, plus caption helpers. The tree snapshot sees one node, so a fixture's deliberate overlaps stay out of the sibling-overlap lint.
+- Three new sections and gallery scenes: `PaintOrderFixturesSection` (3.12's fixture: ladder against submission order, one layer in both orders, a shadowed panel over a busy ground, a popup promoted out of a clipped scroller, a modal with an open select menu under a toast and a tooltip), `ClippingFixturesSection` (4.7's: nested and disjoint clips, content offset before a fixed clip, every primitive cut by one clip, text too long for its box) and `ShadingFixturesSection` (5.10's: radii, border widths and positions, gradients over a checker, bordered circles, lines, shadows and glows, the four blend modes over a generated landscape texture).
+- `DrawApi.test.ts`: promotion with base groups submitted after the popup. `WebGL2Backend.test.ts`: `roles` option on the fake backend, and 5.10's mixed-screen and four-flush ring tests. `uberShader.spec.ts`: the fractional abutting-rects case as `test.fail` for DDB-188.
+- Docs: phase 1's checklist ticked with a note per item, the coordinates line corrected (R7.8 and R7.8a were never applied), and the phase 1 result recorded under it.
+- Captures: `perf-results/phase1-frame-final.{json,md}` and `phase1-gallery-final.{json,md}`, compared against the phase 7 baselines.
+
+**How:** the three scenes rendered locally in the chromium project first and checked by eye, including the per-corner radius order; lint zero on all three through `lint.spec.ts`. Goldens minted on CI with `update_mode=changed`. Filed DDB-203 (nine-slice); notes on DDB-73, DDB-75, DDB-188 and DDB-190 for the tests and fixture items they now own.
+
+## Perf follow-ups: long frames and slow input, the overlay's anchor, the Metal floor re-measured (2026-09-28)
+
+**What landed:** DDB-192, DDB-193, DDB-194 (DDB-55 phase 7).
+
+- `debug/hitchObserver.ts` (DDB-192, R15.29's second half): `PerformanceObserver` on `long-animation-frame` (or `longtask` where LoAF is absent, as on Electron 25) and `event` with `durationThreshold: 16`, feature-detected through `supportedEntryTypes`, into two rings sized to twice the frame window, with a `saturated` flag when one overwrote an entry still in the window. `FrameTimer` takes it as an injected `HitchSource` and the snapshot gains `hitches` (`longFrames` with the worst frame's longest script, `slowEvents` with the worst input's delay, handler and presentation split), counted over the frame window's own span; null where unsupported. The F5 overlay shows both and the capture table has a "Long frames (worst window)" column taken across every sample. `input` stays null, since event entries only exist past the threshold. Development builds only.
+- The F5 overlay (DDB-194) anchors to `CanvasViewport`'s logical width, set at construction and on every committed viewport change, instead of reading `window.innerWidth` once. While shown it is its own domain after a `flush()` (R3.21), so no screen draw can paint over it whatever its layer; before DDB-67 the main menu title did, through the since-deleted text-after-shapes ordering.
+- DDB-193: a clear-only probe on the same Radeon Pro 560X shows the per-pass floor was the 4x MSAA resolve (every timed pass paid 1.6 to 1.9 ms with multisampling on). With `antialias: false` later passes read their own work (0.04 ms for a 1-pixel draw), and what remains is one 1.26 ms full-target clear and store per frame in the first timed pass, which is real work and scales with the target (0.04 ms at 128x128). Per-pass queries stay; a single Metal query per frame is not needed. The four phase 7 baselines were recaptured after DDB-64 and DDB-195 with a comparison against the DDB-92 captures, and the capture header states the frame cost instead of the floor.
+
+**Evidence:** unit tests for the observer against a scripted `PerformanceObserver` (14: detection, LoAF preferred over long tasks, null blocks, the window, ring bounds, script attribution, the 8 ms rounding clamp), the overlay's anchor, its domain after the UI (checked to fail without the barrier) and hitch lines (7), `FrameTimer`'s window span (2), `Game` re-anchoring the overlay on a viewport change, ring saturation, and the table's worst-window column; 1718 jest tests pass after merging DDB-67. `scripts/timer-floor-probe.mjs` produces the DDB-193 table, with single-query controls that tie the MSAA floor to the query boundary. In the browser the overlay moved with a 800 to 1100 px resize and showed a slow `pointerdown`. Captures: the GPU medians fell 35 to 65 percent against DDB-92 (combat 16.2 to 4.6 ms paced, 38 to 737 FPS unthrottled, with DDB-67's single domain), unthrottled frames hold under a millisecond on light scenes after an 8 s settle, the timer still costs frame time unthrottled on combat but three off/on pairs could not size it on this shared machine, and paced GPU times read about 2.7 times longer than unthrottled because the GPU idles at 60 FPS. Decision record: [gpu-timer-and-perf-capture.md](./AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
+
+## Paint order: text in submission order, reorder sites fixed (2026-09-28)
+
+**What landed:** DDB-67 (DDB-55 phase 1), the second deliberate re-baseline.
+
+- Deleted `DrawApiOptions.legacyTextOrder` (the clip-change barrier), `rendering/LegacyPaintOrder.ts` (text after shapes, grouped by colour) and `components/legacyDrawOrder.test.ts`. `WebGL2Backend.submit` hands the batcher the domain as submitted.
+- `DrawApi.test.ts`: the temporary describe became two contract tests, one domain across a clip push and pop, and text submitted before a clipped shape. `WebGL2Backend.test.ts` cuts its three-domain frame with explicit `flush()` barriers.
+- Reorder sites: `Card` starts the title past the driver badge; `DriverPanel` sizes the deck preview down to the cycle button, clips it there, and lays the deck in as many cards per row as fit; `DeveloperScreen` names its header and footer heights and ends the title's line box 6 px above the scroll panel; `DriverStatsDisplay` gives the driver name a 16 px band on top and centres the icons below it at their old size.
+- `visual.yml`'s dispatch takes `update_mode` (`changed` or `all`); this re-baseline minted with `all`, since `changed` leaves a real change under the tolerance in place.
+- `WebGL2Backend.test.ts` pins chapter 3 at the backend: text drawn before an overlapping rect is encoded before it.
+- Comments in `FrameTimer`, `Game`, `src/index.ts` and the gallery loop that described clip boundaries submitting mid-walk now say the flush section is the whole frame's submission.
+
+**How:** every screen and gallery scene captured locally on `main` and on the branch, first with only the deletion, then with the fixes, and diffed per pixel: four screens moved, all eight scenes and the splash and main menu stayed byte-identical. `perf-capture.mjs` against `main`: GPU draws combat 6 to 1, card showcase 2 to 1, developer 2 to 1, every screen now one. Goldens re-minted on CI with `update_mode=all`: combat, driver selection, developer and card showcase in both projects. Follow-up filed: DDB-198 (long card titles run under the cost digit). Decision record: [paint-order-rebaseline.md](./AI_TECHNICAL_DECISIONS/paint-order-rebaseline.md).
+
+## Text metrics service and the MTSDF text mode (2026-09-28)
+
+**What landed:** DDB-70 (DDB-55 phase 2), chapter 6 sections 6.2 to 6.5.
+
+- `text/TextLayout.ts`: the one glyph iteration measurement and rendering share (R6.8): kerning, letter spacing in em, uppercase before lookup, fallback glyph, default-ignorables skipped with their neighbours kerned across (the DDB-182 soft hyphen note), greedy wrap with R6.13's break opportunities plus the soft hyphen, grapheme breaks for scripts without spaces via `Intl.Segmenter`, ellipsis on single and wrapped lines.
+- `text/TextMetricsService.ts`: atlases by role, an LRU of layouts (R6.12), `measure`. `text/textPlacement.ts`: line origins for R2.13's anchor or box, decoration offsets, run ink. `text/fontRoles.ts`: `fontFamily` and `fontWeight` to a role through the typography tokens (R11.8).
+- `uber.frag`: `text` mode is median-of-three with the linear ramp, the range per draw or from derivatives, shadow blur from the alpha channel; `mask` mode deleted.
+- `UberGeometryEncoder`: glyph quads through the whole transform, each line's origin snapped under a translation (R6.16), decorations as `rect` quads; `textInk` from the layout.
+- `WebGL2Backend`: `loadFontAtlas` for real, the atlases as resident units, `measureText`. Both bootstraps await the atlases before building the draw API. `DrawApi.drawText` clips to the box for `overflow: 'clip'`; a bare `position` defaults to `verticalAlign: 'baseline'`; `decoration` and `lineHeight` options.
+- Deleted: `rendering/FontAtlas.ts`, `rendering/fonts.ts`, `Renderer.getFontAtlas`, `RendererContext.getRenderer`.
+
+**How:** `TextLayout.test.ts`, `TextMetricsService.test.ts`, `textPlacement.test.ts`, `fontRoles.test.ts`, and the encoder's text block rewritten (measured width equals drawn width, a doubled string lands one width later, snapping at ratio 2, rotation, shadow, decorations). `uberShader.spec.ts` checks the median, the derivative range under a scale, and the alpha-channel shadow on the real shader. Every golden re-minted on CI. `middle` alignment centres ascent plus descent rather than R6.11's ascent alone; the reasoning is in `docs/AI_TECHNICAL_DECISIONS/text-metrics-service.md`.
+
+## Index buffer pool: combat back to 60 FPS on ANGLE Metal (2026-09-28)
+
+**What landed:** DDB-195. `rendering/IndexBufferPool.ts` replaces the index `StreamRing`: every upload writes its indices at offset 0 of its own element buffer. The slot is the smallest free one that fits, free once the frame that wrote it is two frames old, created at a power of two from 16 KB when none fits, never resized, and 24 are pre-created. `WebGL2Backend` binds the slot into the vertex array per upload and draws from `firstIndex * 4`; `reserve` is vertex-only.
+
+**Why:** combat went from 16.6 to 27.9 ms a frame with #70 (bisected over 6e7f6ee, #66, #68, #69, #70 and main). A paced probe showed the cause: a `drawElements` reading an element buffer written since its last draw costs in proportion to the whole buffer (4 MB: 26.4 ms; 256 KB: 16.6 ms). It is triggered by the draw, not the write; it is the same for 16-bit indices; it is not copy-on-write; and orphaning is worse. After #76 the ring was 786 KB and under the cliff, but a 4 MB ring still took combat to 32.7 ms.
+
+**Evidence:** combat 16.6 to 16.8 ms paced and 4.9 to 8.4 ms unthrottled, against 16.6 / 10.4 before #70. The same pool with 4 MB slots measured 30.5 ms, so the per-upload sizing is what fixes it. Unit tests: `IndexBufferPool` (9: distinct slots per upload, two-frame reuse, creation instead of overwrite, power-of-two sizing, smallest fit, no creation after a steady frame is seen, reset, frame order) and backend (a distinct slot per domain with none reused in the next frame, a larger slot created once and never again, restore recreating the initial slots). 1641 jest tests pass. Decision record: [index-buffer-pool.md](./AI_TECHNICAL_DECISIONS/index-buffer-pool.md).
+
+## GPU timer, DevTools tracks, and perf capture tables (2026-09-28)
+
+**What landed:** DDB-92 (DDB-55 phase 7).
+
+- `rendering/GpuTimer.ts`: one `TIME_ELAPSED_EXT` query per GPU pass, never nested, polled oldest first no sooner than two frames after issue and never awaited (R13.16, R13.17, R15.22's permitted calls only); samples invalid on a disjoint event, over three times their CPU frame, or across a lost context, and excluded from the window (R13.18); a per-frame fence reported as `gpu.latencyMs` where the extension is absent (R13.19, R15.23); a query pool and an eight-frame cap on what is in flight. `WebGL2Backend` brackets the clear and each `submit` and never reads a result. Development builds only, and built disabled: F5 turns it on with the overlay, and `window.__perf.gpuTimer(on)` is the runtime toggle. The 3x rule judges a sample against the larger of its own interval and the median frame, so samples beside a hitch are not dropped.
+- `debug/devtoolsTracks.ts`: frame sections and frames on a DevTools custom track, `console.timeStamp` from Chromium 134, `performance.measure` with `detail.devtools` from 128 (cleared after each call), nothing on Electron 25 (R15.29, R15.42). The snapshot reports which as `tracks`.
+- `FrameTimer`: `gpu` is live, with `source`, `p99Ms`, `maxMs`, `sampleCount`, `invalidCount` after R13.11's five fields; the F5 overlay reads the page's snapshot function and shows GPU time or fence latency, the worst section, the device, and the track mode.
+- `scripts/perf-table.ts` and `perf-capture.mjs`: a markdown table beside every capture, `--compare` and a `compare` subcommand for R13.39, all scenarios when none are named, a one second wall-clock settle, `--vsync on` for GPU captures, the GPU timer on only for those (`--gpuTimer` overrides), the timer state and the Metal floor stated in each table header, and a fence latency column.
+
+**Evidence:** unit tests for the timer against a scripted device (16), the track selection (9), the tables (8), the backend's pass bracketing, the snapshot fields and track emission, the `__perf` toggle, and F5 driving the timer; 1603 jest tests pass. A production `build:web` bundle contains no timer or track code. Baselines on one Mac (Radeon Pro 560X, ANGLE Metal): `perf-results/phase7-frame-baseline`, `phase7-gallery-baseline` (vsync off, timer off) and `phase7-frame-gpu`, `phase7-gallery-gpu` (paced, timer on). Measured along the way: Chromium returns timer results hundreds of frames late with the frame cap off, the first second after mounting is a sub-millisecond transient before GPU back-pressure sets in, and on ANGLE Metal a query around a single clear reads 1.39 ms, the same as around twenty, so each timed pass carries a floor. Combat at ~28 ms a frame was bisected to #70 (DDB-63): it scales with the index ring size, and a 256 KB index ring restores 60 FPS (DDB-195). Decision record: [gpu-timer-and-perf-capture.md](./AI_TECHNICAL_DECISIONS/gpu-timer-and-perf-capture.md).
+
+## Uber shader: one program, exact-coverage borders, the clip as data (2026-09-28)
+
+**What landed:** DDB-64 (DDB-55 phase 1), with DDB-65's per-draw clip.
+
+- `src/assets/shaders/uber.vert` and `uber.frag` replace `vertex.glsl` and `fragment.glsl`: modes `flat`, `rect`, `shadow`, `circle`, `image`, `text` (MSDF, unused until DDB-70) and a temporary `mask` for the bitmap atlas; R5.8's border compositing, R5.6's linear ramp, Wallace's erf shadow, premultiplied output, and R4.4's half-open clip test on the interpolated logical position.
+- `rendering/UberGeometryEncoder.ts` replaces `LegacyGeometryEncoder.ts`: transform on the CPU, premultiplied colours and gradients, clamped radii, border outsets, one device pixel of quad inflation, R5.11's shadow geometry, lines and polyline segments as oriented `rect` quads, R5.17's polygon feather ring, image quads.
+- `WebGL2Backend`: the uber program, premultiplied `over`, per-draw blend for `multiply` and `screen`, eight sampler units with the atlas resident and a placeholder on the rest; the scissor and `scissorBox` are gone. `Renderer` sets `antialias: false`.
+- `Batcher` and `stats.ts` lose `clipIsState`, topology and `topologyChange`; `clipChange` is a structural zero. `LegacyPaintOrder` no longer splits circle outlines out.
+- `Rectangle` passes its corner radius; `Triangle` and `Polygon` put their box into the points rather than a pushed transform, so stroke widths are pixels.
+
+**How:** `UberGeometryEncoder.test.ts` (42, including the paint-order tests moved from the deleted encoder test), rewritten `WebGL2Backend.test.ts` (no scissor call, clip on every vertex at ratio 2, blend state per mode, texture units), `Batcher.test.ts` for the reduced split reasons. `tests/visual/web/uberShader.spec.ts` runs the real shader in SwiftShader against chapter 4.7's fragment fixture and chapter 5.10's pixel tests. Every golden re-minted on CI; the before and after comparison, and GPU draw counts per screen (unchanged, with every screen at one draw once `legacyTextOrder` goes), are in `docs/AI_TECHNICAL_DECISIONS/uber-shader.md`.
+
+**Review follow-ups (same PR):** the R4.2a bound for a polygon grows by the feather miter's four device pixels, `shadowInk` clamps a negative blur, the indexed-polygon outline contract is written on `DrawPolygonOptions` and checked by `isSingleOutline` (unfeathered draw plus a `polygon-not-one-outline` diagnostic when it fails), and the pixel suite gained image, mask and additive cases. The combat golden's intent badge reads 15 where `main`'s said 5: `main`'s golden was stale and passed under the 200-pixel budget (DDB-197).
+
+## Body face kerning: stay on unkerned Open Sans (2026-09-28)
+
+**What landed:** DDB-189, a decision with no asset change. Open Sans 3.000 stays the body face and ships with an empty `kerning[]`.
+
+**Why:** no OFL Open Sans has kerning (3.000 and 3.003, static and variable, carry GPOS `mark` and `mkmk` only; upstream issue googlefonts/opensans#4 is still open), and the woff2 Google Fonts serves the mock is 3.003 with identical outlines and advances for every atlas glyph it holds, so unkerned is the mock's look. Open Sans 1.10 kerns but is Apache 2.0 and a different drawing (214 of 225 outlines differ); Noto Sans kerns but sets 1.1% wider with every advance different. Measured on all card text at 13 px, 1.10's kerning would move 26 of 4468 pairs by 0.5 px or more (largest 1.69 px): small, not zero, so the reason is mock fidelity.
+
+**How:** fontkit inspection and shaping of each candidate, recorded in [font-pipeline.md](../../docs/AI_TECHNICAL_DECISIONS/font-pipeline.md#body-text-stays-unkerned-ddb-189). `src/assets/fonts/README.md` and the zero-pairs test in `fontAssets.test.ts` point at the decision. No pixel moves.
+
+## GPOS kerning in the font atlases (2026-09-28)
+
+**What landed:** DDB-182. `scripts/gpos-kerning.ts` resolves GPOS pair adjustment (lookup type 2, formats 1 and 2, through type 9 extensions) for the `kern` feature, and `scripts/merge-kerning.mjs` splices the result into an atlas JSON's `kerning[]` in msdf-atlas-gen's schema. `build-fonts.sh` and `.ps1` run it after each atlas. fontkit is a new devDependency. The loader drops, with a warning, a kerning pair naming a code point the atlas lacks, and a duplicate pair. jest and the root tsconfig now include `scripts/`.
+
+**Result:** `barlow-condensed-semibold.json` has 4982 pairs (`AV` -0.047 em, `Ta` -0.068, `LT` -0.067). Open Sans 3.000 has neither a `kern` table nor a GPOS `kern` feature, so it has none; follow-up DDB-189. JetBrains Mono has none, being monospaced. A full rebuild reproduced every PNG and the other two JSON files byte for byte. No pixel moves: the atlases are not drawn until DDB-70.
+
+**How:** synthetic-table unit tests for each resolution rule (format 1 miss falling through, class 0, lookups summing, extension, mark filtering, unsupported values failing, DFLT fallback, determinism), a cross-check against fontkit's shaper over all 2704 Barlow letter pairs, and a test that each committed `kerning[]` equals a fresh extraction from its face. Decisions in [font-pipeline.md](../../docs/AI_TECHNICAL_DECISIONS/font-pipeline.md#kerning).
+
+## Textures get an owner and the canvas a single viewport (2026-09-28)
+
+**What landed:** DDB-66 (DDB-55 phase 1), with DDB-186 (R15.3) alongside.
+
+- `gpu/TextureStore.ts`, R5.30 to R5.33's resource layer, GL-free over a `TextureDevice`: reference counts with the GPU free deferred to `endFrame` inside a frame, uploads queued and drained oldest first at `beginFrame` under a 2 MB budget (the first of a frame always goes), storage allocated at upload, `immediate` for UI atlases, and context loss and restore from `keepSource`, `reload()`, or empty storage. `rendering/WebGL2TextureDevice.ts` does `texStorage2D` and `texSubImage2D` on unit 31. `FontAtlas` creates through it; the null and recording backends hold one over `NULL_TEXTURE_DEVICE`. `DrawBackend.textures` replaces `createTexture`/`destroyTexture`; `DrawApi` gains `retainTexture`, `isTextureResident` and a `texture-not-live` diagnostic, and fills three R5.35 counters.
+- `coords/viewport.ts` and `rendering/CanvasViewport.ts`: R15.4's `ResizeObserver` sizing with its WebKit fallback and `matchMedia` watch, logical size from the framebuffer (R7.5), changes committed at the top of the frame (R7.3) and delivered to the GL viewport, then `ScreenManager.resize`, then the gallery host (R7.11). `windowFrame()`, the `Renderer` and `Screen` window listeners, and the gallery's are gone; `scissorBox` takes the frame's logical height.
+- `coords/snapping.ts`: `snapToDevice`, `snapTextOrigin`, `snapHairlineRect`, `snapClipRect`. The legacy encoder's per-glyph rounding goes through `snapToDevice` at the frame's ratio.
+- `rendering/deviceInfo.ts`: the three R15.3 extensions and the unmasked GPU identity, detected once and carried in the perf snapshot as `device`.
+
+**How:** Unit tests: `TextureStore` (18: ownership, deferral, the budget and its ordering, immediate uploads, an upload that throws mid-drain, loss and restore by each path, a decode that resolves after a second loss), `WebGL2TextureDevice` (4), `CanvasViewport` (13: both R15.4 paths, a device-pixel box that disagrees with an emulated ratio in either direction, commit semantics and the pre-paint frame, zoom, no observer, `uiScale`), `coords` (12: chapter 7's required numbers for ratio 2, UI scale 1.25 and the hairline rows), plus backend, draw API, `Renderer`, `Game` and encoder additions. `CombatScreen.test.ts` resizes through `Screen.resize` now that no screen listens to the window. No golden moves: at ratio 1 every change is an identity (`Math.round(x * 1) / 1`, `round(1440 * 1)`, `fb / 1`). Decision record: `docs/AI_TECHNICAL_DECISIONS/resource-layer-and-viewport.md`.
+
+## Electron visual flake: atlas decode rejected by navigation, not a load failure (2026-09-28)
+
+**What landed:** DDB-187. `tests/visual/electron/shell.spec.ts` waits, in `beforeEach`, for the boot page's `font-atlases-ready` or `font-atlases-failed` mark and asserts it is ready before any test navigates.
+
+**Why:** the Electron window loads the renderer on its own at launch, and that boot page starts decoding the three atlases. Every test then `goto`s its scene or screen on the same `Page`. When the navigation lands while a `decode()` is in flight, Chromium rejects it with "The source image cannot be decoded.", the dying page's `console.error` reaches the listener `captureConsole` attached to that `Page`, and the clean-console gate fails the attempt; the retry passes because the timing moves. The chromium project never saw it because its context starts blank. Nothing in the loader, the atlases or the webpack inlining was at fault (the electron project runs the dev server, so the inline data URIs are not even on this path).
+
+**Evidence:** a local sweep that launched Electron and navigated N ms after `firstWindow` failed at 40, 50, 60, 75 and 80 ms and was clean at 0 to 30 and 100 ms and up, 5 of 20 runs; the same sweep with the boot wait was clean 20 of 20. The electron project passes locally (14 passed, 1 skipped) with no pixel change, since the wait happens before any capture and the captured page is unchanged.
+
+## Concave polygons fill inside their outline; primitive-shapes has a golden (2026-09-28)
+
+**What landed:** DDB-185 and the close-out of DDB-103.
+
+- `draw/triangulate.ts`: `triangulatePolygon(points)` ear-clips a simple polygon in either winding into R2.11's index list, keeping the outline's winding per triangle, dropping collinear vertices instead of emitting zero-area triangles, and returning nothing for an outline with no area. Tolerances scale with the outline's extent. A self-crossing outline has no right answer; once no ear is left the remainder is fanned so the call ends. Exported from the draw module, since R2.11 makes tessellation the caller's job and game-side vector art needs the same tool.
+- `Polygon` computes its indices once when its outline changes (`setPoints`, `makeRegular`, `makeStar`) instead of a fan from vertex 0 on every frame. The fan was wrong for the gallery star: vertex 0 is the top tip, which cannot see the inner corners beside it, so two fan triangles landed outside the shape.
+- `primitive-shapes` is no longer `blockedBy` in `tests/visual/support/scenarios.ts`; its golden is minted on CI, both projects. The harness and lint-spec comments that explained the block in DDB-103's terms now say it generally.
+
+**How:** `draw/triangulate.test.ts` checks exact cover, not just triangle counts: every triangle is real and wound like the outline, areas sum to the outline's, and a 40x40 sample grid inside the outline is covered exactly once and outside not at all. Cases: convex quad and hexagon, the gallery star (and the old fan fails the same check), an L whose first vertex is reflex, a comb, clockwise and counter-clockwise stars, collinear midpoints on a square and on an L, pixel-scale input, degenerate input, and a bowtie that must still terminate. `components/Polygon.test.ts` checks through a recording backend that changing the outline refreshes the cached triangles and that a zero-area outline skips the fill but keeps its stroke. No other golden moves: `Polygon` has one importer, `PrimitiveShapesSection`.
+## WebGL2 backend replaces the WebGL1 path (2026-09-28)
+
+**What landed:** DDB-63 (DDB-55 phase 1). `src/renderer/engine/rendering/WebGL2Backend.ts` is the live backend on both pages and `LegacyGLBackend.ts`, its WebGL1 context and `Shader.ts` are deleted. It reuses `Batcher` and `LegacyGeometryEncoder` (32-bit indices now), with the two shaders ported to GLSL ES 3.00 without changing their arithmetic.
+
+**How:** `Renderer` creates a WebGL2 context with R15.2's attributes (except `antialias`, measured to move 12 of 13 goldens with the legacy program, kept until DDB-64), handles `webglcontextlost`/`webglcontextrestored`, and shows a DOM status line when the context is missing or lost. `StreamRing` places each upload in a fixed-capacity vertex or index buffer at an advancing offset that never overwrites a region younger than two frames, growing the buffer once with a warning if a frame needs more. The projection and view live in a `std140` block, one 256-byte-aligned slot per frame in a ring of three, bound with `bindBufferRange`. `FontAtlas` uploads with `texStorage2D` and `texSubImage2D` and re-uploads on restore. `FrameLoop` replaces both hand-written rAF loops so R15.5 can cancel it. `LegacyPaintOrder` moved to its own file unchanged; `createLegacyDrawApi` is `createDrawApi`.
+
+**Evidence:** byte-identical screenshots against `main` for six screens and eight gallery scenes, under SwiftShader at ratio 1 and hardware Metal at ratio 2 (with `powerPreference` held at default for the hardware run, since `high-performance` selects the discrete GPU). New unit tests: `StreamRing` (8), `FrameLoop` (4), and `WebGL2Backend` against a recording context (12: no R15.22 call, no `bufferData`, `texImage2D` or uniform setter inside a frame, rotating uniform slots, ring offsets and growth, attribute pointers per upload, rebuild on restore, blend state back after `invalidateState`), plus `Renderer` under jsdom (2: the status line clears only after every rebuild, and stays up with an error when one throws). New Playwright spec `contextLoss.spec.ts`. Follow-ups filed: DDB-185 (concave `Polygon` fill, now the `primitive-shapes` golden's blocker) and DDB-186 (R15.3); R15.4 went to DDB-66, which already owned it. Decision record: `docs/AI_TECHNICAL_DECISIONS/webgl2-backend.md`.
+
+## The clip stack's consumers: cull, snapshot, hit test (2026-09-28)
+
+**What landed:** DDB-65's fourth and last PR (DDB-55 phase 1), stacked on the batcher.
+
+- `Layer.clipsChildren` (overridden by `Panel`) is the single test of whether a layer clips, read by `Layer.render`, `Panel.render`, `treeSnapshot` and the hit test.
+- `Panel`'s `ScrollableContentLayer.render` cull is deleted; R4.2a's cull in the draw API does the job and counts it. `DrawBackend.textInk` (optional) lets text be culled per run; `LegacyGeometryEncoder.textInk` unions the glyph quads from the same pen and glyph walk it draws with, grown by a pixel. Asked only under a rect clip and a translate-only transform.
+- `treeSnapshot` carries a `ClipState` and intersects with `intersectClip`; an empty intersection is a zero-sized rect.
+- R4.12: `Layer.containsPoint` rejects a point outside any clipping ancestor, half-open, each ancestor asked in local space so a panel's scroll is removed (R4.11). Promotion's clip reset for hits and reverse-paint-order dispatch are left to phase 3 (DDB-75).
+
+**How:** `ui/PanelClip.test.ts` covers 4.7's offset-before-clip fixture, a 500-row scrolled panel emitting only the rows in view with the rest counted culled, the background staying outside its own panel's clip, the hit test (scrolled-out row, clip edge, nested clips, non-clipping ancestor), the empty snapshot clip, and the snapshot's clip equalling the clip the recording backend got. Text cull tests on a backend with `textInk`; encoder extent tests that the reported ink contains every glyph drawn under three translations. Removing the hit-test gate fails three tests. `CombatScreenTeardown` now clicks a card that is on screen at its 1024 px viewport. Pixels byte-identical against `main` on six screens and seven gallery scenes. Decision record: `docs/AI_TECHNICAL_DECISIONS/clip-stack-consumers.md`.
+
+## The batcher: one GPU draw per sort domain (2026-09-28)
+
+**What landed:** DDB-65's third PR (DDB-55 phase 1). The back half of chapter 3's batcher, and the legacy backend moved onto it.
+
+- `draw/Batcher.ts`: merges a sorted domain into one shared vertex and index upload, one contiguous range per draw group, and splits a GPU draw only for a reason (blend, topology, scissor clip, `textureSlotsExhausted`). A domain that outgrows the upload starts another, counted as a `bufferFull` flush. It sits behind the backend seam because the vertex format is the backend's (R5.4); the WebGL2 backend will compose it with an instance encoder.
+- `draw/ResidentTextureSet.ts`: R5.20's fixed resident units plus dynamic units; only exhaustion splits.
+- `rendering/LegacyGeometryEncoder.ts` and both legacy shaders: the per-draw uniforms (model matrix, colour, border colour and width, shape size) are per-vertex attributes, with the model matrix built by the same `gl-matrix` calls and multiplied in the same order, so the GPU sees the same floats. Text glyphs share the buffer. `TextRenderer.ts` deleted.
+- `LegacyGLBackend`: `LegacyPaintOrder` puts each layer's text after that layer's shapes, grouped by colour as `TextRenderer` did; one upload per domain; the font atlas bound once per frame; `submit` returns real `GpuWork`.
+- Stats: `GpuWork` carries backend-caused flushes and clip changes, `DrawStats.clipChange` is measured, `topologyChange` added as a legacy-only split reason. `PerfSnapshot.batcher` is `DrawApi.getStats()` on both pages; the F5 overlay shows groups in and GPU draws out.
+- Circles and polygons no longer inherit a previous rect's border uniform, and DDB-103's circle-outline buffer overrun is gone by construction; only the unbaselined primitive-shapes scene draws either.
+
+**How:** 18 batcher tests (merging, growth, upload capacity, resident and dynamic slots, every split reason, the clip seam, determinism, draw-record reuse), 5 resident-set tests, 18 encoder tests whose expectations are the deleted code's expressions written longhand, plus stats, FrameTimer and Game snapshot tests. Pixel check: `main` and this branch served side by side in Chromium at 1440x882, canvases hashed inside a paused frame; all six screens and seven baselined gallery scenes identical. Plain submission order for text differed by one level on driver selection, which is why the colour grouping stays. GPU draws: combat 91 to 6, showcase 61 to 2, developer 19 to 2, main menu 7 to 1, with `batcher.gpuDraws` equal to `renderer.glDrawCalls` on each. Decision record: `docs/AI_TECHNICAL_DECISIONS/batcher.md`.
+
+## Theme token file, generator, and drift test (2026-09-28)
+
+**What landed:** DDB-83, phase 4 of DDB-55. `src/renderer/engine/theme/tokens.json` holds every R11.3 category (colour, space, radius, border width, font size, line height, letter spacing, motion, layer, elevation, typography, control); `npm run tokens` runs `scripts/generate-tokens.mjs` to write the committed `tokens.ts`; `tokens.test.ts` fails when the committed module differs from a fresh generation. The starting theme is the battle screen mock's palette: five asphalt surfaces, bone text and lines, yellow as the warm accent (the drivers own amber and teal). Data, ok, and crit are new hues (periwinkle, mint, pink), since every hue in the mock's "one hue, one meaning" legend already has a job; Battle Screen Design section 7 and the mock legend list them now. Aliases (`status_warn` is `accent`, `radius_ui` is `r_sm`, glow colours, role sizes) resolve in the generator. Nothing reads the tokens yet, so no pixel moved; DDB-84 migrates components. Format choices, palette sources, departures from worldsim's defaults, and a literal-to-token map for DDB-84 are in [theme-tokens.md](../../docs/AI_TECHNICAL_DECISIONS/theme-tokens.md).
+
+**How:** 25 tests: the byte-for-byte drift check (line endings ignored, for Windows checkouts); the 11.6 round trip (every token with the file's value, the three css-only font stacks absent, nothing extra); ten generator rejections (colour or easing disagreeing with its css form, unknown or missing category, duplicate leaf name, dangling alias, alias to an inherited property, alias cycle, value plus alias, a string in a numeric category); the script run through a symlink; and the 11.2 structure as assertions (surface ordering by luminance with inset below panel, line alphas in one tint, warm and cool accents with warn and info aliased, data, ok, and crit off the legend, the radius scale, the three roles, control heights and fonts, nothing below 11 px, the motion values, the layer ladder in order). Hand-editing a value in `tokens.ts` fails the drift test and `--check`.
+
+## Font pipeline: faces, build script, committed atlases, loader (2026-09-28)
+
+**What landed:** DDB-69, the first item of DDB-55 phase 2. No pixel changes; the atlases are loaded and validated, and DDB-70 draws with them.
+
+- Faces under `src/assets/fonts/` with their OFL texts: Barlow Condensed SemiBold 1.422 for display (the family the battle screen mock and DDB-83's tokens use), Open Sans Regular 3.000 (moved from `public/assets/fonts/`, where nothing referenced it) for body, JetBrains Mono Regular 2.304 for mono. `charset.txt` holds the R6.3 ranges; `README.md` there says how to install msdf-atlas-gen on each platform.
+- `scripts/build-fonts.sh` and `.ps1` run msdf-atlas-gen v1.4.0 (pinned; the scripts refuse another version) with `-type mtsdf -size 48 -pxrange 8 -yorigin top -potr`. Three atlases (512x512 for Barlow, 1024x512 for the others), committed. Byte-identical across runs.
+- `src/renderer/engine/text/FontAtlas.ts`: `parseFontAtlas` validates msdf-atlas-gen JSON (R6.2) and normalises it to y down and per em, honouring `yOrigin`. Structural problems and a range below R6.4a throw `FontAtlasError`; a glyph with one bound, bad numbers, or atlas bounds off the image is dropped with a warning; a glyph with neither bound is a blank (the space). Missing punctuation gets a typesetter's substitute, missing typographic spaces are synthesized at their defined widths, and U+200B, U+2060, U+FEFF are forced to zero width. R6.2 and R6.3 amended to match.
+- `fontFaces.ts` maps roles to bundled JSON and image modules; `loadFontAtlases.ts` validates, decodes, and checks each image's size against its metrics. `src/index.ts` starts it at boot and sets a `font-atlases-ready` or `font-atlases-failed` performance mark.
+- Webpack: PNG is `asset/resource` in the web build (under `assets/fonts/`) and `asset/inline` in the Electron renderer (R15.34). The font sources are no longer copied into `dist`; the OFL files are.
+- `scripts/smoke-electron-package.mjs` launches the packaged app from `release/` and fails unless it runs from `file://`, the ready mark appears, and no image is requested as a file. Added after packaging in both Electron Build jobs.
+
+**How:** 80 new tests in `src/renderer/engine/text/`: structural failures, glyph drops, `yOrigin` and `emSize` normalisation, kerning, substitution, and over the committed files (parameters, PNG size from the IHDR against the JSON, every charset code point resolving, licence files). Smoke test run locally against an `electron-builder --mac --dir` build: passes, and fails listing the PNG URLs with the Electron rule switched to `asset/resource`.
+
+## AI strategies score the effect types cards actually use (2026-09-27)
+
+**What landed:** DDB-171. The strategies checked effect types no card in `cards.json` has (`speed`, `move_to_position`, `position_change`, plus `armor`, `draw`, `adrenaline`, and `status`, and the status names `nitro_boost`, `oil_slick`, and `caltrops`), so MCTS gave a real Flank and Nitro Boost its flat 0.5 for unknown effects and the other strategies carried dead branches.
+
+- MCTS scores a card's movement once, in `evaluateMovement`, for whoever acts: the Outrider `BoardProjection.orderCarrier` picks for an attack order (Run Ahead), otherwise the vehicle playing the card. A card that flanks is worth `FLANK_WEIGHT` (8) when `canFlankAnyone` passes with the card's summed `selfSpeedBonus`, and 0 when it fails or the actor is already flanking; its boost counts only through the flank. A boost alone (Nitro Boost) goes through the existing speed-boost scoring on the summed bonus, so two +2s that open a flank together score as one +4. A slow on the target (Oil Slick, Caltrops, Flag Down) is worth `SPEED_BOOST_WEIGHT` per 10 points of speed it can actually take, which is no more than the target has above 0. Any other status keeps the flat 0.5. `draw_cards`, `gain_armor`, and `gain_resource` for adrenaline replace the dead names, in the effect scores, the end-turn count of valuable cards, and the draw synergy; armor scores only what fits under the vehicle's max, so Armor Plating at full armor is worth 0. `evaluateActionWithContext` is protected so tests can read a play's score.
+- Aggressive and Ramming read speed from `selfSpeedBonus` alone; the `speed`, `move_to_position`, `status`, and `nitro_boost` branches are gone. Aggressive's armor branch reads `gain_armor`; Ramming's adrenaline branch reads `gain_resource`. Ramming doesn't value slows.
+- Salvage reads `draw_cards`, `gain_armor`, `apply_status`, `speed_reduction`, and `gain_resource`. `CardEffectValidator` drops its alias cases.
+- `ai/__tests__/StrategyEffectTypes.test.ts` scans every non-test file in `ai/` for the effect types, statuses, and resources it compares against, on any receiver (`e.type`, `fx.type`, `this.effect.type`; `action`, `decision`, and `card` types excepted), with either quote, `==` or `===` either way round, `!=`, `includes` lists, inline and named Sets, switch cases, and lookups in a named object or Map. It fails on any effect type the card data has nowhere (nested conditional effects included), any status no `apply_status` applies (condition-only names such as Precision Shot's `speed_plus` don't count), and any resource no effect names. Each form, optional chaining included, has a self-test on a synthetic source. It reads source text, so it isn't full coverage: a destructured field, a type string passed to a helper, a backtick string, or an effect held in a variable with an exempt name such as `card` gets past it. `Battle.ts` still accepts the aliases in play, and BoardProjection and Vehicle aren't scanned (DDB-176).
+
+**How:** MCTS tests on real cards, every play taken from the actions MCTS is offered: a Flank it can make is worth 8 over the same card with a flat-scored status, and one it can't make isn't offered; Nitro Boost scores higher when its +3 opens a flank than when it opens none or the raider is already fast enough; two +2 boosts that open a flank only together score as one +4; Oil Slick on a flanker is worth 1.4 against a speed 6, 0.7 against a speed 2, and 0 against a speed 0; Armor Plating is worth 0 at full armor; Run Ahead is worth the flank weight once whether its caster is a Rig too slow to flank even with the boost or a vehicle the boost would carry past the raider, since the Outrider carries it out. The flank-at-8, Nitro, and Oil Slick tests fail on main; the paired boosts, armor, slow floor, and both Run Ahead tests fail on this PR's first commit, which scored the Rig's Run Ahead 0 and the faster caster's 18.5. The drift test fails on main for Aggressive, Ramming, Salvage, MCTS, and the validator. Aggressive, Ramming, and AIPlayer tests that built cards with the dead types now use the real Flank, Flanking Maneuver, Nitro Boost, and `gain_armor`.
+
+Seeded comparison against main (mulberry32 over `Math.random`, seeds 1 to 5, 8 turns, also against a 300-structure, 300-HP Buggy). Exact play counts depend on the harness, so only the qualitative results are recorded here. The Rust Buggy's planned intents on the dev-fallback combat screen are identical under all four enemy AIs (aggressive, MCTS, Ramming, Salvage), since its deck is Ramming Speed and Precision Shot. As the player AI, Aggressive and Ramming play the same cards in the same order as main, with the default Road Warrior and Interceptor and with a Mechanic and Raider. Player-side MCTS diverges from turn 1: with the default pair it plays Repair Kit where main played Armor Plating at full armor, and with the Mechanic and Raider it stops playing EMP Blast and plays more Nitro Boost. Player-side Salvage diverges from turn 2 or 3, mostly from valuing Nitro Boost's draw. Every fight ends on the same turn as on main. In the dev server the combat screen showed the Buggy's intent and END TURN played the enemy turn into turn 2.
+
+## EMP Blast's stun makes raiders skip their turn (2026-09-27)
+
+**What landed:** DDB-173. EMP Blast applied a `stunned` status to every raider, but nothing read it, so a stunned raider showed its intents and played its whole plan. Rule, decided 2026-09-27 as the natural reading of the card and recorded in Combat Rules (Enemy intents and the EMP Blast entry): EMP played during the player's turn stuns every raider in the fight for the coming enemy turn, each drops its committed plan with a log line, the preview drops its intents at once, and the stun is gone when the next player turn starts, so the raider plans and acts normally after that. A raider arriving later isn't stunned, and a stunned one is otherwise still in the fight (targetable, takes damage, drops back when outpaced).
+
+- `Vehicle.isStunned` is the single check. `AIController.planEnemyTurn` plans nothing for a stunned raider, `Battle.projectEnemyTurn` gives it no entry and applies none of its cards to the projection, and `processEnemyTurns` logs "X is stunned and skips its turn" and skips its plan.
+- No change to the status system: EMP's stun has duration 1, and statuses tick at the start of the player's turn, before planning, so it covers exactly the enemy turn after it's played.
+- enemy-intent-planning.md notes the stun in the plan-dropping rule and the implementation.
+
+**How:** 6 new tests, all failing on main: EMP empties every raider's intents, the enemy turn plays nothing and logs both skips; a stunned raider whose driver the player then kills logs the lost-driver line, not a stun line (from review: the stun check runs after the wreck and driver checks); the preview is already empty when `stateChanged` fires for the play; the stun clears and both raiders plan and hit on the following turn; a stunned flanker outpaced by Nitro Boost still drops back to its reserved slot; and after Draw Fire on the Pilot Car, EMP empties the redirected intent and nothing is drawn or dealt. Checked in the dev server with a temporary patch (reverted) that put EMP Blast in the Road Warrior's hand: playing it cleared the Rust Buggy's intent, END TURN logged "Rust Buggy is stunned and skips its turn" with no damage to either player vehicle, turn 2 showed a fresh intent, and ending turn 2 played the Buggy's cards.
+
+## Build stamp on the main menu (2026-09-27)
+
+**What landed:** production builds show the short commit SHA and CI run number in the main menu's bottom-right corner (`build 142 - 2f8d7a7`, or the SHA alone with no number), small and muted, so a playtester can tell which deploy is live. The separator is a hyphen because the font atlas is printable ASCII only.
+
+- `webpack.common.js` defines `__BUILD_SHA__` (env `BUILD_SHA`, else `git rev-parse --short HEAD`, truncated to 7) and `__BUILD_NUMBER__` (env `BUILD_NUMBER`, else null). Both are null unless `NODE_ENV=production`, so the dev server and the screenshot harness that runs on it render nothing and the main menu goldens don't change per commit. Electron's renderer merges common, so a packaged build shows it too.
+- `MainMenuScreen.onMount` builds the Text from `formatBuildLabel` (`main-menu/buildLabel.ts`) and positions it from the viewport, again on resize.
+- `deploy-sftp.yml` passes `github.sha` and `deploy-pr-playtest.yml` passes the PR head SHA (not the merge ref) as `BUILD_SHA`, with `github.run_number` as `BUILD_NUMBER`, through the build step's `env:`.
+
+**How:** 3 tests in `buildLabel.test.ts`. `npm run build:web` put `sha:"2f8d7a7",number:null` in the bundle, and with `BUILD_SHA`/`BUILD_NUMBER` set the served build showed "build 142 - abcdef1" bottom-right, following a resize; the dev server bundle had `sha: null` and showed no label.
+
+## The intent preview judges a raider from where it will be (2026-09-27)
+
+**What landed:** DDB-170. The intent preview read a raider's slot and flank state from what its plan recorded, so outpacing a flanker (say with Nitro Boost on the vehicle it outran) left the preview judging it from the shoulder while play dropped it back to its reserved slot first. The verified case: a Buggy flanking the Rig with a range 2 Pot Shot at it, Draw Fire on the Pilot Car beside the Rig. After a Nitro Boost on the Rig the preview showed the Pilot Car taking the shot and +50% damage; in play the Buggy dropped back, couldn't reach the Pilot Car, and hit the Rig without the bonus.
+
+- `Battle.projectEnemyTurn` re-derives each planned card on a fresh `BoardProjection`: flankers that will drop back at the end of the player's turn go to their reserved slots (`dropBackSlotOf`, the same test `dropBackFlankers` runs), wrecks leave the road, then every raider's plan is replayed in team order with `BoardProjection.apply`. Each card gets the raider's slot, flank state, and speed at that step, so a flank earlier in its own plan moves it from where it really starts, and one the player outpaced fails as it will in play. `getIntents` reads the target (Draw Fire, range) and the damage (flank +50%, speed) from it.
+- `BoardProjection` gains `dropBack` and `leaveRoad`; the drop-back decision stays in `Battle.dropBackSlotOf`. `plannedTarget` reads every slot from the projection, which replaces the separate player-side drop-back lookup DDB-169 added.
+- A raider that will drop its plan (wrecked this turn, or its driver is gone) now shows no intents, matching play.
+- After review, the projection runs play's checks before applying each card: `getPlannedCardBlocker` and `drawFireRedirect` now read slots and the flank rules from a `BoardProjection` (the live one in play), and a card that will fizzle shows no intent and isn't applied, so a slow that fizzles doesn't enable a later raider's flank. Formula damage uses the target's projected speed, so another raider's slow shows in a Ram. `getAllIntents` builds the projection once for every raider, and the combat screen reads it once per refresh. `meetsFlankRules` is gone.
+- Planning starts from the same board (`Battle.projectEnemyTurnStart`, used by `AIController.planEnemyTurn`), so a flanker whose boost wore off at the start of the player's turn plans from the slot it's expected to drop back to as the board stands instead of fizzling with no player action.
+- Combat Rules' Draw Fire bullet and fizzle rule, escorts.md's DDB-169 note, and enemy-intent-planning.md say the preview matches play for raiders too and what it shows for a fizzling card.
+
+**How:** 5 new tests, the first, third, and fifth failing on the old code: the verified case, a flanker that holds the shoulder (preview unchanged, the cover takes it with the bonus), a flanker outpaced by Nitro losing the +50%, and two with a plan that starts with its own flank card (dropped back and flanking again shoots from where the flank takes it, which a fix applying the drop-back to every card gets wrong; with that flank outpaced too, the flank drops out of the preview and it shoots from its reserved slot). Each checks the preview against what play logs. The review fixes add 3 more and extend 2: the two existing range-fizzle tests now check the intent drops out of the preview; a Tire Spikes that fizzles after its raider drops back takes a later raider's Flank out of the preview with it; a Ram after another raider's slow previews the 7 it deals, not 3; and a flanker whose duration-1 boost wears off plans nothing from its reserved slot instead of a Far Shot that would fizzle. All fail on the first commit of this PR. After merging DDB-163/168's unclamped speed sum, 2 more: a raider slowed to 0 that plans Nitro Boost moves at 2, not 3, so it doesn't plan a Flank on a speed 2 Rig (the old clamp planned one that fizzled) and does plan and play one on a speed 1 Rig, with plan, preview, and play agreeing. Checked in the dev server with a temporary patch (reverted) that put the Rust Buggy flanking the Apocalypse Rig with a Far Shoot planned at it, a Pilot Car beside the Rig, and Draw Fire and Nitro Boost in hand: Draw Fire moved the mark to the Pilot Car, Nitro Boost moved it back to the Rig, and the enemy turn dropped the Buggy back and hit the Rig with no redirect. The end turn button was laid out off screen then, so that turn was ended through `battle.endPlayerTurn()`. After merging DDB-124, the unpatched combat screen still showed the Rust Buggy's intent, and END TURN from its own button played the enemy turn and moved to turn 2 with a fresh intent.
+
+## Combat screen: one layout for mount and resize (2026-09-27)
+
+**What landed:** DDB-124. The combat screen laid out its bands one way on mount (resource bar on top at 7%, enemies 23%, battlefield 40%, hand 18%) and another on the first resize (enemies at y=0, resource bar at the bottom, the log positioned for a 300-wide panel), and nothing ever moved END TURN, so a bar built while the viewport read 0 wide left it at x=-130 for the whole fight.
+
+- `computeCombatLayout({ width, height })` in `screens/combat/CombatLayout.ts` is the only layout: the mount proportions and placement, unchanged. `CombatScreen.createLayers` builds each layer at its rect and `onResized` moves and sizes every layer, turn banner and log included, from the same function.
+- The UI is built in `onMount`, not the constructor, per the screen rules in CLAUDE.md. `initializeCombat` is private now; the DDB-157 tests mount with drivers instead of calling it. `onUnmount` removes every layer and drops the battle and combat model subscriptions, so a remount of the same instance rebuilds cleanly, and a load that lands after an unmount stops before starting a fight (main left 13 input registrations and 5 battle listeners behind). The dead reuse-the-old-battle branch in `onMount` is gone. The play that wins a fight, and the enemy turn that loses one, navigate to the result screen and unmount combat before returning; `playCardWithTarget` and `endPlayerTurn` then rebuilt the hand on the detached layer, leaving 9 or 10 live cards under the result screen that played into the finished battle when clicked (also on main). Both stop once the screen is inactive, and `updateUIFromBattle` does nothing on an unmounted screen.
+- Every combat layer lays out its children the same way on construction and resize. `ResourceBarLayer` and `DriverStatsDisplay` split into create and layout, so END TURN, the driver stats, and scrap follow the bar. The two battlefield layers' identical background, dividers, and labels moved into `BattlefieldLayer`, driven by a `LaneDecor` per team, and are repositioned on resize instead of re-added on top of the vehicles. `PlayerHandLayer` runs the card visuals pass after a resize as it does when the hand is dealt, because `Card.updateVisuals` also moves the card, and `EnemyVehicle` shows its intent again after the resize rebuild, which had reset it to "!". Clipping is switched on once a layer has a size, so a layer built at 0 wide still clips after a resize.
+- The bands still cover 88% of the height and leave the bottom 12% empty. That's a design question for Kevin and the redesign (DDB-127), left alone here.
+
+**How:** 2 tests in the new `CombatScreenTeardown.test.ts`, through the real ScreenManager: after the winning card play (a Headshot clicked onto a raider one hit from dead) and after the enemy turn that loses the fight, the result screen shows, no combat card is registered with the InputSystem, and clicks where the cards were reach neither `onCardSelected` nor `Battle.playCard`; both fail without the fix with 10 cards left registered. 10 new tests in `CombatScreen.test.ts`: a remount has the same layers, model listeners, and input registrations as the first mount and one END TURN click ends the turn once; a load landing after an early unmount, with drivers and on the dev fallback, starts no fight and leaves nothing registered; a screen resized to 1280x720 and to 1440x882 snapshots the same as one mounted at that size; a fight resized away and back snapshots the same as at mount, vehicles and cards included; mount puts every band where the layout says; END TURN is inside the viewport after mount, after a resize, and after a 0-wide mount gets its real size; and an injected click on END TURN after a resize ends the turn. Checked in the dev server: END TURN on screen at mount and clicked through two turns, the layout at 1280x720 after a resize matching a mount at that size and back at 1024x768 matching mount, with END TURN clickable at each. Headless Chrome captures with seeded random: mounts at 1024x768, 1280x720, and 1440x882 are pixel-identical to main, and a resized screen is pixel-identical to a fresh mount at both sizes. No screenshot baseline changes.
+
+## AI speed and Shield scoring (2026-09-27)
+
+**What landed:** DDB-163 and DDB-168. The AIs judge speed against who's on the road instead of a fixed line, the planning projection floors speed the way play does, and every AI kill estimate counts Shield.
+
+- `FAST_VEHICLE_SPEED` is gone. `BoardProjection.canFlankAnyone(flanker, speedBonus)` runs the flank check against every vehicle on the other side still in the fight (an unmanned raider can't be flanked), so a speed 5 Rust Buggy is fast against a Rig (2) or Workshop (4) and slow against a Bike (8). The aggressive AI gives a speed boost its big bonus only when the boost is what opens a flank. Every legal Flank gets the full flank priority (it was +400, plus 200 at speed 6 or more): a Flank is only offered at a target the raider can outrun, so a speed check on it was dead. It now reads Nitro Boost's speed status (`selfSpeedBonus`, exported from `BoardProjection`); before, it only saw the legacy `speed` effect type, which no real card uses. MCTS's flank and boost scoring uses the same check, but MCTS only scores the legacy `position_change` and `speed` effect types, which no card uses, so it doesn't score a real Flank or Nitro Boost until DDB-171. MCTS also no longer scores a card's self damage (Ramming Run's structure-only cost) as damage on its target, which the Shield helper had turned into a guaranteed kill against anything at 2 structure or less. The ramming AI's bonus is its speed over the ram target, since ram damage is the speed difference, and its extra boost priority goes to a rammer that isn't faster than anyone.
+- `Vehicle.speedSum` is base, driver, and statuses before the floor; `speed` floors it once (`floorSpeed`). The projection keeps the sum and floors on read, so a boost after a slow that bottomed out, carried in or planned on the same board, projects what play will show instead of more.
+- `ai/DamageEstimate.ts` is the one kill estimate. `damageToFinish` is the driver-only target's HP for driver-only damage, bare structure for structure-only, and otherwise `Vehicle.damageToWreck`: Shield, armor, then twice the structure less one with anyone aboard (the crew takes the other half), or the structure alone for an empty vehicle. `lastingDamage` drops what Shield soaks, since Shield clears on its own. The aggressive, ramming, MCTS, and salvage AIs use it wherever they did structure-plus-armor, driver-HP, or half-to-structure math. AIEvaluator and the battle simulator had none.
+- Raiders plan right after Shield clears at the start of the player's turn, so today no raider sees Shield on a target in play. The fix matters for the player-side AIs and for anything that plans later.
+
+**How:** 17 new tests. `DamageEstimate.test.ts` (7): Shield, armor, and the crew's half against `takeDamage` itself, an empty escort, driver-only and structure-only skipping both, Headshot's HP on an empty escort, lasting damage, and a card's kind being its target damage, not its self cost. `AggressiveFlankerAI.test.ts` (6): a speed 5 raider against speeds 2 and 4 shoots instead of boosting and scores Nitro 0, a legal Flank scores 600, against 6 and 8 boosts first (Nitro 400, since +3 outruns the 6), a boost that opens nothing scores 0, an unmanned raider isn't someone to flank, and a Headshot picks the 2 HP driver behind 30 Shield. `MCTSAI.test.ts` (1): a card with a 2 structure-only self cost isn't picked over a plain shot against a target at 2 structure. `EffectTargets.test.ts` (2): the floor, for a slow the vehicle already has (played through the battle) and a slow and boost on one board. `RaiderPreferences.test.ts` (1): a looter picks a fresh Fuel Hauler over a Med Truck at 2 structure with 20 Shield. The floor and Shield tests fail against the old code. Existing tests passed unchanged; only their `FAST_VEHICLE_SPEED` comments moved. Checked in the dev server with Flank and Nitro Boost patched into the Rust Buggy's deck (reverted): it planned Flank first, outran the Rig onto the center shoulder, fired its Precision Shots, and played Nitro last.
+
+## Draw Fire covers the row (2026-09-26)
+
+**What landed:** DDB-169. Draw Fire now pulls each aimed raider intent at any other of your vehicles in the covering escort's row, not only driven vehicles: haulers, other escorts, and vehicles that became escorts when their driver died. Kevin delegated the call; it's escorts.md decision 48, which supersedes decision 20's "aimed at a driven vehicle", and it's written into Combat Rules (Enemy intents) and Card System Design 4.5.
+
+- `Battle.drawFireRedirect` drops the `isEscort` exclusion; the target has to be a player vehicle in the fight in the covered row, and a shot at the row's cover itself lands as planned. Play and the preview share it, so the marks still match play. With two covers on a row, a shot at the earlier one goes to the later one.
+- The preview judges your side of the board as the enemy turn will find it, after review: your vehicles' and the covers' rows and ranges after the end-of-turn drop-back (`dropBackSlotOf`, shared with `dropBackFlankers`), and a wrecked target followed to its survivors' vehicle (`followWreck`, shared with play). A raider's reach is still judged from its planned slot even if it will drop back; that's DDB-170. A Run Ahead Outrider about to drop back out of a covered row showed the mark on the cover but took the shot, and a wreck's mark stayed put while play followed and redirected.
+- Unchanged: one enemy turn, judged as each intent plays, never cancels, last cover played wins skipping wrecks, area intents aren't pulled, and a Headshot can't turn on an empty cover.
+- Draw Fire's full text says "another of your vehicles"; the summary ("draws its row's raider fire") was already right. Combat Rules now says Draw Fire counters both archetypes, and escorts.md's DDB-149 and DDB-150 notes and decision 46 say what changed.
+
+**How:** 8 new tests in `Orders.test.ts`: a looter's shot at a Fuel Hauler lands on the Pilot Car beside it; a shot at another escort, and at a vehicle converted after the raider planned, is pulled; a shot at the covering escort, and at a hauler in another row, isn't; a blast hits a hauler in the row and the cover once each; a Headshot at a hauler's passenger keeps its target past an empty cover; and the marks after Draw Fire match where two shots land. 3 more for the preview: an escort flanker dropping back out of the covered row keeps its shot, a driven flanker dropping back into it has its shot pulled, and a target wrecked on the player's turn is followed to the Bike its driver rides in, then pulled. Checked in the dev server with a Pilot Car and Fuel Hauler patched into the combat screen's center row and Draw Fire put in a hand (reverted): the Rust Buggy, a looter, planned its three Precision Shots at the Fuel Hauler; Draw Fire on the Pilot Car moved all three marks to it, and the enemy turn logged "Pilot Car draws Rust Buggy's Precision Shot away from Fuel Hauler" three times, wrecking the Pilot Car and leaving the hauler at 40/40. Its two Ramming Speeds, planned at the Pilot Car itself, stayed on it and fizzled once it was wrecked.
+
+## Passengers in escorts and unmanned vehicles (2026-09-26)
+
+**What landed:** DDB-152. Drivers ride in escorts, and a player vehicle whose driver dies alone carries on as an escort instead of leaving the road. The isOutOfFight stand-in for the player's team is gone.
+
+- Wreck escapes (`Team.handleDriverEscape({ driver, from })`): on the player's team the partner's driven vehicle first, then the escort nearest the wreck, ties broken by `nearestTo`/`compareTieOrder` as for attack orders; a raider still takes the first free seat on its team. Driver first, then passenger. `handleVehicleDestruction` returns where each survivor went, and `Battle.handleWreck` logs "jumps from X into Y" or "has no free seat and crashes out of the fight".
+- Seats: `Vehicle.canAddPassenger` is a free seat in any vehicle still in the fight, escorts included; an unmanned raider or a seat behind a dead driver never counts.
+- Conversion: `Team.handleDriverDeath(vehicle)` runs after every driver hit (`Battle.damageVehicle`, `damageDriver`). On the player's team a living vehicle with nobody at the wheel goes through `convertToEscort` (`Escort.ts`): profile type null, `UNMANNED_CREW` (gunnery 4, evade 3, ramming 2), role gun, no signature card or dividend, preferred slot = the formation slot it held, and `spent` true; it moves to the end of the roster (`Team.vehicles`), after every existing escort, so Rally fires it last; `readyEscorts` readies it at the next player turn, so an enemy-turn conversion is ready. `EscortProfile.type` and `signatureCard` are nullable for it.
+- A passenger in an escort needed no new play rules: the attack tag gates them, orders and utility cards work, they draw and refill with everyone, damage splits half to structure and half to them, Headshot hits them, and raider plans follow them in through `Team.survivorsOf`.
+- Plates: `ui/Vehicle.ts` rebuilds when the driver/escort shape changes, so a converted vehicle drops its driver row and gets the SPENT chip.
+
+**How:** 22 tests in `EscortPassengers.test.ts` (roster order under Rally, escape order and ties, crash-out logging, raider seats, a passenger's plays, draw and refill, split and Headshot on a followed plan, conversion stats and speed, spent mid-turn and ready after the enemy turn, Covering Fire hit and miss on the default gunnery, Draw Fire on a converted escort, a survivor riding in one, defeat with the last driver riding in it, and, after merging DDB-151, a won fight putting it last in `AfterFight.escorts` and `Convoy.afterFight` appending it). `Convoy.test.ts`'s hand-built conversion now goes through `Team.handleDriverDeath`, 2 plate tests in `ui/Vehicle.test.ts`, and the DDB-156 stand-in tests in `Wrecks.test.ts` and `Escorts.test.ts` rewritten for conversion. Checked in the dev server with an Outrider and a window handle patched into the combat screen (reverted): the Interceptor killed by Berserker turned the Lightning Bike into a spent escort plate with no driver row, ready again on turn 2; the Rust Buggy then wrecked the Rig and the Road Warrior jumped into the Outrider, the hand labelled "Driver 1 (passenger)", and the Buggy's remaining plan followed him there.
+
+## Raider target preferences (2026-09-26)
+
+**What landed:** DDB-150. Raiders have archetypes: a looter plans at your haulers, a killer at your driven vehicles, whenever the card can legally reach one; otherwise it plans as it did. Kevin delegated two calls, recorded as escorts.md decisions 29 and 30, Combat Rules (Enemy intents), and AI System Technical Design 2.1.
+
+- `Vehicle.raiderArchetype` (`'looter'`, `'killer'`, or unset), independent of the AI strategy. `preferredTargets` in `mechanics/RaiderArchetype.ts` narrows a card's legal targets to the preferred ones when any is legal. `AIPlayer.getValidTargets` applies it after `BoardProjection.targetBlocker`, so every strategy's own scoring chooses among the preferred targets, and the planned target is what the marks show and the enemy turn plays.
+- Only `enemy_single` cards that land something on their target have a preference; a flank keeps its usual pick. `landsOnTarget` moved into `EffectTargets.ts`, shared with Draw Fire.
+- Draw Fire never redirects an area intent (decision 29). It already didn't; the code and Combat Rules now say so.
+- The Rust Buggy is a looter (decision 30): salvage flavor, and the one preference a player can see in the combat screen once a hauler is on the road.
+
+**How:** `RaiderPreferences.test.ts` (12 tests): a looter picks a hauler (Fuel Hauler or Med Truck) when legal and falls back when it's out of range or there's no hauler; the aggressive AI's scoring picks between two haulers past a softer gun escort; a flank ignores the preference; a killer picks a driven vehicle over escorts, including one the aggressive AI would otherwise finish; Draw Fire still pulls a killer's shot; no archetype is unchanged; a player vehicle carrying an archetype plans without it; and the planned marks match where the cards land. The Draw Fire area test in `Orders.test.ts` now plays the blast. Checked in the dev server with a Fuel Hauler patched into the combat screen and a temporary label of each intent's target on the raider plate, since the screen doesn't draw target marks yet (neither committed): the Rust Buggy planned its three Precision Shots (no range limit) at the hauler and its two range 1 Ramming Speeds at the Rig, and the enemy turn landed exactly there, wrecking the hauler. Turn 2's plan fell back to the Rig. With the archetype cleared, the same hand planned everything at the Rig.
+
+## Escort persistence and dividends (2026-09-26)
+
+**What landed:** DDB-151. Escorts carry from one fight to the next: a lost one is gone for the run with its signature copy, a living one keeps its structure and nothing else of the fight, and surviving haulers pay out. Kevin delegated the two open questions; decided the same day as escorts.md decisions 32 (Med Truck heals every living driver 3 after each fight it survives) and 33 (a driven vehicle that became an escort stays in the convoy, counting toward four, no signature card). Combat Rules (Losing vehicles and drivers, Owning escorts, the escort types table) and Game Flow's Convoy strip updated to match.
+
+- `Convoy` (`mechanics/Convoy.ts`) is the roster, first acquired first: `add` refuses a fifth, `dismiss({ escort, drivers })` takes the copy it brought out of those drivers' cards, `afterFight` drops the lost and appends anything new, even past four, and `isOverCap` reports it. No other run state exists; drivers, fuel, and scrap are for a later task.
+- `Battle.endCombat` now returns an `AfterFight` (`escorts`, `lost`, `dividends`), also on `battle.afterFight`, and runs once. The battle remembers the convoy's escorts from the start, since wrecks leave the team at the end of their turn. A lost escort's copies (`Card.broughtBy`) leave deck, hand, discard, and exhausted through `Driver.removeCardsBroughtBy`.
+- Fight state is cleared at the end of the fight, not on entry (PR #50 review note): `Vehicle.leaveRoad` clears slot, flank, statuses, Shield, and spent on every living player vehicle, so an escort that ended on the raiders' shoulder opens the next fight in its preferred slot, and a driven vehicle can start another fight on the same team. Convoy escorts' armor refills (a build call, flagged in escorts.md for Kevin); driven vehicles' armor and structure and every seat are left as they are, for DDB-166.
+- `EscortDividend` is `{ kind: 'fuel' | 'scrap' | 'heal', amount }`. Heals land on the drivers who fought, crashed out included; fuel goes in the result for the run. Dividends pay only after a won fight, not a tie or a loss. Salvage Rig isn't built, since it has no signature card.
+
+**How:** 22 tests in `Convoy.test.ts` (roster order and cap, dismiss, a lost escort's copies from every pile after it's cleared off the road, the copy staying playable while another of its type lives, structure carrying into a new battle, the road-state reset and the flanker re-opening in formation, a driven vehicle starting a second fight on the same team, an escort's passenger staying seated, set-piece allies left out, the conversion case past four via a stand-in for DDB-152's conversion, each dividend, crashed-out and dead drivers, duplicates, a lost fight, a tie at the turn limit, and a won fight end to end). Nothing here shows in the app: the combat screen fields no escorts and there's no screen after a fight that reads the convoy, so there was nothing to check in the dev server.
+
+## Order cards and order resolution (2026-09-26)
+
+**What landed:** DDB-149. Escorts act now: nine order cards, the escort that carries each one out, SPENT state, and Draw Fire's redirect. Kevin delegated the open card questions; they were decided the same day and recorded as escorts.md decisions 23 to 27, Combat Rules (Escorts), and Card System Design 1.3 and 4.5.
+
+- Shield (escorts.md decision 28): Close Ranks (6) and Draw Fire (4) grant Shield, temporary armor that soaks damage before armor, stacks, isn't capped, and clears from every vehicle at `Battle.start` and the start of each player turn. Structure-only and driver-only damage skip it, and Ram's Armor/10 ignores it. Plates show it as "SHN" after armor, and the armor pill lights for Shield alone. Armor Plating and Repair Kit are unchanged (DDB-164).
+- Cards: Covering Fire, Ramming Run, Draw Fire, Close Ranks, Rally the Convoy, and Triage from the spec, plus the new signatures Run Ahead (Outrider: +2 Speed for 2 turns, then flanks), Flag Down (Pilot Car: Vulnerable and -2 Speed through the next enemy turn, sure-hit), and Top Off (Fuel Hauler: +1 Adrenaline to someone aboard, 0 cost). Ramming Run's 2 self damage lands only on a hit, straight to structure.
+- Card data: `order` tag (never `attack`), `escort` target type, `signatureOf` with `signature` rarity, `spendsEscort`, and `broughtBy` on a copy. `CardLoader` validates all of it. Effects gained `on_hit`, `structure_only`, `grant_adrenaline`, `gain_shield`, and `draw_fire`; formula damage now adds to the printed value (Ram's is 0, so it's unchanged).
+- The passenger gate is the `attack` tag; `Driver.isAttackCard`'s heuristics are gone. Oil Slick is now blocked for passengers and Berserker allowed, matching Combat Rules.
+- `Vehicle.spent` and `isReady`; `Team.readyEscorts` at `Battle.start` and every player turn. `BoardProjection.orderCarrier` picks the nearest ready escort in range with the spec's tie order (`compareTieOrder`, `nearestTo` in `Road.ts`), and `targetBlocker` routes orders through it. `Battle.applyCardEffects` takes an `actor`, so an escort acts with its own slot, speed, and skills. Rally re-picks each escort's nearest raider in roster order, then spends every escort. Exhaust cards go to a new `Driver.exhausted` pile and return to the deck at `endCombat`.
+- Draw Fire: covering escorts in play order until the end of the enemy turn; each planned single-target card aimed at a driven vehicle in a covered row turns on the escort if it can reach it, judged as it plays and, for the target marks and preview, from `PlannedAction.slot`. Area intents keep their targets (DDB-150).
+- Signature cards need a living escort of their type (`Battle.getCardBlocker`, `canPlayCard`). `Battle.playCard` takes `targetOccupant` for Triage, Top Off, and Medical Kit.
+- Combat screen: order targets come from the battle's rule, the escort that would carry an attack order lights up with the focus border while a raider is hovered (`CombatModel.carrierVehicleId`), unplayable signatures grey out, and escort plates show a SPENT chip. The card browser lists the signature rarity.
+
+**How:** 62 tests in `Orders.test.ts` (card data, tie order, the selector's ranges, ties, spent, and no-carrier cases, a passenger playing an order, the reset, each card, Draw Fire's wrecked-cover timings, and Shield's stacking, damage order, clearing, structure-only and driver-only skips, and preview against play), 5 new `CardLoader` checks, and the card data check covering the new summaries (44 to 59 rendered against 60). Checked in the dev server with escorts and orders patched into the combat screen's opening (not committed): Covering Fire lit the Outrider over the Rust Buggy and spent it, Ramming Run left the Buggy untargetable, Draw Fire lit only escorts, Run Ahead put the Outrider on the shoulder, and SPENT cleared on turn 2. After Shield: Draw Fire on the full-armor Pilot Car showed its 4 Shield on the plate, and the raider's hit took the Shield off before armor. The combat screen golden is unchanged by default; the card browser golden will need a CI re-baseline for the new cards.
+
+## Driver speed counts once (2026-09-26)
+
+**What landed:** DDB-159. A driven vehicle's speed was its driver's `vehicleStats.speed` twice: once as `baseSpeed`, once more in `getTotalSpeed`. Now it's the spec's driver speed plus vehicle base speed, with per-driver values Kevin set on 2026-09-26.
+
+- `DriverSkills.speed` (1-5) is the driver's speed: Road Warrior 1, Interceptor 3, Mechanic 2, Raider 2, and the combat screen's Rust Buggy driver 2. `vehicleStats.speed` stays the signature vehicle's base speed. Gunnery, evade, and ramming split out as `CrewSkills`, which is what `Vehicle.crewSkills` returns, since an escort's profile has no speed.
+- `Vehicle.speed` is now a getter for the one total that flanking, drop-back, the ram formula, the projection, and the AI read: base speed, plus the speed skill of whoever is at the wheel, plus statuses. That fixes a second bug: `getTotalSpeed` added the driver's own vehicle's speed, so a passenger taking the wheel brought the speed of the car they'd lost. The stored `speed` field, `updateSpeedFromEffects`, and `getTotalSpeed` are gone, and `Team`'s serializer now reports the same number flanking uses. `RammingAI` already read the projected speed, so it needed nothing.
+- `createDrivenVehicle({ driver, name? })` in `Vehicle.ts` is the one way to build a driven vehicle: both combat screen sites, `AIEvaluator`, and both `battle-simulator.ts` sites use it (the simulator still overrides armor to 10).
+- Totals went from Rig 2, Workshop 4, Spike Buggy 6, Bike 10, Rust Buggy 6 to Rig 2, Workshop 4, Spike Buggy 5, Bike 8, Rust Buggy 5. An Outrider (5) now outruns the Rig and the Workshop and ties both Buggies, which isn't enough to flank.
+- The three AI "fast" thresholds (AggressiveFlanker, Ramming, and MCTS's two literals) were 60, calibrated against 50-scale test helpers where every vehicle sat at 100, so in real fights every AI always thought it was slow. They're now `FAST_VEHICLE_SPEED = 6` in `ai/types.ts`, one past the Buggies and the Outrider.
+
+**How:** the AI test helpers moved to a speed 2 driver in a base 3 vehicle, and the AggressiveFlanker and Ramming tests set base speeds on either side of 6. One Ramming test had passed only because every test vehicle counted as fast on the old scale; it now sets a fast rammer explicitly. The Battle and CombatMechanics fixtures give drivers the speed their old `vehicleStats` added, so their totals don't move. New `DrivenVehicleSpeed.test.ts` (12 tests): each stock driver's total, the spec range, statuses, a passenger taking the wheel, an empty seat, and Outrider flanks against the Rust Buggy (blocked on a tie), the Rig, and a slowed Buggy. One new AggressiveFlanker test checks that a vehicle already at 7 shoots instead of boosting. 942 tests pass (929 before).
+
+## Card effects land where their own target says (2026-09-26)
+
+**What landed:** DDB-160. A card with no target used to pass the caster's own vehicle as the target, so Berserker rolled its self damage against the caster's own evade and EMP Blast stunned (or missed) the caster. Each effect now picks its recipients from its own `target` field.
+
+- `mechanics/EffectTargets.ts` is the one rule, used by play, the enemy turn, and `BoardProjection.apply`. `self`, `self_driver`, and `same_vehicle` mean the caster's vehicle; `target` and `driver` the card's target; `enemy_all` every vehicle on the other team still in the fight. An effect with no `target` falls back to the card's `targetType`, with `self` and `both_drivers` meaning the caster (no spec defines what a both_drivers card does to the partner). Draw, adrenaline, and move effects are the caster's own and happen once per card, whatever their target says and even when an earlier effect wrecked the target. `rollsToHit`: never against the caster, otherwise unless `always_hits`, per recipient.
+- `Battle.applyCardEffects({ card, caster, target })` takes the dropped target (null for self and area cards) and resolves each effect per recipient; damage and status moved into `applyDamage` and `applyStatus`. Damage on the caster skips range, the hit check, and the flank and Vulnerable bonuses, so Berserker's 3 is 3. A flank always moves the caster. The runtime same-vehicle check for Medical Kit went away because its recipient is the caster's vehicle by construction; targeting still requires it.
+- `Intent.ts` classifies self effects with the same resolver. `cards.test.ts` requires every effect, upgrades included, to name a target the resolver knows; a `conditional` wrapper names it through the effect it wraps.
+- Cards whose behavior changed: Berserker (self damage always lands, flat) and EMP Blast (now `always_hits`, so it stuns every raider in the fight, or every player vehicle when a raider plays it; `stunned` does nothing yet). Both calls are recorded in Combat Rules as decided 2026-09-26: EMP Blast always hits, and a self-cost is a flat printed price that Vulnerable and flanking don't raise. Self cards (Repair Kit, Armor Plating, Nitro Boost, Witness Me) now ignore a target passed to `playCard`; neither the UI nor the AI passes one.
+
+**How:** 21 tests in `EffectTargets.test.ts` (Berserker at low gunnery, EMP Blast base and upgraded against a high-evade raider and from the raider side, an out-of-fight raider, an area effect that can miss rolling per enemy, mixed self and target cards, projection against play, an area card's adrenaline gained once, a draw after the target is wrecked, a both_drivers card) and 18 card data checks. The Berserker Rage test in `Battle.test.ts` now expects the self damage it used to mark as a known gap.
+
+## Headshot is harder to hit (2026-09-26)
+
+**What landed:** DDB-161. Headshot's `hit_modifier` was -2, and since `Battle.checkHit` hits on gunnery > evade + modifier, that made it easier to land than a plain shot. Combat Rules says the defender gets +2 evade, +1 upgraded.
+
+- `cards.json`: Headshot's effect, its upgrade effect, and its `hit_modifier` variable are now +2 base and +1 upgraded. The summary and description fill the number from `{hit_modifier}`, so the upgraded card reads +1. Point Blank's -1 (easier to hit) was already right.
+- Balance: every Headshot is now harder to land than before.
+- Nothing else reads `hit_modifier`; the AI and `BoardProjection` don't estimate hit odds for damage cards.
+- Tests: `cards.test.ts` checks the real Headshot at base and upgraded, and the escort Headshot test in `Escorts.test.ts` uses the Fuel Hauler (evade 1) with a rider at evade 3, so gunnery 5 lands only against the escort's evade.
+
+## Escorts take fire (2026-09-26)
+
+**What landed:** DDB-148. Escorts are no longer immune: attacks and debuffs on them roll against their own evade, damage lands, and a wrecked escort leaves the road.
+
+- `Battle.checkHit({ attacker, caster, defender, attackType, modifier })` is the one hit rule. Play and `BoardProjection.apply` (raider planning) both call it, so a debuff a raider plans at an escort only projects its speed change when it would land. Skills come from `Vehicle.crewSkills(actor)`: an escort's profile whoever rides in it or orders it, otherwise the acting driver's (the caster attacking, the driver at the wheel defending), which is ready for an escort carrying out an order in DDB-149.
+- `applyCardEffects`: the `targetVehicle.driver` guards on damage and status became "target is out of the fight", so an escort takes damage, logs hits and misses, and pays self costs the same as a driven target. The damage log moved to `Battle.damageVehicle` and only names the parts that took damage.
+- `Vehicle.takeDamage`: past armor, half to structure and half to each living occupant, or all of it to structure with nobody aboard. An escort with a passenger (DDB-152) splits.
+- Headshot: `Card.hitsDriverOnly` and `Vehicle.driverOnlyTarget`. An empty escort is an illegal target in `BoardProjection.targetBlocker` and `Battle.getPlannedCardBlocker`; one with a passenger takes the Headshot on the passenger. Recorded as escorts.md decision 22 and in Combat Rules.
+- Wrecks needed no new code: an empty escort has no survivors, `clearWrecks` takes it off at the end of the turn, and a card planned at it fizzles because nobody got out. Ram damage already read `getTotalSpeed` on both sides.
+- `CardEffectValidator.getEstimatedDamage` had no callers and is gone. `CombatScreen.determineTargetableVehicles` leaves an empty escort unlit for Headshot.
+- A target status now needs the target in the fight, so a status aimed at a vehicle an earlier effect wrecked no longer lands on the wreck.
+
+**How:** 18 new tests in `Escorts.test.ts`: hit and miss on escort evade for damage and status (with the projection matching play), attacker-side escort skills, all-structure damage and the passenger split, ram speed, wreck and removal, a passenger jumping from a wrecked escort, the Headshot calls (one at play level with Headshot's real -2 modifier against an Outrider's evade), and self costs matching a driven target on a hit and a miss.
+
+## Escort model and team limits (2026-09-26)
+
+**What landed:** DDB-146. Escorts exist in the model and a player team can field them.
+
+- `Vehicle.escort` (optional `EscortProfile`, in `mechanics/Escort.ts`) makes a vehicle an escort: type, role, gunnery, evade, ramming, preferred slot, signature card, dividend, and a `setPiece` flag for an encounter's ally. Armor, structure, and base speed stay on the vehicle like any other, and an escort's speed is its base speed because it has no driver to add one. `Vehicle.isEscort` reads it.
+- The four starting types are a typed constant, `ESCORT_CONFIGS`, beside `createEscort({ type, setPiece })`; drivers use the same pattern (`DRIVER_CONFIGS`), and escorts are built synchronously in tests and battles, so no JSON loader. Speeds for the Outrider (5) and Pilot Car (4), the preferred slots, the Fuel Hauler's +1 fuel, and the Med Truck's Triage are the record's. The rest are first-pass numbers: Outrider gunnery 6, evade 6, ramming 2, armor 0, structure 25; Pilot Car 5/4/4, armor 3, structure 30; Fuel Hauler 1/1/3, armor 5, structure 40, speed 2; Med Truck 1/2/1, armor 4, structure 35, speed 2. The other three signature cards and the Med Truck's dividend stay null until DDB-149 and DDB-151.
+- `Team` checks a player team for exactly 2 driven vehicles and at most 4 convoy escorts, at construction and in `addVehicle`, replacing the "exactly 2 vehicles" checks. A set-piece ally never counts, judged by its `setPiece` flag rather than its slot, so it doesn't matter whether the encounter sets the slot before or after adding it. Duplicate types are allowed. `Team.drivenVehicles` and `Team.escorts` (roster order) are new getters.
+- Opening fill (`Battle.placeOpeningFormation`): encounter-given slots first, then driven vehicles in fill order, then escorts in roster order to their preferred slot, falling back to the next free slot in fill order. The four types land around the drivers without colliding.
+- `Battle.mayAmbush` takes the vehicle now: raiders and set-piece escorts may start on the other team's shoulder, driven player vehicles and convoy escorts may not, each with its own blocker message.
+- `Vehicle.isUnmanned` is now "a driven vehicle with nobody alive at the wheel", so an escort is never unmanned and `isOutOfFight` stays false for it until it's wrecked. Escorts are legal targets and stay on the road at the end of the turn. `isDefeated` is unchanged: escorts have no drivers, so they never count.
+- Left for other tasks, on purpose: damage from `applyCardEffects` needs a target driver, so escorts take no attack damage until DDB-148 gives undriven vehicles hit checks and all-structure damage. `canAddPassenger` refuses escorts until DDB-152 builds passengers in escorts.
+
+**How:** 25 tests in `Escorts.test.ts` (profile, limits, duplicates, preferred slots and fallback, defeat, out-of-fight, ambush). One `BattleRoad.test.ts` title renamed. Checked in the app on port 9145: the combat screen plays several turns with the usual two vehicles, and with the four starting escorts added in a scratch edit they open at their preferred slots, survive the end of each turn, and nothing throws; the old battlefield layers stack them, which DDB-154 replaces.
+
+## Driver death handled mid-fight (2026-09-25)
+
+**What landed:** DDB-156. A driver killed without their vehicle being wrecked no longer soft-locks the fight.
+
+- `Vehicle.handleDriverDeath` now runs wherever driver damage lands: `Vehicle.takeDamage` after occupant damage, and `Battle.damageDriver` for Headshot and self damage. It takes the dead out of their seats and promotes the passenger only if they're alive. The repro (Rig wrecked, its driver riding in Bike, Headshot kills Bike's driver) now leaves the survivor driving Bike, free to attack.
+- `Vehicle.canAddPassenger` needs a living driver, so a wreck survivor is never seated behind a dead driver or in an empty vehicle; with no seat they crash out, and `Team.isDefeated` counts only living drivers still aboard.
+- Dead drivers don't draw (`Battle.drawTurnHands`), refill (`Team.refillAdrenaline`), or play (`Driver.getPlayBlocker`, `Driver.canPlayCard`).
+- Nobody alive aboard (`Vehicle.isOutOfFight`): the vehicle can't be targeted, a planned card aimed at it fizzles, a flanker that outran it holds the shoulder, and `Battle.clearWrecks` takes it off the road at the end of the turn. That's the spec for raiders; the player's version should become an escort (DDB-152), so until then it leaves too.
+- Battle log prefixes come from each team's seat order at the start of the fight, so a passenger keeps their `Player1` after a wreck. Deaths and handovers are logged.
+- Review fixes: the AI's target lists (`AIPlayer.getValidTargets` and friends) and the combat screen's target highlight skip vehicles out of the fight, since the player AI kept offering an empty raider that `playCard` refused. The targeting rules now live in one place, `BoardProjection.targetBlocker`: `Battle.validateTarget` logs its answer against a fresh projection, and `AIPlayer.getValidTargets` filters with it against the projection it's planning on, so the AI no longer offers Oil Slick at a non-flanker, Medical Kit at another vehicle, or anything out of a non-damage effect's range. The AI-vs-AI loops in `AIEvaluator` and `battle-simulator.ts` now share `AIController.playPlayerCards`, which ends the turn the first time a play is refused. A card planned at a wreck follows whoever was aboard when it was wrecked (`Team.survivorsOf`, replacing `PlannedAction.targetDriver`), driving or riding.
+
+**How:** tests first in `Wrecks.test.ts` (15, including the soft lock) and `Vehicle.test.ts` (6 more). Six existing tests leaned on dead drivers staying seated, `handleDriverDeath` running on a living driver, or a driverless vehicle taking a passenger, and were updated to set up the same situation legally. Checked in the app: reproduced the scenario on the combat screen and played Ramming Speed with the promoted driver.
+
+## Ambush starts (2026-09-25)
+
+**What landed:** DDB-147. An encounter can start raiders already flanking, on the player's shoulder.
+
+- `Vehicle.flank`'s `reservedSlot` and `outran` are both nullable now. An ambusher starts with both null; if it swerves again by outrunning someone, `outran` is set and `reservedSlot` stays null. `Vehicle.isAmbusher` is true while `reservedSlot` is null.
+- `Battle.placeOpeningFormation` accepts a given slot on the team's flank lane as an ambush, rejects more than three on a shoulder, places the formations, then checks each ambusher with the new public `Battle.getAmbushBlocker` (the vehicle's own team if it's already on one, team allowed to ambush, the other team's shoulder, slot free and not reserved, a living vehicle of the other team anywhere in that row, a flanker on the far shoulder included).
+- `Battle.mayAmbush` allows the enemy team only. DDB-146 opens it for undriven set-piece escorts; the driven pair never can.
+- `dropBackFlankers` skips anything without both a reserved slot and a living outran vehicle, so an ambusher holds the shoulder. `BoardProjection` already carried flank state through as-is and needed no change.
+- There's no reinforcement wave code yet, so waves get only the rule: `getAmbushBlocker` is written to be called on arrival mid-fight and is tested that way.
+- With the player limited to two vehicles, a raider side reaches eight today (six in formation, two on the shoulder), since only two rows have an opposing vehicle. Nine needs a player escort in the third row.
+
+**How:** 15 tests in `BattleRoad.test.ts` (placement, drop-back, player can't ambush, row rule including a far-shoulder flanker, shoulder cap error, slot uniqueness, the arrival rule, a vehicle checked against its own team) and 4 in `EnemyIntents.test.ts` (planning from an ambusher with the flank bonus, a planned swerve that keeps no reservation, a raider flank blocked by the ambusher's slot, the player's cards against it). One misnamed test in `BattleRoad.test.ts` was renamed; it tested a raider on its own shoulder.
+
+## Each run gets its own drivers (2026-09-25)
+
+**What landed:** DDB-157. A second run in the same session no longer starts with the first run's driver damage, hand, discard, or adrenaline.
+
+- START RUN handed DriverLoader's singleton template drivers to combat, and `CombatScreen.initializeCombat` mutates its drivers in place. The dev fallback in `CombatScreen.onMount` and `createDriverWithStartingDeck` (the battle simulator's path) did the same to the templates, the latter by building the deck on the template before copying it.
+- `DriverLoader` now keeps its templates private and every getter (`getDriver`, `getAllDrivers`, `getUnlockedDrivers`, `getLockedDrivers`, the static `getAllDriverArchetypes`) returns fresh `Driver.copy()`s at starting state. Putting the copy in the loader rather than at START RUN or in `initializeCombat` means no caller, current or future, can reach a template to mutate it. Selection screens are rebuilt on every navigate and fetch drivers on mount, so each run gets new copies.
+- `Driver.copy()` already deep-copied the hand, discard, and deck; it now copies the starting deck's card entries too. `unlockDriver` sets the flag on a copy's own metadata, so it no longer writes into `DRIVER_CONFIGS` and `resetUnlockState` really does reset.
+- Tests: 3 in `screens/combat/CombatScreen.test.ts` (two runs back to back through the selection screen, templates untouched after a fight, the dev fallback), 3 in `core/DriverLoader.test.ts`. The DDB-98 selection test compared drivers by reference and now compares archetypes, which is the identity `DriverPair` already uses.
+
+## Escorts written into the specs (2026-09-25)
+
+**What landed:** DDB-133, docs only. Kevin's escort design, made on 2026-09-25, is in the specs.
+
+- Combat Rules: a new Escorts section (stats, slots, orders and the SPENT chip, signature cards, owning and losing escorts, passengers, unmanned vehicles, the four starting types), plus edits to Team, Vehicle, Driver, The road (ambush starts and the 9-a-side count), Flanking (an ambusher holds the shoulder), Losing vehicles and drivers, the combat sequence, and Enemy intents (archetype target preferences).
+- Card System Design: the Order card type, the `escort` target type, the `[Escort]` keyword, signature cards (1.3), and the six initial order cards with summaries and full texts (4.5).
+- Game Flow and UI Specification: the escort count on the map's convoy marker, escort-gated event choices, and the garage's Convoy strip.
+- Battle Screen Design: short notes in sections 1, 3, and 9 on ambush starts, the escort plate and SPENT chip, and the rules the screen now assumes.
+- The mock's Full road scenario got a comment pointing at the ambush-start rule and saying the Interceptor got onto the shoulder by flanking. Nothing else in it changed.
+
+**How:** decision record at `docs/AI_TECHNICAL_DECISIONS/escorts.md`, with the calls made while writing it up (attack order ties, preferred slots, and a few others, marked as proposals) and the open questions. Kevin answered four of the nine the same day (Draw Fire only redirects intents that can reach the escort, ambushers are raiders and set-piece escorts, which orders spend the escort, and damage to a passenger in an escort); they're in the specs and in the record as follow-up decisions. Five stay open, each tied to its build task (DDB-146 to DDB-155). A review round added four more of Kevin's answers (one passenger seat per vehicle, duplicate escort types, ambush rows, Draw Fire timing), scoped driver loss by team, and listed the code that conflicts with the new rules. Kevin then settled defeat: a driver with no seat crashes out and is picked up after a won fight, and the run ends only when no driver is left in the fight.
+
+## Passengers and wrecks leaving the road (2026-09-25)
+
+**What landed:** DDB-96. Losing a vehicle no longer deadlocks combat.
+
+- The combat screen guarded the whole hand and resource update on `getAllDrivers().length >= 2`, and read seats from that list's order. A wreck whose driver died with it dropped the count to one and froze the hand; a wreck whose driver survived swapped the order. It now keeps the two drivers in fixed seats from `initializeCombat`, and the new `screens/combat/PlayerHandView.ts` builds the hand from them: both hands while both drivers live, a dead driver's omitted, playability from `Driver.canPlayCard`, so a passenger's attack cards show disabled. `PlayerHandLayer.setHand(view)` replaces `setHand(cards)`, `setCardDriverMap`, `setDriverAdrenaline`, and the deprecated `setAdrenaline`. The seat label reads "Driver 1 (passenger)".
+- Wrecks leave the road at the end of the turn they die in, player or enemy, right after `dropBackFlankers`: `Battle.clearWrecks` removes them from their team and clears `slot` and `flank`, so the slot, a flanker's shoulder slot, and its reservation all free up. Until then the wreck holds its slot but can't be targeted: `Battle.validateTarget` refuses it, and the screen's targetable list uses alive vehicles only.
+- `Team.handleVehicleDestruction` seats each surviving occupant through `handleDriverEscape` (`Vehicle.canAddPassenger`/`addPassenger`) instead of its own copy of the search, and drops the old passenger-seat condition that compared a vehicle's driver against the wrecked driver.
+- `Battle.playCard` checks cost, passenger rules (the new `Driver.getPlayBlocker`), and the target before the card leaves the hand. It used to spend the card first and, on a bad target, push it back onto the hand while it was also still in the discard; the out-of-range refusal reached that from normal play.
+- Tests: 15 in `mechanics/Wrecks.test.ts` (passenger keeps hand, discard, and adrenaline, can't attack, draws next turn; wreck holds its slot through its turn then leaves; wrecked flanker frees shoulder and reservation; never targeted by plan or player; a refused target leaves hand, discard, and adrenaline untouched; stale plan follows the driver after the wreck is cleared; loss and win conditions), 4 in `screens/combat/PlayerHandView.test.ts`.
+
+**How:** "Stays on the road for the turn it dies, then is removed" read with the rules' own sense of a turn, the one the flanking rule uses ("the end of every turn (yours and the enemy's)").
+
+## No duplicate driver in driver selection (2026-09-25)
+
+**What landed:** DDB-98. Both driver panels defaulted to the first driver, so a player who never touched the right panel started a run with one `Driver` in both slots; the combined hand held every card twice and combat drew 20 UI cards from 10, with duplicate element ids. Combat Rules says the same driver can't fill both slots.
+
+- New `mechanics/DriverPair.ts`: `isSameDriver` (identity is the archetype, so copies count), `assertDriverPair` (exactly two different drivers), and `nextOpenDriverIndex` (first index at or after a start, wrapping, that isn't the partner).
+- `DriverPanel` takes a `partnerDriver` and never selects it; defaulting, activating, and cycling all go through one `selectFrom`. `setDriverIndex` is gone, and the cycle button's action is the public `cycleDriver()`.
+- `DriverSelectionScreen` hands each panel the other's driver, gives the right panel its roster before the left panel picks (so the right one activates on a different driver on the first load, not only the second), and gates START RUN on a valid pair.
+- `CombatScreen.initializeCombat` calls `assertDriverPair` before touching any driver, replacing the bare length check, so no path into combat can build the doubled state.
+- Tests: the pair rules, and the real screen and panels under jsdom (card fetch and routing stubbed): opens with two drivers, cycling either side skips the other, remount starts clean with the left panel back on the first driver. Against the unmodified old code the suite doesn't compile, since `cycleDriver` didn't exist; with only that method renamed, all four fail on the same-driver assertion, because the old panels both start on the first driver.
+
+**How:** the check went in the run start rather than `Team`'s constructor because the AI and battle fixtures build player teams from two Road Warriors (113 tests across 7 suites would need new fixtures), and `battle-simulator.ts` can build mirror setups on purpose. Checked in the web build: selection opens with Road Warrior and Interceptor, both cycle buttons skip the other side, and combat shows 10 hand cards, 5 per driver, with no duplicate ids.
+
+## Dead legacy effect cases removed (2026-09-25)
+
+**What landed:** DDB-144. Deleted the "Legacy effect names" `armor`, `draw`, and `adrenaline` cases at the bottom of the `Battle.applyCardEffects` switch; each duplicated a label earlier in the same switch, so they never ran. No card in `cards.json` uses those types, and the tests that do already hit the earlier cases. Turned on ESLint's `no-duplicate-case`, which flagged exactly those three and nothing else in `src/`.
+
+## Enemy intents planned before the player's turn (2026-09-25)
+
+**What landed:** DDB-132, the model half of DDB-33, stacked on the road-grid PR and merged up to the hand cap and card summaries.
+
+- Every raider commits its whole turn at the start of the player's turn (`Battle.start()` and `startPlayerTurn()`, after the draw). The enemy turn plays the plan instead of asking the AI again. `Battle.getPlan(raider)` returns the committed cards; `Battle.getIntents(raider)` returns type, amount, hits, label, target (a vehicle id, `'both'`, or null), and description.
+- New `mechanics/BoardProjection.ts`: a scratch copy of slots, flank state, speed, hands, and adrenaline. `AIPlayer.makeDecision(board)` decides against it, and every strategy reads position, speed, and resources through it, so a pick after a planned flank or Nitro Boost sees the new board. `Battle.getFlankBlocker` uses the same code on a fresh projection.
+- `AIController.planEnemyTurn()` plans raider by raider in acting order; `getEnemyDecision` is gone. With no enemy AI set, the new `FirstPlayableAI` stands in for the old inline fallback.
+- Stale plans: player-caused (out of range, outpaced flank, dropped-back flanker) fizzle with a plain `fizzle` log line; a target wrecked mid-turn is followed to its driver's new vehicle; a wrecked or driverless raider drops its plan.
+- `Vehicle.intentTier` (basic by default); elites and bosses hide the value, label, and card name. `statusSpeedModifier` pulled out of `Vehicle` so the projection and the vehicle agree on speed.
+- The combat screen shows each raider's first planned intent in the old indicator instead of the hardcoded attack 5.
+- Tests: 20 new in `EnemyIntents.test.ts`, one of them a planned draw against the hand cap; three existing tests updated for planning.
+
+**How:** Kevin made both open calls (split fizzle and retarget by cause; whole-turn planning on a projection, no Battle clone), recorded in `docs/AI_TECHNICAL_DECISIONS/enemy-intent-planning.md` and Combat Rules.
+
+## Card summary field and card data check (2026-09-25)
+
+**What landed:** DDB-131. Cards carry a required `summary` for the card face beside `description` for the detail view.
+
+- `CardData.summary` is required; the loader rejects a card whose `summary` or `description` is missing or blank. Both texts go through one `{variable}` fill, exposed as `Card.displaySummary` and `Card.displayDescription` (the latter replaces `getDescription()`).
+- All 18 cards in `cards.json` have summaries, taken from the battle screen mock's rewrites with values turned back into `{variables}`. Flank and Flanking Maneuver are written for the outrun-a-slower-raider behavior in PR #39.
+- New card data check, `src/renderer/game/data/cards.test.ts`, runs in `npm test` against the real file at base and upgraded values: description at most 330 characters, summary at most 60 rendered characters (brackets not counted), no unfilled placeholders. The 60 is a proxy until phase 2 text measurement can check three lines in 114px.
+- Deleted the stale `public/cards.json` fork. Nothing loaded it; the dev server's webpack middleware answers `/cards.json` with the copy of the real file before the static `public/` directory is consulted.
+
+## Road grid positions and flanking in the combat model (2026-09-25)
+
+**What landed:** DDB-128 and DDB-129 together, since Flank was self-targeted and the outran-row rule needed the card change.
+
+- `VehiclePosition` (front, back, flanking) is gone. New `mechanics/Road.ts`: six lanes left to right, three rows, `slotRange` (lanes apart plus rows apart), lane rules (never your own shoulder, never their formation), and the opening fill order. `TeamType` moved to its own module so `Road` can use it without an import cycle; `Team` re-exports it.
+- `Vehicle` gained `slot`, `flank` (reserved slot and outran vehicle), and an `isFlanking` getter; `changePosition`, `shouldLoseFlanking`, and the unused `copy` are deleted.
+- `Battle`: opening placement in the constructor, range from slots, flank legality and the flank move, drop-back at the end of every turn (moved out of `endCombat`, which only runs when the fight ends), and a self-targeted status on a targeted card now lands on the caster without a hit roll. A failed flank stops the rest of the card.
+- Flank and Flanking Maneuver target the vehicle to outrun; Flank's inert `flanking_damage` status is gone (the +50% comes from the slot). MCTS's flanking weight went from 2.0 to 1.5.
+- AI strategies, `AIEvaluator`, `battle-simulator.ts`, `CombatScreen`, and the three battlefield layers read slots. The layers draw the same picture as before.
+- Tests: the spec's range table as a fixture, lane rules, opening placement, slot uniqueness, the own-shoulder rule, and each flank rule including drop-back and the wrecked-target case.
+
+**How:** rules calls made with Kevin during the session and written into Combat Rules: enemy slots come from encounter data with a fallback order, flankers drop back at the end of every turn rather than at `endCombat`, and a flanker whose outran vehicle is wrecked holds the shoulder.
+
+## Hand cap of 7 per driver (2026-09-25)
+
+**What landed:** Combat Rules' hand cap, in the mechanics layer. No UI.
+
+- `Driver.drawCards` stops filling the hand at `HAND_CAP` (7). Cards drawn past it go straight to that driver's discard, the draw returns `{ drawn, burned }`, and the driver emits `cardsBurned` with the burned cards for the screen to animate later.
+- Battle routes the turn draw (now `TURN_DRAW`, 5) and both card draw effects through the capped draw and logs burns as a `cards_burned` message, e.g. "Player1 THE MECHANIC's hand is full, so Nitro Boost goes straight to the discard pile". `Team.drawCardsForAllDrivers` went away with it.
+- Tests: a Nitro Boost chain stops at 7 with the overflow in discard, a turn draw into a held hand burns past the cap, and the driver-level burn event. The deck reshuffling tests drew 10 into a hand and were reworked to stay under the cap.
+
+## Design docs recovered from the old design folder (2026-09-25)
+
+**What landed:** everything from the original design folder that wasn't already in the repo, converted to Markdown. Docs only.
+
+- Compared all twelve documents from the folder export against `docs/specs/`. AI System Technical Design and Card System Design matched word for word. Gameplay Mechanics and Style matched, including its truncation (no sections 3 to 5, ends mid-sentence), now marked as such. Game Flow had lost one unfinished note under 1.1, restored. Combat Rules was an older, shorter draft; its four ideas that didn't carry forward (initiative and velocity, percentage hit chances, Flank granting another attack, driver death removing the vehicle) are now an appendix in Combat Rules, labelled as not current rules.
+- New: `docs/specs/Faction Concepts.md`, and `docs/research/` with the comparable-games list, the genre mechanics research, the Symbiotic Twin pitch, the game name brainstorm, and the original software spec draft (which also stops mid-sentence).
+- The folder's TODO list went to Specboard rather than the repo: picking factions and a mood board are new items, the rest were done or already tracked.
+- `AI System Technical Deisgn.md` renamed to fix the typo; the hub's design documents list links everything.
+
+## Battle screen design, docs only (2026-09-25)
+
+**What landed:** the combat screen's target design and the rules it depends on, as documentation. No code changed.
+
+- New spec `docs/specs/Battle Screen Design.md`, decision record `docs/AI_TECHNICAL_DECISIONS/battle-screen-road-model.md`, and the interactive mock at `docs/design/battle-screen/` with the seven screenshots of the current screen it was measured against.
+- Combat Rules: positions become a road grid (two formation lanes by three rows per side, shoulders for the other team's flankers, one vehicle per slot), range becomes lanes apart plus rows apart, flanking is +50% and lands in the row it outran with the old slot left empty, hand cap 7, passengers keep their hand, no duplicate driver.
+- Card System Design: a required `summary` field for the card face beside `description` for the detail view, with budgets.
+- Game Flow 1.3 and 2.2: per-driver decks and pools; the old 25/40/20/5 layout replaced by a summary of the new one. Gameplay Mechanics: "Lone Wolf" replaced by the passenger rule.
+- `VEHICLE_POSITIONING_AND_WAVE_SYSTEM.md`: the superseded positioning, stacking, and card-size sections deleted; the wave system kept and bounded by the grid.
+- `ui-rendering-engine-implementation.md`: the phase 4 and phase 6 combat lines point at the new spec.
+
+**How it was reached:** the current screen was captured at seven viewports and played through with a script, subagents audited the captures, the code, the design docs, and comparable games, and three revisions of an HTML mock were reviewed with Kevin. The mock renders every scenario at every viewport and fails on overflow, collisions, scaling, and slot-rule violations; all 180 renders pass. Bugs found on the way are DDB-111 to DDB-126.
+
+## LegacyGLBackend, and every renderer consumer moved onto the draw API, DDB-67 (2026-09-09)
+
+**What landed:** the pre-spec WebGL drawing path moved bodily out of `Renderer` into
+`src/renderer/engine/rendering/LegacyGLBackend.ts`, behind `DrawBackend`, and every consumer moved
+onto `DrawApi` in the same commit. `Renderer` is a device now: canvas, context, resize handler,
+projection and view matrices, `clear`, `useShader`, `getContext`, `getFontAtlas`, plus `shader`,
+`projection` and `view` accessors for the backend. It has no drawing methods, no vertex buffers, no
+`TextRenderer` and no `FrameTimer`; roughly 500 of its 697 lines left the file. `grep` for
+`drawRectangle`, `drawCircle`, `drawPolygon`, `drawTriangle`, `enableScissor`, `disableScissor`,
+`isScissorEnabled`, `beginTextBatch`, `endTextBatch` or `flushTextBatch` outside the backend now
+returns comments and `DrawApi` methods and nothing else, because there is nothing left to call.
+
+**Both frame loops moved, and that was the failure mode to avoid.** `src/index.ts` drives `Game`;
+`src/gallery/index.ts` drives `SceneHost`, holds its own `Renderer` and never touches `Game`. Both
+called the same five text-batch and scissor methods. Both now build the seam through one factory,
+`createLegacyDrawApi({ renderer, frameTimer })`, open the frame with one helper, `windowFrame()`, and
+close it with `draw.endFrame()`, so the hack cannot be enabled on one page and not the other.
+
+**`getParameter(SCISSOR_BOX)` is gone from `Layer.ts` and `Panel.ts`**, along with the
+`wasScissorEnabled` flag, the saved `Int32Array` and the three-way restore. R15.22 names
+`getParameter` in the frame loop by name and calls the save-and-restore pattern prohibited; the clip
+stack knows what encloses a layer without asking GL. The device-pixel conversion moved once, into a
+pure exported `scissorBox()` with a unit test that asserts it against the old formula written out
+longhand.
+
+**One temporary mechanism, and it turned out to be half what was planned.** `DrawApi` gained a
+`legacyTextOrder` flag that ends a sort domain at every clip push and pop, reproducing the flush
+points `enableScissor` and `disableScissor` had. A companion stable-partition in the backend, meant
+to reproduce "text paints last", was written and then deleted: short-circuiting it left all 21
+chromium goldens green, because a text command does not paint where it sits in the array, it queues a
+run in `TextRenderer` and the batch flush draws it. Keeping `TextRenderer` untouched already
+reproduces the reordering, so the array sort was machinery that changed nothing. What is load-bearing
+is the bound, and it is worth exactly three goldens: with the flag off, `developerScreen`,
+`cardShowcaseScreen` and `combatScreen` fail and the other eighteen pass, those three being the only
+screens that clip. `grep -rn legacyTextOrder src` is the whole deletion list.
+
+**Two premises checked rather than carried forward, one of which was wrong.** No clip nests inside
+another in any state a gate captures: both clip sites were instrumented and all 14 captured states
+driven, and every entry read `already=false` (one clip on developer and card showcase, four siblings
+on combat, none in any gallery scene). That is what makes R4.3's intersection indistinguishable from
+the old replace-then-restore, and it is a property of the current screens rather than of the design.
+And the four "GPU stall due to ReadPixels" warnings on the card showcase are not the scissor
+read-back, which never executes there; bisecting found `TextRenderer.flush`, since suppressing the
+text flush takes the count from 4 to 0. `TextRenderer` is untouched, so the count is still 4 after
+this change. Deleting the read-back was right for conformance, not for the stall.
+
+**Numeric care where a golden could have moved.** `Polygon` and `Triangle` push their box as a
+transform and submit normalized points, so the model matrix the shader sees is the same sixteen
+floats rather than a CPU-side remultiply. `Rectangle` keys its border off width alone with a black
+fallback, because `drawQuad` stroked black for a width with no colour. `cornerRadius` is deliberately
+not sent, since the shader draws square corners. A polygon's stroke became a `drawPolyline` with
+`closed: true`, which is what the old `LINE_LOOP` was. The circle stroke's `bufferData` (DDB-103's
+buffer overrun) moved unchanged rather than being fixed in passing.
+
+**The one place no gate covers was checked by hand.** `Circle`, `Triangle` and `Polygon` are used only
+by `PrimitiveShapesSection`, whose gallery golden is `test.fixme` for DDB-103 and which the
+`developerScreen` capture does not scroll far enough to reach. That scene was captured before and
+after the change, outside the committed baselines: byte-identical, 23,176 bytes both times.
+
+**Also deleted:** the `Renderer` parameter on `Screen`, `ScreenManager.initialize` and all seven
+screen subclasses, which no screen ever read, and the `FrameTimer` parameter on `Renderer`'s
+constructor. `Game` no longer holds a `Renderer` at all.
+
+`npx playwright test` 34 passed / 4 skipped across both projects, unchanged, with nothing written
+under `tests/visual/__screenshots__`. `npm test` 608 passing across 31 suites (from 596 across 29;
+the new suites are `LegacyGLBackend.test.ts` for `scissorBox` and `legacyDrawOrder.test.ts` for the
+domain split). `npm run typecheck` clean on both tsconfigs, which is what proves the `Screen`
+parameter removal is complete. `npm run lint` 0 errors and the same 9 pre-existing warnings in
+`RammingAI.test.ts`.
+
+Design record, including the option that lost and why, in
+[legacy-gl-backend.md](./AI_TECHNICAL_DECISIONS/legacy-gl-backend.md).
+
+=========================================
+
+## The chapter 2 draw API, with no consumers, DDB-65 first of three (2026-09-09)
+
+**What landed:** `src/renderer/engine/draw/`, eighteen files, nothing else in the repo touched. The immediate draw API of chapter 2 (`DrawApi`), the four state stacks of R2.4 to R2.7, the seven draw calls plus `measureText`, the foreign-draw hooks, `getStats()`, R2.17's resource pass-through, R2.21's `NullBackend` and R2.22's `RecordingBackend`. No GL, no DOM, no shader, no consumer. `src/renderer/game` and `Renderer.ts` are byte-identical.
+
+**The decision the rest of phase 1 inherits is where state resolves.** A draw call reads the four stacks once, at the call, and stamps the resolved values onto an inert `DrawCommand`: concatenated transform plus R2.4's translate-only flag, the screen-space clip already intersected, the multiplied opacity, the layer name and ordinal, blend mode, a dense `sequence`, the optional `id`, and a `primary`/`shadow` role. Every value is copied out of the caller's memory, so a recording taken in frame 1 still describes frame 1 after frame 90, and a whole frame survives `JSON.parse(JSON.stringify(...))` unchanged. Geometry stays in local space beside the matrix, because R2.4 permits both the CPU-quad and the instanced path and baking vertices would pick one. Three shapes were built end to end and compared; the reasoning, the two rejected shapes, and eleven named departures are in [draw-api-state-resolution.md](./AI_TECHNICAL_DECISIONS/draw-api-state-resolution.md).
+
+**Two rules landed a PR early on purpose, because leaving them out would have made the tests lie.** R3.10's per-layer partition runs before submission rather than inside a backend, since R2.22 says the recording backend returns "the sorted draw list" and without a sort every one of chapter 3.12's required order tests passes on submission order and stays green when a sort is wrong. And R4.2a's CPU cull is implemented, because `culled` is a live R13.12 counter and chapter 4's checklist rates the cull required; without it the counter reads plausible while meaning something narrower than its name. Neither is the batcher: nothing here merges geometry, drops a group as occluded, or splits a GPU submission.
+
+**`measureText` throws and invents nothing.** R2.14 requires measurement to share `drawText`'s glyph iteration (R6.8), there is no iteration until phase 2, and a fabricated width would move nodes out of `layoutLint`'s live `unmeasured-text` bucket and either invent violations or suppress real ones under a gate R13.29 checks as `count === 0`. It is declared with its real signature and delegated to an optional `DrawBackend.measureText`, so phase 2 fills it in the object that owns the atlas and no call site moves. The chapter 2 conformance table reads "not implemented" for R2.14 until then.
+
+**Counters follow `FrameTimer`'s precedent.** `occluded` is null because R3.2's drop is a MAY and is not implemented; zero would claim a coverage test ran. The GPU-side counters are null under a backend that reports nothing and real zeros under the null and recording backends, which rasterise nothing, and both paths are tested. `reorderedGroups` is a real measurement now that something orders: it compares each domain's emitted positions against submission order, reads 0 on a single-layer frame and 2 the moment a popup opens.
+
+**The tests were proven able to fail.** Nineteen mutations of the state-resolution logic were applied one at a time and reverted: opacity multiply to assignment, opacity forced to 1 on the shadow group, transform dropped for identity, `empty` collapsing to `none`, the clip not converted at push, both halves of R4.3's intersection replaced by the child's own edge, the R4.14 rounded parameters dropped, the R4.2a cull disabled, `translateOnly` pinned true, layer ordinal to zero, `pushLayer` set instead of enforcing R3.6, the ladder reversed, the partition made unstable inside a layer, the barrier turned into a no-op, `apiDraws` counted before the drop, `clipPushes` skipped at the promotion reset, the R2.18 atlas check removed, and the copy removed so a command aliases caller memory. All nineteen turned a named test red. One of them found a real gap rather than a test bug: replacing `Math.max(current.rect.minX, rect.minX)` with the child's own edge left the whole suite green, because every intersection fixture happened to have the child inside the parent on that axis. Two tests were added for the wider-child case and the mutation now dies. The `beginFrame` reopen diagnostic was also found and fixed during the run: it was recorded and then erased by its own reset three lines later.
+
+`npm test` 596 passing across 29 suites (from 420 across 23; 176 of them new, in six suites under `src/renderer/engine/draw/`, covering 94 percent of statements and 98 of lines in that directory), `npm run typecheck` clean on both tsconfigs, `npm run lint` 0 errors with the same 9 pre-existing warnings in `RammingAI.test.ts`. Nothing consumes this yet, so no pixel can move and the visual suite was not run.
+
+**Left for PR 3 and after:** R3.2's occlusion drop, R4.7's oriented-rect clip and R4.15's stencil path, R5.11's shadow geometry (the record carries the owner rect and the raw parameters; the shader does the arithmetic), the batcher proper, and text measurement. `Renderer.drawTriangle` has no counterpart and gets none: a triangle is `drawPolygon` with three points and no indices.
+
+=========================================
+
+## Why the double render was invisible, and what it says about paint order (2026-09-09)
+
+DDB-110 left one thing open: deleting the card showcase double render moved no pixels, and nobody could say why. The blend arithmetic said a second identical pass must darken every anti-aliased glyph edge, and every input to that argument was verified. Settled now, and the answer is more useful than the question.
+
+**The engine does anti-alias text, so that worry is retired.** The committed card showcase golden carries 214 distinct luminances in the title box, 199 of them intermediate, a full ramp from the `26,26,51` background to white. Glyph fragments take intermediate alpha exactly as expected.
+
+**The double render was invisible because of an interaction between the deferred text batch and clipping.** `Renderer.enableScissor` and `disableScissor` flush the pending text batch before touching GL state (`Renderer.ts:639`, `:652`), and `TextRenderer.flush` clears the batch afterwards (`:508`). The card showcase draws its cards inside a scrollable `Panel`, so pass one's glyphs are flushed and painted partway through the frame, and pass two then redraws the same **opaque** card backgrounds over them before submitting its own glyphs. Pass one's text is erased rather than composited with, so the frame ends as one pass of text over one pass of geometry.
+
+**Proven by prediction, not by inspection.** The same double render added to `MainMenuScreen`, which has no clipped container and so no mid-frame flush, changes 9,338 pixels, which is the glyph-edge darkening the arithmetic predicted. On the clipped card showcase it changes zero. The probe was reverted after measuring.
+
+**This matters to phase 1 more than the double render did.** It is a live demonstration of the bug chapter 3 exists to fix: where a glyph lands in paint order depends on where a clip boundary happens to fall, not on tree order. The engine audit's line that "text always paints above shapes in the same clip scope" is exact, and its unstated other half is that shapes paint above text across clip scopes. The batcher's layer ordinal is what makes that deterministic, and the batcher PR now has a concrete before and after to quote instead of an argument.
+
+=========================================
+
+## Card showcase drew everything twice, DDB-110 (2026-09-09)
+
+**What changed:** six lines deleted from `CardShowcaseScreen`. `Screen.render` renders the tree (`Screen.ts:165`) and then calls the `onRender` hook (`:168`); `CardShowcaseScreen` was the only screen overriding that hook, and its override called `this.rootLayer.render()` again, so the whole tree drew twice every frame.
+
+**Measured, with the override present then absent:** `glDrawCalls` 96 to 48, `vertices` 15736 to 7868, `textCharacters` 3856 to 1928. Exactly halved. That is the first movement on phase 1's real criterion: no screen is CPU-bound (the heaviest costs about 1.1 ms of a 16.67 ms budget) but draw calls are far off target, combat at 92 and card showcase at 96 against under 40.
+
+**It moves no pixels, and that was verified rather than assumed**, because the phase 1 recon had predicted the opposite. Captures taken with the override present and absent are the same file: identical SHA-256, both 79,057 bytes, 0 of 3,810,240 channel samples differing, and the screenshot spec passes with the tolerance forced to `threshold: 0` and `maxDiffPixels: 0`. So this needed no re-baseline and is not one of the three the ground rules budget.
+
+**The recon's argument was not sloppy, and it is still wrong, which leaves something worth chasing.** Its inputs are all real: `FontAtlas` rasterises the atlas opaque so the red channel carries coverage and a 32 px run has 2,608 partial-coverage pixels against 1,375 solid; `fragment.glsl:16` turns that coverage straight into fragment alpha; `Renderer.ts:53-54` blends `SRC_ALPHA, ONE_MINUS_SRC_ALPHA`; and `TextRenderer.drawText` pushes to the batch with no dedupe. Compositing the same partially covered fragment twice should darken every glyph edge. It does not, and the counters prove both passes reach the GPU rather than one being skipped. The character cap is eliminated as the explanation: `maxCharacters` is 10000 (`TextRenderer.ts:49`) against 3856 used, with no truncation warning logged.
+
+The mechanism is recorded as unexplained in `.claude/notes/ddb55-phase1-recon.md` rather than guessed at, and it should be settled before phase 1 designs the text path: if a glyph fragment never takes an intermediate alpha, this engine has no text anti-aliasing at all, which is a larger finding than the double render.
+
+`npm test` 420 passing, `npm run typecheck` clean, `npm run lint` 0 errors, and the full visual suite green on both projects, 34 passed with 4 skipped.
+
+=========================================
+
+## The lint-zero gate is armed on the gallery, DDB-104 (2026-09-09)
+
+**What changed:**
+- `Layer.addPart(child)` marks a child as the parent component's own rendering. Same array, same order, same paint result as `addChild`; one private boolean behind a `get isPart()`, cleared by both `addChild` and `removeChild` because the mark describes the edge and not the node.
+- `Panel`, `Button`, `Input` and `DeveloperOverlay` call it for their own visuals: ten sites.
+- `treeSnapshot` emits marked nodes in a `parts` array beside `children`, absent rather than empty when there are none.
+- `layoutLint`'s walk takes a `siblings` flag, false for a parts group. That flag gates rule 1's pairing and nothing else.
+- `tests/visual/web/lint.spec.ts` asserts `lint().count === 0` on all eight gallery scenes, inside the existing Screenshots job with no workflow change.
+- `perf-results/phase0-gallery-lint.json`, the ratchet.
+- One real defect fixed in `TextExamplesSection`, described below.
+- Decision record: [composite-parts-and-the-lint-gate.md](./AI_TECHNICAL_DECISIONS/composite-parts-and-the-lint-gate.md).
+
+**The problem was the tree, not the rule.** Every `Panel` builds a background `Rectangle` and a content `Layer` at its own size and adds both as children, every `Button` adds a background and a label, `Input` adds four. Rule 1 asks whether two visible siblings overlap; those pairs always do; so every composite reported its own construction. Twenty-eight of the gallery's thirty violations were that, and across the screens the same shape was 378 containments and 55 coincident boxes. But `Panel.render` calls `this.background.render()` and `this.contentLayer.render()` by name and never walks a child list to find them, and `Panel.addChild` redirects a caller's child into the content layer so it cannot reach that array at all. The snapshot was calling those nodes siblings of the caller's children, which they are not. Rule 1 was correctly reporting what it was told.
+
+**Both options in the ticket were rejected, on the spec's own text.** Emitting `zIndex` is forbidden for this purpose by R3.18 by name, and R3.19 makes the effective-layer half structurally impossible for a widget's own parts; since nothing in this renderer reorders children, every ordinal would be inert on pixels and exist only to move a count, which R3.14 records as the root of worldsim's ordering bugs. Teaching rule 1 about structural pairs amends the MUST-provide rule, opening an exemption R13.25 states as a closed pair, and its enclosure test is widest exactly where a broken composite ends up.
+
+**Gallery 30 to 0, measured three times, byte-identical.** Per scene: interactive-controls 4, style-guide 1, input-showcase 8, rectangles 1, buttons 9, text 3, primitive-shapes 1, nested-panels 3, all now 0. So R13.29 is armed literally as `count === 0`, with no waiver ledger and no redefinition of what the gate counts.
+
+**Screens are not zero and this task cannot get them there:** 1,044 to 1,002. Almost none of the remainder is a layout defect. 398 are `zero-or-negative-size` bucketed `unmeasured-text`, a violated R13.21 precondition since `Text` sizes come only from `Layer.layout()` and the frame loop never calls it (DDB-73, with metrics from DDB-70/71). 291 are content scrolled out of a container (DDB-85). 245 are sibling-overlap, of which roughly 223 are the same background-sibling construction hand-rolled in `Card`, `Vehicle` and the screens (DDB-79). 68 are child-outside-parent. Screen lint zero is DDB-91's. The dated DDB-57 capture is left as it was, since it is a record of a moment rather than a live file.
+
+**What the fix makes the lint blind to, stated because a gate that reached zero by looking away would be worse than no gate.** Rule 1 no longer pairs a part with anything, so a `Button` icon over its own label reports nothing, and, less obviously, neither does a caller-added child painted over a part: an opaque rectangle added to a Button with `addChild` covering its label exactly lints 0 on all eight scenes, where before it was reported. That is a real loss of coverage, not only a withdrawal of noise. Rule 6 is narrowed the same way and is latent only because it is dormant in phase 0. What still covers it: rules 2, 3, 4, 5 and 7 all run over parts, recursion into a part is not cut, and in the covering-rectangle case the scene's screenshot golden went red in the same run in which the lint stayed silent. Today's engine also batches all text to one flush at frame end, so a `Rectangle` cannot paint over a `Text` at all, which makes that particular bug unrepresentable rather than merely uncaught; that cover expires with phase 1's batcher.
+
+**An adversarial pass found two holes in the first draft, both closed and both now pinned by a test.** The mark was sticky: `addChild` did not clear it, so a layer that had ever been anyone's part stayed one and would be laundered out of rule 1's pairing under a new parent. And the two groups were numbered from their own positions, so a part and a child of the same type under one owner both printed `Type[0]`, which matters because the path is the only identity R13.28 gives a violation and the only key a baseline diff can match on.
+
+**The gate proves it measured something before it reports clean.** `count === 0` is satisfied by measuring nothing, and that is not hypothetical: making `treeSnapshot` return no roots left all eight scenes green, because `openScene` waits on `__app.status()` and never reads the tree. The spec now asserts a node floor first, probing `outside-viewport`'s `evaluated`, the one rule that tests every visible candidate exactly once.
+
+**Two mutations, run to prove the gate is a gate.** Narrowing `buttonSpacing` from 130 to 100 in `ButtonExamplesSection` turned the buttons scene red with five sibling-overlaps naming the adjacent `Button` pairs and their boxes. Making `treeSnapshot` return no roots turned all eight red on the liveness assertion. Both reverted.
+
+**The defect the lint found**, and the reason it is worth having: `TextExamplesSection` positions its three alignment samples as bare points, and `Text` resolves alignment against the node's own box, so the right-hand sample drew a text width past the section and off the viewport. It went unnoticed because the developer screen scrolls that section out of view, and the gallery mounts it alone. It is the only pixel change here: 24 of 26 goldens pass untouched and the two that differ are `scene-text` in both projects, which needs a CI re-mint through the dispatch. "Right aligned" appears in that golden for the first time.
+
+`npm test` 420 passing across 23 suites (384 before), `npm run typecheck` clean, `npm run lint` 0 errors.
+
+=========================================
+
+## Screenshot goldens minted on CI, screenshots job becomes a gate, phase 0 closes (2026-09-09)
+
+**What changed:**
+- Twenty-six Linux baselines committed to `main` as `670350c`, thirteen per project, by the `update-baselines` dispatch job in [run 34310762573](https://github.com/kcjonson/dual-deck-builder/actions/runs/34310762573). That job is the only writer R14.5 permits, and it was unreachable until `visual.yml` reached the default branch, which is why DDB-59 shipped a harness with no pictures in it.
+- `continue-on-error` removed from the `visual` job and its name changed from "Screenshots (unbaselined, non-blocking)" to "Screenshots". The suite is now a merge gate.
+- The bootstrap section of [visual-golden-harness.md](../../docs/AI_TECHNICAL_DECISIONS/visual-golden-harness.md) gained a "what the bootstrap actually did" subsection recording the three things the dispatch settled, and the phase 0 checklist item in the implementation spec is ticked. Phase 0 is eight of eight.
+
+**The mint was verified before it was trusted, which was the whole point of the ordering.** A mint runs `--update-snapshots` once and has no second run to disagree with it, so whatever it captures becomes the definition of correct by default. Three checks, none of which assume the run was fine because it was green.
+
+*The card-dependent frames are populated.* The failure this guards against is a slow `cards.json`, which the two-frame quiescence check provably cannot see (an unstarted fetch serialises identically to a finished one), and which `assetsReady` was added to catch. Decoding all twenty-six committed PNGs: card showcase carries 45.6 percent non-modal pixels over 1,537 distinct colours, combat 64.0 percent over 2,367, driver selection 49.2 percent over 2,175. Reading the card showcase golden by eye shows all eighteen cards with their rules text and rarity lines. A pre-data frame would be a flat field of one colour.
+
+*Linux and win32 draw the same picture.* Each Linux golden was compared against this machine's untracked `win32` baseline for the same scenario, both reduced to a 48x30 grid of mean RGB, which averages out glyph antialiasing but not missing or misplaced content. All twenty-six agreed: mean per-cell difference between 0.07 and 0.68 of 255, worst single cell 18.4, no size mismatches. Cross-runner variance was the one thing a developer machine could not measure and the reason the tolerance is nonzero at all; it is now an observation.
+
+*Electron runs on Linux, and the speculative packages were right.* `npx playwright install --with-deps chromium` installs Chromium's system libraries, not Electron's, so `libgtk-3-0t64`, `libxtst6` and `--no-sandbox` had been added against Ubuntu 24.04's packaging and its unprivileged-user-namespace restriction without ever being tried. The electron project minted all thirteen of its goldens under `xvfb-run` with no additional packages. The `t64` suffix was the guess most likely to be wrong, since the plain `libgtk-3-0` name still resolves on older images.
+
+**What is still unmeasured**: run-to-run variance on the runner itself, because the mint ran once. The next push to `main` is the first comparison against these goldens and the first observation of it. If it wobbles the value to revisit is `maxDiffPixels`, not `threshold`; the mutation table in the decision doc is what both numbers were chosen against, and raising `threshold` reopens the colour cliff that let a button drawn in its own hover colour pass as identical.
+
+**Still deliberately unbaselined**, unchanged from DDB-59 and appearing in every report as named gaps rather than silent absences: `primitive-shapes` (DDB-103) and `battleResultScreen` (no `BattleResultData` on the R13.32 control surface).
+
+=========================================
+
+## Playwright screenshot harness, phase 0 task DDB-59 (2026-09-08)
+
+**What changed:**
+- `playwright.config.ts` with two projects, `chromium` and `electron`, a `webServer` that starts the webpack dev server, and `expect.toHaveScreenshot` defaults of `threshold: 0.01`, `maxDiffPixels: 200` and `maxDiffPixelRatio: 0.0002` (R14.5's tolerance, never exact equality).
+- `tests/visual/web/screens.spec.ts` and `tests/visual/web/gallery.spec.ts`: one spec per game screen and one per gallery scene, generated from a single scenario list in `tests/visual/support/scenarios.ts`. `tests/visual/electron/shell.spec.ts` runs that same list inside the Electron shell.
+- `tests/visual/support/harness.ts` holds R13.37's determinism controls, so both projects get all of them.
+- `.github/workflows/visual.yml`: the suite on push, pull request and dispatch, plus the two jobs behind R14.5. All three jobs pin `ubuntu-24.04` rather than `ubuntu-latest`, because the runner image is part of what a golden is a picture of and the image that checks has to be the image that minted; a rolling image bump joins phase 1 ordering, phase 2 text metrics and phase 4 styles on the re-baseline list. The pull-request trigger includes `claude/**`, since this repository's work lives in a stack of such branches and a screenshot job that runs on none of them is decoration; PR #23 makes the same change to three other workflows, so expect a conflict in that block. The screenshots job `needs: baseline-provenance`, so pixels are never reported green beside a red provenance verdict, and the mint job uploads its own report artifact, which matters most because it is the bootstrap.
+- `npm run test:visual`, `npm run build:harness:electron`, `npm run typecheck`, `tsconfig.tests.json` (the root tsconfig covers `src/` and `electron/` only, so the specs needed their own program to be typechecked at all).
+- Six `setup-node` steps across five workflow files moved from Node 18 to Node 24 (`cleanup-pr.yml` has no setup-node step), and `package.json` and the lockfile root gained `engines: {node: ">=20"}`.
+
+**Baselines are per project and per platform**, at `tests/visual/__screenshots__/{project}/{platform}/`. Only the Linux ones are tracked; `.gitignore` drops every other platform's. That is the mechanism behind R14.5's "local runs compare and never update", and it is a mechanism rather than a rule because a local run on Windows or macOS physically cannot write the file CI committed: the platform is a path segment, so a developer's run writes `.../win32/scene-buttons.png` and compares against that. Local runs stay useful (the first mints this machine's baseline, every run after is a real comparison of the change against the machine's own before) while the committed pictures only ever come from the runner image.
+
+**R14.5 is enforced by three layers of unequal strength, and it is worth being precise about which is which.** The file layout is the strong one and it is not a rule at all: `{platform}` is a directory segment, so a Windows or macOS run writes a path git is not tracking and physically cannot overwrite the committed Linux file. `playwright.config.ts` throws when any argument beginning with `-u` or with `--update-snapshots` appears in `process.argv` without `VISUAL_BASELINE_RUNNER`, which only the workflow's dispatch job sets; the match is on the prefix because the flag carries an optional mode that commander accepts attached, and `-uall`, `-uchanged` and `--update-snapshots=changed` rewrite baselines exactly as the bare forms do; that stops the accident and nothing else, since the person it stops owns the file. The `baseline-provenance` job runs on every pull request, diffs `tests/visual/__screenshots__` against the base branch, and fails when any commit touching a baseline lacks a `[visual-baseline]` marker, which the `update-baselines` job writes together with a link to the run that produced it. That job raises the cost of a hand-minted golden and puts the attempt in the log where a reviewer meets it. It does not make one impossible: the marker is a commit subject and anyone can type a commit subject, and making it unforgeable means resolving the run id against the Actions API, which is worth building once there are baselines to protect.
+
+**The five determinism controls of R13.37, and what each one actually kills.** Fixed viewport, 1440x882, the size the phase 0 frame baseline was captured at, which is the default in `scripts/perf-capture.mjs` rather than anything the baseline JSON records, so a screenshot and a frame time in that table describe the same frame; the chromium project takes it from `use.viewport`, the electron project from `BrowserWindow.setContentSize`. Fixed device pixel ratio: `deviceScaleFactor: 1` for the browser, and `--force-device-scale-factor=1` for Electron, which needs its own answer because a window inherits the desktop's display scaling. On this machine's 1.25 scaling `setContentSize(1440, 882)` landed on 883 logical pixels, because the DIP-to-physical rounding does not divide; the flag makes it exact. Without a pinned ratio `FontAtlas` rasterises glyphs at a different scale, `Renderer.resize` sizes a different drawing buffer, and `Layer` and `Panel` scissor at different rectangles. Time freeze: `window.__app.pause()`, R13.32's own seam, which stops `update` while rendering continues, so the splash screen stops counting towards its automatic navigate and `PlayerHandLayer`'s 300 ms discard timer cannot fire mid-capture, and the canvas still presents the frame the screenshot needs. Seeded random: a mulberry32 over `Math.random` installed by `page.addInitScript` before any application script runs. Wait-for-assets: `settle()` returns once the dev hooks exist, `document.fonts.ready` has resolved, `window.__app.status().assetsReady` is true, `window.__perf.snapshot().liveness.frameCount` has advanced, and two consecutive frames serialise to the same tree. The `assetsReady` field is new here and is the half that actually waits for `cards.json`: `CardLoader` now counts its in-flight requests and the field is false while any is outstanding. The two-frame comparison cannot do that job, and the comment that said it could was wrong. A screen whose fetch has not resolved serialises identically frame after frame, so the pre-data frame satisfies a stability check exactly as well as the loaded one; measured with a four-second delayed route on `cards.json` and the new wait removed, `openScreen` returned after 449 ms with a 1,786-character card-showcase tree where the loaded tree is 89,108, and with the wait in place the same run takes 4,547 ms and returns all 89,108. The case that costs real money is the mint job, which runs `--update-snapshots` once with no second run to disagree with it, so one slow fetch there would commit the pre-data frame as the definition of correct.
+
+**Playwright's Clock API is deliberately not used, which is a departure from R15.36 and from R14.5, and worth stating plainly.** R13.37 is the rule that permits what is done instead: it asks for a time freeze *or* a fixed-step hook, and `window.__app.pause()` is the freeze. R14.5's fixed-step injected render clock is not satisfied by a pause either, and there is no route to one from a running page today regardless, because `src/index.ts` and `src/gallery/index.ts` both construct `new FrameTimer()` with no arguments and DDB-61's clock seam therefore has no caller. Two reasons for taking the freeze. `clock.pauseAt` stops `requestAnimationFrame` along with the timers, which stops the frame loop, and a harness that photographs a page which is no longer drawing has swapped one determinism problem for a worse one. And any clock call at all, `setFixedTime` included, replaces the page's `performance` with a plain stand-in whose `measureUserAgentSpecificMemory` is `() => {}`; because DDB-61 put cross-origin isolation on the dev server, `FrameTimer.requestMemorySample` takes its live branch, calls that stub and throws on `undefined.then`, so `window.__perf.snapshot()` fails on every clocked page. Verified directly: with the clock installed the settle gate died in `requestMemorySample`; without it the same run passes. Nothing the phase 0 goldens capture reads `Date`, so the freeze costs nothing today. Whoever needs a state behind a timer, the discard animation being the first, has to deal with that `performance` collision first.
+
+**The seeded random source changes nothing measurable today, and pretending otherwise would be the exact dishonesty this harness exists to prevent.** Running the combat golden under a different seed, and again with seeding removed entirely, produced byte-identical captures. `Deck.shuffle` has one caller, `Driver.reshuffleDiscardIntoDeck`, which fires only when a deck runs dry, so the opening hand is dealt in deck order and a mounted screen consumes no randomness that reaches a pixel; `Model.__id` is random but is only ever a map key. It is installed anyway because the states phase 0 does not capture are the ones that do vary: playing a card and capturing what follows is where 72 of the combat screen's 355 lint rows differed run to run, and that state becomes goldenable without revisiting this question.
+
+**Two scenarios are listed and deliberately unbaselined**, as `test.fixme` so they appear in the report as named gaps rather than as absences nobody notices. `primitive-shapes` is DDB-103: the scene overruns the renderer's dynamic vertex buffer, logs `bufferSubData: buffer overflow` every frame and draws malformed circles. Committing that picture would make the corrupt drawing the definition of correct and tell whoever fixes DDB-103 that their fix is a visual regression; fixing the buffer sizing is a renderer change and out of phase 0. `battleResultScreen` renders from a `BattleResultData` payload and `window.__app.navigate(name)` carries none, so a capture would get the screen's own missing-data fallback, a state the game never puts a player in, and it cannot pass the clean-console gate either. Constructing a fake `BattleState` in the page to get past that would be a fabricated golden.
+
+**Every spec asserts on the console as well as the pixels.** `Renderer` throws on a null WebGL context, `src/index.ts` swallows that into a `console.error`, and the result reaches a screenshot as a plain black page, which is not distinguishable from a legitimately dark golden. The console is where that failure is visible, so a run with a GL error fails even if the picture somehow matched. There is no allow-list: the one scenario that emits a known error is `test.fixme` and never reaches the assertion, so an allowance would have been dead code whose only effect is to make the next error easy to normalise.
+
+**The navigation path is pinned.** Every screen spec is a fresh page, the splash screen the app boots into, a pause, then exactly one `window.__app.navigate`. Because the pause comes first, `update` never runs on the incoming screen and every game-screen golden is the pre-first-update frame; and because a page screenshot captures the viewport rather than the document, `screen-developerScreen` holds two of that screen's eight sections whole plus 32 pixels of a third, the other five being covered by the gallery scenes and by nothing else. That matters for driver selection specifically: DDB-106 records that it draws 49 GPU calls on its first mount in a page and 33 on every mount after, so the screen is not the same drawing twice, and the golden has to fix which one it is.
+
+**Electron runs the dev build, not the packaged one.** `build:electron` forces `NODE_ENV=production`, which drops `__DEV_TOOLS__` and the gallery entry, so a packaged renderer has neither the scenes nor the hooks the specs drive; an unpackaged Electron loads the dev server, which is the build that has both. `npm run build:harness:electron` therefore builds main and preload only, into `.playwright-build/electron/` rather than `dist/`, so a session building `dist/` for its own reasons is not disturbed. Two small changes to `electron/main.ts` were needed and neither is cosmetic: the development URL now honours `DDB_RENDERER_URL`, because the dev-server port is no longer fixed at 9000 once several worktrees run at once, and DevTools opens only when that variable is absent, because it docks to the right of the web contents and takes its width from them, so every capture would otherwise be of a narrower page than the harness asked for. R15.33's three switches are passed to both launchers unconditionally, as the rule words it, even though Electron 25's Chromium 114 still has the automatic SwiftShader fallback that Chromium removed in 137. The Electron launch also passes `--no-sandbox`, and the workflow installs `libgtk-3-0t64` and `libxtst6`, neither of which `playwright install --with-deps chromium` provides: Electron links GTK 3 and libXtst, and Ubuntu 24.04 restricts unprivileged user namespaces so a sandboxed Electron main process cannot spawn a renderer there. The electron project has never actually run on a Linux runner and counts as unverified there until the bootstrap dispatch proves it.
+
+**The dev-server port is derived from the checkout path**, `9100 + sha256(__dirname)[0] % 100`, so it is stable across restarts in one worktree and different in a sibling, and `reuseExistingServer: false` turns a collision into a loud failure instead of a silent attach to another worktree's build. `--no-hot` removes the HMR websocket and `--no-client-overlay` stops a compile error painting a DOM panel over the canvas and into a golden.
+
+**Node 18 to 24, six setup-node steps across five workflow files at once.** `@playwright/test@1.63.0` declares `engines: {node: ">=20"}`, so 18 was not an option. 20 reached end of life in April 2026, which leaves 22 and 24; 24 is what this machine runs, and the Node 18 versus 24 divergence between CI and local had already caused a failure on the branch below this one. `electron-build.yml` is the one to watch, since electron-builder 24 on Node 24 is the least exercised of them.
+
+**Jest cannot pick the specs up.** They were already unreachable twice over, `roots` is `<rootDir>/src` and `testMatch` requires a `.test.` infix, and `testPathIgnorePatterns` now names `<rootDir>/tests/` explicitly so the day someone widens `roots` does not become the day CI tries to run a browser under Jest.
+
+**No goldens are in this change, and that is a sequencing fact rather than an oversight.** R14.5 puts baselines on the CI runner image; the only writer is the `update_baselines` dispatch; and GitHub offers `workflow_dispatch` only for workflows already on the default branch, so a brand-new `visual.yml` on a feature branch cannot be dispatched from that branch. `git ls-files tests/` therefore returns nothing, the 26 PNGs on disk are this machine's untracked `win32` ones, and the screenshot job ships with `continue-on-error: true` under the name "Screenshots (unbaselined, non-blocking)" so it cannot read as a broken required check with no remedy. The order out of that, written down in the decision doc: `visual.yml` lands on `main` non-blocking, the baselines are minted by dispatching `update_baselines` from `main`, the `playwright-report-baseline` artifact from that one run is read before it is trusted, and only then does `continue-on-error` come off. Phase 0's goldens checkbox stays open until that happens.
+
+**The tolerance was set by mutation, not by feel.** Seven mutations were applied one at a time and run against the committed baselines, with the differing-pixel count read out of the comparison. Under the original `threshold: 0.2` and `maxDiffPixelRatio: 0.001` (a 1,270-pixel budget at this viewport) five of the seven passed: a 3 px shift of one 300x60 button (631 px), a 5% brightening of a button fill (0 px), `Button.normalColor` set to `hoverColor` (0 px), a dropped character in an 18 px label (355 px) and a one-character typo in the 64 px main-menu title (223 px). Under the committed `threshold: 0.01` with `maxDiffPixels: 200` all seven fail, at 874, 84,776, 85,086, 512, 604, 3,213 and 1,973 pixels. The arithmetic behind the depth change: pixelmatch's ceiling is `35215 * threshold^2` and a uniform neutral shift of *d* levels scores `0.5053 * d^2`, so 0.2 could not see a colour move smaller than 53 levels per channel and 0.01 cannot see one smaller than 3, confirmed by shifting the whole main-menu background by +2 (0 pixels) and +3 (1,166,829). `maxDiffPixels` is absolute because the viewport is pinned, and a ratio at a fixed size is an obscured way of writing an absolute number; the ratio is kept at 0.0002 only so a smaller future capture is not served by 200. What the suite still cannot see is recorded as its own section in the decision doc: the two-level colour floor, the roughly six-glyph area floor, the developer-screen fold, the pre-first-update frame, and sibling z-order, which is untestable here because batched text always flushes over geometry and `Panel.render` hardcodes background-then-content. Two mutations came back inert for product reasons and are tickets rather than tolerance problems: `Button` never forwards `options.style.fontSize` to its label `Text`, so five style blocks in `MainMenuScreen` are dead configuration and every button label draws at `Text`'s default 16; and swapping a `Button`'s background and label child order changes nothing on screen.
+
+**Verification:** `npx tsc --noEmit -p tsconfig.json` clean, and `-p tsconfig.tests.json` clean; `npm run lint` 0 errors and the same 9 pre-existing warnings in `RammingAI.test.ts`; `npm test` 384 passing across 21 suites, unchanged; `npm run build:web` compiles, and the production output carries `index.html`, `battle.html` and `evalai.html` but no `gallery.html`. The visual suite at the committed tolerance: 26 passed, 4 skipped, twice in a row, with every baseline file byte-identical afterwards and no spec differing between the two runs. Determinism was measured rather than assumed: the whole suite also passes with `threshold: 0` and `maxDiffPixels: 0`, so consecutive runs on one machine are bit-exact and the committed tolerance is entirely headroom for cross-runner variance, which a developer machine cannot measure and the bootstrap dispatch is the first chance to.
+
+## Frame timer and window.__perf, phase 0 task DDB-61 (2026-09-08)
+
+**What changed:**
+- `PerformanceMonitor` is gone, replaced by `src/renderer/engine/rendering/FrameTimer.ts`. The old class timed the interval between frame starts and nothing inside it, so a slow frame could be seen but never attributed. The new one measures R13.7's named sections, keeps R13.10's rolling window of 120 frames (the old history was 60 and only averaged), and answers R13.11's snapshot. It carries the draw counters the old class held, because those are per-frame counters reset at frame start and a second per-frame collector beside this one would be the parallel path the ground rules forbid. Nothing runs beside it: `Renderer`, `TextRenderer`, `DeveloperOverlay`, both entry points and `Game` all moved over.
+- `src/renderer/engine/rendering/frameStats.ts` is the window statistics as a pure function over an array of frame records, split out the way `treeSnapshot` and `layoutLint` are split from the hooks that install them (R13.4). It imports nothing, reads no clock and touches no DOM. Every frame figure it reports is a value lifted out of the input rather than computed from it, so the tests assert exact float equality.
+- `window.__perf.snapshot()` and `window.__perf.capture({scenario, settleFrames, samples})` install on both pages through `installPerfHooks` in `debug/hooks.ts`, which completes R15.37's four globals: `__ui`, `__app`, `__dev`, `__perf`.
+- Delta time is clamped to 0.25 s (R13.9), which it was not. The clamp lives in `beginFrame`, which returns the delta, rather than in each loop, because there are two loops and one of them would eventually forget. Both loops lost their own `lastTime` bookkeeping as a result.
+- `scripts/perf-capture.mjs` drives a development build through a list of scenarios over the DevTools protocol and writes R13.38's `[{scenario, samples}]`. `perf-results/phase0-frame-baseline.json` is the phase 0 baseline it produced (R13.41), seven game screens at 1440x882.
+- 32 tests in `frameStats.test.ts` and 24 in `FrameTimer.test.ts` (both node, no DOM), 5 in `perfCapture.test.ts`, 3 added to `Game.test.ts` for the installed surface and the scene it reports.
+- The dev server sets `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`, which is what buys the clock and the memory number the rest of this entry quotes. See the clock paragraph below.
+
+**A frame's record is written when the next frame starts.** Frame time is the interval between consecutive frame starts (R13.8), so a frame is not measurable until its successor begins; `beginFrame` closes the previous record, pairing that interval with the sections measured inside it, and the newest entry in the window is therefore always the previous frame. The old monitor pushed the interval at `endFrame` alongside the current frame's counters, which put a frame's span next to the following frame's work, and invented 16.67 ms for the first frame because it had no interval to report. Nothing is invented now: before the second frame start the window is empty and every frame figure reads null.
+
+**Sections are disjoint by construction, not by convention.** `beginSection` refuses to open a second section while one is running and `endSection` refuses a name that is not the open one; both complain once rather than sixty times a second (R13.44). Worldsim's `inputHandleMs` quietly contained update and the dashboard drew the two as siblings, which is what R13.7 exists to stop. The sanity check R13.5 demands is in the snapshot rather than in a comment: `sanity` reports the last frame's span, the sum of its sections, what fell outside them, and how many frames in the whole window had sections summing past their own span. Across the seven-screen baseline that last count is 0 on every one of the 140 samples. Unaccounted time is not a fault: vsync-paced it is nearly the whole frame (0.2 ms of sections inside a 13 ms interval), and with the frame cap off during the capture it falls to 0.045 to 0.885 ms, which is the rAF dispatch and the browser's own work.
+
+**Three of R13.7's six sections are measurable here and three are null, which is the whole of R13.5's null convention.** `update`, `render` and `flush` are real, bracketed by both frame loops, and together they are all of the application's per-frame work. `flush` is narrower than R13.7's "GPU submission" and has to be read that way: the renderer is immediate mode, so every primitive reaches GL at its draw site inside `render`, and the batched text flush is the only submission the frame defers. It is measured rather than folded into `render` because it is the number the phase 1 batcher has to beat. It is also not all of the text: `Renderer.enableScissor` and `disableScissor` flush whatever text is pending before they touch GL state, and `Panel` and `Layer` call those during the render tree walk, so on a screen with a clipped panel most of the batch has already submitted inside `render` and the `flush` section only times the tail. The baseline shows the shape of it, `developerScreen` reporting a smaller flush maximum than `splashScreen` while drawing nearly five times the text. The frame's final flush at least lands in the section that claims it: `Game.flush` and the gallery loop disable the scissor inside the flush section rather than at the end of render, since disabling it is itself a flush. Attributing the mid-render submissions wants the phase 1 batcher, which removes the reason for them. At today's scene sizes the largest per-window flush maximum in the baseline is `driverSelectionScreen`'s 0.130 ms and the other six screens sit at 0.070 ms or below, so what the baseline records is that text submission is not yet where the time goes. `Game.render` was split into `render` and `flush` to give the loop a boundary to time, since a section opened inside another is refused rather than nested. `input` is null because this engine dispatches straight from DOM listeners on the canvas, so input handling happens between frames rather than as a phase of one; a section there would read 0 forever while the real cost landed invisibly outside the loop, and attributing it wants a `PerformanceObserver` on `event` entries. `layout` is null because there is no layout phase: `Layer.layout()` is called by screens when they choose, inside their own update or render, so there is no disjoint span to bracket until phase 3. `present` is null because rAF is vsync-paced, so the wait shows up as a late next frame rather than as a measurable call. Worldsim's memory and CPU fields read 0 on Windows because the collector was macOS-only and no consumer could tell zero from unknown; none of these read 0.
+
+**`batcher` is null and stays null until phase 1.** R13.12's counters need a batcher and there is not one. What the current renderer can honestly count is reported under `renderer` with names that say exactly what they count: `glDrawCalls` is one increment per `drawElements` or `drawArrays` at its call site, `vertices` is the count each call site reports for itself, `textCharacters` is what was handed to `drawText`. Naming either draw figure `apiDraws` or `gpuDraws` would publish R13.12's field names over numbers that do not mean what those names promise, which is the exact mistake the rule was written for. `TextRenderer.flush` records each colour group at its own `drawElements`, with that group's own character count. It first accumulated the groups and then replayed them with the mean, which left the sum right and every per-call attribution invented, and printed combat's vertex total on the F5 overlay as 5327.999999999999. The check R13.5 asks for is a GL-context count rather than a code reading: a probe patched over `WebGLRenderingContext.prototype` shadows whatever is written into the bound `ELEMENT_ARRAY_BUFFER`, counts the distinct indices each `drawElements` references and the `count` each `drawArrays` submits, and compares per frame against the snapshot. Over 28,862 frames across combat, card showcase, driver selection, developer and the gallery the draw count and the vertex total agree exactly on every frame and the vertex total is an integer on every frame; against the previous code the same probe reports combat as 92 draws and 5328 vertices where the timer says 5327.999999999999. Phase 1 replaces the counters anyway.
+
+**`gpu` is five nulls, not `valid: false`.** Timer queries are phase 7. A `valid: false` would read as a measurement that failed R13.18's plausibility check rather than as no measurement at all. `memory.usedBytes` is null unless the page is cross-origin isolated, in which case each snapshot kicks off `performance.measureUserAgentSpecificMemory` at most once a second and reports the last result that landed; it is asynchronous, so a synchronous snapshot cannot await it. `performance.memory.usedJSHeapSize` is deliberately not used: non-standard, Chromium-only and quantised, and a number that looks measured but is not comparable is worse than null. With the isolation headers the API exists and reports: a game page left running answers 61,271,929 bytes. The baseline's memory column is still null throughout, and that is its documented failure mode rather than a bug, because the measurement resolves on a garbage collection and the whole seven-screen capture finishes before the first one lands. A capture that wants the number has to sit on a scene longer than this one does.
+
+**The baseline, and the conditions that make it mean something.** `node scripts/perf-capture.mjs --label phase0-frame-baseline --url http://localhost:9061/` in headless Chrome, viewport 1440x882 at devicePixelRatio 1 through `Emulation.setDeviceMetricsOverride`, ANGLE on an RTX 3090 over D3D11, vsync and the frame cap off per R13.38 and restored by the browser exiting, 120 frames of settle then 20 samples per screen. Frame p99, then the per-window maxima of the three measured sections, then the draw counters, from the last sample of each scenario:
+
+| Screen | frame p99 | render max | flush max | update max | draws | vertices | text chars |
+|---|---|---|---|---|---|---|---|
+| splashScreen | 0.39 ms | 0.070 ms | 0.040 ms | 0.010 ms | 4 | 156 | 37 |
+| mainMenuScreen | 0.35 ms | 0.070 ms | 0.070 ms | 0.010 ms | 7 | 300 | 69 |
+| developerScreen | 0.42 ms | 0.125 ms | 0.005 ms | 0.020 ms | 19 | 776 | 177 |
+| cardShowcaseScreen | 1.02 ms | 0.935 ms | 0.005 ms | 0.040 ms | 96 | 15736 | 3856 |
+| driverSelectionScreen | 0.50 ms | 0.190 ms | 0.130 ms | 0.015 ms | 33 | 4016 | 977 |
+| combatScreen | 0.93 ms | 0.855 ms | 0.045 ms | 0.060 ms | 92 | 5328 | 1267 |
+| battleResultScreen | 0.20 ms | 0.035 ms | 0.020 ms | 0.005 ms | 4 | 44 | 8 |
+
+`driverSelectionScreen` has two mount states and this row is the second one. Mounted first in a fresh page it draws 49 calls, 4552 vertices and 1095 characters; mounted again after any other screen it draws 33, 4016 and 977, every time. The capture visits it fifth, so the row is the remount. Nothing in the timer explains the difference, it is the screen building something on first mount that it does not rebuild afterwards, and DDB-106 tracks it. Two earlier capture files disagreed with each other on exactly this row; only this one is kept, and a capture that wants the first-mount numbers has to name the screen first. The file cannot carry any of that itself: R13.38 fixes its shape as an array of `{scenario, samples}` and leaves nowhere to write a note, so the mount-state caveat and the DDB-106 citation live only in this entry, and a reader who opens the JSON alone sees the remount numbers with nothing that says so.
+
+`cardShowcaseScreen`'s 96 draws are 48 submitted twice. The GL probe recorded the frame's draw sequence in two byte-identical halves, which `combatScreen` does not do; the frame loop renders once, so the duplication is inside the screen, and it is the known double render at `CardShowcaseScreen.onRender`, which calls `rootLayer.render()` when `Screen.render` has already rendered it. The largest draw-call number in the baseline is half waste, and the implementation spec schedules the deletion in phase 1.
+
+Unthrottled, so these say how much of a 16.67 ms budget each screen costs, not what a vsync-paced run displays. Repeating the capture moves a figure a little either way; that is the machine, not the app. Nothing here is close to the budget, which is the point of taking a baseline before the rendering work rather than after it.
+
+**The first capture measured the clock rather than the app, so the clock was fixed.** `performance.now()` is coarsened to 100 microseconds in a page that is not cross-origin isolated, and at these scene sizes that is most of the signal: in the capture taken before the headers went on, 306 of 420 section readings were exactly 0, two of the three measured sections reported a per-window maximum of 0.0 across all 20 samples of a screen, 60 of 140 samples reported a frame interval of exactly zero milliseconds, and every distinct value in the file was a multiple of 0.1. The dev server now sends `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`, which drops the tick to 5 microseconds. In the capture above, no frame interval is zero, no section reports a per-window maximum of zero, only three of the 75 distinct section values land on a multiple of 0.1 rather than all of them, the smallest non-zero reading is 0.005 ms, and 84 of the 420 section readings are still exactly 0, which is now a real statement that a section finished inside 5 microseconds rather than an artefact. Isolation costs nothing here because nothing this app loads is cross-origin: every script, asset and fetch comes from the same dev server, and all four pages (`/`, `/battle.html`, `/evalai.html`, `/gallery.html`) load isolated with no console error and no blocked request. The headers are on the dev server only, so a deployed build keeps the coarse clock; the numbers that matter are captured against this server.
+
+**The capture has to be headless, and that is not a preference.** Chrome freezes rAF for an occluded tab, so the game loop stops between wakes; measured through a hidden preview pane the timer reported a maximum frame of 88765.6 ms, which is a correct measurement of a frozen loop and a useless baseline. The script therefore launches its own headless browser with `--disable-frame-rate-limit --disable-gpu-vsync`, which is also R13.38's requirement that vsync be off during capture, and it uses Node's own WebSocket over the DevTools protocol so it adds no dependency. The chapter 13 mapping table names Playwright as the browser answer; when a Playwright harness lands it should replace this script rather than run beside it.
+
+**Three of R13.5's sanity checks were missing and are now in the snapshot, added beside R13.11's normative names rather than over them.** A spike is counted past the budget plus a tolerance of 5 percent (floored at the 0.1 ms a non-isolated clock reports) rather than past the budget itself. Frame time is the interval between frame starts and therefore carries the vsync wait (R13.8), so a vsync-paced run at exactly the refresh rate scatters either side of a budget of 1000/60 by design: a capture with the frame cap left on reported 46 to 68 spikes per 120 frames on every screen, with `spikesOver2xBudget` 0 everywhere, on a run with nothing wrong with it, and the F5 overlay printed that to a person as "Spikes: 68 over". The failure mode is in `frameStats.ts`'s header and on the overlay line, because the tolerance narrows the lie rather than removing it: a spike count still cannot separate a frame that overran because the application was slow from one that overran because the compositor made it wait, and reading it beside the section maxima is the only honest way to read it. `frame.sampleCount` says how many frames the window figures were actually taken over; `windowSize` is the configured capacity, and a p99 over four frames published beside a bare "windowSize: 120" reads as a p99 over 120. `liveness` answers whether the loop that filled the window is still running, which nothing else in the snapshot did: `timestamp` is read fresh on every call while the ring can be minutes stale, so a stopped loop kept reporting the healthy window it stopped in. It carries a monotonic `frameCount` incremented in `beginFrame` and `newestSampleAgeMs`, the wall-clock age of the newest sample. Two snapshots a second apart with the same count is then unambiguous. This is not hypothetical: measuring through a throttled preview pane during this task produced a maximum frame of 88765.6 ms in one run and 60136.5 ms in another, and a fully stopped loop would have shown no signal at all.
+
+**The F5 overlay now reads the same snapshot the harness does,** so what a person sees and what a capture records cannot drift apart, and it shows last, p99, max and both spike counts instead of the average it used to lead with (R13.6, and worldsim's 120 FPS average that hid 64 ms hitches). DDB-95's separate finding that the overlay never actually draws is untouched and unaffected.
+
+**Verification:** `npx tsc --noEmit` clean; `npm run lint` 0 errors and 9 pre-existing warnings, all in `RammingAI.test.ts`; `npm test` 384 passing across 21 suites, up from 320 across 18; `npm run build:web` compiles. A production bundle built to a scratch output directory contains no `__perf`, `installPerfHooks`, `capturePerfSamples`, `settleFrames`, `__ui`, `__dev`, `injectInput`, `layoutLint` or `treeSnapshot`, against a development control build of the same tree that contains all of them. The frame timer itself does ship in production, as the monitor it replaces did: `FrameTimer`, `beginSection` and the snapshot field names appear in the production bundle because `Renderer` and the frame loop use them unconditionally. That is a real gap against R13.2, which asks for the whole chapter to be excluded from production builds, and closing it means gating the draw counters and the developer overlay too, which is a larger change than this task. The `window.__perf` surface, the capture sampler and the whole `debug/` subtree are excluded.
+
+## Input injection behind window.__dev.input(), phase 0 task DDB-60 (2026-09-08)
+
+**What changed:**
+- `src/renderer/engine/debug/inputScript.ts` parses R13.35's comma-separated grammar and nothing else: `move,x,y`, `down,x,y[,button]`, `up,x,y[,button]`, `click,x,y[,button]`, `scroll,x,y,delta`, `keydown,<key>`, `keyup,<key>`. `click` is the one verb that expands, into move then down then up, and the expansion happens in the parser so it is provable without a DOM. Pure function, no imports, so its tests run in the suite's default node environment (R13.4).
+- `src/renderer/engine/debug/inputInjection.ts` dispatches the parsed steps as real `MouseEvent`s, `WheelEvent`s and `KeyboardEvent`s at the canvas `InputSystem.setup` registered on, and at the focused element for keys. Nothing calls a component method directly: injected input travels the path real input travels, which is the whole of what R13.35 asks for. The split mirrors `treeSnapshot`/`layoutLint` against the hooks that install them.
+- `window.__dev.input(...commands)` in `debug/hooks.ts`, variadic so a gesture is one round trip (`__dev.input('move,10,10', 'down,10,10', 'up,10,10')`, or `__dev.input(...script)`), installed by both entry points on the canvas they already hold. `window.__perf` is the last of R15.37's four globals still missing.
+- `window.__app` on the game page gained `pause`, `resume` and `status`, which until now existed only in the gallery. R13.35's "injected input is ignored while paused" is a clause about a page that can pause, and the game page could not; DDB-59 also needs a frozen frame before it shoots, and a spec forced onto `gallery.html` cannot photograph a game screen at all.
+- 24 parser tests in `inputScript.test.ts` (node), 20 dispatch tests in `inputInjection.test.ts` (jsdom, through handlers registered with the `InputSystem` the ordinary way), 8 in `Game.test.ts` (jsdom, driving pause through `window.__app` with `ScreenManager` and `DeveloperOverlay` mocked out).
+
+**How:**
+- Plain `MouseEvent`s, not `PointerEvent`s. A `PointerEvent` reaches a `mousemove` listener only when the browser synthesises the compatibility mouse event, which is a behaviour the harness would then be built on top of; a `MouseEvent` hits the registered listener directly, in every runtime and in jsdom.
+- Coordinates are logical pixels, the space `window.__ui.tree()` reports (R7.1, R7.15), and need no conversion: `handleMouseMove` computes `clientX - rect.left` in CSS pixels and `Renderer.resize` builds the ortho projection from `innerWidth`/`innerHeight`, applying `devicePixelRatio` only to the backing store and `gl.viewport`. The injector adds `rect.left`/`rect.top` back for the same reason the handler subtracts them: the canvas sits at the origin today and a hook that assumed so would break the day it does not.
+- `handleMouseDown`, `handleMouseUp` and `handleWheel` ignore their event's coordinates entirely and act on the position `handleMouseMove` last stored, so a bare `down,x,y` or `scroll,x,y,delta` presses or scrolls wherever the pointer already was. R13.35 expands only `click`, and injecting a hidden move inside the other verbs would be worse than the hazard: it would fire mouseover and mouseout handlers the harness never asked for, changing hover state underneath an assertion about it. Send `move` first, or use `click`. A test pins the hazard rather than a comment claiming it was fixed.
+- Key events are dispatched at the focused element (`document.body` when nothing holds focus) and bubble, rather than being fired at `window`. That is where a real key event starts, and it is the difference between reaching only the InputSystem's window listener and also reaching the game's F5/F12 handler on `document`.
+- Nothing throws. A parse failure comes back as `{ok: false, error}` on that one command and the commands either side of it still run, so a harness that mistypes one line gets a message and a partial result rather than a stack trace. The unknown-verb message names all seven verbs, since `window.__dev` is one variadic `input(...)` with no help surface and a console is the only place its author is reading.
+- `button` is capped at 0 to 4, not merely non-negative. `MouseEvent.buttons` is a bitmask with five entries in the dispatcher's table, so a button 9 would mask to 0 and dispatch a mousedown whose `buttons` field claims nothing is held during a press. The parser refuses what the dispatcher cannot represent.
+
+**Pause, and what it actually stops.** `InputSystem.paused` (added by DDB-58) gates all six of its handlers behind `if (__DEV_TOOLS__ && this.inputPaused) return;`, so an injected event that travels the real listener path is dropped exactly like a real one and no code in the injector is needed to honour R13.35. The result reports `swallowed` per event, so a harness distinguishes a click the gate ignored from one that missed. On the game page, `Game.update` now returns early while paused and `Game.render` keeps running, which is the same bargain `SceneHost` strikes: a paused page still presents the frame a screenshot needs, and `lastTime` in the loop advances on paused frames so resume gets a normal delta rather than the whole pause. `window.__app.status()` reports `{screen, screens, paused, updates, renders, inputPaused, viewport}`; the two counters are the evidence, since reading a boolean back from the object that set it proves nothing while one counter climbing and the other holding proves the loop is doing what pause claims. The one input path outside the InputSystem, `Game`'s raw `document` keydown shortcut for F5, F12 and Escape, is now gated by the same flag. That changes what a real key does while paused, which is defensible because pause is reachable only through `window.__app` in a development build, and the alternative was a shortcut that navigates out from under a paused capture while `status().paused` says the page is still. Pause does not stop the resize path: `Renderer.handleResize` and `Screen.onResized` still run, so a window resized while paused reflows the mounted screen. The gallery's `SceneHost` defers a resize while paused because re-entering a scene swaps every component instance; the game's screens reflow in place, so there is nothing there to defer.
+
+**R9.3's delta units are a known gap, deliberately left open.** `delta` is logical pixels of vertical scroll intent per R9.3 ("wheel deltas are normalised to logical pixels per axis ... no per-notch constant"), dispatched as `deltaY` with `deltaMode` DOM_DELTA_PIXEL, so `scroll,x,y,100` means a hundred pixels and not one notch. The engine does not honour R9.3 yet: `handleWheel` passes the raw delta through and `Panel.onWheel` multiplies it by 30, so an injected 100 currently scrolls a panel 3000 pixels. Compensating inside the injection hook would make injected wheels behave differently from real ones, which is exactly what R13.35's same-path requirement forbids. The fix belongs in the wheel handler, in a later phase. The grammar carries one delta, so injected scrolls are vertical only.
+
+**R13.36's key-collapse hazard does not arise here.** The rule covers engines that poll key state, where a down and an up landing in the same frame collapse into a release. This engine is event-driven: `handleKeyDown` calls the component's handler synchronously from the DOM listener and no frame boundary sits between the two, so a `keydown` and a `keyup` injected in one call are both delivered, in order, with no need to split them across frames. There is a test for that rather than a comment asserting it. `keyup` is dispatched faithfully but nothing in the engine listens for it today, since the InputSystem registers `keydown` only; the verb is in R13.35's grammar and the event is real, so the day a keyup listener is added, injection already feeds it.
+
+**Verification:** `npx tsc --noEmit` clean; `npm run lint` 0 errors and 9 pre-existing warnings, all in `RammingAI.test.ts`; `npm test` 320 passing across 18 suites, up from 268 across 15; `npm run build:web` compiles. Every emitted `.js` of a production build made to a scratch output directory contains no `parseInputCommand`, `injectInput`, `installInputHooks`, `treeSnapshot`, `layoutLint`, `__ui`, `__app`, `__dev` or `__DEV_TOOLS__`, and no `debug/` module appears in any source map's `sources`. The emitted `.js.map` files are the one exception worth naming: `main`'s embeds the original `src/index.ts` text, which mentions `installInputHooks` inside its dev-gated branch, so that one string ships in a deployed artifact even though nothing reachable references it. Dropping source maps from the production web build would close it, at the cost of debuggable stack traces. What does survive there is `Game`'s three field initialisers (`isPaused`, `updates`, `renders`) and its `paused` accessor pair, the same residue DDB-58 left on `InputSystem`: DefinePlugin folds every branch and every increment away, so nothing runs, but terser cannot delete a class member it cannot prove is unread.
+
+## Scene gallery behind ?scene=, phase 0 task DDB-58 (2026-09-08)
+
+**What changed:**
+- A second application over the same engine at `public/gallery.html` and `src/gallery/index.ts`: one scene mounted at a time, chosen by `?scene=`, no menu and no scene picker in the picture (R13.30). It is a separate webpack entry added only when `NODE_ENV !== 'production'`, so `npm run build:web` and both deploy workflows emit neither the entry nor the page. The bootstrap deliberately mirrors `src/index.ts`: same `Renderer`, same `RendererContext` singleton, same `InputSystem.setup`, same shader, same frame-loop shape, because a gallery that renders through a different path proves things about the gallery rather than about the game.
+- Eight scenes, one per developer-screen section: `interactive-controls`, `style-guide`, `input-showcase`, `rectangles`, `buttons`, `text`, `primitive-shapes`, `nested-panels`. The names mirror the `dev_section_*` ids the sections already carry, so a scene name and the node id it selects are derivable from each other, and a rename invalidates a golden.
+- The section list lives at `src/renderer/game/screens/developer/sections.ts`, beside the sections it names. `DeveloperScreen` builds its scroll container from it and `src/gallery/registry.ts` wraps each entry as `{name, factory}`, so the screen and the gallery cannot drift apart while the dependency still points from the development-only tool to the game. It pointed the other way first, which put the gallery directory in the production web bundle and in the packaged Electron renderer.
+- `src/gallery/SceneHost.ts` owns mount, unmount, reload, resize, pause and resume (R13.32) with no DOM, no canvas and no GL: the viewport arrives as a supplier and the scene list as an argument, so the whole mount discipline is exercised in Jest (R13.4, R14.1).
+- `src/gallery/sceneSelection.ts` is the pure `?scene=` parser. `resolveScene` answers `requested`, `default`, `unknown` or `empty`, and the host records which of them produced the mounted scene: `window.__app.status()` reports `{scene, requested, resolution}` alongside the pause counters. A capture asserts `resolution === 'requested'` before it shoots.
+- `window.__ui.tree()` and `window.__ui.lint()` install on the gallery page through the same `installDebugHooks` the game app uses, with the host's root layer as the single root (R13.33), and `window.__app` gains `scene`, `reload`, `pause`, `resume` and `status`.
+- `InputSystem` gained a `paused` flag, since this engine dispatches input straight from DOM listeners rather than from the frame loop: stopping the loop's update alone would leave clicks and keystrokes landing on components, which is the half of R13.35 that makes "injected input is ignored while paused" true.
+
+**How:**
+- An unknown `?scene=` mounts the default rather than nothing, because a blank canvas is the one outcome a screenshot harness cannot tell apart from a GL failure. The substitution is reported twice: a console error naming what was asked for and what was mounted, and `status().resolution === 'unknown'`, which is the half a script can act on. A stale golden name therefore fails loudly instead of producing a plausible screenshot of the wrong scene. `reload` and `resize` re-enter through the same private path and keep the recorded provenance, since how the scene was chosen is not state the scene accumulated.
+- Resize re-enters the scene, because a section lays itself out from the width it was constructed with and has no reflow path. Re-entering is destructive though, so the host stores the viewport the current scene was built for and returns early when a resize event reports that same size (the browser fires resize for zoom, for a `devicePixelRatio` change, and on some platforms for a window move). A real resize while paused is deferred rather than applied, and resume applies it: pause exists so a capture can read the tree and inject input against a still scene, and swapping every component instance underneath it would break exactly that promise.
+- Scene switching is a teardown path the developer screen never exercises, since it builds its sections once and lives as long as the screen does. Two sections construct `Input`s, and an `Input` registers a mouse-down and a keydown handler with the `InputSystem` singleton from its constructor, so a switch that merely dropped the reference would leave every scene ever mounted hit-tested on every mouse move. `Layer.removeChild` unmounts the subtree it detaches (DDB-62), so the registration maps stay flat across switches; focus is the one pointer that is not per-component bookkeeping, so the host clears it explicitly.
+- The host runs `rootLayer.layout()` on mount. `Text` takes its size from `Layer.layout()`, which the frame loop never calls, so without that pass every label in a scene reports `w = h = 0` and DDB-57's zero-or-negative-size rule fires on all of them. `DeveloperScreen` does the same thing in `onResized`.
+- A registry entry carries no size and no viewport. A section computes its own height from its content and publishes it with `setSize` on the last line of its constructor, so the height does not exist until the factory has returned; `status().content` reads it off the constructed scene.
+- Deleted rather than kept for a caller that does not exist yet: `sceneUrl`, written for a DDB-59 spec that has not been written, and the registry's `findScene` and `sceneNames`, which had no non-test caller. `SceneHost` could not have used the last two anyway: it holds an injected scene list, which is what lets its tests run against synthetic scenes, while those two are bound to the module-level registry.
+
+**Lint counts on the gallery scenes,** through `window.__ui.lint()` at 1440x882: interactive-controls 4, style-guide 1, input-showcase 8, rectangles 1, buttons 9, text 3, primitive-shapes 1, nested-panels 3. Thirty violations across the eight, so R13.29's `count: 0` gate is not met yet. Twenty-eight of the thirty are `sibling-overlap` on a pair that overlaps by construction: a section's background `Rectangle` against the content `Layer` drawn over it, and a `Button`'s `Rectangle` against its own label `Text`. R13.25.1 exempts a pair on differing `zIndex` or effective layer and the phase-0 snapshot emits neither, so nothing is exempted; those counts drop to near zero the moment the snapshot carries `zIndex`, and they are not defects to fix in the scenes. The remaining two are one node: a right-aligned label in the `text` scene reports a width estimated from `fontSize` (`Text.layout` has no measurement service until phase 2) that puts its box about 105 px past the section's right edge, so it fires `child-outside-parent` and `outside-viewport` together. No `zero-or-negative-size` violation anywhere, which is the mount-time `layout()` pass doing its job: that same rule accounts for 44 of the developer screen's violations, where no layout pass runs.
+
+**The developer screen is unchanged by the section-list move.** Re-measured at 1440x882 after the move: 164 nodes, 156 visible, 191 violations (32 sibling-overlap, 44 zero-or-negative-size, 6 child-outside-parent, 109 outside-viewport), identical to the row committed in `perf-results/phase0-layout-lint.json` before this task.
+
+**R15.37 is half met, and stays half met.** The rule names four globals in development builds only. `window.__ui` (DDB-56, DDB-57) and `window.__app` are live; `window.__dev` arrives with DDB-60 and `window.__perf` with DDB-61. The development-builds-only half is satisfied without a second gate, because `build:web` forces `NODE_ENV=production` and the gallery entry is spread in only when it is not, which also means a Playwright run has to point at a development build rather than at a deployed artifact.
+
+**Verification:** `npx tsc --noEmit` clean; `npm run lint` 0 errors and 9 pre-existing warnings, all in `RammingAI.test.ts`; `npm test` 268 passing across 15 suites, up from 222 across 11; `npm run build:web` compiles. A production bundle built to a scratch output directory contains no `gallerySceneRegistry`, `SceneHost`, `mountFromSearch`, `resolveScene`, `__ui`, `__app` or `__DEV_TOOLS__`, and its module graph lists no `./src/gallery/*` module at all.
+
+## Layout lint behind window.__ui.lint(), phase 0 task DDB-57 (2026-09-08)
+
+**What changed:**
+- `src/renderer/engine/debug/layoutLint.ts` implements R13.25's seven rules as a pure function over the R13.23 tree snapshot document: `sibling-overlap`, `child-outside-parent`, `outside-viewport`, `zero-or-negative-size`, `text-overflow`, `unreachable-interactive`, `target-size`. It imports nothing, not even the serializer: the input types are declared locally as a structural superset of `SnapshotDocument`, so the same code runs in Jest over hand-built objects and in the browser over `window.__ui.tree()` (R13.4), and stays assignable as phases 2 and 4 add fields. Epsilon is exactly 0.5 logical pixels (R13.27) on rules 1, 2 and 3.
+- `window.__ui.lint(options?)` in `debug/hooks.ts` runs those rules over a freshly taken snapshot. Dev-only, behind the same `__DEV_TOOLS__` branch as `tree()`.
+- Output is R13.28's shape, `{count, violations: [{rule, path, bounds, otherPath?, otherBounds?}]}`, plus a `rules[]` array of per-rule diagnostics that R13.28 does not require. A rule that cannot fire for want of a field must not read as a silent pass, so every rule reports what it evaluated, what it exempted, what it skipped and which field was missing, and summarises that as `dormant`.
+- Sixty-one unit tests in `layoutLint.test.ts`, all on hand-built snapshot objects with no GL context.
+- Committed the phase-0 baseline at `perf-results/phase0-layout-lint.json` (R13.38's shape): eight scenarios at 1440x882, captured through `window.__ui.lint()` after a rendered frame. Every screen except splash, main menu and battle result is in the hundreds of violations, which is expected rather than alarming and is explained below.
+
+**How:**
+- All geometry is computed in screen space. Rule 2 compares a child against its parent and rule 3 compares a node against the viewport, and those two live in different coordinate spaces if `bounds` is used, because R13.22 makes `bounds` parent-relative and `screenBounds` absolute. The rect *reported* on a violation is still the node's own `bounds`, which is the field R13.28 names. Rule 2's tests pin this with a parent away from the origin, where a bounds-against-bounds compare reports a 490 px escape for a child that is fully contained.
+- Rule 2 measures the child as its margin box, since R13.25.2 names the child's `bounds` and R13.22 defines `bounds` as the margin box. Phase 0 emits no `margin` and the two boxes coincide, so this is inert today and correct the moment phase 1 emits margins.
+- Absence never exempts. Where an exemption depends on a field the snapshot may not carry (`zIndex`, `layer`, `wrap`, `overflow`), it applies only when the field is present on *both* sides of the comparison. Reading an absent `zIndex` as 0 would turn "no stacking declared" into "same stacking declared" and silently exempt every pair in phase 0.
+- No exemption for scroll containers either. R13.25.2 grants none, and the signal that would carry one, `contentOffset`, sits on the `Panel`, whose only two children are a background and a content layer both sized exactly to it. The rows that actually overflow are a level below that, so a parent-side carve-out would have let off only the two nodes that can never violate while leaving every real overflow reported. The test now uses the shape the serializer actually emits.
+- Rule 4 splits its findings into `unmeasured-text` and `zero-box` buckets and reports both. Suppressing Text would hide the only class of node the rule can currently see; reporting it undifferentiated buries the case the rule exists for, a Rectangle or Button that really collapsed. The discriminator is the type *and* the absence of `text.measured`, not the type alone, so a phase-2 Text that genuinely collapses moves to `zero-box` by itself instead of being filtered away as a phase-0 artefact.
+- The walk mirrors the serializer's guards: a 256-deep cap and a walk-wide `seen` set. `Layer.addChild` never detaches from a previous parent, so one instance can sit in two children arrays and a diamond expands exponentially; a node in its own children array is an immediate `RangeError`. A repeat is still linted where it reappears, only its subtree is left unexpanded.
+- One deliberate deviation from R13.28's letter: when an id repeats among its siblings the path segment is `id[index]` rather than the bare id. Taken literally the rule gives the two nodes the same path and a baseline diff silently collapses their rows; reporting the collision is the lesser departure. The current eight-screen baseline has no collisions, so no path in it changes.
+- `layoutLint(document, null)` is accepted as well as `layoutLint(document)`. A default parameter only fires on `undefined`, and DDB-59 will be calling this across a `page.evaluate` boundary where an explicit null is easy to produce.
+
+**Three of the seven rules are dormant against the live tree.** `text-overflow` needs `text.measured`, which no measurement service exists to supply until phase 2. `unreachable-interactive` and `target-size` need `focusable` or `pointerEvents`, which is R8.29's vocabulary and arrives in phase 3. All three are fully implemented and unit-tested on synthetic snapshots, and they report `dormant: true` with the field they wanted rather than a clean pass. Two related latent problems were fixed now rather than left for those phases to inherit: rule 6 treated a `pointerEvents: 'passthrough'` sibling as an occluder, which R8.29 says it cannot be, since passthrough makes the node's own box transparent to hits and this rule never descends into a sibling's children; and rule 4's bucket discriminator, described above. R3.27 gives `opacity: 0` the same property as passthrough, but R13.22 emits no opacity, so that case defers to phase 3 with the rest.
+
+**Why the counts are high, and what the baseline is for.** R13.25.1 exempts a sibling pair on differing `zIndex` or effective layer, and the phase-0 snapshot emits neither, so nothing is exempted and every overlapping sibling fires. That is the intended maximally-catching behaviour. Separately, rule 4 fires on nearly every Text node: `Text.render` reads width and height for alignment and assigns neither, only `Text.layout()` writes them, and the frame loop never calls it, so an unsized Text reports 0x0. Across the eight captured scenarios that is 596 of 704 visible Text nodes, all of them in the `unmeasured-text` bucket, and no Rectangle, Button, Panel or Layer ever reports zero. The counts and the command that re-derives them are in `.claude/notes/ddb55-phase0-recon.md`; the code comments carry the mechanism only, since a comment citing a number nobody can re-derive rots the first time the capture is retaken. R13.29's `count: 0` merge gate therefore applies to the gallery first and to each screen as it migrates, per the implementation spec's ground rules, and nothing here is wired into CI.
+
+**Known bugs the lint already catches.** `child-outside-parent` reports 24 violations on card showcase, driver selection and combat start, 20 on combat after a card is played, and 6 on the developer screen: content overflowing its panel, not a snapshot artefact. Splash, main menu and battle result report no `child-outside-parent` at all, and their totals (3, 11 and 6) are almost entirely the full-screen background rectangle overlapping the content it sits behind, which is exactly the pair R13.25.1 will exempt once the snapshot carries `zIndex`.
+
+**Verification:** `npx tsc --noEmit` clean; `npm run lint` 0 errors and 9 pre-existing warnings, all in `RammingAI.test.ts`; `npm test` 222 passing across 11 suites, 61 of them this file's; `npm run build:web` compiles. A production bundle contains no `layoutLint` and no `__ui`, confirming the dev-only exclusion still holds.
+
+## UI tree snapshot behind window.__ui.tree(), phase 0 task DDB-56 (2026-09-07)
+
+**What changed:**
+- Added the shared `__DEV_TOOLS__` plumbing the rest of phase 0 sits on: a `webpack.DefinePlugin` constant in `webpack/webpack.common.js` (so the packaged Electron renderer gets it too, not just the web build), `declare const __DEV_TOOLS__: boolean` in `src/types.d.ts`, and `global.__DEV_TOOLS__ = true` in `jest.setup.js`.
+- `LayerOptions` gained `id?: string`, with a private backing field and an ES6 `get id(): string | null` on `Layer`. Because `ComponentOptions = LayerOptions` and `PanelOptions extends LayerOptions`, that one edit covers every primitive, Button, Input, and Panel. `Screen` passes its own id to its root layer. Named about sixty elements across the seven screens; `ui/Card` and `ui/Vehicle` derive their internals from the composite's own id (`<card>_title`, `<card>_driver_badge`, `<vehicle>_structure_fill`), and the card showcase, which renders the same cards twice, prefixes the second pass `showcase_{rarity}_card_{type}` so ids stay unique within the root. Ids never come from `Model.id`, which is the constructor name plus `Math.random()` and so re-rolls every load: a hand card is `hand_card_{slot}_{type}`, a showcase card keys off the card type (`CardLoader` maps one card per type), and a battlefield vehicle is `{side}_vehicle_{lane}_{ordinal within lane}`.
+- `src/renderer/engine/debug/treeSnapshot.ts` serializes the live tree to the R13.23 document as a pure function over `(roots, viewport)`: no GL, no DOM, no `window`. It emits only what this engine can honestly back (id, type, bounds, screenBounds, visible, children, plus clip, contentOffset, enabled, state.hovered/focused, and value where they apply) and omits everything else rather than filling in a default; `zIndex: 0` in particular would change what DDB-57's sibling-overlap rule exempts.
+- `src/renderer/engine/debug/hooks.ts` installs `window.__ui.tree()`, with the roots being the mounted screen plus the developer overlay while it is actually drawn. Reached through small accessors (`Screen.root`, `ScreenManager.activeScreen`, `DeveloperOverlay.shown`) rather than by exporting internals.
+- Thirty-three unit tests in `treeSnapshot.test.ts`, run in Jest with no GL context on hand-built Layer trees.
+
+**How:**
+- Two geometry traps, both from the DDB-55 recon and both confirmed in the code. `Panel.getChildren()` forwards to the content layer, so a walk through it never sees the background rectangle or the scrollable content layer and reports content children one level too shallow; the walk uses a new `Layer.debugChildren` getter onto the real child array instead. And `localToGlobal` does not subtract panel scroll while `Panel.render` hands its content layer `offsetX: screenX - scrollOffsetX`, so `screenBounds` re-accumulates along the render path and special-cases the panel subtraction. Both are pinned by tests.
+- Serialization never throws (R13.24): an ancestor set breaks child-graph cycles, non-finite coordinates report as 0 (which lands them on the lint's zero-or-negative-size rule rather than vanishing), a non-string id reports as null, unpaired surrogates are replaced, and a node whose accessors throw degrades to one `Unserializable` entry instead of failing the document. The degraded entry keeps the id, bounds and children computed before the throw and reports `visible: true`, because R13.27 lets the lint skip an invisible subtree whole and the broken node is the one worth seeing. The cycle guard is joined by a walk-wide `seen` set: `Layer.addChild` never detaches from a previous parent, so one instance can sit in two children arrays, and a per-path guard alone let a depth-18 diamond expand to 524,287 nodes. A repeat is emitted once more as a childless stub.
+- Dev code is kept out of production by requiring `debug/hooks` inside the `if (__DEV_TOOLS__)` branch rather than importing it. With `tsconfig` on `module: commonjs`, webpack cannot tree-shake an unused ES import, but it does drop a `require` in a branch DefinePlugin folded to false. Verified: a production bundle contains no `__ui`, `treeSnapshot`, `installDebugHooks`, `screenBounds`, or `contentOffset`; a development bundle contains all of them.
+
+**Finding for DDB-57:** `Text` still reports `w = h = 0` after any number of rendered frames. `Text.render()` never writes width or height; only `Text.layout()` does, and the frame loop never calls it (the only two callers are `CardShowcaseScreen.onResized` and `DeveloperScreen.onResized`). The snapshot deliberately does not run layout, because a read hook must not mutate the tree it observes. So `zero-or-negative-size` will fire on nearly every unsized text node on the live screens until a layout phase exists in phase 3.
+
+## Dead engine code purge and unmount fixes, phase 0 task DDB-62 (2026-09-07)
+
+**What changed:**
+- Deleted nine modules nothing imported: `engine/components/Arrow.ts`, `engine/rendering/ScissorBatcher.ts`, `engine/rendering/Texture.ts`, `game/core/Assets.ts`, `game/core/State.ts`, `game/ai/MCTSNode.ts`, `game/ai/index.ts`, `utils/helpers.ts`, `utils/math.ts`. Eight had zero importers; `helpers.ts` had exactly one, `Assets.ts`, which went with it.
+- Swept the dead members those deletions and earlier refactors left behind, about 1,960 lines across 32 files: `Renderer.drawLine`, `destroy`, `hasTextToFlush` and the scissor-state notification (all dead once ScissorBatcher went); `ScreenManager.resize` and `destroy`, and `Screen.resize`, which lost its only caller with them; the whole keyup half of `InputSystem` (`keyUpComponents`, `globalKeyUpHandlers`, `handleKeyUp`, both window listeners, `registerKeyUp`, `registerGlobalKeyUp`, `unregisterGlobalKeyUp`) plus `getMousePosition`; `Component`'s semantic event system (`select`, `deselect`, `activate`, `target`, `untarget`, `cancel` and the six protected hooks behind them), which had no caller anywhere, `DriverPanel.activate` being its own method on a `Layer` subclass rather than an override; `Card`'s `activateHandler` and `targetHandler` with their setters; `Input`'s focus and blur callbacks with their setters and guards, and `setPlaceholder`, `setMaxLength`, `setTextColor`, `setPlaceholderColor`; `ResourceBarLayer.clearElements`; `CombatModel.determineTargetableVehicles`; `AIController.findVehicleByDriver`; and unread getters and setters on Circle, Polygon, Triangle, Text, Panel, Button, Shader, FontAtlas, TextRenderer, and DeveloperOverlay.
+- Fixed four unmount leaks found while doing the sweep. `Layer.removeChild` now calls `child.unmount()` before detaching, so a removed subtree stops being hit-tested instead of sitting in the InputSystem handler maps forever. `Card` gained an `unmount()` override that unregisters itself, since it extends Layer rather than Component and so inherits no unregistering unmount. `CombatLogLayer.unmount` now calls `super.unmount()`, so its children unmount too. `CombatScreen.onUnmount` unregisters `rootLayer`, a plain Layer that does not unregister itself.
+
+**How:**
+- Every deletion was justified by an importer count or a ripgrep caller count from the DDB-55 recon notes, and re-verified with ripgrep after the cut; nothing was removed on a hunch about naming.
+- `removeChild` is the only behavioural change. It is safe because no call site removes a node and re-adds the same instance: every clear-and-rebuild path constructs fresh objects. Two sites now double-unmount (PlayerHandLayer, CardShowcaseScreen), which is harmless because `Layer.unmount` is pure recursion and `InputSystem.unregisterComponent` is a map delete.
+- Deliberately kept: `RenderContext.ts` (13 importers) and `RendererContext.ts` (9, retired in phase 3), and every `Style` field, since `opacity` and `zIndex` are re-added in phase 4.
+
+## UI rendering specification and implementation plan (2026-09-07)
+
+**What changed:**
+- Wrote a backend-agnostic layered UI rendering specification at `docs/ui-rendering-spec/` (README, glossary, architecture, draw API, render order, clipping, shading, text, coordinates, object model, input and focus, layout, style and theme, component catalog, observability, testing and conformance, WebGL2 and OpenGL backend notes, review log), abstracted from worldsim's C++/OpenGL UI system after reading its renderer, component library, sandbox tooling, design docs, and development log, plus an audit of this engine and a sourced survey of published designs (GPUI, PixiJS, Skia, Flutter, WebRender, ImGui, egui, Unity, Godot, CSS stacking contexts) and WebGL2 specifics.
+- Ran five independent challenge reviews against the draft (graphics engineer with web verification, UI architect, worldsim maintainer, implementer for this codebase, consistency editor). The UI-architect and implementer reviews produced 74 findings, five of them blockers (a layout-freeze defect inherited from worldsim, a coordinate ambiguity in layer promotion, deferred callbacks, an undefined hit-target model, a one-sentence drag protocol), resolved into draft 2. The graphics review produced 37 findings including a blocker in the border-over-fill compositing formula (a one-pixel halo on every bordered control), plus corrections to the clip test, anti-aliasing ramp, shadow padding, buffer ring sizing, resident textures, the text atlas range, hairline snapping, GPU timing, and several WebGL version claims; the consistency review produced 24, including a stale conformance table and glossary contradictions; both were resolved into draft 3. Every resolution is recorded in chapter 17. The worldsim-maintainer provenance review produced 65 findings (about seventy of ninety checked claims verified with file-level evidence; five wrong in a way that would mislead a port, among them the tab bar hover claim, the ellipsis row, and which widgets forward z; one structural omission, worldsim's absolute coordinates) and was resolved into draft 4, which also gained a migration order for worldsim (chapter 16.4) and a not-applicable scoring rule (R14.9) so the drag service, transform, and animator do not fail a project with no use for them.
+- Preserved the research and review reports verbatim under `docs/ui-rendering-spec/research/` and `review/` so the spec's provenance survives the session.
+- Wrote the implementation specification for this repo at `docs/specs/ui-rendering-engine-implementation.md` (seven phases, toolchain decisions, board structure, success criteria, risks) and the decision record `docs/AI_TECHNICAL_DECISIONS/ui-rendering-spec-adoption.md`. No board items were created; that is the next step when implementation starts.
+
+**How:**
+- Research fan-out to five parallel agents writing structured reports with file-and-line citations; the spec was written from those plus direct reading of worldsim's ordering commits (global draw-group z-sort, the reverted overlay queue, the world/UI flush barrier) and design docs.
+- Rules are numbered per chapter so reviews, tests, and PRs can cite them; each chapter carries its incidents, rationale, required tests, and a conformance checklist; chapter 14 scores both worldsim and this engine against every required item.
+
+**Notable findings about this codebase (from the audit, evidence in the research folder):** text always paints above shapes drawn in the same clip scope because the text batch flushes on scissor changes, which is the mechanism behind DDB-28 and DDB-31; `borderRadius`, `opacity`, `fontFamily`, `fontWeight`, and `zIndex` are parsed and ignored; `Button` and `Input` ignore their style objects entirely; hit testing ignores occlusion, clipping, and visibility; the combat screen has two different layouts (construction and resize); the F5 overlay measures only the frame interval.
+
+## Windows build and run brought up (2026-09-07)
+
+**What changed:**
+- `package.json` gained an `overrides` entry pinning `extract-zip`'s `yauzl` to `^3.2.0`. On Node 24, yauzl 2.10's fd-slicer read stream stalls part-way through an entry and never emits `end`, so `extract-zip` never settles its promise, the process exits 0 with the work unfinished, and the Electron postinstall leaves `node_modules/electron/dist` holding one truncated `locales/it.pak` and nothing else. `npm run start:electron` then failed with "Electron failed to install correctly". The cached zip was fine (`inflateRawSync` over the same bytes produced the full 427761 bytes); yauzl 3.4.0 streams it correctly. Verified with a clean `npm ci`: all 73 entries extract and `electron.exe` lands.
+- `.claude/launch.json` added so the dev server can be started by name (port 9000, matching the URL `electron/main.ts` loads in development).
+- README gained a Windows notes section covering the yauzl issue and the winCodeSign symlink privilege requirement.
+
+**Verified on Windows 11 / Node 24.16.0:** lint (0 errors, 9 warnings), `npm test` (128/128), `npm run build:web`, `npm run build:electron`, dev server click-through to a live battle, Electron in development mode against the dev server, `npm run package:win`, and the packaged `release/win-unpacked` binary launching and rendering the menu from the bundled renderer.
+
+**Not a code problem, but blocks packaging locally:** electron-builder's `winCodeSign-2.6.0.7z` contains two macOS symlinks (`darwin/10.12/lib/libcrypto.dylib`, `libssl.dylib`). Creating symlinks on Windows needs Developer Mode or an elevated shell; without it 7za fails, electron-builder discards the extraction, retries, and aborts. Worked around here by populating `%LOCALAPPDATA%\electron-builder\Cache\winCodeSign\winCodeSign-2.6.0` from the partial extraction with the two dylibs copied rather than linked. The durable fix is Developer Mode on the machine; CI runners already have the privilege, which is why `electron-build.yml`'s Windows job has always passed.
+
+**Note on hub accuracy:** the hub listed the Electron build as broken. That was true of the survey's snapshot but has since been fixed on main; the electron webpack config now emits main, preload, and renderer separately and the app runs. Hub updated.
+
+## Migrated task tracking to Specboard (2026-08-22)
+
+**What changed:**
+- All planning moved from AI_DEVELOPMENT_HUB.md to Specboard: https://specboard.io/projects/6b4e4cdd-15bc-4001-8280-706838168f2e
+- Created six epics with ~40 bugs/tasks: Security and correctness fixes (P0 defects as bugs), Dead code purge, Toolchain modernization, Code convention cleanup, Combat UI and gameplay debt (live-verified rendering bugs), and Game feature roadmap (the unbuilt Game Flow spec phases 4-6 from the old hub, spec docs linked).
+- Hub's to-do and roadmap sections replaced with a pointer to the board; CLAUDE.md todo-management instruction updated to use the Specboard MCP tools.
+- Old planning docs audited for open items: PERFORMANCE_OPTIMIZATION_PLAN.md is fully implemented; VEHICLE_POSITIONING_AND_WAVE_SYSTEM.md's remaining phase (waves + movement cards) became a roadmap task.
+
+## Project Survey and Documentation Rebuild (2026-08-22)
+
+**What changed:**
+- Full re-survey of the dropped project: tests (128/128 pass), lint (0 errors), web build (compiles), live click-through of menu → driver selection → combat with working enemy AI, plus a code audit for stubs, dead code, and doc drift.
+- Rewrote AI_DEVELOPMENT_HUB.md around a verified current-state (working / built-but-broken / never-built) and a prioritized modernization to-do list.
+- Deleted MISSING_COMBAT_FEATURES.md: nearly every "missing" feature (range, hit calc, flanking, ram formulas, occupant damage, targeting restrictions) was implemented in the June–July 2025 combat work. The two genuinely missing pieces (`Battle.endCombat()` never called in production, no post-combat effects pass) moved to the hub's P0 list.
+- Corrected fabricated doc dates (see note above) and the stale screen-lifecycle instructions in CLAUDE.md (activate/deactivate → mount/unmount, registration in ScreenManager not Game.ts).
+
+**Key findings:** battle-end double navigation, dead per-property Model listeners in ui/Vehicle.ts, Electron build broken since early on, production deploys ship dev-mode bundles (no NODE_ENV=production), CI shell injection via `github.head_ref` in cleanup-pr.yml, stale `public/cards.json` fork, ~10 dead modules, CI pinned to EOL Node 18. Details and priorities in the hub.
+
+## UI Component Lifecycle Standardization (2025-07-03)
+
+### Fixed Ghost Click Bug and Standardized Component Lifecycle
+
+**What Changed:**
+- Fixed bug where main menu buttons remained clickable after navigating to combat screen
+- Standardized all component lifecycle methods to use mount/unmount terminology
+- Screen base class now properly unmounts all child components when unmounting
+
+**Technical Details:**
+- **Screen.unmount()**: Now calls `rootLayer.unmount()` to recursively clean up all children
+- **Component Renames**: 
+  - `cleanup()` → `unmount()` in Component, Layer, Panel, Input classes
+  - `destroy()` → `unmount()` in Vehicle UI component
+  - `dispose()` → `unmount()` in FontAtlas class
+- **Button Fix**: Buttons now properly unregister from InputSystem via unmount chain
+
+**Benefits:**
+- No more ghost clicks from previous screens
+- Consistent lifecycle terminology across entire codebase
+- Proper memory cleanup and event handler removal
+- Clear component lifecycle: mount (if applicable) → unmount
+
+## Screen Manager Architecture Implementation (2025-07-03)
+
+### Implemented ScreenManager with Lazy Loading
+
+**What Changed:**
+- Created ScreenManager as a static class for global screen navigation
+- Removed all screen creation from Game.createScreens() 
+- Screens now created on-demand when navigated to
+- Removed callback-based navigation in favor of direct ScreenManager.navigate() calls
+- Fixed CardShowcaseScreen creating cards in constructor
+
+**Technical Details:**
+- **ScreenManager**: Static class with `navigate()`, `update()`, `render()` methods
+- **Screen Creation**: Map of screen names to constructors, screens created fresh on each navigation
+- **Navigation Pattern**: Screens call `ScreenManager.navigate('screenName', data)` directly
+- **Memory Management**: Screens fully destroyed when navigating away (no caching)
+- **Data Passing**: Combat screen receives drivers via navigation data in `onMount()`
+
+**Benefits:**
+- Fixes input handler bug where inactive screens intercepted clicks
+- Reduces memory usage - only active screen exists
+- Cleaner architecture with separation of concerns
+- Simpler navigation without callback spaghetti
+
+### Fixed Combat Screen Initialization Issues
+
+**What Changed:**
+- Fixed async initialization timing issues in combat screen
+- Added proper promise handling in Screen base class for async onMount
+- Combat screen now properly updates UI after async initialization completes
+- Added development fallback for direct navigation to combat
+
+**Technical Details:**
+- Screen base class now properly handles async onMount methods
+- Added explicit `updateUIFromBattle()` call after combat initialization
+- Development mode: If no drivers provided, loads default drivers automatically
+- Fixed timing issue where UI was rendering before battle data was ready
+
+## Layer Rendering and Overflow Fixes (2025-07-03)
+
+### Fixed Layer Stacking Issues in Combat Screen
+
+**What Changed:**
+- Fixed card text showing through bottom resource bar
+- Added overflow clipping to all combat layers
+- Improved card positioning with vertical padding
+
+**Technical Details:**
+- Added `setOverflow('hidden')` to PlayerHandLayer, ResourceBarLayer, and BattlefieldLayer base class
+- Modified card layout logic to ensure cards stay within layer bounds with 10px vertical padding
+- Prevents UI elements from bleeding across layer boundaries
+
+## AI Integration and Combat Enhancements (2025-07-03)
+
+### Integrated AI System into Main Game
+
+**What Changed:**
+- Enabled AI controller in CombatScreen - enemies now use AggressiveFlankerAI
+- Removed placeholder enemy turn logic
+- Enhanced combat logging to match battle simulator's comprehensive output
+- Fixed card click routing bug causing navigation to wrong screens
+
+**Technical Details:**
+- **AI Integration**: 
+  - Added `battle.aiController.setEnemyAI('aggressive')` in CombatScreen.initializeCombat()
+  - Battle system already handles AI turns automatically via executeEnemyAction()
+  - Same AI strategies from battle simulator now work in main game
+- **Enhanced Logging**:
+  - Added 6 new CombatLogType entries: MISS, ARMOR, RESOURCE, POSITION, BATTLE_START, BATTLE_END
+  - CombatLog.addBattleMessage() method maps Battle message types to log types
+  - Added turn numbers to log entries with `[Turn X]` prefix
+  - Enhanced color coding for all message types
+- **Card Click Bug Fix**:
+  - Root cause: Cards not unregistered from InputSystem when screens unmount
+  - Solution: Added unmount() calls in screen unmount methods
+  - CardShowcaseScreen tracks and cleans up card components
+  - CombatScreen calls unmount() on all layers
+  - Leveraged existing Layer/Component unmount() architecture
+
+=========================================
+
+## Combat Targeting System Fix (2025-07-03)
+
+### Fixed Card Targeting Not Working
+
+**What Changed:**
+- Removed arrow visualization that was causing complexity
+- Fixed CombatModel to properly emit 'targetedVehicle' event
+- Fixed CombatLogLayer to handle Model change events correctly
+- Removed global click handler that was interfering with vehicle clicks
+
+**Technical Details:**
+- **Root Cause**: Model base class only emits generic 'change' events, but CombatScreen was listening for specific 'targetedVehicle' event
+- **Solution**: Added manual emit of 'targetedVehicle' event in CombatModel.targetVehicle()
+- **CombatLog Fix**: Updated to handle Model's state-based change events instead of expecting added/removed arrays
+
+## Combat Interface Bug Fixes (2025-07-03)
+
+### Fixed High-Priority Combat UI Issues
+
+**What Changed:**
+- Fixed card targeting system - removed arrow, simplified to click-based targeting
+- Fixed card removal from hand after playing
+- Fixed end turn functionality to properly draw new cards
+- Fixed resource display updates with per-driver adrenaline tracking
+- Added victory/defeat screen with proper data passing
+
+**Technical Details:**
+- **Card Targeting**: Simplified system - select card, then click enemy vehicle
+- **Card Playing**: Cards properly removed via Driver.playCard() method, UI updates after
+- **End Turn**: 
+  - Added `emit('stateChanged')` in startPlayerTurn for UI updates
+  - Fixed card discard order - hands now discarded before drawing
+- **Resource Display**: 
+  - Modified PlayerHandLayer to track per-driver adrenaline Map
+  - Added setDriverAdrenaline() method replacing single pool
+  - canPlayCard() now checks correct driver's adrenaline via cardDriverMap
+- **Victory/Defeat Screen**:
+  - Enhanced Screen base class with mount(data?: unknown) support
+  - Updated Game.showScreen() to accept optional data parameter  
+  - Created BattleResultScreen with DRY layoutUI() method
+  - Integrated with CombatScreen via getBattleState() method
+
+=========================================
+
+## Battle Log Display for Human Player Interface (2025-07-02)
+
+### Added Real-time Battle Log to Human Player UI
+
+**What Changed:**
+- Added a scrollable battle log pane on the right side of the human player interface
+- Battle messages are displayed in real-time as the game progresses
+- Each message type has its own color coding for better readability
+- Log automatically scrolls to show the newest entries
+- **Driver names now include team prefixes** (Player1/Player2 or Enemy1/Enemy2) for clarity
+
+**Technical Details:**
+- Modified HTML structure to use a flex layout with game board on left and log on right
+- Battle log pane is 400px wide with scrollable content area
+- Forwarded battle message events from Battle instance to window events
+- Added event listener to capture and display battle messages
+- Color-coded message types:
+  - Damage dealt: Red
+  - Healing: Green
+  - Turn start/end: Blue
+  - Card played: Purple
+  - Miss: Gray (italic)
+  - Battle start/end: Yellow
+- Messages include turn numbers for context
+- Log clears when starting a new battle
+- Added `getDriverDisplayName()` helper method to Battle class that prefixes driver names with:
+  - Player1/Player2 for player team drivers
+  - Enemy1/Enemy2 for enemy team drivers
+- Updated all battle log messages to use the new display names
+
+=========================================
+
+## Adrenaline System Configuration Update (2025-07-02)
+
+### Changed Default Max Adrenaline from 10 to 5
+
+**What Changed:**
+- Added `maxAdrenaline` property to the `DriverConfig` interface
+- Updated all driver configurations to include `maxAdrenaline: 5`
+- Modified `DriverLoader` to use the configured max adrenaline value instead of hardcoded 10
+- Fixed `getConfig()` method to include maxAdrenaline in returned configuration
+
+**Technical Details:**
+- `maxAdrenaline` is now exposed alongside `maxHitpoints` in driver configurations
+- All four driver archetypes (road_warrior, interceptor, mechanic, raider) now have 5 max adrenaline
+- Starting adrenaline remains at 3
+- This change makes the game more tactical by limiting the energy pool for playing cards
+- Players must be more strategic about card usage with the reduced adrenaline capacity
+
+=========================================
+
+## Human Player Interface for Battle Simulator (2025-07-02)
+
+### Added Human Player Support to Battle System
+
+**What Changed:**
+- Implemented human player option in battle.html, allowing manual card play instead of AI-only battles
+- Created HumanPlayerInterface class to manage player decisions and UI interactions
+- Modified BattleSimulator to support human input through promise-based decision system
+- Added comprehensive interactive UI overlay for human players
+
+**Technical Details:**
+- Created event-driven architecture using custom events for UI updates
+- UI Components:
+  - Team displays showing vehicle status (structure, armor, position, drivers)
+  - Driver sections with hand display showing cards with costs and effects
+  - Visual feedback for playable vs unplayable cards (based on adrenaline)
+  - Target selection interface that highlights valid targets
+  - End turn button for passing control to enemy AI
+- Card selection flow:
+  1. Player clicks card → Card is highlighted
+  2. If card needs target → Valid targets are highlighted
+  3. Player clicks target → Card is played
+  4. UI updates to show new game state
+- Maintained full compatibility with existing AI vs AI battles
+- Fixed TypeScript issues with TargetType enum values and Team method names
+
+=========================================
+
+## Ramming AI Implementation (2024-12-30)
+
+### Created Ramming-Focused AI Strategy
+
+**What Changed:**
+- Implemented RammingAI strategy that prioritizes vehicle collision attacks
+- Added 'ramming' as a new AI type in AIController
+- Created comprehensive test suite for RammingAI behavior
+- Updated AI Development Hub documentation with new strategy details
+
+**Technical Details:**
+- Strategy prioritizes ramming attacks with highest score (+300)
+- Speed boosts are high priority (+250) to enable effective ramming
+- Armor is valued (+200) for protection during collisions
+- Detects ramming cards by:
+  - Card type/description containing 'ram'
+  - Effects with scaling: 'ramming'
+  - Formula-based damage (e.g., 'armor/10 + speed_diff')
+- Estimates ram damage based on armor, speed difference, and driver skills
+- Prefers front position for optimal ramming range
+- Targets low-health enemies for kill bonuses
+- Still maintains survival instincts (healing at <30% health)
+- Full test coverage validates all strategic priorities
+
+## Salvage AI Implementation (2024-12-30)
+
+### Created AI Strategy for Vehicle Salvage
+
+**What Changed:**
+- Implemented SalvageAI strategy that minimizes vehicle damage for salvage opportunities
+- Added 'salvage' as a new AI type in AIController
+- Updated AI Development Hub documentation with new strategy
+- **Major revision**: Redesigned AI to be competitive while maintaining salvage focus
+
+**Technical Details:**
+- Initial implementation was too passive and lost to RandomAI
+- Redesigned with game state awareness:
+  - Evaluates health ratios to determine if in danger or winning
+  - Switches strategies based on game state (survival mode when losing)
+  - Prioritizes flanking position for 50% damage bonus (+150 score)
+  - Values card draw to find headshots faster (+80 score)
+  - Focuses fire on damaged vehicles for efficiency
+- Headshot priority reduced from +1000 to +500 for better balance
+- Structure damage penalty reduced from -10 to -5 per damage
+- Added team detection to properly evaluate game state
+- Demonstrates strategic depth while maintaining salvage theme
+
+## AI Evaluation System (2024-12-30)
+
+### Created Comprehensive AI Evaluation System
+
+**What Changed:**
+- Created AIEvaluator class to run automated AI vs AI tournaments
+- Built `/evalai.html` endpoint for running and visualizing AI evaluations
+- Implemented round-robin tournament system with configurable parameters
+- Added detailed metrics tracking and reporting
+
+**Technical Details:**
+- AIEvaluator runs matches between all AI type combinations
+- Tests with different driver configurations to assess adaptability
+- Tracks win rates, head-to-head records, average turns per game
+- Provides both summary rankings and detailed match results
+- Web interface allows configuration of:
+  - Which AI types to test
+  - Number of games per matchup
+  - Driver randomization settings
+- Results consistently show:
+  - MCTS AI performs best (highest win rate)
+  - Aggressive Flanker AI second
+  - Random AI baseline performance
+
+## Monte Carlo Tree Search AI Implementation (2025-06-30)
+
+### Implemented MCTS AI Player
+
+**What Changed:**
+- Created MCTSNode class for tree structure with UCB1 selection
+- Implemented MCTSAI player using Monte Carlo Tree Search algorithm
+- Added MCTS to AIController as a selectable AI type
+- Created comprehensive test suite for MCTS functionality
+- Updated battle simulator to support MCTS AI selection
+- **Improved MCTS to be competitive**: Fixed evaluation issues that made it lose to Random AI
+
+**Technical Details:**
+- Uses UCB1 (Upper Confidence Bound) for balancing exploration vs exploitation
+- Simplified implementation using action evaluation rather than full game state cloning
+- Improved parameters: iterations (2000), exploration constant (1.4)
+- Enhanced evaluation with strategic weights:
+  - ELIMINATION_SCORE = 10.0 (huge bonus for finishing enemies)
+  - FLANKING_BONUS = 1.5 (50% damage bonus consideration)
+  - Position changes and speed boosts for flanking strategy
+  - Better resource management (penalizes ending turn with good plays available)
+- Context-aware evaluation:
+  - Considers target health, armor, and position
+  - Evaluates card synergies with driver skills
+  - Prioritizes low-health target elimination
+  - Values self-preservation when critical
+
+**Performance Improvements:**
+- No longer loses to Random AI consistently
+- Makes strategic decisions similar to Aggressive Flanker AI
+- Better adrenaline usage (doesn't waste turns)
+- Smarter target prioritization
+
+## AI Battle Simulator Web Page (2025-06-29)
+
+### Created Web-Based Battle Simulator
+
+**What Changed:**
+- Created `/battle` webpage for running AI vs AI battles
+- Built interactive UI for selecting AI strategies and drivers for both teams
+- Implemented BattleSimulator class that runs battles headlessly
+- Added battle result display with team stats and complete battle log
+- Modified webpack config to support multiple entry points
+- Integrated with existing AI system (Random AI, Aggressive Flanker AI)
+
+**Technical Details:**
+- Created `public/battle.html` with team setup forms and result display
+- Implemented `src/battle-simulator.ts` as separate webpack entry point
+- Modified webpack configs to build both main game and battle simulator
+- Battle simulator runs complete battles using AI decisions
+- Displays color-coded battle log with all events
+- Shows final team stats (vehicle health, driver HP)
+- Max 50 turns to prevent infinite loops
+
+**Features:**
+- Select AI strategy for player team (Random, Aggressive Flanker)
+- Select AI strategy for enemy team (Simple default, Random, Aggressive Flanker)
+- Choose drivers for each vehicle (Road Warrior, Interceptor, Mechanic, Raider)
+- Run battles and see winner/loser/tie
+- View complete battle log with turn-by-turn events
+- See final vehicle and driver health stats
+
+**Usage:**
+- Navigate to http://localhost:9000/battle.html when dev server is running
+- Select AI and drivers for both teams
+- Click "Run Battle" to simulate
+- Results and battle log display immediately
+
+**Fixes Applied:**
+- Fixed cards.json to use `type` instead of `id` for card identifiers
+- Updated battle simulator to use `createDriverWithStartingDeck` instead of `getDriver`
+- Fixed mismatched card references (coordinated_strike → coordinated_attack)
+- Ensured all drivers have properly initialized decks with valid card types
+
+=========================================
+
+## Battle Event Logging System (2025-06-29)
+
+### Implemented Battle Message Logging
+
+**What Changed:**
+- Added comprehensive battle event logging system to Battle.ts
+- Created `BattleMessage` interface with type, message, timestamp, turn, and metadata
+- Added `BattleMessageType` enum for categorizing messages (damage_dealt, heal_applied, etc.)
+- Replaced all 30 console.log and 9 console.warn calls with internal log() method
+- Implemented public methods for message retrieval:
+  - `getMessages()`: Get all battle messages
+  - `getMessagesByType(type)`: Get messages of specific type
+  - `clearMessages()`: Clear all messages
+- Messages stored in WeakMap to work with frozen Model instances
+- Each log entry emits 'battleMessage' event for real-time updates
+
+**Technical Details:**
+- Messages include metadata for structured data (driver names, card names, damage values)
+- Maintains console.log output in non-test environments for debugging
+- Updated all Battle.test.ts tests to check battle messages instead of mocking console
+- All 39 Battle tests now pass with the new logging system
+
+**Purpose:**
+- Provides structured logging for combat UI to display battle events
+- Enables filtering and searching through battle history
+- Supports future features like combat replay and analytics
+- Removes direct console dependencies from production code
+
+=========================================
+
+## Aggressive Flanker AI Strategy (2025-06-29)
+
+### Implemented Advanced AI Strategy
+
+**What Changed:**
+- Created `AggressiveFlankerAI` - first advanced AI strategy
+- Strategy focuses on maximizing damage through flanking position (50% bonus)
+- Implemented intelligent decision scoring system:
+  - Prioritizes movement to flanking position when not already there
+  - Values speed-boosting cards when below flanking threshold (60 total speed)
+  - Scores damage cards higher when in flanking position
+  - Targets low-health enemies for elimination
+  - Considers vulnerable status effects for additional damage
+- Added card effect analysis to understand:
+  - Damage potential
+  - Position change capabilities
+  - Speed modifications
+  - Healing and armor effects
+- Implemented resource management:
+  - Cost efficiency calculations
+  - Avoids spending all adrenaline early
+- **Critical health healing**: Prioritizes healing when below 30% health
+
+**Technical Details:**
+- Extended `AIPlayer` base class with `AggressiveFlankerStrategy`
+- Score-based decision making (evaluates all possible actions)
+- Factors in position bonuses, target health, and kill potential
+- Modular design allows easy creation of additional AI strategies
+- Integrated into AIController as the 'aggressive' AI type
+- Full test coverage (6/6 tests passing) with edge case handling
+
+## AI Player System Implementation (2025-06-29)
+
+### Created Computer-Run Player System
+
+**What Changed:**
+- Created AI player system architecture with swappable implementations
+- Implemented core AI components:
+  - `AIPlayer` abstract base class for all AI implementations
+  - `AIController` for managing AI players for both teams
+  - `AIDecision` interface for representing AI actions
+  - `GameStateEvaluation` for analyzing current battle state
+- Implemented `RandomAI` as baseline strategy
+- Integrated AI system with Battle class using WeakMap pattern (to work with frozen Model instances)
+- Modified battle system to support async AI decisions
+- Created comprehensive unit tests covering all AI functionality
+
+**Technical Details:**
+- Used strategy pattern for different AI personalities
+- Support for AI controlling either player or enemy teams
+- Fallback to simple AI when no AI configured
+- Clean integration without UI changes
+- Test coverage includes AI vs AI battles
+
+## Cards.json Update to Match Combat Rules (2025-06-28)
+
+### Updated Card Implementations to Follow Current Combat Rules
+
+**What Changed:**
+- Updated cards.json to include all cards specified in Combat Rules document
+- Added new cards: Point Blank, Far Shoot, Headshot, Ram, Flank, Oil Slick, Caltrops, Medical Kit, Berserker
+- Updated existing cards to match rule specifications:
+  - Coordinated Strike → Coordinated Attack (3 damage, doubles if partner attacked)
+  - Repair Kit (8 healing with overflow to armor)
+  - Nitro Boost (3 speed for 2 turns, draw 2 cards)
+  - EMP Blast (upgraded cost reduction)
+- Updated starting decks to use cards from the Combat Rules
+- Created comprehensive unit tests for Battle system
+
+**How:**
+- Reviewed Combat Rules document and compared against existing cards.json
+- Maintained backward compatibility by keeping existing cards not in rules
+- Used consistent effect structures for all card types
+- Added proper upgrade effects where specified in rules
+- Created Battle.test.ts with full test coverage for battle mechanics
+
+**Key Implementation Details:**
+- Range system implemented with `range` property on damage effects
+- Hit modifiers for Headshot implemented with `hit_modifier` property
+- Formula-based damage for Ram card using `formula` property
+- Status effect duration of -1 indicates permanent effects
+- Conditional effects use nested `effect` objects
+- Target types include: enemy_single, enemy_all, self, ally, same_vehicle, self_driver
+
+=========================================
+
+## Vehicle UI Architecture Refactor and Combat Log Toggle (2025-01-08)
+
+### Completed Major Vehicle Display System Refactor
+
+**What Changed:**
+- Refactored vehicle display and targeting system with event-driven architecture
+- Created `/game/ui/Vehicle.ts` component that handles its own click/hover events
+- Implemented `CombatModel` to manage UI state (selected cards, targeting, focused vehicles)
+- Refactored `BattlefieldLayer` hierarchy to pass full Vehicle models instead of just IDs
+- Renamed `EnemyLayer` → `EnemyBattlefieldLayer` for consistency
+- Moved `/engine/ui/Card.ts` → `/game/ui/Card.ts` for better organization
+- Added F6 key to toggle combat log visibility (hidden by default)
+- Enhanced InputSystem with global keyboard handler support
+
+**How:**
+- Vehicle components now handle their own input events instead of parent layers checking coordinates
+- CombatModel uses our Model base class with automatic getters/setters for state management
+- Vehicles listen to CombatModel for state changes and update their visual appearance
+- Implemented ES6-style property accessors (get/set) throughout
+- Used dimmed colors instead of transparency for non-targetable vehicles
+- Added global keyboard handlers to InputSystem that work regardless of focus
+- Combat log toggle uses new `InputSystem.registerGlobalKeyDown('F6', handler)`
+
+**Key Architecture Decisions:**
+- Event-driven UI where components manage their own interactions
+- Clear separation between game state (Battle, Vehicle models) and UI state (CombatModel)
+- Components receive full model objects, not just IDs, even if they don't use all properties
+- Input abstraction using "focused" instead of "hovered" for future controller support
+- Global keyboard handlers checked before component-specific handlers
+
+**Technical Details:**
+- `combatModel.targetedVehicle` property automatically emits change events when set
+- Vehicle onClick handlers simply set `combatData.targetedVehicle = vehicle`
+- CombatScreen listens for 'targetedVehicle' changes to handle card plays
+- InputSystem stores global handlers in separate Maps from component handlers
+- Proper unmount of global handlers on screen unmount
+
+=========================================
+
+## FPS Limiting Investigation and Fix (2025-06-08)
+
+### Fixed Frame Rate Measurement and Removed Broken Frame Limiting
+
+**What Changed:**
+- Fixed FPS measurement to show actual frame rate (was showing ~8500 FPS due to timing bug)
+- Removed broken frame limiting code that wasn't actually limiting frames
+- Now correctly shows 120 FPS on 120Hz displays (browser's natural vsync)
+- Simplified game loop to use browser's built-in frame synchronization
+
+**How:**
+- Fixed `lastFrameTime` initialization - was comparing against 0 causing huge initial delta
+- Removed artificial frame limiting attempts (setTimeout/setImmediate)
+- Let browser handle frame timing naturally through requestAnimationFrame
+- Now respects display refresh rate automatically
+
+=========================================
+
+## Combat Log System Implementation (2025-01-07)
+
+### Added Combat Event Logging with Scrollable Display
+
+**What Changed:**
+- Created CombatLog model class to track all combat events
+- Implemented CombatLogLayer UI component with auto-scrolling
+- Added comprehensive event logging throughout Battle system
+- Color-coded entries by type (damage, heal, turn changes, etc.)
+- Driver-specific formatting with [D1]/[D2] prefixes
+
+**How:**
+- CombatLog extends Model base class for automatic property management
+- Efficient rendering with view window calculation (only renders visible entries)
+- Automatic scrolling to bottom when new entries added
+- Integrated with Battle system to log all major events
+- Each entry typed as CombatLogEntry with timestamp and formatting
+
+=========================================
+
+## Framerate Display Enhancement (2025-01-07)
+
+### Improved FPS Counter Visibility and Stability
+
+**What Changed:**
+- Moved FPS display to top-right corner with dark background
+- Added 100ms update interval to prevent flickering
+- Improved contrast with yellow text on dark background
+- Made performance metrics more readable
+
+**How:**
+- Added semi-transparent black background panel
+- Positioned in top-right to avoid overlapping game content
+- Implemented update throttling in PerformanceMonitor
+- Only updates display when 100ms have passed since last update
+
+=========================================
+
+## Combat UI Clarity Improvements (2025-01-06)
+
+### Phase 1: Resource Display and Card Ownership
+
+**What Changed:**
+- Split resource display to show both drivers' stats separately
+- Added card ownership indicators (D1/D2 overlays with color coding)
+- Created reusable DriverStatsDisplay component
+- Implemented turn/phase display with clear indicators
+- Added draw pile and discard pile counts per driver
+
+**How:**
+- Extended ResourceBarLayer to show two DriverStatsDisplay components
+- Modified Card UI component to show driver badges and tinted backgrounds
+- Created TurnPhaseDisplay component with color-coded phase indicators
+- Used Model's state management for reactive UI updates
+
+### Phase 2: Vehicle Positioning System
+
+**What Changed:**
+- Implemented 3-lane positioning system (Flanking, Back, Front)
+- Added visual lanes with proper labels
+- Support for multiple vehicles per position (up to 3)
+- Smart stacking and spacing within lanes
+
+**How:**
+- Created lane-based layout in battlefield layers
+- Calculated vehicle positions based on lane and stack index
+- Added translucent background rectangles for lane visualization
+- Maintained 30px spacing between stacked vehicles
+
+**Technical Decision:**
+- See [Vehicle Positioning and Wave System Design](../../docs/AI_TECHNICAL_DECISIONS/VEHICLE_POSITIONING_AND_WAVE_SYSTEM.md)
+
+=========================================
+
+## Performance Optimization Implementation (2024-12-30)
+
+### Major Performance Improvements Through Text Batching
+
+**What Changed:**
+- Reduced draw calls from 500+ to ~30 per frame (94% reduction)
+- Implemented efficient text batching system
+- Added real-time performance monitoring (F5 to toggle)
+- Fixed upside-down text rendering issue
+- Resolved scissor test compatibility with batching
+
+**How:**
+- Created TextBatchRenderer with pre-allocated vertex buffers
+- Batch all text rendering into single draw call per frame
+- Integrated seamlessly with existing immediate-mode rendering
+- Added PerformanceMonitor to track metrics in real-time
+
+**Results:**
+- Text-heavy screens now performant (DeveloperScreen: 500+ → 30 draw calls)
+- Maintains 60 FPS on all screens
+- No visual differences - exact same output with better performance
+
+=========================================
+
+## Basic Combat System Implementation (2024-12-29)
+
+### Dual Driver Combat with Individual Resources
+
+**What Changed:**
+- Implemented Team-based battle system (Player: 2 vehicles, Enemy: variable)
+- Each driver has individual hand, deck, and adrenaline pool
+- Created visual combat screen with all major components
+- Added turn-based flow with enemy AI
+- Implemented card playing mechanics and battle resolution
+
+**How:**
+- Refactored from single BattleEntity to Team/Vehicle/Driver architecture
+- Created combat UI layers: Enemy, Battlefield, PlayerHand, Resources
+- Connected driver selection to combat with proper data flow
+- Added Model base class for reactive state management
+
+**Key Features:**
+- Players always have initiative (enemy AI simplified)
+- Passengers can't play attack cards (role restrictions)
+- Click-to-play cards (drag-and-drop deferred)
+- Visual feedback for playable/unplayable cards
+
+=========================================
+
+## Driver Selection Screen (2024-12-28)
+
+### Created Two-Panel Driver Selection Interface
+
+**What Changed:**
+- Built complete driver selection screen with synergy preview
+- Added 4 driver archetypes with full metadata and starting decks
+- Implemented dynamic synergy detection between selected drivers
+- Created mini-card previews for starting decks
+
+**How:**
+- Extended Layer class for DriverPanel components
+- Created SynergyPreviewPanel with real-time analysis
+- Used singleton DriverLoader for driver instance management
+- Connected to main menu and combat screen flow
+
+=========================================
+
+## Card System Foundation (2024-12-27)
+
+### Implemented Complete Card Loading and Display System
+
+**What Changed:**
+- Created flexible JSON-based card configuration system
+- Built CardLoader singleton for parsing and validation
+- Implemented visual Card UI component with full styling
+- Added card showcase screen to preview all cards
+
+**How:**
+- Designed extensible card effect system with variables
+- Added CSS-like text formatting (wrap, ellipsis, shadows)
+- Created scrollable grid layout organized by rarity
+- Fixed JSON loading from public directory
+
+=========================================
+
+## Driver System Architecture (2024-12-26)
+
+### Built Complete Driver Data Management
+
+**What Changed:**
+- Created Driver class with skills, vehicle stats, and metadata
+- Implemented DriverLoader for managing driver instances
+- Built DriverSynergy system for analyzing driver combinations
+- Added driver archetypes: road_warrior, interceptor, mechanic, raider
+
+**How:**
+- Structured driver data to match game design specs
+- Created flexible synergy detection based on cards and skills
+- Integrated with deck building system
+
+=========================================
+
+## Scrollable Panel System (2024-12-23)
+
+### Complete Overhaul of Coordinate System
+
+**What Changed:**
+- Implemented RenderContext for proper coordinate transformations
+- Added mouse wheel scrolling support
+- Fixed hit testing in scrollable containers
+- Added keyboard input with focus management
+
+**How:**
+- Coordinate transform stack for nested scrolling contexts
+- Scissor test integration for proper clipping
+- Component-aware coordinate transformation for input events
+
+**Technical Decision:**
+- See [Scrollable Panel Architecture](../../docs/AI_TECHNICAL_DECISIONS/scrollable-panel-architecture.md)
+
+=========================================
+
+## UI Primitive Expansion (2024-12-20)
+
+### Added Geometric Shapes and Modular Architecture
+
+**What Changed:**
+- Added Circle, Triangle, Polygon, Arrow components
+- Refactored DeveloperScreen into modular sections
+- Added gradient rendering capabilities
+- Improved Panel styling with borders and shadows
+
+**How:**
+- Extended Component base class for all shapes
+- Created section-based architecture for demo screen
+- Used efficient triangulation for complex shapes
+
+=========================================
+
+## Developer Screen Creation (2024-12-15)
+
+### Built Comprehensive Component Showcase
+
+**What Changed:**
+- Created interactive developer/demo environment
+- Added examples of all UI components
+- Implemented visual style guide
+- Built modular section system
+
+**How:**
+- Organized into panels: primitives, text, buttons, inputs, etc.
+- Real-time interactive testing capabilities
+- Visual demonstration of theming system
+
+=========================================

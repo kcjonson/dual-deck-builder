@@ -6,4 +6,4 @@ Background material from before the game had its current specs: genre research, 
 - [Unique Mechanics in Deckbuilder Roguelikes](./Unique%20Mechanics%20in%20Deckbuilder%20Roguelikes.md): innovative mechanics across the genre, the research behind the Symbiotic Twin pitch.
 - [Symbiotic Twin System Proposal](./Symbiotic%20Twin%20System%20Proposal.md): the original two-character pitch that became the Symbiotic Driver System.
 - [Game Name Brainstorming](./Game%20Name%20Brainstorming.md): ten candidate names with pros and cons, including Wasteland Wheels.
-- [Software Specification (original draft)](./Software%20Specification%20%28original%20draft%29.md): the first overall spec, which stops mid-sentence and was superseded by Gameplay Mechanics and Style.
+- [Software Specification (original draft)](../../_legacy/docs/research/Software%20Specification%20(original%20draft).md): the first overall spec, which stops mid-sentence and was superseded by Gameplay Mechanics and Style.

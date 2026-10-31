@@ -158,4 +158,4 @@ The mock runs each of these at 1920x1080, 1440x882, 1280x800, 1280x720, 2560x108
 | Passenger | a wreck, the passenger HP row, a hand that can't attack |
 | Big hands | 7 cards per driver, six mods each, the longest full text in the detail view |
 
-All 180 renders pass as of 2026-09-25. When the screen is built, these scenarios become gallery scenes and Playwright cases (see the Specboard epic).
+All 180 renders pass as of 2026-09-25. When the screen is built, these scenarios are the cases it's checked in.

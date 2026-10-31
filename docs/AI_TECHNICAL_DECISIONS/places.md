@@ -1,10 +1,10 @@
 # Places and hazards (DDB-442)
 
-Date: 2026-10-10. Code: `src/renderer/game/map/` (`Hazards.ts`, `Places.ts`, `PlaceNames.ts`, `Terrain.ts` laying the hazards over the land; `AreaMapPipeline.ts` runs the stages; `worker/mapGenerationProtocol.ts` carries them across the worker boundary), and `ui/areaMap/` (`AreaMapView.ts`, `terrainBake.ts`), timed and drawn by `scripts/road-network.mjs places` and `png`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, 3. Biomes, hazards, and cost, and 4. Settlements. Builds Map 6 of [realistic-map.md](./realistic-map.md) on the water of [water-and-biomes.md](./water-and-biomes.md), and replaces terrain-fields.md's town placement and the old `highways` stand-in stage.
+Date: 2026-10-10. Code: `_legacy/src/renderer/game/map/` (`Hazards.ts`, `Places.ts`, `PlaceNames.ts`, `Terrain.ts` laying the hazards over the land; `AreaMapPipeline.ts` runs the stages), measured by `_legacy/scripts/road-network.mjs places`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, 3. Biomes, hazards, and cost, and 4. Settlements. Builds Map 6 of [realistic-map.md](./realistic-map.md) on the water of [water-and-biomes.md](./water-and-biomes.md), and replaces terrain-fields.md's town placement and the old `highways` stand-in stage.
 
 ## Context
 
-Map 5 left towns and hotspots in the terrain stage, before the water: lakes kept off them, but rivers ran wherever they liked, and towns were dart-thrown over ground a road could reach with no regard for valleys or rivers. The spec puts both after the water, in a `hazards` stage and a `places` stage, on streams of those names (Seeds and determinism), and says where places go: the metro; towns and villages by a suitability score, best first, spaced; crossroads Poisson-spaced by `roadDensity`; and exits at the rim. Road links (Maps 7 and 8) join the places, so the places have to be plain data that crosses the worker boundary, and every one has to be somewhere a road can reach. Until those maps land, the old outward growth still builds the roads.
+Map 5 left towns and hotspots in the terrain stage, before the water: lakes kept off them, but rivers ran wherever they liked, and towns were dart-thrown over ground a road could reach with no regard for valleys or rivers. The spec puts both after the water, in a `hazards` stage and a `places` stage, on streams of those names (Seeds and determinism), and says where places go: the metro; towns and villages by a suitability score, best first, spaced; crossroads Poisson-spaced by `roadDensity`; and exits at the rim. Road links (Maps 7 and 8) join the places, so the places have to be plain data, and every one has to be somewhere a road can reach. Until those maps land, the old outward growth still builds the roads.
 
 ## The stages
 
@@ -86,29 +86,13 @@ interface Places {
 
 The roads stage (road-network.md) joins every place in `placeList`'s order, the metro as the compound: a highway from each highway exit through the best town near its bearing, and back roads over the Gabriel graph of the rest, back-road exits included. Growth, which this record's first cut ran on the places, is gone with `Highways.ts` and `highwayDepartures`.
 
-## Crossing the worker boundary
+## Drawing them
 
-The hotspots and the places are small and go by structured clone beside the land's and water's transferred arrays. `decodeAreaMap` rebuilds the hazards over the decoded water from the hotspots (`new Hazards`), and refreezes the places. Nothing the client does reruns the places stage.
-
-## Rendering
-
-`AreaMapData` takes the places, optional, and the view draws them on a `places` layer between the roads and the compound, a constant size on screen: towns a dark dot with a white ring and their name, villages a smaller one named once the zoom passes 0.6 pixels a world unit (a 1000-radius map fitted to the screen is about 0.34), crossroads a small grey dot, and exits a dark ring. A place under the fog isn't drawn. The bake shades the ruins it's given, the metro's, towns', and villages', darker out to twice their radius. Map 19 restyles all of it.
+The area map's look for places, ruins, and the fog over them is [area-map-atlas-style.md](./area-map-atlas-style.md)'s; how the TypeScript view drew them plain (provisional call 9) is in [area-map-view.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/area-map-view.md).
 
 ## Determinism
 
-Everything on the gameplay path is adds, multiplies, divides, compares, and square roots; bearings become unit vectors through `unitVector`. Sorting the ranked cells breaks ties by index. The tests pin two maps' places and hotspots as hashes of their coordinates, with their counts and town names, computed in a separate Node process from the Jest run that checks them. The terrain's pins move (badlands and contamination at the old plumes), and so do the water's (lakes no longer keep off towns and craters).
-
-## Performance
-
-`node scripts/road-network.mjs places --seeds 3 --repeat 2`, Node 24 on the shared desktop, medians over five environments by three seeds, each map's fastest of two runs:
-
-| Radius | Hazards, ms | Places, ms | Slowest places, ms | Crossroads |
-| --- | --- | --- | --- | --- |
-| 600 | 0.1 | 6.1 | 11.2 | 34 to 51 |
-| 1000 | 0.0 | 20.2 | 26.3 | 109 to 167 |
-| 1600 | 0.0 | 51.0 | 75.4 | 282 to 416 |
-
-Most of the places stage is per-cell passes over the land grid (the grade, three chamfer distances, the flood fill, the score) and sorting the scored cells. Its check floods the squares again, a millisecond or two. It runs once in the worker; the client only clones the result.
+Everything on the gameplay path is adds, multiplies, divides, compares, and square roots, with no trig or other libm transcendentals; bearings become unit vectors through `unitVector`, a polynomial sine and cosine (`_legacy/src/renderer/game/map/Geometry.ts`). Sorting the ranked cells breaks ties by index. Those are exact in IEEE doubles, and with floating-point contraction off (`-ffp-contract=off`, which salal's foundation sets for GCC and Clang) no multiply and add fuse, so the same seed and params give the same places and hotspots on every platform. The tests pin two maps' places and hotspots as hashes of their coordinates, with their counts and town names.
 
 ## Consequences
 

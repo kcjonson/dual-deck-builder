@@ -1,6 +1,6 @@
 # Injuries and the infirmary (DDB-304)
 
-Date: 2026-10-08. Code: `src/renderer/game/campaign/Infirmary.ts` and `Seating.ts`, with the numbers in `src/renderer/game/data/compound-rules.json` (`infirmary`). Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (The driver pool; Resources; Buildings), [Game Flow](../specs/Game%20Flow%20and%20UI%20Specification.md) (1.2 Load Out). Builds on [day-clock.md](./day-clock.md), [combat-bridge.md](./combat-bridge.md), [campaign-state-model.md](./campaign-state-model.md), and [locker-and-deck-rules.md](./locker-and-deck-rules.md).
+Date: 2026-10-08. Code: `_legacy/src/renderer/game/campaign/Infirmary.ts` and `Seating.ts`, with the numbers in `_legacy/src/renderer/game/data/compound-rules.json` (`infirmary`). Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (The driver pool; Resources; Buildings), [Game Flow](../specs/Game%20Flow%20and%20UI%20Specification.md) (1.2 Load Out). Builds on [day-clock.md](./day-clock.md), [combat-bridge.md](./combat-bridge.md), [campaign-state-model.md](./campaign-state-model.md), and [locker-and-deck-rules.md](./locker-and-deck-rules.md).
 
 ## Context
 

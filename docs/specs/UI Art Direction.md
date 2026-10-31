@@ -46,7 +46,7 @@ Contrast, measured on the flat colours: ink on paper 13.7:1, ink dim on the shee
 
 ### Tokens
 
-The palette lands in `tokens.json` (R11.1) as a second theme, `atlas`, beside the current dark one. The leaf names stay as they are (R11.4); only values change, plus a few additions.
+The palette lands in the game's tokens file (salal's `docs/ui-design.md`, Theme) as a second theme, `atlas`, beside the dark one. The leaf names stay as they are (R11.4); only values change, plus a few additions.
 
 | Token | Atlas value |
 | --- | --- |
@@ -166,7 +166,7 @@ Launch splash. The closed atlas lies on the table: the cover sheet (W2) with its
 
 ![Launch splash](../design/ui-art-direction/splash.png)
 
-Main menu. The left half is the atlas cover: a relief map with the logo in a cartouche ("A road atlas of the Halcyon region"). The right half is the contents page. When a campaign is in progress Continue is the primary row, a highway shield with the day number in it and the save's summary in its subtitle. Otherwise New campaign is primary and Continue stays in its place as faded print, its subtitle saying why there's nothing to continue (no campaign, a damaged save, an older save format), as [Game Flow and UI Specification](./Game%20Flow%20and%20UI%20Specification.md) 1.1 describes. Campaign history follows, then the appendices (settings, card showcase, credits, developer tools in dev builds, and Exit game in Electron) in a two-column list. The two decks sit on the cover's lower right, set down on the map.
+Main menu. The left half is the atlas cover: a relief map with the logo in a cartouche ("A road atlas of the Halcyon region"). The right half is the contents page. When a campaign is in progress Continue is the primary row, a highway shield with the day number in it and the save's summary in its subtitle. Otherwise New campaign is primary and Continue stays in its place as faded print, its subtitle saying why there's nothing to continue (no campaign, a damaged save, an older save format), as [Game Flow and UI Specification](./Game%20Flow%20and%20UI%20Specification.md) 1.1 describes. Campaign history follows, then the appendices (settings, card showcase, credits, developer tools in dev builds, and Exit game) in a two-column list. The two decks sit on the cover's lower right, set down on the map.
 
 Compound. The left two thirds is the compound plate, an overhead view of the yard. The right column holds, top to bottom, the selected building's legend box (name, state, description, its action), Needs, The day (rest or scavenge, with what each costs), and the primary action, Plan a supply run, pinned to the bottom. The title, the day, and the resource strip sit above the plate.
 
@@ -180,7 +180,7 @@ The rest (crew, load-out, customize, campaign history, settings, credits, result
 - New art in the UI atlas ([ui-art-atlas.md](../AI_TECHNICAL_DECISIONS/ui-art-atlas.md)): paper nine-slices for W1, W2, and W3 in two or three variants each, tape strips, hand marks, stamps, the compound plate, the logo and small mark, the two card backs and a card edge, the closed-atlas cover for the splash, and the resource, section, and deck icons.
 - Keep one GPU draw per flush (R5.20). Highlighter is baked as a normal-blend tone, not drawn with the `multiply` blend mode, because every multiply draw is a blend change and splits the submission.
 - Square corners everywhere: the theme re-aliases `radius_ui` and `radius_panel` to zero (R11.7), no component edits.
-- The combat screen keeps the current dark theme until its own pass. Each screen selects its theme (open question 1): a meta screen opts into `atlas`, and a screen that doesn't stays dark. The mechanism is in [theme-selection.md](../AI_TECHNICAL_DECISIONS/theme-selection.md).
+- The combat screen keeps the dark theme until its own pass. Each screen selects its theme (open question 1): a meta screen opts into `atlas`, and a screen that doesn't stays dark. The mechanism is salal's: a scene's root carries its theme (`docs/ui-design.md`, Theme).
 
 ## Open questions
 

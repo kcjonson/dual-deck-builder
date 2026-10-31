@@ -53,7 +53,7 @@ The campaign's run decks are one per seat, so a run out holds one or two (`readR
 
 The screen reads the player's drivers from the battle's own seats (`Battle.playerSeats`), so they can't drift from who's in the fight, and holds them to one, or two different ones (`assertDriverSeats`). The dock keeps both halves, so the lone driver's hand and tab stay where a first driver's always are, at the width they always have. The second half is an empty seat: no tab and no fan, and a dim line where the fan would be, the same treatment as a driver who crashed out (`PlayerHandLayer.driverCount`). The log opens on the lone driver's name against the raiders.
 
-The gallery's `battle-solo` scene is that fight: the Interceptor alone with an Outrider, a Fuel Hauler, and a Med Truck against the typical scene's three raiders. It runs in the battle fit suite with the mock's six, at every size and state, and has goldens at both gate sizes.
+The case to check it in is the Interceptor alone with an Outrider, a Fuel Hauler, and a Med Truck against the typical scene's three raiders, beside the mock's six.
 
 ## Provisional calls
 

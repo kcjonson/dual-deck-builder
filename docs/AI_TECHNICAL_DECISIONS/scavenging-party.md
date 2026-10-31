@@ -1,6 +1,6 @@
 # The scavenging party (DDB-303)
 
-Date: 2026-10-09. Code: `src/renderer/game/campaign/Scavenging.ts`, the `haul` option on `endDay` in `DayClock.ts`, and the ranges in `src/renderer/game/data/compound-rules.json`. Spec: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Never stuck; Hours on the road, days at home; Resources). Builds on [day-clock.md](./day-clock.md) and [seeded-prng.md](./seeded-prng.md).
+Date: 2026-10-09. Code: `_legacy/src/renderer/game/campaign/Scavenging.ts`, the `haul` option on `endDay` in `DayClock.ts`, and the ranges in `_legacy/src/renderer/game/data/compound-rules.json`. Spec: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Never stuck; Hours on the road, days at home; Resources). Builds on [day-clock.md](./day-clock.md) and [seeded-prng.md](./seeded-prng.md).
 
 ## Context
 

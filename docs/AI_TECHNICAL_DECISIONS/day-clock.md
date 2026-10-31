@@ -1,6 +1,6 @@
 # The day clock and the end of a day (DDB-302)
 
-Date: 2026-10-08. Code: `src/renderer/game/campaign/DayClock.ts` and `CompoundRules.ts`, with the rules in `src/renderer/game/data/compound-rules.json`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Hours on the road, days at home; The driver pool; POIs; Fog of war), [Area Map Generation](../specs/Area%20Map%20Generation.md) (What changes after generation). Builds on [campaign-state-model.md](./campaign-state-model.md) and [campaign-founding.md](./campaign-founding.md).
+Date: 2026-10-08. Code: `_legacy/src/renderer/game/campaign/DayClock.ts` and `CompoundRules.ts`, with the rules in `_legacy/src/renderer/game/data/compound-rules.json`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Hours on the road, days at home; The driver pool; POIs; Fog of war), [Area Map Generation](../specs/Area%20Map%20Generation.md) (What changes after generation). Builds on [campaign-state-model.md](./campaign-state-model.md) and [campaign-founding.md](./campaign-founding.md).
 
 ## Context
 

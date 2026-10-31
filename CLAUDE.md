@@ -1,189 +1,176 @@
-# CLAUDE.md - AI Assistant Instructions
+# CLAUDE.md
 
-## Your instructions as a developer
-- you are a game developer working on a professional game
-- you should hold yourself to high code standards for orginization, performance and maintainence, and use industry best practices
-- you should always read the relevant docs and seek to gain project knowledge and context via what we have documented
-- if you do not have enough information to make an intellegent professional decision, please ask
+Guidance for Claude Code working in this repository.
 
-## Project Overview
+## What this is
 
-**Wasteland Wheels** is a deckbuilder roguelike game set in a post-apocalyptic world featuring vehicular combat with a unique "Symbiotic Driver System" where players control two drivers/vehicles simultaneously. Built with TypeScript, WebGL rendering, and designed for both web and desktop (Electron) platforms.
+**Wasteland Wheels** is a roguelike deckbuilder with vehicular combat in a
+post-apocalyptic setting: the player drives two vehicles at once, each with its
+own driver and deck (the "Symbiotic Driver System"). The repo is still named
+dual-deck-builder.
 
-## Move fast, fail loud
+It started as a TypeScript proof of concept that nobody outside has played. That
+version is frozen in [`_legacy/`](_legacy/), and the game is being rebuilt in
+C++20 on salal (`../salal`, github.com/kcjonson/salal), Kevin's 2D engine, as
+the **early alpha**. All game development is halted until the port is done.
 
-**IMPORTANT**: this is an early prototype for playtesting. Speed beats stability, and the emphasis is on failing loud.
+The alpha owes the concept nothing:
 
-- Main is allowed to break, as long as it breaks loudly and the next session fixes it. Don't hold work back to make main bulletproof.
-- Playtesting happens on the SFTP deploy of main (bearcavinteractive.com/playtest/dual-deckbuilder/) and locally. The Electron builds and other channels exist only so we don't fall too far behind on them.
-- Fail loud in code. Throw, or log an error the console and the boot smoke will see, rather than catching and carrying on, returning a quiet default, or adding a fallback that hides a broken state. A crash we can see beats a game that silently plays wrong.
-- Fail loud in CI. `.github/workflows/main.yml` runs every check after merge, and each failing one opens a `main is broken: <check>` issue under the `main-broken` label (a failed playtest deploy does too). At the start of a session, run `gh issue list --label main-broken`; fixing an open one comes before new work.
-- The UI changes daily, so there are no screenshot baselines or pixel comparisons. Don't add them. See `docs/AI_TECHNICAL_DECISIONS/prototype-ci.md`.
+- **No compatibility of any kind.** No TypeScript saves, settings, save format
+  versions, generator versions or RNG streams carry over, and there are no
+  migrations. The C++ game starts fresh.
+- **Things don't have to stay the same.** Keep what worked, fix what didn't,
+  simplify where the concept grew awkward. The specs and decision records in
+  `docs/` say what the game should be; change them when the alpha changes it.
+- **The TypeScript is a reference, not an oracle.** Read it to see how something
+  worked. Don't match its output, its draw order or its quirks.
+- **No pixel diffing, golden images or screenshot baselines.**
 
-## Project Structure
+The port plan is [docs/technical/port-plan.md](docs/technical/port-plan.md).
+
+## Project management: Specboard
+
+Work is tracked in Specboard over the Specboard MCP. `.mcp.json` binds the repo
+to its project, so never ask which one, and never write the project name or
+UUID into any other committed file, commit message or PR body.
+
+- Work, status and progress live on the board, never in the repo: no task lists,
+  status sections, progress logs or changelogs, and no "done in DDB-x" notes in
+  specs. Record what you did, decided or are waiting on as a `note` on the item.
+- Specs live in git, items on the board. A planning session ends in an epic with
+  a linked spec under `docs/`, not code.
+- **Specs** (`docs/specs/`) say what to build and why. Keep them current when the
+  design changes; don't annotate them with what has been built.
+- **Decision records** (`docs/AI_TECHNICAL_DECISIONS/`), one file per significant
+  decision: context, options, the decision and why, the trade-offs. Add the new
+  one to its README's index.
+- **Provisional gameplay calls** (a design question decided for now so work
+  isn't blocked) go in `docs/gameplay-calls.md`, numbered, one a line as "the item
+  that made it: the call, because why", and in the decision record. Never in a
+  spec, never on the board. Kevin approves or changes them there.
+- Branch names follow `<type>/DDB-123-title` when the item is obvious, a short
+  descriptive name otherwise. Personal preferences are in the claude-config
+  repo's `specboard.md`.
+
+## Layout
 
 ```
-src/
-├── renderer/
-│   ├── engine/           # Reusable game engine components
-│   │   ├── components/   # Base UI components (Rectangle, Text, Container, Stack)
-│   │   ├── rendering/    # WebGL rendering system
-│   │   ├── input/        # Input handling system
-│   │   └── ui/          # Higher-level UI components (Button, Panel, Input)
-│   ├── game/            # Game-specific logic
-│   │   ├── core/        # Core game systems (Screen, State, Assets)
-│   │   ├── mechanics/   # Game mechanics (Card, Deck, Battle)
-│   │   └── screens/     # Game screens (MainMenu, Splash, Developer)
-│   └── utils/           # Utility functions
-├── electron/            # Electron-specific code
-├── assets/             # Game assets
-│   └── shaders/        # GLSL shader files
-└── docs/               # Documentation
+CMakeLists.txt, CMakePresets.json, vcpkg.json   the C++ build (salal's arrangement)
+cmake/            build helpers (ddb_add_tests)
+libs/
+  rules/          the game's rules: fight state, effects, packs, map, campaign; salal::foundation only
+  ai/             opponent and stand-in policies, over the rules (once ported)
+  scripting/      the Lua host for packs, over the rules (once needed)
+packs/            content: base/ is the game, expansions and mods are packs too (once ported)
+apps/             executables, once there is one: the game, and the balance sim
+docs/             specs, decision records, design art, the port plan
+scripts/          Node tooling (format.mjs)
+_legacy/          the TypeScript proof of concept, frozen, with its own CLAUDE.md
 ```
 
-## Development Guidelines
+`libs/rules` is organised by area, `core/`, `packs/`, `map/`, `battle/`,
+`campaign/`, and included as `<rules/map/RoadNetwork.h>`. The screens and game
+ui come after salal's phase 3 lands its `ui`, in `apps/` beside the rules, as
+worldsim's `apps/world-sim/scenes/` are. How the rules, the AI, and packs fit
+together is `docs/AI_TECHNICAL_DECISIONS/rules-ai-and-packs.md`; read it before
+touching the fight state, effects, or an opponent.
 
-### 1. Code Organization
+## Hard rules
 
-- Keep engine code separate from game-specific code
-- Use the component-based architecture for all UI elements
-- Follow the existing patterns for screens and game states
-- Maintain clear separation of concerns
+**The dependency rule** (salal's `docs/architecture.md`). `libs/rules` depends
+on `salal::foundation` and nothing above it: no renderer, no ui, no app, no GL,
+and no Lua. That keeps it deterministic and testable headless.
+`ddb_check_layering()` in the root `CMakeLists.txt` fails the configure if it
+slips. The AI, scripting, and presentation depend on the rules, never the
+other way.
 
-### 2. Documentation Requirements
+**One place interprets effects.** `apply(state, action)` is it. A preview, a
+projection, or an AI estimate runs `apply` on a copy of the fight; it never
+re-reads effect fields with its own switch.
 
-- **IMPORTANT**: Track all work, status, and progress on Specboard, never in the repo (see Important Notes below)
-- Place detailed documentation in the `/docs/` folder where appropriate
-- Include inline comments for complex logic
-- Document new components with JSDoc comments
+**Engine work belongs in salal.** If the game needs something generic from the
+engine, it's salal work on salal's board, not a workaround here. salal is pinned
+to a tag; bump it deliberately.
 
-### 3. Testing Guidelines
+**Do not touch `_legacy/`** beyond keeping it runnable. No features, no fixes.
+It's deleted once the alpha replaces it.
 
-- [docs/testing/README.md](docs/testing/README.md) is the strategy. Look for actual regressions, never pixel changes: no golden images or screenshot diffs
-- Before committing, run the relevant happy-path scripts (`docs/testing/happy-path/`) as a manual regression pass with the cheapest subagent fleet that can, and add lines when a feature lands
-- Performance is strict: rendering or hot-path changes run `scripts/perf-capture.mjs` against `main`
-- Keep unit tests bounded: look for a test covering the same path before adding one
-- Write unit tests for new game mechanics
-- Use the existing test setup with Jest
-- Test UI components with the InputSystem mock
-- Ensure cross-platform compatibility
-- Test like a developer with a day's work in front of them: while iterating, run only the tests for what you touched (`npx jest <path>`, or `npm run test:changed` for everything that imports a changed file), then run the full `npm test` once when a block of related work is done, not after every edit or commit
-- `npm test` skips the slow map-generation tests; run `npm run test:slow` when you change map generation (`src/renderer/game/map/`), and nightly CI runs them regardless
-- `npm run test:smoke` builds the web bundle and boots it, then opens every game screen in a browser and fails on any console error; run it after changing boot, loading, or a screen's mount
+**Fail loud.** An assert or `LOG_ERROR` beats a quiet default, a swallowed error
+or a fallback that hides a broken state.
 
-### 4. Performance Considerations
+## Conventions
 
-- Keep draw calls minimal in the WebGL renderer
-- Batch rendering operations where possible
-- Profile and optimize the game loop
-- Consider mobile performance for web version
+Worldsim's and salal's, so code reads the same across the three repos.
+**`../worldsim/docs/technical/cpp-coding-standards.md` is the source of truth**
+and overrides whatever existing code does.
 
-## Working with the Codebase
+| Thing | Style |
+|---|---|
+| Classes, structs, enums | `PascalCase` |
+| Functions and methods | `camelCase` |
+| Variables and members | `camelCase`, no prefix |
+| Constants | `k` prefix |
+| Namespaces | lowercase: `rules`, `ai` |
+| Files | `PascalCase.h` and `.cpp` side by side, `#pragma once`, tests as `Name.test.cpp` beside them |
 
-### Adding New Screens
+Tabs, width 4, column limit 140, braces attached, designated initializers where
+a call takes several parameters. Prefer stack allocation and smart pointers
+over raw; structured logging with categories, `LOG_DEBUG` through `LOG_ERROR`.
+Worldsim says "scene", not "screen", in code.
 
-1. Create a new class extending `Screen` in `src/renderer/game/screens/<screen-name>/`
-2. Implement lifecycle methods as needed: `onMount()`, `onUnmount()`, `onUpdate()`, `onRender()`, `onResized()`
-3. Register the screen in `ScreenManager.screenConstructors` (`src/renderer/game/core/ScreenManager.ts`), and add it to `SCREENS` in `tests/smoke/screens/screens.spec.ts` so the boot smoke opens it
-4. Navigate with `ScreenManager.navigate(screenName, data?)`; do not create UI in constructors — build it in `onMount()`
+**Clean code, no legacy** (worldsim's rule). When you replace something, delete
+what it replaced in the same commit. No flags for old paths, no fallbacks, no
+functions kept for reference, no version suffixes, no TODOs about removing old
+code. `_legacy/` is the one exception, and it goes whole.
 
-### Creating UI Components
+**Formatting and lint.** `.clang-format` and `.clang-tidy` are worldsim's.
+`node scripts/format.mjs` checks every C++ file with clang-format 21 (the
+version worldsim and salal check with), and `--fix` rewrites them; run it before
+committing. clang-tidy runs through clangd off `build/compile_commands.json`,
+which the presets export.
 
-1. Extend `Component` or existing UI classes
-2. Implement the `render()` method
-3. Handle input events through `InputSystem`
-4. Add to appropriate screens
+**Scripts and tooling** are Node (ESM, `.mjs`, no dependencies unless there's a
+`package.json` for them). No Python.
 
-### Implementing Game Mechanics
+## Build and test
 
-1. Create classes in `src/renderer/game/mechanics/`
-2. Follow existing patterns (Card, Deck, Battle)
-3. Write unit tests
-4. Record major design choices in `/docs/AI_TECHNICAL_DECISIONS/`
+salal's arrangement: CMake 3.25+ with vcpkg (`VCPKG_ROOT` set), Ninja on macOS
+and Linux, Ninja Multi-Config with MSVC on Windows, ccache in front of both.
 
-### Shader Development
-
-- We perfer a single super shader approach to multiple small shaders
-
-## Important Notes for Claude
-
-1. **IMPORTANT: Work tracking lives on Specboard only** (project https://specboard.io/projects/6b4e4cdd-15bc-4001-8280-706838168f2e)
-   - Use the Specboard MCP tools (get_items / create_item / update_item) to pick up, create, and close work, and keep item status accurate in real time
-   - Record what you did, decided, or are waiting on as a `note` on the item, not in a file
-   - Do not keep task lists, status sections, progress logs, or changelogs anywhere in the repo, and don't put checkboxes or "done in DDB-x" annotations in specs
-   - `/docs/AI_DEVELOPMENT_LOG.md` and `/docs/AI_DEVELOPMENT_HUB.md` are deprecated and frozen; read them for history if useful, never edit them
-2. **Technical decisions** go in `/docs/AI_TECHNICAL_DECISIONS/`, one file per major architectural choice:
-   - Descriptive filename (e.g., `scrollable-panel-architecture.md`)
-   - Context and problem statement
-   - Options considered
-   - Decision made and rationale
-   - Trade-offs and consequences
-
-3. **Provisional gameplay calls** (a design question decided for now so the build isn't blocked) go in `/docs/gameplay-calls.md`, numbered, one a line as "the item that made it: the call, because why", and in the decision record's provisional calls. Never in a spec, and never on Specboard. Kevin approves or changes them in that file.
-
-4. **Specs** in `/docs/specs/` describe what to build and why. Keep them current when the design changes, but don't annotate them with what has been built.
-
-5. **Follow existing patterns** in the codebase rather than introducing new paradigms
-
-6. **Test your changes** - ensure the game still builds and runs
-
-7. **Consider both platforms** - web is where playtesting happens, and Electron (mac and windows) has to keep building and booting; main's CI packages and smokes it nightly
-
-8. **Performance first** - this is a game that needs smooth performance
-
-9. **Keep the vision** - refer to the game design documents for guidance
-
-## Quick Start Commands
-
-```bash
-# Development
-npm start              # Start web dev server
-npm run start:electron # Start Electron version
-
-# Testing
-npx jest <path>       # Run the tests for what you're working on
-npm run test:changed  # Run the tests that import anything changed since main
-npm test              # Run every test but the slow map-generation ones
-npm run test:slow     # Run the slow map-generation tests
-npm run test:smoke    # Build and boot the game, then open every screen in a browser
-npm run test:watch    # Run tests in watch mode
-
-# Linting and types
-npm run lint          # Check for linting errors
-npm run typecheck     # Typecheck the game and the tests
-
-# Building
-npm run build:web     # Build for web
-npm run build:electron # Build for Electron
-
-# Deployment
-# Web builds deploy automatically via GitHub Actions:
-# - main branch: bearcavinteractive.com/playtest/dual-deckbuilder/
-# - PR branches with "playtest" label: bearcavinteractive.com/playtest/dual-deckbuilder/BRANCH_NAME/
-# Requires SFTP secrets: SFTP_SERVER, SFTP_USERNAME, SFTP_PASSWORD
+```
+cmake --preset windows        # or: cmake --preset default -DCMAKE_BUILD_TYPE=Debug
+cmake --build --preset windows
+ctest --test-dir build -C Debug
 ```
 
-## Creating Pull Requests
+Configure from a shell with the MSVC environment (`cl` on PATH plus `INCLUDE`
+and `LIB`; worldsim's `scripts/setup-msvc-env.ps1` persists them), not a Visual
+Studio developer shell: that repoints `VCPKG_ROOT` at the bundled vcpkg, and the
+configure refuses it. salal comes through FetchContent at the tag in
+`CMakeLists.txt`; to build against the sibling checkout, configure with
+`-DFETCHCONTENT_SOURCE_DIR_SALAL=C:/Users/kevin/Code/salal`.
 
-**IMPORTANT**: the merge bar is local, and nothing waits on CI.
+Tests are gtest, one `ddb_<lib>_tests` executable per library through
+`ddb_add_tests`. Test real logic, keep tests bounded, and look for one covering
+the same path before adding another. Port a TypeScript test only when the
+behaviour it pins is still what the alpha wants.
 
-1. Before merging a block of work, run `npm run lint`, `npm run typecheck`, and `npm test` locally (plus `npm run test:slow` or `npm run test:smoke` when the work touches what they cover), and fix what fails.
-2. Push at the end of a block of work, not after every commit.
-3. Don't wait for CI, and don't poll it. The PR workflow (`pr.yml`: lint, typecheck, tests for what changed) is advisory; merge once the local checks pass. Main runs everything after merge and opens a `main-broken` issue if something fails.
-4. Use a descriptive branch name (`feat/ai-system`, `fix/battle-logic`, or `<type>/DDB-123-title` for a Specboard item), commit with clear messages, and describe the change, how it was tested, and anything it breaks in the PR.
+## Merging
 
-## References
+GitHub Actions are off. The merge bar is local: the build, `ctest` and
+`node scripts/format.mjs` pass. Open PRs as drafts, describe the change and how
+it was checked, and commit as Kevin would, with no AI attribution.
 
-- Docs index: `/docs/README.md` (project overview and links to every design spec)
-- Work tracking: Specboard (link above)
+## Debugging
 
-## Memories and Best Practices
+`/debug <issue>` runs the formal protocol in
+[docs/technical/debugging-strategy.md](docs/technical/debugging-strategy.md):
+scouts, ranked hypotheses, one at a time, nothing fixed until Kevin confirms,
+tracked in the Specboard bug's notes.
 
-- Always use descriptive variable names
-- Do not try and preserve legacy/deprecated code or documention that is no longer correct. Prefer deletion and removal to keep the codebase clean.
-- When creating new classes, we perfer to use named params like `new Foo({a: 'a', b: 'b'})` over direct function style arguments like `new Foo('a', 'b')`
-- Use perfer to use ES6 style getters and setters for accessing and setting properties on a class over functions like getFoo and setFoo should be like `get foo()`
-- this project uses tabs for indentation, not spaces
-- when searching for strings make sure to be flexable in your searches for tabs and spaces
+## The TypeScript version
 
-Remember: This is a game about synergy, both in its mechanics and in how we develop it. Keep the code clean, the documentation updated, and the vision clear!
+`_legacy/` builds and tests as it always did, from inside it:
+`cd _legacy && npm ci && npm test`. `node _legacy/scripts/balance-sim.mjs`
+runs from the repo root. Its `CLAUDE.md` describes it, and its docs are in
+`_legacy/docs/`.

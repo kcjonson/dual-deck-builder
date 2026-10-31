@@ -1,6 +1,6 @@
 # MVP supply run: pick a route, drive its stops, fight, come home (DDB-454)
 
-Date: 2026-10-10. Code: `src/renderer/game/campaign/SupplyRun.ts` (the run's steps), `SupplyRunState.ts` (the saved state), `SupplyRoutes.ts` (the route model), `Encounters.ts`, `RunRewards.ts`, `Seating.ts` (`getCrewRule`), `Campaign.ts` (`supplyRun`, a one-seat `startRunDecks`), `mechanics/Raiders.ts`, `mechanics/Battle.ts` (`forfeit`), and `screens/run/RunScreen.ts`, `screens/run/runText.ts`, with the end hook and the abandon menu on `screens/combat/CombatScreen.ts` and `next` on `screens/battleResult/BattleResultScreen.ts`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (The loop, The drive, Return, A failed run, Stops) and [Area Map Generation](../specs/Area%20Map%20Generation.md) (The route tree, POIs, Stops, Routes). Builds on [combat-bridge.md](./combat-bridge.md), [cards-won.md](./cards-won.md), [run-decks.md](./run-decks.md), [day-clock.md](./day-clock.md), [injuries.md](./injuries.md), [campaign-end.md](./campaign-end.md), [solo-driver-fights.md](./solo-driver-fights.md), and [seeded-prng.md](./seeded-prng.md).
+Date: 2026-10-10. Code: `_legacy/src/renderer/game/campaign/SupplyRun.ts` (the run's steps), `SupplyRunState.ts` (the saved state), `SupplyRoutes.ts` (the route model), `Encounters.ts`, `RunRewards.ts`, `Seating.ts` (`getCrewRule`), `Campaign.ts` (`supplyRun`, a one-seat `startRunDecks`), `mechanics/Raiders.ts`, `mechanics/Battle.ts` (`forfeit`), and `screens/run/RunScreen.ts`, `screens/run/runText.ts`, with the end hook and the abandon menu on `screens/combat/CombatScreen.ts` and `next` on `screens/battleResult/BattleResultScreen.ts`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (The loop, The drive, Return, A failed run, Stops) and [Area Map Generation](../specs/Area%20Map%20Generation.md) (The route tree, POIs, Stops, Routes). Builds on [combat-bridge.md](./combat-bridge.md), [cards-won.md](./cards-won.md), [run-decks.md](./run-decks.md), [day-clock.md](./day-clock.md), [injuries.md](./injuries.md), [campaign-end.md](./campaign-end.md), [solo-driver-fights.md](./solo-driver-fights.md), and [seeded-prng.md](./seeded-prng.md).
 
 ## Context
 
@@ -19,7 +19,7 @@ A run counts its place along `routeStops(route)`, every stop on every leg in dri
 
 The routes came from a seeded mock (`supplyRoutes`) until the area map's own replaced it: `routesOnOffer({ map })` now offers every route the campaign's map has but a stronghold's, and the area map and run route screens replace the route pick ([area-map-route-pick.md](./area-map-route-pick.md)). A destination yields what its POI type does, and a route's fuel, hours, and risk are its descriptor's ([stops-and-routes.md](./stops-and-routes.md)).
 
-`Encounters.ts` held a stand-in encounter table, one per skull count, which [raider-tuning.md](./raider-tuning.md) retuned and encounter templates later replaced ([raider-waves-and-fight-ends.md](./raider-waves-and-fight-ends.md)). The raiders are profiles in `mechanics/Raiders.ts`, which the combat screen's skirmish shares.
+`Encounters.ts` held a stand-in encounter table, one per skull count, which [raider-tuning.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/raider-tuning.md) retuned and encounter templates later replaced ([raider-waves-and-fight-ends.md](./raider-waves-and-fight-ends.md)). The raiders are profiles in `mechanics/Raiders.ts`, which the combat screen's skirmish shares.
 
 ## The run's state
 
@@ -27,7 +27,7 @@ The run on the road is the campaign's `supplyRun`, saved with it, so a checkpoin
 
 The phase is `driving`, toward the stop (or home once every stop is behind it), or `reward`, at a won fight with its card to pick. The stop counts past the last one when the run reaches its destination (`atDestination`), and the step that gets it there loads the destination's yield into the cargo in the same `set`, so the yield is cargo for the drive home and a failed run would lose it. A fight under way isn't saved. Starting one changes nothing in the save, so a reload finds the run driving to that stop, and the fight replays from the same stream, `fork('fight', stop)` off the run's own (`fork('run', n)`), with the same raiders and the same opening hands. The reward's cards come from `fork('reward', stop)` the same way, so a reload offers the same three.
 
-`supplyRun` is null at home and while a load out is under way, and the run's end clears it with the run decks: `unloadRun`, `loseRun`, and `unwindRunDecks` each set it to null in their one `set`. The campaign's reader refuses a run on the road with no run decks, checks the route, the stop against the route, a reward only at a fight, the escorts against the convoy, and the cargo with the stores' own reader. `toSaveText` checks the escorts are still in the convoy, since a fight's write-back lets lost ones go outside the campaign's checks. The save format went to version 7 for it (8 since, with the map's attempts, [campaign-save-and-load.md](./campaign-save-and-load.md)), and the fixture (`campaign-v9.json` since) has its run on the road at its last fight's reward.
+`supplyRun` is null at home and while a load out is under way, and the run's end clears it with the run decks: `unloadRun`, `loseRun`, and `unwindRunDecks` each set it to null in their one `set`. The campaign's reader refuses a run on the road with no run decks, checks the route, the stop against the route, a reward only at a fight, the escorts against the convoy, and the cargo with the stores' own reader. `toSaveText` checks the escorts are still in the convoy, since a fight's write-back lets lost ones go outside the campaign's checks. The save carries the run on the road ([campaign-save-and-load.md](./campaign-save-and-load.md)).
 
 Options considered for where the state lives: a second storage key beside the campaign (two writes that could land apart, against one save written whole); the state as opaque JSON on the campaign, read by the run module (a damaged run would load and fail later, on the run screen); and the RunParty saved whole with its seats and run id (two copies of facts the run decks already hold, and one more thing to agree).
 
@@ -86,8 +86,6 @@ None of these is in a spec.
 
 ## Consequences
 
-- Version 6 saves stop loading, and Campaign History starts over, as every bump does.
 - The route model is the map's shape, so Maps 9 to 14 fill it rather than change it; a stop kind or a route field the map adds is a reader change and a format bump.
 - `PreparedCombat.onEnded` is the one place a fight hands back to whatever started it, and `abandonWarning` the one way to offer giving it up, so a stronghold's boss fight or an event's fight uses the same two.
 - The skirmish's raider and the run's Rust Buggy are one profile, so tuning one tunes both.
-- The fixture's run is on the road, so the screen goldens over it show the run screen's reward, and the compound over it shows a run out.

@@ -1,6 +1,6 @@
 # Balance Simulation
 
-Status: designed 2026-10-17. The tools that say whether runs and fights hit their targets ([Runs and Encounters](./Runs%20and%20Encounters.md), Just hard enough): one deterministic simulation core, a command line tool over it for sweeps and CI, and a browser Balance Lab for trying a change and seeing what it does. It grows out of raider-sim, the fight simulator in [raider-tuning.md](../AI_TECHNICAL_DECISIONS/raider-tuning.md), and takes over from the old evalai.html harness.
+Status: designed 2026-10-17. The tools that say whether runs and fights hit their targets ([Runs and Encounters](./Runs%20and%20Encounters.md), Just hard enough): one deterministic simulation core, a command line tool over it for sweeps and CI, and a Balance Lab for trying a change and seeing what it does. It grows out of raider-sim, the fight simulator in [raider-tuning.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/raider-tuning.md).
 
 ## What it answers
 
@@ -12,17 +12,16 @@ Status: designed 2026-10-17. The tools that say whether runs and fights hit thei
 
 ## The core
 
-The core lives in `src/renderer/game/sim/`, as game code under the same rules:
+The core is a library of game code under the game's rules:
 
-- Relative imports only, since the build scripts resolve `./` paths, and JSON through imports.
-- No DOM, `fetch` or `CardLoader`, localStorage, or `__DEV_TOOLS__`, so the same code runs in Node and in a Web Worker. No `const enum`, which per-file transpiling can't see through.
-- It plays everything through the game's own code: `Battle`, the AI controller, the combat bridge (`seatOf`, and the write-back with `REVIVE_HP` and `LIMP_STRUCTURE`, through `seatWriteBack`), the encounter builder, and the run. Never a copy of them, so a rule change reaches the sim without touching it.
+- It's the game's simulation layer, so it depends on neither salal's `renderer` nor its `ui`, reads no clock, files, or dev tools, and takes every random draw from the streams it's handed. The same code runs in the command line tool, in the Balance Lab, and in tests.
+- It plays everything through the game's own code: the battle, the AI controller, the combat bridge (seating a crew, and the write-back with its revive HP and limp structure), the encounter builder, and the run. Never a copy of them, so a rule change reaches the sim without touching it.
 
-Its input is a config, plain data: the crews (archetypes, seat order, decks, or cards added to a starting deck; one driver, or two of different archetypes, as load out seats them), the raider profiles, the encounter templates, the stop tables, the game stage, the player stand-in, the seed, and runs a cell. Tuning comes in as data rather than being patched into the shipped tables: the encounter builder and `raiderVehicle` take the config's raiders and profiles, and fall back to the shipped ones. A raider's patch merges its skills and vehicle stats and replaces its deck.
+Its input is a config, plain data: the crews (archetypes, seat order, decks, or cards added to a starting deck; one driver, or two of different archetypes, as load out seats them), the raider profiles, the encounter templates, the stop tables, the game stage, the player stand-in, the seed, and runs a cell. Tuning comes in as data rather than being patched into the shipped tables: the encounter builder and the raider's vehicle take the config's raiders and profiles, and fall back to the shipped ones. A raider's patch merges its skills and vehicle stats and replaces its deck.
 
 Its output is plain JSON: a row per cell with the measures below, and any fight logs asked for.
 
-It's deterministic, and no cell's numbers depend on which other cells were asked for. A `gen` map is its own `rollParams` seed. In `fights` and `runs`, a cell is named by its crew and route, and its stage once there is one (`road_warrior+interceptor:1+2`; a crew asked for twice, on other decks, adds `#` and its place in the crews), and run n of every cell draws from the seed's `fork('run', n)`, its fight f from that run's `fork('fight', f)`. Every cell plays the same fixed list of seeded runs, so two crews, two tunings, or a route fresh and the day after its neighbor's run are compared on the same draws, and a difference between them is the change rather than the luck. The cost is that cells share their luck: a lucky seed lifts every cell a little, so a figure pooled across cells needs more runs than its intervals suggest. The same config and seed give the same JSON in Node and in the browser.
+It's deterministic, and no cell's numbers depend on which other cells were asked for. A `gen` map is its own `rollParams` seed. In `fights` and `runs`, a cell is named by its crew and route, and its stage once there is one (`road_warrior+interceptor:1+2`; a crew asked for twice, on other decks, adds `#` and its place in the crews), and run n of every cell draws from the seed's `fork('run', n)`, its fight f from that run's `fork('fight', f)`. Every cell plays the same fixed list of seeded runs, so two crews, two tunings, or a route fresh and the day after its neighbor's run are compared on the same draws, and a difference between them is the change rather than the luck. The cost is that cells share their luck: a lucky seed lifts every cell a little, so a figure pooled across cells needs more runs than its intervals suggest. The same config and seed give the same JSON from the command line, the Lab, and the tests, on every platform: the streams are salal's `Rng` (`foundation/random/Rng.h`), and the game builds with floating-point contraction off (`-ffp-contract=off`, which salal's foundation sets for GCC and Clang), so no multiply and add fuse on one platform and not another.
 
 ## Measures
 
@@ -41,7 +40,7 @@ Every rate carries its count and a 90% interval, so a 3-point move on 100 runs i
 
 ## The command line tool
 
-`node scripts/balance-sim.mjs <mode> [options]` transpiles the code it reaches into a temporary folder and runs it in a child process, clear of Jest. The transpile walker is one shared helper, `scripts/transpiled.mjs`, that balance-sim, road-network, terrain-bench, and area-map-bake-bench all use. Cells run in parallel in `worker_threads`, two by default to keep the machine responsive.
+`balance-sim <mode> [options]` is a command line target of the game's build: it hands the core a config and writes the JSON the core returns. Cells run in parallel on worker threads, two by default to keep the machine responsive.
 
 ### gen
 
@@ -87,15 +86,13 @@ A pool of four played day by day: one run a day to a tier its stage reaches, cle
 
 ## The Balance Lab
 
-A browser page for trying a change and seeing what it does. It takes evalai.html's place and its job, as a new typed page built only into dev builds, from a webpack entry of its own like the gallery, so it never ships.
+A screen for trying a change and seeing what it does, built only into development builds, so it never ships.
 
 - Edit: raider profiles, encounter templates and their waves, the game stage, the stop tables, the crews and their decks.
-- Run: the core in a Web Worker (the area map's worker pattern), with progress, and cancellable.
+- Run: the core on a worker thread, as map generation runs, with progress, and cancellable.
 - See: the crew by encounter matrix as heat maps of won and of damage, the per-tier run table against its targets, distributions of damage and turns, and a sample fight log.
 - Export: the edited tuning as JSON in the `--config` format, to try in the CLI or check into the data.
 - Play it: open any encounter in the game's own combat screen, against any crew, to play by hand.
-
-With the Lab in, evalai.html, `src/ai-evaluator.ts`, and their untyped scripts in `public/` retire, which settles DDB-40 for that harness. battle.html retires once the Lab can open an encounter in the combat screen.
 
 ## Player stand-ins
 
@@ -112,7 +109,7 @@ Targets are met by the floor. The ceiling shows how much room a good player has.
 
 ## Tests
 
-Jest, with `--maxWorkers=2` and no sweeps:
+gtest, with no sweeps:
 
 - Generation invariants on a few seeds: every route in its band, its fight floor met, no stop type placed without a resolver.
 - The wave rules, close-up, shake-off, rout, and break-off, each on its own.
@@ -123,7 +120,7 @@ CI runs `balance-sim fights --check` on a few seeds and runs, as its own step, w
 
 ## Baseline
 
-The first version must reproduce these, and changes are measured against them. Measured on 2026-10-17, on the generator and fights as they stood.
+Where the TypeScript prototype's tuning stood on 2026-10-17 and 18, measured on its generator and fights of the time. At commit `c327731c` its `node scripts/balance-sim.mjs` prints all three tables. The C++ sim draws its own streams and isn't held to these numbers.
 
 `gen` over 30 campaign maps (`rollParams` seeds 1 to 30), every route. Tier 5 is the strongholds' routes, which no run is offered yet.
 
@@ -149,7 +146,7 @@ Own road and neighbors on the same maps, as `gen` prints them. A route's own roa
 
 The last column is over routes with a fight. Every POI shares road with another.
 
-`fights`, as `node scripts/balance-sim.mjs fights --runs 100 --routes 1,2,3,1+1,1+2 --crews pairs` (seed 1, the aggressive AI on both sides). Lost and turns are over the runs won.
+`fights`, as `balance-sim fights --runs 100 --routes 1,2,3,1+1,1+2 --crews pairs` (seed 1, the aggressive AI on both sides). Lost and turns are over the runs won.
 
 | Crew | Route | Won | By seat | Stalled | HP lost | Structure lost | Turns |
 |---|---|---|---|---|---|---|---|

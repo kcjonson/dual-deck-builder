@@ -1,0 +1,20 @@
+{
+  "name": "dual-deck-builder",
+  "version": "0.1.0",
+  "dependencies": [
+    "opengl",
+    "glfw3",
+    "glew",
+    "glm",
+    "nlohmann-json",
+    "stb",
+    "nanosvg",
+    "gtest"
+  ],
+  "builtin-baseline": "bfc6984dcbe4a165741aa95411cb5e77d9c88068",
+  "overrides": [
+    { "name": "glm", "version": "1.0.1", "port-version": 3 },
+    { "name": "gtest", "version": "1.17.0", "port-version": 1 },
+    { "name": "nlohmann-json", "version": "3.12.0" }
+  ]
+}

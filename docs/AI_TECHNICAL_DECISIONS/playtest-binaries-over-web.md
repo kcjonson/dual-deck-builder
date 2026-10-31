@@ -5,7 +5,7 @@
 
 ## Context
 
-Playtesting happens on the web build of main, mirrored to bearcavinteractive.com/playtest/dual-deckbuilder/ on every push ([prototype-ci.md](./prototype-ci.md), `deploy-sftp.yml`). The game is migrating to C++ on the salal engine, and Kevin has decided WebAssembly is not an engine target, so there will be no browser build of the ported game. The channel playtesters use has to change before the port lands, or the port lands with no way to play it.
+Playtesting happens on the web build of main, mirrored to bearcavinteractive.com/playtest/dual-deckbuilder/ on every push ([prototype-ci.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/prototype-ci.md), `deploy-sftp.yml`). The game is migrating to C++ on the salal engine, and Kevin has decided WebAssembly is not an engine target, so there will be no browser build of the ported game. The channel playtesters use has to change before the port lands, or the port lands with no way to play it.
 
 CI already packages Electron for Windows and macOS (`main.yml`, the `electron` job), nightly and when packaging files change, and keeps the result as a 7-day workflow artifact nobody downloads. Nothing is signed. Spec: [playtest-distribution.md](../specs/playtest-distribution.md).
 
@@ -21,7 +21,7 @@ CI already packages Electron for Windows and macOS (`main.yml`, the `electron` j
 
 ## Decision
 
-Option 3. A build workflow packages each platform on every push to main, stamps it with the build number and SHA the web build already shows, and hands the archives to a publish step that uploads them and rewrites a `builds.json` manifest. The playtest URL becomes a static page that renders the manifest: latest build, one download per platform, how to run an unsigned build, previous builds. Per-PR builds are workflow artifacts behind the `playtest` label, and the per-PR web previews end. The web deploy keeps running, moved under `/web/`, until the C++ cutover, because the TypeScript build is the oracle the port is differential-tested against. Builds are unsigned until certificates exist, and the page says so.
+Option 3. A build workflow packages each platform on every push to main, stamps it with the build number and SHA the web build already shows, and hands the archives to a publish step that uploads them and rewrites a `builds.json` manifest. The playtest URL becomes a static page that renders the manifest: latest build, one download per platform, how to run an unsigned build, previous builds. Per-PR builds are workflow artifacts behind the `playtest` label, and the per-PR web previews end. The web deploy keeps running, moved under `/web/`, until the C++ cutover. Builds are unsigned until certificates exist, and the page says so.
 
 ## Rationale
 

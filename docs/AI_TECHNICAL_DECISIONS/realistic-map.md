@@ -1,6 +1,6 @@
 # Realistic geography, a real road network, and tree-shaped routes (DDB-438)
 
-Date: 2026-10-08. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), rewritten, and the terms, area map, run route, and fog sections of [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md). Replaces decisions 2 and 4 of [compound-and-area-map.md](./compound-and-area-map.md). Builds on [terrain-fields.md](./terrain-fields.md), [road-growth.md](./road-growth.md), [map-params.md](./map-params.md), and [seeded-prng.md](./seeded-prng.md), and on the open PRs' area-map-view.md (#176) and pois-and-strongholds.md (#177).
+Date: 2026-10-08. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), rewritten, and the terms, area map, run route, and fog sections of [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md). Replaces decisions 2 and 4 of [compound-and-area-map.md](./compound-and-area-map.md). Builds on [terrain-fields.md](./terrain-fields.md), [road-growth.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/road-growth.md), [map-params.md](./map-params.md), and [seeded-prng.md](./seeded-prng.md), and on the open PRs' area-map-view.md (#176) and pois-and-strongholds.md (#177).
 
 ## Context
 
@@ -14,23 +14,9 @@ Kevin decided the direction, and it's final:
 2. The land and the roads are realistic: rivers carve valleys, mountains form ranges, towns sit where geography puts them, roads follow terrain between towns, and the network has loops like a real one.
 3. The routes that follow the roads are tree-shaped: a gameplay layer chosen over the realistic road graph, no longer the shape of the roads.
 
-This record works out what the third one means precisely, picks the methods for the first two, and says what happens to the work already merged or open. Every number it settles is a starting value for the Map Lab; the ones the spec leans on are listed under Provisional calls.
+This record works out what the third one means precisely and picks the methods for the first two. Every number it settles is a starting value for the Map Lab; the ones the spec leans on are listed under Provisional calls.
 
-## The prototype
-
-An offline prototype was written to see the target and measure the options: plain JavaScript on Node 24, about 1,500 lines, with headless Chromium drawing the vector layers over a raster the script bakes. It isn't committed and isn't production code; only its renders are, in `docs/design/realistic-map/`. It runs the whole pipeline the spec describes, uplift and erosion to POIs, at radius 1000.
-
-![Mixed, seed 7. One POI's two routes highlighted: A leaves on the highway, B on back roads](../design/realistic-map/mixed-seed-7.png)
-
-![High Desert, seed 3. Dry maps weather into tablelands; three routes to Elk Creek Clinic](../design/realistic-map/high-desert-seed-3.png)
-
-![Rust Belt, seed 11. More towns, more loops, three routes to Ennisport General Store](../design/realistic-map/rust-belt-seed-11.png)
-
-![The route tree on Mixed, seed 7: every route to every POI, coloured by the road it leaves the city on](../design/realistic-map/route-tree-mixed-seed-7.png)
-
-![Run route view, High Desert seed 3, zoomed to one POI's three routes](../design/realistic-map/run-route-high-desert-seed-3.png)
-
-What the renders don't have yet: fog, stops, the stronghold and faction art, rail lines, and pass labels. The colours, widths, and fonts are a first pass, not tuned.
+An offline prototype, never committed, ran the whole pipeline the spec describes, uplift and erosion to POIs, at radius 1000, to see the target and measure the options. Its renders are in `docs/design/realistic-map/` (Decision 4).
 
 ## Decision 1: land from uplift and erosion
 
@@ -44,12 +30,12 @@ How it works in the prototype, and in the spec:
 
 - A square grid a fifth wider than the disc each way, 256 cells a side at radius 1000 (about 9.4 units a cell). The disc is a window onto a bigger country, so rivers flow in and out of it and ranges run past the rim, which reads far more like a page cut from an atlas than a world ending at a circle.
 - Uplift: a low, varied lift for rolling country, plus ranges, which are belts of a broad noise layer stretched about three to one along one grain per map and bent by a warp. One grain per map is what makes ranges run roughly parallel, the way they do in real regions. Coverage is a quantile of the layer, as terrain-fields.md calibrates shares now. Round the metro the ranges fade out and the hills lift less, and the metro is flattened after erosion, so the compound sits on flat ground (terrain-erosion.md has why the lift alone doesn't do it).
-- Erosion: 50 iterations. Each routes drainage by priority flood (the receivers fall out of the flood order, so pits drain without a separate fill), accumulates drainage area, then updates every cell downstream first: h = (h + dt U + F h_receiver) / (1 + F), with F = dt K sqrt(area) / distance. Then a little hillslope diffusion, less the more rugged the map. Only adds, multiplies, divides, and square roots, which ECMAScript rounds exactly, so the land is bit-identical in every engine.
+- Erosion: 50 iterations. Each routes drainage by priority flood (the receivers fall out of the flood order, so pits drain without a separate fill), accumulates drainage area, then updates every cell downstream first: h = (h + dt U + F h_receiver) / (1 + F), with F = dt K sqrt(area) / distance. Then a little hillslope diffusion, less the more rugged the map. Only adds, multiplies, divides, and square roots, which IEEE arithmetic rounds exactly; with floating-point contraction off (`-ffp-contract=off`, which salal's foundation sets for GCC and Clang) the same seed and params give the same land on every platform.
 - Outlets: `rivers` points on the grid's edge, the only places drainage can leave. That gives the parameter a real meaning (main rivers), where a count of traced rivers had none on eroded land; 0 gives a closed basin.
 - Reservoirs: `lakes` valleys dammed at a river cell and filled to a level, flooding upstream along the valley and its side branches. Real reservoirs have exactly that dendritic shape, and the dam is a natural POI.
 - Dry maps: below an aridity of 0.4 the eroded elevation is pulled toward terraces, flat benches with steep risers, so High Desert reads as mesas and escarpments.
 
-Measured on a Ryzen 9 5950X shared with other work, Node 24, the median over the five environments: erosion and normalising 460 to 520 ms at 256 cells, drainage and rivers 36 to 46 ms. At 128 cells the whole pipeline takes 217 ms, but the picture loses too much: relief goes soft, reservoirs swell to fill whole basins, and roads go blocky. So the spec plans for about 9 units a cell, with erosion run coarse first and finished at full size.
+Erosion at 256 cells is the expensive part. At 128 cells the picture loses too much: relief goes soft, reservoirs swell to fill whole basins, and roads go blocky. So the spec plans for about 9 units a cell, with erosion run coarse first and finished at full size.
 
 ## Decision 2: a real road network between places
 
@@ -62,7 +48,7 @@ Options:
 
 Places come first, scored where real ones are: flat valley floors beside rivers, best at confluences, never deep in a range or on water. Highways run from rim exits to the compound through the best town near their bearing.
 
-The decisive measurement was loops. Every route to a POI beyond its first is a loop through that POI, so a road network with cycle rank L can carry at most about L two-route POIs, and the 30 POIs and four strongholds the spec aims for need a good deal more than 34 loops, in the right places. Towns and villages alone gave 7 to 32 loops at radius 1000, and on those networks 1 to 16 of the 30 POIs found two routes. Adding unnamed crossroads, Poisson-spaced about 100 units apart, the way county roads meet in real country, gives 110 to 190 loops, 450 to 600 nodes, and 36,000 to 47,000 units of road. Routes use about two fifths of it. A* bounded to an ellipse round each link's ends keeps the roads stage at 140 to 210 ms for the 270 to 360 links it builds.
+The decisive measurement was loops. Every route to a POI beyond its first is a loop through that POI, so a road network with cycle rank L can carry at most about L two-route POIs, and the 30 POIs and four strongholds the spec aims for need a good deal more than 34 loops, in the right places. Towns and villages alone gave 7 to 32 loops at radius 1000, and on those networks 1 to 16 of the 30 POIs found two routes. Adding unnamed crossroads, Poisson-spaced about 100 units apart, the way county roads meet in real country, gives 110 to 190 loops, 450 to 600 nodes, and 36,000 to 47,000 units of road. Routes use about two fifths of it. A* is bounded to an ellipse round each link's ends, which keeps the 270 to 360 links the roads stage builds cheap.
 
 Two prototype gaps the build closes: up to 8 roadside fragments are left cut off from the network on some maps (the validator's connectivity check catches them; the extraction should drop or link them), and the prototype doesn't yet merge junctions that land within a cell of each other.
 
@@ -112,7 +98,21 @@ Strongholds use one more step. Their sectors' rotation is drawn, then stepped by
 
 ## Decision 4: the road-atlas look
 
-The renders above are the target. The parts that matter:
+The prototype's renders are the target:
+
+![Mixed, seed 7. One POI's two routes highlighted: A leaves on the highway, B on back roads](../design/realistic-map/mixed-seed-7.png)
+
+![High Desert, seed 3. Dry maps weather into tablelands; three routes to Elk Creek Clinic](../design/realistic-map/high-desert-seed-3.png)
+
+![Rust Belt, seed 11. More towns, more loops, three routes to Ennisport General Store](../design/realistic-map/rust-belt-seed-11.png)
+
+![The route tree on Mixed, seed 7: every route to every POI, coloured by the road it leaves the city on](../design/realistic-map/route-tree-mixed-seed-7.png)
+
+![Run route view, High Desert seed 3, zoomed to one POI's three routes](../design/realistic-map/run-route-high-desert-seed-3.png)
+
+What the renders don't have yet: fog, stops, the stronghold and faction art, rail lines, and pass labels. The colours, widths, and fonts are a first pass, not tuned.
+
+The parts that matter:
 
 - Land colour is a continuous blend of elevation and moisture, buff to khaki to sage, warming to grey-brown in the ranges, with soft hillshade lit from the north-west, bicubic-sampled so it has no facets and squashed through a tanh so it's never harsh. No flat biome patches anywhere: biomes stay as categories for the game, not as paint.
 - Rivers are vectors under the roads, width by drainage area; lakes are filled with a darker shore; outside the disc the land fades to paper and rivers to a faint blue.
@@ -120,25 +120,12 @@ The renders above are the target. The parts that matter:
 - Towns are ruined street-grid patches with missing blocks (the metro several districts at different angles); villages small patches; labels with halos, placed by priority and dropped rather than overlapped.
 - The gameplay sits on top: POI glyphs, stronghold diamonds, the compound star, and a selected POI's routes as wide translucent bands under the road lines, side by side where they share road, lettered.
 
-The land, water, and town patches bake into one image per map; roads, routes, labels, and markers draw live. That's the split #176 already built, which is why its infrastructure carries over and its styling doesn't.
-
 ## Decision 5: generation at founding, and saves keep the lines
 
-- Generation runs once, at founding, in a Web Worker behind the founding screen. The grid stages take 0.75 to 1 second in the prototype, which is over the old 200 ms budget for the gameplay stages; with erosion run coarse to fine and A* bounded, the build's budget is 1 second on a mid-range laptop. The graph stages (route tree, POIs, tiers, stops, validator) keep 200 ms and take under 30 ms in the prototype. This answers #177's QA note that stages 2 to 5 with retries already ran past 200 ms on rough maps (203 ms on a Badlands campaign roll, 448 ms on a crowded tuning set): growth reruns and stage-5 rebuilds of the step rules and the attach grid are gone, and a stage that reruns reuses its upstream's products.
+- Generation runs once, at founding, behind the founding screen. The grid stages are the expensive ones, so erosion runs coarse to fine and A* is bounded; the graph stages (route tree, POIs, tiers, stops, validator) are cheap. Growth reruns and stage-5 rebuilds of the step rules and the attach grid are gone, and a stage that reruns reuses its upstream's products. The time budget is the C++ build's, set from its own measurements, not the JavaScript prototype's.
 - Streams nest: a stage forks from its upstream's winning stream with its own attempt, so attempt numbers never collide across stages. #177's `8g + r` arithmetic goes. The pipeline takes an `accept(map, stage)` hook that DDB-296's validator can use to reject a stage's output, which counts as that stage's failure (#177's QA note).
 - The save keeps every line the map draws (roads, rivers, lake shores, craters, place names), simplified at about one world unit and stored as fixed-point deltas, plus the route layer and the sector rotation, so every guarantee can be rechecked on load (#177's QA note). The prototype's maps simplify to 1,900 to 2,700 road points and about 1,000 river points: about 40,000 characters for the whole map, against DDB-436's 70 to 150 KB for the grown network rounded to 0.01. The map attempt and each stage's winning attempt are saved too, a dozen small integers: streams nest, so the land's stream and the dressing's hang from every attempt above them ([map-pipeline-worker.md](./map-pipeline-worker.md)).
-- The land under the lines is regenerated on load in the worker, since it's only a picture once the map exists and erosion is exact arithmetic. Storing it instead, an 8-bit heightfield of the disc, would cost about 50,000 characters and band the hillshade on plains; it stays the fallback if load time matters more than save size.
-
-## What happens to existing work
-
-| Piece | Call | Why |
-| --- | --- | --- |
-| Terrain fields (DDB-288, merged) | Adapt | `Noise.ts` (simplex with exact derivatives, pinned permutation) stays and drives the uplift, hills, warp, moisture, and contamination layers. The quantile calibration of shares, the metro blend, hotspots, and the contamination plume carry over. The field model doesn't: elevation becomes the eroded grid (bicubic), canyons and badlands come from erosion and dry terracing instead of separate layers, biome thresholds read the new fields, and rough country and cliffs come from eroded slope. Towns' Poisson placement over the flood fill gives way to settlement scoring. The `Terrain` interface (`sample`, `elevation`, `slope`, `obstacle`) keeps its shape over a new implementation, with `moveCost` in place of `travelCost` (water-and-biomes.md), and `WaterLayer` becomes the water stage's real output. |
-| Road growth (DDB-290, merged) | Replace, keeping parts | Outward growth (`Highways.ts`, `RoadGrowth.ts`, `StepRules`) is the shape Kevin rejected and is removed. `Geometry.ts` (trig-free unit vectors, segment maths), `SegmentIndex.ts` (the spatial hash, now for planarity checks and label placement), the Chaikin smoothing, the `RoadNetwork` plain data, and `RoadChecks`' planarity and passability checks are reused. `RoadNetwork` changes: a stretch loses `parent` (the route tree holds parents per node), `Road` lineage becomes named roads for labels and shields, and node kinds gain place, crossroads, and roadside. |
-| POIs and strongholds (DDB-291, #177, open) | Close unmerged; carry the data over | Approaches, attach groups, the home area, and the growth-rerun lever are all replaced by meeting points on the route tree. Worth keeping: `pois.json` and `factions.json` with their strict readers, faction terrain fit, the sector seating, the ring targets and spacing, POI typing by location (extended with dams, water plants by rivers, and mines), and `PoiChecks`' data-only checking style. The strict JSON reader moves from `campaign/` to `core/` so `map/` stops importing from `campaign/` (#177's QA note). |
-| AreaMapView (DDB-298, #176, open) | Merge; restyle in a follow-up | `MapCamera`, input (drag pan, wheel zoom about the pointer, keyboard), the layer interfaces in `layers.ts`, the bake infrastructure (row-wise bake, metered upload, rebake on context loss), `fogBake`, and `roadGeometry`'s Douglas-Peucker levels of detail are what the atlas needs. `terrainBake`'s biome palette and hard edges, and the road colours and widths, are replaced by the atlas styling; the goldens re-baseline then. Merging now keeps the infrastructure from going stale in a branch. |
-| MapParams (DDB-287) | Adapt the table | The machinery (one table, environments, presets, the validator, `rollParams` with a fork per parameter) is unchanged. Changed meaning: `rivers` (outlets, main rivers), `ruggedness` (uplift and smoothing), `curviness` (slope weight in path cost), `highwaySeparation` (exits at the rim). New: `riverDensity`, `villages`, `roadDensity`, `loops`, `routeSplit`. Moved: `brokenHighways` to the road network. Removed: `branchiness`, `roadClearance`, `countyRoads`, `farmTracks`. Renamed: the scenery group is dressing, `sceneryDensity` is `dressing`. The environments table loses and gains rows to match. The Floodlands roll that pins `rollParams` moves; the terrain goldens hold until uplift and erosion (Map 4), since no value the terrain stage reads changes. |
-| Map Lab (DDB-299) | Adapt | Same section, same controls built from the table. Layers change (uplift, drainage, crossroads and links, the route tree, meeting points), the growth step-through becomes erosion and link step-throughs, regeneration caches by stage, and the readout gains loops, meeting points, and three-route POIs. |
+- The land under the lines is regenerated on load, since it's only a picture once the map exists and erosion is exact arithmetic. Storing it instead, an 8-bit heightfield of the disc, would cost about 50,000 characters and band the hillshade on plains; it stays the fallback if load time matters more than save size.
 
 ## Provisional calls
 
@@ -163,7 +150,7 @@ Calls Kevin didn't make, made the simplest way consistent with his direction, fo
 17. Strongholds' sector rotation is drawn, then stepped by eighths of a sector, up to 8 steps, until every sector has a site; the outer band is 0.72 to 0.97 of the radius.
 18. POI types by location: towns' hospitals, malls, and schools; villages' stores and clinics; dams, water plants, fuel depots and truck stops, quarries, farms, silos, salvage yards. The first ring is typed for food, water, and fuel first.
 19. The roads stage fails, and reruns, when its loops fall short of `poiDensity` times 30 plus `strongholds`.
-20. Generation at founding in a Web Worker, budget 1 second on a mid-range laptop for the grid stages; the graph stages keep 200 ms.
+20. Generation at founding, behind the founding screen, on a time budget set from the C++ build's measurements.
 21. Saves store every drawn line, simplified at about one unit as fixed-point deltas; the land regenerates on load.
 22. The atlas styling as described in Decision 4.
 

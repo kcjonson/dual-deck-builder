@@ -1,6 +1,6 @@
 # Founding a campaign (DDB-284)
 
-Date: 2026-10-07, revised 2026-10-10 for the generated map (DDB-467). Code: `src/renderer/game/campaign/Founding.ts`, `CampaignFounding.ts`, and `CampaignStart.ts`, with the starting values in `src/renderer/game/data/campaign-start.json`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Founding the compound, The driver pool, open question 6), [Area Map Generation](../specs/Area%20Map%20Generation.md) (Randomising for the finished game, Validation and retries, Saving). Builds on [campaign-state-model.md](./campaign-state-model.md), [seeded-prng.md](./seeded-prng.md), and [map-params.md](./map-params.md).
+Date: 2026-10-07, revised 2026-10-10 for the generated map (DDB-467). Code: `_legacy/src/renderer/game/campaign/Founding.ts`, `CampaignFounding.ts`, and `CampaignStart.ts`, with the starting values in `_legacy/src/renderer/game/data/campaign-start.json`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Founding the compound, The driver pool, open question 6), [Area Map Generation](../specs/Area%20Map%20Generation.md) (Randomising for the finished game, Validation and retries, Saving). Builds on [campaign-state-model.md](./campaign-state-model.md), [seeded-prng.md](./seeded-prng.md), and [map-params.md](./map-params.md).
 
 ## Context
 
