@@ -3,6 +3,7 @@
 #include <rules/core/Road.h>
 
 #include <array>
+#include <optional>
 
 namespace rules {
 
@@ -28,6 +29,17 @@ namespace rules {
 	[[nodiscard]] RoadSlot roadSlotOf(Side side, FormationSlot slot);
 
 	[[nodiscard]] bool isShoulder(RoadLane lane);
+
+	[[nodiscard]] bool inFormationOf(Side side, RoadLane lane);
+
+	// The shoulder a side's flankers pull onto: the other side's.
+	[[nodiscard]] RoadLane flankShoulderOf(Side side);
+
+	// The other lane of a formation lane, in the same formation.
+	[[nodiscard]] RoadLane otherLaneOf(RoadLane lane);
+
+	[[nodiscard]] std::optional<Row> rowAhead(Row row);
+	[[nodiscard]] std::optional<Row> rowBehind(Row row);
 
 	// A side's formation in the order vehicles without a slot fill it: inside lane first, center, behind, then ahead.
 	[[nodiscard]] std::array<RoadSlot, 6> openingOrder(Side side);

@@ -31,15 +31,26 @@ namespace rules {
 	// Whether a card lands on one person aboard a vehicle (Medical Kit), so a play names which.
 	[[nodiscard]] bool picksOccupant(const std::vector<Effect>& effects);
 
-	// A card played from `actor` by `caster`, at its target and occupant, if it takes them.
+	// Whether a card's move goes to a slot the player picks (Juke, Strafe, Shoulder Check), so a play names it.
+	[[nodiscard]] bool picksSlot(const std::vector<Effect>& effects);
+
+	// Why the caster's own moves on this card can't happen, whatever it's played at: a flank from the shoulder
+	// or boxed in, a swerve from the shoulder or with nowhere to go, a drop-back with no slot to go to, or a
+	// swap with nobody to swap with (calls 285 and 341).
+	[[nodiscard]] std::optional<std::string>
+	moveBlocker(const BattleState& state, const CardDefinition& card, bool upgraded, DriverIndex caster);
+
+	// A card played from `actor` by `caster`, at its target, occupant, and slot, if it takes them.
 	struct CardPlay {
 		DriverIndex					caster;
 		VehicleIndex				actor;
 		std::optional<VehicleIndex> target;
 		std::optional<DriverIndex>	occupant;
+		std::optional<RoadSlot>		destination;
 	};
 
-	// Why this card can't go at this target and occupant: who it may target, range, and who it lands on.
+	// Why this card can't go at this target, occupant, and slot: who it may target, whether its moves can happen
+	// and range from where they leave the caster, and who it lands on.
 	[[nodiscard]] std::optional<std::string>
 	targetBlocker(const BattleState& state, const CardDefinition& card, bool upgraded, const CardPlay& play);
 

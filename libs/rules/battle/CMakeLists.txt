@@ -5,6 +5,7 @@ target_sources(ddb_rules
         CardPlay.cpp
         Damage.cpp
         Hands.cpp
+        Movement.cpp
         RoadGrid.cpp
         Statuses.cpp
 )

@@ -33,6 +33,43 @@ namespace rules {
 		return lane == RoadLane::PlayerShoulder || lane == RoadLane::RaiderShoulder;
 	}
 
+	bool inFormationOf(Side side, RoadLane lane) {
+		if (side == Side::Player) {
+			return lane == RoadLane::PlayerInside || lane == RoadLane::PlayerOutside;
+		}
+		return lane == RoadLane::RaiderInside || lane == RoadLane::RaiderOutside;
+	}
+
+	RoadLane flankShoulderOf(Side side) {
+		return side == Side::Player ? RoadLane::RaiderShoulder : RoadLane::PlayerShoulder;
+	}
+
+	RoadLane otherLaneOf(RoadLane lane) {
+		switch (lane) {
+			case RoadLane::PlayerInside:
+				return RoadLane::PlayerOutside;
+			case RoadLane::PlayerOutside:
+				return RoadLane::PlayerInside;
+			case RoadLane::RaiderInside:
+				return RoadLane::RaiderOutside;
+			case RoadLane::RaiderOutside:
+				return RoadLane::RaiderInside;
+			case RoadLane::PlayerShoulder:
+			case RoadLane::RaiderShoulder:
+				break;
+		}
+		assert(false && "otherLaneOf: a shoulder isn't one of a formation's lanes");
+		return lane;
+	}
+
+	std::optional<Row> rowAhead(Row row) {
+		return row == Row::Ahead ? std::nullopt : std::optional(static_cast<Row>(rowIndex(row) - 1));
+	}
+
+	std::optional<Row> rowBehind(Row row) {
+		return row == Row::Behind ? std::nullopt : std::optional(static_cast<Row>(rowIndex(row) + 1));
+	}
+
 	std::array<RoadSlot, 6> openingOrder(Side side) {
 		std::array<RoadSlot, 6> order{};
 		size_t					next = 0;
