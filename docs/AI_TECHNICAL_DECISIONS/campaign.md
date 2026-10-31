@@ -186,10 +186,44 @@ No gameplay calls: stop-clearing.md's calls stand, and the cooldown moved into t
 - Loading costs a whole generation, so the game loads off the frame, as it founds.
 - Tests about everything but the map found on a stub origin, as the TypeScript's did, which `loadCampaign` refuses. The rest found on a map put together from the map tests' fixtures, so the fast lane makes no map of its own; making one and loading it again are in the slow lane.
 - The save format went to version 4.
+- What the campaign still needs from the map is in Supply runs, Consequences.
+
+## Supply runs
+
+The fifth slice: the routes on offer, a load out leaving on one, and its stops in order, the fights and the finds. [stop-clearing.md](./stop-clearing.md), [find-stops.md](./find-stops.md), [cards-won.md](./cards-won.md), [stops-and-routes.md](./stops-and-routes.md) (The run loop's routes), and Compound and Supply Runs (The run route screen, The drive) are the rules. Events, roadside garages, and hazards are the next slice, the objective and the return the one after.
+
+### Options considered
+
+What the run keeps of its route:
+
+1. **The route's id alone,** the POI and its place among its routes, everything else worked out from the map as needed. The stops it meets depend on the game stage and on what was cleared when it left, so they'd have to be worked out from both as they stood then.
+2. **The route as it left (chosen):** the POI and its place, the legs, and the stops it meets, fixed at departure, with how far down them it is. The map still says what each stop is, and what's saved is checked against it at load.
+
+When the map state hears of what a run cleared:
+
+1. **As each stop is passed,** undone if the run fails. The undo needs what this run cleared, and the map state, which the route card reads, would show a run's stops cleared while it's still on the road.
+2. **On getting home (chosen),** as stop-clearing.md had it (call 260). The run's progress already says what's behind it, so nothing else is saved, and a failed run clears nothing because it never gets there.
+
+### Decision
+
+- **The offers** (`SupplyRun.h`). `offersToday` is `routeOffers` over the campaign's map and `mapToday`, so each stop has its roll and a Find: supplies its haul at it, and the stops still cleared are marked; a cleared POI's routes are left out. A run reads the map through `MapLayers`, references to its layers, which `layersOf` takes off a made map and the tests put together from the map tests' fixtures.
+- **Leaving** (`depart`). After load out seats the drivers, the run leaves on a POI and a route, its fuel paid from the stores. `departBlocker` refuses, in order, a campaign that's over, no load out, a run that's left already, a cleared POI, and a route the stores can't fuel, with its cost. The run keeps a `RunRoute`: the POI and its place, the POI's tier, the legs, the stops on them at the run's game stage not cleared when it left, in driving order, the leg it's on, how many stops are behind it, and a reward on offer. Once it's left, giving up the load out is refused.
+- **The stops.** Each draws on the run's stream for the stop, `fork("run", n).fork("stop", id)` (call 406).
+  - A fight, an ambush or a warband (call 405): `startStopFight` picks the encounter for the stop's skulls at the POI's tier and builds it through the bridge, and `endStopFight` writes it back. Won, the reward opens, `rewardCards` different cards from `rollCardOffers` on the stop's `reward` fork; broken off, the run drives on with none; lost, the run has failed.
+  - A find, with `takeFind` (call 183): a Find: supplies haul, `rollStop`'s at the stop's roll, into the cargo; a Find: driver, `whoIsFound` on the stop's `driver` fork and `takeFoundDriver`; a Find: cards, a reward like a fight's.
+  - `takeReward` puts one card on offer, or none, into the cargo, and `driveOn` passes a find left by the road and a stop the run has no screen for yet, the wreck and the distress signal, as a quiet stretch (call 220). Only fighting gets past a fight.
+- **Home.** `unloadRun` clears every stop behind the run on the day it was out and charts every leg before the one it's on, kept in id order (`clearStop`, `chartLeg` in `CampaignMap.h`). The POI is cleared at the objective, which comes next.
+- **The rules.** The reward's 3 cards are pack content, `rewards.cards` in `campaign/compound-rules.json`.
+- **The save** goes to version 5, for the run's route: its POI, place, tier, legs, stops, leg, next stop, and reward, each id from 0, the stops and legs once each, the leg and the next stop in range, and the reward's cards ones a shop sells. `checkCampaignMap` holds it to the map at load: a POI and a route the map has, that route's legs and tier, every stop on its legs, and the leg the one the next stop is on.
+
+### Consequences
+
+- A run can leave on a route, fight and take finds down it, and come home clearing what it got past, all headless. A wreck or a distress signal is passed as a quiet stretch until events land.
+- Clearing still happens on getting home, not as each stop is passed, so the map state never shows a run in progress.
+- The save format went to version 5.
 - What the campaign still needs from the map, in the order it should be built:
-  1. Supply runs: `routeOffers` over the map and `mapToday`, a cleared POI's routes left out, and the run taking one at load out, its fuel paid at departure, `Run` holding the route and the stop it's at.
-  2. Stops in order, each on the run's stream for that stop: a fight's skulls and tier for `pickEncounter`, then the reward picker on `rollCardOffers` into `addCardsWon`; Find: cards, Find: supplies with the haul the route rolled, and Find: driver handing its seed to `whoIsFound`; event stops, read from `packs/base/events/`, their costs from the cargo then the stores, their escorts through `joinConvoy` and their drivers through `recruitArchetype`; a roadside garage, with a stock of its own on the run's stream, paid for on the road and working on the run's seats and escorts; and hazards.
-  3. The objective at the POI, its yields into the cargo, and the POI cleared.
-  4. The return: the return ambush by game stage, then arriving home charts the legs driven and clears the route's stops in the map state, on the day, before `unloadRun` and `endDay`.
-  5. The clock on the road, racing the dark, and fog of war, as the run reveals the stops ahead; `mapToday`'s legs then come from the starting knowledge with the charted legs over it.
-  6. Strongholds: a stronghold run's boss fight, a stronghold taken in the map state, and the win (call 1).
+  1. Event stops, read from `packs/base/events/` strictly as pack content, their costs from the cargo then the stores, their escorts through `joinConvoy` and their drivers through `recruitArchetype`; a roadside garage, with a stock of its own on the run's stream, paid for on the road and working on the run's seats and escorts; and hazards. The stops stage places none of the last two yet.
+  2. The objective at the POI, its yields into the cargo, and the POI cleared.
+  3. The return: the return ambush by game stage, then home through `unloadRun` and `endDay`.
+  4. The clock on the road, racing the dark, and fog of war, as the run reveals the stops ahead; `mapToday`'s legs then come from the starting knowledge with the charted legs over it.
+  5. Strongholds: a stronghold run's boss fight, a stronghold taken in the map state, and the win (call 1).

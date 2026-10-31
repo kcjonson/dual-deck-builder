@@ -550,3 +550,10 @@ Decision record: [campaign.md](AI_TECHNICAL_DECISIONS/campaign.md).
 Decision record: [stops-and-routes.md](AI_TECHNICAL_DECISIONS/stops-and-routes.md), call 22.
 
 404. DDB-571: a route offer's destination yields every resource its POI type does, meds included, a clinic's 2 meds and a hospital's 3 among them, replacing the TypeScript's leaving meds out, because the C++ run's cargo carries meds, as a supplies find's already does (214).
+
+## The C++ supply runs (405 to 406)
+
+Decision record: [campaign.md](AI_TECHNICAL_DECISIONS/campaign.md), Supply runs.
+
+405. DDB-573: a warband fields an encounter of its skulls at the POI's tier and pays a won fight's reward, three cards at the drop rates, as an ambush does, rather than an elite group with a leader paying a mod or a rare card, because no encounter has a leader to field and no pack defines a vehicle mod yet.
+406. DDB-573: everything drawn at a stop, a fight's raiders, its reward, a Find: cards's cards, and someone new at a Find: driver, is drawn on the run's own stream for that stop, as the TypeScript drew them, so another run down the same road meets the same stops with other raiders and finds, because a retry after a failed run (call 260) shouldn't replay the fight that lost it.
