@@ -4,7 +4,6 @@
 	"minGap": 40,
 	"tightGap": 12,
 	"jitter": 0.5,
-	"biomeStep": 12,
 	"types": {
 		"ambush": { "label": "Raider ambush", "hours": 1 },
 		"warband": { "label": "Warband", "hours": 1.5 },
@@ -28,6 +27,8 @@
 	},
 	"extras": [2, 4],
 	"objectiveHours": { "poi": 1.5, "stronghold": 2 },
+	"unknownStopHours": 0.75,
+	"dawn": 6,
 	"skulls": { "step": 0.5, "warband": 1 },
 	"driverFinds": { "floorTiers": 2, "rates": [0, 0, 0.04, 0.04, 0.04] },
 	"contents": {

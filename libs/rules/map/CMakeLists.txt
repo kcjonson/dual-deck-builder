@@ -27,6 +27,9 @@ target_sources(ddb_rules PRIVATE
     Roads.cpp
     RoadSearch.cpp
     RollParams.cpp
+    RouteDescriptors.cpp
+    RouteLegs.cpp
+    RouteTree.cpp
     Terrain.cpp
     Uplift.cpp
     Water.cpp

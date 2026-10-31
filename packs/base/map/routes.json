@@ -1,9 +1,8 @@
 {
 	"unitsPerFuel": 150,
-	"unknownStopHours": 0.75,
-	"dawn": 6,
 	"names": {
 		"biomeShare": 0.5,
+		"biomeStep": 12,
 		"biomes": {
 			"desert": "Across the desert",
 			"mire": "Through the mire",
