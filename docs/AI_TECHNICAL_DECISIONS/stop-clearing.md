@@ -50,7 +50,7 @@ The map state changed shape, so the save format goes to version 12. Version 11 s
 
 ## In the C++ alpha
 
-The map's half is in `libs/rules/map/` (2026-10-31, DDB-571): a stop's id is its index in the stop layer, fixed for a given map, and `rollStop(layer, stop, roll, tuning)` gives the same contents for the same stop and roll, which is all the state above needs from it: a stop's index, its roll, and the day it was cleared. A POI is its index in the POI layer. The state, and the run that clears it, come with the map on the campaign ([campaign.md](./campaign.md)).
+The map's half is in `libs/rules/map/` (2026-10-31, DDB-571): a stop's id is its index in the stop layer, fixed for a given map, and `rollStop(layer, stop, roll, tuning)` gives the same contents for the same stop and roll, which is all the state above needs from it: a stop's index, its roll, and the day it was cleared. A POI is its index in the POI layer. `routeOffers` takes the stops cleared and not back, and each stop's roll, as plain data (`MapToday`), marks the cleared ones, takes their fights out of a route's risk, keeps the route's hours (call 217), and rolls a supplies find's haul at its roll (stops-and-routes.md, The run loop's routes in the C++ alpha). The state, and the run that clears it, come with the map on the campaign ([campaign.md](./campaign.md)).
 
 ## Provisional calls
 

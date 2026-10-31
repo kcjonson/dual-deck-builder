@@ -544,3 +544,9 @@ Decision record: [campaign.md](AI_TECHNICAL_DECISIONS/campaign.md).
 401. DDB-573: the garage's starting prices are 30 scrap for a common card, 50 an uncommon, 90 a rare, and 150 a legendary, 60 to hire an Outrider or a Pilot Car, 80 a Fuel Hauler, 90 a Med Truck, and 1 a point repaired, because a campaign starts with 150 scrap and a POI yields 10 to 40, a bought card costs six times what scrapping it pays, and patching up a wrecked escort costs less than hiring another.
 402. DDB-573: an escort that joins on the road, an event's or a roadside garage's, joins the convoy and the run at once at full structure, its signature card in Driver 1's run deck for the player to give to Driver 2, and with four in the convoy one is dismissed first, as Game Flow 5 has it, replacing 270, because the run can deal a card mid-run now and load out deals escort cards the same way.
 403. DDB-573: on the road only an escort along can be dismissed, so a full convoy makes room for one it finds from the escorts with it, because the ones at home aren't there to send off.
+
+## The C++ route offers (404)
+
+Decision record: [stops-and-routes.md](AI_TECHNICAL_DECISIONS/stops-and-routes.md), call 22.
+
+404. DDB-571: a route offer's destination yields every resource its POI type does, meds included, a clinic's 2 meds and a hospital's 3 among them, replacing the TypeScript's leaving meds out, because the C++ run's cargo carries meds, as a supplies find's already does (214).
