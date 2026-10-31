@@ -12,6 +12,7 @@
 #include <map>
 #include <optional>
 #include <stdexcept>
+#include <stop_token>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -81,6 +82,17 @@ namespace rules::map {
 		}
 	};
 
+	// A run whose stop was requested, thrown before the next stage attempt starts, so nothing half-made is handed back.
+	class MapPipelineCancelled : public std::runtime_error {
+	  public:
+		MapPipelineCancelled(uint32_t seed, std::string_view stage)
+			: std::runtime_error("MapPipeline: seed " + std::to_string(seed) + " cancelled before " + std::string(stage)),
+			  before(stage) {}
+
+		// The stage it would have run next.
+		std::string before;
+	};
+
 	// A stage: it fills its product in from its upstream's and its own stream, and its check says what's
 	// wrong with it.
 	template <typename Input, typename Products>
@@ -130,6 +142,9 @@ namespace rules::map {
 		std::function<void(const StageAttempt&)> onProgress{};
 		// Make an earlier run's map again: each stage runs once on its winning attempt, nothing checked.
 		std::optional<PipelineReplay> replay{};
+		// Asked before every stage attempt, a replay's and a kept attempt's rerun included: once a stop is requested the
+		// run throws MapPipelineCancelled there. A stage runs to its end, so the wait is at most one stage's.
+		std::stop_token cancel{};
 		// Past a local-retry stage's cap with an attempt it may keep: throw a MapPipelineError (debug) or log and keep
 		// it (release).
 		bool debug{kDevelopmentBuild};
@@ -325,6 +340,9 @@ namespace rules::map {
 			// Runs one attempt and, when `checked`, its check and then the accept hook.
 			Problems attemptStage(size_t index, const StageAttempt& at, foundation::Rng& stream, bool checked) {
 				const Stage& stage = pipeline.stages[index];
+				if (options.cancel.stop_requested()) {
+					throw MapPipelineCancelled(seed, stage.name);
+				}
 				if (options.onProgress) {
 					options.onProgress(at);
 				}

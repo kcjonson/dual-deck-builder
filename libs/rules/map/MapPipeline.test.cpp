@@ -9,6 +9,7 @@
 #include <map>
 #include <optional>
 #include <stdexcept>
+#include <stop_token>
 #include <string>
 #include <utility>
 #include <vector>
@@ -365,6 +366,56 @@ namespace {
 			(void)pipeline.run(9, Script{}, {.replay = PipelineReplay{.mapAttempt = 0, .attempts = {{"first", 0}, {"third", 0}}}}),
 			std::invalid_argument
 		);
+	}
+
+	// A stop requested as the first stage's second attempt starts lets that attempt finish, check and all, and the run
+	// throws before the second stage, handing back nothing it made.
+	TEST(MapPipeline, StopsBetweenStageAttemptsOnceCancelled) {
+		int						 firstRuns = 0;
+		int						 secondRuns = 0;
+		std::stop_source		 source;
+		std::vector<std::string> started;
+		try {
+			(void)standIns(&firstRuns, &secondRuns)
+				.run(
+					7,
+					Script{.firstFailures = 1},
+					{.onProgress =
+						 [&](const StageAttempt& attempt) {
+							 started.emplace_back(attempt.stage);
+							 if (attempt.attempt == 1) {
+								 source.request_stop();
+							 }
+						 },
+					 .cancel = source.get_token()}
+				);
+			FAIL() << "expected a MapPipelineCancelled";
+		} catch (const MapPipelineCancelled& cancelled) {
+			EXPECT_EQ(cancelled.before, "second");
+		}
+		EXPECT_EQ(started, (std::vector<std::string>{"first", "first"}));
+		EXPECT_EQ(firstRuns, 2);
+		EXPECT_EQ(secondRuns, 0);
+	}
+
+	TEST(MapPipeline, CancelsAReplayBetweenItsStagesAndARunStoppedBeforeItStartsRunsNothing) {
+		int						 firstRuns = 0;
+		int						 secondRuns = 0;
+		const Pipeline			 pipeline = standIns(&firstRuns, &secondRuns);
+		std::stop_source		 source;
+		std::vector<std::string> started;
+		const auto				 progress = [&](const StageAttempt& attempt) {
+			  started.emplace_back(attempt.stage);
+			  source.request_stop();
+		};
+		const PipelineReplay replay{.mapAttempt = 0, .attempts = {{"first", 0}, {"second", 0}}};
+		EXPECT_THROW(
+			(void)pipeline.run(7, Script{}, {.onProgress = progress, .replay = replay, .cancel = source.get_token()}), MapPipelineCancelled
+		);
+		EXPECT_EQ(started, (std::vector<std::string>{"first"}));
+		EXPECT_THROW((void)pipeline.run(7, Script{}, {.onProgress = progress, .cancel = source.get_token()}), MapPipelineCancelled);
+		EXPECT_EQ(started.size(), 1U);
+		EXPECT_EQ(firstRuns + secondRuns, 0);
 	}
 
 	TEST(MapPipeline, LetsOnlyAnInertStageFollowAnInertOneNestingEachInTheOneBefore) {
