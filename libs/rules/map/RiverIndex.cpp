@@ -76,6 +76,29 @@ namespace rules::map {
 		return false;
 	}
 
+	bool RiverIndex::near(double x, double y, double reach) const {
+		for (int row = cellOf(y - reach); row <= cellOf(y + reach); ++row) {
+			for (int column = cellOf(x - reach); column <= cellOf(x + reach); ++column) {
+				const auto at = static_cast<size_t>(row * columns + column);
+				for (int entry = starts[at]; entry < starts[at + 1]; ++entry) {
+					const Segment& segment = segments[static_cast<size_t>(ids[static_cast<size_t>(entry)])];
+					const double   dx = segment.bx - segment.ax;
+					const double   dy = segment.by - segment.ay;
+					const double   lengthSquared = dx * dx + dy * dy;
+					const double   t =
+						  lengthSquared > 0 ? std::clamp(((x - segment.ax) * dx + (y - segment.ay) * dy) / lengthSquared, 0.0, 1.0) : 0;
+					const double ox = segment.ax + dx * t - x;
+					const double oy = segment.ay + dy * t - y;
+					const double within = 0.5 * (segment.widthA + (segment.widthB - segment.widthA) * t) + reach;
+					if (ox * ox + oy * oy < within * within) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
+
 	int RiverIndex::cellOf(double value) const {
 		assert(std::isfinite(value) && "RiverIndex: a coordinate is a finite number");
 		const double cell = std::floor((value - origin) / kBucket);

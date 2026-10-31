@@ -57,6 +57,9 @@ namespace rules::map {
 		std::vector<uint8_t> open;
 	};
 
+	// Per cell, the eroded grade, by central differences, one-sided at the edges.
+	[[nodiscard]] std::vector<double> cellGrades(const LandSurface& land);
+
 	// Per cell, the room badlands and canyons have: 1 where no cell within three has any range lift, falling
 	// to 0 where one's range mask reaches 0.1, since a range's flanks bend the land at their foot as steeply
 	// as any broken ground; and none in the metro, rising to full at the relief radius.

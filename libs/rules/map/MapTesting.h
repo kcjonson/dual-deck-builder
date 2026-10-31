@@ -7,6 +7,8 @@
 #include "LandGrid.h"
 #include "MapParams.h"
 #include "ParamValidator.h"
+#include "PlaceNames.h"
+#include "Places.h"
 #include "Terrain.h"
 #include "Water.h"
 
@@ -18,6 +20,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
+#include <filesystem>
 #include <initializer_list>
 #include <memory>
 #include <span>
@@ -134,6 +137,32 @@ namespace rules::map::fixtures {
 			}
 		}
 		built.emplace_back(params, std::make_unique<Hazards>(params, terrainFor(params), waterFor(params), hazardsStream(params)));
+		return *built.back().second;
+	}
+
+	// The base pack's place names.
+	inline const PlaceNamePool& placeNames() {
+		static const PlaceNamePool pool = readPlaceNames(std::filesystem::path(DDB_PACKS_DIR) / "base" / "map" / "place-names.json");
+		return pool;
+	}
+
+	// The places stage's stream over hazardsStream(params).
+	inline foundation::Rng placesStream(const MapParams& params, uint32_t attempt = 0) {
+		return foundation::Rng(hazardsStream(params).seed()).fork("places", attempt);
+	}
+
+	// The places over the fixture's other layers, built the first time they're asked for.
+	inline const Places& placesFor(const MapParams& params) {
+		static std::vector<std::pair<MapParams, std::unique_ptr<Places>>> built;
+		for (const auto& [key, places] : built) {
+			if (key == params) {
+				return *places;
+			}
+		}
+		built.emplace_back(
+			params,
+			std::make_unique<Places>(params, terrainFor(params), waterFor(params), hazardsFor(params), placeNames(), placesStream(params))
+		);
 		return *built.back().second;
 	}
 

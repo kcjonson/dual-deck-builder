@@ -119,28 +119,6 @@ namespace rules::map {
 			return out;
 		}
 
-		// Per cell, the eroded grade, by central differences, one-sided at the edges.
-		std::vector<double> gradeOf(const LandSurface& land) {
-			const int			size = land.grid.size;
-			const double		toGrade = kRelief / land.grid.cellSize;
-			std::vector<double> grade(land.elevation.size());
-			const auto			height = [&](int row, int column) {
-				 return land.elevation[static_cast<size_t>(row * size + column)];
-			};
-			for (int row = 0; row < size; ++row) {
-				const int below = std::max(row - 1, 0);
-				const int above = std::min(row + 1, size - 1);
-				for (int column = 0; column < size; ++column) {
-					const int	 left = std::max(column - 1, 0);
-					const int	 right = std::min(column + 1, size - 1);
-					const double slopeX = (height(row, right) - height(row, left)) / (right - left) * toGrade;
-					const double slopeY = (height(above, column) - height(below, column)) / (above - below) * toGrade;
-					grade[static_cast<size_t>(row * size + column)] = std::sqrt(slopeX * slopeX + slopeY * slopeY);
-				}
-			}
-			return grade;
-		}
-
 	} // namespace
 
 	LandFields::LandFields(const MapParams& params, const LandSurface& land, const StartRadii& radii, const foundation::Rng& stream)
@@ -158,7 +136,7 @@ namespace rules::map {
 
 		// Steep land runs in belts along the ranges, so the noise breaks a belt into stretches. None within the
 		// relief radius, by a cell's diagonal, so no point inside it reads as rough.
-		steepness = blurred(gradeOf(land), size, kRoughness.blur);
+		steepness = blurred(cellGrades(land), size, kRoughness.blur);
 		roughness.assign(cells, 0);
 		const NoiseLayer breaks(stream, "roughness");
 		const double	 clear = radii.relief + std::numbers::sqrt2 * grid.cellSize;
@@ -266,6 +244,27 @@ namespace rules::map {
 
 	double LandFields::badlands(double x, double y) const {
 		return GridSampler(grid, badlandsCells).bilinear(x, y);
+	}
+
+	std::vector<double> cellGrades(const LandSurface& land) {
+		const int			size = land.grid.size;
+		const double		toGrade = kRelief / land.grid.cellSize;
+		std::vector<double> grade(land.elevation.size());
+		const auto			height = [&](int row, int column) {
+			 return land.elevation[static_cast<size_t>(row * size + column)];
+		};
+		for (int row = 0; row < size; ++row) {
+			const int below = std::max(row - 1, 0);
+			const int above = std::min(row + 1, size - 1);
+			for (int column = 0; column < size; ++column) {
+				const int	 left = std::max(column - 1, 0);
+				const int	 right = std::min(column + 1, size - 1);
+				const double slopeX = (height(row, right) - height(row, left)) / (right - left) * toGrade;
+				const double slopeY = (height(above, column) - height(below, column)) / (above - below) * toGrade;
+				grade[static_cast<size_t>(row * size + column)] = std::sqrt(slopeX * slopeX + slopeY * slopeY);
+			}
+		}
+		return grade;
 	}
 
 	std::vector<double> featureRoom(const LandSurface& land, const StartRadii& radii) {
