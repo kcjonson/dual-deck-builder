@@ -503,7 +503,7 @@ Decision record: [hand-target-preview.md](AI_TECHNICAL_DECISIONS/hand-target-pre
 370. DDB-554: a card that takes no pick and lands only on raiders is disabled with NO TARGET when it would land on nobody (EMP Blast with every raider Steady, Rally the Convoy with no raider in range of a ready escort), because playing it would spend its adrenaline, and for Rally every escort, on nothing.
 371. DDB-554: an attack order with no ready escort to carry it out reads CAN'T PLAY, as Rally the Convoy does, leaving NO TARGET for one whose ready escorts have no raider in reach, because no ready escort is a rule of the convoy, not of where the raiders are.
 
-## The battle state (372 to 385)
+## The battle state (372 to 387)
 
 Decision record: [battle-state.md](AI_TECHNICAL_DECISIONS/battle-state.md).
 
@@ -521,3 +521,5 @@ Decision record: [battle-state.md](AI_TECHNICAL_DECISIONS/battle-state.md).
 383. DDB-572: a raider can plan the cards its own draws bring during its plan, because the rehearsal draws exactly what the enemy turn will from the raider's own stream; no raider deck draws yet.
 384. DDB-572: a basic raider's intent shows a hit that its check will miss as a miss, with no damage, and an elite's hides it with the rest, because the checks have no dice and the projection knows, as the targeting preview already shows MISS for your own cards.
 385. DDB-572: vehicles carrying on as escorts fire after the convoy's own in Rally the Convoy, in seat order rather than the order they converted, because decision 42 puts them last and two drivers going down in one fight is rare enough that their order between themselves hasn't earned bookkeeping.
+386. DDB-572: when ending the turn now would break the fight off, the raiders' intents show nothing and no arrivals are marked, though their plans stand, because both are that enemy turn played out on a copy and a broken-off fight has none; a hit on a raider brings them back.
+387. DDB-572: "+N arriving" and its row marks count what pulls in if the player ends the turn now, read off that enemy turn on a copy, so a wave that only comes because the raiders empty the road themselves shows too, and one a rout would stop shows nothing, because call 207 has the readout promise what the player will see.

@@ -5,9 +5,11 @@
 #include "Movement.h"
 #include "Statuses.h"
 #include "Turns.h"
+#include "Waves.h"
 
 #include <algorithm>
 #include <stdexcept>
+#include <string>
 
 namespace rules {
 
@@ -45,7 +47,7 @@ namespace rules {
 			}
 		}
 
-		BattleVehicle vehicleFrom(Side side, DriverIndex owner, const VehicleStats& stats) {
+		BattleVehicle vehicleFrom(Side side, std::optional<DriverIndex> owner, const VehicleStats& stats) {
 			return BattleVehicle{
 				.side = side,
 				.owner = owner,
@@ -61,6 +63,63 @@ namespace rules {
 				.slot = {},
 				.onRoad = true,
 			};
+		}
+
+		// Up 5% a stage, rounding half up, since game numbers are whole.
+		int grown(int value, int stage) {
+			return (value * (100 + kStageGrowthPercent * stage) + 50) / 100;
+		}
+
+		// A raider as its opponent definition makes it, grown for the stage, not yet seated. A mook's HP doesn't grow:
+		// one starter attack has to take it out at any stage (Runs and Encounters, Raider classes).
+		QueuedRaider raiderFor(const Content& content, const OpponentId& id, int stage) {
+			const OpponentDefinition& opponent = opponentDefinition(content, id);
+			std::vector<BattleCard>	  deck = cardsOf(opponent.deck);
+			checkDeck(content, deck, opponent.id.value);
+			const int	 hitpoints = opponent.opponentClass == OpponentClass::Mook ? opponent.hitpoints : grown(opponent.hitpoints, stage);
+			VehicleStats stats = opponent.vehicle;
+			stats.maxStructure = grown(stats.maxStructure, stage);
+			QueuedRaider raider{
+				.driver =
+					BattleDriver{
+						.side = Side::Raiders,
+						.profile = opponent.id,
+						.skills = opponent.skills,
+						.hitpoints = hitpoints,
+						.maxHitpoints = hitpoints,
+						.adrenaline = 0,
+						.maxAdrenaline = opponent.maxAdrenaline,
+						.handLimit = opponent.handLimit,
+						.deck = std::move(deck),
+					},
+				.vehicle = vehicleFrom(Side::Raiders, std::nullopt, stats),
+			};
+			raider.vehicle.threat = opponent.threat;
+			raider.vehicle.leads = opponent.opponentClass == OpponentClass::Leader;
+			return raider;
+		}
+
+		// The waves behind the first, each raider built now so a bad id fails the setup rather than an arrival.
+		Reinforcements reinforcementsFor(const BattleSetup& setup, const Content& content) {
+			Reinforcements reinforcements{
+				.queue = {},
+				.total = 1 + static_cast<int>(setup.waves.size()),
+				.roadCap = setup.roadCap,
+			};
+			for (const EncounterWave& wave : setup.waves) {
+				if (wave.raiders.empty()) {
+					throw std::invalid_argument("startBattle: a queued wave needs a raider");
+				}
+				if ((wave.arriveAt && *wave.arriveAt < 0) || (wave.afterTurns && *wave.afterTurns < 1)) {
+					throw std::invalid_argument("startBattle: a wave arrives at 0 or more raiders left, after 1 or more turns");
+				}
+				QueuedWave queued{.raiders = {}, .arriveAt = wave.arriveAt, .afterTurns = wave.afterTurns};
+				for (const OpponentId& raider : wave.raiders) {
+					queued.raiders.push_back(raiderFor(content, raider, setup.stage));
+				}
+				reinforcements.queue.push_back(std::move(queued));
+			}
+			return reinforcements;
 		}
 
 		// Where a seat's vehicle asks to open: a slot in its formation, an ambush row, or wherever's next.
@@ -152,6 +211,12 @@ namespace rules {
 		if (setup.raiders.empty()) {
 			throw std::invalid_argument("startBattle: a fight needs a raider");
 		}
+		if (setup.stage < 0 || setup.stage > kMostStage) {
+			throw std::invalid_argument("startBattle: game stage runs 0 to " + std::to_string(kMostStage));
+		}
+		if (setup.roadCap && (*setup.roadCap < 1 || static_cast<int>(setup.raiders.size()) > *setup.roadCap)) {
+			throw std::invalid_argument("startBattle: the first wave has to fit under a road cap of at least 1");
+		}
 
 		BattleState			 state{.random = RandomStreams(setup.seed)};
 		std::vector<Opening> openings;
@@ -207,30 +272,22 @@ namespace rules {
 			openings.push_back({.slot = seat.slot, .ambush = std::nullopt, .preferred = escort.preferredSlot});
 		}
 		for (const RaiderSeat& seat : setup.raiders) {
-			const OpponentDefinition& opponent = opponentDefinition(content, seat.opponent);
-			std::vector<BattleCard>	  deck = cardsOf(opponent.deck);
-			checkDeck(content, deck, opponent.id.value);
-			const DriverIndex index{static_cast<int>(state.drivers.size())};
-			state.drivers.push_back(
-				BattleDriver{
-					.side = Side::Raiders,
-					.profile = opponent.id,
-					.skills = opponent.skills,
-					.hitpoints = opponent.hitpoints,
-					.maxHitpoints = opponent.hitpoints,
-					.adrenaline = 0,
-					.maxAdrenaline = opponent.maxAdrenaline,
-					.handLimit = opponent.handLimit,
-					.deck = std::move(deck),
-				}
-			);
-			state.vehicles.push_back(vehicleFrom(Side::Raiders, index, opponent.vehicle));
 			if (seat.slot && seat.ambush) {
 				throw std::invalid_argument("startBattle: a raider opens in its formation or ambushing, not both");
 			}
+			(void)seatRaider(state, raiderFor(content, seat.opponent, setup.stage));
 			openings.push_back({.slot = seat.slot, .ambush = seat.ambush, .preferred = std::nullopt});
 		}
 		placeVehicles(state, openings);
+		state.reinforcements = reinforcementsFor(setup, content);
+		for (const BattleVehicle& vehicle : state.vehicles) {
+			state.startingThreat += vehicle.threat;
+		}
+		for (const QueuedWave& wave : state.reinforcements.queue) {
+			for (const QueuedRaider& raider : wave.raiders) {
+				state.startingThreat += raider.vehicle.threat;
+			}
+		}
 
 		std::vector<Event> events;
 		for (int index = 0; index < static_cast<int>(state.drivers.size()); ++index) {

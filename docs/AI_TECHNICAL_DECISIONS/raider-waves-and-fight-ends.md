@@ -41,6 +41,15 @@ The spec says game stage grows a late warband to 20, but with one `grow` raider 
 
 Tuning was raider-side only (calls 199 to 203). On the sim's aggressive stand-in at tier 1, stage 0, the Road Warrior and Interceptor and the Interceptor and Mechanic meet the per-fight home rates (98, 93, and 85% or more at one, two, and three skulls). The Road Warrior and Mechanic don't: every loss comes with the Mechanic in seat 1, where the raiders aim on ties and the Mechanic's starter has no damage, which are DDB-493 and 495's card fixes, and the fairness rule says not to tune raiders over them.
 
+## In the C++ alpha
+
+`libs/rules/battle` (2026-10-30, DDB-572) builds these rules and numbers, and [battle-state.md](./battle-state.md), Waves and how fights end, has how. What differs:
+
+- Each template carries its own `roadCap` in the pack's `encounters` folder, since packs override content by id and the TypeScript's table by skull count had none; the base templates keep their skull count's 3, 4, and 5.
+- Queued raiders live in the fight's state, built and grown at setup, and each takes a new seat as it pulls in, with that seat's own deck stream as before.
+- The "+N arriving" readout and its marks are the enemy turn played out on a copy, as the intents are, rather than a projection of their own (calls 386 and 387).
+- Break-off is on in every fight; nothing bounds a fight by turns there for it to change.
+
 ## Provisional calls
 
 Numbers 190 to 209 in [gameplay-calls.md](../gameplay-calls.md).

@@ -2,6 +2,7 @@
 
 #include "Battle.h"
 #include "CardPlay.h"
+#include "Statuses.h"
 #include "Turns.h"
 
 #include <algorithm>
@@ -155,14 +156,15 @@ namespace rules {
 
 		BattleState		   board = state;
 		std::vector<Event> rehearsal;
-		beginEnemyTurn(board, rehearsal);
-		if (board.phase == Phase::EnemyTurn) {
+		takeDeathMarks(board, Side::Player, rehearsal);
+		if (!endIfOver(board, rehearsal)) {
+			beginEnemyTurn(board, rehearsal);
 			passToNextRaider(board, rehearsal);
 		}
 		std::vector<Event> events;
 		while (board.phase == Phase::EnemyTurn) {
 			const DriverIndex		  raider = *board.actingRaider;
-			const Policy&			  policy = policyFor(raider);
+			const Policy&			  policy = policyFor(board, raider);
 			foundation::Rng			  rng = state.random.next(planStream(state, raider));
 			std::vector<PlannedStep>& plan = state.driver(raider).plan;
 			while (board.phase == Phase::EnemyTurn && board.actingRaider == raider) {
@@ -202,6 +204,10 @@ namespace rules {
 	}
 
 	void playEnemyTurn(BattleState& state, const Content& content, std::vector<Event>& events) {
+		takeDeathMarks(state, Side::Player, events);
+		if (endIfOver(state, events) || breakOffIfQuiet(state, events)) {
+			return;
+		}
 		beginEnemyTurn(state, events);
 		for (int index = 0; index < static_cast<int>(state.drivers.size()) && state.phase == Phase::EnemyTurn; ++index) {
 			const DriverIndex raider{index};
@@ -303,7 +309,7 @@ namespace rules {
 			} else if (std::holds_alternative<event::PlannedStepFizzled>(event) || std::holds_alternative<event::RaiderActing>(event) ||
 					   std::holds_alternative<event::RaiderStunned>(event) || std::holds_alternative<event::PlanDropped>(event) ||
 					   std::holds_alternative<event::DeathMarkTaken>(event) || std::holds_alternative<event::TurnStarted>(event) ||
-					   std::holds_alternative<event::FightEnded>(event)) {
+					   std::holds_alternative<event::RaiderArrived>(event) || std::holds_alternative<event::FightEnded>(event)) {
 				close();
 				redirected.reset();
 			} else if (!current) {

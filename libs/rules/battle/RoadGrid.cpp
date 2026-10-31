@@ -1,5 +1,6 @@
 #include "RoadGrid.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdlib>
 
@@ -70,11 +71,15 @@ namespace rules {
 		return row == Row::Behind ? std::nullopt : std::optional(static_cast<Row>(rowIndex(row) + 1));
 	}
 
-	std::array<RoadSlot, 6> openingOrder(Side side) {
+	std::array<RoadSlot, 6> openingOrder(Side side, std::optional<Row> firstRow) {
+		std::array<Row, 3> rows{Row::Center, Row::Behind, Row::Ahead};
+		if (firstRow) {
+			std::ranges::rotate(rows.begin(), std::ranges::find(rows, *firstRow), std::ranges::find(rows, *firstRow) + 1);
+		}
 		std::array<RoadSlot, 6> order{};
 		size_t					next = 0;
 		for (const Lane lane : {Lane::Inside, Lane::Outside}) {
-			for (const Row row : {Row::Center, Row::Behind, Row::Ahead}) {
+			for (const Row row : rows) {
 				order[next++] = roadSlotOf(side, {.lane = lane, .row = row});
 			}
 		}

@@ -30,7 +30,8 @@ namespace rules {
 		choose(const BattleState& board, const Content& content, std::span<const Action> actions, foundation::Rng& rng) const = 0;
 	};
 
-	// The policy each raider seat plans with.
-	using PolicyFor = std::function<const Policy&(DriverIndex raider)>;
+	// The policy the raider in this seat of `board` plans with. Raiders arriving in a later wave take new seats, so a
+	// binding reads the seat off the board it's asked about rather than the fight it started with.
+	using PolicyFor = std::function<const Policy&(const BattleState& board, DriverIndex raider)>;
 
 } // namespace rules

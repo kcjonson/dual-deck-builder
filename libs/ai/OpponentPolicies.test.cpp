@@ -2,6 +2,7 @@
 #include <ai/OpponentPolicies.h>
 
 #include <rules/battle/BattleTesting.h>
+#include <rules/battle/Encounters.h>
 #include <rules/core/ContentError.h>
 
 #include <gtest/gtest.h>
@@ -38,6 +39,30 @@ namespace {
 		behavior.policy.clear();
 		behavior.script = "behavior.lua";
 		EXPECT_NE(loadError(content).find("the Lua host"), std::string::npos);
+	}
+
+	TEST(OpponentPolicies, ARaiderArrivingInALaterWavePlansWithItsOwnOpponentsPolicy) {
+		// The scav pack's second wave is due once one raider is left: two bikes go down, and it pulls in a turn later.
+		const ai::OpponentPolicies policies(testContent());
+		BattleSetup				   setup{.players = {seat("road_warrior"), seat("interceptor")}, .seed = 3};
+		fieldEncounter(setup, testContent(), EncounterId{"scav_pack"}, 0);
+		BattleState state = startBattle(setup, testContent()).state;
+		(void)planEnemyTurn(state, testContent(), policies.forRaiders());
+		for (const int bike : {2, 3}) {
+			state.driver(DriverIndex{bike}).hitpoints = 1;
+			giveHand(state, DriverIndex{0}, {"test_slam"});
+			(void)apply(state, testContent(), play(0, 0, bike));
+		}
+		std::vector<Event> plans;
+		for (int turn = 0; turn < 2; ++turn) {
+			(void)apply(state, testContent(), action::EndTurn{});
+			ASSERT_EQ(state.phase, Phase::Planning);
+			plans = planEnemyTurn(state, testContent(), policies.forRaiders());
+		}
+		ASSERT_EQ(state.drivers.size(), 7U) << "both of the second wave pulled in";
+		const std::vector<DriverIndex> planned = planners(plans);
+		EXPECT_NE(std::ranges::find(planned, DriverIndex{5}), planned.end());
+		EXPECT_NE(std::ranges::find(planned, DriverIndex{6}), planned.end());
 	}
 
 } // namespace

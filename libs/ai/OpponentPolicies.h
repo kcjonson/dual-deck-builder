@@ -19,8 +19,9 @@ namespace ai {
 
 		[[nodiscard]] const rules::Policy& forOpponent(const rules::OpponentId& opponent) const;
 
-		// The policy each raider in this fight plans with, for planEnemyTurn.
-		[[nodiscard]] rules::PolicyFor forFight(const rules::BattleState& state) const;
+		// The policy each raider plans with, by its opponent, for planEnemyTurn. It reads the seat off the board it's
+		// asked about, so a raider that arrives in a later wave plans too. It refers to this, which has to outlive it.
+		[[nodiscard]] rules::PolicyFor forRaiders() const;
 
 	  private:
 		std::map<rules::OpponentId, std::unique_ptr<rules::Policy>> policies;

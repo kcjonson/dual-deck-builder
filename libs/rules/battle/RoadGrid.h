@@ -42,7 +42,8 @@ namespace rules {
 	[[nodiscard]] std::optional<Row> rowBehind(Row row);
 
 	// A side's formation in the order vehicles without a slot fill it: inside lane first, center, behind, then ahead.
-	[[nodiscard]] std::array<RoadSlot, 6> openingOrder(Side side);
+	// With `firstRow`, each lane starts from that row instead, as a wave fills from the row the latest wreck left.
+	[[nodiscard]] std::array<RoadSlot, 6> openingOrder(Side side, std::optional<Row> firstRow = std::nullopt);
 
 	// How a tie on range breaks for `side` (Combat Rules, Orders): its inside lane, its outside lane, then the
 	// other side's shoulder, and ahead, center, behind within a lane. Lower comes first.

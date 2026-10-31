@@ -316,8 +316,25 @@ namespace rules {
 
 			bool operator==(const DeathMarkTaken&) const = default;
 		};
+		// The next wave is announced, `wave` counting the first as 1: it pulls in at the end of this enemy turn as far as
+		// there's room, which arrivalsOf reads.
+		struct WaveDue {
+			int wave{2};
+
+			bool operator==(const WaveDue&) const = default;
+		};
+		// A queued raider takes a new seat, and its vehicle pulls into `slot`.
+		struct RaiderArrived {
+			DriverIndex	 raider;
+			VehicleIndex vehicle;
+			RoadSlot	 slot;
+
+			bool operator==(const RaiderArrived&) const = default;
+		};
+		// A won fight's `rout` says why the raiders still in it fled; none for one won by taking every raider out.
 		struct FightEnded {
-			Outcome outcome{Outcome::Won};
+			Outcome					 outcome{Outcome::Won};
+			std::optional<RoutCause> rout;
 
 			bool operator==(const FightEnded&) const = default;
 		};
@@ -367,6 +384,8 @@ namespace rules {
 		event::PlanRedirected,
 		event::PlanDropped,
 		event::DeathMarkTaken,
+		event::WaveDue,
+		event::RaiderArrived,
 		event::FightEnded>;
 
 } // namespace rules
