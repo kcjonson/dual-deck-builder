@@ -12,7 +12,9 @@ target_sources(ddb_rules PRIVATE
     MapMath.cpp
     MapParams.cpp
     MapPresets.cpp
+    MoveCost.cpp
     ParamValidator.cpp
+    RiverIndex.cpp
     Rivers.cpp
     RollParams.cpp
     Terrain.cpp
