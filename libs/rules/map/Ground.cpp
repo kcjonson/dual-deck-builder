@@ -12,8 +12,15 @@ namespace rules::map {
 	} // namespace
 
 	Ground::Ground(const Terrain& terrain, const Water& water)
+		: Ground(terrain, water, nullptr) {}
+
+	Ground::Ground(const Terrain& terrain, const Water& water, const Hazards& layer)
+		: Ground(terrain, water, &layer) {}
+
+	Ground::Ground(const Terrain& terrain, const Water& water, const Hazards* layer)
 		: land(&terrain),
-		  wet(&water) {
+		  wet(&water),
+		  hazards(layer) {
 		assert(water.moisture().size() == static_cast<size_t>(terrain.surface().grid.cells()) && "Ground: the water is the terrain's");
 	}
 
@@ -47,7 +54,16 @@ namespace rules::map {
 	}
 
 	double Ground::contamination(double x, double y) const {
-		return land->fields().contamination(x, y);
+		const double own = land->fields().contamination(x, y);
+		if (hazards == nullptr) {
+			return own;
+		}
+		// The metro's blend caps the plumes as it does the land's own, so none reaches the metro.
+		return hazards->plumes(x, y, own, 1 - startWeight(land->start(), x * x + y * y));
+	}
+
+	bool Ground::crater(double x, double y) const {
+		return hazards != nullptr && hazards->crater(x, y);
 	}
 
 } // namespace rules::map

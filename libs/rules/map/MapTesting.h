@@ -2,6 +2,7 @@
 
 // The maps the map tests share, each built once a run. Tests only: nothing in the library includes it.
 
+#include "Hazards.h"
 #include "Lakes.h"
 #include "LandGrid.h"
 #include "MapParams.h"
@@ -117,6 +118,23 @@ namespace rules::map::fixtures {
 
 	inline const Water& waterFor(const MapParams& params) {
 		return waterFor(params, params);
+	}
+
+	// The hazards stage's stream over waterStream(params).
+	inline foundation::Rng hazardsStream(const MapParams& params, uint32_t attempt = 0) {
+		return foundation::Rng(waterStream(params).seed()).fork("hazards", attempt);
+	}
+
+	// The hazards over the fixture's terrain and water, built the first time they're asked for.
+	inline const Hazards& hazardsFor(const MapParams& params) {
+		static std::vector<std::pair<MapParams, std::unique_ptr<Hazards>>> built;
+		for (const auto& [key, hazards] : built) {
+			if (key == params) {
+				return *hazards;
+			}
+		}
+		built.emplace_back(params, std::make_unique<Hazards>(params, terrainFor(params), waterFor(params), hazardsStream(params)));
+		return *built.back().second;
 	}
 
 	// What holding behind a dam means: every lake cell stands under the level and drains into the lake, the
