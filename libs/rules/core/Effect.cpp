@@ -53,7 +53,9 @@ namespace rules {
 			if (!object) {
 				return std::nullopt;
 			}
-			const RamFormula formula{.armorPer = readOptionalAmount(*object, "armorPer").value_or(0), .speedDiff = object->optionalInt("speedDiff").value_or(0)};
+			const RamFormula formula{
+				.armorPer = readOptionalAmount(*object, "armorPer").value_or(0), .speedDiff = object->optionalInt("speedDiff").value_or(0)
+			};
 			object->finish();
 			if (formula.armorPer == 0 && formula.speedDiff == 0) {
 				reader.failAt("formula", "adds nothing; give it armorPer, speedDiff, or both");
@@ -97,7 +99,13 @@ namespace rules {
 					}
 					break;
 				case Move::Swerve:
-					needsTo({Destination::OtherLane, Destination::Outside, Destination::Ahead, Destination::Behind, Destination::Pick, Destination::PickRow}
+					needsTo(
+						{Destination::OtherLane,
+						 Destination::Outside,
+						 Destination::Ahead,
+						 Destination::Behind,
+						 Destination::Pick,
+						 Destination::PickRow}
 					);
 					break;
 				case Move::Relocate:
@@ -133,6 +141,9 @@ namespace rules {
 		const std::string type = reader.requireString("type");
 		Effect			  effect;
 		if (type == "damage") {
+			// Ramming scaling makes it a ram unless the data says otherwise.
+			const std::optional<Scaling>	scaling = reader.optionalEnum("scaling", kScalingNames);
+			const std::optional<AttackType> attackType = reader.optionalEnum("attackType", kAttackTypeNames);
 			effect.kind = effect::Damage{
 				.value = readAmount(reader, "value"),
 				.target = reader.requireEnum("target", kEffectTargetNames),
@@ -141,8 +152,8 @@ namespace rules {
 				.alwaysHits = reader.optionalBool("alwaysHits"),
 				.onHit = reader.optionalBool("onHit"),
 				.structureOnly = reader.optionalBool("structureOnly"),
-				.attackType = reader.optionalEnum("attackType", kAttackTypeNames).value_or(AttackType::Ranged),
-				.scaling = reader.optionalEnum("scaling", kScalingNames),
+				.attackType = attackType.value_or(scaling == Scaling::Ramming ? AttackType::Ramming : AttackType::Ranged),
+				.scaling = scaling,
 				.formula = readFormula(reader),
 				.bonus = readBonus(reader),
 				.condition = readOptionalCondition(reader, "condition", ConditionSlot::Effect),

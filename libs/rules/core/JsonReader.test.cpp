@@ -33,8 +33,8 @@ namespace {
 	}
 
 	TEST(JsonReader, NamesTheFileAndPathOfAMissingField) {
-		const auto json = nlohmann::json::parse(R"({"cards": [{"id": "ram"}]})");
-		JsonReader reader(json, "cards.json");
+		const auto		  json = nlohmann::json::parse(R"({"cards": [{"id": "ram"}]})");
+		JsonReader		  reader(json, "cards.json");
 		const std::string message = errorFrom([&] { (void)reader.requireObjects("cards")[0].requireInt("cost"); });
 		EXPECT_EQ(message, "cards.json.cards[0].cost is required");
 	}
@@ -56,7 +56,10 @@ namespace {
 	TEST(JsonReader, ListsTheNamesAnEnumTakes) {
 		const auto json = nlohmann::json::parse(R"({"row": "middle"})");
 		JsonReader reader(json, "test.json");
-		EXPECT_EQ(errorFrom([&] { (void)reader.requireEnum("row", rules::kRowNames); }), "test.json.row \"middle\" is not one of ahead, center, behind");
+		EXPECT_EQ(
+			errorFrom([&] { (void)reader.requireEnum("row", rules::kRowNames); }),
+			"test.json.row \"middle\" is not one of ahead, center, behind"
+		);
 	}
 
 } // namespace

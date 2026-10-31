@@ -50,18 +50,18 @@ namespace rules {
 	struct OpponentDefinition {
 		OpponentId id;
 		// The pack that defined it, or the last one to override it.
-		PackId		  pack;
-		std::string	  name;
-		OpponentClass opponentClass{OpponentClass::Regular};
-		std::string	  specialty;
-		std::string	  flavorText;
+		PackId			 pack;
+		std::string		 name;
+		OpponentClass	 opponentClass{OpponentClass::Regular};
+		std::string		 specialty;
+		std::string		 flavorText;
 		TargetPreference targets{TargetPreference::None};
 		// Nominal threat, which a rout counts.
-		int					   threat{0};
-		IntentTier			   intentTier{IntentTier::Basic};
-		Skills				   skills;
-		VehicleStats		   vehicle;
-		int					   hitpoints{0};
+		int			 threat{0};
+		IntentTier	 intentTier{IntentTier::Basic};
+		Skills		 skills;
+		VehicleStats vehicle;
+		int			 hitpoints{0};
 		// Adrenaline it refills to every turn, the first included.
 		int					   maxAdrenaline{0};
 		int					   handLimit{0};

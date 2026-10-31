@@ -80,7 +80,7 @@ namespace rules {
 	} // namespace
 
 	Condition readCondition(JsonReader& reader, std::string_view key, ConditionSlot slot) {
-		const nlohmann::json& value = reader.requireValue(key);
+		const nlohmann::json&	 value = reader.requireValue(key);
 		std::optional<Condition> condition;
 		if (value.is_string()) {
 			const auto name = value.get<std::string>();

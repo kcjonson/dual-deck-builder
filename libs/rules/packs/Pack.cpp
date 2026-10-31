@@ -50,7 +50,9 @@ namespace rules {
 			}
 			for (const fs::directory_entry& entry : fs::directory_iterator(folder)) {
 				if (!entry.is_regular_file() || entry.path().extension() != ".json") {
-					throw ContentError(entry.path().generic_string() + " isn't a .json file, and nothing in " + folder.generic_string() + " reads it");
+					throw ContentError(
+						entry.path().generic_string() + " isn't a .json file, and nothing in " + folder.generic_string() + " reads it"
+					);
 				}
 				files.push_back(entry.path());
 			}
@@ -85,7 +87,8 @@ namespace rules {
 					for (const PackId& required : manifest.requiredPacks) {
 						const auto loaded = closures.find(required);
 						if (loaded == closures.end() || loaded->first == manifest.id) {
-							const bool later = std::ranges::any_of(manifests, [&](const PackManifest& other) { return other.id == required; });
+							const bool later =
+								std::ranges::any_of(manifests, [&](const PackManifest& other) { return other.id == required; });
 							throw ContentError(
 								manifest.root.generic_string() + ": pack " + manifest.id.value + " requires " + required.value +
 								(later ? ", which loads after it" : ", which isn't among the packs loaded")
@@ -107,12 +110,12 @@ namespace rules {
 			}
 
 		  private:
-			Content								   content;
-			std::map<PackId, std::set<PackId>>	   closures;
-			std::map<CardId, Origin>			   cardOrigins;
-			std::map<DriverId, Origin>			   driverOrigins;
-			std::map<EscortId, Origin>			   escortOrigins;
-			std::map<OpponentId, Origin>		   opponentOrigins;
+			Content							   content;
+			std::map<PackId, std::set<PackId>> closures;
+			std::map<CardId, Origin>		   cardOrigins;
+			std::map<DriverId, Origin>		   driverOrigins;
+			std::map<EscortId, Origin>		   escortOrigins;
+			std::map<OpponentId, Origin>	   opponentOrigins;
 
 			void loadPack(const PackManifest& manifest) {
 				forEachDefinition(manifest, "cards", [&](JsonReader reader, const std::string& file) {
@@ -130,7 +133,8 @@ namespace rules {
 						throw ContentError(folder.generic_string() + " has no opponent.json");
 					}
 					const nlohmann::json json = readJsonFile(file);
-					OpponentDefinition	 opponent = readOpponent(JsonReader(json, file.generic_string()), OpponentId{folder.filename().string()});
+					OpponentDefinition	 opponent =
+						readOpponent(JsonReader(json, file.generic_string()), OpponentId{folder.filename().string()});
 					checkScript(folder, file, opponent.behavior.script);
 					define(content.opponents, opponentOrigins, std::move(opponent), "opponent", manifest, file.generic_string());
 				}
@@ -164,12 +168,15 @@ namespace rules {
 				if (earlier != origins.end()) {
 					const Origin& origin = earlier->second;
 					if (origin.pack == manifest.id) {
-						throw ContentError(file + ": " + kind + " " + id.value + " is defined twice in pack " + manifest.id.value + ", here and in " + origin.file);
+						throw ContentError(
+							file + ": " + kind + " " + id.value + " is defined twice in pack " + manifest.id.value + ", here and in " +
+							origin.file
+						);
 					}
 					if (!closures.at(manifest.id).contains(origin.pack)) {
 						throw ContentError(
-							file + ": pack " + manifest.id.value + " overrides " + kind + " " + id.value + " from pack " + origin.pack.value +
-							" without requiring " + origin.pack.value
+							file + ": pack " + manifest.id.value + " overrides " + kind + " " + id.value + " from pack " +
+							origin.pack.value + " without requiring " + origin.pack.value
 						);
 					}
 				}
@@ -184,13 +191,15 @@ namespace rules {
 					return;
 				}
 				const fs::path relative(script);
-				const bool	   escapes =
-					relative.is_absolute() || relative.has_root_name() || std::ranges::any_of(relative, [](const fs::path& part) { return part == ".."; });
+				const bool	   escapes = relative.is_absolute() || relative.has_root_name() ||
+									 std::ranges::any_of(relative, [](const fs::path& part) { return part == ".."; });
 				if (escapes) {
 					throw ContentError(file.generic_string() + ": behavior.script has to stay inside the opponent's folder");
 				}
 				if (!fs::is_regular_file(folder / relative)) {
-					throw ContentError(file.generic_string() + ": behavior.script names " + script + ", which isn't in the opponent's folder");
+					throw ContentError(
+						file.generic_string() + ": behavior.script names " + script + ", which isn't in the opponent's folder"
+					);
 				}
 			}
 
@@ -215,12 +224,14 @@ namespace rules {
 					const Origin& origin = cardOrigins.at(id);
 					if (card.driverRestriction && !content.drivers.contains(*card.driverRestriction)) {
 						throw ContentError(
-							origin.file + ": card " + id.value + " is restricted to driver " + card.driverRestriction->value + ", which no pack defines"
+							origin.file + ": card " + id.value + " is restricted to driver " + card.driverRestriction->value +
+							", which no pack defines"
 						);
 					}
 					if (card.signatureOf && !content.escorts.contains(*card.signatureOf)) {
 						throw ContentError(
-							origin.file + ": card " + id.value + " is the signature of escort " + card.signatureOf->value + ", which no pack defines"
+							origin.file + ": card " + id.value + " is the signature of escort " + card.signatureOf->value +
+							", which no pack defines"
 						);
 					}
 				}

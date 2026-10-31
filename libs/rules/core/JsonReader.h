@@ -27,14 +27,14 @@ namespace rules {
 		JsonReader(const nlohmann::json& object, std::string where);
 
 		[[nodiscard]] const std::string& where() const { return location; }
-		[[nodiscard]] bool has(std::string_view key) const;
+		[[nodiscard]] bool				 has(std::string_view key) const;
 
-		[[nodiscard]] int					 requireInt(std::string_view key);
-		[[nodiscard]] std::optional<int>	 optionalInt(std::string_view key);
-		[[nodiscard]] double				 requireNumber(std::string_view key);
-		[[nodiscard]] bool					 requireBool(std::string_view key);
-		[[nodiscard]] bool					 optionalBool(std::string_view key);
-		[[nodiscard]] std::string			 requireString(std::string_view key);
+		[[nodiscard]] int						 requireInt(std::string_view key);
+		[[nodiscard]] std::optional<int>		 optionalInt(std::string_view key);
+		[[nodiscard]] double					 requireNumber(std::string_view key);
+		[[nodiscard]] bool						 requireBool(std::string_view key);
+		[[nodiscard]] bool						 optionalBool(std::string_view key);
+		[[nodiscard]] std::string				 requireString(std::string_view key);
 		[[nodiscard]] std::optional<std::string> optionalString(std::string_view key);
 		[[nodiscard]] std::vector<std::string>	 requireStrings(std::string_view key);
 

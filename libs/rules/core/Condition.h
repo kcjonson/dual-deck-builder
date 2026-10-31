@@ -8,7 +8,18 @@
 namespace rules {
 
 	// The statuses card data names. The battle adds the ones only it applies.
-	enum class Status { SpeedReduction, Vulnerable, SpeedBoost, SpeedPlus, EvadeBoost, Stunned, TripleDamage, DeathMark, DamageBonus, BoxedIn };
+	enum class Status {
+		SpeedReduction,
+		Vulnerable,
+		SpeedBoost,
+		SpeedPlus,
+		EvadeBoost,
+		Stunned,
+		TripleDamage,
+		DeathMark,
+		DamageBonus,
+		BoxedIn
+	};
 
 	inline constexpr EnumNames<Status, 10> kStatusNames{{
 		{"speed_reduction", Status::SpeedReduction},

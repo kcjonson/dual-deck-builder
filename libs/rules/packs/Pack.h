@@ -27,10 +27,10 @@ namespace rules {
 	// Everything the loaded packs define, by id, after every override.
 	struct Content {
 		// In load order.
-		std::vector<PackManifest>			   packs;
-		std::map<CardId, CardDefinition>	   cards;
-		std::map<DriverId, DriverDefinition>   drivers;
-		std::map<EscortId, EscortDefinition>   escorts;
+		std::vector<PackManifest>				 packs;
+		std::map<CardId, CardDefinition>		 cards;
+		std::map<DriverId, DriverDefinition>	 drivers;
+		std::map<EscortId, EscortDefinition>	 escorts;
 		std::map<OpponentId, OpponentDefinition> opponents;
 	};
 

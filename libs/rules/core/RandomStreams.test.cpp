@@ -16,7 +16,7 @@ namespace {
 	}
 
 	TEST(RandomStreams, EachEventGetsItsOwnDraws) {
-		RandomStreams streams(7);
+		RandomStreams  streams(7);
 		const uint32_t first = streams.next("deal").nextUInt32();
 		const uint32_t second = streams.next("deal").nextUInt32();
 		EXPECT_NE(first, second);

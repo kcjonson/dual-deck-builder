@@ -15,7 +15,12 @@ namespace rules {
 		}
 
 		// Every {name} in `text` has to be one of the card's variables.
-		void checkPlaceholders(JsonReader& reader, std::string_view key, std::string_view text, const std::map<std::string, CardVariable>& variables) {
+		void checkPlaceholders(
+			JsonReader&								   reader,
+			std::string_view						   key,
+			std::string_view						   text,
+			const std::map<std::string, CardVariable>& variables
+		) {
 			for (size_t open = text.find('{'); open != std::string_view::npos; open = text.find('{', open + 1)) {
 				const size_t close = text.find('}', open);
 				if (close == std::string_view::npos) {
@@ -87,7 +92,8 @@ namespace rules {
 			.upgrade = readUpgrade(reader),
 			.tags = reader.requireStrings("tags"),
 			.image = reader.requireString("image"),
-			.driverRestriction = reader.has("driverRestriction") ? std::optional(DriverId{reader.requireString("driverRestriction")}) : std::nullopt,
+			.driverRestriction =
+				reader.has("driverRestriction") ? std::optional(DriverId{reader.requireString("driverRestriction")}) : std::nullopt,
 			.signatureOf = reader.has("signatureOf") ? std::optional(EscortId{reader.requireString("signatureOf")}) : std::nullopt,
 			.spendsEscort = reader.optionalBool("spendsEscort"),
 		};

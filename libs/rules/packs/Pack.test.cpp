@@ -34,7 +34,11 @@ namespace {
 
 		fs::path pack(std::string_view id, std::string_view requiredPacks = R"(["base"])") {
 			const fs::path root = scratch / std::string(id);
-			write(root / "pack.json", std::string(R"({"id": ")") + std::string(id) + R"(", "name": "Test", "version": "1", "requires": )" + std::string(requiredPacks) + "}");
+			write(
+				root / "pack.json",
+				std::string(R"({"id": ")") + std::string(id) + R"(", "name": "Test", "version": "1", "requires": )" +
+					std::string(requiredPacks) + "}"
+			);
 			return root;
 		}
 
@@ -77,7 +81,7 @@ namespace {
 	TEST_F(PackLoading, APackOverridesWhatItRequires) {
 		const fs::path mod = pack("cheap");
 		write(mod / "cards" / "cards.json", kCheapPointBlank);
-		const Content content = loadPacks(std::vector<fs::path>{kBase, mod});
+		const Content		  content = loadPacks(std::vector<fs::path>{kBase, mod});
 		const CardDefinition& card = content.cards.at(CardId{"point_blank"});
 		EXPECT_EQ(card.cost, 0);
 		EXPECT_EQ(card.pack, PackId{"cheap"});
@@ -95,7 +99,9 @@ namespace {
 		const fs::path second = pack("second");
 		write(first / "cards" / "cards.json", kCheapPointBlank);
 		write(second / "cards" / "cards.json", kCheapPointBlank);
-		EXPECT_TRUE(mentions(errorFrom({kBase, first, second}), "pack second overrides card point_blank from pack first without requiring first"));
+		EXPECT_TRUE(
+			mentions(errorFrom({kBase, first, second}), "pack second overrides card point_blank from pack first without requiring first")
+		);
 
 		const fs::path layered = pack("layered", R"(["first"])");
 		write(layered / "cards" / "cards.json", kCheapPointBlank);
