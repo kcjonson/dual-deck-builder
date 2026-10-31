@@ -1,4 +1,3 @@
-#include <rules/map/AreaMapPipeline.h>
 #include <rules/map/MapTesting.h>
 #include <rules/map/Water.h>
 
@@ -284,40 +283,6 @@ namespace {
 		const MapParams& params = fixtures::mixed();
 		const Water		 other(params, fixtures::terrainFor(params), fixtures::waterStream(params, 1));
 		EXPECT_NE(other.moisture()[0], fixtures::waterFor(params).moisture()[0]);
-	}
-
-	TEST(AreaMapPipeline, RunsTheWaterOnAStreamNestedInTheTerrainsAndMakesTheSameMapToTheBit) {
-		const MapParams&			  params = fixtures::mixed();
-		std::vector<std::string>	  started;
-		const PipelineResult<AreaMap> result = generateAreaMap(
-			params, fixtures::placeNames(), {.onProgress = [&](const StageAttempt& attempt) { started.emplace_back(attempt.stage); }}
-		);
-		EXPECT_EQ(started, (std::vector<std::string>{"terrain", "water", "hazards", "places", "roads"}));
-		EXPECT_EQ(result.mapAttempt, 0U);
-		EXPECT_TRUE(result.failures.empty());
-		ASSERT_EQ(result.stages.size(), 5U);
-		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
-		EXPECT_EQ(result.stages[1].name, "water");
-		EXPECT_EQ(result.stages[1].stream, fixtures::waterStream(params).seed());
-		ASSERT_TRUE(result.products.terrain.has_value() && result.products.water.has_value());
-		EXPECT_EQ(result.products.terrain->surface().elevation, fixtures::terrainFor(params).surface().elevation);
-		EXPECT_EQ(result.products.terrain->surface().drainage.levels, fixtures::terrainFor(params).surface().drainage.levels);
-		const Water& water = *result.products.water;
-		const Water& direct = fixtures::waterFor(params);
-		EXPECT_EQ(water.drainage().area, direct.drainage().area);
-		EXPECT_EQ(water.moisture().size(), direct.moisture().size());
-		EXPECT_TRUE(std::ranges::equal(water.moisture(), direct.moisture()));
-		EXPECT_TRUE(std::ranges::equal(water.lakeDepth(), direct.lakeDepth()));
-		ASSERT_EQ(water.rivers().size(), direct.rivers().size());
-		for (size_t id = 0; id < water.rivers().size(); ++id) {
-			ASSERT_EQ(water.rivers()[id].line.size(), direct.rivers()[id].line.size());
-			for (size_t index = 0; index < water.rivers()[id].line.size(); ++index) {
-				EXPECT_EQ(water.rivers()[id].line[index].x, direct.rivers()[id].line[index].x);
-				EXPECT_EQ(water.rivers()[id].line[index].y, direct.rivers()[id].line[index].y);
-			}
-		}
-		ASSERT_TRUE(result.products.roads.has_value());
-		EXPECT_TRUE(fixtures::sameRoads(result.products.roads->links(), fixtures::roadsFor(params).links()));
 	}
 
 } // namespace

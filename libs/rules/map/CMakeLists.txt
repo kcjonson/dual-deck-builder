@@ -17,9 +17,13 @@ target_sources(ddb_rules PRIVATE
     ParamValidator.cpp
     PlaceNames.cpp
     Places.cpp
+    Polyline.cpp
     RiverIndex.cpp
     Rivers.cpp
+    RoadChecks.cpp
+    RoadGraph.cpp
     RoadLinks.cpp
+    RoadNetwork.cpp
     Roads.cpp
     RoadSearch.cpp
     RollParams.cpp

@@ -43,7 +43,7 @@ namespace rules::map {
 
 		// The links are ordered by the stream, so another attempt links the places in another order.
 		Problems checkRoadsStage(const AreaMapInput& input, const AreaMap& map) {
-			return checkRoads(*map.roads, input.params);
+			return checkRoads(*map.roads, input.params, Ground(*map.terrain, *map.water, *map.hazards));
 		}
 
 	} // namespace

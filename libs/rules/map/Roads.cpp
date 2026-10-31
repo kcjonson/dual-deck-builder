@@ -1,14 +1,16 @@
 #include "Roads.h"
 
 #include "EdgeCostField.h"
-#include "Ground.h"
+#include "RoadChecks.h"
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstddef>
-#include <initializer_list>
+#include <cstdint>
+#include <map>
+#include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace rules::map {
@@ -24,46 +26,40 @@ namespace rules::map {
 			double most = 0.6;
 		};
 
-		constexpr LoopRules kLoops;
+		// Highway spans this long or more can break, where their middle lies past `outside` of the radius.
+		struct BrokenRules {
+			double length = 70;
+			double outside = 0.35;
+		};
 
-		// The cycle rank of the road moves, the compound's four cells counted as one: the loops the network
-		// drawn from them closes, since the graph only joins runs of moves into stretches.
-		int roadLoops(const RoadLinks& links, const LandGrid& grid) {
-			const std::array<int, 4> compound = compoundCells(grid);
-			const auto				 vertexOf = [&](int cell) {
-				  return std::ranges::find(compound, cell) != compound.end() ? compound[0] : cell;
-			};
-			// Per cell, its root among the cells roads join, -1 for none.
-			std::vector<int> parent(static_cast<size_t>(grid.cells()), -1);
-			const auto		 rootOf = [&](int cell) {
-				  int root = cell;
-				  while (parent[static_cast<size_t>(root)] != root) {
-					  root = parent[static_cast<size_t>(root)];
-				  }
-				  return root;
-			};
-			int edges = 0;
-			int vertices = 0;
-			int pieces = 0;
-			for (const RoadMove& move : links.moves) {
-				const int a = vertexOf(move.from);
-				const int b = vertexOf(move.to);
-				edges += 1;
-				for (const int vertex : {a, b}) {
-					if (parent[static_cast<size_t>(vertex)] < 0) {
-						parent[static_cast<size_t>(vertex)] = vertex;
-						vertices += 1;
-						pieces += 1;
-					}
-				}
-				const int rootA = rootOf(a);
-				const int rootB = rootOf(b);
-				if (rootA != rootB) {
-					parent[static_cast<size_t>(rootA)] = rootB;
-					pieces -= 1;
+		constexpr LoopRules	  kLoops;
+		constexpr BrokenRules kBroken;
+
+		// Whether every node reaches the compound over the stretches not gone.
+		bool allReach(size_t nodes, std::span<const RoadStretch> stretches, const std::set<size_t>& gone) {
+			std::vector<std::vector<size_t>> linked(nodes);
+			for (size_t id = 0; id < stretches.size(); ++id) {
+				if (!gone.contains(id)) {
+					linked[static_cast<size_t>(stretches[id].from)].push_back(static_cast<size_t>(stretches[id].to));
+					linked[static_cast<size_t>(stretches[id].to)].push_back(static_cast<size_t>(stretches[id].from));
 				}
 			}
-			return edges - vertices + pieces;
+			std::vector<uint8_t> reached(nodes);
+			std::vector<size_t>	 pending{0};
+			reached[0] = 1;
+			size_t count = 1;
+			while (!pending.empty()) {
+				const size_t node = pending.back();
+				pending.pop_back();
+				for (const size_t next : linked[node]) {
+					if (reached[next] == 0) {
+						reached[next] = 1;
+						count += 1;
+						pending.push_back(next);
+					}
+				}
+			}
+			return count == nodes;
 		}
 
 	} // namespace
@@ -82,8 +78,89 @@ namespace rules::map {
 		const std::vector<Place> list = placeList(places);
 		roadLinks =
 			layRoadLinks({.field = field, .places = list, .loops = params.loops, .trailShare = params.trailShare, .stream = stream});
-		loopCount = roadLoops(roadLinks, terrain.surface().grid);
 		worked = field.worked();
+		RoadGraph		roadGraph = buildRoadGraph({.links = roadLinks, .places = list, .ground = ground});
+		foundation::Rng breaking = stream.fork("broken");
+		BrokenHighways	split = breakHighways({
+			 .nodes = roadGraph.nodes,
+			 .stretches = std::move(roadGraph.stretches),
+			 .places = list,
+			 .count = params.brokenHighways,
+			 .radius = params.radius,
+			 .rng = breaking,
+		 });
+		roadNetwork = {
+			.nodes = std::move(roadGraph.nodes),
+			.stretches = std::move(split.stretches),
+			.broken = std::move(split.broken),
+			.passes = roadLinks.passes,
+		};
+		graph = roadGraph.stats;
+		networkLoops = loopCount(roadNetwork.nodes.size(), roadNetwork.stretches);
+	}
+
+	BrokenHighways breakHighways(BreakArgs args) {
+		std::set<int> highwayExits;
+		for (const Place& place : args.places) {
+			if (place.kind == PlaceKind::Exit && place.highway) {
+				highwayExits.insert(place.id);
+			}
+		}
+		const std::vector<RoadStretch>& stretches = args.stretches;
+		// Per node, the highway stretches ending on it, counted only at highway exits.
+		std::map<int, int> exitHighways;
+		for (const RoadStretch& stretch : stretches) {
+			if (stretch.roadClass != RoadClass::Highway) {
+				continue;
+			}
+			for (const int node : {stretch.from, stretch.to}) {
+				if (highwayExits.contains(args.nodes[static_cast<size_t>(node)].place)) {
+					exitHighways[node] += 1;
+				}
+			}
+		}
+		const auto lastAtExit = [&](const RoadStretch& stretch) {
+			const auto from = exitHighways.find(stretch.from);
+			const auto to = exitHighways.find(stretch.to);
+			return (from != exitHighways.end() && from->second == 1) || (to != exitHighways.end() && to->second == 1);
+		};
+		const double		outside = kBroken.outside * args.radius;
+		std::vector<size_t> candidates;
+		for (size_t id = 0; id < stretches.size(); ++id) {
+			const RoadStretch& stretch = stretches[id];
+			if (stretch.roadClass != RoadClass::Highway || stretch.length < kBroken.length) {
+				continue;
+			}
+			const Point middle = stretch.points[stretch.points.size() / 2];
+			if (middle.x * middle.x + middle.y * middle.y > outside * outside) {
+				candidates.push_back(id);
+			}
+		}
+		args.rng.shuffle(candidates);
+		std::set<size_t> gone;
+		for (const size_t id : candidates) {
+			if (std::cmp_greater_equal(gone.size(), args.count)) {
+				break;
+			}
+			if (lastAtExit(stretches[id])) {
+				continue;
+			}
+			gone.insert(id);
+			if (!allReach(args.nodes.size(), stretches, gone)) {
+				gone.erase(id);
+				continue;
+			}
+			for (const int node : {stretches[id].from, stretches[id].to}) {
+				if (const auto found = exitHighways.find(node); found != exitHighways.end()) {
+					found->second -= 1;
+				}
+			}
+		}
+		BrokenHighways split;
+		for (size_t id = 0; id < stretches.size(); ++id) {
+			(gone.contains(id) ? split.broken : split.stretches).push_back(std::move(args.stretches[id]));
+		}
+		return split;
 	}
 
 	int loopsWanted(const MapParams& params) {
@@ -96,7 +173,7 @@ namespace rules::map {
 		return std::min(closable, loopsWanted(params));
 	}
 
-	Problems checkRoads(const Roads& roads, const MapParams& params) {
+	Problems checkRoads(const Roads& roads, const MapParams& params, const Ground& ground) {
 		Problems				problems;
 		const std::vector<int>& unreached = roads.links().stats.unreached;
 		if (!unreached.empty()) {
@@ -111,6 +188,13 @@ namespace rules::map {
 			problems.push_back(
 				"loops: the roads close " + std::to_string(roads.loops()) + " loops, and the POIs need " + std::to_string(needed)
 			);
+		}
+		for (const RoadViolation& violation : checkRoadNetwork(roads.network(), ground)) {
+			for (const auto& [name, rule] : kRoadRuleNames) {
+				if (rule == violation.rule) {
+					problems.push_back(std::string(name) + ": " + violation.detail);
+				}
+			}
 		}
 		return problems;
 	}

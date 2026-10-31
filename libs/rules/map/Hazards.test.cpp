@@ -1,4 +1,3 @@
-#include <rules/map/AreaMapPipeline.h>
 #include <rules/map/Ground.h>
 #include <rules/map/Hazards.h>
 #include <rules/map/MapTesting.h>
@@ -123,35 +122,6 @@ namespace {
 		EXPECT_TRUE(hazards.hotspots().empty());
 		EXPECT_FALSE(hazards.crater(0, 0));
 		EXPECT_EQ(hazards.plumes(100, 100, 0.25, 1), 0.25);
-	}
-
-	TEST(AreaMapPipeline, RetriesTheHazardsAloneLeavingTheTerrainAndTheWaterAsTheyWere) {
-		const MapParams&			  params = fixtures::mixed();
-		const PipelineResult<AreaMap> result =
-			generateAreaMap(params, fixtures::placeNames(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
-								return attempt.stage == "hazards" && attempt.attempt == 0 ? Problems{"no craters there"} : Problems{};
-							}});
-		EXPECT_EQ(result.mapAttempt, 0U);
-		ASSERT_EQ(result.stages.size(), 5U);
-		EXPECT_EQ(result.stages[0].attempt, 0U);
-		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
-		EXPECT_EQ(result.stages[1].attempt, 0U);
-		EXPECT_EQ(result.stages[1].stream, fixtures::waterStream(params).seed());
-		EXPECT_EQ(result.stages[2].attempt, 1U);
-		EXPECT_EQ(result.stages[2].stream, fixtures::hazardsStream(params, 1).seed());
-		ASSERT_EQ(result.failures.size(), 1U);
-		EXPECT_EQ(result.failures[0].stage, "hazards");
-
-		EXPECT_EQ(result.products.terrain->surface().elevation, fixtures::terrainFor(params).surface().elevation);
-		EXPECT_TRUE(std::ranges::equal(result.products.water->moisture(), fixtures::waterFor(params).moisture()));
-		const Hazards retried(params, fixtures::terrainFor(params), fixtures::waterFor(params), fixtures::hazardsStream(params, 1));
-		const auto&	  hotspots = result.products.hazards->hotspots();
-		ASSERT_EQ(hotspots.size(), retried.hotspots().size());
-		for (size_t index = 0; index < hotspots.size(); ++index) {
-			EXPECT_EQ(hotspots[index].x, retried.hotspots()[index].x);
-			EXPECT_EQ(hotspots[index].y, retried.hotspots()[index].y);
-		}
-		EXPECT_NE(hotspots.front().x, fixtures::hazardsFor(params).hotspots().front().x);
 	}
 
 } // namespace

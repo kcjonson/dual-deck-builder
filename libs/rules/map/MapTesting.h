@@ -7,10 +7,10 @@
 #include "Lakes.h"
 #include "LandGrid.h"
 #include "MapParams.h"
-#include "MoveCost.h"
 #include "ParamValidator.h"
 #include "PlaceNames.h"
 #include "Places.h"
+#include "RoadChecks.h"
 #include "Roads.h"
 #include "Terrain.h"
 #include "Water.h"
@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
@@ -191,12 +192,24 @@ namespace rules::map::fixtures {
 		return *built.back().second;
 	}
 
-	// Whether two sets of links laid the same roads, move for move.
-	inline bool sameRoads(const RoadLinks& a, const RoadLinks& b) {
-		return std::ranges::equal(a.moves, b.moves, [](const RoadMove& left, const RoadMove& right) {
+	// Whether two roads stages laid the same roads, move for move, and drew the same network, point for point.
+	inline bool sameRoads(const Roads& a, const Roads& b) {
+		const bool moves = std::ranges::equal(a.links().moves, b.links().moves, [](const RoadMove& left, const RoadMove& right) {
 			return left.from == right.from && left.direction == right.direction && left.roadClass == right.roadClass &&
 				   left.highway == right.highway;
 		});
+		const auto sameStretch = [](const RoadStretch& left, const RoadStretch& right) {
+			return left.from == right.from && left.to == right.to && left.roadClass == right.roadClass && left.highway == right.highway &&
+				   left.points == right.points;
+		};
+		const RoadNetwork& first = a.network();
+		const RoadNetwork& second = b.network();
+		return moves && first.nodes.size() == second.nodes.size() && std::ranges::equal(first.stretches, second.stretches, sameStretch) &&
+			   std::ranges::equal(first.broken, second.broken, sameStretch);
+	}
+	// The land and its water, before the hazards' craters and plumes.
+	inline Ground waterGroundFor(const MapParams& params) {
+		return {terrainFor(params), waterFor(params)};
 	}
 
 	// The ground under the fixture's roads: the land with its water and hazards.
@@ -204,47 +217,12 @@ namespace rules::map::fixtures {
 		return {terrainFor(params), waterFor(params), hazardsFor(params)};
 	}
 
-	// Whether a road along the segment passes, sampled at its ends and every half unit from its lower-left end
-	// between, as the edge cost field samples a move: no sample on impassable ground bar river water under one
-	// of its bridges, the metro's rivers counting though obstacle passes them, bar on Home's own cells. Asks
-	// every sample everything, where the field asks only after what could be there.
+	// Whether a road along the segment passes, as the network checks sample it: every sample everything, where
+	// the edge cost field asks only after what could be there.
 	inline bool passableAlong(const Ground& ground, double x0, double y0, double x1, double y1) {
-		const MoveCost				  costs(ground, 0.5);
-		const std::vector<BridgeSpan> spans = costs.bridgeSpans(x0, y0, x1, y1);
-		const double				  home = ground.terrain().surface().grid.cellSize;
-		const double				  length = std::sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
-		const bool					  forward = x0 < x1 || (x0 == x1 && y0 <= y1);
-		const double				  startX = forward ? x0 : x1;
-		const double				  startY = forward ? y0 : y1;
-		const double				  endX = forward ? x1 : x0;
-		const double				  endY = forward ? y1 : y0;
-		const auto					  blocked = [&](double x, double y, double along) {
-			   const Obstacle obstacle = ground.obstacle(x, y);
-			   const bool	  metroRiver = obstacle == Obstacle::None && ground.bridged(x, y) && ground.waterAt(x, y) == WaterKind::River;
-			   if (obstacle == Obstacle::None && !metroRiver) {
-				   return false;
-			   }
-			   if (obstacle != Obstacle::None && obstacle != Obstacle::River) {
-				   return true;
-			   }
-			   if (std::abs(x) <= home && std::abs(y) <= home) {
-				   return false;
-			   }
-			   return std::ranges::none_of(spans, [&](const BridgeSpan& span) { return along >= span.from && along <= span.to; });
-		};
-		if (blocked(x0, y0, 0) || blocked(x1, y1, 1)) {
-			return false;
-		}
-		const auto inner = static_cast<int>(std::ceil(length / 0.5)) - 1;
-		for (int sample = 1; sample <= inner; ++sample) {
-			const double share = sample * 0.5 / length;
-			if (blocked(startX + (endX - startX) * share, startY + (endY - startY) * share, forward ? share : 1 - share)) {
-				return false;
-			}
-		}
-		return true;
+		const std::array<Point, 2> line{Point{.x = x0, .y = y0}, Point{.x = x1, .y = y1}};
+		return !impassableAlong(ground, line, polylineBridges(ground, line)).has_value();
 	}
-
 	// What holding behind a dam means: every lake cell stands under the level and drains into the lake, the
 	// dam out of it, and every dry cell side by side with it that the water would reach stands at the level
 	// or over, or lies on the dam's wall or downstream of it, within its reach.

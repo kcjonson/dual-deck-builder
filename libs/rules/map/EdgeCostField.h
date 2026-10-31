@@ -47,6 +47,18 @@ namespace rules::map {
 		return detail::kMoveByStep[static_cast<size_t>((columns + 2) * 5 + rows + 2)];
 	}
 
+	// The id of the move from cell in direction on a grid size cells a side, the same from either end: filed
+	// under the end it leaves forward, six to a cell.
+	[[nodiscard]] constexpr int edgeId(int size, int cell, int direction) {
+		const int slot = detail::kSlotOf[static_cast<size_t>(direction)];
+		if (slot >= 0) {
+			return cell * detail::kSlots + slot;
+		}
+		const auto move = static_cast<size_t>(direction);
+		const int  from = cell + kMoveY[move] * size + kMoveX[move];
+		return from * detail::kSlots + detail::kSlotOf[static_cast<size_t>(kOpposite[move])];
+	}
+
 	// The roads' per-map edge cost field (road-network.md, The edge cost field): what each move costs each
 	// class, from MoveCost's parts at the cell centres, worked out the first time a search asks and kept. The
 	// parts don't depend on the order moves are asked for, so neither does any search.
@@ -80,13 +92,7 @@ namespace rules::map {
 		}
 
 		// A move's id, the same from either end: filed under the end it leaves forward.
-		[[nodiscard]] int edge(int cell, int direction) const {
-			const int slot = detail::kSlotOf[static_cast<size_t>(direction)];
-			if (slot >= 0) {
-				return cell * detail::kSlots + slot;
-			}
-			return step(cell, direction) * detail::kSlots + detail::kSlotOf[static_cast<size_t>(kOpposite[static_cast<size_t>(direction)])];
-		}
+		[[nodiscard]] int edge(int cell, int direction) const { return edgeId(landGrid.size, cell, direction); }
 		// Ids run from 0 to this.
 		[[nodiscard]] int edges() const { return landGrid.cells() * detail::kSlots; }
 

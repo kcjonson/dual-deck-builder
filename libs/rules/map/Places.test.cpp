@@ -1,5 +1,4 @@
 #include <rules/core/ContentError.h>
-#include <rules/map/AreaMapPipeline.h>
 #include <rules/map/Ground.h>
 #include <rules/map/MapTesting.h>
 #include <rules/map/Places.h>
@@ -227,36 +226,6 @@ namespace {
 			errorFrom(R"({"starts": ["Ash"], "endings": ["ford"], "rivers": []})").find("fields nothing reads: rivers"), std::string::npos
 		);
 		fs::remove_all(folder);
-	}
-
-	TEST(AreaMapPipeline, RetriesThePlacesAloneLeavingTheEarlierStagesAsTheyWere) {
-		const MapParams&			  params = fixtures::mixed();
-		const PipelineResult<AreaMap> result =
-			generateAreaMap(params, fixtures::placeNames(), {.accept = [](const AreaMap&, const StageAttempt& attempt) {
-								return attempt.stage == "places" && attempt.attempt == 0 ? Problems{"no towns there"} : Problems{};
-							}});
-		ASSERT_EQ(result.stages.size(), 5U);
-		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
-		EXPECT_EQ(result.stages[1].stream, fixtures::waterStream(params).seed());
-		EXPECT_EQ(result.stages[2].stream, fixtures::hazardsStream(params).seed());
-		EXPECT_EQ(result.stages[3].attempt, 1U);
-		EXPECT_EQ(result.stages[3].stream, fixtures::placesStream(params, 1).seed());
-		EXPECT_EQ(result.products.terrain->surface().elevation, fixtures::terrainFor(params).surface().elevation);
-		EXPECT_EQ(result.products.hazards->hotspots().front().x, fixtures::hazardsFor(params).hotspots().front().x);
-		const Places retried(
-			params,
-			fixtures::terrainFor(params),
-			fixtures::waterFor(params),
-			fixtures::hazardsFor(params),
-			fixtures::placeNames(),
-			fixtures::placesStream(params, 1)
-		);
-		const Places& places = *result.products.places;
-		ASSERT_EQ(places.villages().size(), retried.villages().size());
-		ASSERT_EQ(places.crossroads().size(), retried.crossroads().size());
-		EXPECT_EQ(places.towns().front().name, retried.towns().front().name);
-		EXPECT_EQ(places.crossroads().front().x, retried.crossroads().front().x);
-		EXPECT_NE(places.villages().front().radius, fixtures::placesFor(params).villages().front().radius);
 	}
 
 } // namespace

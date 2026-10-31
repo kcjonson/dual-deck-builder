@@ -2,12 +2,12 @@
 
 #include "Land.h"
 #include "MapMath.h"
+#include "Polyline.h"
 
 #include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
-#include <cstdint>
 #include <limits>
 #include <numeric>
 #include <utility>
@@ -15,11 +15,6 @@
 namespace rules::map {
 
 	namespace {
-
-		struct Point {
-			double x;
-			double y;
-		};
 
 		// Rain-weighted area, in cells of average rain, at riverDensity 0 and 1.
 		constexpr double kSparseThreshold = 700;
@@ -71,84 +66,6 @@ namespace rules::map {
 		double gradeAt(const GridSampler& land, Point point) {
 			const GridSample sample = land.bicubic(point.x, point.y);
 			return std::sqrt(sample.gradientX * sample.gradientX + sample.gradientY * sample.gradientY) * kRelief;
-		}
-
-		std::vector<double> lengthsAlong(const std::vector<Point>& line) {
-			std::vector<double> along(line.size());
-			for (size_t index = 1; index < line.size(); ++index) {
-				const double dx = line[index].x - line[index - 1].x;
-				const double dy = line[index].y - line[index - 1].y;
-				along[index] = along[index - 1] + std::sqrt(dx * dx + dy * dy);
-			}
-			return along;
-		}
-
-		// Chaikin's corner cutting on an open line: each segment's inner quarter points replace its corners,
-		// and the ends stay put.
-		std::vector<Point> chaikin(const std::vector<Point>& line) {
-			if (line.size() < 3) {
-				return line;
-			}
-			std::vector<Point> smoothed{line.front()};
-			for (size_t index = 0; index + 1 < line.size(); ++index) {
-				const Point a = line[index];
-				const Point b = line[index + 1];
-				if (index > 0) {
-					smoothed.push_back({.x = 0.75 * a.x + 0.25 * b.x, .y = 0.75 * a.y + 0.25 * b.y});
-				}
-				if (index + 2 < line.size()) {
-					smoothed.push_back({.x = 0.25 * a.x + 0.75 * b.x, .y = 0.25 * a.y + 0.75 * b.y});
-				}
-			}
-			smoothed.push_back(line.back());
-			return smoothed;
-		}
-
-		// Douglas-Peucker keeping both ends: every point whose removal would move the line more than its own
-		// tolerance stays.
-		std::vector<Point> simplify(const std::vector<Point>& line, const std::vector<double>& tolerances) {
-			if (line.size() < 3) {
-				return line;
-			}
-			std::vector<uint8_t>				   keep(line.size());
-			std::vector<std::pair<size_t, size_t>> pending;
-			pending.emplace_back(0, line.size() - 1);
-			keep.front() = 1;
-			keep.back() = 1;
-			while (!pending.empty()) {
-				const auto [first, last] = pending.back();
-				pending.pop_back();
-				const Point	 a = line[first];
-				const double dx = line[last].x - a.x;
-				const double dy = line[last].y - a.y;
-				const double lengthSquared = dx * dx + dy * dy;
-				// Each point's squared distance from the chord over its squared tolerance, times the chord's
-				// squared length, so no square root is taken.
-				double most = lengthSquared > 0 ? lengthSquared : 1;
-				size_t farthest = 0;
-				for (size_t index = first + 1; index < last; ++index) {
-					const double px = line[index].x - a.x;
-					const double py = line[index].y - a.y;
-					const double cross = dx * py - dy * px;
-					const double away = (lengthSquared > 0 ? cross * cross : px * px + py * py) / (tolerances[index] * tolerances[index]);
-					if (away > most) {
-						most = away;
-						farthest = index;
-					}
-				}
-				if (farthest > 0) {
-					keep[farthest] = 1;
-					pending.emplace_back(first, farthest);
-					pending.emplace_back(farthest, last);
-				}
-			}
-			std::vector<Point> simplified;
-			for (size_t index = 0; index < line.size(); ++index) {
-				if (keep[index] != 0) {
-					simplified.push_back(line[index]);
-				}
-			}
-			return simplified;
 		}
 
 		// The line's points evenly along it, `spacing` apart or a little less, its ends kept, so every point's
