@@ -203,6 +203,13 @@ What the build settled:
 - **The preview matches play, for your vehicles and the raiders.** `plannedTarget` judges the board as the enemy turn will find it (review of #59, raiders since DDB-170). A wrecked target is followed to the vehicle its survivors ride in (`Battle.followWreck`, which play uses too), and the redirect is judged there; a wreck nobody rode away from means the card fizzles, so its intent drops out of the preview (before DDB-170 the mark stayed on the wreck). Rows and ranges are read after the end-of-player-turn drop-back (`Battle.dropBackSlotOf`, which `dropBackFlankers` uses too), so a flanker that will drop back counts in its reserved slot's row, for the target and for the covers. The raider is judged from where it will be when the card plays (DDB-170): `Battle.projectEnemyTurn` drops back the flankers that will drop back, then replays each raider's plan on a `BoardProjection`, so a raider you outpaced reaches from its reserved slot, loses the flank bonus, and still moves with any flank earlier in its own plan. A card it can no longer play legally from there (out of range of the target and the cover) fizzles in play and drops out of the preview. Before DDB-170 its reach came from the slot its plan recorded (`PlannedAction.slot`), so outpacing a flanker with a cover in reach showed the shot on the cover while play gave it to the target. Before DDB-169, a Run Ahead Outrider flanking in a covered row that was about to drop back showed the mark on the cover but took the shot itself, and a wreck's mark stayed on the wreck while play followed and redirected.
 - **A target out of the fight** after that isn't redirected; the card fizzles as before, and since DDB-170 its intent drops out of the preview.
 
+## In the C++ alpha
+
+The campaign's side of escorts is in `libs/rules/campaign/` (2026-10-31, DDB-573), and [campaign.md](./campaign.md) has how. What differs:
+
+- The roster is `Campaign::convoy`, plain values of type and structure (call 395), with no `Convoy` model. `joinConvoy` and `dismissEscort` (`Convoy.h`) are how one joins and leaves, at the compound or on a run, each bringing its signature card in or taking its own copy out (calls 402 and 403).
+- The garage's convoy strip is `hireEscort` and `repairVehicle` (`Garage.h`), with hire and repair prices in `packs/base/campaign/garage-rules.json` (call 401), and dismiss is `dismissEscort`.
+
 ## Open questions
 
 The first draft's nine open questions are all answered: four the same day (decisions 13 to 16), 1, 2, and 5 with DDB-149 (decisions 23 to 27), and 3 and 4 with DDB-151 (decisions 32 and 33).

@@ -1,6 +1,7 @@
 #include "CampaignRules.h"
 
 #include "CampaignJson.h"
+#include "CardOffers.h"
 
 #include <rules/core/ContentError.h>
 #include <rules/core/JsonReader.h>
@@ -19,7 +20,8 @@ namespace rules::campaign {
 		constexpr std::string_view				  kStartFile = "start.json";
 		constexpr std::string_view				  kDeckRulesFile = "deck-rules.json";
 		constexpr std::string_view				  kCompoundRulesFile = "compound-rules.json";
-		constexpr std::array<std::string_view, 3> kFiles{kStartFile, kDeckRulesFile, kCompoundRulesFile};
+		constexpr std::string_view				  kGarageRulesFile = "garage-rules.json";
+		constexpr std::array<std::string_view, 4> kFiles{kStartFile, kDeckRulesFile, kCompoundRulesFile, kGarageRulesFile};
 
 		// The ceiling on any one compound rule, far past tuning, so a slip in the file fails as it loads.
 		constexpr int kMostRule = 1000;
@@ -92,6 +94,38 @@ namespace rules::campaign {
 			return rules;
 		}
 
+		GarageRules readGarageRules(JsonReader reader, const Content& content) {
+			JsonReader	prices = reader.requireObject("cardPrices");
+			GarageRules rules{
+				.stock = requireIntIn(reader, "stock", 0, kMostRule),
+				.cardPrices = {},
+				.repairPerPoint = requireIntIn(reader, "repairPerPoint", 0, kMostRule),
+				.hirePrices = {},
+			};
+			for (const auto& [name, rarity] : kRarityNames) {
+				if (std::ranges::find(kDropRates, rarity, &DropRate::rarity) != kDropRates.end()) {
+					rules.cardPrices.emplace(rarity, requireIntIn(prices, name, 0, kMostRule));
+				}
+			}
+			prices.finish();
+			const nlohmann::json& hire = reader.requireValue("hirePrices");
+			if (!hire.is_object()) {
+				reader.failAt("hirePrices", "must be an object of escort types and their prices");
+			}
+			for (const auto& [name, price] : hire.items()) {
+				const std::string at = "hirePrices." + name;
+				if (!content.escorts.contains(EscortId{name})) {
+					reader.failAt(at, "names escort " + name + ", which no loaded pack defines");
+				}
+				if (!price.is_number_integer() || price < 0 || price > kMostRule) {
+					reader.failAt(at, "must be a whole number from 0 to " + std::to_string(kMostRule));
+				}
+				rules.hirePrices.emplace(EscortId{name}, price.get<int>());
+			}
+			reader.finish();
+			return rules;
+		}
+
 	} // namespace
 
 	CampaignRules loadCampaignRules(const Content& content) {
@@ -107,7 +141,8 @@ namespace rules::campaign {
 				const auto		  known = std::ranges::find(kFiles, name);
 				if (!entry.is_regular_file() || known == kFiles.end()) {
 					throw ContentError(
-						entry.path().generic_string() + " isn't start.json, deck-rules.json, or compound-rules.json, and nothing reads it"
+						entry.path().generic_string() +
+						" isn't start.json, deck-rules.json, compound-rules.json, or garage-rules.json, and nothing reads it"
 					);
 				}
 				const auto earlier = files.find(*known);
@@ -131,10 +166,12 @@ namespace rules::campaign {
 		const auto [start, startFile] = read(kStartFile);
 		const auto [deck, deckFile] = read(kDeckRulesFile);
 		const auto [compound, compoundFile] = read(kCompoundRulesFile);
+		const auto [garage, garageFile] = read(kGarageRulesFile);
 		return CampaignRules{
 			.start = readStart(JsonReader(start, startFile), content),
 			.deck = readDeckRules(JsonReader(deck, deckFile)),
 			.compound = readCompoundRules(JsonReader(compound, compoundFile)),
+			.garage = readGarageRules(JsonReader(garage, garageFile), content),
 		};
 	}
 

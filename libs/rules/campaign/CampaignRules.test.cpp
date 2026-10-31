@@ -77,6 +77,11 @@ namespace {
 		EXPECT_EQ(rules.compound.scavengedScrap.least, 5);
 		EXPECT_EQ(rules.compound.scavengedScrap.most, 15);
 		EXPECT_EQ(rules.compound.riotAtUnrest, 10);
+		EXPECT_EQ(rules.garage.stock, 4);
+		EXPECT_EQ(rules.garage.cardPrices.size(), 4U);
+		EXPECT_EQ(rules.garage.cardPrices.at(Rarity::Rare), 90);
+		EXPECT_EQ(rules.garage.repairPerPoint, 1);
+		EXPECT_EQ(rules.garage.hirePrices.at(EscortId{"med_truck"}), 90);
 	}
 
 	TEST_F(CampaignPacks, ALaterPackReplacesAFileWholeAndOnlyOverAPackItRequires) {
@@ -109,6 +114,14 @@ namespace {
 		start.replace(start.find("fuel_hauler"), std::string("fuel_hauler").size(), "war_rig");
 		write(rig / "campaign" / "start.json", start);
 		EXPECT_TRUE(mentions(errorFrom({kBase, rig}), "names escort war_rig, which no loaded pack defines"));
+
+		const fs::path hire = pack("hire", R"(["base"])");
+		write(
+			hire / "campaign" / "garage-rules.json",
+			R"({"stock": 4, "cardPrices": {"common": 1, "uncommon": 2, "rare": 3, "legendary": 4}, "repairPerPoint": 1,
+				"hirePrices": {"war_rig": 50}})"
+		);
+		EXPECT_TRUE(mentions(errorFrom({kBase, hire}), "hirePrices.war_rig names escort war_rig, which no loaded pack defines"));
 	}
 
 } // namespace

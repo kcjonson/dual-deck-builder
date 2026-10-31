@@ -13,8 +13,8 @@
 namespace rules::campaign {
 
 	// The campaign as a plain value (campaign.md): everything a save keeps, from founding to the run out. The functions
-	// beside it (Founding.h, Locker.h, RunDecks.h, CombatBridge.h) are how play changes it, and CampaignJson.h reads and
-	// writes it.
+	// beside it (Founding.h, Locker.h, RunDecks.h, CombatBridge.h, Garage.h, Convoy.h, Recruits.h) are how play changes
+	// it, and CampaignJson.h reads and writes it.
 
 	// The campaign's own ids, each handed out once from a counter the save keeps, so none is ever reused: a driver in
 	// the pool is "driver-3", an escort in the convoy "escort-2", a run "run-5".
@@ -153,10 +153,22 @@ namespace rules::campaign {
 		// What it brings home, or loses with a failed run: resources, and the cards it won (call 19).
 		Resources  cargo;
 		CardCounts cargoCards;
+		// Drivers a Find: driver turned up, riding home with it and lost if it fails (calls 43 and 212): the pool's
+		// missing, still missing until it's home, and someone new, by archetype, who joins the pool there.
+		std::vector<CrewId>	  found;
+		std::vector<DriverId> recruits;
 		// Fights written back so far, which names the next one's seed.
 		int fights{0};
 
 		bool operator==(const Run&) const = default;
+	};
+
+	// A card on sale in the compound's garage today, one copy (Garage.h).
+	struct GarageOffer {
+		CardId card;
+		bool   sold{false};
+
+		bool operator==(const GarageOffer&) const = default;
 	};
 
 	// A pack a campaign was made with. A save loads only with every one of them loaded.
@@ -222,6 +234,8 @@ namespace rules::campaign {
 		std::vector<DriverRecord> drivers;
 		int						  nextDriverNumber{1};
 		CardCounts				  locker;
+		// The garage's stock for today, rolled at dawn, each a different card.
+		std::vector<GarageOffer> garage;
 		// In roster order, the order they joined.
 		std::vector<ConvoyEscort> convoy;
 		int						  nextEscortNumber{1};

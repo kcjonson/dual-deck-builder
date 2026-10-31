@@ -74,7 +74,8 @@ The campaign saves `nextRunNumber`, which bumped `CAMPAIGN_SCHEMA_VERSION` from 
 
 - Cards won go on the run's cargo in the campaign, with no party to add them to.
 - A new card is checked against the loaded packs rather than a bundled cards.json.
-- A failed run loses its cards in the bridge's write-back, which names them. The log line (call 23), the debrief, and the garage's sales at home aren't built.
+- A failed run loses its cards in the bridge's write-back, which names them, with the log line (call 23).
+- The garage at home sells from a stock of its own (`buyCard`, `Garage.h`) at a price the pack sets by rarity, so there's no `addToLocker` taking its caller's price. The debrief isn't built.
 
 ## Provisional calls
 

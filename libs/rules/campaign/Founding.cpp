@@ -1,5 +1,9 @@
 #include "Founding.h"
 
+#include "Convoy.h"
+#include "Garage.h"
+#include "Recruits.h"
+
 #include <random/Rng.h>
 
 #include <algorithm>
@@ -7,38 +11,6 @@
 #include <string>
 
 namespace rules::campaign {
-
-	namespace {
-
-		void recruit(Campaign& campaign, const DriverDefinition& archetype) {
-			CardCounts deck;
-			for (const DeckEntry& entry : archetype.startingDeck) {
-				addCards(deck, entry.card, entry.count);
-			}
-			campaign.drivers.push_back(
-				DriverRecord{
-					.id = CrewId{std::string(kCrewPrefix) + std::to_string(campaign.nextDriverNumber++)},
-					.archetype = archetype.id,
-					.status = DriverStatus::Ready,
-					.hitpoints = archetype.maxHitpoints,
-					.injuredDays = 0,
-					.vehicle = {.structure = archetype.vehicle.maxStructure, .armor = archetype.vehicle.armor},
-					.defaultDeck = std::move(deck),
-				}
-			);
-		}
-
-		void hire(Campaign& campaign, const EscortDefinition& type) {
-			campaign.convoy.push_back(
-				ConvoyEscort{
-					.id = ConvoyId{std::string(kConvoyPrefix) + std::to_string(campaign.nextEscortNumber++)},
-					.type = type.id,
-					.structure = type.structure,
-				}
-			);
-		}
-
-	} // namespace
 
 	std::vector<DriverId> unlockedAtStart(const Content& content) {
 		std::vector<DriverId> unlocked;
@@ -80,11 +52,12 @@ namespace rules::campaign {
 		deal.shuffle(archetypes);
 		archetypes.resize(std::min(archetypes.size(), static_cast<size_t>(rules.start.poolSize)));
 		for (const DriverId& archetype : archetypes) {
-			recruit(campaign, content.drivers.at(archetype));
+			(void)recruitDriver(campaign, content, archetype);
 		}
 		for (const EscortId& escort : rules.start.escorts) {
-			hire(campaign, content.escorts.at(escort));
+			(void)joinConvoy(campaign, content, escort);
 		}
+		campaign.garage = rollGarageStock(campaign, content, rules.garage);
 		addLog(campaign, "Founded the compound.");
 		return campaign;
 	}
