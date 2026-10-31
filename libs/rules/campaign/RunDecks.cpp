@@ -1,5 +1,6 @@
 #include "RunDecks.h"
 
+#include "CampaignMap.h"
 #include "CombatBridge.h"
 #include "Recruits.h"
 
@@ -176,7 +177,8 @@ namespace rules::campaign {
 
 	void giveUpLoadOut(Campaign& campaign) {
 		const Run& run = runOut(campaign, "giveUpLoadOut");
-		if (run.fights > 0 || run.cargo != Resources{} || !run.cargoCards.empty() || !run.found.empty() || !run.recruits.empty()) {
+		if (run.route || run.fights > 0 || run.cargo != Resources{} || !run.cargoCards.empty() || !run.found.empty() ||
+			!run.recruits.empty()) {
 			throw std::invalid_argument("giveUpLoadOut: " + run.id.value + " has left, and ends by coming home or failing");
 		}
 		for (const RunDeck& deck : run.seats) {
@@ -207,6 +209,15 @@ namespace rules::campaign {
 		campaign.stores = campaign.stores + run.cargo;
 		addCards(campaign.locker, run.cargoCards);
 		++campaign.tally.runsHome;
+		// Home clears every stop the run got past and charts every leg it drove, on the day it was out (call 260).
+		if (run.route) {
+			for (int passed = 0; passed < run.route->next; ++passed) {
+				clearStop(campaign.mapState, run.route->stops[static_cast<size_t>(passed)], campaign.day);
+			}
+			for (int driven = 0; driven < run.route->leg; ++driven) {
+				chartLeg(campaign.mapState, run.route->legs[static_cast<size_t>(driven)]);
+			}
+		}
 		std::vector<CrewId> home;
 		for (const RunDeck& deck : run.seats) {
 			home.push_back(deck.driver);

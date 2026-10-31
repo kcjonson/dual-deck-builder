@@ -31,7 +31,7 @@ namespace rules::campaign {
 		int most{0};
 	};
 
-	// What the day clock, the infirmary, scavenging, the compound's fall, and the stops' cooldowns read:
+	// What the day clock, the infirmary, scavenging, the compound's fall, the stops' cooldowns, and a run's rewards read:
 	// campaign/compound-rules.json.
 	struct CompoundRules {
 		// People one unit of food, and of water, feeds a day.
@@ -50,6 +50,8 @@ namespace rules::campaign {
 		int riotAtUnrest{0};
 		// Days a stop a run cleared stays cleared: one cleared on day 3 is back at the dawn of day 8 at 5.
 		int stopCooldownDays{0};
+		// Different cards a won fight or a Find: cards offers, one to take.
+		int rewardCards{0};
 	};
 
 	// What the garage stocks and charges, in scrap (Game Flow 4): campaign/garage-rules.json.

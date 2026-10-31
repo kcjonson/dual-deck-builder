@@ -143,6 +143,28 @@ namespace rules::campaign {
 	// What the deck rules count and a fight deals besides the escort cards: the driver's own going, and what they borrowed.
 	[[nodiscard]] CardCounts runDeckCards(const RunDeck& deck);
 
+	// The route a run left on and how far down it it is (SupplyRun.h), fixed at departure but for its progress.
+	struct RunRoute {
+		// Its POI, and its place among map::routesTo's routes there, quickest first.
+		int poi{0};
+		int route{0};
+		// The POI's tier, which sets the fights' encounters.
+		int tier{0};
+		// From the compound out.
+		std::vector<int> legs;
+		// The stops it meets, in driving order: those on its legs at its game stage that weren't cleared when it left.
+		std::vector<int> stops;
+		// The leg it's on, by its place in `legs`: the one the next stop is on, every leg before it driven, or past the
+		// last once it's at the POI.
+		int leg{0};
+		// How many of its stops are behind it; the one at `next` is the stop it's at, and past the last it's at the POI.
+		int next{0};
+		// A reward on offer at the stop it's at, after a fight it won or at a Find: cards; empty otherwise.
+		std::vector<CardId> reward;
+
+		bool operator==(const RunRoute&) const = default;
+	};
+
 	// A supply run out from the compound: who went with what, and what it has picked up on the way.
 	struct Run {
 		RunId id;
@@ -161,6 +183,8 @@ namespace rules::campaign {
 		std::vector<DriverId> recruits;
 		// Fights written back so far, which names the next one's seed.
 		int fights{0};
+		// Set at departure; a load out still at the compound has none.
+		std::optional<RunRoute> route;
 
 		bool operator==(const Run&) const = default;
 	};

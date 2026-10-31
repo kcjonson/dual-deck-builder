@@ -8,6 +8,7 @@
 #include <rules/campaign/Founding.h>
 #include <rules/map/MapTesting.h>
 #include <rules/map/ParamValidator.h>
+#include <rules/map/RouteTesting.h>
 
 #include <algorithm>
 #include <cassert>
@@ -75,6 +76,23 @@ namespace rules::campaigns {
 			return CampaignMap{.origin = origin, .map = std::move(areaMap)};
 		}();
 		return made;
+	}
+
+	// The layers of the map testMap() stands for, a run's view of it.
+	inline const MapLayers& testLayers() {
+		const map::MapParams&	 params = map::fixtures::mixed();
+		static const map::Ground ground = map::fixtures::groundFor(params);
+		static const MapLayers	 layers{
+			  .network = map::fixtures::roadsFor(params).network(),
+			  .places = map::fixtures::placesFor(params),
+			  .pois = map::fixtures::poisFor(params),
+			  .stops = map::fixtures::stopsFor(params),
+			  .biomeAt = [](map::Point at) { return ground.biome(at.x, at.y); },
+			  .params = params,
+			  .content = map::fixtures::content(),
+			  .routes = map::fixtures::routeTuning(),
+		  };
+		return layers;
 	}
 
 	// Founded on testMap(), on its seed.

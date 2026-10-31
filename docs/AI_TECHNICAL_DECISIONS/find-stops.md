@@ -34,9 +34,10 @@ Options considered for someone new: recruiting them on the spot, which needs not
 
 `libs/rules/campaign/Recruits.h` (2026-10-31, DDB-573) has Find: driver's campaign side, and [campaign.md](./campaign.md), The garage, finds, and escorts on the road, has how. The stop itself is the map's: the stops stage places Find: driver stops, at least `driverFinds` in tiers 1 and 2, and `rollStop` gives each, at its roll, the `seed` that `whoIsFound` takes (stops-and-routes.md, Stops in the C++ alpha). What differs:
 
-- `whoIsFound` takes the stop's seed from its caller, the map's stop, rather than reading the run's route, and the unlocked archetypes as founding does.
+- `whoIsFound` takes a seed from its caller rather than reading the run's route, and the unlocked archetypes as founding does. `takeFind` (`SupplyRun.h`) hands it the run's own stream for the stop, `fork("run", n).fork("stop", id).fork("driver")`, as the TypeScript's `fork('find', stop)` was (call 406), not the map's per-stop seed.
+- `takeFind` takes every find: a haul at the stop's roll from `rollStop`, a driver, or a Find: cards's reward on the stop's `reward` fork, and `driveOn` leaves one by the road ([campaign.md](./campaign.md), Supply runs).
 - A missing driver found rides home in the run's `found` and someone new in its `recruits`, both on `Campaign::run`, and `unloadRun` brings both in, where the TypeScript split them between the campaign's `foundOnRun` and the supply run's `recruits`.
-- Find: cards will draw on `rollCardOffers` (`CardOffers.h`), which the garage's stock draws on already.
+- Find: cards draws on `rollCardOffers` (`CardOffers.h`), as the garage's stock and a fight's reward do, 3 cards by `rewards.cards` in `campaign/compound-rules.json`.
 
 ## Provisional calls
 

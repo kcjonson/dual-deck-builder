@@ -8,11 +8,13 @@
 #include <rules/map/MapPipeline.h>
 #include <rules/map/MapPresets.h>
 #include <rules/map/ParamValidator.h>
+#include <rules/map/StopData.h>
 
 #include <algorithm>
 #include <charconv>
 #include <cstdint>
 #include <limits>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <variant>
@@ -374,6 +376,62 @@ namespace rules::campaign {
 			return deck;
 		}
 
+		// Map ids in an order of their own, each from 0 and once.
+		std::vector<int> readIdList(JsonReader& reader, std::string_view key) {
+			std::vector<int> ids = reader.requireInts(key);
+			std::set<int>	 seen;
+			for (const int id : ids) {
+				if (id < 0 || !seen.insert(id).second) {
+					reader.failAt(key, "lists " + std::to_string(id) + ", and its ids run from 0, each once");
+				}
+			}
+			return ids;
+		}
+
+		// Where the run is on its route, and the reward on offer there, each a card a shop sells, once.
+		RunRoute readRunRoute(JsonReader reader, const Content& content) {
+			RunRoute route{
+				.poi = requireIntIn(reader, "poi", 0),
+				.route = requireIntIn(reader, "route", 0),
+				.tier = requireIntIn(reader, "tier", 1, map::kStopTiers),
+				.legs = readIdList(reader, "legs"),
+				.stops = readIdList(reader, "stops"),
+				.leg = 0,
+				.next = 0,
+				.reward = {},
+			};
+			route.leg = requireIntIn(reader, "leg", 0, static_cast<int>(route.legs.size()));
+			route.next = requireIntIn(reader, "next", 0, static_cast<int>(route.stops.size()));
+			for (std::string& name : reader.requireStrings("reward")) {
+				const auto card = content.cards.find(CardId{name});
+				if (card == content.cards.end() || !isOffered(card->second)) {
+					reader.failAt("reward", "names " + name + ", which no loaded pack defines as a card a reward offers");
+				}
+				if (std::ranges::find(route.reward, card->first) != route.reward.end()) {
+					reader.failAt("reward", "names " + name + " twice");
+				}
+				route.reward.push_back(card->first);
+			}
+			reader.finish();
+			if (!route.reward.empty() && static_cast<size_t>(route.next) == route.stops.size()) {
+				reader.failAt("reward", "is on offer past the run's last stop, where nothing offers one");
+			}
+			return route;
+		}
+
+		nlohmann::json routeJson(const RunRoute& route) {
+			return {
+				{"poi", route.poi},
+				{"route", route.route},
+				{"tier", route.tier},
+				{"legs", route.legs},
+				{"stops", route.stops},
+				{"leg", route.leg},
+				{"next", route.next},
+				{"reward", idsJson(route.reward)},
+			};
+		}
+
 		Run readRun(JsonReader reader, const Campaign& campaign, const Content& content) {
 			Run run{
 				.id = RunId{reader.requireString("id")},
@@ -385,7 +443,12 @@ namespace rules::campaign {
 				.found = {},
 				.recruits = {},
 				.fights = requireIntIn(reader, "fights", 0),
+				.route = std::nullopt,
 			};
+			const nlohmann::json& route = reader.requireValue("route");
+			if (!route.is_null()) {
+				run.route = readRunRoute(JsonReader(route, reader.where() + ".route"), content);
+			}
 			for (std::string& name : reader.requireStrings("found")) {
 				const CrewId		found{std::move(name)};
 				const DriverRecord* driver = campaign.findDriver(found);
@@ -488,6 +551,7 @@ namespace rules::campaign {
 				{"found", idsJson(run.found)},
 				{"recruits", idsJson(run.recruits)},
 				{"fights", run.fights},
+				{"route", run.route ? routeJson(*run.route) : nlohmann::json(nullptr)},
 			};
 		}
 

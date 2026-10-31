@@ -29,5 +29,8 @@
 	},
 	"clearing": {
 		"stopCooldownDays": 5
+	},
+	"rewards": {
+		"cards": 3
 	}
 }

@@ -15,4 +15,5 @@ target_sources(ddb_rules
         Locker.cpp
         Recruits.cpp
         RunDecks.cpp
+        SupplyRun.cpp
 )

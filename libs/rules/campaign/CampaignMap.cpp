@@ -4,6 +4,7 @@
 #include "RunDecks.h"
 
 #include <rules/core/ContentError.h>
+#include <rules/map/Ground.h>
 #include <rules/map/RollParams.h>
 
 #include <utils/Log.h>
@@ -77,6 +78,49 @@ namespace rules::campaign {
 						std::to_string(ids[index]) + ", and the map has " + std::to_string(count)
 					);
 				}
+			}
+		}
+
+		// The run's route is one the map has, its legs that route's, every stop on them, and the leg it's on the next
+		// stop's.
+		void checkRunRoute(const RunRoute& route, const map::PoiLayer& pois, const map::StopLayer& stops) {
+			const std::string at = "campaign.run.route";
+			if (static_cast<size_t>(route.poi) >= pois.pois.size()) {
+				throw ContentError(
+					at + ".poi names POI " + std::to_string(route.poi) + ", and the map has " + std::to_string(pois.pois.size())
+				);
+			}
+			const std::vector<map::Route> routes = map::routesTo(pois.legs, route.poi);
+			if (static_cast<size_t>(route.route) >= routes.size()) {
+				throw ContentError(
+					at + ".route names route " + std::to_string(route.route) + " of POI " + std::to_string(route.poi) + ", which has " +
+					std::to_string(routes.size())
+				);
+			}
+			if (route.legs != routes[static_cast<size_t>(route.route)].legs) {
+				throw ContentError(at + ".legs aren't the legs of route " + std::to_string(route.route) + " on the map");
+			}
+			if (route.tier != pois.pois[static_cast<size_t>(route.poi)].tier) {
+				throw ContentError(
+					at + ".tier is " + std::to_string(route.tier) + ", and the POI's on the map is " +
+					std::to_string(pois.pois[static_cast<size_t>(route.poi)].tier)
+				);
+			}
+			for (size_t index = 0; index < route.stops.size(); ++index) {
+				const int stop = route.stops[index];
+				if (static_cast<size_t>(stop) >= stops.stops.size() ||
+					std::ranges::find(route.legs, stops.stops[static_cast<size_t>(stop)].leg) == route.legs.end()) {
+					throw ContentError(
+						at + ".stops[" + std::to_string(index) + "] names stop " + std::to_string(stop) + ", which isn't on the route"
+					);
+				}
+			}
+			const size_t next = static_cast<size_t>(route.next);
+			const auto	 on = next == route.stops.size()
+								  ? route.legs.end()
+								  : std::ranges::find(route.legs, stops.stops[static_cast<size_t>(route.stops[next])].leg);
+			if (route.leg != on - route.legs.begin()) {
+				throw ContentError(at + ".leg is " + std::to_string(route.leg) + ", and the run's next stop isn't on that leg");
 			}
 		}
 
@@ -190,6 +234,9 @@ namespace rules::campaign {
 			stops.push_back(stop.stop);
 		}
 		checkIds(stops, "stops", "stop", map.stops->stops.size());
+		if (campaign.run && campaign.run->route) {
+			checkRunRoute(*campaign.run->route, pois, *map.stops);
+		}
 	}
 
 	LoadedCampaign
@@ -198,6 +245,37 @@ namespace rules::campaign {
 		map::AreaMap map = remakeMap(campaign.mapOrigin, mapContent, making);
 		checkCampaignMap(campaign, map);
 		return LoadedCampaign{.campaign = std::move(campaign), .map = std::move(map)};
+	}
+
+	MapLayers layersOf(const map::AreaMap& map, const MapOrigin& origin, const map::MapContent& content, const map::RouteTuning& routes) {
+		assert(map.roads && map.places && map.pois && map.stops && "layersOf: a made map");
+		const map::Ground ground(*map.terrain, *map.water, *map.hazards);
+		return MapLayers{
+			.network = map.roads->network(),
+			.places = *map.places,
+			.pois = *map.pois,
+			.stops = *map.stops,
+			.biomeAt = [ground](map::Point at) { return ground.biome(at.x, at.y); },
+			.params = origin.params,
+			.content = content,
+			.routes = routes,
+		};
+	}
+
+	void clearStop(MapState& state, int stop, int day) {
+		const auto at = std::ranges::lower_bound(state.stops, stop, {}, &StopState::stop);
+		if (at != state.stops.end() && at->stop == stop) {
+			at->cleared = day;
+			return;
+		}
+		state.stops.insert(at, StopState{.stop = stop, .roll = 0, .cleared = day});
+	}
+
+	void chartLeg(MapState& state, int leg) {
+		const auto at = std::ranges::lower_bound(state.chartedLegs, leg);
+		if (at == state.chartedLegs.end() || *at != leg) {
+			state.chartedLegs.insert(at, leg);
+		}
 	}
 
 	map::MapToday mapToday(const Campaign& campaign) {
