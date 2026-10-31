@@ -17,11 +17,11 @@ The core is a library of game code under the game's rules:
 - It's the game's simulation layer, so it depends on neither salal's `renderer` nor its `ui`, reads no clock, files, or dev tools, and takes every random draw from the streams it's handed. The same code runs in the command line tool, in the Balance Lab, and in tests.
 - It plays everything through the game's own code: the battle, the AI controller, the combat bridge (seating a crew, and the write-back with its revive HP and limp structure), the encounter builder, and the run. Never a copy of them, so a rule change reaches the sim without touching it.
 
-Its input is a config, plain data: the crews (archetypes, seat order, decks, or cards added to a starting deck; one driver, or two of different archetypes, as load out seats them), the raider profiles, the encounter templates, the stop tables, the game stage, the player stand-in, the seed, and runs a cell. Tuning comes in as data rather than being patched into the shipped tables: the encounter builder and the raider's vehicle take the config's raiders and profiles, and fall back to the shipped ones. A raider's patch merges its skills and vehicle stats and replaces its deck.
+Its input is a config, plain data: the crews (archetypes, seat order, decks, or cards added to a starting deck; one driver, or two of different archetypes, as load out seats them), the routes, the game stages, the player stand-in, the seed, and runs a cell (The fights config, below). The tuning to try isn't in it: it's packs loaded over the base pack, as the game loads a mod, overriding raiders, encounters, cards, or drivers by id, so a change tried in the sim is already in the shape it ships in and nothing patches the shipped content.
 
-Its output is plain JSON: a row per cell with the measures below, and any fight logs asked for.
+Its output is plain JSON: the packs it loaded, the config as read, a row per cell with the measures below, and any fight logs asked for.
 
-It's deterministic, and no cell's numbers depend on which other cells were asked for. A `gen` map is its own `rollParams` seed. In `fights` and `runs`, a cell is named by its crew and route, and its stage once there is one (`road_warrior+interceptor:1+2`; a crew asked for twice, on other decks, adds `#` and its place in the crews), and run n of every cell draws from the seed's `fork('run', n)`, its fight f from that run's `fork('fight', f)`. Every cell plays the same fixed list of seeded runs, so two crews, two tunings, or a route fresh and the day after its neighbor's run are compared on the same draws, and a difference between them is the change rather than the luck. The cost is that cells share their luck: a lucky seed lifts every cell a little, so a figure pooled across cells needs more runs than its intervals suggest. The same config and seed give the same JSON from the command line, the Lab, and the tests, on every platform: the streams are salal's `Rng` (`foundation/random/Rng.h`), and the game builds with floating-point contraction off (`-ffp-contract=off`, which salal's foundation sets for GCC and Clang), so no multiply and add fuse on one platform and not another.
+It's deterministic, and no cell's numbers depend on which other cells were asked for. A `gen` map is its own `rollParams` seed. In `fights` and `runs`, a cell is named by its crew, route, and stage (`road_warrior+interceptor:1+2@0`; a crew asked for twice, on other decks, adds `#` and its place in the crews, counting from 1), and run n of every cell, counting from 1, draws from the seed's `fork('run', n)`, its fight f from that run's `fork('fight', f)`: the crew is recruited into a campaign of its own on the seed and sent out as its run n, so the combat bridge's own fight seed is that stream. A pair sits in its crew's seat order on odd runs and the other way round on even ones. Every cell plays the same fixed list of seeded runs, so two crews, two tunings, or a route fresh and the day after its neighbor's run are compared on the same draws, and a difference between them is the change rather than the luck. The cost is that cells share their luck: a lucky seed lifts every cell a little, so a figure pooled across cells needs more runs than its intervals suggest. The same config and seed give the same JSON from the command line, the Lab, and the tests, on every platform: the streams are salal's `Rng` (`foundation/random/Rng.h`), and the game builds with floating-point contraction off (`-ffp-contract=off`, which salal's foundation sets for GCC and Clang), so no multiply and add fuse on one platform and not another.
 
 ## Measures
 
@@ -34,13 +34,15 @@ For each cell, a crew against an encounter or a crew over a route:
 - turns, over a route's fights;
 - injury days the crew brings home;
 - raiders killed, and waves seen;
-- in `fights`, what the raiders played, a fight, by raider and card, and how much of it fizzled.
+- in `fights`, what the raiders played, a fight, by raider and card, and how much of it fizzled, and the crew's own cards played;
+- in `fights`, each place on a route on its own: won, lost, broken off, stalled, and routed, and over the fights won its turns, HP and structure lost, and drivers down;
+- in `fights`, the fights a fresh crew opens a route with, by skull count and stage, pairs and lone drivers apart, with the crew that won least, against the per-fight targets.
 
-Every rate carries its count and a 90% interval, so a 3-point move on 100 runs isn't read as a change.
+A run comes home when every fight on it is won or broken off, since the run carries on past a break-off as the bridge writes it back. Every rate carries its count and a 90% interval (Wilson's), so a 3-point move on 100 runs isn't read as a change.
 
 ## The command line tool
 
-`balance-sim <mode> [options]` is a command line target of the game's build: it hands the core a config and writes the JSON the core returns. Cells run in parallel on worker threads, two by default to keep the machine responsive.
+`balance-sim <mode> [options]` is a command line target of the game's build: it loads the base pack and any packs given over it, hands the core a config, prints a readable summary, and writes the JSON the core returns. Runs play in parallel on worker threads, two by default to keep the machine responsive, and the JSON is the same whatever the count.
 
 ### gen
 
@@ -61,7 +63,31 @@ A leg's room is the most stops the stops stage could deal it: clear of its ends 
 
 ### fights
 
-Every crew against every encounter template, at each game stage asked for, with waves, the raider-side rules, and each template's solo size for a lone driver. Prints the matrix and the fairness spreads.
+Every crew over every route, at each game stage asked for, with waves, the raider-side rules, and each encounter's solo size for a lone driver. A route is a plain list of fights, each a skull count, whose encounter is picked on the fight's seed at the config's tier as a run's stop picks it, or an encounter named by id; the crew carries its damage from one fight to the next as the combat bridge writes it back, revival included, and a run ends at a fight lost or stalled. Prints the runs, each place on each route, the opening fights by skull count against the per-fight targets, the fairness spreads, and what the raiders played.
+
+#### The fights config
+
+Every field is optional, and the JSON the tool writes carries the config it read in this shape, crews listed out, so it reads back the same. Anything else, or anything the loaded packs don't define, fails naming the file and the path in it, `tuning.json.crews[1][0].add.precision_shot`.
+
+```json
+{
+	"seed": 1,
+	"runs": 100,
+	"crews": [["road_warrior", "interceptor"], [{ "archetype": "mechanic", "add": { "point_blank": 2 } }]],
+	"routes": [[1], [2], [3], [1, 2], ["spike_raid"]],
+	"tier": 1,
+	"stages": [0, 2],
+	"turns": 25,
+	"standIn": { "policy": "intent_aware" }
+}
+```
+
+- `seed`, 0 or more, 1. `runs` a cell, 1 or more, 100.
+- `crews`: `"all"` (every pair of different archetypes, then each alone), `"pairs"`, `"solo"`, or a list of crews, each one or two seats in seat order; a seat is an archetype's id, or an object with its `archetype`, a `deck` in place of its starting deck, and cards to `add`, both card counts by id. A card has to be one the packs define, not an escort's signature card, and marked for the seat's archetype if it's marked at all. `"all"` when left out.
+- `archetypes`: what `"all"`, `"pairs"`, and `"solo"` draw from; the archetypes the packs start unlocked when left out.
+- `routes`: each a list of fights, a skull count from 1 to 3 or an encounter's id; `[[1], [2], [3]]`.
+- `tier` 1 to 5, 1. `stages`, each its own cells, from 0 to 6, `[0]`. `turns`, the stall cap, 25.
+- `standIn`: a behavior, as an opponent's names one, with its `policy`, `weights`, and `difficulty`, for every one of the crew's seats; any policy the AI builds for the player's side, the aggressive flanker when left out.
 
 ### runs
 
@@ -77,8 +103,9 @@ A pool of four played day by day: one run a day to a tier its stage reaches, cle
 
 ### Options
 
-- `--config <file>`: the tuning to try, as JSON. The Balance Lab exports the same format.
-- `--seed`, `--runs` (a cell), `--maps` and `--corpus <file>` (for `gen`), `--crews` (`all`, `pairs`, `solo`, or a list like `road_warrior+interceptor,mechanic`), `--routes` (for `fights`: `1,2,1+2`), `--turns` (the stall cap), `--stage`, `--player aggressive|intent`, `--workers` (2).
+- `--config <file>`: what to play, as JSON. The Balance Lab exports the same format. Options on the command line win over its fields.
+- `--pack <dir>`, as often as needed: a pack loaded over the base pack, in order, holding the tuning to try.
+- `--seed`, `--runs` (a cell), `--maps` and `--corpus <file>` (for `gen`), `--crews` (`all`, `pairs`, `solo`, or a list like `road_warrior+interceptor,mechanic`), `--routes` (for `fights`: `1,2,1+2,spike_raid`), `--turns` (the stall cap), `--stage` (a list, `0,2`), `--tier`, `--player <policy>` (the stand-in: `aggressive_flanker`, the floor and the default, `intent_aware`, the ceiling, or any other player policy, `mcts` or `random`), `--workers` (2).
 - `--cards` (for `fights`): count each player card's draws and plays, and per play the planned raider intents it made fizzle and the planned damage it took off the crew, from the preview before and after it. Prints a line for each card a crew adds to its decks, with its cell's won and HP lost against the same crew on its starting decks on the same route. It projects the enemy turn twice a play, so it's off unless asked for.
 - `--json <file>`: write the rows.
 - `--check`: compare every row with the targets and exit non-zero on a miss, naming it. The fairness spreads are reported and don't fail a check until DDB-492 to 495 land.

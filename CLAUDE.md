@@ -62,7 +62,7 @@ libs/
   ai/             the policies opponents and the player stand-ins play with, and whole fights played by them, over the rules only
   scripting/      the Lua host for packs, over the rules (once needed)
 packs/            content: base/ is the game, expansions and mods are packs too
-apps/             executables, once there is one: the game, and the balance sim
+apps/             executables: balance-sim now, the game once its screens come
 docs/             specs, decision records, design art, the port plan
 scripts/          Node tooling (format.mjs)
 _legacy/          the TypeScript proof of concept, frozen, with its own CLAUDE.md
@@ -164,6 +164,27 @@ pick a lane there too). Run the slow lane when you change map generation, and
 before merging map work. Test real logic, keep tests bounded, and look for one
 covering the same path before adding another. Port a TypeScript test only when
 the behaviour it pins is still what the alpha wants.
+
+### The balance sim
+
+`apps/balance-sim` (Balance Simulation is the spec, `balance-sim.md` the record)
+plays crews through fights headless. Build and run it in RelWithDebInfo, never
+Debug for anything past a smoke: the stand-ins play fights out on copies, and
+Monte Carlo tree search is about 30 times slower in Debug. The Windows preset
+has the configuration already, so it needs no configure of its own:
+
+```
+cmake --build --preset windows-relwithdebinfo --target balance-sim
+build/apps/balance-sim/RelWithDebInfo/balance-sim.exe fights --runs 100 --routes 1,2,3,1+2 --player intent_aware --json fights.json
+```
+
+On macOS and Linux, configure the single-config tree for it with
+`cmake --preset default -DCMAKE_BUILD_TYPE=RelWithDebInfo`, then
+`cmake --build --preset default --target balance-sim` and run
+`build/apps/balance-sim/balance-sim`. The base pack is read from `packs/base`,
+`--pack <dir>` loads a tuning over it, and `--config <file>` takes the spec's
+fights config. Keep a run to a couple of minutes on a shared machine; `--workers`
+is 2 by default.
 
 ## Merging
 

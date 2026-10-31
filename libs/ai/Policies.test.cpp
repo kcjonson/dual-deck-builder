@@ -114,6 +114,32 @@ namespace {
 		EXPECT_TRUE(played() == fought);
 	}
 
+	TEST(PlayFight, ATurnCapStopsTheFightUnfinishedAndEveryActionIsReported) {
+		const std::unique_ptr<Policy> standIn = ai::makePolicy(Behavior{.policy = "aggressive_flanker"}, Side::Player);
+		BattleState					  state = packFight(5);
+		int							  ends = 0;
+		int							  plays = 0;
+		ai::playFight(
+			state,
+			testContent(),
+			every(*standIn),
+			basePolicies().forRaiders(),
+			ai::PlayFightOptions{
+				.mostTurns = 1,
+				.onApplied = [&](const BattleState& after, const Action& action, const std::vector<Event>& events) {
+					EXPECT_FALSE(events.empty());
+					ends += std::holds_alternative<action::EndTurn>(action) ? 1 : 0;
+					plays += std::holds_alternative<action::PlayCard>(action) ? 1 : 0;
+					EXPECT_EQ(&after, &state);
+				},
+			}
+		);
+		EXPECT_EQ(state.phase, Phase::Planning);
+		EXPECT_EQ(state.turn, 2);
+		EXPECT_EQ(ends, 1);
+		EXPECT_GT(plays, 0);
+	}
+
 	TEST(PlayFight, ACampaignFightPlaysOutAndWritesItsEndBack) {
 		using namespace rules::campaigns;
 		Campaign	 campaign = foundTestCampaign({"fuel_hauler", "outrider"});

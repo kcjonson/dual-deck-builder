@@ -31,11 +31,20 @@ namespace ai {
 		const rules::Content&	content,
 		const rules::PolicyFor& players,
 		const rules::PolicyFor& raiders,
-		int						mostActions
+		const PlayFightOptions& options
 	) {
-		int taken = 0;
+		int		   taken = 0;
+		const auto applied = [&](const rules::Action& action) {
+			std::vector<rules::Event> events = rules::apply(state, content, action);
+			if (options.onApplied) {
+				options.onApplied(state, action, events);
+			}
+		};
 		while (state.phase != rules::Phase::Over) {
 			if (state.phase == rules::Phase::Planning) {
+				if (options.mostTurns && state.turn > *options.mostTurns) {
+					return;
+				}
 				(void)rules::planEnemyTurn(state, content, raiders);
 				continue;
 			}
@@ -55,14 +64,16 @@ namespace ai {
 					if (std::holds_alternative<rules::action::EndTurn>(choice)) {
 						break;
 					}
-					(void)rules::apply(state, content, choice);
-					if (++taken > mostActions) {
-						throw std::logic_error("playFight: the fight is still going after " + std::to_string(mostActions) + " actions");
+					applied(choice);
+					if (++taken > options.mostActions) {
+						throw std::logic_error(
+							"playFight: the fight is still going after " + std::to_string(options.mostActions) + " actions"
+						);
 					}
 				}
 			}
 			if (state.phase == rules::Phase::PlayerTurn) {
-				(void)rules::apply(state, content, rules::action::EndTurn{});
+				applied(rules::action::EndTurn{});
 				++taken;
 			}
 		}
