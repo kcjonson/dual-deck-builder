@@ -91,3 +91,35 @@ Pending Kevin's approval in [gameplay-calls.md](../gameplay-calls.md) (The battl
 - A fight can be fielded from any base encounter at any tier and stage, for one driver or two, and played to won, lost, or broken off. The base encounters and raiders are the TypeScript's, untuned against these rules; that waits on the balance sim.
 - A queued raider costs a full driver and vehicle in every copy of the fight, a few dozen at most, which a lookahead copies with the rest.
 - Nothing words the events yet: a "3 raiders arriving" line reads `arrivalsOf`, since `WaveDue` names only the wave.
+
+## The other policies and whole fights
+
+The seventh slice, all in `libs/ai`: the intent-aware player stand-in, the rest of AI System Technical Design 2.2's strategies, the difficulties in 5.1, and a way to play a fight to its end with nobody at the controls.
+
+### Decision
+
+- **One reading of a play.** `outcomeOf` applies a play to a copy of the board and reads what it did off the board before and after and the events: the other side's armor, structure, and HP lost and how hurt each target was, vehicles and drivers out, wrecks, ramming damage, its own Shield, armor, repairs, draws, adrenaline, and speed, statuses put on the other side, the flank taken, given up, or newly in reach, and the range to the nearest driven vehicle. The aggressive flanker, ramming, and salvage all score off it, so none of them reads a card's effects, and the flanker scores exactly as it did.
+- **Ramming and salvage** are weighted scorers over that reading (call 392). Ramming counts a ram's damage, speed, armor, and pulling into ram range on top of the flanker's damage and kills, and a flank only for the place it takes. Salvage counts a driver's HP and a driver out, and counts structure and a wreck against, so a Headshot beats a body shot that does the driver as much.
+- **The intent-aware stand-in** plays the projection the intents are read from: for each play it applies the play to a copy, plays the enemy turn out behind it, and counts the harm to the player's side, structure and occupant HP as each hit splits plus 20 a wreck or driver down (calls 240 to 243), and how many raiders pull in behind it (call 389). It reads the plan's real damage rather than `intentsOf`'s hits, which are what a hit deals before Shield and armor. It refuses a raider's seat, since a raider planning on its rehearsal has no committed plans to read.
+- **Monte Carlo tree search** runs a fixed number of playouts a decision, each picked by UCB1, applied to a copy, played out with even random picks to the next player turn, and scored by what each side has left in the fight (call 390). It keeps the play with the best mean. Every draw comes from the stream the policy is handed, and the math sticks to IEEE's correctly rounded operations, with its own logarithm, so a seed plays the same on every platform: an opponent can plan with it without breaking a fight's replay.
+- **Random** picks evenly among the plays on offer, after a raider's target preference.
+- **Difficulty** (call 388) is a behavior's `difficulty`: easy wraps the policy and three times in ten picks evenly instead, and normal and hard are the policy as it is.
+- **Binding by name.** `makePolicy(behavior, side)` builds any of aggressive_flanker, intent_aware, ramming, salvage, mcts, random, and first_playable, checking every weight it's given and its difficulty, and `OpponentPolicies` builds every opponent's through it, so the balance sim's stand-ins and a pack's raiders come from one place.
+- **Whole fights.** `playFight` plays a fight on to its end: the raiders plan through their own policies, and each of the player's seats plays its part of the turn through its stand-in, in seat order (call 391), drawing from a `stand-in:<seat>` stream on the fight's own randomness, so a fight replays from its seed. A fight still going after 5000 actions throws, since no fight should stall.
+- **Preferences** stay the raider's: a player's seat has none, so `preferredPlays` hands it its offers whole.
+
+### Provisional calls
+
+Pending Kevin's approval in [gameplay-calls.md](../gameplay-calls.md) (The battle state).
+
+- 388: a difficulty is part of a behavior; easy picks evenly three times in ten, hard chooses as normal, and nightmare fails the load.
+- 389: the intent-aware stand-in counts each raider its play would bring in early as 5 harm.
+- 390: Monte Carlo tree search plays out to the next player turn with even random picks, scored by what each side has left, 48 playouts and exploration 1 to start.
+- 391: a fight nobody plays takes the player's seats one after the other, each until its stand-in ends its part.
+- 392: ramming and salvage score plays on a copy with their own starting weights, and a salvage play worth nothing or less waits.
+
+### Consequences
+
+- A fight can be played end to end by any mix of policies, which is what the balance sim needs: `pickEncounter`, `fieldEncounter`, `startBattle`, then `playFight` with the stand-ins from `makePolicy`.
+- Every policy but random and first playable plays the fight out on copies, so each costs some multiple of `apply`. In a Debug build Monte Carlo tree search takes about 7 ms a decision at 24 playouts and 13 at its default 48.
+- The search is a weak player for its cost. Its random playouts and one-turn horizon make its values noisy, and in the test's four lone Road Warrior fights 24 playouts won three and 48 won one, against random's none. The sim should measure it before anything relies on it.

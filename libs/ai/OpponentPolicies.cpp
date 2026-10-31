@@ -1,7 +1,13 @@
 #include "OpponentPolicies.h"
 
 #include "AggressiveFlanker.h"
+#include "Difficulty.h"
 #include "FirstPlayable.h"
+#include "IntentAware.h"
+#include "Mcts.h"
+#include "Ramming.h"
+#include "RandomPlay.h"
+#include "Salvage.h"
 
 #include <rules/core/ContentError.h>
 
@@ -12,37 +18,66 @@ namespace ai {
 
 	namespace {
 
-		std::unique_ptr<rules::Policy> policyFor(const rules::OpponentDefinition& opponent) {
-			const rules::Behavior& behavior = opponent.behavior;
-			const std::string	   who = "opponent " + opponent.id.value + "'s behavior";
-			if (!behavior.script.empty()) {
-				throw rules::ContentError(
-					who + " names script " + behavior.script + ", and scripted behaviors need the Lua host, which isn't built yet"
-				);
+		std::unique_ptr<rules::Policy> chooserFor(const rules::Behavior& behavior, rules::Side seat) {
+			const std::string& name = behavior.policy;
+			if (name == "aggressive_flanker") {
+				return std::make_unique<AggressiveFlanker>(AggressiveFlanker::weightsFrom(behavior.weights));
 			}
-			if (behavior.policy == "aggressive_flanker") {
-				try {
-					return std::make_unique<AggressiveFlanker>(AggressiveFlanker::weightsFrom(behavior.weights));
-				} catch (const std::invalid_argument& error) {
-					throw rules::ContentError(who + ": " + error.what());
+			if (name == "intent_aware") {
+				if (seat != rules::Side::Player) {
+					throw std::invalid_argument("intent_aware reads the raiders' plans, so only the player's seats play with it");
 				}
+				return std::make_unique<IntentAware>(IntentAware::weightsFrom(behavior.weights));
 			}
-			if (behavior.policy == "first_playable") {
+			if (name == "ramming") {
+				return std::make_unique<Ramming>(Ramming::weightsFrom(behavior.weights));
+			}
+			if (name == "salvage") {
+				return std::make_unique<Salvage>(Salvage::weightsFrom(behavior.weights));
+			}
+			if (name == "mcts") {
+				return std::make_unique<Mcts>(Mcts::weightsFrom(behavior.weights));
+			}
+			if (name == "random" || name == "first_playable") {
 				if (!behavior.weights.empty()) {
-					throw rules::ContentError(who + " gives weights, and first_playable takes none");
+					throw std::invalid_argument(name + " takes no weights");
 				}
-				return std::make_unique<FirstPlayable>();
+				return name == "random" ? std::unique_ptr<rules::Policy>(std::make_unique<RandomPlay>())
+										: std::unique_ptr<rules::Policy>(std::make_unique<FirstPlayable>());
 			}
-			throw rules::ContentError(
-				who + " names policy \"" + behavior.policy + "\", which isn't one the AI has (aggressive_flanker, first_playable)"
+			throw std::invalid_argument(
+				"policy \"" + name +
+				"\" isn't one the AI has (aggressive_flanker, intent_aware, ramming, salvage, mcts, random, first_playable)"
 			);
 		}
 
 	} // namespace
 
+	std::unique_ptr<rules::Policy> makePolicy(const rules::Behavior& behavior, rules::Side seat) {
+		if (!behavior.script.empty()) {
+			throw std::invalid_argument("script " + behavior.script + " needs the Lua host, which isn't built yet");
+		}
+		std::unique_ptr<rules::Policy> chooser = chooserFor(behavior, seat);
+		const std::string&			   difficulty = behavior.difficulty;
+		if (difficulty.empty() || difficulty == "normal" || difficulty == "hard") {
+			return chooser;
+		}
+		if (difficulty == "easy") {
+			return std::make_unique<Easy>(std::move(chooser));
+		}
+		if (difficulty == "nightmare") {
+			throw std::invalid_argument("difficulty nightmare is perfect play, which isn't built");
+		}
+		throw std::invalid_argument("difficulty \"" + difficulty + "\" isn't one the AI has (easy, normal, hard)");
+	}
+
 	OpponentPolicies::OpponentPolicies(const rules::Content& content) {
 		for (const auto& [id, opponent] : content.opponents) {
-			policies.emplace(id, policyFor(opponent));
+			try {
+				policies.emplace(id, makePolicy(opponent.behavior, rules::Side::Raiders));
+			} catch (const std::invalid_argument& error) {
+				throw rules::ContentError("opponent " + id.value + "'s behavior: " + error.what());
+			}
 		}
 	}
 

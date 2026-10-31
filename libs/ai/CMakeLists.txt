@@ -1,8 +1,16 @@
 add_library(ddb_ai STATIC
     AggressiveFlanker.cpp
+    Difficulty.cpp
     FirstPlayable.cpp
+    IntentAware.cpp
+    Mcts.cpp
     OpponentPolicies.cpp
+    Outcome.cpp
+    PlayFight.cpp
     Preferences.cpp
+    Ramming.cpp
+    RandomPlay.cpp
+    Salvage.cpp
 )
 add_library(ddb::ai ALIAS ddb_ai)
 

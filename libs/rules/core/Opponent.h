@@ -43,6 +43,8 @@ namespace rules {
 		std::map<std::string, double> weights;
 		// Relative to the opponent's folder.
 		std::string script;
+		// How it picks among its scored moves (AI System Technical Design 5.1); empty for normal.
+		std::string difficulty;
 
 		bool operator==(const Behavior&) const = default;
 	};

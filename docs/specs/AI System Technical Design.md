@@ -46,7 +46,7 @@ Each opponent plans with its own behavior, named in its folder in a pack: one of
 - Ramming: builds speed and armor and closes in for ramming hits.
 - Salvage: tries to win while sparing the vehicles it fights, going for their drivers with headshots, so the vehicles are left to salvage.
 - Monte Carlo tree search: plays candidates out on copies of the fight, picked by UCB1, and keeps the one whose playouts score best.
-- Random: picks evenly among every play on offer, ending the turn included, drawing from its team's stream.
+- Random: picks evenly among every play on offer, ending the turn included, drawing from its seat's stream.
 - First playable: the first affordable card in hand order at its first legal target. Raiders plan with it when a fight sets no strategy.
 
 ## 3. Board State Evaluation

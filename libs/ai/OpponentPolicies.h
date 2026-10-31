@@ -10,9 +10,14 @@
 
 namespace ai {
 
-	// Every opponent's behavior bound to the policy it names, with its weights, read once from the loaded packs
-	// (rules-ai-and-packs.md). A policy the AI doesn't have, a weight it doesn't take, or a script (the Lua host
-	// isn't built yet) throws a ContentError naming the opponent.
+	// The policy a behavior names, with its weights and difficulty, for a seat on `seat`'s side: aggressive_flanker,
+	// intent_aware (the player's seats only), ramming, salvage, mcts, random, or first_playable. Throws
+	// std::invalid_argument for a policy, weight, or difficulty the AI doesn't have, or a script, since the Lua host
+	// isn't built yet. The balance sim's stand-ins come from here too.
+	[[nodiscard]] std::unique_ptr<rules::Policy> makePolicy(const rules::Behavior& behavior, rules::Side seat);
+
+	// Every opponent's behavior bound to the policy it names, read once from the loaded packs (rules-ai-and-packs.md).
+	// Anything makePolicy refuses throws a ContentError naming the opponent.
 	class OpponentPolicies {
 	  public:
 		explicit OpponentPolicies(const rules::Content& content);

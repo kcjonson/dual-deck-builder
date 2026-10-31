@@ -30,6 +30,15 @@ On the jest sample (six crews on their starting decks, three skull counts, two s
 
 It still can't value a flank's boost to the rest of its own turn. DDB-553 moved it onto Battle's preview of a hypothetical board, which replaced a drop-back model that couldn't tell when a dropped flanker fell out of range (call 244, retired with it).
 
+## In the C++ alpha
+
+`ai::IntentAware` (2026-10-30, DDB-572) keeps these rules and numbers, and [battle-state.md](./battle-state.md), The other policies and whole fights, has how. What differs:
+
+- The fight is cheap to copy, so the option the TypeScript ruled out is the one built. Each play goes onto a copy of the board and the enemy turn is played out behind it, the projection the intents are read from, and the harm is read off what that turn does. That covers the kills, stuns, guards, moves, speed, Evade, Draw Fire, and fizzles the TypeScript modelled one by one, and the attack-type rule isn't copied anywhere.
+- A raider the play would bring in early counts as 5 harm (call 389), and a turn that would break off has no harm to cut (call 386).
+- The TypeScript's score for driver HP restored that no hit was about to take is gone. A heal counts for the harm it keeps off, which is a driver it keeps from going down.
+- It's bound by name as intent_aware, for the player's seats only.
+
 ## Provisional calls
 
 Logged in docs/gameplay-calls.md as 240 to 243, for Kevin to approve or change.

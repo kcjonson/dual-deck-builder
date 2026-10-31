@@ -11,6 +11,7 @@ namespace rules {
 				.policy = reader.optionalString("policy").value_or(""),
 				.weights = {},
 				.script = reader.optionalString("script").value_or(""),
+				.difficulty = reader.optionalString("difficulty").value_or(""),
 			};
 			if (reader.has("weights")) {
 				const nlohmann::json& weights = reader.requireValue("weights");
