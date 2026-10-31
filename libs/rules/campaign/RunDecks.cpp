@@ -201,7 +201,15 @@ namespace rules::campaign {
 	}
 
 	Unloaded unloadRun(Campaign& campaign, const Content& content, const CampaignRules& rules) {
-		Run run = std::move(runOut(campaign, "unloadRun"));
+		if (const Run& out = runOut(campaign, "unloadRun"); out.route) {
+			const RunRoute& route = *out.route;
+			if (static_cast<size_t>(route.next) < route.stops.size() || !route.objective || route.ambush || !route.reward.empty()) {
+				throw std::invalid_argument(
+					"unloadRun: " + out.id.value + " is out on its route, and a run comes home past its objective with the road clear"
+				);
+			}
+		}
+		Run run = std::move(*campaign.run);
 		campaign.run.reset();
 		for (const RunDeck& deck : run.seats) {
 			(void)unwindRunDeck(campaign, deck);
@@ -209,13 +217,15 @@ namespace rules::campaign {
 		campaign.stores = campaign.stores + run.cargo;
 		addCards(campaign.locker, run.cargoCards);
 		++campaign.tally.runsHome;
-		// Home clears every stop the run got past and charts every leg it drove, on the day it was out (call 260).
+		// Home clears every stop the run got past and its POI, and charts every leg it drove, on the day it was out
+		// (call 260).
 		if (run.route) {
-			for (int passed = 0; passed < run.route->next; ++passed) {
-				clearStop(campaign.mapState, run.route->stops[static_cast<size_t>(passed)], campaign.day);
+			for (const int stop : run.route->stops) {
+				clearStop(campaign.mapState, stop, campaign.day);
 			}
-			for (int driven = 0; driven < run.route->leg; ++driven) {
-				chartLeg(campaign.mapState, run.route->legs[static_cast<size_t>(driven)]);
+			clearPoi(campaign.mapState, run.route->poi);
+			for (const int leg : run.route->legs) {
+				chartLeg(campaign.mapState, leg);
 			}
 		}
 		std::vector<CrewId> home;

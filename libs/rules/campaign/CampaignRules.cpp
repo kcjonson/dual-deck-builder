@@ -6,10 +6,12 @@
 #include <rules/core/ContentError.h>
 #include <rules/core/JsonReader.h>
 
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <map>
 #include <string>
+#include <vector>
 
 namespace rules::campaign {
 
@@ -69,6 +71,20 @@ namespace rules::campaign {
 			return haul;
 		}
 
+		// A chance in a hundred for each game stage, 0 to kMostStage.
+		std::array<int, kMostStage + 1> readStageChances(JsonReader& reader, std::string_view key) {
+			const std::vector<int> chances = reader.requireInts(key);
+			if (chances.size() != static_cast<size_t>(kMostStage + 1) ||
+				std::ranges::any_of(chances, [](int chance) { return chance < 0 || chance > 100; })) {
+				reader.failAt(
+					key, "must be " + std::to_string(kMostStage + 1) + " chances in a hundred, 0 to 100, one for each game stage"
+				);
+			}
+			std::array<int, kMostStage + 1> byStage{};
+			std::ranges::copy(chances, byStage.begin());
+			return byStage;
+		}
+
 		CompoundRules readCompoundRules(JsonReader reader) {
 			JsonReader	  upkeep = reader.requireObject("upkeep");
 			JsonReader	  perUnit = upkeep.requireObject("peoplePerUnit");
@@ -78,6 +94,7 @@ namespace rules::campaign {
 			JsonReader	  fall = reader.requireObject("fall");
 			JsonReader	  clearing = reader.requireObject("clearing");
 			JsonReader	  rewards = reader.requireObject("rewards");
+			JsonReader	  returnAmbush = reader.requireObject("returnAmbush");
 			CompoundRules rules{
 				.peoplePerFood = requireIntIn(perUnit, "food", 1, kMostRule),
 				.peoplePerWater = requireIntIn(perUnit, "water", 1, kMostRule),
@@ -91,8 +108,10 @@ namespace rules::campaign {
 				.riotAtUnrest = requireIntIn(fall, "riotAtUnrest", 1, kMostRule),
 				.stopCooldownDays = requireIntIn(clearing, "stopCooldownDays", 1, kMostRule),
 				.rewardCards = requireIntIn(rewards, "cards", 1, kMostRule),
+				.returnAmbush = readStageChances(returnAmbush, "percentByStage"),
 			};
-			for (const JsonReader* object : {&perUnit, &upkeep, &shortfall, &infirmary, &scavenging, &fall, &clearing, &rewards, &reader}) {
+			for (const JsonReader* object :
+				 {&perUnit, &upkeep, &shortfall, &infirmary, &scavenging, &fall, &clearing, &rewards, &returnAmbush, &reader}) {
 				object->finish();
 			}
 			return rules;

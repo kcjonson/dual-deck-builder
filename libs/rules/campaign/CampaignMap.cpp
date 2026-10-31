@@ -1,6 +1,7 @@
 #include "CampaignMap.h"
 
 #include "CampaignJson.h"
+#include "Events.h"
 #include "RunDecks.h"
 
 #include <rules/core/ContentError.h>
@@ -81,14 +82,25 @@ namespace rules::campaign {
 			}
 		}
 
-		// The run's route is one the map has, its legs that route's, every stop on them, and the leg it's on the next
-		// stop's.
+		void insertSorted(std::vector<int>& ids, int id) {
+			const auto at = std::ranges::lower_bound(ids, id);
+			if (at == ids.end() || *at != id) {
+				ids.insert(at, id);
+			}
+		}
+
+		// The run's route is one the map has to a POI that isn't a stronghold, its legs that route's, every stop on them,
+		// the leg it's on the next stop's, and what waits at the stop it's at one the stop can hold: a reward at a fight,
+		// a Find: cards, or an event, and the fight an event turned into at an event.
 		void checkRunRoute(const RunRoute& route, const map::PoiLayer& pois, const map::StopLayer& stops) {
 			const std::string at = "campaign.run.route";
 			if (static_cast<size_t>(route.poi) >= pois.pois.size()) {
 				throw ContentError(
 					at + ".poi names POI " + std::to_string(route.poi) + ", and the map has " + std::to_string(pois.pois.size())
 				);
+			}
+			if (pois.pois[static_cast<size_t>(route.poi)].type == map::kStrongholdType) {
+				throw ContentError(at + ".poi names POI " + std::to_string(route.poi) + ", a stronghold, which no run leaves for yet");
 			}
 			const std::vector<map::Route> routes = map::routesTo(pois.legs, route.poi);
 			if (static_cast<size_t>(route.route) >= routes.size()) {
@@ -121,6 +133,16 @@ namespace rules::campaign {
 								  : std::ranges::find(route.legs, stops.stops[static_cast<size_t>(route.stops[next])].leg);
 			if (route.leg != on - route.legs.begin()) {
 				throw ContentError(at + ".leg is " + std::to_string(route.leg) + ", and the run's next stop isn't on that leg");
+			}
+			if (next == route.stops.size()) {
+				return;
+			}
+			const map::StopType type = stops.stops[static_cast<size_t>(route.stops[next])].type;
+			if (!route.reward.empty() && !map::isFight(type) && type != map::StopType::FindCards && !resolvesAsEvent(type)) {
+				throw ContentError(at + ".reward is on offer at a stop where nothing offers one");
+			}
+			if (route.handOff && !resolvesAsEvent(type)) {
+				throw ContentError(at + ".handOff waits at a stop that isn't an event");
 			}
 		}
 
@@ -271,11 +293,12 @@ namespace rules::campaign {
 		state.stops.insert(at, StopState{.stop = stop, .roll = 0, .cleared = day});
 	}
 
+	void clearPoi(MapState& state, int poi) {
+		insertSorted(state.clearedPois, poi);
+	}
+
 	void chartLeg(MapState& state, int leg) {
-		const auto at = std::ranges::lower_bound(state.chartedLegs, leg);
-		if (at == state.chartedLegs.end() || *at != leg) {
-			state.chartedLegs.insert(at, leg);
-		}
+		insertSorted(state.chartedLegs, leg);
 	}
 
 	map::MapToday mapToday(const Campaign& campaign) {

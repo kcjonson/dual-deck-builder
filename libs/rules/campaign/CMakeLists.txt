@@ -9,11 +9,14 @@ target_sources(ddb_rules
         CombatBridge.cpp
         Convoy.cpp
         DayClock.cpp
+        Events.cpp
+        EventStops.cpp
         Founding.cpp
         Garage.cpp
         Infirmary.cpp
         Locker.cpp
         Recruits.cpp
         RunDecks.cpp
+        RunProgress.cpp
         SupplyRun.cpp
 )

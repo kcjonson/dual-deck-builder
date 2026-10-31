@@ -388,7 +388,49 @@ namespace rules::campaign {
 			return ids;
 		}
 
-		// Where the run is on its route, and the reward on offer there, each a card a shop sells, once.
+		// The fight an event turned into: its skulls, and what winning it gives, all of it gains.
+		EventHandOff readHandOff(JsonReader reader, const Content& content) {
+			EventHandOff handOff{
+				.skulls = requireIntIn(reader, "skulls", 1, kMostSkulls),
+				.resources = readResources(reader.requireObject("resources")),
+				.cards = readCounts(reader, "cards", content),
+				.escort = std::nullopt,
+				.recruits = {},
+				.structure = requireIntIn(reader, "structure", 0),
+				.hp = requireIntIn(reader, "hp", 0),
+			};
+			const nlohmann::json& escort = reader.requireValue("escort");
+			if (!escort.is_null()) {
+				if (!escort.is_string() || !content.escorts.contains(EscortId{escort.get<std::string>()})) {
+					reader.failAt("escort", "must be null or an escort a loaded pack defines");
+				}
+				handOff.escort = EscortId{escort.get<std::string>()};
+			}
+			for (std::string& name : reader.requireStrings("recruits")) {
+				DriverId recruit{std::move(name)};
+				if (!content.drivers.contains(recruit)) {
+					reader.failAt("recruits", "names driver " + recruit.value + ", which no loaded pack defines");
+				}
+				handOff.recruits.push_back(std::move(recruit));
+			}
+			reader.finish();
+			return handOff;
+		}
+
+		nlohmann::json handOffJson(const EventHandOff& handOff) {
+			return {
+				{"skulls", handOff.skulls},
+				{"resources", resourcesJson(handOff.resources)},
+				{"cards", countsJson(handOff.cards)},
+				{"escort", handOff.escort ? nlohmann::json(handOff.escort->value) : nlohmann::json(nullptr)},
+				{"recruits", idsJson(handOff.recruits)},
+				{"structure", handOff.structure},
+				{"hp", handOff.hp},
+			};
+		}
+
+		// Where the run is on its route and what waits there: the reward on offer, each a card a shop sells, once; the
+		// fight an event turned into, at a stop; and past the stops, the objective taken and the return ambush ahead.
 		RunRoute readRunRoute(JsonReader reader, const Content& content) {
 			RunRoute route{
 				.poi = requireIntIn(reader, "poi", 0),
@@ -399,6 +441,9 @@ namespace rules::campaign {
 				.leg = 0,
 				.next = 0,
 				.reward = {},
+				.handOff = std::nullopt,
+				.objective = false,
+				.ambush = false,
 			};
 			route.leg = requireIntIn(reader, "leg", 0, static_cast<int>(route.legs.size()));
 			route.next = requireIntIn(reader, "next", 0, static_cast<int>(route.stops.size()));
@@ -412,9 +457,25 @@ namespace rules::campaign {
 				}
 				route.reward.push_back(card->first);
 			}
+			const nlohmann::json& handOff = reader.requireValue("handOff");
+			if (!handOff.is_null()) {
+				route.handOff = readHandOff(JsonReader(handOff, reader.where() + ".handOff"), content);
+			}
+			route.objective = reader.requireBool("objective");
+			route.ambush = reader.requireBool("ambush");
 			reader.finish();
-			if (!route.reward.empty() && static_cast<size_t>(route.next) == route.stops.size()) {
-				reader.failAt("reward", "is on offer past the run's last stop, where nothing offers one");
+			const bool atStop = static_cast<size_t>(route.next) < route.stops.size();
+			if (route.handOff && (!atStop || !route.reward.empty())) {
+				reader.failAt("handOff", "waits past the run's last stop or beside a reward, where no event's fight can");
+			}
+			if (route.objective && atStop) {
+				reader.failAt("objective", "is taken with stops still ahead of the run");
+			}
+			if (route.ambush && !route.objective) {
+				reader.failAt("ambush", "waits on the road home before the objective is taken");
+			}
+			if (!route.reward.empty() && !atStop && (!route.objective || route.ambush)) {
+				reader.failAt("reward", "is on offer past the run's last stop, where only a won return ambush offers one");
 			}
 			return route;
 		}
@@ -429,6 +490,9 @@ namespace rules::campaign {
 				{"leg", route.leg},
 				{"next", route.next},
 				{"reward", idsJson(route.reward)},
+				{"handOff", route.handOff ? handOffJson(*route.handOff) : nlohmann::json(nullptr)},
+				{"objective", route.objective},
+				{"ambush", route.ambush},
 			};
 		}
 

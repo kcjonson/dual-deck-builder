@@ -1,10 +1,11 @@
 #pragma once
 
-// Shared by the campaign tests: the base pack's campaign rules, and a campaign founded on them.
+// Shared by the campaign tests: the base pack's campaign rules and events, and a campaign founded on them.
 
 #include <rules/battle/BattleTesting.h>
 #include <rules/campaign/CampaignMap.h>
 #include <rules/campaign/CampaignRules.h>
+#include <rules/campaign/Events.h>
 #include <rules/campaign/Founding.h>
 #include <rules/map/MapTesting.h>
 #include <rules/map/ParamValidator.h>
@@ -28,6 +29,11 @@ namespace rules::campaigns {
 	inline const CampaignRules& testRules() {
 		static const CampaignRules rules = loadCampaignRules(testContent());
 		return rules;
+	}
+
+	inline const Events& testEvents() {
+		static const Events events = loadEvents(testContent());
+		return events;
 	}
 
 	// Each of the area map's stages on its first attempt, by name.

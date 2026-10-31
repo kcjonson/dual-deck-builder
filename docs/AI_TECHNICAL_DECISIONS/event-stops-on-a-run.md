@@ -48,10 +48,14 @@ The run out has two new fields, so the save format goes to version 13. Version 1
 
 ## In the C++ alpha
 
-The stops stage places wreck and distress stops, the event types the run resolves, and `rollStop` gives each, at its roll, a seed of its own for the run to draw on (stops-and-routes.md, Stops in the C++ alpha); the run's side of them comes with the supply runs. The campaign side of what they give is in `libs/rules/campaign/` (2026-10-31, DDB-573), and [campaign.md](./campaign.md) has how. What differs:
+The stops stage places wreck and distress stops, the event types the run resolves (stops-and-routes.md, Stops in the C++ alpha). The run's side of them is `libs/rules/campaign/EventStops.h` (2026-10-31, DDB-573), and [campaign.md](./campaign.md), Events, the objective, and the return, has how. Calls 271 to 275 hold. What differs:
 
-- An escort an event gives joins the convoy and the run at once through `joinConvoy`, its signature card in Driver 1's run deck, and with four in the convoy the player dismisses one along first (calls 402 and 403, replacing 270). So there's no `escortsFound` riding home.
+- The event is picked in id order rather than file order, on the run's stream for the stop by the map's id for it, `fork("run", n).fork("stop", id).fork("event")`, as call 406 has everything drawn at a stop, rather than by the run's step. The route keeps no event id: a run that hasn't chosen meets whichever event the packs give the draw.
+- A hand-off is the fight as data, the route's `EventHandOff`: its skulls and what winning it gives, someone new drawn already, rather than the event and the choice. So there's no `handOffStands` or `abandonHandOff`, since an edit to the event can't change or strand a fight already chosen, and the save reader needs no events to check it.
+- An escort an event gives joins the convoy and the run at once through `joinConvoy`, its signature card in Driver 1's run deck (calls 402 and 403, replacing 270), and a choice that could give one the convoy has no room for is locked until one along is dismissed (call 408). So there's no `escortsFound` riding home.
 - Drivers an event gives are `recruitArchetype`'s, riding home in the run's `recruits` as a Find: driver's someone new does.
+- Only a choice gets past an event: `driveOn` refuses one, which call 274 had the run screen do, and the quiet stretch is gone (call 407).
+- Nothing is logged: the outcome's text and the fight's are the event scene's, from the outcome `takeEventChoice` returns.
 
 ## Provisional calls
 

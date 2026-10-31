@@ -50,8 +50,9 @@ namespace rules::campaign {
 
 	// Throws a ContentError naming the path in the save when `map` isn't the one the campaign's origin makes, by its
 	// fingerprint, or an id the map state holds isn't on it: a POI, leg, or stop past the map's, or a stronghold taken
-	// that isn't a stronghold. A run on the road has to be on a route the map has, with that route's legs and its POI's
-	// tier, every stop on those legs, and the leg it's on the next stop's.
+	// that isn't a stronghold. A run on the road has to be on a route the map has to a POI that isn't a stronghold, with
+	// that route's legs and its POI's tier, every stop on those legs, and the leg it's on the next stop's; a reward on
+	// offer at its stop has to be at a fight, a Find: cards, or an event, and the fight an event turned into at an event.
 	void checkCampaignMap(const Campaign& campaign, const map::AreaMap& map);
 
 	// A save loaded, and its map made again beside it, which the game holds for the campaign's screens.
@@ -91,8 +92,9 @@ namespace rules::campaign {
 	[[nodiscard]] MapLayers
 	layersOf(const map::AreaMap& map, const MapOrigin& origin, const map::MapContent& content, const map::RouteTuning& routes);
 
-	// A stop cleared on `day`, at the roll it has, and a leg charted, each list kept in id order.
+	// A stop cleared on `day`, at the roll it has, a POI cleared for good, and a leg charted, each list kept in id order.
 	void clearStop(MapState& state, int stop, int day);
+	void clearPoi(MapState& state, int poi);
 	void chartLeg(MapState& state, int leg);
 
 } // namespace rules::campaign

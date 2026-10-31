@@ -348,7 +348,7 @@ Record: find-stops.md.
 212. DDB-523: someone new found on the road rides home with the run and joins the pool there, lost with the run if it fails, because a found missing driver already does, and the convoy is what brings them in.
 213. DDB-523: a Find: cards is the fight reward's picker and pool, three cards at the drop rates, the one picked riding home as cargo, because the spec names that picker and a find's cards shouldn't be safer than a fight's.
 214. DDB-523: a Find: supplies haul is the stop's rolled contents, one resource in the stop tuning's range, meds included, because the cargo and the stores carry meds though POI yields don't.
-220. DDB-523: a calm stop type the run can't resolve yet (wreck, distress, garage, hazard, Find: settlers, Find: vehicle) still runs as a quiet stretch, rather than the stops stage giving it weight 0 as Runs and Encounters asks, because zeroing it is a stops-stage change that reshapes every map's stops, and finds are what this batch could resolve; the stops stage drops the quiet stretch once it zeroes those weights.
+220. DDB-523: a calm stop type the run can't resolve yet (wreck, distress, garage, hazard, Find: settlers, Find: vehicle) still runs as a quiet stretch, rather than the stops stage giving it weight 0 as Runs and Encounters asks, because zeroing it is a stops-stage change that reshapes every map's stops, and finds are what this batch could resolve; the stops stage drops the quiet stretch once it zeroes those weights. Replaced by 407.
 
 ## Clearing (215 to 219, 221, 222)
 
@@ -557,6 +557,17 @@ Decision record: [campaign.md](AI_TECHNICAL_DECISIONS/campaign.md), Supply runs.
 
 405. DDB-573: a warband fields an encounter of its skulls at the POI's tier and pays a won fight's reward, three cards at the drop rates, as an ambush does, rather than an elite group with a leader paying a mod or a rare card, because no encounter has a leader to field and no pack defines a vehicle mod yet.
 406. DDB-573: everything drawn at a stop, a fight's raiders, its reward, a Find: cards's cards, and someone new at a Find: driver, is drawn on the run's own stream for that stop, as the TypeScript drew them, so another run down the same road meets the same stops with other raiders and finds, because a retry after a failed run (call 260) shouldn't replay the fight that lost it.
+
+## The C++ events, objective, and return (407 to 412)
+
+Decision record: [campaign.md](AI_TECHNICAL_DECISIONS/campaign.md), Events, the objective, and the return.
+
+407. DDB-573: a wreck or a distress signal opens an event, one of its type's from the packs' events, replacing 220's quiet stretch, and the run gets past one only by taking one of its choices, so there's no driving past it, because every event has a choice that needs and costs nothing (254), and Runs and Encounters' rule 2 has no empty steps.
+408. DDB-573: a choice whose outcome, its fight's win counted with it, could give more escorts than the convoy has room for is locked until the player dismisses one along (402, 403), rather than the escort being turned down after the draw, because the outcome lands only once the choice is taken, and a dismissal after it would need a step at the stop that nothing else has.
+409. DDB-573: the objective at a POI is its type's whole yield into the cargo, taken with no fight, and the POI clears with the run's stops when it gets home, because POI objectives as encounters is Runs and Encounters' open question 1, and the yield and the clearing stay together as 260 has them.
+410. DDB-573: no run leaves for a stronghold, departure refusing it with its own reason, until a stronghold's boss fight exists, because the boss is a stronghold's objective (Compound and Supply Runs) and a run there would reach a POI with nothing to do.
+411. DDB-573: the return ambush is rolled once, as the objective is taken, on the run's own stream for the road home, at 0, 0, 3, 6, 9, 12, and 15 in a hundred for game stages 0 to 6, and fields an encounter of the route's risk as it left, its worst fight's skulls or 1, at the POI's tier, grown by the run's stage, because Runs and Encounters has none before stage 2 and then 3% a stage up to 15% at stage 6, and that risk is what the route card already shows.
+412. DDB-573: the return ambush is fought as a stop fight is: won, it opens the reward; broken off, the run drives home with none; lost, the run fails with its whole cargo, the POI's yield included, and clears nothing, because the spec has the ambush put the cargo at stake, and it shouldn't carry rules of its own any more than an event's fight does (255).
 
 ## The C++ dressing (420 to 421)
 

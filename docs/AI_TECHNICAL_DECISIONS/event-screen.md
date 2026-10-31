@@ -40,6 +40,16 @@ The event screen is an atlas sheet (UI Art Direction): the plate on the left, th
 
 The screen takes the event, the party, the draw, and optionally a result to reopen on (a saved step mid-event, rebuilt with `landOutcome` from its event, choice, and draw; the party isn't needed then). It reports twice: `onChoose` with the `EventResult` as the choice is made, so the run applies and saves it before anything else happens, and `onDone` on the highway. That's the opposite of load out's call (data, not callbacks, [load-out-screen.md](./load-out-screen.md)), on purpose: load out owns its departure, but the event screen is a step inside the run, and applying the result belongs to the run loop. With nothing to report to, Drive on returns to the main menu. Opened with nothing at all, it shows the first event with a stand-in party.
 
+## In the C++ alpha
+
+The content and its rules are `libs/rules/campaign/Events.h` (2026-10-31, DDB-573), and [campaign.md](./campaign.md), Events, the objective, and the return, has how; the screen waits for salal's `ui`. Calls 250 to 259 hold. What differs:
+
+- Events are pack content, `events/*.json` in every loaded pack, read by `loadEvents` over the packs' override rule: a later pack adds an event or overrides one by id, and only over a pack it requires. The base pack's file is this one's, as it stands.
+- The text caps are gone, since they were the room this screen had at 1024x600; the event scene sets its own. The other bounds stand.
+- An event's stop type is one the run resolves as an event, a wreck or a distress signal (call 407), and each of those has to have an event, so no stop the map places is left without one.
+- The lock's order holds, with `ConvoyFull` before the cost (call 408), and `resolveChoice` and `landOutcome` are `takeEventChoice` and `landedOutcome`, over the campaign (`EventStops.h`): with no screen to hand an `EventResult` to, the run applies the outcome where the choice is taken.
+- `choicePreview` and `EventResult` are the screen's, and aren't built.
+
 ## Provisional calls
 
 None of these is in a spec. They're calls 250 to 259 in [gameplay-calls.md](../gameplay-calls.md).

@@ -1,7 +1,9 @@
 #include "SupplyRun.h"
 
-#include "CardOffers.h"
+#include "EventStops.h"
+#include "Events.h"
 #include "RunDecks.h"
+#include "RunProgress.h"
 
 #include <rules/battle/Encounters.h>
 #include <rules/map/StopContents.h>
@@ -9,6 +11,8 @@
 #include <random/Rng.h>
 
 #include <algorithm>
+#include <array>
+#include <cassert>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -64,48 +68,23 @@ namespace rules::campaign {
 			return found == state.stops.end() ? 0 : found->roll;
 		}
 
-		// The leg the run is on, by its place among the route's: the next stop's, or past the last, once at the POI.
-		int legOn(const RunRoute& route, const MapLayers& map) {
-			if (static_cast<size_t>(route.next) >= route.stops.size()) {
-				return static_cast<int>(route.legs.size());
-			}
-			const int leg = map.stops.stops[static_cast<size_t>(route.stops[static_cast<size_t>(route.next)])].leg;
-			return static_cast<int>(std::ranges::find(route.legs, leg) - route.legs.begin());
+		bool isFind(map::StopType type) {
+			return type == map::StopType::FindDriver || type == map::StopType::FindCards || type == map::StopType::FindSupplies;
 		}
 
-		void passStop(RunRoute& route, const MapLayers& map) {
-			++route.next;
-			route.reward.clear();
-			route.leg = legOn(route, map);
-		}
-
-		// The run's own stream for a stop, which everything drawn there forks from (call 406).
-		foundation::Rng stopStream(const Campaign& campaign, int stop) {
-			return foundation::Rng(campaign.seed).fork("run", *idNumber(campaign.run->id.value, kRunPrefix)).fork("stop", stop);
-		}
-
-		std::vector<CardId> rollReward(const Campaign& campaign, const Content& content, const CampaignRules& rules, int stop) {
-			foundation::Rng stream = stopStream(campaign, stop).fork("reward");
-			return rollCardOffers(stream, content, rules.compound.rewardCards, !campaign.convoy.empty());
-		}
-
-		// The run on the road at a stop, with no reward on offer unless `reward` asks for one.
-		const RunRoute& atStop(const Campaign& campaign, std::string_view action, bool reward = false) {
-			if (!campaign.run || !campaign.run->route) {
-				throw std::invalid_argument(std::string(action) + ": no run is on the road");
-			}
-			const RunRoute& route = *campaign.run->route;
+		// The route of a run at a stop, with nothing on offer there and no fight an event turned into waiting.
+		const RunRoute& atStop(const Campaign& campaign, std::string_view action) {
+			const RunRoute& route = routeOnRoad(campaign, action);
 			if (static_cast<size_t>(route.next) >= route.stops.size()) {
 				throw std::invalid_argument(std::string(action) + ": the run is past its last stop");
 			}
-			if (route.reward.empty() == reward) {
-				throw std::invalid_argument(std::string(action) + (reward ? ": no reward is on offer" : ": a reward is on offer"));
+			if (!route.reward.empty()) {
+				throw std::invalid_argument(std::string(action) + ": a reward is on offer");
+			}
+			if (route.handOff) {
+				throw std::invalid_argument(std::string(action) + ": the fight an event turned into waits");
 			}
 			return route;
-		}
-
-		const map::Stop& stopOf(const MapLayers& map, const RunRoute& route) {
-			return map.stops.stops[static_cast<size_t>(route.stops[static_cast<size_t>(route.next)])];
 		}
 
 		Resources haulOf(const map::Haul& haul) {
@@ -130,6 +109,48 @@ namespace rules::campaign {
 			return resources;
 		}
 
+		// The route's risk as it left: the most skulls among the fights it meets, and 1 with none (call 13).
+		int riskOf(const RunRoute& route, const MapLayers& map) {
+			int risk = 1;
+			for (const int stop : route.stops) {
+				const map::Stop& met = mapStop(map, stop);
+				if (map::isFight(met.type)) {
+					risk = std::max(risk, met.skulls);
+				}
+			}
+			return risk;
+		}
+
+		enum class FightKind { Stop, HandOff, Return };
+
+		// The fight the run is at, its skulls, and the stream it draws on there.
+		struct FightAhead {
+			FightKind		kind{FightKind::Stop};
+			int				skulls{1};
+			foundation::Rng stream;
+		};
+
+		FightAhead fightAhead(const Campaign& campaign, const MapLayers& map, std::string_view action) {
+			const RunRoute& route = routeOnRoad(campaign, action);
+			if (route.reward.empty()) {
+				if (static_cast<size_t>(route.next) < route.stops.size()) {
+					const int stop = stopAt(route);
+					if (route.handOff) {
+						return FightAhead{
+							.kind = FightKind::HandOff, .skulls = route.handOff->skulls, .stream = stopStream(campaign, stop)
+						};
+					}
+					const map::Stop& met = mapStop(map, stop);
+					if (map::isFight(met.type)) {
+						return FightAhead{.kind = FightKind::Stop, .skulls = met.skulls, .stream = stopStream(campaign, stop)};
+					}
+				} else if (route.ambush) {
+					return FightAhead{.kind = FightKind::Return, .skulls = riskOf(route, map), .stream = returnStream(campaign)};
+				}
+			}
+			throw std::invalid_argument(std::string(action) + ": the run isn't at a fight, or has its reward on offer");
+		}
+
 	} // namespace
 
 	std::vector<map::RouteOffer> offersToday(const Campaign& campaign, const MapLayers& map) {
@@ -149,6 +170,9 @@ namespace rules::campaign {
 		}
 		if (std::ranges::binary_search(campaign.mapState.clearedPois, choice.poi)) {
 			return DepartBlocker{.reason = DepartRefusal::Cleared};
+		}
+		if (map.pois.pois[static_cast<size_t>(choice.poi)].type == map::kStrongholdType) {
+			return DepartBlocker{.reason = DepartRefusal::Stronghold};
 		}
 		if (campaign.stores.fuel < route.fuel) {
 			return DepartBlocker{.reason = DepartRefusal::Fuel, .fuel = route.fuel};
@@ -171,6 +195,9 @@ namespace rules::campaign {
 						.leg = 0,
 						.next = 0,
 						.reward = {},
+						.handOff = std::nullopt,
+						.objective = false,
+						.ambush = false,
 		};
 		for (const int leg : leaving.legs) {
 			for (const int stop : map::stopsAtStage(map.stops.legs[static_cast<size_t>(leg)], map.stops, run.stage)) {
@@ -192,36 +219,66 @@ namespace rules::campaign {
 		if (static_cast<size_t>(route.next) >= route.stops.size()) {
 			return std::nullopt;
 		}
-		return route.stops[static_cast<size_t>(route.next)];
+		return stopAt(route);
 	}
 
-	CampaignFightStart startStopFight(const Campaign& campaign, const Content& content, const MapLayers& map) {
-		const RunRoute&	 route = atStop(campaign, "startStopFight");
-		const map::Stop& stop = stopOf(map, route);
-		if (!map::isFight(stop.type)) {
-			throw std::invalid_argument("startStopFight: the stop the run is at isn't a fight");
+	Ahead ahead(const Campaign& campaign, const MapLayers& map) {
+		const RunRoute& route = routeOnRoad(campaign, "ahead");
+		if (!route.reward.empty()) {
+			return Ahead::Reward;
 		}
-		const int		  id = route.stops[static_cast<size_t>(route.next)];
-		const EncounterId encounter = pickEncounter(content, stop.skulls, route.tier, stopStream(campaign, id).seed());
+		if (static_cast<size_t>(route.next) < route.stops.size()) {
+			const map::StopType type = mapStop(map, stopAt(route)).type;
+			if (route.handOff || map::isFight(type)) {
+				return Ahead::Fight;
+			}
+			if (resolvesAsEvent(type)) {
+				return Ahead::Event;
+			}
+			if (isFind(type)) {
+				return Ahead::Find;
+			}
+			throw std::logic_error("ahead: the map placed a stop the run can't resolve");
+		}
+		if (!route.objective) {
+			return Ahead::Objective;
+		}
+		return route.ambush ? Ahead::Fight : Ahead::Home;
+	}
+
+	CampaignFightStart startRunFight(const Campaign& campaign, const Content& content, const MapLayers& map) {
+		const FightAhead  fight = fightAhead(campaign, map, "startRunFight");
+		const EncounterId encounter = pickEncounter(content, fight.skulls, campaign.run->route->tier, fight.stream.seed());
 		return startCampaignFight(campaign, content, encounter);
 	}
 
 	FightWriteBack
-	endStopFight(Campaign& campaign, const Content& content, const CampaignRules& rules, const MapLayers& map, const CampaignFight& fight) {
-		const RunRoute& route = atStop(campaign, "endStopFight");
-		if (!map::isFight(stopOf(map, route).type)) {
-			// Checked before the write-back, so a fight from anywhere else changes nothing.
-			throw std::invalid_argument("endStopFight: the stop the run is at isn't a fight");
-		}
-		const int	   stop = route.stops[static_cast<size_t>(route.next)];
-		FightWriteBack written = writeBackFight(campaign, content, rules, fight);
+	endRunFight(Campaign& campaign, const Content& content, const CampaignRules& rules, const MapLayers& map, const CampaignFight& fight) {
+		// Checked before the write-back, so a fight from anywhere else changes nothing.
+		const FightAhead				  at = fightAhead(campaign, map, "endRunFight");
+		const std::optional<EventHandOff> handOff = campaign.run->route->handOff;
+		FightWriteBack					  written = writeBackFight(campaign, content, rules, fight);
 		if (written.outcome == Outcome::Lost) {
 			return written;
 		}
-		RunRoute& onward = *campaign.run->route;
-		if (written.outcome == Outcome::Won) {
-			onward.reward = rollReward(campaign, content, rules, stop);
-		} else {
+		const bool won = written.outcome == Outcome::Won;
+		RunRoute&  onward = *campaign.run->route;
+		switch (at.kind) {
+			case FightKind::Return:
+				onward.ambush = false;
+				break;
+			case FightKind::HandOff:
+				onward.handOff.reset();
+				if (won) {
+					giveHandOff(campaign, content, *handOff);
+				}
+				break;
+			case FightKind::Stop:
+				break;
+		}
+		if (won) {
+			onward.reward = rollReward(at.stream, campaign, content, rules);
+		} else if (at.kind != FightKind::Return) {
 			passStop(onward, map);
 		}
 		return written;
@@ -236,8 +293,8 @@ namespace rules::campaign {
 	) {
 		(void)atStop(campaign, "takeFind");
 		RunRoute&		 route = *campaign.run->route;
-		const map::Stop& stop = stopOf(map, route);
-		const int		 id = route.stops[static_cast<size_t>(route.next)];
+		const int		 id = stopAt(route);
+		const map::Stop& stop = mapStop(map, id);
 		TakenFind		 taken;
 		switch (stop.type) {
 			case map::StopType::FindSupplies: {
@@ -253,7 +310,7 @@ namespace rules::campaign {
 				break;
 			}
 			case map::StopType::FindCards:
-				taken.reward = rollReward(campaign, content, rules, id);
+				taken.reward = rollReward(stopStream(campaign, id), campaign, content, rules);
 				route.reward = taken.reward;
 				break;
 			default:
@@ -263,24 +320,68 @@ namespace rules::campaign {
 	}
 
 	void takeReward(Campaign& campaign, const Content& content, const MapLayers& map, const std::optional<CardId>& card) {
-		(void)atStop(campaign, "takeReward", true);
+		const RunRoute& route = routeOnRoad(campaign, "takeReward");
+		if (route.reward.empty()) {
+			throw std::invalid_argument("takeReward: no reward is on offer");
+		}
 		if (card) {
-			const std::vector<CardId>& reward = campaign.run->route->reward;
-			if (std::ranges::find(reward, *card) == reward.end()) {
+			if (std::ranges::find(route.reward, *card) == route.reward.end()) {
 				throw std::invalid_argument("takeReward: " + card->value + " isn't on offer");
 			}
 			addCardsWon(campaign, content, {{*card, 1}});
 		}
-		passStop(*campaign.run->route, map);
+		RunRoute& onward = *campaign.run->route;
+		if (static_cast<size_t>(onward.next) < onward.stops.size()) {
+			passStop(onward, map);
+		} else {
+			onward.reward.clear();
+		}
 	}
 
 	void driveOn(Campaign& campaign, const MapLayers& map) {
-		(void)atStop(campaign, "driveOn");
-		RunRoute& route = *campaign.run->route;
-		if (map::isFight(stopOf(map, route).type)) {
+		const map::StopType type = mapStop(map, stopAt(atStop(campaign, "driveOn"))).type;
+		if (map::isFight(type)) {
 			throw std::invalid_argument("driveOn: the run is at a fight, which only fighting gets past");
 		}
-		passStop(route, map);
+		if (resolvesAsEvent(type)) {
+			throw std::invalid_argument("driveOn: the run is at an event, which only one of its choices gets past");
+		}
+		passStop(*campaign.run->route, map);
+	}
+
+	ObjectiveTaken takeObjective(Campaign& campaign, const CampaignRules& rules, const MapLayers& map) {
+		const RunRoute& route = routeOnRoad(campaign, "takeObjective");
+		if (static_cast<size_t>(route.next) < route.stops.size()) {
+			throw std::invalid_argument("takeObjective: the run hasn't reached its POI");
+		}
+		if (route.objective) {
+			throw std::invalid_argument("takeObjective: the run has taken its objective");
+		}
+		const map::Poi& poi = map.pois.pois[static_cast<size_t>(route.poi)];
+		assert(poi.type != map::kStrongholdType && "takeObjective: no run leaves for a stronghold (departBlocker)");
+		const std::array<int, 5>& yields = map.content.pois.types.at(poi.type).yields;
+		const auto				  yieldOf = [&](map::Resource resource) {
+			   return yields[static_cast<size_t>(resource)];
+		};
+		Run&		   run = *campaign.run;
+		ObjectiveTaken taken{
+			.yields =
+				{
+					.food = yieldOf(map::Resource::Food),
+					.water = yieldOf(map::Resource::Water),
+					.fuel = yieldOf(map::Resource::Fuel),
+					.meds = yieldOf(map::Resource::Meds),
+					.scrap = yieldOf(map::Resource::Scrap),
+					.people = 0,
+				},
+			.ambush = false,
+		};
+		run.cargo = run.cargo + taken.yields;
+		foundation::Rng roll = returnStream(campaign).fork("ambush");
+		taken.ambush = roll.nextInt(0, 99) < rules.compound.returnAmbush[static_cast<size_t>(run.stage)];
+		run.route->objective = true;
+		run.route->ambush = taken.ambush;
+		return taken;
 	}
 
 } // namespace rules::campaign
