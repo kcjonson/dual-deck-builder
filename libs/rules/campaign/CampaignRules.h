@@ -4,6 +4,7 @@
 
 #include <rules/packs/Pack.h>
 
+#include <map>
 #include <vector>
 
 namespace rules::campaign {
@@ -48,17 +49,30 @@ namespace rules::campaign {
 		int riotAtUnrest{0};
 	};
 
+	// What the garage stocks and charges, in scrap (Game Flow 4): campaign/garage-rules.json.
+	struct GarageRules {
+		// Different cards on sale each day.
+		int stock{0};
+		// A card's price by its rarity, one for each a shop sells: common, uncommon, rare, and legendary.
+		std::map<Rarity, int> cardPrices;
+		// A point of structure or armor put back.
+		int repairPerPoint{0};
+		// Each escort type for hire; a type it doesn't price isn't.
+		std::map<EscortId, int> hirePrices;
+	};
+
 	struct CampaignRules {
 		CampaignStart start;
 		DeckRules	  deck;
 		CompoundRules compound;
+		GarageRules	  garage;
 	};
 
-	// Reads campaign/ from every loaded pack, in load order: start.json, deck-rules.json, and compound-rules.json, each
-	// one object read strictly. A later pack's file replaces an earlier one's whole, and only when it requires that pack,
-	// directly or through another, the rule loadPacks holds content to. Every file has to come from some pack and the
-	// start's escorts have to be defined; anything else in the folder, or wrong in a file, throws a ContentError naming
-	// the file.
+	// Reads campaign/ from every loaded pack, in load order: start.json, deck-rules.json, compound-rules.json, and
+	// garage-rules.json, each one object read strictly. A later pack's file replaces an earlier one's whole, and only
+	// when it requires that pack, directly or through another, the rule loadPacks holds content to. Every file has to
+	// come from some pack, and the escorts the start and the garage name have to be defined; anything else in the
+	// folder, or wrong in a file, throws a ContentError naming the file.
 	[[nodiscard]] CampaignRules loadCampaignRules(const Content& content);
 
 } // namespace rules::campaign

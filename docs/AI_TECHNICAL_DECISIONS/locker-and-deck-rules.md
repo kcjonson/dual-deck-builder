@@ -29,7 +29,7 @@ The campaign checks eligibility synchronously, and `CardLoader` fetches `cards.j
 
 ## In the C++ alpha
 
-`cardMoveBlocker`, `moveCards`, and scrapping in `libs/rules/campaign/Locker.h` (2026-10-31, DDB-573) keep these rules in this order, and [campaign.md](./campaign.md) has how. The limits are pack content, `packs/base/campaign/deck-rules.json`, and the archetype marks are each card's `driverRestriction` in the loaded packs. A refusal is a typed `CardBlocker`, and `moveCards` throws `std::invalid_argument` rather than an error type of its own.
+`cardMoveBlocker`, `moveCards`, and scrapping in `libs/rules/campaign/Locker.h` (2026-10-31, DDB-573) keep these rules in this order, and [campaign.md](./campaign.md) has how. The limits are pack content, `packs/base/campaign/deck-rules.json`, and the archetype marks are each card's `driverRestriction` in the loaded packs. A refusal is a typed `CardBlocker`, and `moveCards` throws `std::invalid_argument` rather than an error type of its own. The garage's prices are in (`garage-rules.json`, call 401), and the cheapest card costs six times the 5 a scrapped copy pays, so scrapping stays flat.
 
 ## Provisional calls
 

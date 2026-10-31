@@ -103,7 +103,14 @@ namespace rules::campaign {
 				.seats = {},
 				.escortsLost = run.escorts,
 				.dividends = {},
-				.lost = RunLost{.run = run.id, .cardsLost = {}, .cargo = run.cargo, .cargoCards = run.cargoCards},
+				.lost = RunLost{
+					.run = run.id,
+					.cardsLost = {},
+					.cargo = run.cargo,
+					.cargoCards = run.cargoCards,
+					.found = run.found,
+					.recruits = run.recruits,
+				},
 			};
 			for (size_t seat = 0; seat < run.seats.size(); ++seat) {
 				const DriverIndex	driver{static_cast<int>(seat)};

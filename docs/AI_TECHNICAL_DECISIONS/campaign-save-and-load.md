@@ -104,7 +104,7 @@ A save names the pipeline's stages in `mapAttempts.stages`, so adding, removing,
 
 `libs/rules/campaign/CampaignJson.h` (2026-10-31, DDB-573) reads and writes the campaign's JSON, and [campaign.md](./campaign.md) has how. Storing it in a slot, the history, and checkpoints are the game app's, over salal's `SaveStore`, and aren't built. What differs:
 
-- The JSON carries its version, `kSaveVersion`, 1, which the game hands salal's `SaveFormat` too, so the rules refuse a save of another version without seeing the envelope.
+- The JSON carries its version, `kSaveVersion`, 3 since the garage's stock and a run's finds, which the game hands salal's `SaveFormat` too, so the rules refuse a save of another version without seeing the envelope.
 - It names the packs it was made with and loads only with all of them loaded. Every card, archetype, and escort type it holds has to resolve in the loaded packs, where this record let a dropped card load.
 
 ## Provisional calls

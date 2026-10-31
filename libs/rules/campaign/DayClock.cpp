@@ -1,6 +1,7 @@
 #include "DayClock.h"
 
 #include "CampaignEnd.h"
+#include "Garage.h"
 #include "Infirmary.h"
 
 #include <random/Rng.h>
@@ -53,6 +54,7 @@ namespace rules::campaign {
 				endCampaign(campaign, compound, EndCause::NoPeople);
 			} else {
 				++campaign.day;
+				campaign.garage = rollGarageStock(campaign, content, rules.garage);
 			}
 			return night;
 		}

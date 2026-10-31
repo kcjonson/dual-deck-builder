@@ -1,5 +1,8 @@
 #include "RunDecks.h"
 
+#include "CombatBridge.h"
+#include "Recruits.h"
+
 #include <rules/battle/Battle.h>
 
 #include <algorithm>
@@ -172,7 +175,7 @@ namespace rules::campaign {
 
 	void giveUpLoadOut(Campaign& campaign) {
 		const Run& run = runOut(campaign, "giveUpLoadOut");
-		if (run.fights > 0 || run.cargo != Resources{} || !run.cargoCards.empty()) {
+		if (run.fights > 0 || run.cargo != Resources{} || !run.cargoCards.empty() || !run.found.empty() || !run.recruits.empty()) {
 			throw std::invalid_argument("giveUpLoadOut: " + run.id.value + " has left, and ends by coming home or failing");
 		}
 		for (const RunDeck& deck : run.seats) {
@@ -203,14 +206,31 @@ namespace rules::campaign {
 		campaign.stores = campaign.stores + run.cargo;
 		addCards(campaign.locker, run.cargoCards);
 		++campaign.tally.runsHome;
-		std::vector<CrewId> seats;
+		std::vector<CrewId> home;
 		for (const RunDeck& deck : run.seats) {
-			seats.push_back(deck.driver);
+			home.push_back(deck.driver);
+		}
+		for (const CrewId& found : run.found) {
+			DriverRecord& driver = campaign.driver(found);
+			driver.status = DriverStatus::Ready;
+			driver.vehicle.structure = kLimpStructure;
+			home.push_back(found);
+		}
+		std::vector<CrewId>		 recruited;
+		std::vector<std::string> names;
+		for (const DriverId& archetype : run.recruits) {
+			recruited.push_back(recruitDriver(campaign, content, archetype));
+			names.push_back(driverName(campaign, content, recruited.back()));
+		}
+		if (!names.empty()) {
+			addLog(campaign, listed(names) + " joined the compound, found on the road.");
 		}
 		return Unloaded{
 			.resources = run.cargo,
 			.cards = std::move(run.cargoCards),
-			.injuries = injureOnArrival(campaign, content, rules.compound, seats),
+			.found = run.found,
+			.recruited = std::move(recruited),
+			.injuries = injureOnArrival(campaign, content, rules.compound, home),
 		};
 	}
 

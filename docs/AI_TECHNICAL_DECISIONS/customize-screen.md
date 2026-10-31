@@ -50,6 +50,10 @@ Opened with a campaign and a driver, the screen shows that driver's run deck at 
 
 Focus starts on Done. Tab goes Done, the driver card, Reset, the escort cards, the run deck, the filter, the locker (R9.18). Each grid is one focus group (R9.29): Left and Right walk minis and controls in reading order, Down from a mini goes to its first live control (one-more on a HOME stack) and Up back (R9.26). The grids keep focus as the Crew screen's do: a control that a move disables hands focus to its mini, an entry that goes hands it to the same part of the entry now in its place (a card's last own copy left at home lands on its new HOME stack), and the escort grid, emptied, hands it to the driver card. A +N or HOME stack names its card as its focus heir, so when one empties, focus lands on that card's plain stack, or with none left, on the mini, never a control, of the entry now in its place: pressing Enter twice on a Medical Kit +1's one-fewer can't leave a Ramming Speed at home on the second press. Reset, disabled by its own press, hands focus to the driver card above it rather than letting R9.28 drop it. Escape is Done, unless a pinned detail view takes it first; I and a secondary click pin a card's detail view.
 
+## In the C++ alpha
+
+The screen waits for salal's ui. Its rules are in `libs/rules/campaign/Locker.h` (2026-10-31, DDB-573), and [campaign.md](./campaign.md), The garage, finds, and escorts on the road, has how: a `CardMove` names its stack's copies as `copies` (`Own`, `Borrowed`, or `Home`), and the rules refuse one whose copies wait their turn with `OwnAtHome` or `BorrowedFirst`, so each control can ask `cardMoveBlocker` for exactly its stack, as calls 53 and 54 have it.
+
 ## Provisional calls
 
 Each is the simplest reading where the spec or the wireframe leaves the call open.

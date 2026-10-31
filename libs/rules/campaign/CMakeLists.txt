@@ -4,10 +4,14 @@ target_sources(ddb_rules
         CampaignEnd.cpp
         CampaignJson.cpp
         CampaignRules.cpp
+        CardOffers.cpp
         CombatBridge.cpp
+        Convoy.cpp
         DayClock.cpp
         Founding.cpp
+        Garage.cpp
         Infirmary.cpp
         Locker.cpp
+        Recruits.cpp
         RunDecks.cpp
 )

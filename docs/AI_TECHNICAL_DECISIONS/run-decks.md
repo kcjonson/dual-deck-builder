@@ -73,7 +73,8 @@ The campaign saves `runDecks`, each as its driver's id, `own`, `leftHome`, `borr
 
 - The run decks are the run's, in `Campaign::run`, beside the escorts that came along, so an escort card is checked against the run rather than a party.
 - A load out can't be given up once its run has fought or picked something up, since that run has left.
-- A move names no copies (`CardMove.copies`); Customize's choice of stack comes with the screen.
+- A move names its copies as `CardMove::copies`, and `own_at_home` and `borrowed_first` are `OwnAtHome` and `BorrowedFirst`, with the copies that come first as `count`.
+- An escort joining or leaving mid-run is `joinConvoy` or `dismissEscort` (`Convoy.h`), each bringing its card in or taking it out itself, so there's no `addEscortCards` or `removeEscortCards` to remember beside them. One that joins puts its card in Driver 1's run deck (call 402).
 - A missing driver's run deck unwinds in the lost fight's write-back, with the dead's.
 
 ## Provisional calls

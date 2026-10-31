@@ -30,6 +30,14 @@ Options considered for someone new: recruiting them on the spot, which needs not
 
 `SupplyRun.recruits` is new, so the save format goes to version 11. Version 10 saves load: a run out in one never found anyone new, so the upgrade step gives it no recruits. A route saved by an older build has no finds, and reads as before.
 
+## In the C++ alpha
+
+`libs/rules/campaign/Recruits.h` (2026-10-31, DDB-573) has Find: driver's campaign side, and [campaign.md](./campaign.md), The garage, finds, and escorts on the road, has how. The stop itself waits for the map's stops. What differs:
+
+- `whoIsFound` takes the stop's seed from its caller, the map's stop, rather than reading the run's route, and the unlocked archetypes as founding does.
+- A missing driver found rides home in the run's `found` and someone new in its `recruits`, both on `Campaign::run`, and `unloadRun` brings both in, where the TypeScript split them between the campaign's `foundOnRun` and the supply run's `recruits`.
+- Find: cards will draw on `rollCardOffers` (`CardOffers.h`), which the garage's stock draws on already.
+
 ## Provisional calls
 
 None of these is in a spec. They're calls 210 to 214 and 220 in [gameplay-calls.md](../gameplay-calls.md).
